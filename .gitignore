@@ -1,0 +1,13 @@
+# Binaries
+/redfort
+*.exe
+*.out
+
+# Go
+/vendor/
+
+# Editor / OS
+.DS_Store
+*.swp
+.idea/
+.vscode/
