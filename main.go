@@ -1,4 +1,4 @@
-// Command redfort runs the Mars colony simulation with a Bubble Tea terminal UI.
+// Command mars-sim runs the Mars colony simulation with a Bubble Tea terminal UI.
 //
 // Architecture: the simulation runs in its own goroutine (the Engine) and never
 // shares mutable state with the UI. Frontends subscribe for immutable Snapshots
@@ -13,8 +13,8 @@ import (
 	"os"
 	"time"
 
-	"github.com/kevinmchugh/redfort/internal/sim"
-	"github.com/kevinmchugh/redfort/internal/ui/tui"
+	"github.com/kevinmchugh/mars-sim/internal/sim"
+	"github.com/kevinmchugh/mars-sim/internal/ui/tui"
 
 	tea "github.com/charmbracelet/bubbletea"
 )
@@ -48,7 +48,7 @@ func main() {
 
 	if err := runTUI(eng, snaps, *duration); err != nil {
 		cancel()
-		fmt.Fprintln(os.Stderr, "redfort:", err)
+		fmt.Fprintln(os.Stderr, "mars-sim:", err)
 		os.Exit(1)
 	}
 }
@@ -79,7 +79,7 @@ func runHeadless(snaps <-chan *sim.Snapshot, duration time.Duration) {
 	defer report.Stop()
 
 	var latest *sim.Snapshot
-	fmt.Println("redfort headless: simulating (Ctrl+C to stop)")
+	fmt.Println("mars-sim headless: simulating (Ctrl+C to stop)")
 	for {
 		select {
 		case s, ok := <-snaps:

@@ -1,4 +1,4 @@
-module github.com/kevinmchugh/redfort
+module github.com/kevinmchugh/mars-sim
 
 go 1.27.1
 

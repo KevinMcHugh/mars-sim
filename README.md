@@ -1,4 +1,4 @@
-# Red Fort
+# mars-sim
 
 A Mars-colonization simulation game, in the vein of Dwarf Fortress / RimWorld /
 Crusader Kings — corporate espionage, buried secrets, and mutants under the

@@ -1,7 +1,7 @@
 package tui
 
 import (
-	"github.com/kevinmchugh/redfort/internal/sim"
+	"github.com/kevinmchugh/mars-sim/internal/sim"
 
 	tea "github.com/charmbracelet/bubbletea"
 )

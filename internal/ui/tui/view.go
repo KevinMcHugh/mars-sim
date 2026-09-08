@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/kevinmchugh/redfort/internal/sim"
+	"github.com/kevinmchugh/mars-sim/internal/sim"
 
 	"github.com/charmbracelet/lipgloss"
 )
@@ -53,7 +53,7 @@ func (m Model) viewportTiles() (cols, rows int) {
 
 func (m Model) render() string {
 	if m.latest == nil || m.termW == 0 {
-		return "Booting Red Fort colony simulation...\n"
+		return "Booting Mars colony simulation...\n"
 	}
 
 	mapBlock := m.renderMap()
@@ -69,7 +69,7 @@ func (m Model) render() string {
 
 func (m Model) renderHeader() string {
 	s := m.latest
-	title := titleStyle.Render("\U0001F534 RED FORT")
+	title := titleStyle.Render("\U0001F534 MARS-SIM")
 	sub := statStyle.Render("Mars Colony")
 
 	state := fmt.Sprintf("tick %d  |  %d tps", s.Tick, s.TicksPerSecond)

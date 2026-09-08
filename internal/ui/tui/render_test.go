@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/kevinmchugh/redfort/internal/sim"
+	"github.com/kevinmchugh/mars-sim/internal/sim"
 
 	tea "github.com/charmbracelet/bubbletea"
 )
@@ -46,7 +46,7 @@ func TestViewRendersEntities(t *testing.T) {
 	if !strings.Contains(out, glyphAlien) {
 		t.Error("expected an alien glyph in the rendered view")
 	}
-	if !strings.Contains(out, "RED FORT") {
+	if !strings.Contains(out, "MARS-SIM") {
 		t.Error("expected the title in the header")
 	}
 }

@@ -1,6 +1,6 @@
 package tui
 
-import "github.com/kevinmchugh/redfort/internal/sim"
+import "github.com/kevinmchugh/mars-sim/internal/sim"
 
 // Every glyph is chosen to render two terminal cells wide so the grid stays
 // aligned. Open floor is two spaces (also two cells), which reads as empty
