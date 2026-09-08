@@ -5,22 +5,15 @@ import (
 	"sort"
 )
 
-// step advances the world by one tick: every living entity takes a turn, then
-// the dead are already gone (removed the moment they are eaten). Entities act in
-// ascending ID order so that a given seed always produces the same run.
+// step advances the world by one tick: every living entity takes a turn in
+// ascending ID order so a given seed always produces the same run. The dead are
+// removed the moment they are eaten or starve, so we re-check liveness as we go.
 func (w *World) step() {
 	w.tick++
-
-	ids := make([]EntityID, 0, len(w.entities))
-	for id := range w.entities {
-		ids = append(ids, id)
-	}
-	sort.Slice(ids, func(i, j int) bool { return ids[i] < ids[j] })
-
-	for _, id := range ids {
+	for _, id := range w.entityIDsSorted() {
 		e := w.entities[id]
 		if e == nil || !e.Alive() {
-			continue // eaten earlier this tick
+			continue
 		}
 		switch e.Kind {
 		case Colonist:
@@ -31,102 +24,227 @@ func (w *World) step() {
 	}
 }
 
+// entityIDsSorted returns current entity IDs in ascending order.
+func (w *World) entityIDsSorted() []EntityID {
+	ids := make([]EntityID, 0, len(w.entities))
+	for id := range w.entities {
+		ids = append(ids, id)
+	}
+	sort.Slice(ids, func(i, j int) bool { return ids[i] < ids[j] })
+	return ids
+}
+
 // ---- Colonists ---------------------------------------------------------------
 
 func (w *World) colonistTurn(e *Entity) {
+	w.applyNeeds(e)
+	if !e.Alive() { // starved this tick
+		w.remove(e.ID)
+		w.log.add(fmt.Sprintf("Colonist #%d starved to death.", e.ID))
+		return
+	}
+
 	// Survival comes first: if an alien is close, drop everything and run.
 	if threat, ok := w.nearestAlien(e.Pos, w.cfg.FleeRadius); ok {
-		e.State = Fleeing
-		e.HasTarget = false
-		e.Progress = 0
+		e.State, e.Job, e.Progress = Fleeing, JobNone, 0
 		w.fleeStep(e, threat.Pos)
 		return
 	}
 
-	// No current job? Decide on one.
-	if !e.HasTarget {
-		w.assignColonistJob(e)
-		if !e.HasTarget {
-			e.State = Idle
-			w.wanderStep(e)
-			return
+	// A pressing need preempts work. If it is not already being handled, head to
+	// the right facility — or, if none exists yet, build one rather than perish.
+	if need, urgent := w.mostUrgentNeed(e); urgent && !(e.Job == JobUse && e.Need == need) {
+		spec := w.cfg.Needs[need]
+		if pos, ok := w.nearestFacility(e.Pos, spec.Facility); ok {
+			e.Job, e.Need, e.Target, e.Progress = JobUse, need, pos, 0
+		} else if spot, ok := w.findBuildSpot(e.Pos, 20); ok {
+			e.Job, e.BuildKind, e.Target, e.Progress = JobBuild, spec.Facility, spot, 0
 		}
 	}
 
-	switch e.State {
-	case Mining:
-		w.doMining(e)
-	case Building:
-		w.doBuilding(e)
+	if e.Job == JobNone {
+		w.assignWorkJob(e)
+	}
+	w.runJob(e)
+}
+
+// runJob executes the colonist's current job for one tick.
+func (w *World) runJob(e *Entity) {
+	switch e.Job {
+	case JobMine:
+		w.jobMine(e)
+	case JobBuild:
+		w.jobBuild(e)
+	case JobUse:
+		w.jobUse(e)
 	default:
-		// Moving toward a job site.
-		w.travelToJob(e)
+		e.State = Idle
+		w.wanderStep(e)
 	}
 }
 
-// assignColonistJob picks a new mining or building task and sets the colonist's
-// Target/State, or leaves HasTarget false if nothing suitable is nearby.
-func (w *World) assignColonistJob(e *Entity) {
+// assignWorkJob picks something productive to do: keep the colony's life-support
+// stocked first, then occasionally wall things off, otherwise mine. Leaves
+// JobNone if nothing suitable is nearby.
+func (w *World) assignWorkJob(e *Entity) {
 	e.Progress = 0
+	desired := w.desiredFacilities(w.countKind(Colonist))
+
+	if w.plannedFacilities(NutrientPod) < desired {
+		if spot, ok := w.findBuildSpot(e.Pos, 16); ok {
+			e.Job, e.BuildKind, e.Target = JobBuild, NutrientPod, spot
+			return
+		}
+	}
+	if w.plannedFacilities(Toilet) < desired {
+		if spot, ok := w.findBuildSpot(e.Pos, 16); ok {
+			e.Job, e.BuildKind, e.Target = JobBuild, Toilet, spot
+			return
+		}
+	}
 	if w.rng.Intn(100) < w.cfg.BuildChance {
 		if spot, ok := w.findBuildSpot(e.Pos, 12); ok {
-			e.Target, e.HasTarget, e.State = spot, true, Moving
+			e.Job, e.BuildKind, e.Target = JobBuild, Wall, spot
 			return
 		}
 	}
 	if rock, ok := w.findMineable(e.Pos, 18); ok {
-		e.Target, e.HasTarget, e.State = rock, true, Moving
+		e.Job, e.Target = JobMine, rock
 		return
 	}
-	e.HasTarget = false
+	e.Job = JobNone
 }
 
-// travelToJob walks one step toward the current Target and switches to the work
-// state once adjacent. It abandons the job if it cannot make progress (greedy
-// movement can get boxed in; the colonist simply picks a new task next tick).
-func (w *World) travelToJob(e *Entity) {
-	// Mining is done from an adjacent floor tile; building is done from an
-	// adjacent tile as well. Either way, "close enough" means adjacent.
-	if e.Pos.Adjacent(e.Target) {
-		// Arrived. Choose the work state based on the target terrain.
-		if w.TerrainAt(e.Target) == Rock {
-			e.State = Mining
-		} else {
-			e.State = Building
+// plannedFacilities counts a facility kind that already exists plus those a
+// colonist is currently building, so the colony converges on the desired number
+// instead of every idle colonist starting one at the same instant.
+func (w *World) plannedFacilities(kind Terrain) int {
+	n := w.countTerrain(kind)
+	for _, e := range w.entities {
+		if e.Kind == Colonist && e.Job == JobBuild && e.BuildKind == kind {
+			n++
 		}
-		return
 	}
-	before := e.Pos.Chebyshev(e.Target)
-	moved := w.walkStep(e, e.Target)
-	if !moved || e.Pos.Chebyshev(e.Target) >= before {
-		e.HasTarget = false // stuck; repick next tick
-	}
+	return n
 }
 
-func (w *World) doMining(e *Entity) {
-	// The target may have been mined by someone else, or we drifted away.
-	if w.TerrainAt(e.Target) != Rock || !e.Pos.Adjacent(e.Target) {
-		e.HasTarget = false
+// desiredFacilities is how many of each life-support structure the colony wants
+// for a given headcount (at least one).
+func (w *World) desiredFacilities(colonists int) int {
+	d := colonists / w.cfg.ColonistsPerFacility
+	if d < 1 {
+		d = 1
+	}
+	return d
+}
+
+func (w *World) jobMine(e *Entity) {
+	if w.TerrainAt(e.Target) != Rock { // already mined by someone
+		e.Job = JobNone
 		return
 	}
+	adj, stuck := w.approach(e, e.Target)
+	if stuck {
+		e.Job = JobNone
+		return
+	}
+	if !adj {
+		e.State = Moving
+		return
+	}
+	e.State = Mining
 	e.Progress++
 	if e.Progress >= w.cfg.MineTicks {
 		w.SetTerrain(e.Target, Floor)
-		e.HasTarget, e.Progress, e.State = false, 0, Idle
+		e.Job, e.Progress = JobNone, 0
 	}
 }
 
-func (w *World) doBuilding(e *Entity) {
-	// Can only build on still-open, unoccupied floor next to us.
-	if w.TerrainAt(e.Target) != Floor || !e.Pos.Adjacent(e.Target) || w.occupied(e.Target) {
-		e.HasTarget = false
+func (w *World) jobBuild(e *Entity) {
+	if w.TerrainAt(e.Target) != Floor { // already built, or no longer valid
+		e.Job = JobNone
 		return
 	}
-	e.Progress++
-	if e.Progress >= w.cfg.BuildTicks {
-		w.SetTerrain(e.Target, Wall)
-		e.HasTarget, e.Progress, e.State = false, 0, Idle
+	adj, stuck := w.approach(e, e.Target)
+	if stuck {
+		e.Job = JobNone
+		return
 	}
+	if !adj {
+		e.State = Moving
+		return
+	}
+	if w.occupiedByOther(e.Target, e.ID) { // can't build where someone stands
+		e.Job = JobNone
+		return
+	}
+	e.State = Building
+	e.Progress++
+	if e.Progress >= w.buildTicks(e.BuildKind) {
+		w.SetTerrain(e.Target, e.BuildKind)
+		w.noteBuild(e.BuildKind)
+		e.Job, e.Progress = JobNone, 0
+	}
+}
+
+func (w *World) jobUse(e *Entity) {
+	spec := w.cfg.Needs[e.Need]
+	if w.TerrainAt(e.Target) != spec.Facility { // facility gone; reconsider
+		e.Job = JobNone
+		return
+	}
+	adj, stuck := w.approach(e, e.Target)
+	if stuck {
+		e.Job = JobNone
+		return
+	}
+	if !adj {
+		e.State = Moving
+		return
+	}
+	e.State = useState(e.Need)
+	e.Progress++
+	if e.Progress >= spec.UseTicks {
+		e.Needs[e.Need] = 0
+		e.Job, e.Progress = JobNone, 0
+	}
+}
+
+// buildTicks is how long a given structure takes to raise.
+func (w *World) buildTicks(kind Terrain) int {
+	if kind == Wall {
+		return w.cfg.BuildTicks
+	}
+	return w.cfg.FacilityBuildTicks
+}
+
+// noteBuild logs the completion of notable structures.
+func (w *World) noteBuild(kind Terrain) {
+	switch kind {
+	case NutrientPod:
+		w.log.add("A nutrient pod comes online.")
+	case Toilet:
+		w.log.add("A latrine is installed.")
+	}
+}
+
+// approach moves one walkable step toward target and reports whether the entity
+// is now adjacent to it. stuck is true when it could get no closer and is not
+// adjacent, signalling the caller to abandon the job (greedy movement can box
+// itself in; the colonist simply repicks next tick).
+func (w *World) approach(e *Entity, target Point) (adjacent, stuck bool) {
+	if e.Pos.Adjacent(target) {
+		return true, false
+	}
+	before := e.Pos.Chebyshev(target)
+	moved := w.walkStep(e, target)
+	if e.Pos.Adjacent(target) {
+		return true, false
+	}
+	if !moved || e.Pos.Chebyshev(target) >= before {
+		return false, true
+	}
+	return false, false
 }
 
 // findMineable returns the nearest Rock tile that borders open Floor (so a
@@ -135,10 +253,7 @@ func (w *World) findMineable(from Point, radius int) (Point, bool) {
 	best, found := Point{}, false
 	bestDist := radius + 1
 	for _, p := range w.scanRadius(from, radius) {
-		if w.TerrainAt(p) != Rock {
-			continue
-		}
-		if !w.bordersFloor(p) {
+		if w.TerrainAt(p) != Rock || !w.bordersFloor(p) {
 			continue
 		}
 		if d := from.Chebyshev(p); d < bestDist {
@@ -149,7 +264,7 @@ func (w *World) findMineable(from Point, radius int) (Point, bool) {
 }
 
 // findBuildSpot returns the nearest open Floor tile that sits against Rock or
-// Wall, i.e. an edge where a new wall would extend structure rather than plug a
+// Wall — an edge where new structure extends the colony rather than plugging a
 // walkway at random. The colonist's own tile is excluded.
 func (w *World) findBuildSpot(from Point, radius int) (Point, bool) {
 	best, found := Point{}, false
@@ -181,8 +296,8 @@ func (w *World) bordersFloor(p Point) bool {
 // bordersSolid reports whether p has at least one Rock or Wall neighbor.
 func (w *World) bordersSolid(p Point) bool {
 	for _, d := range neighbors8 {
-		t := w.TerrainAt(p.Add(d.X, d.Y))
-		if t == Rock || t == Wall {
+		switch w.TerrainAt(p.Add(d.X, d.Y)) {
+		case Rock, Wall:
 			return true
 		}
 	}
@@ -199,8 +314,7 @@ func (w *World) alienTurn(e *Entity) {
 
 	prey, ok := w.nearestColonist(e.Pos, 1<<30)
 	if !ok {
-		e.State = Idle
-		e.Quarry = 0
+		e.State, e.Quarry = Idle, 0
 		w.wanderStep(e)
 		e.Cooldown = w.cfg.AlienSlowness - 1
 		return
@@ -263,8 +377,6 @@ func (w *World) burrowStep(e *Entity, dest Point) {
 		e.Pos = target
 		return
 	}
-	// Preferred step is blocked by another alien; try any inbound neighbor that
-	// gets us closer.
 	bestDist := e.Pos.Chebyshev(dest)
 	best := e.Pos
 	for _, d := range neighbors8 {
@@ -300,7 +412,7 @@ func (w *World) fleeStep(e *Entity, threat Point) {
 // anywhere. Used when there is nothing better to do.
 func (w *World) wanderStep(e *Entity) {
 	if w.rng.Intn(2) == 0 {
-		return // often just stay put, so idlers do not jitter constantly
+		return // often stay put so idlers do not jitter constantly
 	}
 	d := neighbors8[w.rng.Intn(len(neighbors8))]
 	n := e.Pos.Add(d.X, d.Y)
@@ -360,9 +472,20 @@ func (w *World) occupiedByKind(p Point, kind Kind, self EntityID) bool {
 	return false
 }
 
-// scanRadius returns the tiles within a square radius of center that lie in
-// bounds, nearest rings first so callers that want the closest match can stop
-// early if they wish.
+// sortedEntities returns all entities ordered by ascending ID. Used wherever
+// iteration order would otherwise leak into game state (e.g. tie-breaking the
+// nearest target), keeping runs reproducible for a given seed.
+func (w *World) sortedEntities() []*Entity {
+	out := make([]*Entity, 0, len(w.entities))
+	for _, e := range w.entities {
+		out = append(out, e)
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].ID < out[j].ID })
+	return out
+}
+
+// scanRadius returns the in-bounds tiles within a square radius of center,
+// nearest rings first.
 func (w *World) scanRadius(center Point, radius int) []Point {
 	pts := make([]Point, 0, (2*radius+1)*(2*radius+1))
 	for r := 1; r <= radius; r++ {
@@ -379,16 +502,4 @@ func (w *World) scanRadius(center Point, radius int) []Point {
 		}
 	}
 	return pts
-}
-
-// sortedEntities returns all entities ordered by ascending ID. Used wherever
-// iteration order would otherwise leak into game state (e.g. tie-breaking the
-// nearest target), keeping runs reproducible for a given seed.
-func (w *World) sortedEntities() []*Entity {
-	out := make([]*Entity, 0, len(w.entities))
-	for _, e := range w.entities {
-		out = append(out, e)
-	}
-	sort.Slice(out, func(i, j int) bool { return out[i].ID < out[j].ID })
-	return out
 }

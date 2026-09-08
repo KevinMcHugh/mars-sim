@@ -44,21 +44,23 @@ func TestGenerateStartingState(t *testing.T) {
 	}
 }
 
-// Over many ticks colonists should excavate additional floor. We remove aliens
-// first so nobody gets eaten mid-dig, isolating the mining behavior.
+// Over many ticks colonists should excavate rock. We measure remaining rock
+// (which only ever decreases as they dig) rather than floor, since floor is also
+// consumed when they build walls and facilities on top of it. Aliens are removed
+// so nobody is eaten mid-dig.
 func TestColonistsExcavate(t *testing.T) {
 	cfg := testConfig()
 	cfg.StartAliens = 0
 	w := newTestWorld(t, cfg)
 
-	start := floorCount(w)
+	start := w.countTerrain(Rock)
 	for i := 0; i < 400; i++ {
 		w.step()
 	}
-	end := floorCount(w)
+	end := w.countTerrain(Rock)
 
-	if end <= start {
-		t.Fatalf("colonists did not excavate: floor %d -> %d", start, end)
+	if end >= start {
+		t.Fatalf("colonists did not excavate: rock %d -> %d", start, end)
 	}
 }
 
@@ -158,4 +160,70 @@ func floorCount(w *World) int {
 		}
 	}
 	return n
+}
+
+// A hungry colonist standing by a nutrient pod should eat and reset its food
+// need instead of starving.
+func TestColonistUsesNutrientPod(t *testing.T) {
+	cfg := testConfig()
+	cfg.StartColonists, cfg.StartAliens = 0, 0
+	w := newTestWorld(t, cfg)
+
+	center := Point{w.Width / 2, w.Height / 2}
+	stand := center.Add(1, 0)
+	w.SetTerrain(center, NutrientPod)
+	w.SetTerrain(stand, Floor)
+
+	c := w.spawn(Colonist, stand)
+	c.Needs[NeedFood] = cfg.Needs[NeedFood].Max // ravenous
+
+	for i := 0; i < cfg.Needs[NeedFood].UseTicks+10; i++ {
+		w.step()
+	}
+	if w.entities[c.ID] == nil {
+		t.Fatal("colonist starved next to a working nutrient pod")
+	}
+	if c.Needs[NeedFood] >= cfg.Needs[NeedFood].SeekAt {
+		t.Fatalf("food need not satisfied: %d", c.Needs[NeedFood])
+	}
+}
+
+// Left to their own devices, colonists should build the colony's life-support:
+// at least one nutrient pod and one toilet.
+func TestColonyBuildsLifeSupport(t *testing.T) {
+	cfg := testConfig()
+	cfg.StartAliens = 0
+	w := newTestWorld(t, cfg)
+
+	for i := 0; i < 900; i++ {
+		w.step()
+	}
+	if got := w.countTerrain(NutrientPod); got < 1 {
+		t.Fatalf("colony built no nutrient pods after 900 ticks")
+	}
+	if got := w.countTerrain(Toilet); got < 1 {
+		t.Fatalf("colony built no toilets after 900 ticks")
+	}
+}
+
+// A colonist sealed away from any rock to mine or space to build cannot feed
+// itself and must eventually starve, exercising the fatal-need path.
+func TestColonistStarvesWhenTrapped(t *testing.T) {
+	cfg := testConfig()
+	cfg.StartColonists, cfg.StartAliens = 0, 0
+	w := newTestWorld(t, cfg)
+
+	center := Point{w.Width / 2, w.Height / 2}
+	w.SetTerrain(center, Floor)
+	for _, d := range neighbors8 {
+		w.SetTerrain(center.Add(d.X, d.Y), Wall) // sealed pocket: no rock, no room
+	}
+	c := w.spawn(Colonist, center)
+
+	for i := 0; i < 1500 && w.entities[c.ID] != nil; i++ {
+		w.step()
+	}
+	if w.entities[c.ID] != nil {
+		t.Fatalf("trapped colonist survived with HP %d, food %d", c.HP, c.Needs[NeedFood])
+	}
 }

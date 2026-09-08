@@ -22,7 +22,7 @@ Terminal controls:
 | arrows / `hjkl`| pan the camera                  |
 | `q` / `esc`    | quit                            |
 
-Glyphs: 👷 colonist · 😱 fleeing colonist · 👽 alien · 🟫 rock · 🧱 wall · blank = open floor.
+Glyphs: 👷 colonist · 😱 fleeing colonist · 👽 alien · 🟫 rock · 🧱 wall · 🍽️ nutrient pod · 🚽 toilet · blank = open floor.
 
 > The map uses one emoji per tile so it stays aligned. If it looks sheared, your
 > terminal is sizing emoji as a single cell instead of two.
@@ -61,10 +61,30 @@ mutable state:
   rather than a strict ECS — pragmatic for a scaffold, and fields can graduate
   into real components as systems grow. Per-tick behavior lives in
   `systems.go`.
-  - **Colonists** walk only on floor. They mine rock into floor, build walls
-    along edges, and flee when an alien gets close.
+  - **Colonists** walk only on floor. They mine rock into floor, build walls and
+    facilities along edges, tend to their needs, and flee when an alien gets
+    close.
   - **Aliens** burrow through *any* terrain to reach the nearest colonist and
     eat it.
+
+#### Needs
+
+Colonists accumulate **needs** over time, stored as a `Needs` array indexed by
+`NeedKind` (`internal/sim/needs.go`). Each need has a `NeedSpec` in `Config`
+describing how fast it rises, when the colonist drops work to address it, which
+facility satisfies it, and whether maxing out is fatal:
+
+| Need    | Facility          | Fatal?                 |
+| ------- | ----------------- | ---------------------- |
+| food    | 🍽️ nutrient pod   | yes — starvation drains HP |
+| bladder | 🚽 toilet         | no (nags only, for now)    |
+
+When a need crosses its threshold the colonist walks to the nearest matching
+facility and uses it, resetting the need. Facilities are ordinary buildable
+structures (built from rock like walls — no material inventory yet). The colony
+keeps enough life-support stocked for its population, and a hungry colonist with
+nowhere to eat will build a pod rather than starve. Adding a new need is meant to
+be a table edit: append a `NeedKind`, give it a `NeedSpec` and a facility.
 - All tunables (world size, populations, HP, dig/build times, alien speed) live
   in `Config` (`config.go`). Runs are deterministic for a given `Seed`.
 

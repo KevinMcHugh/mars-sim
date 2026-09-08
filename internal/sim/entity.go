@@ -5,10 +5,10 @@ package sim
 type Kind uint8
 
 const (
-	// Colonist is a human worker. They walk on Floor, mine Rock, build Walls,
-	// and flee from aliens.
+	// Colonist is a human worker: walks on Floor, mines Rock, builds structures,
+	// tends to its needs, and flees from aliens.
 	Colonist Kind = iota
-	// Alien is a subterranean mutant. It burrows through any terrain to hunt
+	// Alien is a subterranean mutant that burrows through any terrain to hunt
 	// and eat colonists.
 	Alien
 )
@@ -24,18 +24,20 @@ func (k Kind) String() string {
 	}
 }
 
-// State is a coarse label for what an entity is currently doing. It drives the
-// simple per-kind state machines in systems.go and is surfaced in the UI.
+// State is a coarse label for what an entity is currently doing. It is derived
+// from the entity's Job each tick and surfaced in the UI.
 type State uint8
 
 const (
-	Idle     State = iota
-	Moving         // travelling toward Target
-	Mining         // excavating Rock at Target
-	Building       // constructing a Wall at Target
-	Fleeing        // running away from a nearby alien
-	Hunting        // (alien) closing on a colonist
-	Feeding        // (alien) eating a colonist it has caught
+	Idle      State = iota
+	Moving          // travelling toward Target
+	Mining          // excavating Rock
+	Building        // constructing a structure
+	Eating          // using a nutrient pod
+	Relieving       // using a toilet
+	Fleeing         // running from a nearby alien
+	Hunting         // (alien) closing on a colonist
+	Feeding         // (alien) eating a colonist it has caught
 )
 
 func (s State) String() string {
@@ -48,6 +50,10 @@ func (s State) String() string {
 		return "mining"
 	case Building:
 		return "building"
+	case Eating:
+		return "eating"
+	case Relieving:
+		return "relieving"
 	case Fleeing:
 		return "fleeing"
 	case Hunting:
@@ -59,13 +65,24 @@ func (s State) String() string {
 	}
 }
 
+// JobKind is the task a colonist is currently committed to. It is the single
+// source of truth for behavior; State is just a display projection of it.
+type JobKind uint8
+
+const (
+	JobNone  JobKind = iota
+	JobMine          // excavate the Rock tile at Target
+	JobBuild         // construct BuildKind on the Floor tile at Target
+	JobUse           // walk to the facility at Target and satisfy Need
+)
+
 // EntityID uniquely identifies an entity for its lifetime. IDs are never reused.
 type EntityID uint64
 
 // Entity is a single actor in the world. Rather than a strict ECS, we use one
-// struct with a shared set of fields that the systems interpret according to
-// Kind. This keeps the scaffold readable; fields can graduate into real
-// components as systems multiply.
+// struct whose fields the systems interpret according to Kind. This keeps the
+// scaffold readable; fields can graduate into real components as systems
+// multiply.
 type Entity struct {
 	ID   EntityID
 	Kind Kind
@@ -74,13 +91,21 @@ type Entity struct {
 	HP    int
 	MaxHP int
 
-	// Behavior scratch space, meaning depends on Kind/State.
-	State     State
-	Target    Point    // a tile of interest (dig/build/move destination)
-	HasTarget bool     // whether Target is meaningful
-	Quarry    EntityID // (alien) the colonist being hunted; 0 if none
-	Progress  int      // ticks accumulated on the current Mining/Building job
-	Cooldown  int      // ticks until this entity may act again
+	// Needs holds each need's current level (0 = satisfied, up to the need's
+	// Max), indexed by NeedKind. Colonists only.
+	Needs [numNeeds]int
+
+	// Current job and its parameters.
+	Job       JobKind
+	Target    Point    // tile the job operates on or travels to
+	BuildKind Terrain  // JobBuild: terrain to construct
+	Need      NeedKind // JobUse: which need this fulfills
+	Progress  int      // ticks accumulated on the current action
+
+	// Display + shared behavior scratch.
+	State    State
+	Quarry   EntityID // (alien) the colonist being hunted; 0 if none
+	Cooldown int      // (alien) paces movement/biting
 }
 
 // newEntity builds an entity with kind-appropriate starting stats.

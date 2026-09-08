@@ -7,9 +7,11 @@ import "github.com/kevinmchugh/mars-sim/internal/sim"
 // cavern against the solid terrain. Some terminals size emoji differently; if
 // the grid ever looks sheared, that is the cause.
 const (
-	glyphRock  = "\U0001F7EB" // 🟫 unexcavated regolith
-	glyphFloor = "  "         // open, walkable space
-	glyphWall  = "\U0001F9F1" // 🧱 built wall
+	glyphRock   = "\U0001F7EB"       // 🟫 unexcavated regolith
+	glyphFloor  = "  "               // open, walkable space
+	glyphWall   = "\U0001F9F1"       // 🧱 built wall
+	glyphPod    = "\U0001F37D\uFE0F" // 🍽️ nutrient pod (food)
+	glyphToilet = "\U0001F6BD"       // 🚽 toilet (bladder)
 
 	glyphColonist = "\U0001F477" // 👷 colonist at work
 	glyphFleeing  = "\U0001F631" // 😱 colonist running from an alien
@@ -22,6 +24,10 @@ func terrainGlyph(t sim.Terrain) string {
 		return glyphFloor
 	case sim.Wall:
 		return glyphWall
+	case sim.NutrientPod:
+		return glyphPod
+	case sim.Toilet:
+		return glyphToilet
 	default:
 		return glyphRock
 	}

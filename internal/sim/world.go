@@ -15,6 +15,11 @@ const (
 	// Wall is a built structure. Blocks colonist movement like Rock, but it is
 	// constructed rather than natural.
 	Wall
+	// NutrientPod dispenses food; a colonist stands beside it to eat. Blocks
+	// movement like a wall.
+	NutrientPod
+	// Toilet relieves the bladder need; used from an adjacent tile.
+	Toilet
 )
 
 // Walkable reports whether a colonist can stand on this terrain. Aliens ignore
@@ -117,4 +122,34 @@ func (w *World) countKind(kind Kind) int {
 		}
 	}
 	return n
+}
+
+// countTerrain returns how many tiles currently hold the given terrain.
+func (w *World) countTerrain(t Terrain) int {
+	n := 0
+	for _, tile := range w.tiles {
+		if tile.Terrain == t {
+			n++
+		}
+	}
+	return n
+}
+
+// nearestFacility returns the closest tile of terrain t to from, if any exists.
+func (w *World) nearestFacility(from Point, t Terrain) (Point, bool) {
+	best := Point{}
+	bestDist := 1 << 30
+	found := false
+	for y := 0; y < w.Height; y++ {
+		for x := 0; x < w.Width; x++ {
+			p := Point{x, y}
+			if w.tiles[w.index(p)].Terrain != t {
+				continue
+			}
+			if d := from.Chebyshev(p); d < bestDist {
+				best, bestDist, found = p, d, true
+			}
+		}
+	}
+	return best, found
 }

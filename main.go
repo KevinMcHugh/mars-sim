@@ -89,13 +89,15 @@ func runHeadless(snaps <-chan *sim.Snapshot, duration time.Duration) {
 			latest = s
 		case <-report.C:
 			if latest != nil {
-				fmt.Printf("tick %5d | colonists %2d | aliens %2d | excavated %5d\n",
-					latest.Tick, latest.Stats.Colonists, latest.Stats.Aliens, latest.Stats.FloorDug)
+				fmt.Printf("tick %5d | colonists %2d | aliens %2d | pods %d | toilets %d | excavated %5d\n",
+					latest.Tick, latest.Stats.Colonists, latest.Stats.Aliens,
+					latest.Stats.Pods, latest.Stats.Toilets, latest.Stats.FloorDug)
 			}
 		case <-deadline:
 			if latest != nil {
-				fmt.Printf("done at tick %d: colonists %d, aliens %d, excavated %d tiles\n",
-					latest.Tick, latest.Stats.Colonists, latest.Stats.Aliens, latest.Stats.FloorDug)
+				fmt.Printf("done at tick %d: colonists %d, aliens %d, pods %d, toilets %d, excavated %d tiles\n",
+					latest.Tick, latest.Stats.Colonists, latest.Stats.Aliens,
+					latest.Stats.Pods, latest.Stats.Toilets, latest.Stats.FloorDug)
 			}
 			return
 		}

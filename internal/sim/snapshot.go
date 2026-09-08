@@ -9,6 +9,7 @@ type EntityView struct {
 	HP    int
 	MaxHP int
 	State State
+	Needs [numNeeds]int
 }
 
 // Stats summarizes the world at a glance for the UI header.
@@ -16,6 +17,8 @@ type Stats struct {
 	Colonists int
 	Aliens    int
 	FloorDug  int // tiles of Floor that exist (excavation progress)
+	Pods      int // nutrient pods built
+	Toilets   int // toilets built
 }
 
 // Snapshot is an immutable, self-contained picture of the world at one tick.
@@ -49,14 +52,17 @@ func (w *World) snapshot(paused bool, tps int) *Snapshot {
 	copy(tiles, w.tiles)
 
 	ents := make([]EntityView, 0, len(w.entities))
-	floor := 0
+	stats := Stats{}
 	for _, t := range tiles {
-		if t.Terrain == Floor {
-			floor++
+		switch t.Terrain {
+		case Floor:
+			stats.FloorDug++
+		case NutrientPod:
+			stats.Pods++
+		case Toilet:
+			stats.Toilets++
 		}
 	}
-
-	stats := Stats{FloorDug: floor}
 	for _, e := range w.entities {
 		ents = append(ents, EntityView{
 			ID:    e.ID,
@@ -65,6 +71,7 @@ func (w *World) snapshot(paused bool, tps int) *Snapshot {
 			HP:    e.HP,
 			MaxHP: e.MaxHP,
 			State: e.State,
+			Needs: e.Needs,
 		})
 		switch e.Kind {
 		case Colonist:
