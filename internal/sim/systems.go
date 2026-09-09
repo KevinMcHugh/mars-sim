@@ -22,6 +22,7 @@ func (w *World) step() {
 			w.alienTurn(e)
 		}
 	}
+	w.refreshSpatial() // fold in any digging/building from this tick
 }
 
 // entityIDsSorted returns current entity IDs in ascending order.

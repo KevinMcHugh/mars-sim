@@ -19,6 +19,7 @@ type Stats struct {
 	FloorDug  int // tiles of Floor that exist (excavation progress)
 	Pods      int // nutrient pods built
 	Toilets   int // toilets built
+	Rooms     int // distinct rooms (connected floor areas)
 }
 
 // Snapshot is an immutable, self-contained picture of the world at one tick.
@@ -52,7 +53,7 @@ func (w *World) snapshot(paused bool, tps int) *Snapshot {
 	copy(tiles, w.tiles)
 
 	ents := make([]EntityView, 0, len(w.entities))
-	stats := Stats{}
+	stats := Stats{Rooms: w.roomCount}
 	for _, t := range tiles {
 		switch t.Terrain {
 		case Floor:

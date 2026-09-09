@@ -122,9 +122,14 @@ Measure it yourself:
 go test ./internal/sim/ -run '^$' -bench BenchmarkStep -benchmem
 ```
 
-Still to come (the reactive architecture): a region/room system for spatial
-queries, and an event-driven job board so colonists react to construction
-instead of rescanning the world each tick.
+In place now: a chunk-based entity spatial index (neighbor queries scan nearby
+chunks, not every entity) and a two-level region/room system (floor grouped into
+per-chunk regions, then rooms as connected components of the region graph),
+maintained incrementally in ~microseconds per terrain change.
+
+Still to come (the reactive architecture): an event bus + room-scoped job board
+so colonists react to construction instead of rescanning, and lazy needs with a
+preemption scheduler.
 
 ### Known scaffold limitations (next steps)
 

@@ -40,3 +40,22 @@ func benchmarkStep(b *testing.B, colonists int) {
 
 func BenchmarkStep500(b *testing.B)  { benchmarkStep(b, 500) }
 func BenchmarkStep2000(b *testing.B) { benchmarkStep(b, 2000) }
+
+// BenchmarkRoomRefresh measures the incremental cost of one terrain change in a
+// large open map: one chunk re-flooded plus a room relabel over the region
+// graph. It should stay flat as the map grows, unlike a global flood fill.
+func BenchmarkRoomRefresh(b *testing.B) {
+	w := benchWorld(0) // 160x160 with a large carved chamber, no colonists
+	w.refreshSpatial()
+	p := Point{w.Width / 2, w.Height / 2}
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		if i%2 == 0 {
+			w.SetTerrain(p, Wall)
+		} else {
+			w.SetTerrain(p, Floor)
+		}
+		w.refreshSpatial()
+	}
+}

@@ -77,8 +77,8 @@ func (m Model) renderHeader() string {
 		state += "  |  " + pausedStyle.Render("PAUSED")
 	}
 	counts := statStyle.Render(fmt.Sprintf(
-		"\U0001F477 %d   \U0001F47D %d   \U0001F37D\uFE0F %d   \U0001F6BD %d   excavated %d",
-		s.Stats.Colonists, s.Stats.Aliens, s.Stats.Pods, s.Stats.Toilets, s.Stats.FloorDug,
+		"\U0001F477 %d   \U0001F47D %d   \U0001F37D\uFE0F %d   \U0001F6BD %d   rooms %d   excavated %d",
+		s.Stats.Colonists, s.Stats.Aliens, s.Stats.Pods, s.Stats.Toilets, s.Stats.Rooms, s.Stats.FloorDug,
 	))
 
 	line1 := lipgloss.JoinHorizontal(lipgloss.Left, title, "  ", sub)

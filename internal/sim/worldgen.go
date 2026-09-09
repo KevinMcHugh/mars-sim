@@ -34,6 +34,7 @@ func generate(w *World) {
 	}
 
 	w.log.add("The colony ship settles onto the Martian crust. Something below stirs.")
+	w.refreshSpatial()
 }
 
 // randomFloorNear finds a random walkable tile within radius of origin. It gives

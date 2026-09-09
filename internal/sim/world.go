@@ -60,6 +60,19 @@ type World struct {
 	chunkCols, chunkRows int
 	chunkEntities        [][]EntityID
 
+	// Regions & rooms: floor tiles grouped into per-chunk regions, then into
+	// rooms (connected components of the region graph). Maintained incrementally
+	// as terrain changes so reachability queries stay cheap. See rooms.go.
+	regionOf    []RegionID // parallel to tiles; 0 = not floor / no region
+	regions     map[RegionID]*region
+	nextRegion  RegionID
+	dirtyChunks map[int]struct{} // chunks whose regions need recompute
+	roomCount   int
+
+	// Reusable scratch buffers for refreshSpatial (avoid per-call allocation).
+	floodStack  []Point
+	roomScratch []RegionID
+
 	entities map[EntityID]*Entity
 	nextID   EntityID
 
@@ -88,6 +101,11 @@ func newWorld(cfg Config, rng *rand.Rand) *World {
 	w.chunkCols = ceilDiv(cfg.Width, chunkSize)
 	w.chunkRows = ceilDiv(cfg.Height, chunkSize)
 	w.chunkEntities = make([][]EntityID, w.chunkCols*w.chunkRows)
+
+	w.regionOf = make([]RegionID, n)
+	w.regions = make(map[RegionID]*region)
+	w.nextRegion = 1
+	w.dirtyChunks = make(map[int]struct{})
 	return w
 }
 
@@ -125,6 +143,7 @@ func (w *World) SetTerrain(p Point, t Terrain) {
 	w.terrainCounts[old]--
 	w.terrainCounts[t]++
 	w.tiles[i].Terrain = t
+	w.dirtyChunks[w.chunkIndexOf(p)] = struct{}{}
 }
 
 // Walkable reports whether a colonist can stand at p.
