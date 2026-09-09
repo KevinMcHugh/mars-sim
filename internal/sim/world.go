@@ -55,6 +55,11 @@ type World struct {
 	terrainCounts [numTerrains]int
 	kindCounts    [numKinds]int
 
+	// Spatial index: entities bucketed by chunk, so neighbor queries scan only
+	// nearby chunks. chunkEntities is indexed by chunk (cy*chunkCols + cx).
+	chunkCols, chunkRows int
+	chunkEntities        [][]EntityID
+
 	entities map[EntityID]*Entity
 	nextID   EntityID
 
@@ -79,6 +84,10 @@ func newWorld(cfg Config, rng *rand.Rand) *World {
 		cfg:      cfg,
 	}
 	w.terrainCounts[Rock] = n // every tile starts as Rock
+
+	w.chunkCols = ceilDiv(cfg.Width, chunkSize)
+	w.chunkRows = ceilDiv(cfg.Height, chunkSize)
+	w.chunkEntities = make([][]EntityID, w.chunkCols*w.chunkRows)
 	return w
 }
 
@@ -145,9 +154,14 @@ func (w *World) moveEntity(e *Entity, to Point) {
 	if to.Equal(e.Pos) {
 		return
 	}
-	w.occ[w.index(e.Pos)] = 0
-	e.Pos = to
+	from := e.Pos
+	w.occ[w.index(from)] = 0
 	w.occ[w.index(to)] = e.ID
+	if oc, nc := w.chunkIndexOf(from), w.chunkIndexOf(to); oc != nc {
+		w.removeFromChunkIndex(oc, e.ID)
+		w.chunkEntities[nc] = append(w.chunkEntities[nc], e.ID)
+	}
+	e.Pos = to
 }
 
 // ---- Entities ----------------------------------------------------------------
@@ -160,6 +174,8 @@ func (w *World) spawn(kind Kind, p Point) *Entity {
 	w.entities[e.ID] = e
 	w.occ[w.index(p)] = e.ID
 	w.kindCounts[kind]++
+	ci := w.chunkIndexOf(p)
+	w.chunkEntities[ci] = append(w.chunkEntities[ci], e.ID)
 	return e
 }
 
@@ -171,6 +187,7 @@ func (w *World) remove(id EntityID) {
 	}
 	w.occ[w.index(e.Pos)] = 0
 	w.kindCounts[e.Kind]--
+	w.removeFromChunkIndex(w.chunkIndexOf(e.Pos), id)
 	delete(w.entities, id)
 }
 

@@ -434,19 +434,48 @@ func (w *World) nearestAlien(from Point, within int) (*Entity, bool) {
 func (w *World) nearestOfKind(from Point, kind Kind, within int) (*Entity, bool) {
 	var best *Entity
 	bestDist := within + 1
-	// Range the map directly (no per-call allocation) but break equal-distance
-	// ties toward the lower ID, so the result is deterministic regardless of map
-	// iteration order (same seed => same run).
-	for _, e := range w.entities {
-		if e.Kind != kind || !e.Alive() {
-			continue
+	fcx, fcy := from.X/chunkSize, from.Y/chunkSize
+	maxRing := w.chunkCols + w.chunkRows
+
+	// Expand in chunk rings around the query point. A chunk at ring r holds no
+	// cell closer than (r-1)*chunkSize+1, so once we have a candidate we can stop
+	// as soon as the next ring cannot beat it. Ties break toward the lower ID, so
+	// the result is deterministic regardless of bucket order.
+	for r := 0; r <= maxRing; r++ {
+		minPossible := 0
+		if r >= 1 {
+			minPossible = (r-1)*chunkSize + 1
 		}
-		d := from.Chebyshev(e.Pos)
-		if d > within {
-			continue
+		if minPossible > within || (best != nil && minPossible > bestDist) {
+			break
 		}
-		if best == nil || d < bestDist || (d == bestDist && e.ID < best.ID) {
-			best, bestDist = e, d
+		loRow, hiRow, loCol, hiCol := fcy-r, fcy+r, fcx-r, fcx+r
+		for cy := loRow; cy <= hiRow; cy++ {
+			if cy < 0 || cy >= w.chunkRows {
+				continue
+			}
+			onRowEdge := cy == loRow || cy == hiRow
+			for cx := loCol; cx <= hiCol; cx++ {
+				if cx < 0 || cx >= w.chunkCols {
+					continue
+				}
+				if !onRowEdge && cx != loCol && cx != hiCol {
+					continue // interior chunk, already covered by a smaller ring
+				}
+				for _, id := range w.chunkEntities[cy*w.chunkCols+cx] {
+					e := w.entities[id]
+					if e == nil || e.Kind != kind || !e.Alive() {
+						continue
+					}
+					d := from.Chebyshev(e.Pos)
+					if d > within {
+						continue
+					}
+					if best == nil || d < bestDist || (d == bestDist && e.ID < best.ID) {
+						best, bestDist = e, d
+					}
+				}
+			}
 		}
 	}
 	return best, best != nil

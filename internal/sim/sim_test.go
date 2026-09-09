@@ -2,6 +2,7 @@ package sim
 
 import (
 	"context"
+	"math/rand"
 	"testing"
 	"time"
 )
@@ -226,4 +227,61 @@ func TestColonistStarvesWhenTrapped(t *testing.T) {
 	if w.entities[c.ID] != nil {
 		t.Fatalf("trapped colonist survived with HP %d, food %d", c.HP, c.Needs[NeedFood])
 	}
+}
+
+// The chunk-spiral nearestOfKind must return exactly what a brute-force scan
+// would, including deterministic tie-breaking on ID. This guards the subtle
+// ring-stopping condition.
+func TestNearestMatchesBruteForce(t *testing.T) {
+	cfg := DefaultConfig()
+	cfg.Seed, cfg.Width, cfg.Height = 1, 120, 90
+	w := newWorld(cfg, rand.New(rand.NewSource(9)))
+
+	rng := rand.New(rand.NewSource(3))
+	for i := 0; i < 300; i++ {
+		p := Point{rng.Intn(w.Width), rng.Intn(w.Height)}
+		if w.occupied(p) {
+			continue
+		}
+		kind := Colonist
+		if rng.Intn(2) == 0 {
+			kind = Alien
+		}
+		w.spawn(kind, p)
+	}
+
+	for i := 0; i < 1000; i++ {
+		from := Point{rng.Intn(w.Width), rng.Intn(w.Height)}
+		within := rng.Intn(200) + 1
+		for _, kind := range []Kind{Colonist, Alien} {
+			got, gok := w.nearestOfKind(from, kind, within)
+			want, wok := bruteNearestOfKind(w, from, kind, within)
+			if gok != wok {
+				t.Fatalf("presence mismatch from=%v kind=%v within=%d: got %v want %v", from, kind, within, gok, wok)
+			}
+			if gok && (got.ID != want.ID) {
+				t.Fatalf("nearest mismatch from=%v kind=%v within=%d: got #%d @%v (d=%d) want #%d @%v (d=%d)",
+					from, kind, within, got.ID, got.Pos, from.Chebyshev(got.Pos),
+					want.ID, want.Pos, from.Chebyshev(want.Pos))
+			}
+		}
+	}
+}
+
+func bruteNearestOfKind(w *World, from Point, kind Kind, within int) (*Entity, bool) {
+	var best *Entity
+	bestDist := within + 1
+	for _, e := range w.entities {
+		if e.Kind != kind || !e.Alive() {
+			continue
+		}
+		d := from.Chebyshev(e.Pos)
+		if d > within {
+			continue
+		}
+		if best == nil || d < bestDist || (d == bestDist && e.ID < best.ID) {
+			best, bestDist = e, d
+		}
+	}
+	return best, best != nil
 }
