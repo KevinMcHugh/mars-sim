@@ -285,3 +285,26 @@ func bruteNearestOfKind(w *World, from Point, kind Kind, within int) (*Entity, b
 	}
 	return best, best != nil
 }
+
+// Every requested colonist should be placed, at small and large populations —
+// the cavern scales to fit and placement draws from a shuffled floor list rather
+// than rejection sampling that could give up.
+func TestAllRequestedColonistsSpawn(t *testing.T) {
+	cases := []struct {
+		n, w, h int
+	}{
+		{8, 80, 40},
+		{30, 120, 80},
+		{100, 120, 80},
+	}
+	for _, c := range cases {
+		cfg := DefaultConfig()
+		cfg.Seed = 3
+		cfg.StartColonists, cfg.StartAliens = c.n, 0
+		cfg.Width, cfg.Height = c.w, c.h
+		eng := NewEngine(cfg)
+		if got := eng.world.countKind(Colonist); got != c.n {
+			t.Errorf("requested %d colonists on %dx%d, spawned %d", c.n, c.w, c.h, got)
+		}
+	}
+}

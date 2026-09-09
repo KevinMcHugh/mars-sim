@@ -126,7 +126,7 @@ func (e *Engine) spawn(kind Kind) {
 	center := Point{w.Width / 2, w.Height / 2}
 	switch kind {
 	case Colonist:
-		if p, ok := w.randomFloorNear(center, w.Width); ok {
+		if p, ok := w.randomFloor(); ok {
 			w.spawn(Colonist, p)
 		}
 	case Alien:

@@ -20,11 +20,13 @@ func benchWorld(colonists int) *World {
 			w.SetTerrain(Point{x, y}, Floor)
 		}
 	}
-	center := Point{w.Width / 2, w.Height / 2}
+	floors := w.freeFloorTiles()
+	w.rng.Shuffle(len(floors), func(i, j int) { floors[i], floors[j] = floors[j], floors[i] })
+	if colonists > len(floors) {
+		colonists = len(floors)
+	}
 	for i := 0; i < colonists; i++ {
-		if p, ok := w.randomFloorNear(center, w.Width); ok {
-			w.spawn(Colonist, p)
-		}
+		w.spawn(Colonist, floors[i])
 	}
 	return w
 }
