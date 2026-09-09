@@ -20,6 +20,8 @@ const (
 	NutrientPod
 	// Toilet relieves the bladder need; used from an adjacent tile.
 	Toilet
+
+	numTerrains // keep last: the number of terrain kinds
 )
 
 // Walkable reports whether a colonist can stand on this terrain. Aliens ignore
@@ -42,6 +44,17 @@ type World struct {
 	Width, Height int
 	tiles         []Tile // row-major, len == Width*Height
 
+	// occ is a dense occupancy index parallel to tiles: occ[i] is the EntityID
+	// standing on that tile, or 0 for empty (IDs start at 1). It turns "who is
+	// here?" from an O(entities) scan into an O(1) lookup, and it is the reason
+	// at most one entity may occupy a tile.
+	occ []EntityID
+
+	// Aggregate counts maintained incrementally so callers never rescan the
+	// grid or the entity set to answer "how many of X?".
+	terrainCounts [numTerrains]int
+	kindCounts    [numKinds]int
+
 	entities map[EntityID]*Entity
 	nextID   EntityID
 
@@ -53,16 +66,19 @@ type World struct {
 
 // newWorld allocates an all-Rock world of the given size.
 func newWorld(cfg Config, rng *rand.Rand) *World {
+	n := cfg.Width * cfg.Height
 	w := &World{
 		Width:    cfg.Width,
 		Height:   cfg.Height,
-		tiles:    make([]Tile, cfg.Width*cfg.Height),
+		tiles:    make([]Tile, n),
+		occ:      make([]EntityID, n),
 		entities: make(map[EntityID]*Entity),
 		nextID:   1,
 		rng:      rng,
 		log:      newEventLog(cfg.LogSize),
 		cfg:      cfg,
 	}
+	w.terrainCounts[Rock] = n // every tile starts as Rock
 	return w
 }
 
@@ -86,12 +102,20 @@ func (w *World) TerrainAt(p Point) Terrain {
 	return w.tiles[w.index(p)].Terrain
 }
 
-// SetTerrain overwrites the terrain at p if it is in bounds.
+// SetTerrain overwrites the terrain at p if it is in bounds, keeping the terrain
+// counts in step.
 func (w *World) SetTerrain(p Point, t Terrain) {
 	if !w.InBounds(p) {
 		return
 	}
-	w.tiles[w.index(p)].Terrain = t
+	i := w.index(p)
+	old := w.tiles[i].Terrain
+	if old == t {
+		return
+	}
+	w.terrainCounts[old]--
+	w.terrainCounts[t]++
+	w.tiles[i].Terrain = t
 }
 
 // Walkable reports whether a colonist can stand at p.
@@ -99,43 +123,70 @@ func (w *World) Walkable(p Point) bool {
 	return w.InBounds(p) && w.TerrainAt(p).Walkable()
 }
 
+// ---- Occupancy ---------------------------------------------------------------
+
+// occupied reports whether any entity stands on p.
+func (w *World) occupied(p Point) bool {
+	return w.InBounds(p) && w.occ[w.index(p)] != 0
+}
+
+// occupiedByOther reports whether an entity other than self stands on p.
+func (w *World) occupiedByOther(p Point, self EntityID) bool {
+	if !w.InBounds(p) {
+		return false
+	}
+	id := w.occ[w.index(p)]
+	return id != 0 && id != self
+}
+
+// moveEntity relocates an entity, updating the occupancy index. Callers must
+// ensure the destination is in bounds and unoccupied.
+func (w *World) moveEntity(e *Entity, to Point) {
+	if to.Equal(e.Pos) {
+		return
+	}
+	w.occ[w.index(e.Pos)] = 0
+	e.Pos = to
+	w.occ[w.index(to)] = e.ID
+}
+
+// ---- Entities ----------------------------------------------------------------
+
 // spawn creates an entity of the given kind at p and registers it, returning the
-// new entity so the caller can tune it.
+// new entity so the caller can tune it. The tile must be in bounds and empty.
 func (w *World) spawn(kind Kind, p Point) *Entity {
 	e := newEntity(w.nextID, kind, p, w.cfg)
 	w.nextID++
 	w.entities[e.ID] = e
+	w.occ[w.index(p)] = e.ID
+	w.kindCounts[kind]++
 	return e
 }
 
-// remove deletes an entity from the world.
+// remove deletes an entity from the world and clears its occupancy.
 func (w *World) remove(id EntityID) {
+	e := w.entities[id]
+	if e == nil {
+		return
+	}
+	w.occ[w.index(e.Pos)] = 0
+	w.kindCounts[e.Kind]--
 	delete(w.entities, id)
 }
 
 // countKind returns how many living entities of a kind exist.
 func (w *World) countKind(kind Kind) int {
-	n := 0
-	for _, e := range w.entities {
-		if e.Kind == kind {
-			n++
-		}
-	}
-	return n
+	return w.kindCounts[kind]
 }
 
 // countTerrain returns how many tiles currently hold the given terrain.
 func (w *World) countTerrain(t Terrain) int {
-	n := 0
-	for _, tile := range w.tiles {
-		if tile.Terrain == t {
-			n++
-		}
-	}
-	return n
+	return w.terrainCounts[t]
 }
 
 // nearestFacility returns the closest tile of terrain t to from, if any exists.
+// This still scans the grid; it runs only when a colonist has an urgent need, so
+// it is bounded, and it will move to a facility registry alongside the job board.
 func (w *World) nearestFacility(from Point, t Terrain) (Point, bool) {
 	best := Point{}
 	bestDist := 1 << 30

@@ -250,16 +250,15 @@ func (w *World) approach(e *Entity, target Point) (adjacent, stuck bool) {
 // findMineable returns the nearest Rock tile that borders open Floor (so a
 // colonist can reach and excavate it), searched within radius.
 func (w *World) findMineable(from Point, radius int) (Point, bool) {
-	best, found := Point{}, false
-	bestDist := radius + 1
-	for _, p := range w.scanRadius(from, radius) {
+	var best Point
+	found := false
+	w.forEachInRadius(from, radius, func(p Point) bool {
 		if w.TerrainAt(p) != Rock || !w.bordersFloor(p) {
-			continue
+			return false
 		}
-		if d := from.Chebyshev(p); d < bestDist {
-			best, bestDist, found = p, d, true
-		}
-	}
+		best, found = p, true
+		return true // rings are nearest-first, so the first match is closest
+	})
 	return best, found
 }
 
@@ -267,19 +266,15 @@ func (w *World) findMineable(from Point, radius int) (Point, bool) {
 // Wall — an edge where new structure extends the colony rather than plugging a
 // walkway at random. The colonist's own tile is excluded.
 func (w *World) findBuildSpot(from Point, radius int) (Point, bool) {
-	best, found := Point{}, false
-	bestDist := radius + 1
-	for _, p := range w.scanRadius(from, radius) {
-		if p.Equal(from) || w.TerrainAt(p) != Floor || w.occupied(p) {
-			continue
+	var best Point
+	found := false
+	w.forEachInRadius(from, radius, func(p Point) bool {
+		if p.Equal(from) || w.TerrainAt(p) != Floor || w.occupied(p) || !w.bordersSolid(p) {
+			return false
 		}
-		if !w.bordersSolid(p) {
-			continue
-		}
-		if d := from.Chebyshev(p); d < bestDist {
-			best, bestDist, found = p, d, true
-		}
-	}
+		best, found = p, true
+		return true // nearest-first: first valid spot is closest
+	})
 	return best, found
 }
 
@@ -365,30 +360,31 @@ func (w *World) walkStep(e *Entity, dest Point) bool {
 	if best.Equal(e.Pos) {
 		return false
 	}
-	e.Pos = best
+	w.moveEntity(e, best)
 	return true
 }
 
-// burrowStep moves an alien one step toward dest through any terrain, avoiding
-// only tiles held by other aliens.
+// burrowStep moves an alien one step toward dest through any terrain. It avoids
+// tiles already occupied by another entity (one body per tile); it attacks
+// colonists from an adjacent tile rather than stepping onto them.
 func (w *World) burrowStep(e *Entity, dest Point) {
 	target := stepToward(e.Pos, dest)
-	if w.InBounds(target) && !w.occupiedByKind(target, Alien, e.ID) {
-		e.Pos = target
+	if w.InBounds(target) && !w.occupiedByOther(target, e.ID) {
+		w.moveEntity(e, target)
 		return
 	}
 	bestDist := e.Pos.Chebyshev(dest)
 	best := e.Pos
 	for _, d := range neighbors8 {
 		n := e.Pos.Add(d.X, d.Y)
-		if !w.InBounds(n) || w.occupiedByKind(n, Alien, e.ID) {
+		if !w.InBounds(n) || w.occupiedByOther(n, e.ID) {
 			continue
 		}
 		if dd := n.Chebyshev(dest); dd < bestDist {
 			best, bestDist = n, dd
 		}
 	}
-	e.Pos = best
+	w.moveEntity(e, best)
 }
 
 // fleeStep moves a colonist one walkable step that maximizes distance from a
@@ -405,7 +401,7 @@ func (w *World) fleeStep(e *Entity, threat Point) {
 			best, bestDist = n, dd
 		}
 	}
-	e.Pos = best
+	w.moveEntity(e, best)
 }
 
 // wanderStep takes a small random step: colonists only onto floor, aliens
@@ -422,10 +418,7 @@ func (w *World) wanderStep(e *Entity) {
 	if e.Kind == Colonist && !w.Walkable(n) {
 		return
 	}
-	if e.Kind == Alien && w.occupiedByKind(n, Alien, e.ID) {
-		return
-	}
-	e.Pos = n
+	w.moveEntity(e, n)
 }
 
 // ---- Queries -----------------------------------------------------------------
@@ -441,53 +434,28 @@ func (w *World) nearestAlien(from Point, within int) (*Entity, bool) {
 func (w *World) nearestOfKind(from Point, kind Kind, within int) (*Entity, bool) {
 	var best *Entity
 	bestDist := within + 1
-	// Iterate in ID order so equal-distance ties resolve deterministically
-	// (same seed => same run); ranging the map directly would not.
-	for _, e := range w.sortedEntities() {
+	// Range the map directly (no per-call allocation) but break equal-distance
+	// ties toward the lower ID, so the result is deterministic regardless of map
+	// iteration order (same seed => same run).
+	for _, e := range w.entities {
 		if e.Kind != kind || !e.Alive() {
 			continue
 		}
-		if d := from.Chebyshev(e.Pos); d <= within && d < bestDist {
+		d := from.Chebyshev(e.Pos)
+		if d > within {
+			continue
+		}
+		if best == nil || d < bestDist || (d == bestDist && e.ID < best.ID) {
 			best, bestDist = e, d
 		}
 	}
 	return best, best != nil
 }
 
-func (w *World) occupiedByOther(p Point, self EntityID) bool {
-	for _, e := range w.entities {
-		if e.ID != self && e.Pos.Equal(p) {
-			return true
-		}
-	}
-	return false
-}
-
-func (w *World) occupiedByKind(p Point, kind Kind, self EntityID) bool {
-	for _, e := range w.entities {
-		if e.ID != self && e.Kind == kind && e.Pos.Equal(p) {
-			return true
-		}
-	}
-	return false
-}
-
-// sortedEntities returns all entities ordered by ascending ID. Used wherever
-// iteration order would otherwise leak into game state (e.g. tie-breaking the
-// nearest target), keeping runs reproducible for a given seed.
-func (w *World) sortedEntities() []*Entity {
-	out := make([]*Entity, 0, len(w.entities))
-	for _, e := range w.entities {
-		out = append(out, e)
-	}
-	sort.Slice(out, func(i, j int) bool { return out[i].ID < out[j].ID })
-	return out
-}
-
-// scanRadius returns the in-bounds tiles within a square radius of center,
-// nearest rings first.
-func (w *World) scanRadius(center Point, radius int) []Point {
-	pts := make([]Point, 0, (2*radius+1)*(2*radius+1))
+// forEachInRadius visits the in-bounds tiles within a square radius of center,
+// nearest ring first, until visit returns true. It allocates nothing, so it is
+// safe to call per entity per tick.
+func (w *World) forEachInRadius(center Point, radius int, visit func(Point) bool) {
 	for r := 1; r <= radius; r++ {
 		for y := -r; y <= r; y++ {
 			for x := -r; x <= r; x++ {
@@ -495,11 +463,10 @@ func (w *World) scanRadius(center Point, radius int) []Point {
 					continue // only the ring at exactly distance r
 				}
 				p := center.Add(x, y)
-				if w.InBounds(p) {
-					pts = append(pts, p)
+				if w.InBounds(p) && visit(p) {
+					return
 				}
 			}
 		}
 	}
-	return pts
 }

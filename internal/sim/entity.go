@@ -11,6 +11,8 @@ const (
 	// Alien is a subterranean mutant that burrows through any terrain to hunt
 	// and eat colonists.
 	Alien
+
+	numKinds // keep last: the number of entity kinds
 )
 
 func (k Kind) String() string {

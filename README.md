@@ -88,6 +88,34 @@ be a table edit: append a `NeedKind`, give it a `NeedSpec` and a facility.
 - All tunables (world size, populations, HP, dig/build times, alien speed) live
   in `Config` (`config.go`). Runs are deterministic for a given `Seed`.
 
+### Performance
+
+The engine is being built to stay cheap as the colony scales. Two foundations
+are in place:
+
+- A dense **occupancy index** (`World.occ`) makes "who is on this tile?" an O(1)
+  lookup instead of scanning every entity, and enforces one entity per tile.
+- **Incrementally-maintained counts** (`terrainCounts`, `kindCounts`) answer
+  "how many of X?" without rescanning the grid or entity set.
+
+Together with allocation-free tile scans, these took a stress run from seconds
+per tick to milliseconds:
+
+| Colonists | Before  | After   |
+| --------- | ------- | ------- |
+| 500       | ~2.5 s  | ~8 ms   |
+| 2000      | ~42 s   | ~144 ms |
+
+Measure it yourself:
+
+```sh
+go test ./internal/sim/ -run '^$' -bench BenchmarkStep -benchmem
+```
+
+Still to come (the reactive architecture): a region/room system for spatial
+queries, and an event-driven job board so colonists react to construction
+instead of rescanning the world each tick.
+
 ### Known scaffold limitations (next steps)
 
 - Movement is greedy step-toward, not real pathfinding; colonists can get boxed

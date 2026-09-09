@@ -58,13 +58,3 @@ func (w *World) randomRockFar(origin Point, minDist int) (Point, bool) {
 	}
 	return Point{}, false
 }
-
-// occupied reports whether any entity currently stands on p.
-func (w *World) occupied(p Point) bool {
-	for _, e := range w.entities {
-		if e.Pos.Equal(p) {
-			return true
-		}
-	}
-	return false
-}
