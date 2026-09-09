@@ -11,6 +11,16 @@ out an underground colony on their own while burrowing aliens hunt them.
 go run .
 ```
 
+Every simulation tunable is a command-line flag (world size, populations, speed,
+colonist/alien stats, build times, ...), each defaulting to the value in
+`sim.DefaultConfig`. List them with `-h` or `?`:
+
+```sh
+go run . -h
+go run . -colonists 20 -aliens 5 -width 120 -height 60
+go run . -headless -duration 10s -seed 42   # reproducible, no TUI
+```
+
 Terminal controls:
 
 | Key            | Action                          |
