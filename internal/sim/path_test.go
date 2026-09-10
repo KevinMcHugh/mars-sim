@@ -57,7 +57,9 @@ func TestPathOptimalMatchesBFS(t *testing.T) {
 			continue
 		}
 		want := bfsStepsToAdjacent(w, start, target)
-		route, ok := w.pathToAdjacent(start, target)
+		// Flat A* is optimal; pathToAdjacent may use near-optimal HPA* for long
+		// trips (covered by TestHPAValidAndNearOptimal), so test the flat search.
+		route, ok := w.pf.toAdjacent(start, target, false)
 		if want < 0 {
 			if ok {
 				t.Fatalf("A* found a route %v->%v that BFS says is unreachable", start, target)

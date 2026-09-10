@@ -25,6 +25,7 @@ type region struct {
 	chunk int
 	size  int
 	room  RoomID
+	rep   Point                 // a representative cell (for the abstract heuristic)
 	links map[RegionID]struct{} // adjacent regions (across chunk borders)
 }
 
@@ -92,7 +93,7 @@ func (w *World) recomputeChunkRegions(ci int) {
 			}
 			rid := w.nextRegion
 			w.nextRegion++
-			reg := &region{id: rid, chunk: ci, links: make(map[RegionID]struct{})}
+			reg := &region{id: rid, chunk: ci, rep: Point{x, y}, links: make(map[RegionID]struct{})}
 			w.regions[rid] = reg
 
 			w.floodStack = append(w.floodStack[:0], Point{x, y})

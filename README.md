@@ -163,10 +163,17 @@ Cumulative effect of the reactive work, on a 2000-colonist stress tick:
 | + chunk index, rooms, board   | ~43     |
 | + lazy needs & resting AI     | ~13     |
 
-Still to come: hierarchical A* (an abstract route over the region/room portal
-graph with cached inter-portal segments) for cheap point-to-point travel on big
-maps, and z-levels (a multi-floor world) as its own track — the flow-field and
-region machinery are built to extend into both.
+- Hierarchical A* (HPA*): long point-to-point trips first route over the region
+  graph (region.links) to get a corridor of regions, then run the tile A*
+  constrained to that corridor (painted into a generation-stamped cell mask for
+  O(1) membership). This bounds tile exploration to the abstract route instead of
+  the whole reachable area — on a map where a wall forces a long detour, a cross-
+  fort search dropped ~1.0 ms -> ~0.28 ms (~3.6x, 4.5x fewer cells explored).
+  Short/same-region trips still use the flat (optimal) search.
+
+Still to come: z-levels (a multi-floor world) as its own track — the flow-field,
+region, and HPA* machinery are built to extend into it. HPA* corridors are also a
+natural thing to cache and share across agents, a further step.
 
 ### Known scaffold limitations (next steps)
 

@@ -21,21 +21,55 @@ type pathfinder struct {
 	seen []int // generation stamp per cell (== gen means touched this search)
 	gen  int
 	open pfHeap
+
+	// corridorSeen marks cells inside the current HPA* corridor (== corridorGen),
+	// painted once per search so the per-neighbor membership test is an O(1) array
+	// read instead of a map lookup.
+	corridorSeen []int
+	corridorGen  int
 }
 
 func newPathfinder(w *World) *pathfinder {
 	n := w.Width * w.Height
 	return &pathfinder{
-		w:    w,
-		g:    make([]int, n),
-		from: make([]int, n),
-		seen: make([]int, n),
+		w:            w,
+		g:            make([]int, n),
+		from:         make([]int, n),
+		seen:         make([]int, n),
+		corridorSeen: make([]int, n),
+	}
+}
+
+// paintCorridor stamps every cell of the corridor's regions with a fresh
+// generation, by scanning only those regions' chunks. After this, a cell is in
+// the corridor iff corridorSeen[i] == corridorGen.
+func (pf *pathfinder) paintCorridor(corridor map[RegionID]bool) {
+	w := pf.w
+	pf.corridorGen++
+	gen := pf.corridorGen
+	for rid := range corridor {
+		reg := w.regions[rid]
+		if reg == nil {
+			continue
+		}
+		x0, y0, x1, y1 := w.chunkBounds(reg.chunk)
+		for y := y0; y < y1; y++ {
+			for x := x0; x < x1; x++ {
+				i := y*w.Width + x
+				if w.regionOf[i] == rid {
+					pf.corridorSeen[i] = gen
+				}
+			}
+		}
 	}
 }
 
 // toAdjacent returns a route (cells to step through, excluding the start) from
 // start to some walkable tile adjacent to target, or ok=false if none exists.
-func (pf *pathfinder) toAdjacent(start, target Point) ([]Point, bool) {
+// If useCorridor is set, the search only expands cells stamped by the most recent
+// paintCorridor call (the HPA* abstract route); otherwise it is an unconstrained
+// flat search.
+func (pf *pathfinder) toAdjacent(start, target Point, useCorridor bool) ([]Point, bool) {
 	w := pf.w
 	if !w.Walkable(start) {
 		return nil, false
@@ -61,6 +95,9 @@ func (pf *pathfinder) toAdjacent(start, target Point) ([]Point, bool) {
 				continue
 			}
 			ni := w.index(np)
+			if useCorridor && pf.corridorSeen[ni] != pf.corridorGen {
+				continue // outside the abstract route
+			}
 			ng := cg + 1
 			if pf.seen[ni] != pf.gen || ng < pf.g[ni] {
 				pf.seen[ni] = pf.gen
@@ -166,15 +203,36 @@ func (h *pfHeap) siftDown(i int) {
 func (w *World) pathToAdjacent(from, target Point) ([]Point, bool) {
 	room := w.roomOf(from)
 	reachable := false
+	goalCell, goalDist := Point{}, 1<<30
 	for _, d := range neighbors8 {
 		n := target.Add(d.X, d.Y)
 		if w.Walkable(n) && w.roomOf(n) == room {
 			reachable = true
-			break
+			if dd := from.Chebyshev(n); dd < goalDist {
+				goalCell, goalDist = n, dd
+			}
 		}
 	}
 	if !reachable {
 		return nil, false
 	}
-	return w.pf.toAdjacent(from, target)
+
+	// Short or same-region trips: a flat tile search already explores little, so
+	// skip the abstract routing overhead.
+	startRegion := w.regionOf[w.index(from)]
+	goalRegion := w.regionOf[w.index(goalCell)]
+	if startRegion == goalRegion || from.Chebyshev(target) <= 2*chunkSize {
+		return w.pf.toAdjacent(from, target, false)
+	}
+
+	// Long cross-region trip: route over the region graph, paint that corridor,
+	// then run the tile search constrained to it. Fall back to flat if either
+	// step fails (e.g. the corridor cannot realize a tile path for some reason).
+	if corridor, ok := w.abstractCorridor(startRegion, goalRegion); ok {
+		w.pf.paintCorridor(corridor)
+		if route, ok := w.pf.toAdjacent(from, target, true); ok {
+			return route, true
+		}
+	}
+	return w.pf.toAdjacent(from, target, false)
 }
