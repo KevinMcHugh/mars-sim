@@ -103,8 +103,21 @@ func (w *World) colonistTurn(e *Entity) {
 // reverses whichever bookkeeping the current job holds and returns the colonist
 // to idle. Routing every job start and end through these keeps the board's claim
 // set and build counts exact.
-func (w *World) assignMine(e *Entity, target Point) {
-	e.Job, e.Target, e.Progress = JobMine, target, 0
+func (w *World) assignMine(e *Entity) {
+	e.Job, e.Progress, e.mineClaimed = JobMine, 0, false
+}
+
+// claimAdjacentFrontier claims (for e) the first unclaimed frontier rock next to
+// the colonist, in fixed neighbor order for determinism.
+func (w *World) claimAdjacentFrontier(e *Entity) (Point, bool) {
+	for _, d := range neighbors8 {
+		n := e.Pos.Add(d.X, d.Y)
+		if w.board.isFrontier(n) && !w.board.isClaimed(n) {
+			w.board.claimMine(n, e.ID)
+			return n, true
+		}
+	}
+	return Point{}, false
 }
 
 func (w *World) assignBuild(e *Entity, kind Terrain, target Point) {
@@ -115,7 +128,10 @@ func (w *World) assignBuild(e *Entity, kind Terrain, target Point) {
 func (w *World) clearJob(e *Entity) {
 	switch e.Job {
 	case JobMine:
-		w.board.releaseMine(e.Target)
+		if e.mineClaimed {
+			w.board.releaseMine(e.Target, e.ID)
+			e.mineClaimed = false
+		}
 	case JobBuild:
 		w.board.endBuild(e.BuildKind)
 	}
@@ -162,10 +178,11 @@ func (w *World) assignWorkJob(e *Entity) {
 			return
 		}
 	}
-	// Mining is pulled from the job board: claim the nearest reachable frontier
-	// tile instead of scanning a radius of the map.
-	if target, ok := w.board.claimNearestMine(e.Pos, w.roomOf(e.Pos)); ok {
-		w.assignMine(e, target)
+	// Mining follows the shared frontier flow field: take a mine job whenever
+	// unclaimed frontier rock is reachable from here (the specific tile is claimed
+	// on arrival, in jobMine).
+	if w.board.unclaimedCount() > 0 && w.frontierField().at(e.Pos) >= 0 {
+		w.assignMine(e)
 		return
 	}
 	e.Job = JobNone
@@ -190,25 +207,40 @@ func (w *World) desiredFacilities(colonists int) int {
 }
 
 func (w *World) jobMine(e *Entity) {
-	if w.TerrainAt(e.Target) != Rock { // already mined by someone
+	// Already committed to a specific rock: dig it (or drop it if it went away).
+	if e.mineClaimed {
+		if w.TerrainAt(e.Target) == Rock && e.Pos.Adjacent(e.Target) {
+			e.State = Mining
+			e.Progress++
+			if e.Progress >= w.cfg.MineTicks {
+				w.SetTerrain(e.Target, Floor) // TileChanged drops it from the frontier
+				w.clearJob(e)
+			}
+			return
+		}
+		w.board.releaseMine(e.Target, e.ID)
+		e.mineClaimed, e.Progress = false, 0
+	}
+
+	field := w.frontierField()
+	if field.at(e.Pos) < 0 { // no reachable unclaimed frontier left
 		w.clearJob(e)
 		return
 	}
-	arrived, ok := w.travelTo(e, e.Target)
-	if !ok {
-		w.clearJob(e)
+	// At the digging edge: claim an adjacent rock and start.
+	if rock, ok := w.claimAdjacentFrontier(e); ok {
+		e.Target, e.mineClaimed, e.Progress, e.State = rock, true, 0, Mining
 		return
 	}
-	if !arrived {
-		e.State = Moving
+	// Otherwise walk one step down the frontier field.
+	if !w.followField(e, field) {
+		e.stuck++
+		if e.stuck > w.cfg.StuckLimit {
+			w.clearJob(e)
+		}
 		return
 	}
-	e.State = Mining
-	e.Progress++
-	if e.Progress >= w.cfg.MineTicks {
-		w.SetTerrain(e.Target, Floor) // TileChanged drops the tile from the frontier
-		w.clearJob(e)
-	}
+	e.stuck, e.State = 0, Moving
 }
 
 func (w *World) jobBuild(e *Entity) {

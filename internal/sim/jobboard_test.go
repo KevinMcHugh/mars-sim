@@ -58,61 +58,68 @@ func TestFrontierMatchesBruteForce(t *testing.T) {
 	}
 }
 
-// A claimed tile is not handed to a second colonist, and releasing frees it.
-func TestBoardClaimIsExclusive(t *testing.T) {
+// Claims are owner-keyed: releasing only affects the owner's claim, and the
+// unclaimed count reflects outstanding claims.
+func TestBoardClaimOwnership(t *testing.T) {
 	w := roomsTestWorld(40, 24)
 	carve(w, Point{5, 5}, Point{9, 7}, Floor)
 	w.refreshSpatial()
 
-	from := Point{7, 6}
-	room := w.roomOf(from)
-	if room == 0 {
-		t.Fatal("expected a room at the carved area")
+	// Two distinct frontier rock tiles bordering the carved room.
+	var a, b Point
+	found := 0
+	for p := range w.board.frontier {
+		if found == 0 {
+			a, found = p, 1
+		} else {
+			b, found = p, 2
+			break
+		}
+	}
+	if found < 2 {
+		t.Fatalf("expected at least two frontier tiles, got %d", found)
 	}
 
-	first, ok := w.board.claimNearestMine(from, room)
-	if !ok {
-		t.Fatal("expected to claim a mine job")
+	base := w.board.unclaimedCount()
+	w.board.claimMine(a, 1)
+	w.board.claimMine(b, 2)
+	if got := w.board.unclaimedCount(); got != base-2 {
+		t.Fatalf("unclaimed count after two claims: got %d want %d", got, base-2)
 	}
-	second, ok := w.board.claimNearestMine(from, room)
-	if !ok {
-		t.Fatal("expected a second, different mine job")
-	}
-	if first == second {
-		t.Fatalf("two claims returned the same tile %v", first)
+	if !w.board.isClaimed(a) || !w.board.isClaimed(b) {
+		t.Fatal("claimed tiles should report claimed")
 	}
 
-	w.board.releaseMine(first)
-	again, ok := w.board.claimNearestMine(from, room)
-	if !ok || again != first {
-		t.Fatalf("released tile should be re-claimable: got %v ok=%v want %v", again, ok, first)
+	// A non-owner release is a no-op; the owner release frees it.
+	w.board.releaseMine(a, 2)
+	if !w.board.isClaimed(a) {
+		t.Fatal("non-owner release should not free the claim")
+	}
+	w.board.releaseMine(a, 1)
+	if w.board.isClaimed(a) {
+		t.Fatal("owner release should free the claim")
+	}
+	if got := w.board.unclaimedCount(); got != base-1 {
+		t.Fatalf("unclaimed count after one release: got %d want %d", got, base-1)
 	}
 }
 
-// A colonist cannot claim frontier that is only reachable from another room.
-func TestBoardClaimRespectsRooms(t *testing.T) {
-	w := roomsTestWorld(48, 24)
-	carve(w, Point{3, 5}, Point{5, 7}, Floor)   // room A
-	carve(w, Point{20, 5}, Point{22, 7}, Floor) // room B, far away
+// The frontier field only routes to unclaimed rock: claiming every frontier tile
+// makes the field unreachable everywhere, so colonists know to stop mining.
+func TestFrontierFieldExcludesClaimed(t *testing.T) {
+	w := roomsTestWorld(40, 24)
+	carve(w, Point{5, 5}, Point{9, 7}, Floor)
 	w.refreshSpatial()
 
-	roomA := w.roomOf(Point{4, 6})
-	roomB := w.roomOf(Point{21, 6})
-	if roomA == 0 || roomB == 0 || roomA == roomB {
-		t.Fatalf("expected two distinct rooms, got A=%d B=%d", roomA, roomB)
+	inside := Point{7, 6}
+	if w.frontierField().at(inside) < 0 {
+		t.Fatal("frontier should be reachable before anything is claimed")
 	}
-
-	// Every tile claimed from room A must border room A, never room B's frontier.
-	for i := 0; i < 20; i++ {
-		target, ok := w.board.claimNearestMine(Point{4, 6}, roomA)
-		if !ok {
-			break
-		}
-		if !w.board.reachableFrom(target, roomA) {
-			t.Fatalf("claimed %v not reachable from room A", target)
-		}
-		if w.board.reachableFrom(target, roomB) && !w.board.reachableFrom(target, roomA) {
-			t.Fatalf("claimed room B frontier %v from room A", target)
-		}
+	for p := range w.board.frontier {
+		w.board.claimMine(p, 1)
+	}
+	w.tick++ // fields rebuild at most once per tick; advance so the claim lands
+	if got := w.frontierField().at(inside); got >= 0 {
+		t.Fatalf("with all frontier claimed the field should be unreachable, got %d", got)
 	}
 }

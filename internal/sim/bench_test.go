@@ -9,9 +9,13 @@ import (
 // colonists, for measuring per-tick cost as population scales. There is a rock
 // frontier around the chamber so colonists have real mining and building work.
 func benchWorld(colonists int) *World {
+	return benchWorldSized(160, 160, colonists)
+}
+
+func benchWorldSized(width, height, colonists int) *World {
 	cfg := DefaultConfig()
 	cfg.Seed = 1
-	cfg.Width, cfg.Height = 160, 160
+	cfg.Width, cfg.Height = width, height
 	w := newWorld(cfg, rand.New(rand.NewSource(1)))
 
 	const border = 20
@@ -95,6 +99,17 @@ func BenchmarkNeedSeek(b *testing.B) {
 			e.Needs[NeedFood] = w.cfg.Needs[NeedFood].SeekAt
 		}
 	}
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		w.step()
+	}
+}
+
+// BenchmarkStepBigMap stresses the regime the shared frontier field targets: a
+// large map with a big colony, where per-miner path search would multiply.
+func BenchmarkStepBigMap(b *testing.B) {
+	w := benchWorldSized(300, 300, 3000)
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {

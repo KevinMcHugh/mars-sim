@@ -121,6 +121,11 @@ type Entity struct {
 	pathGoal Point
 	stuck    int
 
+	// mineClaimed reports whether a JobMine colonist has claimed a specific rock
+	// (Target) to dig, as opposed to still following the frontier field to reach
+	// the digging edge.
+	mineClaimed bool
+
 	// Display + shared behavior scratch.
 	State    State
 	Quarry   EntityID // (alien) the colonist being hunted; 0 if none

@@ -79,10 +79,11 @@ type World struct {
 	board       *jobBoard
 	pf          *pathfinder
 
-	// Shared flow fields toward facility terrains (food, latrines): one distance
-	// field per facility kind, followed by every seeker. Rebuilt lazily when
-	// terrain changes. See flowfield.go.
-	fields [numTerrains]*flowField
+	// Shared flow fields, rebuilt lazily when terrain (or, for the frontier,
+	// claims) change. fields[t] routes seekers to facility terrain t; frontier
+	// routes miners to the nearest unclaimed diggable rock. See flowfield.go.
+	fields   [numTerrains]*flowField
+	frontier *flowField
 
 	entities map[EntityID]*Entity
 	nextID   EntityID
@@ -128,9 +129,20 @@ func newWorld(cfg Config, rng *rand.Rand) *World {
 
 	for i := 0; i < int(numNeeds); i++ {
 		if f := cfg.Needs[i].Facility; f != Rock && w.fields[f] == nil {
-			w.fields[f] = newFlowField(w, f)
+			w.fields[f] = newFlowField(w, facilitySeed(w, f))
 		}
 	}
+	w.frontier = newFlowField(w, func(add func(Point)) {
+		// Goals: walkable neighbors of every unclaimed frontier rock tile.
+		for p := range w.board.frontier {
+			if _, taken := w.board.claimed[p]; taken {
+				continue
+			}
+			for _, d := range neighbors8 {
+				add(p.Add(d.X, d.Y))
+			}
+		}
+	})
 	w.subscribe(func(e Event) {
 		if _, ok := e.(TileChanged); ok {
 			for _, f := range w.fields {
@@ -138,6 +150,7 @@ func newWorld(cfg Config, rng *rand.Rand) *World {
 					f.stale = true // any terrain change can shift goals or routes
 				}
 			}
+			w.frontier.stale = true
 		}
 	})
 	return w

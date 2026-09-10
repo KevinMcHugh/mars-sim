@@ -141,11 +141,14 @@ In place now:
   (8-connected, room-gated for O(1) reachability) and follow the computed route
   one step per tick, so they route around walls instead of wedging against them,
   and the search runs once per job rather than every tick.
-- Flow fields for shared destinations: one distance field per facility kind
-  (nutrient pods, toilets), rebuilt lazily with a single multi-source BFS and
-  followed by every seeker in O(1) per tick. This replaced a full-grid facility
-  scan that ran per hungry colonist; 1000 colonists all seeking at once cost
-  ~82 us/tick.
+- Flow fields for shared destinations: one shared distance field per hot
+  destination — facility kinds (nutrient pods, toilets) and the mining frontier
+  — rebuilt lazily with a single multi-source BFS (generation-stamped, so a
+  rebuild is O(reachable), not O(map)) and followed by every seeker in O(1) per
+  tick. Miners follow the frontier field to the digging edge and claim a rock on
+  arrival, so no per-miner path search is needed. This is the "everyone
+  navigates the same" model: a 300x300 map with 3000 colonists runs ~10 ms/tick,
+  about the same as 2000 colonists on a quarter of the map.
 
 Cumulative effect of the reactive work, on a 2000-colonist stress tick:
 
