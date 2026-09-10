@@ -35,6 +35,12 @@ type Config struct {
 	RestTicks            int // ticks an idle colonist rests before re-checking for work
 	StuckLimit           int // ticks a colonist waits on a blocked path before abandoning the job
 
+	// Mining strategy switch. Below both thresholds, miners use cached A* to a
+	// claimed tile (cheaper for small colonies); at or above either, they follow
+	// the shared frontier flow field (cheaper once many miners share the sweep).
+	FrontierFieldMinColonists int
+	FrontierFieldMinArea      int
+
 	// Alien stats.
 	AlienHP       int
 	AlienDamage   int // HP removed per bite
@@ -63,6 +69,9 @@ func DefaultConfig() Config {
 		ColonistsPerFacility: 3,
 		RestTicks:            10,
 		StuckLimit:           8,
+
+		FrontierFieldMinColonists: 800,
+		FrontierFieldMinArea:      90000, // ~300x300 and up
 		Needs: [numNeeds]NeedSpec{
 			NeedFood: {
 				Name: "food", Rise: 2, SeekAt: 650, Max: 1000,

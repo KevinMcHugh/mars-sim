@@ -148,7 +148,11 @@ In place now:
   tick. Miners follow the frontier field to the digging edge and claim a rock on
   arrival, so no per-miner path search is needed. This is the "everyone
   navigates the same" model: a 300x300 map with 3000 colonists runs ~10 ms/tick,
-  about the same as 2000 colonists on a quarter of the map.
+  about the same as 2000 colonists on a quarter of the map. The shared frontier
+  sweep only pays off with enough miners, so mining switches strategy by
+  threshold (`FrontierFieldMinColonists` / `FrontierFieldMinArea`): small
+  colonies on small maps use cached A* to a claimed tile instead, checked
+  dynamically as the colony grows.
 
 Cumulative effect of the reactive work, on a 2000-colonist stress tick:
 

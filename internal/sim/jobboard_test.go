@@ -123,3 +123,31 @@ func TestFrontierFieldExcludesClaimed(t *testing.T) {
 		t.Fatalf("with all frontier claimed the field should be unreachable, got %d", got)
 	}
 }
+
+// Both mining strategies excavate: cached A* below the threshold, the shared
+// frontier field at/above it.
+func TestMiningWorksInBothModes(t *testing.T) {
+	run := func(name string, forceField bool) {
+		cfg := testConfig()
+		cfg.StartAliens = 0
+		if forceField {
+			cfg.FrontierFieldMinColonists = 1 // force the frontier-field path
+		} else {
+			cfg.FrontierFieldMinColonists = 1 << 30 // force the A* path
+			cfg.FrontierFieldMinArea = 1 << 30
+		}
+		w := NewEngine(cfg).world
+		if got := w.useFrontierMining(); got != forceField {
+			t.Fatalf("%s: useFrontierMining=%v, want %v", name, got, forceField)
+		}
+		start := w.countTerrain(Rock)
+		for i := 0; i < 400; i++ {
+			w.step()
+		}
+		if end := w.countTerrain(Rock); end >= start {
+			t.Fatalf("%s: colonists did not excavate (rock %d -> %d)", name, start, end)
+		}
+	}
+	run("astar", false)
+	run("frontier-field", true)
+}

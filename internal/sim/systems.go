@@ -107,6 +107,64 @@ func (w *World) assignMine(e *Entity) {
 	e.Job, e.Progress, e.mineClaimed = JobMine, 0, false
 }
 
+// assignMineTarget commits a colonist to a specific rock claimed up front (the
+// A* mining path, used for small colonies), to be reached via travelTo.
+func (w *World) assignMineTarget(e *Entity, target Point) {
+	e.Job, e.Target, e.mineClaimed, e.Progress = JobMine, target, true, 0
+}
+
+// useFrontierMining reports whether miners should follow the shared frontier
+// flow field (worth it for big colonies / big maps) rather than each running
+// cached A* to a claimed tile. It is checked dynamically so a growing colony
+// switches over on its own.
+func (w *World) useFrontierMining() bool {
+	return w.countKind(Colonist) >= w.cfg.FrontierFieldMinColonists ||
+		w.Width*w.Height >= w.cfg.FrontierFieldMinArea
+}
+
+// claimNearestMine claims (for id) the nearest unclaimed frontier rock reachable
+// from the colonist's room, for the A* mining path. Returns the claimed tile.
+func (w *World) claimNearestMine(from Point, id EntityID) (Point, bool) {
+	room := w.roomOf(from)
+	if room == 0 {
+		return Point{}, false
+	}
+	var best Point
+	found := false
+	bestDist := 1 << 30
+	for p := range w.board.frontier {
+		if w.board.isClaimed(p) || !w.frontierReachable(p, room) {
+			continue
+		}
+		if d := from.Chebyshev(p); !found || d < bestDist || (d == bestDist && lessPoint(p, best)) {
+			best, bestDist, found = p, d, true
+		}
+	}
+	if found {
+		w.board.claimMine(best, id)
+	}
+	return best, found
+}
+
+// frontierReachable reports whether a frontier rock has a floor neighbor in room.
+func (w *World) frontierReachable(rock Point, room RoomID) bool {
+	for _, d := range neighbors8 {
+		n := rock.Add(d.X, d.Y)
+		if w.Walkable(n) && w.roomOf(n) == room {
+			return true
+		}
+	}
+	return false
+}
+
+// lessPoint gives a stable row-major ordering for deterministic tie-breaks.
+func lessPoint(a, b Point) bool {
+	if a.Y != b.Y {
+		return a.Y < b.Y
+	}
+	return a.X < b.X
+}
+
 // claimAdjacentFrontier claims (for e) the first unclaimed frontier rock next to
 // the colonist, in fixed neighbor order for determinism.
 func (w *World) claimAdjacentFrontier(e *Entity) (Point, bool) {
@@ -178,12 +236,19 @@ func (w *World) assignWorkJob(e *Entity) {
 			return
 		}
 	}
-	// Mining follows the shared frontier flow field: take a mine job whenever
-	// unclaimed frontier rock is reachable from here (the specific tile is claimed
-	// on arrival, in jobMine).
-	if w.board.unclaimedCount() > 0 && w.frontierField().at(e.Pos) >= 0 {
-		w.assignMine(e)
-		return
+	// Mining: big colonies/maps follow the shared frontier field (claim on
+	// arrival); small ones use cached A* to the nearest claimed tile. Either way
+	// only take a job when unclaimed frontier remains.
+	if w.board.unclaimedCount() > 0 {
+		if w.useFrontierMining() {
+			if w.frontierField().at(e.Pos) >= 0 {
+				w.assignMine(e)
+				return
+			}
+		} else if target, ok := w.claimNearestMine(e.Pos, e.ID); ok {
+			w.assignMineTarget(e, target)
+			return
+		}
 	}
 	e.Job = JobNone
 }
@@ -207,9 +272,14 @@ func (w *World) desiredFacilities(colonists int) int {
 }
 
 func (w *World) jobMine(e *Entity) {
-	// Already committed to a specific rock: dig it (or drop it if it went away).
+	// Committed to a specific rock (A* mining claimed it up front, or the field
+	// path claimed it on arrival).
 	if e.mineClaimed {
-		if w.TerrainAt(e.Target) == Rock && e.Pos.Adjacent(e.Target) {
+		if w.TerrainAt(e.Target) != Rock { // mined out from under us
+			w.clearJob(e)
+			return
+		}
+		if e.Pos.Adjacent(e.Target) {
 			e.State = Mining
 			e.Progress++
 			if e.Progress >= w.cfg.MineTicks {
@@ -218,21 +288,25 @@ func (w *World) jobMine(e *Entity) {
 			}
 			return
 		}
-		w.board.releaseMine(e.Target, e.ID)
-		e.mineClaimed, e.Progress = false, 0
+		// A* path: travel to the distant claimed tile.
+		if _, ok := w.travelTo(e, e.Target); !ok {
+			w.clearJob(e)
+			return
+		}
+		e.State = Moving
+		return
 	}
 
+	// Field path: follow the shared frontier field and claim a rock on arrival.
 	field := w.frontierField()
 	if field.at(e.Pos) < 0 { // no reachable unclaimed frontier left
 		w.clearJob(e)
 		return
 	}
-	// At the digging edge: claim an adjacent rock and start.
 	if rock, ok := w.claimAdjacentFrontier(e); ok {
 		e.Target, e.mineClaimed, e.Progress, e.State = rock, true, 0, Mining
 		return
 	}
-	// Otherwise walk one step down the frontier field.
 	if !w.followField(e, field) {
 		e.stuck++
 		if e.stuck > w.cfg.StuckLimit {
