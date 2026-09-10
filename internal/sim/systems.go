@@ -61,10 +61,12 @@ func (w *World) colonistTurn(e *Entity) {
 	need, urgent := w.mostUrgentNeed(e)
 	if urgent && !(e.Job == JobUse && e.Need == need) {
 		spec := w.cfg.Needs[need]
-		if pos, ok := w.nearestFacility(e.Pos, spec.Facility); ok {
+		if field := w.facilityField(spec.Facility); field != nil && field.at(e.Pos) >= 0 {
+			// A facility of this kind is reachable: follow its shared flow field.
 			w.clearJob(e)
-			e.Job, e.Need, e.Target, e.Progress = JobUse, need, pos, 0
+			e.Job, e.Need, e.Progress = JobUse, need, 0
 		} else if spot, ok := w.findBuildSpot(e.Pos, 20); ok {
+			// None reachable yet: build one rather than perish.
 			w.clearJob(e)
 			w.assignBuild(e, spec.Facility, spot)
 		}
@@ -238,25 +240,32 @@ func (w *World) jobBuild(e *Entity) {
 
 func (w *World) jobUse(e *Entity) {
 	spec := w.cfg.Needs[e.Need]
-	if w.TerrainAt(e.Target) != spec.Facility { // facility gone; reconsider
-		w.clearJob(e)
+	field := w.facilityField(spec.Facility)
+	if field == nil || field.at(e.Pos) < 0 {
+		w.clearJob(e) // no facility of this kind is reachable anymore
 		return
 	}
-	arrived, ok := w.travelTo(e, e.Target)
-	if !ok {
-		w.clearJob(e)
+	// Arrived: standing next to a facility of the right kind — use it.
+	if fac, ok := w.adjacentFacility(e.Pos, spec.Facility); ok {
+		e.Target = fac
+		e.State = useState(e.Need)
+		e.Progress++
+		if e.Progress >= spec.UseTicks {
+			w.resetNeed(e, e.Need)
+			w.clearJob(e)
+		}
 		return
 	}
-	if !arrived {
-		e.State = Moving
+	// Otherwise follow the shared flow field one step toward the nearest one.
+	if !w.followField(e, field) {
+		e.stuck++
+		if e.stuck > w.cfg.StuckLimit {
+			w.clearJob(e)
+		}
 		return
 	}
-	e.State = useState(e.Need)
-	e.Progress++
-	if e.Progress >= spec.UseTicks {
-		w.resetNeed(e, e.Need)
-		w.clearJob(e)
-	}
+	e.stuck = 0
+	e.State = Moving
 }
 
 // buildTicks is how long a given structure takes to raise.

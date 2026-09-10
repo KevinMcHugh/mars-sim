@@ -141,6 +141,11 @@ In place now:
   (8-connected, room-gated for O(1) reachability) and follow the computed route
   one step per tick, so they route around walls instead of wedging against them,
   and the search runs once per job rather than every tick.
+- Flow fields for shared destinations: one distance field per facility kind
+  (nutrient pods, toilets), rebuilt lazily with a single multi-source BFS and
+  followed by every seeker in O(1) per tick. This replaced a full-grid facility
+  scan that ran per hungry colonist; 1000 colonists all seeking at once cost
+  ~82 us/tick.
 
 Cumulative effect of the reactive work, on a 2000-colonist stress tick:
 
@@ -151,9 +156,10 @@ Cumulative effect of the reactive work, on a 2000-colonist stress tick:
 | + chunk index, rooms, board   | ~43     |
 | + lazy needs & resting AI     | ~13     |
 
-Still to come: with routes precomputed, a headless/fast-forward mode could let a
-travelling colonist sleep *through* its trip (skip the in-between ticks) rather
-than stepping each tick — worthwhile only when per-tick visuals are not needed.
+Still to come: hierarchical A* (an abstract route over the region/room portal
+graph with cached inter-portal segments) for cheap point-to-point travel on big
+maps, and z-levels (a multi-floor world) as its own track — the flow-field and
+region machinery are built to extend into both.
 
 ### Known scaffold limitations (next steps)
 

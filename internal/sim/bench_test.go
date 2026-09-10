@@ -75,3 +75,29 @@ func BenchmarkPathfind(b *testing.B) {
 		w.pathToAdjacent(from, target)
 	}
 }
+
+// BenchmarkNeedSeek measures a tick where a large hungry population converges on
+// a handful of facilities. This is the case flow fields target: one shared BFS
+// per tick instead of a full-grid facility scan per colonist.
+func BenchmarkNeedSeek(b *testing.B) {
+	w := benchWorld(1000)
+	// Scatter pods and toilets across the carved chamber as shared destinations.
+	for gy := 30; gy < 130; gy += 25 {
+		for gx := 30; gx < 130; gx += 25 {
+			w.SetTerrain(Point{gx, gy}, NutrientPod)
+			w.SetTerrain(Point{gx + 2, gy}, Toilet)
+		}
+	}
+	w.refreshSpatial()
+	// Make everyone hungry so they all seek a pod at once.
+	for _, e := range w.entities {
+		if e.Kind == Colonist {
+			e.Needs[NeedFood] = w.cfg.Needs[NeedFood].SeekAt
+		}
+	}
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		w.step()
+	}
+}

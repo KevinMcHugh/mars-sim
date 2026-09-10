@@ -79,6 +79,11 @@ type World struct {
 	board       *jobBoard
 	pf          *pathfinder
 
+	// Shared flow fields toward facility terrains (food, latrines): one distance
+	// field per facility kind, followed by every seeker. Rebuilt lazily when
+	// terrain changes. See flowfield.go.
+	fields [numTerrains]*flowField
+
 	entities map[EntityID]*Entity
 	nextID   EntityID
 
@@ -120,6 +125,21 @@ func newWorld(cfg Config, rng *rand.Rand) *World {
 		}
 	})
 	w.pf = newPathfinder(w)
+
+	for i := 0; i < int(numNeeds); i++ {
+		if f := cfg.Needs[i].Facility; f != Rock && w.fields[f] == nil {
+			w.fields[f] = newFlowField(w, f)
+		}
+	}
+	w.subscribe(func(e Event) {
+		if _, ok := e.(TileChanged); ok {
+			for _, f := range w.fields {
+				if f != nil {
+					f.stale = true // any terrain change can shift goals or routes
+				}
+			}
+		}
+	})
 	return w
 }
 
@@ -236,25 +256,4 @@ func (w *World) countKind(kind Kind) int {
 // countTerrain returns how many tiles currently hold the given terrain.
 func (w *World) countTerrain(t Terrain) int {
 	return w.terrainCounts[t]
-}
-
-// nearestFacility returns the closest tile of terrain t to from, if any exists.
-// This still scans the grid; it runs only when a colonist has an urgent need, so
-// it is bounded, and it will move to a facility registry alongside the job board.
-func (w *World) nearestFacility(from Point, t Terrain) (Point, bool) {
-	best := Point{}
-	bestDist := 1 << 30
-	found := false
-	for y := 0; y < w.Height; y++ {
-		for x := 0; x < w.Width; x++ {
-			p := Point{x, y}
-			if w.tiles[w.index(p)].Terrain != t {
-				continue
-			}
-			if d := from.Chebyshev(p); d < bestDist {
-				best, bestDist, found = p, d, true
-			}
-		}
-	}
-	return best, found
 }
