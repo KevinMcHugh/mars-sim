@@ -122,14 +122,21 @@ Measure it yourself:
 go test ./internal/sim/ -run '^$' -bench BenchmarkStep -benchmem
 ```
 
-In place now: a chunk-based entity spatial index (neighbor queries scan nearby
-chunks, not every entity) and a two-level region/room system (floor grouped into
-per-chunk regions, then rooms as connected components of the region graph),
-maintained incrementally in ~microseconds per terrain change.
+In place now:
 
-Still to come (the reactive architecture): an event bus + room-scoped job board
-so colonists react to construction instead of rescanning, and lazy needs with a
-preemption scheduler.
+- A chunk-based entity spatial index (neighbor queries scan nearby chunks, not
+  every entity).
+- A two-level region/room system (floor grouped into per-chunk regions, then
+  rooms as connected components of the region graph), maintained incrementally in
+  ~microseconds per terrain change.
+- An event bus (`Event`/`TileChanged`) and a job board: the mineable frontier is
+  tracked incrementally from tile events, so colonists claim the nearest
+  reachable mine job instead of scanning the map, and in-progress builds are
+  counted in O(1). A 2000-colonist tick dropped from ~144 ms (pre-reactive) to
+  ~43 ms.
+
+Still to come: lazy needs with a preemption scheduler (a colonist sleeps until
+`min(task-done, next-need-threshold)`), and sleeping AI woken by room events.
 
 ### Known scaffold limitations (next steps)
 

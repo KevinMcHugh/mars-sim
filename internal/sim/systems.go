@@ -40,6 +40,7 @@ func (w *World) entityIDsSorted() []EntityID {
 func (w *World) colonistTurn(e *Entity) {
 	w.applyNeeds(e)
 	if !e.Alive() { // starved this tick
+		w.clearJob(e) // release any board claim before removal
 		w.remove(e.ID)
 		w.log.add(fmt.Sprintf("Colonist #%d starved to death.", e.ID))
 		return
@@ -47,7 +48,8 @@ func (w *World) colonistTurn(e *Entity) {
 
 	// Survival comes first: if an alien is close, drop everything and run.
 	if threat, ok := w.nearestAlien(e.Pos, w.cfg.FleeRadius); ok {
-		e.State, e.Job, e.Progress = Fleeing, JobNone, 0
+		w.clearJob(e)
+		e.State = Fleeing
 		w.fleeStep(e, threat.Pos)
 		return
 	}
@@ -57,9 +59,11 @@ func (w *World) colonistTurn(e *Entity) {
 	if need, urgent := w.mostUrgentNeed(e); urgent && !(e.Job == JobUse && e.Need == need) {
 		spec := w.cfg.Needs[need]
 		if pos, ok := w.nearestFacility(e.Pos, spec.Facility); ok {
+			w.clearJob(e)
 			e.Job, e.Need, e.Target, e.Progress = JobUse, need, pos, 0
 		} else if spot, ok := w.findBuildSpot(e.Pos, 20); ok {
-			e.Job, e.BuildKind, e.Target, e.Progress = JobBuild, spec.Facility, spot, 0
+			w.clearJob(e)
+			w.assignBuild(e, spec.Facility, spot)
 		}
 	}
 
@@ -67,6 +71,30 @@ func (w *World) colonistTurn(e *Entity) {
 		w.assignWorkJob(e)
 	}
 	w.runJob(e)
+}
+
+// assignMine / assignBuild set a colonist's job and update the board's
+// bookkeeping (claim the mine tile / count the in-progress build). clearJob
+// reverses whichever bookkeeping the current job holds and returns the colonist
+// to idle. Routing every job start and end through these keeps the board's claim
+// set and build counts exact.
+func (w *World) assignMine(e *Entity, target Point) {
+	e.Job, e.Target, e.Progress = JobMine, target, 0
+}
+
+func (w *World) assignBuild(e *Entity, kind Terrain, target Point) {
+	e.Job, e.BuildKind, e.Target, e.Progress = JobBuild, kind, target, 0
+	w.board.startBuild(kind)
+}
+
+func (w *World) clearJob(e *Entity) {
+	switch e.Job {
+	case JobMine:
+		w.board.releaseMine(e.Target)
+	case JobBuild:
+		w.board.endBuild(e.BuildKind)
+	}
+	e.Job, e.Progress = JobNone, 0
 }
 
 // runJob executes the colonist's current job for one tick.
@@ -88,29 +116,30 @@ func (w *World) runJob(e *Entity) {
 // stocked first, then occasionally wall things off, otherwise mine. Leaves
 // JobNone if nothing suitable is nearby.
 func (w *World) assignWorkJob(e *Entity) {
-	e.Progress = 0
 	desired := w.desiredFacilities(w.countKind(Colonist))
 
 	if w.plannedFacilities(NutrientPod) < desired {
 		if spot, ok := w.findBuildSpot(e.Pos, 16); ok {
-			e.Job, e.BuildKind, e.Target = JobBuild, NutrientPod, spot
+			w.assignBuild(e, NutrientPod, spot)
 			return
 		}
 	}
 	if w.plannedFacilities(Toilet) < desired {
 		if spot, ok := w.findBuildSpot(e.Pos, 16); ok {
-			e.Job, e.BuildKind, e.Target = JobBuild, Toilet, spot
+			w.assignBuild(e, Toilet, spot)
 			return
 		}
 	}
 	if w.rng.Intn(100) < w.cfg.BuildChance {
 		if spot, ok := w.findBuildSpot(e.Pos, 12); ok {
-			e.Job, e.BuildKind, e.Target = JobBuild, Wall, spot
+			w.assignBuild(e, Wall, spot)
 			return
 		}
 	}
-	if rock, ok := w.findMineable(e.Pos, 18); ok {
-		e.Job, e.Target = JobMine, rock
+	// Mining is pulled from the job board: claim the nearest reachable frontier
+	// tile instead of scanning a radius of the map.
+	if target, ok := w.board.claimNearestMine(e.Pos, w.roomOf(e.Pos)); ok {
+		w.assignMine(e, target)
 		return
 	}
 	e.Job = JobNone
@@ -118,15 +147,10 @@ func (w *World) assignWorkJob(e *Entity) {
 
 // plannedFacilities counts a facility kind that already exists plus those a
 // colonist is currently building, so the colony converges on the desired number
-// instead of every idle colonist starting one at the same instant.
+// instead of every idle colonist starting one at the same instant. The
+// in-progress count comes from the board's O(1) counter, not an entity scan.
 func (w *World) plannedFacilities(kind Terrain) int {
-	n := w.countTerrain(kind)
-	for _, e := range w.entities {
-		if e.Kind == Colonist && e.Job == JobBuild && e.BuildKind == kind {
-			n++
-		}
-	}
-	return n
+	return w.countTerrain(kind) + w.board.inProgress(kind)
 }
 
 // desiredFacilities is how many of each life-support structure the colony wants
@@ -141,12 +165,12 @@ func (w *World) desiredFacilities(colonists int) int {
 
 func (w *World) jobMine(e *Entity) {
 	if w.TerrainAt(e.Target) != Rock { // already mined by someone
-		e.Job = JobNone
+		w.clearJob(e)
 		return
 	}
 	adj, stuck := w.approach(e, e.Target)
 	if stuck {
-		e.Job = JobNone
+		w.clearJob(e)
 		return
 	}
 	if !adj {
@@ -156,19 +180,19 @@ func (w *World) jobMine(e *Entity) {
 	e.State = Mining
 	e.Progress++
 	if e.Progress >= w.cfg.MineTicks {
-		w.SetTerrain(e.Target, Floor)
-		e.Job, e.Progress = JobNone, 0
+		w.SetTerrain(e.Target, Floor) // TileChanged drops the tile from the frontier
+		w.clearJob(e)
 	}
 }
 
 func (w *World) jobBuild(e *Entity) {
 	if w.TerrainAt(e.Target) != Floor { // already built, or no longer valid
-		e.Job = JobNone
+		w.clearJob(e)
 		return
 	}
 	adj, stuck := w.approach(e, e.Target)
 	if stuck {
-		e.Job = JobNone
+		w.clearJob(e)
 		return
 	}
 	if !adj {
@@ -176,7 +200,7 @@ func (w *World) jobBuild(e *Entity) {
 		return
 	}
 	if w.occupiedByOther(e.Target, e.ID) { // can't build where someone stands
-		e.Job = JobNone
+		w.clearJob(e)
 		return
 	}
 	e.State = Building
@@ -184,19 +208,19 @@ func (w *World) jobBuild(e *Entity) {
 	if e.Progress >= w.buildTicks(e.BuildKind) {
 		w.SetTerrain(e.Target, e.BuildKind)
 		w.noteBuild(e.BuildKind)
-		e.Job, e.Progress = JobNone, 0
+		w.clearJob(e) // endBuild decrements the in-progress counter
 	}
 }
 
 func (w *World) jobUse(e *Entity) {
 	spec := w.cfg.Needs[e.Need]
 	if w.TerrainAt(e.Target) != spec.Facility { // facility gone; reconsider
-		e.Job = JobNone
+		w.clearJob(e)
 		return
 	}
 	adj, stuck := w.approach(e, e.Target)
 	if stuck {
-		e.Job = JobNone
+		w.clearJob(e)
 		return
 	}
 	if !adj {
@@ -207,7 +231,7 @@ func (w *World) jobUse(e *Entity) {
 	e.Progress++
 	if e.Progress >= spec.UseTicks {
 		e.Needs[e.Need] = 0
-		e.Job, e.Progress = JobNone, 0
+		w.clearJob(e)
 	}
 }
 
@@ -246,21 +270,6 @@ func (w *World) approach(e *Entity, target Point) (adjacent, stuck bool) {
 		return false, true
 	}
 	return false, false
-}
-
-// findMineable returns the nearest Rock tile that borders open Floor (so a
-// colonist can reach and excavate it), searched within radius.
-func (w *World) findMineable(from Point, radius int) (Point, bool) {
-	var best Point
-	found := false
-	w.forEachInRadius(from, radius, func(p Point) bool {
-		if w.TerrainAt(p) != Rock || !w.bordersFloor(p) {
-			return false
-		}
-		best, found = p, true
-		return true // rings are nearest-first, so the first match is closest
-	})
-	return best, found
 }
 
 // findBuildSpot returns the nearest open Floor tile that sits against Rock or

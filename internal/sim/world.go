@@ -73,6 +73,11 @@ type World struct {
 	floodStack  []Point
 	roomScratch []RegionID
 
+	// Reactive plumbing: systems subscribe to world events; the job board is the
+	// first consumer, tracking the mineable frontier from TileChanged events.
+	subscribers []func(Event)
+	board       *jobBoard
+
 	entities map[EntityID]*Entity
 	nextID   EntityID
 
@@ -106,6 +111,13 @@ func newWorld(cfg Config, rng *rand.Rand) *World {
 	w.regions = make(map[RegionID]*region)
 	w.nextRegion = 1
 	w.dirtyChunks = make(map[int]struct{})
+
+	w.board = newJobBoard(w)
+	w.subscribe(func(e Event) {
+		if tc, ok := e.(TileChanged); ok {
+			w.board.onTileChanged(tc)
+		}
+	})
 	return w
 }
 
@@ -144,6 +156,7 @@ func (w *World) SetTerrain(p Point, t Terrain) {
 	w.terrainCounts[t]++
 	w.tiles[i].Terrain = t
 	w.dirtyChunks[w.chunkIndexOf(p)] = struct{}{}
+	w.emit(TileChanged{Pos: p, Old: old, New: t})
 }
 
 // Walkable reports whether a colonist can stand at p.
