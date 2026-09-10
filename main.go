@@ -104,6 +104,7 @@ func bindConfigFlags(cfg *sim.Config) {
 	flag.IntVar(&cfg.FleeRadius, "flee-radius", cfg.FleeRadius, "colonist flees when an alien is within this many tiles")
 	flag.IntVar(&cfg.StarveDamage, "starve-damage", cfg.StarveDamage, "HP lost per tick while starving")
 	flag.IntVar(&cfg.ColonistsPerFacility, "per-facility", cfg.ColonistsPerFacility, "colonists served by each life-support facility")
+	flag.IntVar(&cfg.RestTicks, "rest-ticks", cfg.RestTicks, "ticks an idle colonist rests before re-checking for work")
 
 	// Aliens.
 	flag.IntVar(&cfg.AlienHP, "alien-hp", cfg.AlienHP, "alien hit points")
@@ -124,6 +125,8 @@ func validateConfig(cfg sim.Config) error {
 		return fmt.Errorf("tps must be at least 1 (got %d)", cfg.TicksPerSecond)
 	case cfg.ColonistsPerFacility < 1:
 		return fmt.Errorf("per-facility must be at least 1 (got %d)", cfg.ColonistsPerFacility)
+	case cfg.RestTicks < 1:
+		return fmt.Errorf("rest-ticks must be at least 1 (got %d)", cfg.RestTicks)
 	}
 	return nil
 }

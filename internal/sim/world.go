@@ -202,6 +202,9 @@ func (w *World) moveEntity(e *Entity, to Point) {
 // new entity so the caller can tune it. The tile must be in bounds and empty.
 func (w *World) spawn(kind Kind, p Point) *Entity {
 	e := newEntity(w.nextID, kind, p, w.cfg)
+	for i := range e.needSince {
+		e.needSince[i] = w.tick // needs start rising from now
+	}
 	w.nextID++
 	w.entities[e.ID] = e
 	w.occ[w.index(p)] = e.ID

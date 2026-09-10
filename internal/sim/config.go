@@ -32,6 +32,7 @@ type Config struct {
 	Needs                [numNeeds]NeedSpec
 	StarveDamage         int // HP lost per tick while a Fatal need sits at Max
 	ColonistsPerFacility int // desired colonists served by each facility (min 1 built)
+	RestTicks            int // ticks an idle colonist rests before re-checking for work
 
 	// Alien stats.
 	AlienHP       int
@@ -59,6 +60,7 @@ func DefaultConfig() Config {
 
 		StarveDamage:         1,
 		ColonistsPerFacility: 3,
+		RestTicks:            10,
 		Needs: [numNeeds]NeedSpec{
 			NeedFood: {
 				Name: "food", Rise: 2, SeekAt: 650, Max: 1000,

@@ -132,11 +132,24 @@ In place now:
 - An event bus (`Event`/`TileChanged`) and a job board: the mineable frontier is
   tracked incrementally from tile events, so colonists claim the nearest
   reachable mine job instead of scanning the map, and in-progress builds are
-  counted in O(1). A 2000-colonist tick dropped from ~144 ms (pre-reactive) to
-  ~43 ms.
+  counted in O(1).
+- Lazy needs and resting AI: needs are stored as a base level plus a timestamp
+  and computed on read, so a colonist stays on its task until the task finishes
+  or a need crosses its threshold (whichever comes first), and an idle colonist
+  with no available work rests instead of re-scanning the map every tick.
 
-Still to come: lazy needs with a preemption scheduler (a colonist sleeps until
-`min(task-done, next-need-threshold)`), and sleeping AI woken by room events.
+Cumulative effect of the reactive work, on a 2000-colonist stress tick:
+
+| Stage                         | ms/tick |
+| ----------------------------- | ------- |
+| Baseline (naive scans)        | ~42000  |
+| + occupancy index & counts    | ~144    |
+| + chunk index, rooms, board   | ~43     |
+| + lazy needs & resting AI     | ~13     |
+
+Still to come: real intra-room pathfinding (movement is still greedy), and — to
+let colonists sleep *through* travel rather than resting only when idle —
+precomputed paths with scheduled arrival ticks.
 
 ### Known scaffold limitations (next steps)
 

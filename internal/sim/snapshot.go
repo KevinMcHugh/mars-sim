@@ -72,7 +72,7 @@ func (w *World) snapshot(paused bool, tps int) *Snapshot {
 			HP:    e.HP,
 			MaxHP: e.MaxHP,
 			State: e.State,
-			Needs: e.Needs,
+			Needs: w.currentNeeds(e),
 		})
 		switch e.Kind {
 		case Colonist:
@@ -93,4 +93,13 @@ func (w *World) snapshot(paused bool, tps int) *Snapshot {
 		Paused:         paused,
 		TicksPerSecond: tps,
 	}
+}
+
+// currentNeeds returns a colonist's need levels as of now, computed lazily.
+func (w *World) currentNeeds(e *Entity) [numNeeds]int {
+	var out [numNeeds]int
+	for i := 0; i < int(numNeeds); i++ {
+		out[i] = w.needLevel(e, NeedKind(i))
+	}
+	return out
 }

@@ -38,7 +38,7 @@ func (w *World) entityIDsSorted() []EntityID {
 // ---- Colonists ---------------------------------------------------------------
 
 func (w *World) colonistTurn(e *Entity) {
-	w.applyNeeds(e)
+	w.applyStarvation(e)
 	if !e.Alive() { // starved this tick
 		w.clearJob(e) // release any board claim before removal
 		w.remove(e.ID)
@@ -49,14 +49,17 @@ func (w *World) colonistTurn(e *Entity) {
 	// Survival comes first: if an alien is close, drop everything and run.
 	if threat, ok := w.nearestAlien(e.Pos, w.cfg.FleeRadius); ok {
 		w.clearJob(e)
+		e.resting = false
 		e.State = Fleeing
 		w.fleeStep(e, threat.Pos)
 		return
 	}
 
-	// A pressing need preempts work. If it is not already being handled, head to
-	// the right facility — or, if none exists yet, build one rather than perish.
-	if need, urgent := w.mostUrgentNeed(e); urgent && !(e.Job == JobUse && e.Need == need) {
+	// A need at its threshold preempts the current task — the colonist stays on
+	// task until either the task finishes (below) or a need crosses, whichever
+	// comes first. Head to the facility, or build one if none exists yet.
+	need, urgent := w.mostUrgentNeed(e)
+	if urgent && !(e.Job == JobUse && e.Need == need) {
 		spec := w.cfg.Needs[need]
 		if pos, ok := w.nearestFacility(e.Pos, spec.Facility); ok {
 			w.clearJob(e)
@@ -65,11 +68,31 @@ func (w *World) colonistTurn(e *Entity) {
 			w.clearJob(e)
 			w.assignBuild(e, spec.Facility, spot)
 		}
+		e.resting = false
 	}
 
-	if e.Job == JobNone {
-		w.assignWorkJob(e)
+	// Stay on the current task: movement and work progress happen here every tick
+	// until the job completes or is abandoned.
+	if e.Job != JobNone {
+		w.runJob(e)
+		return
 	}
+
+	// Idle. If there was no work last time we looked and no need is pressing,
+	// rest (skip the work search) until wakeTick. This keeps an established colony
+	// with nothing available from re-scanning the map every tick.
+	if !urgent && e.resting && w.tick < e.wakeTick {
+		e.State = Idle
+		return
+	}
+	w.assignWorkJob(e)
+	if e.Job == JobNone {
+		e.resting = true
+		e.wakeTick = w.tick + w.cfg.RestTicks
+		e.State = Idle
+		return
+	}
+	e.resting = false
 	w.runJob(e)
 }
 
@@ -230,7 +253,7 @@ func (w *World) jobUse(e *Entity) {
 	e.State = useState(e.Need)
 	e.Progress++
 	if e.Progress >= spec.UseTicks {
-		e.Needs[e.Need] = 0
+		w.resetNeed(e, e.Need)
 		w.clearJob(e)
 	}
 }

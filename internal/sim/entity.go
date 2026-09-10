@@ -93,9 +93,13 @@ type Entity struct {
 	HP    int
 	MaxHP int
 
-	// Needs holds each need's current level (0 = satisfied, up to the need's
-	// Max), indexed by NeedKind. Colonists only.
-	Needs [numNeeds]int
+	// Needs are stored lazily: Needs[i] is the level as of tick needSince[i], so
+	// the current level is Needs[i] + Rise*(now-needSince[i]) (see needLevel).
+	// Storing a base + timestamp instead of ticking every colonist every tick
+	// lets idle colonists rest without their needs drifting out of date.
+	// Colonists only.
+	Needs     [numNeeds]int
+	needSince [numNeeds]int
 
 	// Current job and its parameters.
 	Job       JobKind
@@ -103,6 +107,11 @@ type Entity struct {
 	BuildKind Terrain  // JobBuild: terrain to construct
 	Need      NeedKind // JobUse: which need this fulfills
 	Progress  int      // ticks accumulated on the current action
+
+	// Rest scheduling: an idle colonist with no available work rests (skips the
+	// work search) until wakeTick instead of re-scanning the map every tick.
+	resting  bool
+	wakeTick int
 
 	// Display + shared behavior scratch.
 	State    State
