@@ -77,6 +77,7 @@ type World struct {
 	// first consumer, tracking the mineable frontier from TileChanged events.
 	subscribers []func(Event)
 	board       *jobBoard
+	pf          *pathfinder
 
 	entities map[EntityID]*Entity
 	nextID   EntityID
@@ -118,6 +119,7 @@ func newWorld(cfg Config, rng *rand.Rand) *World {
 			w.board.onTileChanged(tc)
 		}
 	})
+	w.pf = newPathfinder(w)
 	return w
 }
 

@@ -113,6 +113,14 @@ type Entity struct {
 	resting  bool
 	wakeTick int
 
+	// Cached navigation: path is the remaining A* route toward a tile adjacent to
+	// pathGoal, followed one step per tick (pathAt is the next step). stuck counts
+	// consecutive ticks blocked by another colonist before the job is abandoned.
+	path     []Point
+	pathAt   int
+	pathGoal Point
+	stuck    int
+
 	// Display + shared behavior scratch.
 	State    State
 	Quarry   EntityID // (alien) the colonist being hunted; 0 if none
@@ -134,3 +142,10 @@ func newEntity(id EntityID, kind Kind, p Point, cfg Config) *Entity {
 
 // Alive reports whether the entity still has hit points.
 func (e *Entity) Alive() bool { return e.HP > 0 }
+
+// clearPath discards any cached navigation route.
+func (e *Entity) clearPath() {
+	e.path = e.path[:0]
+	e.pathAt = 0
+	e.stuck = 0
+}

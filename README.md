@@ -137,6 +137,10 @@ In place now:
   and computed on read, so a colonist stays on its task until the task finishes
   or a need crosses its threshold (whichever comes first), and an idle colonist
   with no available work rests instead of re-scanning the map every tick.
+- A* pathfinding with cached routes: colonists navigate the floor grid with A*
+  (8-connected, room-gated for O(1) reachability) and follow the computed route
+  one step per tick, so they route around walls instead of wedging against them,
+  and the search runs once per job rather than every tick.
 
 Cumulative effect of the reactive work, on a 2000-colonist stress tick:
 
@@ -147,9 +151,9 @@ Cumulative effect of the reactive work, on a 2000-colonist stress tick:
 | + chunk index, rooms, board   | ~43     |
 | + lazy needs & resting AI     | ~13     |
 
-Still to come: real intra-room pathfinding (movement is still greedy), and — to
-let colonists sleep *through* travel rather than resting only when idle —
-precomputed paths with scheduled arrival ticks.
+Still to come: with routes precomputed, a headless/fast-forward mode could let a
+travelling colonist sleep *through* its trip (skip the in-between ticks) rather
+than stepping each tick — worthwhile only when per-tick visuals are not needed.
 
 ### Known scaffold limitations (next steps)
 

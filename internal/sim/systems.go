@@ -118,6 +118,7 @@ func (w *World) clearJob(e *Entity) {
 		w.board.endBuild(e.BuildKind)
 	}
 	e.Job, e.Progress = JobNone, 0
+	e.clearPath()
 }
 
 // runJob executes the colonist's current job for one tick.
@@ -191,12 +192,12 @@ func (w *World) jobMine(e *Entity) {
 		w.clearJob(e)
 		return
 	}
-	adj, stuck := w.approach(e, e.Target)
-	if stuck {
+	arrived, ok := w.travelTo(e, e.Target)
+	if !ok {
 		w.clearJob(e)
 		return
 	}
-	if !adj {
+	if !arrived {
 		e.State = Moving
 		return
 	}
@@ -213,12 +214,12 @@ func (w *World) jobBuild(e *Entity) {
 		w.clearJob(e)
 		return
 	}
-	adj, stuck := w.approach(e, e.Target)
-	if stuck {
+	arrived, ok := w.travelTo(e, e.Target)
+	if !ok {
 		w.clearJob(e)
 		return
 	}
-	if !adj {
+	if !arrived {
 		e.State = Moving
 		return
 	}
@@ -241,12 +242,12 @@ func (w *World) jobUse(e *Entity) {
 		w.clearJob(e)
 		return
 	}
-	adj, stuck := w.approach(e, e.Target)
-	if stuck {
+	arrived, ok := w.travelTo(e, e.Target)
+	if !ok {
 		w.clearJob(e)
 		return
 	}
-	if !adj {
+	if !arrived {
 		e.State = Moving
 		return
 	}
@@ -276,23 +277,42 @@ func (w *World) noteBuild(kind Terrain) {
 	}
 }
 
-// approach moves one walkable step toward target and reports whether the entity
-// is now adjacent to it. stuck is true when it could get no closer and is not
-// adjacent, signalling the caller to abandon the job (greedy movement can box
-// itself in; the colonist simply repicks next tick).
-func (w *World) approach(e *Entity, target Point) (adjacent, stuck bool) {
+// travelTo advances a colonist one step along a cached A* route toward a tile
+// adjacent to target, computing (or recomputing) the route as needed. It returns
+// arrived (now adjacent to target) and ok (false => give up: the target is
+// unreachable, or the colonist has been wedged too long).
+func (w *World) travelTo(e *Entity, target Point) (arrived, ok bool) {
 	if e.Pos.Adjacent(target) {
-		return true, false
+		e.clearPath()
+		return true, true
 	}
-	before := e.Pos.Chebyshev(target)
-	moved := w.walkStep(e, target)
-	if e.Pos.Adjacent(target) {
-		return true, false
+	// (Re)plan when we have no route, it was for a different goal, or it ran out
+	// without arriving.
+	if len(e.path) == 0 || e.pathGoal != target || e.pathAt >= len(e.path) {
+		route, found := w.pathToAdjacent(e.Pos, target)
+		if !found {
+			e.clearPath()
+			return false, false
+		}
+		e.path, e.pathAt, e.pathGoal, e.stuck = route, 0, target, 0
 	}
-	if !moved || e.Pos.Chebyshev(target) >= before {
+	next := e.path[e.pathAt]
+	switch {
+	case !w.Walkable(next): // terrain changed under the route; replan next tick
+		e.clearPath()
+		return false, true
+	case w.occupiedByOther(next, e.ID): // wait for the blocker to move
+		e.stuck++
+		if e.stuck > w.cfg.StuckLimit {
+			e.clearPath()
+			return false, false
+		}
 		return false, true
 	}
-	return false, false
+	w.moveEntity(e, next)
+	e.pathAt++
+	e.stuck = 0
+	return e.Pos.Adjacent(target), true
 }
 
 // findBuildSpot returns the nearest open Floor tile that sits against Rock or
@@ -374,28 +394,6 @@ func (w *World) bite(alien, prey *Entity) {
 }
 
 // ---- Movement primitives -----------------------------------------------------
-
-// walkStep moves a colonist one step toward dest across walkable, unoccupied
-// tiles, choosing the neighbor that most reduces distance. Returns whether it
-// moved.
-func (w *World) walkStep(e *Entity, dest Point) bool {
-	best := e.Pos
-	bestDist := e.Pos.Chebyshev(dest)
-	for _, d := range neighbors8 {
-		n := e.Pos.Add(d.X, d.Y)
-		if !w.Walkable(n) || w.occupiedByOther(n, e.ID) {
-			continue
-		}
-		if dd := n.Chebyshev(dest); dd < bestDist {
-			best, bestDist = n, dd
-		}
-	}
-	if best.Equal(e.Pos) {
-		return false
-	}
-	w.moveEntity(e, best)
-	return true
-}
 
 // burrowStep moves an alien one step toward dest through any terrain. It avoids
 // tiles already occupied by another entity (one body per tile); it attacks

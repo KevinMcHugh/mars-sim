@@ -61,3 +61,17 @@ func BenchmarkRoomRefresh(b *testing.B) {
 		w.refreshSpatial()
 	}
 }
+
+// BenchmarkPathfind measures one A* search across a large open room (a common
+// case: a colonist near the middle routing to a frontier tile at the edge).
+func BenchmarkPathfind(b *testing.B) {
+	w := benchWorld(0) // 160x160 with a large carved chamber
+	w.refreshSpatial()
+	from := Point{w.Width / 2, w.Height / 2}
+	target := Point{20, 20} // rock at the chamber's rock border
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		w.pathToAdjacent(from, target)
+	}
+}
