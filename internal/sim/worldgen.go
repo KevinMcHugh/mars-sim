@@ -49,7 +49,7 @@ func generate(w *World) {
 // colonists with breathing room, clamped to something sane and to the world
 // bounds. It keeps a 2:1 width:height shape to match the map.
 func (w *World) caveRadii(n int) (rx, ry int) {
-	const tilesPerColonist = 4
+	const tilesPerColonist = 10
 	// area = pi * rx * ry, with rx = 2*ry  =>  ry = sqrt(area / (2*pi)).
 	area := float64(n * tilesPerColonist)
 	ry = int(math.Ceil(math.Sqrt(area / (2 * math.Pi))))

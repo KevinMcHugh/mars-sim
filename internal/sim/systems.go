@@ -23,7 +23,17 @@ func (w *World) step() {
 		}
 	}
 	w.refreshSpatial() // fold in any digging/building from this tick
+	w.pruneProjects()
+	if w.tick >= w.nextPlanTick {
+		w.planFacilities()
+		w.nextPlanTick = w.tick + planInterval
+	}
+	w.rebuildBuildTiles() // reflect this tick's completions and any new project
 }
+
+// planInterval is how often the colony re-plans construction, in ticks. Facility
+// needs are slow, so a coarse cadence keeps planning cheap.
+const planInterval = 16
 
 // entityIDsSorted returns current entity IDs in ascending order.
 func (w *World) entityIDsSorted() []EntityID {
@@ -89,6 +99,18 @@ func (w *World) colonistTurn(e *Entity) {
 	}
 	w.assignWorkJob(e)
 	if e.Job == JobNone {
+		if w.idleWouldBlock(e.Pos) {
+			// Never idle where resting would block others. A satisfied colonist
+			// parked on a facility's access tile (often right where it just ate)
+			// keeps starving colonists from reaching it; one parked on a pending
+			// build tile keeps that structure from ever being built, stalling the
+			// whole project. Either way, step aside and re-check next tick rather
+			// than freezing here.
+			e.resting = false
+			e.State = Idle
+			w.wanderStep(e)
+			return
+		}
 		e.resting = true
 		e.wakeTick = w.tick + w.cfg.RestTicks
 		e.State = Idle
@@ -96,6 +118,33 @@ func (w *World) colonistTurn(e *Entity) {
 	}
 	e.resting = false
 	w.runJob(e)
+}
+
+// idleWouldBlock reports whether an idle colonist resting at p would get in the
+// colony's way: p is a facility's access tile (blocking users) or a pending
+// build tile (blocking construction).
+func (w *World) idleWouldBlock(p Point) bool {
+	return w.onFacilityAccess(p) || w.onPendingBuild(p)
+}
+
+// onFacilityAccess reports whether p is next to any need-satisfying facility, so
+// an idle colonist standing there would block others from using it.
+func (w *World) onFacilityAccess(p Point) bool {
+	for _, d := range neighbors8 {
+		t := w.TerrainAt(p.Add(d.X, d.Y))
+		for i := 0; i < int(numNeeds); i++ {
+			if w.cfg.Needs[i].Facility == t {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// onPendingBuild reports whether p is a not-yet-built task tile of some project,
+// which a builder must find clear to construct.
+func (w *World) onPendingBuild(p Point) bool {
+	return w.buildTiles[p]
 }
 
 // assignMine / assignBuild set a colonist's job and update the board's
@@ -178,9 +227,19 @@ func (w *World) claimAdjacentFrontier(e *Entity) (Point, bool) {
 	return Point{}, false
 }
 
+// assignBuild commits a colonist to a lone, ad-hoc build (the emergency
+// facility fallback), tracked by the board's in-progress counter.
 func (w *World) assignBuild(e *Entity, kind Terrain, target Point) {
 	e.Job, e.BuildKind, e.Target, e.Progress = JobBuild, kind, target, 0
 	w.board.startBuild(kind)
+}
+
+// assignTask commits a colonist to a claimed construction-project task. The task
+// is already marked owned by claimNearestTask; e.task links back to it so
+// completion and abandonment can release it.
+func (w *World) assignTask(e *Entity, t *buildTask) {
+	e.Job, e.BuildKind, e.Target, e.Progress = JobBuild, t.terrain, t.pos, 0
+	e.task = t
 }
 
 func (w *World) clearJob(e *Entity) {
@@ -191,7 +250,12 @@ func (w *World) clearJob(e *Entity) {
 			e.mineClaimed = false
 		}
 	case JobBuild:
-		w.board.endBuild(e.BuildKind)
+		if e.task != nil {
+			e.task.owner = 0 // release the project task for someone else
+			e.task = nil
+		} else {
+			w.board.endBuild(e.BuildKind) // lone emergency build
+		}
 	}
 	e.Job, e.Progress = JobNone, 0
 	e.clearPath()
@@ -212,29 +276,15 @@ func (w *World) runJob(e *Entity) {
 	}
 }
 
-// assignWorkJob picks something productive to do: keep the colony's life-support
-// stocked first, then occasionally wall things off, otherwise mine. Leaves
-// JobNone if nothing suitable is nearby.
+// assignWorkJob picks something productive to do: help build a planned project
+// first (life-support rooms), otherwise mine the frontier. Leaves JobNone if
+// nothing suitable is reachable.
 func (w *World) assignWorkJob(e *Entity) {
-	desired := w.desiredFacilities(w.countKind(Colonist))
-
-	if w.plannedFacilities(NutrientPod) < desired {
-		if spot, ok := w.findBuildSpot(e.Pos, 16); ok {
-			w.assignBuild(e, NutrientPod, spot)
-			return
-		}
-	}
-	if w.plannedFacilities(Toilet) < desired {
-		if spot, ok := w.findBuildSpot(e.Pos, 16); ok {
-			w.assignBuild(e, Toilet, spot)
-			return
-		}
-	}
-	if w.rng.Intn(100) < w.cfg.BuildChance {
-		if spot, ok := w.findBuildSpot(e.Pos, 12); ok {
-			w.assignBuild(e, Wall, spot)
-			return
-		}
+	// Collaborate on planned construction (facility rooms, etc.): claim the
+	// nearest reachable task from the shared project pool.
+	if task, ok := w.claimNearestTask(e.Pos, e.ID); ok {
+		w.assignTask(e, task)
+		return
 	}
 	// Mining: big colonies/maps follow the shared frontier field (claim on
 	// arrival); small ones use cached A* to the nearest claimed tile. Either way
@@ -258,7 +308,7 @@ func (w *World) assignWorkJob(e *Entity) {
 // instead of every idle colonist starting one at the same instant. The
 // in-progress count comes from the board's O(1) counter, not an entity scan.
 func (w *World) plannedFacilities(kind Terrain) int {
-	return w.countTerrain(kind) + w.board.inProgress(kind)
+	return w.countTerrain(kind) + w.board.inProgress(kind) + w.projectFacilityTasks(kind)
 }
 
 // desiredFacilities is how many of each life-support structure the colony wants
@@ -331,10 +381,18 @@ func (w *World) jobBuild(e *Entity) {
 		e.State = Moving
 		return
 	}
-	if w.occupiedByOther(e.Target, e.ID) { // can't build where someone stands
-		w.clearJob(e)
+	if w.occupiedByOther(e.Target, e.ID) {
+		// Someone is on the build tile. Colonists route around pending build
+		// tiles, so this clears quickly; wait a few ticks rather than abandoning
+		// the job outright, and give up only if it stays blocked.
+		e.State = Building
+		e.stuck++
+		if e.stuck > w.cfg.StuckLimit {
+			w.clearJob(e)
+		}
 		return
 	}
+	e.stuck = 0
 	e.State = Building
 	e.Progress++
 	if e.Progress >= w.buildTicks(e.BuildKind) {
@@ -561,8 +619,8 @@ func (w *World) wanderStep(e *Entity) {
 	if !w.InBounds(n) || w.occupiedByOther(n, e.ID) {
 		return
 	}
-	if e.Kind == Colonist && !w.Walkable(n) {
-		return
+	if e.Kind == Colonist && (!w.Walkable(n) || w.buildTiles[n]) {
+		return // colonists keep off tiles a builder needs clear
 	}
 	w.moveEntity(e, n)
 }

@@ -85,6 +85,16 @@ type World struct {
 	fields   [numTerrains]*flowField
 	frontier *flowField
 
+	// Construction projects the colony builds collaboratively (see project.go).
+	projects      []*project
+	nextProjectID int
+	nextPlanTick  int
+	// buildTiles holds every not-yet-built task tile, rebuilt each tick. Colonists
+	// route around these so a crowd never parks on a tile a builder needs clear —
+	// otherwise a facility mobbed by its neighbors could never be raised. See
+	// rebuildBuildTiles.
+	buildTiles map[Point]bool
+
 	entities map[EntityID]*Entity
 	nextID   EntityID
 
@@ -98,15 +108,16 @@ type World struct {
 func newWorld(cfg Config, rng *rand.Rand) *World {
 	n := cfg.Width * cfg.Height
 	w := &World{
-		Width:    cfg.Width,
-		Height:   cfg.Height,
-		tiles:    make([]Tile, n),
-		occ:      make([]EntityID, n),
-		entities: make(map[EntityID]*Entity),
-		nextID:   1,
-		rng:      rng,
-		log:      newEventLog(cfg.LogSize),
-		cfg:      cfg,
+		Width:      cfg.Width,
+		Height:     cfg.Height,
+		tiles:      make([]Tile, n),
+		occ:        make([]EntityID, n),
+		entities:   make(map[EntityID]*Entity),
+		buildTiles: make(map[Point]bool),
+		nextID:     1,
+		rng:        rng,
+		log:        newEventLog(cfg.LogSize),
+		cfg:        cfg,
 	}
 	w.terrainCounts[Rock] = n // every tile starts as Rock
 

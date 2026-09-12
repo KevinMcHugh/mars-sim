@@ -71,11 +71,9 @@ mutable state:
   rather than a strict ECS — pragmatic for a scaffold, and fields can graduate
   into real components as systems grow. Per-tick behavior lives in
   `systems.go`.
-  - **Colonists** walk only on floor. They mine rock into floor, build
-    facilities along edges, tend to their needs, and flee when an alien gets
-    close. (Purposeless random wall-building is off by default — see
-    `BuildChance` — because it fragmented the colony and stranded colonists from
-    food; intentional room-building is future work.)
+  - **Colonists** walk only on floor. They mine rock into floor, build the
+    colony's life-support as coordinated projects (see *Construction projects*),
+    tend to their needs, and flee when an alien gets close.
   - **Aliens** burrow through *any* terrain to reach the nearest colonist and
     eat it.
 
@@ -93,10 +91,50 @@ facility satisfies it, and whether maxing out is fatal:
 
 When a need crosses its threshold the colonist walks to the nearest matching
 facility and uses it, resetting the need. Facilities are ordinary buildable
-structures (built from rock like walls — no material inventory yet). The colony
-keeps enough life-support stocked for its population, and a hungry colonist with
+structures (no material inventory yet). The colony keeps enough life-support
+stocked for its population (`ColonistsPerFacility`), and a hungry colonist with
 nowhere to eat will build a pod rather than starve. Adding a new need is meant to
 be a table edit: append a `NeedKind`, give it a `NeedSpec` and a facility.
+
+#### Construction projects
+
+The colony builds structures as **projects** it plans as a group rather than one
+colonist at a time (`internal/sim/project.go`). A project is a set of tile
+designations (`buildTask`s); any number of colonists each claim and build
+individual tasks, so a room goes up collaboratively and in parallel. It is a
+general coordination backbone — facility rooms are the first project kind, and
+barracks, storage, and the like would be new task generators over the same
+machinery.
+
+Today the one project kind is a **facility room**: a bay of pods and toilets
+carved against the cavern's rock face. Its shape is deliberate, and every rule in
+it was learned by watching colonies starve around earlier designs — because
+colonists roam and mine the whole cavern, someone is always on the far side of,
+or crowded against, any structure:
+
+- **No built walls.** Every walled design tried here starved the colony by a
+  different mechanism: an enclosed room traps its own builders; a free-standing
+  wall funnels seekers through its last unbuilt gap and deadlocks the crowd; a
+  wall tile next to a facility can never be built because a colonist using the
+  facility always stands on it. Walls are cosmetic today, so a room leans on the
+  cavern rock as its back instead. Real walls belong with a reason to have them
+  (defense, atmosphere) and a movement model that reserves build tiles from
+  through-traffic.
+- **Backed by rock, open front.** Nothing is ever behind a room, so no crowd
+  queues behind it; the open front lets seekers spread across every facility
+  instead of funneling through a door.
+- **Facilities spaced one tile apart.** A colonist using a facility stands on its
+  neighbor tiles, so no two facilities may be adjacent or one could never be
+  built. Colonists also route around pending build tiles and never idle on a
+  facility's access tile, so a crowd never blocks construction or each other from
+  the pods.
+
+One room is built at a time so most colonists keep mining (growing the cavern)
+while a small crew finishes the current room. A fully mined-out map is the one
+known soft spot: with nothing left to dig, the whole idle population mobs the few
+facilities and a colonist or two can occasionally be crowded out over a long
+run — a shared-facility crowd-flow limit, not a room-building one, and moot once
+maps are larger than the colony can exhaust or colonists have other work.
 - All tunables (world size, populations, HP, dig/build times, alien speed) live
   in `Config` (`config.go`). Runs are deterministic for a given `Seed`.
 

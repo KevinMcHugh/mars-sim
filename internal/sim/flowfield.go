@@ -119,8 +119,8 @@ func (w *World) followField(e *Entity, f *flowField) bool {
 	best := cur // never step uphill (beyond the current distance)
 	for _, d := range neighbors8 {
 		p := e.Pos.Add(d.X, d.Y)
-		if !w.Walkable(p) || w.occupiedByOther(p, e.ID) {
-			continue
+		if !w.Walkable(p) || w.occupiedByOther(p, e.ID) || w.buildTiles[p] {
+			continue // never step onto a tile a builder needs clear
 		}
 		nd := f.at(p)
 		if nd < 0 || nd > cur {

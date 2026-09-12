@@ -100,7 +100,6 @@ func bindConfigFlags(cfg *sim.Config) {
 	flag.IntVar(&cfg.MineTicks, "mine-ticks", cfg.MineTicks, "ticks of work to excavate one rock tile")
 	flag.IntVar(&cfg.BuildTicks, "build-ticks", cfg.BuildTicks, "ticks of work to raise one wall")
 	flag.IntVar(&cfg.FacilityBuildTicks, "facility-ticks", cfg.FacilityBuildTicks, "ticks of work to build a pod or toilet")
-	flag.IntVar(&cfg.BuildChance, "build-chance", cfg.BuildChance, "percent chance an idle colonist builds a wall vs. mines")
 	flag.IntVar(&cfg.FleeRadius, "flee-radius", cfg.FleeRadius, "colonist flees when an alien is within this many tiles")
 	flag.IntVar(&cfg.StarveDamage, "starve-damage", cfg.StarveDamage, "HP lost per tick while starving")
 	flag.IntVar(&cfg.ColonistsPerFacility, "per-facility", cfg.ColonistsPerFacility, "colonists served by each life-support facility")

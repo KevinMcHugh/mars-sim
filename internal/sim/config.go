@@ -25,13 +25,12 @@ type Config struct {
 	MineTicks          int // ticks of work to excavate one Rock tile
 	BuildTicks         int // ticks of work to raise one Wall
 	FacilityBuildTicks int // ticks of work to build a nutrient pod or toilet
-	BuildChance        int // percent chance an idle colonist builds a wall vs. mines
 	FleeRadius         int // flee when an alien is within this many tiles
 
 	// Needs. One NeedSpec per NeedKind, indexed by that kind.
 	Needs                [numNeeds]NeedSpec
 	StarveDamage         int // HP lost per tick while a Fatal need sits at Max
-	ColonistsPerFacility int // desired colonists served by each facility (min 1 built)
+	ColonistsPerFacility int // desired colonists served by each facility of a kind (min 1)
 	RestTicks            int // ticks an idle colonist rests before re-checking for work
 	StuckLimit           int // ticks a colonist waits on a blocked path before abandoning the job
 
@@ -62,11 +61,10 @@ func DefaultConfig() Config {
 		MineTicks:          6,
 		BuildTicks:         8,
 		FacilityBuildTicks: 12,
-		BuildChance:        0,
 		FleeRadius:         5,
 
 		StarveDamage:         1,
-		ColonistsPerFacility: 3,
+		ColonistsPerFacility: 10,
 		RestTicks:            10,
 		StuckLimit:           8,
 

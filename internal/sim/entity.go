@@ -126,6 +126,11 @@ type Entity struct {
 	// the digging edge.
 	mineClaimed bool
 
+	// task is the construction-project task this colonist has claimed (nil unless
+	// it is building one). Distinguishes coordinated project work from a lone
+	// emergency build.
+	task *buildTask
+
 	// Display + shared behavior scratch.
 	State    State
 	Quarry   EntityID // (alien) the colonist being hunted; 0 if none

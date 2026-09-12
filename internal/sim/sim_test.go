@@ -309,18 +309,162 @@ func TestAllRequestedColonistsSpawn(t *testing.T) {
 	}
 }
 
-// Regression: a colony left alone with facilities must not starve itself over a
-// long run. This previously failed for three compounding reasons — a non-fatal
-// need starving the fatal one, a synchronized-hunger stampede deadlocking the
-// facilities, and purposeless walls fragmenting the colony away from food.
+// Regression: a colony left alone must feed itself over a long run, across seeds.
+// This has repeatedly regressed as new behavior landed — a non-fatal need
+// starving the fatal one, a synchronized-hunger stampede deadlocking the
+// facilities, walls fragmenting the colony away from food, and (once facility
+// rooms arrived) builders trapped or crowds blocking construction. A crowd of 20
+// on one map exercises the facility-room planning, collaborative construction,
+// and the crowd-flow rules that keep pods reachable.
 func TestColonyDoesNotStarveOverTime(t *testing.T) {
-	cfg := DefaultConfig()
-	cfg.Seed, cfg.StartColonists, cfg.StartAliens = 5, 20, 0
-	w := NewEngine(cfg).world
-	for i := 0; i < 1200; i++ {
-		w.step()
+	for _, seed := range []int64{5, 1, 2, 7, 42, 9, 100} {
+		cfg := DefaultConfig()
+		cfg.Seed, cfg.StartColonists, cfg.StartAliens = seed, 20, 0
+		w := NewEngine(cfg).world
+		for i := 0; i < 1500; i++ {
+			w.step()
+		}
+		if got := w.countKind(Colonist); got != cfg.StartColonists {
+			t.Fatalf("seed %d: colonists starved: %d of %d survived after 1500 ticks",
+				seed, got, cfg.StartColonists)
+		}
 	}
-	if got := w.countKind(Colonist); got != cfg.StartColonists {
-		t.Fatalf("colonists starved: %d of %d survived after 1200 ticks", got, cfg.StartColonists)
+}
+
+// A facility room is carved against the cavern rock with its facilities spaced
+// one tile apart. The spacing is the invariant that keeps every facility
+// buildable even under a crowd: no colonist using one facility can stand on the
+// tile of another, which would otherwise block that one from ever being built.
+func TestFacilityRoomSpacedAgainstRock(t *testing.T) {
+	cfg := testConfig()
+	cfg.StartColonists, cfg.StartAliens = 0, 0
+	w := newTestWorld(t, cfg)
+
+	// Carve a known pocket with a solid rock ceiling so a site is guaranteed.
+	oy := w.Height / 2
+	for y := oy; y <= oy+1+roomFrontClear; y++ {
+		for x := 2; x < w.Width-2; x++ {
+			w.SetTerrain(Point{x, y}, Floor)
+		}
+	}
+	for x := 2; x < w.Width-2; x++ {
+		w.SetTerrain(Point{x, oy - 1}, Rock) // ceiling to back the room
+	}
+	w.refreshSpatial()
+
+	site, ok := w.findRoomSite(bayWidth(roomFacilities))
+	if !ok {
+		t.Fatal("no rock-backed room site despite a carved pocket")
+	}
+	for dx := 0; dx < bayWidth(roomFacilities); dx++ {
+		if w.TerrainAt(Point{site.X + dx, site.Y - 1}) != Rock {
+			t.Fatalf("site not backed by rock at dx=%d", dx)
+		}
+	}
+
+	w.designateRoom(site, roomFacilities)
+	var facs []Point
+	for _, p := range w.projects {
+		for _, tk := range p.tasks {
+			facs = append(facs, tk.pos)
+		}
+	}
+	if len(facs) != roomFacilities {
+		t.Fatalf("expected %d facility tasks, got %d", roomFacilities, len(facs))
+	}
+	for i := range facs {
+		for j := i + 1; j < len(facs); j++ {
+			if facs[i].Chebyshev(facs[j]) <= 1 {
+				t.Fatalf("facilities %v and %v are adjacent; a user would block a build",
+					facs[i], facs[j])
+			}
+		}
+	}
+}
+
+// A construction project is collaborative: several colonists claim and build its
+// tasks at once, and together they finish it faster than one could alone.
+func TestColonistsCollaborateOnProject(t *testing.T) {
+	cfg := testConfig()
+	cfg.StartColonists, cfg.StartAliens = 0, 0
+	w := newTestWorld(t, cfg)
+
+	// A clear pocket backed by rock, plus a crew of colonists in front of it.
+	oy := w.Height / 2
+	for y := oy; y <= oy+1+roomFrontClear; y++ {
+		for x := 2; x < w.Width-2; x++ {
+			w.SetTerrain(Point{x, y}, Floor)
+		}
+	}
+	for x := 2; x < w.Width-2; x++ {
+		w.SetTerrain(Point{x, oy - 1}, Rock)
+	}
+	w.refreshSpatial()
+
+	site, ok := w.findRoomSite(bayWidth(roomFacilities))
+	if !ok {
+		t.Fatal("no rock-backed room site despite a carved pocket")
+	}
+	w.designateRoom(site, roomFacilities)
+	for i := 0; i < roomFacilities; i++ {
+		w.spawn(Colonist, Point{site.X + i, oy + 1 + roomFrontClear})
+	}
+
+	maxConcurrent := 0
+	done := false
+	for i := 0; i < 400 && !done; i++ {
+		w.step()
+		builders := 0
+		for _, e := range w.entities {
+			if e.Kind == Colonist && e.task != nil {
+				builders++
+			}
+		}
+		if builders > maxConcurrent {
+			maxConcurrent = builders
+		}
+		if len(w.projects) == 0 {
+			done = true
+		}
+	}
+	if !done {
+		t.Fatal("project never completed")
+	}
+	if maxConcurrent < 2 {
+		t.Fatalf("expected multiple colonists building at once, saw at most %d", maxConcurrent)
+	}
+	if got := w.countTerrain(NutrientPod); got < 1 {
+		t.Fatal("collaboration finished but built no nutrient pod")
+	}
+}
+
+// Facility construction is deterministic: the same seed lays out the same
+// facilities in the same places, so runs stay reproducible.
+func TestFacilityLayoutDeterministic(t *testing.T) {
+	run := func() []Point {
+		cfg := DefaultConfig()
+		cfg.Seed, cfg.StartColonists, cfg.StartAliens = 7, 20, 0
+		w := NewEngine(cfg).world
+		for i := 0; i < 800; i++ {
+			w.step()
+		}
+		var facs []Point
+		for y := 0; y < w.Height; y++ {
+			for x := 0; x < w.Width; x++ {
+				if t := w.TerrainAt(Point{x, y}); t == NutrientPod || t == Toilet {
+					facs = append(facs, Point{x, y})
+				}
+			}
+		}
+		return facs
+	}
+	a, b := run(), run()
+	if len(a) != len(b) {
+		t.Fatalf("nondeterministic facility count: %d != %d", len(a), len(b))
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			t.Fatalf("nondeterministic facility layout at %d: %v != %v", i, a[i], b[i])
+		}
 	}
 }
