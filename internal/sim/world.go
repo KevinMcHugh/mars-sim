@@ -239,6 +239,13 @@ func (w *World) spawn(kind Kind, p Point) *Entity {
 	e := newEntity(w.nextID, kind, p, w.cfg)
 	for i := range e.needSince {
 		e.needSince[i] = w.tick // needs start rising from now
+		// Stagger starting need levels so a freshly settled colony does not all
+		// get hungry on the same tick and stampede the facilities at once.
+		if kind == Colonist {
+			if seek := w.cfg.Needs[i].SeekAt; seek > 0 {
+				e.Needs[i] = w.rng.Intn(seek)
+			}
+		}
 	}
 	w.nextID++
 	w.entities[e.ID] = e

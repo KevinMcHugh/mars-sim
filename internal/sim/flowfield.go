@@ -100,30 +100,44 @@ func (f *flowField) ensureFresh() {
 	}
 }
 
-// followField moves a colonist one step down the field's gradient toward the
-// nearest goal, avoiding tiles held by others. Returns whether it moved; false
-// means it has arrived (distance 0), is stuck behind others, or the goal is
-// unreachable from here.
+// followField moves a colonist one step along the field toward the nearest goal,
+// avoiding tiles held by others. Returns whether it moved; false means it has
+// arrived (distance 0), is boxed in, or the goal is unreachable from here.
+//
+// It considers every unoccupied neighbor that does not move uphill and steps to
+// one of the closest ones. Allowing an equal-distance sidestep (when no strictly
+// downhill tile is free) and breaking ties randomly is what keeps a dense crowd
+// from deadlocking: colonists shuffle around each other toward a facility instead
+// of all freezing one tile short of it.
 func (w *World) followField(e *Entity, f *flowField) bool {
 	cur := f.at(e.Pos)
 	if cur <= 0 {
 		return false
 	}
-	best := e.Pos
-	bestDist := cur
+	var cand [8]Point
+	n := 0
+	best := cur // never step uphill (beyond the current distance)
 	for _, d := range neighbors8 {
-		n := e.Pos.Add(d.X, d.Y)
-		if !w.Walkable(n) || w.occupiedByOther(n, e.ID) {
+		p := e.Pos.Add(d.X, d.Y)
+		if !w.Walkable(p) || w.occupiedByOther(p, e.ID) {
 			continue
 		}
-		if nd := f.at(n); nd >= 0 && nd < bestDist {
-			best, bestDist = n, nd
+		nd := f.at(p)
+		if nd < 0 || nd > cur {
+			continue
+		}
+		switch {
+		case nd < best:
+			best, cand[0], n = nd, p, 1
+		case nd == best:
+			cand[n] = p
+			n++
 		}
 	}
-	if best.Equal(e.Pos) {
+	if n == 0 {
 		return false
 	}
-	w.moveEntity(e, best)
+	w.moveEntity(e, cand[w.rng.Intn(n)])
 	return true
 }
 

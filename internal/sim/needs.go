@@ -66,18 +66,31 @@ func (w *World) applyStarvation(e *Entity) {
 	}
 }
 
-// mostUrgentNeed returns the need furthest past its seek threshold, if any is.
-// Ties favor the lower NeedKind (food before bladder).
+// mostUrgentNeed returns the need a colonist should address first, if any is past
+// its seek threshold. A fatal need (starvation) outranks any non-fatal one that
+// is also urgent — otherwise a non-fatal need like bladder, which rises faster
+// and caps further past its threshold, would permanently outrank food and let
+// the colonist starve. Within the same fatal-ness, the need furthest past its
+// threshold wins.
 func (w *World) mostUrgentNeed(e *Entity) (NeedKind, bool) {
 	worst := NeedKind(0)
 	worstOver := -1
+	worstFatal := false
+	found := false
 	for i := 0; i < int(numNeeds); i++ {
-		over := w.needLevel(e, NeedKind(i)) - w.cfg.Needs[i].SeekAt
-		if over >= 0 && over > worstOver {
-			worst, worstOver = NeedKind(i), over
+		spec := w.cfg.Needs[i]
+		over := w.needLevel(e, NeedKind(i)) - spec.SeekAt
+		if over < 0 {
+			continue
+		}
+		better := !found ||
+			(spec.Fatal && !worstFatal) ||
+			(spec.Fatal == worstFatal && over > worstOver)
+		if better {
+			worst, worstOver, worstFatal, found = NeedKind(i), over, spec.Fatal, true
 		}
 	}
-	return worst, worstOver >= 0
+	return worst, found
 }
 
 // useState maps a need to the display state shown while fulfilling it.

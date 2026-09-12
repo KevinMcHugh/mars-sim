@@ -71,9 +71,11 @@ mutable state:
   rather than a strict ECS — pragmatic for a scaffold, and fields can graduate
   into real components as systems grow. Per-tick behavior lives in
   `systems.go`.
-  - **Colonists** walk only on floor. They mine rock into floor, build walls and
+  - **Colonists** walk only on floor. They mine rock into floor, build
     facilities along edges, tend to their needs, and flee when an alien gets
-    close.
+    close. (Purposeless random wall-building is off by default — see
+    `BuildChance` — because it fragmented the colony and stranded colonists from
+    food; intentional room-building is future work.)
   - **Aliens** burrow through *any* terrain to reach the nearest colonist and
     eat it.
 

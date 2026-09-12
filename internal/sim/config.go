@@ -62,7 +62,7 @@ func DefaultConfig() Config {
 		MineTicks:          6,
 		BuildTicks:         8,
 		FacilityBuildTicks: 12,
-		BuildChance:        25,
+		BuildChance:        0,
 		FleeRadius:         5,
 
 		StarveDamage:         1,

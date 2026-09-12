@@ -6,8 +6,10 @@ import "testing"
 // reset to zero when satisfied.
 func TestNeedLevelIsLazy(t *testing.T) {
 	w := roomsTestWorld(20, 20)
-	c := w.spawn(Colonist, Point{5, 5}) // needSince = tick 0
+	c := w.spawn(Colonist, Point{5, 5})
 	spec := w.cfg.Needs[NeedFood]
+	// Spawn staggers starting levels; pin a known baseline for the lazy math.
+	c.Needs[NeedFood], c.needSince[NeedFood] = 0, 0
 
 	w.tick = 100
 	if got, want := w.needLevel(c, NeedFood), spec.Rise*100; got != want {
@@ -92,5 +94,25 @@ func TestRestingColonistStillEats(t *testing.T) {
 	}
 	if !ate {
 		t.Fatalf("resting colonist did not eat despite urgent hunger (level %d)", w.needLevel(col, NeedFood))
+	}
+}
+
+// A fatal need (food) must outrank a non-fatal one (bladder) that is more past
+// its threshold — otherwise bladder, which rises faster and caps further over,
+// permanently deferred food and starved the colonist.
+func TestFatalNeedOutranksNonFatal(t *testing.T) {
+	w := roomsTestWorld(20, 20)
+	c := w.spawn(Colonist, Point{5, 5})
+	food, bladder := w.cfg.Needs[NeedFood], w.cfg.Needs[NeedBladder]
+	if !food.Fatal || bladder.Fatal {
+		t.Skip("assumes food fatal, bladder not")
+	}
+	// Food barely urgent; bladder maxed (further over its threshold).
+	c.Needs[NeedFood], c.needSince[NeedFood] = food.SeekAt+1, w.tick
+	c.Needs[NeedBladder], c.needSince[NeedBladder] = bladder.Max, w.tick
+
+	need, urgent := w.mostUrgentNeed(c)
+	if !urgent || need != NeedFood {
+		t.Fatalf("fatal food need should win over maxed bladder: got need=%v urgent=%v", need, urgent)
 	}
 }

@@ -308,3 +308,19 @@ func TestAllRequestedColonistsSpawn(t *testing.T) {
 		}
 	}
 }
+
+// Regression: a colony left alone with facilities must not starve itself over a
+// long run. This previously failed for three compounding reasons — a non-fatal
+// need starving the fatal one, a synchronized-hunger stampede deadlocking the
+// facilities, and purposeless walls fragmenting the colony away from food.
+func TestColonyDoesNotStarveOverTime(t *testing.T) {
+	cfg := DefaultConfig()
+	cfg.Seed, cfg.StartColonists, cfg.StartAliens = 5, 20, 0
+	w := NewEngine(cfg).world
+	for i := 0; i < 1200; i++ {
+		w.step()
+	}
+	if got := w.countKind(Colonist); got != cfg.StartColonists {
+		t.Fatalf("colonists starved: %d of %d survived after 1200 ticks", got, cfg.StartColonists)
+	}
+}
