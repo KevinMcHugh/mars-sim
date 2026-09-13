@@ -456,34 +456,29 @@ func TestColonyDoesNotStarveOverTime(t *testing.T) {
 	}
 }
 
-// A facility room uses rock for its back, placed walls on the other sides, and a
-// centered doorway. Walls are phase zero so facilities cannot come online and
-// attract users until the enclosure is complete.
-func TestFacilityRoomHasWallsDoorAndBuildPhases(t *testing.T) {
+// A facility room has a complete placed-wall perimeter and centered doorway.
+// Walls are phase zero so facilities cannot come online and attract users until
+// the enclosure is complete.
+func TestFacilityRoomHasCompleteWallsDoorAndBuildPhases(t *testing.T) {
 	cfg := testConfig()
 	cfg.StartColonists, cfg.StartAliens = 0, 0
 	w := newTestWorld(t, cfg)
 
-	// Carve a known pocket with a solid rock ceiling so a site is guaranteed.
+	// Carve a known niche with rock beyond its future placed back wall.
 	oy := w.Height / 2
-	for y := oy; y <= roomFrontWallY(oy)+roomApproach; y++ {
+	for y := oy - 1; y <= roomFrontWallY(oy)+roomApproach; y++ {
 		for x := 1; x < w.Width-1; x++ {
 			w.SetTerrain(Point{x, y}, Floor)
 		}
 	}
 	for x := 2; x < w.Width-2; x++ {
-		w.SetTerrain(Point{x, oy - 1}, Rock) // ceiling to back the room
+		w.SetTerrain(Point{x, oy - 2}, Rock)
 	}
 	w.refreshSpatial()
 
 	site, ok := w.findRoomSite(bayWidth(roomFacilities))
 	if !ok {
-		t.Fatal("no rock-backed room site despite a carved pocket")
-	}
-	for dx := 0; dx < bayWidth(roomFacilities); dx++ {
-		if w.TerrainAt(Point{site.X + dx, site.Y - 1}) != Rock {
-			t.Fatalf("site not backed by rock at dx=%d", dx)
-		}
+		t.Fatal("no room site despite a clear pocket")
 	}
 
 	w.designateRoom(site, roomFacilities)
@@ -517,24 +512,32 @@ func TestFacilityRoomHasWallsDoorAndBuildPhases(t *testing.T) {
 		}
 	}
 	width := bayWidth(roomFacilities)
+	backY := site.Y - 1
 	frontY := roomFrontWallY(site.Y)
 	door := Point{site.X + width/2, frontY}
 	if walls[door] {
 		t.Fatalf("doorway %v was designated as a wall", door)
 	}
-	for y := site.Y; y <= frontY; y++ {
+	for y := backY; y <= frontY; y++ {
 		if !walls[Point{site.X - 1, y}] || !walls[Point{site.X + width, y}] {
 			t.Fatalf("room is missing a side wall on row %d", y)
 		}
 	}
 	for x := site.X; x < site.X+width; x++ {
+		if p := (Point{x, backY}); !walls[p] {
+			t.Fatalf("room is missing back wall %v", p)
+		}
 		if p := (Point{x, frontY}); p != door && !walls[p] {
 			t.Fatalf("room is missing front wall %v", p)
 		}
 	}
 
-	// A facility cannot be claimed while any phase-zero wall remains.
-	if task, ok := w.claimNearestTask(Point{door.X, door.Y + 1}, 1); !ok || task.terrain != Wall {
+	// A facility cannot be claimed while any phase-zero wall remains, and a wall
+	// already occupied when the project is designated must be left for later.
+	blockedWall := Point{site.X, backY}
+	w.spawn(Colonist, blockedWall)
+	if task, ok := w.claimNearestTask(Point{door.X, door.Y + 1}, 999); !ok ||
+		task.terrain != Wall || task.pos == blockedWall {
 		t.Fatalf("first claimed task = %#v, want a wall", task)
 	}
 }
@@ -546,21 +549,21 @@ func TestColonistsCollaborateOnProject(t *testing.T) {
 	cfg.StartColonists, cfg.StartAliens = 0, 0
 	w := newTestWorld(t, cfg)
 
-	// A clear pocket backed by rock, plus a crew of colonists in front of it.
+	// A clear rock-backed niche plus a crew of colonists in front of it.
 	oy := w.Height / 2
-	for y := oy; y <= roomFrontWallY(oy)+roomApproach; y++ {
+	for y := oy - 1; y <= roomFrontWallY(oy)+roomApproach; y++ {
 		for x := 1; x < w.Width-1; x++ {
 			w.SetTerrain(Point{x, y}, Floor)
 		}
 	}
 	for x := 2; x < w.Width-2; x++ {
-		w.SetTerrain(Point{x, oy - 1}, Rock)
+		w.SetTerrain(Point{x, oy - 2}, Rock)
 	}
 	w.refreshSpatial()
 
 	site, ok := w.findRoomSite(bayWidth(roomFacilities))
 	if !ok {
-		t.Fatal("no rock-backed room site despite a carved pocket")
+		t.Fatal("no room site despite a clear pocket")
 	}
 	w.designateRoom(site, roomFacilities)
 	for i := 0; i < roomFacilities; i++ {
