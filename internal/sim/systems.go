@@ -73,18 +73,21 @@ func (w *World) colonistTurn(e *Entity) {
 	// task until either the task finishes (below) or a need crosses, whichever
 	// comes first. Head to the facility if one is reachable.
 	need, urgent := w.mostUrgentNeed(e)
-	if urgent && !(e.Job == JobUse && e.Need == need) {
+	handlingNeed := (e.Job == JobUse && e.Need == need) ||
+		(e.Job == JobBuild && e.BuildKind == w.cfg.Needs[need].Facility)
+	if urgent && !handlingNeed {
 		spec := w.cfg.Needs[need]
 		e.resting = false
 		if field := w.facilityField(spec.Facility); field != nil && field.at(e.Pos) >= 0 {
 			// A facility of this kind is reachable: follow its shared flow field.
 			w.clearJob(e)
 			e.Job, e.Need, e.Progress = JobUse, need, 0
-		} else if spec.Fatal {
+		} else if spec.Fatal && w.projectFacilityTasks(spec.Facility) == 0 {
 			// No facility reachable and this need is fatal: build one rather than
-			// perish. Only fatal needs justify a lone emergency build — letting a
-			// non-fatal need (bladder) do it lets a whole colony with no toilet
-			// storm into ad-hoc building at once, jamming construction and mining.
+			// perish, unless the shared project already has one under construction.
+			// Only fatal needs justify a lone emergency build — letting a non-fatal
+			// need (bladder) do it lets a whole colony with no toilet storm into
+			// ad-hoc building at once, jamming construction and mining.
 			if spot, ok := w.findBuildSpot(e.Pos, 20); ok {
 				w.clearJob(e)
 				w.assignBuild(e, spec.Facility, spot)
@@ -519,7 +522,8 @@ func (w *World) findBuildSpot(from Point, radius int) (Point, bool) {
 	var best Point
 	found := false
 	w.forEachInRadius(from, radius, func(p Point) bool {
-		if p.Equal(from) || w.TerrainAt(p) != Floor || w.occupied(p) || !w.bordersSolid(p) {
+		if p.Equal(from) || w.TerrainAt(p) != Floor || w.occupied(p) ||
+			w.onPendingBuild(p) || !w.bordersSolid(p) {
 			return false
 		}
 		best, found = p, true

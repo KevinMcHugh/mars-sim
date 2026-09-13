@@ -214,6 +214,30 @@ func TestColonyBuildsLifeSupport(t *testing.T) {
 	}
 }
 
+// Once an urgent colonist starts an emergency nutrient pod, crossing the need
+// threshold again must not reset its build progress every tick.
+func TestUrgentColonistFinishesEmergencyBuild(t *testing.T) {
+	cfg := testConfig()
+	cfg.StartColonists, cfg.StartAliens = 0, 0
+	w := newTestWorld(t, cfg)
+	center := Point{w.Width / 2, w.Height / 2}
+	c := w.spawn(Colonist, center)
+	c.Needs[NeedFood] = cfg.Needs[NeedFood].SeekAt
+	target, ok := w.findBuildSpot(c.Pos, 20)
+	if !ok {
+		t.Fatal("no emergency build spot")
+	}
+	w.assignBuild(c, NutrientPod, target)
+
+	for i := 0; i < cfg.FacilityBuildTicks+10 && w.TerrainAt(target) != NutrientPod; i++ {
+		w.tick++
+		w.colonistTurn(c)
+	}
+	if got := w.TerrainAt(target); got != NutrientPod {
+		t.Fatalf("emergency build never finished: target terrain %v, progress %d", got, c.Progress)
+	}
+}
+
 // A colonist sealed away from any rock to mine or space to build cannot feed
 // itself and must eventually starve, exercising the fatal-need path.
 func TestColonistStarvesWhenTrapped(t *testing.T) {
@@ -432,19 +456,18 @@ func TestColonyDoesNotStarveOverTime(t *testing.T) {
 	}
 }
 
-// A facility room is carved against the cavern rock with its facilities spaced
-// one tile apart. The spacing is the invariant that keeps every facility
-// buildable even under a crowd: no colonist using one facility can stand on the
-// tile of another, which would otherwise block that one from ever being built.
-func TestFacilityRoomSpacedAgainstRock(t *testing.T) {
+// A facility room uses rock for its back, placed walls on the other sides, and a
+// centered doorway. Walls are phase zero so facilities cannot come online and
+// attract users until the enclosure is complete.
+func TestFacilityRoomHasWallsDoorAndBuildPhases(t *testing.T) {
 	cfg := testConfig()
 	cfg.StartColonists, cfg.StartAliens = 0, 0
 	w := newTestWorld(t, cfg)
 
 	// Carve a known pocket with a solid rock ceiling so a site is guaranteed.
 	oy := w.Height / 2
-	for y := oy; y <= oy+1+roomFrontClear; y++ {
-		for x := 2; x < w.Width-2; x++ {
+	for y := oy; y <= roomFrontWallY(oy)+roomApproach; y++ {
+		for x := 1; x < w.Width-1; x++ {
 			w.SetTerrain(Point{x, y}, Floor)
 		}
 	}
@@ -465,9 +488,21 @@ func TestFacilityRoomSpacedAgainstRock(t *testing.T) {
 
 	w.designateRoom(site, roomFacilities)
 	var facs []Point
+	walls := make(map[Point]bool)
 	for _, p := range w.projects {
 		for _, tk := range p.tasks {
-			facs = append(facs, tk.pos)
+			switch tk.terrain {
+			case Wall:
+				walls[tk.pos] = true
+				if tk.phase != roomWallPhase {
+					t.Fatalf("wall %v has phase %d", tk.pos, tk.phase)
+				}
+			case NutrientPod, Toilet:
+				facs = append(facs, tk.pos)
+				if tk.phase != roomFitPhase {
+					t.Fatalf("facility %v has phase %d", tk.pos, tk.phase)
+				}
+			}
 		}
 	}
 	if len(facs) != roomFacilities {
@@ -481,6 +516,27 @@ func TestFacilityRoomSpacedAgainstRock(t *testing.T) {
 			}
 		}
 	}
+	width := bayWidth(roomFacilities)
+	frontY := roomFrontWallY(site.Y)
+	door := Point{site.X + width/2, frontY}
+	if walls[door] {
+		t.Fatalf("doorway %v was designated as a wall", door)
+	}
+	for y := site.Y; y <= frontY; y++ {
+		if !walls[Point{site.X - 1, y}] || !walls[Point{site.X + width, y}] {
+			t.Fatalf("room is missing a side wall on row %d", y)
+		}
+	}
+	for x := site.X; x < site.X+width; x++ {
+		if p := (Point{x, frontY}); p != door && !walls[p] {
+			t.Fatalf("room is missing front wall %v", p)
+		}
+	}
+
+	// A facility cannot be claimed while any phase-zero wall remains.
+	if task, ok := w.claimNearestTask(Point{door.X, door.Y + 1}, 1); !ok || task.terrain != Wall {
+		t.Fatalf("first claimed task = %#v, want a wall", task)
+	}
 }
 
 // A construction project is collaborative: several colonists claim and build its
@@ -492,8 +548,8 @@ func TestColonistsCollaborateOnProject(t *testing.T) {
 
 	// A clear pocket backed by rock, plus a crew of colonists in front of it.
 	oy := w.Height / 2
-	for y := oy; y <= oy+1+roomFrontClear; y++ {
-		for x := 2; x < w.Width-2; x++ {
+	for y := oy; y <= roomFrontWallY(oy)+roomApproach; y++ {
+		for x := 1; x < w.Width-1; x++ {
 			w.SetTerrain(Point{x, y}, Floor)
 		}
 	}
@@ -508,12 +564,12 @@ func TestColonistsCollaborateOnProject(t *testing.T) {
 	}
 	w.designateRoom(site, roomFacilities)
 	for i := 0; i < roomFacilities; i++ {
-		w.spawn(Colonist, Point{site.X + i, oy + 1 + roomFrontClear})
+		w.spawn(Colonist, Point{site.X + i, roomFrontWallY(oy) + roomApproach})
 	}
 
 	maxConcurrent := 0
 	done := false
-	for i := 0; i < 400 && !done; i++ {
+	for i := 0; i < 800 && !done; i++ {
 		w.step()
 		builders := 0
 		for _, e := range w.entities {
@@ -536,6 +592,9 @@ func TestColonistsCollaborateOnProject(t *testing.T) {
 	}
 	if got := w.countTerrain(NutrientPod); got < 1 {
 		t.Fatal("collaboration finished but built no nutrient pod")
+	}
+	if got := w.countTerrain(Wall); got < 1 {
+		t.Fatal("collaboration finished but built no walls")
 	}
 }
 
