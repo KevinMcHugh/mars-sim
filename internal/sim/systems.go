@@ -67,20 +67,25 @@ func (w *World) colonistTurn(e *Entity) {
 
 	// A need at its threshold preempts the current task — the colonist stays on
 	// task until either the task finishes (below) or a need crosses, whichever
-	// comes first. Head to the facility, or build one if none exists yet.
+	// comes first. Head to the facility if one is reachable.
 	need, urgent := w.mostUrgentNeed(e)
 	if urgent && !(e.Job == JobUse && e.Need == need) {
 		spec := w.cfg.Needs[need]
+		e.resting = false
 		if field := w.facilityField(spec.Facility); field != nil && field.at(e.Pos) >= 0 {
 			// A facility of this kind is reachable: follow its shared flow field.
 			w.clearJob(e)
 			e.Job, e.Need, e.Progress = JobUse, need, 0
-		} else if spot, ok := w.findBuildSpot(e.Pos, 20); ok {
-			// None reachable yet: build one rather than perish.
-			w.clearJob(e)
-			w.assignBuild(e, spec.Facility, spot)
+		} else if spec.Fatal {
+			// No facility reachable and this need is fatal: build one rather than
+			// perish. Only fatal needs justify a lone emergency build — letting a
+			// non-fatal need (bladder) do it lets a whole colony with no toilet
+			// storm into ad-hoc building at once, jamming construction and mining.
+			if spot, ok := w.findBuildSpot(e.Pos, 20); ok {
+				w.clearJob(e)
+				w.assignBuild(e, spec.Facility, spot)
+			}
 		}
-		e.resting = false
 	}
 
 	// Stay on the current task: movement and work progress happen here every tick
@@ -112,7 +117,7 @@ func (w *World) colonistTurn(e *Entity) {
 			return
 		}
 		e.resting = true
-		e.wakeTick = w.tick + w.cfg.RestTicks
+		e.wakeTick = w.tick + e.restTicks
 		e.State = Idle
 		return
 	}
@@ -332,7 +337,7 @@ func (w *World) jobMine(e *Entity) {
 		if e.Pos.Adjacent(e.Target) {
 			e.State = Mining
 			e.Progress++
-			if e.Progress >= w.cfg.MineTicks {
+			if e.Progress >= scaleTicks(w.cfg.MineTicks, e.workScale) {
 				w.SetTerrain(e.Target, Floor) // TileChanged drops it from the frontier
 				w.clearJob(e)
 			}
@@ -395,7 +400,7 @@ func (w *World) jobBuild(e *Entity) {
 	e.stuck = 0
 	e.State = Building
 	e.Progress++
-	if e.Progress >= w.buildTicks(e.BuildKind) {
+	if e.Progress >= scaleTicks(w.buildTicks(e.BuildKind), e.workScale) {
 		w.SetTerrain(e.Target, e.BuildKind)
 		w.noteBuild(e.BuildKind)
 		w.clearJob(e) // endBuild decrements the in-progress counter

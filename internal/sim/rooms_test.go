@@ -8,6 +8,7 @@ import (
 func roomsTestWorld(w, h int) *World {
 	cfg := DefaultConfig()
 	cfg.Width, cfg.Height = w, h
+	cfg.TraitChance = 0 // baseline colonists for deterministic mechanics tests
 	return newWorld(cfg, rand.New(rand.NewSource(1)))
 }
 

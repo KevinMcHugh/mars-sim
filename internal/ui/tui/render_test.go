@@ -51,6 +51,34 @@ func TestViewRendersEntities(t *testing.T) {
 	}
 }
 
+// Pressing tab opens the roster, which shows the selected colonist's name and
+// traits.
+func TestRosterShowsColonistDetail(t *testing.T) {
+	snap := makeSnapshot()
+	snap.Entities[0].Profile = &sim.Profile{
+		Name: "Zoe Vargas", Sex: sim.SexFemale, Gender: sim.GenderWoman,
+		Orientation: sim.Bisexual, HeightCM: 168, WeightKG: 61,
+		Traits: []sim.Trait{sim.TraitBigEater},
+	}
+	snap.NeedsMeta[0] = sim.NeedMeta{Name: "food", Max: 1000, Fatal: true}
+
+	var m tea.Model = New(nil, nil)
+	m, _ = m.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
+	m, _ = m.Update(snapshotMsg{snap: snap})
+	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyTab})
+
+	out := m.View()
+	if !strings.Contains(out, "Zoe Vargas") {
+		t.Error("roster should show the colonist's name")
+	}
+	if !strings.Contains(out, "Big Eater") {
+		t.Error("roster should show the colonist's trait")
+	}
+	if !strings.Contains(out, "COLONISTS") {
+		t.Error("roster should show the colonist list heading")
+	}
+}
+
 // Before the first frame arrives the view should show a booting message, not
 // crash on nil state.
 func TestViewBeforeFirstFrame(t *testing.T) {

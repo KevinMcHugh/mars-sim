@@ -18,6 +18,7 @@ func testConfig() Config {
 	c := DefaultConfig()
 	c.Seed = 42 // deterministic
 	c.Width, c.Height = 40, 24
+	c.TraitChance = 0 // mechanics tests want baseline colonists; trait tests opt in
 	return c
 }
 

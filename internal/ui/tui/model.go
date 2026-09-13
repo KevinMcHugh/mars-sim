@@ -10,9 +10,18 @@ import (
 // update loop.
 type snapshotMsg struct{ snap *sim.Snapshot }
 
+// viewMode selects which screen the UI is showing.
+type viewMode int
+
+const (
+	modeMap    viewMode = iota // the cavern map (default)
+	modeRoster                 // the colonist roster and inspector
+)
+
 // Model is the Bubble Tea model. It is a pure consumer of the engine: it draws
 // the latest Snapshot and forwards key presses to the engine as Commands. It
-// holds no game state of its own beyond the camera and the last frame.
+// holds no game state of its own beyond the camera, the current screen, and the
+// last frame.
 type Model struct {
 	eng   *sim.Engine
 	snaps <-chan *sim.Snapshot
@@ -22,6 +31,9 @@ type Model struct {
 	termW, termH int
 	cam          sim.Point // world coordinate shown at the map's top-left
 	camReady     bool
+
+	mode     viewMode
+	selected int // roster: index into the ID-sorted colonist list
 
 	quitting bool
 }
@@ -73,18 +85,40 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	// Keys that mean the same thing on every screen.
 	switch msg.String() {
-	case "q", "ctrl+c", "esc":
+	case "q", "ctrl+c":
 		m.quitting = true
 		return m, tea.Quit
-
 	case " ":
 		m.eng.Send(sim.TogglePause{})
-
+		return m, nil
 	case "+", "=":
 		m.eng.Send(sim.SetTicksPerSecond{Rate: m.currentTPS() + 2})
+		return m, nil
 	case "-", "_":
 		m.eng.Send(sim.SetTicksPerSecond{Rate: m.currentTPS() - 2})
+		return m, nil
+	case "tab":
+		if m.mode == modeMap {
+			m.mode = modeRoster
+		} else {
+			m.mode = modeMap
+		}
+		return m, nil
+	}
+	if m.mode == modeRoster {
+		return m.handleRosterKey(msg)
+	}
+	return m.handleMapKey(msg)
+}
+
+// handleMapKey handles keys specific to the map screen.
+func (m Model) handleMapKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "esc":
+		m.quitting = true
+		return m, tea.Quit
 
 	case "c":
 		m.eng.Send(sim.Spawn{Kind: sim.Colonist})
@@ -101,6 +135,46 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.panCamera(0, 2)
 	}
 	return m, nil
+}
+
+// handleRosterKey handles keys specific to the roster screen: moving the
+// selection and returning to the map.
+func (m Model) handleRosterKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "esc":
+		m.mode = modeMap
+	case "up", "k":
+		m.selected--
+	case "down", "j":
+		m.selected++
+	case "home", "g":
+		m.selected = 0
+	}
+	m.selected = m.clampSelection(m.selected)
+	return m, nil
+}
+
+// clampSelection keeps a roster index within the current colonist list.
+func (m Model) clampSelection(i int) int {
+	n := m.colonistCount()
+	if n == 0 {
+		return 0
+	}
+	return clamp(i, 0, n-1)
+}
+
+// colonistCount returns how many colonists are in the latest frame.
+func (m Model) colonistCount() int {
+	if m.latest == nil {
+		return 0
+	}
+	n := 0
+	for _, e := range m.latest.Entities {
+		if e.Kind == sim.Colonist {
+			n++
+		}
+	}
+	return n
 }
 
 func (m Model) View() string {

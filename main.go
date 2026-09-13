@@ -104,6 +104,7 @@ func bindConfigFlags(cfg *sim.Config) {
 	flag.IntVar(&cfg.StarveDamage, "starve-damage", cfg.StarveDamage, "HP lost per tick while starving")
 	flag.IntVar(&cfg.ColonistsPerFacility, "per-facility", cfg.ColonistsPerFacility, "colonists served by each life-support facility")
 	flag.IntVar(&cfg.RestTicks, "rest-ticks", cfg.RestTicks, "ticks an idle colonist rests before re-checking for work")
+	flag.IntVar(&cfg.TraitChance, "trait-chance", cfg.TraitChance, "percent chance a colonist gets a trait from each trait group (0 disables)")
 	flag.IntVar(&cfg.FrontierFieldMinColonists, "frontier-field-colonists", cfg.FrontierFieldMinColonists, "colony size at/above which miners use the shared frontier flow field")
 	flag.IntVar(&cfg.FrontierFieldMinArea, "frontier-field-area", cfg.FrontierFieldMinArea, "map area (tiles) at/above which miners use the shared frontier flow field")
 
@@ -128,6 +129,8 @@ func validateConfig(cfg sim.Config) error {
 		return fmt.Errorf("per-facility must be at least 1 (got %d)", cfg.ColonistsPerFacility)
 	case cfg.RestTicks < 1:
 		return fmt.Errorf("rest-ticks must be at least 1 (got %d)", cfg.RestTicks)
+	case cfg.TraitChance < 0 || cfg.TraitChance > 100:
+		return fmt.Errorf("trait-chance must be between 0 and 100 (got %d)", cfg.TraitChance)
 	}
 	return nil
 }

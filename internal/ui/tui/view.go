@@ -56,6 +56,10 @@ func (m Model) render() string {
 		return "Booting Mars colony simulation...\n"
 	}
 
+	if m.mode == modeRoster {
+		return m.renderRoster()
+	}
+
 	mapBlock := m.renderMap()
 	sidebar := m.renderSidebar()
 	body := lipgloss.JoinHorizontal(lipgloss.Top, mapBlock, " ", sidebar)
@@ -148,7 +152,7 @@ func (m Model) renderSidebar() string {
 
 func (m Model) renderFooter() string {
 	return helpStyle.Render(
-		"space pause  +/- speed  c colonist  a alien  \u2190\u2191\u2193\u2192/hjkl pan  q quit",
+		"space pause  +/- speed  c colonist  a alien  ←↑↓→/hjkl pan  tab roster  q quit",
 	)
 }
 

@@ -100,6 +100,7 @@ type World struct {
 
 	tick int
 	rng  *rand.Rand
+	prng *rand.Rand // personality generation, separate so flavor never perturbs the sim
 	log  *eventLog
 	cfg  Config
 }
@@ -116,6 +117,7 @@ func newWorld(cfg Config, rng *rand.Rand) *World {
 		buildTiles: make(map[Point]bool),
 		nextID:     1,
 		rng:        rng,
+		prng:       rand.New(rand.NewSource(cfg.Seed ^ 0x5DEECE66D)),
 		log:        newEventLog(cfg.LogSize),
 		cfg:        cfg,
 	}
@@ -257,6 +259,9 @@ func (w *World) spawn(kind Kind, p Point) *Entity {
 				e.Needs[i] = w.rng.Intn(seek)
 			}
 		}
+	}
+	if kind == Colonist {
+		w.assignPersonality(e) // name, attributes, traits + their effective params
 	}
 	w.nextID++
 	w.entities[e.ID] = e

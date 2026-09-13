@@ -1,0 +1,388 @@
+package sim
+
+import "math"
+
+// Personality gives colonists names, attributes, and traits. Attributes (sex,
+// gender, orientation, height, weight) are populated for flavor and future
+// systems but nothing simulates against them yet. Traits, in contrast, change
+// how a colonist plays: they scale need rates and work behavior. As new needs
+// and systems arrive, new traits slot in over the same machinery.
+//
+// Personality is generated from a dedicated RNG stream (World.prng) so that
+// adding flavor never shifts the simulation's own RNG — with traits disabled the
+// sim plays bit-for-bit as it did before personalities existed.
+
+// Sex is a colonist's biological sex.
+type Sex uint8
+
+const (
+	SexMale Sex = iota
+	SexFemale
+	SexIntersex
+)
+
+func (s Sex) String() string {
+	switch s {
+	case SexMale:
+		return "male"
+	case SexFemale:
+		return "female"
+	case SexIntersex:
+		return "intersex"
+	default:
+		return "unknown"
+	}
+}
+
+// Gender is a colonist's gender identity.
+type Gender uint8
+
+const (
+	GenderMan Gender = iota
+	GenderWoman
+	GenderNonbinary
+)
+
+func (g Gender) String() string {
+	switch g {
+	case GenderMan:
+		return "man"
+	case GenderWoman:
+		return "woman"
+	case GenderNonbinary:
+		return "non-binary"
+	default:
+		return "unknown"
+	}
+}
+
+// Orientation is a colonist's sexual orientation.
+type Orientation uint8
+
+const (
+	Heterosexual Orientation = iota
+	Homosexual
+	Bisexual
+	Asexual
+)
+
+func (o Orientation) String() string {
+	switch o {
+	case Heterosexual:
+		return "heterosexual"
+	case Homosexual:
+		return "homosexual"
+	case Bisexual:
+		return "bisexual"
+	case Asexual:
+		return "asexual"
+	default:
+		return "unknown"
+	}
+}
+
+// Trait is a personality trait that changes a colonist's needs or behavior.
+type Trait uint8
+
+const (
+	TraitBigEater Trait = iota
+	TraitLightEater
+	TraitIndustrious
+	TraitLazy
+
+	numTraits // keep last
+)
+
+// traitGroup collects mutually exclusive traits: a colonist gets at most one
+// trait from each group (you can't be both a big eater and a light eater).
+type traitGroup uint8
+
+const (
+	groupAppetite traitGroup = iota
+	groupWorkEthic
+
+	numTraitGroups // keep last
+)
+
+// traitSpec is the static description and effects of a trait. Effect scales are
+// multipliers where 1.0 (or an unset 0, treated as 1.0) means no change.
+type traitSpec struct {
+	Name  string
+	Desc  string
+	group traitGroup
+
+	needRiseScale [numNeeds]float64 // per-need multiplier on how fast it rises
+	restScale     float64           // multiplier on idle rest duration
+	workScale     float64           // multiplier on mine/build time (lower = faster)
+}
+
+// traitSpecs is the trait table. Adding a trait is a table edit here (plus a
+// group if it is a new axis); the systems read effects generically.
+var traitSpecs = [numTraits]traitSpec{
+	TraitBigEater: {
+		Name: "Big Eater", Desc: "Burns through rations and hungers faster.",
+		group: groupAppetite, needRiseScale: [numNeeds]float64{NeedFood: 1.5},
+	},
+	TraitLightEater: {
+		Name: "Light Eater", Desc: "Makes rations last and hungers slower.",
+		group: groupAppetite, needRiseScale: [numNeeds]float64{NeedFood: 0.7},
+	},
+	TraitIndustrious: {
+		Name: "Industrious", Desc: "Works quickly and rests little.",
+		group: groupWorkEthic, workScale: 0.75, restScale: 0.5,
+	},
+	TraitLazy: {
+		Name: "Lazy", Desc: "Works slowly and rests often.",
+		group: groupWorkEthic, workScale: 1.4, restScale: 2.0,
+	},
+}
+
+// Name returns a trait's display name.
+func (t Trait) Name() string { return traitSpecs[t].Name }
+
+// Desc returns a trait's one-line description.
+func (t Trait) Desc() string { return traitSpecs[t].Desc }
+
+func (t Trait) String() string { return traitSpecs[t].Name }
+
+// Profile is a colonist's identity: a name, populated attributes, and any
+// traits. Aliens have no Profile.
+type Profile struct {
+	Name        string
+	Sex         Sex
+	Gender      Gender
+	Orientation Orientation
+	HeightCM    int
+	WeightKG    int
+	Traits      []Trait
+}
+
+// clone deep-copies a Profile (including its Traits slice) so a Snapshot never
+// aliases live state.
+func (p *Profile) clone() *Profile {
+	if p == nil {
+		return nil
+	}
+	c := *p
+	c.Traits = append([]Trait(nil), p.Traits...)
+	return &c
+}
+
+// HasTrait reports whether the profile carries a trait.
+func (p *Profile) HasTrait(t Trait) bool {
+	for _, x := range p.Traits {
+		if x == t {
+			return true
+		}
+	}
+	return false
+}
+
+// assignPersonality gives a colonist a generated Profile and resolves its traits
+// into the per-colonist effective parameters the systems read (need rise, rest
+// duration, work speed). Uses the personality RNG so it never perturbs the sim.
+func (w *World) assignPersonality(e *Entity) {
+	p := &Profile{}
+	p.Sex = w.rollSex()
+	p.Gender = w.rollGender(p.Sex)
+	p.Orientation = w.rollOrientation()
+	p.HeightCM, p.WeightKG = w.rollBody(p.Sex)
+	p.Name = w.rollName(p.Gender)
+	p.Traits = w.rollTraits()
+	e.Profile = p
+
+	w.resolveTraitEffects(e)
+}
+
+// resolveTraitEffects recomputes a colonist's effective parameters from its
+// traits, starting from the config baselines set in newEntity.
+func (w *World) resolveTraitEffects(e *Entity) {
+	riseMul := [numNeeds]float64{}
+	for i := range riseMul {
+		riseMul[i] = 1
+	}
+	restMul, workMul := 1.0, 1.0
+	for _, tr := range e.Profile.Traits {
+		s := traitSpecs[tr]
+		for i := 0; i < int(numNeeds); i++ {
+			if s.needRiseScale[i] > 0 {
+				riseMul[i] *= s.needRiseScale[i]
+			}
+		}
+		if s.restScale > 0 {
+			restMul *= s.restScale
+		}
+		if s.workScale > 0 {
+			workMul *= s.workScale
+		}
+	}
+	for i := 0; i < int(numNeeds); i++ {
+		e.needRise[i] = atLeast1(int(math.Round(float64(w.cfg.Needs[i].Rise) * riseMul[i])))
+	}
+	e.restTicks = atLeast1(int(math.Round(float64(w.cfg.RestTicks) * restMul)))
+	e.workScale = workMul
+}
+
+// rollTraits picks at most one trait from each group, each group taken with
+// TraitChance probability.
+func (w *World) rollTraits() []Trait {
+	var out []Trait
+	for g := traitGroup(0); g < numTraitGroups; g++ {
+		if w.prng.Intn(100) >= w.cfg.TraitChance {
+			continue
+		}
+		group := traitsInGroup(g)
+		out = append(out, group[w.prng.Intn(len(group))])
+	}
+	return out
+}
+
+// traitsInGroup returns the traits belonging to a group, in declaration order.
+func traitsInGroup(g traitGroup) []Trait {
+	var out []Trait
+	for t := Trait(0); t < numTraits; t++ {
+		if traitSpecs[t].group == g {
+			out = append(out, t)
+		}
+	}
+	return out
+}
+
+func (w *World) rollSex() Sex {
+	switch r := w.prng.Intn(100); {
+	case r < 49:
+		return SexMale
+	case r < 98:
+		return SexFemale
+	default:
+		return SexIntersex
+	}
+}
+
+// rollGender picks a gender identity, usually but not always aligned with sex.
+func (w *World) rollGender(s Sex) Gender {
+	switch r := w.prng.Intn(100); {
+	case r < 90:
+		if s == SexFemale {
+			return GenderWoman
+		}
+		return GenderMan
+	case r < 96:
+		return GenderNonbinary
+	default: // occasionally identifies as the other binary gender
+		if s == SexFemale {
+			return GenderMan
+		}
+		return GenderWoman
+	}
+}
+
+func (w *World) rollOrientation() Orientation {
+	switch r := w.prng.Intn(100); {
+	case r < 80:
+		return Heterosexual
+	case r < 90:
+		return Bisexual
+	case r < 97:
+		return Homosexual
+	default:
+		return Asexual
+	}
+}
+
+// rollBody generates a plausible height (cm) and weight (kg), loosely correlated
+// with sex and with each other through a body-mass index.
+func (w *World) rollBody(s Sex) (heightCM, weightKG int) {
+	meanH, sdH := 178.0, 7.0
+	switch s {
+	case SexFemale:
+		meanH, sdH = 165.0, 6.5
+	case SexIntersex:
+		meanH, sdH = 172.0, 8.0
+	}
+	h := int(math.Round(meanH + w.prng.NormFloat64()*sdH))
+	h = clampInt(h, 145, 205)
+
+	bmi := 24.0 + w.prng.NormFloat64()*3.5
+	bmi = clampFloat(bmi, 16, 38)
+	m := float64(h) / 100
+	wt := int(math.Round(bmi * m * m))
+	return h, atLeast1(wt)
+}
+
+// rollName builds a first + last name, drawing the first name from a pool that
+// suits the gender identity.
+func (w *World) rollName(g Gender) string {
+	var pool []string
+	switch g {
+	case GenderMan:
+		pool = firstNamesMasc
+	case GenderWoman:
+		pool = firstNamesFem
+	default: // non-binary draws from either pool
+		if w.prng.Intn(2) == 0 {
+			pool = firstNamesMasc
+		} else {
+			pool = firstNamesFem
+		}
+	}
+	first := pool[w.prng.Intn(len(pool))]
+	last := lastNames[w.prng.Intn(len(lastNames))]
+	return first + " " + last
+}
+
+// scaleTicks scales a base work duration by a colonist's workScale, never going
+// below one tick.
+func scaleTicks(base int, scale float64) int {
+	if scale <= 0 {
+		scale = 1
+	}
+	return atLeast1(int(math.Round(float64(base) * scale)))
+}
+
+func atLeast1(v int) int {
+	if v < 1 {
+		return 1
+	}
+	return v
+}
+
+func clampInt(v, lo, hi int) int {
+	if v < lo {
+		return lo
+	}
+	if v > hi {
+		return hi
+	}
+	return v
+}
+
+func clampFloat(v, lo, hi float64) float64 {
+	if v < lo {
+		return lo
+	}
+	if v > hi {
+		return hi
+	}
+	return v
+}
+
+// Name pools. Kept deliberately varied to suit a multinational Mars corp.
+var (
+	firstNamesMasc = []string{
+		"Arjun", "Bo", "Cyrus", "Diego", "Ehsan", "Felix", "Goro", "Hassan",
+		"Ivan", "Jamal", "Kwame", "Liang", "Mateo", "Niko", "Omar", "Pavel",
+		"Quinn", "Ravi", "Sven", "Tariq", "Ugo", "Viktor", "Wei", "Yusuf",
+	}
+	firstNamesFem = []string{
+		"Amara", "Bianca", "Chiara", "Dalia", "Esme", "Fatima", "Greta", "Hana",
+		"Ingrid", "Jia", "Kira", "Lucia", "Mei", "Nadia", "Oksana", "Priya",
+		"Rosa", "Sana", "Tamar", "Uma", "Vera", "Wanjiru", "Yara", "Zoe",
+	}
+	lastNames = []string{
+		"Adeyemi", "Boone", "Cho", "Duarte", "Eriksson", "Fournier", "Gupta",
+		"Haddad", "Ibarra", "Jansen", "Kovac", "Lindqvist", "Moreau", "Nakamura",
+		"Okafor", "Petrov", "Quaranta", "Rossi", "Salazar", "Tanaka", "Ustinov",
+		"Vargas", "Whitfield", "Xu", "Yilmaz", "Zheng",
+	}
+)

@@ -94,12 +94,21 @@ type Entity struct {
 	MaxHP int
 
 	// Needs are stored lazily: Needs[i] is the level as of tick needSince[i], so
-	// the current level is Needs[i] + Rise*(now-needSince[i]) (see needLevel).
-	// Storing a base + timestamp instead of ticking every colonist every tick
-	// lets idle colonists rest without their needs drifting out of date.
-	// Colonists only.
+	// the current level is Needs[i] + needRise[i]*(now-needSince[i]) (see
+	// needLevel). Storing a base + timestamp instead of ticking every colonist
+	// every tick lets idle colonists rest without their needs drifting out of
+	// date. Colonists only.
 	Needs     [numNeeds]int
 	needSince [numNeeds]int
+
+	// Personality (colonists only). Profile holds the name, attributes, and
+	// traits; needRise, restTicks, and workScale are the trait-resolved effective
+	// parameters the systems read, so the hot paths never re-scan traits. See
+	// personality.go.
+	Profile   *Profile
+	needRise  [numNeeds]int // per-need rise per tick (base scaled by traits)
+	restTicks int           // idle rest duration (base scaled by traits)
+	workScale float64       // mine/build time multiplier (1.0 = baseline)
 
 	// Current job and its parameters.
 	Job       JobKind
@@ -137,12 +146,18 @@ type Entity struct {
 	Cooldown int      // (alien) paces movement/biting
 }
 
-// newEntity builds an entity with kind-appropriate starting stats.
+// newEntity builds an entity with kind-appropriate starting stats. Colonists get
+// baseline effective parameters here; assignPersonality later scales them by any
+// traits it rolls.
 func newEntity(id EntityID, kind Kind, p Point, cfg Config) *Entity {
-	e := &Entity{ID: id, Kind: kind, Pos: p, State: Idle}
+	e := &Entity{ID: id, Kind: kind, Pos: p, State: Idle, workScale: 1}
 	switch kind {
 	case Colonist:
 		e.MaxHP = cfg.ColonistHP
+		for i := 0; i < int(numNeeds); i++ {
+			e.needRise[i] = cfg.Needs[i].Rise
+		}
+		e.restTicks = cfg.RestTicks
 	case Alien:
 		e.MaxHP = cfg.AlienHP
 	}

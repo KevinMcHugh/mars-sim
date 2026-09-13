@@ -38,7 +38,8 @@ type NeedSpec struct {
 // from its stored base and the elapsed ticks, clamped to [0, Max].
 func (w *World) needLevel(e *Entity, i NeedKind) int {
 	spec := w.cfg.Needs[i]
-	lvl := e.Needs[i] + spec.Rise*(w.tick-e.needSince[i])
+	// needRise is the colonist's trait-scaled rate (see personality.go).
+	lvl := e.Needs[i] + e.needRise[i]*(w.tick-e.needSince[i])
 	if lvl > spec.Max {
 		lvl = spec.Max
 	}

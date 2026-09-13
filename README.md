@@ -30,7 +30,11 @@ Terminal controls:
 | `c`            | drop in another colonist        |
 | `a`            | unleash another alien           |
 | arrows / `hjkl`| pan the camera                  |
+| `tab`          | toggle the colonist roster      |
 | `q` / `esc`    | quit                            |
+
+The **roster** (`tab`) lists every colonist; `↑`/`↓` select one to inspect its
+name, attributes, health, needs, and traits. `tab` or `esc` returns to the map.
 
 Glyphs: 👷 colonist · 😱 fleeing colonist · 👽 alien · 🟫 rock · 🧱 wall · 🍽️ nutrient pod · 🚽 toilet · blank = open floor.
 
@@ -93,8 +97,37 @@ When a need crosses its threshold the colonist walks to the nearest matching
 facility and uses it, resetting the need. Facilities are ordinary buildable
 structures (no material inventory yet). The colony keeps enough life-support
 stocked for its population (`ColonistsPerFacility`), and a hungry colonist with
-nowhere to eat will build a pod rather than starve. Adding a new need is meant to
-be a table edit: append a `NeedKind`, give it a `NeedSpec` and a facility.
+nowhere to eat will build a pod rather than starve (only *fatal* needs justify
+that lone emergency build; a non-fatal need like bladder waits for a real
+facility rather than having the whole colony storm into ad-hoc building at once).
+Adding a new need is meant to be a table edit: append a `NeedKind`, give it a
+`NeedSpec` and a facility.
+
+#### Personality
+
+Every colonist has a **profile** (`internal/sim/personality.go`): a name,
+populated attributes (sex, gender, orientation, height, weight), and any
+**traits**. Attributes are flavor for now — nothing simulates against them yet —
+but traits change how a colonist plays:
+
+| Trait        | Effect                                    |
+| ------------ | ----------------------------------------- |
+| Big Eater    | hungers faster (food need rises quicker)  |
+| Light Eater  | hungers slower                            |
+| Industrious  | works faster and rests less               |
+| Lazy         | works slower and rests more               |
+
+Traits are drawn from mutually exclusive groups (appetite, work ethic); a
+colonist gets at most one per group, each with `TraitChance` probability
+(`-trait-chance`, default 30; 0 disables traits). At spawn a colonist's traits
+resolve into per-colonist effective parameters (need rise rates, rest duration,
+work speed) that the hot paths read directly, so traits never cost a per-tick
+trait scan. Adding a trait is a table edit in `traitSpecs`; new needs and systems
+will bring traits that suit them.
+
+Personality is generated from a **separate RNG stream** so adding flavor never
+perturbs the simulation's own RNG — with traits disabled a run plays exactly as
+it did before personalities existed.
 
 #### Construction projects
 

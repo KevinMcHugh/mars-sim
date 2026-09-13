@@ -3,13 +3,23 @@ package sim
 // EntityView is a read-only copy of an entity for a single frame. Frontends
 // receive these instead of *Entity so they can never touch live game state.
 type EntityView struct {
-	ID    EntityID
-	Kind  Kind
-	Pos   Point
-	HP    int
-	MaxHP int
-	State State
-	Needs [numNeeds]int
+	ID      EntityID
+	Kind    Kind
+	Pos     Point
+	HP      int
+	MaxHP   int
+	State   State
+	Needs   [numNeeds]int
+	Profile *Profile // colonists only; a deep copy, safe to read
+}
+
+// NeedMeta describes a need for display: its name, ceiling, and whether maxing
+// it out is fatal. Carried in the snapshot so frontends can render need bars
+// without reaching into Config.
+type NeedMeta struct {
+	Name  string
+	Max   int
+	Fatal bool
 }
 
 // Stats summarizes the world at a glance for the UI header.
@@ -26,13 +36,14 @@ type Stats struct {
 // It is a deep copy: the Engine keeps mutating the real world after handing a
 // Snapshot to frontends, so nothing here aliases live state.
 type Snapshot struct {
-	Tick     int
-	Width    int
-	Height   int
-	Tiles    []Tile // row-major copy, len == Width*Height
-	Entities []EntityView
-	Log      []string
-	Stats    Stats
+	Tick      int
+	Width     int
+	Height    int
+	Tiles     []Tile // row-major copy, len == Width*Height
+	Entities  []EntityView
+	Log       []string
+	Stats     Stats
+	NeedsMeta [numNeeds]NeedMeta
 
 	Paused         bool
 	TicksPerSecond int
@@ -66,13 +77,14 @@ func (w *World) snapshot(paused bool, tps int) *Snapshot {
 	}
 	for _, e := range w.entities {
 		ents = append(ents, EntityView{
-			ID:    e.ID,
-			Kind:  e.Kind,
-			Pos:   e.Pos,
-			HP:    e.HP,
-			MaxHP: e.MaxHP,
-			State: e.State,
-			Needs: w.currentNeeds(e),
+			ID:      e.ID,
+			Kind:    e.Kind,
+			Pos:     e.Pos,
+			HP:      e.HP,
+			MaxHP:   e.MaxHP,
+			State:   e.State,
+			Needs:   w.currentNeeds(e),
+			Profile: e.Profile.clone(),
 		})
 		switch e.Kind {
 		case Colonist:
@@ -80,6 +92,12 @@ func (w *World) snapshot(paused bool, tps int) *Snapshot {
 		case Alien:
 			stats.Aliens++
 		}
+	}
+
+	var needsMeta [numNeeds]NeedMeta
+	for i := 0; i < int(numNeeds); i++ {
+		spec := w.cfg.Needs[i]
+		needsMeta[i] = NeedMeta{Name: spec.Name, Max: spec.Max, Fatal: spec.Fatal}
 	}
 
 	return &Snapshot{
@@ -90,6 +108,7 @@ func (w *World) snapshot(paused bool, tps int) *Snapshot {
 		Entities:       ents,
 		Log:            w.log.tail(len(w.log.entries)),
 		Stats:          stats,
+		NeedsMeta:      needsMeta,
 		Paused:         paused,
 		TicksPerSecond: tps,
 	}

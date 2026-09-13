@@ -34,6 +34,11 @@ type Config struct {
 	RestTicks            int // ticks an idle colonist rests before re-checking for work
 	StuckLimit           int // ticks a colonist waits on a blocked path before abandoning the job
 
+	// Personality. TraitChance is the percent chance a colonist receives a trait
+	// from each trait group at spawn (0 disables traits; attributes are still
+	// generated). See personality.go.
+	TraitChance int
+
 	// Mining strategy switch. Below both thresholds, miners use cached A* to a
 	// claimed tile (cheaper for small colonies); at or above either, they follow
 	// the shared frontier flow field (cheaper once many miners share the sweep).
@@ -67,6 +72,7 @@ func DefaultConfig() Config {
 		ColonistsPerFacility: 10,
 		RestTicks:            10,
 		StuckLimit:           8,
+		TraitChance:          30,
 
 		FrontierFieldMinColonists: 800,
 		FrontierFieldMinArea:      90000, // ~300x300 and up
