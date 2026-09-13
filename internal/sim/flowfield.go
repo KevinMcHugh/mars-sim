@@ -115,7 +115,11 @@ func (f *flowField) ensureFresh() {
 // The breadth-first search expands only through occupied colonist tiles and
 // stops at the first depth with a free landing. Thus an open neighbor still
 // costs one ordinary step, while a colonist can cross an arbitrarily crowded
-// room or doorway in one turn without ever sharing a tile at rest.
+// room or doorway in one turn without ever sharing a tile at rest. At that
+// depth it prefers the lowest field distance, but may step uphill when every
+// route toward the goal is occupied. That escape step is essential in a full
+// room: otherwise a crowd with only uphill free space can remain gridlocked
+// until its hungriest members starve.
 func (w *World) followField(e *Entity, f *flowField) bool {
 	cur := f.at(e.Pos)
 	if cur <= 0 {
@@ -127,10 +131,14 @@ func (w *World) followField(e *Entity, f *flowField) bool {
 	f.transitSeen[start] = gen
 	q := append(f.transitQ[:0], int32(start))
 	var cand [8]Point
+	var fallback [8]Point
+	fallbackN := 0
 	for head := 0; head < len(q); {
 		levelEnd := len(q)
 		n := 0
-		best := cur
+		best := int32(1<<31 - 1)
+		fallbackLevelN := 0
+		fallbackBest := int32(1<<31 - 1)
 		for ; head < levelEnd; head++ {
 			ci := int(q[head])
 			from := Point{ci % w.Width, ci / w.Width}
@@ -156,7 +164,16 @@ func (w *World) followField(e *Entity, f *flowField) bool {
 					continue
 				}
 				if nd > cur {
-					continue // the eventual landing must not be uphill
+					if fallbackN == 0 {
+						switch {
+						case nd < fallbackBest:
+							fallbackBest, fallback[0], fallbackLevelN = nd, p, 1
+						case nd == fallbackBest && fallbackLevelN < len(fallback):
+							fallback[fallbackLevelN] = p
+							fallbackLevelN++
+						}
+					}
+					continue
 				}
 				switch {
 				case nd < best:
@@ -167,11 +184,19 @@ func (w *World) followField(e *Entity, f *flowField) bool {
 				}
 			}
 		}
-		if n > 0 {
+		if best != int32(1<<31-1) {
 			f.transitQ = q
 			w.moveEntity(e, cand[w.rng.Intn(n)])
 			return true
 		}
+		if fallbackN == 0 && fallbackBest != int32(1<<31-1) {
+			fallbackN = fallbackLevelN
+		}
+	}
+	if fallbackN > 0 {
+		f.transitQ = q
+		w.moveEntity(e, fallback[w.rng.Intn(fallbackN)])
+		return true
 	}
 	f.transitQ = q
 	return false

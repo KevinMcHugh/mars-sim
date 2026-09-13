@@ -116,3 +116,36 @@ func TestFatalNeedOutranksNonFatal(t *testing.T) {
 		t.Fatalf("fatal food need should win over maxed bladder: got need=%v urgent=%v", need, urgent)
 	}
 }
+
+func TestEatingRecoversOnlyStarvationDamage(t *testing.T) {
+	w := roomsTestWorld(20, 20)
+	c := w.spawn(Colonist, Point{5, 5})
+	c.HP -= 3 // an unrelated wound must remain after eating
+	c.Needs[NeedFood], c.needSince[NeedFood] = w.cfg.Needs[NeedFood].Max, w.tick
+
+	w.applyStarvation(c)
+	if got, want := c.HP, c.MaxHP-3-w.cfg.StarveDamage; got != want {
+		t.Fatalf("starvation HP: got %d want %d", got, want)
+	}
+	w.resetNeed(c, NeedFood)
+	if got, want := c.HP, c.MaxHP-3; got != want {
+		t.Fatalf("eating should recover deprivation but not wounds: got HP %d want %d", got, want)
+	}
+}
+
+func TestEntityDoesNotStarveWhileSeekingReachableFood(t *testing.T) {
+	w := roomsTestWorld(20, 20)
+	pod := Point{10, 5}
+	carve(w, Point{5, 5}, Point{9, 5}, Floor)
+	w.SetTerrain(pod, NutrientPod)
+	w.refreshSpatial()
+	c := w.spawn(Colonist, Point{5, 5})
+	c.Needs[NeedFood], c.needSince[NeedFood] = w.cfg.Needs[NeedFood].Max, w.tick
+	c.Job, c.Need = JobUse, NeedFood
+
+	hp := c.HP
+	w.applyStarvation(c)
+	if c.HP != hp {
+		t.Fatalf("colonist seeking reachable food lost HP: %d -> %d", hp, c.HP)
+	}
+}

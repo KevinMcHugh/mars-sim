@@ -133,6 +133,30 @@ func TestFlowFieldPassesThroughCrowdToFreeLanding(t *testing.T) {
 	}
 }
 
+// When every downhill tile is occupied and the only free space is behind it, a
+// colonist must step uphill to break the gridlock. Refusing any uphill landing
+// leaves a full facility room permanently jammed even though it has room for
+// colonists to move out of one another's way.
+func TestFlowFieldStepsAsideWhenCrowdBlocksEveryDownhillTile(t *testing.T) {
+	w := roomsTestWorld(7, 5)
+	carve(w, Point{1, 2}, Point{4, 2}, Floor)
+	w.SetTerrain(Point{5, 2}, NutrientPod)
+	w.refreshSpatial()
+
+	mover := w.spawn(Colonist, Point{2, 2})
+	w.spawn(Colonist, Point{3, 2})
+	w.spawn(Colonist, Point{4, 2})
+	field := w.facilityField(NutrientPod)
+	before := field.at(mover.Pos)
+
+	if !w.followField(mover, field) {
+		t.Fatal("flow-field movement would not step aside from a fully occupied route")
+	}
+	if after := field.at(mover.Pos); after <= before {
+		t.Fatalf("mover did not take the necessary uphill escape step: distance %d -> %d", before, after)
+	}
+}
+
 // A hungry colonist walks to and uses an existing pod, resetting its need — end
 // to end through the step loop.
 func TestColonistSeeksFacilityViaField(t *testing.T) {

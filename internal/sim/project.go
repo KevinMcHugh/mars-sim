@@ -112,6 +112,44 @@ func (w *World) projectFacilityTasks(kind Terrain) int {
 	return n
 }
 
+// reachableFacilityConstruction reports whether construction already underway
+// in from's room will provide kind. Global project counts are insufficient here:
+// a colonist disconnected from that project needs to build its own life support.
+func (w *World) reachableFacilityConstruction(from Point, kind Terrain) bool {
+	room := w.roomOf(from)
+	if room == 0 {
+		return false
+	}
+	for _, p := range w.projects {
+		provides := false
+		for _, t := range p.tasks {
+			if t.terrain == kind && !w.taskDone(t) {
+				provides = true
+				break
+			}
+		}
+		if !provides {
+			continue
+		}
+		phase, ok := w.activeProjectPhase(p)
+		if !ok {
+			continue
+		}
+		for _, t := range p.tasks {
+			if t.phase == phase && w.taskWorkable(t) && w.taskReachable(t.pos, room) {
+				return true
+			}
+		}
+	}
+	for _, e := range w.entities {
+		if e.Kind == Colonist && e.Job == JobBuild && e.task == nil &&
+			e.BuildKind == kind && w.sameRoom(from, e.Target) {
+			return true
+		}
+	}
+	return false
+}
+
 // rebuildBuildTiles refreshes the set of tasks in each project's active phase.
 // Future-phase tiles remain usable as construction access until their phase
 // begins. Kept as a set so movement can test a tile in O(1).

@@ -456,6 +456,26 @@ func TestColonyDoesNotStarveOverTime(t *testing.T) {
 	}
 }
 
+// Regression: on a large, mature map the facility rooms can fill completely.
+// Hungry colonists must untangle crowded access, get a fair turn at vacancies,
+// and have enough grace to finish a reachable food journey. With permanent ID
+// priority and no journey grace, this seed fell from 20 colonists to 9.
+func TestLargeColonyDoesNotGridlockAtFacilities(t *testing.T) {
+	cfg := DefaultConfig()
+	cfg.Seed = 9
+	cfg.StartColonists, cfg.StartAliens = 20, 0
+	cfg.Width, cfg.Height = 200, 200
+	w := NewEngine(cfg).world
+
+	for i := 0; i < 10000; i++ {
+		w.step()
+	}
+	if got := w.countKind(Colonist); got != cfg.StartColonists {
+		t.Fatalf("facility crowd starved colonists: %d of %d survived after %d ticks",
+			got, cfg.StartColonists, w.tick)
+	}
+}
+
 // A facility room has a complete placed-wall perimeter and centered doorway.
 // Walls are phase zero so facilities cannot come online and attract users until
 // the enclosure is complete.

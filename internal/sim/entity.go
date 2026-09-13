@@ -110,6 +110,10 @@ type Entity struct {
 	// date. Used by colonists (all needs) and mice (food only).
 	Needs     [numNeeds]int
 	needSince [numNeeds]int
+	// starvationDamage tracks HP lost to each fatal need separately from wounds.
+	// Satisfying that need restores its own deprivation damage without healing
+	// unrelated injuries such as alien bites.
+	starvationDamage [numNeeds]int
 
 	// Personality (colonists only). Profile holds the name, attributes, and
 	// traits; needRise, restTicks, and workScale are the trait-resolved effective

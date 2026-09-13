@@ -55,6 +55,10 @@ func (w *World) needLevel(e *Entity, i NeedKind) int {
 func (w *World) resetNeed(e *Entity, i NeedKind) {
 	e.Needs[i] = 0
 	e.needSince[i] = w.tick
+	if damage := e.starvationDamage[i]; damage > 0 {
+		e.HP = min(e.MaxHP, e.HP+damage)
+		e.starvationDamage[i] = 0
+	}
 }
 
 // applyStarvation drains HP for any fatal need currently sitting at its max.
@@ -64,7 +68,22 @@ func (w *World) applyStarvation(e *Entity) {
 	for i := 0; i < int(numNeeds); i++ {
 		spec := w.cfg.Needs[i]
 		if spec.Fatal && w.needLevel(e, NeedKind(i)) >= spec.Max {
+			if e.Job == JobUse && e.Need == NeedKind(i) {
+				// Reaching food does not reset the need until UseTicks elapse. Give
+				// an entity committed to a reachable source enough grace to traverse
+				// its queue and finish eating rather than dying mid-meal.
+				if field := w.facilityField(spec.Facility); field != nil && field.at(e.Pos) >= 0 {
+					continue
+				}
+			}
+			// The same grace applies while reachable life support is under
+			// construction. This is especially important at startup, when staggered
+			// hunger can reach Max shortly before the first facility room completes.
+			if e.Kind == Colonist && w.reachableFacilityConstruction(e.Pos, spec.Facility) {
+				continue
+			}
 			e.HP -= w.cfg.StarveDamage
+			e.starvationDamage[i] += w.cfg.StarveDamage
 		}
 	}
 }

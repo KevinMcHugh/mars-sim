@@ -5,12 +5,15 @@ import (
 	"sort"
 )
 
-// step advances the world by one tick: every living entity takes a turn in
-// ascending ID order so a given seed always produces the same run. The dead are
-// removed the moment they are eaten or starve, so we re-check liveness as we go.
+// step advances the world by one tick. Colonists act before other kinds (as their
+// spawn IDs already arrange in generated worlds), with the hungriest acting first
+// so a fixed low ID cannot repeatedly win newly opened facility access. Ties and
+// all non-colonists remain in ascending ID order, preserving deterministic runs.
+// The dead are removed the moment they are eaten or starve, so we re-check
+// liveness as we go.
 func (w *World) step() {
 	w.tick++
-	for _, id := range w.entityIDsSorted() {
+	for _, id := range w.entityTurnOrder() {
 		e := w.entities[id]
 		if e == nil || !e.Alive() {
 			continue
@@ -38,6 +41,28 @@ func (w *World) step() {
 // planInterval is how often the colony re-plans construction, in ticks. Facility
 // needs are slow, so a coarse cadence keeps planning cheap.
 const planInterval = 16
+
+// entityTurnOrder returns the deterministic per-tick action order. Fatal need
+// urgency is a scheduling concern as well as a job-selection concern: in a full
+// facility room, acting first gives a colonist first claim on access space that
+// another colonist vacated on the previous tick.
+func (w *World) entityTurnOrder() []EntityID {
+	ids := w.entityIDsSorted()
+	sort.SliceStable(ids, func(i, j int) bool {
+		a, b := w.entities[ids[i]], w.entities[ids[j]]
+		if a.Kind != b.Kind {
+			return a.Kind == Colonist
+		}
+		if a.Kind == Colonist {
+			ah, bh := w.needLevel(a, NeedFood), w.needLevel(b, NeedFood)
+			if ah != bh {
+				return ah > bh
+			}
+		}
+		return a.ID < b.ID
+	})
+	return ids
+}
 
 // entityIDsSorted returns current entity IDs in ascending order.
 func (w *World) entityIDsSorted() []EntityID {
@@ -74,7 +99,7 @@ func (w *World) colonistTurn(e *Entity) {
 	// comes first. Head to the facility if one is reachable.
 	need, urgent := w.mostUrgentNeed(e)
 	handlingNeed := (e.Job == JobUse && e.Need == need) ||
-		(e.Job == JobBuild && e.BuildKind == w.cfg.Needs[need].Facility)
+		(e.Job == JobBuild && (e.BuildKind == w.cfg.Needs[need].Facility || e.task != nil))
 	if urgent && !handlingNeed {
 		spec := w.cfg.Needs[need]
 		e.resting = false
@@ -82,15 +107,28 @@ func (w *World) colonistTurn(e *Entity) {
 			// A facility of this kind is reachable: follow its shared flow field.
 			w.clearJob(e)
 			e.Job, e.Need, e.Progress = JobUse, need, 0
-		} else if spec.Fatal && w.projectFacilityTasks(spec.Facility) == 0 {
-			// No facility reachable and this need is fatal: build one rather than
-			// perish, unless the shared project already has one under construction.
-			// Only fatal needs justify a lone emergency build — letting a non-fatal
-			// need (bladder) do it lets a whole colony with no toilet storm into
-			// ad-hoc building at once, jamming construction and mining.
-			if spot, ok := w.findBuildSpot(e.Pos, 20); ok {
-				w.clearJob(e)
-				w.assignBuild(e, spec.Facility, spot)
+		} else {
+			// No completed facility is reachable. Drop unrelated work and help with
+			// reachable planned construction rather than mining until death merely
+			// because a facility task exists somewhere in the world.
+			w.clearJob(e)
+			if task, ok := w.claimNearestTask(e.Pos, e.ID); ok {
+				w.assignTask(e, task)
+			} else if spec.Fatal && !w.reachableFacilityConstruction(e.Pos, spec.Facility) {
+				// A project in a disconnected room must not suppress this fallback.
+				if spot, ok := w.findBuildSpot(e.Pos, 20); ok {
+					w.assignBuild(e, spec.Facility, spot)
+				}
+			} else {
+				// All reachable project tasks are claimed. Wait for their builders
+				// instead of taking unrelated work and losing our place in the queue.
+				e.State = Idle
+				if w.idleWouldBlock(e.Pos) {
+					w.stepAside(e)
+				} else {
+					w.wanderStep(e)
+				}
+				return
 			}
 		}
 	}
@@ -120,7 +158,7 @@ func (w *World) colonistTurn(e *Entity) {
 			// than freezing here.
 			e.resting = false
 			e.State = Idle
-			w.wanderStep(e)
+			w.stepAside(e)
 			return
 		}
 		e.resting = true
@@ -750,6 +788,51 @@ func (w *World) wanderStep(e *Entity) {
 		return // colonists keep off tiles a builder needs clear
 	}
 	w.moveEntity(e, n)
+}
+
+// stepAside moves a colonist off a facility-access or pending-build tile. It may
+// pass through a packed group of colonists to find the nearest genuinely clear
+// landing, just as job navigation can pass through a crowd. A random one-step
+// wander is insufficient here: in a full room there may be no adjacent vacancy,
+// leaving a builder or food queue blocked indefinitely.
+func (w *World) stepAside(e *Entity) bool {
+	start := w.index(e.Pos)
+	seen := map[int]bool{start: true}
+	q := []int{start}
+	var candidates []Point
+	for head := 0; head < len(q); {
+		levelEnd := len(q)
+		candidates = candidates[:0]
+		for ; head < levelEnd; head++ {
+			ci := q[head]
+			from := Point{ci % w.Width, ci / w.Width}
+			for _, d := range neighbors8 {
+				p := from.Add(d.X, d.Y)
+				if !w.Walkable(p) || w.buildTiles[p] {
+					continue
+				}
+				pi := w.index(p)
+				if seen[pi] {
+					continue
+				}
+				seen[pi] = true
+				if blocker := w.entityAt(p); blocker != nil && blocker.ID != e.ID {
+					if blocker.Kind == Colonist {
+						q = append(q, pi)
+					}
+					continue
+				}
+				if !w.onFacilityAccess(p) {
+					candidates = append(candidates, p)
+				}
+			}
+		}
+		if len(candidates) > 0 {
+			w.moveEntity(e, candidates[w.rng.Intn(len(candidates))])
+			return true
+		}
+	}
+	return false
 }
 
 // ---- Queries -----------------------------------------------------------------
