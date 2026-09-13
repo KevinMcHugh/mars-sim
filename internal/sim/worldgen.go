@@ -41,6 +41,19 @@ func generate(w *World) {
 		}
 	}
 
+	// Mice and cats live on the floor with the colonists: mice raid the pods,
+	// cats chase the mice. Place whatever the cavern has room for.
+	for i := 0; i < w.cfg.StartMice; i++ {
+		if p, ok := w.randomFloor(); ok {
+			w.spawn(Mouse, p)
+		}
+	}
+	for i := 0; i < w.cfg.StartCats; i++ {
+		if p, ok := w.randomFloor(); ok {
+			w.spawn(Cat, p)
+		}
+	}
+
 	w.log.add("The colony ship settles onto the Martian crust. Something below stirs.")
 	w.refreshSpatial()
 }

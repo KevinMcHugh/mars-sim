@@ -34,6 +34,12 @@ func TestGenerateStartingState(t *testing.T) {
 	if got := w.countKind(Alien); got != cfg.StartAliens {
 		t.Fatalf("aliens: got %d want %d", got, cfg.StartAliens)
 	}
+	if got := w.countKind(Cat); got != cfg.StartCats {
+		t.Fatalf("cats: got %d want %d", got, cfg.StartCats)
+	}
+	if got := w.countKind(Mouse); got != cfg.StartMice {
+		t.Fatalf("mice: got %d want %d", got, cfg.StartMice)
+	}
 
 	floor := 0
 	for _, tile := range w.tiles {
@@ -227,6 +233,100 @@ func TestColonistStarvesWhenTrapped(t *testing.T) {
 	}
 	if w.entities[c.ID] != nil {
 		t.Fatalf("trapped colonist survived with HP %d, food %d", c.HP, c.Needs[NeedFood])
+	}
+}
+
+// A hungry mouse standing by a nutrient pod should feed itself instead of
+// starving, reusing the same JobUse machinery colonists use.
+func TestMouseEatsFromPod(t *testing.T) {
+	cfg := testConfig()
+	cfg.StartColonists, cfg.StartAliens, cfg.StartCats, cfg.StartMice = 0, 0, 0, 0
+	w := newTestWorld(t, cfg)
+
+	center := Point{w.Width / 2, w.Height / 2}
+	stand := center.Add(1, 0)
+	w.SetTerrain(center, NutrientPod)
+	w.SetTerrain(stand, Floor)
+
+	m := w.spawn(Mouse, stand)
+	m.Needs[NeedFood] = cfg.Needs[NeedFood].SeekAt // hungry enough to seek
+
+	for i := 0; i < cfg.Needs[NeedFood].UseTicks+20; i++ {
+		w.step()
+	}
+	if w.entities[m.ID] == nil {
+		t.Fatal("mouse starved next to a working nutrient pod")
+	}
+	if w.needLevel(m, NeedFood) >= cfg.Needs[NeedFood].SeekAt {
+		t.Fatalf("mouse food need not satisfied: %d", w.needLevel(m, NeedFood))
+	}
+}
+
+// A mouse with no reachable food must eventually starve, exercising the fatal
+// food need for mice.
+func TestMouseStarvesWithoutFood(t *testing.T) {
+	cfg := testConfig()
+	cfg.StartColonists, cfg.StartAliens, cfg.StartCats, cfg.StartMice = 0, 0, 0, 0
+	w := newTestWorld(t, cfg)
+
+	center := Point{w.Width / 2, w.Height / 2}
+	w.SetTerrain(center, Floor)
+	for _, d := range neighbors8 {
+		w.SetTerrain(center.Add(d.X, d.Y), Wall) // sealed pocket: no pod within reach
+	}
+	m := w.spawn(Mouse, center)
+
+	for i := 0; i < 1000 && w.entities[m.ID] != nil; i++ {
+		w.step()
+	}
+	if w.entities[m.ID] != nil {
+		t.Fatalf("walled-in mouse survived with HP %d, food %d", m.HP, w.needLevel(m, NeedFood))
+	}
+}
+
+// A cat cornered against a mouse it cannot escape should catch and eat it,
+// exercising the pounce/remove path.
+func TestCatEatsMouse(t *testing.T) {
+	cfg := testConfig()
+	cfg.StartColonists, cfg.StartAliens, cfg.StartCats, cfg.StartMice = 0, 0, 0, 0
+	cfg.CatSlowness = 1
+	w := newTestWorld(t, cfg)
+
+	center := Point{w.Width / 2, w.Height / 2}
+	w.SetTerrain(center, Floor)
+	// Wall the mouse in on every side but one, where the cat waits: the mouse
+	// cannot flee, so the cat must catch it.
+	catSpot := center.Add(1, 0)
+	for _, d := range neighbors8 {
+		n := center.Add(d.X, d.Y)
+		if n.Equal(catSpot) {
+			w.SetTerrain(n, Floor)
+			continue
+		}
+		w.SetTerrain(n, Wall)
+	}
+	mouse := w.spawn(Mouse, center)
+	w.spawn(Cat, catSpot)
+
+	for i := 0; i < 50 && w.entities[mouse.ID] != nil; i++ {
+		w.step()
+	}
+	if w.entities[mouse.ID] != nil {
+		t.Fatal("cornered mouse was never caught by the adjacent cat")
+	}
+}
+
+// With no mice to hunt, cats must not crash and should still be around.
+func TestCatsWanderWithoutPrey(t *testing.T) {
+	cfg := testConfig()
+	cfg.StartColonists, cfg.StartAliens, cfg.StartMice = 0, 0, 0
+	cfg.StartCats = 3
+	w := newTestWorld(t, cfg)
+	for i := 0; i < 100; i++ {
+		w.step()
+	}
+	if got := w.countKind(Cat); got != cfg.StartCats {
+		t.Fatalf("cats vanished: got %d want %d", got, cfg.StartCats)
 	}
 }
 

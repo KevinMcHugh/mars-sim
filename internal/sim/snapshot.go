@@ -26,6 +26,8 @@ type NeedMeta struct {
 type Stats struct {
 	Colonists int
 	Aliens    int
+	Cats      int
+	Mice      int
 	FloorDug  int // tiles of Floor that exist (excavation progress)
 	Pods      int // nutrient pods built
 	Toilets   int // toilets built
@@ -91,6 +93,10 @@ func (w *World) snapshot(paused bool, tps int) *Snapshot {
 			stats.Colonists++
 		case Alien:
 			stats.Aliens++
+		case Cat:
+			stats.Cats++
+		case Mouse:
+			stats.Mice++
 		}
 	}
 

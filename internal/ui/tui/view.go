@@ -81,8 +81,8 @@ func (m Model) renderHeader() string {
 		state += "  |  " + pausedStyle.Render("PAUSED")
 	}
 	counts := statStyle.Render(fmt.Sprintf(
-		"\U0001F477 %d   \U0001F47D %d   \U0001F37D\uFE0F %d   \U0001F6BD %d   rooms %d   excavated %d",
-		s.Stats.Colonists, s.Stats.Aliens, s.Stats.Pods, s.Stats.Toilets, s.Stats.Rooms, s.Stats.FloorDug,
+		"\U0001F477 %d   \U0001F47D %d   \U0001F408 %d   \U0001F401 %d   \U0001F37D\uFE0F %d   \U0001F6BD %d   rooms %d   excavated %d",
+		s.Stats.Colonists, s.Stats.Aliens, s.Stats.Cats, s.Stats.Mice, s.Stats.Pods, s.Stats.Toilets, s.Stats.Rooms, s.Stats.FloorDug,
 	))
 
 	line1 := lipgloss.JoinHorizontal(lipgloss.Left, title, "  ", sub)
@@ -125,6 +125,7 @@ func (m Model) renderSidebar() string {
 	legend := strings.Join([]string{
 		"LEGEND",
 		glyphColonist + " colonist   " + glyphAlien + " alien",
+		glyphCat + " cat        " + glyphMouse + " mouse",
 		glyphFleeing + " fleeing    " + glyphWall + " wall",
 		glyphPod + " food pod   " + glyphToilet + " toilet",
 		glyphRock + " rock       " + "   open",
@@ -152,7 +153,7 @@ func (m Model) renderSidebar() string {
 
 func (m Model) renderFooter() string {
 	return helpStyle.Render(
-		"space pause  +/- speed  c colonist  a alien  ←↑↓→/hjkl pan  tab roster  q quit",
+		"space pause  +/- speed  c colonist  a alien  x cat  m mouse  ←↑↓→/hjkl pan  tab roster  q quit",
 	)
 }
 

@@ -133,6 +133,14 @@ func (e *Engine) spawn(kind Kind) {
 		if p, ok := w.randomRockFar(center, 8); ok {
 			w.spawn(Alien, p)
 		}
+	case Cat:
+		if p, ok := w.randomFloor(); ok {
+			w.spawn(Cat, p)
+		}
+	case Mouse:
+		if p, ok := w.randomFloor(); ok {
+			w.spawn(Mouse, p)
+		}
 	}
 }
 

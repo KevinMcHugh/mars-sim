@@ -16,6 +16,8 @@ const (
 	glyphColonist = "\U0001F477" // 👷 colonist at work
 	glyphFleeing  = "\U0001F631" // 😱 colonist running from an alien
 	glyphAlien    = "\U0001F47D" // 👽 subterranean mutant
+	glyphCat      = "\U0001F408" // 🐈 floor predator hunting mice
+	glyphMouse    = "\U0001F401" // 🐁 pest that raids the food pods
 )
 
 func terrainGlyph(t sim.Terrain) string {
@@ -37,6 +39,10 @@ func entityGlyph(e sim.EntityView) string {
 	switch e.Kind {
 	case sim.Alien:
 		return glyphAlien
+	case sim.Cat:
+		return glyphCat
+	case sim.Mouse:
+		return glyphMouse
 	case sim.Colonist:
 		if e.State == sim.Fleeing {
 			return glyphFleeing

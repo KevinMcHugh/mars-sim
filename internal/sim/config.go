@@ -15,6 +15,8 @@ type Config struct {
 	// Starting population.
 	StartColonists int
 	StartAliens    int
+	StartCats      int
+	StartMice      int
 
 	// Timing.
 	TicksPerSecond int // default simulation speed
@@ -50,6 +52,17 @@ type Config struct {
 	AlienDamage   int // HP removed per bite
 	AlienBiteRest int // cooldown ticks between bites
 	AlienSlowness int // alien acts once every N ticks (>=1); higher is slower
+
+	// Cat stats. Cats have no needs; they hunt mice on the floor by instinct.
+	CatHP         int
+	CatSlowness   int // cat acts once every N ticks (>=1); higher is slower
+	CatPounceRest int // cooldown ticks after catching a mouse
+
+	// Mouse stats. Mice share the colonists' NeedFood but grow hungry far faster
+	// (they nibble constantly), and flee cats rather than aliens.
+	MouseHP         int
+	MouseHungerRise int // NeedFood gained per tick for mice (vs. Needs[NeedFood].Rise for colonists)
+	MouseFleeRadius int // flee when a cat is within this many tiles
 }
 
 // DefaultConfig returns a balanced starting point for a playable scaffold.
@@ -60,6 +73,8 @@ func DefaultConfig() Config {
 		Seed:               time.Now().UnixNano(),
 		StartColonists:     6,
 		StartAliens:        3,
+		StartCats:          2,
+		StartMice:          8,
 		TicksPerSecond:     8,
 		LogSize:            64,
 		ColonistHP:         40,
@@ -90,6 +105,14 @@ func DefaultConfig() Config {
 		AlienDamage:   6,
 		AlienBiteRest: 3,
 		AlienSlowness: 2,
+
+		CatHP:         12,
+		CatSlowness:   2,
+		CatPounceRest: 4,
+
+		MouseHP:         4,
+		MouseHungerRise: 8, // 4x the colonist food rise: mice eat very frequently
+		MouseFleeRadius: 6,
 	}
 }
 

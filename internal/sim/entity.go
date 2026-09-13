@@ -11,6 +11,12 @@ const (
 	// Alien is a subterranean mutant that burrows through any terrain to hunt
 	// and eat colonists.
 	Alien
+	// Cat is a surface predator that stalks the floor hunting mice. It has no
+	// needs of its own; it hunts by instinct.
+	Cat
+	// Mouse is a pest that scurries the floor and nibbles from nutrient pods.
+	// It has a hunger need and starves without food; cats eat it.
+	Mouse
 
 	numKinds // keep last: the number of entity kinds
 )
@@ -21,6 +27,10 @@ func (k Kind) String() string {
 		return "colonist"
 	case Alien:
 		return "alien"
+	case Cat:
+		return "cat"
+	case Mouse:
+		return "mouse"
 	default:
 		return "unknown"
 	}
@@ -37,9 +47,9 @@ const (
 	Building        // constructing a structure
 	Eating          // using a nutrient pod
 	Relieving       // using a toilet
-	Fleeing         // running from a nearby alien
-	Hunting         // (alien) closing on a colonist
-	Feeding         // (alien) eating a colonist it has caught
+	Fleeing         // running from a nearby predator (colonist from alien, mouse from cat)
+	Hunting         // predator closing on prey (alien on colonist, cat on mouse)
+	Feeding         // predator eating prey it has caught
 )
 
 func (s State) String() string {
@@ -97,7 +107,7 @@ type Entity struct {
 	// the current level is Needs[i] + needRise[i]*(now-needSince[i]) (see
 	// needLevel). Storing a base + timestamp instead of ticking every colonist
 	// every tick lets idle colonists rest without their needs drifting out of
-	// date. Colonists only.
+	// date. Used by colonists (all needs) and mice (food only).
 	Needs     [numNeeds]int
 	needSince [numNeeds]int
 
@@ -142,8 +152,8 @@ type Entity struct {
 
 	// Display + shared behavior scratch.
 	State    State
-	Quarry   EntityID // (alien) the colonist being hunted; 0 if none
-	Cooldown int      // (alien) paces movement/biting
+	Quarry   EntityID // (predator) the prey being hunted; 0 if none
+	Cooldown int      // (predator) paces movement and attacks
 }
 
 // newEntity builds an entity with kind-appropriate starting stats. Colonists get
@@ -160,6 +170,13 @@ func newEntity(id EntityID, kind Kind, p Point, cfg Config) *Entity {
 		e.restTicks = cfg.RestTicks
 	case Alien:
 		e.MaxHP = cfg.AlienHP
+	case Cat:
+		e.MaxHP = cfg.CatHP
+	case Mouse:
+		e.MaxHP = cfg.MouseHP
+		// Mice share the colonists' NeedFood but nibble constantly, so only their
+		// food need rises (fast); the others stay flat.
+		e.needRise[NeedFood] = cfg.MouseHungerRise
 	}
 	e.HP = e.MaxHP
 	return e

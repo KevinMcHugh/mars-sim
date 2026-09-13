@@ -90,6 +90,8 @@ func bindConfigFlags(cfg *sim.Config) {
 	// Starting population.
 	flag.IntVar(&cfg.StartColonists, "colonists", cfg.StartColonists, "starting number of colonists")
 	flag.IntVar(&cfg.StartAliens, "aliens", cfg.StartAliens, "starting number of aliens")
+	flag.IntVar(&cfg.StartCats, "cats", cfg.StartCats, "starting number of cats")
+	flag.IntVar(&cfg.StartMice, "mice", cfg.StartMice, "starting number of mice")
 
 	// Timing.
 	flag.IntVar(&cfg.TicksPerSecond, "tps", cfg.TicksPerSecond, "simulation ticks per second")
@@ -113,6 +115,16 @@ func bindConfigFlags(cfg *sim.Config) {
 	flag.IntVar(&cfg.AlienDamage, "alien-damage", cfg.AlienDamage, "HP removed per alien bite")
 	flag.IntVar(&cfg.AlienBiteRest, "alien-bite-rest", cfg.AlienBiteRest, "cooldown ticks between alien bites")
 	flag.IntVar(&cfg.AlienSlowness, "alien-slowness", cfg.AlienSlowness, "alien acts once every N ticks (higher = slower)")
+
+	// Cats.
+	flag.IntVar(&cfg.CatHP, "cat-hp", cfg.CatHP, "cat hit points")
+	flag.IntVar(&cfg.CatSlowness, "cat-slowness", cfg.CatSlowness, "cat acts once every N ticks (higher = slower)")
+	flag.IntVar(&cfg.CatPounceRest, "cat-pounce-rest", cfg.CatPounceRest, "cooldown ticks after a cat catches a mouse")
+
+	// Mice.
+	flag.IntVar(&cfg.MouseHP, "mouse-hp", cfg.MouseHP, "mouse hit points")
+	flag.IntVar(&cfg.MouseHungerRise, "mouse-hunger-rise", cfg.MouseHungerRise, "food need a mouse gains per tick (mice eat frequently)")
+	flag.IntVar(&cfg.MouseFleeRadius, "mouse-flee-radius", cfg.MouseFleeRadius, "mouse flees when a cat is within this many tiles")
 }
 
 // validateConfig rejects settings that would break world generation or the
@@ -121,7 +133,7 @@ func validateConfig(cfg sim.Config) error {
 	switch {
 	case cfg.Width < 10 || cfg.Height < 10:
 		return fmt.Errorf("world must be at least 10x10 (got %dx%d)", cfg.Width, cfg.Height)
-	case cfg.StartColonists < 0 || cfg.StartAliens < 0:
+	case cfg.StartColonists < 0 || cfg.StartAliens < 0 || cfg.StartCats < 0 || cfg.StartMice < 0:
 		return fmt.Errorf("population counts cannot be negative")
 	case cfg.TicksPerSecond < 1:
 		return fmt.Errorf("tps must be at least 1 (got %d)", cfg.TicksPerSecond)
@@ -142,6 +154,7 @@ func usage() {
 	fmt.Fprintf(out, "Usage:\n  %s [options]\n\n", name)
 	fmt.Fprintf(out, "Examples:\n")
 	fmt.Fprintf(out, "  %s -colonists 20 -aliens 5\n", name)
+	fmt.Fprintf(out, "  %s -mice 20 -cats 4\n", name)
 	fmt.Fprintf(out, "  %s -width 120 -height 60 -tps 12\n", name)
 	fmt.Fprintf(out, "  %s -headless -duration 10s -seed 42\n\n", name)
 	fmt.Fprintf(out, "Options:\n")
@@ -174,8 +187,8 @@ func runHeadless(snaps <-chan *sim.Snapshot, cfg sim.Config, duration time.Durat
 	defer report.Stop()
 
 	var latest *sim.Snapshot
-	fmt.Printf("mars-sim headless: seed %d, %d colonists, %d aliens (Ctrl+C to stop)\n",
-		cfg.Seed, cfg.StartColonists, cfg.StartAliens)
+	fmt.Printf("mars-sim headless: seed %d, %d colonists, %d aliens, %d cats, %d mice (Ctrl+C to stop)\n",
+		cfg.Seed, cfg.StartColonists, cfg.StartAliens, cfg.StartCats, cfg.StartMice)
 	for {
 		select {
 		case s, ok := <-snaps:
@@ -185,14 +198,16 @@ func runHeadless(snaps <-chan *sim.Snapshot, cfg sim.Config, duration time.Durat
 			latest = s
 		case <-report.C:
 			if latest != nil {
-				fmt.Printf("tick %5d | colonists %2d | aliens %2d | pods %d | toilets %d | rooms %d | excavated %5d\n",
+				fmt.Printf("tick %5d | colonists %2d | aliens %2d | cats %2d | mice %2d | pods %d | toilets %d | rooms %d | excavated %5d\n",
 					latest.Tick, latest.Stats.Colonists, latest.Stats.Aliens,
+					latest.Stats.Cats, latest.Stats.Mice,
 					latest.Stats.Pods, latest.Stats.Toilets, latest.Stats.Rooms, latest.Stats.FloorDug)
 			}
 		case <-deadline:
 			if latest != nil {
-				fmt.Printf("done at tick %d: colonists %d, aliens %d, pods %d, toilets %d, excavated %d tiles\n",
+				fmt.Printf("done at tick %d: colonists %d, aliens %d, cats %d, mice %d, pods %d, toilets %d, excavated %d tiles\n",
 					latest.Tick, latest.Stats.Colonists, latest.Stats.Aliens,
+					latest.Stats.Cats, latest.Stats.Mice,
 					latest.Stats.Pods, latest.Stats.Toilets, latest.Stats.FloorDug)
 			}
 			return

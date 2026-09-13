@@ -20,6 +20,10 @@ func (w *World) step() {
 			w.colonistTurn(e)
 		case Alien:
 			w.alienTurn(e)
+		case Cat:
+			w.catTurn(e)
+		case Mouse:
+			w.mouseTurn(e)
 		}
 	}
 	w.refreshSpatial() // fold in any digging/building from this tick
@@ -571,6 +575,89 @@ func (w *World) bite(alien, prey *Entity) {
 	}
 }
 
+// ---- Cats --------------------------------------------------------------------
+
+// catTurn walks the cat toward the nearest mouse and pounces when adjacent. Cats
+// have no needs; they simply hunt. Unlike aliens they cannot burrow, so they
+// travel the floor with cached A* and give up on prey they cannot reach.
+func (w *World) catTurn(e *Entity) {
+	if e.Cooldown > 0 {
+		e.Cooldown-- // mid-stride between slow steps, or resting after a catch
+		return
+	}
+
+	prey, ok := w.nearestMouse(e.Pos, 1<<30)
+	if !ok {
+		e.State, e.Quarry = Idle, 0
+		w.wanderStep(e)
+		e.Cooldown = w.cfg.CatSlowness - 1
+		return
+	}
+	e.Quarry = prey.ID
+
+	if e.Pos.Adjacent(prey.Pos) {
+		w.pounce(e, prey)
+		e.Cooldown = w.cfg.CatPounceRest
+		return
+	}
+
+	e.State = Hunting
+	if _, ok := w.travelTo(e, prey.Pos); !ok {
+		// The mouse is unreachable on foot (walled off, or the cat is wedged):
+		// prowl instead of standing still.
+		w.wanderStep(e)
+	}
+	e.Cooldown = w.cfg.CatSlowness - 1
+}
+
+// pounce catches and eats an adjacent mouse. A mouse is tiny, so a single pounce
+// is fatal.
+func (w *World) pounce(cat, prey *Entity) {
+	cat.State = Feeding
+	w.remove(prey.ID)
+	w.log.add(fmt.Sprintf("A cat catches mouse #%d.", prey.ID))
+}
+
+// ---- Mice --------------------------------------------------------------------
+
+// mouseTurn runs one mouse tick: starve, flee cats, feed at a nutrient pod when
+// hungry, otherwise scurry about. Mice reuse the colonists' food need and the
+// generic JobUse machinery, but never build — they depend on pods the colony
+// has already raised, and go hungry if none is reachable.
+func (w *World) mouseTurn(e *Entity) {
+	w.applyStarvation(e)
+	if !e.Alive() { // starved this tick
+		w.clearJob(e)
+		w.remove(e.ID)
+		w.log.add(fmt.Sprintf("Mouse #%d starves.", e.ID))
+		return
+	}
+
+	// Survival first: bolt from a nearby cat.
+	if threat, ok := w.nearestCat(e.Pos, w.cfg.MouseFleeRadius); ok {
+		w.clearJob(e)
+		e.State = Fleeing
+		w.fleeStep(e, threat.Pos)
+		return
+	}
+
+	// Hungry? Head for a nutrient pod if one is reachable. Mice care only about
+	// food, so we check it directly rather than scanning every need.
+	hungry := w.needLevel(e, NeedFood) >= w.cfg.Needs[NeedFood].SeekAt
+	if hungry && e.Job != JobUse {
+		if field := w.facilityField(NutrientPod); field != nil && field.at(e.Pos) >= 0 {
+			e.Job, e.Need, e.Progress = JobUse, NeedFood, 0
+		}
+	}
+	if e.Job == JobUse {
+		w.jobUse(e)
+		return
+	}
+
+	e.State = Idle
+	w.wanderStep(e)
+}
+
 // ---- Movement primitives -----------------------------------------------------
 
 // burrowStep moves an alien one step toward dest through any terrain. It avoids
@@ -613,8 +700,9 @@ func (w *World) fleeStep(e *Entity, threat Point) {
 	w.moveEntity(e, best)
 }
 
-// wanderStep takes a small random step: colonists only onto floor, aliens
-// anywhere. Used when there is nothing better to do.
+// wanderStep takes a small random step. Only aliens burrow; every other kind
+// (colonists, cats, mice) stays on walkable floor. Used when there is nothing
+// better to do.
 func (w *World) wanderStep(e *Entity) {
 	if w.rng.Intn(2) == 0 {
 		return // often stay put so idlers do not jitter constantly
@@ -624,7 +712,10 @@ func (w *World) wanderStep(e *Entity) {
 	if !w.InBounds(n) || w.occupiedByOther(n, e.ID) {
 		return
 	}
-	if e.Kind == Colonist && (!w.Walkable(n) || w.buildTiles[n]) {
+	if e.Kind != Alien && !w.Walkable(n) {
+		return // only aliens burrow; colonists, cats, and mice stay on floor
+	}
+	if e.Kind == Colonist && w.buildTiles[n] {
 		return // colonists keep off tiles a builder needs clear
 	}
 	w.moveEntity(e, n)
@@ -638,6 +729,14 @@ func (w *World) nearestColonist(from Point, within int) (*Entity, bool) {
 
 func (w *World) nearestAlien(from Point, within int) (*Entity, bool) {
 	return w.nearestOfKind(from, Alien, within)
+}
+
+func (w *World) nearestCat(from Point, within int) (*Entity, bool) {
+	return w.nearestOfKind(from, Cat, within)
+}
+
+func (w *World) nearestMouse(from Point, within int) (*Entity, bool) {
+	return w.nearestOfKind(from, Mouse, within)
 }
 
 func (w *World) nearestOfKind(from Point, kind Kind, within int) (*Entity, bool) {

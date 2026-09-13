@@ -124,6 +124,10 @@ func (m Model) handleMapKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.eng.Send(sim.Spawn{Kind: sim.Colonist})
 	case "a":
 		m.eng.Send(sim.Spawn{Kind: sim.Alien})
+	case "x":
+		m.eng.Send(sim.Spawn{Kind: sim.Cat})
+	case "m":
+		m.eng.Send(sim.Spawn{Kind: sim.Mouse})
 
 	case "left", "h":
 		m.panCamera(-4, 0)
