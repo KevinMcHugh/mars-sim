@@ -85,7 +85,9 @@ func (pf *pathfinder) toAdjacent(start, target Point, useCorridor bool) ([]Point
 	for pf.open.len() > 0 {
 		ci := pf.open.pop().cell
 		cp := Point{ci % w.Width, ci / w.Width}
-		if cp.Chebyshev(target) == 1 { // adjacent to the work target: done
+		// Occupied tiles remain valid transit cells, but not destinations. The
+		// start is the one exception: the caller already stands there.
+		if cp.Chebyshev(target) == 1 && (ci == si || !w.occupied(cp)) {
 			return pf.reconstruct(si, ci), true
 		}
 		cg := pf.g[ci]
@@ -206,7 +208,7 @@ func (w *World) pathToAdjacent(from, target Point) ([]Point, bool) {
 	goalCell, goalDist := Point{}, 1<<30
 	for _, d := range neighbors8 {
 		n := target.Add(d.X, d.Y)
-		if w.Walkable(n) && w.roomOf(n) == room {
+		if w.Walkable(n) && w.roomOf(n) == room && (n.Equal(from) || !w.occupied(n)) {
 			reachable = true
 			if dd := from.Chebyshev(n); dd < goalDist {
 				goalCell, goalDist = n, dd

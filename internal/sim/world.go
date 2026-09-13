@@ -228,6 +228,15 @@ func (w *World) occupiedByOther(p Point, self EntityID) bool {
 	return id != 0 && id != self
 }
 
+// entityAt returns the entity standing on p, or nil when p is out of bounds or
+// empty.
+func (w *World) entityAt(p Point) *Entity {
+	if !w.InBounds(p) {
+		return nil
+	}
+	return w.entities[w.occ[w.index(p)]]
+}
+
 // moveEntity relocates an entity, updating the occupancy index. Callers must
 // ensure the destination is in bounds and unoccupied.
 func (w *World) moveEntity(e *Entity, to Point) {

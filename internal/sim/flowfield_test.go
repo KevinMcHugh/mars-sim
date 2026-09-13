@@ -109,6 +109,30 @@ func TestFlowFieldFollowReachesFacility(t *testing.T) {
 	}
 }
 
+func TestFlowFieldPassesThroughCrowdToFreeLanding(t *testing.T) {
+	w := roomsTestWorld(10, 5)
+	carve(w, Point{1, 2}, Point{7, 2}, Floor)
+	w.SetTerrain(Point{8, 2}, NutrientPod)
+	w.refreshSpatial()
+
+	mover := w.spawn(Colonist, Point{1, 2})
+	for x := 2; x <= 6; x++ {
+		w.spawn(Colonist, Point{x, 2})
+	}
+
+	if !w.followField(mover, w.facilityField(NutrientPod)) {
+		t.Fatal("flow-field movement could not pass through the crowded corridor")
+	}
+	if want := (Point{7, 2}); !mover.Pos.Equal(want) {
+		t.Fatalf("mover stopped at %v, want free facility access tile %v", mover.Pos, want)
+	}
+	for x := 2; x <= 6; x++ {
+		if got := w.entityAt(Point{x, 2}); got == nil || got == mover {
+			t.Fatalf("transit changed occupant at {%d 2}: %v", x, got)
+		}
+	}
+}
+
 // A hungry colonist walks to and uses an existing pod, resetting its need — end
 // to end through the step loop.
 func TestColonistSeeksFacilityViaField(t *testing.T) {

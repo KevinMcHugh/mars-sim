@@ -145,3 +145,45 @@ func TestPathfindingRejectsUnreachable(t *testing.T) {
 		t.Fatal("A* should not find a route from room A to room B's rock")
 	}
 }
+
+func TestTravelPassesThroughColonistsButStopsOnFreeTile(t *testing.T) {
+	w := roomsTestWorld(9, 5)
+	carve(w, Point{1, 2}, Point{7, 2}, Floor)
+	w.refreshSpatial()
+
+	mover := w.spawn(Colonist, Point{1, 2})
+	for x := 2; x <= 5; x++ {
+		w.spawn(Colonist, Point{x, 2})
+	}
+	target := Point{7, 2}
+
+	arrived, ok := w.travelTo(mover, target)
+	if !ok || !arrived {
+		t.Fatalf("travelTo through occupied corridor = arrived %v, ok %v", arrived, ok)
+	}
+	if want := (Point{6, 2}); !mover.Pos.Equal(want) {
+		t.Fatalf("mover stopped at %v, want first free route tile %v", mover.Pos, want)
+	}
+	for x := 2; x <= 5; x++ {
+		if got := w.entityAt(Point{x, 2}); got == nil || got == mover {
+			t.Fatalf("transit changed occupant at {%d 2}: %v", x, got)
+		}
+	}
+}
+
+func TestPathDestinationMustBeUnoccupied(t *testing.T) {
+	w := roomsTestWorld(7, 5)
+	carve(w, Point{1, 2}, Point{5, 2}, Floor)
+	w.refreshSpatial()
+
+	mover := w.spawn(Colonist, Point{1, 2})
+	w.spawn(Colonist, Point{4, 2}) // the only tile adjacent to the target
+	target := Point{5, 2}
+
+	if _, ok := w.travelTo(mover, target); ok {
+		t.Fatal("travelTo found an occupied destination")
+	}
+	if !mover.Pos.Equal(Point{1, 2}) {
+		t.Fatalf("mover stopped on an occupied destination at %v", mover.Pos)
+	}
+}

@@ -478,12 +478,27 @@ func (w *World) travelTo(e *Entity, target Point) (arrived, ok bool) {
 		}
 		e.path, e.pathAt, e.pathGoal, e.stuck = route, 0, target, 0
 	}
-	next := e.path[e.pathAt]
-	switch {
-	case !w.Walkable(next): // terrain changed under the route; replan next tick
-		e.clearPath()
-		return false, true
-	case w.occupiedByOther(next, e.ID): // wait for the blocker to move
+	// A colonist may pass through other colonists on its route, but it must end
+	// the tick on a free tile. Scan the occupied prefix and land on the first
+	// available route cell. Non-colonists still block movement.
+	landing := e.pathAt
+	for landing < len(e.path) {
+		next := e.path[landing]
+		if !w.Walkable(next) { // terrain changed under the route; replan next tick
+			e.clearPath()
+			return false, true
+		}
+		blocker := w.entityAt(next)
+		if blocker == nil || blocker.ID == e.ID {
+			break
+		}
+		if blocker.Kind != Colonist {
+			landing = len(e.path)
+			break
+		}
+		landing++
+	}
+	if landing == len(e.path) {
 		e.stuck++
 		if e.stuck > w.cfg.StuckLimit {
 			e.clearPath()
@@ -491,8 +506,8 @@ func (w *World) travelTo(e *Entity, target Point) (arrived, ok bool) {
 		}
 		return false, true
 	}
-	w.moveEntity(e, next)
-	e.pathAt++
+	w.moveEntity(e, e.path[landing])
+	e.pathAt = landing + 1
 	e.stuck = 0
 	return e.Pos.Adjacent(target), true
 }

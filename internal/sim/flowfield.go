@@ -21,16 +21,23 @@ type flowField struct {
 
 	stale     bool // goals or terrain changed since the last rebuild
 	builtTick int  // tick of the last rebuild (bounds rebuilds to once per tick)
+
+	// Transit scratch supports looking through a crowd for a free landing tile.
+	// A generation stamp avoids clearing it between colonist moves.
+	transitSeen []int32
+	transitGen  int32
+	transitQ    []int32
 }
 
 func newFlowField(w *World, seed func(add func(Point))) *flowField {
 	return &flowField{
-		w:         w,
-		seed:      seed,
-		dist:      make([]int32, w.Width*w.Height),
-		seen:      make([]int32, w.Width*w.Height),
-		stale:     true,
-		builtTick: -1,
+		w:           w,
+		seed:        seed,
+		dist:        make([]int32, w.Width*w.Height),
+		seen:        make([]int32, w.Width*w.Height),
+		transitSeen: make([]int32, w.Width*w.Height),
+		stale:       true,
+		builtTick:   -1,
 	}
 }
 
@@ -100,45 +107,74 @@ func (f *flowField) ensureFresh() {
 	}
 }
 
-// followField moves a colonist one step along the field toward the nearest goal,
-// avoiding tiles held by others. Returns whether it moved; false means it has
-// arrived (distance 0), is boxed in, or the goal is unreachable from here.
+// followField moves a colonist along the field toward the nearest goal. Occupied
+// colonist tiles can be traversed, but the colonist only stops on a free tile.
+// Returns whether it moved; false means it has arrived (distance 0), is boxed
+// in, or the goal is unreachable from here.
 //
-// It considers every unoccupied neighbor that does not move uphill and steps to
-// one of the closest ones. Allowing an equal-distance sidestep (when no strictly
-// downhill tile is free) and breaking ties randomly is what keeps a dense crowd
-// from deadlocking: colonists shuffle around each other toward a facility instead
-// of all freezing one tile short of it.
+// The breadth-first search expands only through occupied colonist tiles and
+// stops at the first depth with a free landing. Thus an open neighbor still
+// costs one ordinary step, while a colonist can cross an arbitrarily crowded
+// room or doorway in one turn without ever sharing a tile at rest.
 func (w *World) followField(e *Entity, f *flowField) bool {
 	cur := f.at(e.Pos)
 	if cur <= 0 {
 		return false
 	}
+	f.transitGen++
+	gen := f.transitGen
+	start := w.index(e.Pos)
+	f.transitSeen[start] = gen
+	q := append(f.transitQ[:0], int32(start))
 	var cand [8]Point
-	n := 0
-	best := cur // never step uphill (beyond the current distance)
-	for _, d := range neighbors8 {
-		p := e.Pos.Add(d.X, d.Y)
-		if !w.Walkable(p) || w.occupiedByOther(p, e.ID) || w.buildTiles[p] {
-			continue // never step onto a tile a builder needs clear
+	for head := 0; head < len(q); {
+		levelEnd := len(q)
+		n := 0
+		best := cur
+		for ; head < levelEnd; head++ {
+			ci := int(q[head])
+			from := Point{ci % w.Width, ci / w.Width}
+			for _, d := range neighbors8 {
+				p := from.Add(d.X, d.Y)
+				if !w.Walkable(p) || w.buildTiles[p] {
+					continue // never cross a tile a builder needs clear
+				}
+				nd := f.at(p)
+				if nd < 0 {
+					continue
+				}
+				pi := w.index(p)
+				if pi == start {
+					continue
+				}
+				blocker := w.entityAt(p)
+				if blocker != nil && blocker.ID != e.ID {
+					if blocker.Kind == Colonist && f.transitSeen[pi] != gen {
+						f.transitSeen[pi] = gen
+						q = append(q, int32(pi))
+					}
+					continue
+				}
+				if nd > cur {
+					continue // the eventual landing must not be uphill
+				}
+				switch {
+				case nd < best:
+					best, cand[0], n = nd, p, 1
+				case nd == best && n < len(cand):
+					cand[n] = p
+					n++
+				}
+			}
 		}
-		nd := f.at(p)
-		if nd < 0 || nd > cur {
-			continue
-		}
-		switch {
-		case nd < best:
-			best, cand[0], n = nd, p, 1
-		case nd == best:
-			cand[n] = p
-			n++
+		if n > 0 {
+			f.transitQ = q
+			w.moveEntity(e, cand[w.rng.Intn(n)])
+			return true
 		}
 	}
-	if n == 0 {
-		return false
-	}
-	w.moveEntity(e, cand[w.rng.Intn(n)])
-	return true
+	f.transitQ = q
+	return false
 }
 
 // facilityField returns the (lazily rebuilt) flow field for a facility terrain,
