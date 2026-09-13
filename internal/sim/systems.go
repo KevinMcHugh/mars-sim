@@ -302,6 +302,12 @@ func (w *World) assignWorkJob(e *Entity) {
 	// arrival); small ones use cached A* to the nearest claimed tile. Either way
 	// only take a job when unclaimed frontier remains.
 	if w.board.unclaimedCount() > 0 {
+		// Mining produces raw rock. Do not begin work that cannot yield its
+		// resource; construction and needs remain available to a full colonist.
+		if !e.Inventory.CanAdd(RawRock, 1) {
+			e.Job = JobNone
+			return
+		}
 		if w.useFrontierMining() {
 			if w.frontierField().at(e.Pos) >= 0 {
 				w.assignMine(e)
@@ -345,6 +351,12 @@ func (w *World) jobMine(e *Entity) {
 			e.State = Mining
 			e.Progress++
 			if e.Progress >= scaleTicks(w.cfg.MineTicks, e.workScale) {
+				// Award the resource before changing terrain so a full inventory
+				// can never make mined material disappear.
+				if !e.Inventory.Add(RawRock, 1) {
+					w.clearJob(e)
+					return
+				}
 				w.SetTerrain(e.Target, Floor) // TileChanged drops it from the frontier
 				w.clearJob(e)
 			}

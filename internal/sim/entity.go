@@ -120,6 +120,10 @@ type Entity struct {
 	restTicks int           // idle rest duration (base scaled by traits)
 	workScale float64       // mine/build time multiplier (1.0 = baseline)
 
+	// Inventory is carried by colonists. Each slot contains one homogeneous
+	// stack; other entity kinds leave it empty.
+	Inventory Inventory
+
 	// Current job and its parameters.
 	Job       JobKind
 	Target    Point    // tile the job operates on or travels to

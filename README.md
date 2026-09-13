@@ -34,7 +34,8 @@ Terminal controls:
 | `q` / `esc`    | quit                            |
 
 The **roster** (`tab`) lists every colonist; `↑`/`↓` select one to inspect its
-name, attributes, health, needs, and traits. `tab` or `esc` returns to the map.
+name, attributes, health, needs, eight-slot inventory, and traits. `tab` or
+`esc` returns to the map.
 
 Glyphs: 👷 colonist · 😱 fleeing colonist · 👽 alien · 🟫 rock · 🧱 wall · 🍽️ nutrient pod · 🚽 toilet · blank = open floor.
 
@@ -75,9 +76,11 @@ mutable state:
   rather than a strict ECS — pragmatic for a scaffold, and fields can graduate
   into real components as systems grow. Per-tick behavior lives in
   `systems.go`.
-  - **Colonists** walk only on floor. They mine rock into floor, build the
-    colony's life-support as coordinated projects (see *Construction projects*),
-    tend to their needs, and flee when an alien gets close.
+  - **Colonists** walk only on floor. They mine rock into floor (carrying one raw
+    rock per excavated tile), build the colony's life-support as coordinated
+    projects (see *Construction projects*), tend to their needs, and flee when
+    an alien gets close. Each colonist has eight inventory slots, each holding a
+    homogeneous stack of up to 64 items.
   - **Aliens** burrow through *any* terrain to reach the nearest colonist and
     eat it.
 

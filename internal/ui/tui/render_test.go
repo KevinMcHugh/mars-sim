@@ -60,6 +60,7 @@ func TestRosterShowsColonistDetail(t *testing.T) {
 		Orientation: sim.Bisexual, HeightCM: 168, WeightKG: 61,
 		Traits: []sim.Trait{sim.TraitBigEater},
 	}
+	snap.Entities[0].Inventory[0] = sim.ItemStack{Kind: sim.RawRock, Count: 12}
 	snap.NeedsMeta[0] = sim.NeedMeta{Name: "food", Max: 1000, Fatal: true}
 
 	var m tea.Model = New(nil, nil)
@@ -73,6 +74,9 @@ func TestRosterShowsColonistDetail(t *testing.T) {
 	}
 	if !strings.Contains(out, "Big Eater") {
 		t.Error("roster should show the colonist's trait")
+	}
+	if !strings.Contains(out, "raw rock ×12") {
+		t.Error("roster should show the colonist's inventory")
 	}
 	if !strings.Contains(out, "COLONISTS") {
 		t.Error("roster should show the colonist list heading")

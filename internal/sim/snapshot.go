@@ -3,14 +3,15 @@ package sim
 // EntityView is a read-only copy of an entity for a single frame. Frontends
 // receive these instead of *Entity so they can never touch live game state.
 type EntityView struct {
-	ID      EntityID
-	Kind    Kind
-	Pos     Point
-	HP      int
-	MaxHP   int
-	State   State
-	Needs   [numNeeds]int
-	Profile *Profile // colonists only; a deep copy, safe to read
+	ID        EntityID
+	Kind      Kind
+	Pos       Point
+	HP        int
+	MaxHP     int
+	State     State
+	Needs     [numNeeds]int
+	Profile   *Profile  // colonists only; a deep copy, safe to read
+	Inventory Inventory // colonists only; copied by value
 }
 
 // NeedMeta describes a need for display: its name, ceiling, and whether maxing
@@ -79,14 +80,15 @@ func (w *World) snapshot(paused bool, tps int) *Snapshot {
 	}
 	for _, e := range w.entities {
 		ents = append(ents, EntityView{
-			ID:      e.ID,
-			Kind:    e.Kind,
-			Pos:     e.Pos,
-			HP:      e.HP,
-			MaxHP:   e.MaxHP,
-			State:   e.State,
-			Needs:   w.currentNeeds(e),
-			Profile: e.Profile.clone(),
+			ID:        e.ID,
+			Kind:      e.Kind,
+			Pos:       e.Pos,
+			HP:        e.HP,
+			MaxHP:     e.MaxHP,
+			State:     e.State,
+			Needs:     w.currentNeeds(e),
+			Profile:   e.Profile.clone(),
+			Inventory: e.Inventory,
 		})
 		switch e.Kind {
 		case Colonist:

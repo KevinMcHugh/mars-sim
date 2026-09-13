@@ -130,6 +130,15 @@ func (m Model) renderColonistDetail(c sim.EntityView, rows int) string {
 		b.WriteString(bar(name, c.Needs[i], meta.Max, barW) + "\n")
 	}
 
+	b.WriteString("\n" + labelStyle.Render("INVENTORY") + "\n")
+	for i, stack := range c.Inventory {
+		item := "empty"
+		if stack.Count > 0 {
+			item = fmt.Sprintf("%s ×%d", stack.Kind, stack.Count)
+		}
+		b.WriteString(statStyle.Render(fmt.Sprintf("  %d. %s", i+1, item)) + "\n")
+	}
+
 	b.WriteString("\n" + labelStyle.Render("TRAITS") + "\n")
 	if len(p.Traits) == 0 {
 		b.WriteString(statStyle.Render("  none — steady and average"))
