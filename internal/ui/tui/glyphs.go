@@ -32,6 +32,18 @@ const (
 	glyphStomp    = "\U0001F97E"       // 🥾 colonist chasing down a mouse to stomp it
 )
 
+var fittedGlyphs = func() map[string]string {
+	out := make(map[string]string, 13)
+	for _, glyph := range []string{
+		glyphRock, glyphFloor, glyphWall, glyphPod, glyphToilet, glyphBed,
+		glyphColonist, glyphFleeing, glyphTalking, glyphAlien, glyphCat,
+		glyphMouse, glyphStomp,
+	} {
+		out[glyph] = fitGlyphMeasured(glyph)
+	}
+	return out
+}()
+
 func terrainGlyph(t sim.Terrain) string {
 	var glyph string
 	switch t {
@@ -78,6 +90,13 @@ func entityGlyph(e sim.EntityView) string {
 }
 
 func fitGlyph(glyph string) string {
+	if fitted, ok := fittedGlyphs[glyph]; ok {
+		return fitted
+	}
+	return fitGlyphMeasured(glyph)
+}
+
+func fitGlyphMeasured(glyph string) string {
 	switch width := lipgloss.Width(glyph); {
 	case width == tileWidth:
 		return glyph

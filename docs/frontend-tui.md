@@ -65,10 +65,10 @@ the world directly.
 ### Glyphs
 
 Each tile is allocated **two terminal cells** (open floor is two spaces). Emoji
-are retained for readability, but their actual advance width can disagree with
-the width table used by the renderer. `renderMap` therefore pins every tile and
-the end of every row with an ANSI cursor-column sequence; a narrow bed or
-colonist cannot shift or truncate the rest of its row.
+are retained for readability, and `fitGlyph` pads or replaces glyphs according
+to the renderer's width table. The map deliberately avoids per-tile cursor
+positioning: emitting thousands of ANSI cursor sequences made redraws much less
+responsive.
 
 ### Headless mode
 

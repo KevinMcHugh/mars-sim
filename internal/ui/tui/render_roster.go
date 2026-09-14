@@ -10,7 +10,10 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
-const rosterListWidth = 42
+// rosterListWidth leaves room for the longest generated name (17 columns),
+// they/them (8), "age 80" (6), the longest state ("relieving", 9), three
+// separators (9), and the selection marker (2), plus the panel chrome.
+const rosterListWidth = 56
 
 var (
 	rosterSelStyle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("203"))
@@ -59,7 +62,7 @@ func (m Model) renderRoster() string {
 // renderColonistList draws the scrolling name/status column, keeping the
 // selection in view.
 func (m Model) renderColonistList(cs []sim.EntityView, sel, rows int) string {
-	capacity := rows - 3 // box borders + the heading line
+	capacity := (rows - 3) / 3 // box borders + heading, with three lines per colonist
 	if capacity < 1 {
 		capacity = 1
 	}
@@ -79,15 +82,30 @@ func (m Model) renderColonistList(cs []sim.EntityView, sel, rows int) string {
 		c := cs[i]
 		name := colonistName(c)
 		pronouns := "they/them"
+		age := "age ?"
+		state := c.State.String()
+		if c.State == sim.Idle {
+			state = "idling"
+		}
 		if c.Profile != nil {
 			pronouns = c.Profile.Gender.Pronouns()
+			if c.Profile.Age > 0 {
+				age = fmt.Sprintf("age %d", c.Profile.Age)
+			}
 		}
-		line := truncate(fmt.Sprintf("%s · %s · %s", name, pronouns, c.State), rosterListWidth-4)
+		nameLine := truncate(name, rosterListWidth-4)
+		infoLine := truncate(fmt.Sprintf("%s · %s", pronouns, age), rosterListWidth-4)
+		stateLine := truncate(state, rosterListWidth-4)
+		marker := "•"
 		if i == sel {
-			b.WriteString(rosterSelStyle.Render("› " + line))
+			marker = "›"
+			b.WriteString(rosterSelStyle.Render(marker + " " + nameLine))
 		} else {
-			b.WriteString("  " + line)
+			b.WriteString(marker + " " + nameLine)
 		}
+		b.WriteByte('\n')
+		b.WriteString("  " + infoLine + "\n")
+		b.WriteString("  " + stateLine)
 		if i < end-1 {
 			b.WriteByte('\n')
 		}
