@@ -85,6 +85,11 @@ func (w *World) colonistTurn(e *Entity) {
 		return
 	}
 
+	// Record the first sighting of each nearby creature. Seeing is edge-triggered:
+	// a colonist fleeing for many ticks remembers one encounter, not one memory
+	// per tick.
+	w.observeNearby(e)
+
 	// Survival comes first: if an alien is close, drop everything and run.
 	if threat, ok := w.nearestAlien(e.Pos, w.cfg.FleeRadius); ok {
 		w.clearJob(e)
@@ -196,6 +201,32 @@ func (w *World) colonistTurn(e *Entity) {
 	w.runJob(e)
 }
 
+func (w *World) observeNearby(e *Entity) {
+	visible := make(map[EntityID]bool)
+	for _, id := range w.entityIDsSorted() {
+		other := w.entities[id]
+		if other == e || !other.Alive() {
+			continue
+		}
+		radius := 0
+		switch other.Kind {
+		case Alien:
+			radius = w.cfg.FleeRadius
+		case Mouse:
+			radius = w.cfg.ColonistStompRadius
+		default:
+			continue
+		}
+		if e.Pos.Chebyshev(other.Pos) <= radius {
+			visible[other.ID] = true
+			if !e.seen[other.ID] {
+				w.remember(e, fmt.Sprintf("Saw %s #%d.", other.Kind, other.ID))
+			}
+		}
+	}
+	e.seen = visible
+}
+
 // stompNearbyMouse lets a colonist with nothing pressing to do chase down and
 // crush a mouse it notices. Stomping is an idle whim, not work: colonistTurn has
 // already ruled out threats, urgent needs, and available jobs before this runs.
@@ -223,6 +254,7 @@ func (w *World) stompNearbyMouse(e *Entity) bool {
 // stomp crushes a mouse underfoot. A stomp is always fatal to the mouse.
 func (w *World) stomp(colonist, mouse *Entity) {
 	w.remove(mouse.ID)
+	w.remember(colonist, fmt.Sprintf("Crushed mouse #%d.", mouse.ID))
 	w.log.add(fmt.Sprintf("Colonist #%d stomps mouse #%d.", colonist.ID, mouse.ID))
 }
 
@@ -461,6 +493,8 @@ func (w *World) jobTalk(e *Entity) {
 		e.Progress++
 		if e.Progress >= w.cfg.TalkTicks {
 			w.finishTalk(e, p)
+			w.remember(e, fmt.Sprintf("Had a conversation with colonist #%d.", p.ID))
+			w.remember(p, fmt.Sprintf("Had a conversation with colonist #%d.", e.ID))
 			w.resetNeed(e, NeedSocial)
 			w.resetNeed(p, NeedSocial)
 			w.clearJob(p)
@@ -552,6 +586,7 @@ func (w *World) jobMine(e *Entity) {
 					return
 				}
 				w.SetTerrain(e.Target, Floor) // TileChanged drops it from the frontier
+				w.remember(e, fmt.Sprintf("Finished mining at %v.", e.Target))
 				w.clearJob(e)
 			}
 			return
@@ -616,6 +651,7 @@ func (w *World) jobBuild(e *Entity) {
 	if e.Progress >= scaleTicks(w.buildTicks(e.BuildKind), e.workScale) {
 		w.SetTerrain(e.Target, e.BuildKind)
 		w.noteBuild(e.BuildKind)
+		w.remember(e, fmt.Sprintf("Finished construction of %s at %v.", e.BuildKind, e.Target))
 		w.clearJob(e) // endBuild decrements the in-progress counter
 	}
 }
@@ -634,6 +670,16 @@ func (w *World) jobUse(e *Entity) {
 		e.Progress++
 		if e.Progress >= spec.UseTicks {
 			w.resetNeed(e, e.Need)
+			switch e.Need {
+			case NeedFood:
+				w.remember(e, "Had a meal.")
+			case NeedBladder:
+				w.remember(e, "Used the toilet.")
+			case NeedSleep:
+				w.remember(e, "Slept in a bed.")
+			default:
+				w.remember(e, fmt.Sprintf("Satisfied %s.", spec.Name))
+			}
 			w.clearJob(e)
 		}
 		return

@@ -2,6 +2,19 @@ package sim
 
 import "math/rand"
 
+const maxColonistMemories = 64
+
+// remember adds a notable experience, retaining the most recent memories.
+func (w *World) remember(e *Entity, text string) {
+	if e == nil || e.Kind != Colonist {
+		return
+	}
+	e.Memories = append(e.Memories, Memory{Tick: w.tick, Text: text})
+	if len(e.Memories) > maxColonistMemories {
+		e.Memories = e.Memories[len(e.Memories)-maxColonistMemories:]
+	}
+}
+
 // Terrain is what fills a single tile. The world is a dense grid of tiles; as
 // colonists dig and build, tiles change terrain.
 type Terrain uint8
@@ -26,6 +39,25 @@ const (
 
 	numTerrains // keep last: the number of terrain kinds
 )
+
+func (t Terrain) String() string {
+	switch t {
+	case Rock:
+		return "rock"
+	case Floor:
+		return "floor"
+	case Wall:
+		return "wall"
+	case NutrientPod:
+		return "nutrient pod"
+	case Toilet:
+		return "toilet"
+	case Bed:
+		return "bed"
+	default:
+		return "unknown"
+	}
+}
 
 // Walkable reports whether a colonist can stand on this terrain. Aliens ignore
 // this; they move through anything.

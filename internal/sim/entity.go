@@ -101,6 +101,14 @@ const (
 // EntityID uniquely identifies an entity for its lifetime. IDs are never reused.
 type EntityID uint64
 
+// Memory is a notable event remembered by a colonist. Memories are exposed in
+// chronological order through snapshots; routine movement and idling are
+// deliberately not recorded.
+type Memory struct {
+	Tick int
+	Text string
+}
+
 // Entity is a single actor in the world. Rather than a strict ECS, we use one
 // struct whose fields the systems interpret according to Kind. This keeps the
 // scaffold readable; fields can graduate into real components as systems
@@ -146,6 +154,11 @@ type Entity struct {
 	// (colonists only). Tasks such as conversations shift it; nothing simulates
 	// against it yet. See relationships.go.
 	mood int
+
+	// Memories is a bounded history of notable experiences. The internal slice
+	// is copied into EntityView so frontends cannot mutate the live world.
+	Memories []Memory
+	seen     map[EntityID]bool // nearby creatures already recorded as seen
 
 	// Social conversation fatigue is counted within a rolling social window.
 	socialTalkCount   int
@@ -204,6 +217,9 @@ type Entity struct {
 // traits it rolls.
 func newEntity(id EntityID, kind Kind, p Point, cfg Config) *Entity {
 	e := &Entity{ID: id, Kind: kind, Pos: p, State: Idle, workScale: 1}
+	if kind == Colonist {
+		e.seen = make(map[EntityID]bool)
+	}
 	switch kind {
 	case Colonist:
 		e.MaxHP = cfg.ColonistHP

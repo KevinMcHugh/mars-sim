@@ -19,6 +19,7 @@ type EntityView struct {
 	Relations  []Relation
 	Affinities []Affinity
 	Mood       int // disposition in [-MoodMax, MoodMax], 0 neutral (colonists only)
+	Memories   []Memory
 }
 
 // NeedMeta describes a need for display: its name, ceiling, and whether maxing
@@ -104,6 +105,7 @@ func (w *World) snapshot(paused bool, tps int) *Snapshot {
 			Inventory: e.Inventory,
 		}
 		if e.Kind == Colonist {
+			ev.Memories = append([]Memory(nil), e.Memories...)
 			ev.Relations = w.relativesOf(e, kinChildren)
 			ev.Affinities = w.affinitiesOf(e.ID)
 			ev.Mood = e.mood
