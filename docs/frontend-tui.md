@@ -59,12 +59,10 @@ the world directly.
 
 ### Glyphs
 
-Each glyph is rendered as **two terminal cells wide** so the grid stays aligned
-(open floor is two spaces). The renderer pads a narrow emoji according to the
-terminal width table and falls back to a plain two-cell token if a glyph is
-reported as wider than a tile. This keeps a single emoji from shortening or
-extending one map row. Colonists show distinct "fleeing", "talking", and
-"stomping" glyphs for those activities; dormitory beds render as 🛏️.
+Each map glyph is rendered as **two terminal cells wide** so the grid stays
+aligned (open floor is two spaces). The map uses fixed-width ASCII tokens rather
+than emoji because terminals and fonts disagree about emoji advance widths;
+this prevents one bed or colonist from shortening or extending a row.
 
 ### Headless mode
 
@@ -81,9 +79,9 @@ contract is genuinely frontend-agnostic.
 - **Blocking `waitSnap` re-issued each frame** is the idiomatic Bubble Tea way to
   turn a channel into a message stream, and it naturally paces the UI to the
   engine's drop-stale-frames publishing.
-- **Two-cell glyphs**, normalized at the render boundary, keep terminal grid
-  alignment even when a terminal's emoji width table differs from the usual
-  East Asian width.
+- **Fixed-width ASCII glyphs** make the grid deterministic across terminals;
+  emoji remain unsuitable as the map's layout primitive because their display
+  width depends on the terminal and font.
 
 ## Extending it
 

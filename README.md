@@ -45,9 +45,9 @@ The command also supports `-headless` for periodic stats without a TUI,
 [command-line guide](docs/cli.md) for application flags, validation, and
 examples.
 
-Glyphs: 👷 colonist · 😱 fleeing colonist · 🗣️ talking colonist · 🥾 stomping
-colonist · 👽 alien · 🐈 cat · 🐁 mouse · 🟫 rock · 🧱 wall · 🍽️ nutrient pod ·
-🚽 toilet · 🛏️ dormitory bunk · blank = open floor.
+Map glyphs: `C` colonist · `!` fleeing · `S` talking · `^` stomping · `A` alien
+· `K` cat · `M` mouse · `##` rock · `[]` wall · `P` nutrient pod · `T` toilet
+· `B` dormitory bunk · blank = open floor.
 
 ### Documentation
 
@@ -55,8 +55,8 @@ Contributor-facing system documentation lives in [`docs/`](docs/README.md).
 Start with [architecture](docs/architecture.md), and add or update a Markdown
 write-up in that directory whenever you add a feature or subsystem.
 
-> The map normalizes every glyph to two terminal cells so a narrow or wide emoji
-> cannot shear a row. Open floor is represented by two spaces.
+> The map uses fixed-width ASCII tokens and two spaces for open floor, so its
+> rows do not depend on terminal-specific emoji sizing.
 
 ## Architecture
 
