@@ -1,0 +1,104 @@
+# Command-line application
+
+> Part of the [mars-sim documentation](./README.md).
+
+## What it is
+
+`main.go` is the process entry point. It creates a default simulation
+configuration, applies command-line overrides, validates the result, starts the
+engine, and selects either the Bubble Tea frontend or a periodic headless
+reporter. The application flags control the process; simulation flags are
+forwarded into `sim.Config`.
+
+## Source
+
+- [`main.go`](../main.go) — `main`, `bindConfigFlags`, `validateConfig`,
+  `runTUI`, and `runHeadless`.
+- [`internal/sim/config.go`](../internal/sim/config.go) — simulation defaults
+  and tunable fields.
+- [`internal/sim/engine.go`](../internal/sim/engine.go) — engine startup and
+  frontend communication.
+
+## How it works
+
+Startup follows this order:
+
+1. Copy `sim.DefaultConfig()`.
+2. Register flags whose defaults come from that config.
+3. Parse flags (with `?`, `-?`, and `--?` as help aliases).
+4. Apply a non-zero `-seed` override.
+5. Validate dimensions, populations, rates, and other safety constraints.
+6. Create and subscribe to the engine before starting `Engine.Run`.
+7. Run either the TUI or the headless snapshot consumer.
+
+### Application flags
+
+These flags control how the process runs rather than the simulated world:
+
+| Flag | Behavior |
+| --- | --- |
+| `-headless` | Skip the TUI and print periodic population/facility/excavation statistics. Useful for CI, profiling, and non-TTY runs. |
+| `-duration <time>` | Stop automatically after the duration, such as `10s` or `250ms`. The default `0` means run until quit/interruption. |
+| `-seed <int64>` | Select a reproducible world seed. `0` leaves the time-based default seed in place. |
+| `-h`, `-help`, `?` | Print usage, examples, and all available flags. |
+
+Headless mode prints a startup line, then the latest snapshot approximately once
+per second. With a duration it prints a final summary before returning. It
+consumes the same snapshot channel as the TUI; it does not access the mutable
+world directly.
+
+Examples:
+
+```sh
+# Interactive TUI with defaults.
+go run .
+
+# Reproducible ten-second smoke test with no terminal UI.
+go run . -headless -duration 10s -seed 42
+
+# Run a larger colony and tune the simulation speed.
+go run . -colonists 20 -aliens 5 -cats 4 -mice 20 -tps 12
+
+# Inspect every available option.
+go run . -h
+```
+
+### Validation
+
+`validateConfig` rejects a world smaller than 10x10, negative population counts,
+less than one tick per second, fewer than one colonist per facility, less than
+one rest tick, or a trait chance outside 0–100. Invalid settings are reported to
+stderr and exit with status 2 before the engine starts.
+
+The ticker itself clamps rates to 1–60, and interactive speed changes use the
+same clamp. CLI validation covers values whose bad settings would make world
+generation or gameplay invalid; if a new tunable has stronger invariants, add
+them to `validateConfig`.
+
+## Why it is this way
+
+- **Application flags are separate from `Config`** so test-run duration and
+  presentation mode cannot accidentally become simulation state.
+- **Headless mode uses snapshots** rather than a second simulation path, keeping
+  CI and profiling behavior representative of the real engine.
+- **Subscribe before `Run`** ensures the initial world frame is available to
+  either consumer.
+- **Defaults stay centralized**: every simulation flag is registered from the
+  already-created `Config`, so `DefaultConfig` remains the balancing source of
+  truth.
+
+## Extending it
+
+- Add a process-only option beside `duration`, `headless`, and `seed` when it
+  changes application behavior rather than simulation behavior.
+- Add a simulation tunable to `Config` and `DefaultConfig`, then expose it in
+  `bindConfigFlags`; see [configuration.md](./configuration.md).
+- If a new mode consumes the engine, subscribe before starting `Run` and consume
+  immutable snapshots. Do not read `Engine` or `World` internals.
+- Update this document and the index whenever the command's behavior changes.
+
+## Related
+
+- [configuration.md](./configuration.md) — simulation tunables and defaults.
+- [architecture.md](./architecture.md) — the engine/snapshot contract.
+- [frontend-tui.md](./frontend-tui.md) — the interactive frontend.

@@ -1,0 +1,106 @@
+# Spatial index & performance
+
+> Part of the [mars-sim documentation](./README.md).
+
+## What it is
+
+The engine is built to stay cheap as the colony scales. The unifying idea is
+**never rescan the world**: every "how many / who / where / what's diggable"
+question is answered by an index that is maintained *incrementally* as things
+change, driven by the event bus. This doc collects those indexes and the
+performance results they produced.
+
+## Source
+
+- [`internal/sim/world.go`](../internal/sim/world.go) — the occupancy index (`occ`), terrain/kind counts.
+- [`internal/sim/chunks.go`](../internal/sim/chunks.go) — the chunk entity index.
+- [`internal/sim/jobboard.go`](../internal/sim/jobboard.go) — the mining frontier and in-progress build counts.
+- [`internal/sim/events.go`](../internal/sim/events.go) — the bus these systems react to.
+- [`internal/sim/rooms.go`](../internal/sim/rooms.go), [`flowfield.go`](../internal/sim/flowfield.go), [`path.go`](../internal/sim/path.go) — covered in [pathfinding.md](./pathfinding.md).
+- [`internal/sim/bench_test.go`](../internal/sim/bench_test.go) — `BenchmarkStep`.
+
+## How it works
+
+### Occupancy index
+
+`World.occ` is a dense slice parallel to `tiles`: `occ[i]` is the `EntityID`
+standing on that tile (0 = empty; IDs start at 1). It makes "who is here?" an O(1)
+lookup instead of an O(entities) scan, and it is the mechanism that enforces **one
+entity per tile**. `moveEntity`, `spawn`, and `remove` keep it in step.
+
+### Incremental counts
+
+`terrainCounts[numTerrains]` and `kindCounts[numKinds]` answer "how many floor
+tiles? how many colonists?" in O(1). `SetTerrain` adjusts terrain counts on every
+change; `spawn`/`remove` adjust kind counts. Nothing ever rescans the grid or the
+entity map to count.
+
+### Chunk entity index
+
+The map is divided into 16x16 **chunks** (`chunkSize`). `chunkEntities[ci]` buckets
+entity IDs by chunk, so neighbor queries scan only nearby chunks. `nearestOfKind`
+(see [entities-and-ai.md](./entities-and-ai.md)) expands in chunk rings and stops
+as soon as the next ring cannot beat the best candidate. Chunks also bound region
+recomputation (see [pathfinding.md](./pathfinding.md)). Buckets use swap-delete
+since order within a bucket does not matter (queries tie-break on ID).
+
+### The job board (mining frontier)
+
+The `jobBoard` tracks the **mineable frontier** — rock tiles bordering floor — so
+mining needs no per-colonist map scan. It is maintained incrementally from
+`TileChanged` events: when a tile changes, only it and its 8 neighbors are
+re-evaluated for frontier membership. Claims are **owner-keyed** and made on
+arrival, keeping two colonists off one rock and making release safe. The board
+also keeps O(1) counts of builds in progress per terrain (`startBuild`/`endBuild`/
+`inProgress`), which is how `plannedFacilities` avoids scanning colonists.
+
+Claiming or releasing a frontier tile marks the frontier flow field stale, so
+other miners route around a claimed rock.
+
+### The reactive backbone
+
+All of this hangs off the synchronous event bus (see
+[architecture.md](./architecture.md)). `newWorld` subscribes the job board and the
+flow-field staleness flags to `TileChanged`. Producers emit only on real changes
+(`SetTerrain` no-ops on unchanged terrain), because boxing an `Event` allocates.
+
+## Why it is this way
+
+The naive scaffold rescanned the world for everything, which was fine at a handful
+of colonists and catastrophic at scale. Each index removed a class of scans, and
+the effects compound. Measured on stress runs:
+
+| Colonists | Naive scans | With occupancy index & counts |
+| --- | --- | --- |
+| 500 | ~2.5 s/tick | ~8 ms/tick |
+| 2000 | ~42 s/tick | ~144 ms/tick |
+
+Cumulative effect of the reactive work on a 2000-colonist stress tick:
+
+| Stage | ms/tick |
+| --- | --- |
+| Baseline (naive scans) | ~42000 |
+| + occupancy index & counts | ~144 |
+| + chunk index, rooms, board | ~43 |
+| + lazy needs & resting AI | ~13 |
+
+Lazy needs and the resting AI (see [needs.md](./needs.md)) matter here too: a
+colonist's needs are computed on read, so an idle colonist rests instead of
+re-scanning the map every tick. Flow fields and HPA\* (see
+[pathfinding.md](./pathfinding.md)) carry the win into the thousands of agents.
+
+## Extending it
+
+- **A new aggregate query**: prefer an incremental counter updated at the mutation
+  site over a per-tick scan. Add it to `World`, update it in `SetTerrain` /
+  `spawn` / `remove` / the relevant job transition.
+- **A new derived system**: subscribe to the event bus in `newWorld` and maintain
+  your own incremental state from events (the job board is the model to copy).
+- **Measure it**: `go test ./internal/sim/ -run '^$' -bench BenchmarkStep -benchmem`.
+
+## Related
+
+- [architecture.md](./architecture.md) — the event bus and the ownership model.
+- [pathfinding.md](./pathfinding.md) — chunks, regions/rooms, and flow fields.
+- [needs.md](./needs.md) — lazy needs and the resting AI.
+- [world.md](./world.md) — `SetTerrain` and the grid these indexes shadow.

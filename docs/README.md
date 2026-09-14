@@ -1,0 +1,40 @@
+# mars-sim documentation
+
+This directory is the shared memory of the project. Every system has a write-up
+here so a new contributor — human or agent — can understand *why* the code is the
+way it is without re-deriving it from the source each time.
+
+> **New feature? Write a doc.** See the project rule in
+> [`../AGENTS.md`](../AGENTS.md). Start from [`TEMPLATE.md`](./TEMPLATE.md) and
+> add your doc to the index below.
+
+## Index
+
+| Doc | What it covers |
+| --- | --- |
+| [architecture.md](./architecture.md) | The engine/frontend split, the tick loop, snapshots, commands, and the event bus. Start here. |
+| [cli.md](./cli.md) | The `mars-sim` command, application modes, duration/seed controls, validation, and CLI examples. |
+| [configuration.md](./configuration.md) | `sim.Config`, `DefaultConfig`, and how tunables become command-line flags. |
+| [world.md](./world.md) | The tile grid, terrain kinds, world state, and world generation. |
+| [entities-and-ai.md](./entities-and-ai.md) | The entity model, the per-tick systems, turn order, movement primitives, and the colonist / alien / cat / mouse behaviors. |
+| [needs.md](./needs.md) | Colonist (and mouse) needs: hunger, bladder, lazy evaluation, starvation, and how to add a need. |
+| [personality.md](./personality.md) | Names, attributes, traits, and the separate RNG stream that keeps flavor out of the simulation. |
+| [construction.md](./construction.md) | Construction projects and the facility-room design, including the deadlocks that shaped it. |
+| [pathfinding.md](./pathfinding.md) | Rooms/regions, tile A\*, shared flow fields, and hierarchical (HPA\*) routing. |
+| [spatial-index-and-performance.md](./spatial-index-and-performance.md) | The occupancy index, incremental counts, chunk index, the job board, and the performance story. |
+| [inventory.md](./inventory.md) | Colonist inventory slots and stacking. |
+| [frontend-tui.md](./frontend-tui.md) | The Bubble Tea terminal frontend: map, roster, controls, and glyphs. |
+
+## How the docs are organized
+
+Each doc is self-contained and follows [`TEMPLATE.md`](./TEMPLATE.md):
+
+- **What it is** — a one-paragraph summary.
+- **Source** — the files that implement it.
+- **How it works** — the model and the key decisions.
+- **Why it is this way** — the tradeoffs and the dead ends we already hit.
+- **Extending it** — the intended path for the next change.
+- **Related** — links to adjacent docs.
+
+The [top-level README](../README.md) is the player- and newcomer-facing tour; the
+docs here are the contributor-facing depth behind it.
