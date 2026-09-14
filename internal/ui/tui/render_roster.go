@@ -79,10 +79,14 @@ func (m Model) renderColonistList(cs []sim.EntityView, sel, rows int) string {
 		c := cs[i]
 		name := colonistName(c)
 		pronouns := "they/them"
+		age := "age ?"
 		if c.Profile != nil {
 			pronouns = c.Profile.Gender.Pronouns()
+			if c.Profile.Age > 0 {
+				age = fmt.Sprintf("age %d", c.Profile.Age)
+			}
 		}
-		line := truncate(fmt.Sprintf("%s · %s · %s", name, pronouns, c.State), rosterListWidth-4)
+		line := truncate(fmt.Sprintf("%s · %s · %s · %s", name, pronouns, age, c.State), rosterListWidth-4)
 		if i == sel {
 			b.WriteString(rosterSelStyle.Render("› " + line))
 		} else {
