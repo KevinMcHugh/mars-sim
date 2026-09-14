@@ -155,7 +155,7 @@ func (m Model) renderSidebar() string {
 
 func (m Model) renderFooter() string {
 	return helpStyle.Render(
-		"space pause  +/- speed  c colonist  a alien  x cat  m mouse  ←↑↓→/hjkl pan  tab roster  q quit",
+		"space pause  +/- speed  f facility room  d dormitory  c colonist  a alien  x cat  m mouse  ←↑↓→/hjkl pan  tab roster  q quit",
 	)
 }
 

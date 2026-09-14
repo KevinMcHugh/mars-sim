@@ -252,6 +252,22 @@ func (w *World) planRooms() {
 	if len(w.projects) > 0 {
 		return
 	}
+	if w.manualFacilityRooms > 0 {
+		before := len(w.projects)
+		w.planRoom(lifeSupportRoom)
+		if len(w.projects) > before {
+			w.manualFacilityRooms--
+		}
+		return
+	}
+	if w.manualDormitories > 0 {
+		before := len(w.projects)
+		w.planRoom(dormRoom)
+		if len(w.projects) > before {
+			w.manualDormitories--
+		}
+		return
+	}
 	desired := w.desiredFacilities(w.countKind(Colonist))
 	if w.plannedFacilities(NutrientPod) < desired || w.plannedFacilities(Toilet) < desired {
 		w.planRoom(lifeSupportRoom)

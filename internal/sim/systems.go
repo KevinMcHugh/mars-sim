@@ -127,6 +127,7 @@ func (w *World) colonistTurn(e *Entity) {
 			// A facility of this kind is reachable: follow its shared flow field.
 			w.clearJob(e)
 			e.Job, e.Need, e.Progress = JobUse, need, 0
+			e.useFacility, e.useFacilitySet = w.chooseFacility(e, spec.Facility), true
 		} else {
 			// No completed facility is reachable. Drop unrelated work and help with
 			// reachable planned construction rather than mining until death merely
@@ -396,6 +397,7 @@ func (w *World) clearJob(e *Entity) {
 		}
 	}
 	e.Job, e.Progress, e.partner = JobNone, 0, 0
+	e.useFacility, e.useFacilitySet = Point{}, false
 	e.clearPath()
 }
 
@@ -657,6 +659,124 @@ func (w *World) jobBuild(e *Entity) {
 	}
 }
 
+// chooseFacility assigns a concrete facility to a need. Facilities are ranked
+// by walkable distance, with crowded approaches excluded when another reachable
+// facility exists. The assignment is retained on the entity for the whole use
+// job, so a user never ping-pongs between queues as their counts change.
+func (w *World) chooseFacility(e *Entity, kind Terrain) Point {
+	dist := make([]int, w.Width*w.Height)
+	for i := range dist {
+		dist[i] = -1
+	}
+	start := w.index(e.Pos)
+	dist[start] = 0
+	queue := []Point{e.Pos}
+	for head := 0; head < len(queue); head++ {
+		p := queue[head]
+		for _, d := range neighbors8 {
+			n := p.Add(d.X, d.Y)
+			if !w.Walkable(n) || dist[w.index(n)] >= 0 {
+				continue
+			}
+			dist[w.index(n)] = dist[w.index(p)] + 1
+			queue = append(queue, n)
+		}
+	}
+
+	best, bestDist := Point{}, int(^uint(0)>>1)
+	for y := 0; y < w.Height; y++ {
+		for x := 0; x < w.Width; x++ {
+			fac := Point{x, y}
+			if w.TerrainAt(fac) != kind {
+				continue
+			}
+			accessible := false
+			congested := false
+			for _, d := range neighbors8 {
+				access := fac.Add(d.X, d.Y)
+				if !w.Walkable(access) {
+					continue
+				}
+				di := dist[w.index(access)]
+				if di < 0 {
+					continue
+				}
+				accessible = true
+				if w.entityAt(access) != nil {
+					congested = true
+				}
+				for _, other := range w.entities {
+					if other != e && other.Alive() && other.Kind == Colonist &&
+						other.Pos.Chebyshev(access) <= 1 {
+						congested = true
+					}
+				}
+				// A committed user in the approach counts as a queue even when
+				// the access tile itself is currently free.
+				queueCount := 0
+				for _, other := range w.entities {
+					if other == e || !other.Alive() || other.Kind != Colonist ||
+						other.Job != JobUse || !other.useFacilitySet ||
+						!other.useFacility.Equal(fac) {
+						continue
+					}
+					queueCount++
+				}
+				if queueCount >= 1 {
+					congested = true
+				}
+			}
+			if !accessible {
+				continue
+			}
+			// Prefer the nearest facility unless its approach is congested. If
+			// every reachable option is busy, retain nearest as a fair fallback.
+			d := bestDist
+			for _, n := range neighbors8 {
+				access := fac.Add(n.X, n.Y)
+				if !w.InBounds(access) {
+					continue
+				}
+				if nd := dist[w.index(access)]; nd >= 0 && nd < d {
+					d = nd
+				}
+			}
+			if congested {
+				continue
+			}
+			if d < bestDist || (d == bestDist && lessPoint(fac, best)) {
+				best, bestDist = fac, d
+			}
+		}
+	}
+	if bestDist < int(^uint(0)>>1) {
+		return best
+	}
+	// If all facilities are congested, choosing the nearest still guarantees
+	// progress once its current users leave rather than declaring the need
+	// unreachable and starving the colonist.
+	bestDist = int(^uint(0) >> 1)
+	for y := 0; y < w.Height; y++ {
+		for x := 0; x < w.Width; x++ {
+			fac := Point{x, y}
+			if w.TerrainAt(fac) != kind {
+				continue
+			}
+			for _, d := range neighbors8 {
+				access := fac.Add(d.X, d.Y)
+				if !w.InBounds(access) {
+					continue
+				}
+				if nd := dist[w.index(access)]; nd >= 0 &&
+					(nd < bestDist || (nd == bestDist && lessPoint(fac, best))) {
+					best, bestDist = fac, nd
+				}
+			}
+		}
+	}
+	return best
+}
+
 func (w *World) jobUse(e *Entity) {
 	spec := w.cfg.Needs[e.Need]
 	field := w.facilityField(spec.Facility)
@@ -664,9 +784,16 @@ func (w *World) jobUse(e *Entity) {
 		w.clearJob(e) // no facility of this kind is reachable anymore
 		return
 	}
+	if !e.useFacilitySet || w.TerrainAt(e.useFacility) != spec.Facility {
+		e.useFacility, e.useFacilitySet = w.chooseFacility(e, spec.Facility), true
+	}
 	// Arrived: standing next to a facility of the right kind — use it.
-	if fac, ok := w.adjacentFacility(e.Pos, spec.Facility); ok {
-		e.Target = fac
+	if e.useFacilitySet && e.Pos.Adjacent(e.useFacility) {
+		fac := e.useFacility
+		if w.TerrainAt(fac) != spec.Facility {
+			w.clearJob(e)
+			return
+		}
 		e.State = useState(e.Need)
 		e.Progress++
 		if e.Progress >= spec.UseTicks {
@@ -685,12 +812,51 @@ func (w *World) jobUse(e *Entity) {
 		}
 		return
 	}
-	// Otherwise follow the shared flow field one step toward the nearest one.
-	if !w.followField(e, field) {
-		e.stuck++
-		if e.stuck > w.cfg.StuckLimit {
+	// Keep the established shared-field behavior while there is no alternative
+	// room. Concrete routing is only needed once multiple facilities can split a
+	// queue; this also lets builders retain the field's crowd-transit behavior.
+	if w.countTerrain(spec.Facility) < 2 {
+		if w.followField(e, field) {
+			e.stuck = 0
+			e.State = Moving
+			return
+		}
+	}
+	// Route to the facility selected when the need became urgent. The shared field
+	// is still the reachability gate, but routing to a concrete facility prevents
+	// every user from converging on its nearest seed.
+	arrived, ok := w.travelTo(e, e.useFacility)
+	if !ok || !arrived {
+		if !ok {
+			// A facility can become unreachable after a terrain change while the
+			// shared field still has another reachable goal. Fall back to that
+			// field rather than dropping the need and risking starvation.
+			if w.followField(e, field) {
+				e.stuck = 0
+				e.State = Moving
+				return
+			}
+		}
+		if !ok {
+			e.stuck++
+		} else {
+			e.stuck = 0
+		}
+		// A blocked access tile can be at distance zero in the shared field. Move
+		// aside rather than repeatedly abandoning and reacquiring the same queue.
+		if !arrived && e.stuck > 0 && e.stuck%w.cfg.StuckLimit == 0 {
+			w.stepAside(e)
+		}
+		if e.stuck > w.cfg.StuckLimit*2 {
 			w.clearJob(e)
 		}
+		if arrived {
+			e.State = Moving
+		}
+		return
+	}
+	if !arrived {
+		e.stuck++
 		return
 	}
 	e.stuck = 0

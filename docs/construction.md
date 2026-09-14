@@ -21,6 +21,13 @@ toilets) are the first — and currently only — project kind.
 
 ## How it works
 
+The normal planner maintains life-support and bunk capacity automatically, but
+the TUI can queue explicit room orders: `f` requests one facility room and `d`
+requests one dormitory. The command is recorded on the engine-owned world and
+waits until the current project finishes and a suitable site exists. It does not
+start a second concurrent project, preserving the single-project rule that
+prevents early colonies from splitting their builders across sites.
+
 ### Tasks, phases, projects
 
 A `buildTask` converts one tile to a desired `Terrain`, and carries an `owner`

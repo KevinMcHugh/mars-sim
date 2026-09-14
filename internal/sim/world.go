@@ -124,6 +124,11 @@ type World struct {
 	projects      []*project
 	nextProjectID int
 	nextPlanTick  int
+	// Manual room orders wait here until the current project finishes and a
+	// suitable site is available. Keeping them in the world preserves the
+	// engine's single-owner rule for simulation state.
+	manualFacilityRooms int
+	manualDormitories   int
 	// buildTiles holds every not-yet-built task tile, rebuilt each tick. Colonists
 	// route around these so a crowd never parks on a tile a builder needs clear —
 	// otherwise a facility mobbed by its neighbors could never be raised. See
