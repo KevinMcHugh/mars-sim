@@ -1,66 +1,89 @@
 package tui
 
-import "github.com/kevinmchugh/mars-sim/internal/sim"
+import (
+	"strings"
+
+	"github.com/charmbracelet/lipgloss"
+
+	"github.com/kevinmchugh/mars-sim/internal/sim"
+)
 
 const tileWidth = 2
 
-// Map glyphs use only ASCII characters because emoji advance widths vary by
-// terminal and font. Every token is exactly two ordinary terminal cells wide;
-// open floor is two spaces, which reads as empty cavern against the solid
-// terrain.
+// Glyphs occupy two terminal cells so the map grid stays aligned. Open floor is
+// two spaces (also two cells), which reads as empty cavern against the solid
+// terrain. fitGlyph adds padding for terminals whose width table reports an
+// emoji as narrow and uses a plain two-cell fallback for an unexpectedly wide
+// glyph.
 const (
-	glyphRock   = "##" // unexcavated regolith
-	glyphFloor  = "  " // open, walkable space
-	glyphWall   = "[]" // built wall
-	glyphPod    = "P " // nutrient pod (food)
-	glyphToilet = "T " // toilet (bladder)
-	glyphBed    = "B " // dormitory bunk (sleep)
+	glyphRock   = "\U0001F7EB"       // 🟫 unexcavated regolith
+	glyphFloor  = "  "               // open, walkable space
+	glyphWall   = "\U0001F9F1"       // 🧱 built wall
+	glyphPod    = "\U0001F37D\uFE0F" // 🍽️ nutrient pod (food)
+	glyphToilet = "\U0001F6BD"       // 🚽 toilet (bladder)
+	glyphBed    = "\U0001F6CF\uFE0F" // 🛏️ dormitory bunk (sleep)
 
-	glyphColonist = "C " // colonist at work
-	glyphFleeing  = "! " // colonist running from an alien
-	glyphTalking  = "S " // colonist chatting with another
-	glyphAlien    = "A " // subterranean mutant
-	glyphCat      = "K " // floor predator hunting mice
-	glyphMouse    = "M " // pest that raids the food pods
-	glyphStomp    = "^ " // colonist chasing down a mouse to stomp it
+	glyphColonist = "\U0001F477"       // 👷 colonist at work
+	glyphFleeing  = "\U0001F631"       // 😱 colonist running from an alien
+	glyphTalking  = "\U0001F5E3\uFE0F" // 🗣️ colonist chatting with another
+	glyphAlien    = "\U0001F47D"       // 👽 subterranean mutant
+	glyphCat      = "\U0001F408"       // 🐈 floor predator hunting mice
+	glyphMouse    = "\U0001F401"       // 🐁 pest that raids the food pods
+	glyphStomp    = "\U0001F97E"       // 🥾 colonist chasing down a mouse to stomp it
 )
 
 func terrainGlyph(t sim.Terrain) string {
+	var glyph string
 	switch t {
 	case sim.Floor:
-		return glyphFloor
+		glyph = glyphFloor
 	case sim.Wall:
-		return glyphWall
+		glyph = glyphWall
 	case sim.NutrientPod:
-		return glyphPod
+		glyph = glyphPod
 	case sim.Toilet:
-		return glyphToilet
+		glyph = glyphToilet
 	case sim.Bed:
-		return glyphBed
+		glyph = glyphBed
 	default:
-		return glyphRock
+		glyph = glyphRock
 	}
+	return fitGlyph(glyph)
 }
 
 func entityGlyph(e sim.EntityView) string {
+	var glyph string
 	switch e.Kind {
 	case sim.Alien:
-		return glyphAlien
+		glyph = glyphAlien
 	case sim.Cat:
-		return glyphCat
+		glyph = glyphCat
 	case sim.Mouse:
-		return glyphMouse
+		glyph = glyphMouse
 	case sim.Colonist:
 		switch e.State {
 		case sim.Fleeing:
-			return glyphFleeing
+			glyph = glyphFleeing
 		case sim.Talking:
-			return glyphTalking
+			glyph = glyphTalking
 		case sim.Stomping:
-			return glyphStomp
+			glyph = glyphStomp
+		default:
+			glyph = glyphColonist
 		}
-		return glyphColonist
 	default:
-		return glyphColonist
+		glyph = glyphColonist
+	}
+	return fitGlyph(glyph)
+}
+
+func fitGlyph(glyph string) string {
+	switch width := lipgloss.Width(glyph); {
+	case width == tileWidth:
+		return glyph
+	case width < tileWidth:
+		return glyph + strings.Repeat(" ", tileWidth-width)
+	default:
+		return "??"
 	}
 }
