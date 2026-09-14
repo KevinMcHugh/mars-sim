@@ -9,8 +9,8 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
-// Layout constants. The map draws two terminal cells per tile; the sidebar is a
-// fixed-width info panel to its right.
+// Layout constants. The map draws tileWidth terminal cells per tile; the
+// sidebar is a fixed-width info panel to its right.
 const (
 	sidebarWidth = 30
 	headerRows   = 2
@@ -35,7 +35,7 @@ var (
 // the current terminal size, clamped to the world's dimensions.
 func (m Model) viewportTiles() (cols, rows int) {
 	availW := m.termW - sidebarWidth - 1
-	cols = availW / 2 // two cells per tile
+	cols = availW / tileWidth
 	rows = m.termH - headerRows - footerRows
 
 	if cols < minCols {
@@ -81,8 +81,8 @@ func (m Model) renderHeader() string {
 		state += "  |  " + pausedStyle.Render("PAUSED")
 	}
 	counts := statStyle.Render(fmt.Sprintf(
-		"\U0001F477 %d   \U0001F47D %d   \U0001F408 %d   \U0001F401 %d   \U0001F37D\uFE0F %d   \U0001F6BD %d   rooms %d   excavated %d",
-		s.Stats.Colonists, s.Stats.Aliens, s.Stats.Cats, s.Stats.Mice, s.Stats.Pods, s.Stats.Toilets, s.Stats.Rooms, s.Stats.FloorDug,
+		"\U0001F477 %d   \U0001F47D %d   \U0001F408 %d   \U0001F401 %d   \U0001F37D\uFE0F %d   \U0001F6BD %d   \U0001F6CF\uFE0F %d   rooms %d   excavated %d",
+		s.Stats.Colonists, s.Stats.Aliens, s.Stats.Cats, s.Stats.Mice, s.Stats.Pods, s.Stats.Toilets, s.Stats.Beds, s.Stats.Rooms, s.Stats.FloorDug,
 	))
 
 	line1 := lipgloss.JoinHorizontal(lipgloss.Left, title, "  ", sub)
@@ -128,6 +128,7 @@ func (m Model) renderSidebar() string {
 		glyphCat + " cat        " + glyphMouse + " mouse",
 		glyphFleeing + " fleeing    " + glyphTalking + " talking",
 		glyphPod + " food pod   " + glyphToilet + " toilet",
+		glyphBed + " bunk       " + glyphRock + " rock",
 		glyphWall + " wall       " + glyphRock + " rock",
 		"   open",
 		"",

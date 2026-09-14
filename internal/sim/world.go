@@ -20,6 +20,9 @@ const (
 	NutrientPod
 	// Toilet relieves the bladder need; used from an adjacent tile.
 	Toilet
+	// Bed satisfies the sleep need; a colonist sleeps in the bunk from an
+	// adjacent tile, the same way it uses any other facility. Blocks movement.
+	Bed
 
 	numTerrains // keep last: the number of terrain kinds
 )

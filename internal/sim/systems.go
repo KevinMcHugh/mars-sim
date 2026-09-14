@@ -32,7 +32,7 @@ func (w *World) step() {
 	w.refreshSpatial() // fold in any digging/building from this tick
 	w.pruneProjects()
 	if w.tick >= w.nextPlanTick {
-		w.planFacilities()
+		w.planRooms()
 		w.nextPlanTick = w.tick + planInterval
 	}
 	w.rebuildBuildTiles() // reflect this tick's completions and any new project
@@ -523,8 +523,8 @@ func (w *World) plannedFacilities(kind Terrain) int {
 	return w.countTerrain(kind) + w.board.inProgress(kind) + w.projectFacilityTasks(kind)
 }
 
-// desiredFacilities is how many of each life-support structure the colony wants
-// for a given headcount (at least one).
+// desiredFacilities is how many of each need-satisfying structure (pods,
+// toilets, bunks) the colony wants for a given headcount (at least one).
 func (w *World) desiredFacilities(colonists int) int {
 	d := colonists / w.cfg.ColonistsPerFacility
 	if d < 1 {
@@ -665,6 +665,8 @@ func (w *World) noteBuild(kind Terrain) {
 		w.log.add("A nutrient pod comes online.")
 	case Toilet:
 		w.log.add("A latrine is installed.")
+	case Bed:
+		w.log.add("A bunk is bolted into the dormitory.")
 	}
 }
 

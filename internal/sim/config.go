@@ -170,6 +170,13 @@ func DefaultConfig() Config {
 				Name: "social", Rise: 1, SeekAt: 500, Max: 1000,
 				Facility: Rock, UseTicks: 0, Fatal: false,
 			},
+			NeedSleep: {
+				// Sleep builds slowly and, once sought, takes a long lie-down to
+				// clear. Non-fatal like bladder: a colonist with no bunk waits
+				// rather than dying.
+				Name: "sleep", Rise: 1, SeekAt: 700, Max: 1000,
+				Facility: Bed, UseTicks: 40, Fatal: false,
+			},
 		},
 		AlienHP:       30,
 		AlienDamage:   6,

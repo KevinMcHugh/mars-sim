@@ -2,24 +2,27 @@ package tui
 
 import "github.com/kevinmchugh/mars-sim/internal/sim"
 
-// Every glyph is chosen to render two terminal cells wide so the grid stays
-// aligned. Open floor is two spaces (also two cells), which reads as empty
-// cavern against the solid terrain. Some terminals size emoji differently; if
-// the grid ever looks sheared, that is the cause.
-const (
-	glyphRock   = "\U0001F7EB"       // 🟫 unexcavated regolith
-	glyphFloor  = "  "               // open, walkable space
-	glyphWall   = "\U0001F9F1"       // 🧱 built wall
-	glyphPod    = "\U0001F37D\uFE0F" // 🍽️ nutrient pod (food)
-	glyphToilet = "\U0001F6BD"       // 🚽 toilet (bladder)
+const tileWidth = 2
 
-	glyphColonist = "\U0001F477"       // 👷 colonist at work
-	glyphFleeing  = "\U0001F631"       // 😱 colonist running from an alien
-	glyphTalking  = "\U0001F5E3\uFE0F" // 🗣️ colonist chatting with another
-	glyphAlien    = "\U0001F47D"       // 👽 subterranean mutant
-	glyphCat      = "\U0001F408"       // 🐈 floor predator hunting mice
-	glyphMouse    = "\U0001F401"       // 🐁 pest that raids the food pods
-	glyphStomp    = "\U0001F97E"       // 🥾 colonist chasing down a mouse to stomp it
+// Map glyphs use only ASCII characters because emoji advance widths vary by
+// terminal and font. Every token is exactly two ordinary terminal cells wide;
+// open floor is two spaces, which reads as empty cavern against the solid
+// terrain.
+const (
+	glyphRock   = "##" // unexcavated regolith
+	glyphFloor  = "  " // open, walkable space
+	glyphWall   = "[]" // built wall
+	glyphPod    = "P " // nutrient pod (food)
+	glyphToilet = "T " // toilet (bladder)
+	glyphBed    = "B " // dormitory bunk (sleep)
+
+	glyphColonist = "C " // colonist at work
+	glyphFleeing  = "! " // colonist running from an alien
+	glyphTalking  = "S " // colonist chatting with another
+	glyphAlien    = "A " // subterranean mutant
+	glyphCat      = "K " // floor predator hunting mice
+	glyphMouse    = "M " // pest that raids the food pods
+	glyphStomp    = "^ " // colonist chasing down a mouse to stomp it
 )
 
 func terrainGlyph(t sim.Terrain) string {
@@ -32,6 +35,8 @@ func terrainGlyph(t sim.Terrain) string {
 		return glyphPod
 	case sim.Toilet:
 		return glyphToilet
+	case sim.Bed:
+		return glyphBed
 	default:
 		return glyphRock
 	}

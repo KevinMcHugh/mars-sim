@@ -29,6 +29,8 @@ Terminal controls:
 | `+` / `-`      | faster / slower simulation      |
 | `c`            | drop in another colonist        |
 | `a`            | unleash another alien           |
+| `x`            | add another cat                 |
+| `m`            | add another mouse               |
 | arrows / `hjkl`| pan the camera                  |
 | `tab`          | toggle the colonist roster      |
 | `q` / `esc`    | quit                            |
@@ -38,10 +40,23 @@ name, attributes, health, mood, needs, eight-slot inventory, traits, family, and
 affinities. `tab` or
 `esc` returns to the map.
 
-Glyphs: 👷 colonist · 😱 fleeing colonist · 🗣️ talking colonist · 🥾 stomping colonist · 👽 alien · 🐈 cat · 🐁 mouse · 🟫 wall · 🍽️ nutrient pod · 🚽 toilet · blank = open floor.
+The command also supports `-headless` for periodic stats without a TUI,
+`-duration` for bounded runs, and `-seed` for reproducibility. See the
+[command-line guide](docs/cli.md) for application flags, validation, and
+examples.
 
-> The map uses one emoji per tile so it stays aligned. If it looks sheared, your
-> terminal is sizing emoji as a single cell instead of two.
+Map glyphs: `C` colonist · `!` fleeing · `S` talking · `^` stomping · `A` alien
+· `K` cat · `M` mouse · `##` rock · `[]` wall · `P` nutrient pod · `T` toilet
+· `B` dormitory bunk · blank = open floor.
+
+### Documentation
+
+Contributor-facing system documentation lives in [`docs/`](docs/README.md).
+Start with [architecture](docs/architecture.md), and add or update a Markdown
+write-up in that directory whenever you add a feature or subsystem.
+
+> The map uses fixed-width ASCII tokens and two spaces for open floor, so its
+> rows do not depend on terminal-specific emoji sizing.
 
 ## Architecture
 
@@ -119,6 +134,7 @@ facility satisfies it, and whether maxing out is fatal:
 | ------- | ----------------- | ---------------------- |
 | food    | 🍽️ nutrient pod   | yes — starvation drains HP |
 | bladder | 🚽 toilet         | no (nags only, for now)    |
+| sleep   | 🛏️ dormitory bunk | no — a tired colonist waits for a free bunk |
 
 When a need crosses its threshold the colonist walks to the nearest matching
 facility and uses it, resetting the need. Facilities are ordinary buildable
@@ -204,32 +220,30 @@ The colony builds structures as **projects** it plans as a group rather than one
 colonist at a time (`internal/sim/project.go`). A project is a set of tile
 designations (`buildTask`s); any number of colonists each claim and build
 individual tasks, so a room goes up collaboratively and in parallel. It is a
-general coordination backbone — facility rooms are the first project kind, and
-barracks, storage, and the like would be new task generators over the same
-machinery.
+general coordination backbone — rooms are the first project kind, and storage,
+workshops, and the like would be new task generators over the same machinery.
 
-Today the one project kind is a **facility room**: a bay of pods and toilets
-carved against the cavern's rock face. Its shape is deliberate, and every rule in
-it was learned by watching colonies starve around earlier designs — because
-colonists roam and mine the whole cavern, someone is always on the far side of,
-or crowded against, any structure:
+Today the one project kind is a **facility room**: a bay of nutrient pods and
+toilets in a rock-backed niche at the cavern edge, inside a **complete placed-wall
+perimeter with a one-tile front doorway**. Construction is **phased** — every wall
+is raised (phase 0) before any facility comes online (phase 1) — and facilities
+are spaced one tile apart so each keeps several access tiles. Only one room is
+built at a time, so most colonists keep mining while a small crew finishes it.
 
-- **No built walls.** Every walled design tried here starved the colony by a
-  different mechanism: an enclosed room traps its own builders; a free-standing
-  wall funnels seekers through its last unbuilt gap and deadlocks the crowd; a
-  wall tile next to a facility can never be built because a colonist using the
-  facility always stands on it. Walls are cosmetic today, so a room leans on the
-  cavern rock as its back instead. Real walls belong with a reason to have them
-  (defense, atmosphere) and a movement model that reserves build tiles from
-  through-traffic.
-- **Backed by rock, open front.** Nothing is ever behind a room, so no crowd
-  queues behind it; the open front lets seekers spread across every facility
-  instead of funneling through a door.
-- **Facilities spaced one tile apart.** A colonist using a facility stands on its
-  neighbor tiles, so no two facilities may be adjacent or one could never be
-  built. Colonists also route around pending build tiles and never idle on a
-  facility's access tile, so a crowd never blocks construction or each other from
-  the pods.
+This shape was learned by watching colonies starve around earlier designs (an
+enclosed room trapping its own builders; a wall tile next to a facility that can
+never be built because a user stands on it). The full rationale — including why an
+earlier *wall-less* design was abandoned once colonists could pass through crowds
+and route around pending build tiles — lives in
+[docs/construction.md](docs/construction.md).
+
+Rooms come in two recipes over that shared shell (`roomRecipe`), differing only
+in what they line up along the back and how few facilities still make a room
+worth building: a **facility room** alternates 🍽️ pods and 🚽 toilets for the
+food and bladder needs, and a **dormitory** is a bay of 🛏️ bunks for sleep. The
+colony plans life support before bunks (food is fatal; a missing bed only makes a
+colonist wait), and adding a room kind is a recipe plus a demand check in
+`planRooms`.
 
 One room is built at a time so most colonists keep mining (growing the cavern)
 while a small crew finishes the current room. A fully mined-out map is the one
@@ -237,6 +251,7 @@ known soft spot: with nothing left to dig, the whole idle population mobs the fe
 facilities and a colonist or two can occasionally be crowded out over a long
 run — a shared-facility crowd-flow limit, not a room-building one, and moot once
 maps are larger than the colony can exhaust or colonists have other work.
+
 - All tunables (world size, populations, HP, dig/build times, alien speed) live
   in `Config` (`config.go`). Runs are deterministic for a given `Seed`.
 

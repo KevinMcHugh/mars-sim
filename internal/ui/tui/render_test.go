@@ -51,6 +51,30 @@ func TestViewRendersEntities(t *testing.T) {
 	}
 }
 
+func TestGlyphsOccupyOneTile(t *testing.T) {
+	terrain := []sim.Terrain{sim.Floor, sim.Rock, sim.Wall, sim.NutrientPod, sim.Toilet, sim.Bed}
+	for _, tile := range terrain {
+		if got := len(terrainGlyph(tile)); got != tileWidth {
+			t.Errorf("terrain %v occupies %d bytes, want %d", tile, got, tileWidth)
+		}
+	}
+
+	entities := []sim.EntityView{
+		{Kind: sim.Colonist, State: sim.Mining},
+		{Kind: sim.Colonist, State: sim.Fleeing},
+		{Kind: sim.Colonist, State: sim.Talking},
+		{Kind: sim.Colonist, State: sim.Stomping},
+		{Kind: sim.Alien},
+		{Kind: sim.Cat},
+		{Kind: sim.Mouse},
+	}
+	for _, entity := range entities {
+		if got := len(entityGlyph(entity)); got != tileWidth {
+			t.Errorf("entity %v occupies %d bytes, want %d", entity.Kind, got, tileWidth)
+		}
+	}
+}
+
 // Pressing tab opens the roster, which shows the selected colonist's name and
 // traits.
 func TestRosterShowsColonistDetail(t *testing.T) {

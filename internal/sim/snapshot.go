@@ -39,6 +39,7 @@ type Stats struct {
 	FloorDug  int // tiles of Floor that exist (excavation progress)
 	Pods      int // nutrient pods built
 	Toilets   int // toilets built
+	Beds      int // dormitory bunks built
 	Rooms     int // distinct rooms (connected floor areas)
 }
 
@@ -86,6 +87,8 @@ func (w *World) snapshot(paused bool, tps int) *Snapshot {
 			stats.Pods++
 		case Toilet:
 			stats.Toilets++
+		case Bed:
+			stats.Beds++
 		}
 	}
 	for _, e := range w.entities {

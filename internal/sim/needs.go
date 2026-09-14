@@ -9,6 +9,7 @@ const (
 	NeedFood NeedKind = iota
 	NeedBladder
 	NeedSocial
+	NeedSleep
 
 	numNeeds // keep last: the count of needs
 )
@@ -21,6 +22,8 @@ func (n NeedKind) String() string {
 		return "bladder"
 	case NeedSocial:
 		return "social"
+	case NeedSleep:
+		return "sleep"
 	default:
 		return "need"
 	}
@@ -125,6 +128,8 @@ func useState(n NeedKind) State {
 		return Eating
 	case NeedBladder:
 		return Relieving
+	case NeedSleep:
+		return Sleeping
 	default:
 		return Idle
 	}
