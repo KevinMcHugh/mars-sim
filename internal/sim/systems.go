@@ -98,6 +98,21 @@ func (w *World) colonistTurn(e *Entity) {
 	// task until either the task finishes (below) or a need crosses, whichever
 	// comes first. Head to the facility if one is reachable.
 	need, urgent := w.mostUrgentNeed(e)
+	if urgent && need == NeedSocial {
+		// Social need has no facility: it is satisfied by completing a
+		// conversation. It preempts ordinary work, but mostUrgentNeed has
+		// already given fatal needs priority.
+		e.resting = false
+		w.clearJob(e)
+		if w.tryStartTalk(e, true) {
+			w.runJob(e)
+		} else {
+			// Do not fall through to mining or construction while socially
+			// urgent. Wait for another colonist to become available.
+			e.State = Idle
+		}
+		return
+	}
 	handlingNeed := (e.Job == JobUse && e.Need == need) ||
 		(e.Job == JobBuild && (e.BuildKind == w.cfg.Needs[need].Facility || e.task != nil))
 	if urgent && !handlingNeed {
@@ -163,7 +178,7 @@ func (w *World) colonistTurn(e *Entity) {
 		}
 		// Nothing productive to do: chat with a nearby colonist if one is free,
 		// which builds affinity between them. Otherwise rest.
-		if w.tryStartTalk(e) {
+		if w.tryStartTalk(e, false) {
 			w.runJob(e)
 			return
 		}
@@ -224,7 +239,7 @@ func (w *World) onFacilityAccess(p Point) bool {
 	for _, d := range neighbors8 {
 		t := w.TerrainAt(p.Add(d.X, d.Y))
 		for i := 0; i < int(numNeeds); i++ {
-			if w.cfg.Needs[i].Facility == t {
+			if w.cfg.Needs[i].Facility != Rock && w.cfg.Needs[i].Facility == t {
 				return true
 			}
 		}
@@ -375,8 +390,8 @@ func (w *World) runJob(e *Entity) {
 // colonist, committing both to JobTalk. It reports whether a conversation began.
 // TalkChance gates it (0 disables talking entirely, and the sim then plays as it
 // did before the activity existed).
-func (w *World) tryStartTalk(e *Entity) bool {
-	if w.cfg.TalkChance <= 0 || w.rng.Intn(100) >= w.cfg.TalkChance {
+func (w *World) tryStartTalk(e *Entity, forced bool) bool {
+	if !forced && (w.cfg.TalkChance <= 0 || w.rng.Intn(100) >= w.cfg.TalkChance) {
 		return false
 	}
 	partner, ok := w.nearestMatch(e.Pos, w.cfg.TalkRadius, func(o *Entity) bool {
@@ -446,6 +461,8 @@ func (w *World) jobTalk(e *Entity) {
 		e.Progress++
 		if e.Progress >= w.cfg.TalkTicks {
 			w.finishTalk(e, p)
+			w.resetNeed(e, NeedSocial)
+			w.resetNeed(p, NeedSocial)
 			w.clearJob(p)
 			w.clearJob(e)
 		}

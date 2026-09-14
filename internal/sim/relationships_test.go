@@ -215,6 +215,33 @@ func TestTalkingRaisesAffinity(t *testing.T) {
 	}
 }
 
+// An urgent social need preempts ordinary work and forces a colonist to seek a
+// conversation even when opportunistic talking is disabled.
+func TestSocialNeedPreemptsWork(t *testing.T) {
+	cfg := DefaultConfig()
+	cfg.StartColonists, cfg.StartAliens, cfg.StartCats, cfg.StartMice = 0, 0, 0, 0
+	cfg.TalkChance = 0
+	w := newWorld(cfg, rand.New(rand.NewSource(11)))
+	center := Point{w.Width / 2, w.Height / 2}
+	w.SetTerrain(center, Floor)
+	w.SetTerrain(center.Add(1, 0), Floor)
+	w.refreshSpatial()
+
+	a := w.spawn(Colonist, center)
+	b := w.spawn(Colonist, center.Add(1, 0))
+	for _, e := range []*Entity{a, b} {
+		for i := 0; i < int(numNeeds); i++ {
+			e.Needs[i], e.needSince[i] = 0, w.tick
+		}
+	}
+	a.Needs[NeedSocial] = cfg.Needs[NeedSocial].SeekAt
+	w.step()
+
+	if a.Job != JobTalk || a.partner != b.ID {
+		t.Fatalf("urgent social need should start talking instead of work: job=%v partner=%d", a.Job, a.partner)
+	}
+}
+
 // A conversation's affinity change follows the chat's quality sign, shrinks as
 // affinity nears the cap in that direction, and never carries it past the cap.
 func TestTalkAffinityDeltaDiminishes(t *testing.T) {

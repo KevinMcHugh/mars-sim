@@ -187,12 +187,14 @@ Colonists are related and get to know each other (`internal/sim/relationships.go
   are only paired when their orientations and genders are mutually compatible.
   Family is generated from the same separate RNG stream as personality, so it
   never perturbs the sim.
-- **Talking.** An idle colonist with no work to do and no pressing need may seek
-  out a nearby free colonist and chat (a new **Talking** activity). Needs and
-  fleeing preempt a chat, and colonists never hold one on a facility's access
-  tile or a pending build tile. Talking is gated by `-talk-chance` (default
-  25%); set it to 0 and the sim plays exactly as it did before the activity
-  existed.
+- **Talking.** Colonists have a non-fatal **social need** that rises over time.
+  Before looking for ordinary work, a colonist whose social need reaches its
+  threshold seeks a nearby free colonist and must complete a conversation (the
+  new **Talking** activity) to satisfy it. Needs and fleeing preempt a chat, and
+  colonists never hold one on a facility's access tile or a pending build tile.
+  Colonists may also talk opportunistically while idle; `-talk-chance` (default
+  25%) controls that behavior, but does not suppress conversations required by
+  an urgent social need.
 - **Affinity.** Each pair of colonists has an **affinity** in
   `[-AffinityMax, AffinityMax]` (warmth to dislike). Talking is mostly a
   diminishing-returns positive-feedback loop: a conversation's quality leans
