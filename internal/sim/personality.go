@@ -89,6 +89,9 @@ const (
 	TraitLightEater
 	TraitIndustrious
 	TraitLazy
+	TraitAsocial
+	TraitIntrovert
+	TraitExtrovert
 
 	numTraits // keep last
 )
@@ -100,6 +103,7 @@ type traitGroup uint8
 const (
 	groupAppetite traitGroup = iota
 	groupWorkEthic
+	groupSocial
 
 	numTraitGroups // keep last
 )
@@ -111,9 +115,13 @@ type traitSpec struct {
 	Desc  string
 	group traitGroup
 
-	needRiseScale [numNeeds]float64 // per-need multiplier on how fast it rises
-	restScale     float64           // multiplier on idle rest duration
-	workScale     float64           // multiplier on mine/build time (lower = faster)
+	needRiseScale  [numNeeds]float64 // per-need multiplier on how fast it rises
+	restScale      float64           // multiplier on idle rest duration
+	workScale      float64           // multiplier on mine/build time (lower = faster)
+	socialNoNeed   bool
+	socialScale    float64
+	socialCapacity int
+	socialPenalty  int
 }
 
 // traitSpecs is the trait table. Adding a trait is a table edit here (plus a
@@ -134,6 +142,18 @@ var traitSpecs = [numTraits]traitSpec{
 	TraitLazy: {
 		Name: "Lazy", Desc: "Works slowly and rests often.",
 		group: groupWorkEthic, workScale: 1.4, restScale: 2.0,
+	},
+	TraitAsocial: {
+		Name: "Asocial", Desc: "Does not need social interaction.",
+		group: groupSocial, socialNoNeed: true,
+	},
+	TraitIntrovert: {
+		Name: "Introvert", Desc: "Needs less socializing, but too much conversation wears on morale.",
+		group: groupSocial, socialScale: 0.5, socialCapacity: 2, socialPenalty: 5,
+	},
+	TraitExtrovert: {
+		Name: "Extrovert", Desc: "Needs frequent social interaction to feel fulfilled.",
+		group: groupSocial, socialScale: 1.5, socialCapacity: 6,
 	},
 }
 
@@ -201,7 +221,9 @@ func (w *World) resolveTraitEffects(e *Entity) {
 	for i := range riseMul {
 		riseMul[i] = 1
 	}
-	restMul, workMul := 1.0, 1.0
+	restMul, workMul, socialMul := 1.0, 1.0, 1.0
+	socialNoNeed := false
+	socialCapacity, socialPenalty := 1<<30, 0
 	for _, tr := range e.Profile.Traits {
 		s := traitSpecs[tr]
 		for i := 0; i < int(numNeeds); i++ {
@@ -215,12 +237,30 @@ func (w *World) resolveTraitEffects(e *Entity) {
 		if s.workScale > 0 {
 			workMul *= s.workScale
 		}
+		if s.socialNoNeed {
+			socialNoNeed = true
+		} else if s.socialScale > 0 {
+			socialMul *= s.socialScale
+		}
+		if s.socialCapacity > 0 && s.socialCapacity < socialCapacity {
+			socialCapacity = s.socialCapacity
+			socialPenalty = s.socialPenalty
+		}
 	}
 	for i := 0; i < int(numNeeds); i++ {
-		e.needRise[i] = atLeast1(int(math.Round(float64(w.cfg.Needs[i].Rise) * riseMul[i])))
+		if NeedKind(i) == NeedSocial && socialNoNeed {
+			e.needRise[i] = 0
+			continue
+		}
+		scale := riseMul[i]
+		if NeedKind(i) == NeedSocial {
+			scale *= socialMul
+		}
+		e.needRise[i] = atLeast1(int(math.Round(float64(w.cfg.Needs[i].Rise) * scale)))
 	}
 	e.restTicks = atLeast1(int(math.Round(float64(w.cfg.RestTicks) * restMul)))
 	e.workScale = workMul
+	e.socialCapacity, e.socialPenalty = socialCapacity, socialPenalty
 }
 
 // rollTraits picks at most one trait from each group, each group taken with

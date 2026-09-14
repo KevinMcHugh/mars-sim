@@ -513,3 +513,19 @@ func (w *World) talkMoodDelta(quality, existing int) int {
 func (w *World) adjustMood(e *Entity, delta int) {
 	e.mood = clampInt(e.mood+delta, -w.cfg.MoodMax, w.cfg.MoodMax)
 }
+
+// noteConversation records one completed conversation and returns any trait
+// fatigue it causes. Introverts have a small social capacity per window; every
+// conversation beyond it lowers morale. Other traits retain a large default
+// capacity and do not incur this penalty.
+func (w *World) noteConversation(e *Entity) int {
+	if e.socialWindowStart == 0 || w.tick-e.socialWindowStart >= w.cfg.SocialWindowTicks {
+		e.socialWindowStart = w.tick
+		e.socialTalkCount = 0
+	}
+	e.socialTalkCount++
+	if e.socialTalkCount <= e.socialCapacity {
+		return 0
+	}
+	return -(e.socialTalkCount - e.socialCapacity) * e.socialPenalty
+}

@@ -97,6 +97,57 @@ func TestTraitsScaleEffectiveParams(t *testing.T) {
 	}
 }
 
+func TestSocialTraitsScaleSocialNeed(t *testing.T) {
+	w := personalityWorld(0)
+	base := w.spawn(Colonist, Point{1, 1})
+	baseRise := base.needRise[NeedSocial]
+
+	withTrait := func(tr Trait) *Entity {
+		e := w.spawn(Colonist, Point{2 + int(tr), 2})
+		e.Profile.Traits = []Trait{tr}
+		w.resolveTraitEffects(e)
+		return e
+	}
+
+	asocial := withTrait(TraitAsocial)
+	if asocial.needRise[NeedSocial] != 0 {
+		t.Fatalf("asocial social rise: got %d want 0", asocial.needRise[NeedSocial])
+	}
+	introvert := withTrait(TraitIntrovert)
+	if introvert.needRise[NeedSocial] >= baseRise {
+		t.Fatalf("introvert social rise %d should be below baseline %d",
+			introvert.needRise[NeedSocial], baseRise)
+	}
+	extrovert := withTrait(TraitExtrovert)
+	if extrovert.needRise[NeedSocial] <= baseRise {
+		t.Fatalf("extrovert social rise %d should exceed baseline %d",
+			extrovert.needRise[NeedSocial], baseRise)
+	}
+}
+
+func TestIntrovertConversationFatigue(t *testing.T) {
+	w := personalityWorld(0)
+	e := w.spawn(Colonist, Point{1, 1})
+	e.Profile.Traits = []Trait{TraitIntrovert}
+	w.resolveTraitEffects(e)
+	w.tick = 1
+
+	if got := w.noteConversation(e); got != 0 {
+		t.Fatalf("first introvert conversation should not cause fatigue: %d", got)
+	}
+	if got := w.noteConversation(e); got != 0 {
+		t.Fatalf("second introvert conversation should not cause fatigue: %d", got)
+	}
+	if got := w.noteConversation(e); got >= 0 {
+		t.Fatalf("third introvert conversation should reduce mood, got %d", got)
+	}
+
+	w.tick += w.cfg.SocialWindowTicks
+	if got := w.noteConversation(e); got != 0 {
+		t.Fatalf("conversation after the social window should not inherit fatigue: %d", got)
+	}
+}
+
 // A big eater's hunger outpaces a baseline colonist's over the same elapsed time.
 func TestBigEaterHungersFaster(t *testing.T) {
 	w := personalityWorld(0)

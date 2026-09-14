@@ -18,7 +18,7 @@ lazily — a base level plus a timestamp — so idle colonists cost nothing per 
 
 ### The needs table
 
-Each `NeedKind` (`NeedFood`, `NeedBladder`) has a `NeedSpec` in `Config.Needs`,
+Each `NeedKind` (`NeedFood`, `NeedBladder`, `NeedSocial`, `NeedSleep`) has a `NeedSpec` in `Config.Needs`,
 indexed by the kind:
 
 | Need | Rise/tick | SeekAt | Max | Facility | UseTicks | Fatal |
@@ -26,6 +26,7 @@ indexed by the kind:
 | food | 2 | 650 | 1000 | NutrientPod | 18 | **yes** |
 | bladder | 3 | 600 | 1000 | Toilet | 10 | no |
 | sleep | 1 | 700 | 1000 | Bed | 40 | no |
+| social | 2 | 500 | 1000 | conversation | — | no |
 
 Levels run `0..Max`; 0 means satisfied. At `SeekAt` the colonist drops work to
 satisfy the need; a **fatal** need sitting at `Max` drains HP (`StarveDamage`).
@@ -43,6 +44,11 @@ level = clamp(Needs[i] + needRise[i] * (now - needSince[i]), 0, Max)
 `needRise[i]` is the entity's own per-tick rate: trait-scaled for colonists (see
 [personality.md](./personality.md)) and much faster for mice. `resetNeed` sets the
 base back to 0 as of the current tick when a facility is used.
+
+Social need has no physical facility. Once urgent, it preempts ordinary work and
+the colonist waits for a conversation partner; completing a conversation resets
+social need for both participants. Asocial colonists resolve its rise rate to
+zero, introverts rise more slowly, and extroverts rise faster.
 
 ### Starvation and healing
 

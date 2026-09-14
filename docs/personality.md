@@ -42,9 +42,15 @@ per group, each taken with `TraitChance` probability:
 | --- | --- | --- |
 | appetite | Big Eater / Light Eater | food need rises 1.5x / 0.7x |
 | work ethic | Industrious / Lazy | work 0.75x time + rest 0.5x / work 1.4x + rest 2.0x |
+| social | Asocial / Introvert / Extrovert | no social need / social need 0.5x plus conversation fatigue / social need 1.5x |
 
 Each trait is a `traitSpec` with multiplier effects (`needRiseScale`, `restScale`,
-`workScale`; 1.0 or unset means no change).
+`workScale`; 1.0 or unset means no change). Social traits additionally resolve
+social capacity and conversation-fatigue effects onto the entity. An Asocial
+colonist's social need rises at zero, so it never becomes an urgent reason to
+seek a conversation. An Introvert's need rises more slowly, but conversations
+past its per-window capacity reduce mood. An Extrovert's need rises faster, so it
+seeks social contact more often.
 
 ### Trait resolution: pay once, not per tick
 
@@ -55,6 +61,8 @@ colonist's traits into three fields on the `Entity`:
 - `needRise[i]` — per-need rise per tick (used directly by `needLevel`),
 - `restTicks` — idle rest duration,
 - `workScale` — a mine/build time multiplier (via `scaleTicks`).
+- social need rise and conversation-fatigue capacity/penalty, used by the
+  social-need and completed-conversation paths.
 
 So the per-tick systems just read these numbers; a colonist's traits are never
 re-scanned during simulation. `newEntity` sets the config baselines, and

@@ -120,6 +120,7 @@ func bindConfigFlags(cfg *sim.Config) {
 	flag.IntVar(&cfg.MoodMax, "mood-max", cfg.MoodMax, "colonist mood runs in [-mood-max, mood-max]")
 	flag.IntVar(&cfg.MoodCompanyWeight, "mood-company-weight", cfg.MoodCompanyWeight, "mood shift per conversation from how one feels about the other")
 	flag.IntVar(&cfg.MoodConversationWeight, "mood-conversation-weight", cfg.MoodConversationWeight, "mood shift per conversation from how the chat itself went")
+	flag.IntVar(&cfg.SocialWindowTicks, "social-window-ticks", cfg.SocialWindowTicks, "ticks in the rolling window for social conversation fatigue")
 	flag.IntVar(&cfg.FrontierFieldMinColonists, "frontier-field-colonists", cfg.FrontierFieldMinColonists, "colony size at/above which miners use the shared frontier flow field")
 	flag.IntVar(&cfg.FrontierFieldMinArea, "frontier-field-area", cfg.FrontierFieldMinArea, "map area (tiles) at/above which miners use the shared frontier flow field")
 
@@ -171,6 +172,8 @@ func validateConfig(cfg sim.Config) error {
 		return fmt.Errorf("affinity-max must be at least 1 (got %d)", cfg.AffinityMax)
 	case cfg.MoodMax < 1:
 		return fmt.Errorf("mood-max must be at least 1 (got %d)", cfg.MoodMax)
+	case cfg.SocialWindowTicks < 1:
+		return fmt.Errorf("social-window-ticks must be at least 1 (got %d)", cfg.SocialWindowTicks)
 	case cfg.MouseLitterMin < 0 || cfg.MouseLitterMax < cfg.MouseLitterMin:
 		return fmt.Errorf("mouse litter range is invalid: min %d, max %d", cfg.MouseLitterMin, cfg.MouseLitterMax)
 	}

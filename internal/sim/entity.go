@@ -147,6 +147,12 @@ type Entity struct {
 	// against it yet. See relationships.go.
 	mood int
 
+	// Social conversation fatigue is counted within a rolling social window.
+	socialTalkCount   int
+	socialWindowStart int
+	socialCapacity    int
+	socialPenalty     int
+
 	// Current job and its parameters.
 	Job       JobKind
 	Target    Point    // tile the job operates on or travels to
