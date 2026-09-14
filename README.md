@@ -37,7 +37,7 @@ The **roster** (`tab`) lists every colonist; `↑`/`↓` select one to inspect i
 name, attributes, health, needs, eight-slot inventory, and traits. `tab` or
 `esc` returns to the map.
 
-Glyphs: 👷 colonist · 😱 fleeing colonist · 👽 alien · 🟫 rock · 🧱 wall · 🍽️ nutrient pod · 🚽 toilet · blank = open floor.
+Glyphs: 👷 colonist · 😱 fleeing colonist · 👽 alien · 🟫 rock · 🧱 wall · 🍽️ nutrient pod · 🚽 toilet · 🛏️ dormitory bunk · blank = open floor.
 
 > The map uses one emoji per tile so it stays aligned. If it looks sheared, your
 > terminal is sizing emoji as a single cell instead of two.
@@ -95,6 +95,7 @@ facility satisfies it, and whether maxing out is fatal:
 | ------- | ----------------- | ---------------------- |
 | food    | 🍽️ nutrient pod   | yes — starvation drains HP |
 | bladder | 🚽 toilet         | no (nags only, for now)    |
+| sleep   | 🛏️ dormitory bunk | no — a tired colonist waits for a free bunk |
 
 When a need crosses its threshold the colonist walks to the nearest matching
 facility and uses it, resetting the need. Facilities are ordinary buildable
@@ -138,11 +139,10 @@ The colony builds structures as **projects** it plans as a group rather than one
 colonist at a time (`internal/sim/project.go`). A project is a set of tile
 designations (`buildTask`s); any number of colonists each claim and build
 individual tasks, so a room goes up collaboratively and in parallel. It is a
-general coordination backbone — facility rooms are the first project kind, and
-barracks, storage, and the like would be new task generators over the same
-machinery.
+general coordination backbone — rooms are the first project kind, and storage,
+workshops, and the like would be new task generators over the same machinery.
 
-Today the one project kind is a **facility room**: a bay of pods and toilets
+A **room** is one wall-and-doorway shell with a bay of facilities along its back,
 carved against the cavern's rock face. Its shape is deliberate, and every rule in
 it was learned by watching colonies starve around earlier designs — because
 colonists roam and mine the whole cavern, someone is always on the far side of,
@@ -164,6 +164,14 @@ or crowded against, any structure:
   built. Colonists also route around pending build tiles and never idle on a
   facility's access tile, so a crowd never blocks construction or each other from
   the pods.
+
+Rooms come in two recipes over that shared shell (`roomRecipe`), differing only
+in what they line up along the back and how few facilities still make a room
+worth building: a **facility room** alternates 🍽️ pods and 🚽 toilets for the
+food and bladder needs, and a **dormitory** is a bay of 🛏️ bunks for sleep. The
+colony plans life support before bunks (food is fatal; a missing bed only makes a
+colonist wait), and adding a room kind is a recipe plus a demand check in
+`planRooms`.
 
 One room is built at a time so most colonists keep mining (growing the cavern)
 while a small crew finishes the current room. A fully mined-out map is the one

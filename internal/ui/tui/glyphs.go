@@ -12,6 +12,7 @@ const (
 	glyphWall   = "\U0001F9F1"       // 🧱 built wall
 	glyphPod    = "\U0001F37D\uFE0F" // 🍽️ nutrient pod (food)
 	glyphToilet = "\U0001F6BD"       // 🚽 toilet (bladder)
+	glyphBed    = "\U0001F6CF\uFE0F" // 🛏️ dormitory bunk (sleep)
 
 	glyphColonist = "\U0001F477" // 👷 colonist at work
 	glyphFleeing  = "\U0001F631" // 😱 colonist running from an alien
@@ -30,6 +31,8 @@ func terrainGlyph(t sim.Terrain) string {
 		return glyphPod
 	case sim.Toilet:
 		return glyphToilet
+	case sim.Bed:
+		return glyphBed
 	default:
 		return glyphRock
 	}

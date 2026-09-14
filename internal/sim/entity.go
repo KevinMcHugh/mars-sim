@@ -47,6 +47,7 @@ const (
 	Building        // constructing a structure
 	Eating          // using a nutrient pod
 	Relieving       // using a toilet
+	Sleeping        // sleeping in a bed
 	Fleeing         // running from a nearby predator (colonist from alien, mouse from cat)
 	Hunting         // predator closing on prey (alien on colonist, cat on mouse)
 	Feeding         // predator eating prey it has caught
@@ -66,6 +67,8 @@ func (s State) String() string {
 		return "eating"
 	case Relieving:
 		return "relieving"
+	case Sleeping:
+		return "sleeping"
 	case Fleeing:
 		return "fleeing"
 	case Hunting:

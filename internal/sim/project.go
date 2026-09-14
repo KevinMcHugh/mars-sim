@@ -190,27 +190,47 @@ func (w *World) pruneProjects() {
 	w.projects = kept
 }
 
-// Facility-room geometry: a row of facilities inside a complete placed-wall
-// perimeter. A one-tile doorway in the front wall is the room's permanent
-// entrance. Colonists can now traverse occupied tiles, so a crowd in that
-// doorway does not cut the room off.
+// Room geometry: a row of facilities inside a complete placed-wall perimeter. A
+// one-tile doorway in the front wall is the room's permanent entrance. Colonists
+// can now traverse occupied tiles, so a crowd in that doorway does not cut the
+// room off.
 //
 // Construction is phased to avoid the old wall deadlock: every wall is raised
 // before any facility comes online. A facility user therefore cannot stand on a
 // pending wall tile, and the permanent doorway means the last wall cannot trap
 // builders. Facilities remain spaced apart so each retains several access tiles.
 const (
-	roomFacilities    = 4 // facilities designated in a full room (alternating kinds)
-	roomMinFacilities = 2 // every room serves both food and bladder needs
-	roomFrontClear    = 2 // interior rows between facilities and the front wall
-	roomApproach      = 1 // open row outside the doorway
-	roomWallPhase     = 0
-	roomFitPhase      = 1
+	roomFacilities = 4 // facilities designated in a full room
+	roomFrontClear = 2 // interior rows between facilities and the front wall
+	roomApproach   = 1 // open row outside the doorway
+	roomWallPhase  = 0
+	roomFitPhase   = 1
 )
 
-// roomKinds is the facility to place at each slot of a room, alternating so
-// every room serves both needs.
-var roomKinds = []Terrain{NutrientPod, Toilet, NutrientPod, Toilet}
+// roomRecipe describes a buildable room kind. The one wall-and-doorway shell is
+// shared; recipes differ only in the facilities they line up along the back and
+// how few of them still make a worthwhile room. Adding a room kind (barracks,
+// storage, ...) is a recipe here plus a demand check in planRooms.
+type roomRecipe struct {
+	name    string    // project name, also logged on completion
+	kinds   []Terrain // facilities placed left to right, cycled to fill the bay
+	minFac  int       // fewest facilities worth building as a partial room
+	planLog string    // logged when the room is marked out
+}
+
+var (
+	// lifeSupportRoom alternates pods and toilets so one room serves both the
+	// food and bladder needs; a partial room must still serve both.
+	lifeSupportRoom = roomRecipe{
+		name: "facility room", kinds: []Terrain{NutrientPod, Toilet}, minFac: 2,
+		planLog: "The colony marks out a new facility room.",
+	}
+	// dormRoom is a bay of bunks. Even a single bunk is worth raising.
+	dormRoom = roomRecipe{
+		name: "dormitory", kinds: []Terrain{Bed}, minFac: 1,
+		planLog: "The colony marks out a new dormitory.",
+	}
+)
 
 // bayWidth is the row width spanned by n facilities spaced one tile apart.
 func bayWidth(n int) int { return 2*n - 1 }
@@ -218,47 +238,51 @@ func bayWidth(n int) int { return 2*n - 1 }
 // roomFrontWallY returns the front-wall row for a room whose facility row is y.
 func roomFrontWallY(y int) int { return y + roomFrontClear + 1 }
 
-// planFacilities keeps enough life-support planned or built for the population,
-// creating a facility-room project when the colony is short of either pods or
-// toilets. Called on a cadence from step.
+// planRooms keeps enough of each need's facility planned or built for the
+// population, marking out one room at a time. Called on a cadence from step.
 //
-// Only one room is under construction at a time: a second concurrent project
-// would split builders across two sites and, in a tight early cavern, mob the
-// colony into a gridlock where nothing finishes and no one mines for space. One
-// room at a time keeps most colonists mining (growing the cavern) while a small
-// crew finishes the current room, then the next is planned.
-func (w *World) planFacilities() {
+// Life support comes before bunks: food is fatal, so a colony short of pods or
+// toilets builds a facility room before a dormitory. Only one room is under
+// construction at a time — a second concurrent project would split builders
+// across two sites and, in a tight early cavern, mob the colony into a gridlock
+// where nothing finishes and no one mines for space. One room at a time keeps
+// most colonists mining (growing the cavern) while a small crew finishes the
+// current room, then the next is planned.
+func (w *World) planRooms() {
 	if len(w.projects) > 0 {
 		return
 	}
 	desired := w.desiredFacilities(w.countKind(Colonist))
-	if w.plannedFacilities(NutrientPod) >= desired && w.plannedFacilities(Toilet) >= desired {
+	if w.plannedFacilities(NutrientPod) < desired || w.plannedFacilities(Toilet) < desired {
+		w.planRoom(lifeSupportRoom)
 		return
 	}
-	w.planFacilityRoom()
+	if w.plannedFacilities(Bed) < desired {
+		w.planRoom(dormRoom)
+	}
 }
 
-// planFacilityRoom designates a new room of facilities at a suitable open site.
-// It prefers a full room (roomFacilities) but falls back to fewer when only a
+// planRoom designates a new room from a recipe at a suitable open site. It
+// prefers a full room (roomFacilities) but falls back to fewer when only a
 // shorter clear area is available, so progress is made even in a cramped cavern.
-func (w *World) planFacilityRoom() {
-	for n := roomFacilities; n >= roomMinFacilities; n-- {
+func (w *World) planRoom(r roomRecipe) {
+	for n := roomFacilities; n >= r.minFac; n-- {
 		o, ok := w.findRoomSite(bayWidth(n))
 		if !ok {
 			continue // no rock-backed run this wide; try a smaller room
 		}
-		w.designateRoom(o, n)
+		w.designateRoom(r, o, n)
 		return
 	}
-	// No rock-backed site large enough for both facility kinds yet; colonists dig
+	// No rock-backed site large enough for a worthwhile room yet; colonists dig
 	// on and planning retries later.
 }
 
-// designateRoom adds a phased room project. Its complete perimeter is built
-// first, except for the centered front doorway; then facilities are built one
-// tile inside the back wall, alternating pod and toilet.
-func (w *World) designateRoom(o Point, n int) {
-	p := &project{id: w.nextProjectID, name: "facility room"}
+// designateRoom adds a phased room project from a recipe. Its complete perimeter
+// is built first, except for the centered front doorway; then n facilities are
+// built one tile inside the back wall, drawn from the recipe's kinds in order.
+func (w *World) designateRoom(r roomRecipe, o Point, n int) {
+	p := &project{id: w.nextProjectID, name: r.name}
 	w.nextProjectID++
 	width := bayWidth(n)
 	backY := o.Y - 1
@@ -280,10 +304,10 @@ func (w *World) designateRoom(o Point, n int) {
 	}
 	for i, dx := 0, 0; i < n; i, dx = i+1, dx+2 {
 		p.tasks = append(p.tasks,
-			&buildTask{pos: Point{o.X + dx, o.Y}, terrain: roomKinds[i], phase: roomFitPhase})
+			&buildTask{pos: Point{o.X + dx, o.Y}, terrain: r.kinds[i%len(r.kinds)], phase: roomFitPhase})
 	}
 	w.projects = append(w.projects, p)
-	w.log.add("The colony marks out a new facility room.")
+	w.log.add(r.planLog)
 }
 
 // findRoomSite returns the left end of a width-long facility row in a niche at

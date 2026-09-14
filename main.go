@@ -198,17 +198,17 @@ func runHeadless(snaps <-chan *sim.Snapshot, cfg sim.Config, duration time.Durat
 			latest = s
 		case <-report.C:
 			if latest != nil {
-				fmt.Printf("tick %5d | colonists %2d | aliens %2d | cats %2d | mice %2d | pods %d | toilets %d | rooms %d | excavated %5d\n",
+				fmt.Printf("tick %5d | colonists %2d | aliens %2d | cats %2d | mice %2d | pods %d | toilets %d | beds %d | rooms %d | excavated %5d\n",
 					latest.Tick, latest.Stats.Colonists, latest.Stats.Aliens,
 					latest.Stats.Cats, latest.Stats.Mice,
-					latest.Stats.Pods, latest.Stats.Toilets, latest.Stats.Rooms, latest.Stats.FloorDug)
+					latest.Stats.Pods, latest.Stats.Toilets, latest.Stats.Beds, latest.Stats.Rooms, latest.Stats.FloorDug)
 			}
 		case <-deadline:
 			if latest != nil {
-				fmt.Printf("done at tick %d: colonists %d, aliens %d, cats %d, mice %d, pods %d, toilets %d, excavated %d tiles\n",
+				fmt.Printf("done at tick %d: colonists %d, aliens %d, cats %d, mice %d, pods %d, toilets %d, beds %d, excavated %d tiles\n",
 					latest.Tick, latest.Stats.Colonists, latest.Stats.Aliens,
 					latest.Stats.Cats, latest.Stats.Mice,
-					latest.Stats.Pods, latest.Stats.Toilets, latest.Stats.FloorDug)
+					latest.Stats.Pods, latest.Stats.Toilets, latest.Stats.Beds, latest.Stats.FloorDug)
 			}
 			return
 		}
