@@ -96,10 +96,12 @@ func (m Model) renderColonistList(cs []sim.EntityView, sel, rows int) string {
 		nameLine := truncate(name, rosterListWidth-4)
 		infoLine := truncate(fmt.Sprintf("%s · %s", pronouns, age), rosterListWidth-4)
 		stateLine := truncate(state, rosterListWidth-4)
+		marker := "•"
 		if i == sel {
-			b.WriteString(rosterSelStyle.Render("› " + nameLine))
+			marker = "›"
+			b.WriteString(rosterSelStyle.Render(marker + " " + nameLine))
 		} else {
-			b.WriteString("  " + nameLine)
+			b.WriteString(marker + " " + nameLine)
 		}
 		b.WriteByte('\n')
 		b.WriteString("  " + infoLine + "\n")
