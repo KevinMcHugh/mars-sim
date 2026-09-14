@@ -92,7 +92,10 @@ func (m Model) renderColonistList(cs []sim.EntityView, sel, rows int) string {
 			b.WriteByte('\n')
 		}
 	}
-	return sidebarStyle.Width(rosterListWidth - 2).Height(rows - 2).Render(b.String())
+	// MaxHeight matters here: selected-colonist details can contain a variable
+	// number of memories and must not make the whole roster taller than the
+	// terminal (which would push the header off-screen).
+	return sidebarStyle.Width(rosterListWidth - 2).Height(rows - 2).MaxHeight(rows - 2).Render(b.String())
 }
 
 // renderColonistDetail draws the inspector for one colonist: identity,
@@ -138,26 +141,18 @@ func (m Model) renderColonistDetail(c sim.EntityView, rows int) string {
 	}
 
 	b.WriteString("\n" + labelStyle.Render("INVENTORY") + "\n")
+	used := 0
 	for i, stack := range c.Inventory {
-		item := "empty"
-		if stack.Count > 0 {
-			item = fmt.Sprintf("%s ×%d", stack.Kind, stack.Count)
+		if stack.Count == 0 {
+			continue
 		}
-		b.WriteString(statStyle.Render(fmt.Sprintf("  %d. %s", i+1, item)) + "\n")
+		used++
+		b.WriteString(statStyle.Render(fmt.Sprintf("  %d. %s ×%d", i+1, stack.Kind, stack.Count)) + "\n")
 	}
-
-	b.WriteString("\n" + labelStyle.Render("MEMORIES") + "\n")
-	if len(c.Memories) == 0 {
-		b.WriteString(statStyle.Render("  no memories yet"))
-	} else {
-		start := len(c.Memories) - 5
-		if start < 0 {
-			start = 0
-		}
-		for _, memory := range c.Memories[start:] {
-			line := fmt.Sprintf("  t%d: %s", memory.Tick, memory.Text)
-			b.WriteString(statStyle.Render(truncate(line, width-4)) + "\n")
-		}
+	if used == 0 {
+		b.WriteString(statStyle.Render("  empty"))
+	} else if used < len(c.Inventory) {
+		b.WriteString(statStyle.Render(fmt.Sprintf("  %d empty slots", len(c.Inventory)-used)))
 	}
 
 	b.WriteString("\n" + labelStyle.Render("TRAITS") + "\n")
@@ -194,7 +189,21 @@ func (m Model) renderColonistDetail(c sim.EntityView, rows int) string {
 		}
 		b.WriteString(strings.Join(lines, "\n"))
 	}
-	return sidebarStyle.Width(width).Height(rows - 2).Render(b.String())
+
+	b.WriteString("\n\n" + labelStyle.Render("MEMORIES") + "\n")
+	if len(c.Memories) == 0 {
+		b.WriteString(statStyle.Render("  no memories yet"))
+	} else {
+		start := len(c.Memories) - 5
+		if start < 0 {
+			start = 0
+		}
+		for _, memory := range c.Memories[start:] {
+			line := fmt.Sprintf("  t%d: %s", memory.Tick, memory.Text)
+			b.WriteString(statStyle.Render(truncate(line, width-4)) + "\n")
+		}
+	}
+	return sidebarStyle.Width(width).Height(rows - 2).MaxHeight(rows - 2).Render(b.String())
 }
 
 // colonistNames maps colonist IDs to display names for the latest frame, so the
