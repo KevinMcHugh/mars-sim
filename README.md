@@ -55,9 +55,9 @@ Contributor-facing system documentation lives in [`docs/`](docs/README.md).
 Start with [architecture](docs/architecture.md), and add or update a Markdown
 write-up in that directory whenever you add a feature or subsystem.
 
-> The map allocates two terminal cells per tile and pins each tile's cursor
-> column, so emoji remain readable without allowing terminal-specific widths to
-> shear a row.
+> The map allocates two terminal cells per tile and fits emoji to that width, so
+> the map stays readable without emitting expensive cursor-position sequences for
+> every tile.
 
 ## Architecture
 

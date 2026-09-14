@@ -31,21 +31,6 @@ var (
 	logStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("248"))
 )
 
-var mapCursors = func() []string {
-	cursors := make([]string, 1024)
-	for x := range cursors {
-		cursors[x] = "\x1b[" + fmt.Sprint(x*tileWidth+1) + "G"
-	}
-	return cursors
-}()
-
-func mapCursor(column int) string {
-	if column >= 0 && column < len(mapCursors) {
-		return mapCursors[column]
-	}
-	return "\x1b[" + fmt.Sprint(column*tileWidth+1) + "G"
-}
-
 // viewportTiles returns how many tiles (columns, rows) fit in the map area given
 // the current terminal size, clamped to the world's dimensions.
 func (m Model) viewportTiles() (cols, rows int) {
@@ -120,12 +105,6 @@ func (m Model) renderMap() string {
 	var b strings.Builder
 	for y := 0; y < rows; y++ {
 		for x := 0; x < cols; x++ {
-			// Pin every tile to its nominal column. Emoji presentation width
-			// can disagree with the width table used by lipgloss, so relying
-			// only on the glyph's measured width lets one tile shift the rest
-			// of a row. Cursor positioning keeps the map grid stable while
-			// preserving the readable emoji glyphs.
-			b.WriteString(mapCursor(x))
 			p := m.cam.Add(x, y)
 			if e, ok := occ[p]; ok {
 				b.WriteString(entityGlyph(e))
@@ -133,9 +112,6 @@ func (m Model) renderMap() string {
 				b.WriteString(terrainGlyph(m.latest.TerrainAt(p)))
 			}
 		}
-		// Leave the cursor at the end of the nominal map width before the
-		// sidebar is joined onto this line.
-		b.WriteString(mapCursor(cols))
 		if y < rows-1 {
 			b.WriteByte('\n')
 		}
