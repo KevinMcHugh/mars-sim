@@ -1,13 +1,14 @@
 package sim
 
 // NeedKind enumerates the drives a colonist must satisfy. Adding a need is meant
-// to be a table edit: append a kind here, add its NeedSpec in Config, and give
-// it a Facility to satisfy it — the systems iterate needs generically.
+// to be a table edit: append a kind here and add its NeedSpec in Config. Most
+// needs have a Facility to satisfy them; social is satisfied by conversation.
 type NeedKind uint8
 
 const (
 	NeedFood NeedKind = iota
 	NeedBladder
+	NeedSocial
 
 	numNeeds // keep last: the count of needs
 )
@@ -18,6 +19,8 @@ func (n NeedKind) String() string {
 		return "food"
 	case NeedBladder:
 		return "bladder"
+	case NeedSocial:
+		return "social"
 	default:
 		return "need"
 	}

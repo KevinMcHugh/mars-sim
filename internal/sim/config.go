@@ -166,6 +166,10 @@ func DefaultConfig() Config {
 				Name: "bladder", Rise: 3, SeekAt: 600, Max: 1000,
 				Facility: Toilet, UseTicks: 10, Fatal: false,
 			},
+			NeedSocial: {
+				Name: "social", Rise: 1, SeekAt: 500, Max: 1000,
+				Facility: Rock, UseTicks: 0, Fatal: false,
+			},
 		},
 		AlienHP:       30,
 		AlienDamage:   6,
