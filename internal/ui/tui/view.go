@@ -9,8 +9,8 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
-// Layout constants. The map draws two terminal cells per tile; the sidebar is a
-// fixed-width info panel to its right.
+// Layout constants. The map draws tileWidth terminal cells per tile; the
+// sidebar is a fixed-width info panel to its right.
 const (
 	sidebarWidth = 30
 	headerRows   = 2
@@ -35,7 +35,7 @@ var (
 // the current terminal size, clamped to the world's dimensions.
 func (m Model) viewportTiles() (cols, rows int) {
 	availW := m.termW - sidebarWidth - 1
-	cols = availW / 2 // two cells per tile
+	cols = availW / tileWidth
 	rows = m.termH - headerRows - footerRows
 
 	if cols < minCols {

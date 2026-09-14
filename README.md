@@ -55,8 +55,8 @@ Contributor-facing system documentation lives in [`docs/`](docs/README.md).
 Start with [architecture](docs/architecture.md), and add or update a Markdown
 write-up in that directory whenever you add a feature or subsystem.
 
-> The map uses one emoji per tile so it stays aligned. If it looks sheared, your
-> terminal is sizing emoji as a single cell instead of two.
+> The map normalizes every glyph to two terminal cells so a narrow or wide emoji
+> cannot shear a row. Open floor is represented by two spaces.
 
 ## Architecture
 

@@ -1,11 +1,20 @@
 package tui
 
-import "github.com/kevinmchugh/mars-sim/internal/sim"
+import (
+	"strings"
 
-// Every glyph is chosen to render two terminal cells wide so the grid stays
-// aligned. Open floor is two spaces (also two cells), which reads as empty
-// cavern against the solid terrain. Some terminals size emoji differently; if
-// the grid ever looks sheared, that is the cause.
+	"github.com/charmbracelet/lipgloss"
+
+	"github.com/kevinmchugh/mars-sim/internal/sim"
+)
+
+const tileWidth = 2
+
+// Glyphs occupy two terminal cells so the map grid stays aligned. Open floor is
+// two spaces (also two cells), which reads as empty cavern against the solid
+// terrain. fitGlyph adds padding for terminals whose width table reports an
+// emoji as narrow and uses a plain two-cell fallback for an unexpectedly wide
+// glyph.
 const (
 	glyphRock   = "\U0001F7EB"       // 🟫 unexcavated regolith
 	glyphFloor  = "  "               // open, walkable space
@@ -24,41 +33,57 @@ const (
 )
 
 func terrainGlyph(t sim.Terrain) string {
+	var glyph string
 	switch t {
 	case sim.Floor:
-		return glyphFloor
+		glyph = glyphFloor
 	case sim.Wall:
-		return glyphWall
+		glyph = glyphWall
 	case sim.NutrientPod:
-		return glyphPod
+		glyph = glyphPod
 	case sim.Toilet:
-		return glyphToilet
+		glyph = glyphToilet
 	case sim.Bed:
-		return glyphBed
+		glyph = glyphBed
 	default:
-		return glyphRock
+		glyph = glyphRock
 	}
+	return fitGlyph(glyph)
 }
 
 func entityGlyph(e sim.EntityView) string {
+	var glyph string
 	switch e.Kind {
 	case sim.Alien:
-		return glyphAlien
+		glyph = glyphAlien
 	case sim.Cat:
-		return glyphCat
+		glyph = glyphCat
 	case sim.Mouse:
-		return glyphMouse
+		glyph = glyphMouse
 	case sim.Colonist:
 		switch e.State {
 		case sim.Fleeing:
-			return glyphFleeing
+			glyph = glyphFleeing
 		case sim.Talking:
-			return glyphTalking
+			glyph = glyphTalking
 		case sim.Stomping:
-			return glyphStomp
+			glyph = glyphStomp
+		default:
+			glyph = glyphColonist
 		}
-		return glyphColonist
 	default:
-		return glyphColonist
+		glyph = glyphColonist
+	}
+	return fitGlyph(glyph)
+}
+
+func fitGlyph(glyph string) string {
+	switch width := lipgloss.Width(glyph); {
+	case width == tileWidth:
+		return glyph
+	case width < tileWidth:
+		return glyph + strings.Repeat(" ", tileWidth-width)
+	default:
+		return "??"
 	}
 }
