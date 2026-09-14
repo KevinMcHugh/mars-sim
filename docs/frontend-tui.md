@@ -26,8 +26,12 @@ implement the same consumer contract.
 `Init` issues `waitSnap`, a Bubble Tea command that blocks on the channel and
 turns the next frame into a `snapshotMsg`; `Update` stores the frame and re-issues
 `waitSnap`, so the UI keeps following the sim. A closed channel (engine shut down)
-quits the program. The model never mutates or reads live world state — only
-snapshots (see [architecture.md](./architecture.md)).
+quits the program. The Bubble Tea renderer is capped at 30 redraws per second
+(`tuiFPS` in `main.go`), independently of the simulation's tick rate. Since the
+engine's one-slot subscription replaces stale frames, the renderer displays the
+newest available snapshot rather than building a terminal view for every tick.
+The model never mutates or reads live world state — only snapshots (see
+[architecture.md](./architecture.md)).
 
 ### Two screens
 
@@ -80,6 +84,10 @@ contract is genuinely frontend-agnostic.
 - **Blocking `waitSnap` re-issued each frame** is the idiomatic Bubble Tea way to
   turn a channel into a message stream, and it naturally paces the UI to the
   engine's drop-stale-frames publishing.
+- **A 30 FPS renderer cap** keeps terminal formatting and I/O from scaling with
+  high simulation speeds or large colonies. This is a renderer throttle, not a
+  second input loop: Bubble Tea continues reading keyboard input independently,
+  while `Update` applies keys as soon as they arrive.
 - **Two-cell tile slots plus cursor pinning** preserve the readable emoji while
   handling terminals whose painted emoji width differs from the width table.
 

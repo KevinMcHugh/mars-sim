@@ -194,10 +194,15 @@ func usage() {
 	flag.PrintDefaults()
 }
 
+// tuiFPS caps terminal redraws independently of the simulation tick rate. The
+// latest snapshot still replaces stale frames, so lowering this cap affects
+// presentation work without changing simulation timing or input handling.
+const tuiFPS = 30
+
 // runTUI drives the Bubble Tea frontend. If duration > 0 the program quits
 // itself after that long, so a non-interactive run cannot hang.
 func runTUI(eng *sim.Engine, snaps <-chan *sim.Snapshot, duration time.Duration) error {
-	prog := tea.NewProgram(tui.New(eng, snaps), tea.WithAltScreen())
+	prog := tea.NewProgram(tui.New(eng, snaps), tea.WithAltScreen(), tea.WithFPS(tuiFPS))
 	if duration > 0 {
 		go func() {
 			time.Sleep(duration)
