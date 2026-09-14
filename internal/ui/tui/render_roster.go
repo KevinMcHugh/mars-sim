@@ -10,7 +10,10 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
-const rosterListWidth = 52
+// rosterListWidth leaves room for the longest generated name (17 columns),
+// they/them (8), "age 80" (6), the longest state ("relieving", 9), three
+// separators (9), and the selection marker (2), plus the panel chrome.
+const rosterListWidth = 56
 
 var (
 	rosterSelStyle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("203"))
