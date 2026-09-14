@@ -7,6 +7,7 @@ import (
 	"github.com/kevinmchugh/mars-sim/internal/sim"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 )
 
 // makeSnapshot builds a tiny hand-authored frame for view tests.
@@ -54,8 +55,8 @@ func TestViewRendersEntities(t *testing.T) {
 func TestGlyphsOccupyOneTile(t *testing.T) {
 	terrain := []sim.Terrain{sim.Floor, sim.Rock, sim.Wall, sim.NutrientPod, sim.Toilet, sim.Bed}
 	for _, tile := range terrain {
-		if got := len(terrainGlyph(tile)); got != tileWidth {
-			t.Errorf("terrain %v occupies %d bytes, want %d", tile, got, tileWidth)
+		if got := lipgloss.Width(terrainGlyph(tile)); got != tileWidth {
+			t.Errorf("terrain %v occupies %d cells, want %d", tile, got, tileWidth)
 		}
 	}
 
@@ -69,8 +70,8 @@ func TestGlyphsOccupyOneTile(t *testing.T) {
 		{Kind: sim.Mouse},
 	}
 	for _, entity := range entities {
-		if got := len(entityGlyph(entity)); got != tileWidth {
-			t.Errorf("entity %v occupies %d bytes, want %d", entity.Kind, got, tileWidth)
+		if got := lipgloss.Width(entityGlyph(entity)); got != tileWidth {
+			t.Errorf("entity %v occupies %d cells, want %d", entity.Kind, got, tileWidth)
 		}
 	}
 }
