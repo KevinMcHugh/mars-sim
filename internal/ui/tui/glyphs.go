@@ -12,12 +12,15 @@ const (
 	glyphWall   = "\U0001F9F1"       // 🧱 built wall
 	glyphPod    = "\U0001F37D\uFE0F" // 🍽️ nutrient pod (food)
 	glyphToilet = "\U0001F6BD"       // 🚽 toilet (bladder)
+	glyphBed    = "\U0001F6CF\uFE0F" // 🛏️ dormitory bunk (sleep)
 
-	glyphColonist = "\U0001F477" // 👷 colonist at work
-	glyphFleeing  = "\U0001F631" // 😱 colonist running from an alien
-	glyphAlien    = "\U0001F47D" // 👽 subterranean mutant
-	glyphCat      = "\U0001F408" // 🐈 floor predator hunting mice
-	glyphMouse    = "\U0001F401" // 🐁 pest that raids the food pods
+	glyphColonist = "\U0001F477"       // 👷 colonist at work
+	glyphFleeing  = "\U0001F631"       // 😱 colonist running from an alien
+	glyphTalking  = "\U0001F5E3\uFE0F" // 🗣️ colonist chatting with another
+	glyphAlien    = "\U0001F47D"       // 👽 subterranean mutant
+	glyphCat      = "\U0001F408"       // 🐈 floor predator hunting mice
+	glyphMouse    = "\U0001F401"       // 🐁 pest that raids the food pods
+	glyphStomp    = "\U0001F97E"       // 🥾 colonist chasing down a mouse to stomp it
 )
 
 func terrainGlyph(t sim.Terrain) string {
@@ -30,6 +33,8 @@ func terrainGlyph(t sim.Terrain) string {
 		return glyphPod
 	case sim.Toilet:
 		return glyphToilet
+	case sim.Bed:
+		return glyphBed
 	default:
 		return glyphRock
 	}
@@ -44,8 +49,13 @@ func entityGlyph(e sim.EntityView) string {
 	case sim.Mouse:
 		return glyphMouse
 	case sim.Colonist:
-		if e.State == sim.Fleeing {
+		switch e.State {
+		case sim.Fleeing:
 			return glyphFleeing
+		case sim.Talking:
+			return glyphTalking
+		case sim.Stomping:
+			return glyphStomp
 		}
 		return glyphColonist
 	default:

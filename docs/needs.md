@@ -25,6 +25,7 @@ indexed by the kind:
 | --- | --- | --- | --- | --- | --- | --- |
 | food | 2 | 650 | 1000 | NutrientPod | 18 | **yes** |
 | bladder | 3 | 600 | 1000 | Toilet | 10 | no |
+| sleep | 1 | 700 | 1000 | Bed | 40 | no |
 
 Levels run `0..Max`; 0 means satisfied. At `SeekAt` the colonist drops work to
 satisfy the need; a **fatal** need sitting at `Max` drains HP (`StarveDamage`).
@@ -63,6 +64,13 @@ outranks any non-fatal one**. Without that rule, bladder (which rises faster and
 caps further past its threshold) would permanently outrank food and let colonists
 starve while relieving themselves.
 
+Sleep is deliberately non-fatal. A tired colonist seeks a reachable bunk and
+spends `UseTicks` (40 by default) sleeping beside it. If no bunk is reachable,
+the colonist waits rather than taking an emergency-build path; food and toilets
+are planned first, and dormitories are added once life support is covered. This
+makes sleep a capacity and scheduling pressure without turning an unfinished
+dormitory into a death spiral.
+
 ### Satisfying a need
 
 When a need is urgent and a facility of the right kind is reachable, the colonist
@@ -90,6 +98,9 @@ facilities at once.
   starving with a full bladder — the table alone (thresholds) was not enough.
 - **Grace periods** stop the frustrating startup deaths where hunger outraced the
   very first pod.
+- **Sleep being non-fatal** keeps dormitory construction from competing with
+  life-support construction at the moment it is most needed. A tired colonist
+  can wait for the next bunk.
 
 ## Extending it
 

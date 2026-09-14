@@ -96,7 +96,8 @@ Work jobs:
   `buildTicks` (scaled by the colonist's `workScale` trait). Yields to whoever is
   standing on the build tile for a few ticks before giving up.
 - **`jobUse`** — follow the facility flow field, stand adjacent, use it for
-  `UseTicks`, then reset the need.
+  `UseTicks`, then reset the need. This covers eating, relieving, and sleeping;
+  sleep is non-fatal, so no bunk means waiting rather than emergency building.
 
 ### Alien behavior (`alienTurn`)
 

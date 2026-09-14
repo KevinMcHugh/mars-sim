@@ -19,9 +19,11 @@ the floor.
 
 ### Terrain and tiles
 
-`Terrain` is an enum: `Rock`, `Floor`, `Wall`, `NutrientPod`, `Toilet`. Only
+`Terrain` is an enum: `Rock`, `Floor`, `Wall`, `NutrientPod`, `Toilet`, `Bed`.
+Only
 `Floor` is `Walkable()` — colonists, cats, and mice stay on floor; **aliens ignore
-walkability and burrow through anything**.
+walkability and burrow through anything**. Beds are dormitory bunks used from an
+adjacent floor tile.
 
 A `Tile` is a struct wrapping `Terrain` (not a bare enum) deliberately, so fields
 like ore, moisture, or temperature can be added later without touching every call

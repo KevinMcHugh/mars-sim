@@ -32,7 +32,7 @@ func (w *World) step() {
 	w.refreshSpatial() // fold in any digging/building from this tick
 	w.pruneProjects()
 	if w.tick >= w.nextPlanTick {
-		w.planFacilities()
+		w.planRooms()
 		w.nextPlanTick = w.tick + planInterval
 	}
 	w.rebuildBuildTiles() // reflect this tick's completions and any new project
@@ -161,6 +161,17 @@ func (w *World) colonistTurn(e *Entity) {
 			w.stepAside(e)
 			return
 		}
+		// Nothing productive to do: chat with a nearby colonist if one is free,
+		// which builds affinity between them. Otherwise rest.
+		if w.tryStartTalk(e) {
+			w.runJob(e)
+			return
+		}
+		// Nothing pressing: a colonist with time on its hands crushes a nearby
+		// pest if it sees one, otherwise rests.
+		if w.stompNearbyMouse(e) {
+			return
+		}
 		e.resting = true
 		e.wakeTick = w.tick + e.restTicks
 		e.State = Idle
@@ -168,6 +179,36 @@ func (w *World) colonistTurn(e *Entity) {
 	}
 	e.resting = false
 	w.runJob(e)
+}
+
+// stompNearbyMouse lets a colonist with nothing pressing to do chase down and
+// crush a mouse it notices. Stomping is an idle whim, not work: colonistTurn has
+// already ruled out threats, urgent needs, and available jobs before this runs.
+// A stomp is instantly fatal to the tiny mouse. Returns whether the colonist
+// spent its tick on the hunt (closing in or stomping).
+func (w *World) stompNearbyMouse(e *Entity) bool {
+	prey, ok := w.nearestMouse(e.Pos, w.cfg.ColonistStompRadius)
+	if !ok {
+		return false
+	}
+	e.resting = false
+	e.State = Stomping
+	if e.Pos.Adjacent(prey.Pos) {
+		w.stomp(e, prey)
+		return true
+	}
+	// Close in on the pest. If it cannot be reached on foot (walled off, or the
+	// colonist is wedged), drop the whim and let the caller rest instead.
+	if _, ok := w.travelTo(e, prey.Pos); !ok {
+		return false
+	}
+	return true
+}
+
+// stomp crushes a mouse underfoot. A stomp is always fatal to the mouse.
+func (w *World) stomp(colonist, mouse *Entity) {
+	w.remove(mouse.ID)
+	w.log.add(fmt.Sprintf("Colonist #%d stomps mouse #%d.", colonist.ID, mouse.ID))
 }
 
 // idleWouldBlock reports whether an idle colonist resting at p would get in the
@@ -307,7 +348,7 @@ func (w *World) clearJob(e *Entity) {
 			w.board.endBuild(e.BuildKind) // lone emergency build
 		}
 	}
-	e.Job, e.Progress = JobNone, 0
+	e.Job, e.Progress, e.partner = JobNone, 0, 0
 	e.clearPath()
 }
 
@@ -320,10 +361,108 @@ func (w *World) runJob(e *Entity) {
 		w.jobBuild(e)
 	case JobUse:
 		w.jobUse(e)
+	case JobTalk:
+		w.jobTalk(e)
 	default:
 		e.State = Idle
 		w.wanderStep(e)
 	}
+}
+
+// ---- Talking -----------------------------------------------------------------
+
+// tryStartTalk lets an idle colonist strike up a conversation with a nearby free
+// colonist, committing both to JobTalk. It reports whether a conversation began.
+// TalkChance gates it (0 disables talking entirely, and the sim then plays as it
+// did before the activity existed).
+func (w *World) tryStartTalk(e *Entity) bool {
+	if w.cfg.TalkChance <= 0 || w.rng.Intn(100) >= w.cfg.TalkChance {
+		return false
+	}
+	partner, ok := w.nearestMatch(e.Pos, w.cfg.TalkRadius, func(o *Entity) bool {
+		return o.Kind == Colonist && o.ID != e.ID && w.availableToTalk(o)
+	})
+	if !ok {
+		return false
+	}
+	w.beginTalk(e, partner)
+	return true
+}
+
+// availableToTalk reports whether a colonist is free to be pulled into a chat:
+// idle with no committed job, not fleeing or seeking a facility, and not parked
+// on a tile others need clear.
+func (w *World) availableToTalk(o *Entity) bool {
+	if o.Job != JobNone || o.State == Fleeing {
+		return false
+	}
+	if _, urgent := w.mostUrgentNeed(o); urgent {
+		return false
+	}
+	return !w.idleWouldBlock(o.Pos)
+}
+
+// beginTalk commits two colonists to a mutual conversation.
+func (w *World) beginTalk(a, b *Entity) {
+	a.resting, b.resting = false, false
+	a.Job, a.partner, a.Progress = JobTalk, b.ID, 0
+	b.Job, b.partner, b.Progress = JobTalk, a.ID, 0
+	a.clearPath()
+	b.clearPath()
+	a.State, b.State = Talking, Talking
+}
+
+// jobTalk runs one tick of a conversation: partners converge, then chat for
+// TalkTicks before the pair's affinity rises. The two must claim each other
+// mutually or the talk is abandoned. To avoid chasing each other, the higher-ID
+// partner walks over while the lower-ID one waits; the lower-ID partner also
+// hosts the shared timer so a conversation is credited once, not once per side.
+func (w *World) jobTalk(e *Entity) {
+	p := w.entities[e.partner]
+	if p == nil || !p.Alive() || p.Kind != Colonist || p.Job != JobTalk || p.partner != e.ID {
+		w.clearJob(e)
+		return
+	}
+	if w.idleWouldBlock(e.Pos) {
+		// Never hold a chat on a tile others need (a facility's access tile or a
+		// pending build tile); drop it and step aside on the next idle turn.
+		w.clearJob(e)
+		return
+	}
+	if !e.Pos.Adjacent(p.Pos) {
+		if e.ID > p.ID {
+			if _, ok := w.travelTo(e, p.Pos); !ok {
+				w.clearJob(e)
+				return
+			}
+			e.State = Moving
+		} else {
+			e.State = Talking // wait in place for the partner to arrive
+		}
+		return
+	}
+	e.State = Talking
+	if e.ID < p.ID { // host drives the shared timer
+		e.Progress++
+		if e.Progress >= w.cfg.TalkTicks {
+			w.finishTalk(e, p)
+			w.clearJob(p)
+			w.clearJob(e)
+		}
+	}
+}
+
+// finishTalk applies a completed conversation's outcome: it rolls the chat's
+// quality, shifts the pair's affinity (exacerbating its existing valence, with
+// diminishing returns), and moves both participants' moods accordingly. See
+// relationships.go.
+func (w *World) finishTalk(a, b *Entity) {
+	existing := w.affinityBetween(a.ID, b.ID)
+	quality := w.rollTalkQuality(existing)
+	w.addAffinity(a.ID, b.ID, w.talkAffinityDelta(existing, quality))
+	mood := w.talkMoodDelta(quality, existing)
+	w.adjustMood(a, mood)
+	w.adjustMood(b, mood)
 }
 
 // assignWorkJob picks something productive to do: help build a planned project
@@ -367,8 +506,8 @@ func (w *World) plannedFacilities(kind Terrain) int {
 	return w.countTerrain(kind) + w.board.inProgress(kind) + w.projectFacilityTasks(kind)
 }
 
-// desiredFacilities is how many of each life-support structure the colony wants
-// for a given headcount (at least one).
+// desiredFacilities is how many of each need-satisfying structure (pods,
+// toilets, bunks) the colony wants for a given headcount (at least one).
 func (w *World) desiredFacilities(colonists int) int {
 	d := colonists / w.cfg.ColonistsPerFacility
 	if d < 1 {
@@ -509,6 +648,8 @@ func (w *World) noteBuild(kind Terrain) {
 		w.log.add("A nutrient pod comes online.")
 	case Toilet:
 		w.log.add("A latrine is installed.")
+	case Bed:
+		w.log.add("A bunk is bolted into the dormitory.")
 	}
 }
 
@@ -702,6 +843,12 @@ func (w *World) mouseTurn(e *Entity) {
 		return
 	}
 
+	// A carried litter arrives once gestation completes, whatever else the mouse
+	// does with the rest of its tick.
+	if e.pregnant && w.tick >= e.dueTick {
+		w.giveBirth(e)
+	}
+
 	// Survival first: bolt from a nearby cat.
 	if threat, ok := w.nearestCat(e.Pos, w.cfg.MouseFleeRadius); ok {
 		w.clearJob(e)
@@ -723,8 +870,87 @@ func (w *World) mouseTurn(e *Entity) {
 		return
 	}
 
+	// Nothing pressing: a mouse with no cat to flee and no hunger to sate looks
+	// to breed with an adjacent mate.
+	if w.tryMate(e) {
+		return
+	}
+
 	e.State = Idle
 	w.wanderStep(e)
+}
+
+// rollMouseSex assigns a mouse its sex, an even male/female split. It draws from
+// the simulation RNG (not the personality stream) because breeding is a
+// simulation mechanic, not cosmetic flavor.
+func (w *World) rollMouseSex() Sex {
+	if w.rng.Intn(2) == 0 {
+		return SexMale
+	}
+	return SexFemale
+}
+
+// canBreed reports whether a mouse may mate this tick: it is not already
+// carrying a litter and is past mateReadyTick, which gates both a newborn's
+// maturation and a mother's post-birth cooldown.
+func (w *World) canBreed(e *Entity) bool {
+	return e.Kind == Mouse && !e.pregnant && w.tick >= e.mateReadyTick
+}
+
+// tryMate pairs a mouse with an adjacent eligible mouse of the opposite sex. The
+// female of the pair conceives a litter, and both go on a breeding cooldown so a
+// warren does not multiply every tick. Returns whether a mating happened.
+func (w *World) tryMate(e *Entity) bool {
+	if !w.canBreed(e) {
+		return false
+	}
+	for _, d := range neighbors8 {
+		mate := w.entityAt(e.Pos.Add(d.X, d.Y))
+		if mate == nil || !w.canBreed(mate) || mate.sex == e.sex {
+			continue
+		}
+		female, male := e, mate
+		if female.sex != SexFemale {
+			female, male = mate, e
+		}
+		female.pregnant = true
+		female.dueTick = w.tick + w.cfg.MouseGestationTicks
+		e.mateReadyTick = w.tick + w.cfg.MouseBreedCooldown
+		mate.mateReadyTick = w.tick + w.cfg.MouseBreedCooldown
+		e.State, mate.State = Idle, Idle
+		w.log.add(fmt.Sprintf("Mice #%d and #%d mate.", male.ID, female.ID))
+		return true
+	}
+	return false
+}
+
+// giveBirth delivers a pregnant mouse's litter onto free floor tiles around her,
+// then resets her to a post-birth breeding cooldown. Litter size is random
+// within the configured range; pups with nowhere to land are simply not born (a
+// crowded cavern limits the warren). Newborns cannot breed until they mature.
+func (w *World) giveBirth(e *Entity) {
+	e.pregnant = false
+	e.mateReadyTick = w.tick + w.cfg.MouseBreedCooldown
+	litter := w.cfg.MouseLitterMin
+	if span := w.cfg.MouseLitterMax - w.cfg.MouseLitterMin; span > 0 {
+		litter += w.rng.Intn(span + 1)
+	}
+	born := 0
+	for _, d := range neighbors8 {
+		if born >= litter {
+			break
+		}
+		p := e.Pos.Add(d.X, d.Y)
+		if !w.Walkable(p) || w.occupied(p) {
+			continue
+		}
+		pup := w.spawn(Mouse, p)
+		pup.mateReadyTick = w.tick + w.cfg.MouseMaturityTicks
+		born++
+	}
+	if born > 0 {
+		w.log.add(fmt.Sprintf("Mouse #%d gives birth to a litter of %d.", e.ID, born))
+	}
 }
 
 // ---- Movement primitives -----------------------------------------------------
@@ -854,6 +1080,13 @@ func (w *World) nearestMouse(from Point, within int) (*Entity, bool) {
 }
 
 func (w *World) nearestOfKind(from Point, kind Kind, within int) (*Entity, bool) {
+	return w.nearestMatch(from, within, func(e *Entity) bool { return e.Kind == kind })
+}
+
+// nearestMatch returns the nearest living entity within range that satisfies
+// match, sharing the chunk-ring scan (and deterministic ID tie-break) with
+// nearestOfKind.
+func (w *World) nearestMatch(from Point, within int, match func(*Entity) bool) (*Entity, bool) {
 	var best *Entity
 	bestDist := within + 1
 	fcx, fcy := from.X/chunkSize, from.Y/chunkSize
@@ -886,7 +1119,7 @@ func (w *World) nearestOfKind(from Point, kind Kind, within int) (*Entity, bool)
 				}
 				for _, id := range w.chunkEntities[cy*w.chunkCols+cx] {
 					e := w.entities[id]
-					if e == nil || e.Kind != kind || !e.Alive() {
+					if e == nil || !e.Alive() || !match(e) {
 						continue
 					}
 					d := from.Chebyshev(e.Pos)

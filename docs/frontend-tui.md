@@ -38,7 +38,7 @@ toggles them. Global keys (`handleKey`) work on both screens; the rest dispatch 
 - **Map** (`renderMap`): draws a camera-windowed view of the tile grid, two
   terminal cells per tile, overlaying entity glyphs (aliens win position ties).
   A sidebar shows a legend and the tail of the event log; the header shows tick,
-  speed, pause state, and `Stats` counts.
+  speed, pause state, and `Stats` counts, including built dormitory beds.
 - **Roster** (`renderRoster`): a scrolling, ID-sorted colonist list plus a
   detail pane for the selected colonist — name, attributes, HP, needs, the
   eight-slot inventory, and traits.
@@ -61,8 +61,9 @@ the world directly.
 
 Each glyph is chosen to render **two terminal cells wide** so the grid stays
 aligned (open floor is two spaces). If the map ever looks sheared, the terminal is
-sizing emoji as one cell instead of two. Colonists show a distinct "fleeing"
-glyph when their `State` is `Fleeing`.
+sizing emoji as one cell instead of two. Colonists show distinct "fleeing",
+"talking", and "stomping" glyphs for those activities; dormitory beds render as
+🛏️.
 
 ### Headless mode
 

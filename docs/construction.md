@@ -41,6 +41,28 @@ each tick (`rebuildBuildTiles`). Colonists **route around** these tiles and neve
 idle on them, so a facility mobbed by its own neighbors can still be raised —
 otherwise a builder could never reach the tile.
 
+### Room recipes and dormitories
+
+All rooms share the same wall-and-doorway shell. A `roomRecipe` supplies the
+name, facility sequence, minimum useful size, and planning log message. The
+current recipes are:
+
+| Recipe | Contents | Minimum size | Planning priority |
+| --- | --- | --- | --- |
+| facility room | alternating nutrient pods and toilets | 2 facilities | first, because food is fatal |
+| dormitory | beds/bunks | 1 bed | after the desired pods and toilets exist |
+
+`planRooms` checks each recipe's planned-or-built capacity. It plans only one
+room at a time, and always chooses a life-support room before a dormitory. A
+dormitory can therefore be built in a cramped cavern with a single bunk, and
+the colony adds more rooms as its population grows.
+
+Beds use the same facility machinery as pods and toilets: a colonist approaches
+an adjacent tile, spends the sleep need's `UseTicks` sleeping, and then resets
+the need. A bunk is not walkable and has no permanently assigned owner; capacity
+is represented by the number of `Bed` tiles, with the normal access and
+crowd-flow rules deciding who can use one next.
+
 ### Facility-room geometry
 
 A room is a row of facilities inside a complete placed-wall perimeter with a
@@ -64,14 +86,14 @@ built or used.
 
 ### Planning cadence
 
-`planFacilities` runs every `planInterval` (16) ticks from `step`. It creates a
-new facility-room project only when the colony is short of pods or toilets for its
+`planRooms` runs every `planInterval` (16) ticks from `step`. It creates a
+room project only when the colony is short of a required room facility for its
 headcount (`desiredFacilities` = colonists / `ColonistsPerFacility`, min 1) **and
 no project is already active**. `plannedFacilities` counts existing + in-progress
 (from the job board's O(1) counter) + designated-but-unbuilt facilities, so the
 colony converges on the target instead of every idle colonist starting one at
-once. `planFacilityRoom` prefers a full 4-facility room but falls back to a
-smaller one (down to 2) when only a shorter clear run is available.
+once. `planRoom` prefers a full 4-facility room but falls back to the recipe's
+minimum when only a shorter clear run is available.
 
 ### The emergency fallback
 
@@ -106,6 +128,9 @@ The room design is the product of watching colonies starve around earlier ones:
 - **Reachability-gated claiming and the tightly-guarded emergency build** keep
   the colony from either mobbing one site or letting a disconnected colonist die
   next to an unreachable project.
+- **Life support before dormitories** makes the planner's priorities explicit:
+  sleep improves quality of life, but missing a bed is not fatal, while missing
+  food is.
 
 ### Known soft spot
 
@@ -117,7 +142,10 @@ colonists have other work.
 
 ## Extending it
 
-- **A new project kind** (barracks, storage, ...) is a new **task generator** over
+- **A new room recipe** is a `roomRecipe` plus a demand check in `planRooms`.
+  Reuse the wall shell and make the recipe's facility spacing/access rules
+  explicit.
+- **A new project kind** (storage, workshops, ...) is a new **task generator** over
   the same machinery: produce a `project` with phased `buildTask`s and append it
   in a planner. Claiming, building, `buildTiles`, and pruning all work unchanged.
 - **Reserving build tiles from through-traffic** (a movement model that keeps a
