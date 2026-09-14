@@ -2,8 +2,8 @@ package sim
 
 import "math"
 
-// Personality gives colonists names, attributes, and traits. Attributes (sex,
-// gender, orientation, height, weight) are populated for flavor and future
+// Personality gives colonists names, attributes, and traits. Attributes (age,
+// sex, gender, orientation, height, weight) are populated for flavor and future
 // systems but nothing simulates against them yet. Traits, in contrast, change
 // how a colonist plays: they scale need rates and work behavior. As new needs
 // and systems arrive, new traits slot in over the same machinery.
@@ -182,6 +182,7 @@ func (t Trait) String() string { return traitSpecs[t].Name }
 // Profile is a colonist's identity: a name, populated attributes, and any
 // traits. Aliens have no Profile.
 type Profile struct {
+	Age         int
 	Name        string
 	Sex         Sex
 	Gender      Gender
@@ -217,6 +218,7 @@ func (p *Profile) HasTrait(t Trait) bool {
 // duration, work speed). Uses the personality RNG so it never perturbs the sim.
 func (w *World) assignPersonality(e *Entity) {
 	p := &Profile{}
+	p.Age = w.rollAge()
 	p.Sex = w.rollSex()
 	p.Gender = w.rollGender(p.Sex)
 	p.Orientation = w.rollOrientation()
@@ -226,6 +228,13 @@ func (w *World) assignPersonality(e *Entity) {
 	e.Profile = p
 
 	w.resolveTraitEffects(e)
+}
+
+// rollAge generates an adult colonist age. Keeping colonists adults means every
+// generated person can work, while the range still leaves room for believable
+// parent/child relationships.
+func (w *World) rollAge() int {
+	return 18 + w.agePRNG.Intn(63) // 18..80
 }
 
 // resolveTraitEffects recomputes a colonist's effective parameters from its

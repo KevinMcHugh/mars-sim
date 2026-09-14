@@ -174,7 +174,12 @@ func (w *World) relate(c, r *Entity) {
 // kind, creating phantom nodes as needed. It reports whether the tie was applied
 // (some ties are not always possible). c is freshly generated, so its own slots
 // are empty.
-func (w *World) wireRelation(c, r *Entity, kind RelationKind) bool {
+func (w *World) wireRelation(c, r *Entity, kind RelationKind) (ok bool) {
+	defer func() {
+		if ok {
+			w.kinRevision++
+		}
+	}()
 	kc, kr := c.kin, r.kin
 	pc, pr := w.kin[kc], w.kin[kr]
 	switch kind {
@@ -185,12 +190,26 @@ func (w *World) wireRelation(c, r *Entity, kind RelationKind) bool {
 		pc.spouse, pr.spouse = kr, kc
 		return true
 	case RelChild: // c is r's child: c's parents are r (and r's spouse, if any)
+		if !validParent(r.Profile, c.Profile) {
+			return false
+		}
 		pc.addParentSlot(kr)
 		if pr.spouse != 0 {
-			pc.addParentSlot(pr.spouse)
+			// A spouse is also a parent only when their age supports that role.
+			// Otherwise the explicitly requested parent still gets the tie.
+			spouse := w.kin[pr.spouse]
+			if spouse.entity == 0 {
+				pc.addParentSlot(pr.spouse)
+			} else if parent := w.entities[spouse.entity]; parent != nil &&
+				validParent(parent.Profile, c.Profile) {
+				pc.addParentSlot(pr.spouse)
+			}
 		}
 		return true
 	case RelParent: // c is r's parent: add c as a parent of r
+		if !validParent(c.Profile, r.Profile) {
+			return false
+		}
 		return pr.addParentSlot(kc)
 	case RelSibling: // c is r's sibling: c shares r's parents
 		w.ensureParent(kr)
@@ -229,6 +248,26 @@ func (w *World) wireRelation(c, r *Entity, kind RelationKind) bool {
 		return true
 	}
 	return false
+}
+
+// cachedRelations returns the stable display relationships for e. The cache is
+// invalidated by kinRevision whenever a new familial link is added.
+func (w *World) cachedRelations(e *Entity, children map[kinID][]kinID) []Relation {
+	if e.relationRevision != w.kinRevision {
+		e.relations = w.relativesOf(e, children)
+		e.relationRevision = w.kinRevision
+	}
+	return e.relations
+}
+
+// validParent is tolerant of hand-built profiles with no age. Real colonists
+// always have an age, while this keeps tree helpers useful for tools and tests
+// that only populate the fields relevant to their scenario.
+func validParent(parent, child *Profile) bool {
+	if parent == nil || child == nil || parent.Age <= 0 || child.Age <= 0 {
+		return true
+	}
+	return parent.Age-child.Age >= 20
 }
 
 // spouseCompatible reports whether two colonists could plausibly marry: each is
@@ -270,6 +309,14 @@ func (w *World) kinChildren() map[kinID][]kinID {
 		}
 	}
 	return ch
+}
+
+func (w *World) cachedKinChildren() map[kinID][]kinID {
+	if w.kinChildrenRevision != w.kinRevision {
+		w.kinChildrenCache = w.kinChildren()
+		w.kinChildrenRevision = w.kinRevision
+	}
+	return w.kinChildrenCache
 }
 
 // relativesOf derives a colonist's familial ties to other colonists by walking

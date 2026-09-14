@@ -124,7 +124,7 @@ func (m Model) renderColonistDetail(c sim.EntityView, rows int) string {
 
 	b.WriteString(titleStyle.Render(p.Name) + "\n")
 	b.WriteString(statStyle.Render(fmt.Sprintf("%s · %s · %s", p.Gender, p.Sex, p.Orientation)) + "\n")
-	b.WriteString(statStyle.Render(fmt.Sprintf("%d cm · %d kg", p.HeightCM, p.WeightKG)) + "\n\n")
+	b.WriteString(statStyle.Render(fmt.Sprintf("age %d · %d cm · %d kg", p.Age, p.HeightCM, p.WeightKG)) + "\n\n")
 
 	b.WriteString(labelStyle.Render("STATUS") + "  " + c.State.String() + "\n")
 	b.WriteString(bar("health", c.HP, c.MaxHP, barW) + "\n")

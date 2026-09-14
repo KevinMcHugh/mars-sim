@@ -146,9 +146,11 @@ type Entity struct {
 	// stack; other entity kinds leave it empty.
 	Inventory Inventory
 	// kin is the colonist's node in the colony's family tree (colonists only; 0
-	// for aliens). Familial ties are derived from the tree on demand. See
-	// relationships.go.
-	kin kinID
+	// for aliens). Relations caches the derived display ties until the family
+	// tree changes. See relationships.go.
+	kin              kinID
+	relations        []Relation
+	relationRevision uint64
 
 	// mood is the colonist's disposition in [-MoodMax, MoodMax], 0 neutral
 	// (colonists only). Tasks such as conversations shift it; nothing simulates
