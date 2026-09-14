@@ -22,9 +22,17 @@ type SetTicksPerSecond struct{ Rate int }
 // Handy for stress-testing and for player actions later.
 type Spawn struct{ Kind Kind }
 
+// OrderFacilityRoom asks the planner to queue one life-support room.
+type OrderFacilityRoom struct{}
+
+// OrderDormitory asks the planner to queue one dormitory.
+type OrderDormitory struct{}
+
 func (TogglePause) isCommand()       {}
 func (SetTicksPerSecond) isCommand() {}
 func (Spawn) isCommand()             {}
+func (OrderFacilityRoom) isCommand() {}
+func (OrderDormitory) isCommand()    {}
 
 // Engine drives the simulation. It owns the World and is the only goroutine that
 // touches it. Frontends interact only through Subscribe (to receive Snapshots)
@@ -117,6 +125,10 @@ func (e *Engine) apply(cmd Command) (rateChanged bool) {
 	case Spawn:
 		e.spawn(c.Kind)
 		e.publish()
+	case OrderFacilityRoom:
+		e.world.manualFacilityRooms++
+	case OrderDormitory:
+		e.world.manualDormitories++
 	}
 	return false
 }

@@ -128,6 +128,10 @@ func (m Model) handleMapKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.eng.Send(sim.Spawn{Kind: sim.Cat})
 	case "m":
 		m.eng.Send(sim.Spawn{Kind: sim.Mouse})
+	case "f":
+		m.eng.Send(sim.OrderFacilityRoom{})
+	case "d":
+		m.eng.Send(sim.OrderDormitory{})
 
 	case "left", "h":
 		m.panCamera(-4, 0)

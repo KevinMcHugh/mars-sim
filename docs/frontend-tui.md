@@ -54,6 +54,7 @@ toggles them. Global keys (`handleKey`) work on both screens; the rest dispatch 
 | --- | --- |
 | `space` | pause / resume (`TogglePause`) |
 | `+` / `-` | faster / slower (`SetTicksPerSecond`, ±2) |
+| `f` / `d` | queue a facility room / dormitory (`OrderFacilityRoom`, `OrderDormitory`) |
 | `c` / `a` / `x` / `m` | spawn colonist / alien / cat / mouse (`Spawn`) |
 | arrows or `hjkl` | pan the camera (map) / move selection (roster) |
 | `tab` | toggle map ↔ roster |
