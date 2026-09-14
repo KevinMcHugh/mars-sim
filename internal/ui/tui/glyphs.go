@@ -19,6 +19,7 @@ const (
 	glyphAlien    = "\U0001F47D"       // 👽 subterranean mutant
 	glyphCat      = "\U0001F408"       // 🐈 floor predator hunting mice
 	glyphMouse    = "\U0001F401"       // 🐁 pest that raids the food pods
+	glyphStomp    = "\U0001F97E"       // 🥾 colonist chasing down a mouse to stomp it
 )
 
 func terrainGlyph(t sim.Terrain) string {
@@ -50,6 +51,8 @@ func entityGlyph(e sim.EntityView) string {
 			return glyphFleeing
 		case sim.Talking:
 			return glyphTalking
+		case sim.Stomping:
+			return glyphStomp
 		}
 		return glyphColonist
 	default:

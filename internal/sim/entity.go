@@ -51,6 +51,7 @@ const (
 	Hunting         // predator closing on prey (alien on colonist, cat on mouse)
 	Feeding         // predator eating prey it has caught
 	Talking         // chatting with another colonist (builds affinity)
+	Stomping        // colonist chasing down and crushing a pest mouse
 )
 
 func (s State) String() string {
@@ -75,6 +76,8 @@ func (s State) String() string {
 		return "hunting"
 	case Feeding:
 		return "feeding"
+	case Stomping:
+		return "stomping"
 	default:
 		return "?"
 	}
@@ -176,6 +179,15 @@ type Entity struct {
 	State    State
 	Quarry   EntityID // (predator) the prey being hunted; 0 if none
 	Cooldown int      // (predator) paces movement and attacks
+
+	// Mouse reproduction (mice only). sex decides who can carry a litter; a
+	// female mouse that mates becomes pregnant until dueTick, when she births a
+	// litter. mateReadyTick gates breeding: it holds a newborn back until it
+	// matures and spaces out a female's litters after she gives birth.
+	sex           Sex
+	pregnant      bool
+	dueTick       int
+	mateReadyTick int
 }
 
 // newEntity builds an entity with kind-appropriate starting stats. Colonists get
