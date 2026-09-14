@@ -167,12 +167,14 @@ type Entity struct {
 	socialPenalty     int
 
 	// Current job and its parameters.
-	Job       JobKind
-	Target    Point    // tile the job operates on or travels to
-	BuildKind Terrain  // JobBuild: terrain to construct
-	Need      NeedKind // JobUse: which need this fulfills
-	partner   EntityID // JobTalk: the colonist being talked with; 0 if none
-	Progress  int      // ticks accumulated on the current action
+	Job            JobKind
+	Target         Point    // tile the job operates on or travels to
+	BuildKind      Terrain  // JobBuild: terrain to construct
+	Need           NeedKind // JobUse: which need this fulfills
+	useFacility    Point
+	useFacilitySet bool
+	partner        EntityID // JobTalk: the colonist being talked with; 0 if none
+	Progress       int      // ticks accumulated on the current action
 
 	// Rest scheduling: an idle colonist with no available work rests (skips the
 	// work search) until wakeTick instead of re-scanning the map every tick.
