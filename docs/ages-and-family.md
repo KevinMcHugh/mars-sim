@@ -26,6 +26,10 @@ parent of another, `wireRelation` accepts it only if the proposed parent is at
 least 20 years older. A spouse is added as a second parent only when that spouse
 also satisfies the same rule.
 
+The derived `Relations` lists in snapshots are cached per colonist and keyed to a
+family-tree revision. Adding a relationship invalidates the revision; ordinary
+simulation ticks reuse the existing lists instead of walking the family tree.
+
 ## Why it is this way
 
 Age belongs in `Profile` because it is identity data already copied through
