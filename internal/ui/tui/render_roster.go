@@ -16,6 +16,7 @@ var (
 	rosterSelStyle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("203"))
 	labelStyle     = lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
 	traitStyle     = lipgloss.NewStyle().Foreground(lipgloss.Color("114"))
+	kinStyle       = lipgloss.NewStyle().Foreground(lipgloss.Color("111"))
 )
 
 // colonists returns the latest frame's colonists sorted by ID, so the roster
@@ -118,7 +119,8 @@ func (m Model) renderColonistDetail(c sim.EntityView, rows int) string {
 	b.WriteString(statStyle.Render(fmt.Sprintf("%d cm · %d kg", p.HeightCM, p.WeightKG)) + "\n\n")
 
 	b.WriteString(labelStyle.Render("STATUS") + "  " + c.State.String() + "\n")
-	b.WriteString(bar("health", c.HP, c.MaxHP, barW) + "\n\n")
+	b.WriteString(bar("health", c.HP, c.MaxHP, barW) + "\n")
+	b.WriteString(moodLine(c.Mood, m.latest.MoodMax, barW) + "\n\n")
 
 	b.WriteString(labelStyle.Render("NEEDS") + "\n")
 	for i := range c.Needs {
@@ -149,7 +151,113 @@ func (m Model) renderColonistDetail(c sim.EntityView, rows int) string {
 		}
 		b.WriteString(strings.Join(lines, "\n"))
 	}
+
+	names := m.colonistNames()
+	b.WriteString("\n\n" + labelStyle.Render("FAMILY") + "\n")
+	if len(c.Relations) == 0 {
+		b.WriteString(statStyle.Render("  no known kin"))
+	} else {
+		lines := make([]string, 0, len(c.Relations))
+		for _, rel := range c.Relations {
+			line := fmt.Sprintf("• %s — %s", rel.Kind, names[rel.Other])
+			lines = append(lines, kinStyle.Render(truncate(line, width-4)))
+		}
+		b.WriteString(strings.Join(lines, "\n"))
+	}
+
+	b.WriteString("\n\n" + labelStyle.Render("AFFINITIES") + "\n")
+	if len(c.Affinities) == 0 {
+		b.WriteString(statStyle.Render("  no acquaintances yet"))
+	} else {
+		lines := make([]string, 0, len(c.Affinities))
+		for _, aff := range c.Affinities {
+			lines = append(lines, affinityLine(names[aff.Other], aff.Value, m.latest.AffinityMax, barW))
+		}
+		b.WriteString(strings.Join(lines, "\n"))
+	}
 	return sidebarStyle.Width(width).Height(rows - 2).Render(b.String())
+}
+
+// colonistNames maps colonist IDs to display names for the latest frame, so the
+// inspector can name a colonist's relatives and acquaintances.
+func (m Model) colonistNames() map[sim.EntityID]string {
+	names := make(map[sim.EntityID]string)
+	if m.latest == nil {
+		return names
+	}
+	for _, e := range m.latest.Entities {
+		if e.Kind == sim.Colonist {
+			names[e.ID] = colonistName(e)
+		}
+	}
+	return names
+}
+
+// affinityLine renders "Name  ···│██·  +40": a name, a diverging gauge that fills
+// right for warmth and left for dislike, and the signed value.
+func affinityLine(name string, val, max, width int) string {
+	gaugeW := clamp(width, 3, 11)
+	return fmt.Sprintf("%-12s %s %+d", truncate(name, 12), divergeGauge(val, max, gaugeW), val)
+}
+
+// moodLine renders the colonist's mood as a diverging gauge with a signed value
+// and a one-word summary.
+func moodLine(val, max, width int) string {
+	gaugeW := clamp(width, 3, 13)
+	return fmt.Sprintf("%-7s %s %+d %s", "mood", divergeGauge(val, max, gaugeW), val, moodWord(val, max))
+}
+
+// moodWord is a short label for a mood level, scaled to the mood range.
+func moodWord(val, max int) string {
+	if max < 1 {
+		max = 1
+	}
+	pct := val * 100 / max
+	switch {
+	case pct >= 60:
+		return "elated"
+	case pct >= 20:
+		return "content"
+	case pct > -20:
+		return "neutral"
+	case pct > -60:
+		return "glum"
+	default:
+		return "miserable"
+	}
+}
+
+// divergeGauge renders a centered bar for a signed value: filled rightward from
+// the axis for positives, leftward for negatives.
+func divergeGauge(val, max, width int) string {
+	if max < 1 {
+		max = 1
+	}
+	if width < 3 {
+		width = 3
+	}
+	val = clamp(val, -max, max)
+	half := (width - 1) / 2
+	mag := val
+	if mag < 0 {
+		mag = -mag
+	}
+	mag = mag * half / max
+	left := make([]rune, half)
+	right := make([]rune, half)
+	for i := 0; i < half; i++ {
+		left[i], right[i] = '·', '·'
+	}
+	if val < 0 {
+		for i := 0; i < mag; i++ {
+			left[half-1-i] = '█'
+		}
+	} else if val > 0 {
+		for i := 0; i < mag; i++ {
+			right[i] = '█'
+		}
+	}
+	return string(left) + "│" + string(right)
 }
 
 // bar renders a labeled proportion bar like "health  ████····  30/40".
