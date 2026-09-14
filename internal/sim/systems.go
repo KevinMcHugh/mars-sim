@@ -161,6 +161,11 @@ func (w *World) colonistTurn(e *Entity) {
 			w.stepAside(e)
 			return
 		}
+		// Nothing pressing: a colonist with time on its hands crushes a nearby
+		// pest if it sees one, otherwise rests.
+		if w.stompNearbyMouse(e) {
+			return
+		}
 		e.resting = true
 		e.wakeTick = w.tick + e.restTicks
 		e.State = Idle
@@ -168,6 +173,36 @@ func (w *World) colonistTurn(e *Entity) {
 	}
 	e.resting = false
 	w.runJob(e)
+}
+
+// stompNearbyMouse lets a colonist with nothing pressing to do chase down and
+// crush a mouse it notices. Stomping is an idle whim, not work: colonistTurn has
+// already ruled out threats, urgent needs, and available jobs before this runs.
+// A stomp is instantly fatal to the tiny mouse. Returns whether the colonist
+// spent its tick on the hunt (closing in or stomping).
+func (w *World) stompNearbyMouse(e *Entity) bool {
+	prey, ok := w.nearestMouse(e.Pos, w.cfg.ColonistStompRadius)
+	if !ok {
+		return false
+	}
+	e.resting = false
+	e.State = Stomping
+	if e.Pos.Adjacent(prey.Pos) {
+		w.stomp(e, prey)
+		return true
+	}
+	// Close in on the pest. If it cannot be reached on foot (walled off, or the
+	// colonist is wedged), drop the whim and let the caller rest instead.
+	if _, ok := w.travelTo(e, prey.Pos); !ok {
+		return false
+	}
+	return true
+}
+
+// stomp crushes a mouse underfoot. A stomp is always fatal to the mouse.
+func (w *World) stomp(colonist, mouse *Entity) {
+	w.remove(mouse.ID)
+	w.log.add(fmt.Sprintf("Colonist #%d stomps mouse #%d.", colonist.ID, mouse.ID))
 }
 
 // idleWouldBlock reports whether an idle colonist resting at p would get in the
@@ -702,6 +737,12 @@ func (w *World) mouseTurn(e *Entity) {
 		return
 	}
 
+	// A carried litter arrives once gestation completes, whatever else the mouse
+	// does with the rest of its tick.
+	if e.pregnant && w.tick >= e.dueTick {
+		w.giveBirth(e)
+	}
+
 	// Survival first: bolt from a nearby cat.
 	if threat, ok := w.nearestCat(e.Pos, w.cfg.MouseFleeRadius); ok {
 		w.clearJob(e)
@@ -723,8 +764,87 @@ func (w *World) mouseTurn(e *Entity) {
 		return
 	}
 
+	// Nothing pressing: a mouse with no cat to flee and no hunger to sate looks
+	// to breed with an adjacent mate.
+	if w.tryMate(e) {
+		return
+	}
+
 	e.State = Idle
 	w.wanderStep(e)
+}
+
+// rollMouseSex assigns a mouse its sex, an even male/female split. It draws from
+// the simulation RNG (not the personality stream) because breeding is a
+// simulation mechanic, not cosmetic flavor.
+func (w *World) rollMouseSex() Sex {
+	if w.rng.Intn(2) == 0 {
+		return SexMale
+	}
+	return SexFemale
+}
+
+// canBreed reports whether a mouse may mate this tick: it is not already
+// carrying a litter and is past mateReadyTick, which gates both a newborn's
+// maturation and a mother's post-birth cooldown.
+func (w *World) canBreed(e *Entity) bool {
+	return e.Kind == Mouse && !e.pregnant && w.tick >= e.mateReadyTick
+}
+
+// tryMate pairs a mouse with an adjacent eligible mouse of the opposite sex. The
+// female of the pair conceives a litter, and both go on a breeding cooldown so a
+// warren does not multiply every tick. Returns whether a mating happened.
+func (w *World) tryMate(e *Entity) bool {
+	if !w.canBreed(e) {
+		return false
+	}
+	for _, d := range neighbors8 {
+		mate := w.entityAt(e.Pos.Add(d.X, d.Y))
+		if mate == nil || !w.canBreed(mate) || mate.sex == e.sex {
+			continue
+		}
+		female, male := e, mate
+		if female.sex != SexFemale {
+			female, male = mate, e
+		}
+		female.pregnant = true
+		female.dueTick = w.tick + w.cfg.MouseGestationTicks
+		e.mateReadyTick = w.tick + w.cfg.MouseBreedCooldown
+		mate.mateReadyTick = w.tick + w.cfg.MouseBreedCooldown
+		e.State, mate.State = Idle, Idle
+		w.log.add(fmt.Sprintf("Mice #%d and #%d mate.", male.ID, female.ID))
+		return true
+	}
+	return false
+}
+
+// giveBirth delivers a pregnant mouse's litter onto free floor tiles around her,
+// then resets her to a post-birth breeding cooldown. Litter size is random
+// within the configured range; pups with nowhere to land are simply not born (a
+// crowded cavern limits the warren). Newborns cannot breed until they mature.
+func (w *World) giveBirth(e *Entity) {
+	e.pregnant = false
+	e.mateReadyTick = w.tick + w.cfg.MouseBreedCooldown
+	litter := w.cfg.MouseLitterMin
+	if span := w.cfg.MouseLitterMax - w.cfg.MouseLitterMin; span > 0 {
+		litter += w.rng.Intn(span + 1)
+	}
+	born := 0
+	for _, d := range neighbors8 {
+		if born >= litter {
+			break
+		}
+		p := e.Pos.Add(d.X, d.Y)
+		if !w.Walkable(p) || w.occupied(p) {
+			continue
+		}
+		pup := w.spawn(Mouse, p)
+		pup.mateReadyTick = w.tick + w.cfg.MouseMaturityTicks
+		born++
+	}
+	if born > 0 {
+		w.log.add(fmt.Sprintf("Mouse #%d gives birth to a litter of %d.", e.ID, born))
+	}
 }
 
 // ---- Movement primitives -----------------------------------------------------

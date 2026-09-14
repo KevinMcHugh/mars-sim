@@ -272,6 +272,9 @@ func (w *World) spawn(kind Kind, p Point) *Entity {
 	if kind == Colonist {
 		w.assignPersonality(e) // name, attributes, traits + their effective params
 	}
+	if kind == Mouse {
+		e.sex = w.rollMouseSex() // decides which mice can carry a litter
+	}
 	w.nextID++
 	w.entities[e.ID] = e
 	w.occ[w.index(p)] = e.ID

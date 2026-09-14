@@ -103,6 +103,7 @@ func bindConfigFlags(cfg *sim.Config) {
 	flag.IntVar(&cfg.BuildTicks, "build-ticks", cfg.BuildTicks, "ticks of work to raise one wall")
 	flag.IntVar(&cfg.FacilityBuildTicks, "facility-ticks", cfg.FacilityBuildTicks, "ticks of work to build a pod or toilet")
 	flag.IntVar(&cfg.FleeRadius, "flee-radius", cfg.FleeRadius, "colonist flees when an alien is within this many tiles")
+	flag.IntVar(&cfg.ColonistStompRadius, "stomp-radius", cfg.ColonistStompRadius, "an idle colonist chases and crushes a mouse within this many tiles")
 	flag.IntVar(&cfg.StarveDamage, "starve-damage", cfg.StarveDamage, "HP lost per tick while starving")
 	flag.IntVar(&cfg.ColonistsPerFacility, "per-facility", cfg.ColonistsPerFacility, "colonists served by each life-support facility")
 	flag.IntVar(&cfg.RestTicks, "rest-ticks", cfg.RestTicks, "ticks an idle colonist rests before re-checking for work")
@@ -125,6 +126,11 @@ func bindConfigFlags(cfg *sim.Config) {
 	flag.IntVar(&cfg.MouseHP, "mouse-hp", cfg.MouseHP, "mouse hit points")
 	flag.IntVar(&cfg.MouseHungerRise, "mouse-hunger-rise", cfg.MouseHungerRise, "food need a mouse gains per tick (mice eat frequently)")
 	flag.IntVar(&cfg.MouseFleeRadius, "mouse-flee-radius", cfg.MouseFleeRadius, "mouse flees when a cat is within this many tiles")
+	flag.IntVar(&cfg.MouseGestationTicks, "mouse-gestation", cfg.MouseGestationTicks, "ticks a pregnant mouse carries a litter before giving birth")
+	flag.IntVar(&cfg.MouseLitterMin, "mouse-litter-min", cfg.MouseLitterMin, "smallest mouse litter size")
+	flag.IntVar(&cfg.MouseLitterMax, "mouse-litter-max", cfg.MouseLitterMax, "largest mouse litter size")
+	flag.IntVar(&cfg.MouseBreedCooldown, "mouse-breed-cooldown", cfg.MouseBreedCooldown, "ticks a mouse waits before it can mate again")
+	flag.IntVar(&cfg.MouseMaturityTicks, "mouse-maturity", cfg.MouseMaturityTicks, "ticks a newborn mouse takes to mature enough to breed")
 }
 
 // validateConfig rejects settings that would break world generation or the
@@ -143,6 +149,8 @@ func validateConfig(cfg sim.Config) error {
 		return fmt.Errorf("rest-ticks must be at least 1 (got %d)", cfg.RestTicks)
 	case cfg.TraitChance < 0 || cfg.TraitChance > 100:
 		return fmt.Errorf("trait-chance must be between 0 and 100 (got %d)", cfg.TraitChance)
+	case cfg.MouseLitterMin < 0 || cfg.MouseLitterMax < cfg.MouseLitterMin:
+		return fmt.Errorf("mouse litter range is invalid: min %d, max %d", cfg.MouseLitterMin, cfg.MouseLitterMax)
 	}
 	return nil
 }

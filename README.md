@@ -37,7 +37,7 @@ The **roster** (`tab`) lists every colonist; `↑`/`↓` select one to inspect i
 name, attributes, health, needs, eight-slot inventory, and traits. `tab` or
 `esc` returns to the map.
 
-Glyphs: 👷 colonist · 😱 fleeing colonist · 👽 alien · 🟫 rock · 🧱 wall · 🍽️ nutrient pod · 🚽 toilet · blank = open floor.
+Glyphs: 👷 colonist · 😱 fleeing colonist · 🥾 colonist stomping a mouse · 👽 alien · 🐈 cat · 🐁 mouse · 🟫 rock · 🧱 wall · 🍽️ nutrient pod · 🚽 toilet · blank = open floor.
 
 > The map uses one emoji per tile so it stays aligned. If it looks sheared, your
 > terminal is sizing emoji as a single cell instead of two.
@@ -83,6 +83,29 @@ mutable state:
     homogeneous stack of up to 64 items.
   - **Aliens** burrow through *any* terrain to reach the nearest colonist and
     eat it.
+  - **Cats** stalk the floor hunting mice, pouncing when adjacent (a single
+    pounce is fatal). They have no needs; they hunt by instinct.
+  - **Mice** are pests that scurry the floor and nibble the colony's nutrient
+    pods, sharing the colonists' food need but hungering far faster. They flee
+    cats, and the colony keeps them in check (see *Wildlife*).
+
+#### Wildlife
+
+Cats and mice form a small ecosystem on the cavern floor, and the colonists take
+part in it:
+
+- **Colonists stomp mice.** A colonist with nothing pressing to do — no alien to
+  flee, no urgent need, and no reachable work — will chase down a mouse it notices
+  (within `ColonistStompRadius`) and crush it. A stomp is instantly fatal. Pest
+  control is strictly an idle whim: a threat, an urgent need, or any available
+  job always wins, so stomping never pulls a colonist off real work.
+- **Mice breed.** Two adjacent mice of opposite sex with nothing pressing to do
+  mate; the female then carries a litter for `MouseGestationTicks` before giving
+  birth to `MouseLitterMin`..`MouseLitterMax` pups on nearby floor. A newborn
+  cannot breed until it matures (`MouseMaturityTicks`), and a female waits out
+  `MouseBreedCooldown` before her next litter, so a warren grows but does not
+  explode every tick. Cats, colonists' boots, and starvation without reachable
+  food all push back the other way.
 
 #### Needs
 

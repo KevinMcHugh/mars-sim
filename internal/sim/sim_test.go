@@ -340,6 +340,97 @@ func TestCatEatsMouse(t *testing.T) {
 	}
 }
 
+// A colonist with nothing pressing to do — no threat, no urgent need, no work —
+// should crush a mouse it sees. Sealing a small floor pocket leaves the colonist
+// idle (no rock to mine, no reachable construction), so it stomps the pest.
+func TestIdleColonistStompsMouse(t *testing.T) {
+	cfg := testConfig()
+	cfg.StartColonists, cfg.StartAliens, cfg.StartCats, cfg.StartMice = 0, 0, 0, 0
+	w := newTestWorld(t, cfg)
+
+	center := Point{w.Width / 2, w.Height / 2}
+	// Wall a 3x3 pocket so no mineable rock borders its floor.
+	for y := -2; y <= 2; y++ {
+		for x := -2; x <= 2; x++ {
+			w.SetTerrain(center.Add(x, y), Wall)
+		}
+	}
+	for y := -1; y <= 1; y++ {
+		for x := -1; x <= 1; x++ {
+			w.SetTerrain(center.Add(x, y), Floor)
+		}
+	}
+
+	m := w.spawn(Mouse, center.Add(1, 0))
+	c := w.spawn(Colonist, center)
+	// Fully satisfied, so no need preempts the stomp.
+	c.Needs[NeedFood], c.Needs[NeedBladder] = 0, 0
+	c.needSince[NeedFood], c.needSince[NeedBladder] = w.tick, w.tick
+
+	for i := 0; i < 10 && w.entities[m.ID] != nil; i++ {
+		w.step()
+	}
+	if w.entities[m.ID] != nil {
+		t.Fatal("idle colonist never stomped the nearby mouse")
+	}
+}
+
+// Two adjacent mice of opposite sex should mate, and the female should carry a
+// litter to term and give birth, growing the population.
+func TestMiceBreedAndGiveBirth(t *testing.T) {
+	cfg := testConfig()
+	cfg.StartColonists, cfg.StartAliens, cfg.StartCats, cfg.StartMice = 0, 0, 0, 0
+	cfg.MouseGestationTicks = 4
+	cfg.MouseLitterMin, cfg.MouseLitterMax = 3, 3
+	cfg.MouseBreedCooldown = 100
+	cfg.MouseMaturityTicks = 100
+	w := newTestWorld(t, cfg)
+
+	center := Point{w.Width / 2, w.Height / 2}
+	for y := -2; y <= 2; y++ {
+		for x := -2; x <= 2; x++ {
+			w.SetTerrain(center.Add(x, y), Floor)
+		}
+	}
+	male := w.spawn(Mouse, center)
+	male.sex = SexMale
+	female := w.spawn(Mouse, center.Add(1, 0))
+	female.sex = SexFemale
+
+	for i := 0; i < cfg.MouseGestationTicks+5; i++ {
+		w.step()
+	}
+	if got, want := w.countKind(Mouse), 2+cfg.MouseLitterMin; got != want {
+		t.Fatalf("mouse count after a litter: got %d want %d", got, want)
+	}
+}
+
+// Two mice of the same sex must never breed, so the population stays put.
+func TestSameSexMiceDoNotBreed(t *testing.T) {
+	cfg := testConfig()
+	cfg.StartColonists, cfg.StartAliens, cfg.StartCats, cfg.StartMice = 0, 0, 0, 0
+	cfg.MouseGestationTicks = 4
+	w := newTestWorld(t, cfg)
+
+	center := Point{w.Width / 2, w.Height / 2}
+	for y := -2; y <= 2; y++ {
+		for x := -2; x <= 2; x++ {
+			w.SetTerrain(center.Add(x, y), Floor)
+		}
+	}
+	a := w.spawn(Mouse, center)
+	a.sex = SexMale
+	b := w.spawn(Mouse, center.Add(1, 0))
+	b.sex = SexMale
+
+	for i := 0; i < cfg.MouseGestationTicks+5; i++ {
+		w.step()
+	}
+	if got := w.countKind(Mouse); got != 2 {
+		t.Fatalf("same-sex mice bred: mouse count %d, want 2", got)
+	}
+}
+
 // With no mice to hunt, cats must not crash and should still be around.
 func TestCatsWanderWithoutPrey(t *testing.T) {
 	cfg := testConfig()

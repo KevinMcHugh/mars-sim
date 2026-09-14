@@ -28,6 +28,10 @@ type Config struct {
 	BuildTicks         int // ticks of work to raise one Wall
 	FacilityBuildTicks int // ticks of work to build a nutrient pod or toilet
 	FleeRadius         int // flee when an alien is within this many tiles
+	// StompRadius is how far an idle colonist notices a mouse and gives chase to
+	// crush it. Stomping is an idle whim: only colonists with nothing pressing
+	// (no threat, no urgent need, no work) hunt pests.
+	ColonistStompRadius int
 
 	// Needs. One NeedSpec per NeedKind, indexed by that kind.
 	Needs                [numNeeds]NeedSpec
@@ -63,25 +67,36 @@ type Config struct {
 	MouseHP         int
 	MouseHungerRise int // NeedFood gained per tick for mice (vs. Needs[NeedFood].Rise for colonists)
 	MouseFleeRadius int // flee when a cat is within this many tiles
+
+	// Mouse breeding. Two adjacent mice of opposite sex mate; the female then
+	// carries a litter for MouseGestationTicks before birthing MouseLitterMin..Max
+	// pups onto nearby floor. MouseBreedCooldown spaces out a female's litters,
+	// and a newborn cannot breed for MouseMaturityTicks.
+	MouseGestationTicks int
+	MouseLitterMin      int
+	MouseLitterMax      int
+	MouseBreedCooldown  int
+	MouseMaturityTicks  int
 }
 
 // DefaultConfig returns a balanced starting point for a playable scaffold.
 func DefaultConfig() Config {
 	return Config{
-		Width:              80,
-		Height:             40,
-		Seed:               time.Now().UnixNano(),
-		StartColonists:     6,
-		StartAliens:        3,
-		StartCats:          2,
-		StartMice:          8,
-		TicksPerSecond:     8,
-		LogSize:            64,
-		ColonistHP:         40,
-		MineTicks:          6,
-		BuildTicks:         8,
-		FacilityBuildTicks: 12,
-		FleeRadius:         5,
+		Width:               80,
+		Height:              40,
+		Seed:                time.Now().UnixNano(),
+		StartColonists:      6,
+		StartAliens:         3,
+		StartCats:           2,
+		StartMice:           8,
+		TicksPerSecond:      8,
+		LogSize:             64,
+		ColonistHP:          40,
+		MineTicks:           6,
+		BuildTicks:          8,
+		FacilityBuildTicks:  12,
+		FleeRadius:          5,
+		ColonistStompRadius: 4,
 
 		StarveDamage:         1,
 		ColonistsPerFacility: 10,
@@ -113,6 +128,12 @@ func DefaultConfig() Config {
 		MouseHP:         4,
 		MouseHungerRise: 8, // 4x the colonist food rise: mice eat very frequently
 		MouseFleeRadius: 6,
+
+		MouseGestationTicks: 300,
+		MouseLitterMin:      2,
+		MouseLitterMax:      5,
+		MouseBreedCooldown:  200,
+		MouseMaturityTicks:  400,
 	}
 }
 
