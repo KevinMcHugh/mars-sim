@@ -159,8 +159,11 @@ but traits change how a colonist plays:
 | Light Eater  | hungers slower                            |
 | Industrious  | works faster and rests less               |
 | Lazy         | works slower and rests more               |
+| Asocial      | never develops a social need              |
+| Introvert    | social need rises slowly; too much talking lowers mood |
+| Extrovert    | social need rises quickly                 |
 
-Traits are drawn from mutually exclusive groups (appetite, work ethic); a
+Traits are drawn from mutually exclusive groups (appetite, work ethic, social); a
 colonist gets at most one per group, each with `TraitChance` probability
 (`-trait-chance`, default 30; 0 disables traits). At spawn a colonist's traits
 resolve into per-colonist effective parameters (need rise rates, rest duration,

@@ -478,8 +478,8 @@ func (w *World) finishTalk(a, b *Entity) {
 	quality := w.rollTalkQuality(existing)
 	w.addAffinity(a.ID, b.ID, w.talkAffinityDelta(existing, quality))
 	mood := w.talkMoodDelta(quality, existing)
-	w.adjustMood(a, mood)
-	w.adjustMood(b, mood)
+	w.adjustMood(a, mood+w.noteConversation(a))
+	w.adjustMood(b, mood+w.noteConversation(b))
 }
 
 // assignWorkJob picks something productive to do: help build a planned project

@@ -80,6 +80,7 @@ type Config struct {
 	MoodMax                int
 	MoodCompanyWeight      int
 	MoodConversationWeight int
+	SocialWindowTicks      int // rolling window used for introvert conversation fatigue
 
 	// Mining strategy switch. Below both thresholds, miners use cached A* to a
 	// claimed tile (cheaper for small colonies); at or above either, they follow
@@ -154,6 +155,7 @@ func DefaultConfig() Config {
 		MoodMax:                100,
 		MoodCompanyWeight:      6,
 		MoodConversationWeight: 10,
+		SocialWindowTicks:      200,
 
 		FrontierFieldMinColonists: 800,
 		FrontierFieldMinArea:      90000, // ~300x300 and up
@@ -167,7 +169,7 @@ func DefaultConfig() Config {
 				Facility: Toilet, UseTicks: 10, Fatal: false,
 			},
 			NeedSocial: {
-				Name: "social", Rise: 1, SeekAt: 500, Max: 1000,
+				Name: "social", Rise: 2, SeekAt: 500, Max: 1000,
 				Facility: Rock, UseTicks: 0, Fatal: false,
 			},
 			NeedSleep: {
