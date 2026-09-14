@@ -586,7 +586,7 @@ func (w *World) jobMine(e *Entity) {
 					return
 				}
 				w.SetTerrain(e.Target, Floor) // TileChanged drops it from the frontier
-				w.remember(e, fmt.Sprintf("Finished mining at %v.", e.Target))
+				w.remember(e, fmt.Sprintf("Finished mining at (%d, %d).", e.Target.X, e.Target.Y))
 				w.clearJob(e)
 			}
 			return
@@ -651,7 +651,8 @@ func (w *World) jobBuild(e *Entity) {
 	if e.Progress >= scaleTicks(w.buildTicks(e.BuildKind), e.workScale) {
 		w.SetTerrain(e.Target, e.BuildKind)
 		w.noteBuild(e.BuildKind)
-		w.remember(e, fmt.Sprintf("Finished construction of %s at %v.", e.BuildKind, e.Target))
+		w.remember(e, fmt.Sprintf("Finished construction of %s at (%d, %d).",
+			e.BuildKind, e.Target.X, e.Target.Y))
 		w.clearJob(e) // endBuild decrements the in-progress counter
 	}
 }
