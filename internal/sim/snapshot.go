@@ -78,7 +78,7 @@ func (w *World) snapshot(paused bool, tps int) *Snapshot {
 	copy(tiles, w.tiles)
 
 	ents := make([]EntityView, 0, len(w.entities))
-	kinChildren := w.kinChildren()
+	kinChildren := w.cachedKinChildren()
 	stats := Stats{Rooms: w.roomCount}
 	for _, t := range tiles {
 		switch t.Terrain {
@@ -106,7 +106,7 @@ func (w *World) snapshot(paused bool, tps int) *Snapshot {
 		}
 		if e.Kind == Colonist {
 			ev.Memories = append([]Memory(nil), e.Memories...)
-			ev.Relations = w.relativesOf(e, kinChildren)
+			ev.Relations = append([]Relation(nil), w.cachedRelations(e, kinChildren)...)
 			ev.Affinities = w.affinitiesOf(e.ID)
 			ev.Mood = e.mood
 		}

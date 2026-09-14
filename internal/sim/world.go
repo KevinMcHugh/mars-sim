@@ -133,9 +133,12 @@ type World struct {
 	// Family tree and affinity, both colonist-only. kin holds every tree node
 	// (colonists plus phantom ancestors); affinity[a][b] is a's warmth toward b,
 	// raised when they talk. See relationships.go.
-	kin       map[kinID]*kinPerson
-	nextKinID kinID
-	affinity  map[EntityID]map[EntityID]int
+	kin                 map[kinID]*kinPerson
+	nextKinID           kinID
+	kinRevision         uint64
+	kinChildrenCache    map[kinID][]kinID
+	kinChildrenRevision uint64
+	affinity            map[EntityID]map[EntityID]int
 
 	entities map[EntityID]*Entity
 	nextID   EntityID
@@ -152,21 +155,23 @@ type World struct {
 func newWorld(cfg Config, rng *rand.Rand) *World {
 	n := cfg.Width * cfg.Height
 	w := &World{
-		Width:      cfg.Width,
-		Height:     cfg.Height,
-		tiles:      make([]Tile, n),
-		occ:        make([]EntityID, n),
-		entities:   make(map[EntityID]*Entity),
-		buildTiles: make(map[Point]bool),
-		kin:        make(map[kinID]*kinPerson),
-		nextKinID:  1,
-		affinity:   make(map[EntityID]map[EntityID]int),
-		nextID:     1,
-		rng:        rng,
-		prng:       rand.New(rand.NewSource(cfg.Seed ^ 0x5DEECE66D)),
-		agePRNG:    rand.New(rand.NewSource(cfg.Seed ^ 0x6A09E667)),
-		log:        newEventLog(cfg.LogSize),
-		cfg:        cfg,
+		Width:            cfg.Width,
+		Height:           cfg.Height,
+		tiles:            make([]Tile, n),
+		occ:              make([]EntityID, n),
+		entities:         make(map[EntityID]*Entity),
+		buildTiles:       make(map[Point]bool),
+		kin:              make(map[kinID]*kinPerson),
+		nextKinID:        1,
+		kinRevision:      1,
+		kinChildrenCache: make(map[kinID][]kinID),
+		affinity:         make(map[EntityID]map[EntityID]int),
+		nextID:           1,
+		rng:              rng,
+		prng:             rand.New(rand.NewSource(cfg.Seed ^ 0x5DEECE66D)),
+		agePRNG:          rand.New(rand.NewSource(cfg.Seed ^ 0x6A09E667)),
+		log:              newEventLog(cfg.LogSize),
+		cfg:              cfg,
 	}
 	w.terrainCounts[Rock] = n // every tile starts as Rock
 

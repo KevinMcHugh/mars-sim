@@ -174,7 +174,12 @@ func (w *World) relate(c, r *Entity) {
 // kind, creating phantom nodes as needed. It reports whether the tie was applied
 // (some ties are not always possible). c is freshly generated, so its own slots
 // are empty.
-func (w *World) wireRelation(c, r *Entity, kind RelationKind) bool {
+func (w *World) wireRelation(c, r *Entity, kind RelationKind) (ok bool) {
+	defer func() {
+		if ok {
+			w.kinRevision++
+		}
+	}()
 	kc, kr := c.kin, r.kin
 	pc, pr := w.kin[kc], w.kin[kr]
 	switch kind {
@@ -245,6 +250,16 @@ func (w *World) wireRelation(c, r *Entity, kind RelationKind) bool {
 	return false
 }
 
+// cachedRelations returns the stable display relationships for e. The cache is
+// invalidated by kinRevision whenever a new familial link is added.
+func (w *World) cachedRelations(e *Entity, children map[kinID][]kinID) []Relation {
+	if e.relationRevision != w.kinRevision {
+		e.relations = w.relativesOf(e, children)
+		e.relationRevision = w.kinRevision
+	}
+	return e.relations
+}
+
 // validParent is tolerant of hand-built profiles with no age. Real colonists
 // always have an age, while this keeps tree helpers useful for tools and tests
 // that only populate the fields relevant to their scenario.
@@ -294,6 +309,14 @@ func (w *World) kinChildren() map[kinID][]kinID {
 		}
 	}
 	return ch
+}
+
+func (w *World) cachedKinChildren() map[kinID][]kinID {
+	if w.kinChildrenRevision != w.kinRevision {
+		w.kinChildrenCache = w.kinChildren()
+		w.kinChildrenRevision = w.kinRevision
+	}
+	return w.kinChildrenCache
 }
 
 // relativesOf derives a colonist's familial ties to other colonists by walking
