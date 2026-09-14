@@ -56,6 +56,20 @@ func (g Gender) String() string {
 	}
 }
 
+// Pronouns returns the short subject/object pronoun pair used in the UI.
+func (g Gender) Pronouns() string {
+	switch g {
+	case GenderMan:
+		return "he/him"
+	case GenderWoman:
+		return "she/her"
+	case GenderNonbinary:
+		return "they/them"
+	default:
+		return "they/them"
+	}
+}
+
 // Orientation is a colonist's sexual orientation.
 type Orientation uint8
 

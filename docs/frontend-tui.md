@@ -43,9 +43,10 @@ toggles them. Global keys (`handleKey`) work on both screens; the rest dispatch 
   terminal cells per tile, overlaying entity glyphs (aliens win position ties).
   A sidebar shows a legend and the tail of the event log; the header shows tick,
   speed, pause state, and `Stats` counts, including built dormitory beds.
-- **Roster** (`renderRoster`): a scrolling, ID-sorted colonist list plus a
-  detail pane for the selected colonist — name, attributes, HP, needs, the
-  eight-slot inventory, and traits.
+- **Roster** (`renderRoster`): a scrolling, ID-sorted colonist list with each
+  colonist's name, pronouns, and current status, plus a detail pane for the
+  selected colonist — name, attributes, HP, needs, the eight-slot inventory,
+  recent memories, and traits.
 
 ### Controls
 

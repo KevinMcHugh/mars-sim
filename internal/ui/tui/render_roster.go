@@ -56,8 +56,8 @@ func (m Model) renderRoster() string {
 	return strings.Join([]string{header, body, footer}, "\n")
 }
 
-// renderColonistList draws the scrolling name column, keeping the selection in
-// view.
+// renderColonistList draws the scrolling name/status column, keeping the
+// selection in view.
 func (m Model) renderColonistList(cs []sim.EntityView, sel, rows int) string {
 	capacity := rows - 3 // box borders + the heading line
 	if capacity < 1 {
@@ -76,8 +76,13 @@ func (m Model) renderColonistList(cs []sim.EntityView, sel, rows int) string {
 	b.WriteString(labelStyle.Render(fmt.Sprintf("COLONISTS (%d)", len(cs))))
 	b.WriteByte('\n')
 	for i := start; i < end; i++ {
-		name := colonistName(cs[i])
-		line := truncate(name, rosterListWidth-4)
+		c := cs[i]
+		name := colonistName(c)
+		pronouns := "they/them"
+		if c.Profile != nil {
+			pronouns = c.Profile.Gender.Pronouns()
+		}
+		line := truncate(fmt.Sprintf("%s · %s · %s", name, pronouns, c.State), rosterListWidth-4)
 		if i == sel {
 			b.WriteString(rosterSelStyle.Render("› " + line))
 		} else {
@@ -139,6 +144,20 @@ func (m Model) renderColonistDetail(c sim.EntityView, rows int) string {
 			item = fmt.Sprintf("%s ×%d", stack.Kind, stack.Count)
 		}
 		b.WriteString(statStyle.Render(fmt.Sprintf("  %d. %s", i+1, item)) + "\n")
+	}
+
+	b.WriteString("\n" + labelStyle.Render("MEMORIES") + "\n")
+	if len(c.Memories) == 0 {
+		b.WriteString(statStyle.Render("  no memories yet"))
+	} else {
+		start := len(c.Memories) - 5
+		if start < 0 {
+			start = 0
+		}
+		for _, memory := range c.Memories[start:] {
+			line := fmt.Sprintf("  t%d: %s", memory.Tick, memory.Text)
+			b.WriteString(statStyle.Render(truncate(line, width-4)) + "\n")
+		}
 	}
 
 	b.WriteString("\n" + labelStyle.Render("TRAITS") + "\n")
