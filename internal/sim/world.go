@@ -140,11 +140,12 @@ type World struct {
 	entities map[EntityID]*Entity
 	nextID   EntityID
 
-	tick int
-	rng  *rand.Rand
-	prng *rand.Rand // personality generation, separate so flavor never perturbs the sim
-	log  *eventLog
-	cfg  Config
+	tick    int
+	rng     *rand.Rand
+	prng    *rand.Rand // personality generation, separate so flavor never perturbs the sim
+	agePRNG *rand.Rand // age generation, isolated so adding age does not shift personality
+	log     *eventLog
+	cfg     Config
 }
 
 // newWorld allocates an all-Rock world of the given size.
@@ -163,6 +164,7 @@ func newWorld(cfg Config, rng *rand.Rand) *World {
 		nextID:     1,
 		rng:        rng,
 		prng:       rand.New(rand.NewSource(cfg.Seed ^ 0x5DEECE66D)),
+		agePRNG:    rand.New(rand.NewSource(cfg.Seed ^ 0x6A09E667)),
 		log:        newEventLog(cfg.LogSize),
 		cfg:        cfg,
 	}

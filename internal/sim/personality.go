@@ -234,7 +234,7 @@ func (w *World) assignPersonality(e *Entity) {
 // generated person can work, while the range still leaves room for believable
 // parent/child relationships.
 func (w *World) rollAge() int {
-	return 18 + w.prng.Intn(63) // 18..80
+	return 18 + w.agePRNG.Intn(63) // 18..80
 }
 
 // resolveTraitEffects recomputes a colonist's effective parameters from its

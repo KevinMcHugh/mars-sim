@@ -17,9 +17,11 @@ older than their child.
 
 ## How it works
 
-`Profile.Age` is generated on the personality RNG stream in the inclusive range
-18–80. This keeps age as flavor data, like height and weight, without changing
-simulation outcomes. When a generated family tie would make one colonist a
+`Profile.Age` is generated on a deterministic, personality-owned flavor stream in
+the inclusive range 18–80. The age stream is isolated from the existing
+personality/family stream, so adding age does not reshuffle names, traits, or
+family topology. This keeps age as flavor data, like height and weight, without
+changing simulation outcomes. When a generated family tie would make one colonist a
 parent of another, `wireRelation` accepts it only if the proposed parent is at
 least 20 years older. A spouse is added as a second parent only when that spouse
 also satisfies the same rule.

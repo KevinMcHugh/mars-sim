@@ -86,6 +86,9 @@ func TestKinSiblingsAndNiblings(t *testing.T) {
 	a := w.spawn(Colonist, Point{1, 1})
 	b := w.spawn(Colonist, Point{2, 1})
 	kid := w.spawn(Colonist, Point{3, 1})
+	a.Profile.Age = 60
+	b.Profile.Age = 40
+	kid.Profile.Age = 20
 
 	if !w.wireRelation(b, a, RelSibling) {
 		t.Fatal("could not wire siblings")
