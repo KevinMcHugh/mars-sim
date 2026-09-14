@@ -50,6 +50,7 @@ const (
 	Fleeing         // running from a nearby predator (colonist from alien, mouse from cat)
 	Hunting         // predator closing on prey (alien on colonist, cat on mouse)
 	Feeding         // predator eating prey it has caught
+	Talking         // chatting with another colonist (builds affinity)
 )
 
 func (s State) String() string {
@@ -66,6 +67,8 @@ func (s State) String() string {
 		return "eating"
 	case Relieving:
 		return "relieving"
+	case Talking:
+		return "talking"
 	case Fleeing:
 		return "fleeing"
 	case Hunting:
@@ -86,6 +89,7 @@ const (
 	JobMine          // excavate the Rock tile at Target
 	JobBuild         // construct BuildKind on the Floor tile at Target
 	JobUse           // walk to the facility at Target and satisfy Need
+	JobTalk          // walk to partner and chat, raising the pair's affinity
 )
 
 // EntityID uniquely identifies an entity for its lifetime. IDs are never reused.
@@ -127,12 +131,22 @@ type Entity struct {
 	// Inventory is carried by colonists. Each slot contains one homogeneous
 	// stack; other entity kinds leave it empty.
 	Inventory Inventory
+	// kin is the colonist's node in the colony's family tree (colonists only; 0
+	// for aliens). Familial ties are derived from the tree on demand. See
+	// relationships.go.
+	kin kinID
+
+	// mood is the colonist's disposition in [-MoodMax, MoodMax], 0 neutral
+	// (colonists only). Tasks such as conversations shift it; nothing simulates
+	// against it yet. See relationships.go.
+	mood int
 
 	// Current job and its parameters.
 	Job       JobKind
 	Target    Point    // tile the job operates on or travels to
 	BuildKind Terrain  // JobBuild: terrain to construct
 	Need      NeedKind // JobUse: which need this fulfills
+	partner   EntityID // JobTalk: the colonist being talked with; 0 if none
 	Progress  int      // ticks accumulated on the current action
 
 	// Rest scheduling: an idle colonist with no available work rests (skips the

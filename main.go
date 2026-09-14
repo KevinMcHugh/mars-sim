@@ -107,6 +107,18 @@ func bindConfigFlags(cfg *sim.Config) {
 	flag.IntVar(&cfg.ColonistsPerFacility, "per-facility", cfg.ColonistsPerFacility, "colonists served by each life-support facility")
 	flag.IntVar(&cfg.RestTicks, "rest-ticks", cfg.RestTicks, "ticks an idle colonist rests before re-checking for work")
 	flag.IntVar(&cfg.TraitChance, "trait-chance", cfg.TraitChance, "percent chance a colonist gets a trait from each trait group (0 disables)")
+	flag.IntVar(&cfg.FamilyChance, "family-chance", cfg.FamilyChance, "percent chance a new colonist is tied to an existing one by family (0 disables)")
+	flag.IntVar(&cfg.TalkChance, "talk-chance", cfg.TalkChance, "percent chance an idle colonist starts a conversation (0 disables talking)")
+	flag.IntVar(&cfg.TalkRadius, "talk-radius", cfg.TalkRadius, "how far a colonist looks for a conversation partner")
+	flag.IntVar(&cfg.TalkTicks, "talk-ticks", cfg.TalkTicks, "ticks a conversation lasts before affinity is credited")
+	flag.IntVar(&cfg.TalkAffinityGain, "talk-affinity-gain", cfg.TalkAffinityGain, "base affinity step per conversation (scaled by outcome and diminishing returns)")
+	flag.IntVar(&cfg.AffinityMax, "affinity-max", cfg.AffinityMax, "affinity runs in [-affinity-max, affinity-max]; talking alone saturates at half")
+	flag.IntVar(&cfg.TalkQualityBias, "talk-quality-bias", cfg.TalkQualityBias, "baseline lean of conversation quality (-100..100)")
+	flag.IntVar(&cfg.TalkQualityValence, "talk-quality-valence", cfg.TalkQualityValence, "how strongly existing affinity biases conversation quality")
+	flag.IntVar(&cfg.TalkQualitySpread, "talk-quality-spread", cfg.TalkQualitySpread, "random swing around a conversation's mean quality")
+	flag.IntVar(&cfg.MoodMax, "mood-max", cfg.MoodMax, "colonist mood runs in [-mood-max, mood-max]")
+	flag.IntVar(&cfg.MoodCompanyWeight, "mood-company-weight", cfg.MoodCompanyWeight, "mood shift per conversation from how one feels about the other")
+	flag.IntVar(&cfg.MoodConversationWeight, "mood-conversation-weight", cfg.MoodConversationWeight, "mood shift per conversation from how the chat itself went")
 	flag.IntVar(&cfg.FrontierFieldMinColonists, "frontier-field-colonists", cfg.FrontierFieldMinColonists, "colony size at/above which miners use the shared frontier flow field")
 	flag.IntVar(&cfg.FrontierFieldMinArea, "frontier-field-area", cfg.FrontierFieldMinArea, "map area (tiles) at/above which miners use the shared frontier flow field")
 
@@ -143,6 +155,16 @@ func validateConfig(cfg sim.Config) error {
 		return fmt.Errorf("rest-ticks must be at least 1 (got %d)", cfg.RestTicks)
 	case cfg.TraitChance < 0 || cfg.TraitChance > 100:
 		return fmt.Errorf("trait-chance must be between 0 and 100 (got %d)", cfg.TraitChance)
+	case cfg.FamilyChance < 0 || cfg.FamilyChance > 100:
+		return fmt.Errorf("family-chance must be between 0 and 100 (got %d)", cfg.FamilyChance)
+	case cfg.TalkChance < 0 || cfg.TalkChance > 100:
+		return fmt.Errorf("talk-chance must be between 0 and 100 (got %d)", cfg.TalkChance)
+	case cfg.TalkChance > 0 && (cfg.TalkRadius < 1 || cfg.TalkTicks < 1):
+		return fmt.Errorf("talk-radius and talk-ticks must be at least 1 when talking is enabled")
+	case cfg.AffinityMax < 1:
+		return fmt.Errorf("affinity-max must be at least 1 (got %d)", cfg.AffinityMax)
+	case cfg.MoodMax < 1:
+		return fmt.Errorf("mood-max must be at least 1 (got %d)", cfg.MoodMax)
 	}
 	return nil
 }

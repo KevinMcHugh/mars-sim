@@ -161,6 +161,12 @@ func (w *World) colonistTurn(e *Entity) {
 			w.stepAside(e)
 			return
 		}
+		// Nothing productive to do: chat with a nearby colonist if one is free,
+		// which builds affinity between them. Otherwise rest.
+		if w.tryStartTalk(e) {
+			w.runJob(e)
+			return
+		}
 		e.resting = true
 		e.wakeTick = w.tick + e.restTicks
 		e.State = Idle
@@ -307,7 +313,7 @@ func (w *World) clearJob(e *Entity) {
 			w.board.endBuild(e.BuildKind) // lone emergency build
 		}
 	}
-	e.Job, e.Progress = JobNone, 0
+	e.Job, e.Progress, e.partner = JobNone, 0, 0
 	e.clearPath()
 }
 
@@ -320,10 +326,108 @@ func (w *World) runJob(e *Entity) {
 		w.jobBuild(e)
 	case JobUse:
 		w.jobUse(e)
+	case JobTalk:
+		w.jobTalk(e)
 	default:
 		e.State = Idle
 		w.wanderStep(e)
 	}
+}
+
+// ---- Talking -----------------------------------------------------------------
+
+// tryStartTalk lets an idle colonist strike up a conversation with a nearby free
+// colonist, committing both to JobTalk. It reports whether a conversation began.
+// TalkChance gates it (0 disables talking entirely, and the sim then plays as it
+// did before the activity existed).
+func (w *World) tryStartTalk(e *Entity) bool {
+	if w.cfg.TalkChance <= 0 || w.rng.Intn(100) >= w.cfg.TalkChance {
+		return false
+	}
+	partner, ok := w.nearestMatch(e.Pos, w.cfg.TalkRadius, func(o *Entity) bool {
+		return o.Kind == Colonist && o.ID != e.ID && w.availableToTalk(o)
+	})
+	if !ok {
+		return false
+	}
+	w.beginTalk(e, partner)
+	return true
+}
+
+// availableToTalk reports whether a colonist is free to be pulled into a chat:
+// idle with no committed job, not fleeing or seeking a facility, and not parked
+// on a tile others need clear.
+func (w *World) availableToTalk(o *Entity) bool {
+	if o.Job != JobNone || o.State == Fleeing {
+		return false
+	}
+	if _, urgent := w.mostUrgentNeed(o); urgent {
+		return false
+	}
+	return !w.idleWouldBlock(o.Pos)
+}
+
+// beginTalk commits two colonists to a mutual conversation.
+func (w *World) beginTalk(a, b *Entity) {
+	a.resting, b.resting = false, false
+	a.Job, a.partner, a.Progress = JobTalk, b.ID, 0
+	b.Job, b.partner, b.Progress = JobTalk, a.ID, 0
+	a.clearPath()
+	b.clearPath()
+	a.State, b.State = Talking, Talking
+}
+
+// jobTalk runs one tick of a conversation: partners converge, then chat for
+// TalkTicks before the pair's affinity rises. The two must claim each other
+// mutually or the talk is abandoned. To avoid chasing each other, the higher-ID
+// partner walks over while the lower-ID one waits; the lower-ID partner also
+// hosts the shared timer so a conversation is credited once, not once per side.
+func (w *World) jobTalk(e *Entity) {
+	p := w.entities[e.partner]
+	if p == nil || !p.Alive() || p.Kind != Colonist || p.Job != JobTalk || p.partner != e.ID {
+		w.clearJob(e)
+		return
+	}
+	if w.idleWouldBlock(e.Pos) {
+		// Never hold a chat on a tile others need (a facility's access tile or a
+		// pending build tile); drop it and step aside on the next idle turn.
+		w.clearJob(e)
+		return
+	}
+	if !e.Pos.Adjacent(p.Pos) {
+		if e.ID > p.ID {
+			if _, ok := w.travelTo(e, p.Pos); !ok {
+				w.clearJob(e)
+				return
+			}
+			e.State = Moving
+		} else {
+			e.State = Talking // wait in place for the partner to arrive
+		}
+		return
+	}
+	e.State = Talking
+	if e.ID < p.ID { // host drives the shared timer
+		e.Progress++
+		if e.Progress >= w.cfg.TalkTicks {
+			w.finishTalk(e, p)
+			w.clearJob(p)
+			w.clearJob(e)
+		}
+	}
+}
+
+// finishTalk applies a completed conversation's outcome: it rolls the chat's
+// quality, shifts the pair's affinity (exacerbating its existing valence, with
+// diminishing returns), and moves both participants' moods accordingly. See
+// relationships.go.
+func (w *World) finishTalk(a, b *Entity) {
+	existing := w.affinityBetween(a.ID, b.ID)
+	quality := w.rollTalkQuality(existing)
+	w.addAffinity(a.ID, b.ID, w.talkAffinityDelta(existing, quality))
+	mood := w.talkMoodDelta(quality, existing)
+	w.adjustMood(a, mood)
+	w.adjustMood(b, mood)
 }
 
 // assignWorkJob picks something productive to do: help build a planned project
@@ -854,6 +958,13 @@ func (w *World) nearestMouse(from Point, within int) (*Entity, bool) {
 }
 
 func (w *World) nearestOfKind(from Point, kind Kind, within int) (*Entity, bool) {
+	return w.nearestMatch(from, within, func(e *Entity) bool { return e.Kind == kind })
+}
+
+// nearestMatch returns the nearest living entity within range that satisfies
+// match, sharing the chunk-ring scan (and deterministic ID tie-break) with
+// nearestOfKind.
+func (w *World) nearestMatch(from Point, within int, match func(*Entity) bool) (*Entity, bool) {
 	var best *Entity
 	bestDist := within + 1
 	fcx, fcy := from.X/chunkSize, from.Y/chunkSize
@@ -886,7 +997,7 @@ func (w *World) nearestOfKind(from Point, kind Kind, within int) (*Entity, bool)
 				}
 				for _, id := range w.chunkEntities[cy*w.chunkCols+cx] {
 					e := w.entities[id]
-					if e == nil || e.Kind != kind || !e.Alive() {
+					if e == nil || !e.Alive() || !match(e) {
 						continue
 					}
 					d := from.Chebyshev(e.Pos)

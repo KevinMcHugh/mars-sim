@@ -83,6 +83,40 @@ func TestRosterShowsColonistDetail(t *testing.T) {
 	}
 }
 
+// The roster inspector shows a colonist's family ties and affinities, naming the
+// related colonists.
+func TestRosterShowsFamilyAndAffinity(t *testing.T) {
+	snap := makeSnapshot()
+	snap.AffinityMax, snap.MoodMax = 100, 100
+	snap.Entities[0].Profile = &sim.Profile{Name: "Zoe Vargas", Gender: sim.GenderWoman}
+	snap.Entities[0].Mood = 42
+	// Colonists Zoe is related to: one she likes, one she has come to dislike.
+	snap.Entities = append(snap.Entities,
+		sim.EntityView{
+			ID: 3, Kind: sim.Colonist, Pos: sim.Point{X: 1, Y: 2}, HP: 40, MaxHP: 40,
+			Profile: &sim.Profile{Name: "Ravi Boone", Gender: sim.GenderMan},
+		},
+		sim.EntityView{
+			ID: 4, Kind: sim.Colonist, Pos: sim.Point{X: 2, Y: 2}, HP: 40, MaxHP: 40,
+			Profile: &sim.Profile{Name: "Omar Petrov", Gender: sim.GenderMan},
+		},
+	)
+	snap.Entities[0].Relations = []sim.Relation{{Other: 3, Kind: sim.RelSibling}}
+	snap.Entities[0].Affinities = []sim.Affinity{{Other: 3, Value: 40}, {Other: 4, Value: -30}}
+
+	var m tea.Model = New(nil, nil)
+	m, _ = m.Update(tea.WindowSizeMsg{Width: 100, Height: 40})
+	m, _ = m.Update(snapshotMsg{snap: snap})
+	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyTab})
+
+	out := m.View()
+	for _, want := range []string{"FAMILY", "sibling", "Ravi Boone", "AFFINITIES", "Omar Petrov", "-30", "mood", "+42"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("roster detail missing %q", want)
+		}
+	}
+}
+
 // Before the first frame arrives the view should show a booting message, not
 // crash on nil state.
 func TestViewBeforeFirstFrame(t *testing.T) {

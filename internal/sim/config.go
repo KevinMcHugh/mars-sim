@@ -41,6 +41,42 @@ type Config struct {
 	// generated). See personality.go.
 	TraitChance int
 
+	// Family. FamilyChance is the percent chance a newly generated colonist is
+	// tied to an existing one (spouse, sibling, parent/child, aunt/uncle,
+	// nibling, or grandparent/grandchild). Uses the personality RNG, so it never
+	// perturbs the sim. 0 disables family generation. See relationships.go.
+	FamilyChance int
+
+	// Socializing. An idle colonist with nothing productive to do may seek out a
+	// nearby colonist and talk, which shifts the pair's affinity and both their
+	// moods. Affinity is tracked only; nothing simulates against it yet.
+	TalkChance       int // percent chance an idle colonist starts a conversation (0 disables talking)
+	TalkRadius       int // how far a colonist looks for a conversation partner
+	TalkTicks        int // ticks a conversation lasts before its outcome is applied
+	TalkAffinityGain int // base affinity step per conversation (scaled by outcome and diminishing returns)
+	AffinityMax      int // affinity runs in [-AffinityMax, AffinityMax]; talking alone saturates at half of it
+
+	// Conversation quality shapes both the affinity change and the mood change a
+	// chat produces. Quality is a signed roll in [-100, 100]: TalkQualityBias is
+	// its baseline lean (chats are mildly positive by default), TalkQualityValence
+	// is how strongly existing affinity pulls quality toward its own sign (the
+	// positive-feedback loop that exacerbates like and dislike alike), and
+	// TalkQualitySpread is the random swing around that mean, so any pair can still
+	// have a surprisingly good or bad conversation.
+	TalkQualityBias    int
+	TalkQualityValence int
+	TalkQualitySpread  int
+
+	// Mood. Each colonist carries a mood in [-MoodMax, MoodMax] (0 = neutral).
+	// Nothing simulates against mood yet, but tasks move it. A finished
+	// conversation shifts both participants by a company term (how they feel about
+	// the other, from affinity) plus a conversation term (how the chat went, from
+	// quality): a good chat with someone you dislike lifts your mood, while a
+	// merely so-so chat with a friend still nets a small lift.
+	MoodMax                int
+	MoodCompanyWeight      int
+	MoodConversationWeight int
+
 	// Mining strategy switch. Below both thresholds, miners use cached A* to a
 	// claimed tile (cheaper for small colonies); at or above either, they follow
 	// the shared frontier flow field (cheaper once many miners share the sweep).
@@ -88,6 +124,21 @@ func DefaultConfig() Config {
 		RestTicks:            10,
 		StuckLimit:           8,
 		TraitChance:          30,
+		FamilyChance:         35,
+
+		TalkChance:       25,
+		TalkRadius:       6,
+		TalkTicks:        12,
+		TalkAffinityGain: 4,
+		AffinityMax:      100,
+
+		TalkQualityBias:    20,
+		TalkQualityValence: 50,
+		TalkQualitySpread:  50,
+
+		MoodMax:                100,
+		MoodCompanyWeight:      6,
+		MoodConversationWeight: 10,
 
 		FrontierFieldMinColonists: 800,
 		FrontierFieldMinArea:      90000, // ~300x300 and up

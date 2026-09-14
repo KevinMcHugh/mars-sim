@@ -95,6 +95,13 @@ type World struct {
 	// rebuildBuildTiles.
 	buildTiles map[Point]bool
 
+	// Family tree and affinity, both colonist-only. kin holds every tree node
+	// (colonists plus phantom ancestors); affinity[a][b] is a's warmth toward b,
+	// raised when they talk. See relationships.go.
+	kin       map[kinID]*kinPerson
+	nextKinID kinID
+	affinity  map[EntityID]map[EntityID]int
+
 	entities map[EntityID]*Entity
 	nextID   EntityID
 
@@ -115,6 +122,9 @@ func newWorld(cfg Config, rng *rand.Rand) *World {
 		occ:        make([]EntityID, n),
 		entities:   make(map[EntityID]*Entity),
 		buildTiles: make(map[Point]bool),
+		kin:        make(map[kinID]*kinPerson),
+		nextKinID:  1,
+		affinity:   make(map[EntityID]map[EntityID]int),
 		nextID:     1,
 		rng:        rng,
 		prng:       rand.New(rand.NewSource(cfg.Seed ^ 0x5DEECE66D)),
@@ -271,6 +281,7 @@ func (w *World) spawn(kind Kind, p Point) *Entity {
 	}
 	if kind == Colonist {
 		w.assignPersonality(e) // name, attributes, traits + their effective params
+		w.assignKin(e)         // family tree node + any tie to an existing colonist
 	}
 	w.nextID++
 	w.entities[e.ID] = e
@@ -290,6 +301,12 @@ func (w *World) remove(id EntityID) {
 	w.occ[w.index(e.Pos)] = 0
 	w.kindCounts[e.Kind]--
 	w.removeFromChunkIndex(w.chunkIndexOf(e.Pos), id)
+	if e.kin != 0 {
+		if kp := w.kin[e.kin]; kp != nil {
+			kp.entity = 0 // keep the node so surviving relatives stay connected
+		}
+	}
+	w.dropAffinity(id)
 	delete(w.entities, id)
 }
 

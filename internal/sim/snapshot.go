@@ -12,6 +12,13 @@ type EntityView struct {
 	Needs     [numNeeds]int
 	Profile   *Profile  // colonists only; a deep copy, safe to read
 	Inventory Inventory // colonists only; copied by value
+
+	// Relations are the colonist's familial ties to other colonists, derived from
+	// the family tree; Affinities are its tracked warmth toward colonists it has
+	// talked with, strongest first. Both are colonists only. See relationships.go.
+	Relations  []Relation
+	Affinities []Affinity
+	Mood       int // disposition in [-MoodMax, MoodMax], 0 neutral (colonists only)
 }
 
 // NeedMeta describes a need for display: its name, ceiling, and whether maxing
@@ -48,6 +55,8 @@ type Snapshot struct {
 	Stats     Stats
 	NeedsMeta [numNeeds]NeedMeta
 
+	AffinityMax    int // affinity display bars run [-AffinityMax, AffinityMax]
+	MoodMax        int // mood display bar runs [-MoodMax, MoodMax]
 	Paused         bool
 	TicksPerSecond int
 }
@@ -67,6 +76,7 @@ func (w *World) snapshot(paused bool, tps int) *Snapshot {
 	copy(tiles, w.tiles)
 
 	ents := make([]EntityView, 0, len(w.entities))
+	kinChildren := w.kinChildren()
 	stats := Stats{Rooms: w.roomCount}
 	for _, t := range tiles {
 		switch t.Terrain {
@@ -79,7 +89,7 @@ func (w *World) snapshot(paused bool, tps int) *Snapshot {
 		}
 	}
 	for _, e := range w.entities {
-		ents = append(ents, EntityView{
+		ev := EntityView{
 			ID:        e.ID,
 			Kind:      e.Kind,
 			Pos:       e.Pos,
@@ -89,7 +99,13 @@ func (w *World) snapshot(paused bool, tps int) *Snapshot {
 			Needs:     w.currentNeeds(e),
 			Profile:   e.Profile.clone(),
 			Inventory: e.Inventory,
-		})
+		}
+		if e.Kind == Colonist {
+			ev.Relations = w.relativesOf(e, kinChildren)
+			ev.Affinities = w.affinitiesOf(e.ID)
+			ev.Mood = e.mood
+		}
+		ents = append(ents, ev)
 		switch e.Kind {
 		case Colonist:
 			stats.Colonists++
@@ -117,6 +133,8 @@ func (w *World) snapshot(paused bool, tps int) *Snapshot {
 		Log:            w.log.tail(len(w.log.entries)),
 		Stats:          stats,
 		NeedsMeta:      needsMeta,
+		AffinityMax:    w.cfg.AffinityMax,
+		MoodMax:        w.cfg.MoodMax,
 		Paused:         paused,
 		TicksPerSecond: tps,
 	}

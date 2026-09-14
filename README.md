@@ -34,10 +34,11 @@ Terminal controls:
 | `q` / `esc`    | quit                            |
 
 The **roster** (`tab`) lists every colonist; `↑`/`↓` select one to inspect its
-name, attributes, health, needs, eight-slot inventory, and traits. `tab` or
+name, attributes, health, mood, needs, eight-slot inventory, traits, family, and
+affinities. `tab` or
 `esc` returns to the map.
 
-Glyphs: 👷 colonist · 😱 fleeing colonist · 👽 alien · 🟫 rock · 🧱 wall · 🍽️ nutrient pod · 🚽 toilet · blank = open floor.
+Glyphs: 👷 colonist · 😱 fleeing colonist · 🗣️ talking colonist · 👽 alien · 🟫 rock · 🧱 wall · 🍽️ nutrient pod · 🚽 toilet · blank = open floor.
 
 > The map uses one emoji per tile so it stays aligned. If it looks sheared, your
 > terminal is sizing emoji as a single cell instead of two.
@@ -131,6 +132,46 @@ will bring traits that suit them.
 Personality is generated from a **separate RNG stream** so adding flavor never
 perturbs the simulation's own RNG — with traits disabled a run plays exactly as
 it did before personalities existed.
+
+#### Relationships & affinities
+
+Colonists are related and get to know each other (`internal/sim/relationships.go`):
+
+- **Family.** A new colonist may be born into the colony's family tree
+  (`-family-chance`, default 35%): tied to an existing colonist as a spouse,
+  sibling, parent/child, aunt/uncle-nibling, or grandparent/grandchild. The
+  ground truth is a small tree of parent and marriage links — the wider ties
+  (sibling, aunt/uncle, grandparent, ...) are *derived* from it, so they stay
+  mutually consistent however the colony grows, and ancestors who never joined
+  the colony live on as phantom tree nodes that connect real colonists. Spouses
+  are only paired when their orientations and genders are mutually compatible.
+  Family is generated from the same separate RNG stream as personality, so it
+  never perturbs the sim.
+- **Talking.** An idle colonist with no work to do and no pressing need may seek
+  out a nearby free colonist and chat (a new **Talking** activity). Needs and
+  fleeing preempt a chat, and colonists never hold one on a facility's access
+  tile or a pending build tile. Talking is gated by `-talk-chance` (default
+  25%); set it to 0 and the sim plays exactly as it did before the activity
+  existed.
+- **Affinity.** Each pair of colonists has an **affinity** in
+  `[-AffinityMax, AffinityMax]` (warmth to dislike). Talking is mostly a
+  diminishing-returns positive-feedback loop: a conversation's quality leans
+  toward the valence of the pair's existing affinity, so friends tend to grow
+  closer and rivals to drift apart, with each step shrinking as affinity nears
+  the extreme — talking alone saturates at half of `AffinityMax`, leaving the
+  outer range for stronger forces added later. Random spread means any pair can
+  still have a surprisingly good or bad chat. Affinity is tracked and displayed
+  only; nothing simulates against it yet.
+- **Mood.** Each colonist carries a **mood** in `[-MoodMax, MoodMax]` (0
+  neutral). Nothing simulates against mood yet, but tasks move it — a finished
+  conversation shifts both participants by a *company* term (how they feel about
+  the other, from affinity) plus a *conversation* term (how the chat itself
+  went, from quality). So a good chat with someone you dislike lifts your mood,
+  a so-so chat with a friend still nets a small lift, and only a genuinely bad
+  chat with a friend turns it negative.
+
+Family ties, affinities, and mood are all shown per colonist in the roster
+inspector.
 
 #### Construction projects
 

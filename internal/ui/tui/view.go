@@ -126,9 +126,10 @@ func (m Model) renderSidebar() string {
 		"LEGEND",
 		glyphColonist + " colonist   " + glyphAlien + " alien",
 		glyphCat + " cat        " + glyphMouse + " mouse",
-		glyphFleeing + " fleeing    " + glyphWall + " wall",
+		glyphFleeing + " fleeing    " + glyphTalking + " talking",
 		glyphPod + " food pod   " + glyphToilet + " toilet",
-		glyphRock + " rock       " + "   open",
+		glyphWall + " wall       " + glyphRock + " rock",
+		"   open",
 		"",
 		"LOG",
 	}, "\n")
