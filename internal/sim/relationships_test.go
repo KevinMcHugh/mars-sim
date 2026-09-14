@@ -43,6 +43,9 @@ func TestKinLineDerivation(t *testing.T) {
 	grandma := w.spawn(Colonist, Point{1, 1})
 	parent := w.spawn(Colonist, Point{2, 1})
 	child := w.spawn(Colonist, Point{3, 1})
+	grandma.Profile.Age = 70
+	parent.Profile.Age = 45
+	child.Profile.Age = 20
 
 	// parent is grandma's child; child is parent's child.
 	if !w.wireRelation(parent, grandma, RelChild) {
@@ -58,6 +61,23 @@ func TestKinLineDerivation(t *testing.T) {
 	mustRelate(t, w, parent, child, RelChild)
 	mustRelate(t, w, child, grandma, RelGrandparent)
 	mustRelate(t, w, grandma, child, RelGrandchild)
+}
+
+func TestParentMustBeAtLeastTwentyYearsOlder(t *testing.T) {
+	w := kinWorld()
+	parent := w.spawn(Colonist, Point{1, 1})
+	child := w.spawn(Colonist, Point{2, 1})
+
+	parent.Profile.Age = 38
+	child.Profile.Age = 19
+	if w.wireRelation(parent, child, RelParent) {
+		t.Fatal("accepted parent only 19 years older than child")
+	}
+
+	child.Profile.Age = 18
+	if !w.wireRelation(child, parent, RelChild) {
+		t.Fatal("rejected parent exactly 20 years older than child")
+	}
 }
 
 // Siblings share a parent, and a sibling's child is an aunt/uncle & nibling pair.

@@ -81,7 +81,7 @@ func TestGlyphsOccupyOneTile(t *testing.T) {
 func TestRosterShowsColonistDetail(t *testing.T) {
 	snap := makeSnapshot()
 	snap.Entities[0].Profile = &sim.Profile{
-		Name: "Zoe Vargas", Sex: sim.SexFemale, Gender: sim.GenderWoman,
+		Name: "Zoe Vargas", Age: 32, Sex: sim.SexFemale, Gender: sim.GenderWoman,
 		Orientation: sim.Bisexual, HeightCM: 168, WeightKG: 61,
 		Traits: []sim.Trait{sim.TraitBigEater},
 	}
@@ -96,6 +96,9 @@ func TestRosterShowsColonistDetail(t *testing.T) {
 	out := m.View()
 	if !strings.Contains(out, "Zoe Vargas") {
 		t.Error("roster should show the colonist's name")
+	}
+	if !strings.Contains(out, "age 32") {
+		t.Error("roster should show the colonist's age")
 	}
 	if !strings.Contains(out, "Big Eater") {
 		t.Error("roster should show the colonist's trait")

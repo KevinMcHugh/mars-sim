@@ -13,7 +13,7 @@ func personalityWorld(traitChance int) *World {
 	return newWorld(cfg, rand.New(rand.NewSource(1)))
 }
 
-// Every colonist gets a populated profile: a name and plausible attributes.
+// Every colonist gets a populated profile: a name, age, and plausible attributes.
 func TestColonistProfilePopulated(t *testing.T) {
 	w := personalityWorld(30)
 	for i := 0; i < 200; i++ {
@@ -24,6 +24,9 @@ func TestColonistProfilePopulated(t *testing.T) {
 		}
 		if p.Name == "" {
 			t.Fatal("colonist has an empty name")
+		}
+		if p.Age < 18 || p.Age > 80 {
+			t.Fatalf("implausible age %d", p.Age)
 		}
 		if p.HeightCM < 140 || p.HeightCM > 210 {
 			t.Fatalf("implausible height %d cm", p.HeightCM)
