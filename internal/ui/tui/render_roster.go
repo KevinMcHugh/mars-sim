@@ -62,7 +62,7 @@ func (m Model) renderRoster() string {
 // renderColonistList draws the scrolling name/status column, keeping the
 // selection in view.
 func (m Model) renderColonistList(cs []sim.EntityView, sel, rows int) string {
-	capacity := rows - 3 // box borders + the heading line
+	capacity := (rows - 3) / 3 // box borders + heading, with three lines per colonist
 	if capacity < 1 {
 		capacity = 1
 	}
@@ -83,18 +83,27 @@ func (m Model) renderColonistList(cs []sim.EntityView, sel, rows int) string {
 		name := colonistName(c)
 		pronouns := "they/them"
 		age := "age ?"
+		state := c.State.String()
+		if c.State == sim.Idle {
+			state = "idling"
+		}
 		if c.Profile != nil {
 			pronouns = c.Profile.Gender.Pronouns()
 			if c.Profile.Age > 0 {
 				age = fmt.Sprintf("age %d", c.Profile.Age)
 			}
 		}
-		line := truncate(fmt.Sprintf("%s · %s · %s · %s", name, pronouns, age, c.State), rosterListWidth-4)
+		nameLine := truncate(name, rosterListWidth-4)
+		infoLine := truncate(fmt.Sprintf("%s · %s", pronouns, age), rosterListWidth-4)
+		stateLine := truncate(state, rosterListWidth-4)
 		if i == sel {
-			b.WriteString(rosterSelStyle.Render("› " + line))
+			b.WriteString(rosterSelStyle.Render("› " + nameLine))
 		} else {
-			b.WriteString("  " + line)
+			b.WriteString("  " + nameLine)
 		}
+		b.WriteByte('\n')
+		b.WriteString("  " + infoLine + "\n")
+		b.WriteString("  " + stateLine)
 		if i < end-1 {
 			b.WriteByte('\n')
 		}
