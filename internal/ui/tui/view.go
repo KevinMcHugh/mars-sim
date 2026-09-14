@@ -105,6 +105,12 @@ func (m Model) renderMap() string {
 	var b strings.Builder
 	for y := 0; y < rows; y++ {
 		for x := 0; x < cols; x++ {
+			// Pin every tile to its nominal column. Emoji presentation width
+			// can disagree with the width table used by lipgloss, so relying
+			// only on the glyph's measured width lets one tile shift the rest
+			// of a row. Cursor positioning keeps the map grid stable while
+			// preserving the readable emoji glyphs.
+			fmt.Fprintf(&b, "\x1b[%dG", x*tileWidth+1)
 			p := m.cam.Add(x, y)
 			if e, ok := occ[p]; ok {
 				b.WriteString(entityGlyph(e))
@@ -112,6 +118,9 @@ func (m Model) renderMap() string {
 				b.WriteString(terrainGlyph(m.latest.TerrainAt(p)))
 			}
 		}
+		// Leave the cursor at the end of the nominal map width before the
+		// sidebar is joined onto this line.
+		fmt.Fprintf(&b, "\x1b[%dG", cols*tileWidth+1)
 		if y < rows-1 {
 			b.WriteByte('\n')
 		}
