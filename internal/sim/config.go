@@ -172,6 +172,10 @@ func DefaultConfig() Config {
 			NeedFood: {
 				Name: "food", Rise: 2, SeekAt: 650, Max: 1000,
 				Facility: NutrientPod, UseTicks: 18, Fatal: true,
+				// A colonist grabs a portion in 3 ticks and eats it away from
+				// the pod, instead of occupying its one access tile for the
+				// full 18 — far more throughput per pod at the same cost.
+				GrabTicks: 3,
 			},
 			NeedBladder: {
 				Name: "bladder", Rise: 3, SeekAt: 600, Max: 1000,

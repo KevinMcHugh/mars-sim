@@ -12,7 +12,8 @@ lazily — a base level plus a timestamp — so idle colonists cost nothing per 
 
 - [`internal/sim/needs.go`](../internal/sim/needs.go) — `NeedKind`, `NeedSpec`, lazy level math, starvation, urgency.
 - [`internal/sim/config.go`](../internal/sim/config.go) — the `Needs` table and `StarveDamage`, `ColonistsPerFacility`.
-- [`internal/sim/entity.go`](../internal/sim/entity.go) — the per-entity need storage (`Needs`, `needSince`, `needRise`, `starvationDamage`).
+- [`internal/sim/entity.go`](../internal/sim/entity.go) — the per-entity need storage (`Needs`, `needSince`, `needRise`, `starvationDamage`, `carrying`).
+- [`internal/sim/systems.go`](../internal/sim/systems.go) — `jobUse`, `jobUseCarrying`, `finishUse`, `availableToTalk`.
 
 ## How it works
 
@@ -21,12 +22,12 @@ lazily — a base level plus a timestamp — so idle colonists cost nothing per 
 Each `NeedKind` (`NeedFood`, `NeedBladder`, `NeedSocial`, `NeedSleep`) has a `NeedSpec` in `Config.Needs`,
 indexed by the kind:
 
-| Need | Rise/tick | SeekAt | Max | Facility | UseTicks | Fatal |
-| --- | --- | --- | --- | --- | --- | --- |
-| food | 2 | 650 | 1000 | NutrientPod | 18 | **yes** |
-| bladder | 3 | 600 | 1000 | Toilet | 10 | no |
-| sleep | 1 | 700 | 1000 | Bed | 40 | no |
-| social | 2 | 500 | 1000 | conversation | — | no |
+| Need | Rise/tick | SeekAt | Max | Facility | UseTicks | GrabTicks | Fatal |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| food | 2 | 650 | 1000 | NutrientPod | 18 | 3 | **yes** |
+| bladder | 3 | 600 | 1000 | Toilet | 10 | 0 | no |
+| sleep | 1 | 700 | 1000 | Bed | 40 | 0 | no |
+| social | 2 | 500 | 1000 | conversation | — | — | no |
 
 Levels run `0..Max`; 0 means satisfied. At `SeekAt` the colonist drops work to
 satisfy the need; a **fatal** need sitting at `Max` drains HP (`StarveDamage`).
@@ -50,16 +51,33 @@ the colonist waits for a conversation partner; completing a conversation resets
 social need for both participants. Asocial colonists resolve its rise rate to
 zero, introverts rise more slowly, and extroverts rise faster.
 
+`availableToTalk` gates who can be pulled into a chat as the *other* party: idle
+(`Job == JobNone`), not fleeing, not parked somewhere blocking a facility — and,
+importantly, not itself facing an urgent need **other than social**. A
+candidate whose own most urgent need is social still counts as available.
+Without that carve-out, two colonists who both urgently need company can never
+talk to each other — each disqualifies the other as a partner — and social
+need sits permanently pinned at its ceiling in any colony busy enough that
+nobody is ever fully need-free. This alone does not fully fix chronic pinning
+in a very busy colony, though: the deeper issue is that `Job == JobNone` itself
+is rare when colonists are constantly mining, building, or queueing — a
+colonist cannot yet chat *while* doing something else (mid-queue, mid-dig),
+which would need bigger, riskier surgery to the job model than has been
+attempted.
+
 ### Starvation and healing
 
 `applyStarvation` drains HP for any fatal need at `Max`, and tracks that damage
 separately per need in `starvationDamage`. Satisfying the need restores exactly
 that deprivation damage (up to `MaxHP`) — so eating heals hunger damage but not an
-unrelated alien bite. Two grace conditions prevent unfair deaths:
+unrelated alien bite. Three grace conditions prevent unfair deaths:
 
 1. A colonist already committed to a *reachable* facility (`JobUse`) is not
    drained mid-queue — it gets time to traverse the crowd and finish eating.
-2. While reachable life support is *under construction*, fatal-need drain is
+2. A colonist that has already grabbed a portable need (see *Taking it to go*
+   below) is never drained regardless of the facility's reachability or
+   crowding — it is guaranteed to finish; it just isn't there anymore.
+3. While reachable life support is *under construction*, fatal-need drain is
    suspended. This matters most at startup, when staggered hunger can hit `Max`
    just before the first facility room finishes.
 
@@ -87,12 +105,32 @@ colonist normally takes a `JobUse` job and follows that facility's shared
 **flow field** to the nearest one, stands adjacent, and uses it for
 `UseTicks`. But if the colony still wants more of that facility than it has
 planned or built, the colonist tries to help build that capacity first
-(joining a reachable project task) rather than just queueing — otherwise,
-once a single facility exists, no colonist is ever free to build a second.
-See [pathfinding.md](./pathfinding.md) for the flow fields and
-[construction.md](./construction.md) for how facilities get built and for
-this priority in full. The colony keeps `ColonistsPerFacility` colonists'
-worth of each facility planned or built.
+(joining a reachable project task that actually provides it, via
+`claimNearestTaskProviding` — see [construction.md](./construction.md)) rather
+than just queueing — otherwise, once a single facility exists, no colonist is
+ever free to build a second. See [pathfinding.md](./pathfinding.md) for the
+flow fields and [construction.md](./construction.md) for how facilities get
+built and for this priority in full. The colony keeps `ColonistsPerFacility`
+colonists' worth of each facility planned or built.
+
+### Taking it to go
+
+`GrabTicks`, when positive and less than `UseTicks`, makes a need portable:
+the colonist spends only `GrabTicks` at the facility, then carries it away and
+spends the rest of `UseTicks` finishing elsewhere (`jobUseCarrying`), freeing
+the facility's access tile immediately rather than occupying it for the whole
+`UseTicks`. Food is the only portable need by default (`GrabTicks: 3` against
+an 18-tick meal) — a colonist "sits there sucking down goop" for only 3 ticks,
+then steps aside (`stepAside`, falling back to `wanderStep`) and finishes
+eating out of everyone else's way. Bladder and sleep stay `GrabTicks: 0`
+(in-place only): there is nothing to carry away from a toilet or a bed.
+
+This is purely a throughput change — the total `UseTicks` a colonist spends
+satisfying the need is unchanged — but it turns a facility's *access-tile*
+capacity from "one user every `UseTicks`" into "one user every `GrabTicks`,"
+which is the real bottleneck once a facility is shared by more than a couple
+of colonists: a single pod that could serve at most `UseTicks`⁻¹ colonists per
+tick before now serves `GrabTicks`⁻¹.
 
 ### Staggered start
 
@@ -117,6 +155,11 @@ facilities at once.
   of forcing dormitories to compete with life support at the moment life
   support is most needed. It no longer means *only* waiting, though — see the
   emergency fallback below.
+- **Portable needs** (food) separate "how long satisfying this need takes"
+  from "how long it occupies the one tile everyone else queues behind." A
+  facility's real capacity is its access tile, not its `UseTicks`, and a
+  crowded colony hits that limit long before population catches up with
+  `ColonistsPerFacility`.
 
 ## Extending it
 

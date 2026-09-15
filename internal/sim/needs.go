@@ -38,6 +38,13 @@ type NeedSpec struct {
 	Facility Terrain // structure that resets this need to 0
 	UseTicks int     // ticks spent using the facility
 	Fatal    bool    // whether sitting at Max damages the colonist
+	// GrabTicks, if positive and less than UseTicks, makes this need portable:
+	// a colonist spends only GrabTicks at the facility, then carries it away
+	// and spends the rest of UseTicks finishing elsewhere, freeing the
+	// facility's access tile for the next colonist immediately rather than
+	// occupying it for the whole UseTicks. Zero means the need can only be
+	// satisfied in place (bladder, sleep — there is nothing to take away).
+	GrabTicks int
 }
 
 // needLevel returns an entity's current level for one need, computed lazily
@@ -75,6 +82,12 @@ func (w *World) applyStarvation(e *Entity) {
 		spec := w.cfg.Needs[i]
 		if spec.Fatal && w.needLevel(e, NeedKind(i)) >= spec.Max {
 			if e.Job == JobUse && e.Need == NeedKind(i) {
+				// A colonist that has already grabbed a portable need (see
+				// NeedSpec.GrabTicks) is guaranteed to finish regardless of the
+				// facility's reachability or crowding — it is no longer there.
+				if e.carrying {
+					continue
+				}
 				// Reaching food does not reset the need until UseTicks elapse. Give
 				// an entity committed to a reachable source enough grace to traverse
 				// its queue and finish eating rather than dying mid-meal.
