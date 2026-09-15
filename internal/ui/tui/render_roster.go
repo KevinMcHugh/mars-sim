@@ -141,9 +141,10 @@ func (m Model) renderColonistDetail(c sim.EntityView, rows int) string {
 		return sidebarStyle.Width(width).Height(rows - 2).Render(b.String())
 	}
 
-	b.WriteString(titleStyle.Render(p.Name) + "\n")
+	b.WriteString(titleStyle.Render(colonistGlyph(p)+" "+p.Name) + "\n")
 	b.WriteString(statStyle.Render(fmt.Sprintf("%s · %s · %s", p.Gender, p.Sex, p.Orientation)) + "\n")
-	b.WriteString(statStyle.Render(fmt.Sprintf("age %d · %d cm · %d kg", p.Age, p.HeightCM, p.WeightKG)) + "\n\n")
+	b.WriteString(statStyle.Render(fmt.Sprintf("age %d · %d cm · %d kg", p.Age, p.HeightCM, p.WeightKG)) + "\n")
+	b.WriteString(statStyle.Render(fmt.Sprintf("%s skin · %s hair", p.SkinTone, p.HairColor)) + "\n\n")
 
 	b.WriteString(labelStyle.Render("STATUS") + "  " + c.State.String() + "\n")
 	b.WriteString(bar("health", c.HP, c.MaxHP, barW) + "\n")

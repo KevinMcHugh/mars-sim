@@ -5,7 +5,7 @@
 ## What it is
 
 Every colonist has a `Profile`: a name, attributes (age, sex, gender, orientation,
-height, weight), and any traits. Attributes are flavor for now; **traits change
+height, weight, skin tone, hair color), and any traits. Attributes are flavor for now; **traits change
 how a colonist plays** by scaling need rates and work behavior. All of it is
 generated from a dedicated RNG stream so flavor never perturbs the simulation.
 
@@ -29,9 +29,15 @@ did before personalities existed. Preserving this separation is a hard invariant
 ### Attributes (flavor)
 
 `assignPersonality` rolls age (18–80), sex, gender (usually but not always aligned with sex),
-orientation, a correlated height/weight (via a BMI draw), and a name drawn from
-gender-appropriate pools. Nothing simulates against these yet — they exist for
-flavor and future systems.
+orientation, a correlated height/weight (via a BMI draw), a skin tone (uniform
+across the five emoji tone points), a hair color (white and bald weighted
+upward with age), and a name drawn from gender-appropriate pools. Nothing
+simulates against these yet — they exist for flavor and future systems.
+
+The TUI composes skin tone and hair color directly into a colonist's map glyph
+via emoji skin tone modifiers and hair ZWJ components (see
+[`internal/ui/tui/glyphs.go`](../internal/ui/tui/glyphs.go)), so `👨🏿‍🦰` reads
+as a dark-skinned, red-haired man at a glance.
 
 ### Traits (mechanical)
 

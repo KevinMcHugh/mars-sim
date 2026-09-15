@@ -3,8 +3,9 @@ package sim
 import "math"
 
 // Personality gives colonists names, attributes, and traits. Attributes (age,
-// sex, gender, orientation, height, weight) are populated for flavor and future
-// systems but nothing simulates against them yet. Traits, in contrast, change
+// sex, gender, orientation, height, weight, skin tone, hair color) are
+// populated for flavor and future systems but nothing simulates against them
+// yet. Traits, in contrast, change
 // how a colonist plays: they scale need rates and work behavior. As new needs
 // and systems arrive, new traits slot in over the same machinery.
 //
@@ -90,6 +91,68 @@ func (o Orientation) String() string {
 		return "bisexual"
 	case Asexual:
 		return "asexual"
+	default:
+		return "unknown"
+	}
+}
+
+// SkinTone is a colonist's skin tone, on the five-point scale emoji use for
+// skin tone modifiers.
+type SkinTone uint8
+
+const (
+	SkinLight SkinTone = iota
+	SkinMediumLight
+	SkinMedium
+	SkinMediumDark
+	SkinDark
+)
+
+func (s SkinTone) String() string {
+	switch s {
+	case SkinLight:
+		return "light"
+	case SkinMediumLight:
+		return "medium-light"
+	case SkinMedium:
+		return "medium"
+	case SkinMediumDark:
+		return "medium-dark"
+	case SkinDark:
+		return "dark"
+	default:
+		return "unknown"
+	}
+}
+
+// HairColor is a colonist's hair color (or its absence). Red, White, and Bald
+// each have a dedicated emoji hair component; Black, Brown, and Blonde render
+// with the plain, unmodified glyph since emoji has no component for them.
+type HairColor uint8
+
+const (
+	HairBlack HairColor = iota
+	HairBrown
+	HairBlonde
+	HairRed
+	HairWhite
+	HairBald
+)
+
+func (h HairColor) String() string {
+	switch h {
+	case HairBlack:
+		return "black"
+	case HairBrown:
+		return "brown"
+	case HairBlonde:
+		return "blonde"
+	case HairRed:
+		return "red"
+	case HairWhite:
+		return "white"
+	case HairBald:
+		return "bald"
 	default:
 		return "unknown"
 	}
@@ -189,6 +252,8 @@ type Profile struct {
 	Orientation Orientation
 	HeightCM    int
 	WeightKG    int
+	SkinTone    SkinTone
+	HairColor   HairColor
 	Traits      []Trait
 }
 
@@ -223,6 +288,8 @@ func (w *World) assignPersonality(e *Entity) {
 	p.Gender = w.rollGender(p.Sex)
 	p.Orientation = w.rollOrientation()
 	p.HeightCM, p.WeightKG = w.rollBody(p.Sex)
+	p.SkinTone = w.rollSkinTone()
+	p.HairColor = w.rollHairColor(p.Age)
 	p.Name = w.rollName(p.Gender)
 	p.Traits = w.rollTraits()
 	e.Profile = p
@@ -371,6 +438,37 @@ func (w *World) rollBody(s Sex) (heightCM, weightKG int) {
 	m := float64(h) / 100
 	wt := int(math.Round(bmi * m * m))
 	return h, atLeast1(wt)
+}
+
+// rollSkinTone picks a skin tone uniformly across the five emoji tone points.
+func (w *World) rollSkinTone() SkinTone {
+	return SkinTone(w.prng.Intn(5))
+}
+
+// rollHairColor picks a hair color, weighting white and bald upward with age
+// so older colonists more often show it.
+func (w *World) rollHairColor(age int) HairColor {
+	whiteChance, baldChance := 5, 3
+	switch {
+	case age >= 60:
+		whiteChance, baldChance = 55, 15
+	case age >= 45:
+		whiteChance, baldChance = 20, 8
+	}
+	switch r := w.prng.Intn(100); {
+	case r < whiteChance:
+		return HairWhite
+	case r < whiteChance+baldChance:
+		return HairBald
+	case r < whiteChance+baldChance+5:
+		return HairRed
+	case r < whiteChance+baldChance+5+35:
+		return HairBlack
+	case r < whiteChance+baldChance+5+35+30:
+		return HairBrown
+	default:
+		return HairBlonde
+	}
 }
 
 // rollName builds a first + last name, drawing the first name from a pool that
