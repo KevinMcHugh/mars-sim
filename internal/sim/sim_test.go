@@ -282,6 +282,39 @@ func TestUrgentColonistFinishesEmergencyBuild(t *testing.T) {
 	}
 }
 
+// A non-fatal need (bladder, here) must trigger the same self-rescue as a
+// fatal one: with no reachable toilet, no project task to help with, and none
+// under construction, a colonist stuck on its own builds one rather than
+// waiting indefinitely — the "stuck in a need loop" complaint a
+// fatal-needs-only fallback left unaddressed. Driving colonistTurn directly
+// (rather than step) keeps the normal room planner from ever running, so the
+// only way a toilet appears is this fallback.
+func TestUrgentNonFatalNeedTriggersEmergencyBuild(t *testing.T) {
+	cfg := testConfig()
+	cfg.StartColonists, cfg.StartAliens = 0, 0
+	w := newTestWorld(t, cfg)
+	center := Point{w.Width / 2, w.Height / 2}
+	c := w.spawn(Colonist, center)
+	c.Needs[NeedBladder], c.needSince[NeedBladder] = cfg.Needs[NeedBladder].SeekAt, w.tick
+	// Clear the other (staggered) needs so bladder is the one being addressed.
+	c.Needs[NeedFood], c.needSince[NeedFood] = 0, w.tick
+	c.Needs[NeedSleep], c.needSince[NeedSleep] = 0, w.tick
+
+	w.tick++
+	w.colonistTurn(c)
+	if c.Job != JobBuild || c.BuildKind != Toilet {
+		t.Fatalf("expected an emergency toilet build, got job=%v buildKind=%v", c.Job, c.BuildKind)
+	}
+
+	for i := 0; i < cfg.FacilityBuildTicks+40 && w.TerrainAt(c.Target) != Toilet; i++ {
+		w.tick++
+		w.colonistTurn(c)
+	}
+	if got := w.TerrainAt(c.Target); got != Toilet {
+		t.Fatalf("emergency toilet build never finished: target terrain %v, progress %d", got, c.Progress)
+	}
+}
+
 // A colonist sealed away from any rock to mine or space to build cannot feed
 // itself and must eventually starve, exercising the fatal-need path.
 func TestColonistStarvesWhenTrapped(t *testing.T) {

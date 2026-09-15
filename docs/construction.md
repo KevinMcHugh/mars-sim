@@ -22,11 +22,13 @@ toilets) are the first — and currently only — project kind.
 ## How it works
 
 The normal planner maintains life-support and bunk capacity automatically, but
-the TUI can queue explicit room orders: `f` requests one facility room and `d`
-requests one dormitory. The command is recorded on the engine-owned world and
-waits until the current project finishes and a suitable site exists. It does not
-start a second concurrent project, preserving the single-project rule that
-prevents early colonies from splitting their builders across sites.
+the TUI can queue explicit room orders: `b` opens a menu, then `f` requests one
+facility room and `d` requests one dormitory. Each order just increments a
+counter (`manualFacilityRooms`/`manualDormitories`) recorded on the
+engine-owned world, so several can be queued at once; `planRooms` works
+through them — one new project per call, life support before dormitories —
+whenever the colony is below its current concurrent-project cap and a suitable
+site exists (see *Planning cadence* below).
 
 ### Tasks, phases, projects
 
@@ -59,10 +61,11 @@ current recipes are:
 | facility room | alternating nutrient pods and toilets | 2 facilities | first, because food is fatal |
 | dormitory | beds/bunks | 1 bed | after the desired pods and toilets exist |
 
-`planRooms` checks each recipe's planned-or-built capacity. It plans only one
-room at a time, and always chooses a life-support room before a dormitory. A
-dormitory can therefore be built in a cramped cavern with a single bunk, and
-the colony adds more rooms as its population grows.
+`planRooms` checks each recipe's planned-or-built capacity, plans at most one
+new room per call (see *Planning cadence*), and always chooses a life-support
+room before a dormitory. A dormitory can therefore be built in a cramped
+cavern with a single bunk, and the colony adds more rooms — and, once the
+population justifies it, more of them at once — as it grows.
 
 Beds use the same facility machinery as pods and toilets: a colonist approaches
 an adjacent tile, spends the sleep need's `UseTicks` sleeping, and then resets
@@ -93,33 +96,48 @@ built or used.
 
 ### Planning cadence
 
-`planRooms` runs every `planInterval` (16) ticks from `step`. It creates a
-room project only when the colony is short of a required room facility for its
-headcount (`desiredFacilities` = colonists / `ColonistsPerFacility`, min 1) **and
-no project is already active**. `plannedFacilities` counts existing + in-progress
+`planRooms` runs every `planInterval` (16) ticks from `step`. It creates at
+most one room project per call, and only when the colony is short of a
+required room facility for its headcount (`desiredFacilities` = colonists /
+`ColonistsPerFacility`, min 1) **and** the colony is below its current
+concurrent-project cap. `plannedFacilities` counts existing + in-progress
 (from the job board's O(1) counter) + designated-but-unbuilt facilities, so the
 colony converges on the target instead of every idle colonist starting one at
 once. `planRoom` prefers a full 4-facility room but falls back to the recipe's
 minimum when only a shorter clear run is available.
 
+`maxConcurrentProjects` scales that cap with population (one room at a time up
+to `concurrentProjectColonists` (8) colonists, then one more room per that many
+again), up to the `MaxConcurrentProjects` ceiling in `Config`. A tiny colony
+still gets the original single-project behavior — splitting a handful of
+builders across two sites is what gridlocks an early, cramped cavern — while a
+larger one can run more crews in parallel so facility supply keeps pace with
+growth instead of queued orders piling up behind one room at a time.
+
 ### The emergency fallback
 
-Separately from projects, a colonist facing a **fatal** need with no reachable
-facility and no reachable facility construction may `assignBuild` a lone pod at
-the nearest suitable edge (`findBuildSpot`), rather than mining until it starves.
-This is guarded tightly: only fatal needs justify it, and only when nothing
-reachable is already being built (`reachableFacilityConstruction`), so a project
-in a disconnected room does not suppress a stranded colonist's self-rescue — and a
-non-fatal need never triggers a colony-wide ad-hoc building stampede.
+Separately from projects, a colonist facing an urgent need — fatal or not —
+with no reachable facility, no project task to help with, and no reachable
+facility construction may `assignBuild` a lone facility at the nearest
+suitable edge (`findBuildSpot`), rather than waiting indefinitely (fatal) or
+mining until it starves (non-fatal). This is still guarded: only when nothing
+reachable is already being built (`reachableFacilityConstruction`) — checked
+first against the shared project pool — so a project in a disconnected room
+does not suppress a stranded colonist's self-rescue, and a colonist that can
+already help build one elsewhere in its room joins that instead of starting a
+redundant one of its own.
 
 ## Why it is this way
 
 The room design is the product of watching colonies starve around earlier ones:
 
-- **One room at a time.** A second concurrent project splits builders across two
-  sites and, in a tight early cavern, gridlocks the colony so nothing finishes
-  and no one mines for space. One room keeps most colonists mining (growing the
-  cavern) while a small crew finishes the current room.
+- **One room at a time — for a small colony.** A second concurrent project
+  splits builders across two sites and, in a tight early cavern, gridlocks the
+  colony so nothing finishes and no one mines for space. One room keeps most
+  colonists mining (growing the cavern) while a small crew finishes the
+  current room. `maxConcurrentProjects` only raises the cap once population
+  growth means a second crew is no longer the whole colony's worth of
+  builders.
 - **Phased walls, then facilities.** The earlier wall-less and single-phase
   designs each starved the colony a different way: an enclosed room trapped its
   own builders; a free-standing wall funneled seekers through its last unbuilt

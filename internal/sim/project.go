@@ -239,18 +239,34 @@ func bayWidth(n int) int { return 2*n - 1 }
 // roomFrontWallY returns the front-wall row for a room whose facility row is y.
 func roomFrontWallY(y int) int { return y + roomFrontClear + 1 }
 
+// concurrentProjectColonists is how many colonists it takes to justify one
+// more room under construction at once — see maxConcurrentProjects.
+const concurrentProjectColonists = 8
+
+// maxConcurrentProjects caps how many rooms can be under construction at once,
+// scaling with population: a small colony still builds one room at a time (a
+// second concurrent project splits its handful of builders across two sites
+// and, in a tight early cavern, can mob the colony into a gridlock where
+// nothing finishes and no one mines for space), while a larger one can run
+// more crews in parallel so facility supply keeps pace with growth.
+// cfg.MaxConcurrentProjects is the ceiling on that growth.
+func (w *World) maxConcurrentProjects() int {
+	n := 1 + w.countKind(Colonist)/concurrentProjectColonists
+	ceiling := w.cfg.MaxConcurrentProjects
+	if ceiling < 1 {
+		ceiling = 1
+	}
+	return min(n, ceiling)
+}
+
 // planRooms keeps enough of each need's facility planned or built for the
-// population, marking out one room at a time. Called on a cadence from step.
+// population, marking out at most one new room per call. Called on a cadence
+// from step.
 //
 // Life support comes before bunks: food is fatal, so a colony short of pods or
-// toilets builds a facility room before a dormitory. Only one room is under
-// construction at a time — a second concurrent project would split builders
-// across two sites and, in a tight early cavern, mob the colony into a gridlock
-// where nothing finishes and no one mines for space. One room at a time keeps
-// most colonists mining (growing the cavern) while a small crew finishes the
-// current room, then the next is planned.
+// toilets builds a facility room before a dormitory.
 func (w *World) planRooms() {
-	if len(w.projects) > 0 {
+	if len(w.projects) >= w.maxConcurrentProjects() {
 		return
 	}
 	if w.manualFacilityRooms > 0 {

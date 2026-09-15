@@ -135,8 +135,11 @@ func (w *World) colonistTurn(e *Entity) {
 			w.clearJob(e)
 			if task, ok := w.claimNearestTask(e.Pos, e.ID); ok {
 				w.assignTask(e, task)
-			} else if spec.Fatal && !w.reachableFacilityConstruction(e.Pos, spec.Facility) {
-				// A project in a disconnected room must not suppress this fallback.
+			} else if !w.reachableFacilityConstruction(e.Pos, spec.Facility) {
+				// Nothing reachable already provides this facility: rather than
+				// wait indefinitely (a project in a disconnected room must not
+				// suppress this fallback), build one — fatal or not, an urgent
+				// need with no path to relief is the loop this guards against.
 				if spot, ok := w.findBuildSpot(e.Pos, 20); ok {
 					w.assignBuild(e, spec.Facility, spot)
 				}
