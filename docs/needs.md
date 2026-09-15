@@ -82,12 +82,17 @@ delayed dormitory turn into an indefinite "stuck waiting" loop.
 
 ### Satisfying a need
 
-When a need is urgent and a facility of the right kind is reachable, the colonist
-takes a `JobUse` job and follows that facility's shared **flow field** to the
-nearest one, stands adjacent, and uses it for `UseTicks`. See
-[pathfinding.md](./pathfinding.md) for the flow fields and
-[construction.md](./construction.md) for how facilities get built. The colony
-keeps `ColonistsPerFacility` colonists' worth of each facility planned or built.
+When a need is urgent and a facility of the right kind is reachable, the
+colonist normally takes a `JobUse` job and follows that facility's shared
+**flow field** to the nearest one, stands adjacent, and uses it for
+`UseTicks`. But if the colony still wants more of that facility than it has
+planned or built, the colonist tries to help build that capacity first
+(joining a reachable project task) rather than just queueing — otherwise,
+once a single facility exists, no colonist is ever free to build a second.
+See [pathfinding.md](./pathfinding.md) for the flow fields and
+[construction.md](./construction.md) for how facilities get built and for
+this priority in full. The colony keeps `ColonistsPerFacility` colonists'
+worth of each facility planned or built.
 
 ### Staggered start
 

@@ -344,9 +344,12 @@ func (w *World) designateRoom(r roomRecipe, o Point, n int) {
 }
 
 // findRoomSite returns the left end of a width-long facility row in a niche at
-// the cavern edge. Solid rock beyond the placed back wall keeps the room from
-// becoming a free-standing obstacle across an open route. The room footprint
-// and its side/front construction lane must be clear floor.
+// the cavern edge. Solid rock — or another room's already-placed wall — beyond
+// the placed back wall keeps the room from becoming a free-standing obstacle
+// across an open route; backing onto a neighbor's wall lets rooms sit flush
+// against each other, sharing that boundary instead of each needing its own
+// untouched rock vein. The room footprint and its side/front construction lane
+// must be clear floor.
 func (w *World) findRoomSite(width int) (Point, bool) {
 	designated := make(map[Point]bool)
 	for _, p := range w.projects {
@@ -373,13 +376,14 @@ func (w *World) findRoomSite(width int) (Point, bool) {
 }
 
 // roomSiteClear reports whether a room at (ox,oy) is buildable. The full room
-// starts as floor, solid rock backs its placed rear wall, and a connected
-// exterior lane keeps the side and front tasks reachable.
+// starts as floor, its placed rear wall is backed by solid rock or another
+// room's wall, and a connected exterior lane keeps the side and front tasks
+// reachable.
 func (w *World) roomSiteClear(ox, oy, width int, designated map[Point]bool) bool {
 	backY := oy - 1
 	frontY := roomFrontWallY(oy)
 	for x := ox; x < ox+width; x++ {
-		if w.TerrainAt(Point{x, backY - 1}) != Rock {
+		if t := w.TerrainAt(Point{x, backY - 1}); t != Rock && t != Wall {
 			return false
 		}
 	}

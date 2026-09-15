@@ -85,10 +85,19 @@ one-tile front doorway. `designateRoom` lays out, into two phases:
   spaced one tile apart.
 
 `findRoomSite` / `roomSiteClear` pick a site whose footprint is clear floor, whose
-rear wall is backed by solid rock (so the room is a niche at the cavern edge, not
-a free-standing obstacle), and which keeps exterior lanes beside the side walls
+rear wall is backed by solid rock **or another room's already-placed wall** (so
+the room is a niche at the cavern edge or flush against a neighbor, not a
+free-standing obstacle), and which keeps exterior lanes beside the side walls
 and across the front so every wall task stays reachable even after its neighbors
 go up. Sites nearest the map center are preferred.
+
+Backing onto a neighboring room's wall (rather than requiring untouched rock
+every time) matters once the cave's easy rock-backed edges are used up: rooms
+share that boundary and sit flush against each other using floor that is
+already excavated, instead of every new room needing its own fresh niche. The
+footprint itself must still already be clear floor — a room does not excavate
+its own site — so this still cannot conjure a room out of unmined rock or a
+too-narrow tunnel.
 
 Facilities stay spaced one tile apart because a colonist using a facility stands
 on its neighbor tiles — two adjacent facilities would mean one could never be
@@ -113,6 +122,22 @@ still gets the original single-project behavior — splitting a handful of
 builders across two sites is what gridlocks an early, cramped cavern — while a
 larger one can run more crews in parallel so facility supply keeps pace with
 growth instead of queued orders piling up behind one room at a time.
+
+### Helping build instead of just queueing
+
+An urgent colonist does not automatically queue at a reachable existing
+facility. First it checks whether the colony still wants more of that
+facility than it currently has planned or built
+(`plannedFacilities(kind) < desiredFacilities(...)`); if so, and a reachable
+project task is claimable, it helps build instead — only falling back to the
+existing facility if no such task is available. Without this check, once a
+single facility of a kind exists, every urgent colonist takes the simple path
+of queueing at it, and none is ever free to help build a second: the colony
+gets stuck at whatever capacity it happened to build first, no matter how far
+behind population growth that falls. This is safe even for a fatal need,
+because the starvation grace period (see [needs.md](./needs.md)) already
+covers a colonist waiting on reachable construction — helping build never
+trades a build for a death.
 
 ### The emergency fallback
 
@@ -159,11 +184,26 @@ The room design is the product of watching colonies starve around earlier ones:
 
 ### Known soft spot
 
-A fully mined-out map is the one weak point: with nothing left to dig, the whole
+A fully mined-out map is one weak point: with nothing left to dig, the whole
 idle population mobs the few facilities and a colonist can occasionally be crowded
 out over a long run. This is a shared-facility crowd-flow limit, not a
 room-building one, and is moot once maps are larger than the colony can exhaust or
 colonists have other work.
+
+A second, related one: `findRoomSite` only ever looks at floor that is
+*already* excavated — a room does not carve out its own footprint. Colonists
+dig by following the mining frontier to the nearest reachable rock, which
+tends to produce narrow, organic tunnels rather than room-sized open
+clearings, so once a cave's few wide-enough clearings are used up (the
+starting landing cavern's, typically), a colony can still find itself with
+plenty of unclaimed rock to mine but nowhere flat enough to site the next
+room — even with wall-sharing (above) relaxing the backing requirement.
+*Helping build instead of just queueing* (above) prevents the worse failure
+mode (every urgent colonist queueing forever once one facility exists) but
+does not manufacture floor space that was never dug. The clean fix would give
+a room its own excavation phase — clearing its footprint from Rock as part of
+construction, rather than requiring it pre-cleared — but that is a larger
+change than the siting relaxation here and hasn't been done yet.
 
 ## Extending it
 
