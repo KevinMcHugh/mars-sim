@@ -84,26 +84,60 @@ one-tile front doorway. `designateRoom` lays out, into two phases:
   alternating so every room serves both needs) one tile inside the back wall,
   spaced one tile apart.
 
-`findRoomSite` / `roomSiteClear` pick a site whose interior is clear floor,
-whose rear wall is backed by solid rock or another room's already-placed wall,
-and whose two side walls are each either freshly built (with an exterior lane
-kept clear beside it so every wall task stays reachable even after its
-neighbors go up) or an already-placed, unclaimed wall from a neighboring room
-— in which case the two rooms sit flush and literally **share that one tile**
-as a party wall: this room adds no wall task of its own there (`designateRoom`
-skips it), and needs no exterior lane on that side either, since there is no
-wall task to reach. Sites nearest the map center are preferred.
+`findRoomSite` / `roomSiteClear` pick a site whose rear wall is backed by
+solid rock or another room's already-placed wall, and whose two side walls are
+each either freshly built (with an exterior lane kept clear beside it so every
+wall task stays reachable even after its neighbors go up) or an already-placed,
+unclaimed wall from a neighboring room — in which case the two rooms sit flush
+and literally **share that one tile** as a party wall: this room adds no wall
+task of its own there (`designateRoom` skips it), and needs no exterior lane
+on that side either, since there is no wall task to reach. Sites nearest the
+map center are preferred.
 
 Sharing a boundary this way — on the back wall or a side wall — matters once a
 cave's easy rock-backed edges are used up: rooms reuse floor and structure
 that already exist instead of every new room needing its own fresh niche cut
-from untouched rock. The interior itself must still already be clear floor — a
-room does not excavate its own site — so this still cannot conjure a room out
-of unmined rock or a too-narrow tunnel (see *Known soft spot*).
+from untouched rock.
+
+The interior may be clear floor or still-solid rock (see *Excavating the
+interior*), but `findRoomSite` tries a fully pre-cleared site first and only
+falls back to a rock-interior one if no clear site exists anywhere — a clear
+site finishes strictly faster (no dig phase), and picking a rock one just for
+sitting slightly closer to map center measurably delayed food in testing (a
+colonist starved because life support landed somewhere slower to finish than
+it needed to be; see `findRoomSitePrefersClearOverRockNearCenter` for the
+regression test).
 
 Facilities stay spaced one tile apart because a colonist using a facility stands
 on its neighbor tiles — two adjacent facilities would mean one could never be
 built or used.
+
+### Excavating the interior
+
+A room's interior (where its own back/front walls, clear rows, and facilities
+go) need not be pre-mined. `designateRoom` gives every interior tile still
+solid rock a `roomDigPhase` task (terrain `Floor`, phase `-1` — before
+`roomWallPhase`), so the project excavates its footprint before raising walls.
+Dig tasks share the ordinary claiming/reachability rules: a tile is claimable
+only once some neighbor is already floor, so they naturally clear from the
+edge inward as each newly-opened tile makes the next one reachable — no
+special ordering logic needed, and the always-floor exterior lanes and front
+approach guarantee at least one initially-reachable tile to start from.
+
+A dig task and a wall or facility task can target the same position (excavate
+it, then build on it). `jobBuild` treats `BuildKind == Floor` as a dig: it
+requires the tile to still be `Rock` (rather than `Floor`, as every other
+`BuildKind` does) and takes `MineTicks` (rather than `BuildTicks` /
+`FacilityBuildTicks`), granting `RawRock` like ordinary mining on completion.
+`taskDone` treats a dig task as done once its tile is merely *no longer*
+`Rock` — not only when it equals `Floor` exactly — so a later wall or facility
+task converting that tile past `Floor` still counts the dig as finished rather
+than leaving it permanently unsatisfiable and stuck blocking the project's
+phase from ever advancing.
+
+This does not let a room conjure itself out of nowhere: the exterior (side
+walls, their lanes, the front approach) must still already be floor, exactly
+as before — only the interior can be rock.
 
 ### Planning cadence
 
@@ -136,10 +170,23 @@ existing facility if no such task is available. Without this check, once a
 single facility of a kind exists, every urgent colonist takes the simple path
 of queueing at it, and none is ever free to help build a second: the colony
 gets stuck at whatever capacity it happened to build first, no matter how far
-behind population growth that falls. This is safe even for a fatal need,
-because the starvation grace period (see [needs.md](./needs.md)) already
-covers a colonist waiting on reachable construction — helping build never
-trades a build for a death.
+behind population growth that falls.
+
+Claiming here uses `claimNearestTaskProviding(pos, id, kind)`, **not** the
+unrestricted `claimNearestTask` — it only claims from a project that actually
+provides the needed facility kind somewhere in its task list (any task in
+that project counts, not just the facility tile itself: helping dig or wall a
+life-support room still counts as helping provide its pods and toilets).
+This matters because the starvation grace period (see [needs.md](./needs.md))
+only covers reachable construction that provides the specific facility a
+colonist needs; claiming just any reachable task — digging an unrelated
+dormitory while starving, say — still marks the colonist as "handling" its
+need (so nothing else preempts it) without the grace period actually applying,
+so it takes starvation damage the whole time it is "busy." That's exactly
+what happened in testing once excavation gave projects many more claimable
+tasks to keep a colonist perpetually occupied on the wrong one. Restricting
+the claim to relevant projects makes helping build safe even for a fatal
+need, as intended — it never trades a build for a death.
 
 ### The emergency fallback
 
@@ -182,7 +229,25 @@ The room design is the product of watching colonies starve around earlier ones:
   next to an unreachable project.
 - **Life support before dormitories** makes the planner's priorities explicit:
   sleep improves quality of life, but missing a bed is not fatal, while missing
-  food is.
+  food is. This is strict: even a planning cycle where life support fails to
+  find a site never falls through to a dormitory instead. That fallthrough was
+  tried and reverted — it let dormitories win a scarce concurrent-build slot
+  ahead of life support and measurably delayed food. A colony that cannot site
+  life support at all is a siting problem to fix (excavation, wall-sharing),
+  not a priority order to bend.
+- **Preferring a clear site over a rock one** (in `findRoomSite`) for the same
+  reason: a rock-interior site is strictly slower to finish (it has a dig
+  phase the clear one doesn't), so picking one merely because it happens to be
+  closer to map center can delay a room's completion for no good reason.
+- **The travelTo/stuck interaction.** `jobBuild`'s "someone is on my tile,
+  wait, then give up after `StuckLimit`" safety valve only works because
+  `travelTo`'s "already adjacent" fast path stopped resetting `e.stuck` to 0
+  every tick (it used to, via `clearPath`). Before that fix, two colonists
+  that ended up swapped onto each other's wall-task tiles — much likelier once
+  excavation crowds a freshly-dug interior with diggers who then all start
+  building walls at once — could deadlock forever: the timeout counter never
+  survived a tick to accumulate, so it never fired. This starved a colonist in
+  testing on a large, mature colony.
 
 ### Known soft spot
 
@@ -191,21 +256,6 @@ idle population mobs the few facilities and a colonist can occasionally be crowd
 out over a long run. This is a shared-facility crowd-flow limit, not a
 room-building one, and is moot once maps are larger than the colony can exhaust or
 colonists have other work.
-
-A second, related one: `findRoomSite` only ever looks at floor that is
-*already* excavated — a room does not carve out its own footprint. Colonists
-dig by following the mining frontier to the nearest reachable rock, which
-tends to produce narrow, organic tunnels rather than room-sized open
-clearings, so once a cave's few wide-enough clearings are used up (the
-starting landing cavern's, typically), a colony can still find itself with
-plenty of unclaimed rock to mine but nowhere flat enough to site the next
-room — even with wall-sharing (above) relaxing the back- and side-wall
-requirements. *Helping build instead of just queueing* (above) prevents the worse failure
-mode (every urgent colonist queueing forever once one facility exists) but
-does not manufacture floor space that was never dug. The clean fix would give
-a room its own excavation phase — clearing its footprint from Rock as part of
-construction, rather than requiring it pre-cleared — but that is a larger
-change than the siting relaxation here and hasn't been done yet.
 
 ## Extending it
 
