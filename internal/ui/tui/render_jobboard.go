@@ -15,7 +15,7 @@ const jobListWidth = 40
 
 func (m Model) renderJobs() string {
 	header := m.renderHeader()
-	footer := helpStyle.Render("↑↓/jk select  f facility room  d dormitory  tab/esc map  space pause  q quit")
+	footer := m.footerLine("↑↓/jk select  b build  tab/esc map  space pause  q quit")
 
 	projects := m.latest.Projects
 	rows := m.termH - headerRows - footerRows
@@ -47,7 +47,7 @@ func (m Model) renderNoProjects(rows int) string {
 	if n := m.latest.PendingDormitories; n > 0 {
 		b.WriteString(fmt.Sprintf("%d dormitory order(s) waiting for a build site.\n", n))
 	}
-	b.WriteString("\nPress f or d to queue a facility room or dormitory.")
+	b.WriteString("\nPress b to queue a facility room or dormitory.")
 	return sidebarStyle.Width(m.termW - 2).Height(rows - 2).Render(b.String())
 }
 

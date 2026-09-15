@@ -55,10 +55,23 @@ screen; the rest dispatch to `handleMapKey`, `handleRosterKey`, or
   build progress, and assigned colonist count; a detail pane for the selected
   project lists every task tile with its terrain, build status, and builder
   (if any is currently assigned). With nothing queued, it instead reports any
-  manual `f`/`d` orders still waiting for a build site. See
+  manual spawn/build orders still waiting for a build site. See
   [architecture.md](./architecture.md) for how projects and tasks work. (This
   screen is unrelated to the engine's internal `jobBoard`, which tracks the
   mining frontier — see `internal/sim/jobboard.go`.)
+
+### Spawn and build menus
+
+`s` and `b` each open a one-key picker (`menuKind` in `model.go`) rather than
+sending a command directly: pressing `s` then `c`/`a`/`x`/`m` spawns a
+colonist/alien/cat/mouse, and `b` then `f`/`d` queues a facility room or
+dormitory. While a menu is open its prompt takes over the footer (styled
+distinctly via `menuStyle`) on whichever screen it was opened from, every
+other key is ignored except `esc` (cancel, no command sent) and `q`/`ctrl+c`
+(quit); a recognized selection sends the `Command` and closes the menu. This
+keeps the top-level key surface small as more spawnable/buildable kinds are
+added — new options are new cases in `handleMenuKey` and `menuPrompt`, not new
+top-level keys.
 
 ### Controls
 
@@ -66,14 +79,14 @@ screen; the rest dispatch to `handleMapKey`, `handleRosterKey`, or
 | --- | --- |
 | `space` | pause / resume (`TogglePause`) |
 | `+` / `-` | faster / slower (`SetTicksPerSecond`, ±2) |
-| `f` / `d` | queue a facility room / dormitory (`OrderFacilityRoom`, `OrderDormitory`) — works from the map and the job board |
-| `c` / `a` / `x` / `m` | spawn colonist / alien / cat / mouse (`Spawn`) |
+| `s` | open the spawn menu, then `c`/`a`/`x`/`m` for colonist/alien/cat/mouse (`Spawn`) |
+| `b` | open the build menu, then `f`/`d` for facility room/dormitory (`OrderFacilityRoom`, `OrderDormitory`) |
 | arrows or `hjkl` | pan the camera (map) / move selection (roster, job board) |
 | `tab` | cycle map → roster → job board → map |
-| `q` / `esc` | quit (`esc` returns to the map from roster/job board) |
+| `q` / `esc` | quit (`esc` returns to the map from roster/job board, or cancels an open menu) |
 
-Every key that changes the simulation becomes a `Command`; the UI never touches
-the world directly.
+`s` and `b` work from every screen. Every key that changes the simulation
+becomes a `Command`; the UI never touches the world directly.
 
 ### Glyphs
 

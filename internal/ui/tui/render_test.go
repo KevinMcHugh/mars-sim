@@ -201,6 +201,47 @@ func TestJobBoardShowsPendingOrdersWhenEmpty(t *testing.T) {
 	}
 }
 
+// Pressing s opens the spawn menu, whose prompt replaces the footer; esc
+// cancels it without sending a command.
+func TestSpawnMenuOpensAndCancels(t *testing.T) {
+	var m tea.Model = New(nil, nil)
+	m, _ = m.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
+	m, _ = m.Update(snapshotMsg{snap: makeSnapshot()})
+
+	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("s")})
+	out := m.View()
+	if !strings.Contains(out, "spawn:") || !strings.Contains(out, "colonist") {
+		t.Errorf("spawn menu prompt not shown:\n%s", out)
+	}
+
+	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	out = m.View()
+	if strings.Contains(out, "spawn:") {
+		t.Error("esc should close the spawn menu")
+	}
+}
+
+// Pressing b opens the build menu; selecting a room kind sends the matching
+// command and closes the menu, using a real engine so Send does not panic.
+func TestBuildMenuSelectsRoomKind(t *testing.T) {
+	eng := sim.NewEngine(sim.DefaultConfig())
+	var m tea.Model = New(eng, nil)
+	m, _ = m.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
+	m, _ = m.Update(snapshotMsg{snap: makeSnapshot()})
+
+	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("b")})
+	out := m.View()
+	if !strings.Contains(out, "build:") || !strings.Contains(out, "dormitory") {
+		t.Errorf("build menu prompt not shown:\n%s", out)
+	}
+
+	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("f")})
+	out = m.View()
+	if strings.Contains(out, "build:") {
+		t.Error("selecting a room kind should close the build menu")
+	}
+}
+
 // Before the first frame arrives the view should show a booting message, not
 // crash on nil state.
 func TestViewBeforeFirstFrame(t *testing.T) {

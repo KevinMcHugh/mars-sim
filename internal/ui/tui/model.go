@@ -19,6 +19,17 @@ const (
 	modeJobs                   // the job board: queued projects and their tasks
 )
 
+// menuKind selects an open pick-one prompt, if any. Opening a menu (via `s` or
+// `b`) captures the next keypress as a selection instead of routing it to the
+// current screen; `esc` cancels without sending a command.
+type menuKind int
+
+const (
+	menuNone  menuKind = iota
+	menuSpawn          // pick an entity kind to spawn
+	menuBuild          // pick a room kind to queue
+)
+
 // Model is the Bubble Tea model. It is a pure consumer of the engine: it draws
 // the latest Snapshot and forwards key presses to the engine as Commands. It
 // holds no game state of its own beyond the camera, the current screen, and the
@@ -34,8 +45,9 @@ type Model struct {
 	camReady     bool
 
 	mode        viewMode
-	selected    int // roster: index into the ID-sorted colonist list
-	jobSelected int // job board: index into the queued project list
+	selected    int      // roster: index into the ID-sorted colonist list
+	jobSelected int      // job board: index into the queued project list
+	menu        menuKind // an open spawn/build picker, if any
 
 	quitting bool
 }
@@ -87,6 +99,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	if m.menu != menuNone {
+		return m.handleMenuKey(msg)
+	}
 	// Keys that mean the same thing on every screen.
 	switch msg.String() {
 	case "q", "ctrl+c":
@@ -111,6 +126,12 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.mode = modeMap
 		}
 		return m, nil
+	case "s":
+		m.menu = menuSpawn
+		return m, nil
+	case "b":
+		m.menu = menuBuild
+		return m, nil
 	}
 	switch m.mode {
 	case modeRoster:
@@ -122,25 +143,64 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	}
 }
 
+// handleMenuKey resolves an open spawn/build picker: a recognized selection
+// key sends the command and closes the menu; esc cancels; anything else is
+// ignored so the prompt stays open until the user answers it.
+func (m Model) handleMenuKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "q", "ctrl+c":
+		m.quitting = true
+		return m, tea.Quit
+	case "esc":
+		m.menu = menuNone
+		return m, nil
+	}
+	switch m.menu {
+	case menuSpawn:
+		switch msg.String() {
+		case "c":
+			m.eng.Send(sim.Spawn{Kind: sim.Colonist})
+		case "a":
+			m.eng.Send(sim.Spawn{Kind: sim.Alien})
+		case "x":
+			m.eng.Send(sim.Spawn{Kind: sim.Cat})
+		case "m":
+			m.eng.Send(sim.Spawn{Kind: sim.Mouse})
+		default:
+			return m, nil
+		}
+	case menuBuild:
+		switch msg.String() {
+		case "f":
+			m.eng.Send(sim.OrderFacilityRoom{})
+		case "d":
+			m.eng.Send(sim.OrderDormitory{})
+		default:
+			return m, nil
+		}
+	}
+	m.menu = menuNone
+	return m, nil
+}
+
+// menuPrompt describes the open spawn/build picker for the footer, if any.
+func (m Model) menuPrompt() (string, bool) {
+	switch m.menu {
+	case menuSpawn:
+		return "spawn:  c colonist   a alien   x cat   m mouse   esc cancel", true
+	case menuBuild:
+		return "build:  f facility room   d dormitory   esc cancel", true
+	default:
+		return "", false
+	}
+}
+
 // handleMapKey handles keys specific to the map screen.
 func (m Model) handleMapKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "esc":
 		m.quitting = true
 		return m, tea.Quit
-
-	case "c":
-		m.eng.Send(sim.Spawn{Kind: sim.Colonist})
-	case "a":
-		m.eng.Send(sim.Spawn{Kind: sim.Alien})
-	case "x":
-		m.eng.Send(sim.Spawn{Kind: sim.Cat})
-	case "m":
-		m.eng.Send(sim.Spawn{Kind: sim.Mouse})
-	case "f":
-		m.eng.Send(sim.OrderFacilityRoom{})
-	case "d":
-		m.eng.Send(sim.OrderDormitory{})
 
 	case "left", "h":
 		m.panCamera(-4, 0)
@@ -192,10 +252,6 @@ func (m Model) handleJobsKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.jobSelected++
 	case "home", "g":
 		m.jobSelected = 0
-	case "f":
-		m.eng.Send(sim.OrderFacilityRoom{})
-	case "d":
-		m.eng.Send(sim.OrderDormitory{})
 	}
 	m.jobSelected = m.clampJobSelection(m.jobSelected)
 	return m, nil
