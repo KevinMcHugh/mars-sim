@@ -24,6 +24,7 @@ var (
 	statStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("245"))
 	pausedStyle  = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("214"))
 	helpStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
+	menuStyle    = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("214"))
 	sidebarStyle = lipgloss.NewStyle().
 			Border(lipgloss.RoundedBorder()).
 			BorderForeground(lipgloss.Color("240")).
@@ -58,6 +59,9 @@ func (m Model) render() string {
 
 	if m.mode == modeRoster {
 		return m.renderRoster()
+	}
+	if m.mode == modeJobs {
+		return m.renderJobs()
 	}
 
 	mapBlock := m.renderMap()
@@ -154,9 +158,17 @@ func (m Model) renderSidebar() string {
 }
 
 func (m Model) renderFooter() string {
-	return helpStyle.Render(
-		"space pause  +/- speed  f facility room  d dormitory  c colonist  a alien  x cat  m mouse  ←↑↓→/hjkl pan  tab roster  q quit",
-	)
+	return m.footerLine("space pause  +/- speed  s spawn  b build  ←↑↓→/hjkl pan  tab roster/jobs  q quit")
+}
+
+// footerLine renders the given help text, unless a spawn/build menu is open,
+// in which case it renders that menu's prompt instead — on whichever screen
+// the menu was opened from.
+func (m Model) footerLine(help string) string {
+	if prompt, ok := m.menuPrompt(); ok {
+		return menuStyle.Render(prompt)
+	}
+	return helpStyle.Render(help)
 }
 
 func truncate(s string, n int) string {

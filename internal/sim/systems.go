@@ -123,34 +123,51 @@ func (w *World) colonistTurn(e *Entity) {
 	if urgent && !handlingNeed {
 		spec := w.cfg.Needs[need]
 		e.resting = false
-		if field := w.facilityField(spec.Facility); field != nil && field.at(e.Pos) >= 0 {
+		field := w.facilityField(spec.Facility)
+		existingReachable := field != nil && field.at(e.Pos) >= 0
+		// If the colony still wants more of this facility than it has planned
+		// or built, an urgent colonist tries to help add that capacity before
+		// just joining the queue at an already-oversubscribed existing one —
+		// otherwise, once a single facility exists, every urgent colonist
+		// queues for it forever and none is ever free to build a second.
+		// This is safe even for a fatal need: the starvation grace period
+		// already covers a colonist waiting on reachable construction (see
+		// applyStarvation), so it never trades a build for a death.
+		needMore := w.plannedFacilities(spec.Facility) < w.desiredFacilities(w.countKind(Colonist))
+		var task *buildTask
+		var hasTask bool
+		if needMore || !existingReachable {
+			task, hasTask = w.claimNearestTask(e.Pos, e.ID)
+		}
+
+		w.clearJob(e)
+		switch {
+		case needMore && hasTask:
+			w.assignTask(e, task)
+		case existingReachable:
 			// A facility of this kind is reachable: follow its shared flow field.
-			w.clearJob(e)
 			e.Job, e.Need, e.Progress = JobUse, need, 0
 			e.useFacility, e.useFacilitySet = w.chooseFacility(e, spec.Facility), true
-		} else {
-			// No completed facility is reachable. Drop unrelated work and help with
-			// reachable planned construction rather than mining until death merely
-			// because a facility task exists somewhere in the world.
-			w.clearJob(e)
-			if task, ok := w.claimNearestTask(e.Pos, e.ID); ok {
-				w.assignTask(e, task)
-			} else if spec.Fatal && !w.reachableFacilityConstruction(e.Pos, spec.Facility) {
-				// A project in a disconnected room must not suppress this fallback.
-				if spot, ok := w.findBuildSpot(e.Pos, 20); ok {
-					w.assignBuild(e, spec.Facility, spot)
-				}
-			} else {
-				// All reachable project tasks are claimed. Wait for their builders
-				// instead of taking unrelated work and losing our place in the queue.
-				e.State = Idle
-				if w.idleWouldBlock(e.Pos) {
-					w.stepAside(e)
-				} else {
-					w.wanderStep(e)
-				}
-				return
+		case hasTask:
+			w.assignTask(e, task)
+		case !w.reachableFacilityConstruction(e.Pos, spec.Facility):
+			// Nothing reachable already provides this facility: rather than
+			// wait indefinitely (a project in a disconnected room must not
+			// suppress this fallback), build one — fatal or not, an urgent
+			// need with no path to relief is the loop this guards against.
+			if spot, ok := w.findBuildSpot(e.Pos, 20); ok {
+				w.assignBuild(e, spec.Facility, spot)
 			}
+		default:
+			// All reachable project tasks are claimed. Wait for their builders
+			// instead of taking unrelated work and losing our place in the queue.
+			e.State = Idle
+			if w.idleWouldBlock(e.Pos) {
+				w.stepAside(e)
+			} else {
+				w.wanderStep(e)
+			}
+			return
 		}
 	}
 

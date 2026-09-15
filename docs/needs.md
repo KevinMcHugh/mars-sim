@@ -71,20 +71,28 @@ caps further past its threshold) would permanently outrank food and let colonist
 starve while relieving themselves.
 
 Sleep is deliberately non-fatal. A tired colonist seeks a reachable bunk and
-spends `UseTicks` (40 by default) sleeping beside it. If no bunk is reachable,
-the colonist waits rather than taking an emergency-build path; food and toilets
-are planned first, and dormitories are added once life support is covered. This
-makes sleep a capacity and scheduling pressure without turning an unfinished
-dormitory into a death spiral.
+spends `UseTicks` (40 by default) sleeping beside it. Food and toilets are
+still planned before dormitories, so a bunk usually arrives later than the
+first facility room — but a colonist with no reachable bunk, no bunk task to
+help with, and no dormitory under construction anywhere reachable does not
+simply wait forever: like any other need (see *The emergency fallback* in
+[construction.md](./construction.md)), it builds one for itself. This keeps
+sleep a capacity and scheduling pressure in the common case, without letting a
+delayed dormitory turn into an indefinite "stuck waiting" loop.
 
 ### Satisfying a need
 
-When a need is urgent and a facility of the right kind is reachable, the colonist
-takes a `JobUse` job and follows that facility's shared **flow field** to the
-nearest one, stands adjacent, and uses it for `UseTicks`. See
-[pathfinding.md](./pathfinding.md) for the flow fields and
-[construction.md](./construction.md) for how facilities get built. The colony
-keeps `ColonistsPerFacility` colonists' worth of each facility planned or built.
+When a need is urgent and a facility of the right kind is reachable, the
+colonist normally takes a `JobUse` job and follows that facility's shared
+**flow field** to the nearest one, stands adjacent, and uses it for
+`UseTicks`. But if the colony still wants more of that facility than it has
+planned or built, the colonist tries to help build that capacity first
+(joining a reachable project task) rather than just queueing — otherwise,
+once a single facility exists, no colonist is ever free to build a second.
+See [pathfinding.md](./pathfinding.md) for the flow fields and
+[construction.md](./construction.md) for how facilities get built and for
+this priority in full. The colony keeps `ColonistsPerFacility` colonists'
+worth of each facility planned or built.
 
 ### Staggered start
 
@@ -104,9 +112,11 @@ facilities at once.
   starving with a full bladder — the table alone (thresholds) was not enough.
 - **Grace periods** stop the frustrating startup deaths where hunger outraced the
   very first pod.
-- **Sleep being non-fatal** keeps dormitory construction from competing with
-  life-support construction at the moment it is most needed. A tired colonist
-  can wait for the next bunk.
+- **Sleep being non-fatal** keeps the planner's priority (life support before
+  dormitories) meaningful: a tired colonist can wait for the next bunk instead
+  of forcing dormitories to compete with life support at the moment life
+  support is most needed. It no longer means *only* waiting, though — see the
+  emergency fallback below.
 
 ## Extending it
 
