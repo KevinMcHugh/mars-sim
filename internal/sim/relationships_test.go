@@ -103,10 +103,14 @@ func TestKinSiblingsAndNiblings(t *testing.T) {
 	mustRelate(t, w, b, kid, RelNibling)   // kid is b's nibling
 }
 
-// Spouse compatibility follows orientation and gender.
+// Spouse compatibility follows orientation and gender. A non-binary colonist
+// is plausible with anyone who isn't asexual: orientation labels don't say
+// anything about attraction to a non-binary person, so wireRelation settles
+// those pairings with a coin flip instead (see TestNonbinaryPairingCoinFlip).
 func TestSpouseCompatibility(t *testing.T) {
 	man := func(o Orientation) *Profile { return &Profile{Gender: GenderMan, Orientation: o} }
 	woman := func(o Orientation) *Profile { return &Profile{Gender: GenderWoman, Orientation: o} }
+	enby := func(o Orientation) *Profile { return &Profile{Gender: GenderNonbinary, Orientation: o} }
 
 	cases := []struct {
 		name string
@@ -120,11 +124,41 @@ func TestSpouseCompatibility(t *testing.T) {
 		{"bisexual + hetero opposite", woman(Bisexual), man(Heterosexual), true},
 		{"asexual never", man(Asexual), woman(Heterosexual), false},
 		{"one-sided attraction", man(Homosexual), woman(Bisexual), false},
+		{"enby + heterosexual man plausible", enby(Bisexual), man(Heterosexual), true},
+		{"enby + homosexual man plausible", enby(Bisexual), man(Homosexual), true},
+		{"enby + enby plausible", enby(Heterosexual), enby(Homosexual), true},
+		{"enby + asexual never", enby(Bisexual), man(Asexual), false},
+		{"asexual enby never", enby(Asexual), man(Heterosexual), false},
 	}
 	for _, c := range cases {
 		if got := spouseCompatible(c.a, c.b); got != c.want {
 			t.Errorf("%s: got %v want %v", c.name, got, c.want)
 		}
+	}
+}
+
+// A pairing involving a non-binary colonist is decided by a coin flip rather
+// than orientation, so a heterosexual (or homosexual, or any) colonist can
+// end up married to an enby -- and, on the same terms, sometimes doesn't.
+func TestNonbinaryPairingCoinFlip(t *testing.T) {
+	w := kinWorld()
+	sawMarried, sawRejected := false, false
+	for i := 0; i < 60 && !(sawMarried && sawRejected); i++ {
+		enby := w.spawn(Colonist, Point{0, 0})
+		hetero := w.spawn(Colonist, Point{1, 0})
+		enby.Profile.Gender, enby.Profile.Orientation = GenderNonbinary, Bisexual
+		hetero.Profile.Gender, hetero.Profile.Orientation = GenderMan, Heterosexual
+		if w.wireRelation(enby, hetero, RelSpouse) {
+			sawMarried = true
+		} else {
+			sawRejected = true
+		}
+	}
+	if !sawMarried {
+		t.Fatal("a heterosexual colonist never married an enby across many rolls")
+	}
+	if !sawRejected {
+		t.Fatal("the enby pairing always succeeded; the coin flip doesn't seem to reject")
 	}
 }
 

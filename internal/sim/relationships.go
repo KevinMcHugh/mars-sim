@@ -187,6 +187,12 @@ func (w *World) wireRelation(c, r *Entity, kind RelationKind) (ok bool) {
 		if pc.spouse != 0 || pr.spouse != 0 || !spouseCompatible(c.Profile, r.Profile) {
 			return false
 		}
+		// A pairing involving a non-binary colonist isn't resolved by orientation
+		// alone (see spouseCompatible); a coin flip decides it instead, so anybody
+		// might marry an enby regardless of how they describe their orientation.
+		if nonbinaryPairing(c.Profile, r.Profile) && w.prng.Intn(2) == 0 {
+			return false
+		}
 		pc.spouse, pr.spouse = kr, kc
 		return true
 	case RelChild: // c is r's child: c's parents are r (and r's spouse, if any)
@@ -271,8 +277,15 @@ func validParent(parent, child *Profile) bool {
 }
 
 // spouseCompatible reports whether two colonists could plausibly marry: each is
-// attracted to the other's gender given their orientation.
+// attracted to the other's gender given their orientation. A gender-based
+// orientation label doesn't say anything about attraction to a non-binary
+// colonist, so any pairing involving one is plausible here (barring
+// asexuality) — wireRelation settles it with a coin flip instead of trying to
+// read that off orientation.
 func spouseCompatible(a, b *Profile) bool {
+	if nonbinaryPairing(a, b) {
+		return a.Orientation != Asexual && b.Orientation != Asexual
+	}
 	return attracted(a, b) && attracted(b, a)
 }
 
@@ -295,6 +308,11 @@ func attracted(from, to *Profile) bool {
 // Non-binary is not an opposite of anyone, so a heterosexual pairing skips it.
 func oppositeBinaryGender(a, b Gender) bool {
 	return (a == GenderMan && b == GenderWoman) || (a == GenderWoman && b == GenderMan)
+}
+
+// nonbinaryPairing reports whether either profile is non-binary.
+func nonbinaryPairing(a, b *Profile) bool {
+	return a.Gender == GenderNonbinary || b.Gender == GenderNonbinary
 }
 
 // kinChildren builds a child index (parent node -> its children) for one

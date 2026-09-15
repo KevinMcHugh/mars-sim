@@ -191,9 +191,11 @@ Colonists are related and get to know each other (`internal/sim/relationships.go
   (sibling, aunt/uncle, grandparent, ...) are *derived* from it, so they stay
   mutually consistent however the colony grows, and ancestors who never joined
   the colony live on as phantom tree nodes that connect real colonists. Spouses
-  are only paired when their orientations and genders are mutually compatible.
-  Family is generated from the same separate RNG stream as personality, so it
-  never perturbs the sim.
+  are only paired when their orientations and genders are mutually compatible;
+  a pairing involving a non-binary colonist isn't something an orientation
+  label resolves on its own, so those are decided with a coin flip instead —
+  anybody might marry an enby. Family is generated from the same separate RNG
+  stream as personality, so it never perturbs the sim.
 - **Talking.** Colonists have a non-fatal **social need** that rises over time.
   Before looking for ordinary work, a colonist whose social need reaches its
   threshold seeks a nearby free colonist and must complete a conversation (the
