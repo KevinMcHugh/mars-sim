@@ -275,10 +275,16 @@ func (w *World) stompNearbyMouse(e *Entity) bool {
 	return true
 }
 
-// stomp crushes a mouse underfoot. A stomp is always fatal to the mouse.
+// stomp crushes a mouse underfoot. A stomp is always fatal to the mouse. Any
+// other colonist close enough to have noticed the mouse remembers seeing it
+// happen.
 func (w *World) stomp(colonist, mouse *Entity) {
+	witnesses := w.colonistsWithin(mouse.Pos, w.cfg.ColonistStompRadius, colonist.ID)
 	w.remove(mouse.ID)
 	w.remember(colonist, fmt.Sprintf("Crushed mouse #%d.", mouse.ID))
+	for _, wit := range witnesses {
+		w.remember(wit, fmt.Sprintf("Watched a colonist crush mouse #%d.", mouse.ID))
+	}
 	w.log.add(fmt.Sprintf("Colonist #%d stomps mouse #%d.", colonist.ID, mouse.ID))
 }
 
@@ -1108,15 +1114,27 @@ func (w *World) alienTurn(e *Entity) {
 	e.Cooldown = w.cfg.AlienSlowness - 1
 }
 
-// bite deals damage to a colonist and eats it if the wound is fatal.
+// bite deals damage to a colonist and eats it if the wound is fatal. The
+// victim remembers the attack, and any other colonist close enough to have
+// noticed the alien (observeNearby's own sighting radius) remembers watching
+// it happen.
 func (w *World) bite(alien, prey *Entity) {
 	prey.HP -= w.cfg.AlienDamage
+	witnesses := w.colonistsWithin(prey.Pos, w.cfg.FleeRadius, prey.ID)
 	if prey.HP <= 0 {
 		alien.State = Feeding
+		name := prey.displayName()
 		w.remove(prey.ID)
-		w.log.add(fmt.Sprintf("An alien devours %s.", prey.displayName()))
+		w.log.add(fmt.Sprintf("An alien devours %s.", name))
+		for _, wit := range witnesses {
+			w.remember(wit, fmt.Sprintf("Watched an alien kill %s.", name))
+		}
 	} else {
 		alien.State = Hunting
+		w.remember(prey, "Bitten by an alien!")
+		for _, wit := range witnesses {
+			w.remember(wit, fmt.Sprintf("Watched an alien attack %s.", prey.displayName()))
+		}
 	}
 }
 
@@ -1156,9 +1174,13 @@ func (w *World) catTurn(e *Entity) {
 }
 
 // pounce catches and eats an adjacent mouse. A mouse is tiny, so a single pounce
-// is fatal.
+// is fatal. Any colonist close enough to have noticed the mouse remembers
+// seeing it happen.
 func (w *World) pounce(cat, prey *Entity) {
 	cat.State = Feeding
+	for _, wit := range w.colonistsWithin(prey.Pos, w.cfg.ColonistStompRadius, 0) {
+		w.remember(wit, fmt.Sprintf("Watched a cat catch mouse #%d.", prey.ID))
+	}
 	w.remove(prey.ID)
 	w.log.add(fmt.Sprintf("A cat catches mouse #%d.", prey.ID))
 }
@@ -1397,6 +1419,28 @@ func (w *World) stepAside(e *Entity) bool {
 }
 
 // ---- Queries -----------------------------------------------------------------
+
+// colonistsWithin returns every living colonist other than exclude within
+// radius of pos, in deterministic ID order. It backs witness memories: a
+// bystander close enough to have noticed a creature (the same radius
+// observeNearby uses for that creature kind) also notices what happens to it.
+// Pass 0 for exclude when no colonist should be excluded.
+func (w *World) colonistsWithin(pos Point, radius int, exclude EntityID) []*Entity {
+	var witnesses []*Entity
+	for _, id := range w.entityIDsSorted() {
+		if id == exclude {
+			continue
+		}
+		e := w.entities[id]
+		if e.Kind != Colonist || !e.Alive() {
+			continue
+		}
+		if pos.Chebyshev(e.Pos) <= radius {
+			witnesses = append(witnesses, e)
+		}
+	}
+	return witnesses
+}
 
 func (w *World) nearestColonist(from Point, within int) (*Entity, bool) {
 	return w.nearestOfKind(from, Colonist, within)
