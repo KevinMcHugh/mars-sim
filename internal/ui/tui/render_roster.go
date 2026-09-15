@@ -10,10 +10,11 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
-// rosterListWidth leaves room for the longest generated name (17 columns),
-// they/them (8), "age 80" (6), the longest state ("relieving", 9), three
-// separators (9), and the selection marker (2), plus the panel chrome.
-const rosterListWidth = 56
+// rosterListWidth leaves room for the age/gender glyph and a space (3), the
+// longest generated name (17 columns), they/them (8), "age 80" (6), the
+// longest state ("relieving", 9), three separators (9), and the selection
+// marker (2), plus the panel chrome.
+const rosterListWidth = 59
 
 var (
 	rosterSelStyle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("203"))
@@ -93,7 +94,7 @@ func (m Model) renderColonistList(cs []sim.EntityView, sel, rows int) string {
 				age = fmt.Sprintf("age %d", c.Profile.Age)
 			}
 		}
-		nameLine := truncate(name, rosterListWidth-4)
+		nameLine := truncate(colonistGlyph(c.Profile)+" "+name, rosterListWidth-4)
 		infoLine := truncate(fmt.Sprintf("%s · %s", pronouns, age), rosterListWidth-4)
 		stateLine := truncate(state, rosterListWidth-4)
 		marker := "•"
@@ -140,9 +141,10 @@ func (m Model) renderColonistDetail(c sim.EntityView, rows int) string {
 		return sidebarStyle.Width(width).Height(rows - 2).Render(b.String())
 	}
 
-	b.WriteString(titleStyle.Render(p.Name) + "\n")
+	b.WriteString(titleStyle.Render(colonistGlyph(p)+" "+p.Name) + "\n")
 	b.WriteString(statStyle.Render(fmt.Sprintf("%s · %s · %s", p.Gender, p.Sex, p.Orientation)) + "\n")
-	b.WriteString(statStyle.Render(fmt.Sprintf("age %d · %d cm · %d kg", p.Age, p.HeightCM, p.WeightKG)) + "\n\n")
+	b.WriteString(statStyle.Render(fmt.Sprintf("age %d · %d cm · %d kg", p.Age, p.HeightCM, p.WeightKG)) + "\n")
+	b.WriteString(statStyle.Render(fmt.Sprintf("%s skin · %s hair", p.SkinTone, p.HairColor)) + "\n\n")
 
 	b.WriteString(labelStyle.Render("STATUS") + "  " + c.State.String() + "\n")
 	b.WriteString(bar("health", c.HP, c.MaxHP, barW) + "\n")
