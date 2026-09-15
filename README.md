@@ -154,7 +154,7 @@ Adding a new need is meant to be a table edit: append a `NeedKind`, give it a
 #### Personality
 
 Every colonist has a **profile** (`internal/sim/personality.go`): a name,
-populated attributes (sex, gender, orientation, height, weight), and any
+populated attributes (gender, orientation, height, weight), and any
 **traits**. Attributes are flavor for now — nothing simulates against them yet —
 but traits change how a colonist plays:
 
