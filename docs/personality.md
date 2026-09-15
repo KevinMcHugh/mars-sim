@@ -4,7 +4,7 @@
 
 ## What it is
 
-Every colonist has a `Profile`: a name, attributes (age, sex, gender, orientation,
+Every colonist has a `Profile`: a name, attributes (age, gender, orientation,
 height, weight, skin tone, hair color), and any traits. Attributes are flavor for now; **traits change
 how a colonist plays** by scaling need rates and work behavior. All of it is
 generated from a dedicated RNG stream so flavor never perturbs the simulation.
@@ -28,8 +28,8 @@ did before personalities existed. Preserving this separation is a hard invariant
 
 ### Attributes (flavor)
 
-`assignPersonality` rolls age (18–80), sex, gender (usually but not always aligned with sex),
-orientation, a correlated height/weight (via a BMI draw), a skin tone (uniform
+`assignPersonality` rolls age (18–80), gender, orientation, a correlated
+height/weight (via a BMI draw), a skin tone (uniform
 across the five emoji tone points), a hair color (white and bald weighted
 upward with age), and a name drawn from gender-appropriate pools. Nothing
 simulates against these yet — they exist for flavor and future systems.

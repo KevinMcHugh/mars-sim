@@ -82,7 +82,7 @@ func TestGlyphsOccupyOneTile(t *testing.T) {
 func TestRosterShowsColonistDetail(t *testing.T) {
 	snap := makeSnapshot()
 	snap.Entities[0].Profile = &sim.Profile{
-		Name: "Zoe Vargas", Age: 32, Sex: sim.SexFemale, Gender: sim.GenderWoman,
+		Name: "Zoe Vargas", Age: 32, Gender: sim.GenderWoman,
 		Orientation: sim.Bisexual, HeightCM: 168, WeightKG: 61,
 		Traits: []sim.Trait{sim.TraitBigEater},
 	}
