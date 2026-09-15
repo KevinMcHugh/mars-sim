@@ -1,6 +1,8 @@
 package tui
 
 import (
+	"strings"
+
 	"github.com/kevinmchugh/mars-sim/internal/sim"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -16,7 +18,39 @@ type viewMode int
 const (
 	modeMap    viewMode = iota // the cavern map (default)
 	modeRoster                 // the colonist roster and inspector
+	modeJobs                   // the job board: queued projects and their tasks
 )
+
+// menuKind selects an open pick-one prompt, if any. Opening a menu (via `s` or
+// `b`) captures keypresses instead of routing them to the current screen:
+// up/down move the highlighted option, enter submits it, a shortcut letter
+// jumps to and submits an option directly, and esc cancels without sending a
+// command.
+type menuKind int
+
+const (
+	menuNone  menuKind = iota
+	menuSpawn          // pick an entity kind to spawn
+	menuBuild          // pick a room kind to queue
+)
+
+// menuItem is one selectable option in a spawn/build menu.
+type menuItem struct {
+	key   string // shortcut key that jumps to and submits this option directly
+	label string
+}
+
+var spawnMenuItems = []menuItem{
+	{"c", "colonist"},
+	{"a", "alien"},
+	{"x", "cat"},
+	{"m", "mouse"},
+}
+
+var buildMenuItems = []menuItem{
+	{"f", "facility room"},
+	{"d", "dormitory"},
+}
 
 // Model is the Bubble Tea model. It is a pure consumer of the engine: it draws
 // the latest Snapshot and forwards key presses to the engine as Commands. It
@@ -32,8 +66,16 @@ type Model struct {
 	cam          sim.Point // world coordinate shown at the map's top-left
 	camReady     bool
 
-	mode     viewMode
-	selected int // roster: index into the ID-sorted colonist list
+	mode        viewMode
+	selected    int      // roster: index into the ID-sorted colonist list
+	jobSelected int      // job board: index into the queued project list
+	menu        menuKind // an open spawn/build picker, if any
+
+	// spawnCursor / buildCursor are each menu's highlighted option index.
+	// They persist across opens (and across submits), so e.g. spawning three
+	// mice is s, [navigate to mouse], enter, then just s, enter, s, enter.
+	spawnCursor int
+	buildCursor int
 
 	quitting bool
 }
@@ -85,6 +127,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	if m.menu != menuNone {
+		return m.handleMenuKey(msg)
+	}
 	// Keys that mean the same thing on every screen.
 	switch msg.String() {
 	case "q", "ctrl+c":
@@ -100,17 +145,162 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.eng.Send(sim.SetTicksPerSecond{Rate: m.currentTPS() - 2})
 		return m, nil
 	case "tab":
-		if m.mode == modeMap {
+		switch m.mode {
+		case modeMap:
 			m.mode = modeRoster
-		} else {
+		case modeRoster:
+			m.mode = modeJobs
+		default:
 			m.mode = modeMap
 		}
 		return m, nil
+	case "s":
+		m.menu = menuSpawn
+		return m, nil
+	case "b":
+		m.menu = menuBuild
+		return m, nil
 	}
-	if m.mode == modeRoster {
+	switch m.mode {
+	case modeRoster:
 		return m.handleRosterKey(msg)
+	case modeJobs:
+		return m.handleJobsKey(msg)
+	default:
+		return m.handleMapKey(msg)
 	}
-	return m.handleMapKey(msg)
+}
+
+// handleMenuKey resolves an open spawn/build picker: up/down move the
+// highlighted option, enter submits it, a shortcut letter jumps to and
+// submits an option directly, esc cancels, and anything else is ignored so
+// the prompt stays open until the user answers it.
+func (m Model) handleMenuKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "q", "ctrl+c":
+		m.quitting = true
+		return m, tea.Quit
+	case "esc":
+		m.menu = menuNone
+		return m, nil
+	}
+
+	items := m.menuItems()
+	switch msg.String() {
+	case "up", "k":
+		m.setMenuCursor(wrapCursor(m.menuCursor()-1, len(items)))
+		return m, nil
+	case "down", "j":
+		m.setMenuCursor(wrapCursor(m.menuCursor()+1, len(items)))
+		return m, nil
+	case "enter":
+		m.submitMenuItem(m.menuCursor())
+		m.menu = menuNone
+		return m, nil
+	}
+	for i, it := range items {
+		if it.key == msg.String() {
+			m.setMenuCursor(i)
+			m.submitMenuItem(i)
+			m.menu = menuNone
+			return m, nil
+		}
+	}
+	return m, nil
+}
+
+// wrapCursor keeps a menu selection cycling within [0, n).
+func wrapCursor(i, n int) int {
+	if n <= 0 {
+		return 0
+	}
+	return ((i % n) + n) % n
+}
+
+// menuItems returns the open menu's options, or nil if none is open.
+func (m Model) menuItems() []menuItem {
+	switch m.menu {
+	case menuSpawn:
+		return spawnMenuItems
+	case menuBuild:
+		return buildMenuItems
+	default:
+		return nil
+	}
+}
+
+// menuCursor returns the open menu's highlighted index.
+func (m Model) menuCursor() int {
+	switch m.menu {
+	case menuSpawn:
+		return m.spawnCursor
+	case menuBuild:
+		return m.buildCursor
+	default:
+		return 0
+	}
+}
+
+// setMenuCursor moves the open menu's highlight, remembering it per menu kind
+// so it reopens on the same selection next time.
+func (m *Model) setMenuCursor(i int) {
+	switch m.menu {
+	case menuSpawn:
+		m.spawnCursor = i
+	case menuBuild:
+		m.buildCursor = i
+	}
+}
+
+// submitMenuItem sends the command for the open menu's i-th option.
+func (m Model) submitMenuItem(i int) {
+	items := m.menuItems()
+	if i < 0 || i >= len(items) {
+		return
+	}
+	switch m.menu {
+	case menuSpawn:
+		switch items[i].key {
+		case "c":
+			m.eng.Send(sim.Spawn{Kind: sim.Colonist})
+		case "a":
+			m.eng.Send(sim.Spawn{Kind: sim.Alien})
+		case "x":
+			m.eng.Send(sim.Spawn{Kind: sim.Cat})
+		case "m":
+			m.eng.Send(sim.Spawn{Kind: sim.Mouse})
+		}
+	case menuBuild:
+		switch items[i].key {
+		case "f":
+			m.eng.Send(sim.OrderFacilityRoom{})
+		case "d":
+			m.eng.Send(sim.OrderDormitory{})
+		}
+	}
+}
+
+// menuPrompt describes the open spawn/build picker for the footer, if any,
+// bracketing the highlighted option.
+func (m Model) menuPrompt() (string, bool) {
+	items := m.menuItems()
+	if items == nil {
+		return "", false
+	}
+	label := "spawn"
+	if m.menu == menuBuild {
+		label = "build"
+	}
+	cursor := m.menuCursor()
+	parts := make([]string, len(items))
+	for i, it := range items {
+		text := it.key + " " + it.label
+		if i == cursor {
+			text = "[" + text + "]"
+		}
+		parts[i] = text
+	}
+	return label + ":  " + strings.Join(parts, "   ") + "   ↑↓ select  enter confirm  esc cancel", true
 }
 
 // handleMapKey handles keys specific to the map screen.
@@ -119,19 +309,6 @@ func (m Model) handleMapKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "esc":
 		m.quitting = true
 		return m, tea.Quit
-
-	case "c":
-		m.eng.Send(sim.Spawn{Kind: sim.Colonist})
-	case "a":
-		m.eng.Send(sim.Spawn{Kind: sim.Alien})
-	case "x":
-		m.eng.Send(sim.Spawn{Kind: sim.Cat})
-	case "m":
-		m.eng.Send(sim.Spawn{Kind: sim.Mouse})
-	case "f":
-		m.eng.Send(sim.OrderFacilityRoom{})
-	case "d":
-		m.eng.Send(sim.OrderDormitory{})
 
 	case "left", "h":
 		m.panCamera(-4, 0)
@@ -169,6 +346,40 @@ func (m Model) clampSelection(i int) int {
 		return 0
 	}
 	return clamp(i, 0, n-1)
+}
+
+// handleJobsKey handles keys specific to the job board screen: moving the
+// selection, queueing new work, and returning to the map.
+func (m Model) handleJobsKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "esc":
+		m.mode = modeMap
+	case "up", "k":
+		m.jobSelected--
+	case "down", "j":
+		m.jobSelected++
+	case "home", "g":
+		m.jobSelected = 0
+	}
+	m.jobSelected = m.clampJobSelection(m.jobSelected)
+	return m, nil
+}
+
+// clampJobSelection keeps a job board index within the current project list.
+func (m Model) clampJobSelection(i int) int {
+	n := m.projectCount()
+	if n == 0 {
+		return 0
+	}
+	return clamp(i, 0, n-1)
+}
+
+// projectCount returns how many projects are queued in the latest frame.
+func (m Model) projectCount() int {
+	if m.latest == nil {
+		return 0
+	}
+	return len(m.latest.Projects)
 }
 
 // colonistCount returns how many colonists are in the latest frame.

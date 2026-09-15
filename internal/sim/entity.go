@@ -177,8 +177,12 @@ type Entity struct {
 	Need           NeedKind // JobUse: which need this fulfills
 	useFacility    Point
 	useFacilitySet bool
-	partner        EntityID // JobTalk: the colonist being talked with; 0 if none
-	Progress       int      // ticks accumulated on the current action
+	// carrying reports whether a JobUse colonist has grabbed a portable need
+	// (see NeedSpec.GrabTicks) and stepped away from the facility to finish it,
+	// rather than still occupying the facility's access tile.
+	carrying bool
+	partner  EntityID // JobTalk: the colonist being talked with; 0 if none
+	Progress int      // ticks accumulated on the current action
 
 	// Rest scheduling: an idle colonist with no available work rests (skips the
 	// work search) until wakeTick instead of re-scanning the map every tick.

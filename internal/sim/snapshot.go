@@ -22,6 +22,57 @@ type EntityView struct {
 	Memories   []Memory
 }
 
+// TaskView is a read-only copy of one construction task for display: a single
+// tile to be built, and who (if anyone) is currently building it.
+type TaskView struct {
+	Pos     Point
+	Terrain Terrain // desired terrain for Pos
+	Phase   int     // lower phases in the project must finish first
+	Done    bool
+	Owner   EntityID // colonist currently building it; 0 if unclaimed
+}
+
+// ProjectView is a read-only copy of a queued construction project: the tasks
+// the colony has planned, and when it queued them, for the job board.
+type ProjectView struct {
+	ID         int
+	Name       string
+	QueuedTick int // tick the colony designated this project
+	Phase      int // earliest phase with unfinished work
+	Tasks      []TaskView
+}
+
+// TasksDone counts tasks already built.
+func (p ProjectView) TasksDone() int {
+	n := 0
+	for _, t := range p.Tasks {
+		if t.Done {
+			n++
+		}
+	}
+	return n
+}
+
+// TasksRemaining counts tasks not yet built — at least this many more build
+// actions are needed to finish the project.
+func (p ProjectView) TasksRemaining() int {
+	return len(p.Tasks) - p.TasksDone()
+}
+
+// Assignees lists, in task order, the distinct colonists currently building a
+// task in this project.
+func (p ProjectView) Assignees() []EntityID {
+	seen := make(map[EntityID]bool, len(p.Tasks))
+	var out []EntityID
+	for _, t := range p.Tasks {
+		if t.Owner != 0 && !seen[t.Owner] {
+			seen[t.Owner] = true
+			out = append(out, t.Owner)
+		}
+	}
+	return out
+}
+
 // NeedMeta describes a need for display: its name, ceiling, and whether maxing
 // it out is fatal. Carried in the snapshot so frontends can render need bars
 // without reaching into Config.
@@ -56,6 +107,13 @@ type Snapshot struct {
 	Log       []string
 	Stats     Stats
 	NeedsMeta [numNeeds]NeedMeta
+
+	// Projects are the colony's queued construction work, for the job board.
+	// PendingFacilityRooms / PendingDormitories are manual orders (from 'f'/'d')
+	// not yet turned into a project because another is already in progress.
+	Projects             []ProjectView
+	PendingFacilityRooms int
+	PendingDormitories   int
 
 	AffinityMax    int // affinity display bars run [-AffinityMax, AffinityMax]
 	MoodMax        int // mood display bar runs [-MoodMax, MoodMax]
@@ -129,19 +187,44 @@ func (w *World) snapshot(paused bool, tps int) *Snapshot {
 		needsMeta[i] = NeedMeta{Name: spec.Name, Max: spec.Max, Fatal: spec.Fatal}
 	}
 
+	projects := make([]ProjectView, 0, len(w.projects))
+	for _, p := range w.projects {
+		phase, _ := w.activeProjectPhase(p)
+		tasks := make([]TaskView, 0, len(p.tasks))
+		for _, t := range p.tasks {
+			tasks = append(tasks, TaskView{
+				Pos:     t.pos,
+				Terrain: t.terrain,
+				Phase:   t.phase,
+				Done:    w.taskDone(t),
+				Owner:   t.owner,
+			})
+		}
+		projects = append(projects, ProjectView{
+			ID:         p.id,
+			Name:       p.name,
+			QueuedTick: p.queuedTick,
+			Phase:      phase,
+			Tasks:      tasks,
+		})
+	}
+
 	return &Snapshot{
-		Tick:           w.tick,
-		Width:          w.Width,
-		Height:         w.Height,
-		Tiles:          tiles,
-		Entities:       ents,
-		Log:            w.log.tail(len(w.log.entries)),
-		Stats:          stats,
-		NeedsMeta:      needsMeta,
-		AffinityMax:    w.cfg.AffinityMax,
-		MoodMax:        w.cfg.MoodMax,
-		Paused:         paused,
-		TicksPerSecond: tps,
+		Tick:                 w.tick,
+		Width:                w.Width,
+		Height:               w.Height,
+		Tiles:                tiles,
+		Entities:             ents,
+		Log:                  w.log.tail(len(w.log.entries)),
+		Stats:                stats,
+		NeedsMeta:            needsMeta,
+		Projects:             projects,
+		PendingFacilityRooms: w.manualFacilityRooms,
+		PendingDormitories:   w.manualDormitories,
+		AffinityMax:          w.cfg.AffinityMax,
+		MoodMax:              w.cfg.MoodMax,
+		Paused:               paused,
+		TicksPerSecond:       tps,
 	}
 }
 

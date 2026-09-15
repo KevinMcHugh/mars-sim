@@ -123,34 +123,57 @@ func (w *World) colonistTurn(e *Entity) {
 	if urgent && !handlingNeed {
 		spec := w.cfg.Needs[need]
 		e.resting = false
-		if field := w.facilityField(spec.Facility); field != nil && field.at(e.Pos) >= 0 {
+		field := w.facilityField(spec.Facility)
+		existingReachable := field != nil && field.at(e.Pos) >= 0
+		// If the colony still wants more of this facility than it has planned
+		// or built, an urgent colonist tries to help add that capacity before
+		// just joining the queue at an already-oversubscribed existing one —
+		// otherwise, once a single facility exists, every urgent colonist
+		// queues for it forever and none is ever free to build a second. Both
+		// this and the no-facility-reachable fallback below claim only from a
+		// project that actually provides this facility kind: the starvation
+		// grace period only covers reachable construction that provides it
+		// (see applyStarvation, reachableFacilityConstruction), so claiming
+		// just any reachable task — digging an unrelated dormitory while
+		// starving, say — leaves a colonist "busy" but ungraced, taking
+		// starvation damage the whole time. That happened in testing once
+		// excavation gave projects many more claimable tasks to keep a
+		// colonist perpetually busy on the wrong one.
+		needMore := w.plannedFacilities(spec.Facility) < w.desiredFacilities(w.countKind(Colonist))
+		var task *buildTask
+		var hasTask bool
+		if needMore || !existingReachable {
+			task, hasTask = w.claimNearestTaskProviding(e.Pos, e.ID, spec.Facility)
+		}
+
+		w.clearJob(e)
+		switch {
+		case needMore && hasTask:
+			w.assignTask(e, task)
+		case existingReachable:
 			// A facility of this kind is reachable: follow its shared flow field.
-			w.clearJob(e)
 			e.Job, e.Need, e.Progress = JobUse, need, 0
 			e.useFacility, e.useFacilitySet = w.chooseFacility(e, spec.Facility), true
-		} else {
-			// No completed facility is reachable. Drop unrelated work and help with
-			// reachable planned construction rather than mining until death merely
-			// because a facility task exists somewhere in the world.
-			w.clearJob(e)
-			if task, ok := w.claimNearestTask(e.Pos, e.ID); ok {
-				w.assignTask(e, task)
-			} else if spec.Fatal && !w.reachableFacilityConstruction(e.Pos, spec.Facility) {
-				// A project in a disconnected room must not suppress this fallback.
-				if spot, ok := w.findBuildSpot(e.Pos, 20); ok {
-					w.assignBuild(e, spec.Facility, spot)
-				}
-			} else {
-				// All reachable project tasks are claimed. Wait for their builders
-				// instead of taking unrelated work and losing our place in the queue.
-				e.State = Idle
-				if w.idleWouldBlock(e.Pos) {
-					w.stepAside(e)
-				} else {
-					w.wanderStep(e)
-				}
-				return
+		case hasTask:
+			w.assignTask(e, task)
+		case !w.reachableFacilityConstruction(e.Pos, spec.Facility):
+			// Nothing reachable already provides this facility: rather than
+			// wait indefinitely (a project in a disconnected room must not
+			// suppress this fallback), build one — fatal or not, an urgent
+			// need with no path to relief is the loop this guards against.
+			if spot, ok := w.findBuildSpot(e.Pos, 20); ok {
+				w.assignBuild(e, spec.Facility, spot)
 			}
+		default:
+			// All reachable project tasks are claimed. Wait for their builders
+			// instead of taking unrelated work and losing our place in the queue.
+			e.State = Idle
+			if w.idleWouldBlock(e.Pos) {
+				w.stepAside(e)
+			} else {
+				w.wanderStep(e)
+			}
+			return
 		}
 	}
 
@@ -397,7 +420,7 @@ func (w *World) clearJob(e *Entity) {
 		}
 	}
 	e.Job, e.Progress, e.partner = JobNone, 0, 0
-	e.useFacility, e.useFacilitySet = Point{}, false
+	e.useFacility, e.useFacilitySet, e.carrying = Point{}, false, false
 	e.clearPath()
 }
 
@@ -440,12 +463,16 @@ func (w *World) tryStartTalk(e *Entity, forced bool) bool {
 
 // availableToTalk reports whether a colonist is free to be pulled into a chat:
 // idle with no committed job, not fleeing or seeking a facility, and not parked
-// on a tile others need clear.
+// on a tile others need clear. A candidate whose own most urgent need is
+// social is still available — otherwise two colonists who both urgently need
+// company can never talk to each other, since each disqualifies the other as
+// a partner, and social need sits permanently pinned at its ceiling in any
+// colony busy enough that nobody is ever fully need-free.
 func (w *World) availableToTalk(o *Entity) bool {
 	if o.Job != JobNone || o.State == Fleeing {
 		return false
 	}
-	if _, urgent := w.mostUrgentNeed(o); urgent {
+	if need, urgent := w.mostUrgentNeed(o); urgent && need != NeedSocial {
 		return false
 	}
 	return !w.idleWouldBlock(o.Pos)
@@ -623,7 +650,14 @@ func (w *World) jobMine(e *Entity) {
 }
 
 func (w *World) jobBuild(e *Entity) {
-	if w.TerrainAt(e.Target) != Floor { // already built, or no longer valid
+	// A dig task (BuildKind Floor) works rock down to floor; every other kind
+	// builds atop existing floor. Anything else at the target — already
+	// finished, or changed to something unexpected — ends the job.
+	prereq := Floor
+	if e.BuildKind == Floor {
+		prereq = Rock
+	}
+	if w.TerrainAt(e.Target) != prereq {
 		w.clearJob(e)
 		return
 	}
@@ -650,13 +684,29 @@ func (w *World) jobBuild(e *Entity) {
 	e.stuck = 0
 	e.State = Building
 	e.Progress++
-	if e.Progress >= scaleTicks(w.buildTicks(e.BuildKind), e.workScale) {
-		w.SetTerrain(e.Target, e.BuildKind)
-		w.noteBuild(e.BuildKind)
-		w.remember(e, fmt.Sprintf("Finished construction of %s at (%d, %d).",
-			e.BuildKind, e.Target.X, e.Target.Y))
-		w.clearJob(e) // endBuild decrements the in-progress counter
+	if e.Progress < scaleTicks(w.buildTicks(e.BuildKind), e.workScale) {
+		return
 	}
+	if e.BuildKind == Floor {
+		// Digging: award the resource like ordinary mining, before changing
+		// the terrain, so a full inventory can never make it disappear. If
+		// the colonist can't carry more, release the task rather than
+		// finishing it emptyhanded — someone else (or this colonist once
+		// unloaded) picks it up.
+		if !e.Inventory.Add(RawRock, 1) {
+			w.clearJob(e)
+			return
+		}
+		w.SetTerrain(e.Target, Floor)
+		w.remember(e, fmt.Sprintf("Cleared rock for a room at (%d, %d).", e.Target.X, e.Target.Y))
+		w.clearJob(e)
+		return
+	}
+	w.SetTerrain(e.Target, e.BuildKind)
+	w.noteBuild(e.BuildKind)
+	w.remember(e, fmt.Sprintf("Finished construction of %s at (%d, %d).",
+		e.BuildKind, e.Target.X, e.Target.Y))
+	w.clearJob(e) // endBuild decrements the in-progress counter
 }
 
 // chooseFacility assigns a concrete facility to a need. Facilities are ranked
@@ -779,6 +829,10 @@ func (w *World) chooseFacility(e *Entity, kind Terrain) Point {
 
 func (w *World) jobUse(e *Entity) {
 	spec := w.cfg.Needs[e.Need]
+	if e.carrying {
+		w.jobUseCarrying(e, spec)
+		return
+	}
 	field := w.facilityField(spec.Facility)
 	if field == nil || field.at(e.Pos) < 0 {
 		w.clearJob(e) // no facility of this kind is reachable anymore
@@ -796,19 +850,21 @@ func (w *World) jobUse(e *Entity) {
 		}
 		e.State = useState(e.Need)
 		e.Progress++
-		if e.Progress >= spec.UseTicks {
-			w.resetNeed(e, e.Need)
-			switch e.Need {
-			case NeedFood:
-				w.remember(e, "Had a meal.")
-			case NeedBladder:
-				w.remember(e, "Used the toilet.")
-			case NeedSleep:
-				w.remember(e, "Slept in a bed.")
-			default:
-				w.remember(e, fmt.Sprintf("Satisfied %s.", spec.Name))
+		portable := spec.GrabTicks > 0 && spec.GrabTicks < spec.UseTicks
+		if portable {
+			if e.Progress >= spec.GrabTicks {
+				// Grabbed it: free the facility's access tile immediately and
+				// finish away from it, instead of occupying the tile for the
+				// whole UseTicks.
+				e.useFacility, e.useFacilitySet, e.carrying, e.Progress = Point{}, false, true, 0
+				if !w.stepAside(e) {
+					w.wanderStep(e)
+				}
 			}
-			w.clearJob(e)
+			return
+		}
+		if e.Progress >= spec.UseTicks {
+			w.finishUse(e, spec)
 		}
 		return
 	}
@@ -863,12 +919,45 @@ func (w *World) jobUse(e *Entity) {
 	e.State = Moving
 }
 
+// jobUseCarrying finishes a portable need (see NeedSpec.GrabTicks) away from
+// the facility. The colonist already grabbed it, so completion is guaranteed
+// — no travel, no facility reachability or crowding to worry about — freeing
+// the access tile it used to occupy for the rest of the process.
+func (w *World) jobUseCarrying(e *Entity, spec NeedSpec) {
+	e.State = useState(e.Need)
+	e.Progress++
+	if e.Progress >= spec.UseTicks-spec.GrabTicks {
+		w.finishUse(e, spec)
+	}
+}
+
+// finishUse applies a completed JobUse: resets the need, records a memory,
+// and clears the job. Shared by an in-place use and a carried-away one.
+func (w *World) finishUse(e *Entity, spec NeedSpec) {
+	w.resetNeed(e, e.Need)
+	switch e.Need {
+	case NeedFood:
+		w.remember(e, "Had a meal.")
+	case NeedBladder:
+		w.remember(e, "Used the toilet.")
+	case NeedSleep:
+		w.remember(e, "Slept in a bed.")
+	default:
+		w.remember(e, fmt.Sprintf("Satisfied %s.", spec.Name))
+	}
+	w.clearJob(e)
+}
+
 // buildTicks is how long a given structure takes to raise.
 func (w *World) buildTicks(kind Terrain) int {
-	if kind == Wall {
+	switch kind {
+	case Wall:
 		return w.cfg.BuildTicks
+	case Floor: // a project dig task: excavating rock, not constructing
+		return w.cfg.MineTicks
+	default:
+		return w.cfg.FacilityBuildTicks
 	}
-	return w.cfg.FacilityBuildTicks
 }
 
 // noteBuild logs the completion of notable structures.
@@ -889,7 +978,15 @@ func (w *World) noteBuild(kind Terrain) {
 // unreachable, or the colonist has been wedged too long).
 func (w *World) travelTo(e *Entity, target Point) (arrived, ok bool) {
 	if e.Pos.Adjacent(target) {
-		e.clearPath()
+		// Drop any cached route, but not e.stuck: this path runs every tick a
+		// colonist is already adjacent, including every tick it is blocked
+		// (e.g. jobBuild's occupied-tile wait). Resetting stuck here clobbers
+		// it back to 0 before the caller's own stuck++ can ever accumulate
+		// past 1, so a StuckLimit timeout never fires — two colonists that
+		// end up swapped onto each other's build tiles deadlock forever
+		// instead of one abandoning the task. The caller resets stuck itself
+		// once it confirms real progress (see jobBuild, jobUse).
+		e.path, e.pathAt = e.path[:0], 0
 		return true, true
 	}
 	// (Re)plan when we have no route, it was for a different goal, or it ran out

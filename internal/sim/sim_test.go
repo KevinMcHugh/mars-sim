@@ -282,6 +282,93 @@ func TestUrgentColonistFinishesEmergencyBuild(t *testing.T) {
 	}
 }
 
+// A non-fatal need (bladder, here) must trigger the same self-rescue as a
+// fatal one: with no reachable toilet, no project task to help with, and none
+// under construction, a colonist stuck on its own builds one rather than
+// waiting indefinitely — the "stuck in a need loop" complaint a
+// fatal-needs-only fallback left unaddressed. Driving colonistTurn directly
+// (rather than step) keeps the normal room planner from ever running, so the
+// only way a toilet appears is this fallback.
+func TestUrgentNonFatalNeedTriggersEmergencyBuild(t *testing.T) {
+	cfg := testConfig()
+	cfg.StartColonists, cfg.StartAliens = 0, 0
+	w := newTestWorld(t, cfg)
+	center := Point{w.Width / 2, w.Height / 2}
+	c := w.spawn(Colonist, center)
+	c.Needs[NeedBladder], c.needSince[NeedBladder] = cfg.Needs[NeedBladder].SeekAt, w.tick
+	// Clear the other (staggered) needs so bladder is the one being addressed.
+	c.Needs[NeedFood], c.needSince[NeedFood] = 0, w.tick
+	c.Needs[NeedSleep], c.needSince[NeedSleep] = 0, w.tick
+
+	w.tick++
+	w.colonistTurn(c)
+	if c.Job != JobBuild || c.BuildKind != Toilet {
+		t.Fatalf("expected an emergency toilet build, got job=%v buildKind=%v", c.Job, c.BuildKind)
+	}
+
+	for i := 0; i < cfg.FacilityBuildTicks+40 && w.TerrainAt(c.Target) != Toilet; i++ {
+		w.tick++
+		w.colonistTurn(c)
+	}
+	if got := w.TerrainAt(c.Target); got != Toilet {
+		t.Fatalf("emergency toilet build never finished: target terrain %v, progress %d", got, c.Progress)
+	}
+}
+
+// Once a facility of a kind already exists, an urgent colonist must not just
+// blindly queue at it forever: if the colony still wants more of that
+// facility than it has, and there is a reachable task to help with, it helps
+// build instead. Without this, once one facility exists no colonist ever
+// helps build a second — exactly the gridlock a growing, undersupplied colony
+// hits ("stuck in a need loop" even with unclaimed mining frontier and a
+// buildable project sitting right there).
+func TestUrgentColonistHelpsBuildWhenFacilityUndersupplied(t *testing.T) {
+	cfg := testConfig()
+	cfg.StartColonists, cfg.StartAliens = 0, 0
+	cfg.ColonistsPerFacility = 1 // three colonists want three toilets
+	w := newTestWorld(t, cfg)
+
+	center := Point{w.Width / 2, w.Height / 2}
+	// A short open corridor: an existing, reachable toilet plus an unclaimed,
+	// reachable project — a wall task plus the toilet task that makes the
+	// project "provide" toilets (claimNearestTaskProviding only claims from a
+	// project that actually provides the needed facility, not just any
+	// reachable task — see its doc comment).
+	for dx := -2; dx <= 4; dx++ {
+		w.SetTerrain(Point{center.X + dx, center.Y}, Floor)
+	}
+	w.SetTerrain(Point{center.X - 2, center.Y}, Toilet)
+	wallTaskPos := Point{center.X + 3, center.Y}
+	toiletTaskPos := Point{center.X + 4, center.Y}
+	w.refreshSpatial()
+
+	w.projects = append(w.projects, &project{
+		id: 1, name: "test room",
+		tasks: []*buildTask{
+			{pos: wallTaskPos, terrain: Wall, phase: 0},
+			{pos: toiletTaskPos, terrain: Toilet, phase: 1},
+		},
+	})
+
+	c := w.spawn(Colonist, center)
+	// Two more, just to raise desiredFacilities to 3 — one more than the
+	// existing toilet plus the project's own (still unbuilt) toilet task.
+	w.spawn(Colonist, center)
+	w.spawn(Colonist, center)
+	c.Needs[NeedBladder], c.needSince[NeedBladder] = cfg.Needs[NeedBladder].SeekAt, w.tick
+	c.Needs[NeedFood], c.needSince[NeedFood] = 0, w.tick
+	c.Needs[NeedSleep], c.needSince[NeedSleep] = 0, w.tick
+
+	w.tick++
+	w.colonistTurn(c)
+	if c.Job != JobBuild || c.task == nil {
+		t.Fatalf("expected the colonist to help build more capacity instead of queueing at the existing toilet; got job=%v task=%v", c.Job, c.task)
+	}
+	if c.Target != wallTaskPos {
+		t.Fatalf("expected the colonist to claim the wall task at %v, got target %v", wallTaskPos, c.Target)
+	}
+}
+
 // A colonist sealed away from any rock to mine or space to build cannot feed
 // itself and must eventually starve, exercising the fatal-need path.
 func TestColonistStarvesWhenTrapped(t *testing.T) {
@@ -608,6 +695,295 @@ func TestLargeColonyDoesNotGridlockAtFacilities(t *testing.T) {
 	if got := w.countKind(Colonist); got != cfg.StartColonists {
 		t.Fatalf("facility crowd starved colonists: %d of %d survived after %d ticks",
 			got, cfg.StartColonists, w.tick)
+	}
+}
+
+// A room site can back onto another room's already-placed wall instead of
+// requiring untouched rock, so rooms can sit flush against each other and
+// share that boundary once a cave's easy rock-backed edges are used up.
+func TestRoomSiteCanBackOntoAnotherRoomsWall(t *testing.T) {
+	cfg := testConfig()
+	cfg.StartColonists, cfg.StartAliens = 0, 0
+	w := newTestWorld(t, cfg)
+
+	// Blank the procedurally generated cave to solid rock first, so the only
+	// possible room site is the one this test carves — otherwise a genuinely
+	// rock-backed site elsewhere on the map could satisfy a loose assertion.
+	for y := 0; y < w.Height; y++ {
+		for x := 0; x < w.Width; x++ {
+			w.SetTerrain(Point{x, y}, Rock)
+		}
+	}
+
+	width := bayWidth(roomFacilities)
+	// Site everything near the map center — findRoomSite prefers the site
+	// nearest center — and carve only the exact footprint roomSiteClear
+	// requires (not a whole open row), so no other column could also qualify
+	// and mask a regression in the assertion below.
+	oy := w.Height / 2
+	ox := w.Width / 2
+	backY := oy - 1
+	frontY := roomFrontWallY(oy)
+	// Simulate an already-built neighboring room: a wall row with no rock
+	// anywhere behind it (backY-1 lands here).
+	for x := ox; x < ox+width; x++ {
+		w.SetTerrain(Point{x, backY - 1}, Wall)
+	}
+	// The new room's own footprint plus its side lanes.
+	for y := backY; y <= frontY; y++ {
+		for x := ox - 2; x <= ox+width+1; x++ {
+			w.SetTerrain(Point{x, y}, Floor)
+		}
+	}
+	// The front approach lane.
+	for x := ox - 2; x <= ox+width+1; x++ {
+		w.SetTerrain(Point{x, frontY + roomApproach}, Floor)
+	}
+	w.refreshSpatial()
+
+	site, ok := w.findRoomSite(width)
+	if !ok {
+		t.Fatal("expected a room site backed by an existing wall")
+	}
+	if want := (Point{ox, oy}); site != want {
+		t.Fatalf("site = %v, want %v (backed by the wall at y=%d)", site, want, backY-1)
+	}
+}
+
+// A room can also sit flush against a neighbor side by side, sharing that
+// neighbor's wall outright as its own party wall — no exterior lane needed on
+// that side, and no redundant wall task of its own there.
+func TestRoomSiteSharesSideWallWithNeighbor(t *testing.T) {
+	cfg := testConfig()
+	cfg.StartColonists, cfg.StartAliens = 0, 0
+	w := newTestWorld(t, cfg)
+
+	// Blank the procedurally generated cave to solid rock first, so the only
+	// possible room site is the one this test carves.
+	for y := 0; y < w.Height; y++ {
+		for x := 0; x < w.Width; x++ {
+			w.SetTerrain(Point{x, y}, Rock)
+		}
+	}
+
+	width := 3
+	oy := w.Height / 2
+	ox := w.Width / 2
+	backY := oy - 1
+	frontY := roomFrontWallY(oy)
+
+	// An existing neighbor's wall column immediately to the left — this
+	// room's whole left side, shared outright.
+	for y := backY; y <= frontY; y++ {
+		w.SetTerrain(Point{ox - 1, y}, Wall)
+	}
+	// This room's own interior, plus its fresh right side wall column and
+	// that side's exterior lane.
+	for y := backY; y <= frontY; y++ {
+		for x := ox; x <= ox+width+1; x++ { // interior, right wall, right lane
+			w.SetTerrain(Point{x, y}, Floor)
+		}
+	}
+	// The front approach lane: only from the shared (left) wall's column
+	// rightward through the fresh (right) side's lane — nothing left of
+	// ox-1, proving the shared side needed no exterior lane of its own.
+	for x := ox - 1; x <= ox+width+1; x++ {
+		w.SetTerrain(Point{x, frontY + roomApproach}, Floor)
+	}
+	w.refreshSpatial()
+
+	site, ok := w.findRoomSite(width)
+	if !ok {
+		t.Fatal("expected a room site sharing a neighbor's side wall")
+	}
+	if want := (Point{ox, oy}); site != want {
+		t.Fatalf("site = %v, want %v (sharing the wall at x=%d)", site, want, ox-1)
+	}
+
+	w.designateRoom(dormRoom, site, 2) // bayWidth(2) == 3, matching the site carved above
+	for _, tk := range w.projects[0].tasks {
+		if tk.pos == (Point{ox - 1, backY}) || tk.pos == (Point{ox - 1, frontY}) {
+			t.Fatalf("designateRoom added a redundant task %v on the shared wall", tk.pos)
+		}
+	}
+	sawRightWall := false
+	for _, tk := range w.projects[0].tasks {
+		if tk.pos == (Point{ox + width, backY}) {
+			sawRightWall = true
+		}
+	}
+	if !sawRightWall {
+		t.Fatal("designateRoom should still build its own (fresh) right side wall")
+	}
+}
+
+// A room's interior need not be pre-mined: findRoomSite falls back to an
+// all-solid-rock interior when no fully pre-cleared site exists, as long as
+// the exterior (lanes, backing) meets the usual requirements, and
+// designateRoom gives every rock tile in the footprint a roomDigPhase task.
+func TestRoomSiteCanIncludeUnexcavatedRock(t *testing.T) {
+	cfg := testConfig()
+	cfg.StartColonists, cfg.StartAliens = 0, 0
+	w := newTestWorld(t, cfg)
+
+	// Blank the procedurally generated cave to solid rock first, so the
+	// interior really does start as rock and nothing else offers a site.
+	for y := 0; y < w.Height; y++ {
+		for x := 0; x < w.Width; x++ {
+			w.SetTerrain(Point{x, y}, Rock)
+		}
+	}
+
+	width := bayWidth(roomFacilities)
+	oy := w.Height / 2
+	ox := w.Width / 2
+	backY := oy - 1
+	frontY := roomFrontWallY(oy)
+	// Only the exterior — side walls, their lanes, and the front approach —
+	// is dug; the interior (ox..ox+width-1, backY..frontY) stays solid rock.
+	for y := backY; y <= frontY; y++ {
+		w.SetTerrain(Point{ox - 2, y}, Floor)
+		w.SetTerrain(Point{ox - 1, y}, Floor)
+		w.SetTerrain(Point{ox + width, y}, Floor)
+		w.SetTerrain(Point{ox + width + 1, y}, Floor)
+	}
+	for x := ox - 2; x <= ox+width+1; x++ {
+		w.SetTerrain(Point{x, frontY + roomApproach}, Floor)
+	}
+	w.refreshSpatial()
+
+	site, ok := w.findRoomSite(width)
+	if !ok {
+		t.Fatal("expected a room site with an unexcavated interior")
+	}
+	if want := (Point{ox, oy}); site != want {
+		t.Fatalf("site = %v, want %v", site, want)
+	}
+
+	w.designateRoom(lifeSupportRoom, site, roomFacilities)
+	digs := 0
+	for _, tk := range w.projects[0].tasks {
+		if tk.phase == roomDigPhase {
+			if tk.terrain != Floor {
+				t.Fatalf("dig task %v targets %v, want Floor", tk.pos, tk.terrain)
+			}
+			digs++
+		}
+	}
+	wantDigs := width * (frontY - backY + 1) // the whole interior was rock
+	if digs != wantDigs {
+		t.Fatalf("got %d dig tasks, want %d (the full interior)", digs, wantDigs)
+	}
+}
+
+// findRoomSite prefers a fully pre-cleared site over one needing excavation,
+// even when the rock-interior candidate would otherwise win on proximity to
+// map center — a clear site finishes strictly faster (no dig phase), and
+// picking the rock one merely for being closer measurably delayed food in
+// testing (a colonist starved on a large, mature colony because life support
+// landed somewhere slower to finish than it needed to be).
+func TestFindRoomSitePrefersClearOverRockNearCenter(t *testing.T) {
+	cfg := testConfig()
+	cfg.StartColonists, cfg.StartAliens = 0, 0
+	cfg.Width, cfg.Height = 80, 24 // room to place two sites side by side
+	w := newTestWorld(t, cfg)
+
+	for y := 0; y < w.Height; y++ {
+		for x := 0; x < w.Width; x++ {
+			w.SetTerrain(Point{x, y}, Rock)
+		}
+	}
+
+	width := bayWidth(roomFacilities)
+	oy := w.Height / 2
+	backY := oy - 1
+	frontY := roomFrontWallY(oy)
+
+	// A rock-interior site sitting exactly at map center.
+	rockOx := w.Width / 2
+	for y := backY; y <= frontY; y++ {
+		w.SetTerrain(Point{rockOx - 2, y}, Floor)
+		w.SetTerrain(Point{rockOx - 1, y}, Floor)
+		w.SetTerrain(Point{rockOx + width, y}, Floor)
+		w.SetTerrain(Point{rockOx + width + 1, y}, Floor)
+	}
+	for x := rockOx - 2; x <= rockOx+width+1; x++ {
+		w.SetTerrain(Point{x, frontY + roomApproach}, Floor)
+	}
+
+	// A fully pre-cleared site well off to the side (farther from center).
+	clearOx := rockOx + 20
+	for y := backY; y <= frontY; y++ {
+		for x := clearOx - 2; x <= clearOx+width+1; x++ {
+			w.SetTerrain(Point{x, y}, Floor)
+		}
+	}
+	for x := clearOx - 2; x <= clearOx+width+1; x++ {
+		w.SetTerrain(Point{x, frontY + roomApproach}, Floor)
+	}
+	w.refreshSpatial()
+
+	site, ok := w.findRoomSite(width)
+	if !ok {
+		t.Fatal("expected a room site")
+	}
+	if want := (Point{clearOx, oy}); site != want {
+		t.Fatalf("site = %v, want the clear site %v (nearer, rock-interior one should lose despite proximity)", site, want)
+	}
+}
+
+// A room whose interior starts as solid rock still gets fully built: dig it
+// out, raise the walls, then fit the facilities — the same collaborative
+// machinery as a pre-cleared site, just with an extra phase first.
+func TestColonistsExcavateAndBuildRoomFromRock(t *testing.T) {
+	cfg := testConfig()
+	cfg.StartColonists, cfg.StartAliens = 0, 0
+	w := newTestWorld(t, cfg)
+
+	for y := 0; y < w.Height; y++ {
+		for x := 0; x < w.Width; x++ {
+			w.SetTerrain(Point{x, y}, Rock)
+		}
+	}
+
+	width := bayWidth(roomFacilities)
+	oy := w.Height / 2
+	ox := w.Width / 2
+	backY := oy - 1
+	frontY := roomFrontWallY(oy)
+	for y := backY; y <= frontY; y++ {
+		w.SetTerrain(Point{ox - 2, y}, Floor)
+		w.SetTerrain(Point{ox - 1, y}, Floor)
+		w.SetTerrain(Point{ox + width, y}, Floor)
+		w.SetTerrain(Point{ox + width + 1, y}, Floor)
+	}
+	for x := ox - 2; x <= ox+width+1; x++ {
+		w.SetTerrain(Point{x, frontY + roomApproach}, Floor)
+	}
+	w.refreshSpatial()
+
+	site, ok := w.findRoomSite(width)
+	if !ok {
+		t.Fatal("expected a room site with an unexcavated interior")
+	}
+	w.designateRoom(lifeSupportRoom, site, roomFacilities)
+	for i := 0; i < roomFacilities; i++ {
+		w.spawn(Colonist, Point{ox - 2, backY + i%(frontY-backY+1)})
+	}
+
+	done := false
+	for i := 0; i < 4000 && !done; i++ {
+		w.step()
+		done = len(w.projects) == 0
+	}
+	if !done {
+		t.Fatal("room excavated from solid rock never completed")
+	}
+	if got := w.countTerrain(NutrientPod); got < 1 {
+		t.Fatal("excavated room finished but built no nutrient pod")
+	}
+	if got := w.countTerrain(Wall); got < 1 {
+		t.Fatal("excavated room finished but built no walls")
 	}
 }
 

@@ -66,9 +66,10 @@ go run . -h
 ### Validation
 
 `validateConfig` rejects a world smaller than 10x10, negative population counts,
-less than one tick per second, fewer than one colonist per facility, less than
-one rest tick, or a trait chance outside 0–100. Invalid settings are reported to
-stderr and exit with status 2 before the engine starts.
+less than one tick per second, fewer than one colonist per facility, fewer than
+one max concurrent project, less than one rest tick, or a trait chance outside
+0–100. Invalid settings are reported to stderr and exit with status 2 before
+the engine starts.
 
 The ticker itself clamps rates to 1–60, and interactive speed changes use the
 same clamp. CLI validation covers values whose bad settings would make world

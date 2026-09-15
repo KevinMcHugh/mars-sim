@@ -23,20 +23,36 @@ type buildTask struct {
 // project is a planned structure: the colony builds all its tasks, then it is
 // retired.
 type project struct {
-	id    int
-	name  string
-	tasks []*buildTask
+	id         int
+	name       string
+	queuedTick int // w.tick when the project was designated, for job board display
+	tasks      []*buildTask
 }
 
-// taskDone reports whether a task's tile already holds its desired terrain.
+// taskDone reports whether a task's tile already holds its desired terrain —
+// or, for a dig task (terrain Floor), has moved past Rock at all. A dig and a
+// wall/facility task can target the same position (excavate it, then build on
+// it); once the later task converts that floor into a wall or facility, the
+// dig task must count as done too, or it can never be satisfied again and
+// permanently blocks the project's phase from advancing.
 func (w *World) taskDone(t *buildTask) bool {
+	if t.terrain == Floor {
+		return w.TerrainAt(t.pos) != Rock
+	}
 	return w.TerrainAt(t.pos) == t.terrain
 }
 
-// taskWorkable reports whether a task can be built right now: not done and its
-// tile is open floor.
+// taskWorkable reports whether a task can be built right now: not done, and
+// its tile holds the right starting terrain — open floor for a build task,
+// or still-solid rock for a dig task (terrain Floor; see roomDigPhase).
 func (w *World) taskWorkable(t *buildTask) bool {
-	return !w.taskDone(t) && w.TerrainAt(t.pos) == Floor
+	if w.taskDone(t) {
+		return false
+	}
+	if t.terrain == Floor {
+		return w.TerrainAt(t.pos) == Rock
+	}
+	return w.TerrainAt(t.pos) == Floor
 }
 
 // activeProjectPhase returns the earliest phase with unfinished work.
@@ -67,15 +83,42 @@ func (w *World) taskReachable(pos Point, room RoomID) bool {
 
 // claimNearestTask claims, for colonist id, the nearest workable and unclaimed
 // task reachable from its room, across all projects. Ties break by position so
-// the choice is deterministic.
+// the choice is deterministic. Used for general work-seeking, where any
+// project's work is equally good.
 func (w *World) claimNearestTask(from Point, id EntityID) (*buildTask, bool) {
+	return w.claimNearestTaskIn(from, id, w.projects)
+}
+
+// claimNearestTaskProviding is claimNearestTask restricted to projects that
+// provide a facility of the given kind (i.e. some task in them targets that
+// terrain). Use this — never the unrestricted claimNearestTask — when a
+// colonist is responding to a specific urgent need: claiming a task from an
+// unrelated project (say, digging a dormitory while starving) still marks the
+// colonist as "handling" its need via e.task != nil, but the starvation grace
+// period only covers reachable construction that actually provides the
+// needed facility (see applyStarvation, reachableFacilityConstruction) — so
+// an unrestricted claim can starve a colonist while it is technically busy.
+func (w *World) claimNearestTaskProviding(from Point, id EntityID, kind Terrain) (*buildTask, bool) {
+	var providing []*project
+	for _, p := range w.projects {
+		for _, t := range p.tasks {
+			if t.terrain == kind {
+				providing = append(providing, p)
+				break
+			}
+		}
+	}
+	return w.claimNearestTaskIn(from, id, providing)
+}
+
+func (w *World) claimNearestTaskIn(from Point, id EntityID, projects []*project) (*buildTask, bool) {
 	room := w.roomOf(from)
 	if room == 0 {
 		return nil, false
 	}
 	var best *buildTask
 	bestDist := 1 << 30
-	for _, p := range w.projects {
+	for _, p := range projects {
 		phase, ok := w.activeProjectPhase(p)
 		if !ok {
 			continue
@@ -199,10 +242,17 @@ func (w *World) pruneProjects() {
 // before any facility comes online. A facility user therefore cannot stand on a
 // pending wall tile, and the permanent doorway means the last wall cannot trap
 // builders. Facilities remain spaced apart so each retains several access tiles.
+//
+// A room's interior need not be pre-mined: any footprint tile still solid rock
+// gets a roomDigPhase task (see designateRoom) that must clear before the wall
+// phase can start. Digging tasks share the normal claiming/reachability rules,
+// so they naturally clear from the edge inward as each newly-opened tile makes
+// its neighbor reachable — no special ordering logic needed.
 const (
-	roomFacilities = 4 // facilities designated in a full room
-	roomFrontClear = 2 // interior rows between facilities and the front wall
-	roomApproach   = 1 // open row outside the doorway
+	roomFacilities = 4  // facilities designated in a full room
+	roomFrontClear = 2  // interior rows between facilities and the front wall
+	roomApproach   = 1  // open row outside the doorway
+	roomDigPhase   = -1 // excavate any not-yet-floor interior tile, before walls
 	roomWallPhase  = 0
 	roomFitPhase   = 1
 )
@@ -238,18 +288,41 @@ func bayWidth(n int) int { return 2*n - 1 }
 // roomFrontWallY returns the front-wall row for a room whose facility row is y.
 func roomFrontWallY(y int) int { return y + roomFrontClear + 1 }
 
+// concurrentProjectColonists is how many colonists it takes to justify one
+// more room under construction at once — see maxConcurrentProjects.
+const concurrentProjectColonists = 8
+
+// maxConcurrentProjects caps how many rooms can be under construction at once,
+// scaling with population: a small colony still builds one room at a time (a
+// second concurrent project splits its handful of builders across two sites
+// and, in a tight early cavern, can mob the colony into a gridlock where
+// nothing finishes and no one mines for space), while a larger one can run
+// more crews in parallel so facility supply keeps pace with growth.
+// cfg.MaxConcurrentProjects is the ceiling on that growth.
+func (w *World) maxConcurrentProjects() int {
+	n := 1 + w.countKind(Colonist)/concurrentProjectColonists
+	ceiling := w.cfg.MaxConcurrentProjects
+	if ceiling < 1 {
+		ceiling = 1
+	}
+	return min(n, ceiling)
+}
+
 // planRooms keeps enough of each need's facility planned or built for the
-// population, marking out one room at a time. Called on a cadence from step.
+// population, marking out at most one new room per call. Called on a cadence
+// from step.
 //
-// Life support comes before bunks: food is fatal, so a colony short of pods or
-// toilets builds a facility room before a dormitory. Only one room is under
-// construction at a time — a second concurrent project would split builders
-// across two sites and, in a tight early cavern, mob the colony into a gridlock
-// where nothing finishes and no one mines for space. One room at a time keeps
-// most colonists mining (growing the cavern) while a small crew finishes the
-// current room, then the next is planned.
+// Life support comes before bunks, strictly: food is fatal and sleep is not,
+// so while the colony is short of pods or toilets it holds off on dormitories
+// entirely — even on a cycle where life support fails to find a site (its
+// two-facility minimum is pickier than a dormitory's one). Letting a
+// dormitory use that cycle instead was tried and reverted: it let dormitories
+// win a scarce concurrent-build slot ahead of life support and measurably
+// delayed food, starving a colonist in testing. A colony stuck unable to site
+// life support at all is a siting problem (see roomSiteClear's wall-sharing)
+// to fix there, not a priority order to bend here.
 func (w *World) planRooms() {
-	if len(w.projects) > 0 {
+	if len(w.projects) >= w.maxConcurrentProjects() {
 		return
 	}
 	if w.manualFacilityRooms > 0 {
@@ -285,29 +358,42 @@ func (w *World) planRoom(r roomRecipe) {
 	for n := roomFacilities; n >= r.minFac; n-- {
 		o, ok := w.findRoomSite(bayWidth(n))
 		if !ok {
-			continue // no rock-backed run this wide; try a smaller room
+			continue // no site this wide; try a smaller room
 		}
 		w.designateRoom(r, o, n)
 		return
 	}
-	// No rock-backed site large enough for a worthwhile room yet; colonists dig
+	// No site large enough for even this recipe's minimum yet; colonists dig
 	// on and planning retries later.
 }
 
-// designateRoom adds a phased room project from a recipe. Its complete perimeter
-// is built first, except for the centered front doorway; then n facilities are
+// designateRoom adds a phased room project from a recipe. Any interior tile
+// still solid rock is dug first (roomDigPhase); its complete perimeter is
+// then built, except for the centered front doorway; then n facilities are
 // built one tile inside the back wall, drawn from the recipe's kinds in order.
 func (w *World) designateRoom(r roomRecipe, o Point, n int) {
-	p := &project{id: w.nextProjectID, name: r.name}
+	p := &project{id: w.nextProjectID, name: r.name, queuedTick: w.tick}
 	w.nextProjectID++
 	width := bayWidth(n)
 	backY := o.Y - 1
 	frontY := roomFrontWallY(o.Y)
 	for y := backY; y <= frontY; y++ {
-		p.tasks = append(p.tasks,
-			&buildTask{pos: Point{o.X - 1, y}, terrain: Wall, phase: roomWallPhase},
-			&buildTask{pos: Point{o.X + width, y}, terrain: Wall, phase: roomWallPhase},
-		)
+		for x := o.X; x < o.X+width; x++ {
+			if pos := (Point{x, y}); w.TerrainAt(pos) == Rock {
+				p.tasks = append(p.tasks, &buildTask{pos: pos, terrain: Floor, phase: roomDigPhase})
+			}
+		}
+	}
+	for y := backY; y <= frontY; y++ {
+		// A side tile that is already a wall is a party wall shared with a
+		// neighboring room (see roomSiteClear): this room needs no task of its
+		// own there.
+		if left := (Point{o.X - 1, y}); w.TerrainAt(left) != Wall {
+			p.tasks = append(p.tasks, &buildTask{pos: left, terrain: Wall, phase: roomWallPhase})
+		}
+		if right := (Point{o.X + width, y}); w.TerrainAt(right) != Wall {
+			p.tasks = append(p.tasks, &buildTask{pos: right, terrain: Wall, phase: roomWallPhase})
+		}
 	}
 	doorX := o.X + width/2
 	for x := o.X; x < o.X+width; x++ {
@@ -327,10 +413,27 @@ func (w *World) designateRoom(r roomRecipe, o Point, n int) {
 }
 
 // findRoomSite returns the left end of a width-long facility row in a niche at
-// the cavern edge. Solid rock beyond the placed back wall keeps the room from
-// becoming a free-standing obstacle across an open route. The room footprint
-// and its side/front construction lane must be clear floor.
+// the cavern edge. Solid rock — or another room's already-placed wall — beyond
+// the placed back wall keeps the room from becoming a free-standing obstacle
+// across an open route; backing onto a neighbor's wall lets rooms sit flush
+// against each other, sharing that boundary instead of each needing its own
+// untouched rock vein.
+//
+// It tries a fully pre-cleared site first, and only falls back to one whose
+// interior still needs excavating (see roomSiteClear, designateRoom) if no
+// clear site exists at all. A clear site is strictly faster to finish — no
+// dig phase — so preferring it, rather than just picking whichever candidate
+// is nearest map center, keeps a life-support room from landing somewhere
+// slower to complete than it needed to be merely because that spot happened
+// to be a little closer to center; that measurably delayed food in testing.
 func (w *World) findRoomSite(width int) (Point, bool) {
+	if site, ok := w.findRoomSiteAllowingRock(width, false); ok {
+		return site, true
+	}
+	return w.findRoomSiteAllowingRock(width, true)
+}
+
+func (w *World) findRoomSiteAllowingRock(width int, allowRock bool) (Point, bool) {
 	designated := make(map[Point]bool)
 	for _, p := range w.projects {
 		for _, t := range p.tasks {
@@ -343,7 +446,7 @@ func (w *World) findRoomSite(width int) (Point, bool) {
 	bestDist := 1 << 30
 	for oy := 2; roomFrontWallY(oy)+roomApproach < w.Height; oy++ {
 		for ox := 2; ox+width+1 < w.Width; ox++ {
-			if !w.roomSiteClear(ox, oy, width, designated) {
+			if !w.roomSiteClear(ox, oy, width, designated, allowRock) {
 				continue
 			}
 			rc := Point{ox + width/2, oy}
@@ -355,36 +458,68 @@ func (w *World) findRoomSite(width int) (Point, bool) {
 	return best, found
 }
 
-// roomSiteClear reports whether a room at (ox,oy) is buildable. The full room
-// starts as floor, solid rock backs its placed rear wall, and a connected
-// exterior lane keeps the side and front tasks reachable.
-func (w *World) roomSiteClear(ox, oy, width int, designated map[Point]bool) bool {
+// roomSiteClear reports whether a room at (ox,oy) is buildable. The interior
+// (where this room's own back/front walls and facilities go) must be clear
+// floor — or, when allowRock is set, may also be still-solid rock, which a
+// dig task excavates before the wall phase starts (see designateRoom) — as
+// long as it is unclaimed by another project; the placed rear wall is backed
+// by solid rock or another room's wall; and each side wall is either freshly
+// built (with a connected exterior lane keeping it reachable) or reused
+// outright from an already-placed, unclaimed neighboring wall — the two rooms
+// then sit flush, sharing that one tile as a party wall instead of each
+// building its own. The exterior lanes and front approach (never dug) always
+// touch the interior's front row, so when allowRock permits solid rock there
+// is always at least one already-reachable tile to start digging from.
+func (w *World) roomSiteClear(ox, oy, width int, designated map[Point]bool, allowRock bool) bool {
 	backY := oy - 1
 	frontY := roomFrontWallY(oy)
 	for x := ox; x < ox+width; x++ {
-		if w.TerrainAt(Point{x, backY - 1}) != Rock {
+		if t := w.TerrainAt(Point{x, backY - 1}); t != Rock && t != Wall {
 			return false
 		}
 	}
 	for y := backY; y <= frontY; y++ {
-		for x := ox - 1; x <= ox+width; x++ {
+		for x := ox; x < ox+width; x++ {
 			p := Point{x, y}
-			if w.TerrainAt(p) != Floor || designated[p] {
+			t := w.TerrainAt(p)
+			if designated[p] || (t != Floor && !(allowRock && t == Rock)) {
 				return false
 			}
 		}
-		// Keep an exterior lane beside each side wall so every wall task stays
-		// reachable even after its neighbors have been raised.
-		for _, x := range []int{ox - 2, ox + width + 1} {
-			p := Point{x, y}
-			if !w.Walkable(p) || designated[p] {
+		// Each side wall is clear floor (this room will build its own wall
+		// there, so keep an exterior lane beside it reachable even after its
+		// neighbors have been raised) or an unclaimed wall already placed by
+		// another room (shared outright: nothing more is needed on that side).
+		for _, side := range [2]struct{ wall, lane int }{{ox - 1, ox - 2}, {ox + width, ox + width + 1}} {
+			p := Point{side.wall, y}
+			if designated[p] {
+				return false
+			}
+			switch w.TerrainAt(p) {
+			case Floor:
+				lane := Point{side.lane, y}
+				if !w.Walkable(lane) || designated[lane] {
+					return false
+				}
+			case Wall:
+				// Shared party wall: this room needs nothing beyond it.
+			default:
 				return false
 			}
 		}
 	}
-	// Connect both exterior side lanes in front of the room. The back lies
-	// against rock; builders reach its wall tasks from the future facility row.
-	for x := ox - 2; x <= ox+width+1; x++ {
+	// Connect both exterior side lanes in front of the room, for whichever
+	// sides are freshly built — a shared side has no lane to connect. The room's
+	// own front row (ox-1..ox+width) is always required either way, so builders
+	// can reach the door and front wall tasks.
+	loX, hiX := ox-1, ox+width
+	if w.TerrainAt(Point{ox - 1, frontY}) != Wall {
+		loX = ox - 2
+	}
+	if w.TerrainAt(Point{ox + width, frontY}) != Wall {
+		hiX = ox + width + 1
+	}
+	for x := loX; x <= hiX; x++ {
 		p := Point{x, frontY + roomApproach}
 		if !w.Walkable(p) || designated[p] {
 			return false

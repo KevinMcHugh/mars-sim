@@ -40,6 +40,14 @@ type Config struct {
 	RestTicks            int // ticks an idle colonist rests before re-checking for work
 	StuckLimit           int // ticks a colonist waits on a blocked path before abandoning the job
 
+	// MaxConcurrentProjects is the ceiling on how many rooms can be under
+	// construction at once (min 1 is enforced); the actual cap also scales
+	// down for a small colony (see maxConcurrentProjects in project.go) so an
+	// early cramped cavern still builds one room at a time. Raising it lets a
+	// larger colony's facility supply keep pace with growth; see
+	// construction.md.
+	MaxConcurrentProjects int
+
 	// Personality. TraitChance is the percent chance a colonist receives a trait
 	// from each trait group at spawn (0 disables traits; attributes are still
 	// generated). See personality.go.
@@ -135,12 +143,13 @@ func DefaultConfig() Config {
 		FleeRadius:          5,
 		ColonistStompRadius: 4,
 
-		StarveDamage:         1,
-		ColonistsPerFacility: 10,
-		RestTicks:            10,
-		StuckLimit:           8,
-		TraitChance:          30,
-		FamilyChance:         35,
+		StarveDamage:          1,
+		ColonistsPerFacility:  5,
+		RestTicks:             10,
+		StuckLimit:            8,
+		MaxConcurrentProjects: 2,
+		TraitChance:           30,
+		FamilyChance:          35,
 
 		TalkChance:       25,
 		TalkRadius:       6,
@@ -163,6 +172,10 @@ func DefaultConfig() Config {
 			NeedFood: {
 				Name: "food", Rise: 2, SeekAt: 650, Max: 1000,
 				Facility: NutrientPod, UseTicks: 18, Fatal: true,
+				// A colonist grabs a portion in 3 ticks and eats it away from
+				// the pod, instead of occupying its one access tile for the
+				// full 18 — far more throughput per pod at the same cost.
+				GrabTicks: 3,
 			},
 			NeedBladder: {
 				Name: "bladder", Rise: 3, SeekAt: 600, Max: 1000,

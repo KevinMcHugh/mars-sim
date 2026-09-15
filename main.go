@@ -106,6 +106,7 @@ func bindConfigFlags(cfg *sim.Config) {
 	flag.IntVar(&cfg.ColonistStompRadius, "stomp-radius", cfg.ColonistStompRadius, "an idle colonist chases and crushes a mouse within this many tiles")
 	flag.IntVar(&cfg.StarveDamage, "starve-damage", cfg.StarveDamage, "HP lost per tick while starving")
 	flag.IntVar(&cfg.ColonistsPerFacility, "per-facility", cfg.ColonistsPerFacility, "colonists served by each life-support facility")
+	flag.IntVar(&cfg.MaxConcurrentProjects, "max-concurrent-projects", cfg.MaxConcurrentProjects, "rooms that can be under construction at once")
 	flag.IntVar(&cfg.RestTicks, "rest-ticks", cfg.RestTicks, "ticks an idle colonist rests before re-checking for work")
 	flag.IntVar(&cfg.TraitChance, "trait-chance", cfg.TraitChance, "percent chance a colonist gets a trait from each trait group (0 disables)")
 	flag.IntVar(&cfg.FamilyChance, "family-chance", cfg.FamilyChance, "percent chance a new colonist is tied to an existing one by family (0 disables)")
@@ -158,6 +159,8 @@ func validateConfig(cfg sim.Config) error {
 		return fmt.Errorf("tps must be at least 1 (got %d)", cfg.TicksPerSecond)
 	case cfg.ColonistsPerFacility < 1:
 		return fmt.Errorf("per-facility must be at least 1 (got %d)", cfg.ColonistsPerFacility)
+	case cfg.MaxConcurrentProjects < 1:
+		return fmt.Errorf("max-concurrent-projects must be at least 1 (got %d)", cfg.MaxConcurrentProjects)
 	case cfg.RestTicks < 1:
 		return fmt.Errorf("rest-ticks must be at least 1 (got %d)", cfg.RestTicks)
 	case cfg.TraitChance < 0 || cfg.TraitChance > 100:

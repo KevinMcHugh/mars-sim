@@ -22,11 +22,13 @@ toilets) are the first — and currently only — project kind.
 ## How it works
 
 The normal planner maintains life-support and bunk capacity automatically, but
-the TUI can queue explicit room orders: `f` requests one facility room and `d`
-requests one dormitory. The command is recorded on the engine-owned world and
-waits until the current project finishes and a suitable site exists. It does not
-start a second concurrent project, preserving the single-project rule that
-prevents early colonies from splitting their builders across sites.
+the TUI can queue explicit room orders: `b` opens a menu, then `f` requests one
+facility room and `d` requests one dormitory. Each order just increments a
+counter (`manualFacilityRooms`/`manualDormitories`) recorded on the
+engine-owned world, so several can be queued at once; `planRooms` works
+through them — one new project per call, life support before dormitories —
+whenever the colony is below its current concurrent-project cap and a suitable
+site exists (see *Planning cadence* below).
 
 ### Tasks, phases, projects
 
@@ -59,10 +61,11 @@ current recipes are:
 | facility room | alternating nutrient pods and toilets | 2 facilities | first, because food is fatal |
 | dormitory | beds/bunks | 1 bed | after the desired pods and toilets exist |
 
-`planRooms` checks each recipe's planned-or-built capacity. It plans only one
-room at a time, and always chooses a life-support room before a dormitory. A
-dormitory can therefore be built in a cramped cavern with a single bunk, and
-the colony adds more rooms as its population grows.
+`planRooms` checks each recipe's planned-or-built capacity, plans at most one
+new room per call (see *Planning cadence*), and always chooses a life-support
+room before a dormitory. A dormitory can therefore be built in a cramped
+cavern with a single bunk, and the colony adds more rooms — and, once the
+population justifies it, more of them at once — as it grows.
 
 Beds use the same facility machinery as pods and toilets: a colonist approaches
 an adjacent tile, spends the sleep need's `UseTicks` sleeping, and then resets
@@ -81,45 +84,134 @@ one-tile front doorway. `designateRoom` lays out, into two phases:
   alternating so every room serves both needs) one tile inside the back wall,
   spaced one tile apart.
 
-`findRoomSite` / `roomSiteClear` pick a site whose footprint is clear floor, whose
-rear wall is backed by solid rock (so the room is a niche at the cavern edge, not
-a free-standing obstacle), and which keeps exterior lanes beside the side walls
-and across the front so every wall task stays reachable even after its neighbors
-go up. Sites nearest the map center are preferred.
+`findRoomSite` / `roomSiteClear` pick a site whose rear wall is backed by
+solid rock or another room's already-placed wall, and whose two side walls are
+each either freshly built (with an exterior lane kept clear beside it so every
+wall task stays reachable even after its neighbors go up) or an already-placed,
+unclaimed wall from a neighboring room — in which case the two rooms sit flush
+and literally **share that one tile** as a party wall: this room adds no wall
+task of its own there (`designateRoom` skips it), and needs no exterior lane
+on that side either, since there is no wall task to reach. Sites nearest the
+map center are preferred.
+
+Sharing a boundary this way — on the back wall or a side wall — matters once a
+cave's easy rock-backed edges are used up: rooms reuse floor and structure
+that already exist instead of every new room needing its own fresh niche cut
+from untouched rock.
+
+The interior may be clear floor or still-solid rock (see *Excavating the
+interior*), but `findRoomSite` tries a fully pre-cleared site first and only
+falls back to a rock-interior one if no clear site exists anywhere — a clear
+site finishes strictly faster (no dig phase), and picking a rock one just for
+sitting slightly closer to map center measurably delayed food in testing (a
+colonist starved because life support landed somewhere slower to finish than
+it needed to be; see `findRoomSitePrefersClearOverRockNearCenter` for the
+regression test).
 
 Facilities stay spaced one tile apart because a colonist using a facility stands
 on its neighbor tiles — two adjacent facilities would mean one could never be
 built or used.
 
+### Excavating the interior
+
+A room's interior (where its own back/front walls, clear rows, and facilities
+go) need not be pre-mined. `designateRoom` gives every interior tile still
+solid rock a `roomDigPhase` task (terrain `Floor`, phase `-1` — before
+`roomWallPhase`), so the project excavates its footprint before raising walls.
+Dig tasks share the ordinary claiming/reachability rules: a tile is claimable
+only once some neighbor is already floor, so they naturally clear from the
+edge inward as each newly-opened tile makes the next one reachable — no
+special ordering logic needed, and the always-floor exterior lanes and front
+approach guarantee at least one initially-reachable tile to start from.
+
+A dig task and a wall or facility task can target the same position (excavate
+it, then build on it). `jobBuild` treats `BuildKind == Floor` as a dig: it
+requires the tile to still be `Rock` (rather than `Floor`, as every other
+`BuildKind` does) and takes `MineTicks` (rather than `BuildTicks` /
+`FacilityBuildTicks`), granting `RawRock` like ordinary mining on completion.
+`taskDone` treats a dig task as done once its tile is merely *no longer*
+`Rock` — not only when it equals `Floor` exactly — so a later wall or facility
+task converting that tile past `Floor` still counts the dig as finished rather
+than leaving it permanently unsatisfiable and stuck blocking the project's
+phase from ever advancing.
+
+This does not let a room conjure itself out of nowhere: the exterior (side
+walls, their lanes, the front approach) must still already be floor, exactly
+as before — only the interior can be rock.
+
 ### Planning cadence
 
-`planRooms` runs every `planInterval` (16) ticks from `step`. It creates a
-room project only when the colony is short of a required room facility for its
-headcount (`desiredFacilities` = colonists / `ColonistsPerFacility`, min 1) **and
-no project is already active**. `plannedFacilities` counts existing + in-progress
+`planRooms` runs every `planInterval` (16) ticks from `step`. It creates at
+most one room project per call, and only when the colony is short of a
+required room facility for its headcount (`desiredFacilities` = colonists /
+`ColonistsPerFacility`, min 1) **and** the colony is below its current
+concurrent-project cap. `plannedFacilities` counts existing + in-progress
 (from the job board's O(1) counter) + designated-but-unbuilt facilities, so the
 colony converges on the target instead of every idle colonist starting one at
 once. `planRoom` prefers a full 4-facility room but falls back to the recipe's
 minimum when only a shorter clear run is available.
 
+`maxConcurrentProjects` scales that cap with population (one room at a time up
+to `concurrentProjectColonists` (8) colonists, then one more room per that many
+again), up to the `MaxConcurrentProjects` ceiling in `Config`. A tiny colony
+still gets the original single-project behavior — splitting a handful of
+builders across two sites is what gridlocks an early, cramped cavern — while a
+larger one can run more crews in parallel so facility supply keeps pace with
+growth instead of queued orders piling up behind one room at a time.
+
+### Helping build instead of just queueing
+
+An urgent colonist does not automatically queue at a reachable existing
+facility. First it checks whether the colony still wants more of that
+facility than it currently has planned or built
+(`plannedFacilities(kind) < desiredFacilities(...)`); if so, and a reachable
+project task is claimable, it helps build instead — only falling back to the
+existing facility if no such task is available. Without this check, once a
+single facility of a kind exists, every urgent colonist takes the simple path
+of queueing at it, and none is ever free to help build a second: the colony
+gets stuck at whatever capacity it happened to build first, no matter how far
+behind population growth that falls.
+
+Claiming here uses `claimNearestTaskProviding(pos, id, kind)`, **not** the
+unrestricted `claimNearestTask` — it only claims from a project that actually
+provides the needed facility kind somewhere in its task list (any task in
+that project counts, not just the facility tile itself: helping dig or wall a
+life-support room still counts as helping provide its pods and toilets).
+This matters because the starvation grace period (see [needs.md](./needs.md))
+only covers reachable construction that provides the specific facility a
+colonist needs; claiming just any reachable task — digging an unrelated
+dormitory while starving, say — still marks the colonist as "handling" its
+need (so nothing else preempts it) without the grace period actually applying,
+so it takes starvation damage the whole time it is "busy." That's exactly
+what happened in testing once excavation gave projects many more claimable
+tasks to keep a colonist perpetually occupied on the wrong one. Restricting
+the claim to relevant projects makes helping build safe even for a fatal
+need, as intended — it never trades a build for a death.
+
 ### The emergency fallback
 
-Separately from projects, a colonist facing a **fatal** need with no reachable
-facility and no reachable facility construction may `assignBuild` a lone pod at
-the nearest suitable edge (`findBuildSpot`), rather than mining until it starves.
-This is guarded tightly: only fatal needs justify it, and only when nothing
-reachable is already being built (`reachableFacilityConstruction`), so a project
-in a disconnected room does not suppress a stranded colonist's self-rescue — and a
-non-fatal need never triggers a colony-wide ad-hoc building stampede.
+Separately from projects, a colonist facing an urgent need — fatal or not —
+with no reachable facility, no project task to help with, and no reachable
+facility construction may `assignBuild` a lone facility at the nearest
+suitable edge (`findBuildSpot`), rather than waiting indefinitely (fatal) or
+mining until it starves (non-fatal). This is still guarded: only when nothing
+reachable is already being built (`reachableFacilityConstruction`) — checked
+first against the shared project pool — so a project in a disconnected room
+does not suppress a stranded colonist's self-rescue, and a colonist that can
+already help build one elsewhere in its room joins that instead of starting a
+redundant one of its own.
 
 ## Why it is this way
 
 The room design is the product of watching colonies starve around earlier ones:
 
-- **One room at a time.** A second concurrent project splits builders across two
-  sites and, in a tight early cavern, gridlocks the colony so nothing finishes
-  and no one mines for space. One room keeps most colonists mining (growing the
-  cavern) while a small crew finishes the current room.
+- **One room at a time — for a small colony.** A second concurrent project
+  splits builders across two sites and, in a tight early cavern, gridlocks the
+  colony so nothing finishes and no one mines for space. One room keeps most
+  colonists mining (growing the cavern) while a small crew finishes the
+  current room. `maxConcurrentProjects` only raises the cap once population
+  growth means a second crew is no longer the whole colony's worth of
+  builders.
 - **Phased walls, then facilities.** The earlier wall-less and single-phase
   designs each starved the colony a different way: an enclosed room trapped its
   own builders; a free-standing wall funneled seekers through its last unbuilt
@@ -129,19 +221,37 @@ The room design is the product of watching colonies starve around earlier ones:
   **permanent doorway** means the last wall can never trap the builders. This is
   what replaced the README's old "no built walls" rule; real walls became viable
   once colonists could pass through crowds and route around pending build tiles.
-- **Rock-backed niches** keep a room from becoming a free-standing obstacle that
-  splits an open route, and mean the back wall's tasks are reached from the
-  future facility row.
+- **Rock-backed niches, or a shared wall with a neighbor,** keep a room from
+  becoming a free-standing obstacle that splits an open route, and mean the
+  back wall's tasks are reached from the future facility row.
 - **Reachability-gated claiming and the tightly-guarded emergency build** keep
   the colony from either mobbing one site or letting a disconnected colonist die
   next to an unreachable project.
 - **Life support before dormitories** makes the planner's priorities explicit:
   sleep improves quality of life, but missing a bed is not fatal, while missing
-  food is.
+  food is. This is strict: even a planning cycle where life support fails to
+  find a site never falls through to a dormitory instead. That fallthrough was
+  tried and reverted — it let dormitories win a scarce concurrent-build slot
+  ahead of life support and measurably delayed food. A colony that cannot site
+  life support at all is a siting problem to fix (excavation, wall-sharing),
+  not a priority order to bend.
+- **Preferring a clear site over a rock one** (in `findRoomSite`) for the same
+  reason: a rock-interior site is strictly slower to finish (it has a dig
+  phase the clear one doesn't), so picking one merely because it happens to be
+  closer to map center can delay a room's completion for no good reason.
+- **The travelTo/stuck interaction.** `jobBuild`'s "someone is on my tile,
+  wait, then give up after `StuckLimit`" safety valve only works because
+  `travelTo`'s "already adjacent" fast path stopped resetting `e.stuck` to 0
+  every tick (it used to, via `clearPath`). Before that fix, two colonists
+  that ended up swapped onto each other's wall-task tiles — much likelier once
+  excavation crowds a freshly-dug interior with diggers who then all start
+  building walls at once — could deadlock forever: the timeout counter never
+  survived a tick to accumulate, so it never fired. This starved a colonist in
+  testing on a large, mature colony.
 
 ### Known soft spot
 
-A fully mined-out map is the one weak point: with nothing left to dig, the whole
+A fully mined-out map is one weak point: with nothing left to dig, the whole
 idle population mobs the few facilities and a colonist can occasionally be crowded
 out over a long run. This is a shared-facility crowd-flow limit, not a
 room-building one, and is moot once maps are larger than the colony can exhaust or
