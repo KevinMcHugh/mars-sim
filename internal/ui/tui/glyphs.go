@@ -38,17 +38,18 @@ const (
 	glyphWomanSenior  = "\U0001F475" // 👵 senior woman colonist
 	glyphPersonSenior = "\U0001F9D3" // 🧓 senior non-binary colonist
 
-	zwj = "‍" // joins skin tone / hair components onto a base glyph
-
+	// Skin tone modifiers attach directly after a base glyph (no ZWJ needed) and
+	// are broadly supported. A ZWJ-joined hair component was tried too, but many
+	// terminals don't fuse ZWJ sequences into one cell — they print the base,
+	// tone, and hair component as three separate glyphs, which desyncs the
+	// terminal's real column count from what our width math (and thus Bubble
+	// Tea's frame redraw) assumes, corrupting the whole panel. So hair color is
+	// flavor text only (see renderColonistDetail) and never enters the glyph.
 	skinToneLight       = "\U0001F3FB" // 🏻
 	skinToneMediumLight = "\U0001F3FC" // 🏼
 	skinToneMedium      = "\U0001F3FD" // 🏽
 	skinToneMediumDark  = "\U0001F3FE" // 🏾
 	skinToneDark        = "\U0001F3FF" // 🏿
-
-	hairRed   = "\U0001F9B0" // 🦰 red hair component
-	hairWhite = "\U0001F9B3" // 🦳 white hair component
-	hairBald  = "\U0001F9B2" // 🦲 bald component
 )
 
 // seniorAge is the age at which a colonist's default glyph switches from an
@@ -68,11 +69,8 @@ var fittedGlyphs = func() map[string]string {
 }()
 
 // colonistGlyph composes the default map glyph for a colonist at rest: a base
-// figure for their gender identity and age bracket, an emoji skin tone
-// modifier, and — for adults only, since emoji defines no senior+hair
-// sequences — a hair component where their hair color has one (red, white, or
-// bald; black/brown/blonde render as the plain base). A colonist without a
-// profile falls back to glyphColonist.
+// figure for their gender identity and age bracket, plus an emoji skin tone
+// modifier. A colonist without a profile falls back to glyphColonist.
 func colonistGlyph(p *sim.Profile) string {
 	if p == nil {
 		return glyphColonist
@@ -99,11 +97,7 @@ func colonistGlyph(p *sim.Profile) string {
 			base = glyphPersonAdult
 		}
 	}
-	glyph := base + skinToneModifier(p.SkinTone)
-	if !senior {
-		glyph += hairSuffix(p.HairColor)
-	}
-	return glyph
+	return base + skinToneModifier(p.SkinTone)
 }
 
 func skinToneModifier(s sim.SkinTone) string {
@@ -118,21 +112,6 @@ func skinToneModifier(s sim.SkinTone) string {
 		return skinToneDark
 	default:
 		return skinToneMedium
-	}
-}
-
-// hairSuffix returns the ZWJ + hair component for hair colors emoji defines
-// one for, or "" for colors that render as the plain base glyph.
-func hairSuffix(h sim.HairColor) string {
-	switch h {
-	case sim.HairRed:
-		return zwj + hairRed
-	case sim.HairWhite:
-		return zwj + hairWhite
-	case sim.HairBald:
-		return zwj + hairBald
-	default:
-		return ""
 	}
 }
 
