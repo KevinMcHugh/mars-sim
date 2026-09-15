@@ -34,13 +34,14 @@ across the five emoji tone points), a hair color (white and bald weighted
 upward with age), and a name drawn from gender-appropriate pools. Nothing
 simulates against these yet — they exist for flavor and future systems.
 
-The TUI composes skin tone directly into a colonist's map glyph via an emoji
-skin tone modifier (see [`internal/ui/tui/glyphs.go`](../internal/ui/tui/glyphs.go)),
-e.g. `👨🏿`. Hair color stays text-only (shown in the roster detail pane):
-a ZWJ-joined hair component was tried too, but many terminals don't fuse a
-ZWJ sequence into a single cell — they print its parts as separate glyphs,
-which throws off the column count the renderer assumes and corrupts the
-roster layout.
+Skin tone and hair color are text-only (shown in the roster detail pane) —
+not composed into a colonist's map glyph. Both a skin tone modifier and a
+ZWJ-joined hair component were tried in [`internal/ui/tui/glyphs.go`](../internal/ui/tui/glyphs.go),
+but plenty of terminals don't fuse a modifier or a ZWJ sequence onto the
+preceding glyph — they print it as its own separate character (a skin tone
+modifier alone renders as a plain colored square), which throws off the
+column count the renderer assumes and corrupts the roster layout. The map
+glyph sticks to age and gender only, which composes cleanly everywhere.
 
 ### Traits (mechanical)
 

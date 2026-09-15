@@ -38,18 +38,15 @@ const (
 	glyphWomanSenior  = "\U0001F475" // 👵 senior woman colonist
 	glyphPersonSenior = "\U0001F9D3" // 🧓 senior non-binary colonist
 
-	// Skin tone modifiers attach directly after a base glyph (no ZWJ needed) and
-	// are broadly supported. A ZWJ-joined hair component was tried too, but many
-	// terminals don't fuse ZWJ sequences into one cell — they print the base,
-	// tone, and hair component as three separate glyphs, which desyncs the
-	// terminal's real column count from what our width math (and thus Bubble
-	// Tea's frame redraw) assumes, corrupting the whole panel. So hair color is
-	// flavor text only (see renderColonistDetail) and never enters the glyph.
-	skinToneLight       = "\U0001F3FB" // 🏻
-	skinToneMediumLight = "\U0001F3FC" // 🏼
-	skinToneMedium      = "\U0001F3FD" // 🏽
-	skinToneMediumDark  = "\U0001F3FE" // 🏾
-	skinToneDark        = "\U0001F3FF" // 🏿
+	// Skin tone modifiers and ZWJ-joined hair components were tried here too,
+	// composed onto the base glyph. Both were reverted: plenty of terminals
+	// don't fuse a modifier or a ZWJ sequence onto the preceding glyph — they
+	// print it as its own separate character (a skin tone modifier alone
+	// renders as a plain colored square) — which desyncs the terminal's real
+	// column count from what our width math (and thus Bubble Tea's frame
+	// redraw) assumes, corrupting the whole panel. So skin tone and hair color
+	// are flavor text only (see renderColonistDetail) and never enter the
+	// glyph.
 )
 
 // seniorAge is the age at which a colonist's default glyph switches from an
@@ -68,50 +65,30 @@ var fittedGlyphs = func() map[string]string {
 	return out
 }()
 
-// colonistGlyph composes the default map glyph for a colonist at rest: a base
-// figure for their gender identity and age bracket, plus an emoji skin tone
-// modifier. A colonist without a profile falls back to glyphColonist.
+// colonistGlyph picks the default map glyph for a colonist at rest: a base
+// figure for their gender identity and age bracket. A colonist without a
+// profile falls back to glyphColonist.
 func colonistGlyph(p *sim.Profile) string {
 	if p == nil {
 		return glyphColonist
 	}
 	senior := p.Age >= seniorAge
-	var base string
 	switch p.Gender {
 	case sim.GenderMan:
 		if senior {
-			base = glyphManSenior
-		} else {
-			base = glyphManAdult
+			return glyphManSenior
 		}
+		return glyphManAdult
 	case sim.GenderWoman:
 		if senior {
-			base = glyphWomanSenior
-		} else {
-			base = glyphWomanAdult
+			return glyphWomanSenior
 		}
+		return glyphWomanAdult
 	default:
 		if senior {
-			base = glyphPersonSenior
-		} else {
-			base = glyphPersonAdult
+			return glyphPersonSenior
 		}
-	}
-	return base + skinToneModifier(p.SkinTone)
-}
-
-func skinToneModifier(s sim.SkinTone) string {
-	switch s {
-	case sim.SkinLight:
-		return skinToneLight
-	case sim.SkinMediumLight:
-		return skinToneMediumLight
-	case sim.SkinMediumDark:
-		return skinToneMediumDark
-	case sim.SkinDark:
-		return skinToneDark
-	default:
-		return skinToneMedium
+		return glyphPersonAdult
 	}
 }
 
