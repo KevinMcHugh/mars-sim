@@ -98,11 +98,28 @@ becomes a `Command`; the UI never touches the world directly.
 
 ### Glyphs
 
-Each tile is allocated **two terminal cells** (open floor is two spaces). Emoji
-are retained for readability, and `fitGlyph` pads or replaces glyphs according
-to the renderer's width table. The map deliberately avoids per-tile cursor
-positioning: emitting thousands of ANSI cursor sequences made redraws much less
-responsive.
+Each tile is allocated **two terminal cells** (open floor is two spaces), and
+every glyph reaches the terminal through `fitGlyph`, which renders it in exactly
+that many cells. Glyphs are not loose constants: they live in a registry with a
+declared width and an ASCII fallback, and a startup probe measures them against
+the real terminal. This is the part that used to break the grid — the whole
+story, and the rules a new glyph has to follow, are in
+[terminal-cell-widths.md](./terminal-cell-widths.md).
+
+The map deliberately avoids per-tile cursor positioning: emitting thousands of
+ANSI cursor sequences made redraws much less responsive. Correctness comes from
+fitting each line to a known cell count instead.
+
+### Panel widths
+
+Panel width constants (`sidebarWidth`, `rosterListWidth`, `jobListWidth`) are
+**total footprints including the border**. `lipgloss`'s `Style.Width` sets the
+content box — padding in, border out — so renderers pass
+`Width(total - borderCells)`.
+
+When the terminal is too narrow for two panels side by side, the second one is
+dropped (`sidebarFits`, `splitPanels`) rather than squeezed. Flooring it at a
+minimum instead is what used to push the sidebar's border off the right edge.
 
 ### Headless mode
 
@@ -123,8 +140,10 @@ contract is genuinely frontend-agnostic.
   high simulation speeds or large colonies. This is a renderer throttle, not a
   second input loop: Bubble Tea continues reading keyboard input independently,
   while `Update` applies keys as soon as they arrive.
-- **Two-cell tile slots plus cursor pinning** preserve the readable emoji while
-  handling terminals whose painted emoji width differs from the width table.
+- **Two-cell tile slots, a vetted glyph registry, and a startup width probe**
+  preserve the readable emoji without trusting any width table to be right about
+  a terminal we have never run on. See
+  [terminal-cell-widths.md](./terminal-cell-widths.md).
 
 ## Extending it
 
@@ -132,7 +151,10 @@ contract is genuinely frontend-agnostic.
   render it; do not reach into engine internals.
 - **A new control**: add a key case that `Send`s a `Command` (add the command
   type in `sim` if needed — see [architecture.md](./architecture.md)).
-- **A new glyph**: add it in `glyphs.go` and map the terrain/kind/state to it.
+- **A new glyph**: add the constant *and* a `glyphRegistry` entry in
+  `glyphs.go`, then map the terrain/kind/state to it. The tests reject a glyph
+  whose width terminals would disagree about — see
+  [terminal-cell-widths.md](./terminal-cell-widths.md).
 - **A different frontend entirely**: implement a consumer of `Subscribe()` frames
   that `Send`s commands; `runHeadless` is the minimal example.
 
@@ -141,3 +163,4 @@ contract is genuinely frontend-agnostic.
 - [architecture.md](./architecture.md) — the snapshot/command contract this implements.
 - [inventory.md](./inventory.md) — what the roster's inventory view shows.
 - [personality.md](./personality.md) — the attributes and traits the inspector shows.
+- [terminal-cell-widths.md](./terminal-cell-widths.md) — how glyph widths are measured and kept honest.

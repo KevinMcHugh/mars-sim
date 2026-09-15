@@ -32,10 +32,12 @@ func main() {
 		duration time.Duration
 		headless bool
 		seed     int64
+		glyphs   string
 	)
 	flag.DurationVar(&duration, "duration", 0, "auto-exit after this long (0 = run until quit); handy for smoke tests")
 	flag.BoolVar(&headless, "headless", false, "run without the TUI, printing periodic stats")
 	flag.Int64Var(&seed, "seed", 0, "world seed (0 = random each run)")
+	flag.StringVar(&glyphs, "glyphs", glyphModeAuto, "map glyphs: auto (measure the terminal), emoji (trust the width table), or ascii")
 
 	// Simulation config flags, each defaulting to the DefaultConfig value.
 	bindConfigFlags(&cfg)
@@ -52,6 +54,11 @@ func main() {
 
 	if seed != 0 {
 		cfg.Seed = seed // otherwise keep DefaultConfig's random, time-based seed
+	}
+	if glyphs != glyphModeAuto && glyphs != glyphModeEmoji && glyphs != glyphModeASCII {
+		fmt.Fprintf(os.Stderr, "mars-sim: -glyphs must be %s, %s or %s (got %q)\n",
+			glyphModeAuto, glyphModeEmoji, glyphModeASCII, glyphs)
+		os.Exit(2)
 	}
 	if err := validateConfig(cfg); err != nil {
 		fmt.Fprintln(os.Stderr, "mars-sim:", err)
@@ -72,6 +79,8 @@ func main() {
 		runHeadless(snaps, cfg, duration)
 		return
 	}
+
+	setUpGlyphs(glyphs)
 
 	if err := runTUI(eng, snaps, duration); err != nil {
 		cancel()
@@ -195,6 +204,50 @@ func usage() {
 	fmt.Fprintf(out, "  %s -headless -duration 10s -seed 42\n\n", name)
 	fmt.Fprintf(out, "Options:\n")
 	flag.PrintDefaults()
+}
+
+// Glyph modes for the -glyphs flag.
+const (
+	// glyphModeAuto measures each glyph against the real terminal at startup
+	// and falls back to ASCII if any of them is painted at an unexpected
+	// width. This is the default because no static width table is
+	// authoritative: the terminal is.
+	glyphModeAuto = "auto"
+	// glyphModeEmoji skips the probe and trusts the width table. Useful when
+	// the probe cannot run — inside a multiplexer that swallows the cursor
+	// position report, say — but the emoji do in fact line up.
+	glyphModeEmoji = "emoji"
+	// glyphModeASCII forces the fallback set, for a terminal whose font has no
+	// glyph for an emoji. That case is invisible to the probe: a missing glyph
+	// still advances the expected number of cells, it just looks wrong.
+	glyphModeASCII = "ascii"
+)
+
+// setUpGlyphs applies the -glyphs choice before the TUI starts. The probe needs
+// raw mode and sole use of stdin, which it can only have before Bubble Tea
+// takes the terminal.
+//
+// A probe that cannot run is not an error. Failing to get an answer out of the
+// terminal leaves us exactly where a build without the probe would be — using
+// the static registry — so it is not worth interrupting a run over.
+func setUpGlyphs(mode string) {
+	switch mode {
+	case glyphModeASCII:
+		tui.UseASCIIGlyphs()
+	case glyphModeAuto:
+		check, err := tui.VerifyGlyphWidths()
+		if err != nil {
+			// stderr, not stdout: the alt screen is about to cover stdout, and
+			// a redirected stderr is where you look when the grid misbehaves.
+			// The probe writes its own escape sequences to /dev/tty, so a
+			// redirected stdout stays clean.
+			fmt.Fprintf(os.Stderr, "mars-sim: could not measure glyph widths (%v); using the built-in width table\n", err)
+			return
+		}
+		if check.Downgraded {
+			fmt.Fprintln(os.Stderr, "mars-sim:", check.Detail)
+		}
+	}
 }
 
 // tuiFPS caps terminal redraws independently of the simulation tick rate. The

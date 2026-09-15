@@ -26,6 +26,7 @@ way it is without re-deriving it from the source each time.
 | [inventory.md](./inventory.md) | Colonist inventory slots and stacking. |
 | [memories.md](./memories.md) | Colonist memories: notable experiences, sightings, and snapshot exposure. |
 | [frontend-tui.md](./frontend-tui.md) | The Bubble Tea terminal frontend: map, roster, controls, and glyphs. |
+| [terminal-cell-widths.md](./terminal-cell-widths.md) | Why the grid used to shear: cell-accurate measurement, the vetted glyph registry, the startup width probe, and the ASCII fallback. |
 
 ## How the docs are organized
 

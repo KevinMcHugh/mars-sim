@@ -1,35 +1,56 @@
 package tui
 
 import (
-	"strings"
+	"sync/atomic"
 
-	"github.com/charmbracelet/lipgloss"
+	"github.com/kevinmchugh/mars-sim/internal/ui/tui/cells"
 
 	"github.com/kevinmchugh/mars-sim/internal/sim"
 )
 
+// tileWidth is how many terminal cells one map tile occupies. Every glyph is
+// rendered into exactly this many cells, so a map row is always cols*tileWidth
+// cells wide no matter what it contains.
 const tileWidth = 2
 
-// Glyphs occupy two terminal cells so the map grid stays aligned. Open floor is
-// two spaces (also two cells), which reads as empty cavern against the solid
-// terrain. fitGlyph adds padding for terminals whose width table reports an
-// emoji as narrow and uses a plain two-cell fallback for an unexpectedly wide
-// glyph.
+// How wide a terminal paints an emoji is a property of the terminal, not of
+// Unicode: it depends on which Unicode version the terminal's width table came
+// from and how it treats emoji presentation. Nothing we can compute from the
+// string is authoritative. What we can do is refuse to draw anything whose
+// width is *contested*, and then check our assumption against the real terminal
+// at startup.
+//
+// The contested constructs, all of which this package bans (enforced by
+// TestGlyphRegistryIsUnambiguous):
+//
+//   - U+FE0F VARIATION SELECTOR-16. "🛏️" is U+1F6CF + VS16: a terminal that
+//     honours the selector paints two cells, one that ignores it paints the
+//     text-presentation form in one. Our own dependencies disagree about this
+//     today — go-runewidth says one cell, x/ansi and uniseg say two — which is
+//     exactly the class of bug that shears the grid.
+//   - U+200D ZERO WIDTH JOINER, for multi-person and profession sequences.
+//   - U+1F3FB..U+1F3FF skin tone modifiers, which a terminal that does not fuse
+//     them paints as a separate coloured square.
+//
+// Every glyph below is therefore a single code point with
+// Emoji_Presentation=Yes, the one case terminals agree on: two cells, always.
+// Skin tone and hair colour live in the colonist's flavour text instead (see
+// renderColonistDetail); they never enter a glyph.
 const (
-	glyphRock   = "\U0001F7EB"       // 🟫 unexcavated regolith
-	glyphFloor  = "  "               // open, walkable space
-	glyphWall   = "\U0001F9F1"       // 🧱 built wall
-	glyphPod    = "\U0001F37D\uFE0F" // 🍽️ nutrient pod (food)
-	glyphToilet = "\U0001F6BD"       // 🚽 toilet (bladder)
-	glyphBed    = "\U0001F6CF\uFE0F" // 🛏️ dormitory bunk (sleep)
+	glyphRock   = "\U0001F7EB" // 🟫 unexcavated regolith
+	glyphFloor  = "  "         // open, walkable space
+	glyphWall   = "\U0001F9F1" // 🧱 built wall
+	glyphPod    = "\U0001F96B" // 🥫 nutrient pod (food)
+	glyphToilet = "\U0001F6BD" // 🚽 toilet (bladder)
+	glyphBed    = "\U0001F6CC" // 🛌 dormitory bunk (sleep)
 
-	glyphColonist = "\U0001F477"       // 👷 colonist of unknown age/gender (no profile)
-	glyphFleeing  = "\U0001F631"       // 😱 colonist running from an alien
-	glyphTalking  = "\U0001F5E3\uFE0F" // 🗣️ colonist chatting with another
-	glyphAlien    = "\U0001F47D"       // 👽 subterranean mutant
-	glyphCat      = "\U0001F408"       // 🐈 floor predator hunting mice
-	glyphMouse    = "\U0001F401"       // 🐁 pest that raids the food pods
-	glyphStomp    = "\U0001F97E"       // 🥾 colonist chasing down a mouse to stomp it
+	glyphColonist = "\U0001F477" // 👷 colonist of unknown age/gender (no profile)
+	glyphFleeing  = "\U0001F631" // 😱 colonist running from an alien
+	glyphTalking  = "\U0001F4AC" // 💬 colonist chatting with another
+	glyphAlien    = "\U0001F47D" // 👽 subterranean mutant
+	glyphCat      = "\U0001F408" // 🐈 floor predator hunting mice
+	glyphMouse    = "\U0001F401" // 🐁 pest that raids the food pods
+	glyphStomp    = "\U0001F97E" // 🥾 colonist chasing down a mouse to stomp it
 
 	glyphManAdult     = "\U0001F468" // 👨 adult man colonist
 	glyphWomanAdult   = "\U0001F469" // 👩 adult woman colonist
@@ -38,32 +59,107 @@ const (
 	glyphWomanSenior  = "\U0001F475" // 👵 senior woman colonist
 	glyphPersonSenior = "\U0001F9D3" // 🧓 senior non-binary colonist
 
-	// Skin tone modifiers and ZWJ-joined hair components were tried here too,
-	// composed onto the base glyph. Both were reverted: plenty of terminals
-	// don't fuse a modifier or a ZWJ sequence onto the preceding glyph — they
-	// print it as its own separate character (a skin tone modifier alone
-	// renders as a plain colored square) — which desyncs the terminal's real
-	// column count from what our width math (and thus Bubble Tea's frame
-	// redraw) assumes, corrupting the whole panel. So skin tone and hair color
-	// are flavor text only (see renderColonistDetail) and never enter the
-	// glyph.
+	// glyphMars is the header's planet mark. It is drawn inline rather than on
+	// the grid, but it goes through the registry like everything else so the
+	// startup probe covers it too.
+	glyphMars = "\U0001F534" // 🔴
 )
 
 // seniorAge is the age at which a colonist's default glyph switches from an
 // adult to a senior variant.
 const seniorAge = 60
 
-var fittedGlyphs = func() map[string]string {
-	out := make(map[string]string, 13)
-	for _, glyph := range []string{
-		glyphRock, glyphFloor, glyphWall, glyphPod, glyphToilet, glyphBed,
-		glyphColonist, glyphFleeing, glyphTalking, glyphAlien, glyphCat,
-		glyphMouse, glyphStomp,
-	} {
-		out[glyph] = fitGlyphMeasured(glyph)
+// glyph is one drawable symbol: what we want to draw, how many cells we claim
+// it takes, and what to draw instead on a terminal that disagrees.
+//
+// The fallback is not decoration. A glyph whose real width differs from cells
+// by even one column desyncs the line it is on, and the fallback is pure ASCII,
+// whose width no terminal has ever disputed.
+type glyph struct {
+	symbol   string // the emoji we would like to draw
+	cells    int    // how many terminal cells we claim symbol occupies
+	fallback string // ASCII stand-in, exactly tileWidth cells
+}
+
+// glyphRegistry is every symbol the UI may draw. Rendering goes through it, so
+// a glyph added to the code without an entry here fails a test rather than
+// quietly corrupting a frame at runtime.
+var glyphRegistry = map[string]glyph{
+	glyphRock:   {glyphRock, 2, "##"},
+	glyphFloor:  {glyphFloor, 2, "  "},
+	glyphWall:   {glyphWall, 2, "[]"},
+	glyphPod:    {glyphPod, 2, "%%"},
+	glyphToilet: {glyphToilet, 2, "WC"},
+	glyphBed:    {glyphBed, 2, "=="},
+
+	glyphColonist: {glyphColonist, 2, "@ "},
+	glyphFleeing:  {glyphFleeing, 2, "@!"},
+	glyphTalking:  {glyphTalking, 2, "@?"},
+	glyphAlien:    {glyphAlien, 2, "A "},
+	glyphCat:      {glyphCat, 2, "f "},
+	glyphMouse:    {glyphMouse, 2, "r "},
+	glyphStomp:    {glyphStomp, 2, "@*"},
+
+	glyphManAdult:     {glyphManAdult, 2, "M "},
+	glyphWomanAdult:   {glyphWomanAdult, 2, "W "},
+	glyphPersonAdult:  {glyphPersonAdult, 2, "P "},
+	glyphManSenior:    {glyphManSenior, 2, "m "},
+	glyphWomanSenior:  {glyphWomanSenior, 2, "w "},
+	glyphPersonSenior: {glyphPersonSenior, 2, "p "},
+
+	glyphMars: {glyphMars, 2, "()"},
+}
+
+// renderedGlyphs maps each registered symbol to the string actually written to
+// the terminal, pre-fitted to tileWidth cells. It is replaced wholesale by
+// useASCIIGlyphs when the startup probe catches the terminal disagreeing with
+// the registry, so reads must be atomic: the probe runs on the main goroutine
+// before the program starts, but View runs on Bubble Tea's.
+var renderedGlyphs atomic.Pointer[map[string]string]
+
+// asciiGlyphs tracks which set renderedGlyphs currently holds, so the UI can
+// mention the downgrade instead of leaving the player wondering where the
+// emoji went.
+var asciiGlyphs atomic.Bool
+
+func init() { renderedGlyphs.Store(buildRenderedGlyphs(false)) }
+
+func buildRenderedGlyphs(ascii bool) *map[string]string {
+	out := make(map[string]string, len(glyphRegistry))
+	for symbol, g := range glyphRegistry {
+		if ascii {
+			out[symbol] = cells.Fit(g.fallback, tileWidth)
+			continue
+		}
+		out[symbol] = cells.Fit(g.symbol, tileWidth)
 	}
-	return out
-}()
+	return &out
+}
+
+// useASCIIGlyphs switches the whole UI to the ASCII fallback set. It is all or
+// nothing on purpose: a half-emoji, half-ASCII map is harder to read than
+// either, and if the terminal got one glyph's width wrong there is no reason to
+// trust it about the rest.
+func useASCIIGlyphs() {
+	renderedGlyphs.Store(buildRenderedGlyphs(true))
+	asciiGlyphs.Store(true)
+}
+
+// usingASCIIGlyphs reports whether the fallback set is active.
+func usingASCIIGlyphs() bool { return asciiGlyphs.Load() }
+
+// fitGlyph returns the drawable form of a symbol: exactly tileWidth cells,
+// ASCII if the terminal has been caught disagreeing about emoji widths.
+//
+// An unregistered symbol still gets fitted rather than dropped — a wrong glyph
+// beats a broken grid — but TestGlyphRegistryCoversEveryGlyph makes sure we do
+// not ship one.
+func fitGlyph(symbol string) string {
+	if rendered, ok := (*renderedGlyphs.Load())[symbol]; ok {
+		return rendered
+	}
+	return cells.Fit(symbol, tileWidth)
+}
 
 // colonistGlyph picks the default map glyph for a colonist at rest: a base
 // figure for their gender identity and age bracket. A colonist without a
@@ -93,64 +189,46 @@ func colonistGlyph(p *sim.Profile) string {
 }
 
 func terrainGlyph(t sim.Terrain) string {
-	var glyph string
+	var symbol string
 	switch t {
 	case sim.Floor:
-		glyph = glyphFloor
+		symbol = glyphFloor
 	case sim.Wall:
-		glyph = glyphWall
+		symbol = glyphWall
 	case sim.NutrientPod:
-		glyph = glyphPod
+		symbol = glyphPod
 	case sim.Toilet:
-		glyph = glyphToilet
+		symbol = glyphToilet
 	case sim.Bed:
-		glyph = glyphBed
+		symbol = glyphBed
 	default:
-		glyph = glyphRock
+		symbol = glyphRock
 	}
-	return fitGlyph(glyph)
+	return fitGlyph(symbol)
 }
 
 func entityGlyph(e sim.EntityView) string {
-	var glyph string
+	var symbol string
 	switch e.Kind {
 	case sim.Alien:
-		glyph = glyphAlien
+		symbol = glyphAlien
 	case sim.Cat:
-		glyph = glyphCat
+		symbol = glyphCat
 	case sim.Mouse:
-		glyph = glyphMouse
+		symbol = glyphMouse
 	case sim.Colonist:
 		switch e.State {
 		case sim.Fleeing:
-			glyph = glyphFleeing
+			symbol = glyphFleeing
 		case sim.Talking:
-			glyph = glyphTalking
+			symbol = glyphTalking
 		case sim.Stomping:
-			glyph = glyphStomp
+			symbol = glyphStomp
 		default:
-			glyph = colonistGlyph(e.Profile)
+			symbol = colonistGlyph(e.Profile)
 		}
 	default:
-		glyph = glyphColonist
+		symbol = glyphColonist
 	}
-	return fitGlyph(glyph)
-}
-
-func fitGlyph(glyph string) string {
-	if fitted, ok := fittedGlyphs[glyph]; ok {
-		return fitted
-	}
-	return fitGlyphMeasured(glyph)
-}
-
-func fitGlyphMeasured(glyph string) string {
-	switch width := lipgloss.Width(glyph); {
-	case width == tileWidth:
-		return glyph
-	case width < tileWidth:
-		return glyph + strings.Repeat(" ", tileWidth-width)
-	default:
-		return "??"
-	}
+	return fitGlyph(symbol)
 }
