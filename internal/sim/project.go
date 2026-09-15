@@ -23,9 +23,10 @@ type buildTask struct {
 // project is a planned structure: the colony builds all its tasks, then it is
 // retired.
 type project struct {
-	id    int
-	name  string
-	tasks []*buildTask
+	id         int
+	name       string
+	queuedTick int // w.tick when the project was designated, for job board display
+	tasks      []*buildTask
 }
 
 // taskDone reports whether a task's tile already holds its desired terrain.
@@ -298,7 +299,7 @@ func (w *World) planRoom(r roomRecipe) {
 // is built first, except for the centered front doorway; then n facilities are
 // built one tile inside the back wall, drawn from the recipe's kinds in order.
 func (w *World) designateRoom(r roomRecipe, o Point, n int) {
-	p := &project{id: w.nextProjectID, name: r.name}
+	p := &project{id: w.nextProjectID, name: r.name, queuedTick: w.tick}
 	w.nextProjectID++
 	width := bayWidth(n)
 	backY := o.Y - 1

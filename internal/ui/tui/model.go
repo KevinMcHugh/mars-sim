@@ -16,6 +16,7 @@ type viewMode int
 const (
 	modeMap    viewMode = iota // the cavern map (default)
 	modeRoster                 // the colonist roster and inspector
+	modeJobs                   // the job board: queued projects and their tasks
 )
 
 // Model is the Bubble Tea model. It is a pure consumer of the engine: it draws
@@ -32,8 +33,9 @@ type Model struct {
 	cam          sim.Point // world coordinate shown at the map's top-left
 	camReady     bool
 
-	mode     viewMode
-	selected int // roster: index into the ID-sorted colonist list
+	mode        viewMode
+	selected    int // roster: index into the ID-sorted colonist list
+	jobSelected int // job board: index into the queued project list
 
 	quitting bool
 }
@@ -100,17 +102,24 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.eng.Send(sim.SetTicksPerSecond{Rate: m.currentTPS() - 2})
 		return m, nil
 	case "tab":
-		if m.mode == modeMap {
+		switch m.mode {
+		case modeMap:
 			m.mode = modeRoster
-		} else {
+		case modeRoster:
+			m.mode = modeJobs
+		default:
 			m.mode = modeMap
 		}
 		return m, nil
 	}
-	if m.mode == modeRoster {
+	switch m.mode {
+	case modeRoster:
 		return m.handleRosterKey(msg)
+	case modeJobs:
+		return m.handleJobsKey(msg)
+	default:
+		return m.handleMapKey(msg)
 	}
-	return m.handleMapKey(msg)
 }
 
 // handleMapKey handles keys specific to the map screen.
@@ -169,6 +178,44 @@ func (m Model) clampSelection(i int) int {
 		return 0
 	}
 	return clamp(i, 0, n-1)
+}
+
+// handleJobsKey handles keys specific to the job board screen: moving the
+// selection, queueing new work, and returning to the map.
+func (m Model) handleJobsKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "esc":
+		m.mode = modeMap
+	case "up", "k":
+		m.jobSelected--
+	case "down", "j":
+		m.jobSelected++
+	case "home", "g":
+		m.jobSelected = 0
+	case "f":
+		m.eng.Send(sim.OrderFacilityRoom{})
+	case "d":
+		m.eng.Send(sim.OrderDormitory{})
+	}
+	m.jobSelected = m.clampJobSelection(m.jobSelected)
+	return m, nil
+}
+
+// clampJobSelection keeps a job board index within the current project list.
+func (m Model) clampJobSelection(i int) int {
+	n := m.projectCount()
+	if n == 0 {
+		return 0
+	}
+	return clamp(i, 0, n-1)
+}
+
+// projectCount returns how many projects are queued in the latest frame.
+func (m Model) projectCount() int {
+	if m.latest == nil {
+		return 0
+	}
+	return len(m.latest.Projects)
 }
 
 // colonistCount returns how many colonists are in the latest frame.

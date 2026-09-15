@@ -145,6 +145,62 @@ func TestRosterShowsFamilyAndAffinity(t *testing.T) {
 	}
 }
 
+// Pressing tab twice opens the job board, which lists a queued project, its
+// progress, and the colonist assigned to one of its tasks.
+func TestJobBoardShowsProjectAndAssignee(t *testing.T) {
+	snap := makeSnapshot()
+	snap.Entities[0].Profile = &sim.Profile{Name: "Zoe Vargas", Gender: sim.GenderWoman}
+	snap.Projects = []sim.ProjectView{
+		{
+			ID:         1,
+			Name:       "facility room",
+			QueuedTick: 2,
+			Phase:      0,
+			Tasks: []sim.TaskView{
+				{Pos: sim.Point{X: 1, Y: 1}, Terrain: sim.Wall, Done: true},
+				{Pos: sim.Point{X: 2, Y: 1}, Terrain: sim.Wall, Owner: 1},
+			},
+		},
+	}
+
+	var m tea.Model = New(nil, nil)
+	m, _ = m.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
+	m, _ = m.Update(snapshotMsg{snap: snap})
+	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyTab})
+	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyTab})
+
+	out := m.View()
+	for _, want := range []string{
+		"JOB BOARD", "facility room", "1/2 tasks", "1 assigned",
+		"queued tick 2", "1 action(s) remaining", "Zoe Vargas", "building: Zoe Vargas",
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("job board missing %q in:\n%s", want, out)
+		}
+	}
+}
+
+// With no projects queued, the job board reports any manual orders still
+// waiting for a build site instead of an empty screen.
+func TestJobBoardShowsPendingOrdersWhenEmpty(t *testing.T) {
+	snap := makeSnapshot()
+	snap.PendingFacilityRooms = 1
+
+	var m tea.Model = New(nil, nil)
+	m, _ = m.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
+	m, _ = m.Update(snapshotMsg{snap: snap})
+	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyTab})
+	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyTab})
+
+	out := m.View()
+	if !strings.Contains(out, "No jobs queued") {
+		t.Error("job board should report nothing queued")
+	}
+	if !strings.Contains(out, "1 facility room order(s) waiting") {
+		t.Error("job board should surface the pending facility room order")
+	}
+}
+
 // Before the first frame arrives the view should show a booting message, not
 // crash on nil state.
 func TestViewBeforeFirstFrame(t *testing.T) {

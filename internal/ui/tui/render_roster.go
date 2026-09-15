@@ -40,7 +40,7 @@ func (m Model) colonists() []sim.EntityView {
 
 func (m Model) renderRoster() string {
 	header := m.renderHeader()
-	footer := helpStyle.Render("↑↓/jk select  tab/esc map  space pause  q quit")
+	footer := helpStyle.Render("↑↓/jk select  tab jobs  esc map  space pause  q quit")
 
 	cs := m.colonists()
 	if len(cs) == 0 {

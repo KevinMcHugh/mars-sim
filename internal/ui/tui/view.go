@@ -59,6 +59,9 @@ func (m Model) render() string {
 	if m.mode == modeRoster {
 		return m.renderRoster()
 	}
+	if m.mode == modeJobs {
+		return m.renderJobs()
+	}
 
 	mapBlock := m.renderMap()
 	sidebar := m.renderSidebar()
@@ -155,7 +158,7 @@ func (m Model) renderSidebar() string {
 
 func (m Model) renderFooter() string {
 	return helpStyle.Render(
-		"space pause  +/- speed  f facility room  d dormitory  c colonist  a alien  x cat  m mouse  ←↑↓→/hjkl pan  tab roster  q quit",
+		"space pause  +/- speed  f facility room  d dormitory  c colonist  a alien  x cat  m mouse  ←↑↓→/hjkl pan  tab roster/jobs  q quit",
 	)
 }
 

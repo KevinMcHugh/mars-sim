@@ -15,6 +15,7 @@ implement the same consumer contract.
 - [`internal/ui/tui/model.go`](../internal/ui/tui/model.go) — the Bubble Tea `Model`, update loop, input handling.
 - [`internal/ui/tui/view.go`](../internal/ui/tui/view.go) — map, header, sidebar, footer rendering and layout.
 - [`internal/ui/tui/render_roster.go`](../internal/ui/tui/render_roster.go) — the colonist roster and inspector.
+- [`internal/ui/tui/render_jobboard.go`](../internal/ui/tui/render_jobboard.go) — the job board: queued projects and their tasks.
 - [`internal/ui/tui/glyphs.go`](../internal/ui/tui/glyphs.go) — terrain and entity glyphs.
 - [`main.go`](../main.go) — `runTUI` (and `runHeadless`, the no-UI alternative).
 
@@ -33,11 +34,13 @@ newest available snapshot rather than building a terminal view for every tick.
 The model never mutates or reads live world state — only snapshots (see
 [architecture.md](./architecture.md)).
 
-### Two screens
+### Three screens
 
-`viewMode` switches between the **map** (default) and the **roster**. `tab`
-toggles them. Global keys (`handleKey`) work on both screens; the rest dispatch to
-`handleMapKey` or `handleRosterKey`.
+`viewMode` cycles between the **map** (default), the **roster**, and the
+**job board**. `tab` advances map → roster → job board → map; `esc` returns
+straight to the map from either. Global keys (`handleKey`) work on every
+screen; the rest dispatch to `handleMapKey`, `handleRosterKey`, or
+`handleJobsKey`.
 
 - **Map** (`renderMap`): draws a camera-windowed view of the tile grid, two
   terminal cells per tile, overlaying entity glyphs (aliens win position ties).
@@ -47,6 +50,15 @@ toggles them. Global keys (`handleKey`) work on both screens; the rest dispatch 
   colonist's name, pronouns, and current status, plus a detail pane for the
   selected colonist — name, attributes, HP, needs, the eight-slot inventory,
   recent memories, and traits.
+- **Job board** (`renderJobs`): a scrolling list of queued construction
+  projects (facility rooms, dormitories), each with its tick-queued time,
+  build progress, and assigned colonist count; a detail pane for the selected
+  project lists every task tile with its terrain, build status, and builder
+  (if any is currently assigned). With nothing queued, it instead reports any
+  manual `f`/`d` orders still waiting for a build site. See
+  [architecture.md](./architecture.md) for how projects and tasks work. (This
+  screen is unrelated to the engine's internal `jobBoard`, which tracks the
+  mining frontier — see `internal/sim/jobboard.go`.)
 
 ### Controls
 
@@ -54,11 +66,11 @@ toggles them. Global keys (`handleKey`) work on both screens; the rest dispatch 
 | --- | --- |
 | `space` | pause / resume (`TogglePause`) |
 | `+` / `-` | faster / slower (`SetTicksPerSecond`, ±2) |
-| `f` / `d` | queue a facility room / dormitory (`OrderFacilityRoom`, `OrderDormitory`) |
+| `f` / `d` | queue a facility room / dormitory (`OrderFacilityRoom`, `OrderDormitory`) — works from the map and the job board |
 | `c` / `a` / `x` / `m` | spawn colonist / alien / cat / mouse (`Spawn`) |
-| arrows or `hjkl` | pan the camera (map) / move selection (roster) |
-| `tab` | toggle map ↔ roster |
-| `q` / `esc` | quit |
+| arrows or `hjkl` | pan the camera (map) / move selection (roster, job board) |
+| `tab` | cycle map → roster → job board → map |
+| `q` / `esc` | quit (`esc` returns to the map from roster/job board) |
 
 Every key that changes the simulation becomes a `Command`; the UI never touches
 the world directly.
