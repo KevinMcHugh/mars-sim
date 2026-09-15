@@ -23,26 +23,66 @@ const (
 	glyphToilet = "\U0001F6BD"       // 🚽 toilet (bladder)
 	glyphBed    = "\U0001F6CF\uFE0F" // 🛏️ dormitory bunk (sleep)
 
-	glyphColonist = "\U0001F477"       // 👷 colonist at work
+	glyphColonist = "\U0001F477"       // 👷 colonist of unknown age/gender (no profile)
 	glyphFleeing  = "\U0001F631"       // 😱 colonist running from an alien
 	glyphTalking  = "\U0001F5E3\uFE0F" // 🗣️ colonist chatting with another
 	glyphAlien    = "\U0001F47D"       // 👽 subterranean mutant
 	glyphCat      = "\U0001F408"       // 🐈 floor predator hunting mice
 	glyphMouse    = "\U0001F401"       // 🐁 pest that raids the food pods
 	glyphStomp    = "\U0001F97E"       // 🥾 colonist chasing down a mouse to stomp it
+
+	glyphManAdult     = "\U0001F468" // 👨 adult man colonist
+	glyphWomanAdult   = "\U0001F469" // 👩 adult woman colonist
+	glyphPersonAdult  = "\U0001F9D1" // 🧑 adult non-binary colonist
+	glyphManSenior    = "\U0001F474" // 👴 senior man colonist
+	glyphWomanSenior  = "\U0001F475" // 👵 senior woman colonist
+	glyphPersonSenior = "\U0001F9D3" // 🧓 senior non-binary colonist
 )
 
+// seniorAge is the age at which a colonist's default glyph switches from an
+// adult to a senior variant.
+const seniorAge = 60
+
 var fittedGlyphs = func() map[string]string {
-	out := make(map[string]string, 13)
+	out := make(map[string]string, 19)
 	for _, glyph := range []string{
 		glyphRock, glyphFloor, glyphWall, glyphPod, glyphToilet, glyphBed,
 		glyphColonist, glyphFleeing, glyphTalking, glyphAlien, glyphCat,
 		glyphMouse, glyphStomp,
+		glyphManAdult, glyphWomanAdult, glyphPersonAdult,
+		glyphManSenior, glyphWomanSenior, glyphPersonSenior,
 	} {
 		out[glyph] = fitGlyphMeasured(glyph)
 	}
 	return out
 }()
+
+// colonistGlyph picks the default map glyph for a colonist at rest, based on
+// their gender identity and whether they've reached seniorAge. A colonist
+// without a profile falls back to glyphColonist.
+func colonistGlyph(p *sim.Profile) string {
+	if p == nil {
+		return glyphColonist
+	}
+	senior := p.Age >= seniorAge
+	switch p.Gender {
+	case sim.GenderMan:
+		if senior {
+			return glyphManSenior
+		}
+		return glyphManAdult
+	case sim.GenderWoman:
+		if senior {
+			return glyphWomanSenior
+		}
+		return glyphWomanAdult
+	default:
+		if senior {
+			return glyphPersonSenior
+		}
+		return glyphPersonAdult
+	}
+}
 
 func terrainGlyph(t sim.Terrain) string {
 	var glyph string
@@ -81,7 +121,7 @@ func entityGlyph(e sim.EntityView) string {
 		case sim.Stomping:
 			glyph = glyphStomp
 		default:
-			glyph = glyphColonist
+			glyph = colonistGlyph(e.Profile)
 		}
 	default:
 		glyph = glyphColonist

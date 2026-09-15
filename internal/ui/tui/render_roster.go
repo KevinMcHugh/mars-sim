@@ -10,10 +10,11 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
-// rosterListWidth leaves room for the longest generated name (17 columns),
-// they/them (8), "age 80" (6), the longest state ("relieving", 9), three
-// separators (9), and the selection marker (2), plus the panel chrome.
-const rosterListWidth = 56
+// rosterListWidth leaves room for the age/gender glyph and a space (3), the
+// longest generated name (17 columns), they/them (8), "age 80" (6), the
+// longest state ("relieving", 9), three separators (9), and the selection
+// marker (2), plus the panel chrome.
+const rosterListWidth = 59
 
 var (
 	rosterSelStyle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("203"))
@@ -93,7 +94,7 @@ func (m Model) renderColonistList(cs []sim.EntityView, sel, rows int) string {
 				age = fmt.Sprintf("age %d", c.Profile.Age)
 			}
 		}
-		nameLine := truncate(name, rosterListWidth-4)
+		nameLine := truncate(colonistGlyph(c.Profile)+" "+name, rosterListWidth-4)
 		infoLine := truncate(fmt.Sprintf("%s · %s", pronouns, age), rosterListWidth-4)
 		stateLine := truncate(state, rosterListWidth-4)
 		marker := "•"
