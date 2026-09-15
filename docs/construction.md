@@ -84,20 +84,22 @@ one-tile front doorway. `designateRoom` lays out, into two phases:
   alternating so every room serves both needs) one tile inside the back wall,
   spaced one tile apart.
 
-`findRoomSite` / `roomSiteClear` pick a site whose footprint is clear floor, whose
-rear wall is backed by solid rock **or another room's already-placed wall** (so
-the room is a niche at the cavern edge or flush against a neighbor, not a
-free-standing obstacle), and which keeps exterior lanes beside the side walls
-and across the front so every wall task stays reachable even after its neighbors
-go up. Sites nearest the map center are preferred.
+`findRoomSite` / `roomSiteClear` pick a site whose interior is clear floor,
+whose rear wall is backed by solid rock or another room's already-placed wall,
+and whose two side walls are each either freshly built (with an exterior lane
+kept clear beside it so every wall task stays reachable even after its
+neighbors go up) or an already-placed, unclaimed wall from a neighboring room
+— in which case the two rooms sit flush and literally **share that one tile**
+as a party wall: this room adds no wall task of its own there (`designateRoom`
+skips it), and needs no exterior lane on that side either, since there is no
+wall task to reach. Sites nearest the map center are preferred.
 
-Backing onto a neighboring room's wall (rather than requiring untouched rock
-every time) matters once the cave's easy rock-backed edges are used up: rooms
-share that boundary and sit flush against each other using floor that is
-already excavated, instead of every new room needing its own fresh niche. The
-footprint itself must still already be clear floor — a room does not excavate
-its own site — so this still cannot conjure a room out of unmined rock or a
-too-narrow tunnel.
+Sharing a boundary this way — on the back wall or a side wall — matters once a
+cave's easy rock-backed edges are used up: rooms reuse floor and structure
+that already exist instead of every new room needing its own fresh niche cut
+from untouched rock. The interior itself must still already be clear floor — a
+room does not excavate its own site — so this still cannot conjure a room out
+of unmined rock or a too-narrow tunnel (see *Known soft spot*).
 
 Facilities stay spaced one tile apart because a colonist using a facility stands
 on its neighbor tiles — two adjacent facilities would mean one could never be
@@ -172,9 +174,9 @@ The room design is the product of watching colonies starve around earlier ones:
   **permanent doorway** means the last wall can never trap the builders. This is
   what replaced the README's old "no built walls" rule; real walls became viable
   once colonists could pass through crowds and route around pending build tiles.
-- **Rock-backed niches** keep a room from becoming a free-standing obstacle that
-  splits an open route, and mean the back wall's tasks are reached from the
-  future facility row.
+- **Rock-backed niches, or a shared wall with a neighbor,** keep a room from
+  becoming a free-standing obstacle that splits an open route, and mean the
+  back wall's tasks are reached from the future facility row.
 - **Reachability-gated claiming and the tightly-guarded emergency build** keep
   the colony from either mobbing one site or letting a disconnected colonist die
   next to an unreachable project.
@@ -197,8 +199,8 @@ tends to produce narrow, organic tunnels rather than room-sized open
 clearings, so once a cave's few wide-enough clearings are used up (the
 starting landing cavern's, typically), a colony can still find itself with
 plenty of unclaimed rock to mine but nowhere flat enough to site the next
-room — even with wall-sharing (above) relaxing the backing requirement.
-*Helping build instead of just queueing* (above) prevents the worse failure
+room — even with wall-sharing (above) relaxing the back- and side-wall
+requirements. *Helping build instead of just queueing* (above) prevents the worse failure
 mode (every urgent colonist queueing forever once one facility exists) but
 does not manufacture floor space that was never dug. The clean fix would give
 a room its own excavation phase — clearing its footprint from Rock as part of

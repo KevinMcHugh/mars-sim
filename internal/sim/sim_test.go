@@ -740,6 +740,73 @@ func TestRoomSiteCanBackOntoAnotherRoomsWall(t *testing.T) {
 	}
 }
 
+// A room can also sit flush against a neighbor side by side, sharing that
+// neighbor's wall outright as its own party wall — no exterior lane needed on
+// that side, and no redundant wall task of its own there.
+func TestRoomSiteSharesSideWallWithNeighbor(t *testing.T) {
+	cfg := testConfig()
+	cfg.StartColonists, cfg.StartAliens = 0, 0
+	w := newTestWorld(t, cfg)
+
+	// Blank the procedurally generated cave to solid rock first, so the only
+	// possible room site is the one this test carves.
+	for y := 0; y < w.Height; y++ {
+		for x := 0; x < w.Width; x++ {
+			w.SetTerrain(Point{x, y}, Rock)
+		}
+	}
+
+	width := 3
+	oy := w.Height / 2
+	ox := w.Width / 2
+	backY := oy - 1
+	frontY := roomFrontWallY(oy)
+
+	// An existing neighbor's wall column immediately to the left — this
+	// room's whole left side, shared outright.
+	for y := backY; y <= frontY; y++ {
+		w.SetTerrain(Point{ox - 1, y}, Wall)
+	}
+	// This room's own interior, plus its fresh right side wall column and
+	// that side's exterior lane.
+	for y := backY; y <= frontY; y++ {
+		for x := ox; x <= ox+width+1; x++ { // interior, right wall, right lane
+			w.SetTerrain(Point{x, y}, Floor)
+		}
+	}
+	// The front approach lane: only from the shared (left) wall's column
+	// rightward through the fresh (right) side's lane — nothing left of
+	// ox-1, proving the shared side needed no exterior lane of its own.
+	for x := ox - 1; x <= ox+width+1; x++ {
+		w.SetTerrain(Point{x, frontY + roomApproach}, Floor)
+	}
+	w.refreshSpatial()
+
+	site, ok := w.findRoomSite(width)
+	if !ok {
+		t.Fatal("expected a room site sharing a neighbor's side wall")
+	}
+	if want := (Point{ox, oy}); site != want {
+		t.Fatalf("site = %v, want %v (sharing the wall at x=%d)", site, want, ox-1)
+	}
+
+	w.designateRoom(dormRoom, site, 2) // bayWidth(2) == 3, matching the site carved above
+	for _, tk := range w.projects[0].tasks {
+		if tk.pos == (Point{ox - 1, backY}) || tk.pos == (Point{ox - 1, frontY}) {
+			t.Fatalf("designateRoom added a redundant task %v on the shared wall", tk.pos)
+		}
+	}
+	sawRightWall := false
+	for _, tk := range w.projects[0].tasks {
+		if tk.pos == (Point{ox + width, backY}) {
+			sawRightWall = true
+		}
+	}
+	if !sawRightWall {
+		t.Fatal("designateRoom should still build its own (fresh) right side wall")
+	}
+}
+
 // A facility room has a complete placed-wall perimeter and centered doorway.
 // Walls are phase zero so facilities cannot come online and attract users until
 // the enclosure is complete.
