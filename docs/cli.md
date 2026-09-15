@@ -40,6 +40,7 @@ These flags control how the process runs rather than the simulated world:
 | `-headless` | Skip the TUI and print periodic population/facility/excavation statistics. Useful for CI, profiling, and non-TTY runs. |
 | `-duration <time>` | Stop automatically after the duration, such as `10s` or `250ms`. The default `0` means run until quit/interruption. |
 | `-seed <int64>` | Select a reproducible world seed. `0` leaves the time-based default seed in place. |
+| `-glyphs <mode>` | How to draw map glyphs: `auto` (default) measures each glyph against the terminal at startup and falls back to ASCII if any is painted at an unexpected width; `emoji` skips the probe and trusts the built-in width table; `ascii` forces the fallback set. See [terminal-cell-widths.md](./terminal-cell-widths.md). |
 | `-h`, `-help`, `?` | Print usage, examples, and all available flags. |
 
 Headless mode prints a startup line, then the latest snapshot approximately once

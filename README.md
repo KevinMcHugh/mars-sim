@@ -41,13 +41,14 @@ affinities. `tab` or
 `esc` returns to the map.
 
 The command also supports `-headless` for periodic stats without a TUI,
-`-duration` for bounded runs, and `-seed` for reproducibility. See the
+`-duration` for bounded runs, `-seed` for reproducibility, and `-glyphs` to
+choose between emoji and ASCII map symbols. See the
 [command-line guide](docs/cli.md) for application flags, validation, and
 examples.
 
-Glyphs: 👷 colonist · 😱 fleeing colonist · 🗣️ talking colonist · 🥾 stomping
-colonist · 👽 alien · 🐈 cat · 🐁 mouse · 🟫 rock · 🧱 wall · 🍽️ nutrient pod ·
-🚽 toilet · 🛏️ dormitory bunk · blank = open floor.
+Glyphs: 👷 colonist · 😱 fleeing colonist · 💬 talking colonist · 🥾 stomping
+colonist · 👽 alien · 🐈 cat · 🐁 mouse · 🟫 rock · 🧱 wall · 🥫 nutrient pod ·
+🚽 toilet · 🛌 dormitory bunk · blank = open floor.
 
 ### Documentation
 
@@ -55,9 +56,12 @@ Contributor-facing system documentation lives in [`docs/`](docs/README.md).
 Start with [architecture](docs/architecture.md), and add or update a Markdown
 write-up in that directory whenever you add a feature or subsystem.
 
-> The map allocates two terminal cells per tile and fits emoji to that width, so
-> the map stays readable without emitting expensive cursor-position sequences for
-> every tile.
+> The map allocates two terminal cells per tile and fits every glyph to that
+> width, so it stays readable without emitting expensive cursor-position
+> sequences for every tile. Because terminals disagree about how wide an emoji
+> is, the glyphs are drawn from a vetted registry and measured against the real
+> terminal at startup, with an ASCII fallback when they do not line up — see
+> [terminal cell widths](docs/terminal-cell-widths.md).
 
 ## Architecture
 
