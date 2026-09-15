@@ -62,16 +62,24 @@ screen; the rest dispatch to `handleMapKey`, `handleRosterKey`, or
 
 ### Spawn and build menus
 
-`s` and `b` each open a one-key picker (`menuKind` in `model.go`) rather than
-sending a command directly: pressing `s` then `c`/`a`/`x`/`m` spawns a
-colonist/alien/cat/mouse, and `b` then `f`/`d` queues a facility room or
-dormitory. While a menu is open its prompt takes over the footer (styled
-distinctly via `menuStyle`) on whichever screen it was opened from, every
-other key is ignored except `esc` (cancel, no command sent) and `q`/`ctrl+c`
-(quit); a recognized selection sends the `Command` and closes the menu. This
-keeps the top-level key surface small as more spawnable/buildable kinds are
-added — new options are new cases in `handleMenuKey` and `menuPrompt`, not new
-top-level keys.
+`s` and `b` each open a picker (`menuKind` in `model.go`, options listed in
+`spawnMenuItems`/`buildMenuItems`) rather than sending a command directly.
+Within an open menu: `up`/`down` (or `k`/`j`) move the highlighted option,
+`enter` submits whichever is highlighted, a shortcut letter (`c`/`a`/`x`/`m`
+for spawn, `f`/`d` for build) jumps to and submits that option immediately,
+`esc` cancels with no command sent, and `q`/`ctrl+c` still quits. Every other
+key is ignored so the prompt stays open until answered.
+
+Each menu remembers its own highlighted option (`spawnCursor`/`buildCursor` on
+`Model`) across opens *and* across submits — moving the highlight and
+submitting both update it — so repeating the same choice is just
+reopen-and-confirm: `s` → navigate to mouse → `enter` once, then `s` → `enter`,
+`s` → `enter` for two more mice, with no renavigating. While a menu is open its
+prompt (current options, with the highlighted one bracketed) takes over the
+footer (styled distinctly via `menuStyle`) on whichever screen it was opened
+from. This keeps the top-level key surface small as more spawnable/buildable
+kinds are added — new options are new entries in `spawnMenuItems`/
+`buildMenuItems` plus a case in `submitMenuItem`, not new top-level keys.
 
 ### Controls
 
@@ -79,8 +87,8 @@ top-level keys.
 | --- | --- |
 | `space` | pause / resume (`TogglePause`) |
 | `+` / `-` | faster / slower (`SetTicksPerSecond`, ±2) |
-| `s` | open the spawn menu, then `c`/`a`/`x`/`m` for colonist/alien/cat/mouse (`Spawn`) |
-| `b` | open the build menu, then `f`/`d` for facility room/dormitory (`OrderFacilityRoom`, `OrderDormitory`) |
+| `s` | open the spawn menu — `↑↓`/`enter` to pick, or `c`/`a`/`x`/`m` for colonist/alien/cat/mouse directly (`Spawn`) |
+| `b` | open the build menu — `↑↓`/`enter` to pick, or `f`/`d` for facility room/dormitory directly (`OrderFacilityRoom`, `OrderDormitory`) |
 | arrows or `hjkl` | pan the camera (map) / move selection (roster, job board) |
 | `tab` | cycle map → roster → job board → map |
 | `q` / `esc` | quit (`esc` returns to the map from roster/job board, or cancels an open menu) |

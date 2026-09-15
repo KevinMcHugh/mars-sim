@@ -242,6 +242,82 @@ func TestBuildMenuSelectsRoomKind(t *testing.T) {
 	}
 }
 
+// Arrow keys move the highlighted option in an open menu instead of
+// submitting immediately, and enter confirms whatever is highlighted.
+func TestMenuArrowsMoveSelectionAndEnterConfirms(t *testing.T) {
+	eng := sim.NewEngine(sim.DefaultConfig())
+	var m tea.Model = New(eng, nil)
+	m, _ = m.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
+	m, _ = m.Update(snapshotMsg{snap: makeSnapshot()})
+
+	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("s")})
+	out := m.View()
+	if !strings.Contains(out, "[c colonist]") {
+		t.Errorf("expected colonist highlighted by default:\n%s", out)
+	}
+
+	// colonist -> alien -> cat -> mouse.
+	for i := 0; i < 3; i++ {
+		m, _ = m.Update(tea.KeyMsg{Type: tea.KeyDown})
+	}
+	out = m.View()
+	if !strings.Contains(out, "[m mouse]") {
+		t.Errorf("expected mouse highlighted after three down presses:\n%s", out)
+	}
+	if strings.Contains(out, "spawn:") == false {
+		t.Error("menu should still be open before enter is pressed")
+	}
+
+	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	out = m.View()
+	if strings.Contains(out, "spawn:") {
+		t.Error("enter should submit the highlighted option and close the menu")
+	}
+}
+
+// The highlighted option in each menu is remembered across opens, so
+// repeating a choice is just reopen-and-confirm: s -> navigate to mouse ->
+// enter, then s -> enter, s -> enter for three mice.
+func TestMenuRemembersLastSelection(t *testing.T) {
+	eng := sim.NewEngine(sim.DefaultConfig())
+	var m tea.Model = New(eng, nil)
+	m, _ = m.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
+	m, _ = m.Update(snapshotMsg{snap: makeSnapshot()})
+
+	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("s")})
+	for i := 0; i < 3; i++ {
+		m, _ = m.Update(tea.KeyMsg{Type: tea.KeyDown})
+	}
+	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+
+	for i := 0; i < 2; i++ {
+		m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("s")})
+		out := m.View()
+		if !strings.Contains(out, "[m mouse]") {
+			t.Fatalf("round %d: expected the menu to reopen with mouse still highlighted:\n%s", i, out)
+		}
+		m, _ = m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	}
+}
+
+// A shortcut key (e.g. f for facility room) still jumps to and submits that
+// option immediately, and also updates the remembered highlight.
+func TestMenuShortcutKeyUpdatesRememberedSelection(t *testing.T) {
+	eng := sim.NewEngine(sim.DefaultConfig())
+	var m tea.Model = New(eng, nil)
+	m, _ = m.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
+	m, _ = m.Update(snapshotMsg{snap: makeSnapshot()})
+
+	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("b")})
+	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("d")}) // dormitory, direct shortcut
+
+	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("b")})
+	out := m.View()
+	if !strings.Contains(out, "[d dormitory]") {
+		t.Errorf("expected the build menu to reopen with dormitory remembered:\n%s", out)
+	}
+}
+
 // Before the first frame arrives the view should show a booting message, not
 // crash on nil state.
 func TestViewBeforeFirstFrame(t *testing.T) {
