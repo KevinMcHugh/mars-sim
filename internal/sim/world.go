@@ -90,6 +90,43 @@ type World struct {
 	terrainCounts [numTerrains]int
 	kindCounts    [numKinds]int
 
+	// kindEntities[k] holds the ID of every living entity of kind k. Kept in
+	// step by spawn/remove so a global "nearest of this kind, anywhere" search
+	// (see nearestOfKindAnywhere) can scan the handful of matching entities
+	// directly instead of nearestMatch's chunk-ring expansion, which is only
+	// cheap when the answer is nearby — an unbounded search (a cat with no
+	// mouse left nearby, say) forces it to visit every chunk on the map to
+	// confirm nothing closer exists.
+	kindEntities [numKinds]map[EntityID]struct{}
+
+	// facilityTiles[t] holds every tile currently of terrain t, for the handful
+	// of terrain kinds that back a need (NutrientPod, Toilet, Bed). Kept in step
+	// by SetTerrain so chooseFacility and facilitySeed can visit just those
+	// tiles instead of scanning the whole grid — essential on large maps, where
+	// a full Width*Height scan dwarfs the tiny number of actual facilities.
+	// nil for untracked terrain kinds (Rock, Floor, Wall).
+	facilityTiles [numTerrains]map[Point]struct{}
+
+	// carvedAny/carvedMin/carvedMax track the bounding box of every tile that
+	// has ever been changed away from Rock. Terrain only ever moves Rock ->
+	// Floor -> Wall/facility in play, never back, so this box only grows; it
+	// is used to cap how far findRoomSiteAllowingRock's search radius needs to
+	// grow before it can conclude no site exists, without scanning the whole
+	// map. See roomSiteClear: a valid site's side walls must already be
+	// Floor or Wall, so no valid site can lie outside this box.
+	carvedAny bool
+	carvedMin Point
+	carvedMax Point
+
+	// Scratch for chooseFacility's per-call BFS, reused across calls via a
+	// generation stamp instead of reallocating (and zeroing) a Width*Height
+	// slice every time a colonist needs a facility. See flowField.seen/gen for
+	// the same trick.
+	facilityDist    []int32
+	facilityDistGen []int32
+	facilityGen     int32
+	facilityQueue   []Point
+
 	// Spatial index: entities bucketed by chunk, so neighbor queries scan only
 	// nearby chunks. chunkEntities is indexed by chunk (cy*chunkCols + cx).
 	chunkCols, chunkRows int
@@ -180,6 +217,13 @@ func newWorld(cfg Config, rng *rand.Rand) *World {
 	}
 	w.terrainCounts[Rock] = n // every tile starts as Rock
 
+	for k := Kind(0); k < numKinds; k++ {
+		w.kindEntities[k] = make(map[EntityID]struct{})
+	}
+
+	w.facilityDist = make([]int32, n)
+	w.facilityDistGen = make([]int32, n)
+
 	w.chunkCols = ceilDiv(cfg.Width, chunkSize)
 	w.chunkRows = ceilDiv(cfg.Height, chunkSize)
 	w.chunkEntities = make([][]EntityID, w.chunkCols*w.chunkRows)
@@ -199,6 +243,7 @@ func newWorld(cfg Config, rng *rand.Rand) *World {
 
 	for i := 0; i < int(numNeeds); i++ {
 		if f := cfg.Needs[i].Facility; f != Rock && w.fields[f] == nil {
+			w.facilityTiles[f] = make(map[Point]struct{})
 			w.fields[f] = newFlowField(w, facilitySeed(w, f))
 		}
 	}
@@ -259,6 +304,21 @@ func (w *World) SetTerrain(p Point, t Terrain) {
 	}
 	w.terrainCounts[old]--
 	w.terrainCounts[t]++
+	if w.facilityTiles[old] != nil {
+		delete(w.facilityTiles[old], p)
+	}
+	if w.facilityTiles[t] != nil {
+		w.facilityTiles[t][p] = struct{}{}
+	}
+	if t != Rock {
+		if !w.carvedAny {
+			w.carvedAny = true
+			w.carvedMin, w.carvedMax = p, p
+		} else {
+			w.carvedMin.X, w.carvedMax.X = min(w.carvedMin.X, p.X), max(w.carvedMax.X, p.X)
+			w.carvedMin.Y, w.carvedMax.Y = min(w.carvedMin.Y, p.Y), max(w.carvedMax.Y, p.Y)
+		}
+	}
 	w.tiles[i].Terrain = t
 	w.dirtyChunks[w.chunkIndexOf(p)] = struct{}{}
 	w.emit(TileChanged{Pos: p, Old: old, New: t})
@@ -337,6 +397,7 @@ func (w *World) spawn(kind Kind, p Point) *Entity {
 	w.entities[e.ID] = e
 	w.occ[w.index(p)] = e.ID
 	w.kindCounts[kind]++
+	w.kindEntities[kind][e.ID] = struct{}{}
 	ci := w.chunkIndexOf(p)
 	w.chunkEntities[ci] = append(w.chunkEntities[ci], e.ID)
 	return e
@@ -350,6 +411,7 @@ func (w *World) remove(id EntityID) {
 	}
 	w.occ[w.index(e.Pos)] = 0
 	w.kindCounts[e.Kind]--
+	delete(w.kindEntities[e.Kind], id)
 	w.removeFromChunkIndex(w.chunkIndexOf(e.Pos), id)
 	if e.kin != 0 {
 		if kp := w.kin[e.kin]; kp != nil {

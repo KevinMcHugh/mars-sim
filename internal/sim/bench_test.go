@@ -116,3 +116,75 @@ func BenchmarkStepBigMap(b *testing.B) {
 		w.step()
 	}
 }
+
+// benchWorldSmallColony builds a huge map with only a small carved-out colony
+// near the center, mirroring a fresh game on a big map: most of the grid is
+// still untouched Rock. This is the regime a full Width*Height scan in a
+// per-tick or per-need-seek path would blow up on.
+func benchWorldSmallColony(mapSize, chamber, colonists int) *World {
+	cfg := DefaultConfig()
+	cfg.Seed = 1
+	cfg.Width, cfg.Height = mapSize, mapSize
+	w := newWorld(cfg, rand.New(rand.NewSource(1)))
+
+	cx, cy := mapSize/2, mapSize/2
+	for y := cy - chamber/2; y < cy+chamber/2; y++ {
+		for x := cx - chamber/2; x < cx+chamber/2; x++ {
+			w.SetTerrain(Point{x, y}, Floor)
+		}
+	}
+	for gy := cy - chamber/2 + 5; gy < cy+chamber/2; gy += 20 {
+		for gx := cx - chamber/2 + 5; gx < cx+chamber/2; gx += 20 {
+			w.SetTerrain(Point{gx, gy}, NutrientPod)
+			w.SetTerrain(Point{gx + 2, gy}, Toilet)
+			w.SetTerrain(Point{gx + 4, gy}, Bed)
+		}
+	}
+	floors := w.freeFloorTiles()
+	w.rng.Shuffle(len(floors), func(i, j int) { floors[i], floors[j] = floors[j], floors[i] })
+	if colonists > len(floors) {
+		colonists = len(floors)
+	}
+	for i := 0; i < colonists; i++ {
+		w.spawn(Colonist, floors[i])
+	}
+	w.refreshSpatial()
+	return w
+}
+
+func BenchmarkStepSmallColonyOnHugeMap2500(b *testing.B) {
+	w := benchWorldSmallColony(2500, 60, 50)
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		w.step()
+	}
+}
+
+func BenchmarkStepSmallColonyOnHugeMap10000(b *testing.B) {
+	w := benchWorldSmallColony(10000, 60, 50)
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		w.step()
+	}
+}
+
+// BenchmarkFindRoomSiteNoFit models planRooms' routine "no site available yet"
+// case on a huge, mostly-untouched map: a normal-sized room that just doesn't
+// currently fit anywhere in the small starting chamber (every side-wall lane
+// already claimed). Before capping the search radius to the carved area,
+// failing to find a site forced the box search to double all the way out to
+// the full map before giving up — the "every 16 ticks" pause.
+func BenchmarkFindRoomSiteNoFit(b *testing.B) {
+	w := benchWorldSmallColony(10000, 12, 0) // chamber too small for any room this wide
+	width := bayWidth(roomFacilities)
+	if _, ok := w.findRoomSite(width); ok {
+		b.Fatal("expected no site to fit; benchmark no longer exercises the no-fit path")
+	}
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		w.findRoomSite(width)
+	}
+}

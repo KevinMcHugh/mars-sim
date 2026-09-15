@@ -232,18 +232,14 @@ func (w *World) adjacentFacility(p Point, t Terrain) (Point, bool) {
 }
 
 // facilitySeed builds the goal-seeding closure for a facility field: the walkable
-// neighbors of every tile of the given terrain.
+// neighbors of every tile of the given terrain. Iterates w.facilityTiles[kind]
+// (maintained incrementally by SetTerrain) rather than scanning the whole grid,
+// so cost tracks the number of facilities, not the map's area.
 func facilitySeed(w *World, kind Terrain) func(add func(Point)) {
 	return func(add func(Point)) {
-		for y := 0; y < w.Height; y++ {
-			for x := 0; x < w.Width; x++ {
-				if w.tiles[y*w.Width+x].Terrain != kind {
-					continue
-				}
-				fc := Point{x, y}
-				for _, d := range neighbors8 {
-					add(fc.Add(d.X, d.Y))
-				}
+		for fc := range w.facilityTiles[kind] {
+			for _, d := range neighbors8 {
+				add(fc.Add(d.X, d.Y))
 			}
 		}
 	}
