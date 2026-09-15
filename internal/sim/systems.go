@@ -714,113 +714,121 @@ func (w *World) jobBuild(e *Entity) {
 // facility exists. The assignment is retained on the entity for the whole use
 // job, so a user never ping-pongs between queues as their counts change.
 func (w *World) chooseFacility(e *Entity, kind Terrain) Point {
-	dist := make([]int, w.Width*w.Height)
-	for i := range dist {
-		dist[i] = -1
+	// dist/distGen are reused across calls (and across ticks) via a generation
+	// stamp, the same trick flowField uses, so a call costs O(reachable area)
+	// rather than allocating and zeroing a Width*Height slice every time —
+	// critical on a large map, where the walkable area a colonist can actually
+	// reach is a tiny fraction of the grid.
+	w.facilityGen++
+	gen := w.facilityGen
+	dist := w.facilityDist
+	distGen := w.facilityDistGen
+	reached := func(p Point) (int32, bool) {
+		i := w.index(p)
+		return dist[i], distGen[i] == gen
 	}
 	start := w.index(e.Pos)
 	dist[start] = 0
-	queue := []Point{e.Pos}
+	distGen[start] = gen
+	queue := append(w.facilityQueue[:0], e.Pos)
 	for head := 0; head < len(queue); head++ {
 		p := queue[head]
+		pd, _ := reached(p)
 		for _, d := range neighbors8 {
 			n := p.Add(d.X, d.Y)
-			if !w.Walkable(n) || dist[w.index(n)] >= 0 {
+			if !w.Walkable(n) {
 				continue
 			}
-			dist[w.index(n)] = dist[w.index(p)] + 1
+			ni := w.index(n)
+			if distGen[ni] == gen {
+				continue
+			}
+			dist[ni] = pd + 1
+			distGen[ni] = gen
 			queue = append(queue, n)
 		}
 	}
+	w.facilityQueue = queue
 
-	best, bestDist := Point{}, int(^uint(0)>>1)
-	for y := 0; y < w.Height; y++ {
-		for x := 0; x < w.Width; x++ {
-			fac := Point{x, y}
-			if w.TerrainAt(fac) != kind {
+	// Facilities of this kind are few even on a huge map, so iterate the
+	// tracked set (see World.facilityTiles) instead of scanning every tile.
+	facilities := w.facilityTiles[kind]
+
+	best, bestDist := Point{}, int32(^uint32(0)>>1)
+	for fac := range facilities {
+		accessible := false
+		congested := false
+		for _, d := range neighbors8 {
+			access := fac.Add(d.X, d.Y)
+			if !w.Walkable(access) {
 				continue
 			}
-			accessible := false
-			congested := false
-			for _, d := range neighbors8 {
-				access := fac.Add(d.X, d.Y)
-				if !w.Walkable(access) {
-					continue
-				}
-				di := dist[w.index(access)]
-				if di < 0 {
-					continue
-				}
-				accessible = true
-				if w.entityAt(access) != nil {
-					congested = true
-				}
-				for _, other := range w.entities {
-					if other != e && other.Alive() && other.Kind == Colonist &&
-						other.Pos.Chebyshev(access) <= 1 {
-						congested = true
-					}
-				}
-				// A committed user in the approach counts as a queue even when
-				// the access tile itself is currently free.
-				queueCount := 0
-				for _, other := range w.entities {
-					if other == e || !other.Alive() || other.Kind != Colonist ||
-						other.Job != JobUse || !other.useFacilitySet ||
-						!other.useFacility.Equal(fac) {
-						continue
-					}
-					queueCount++
-				}
-				if queueCount >= 1 {
+			if _, ok := reached(access); !ok {
+				continue
+			}
+			accessible = true
+			if w.entityAt(access) != nil {
+				congested = true
+			}
+			for _, other := range w.entities {
+				if other != e && other.Alive() && other.Kind == Colonist &&
+					other.Pos.Chebyshev(access) <= 1 {
 					congested = true
 				}
 			}
-			if !accessible {
-				continue
-			}
-			// Prefer the nearest facility unless its approach is congested. If
-			// every reachable option is busy, retain nearest as a fair fallback.
-			d := bestDist
-			for _, n := range neighbors8 {
-				access := fac.Add(n.X, n.Y)
-				if !w.InBounds(access) {
+			// A committed user in the approach counts as a queue even when
+			// the access tile itself is currently free.
+			queueCount := 0
+			for _, other := range w.entities {
+				if other == e || !other.Alive() || other.Kind != Colonist ||
+					other.Job != JobUse || !other.useFacilitySet ||
+					!other.useFacility.Equal(fac) {
 					continue
 				}
-				if nd := dist[w.index(access)]; nd >= 0 && nd < d {
-					d = nd
-				}
+				queueCount++
 			}
-			if congested {
-				continue
-			}
-			if d < bestDist || (d == bestDist && lessPoint(fac, best)) {
-				best, bestDist = fac, d
+			if queueCount >= 1 {
+				congested = true
 			}
 		}
+		if !accessible {
+			continue
+		}
+		// Prefer the nearest facility unless its approach is congested. If
+		// every reachable option is busy, retain nearest as a fair fallback.
+		d := bestDist
+		for _, n := range neighbors8 {
+			access := fac.Add(n.X, n.Y)
+			if !w.InBounds(access) {
+				continue
+			}
+			if nd, ok := reached(access); ok && nd < d {
+				d = nd
+			}
+		}
+		if congested {
+			continue
+		}
+		if d < bestDist || (d == bestDist && lessPoint(fac, best)) {
+			best, bestDist = fac, d
+		}
 	}
-	if bestDist < int(^uint(0)>>1) {
+	if bestDist < int32(^uint32(0)>>1) {
 		return best
 	}
 	// If all facilities are congested, choosing the nearest still guarantees
 	// progress once its current users leave rather than declaring the need
 	// unreachable and starving the colonist.
-	bestDist = int(^uint(0) >> 1)
-	for y := 0; y < w.Height; y++ {
-		for x := 0; x < w.Width; x++ {
-			fac := Point{x, y}
-			if w.TerrainAt(fac) != kind {
+	bestDist = int32(^uint32(0) >> 1)
+	for fac := range facilities {
+		for _, d := range neighbors8 {
+			access := fac.Add(d.X, d.Y)
+			if !w.InBounds(access) {
 				continue
 			}
-			for _, d := range neighbors8 {
-				access := fac.Add(d.X, d.Y)
-				if !w.InBounds(access) {
-					continue
-				}
-				if nd := dist[w.index(access)]; nd >= 0 &&
-					(nd < bestDist || (nd == bestDist && lessPoint(fac, best))) {
-					best, bestDist = fac, nd
-				}
+			if nd, ok := reached(access); ok &&
+				(nd < bestDist || (nd == bestDist && lessPoint(fac, best))) {
+				best, bestDist = fac, nd
 			}
 		}
 	}

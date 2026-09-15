@@ -433,6 +433,10 @@ func (w *World) findRoomSite(width int) (Point, bool) {
 	return w.findRoomSiteAllowingRock(width, true)
 }
 
+// roomSearchStartRadius is the first box half-width findRoomSiteAllowingRock
+// searches around the map center, in tiles.
+const roomSearchStartRadius = 64
+
 func (w *World) findRoomSiteAllowingRock(width int, allowRock bool) (Point, bool) {
 	designated := make(map[Point]bool)
 	for _, p := range w.projects {
@@ -441,21 +445,47 @@ func (w *World) findRoomSiteAllowingRock(width int, allowRock bool) (Point, bool
 		}
 	}
 	center := Point{w.Width / 2, w.Height / 2}
-	var best Point
-	found := false
-	bestDist := 1 << 30
-	for oy := 2; roomFrontWallY(oy)+roomApproach < w.Height; oy++ {
-		for ox := 2; ox+width+1 < w.Width; ox++ {
-			if !w.roomSiteClear(ox, oy, width, designated, allowRock) {
-				continue
-			}
-			rc := Point{ox + width/2, oy}
-			if d := center.Chebyshev(rc); d < bestDist {
-				best, bestDist, found = Point{ox, oy}, d, true
+
+	// Valid domain, per the original bounds check: oy in [oyLo, oyHi), ox in
+	// [oxLo, oxHi).
+	const oxLo, oyLo = 2, 2
+	oxHi := w.Width - width - 1
+	oyHi := w.Height - roomFrontClear - 1 - roomApproach
+
+	// A usable site needs an already-cleared floor lane beside it (see
+	// roomSiteClear), so sites cluster near the existing colony rather than
+	// scattering across untouched rock — and a colony starts at the map
+	// center. Search outward in growing boxes instead of scanning the whole
+	// grid: once a box comes up empty, any site a larger box finds is
+	// guaranteed to be the true nearest overall (nothing closer was skipped),
+	// so this returns exactly what a full scan would, but pays only for the
+	// area actually searched — flat cost near the colony instead of O(map
+	// area) on a huge, mostly empty map.
+	for radius := roomSearchStartRadius; ; radius *= 2 {
+		boxOxLo, boxOxHi := max(oxLo, center.X-radius), min(oxHi, center.X+radius)
+		boxOyLo, boxOyHi := max(oyLo, center.Y-radius), min(oyHi, center.Y+radius)
+
+		var best Point
+		found := false
+		bestDist := 1 << 30
+		for oy := boxOyLo; oy < boxOyHi; oy++ {
+			for ox := boxOxLo; ox < boxOxHi; ox++ {
+				if !w.roomSiteClear(ox, oy, width, designated, allowRock) {
+					continue
+				}
+				rc := Point{ox + width/2, oy}
+				if d := center.Chebyshev(rc); d < bestDist {
+					best, bestDist, found = Point{ox, oy}, d, true
+				}
 			}
 		}
+		if found {
+			return best, true
+		}
+		if boxOxLo <= oxLo && boxOxHi >= oxHi && boxOyLo <= oyLo && boxOyHi >= oyHi {
+			return Point{}, false // already covered the whole valid domain
+		}
 	}
-	return best, found
 }
 
 // roomSiteClear reports whether a room at (ox,oy) is buildable. The interior
