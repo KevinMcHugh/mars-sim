@@ -5,12 +5,14 @@ import (
 	"strings"
 
 	"github.com/kevinmchugh/mars-sim/internal/sim"
+	"github.com/kevinmchugh/mars-sim/internal/ui/tui/cells"
 
 	"github.com/charmbracelet/lipgloss"
 )
 
-// jobListWidth mirrors rosterListWidth: room for a project name, tick counts,
-// a task-progress fraction, and the selection marker, plus panel chrome.
+// jobListWidth mirrors rosterListWidth: the list panel's total footprint in
+// cells, border included, with room for a project name, tick counts, a
+// task-progress fraction, and the selection marker.
 const jobListWidth = 40
 
 func (m Model) renderJobs() string {
@@ -29,9 +31,12 @@ func (m Model) renderJobs() string {
 	}
 
 	sel := clamp(m.jobSelected, 0, len(projects)-1)
-	list := m.renderProjectList(projects, sel, rows)
-	detail := m.renderProjectDetail(projects[sel], rows)
-	body := lipgloss.JoinHorizontal(lipgloss.Top, list, " ", detail)
+	listWidth, detailWidth := m.splitPanels(jobListWidth)
+	body := m.renderProjectList(projects, sel, rows, listWidth)
+	if detailWidth > 0 {
+		body = lipgloss.JoinHorizontal(lipgloss.Top, body,
+			strings.Repeat(" ", panelGap), m.renderProjectDetail(projects[sel], rows, detailWidth))
+	}
 	return strings.Join([]string{header, body, footer}, "\n")
 }
 
@@ -48,12 +53,13 @@ func (m Model) renderNoProjects(rows int) string {
 		b.WriteString(fmt.Sprintf("%d dormitory order(s) waiting for a build site.\n", n))
 	}
 	b.WriteString("\nPress b to queue a facility room or dormitory.")
-	return sidebarStyle.Width(m.termW - 2).Height(rows - 2).Render(b.String())
+	return sidebarStyle.Width(m.termW - borderCells).Height(rows - borderCells).Render(b.String())
 }
 
 // renderProjectList draws the scrolling list of queued projects, keeping the
 // selection in view.
-func (m Model) renderProjectList(projects []sim.ProjectView, sel, rows int) string {
+func (m Model) renderProjectList(projects []sim.ProjectView, sel, rows, width int) string {
+	inner := panelInner(width)
 	capacity := (rows - 3) / 3 // box borders + heading, with three lines per project
 	if capacity < 1 {
 		capacity = 1
@@ -72,7 +78,7 @@ func (m Model) renderProjectList(projects []sim.ProjectView, sel, rows int) stri
 	b.WriteByte('\n')
 	for i := start; i < end; i++ {
 		p := projects[i]
-		nameLine := truncate(p.Name, jobListWidth-4)
+		nameLine := cells.Truncate(p.Name, inner-2)
 		progressLine := fmt.Sprintf("%d/%d tasks · %d assigned", p.TasksDone(), len(p.Tasks), len(p.Assignees()))
 		queuedLine := fmt.Sprintf("queued t%d · %d ticks ago", p.QueuedTick, m.latest.Tick-p.QueuedTick)
 		marker := "•"
@@ -83,22 +89,19 @@ func (m Model) renderProjectList(projects []sim.ProjectView, sel, rows int) stri
 			b.WriteString(marker + " " + nameLine)
 		}
 		b.WriteByte('\n')
-		b.WriteString("  " + truncate(progressLine, jobListWidth-4) + "\n")
-		b.WriteString("  " + truncate(queuedLine, jobListWidth-4))
+		b.WriteString("  " + cells.Truncate(progressLine, inner-2) + "\n")
+		b.WriteString("  " + cells.Truncate(queuedLine, inner-2))
 		if i < end-1 {
 			b.WriteByte('\n')
 		}
 	}
-	return sidebarStyle.Width(jobListWidth - 2).Height(rows - 2).MaxHeight(rows - 2).Render(b.String())
+	return sidebarStyle.Width(width - borderCells).Height(rows - borderCells).MaxHeight(rows - borderCells).Render(b.String())
 }
 
 // renderProjectDetail draws the inspector for one project: its queued time,
 // overall progress, and every task with its builder (if any).
-func (m Model) renderProjectDetail(p sim.ProjectView, rows int) string {
-	width := m.termW - jobListWidth - 3
-	if width < 24 {
-		width = 24
-	}
+func (m Model) renderProjectDetail(p sim.ProjectView, rows, width int) string {
+	inner := panelInner(width)
 
 	names := m.colonistNames()
 
@@ -121,7 +124,7 @@ func (m Model) renderProjectDetail(p sim.ProjectView, rows int) string {
 		for _, id := range assignees {
 			who = append(who, colonistDisplayName(names, id))
 		}
-		b.WriteString(truncate(strings.Join(who, ", "), width-10) + "\n\n")
+		b.WriteString(cells.Truncate(strings.Join(who, ", "), inner-8) + "\n\n")
 	}
 
 	b.WriteString(labelStyle.Render("TASKS") + "\n")
@@ -138,10 +141,10 @@ func (m Model) renderProjectDetail(p sim.ProjectView, rows int) string {
 		if t.Done {
 			style = traitStyle
 		}
-		b.WriteString(style.Render(truncate(line, width-4)) + "\n")
+		b.WriteString(style.Render(cells.Truncate(line, inner-2)) + "\n")
 	}
 
-	return sidebarStyle.Width(width).Height(rows - 2).MaxHeight(rows - 2).Render(b.String())
+	return sidebarStyle.Width(width - borderCells).Height(rows - borderCells).MaxHeight(rows - borderCells).Render(b.String())
 }
 
 // colonistDisplayName looks up a colonist's name by ID, falling back to a

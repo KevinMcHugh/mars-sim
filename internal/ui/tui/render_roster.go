@@ -6,15 +6,27 @@ import (
 	"strings"
 
 	"github.com/kevinmchugh/mars-sim/internal/sim"
+	"github.com/kevinmchugh/mars-sim/internal/ui/tui/cells"
 
 	"github.com/charmbracelet/lipgloss"
 )
 
-// rosterListWidth leaves room for the age/gender glyph and a space (3), the
+// rosterListWidth is the list panel's total footprint in cells, border
+// included. It leaves room for the age/gender glyph and a space (3), the
 // longest generated name (17 columns), they/them (8), "age 80" (6), the
 // longest state ("relieving", 9), three separators (9), and the selection
 // marker (2), plus the panel chrome.
 const rosterListWidth = 59
+
+// panelInner is the writable width inside a bordered panel of the given total
+// width: the total less the border and the one cell of padding on each side.
+func panelInner(total int) int {
+	inner := total - borderCells - 2
+	if inner < 1 {
+		return 1
+	}
+	return inner
+}
 
 var (
 	rosterSelStyle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("203"))
@@ -54,15 +66,19 @@ func (m Model) renderRoster() string {
 		rows = minRows
 	}
 
-	list := m.renderColonistList(cs, sel, rows)
-	detail := m.renderColonistDetail(cs[sel], rows)
-	body := lipgloss.JoinHorizontal(lipgloss.Top, list, " ", detail)
+	listWidth, detailWidth := m.splitPanels(rosterListWidth)
+	body := m.renderColonistList(cs, sel, rows, listWidth)
+	if detailWidth > 0 {
+		body = lipgloss.JoinHorizontal(lipgloss.Top, body,
+			strings.Repeat(" ", panelGap), m.renderColonistDetail(cs[sel], rows, detailWidth))
+	}
 	return strings.Join([]string{header, body, footer}, "\n")
 }
 
 // renderColonistList draws the scrolling name/status column, keeping the
 // selection in view.
-func (m Model) renderColonistList(cs []sim.EntityView, sel, rows int) string {
+func (m Model) renderColonistList(cs []sim.EntityView, sel, rows, width int) string {
+	inner := panelInner(width)
 	capacity := (rows - 3) / 3 // box borders + heading, with three lines per colonist
 	if capacity < 1 {
 		capacity = 1
@@ -94,9 +110,12 @@ func (m Model) renderColonistList(cs []sim.EntityView, sel, rows int) string {
 				age = fmt.Sprintf("age %d", c.Profile.Age)
 			}
 		}
-		nameLine := truncate(colonistGlyph(c.Profile)+" "+name, rosterListWidth-4)
-		infoLine := truncate(fmt.Sprintf("%s · %s", pronouns, age), rosterListWidth-4)
-		stateLine := truncate(state, rosterListWidth-4)
+		// The glyph goes through fitGlyph here exactly as it does on the map.
+		// The roster used to draw the bare constant, so a glyph the terminal
+		// painted at an unexpected width shifted this column only.
+		nameLine := cells.Truncate(fitGlyph(colonistGlyph(c.Profile))+" "+name, inner-2)
+		infoLine := cells.Truncate(fmt.Sprintf("%s · %s", pronouns, age), inner-2)
+		stateLine := cells.Truncate(state, inner-2)
 		marker := "•"
 		if i == sel {
 			marker = "›"
@@ -114,19 +133,16 @@ func (m Model) renderColonistList(cs []sim.EntityView, sel, rows int) string {
 	// MaxHeight matters here: selected-colonist details can contain a variable
 	// number of memories and must not make the whole roster taller than the
 	// terminal (which would push the header off-screen).
-	return sidebarStyle.Width(rosterListWidth - 2).Height(rows - 2).MaxHeight(rows - 2).Render(b.String())
+	return sidebarStyle.Width(width - borderCells).Height(rows - borderCells).MaxHeight(rows - borderCells).Render(b.String())
 }
 
 // renderColonistDetail draws the inspector for one colonist: identity,
 // attributes, health, needs, and traits.
-func (m Model) renderColonistDetail(c sim.EntityView, rows int) string {
-	width := m.termW - rosterListWidth - 3
-	if width < 24 {
-		width = 24
-	}
-	// Leave room in a bar line for the box (border+padding), the 7-wide label,
-	// two spaces, and the "NNNN/NNNN" count so it never wraps.
-	barW := width - 24
+func (m Model) renderColonistDetail(c sim.EntityView, rows, width int) string {
+	inner := panelInner(width)
+	// Leave room in a bar line for the 7-wide label, two spaces, and the
+	// "NNNN/NNNN" count so it never wraps.
+	barW := inner - 20
 	if barW < 6 {
 		barW = 6
 	}
@@ -138,10 +154,10 @@ func (m Model) renderColonistDetail(c sim.EntityView, rows int) string {
 	p := c.Profile
 	if p == nil {
 		b.WriteString("(no profile)")
-		return sidebarStyle.Width(width).Height(rows - 2).Render(b.String())
+		return sidebarStyle.Width(width - borderCells).Height(rows - borderCells).Render(b.String())
 	}
 
-	b.WriteString(titleStyle.Render(colonistGlyph(p)+" "+p.Name) + "\n")
+	b.WriteString(titleStyle.Render(fitGlyph(colonistGlyph(p))+" "+p.Name) + "\n")
 	b.WriteString(statStyle.Render(fmt.Sprintf("%s · %s · %s", p.Gender, p.Sex, p.Orientation)) + "\n")
 	b.WriteString(statStyle.Render(fmt.Sprintf("age %d · %d cm · %d kg", p.Age, p.HeightCM, p.WeightKG)) + "\n")
 	b.WriteString(statStyle.Render(fmt.Sprintf("%s skin · %s hair", p.SkinTone, p.HairColor)) + "\n\n")
@@ -181,7 +197,7 @@ func (m Model) renderColonistDetail(c sim.EntityView, rows int) string {
 	} else {
 		lines := make([]string, 0, len(p.Traits))
 		for _, tr := range p.Traits {
-			lines = append(lines, traitStyle.Render("• "+tr.Name())+"\n  "+statStyle.Render(truncate(tr.Desc(), width-4)))
+			lines = append(lines, traitStyle.Render("• "+tr.Name())+"\n  "+statStyle.Render(cells.Truncate(tr.Desc(), inner-2)))
 		}
 		b.WriteString(strings.Join(lines, "\n"))
 	}
@@ -194,7 +210,7 @@ func (m Model) renderColonistDetail(c sim.EntityView, rows int) string {
 		lines := make([]string, 0, len(c.Relations))
 		for _, rel := range c.Relations {
 			line := fmt.Sprintf("• %s — %s", rel.Kind, names[rel.Other])
-			lines = append(lines, kinStyle.Render(truncate(line, width-4)))
+			lines = append(lines, kinStyle.Render(cells.Truncate(line, inner-2)))
 		}
 		b.WriteString(strings.Join(lines, "\n"))
 	}
@@ -220,10 +236,10 @@ func (m Model) renderColonistDetail(c sim.EntityView, rows int) string {
 		}
 		for _, memory := range c.Memories[start:] {
 			line := fmt.Sprintf("  t%d: %s", memory.Tick, memory.Text)
-			b.WriteString(statStyle.Render(truncate(line, width-4)) + "\n")
+			b.WriteString(statStyle.Render(cells.Truncate(line, inner-2)) + "\n")
 		}
 	}
-	return sidebarStyle.Width(width).Height(rows - 2).MaxHeight(rows - 2).Render(b.String())
+	return sidebarStyle.Width(width - borderCells).Height(rows - borderCells).MaxHeight(rows - borderCells).Render(b.String())
 }
 
 // colonistNames maps colonist IDs to display names for the latest frame, so the
@@ -245,14 +261,16 @@ func (m Model) colonistNames() map[sim.EntityID]string {
 // right for warmth and left for dislike, and the signed value.
 func affinityLine(name string, val, max, width int) string {
 	gaugeW := clamp(width, 3, 11)
-	return fmt.Sprintf("%-12s %s %+d", truncate(name, 12), divergeGauge(val, max, gaugeW), val)
+	// cells.Fit, not %-12s: fmt pads to a byte count, so a name with any
+	// non-ASCII in it would push the gauge out of column.
+	return fmt.Sprintf("%s %s %+d", cells.Fit(name, 12), divergeGauge(val, max, gaugeW), val)
 }
 
 // moodLine renders the colonist's mood as a diverging gauge with a signed value
 // and a one-word summary.
 func moodLine(val, max, width int) string {
 	gaugeW := clamp(width, 3, 13)
-	return fmt.Sprintf("%-7s %s %+d %s", "mood", divergeGauge(val, max, gaugeW), val, moodWord(val, max))
+	return fmt.Sprintf("%s %s %+d %s", cells.Fit("mood", 7), divergeGauge(val, max, gaugeW), val, moodWord(val, max))
 }
 
 // moodWord is a short label for a mood level, scaled to the mood range.
@@ -324,7 +342,7 @@ func bar(label string, val, max, width int) string {
 	}
 	filled := val * width / max
 	gauge := strings.Repeat("█", filled) + strings.Repeat("·", width-filled)
-	return fmt.Sprintf("%-7s %s %d/%d", truncate(label, 7), gauge, val, max)
+	return fmt.Sprintf("%s %s %d/%d", cells.Fit(label, 7), gauge, val, max)
 }
 
 // colonistName is the colonist's name, or a fallback if the profile is missing.
