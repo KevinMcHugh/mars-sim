@@ -60,7 +60,9 @@ write-up in that directory whenever you add a feature or subsystem.
 > width, so it stays readable without emitting expensive cursor-position
 > sequences for every tile. Because terminals disagree about how wide an emoji
 > is, the glyphs are drawn from a vetted registry and measured against the real
-> terminal at startup, with an ASCII fallback when they do not line up — see
+> terminal at startup. Colonists carry their skin tone and hair colour in the
+> glyph (👩🏿‍🦰), with a fallback ladder down to a plainer figure on a terminal
+> that will not fuse the sequence — see
 > [terminal cell widths](docs/terminal-cell-widths.md).
 
 ## Architecture

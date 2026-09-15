@@ -35,9 +35,24 @@ import (
 // this is how long the game is willing to pause at startup to find out.
 const probeTimeout = 250 * time.Millisecond
 
+// probeBatch is how many glyphs are measured per round trip.
+//
+// Composed colonist glyphs are combinatorial — six figures times five skin
+// tones times four hair states — so there are around ninety glyphs to measure.
+// One query-and-wait each is imperceptible on a local terminal and several
+// seconds over a slow SSH link. Terminals process their input stream in order
+// and queue a reply per query, so the whole batch can go out in one write and
+// the replies come back in the same order.
+//
+// The batch is bounded because those replies sit in the terminal's input buffer
+// until we read them: thirty-two replies is about three hundred bytes, far
+// inside any plausible buffer.
+const probeBatch = 32
+
 // GlyphCheck is what the probe found.
 type GlyphCheck struct {
-	Downgraded bool   // the UI was switched to ASCII glyphs
+	Downgraded bool   // the whole UI was switched to ASCII glyphs
+	Reduced    int    // composed glyphs that dropped to a simpler rung
 	Detail     string // one line describing the outcome, for logging
 }
 
@@ -86,10 +101,10 @@ func VerifyGlyphWidths() (GlyphCheck, error) {
 	// speaks CPR must report the column we parked at — and one that does not
 	// speak CPR, or is behind a multiplexer that swallows the query, fails here
 	// rather than after we have drawn glyphs into the user's scrollback.
-	if base, err := measure(reader, out, ""); err != nil {
+	if base, err := measureBatch(reader, out, []string{""}); err != nil {
 		return GlyphCheck{}, fmt.Errorf("cursor position report unsupported: %w", err)
-	} else if base != 0 {
-		return GlyphCheck{}, fmt.Errorf("cursor position report is unreliable: empty string measured %d cells", base)
+	} else if base[0] != 0 {
+		return GlyphCheck{}, fmt.Errorf("cursor position report is unreliable: empty string measured %d cells", base[0])
 	}
 
 	// Sorted, so a mismatch report reads the same way twice.
@@ -101,51 +116,97 @@ func VerifyGlyphWidths() (GlyphCheck, error) {
 	}
 	sort.Strings(symbols)
 
-	var mismatches []string
-	for _, symbol := range symbols {
-		painted, err := measure(reader, out, symbol)
+	rejected := make(map[string]bool)
+	var atomicMismatches, composedMismatches []string
+	for start := 0; start < len(symbols); start += probeBatch {
+		end := min(start+probeBatch, len(symbols))
+		batch := symbols[start:end]
+
+		painted, err := measureBatch(reader, out, batch)
 		if err != nil {
-			return GlyphCheck{}, fmt.Errorf("measuring %+q: %w", symbol, err)
+			return GlyphCheck{}, fmt.Errorf("measuring glyphs %d-%d: %w", start, end, err)
 		}
-		if want := glyphRegistry[symbol].cells; painted != want {
-			mismatches = append(mismatches, fmt.Sprintf("%s painted %d cells, expected %d", symbol, painted, want))
+		for i, symbol := range batch {
+			g := glyphRegistry[symbol]
+			if painted[i] == g.cells {
+				continue
+			}
+			rejected[symbol] = true
+			note := fmt.Sprintf("%s painted %d cells, expected %d", symbol, painted[i], g.cells)
+			if g.composed() {
+				composedMismatches = append(composedMismatches, note)
+			} else {
+				atomicMismatches = append(atomicMismatches, note)
+			}
 		}
 	}
 
-	if len(mismatches) > 0 {
+	// An atomic glyph is a single code point every width table agrees on. A
+	// terminal that gets one wrong is not one to trust with the rest, so that
+	// is the case that downgrades everything.
+	if len(atomicMismatches) > 0 {
 		useASCIIGlyphs()
 		return GlyphCheck{
 			Downgraded: true,
-			Detail: fmt.Sprintf("terminal disagrees about %d of %d glyph widths, using ASCII glyphs: %s",
-				len(mismatches), len(symbols), strings.Join(mismatches, "; ")),
+			Detail: fmt.Sprintf("terminal disagrees about %d basic glyph width(s), using ASCII glyphs: %s",
+				len(atomicMismatches), strings.Join(atomicMismatches, "; ")),
 		}, nil
 	}
+
+	// A composed glyph failing means only that this terminal will not fuse that
+	// sequence. Each one drops to the rung below it and the rest stay emoji.
+	if len(composedMismatches) > 0 {
+		reduceRejectedGlyphs(rejected)
+		return GlyphCheck{
+			Reduced: len(composedMismatches),
+			Detail: fmt.Sprintf("terminal will not fuse %d of %d glyphs; those fall back to a simpler figure: %s",
+				len(composedMismatches), len(symbols), strings.Join(composedMismatches, "; ")),
+		}, nil
+	}
+
 	return GlyphCheck{
 		Detail: fmt.Sprintf("terminal paints all %d glyphs at the expected width", len(symbols)),
 	}, nil
 }
 
-// measure writes s at a known column and returns how many columns the cursor
-// advanced — the width that terminal paints s at.
+// measureBatch writes each symbol at a known column and returns how many
+// columns the cursor advanced for each — the width that terminal paints them
+// at.
 //
-// The sequence: \r parks the cursor in column 1, s is printed, ESC[6n asks
-// where the cursor is now, and \r\x1b[K returns to column 1 and erases the line
-// so nothing the probe drew survives into the session.
-func measure(reader *bufio.Reader, out io.Writer, s string) (int, error) {
-	if _, err := io.WriteString(out, "\r"+s+"\x1b[6n"); err != nil {
-		return 0, err
+// Per symbol the sequence is \r to park the cursor in column 1, the symbol, and
+// ESC[6n to ask where the cursor ended up. Those go out for the whole batch in
+// one write: the terminal handles its input in order, so the replies come back
+// in the same order, and a batch costs one round trip rather than one each.
+// Every symbol is measured from column 1, so each reply stands alone and a
+// symbol that paints unexpectedly wide cannot skew the next one.
+//
+// A trailing \r\x1b[K returns to column 1 and erases the line, so nothing the
+// probe drew survives into the session.
+func measureBatch(reader *bufio.Reader, out io.Writer, symbols []string) ([]int, error) {
+	var query strings.Builder
+	for _, s := range symbols {
+		query.WriteString("\r")
+		query.WriteString(s)
+		query.WriteString("\x1b[6n")
+	}
+	if _, err := io.WriteString(out, query.String()); err != nil {
+		return nil, err
 	}
 
-	col, err := readCursorColumn(reader)
-	if err != nil {
-		return 0, err
+	widths := make([]int, len(symbols))
+	for i := range symbols {
+		col, err := readCursorColumn(reader)
+		if err != nil {
+			return nil, err
+		}
+		// Columns are 1-based, and every symbol started in column 1.
+		widths[i] = col - 1
 	}
 
 	if _, err := io.WriteString(out, "\r\x1b[K"); err != nil {
-		return 0, err
+		return nil, err
 	}
-	// Columns are 1-based, and we started in column 1.
-	return col - 1, nil
+	return widths, nil
 }
 
 // readCursorColumn reads one ESC[<row>;<col>R report, discarding anything

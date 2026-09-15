@@ -100,11 +100,15 @@ becomes a `Command`; the UI never touches the world directly.
 
 Each tile is allocated **two terminal cells** (open floor is two spaces), and
 every glyph reaches the terminal through `fitGlyph`, which renders it in exactly
-that many cells. Glyphs are not loose constants: they live in a registry with a
-declared width and an ASCII fallback, and a startup probe measures them against
-the real terminal. This is the part that used to break the grid — the whole
-story, and the rules a new glyph has to follow, are in
-[terminal-cell-widths.md](./terminal-cell-widths.md).
+that many cells. Glyphs are not loose constants: they live in a registry, and a
+startup probe measures them against the real terminal.
+
+A colonist's glyph is composed from their gender, age bracket, skin tone and
+hair colour (👩🏿‍🦰). `colonistGlyph` always returns the most specific sequence;
+`fitGlyph` reduces it down a fallback ladder to whatever the terminal will
+actually paint, so no caller branches on terminal support. This is the part that
+used to break the grid — the whole story, and the rules a new glyph has to
+follow, are in [terminal-cell-widths.md](./terminal-cell-widths.md).
 
 The map deliberately avoids per-tile cursor positioning: emitting thousands of
 ANSI cursor sequences made redraws much less responsive. Correctness comes from
@@ -152,9 +156,10 @@ contract is genuinely frontend-agnostic.
 - **A new control**: add a key case that `Send`s a `Command` (add the command
   type in `sim` if needed — see [architecture.md](./architecture.md)).
 - **A new glyph**: add the constant *and* a `glyphRegistry` entry in
-  `glyphs.go`, then map the terrain/kind/state to it. The tests reject a glyph
-  whose width terminals would disagree about — see
-  [terminal-cell-widths.md](./terminal-cell-widths.md).
+  `glyphs.go`, then map the terrain/kind/state to it. An atomic glyph needs an
+  ASCII fallback; a composed one needs a `reduce` target. The tests reject a
+  glyph whose width terminals would disagree about and that has nowhere to fall
+  back to — see [terminal-cell-widths.md](./terminal-cell-widths.md).
 - **A different frontend entirely**: implement a consumer of `Subscribe()` frames
   that `Send`s commands; `runHeadless` is the minimal example.
 

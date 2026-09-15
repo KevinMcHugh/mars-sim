@@ -66,17 +66,48 @@ renderer's disagree, the renderer makes the wrong call about erasing the line.
 panel lines all go through it, which is what keeps a width surprise local to the
 line it happens on instead of shearing the frame.
 
-**A registry instead of constants.** Each glyph declares its width and carries a
-two-cell ASCII fallback:
+**A registry instead of constants, in two tiers.** Rendering goes through
+`fitGlyph`, so nothing reaches the terminal unvetted.
+
+An **atomic** glyph is a single code point with Emoji_Presentation=Yes. Terminals
+agree on these, so the declared width is trustworthy without asking, and the
+structural rules (no VS16, no ZWJ, no skin-tone modifier) are what keep it that
+way. It carries a two-cell ASCII fallback:
 
 ```go
-glyphBed: {glyphBed, 2, "=="},
+glyphBed: {symbol: glyphBed, cells: 2, fallback: "=="},
 ```
 
-Rendering goes through `fitGlyph`, so nothing reaches the terminal unvetted. The
-three VS16 glyphs were replaced with single-code-point equivalents — `🥫` `🛌`
-`💬` — which are the one case terminals agree on: a single code point with
-Emoji_Presentation=Yes is two cells everywhere.
+A **composed** glyph is a base figure plus a skin tone modifier and optionally a
+ZWJ hair component — `👨🏿‍🦰`. These are never trusted. They must be probed, and
+instead of an ASCII fallback they declare a `reduce`: the next rung down.
+
+The three VS16 glyphs were replaced with single-code-point equivalents — `🥫`
+`🛌` `💬`.
+
+### The ladder
+
+This is what makes composed glyphs safe to use at all. Each rung the terminal
+refuses drops to a simpler sequence that still means the same colonist:
+
+```
+👨🏿‍🦰   →   👨🏿   →   👨   →   "M "
+skin+hair   skin      plain   ASCII
+```
+
+`resolveGlyph` walks down until it finds a rung the probe accepted. A terminal
+that fuses skin tones but not hair shows `👩🏿` instead of `👩🏿‍🦰` — and every
+other glyph on screen stays emoji.
+
+The response to a mismatch depends on the tier, and the split is the point:
+
+| What failed | Response |
+| --- | --- |
+| An **atomic** glyph | The whole UI goes ASCII. Every table agrees on these, so a terminal that disagrees cannot be trusted with any of them. |
+| A **composed** glyph | That glyph alone drops a rung. It only means this terminal will not fuse that sequence. |
+
+Without the tier split, one unfusable hair sequence would take the entire map
+down to ASCII with it.
 
 **Asking the terminal.** No static table settles this, because the answer is a
 property of the terminal, not of Unicode. So `VerifyGlyphWidths` measures for
@@ -87,8 +118,17 @@ switches the whole UI to the ASCII set and says so in the footer.
 
 The probe sends an empty-string query first as a gate. A terminal that does not
 speak CPR fails there, after 250 ms, before the probe has drawn anything into
-the user's scrollback — and before it could leave eighteen more unanswered
-queries in flight.
+the user's scrollback — and before it could leave ninety-odd unanswered queries
+in flight.
+
+Composed glyphs are combinatorial: six figures × five skin tones × four hair
+states is 75 of them, 95 glyphs in total. One query-and-wait each is
+imperceptible locally and several seconds over a slow SSH link, so queries are
+**batched**: terminals process their input in order and queue one reply per
+query, so a whole batch goes out in a single write and the replies come back in
+the same order. 95 glyphs cost three round trips instead of ninety-five. Every
+symbol is measured from column 1, so one unexpectedly wide glyph cannot skew the
+next reading.
 
 `-glyphs` controls this: `auto` (default, probe), `emoji` (skip the probe and
 trust the table), `ascii` (force the fallback).
@@ -97,9 +137,14 @@ trust the table), `ascii` (force the fallback).
 
 | Failure | Caught by |
 | --- | --- |
-| A new glyph uses VS16, a ZWJ, or a skin-tone modifier | `TestGlyphRegistryIsUnambiguous` (structurally, and via cross-library disagreement) |
+| An **atomic** glyph uses VS16, a ZWJ, or a skin-tone modifier | `TestAtomicGlyphsAreUnambiguous` (structurally, and via cross-library disagreement) |
 | A raw emoji literal bypasses the registry | `TestNoRawEmojiOutsideTheRegistry` (parses the package's own source) |
-| A glyph renders at the wrong width | `TestFitGlyphAlwaysFillsOneTile` |
+| A glyph renders at the wrong width, at any rung | `TestFitGlyphAlwaysFillsOneTile` |
+| A composed glyph with no ladder, or a ladder that cycles or dead-ends | `TestComposedGlyphsDeclareALadder`, `TestLaddersTerminate` |
+| The ladder stepping to the wrong rung | `TestLadderStepsDownOneRungAtATime` |
+| One unfusable glyph downgrading everything | `TestOneUnfusableGlyphDoesNotDowngradeTheRest` |
+| A colonist profile producing an unregistered glyph | `TestEveryColonistProfileMapsToARegisteredGlyph` |
+| A reply attributed to the wrong glyph in a batch | `TestMeasureBatchPairsRepliesWithSymbols` |
 | A row or panel is mis-sized | `TestMapRowsAreAllTheSameWidth`, `TestPanelsRenderAtTheirDeclaredWidth` |
 | Any frame that would wrap | `TestFrameNeverExceedsTerminalWidth` |
 | The terminal disagrees at runtime | the startup probe |
@@ -114,17 +159,26 @@ and make their own calls about emoji presentation. A table plus a probe is
 correct; a table alone is a better guess. The probe is what makes this "once and
 for all" rather than "once more".
 
-**Why ban VS16 instead of measuring it?** We could measure it and pick per
-terminal. Banning is better: the sequences terminals agree on are a large and
-perfectly readable set, so accepting a per-terminal split buys nothing. This is
-the third time an exotic sequence has been reverted here — skin tone modifiers
-and ZWJ hair components went the same way (see the commit history around
-`97996ba` and `0649c55`). The ban is those reverts turned into a rule a test
-enforces, instead of knowledge that has to survive in someone's head.
+**Why ban VS16 but allow ZWJ?** Because VS16 buys nothing and ZWJ buys
+something. `🛏️` and `🛌` are the same picture; one is contested and the other is
+not, so there is no reason to take the risk. A skin tone and hair colour, by
+contrast, are information the simulation actually models — and they are only
+available as composed sequences. So VS16 stays banned outright, and ZWJ is
+allowed on the condition that it is measured and has somewhere to fall back to.
 
-**Why all-or-nothing on the ASCII fallback?** A half-emoji, half-ASCII map is
-harder to read than either. And a terminal that got one glyph's width wrong has
-not earned trust about the rest.
+**Why does the ban not catch ZWJ sequences?** It cannot. The VS16 bug was
+catchable statically because the width tables disagreed — which is what the
+cross-library check exploits. For `👨🏿‍🦰` all three tables say two cells,
+because that is the spec answer. There is no static signal at all, so static
+vetting is structurally incapable of catching a terminal that will not fuse.
+Only the probe can. This is the reason the probe had to exist before composed
+glyphs could be adopted.
+
+**Why does an atomic failure still take everything down?** A half-emoji,
+half-ASCII map is harder to read than either, and a terminal that gets a single
+code point's width wrong has not earned trust about the rest. The ladder is the
+right tool for "this terminal cannot fuse a four-code-point sequence", not for
+"this terminal cannot measure `🟫`".
 
 **Why is `clampFrame` separate from the renderers?** It truncates any line that
 would exceed the terminal — a net under the whole frame. But a net that silently
@@ -149,18 +203,27 @@ tofu. That is what `-glyphs ascii` is for.
 
 ## Extending it
 
-**Adding a glyph** is a two-line edit to `glyphs.go`: a `glyphX` constant and a
-`glyphRegistry` entry with its declared width and an ASCII fallback. The tests
-enforce the rest — if the glyph carries a variation selector, a ZWJ or a skin
-tone modifier, or if the width tables disagree about it, `go test` fails and
-names the reason. Pick a single code point with Emoji_Presentation=Yes and it
-will pass.
+**Adding an atomic glyph** is a two-line edit to `glyphs.go`: a `glyphX`
+constant and a `glyphRegistry` entry with its declared width and an ASCII
+fallback. The tests enforce the rest — if the glyph carries a variation
+selector, a ZWJ or a skin tone modifier, or if the width tables disagree about
+it, `go test` fails and names the reason. Pick a single code point with
+Emoji_Presentation=Yes and it will pass.
+
+**Adding a composed glyph** means extending `buildGlyphRegistry` so the new
+sequence declares a `reduce` pointing at an existing, simpler rung. The
+reduction must drop a suffix rather than change the figure — dropping detail,
+not swapping the colonist for a different one — and the ladder must reach an
+atomic glyph. Both are tested. The probe then covers it automatically.
 
 Invariants a change here must preserve:
 
 - Nothing measures a display string with `len()`, `len([]rune(...))`, or `%-Ns`.
   Use `cells`.
 - Every glyph reaches the terminal through `fitGlyph`.
+- `colonistGlyph` returns the *most specific* sequence; reducing it to something
+  the terminal can paint is `fitGlyph`'s job, so callers never branch on
+  terminal support.
 - A panel width constant is the panel's *total* footprint including its border;
   `lipgloss`'s `Style.Width` sets the content box, so renderers pass
   `Width(total - borderCells)`.

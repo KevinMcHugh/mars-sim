@@ -26,14 +26,16 @@ const (
 	skinToneLast        = '\U0001F3FF'
 )
 
-// This is the test that has to stop the bug recurring, so it checks the
-// *structure* of each glyph rather than just measuring it. Measuring only tells
-// us what our width tables think today; the structural rules are what make the
-// terminal agree with them.
-func TestGlyphRegistryIsUnambiguous(t *testing.T) {
+// Atomic glyphs carry their width on trust, so the structural rules are what
+// earn that trust. Measuring only tells us what our width tables think today;
+// these rules are what make the terminal agree with them.
+func TestAtomicGlyphsAreUnambiguous(t *testing.T) {
 	for symbol, g := range glyphRegistry {
 		if symbol != g.symbol {
 			t.Errorf("registry key %q does not match its glyph symbol %q", symbol, g.symbol)
+		}
+		if g.composed() {
+			continue // vetted by TestComposedGlyphsDeclareALadder instead
 		}
 
 		// A glyph must be one grapheme cluster, so the terminal makes exactly
@@ -41,18 +43,21 @@ func TestGlyphRegistryIsUnambiguous(t *testing.T) {
 		// it is plain spaces, not a symbol at all.
 		if symbol != glyphFloor {
 			if n := uniseg.GraphemeClusterCount(symbol); n != 1 {
-				t.Errorf("glyph %+q is %d grapheme clusters, want 1", symbol, n)
+				t.Errorf("atomic glyph %+q is %d grapheme clusters, want 1", symbol, n)
+			}
+			if n := utf8.RuneCountInString(symbol); n != 1 {
+				t.Errorf("atomic glyph %+q is %d code points, want 1 — a multi-code-point glyph belongs in the composed tier, where it gets a ladder", symbol, n)
 			}
 		}
 
 		for _, r := range symbol {
 			switch {
 			case r == variationSelector16:
-				t.Errorf("glyph %+q contains U+FE0F: terminals disagree whether it paints one cell or two", symbol)
+				t.Errorf("atomic glyph %+q contains U+FE0F: terminals disagree whether it paints one cell or two", symbol)
 			case r == zeroWidthJoiner:
-				t.Errorf("glyph %+q contains U+200D: terminals that do not fuse the sequence paint each part separately", symbol)
+				t.Errorf("atomic glyph %+q contains U+200D: terminals that do not fuse the sequence paint each part separately", symbol)
 			case r >= skinToneFirst && r <= skinToneLast:
-				t.Errorf("glyph %+q contains a skin tone modifier: an unfused modifier paints as its own coloured square", symbol)
+				t.Errorf("atomic glyph %+q contains a skin tone modifier: an unfused modifier paints as its own coloured square", symbol)
 			}
 		}
 
@@ -60,19 +65,9 @@ func TestGlyphRegistryIsUnambiguous(t *testing.T) {
 		// registry. These libraries are built from different Unicode versions,
 		// so agreement between them is decent evidence that terminals — also
 		// built from assorted Unicode versions — will agree too. This is the
-		// check that fails on a VS16 glyph even if someone deletes the rule
-		// above: go-runewidth calls "\U0001F6CF️" one cell.
-		measures := map[string]int{
-			"x/ansi (what bubbletea and lipgloss use)": ansi.StringWidth(symbol),
-			"uniseg":       uniseg.StringWidth(symbol),
-			"go-runewidth": runewidth.StringWidth(symbol),
-			"cells.Width":  cells.Width(symbol),
-		}
-		for lib, got := range measures {
-			if got != g.cells {
-				t.Errorf("glyph %+q: %s measures %d cells, registry declares %d", symbol, lib, got, g.cells)
-			}
-		}
+		// check that fails on a VS16 glyph even if someone deletes the rules
+		// above: go-runewidth calls the VS16 bunk one cell.
+		assertEveryWidthTableAgrees(t, symbol, g.cells)
 
 		if g.cells != tileWidth {
 			t.Errorf("glyph %+q declares %d cells, want %d — one tile is one glyph", symbol, g.cells, tileWidth)
@@ -92,19 +87,128 @@ func TestGlyphRegistryIsUnambiguous(t *testing.T) {
 	}
 }
 
-// Both glyph sets must render every tile in exactly tileWidth cells, since the
-// map's column arithmetic assumes it unconditionally.
-func TestFitGlyphAlwaysFillsOneTile(t *testing.T) {
-	for _, ascii := range []bool{false, true} {
-		rendered := *buildRenderedGlyphs(ascii)
-		if len(rendered) != len(glyphRegistry) {
-			t.Fatalf("ascii=%v: rendered %d glyphs, registry has %d", ascii, len(rendered), len(glyphRegistry))
+// A composed glyph is allowed the constructs an atomic one is not, because it
+// is never trusted: the probe measures it and the ladder catches it. The rules
+// here are what make that safety net exist at all.
+func TestComposedGlyphsDeclareALadder(t *testing.T) {
+	composed := 0
+	for symbol, g := range glyphRegistry {
+		if !g.composed() {
+			continue
 		}
-		for symbol, drawn := range rendered {
-			if w := cells.Width(drawn); w != tileWidth {
-				t.Errorf("ascii=%v: glyph %+q renders as %q (%d cells), want %d", ascii, symbol, drawn, w, tileWidth)
+		composed++
+
+		if g.fallback != "" {
+			t.Errorf("composed glyph %+q has its own ASCII fallback; it should reduce to a simpler glyph and let the bottom of the ladder hold the ASCII", symbol)
+		}
+		next, ok := glyphRegistry[g.reduce]
+		if !ok {
+			t.Errorf("composed glyph %+q reduces to %+q, which is not registered", symbol, g.reduce)
+			continue
+		}
+		if next.symbol == symbol {
+			t.Errorf("composed glyph %+q reduces to itself", symbol)
+		}
+		// Reducing must actually simplify, or the ladder is decoration.
+		if utf8.RuneCountInString(g.reduce) >= utf8.RuneCountInString(symbol) {
+			t.Errorf("composed glyph %+q reduces to %+q, which is no simpler", symbol, g.reduce)
+		}
+		// Dropping a suffix keeps the same figure with less detail. Changing
+		// the prefix would swap the colonist for a different one.
+		if !strings.HasPrefix(symbol, g.reduce) {
+			t.Errorf("composed glyph %+q does not start with the rung below it (%+q); a reduction should drop detail, not change the figure", symbol, g.reduce)
+		}
+
+		// One cluster, two cells, and every table agrees. That agreement is
+		// exactly why this tier cannot be vetted statically and has to be
+		// probed: it is the spec answer, not a promise about any terminal. The
+		// check is here to catch a malformed sequence.
+		if n := uniseg.GraphemeClusterCount(symbol); n != 1 {
+			t.Errorf("composed glyph %+q is %d grapheme clusters, want 1", symbol, n)
+		}
+		assertEveryWidthTableAgrees(t, symbol, g.cells)
+	}
+	if composed == 0 {
+		t.Error("no composed glyphs in the registry — this test is not checking anything")
+	}
+}
+
+// Every ladder must reach an atomic glyph, or a terminal that rejects a rung
+// has nowhere to fall back to.
+func TestLaddersTerminate(t *testing.T) {
+	for symbol := range glyphRegistry {
+		steps := 0
+		for cur := symbol; ; steps++ {
+			if steps > len(glyphRegistry) {
+				t.Errorf("ladder from %+q does not terminate — a reduce cycle?", symbol)
+				break
 			}
+			g, ok := glyphRegistry[cur]
+			if !ok {
+				t.Errorf("ladder from %+q reaches unregistered %+q", symbol, cur)
+				break
+			}
+			if !g.composed() {
+				if g.fallback == "" {
+					t.Errorf("ladder from %+q ends at %+q, which has no ASCII fallback", symbol, cur)
+				}
+				break
+			}
+			cur = g.reduce
 		}
+	}
+}
+
+func assertEveryWidthTableAgrees(t *testing.T, symbol string, want int) {
+	t.Helper()
+	measures := map[string]int{
+		"x/ansi (what bubbletea and lipgloss use)": ansi.StringWidth(symbol),
+		"uniseg":       uniseg.StringWidth(symbol),
+		"go-runewidth": runewidth.StringWidth(symbol),
+		"cells.Width":  cells.Width(symbol),
+	}
+	for lib, got := range measures {
+		if got != want {
+			t.Errorf("glyph %+q: %s measures %d cells, registry declares %d", symbol, lib, got, want)
+		}
+	}
+}
+
+// Every glyph must render in exactly tileWidth cells at every rung of its
+// ladder, since the map's column arithmetic assumes it unconditionally. This
+// sweeps the ladder by rejecting progressively more rungs.
+func TestFitGlyphAlwaysFillsOneTile(t *testing.T) {
+	rejectAll := make(map[string]bool, len(glyphRegistry))
+	rejectComposed := make(map[string]bool)
+	for symbol, g := range glyphRegistry {
+		rejectAll[symbol] = true
+		if g.composed() {
+			rejectComposed[symbol] = true
+		}
+	}
+
+	cases := []struct {
+		name     string
+		rejected map[string]bool
+		ascii    bool
+	}{
+		{"terminal accepts everything", nil, false},
+		{"terminal fuses nothing", rejectComposed, false},
+		{"terminal paints nothing correctly", rejectAll, false},
+		{"forced ascii", nil, true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			rendered := *buildRenderedGlyphs(tc.rejected, tc.ascii)
+			if len(rendered) != len(glyphRegistry) {
+				t.Fatalf("rendered %d glyphs, registry has %d", len(rendered), len(glyphRegistry))
+			}
+			for symbol, drawn := range rendered {
+				if w := cells.Width(drawn); w != tileWidth {
+					t.Errorf("glyph %+q renders as %q (%d cells), want %d", symbol, drawn, w, tileWidth)
+				}
+			}
+		})
 	}
 }
 
@@ -144,9 +248,6 @@ func TestGlyphRegistryCoversEveryGlyph(t *testing.T) {
 		return true
 	})
 
-	if found != len(glyphRegistry) {
-		t.Errorf("found %d glyph constants but the registry has %d entries; a registry entry with no constant is dead weight", found, len(glyphRegistry))
-	}
 	if found == 0 {
 		t.Error("found no glyph constants in glyphs.go — this test is no longer checking anything")
 	}

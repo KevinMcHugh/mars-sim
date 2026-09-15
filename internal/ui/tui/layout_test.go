@@ -155,12 +155,15 @@ func busySnapshot() *sim.Snapshot {
 		tiles[i].Terrain = terrains[i%len(terrains)]
 	}
 
+	// Skin tones and hair colours are set deliberately so the frame tests
+	// exercise composed glyphs — a bare figure, a skin tone, and each of the
+	// three ZWJ hair sequences — rather than only the atomic ones.
 	profiles := []*sim.Profile{
 		nil,
-		{Name: "Zoe Vargas", Age: 32, Gender: sim.GenderWoman},
-		{Name: "Ravi Boone", Age: 71, Gender: sim.GenderMan},
-		{Name: "Sam Okonkwo-Lindqvist", Age: 45, Gender: sim.GenderNonbinary},
-		{Name: "Ada Fields", Age: 64, Gender: sim.GenderWoman},
+		{Name: "Zoe Vargas", Age: 32, Gender: sim.GenderWoman, SkinTone: sim.SkinDark, HairColor: sim.HairRed},
+		{Name: "Ravi Boone", Age: 71, Gender: sim.GenderMan, SkinTone: sim.SkinMediumDark, HairColor: sim.HairWhite},
+		{Name: "Sam Okonkwo-Lindqvist", Age: 45, Gender: sim.GenderNonbinary, SkinTone: sim.SkinMedium, HairColor: sim.HairBald},
+		{Name: "Ada Fields", Age: 64, Gender: sim.GenderWoman, SkinTone: sim.SkinLight, HairColor: sim.HairBrown},
 	}
 	states := []sim.State{sim.Idle, sim.Mining, sim.Fleeing, sim.Talking, sim.Stomping}
 
@@ -206,6 +209,6 @@ func restoreGlyphs(t *testing.T, ascii bool) {
 		renderedGlyphs.Store(prevRendered)
 		asciiGlyphs.Store(prevASCII)
 	})
-	renderedGlyphs.Store(buildRenderedGlyphs(ascii))
+	renderedGlyphs.Store(buildRenderedGlyphs(nil, ascii))
 	asciiGlyphs.Store(ascii)
 }

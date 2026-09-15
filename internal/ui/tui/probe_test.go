@@ -62,18 +62,18 @@ func TestReadCursorColumnRejectsMalformedReports(t *testing.T) {
 	}
 }
 
-// measure turns a reported column into a width: the cursor starts in column 1,
-// so a glyph that leaves it in column 3 painted two cells.
+// measureBatch turns a reported column into a width: the cursor starts in
+// column 1, so a glyph that leaves it in column 3 painted two cells.
 func TestMeasureConvertsColumnToWidth(t *testing.T) {
 	var out strings.Builder
 	reader := bufio.NewReader(strings.NewReader("\x1b[1;3R"))
 
-	got, err := measure(reader, &out, "\U0001F477")
+	got, err := measureBatch(reader, &out, []string{"\U0001F477"})
 	if err != nil {
-		t.Fatalf("measure: %v", err)
+		t.Fatalf("measureBatch: %v", err)
 	}
-	if got != 2 {
-		t.Errorf("measure reported %d cells, want 2", got)
+	if len(got) != 1 || got[0] != 2 {
+		t.Errorf("measureBatch reported %v, want [2]", got)
 	}
 
 	// The probe must leave no trace: park at column 1, draw, query, then return
@@ -87,6 +87,39 @@ func TestMeasureConvertsColumnToWidth(t *testing.T) {
 	}
 	if !strings.HasSuffix(written, "\r\x1b[K") {
 		t.Errorf("probe should erase what it drew, wrote %q", written)
+	}
+}
+
+// A batch is one round trip: all the queries go out together and the replies
+// come back in order. Getting the pairing wrong would silently attribute one
+// glyph's width to another, which is worse than not probing at all.
+func TestMeasureBatchPairsRepliesWithSymbols(t *testing.T) {
+	symbols := []string{"\U0001F477", "ab", "\U0001F47D", "x"}
+	// Columns are 1-based: widths 2, 2, 4 and 1.
+	replies := "\x1b[1;3R\x1b[1;3R\x1b[1;5R\x1b[1;2R"
+
+	var out strings.Builder
+	got, err := measureBatch(bufio.NewReader(strings.NewReader(replies)), &out, symbols)
+	if err != nil {
+		t.Fatalf("measureBatch: %v", err)
+	}
+	want := []int{2, 2, 4, 1}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Errorf("symbol %d (%+q): got %d cells, want %d", i, symbols[i], got[i], want[i])
+		}
+	}
+
+	// Each symbol must be measured from column 1, so one unexpectedly wide
+	// glyph cannot push the next one's reading along.
+	written := out.String()
+	for _, s := range symbols {
+		if !strings.Contains(written, "\r"+s+"\x1b[6n") {
+			t.Errorf("symbol %+q was not parked at column 1 before its query; wrote %q", s, written)
+		}
+	}
+	if n := strings.Count(written, "\x1b[6n"); n != len(symbols) {
+		t.Errorf("sent %d queries for %d symbols", n, len(symbols))
 	}
 }
 

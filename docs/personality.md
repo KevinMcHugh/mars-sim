@@ -34,14 +34,39 @@ across the five emoji tone points), a hair color (white and bald weighted
 upward with age), and a name drawn from gender-appropriate pools. Nothing
 simulates against these yet — they exist for flavor and future systems.
 
-Skin tone and hair color are text-only (shown in the roster detail pane) —
-not composed into a colonist's map glyph. Both a skin tone modifier and a
-ZWJ-joined hair component were tried in [`internal/ui/tui/glyphs.go`](../internal/ui/tui/glyphs.go),
-but plenty of terminals don't fuse a modifier or a ZWJ sequence onto the
-preceding glyph — they print it as its own separate character (a skin tone
-modifier alone renders as a plain colored square), which throws off the
-column count the renderer assumes and corrupts the roster layout. The map
-glyph sticks to age and gender only, which composes cleanly everywhere.
+Skin tone and hair color **are** composed into a colonist's map glyph: a
+colonist renders as e.g. 👩🏿‍🦰, and the roster detail pane spells the same
+values out in words.
+
+This was not always true, and the history is worth knowing. Both a skin tone
+modifier and a ZWJ-joined hair component were tried early, and both were
+reverted: plenty of terminals don't fuse a modifier or a ZWJ sequence onto the
+preceding glyph — they print each part separately (a skin tone modifier alone
+renders as a plain colored square) — which threw off the column count the
+renderer assumed and corrupted the layout. Crucially, *no width table warns you
+about this*: x/ansi, uniseg and go-runewidth all report two cells for
+`👨🏿‍🦰`, because two cells is the spec answer. Whether a given terminal complies
+is a runtime fact, so the only way to know is to measure.
+
+That is what [`internal/ui/tui/probe.go`](../internal/ui/tui/probe.go) now does
+at startup, which is what made these sequences safe to adopt. Each composed
+glyph declares a **ladder** down to a simpler one, and a terminal that won't
+fuse a sequence gets the rung below it instead:
+
+```
+👩🏿‍🦰  →  👩🏿  →  👩  →  "W "
+```
+
+So a colonist is drawn as specifically as the player's terminal can manage, and
+the grid stays aligned either way. Two consequences for this file's model:
+
+- Only **red, white and bald** have emoji hair components. Black, brown and
+  blonde have none, so those colonists stop at the skin-tone rung — which is
+  why `HairColor` is documented as it is.
+- **Seniors take a skin tone but no hair component**: emoji pairs hair with
+  👨 👩 🧑 and not with 👴 👵 🧓.
+
+See [terminal-cell-widths.md](./terminal-cell-widths.md) for the full mechanism.
 
 ### Traits (mechanical)
 
@@ -104,3 +129,4 @@ re-scanned during simulation. `newEntity` sets the config baselines, and
 - [needs.md](./needs.md) — the need-rise rates traits scale.
 - [entities-and-ai.md](./entities-and-ai.md) — how `workScale`/`restTicks` feed behavior.
 - [configuration.md](./configuration.md) — `TraitChance`.
+- [terminal-cell-widths.md](./terminal-cell-widths.md) — how skin tone and hair colour reach the map glyph safely.

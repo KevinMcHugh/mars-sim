@@ -244,7 +244,7 @@ func setUpGlyphs(mode string) {
 			fmt.Fprintf(os.Stderr, "mars-sim: could not measure glyph widths (%v); using the built-in width table\n", err)
 			return
 		}
-		if check.Downgraded {
+		if check.Downgraded || check.Reduced > 0 {
 			fmt.Fprintln(os.Stderr, "mars-sim:", check.Detail)
 		}
 	}
