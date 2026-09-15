@@ -1087,7 +1087,7 @@ func (w *World) alienTurn(e *Entity) {
 		return
 	}
 
-	prey, ok := w.nearestColonist(e.Pos, 1<<30)
+	prey, ok := w.nearestOfKindAnywhere(e.Pos, Colonist)
 	if !ok {
 		e.State, e.Quarry = Idle, 0
 		w.wanderStep(e)
@@ -1131,7 +1131,7 @@ func (w *World) catTurn(e *Entity) {
 		return
 	}
 
-	prey, ok := w.nearestMouse(e.Pos, 1<<30)
+	prey, ok := w.nearestOfKindAnywhere(e.Pos, Mouse)
 	if !ok {
 		e.State, e.Quarry = Idle, 0
 		w.wanderStep(e)
@@ -1416,6 +1416,30 @@ func (w *World) nearestMouse(from Point, within int) (*Entity, bool) {
 
 func (w *World) nearestOfKind(from Point, kind Kind, within int) (*Entity, bool) {
 	return w.nearestMatch(from, within, func(e *Entity) bool { return e.Kind == kind })
+}
+
+// nearestOfKindAnywhere returns the globally nearest living entity of kind, with
+// no range limit — for a hunter whose prey can be anywhere on the map (an
+// alien after the nearest colonist, a cat after the nearest mouse). It scans
+// World.kindEntities[kind] directly rather than going through nearestMatch's
+// chunk-ring expansion: that expansion is cheap when a match is nearby, but an
+// unbounded search forces it to visit every chunk on the map to confirm none
+// is closer. Entities of a given kind are typically few, so a direct scan is
+// far cheaper — same nearest-wins-ties-toward-lower-ID result as nearestMatch.
+func (w *World) nearestOfKindAnywhere(from Point, kind Kind) (*Entity, bool) {
+	var best *Entity
+	bestDist := 0
+	for id := range w.kindEntities[kind] {
+		e := w.entities[id]
+		if e == nil || !e.Alive() {
+			continue
+		}
+		d := from.Chebyshev(e.Pos)
+		if best == nil || d < bestDist || (d == bestDist && e.ID < best.ID) {
+			best, bestDist = e, d
+		}
+	}
+	return best, best != nil
 }
 
 // nearestMatch returns the nearest living entity within range that satisfies

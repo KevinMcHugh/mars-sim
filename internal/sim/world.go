@@ -90,6 +90,15 @@ type World struct {
 	terrainCounts [numTerrains]int
 	kindCounts    [numKinds]int
 
+	// kindEntities[k] holds the ID of every living entity of kind k. Kept in
+	// step by spawn/remove so a global "nearest of this kind, anywhere" search
+	// (see nearestOfKindAnywhere) can scan the handful of matching entities
+	// directly instead of nearestMatch's chunk-ring expansion, which is only
+	// cheap when the answer is nearby — an unbounded search (a cat with no
+	// mouse left nearby, say) forces it to visit every chunk on the map to
+	// confirm nothing closer exists.
+	kindEntities [numKinds]map[EntityID]struct{}
+
 	// facilityTiles[t] holds every tile currently of terrain t, for the handful
 	// of terrain kinds that back a need (NutrientPod, Toilet, Bed). Kept in step
 	// by SetTerrain so chooseFacility and facilitySeed can visit just those
@@ -207,6 +216,10 @@ func newWorld(cfg Config, rng *rand.Rand) *World {
 		cfg:              cfg,
 	}
 	w.terrainCounts[Rock] = n // every tile starts as Rock
+
+	for k := Kind(0); k < numKinds; k++ {
+		w.kindEntities[k] = make(map[EntityID]struct{})
+	}
 
 	w.facilityDist = make([]int32, n)
 	w.facilityDistGen = make([]int32, n)
@@ -384,6 +397,7 @@ func (w *World) spawn(kind Kind, p Point) *Entity {
 	w.entities[e.ID] = e
 	w.occ[w.index(p)] = e.ID
 	w.kindCounts[kind]++
+	w.kindEntities[kind][e.ID] = struct{}{}
 	ci := w.chunkIndexOf(p)
 	w.chunkEntities[ci] = append(w.chunkEntities[ci], e.ID)
 	return e
@@ -397,6 +411,7 @@ func (w *World) remove(id EntityID) {
 	}
 	w.occ[w.index(e.Pos)] = 0
 	w.kindCounts[e.Kind]--
+	delete(w.kindEntities[e.Kind], id)
 	w.removeFromChunkIndex(w.chunkIndexOf(e.Pos), id)
 	if e.kin != 0 {
 		if kp := w.kin[e.kin]; kp != nil {
