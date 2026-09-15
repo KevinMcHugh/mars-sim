@@ -38,17 +38,15 @@ const (
 	glyphWomanSenior  = "\U0001F475" // 👵 senior woman colonist
 	glyphPersonSenior = "\U0001F9D3" // 🧓 senior non-binary colonist
 
-	zwj = "‍" // joins skin tone / hair components onto a base glyph
-
-	skinToneLight       = "\U0001F3FB" // 🏻
-	skinToneMediumLight = "\U0001F3FC" // 🏼
-	skinToneMedium      = "\U0001F3FD" // 🏽
-	skinToneMediumDark  = "\U0001F3FE" // 🏾
-	skinToneDark        = "\U0001F3FF" // 🏿
-
-	hairRed   = "\U0001F9B0" // 🦰 red hair component
-	hairWhite = "\U0001F9B3" // 🦳 white hair component
-	hairBald  = "\U0001F9B2" // 🦲 bald component
+	// Skin tone modifiers and ZWJ-joined hair components were tried here too,
+	// composed onto the base glyph. Both were reverted: plenty of terminals
+	// don't fuse a modifier or a ZWJ sequence onto the preceding glyph — they
+	// print it as its own separate character (a skin tone modifier alone
+	// renders as a plain colored square) — which desyncs the terminal's real
+	// column count from what our width math (and thus Bubble Tea's frame
+	// redraw) assumes, corrupting the whole panel. So skin tone and hair color
+	// are flavor text only (see renderColonistDetail) and never enter the
+	// glyph.
 )
 
 // seniorAge is the age at which a colonist's default glyph switches from an
@@ -67,72 +65,30 @@ var fittedGlyphs = func() map[string]string {
 	return out
 }()
 
-// colonistGlyph composes the default map glyph for a colonist at rest: a base
-// figure for their gender identity and age bracket, an emoji skin tone
-// modifier, and — for adults only, since emoji defines no senior+hair
-// sequences — a hair component where their hair color has one (red, white, or
-// bald; black/brown/blonde render as the plain base). A colonist without a
+// colonistGlyph picks the default map glyph for a colonist at rest: a base
+// figure for their gender identity and age bracket. A colonist without a
 // profile falls back to glyphColonist.
 func colonistGlyph(p *sim.Profile) string {
 	if p == nil {
 		return glyphColonist
 	}
 	senior := p.Age >= seniorAge
-	var base string
 	switch p.Gender {
 	case sim.GenderMan:
 		if senior {
-			base = glyphManSenior
-		} else {
-			base = glyphManAdult
+			return glyphManSenior
 		}
+		return glyphManAdult
 	case sim.GenderWoman:
 		if senior {
-			base = glyphWomanSenior
-		} else {
-			base = glyphWomanAdult
+			return glyphWomanSenior
 		}
+		return glyphWomanAdult
 	default:
 		if senior {
-			base = glyphPersonSenior
-		} else {
-			base = glyphPersonAdult
+			return glyphPersonSenior
 		}
-	}
-	glyph := base + skinToneModifier(p.SkinTone)
-	if !senior {
-		glyph += hairSuffix(p.HairColor)
-	}
-	return glyph
-}
-
-func skinToneModifier(s sim.SkinTone) string {
-	switch s {
-	case sim.SkinLight:
-		return skinToneLight
-	case sim.SkinMediumLight:
-		return skinToneMediumLight
-	case sim.SkinMediumDark:
-		return skinToneMediumDark
-	case sim.SkinDark:
-		return skinToneDark
-	default:
-		return skinToneMedium
-	}
-}
-
-// hairSuffix returns the ZWJ + hair component for hair colors emoji defines
-// one for, or "" for colors that render as the plain base glyph.
-func hairSuffix(h sim.HairColor) string {
-	switch h {
-	case sim.HairRed:
-		return zwj + hairRed
-	case sim.HairWhite:
-		return zwj + hairWhite
-	case sim.HairBald:
-		return zwj + hairBald
-	default:
-		return ""
+		return glyphPersonAdult
 	}
 }
 

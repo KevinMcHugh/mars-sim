@@ -1,5 +1,7 @@
 package sim
 
+import "fmt"
+
 // Kind identifies what an entity fundamentally is. Behavior is dispatched on
 // Kind by the per-tick systems.
 type Kind uint8
@@ -251,6 +253,15 @@ func newEntity(id EntityID, kind Kind, p Point, cfg Config) *Entity {
 
 // Alive reports whether the entity still has hit points.
 func (e *Entity) Alive() bool { return e.HP > 0 }
+
+// displayName is the colonist's name for player-facing text (logs, memories),
+// or a numbered fallback if it has no profile.
+func (e *Entity) displayName() string {
+	if e.Profile != nil && e.Profile.Name != "" {
+		return e.Profile.Name
+	}
+	return fmt.Sprintf("colonist #%d", e.ID)
+}
 
 // clearPath discards any cached navigation route.
 func (e *Entity) clearPath() {
