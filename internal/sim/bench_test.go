@@ -169,3 +169,22 @@ func BenchmarkStepSmallColonyOnHugeMap10000(b *testing.B) {
 		w.step()
 	}
 }
+
+// BenchmarkFindRoomSiteNoFit models planRooms' routine "no site available yet"
+// case on a huge, mostly-untouched map: a normal-sized room that just doesn't
+// currently fit anywhere in the small starting chamber (every side-wall lane
+// already claimed). Before capping the search radius to the carved area,
+// failing to find a site forced the box search to double all the way out to
+// the full map before giving up — the "every 16 ticks" pause.
+func BenchmarkFindRoomSiteNoFit(b *testing.B) {
+	w := benchWorldSmallColony(10000, 12, 0) // chamber too small for any room this wide
+	width := bayWidth(roomFacilities)
+	if _, ok := w.findRoomSite(width); ok {
+		b.Fatal("expected no site to fit; benchmark no longer exercises the no-fit path")
+	}
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		w.findRoomSite(width)
+	}
+}

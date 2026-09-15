@@ -437,6 +437,38 @@ func (w *World) findRoomSite(width int) (Point, bool) {
 // searches around the map center, in tiles.
 const roomSearchStartRadius = 64
 
+// roomSearchMaxRadius bounds how far findRoomSiteAllowingRock's box search
+// grows around the map center when nothing has been carved yet (so
+// carvedSearchRadius has no box to measure). Comfortably covers a starting
+// chamber without ever approaching a huge map's full extent.
+const roomSearchMaxRadius = roomSearchStartRadius * 4
+
+// carvedSearchRadius returns the largest radius findRoomSiteAllowingRock could
+// ever need to try around center: past this, the box already contains every
+// tile that has ever been carved out of Rock, plus a margin for a room's side
+// walls and lanes, and roomSiteClear requires a site's side walls to already
+// be Floor or Wall — so no valid site can lie any further out, on a map of
+// any size. Without this cap, failing to find a site (routine — e.g. no
+// perimeter is ready yet for the next room) would double the search box all
+// the way out to the full map before giving up.
+func (w *World) carvedSearchRadius(center Point, width int) int {
+	if !w.carvedAny {
+		return roomSearchMaxRadius
+	}
+	margin := width + 2
+	corners := [4]Point{
+		{w.carvedMin.X - margin, w.carvedMin.Y - margin},
+		{w.carvedMin.X - margin, w.carvedMax.Y + margin},
+		{w.carvedMax.X + margin, w.carvedMin.Y - margin},
+		{w.carvedMax.X + margin, w.carvedMax.Y + margin},
+	}
+	r := roomSearchStartRadius
+	for _, c := range corners {
+		r = max(r, center.Chebyshev(c))
+	}
+	return r
+}
+
 func (w *World) findRoomSiteAllowingRock(width int, allowRock bool) (Point, bool) {
 	designated := make(map[Point]bool)
 	for _, p := range w.projects {
@@ -460,8 +492,11 @@ func (w *World) findRoomSiteAllowingRock(width int, allowRock bool) (Point, bool
 	// guaranteed to be the true nearest overall (nothing closer was skipped),
 	// so this returns exactly what a full scan would, but pays only for the
 	// area actually searched — flat cost near the colony instead of O(map
-	// area) on a huge, mostly empty map.
-	for radius := roomSearchStartRadius; ; radius *= 2 {
+	// area) on a huge, mostly empty map. maxRadius caps that growth at the
+	// carved area's own extent, so the "no site fits yet" case — the common
+	// one — also stays cheap instead of expanding to the full map.
+	maxRadius := w.carvedSearchRadius(center, width)
+	for radius := min(roomSearchStartRadius, maxRadius); ; radius = min(radius*2, maxRadius) {
 		boxOxLo, boxOxHi := max(oxLo, center.X-radius), min(oxHi, center.X+radius)
 		boxOyLo, boxOyHi := max(oyLo, center.Y-radius), min(oyHi, center.Y+radius)
 
@@ -482,8 +517,10 @@ func (w *World) findRoomSiteAllowingRock(width int, allowRock bool) (Point, bool
 		if found {
 			return best, true
 		}
-		if boxOxLo <= oxLo && boxOxHi >= oxHi && boxOyLo <= oyLo && boxOyHi >= oyHi {
-			return Point{}, false // already covered the whole valid domain
+		atCap := radius >= maxRadius
+		fullDomain := boxOxLo <= oxLo && boxOxHi >= oxHi && boxOyLo <= oyLo && boxOyHi >= oyHi
+		if atCap || fullDomain {
+			return Point{}, false // no site can exist any further out
 		}
 	}
 }

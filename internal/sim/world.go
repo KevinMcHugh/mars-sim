@@ -98,6 +98,17 @@ type World struct {
 	// nil for untracked terrain kinds (Rock, Floor, Wall).
 	facilityTiles [numTerrains]map[Point]struct{}
 
+	// carvedAny/carvedMin/carvedMax track the bounding box of every tile that
+	// has ever been changed away from Rock. Terrain only ever moves Rock ->
+	// Floor -> Wall/facility in play, never back, so this box only grows; it
+	// is used to cap how far findRoomSiteAllowingRock's search radius needs to
+	// grow before it can conclude no site exists, without scanning the whole
+	// map. See roomSiteClear: a valid site's side walls must already be
+	// Floor or Wall, so no valid site can lie outside this box.
+	carvedAny bool
+	carvedMin Point
+	carvedMax Point
+
 	// Scratch for chooseFacility's per-call BFS, reused across calls via a
 	// generation stamp instead of reallocating (and zeroing) a Width*Height
 	// slice every time a colonist needs a facility. See flowField.seen/gen for
@@ -285,6 +296,15 @@ func (w *World) SetTerrain(p Point, t Terrain) {
 	}
 	if w.facilityTiles[t] != nil {
 		w.facilityTiles[t][p] = struct{}{}
+	}
+	if t != Rock {
+		if !w.carvedAny {
+			w.carvedAny = true
+			w.carvedMin, w.carvedMax = p, p
+		} else {
+			w.carvedMin.X, w.carvedMax.X = min(w.carvedMin.X, p.X), max(w.carvedMax.X, p.X)
+			w.carvedMin.Y, w.carvedMax.Y = min(w.carvedMin.Y, p.Y), max(w.carvedMax.Y, p.Y)
+		}
 	}
 	w.tiles[i].Terrain = t
 	w.dirtyChunks[w.chunkIndexOf(p)] = struct{}{}
