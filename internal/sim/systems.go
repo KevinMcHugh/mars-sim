@@ -495,8 +495,8 @@ func (w *World) jobTalk(e *Entity) {
 		e.Progress++
 		if e.Progress >= w.cfg.TalkTicks {
 			w.finishTalk(e, p)
-			w.remember(e, fmt.Sprintf("Had a conversation with colonist #%d.", p.ID))
-			w.remember(p, fmt.Sprintf("Had a conversation with colonist #%d.", e.ID))
+			w.remember(e, fmt.Sprintf("Had a conversation with %s.", p.displayName()))
+			w.remember(p, fmt.Sprintf("Had a conversation with %s.", e.displayName()))
 			w.resetNeed(e, NeedSocial)
 			w.resetNeed(p, NeedSocial)
 			w.clearJob(p)
@@ -1009,7 +1009,7 @@ func (w *World) bite(alien, prey *Entity) {
 	if prey.HP <= 0 {
 		alien.State = Feeding
 		w.remove(prey.ID)
-		w.log.add(fmt.Sprintf("An alien devours colonist #%d.", prey.ID))
+		w.log.add(fmt.Sprintf("An alien devours %s.", prey.displayName()))
 	} else {
 		alien.State = Hunting
 	}
