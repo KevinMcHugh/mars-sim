@@ -34,7 +34,7 @@ func TestColonistProfilePopulated(t *testing.T) {
 		if p.WeightKG < 30 || p.WeightKG > 250 {
 			t.Fatalf("implausible weight %d kg", p.WeightKG)
 		}
-		if p.Sex > SexIntersex || p.Gender > GenderNonbinary || p.Orientation > Asexual {
+		if p.Gender > GenderNonbinary || p.Orientation > Asexual {
 			t.Fatalf("attribute out of range: %+v", p)
 		}
 	}
@@ -189,7 +189,7 @@ func TestPersonalityDeterministic(t *testing.T) {
 		t.Fatalf("colonist count differs: %d != %d", len(a), len(b))
 	}
 	for i := range a {
-		if a[i].Name != b[i].Name || a[i].Sex != b[i].Sex || len(a[i].Traits) != len(b[i].Traits) {
+		if a[i].Name != b[i].Name || a[i].Gender != b[i].Gender || len(a[i].Traits) != len(b[i].Traits) {
 			t.Fatalf("personality nondeterministic at %d: %+v != %+v", i, a[i], b[i])
 		}
 	}

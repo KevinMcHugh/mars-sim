@@ -3,9 +3,9 @@ package sim
 import "math"
 
 // Personality gives colonists names, attributes, and traits. Attributes (age,
-// sex, gender, orientation, height, weight, skin tone, hair color) are
-// populated for flavor and future systems but nothing simulates against them
-// yet. Traits, in contrast, change
+// gender, orientation, height, weight, skin tone, hair color) are populated
+// for flavor and future systems but nothing simulates against them yet.
+// Traits, in contrast, change
 // how a colonist plays: they scale need rates and work behavior. As new needs
 // and systems arrive, new traits slot in over the same machinery.
 //
@@ -13,13 +13,13 @@ import "math"
 // adding flavor never shifts the simulation's own RNG — with traits disabled the
 // sim plays bit-for-bit as it did before personalities existed.
 
-// Sex is a colonist's biological sex.
+// Sex distinguishes male and female mice for breeding; colonists don't carry
+// a sex attribute, since biological sex isn't otherwise simulated.
 type Sex uint8
 
 const (
 	SexMale Sex = iota
 	SexFemale
-	SexIntersex
 )
 
 func (s Sex) String() string {
@@ -28,8 +28,6 @@ func (s Sex) String() string {
 		return "male"
 	case SexFemale:
 		return "female"
-	case SexIntersex:
-		return "intersex"
 	default:
 		return "unknown"
 	}
@@ -247,7 +245,6 @@ func (t Trait) String() string { return traitSpecs[t].Name }
 type Profile struct {
 	Age         int
 	Name        string
-	Sex         Sex
 	Gender      Gender
 	Orientation Orientation
 	HeightCM    int
@@ -284,10 +281,9 @@ func (p *Profile) HasTrait(t Trait) bool {
 func (w *World) assignPersonality(e *Entity) {
 	p := &Profile{}
 	p.Age = w.rollAge()
-	p.Sex = w.rollSex()
-	p.Gender = w.rollGender(p.Sex)
+	p.Gender = w.rollGender()
 	p.Orientation = w.rollOrientation()
-	p.HeightCM, p.WeightKG = w.rollBody(p.Sex)
+	p.HeightCM, p.WeightKG = w.rollBody(p.Gender)
 	p.SkinTone = w.rollSkinTone()
 	p.HairColor = w.rollHairColor(p.Age)
 	p.Name = w.rollName(p.Gender)
@@ -378,32 +374,15 @@ func traitsInGroup(g traitGroup) []Trait {
 	return out
 }
 
-func (w *World) rollSex() Sex {
+// rollGender picks a gender identity: mostly binary, occasionally non-binary.
+func (w *World) rollGender() Gender {
 	switch r := w.prng.Intn(100); {
-	case r < 49:
-		return SexMale
-	case r < 98:
-		return SexFemale
-	default:
-		return SexIntersex
-	}
-}
-
-// rollGender picks a gender identity, usually but not always aligned with sex.
-func (w *World) rollGender(s Sex) Gender {
-	switch r := w.prng.Intn(100); {
-	case r < 90:
-		if s == SexFemale {
-			return GenderWoman
-		}
+	case r < 47:
 		return GenderMan
-	case r < 96:
-		return GenderNonbinary
-	default: // occasionally identifies as the other binary gender
-		if s == SexFemale {
-			return GenderMan
-		}
+	case r < 94:
 		return GenderWoman
+	default:
+		return GenderNonbinary
 	}
 }
 
@@ -421,13 +400,13 @@ func (w *World) rollOrientation() Orientation {
 }
 
 // rollBody generates a plausible height (cm) and weight (kg), loosely correlated
-// with sex and with each other through a body-mass index.
-func (w *World) rollBody(s Sex) (heightCM, weightKG int) {
+// with gender and with each other through a body-mass index.
+func (w *World) rollBody(g Gender) (heightCM, weightKG int) {
 	meanH, sdH := 178.0, 7.0
-	switch s {
-	case SexFemale:
+	switch g {
+	case GenderWoman:
 		meanH, sdH = 165.0, 6.5
-	case SexIntersex:
+	case GenderNonbinary:
 		meanH, sdH = 172.0, 8.0
 	}
 	h := int(math.Round(meanH + w.prng.NormFloat64()*sdH))

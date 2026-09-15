@@ -158,7 +158,7 @@ func (m Model) renderColonistDetail(c sim.EntityView, rows, width int) string {
 	}
 
 	b.WriteString(titleStyle.Render(fitGlyph(colonistGlyph(p))+" "+p.Name) + "\n")
-	b.WriteString(statStyle.Render(fmt.Sprintf("%s · %s · %s", p.Gender, p.Sex, p.Orientation)) + "\n")
+	b.WriteString(statStyle.Render(fmt.Sprintf("%s · %s", p.Gender.Pronouns(), p.Orientation)) + "\n")
 	b.WriteString(statStyle.Render(fmt.Sprintf("age %d · %d cm · %d kg", p.Age, p.HeightCM, p.WeightKG)) + "\n")
 	b.WriteString(statStyle.Render(fmt.Sprintf("%s skin · %s hair", p.SkinTone, p.HairColor)) + "\n\n")
 
