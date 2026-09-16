@@ -11,6 +11,8 @@ type Config struct {
 	// Rock composition percentages. The remainder is ordinary rock.
 	IronRockPercent int
 	IceRockPercent  int
+	RockVeinMin     int // minimum tiles in a generated deposit vein
+	RockVeinMax     int // maximum tiles in a generated deposit vein
 
 	// Seed makes a run reproducible. Same seed + same code => same game.
 	Seed int64
@@ -160,6 +162,8 @@ func DefaultConfig() Config {
 		Height:              40,
 		IronRockPercent:     10,
 		IceRockPercent:      5,
+		RockVeinMin:         8,
+		RockVeinMax:         24,
 		Seed:                time.Now().UnixNano(),
 		StartColonists:      6,
 		StartAliens:         3,

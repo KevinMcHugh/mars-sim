@@ -97,6 +97,8 @@ func bindConfigFlags(cfg *sim.Config) {
 	flag.IntVar(&cfg.Height, "height", cfg.Height, "world height in tiles")
 	flag.IntVar(&cfg.IronRockPercent, "iron-rock-percent", cfg.IronRockPercent, "percent of rock tiles bearing iron")
 	flag.IntVar(&cfg.IceRockPercent, "ice-rock-percent", cfg.IceRockPercent, "percent of rock tiles bearing water ice")
+	flag.IntVar(&cfg.RockVeinMin, "rock-vein-min", cfg.RockVeinMin, "minimum tiles in a generated rock deposit vein")
+	flag.IntVar(&cfg.RockVeinMax, "rock-vein-max", cfg.RockVeinMax, "maximum tiles in a generated rock deposit vein")
 
 	// Starting population.
 	flag.IntVar(&cfg.StartColonists, "colonists", cfg.StartColonists, "starting number of colonists")
@@ -180,6 +182,8 @@ func validateConfig(cfg sim.Config) error {
 		cfg.IronRockPercent+cfg.IceRockPercent > 100:
 		return fmt.Errorf("rock composition percentages must be non-negative and total at most 100 (got iron %d + ice %d)",
 			cfg.IronRockPercent, cfg.IceRockPercent)
+	case cfg.RockVeinMin < 1 || cfg.RockVeinMax < cfg.RockVeinMin:
+		return fmt.Errorf("rock vein range is invalid: min %d, max %d", cfg.RockVeinMin, cfg.RockVeinMax)
 	case cfg.StartColonists < 0 || cfg.StartAliens < 0 || cfg.StartCats < 0 || cfg.StartMice < 0:
 		return fmt.Errorf("population counts cannot be negative")
 	case cfg.StartPistols < 0 || cfg.StartShotguns < 0:

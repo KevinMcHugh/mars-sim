@@ -34,8 +34,8 @@ time-based seed each run"; any non-zero seed makes the run reproducible.
 
 `validateConfig` rejects settings that would break world generation or the
 renderer (too-small world, negative populations, rock composition percentages
-whose sum exceeds 100, sub-1 rates) with a message a player can act on, before
-the engine is built.
+whose sum exceeds 100, an invalid rock-vein size range, sub-1 rates) with a
+message a player can act on, before the engine is built.
 
 `tickInterval` converts `TicksPerSecond` into a sleep duration, clamped to
 [1, 60].

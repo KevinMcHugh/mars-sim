@@ -64,9 +64,10 @@ go stale.
 
 `generate` (called once by `NewEngine`):
 
-1. Assigns rock composition using a dedicated RNG derived from the simulation
-   seed. The configurable iron and ice percentages default to 10% and 5%; the
-   remainder is ordinary rock.
+1. Grows iron and water-ice deposits as meandering, occasionally branching veins using a
+   dedicated RNG derived from the simulation seed. The configurable iron and ice
+   percentages default to 10% and 5%; the remainder is ordinary rock. Veins
+   default to 8–24 orthogonally connected tiles.
 2. Carves an **oval cavern** at the map center. `caveRadii` sizes it to the
    starting colonist count (~10 tiles per colonist) at a 2:1 width:height ratio,
    clamped to the map.
@@ -98,6 +99,10 @@ and it always finds a match if one exists.
 - **Composition has a separate seed-derived RNG stream** so generating deposits
   remains reproducible without shifting colonist placement, alien placement, or
   every later decision on the main simulation stream.
+- **Deposits grow as branching random walks** rather than rolling each tile
+  independently. This produces narrow, irregular veins, keeps each generated
+  vein connected, and makes finding one deposit useful information about nearby
+  tiles, while still meeting the configured map-wide abundance target exactly.
 - **Shuffle-and-draw placement** guarantees the requested population actually
   spawns, which matters for reproducible, comparable runs.
 
@@ -110,6 +115,9 @@ and it always finds a match if one exists.
 - **A new rock composition**: add a `RockComposition`, its world-generation
   weighting, mining yield, and TUI glyph. Leave it out of `Terrain` unless it
   actually changes movement or construction rules.
+- **Different deposit shapes**: adjust `RockVeinMin` / `RockVeinMax` for coarse
+  clustering. Change `growRockVeins` only when the topology itself should change;
+  doing so intentionally changes generated maps for existing seeds.
 - **Multiple levels (z-layers)** are the big planned extension; the region and
   flow-field machinery were built to extend into it. This is not implemented yet.
 
