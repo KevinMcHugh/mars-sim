@@ -16,6 +16,7 @@ performance results they produced.
 - [`internal/sim/chunks.go`](../internal/sim/chunks.go) — the chunk entity index.
 - [`internal/sim/jobboard.go`](../internal/sim/jobboard.go) — the mining frontier and in-progress build counts.
 - [`internal/sim/events.go`](../internal/sim/events.go) — the bus these systems react to.
+- [`internal/sim/tilegrid.go`](../internal/sim/tilegrid.go) — the page-shared grid published in each `Snapshot`.
 - [`internal/sim/rooms.go`](../internal/sim/rooms.go), [`flowfield.go`](../internal/sim/flowfield.go), [`path.go`](../internal/sim/path.go) — covered in [pathfinding.md](./pathfinding.md).
 - [`internal/sim/bench_test.go`](../internal/sim/bench_test.go) — `BenchmarkStep`.
 
@@ -57,6 +58,16 @@ also keeps O(1) counts of builds in progress per terrain (`startBuild`/`endBuild
 Claiming or releasing a frontier tile marks the frontier flow field stale, so
 other miners route around a claimed rock.
 
+### Publishing a frame
+
+The same rule governs the engine's output: a `Snapshot` does not re-copy the map.
+`Snapshot.Tiles` is an immutable page-shared grid that re-copies only the pages
+a tick actually changed, and the terrain totals in `Stats` are read off
+`terrainCounts` rather than counted by walking the grid. Before that, publishing
+was the *entire* per-tick cost of a large map — 79 ms and 49 MB a frame at
+7000x7000, against 16 µs for the tick itself — and it scaled with the map's area
+rather than the colony. See [snapshot-tile-grid.md](./snapshot-tile-grid.md).
+
 ### The reactive backbone
 
 All of this hangs off the synchronous event bus (see
@@ -84,6 +95,15 @@ Cumulative effect of the reactive work on a 2000-colonist stress tick:
 | + chunk index, rooms, board | ~43 |
 | + lazy needs & resting AI | ~13 |
 
+Map size is the other axis, and it used to be the one that bit: with the colony
+held fixed, a fresh 6-colonist game published one frame per tick and paid for the
+whole grid every time.
+
+| Map | Per published frame, before | After |
+| --- | --- | --- |
+| 5000x5000 | 41 ms, 25 MB | 33 µs, 19 KB |
+| 7000x7000 | 79 ms, 49 MB | 34 µs, 28 KB |
+
 Lazy needs and the resting AI (see [needs.md](./needs.md)) matter here too: a
 colonist's needs are computed on read, so an idle colonist rests instead of
 re-scanning the map every tick. Flow fields and HPA\* (see
@@ -101,6 +121,7 @@ re-scanning the map every tick. Flow fields and HPA\* (see
 ## Related
 
 - [architecture.md](./architecture.md) — the event bus and the ownership model.
+- [snapshot-tile-grid.md](./snapshot-tile-grid.md) — why publishing a frame no longer copies the map.
 - [pathfinding.md](./pathfinding.md) — chunks, regions/rooms, and flow fields.
 - [needs.md](./needs.md) — lazy needs and the resting AI.
 - [world.md](./world.md) — `SetTerrain` and the grid these indexes shadow.

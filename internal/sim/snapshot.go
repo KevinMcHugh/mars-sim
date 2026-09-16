@@ -96,13 +96,19 @@ type Stats struct {
 }
 
 // Snapshot is an immutable, self-contained picture of the world at one tick.
-// It is a deep copy: the Engine keeps mutating the real world after handing a
-// Snapshot to frontends, so nothing here aliases live state.
+// The Engine keeps mutating the real world after handing a Snapshot to
+// frontends, so nothing here aliases live state: everything colony-sized is
+// copied outright, and the terrain is a page-shared grid whose pages are copied
+// before they can change (see tilegrid.go). Either way a frame is safe to read
+// on another goroutine for as long as it is held.
 type Snapshot struct {
-	Tick      int
-	Width     int
-	Height    int
-	Tiles     []Tile // row-major copy, len == Width*Height
+	Tick   int
+	Width  int
+	Height int
+	// Tiles is the terrain, as an immutable page-shared grid rather than a
+	// per-frame copy of the map — read it with TerrainAt (or Tiles.At). See
+	// tilegrid.go for why it is not a plain slice.
+	Tiles     *TileGrid
 	Entities  []EntityView
 	Log       []string
 	Stats     Stats
@@ -121,34 +127,30 @@ type Snapshot struct {
 	TicksPerSecond int
 }
 
-// TerrainAt reads the copied grid; out-of-bounds reads return Rock so callers
+// TerrainAt reads the published grid; out-of-bounds reads return Rock so callers
 // (the renderer) can treat the world edge as solid.
 func (s *Snapshot) TerrainAt(p Point) Terrain {
 	if p.X < 0 || p.X >= s.Width || p.Y < 0 || p.Y >= s.Height {
 		return Rock
 	}
-	return s.Tiles[p.Y*s.Width+p.X].Terrain
+	return s.Tiles.TerrainAt(p)
 }
 
-// snapshot builds an immutable copy of the world's current state.
+// snapshot builds an immutable view of the world's current state.
 func (w *World) snapshot(paused bool, tps int) *Snapshot {
-	tiles := make([]Tile, len(w.tiles))
-	copy(tiles, w.tiles)
+	tiles := w.publishedTiles()
 
 	ents := make([]EntityView, 0, len(w.entities))
 	kinChildren := w.cachedKinChildren()
-	stats := Stats{Rooms: w.roomCount}
-	for _, t := range tiles {
-		switch t.Terrain {
-		case Floor:
-			stats.FloorDug++
-		case NutrientPod:
-			stats.Pods++
-		case Toilet:
-			stats.Toilets++
-		case Bed:
-			stats.Beds++
-		}
+	// Terrain totals come from the incremental counts SetTerrain maintains;
+	// counting them by walking the grid would put the map's whole area back on
+	// every tick, which is exactly what the shared grid above avoids.
+	stats := Stats{
+		Rooms:    w.roomCount,
+		FloorDug: w.terrainCounts[Floor],
+		Pods:     w.terrainCounts[NutrientPod],
+		Toilets:  w.terrainCounts[Toilet],
+		Beds:     w.terrainCounts[Bed],
 	}
 	for _, e := range w.entities {
 		ev := EntityView{
