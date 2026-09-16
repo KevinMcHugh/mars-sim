@@ -244,6 +244,10 @@ func (w *World) colonistTurn(e *Entity) {
 	w.runJob(e)
 }
 
+// observeNearby records the first sighting of each nearby creature (edge-
+// triggered on e.seen, so a colonist fleeing for many ticks remembers one
+// encounter, not one memory per tick) and, via observeGore, the first sight
+// of gore in the same visit.
 func (w *World) observeNearby(e *Entity) {
 	visible := make(map[EntityID]bool)
 	for _, id := range w.entityIDsSorted() {
@@ -251,8 +255,8 @@ func (w *World) observeNearby(e *Entity) {
 		if other == e || !other.Alive() {
 			continue
 		}
-		radius := 0
-		switch other.Kind {
+		kind, radius := other.Kind, 0
+		switch kind {
 		case Alien:
 			radius = w.cfg.FleeRadius
 		case Mouse:
@@ -260,14 +264,45 @@ func (w *World) observeNearby(e *Entity) {
 		default:
 			continue
 		}
-		if e.Pos.Chebyshev(other.Pos) <= radius {
-			visible[other.ID] = true
-			if !e.seen[other.ID] {
-				w.remember(e, fmt.Sprintf("Saw %s #%d.", other.Kind, other.ID))
+		if e.Pos.Chebyshev(other.Pos) > radius {
+			continue
+		}
+		visible[other.ID] = true
+		if e.seen[other.ID] {
+			continue
+		}
+		evtKind := EvtSawMouse
+		if kind == Alien {
+			evtKind = EvtSawAlien
+		}
+		w.remember(e, event(evtKind, "Saw %s #%d.", kind, other.ID))
+	}
+	e.seen = visible
+
+	w.observeGore(e)
+}
+
+// observeGore is observeNearby's counterpart for the environment rather than
+// other entities. Unlike e.seen it is a single edge-triggering flag, not a
+// per-tile map: "in sight of gore" is one memory-worthy fact whether it's one
+// stained tile or a whole battlefield, not one memory per tile.
+func (w *World) observeGore(e *Entity) {
+	seeing := false
+	r := w.cfg.GoreSightRadius
+outer:
+	for y := -r; y <= r; y++ {
+		for x := -r; x <= r; x++ {
+			p := e.Pos.Add(x, y)
+			if w.InBounds(p) && w.tiles[w.index(p)].Gore > 0 {
+				seeing = true
+				break outer
 			}
 		}
 	}
-	e.seen = visible
+	if seeing && !e.seeingGore {
+		w.remember(e, event(EvtSawGore, "Saw the aftermath of violence nearby."))
+	}
+	e.seeingGore = seeing
 }
 
 // stompNearbyMouse lets a colonist with nothing pressing to do chase down and
@@ -301,9 +336,9 @@ func (w *World) stomp(colonist, mouse *Entity) {
 	witnesses := w.colonistsWithin(mouse.Pos, w.cfg.ColonistStompRadius, colonist.ID)
 	w.addGore(mouse.Pos)
 	w.remove(mouse.ID, fmt.Sprintf("crushed by %s", colonist.displayName()))
-	w.remember(colonist, fmt.Sprintf("Crushed mouse #%d.", mouse.ID))
+	w.remember(colonist, event(EvtCrushedMouse, "Crushed mouse #%d.", mouse.ID))
 	for _, wit := range witnesses {
-		w.remember(wit, fmt.Sprintf("Watched a colonist crush mouse #%d.", mouse.ID))
+		w.remember(wit, event(EvtWitnessedMouseCrushed, "Watched a colonist crush mouse #%d.", mouse.ID))
 	}
 	w.log.add(fmt.Sprintf("Colonist #%d stomps mouse #%d.", colonist.ID, mouse.ID))
 }
@@ -564,8 +599,8 @@ func (w *World) jobTalk(e *Entity) {
 		e.Progress++
 		if e.Progress >= w.cfg.TalkTicks {
 			w.finishTalk(e, p)
-			w.remember(e, fmt.Sprintf("Had a conversation with %s.", p.displayName()))
-			w.remember(p, fmt.Sprintf("Had a conversation with %s.", e.displayName()))
+			w.remember(e, event(EvtConversation, "Had a conversation with %s.", p.displayName()))
+			w.remember(p, event(EvtConversation, "Had a conversation with %s.", e.displayName()))
 			w.resetNeed(e, NeedSocial)
 			w.resetNeed(p, NeedSocial)
 			w.clearJob(p)
@@ -657,7 +692,7 @@ func (w *World) jobMine(e *Entity) {
 					return
 				}
 				w.SetTerrain(e.Target, Floor) // TileChanged drops it from the frontier
-				w.remember(e, fmt.Sprintf("Finished mining at (%d, %d).", e.Target.X, e.Target.Y))
+				w.remember(e, event(EvtFinishedMining, "Finished mining at (%d, %d).", e.Target.X, e.Target.Y))
 				w.clearJob(e)
 			}
 			return
@@ -740,13 +775,13 @@ func (w *World) jobBuild(e *Entity) {
 			return
 		}
 		w.SetTerrain(e.Target, Floor)
-		w.remember(e, fmt.Sprintf("Cleared rock for a room at (%d, %d).", e.Target.X, e.Target.Y))
+		w.remember(e, event(EvtClearedRock, "Cleared rock for a room at (%d, %d).", e.Target.X, e.Target.Y))
 		w.clearJob(e)
 		return
 	}
 	w.SetTerrain(e.Target, e.BuildKind)
 	w.noteBuild(e.BuildKind)
-	w.remember(e, fmt.Sprintf("Finished construction of %s at (%d, %d).",
+	w.remember(e, event(EvtFinishedConstruction, "Finished construction of %s at (%d, %d).",
 		e.BuildKind, e.Target.X, e.Target.Y))
 	w.clearJob(e) // endBuild decrements the in-progress counter
 }
@@ -987,13 +1022,13 @@ func (w *World) finishUse(e *Entity, spec NeedSpec) {
 	w.resetNeed(e, e.Need)
 	switch e.Need {
 	case NeedFood:
-		w.remember(e, "Had a meal.")
+		w.remember(e, event(EvtAte, "Had a meal."))
 	case NeedBladder:
-		w.remember(e, "Used the toilet.")
+		w.remember(e, event(EvtUsedToilet, "Used the toilet."))
 	case NeedSleep:
-		w.remember(e, "Slept in a bed.")
+		w.remember(e, event(EvtSlept, "Slept in a bed."))
 	default:
-		w.remember(e, fmt.Sprintf("Satisfied %s.", spec.Name))
+		w.remember(e, event(EvtNeedSatisfied, "Satisfied %s.", spec.Name))
 	}
 	w.clearJob(e)
 }
@@ -1166,13 +1201,13 @@ func (w *World) bite(alien, prey *Entity) {
 		w.remove(prey.ID, "devoured by an alien")
 		w.log.add(fmt.Sprintf("An alien devours %s.", name))
 		for _, wit := range witnesses {
-			w.remember(wit, fmt.Sprintf("Watched an alien kill %s.", name))
+			w.remember(wit, event(EvtWitnessedColonistKilled, "Watched an alien kill %s.", name))
 		}
 	} else {
 		alien.State = Hunting
-		w.remember(prey, fmt.Sprintf("Bitten in the %s by an alien!", part))
+		w.remember(prey, event(EvtBitten, "Bitten in the %s by an alien!", part))
 		for _, wit := range witnesses {
-			w.remember(wit, fmt.Sprintf("Watched an alien attack %s.", prey.displayName()))
+			w.remember(wit, event(EvtWitnessedColonistAttacked, "Watched an alien attack %s.", prey.displayName()))
 		}
 	}
 }
@@ -1218,7 +1253,7 @@ func (w *World) catTurn(e *Entity) {
 func (w *World) pounce(cat, prey *Entity) {
 	cat.State = Feeding
 	for _, wit := range w.colonistsWithin(prey.Pos, w.cfg.ColonistStompRadius, 0) {
-		w.remember(wit, fmt.Sprintf("Watched a cat catch mouse #%d.", prey.ID))
+		w.remember(wit, event(EvtWitnessedCatCatch, "Watched a cat catch mouse #%d.", prey.ID))
 	}
 	w.remove(prey.ID, "caught by a cat")
 	w.log.add(fmt.Sprintf("A cat catches mouse #%d.", prey.ID))

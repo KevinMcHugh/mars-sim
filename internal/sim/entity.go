@@ -199,10 +199,13 @@ type EntityID uint64
 
 // Memory is a notable event remembered by a colonist. Memories are exposed in
 // chronological order through snapshots; routine movement and idling are
-// deliberately not recorded.
+// deliberately not recorded. Kind is the LifeEventKind that produced it (see
+// lifeevents.go) — carried along for any future filtering/UI, alongside the
+// player-facing Text that is what actually gets displayed.
 type Memory struct {
 	Tick int
 	Text string
+	Kind LifeEventKind
 }
 
 // Entity is a single actor in the world. Rather than a strict ECS, we use one
@@ -258,14 +261,19 @@ type Entity struct {
 	relationRevision uint64
 
 	// mood is the colonist's disposition in [-MoodMax, MoodMax], 0 neutral
-	// (colonists only). Tasks such as conversations shift it; nothing simulates
-	// against it yet. See relationships.go.
+	// (colonists only). Conversations shift it, and so does every mood-bearing
+	// LifeEvent remembered (see lifeevents.go and relationships.go).
 	mood int
 
 	// Memories is a bounded history of notable experiences. The internal slice
 	// is copied into EntityView so frontends cannot mutate the live world.
 	Memories []Memory
 	seen     map[EntityID]bool // nearby creatures already recorded as seen
+	// seeingGore edge-triggers EvtSawGore the same way seen does for entities,
+	// but as a single on/off flag rather than a per-tile map: "in sight of any
+	// gore" is one memory-worthy fact, not one per stained tile (see
+	// observeGore in systems.go).
+	seeingGore bool
 
 	// Social conversation fatigue is counted within a rolling social window.
 	socialTalkCount   int

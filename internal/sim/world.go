@@ -4,15 +4,20 @@ import "math/rand"
 
 const maxColonistMemories = 64
 
-// remember adds a notable experience, retaining the most recent memories.
-func (w *World) remember(e *Entity, text string) {
+// remember adds a notable experience, retaining the most recent memories, and
+// applies any mood effect the LifeEvent declares (see lifeevents.go). Every
+// notable thing that happens to or near a colonist should be built with
+// event() and land here, so mood and memory can never drift apart — one
+// funnel, the same way remove() is the one funnel for deaths.
+func (w *World) remember(e *Entity, evt LifeEvent) {
 	if e == nil || e.Kind != Colonist {
 		return
 	}
-	e.Memories = append(e.Memories, Memory{Tick: w.tick, Text: text})
+	e.Memories = append(e.Memories, Memory{Tick: w.tick, Text: evt.Text, Kind: evt.Kind})
 	if len(e.Memories) > maxColonistMemories {
 		e.Memories = e.Memories[len(e.Memories)-maxColonistMemories:]
 	}
+	w.applyMoodEffects(e, evt.Kind)
 }
 
 // Terrain is what fills a single tile. The world is a dense grid of tiles; as

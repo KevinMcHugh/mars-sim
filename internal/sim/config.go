@@ -43,6 +43,11 @@ type Config struct {
 	// crush it. Stomping is an idle whim: only colonists with nothing pressing
 	// (no threat, no urgent need, no work) hunt pests.
 	ColonistStompRadius int
+	// GoreSightRadius is how far a colonist notices gore on the ground (see
+	// observeGore in systems.go and EvtSawGore in lifeevents.go). Smaller than
+	// the creature-sighting radii: a bloodstain doesn't announce itself the way
+	// a moving alien does.
+	GoreSightRadius int
 
 	// Needs. One NeedSpec per NeedKind, indexed by that kind.
 	Needs                [numNeeds]NeedSpec
@@ -166,6 +171,7 @@ func DefaultConfig() Config {
 		FacilityBuildTicks:  12,
 		FleeRadius:          5,
 		ColonistStompRadius: 4,
+		GoreSightRadius:     3,
 
 		StarveDamage:          1,
 		ColonistsPerFacility:  5,

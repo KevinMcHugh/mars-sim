@@ -15,7 +15,7 @@ func TestRememberKeepsRecentMemories(t *testing.T) {
 
 	for i := 0; i < maxColonistMemories+3; i++ {
 		w.tick = i
-		w.remember(col, "event")
+		w.remember(col, event(EvtNeedSatisfied, "event"))
 	}
 	if got, want := len(col.Memories), maxColonistMemories; got != want {
 		t.Fatalf("memory count = %d, want %d", got, want)
@@ -120,7 +120,7 @@ func TestSnapshotCopiesMemories(t *testing.T) {
 	w := newWorld(cfg, rand.New(rand.NewSource(1)))
 	col := newEntity(1, Colonist, Point{}, cfg)
 	w.entities[col.ID] = col
-	w.remember(col, "a meal")
+	w.remember(col, event(EvtAte, "a meal"))
 
 	snap := w.snapshot(false, 1)
 	snap.Entities[0].Memories[0].Text = "mutated"

@@ -149,7 +149,10 @@ rather than the same kind of violence.
 `tileGlyph` (`glyphs.go`) draws the gore glyph in place of bare terrain when
 `Gore > 0`; `renderMap` (`view.go`) calls it via the new `Snapshot.TileAt`
 (alongside the existing `TerrainAt`) for any tile with no entity standing on
-it.
+it. Gore isn't just cosmetic to a colonist, either — coming within
+`Config.GoreSightRadius` of a gored tile is a `LifeEvent` (`EvtSawGore`) that
+drops mood, more so for a `TraitTidy` colonist; see
+[memories.md](./memories.md).
 
 ### The graveyard
 
@@ -266,5 +269,7 @@ this — the "dead" filter toggle and the per-entry cause of death.
 - [configuration.md](./configuration.md) — how weapon/equipment tunables
   become CLI flags.
 - [needs.md](./needs.md) — starvation, the other thing that drains HP.
+- [memories.md](./memories.md) — the life events and mood effects that
+  bite/stomp/pounce/shoot and gore sightings feed.
 - [frontend-tui.md](./frontend-tui.md) — the fighting glyph, the gore glyph,
   and the roster's dead/non-human filter and wound line.
