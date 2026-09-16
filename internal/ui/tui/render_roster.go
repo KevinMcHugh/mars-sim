@@ -35,29 +35,63 @@ var (
 	kinStyle       = lipgloss.NewStyle().Foreground(lipgloss.Color("111"))
 )
 
-// colonists returns the latest frame's colonists sorted by ID, so the roster
-// order is stable frame to frame.
-func (m Model) colonists() []sim.EntityView {
+// rosterEntries returns the entities the roster currently shows, sorted by ID
+// so the order is stable frame to frame. Colonists are always eligible;
+// showNonHuman additionally admits aliens/cats/mice, and showDead further
+// admits frozen graveyard records (Snapshot.Graveyard), subject to the same
+// kind filter — a dead mouse only shows up once both filters are on. See
+// docs/combat.md.
+func (m Model) rosterEntries() []sim.EntityView {
 	if m.latest == nil {
 		return nil
 	}
+	include := func(kind sim.Kind) bool { return kind == sim.Colonist || m.showNonHuman }
 	cs := make([]sim.EntityView, 0, len(m.latest.Entities))
 	for _, e := range m.latest.Entities {
-		if e.Kind == sim.Colonist {
+		if include(e.Kind) {
 			cs = append(cs, e)
+		}
+	}
+	if m.showDead {
+		for _, e := range m.latest.Graveyard {
+			if include(e.Kind) {
+				cs = append(cs, e)
+			}
 		}
 	}
 	sort.Slice(cs, func(i, j int) bool { return cs[i].ID < cs[j].ID })
 	return cs
 }
 
+// rosterTitle labels the list panel with the current count and, if either
+// filter is on, which ones — so it's never a mystery why the list is longer
+// than "just colonists".
+func (m Model) rosterTitle(n int) string {
+	title := fmt.Sprintf("ROSTER (%d)", n)
+	var on []string
+	if m.showDead {
+		on = append(on, "dead")
+	}
+	if m.showNonHuman {
+		on = append(on, "non-human")
+	}
+	if len(on) > 0 {
+		title += " +" + strings.Join(on, " +")
+	}
+	return title
+}
+
 func (m Model) renderRoster() string {
 	header := m.renderHeader()
-	footer := m.footerLine("↑↓/jk select  s spawn  b build  tab jobs  esc map  space pause  q quit")
+	footer := m.footerLine("↑↓/jk select  f filter  s spawn  b build  tab jobs  esc map  space pause  q quit")
 
-	cs := m.colonists()
+	cs := m.rosterEntries()
 	if len(cs) == 0 {
-		return strings.Join([]string{header, "No colonists in the colony.", footer}, "\n")
+		empty := "No colonists in the colony."
+		if m.showDead || m.showNonHuman {
+			empty = "Nothing matches the current roster filter."
+		}
+		return strings.Join([]string{header, empty, footer}, "\n")
 	}
 	sel := clamp(m.selected, 0, len(cs)-1)
 
@@ -93,7 +127,7 @@ func (m Model) renderColonistList(cs []sim.EntityView, sel, rows, width int) str
 	}
 
 	var b strings.Builder
-	b.WriteString(labelStyle.Render(fmt.Sprintf("COLONISTS (%d)", len(cs))))
+	b.WriteString(labelStyle.Render(m.rosterTitle(len(cs))))
 	b.WriteByte('\n')
 	for i := start; i < end; i++ {
 		c := cs[i]
@@ -104,17 +138,30 @@ func (m Model) renderColonistList(cs []sim.EntityView, sel, rows, width int) str
 		if c.State == sim.Idle {
 			state = "idling"
 		}
+		infoLine := c.Kind.String() // overwritten below for a colonist with a profile
 		if c.Profile != nil {
 			pronouns = c.Profile.Gender.Pronouns()
 			if c.Profile.Age > 0 {
 				age = fmt.Sprintf("age %d", c.Profile.Age)
 			}
+			infoLine = fmt.Sprintf("%s · %s", pronouns, age)
+		}
+		if c.Dead {
+			state = "dead — " + c.Cause
 		}
 		// The glyph goes through fitGlyph here exactly as it does on the map.
 		// The roster used to draw the bare constant, so a glyph the terminal
-		// painted at an unexpected width shifted this column only.
-		nameLine := cells.Truncate(fitGlyph(colonistGlyph(c.Profile))+" "+name, inner-2)
-		infoLine := cells.Truncate(fmt.Sprintf("%s · %s", pronouns, age), inner-2)
+		// painted at an unexpected width shifted this column only. A
+		// colonist's roster glyph deliberately ignores its transient State
+		// (Fleeing, Fighting, ...) — the state line right below already says
+		// that — but a non-colonist has no such "at rest" glyph, so it just
+		// uses whatever entityGlyph draws for it.
+		glyph := colonistGlyph(c.Profile)
+		if c.Kind != sim.Colonist {
+			glyph = entityGlyph(c)
+		}
+		nameLine := cells.Truncate(fitGlyph(glyph)+" "+name, inner-2)
+		infoLine = cells.Truncate(infoLine, inner-2)
 		stateLine := cells.Truncate(state, inner-2)
 		marker := "•"
 		if i == sel {
@@ -153,8 +200,7 @@ func (m Model) renderColonistDetail(c sim.EntityView, rows, width int) string {
 	var b strings.Builder
 	p := c.Profile
 	if p == nil {
-		b.WriteString("(no profile)")
-		return sidebarStyle.Width(width - borderCells).Height(rows - borderCells).Render(b.String())
+		return m.renderNonColonistDetail(c, rows, width, inner, barW)
 	}
 
 	b.WriteString(titleStyle.Render(fitGlyph(colonistGlyph(p))+" "+p.Name) + "\n")
@@ -162,7 +208,11 @@ func (m Model) renderColonistDetail(c sim.EntityView, rows, width int) string {
 	b.WriteString(statStyle.Render(fmt.Sprintf("age %d · %d cm · %d kg", p.Age, p.HeightCM, p.WeightKG)) + "\n")
 	b.WriteString(statStyle.Render(fmt.Sprintf("%s skin · %s hair", p.SkinTone, p.HairColor)) + "\n\n")
 
-	b.WriteString(labelStyle.Render("STATUS") + "  " + c.State.String() + "\n")
+	status := c.State.String()
+	if c.Dead {
+		status = fmt.Sprintf("dead (tick %d) — %s", c.DiedTick, c.Cause)
+	}
+	b.WriteString(labelStyle.Render("STATUS") + "  " + status + "\n")
 	b.WriteString(bar("health", c.HP, c.MaxHP, barW) + "\n")
 	b.WriteString(moodLine(c.Mood, m.latest.MoodMax, barW) + "\n\n")
 
@@ -250,6 +300,34 @@ func (m Model) renderColonistDetail(c sim.EntityView, rows, width int) string {
 		}
 	}
 	return sidebarStyle.Width(width - borderCells).Height(rows - borderCells).MaxHeight(rows - borderCells).Render(b.String())
+}
+
+// renderNonColonistDetail draws the inspector for an entity with no Profile:
+// an alien, cat, mouse, or any dead entry lacking one. It has none of a
+// colonist's needs/traits/family — just identity, status, and a body-part
+// breakdown for the kinds that track one (Colonist and Alien; see
+// docs/combat.md).
+func (m Model) renderNonColonistDetail(c sim.EntityView, rows, width, inner, barW int) string {
+	var b strings.Builder
+	b.WriteString(titleStyle.Render(fitGlyph(entityGlyph(c))+" "+colonistName(c)) + "\n")
+	b.WriteString(statStyle.Render(fmt.Sprintf("%s · #%d · (%d, %d)", c.Kind, c.ID, c.Pos.X, c.Pos.Y)) + "\n\n")
+
+	if c.Dead {
+		b.WriteString(labelStyle.Render("STATUS") + fmt.Sprintf("  dead (tick %d)\n", c.DiedTick))
+		b.WriteString(statStyle.Render("  "+c.Cause) + "\n\n")
+	} else {
+		b.WriteString(labelStyle.Render("STATUS") + "  " + c.State.String() + "\n")
+		b.WriteString(bar("health", c.HP, c.MaxHP, barW) + "\n\n")
+	}
+
+	if c.Kind == sim.Alien {
+		partLines := make([]string, 0, len(c.Parts))
+		for i, hp := range c.Parts {
+			partLines = append(partLines, fmt.Sprintf("%s %d/%d", sim.BodyPart(i).Short(), hp, c.MaxParts[i]))
+		}
+		b.WriteString(labelStyle.Render("BODY") + "  " + cells.Truncate(strings.Join(partLines, "  "), inner-8) + "\n")
+	}
+	return sidebarStyle.Width(width - borderCells).Height(rows - borderCells).Render(b.String())
 }
 
 // colonistNames maps colonist IDs to display names for the latest frame, so the
@@ -360,5 +438,5 @@ func colonistName(c sim.EntityView) string {
 	if c.Profile != nil && c.Profile.Name != "" {
 		return c.Profile.Name
 	}
-	return fmt.Sprintf("colonist #%d", c.ID)
+	return fmt.Sprintf("%s #%d", c.Kind, c.ID)
 }

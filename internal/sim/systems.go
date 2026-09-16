@@ -80,7 +80,7 @@ func (w *World) colonistTurn(e *Entity) {
 	w.applyStarvation(e)
 	if !e.Alive() { // starved this tick
 		w.clearJob(e) // release any board claim before removal
-		w.remove(e.ID)
+		w.remove(e.ID, "starved")
 		w.log.add(fmt.Sprintf("Colonist #%d starved to death.", e.ID))
 		return
 	}
@@ -300,7 +300,7 @@ func (w *World) stompNearbyMouse(e *Entity) bool {
 func (w *World) stomp(colonist, mouse *Entity) {
 	witnesses := w.colonistsWithin(mouse.Pos, w.cfg.ColonistStompRadius, colonist.ID)
 	w.addGore(mouse.Pos)
-	w.remove(mouse.ID)
+	w.remove(mouse.ID, fmt.Sprintf("crushed by %s", colonist.displayName()))
 	w.remember(colonist, fmt.Sprintf("Crushed mouse #%d.", mouse.ID))
 	for _, wit := range witnesses {
 		w.remember(wit, fmt.Sprintf("Watched a colonist crush mouse #%d.", mouse.ID))
@@ -1163,7 +1163,7 @@ func (w *World) bite(alien, prey *Entity) {
 		alien.State = Feeding
 		name := prey.displayName()
 		w.addGore(prey.Pos)
-		w.remove(prey.ID)
+		w.remove(prey.ID, "devoured by an alien")
 		w.log.add(fmt.Sprintf("An alien devours %s.", name))
 		for _, wit := range witnesses {
 			w.remember(wit, fmt.Sprintf("Watched an alien kill %s.", name))
@@ -1220,7 +1220,7 @@ func (w *World) pounce(cat, prey *Entity) {
 	for _, wit := range w.colonistsWithin(prey.Pos, w.cfg.ColonistStompRadius, 0) {
 		w.remember(wit, fmt.Sprintf("Watched a cat catch mouse #%d.", prey.ID))
 	}
-	w.remove(prey.ID)
+	w.remove(prey.ID, "caught by a cat")
 	w.log.add(fmt.Sprintf("A cat catches mouse #%d.", prey.ID))
 }
 
@@ -1234,7 +1234,7 @@ func (w *World) mouseTurn(e *Entity) {
 	w.applyStarvation(e)
 	if !e.Alive() { // starved this tick
 		w.clearJob(e)
-		w.remove(e.ID)
+		w.remove(e.ID, "starved")
 		w.log.add(fmt.Sprintf("Mouse #%d starves.", e.ID))
 		return
 	}

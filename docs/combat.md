@@ -10,10 +10,12 @@ carrying one stands its ground and shoots an alien that gets close instead of
 only fleeing. Damage — from a bite or a gunshot — lands on one of six body
 parts rather than a shared HP pool, so a wound can be a survivable graze or an
 outright kill depending on where it lands. Violent deaths (a gunned-down
-alien, a bitten colonist, a stomped mouse) leave gore behind on the tile.
-Human-vs-human violence and weapon skill are explicitly out of scope for this
-pass; mouse-killing (the existing stomp/pounce mechanics) is unchanged except
-for the mess it now leaves.
+alien, a bitten colonist, a stomped mouse) leave gore behind on the tile and a
+frozen record in the graveyard, so the roster can show what happened to
+something after the fact. Human-vs-human violence and weapon skill are
+explicitly out of scope for this pass; mouse-killing (the existing
+stomp/pounce mechanics) is unchanged except for the mess and the record it
+now leaves.
 
 ## Source
 
@@ -28,15 +30,19 @@ for the mess it now leaves.
   survival branch (fight vs. flee), `bite` (now body-part aware), `stomp`
   (now leaves gore).
 - [`internal/sim/world.go`](../internal/sim/world.go) — `Tile.Gore`,
-  `World.addGore`.
-- [`internal/sim/config.go`](../internal/sim/config.go) — weapon and starting
-  equipment tunables.
-- [`internal/sim/combat_test.go`](../internal/sim/combat_test.go) — the tests
-  that pin this behavior.
+  `World.addGore`, `World.remove` (the graveyard funnel), `World.graveyard`.
+- [`internal/sim/snapshot.go`](../internal/sim/snapshot.go) — `EntityView`'s
+  `Dead`/`DiedTick`/`Cause` fields, `entityView`, `Snapshot.Graveyard`.
+- [`internal/sim/config.go`](../internal/sim/config.go) — weapon, starting
+  equipment, and `GraveyardSize` tunables.
+- [`internal/sim/combat_test.go`](../internal/sim/combat_test.go),
+  [`internal/sim/graveyard_test.go`](../internal/sim/graveyard_test.go) — the
+  tests that pin this behavior.
 - [`internal/ui/tui/glyphs.go`](../internal/ui/tui/glyphs.go) — the fighting
   and gore glyphs.
 - [`internal/ui/tui/render_roster.go`](../internal/ui/tui/render_roster.go) —
-  the roster's per-body-part wound line.
+  the roster's per-body-part wound line and the dead/non-human filtered list;
+  see [frontend-tui.md](./frontend-tui.md) for the UI side of the graveyard.
 
 ## How it works
 
@@ -145,6 +151,35 @@ rather than the same kind of violence.
 (alongside the existing `TerrainAt`) for any tile with no entity standing on
 it.
 
+### The graveyard
+
+Every death used to just erase the entity — `World.remove(id)` deleted it and
+that was that, with only a log line as evidence. `remove` now takes a
+`cause string` and, before deleting anything, freezes the entity into
+`World.graveyard` via `entityView(e, nil, false)` (the same builder
+`snapshot()` uses for living entities) with `Dead`, `DiedTick`, and `Cause`
+set. `cause` is a short player-facing phrase built at the call site, where
+the context (who did it, with what) is available — `"starved"`,
+`"crushed by Zoe Vargas"`, `"devoured by an alien"`, `"caught by a cat"`,
+`"shot by Zoe Vargas with a shotgun"`. Every one of the six places an entity
+dies (colonist/mouse starvation, `stomp`, fatal `bite`, `pounce`, fatal
+`shoot`) is a call to `remove`, so this one funnel is the whole feature.
+
+The graveyard is capped at `Config.GraveyardSize` (default 50; 0 disables
+tracking, and `remove` skips the freeze entirely rather than appending to and
+immediately trimming an always-empty slice), dropping the oldest entries
+first — a `stomp`/`pounce`/kill flood shouldn't grow it without bound.
+`Snapshot.Graveyard` is a fresh copy of it on every frame, kept separate from
+`Snapshot.Entities` (a dead entity is not a still-simulated thing standing on
+a tile — its frozen `Pos` may not even be walkable anymore, or something
+else may be standing there now). `entityView`'s `full` parameter is what
+keeps a graveyard record cheap and honest: passing `false` skips computing
+`Relations`/`Affinities`/`Mood`, which only make sense for a colonist among
+its still-living kin, rather than showing them stale.
+
+The [frontend-tui.md](./frontend-tui.md) roster is what actually surfaces
+this — the "dead" filter toggle and the per-entry cause of death.
+
 ## Why it is this way
 
 - **Body parts instead of a bigger HP number** is what "pretty specific
@@ -177,6 +212,18 @@ it.
   request was about killing the alien, not a colonist-vs-colonist system, and
   the existing stomp/pounce mechanics for mice already work and needed only
   the gore hook, not a rework.
+- **A frozen `EntityView` in a graveyard slice, not a corpse in the world**:
+  keeping the dead entity around as a real, positioned `*Entity` would have
+  meant teaching occupancy, the spatial index, and every "nearest living
+  thing" query to ignore it — a lot of surface area for something that is
+  purely for a player to look at afterward. A frozen read-only record costs
+  none of that, at the price of not being a thing another system could ever
+  interact with (no looting a corpse, no it blocking a tile) — a fair trade
+  for what was asked, a way to review deaths, not a new interactable object.
+- **`remove` takes a cause string instead of inferring one from `w.log`'s
+  last line**: the call site already knows exactly who or what did it and
+  with what; reverse-engineering that from a log message would be both
+  redundant and brittle to a wording change.
 
 ## Extending it
 
@@ -205,6 +252,11 @@ it.
 - **Graduated or fading gore**: `Tile.Gore` is already a count, not a bool
   (capped at `maxGore`); a renderer that picks a glyph by intensity, or a
   system that decays it over time, only has to read/write that one field.
+- **A real corpse**: if a dead body ever needs to be something other than a
+  roster record — visible on the map, lootable, decomposing — that is a
+  different, larger feature (see Why it is this way) than extending
+  `EntityView`; expect it to look more like a new, non-acting `Kind` than a
+  graveyard entry.
 
 ## Related
 
@@ -215,4 +267,4 @@ it.
   become CLI flags.
 - [needs.md](./needs.md) — starvation, the other thing that drains HP.
 - [frontend-tui.md](./frontend-tui.md) — the fighting glyph, the gore glyph,
-  and the roster's wound line.
+  and the roster's dead/non-human filter and wound line.

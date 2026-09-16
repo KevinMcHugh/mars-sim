@@ -103,6 +103,7 @@ func bindConfigFlags(cfg *sim.Config) {
 	flag.IntVar(&cfg.StartMice, "mice", cfg.StartMice, "starting number of mice")
 	flag.IntVar(&cfg.StartPistols, "pistols", cfg.StartPistols, "pistols the colony ship arrives with")
 	flag.IntVar(&cfg.StartShotguns, "shotguns", cfg.StartShotguns, "shotguns the colony ship arrives with")
+	flag.IntVar(&cfg.GraveyardSize, "graveyard-size", cfg.GraveyardSize, "recent deaths kept for the roster's dead filter (0 disables)")
 
 	// Timing.
 	flag.IntVar(&cfg.TicksPerSecond, "tps", cfg.TicksPerSecond, "simulation ticks per second")
@@ -176,6 +177,8 @@ func validateConfig(cfg sim.Config) error {
 		return fmt.Errorf("population counts cannot be negative")
 	case cfg.StartPistols < 0 || cfg.StartShotguns < 0:
 		return fmt.Errorf("starting weapon counts cannot be negative")
+	case cfg.GraveyardSize < 0:
+		return fmt.Errorf("graveyard-size cannot be negative")
 	case cfg.TicksPerSecond < 1:
 		return fmt.Errorf("tps must be at least 1 (got %d)", cfg.TicksPerSecond)
 	case cfg.ColonistsPerFacility < 1:

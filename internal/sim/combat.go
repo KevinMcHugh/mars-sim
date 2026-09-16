@@ -125,7 +125,7 @@ func (w *World) shoot(colonist, alien *Entity, weapon ItemKind, spec weaponSpec)
 
 	if fatal {
 		w.addGore(alien.Pos)
-		w.remove(alien.ID)
+		w.remove(alien.ID, fmt.Sprintf("shot by %s with a %s", colonist.displayName(), weapon))
 		w.remember(colonist, fmt.Sprintf("Killed an alien with a %s!", weapon))
 		w.log.add(fmt.Sprintf("%s guns down an alien with a %s.", colonist.displayName(), weapon))
 		for _, wit := range witnesses {

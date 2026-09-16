@@ -24,6 +24,11 @@ type Config struct {
 	StartPistols  int
 	StartShotguns int
 
+	// GraveyardSize is how many recent deaths (any kind) are kept as frozen
+	// records for the roster's "dead" filter; 0 disables death tracking
+	// entirely. See docs/combat.md.
+	GraveyardSize int
+
 	// Timing.
 	TicksPerSecond int // default simulation speed
 	LogSize        int // how many recent events to retain
@@ -152,6 +157,7 @@ func DefaultConfig() Config {
 		StartMice:           8,
 		StartPistols:        1,
 		StartShotguns:       1,
+		GraveyardSize:       50,
 		TicksPerSecond:      8,
 		LogSize:             64,
 		ColonistHP:          40,

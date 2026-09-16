@@ -223,6 +223,11 @@ type World struct {
 	entities map[EntityID]*Entity
 	nextID   EntityID
 
+	// graveyard holds the most recent deaths as frozen EntityViews (oldest
+	// first), for the roster's "dead" filter — see docs/combat.md. Bounded at
+	// cfg.GraveyardSize by remove(), the only place entities die.
+	graveyard []EntityView
+
 	tick    int
 	rng     *rand.Rand
 	prng    *rand.Rand // personality generation, separate so flavor never perturbs the sim
@@ -444,11 +449,22 @@ func (w *World) spawn(kind Kind, p Point) *Entity {
 	return e
 }
 
-// remove deletes an entity from the world and clears its occupancy.
-func (w *World) remove(id EntityID) {
+// remove deletes an entity from the world, clears its occupancy, and — every
+// call here is a death — freezes it into the graveyard with cause as a short
+// player-facing phrase ("starved", "shot by Zoe Vargas with a shotgun"). See
+// docs/combat.md.
+func (w *World) remove(id EntityID, cause string) {
 	e := w.entities[id]
 	if e == nil {
 		return
+	}
+	if w.cfg.GraveyardSize > 0 {
+		dead := w.entityView(e, nil, false)
+		dead.Dead, dead.DiedTick, dead.Cause = true, w.tick, cause
+		w.graveyard = append(w.graveyard, dead)
+		if over := len(w.graveyard) - w.cfg.GraveyardSize; over > 0 {
+			w.graveyard = w.graveyard[over:]
+		}
 	}
 	w.occ[w.index(e.Pos)] = 0
 	w.kindCounts[e.Kind]--
