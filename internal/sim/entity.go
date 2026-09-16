@@ -55,6 +55,7 @@ const (
 	Feeding         // predator eating prey it has caught
 	Talking         // chatting with another colonist (builds affinity)
 	Stomping        // colonist chasing down and crushing a pest mouse
+	Fighting        // armed colonist standing its ground and firing on an alien
 )
 
 func (s State) String() string {
@@ -83,9 +84,102 @@ func (s State) String() string {
 		return "feeding"
 	case Stomping:
 		return "stomping"
+	case Fighting:
+		return "fighting"
 	default:
 		return "?"
 	}
+}
+
+// BodyPart identifies one wound location tracked separately from an entity's
+// overall HP. Only Colonist and Alien use body parts (see Entity.hasParts);
+// cats and mice stay on a single HP pool, since nothing hits them with
+// anything more precise than a pounce or a boot.
+type BodyPart uint8
+
+const (
+	Head BodyPart = iota
+	Torso
+	LeftArm
+	RightArm
+	LeftLeg
+	RightLeg
+
+	numBodyParts // keep last: the number of body parts
+)
+
+func (p BodyPart) String() string {
+	switch p {
+	case Head:
+		return "head"
+	case Torso:
+		return "torso"
+	case LeftArm:
+		return "left arm"
+	case RightArm:
+		return "right arm"
+	case LeftLeg:
+		return "left leg"
+	case RightLeg:
+		return "right leg"
+	default:
+		return "?"
+	}
+}
+
+// Short is an abbreviated label that fits the roster's 7-cell bar labels
+// (see bar() in render_roster.go), where String()'s "left arm"/"right leg"
+// would get truncated mid-word.
+func (p BodyPart) Short() string {
+	switch p {
+	case Head:
+		return "head"
+	case Torso:
+		return "torso"
+	case LeftArm:
+		return "l.arm"
+	case RightArm:
+		return "r.arm"
+	case LeftLeg:
+		return "l.leg"
+	case RightLeg:
+		return "r.leg"
+	default:
+		return "?"
+	}
+}
+
+// Vital reports whether destroying this part is fatal on its own. The torso
+// carries the vital organs; losing the head is, well, losing the head.
+func (p BodyPart) Vital() bool { return p == Head || p == Torso }
+
+// bodyPartWeight is each part's share (out of 100) of an entity's MaxHP,
+// used to size its starting body part pools. The torso is the biggest and
+// toughest target (it carries the vital organs); the head is vital but small;
+// limbs split the remainder. Weights sum to 100 so distributeBodyParts can
+// hand any leftover from integer rounding to the torso and still total
+// exactly MaxHP.
+var bodyPartWeight = [numBodyParts]int{
+	Head:     15,
+	Torso:    35,
+	LeftArm:  12,
+	RightArm: 12,
+	LeftLeg:  13,
+	RightLeg: 13,
+}
+
+// distributeBodyParts splits maxHP across body parts by bodyPartWeight,
+// crediting any rounding remainder to the torso so the parts always sum to
+// exactly maxHP.
+func distributeBodyParts(maxHP int) [numBodyParts]int {
+	var parts [numBodyParts]int
+	sum := 0
+	for i, w := range bodyPartWeight {
+		parts[i] = maxHP * w / 100
+		sum += parts[i]
+	}
+	parts[Torso] += maxHP - sum
+	return parts
 }
 
 // JobKind is the task a colonist is currently committed to. It is the single
@@ -122,6 +216,15 @@ type Entity struct {
 
 	HP    int
 	MaxHP int
+
+	// Parts holds current HP per BodyPart for Colonist and Alien (see
+	// hasParts); other kinds leave it zero and unused. Combat damage (a bite,
+	// a gunshot) lands on one part rather than the aggregate pool: a wound
+	// that empties a vital part (Head or Torso) kills outright even if HP
+	// remains, the way a called shot should. Non-vital parts (limbs) can be
+	// destroyed without being fatal. Initialized by distributeBodyParts so
+	// Parts always sums to MaxHP at spawn.
+	Parts [numBodyParts]int
 
 	// Needs are stored lazily: Needs[i] is the level as of tick needSince[i], so
 	// the current level is Needs[i] + needRise[i]*(now-needSince[i]) (see
@@ -208,9 +311,11 @@ type Entity struct {
 	task *buildTask
 
 	// Display + shared behavior scratch.
-	State    State
-	Quarry   EntityID // (predator) the prey being hunted; 0 if none
-	Cooldown int      // (predator) paces movement and attacks
+	State  State
+	Quarry EntityID // (predator) the prey being hunted; 0 if none
+	// Cooldown paces repeated actions: predators between attacks, and an
+	// armed colonist between shots while fighting an alien (see fightAlien).
+	Cooldown int
 
 	// Mouse reproduction (mice only). sex decides who can carry a litter; a
 	// female mouse that mates becomes pregnant until dueTick, when she births a
@@ -248,11 +353,29 @@ func newEntity(id EntityID, kind Kind, p Point, cfg Config) *Entity {
 		e.needRise[NeedFood] = cfg.MouseHungerRise
 	}
 	e.HP = e.MaxHP
+	if e.hasParts() {
+		e.Parts = distributeBodyParts(e.MaxHP)
+	}
 	return e
 }
 
-// Alive reports whether the entity still has hit points.
-func (e *Entity) Alive() bool { return e.HP > 0 }
+// hasParts reports whether this entity's wounds are tracked per body part.
+// Cats and mice die from a single pounce or stomp regardless of HP, so they
+// have no need of the detail.
+func (e *Entity) hasParts() bool { return e.Kind == Colonist || e.Kind == Alien }
+
+// Alive reports whether the entity still has hit points and, for a kind
+// tracked by body part, has not had a vital part (Head or Torso) destroyed —
+// a called shot kills even with HP still nominally in the tank.
+func (e *Entity) Alive() bool {
+	if e.HP <= 0 {
+		return false
+	}
+	if e.hasParts() && (e.Parts[Head] <= 0 || e.Parts[Torso] <= 0) {
+		return false
+	}
+	return true
+}
 
 // displayName is the colonist's name for player-facing text (logs, memories),
 // or a numbered fallback if it has no profile.

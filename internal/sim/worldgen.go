@@ -43,10 +43,12 @@ func generate(w *World) {
 	if want > len(floors) {
 		want = len(floors)
 	}
+	colonists := make([]*Entity, 0, want)
 	for i := 0; i < want; i++ {
 		p, _ := takeFloor()
-		w.spawn(Colonist, p)
+		colonists = append(colonists, w.spawn(Colonist, p))
 	}
+	equipColonyShip(colonists, w.cfg)
 
 	// Place aliens out in the rock, away from the cavern, so they must burrow in.
 	// Rock this far from a small starting cavern is the overwhelming majority of

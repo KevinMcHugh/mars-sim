@@ -101,6 +101,8 @@ func bindConfigFlags(cfg *sim.Config) {
 	flag.IntVar(&cfg.StartAliens, "aliens", cfg.StartAliens, "starting number of aliens")
 	flag.IntVar(&cfg.StartCats, "cats", cfg.StartCats, "starting number of cats")
 	flag.IntVar(&cfg.StartMice, "mice", cfg.StartMice, "starting number of mice")
+	flag.IntVar(&cfg.StartPistols, "pistols", cfg.StartPistols, "pistols the colony ship arrives with")
+	flag.IntVar(&cfg.StartShotguns, "shotguns", cfg.StartShotguns, "shotguns the colony ship arrives with")
 
 	// Timing.
 	flag.IntVar(&cfg.TicksPerSecond, "tps", cfg.TicksPerSecond, "simulation ticks per second")
@@ -140,6 +142,14 @@ func bindConfigFlags(cfg *sim.Config) {
 	flag.IntVar(&cfg.AlienBiteRest, "alien-bite-rest", cfg.AlienBiteRest, "cooldown ticks between alien bites")
 	flag.IntVar(&cfg.AlienSlowness, "alien-slowness", cfg.AlienSlowness, "alien acts once every N ticks (higher = slower)")
 
+	// Weapons.
+	flag.IntVar(&cfg.PistolDamage, "pistol-damage", cfg.PistolDamage, "HP removed per pistol shot")
+	flag.IntVar(&cfg.PistolRange, "pistol-range", cfg.PistolRange, "max tiles a pistol can fire from")
+	flag.IntVar(&cfg.PistolFireRest, "pistol-fire-rest", cfg.PistolFireRest, "cooldown ticks between pistol shots")
+	flag.IntVar(&cfg.ShotgunDamage, "shotgun-damage", cfg.ShotgunDamage, "HP removed per shotgun blast")
+	flag.IntVar(&cfg.ShotgunRange, "shotgun-range", cfg.ShotgunRange, "max tiles a shotgun can fire from")
+	flag.IntVar(&cfg.ShotgunFireRest, "shotgun-fire-rest", cfg.ShotgunFireRest, "cooldown ticks between shotgun blasts")
+
 	// Cats.
 	flag.IntVar(&cfg.CatHP, "cat-hp", cfg.CatHP, "cat hit points")
 	flag.IntVar(&cfg.CatSlowness, "cat-slowness", cfg.CatSlowness, "cat acts once every N ticks (higher = slower)")
@@ -164,6 +174,8 @@ func validateConfig(cfg sim.Config) error {
 		return fmt.Errorf("world must be at least 10x10 (got %dx%d)", cfg.Width, cfg.Height)
 	case cfg.StartColonists < 0 || cfg.StartAliens < 0 || cfg.StartCats < 0 || cfg.StartMice < 0:
 		return fmt.Errorf("population counts cannot be negative")
+	case cfg.StartPistols < 0 || cfg.StartShotguns < 0:
+		return fmt.Errorf("starting weapon counts cannot be negative")
 	case cfg.TicksPerSecond < 1:
 		return fmt.Errorf("tps must be at least 1 (got %d)", cfg.TicksPerSecond)
 	case cfg.ColonistsPerFacility < 1:

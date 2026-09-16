@@ -44,12 +44,14 @@ screen; the rest dispatch to `handleMapKey`, `handleRosterKey`, or
 
 - **Map** (`renderMap`): draws a camera-windowed view of the tile grid, two
   terminal cells per tile, overlaying entity glyphs (aliens win position ties).
-  A sidebar shows a legend and the tail of the event log; the header shows tick,
-  speed, pause state, and `Stats` counts, including built dormitory beds.
+  An empty tile with gore on it (`tileGlyph`) draws a splatter instead of its
+  bare terrain — see [combat.md](./combat.md). A sidebar shows a legend and the
+  tail of the event log; the header shows tick, speed, pause state, and `Stats`
+  counts, including built dormitory beds.
 - **Roster** (`renderRoster`): a scrolling, ID-sorted colonist list with each
   colonist's name, pronouns, and current status, plus a detail pane for the
-  selected colonist — name, attributes, HP, needs, the eight-slot inventory,
-  recent memories, and traits.
+  selected colonist — name, attributes, HP, a compact per-body-part wound
+  summary, needs, the eight-slot inventory, recent memories, and traits.
 - **Job board** (`renderJobs`): a scrolling list of queued construction
   projects (facility rooms, dormitories), each with its tick-queued time,
   build progress, and assigned colonist count; a detail pane for the selected
@@ -161,6 +163,7 @@ contract is genuinely frontend-agnostic.
 ## Related
 
 - [architecture.md](./architecture.md) — the snapshot/command contract this implements.
+- [combat.md](./combat.md) — body parts, weapons, and the gore glyph.
 - [inventory.md](./inventory.md) — what the roster's inventory view shows.
 - [personality.md](./personality.md) — the attributes and traits the inspector shows.
 - [terminal-cell-widths.md](./terminal-cell-widths.md) — how glyph widths are measured and kept honest.

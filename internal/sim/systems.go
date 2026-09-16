@@ -90,9 +90,16 @@ func (w *World) colonistTurn(e *Entity) {
 	// per tick.
 	w.observeNearby(e)
 
-	// Survival comes first: if an alien is close, drop everything and run.
+	// Survival comes first: if an alien is close, an armed colonist stands and
+	// fights it instead of running (fleeing an armed threat that is faster to
+	// close than to outrun defeats the point of carrying a weapon); an unarmed
+	// one drops everything and runs, as before.
 	if threat, ok := w.nearestAlien(e.Pos, w.cfg.FleeRadius); ok {
 		w.clearJob(e)
+		if weapon := bestWeapon(e.Inventory); weapon != ItemNone {
+			w.fightAlien(e, threat, weapon)
+			return
+		}
 		e.resting = false
 		e.State = Fleeing
 		w.fleeStep(e, threat.Pos)
@@ -287,11 +294,12 @@ func (w *World) stompNearbyMouse(e *Entity) bool {
 	return true
 }
 
-// stomp crushes a mouse underfoot. A stomp is always fatal to the mouse. Any
-// other colonist close enough to have noticed the mouse remembers seeing it
-// happen.
+// stomp crushes a mouse underfoot. A stomp is always fatal to the mouse and
+// leaves it behind as gore. Any other colonist close enough to have noticed
+// the mouse remembers seeing it happen.
 func (w *World) stomp(colonist, mouse *Entity) {
 	witnesses := w.colonistsWithin(mouse.Pos, w.cfg.ColonistStompRadius, colonist.ID)
+	w.addGore(mouse.Pos)
 	w.remove(mouse.ID)
 	w.remember(colonist, fmt.Sprintf("Crushed mouse #%d.", mouse.ID))
 	for _, wit := range witnesses {
@@ -1142,16 +1150,19 @@ func (w *World) alienTurn(e *Entity) {
 	e.Cooldown = w.cfg.AlienSlowness - 1
 }
 
-// bite deals damage to a colonist and eats it if the wound is fatal. The
-// victim remembers the attack, and any other colonist close enough to have
-// noticed the alien (observeNearby's own sighting radius) remembers watching
-// it happen.
+// bite deals damage to a random body part of a colonist and eats it if the
+// wound is fatal (a vital part destroyed, or HP exhausted). The victim
+// remembers the attack, and any other colonist close enough to have noticed
+// the alien (observeNearby's own sighting radius) remembers watching it
+// happen. A fatal bite leaves gore behind.
 func (w *World) bite(alien, prey *Entity) {
-	prey.HP -= w.cfg.AlienDamage
+	part := w.rollHit()
+	fatal := applyDamage(prey, part, w.cfg.AlienDamage)
 	witnesses := w.colonistsWithin(prey.Pos, w.cfg.FleeRadius, prey.ID)
-	if prey.HP <= 0 {
+	if fatal {
 		alien.State = Feeding
 		name := prey.displayName()
+		w.addGore(prey.Pos)
 		w.remove(prey.ID)
 		w.log.add(fmt.Sprintf("An alien devours %s.", name))
 		for _, wit := range witnesses {
@@ -1159,7 +1170,7 @@ func (w *World) bite(alien, prey *Entity) {
 		}
 	} else {
 		alien.State = Hunting
-		w.remember(prey, "Bitten by an alien!")
+		w.remember(prey, fmt.Sprintf("Bitten in the %s by an alien!", part))
 		for _, wit := range witnesses {
 			w.remember(wit, fmt.Sprintf("Watched an alien attack %s.", prey.displayName()))
 		}

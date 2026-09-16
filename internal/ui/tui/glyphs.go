@@ -51,6 +51,8 @@ const (
 	glyphCat      = "\U0001F408" // 🐈 floor predator hunting mice
 	glyphMouse    = "\U0001F401" // 🐁 pest that raids the food pods
 	glyphStomp    = "\U0001F97E" // 🥾 colonist chasing down a mouse to stomp it
+	glyphFighting = "\U0001F52B" // 🔫 armed colonist standing its ground against an alien
+	glyphGore     = "\U0001FA78" // 🩸 a violent death's residue on a tile
 
 	glyphManAdult     = "\U0001F468" // 👨 adult man colonist
 	glyphWomanAdult   = "\U0001F469" // 👩 adult woman colonist
@@ -99,6 +101,8 @@ var glyphRegistry = map[string]glyph{
 	glyphCat:      {glyphCat, 2, "f "},
 	glyphMouse:    {glyphMouse, 2, "r "},
 	glyphStomp:    {glyphStomp, 2, "@*"},
+	glyphFighting: {glyphFighting, 2, "@="},
+	glyphGore:     {glyphGore, 2, "~~"},
 
 	glyphManAdult:     {glyphManAdult, 2, "M "},
 	glyphWomanAdult:   {glyphWomanAdult, 2, "W "},
@@ -207,6 +211,16 @@ func terrainGlyph(t sim.Terrain) string {
 	return fitGlyph(symbol)
 }
 
+// tileGlyph draws an empty tile: gore takes priority over bare terrain, since
+// it is the more notable thing to see there. Any of a stomp, a bite, or a
+// gunshot can leave it — see docs/combat.md.
+func tileGlyph(t sim.Tile) string {
+	if t.Gore > 0 {
+		return fitGlyph(glyphGore)
+	}
+	return terrainGlyph(t.Terrain)
+}
+
 func entityGlyph(e sim.EntityView) string {
 	var symbol string
 	switch e.Kind {
@@ -224,6 +238,8 @@ func entityGlyph(e sim.EntityView) string {
 			symbol = glyphTalking
 		case sim.Stomping:
 			symbol = glyphStomp
+		case sim.Fighting:
+			symbol = glyphFighting
 		default:
 			symbol = colonistGlyph(e.Profile)
 		}

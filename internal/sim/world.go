@@ -70,6 +70,36 @@ func (t Terrain) Walkable() bool {
 // touching every call site.
 type Tile struct {
 	Terrain Terrain
+	// Gore is a violent death's visible residue on this tile: 0 is clean, and
+	// it climbs (capped at maxGore) as more kills happen here. It is purely
+	// cosmetic — it never affects Walkable or anything else — and, unlike
+	// Terrain, is not reset by SetTerrain, so a mined-out or built-over tile
+	// keeps its stains.
+	Gore int
+}
+
+// maxGore caps a tile's Gore so a well-fought corner cannot climb the count
+// forever for no additional visible effect (today's renderer draws one splatter
+// glyph for any Gore > 0; the cap keeps room for a future intensity display).
+const maxGore = 3
+
+// addGore marks p as the site of a violent death, capping the tile's Gore at
+// maxGore. Used by anything that kills something messily: alien bites, gunfire,
+// and a colonist's boot. Like SetTerrain, it must mark the tile's page dirty:
+// w.tiles is also the published TileGrid's source, and a page only gets
+// re-copied into the next Snapshot if something flags it changed (see
+// tilegrid.go) — skipping that would let a gore change go on being invisible
+// to every future frame until an unrelated terrain edit on the same page
+// happened to flush it.
+func (w *World) addGore(p Point) {
+	if !w.InBounds(p) {
+		return
+	}
+	i := w.index(p)
+	if w.tiles[i].Gore < maxGore {
+		w.tiles[i].Gore++
+		w.markTilePageDirty(i)
+	}
 }
 
 // World is the mutable game state for a single underground level. It is owned by

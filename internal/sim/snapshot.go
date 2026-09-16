@@ -13,6 +13,13 @@ type EntityView struct {
 	Profile   *Profile  // colonists only; a deep copy, safe to read
 	Inventory Inventory // colonists only; copied by value
 
+	// Parts and MaxParts are per-body-part current/max HP (colonists only;
+	// see Entity.hasParts and docs/combat.md). MaxParts is recomputed from
+	// MaxHP rather than stored on Entity, since distributeBodyParts is a pure
+	// function of it.
+	Parts    [numBodyParts]int
+	MaxParts [numBodyParts]int
+
 	// Relations are the colonist's familial ties to other colonists, derived from
 	// the family tree; Affinities are its tracked warmth toward colonists it has
 	// talked with, strongest first. Both are colonists only. See relationships.go.
@@ -136,6 +143,15 @@ func (s *Snapshot) TerrainAt(p Point) Terrain {
 	return s.Tiles.TerrainAt(p)
 }
 
+// TileAt reads the published grid's full Tile (terrain plus gore), for
+// renderers that need both. Out-of-bounds reads return a clean Rock tile.
+func (s *Snapshot) TileAt(p Point) Tile {
+	if p.X < 0 || p.X >= s.Width || p.Y < 0 || p.Y >= s.Height {
+		return Tile{Terrain: Rock}
+	}
+	return s.Tiles.At(p)
+}
+
 // snapshot builds an immutable view of the world's current state.
 func (w *World) snapshot(paused bool, tps int) *Snapshot {
 	tiles := w.publishedTiles()
@@ -165,6 +181,8 @@ func (w *World) snapshot(paused bool, tps int) *Snapshot {
 			Inventory: e.Inventory,
 		}
 		if e.Kind == Colonist {
+			ev.Parts = e.Parts
+			ev.MaxParts = distributeBodyParts(e.MaxHP)
 			ev.Memories = append([]Memory(nil), e.Memories...)
 			ev.Relations = append([]Relation(nil), w.cachedRelations(e, kinChildren)...)
 			ev.Affinities = w.affinitiesOf(e.ID)

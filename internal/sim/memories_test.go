@@ -3,6 +3,7 @@ package sim
 import (
 	"fmt"
 	"math/rand"
+	"strings"
 	"testing"
 )
 
@@ -37,8 +38,10 @@ func TestBystanderRemembersAlienAttack(t *testing.T) {
 	victim.HP = cfg.AlienDamage + 1 // survives this bite
 	w.bite(alien, victim)
 
-	if got, want := lastMemory(victim), "Bitten by an alien!"; got != want {
-		t.Fatalf("victim memory = %q, want %q", got, want)
+	// The exact body part hit is an RNG detail (see rollHit); only the shape
+	// of the message is pinned here.
+	if got := lastMemory(victim); !strings.HasPrefix(got, "Bitten in the ") || !strings.HasSuffix(got, " by an alien!") {
+		t.Fatalf("victim memory = %q, want a %q..%q message", got, "Bitten in the ", " by an alien!")
 	}
 	wantWitness := "Watched an alien attack " + victim.displayName() + "."
 	if got := lastMemory(bystander); got != wantWitness {

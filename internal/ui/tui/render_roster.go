@@ -166,6 +166,16 @@ func (m Model) renderColonistDetail(c sim.EntityView, rows, width int) string {
 	b.WriteString(bar("health", c.HP, c.MaxHP, barW) + "\n")
 	b.WriteString(moodLine(c.Mood, m.latest.MoodMax, barW) + "\n\n")
 
+	// One compact line rather than a bar per part: six more full gauge lines
+	// would crowd out everything below in the roster's fixed height (see
+	// TestRosterShowsColonistDetail), and a wound only needs a number here,
+	// not a gauge — the health bar above already gives the big picture.
+	partLines := make([]string, 0, len(c.Parts))
+	for i, hp := range c.Parts {
+		partLines = append(partLines, fmt.Sprintf("%s %d/%d", sim.BodyPart(i).Short(), hp, c.MaxParts[i]))
+	}
+	b.WriteString(labelStyle.Render("BODY") + "  " + cells.Truncate(strings.Join(partLines, "  "), inner-8) + "\n\n")
+
 	b.WriteString(labelStyle.Render("NEEDS") + "\n")
 	for i := range c.Needs {
 		meta := m.latest.NeedsMeta[i]
