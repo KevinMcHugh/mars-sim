@@ -108,6 +108,18 @@ func (w *World) colonistTurn(e *Entity) {
 		// conversation. It preempts ordinary work, but mostUrgentNeed has
 		// already given fatal needs priority.
 		e.resting = false
+		// A conversation already under way *is* how this need gets met, so let
+		// it run — this is the social twin of the handlingNeed check below.
+		// Clearing it here instead meant a socially urgent colonist tore down
+		// its own talk and began a new one every tick, and beginTalk resets the
+		// shared timer: no conversation ever reached TalkTicks, so the need was
+		// never satisfied, so it stayed urgent and preempted every other job.
+		// A colony would settle into permanent failed small talk with nobody
+		// mining or building ever again.
+		if _, ok := w.talkPartner(e); ok {
+			w.runJob(e)
+			return
+		}
 		w.clearJob(e)
 		if w.tryStartTalk(e, true) {
 			w.runJob(e)
@@ -494,14 +506,30 @@ func (w *World) beginTalk(a, b *Entity) {
 	a.State, b.State = Talking, Talking
 }
 
+// talkPartner returns the colonist e is in a conversation with, if both sides
+// still claim each other. A conversation is only real while it is mutual: one
+// side being pulled away (a fatal need, a threat, a torn-down claim) ends it for
+// both, which is what stops a colonist chatting with someone who has wandered
+// off to eat.
+func (w *World) talkPartner(e *Entity) (*Entity, bool) {
+	if e.Job != JobTalk {
+		return nil, false
+	}
+	p := w.entities[e.partner]
+	if p == nil || !p.Alive() || p.Kind != Colonist || p.Job != JobTalk || p.partner != e.ID {
+		return nil, false
+	}
+	return p, true
+}
+
 // jobTalk runs one tick of a conversation: partners converge, then chat for
 // TalkTicks before the pair's affinity rises. The two must claim each other
 // mutually or the talk is abandoned. To avoid chasing each other, the higher-ID
 // partner walks over while the lower-ID one waits; the lower-ID partner also
 // hosts the shared timer so a conversation is credited once, not once per side.
 func (w *World) jobTalk(e *Entity) {
-	p := w.entities[e.partner]
-	if p == nil || !p.Alive() || p.Kind != Colonist || p.Job != JobTalk || p.partner != e.ID {
+	p, ok := w.talkPartner(e)
+	if !ok {
 		w.clearJob(e)
 		return
 	}

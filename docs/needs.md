@@ -51,6 +51,20 @@ the colonist waits for a conversation partner; completing a conversation resets
 social need for both participants. Asocial colonists resolve its rise rate to
 zero, introverts rise more slowly, and extroverts rise faster.
 
+A conversation already under way **is** how the need gets met, so the urgent-social
+branch checks `talkPartner` and lets a live talk run, exactly as `handlingNeed`
+does for `JobUse`/`JobBuild` further down the tick. Skipping that check was a
+livelock: a socially urgent colonist cleared its own job and called
+`tryStartTalk` every tick, `beginTalk` reset the shared `Progress` timer, and so
+a mutually urgent pair restarted the same conversation forever without ever
+reaching `TalkTicks`. Because an urgent social need preempts all ordinary work,
+the colony then stopped digging and building permanently — measured on a default
+6-colonist game, 2000 ticks produced **0** completed conversations, 989 mid-talk
+partner switches, a mean social need of 919/1000, and 11 tiles excavated. With
+the live talk left alone: 38 conversations, 3 switches, mean social 337, and 675
+tiles. `TestMutuallyUrgentColonistsFinishConversation` and
+`TestColonyKeepsExcavatingOnceNeedsBite` pin both halves of that.
+
 `availableToTalk` gates who can be pulled into a chat as the *other* party: idle
 (`Job == JobNone`), not fleeing, not parked somewhere blocking a facility — and,
 importantly, not itself facing an urgent need **other than social**. A
@@ -58,11 +72,11 @@ candidate whose own most urgent need is social still counts as available.
 Without that carve-out, two colonists who both urgently need company can never
 talk to each other — each disqualifies the other as a partner — and social
 need sits permanently pinned at its ceiling in any colony busy enough that
-nobody is ever fully need-free. This alone does not fully fix chronic pinning
-in a very busy colony, though: the deeper issue is that `Job == JobNone` itself
-is rare when colonists are constantly mining, building, or queueing — a
-colonist cannot yet chat *while* doing something else (mid-queue, mid-dig),
-which would need bigger, riskier surgery to the job model than has been
+nobody is ever fully need-free. That carve-out plus leaving live talks alone (above) is
+what actually unpins the need in a busy colony. One limitation remains, and it
+is a design one rather than a bug: a partner must be at `Job == JobNone`, so a
+colonist cannot chat *while* doing something else (mid-queue, mid-dig). Letting
+them would need bigger, riskier surgery to the job model than has been
 attempted.
 
 ### Starvation and healing

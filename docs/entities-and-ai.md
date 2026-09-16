@@ -69,9 +69,10 @@ Priority order each tick:
 1. **Starvation check** — `applyStarvation`; if it just died, release its job
    claims and remove it.
 2. **Survival** — if an alien is within `FleeRadius`, drop everything, flee.
-3. **Urgent need preemption** — `mostUrgentNeed` may interrupt the current task.
-   If a facility of the right kind is reachable, switch to `JobUse` and follow
-   its flow field. Otherwise help with **reachable** facility construction; only
+3. **Urgent need preemption** — `mostUrgentNeed` may interrupt the current task,
+   unless the task already serves that need: a live conversation (social) or a
+   matching `JobUse`/`JobBuild` runs on rather than restarting. If a facility of
+   the right kind is reachable, switch to `JobUse` and follow its flow field. Otherwise help with **reachable** facility construction; only
    a *fatal* need with no reachable life-support under construction justifies a
    lone emergency build. If all reachable project tasks are claimed, wait (step
    aside if idling would block) rather than wandering off and losing your place.
