@@ -178,7 +178,7 @@ func busySnapshot() *sim.Snapshot {
 	}
 
 	return &sim.Snapshot{
-		Tick: 1234, Width: w, Height: h, Tiles: tiles, TicksPerSecond: 8,
+		Tick: 1234, Width: w, Height: h, Tiles: sim.NewTileGrid(w, h, tiles), TicksPerSecond: 8,
 		MoodMax: 100, AffinityMax: 100, Entities: entities,
 		Projects: []sim.ProjectView{{
 			ID: 1, Name: "a dormitory with a deliberately long name", QueuedTick: 2,

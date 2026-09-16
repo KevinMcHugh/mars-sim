@@ -17,6 +17,7 @@ way it is without re-deriving it from the source each time.
 | [configuration.md](./configuration.md) | `sim.Config`, `DefaultConfig`, and how tunables become command-line flags. |
 | [world.md](./world.md) | The tile grid, terrain kinds, world state, and world generation. |
 | [entities-and-ai.md](./entities-and-ai.md) | The entity model, the per-tick systems, turn order, movement primitives, and the colonist / alien / cat / mouse behaviors. |
+| [combat.md](./combat.md) | Per-body-part HP, weapons (pistol/shotgun), the colony ship's starting equipment, and gore. |
 | [needs.md](./needs.md) | Colonist (and mouse) needs: hunger, bladder, lazy evaluation, starvation, and how to add a need. |
 | [personality.md](./personality.md) | Names, attributes, traits, and the separate RNG stream that keeps flavor out of the simulation. |
 | [ages-and-family.md](./ages-and-family.md) | Colonist ages and the age invariant for parent/child relationships. |
@@ -24,7 +25,8 @@ way it is without re-deriving it from the source each time.
 | [pathfinding.md](./pathfinding.md) | Rooms/regions, tile A\*, shared flow fields, and hierarchical (HPA\*) routing. |
 | [spatial-index-and-performance.md](./spatial-index-and-performance.md) | The occupancy index, incremental counts, chunk index, the job board, and the performance story. |
 | [inventory.md](./inventory.md) | Colonist inventory slots and stacking. |
-| [memories.md](./memories.md) | Colonist memories: notable experiences, sightings, and snapshot exposure. |
+| [memories.md](./memories.md) | Colonist memories and life events: notable experiences, sightings, mood effects, and snapshot exposure. |
+| [snapshot-tile-grid.md](./snapshot-tile-grid.md) | The terrain a frontend reads: an immutable, page-shared grid so publishing a frame costs what the tick touched, not the map's area. |
 | [frontend-tui.md](./frontend-tui.md) | The Bubble Tea terminal frontend: map, roster, controls, and glyphs. |
 | [terminal-cell-widths.md](./terminal-cell-widths.md) | Why the grid used to shear: cell-accurate measurement, the vetted glyph registry, the startup width probe, and the ASCII fallback. |
 

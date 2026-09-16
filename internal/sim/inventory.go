@@ -15,6 +15,11 @@ const (
 	RawRock
 	IronOre
 	WaterIce
+	// Pistol and Shotgun are combat weapons: a colonist carrying one fights an
+	// alien that gets close instead of only fleeing. See combat.go and
+	// docs/combat.md.
+	Pistol
+	Shotgun
 )
 
 func (k ItemKind) String() string {
@@ -25,9 +30,35 @@ func (k ItemKind) String() string {
 		return "iron ore"
 	case WaterIce:
 		return "water ice"
+	case Pistol:
+		return "pistol"
+	case Shotgun:
+		return "shotgun"
 	default:
 		return "empty"
 	}
+}
+
+// isWeapon reports whether an item kind is a wieldable combat weapon.
+func (k ItemKind) isWeapon() bool {
+	return k == Pistol || k == Shotgun
+}
+
+// bestWeapon returns the most effective weapon in inv, or ItemNone if the
+// colonist is unarmed. A shotgun beats a pistol; ties within a kind don't
+// matter since only its presence is checked.
+func bestWeapon(inv Inventory) ItemKind {
+	best := ItemNone
+	for _, stack := range inv {
+		if stack.Count == 0 || !stack.Kind.isWeapon() {
+			continue
+		}
+		if stack.Kind == Shotgun {
+			return Shotgun // nothing beats it
+		}
+		best = stack.Kind
+	}
+	return best
 }
 
 // ItemStack is one homogeneous inventory slot. Empty slots have Count zero and

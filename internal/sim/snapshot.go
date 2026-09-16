@@ -2,6 +2,9 @@ package sim
 
 // EntityView is a read-only copy of an entity for a single frame. Frontends
 // receive these instead of *Entity so they can never touch live game state.
+// A living entity comes from Snapshot.Entities; a dead one (Dead == true)
+// comes from Snapshot.Graveyard instead — a frozen record from the moment it
+// died, not a still-simulated thing occupying a tile. See docs/combat.md.
 type EntityView struct {
 	ID        EntityID
 	Kind      Kind
@@ -13,13 +16,29 @@ type EntityView struct {
 	Profile   *Profile  // colonists only; a deep copy, safe to read
 	Inventory Inventory // colonists only; copied by value
 
+	// Parts and MaxParts are per-body-part current/max HP (Colonist and Alien
+	// only; see Entity.hasParts and docs/combat.md). MaxParts is recomputed
+	// from MaxHP rather than stored on Entity, since distributeBodyParts is a
+	// pure function of it.
+	Parts    [numBodyParts]int
+	MaxParts [numBodyParts]int
+
 	// Relations are the colonist's familial ties to other colonists, derived from
 	// the family tree; Affinities are its tracked warmth toward colonists it has
-	// talked with, strongest first. Both are colonists only. See relationships.go.
+	// talked with, strongest first. Both are colonists only, and only for a
+	// still-living one (see entityView's full parameter). See relationships.go.
 	Relations  []Relation
 	Affinities []Affinity
 	Mood       int // disposition in [-MoodMax, MoodMax], 0 neutral (colonists only)
 	Memories   []Memory
+
+	// Dead, DiedTick, and Cause are set only on a Snapshot.Graveyard entry: it
+	// died at DiedTick (from Cause, a short player-facing phrase like "shot by
+	// Zoe Vargas with a shotgun"), and every other field is frozen from that
+	// moment — Pos is where it died, not where anything is now.
+	Dead     bool
+	DiedTick int
+	Cause    string
 }
 
 // TaskView is a read-only copy of one construction task for display: a single
@@ -96,14 +115,24 @@ type Stats struct {
 }
 
 // Snapshot is an immutable, self-contained picture of the world at one tick.
-// It is a deep copy: the Engine keeps mutating the real world after handing a
-// Snapshot to frontends, so nothing here aliases live state.
+// The Engine keeps mutating the real world after handing a Snapshot to
+// frontends, so nothing here aliases live state: everything colony-sized is
+// copied outright, and the terrain is a page-shared grid whose pages are copied
+// before they can change (see tilegrid.go). Either way a frame is safe to read
+// on another goroutine for as long as it is held.
 type Snapshot struct {
-	Tick      int
-	Width     int
-	Height    int
-	Tiles     []Tile // row-major copy, len == Width*Height
-	Entities  []EntityView
+	Tick   int
+	Width  int
+	Height int
+	// Tiles is the terrain, as an immutable page-shared grid rather than a
+	// per-frame copy of the map — read it with TerrainAt (or Tiles.At). See
+	// tilegrid.go for why it is not a plain slice.
+	Tiles    *TileGrid
+	Entities []EntityView
+	// Graveyard is the most recent violent/starvation deaths (bounded by
+	// Config.GraveyardSize), oldest first, for the roster's "dead" filter.
+	// See docs/combat.md.
+	Graveyard []EntityView
 	Log       []string
 	Stats     Stats
 	NeedsMeta [numNeeds]NeedMeta
@@ -121,61 +150,42 @@ type Snapshot struct {
 	TicksPerSecond int
 }
 
-// TerrainAt reads the copied grid; out-of-bounds reads return Rock so callers
+// TerrainAt reads the published grid; out-of-bounds reads return Rock so callers
 // (the renderer) can treat the world edge as solid.
 func (s *Snapshot) TerrainAt(p Point) Terrain {
 	if p.X < 0 || p.X >= s.Width || p.Y < 0 || p.Y >= s.Height {
 		return Rock
 	}
-	return s.Tiles[p.Y*s.Width+p.X].Terrain
+	return s.Tiles.TerrainAt(p)
 }
 
-// TileAt reads the copied tile grid; out-of-bounds cells are ordinary rock.
+// TileAt reads the published grid's full Tile (terrain, composition, and gore),
+// for renderers that need it. Out-of-bounds reads return clean ordinary rock.
 func (s *Snapshot) TileAt(p Point) Tile {
 	if p.X < 0 || p.X >= s.Width || p.Y < 0 || p.Y >= s.Height {
 		return Tile{Terrain: Rock, Composition: OrdinaryRock}
 	}
-	return s.Tiles[p.Y*s.Width+p.X]
+	return s.Tiles.At(p)
 }
 
-// snapshot builds an immutable copy of the world's current state.
+// snapshot builds an immutable view of the world's current state.
 func (w *World) snapshot(paused bool, tps int) *Snapshot {
-	tiles := make([]Tile, len(w.tiles))
-	copy(tiles, w.tiles)
+	tiles := w.publishedTiles()
 
 	ents := make([]EntityView, 0, len(w.entities))
 	kinChildren := w.cachedKinChildren()
-	stats := Stats{Rooms: w.roomCount}
-	for _, t := range tiles {
-		switch t.Terrain {
-		case Floor:
-			stats.FloorDug++
-		case NutrientPod:
-			stats.Pods++
-		case Toilet:
-			stats.Toilets++
-		case Bed:
-			stats.Beds++
-		}
+	// Terrain totals come from the incremental counts SetTerrain maintains;
+	// counting them by walking the grid would put the map's whole area back on
+	// every tick, which is exactly what the shared grid above avoids.
+	stats := Stats{
+		Rooms:    w.roomCount,
+		FloorDug: w.terrainCounts[Floor],
+		Pods:     w.terrainCounts[NutrientPod],
+		Toilets:  w.terrainCounts[Toilet],
+		Beds:     w.terrainCounts[Bed],
 	}
 	for _, e := range w.entities {
-		ev := EntityView{
-			ID:        e.ID,
-			Kind:      e.Kind,
-			Pos:       e.Pos,
-			HP:        e.HP,
-			MaxHP:     e.MaxHP,
-			State:     e.State,
-			Needs:     w.currentNeeds(e),
-			Profile:   e.Profile.clone(),
-			Inventory: e.Inventory,
-		}
-		if e.Kind == Colonist {
-			ev.Memories = append([]Memory(nil), e.Memories...)
-			ev.Relations = append([]Relation(nil), w.cachedRelations(e, kinChildren)...)
-			ev.Affinities = w.affinitiesOf(e.ID)
-			ev.Mood = e.mood
-		}
+		ev := w.entityView(e, kinChildren, true)
 		ents = append(ents, ev)
 		switch e.Kind {
 		case Colonist:
@@ -229,11 +239,44 @@ func (w *World) snapshot(paused bool, tps int) *Snapshot {
 		Projects:             projects,
 		PendingFacilityRooms: w.manualFacilityRooms,
 		PendingDormitories:   w.manualDormitories,
+		Graveyard:            append([]EntityView(nil), w.graveyard...),
 		AffinityMax:          w.cfg.AffinityMax,
 		MoodMax:              w.cfg.MoodMax,
 		Paused:               paused,
 		TicksPerSecond:       tps,
 	}
+}
+
+// entityView builds a read-only copy of e for display. full additionally
+// computes family/affinity ties, which only make sense for a still-living
+// colonist among still-living kin; a frozen graveyard record (see
+// World.remove) passes false and a nil kinChildren, leaving those empty
+// rather than stale.
+func (w *World) entityView(e *Entity, kinChildren map[kinID][]kinID, full bool) EntityView {
+	ev := EntityView{
+		ID:        e.ID,
+		Kind:      e.Kind,
+		Pos:       e.Pos,
+		HP:        e.HP,
+		MaxHP:     e.MaxHP,
+		State:     e.State,
+		Needs:     w.currentNeeds(e),
+		Profile:   e.Profile.clone(),
+		Inventory: e.Inventory,
+	}
+	if e.hasParts() {
+		ev.Parts = e.Parts
+		ev.MaxParts = distributeBodyParts(e.MaxHP)
+	}
+	if e.Kind == Colonist {
+		ev.Memories = append([]Memory(nil), e.Memories...)
+		if full {
+			ev.Relations = append([]Relation(nil), w.cachedRelations(e, kinChildren)...)
+			ev.Affinities = w.affinitiesOf(e.ID)
+			ev.Mood = e.mood
+		}
+	}
+	return ev
 }
 
 // currentNeeds returns a colonist's need levels as of now, computed lazily.

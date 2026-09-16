@@ -80,7 +80,7 @@ func (w *World) colonistTurn(e *Entity) {
 	w.applyStarvation(e)
 	if !e.Alive() { // starved this tick
 		w.clearJob(e) // release any board claim before removal
-		w.remove(e.ID)
+		w.remove(e.ID, "starved")
 		w.log.add(fmt.Sprintf("Colonist #%d starved to death.", e.ID))
 		return
 	}
@@ -90,9 +90,16 @@ func (w *World) colonistTurn(e *Entity) {
 	// per tick.
 	w.observeNearby(e)
 
-	// Survival comes first: if an alien is close, drop everything and run.
+	// Survival comes first: if an alien is close, an armed colonist stands and
+	// fights it instead of running (fleeing an armed threat that is faster to
+	// close than to outrun defeats the point of carrying a weapon); an unarmed
+	// one drops everything and runs, as before.
 	if threat, ok := w.nearestAlien(e.Pos, w.cfg.FleeRadius); ok {
 		w.clearJob(e)
+		if weapon := bestWeapon(e.Inventory); weapon != ItemNone {
+			w.fightAlien(e, threat, weapon)
+			return
+		}
 		e.resting = false
 		e.State = Fleeing
 		w.fleeStep(e, threat.Pos)
@@ -108,6 +115,18 @@ func (w *World) colonistTurn(e *Entity) {
 		// conversation. It preempts ordinary work, but mostUrgentNeed has
 		// already given fatal needs priority.
 		e.resting = false
+		// A conversation already under way *is* how this need gets met, so let
+		// it run — this is the social twin of the handlingNeed check below.
+		// Clearing it here instead meant a socially urgent colonist tore down
+		// its own talk and began a new one every tick, and beginTalk resets the
+		// shared timer: no conversation ever reached TalkTicks, so the need was
+		// never satisfied, so it stayed urgent and preempted every other job.
+		// A colony would settle into permanent failed small talk with nobody
+		// mining or building ever again.
+		if _, ok := w.talkPartner(e); ok {
+			w.runJob(e)
+			return
+		}
 		w.clearJob(e)
 		if w.tryStartTalk(e, true) {
 			w.runJob(e)
@@ -225,6 +244,10 @@ func (w *World) colonistTurn(e *Entity) {
 	w.runJob(e)
 }
 
+// observeNearby records the first sighting of each nearby creature (edge-
+// triggered on e.seen, so a colonist fleeing for many ticks remembers one
+// encounter, not one memory per tick) and, via observeGore, the first sight
+// of gore in the same visit.
 func (w *World) observeNearby(e *Entity) {
 	visible := make(map[EntityID]bool)
 	for _, id := range w.entityIDsSorted() {
@@ -232,8 +255,8 @@ func (w *World) observeNearby(e *Entity) {
 		if other == e || !other.Alive() {
 			continue
 		}
-		radius := 0
-		switch other.Kind {
+		kind, radius := other.Kind, 0
+		switch kind {
 		case Alien:
 			radius = w.cfg.FleeRadius
 		case Mouse:
@@ -241,14 +264,45 @@ func (w *World) observeNearby(e *Entity) {
 		default:
 			continue
 		}
-		if e.Pos.Chebyshev(other.Pos) <= radius {
-			visible[other.ID] = true
-			if !e.seen[other.ID] {
-				w.remember(e, fmt.Sprintf("Saw %s #%d.", other.Kind, other.ID))
+		if e.Pos.Chebyshev(other.Pos) > radius {
+			continue
+		}
+		visible[other.ID] = true
+		if e.seen[other.ID] {
+			continue
+		}
+		evtKind := EvtSawMouse
+		if kind == Alien {
+			evtKind = EvtSawAlien
+		}
+		w.remember(e, event(evtKind, "Saw %s #%d.", kind, other.ID))
+	}
+	e.seen = visible
+
+	w.observeGore(e)
+}
+
+// observeGore is observeNearby's counterpart for the environment rather than
+// other entities. Unlike e.seen it is a single edge-triggering flag, not a
+// per-tile map: "in sight of gore" is one memory-worthy fact whether it's one
+// stained tile or a whole battlefield, not one memory per tile.
+func (w *World) observeGore(e *Entity) {
+	seeing := false
+	r := w.cfg.GoreSightRadius
+outer:
+	for y := -r; y <= r; y++ {
+		for x := -r; x <= r; x++ {
+			p := e.Pos.Add(x, y)
+			if w.InBounds(p) && w.tiles[w.index(p)].Gore > 0 {
+				seeing = true
+				break outer
 			}
 		}
 	}
-	e.seen = visible
+	if seeing && !e.seeingGore {
+		w.remember(e, event(EvtSawGore, "Saw the aftermath of violence nearby."))
+	}
+	e.seeingGore = seeing
 }
 
 // stompNearbyMouse lets a colonist with nothing pressing to do chase down and
@@ -275,15 +329,16 @@ func (w *World) stompNearbyMouse(e *Entity) bool {
 	return true
 }
 
-// stomp crushes a mouse underfoot. A stomp is always fatal to the mouse. Any
-// other colonist close enough to have noticed the mouse remembers seeing it
-// happen.
+// stomp crushes a mouse underfoot. A stomp is always fatal to the mouse and
+// leaves it behind as gore. Any other colonist close enough to have noticed
+// the mouse remembers seeing it happen.
 func (w *World) stomp(colonist, mouse *Entity) {
 	witnesses := w.colonistsWithin(mouse.Pos, w.cfg.ColonistStompRadius, colonist.ID)
-	w.remove(mouse.ID)
-	w.remember(colonist, fmt.Sprintf("Crushed mouse #%d.", mouse.ID))
+	w.addGore(mouse.Pos)
+	w.remove(mouse.ID, fmt.Sprintf("crushed by %s", colonist.displayName()))
+	w.remember(colonist, event(EvtCrushedMouse, "Crushed mouse #%d.", mouse.ID))
 	for _, wit := range witnesses {
-		w.remember(wit, fmt.Sprintf("Watched a colonist crush mouse #%d.", mouse.ID))
+		w.remember(wit, event(EvtWitnessedMouseCrushed, "Watched a colonist crush mouse #%d.", mouse.ID))
 	}
 	w.log.add(fmt.Sprintf("Colonist #%d stomps mouse #%d.", colonist.ID, mouse.ID))
 }
@@ -496,14 +551,30 @@ func (w *World) beginTalk(a, b *Entity) {
 	a.State, b.State = Talking, Talking
 }
 
+// talkPartner returns the colonist e is in a conversation with, if both sides
+// still claim each other. A conversation is only real while it is mutual: one
+// side being pulled away (a fatal need, a threat, a torn-down claim) ends it for
+// both, which is what stops a colonist chatting with someone who has wandered
+// off to eat.
+func (w *World) talkPartner(e *Entity) (*Entity, bool) {
+	if e.Job != JobTalk {
+		return nil, false
+	}
+	p := w.entities[e.partner]
+	if p == nil || !p.Alive() || p.Kind != Colonist || p.Job != JobTalk || p.partner != e.ID {
+		return nil, false
+	}
+	return p, true
+}
+
 // jobTalk runs one tick of a conversation: partners converge, then chat for
 // TalkTicks before the pair's affinity rises. The two must claim each other
 // mutually or the talk is abandoned. To avoid chasing each other, the higher-ID
 // partner walks over while the lower-ID one waits; the lower-ID partner also
 // hosts the shared timer so a conversation is credited once, not once per side.
 func (w *World) jobTalk(e *Entity) {
-	p := w.entities[e.partner]
-	if p == nil || !p.Alive() || p.Kind != Colonist || p.Job != JobTalk || p.partner != e.ID {
+	p, ok := w.talkPartner(e)
+	if !ok {
 		w.clearJob(e)
 		return
 	}
@@ -530,8 +601,6 @@ func (w *World) jobTalk(e *Entity) {
 		e.Progress++
 		if e.Progress >= w.cfg.TalkTicks {
 			w.finishTalk(e, p)
-			w.remember(e, fmt.Sprintf("Had a conversation with %s.", p.displayName()))
-			w.remember(p, fmt.Sprintf("Had a conversation with %s.", e.displayName()))
 			w.resetNeed(e, NeedSocial)
 			w.resetNeed(p, NeedSocial)
 			w.clearJob(p)
@@ -542,15 +611,23 @@ func (w *World) jobTalk(e *Entity) {
 
 // finishTalk applies a completed conversation's outcome: it rolls the chat's
 // quality, shifts the pair's affinity (exacerbating its existing valence, with
-// diminishing returns), and moves both participants' moods accordingly. See
-// relationships.go.
+// diminishing returns), and records each participant's memory of it with the
+// mood delta that this particular conversation earned — a company term (how
+// it feels to spend time with the other, from affinity), a conversation term
+// (how the chat itself went, from quality), and each participant's own
+// social-fatigue penalty (noteConversation), which must still be called
+// exactly once per participant since it also advances their rolling
+// conversation-count window as a side effect. That computed total is
+// necessarily per-occurrence — unlike most LifeEvents it can't be a fixed
+// table lookup — so it travels on the LifeEvent itself via eventMood rather
+// than lifeEventMoodEffects. See docs/memories.md.
 func (w *World) finishTalk(a, b *Entity) {
 	existing := w.affinityBetween(a.ID, b.ID)
 	quality := w.rollTalkQuality(existing)
 	w.addAffinity(a.ID, b.ID, w.talkAffinityDelta(existing, quality))
 	mood := w.talkMoodDelta(quality, existing)
-	w.adjustMood(a, mood+w.noteConversation(a))
-	w.adjustMood(b, mood+w.noteConversation(b))
+	w.remember(a, eventMood(EvtConversation, mood+w.noteConversation(a), "Had a conversation with %s.", b.displayName()))
+	w.remember(b, eventMood(EvtConversation, mood+w.noteConversation(b), "Had a conversation with %s.", a.displayName()))
 }
 
 // assignWorkJob picks something productive to do: help build a planned project
@@ -627,7 +704,7 @@ func (w *World) jobMine(e *Entity) {
 					return
 				}
 				w.SetTerrain(e.Target, Floor) // TileChanged drops it from the frontier
-				w.remember(e, fmt.Sprintf("Finished mining at (%d, %d).", e.Target.X, e.Target.Y))
+				w.remember(e, event(EvtFinishedMining, "Finished mining at (%d, %d).", e.Target.X, e.Target.Y))
 				w.clearJob(e)
 			}
 			return
@@ -710,13 +787,13 @@ func (w *World) jobBuild(e *Entity) {
 			return
 		}
 		w.SetTerrain(e.Target, Floor)
-		w.remember(e, fmt.Sprintf("Cleared rock for a room at (%d, %d).", e.Target.X, e.Target.Y))
+		w.remember(e, event(EvtClearedRock, "Cleared rock for a room at (%d, %d).", e.Target.X, e.Target.Y))
 		w.clearJob(e)
 		return
 	}
 	w.SetTerrain(e.Target, e.BuildKind)
 	w.noteBuild(e.BuildKind)
-	w.remember(e, fmt.Sprintf("Finished construction of %s at (%d, %d).",
+	w.remember(e, event(EvtFinishedConstruction, "Finished construction of %s at (%d, %d).",
 		e.BuildKind, e.Target.X, e.Target.Y))
 	w.clearJob(e) // endBuild decrements the in-progress counter
 }
@@ -957,13 +1034,13 @@ func (w *World) finishUse(e *Entity, spec NeedSpec) {
 	w.resetNeed(e, e.Need)
 	switch e.Need {
 	case NeedFood:
-		w.remember(e, "Had a meal.")
+		w.remember(e, event(EvtAte, "Had a meal."))
 	case NeedBladder:
-		w.remember(e, "Used the toilet.")
+		w.remember(e, event(EvtUsedToilet, "Used the toilet."))
 	case NeedSleep:
-		w.remember(e, "Slept in a bed.")
+		w.remember(e, event(EvtSlept, "Slept in a bed."))
 	default:
-		w.remember(e, fmt.Sprintf("Satisfied %s.", spec.Name))
+		w.remember(e, event(EvtNeedSatisfied, "Satisfied %s.", spec.Name))
 	}
 	w.clearJob(e)
 }
@@ -1120,26 +1197,29 @@ func (w *World) alienTurn(e *Entity) {
 	e.Cooldown = w.cfg.AlienSlowness - 1
 }
 
-// bite deals damage to a colonist and eats it if the wound is fatal. The
-// victim remembers the attack, and any other colonist close enough to have
-// noticed the alien (observeNearby's own sighting radius) remembers watching
-// it happen.
+// bite deals damage to a random body part of a colonist and eats it if the
+// wound is fatal (a vital part destroyed, or HP exhausted). The victim
+// remembers the attack, and any other colonist close enough to have noticed
+// the alien (observeNearby's own sighting radius) remembers watching it
+// happen. A fatal bite leaves gore behind.
 func (w *World) bite(alien, prey *Entity) {
-	prey.HP -= w.cfg.AlienDamage
+	part := w.rollHit()
+	fatal := applyDamage(prey, part, w.cfg.AlienDamage)
 	witnesses := w.colonistsWithin(prey.Pos, w.cfg.FleeRadius, prey.ID)
-	if prey.HP <= 0 {
+	if fatal {
 		alien.State = Feeding
 		name := prey.displayName()
-		w.remove(prey.ID)
+		w.addGore(prey.Pos)
+		w.remove(prey.ID, "devoured by an alien")
 		w.log.add(fmt.Sprintf("An alien devours %s.", name))
 		for _, wit := range witnesses {
-			w.remember(wit, fmt.Sprintf("Watched an alien kill %s.", name))
+			w.remember(wit, event(EvtWitnessedColonistKilled, "Watched an alien kill %s.", name))
 		}
 	} else {
 		alien.State = Hunting
-		w.remember(prey, "Bitten by an alien!")
+		w.remember(prey, event(EvtBitten, "Bitten in the %s by an alien!", part))
 		for _, wit := range witnesses {
-			w.remember(wit, fmt.Sprintf("Watched an alien attack %s.", prey.displayName()))
+			w.remember(wit, event(EvtWitnessedColonistAttacked, "Watched an alien attack %s.", prey.displayName()))
 		}
 	}
 }
@@ -1185,9 +1265,9 @@ func (w *World) catTurn(e *Entity) {
 func (w *World) pounce(cat, prey *Entity) {
 	cat.State = Feeding
 	for _, wit := range w.colonistsWithin(prey.Pos, w.cfg.ColonistStompRadius, 0) {
-		w.remember(wit, fmt.Sprintf("Watched a cat catch mouse #%d.", prey.ID))
+		w.remember(wit, event(EvtWitnessedCatCatch, "Watched a cat catch mouse #%d.", prey.ID))
 	}
-	w.remove(prey.ID)
+	w.remove(prey.ID, "caught by a cat")
 	w.log.add(fmt.Sprintf("A cat catches mouse #%d.", prey.ID))
 }
 
@@ -1201,7 +1281,7 @@ func (w *World) mouseTurn(e *Entity) {
 	w.applyStarvation(e)
 	if !e.Alive() { // starved this tick
 		w.clearJob(e)
-		w.remove(e.ID)
+		w.remove(e.ID, "starved")
 		w.log.add(fmt.Sprintf("Mouse #%d starves.", e.ID))
 		return
 	}

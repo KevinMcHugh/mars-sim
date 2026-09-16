@@ -6,7 +6,9 @@
 
 Colonists carry items in a fixed set of slots, each holding one homogeneous stack.
 Mining produces `RawRock` and may also produce `IronOre` or `WaterIce`, depending
-on the excavated tile's rock composition.
+on the excavated tile's rock composition. Colonists may also carry `Pistol` or
+`Shotgun` weapons from the colony ship's starting equipment; see
+[combat.md](./combat.md).
 
 ## Source
 
@@ -36,6 +38,13 @@ adds one `IronOre` or `WaterIce` for a bearing tile. `jobMine` and construction
 dig tasks add that complete yield with `AddAll` **before** changing terrain, so
 limited inventory can never make one part of a deposit disappear.
 
+Weapons are the other producer, though a one-time one: `equipColonyShip`
+(`combat.go`) hands a `Pistol` or `Shotgun` to a colonist's inventory once, at
+worldgen. There is no equip/unequip step — `bestWeapon` (`inventory.go`) just
+scans the stacks for the best weapon kind present, so carrying one *is*
+wielding it. Nothing removes a weapon from inventory today (no drop, no
+ammo, no loss on death), so once armed, always armed.
+
 Inventory is copied by value into the snapshot's `EntityView`, so the frontend can
 render it without touching live state.
 
@@ -56,8 +65,13 @@ render it without touching live state.
 - **Stockpiles / hauling** would build on this: a haul job would move stacks
   between an inventory and a storage structure (a future project kind — see
   [construction.md](./construction.md)).
+- **Picking up or dropping a weapon mid-game** would need a floor-item concept
+  the world doesn't have yet — today the only way an inventory changes is
+  mining or the one-time worldgen equip. See [combat.md](./combat.md)'s
+  Extending it for more.
 
 ## Related
 
 - [entities-and-ai.md](./entities-and-ai.md) — mining, the current producer.
+- [combat.md](./combat.md) — the pistol/shotgun weapons carried in inventory.
 - [frontend-tui.md](./frontend-tui.md) — how the roster renders inventory.

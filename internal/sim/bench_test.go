@@ -188,3 +188,25 @@ func BenchmarkFindRoomSiteNoFit(b *testing.B) {
 		w.findRoomSite(width)
 	}
 }
+
+// BenchmarkPublishSmallColonyOnHugeMap* measure one published frame — a tick
+// plus the Snapshot the engine hands frontends — on a huge, mostly-untouched
+// map. The two sizes should land within noise of each other: publishing shares
+// unchanged tile pages between frames and reads terrain totals off the
+// incremental counts, so a frame costs what the tick touched, not what the map
+// measures. Copying the grid (and counting terrain by walking it) put the map's
+// whole area on every tick and made 7000x7000 half the tick rate of 5000x5000.
+func benchmarkPublish(b *testing.B, mapSize int) {
+	w := benchWorldSmallColony(mapSize, 60, 50)
+	w.step()
+	w.snapshot(false, 8) // pay for the first grid outside the timed loop
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		w.step()
+		w.snapshot(false, 8)
+	}
+}
+
+func BenchmarkPublishSmallColonyOnHugeMap2500(b *testing.B)  { benchmarkPublish(b, 2500) }
+func BenchmarkPublishSmallColonyOnHugeMap10000(b *testing.B) { benchmarkPublish(b, 10000) }

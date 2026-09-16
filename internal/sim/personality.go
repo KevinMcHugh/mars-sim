@@ -167,6 +167,7 @@ const (
 	TraitAsocial
 	TraitIntrovert
 	TraitExtrovert
+	TraitTidy
 
 	numTraits // keep last
 )
@@ -179,6 +180,12 @@ const (
 	groupAppetite traitGroup = iota
 	groupWorkEthic
 	groupSocial
+	// groupTemperament holds traits about disposition rather than a work/food/
+	// social need — today just Tidy, but it is its own axis (not mutually
+	// exclusive with anything else) so a colonist could still be both an
+	// Industrious Extrovert and Tidy. A future opposite (e.g. "Slob", numbed to
+	// gore) would join this group.
+	groupTemperament
 
 	numTraitGroups // keep last
 )
@@ -229,6 +236,12 @@ var traitSpecs = [numTraits]traitSpec{
 	TraitExtrovert: {
 		Name: "Extrovert", Desc: "Needs frequent social interaction to feel fulfilled.",
 		group: groupSocial, socialScale: 1.5, socialCapacity: 6,
+	},
+	TraitTidy: {
+		Name: "Tidy", Desc: "Squeamish about mess; the sight of gore hits morale harder.",
+		group: groupTemperament,
+		// No need-rise/rest/work/social effect — Tidy's only effect is the extra
+		// EvtSawGore mood penalty declared in lifeevents.go, gated on this trait.
 	},
 }
 

@@ -21,6 +21,17 @@ type Config struct {
 	StartCats      int
 	StartMice      int
 
+	// Starting equipment. The colony ship arrives with a handful of firearms
+	// for defense against aliens; worldgen hands them out to distinct
+	// colonists (see generate in worldgen.go).
+	StartPistols  int
+	StartShotguns int
+
+	// GraveyardSize is how many recent deaths (any kind) are kept as frozen
+	// records for the roster's "dead" filter; 0 disables death tracking
+	// entirely. See docs/combat.md.
+	GraveyardSize int
+
 	// Timing.
 	TicksPerSecond int // default simulation speed
 	LogSize        int // how many recent events to retain
@@ -35,6 +46,11 @@ type Config struct {
 	// crush it. Stomping is an idle whim: only colonists with nothing pressing
 	// (no threat, no urgent need, no work) hunt pests.
 	ColonistStompRadius int
+	// GoreSightRadius is how far a colonist notices gore on the ground (see
+	// observeGore in systems.go and EvtSawGore in lifeevents.go). Smaller than
+	// the creature-sighting radii: a bloodstain doesn't announce itself the way
+	// a moving alien does.
+	GoreSightRadius int
 
 	// Needs. One NeedSpec per NeedKind, indexed by that kind.
 	Needs                [numNeeds]NeedSpec
@@ -105,6 +121,16 @@ type Config struct {
 	AlienBiteRest int // cooldown ticks between bites
 	AlienSlowness int // alien acts once every N ticks (>=1); higher is slower
 
+	// Weapon stats. A colonist carrying one stands and fights an alien within
+	// Range instead of fleeing, firing once every FireRest ticks. See
+	// combat.go and docs/combat.md.
+	PistolDamage    int
+	PistolRange     int
+	PistolFireRest  int
+	ShotgunDamage   int
+	ShotgunRange    int
+	ShotgunFireRest int
+
 	// Cat stats. Cats have no needs; they hunt mice on the floor by instinct.
 	CatHP         int
 	CatSlowness   int // cat acts once every N ticks (>=1); higher is slower
@@ -139,6 +165,9 @@ func DefaultConfig() Config {
 		StartAliens:         3,
 		StartCats:           2,
 		StartMice:           8,
+		StartPistols:        1,
+		StartShotguns:       1,
+		GraveyardSize:       50,
 		TicksPerSecond:      8,
 		LogSize:             64,
 		ColonistHP:          40,
@@ -147,6 +176,7 @@ func DefaultConfig() Config {
 		FacilityBuildTicks:  12,
 		FleeRadius:          5,
 		ColonistStompRadius: 4,
+		GoreSightRadius:     3,
 
 		StarveDamage:          1,
 		ColonistsPerFacility:  5,
@@ -202,6 +232,13 @@ func DefaultConfig() Config {
 		AlienDamage:   6,
 		AlienBiteRest: 3,
 		AlienSlowness: 2,
+
+		PistolDamage:    10,
+		PistolRange:     3,
+		PistolFireRest:  1,
+		ShotgunDamage:   20,
+		ShotgunRange:    2,
+		ShotgunFireRest: 2,
 
 		CatHP:         12,
 		CatSlowness:   2,
