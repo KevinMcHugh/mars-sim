@@ -43,6 +43,13 @@ const (
 	// Bed satisfies the sleep need; a colonist sleeps in the bunk from an
 	// adjacent tile, the same way it uses any other facility. Blocks movement.
 	Bed
+	// Incinerator burns refuse — viscera scrubbed off the floor and the bodies
+	// of the dead — hauled to it by a cleaning colonist. It is a machine, not a
+	// need facility: nothing seeks it out to satisfy a drive, so it has no
+	// NeedSpec; it is the disposal end of the sanitation loop and the reason a
+	// trash room gets built at all. Used from an adjacent tile; blocks movement
+	// like any other structure. See docs/sanitation.md.
+	Incinerator
 
 	numTerrains // keep last: the number of terrain kinds
 )
@@ -61,6 +68,8 @@ func (t Terrain) String() string {
 		return "toilet"
 	case Bed:
 		return "bed"
+	case Incinerator:
+		return "incinerator"
 	default:
 		return "unknown"
 	}
@@ -78,11 +87,19 @@ func (t Terrain) Walkable() bool {
 type Tile struct {
 	Terrain Terrain
 	// Gore is a violent death's visible residue on this tile: 0 is clean, and
-	// it climbs (capped at maxGore) as more kills happen here. It is purely
-	// cosmetic — it never affects Walkable or anything else — and, unlike
-	// Terrain, is not reset by SetTerrain, so a mined-out or built-over tile
-	// keeps its stains.
+	// it climbs (capped at maxGore) as more kills happen here. It never affects
+	// Walkable or anything else, and digging a tile out does not wash it away —
+	// an alien shot dead inside a rock vein leaves a stain that is only
+	// reachable once somebody mines through to it. Raising a structure on the
+	// tile does clear it, though: see SetTerrain.
 	Gore int
+	// Corpses is how many bodies lie on this tile, left by a death that did not
+	// end in something eating the remains (a starvation, a gunned-down alien, a
+	// stomped mouse). Like Gore it is tile state rather than an entity: a corpse
+	// does not act, and the occupancy index allows one entity per tile, so a
+	// body modelled as an entity would wall off the spot where anything died.
+	// Colonists haul corpses to an incinerator; see docs/sanitation.md.
+	Corpses int
 }
 
 // maxGore caps a tile's Gore so a well-fought corner cannot climb the count
@@ -105,8 +122,81 @@ func (w *World) addGore(p Point) {
 	i := w.index(p)
 	if w.tiles[i].Gore < maxGore {
 		w.tiles[i].Gore++
+		w.goreTotal++
 		w.markTilePageDirty(i)
 	}
+}
+
+// addCorpse leaves a body on p. It is addGore's counterpart for remains that
+// are still recognizably a body rather than a stain, and callers pick: a death
+// whose remains are eaten (an alien devouring a colonist, a cat swallowing a
+// mouse) leaves only gore, while a starvation, a gunshot, or a stomp leaves a
+// body to be hauled away. Like addGore it must mark the tile's page dirty so
+// the change reaches the next published frame (see tilegrid.go).
+func (w *World) addCorpse(p Point) {
+	if !w.InBounds(p) {
+		return
+	}
+	i := w.index(p)
+	w.tiles[i].Corpses++
+	w.corpseTotal++
+	w.markTilePageDirty(i)
+}
+
+// refuseAt reports how many units of refuse — gore stains plus bodies — lie on
+// p. It is what a cleaning colonist scrubs up and what the colony's demand for
+// a trash room is measured in.
+func (w *World) refuseAt(p Point) int {
+	if !w.InBounds(p) {
+		return 0
+	}
+	t := w.tiles[w.index(p)]
+	return t.Gore + t.Corpses
+}
+
+// refuseTotal is the whole map's outstanding refuse, maintained incrementally
+// by the add/take helpers so the planner never rescans the grid to decide
+// whether the colony needs somewhere to burn things.
+func (w *World) refuseTotal() int { return w.goreTotal + w.corpseTotal }
+
+// takeGore removes one gore stain from p, returning whether there was one.
+// Paired with takeCorpse, it is the only way refuse leaves a tile: a colonist
+// scrubbing it into its inventory (see cleaning.go).
+func (w *World) takeGore(p Point) bool {
+	if !w.InBounds(p) {
+		return false
+	}
+	i := w.index(p)
+	if w.tiles[i].Gore <= 0 {
+		return false
+	}
+	w.tiles[i].Gore--
+	w.goreTotal--
+	w.markTilePageDirty(i)
+	return true
+}
+
+// clearRefuse discards everything lying on a tile (by slice index), keeping the
+// running totals in step. Callers mark the page dirty themselves.
+func (w *World) clearRefuse(i int) {
+	w.goreTotal -= w.tiles[i].Gore
+	w.corpseTotal -= w.tiles[i].Corpses
+	w.tiles[i].Gore, w.tiles[i].Corpses = 0, 0
+}
+
+// takeCorpse removes one body from p, returning whether there was one.
+func (w *World) takeCorpse(p Point) bool {
+	if !w.InBounds(p) {
+		return false
+	}
+	i := w.index(p)
+	if w.tiles[i].Corpses <= 0 {
+		return false
+	}
+	w.tiles[i].Corpses--
+	w.corpseTotal--
+	w.markTilePageDirty(i)
+	return true
 }
 
 // World is the mutable game state for a single underground level. It is owned by
@@ -134,6 +224,11 @@ type World struct {
 	// grid or the entity set to answer "how many of X?".
 	terrainCounts [numTerrains]int
 	kindCounts    [numKinds]int
+	// goreTotal/corpseTotal are the same idea for tile refuse: the colony's
+	// sanitation planning asks "is there anything to clean up?" every planning
+	// cycle, which must not mean walking the map. See refuseTotal.
+	goreTotal   int
+	corpseTotal int
 
 	// kindEntities[k] holds the ID of every living entity of kind k. Kept in
 	// step by spawn/remove so a global "nearest of this kind, anywhere" search
@@ -145,7 +240,7 @@ type World struct {
 	kindEntities [numKinds]map[EntityID]struct{}
 
 	// facilityTiles[t] holds every tile currently of terrain t, for the handful
-	// of terrain kinds that back a need (NutrientPod, Toilet, Bed). Kept in step
+	// of terrain kinds colonists walk to (NutrientPod, Toilet, Bed, Incinerator). Kept in step
 	// by SetTerrain so chooseFacility and facilitySeed can visit just those
 	// tiles instead of scanning the whole grid — essential on large maps, where
 	// a full Width*Height scan dwarfs the tiny number of actual facilities.
@@ -211,6 +306,7 @@ type World struct {
 	// engine's single-owner rule for simulation state.
 	manualFacilityRooms int
 	manualDormitories   int
+	manualTrashRooms    int
 	// buildTiles holds every not-yet-built task tile, rebuilt each tick. Colonists
 	// route around these so a crowd never parks on a tile a builder needs clear —
 	// otherwise a facility mobbed by its neighbors could never be raised. See
@@ -295,10 +391,13 @@ func newWorld(cfg Config, rng *rand.Rand) *World {
 
 	for i := 0; i < int(numNeeds); i++ {
 		if f := cfg.Needs[i].Facility; f != Rock && w.fields[f] == nil {
-			w.facilityTiles[f] = make(map[Point]struct{})
-			w.fields[f] = newFlowField(w, facilitySeed(w, f))
+			w.trackFacility(f)
 		}
 	}
+	// The incinerator backs no need, so the loop above never reaches it, but a
+	// hauler still has to find and route to one — it needs the same tracked
+	// tile set and shared field as any facility. See docs/sanitation.md.
+	w.trackFacility(Incinerator)
 	w.frontier = newFlowField(w, func(add func(Point)) {
 		// Goals: walkable neighbors of every unclaimed frontier rock tile.
 		for p := range w.board.frontier {
@@ -321,6 +420,17 @@ func newWorld(cfg Config, rng *rand.Rand) *World {
 		}
 	})
 	return w
+}
+
+// trackFacility gives a terrain kind the tile set and shared flow field that
+// make it a place colonists can find and walk to: facilityTiles[kind] is kept
+// in step by SetTerrain, and fields[kind] routes seekers to the nearest one.
+func (w *World) trackFacility(kind Terrain) {
+	if w.fields[kind] != nil {
+		return
+	}
+	w.facilityTiles[kind] = make(map[Point]struct{})
+	w.fields[kind] = newFlowField(w, facilitySeed(w, kind))
 }
 
 // index converts a coordinate to a slice offset. Callers must ensure the point
@@ -370,6 +480,15 @@ func (w *World) SetTerrain(p Point, t Terrain) {
 			w.carvedMin.X, w.carvedMax.X = min(w.carvedMin.X, p.X), max(w.carvedMax.X, p.X)
 			w.carvedMin.Y, w.carvedMax.Y = min(w.carvedMin.Y, p.Y), max(w.carvedMax.Y, p.Y)
 		}
+	}
+	// Building on a tile scrapes or seals whatever was lying on it. That is
+	// partly flavor and partly an invariant the cleaning system depends on:
+	// refuse under a wall could never be hauled away, so leaving it there
+	// would mean a colony that reports a mess no colonist can ever clean up
+	// (see cleaning.go). Digging (Rock/Floor) deliberately does not clear it —
+	// mining through to an old kill should expose the stain, not erase it.
+	if t != Floor && t != Rock {
+		w.clearRefuse(i)
 	}
 	w.tiles[i].Terrain = t
 	w.markTilePageDirty(i)

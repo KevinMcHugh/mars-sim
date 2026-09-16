@@ -19,15 +19,20 @@ the floor.
 
 ### Terrain and tiles
 
-`Terrain` is an enum: `Rock`, `Floor`, `Wall`, `NutrientPod`, `Toilet`, `Bed`.
-Only
+`Terrain` is an enum: `Rock`, `Floor`, `Wall`, `NutrientPod`, `Toilet`, `Bed`,
+`Incinerator`. Only
 `Floor` is `Walkable()` — colonists, cats, and mice stay on floor; **aliens ignore
 walkability and burrow through anything**. Beds are dormitory bunks used from an
-adjacent floor tile.
+adjacent floor tile; the incinerator is the machine refuse is burned in, used the
+same way (see [sanitation.md](./sanitation.md)).
 
 A `Tile` is a struct wrapping `Terrain` (not a bare enum) deliberately, so fields
 like ore, moisture, or temperature can be added later without touching every call
-site.
+site. Two such fields exist today, both holding what is lying on the tile rather
+than what it is made of: `Gore` (a violent death's stains, see
+[combat.md](./combat.md)) and `Corpses` (bodies waiting to be hauled off, see
+[sanitation.md](./sanitation.md)). Raising a structure on a tile clears both;
+digging one out does not.
 
 The grid is stored as a flat `[]Tile` of length `Width*Height`, indexed row-major
 via `World.index(p)`. `TerrainAt` returns `Rock` for out-of-bounds cells so the

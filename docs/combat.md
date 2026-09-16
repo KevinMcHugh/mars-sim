@@ -12,7 +12,9 @@ parts rather than a shared HP pool, so a wound can be a survivable graze or an
 outright kill depending on where it lands. Violent deaths (a gunned-down
 alien, a bitten colonist, a stomped mouse) leave gore behind on the tile and a
 frozen record in the graveyard, so the roster can show what happened to
-something after the fact. Human-vs-human violence and weapon skill are
+something after the fact. A death nothing eats also leaves a body on the tile
+for someone to haul away — that half belongs to
+[sanitation.md](./sanitation.md). Human-vs-human violence and weapon skill are
 explicitly out of scope for this pass; mouse-killing (the existing
 stomp/pounce mechanics) is unchanged except for the mess and the record it
 now leaves.
@@ -30,7 +32,8 @@ now leaves.
   survival branch (fight vs. flee), `bite` (now body-part aware), `stomp`
   (now leaves gore).
 - [`internal/sim/world.go`](../internal/sim/world.go) — `Tile.Gore`,
-  `World.addGore`, `World.remove` (the graveyard funnel), `World.graveyard`.
+  `World.addGore`, `World.addCorpse`, `World.remove` (the graveyard funnel),
+  `World.graveyard`.
 - [`internal/sim/snapshot.go`](../internal/sim/snapshot.go) — `EntityView`'s
   `Dead`/`DiedTick`/`Cause` fields, `entityView`, `Snapshot.Graveyard`.
 - [`internal/sim/config.go`](../internal/sim/config.go) — weapon, starting
@@ -134,17 +137,23 @@ colony ship armed is who stays armed.
 
 ### Gore
 
-`Tile` gained a `Gore int` field alongside `Terrain` — purely cosmetic, never
-consulted by `Walkable` or anything else, and (unlike `Terrain`) never reset
-by `SetTerrain`, so a stain outlives the floor being mined around it or built
-over. `World.addGore(p)` bumps it, capped at `maxGore` (3; the cap just
+`Tile` gained a `Gore int` field alongside `Terrain` — never consulted by
+`Walkable` or anything else, and not reset when a tile is *dug*, so a stain
+outlives the floor being mined around it. (It was originally never reset at
+all; raising a structure over a tile now clears it, because refuse sealed
+under a wall could never be hauled away — see
+[sanitation.md](./sanitation.md).) Gore is no longer purely cosmetic either:
+it is half of what the cleaning job exists to remove.
+`World.addGore(p)` bumps it, capped at `maxGore` (3; the cap just
 stops the counter climbing forever, since the renderer today draws one
 splatter glyph for any `Gore > 0` regardless of count — see Extending it).
 Three call sites splatter: a fatal `bite`, a killing `shoot`, and every
 `stomp` (a mouse is always fatal to crush, so it always leaves a mark). A
 cat's `pounce` does not — the user's ask was specifically "stomping a mouse
 should leave a mess," and a cat catching its natural prey reads as predation
-rather than the same kind of violence.
+rather than the same kind of violence. The same call sites decide whether a
+*body* is left too (`addCorpse`): `shoot` and `stomp` leave one, while `bite`
+and `pounce` — where the remains are eaten — leave only the stains.
 
 `tileGlyph` (`glyphs.go`) draws the gore glyph in place of bare terrain when
 `Gore > 0`; `renderMap` (`view.go`) calls it via the new `Snapshot.TileAt`
@@ -207,10 +216,11 @@ this — the "dead" filter toggle and the per-entry cause of death.
   "colonists can shoot at aliens" loop was proven out would have made this
   change much larger and harder to review for not much more insight into
   whether the mechanic is fun.
-- **Cosmetic, uncapped-in-practice gore** matches "we'll be pretty limited on
+- **Cosmetic, uncapped-in-practice gore** matched "we'll be pretty limited on
   what we can display": a single splatter glyph is the right amount of
-  detail for a two-cell tile, and gore fading or being cleanable is a
-  reasonable follow-up, not a requirement of the initial ask.
+  detail for a two-cell tile, and gore fading or being cleanable was called a
+  reasonable follow-up rather than a requirement of the initial ask. Cleanable
+  is what it became — see [sanitation.md](./sanitation.md).
 - **Human-vs-human and mouse combat untouched** were explicit descopes: the
   request was about killing the alien, not a colonist-vs-colonist system, and
   the existing stomp/pounce mechanics for mice already work and needed only
@@ -255,11 +265,11 @@ this — the "dead" filter toggle and the per-entry cause of death.
 - **Graduated or fading gore**: `Tile.Gore` is already a count, not a bool
   (capped at `maxGore`); a renderer that picks a glyph by intensity, or a
   system that decays it over time, only has to read/write that one field.
-- **A real corpse**: if a dead body ever needs to be something other than a
-  roster record — visible on the map, lootable, decomposing — that is a
-  different, larger feature (see Why it is this way) than extending
-  `EntityView`; expect it to look more like a new, non-acting `Kind` than a
-  graveyard entry.
+- **A real corpse** now exists, but not as this doc once predicted: a body is
+  `Tile.Corpses`, a counter beside `Tile.Gore`, rather than a new non-acting
+  `Kind`. An entity would have taken a tile in the occupancy index and walled
+  off the spot where anything died. Lootable or decomposing remains would
+  build on that counter; see [sanitation.md](./sanitation.md).
 
 ## Related
 

@@ -5,13 +5,15 @@
 ## What it is
 
 Colonists carry items in a fixed set of slots, each holding one homogeneous stack.
-`RawRock` (from mining) and the `Pistol`/`Shotgun` weapons (from the colony
+`RawRock` (from mining), the `Viscera`/`Corpse` refuse a cleaner carries to the
+incinerator (see [sanitation.md](./sanitation.md)), and the `Pistol`/`Shotgun`
+weapons (from the colony
 ship's starting equipment; see [combat.md](./combat.md)) are the only items
 today, but the machinery is generic.
 
 ## Source
 
-- [`internal/sim/inventory.go`](../internal/sim/inventory.go) — `ItemKind`, `ItemStack`, `Inventory`, `CanAdd`/`Add`.
+- [`internal/sim/inventory.go`](../internal/sim/inventory.go) — `ItemKind`, `ItemStack`, `Inventory`, `CanAdd`/`Add`/`RemoveAll`/`Count`.
 - [`internal/sim/entity.go`](../internal/sim/entity.go) — the `Inventory` field on `Entity`.
 - [`internal/sim/systems.go`](../internal/sim/systems.go) — mining awards `RawRock` (`jobMine`).
 

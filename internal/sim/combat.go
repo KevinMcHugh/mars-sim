@@ -125,6 +125,7 @@ func (w *World) shoot(colonist, alien *Entity, weapon ItemKind, spec weaponSpec)
 
 	if fatal {
 		w.addGore(alien.Pos)
+		w.addCorpse(alien.Pos) // nothing eats an alien: the body is the colony's to dispose of
 		w.remove(alien.ID, fmt.Sprintf("shot by %s with a %s", colonist.displayName(), weapon))
 		w.remember(colonist, event(EvtKilledAlien, "Killed an alien with a %s!", weapon))
 		w.log.add(fmt.Sprintf("%s guns down an alien with a %s.", colonist.displayName(), weapon))

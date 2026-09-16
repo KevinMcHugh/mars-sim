@@ -80,6 +80,7 @@ func (w *World) colonistTurn(e *Entity) {
 	w.applyStarvation(e)
 	if !e.Alive() { // starved this tick
 		w.clearJob(e) // release any board claim before removal
+		w.addCorpse(e.Pos)
 		w.remove(e.ID, "starved")
 		w.log.add(fmt.Sprintf("Colonist #%d starved to death.", e.ID))
 		return
@@ -335,6 +336,7 @@ func (w *World) stompNearbyMouse(e *Entity) bool {
 func (w *World) stomp(colonist, mouse *Entity) {
 	witnesses := w.colonistsWithin(mouse.Pos, w.cfg.ColonistStompRadius, colonist.ID)
 	w.addGore(mouse.Pos)
+	w.addCorpse(mouse.Pos) // a crushed pest still has to be carried off
 	w.remove(mouse.ID, fmt.Sprintf("crushed by %s", colonist.displayName()))
 	w.remember(colonist, event(EvtCrushedMouse, "Crushed mouse #%d.", mouse.ID))
 	for _, wit := range witnesses {
@@ -350,11 +352,15 @@ func (w *World) idleWouldBlock(p Point) bool {
 	return w.onFacilityAccess(p) || w.onPendingBuild(p)
 }
 
-// onFacilityAccess reports whether p is next to any need-satisfying facility, so
+// onFacilityAccess reports whether p is next to a facility colonists walk to —
+// any need-satisfying structure, or the incinerator a hauler has to reach — so
 // an idle colonist standing there would block others from using it.
 func (w *World) onFacilityAccess(p Point) bool {
 	for _, d := range neighbors8 {
 		t := w.TerrainAt(p.Add(d.X, d.Y))
+		if t == Incinerator {
+			return true
+		}
 		for i := 0; i < int(numNeeds); i++ {
 			if w.cfg.Needs[i].Facility != Rock && w.cfg.Needs[i].Facility == t {
 				return true
@@ -479,6 +485,11 @@ func (w *World) clearJob(e *Entity) {
 		} else {
 			w.board.endBuild(e.BuildKind) // lone emergency build
 		}
+	case JobClean:
+		if e.clean == cleanGather {
+			w.board.releaseClean(e.Target, e.ID) // reopen the mess for someone else
+		}
+		e.clean = cleanGather
 	}
 	e.Job, e.Progress, e.partner = JobNone, 0, 0
 	e.useFacility, e.useFacilitySet, e.carrying = Point{}, false, false
@@ -496,6 +507,8 @@ func (w *World) runJob(e *Entity) {
 		w.jobUse(e)
 	case JobTalk:
 		w.jobTalk(e)
+	case JobClean:
+		w.jobClean(e)
 	default:
 		e.State = Idle
 		w.wanderStep(e)
@@ -636,6 +649,14 @@ func (w *World) assignWorkJob(e *Entity) {
 	// nearest reachable task from the shared project pool.
 	if task, ok := w.claimNearestTask(e.Pos, e.ID); ok {
 		w.assignTask(e, task)
+		return
+	}
+	// Tidy up before digging more: refuse is finite and demoralizing (every
+	// colonist that walks past a splatter takes the EvtSawGore hit), while the
+	// mining frontier is effectively endless. Cleaning placed after mining
+	// would therefore never come up at all. It still sits behind construction:
+	// life support outranks housekeeping.
+	if w.tryAssignClean(e) {
 		return
 	}
 	// Mining: big colonies/maps follow the shared frontier field (claim on
@@ -1046,6 +1067,8 @@ func (w *World) buildTicks(kind Terrain) int {
 		return w.cfg.BuildTicks
 	case Floor: // a project dig task: excavating rock, not constructing
 		return w.cfg.MineTicks
+	case Incinerator: // a machine, not a fixture: more work than a bunk or a latrine
+		return w.cfg.IncineratorBuildTicks
 	default:
 		return w.cfg.FacilityBuildTicks
 	}
@@ -1060,6 +1083,8 @@ func (w *World) noteBuild(kind Terrain) {
 		w.log.add("A latrine is installed.")
 	case Bed:
 		w.log.add("A bunk is bolted into the dormitory.")
+	case Incinerator:
+		w.log.add("The incinerator roars to life.")
 	}
 }
 
@@ -1275,6 +1300,7 @@ func (w *World) mouseTurn(e *Entity) {
 	w.applyStarvation(e)
 	if !e.Alive() { // starved this tick
 		w.clearJob(e)
+		w.addCorpse(e.Pos)
 		w.remove(e.ID, "starved")
 		w.log.add(fmt.Sprintf("Mouse #%d starves.", e.ID))
 		return

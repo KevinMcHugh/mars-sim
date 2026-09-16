@@ -144,15 +144,26 @@ func TestMapAndSidebarFitSideBySide(t *testing.T) {
 	}
 }
 
-// busySnapshot is a frame with every terrain kind, every entity state, and
-// colonists of each age/gender bracket, so a layout test exercises every glyph
-// the renderer can emit rather than the two the minimal fixture has.
+// busySnapshot is a frame with every terrain kind, refuse on the floor, every
+// entity state, and colonists of each age/gender bracket, so a layout test
+// exercises every glyph the renderer can emit rather than the two the minimal
+// fixture has.
 func busySnapshot() *sim.Snapshot {
 	w, h := 60, 40
 	tiles := make([]sim.Tile, w*h)
-	terrains := []sim.Terrain{sim.Rock, sim.Floor, sim.Wall, sim.NutrientPod, sim.Toilet, sim.Bed}
+	terrains := []sim.Terrain{
+		sim.Rock, sim.Floor, sim.Wall, sim.NutrientPod, sim.Toilet, sim.Bed, sim.Incinerator,
+	}
 	for i := range tiles {
 		tiles[i].Terrain = terrains[i%len(terrains)]
+		// Scatter refuse so the sweep covers the gore and corpse glyphs that
+		// tileGlyph draws in place of bare terrain.
+		switch {
+		case i%37 == 0:
+			tiles[i].Gore = 1
+		case i%53 == 0:
+			tiles[i].Corpses = 1
+		}
 	}
 
 	profiles := []*sim.Profile{
@@ -162,7 +173,7 @@ func busySnapshot() *sim.Snapshot {
 		{Name: "Sam Okonkwo-Lindqvist", Age: 45, Gender: sim.GenderNonbinary},
 		{Name: "Ada Fields", Age: 64, Gender: sim.GenderWoman},
 	}
-	states := []sim.State{sim.Idle, sim.Mining, sim.Fleeing, sim.Talking, sim.Stomping}
+	states := []sim.State{sim.Idle, sim.Mining, sim.Fleeing, sim.Talking, sim.Cleaning}
 
 	var entities []sim.EntityView
 	for i, p := range profiles {

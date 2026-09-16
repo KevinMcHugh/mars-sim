@@ -44,10 +44,12 @@ screen; the rest dispatch to `handleMapKey`, `handleRosterKey`, or
 
 - **Map** (`renderMap`): draws a camera-windowed view of the tile grid, two
   terminal cells per tile, overlaying entity glyphs (aliens win position ties).
-  An empty tile with gore on it (`tileGlyph`) draws a splatter instead of its
-  bare terrain — see [combat.md](./combat.md). A sidebar shows a legend and the
-  tail of the event log; the header shows tick, speed, pause state, and `Stats`
-  counts, including built dormitory beds.
+  An empty tile with refuse on it (`tileGlyph`) draws a body 🦴 or, failing
+  that, a splatter 🩸 instead of its bare terrain — see
+  [combat.md](./combat.md) and [sanitation.md](./sanitation.md). A sidebar shows
+  a legend and the tail of the event log; the header shows tick, speed, pause
+  state, and `Stats` counts, including built dormitory beds, incinerators, and
+  refuse still on the floor.
 - **Roster** (`renderRoster`): a scrolling, ID-sorted entity list — living
   colonists by default, plus aliens/cats/mice and/or graveyard entries once
   the filter menu (`f`) turns those on — with each row's name, pronouns (or
@@ -96,7 +98,7 @@ kinds are added — new options are new entries in `spawnMenuItems`/
 | `space` | pause / resume (`TogglePause`) |
 | `+` / `-` | faster / slower (`SetTicksPerSecond`, ±2) |
 | `s` | open the spawn menu — `↑↓`/`enter` to pick, or `c`/`a`/`x`/`m` for colonist/alien/cat/mouse directly (`Spawn`) |
-| `b` | open the build menu — `↑↓`/`enter` to pick, or `f`/`d` for facility room/dormitory directly (`OrderFacilityRoom`, `OrderDormitory`) |
+| `b` | open the build menu — `↑↓`/`enter` to pick, or `f`/`d`/`t` for facility room/dormitory/trash room directly (`OrderFacilityRoom`, `OrderDormitory`, `OrderTrashRoom`) |
 | `f` (roster only) | open the roster's filter menu — `↑↓`/`enter`/`space` to toggle the highlighted checkbox, or `d`/`n` for dead/non-human directly; no command sent, this only changes what the roster shows |
 | arrows or `hjkl` | pan the camera (map) / move selection (roster, job board) |
 | `tab` | cycle map → roster → job board → map |
