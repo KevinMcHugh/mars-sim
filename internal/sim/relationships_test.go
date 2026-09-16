@@ -278,6 +278,10 @@ func TestSocialNeedPreemptsWork(t *testing.T) {
 	cfg := DefaultConfig()
 	cfg.StartColonists, cfg.StartAliens, cfg.StartCats, cfg.StartMice = 0, 0, 0, 0
 	cfg.TalkChance = 0
+	// DefaultConfig's seed is time-based, and traits are rolled off it: an
+	// Asocial colonist has needRise 0 for social, so it never becomes urgent and
+	// this test used to fail a run in six.
+	cfg.Seed, cfg.TraitChance = 11, 0
 	w := newWorld(cfg, rand.New(rand.NewSource(11)))
 	center := Point{w.Width / 2, w.Height / 2}
 	w.SetTerrain(center, Floor)
@@ -296,6 +300,49 @@ func TestSocialNeedPreemptsWork(t *testing.T) {
 
 	if a.Job != JobTalk || a.partner != b.ID {
 		t.Fatalf("urgent social need should start talking instead of work: job=%v partner=%d", a.Job, a.partner)
+	}
+}
+
+// Two colonists who both urgently want company must be able to *finish* a
+// conversation, not just start one. The urgent-social branch used to clear the
+// colonist's job and begin a fresh talk every tick, and beginTalk resets the
+// shared timer — so a mutually urgent pair restarted the same conversation
+// forever, never reached TalkTicks, and never had the need satisfied. Since an
+// urgent social need preempts all ordinary work, the whole colony then stopped
+// mining and building for good.
+func TestMutuallyUrgentColonistsFinishConversation(t *testing.T) {
+	cfg := DefaultConfig()
+	cfg.StartColonists, cfg.StartAliens, cfg.StartCats, cfg.StartMice = 0, 0, 0, 0
+	cfg.TalkChance = 0                // only the urgent need may start this chat
+	cfg.Seed, cfg.TraitChance = 11, 0 // no Asocial roll: see TestSocialNeedPreemptsWork
+	w := newWorld(cfg, rand.New(rand.NewSource(11)))
+	center := Point{w.Width / 2, w.Height / 2}
+	w.SetTerrain(center, Floor)
+	w.SetTerrain(center.Add(1, 0), Floor)
+	w.refreshSpatial()
+
+	a := w.spawn(Colonist, center)
+	b := w.spawn(Colonist, center.Add(1, 0))
+	seekAt := cfg.Needs[NeedSocial].SeekAt
+	for _, e := range []*Entity{a, b} {
+		for i := 0; i < int(numNeeds); i++ {
+			e.Needs[i], e.needSince[i] = 0, w.tick
+		}
+		e.Needs[NeedSocial] = seekAt // both urgent, both preempted into talking
+	}
+
+	for i := 0; i < cfg.TalkTicks*3; i++ {
+		w.step()
+	}
+
+	for _, e := range []*Entity{a, b} {
+		if got := w.currentNeeds(e)[NeedSocial]; got >= seekAt {
+			t.Errorf("#%d still socially urgent after %d ticks: %d (urgent at %d) — the conversation never completed",
+				e.ID, cfg.TalkTicks*3, got, seekAt)
+		}
+	}
+	if w.affinity[a.ID][b.ID] == 0 {
+		t.Error("no affinity between the pair: the conversation was never credited")
 	}
 }
 

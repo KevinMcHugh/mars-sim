@@ -25,7 +25,7 @@ func makeSnapshot() *sim.Snapshot {
 		Tick:           7,
 		Width:          w,
 		Height:         h,
-		Tiles:          tiles,
+		Tiles:          sim.NewTileGrid(w, h, tiles),
 		TicksPerSecond: 8,
 		Entities: []sim.EntityView{
 			{ID: 1, Kind: sim.Colonist, Pos: sim.Point{X: 1, Y: 1}, HP: 40, MaxHP: 40, State: sim.Mining},

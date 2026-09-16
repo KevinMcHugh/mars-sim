@@ -72,6 +72,33 @@ func TestColonistsExcavate(t *testing.T) {
 	}
 }
 
+// Excavation has to *keep* going once needs start biting, not just happen in the
+// opening minute. Social need crosses its threshold around tick 250, and an
+// urgent one preempts all work; when a pair could not finish a conversation the
+// colony settled into permanent failed small talk and never dug another tile.
+// The check is therefore on a late window, not on total progress.
+func TestColonyKeepsExcavatingOnceNeedsBite(t *testing.T) {
+	cfg := testConfig()
+	cfg.StartAliens = 0
+	w := newTestWorld(t, cfg)
+
+	for i := 0; i < 400; i++ {
+		w.step()
+	}
+	opening := w.countTerrain(Rock)
+	for i := 0; i < 1200; i++ {
+		w.step()
+	}
+	late := w.countTerrain(Rock)
+
+	// Six colonists digging for 1200 ticks at MineTicks each clear far more than
+	// this; the bar is set low so the test catches a stalled colony, not a slow
+	// one.
+	if opening-late < 20 {
+		t.Fatalf("colony stalled: rock %d -> %d over 1200 ticks after the opening burst", opening, late)
+	}
+}
+
 // With no colonists to hunt, aliens must not crash and should still be around.
 func TestAliensWanderWithoutPrey(t *testing.T) {
 	cfg := testConfig()

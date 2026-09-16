@@ -79,6 +79,14 @@ type World struct {
 	Width, Height int
 	tiles         []Tile // row-major, len == Width*Height
 
+	// The published tile grid handed to frontends in Snapshots, plus the pages
+	// of it that have gone stale since. Frames share every page that did not
+	// change, so publishing costs a page table and the handful of pages a tick
+	// actually touched instead of a copy of the whole map. See tilegrid.go.
+	snapGrid   *TileGrid
+	pageDirty  []bool // pageDirty[pi]: page pi differs from snapGrid
+	dirtyPages []int  // the same pages, in mark order, for cheap iteration
+
 	// occ is a dense occupancy index parallel to tiles: occ[i] is the EntityID
 	// standing on that tile, or 0 for empty (IDs start at 1). It turns "who is
 	// here?" from an O(entities) scan into an O(1) lookup, and it is the reason
@@ -224,6 +232,8 @@ func newWorld(cfg Config, rng *rand.Rand) *World {
 	w.facilityDist = make([]int32, n)
 	w.facilityDistGen = make([]int32, n)
 
+	w.pageDirty = make([]bool, ceilDiv(n, tilePageLen))
+
 	w.chunkCols = ceilDiv(cfg.Width, chunkSize)
 	w.chunkRows = ceilDiv(cfg.Height, chunkSize)
 	w.chunkEntities = make([][]EntityID, w.chunkCols*w.chunkRows)
@@ -320,6 +330,7 @@ func (w *World) SetTerrain(p Point, t Terrain) {
 		}
 	}
 	w.tiles[i].Terrain = t
+	w.markTilePageDirty(i)
 	w.dirtyChunks[w.chunkIndexOf(p)] = struct{}{}
 	w.emit(TileChanged{Pos: p, Old: old, New: t})
 }

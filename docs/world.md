@@ -77,8 +77,10 @@ and it always finds a match if one exists.
 
 ## Why it is this way
 
-- **Flat row-major grid** keeps tile access to one multiply-add and makes copying
-  a snapshot a single `copy`.
+- **Flat row-major grid** keeps tile access to one multiply-add on the hot path
+  the simulation walks constantly. Frontends see the same grid through a paged,
+  page-shared copy instead, so publishing a frame does not re-copy the map — see
+  [snapshot-tile-grid.md](./snapshot-tile-grid.md).
 - **Out-of-bounds reads as `Rock`** removes bounds-checking special cases from
   the many callers that ask "what's next to me?" — the world edge just behaves
   like solid wall.

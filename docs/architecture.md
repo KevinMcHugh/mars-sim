@@ -14,7 +14,8 @@ structural decision in the project — everything else hangs off it.
 
 - [`main.go`](../main.go) — wires the engine to a frontend (TUI or headless), owns the flags.
 - [`internal/sim/engine.go`](../internal/sim/engine.go) — `Engine`: the tick loop, subscriptions, commands.
-- [`internal/sim/snapshot.go`](../internal/sim/snapshot.go) — the immutable per-frame copy handed to frontends.
+- [`internal/sim/snapshot.go`](../internal/sim/snapshot.go) — the immutable per-frame view handed to frontends.
+- [`internal/sim/tilegrid.go`](../internal/sim/tilegrid.go) — the page-shared terrain grid inside a `Snapshot`.
 - [`internal/sim/events.go`](../internal/sim/events.go) — the in-engine event bus derived systems react to.
 - [`internal/sim/world.go`](../internal/sim/world.go) — the mutable game state the engine owns.
 
@@ -56,14 +57,22 @@ Any number of frontends can attach to one engine. The TUI is one consumer; the
 headless stats printer in `main.go` is another; a web or GUI frontend would
 implement the same contract unchanged.
 
-### Snapshots are deep copies
+### Snapshots never alias live state
 
-`World.snapshot()` builds a `Snapshot`: a copied tile grid, a slice of
+`World.snapshot()` builds a `Snapshot`: the terrain grid, a slice of
 `EntityView` value copies (with deep-copied `Profile`s and by-value inventories),
 the event log tail, and aggregate `Stats`. Nothing in a snapshot aliases live
 state, so a frontend can read a frame on its own goroutine while the engine keeps
 mutating the world. Need levels are computed *as of the snapshot tick* (see
 [needs.md](./needs.md)).
+
+Everything colony-sized is copied outright. The terrain is the exception: copying
+the whole map every tick made a big map's tick rate a function of its area, so
+`Snapshot.Tiles` is an immutable **page-shared** grid instead — a frame re-copies
+only the pages whose tiles changed and shares the rest with the frames already
+published. It is still safe to read on another goroutine, for the same reason a
+copy would be: a published page is never written again. See
+[snapshot-tile-grid.md](./snapshot-tile-grid.md).
 
 ### The event bus
 
