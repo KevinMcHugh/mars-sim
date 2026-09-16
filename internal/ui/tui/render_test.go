@@ -107,8 +107,8 @@ func TestRosterShowsColonistDetail(t *testing.T) {
 	if !strings.Contains(out, "raw rock ×12") {
 		t.Error("roster should show the colonist's inventory")
 	}
-	if !strings.Contains(out, "COLONISTS") {
-		t.Error("roster should show the colonist list heading")
+	if !strings.Contains(out, "ROSTER") {
+		t.Error("roster should show the entity list heading")
 	}
 }
 
@@ -316,6 +316,114 @@ func TestMenuShortcutKeyUpdatesRememberedSelection(t *testing.T) {
 	out := m.View()
 	if !strings.Contains(out, "[d dormitory]") {
 		t.Errorf("expected the build menu to reopen with dormitory remembered:\n%s", out)
+	}
+}
+
+// By default the roster shows only living colonists — the alien in the
+// snapshot, and a dead mouse in the graveyard, should both be hidden until
+// their filters are turned on.
+func TestRosterHidesNonHumanAndDeadByDefault(t *testing.T) {
+	snap := makeSnapshot()
+	snap.Graveyard = []sim.EntityView{
+		{ID: 9, Kind: sim.Mouse, Dead: true, DiedTick: 3, Cause: "crushed by a colonist"},
+	}
+
+	var m tea.Model = New(nil, nil)
+	m, _ = m.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
+	m, _ = m.Update(snapshotMsg{snap: snap})
+	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyTab})
+
+	out := m.View()
+	if strings.Contains(out, "alien #2") {
+		t.Error("roster should not show the alien until the non-human filter is on")
+	}
+	if strings.Contains(out, "crushed by a colonist") {
+		t.Error("roster should not show the dead mouse until the dead filter is on")
+	}
+	if !strings.Contains(out, "ROSTER (1)") {
+		t.Errorf("roster should count only the one living colonist:\n%s", out)
+	}
+}
+
+// Opening the filter menu (f) and toggling non-human (n) reveals the alien in
+// the roster; toggling it again hides it. The menu stays open across the
+// toggle, since setting more than one filter per visit is the normal case.
+func TestFilterMenuTogglesNonHuman(t *testing.T) {
+	var m tea.Model = New(nil, nil)
+	m, _ = m.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
+	m, _ = m.Update(snapshotMsg{snap: makeSnapshot()})
+	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyTab}) // open roster
+
+	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("f")})
+	out := m.View()
+	if !strings.Contains(out, "filter:") || !strings.Contains(out, "n non-human: off") {
+		t.Errorf("filter menu prompt not shown:\n%s", out)
+	}
+
+	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("n")})
+	out = m.View()
+	if !strings.Contains(out, "filter:") {
+		t.Error("toggling a filter should not close the menu")
+	}
+	if !strings.Contains(out, "n non-human: on") {
+		t.Errorf("filter prompt should show non-human on:\n%s", out)
+	}
+	if !strings.Contains(out, "alien #2") {
+		t.Error("roster should show the alien once the non-human filter is on")
+	}
+	if !strings.Contains(out, "ROSTER (2) +non-human") {
+		t.Errorf("roster title should show the count and active filter:\n%s", out)
+	}
+
+	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("n")})
+	out = m.View()
+	if strings.Contains(out, "alien #2") {
+		t.Error("toggling non-human off again should hide the alien")
+	}
+}
+
+// Toggling the dead filter reveals a graveyard entry in the roster, including
+// its cause of death.
+func TestFilterMenuTogglesDead(t *testing.T) {
+	snap := makeSnapshot()
+	snap.Graveyard = []sim.EntityView{
+		{ID: 9, Kind: sim.Colonist, Dead: true, DiedTick: 3, Cause: "starved",
+			Profile: &sim.Profile{Name: "Ada Okafor", Gender: sim.GenderWoman}},
+	}
+
+	var m tea.Model = New(nil, nil)
+	m, _ = m.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
+	m, _ = m.Update(snapshotMsg{snap: snap})
+	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyTab})
+
+	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("f")})
+	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("d")})
+	out := m.View()
+	if !strings.Contains(out, "Ada Okafor") {
+		t.Errorf("roster should show the dead colonist once the dead filter is on:\n%s", out)
+	}
+	if !strings.Contains(out, "dead — starved") {
+		t.Errorf("roster list should show the cause of death:\n%s", out)
+	}
+}
+
+// esc closes the filter menu without losing whatever was toggled.
+func TestFilterMenuEscClosesAndKeepsFilters(t *testing.T) {
+	var m tea.Model = New(nil, nil)
+	m, _ = m.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
+	m, _ = m.Update(snapshotMsg{snap: makeSnapshot()})
+	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyTab})
+
+	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("f")})
+	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("n")})
+	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyEsc})
+
+	out := m.View()
+	if strings.Contains(out, "filter:") {
+		t.Error("esc should close the filter menu")
+	}
+	if !strings.Contains(out, "alien #2") {
+		t.Error("closing the filter menu should not undo an already-toggled filter")
 	}
 }
 

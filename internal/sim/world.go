@@ -4,15 +4,22 @@ import "math/rand"
 
 const maxColonistMemories = 64
 
-// remember adds a notable experience, retaining the most recent memories.
-func (w *World) remember(e *Entity, text string) {
+// remember adds a notable experience, retaining the most recent memories, and
+// applies whatever mood effect the LifeEvent carries (see lifeevents.go).
+// Every notable thing that happens to or near a colonist — including a
+// conversation's outcome, via finishTalk's eventMood — should be built with
+// event() or eventMood() and land here, so mood and memory can never drift
+// apart, and there is exactly one mechanism for "this happened, and here is
+// how it felt": the same way remove() is the one funnel for deaths.
+func (w *World) remember(e *Entity, evt LifeEvent) {
 	if e == nil || e.Kind != Colonist {
 		return
 	}
-	e.Memories = append(e.Memories, Memory{Tick: w.tick, Text: text})
+	e.Memories = append(e.Memories, Memory{Tick: w.tick, Text: evt.Text, Kind: evt.Kind})
 	if len(e.Memories) > maxColonistMemories {
 		e.Memories = e.Memories[len(e.Memories)-maxColonistMemories:]
 	}
+	w.applyMoodEffects(e, evt)
 }
 
 // Terrain is what fills a single tile. The world is a dense grid of tiles; as
@@ -70,6 +77,36 @@ func (t Terrain) Walkable() bool {
 // touching every call site.
 type Tile struct {
 	Terrain Terrain
+	// Gore is a violent death's visible residue on this tile: 0 is clean, and
+	// it climbs (capped at maxGore) as more kills happen here. It is purely
+	// cosmetic — it never affects Walkable or anything else — and, unlike
+	// Terrain, is not reset by SetTerrain, so a mined-out or built-over tile
+	// keeps its stains.
+	Gore int
+}
+
+// maxGore caps a tile's Gore so a well-fought corner cannot climb the count
+// forever for no additional visible effect (today's renderer draws one splatter
+// glyph for any Gore > 0; the cap keeps room for a future intensity display).
+const maxGore = 3
+
+// addGore marks p as the site of a violent death, capping the tile's Gore at
+// maxGore. Used by anything that kills something messily: alien bites, gunfire,
+// and a colonist's boot. Like SetTerrain, it must mark the tile's page dirty:
+// w.tiles is also the published TileGrid's source, and a page only gets
+// re-copied into the next Snapshot if something flags it changed (see
+// tilegrid.go) — skipping that would let a gore change go on being invisible
+// to every future frame until an unrelated terrain edit on the same page
+// happened to flush it.
+func (w *World) addGore(p Point) {
+	if !w.InBounds(p) {
+		return
+	}
+	i := w.index(p)
+	if w.tiles[i].Gore < maxGore {
+		w.tiles[i].Gore++
+		w.markTilePageDirty(i)
+	}
 }
 
 // World is the mutable game state for a single underground level. It is owned by
@@ -192,6 +229,11 @@ type World struct {
 
 	entities map[EntityID]*Entity
 	nextID   EntityID
+
+	// graveyard holds the most recent deaths as frozen EntityViews (oldest
+	// first), for the roster's "dead" filter — see docs/combat.md. Bounded at
+	// cfg.GraveyardSize by remove(), the only place entities die.
+	graveyard []EntityView
 
 	tick    int
 	rng     *rand.Rand
@@ -414,11 +456,22 @@ func (w *World) spawn(kind Kind, p Point) *Entity {
 	return e
 }
 
-// remove deletes an entity from the world and clears its occupancy.
-func (w *World) remove(id EntityID) {
+// remove deletes an entity from the world, clears its occupancy, and — every
+// call here is a death — freezes it into the graveyard with cause as a short
+// player-facing phrase ("starved", "shot by Zoe Vargas with a shotgun"). See
+// docs/combat.md.
+func (w *World) remove(id EntityID, cause string) {
 	e := w.entities[id]
 	if e == nil {
 		return
+	}
+	if w.cfg.GraveyardSize > 0 {
+		dead := w.entityView(e, nil, false)
+		dead.Dead, dead.DiedTick, dead.Cause = true, w.tick, cause
+		w.graveyard = append(w.graveyard, dead)
+		if over := len(w.graveyard) - w.cfg.GraveyardSize; over > 0 {
+			w.graveyard = w.graveyard[over:]
+		}
 	}
 	w.occ[w.index(e.Pos)] = 0
 	w.kindCounts[e.Kind]--

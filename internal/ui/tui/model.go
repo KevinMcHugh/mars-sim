@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/kevinmchugh/mars-sim/internal/sim"
@@ -29,9 +30,10 @@ const (
 type menuKind int
 
 const (
-	menuNone  menuKind = iota
-	menuSpawn          // pick an entity kind to spawn
-	menuBuild          // pick a room kind to queue
+	menuNone   menuKind = iota
+	menuSpawn           // pick an entity kind to spawn
+	menuBuild           // pick a room kind to queue
+	menuFilter          // toggle the roster's dead/non-human filters
 )
 
 // menuItem is one selectable option in a spawn/build menu.
@@ -52,6 +54,15 @@ var buildMenuItems = []menuItem{
 	{"d", "dormitory"},
 }
 
+// filterMenuItems are the roster's toggleable filters. Unlike the spawn/build
+// pickers, each item is a checkbox: pressing its key (or enter on the
+// highlighted one) flips it without closing the menu, since toggling more
+// than one at a time is the normal case.
+var filterMenuItems = []menuItem{
+	{"d", "dead"},
+	{"n", "non-human"},
+}
+
 // Model is the Bubble Tea model. It is a pure consumer of the engine: it draws
 // the latest Snapshot and forwards key presses to the engine as Commands. It
 // holds no game state of its own beyond the camera, the current screen, and the
@@ -67,15 +78,23 @@ type Model struct {
 	camReady     bool
 
 	mode        viewMode
-	selected    int      // roster: index into the ID-sorted colonist list
+	selected    int      // roster: index into the ID-sorted entity list
 	jobSelected int      // job board: index into the queued project list
-	menu        menuKind // an open spawn/build picker, if any
+	menu        menuKind // an open spawn/build/filter picker, if any
 
-	// spawnCursor / buildCursor are each menu's highlighted option index.
-	// They persist across opens (and across submits), so e.g. spawning three
-	// mice is s, [navigate to mouse], enter, then just s, enter, s, enter.
-	spawnCursor int
-	buildCursor int
+	// spawnCursor / buildCursor / filterCursor are each menu's highlighted
+	// option index. They persist across opens (and across submits/toggles),
+	// so e.g. spawning three mice is s, [navigate to mouse], enter, then just
+	// s, enter, s, enter.
+	spawnCursor  int
+	buildCursor  int
+	filterCursor int
+
+	// showDead / showNonHuman are the roster's filters, toggled from the
+	// filter menu (see filterMenuItems). Both default off so the roster's
+	// out-of-the-box view is unchanged: living colonists only.
+	showDead     bool
+	showNonHuman bool
 
 	quitting bool
 }
@@ -171,11 +190,13 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	}
 }
 
-// handleMenuKey resolves an open spawn/build picker: up/down move the
-// highlighted option, enter submits it, a shortcut letter jumps to and
-// submits an option directly, esc cancels, and anything else is ignored so
-// the prompt stays open until the user answers it.
+// handleMenuKey resolves an open spawn/build/filter picker. The filter menu
+// is a set of checkboxes rather than a one-shot pick, so it gets its own
+// handler (handleFilterMenuKey) instead of the submit-and-close flow below.
 func (m Model) handleMenuKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	if m.menu == menuFilter {
+		return m.handleFilterMenuKey(msg)
+	}
 	switch msg.String() {
 	case "q", "ctrl+c":
 		m.quitting = true
@@ -207,6 +228,61 @@ func (m Model) handleMenuKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 	}
 	return m, nil
+}
+
+// handleFilterMenuKey resolves the open filter menu: up/down move the
+// highlighted checkbox, enter or space toggles it, a shortcut letter toggles
+// its item directly wherever the highlight is, and esc closes the menu.
+// Unlike handleMenuKey's spawn/build flow, toggling never closes the menu —
+// setting both filters in one visit is the normal case.
+func (m Model) handleFilterMenuKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "q", "ctrl+c":
+		m.quitting = true
+		return m, tea.Quit
+	case "esc":
+		m.menu = menuNone
+		return m, nil
+	case "up", "k":
+		m.filterCursor = wrapCursor(m.filterCursor-1, len(filterMenuItems))
+		return m, nil
+	case "down", "j":
+		m.filterCursor = wrapCursor(m.filterCursor+1, len(filterMenuItems))
+		return m, nil
+	case "enter", " ":
+		m.toggleFilter(filterMenuItems[m.filterCursor].key)
+		return m, nil
+	}
+	for i, it := range filterMenuItems {
+		if it.key == msg.String() {
+			m.filterCursor = i
+			m.toggleFilter(it.key)
+			return m, nil
+		}
+	}
+	return m, nil
+}
+
+// toggleFilter flips the named filter's on/off state.
+func (m *Model) toggleFilter(key string) {
+	switch key {
+	case "d":
+		m.showDead = !m.showDead
+	case "n":
+		m.showNonHuman = !m.showNonHuman
+	}
+}
+
+// filterOn reports the named filter's current on/off state.
+func (m Model) filterOn(key string) bool {
+	switch key {
+	case "d":
+		return m.showDead
+	case "n":
+		return m.showNonHuman
+	default:
+		return false
+	}
 }
 
 // wrapCursor keeps a menu selection cycling within [0, n).
@@ -280,9 +356,12 @@ func (m Model) submitMenuItem(i int) {
 	}
 }
 
-// menuPrompt describes the open spawn/build picker for the footer, if any,
-// bracketing the highlighted option.
+// menuPrompt describes the open spawn/build/filter picker for the footer, if
+// any, bracketing the highlighted option.
 func (m Model) menuPrompt() (string, bool) {
+	if m.menu == menuFilter {
+		return m.filterPrompt(), true
+	}
 	items := m.menuItems()
 	if items == nil {
 		return "", false
@@ -301,6 +380,24 @@ func (m Model) menuPrompt() (string, bool) {
 		parts[i] = text
 	}
 	return label + ":  " + strings.Join(parts, "   ") + "   ↑↓ select  enter confirm  esc cancel", true
+}
+
+// filterPrompt describes the open filter menu for the footer: each checkbox's
+// current on/off state, with the highlighted one bracketed.
+func (m Model) filterPrompt() string {
+	parts := make([]string, len(filterMenuItems))
+	for i, it := range filterMenuItems {
+		state := "off"
+		if m.filterOn(it.key) {
+			state = "on"
+		}
+		text := fmt.Sprintf("%s %s: %s", it.key, it.label, state)
+		if i == m.filterCursor {
+			text = "[" + text + "]"
+		}
+		parts[i] = text
+	}
+	return "filter:  " + strings.Join(parts, "   ") + "   ↑↓ select  enter/space toggle  esc close"
 }
 
 // handleMapKey handles keys specific to the map screen.
@@ -323,7 +420,7 @@ func (m Model) handleMapKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 }
 
 // handleRosterKey handles keys specific to the roster screen: moving the
-// selection and returning to the map.
+// selection, opening the filter menu, and returning to the map.
 func (m Model) handleRosterKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "esc":
@@ -334,14 +431,17 @@ func (m Model) handleRosterKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.selected++
 	case "home", "g":
 		m.selected = 0
+	case "f":
+		m.menu = menuFilter
+		return m, nil
 	}
 	m.selected = m.clampSelection(m.selected)
 	return m, nil
 }
 
-// clampSelection keeps a roster index within the current colonist list.
+// clampSelection keeps a roster index within the current filtered entity list.
 func (m Model) clampSelection(i int) int {
-	n := m.colonistCount()
+	n := m.rosterCount()
 	if n == 0 {
 		return 0
 	}
@@ -382,18 +482,10 @@ func (m Model) projectCount() int {
 	return len(m.latest.Projects)
 }
 
-// colonistCount returns how many colonists are in the latest frame.
-func (m Model) colonistCount() int {
-	if m.latest == nil {
-		return 0
-	}
-	n := 0
-	for _, e := range m.latest.Entities {
-		if e.Kind == sim.Colonist {
-			n++
-		}
-	}
-	return n
+// rosterCount returns how many entities the roster currently shows, honoring
+// the dead/non-human filters (see rosterEntries in render_roster.go).
+func (m Model) rosterCount() int {
+	return len(m.rosterEntries())
 }
 
 func (m Model) View() string {

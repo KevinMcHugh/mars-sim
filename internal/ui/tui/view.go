@@ -212,7 +212,7 @@ func (m Model) renderMap() string {
 			if e, ok := occ[p]; ok {
 				row.WriteString(entityGlyph(e))
 			} else {
-				row.WriteString(terrainGlyph(m.latest.TerrainAt(p)))
+				row.WriteString(tileGlyph(m.latest.TileAt(p)))
 			}
 		}
 		// Every row is forced to exactly cols*tileWidth cells. Each glyph is

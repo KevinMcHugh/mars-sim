@@ -44,12 +44,20 @@ screen; the rest dispatch to `handleMapKey`, `handleRosterKey`, or
 
 - **Map** (`renderMap`): draws a camera-windowed view of the tile grid, two
   terminal cells per tile, overlaying entity glyphs (aliens win position ties).
-  A sidebar shows a legend and the tail of the event log; the header shows tick,
-  speed, pause state, and `Stats` counts, including built dormitory beds.
-- **Roster** (`renderRoster`): a scrolling, ID-sorted colonist list with each
-  colonist's name, pronouns, and current status, plus a detail pane for the
-  selected colonist — name, attributes, HP, needs, the eight-slot inventory,
-  recent memories, and traits.
+  An empty tile with gore on it (`tileGlyph`) draws a splatter instead of its
+  bare terrain — see [combat.md](./combat.md). A sidebar shows a legend and the
+  tail of the event log; the header shows tick, speed, pause state, and `Stats`
+  counts, including built dormitory beds.
+- **Roster** (`renderRoster`): a scrolling, ID-sorted entity list — living
+  colonists by default, plus aliens/cats/mice and/or graveyard entries once
+  the filter menu (`f`) turns those on — with each row's name, pronouns (or
+  kind, for anything without a `Profile`), and current status (or cause of
+  death). The detail pane for the selection is the full colonist inspector —
+  name, attributes, HP, a compact per-body-part wound summary, needs, the
+  eight-slot inventory, recent memories, and traits — for a colonist, or a
+  shorter identity/status/body-part view (`renderNonColonistDetail`) for
+  anything else. See [combat.md](./combat.md) for the wound and graveyard
+  data this displays.
 - **Job board** (`renderJobs`): a scrolling list of queued construction
   projects (facility rooms, dormitories), each with its tick-queued time,
   build progress, and assigned colonist count; a detail pane for the selected
@@ -89,12 +97,32 @@ kinds are added — new options are new entries in `spawnMenuItems`/
 | `+` / `-` | faster / slower (`SetTicksPerSecond`, ±2) |
 | `s` | open the spawn menu — `↑↓`/`enter` to pick, or `c`/`a`/`x`/`m` for colonist/alien/cat/mouse directly (`Spawn`) |
 | `b` | open the build menu — `↑↓`/`enter` to pick, or `f`/`d` for facility room/dormitory directly (`OrderFacilityRoom`, `OrderDormitory`) |
+| `f` (roster only) | open the roster's filter menu — `↑↓`/`enter`/`space` to toggle the highlighted checkbox, or `d`/`n` for dead/non-human directly; no command sent, this only changes what the roster shows |
 | arrows or `hjkl` | pan the camera (map) / move selection (roster, job board) |
 | `tab` | cycle map → roster → job board → map |
 | `q` / `esc` | quit (`esc` returns to the map from roster/job board, or cancels an open menu) |
 
-`s` and `b` work from every screen. Every key that changes the simulation
-becomes a `Command`; the UI never touches the world directly.
+`s` and `b` work from every screen; `f` only does anything on the roster
+screen (`handleRosterKey`), since filtering only means something there. Every
+key that changes the simulation becomes a `Command`; the UI never touches the
+world directly — `f` is the one menu that *doesn't* send a `Command` at all,
+since it only changes what `Model` itself displays.
+
+### The filter menu
+
+Unlike the spawn/build pickers, the filter menu (`menuFilter`) is a set of
+checkboxes, not a one-shot choice, so it gets its own key handler
+(`handleFilterMenuKey`) instead of the generic submit-and-close flow
+(`handleMenuKey`): toggling a filter never closes the menu, since setting
+both in one visit is the normal case. `Model.showDead`/`showNonHuman` hold
+the two filters (both default off, so the roster's out-of-the-box view is
+unchanged); `rosterEntries()` (`render_roster.go`) is what every roster
+render calls instead of walking `Snapshot.Entities` directly — colonists are
+always eligible, `showNonHuman` admits aliens/cats/mice, and `showDead`
+additionally merges in `Snapshot.Graveyard` (subject to the same kind
+filter, so a dead mouse needs both filters on). The title above the list
+(`rosterTitle`) names which filters are active so a longer-than-expected list
+is never a mystery.
 
 ### Glyphs
 
@@ -144,6 +172,14 @@ contract is genuinely frontend-agnostic.
   preserve the readable emoji without trusting any width table to be right about
   a terminal we have never run on. See
   [terminal-cell-widths.md](./terminal-cell-widths.md).
+- **The filter menu is a display setting, not a `Command`**: what the roster
+  shows is purely a `Model` concern (like the camera or the current screen),
+  so there is nothing for the engine to know or validate. Routing it through
+  `Send` anyway would have meant inventing a command whose only effect is on
+  the UI's own state.
+- **Filters default off**: the roster's behavior before this feature — living
+  colonists only — stays the default so nothing about the existing view
+  changes unless a player opens the filter menu and asks for more.
 
 ## Extending it
 
@@ -155,12 +191,17 @@ contract is genuinely frontend-agnostic.
   `glyphs.go`, then map the terrain/kind/state to it. The tests reject a glyph
   whose width terminals would disagree about — see
   [terminal-cell-widths.md](./terminal-cell-widths.md).
+- **A new roster filter**: add a field to `Model`, an entry to
+  `filterMenuItems`, a case in `toggleFilter`/`filterOn`, and a clause in
+  `rosterEntries`'s `include` closure — the list, count, and title all update
+  automatically since they're all derived from `rosterEntries()`.
 - **A different frontend entirely**: implement a consumer of `Subscribe()` frames
   that `Send`s commands; `runHeadless` is the minimal example.
 
 ## Related
 
 - [architecture.md](./architecture.md) — the snapshot/command contract this implements.
+- [combat.md](./combat.md) — body parts, weapons, and the gore glyph.
 - [inventory.md](./inventory.md) — what the roster's inventory view shows.
 - [personality.md](./personality.md) — the attributes and traits the inspector shows.
 - [terminal-cell-widths.md](./terminal-cell-widths.md) — how glyph widths are measured and kept honest.

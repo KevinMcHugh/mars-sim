@@ -36,8 +36,8 @@ The four kinds:
 | **Mouse** | Floor | (needs food) | cats | reuses the colonist food need; raids pods; never builds |
 
 `State` (idle, moving, mining, building, eating, relieving, fleeing, hunting,
-feeding) is a **display projection** derived from behavior each tick and surfaced
-in the UI. `JobKind` (none, mine, build, use) is the colonist's committed task and
+feeding, fighting) is a **display projection** derived from behavior each tick
+and surfaced in the UI. `JobKind` (none, mine, build, use) is the colonist's committed task and
 the single source of truth for its behavior.
 
 > The top-level README predates cats and mice; this doc is the current reference
@@ -68,7 +68,10 @@ Priority order each tick:
 
 1. **Starvation check** — `applyStarvation`; if it just died, release its job
    claims and remove it.
-2. **Survival** — if an alien is within `FleeRadius`, drop everything, flee.
+2. **Survival** — if an alien is within `FleeRadius`: a colonist carrying a
+   pistol or shotgun stands its ground and fights (`fightAlien`) instead;
+   an unarmed one drops everything and flees, same as always. See
+   [combat.md](./combat.md).
 3. **Urgent need preemption** — `mostUrgentNeed` may interrupt the current task,
    unless the task already serves that need: a live conversation (social) or a
    matching `JobUse`/`JobBuild` runs on rather than restarting. If a facility of
@@ -103,10 +106,13 @@ Work jobs:
 ### Alien behavior (`alienTurn`)
 
 Aliens are paced by a `Cooldown` (from `AlienSlowness`). Each active turn: find
-the nearest colonist anywhere on the map; if adjacent, `bite` (deals
-`AlienDamage`, eats the colonist if the wound is fatal, then rests
-`AlienBiteRest`); otherwise `burrowStep` toward it through any terrain. With no
-colonists left, they wander.
+the nearest colonist anywhere on the map; if adjacent, `bite` (lands
+`AlienDamage` on a random body part — see [combat.md](./combat.md) — eating
+the colonist if the wound is fatal, then rests `AlienBiteRest`); otherwise
+`burrowStep` toward it through any terrain. With no colonists left, they
+wander. An alien hunts the same way whether or not its target is armed; the
+only difference a weapon makes is whether the colonist stands and shoots back
+instead of running.
 
 ### Cat behavior (`catTurn`)
 
@@ -178,6 +184,8 @@ so it is safe to call per entity per tick.
 
 ## Related
 
+- [combat.md](./combat.md) — body-part HP, weapons, and how an armed colonist's
+  survival priority differs from an unarmed one's.
 - [needs.md](./needs.md) — the drives that preempt colonist and mouse work.
 - [personality.md](./personality.md) — trait-scaled colonist parameters.
 - [construction.md](./construction.md) — how build jobs become rooms.

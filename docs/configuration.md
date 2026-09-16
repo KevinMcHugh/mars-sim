@@ -16,10 +16,10 @@ defaults to the `DefaultConfig` value.
 
 ## How it works
 
-`Config` groups its fields by concern: world shape, seed, starting population,
-timing, colonist stats, needs, personality, the mining-strategy switch, and
-per-creature stats for aliens, cats, and mice. Zero values are not meaningful —
-always start from `DefaultConfig()` and adjust.
+`Config` groups its fields by concern: world shape, seed, starting population
+and equipment, timing, colonist stats, needs, personality, the mining-strategy
+switch, and per-creature stats for aliens, cats, mice, and weapons. Zero
+values are not meaningful — always start from `DefaultConfig()` and adjust.
 
 `main.go` mirrors this: `bindConfigFlags(&cfg)` registers a flag for every field,
 passing the current (default) value as the flag default, so the help text always
@@ -66,3 +66,4 @@ indexed by `NeedKind`. See [needs.md](./needs.md).
 - [architecture.md](./architecture.md) — how the config seeds the engine.
 - [needs.md](./needs.md) — the `NeedSpec` table inside `Config`.
 - [entities-and-ai.md](./entities-and-ai.md) — the creature stats these fields tune.
+- [combat.md](./combat.md) — the weapon and starting-equipment stats these fields tune.

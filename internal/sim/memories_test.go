@@ -3,6 +3,7 @@ package sim
 import (
 	"fmt"
 	"math/rand"
+	"strings"
 	"testing"
 )
 
@@ -14,7 +15,7 @@ func TestRememberKeepsRecentMemories(t *testing.T) {
 
 	for i := 0; i < maxColonistMemories+3; i++ {
 		w.tick = i
-		w.remember(col, "event")
+		w.remember(col, event(EvtNeedSatisfied, "event"))
 	}
 	if got, want := len(col.Memories), maxColonistMemories; got != want {
 		t.Fatalf("memory count = %d, want %d", got, want)
@@ -37,8 +38,10 @@ func TestBystanderRemembersAlienAttack(t *testing.T) {
 	victim.HP = cfg.AlienDamage + 1 // survives this bite
 	w.bite(alien, victim)
 
-	if got, want := lastMemory(victim), "Bitten by an alien!"; got != want {
-		t.Fatalf("victim memory = %q, want %q", got, want)
+	// The exact body part hit is an RNG detail (see rollHit); only the shape
+	// of the message is pinned here.
+	if got := lastMemory(victim); !strings.HasPrefix(got, "Bitten in the ") || !strings.HasSuffix(got, " by an alien!") {
+		t.Fatalf("victim memory = %q, want a %q..%q message", got, "Bitten in the ", " by an alien!")
 	}
 	wantWitness := "Watched an alien attack " + victim.displayName() + "."
 	if got := lastMemory(bystander); got != wantWitness {
@@ -117,7 +120,7 @@ func TestSnapshotCopiesMemories(t *testing.T) {
 	w := newWorld(cfg, rand.New(rand.NewSource(1)))
 	col := newEntity(1, Colonist, Point{}, cfg)
 	w.entities[col.ID] = col
-	w.remember(col, "a meal")
+	w.remember(col, event(EvtAte, "a meal"))
 
 	snap := w.snapshot(false, 1)
 	snap.Entities[0].Memories[0].Text = "mutated"
