@@ -47,8 +47,9 @@ choose between emoji and ASCII map symbols. See the
 examples.
 
 Glyphs: 👷 colonist · 😱 fleeing colonist · 💬 talking colonist · 🥾 stomping
-colonist · 👽 alien · 🐈 cat · 🐁 mouse · 🟫 rock · 🧱 wall · 🥫 nutrient pod ·
-🚽 toilet · 🛌 dormitory bunk · blank = open floor.
+colonist · 👽 alien · 🐈 cat · 🐁 mouse · 🟫 ordinary rock · ⬛ iron-bearing
+rock · 🟦 water ice-bearing rock · 🧱 wall · 🥫 nutrient pod · 🚽 toilet ·
+🛌 dormitory bunk · blank = open floor.
 
 ### Documentation
 
@@ -92,16 +93,18 @@ mutable state:
 ### Simulation model
 
 - The world is a dense grid of `Tile`s (`Rock`, `Floor`, `Wall`). It starts as
-  solid rock with a carved landing cavern (`internal/sim/worldgen.go`).
+  composition-bearing solid rock with a carved landing cavern
+  (`internal/sim/worldgen.go`).
 - Entities are one `Entity` struct interpreted by `Kind` (colonist / alien),
   rather than a strict ECS — pragmatic for a scaffold, and fields can graduate
   into real components as systems grow. Per-tick behavior lives in
   `systems.go`.
   - **Colonists** walk only on floor. They mine rock into floor (carrying one raw
-    rock per excavated tile), build the colony's life-support as coordinated
-    projects (see *Construction projects*), tend to their needs, and flee when
-    an alien gets close. Each colonist has eight inventory slots, each holding a
-    homogeneous stack of up to 64 items.
+    rock per excavated tile plus iron ore or water ice from a bearing deposit),
+    build the colony's life-support as coordinated projects (see *Construction
+    projects*), tend to their needs, and flee when an alien gets close. Each
+    colonist has eight inventory slots, each holding a homogeneous stack of up
+    to 64 items.
   - **Aliens** burrow through *any* terrain to reach the nearest colonist and
     eat it.
   - **Cats** stalk the floor hunting mice, pouncing when adjacent (a single

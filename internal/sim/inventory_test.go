@@ -74,3 +74,68 @@ func TestFullInventoryPreventsMiningResourceLoss(t *testing.T) {
 		t.Fatalf("full miner excavated terrain to %v", got)
 	}
 }
+
+func TestMiningAwardsRockCompositionMaterial(t *testing.T) {
+	tests := []struct {
+		name        string
+		composition RockComposition
+		extra       ItemKind
+	}{
+		{"iron", IronBearingRock, IronOre},
+		{"water ice", WaterIceBearingRock, WaterIce},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := testConfig()
+			cfg.StartColonists, cfg.StartAliens, cfg.StartCats, cfg.StartMice = 0, 0, 0, 0
+			cfg.MineTicks = 1
+			w := newTestWorld(t, cfg)
+
+			pos := Point{w.Width / 2, w.Height / 2}
+			w.SetTerrain(pos, Floor)
+			target := pos.Add(1, 0)
+			w.SetTerrain(target, Rock)
+			w.tiles[w.index(target)].Composition = tt.composition
+			miner := w.spawn(Colonist, pos)
+			miner.Job, miner.Target, miner.mineClaimed = JobMine, target, true
+
+			w.jobMine(miner)
+
+			if got := miner.Inventory[0]; got != (ItemStack{Kind: RawRock, Count: 1}) {
+				t.Fatalf("first slot = %+v, want one raw rock", got)
+			}
+			if got := miner.Inventory[1]; got != (ItemStack{Kind: tt.extra, Count: 1}) {
+				t.Fatalf("second slot = %+v, want one %s", got, tt.extra)
+			}
+		})
+	}
+}
+
+func TestCompositionYieldIsAtomicWhenInventoryCannotFitExtra(t *testing.T) {
+	cfg := testConfig()
+	cfg.StartColonists, cfg.StartAliens, cfg.StartCats, cfg.StartMice = 0, 0, 0, 0
+	cfg.MineTicks = 1
+	w := newTestWorld(t, cfg)
+
+	pos := Point{w.Width / 2, w.Height / 2}
+	w.SetTerrain(pos, Floor)
+	target := pos.Add(1, 0)
+	w.SetTerrain(target, Rock)
+	w.tiles[w.index(target)].Composition = IronBearingRock
+	miner := w.spawn(Colonist, pos)
+	miner.Inventory[0] = ItemStack{Kind: RawRock, Count: MaxStackSize - 1}
+	for i := 1; i < InventorySlotCount; i++ {
+		miner.Inventory[i] = ItemStack{Kind: WaterIce, Count: MaxStackSize}
+	}
+	before := miner.Inventory
+	miner.Job, miner.Target, miner.mineClaimed = JobMine, target, true
+
+	w.jobMine(miner)
+
+	if miner.Inventory != before {
+		t.Fatal("failed composition yield partially changed inventory")
+	}
+	if got := w.TerrainAt(target); got != Rock {
+		t.Fatalf("miner excavated terrain to %v without room for iron", got)
+	}
+}

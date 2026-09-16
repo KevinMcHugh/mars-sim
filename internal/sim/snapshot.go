@@ -130,6 +130,14 @@ func (s *Snapshot) TerrainAt(p Point) Terrain {
 	return s.Tiles[p.Y*s.Width+p.X].Terrain
 }
 
+// TileAt reads the copied tile grid; out-of-bounds cells are ordinary rock.
+func (s *Snapshot) TileAt(p Point) Tile {
+	if p.X < 0 || p.X >= s.Width || p.Y < 0 || p.Y >= s.Height {
+		return Tile{Terrain: Rock, Composition: OrdinaryRock}
+	}
+	return s.Tiles[p.Y*s.Width+p.X]
+}
+
 // snapshot builds an immutable copy of the world's current state.
 func (w *World) snapshot(paused bool, tps int) *Snapshot {
 	tiles := make([]Tile, len(w.tiles))

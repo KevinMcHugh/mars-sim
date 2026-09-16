@@ -1,6 +1,9 @@
 package sim
 
-import "math"
+import (
+	"math"
+	"math/rand"
+)
 
 // generate carves the starting situation into a fresh all-Rock world: a central
 // landing cavern sized to the starting population, with the colonists inside it,
@@ -8,6 +11,24 @@ import "math"
 // in.
 func generate(w *World) {
 	center := Point{w.Width / 2, w.Height / 2}
+
+	// Seed useful deposits before carving. Use a dedicated seed-derived stream:
+	// composition affects gameplay, but generating it must not shift entity
+	// placement and every later decision on the main simulation stream.
+	// Composition does not affect terrain indexes, so initializing the dense tile
+	// data directly also avoids emitting one TileChanged event per cell.
+	compositionRNG := rand.New(rand.NewSource(w.cfg.Seed ^ 0x243F6A8885A308D3))
+	for i := range w.tiles {
+		roll := compositionRNG.Intn(100)
+		switch {
+		case roll < w.cfg.IronRockPercent:
+			w.tiles[i].Composition = IronBearingRock
+		case roll < w.cfg.IronRockPercent+w.cfg.IceRockPercent:
+			w.tiles[i].Composition = WaterIceBearingRock
+		default:
+			w.tiles[i].Composition = OrdinaryRock
+		}
+	}
 
 	// Carve an oval starting cavern large enough to hold the colonists with room
 	// to move and a rock frontier to mine.

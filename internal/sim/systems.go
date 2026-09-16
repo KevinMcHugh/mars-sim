@@ -339,10 +339,10 @@ func (w *World) useFrontierMining() bool {
 		w.Width*w.Height >= w.cfg.FrontierFieldMinArea
 }
 
-// claimNearestMine claims (for id) the nearest unclaimed frontier rock reachable
-// from the colonist's room, for the A* mining path. Returns the claimed tile.
-func (w *World) claimNearestMine(from Point, id EntityID) (Point, bool) {
-	room := w.roomOf(from)
+// claimNearestMine claims the nearest unclaimed frontier rock whose complete
+// yield the colonist can carry and which is reachable from their room.
+func (w *World) claimNearestMine(e *Entity) (Point, bool) {
+	room := w.roomOf(e.Pos)
 	if room == 0 {
 		return Point{}, false
 	}
@@ -350,15 +350,16 @@ func (w *World) claimNearestMine(from Point, id EntityID) (Point, bool) {
 	found := false
 	bestDist := 1 << 30
 	for p := range w.board.frontier {
-		if w.board.isClaimed(p) || !w.frontierReachable(p, room) {
+		if w.board.isClaimed(p) || !w.frontierReachable(p, room) ||
+			!e.Inventory.CanAddAll(miningYield(w.TileAt(p))...) {
 			continue
 		}
-		if d := from.Chebyshev(p); !found || d < bestDist || (d == bestDist && lessPoint(p, best)) {
+		if d := e.Pos.Chebyshev(p); !found || d < bestDist || (d == bestDist && lessPoint(p, best)) {
 			best, bestDist, found = p, d, true
 		}
 	}
 	if found {
-		w.board.claimMine(best, id)
+		w.board.claimMine(best, e.ID)
 	}
 	return best, found
 }
@@ -387,7 +388,8 @@ func lessPoint(a, b Point) bool {
 func (w *World) claimAdjacentFrontier(e *Entity) (Point, bool) {
 	for _, d := range neighbors8 {
 		n := e.Pos.Add(d.X, d.Y)
-		if w.board.isFrontier(n) && !w.board.isClaimed(n) {
+		if w.board.isFrontier(n) && !w.board.isClaimed(n) &&
+			e.Inventory.CanAddAll(miningYield(w.TileAt(n))...) {
 			w.board.claimMine(n, e.ID)
 			return n, true
 		}
@@ -576,7 +578,7 @@ func (w *World) assignWorkJob(e *Entity) {
 				w.assignMine(e)
 				return
 			}
-		} else if target, ok := w.claimNearestMine(e.Pos, e.ID); ok {
+		} else if target, ok := w.claimNearestMine(e); ok {
 			w.assignMineTarget(e, target)
 			return
 		}
@@ -610,13 +612,17 @@ func (w *World) jobMine(e *Entity) {
 			w.clearJob(e)
 			return
 		}
+		if !e.Inventory.CanAddAll(miningYield(w.TileAt(e.Target))...) {
+			w.clearJob(e)
+			return
+		}
 		if e.Pos.Adjacent(e.Target) {
 			e.State = Mining
 			e.Progress++
 			if e.Progress >= scaleTicks(w.cfg.MineTicks, e.workScale) {
-				// Award the resource before changing terrain so a full inventory
-				// can never make mined material disappear.
-				if !e.Inventory.Add(RawRock, 1) {
+				// Award the complete composition-dependent yield before changing
+				// terrain so limited inventory can never make material disappear.
+				if !e.Inventory.AddAll(miningYield(w.TileAt(e.Target))...) {
 					w.clearJob(e)
 					return
 				}
@@ -699,7 +705,7 @@ func (w *World) jobBuild(e *Entity) {
 		// the colonist can't carry more, release the task rather than
 		// finishing it emptyhanded — someone else (or this colonist once
 		// unloaded) picks it up.
-		if !e.Inventory.Add(RawRock, 1) {
+		if !e.Inventory.AddAll(miningYield(w.TileAt(e.Target))...) {
 			w.clearJob(e)
 			return
 		}

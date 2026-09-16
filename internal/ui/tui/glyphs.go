@@ -37,12 +37,14 @@ const tileWidth = 2
 // Skin tone and hair colour live in the colonist's flavour text instead (see
 // renderColonistDetail); they never enter a glyph.
 const (
-	glyphRock   = "\U0001F7EB" // 🟫 unexcavated regolith
-	glyphFloor  = "  "         // open, walkable space
-	glyphWall   = "\U0001F9F1" // 🧱 built wall
-	glyphPod    = "\U0001F96B" // 🥫 nutrient pod (food)
-	glyphToilet = "\U0001F6BD" // 🚽 toilet (bladder)
-	glyphBed    = "\U0001F6CC" // 🛌 dormitory bunk (sleep)
+	glyphRock     = "\U0001F7EB" // 🟫 unexcavated regolith
+	glyphIronRock = "\U00002B1B" // ⬛ iron-bearing rock
+	glyphIceRock  = "\U0001F7E6" // 🟦 water ice-bearing rock
+	glyphFloor    = "  "         // open, walkable space
+	glyphWall     = "\U0001F9F1" // 🧱 built wall
+	glyphPod      = "\U0001F96B" // 🥫 nutrient pod (food)
+	glyphToilet   = "\U0001F6BD" // 🚽 toilet (bladder)
+	glyphBed      = "\U0001F6CC" // 🛌 dormitory bunk (sleep)
 
 	glyphColonist = "\U0001F477" // 👷 colonist of unknown age/gender (no profile)
 	glyphFleeing  = "\U0001F631" // 😱 colonist running from an alien
@@ -85,12 +87,14 @@ type glyph struct {
 // a glyph added to the code without an entry here fails a test rather than
 // quietly corrupting a frame at runtime.
 var glyphRegistry = map[string]glyph{
-	glyphRock:   {glyphRock, 2, "##"},
-	glyphFloor:  {glyphFloor, 2, "  "},
-	glyphWall:   {glyphWall, 2, "[]"},
-	glyphPod:    {glyphPod, 2, "%%"},
-	glyphToilet: {glyphToilet, 2, "WC"},
-	glyphBed:    {glyphBed, 2, "=="},
+	glyphRock:     {glyphRock, 2, "##"},
+	glyphIronRock: {glyphIronRock, 2, "Fe"},
+	glyphIceRock:  {glyphIceRock, 2, "H2"},
+	glyphFloor:    {glyphFloor, 2, "  "},
+	glyphWall:     {glyphWall, 2, "[]"},
+	glyphPod:      {glyphPod, 2, "%%"},
+	glyphToilet:   {glyphToilet, 2, "WC"},
+	glyphBed:      {glyphBed, 2, "=="},
 
 	glyphColonist: {glyphColonist, 2, "@ "},
 	glyphFleeing:  {glyphFleeing, 2, "@!"},
@@ -205,6 +209,20 @@ func terrainGlyph(t sim.Terrain) string {
 		symbol = glyphRock
 	}
 	return fitGlyph(symbol)
+}
+
+func tileGlyph(tile sim.Tile) string {
+	if tile.Terrain != sim.Rock {
+		return terrainGlyph(tile.Terrain)
+	}
+	switch tile.Composition {
+	case sim.IronBearingRock:
+		return fitGlyph(glyphIronRock)
+	case sim.WaterIceBearingRock:
+		return fitGlyph(glyphIceRock)
+	default:
+		return fitGlyph(glyphRock)
+	}
 }
 
 func entityGlyph(e sim.EntityView) string {

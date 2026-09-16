@@ -13,12 +13,18 @@ type ItemKind uint8
 const (
 	ItemNone ItemKind = iota
 	RawRock
+	IronOre
+	WaterIce
 )
 
 func (k ItemKind) String() string {
 	switch k {
 	case RawRock:
 		return "raw rock"
+	case IronOre:
+		return "iron ore"
+	case WaterIce:
+		return "water ice"
 	default:
 		return "empty"
 	}
@@ -91,4 +97,36 @@ func (inv *Inventory) Add(kind ItemKind, quantity int) bool {
 		}
 	}
 	return true
+}
+
+// AddAll stores several item stacks as one transaction. If the complete set
+// does not fit, it returns false without changing the inventory.
+func (inv *Inventory) AddAll(stacks ...ItemStack) bool {
+	next := *inv
+	for _, stack := range stacks {
+		if stack.Count < 0 || (stack.Count > 0 && !next.Add(stack.Kind, stack.Count)) {
+			return false
+		}
+	}
+	*inv = next
+	return true
+}
+
+// CanAddAll reports whether a heterogeneous group of stacks fits without
+// changing the inventory.
+func (inv *Inventory) CanAddAll(stacks ...ItemStack) bool {
+	next := *inv
+	return next.AddAll(stacks...)
+}
+
+// miningYield returns the complete inventory award for excavating a tile.
+func miningYield(tile Tile) []ItemStack {
+	yield := []ItemStack{{Kind: RawRock, Count: 1}}
+	switch tile.Composition {
+	case IronBearingRock:
+		yield = append(yield, ItemStack{Kind: IronOre, Count: 1})
+	case WaterIceBearingRock:
+		yield = append(yield, ItemStack{Kind: WaterIce, Count: 1})
+	}
+	return yield
 }

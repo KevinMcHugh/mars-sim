@@ -5,11 +5,12 @@
 ## What it is
 
 Colonists carry items in a fixed set of slots, each holding one homogeneous stack.
-Today the only item is `RawRock`, produced by mining, but the machinery is generic.
+Mining produces `RawRock` and may also produce `IronOre` or `WaterIce`, depending
+on the excavated tile's rock composition.
 
 ## Source
 
-- [`internal/sim/inventory.go`](../internal/sim/inventory.go) — `ItemKind`, `ItemStack`, `Inventory`, `CanAdd`/`Add`.
+- [`internal/sim/inventory.go`](../internal/sim/inventory.go) — `ItemKind`, `ItemStack`, `Inventory`, and atomic add/yield helpers.
 - [`internal/sim/entity.go`](../internal/sim/entity.go) — the `Inventory` field on `Entity`.
 - [`internal/sim/systems.go`](../internal/sim/systems.go) — mining awards `RawRock` (`jobMine`).
 
@@ -24,11 +25,16 @@ count 0 and `ItemNone`.
 - `Add(kind, n)` stores all `n` items, filling existing matching stacks before
   empty slots, and is **all-or-nothing**: it returns false and leaves the
   inventory untouched if they do not all fit.
+- `AddAll(stacks...)` applies the same rule to a heterogeneous group of stacks.
+  It works against an inventory copy and commits only if the complete group fits.
+- `CanAddAll(stacks...)` performs that heterogeneous capacity check without
+  changing the inventory, so job selection can skip deposits a colonist cannot
+  carry completely.
 
-Mining is the one producer today. `jobMine` awards the `RawRock` **before**
-changing the terrain, so a full inventory can never make mined material disappear;
-and `assignWorkJob` refuses to start a mine job when the colonist cannot carry the
-result (`CanAdd(RawRock, 1)`), so colonists don't begin work they can't complete.
+Mining is the one producer today. `miningYield` always returns one `RawRock` and
+adds one `IronOre` or `WaterIce` for a bearing tile. `jobMine` and construction
+dig tasks add that complete yield with `AddAll` **before** changing terrain, so
+limited inventory can never make one part of a deposit disappear.
 
 Inventory is copied by value into the snapshot's `EntityView`, so the frontend can
 render it without touching live state.
@@ -37,8 +43,9 @@ render it without touching live state.
 
 - **Fixed slots + homogeneous stacks** are a simple, bounded model that renders
   cleanly (the roster shows eight slots) and is enough for a scaffold.
-- **All-or-nothing `Add`** keeps callers simple: a partial add would force every
-  caller to handle leftovers.
+- **All-or-nothing `Add` and `AddAll`** keep callers simple: a partial
+  composition yield would force mining to handle leftovers or silently destroy
+  a resource.
 - **Award-before-terrain-change** and the pre-mine capacity check are the
   invariant that keeps resources conserved.
 

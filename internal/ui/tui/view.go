@@ -212,7 +212,7 @@ func (m Model) renderMap() string {
 			if e, ok := occ[p]; ok {
 				row.WriteString(entityGlyph(e))
 			} else {
-				row.WriteString(terrainGlyph(m.latest.TerrainAt(p)))
+				row.WriteString(tileGlyph(m.latest.TileAt(p)))
 			}
 		}
 		// Every row is forced to exactly cols*tileWidth cells. Each glyph is
@@ -241,7 +241,8 @@ func (m Model) renderSidebar() string {
 		{{glyphFleeing, "fleeing"}, {glyphTalking, "talking"}},
 		{{glyphPod, "food pod"}, {glyphToilet, "toilet"}},
 		{{glyphBed, "bunk"}, {glyphWall, "wall"}},
-		{{glyphRock, "rock"}, {glyphFloor, "open"}},
+		{{glyphRock, "rock"}, {glyphIronRock, "iron rock"}},
+		{{glyphIceRock, "ice rock"}, {glyphFloor, "open"}},
 	}
 	column := inner / 2
 

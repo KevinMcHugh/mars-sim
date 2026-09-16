@@ -65,11 +65,36 @@ func (t Terrain) Walkable() bool {
 	return t == Floor
 }
 
+// RockComposition identifies the useful material embedded in a rock tile.
+// Composition is separate from Terrain because every variety has the same
+// movement and mining behavior; it only changes the material yielded.
+type RockComposition uint8
+
+const (
+	OrdinaryRock RockComposition = iota
+	IronBearingRock
+	WaterIceBearingRock
+)
+
+func (c RockComposition) String() string {
+	switch c {
+	case OrdinaryRock:
+		return "ordinary rock"
+	case IronBearingRock:
+		return "iron-bearing rock"
+	case WaterIceBearingRock:
+		return "water ice-bearing rock"
+	default:
+		return "unknown rock"
+	}
+}
+
 // Tile is one cell of the world. It is deliberately a struct rather than a bare
 // Terrain so we have room to grow (ore, moisture, temperature, ...) without
 // touching every call site.
 type Tile struct {
-	Terrain Terrain
+	Terrain     Terrain
+	Composition RockComposition // meaningful only while Terrain is Rock
 }
 
 // World is the mutable game state for a single underground level. It is owned by
@@ -289,6 +314,14 @@ func (w *World) TerrainAt(p Point) Terrain {
 		return Rock
 	}
 	return w.tiles[w.index(p)].Terrain
+}
+
+// TileAt returns the tile at p. Out-of-bounds cells behave as ordinary rock.
+func (w *World) TileAt(p Point) Tile {
+	if !w.InBounds(p) {
+		return Tile{Terrain: Rock, Composition: OrdinaryRock}
+	}
+	return w.tiles[w.index(p)]
 }
 
 // SetTerrain overwrites the terrain at p if it is in bounds, keeping the terrain

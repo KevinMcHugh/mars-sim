@@ -8,6 +8,9 @@ import "time"
 type Config struct {
 	// World shape.
 	Width, Height int
+	// Rock composition percentages. The remainder is ordinary rock.
+	IronRockPercent int
+	IceRockPercent  int
 
 	// Seed makes a run reproducible. Same seed + same code => same game.
 	Seed int64
@@ -129,6 +132,8 @@ func DefaultConfig() Config {
 	return Config{
 		Width:               80,
 		Height:              40,
+		IronRockPercent:     10,
+		IceRockPercent:      5,
 		Seed:                time.Now().UnixNano(),
 		StartColonists:      6,
 		StartAliens:         3,

@@ -5,9 +5,9 @@
 ## What it is
 
 The world is a single underground level: a dense, row-major grid of `Tile`s that
-starts as solid rock. World generation carves a landing cavern, drops the
-colonists inside it, and seeds aliens out in the surrounding rock and cats/mice on
-the floor.
+starts as solid rock with ordinary, iron-bearing, or water ice-bearing
+composition. World generation carves a landing cavern, drops the colonists inside
+it, and seeds aliens out in the surrounding rock and cats/mice on the floor.
 
 ## Source
 
@@ -25,9 +25,12 @@ Only
 walkability and burrow through anything**. Beds are dormitory bunks used from an
 adjacent floor tile.
 
-A `Tile` is a struct wrapping `Terrain` (not a bare enum) deliberately, so fields
-like ore, moisture, or temperature can be added later without touching every call
-site.
+A `Tile` stores both `Terrain` and `RockComposition`. Composition is meaningful
+only while the terrain is `Rock`: ordinary rock yields one `RawRock`, while
+iron-bearing and water ice-bearing rock also yield one `IronOre` or `WaterIce`.
+Keeping composition separate from terrain means all three deposits share the
+same blocking, frontier, pathfinding, and excavation rules instead of multiplying
+terrain cases throughout the simulation.
 
 The grid is stored as a flat `[]Tile` of length `Width*Height`, indexed row-major
 via `World.index(p)`. `TerrainAt` returns `Rock` for out-of-bounds cells so the
@@ -61,16 +64,19 @@ go stale.
 
 `generate` (called once by `NewEngine`):
 
-1. Carves an **oval cavern** at the map center. `caveRadii` sizes it to the
+1. Assigns rock composition using a dedicated RNG derived from the simulation
+   seed. The configurable iron and ice percentages default to 10% and 5%; the
+   remainder is ordinary rock.
+2. Carves an **oval cavern** at the map center. `caveRadii` sizes it to the
    starting colonist count (~10 tiles per colonist) at a 2:1 width:height ratio,
    clamped to the map.
-2. Places colonists by shuffling the list of free floor tiles and drawing from
+3. Places colonists by shuffling the list of free floor tiles and drawing from
    it, so every requested colonist is placed if the cavern has room (this beats
    rejection sampling, which can give up).
-3. Places aliens on random rock tiles **far** from the cavern (`randomRockFar`),
+4. Places aliens on random rock tiles **far** from the cavern (`randomRockFar`),
    so they must burrow in.
-4. Places mice and cats on random floor tiles inside the cavern.
-5. Runs `refreshSpatial` once so regions/rooms exist before the first tick.
+5. Places mice and cats on random floor tiles inside the cavern.
+6. Runs `refreshSpatial` once so regions/rooms exist before the first tick.
 
 `randomTile` reservoir-samples a tile satisfying a predicate in one pass — uniform,
 and it always finds a match if one exists.
@@ -84,6 +90,12 @@ and it always finds a match if one exists.
   like solid wall.
 - **Terrain changes funnel through `SetTerrain`** so the event-driven systems can
   be trusted; this is the linchpin of the reactive performance design.
+- **Composition is tile data, not terrain** because deposits do not differ in
+  walkability or mining cost. New terrain kinds would complicate every rock
+  predicate and derived index for no gameplay benefit.
+- **Composition has a separate seed-derived RNG stream** so generating deposits
+  remains reproducible without shifting colonist placement, alien placement, or
+  every later decision on the main simulation stream.
 - **Shuffle-and-draw placement** guarantees the requested population actually
   spawns, which matters for reproducible, comparable runs.
 
@@ -93,8 +105,9 @@ and it always finds a match if one exists.
   `Walkable()` result, give it a glyph in the TUI, and (if it is a facility)
   wire it into the needs table. Flow fields are allocated per facility terrain
   in `newWorld`.
-- **Richer tiles** (ore, moisture): add fields to `Tile`; call sites that only
-  read `.Terrain` are unaffected.
+- **A new rock composition**: add a `RockComposition`, its world-generation
+  weighting, mining yield, and TUI glyph. Leave it out of `Terrain` unless it
+  actually changes movement or construction rules.
 - **Multiple levels (z-layers)** are the big planned extension; the region and
   flow-field machinery were built to extend into it. This is not implemented yet.
 
