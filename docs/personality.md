@@ -51,7 +51,7 @@ per group, each taken with `TraitChance` probability:
 | Group | Traits | Effect |
 | --- | --- | --- |
 | appetite | Big Eater / Light Eater | food need rises 1.5x / 0.7x |
-| work ethic | Industrious / Lazy | work 0.75x time + rest 0.5x / work 1.4x + rest 2.0x |
+| work ethic | Industrious / Lazy | work 0.75x time + rest 0.5x, plus a doubled mood lift on finishing a job / work 1.4x + rest 2.0x |
 | social | Asocial / Introvert / Extrovert | no social need / social need 0.5x plus conversation fatigue / social need 1.5x |
 | temperament | Tidy | an extra mood penalty on seeing gore (see below) |
 
@@ -98,6 +98,13 @@ would mean inventing an `Entity` field for a value `HasTrait` already answers
 in one slice scan. The pattern to follow depends on how often the effect is
 read: a per-tick or per-job cost belongs in `resolveTraitEffects`; a
 per-event cost is fine read live.
+
+`TraitIndustrious` shows a trait can use both mechanisms at once: its
+work/rest multipliers are resolved at spawn as always, but its extra mood
+lift on finishing a job (see [memories.md](./memories.md)) is a second,
+independent effect checked live via `HasTrait`, exactly like Tidy's. Nothing
+about having a `traitSpec` entry requires a trait to pick one mechanism
+exclusively.
 
 ## Why it is this way
 

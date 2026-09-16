@@ -154,3 +154,88 @@ func TestMemoryRecordsLifeEventKind(t *testing.T) {
 		t.Errorf("memory text = %q, want %q", last.Text, "Had a meal.")
 	}
 }
+
+// Being bitten and surviving should drop mood.
+func TestBittenDropsMood(t *testing.T) {
+	cfg := testConfig()
+	w := newTestWorld(t, cfg)
+
+	alien := w.spawn(Alien, Point{0, 0})
+	victim := w.spawn(Colonist, Point{1, 0})
+	// Give every part (and the aggregate pool) plenty of HP so the bite is
+	// non-fatal regardless of which part rollHit lands on.
+	victim.HP = 100
+	victim.Parts = [numBodyParts]int{100, 100, 100, 100, 100, 100}
+
+	w.bite(alien, victim)
+
+	if victim.mood >= 0 {
+		t.Fatalf("mood after being bitten = %d, want negative", victim.mood)
+	}
+}
+
+// Finishing a work job should raise mood a little, and more for an
+// Industrious colonist than a plain one.
+func TestFinishingJobRaisesMoodMoreForIndustrious(t *testing.T) {
+	cfg := testConfig()
+	w := newTestWorld(t, cfg)
+
+	plain := w.spawn(Colonist, Point{0, 0})
+	plain.Profile = &Profile{}
+	industrious := w.spawn(Colonist, Point{5, 5})
+	industrious.Profile = &Profile{Traits: []Trait{TraitIndustrious}}
+
+	w.remember(plain, event(EvtFinishedMining, "Finished mining at (%d, %d).", 1, 1))
+	w.remember(industrious, event(EvtFinishedMining, "Finished mining at (%d, %d).", 1, 1))
+
+	if plain.mood <= 0 {
+		t.Fatalf("mood after finishing a job = %d, want positive", plain.mood)
+	}
+	if industrious.mood <= plain.mood {
+		t.Errorf("industrious colonist mood %d should rise more than plain colonist mood %d", industrious.mood, plain.mood)
+	}
+}
+
+// Every "finished a work job" kind should share the same mood bump, not just
+// mining — a regression guard for jobFinishedMood's table wiring.
+func TestAllJobCompletionKindsRaiseMood(t *testing.T) {
+	cfg := testConfig()
+	for _, kind := range []LifeEventKind{EvtFinishedMining, EvtClearedRock, EvtFinishedConstruction} {
+		w := newTestWorld(t, cfg)
+		c := w.spawn(Colonist, Point{0, 0})
+		c.Profile = &Profile{}
+		w.remember(c, event(kind, "did a job"))
+		if c.mood <= 0 {
+			t.Errorf("kind %v: mood = %d, want positive", kind, c.mood)
+		}
+	}
+}
+
+// A finished conversation should now go entirely through remember/LifeEvent:
+// one call records the memory and moves mood together, rather than two
+// separate mechanisms that could drift apart.
+func TestConversationRecordsMemoryAndMood(t *testing.T) {
+	cfg := testConfig()
+	w := newTestWorld(t, cfg)
+
+	a := w.spawn(Colonist, Point{0, 0})
+	b := w.spawn(Colonist, Point{1, 0})
+	// Max out their existing affinity so the roll's quality (which leans
+	// toward existing affinity's valence) is guaranteed positive, and with it
+	// the mood delta — this test is about the mechanism (one call records
+	// both the memory and the mood), not the mood formula itself (see
+	// TestTalkMoodRules for that).
+	w.addAffinity(a.ID, b.ID, cfg.AffinityMax)
+
+	w.finishTalk(a, b)
+
+	if len(a.Memories) != 1 || a.Memories[0].Kind != EvtConversation {
+		t.Fatalf("expected one conversation memory on a, got %+v", a.Memories)
+	}
+	if len(b.Memories) != 1 || b.Memories[0].Kind != EvtConversation {
+		t.Fatalf("expected one conversation memory on b, got %+v", b.Memories)
+	}
+	if a.mood <= 0 || b.mood <= 0 {
+		t.Fatalf("expected finishTalk to raise both participants' mood, got a=%d b=%d", a.mood, b.mood)
+	}
+}

@@ -599,8 +599,6 @@ func (w *World) jobTalk(e *Entity) {
 		e.Progress++
 		if e.Progress >= w.cfg.TalkTicks {
 			w.finishTalk(e, p)
-			w.remember(e, event(EvtConversation, "Had a conversation with %s.", p.displayName()))
-			w.remember(p, event(EvtConversation, "Had a conversation with %s.", e.displayName()))
 			w.resetNeed(e, NeedSocial)
 			w.resetNeed(p, NeedSocial)
 			w.clearJob(p)
@@ -611,15 +609,23 @@ func (w *World) jobTalk(e *Entity) {
 
 // finishTalk applies a completed conversation's outcome: it rolls the chat's
 // quality, shifts the pair's affinity (exacerbating its existing valence, with
-// diminishing returns), and moves both participants' moods accordingly. See
-// relationships.go.
+// diminishing returns), and records each participant's memory of it with the
+// mood delta that this particular conversation earned — a company term (how
+// it feels to spend time with the other, from affinity), a conversation term
+// (how the chat itself went, from quality), and each participant's own
+// social-fatigue penalty (noteConversation), which must still be called
+// exactly once per participant since it also advances their rolling
+// conversation-count window as a side effect. That computed total is
+// necessarily per-occurrence — unlike most LifeEvents it can't be a fixed
+// table lookup — so it travels on the LifeEvent itself via eventMood rather
+// than lifeEventMoodEffects. See docs/memories.md.
 func (w *World) finishTalk(a, b *Entity) {
 	existing := w.affinityBetween(a.ID, b.ID)
 	quality := w.rollTalkQuality(existing)
 	w.addAffinity(a.ID, b.ID, w.talkAffinityDelta(existing, quality))
 	mood := w.talkMoodDelta(quality, existing)
-	w.adjustMood(a, mood+w.noteConversation(a))
-	w.adjustMood(b, mood+w.noteConversation(b))
+	w.remember(a, eventMood(EvtConversation, mood+w.noteConversation(a), "Had a conversation with %s.", b.displayName()))
+	w.remember(b, eventMood(EvtConversation, mood+w.noteConversation(b), "Had a conversation with %s.", a.displayName()))
 }
 
 // assignWorkJob picks something productive to do: help build a planned project
