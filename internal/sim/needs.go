@@ -30,21 +30,26 @@ func (n NeedKind) String() string {
 }
 
 // NeedSpec describes how one need behaves. Levels run 0..Max; 0 means satisfied.
+// The cfg tags make the numeric fields tunable from the config file and the
+// command line, one knob per need (see configfile.go). Name and Facility are
+// deliberately untagged: they are the need's identity and its plumbing, not
+// balance, and changing them from a file would let a config rename a need out
+// from under the code that looks it up.
 type NeedSpec struct {
 	Name     string
-	Rise     int     // level gained per tick
-	SeekAt   int     // level at which the colonist drops work to satisfy it
-	Max      int     // ceiling; a Fatal need at Max drains HP
+	Rise     int     `cfg:"rise" doc:"level gained per tick"`
+	SeekAt   int     `cfg:"seek-at" doc:"level at which the colonist drops work to satisfy it"`
+	Max      int     `cfg:"max" doc:"ceiling; a fatal need sitting here drains HP"`
 	Facility Terrain // structure that resets this need to 0
-	UseTicks int     // ticks spent using the facility
-	Fatal    bool    // whether sitting at Max damages the colonist
+	UseTicks int     `cfg:"use-ticks" doc:"ticks spent using the facility"`
+	Fatal    bool    `cfg:"fatal" doc:"whether sitting at the ceiling damages the colonist"`
 	// GrabTicks, if positive and less than UseTicks, makes this need portable:
 	// a colonist spends only GrabTicks at the facility, then carries it away
 	// and spends the rest of UseTicks finishing elsewhere, freeing the
 	// facility's access tile for the next colonist immediately rather than
 	// occupying it for the whole UseTicks. Zero means the need can only be
 	// satisfied in place (bladder, sleep — there is nothing to take away).
-	GrabTicks int
+	GrabTicks int `cfg:"grab-ticks" doc:"ticks at the facility before carrying the rest away (0 = must be used in place)"`
 }
 
 // needLevel returns an entity's current level for one need, computed lazily

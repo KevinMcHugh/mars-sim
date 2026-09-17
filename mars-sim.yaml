@@ -1,0 +1,354 @@
+# mars-sim settings
+#
+# This file is the middle ground between the defaults compiled into
+# internal/sim/config.go and the flags you type at the shell: a set of options
+# you can commit. Every setting below is shown at its default value and
+# commented out, so the file as generated changes nothing. Uncomment a line to
+# change it.
+#
+# Precedence, lowest to highest:
+#
+#   DefaultConfig() in internal/sim/config.go
+#   this file (mars-sim.yaml in the working directory, or -config PATH)
+#   command-line flags
+#
+# So a value set here becomes the default the flags start from: run with
+# -h to see the effective defaults, and pass a flag to override this file for
+# one run. Use -config "" to ignore the file entirely.
+#
+# Regenerate this file with:  go run . -print-config > mars-sim.yaml
+# (that resets it to the defaults, so re-apply your edits afterwards).
+
+# The world seed. Same seed + same code => same game. 0 means pick a fresh
+# seed from the clock on every run, which is the default.
+# seed: 0
+
+# ── World ───────────────────────────────────────────────────────────────
+## world width in tiles
+# width: 80
+
+## world height in tiles
+# height: 40
+
+## percent of rock tiles bearing iron
+# iron-rock-percent: 10
+
+## percent of rock tiles bearing water ice
+# ice-rock-percent: 5
+
+## percent of rock tiles bearing uranium
+# uranium-rock-percent: 3
+
+## percent of rock tiles bearing clay
+# clay-rock-percent: 5
+
+## minimum tiles in a generated rock deposit vein
+# rock-vein-min: 8
+
+## maximum tiles in a generated rock deposit vein
+# rock-vein-max: 24
+
+# ── Starting population ─────────────────────────────────────────────────
+## starting number of colonists
+# colonists: 6
+
+## starting number of aliens
+# aliens: 3
+
+## starting number of cats
+# cats: 2
+
+## starting number of mice
+# mice: 8
+
+## pistols the colony ship arrives with
+# pistols: 1
+
+## shotguns the colony ship arrives with
+# shotguns: 1
+
+## recent deaths kept for the roster's dead filter (0 disables)
+# graveyard-size: 50
+
+# ── Timing ──────────────────────────────────────────────────────────────
+## simulation ticks per second
+# tps: 8
+
+## number of recent events retained
+# log-size: 64
+
+# ── Colonists ───────────────────────────────────────────────────────────
+## colonist hit points
+# colonist-hp: 40
+
+## ticks of work to excavate one rock tile
+# mine-ticks: 6
+
+## ticks of work to raise one wall
+# build-ticks: 8
+
+## ticks of work to build a pod or toilet
+# facility-ticks: 12
+
+## colonist flees when an alien is within this many tiles
+# flee-radius: 5
+
+## an idle colonist chases and crushes a mouse within this many tiles
+# stomp-radius: 4
+
+## a colonist notices gore on the ground within this many tiles
+# gore-sight-radius: 3
+
+# ── Sanitation ──────────────────────────────────────────────────────────
+## how far a colonist looks for refuse to clean up (a Tidy colonist looks twice as far)
+# clean-radius: 10
+
+## ticks of work to scrub one tile of refuse clean
+# clean-ticks: 6
+
+## ticks spent feeding a load of refuse into an incinerator
+# incinerate-ticks: 8
+
+## ticks of work to build an incinerator
+# incinerator-ticks: 20
+
+# ── Needs ───────────────────────────────────────────────────────────────
+
+# One spec per colonist need. These are nested, so uncommenting a value means
+# uncommenting the "needs:" and need-name lines above it as well.
+
+# needs:
+#   food:
+##     level gained per tick
+#     rise: 2
+
+##     level at which the colonist drops work to satisfy it
+#     seek-at: 650
+
+##     ceiling; a fatal need sitting here drains HP
+#     max: 1000
+
+##     ticks spent using the facility
+#     use-ticks: 18
+
+##     whether sitting at the ceiling damages the colonist
+#     fatal: true
+
+##     ticks at the facility before carrying the rest away (0 = must be used in place)
+#     grab-ticks: 3
+
+#   bladder:
+##     level gained per tick
+#     rise: 3
+
+##     level at which the colonist drops work to satisfy it
+#     seek-at: 600
+
+##     ceiling; a fatal need sitting here drains HP
+#     max: 1000
+
+##     ticks spent using the facility
+#     use-ticks: 10
+
+##     whether sitting at the ceiling damages the colonist
+#     fatal: false
+
+##     ticks at the facility before carrying the rest away (0 = must be used in place)
+#     grab-ticks: 0
+
+#   social:
+##     level gained per tick
+#     rise: 2
+
+##     level at which the colonist drops work to satisfy it
+#     seek-at: 500
+
+##     ceiling; a fatal need sitting here drains HP
+#     max: 1000
+
+##     ticks spent using the facility
+#     use-ticks: 0
+
+##     whether sitting at the ceiling damages the colonist
+#     fatal: false
+
+##     ticks at the facility before carrying the rest away (0 = must be used in place)
+#     grab-ticks: 0
+
+#   sleep:
+##     level gained per tick
+#     rise: 1
+
+##     level at which the colonist drops work to satisfy it
+#     seek-at: 700
+
+##     ceiling; a fatal need sitting here drains HP
+#     max: 1000
+
+##     ticks spent using the facility
+#     use-ticks: 40
+
+##     whether sitting at the ceiling damages the colonist
+#     fatal: false
+
+##     ticks at the facility before carrying the rest away (0 = must be used in place)
+#     grab-ticks: 0
+
+## HP lost per tick while a fatal need sits at its max
+# starve-damage: 1
+
+## colonists served by each life-support facility
+# per-facility: 5
+
+# ── Work and construction ───────────────────────────────────────────────
+## ticks an idle colonist rests before re-checking for work
+# rest-ticks: 10
+
+## ticks a colonist waits on a blocked path before abandoning the job
+# stuck-limit: 8
+
+## rooms that can be under construction at once
+# max-concurrent-projects: 2
+
+# ── Personality ─────────────────────────────────────────────────────────
+## percent chance a colonist gets a trait from each trait group (0 disables)
+# trait-chance: 30
+
+# ── Mutation ────────────────────────────────────────────────────────────
+## ticks of uranium exposure per mutation roll
+# uranium-exposure-ticks: 100
+
+## percent chance each full uranium dose mutates a colonist (0 disables mutation)
+# mutation-chance: 25
+
+## extra affinity a mutant-lover gains toward a mutant per conversation
+# mutant-lover-affinity: 3
+
+# ── Family and heredity ─────────────────────────────────────────────────
+## percent chance a new colonist is tied to an existing one by family (0 disables)
+# family-chance: 35
+
+## percent chance each of a colonist's features is inherited from a close relative (0 disables)
+# appearance-inherit-chance: 75
+
+## percent chance a colonist marrying in takes their spouse's surname
+# spouse-surname-chance: 50
+
+## starting affinity between close relatives, as a percent of affinity-max (0 disables)
+# family-affinity: 55
+
+## random swing around the starting family affinity, in the same units
+# family-affinity-spread: 15
+
+# ── Socializing ─────────────────────────────────────────────────────────
+## percent chance an idle colonist starts a conversation (0 disables talking)
+# talk-chance: 25
+
+## how far a colonist looks for a conversation partner
+# talk-radius: 6
+
+## ticks a conversation lasts before affinity is credited
+# talk-ticks: 12
+
+## base affinity step per conversation (scaled by outcome and diminishing returns)
+# talk-affinity-gain: 4
+
+## affinity runs in [-affinity-max, affinity-max]; talking alone saturates at half
+# affinity-max: 100
+
+## baseline lean of conversation quality (-100..100)
+# talk-quality-bias: 20
+
+## how strongly existing affinity biases conversation quality
+# talk-quality-valence: 50
+
+## random swing around a conversation's mean quality
+# talk-quality-spread: 50
+
+# ── Mood ────────────────────────────────────────────────────────────────
+## colonist mood runs in [-mood-max, mood-max]
+# mood-max: 100
+
+## mood shift per conversation from how one feels about the other
+# mood-company-weight: 6
+
+## mood shift per conversation from how the chat itself went
+# mood-conversation-weight: 10
+
+## ticks in the rolling window for social conversation fatigue
+# social-window-ticks: 200
+
+# ── Mining strategy ─────────────────────────────────────────────────────
+## colony size at/above which miners use the shared frontier flow field
+# frontier-field-colonists: 800
+
+## map area (tiles) at/above which miners use the shared frontier flow field
+# frontier-field-area: 90000
+
+# ── Aliens ──────────────────────────────────────────────────────────────
+## alien hit points
+# alien-hp: 30
+
+## HP removed per alien bite
+# alien-damage: 6
+
+## cooldown ticks between alien bites
+# alien-bite-rest: 3
+
+## alien acts once every N ticks (higher = slower)
+# alien-slowness: 2
+
+# ── Weapons ─────────────────────────────────────────────────────────────
+## HP removed per pistol shot
+# pistol-damage: 10
+
+## max tiles a pistol can fire from
+# pistol-range: 3
+
+## cooldown ticks between pistol shots
+# pistol-fire-rest: 1
+
+## HP removed per shotgun blast
+# shotgun-damage: 20
+
+## max tiles a shotgun can fire from
+# shotgun-range: 2
+
+## cooldown ticks between shotgun blasts
+# shotgun-fire-rest: 2
+
+# ── Cats ────────────────────────────────────────────────────────────────
+## cat hit points
+# cat-hp: 12
+
+## cat acts once every N ticks (higher = slower)
+# cat-slowness: 2
+
+## cooldown ticks after a cat catches a mouse
+# cat-pounce-rest: 4
+
+# ── Mice ────────────────────────────────────────────────────────────────
+## mouse hit points
+# mouse-hp: 4
+
+## food need a mouse gains per tick (mice eat frequently)
+# mouse-hunger-rise: 8
+
+## mouse flees when a cat is within this many tiles
+# mouse-flee-radius: 6
+
+## ticks a pregnant mouse carries a litter before giving birth
+# mouse-gestation: 300
+
+## smallest mouse litter size
+# mouse-litter-min: 2
+
+## largest mouse litter size
+# mouse-litter-max: 5
+
+## ticks a mouse waits before it can mate again
+# mouse-breed-cooldown: 200
+
+## ticks a newborn mouse takes to mature enough to breed
+# mouse-maturity: 400
+

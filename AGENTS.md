@@ -36,6 +36,9 @@ for the doc the same way they would ask for tests.
 - The simulation must stay deterministic for a given seed: keep flavor/RNG that
   should not affect gameplay on the personality stream (`World.prng`), not the
   simulation stream (`World.rng`). See [`docs/personality.md`](./docs/personality.md).
-- New tunables go in `sim.Config` with a matching command-line flag in
-  `main.go`, defaulting to the `DefaultConfig` value. See
-  [`docs/configuration.md`](./docs/configuration.md).
+- New tunables go in `sim.Config` with a `cfg:"name" doc:"..."` tag and a default
+  in `DefaultConfig`. The tag generates both the command-line flag and the key in
+  the committed `mars-sim.yaml`, so regenerate that file
+  (`go run . -print-config > mars-sim.yaml`, re-applying any values it had set)
+  in the same change. See [`docs/configuration.md`](./docs/configuration.md) and
+  [`docs/config-file.md`](./docs/config-file.md).

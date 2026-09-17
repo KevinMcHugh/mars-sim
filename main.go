@@ -5,17 +5,24 @@
 // and send Commands back. The Bubble Tea TUI here is one such frontend; another
 // (web, GUI, headless test harness) could attach to the same Engine unchanged.
 //
-// Every tunable in sim.Config is exposed as a command-line flag whose default is
-// the value from sim.DefaultConfig, so DefaultConfig stays the single source of
-// truth. Run with -h or ? to list them.
+// Settings arrive in three layers, each overriding the one before it:
+// sim.DefaultConfig, then a mars-sim.yaml settings file in the working
+// directory (a committed set of options; see docs/config-file.md), then
+// command-line flags. Every tunable in sim.Config carries a `cfg` tag that
+// names it once and drives all three, so a new knob gets its flag, its file
+// key, and its documentation without a second edit. Run with -h or ? to list
+// them, or -print-config to write a fresh settings file.
 package main
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/kevinmchugh/mars-sim/internal/sim"
@@ -27,22 +34,6 @@ import (
 func main() {
 	cfg := sim.DefaultConfig()
 
-	// Application flags (not part of the simulation config).
-	var (
-		duration time.Duration
-		headless bool
-		seed     int64
-		glyphs   string
-	)
-	flag.DurationVar(&duration, "duration", 0, "auto-exit after this long (0 = run until quit); handy for smoke tests")
-	flag.BoolVar(&headless, "headless", false, "run without the TUI, printing periodic stats")
-	flag.Int64Var(&seed, "seed", 0, "world seed (0 = random each run)")
-	flag.StringVar(&glyphs, "glyphs", glyphModeAuto, "map glyphs: auto (measure the terminal), emoji (trust the width table), or ascii")
-
-	// Simulation config flags, each defaulting to the DefaultConfig value.
-	bindConfigFlags(&cfg)
-
-	flag.Usage = usage
 	// Support "?" as a help alias alongside the flag package's built-in -h/-help.
 	for _, a := range os.Args[1:] {
 		if a == "?" || a == "-?" || a == "--?" {
@@ -50,7 +41,45 @@ func main() {
 			return
 		}
 	}
+
+	// The settings file is read before any flag is registered, so that the
+	// values it sets become the flag defaults: flags then override the file
+	// for free, and -h prints the defaults this run will actually use. That
+	// means -config has to be found the hard way, before flag.Parse.
+	cfgPath, cfgPathGiven := configPathFromArgs(os.Args[1:])
+	if err := loadConfigFile(&cfg, cfgPath, cfgPathGiven); err != nil {
+		fmt.Fprintln(os.Stderr, "mars-sim:", err)
+		os.Exit(2)
+	}
+
+	// Application flags (not part of the simulation config).
+	var (
+		duration    time.Duration
+		headless    bool
+		seed        int64
+		glyphs      string
+		printConfig bool
+	)
+	flag.DurationVar(&duration, "duration", 0, "auto-exit after this long (0 = run until quit); handy for smoke tests")
+	flag.BoolVar(&headless, "headless", false, "run without the TUI, printing periodic stats")
+	flag.Int64Var(&seed, "seed", 0, "world seed (0 = random each run)")
+	flag.StringVar(&glyphs, "glyphs", glyphModeAuto, "map glyphs: auto (measure the terminal), emoji (trust the width table), or ascii")
+	// Registered so it shows up in -h and is not rejected as unknown; the value
+	// was already consumed by configPathFromArgs above.
+	flag.String("config", cfgPath, "settings file to read before the flags (\"\" to ignore any file)")
+	flag.BoolVar(&printConfig, "print-config", false, "write a commented settings file with every setting at its default, then exit")
+
+	// Simulation config flags, each defaulting to the value the settings file
+	// left in place.
+	bindConfigFlags(flag.CommandLine, &cfg)
+
+	flag.Usage = usage
 	flag.Parse()
+
+	if printConfig {
+		os.Stdout.Write(sim.ConfigTemplate())
+		return
+	}
 
 	if seed != 0 {
 		cfg.Seed = seed // otherwise keep DefaultConfig's random, time-based seed
@@ -90,99 +119,69 @@ func main() {
 }
 
 // bindConfigFlags registers a flag for every tunable in the simulation config,
-// using the passed-in (default) values as the flag defaults.
-func bindConfigFlags(cfg *sim.Config) {
-	// World.
-	flag.IntVar(&cfg.Width, "width", cfg.Width, "world width in tiles")
-	flag.IntVar(&cfg.Height, "height", cfg.Height, "world height in tiles")
-	flag.IntVar(&cfg.IronRockPercent, "iron-rock-percent", cfg.IronRockPercent, "percent of rock tiles bearing iron")
-	flag.IntVar(&cfg.IceRockPercent, "ice-rock-percent", cfg.IceRockPercent, "percent of rock tiles bearing water ice")
-	flag.IntVar(&cfg.UraniumRockPercent, "uranium-rock-percent", cfg.UraniumRockPercent, "percent of rock tiles bearing uranium")
-	flag.IntVar(&cfg.ClayRockPercent, "clay-rock-percent", cfg.ClayRockPercent, "percent of rock tiles bearing clay")
-	flag.IntVar(&cfg.RockVeinMin, "rock-vein-min", cfg.RockVeinMin, "minimum tiles in a generated rock deposit vein")
-	flag.IntVar(&cfg.RockVeinMax, "rock-vein-max", cfg.RockVeinMax, "maximum tiles in a generated rock deposit vein")
+// using the passed-in values as the flag defaults.
+//
+// The flags are derived from the `cfg` struct tags rather than written out by
+// hand: the tag already has to exist for the settings file, and a hand-written
+// list of ~80 flags beside it is a list that drifts. sim.Knobs hands back a
+// pointer into this cfg, so binding is a type switch over the three scalar
+// kinds a tunable can be.
+func bindConfigFlags(fs *flag.FlagSet, cfg *sim.Config) {
+	for _, k := range sim.Knobs(cfg) {
+		switch p := k.Ptr.(type) {
+		case *int:
+			fs.IntVar(p, k.Name, *p, k.Doc)
+		case *int64:
+			fs.Int64Var(p, k.Name, *p, k.Doc)
+		case *bool:
+			fs.BoolVar(p, k.Name, *p, k.Doc)
+		default:
+			// A new field kind needs a case here and in sim.assign; failing
+			// loudly at startup beats a tunable that silently has no flag.
+			panic(fmt.Sprintf("mars-sim: setting %q has unsupported type %T", k.Name, k.Ptr))
+		}
+	}
+}
 
-	// Starting population.
-	flag.IntVar(&cfg.StartColonists, "colonists", cfg.StartColonists, "starting number of colonists")
-	flag.IntVar(&cfg.StartAliens, "aliens", cfg.StartAliens, "starting number of aliens")
-	flag.IntVar(&cfg.StartCats, "cats", cfg.StartCats, "starting number of cats")
-	flag.IntVar(&cfg.StartMice, "mice", cfg.StartMice, "starting number of mice")
-	flag.IntVar(&cfg.StartPistols, "pistols", cfg.StartPistols, "pistols the colony ship arrives with")
-	flag.IntVar(&cfg.StartShotguns, "shotguns", cfg.StartShotguns, "shotguns the colony ship arrives with")
-	flag.IntVar(&cfg.GraveyardSize, "graveyard-size", cfg.GraveyardSize, "recent deaths kept for the roster's dead filter (0 disables)")
+// configPathFromArgs finds the -config value before the flag package runs.
+// Reported separately from its value so an explicitly named file that is
+// missing can be an error while the default one simply may not exist.
+func configPathFromArgs(args []string) (path string, given bool) {
+	for i, a := range args {
+		name, value, hasValue := strings.Cut(a, "=")
+		if name != "-config" && name != "--config" {
+			continue
+		}
+		if hasValue {
+			return value, true
+		}
+		if i+1 < len(args) {
+			return args[i+1], true
+		}
+		return "", true // "-config" with nothing after it: read no file
+	}
+	return sim.ConfigFileName, false
+}
 
-	// Timing.
-	flag.IntVar(&cfg.TicksPerSecond, "tps", cfg.TicksPerSecond, "simulation ticks per second")
-	flag.IntVar(&cfg.LogSize, "log-size", cfg.LogSize, "number of recent events retained")
-
-	// Colonists.
-	flag.IntVar(&cfg.ColonistHP, "colonist-hp", cfg.ColonistHP, "colonist hit points")
-	flag.IntVar(&cfg.MineTicks, "mine-ticks", cfg.MineTicks, "ticks of work to excavate one rock tile")
-	flag.IntVar(&cfg.BuildTicks, "build-ticks", cfg.BuildTicks, "ticks of work to raise one wall")
-	flag.IntVar(&cfg.FacilityBuildTicks, "facility-ticks", cfg.FacilityBuildTicks, "ticks of work to build a pod or toilet")
-	flag.IntVar(&cfg.FleeRadius, "flee-radius", cfg.FleeRadius, "colonist flees when an alien is within this many tiles")
-	flag.IntVar(&cfg.ColonistStompRadius, "stomp-radius", cfg.ColonistStompRadius, "an idle colonist chases and crushes a mouse within this many tiles")
-	flag.IntVar(&cfg.GoreSightRadius, "gore-sight-radius", cfg.GoreSightRadius, "a colonist notices gore on the ground within this many tiles")
-	flag.IntVar(&cfg.CleanRadius, "clean-radius", cfg.CleanRadius, "how far a colonist looks for refuse to clean up (a Tidy colonist looks twice as far)")
-	flag.IntVar(&cfg.CleanTicks, "clean-ticks", cfg.CleanTicks, "ticks of work to scrub one tile of refuse clean")
-	flag.IntVar(&cfg.IncinerateTicks, "incinerate-ticks", cfg.IncinerateTicks, "ticks spent feeding a load of refuse into an incinerator")
-	flag.IntVar(&cfg.IncineratorBuildTicks, "incinerator-ticks", cfg.IncineratorBuildTicks, "ticks of work to build an incinerator")
-	flag.IntVar(&cfg.StarveDamage, "starve-damage", cfg.StarveDamage, "HP lost per tick while starving")
-	flag.IntVar(&cfg.ColonistsPerFacility, "per-facility", cfg.ColonistsPerFacility, "colonists served by each life-support facility")
-	flag.IntVar(&cfg.MaxConcurrentProjects, "max-concurrent-projects", cfg.MaxConcurrentProjects, "rooms that can be under construction at once")
-	flag.IntVar(&cfg.RestTicks, "rest-ticks", cfg.RestTicks, "ticks an idle colonist rests before re-checking for work")
-	flag.IntVar(&cfg.TraitChance, "trait-chance", cfg.TraitChance, "percent chance a colonist gets a trait from each trait group (0 disables)")
-	flag.IntVar(&cfg.UraniumExposureTicks, "uranium-exposure-ticks", cfg.UraniumExposureTicks, "ticks of uranium exposure per mutation roll")
-	flag.IntVar(&cfg.MutationChance, "mutation-chance", cfg.MutationChance, "percent chance each full uranium dose mutates a colonist (0 disables mutation)")
-	flag.IntVar(&cfg.MutantLoverAffinityBonus, "mutant-lover-affinity", cfg.MutantLoverAffinityBonus, "extra affinity a mutant-lover gains toward a mutant per conversation")
-	flag.IntVar(&cfg.FamilyChance, "family-chance", cfg.FamilyChance, "percent chance a new colonist is tied to an existing one by family (0 disables)")
-	flag.IntVar(&cfg.AppearanceInheritChance, "appearance-inherit-chance", cfg.AppearanceInheritChance, "percent chance each of a colonist's features is inherited from a close relative (0 disables)")
-	flag.IntVar(&cfg.SpouseSurnameChance, "spouse-surname-chance", cfg.SpouseSurnameChance, "percent chance a colonist marrying in takes their spouse's surname")
-	flag.IntVar(&cfg.FamilyAffinity, "family-affinity", cfg.FamilyAffinity, "starting affinity between close relatives, as a percent of affinity-max (0 disables)")
-	flag.IntVar(&cfg.FamilyAffinitySpread, "family-affinity-spread", cfg.FamilyAffinitySpread, "random swing around the starting family affinity, in the same units")
-	flag.IntVar(&cfg.TalkChance, "talk-chance", cfg.TalkChance, "percent chance an idle colonist starts a conversation (0 disables talking)")
-	flag.IntVar(&cfg.TalkRadius, "talk-radius", cfg.TalkRadius, "how far a colonist looks for a conversation partner")
-	flag.IntVar(&cfg.TalkTicks, "talk-ticks", cfg.TalkTicks, "ticks a conversation lasts before affinity is credited")
-	flag.IntVar(&cfg.TalkAffinityGain, "talk-affinity-gain", cfg.TalkAffinityGain, "base affinity step per conversation (scaled by outcome and diminishing returns)")
-	flag.IntVar(&cfg.AffinityMax, "affinity-max", cfg.AffinityMax, "affinity runs in [-affinity-max, affinity-max]; talking alone saturates at half")
-	flag.IntVar(&cfg.TalkQualityBias, "talk-quality-bias", cfg.TalkQualityBias, "baseline lean of conversation quality (-100..100)")
-	flag.IntVar(&cfg.TalkQualityValence, "talk-quality-valence", cfg.TalkQualityValence, "how strongly existing affinity biases conversation quality")
-	flag.IntVar(&cfg.TalkQualitySpread, "talk-quality-spread", cfg.TalkQualitySpread, "random swing around a conversation's mean quality")
-	flag.IntVar(&cfg.MoodMax, "mood-max", cfg.MoodMax, "colonist mood runs in [-mood-max, mood-max]")
-	flag.IntVar(&cfg.MoodCompanyWeight, "mood-company-weight", cfg.MoodCompanyWeight, "mood shift per conversation from how one feels about the other")
-	flag.IntVar(&cfg.MoodConversationWeight, "mood-conversation-weight", cfg.MoodConversationWeight, "mood shift per conversation from how the chat itself went")
-	flag.IntVar(&cfg.SocialWindowTicks, "social-window-ticks", cfg.SocialWindowTicks, "ticks in the rolling window for social conversation fatigue")
-	flag.IntVar(&cfg.FrontierFieldMinColonists, "frontier-field-colonists", cfg.FrontierFieldMinColonists, "colony size at/above which miners use the shared frontier flow field")
-	flag.IntVar(&cfg.FrontierFieldMinArea, "frontier-field-area", cfg.FrontierFieldMinArea, "map area (tiles) at/above which miners use the shared frontier flow field")
-
-	// Aliens.
-	flag.IntVar(&cfg.AlienHP, "alien-hp", cfg.AlienHP, "alien hit points")
-	flag.IntVar(&cfg.AlienDamage, "alien-damage", cfg.AlienDamage, "HP removed per alien bite")
-	flag.IntVar(&cfg.AlienBiteRest, "alien-bite-rest", cfg.AlienBiteRest, "cooldown ticks between alien bites")
-	flag.IntVar(&cfg.AlienSlowness, "alien-slowness", cfg.AlienSlowness, "alien acts once every N ticks (higher = slower)")
-
-	// Weapons.
-	flag.IntVar(&cfg.PistolDamage, "pistol-damage", cfg.PistolDamage, "HP removed per pistol shot")
-	flag.IntVar(&cfg.PistolRange, "pistol-range", cfg.PistolRange, "max tiles a pistol can fire from")
-	flag.IntVar(&cfg.PistolFireRest, "pistol-fire-rest", cfg.PistolFireRest, "cooldown ticks between pistol shots")
-	flag.IntVar(&cfg.ShotgunDamage, "shotgun-damage", cfg.ShotgunDamage, "HP removed per shotgun blast")
-	flag.IntVar(&cfg.ShotgunRange, "shotgun-range", cfg.ShotgunRange, "max tiles a shotgun can fire from")
-	flag.IntVar(&cfg.ShotgunFireRest, "shotgun-fire-rest", cfg.ShotgunFireRest, "cooldown ticks between shotgun blasts")
-
-	// Cats.
-	flag.IntVar(&cfg.CatHP, "cat-hp", cfg.CatHP, "cat hit points")
-	flag.IntVar(&cfg.CatSlowness, "cat-slowness", cfg.CatSlowness, "cat acts once every N ticks (higher = slower)")
-	flag.IntVar(&cfg.CatPounceRest, "cat-pounce-rest", cfg.CatPounceRest, "cooldown ticks after a cat catches a mouse")
-
-	// Mice.
-	flag.IntVar(&cfg.MouseHP, "mouse-hp", cfg.MouseHP, "mouse hit points")
-	flag.IntVar(&cfg.MouseHungerRise, "mouse-hunger-rise", cfg.MouseHungerRise, "food need a mouse gains per tick (mice eat frequently)")
-	flag.IntVar(&cfg.MouseFleeRadius, "mouse-flee-radius", cfg.MouseFleeRadius, "mouse flees when a cat is within this many tiles")
-	flag.IntVar(&cfg.MouseGestationTicks, "mouse-gestation", cfg.MouseGestationTicks, "ticks a pregnant mouse carries a litter before giving birth")
-	flag.IntVar(&cfg.MouseLitterMin, "mouse-litter-min", cfg.MouseLitterMin, "smallest mouse litter size")
-	flag.IntVar(&cfg.MouseLitterMax, "mouse-litter-max", cfg.MouseLitterMax, "largest mouse litter size")
-	flag.IntVar(&cfg.MouseBreedCooldown, "mouse-breed-cooldown", cfg.MouseBreedCooldown, "ticks a mouse waits before it can mate again")
-	flag.IntVar(&cfg.MouseMaturityTicks, "mouse-maturity", cfg.MouseMaturityTicks, "ticks a newborn mouse takes to mature enough to breed")
+// loadConfigFile applies a settings file to cfg. An absent default file is
+// normal — most runs have none — but an absent file the player named, or one
+// that does not parse, stops the run rather than quietly playing something
+// other than what the file says.
+func loadConfigFile(cfg *sim.Config, path string, given bool) error {
+	if path == "" {
+		return nil // -config "" opts out
+	}
+	data, err := os.ReadFile(path)
+	switch {
+	case errors.Is(err, fs.ErrNotExist) && !given:
+		return nil
+	case err != nil:
+		return fmt.Errorf("reading settings: %w", err)
+	}
+	if _, err := sim.ApplyConfigFile(cfg, data, path); err != nil {
+		return err
+	}
+	return nil
 }
 
 // validateConfig rejects settings that would break world generation or the
@@ -211,6 +210,11 @@ func validateConfig(cfg sim.Config) error {
 		return fmt.Errorf("max-concurrent-projects must be at least 1 (got %d)", cfg.MaxConcurrentProjects)
 	case cfg.RestTicks < 1:
 		return fmt.Errorf("rest-ticks must be at least 1 (got %d)", cfg.RestTicks)
+	case cfg.StuckLimit < 1:
+		// Movement takes this modulo, so 0 would panic on the first blocked step.
+		return fmt.Errorf("stuck-limit must be at least 1 (got %d)", cfg.StuckLimit)
+	case cfg.AlienSlowness < 1 || cfg.CatSlowness < 1:
+		return fmt.Errorf("alien-slowness and cat-slowness must be at least 1 (got %d and %d)", cfg.AlienSlowness, cfg.CatSlowness)
 	case cfg.TraitChance < 0 || cfg.TraitChance > 100:
 		return fmt.Errorf("trait-chance must be between 0 and 100 (got %d)", cfg.TraitChance)
 	case cfg.UraniumExposureTicks < 1:
@@ -242,6 +246,21 @@ func validateConfig(cfg sim.Config) error {
 	case cfg.MouseLitterMin < 0 || cfg.MouseLitterMax < cfg.MouseLitterMin:
 		return fmt.Errorf("mouse litter range is invalid: min %d, max %d", cfg.MouseLitterMin, cfg.MouseLitterMax)
 	}
+	// Need specs are only reachable from the settings file and the -need-*
+	// flags, but a bad one breaks the colonists quietly (a need that never
+	// fires, or a fatal one pinned at its ceiling), so check them here too.
+	for _, spec := range cfg.Needs {
+		switch {
+		case spec.Max < 1:
+			return fmt.Errorf("need-%s-max must be at least 1 (got %d)", spec.Name, spec.Max)
+		case spec.Rise < 0:
+			return fmt.Errorf("need-%s-rise cannot be negative (got %d)", spec.Name, spec.Rise)
+		case spec.SeekAt < 0 || spec.SeekAt > spec.Max:
+			return fmt.Errorf("need-%s-seek-at must be between 0 and need-%s-max (got %d, max %d)", spec.Name, spec.Name, spec.SeekAt, spec.Max)
+		case spec.UseTicks < 0 || spec.GrabTicks < 0:
+			return fmt.Errorf("need-%s use and grab ticks cannot be negative (got %d and %d)", spec.Name, spec.UseTicks, spec.GrabTicks)
+		}
+	}
 	return nil
 }
 
@@ -254,7 +273,8 @@ func usage() {
 	fmt.Fprintf(out, "  %s -colonists 20 -aliens 5\n", name)
 	fmt.Fprintf(out, "  %s -mice 20 -cats 4\n", name)
 	fmt.Fprintf(out, "  %s -width 120 -height 60 -tps 12\n", name)
-	fmt.Fprintf(out, "  %s -headless -duration 10s -seed 42\n\n", name)
+	fmt.Fprintf(out, "  %s -headless -duration 10s -seed 42\n", name)
+	fmt.Fprintf(out, "  %s -print-config > %s   # a settings file you can edit and commit\n\n", name, sim.ConfigFileName)
 	fmt.Fprintf(out, "Options:\n")
 	flag.PrintDefaults()
 }
