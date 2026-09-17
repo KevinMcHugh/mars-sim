@@ -149,6 +149,34 @@ When the terminal is too narrow for two panels side by side, the second one is
 dropped (`sidebarFits`, `splitPanels`) rather than squeezed. Flooring it at a
 minimum instead is what used to push the sidebar's border off the right edge.
 
+### Redraw cost
+
+The map screen is a full grid of emoji, and most of the cost of drawing one is
+measuring it: every `ansi.StringWidth` call runs a grapheme segmentation, which
+is at its slowest on emoji. Profiling found three places doing it for every line
+of every frame, plus a large per-frame garbage bill, and each is now avoided
+without dropping the guarantee it provided:
+
+- **Map and sidebar join.** `lipgloss.JoinHorizontal` cannot know its blocks'
+  widths, so it measured every line twice. `joinColumns` produces the same bytes
+  from widths the layout already knows (`TestJoinColumnsMatchesLipgloss`).
+- **Map rows.** Rows are exact by construction rather than re-fitted; see
+  [terminal-cell-widths.md](./terminal-cell-widths.md).
+- **`clampFrame`.** Reuses widths of lines unchanged since the previous frame.
+- **Sidebar.** Memoized: lipgloss's border, padding and wrapping dominate its
+  cost, and it only changes with the event log, the panel height, or the glyph
+  set (`TestSidebarCacheInvalidates`).
+- **Occupancy index.** `renderMap` indexes entities by position; it now stores
+  each occupant's glyph rather than copying its whole `EntityView` (profile,
+  inventory, needs, relations, memories) into a map every frame.
+
+The caches live in `renderCache`, behind a pointer shared by every copy of the
+by-value `Model`. Bubble Tea calls `Update` and `View` on one goroutine, so they
+need no lock, and a `Model` without a cache renders the same frames uncached
+(`TestCachedAndUncachedFramesMatch`). Together this took a 200x60 frame with
+entities moving every tick from about 1.7 ms to about 0.26 ms, with identical
+output.
+
 ### Headless mode
 
 `runHeadless` (in `main.go`) is a second, non-graphical consumer of the same
