@@ -127,6 +127,10 @@ func bindConfigFlags(cfg *sim.Config) {
 	flag.IntVar(&cfg.RestTicks, "rest-ticks", cfg.RestTicks, "ticks an idle colonist rests before re-checking for work")
 	flag.IntVar(&cfg.TraitChance, "trait-chance", cfg.TraitChance, "percent chance a colonist gets a trait from each trait group (0 disables)")
 	flag.IntVar(&cfg.FamilyChance, "family-chance", cfg.FamilyChance, "percent chance a new colonist is tied to an existing one by family (0 disables)")
+	flag.IntVar(&cfg.AppearanceInheritChance, "appearance-inherit-chance", cfg.AppearanceInheritChance, "percent chance each of a colonist's features is inherited from a close relative (0 disables)")
+	flag.IntVar(&cfg.SpouseSurnameChance, "spouse-surname-chance", cfg.SpouseSurnameChance, "percent chance a colonist marrying in takes their spouse's surname")
+	flag.IntVar(&cfg.FamilyAffinity, "family-affinity", cfg.FamilyAffinity, "starting affinity between close relatives, as a percent of affinity-max (0 disables)")
+	flag.IntVar(&cfg.FamilyAffinitySpread, "family-affinity-spread", cfg.FamilyAffinitySpread, "random swing around the starting family affinity, in the same units")
 	flag.IntVar(&cfg.TalkChance, "talk-chance", cfg.TalkChance, "percent chance an idle colonist starts a conversation (0 disables talking)")
 	flag.IntVar(&cfg.TalkRadius, "talk-radius", cfg.TalkRadius, "how far a colonist looks for a conversation partner")
 	flag.IntVar(&cfg.TalkTicks, "talk-ticks", cfg.TalkTicks, "ticks a conversation lasts before affinity is credited")
@@ -202,6 +206,14 @@ func validateConfig(cfg sim.Config) error {
 		return fmt.Errorf("trait-chance must be between 0 and 100 (got %d)", cfg.TraitChance)
 	case cfg.FamilyChance < 0 || cfg.FamilyChance > 100:
 		return fmt.Errorf("family-chance must be between 0 and 100 (got %d)", cfg.FamilyChance)
+	case cfg.AppearanceInheritChance < 0 || cfg.AppearanceInheritChance > 100:
+		return fmt.Errorf("appearance-inherit-chance must be between 0 and 100 (got %d)", cfg.AppearanceInheritChance)
+	case cfg.SpouseSurnameChance < 0 || cfg.SpouseSurnameChance > 100:
+		return fmt.Errorf("spouse-surname-chance must be between 0 and 100 (got %d)", cfg.SpouseSurnameChance)
+	case cfg.FamilyAffinity < 0 || cfg.FamilyAffinity > 100:
+		return fmt.Errorf("family-affinity must be between 0 and 100 (got %d)", cfg.FamilyAffinity)
+	case cfg.FamilyAffinitySpread < 0:
+		return fmt.Errorf("family-affinity-spread must not be negative (got %d)", cfg.FamilyAffinitySpread)
 	case cfg.TalkChance < 0 || cfg.TalkChance > 100:
 		return fmt.Errorf("talk-chance must be between 0 and 100 (got %d)", cfg.TalkChance)
 	case cfg.TalkChance > 0 && (cfg.TalkRadius < 1 || cfg.TalkTicks < 1):

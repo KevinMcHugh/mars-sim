@@ -199,6 +199,18 @@ Colonists are related and get to know each other (`internal/sim/relationships.go
   label resolves on its own, so those are decided with a coin flip instead —
   anybody might marry an enby. Family is generated from the same separate RNG
   stream as personality, so it never perturbs the sim.
+- **Heredity.** A family is visible at a glance, not just in the tree. A
+  colonist born into one takes its **surname** (the earliest-arrived member of
+  the line sets it; someone who marries in keeps their own name half the time,
+  `-spouse-surname-chance`), and **inherits appearance** from their closest
+  relatives feature by feature (`-appearance-inherit-chance`, default 75%) — so
+  a child can have one parent's hair and the other's skin. What passes down is
+  the *natural* form of a feature: a grandmother gone white passes on the brown
+  she had, and a tall father gives a daughter who is tall for a woman rather
+  than his own height. Relatives also **start out warm** rather than as
+  strangers, scaled by how close the tie is (`-family-affinity`, default 55% of
+  `-affinity-max`; `-family-affinity-spread` keeps cousins from all being
+  equally close). See [docs/heredity.md](./docs/heredity.md).
 - **Talking.** Colonists have a non-fatal **social need** that rises over time.
   Before looking for ordinary work, a colonist whose social need reaches its
   threshold seeks a nearby free colonist and must complete a conversation (the
