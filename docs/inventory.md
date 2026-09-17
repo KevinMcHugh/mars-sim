@@ -5,15 +5,16 @@
 ## What it is
 
 Colonists carry items in a fixed set of slots, each holding one homogeneous stack.
-`RawRock` (from mining), the `Viscera`/`Corpse` refuse a cleaner carries to the
-incinerator (see [sanitation.md](./sanitation.md)), and the `Pistol`/`Shotgun`
-weapons (from the colony
-ship's starting equipment; see [combat.md](./combat.md)) are the only items
-today, but the machinery is generic.
+Mining produces `RawRock` and may also produce `IronOre`, `WaterIce`, or
+`UraniumOre`, depending on the excavated tile's rock composition. Colonists may also carry `Pistol` or
+`Shotgun` weapons from the colony ship's starting equipment; see
+[combat.md](./combat.md). Cleaning up after the colony's dead fills slots too,
+with the `Viscera`/`Corpse` refuse a cleaner carries to the incinerator; see
+[sanitation.md](./sanitation.md).
 
 ## Source
 
-- [`internal/sim/inventory.go`](../internal/sim/inventory.go) — `ItemKind`, `ItemStack`, `Inventory`, `CanAdd`/`Add`/`RemoveAll`/`Count`.
+- [`internal/sim/inventory.go`](../internal/sim/inventory.go) — `ItemKind`, `ItemStack`, `Inventory`, the atomic add/yield helpers, and `RemoveAll`/`Count` (how a load is burned).
 - [`internal/sim/entity.go`](../internal/sim/entity.go) — the `Inventory` field on `Entity`.
 - [`internal/sim/systems.go`](../internal/sim/systems.go) — mining awards `RawRock` (`jobMine`).
 
@@ -28,11 +29,22 @@ count 0 and `ItemNone`.
 - `Add(kind, n)` stores all `n` items, filling existing matching stacks before
   empty slots, and is **all-or-nothing**: it returns false and leaves the
   inventory untouched if they do not all fit.
+- `AddAll(stacks...)` applies the same rule to a heterogeneous group of stacks.
+  It works against an inventory copy and commits only if the complete group fits.
+- `CanAddAll(stacks...)` performs that heterogeneous capacity check without
+  changing the inventory, so job selection can skip deposits a colonist cannot
+  carry completely.
 
-Mining is the one producer today. `jobMine` awards the `RawRock` **before**
-changing the terrain, so a full inventory can never make mined material disappear;
-and `assignWorkJob` refuses to start a mine job when the colonist cannot carry the
-result (`CanAdd(RawRock, 1)`), so colonists don't begin work they can't complete.
+Mining is the one producer today. `miningYield` always returns one `RawRock` and
+adds one `IronOre`, `WaterIce`, or `UraniumOre` for a bearing tile. `jobMine` and construction
+dig tasks add that complete yield with `AddAll` **before** changing terrain, so
+limited inventory can never make one part of a deposit disappear.
+
+`UraniumOre` is the one item that acts on its carrier. Nothing can be dropped
+yet, so a colonist who mines uranium keeps it, and `Inventory.Has(UraniumOre)`
+is one of the two things that puts them under a mutation-causing dose every
+tick — see [mutation.md](./mutation.md). That makes "no drop" a balance
+decision rather than only a missing feature.
 
 Weapons are the other producer, though a one-time one: `equipColonyShip`
 (`combat.go`) hands a `Pistol` or `Shotgun` to a colonist's inventory once, at
@@ -48,8 +60,9 @@ render it without touching live state.
 
 - **Fixed slots + homogeneous stacks** are a simple, bounded model that renders
   cleanly (the roster shows eight slots) and is enough for a scaffold.
-- **All-or-nothing `Add`** keeps callers simple: a partial add would force every
-  caller to handle leftovers.
+- **All-or-nothing `Add` and `AddAll`** keep callers simple: a partial
+  composition yield would force mining to handle leftovers or silently destroy
+  a resource.
 - **Award-before-terrain-change** and the pre-mine capacity check are the
   invariant that keeps resources conserved.
 
@@ -68,5 +81,6 @@ render it without touching live state.
 ## Related
 
 - [entities-and-ai.md](./entities-and-ai.md) — mining, the current producer.
+- [mutation.md](./mutation.md) — what carrying uranium ore does to the carrier.
 - [combat.md](./combat.md) — the pistol/shotgun weapons carried in inventory.
 - [frontend-tui.md](./frontend-tui.md) — how the roster renders inventory.

@@ -17,9 +17,10 @@ type EntityView struct {
 	Inventory Inventory // colonists only; copied by value
 
 	// Parts and MaxParts are per-body-part current/max HP (Colonist and Alien
-	// only; see Entity.hasParts and docs/combat.md). MaxParts is recomputed
-	// from MaxHP rather than stored on Entity, since distributeBodyParts is a
-	// pure function of it.
+	// only; see Entity.hasParts and docs/combat.md). A zero MaxParts entry
+	// means this entity does not have that part at all — every mutant part on
+	// anyone who has not grown one (see docs/mutation.md) — so a renderer must
+	// skip those rather than drawing a 0/0 gauge.
 	Parts    [numBodyParts]int
 	MaxParts [numBodyParts]int
 
@@ -165,11 +166,11 @@ func (s *Snapshot) TerrainAt(p Point) Terrain {
 	return s.Tiles.TerrainAt(p)
 }
 
-// TileAt reads the published grid's full Tile (terrain plus gore), for
-// renderers that need both. Out-of-bounds reads return a clean Rock tile.
+// TileAt reads the published grid's full Tile (terrain, composition, and gore),
+// for renderers that need it. Out-of-bounds reads return clean ordinary rock.
 func (s *Snapshot) TileAt(p Point) Tile {
 	if p.X < 0 || p.X >= s.Width || p.Y < 0 || p.Y >= s.Height {
-		return Tile{Terrain: Rock}
+		return Tile{Terrain: Rock, Composition: OrdinaryRock}
 	}
 	return s.Tiles.At(p)
 }
@@ -276,7 +277,7 @@ func (w *World) entityView(e *Entity, kinChildren map[kinID][]kinID, full bool) 
 	}
 	if e.hasParts() {
 		ev.Parts = e.Parts
-		ev.MaxParts = distributeBodyParts(e.MaxHP)
+		ev.MaxParts = e.MaxParts
 	}
 	if e.Kind == Colonist {
 		ev.Memories = append([]Memory(nil), e.Memories...)

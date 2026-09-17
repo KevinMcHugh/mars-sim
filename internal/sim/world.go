@@ -81,11 +81,43 @@ func (t Terrain) Walkable() bool {
 	return t == Floor
 }
 
+// RockComposition identifies the useful material embedded in a rock tile.
+// Composition is separate from Terrain because every variety has the same
+// movement and mining behavior; it only changes the material yielded.
+type RockComposition uint8
+
+const (
+	OrdinaryRock RockComposition = iota
+	IronBearingRock
+	WaterIceBearingRock
+	// UraniumBearingRock yields uranium ore, the one deposit that is dangerous
+	// to be around: a colonist that mines near it or carries the ore
+	// accumulates a dose, and a long enough dose can mutate them. See
+	// mutation.go and docs/mutation.md.
+	UraniumBearingRock
+)
+
+func (c RockComposition) String() string {
+	switch c {
+	case OrdinaryRock:
+		return "ordinary rock"
+	case IronBearingRock:
+		return "iron-bearing rock"
+	case WaterIceBearingRock:
+		return "water ice-bearing rock"
+	case UraniumBearingRock:
+		return "uranium-bearing rock"
+	default:
+		return "unknown rock"
+	}
+}
+
 // Tile is one cell of the world. It is deliberately a struct rather than a bare
 // Terrain so we have room to grow (ore, moisture, temperature, ...) without
 // touching every call site.
 type Tile struct {
-	Terrain Terrain
+	Terrain     Terrain
+	Composition RockComposition // meaningful only while Terrain is Rock
 	// Gore is a violent death's visible residue on this tile: 0 is clean, and
 	// it climbs (capped at maxGore) as more kills happen here. It never affects
 	// Walkable or anything else, and digging a tile out does not wash it away —
@@ -287,7 +319,7 @@ type World struct {
 
 	// Reactive plumbing: systems subscribe to world events; the job board is the
 	// first consumer, tracking the mineable frontier from TileChanged events.
-	subscribers []func(Event)
+	subscribers []func(WorldEvent)
 	board       *jobBoard
 	pf          *pathfinder
 
@@ -326,6 +358,11 @@ type World struct {
 	entities map[EntityID]*Entity
 	nextID   EntityID
 
+	// colonistNames indexes every living colonist's full name, so generation can
+	// check a name is free in one lookup instead of scanning the roster. See
+	// uniquifyName in personality.go.
+	colonistNames map[string]EntityID
+
 	// graveyard holds the most recent deaths as frozen EntityViews (oldest
 	// first), for the roster's "dead" filter — see docs/combat.md. Bounded at
 	// cfg.GraveyardSize by remove(), the only place entities die.
@@ -348,6 +385,7 @@ func newWorld(cfg Config, rng *rand.Rand) *World {
 		tiles:            make([]Tile, n),
 		occ:              make([]EntityID, n),
 		entities:         make(map[EntityID]*Entity),
+		colonistNames:    make(map[string]EntityID),
 		buildTiles:       make(map[Point]bool),
 		kin:              make(map[kinID]*kinPerson),
 		nextKinID:        1,
@@ -382,7 +420,7 @@ func newWorld(cfg Config, rng *rand.Rand) *World {
 	w.dirtyChunks = make(map[int]struct{})
 
 	w.board = newJobBoard(w)
-	w.subscribe(func(e Event) {
+	w.subscribe(func(e WorldEvent) {
 		if tc, ok := e.(TileChanged); ok {
 			w.board.onTileChanged(tc)
 		}
@@ -409,7 +447,7 @@ func newWorld(cfg Config, rng *rand.Rand) *World {
 			}
 		}
 	})
-	w.subscribe(func(e Event) {
+	w.subscribe(func(e WorldEvent) {
 		if _, ok := e.(TileChanged); ok {
 			for _, f := range w.fields {
 				if f != nil {
@@ -451,6 +489,14 @@ func (w *World) TerrainAt(p Point) Terrain {
 		return Rock
 	}
 	return w.tiles[w.index(p)].Terrain
+}
+
+// TileAt returns the tile at p. Out-of-bounds cells behave as ordinary rock.
+func (w *World) TileAt(p Point) Tile {
+	if !w.InBounds(p) {
+		return Tile{Terrain: Rock, Composition: OrdinaryRock}
+	}
+	return w.tiles[w.index(p)]
 }
 
 // SetTerrain overwrites the terrain at p if it is in bounds, keeping the terrain
@@ -560,7 +606,9 @@ func (w *World) spawn(kind Kind, p Point) *Entity {
 	}
 	if kind == Colonist {
 		w.assignPersonality(e) // name, attributes, traits + their effective params
-		w.assignKin(e)         // family tree node + any tie to an existing colonist
+		if w.assignKin(e) {    // family tree node + any tie to an existing colonist
+			w.inheritFamily(e) // the surname, looks, and warmth that come with it
+		}
 	}
 	if kind == Mouse {
 		e.sex = w.rollMouseSex() // decides which mice can carry a litter
@@ -602,6 +650,7 @@ func (w *World) remove(id EntityID, cause string) {
 		}
 	}
 	w.dropAffinity(id)
+	w.releaseName(e)
 	delete(w.entities, id)
 }
 

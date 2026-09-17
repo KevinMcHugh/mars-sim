@@ -8,8 +8,8 @@ import "fmt"
 // mood effects below, declared once per kind). See docs/memories.md.
 //
 // Named LifeEvent/LifeEventKind rather than Event: this package already has
-// an Event interface (events.go) for the terrain-change pub/sub bus, an
-// unrelated concept — reusing the name would collide.
+// a WorldEvent interface (events.go) for the terrain-change pub/sub bus, an
+// unrelated concept — a bare Event would be ambiguous between the two.
 type LifeEventKind uint8
 
 const (
@@ -36,6 +36,8 @@ const (
 	EvtFinishedConstruction
 	EvtCleanedRefuse
 	EvtIncineratedRefuse
+	EvtMutated
+	EvtWitnessedMutation
 
 	numLifeEventKinds // keep last
 )
@@ -79,6 +81,19 @@ var lifeEventMoodEffects = [numLifeEventKinds][]MoodEffect{
 	EvtBitten:               {{Delta: -5}},
 	EvtKilledAlien:          {{Delta: 15}},
 	EvtWitnessedAlienKilled: {{Delta: 6}},
+	// Growing a part you were not born with is body horror — unless being
+	// changed is the thing you already admired in other people, in which case
+	// it is the best day of your life. Same event, opposite sign, declared as
+	// data: the conditional effect adds to the base one, so a mutant-lover
+	// nets +14 where everyone else nets -14.
+	EvtMutated: {
+		{Delta: -14},
+		{Conditional: true, Trait: TraitMutantLover, Delta: 28},
+	},
+	EvtWitnessedMutation: {
+		{Delta: -6},
+		{Conditional: true, Trait: TraitMutantLover, Delta: 12},
+	},
 	EvtFinishedMining:       jobFinishedMood,
 	EvtClearedRock:          jobFinishedMood,
 	EvtFinishedConstruction: jobFinishedMood,

@@ -1,6 +1,9 @@
 package sim
 
-import "math"
+import (
+	"math"
+	"math/rand"
+)
 
 // generate carves the starting situation into a fresh all-Rock world: a central
 // landing cavern sized to the starting population, with the colonists inside it,
@@ -8,6 +11,18 @@ import "math"
 // in.
 func generate(w *World) {
 	center := Point{w.Width / 2, w.Height / 2}
+
+	// Grow useful deposits into connected veins before carving. Use a dedicated
+	// seed-derived stream: composition affects gameplay, but generating it must not
+	// shift entity placement and every later decision on the main simulation
+	// stream. Composition does not affect terrain indexes, so initializing the
+	// dense tile data directly also avoids emitting TileChanged events.
+	compositionRNG := rand.New(rand.NewSource(w.cfg.Seed ^ 0x243F6A8885A308D3))
+	w.growRockVeins(compositionRNG, IronBearingRock, w.cfg.IronRockPercent)
+	w.growRockVeins(compositionRNG, WaterIceBearingRock, w.cfg.IceRockPercent)
+	// Uranium goes last so adding it leaves the iron and ice veins of every
+	// existing seed exactly where they were.
+	w.growRockVeins(compositionRNG, UraniumBearingRock, w.cfg.UraniumRockPercent)
 
 	// Carve an oval starting cavern large enough to hold the colonists with room
 	// to move and a rock frontier to mine.
@@ -76,6 +91,109 @@ func generate(w *World) {
 
 	w.log.add("The colony ship settles onto the Martian crust. Something below stirs.")
 	w.refreshSpatial()
+}
+
+var veinNeighbors = [...]Point{
+	{0, -1},
+	{1, 0},
+	{0, 1},
+	{-1, 0},
+}
+
+// growRockVeins fills percent of the map with composition, grouped into
+// orthogonally connected veins. Each vein takes a meandering random walk from
+// one seed, occasionally branching from an earlier tile, producing long,
+// irregular deposits instead of independent per-tile noise. Earlier
+// compositions are never overwritten.
+func (w *World) growRockVeins(rng *rand.Rand, composition RockComposition, percent int) {
+	target := len(w.tiles) * percent / 100
+	placed := 0
+	for placed < target {
+		remaining := target - placed
+		size := w.nextVeinSize(rng, remaining)
+		seed, ok := w.ordinaryRockSeed(rng)
+		if !ok {
+			return
+		}
+
+		w.tiles[seed].Composition = composition
+		placed++
+		vein := []int{seed}
+		current := seed
+		for len(vein) < size {
+			neighbors := w.ordinaryNeighbors(current)
+			// A vein mostly advances from its tip. Occasionally branch from an
+			// earlier point; also do so whenever the current tip is boxed in.
+			if len(neighbors) == 0 || (len(vein) > 2 && rng.Intn(6) == 0) {
+				current, neighbors = w.branchableVeinTile(rng, vein)
+				if len(neighbors) == 0 {
+					break
+				}
+			}
+			next := neighbors[rng.Intn(len(neighbors))]
+			w.tiles[next].Composition = composition
+			placed++
+			vein = append(vein, next)
+			current = next
+		}
+	}
+}
+
+// nextVeinSize chooses a configured vein size without leaving a final fragment
+// smaller than RockVeinMin when the target has enough tiles to avoid one.
+func (w *World) nextVeinSize(rng *rand.Rand, remaining int) int {
+	if remaining <= w.cfg.RockVeinMax {
+		return remaining
+	}
+	size := w.cfg.RockVeinMin + rng.Intn(w.cfg.RockVeinMax-w.cfg.RockVeinMin+1)
+	if remaining-size < w.cfg.RockVeinMin {
+		return remaining - w.cfg.RockVeinMin
+	}
+	return size
+}
+
+// ordinaryRockSeed deterministically chooses an unassigned tile, if one remains.
+func (w *World) ordinaryRockSeed(rng *rand.Rand) (int, bool) {
+	if len(w.tiles) == 0 {
+		return 0, false
+	}
+	start := rng.Intn(len(w.tiles))
+	for offset := 0; offset < len(w.tiles); offset++ {
+		i := (start + offset) % len(w.tiles)
+		if w.tiles[i].Composition == OrdinaryRock {
+			return i, true
+		}
+	}
+	return 0, false
+}
+
+func (w *World) ordinaryNeighbors(index int) []int {
+	p := Point{X: index % w.Width, Y: index / w.Width}
+	out := make([]int, 0, len(veinNeighbors))
+	for _, d := range veinNeighbors {
+		n := p.Add(d.X, d.Y)
+		if !w.InBounds(n) {
+			continue
+		}
+		i := w.index(n)
+		if w.tiles[i].Composition == OrdinaryRock {
+			out = append(out, i)
+		}
+	}
+	return out
+}
+
+// branchableVeinTile picks an existing point that can still grow. Starting at a
+// random offset prevents the earliest point from becoming the preferred hub.
+func (w *World) branchableVeinTile(rng *rand.Rand, vein []int) (int, []int) {
+	start := rng.Intn(len(vein))
+	for offset := range vein {
+		i := vein[(start+offset)%len(vein)]
+		if neighbors := w.ordinaryNeighbors(i); len(neighbors) > 0 {
+			return i, neighbors
+		}
+	}
+	return 0, nil
 }
 
 // caveRadii returns the ellipse radii for a starting cavern big enough to hold n

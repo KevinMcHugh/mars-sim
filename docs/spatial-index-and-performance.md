@@ -80,7 +80,7 @@ rather than the colony. See [snapshot-tile-grid.md](./snapshot-tile-grid.md).
 All of this hangs off the synchronous event bus (see
 [architecture.md](./architecture.md)). `newWorld` subscribes the job board and the
 flow-field staleness flags to `TileChanged`. Producers emit only on real changes
-(`SetTerrain` no-ops on unchanged terrain), because boxing an `Event` allocates.
+(`SetTerrain` no-ops on unchanged terrain), because boxing a `WorldEvent` allocates.
 
 ## Why it is this way
 

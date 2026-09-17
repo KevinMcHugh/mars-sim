@@ -95,6 +95,11 @@ func bindConfigFlags(cfg *sim.Config) {
 	// World.
 	flag.IntVar(&cfg.Width, "width", cfg.Width, "world width in tiles")
 	flag.IntVar(&cfg.Height, "height", cfg.Height, "world height in tiles")
+	flag.IntVar(&cfg.IronRockPercent, "iron-rock-percent", cfg.IronRockPercent, "percent of rock tiles bearing iron")
+	flag.IntVar(&cfg.IceRockPercent, "ice-rock-percent", cfg.IceRockPercent, "percent of rock tiles bearing water ice")
+	flag.IntVar(&cfg.UraniumRockPercent, "uranium-rock-percent", cfg.UraniumRockPercent, "percent of rock tiles bearing uranium")
+	flag.IntVar(&cfg.RockVeinMin, "rock-vein-min", cfg.RockVeinMin, "minimum tiles in a generated rock deposit vein")
+	flag.IntVar(&cfg.RockVeinMax, "rock-vein-max", cfg.RockVeinMax, "maximum tiles in a generated rock deposit vein")
 
 	// Starting population.
 	flag.IntVar(&cfg.StartColonists, "colonists", cfg.StartColonists, "starting number of colonists")
@@ -126,7 +131,14 @@ func bindConfigFlags(cfg *sim.Config) {
 	flag.IntVar(&cfg.MaxConcurrentProjects, "max-concurrent-projects", cfg.MaxConcurrentProjects, "rooms that can be under construction at once")
 	flag.IntVar(&cfg.RestTicks, "rest-ticks", cfg.RestTicks, "ticks an idle colonist rests before re-checking for work")
 	flag.IntVar(&cfg.TraitChance, "trait-chance", cfg.TraitChance, "percent chance a colonist gets a trait from each trait group (0 disables)")
+	flag.IntVar(&cfg.UraniumExposureTicks, "uranium-exposure-ticks", cfg.UraniumExposureTicks, "ticks of uranium exposure per mutation roll")
+	flag.IntVar(&cfg.MutationChance, "mutation-chance", cfg.MutationChance, "percent chance each full uranium dose mutates a colonist (0 disables mutation)")
+	flag.IntVar(&cfg.MutantLoverAffinityBonus, "mutant-lover-affinity", cfg.MutantLoverAffinityBonus, "extra affinity a mutant-lover gains toward a mutant per conversation")
 	flag.IntVar(&cfg.FamilyChance, "family-chance", cfg.FamilyChance, "percent chance a new colonist is tied to an existing one by family (0 disables)")
+	flag.IntVar(&cfg.AppearanceInheritChance, "appearance-inherit-chance", cfg.AppearanceInheritChance, "percent chance each of a colonist's features is inherited from a close relative (0 disables)")
+	flag.IntVar(&cfg.SpouseSurnameChance, "spouse-surname-chance", cfg.SpouseSurnameChance, "percent chance a colonist marrying in takes their spouse's surname")
+	flag.IntVar(&cfg.FamilyAffinity, "family-affinity", cfg.FamilyAffinity, "starting affinity between close relatives, as a percent of affinity-max (0 disables)")
+	flag.IntVar(&cfg.FamilyAffinitySpread, "family-affinity-spread", cfg.FamilyAffinitySpread, "random swing around the starting family affinity, in the same units")
 	flag.IntVar(&cfg.TalkChance, "talk-chance", cfg.TalkChance, "percent chance an idle colonist starts a conversation (0 disables talking)")
 	flag.IntVar(&cfg.TalkRadius, "talk-radius", cfg.TalkRadius, "how far a colonist looks for a conversation partner")
 	flag.IntVar(&cfg.TalkTicks, "talk-ticks", cfg.TalkTicks, "ticks a conversation lasts before affinity is credited")
@@ -178,6 +190,12 @@ func validateConfig(cfg sim.Config) error {
 	switch {
 	case cfg.Width < 10 || cfg.Height < 10:
 		return fmt.Errorf("world must be at least 10x10 (got %dx%d)", cfg.Width, cfg.Height)
+	case cfg.IronRockPercent < 0 || cfg.IceRockPercent < 0 || cfg.UraniumRockPercent < 0 ||
+		cfg.IronRockPercent+cfg.IceRockPercent+cfg.UraniumRockPercent > 100:
+		return fmt.Errorf("rock composition percentages must be non-negative and total at most 100 (got iron %d + ice %d + uranium %d)",
+			cfg.IronRockPercent, cfg.IceRockPercent, cfg.UraniumRockPercent)
+	case cfg.RockVeinMin < 1 || cfg.RockVeinMax < cfg.RockVeinMin:
+		return fmt.Errorf("rock vein range is invalid: min %d, max %d", cfg.RockVeinMin, cfg.RockVeinMax)
 	case cfg.StartColonists < 0 || cfg.StartAliens < 0 || cfg.StartCats < 0 || cfg.StartMice < 0:
 		return fmt.Errorf("population counts cannot be negative")
 	case cfg.StartPistols < 0 || cfg.StartShotguns < 0:
@@ -194,8 +212,22 @@ func validateConfig(cfg sim.Config) error {
 		return fmt.Errorf("rest-ticks must be at least 1 (got %d)", cfg.RestTicks)
 	case cfg.TraitChance < 0 || cfg.TraitChance > 100:
 		return fmt.Errorf("trait-chance must be between 0 and 100 (got %d)", cfg.TraitChance)
+	case cfg.UraniumExposureTicks < 1:
+		return fmt.Errorf("uranium-exposure-ticks must be at least 1 (got %d)", cfg.UraniumExposureTicks)
+	case cfg.MutationChance < 0 || cfg.MutationChance > 100:
+		return fmt.Errorf("mutation-chance must be between 0 and 100 (got %d)", cfg.MutationChance)
+	case cfg.MutantLoverAffinityBonus < 0:
+		return fmt.Errorf("mutant-lover-affinity cannot be negative (got %d)", cfg.MutantLoverAffinityBonus)
 	case cfg.FamilyChance < 0 || cfg.FamilyChance > 100:
 		return fmt.Errorf("family-chance must be between 0 and 100 (got %d)", cfg.FamilyChance)
+	case cfg.AppearanceInheritChance < 0 || cfg.AppearanceInheritChance > 100:
+		return fmt.Errorf("appearance-inherit-chance must be between 0 and 100 (got %d)", cfg.AppearanceInheritChance)
+	case cfg.SpouseSurnameChance < 0 || cfg.SpouseSurnameChance > 100:
+		return fmt.Errorf("spouse-surname-chance must be between 0 and 100 (got %d)", cfg.SpouseSurnameChance)
+	case cfg.FamilyAffinity < 0 || cfg.FamilyAffinity > 100:
+		return fmt.Errorf("family-affinity must be between 0 and 100 (got %d)", cfg.FamilyAffinity)
+	case cfg.FamilyAffinitySpread < 0:
+		return fmt.Errorf("family-affinity-spread must not be negative (got %d)", cfg.FamilyAffinitySpread)
 	case cfg.TalkChance < 0 || cfg.TalkChance > 100:
 		return fmt.Errorf("talk-chance must be between 0 and 100 (got %d)", cfg.TalkChance)
 	case cfg.TalkChance > 0 && (cfg.TalkRadius < 1 || cfg.TalkTicks < 1):

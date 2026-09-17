@@ -12,8 +12,10 @@ import "sort"
 // and relatives who never joined the colony exist only as phantom tree nodes that
 // connect real colonists.
 //
-// Affinity is a warmth score between two colonists, in [-AffinityMax,
+// Affinity is a warmth score one colonist holds for another, in [-AffinityMax,
 // AffinityMax], shifted when they talk (see the Talking activity in systems.go).
+// It is stored per direction, and conversation moves both directions equally;
+// a one-sided force (the Mutant-Lover trait) is what can pull them apart.
 // Talking is mostly a diminishing-returns positive-feedback loop: a conversation
 // tends to exacerbate the valence of the pair's existing affinity (friends grow
 // closer, rivals drift further apart), with the step shrinking as affinity nears
@@ -33,6 +35,8 @@ const (
 	RelGrandchild
 	RelAuntUncle
 	RelNibling
+
+	numRelationKinds // keep last
 )
 
 func (r RelationKind) String() string {
@@ -124,15 +128,18 @@ func (w *World) ensureParent(x kinID) kinID {
 }
 
 // assignKin gives a colonist a tree node and, with FamilyChance, ties it to an
-// existing colonist. Uses the personality RNG so it never perturbs the sim.
-func (w *World) assignKin(e *Entity) {
+// existing colonist. It reports whether a tie was actually made, so the caller
+// can skip the family-identity pass (see heredity.go) for a colonist who
+// arrived alone. Uses the personality RNG so it never perturbs the sim.
+func (w *World) assignKin(e *Entity) bool {
 	e.kin = w.newKin(e.ID)
 	if w.cfg.FamilyChance <= 0 || w.prng.Intn(100) >= w.cfg.FamilyChance {
-		return
+		return false
 	}
 	if r, ok := w.randomColonistKin(e.ID); ok {
-		w.relate(e, r)
+		return w.relate(e, r)
 	}
+	return false
 }
 
 // randomColonistKin reservoir-samples an existing colonist (other than self) that
@@ -156,8 +163,9 @@ func (w *World) randomColonistKin(self EntityID) (*Entity, bool) {
 // relate wires a familial tie between new colonist c and existing colonist r. It
 // tries relationship kinds in a random order and applies the first that fits, so
 // a blocked spouse (incompatible orientation, already married) or a full parent
-// slot falls back to another tie rather than failing.
-func (w *World) relate(c, r *Entity) {
+// slot falls back to another tie rather than failing. It reports whether any
+// kind fit.
+func (w *World) relate(c, r *Entity) bool {
 	kinds := []RelationKind{
 		RelSpouse, RelSibling, RelChild, RelParent,
 		RelGrandparent, RelGrandchild, RelAuntUncle, RelNibling,
@@ -165,9 +173,10 @@ func (w *World) relate(c, r *Entity) {
 	w.prng.Shuffle(len(kinds), func(i, j int) { kinds[i], kinds[j] = kinds[j], kinds[i] })
 	for _, k := range kinds {
 		if w.wireRelation(c, r, k) {
-			return
+			return true
 		}
 	}
+	return false
 }
 
 // wireRelation attaches c to the tree so that c is r's relation of the given
@@ -454,13 +463,24 @@ func (w *World) bumpAffinity(a, b EntityID, delta int) {
 	m[b] = clampInt(m[b]+delta, -w.cfg.AffinityMax, w.cfg.AffinityMax)
 }
 
-// affinityBetween returns the (symmetric) affinity between two colonists, 0 if
-// they have never interacted.
+// affinityBetween returns a's affinity toward b, 0 if they have never
+// interacted. Affinity is stored per direction. Conversation moves both
+// directions by the same step, so for most pairs the two readings are equal;
+// they diverge only where something one-sided acts on them, such as a
+// Mutant-Lover's extra warmth toward a mutant (see mutantAffinityBonus).
 func (w *World) affinityBetween(a, b EntityID) int {
 	if m := w.affinity[a]; m != nil {
 		return m[b]
 	}
 	return 0
+}
+
+// mutualAffinity is how the pair regards each other overall: the mean of the
+// two directions. Anything that is a property of the *pair* rather than of one
+// of them — how a conversation between them tends to go — reads this, so its
+// answer cannot depend on which of the two happened to be passed first.
+func (w *World) mutualAffinity(a, b EntityID) int {
+	return (w.affinityBetween(a, b) + w.affinityBetween(b, a)) / 2
 }
 
 // affinitiesOf returns a colonist's affinities toward living colonists, strongest

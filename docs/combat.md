@@ -51,17 +51,29 @@ now leaves.
 
 ### Body parts
 
-`BodyPart` enumerates six parts: `Head`, `Torso` (carries the vital organs),
-`LeftArm`, `RightArm`, `LeftLeg`, `RightLeg`. Only `Colonist` and `Alien`
-track them (`Entity.hasParts`) — cats and mice are still one-shot kills
-(pounce, stomp) regardless of HP, which is the "human v mouse is fine as is"
-baseline the combat rework deliberately left alone.
+`BodyPart` enumerates six base parts: `Head`, `Torso` (carries the vital
+organs), `LeftArm`, `RightArm`, `LeftLeg`, `RightLeg` — everything below the
+`numBaseBodyParts` marker. Above it sit the **mutant** parts (`ThirdArm`,
+`ExtraEye`, `Tail`, `VestigialTwin`), which nobody is born with and which
+uranium exposure grows during play; see [mutation.md](./mutation.md). Only
+`Colonist` and `Alien` track parts at all (`Entity.hasParts`) — cats and mice
+are still one-shot kills (pounce, stomp) regardless of HP, which is the
+"human v mouse is fine as is" baseline the combat rework deliberately left
+alone.
+
+Which parts an individual entity has is per-entity data, not a property of the
+enum: `Entity.MaxParts[p] > 0` (`Entity.hasPart`) is the test. That is also
+what keeps "never grown" distinct from "destroyed" — a blown-off limb has
+`Parts` zero but `MaxParts` intact.
 
 `bodyPartWeight` gives each part a share (out of 100) of an entity's `MaxHP`:
 Head 15, Torso 35, each arm 12, each leg 13. `distributeBodyParts(maxHP)`
-turns that into a `[numBodyParts]int` of starting HP per part, crediting any
-rounding remainder to the torso so the parts always sum to exactly `maxHP`.
-`newEntity` calls it once at spawn for anything with `hasParts()`.
+turns that into a `[numBodyParts]int` of starting HP per base part, crediting
+any rounding remainder to the torso so the parts always sum to exactly
+`maxHP`. `newEntity` calls it once at spawn for anything with `hasParts()`,
+storing the result as both `Parts` and `MaxParts`. Mutant parts have weights
+of their own, deliberately *outside* that hundred: growing one adds its share
+on top of the existing body rather than thinning the parts already there.
 
 `Entity.Alive()` is no longer just `HP > 0`: for a body-part entity it also
 requires `Parts[Head] > 0 && Parts[Torso] > 0`. A called shot to a vital part
@@ -73,11 +85,14 @@ roster — see Extending it.
 
 ### Landing a hit
 
-`rollHit()` picks the body part an attack lands on, weighted by the same
+`rollHit(target)` picks the body part an attack lands on, weighted by the same
 `bodyPartWeight` table (the torso is the biggest target, so it's hit most
-often). It draws from `w.rng`, the simulation stream, never `w.prng` —
-which part gets hit decides who lives, so it has to stay deterministic for a
-given seed (see `AGENTS.md`).
+often) over the parts `target` actually has. Weighting over the entity's own
+anatomy rather than the whole enum is what lets a mutation matter in combat: a
+grown third arm is one more place to be hit, which also thins the odds that
+any single hit finds a vital part. It draws from `w.rng`, the simulation
+stream, never `w.prng` — which part gets hit decides who lives, so it has to
+stay deterministic for a given seed (see `AGENTS.md`).
 
 `applyDamage(target, part, dmg)` subtracts `dmg` from that part (floored at
 zero) *and* from the entity's aggregate `HP` (also floored at zero, and still
@@ -156,7 +171,8 @@ rather than the same kind of violence. The same call sites decide whether a
 and `pounce` — where the remains are eaten — leave only the stains.
 
 `tileGlyph` (`glyphs.go`) draws the gore glyph in place of bare terrain when
-`Gore > 0`; `renderMap` (`view.go`) calls it via the new `Snapshot.TileAt`
+`Gore > 0` (a body on the same tile outranks it, and both outrank the rock's
+composition); `renderMap` (`view.go`) calls it via the new `Snapshot.TileAt`
 (alongside the existing `TerrainAt`) for any tile with no entity standing on
 it. Gore isn't just cosmetic to a colonist, either — coming within
 `Config.GoreSightRadius` of a gored tile is a `LifeEvent` (`EvtSawGore`) that

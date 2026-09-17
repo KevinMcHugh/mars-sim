@@ -127,7 +127,8 @@ func (m Model) renderFrame() string {
 	default:
 		body := m.renderMap()
 		if m.sidebarFits() {
-			body = lipgloss.JoinHorizontal(lipgloss.Top, body, strings.Repeat(" ", panelGap), m.renderSidebar())
+			cols, _ := m.viewportTiles()
+			body = joinColumns(body, cols*tileWidth, m.renderSidebar(), sidebarWidth)
 		}
 		frame = strings.Join([]string{
 			m.renderHeader(),
@@ -156,11 +157,13 @@ func (m Model) clampFrame(frame string) string {
 		return frame // no size negotiated yet; nothing to clamp against
 	}
 	lines := strings.Split(frame, "\n")
+	widths := m.cache.lineWidths()
 	for i, line := range lines {
-		if cells.Width(line) > m.termW {
+		if widths.of(line) > m.termW {
 			lines[i] = cells.Truncate(line, m.termW)
 		}
 	}
+	widths.done()
 	return strings.Join(lines, "\n")
 }
 
@@ -197,31 +200,42 @@ func (m Model) renderMap() string {
 	rowWidth := cols * tileWidth
 
 	// Index entities by position for O(1) lookup while drawing; aliens win ties.
-	occ := make(map[sim.Point]sim.EntityView, len(m.latest.Entities))
-	for _, e := range m.latest.Entities {
-		if cur, ok := occ[e.Pos]; ok && cur.Kind == sim.Alien {
+	// The index holds each occupant's glyph rather than its EntityView: a view
+	// carries the profile, inventory, needs, relations and memories, and
+	// copying all of that into a map every frame was most of the map's
+	// garbage, for the one field drawn from it.
+	type occupant struct {
+		glyph string
+		alien bool
+	}
+	occ := make(map[sim.Point]occupant, len(m.latest.Entities))
+	for i := range m.latest.Entities {
+		e := &m.latest.Entities[i]
+		if cur, ok := occ[e.Pos]; ok && cur.alien {
 			continue
 		}
-		occ[e.Pos] = e
+		occ[e.Pos] = occupant{entityGlyph(*e), e.Kind == sim.Alien}
 	}
 
+	// Every row comes out exactly rowWidth cells without being measured.
+	// fitGlyph returns each glyph in exactly tileWidth cells, and
+	// TestAdjacentGlyphsNeverMerge proves no two glyphs fuse into one cluster
+	// when placed side by side, so a row's width is the sum of its tiles.
+	// Measuring each row again with cells.Fit cost a grapheme scan per row per
+	// frame and could never catch a terminal disagreement anyway — it uses the
+	// same width table fitGlyph already did. The startup probe is what checks
+	// the terminal.
 	var b strings.Builder
-	var row strings.Builder
+	b.Grow(rows * (rowWidth*2 + 1))
 	for y := 0; y < rows; y++ {
-		row.Reset()
 		for x := 0; x < cols; x++ {
 			p := m.cam.Add(x, y)
-			if e, ok := occ[p]; ok {
-				row.WriteString(entityGlyph(e))
+			if o, ok := occ[p]; ok {
+				b.WriteString(o.glyph)
 			} else {
-				row.WriteString(tileGlyph(m.latest.TileAt(p)))
+				b.WriteString(tileGlyph(m.latest.TileAt(p)))
 			}
 		}
-		// Every row is forced to exactly cols*tileWidth cells. Each glyph is
-		// already fitted, so this is belt and braces — but it is what confines
-		// a width surprise to the row it happens on instead of letting it
-		// shear the sidebar and everything below.
-		b.WriteString(cells.Fit(row.String(), rowWidth))
 		if y < rows-1 {
 			b.WriteByte('\n')
 		}
@@ -229,8 +243,53 @@ func (m Model) renderMap() string {
 	return b.String()
 }
 
+// joinColumns lays right beside left with a panelGap between them, producing
+// the same bytes as lipgloss.JoinHorizontal(lipgloss.Top, left, gap, right)
+// for blocks whose lines are all exactly their declared widths.
+//
+// JoinHorizontal cannot know its blocks' widths, so it measures every line
+// twice with a grapheme scan. On the map, whose rows are long runs of emoji,
+// that was a third of the frame. Both widths here are known by construction:
+// map rows are cols*tileWidth (see renderMap) and the sidebar renders at
+// sidebarWidth (TestPanelsRenderAtTheirDeclaredWidth).
+func joinColumns(left string, leftWidth int, right string, rightWidth int) string {
+	l := strings.Split(left, "\n")
+	r := strings.Split(right, "\n")
+	n := max(len(l), len(r))
+	gap := strings.Repeat(" ", panelGap)
+
+	var b strings.Builder
+	b.Grow(len(left) + len(right) + n*(panelGap+1))
+	for i := 0; i < n; i++ {
+		if i > 0 {
+			b.WriteByte('\n')
+		}
+		if i < len(l) {
+			b.WriteString(l[i])
+		} else {
+			b.WriteString(strings.Repeat(" ", leftWidth))
+		}
+		b.WriteString(gap)
+		if i < len(r) {
+			b.WriteString(r[i])
+		} else {
+			b.WriteString(strings.Repeat(" ", rightWidth))
+		}
+	}
+	return b.String()
+}
+
 func (m Model) renderSidebar() string {
 	_, rows := m.viewportTiles()
+	return m.cache.sidebar(rows, m.latest.Log, usingASCIIGlyphs(), func() string {
+		return m.drawSidebar(rows)
+	})
+}
+
+// drawSidebar renders the sidebar from scratch. renderSidebar memoizes it,
+// since lipgloss's border, padding and wrapping work dominates its cost but its
+// content changes far less often than frames are drawn.
+func (m Model) drawSidebar(rows int) string {
 	inner := sidebarWidth - borderCells - 2 // padding is one cell on each side
 
 	// Two columns of legend entries, each entry "<glyph> <label>". The label
@@ -244,7 +303,8 @@ func (m Model) renderSidebar() string {
 		{{glyphPod, "food pod"}, {glyphToilet, "toilet"}},
 		{{glyphBed, "bunk"}, {glyphWall, "wall"}},
 		{{glyphIncinerator, "burner"}, {glyphCorpse, "body"}},
-		{{glyphRock, "rock"}, {glyphFloor, "open"}},
+		{{glyphRock, "rock"}, {glyphIronRock, "iron rock"}},
+		{{glyphIceRock, "ice rock"}, {glyphFloor, "open"}},
 	}
 	column := inner / 2
 

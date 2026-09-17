@@ -8,6 +8,12 @@ import "time"
 type Config struct {
 	// World shape.
 	Width, Height int
+	// Rock composition percentages. The remainder is ordinary rock.
+	IronRockPercent    int
+	IceRockPercent     int
+	UraniumRockPercent int
+	RockVeinMin        int // minimum tiles in a generated deposit vein
+	RockVeinMax        int // maximum tiles in a generated deposit vein
 
 	// Seed makes a run reproducible. Same seed + same code => same game.
 	Seed int64
@@ -79,11 +85,43 @@ type Config struct {
 	// generated). See personality.go.
 	TraitChance int
 
+	// Mutation. A colonist near a uranium deposit or carrying uranium ore takes
+	// a dose: every UraniumExposureTicks of accumulated exposure is one roll at
+	// MutationChance percent to grow an extra body part and become a Mutant.
+	// MutantLoverAffinityBonus is the extra affinity a Mutant-Lover gains
+	// toward a mutant per conversation, on top of the ordinary talk step. See
+	// mutation.go and docs/mutation.md.
+	UraniumExposureTicks     int
+	MutationChance           int
+	MutantLoverAffinityBonus int
+
 	// Family. FamilyChance is the percent chance a newly generated colonist is
 	// tied to an existing one (spouse, sibling, parent/child, aunt/uncle,
 	// nibling, or grandparent/grandchild). Uses the personality RNG, so it never
 	// perturbs the sim. 0 disables family generation. See relationships.go.
 	FamilyChance int
+
+	// Heredity. Once a colonist has a family, that family decides part of who
+	// they are: they take its surname, they take after their closest relatives,
+	// and they start out already knowing them. See heredity.go.
+	//
+	// AppearanceInheritChance is the percent chance each heritable feature (skin
+	// tone, natural hair color, height) is taken from a relative rather than
+	// kept as rolled, at full relatedness — it is scaled down for more distant
+	// kin. 0 makes every colonist's looks independent.
+	//
+	// SpouseSurnameChance is the percent chance a colonist who marries into the
+	// colony takes their spouse's surname instead of keeping their own; blood
+	// relatives always share a surname regardless.
+	//
+	// FamilyAffinity is the starting affinity between the closest relatives, as
+	// a percent of AffinityMax, scaled down per relation kind;
+	// FamilyAffinitySpread is the random swing around it in the same units, so
+	// relatives aren't all equally close. 0 starts family at a stranger's zero.
+	AppearanceInheritChance int
+	SpouseSurnameChance     int
+	FamilyAffinity          int
+	FamilyAffinitySpread    int
 
 	// Socializing. An idle colonist with nothing productive to do may seek out a
 	// nearby colonist and talk, which shifts the pair's affinity and both their
@@ -165,6 +203,11 @@ func DefaultConfig() Config {
 	return Config{
 		Width:               80,
 		Height:              40,
+		IronRockPercent:     10,
+		IceRockPercent:      5,
+		UraniumRockPercent:  3,
+		RockVeinMin:         8,
+		RockVeinMax:         24,
 		Seed:                time.Now().UnixNano(),
 		StartColonists:      6,
 		StartAliens:         3,
@@ -195,6 +238,18 @@ func DefaultConfig() Config {
 		MaxConcurrentProjects: 2,
 		TraitChance:           30,
 		FamilyChance:          35,
+
+		AppearanceInheritChance: 75,
+		SpouseSurnameChance:     50,
+		FamilyAffinity:          55,
+		FamilyAffinitySpread:    15,
+
+		// 100 ticks of dose per roll, and a roll that usually comes up clean:
+		// a miner who works a uranium vein and then carries the ore around
+		// mutates in the tens of minutes of play, not on the first tile.
+		UraniumExposureTicks:     100,
+		MutationChance:           25,
+		MutantLoverAffinityBonus: 3,
 
 		TalkChance:       25,
 		TalkRadius:       6,

@@ -12,21 +12,33 @@ import "fmt"
 // biggest target (the torso) than a called shot to the head or a limb.
 var hitWeight = bodyPartWeight
 
-// rollHit picks the body part an attack lands on, weighted by hitWeight. It
-// draws from the simulation RNG (w.rng), never the personality stream: which
-// part gets hit decides who lives, so it must stay in the deterministic sim
-// stream (see AGENTS.md).
-func (w *World) rollHit() BodyPart {
+// rollHit picks the body part an attack lands on target, weighted by hitWeight
+// over the parts that target actually has (see Entity.hasPart). Weighting over
+// the *entity's* anatomy rather than the whole enum is what lets a mutation
+// add a limb: a grown third arm becomes another place to be hit, and it
+// dilutes the odds of any one shot finding a vital part. It draws from the
+// simulation RNG (w.rng), never the personality stream: which part gets hit
+// decides who lives, so it must stay in the deterministic sim stream (see
+// AGENTS.md).
+func (w *World) rollHit(target *Entity) BodyPart {
 	total := 0
-	for _, wt := range hitWeight {
-		total += wt
+	for part := BodyPart(0); part < numBodyParts; part++ {
+		if target.hasPart(part) {
+			total += hitWeight[part]
+		}
+	}
+	if total <= 0 {
+		return Torso // an entity with no parts tracked: fall back to the trunk
 	}
 	roll := w.rng.Intn(total)
-	for part, wt := range hitWeight {
-		if roll < wt {
-			return BodyPart(part)
+	for part := BodyPart(0); part < numBodyParts; part++ {
+		if !target.hasPart(part) {
+			continue
 		}
-		roll -= wt
+		if roll < hitWeight[part] {
+			return part
+		}
+		roll -= hitWeight[part]
 	}
 	return Torso // unreachable given weights sum to total, but a safe fallback
 }
@@ -119,7 +131,7 @@ func (w *World) fightAlien(e, alien *Entity, weapon ItemKind) {
 // otherwise the alien presses on (its own turn still handles closing in and
 // biting). Nearby colonists remember watching the fight.
 func (w *World) shoot(colonist, alien *Entity, weapon ItemKind, spec weaponSpec) {
-	part := w.rollHit()
+	part := w.rollHit(alien)
 	fatal := applyDamage(alien, part, spec.damage)
 	witnesses := w.colonistsWithin(colonist.Pos, w.cfg.FleeRadius, colonist.ID)
 

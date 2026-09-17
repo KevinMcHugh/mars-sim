@@ -47,9 +47,11 @@ choose between emoji and ASCII map symbols. See the
 examples.
 
 Glyphs: 👷 colonist · 😱 fleeing colonist · 💬 talking colonist · 🥾 stomping
-colonist · 🧹 cleaning colonist · 📦 hauling colonist · 👽 alien · 🐈 cat ·
-🐁 mouse · 🟫 rock · 🧱 wall · 🥫 nutrient pod · 🚽 toilet · 🛌 dormitory bunk ·
-🔥 incinerator · 🩸 gore · 🦴 a body · blank = open floor.
+colonist · 🧹 cleaning colonist · 📦 hauling colonist · 🧟 mutant colonist ·
+👽 alien · 🐈 cat · 🐁 mouse · 🟫 ordinary rock · ⬛ iron-bearing rock ·
+🟦 water ice-bearing rock · 🟩 uranium-bearing rock · 🧱 wall · 🥫 nutrient pod ·
+🚽 toilet · 🛌 dormitory bunk · 🔥 incinerator · 🩸 gore · 🦴 a body ·
+blank = open floor.
 
 ### Documentation
 
@@ -93,16 +95,19 @@ mutable state:
 ### Simulation model
 
 - The world is a dense grid of `Tile`s (`Rock`, `Floor`, `Wall`). It starts as
-  solid rock with a carved landing cavern (`internal/sim/worldgen.go`).
+  composition-bearing solid rock with a carved landing cavern
+  (`internal/sim/worldgen.go`).
 - Entities are one `Entity` struct interpreted by `Kind` (colonist / alien),
   rather than a strict ECS — pragmatic for a scaffold, and fields can graduate
   into real components as systems grow. Per-tick behavior lives in
   `systems.go`.
   - **Colonists** walk only on floor. They mine rock into floor (carrying one raw
-    rock per excavated tile), build the colony's life-support as coordinated
-    projects (see *Construction projects*), clean up after the colony's dead
-    (see *Sanitation*), tend to their needs, and flee when an alien gets close. Each colonist has eight inventory slots, each holding a
-    homogeneous stack of up to 64 items.
+    rock per excavated tile plus iron ore, water ice, or uranium ore from a
+    bearing deposit),
+    build the colony's life-support as coordinated projects (see *Construction
+    projects*), clean up after the colony's dead (see *Sanitation*), tend to
+    their needs, and flee when an alien gets close. Each colonist has eight
+    inventory slots, each holding a homogeneous stack of up to 64 items.
   - **Aliens** burrow through *any* terrain to reach the nearest colonist and
     eat it.
   - **Cats** stalk the floor hunting mice, pouncing when adjacent (a single
@@ -168,6 +173,9 @@ but traits change how a colonist plays:
 | Asocial      | never develops a social need              |
 | Introvert    | social need rises slowly; too much talking lowers mood |
 | Extrovert    | social need rises quickly                 |
+| Tidy         | the sight of gore hits morale harder      |
+| Mutant-Lover | warms to mutants far faster than to anyone else |
+| Mutant       | *not rolled at spawn* — what uranium does to a colonist |
 
 Traits are drawn from mutually exclusive groups (appetite, work ethic, social); a
 colonist gets at most one per group, each with `TraitChance` probability
@@ -197,6 +205,18 @@ Colonists are related and get to know each other (`internal/sim/relationships.go
   label resolves on its own, so those are decided with a coin flip instead —
   anybody might marry an enby. Family is generated from the same separate RNG
   stream as personality, so it never perturbs the sim.
+- **Heredity.** A family is visible at a glance, not just in the tree. A
+  colonist born into one takes its **surname** (the earliest-arrived member of
+  the line sets it; someone who marries in keeps their own name half the time,
+  `-spouse-surname-chance`), and **inherits appearance** from their closest
+  relatives feature by feature (`-appearance-inherit-chance`, default 75%) — so
+  a child can have one parent's hair and the other's skin. What passes down is
+  the *natural* form of a feature: a grandmother gone white passes on the brown
+  she had, and a tall father gives a daughter who is tall for a woman rather
+  than his own height. Relatives also **start out warm** rather than as
+  strangers, scaled by how close the tie is (`-family-affinity`, default 55% of
+  `-affinity-max`; `-family-affinity-spread` keeps cousins from all being
+  equally close). See [docs/heredity.md](./docs/heredity.md).
 - **Talking.** Colonists have a non-fatal **social need** that rises over time.
   Before looking for ordinary work, a colonist whose social need reaches its
   threshold seeks a nearby free colonist and must complete a conversation (the
@@ -224,6 +244,26 @@ Colonists are related and get to know each other (`internal/sim/relationships.go
 
 Family ties, affinities, and mood are all shown per colonist in the roster
 inspector.
+
+#### Uranium & mutation
+
+The regolith holds uranium as well as iron and water ice, and it is the one
+deposit that acts back on the colonist who digs it. Standing beside an
+unexcavated uranium vein — or carrying the ore, which with no way to drop
+anything yet means carrying it forever — puts a colonist under a cumulative
+**dose**. Every `-uranium-exposure-ticks` (100) of it is one roll at
+`-mutation-chance` (25%) to **mutate**: grow a body part nobody is born with (a
+third arm, an extra eye, a tail, a vestigial twin) and carry the **Mutant**
+trait from then on, drawn as 🧟 on the map.
+
+A grown part is extra flesh, not redistributed flesh: it adds its own HP and
+becomes one more place an attack can land, which also thins the odds that any
+one hit finds the head or torso. Mutants are, physically, slightly harder to
+kill. The cost is social — mutating is a hard mood hit, and so is watching it
+happen — except to a **Mutant-Lover**, who is delighted by both and warms to
+mutants far faster than to anyone else. That last part is why affinity is
+tracked per direction: a mutant-lover's regard is not returned in kind. Full
+write-up in [docs/mutation.md](docs/mutation.md).
 
 #### Sanitation
 
@@ -322,10 +362,10 @@ In place now:
 - A two-level region/room system (floor grouped into per-chunk regions, then
   rooms as connected components of the region graph), maintained incrementally in
   ~microseconds per terrain change.
-- An event bus (`Event`/`TileChanged`) and a job board: the mineable frontier is
-  tracked incrementally from tile events, so colonists claim the nearest
-  reachable mine job instead of scanning the map, and in-progress builds are
-  counted in O(1).
+- An event bus (`WorldEvent`/`TileChanged`) and a job board: the mineable
+  frontier is tracked incrementally from tile events, so colonists claim the
+  nearest reachable mine job instead of scanning the map, and in-progress builds
+  are counted in O(1).
 - Lazy needs and resting AI: needs are stored as a base level plus a timestamp
   and computed on read, so a colonist stays on its task until the task finishes
   or a need crosses its threshold (whichever comes first), and an idle colonist

@@ -13,6 +13,12 @@ type ItemKind uint8
 const (
 	ItemNone ItemKind = iota
 	RawRock
+	IronOre
+	WaterIce
+	// UraniumOre is mined from a uranium-bearing deposit. Carrying it keeps
+	// its owner under a dose the whole time (see mutation.go): it is the one
+	// item that acts on the colonist holding it.
+	UraniumOre
 	// Pistol and Shotgun are combat weapons: a colonist carrying one fights an
 	// alien that gets close instead of only fleeing. See combat.go and
 	// docs/combat.md.
@@ -30,6 +36,12 @@ func (k ItemKind) String() string {
 	switch k {
 	case RawRock:
 		return "raw rock"
+	case IronOre:
+		return "iron ore"
+	case WaterIce:
+		return "water ice"
+	case UraniumOre:
+		return "uranium ore"
 	case Pistol:
 		return "pistol"
 	case Shotgun:
@@ -70,6 +82,14 @@ func bestWeapon(inv Inventory) ItemKind {
 // rations, alien remains) joins the cleaning loop by being listed here.
 func (k ItemKind) isRefuse() bool {
 	return k == Viscera || k == Corpse
+}
+
+// Has reports whether the inventory holds at least one item of a kind. Used by
+// the per-tick uranium-exposure check; it is a Count in disguise rather than
+// its own loop, which over eight slots costs nothing and keeps one answer to
+// "how much of this is in here".
+func (inv *Inventory) Has(kind ItemKind) bool {
+	return inv.Count(kind) > 0
 }
 
 // ItemStack is one homogeneous inventory slot. Empty slots have Count zero and
@@ -171,4 +191,38 @@ func (inv *Inventory) Add(kind ItemKind, quantity int) bool {
 		}
 	}
 	return true
+}
+
+// AddAll stores several item stacks as one transaction. If the complete set
+// does not fit, it returns false without changing the inventory.
+func (inv *Inventory) AddAll(stacks ...ItemStack) bool {
+	next := *inv
+	for _, stack := range stacks {
+		if stack.Count < 0 || (stack.Count > 0 && !next.Add(stack.Kind, stack.Count)) {
+			return false
+		}
+	}
+	*inv = next
+	return true
+}
+
+// CanAddAll reports whether a heterogeneous group of stacks fits without
+// changing the inventory.
+func (inv *Inventory) CanAddAll(stacks ...ItemStack) bool {
+	next := *inv
+	return next.AddAll(stacks...)
+}
+
+// miningYield returns the complete inventory award for excavating a tile.
+func miningYield(tile Tile) []ItemStack {
+	yield := []ItemStack{{Kind: RawRock, Count: 1}}
+	switch tile.Composition {
+	case IronBearingRock:
+		yield = append(yield, ItemStack{Kind: IronOre, Count: 1})
+	case WaterIceBearingRock:
+		yield = append(yield, ItemStack{Kind: WaterIce, Count: 1})
+	case UraniumBearingRock:
+		yield = append(yield, ItemStack{Kind: UraniumOre, Count: 1})
+	}
+	return yield
 }

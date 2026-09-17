@@ -148,6 +148,8 @@ moving alien does.
 | `EvtAte` / `EvtUsedToilet` / `EvtSlept` / `EvtNeedSatisfied` | finished using a facility | none yet |
 | `EvtFinishedMining` / `EvtClearedRock` / `EvtFinishedConstruction` / `EvtCleanedRefuse` | finished a dig, build, or cleaning job | universal +2, +Industrious +2 |
 | `EvtIncineratedRefuse` | burned a load of refuse in the incinerator | universal +2, +Industrious +2, +Tidy +6 |
+| `EvtMutated` | uranium exposure grew a new body part | universal -14, +Mutant-Lover +28 (net +14) |
+| `EvtWitnessedMutation` | watched another colonist mutate | universal -6, +Mutant-Lover +12 (net +6) |
 
 "None yet" is a table entry away from having one — see Extending it.
 
@@ -163,9 +165,11 @@ calling `adjustMood` itself, `finishTalk` hands the computed total to
 
 ```go
 func (w *World) finishTalk(a, b *Entity) {
-    existing := w.affinityBetween(a.ID, b.ID)
+    existing := w.mutualAffinity(a.ID, b.ID)
     quality := w.rollTalkQuality(existing)
-    w.addAffinity(a.ID, b.ID, w.talkAffinityDelta(existing, quality))
+    step := w.talkAffinityDelta(existing, quality)
+    w.bumpAffinity(a.ID, b.ID, step+w.mutantAffinityBonus(a, b))
+    w.bumpAffinity(b.ID, a.ID, step+w.mutantAffinityBonus(b, a))
     mood := w.talkMoodDelta(quality, existing)
     w.remember(a, eventMood(EvtConversation, mood+w.noteConversation(a), "Had a conversation with %s.", b.displayName()))
     w.remember(b, eventMood(EvtConversation, mood+w.noteConversation(b), "Had a conversation with %s.", a.displayName()))
@@ -175,6 +179,17 @@ func (w *World) finishTalk(a, b *Entity) {
 This used to be two separate mechanisms: `finishTalk` moved mood directly,
 and a separate pair of `remember` calls (back in `jobTalk`) recorded the
 memory with no mood effect at all. Now there is exactly one: `remember`.
+
+The affinity credit is per direction rather than one symmetric `addAffinity`
+because a trait-driven bonus can be one-sided — a Mutant-Lover's warmth toward
+a mutant is not returned in kind (see [mutation.md](./mutation.md)). The
+conversation's own step is still identical for both sides, so a pair with no
+such trait between them stays exactly as symmetric as before.
+
+`EvtMutated` is also the clearest demonstration of what conditional
+`MoodEffect`s are for: the same event is body horror to most colonists (-14)
+and the best day of a Mutant-Lover's life (+14 net), declared as two rows of
+data rather than a branch in `mutate()`.
 
 ## Why it is this way
 

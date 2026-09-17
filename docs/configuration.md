@@ -16,10 +16,11 @@ defaults to the `DefaultConfig` value.
 
 ## How it works
 
-`Config` groups its fields by concern: world shape, seed, starting population
-and equipment, timing, colonist stats, needs, personality, the mining-strategy
-switch, and per-creature stats for aliens, cats, mice, and weapons. Zero
-values are not meaningful — always start from `DefaultConfig()` and adjust.
+`Config` groups its fields by concern: world shape and rock composition, seed,
+starting population and equipment, timing, colonist stats, needs, personality,
+the mining-strategy switch, and per-creature stats for aliens, cats, mice, and
+weapons. Zero values are not meaningful — always start from `DefaultConfig()`
+and adjust.
 
 `main.go` mirrors this: `bindConfigFlags(&cfg)` registers a flag for every field,
 passing the current (default) value as the flag default, so the help text always
@@ -32,8 +33,9 @@ validation, and headless-reporting behavior is documented in the
 time-based seed each run"; any non-zero seed makes the run reproducible.
 
 `validateConfig` rejects settings that would break world generation or the
-renderer (too-small world, negative populations, sub-1 rates) with a message a
-player can act on, before the engine is built.
+renderer (too-small world, negative populations, rock composition percentages
+whose sum exceeds 100, an invalid rock-vein size range, sub-1 rates) with a
+message a player can act on, before the engine is built.
 
 `tickInterval` converts `TicksPerSecond` into a sleep duration, clamped to
 [1, 60].

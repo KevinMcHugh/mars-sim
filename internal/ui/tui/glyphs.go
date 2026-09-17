@@ -38,6 +38,9 @@ const tileWidth = 2
 // renderColonistDetail); they never enter a glyph.
 const (
 	glyphRock        = "\U0001F7EB" // 🟫 unexcavated regolith
+	glyphIronRock    = "\U00002B1B" // ⬛ iron-bearing rock
+	glyphIceRock     = "\U0001F7E6" // 🟦 water ice-bearing rock
+	glyphUranium     = "\U0001F7E9" // 🟩 uranium-bearing rock (the glow is the warning)
 	glyphFloor       = "  "         // open, walkable space
 	glyphWall        = "\U0001F9F1" // 🧱 built wall
 	glyphPod         = "\U0001F96B" // 🥫 nutrient pod (food)
@@ -57,6 +60,7 @@ const (
 	glyphCorpse   = "\U0001F9B4" // 🦴 a body left where something died, waiting to be hauled
 	glyphCleaning = "\U0001F9F9" // 🧹 colonist scrubbing refuse up or feeding the incinerator
 	glyphHauling  = "\U0001F4E6" // 📦 colonist carrying refuse to the incinerator
+	glyphMutant   = "\U0001F9DF" // 🧟 colonist changed by uranium (see docs/mutation.md)
 
 	glyphManAdult     = "\U0001F468" // 👨 adult man colonist
 	glyphWomanAdult   = "\U0001F469" // 👩 adult woman colonist
@@ -92,6 +96,9 @@ type glyph struct {
 // quietly corrupting a frame at runtime.
 var glyphRegistry = map[string]glyph{
 	glyphRock:        {glyphRock, 2, "##"},
+	glyphIronRock:    {glyphIronRock, 2, "Fe"},
+	glyphIceRock:     {glyphIceRock, 2, "H2"},
+	glyphUranium:     {glyphUranium, 2, "U "},
 	glyphFloor:       {glyphFloor, 2, "  "},
 	glyphWall:        {glyphWall, 2, "[]"},
 	glyphPod:         {glyphPod, 2, "%%"},
@@ -111,6 +118,7 @@ var glyphRegistry = map[string]glyph{
 	glyphCorpse:   {glyphCorpse, 2, "%!"},
 	glyphCleaning: {glyphCleaning, 2, "@/"},
 	glyphHauling:  {glyphHauling, 2, "@+"},
+	glyphMutant:   {glyphMutant, 2, "@%"},
 
 	glyphManAdult:     {glyphManAdult, 2, "M "},
 	glyphWomanAdult:   {glyphWomanAdult, 2, "W "},
@@ -176,9 +184,16 @@ func fitGlyph(symbol string) string {
 // colonistGlyph picks the default map glyph for a colonist at rest: a base
 // figure for their gender identity and age bracket. A colonist without a
 // profile falls back to glyphColonist.
+//
+// A mutant overrides all of that. What uranium did to them is the most
+// important thing about that figure on the map — it is why the colony treats
+// them differently — and it is not something a gender/age figure can show.
 func colonistGlyph(p *sim.Profile) string {
 	if p == nil {
 		return glyphColonist
+	}
+	if p.HasTrait(sim.TraitMutant) {
+		return glyphMutant
 	}
 	senior := p.Age >= seniorAge
 	switch p.Gender {
@@ -221,19 +236,32 @@ func terrainGlyph(t sim.Terrain) string {
 	return fitGlyph(symbol)
 }
 
-// tileGlyph draws an empty tile: refuse takes priority over bare terrain, since
-// it is the more notable thing to see there, and a body outranks the stains
-// around it — it is what a colonist is coming to haul away. Any of a stomp, a
-// bite, or a gunshot can leave gore (see docs/combat.md); a body is left by a
-// death nothing ate (see docs/sanitation.md).
-func tileGlyph(t sim.Tile) string {
-	if t.Corpses > 0 {
+// tileGlyph draws an empty tile: refuse takes priority over bare terrain (and
+// over the ore in it), since it is the more notable thing to see there, and a
+// body outranks the stains around it — it is what a colonist is coming to haul
+// away. Any of a stomp, a bite, or a gunshot can leave gore (see
+// docs/combat.md); a body is left by a death nothing ate (see
+// docs/sanitation.md).
+func tileGlyph(tile sim.Tile) string {
+	if tile.Corpses > 0 {
 		return fitGlyph(glyphCorpse)
 	}
-	if t.Gore > 0 {
+	if tile.Gore > 0 {
 		return fitGlyph(glyphGore)
 	}
-	return terrainGlyph(t.Terrain)
+	if tile.Terrain != sim.Rock {
+		return terrainGlyph(tile.Terrain)
+	}
+	switch tile.Composition {
+	case sim.IronBearingRock:
+		return fitGlyph(glyphIronRock)
+	case sim.WaterIceBearingRock:
+		return fitGlyph(glyphIceRock)
+	case sim.UraniumBearingRock:
+		return fitGlyph(glyphUranium)
+	default:
+		return fitGlyph(glyphRock)
+	}
 }
 
 func entityGlyph(e sim.EntityView) string {

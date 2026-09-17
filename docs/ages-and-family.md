@@ -6,12 +6,15 @@
 
 Every generated colonist has an adult age shown with their profile. Family
 relationships use that age to prevent a parent from being less than 20 years
-older than their child.
+older than their child. Once a colonist is placed in the tree, their family also
+decides part of who they are — surname, appearance, and a warm start with their
+relatives; see [heredity.md](./heredity.md).
 
 ## Source
 
 - `internal/sim/personality.go` — age storage and deterministic generation.
 - `internal/sim/relationships.go` — parent/child age validation.
+- `internal/sim/heredity.go` — what a colonist takes from the family they land in.
 - `internal/ui/tui/render_roster.go` — profile display.
 - `internal/sim/relationships_test.go` — family-tree behavior.
 
@@ -29,6 +32,10 @@ also satisfies the same rule.
 The derived `Relations` lists in snapshots are cached per colonist and keyed to a
 family-tree revision. Adding a relationship invalidates the revision; ordinary
 simulation ticks reuse the existing lists instead of walking the family tree.
+
+`assignKin` reports whether it actually tied the colonist to anyone. A colonist
+who arrived alone skips the heredity pass entirely, which also avoids rebuilding
+the child index for a tree that did not change.
 
 ## Why it is this way
 
@@ -49,5 +56,7 @@ with simulation time. Any new parent link must continue to pass `validParent`.
 ## Related
 
 - [personality.md](./personality.md) — profile generation and the personality RNG.
+- [heredity.md](./heredity.md) — shared surnames, inherited appearance, and the
+  affinity relatives start with.
 - [entities-and-ai.md](./entities-and-ai.md) — colonist entities and their
   runtime behavior.

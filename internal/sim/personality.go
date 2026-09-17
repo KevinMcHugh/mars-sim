@@ -168,6 +168,10 @@ const (
 	TraitIntrovert
 	TraitExtrovert
 	TraitTidy
+	// TraitMutant is not rolled at spawn: it is acquired in play, the moment
+	// uranium exposure first changes a colonist's body (see mutation.go).
+	TraitMutant
+	TraitMutantLover
 
 	numTraits // keep last
 )
@@ -186,6 +190,15 @@ const (
 	// Industrious Extrovert and Tidy. A future opposite (e.g. "Slob", numbed to
 	// gore) would join this group.
 	groupTemperament
+	// groupMutation holds what uranium did to a colonist. Nothing in it is
+	// rollable, so a colonist is never generated pre-mutated; the group exists
+	// so an acquired trait still has a home in the same table as every other
+	// trait rather than becoming a special case on Profile.
+	groupMutation
+	// groupMutantAttitude is how a colonist feels about mutants — its own axis,
+	// so it does not compete with temperament, and so the obvious opposite (a
+	// purist who recoils from them) can join it later.
+	groupMutantAttitude
 
 	numTraitGroups // keep last
 )
@@ -196,6 +209,11 @@ type traitSpec struct {
 	Name  string
 	Desc  string
 	group traitGroup
+	// acquired marks a trait that is only ever gained during play, never
+	// generated at spawn. rollTraits skips it (and skips its group entirely if
+	// nothing in the group is rollable, without drawing a number, so adding
+	// such a group cannot shift any other personality roll for a given seed).
+	acquired bool
 
 	needRiseScale  [numNeeds]float64 // per-need multiplier on how fast it rises
 	restScale      float64           // multiplier on idle rest duration
@@ -243,6 +261,19 @@ var traitSpecs = [numTraits]traitSpec{
 		// No need-rise/rest/work/social effect — Tidy's only effect is the extra
 		// EvtSawGore mood penalty declared in lifeevents.go, gated on this trait.
 	},
+	TraitMutant: {
+		Name: "Mutant", Desc: "Uranium rewrote them; they carry parts nobody is born with.",
+		group: groupMutation, acquired: true,
+		// No scalar effect. Being a mutant shows up as the extra body parts
+		// mutation grew (see mutation.go) and in how other colonists take
+		// them — this trait is the marker both of those read.
+	},
+	TraitMutantLover: {
+		Name: "Mutant-Lover", Desc: "Drawn to the changed; warms to mutants far faster than to anyone else.",
+		group: groupMutantAttitude,
+		// No scalar effect either: its work is the directional affinity bonus
+		// in finishTalk and the mood effects gated on it in lifeevents.go.
+	},
 }
 
 // Name returns a trait's display name.
@@ -265,6 +296,26 @@ type Profile struct {
 	SkinTone    SkinTone
 	HairColor   HairColor
 	Traits      []Trait
+
+	// Heredity bookkeeping, unexported because nothing outside generation needs
+	// it: these are the forms of an attribute that pass between relatives, as
+	// opposed to the displayed value that age or a marriage may have changed.
+	// See heredity.go.
+	given    string    // the half of Name that is never inherited
+	surname  string    // the half of Name a family shares
+	hairBase HairColor // hair color before age greys or thins it
+	heightZ  float64   // height in standard deviations from the gender mean
+}
+
+// setSurname moves a profile into a family's name, rebuilding the display name.
+// Profiles built by hand (in tests and tools) have no given name; they keep the
+// Name they were given rather than becoming a bare surname.
+func (p *Profile) setSurname(s string) {
+	if p.given == "" {
+		return
+	}
+	p.surname = s
+	p.Name = p.given + " " + s
 }
 
 // clone deep-copies a Profile (including its Traits slice) so a Snapshot never
@@ -296,12 +347,12 @@ func (w *World) assignPersonality(e *Entity) {
 	p.Age = w.rollAge()
 	p.Gender = w.rollGender()
 	p.Orientation = w.rollOrientation()
-	p.HeightCM, p.WeightKG = w.rollBody(p.Gender)
+	w.rollBody(p)
 	p.SkinTone = w.rollSkinTone()
-	p.HairColor = w.rollHairColor(p.Age)
-	p.Name = w.rollName(p.Gender)
+	p.hairBase, p.HairColor = w.rollHair(p.Age)
 	p.Traits = w.rollTraits()
 	e.Profile = p
+	w.rollName(e)
 
 	w.resolveTraitEffects(e)
 }
@@ -363,14 +414,19 @@ func (w *World) resolveTraitEffects(e *Entity) {
 }
 
 // rollTraits picks at most one trait from each group, each group taken with
-// TraitChance probability.
+// TraitChance probability. A group with nothing rollable in it (see
+// traitSpec.acquired) is skipped before any number is drawn, so adding one
+// leaves every other colonist's generation identical for the same seed.
 func (w *World) rollTraits() []Trait {
 	var out []Trait
 	for g := traitGroup(0); g < numTraitGroups; g++ {
+		group := rollableTraitsInGroup(g)
+		if len(group) == 0 {
+			continue
+		}
 		if w.prng.Intn(100) >= w.cfg.TraitChance {
 			continue
 		}
-		group := traitsInGroup(g)
 		out = append(out, group[w.prng.Intn(len(group))])
 	}
 	return out
@@ -381,6 +437,18 @@ func traitsInGroup(g traitGroup) []Trait {
 	var out []Trait
 	for t := Trait(0); t < numTraits; t++ {
 		if traitSpecs[t].group == g {
+			out = append(out, t)
+		}
+	}
+	return out
+}
+
+// rollableTraitsInGroup is traitsInGroup without the traits that can only be
+// acquired in play.
+func rollableTraitsInGroup(g traitGroup) []Trait {
+	var out []Trait
+	for _, t := range traitsInGroup(g) {
+		if !traitSpecs[t].acquired {
 			out = append(out, t)
 		}
 	}
@@ -413,23 +481,53 @@ func (w *World) rollOrientation() Orientation {
 }
 
 // rollBody generates a plausible height (cm) and weight (kg), loosely correlated
-// with gender and with each other through a body-mass index.
-func (w *World) rollBody(g Gender) (heightCM, weightKG int) {
-	meanH, sdH := 178.0, 7.0
+// with gender and with each other through a body-mass index. Height is drawn as
+// a z-score — standard deviations from the colonist's own gender mean — and kept
+// on the profile so a relative's frame can be inherited across genders without
+// dragging their absolute centimetres along with it (see heredity.go).
+func (w *World) rollBody(p *Profile) {
+	p.heightZ = w.prng.NormFloat64()
+	bmi := clampFloat(24.0+w.prng.NormFloat64()*3.5, 16, 38)
+	p.HeightCM = heightFromZ(p.Gender, p.heightZ)
+	p.WeightKG = weightFor(p.HeightCM, bmi)
+}
+
+// setHeightZ re-frames a colonist at a new height z-score while keeping the
+// build they were rolled with: inheriting a relative's frame should change how
+// tall a colonist is, not how heavy-set.
+func setHeightZ(p *Profile, z float64) {
+	bmi := bmiOf(p.HeightCM, p.WeightKG)
+	p.heightZ = z
+	p.HeightCM = heightFromZ(p.Gender, z)
+	p.WeightKG = weightFor(p.HeightCM, bmi)
+}
+
+// heightFromZ converts a z-score into centimetres against the gender's mean.
+func heightFromZ(g Gender, z float64) int {
+	mean, sd := 178.0, 7.0
 	switch g {
 	case GenderWoman:
-		meanH, sdH = 165.0, 6.5
+		mean, sd = 165.0, 6.5
 	case GenderNonbinary:
-		meanH, sdH = 172.0, 8.0
+		mean, sd = 172.0, 8.0
 	}
-	h := int(math.Round(meanH + w.prng.NormFloat64()*sdH))
-	h = clampInt(h, 145, 205)
+	return clampInt(int(math.Round(mean+z*sd)), 145, 205)
+}
 
-	bmi := 24.0 + w.prng.NormFloat64()*3.5
-	bmi = clampFloat(bmi, 16, 38)
-	m := float64(h) / 100
-	wt := int(math.Round(bmi * m * m))
-	return h, atLeast1(wt)
+// bmiOf recovers the body-mass index a profile's height and weight imply, so a
+// re-framed colonist keeps the build they were rolled with. Hand-built profiles
+// with no body fall back to the population mean rather than dividing by zero.
+func bmiOf(heightCM, weightKG int) float64 {
+	if heightCM <= 0 || weightKG <= 0 {
+		return 24
+	}
+	m := float64(heightCM) / 100
+	return float64(weightKG) / (m * m)
+}
+
+func weightFor(heightCM int, bmi float64) int {
+	m := float64(heightCM) / 100
+	return atLeast1(int(math.Round(bmi * m * m)))
 }
 
 // rollSkinTone picks a skin tone uniformly across the five emoji tone points.
@@ -437,9 +535,13 @@ func (w *World) rollSkinTone() SkinTone {
 	return SkinTone(w.prng.Intn(5))
 }
 
-// rollHairColor picks a hair color, weighting white and bald upward with age
-// so older colonists more often show it.
-func (w *World) rollHairColor(age int) HairColor {
+// rollHair picks both the color a colonist's hair grew in as and the color they
+// actually show today: age greys and thins hair, so an older colonist often
+// shows white or bald over whatever they were born with. The two are kept apart
+// because relatives inherit the natural color, not the aged one — a grandmother
+// gone white still passes her brown hair down (see heredity.go).
+func (w *World) rollHair(age int) (base, shown HairColor) {
+	base = w.rollHairBase()
 	whiteChance, baldChance := 5, 3
 	switch {
 	case age >= 60:
@@ -449,23 +551,84 @@ func (w *World) rollHairColor(age int) HairColor {
 	}
 	switch r := w.prng.Intn(100); {
 	case r < whiteChance:
-		return HairWhite
+		return base, HairWhite
 	case r < whiteChance+baldChance:
-		return HairBald
-	case r < whiteChance+baldChance+5:
-		return HairRed
-	case r < whiteChance+baldChance+5+35:
-		return HairBlack
-	case r < whiteChance+baldChance+5+35+30:
-		return HairBrown
+		return base, HairBald
 	default:
-		return HairBlonde
+		return base, base
 	}
 }
 
-// rollName builds a first + last name, drawing the first name from a pool that
-// suits the gender identity.
-func (w *World) rollName(g Gender) string {
+// rollHairBase picks a natural hair color. White and bald are not options here:
+// both are things age does to hair, applied on top by rollHair.
+func (w *World) rollHairBase() HairColor {
+	switch r := w.prng.Intn(100); {
+	case r < 37:
+		return HairBlack
+	case r < 69:
+		return HairBrown
+	case r < 95:
+		return HairBlonde
+	default:
+		return HairRed
+	}
+}
+
+// rollName gives a profile a first + last name, drawing the first name from a
+// pool that suits the gender identity. The surname is only provisional: a
+// colonist generated into an existing family takes that family's name instead
+// (see heredity.go).
+func (w *World) rollName(e *Entity) {
+	p := e.Profile
+	p.given = w.rollGivenName(p.Gender)
+	p.surname = lastNames[w.prng.Intn(len(lastNames))]
+	p.Name = p.given + " " + p.surname
+	w.uniquifyName(e)
+}
+
+// givenNameRedraws bounds the search for a full name nobody in the colony is
+// already using. The pools are finite, so a big enough colony will eventually
+// exhaust them; a duplicate name is worse than a loop that gives up, but far
+// better than failing to place a colonist at all.
+const givenNameRedraws = 8
+
+// uniquifyName re-draws a colonist's given name until no other colonist answers
+// to the same full name. The pools are small enough (24 given names against 26
+// surnames) that a colony of a few dozen hits a collision about half the time by
+// chance alone, and heredity makes it likelier still by pulling whole families
+// onto one surname — and two colonists with the same name are simply
+// indistinguishable in the roster. Only the given name moves: the surname may be
+// a family's, which is the part worth keeping.
+func (w *World) uniquifyName(e *Entity) {
+	p := e.Profile
+	w.releaseName(e)
+	for i := 0; i < givenNameRedraws && w.nameTaken(p.Name, e.ID); i++ {
+		p.given = w.rollGivenName(p.Gender)
+		p.Name = p.given + " " + p.surname
+	}
+	w.colonistNames[p.Name] = e.ID
+}
+
+// nameTaken reports whether a colonist other than except already goes by name.
+func (w *World) nameTaken(name string, except EntityID) bool {
+	id, ok := w.colonistNames[name]
+	return ok && id != except
+}
+
+// releaseName frees a colonist's name for reuse: they are dying, or about to be
+// renamed into a family. Guarded on ownership so renaming never evicts the
+// namesake who was there first.
+func (w *World) releaseName(e *Entity) {
+	if e.Profile == nil {
+		return
+	}
+	if w.colonistNames[e.Profile.Name] == e.ID {
+		delete(w.colonistNames, e.Profile.Name)
+	}
+}
+
+// rollGivenName draws a first name from a pool that suits the gender identity.
+func (w *World) rollGivenName(g Gender) string {
 	var pool []string
 	switch g {
 	case GenderMan:
@@ -479,9 +642,7 @@ func (w *World) rollName(g Gender) string {
 			pool = firstNamesFem
 		}
 	}
-	first := pool[w.prng.Intn(len(pool))]
-	last := lastNames[w.prng.Intn(len(lastNames))]
-	return first + " " + last
+	return pool[w.prng.Intn(len(pool))]
 }
 
 // scaleTicks scales a base work duration by a colonist's workScale, never going

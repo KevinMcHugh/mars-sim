@@ -5,9 +5,9 @@
 ## What it is
 
 The world is a single underground level: a dense, row-major grid of `Tile`s that
-starts as solid rock. World generation carves a landing cavern, drops the
-colonists inside it, and seeds aliens out in the surrounding rock and cats/mice on
-the floor.
+starts as solid rock with ordinary, iron-bearing, water ice-bearing, or
+uranium-bearing composition. World generation carves a landing cavern, drops the colonists inside
+it, and seeds aliens out in the surrounding rock and cats/mice on the floor.
 
 ## Source
 
@@ -26,11 +26,22 @@ walkability and burrow through anything**. Beds are dormitory bunks used from an
 adjacent floor tile; the incinerator is the machine refuse is burned in, used the
 same way (see [sanitation.md](./sanitation.md)).
 
-A `Tile` is a struct wrapping `Terrain` (not a bare enum) deliberately, so fields
-like ore, moisture, or temperature can be added later without touching every call
-site. Two such fields exist today, both holding what is lying on the tile rather
-than what it is made of: `Gore` (a violent death's stains, see
-[combat.md](./combat.md)) and `Corpses` (bodies waiting to be hauled off, see
+A `Tile` stores both `Terrain` and `RockComposition`. Composition is meaningful
+only while the terrain is `Rock`: ordinary rock yields one `RawRock`, while
+iron-bearing, water ice-bearing, and uranium-bearing rock also yield one
+`IronOre`, `WaterIce`, or `UraniumOre`. Keeping composition separate from terrain
+means every deposit shares the same blocking, frontier, pathfinding, and
+excavation rules instead of multiplying terrain cases throughout the simulation.
+
+Uranium is the one composition that does something beyond its yield: standing
+next to an unexcavated uranium deposit (or carrying the ore away from it) puts a
+colonist under a dose that can eventually mutate them. That lives entirely in
+`mutation.go` and reads the tile — the tile itself behaves like any other rock.
+See [mutation.md](./mutation.md).
+
+Two further fields hold what is *lying on* a tile rather than what it is made
+of: `Gore` (a violent death's stains, see [combat.md](./combat.md)) and
+`Corpses` (bodies waiting to be hauled off, see
 [sanitation.md](./sanitation.md)). Raising a structure on a tile clears both;
 digging one out does not.
 
@@ -66,16 +77,22 @@ go stale.
 
 `generate` (called once by `NewEngine`):
 
-1. Carves an **oval cavern** at the map center. `caveRadii` sizes it to the
+1. Grows iron, water-ice, and uranium deposits as meandering, occasionally branching veins using a
+   dedicated RNG derived from the simulation seed. The configurable iron, ice, and
+   uranium percentages default to 10%, 5%, and 3%; the remainder is ordinary rock.
+   Uranium is grown last, so adding it left every existing seed's iron and ice
+   veins exactly where they were. Veins
+   default to 8–24 orthogonally connected tiles.
+2. Carves an **oval cavern** at the map center. `caveRadii` sizes it to the
    starting colonist count (~10 tiles per colonist) at a 2:1 width:height ratio,
    clamped to the map.
-2. Places colonists by shuffling the list of free floor tiles and drawing from
+3. Places colonists by shuffling the list of free floor tiles and drawing from
    it, so every requested colonist is placed if the cavern has room (this beats
    rejection sampling, which can give up).
-3. Places aliens on random rock tiles **far** from the cavern (`randomRockFar`),
+4. Places aliens on random rock tiles **far** from the cavern (`randomRockFar`),
    so they must burrow in.
-4. Places mice and cats on random floor tiles inside the cavern.
-5. Runs `refreshSpatial` once so regions/rooms exist before the first tick.
+5. Places mice and cats on random floor tiles inside the cavern.
+6. Runs `refreshSpatial` once so regions/rooms exist before the first tick.
 
 `randomTile` reservoir-samples a tile satisfying a predicate in one pass — uniform,
 and it always finds a match if one exists.
@@ -91,6 +108,16 @@ and it always finds a match if one exists.
   like solid wall.
 - **Terrain changes funnel through `SetTerrain`** so the event-driven systems can
   be trusted; this is the linchpin of the reactive performance design.
+- **Composition is tile data, not terrain** because deposits do not differ in
+  walkability or mining cost. New terrain kinds would complicate every rock
+  predicate and derived index for no gameplay benefit.
+- **Composition has a separate seed-derived RNG stream** so generating deposits
+  remains reproducible without shifting colonist placement, alien placement, or
+  every later decision on the main simulation stream.
+- **Deposits grow as branching random walks** rather than rolling each tile
+  independently. This produces narrow, irregular veins, keeps each generated
+  vein connected, and makes finding one deposit useful information about nearby
+  tiles, while still meeting the configured map-wide abundance target exactly.
 - **Shuffle-and-draw placement** guarantees the requested population actually
   spawns, which matters for reproducible, comparable runs.
 
@@ -100,8 +127,12 @@ and it always finds a match if one exists.
   `Walkable()` result, give it a glyph in the TUI, and (if it is a facility)
   wire it into the needs table. Flow fields are allocated per facility terrain
   in `newWorld`.
-- **Richer tiles** (ore, moisture): add fields to `Tile`; call sites that only
-  read `.Terrain` are unaffected.
+- **A new rock composition**: add a `RockComposition`, its world-generation
+  weighting, mining yield, and TUI glyph. Leave it out of `Terrain` unless it
+  actually changes movement or construction rules.
+- **Different deposit shapes**: adjust `RockVeinMin` / `RockVeinMax` for coarse
+  clustering. Change `growRockVeins` only when the topology itself should change;
+  doing so intentionally changes generated maps for existing seeds.
 - **Multiple levels (z-layers)** are the big planned extension; the region and
   flow-field machinery were built to extend into it. This is not implemented yet.
 
