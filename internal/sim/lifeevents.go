@@ -8,8 +8,8 @@ import "fmt"
 // mood effects below, declared once per kind). See docs/memories.md.
 //
 // Named LifeEvent/LifeEventKind rather than Event: this package already has
-// an Event interface (events.go) for the terrain-change pub/sub bus, an
-// unrelated concept — reusing the name would collide.
+// a WorldEvent interface (events.go) for the terrain-change pub/sub bus, an
+// unrelated concept — a bare Event would be ambiguous between the two.
 type LifeEventKind uint8
 
 const (

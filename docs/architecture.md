@@ -95,7 +95,7 @@ flow fields subscribe to it to stay incrementally up to date. See
 - A **synchronous** event bus was chosen over channels/async because handlers are
   cheap and run on the owning goroutine; async would reintroduce ordering and
   locking concerns for no benefit at this scale. Note that boxing a value into
-  the `Event` interface allocates, so producers emit only on real changes
+  the `WorldEvent` interface allocates, so producers emit only on real changes
   (`SetTerrain` no-ops when terrain is unchanged).
 
 ## Extending it
