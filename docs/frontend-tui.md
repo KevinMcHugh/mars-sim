@@ -59,10 +59,11 @@ screen; the rest dispatch to `handleMapKey`, `handleRosterKey`, or
   which lists only the parts that entity actually has, so a mutant's grown
   limbs appear and nobody else shows empty ones — see
   [mutation.md](./mutation.md)), needs, the
-  eight-slot inventory, recent memories, and traits — for a colonist, or a
-  shorter identity/status/body-part view (`renderNonColonistDetail`) for
-  anything else. See [combat.md](./combat.md) for the wound and graveyard
-  data this displays.
+  eight-slot inventory, traits, family, affinities, and the colonist's whole
+  remembered history — for a colonist, or a shorter identity/status/body-part
+  view (`nonColonistDetailLines`) for anything else. It is taller than the
+  panel and scrolls (see The scrolling inspector). See
+  [combat.md](./combat.md) for the wound and graveyard data this displays.
 - **Job board** (`renderJobs`): a scrolling list of queued construction
   projects (facility rooms, dormitories), each with its tick-queued time,
   build progress, and assigned colonist count; a detail pane for the selected
@@ -72,6 +73,45 @@ screen; the rest dispatch to `handleMapKey`, `handleRosterKey`, or
   [architecture.md](./architecture.md) for how projects and tasks work. (This
   screen is unrelated to the engine's internal `jobBoard`, which tracks the
   mining frontier — see `internal/sim/jobboard.go`.)
+
+### The scrolling inspector
+
+A colonist's inspector does not fit in the panel, and the fix for that used to
+be to show less: memories were capped at the last five, and everything past
+the panel's last row was simply clipped by `lipgloss`. Both were invisible to
+the player — a clipped panel looks exactly like a panel that ends there — so
+"what does this colonist actually remember?" was a question the UI could not
+answer.
+
+`Model.detailScroll` is the first content line the detail panel shows.
+`shift+↑`/`shift+↓` move it a line and `pgup`/`pgdn` a screenful; the plain
+arrows stay on the list, since moving between colonists is what the roster is
+mostly for. It resets to the top whenever the selection or a roster filter
+changes — the offset belongs to the colonist being read, not to the panel.
+
+The renderer splits into two halves for this: `detailLines` builds the content
+as one string per terminal line (`nonColonistDetailLines` for anything without
+a `Profile`), and `scrollDetail` windows that to the panel's height, fitting
+only the lines it actually shows, so the per-frame width work stays
+proportional to the visible rows rather than to a 64-memory history. When the
+content overflows, the panel's bottom row becomes a position line
+(`scrollStatusLine`: `↑↓  18-35 of 50  shift+↑↓ scroll`), with arrows only for
+the directions that have more to show. Content that fits is drawn untouched,
+with no position line.
+
+`scrollDetail` clamps the offset as well as `Update` does. Update-side
+clamping (`clampDetailScroll`, via `detailExtent`, which re-derives the
+content length and panel height the way the renderer does) is what makes one
+`shift+↑` after a run of `pgdn` move the panel instead of unwinding a
+runaway offset; render-side clamping is for the content shrinking on its own
+between keypresses, as a colonist's state changes.
+
+One layout trap is worth knowing: `Style.Height` sizes the content box and
+`Style.MaxHeight` trims the *finished* block, border included, so they are two
+cells apart. Both roster panels (and both job-board panels) passed the content
+height to each, which quietly ate their last row and bottom border —
+`TestListScreensFillTerminalHeight` pins the fix, and it is the row the
+position line lives on.
 
 ### Spawn and build menus
 
@@ -104,6 +144,7 @@ kinds are added — new options are new entries in `spawnMenuItems`/
 | `b` | open the build menu — `↑↓`/`enter` to pick, or `f`/`d`/`t` for facility room/dormitory/trash room directly (`OrderFacilityRoom`, `OrderDormitory`, `OrderTrashRoom`) |
 | `f` (roster only) | open the roster's filter menu — `↑↓`/`enter`/`space` to toggle the highlighted checkbox, or `d`/`n` for dead/non-human directly; no command sent, this only changes what the roster shows |
 | arrows or `hjkl` | pan the camera (map) / move selection (roster, job board) |
+| `shift+↑↓`, `pgup`/`pgdn` (roster only) | scroll the selected colonist's inspector a line / a screenful |
 | `tab` | cycle map → roster → job board → map |
 | `q` / `esc` | quit (`esc` returns to the map from roster/job board, or cancels an open menu) |
 
