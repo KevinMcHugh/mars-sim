@@ -225,6 +225,12 @@ func validateConfig(cfg sim.Config) error {
 		return fmt.Errorf("mutation-chance must be between 0 and 100 (got %d)", cfg.MutationChance)
 	case cfg.MutantLoverAffinityBonus < 0:
 		return fmt.Errorf("mutant-lover-affinity cannot be negative (got %d)", cfg.MutantLoverAffinityBonus)
+	case cfg.MutationStaturePercent < 0 || cfg.MutationStaturePercent > 99:
+		return fmt.Errorf("mutation-stature-percent must be between 0 and 99 (got %d)", cfg.MutationStaturePercent)
+	case cfg.StatureMinCM < 1:
+		return fmt.Errorf("stature-min-cm must be at least 1 (got %d)", cfg.StatureMinCM)
+	case cfg.StatureMaxCM < cfg.StatureMinCM:
+		return fmt.Errorf("stature-max-cm (%d) cannot be below stature-min-cm (%d)", cfg.StatureMaxCM, cfg.StatureMinCM)
 	case cfg.FamilyChance < 0 || cfg.FamilyChance > 100:
 		return fmt.Errorf("family-chance must be between 0 and 100 (got %d)", cfg.FamilyChance)
 	case cfg.AppearanceInheritChance < 0 || cfg.AppearanceInheritChance > 100:

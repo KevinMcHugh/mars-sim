@@ -2,12 +2,14 @@ package sim
 
 import "math"
 
-// Personality gives colonists names, attributes, and traits. Attributes (age,
-// gender, orientation, height, weight, skin tone, hair color) are populated
-// for flavor and future systems but nothing simulates against them yet.
-// Traits, in contrast, change
-// how a colonist plays: they scale need rates and work behavior. As new needs
-// and systems arrive, new traits slot in over the same machinery.
+// Personality gives colonists names, attributes, and traits. Most attributes
+// (age, gender, orientation, skin tone, hair color) are populated for flavor
+// and future systems but nothing simulates against them yet. Height and weight
+// used to be in that group and no longer are: mutation resizes a colonist and
+// scales their body with them, so HeightCM is live gameplay state once uranium
+// is involved (see mutation.go). Traits likewise change how a colonist plays:
+// they scale need rates and work behavior. As new needs and systems arrive,
+// new traits slot in over the same machinery.
 //
 // Personality is generated from a dedicated RNG stream (World.prng) so that
 // adding flavor never shifts the simulation's own RNG — with traits disabled the
@@ -297,6 +299,16 @@ type Profile struct {
 	HairColor   HairColor
 	Traits      []Trait
 
+	// BornHeightCM and BornWeightKG are the body this colonist was generated
+	// with, after any heredity re-framing. HeightCM and WeightKG drift away
+	// from them once uranium starts resizing people (see mutation.go), and
+	// every resize recomputes the weight from these rather than from the last
+	// weight: a colonist who is stretched and shrunk back a dozen times must
+	// end up the weight they started at, and rescaling a rounded integer over
+	// and over would instead grind them away to nothing.
+	BornHeightCM int
+	BornWeightKG int
+
 	// Heredity bookkeeping, unexported because nothing outside generation needs
 	// it: these are the forms of an attribute that pass between relatives, as
 	// opposed to the displayed value that age or a marriage may have changed.
@@ -490,6 +502,7 @@ func (w *World) rollBody(p *Profile) {
 	bmi := clampFloat(24.0+w.prng.NormFloat64()*3.5, 16, 38)
 	p.HeightCM = heightFromZ(p.Gender, p.heightZ)
 	p.WeightKG = weightFor(p.HeightCM, bmi)
+	p.rememberBornBody()
 }
 
 // setHeightZ re-frames a colonist at a new height z-score while keeping the
@@ -500,6 +513,17 @@ func setHeightZ(p *Profile, z float64) {
 	p.heightZ = z
 	p.HeightCM = heightFromZ(p.Gender, z)
 	p.WeightKG = weightFor(p.HeightCM, bmi)
+	p.rememberBornBody()
+}
+
+// rememberBornBody records the body a colonist arrived with, which is what
+// mutation rescales their weight from ever after (see setStature in
+// mutation.go). Every path that *generates* a body ends here — the original
+// roll and a heredity re-framing alike — because inheriting a relative's frame
+// changes who the colonist always was, while a mutation changes what became of
+// them.
+func (p *Profile) rememberBornBody() {
+	p.BornHeightCM, p.BornWeightKG = p.HeightCM, p.WeightKG
 }
 
 // heightFromZ converts a z-score into centimetres against the gender's mean.
