@@ -22,6 +22,7 @@ const (
 	// its owner under a dose the whole time (see mutation.go): it is the one
 	// item that acts on the colonist holding it.
 	UraniumOre
+	Clay
 	// Pistol and Shotgun are combat weapons: a colonist carrying one fights an
 	// alien that gets close instead of only fleeing. See combat.go and
 	// docs/combat.md.
@@ -45,6 +46,8 @@ func (k ItemKind) String() string {
 		return "water ice"
 	case UraniumOre:
 		return "uranium ore"
+	case Clay:
+		return "clay"
 	case Pistol:
 		return "pistol"
 	case Shotgun:
@@ -91,7 +94,7 @@ func (k ItemKind) isRefuse() bool {
 // Weapons stay equipped and refuse keeps its dedicated incinerator route.
 func (k ItemKind) isStorableMaterial() bool {
 	switch k {
-	case RawRock, IronOre, WaterIce, UraniumOre:
+	case RawRock, IronOre, WaterIce, UraniumOre, Clay:
 		return true
 	default:
 		return false
@@ -324,6 +327,8 @@ func miningYield(tile Tile) []ItemStack {
 		yield = append(yield, ItemStack{Kind: WaterIce, Count: 1})
 	case UraniumBearingRock:
 		yield = append(yield, ItemStack{Kind: UraniumOre, Count: 1})
+	case ClayBearingRock:
+		yield = append(yield, ItemStack{Kind: Clay, Count: 1})
 	}
 	return yield
 }

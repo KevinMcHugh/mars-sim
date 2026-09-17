@@ -41,6 +41,7 @@ const (
 	glyphIronRock    = "\U00002B1B" // ⬛ iron-bearing rock
 	glyphIceRock     = "\U0001F7E6" // 🟦 water ice-bearing rock
 	glyphUranium     = "\U0001F7E9" // 🟩 uranium-bearing rock (the glow is the warning)
+	glyphClayRock    = "\U0001F7E7" // 🟧 clay-bearing rock
 	glyphFloor       = "  "         // open, walkable space
 	glyphWall        = "\U0001F9F1" // 🧱 built wall
 	glyphPod         = "\U0001F96B" // 🥫 nutrient pod (food)
@@ -100,6 +101,7 @@ var glyphRegistry = map[string]glyph{
 	glyphIronRock:    {glyphIronRock, 2, "Fe"},
 	glyphIceRock:     {glyphIceRock, 2, "H2"},
 	glyphUranium:     {glyphUranium, 2, "U "},
+	glyphClayRock:    {glyphClayRock, 2, "Cl"},
 	glyphFloor:       {glyphFloor, 2, "  "},
 	glyphWall:        {glyphWall, 2, "[]"},
 	glyphPod:         {glyphPod, 2, "%%"},
@@ -263,6 +265,8 @@ func tileGlyph(tile sim.Tile) string {
 		return fitGlyph(glyphIceRock)
 	case sim.UraniumBearingRock:
 		return fitGlyph(glyphUranium)
+	case sim.ClayBearingRock:
+		return fitGlyph(glyphClayRock)
 	default:
 		return fitGlyph(glyphRock)
 	}

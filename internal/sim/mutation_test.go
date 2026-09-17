@@ -8,7 +8,7 @@ func mutationWorld(t *testing.T) *World {
 	t.Helper()
 	cfg := testConfig()
 	cfg.StartColonists, cfg.StartAliens, cfg.StartCats, cfg.StartMice = 0, 0, 0, 0
-	cfg.IronRockPercent, cfg.IceRockPercent, cfg.UraniumRockPercent = 0, 0, 0
+	cfg.IronRockPercent, cfg.IceRockPercent, cfg.UraniumRockPercent, cfg.ClayRockPercent = 0, 0, 0, 0
 	return newTestWorld(t, cfg)
 }
 
@@ -33,7 +33,7 @@ func TestWorldgenGrowsUraniumVeins(t *testing.T) {
 	cfg := testConfig()
 	cfg.Width, cfg.Height = 40, 30
 	cfg.StartColonists, cfg.StartAliens, cfg.StartCats, cfg.StartMice = 0, 0, 0, 0
-	cfg.IronRockPercent, cfg.IceRockPercent, cfg.UraniumRockPercent = 10, 5, 3
+	cfg.IronRockPercent, cfg.IceRockPercent, cfg.UraniumRockPercent, cfg.ClayRockPercent = 10, 5, 3, 0
 	cfg.Seed = 161803
 	w := NewEngine(cfg).world
 

@@ -83,6 +83,7 @@ func TestMiningAwardsRockCompositionMaterial(t *testing.T) {
 	}{
 		{"iron", IronBearingRock, IronOre},
 		{"water ice", WaterIceBearingRock, WaterIce},
+		{"clay", ClayBearingRock, Clay},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

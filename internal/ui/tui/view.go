@@ -319,7 +319,8 @@ func (m Model) drawSidebar(rows int) string {
 		{{glyphIncinerator, "burner"}, {glyphCorpse, "body"}},
 		{{glyphStorage, "storage"}, {glyphGore, "gore"}},
 		{{glyphRock, "rock"}, {glyphIronRock, "iron rock"}},
-		{{glyphIceRock, "ice rock"}, {glyphFloor, "open"}},
+		{{glyphIceRock, "ice rock"}, {glyphClayRock, "clay rock"}},
+		{{glyphUranium, "uranium"}, {glyphFloor, "open"}},
 	}
 	column := inner / 2
 

@@ -136,8 +136,9 @@ cost of being a mutant is social, not physical.
   `rollTraits` from ever generating a pre-mutated colonist, and a group with
   nothing rollable is skipped before drawing from the personality stream, so
   adding all of this left existing seeds' colonists unchanged.
-- **Uranium veins are grown last in `generate`**, after iron and ice, so every
-  existing seed's other deposits sit exactly where they did before.
+- **Uranium veins are grown after iron and ice in `generate`**, so introducing
+  uranium left those older deposits exactly where they were for existing seeds.
+  Clay follows uranium for the same compatibility reason.
 - **Affinity became directional.** Storage was always per-direction
   (`affinity[a][b]`); `addAffinity` just kept the two in step. The Mutant-Lover
   bonus is a fact about the admirer, not about the pair, and nothing but a

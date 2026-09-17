@@ -5,8 +5,8 @@
 ## What it is
 
 The world is a single underground level: a dense, row-major grid of `Tile`s that
-starts as solid rock with ordinary, iron-bearing, water ice-bearing, or
-uranium-bearing composition. World generation carves a landing cavern, drops the colonists inside
+starts as solid rock with ordinary, iron-bearing, water ice-bearing,
+uranium-bearing, or clay-bearing composition. World generation carves a landing cavern, drops the colonists inside
 it, and seeds aliens out in the surrounding rock and cats/mice on the floor.
 
 ## Source
@@ -30,8 +30,8 @@ from beside it; its large contents live in sparse world state rather than
 
 A `Tile` stores both `Terrain` and `RockComposition`. Composition is meaningful
 only while the terrain is `Rock`: ordinary rock yields one `RawRock`, while
-iron-bearing, water ice-bearing, and uranium-bearing rock also yield one
-`IronOre`, `WaterIce`, or `UraniumOre`. Keeping composition separate from terrain
+iron-bearing, water ice-bearing, uranium-bearing, and clay-bearing rock also
+yield one `IronOre`, `WaterIce`, `UraniumOre`, or `Clay`. Keeping composition separate from terrain
 means every deposit shares the same blocking, frontier, pathfinding, and
 excavation rules instead of multiplying terrain cases throughout the simulation.
 
@@ -79,11 +79,12 @@ go stale.
 
 `generate` (called once by `NewEngine`):
 
-1. Grows iron, water-ice, and uranium deposits as meandering, occasionally branching veins using a
+1. Grows iron, water-ice, uranium, and clay deposits as meandering, occasionally branching veins using a
    dedicated RNG derived from the simulation seed. The configurable iron, ice, and
-   uranium percentages default to 10%, 5%, and 3%; the remainder is ordinary rock.
-   Uranium is grown last, so adding it left every existing seed's iron and ice
-   veins exactly where they were. Veins
+   uranium, and clay percentages default to 10%, 5%, 3%, and 5%; the remainder
+   is ordinary rock. New compositions are appended to the generation order, so
+   clay was grown last and did not move the iron, ice, or uranium veins of
+   established seeds. Veins
    default to 8–24 orthogonally connected tiles.
 2. Carves an **oval cavern** at the map center. `caveRadii` sizes it to the
    starting colonist count (~10 tiles per colonist) at a 2:1 width:height ratio,

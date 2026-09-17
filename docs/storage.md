@@ -48,8 +48,8 @@ During work selection, a blocked colonist seeks the nearest reachable chest that
 can accept its complete material load. If none exists but a storage project is
 active, it claims that project's reachable work instead of unrelated
 construction. At the chest, `JobStore` atomically adds all general materials,
-then removes them from the colonist. Raw rock, iron ore, water ice, and uranium
-ore are general materials. Weapons remain equipped, while viscera and corpses
+then removes them from the colonist. Raw rock, iron ore, water ice, uranium
+ore, and clay are general materials. Weapons remain equipped, while viscera and corpses
 retain their dedicated incinerator route.
 
 Snapshot storage views are sorted by position before publication, avoiding

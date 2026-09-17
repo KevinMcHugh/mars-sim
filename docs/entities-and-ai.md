@@ -115,7 +115,7 @@ Work jobs:
   incinerator is reachable, so refuse is never picked up with nowhere to put it.
   See [sanitation.md](./sanitation.md).
 - **`jobStore`** — carry a work-blocking load of raw rock, iron ore, water ice,
-  and uranium ore to the nearest reachable chest that can fit it all, then
+  uranium ore, and clay to the nearest reachable chest that can fit it all, then
   transfer atomically. Weapons remain equipped and refuse remains on its
   incinerator route. See [storage.md](./storage.md).
 

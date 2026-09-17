@@ -6,7 +6,7 @@ func TestRockVeinsAreDeterministicAndMeetAbundanceTargets(t *testing.T) {
 	cfg := testConfig()
 	cfg.Width, cfg.Height = 40, 30
 	cfg.StartColonists, cfg.StartAliens, cfg.StartCats, cfg.StartMice = 0, 0, 0, 0
-	cfg.IronRockPercent, cfg.IceRockPercent = 10, 5
+	cfg.IronRockPercent, cfg.IceRockPercent, cfg.ClayRockPercent = 10, 5, 7
 	cfg.RockVeinMin, cfg.RockVeinMax = 8, 16
 	cfg.Seed = 314159
 
@@ -29,13 +29,16 @@ func TestRockVeinsAreDeterministicAndMeetAbundanceTargets(t *testing.T) {
 	if got, want := counts[WaterIceBearingRock], len(first.tiles)*cfg.IceRockPercent/100; got != want {
 		t.Fatalf("water ice-bearing tiles = %d, want %d", got, want)
 	}
+	if got, want := counts[ClayBearingRock], len(first.tiles)*cfg.ClayRockPercent/100; got != want {
+		t.Fatalf("clay-bearing tiles = %d, want %d", got, want)
+	}
 }
 
 func TestRockDepositsAreVeinsRatherThanIsolatedTiles(t *testing.T) {
 	cfg := testConfig()
 	cfg.Width, cfg.Height = 40, 30
 	cfg.StartColonists, cfg.StartAliens, cfg.StartCats, cfg.StartMice = 0, 0, 0, 0
-	cfg.IronRockPercent, cfg.IceRockPercent = 10, 5
+	cfg.IronRockPercent, cfg.IceRockPercent, cfg.ClayRockPercent = 10, 5, 7
 	cfg.RockVeinMin, cfg.RockVeinMax = 8, 16
 	cfg.Seed = 271828
 	w := NewEngine(cfg).world

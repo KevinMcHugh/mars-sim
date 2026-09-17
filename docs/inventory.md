@@ -5,8 +5,8 @@
 ## What it is
 
 Colonists carry items in a fixed set of slots, each holding one homogeneous stack.
-Mining produces `RawRock` and may also produce `IronOre`, `WaterIce`, or
-`UraniumOre`, depending on the excavated tile's rock composition. Colonists may also carry `Pistol` or
+Mining produces `RawRock` and may also produce `IronOre`, `WaterIce`,
+`UraniumOre`, or `Clay`, depending on the excavated tile's rock composition. Colonists may also carry `Pistol` or
 `Shotgun` weapons from the colony ship's starting equipment; see
 [combat.md](./combat.md). Cleaning up after the colony's dead fills slots too,
 with the `Viscera`/`Corpse` refuse a cleaner carries to the incinerator; see
@@ -36,7 +36,7 @@ count 0 and `ItemNone`.
   carry completely.
 
 Mining is the one producer today. `miningYield` always returns one `RawRock` and
-adds one `IronOre`, `WaterIce`, or `UraniumOre` for a bearing tile. `jobMine` and construction
+adds one `IronOre`, `WaterIce`, `UraniumOre`, or `Clay` for a bearing tile. `jobMine` and construction
 dig tasks add that complete yield with `AddAll` **before** changing terrain, so
 limited inventory can never make one part of a deposit disappear.
 

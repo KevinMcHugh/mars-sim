@@ -101,6 +101,7 @@ const (
 	// accumulates a dose, and a long enough dose can mutate them. See
 	// mutation.go and docs/mutation.md.
 	UraniumBearingRock
+	ClayBearingRock
 )
 
 func (c RockComposition) String() string {
@@ -113,6 +114,8 @@ func (c RockComposition) String() string {
 		return "water ice-bearing rock"
 	case UraniumBearingRock:
 		return "uranium-bearing rock"
+	case ClayBearingRock:
+		return "clay-bearing rock"
 	default:
 		return "unknown rock"
 	}

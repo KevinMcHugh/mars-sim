@@ -12,6 +12,7 @@ type Config struct {
 	IronRockPercent    int
 	IceRockPercent     int
 	UraniumRockPercent int
+	ClayRockPercent    int
 	RockVeinMin        int // minimum tiles in a generated deposit vein
 	RockVeinMax        int // maximum tiles in a generated deposit vein
 
@@ -206,6 +207,7 @@ func DefaultConfig() Config {
 		IronRockPercent:     10,
 		IceRockPercent:      5,
 		UraniumRockPercent:  3,
+		ClayRockPercent:     5,
 		RockVeinMin:         8,
 		RockVeinMax:         24,
 		Seed:                time.Now().UnixNano(),

@@ -98,6 +98,7 @@ func bindConfigFlags(cfg *sim.Config) {
 	flag.IntVar(&cfg.IronRockPercent, "iron-rock-percent", cfg.IronRockPercent, "percent of rock tiles bearing iron")
 	flag.IntVar(&cfg.IceRockPercent, "ice-rock-percent", cfg.IceRockPercent, "percent of rock tiles bearing water ice")
 	flag.IntVar(&cfg.UraniumRockPercent, "uranium-rock-percent", cfg.UraniumRockPercent, "percent of rock tiles bearing uranium")
+	flag.IntVar(&cfg.ClayRockPercent, "clay-rock-percent", cfg.ClayRockPercent, "percent of rock tiles bearing clay")
 	flag.IntVar(&cfg.RockVeinMin, "rock-vein-min", cfg.RockVeinMin, "minimum tiles in a generated rock deposit vein")
 	flag.IntVar(&cfg.RockVeinMax, "rock-vein-max", cfg.RockVeinMax, "maximum tiles in a generated rock deposit vein")
 
@@ -190,10 +191,10 @@ func validateConfig(cfg sim.Config) error {
 	switch {
 	case cfg.Width < 10 || cfg.Height < 10:
 		return fmt.Errorf("world must be at least 10x10 (got %dx%d)", cfg.Width, cfg.Height)
-	case cfg.IronRockPercent < 0 || cfg.IceRockPercent < 0 || cfg.UraniumRockPercent < 0 ||
-		cfg.IronRockPercent+cfg.IceRockPercent+cfg.UraniumRockPercent > 100:
-		return fmt.Errorf("rock composition percentages must be non-negative and total at most 100 (got iron %d + ice %d + uranium %d)",
-			cfg.IronRockPercent, cfg.IceRockPercent, cfg.UraniumRockPercent)
+	case cfg.IronRockPercent < 0 || cfg.IceRockPercent < 0 || cfg.UraniumRockPercent < 0 || cfg.ClayRockPercent < 0 ||
+		cfg.IronRockPercent+cfg.IceRockPercent+cfg.UraniumRockPercent+cfg.ClayRockPercent > 100:
+		return fmt.Errorf("rock composition percentages must be non-negative and total at most 100 (got iron %d + ice %d + uranium %d + clay %d)",
+			cfg.IronRockPercent, cfg.IceRockPercent, cfg.UraniumRockPercent, cfg.ClayRockPercent)
 	case cfg.RockVeinMin < 1 || cfg.RockVeinMax < cfg.RockVeinMin:
 		return fmt.Errorf("rock vein range is invalid: min %d, max %d", cfg.RockVeinMin, cfg.RockVeinMax)
 	case cfg.StartColonists < 0 || cfg.StartAliens < 0 || cfg.StartCats < 0 || cfg.StartMice < 0:
