@@ -136,20 +136,88 @@ func eventMood(kind LifeEventKind, mood int, format string, args ...any) LifeEve
 	return LifeEvent{Kind: kind, Text: fmt.Sprintf(format, args...), Mood: mood}
 }
 
+// repeatMoodDecay is the diminishing-returns curve: the percentage of a
+// LifeEventKind's table mood effect that still lands, indexed by how many
+// times in a row that kind has now happened (entry 0 is the first time). The
+// last entry holds for every occurrence past the end of the table, so a long
+// enough run stops moving mood at all.
+//
+// The first completed dig of a shift is an accomplishment; the twelfth is just
+// work. Without this, mood is a ratchet — it has no time decay, so a colonist
+// left on the mining frontier climbs to +MoodMax and stays pinned there, and
+// "how is this colonist doing" stops meaning anything. The curve applies to
+// negative effects too, as habituation: a run of nothing but bad news lands
+// softer each time, the same way a run of nothing but good news does.
+//
+// It is a package-level table rather than a Config knob for the same reason
+// lifeEventMoodEffects is: it is the shape of the mood model, edited with the
+// deltas it scales, not a per-run tunable like MineTicks.
+var repeatMoodDecay = []int{100, 60, 35, 20, 10, 0}
+
+// noteRepeat records that kind just happened to this colonist and returns how
+// many times in a row it now has — 1 for a fresh kind, n for the nth
+// consecutive one. Anything else happening in between resets the streak, so
+// "over and over" means uninterrupted, the same sense of a run that memory
+// collapsing uses (see collapseRepeat in world.go).
+func (e *Entity) noteRepeat(kind LifeEventKind) int {
+	if e.repeatRun > 0 && e.repeatKind == kind {
+		e.repeatRun++
+	} else {
+		e.repeatKind = kind
+		e.repeatRun = 1
+	}
+	return e.repeatRun
+}
+
+// repeatMoodPercent reads the decay curve for the repeat-th consecutive
+// occurrence (1-based), holding the table's last entry for anything past its
+// end.
+func repeatMoodPercent(repeat int) int {
+	if repeat < 1 {
+		repeat = 1
+	}
+	if repeat > len(repeatMoodDecay) {
+		repeat = len(repeatMoodDecay)
+	}
+	return repeatMoodDecay[repeat-1]
+}
+
+// scaleMood takes percent of delta, rounding half away from zero so a small
+// effect fades gradually to nothing instead of truncating to 0 the moment the
+// curve dips below 100% — at the +2 a finished job is worth, plain truncation
+// would make the second one free.
+func scaleMood(delta, percent int) int {
+	scaled := (abs(delta)*percent + 50) / 100
+	if delta < 0 {
+		return -scaled
+	}
+	return scaled
+}
+
 // applyMoodEffects folds a LifeEvent's mood impact onto a colonist: every
 // unconditional table effect always applies, a conditional one only if the
 // colonist's profile carries the named trait, and evt.Mood always applies on
 // top. Everything is summed into a single adjustMood call — one clamp, one
 // source of truth for "how did this affect mood," whether the number came
 // from the table or was computed by the caller.
-func (w *World) applyMoodEffects(e *Entity, evt LifeEvent) {
-	delta := evt.Mood
+//
+// repeat is how many times in a row this kind has happened (from noteRepeat),
+// and it discounts the *table* effects only. A caller-computed evt.Mood is
+// left at full strength because a caller that computes a delta per occurrence
+// already owns whatever fatigue it should have — the one today, a
+// conversation, has social fatigue with its own window and per-colonist
+// capacity (noteConversation), and stacking a second curve on top would
+// double-count the same "you have been doing a lot of this" idea with two
+// unrelated shapes.
+func (w *World) applyMoodEffects(e *Entity, evt LifeEvent, repeat int) {
+	table := 0
 	for _, eff := range lifeEventMoodEffects[evt.Kind] {
 		if eff.Conditional && (e.Profile == nil || !e.Profile.HasTrait(eff.Trait)) {
 			continue
 		}
-		delta += eff.Delta
+		table += eff.Delta
 	}
+	delta := evt.Mood + scaleMood(table, repeatMoodPercent(repeat))
 	if delta != 0 {
 		w.adjustMood(e, delta)
 	}

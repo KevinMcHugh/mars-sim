@@ -15,6 +15,7 @@ func (w *World) remember(e *Entity, evt LifeEvent) {
 	if e == nil || e.Kind != Colonist {
 		return
 	}
+	repeat := e.noteRepeat(evt.Kind)
 	if !w.collapseRepeat(e, evt) {
 		e.Memories = append(e.Memories, Memory{
 			Tick:     w.tick,
@@ -27,9 +28,10 @@ func (w *World) remember(e *Entity, evt LifeEvent) {
 			e.Memories = e.Memories[len(e.Memories)-maxColonistMemories:]
 		}
 	}
-	// Mood is applied per occurrence either way: collapsing is about what the
-	// memory log reads like, not about the twelfth dig having stopped counting.
-	w.applyMoodEffects(e, evt)
+	// Mood is applied per occurrence either way — collapsing is about what the
+	// memory log reads like — but a repeated occurrence is worth less than the
+	// first, discounted by repeat (see repeatMoodDecay in lifeevents.go).
+	w.applyMoodEffects(e, evt, repeat)
 }
 
 // collapseRepeat folds evt into the colonist's most recent memory, reporting

@@ -231,9 +231,10 @@ func TestNotableEventsDoNotCollapse(t *testing.T) {
 	}
 }
 
-// Collapsing is a display decision, not a mood one: the twelfth completed job
-// still lifts the colonist's mood the same as the first.
-func TestCollapsedRunStillAppliesMoodPerOccurrence(t *testing.T) {
+// A collapsed run still applies mood per occurrence rather than once — but
+// each repeat is worth less than the one before, so a run lifts mood by more
+// than a single job and by less than the naive multiple.
+func TestCollapsedRunAppliesDiminishingMood(t *testing.T) {
 	cfg := testConfig()
 	w := newTestWorld(t, cfg)
 
@@ -250,7 +251,108 @@ func TestCollapsedRunStillAppliesMoodPerOccurrence(t *testing.T) {
 	if once.mood <= 0 {
 		t.Fatalf("mood after one job = %d, want positive", once.mood)
 	}
-	if thrice.mood != 3*once.mood {
-		t.Errorf("mood after three collapsed jobs = %d, want %d (three times one job's lift)", thrice.mood, 3*once.mood)
+	if thrice.mood <= once.mood {
+		t.Errorf("mood after three jobs = %d, want more than one job's %d", thrice.mood, once.mood)
+	}
+	if thrice.mood >= 3*once.mood {
+		t.Errorf("mood after three jobs = %d, want less than three times one job's %d", thrice.mood, once.mood)
+	}
+}
+
+// Each consecutive repeat of a kind should move mood less than the one before
+// it, and a long enough run should stop moving mood at all — otherwise a
+// colonist parked on the mining frontier ratchets to MoodMax and stays there,
+// since mood has no time decay of its own.
+func TestRepeatedEventMoodDecaysToNothing(t *testing.T) {
+	cfg := testConfig()
+	w := newTestWorld(t, cfg)
+
+	col := w.spawn(Colonist, Point{0, 0})
+	col.Profile = &Profile{}
+
+	var steps []int
+	prev := col.mood
+	for i := 0; i < len(repeatMoodDecay)+2; i++ {
+		w.remember(col, event(EvtFinishedMining, "Finished mining at (%d, %d).", i, i))
+		steps = append(steps, col.mood-prev)
+		prev = col.mood
+	}
+
+	if steps[0] <= 0 {
+		t.Fatalf("first job moved mood by %d, want positive", steps[0])
+	}
+	for i := 1; i < len(steps); i++ {
+		if steps[i] > steps[i-1] {
+			t.Errorf("job %d moved mood by %d, more than job %d's %d; the curve should never rise", i+1, steps[i], i, steps[i-1])
+		}
+	}
+	if last := steps[len(steps)-1]; last != 0 {
+		t.Errorf("job past the end of the decay curve moved mood by %d, want 0", last)
+	}
+}
+
+// Doing something else resets the streak: coming back to a job after a break
+// is worth full value again.
+func TestBreakingAStreakRestoresFullMood(t *testing.T) {
+	cfg := testConfig()
+	w := newTestWorld(t, cfg)
+
+	col := w.spawn(Colonist, Point{0, 0})
+	col.Profile = &Profile{}
+
+	w.remember(col, event(EvtFinishedMining, "Finished mining at (1, 1)."))
+	first := col.mood
+	for i := 0; i < len(repeatMoodDecay); i++ {
+		w.remember(col, event(EvtFinishedMining, "Finished mining at (%d, %d).", i, i))
+	}
+	worn := col.mood
+	w.remember(col, event(EvtFinishedMining, "Finished mining at (9, 9)."))
+	if col.mood != worn {
+		t.Fatalf("mood still moving at the end of a long run: %d -> %d", worn, col.mood)
+	}
+
+	// EvtSlept has no mood effect of its own, so any change after it is the
+	// next dig being worth full value again rather than the nap itself.
+	w.remember(col, event(EvtSlept, "Slept in a bed."))
+	w.remember(col, event(EvtFinishedMining, "Finished mining at (5, 5)."))
+
+	if got := col.mood - worn; got != first {
+		t.Errorf("first job after a break moved mood by %d, want a full %d", got, first)
+	}
+}
+
+// Diminishing returns discount what the mood table declares, not a delta the
+// caller computed for this occasion: conversations already model repetition
+// with their own social-fatigue window, and shouldn't be taxed twice.
+func TestComputedMoodIsNotDiscountedByRepeats(t *testing.T) {
+	cfg := testConfig()
+	w := newTestWorld(t, cfg)
+
+	col := w.spawn(Colonist, Point{0, 0})
+	col.Profile = &Profile{}
+
+	const perTalk = 5
+	for i := 0; i < len(repeatMoodDecay)+2; i++ {
+		w.remember(col, eventMood(EvtConversation, perTalk, "Had a conversation."))
+	}
+
+	if want := perTalk * (len(repeatMoodDecay) + 2); col.mood != want {
+		t.Errorf("mood after %d conversations = %d, want %d undiscounted", len(repeatMoodDecay)+2, col.mood, want)
+	}
+}
+
+// The decay curve is a discount, not a sign flip: habituation to a run of bad
+// news softens it toward zero, it never turns a penalty into a reward.
+func TestRepeatDecayNeverFlipsSign(t *testing.T) {
+	for _, delta := range []int{-14, -6, -5, -1, 1, 2, 6, 15} {
+		for repeat := 1; repeat <= len(repeatMoodDecay)+2; repeat++ {
+			got := scaleMood(delta, repeatMoodPercent(repeat))
+			if delta > 0 && (got < 0 || got > delta) {
+				t.Errorf("scaleMood(%d, repeat %d) = %d, want within [0, %d]", delta, repeat, got, delta)
+			}
+			if delta < 0 && (got > 0 || got < delta) {
+				t.Errorf("scaleMood(%d, repeat %d) = %d, want within [%d, 0]", delta, repeat, got, delta)
+			}
+		}
 	}
 }

@@ -20,10 +20,10 @@ ticks has a history, not a mining log.
 
 - [`internal/sim/lifeevents.go`](../internal/sim/lifeevents.go) — `LifeEventKind`,
   `LifeEvent`, `event`, `MoodEffect`, `lifeEventMoodEffects`, `applyMoodEffects`,
-  `lifeEventCollapseText`.
+  `lifeEventCollapseText`, `repeatMoodDecay`, `noteRepeat`, `scaleMood`.
 - [`internal/sim/entity.go`](../internal/sim/entity.go) — `Memory` (carries
   `Kind`, and `LastTick`/`Count` for a collapsed run), the colonist's
-  `Memories`/`seen`/`seeingGore` fields.
+  `Memories`/`repeatKind`/`repeatRun`/`seen`/`seeingGore` fields.
 - [`internal/sim/world.go`](../internal/sim/world.go) — `remember`, the one
   funnel every memory and mood effect goes through, and `collapseRepeat`.
 - [`internal/sim/systems.go`](../internal/sim/systems.go) — `observeNearby`
@@ -119,10 +119,14 @@ effect is the computed one):
 w.remember(a, eventMood(EvtConversation, mood+w.noteConversation(a), "Had a conversation with %s.", b.displayName()))
 ```
 
-`applyMoodEffects` sums the table effects and `evt.Mood` into a single
-number and makes one call to `adjustMood` — one clamp, one place mood
-actually changes, whether the delta came from a static table or a live
-computation.
+`applyMoodEffects` sums the table effects (after the repeat discount below)
+and `evt.Mood` into a single number and makes one call to `adjustMood` — one
+clamp, one place mood actually changes, whether the delta came from a static
+table or a live computation.
+
+The numbers in the table are what a *first* occurrence is worth. What actually
+lands is discounted by how many times in a row the kind has happened — see
+Diminishing returns on a repeated event.
 
 ### Sightings, including gore, stay edge-triggered
 
@@ -211,16 +215,66 @@ Three decisions are worth spelling out:
   table holds the text rather than a bare `bool` — "is this kind minor" and
   "what does a run of it read as" are the same question, answered in one
   place.
-- **Mood still applies per occurrence.** `applyMoodEffects` runs on every
-  call, collapsed or not: the twelfth completed job lifts an Industrious
-  colonist exactly as much as the first. Collapsing is about what the log
-  reads like, not about the simulation deciding repetition stops counting.
+- **Mood still applies per occurrence, not once per run.**
+  `applyMoodEffects` runs on every call, collapsed or not — the log folding
+  twelve digs into one line is not the simulation deciding the last eleven
+  did not happen. How *much* each one is worth is a separate question, and
+  the answer is less each time: see the next section.
 
 `Tick`/`LastTick`/`Count` are what a frontend needs to render a run without
 pretending it was one event — the TUI writes
 `t1607-1630: Finished mining. (x12)` (`memoryLine`), and an uncollapsed memory
 (`Count` 1, `LastTick == Tick`) goes through the same code as a plain
 `t1586: Had a meal.` See [frontend-tui.md](./frontend-tui.md).
+
+### Diminishing returns on a repeated event
+
+Mood has no time decay: it is a persistent value in `[-MoodMax, MoodMax]` that
+only ever moves when something happens. So a flat +2 per completed job made
+mood a ratchet — a colonist left on the mining frontier climbed to +100 within
+a few hundred ticks and stayed pinned there for the rest of the game, and
+"how is this colonist doing" stopped meaning anything. Over a 5000-tick run,
+five of six colonists sat at exactly `MoodMax`.
+
+Each consecutive repeat of a kind now delivers less than the one before it:
+
+```go
+// percentage of the table effect that still lands, by consecutive occurrence
+var repeatMoodDecay = []int{100, 60, 35, 20, 10, 0}
+```
+
+The last entry holds forever, so a long enough run stops moving mood at all.
+For the +2 a finished job is worth, a shift reads 2, 1, 1, 0, 0, 0… — the
+first dig of a shift is an accomplishment, the twelfth is just work. The same
+run under the old flat rate was worth +24.
+
+`Entity.noteRepeat` is the counter: it returns 1 for a fresh kind and *n* for
+the *n*th consecutive one, with anything else in between resetting it. That is
+the same sense of "a run" that memory collapsing uses, but tracked separately
+(`repeatKind`/`repeatRun`, not the newest `Memory`'s `Count`) because a streak
+of *kills* has to decay too, and each of those is still its own memory.
+
+Three decisions worth spelling out:
+
+- **The curve discounts the table effects, not `evt.Mood`.** A caller that
+  computes a delta per occurrence already owns whatever fatigue it should
+  have: the only one today, a conversation, has social fatigue with its own
+  window and per-colonist capacity (`noteConversation`, see
+  [personality.md](./personality.md)). Stacking `repeatMoodDecay` on top would
+  express the same "you have been doing a lot of this" idea twice, in two
+  unrelated shapes.
+- **Negative effects decay too.** Habituation, not just satiation: a run of
+  nothing but bad news lands softer each time. `scaleMood` rounds half away
+  from zero and never crosses zero, so a discount is always a discount — a
+  penalty fades toward 0 and never becomes a reward.
+- **Rounding is half-away-from-zero, deliberately.** Truncating `2 * 60%` to
+  1 is fine, but truncating the third occurrence's `2 * 35%` to 0 would make
+  the curve's shape irrelevant for exactly the small deltas most kinds use.
+  Away-from-zero keeps a fading effect worth ±1 until the curve itself reaches
+  0.
+
+After this, the same 5000-tick run spreads its colonists across -25 to +100
+with one at the cap, which is what a mood value is supposed to look like.
 
 ### The full `LifeEventKind` roster
 
@@ -245,6 +299,9 @@ pretending it was one event — the TUI writes
 | `EvtIncineratedRefuse` | burned a load of refuse in the incinerator | universal +2, +Industrious +2, +Tidy +6 |
 | `EvtMutated` | uranium exposure grew a new body part | universal -14, +Mutant-Lover +28 (net +14) |
 | `EvtWitnessedMutation` | watched another colonist mutate | universal -6, +Mutant-Lover +12 (net +6) |
+
+Every mood figure above is what the *first* occurrence is worth; a repeat is
+discounted (see Diminishing returns on a repeated event).
 
 "None yet" is a table entry away from having one — see Extending it. The
 routine kinds in the bottom half of the table (`EvtAte`, `EvtUsedToilet`,
@@ -334,8 +391,23 @@ data rather than a branch in `mutate()`.
   fact in 25 places and let two mining call sites disagree about it. It also
   keeps the two per-kind tables side by side in `lifeevents.go`, so adding a
   kind means looking at both.
+- **Repetition is discounted, not capped or time-decayed.** The alternatives
+  considered were a per-kind daily cap ("a colonist can bank at most +10 of
+  job satisfaction per N ticks") and a global drift of mood back toward 0 over
+  time. The cap needs a window length and a budget per kind — two tunables,
+  and a cliff where the reward vanishes between one dig and the next. Global
+  drift is a bigger change that would also erode moods nothing is repeating,
+  quietly undoing a trauma or a triumph the player watched happen. A per-
+  occurrence discount needs no clock, no new `Config` field, and degrades
+  smoothly.
+- **The streak is its own pair of fields, not the newest `Memory`'s `Count`.**
+  The two would agree today for the kinds that collapse, but `Count` only
+  exists *because* a kind collapses; tying the reward curve to it would mean
+  a streak of kills or bites could never decay without also being folded into
+  one log line. Display and reward are separate concerns that happen to share
+  the word "run".
 - **No time window on a run.** Two digs a thousand ticks apart with nothing
-  between them still collapse. A gap threshold was considered and dropped: it
+  between them still collapse, and the second is still discounted as a repeat. A gap threshold was considered and dropped: it
   is another tunable to justify, and "nothing else happened to this colonist
   in between" is already the honest summary of that stretch — if something
   had, it would have broken the run.
@@ -356,6 +428,11 @@ data rather than a branch in `mutate()`.
   does): build it with `eventMood(kind, mood, format, args...)` instead of
   `event`, computing `mood` at the call site. It adds to, rather than
   replaces, whatever the table declares for that kind.
+- **Retune how fast repetition wears off**: edit `repeatMoodDecay`
+  (`lifeevents.go`). A longer table fades more slowly; dropping the trailing
+  `0` for a small number gives a floor a run never falls below. If a kind ever
+  needs its *own* curve, the table becomes a per-kind one indexed like
+  `lifeEventMoodEffects` — not worth it while one shape fits everything.
 - **Make an existing kind collapsible (or stop it collapsing)**: add or remove
   its entry in `lifeEventCollapseText` (`lifeevents.go`). The entry's text is
   what a run of it reads as; no call site changes. `EvtCrushedMouse` is the

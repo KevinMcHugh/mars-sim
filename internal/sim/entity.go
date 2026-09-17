@@ -361,7 +361,16 @@ type Entity struct {
 	// Memories is a bounded history of notable experiences. The internal slice
 	// is copied into EntityView so frontends cannot mutate the live world.
 	Memories []Memory
-	seen     map[EntityID]bool // nearby creatures already recorded as seen
+	// repeatKind/repeatRun track the colonist's current streak of one
+	// LifeEventKind — the nth time in a row that kind has happened, with
+	// anything else resetting it. It is what diminishing returns are computed
+	// from (see noteRepeat and repeatMoodDecay in lifeevents.go). Deliberately
+	// separate from the newest Memory's Count, which only exists for the kinds
+	// that collapse: a streak of kills has to decay too, and each of those is
+	// still its own memory.
+	repeatKind LifeEventKind
+	repeatRun  int
+	seen       map[EntityID]bool // nearby creatures already recorded as seen
 	// seeingGore edge-triggers EvtSawGore the same way seen does for entities,
 	// but as a single on/off flag rather than a per-tile map: "in sight of any
 	// gore" is one memory-worthy fact, not one per stained tile (see
