@@ -113,14 +113,22 @@ func (w *World) newKin(entity EntityID) kinID {
 	return id
 }
 
+// anyParent returns a parent of the node, if one is recorded.
+func (p *kinPerson) anyParent() (kinID, bool) {
+	for _, par := range p.parents {
+		if par != 0 {
+			return par, true
+		}
+	}
+	return 0, false
+}
+
 // ensureParent returns an existing parent of x, creating a phantom one if x has
 // none. Used to attach siblings and grandparents onto a shared ancestor.
 func (w *World) ensureParent(x kinID) kinID {
 	px := w.kin[x]
-	for _, par := range px.parents {
-		if par != 0 {
-			return par
-		}
+	if par, ok := px.anyParent(); ok {
+		return par
 	}
 	par := w.newKin(0)
 	px.parents[0] = par
@@ -191,6 +199,15 @@ func (w *World) wireRelation(c, r *Entity, kind RelationKind) (ok bool) {
 	}()
 	kc, kr := c.kin, r.kin
 	pc, pr := w.kin[kc], w.kin[kr]
+	// Only the ties that put c above someone need to look downward, so the child
+	// index is built on demand rather than for every attempt.
+	var kids map[kinID][]kinID
+	kinKids := func() map[kinID][]kinID {
+		if kids == nil {
+			kids = w.kinChildren()
+		}
+		return kids
+	}
 	switch kind {
 	case RelSpouse:
 		if pc.spouse != 0 || pr.spouse != 0 || !spouseCompatible(c.Profile, r.Profile) {
@@ -205,64 +222,162 @@ func (w *World) wireRelation(c, r *Entity, kind RelationKind) (ok bool) {
 		pc.spouse, pr.spouse = kr, kc
 		return true
 	case RelChild: // c is r's child: c's parents are r (and r's spouse, if any)
-		if !validParent(r.Profile, c.Profile) {
+		if !w.fitsBelowKin(c.Profile, kr, 1) {
 			return false
 		}
 		pc.addParentSlot(kr)
-		if pr.spouse != 0 {
-			// A spouse is also a parent only when their age supports that role.
-			// Otherwise the explicitly requested parent still gets the tie.
-			spouse := w.kin[pr.spouse]
-			if spouse.entity == 0 {
-				pc.addParentSlot(pr.spouse)
-			} else if parent := w.entities[spouse.entity]; parent != nil &&
-				validParent(parent.Profile, c.Profile) {
-				pc.addParentSlot(pr.spouse)
-			}
+		// A spouse is also a parent only when their age supports that role.
+		// Otherwise the explicitly requested parent still gets the tie.
+		if pr.spouse != 0 && w.fitsBelowKin(c.Profile, pr.spouse, 1) {
+			pc.addParentSlot(pr.spouse)
 		}
 		return true
 	case RelParent: // c is r's parent: add c as a parent of r
-		if !validParent(c.Profile, r.Profile) {
+		if !w.fitsAboveKin(c.Profile, kr, 1, kinKids()) {
 			return false
 		}
 		return pr.addParentSlot(kc)
 	case RelSibling: // c is r's sibling: c shares r's parents
-		w.ensureParent(kr)
-		for _, par := range pr.parents {
-			if par != 0 {
-				pc.addParentSlot(par)
+		// Checked before ensureParent so a rejected tie leaves the tree as it
+		// found it; the parent it would create is a phantom with nothing above
+		// it, so it constrains nothing.
+		for _, par := range nonZeroKin(pr.parents) {
+			if !w.fitsBelowKin(c.Profile, par, 1) {
+				return false
 			}
+		}
+		w.ensureParent(kr)
+		for _, par := range nonZeroKin(pr.parents) {
+			pc.addParentSlot(par)
 		}
 		return true
 	case RelGrandparent: // c is r's grandparent: c is a parent of r's parent
-		par := w.ensureParent(kr)
-		return w.kin[par].addParentSlot(kc)
+		mid, haveMid := pr.anyParent()
+		if !haveMid {
+			// The middle generation is about to be invented, so it has no age of
+			// its own: c carries both of the parent gaps it stands for.
+			if !w.fitsAboveKin(c.Profile, kr, 2, kinKids()) {
+				return false
+			}
+			mid = w.ensureParent(kr)
+		} else if !w.fitsAboveKin(c.Profile, mid, 1, kinKids()) {
+			return false
+		}
+		return w.kin[mid].addParentSlot(kc)
 	case RelGrandchild: // c is r's grandchild: c's parent is a child of r
+		// The middle generation is always a fresh phantom, so as above c carries
+		// both parent gaps against r itself.
+		if !w.fitsBelowKin(c.Profile, kr, 2) {
+			return false
+		}
 		mid := w.newKin(0)
 		w.kin[mid].addParentSlot(kr)
 		pc.addParentSlot(mid)
 		return true
 	case RelAuntUncle: // c is r's aunt/uncle: c is a sibling of r's parent
+		if mid, ok := pr.anyParent(); ok {
+			for _, gp := range nonZeroKin(w.kin[mid].parents) {
+				if !w.fitsBelowKin(c.Profile, gp, 1) {
+					return false
+				}
+			}
+		}
 		par := w.ensureParent(kr)
 		w.ensureParent(par)
-		for _, gp := range w.kin[par].parents {
-			if gp != 0 {
-				pc.addParentSlot(gp)
-			}
+		for _, gp := range nonZeroKin(w.kin[par].parents) {
+			pc.addParentSlot(gp)
 		}
 		return true
 	case RelNibling: // c is r's nibling: c is a child of a sibling of r
+		// The sibling in between is a phantom, so c sits two parent gaps below
+		// r's own parents.
+		for _, par := range nonZeroKin(pr.parents) {
+			if !w.fitsBelowKin(c.Profile, par, 2) {
+				return false
+			}
+		}
 		w.ensureParent(kr)
 		sib := w.newKin(0)
-		for _, par := range pr.parents {
-			if par != 0 {
-				w.kin[sib].addParentSlot(par)
-			}
+		for _, par := range nonZeroKin(pr.parents) {
+			w.kin[sib].addParentSlot(par)
 		}
 		pc.addParentSlot(sib)
 		return true
 	}
 	return false
+}
+
+// Age rules for new family ties.
+//
+// A colonist's relation list reaches two generations in each direction, so those
+// are the ties whose ages have to hang together: a parent is at least
+// minParentAgeGap years older than their child, and a grandparent twice that.
+// Generations in between are often phantoms who never joined the colony and have
+// no age of their own, so the gaps they stand for cannot be checked one link at a
+// time. fitsAboveKin and fitsBelowKin instead walk out from where the new person
+// would sit and check each colonist they reach against the number of parent links
+// away it is, which folds any phantom generations along the way into a single
+// wider gap.
+
+// minParentAgeGap is the fewest years that may separate a parent from their
+// child.
+const minParentAgeGap = 20
+
+// kinDisplayGenerations is how far a relation list reaches (grandparent and
+// grandchild), and so how far out a new tie's ages have to hold up.
+const kinDisplayGenerations = 2
+
+// fitsAboveKin reports whether a colonist with profile prof could take a parent
+// slot above node, which sits gen parent links below prof. Recurses onto node's
+// children until the tie would be too distant to display.
+func (w *World) fitsAboveKin(prof *Profile, node kinID, gen int, children map[kinID][]kinID) bool {
+	if gen > kinDisplayGenerations {
+		return true
+	}
+	if !validAncestor(prof, w.kinProfile(node), gen) {
+		return false
+	}
+	for _, kid := range children[node] {
+		if !w.fitsAboveKin(prof, kid, gen+1, children) {
+			return false
+		}
+	}
+	return true
+}
+
+// fitsBelowKin is the mirror of fitsAboveKin: whether prof could take a child
+// slot below node, which sits gen parent links above prof.
+func (w *World) fitsBelowKin(prof *Profile, node kinID, gen int) bool {
+	if gen > kinDisplayGenerations {
+		return true
+	}
+	if !validAncestor(w.kinProfile(node), prof, gen) {
+		return false
+	}
+	kp := w.kin[node]
+	if kp == nil {
+		return true
+	}
+	for _, par := range nonZeroKin(kp.parents) {
+		if !w.fitsBelowKin(prof, par, gen+1) {
+			return false
+		}
+	}
+	return true
+}
+
+// kinProfile returns the profile behind a tree node, or nil when the node is a
+// phantom (or its colonist has since left) and so has no age to check against.
+func (w *World) kinProfile(id kinID) *Profile {
+	p := w.kin[id]
+	if p == nil || p.entity == 0 {
+		return nil
+	}
+	e := w.entities[p.entity]
+	if e == nil {
+		return nil
+	}
+	return e.Profile
 }
 
 // cachedRelations returns the stable display relationships for e. The cache is
@@ -275,14 +390,16 @@ func (w *World) cachedRelations(e *Entity, children map[kinID][]kinID) []Relatio
 	return e.relations
 }
 
-// validParent is tolerant of hand-built profiles with no age. Real colonists
-// always have an age, while this keeps tree helpers useful for tools and tests
-// that only populate the fields relevant to their scenario.
-func validParent(parent, child *Profile) bool {
-	if parent == nil || child == nil || parent.Age <= 0 || child.Age <= 0 {
+// validAncestor reports whether ancestor could sit generations parent links
+// above descendant, each link needing minParentAgeGap years. It is tolerant of
+// phantom nodes and of hand-built profiles with no age: real colonists always
+// have an age, while this keeps tree helpers useful for tools and tests that
+// only populate the fields relevant to their scenario.
+func validAncestor(ancestor, descendant *Profile, generations int) bool {
+	if ancestor == nil || descendant == nil || ancestor.Age <= 0 || descendant.Age <= 0 {
 		return true
 	}
-	return parent.Age-child.Age >= 20
+	return ancestor.Age-descendant.Age >= generations*minParentAgeGap
 }
 
 // spouseCompatible reports whether two colonists could plausibly marry: each is

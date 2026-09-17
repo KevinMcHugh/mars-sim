@@ -80,6 +80,118 @@ func TestParentMustBeAtLeastTwentyYearsOlder(t *testing.T) {
 	}
 }
 
+// A grandparent is two parent gaps above their grandchild, even when the
+// generation in between never joined the colony and so has no age to check.
+func TestGrandparentSpansTwoParentGaps(t *testing.T) {
+	w := kinWorld()
+	grandma := w.spawn(Colonist, Point{1, 1})
+	kid := w.spawn(Colonist, Point{2, 1})
+
+	grandma.Profile.Age = 61
+	kid.Profile.Age = 43
+	if w.wireRelation(grandma, kid, RelGrandparent) {
+		t.Fatal("accepted a grandparent only 18 years older than their grandchild")
+	}
+	if w.wireRelation(kid, grandma, RelGrandchild) {
+		t.Fatal("accepted a grandchild only 18 years younger than their grandparent")
+	}
+
+	kid.Profile.Age = 21
+	if !w.wireRelation(grandma, kid, RelGrandparent) {
+		t.Fatal("rejected a grandparent exactly 40 years older than their grandchild")
+	}
+	mustRelate(t, w, kid, grandma, RelGrandparent)
+	mustRelate(t, w, grandma, kid, RelGrandchild)
+}
+
+// A phantom parent shared by siblings does not launder the gap: a grandparent
+// hung off it has to work for every colonist that phantom is a parent of.
+func TestGrandparentCheckedAgainstEveryGrandchild(t *testing.T) {
+	w := kinWorld()
+	older := w.spawn(Colonist, Point{1, 1})
+	younger := w.spawn(Colonist, Point{2, 1})
+	grandma := w.spawn(Colonist, Point{3, 1})
+
+	older.Profile.Age = 61
+	younger.Profile.Age = 18
+	grandma.Profile.Age = 58
+
+	if !w.wireRelation(younger, older, RelSibling) {
+		t.Fatal("could not wire siblings")
+	}
+	// grandma clears 40 years over younger, but the phantom parent they share
+	// would make her older's grandmother too, at a 3-year gap.
+	if w.wireRelation(grandma, younger, RelGrandparent) {
+		t.Fatal("accepted a grandparent younger than one of the grandchildren it gains")
+	}
+}
+
+// Siblings share their parents, so a colonist can only join a sibling set whose
+// parents are old enough for them too.
+func TestSiblingMustFitSharedParent(t *testing.T) {
+	w := kinWorld()
+	parent := w.spawn(Colonist, Point{1, 1})
+	kid := w.spawn(Colonist, Point{2, 1})
+	latecomer := w.spawn(Colonist, Point{3, 1})
+
+	parent.Profile.Age = 45
+	kid.Profile.Age = 20
+	latecomer.Profile.Age = 40
+
+	if !w.wireRelation(kid, parent, RelChild) {
+		t.Fatal("could not wire kid as parent's child")
+	}
+	if w.wireRelation(latecomer, kid, RelSibling) {
+		t.Fatal("accepted a sibling only 5 years younger than their shared parent")
+	}
+}
+
+// Every derived relation in a densely related generated colony respects the age
+// gaps its kind implies, however the tie was wired.
+func TestGeneratedFamilyAgesHoldUp(t *testing.T) {
+	cfg := DefaultConfig()
+	cfg.Seed = 11
+	cfg.Width, cfg.Height = 40, 24
+	cfg.FamilyChance = 100 // maximize ties so the colony is densely related
+	w := newWorld(cfg, rand.New(rand.NewSource(11)))
+
+	for i := 0; i < 120; i++ {
+		w.spawn(Colonist, Point{i % w.Width, i / w.Width})
+	}
+
+	// How many parent links separate each kind, from the subject's viewpoint:
+	// positive means the other is that many generations above.
+	above := map[RelationKind]int{
+		RelParent: 1, RelChild: -1, RelGrandparent: 2, RelGrandchild: -2,
+	}
+
+	children := w.kinChildren()
+	checked := 0
+	for _, id := range w.entityIDsSorted() {
+		e := w.entities[id]
+		for _, rel := range w.relativesOf(e, children) {
+			gen, ok := above[rel.Kind]
+			if !ok {
+				continue // sibling, aunt/uncle, nibling and spouse carry no gap
+			}
+			other := w.entities[rel.Other]
+			older, younger, want := other, e, gen
+			if gen < 0 {
+				older, younger, want = e, other, -gen
+			}
+			checked++
+			if gap := older.Profile.Age - younger.Profile.Age; gap < want*minParentAgeGap {
+				t.Fatalf("#%d (age %d) is #%d's (age %d) %s but only %d years apart; %s needs %d",
+					other.ID, other.Profile.Age, e.ID, e.Profile.Age, rel.Kind,
+					gap, rel.Kind, want*minParentAgeGap)
+			}
+		}
+	}
+	if checked == 0 {
+		t.Fatal("no generational relations were generated; the sweep proved nothing")
+	}
+}
+
 // Siblings share a parent, and a sibling's child is an aunt/uncle & nibling pair.
 func TestKinSiblingsAndNiblings(t *testing.T) {
 	w := kinWorld()
