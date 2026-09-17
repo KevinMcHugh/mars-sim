@@ -15,6 +15,10 @@ const (
 	RawRock
 	IronOre
 	WaterIce
+	// UraniumOre is mined from a uranium-bearing deposit. Carrying it keeps
+	// its owner under a dose the whole time (see mutation.go): it is the one
+	// item that acts on the colonist holding it.
+	UraniumOre
 	// Pistol and Shotgun are combat weapons: a colonist carrying one fights an
 	// alien that gets close instead of only fleeing. See combat.go and
 	// docs/combat.md.
@@ -30,6 +34,8 @@ func (k ItemKind) String() string {
 		return "iron ore"
 	case WaterIce:
 		return "water ice"
+	case UraniumOre:
+		return "uranium ore"
 	case Pistol:
 		return "pistol"
 	case Shotgun:
@@ -59,6 +65,21 @@ func bestWeapon(inv Inventory) ItemKind {
 		best = stack.Kind
 	}
 	return best
+}
+
+// Has reports whether the inventory holds at least one item of a kind. Used by
+// the per-tick uranium-exposure check, so it walks the eight slots rather than
+// building anything.
+func (inv *Inventory) Has(kind ItemKind) bool {
+	if kind == ItemNone {
+		return false
+	}
+	for _, stack := range inv {
+		if stack.Kind == kind && stack.Count > 0 {
+			return true
+		}
+	}
+	return false
 }
 
 // ItemStack is one homogeneous inventory slot. Empty slots have Count zero and
@@ -158,6 +179,8 @@ func miningYield(tile Tile) []ItemStack {
 		yield = append(yield, ItemStack{Kind: IronOre, Count: 1})
 	case WaterIceBearingRock:
 		yield = append(yield, ItemStack{Kind: WaterIce, Count: 1})
+	case UraniumBearingRock:
+		yield = append(yield, ItemStack{Kind: UraniumOre, Count: 1})
 	}
 	return yield
 }

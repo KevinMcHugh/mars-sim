@@ -220,11 +220,7 @@ func (m Model) renderColonistDetail(c sim.EntityView, rows, width int) string {
 	// would crowd out everything below in the roster's fixed height (see
 	// TestRosterShowsColonistDetail), and a wound only needs a number here,
 	// not a gauge — the health bar above already gives the big picture.
-	partLines := make([]string, 0, len(c.Parts))
-	for i, hp := range c.Parts {
-		partLines = append(partLines, fmt.Sprintf("%s %d/%d", sim.BodyPart(i).Short(), hp, c.MaxParts[i]))
-	}
-	b.WriteString(labelStyle.Render("BODY") + "  " + cells.Truncate(strings.Join(partLines, "  "), inner-8) + "\n\n")
+	b.WriteString(labelStyle.Render("BODY") + "  " + cells.Truncate(strings.Join(bodyPartLines(c), "  "), inner-8) + "\n\n")
 
 	b.WriteString(labelStyle.Render("NEEDS") + "\n")
 	for i := range c.Needs {
@@ -321,13 +317,25 @@ func (m Model) renderNonColonistDetail(c sim.EntityView, rows, width, inner, bar
 	}
 
 	if c.Kind == sim.Alien {
-		partLines := make([]string, 0, len(c.Parts))
-		for i, hp := range c.Parts {
-			partLines = append(partLines, fmt.Sprintf("%s %d/%d", sim.BodyPart(i).Short(), hp, c.MaxParts[i]))
-		}
-		b.WriteString(labelStyle.Render("BODY") + "  " + cells.Truncate(strings.Join(partLines, "  "), inner-8) + "\n")
+		b.WriteString(labelStyle.Render("BODY") + "  " + cells.Truncate(strings.Join(bodyPartLines(c), "  "), inner-8) + "\n")
 	}
 	return sidebarStyle.Width(width - borderCells).Height(rows - borderCells).Render(b.String())
+}
+
+// bodyPartLines renders one "part cur/max" label per body part the entity
+// actually has. A part with a zero maximum is one it does not have at all —
+// every mutant part on anyone uranium has not changed (see docs/mutation.md) —
+// and is skipped, so a mutant's third arm shows up here and nobody else grows
+// a row of empty ones.
+func bodyPartLines(c sim.EntityView) []string {
+	out := make([]string, 0, len(c.Parts))
+	for i, hp := range c.Parts {
+		if c.MaxParts[i] == 0 {
+			continue
+		}
+		out = append(out, fmt.Sprintf("%s %d/%d", sim.BodyPart(i).Short(), hp, c.MaxParts[i]))
+	}
+	return out
 }
 
 // colonistNames maps colonist IDs to display names for the latest frame, so the

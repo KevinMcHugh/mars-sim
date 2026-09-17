@@ -48,8 +48,9 @@ func TestAlienHasNoProfile(t *testing.T) {
 	}
 }
 
-// TraitChance gates trait assignment: none at 0, one per group at 100. Attributes
-// are always populated regardless.
+// TraitChance gates trait assignment: none at 0, one per rollable group at 100.
+// A group whose traits are all acquired in play (groupMutation) contributes
+// nothing at spawn. Attributes are always populated regardless.
 func TestTraitChanceGatesTraits(t *testing.T) {
 	none := personalityWorld(0)
 	for i := 0; i < 50; i++ {
@@ -57,12 +58,33 @@ func TestTraitChanceGatesTraits(t *testing.T) {
 			t.Fatalf("TraitChance=0 should give no traits, got %v", e.Profile.Traits)
 		}
 	}
+	want := 0
+	for g := traitGroup(0); g < numTraitGroups; g++ {
+		if len(rollableTraitsInGroup(g)) > 0 {
+			want++
+		}
+	}
 	all := personalityWorld(100)
 	for i := 0; i < 50; i++ {
 		e := all.spawn(Colonist, Point{i % all.Width, 0})
-		if len(e.Profile.Traits) != int(numTraitGroups) {
-			t.Fatalf("TraitChance=100 should give one trait per group (%d), got %v",
-				numTraitGroups, e.Profile.Traits)
+		if len(e.Profile.Traits) != want {
+			t.Fatalf("TraitChance=100 should give one trait per rollable group (%d), got %v",
+				want, e.Profile.Traits)
+		}
+	}
+}
+
+// An acquired trait is never generated at spawn, however generous TraitChance
+// is: a colonist becomes a Mutant by being exposed to uranium, not by being
+// born. See mutation.go.
+func TestAcquiredTraitsAreNeverRolled(t *testing.T) {
+	w := personalityWorld(100)
+	for i := 0; i < 200; i++ {
+		e := w.spawn(Colonist, Point{i % w.Width, (i / w.Width) % w.Height})
+		for _, tr := range e.Profile.Traits {
+			if traitSpecs[tr].acquired {
+				t.Fatalf("rolled acquired trait %v at spawn", tr)
+			}
 		}
 	}
 }
