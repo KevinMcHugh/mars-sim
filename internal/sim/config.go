@@ -91,6 +91,28 @@ type Config struct {
 	// perturbs the sim. 0 disables family generation. See relationships.go.
 	FamilyChance int
 
+	// Heredity. Once a colonist has a family, that family decides part of who
+	// they are: they take its surname, they take after their closest relatives,
+	// and they start out already knowing them. See heredity.go.
+	//
+	// AppearanceInheritChance is the percent chance each heritable feature (skin
+	// tone, natural hair color, height) is taken from a relative rather than
+	// kept as rolled, at full relatedness — it is scaled down for more distant
+	// kin. 0 makes every colonist's looks independent.
+	//
+	// SpouseSurnameChance is the percent chance a colonist who marries into the
+	// colony takes their spouse's surname instead of keeping their own; blood
+	// relatives always share a surname regardless.
+	//
+	// FamilyAffinity is the starting affinity between the closest relatives, as
+	// a percent of AffinityMax, scaled down per relation kind;
+	// FamilyAffinitySpread is the random swing around it in the same units, so
+	// relatives aren't all equally close. 0 starts family at a stranger's zero.
+	AppearanceInheritChance int
+	SpouseSurnameChance     int
+	FamilyAffinity          int
+	FamilyAffinitySpread    int
+
 	// Socializing. An idle colonist with nothing productive to do may seek out a
 	// nearby colonist and talk, which shifts the pair's affinity and both their
 	// moods. Affinity is tracked only; nothing simulates against it yet.
@@ -201,6 +223,11 @@ func DefaultConfig() Config {
 		MaxConcurrentProjects: 2,
 		TraitChance:           30,
 		FamilyChance:          35,
+
+		AppearanceInheritChance: 75,
+		SpouseSurnameChance:     50,
+		FamilyAffinity:          55,
+		FamilyAffinitySpread:    15,
 
 		// 100 ticks of dose per roll, and a roll that usually comes up clean:
 		// a miner who works a uranium vein and then carries the ore around

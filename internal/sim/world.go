@@ -262,6 +262,11 @@ type World struct {
 	entities map[EntityID]*Entity
 	nextID   EntityID
 
+	// colonistNames indexes every living colonist's full name, so generation can
+	// check a name is free in one lookup instead of scanning the roster. See
+	// uniquifyName in personality.go.
+	colonistNames map[string]EntityID
+
 	// graveyard holds the most recent deaths as frozen EntityViews (oldest
 	// first), for the roster's "dead" filter — see docs/combat.md. Bounded at
 	// cfg.GraveyardSize by remove(), the only place entities die.
@@ -284,6 +289,7 @@ func newWorld(cfg Config, rng *rand.Rand) *World {
 		tiles:            make([]Tile, n),
 		occ:              make([]EntityID, n),
 		entities:         make(map[EntityID]*Entity),
+		colonistNames:    make(map[string]EntityID),
 		buildTiles:       make(map[Point]bool),
 		kin:              make(map[kinID]*kinPerson),
 		nextKinID:        1,
@@ -481,7 +487,9 @@ func (w *World) spawn(kind Kind, p Point) *Entity {
 	}
 	if kind == Colonist {
 		w.assignPersonality(e) // name, attributes, traits + their effective params
-		w.assignKin(e)         // family tree node + any tie to an existing colonist
+		if w.assignKin(e) {    // family tree node + any tie to an existing colonist
+			w.inheritFamily(e) // the surname, looks, and warmth that come with it
+		}
 	}
 	if kind == Mouse {
 		e.sex = w.rollMouseSex() // decides which mice can carry a litter
@@ -523,6 +531,7 @@ func (w *World) remove(id EntityID, cause string) {
 		}
 	}
 	w.dropAffinity(id)
+	w.releaseName(e)
 	delete(w.entities, id)
 }
 

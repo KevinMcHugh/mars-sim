@@ -22,6 +22,7 @@ way it is without re-deriving it from the source each time.
 | [mutation.md](./mutation.md) | Uranium deposits, the exposure dose, mutant body parts, and the Mutant / Mutant-Lover traits. |
 | [personality.md](./personality.md) | Names, attributes, traits, and the separate RNG stream that keeps flavor out of the simulation. |
 | [ages-and-family.md](./ages-and-family.md) | Colonist ages and the age invariant for parent/child relationships. |
+| [heredity.md](./heredity.md) | What joining a family does to a colonist: a shared surname, inherited looks, and a warm start with relatives. |
 | [construction.md](./construction.md) | Construction projects and the facility-room design, including the deadlocks that shaped it. |
 | [pathfinding.md](./pathfinding.md) | Rooms/regions, tile A\*, shared flow fields, and hierarchical (HPA\*) routing. |
 | [spatial-index-and-performance.md](./spatial-index-and-performance.md) | The occupancy index, incremental counts, chunk index, the job board, and the performance story. |

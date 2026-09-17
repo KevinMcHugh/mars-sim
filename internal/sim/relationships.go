@@ -35,6 +35,8 @@ const (
 	RelGrandchild
 	RelAuntUncle
 	RelNibling
+
+	numRelationKinds // keep last
 )
 
 func (r RelationKind) String() string {
@@ -126,15 +128,18 @@ func (w *World) ensureParent(x kinID) kinID {
 }
 
 // assignKin gives a colonist a tree node and, with FamilyChance, ties it to an
-// existing colonist. Uses the personality RNG so it never perturbs the sim.
-func (w *World) assignKin(e *Entity) {
+// existing colonist. It reports whether a tie was actually made, so the caller
+// can skip the family-identity pass (see heredity.go) for a colonist who
+// arrived alone. Uses the personality RNG so it never perturbs the sim.
+func (w *World) assignKin(e *Entity) bool {
 	e.kin = w.newKin(e.ID)
 	if w.cfg.FamilyChance <= 0 || w.prng.Intn(100) >= w.cfg.FamilyChance {
-		return
+		return false
 	}
 	if r, ok := w.randomColonistKin(e.ID); ok {
-		w.relate(e, r)
+		return w.relate(e, r)
 	}
+	return false
 }
 
 // randomColonistKin reservoir-samples an existing colonist (other than self) that
@@ -158,8 +163,9 @@ func (w *World) randomColonistKin(self EntityID) (*Entity, bool) {
 // relate wires a familial tie between new colonist c and existing colonist r. It
 // tries relationship kinds in a random order and applies the first that fits, so
 // a blocked spouse (incompatible orientation, already married) or a full parent
-// slot falls back to another tie rather than failing.
-func (w *World) relate(c, r *Entity) {
+// slot falls back to another tie rather than failing. It reports whether any
+// kind fit.
+func (w *World) relate(c, r *Entity) bool {
 	kinds := []RelationKind{
 		RelSpouse, RelSibling, RelChild, RelParent,
 		RelGrandparent, RelGrandchild, RelAuntUncle, RelNibling,
@@ -167,9 +173,10 @@ func (w *World) relate(c, r *Entity) {
 	w.prng.Shuffle(len(kinds), func(i, j int) { kinds[i], kinds[j] = kinds[j], kinds[i] })
 	for _, k := range kinds {
 		if w.wireRelation(c, r, k) {
-			return
+			return true
 		}
 	}
+	return false
 }
 
 // wireRelation attaches c to the tree so that c is r's relation of the given

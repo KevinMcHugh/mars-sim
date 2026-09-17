@@ -14,6 +14,7 @@ generated from a dedicated RNG stream so flavor never perturbs the simulation.
 - [`internal/sim/personality.go`](../internal/sim/personality.go) — `Profile`, `Trait`, `traitSpecs`, generation, trait resolution.
 - [`internal/sim/entity.go`](../internal/sim/entity.go) — the trait-resolved effective params (`needRise`, `restTicks`, `workScale`).
 - [`internal/sim/config.go`](../internal/sim/config.go) — `TraitChance`.
+- [`internal/sim/heredity.go`](../internal/sim/heredity.go) — the family pass that overwrites part of a generated profile.
 
 ## How it works
 
@@ -33,6 +34,27 @@ height/weight (via a BMI draw), a skin tone (uniform
 across the five emoji tone points), a hair color (white and bald weighted
 upward with age), and a name drawn from gender-appropriate pools. Nothing
 simulates against these yet — they exist for flavor and future systems.
+
+It rolls a **complete, standalone person**, and part of that person is then
+overwritten by [heredity.md](./heredity.md)'s family pass, which runs after kin
+assignment because it needs to know who the colonist is related to. That is why
+generation rolls everything up front: a colonist who inherits only their
+mother's hair still has a skin tone and a height of their own to fall back on.
+
+Three attributes are stored twice, because the value shown is not the value that
+passes down: `hairBase` is the natural hair color under any age-driven white or
+bald, `heightZ` is height as standard deviations from the colonist's own gender
+mean, and `given`/`surname` are the halves of `Name` so a colonist can move onto
+a family's name without re-parsing it. All three are unexported — nothing
+outside generation reads them. `rollHair` returns the natural and shown colors
+together, applying the age roll on top of a natural color rather than replacing
+it in the same draw.
+
+Full names are kept unique: `uniquifyName` re-draws the given name until no
+other colonist answers to the same name, checking `World.colonistNames` (an
+index of living colonists' names) rather than scanning the roster. The pools are
+small enough that a colony of thirty collided about half the time without it,
+and shared surnames make that likelier still.
 
 Skin tone and hair color are text-only (shown in the roster detail pane) —
 not composed into a colonist's map glyph. Both a skin tone modifier and a
@@ -155,3 +177,5 @@ exclusively.
 - [mutation.md](./mutation.md) — `TraitMutant` and `TraitMutantLover`, and how a trait is acquired in play.
 - [memories.md](./memories.md) — life events, mood effects, and how `TraitTidy`
   hooks into them.
+- [heredity.md](./heredity.md) — the family pass that rewrites a generated
+  profile's surname and appearance.
