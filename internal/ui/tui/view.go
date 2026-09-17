@@ -40,6 +40,7 @@ var (
 	pausedStyle  = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("214"))
 	helpStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
 	menuStyle    = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("214"))
+	cursorStyle  = lipgloss.NewStyle().Reverse(true)
 	sidebarStyle = lipgloss.NewStyle().
 			Border(lipgloss.RoundedBorder()).
 			BorderForeground(lipgloss.Color("240")).
@@ -124,11 +125,13 @@ func (m Model) renderFrame() string {
 		frame = m.renderRoster()
 	case modeJobs:
 		frame = m.renderJobs()
+	case modeStorage:
+		frame = m.renderStorage()
 	default:
 		body := m.renderMap()
 		if m.sidebarFits() {
 			cols, _ := m.viewportTiles()
-			body = joinColumns(body, cols*tileWidth, m.renderSidebar(), sidebarWidth)
+			body = joinColumns(body, cols*tileWidth, m.renderMapSidebar(), sidebarWidth)
 		}
 		frame = strings.Join([]string{
 			m.renderHeader(),
@@ -185,6 +188,7 @@ func (m Model) renderHeader() string {
 		fmt.Sprintf("%s %d", fitGlyph(glyphToilet), s.Stats.Toilets),
 		fmt.Sprintf("%s %d", fitGlyph(glyphBed), s.Stats.Beds),
 		fmt.Sprintf("%s %d", fitGlyph(glyphIncinerator), s.Stats.Incinerators),
+		fmt.Sprintf("%s %d", fitGlyph(glyphStorage), s.Stats.StorageContainers),
 		fmt.Sprintf("%s %d", fitGlyph(glyphGore), s.Stats.Refuse),
 		fmt.Sprintf("rooms %d", s.Stats.Rooms),
 		fmt.Sprintf("excavated %d", s.Stats.FloorDug),
@@ -230,11 +234,14 @@ func (m Model) renderMap() string {
 	for y := 0; y < rows; y++ {
 		for x := 0; x < cols; x++ {
 			p := m.cam.Add(x, y)
+			drawn := tileGlyph(m.latest.TileAt(p))
 			if o, ok := occ[p]; ok {
-				b.WriteString(o.glyph)
-			} else {
-				b.WriteString(tileGlyph(m.latest.TileAt(p)))
+				drawn = o.glyph
 			}
+			if m.inspecting && p == m.cursor {
+				drawn = cursorStyle.Render(drawn)
+			}
+			b.WriteString(drawn)
 		}
 		if y < rows-1 {
 			b.WriteByte('\n')
@@ -286,6 +293,13 @@ func (m Model) renderSidebar() string {
 	})
 }
 
+func (m Model) renderMapSidebar() string {
+	if m.inspecting {
+		return m.renderCursorInspector()
+	}
+	return m.renderSidebar()
+}
+
 // drawSidebar renders the sidebar from scratch. renderSidebar memoizes it,
 // since lipgloss's border, padding and wrapping work dominates its cost but its
 // content changes far less often than frames are drawn.
@@ -303,6 +317,7 @@ func (m Model) drawSidebar(rows int) string {
 		{{glyphPod, "food pod"}, {glyphToilet, "toilet"}},
 		{{glyphBed, "bunk"}, {glyphWall, "wall"}},
 		{{glyphIncinerator, "burner"}, {glyphCorpse, "body"}},
+		{{glyphStorage, "storage"}, {glyphGore, "gore"}},
 		{{glyphRock, "rock"}, {glyphIronRock, "iron rock"}},
 		{{glyphIceRock, "ice rock"}, {glyphFloor, "open"}},
 	}
@@ -336,7 +351,11 @@ func (m Model) drawSidebar(rows int) string {
 }
 
 func (m Model) renderFooter() string {
-	help := "space pause  +/- speed  s spawn  b build  ←↑↓→/hjkl pan  tab roster/jobs  q quit"
+	help := "space pause  +/- speed  s spawn  b build  i inspect  ←↑↓→/hjkl pan  tab details  q quit"
+	if m.inspecting {
+		help = fmt.Sprintf("inspect (%d,%d) %s  ←↑↓→/hjkl move  enter open storage  i/esc close  tab details",
+			m.cursor.X, m.cursor.Y, m.latest.TerrainAt(m.cursor))
+	}
 	if usingASCIIGlyphs() {
 		// The player should know why the colony looks like a roguelike: the
 		// terminal, not the game, chose this.

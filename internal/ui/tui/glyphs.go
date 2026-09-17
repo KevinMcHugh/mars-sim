@@ -47,6 +47,7 @@ const (
 	glyphToilet      = "\U0001F6BD" // 🚽 toilet (bladder)
 	glyphBed         = "\U0001F6CC" // 🛌 dormitory bunk (sleep)
 	glyphIncinerator = "\U0001F525" // 🔥 incinerator: burns refuse hauled to the trash room
+	glyphStorage     = "\U0001F9F0" // 🧰 storage container: six colonist inventories
 
 	glyphColonist = "\U0001F477" // 👷 colonist of unknown age/gender (no profile)
 	glyphFleeing  = "\U0001F631" // 😱 colonist running from an alien
@@ -105,6 +106,7 @@ var glyphRegistry = map[string]glyph{
 	glyphToilet:      {glyphToilet, 2, "WC"},
 	glyphBed:         {glyphBed, 2, "=="},
 	glyphIncinerator: {glyphIncinerator, 2, "&&"},
+	glyphStorage:     {glyphStorage, 2, "[]"},
 
 	glyphColonist: {glyphColonist, 2, "@ "},
 	glyphFleeing:  {glyphFleeing, 2, "@!"},
@@ -230,6 +232,8 @@ func terrainGlyph(t sim.Terrain) string {
 		symbol = glyphBed
 	case sim.Incinerator:
 		symbol = glyphIncinerator
+	case sim.Storage:
+		symbol = glyphStorage
 	default:
 		symbol = glyphRock
 	}

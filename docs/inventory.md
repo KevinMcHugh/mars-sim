@@ -40,8 +40,8 @@ adds one `IronOre`, `WaterIce`, or `UraniumOre` for a bearing tile. `jobMine` an
 dig tasks add that complete yield with `AddAll` **before** changing terrain, so
 limited inventory can never make one part of a deposit disappear.
 
-`UraniumOre` is the one item that acts on its carrier. Nothing can be dropped
-yet, so a colonist who mines uranium keeps it, and `Inventory.Has(UraniumOre)`
+`UraniumOre` is the one item that acts on its carrier. Nothing can be transferred
+between a colonist and storage yet, so a colonist who mines uranium keeps it, and `Inventory.Has(UraniumOre)`
 is one of the two things that puts them under a mutation-causing dose every
 tick — see [mutation.md](./mutation.md). That makes "no drop" a balance
 decision rather than only a missing feature.
@@ -70,9 +70,10 @@ render it without touching live state.
 
 - **A new item**: add an `ItemKind` constant and its `String()` case; the stacking
   logic is generic. Add a producer/consumer where it makes sense.
-- **Stockpiles / hauling** would build on this: a haul job would move stacks
-  between an inventory and a storage structure (a future project kind — see
-  [construction.md](./construction.md)).
+- **Stockpile hauling** would move stacks between an `Inventory` and the
+  `StorageInventory` of an existing [storage container](./storage.md). The
+  container and capacity model are in place; job selection and transfer policy
+  are intentionally separate follow-up work.
 - **Picking up or dropping a weapon mid-game** would need a floor-item concept
   the world doesn't have yet — today the only way an inventory changes is
   mining or the one-time worldgen equip. See [combat.md](./combat.md)'s

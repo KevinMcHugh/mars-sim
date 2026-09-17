@@ -3,6 +3,9 @@ package sim
 const (
 	// InventorySlotCount is the number of stacks a colonist can carry.
 	InventorySlotCount = 8
+	// StorageInventorySlotCount gives one storage container six times a
+	// colonist's carrying capacity.
+	StorageInventorySlotCount = 6 * InventorySlotCount
 	// MaxStackSize is the largest number of items one inventory slot can hold.
 	MaxStackSize = 64
 )
@@ -102,31 +105,56 @@ type ItemStack struct {
 // Inventory is a colonist's fixed set of carrying slots.
 type Inventory [InventorySlotCount]ItemStack
 
+// StorageInventory is the fixed set of stacks held by one storage container.
+type StorageInventory [StorageInventorySlotCount]ItemStack
+
+// StorageContainer is the state attached to one Storage terrain tile. Position
+// lives here rather than in StorageInventory so snapshots and future hauling
+// jobs can identify a container without scanning the terrain grid.
+type StorageContainer struct {
+	Pos       Point
+	Inventory StorageInventory
+}
+
 // RemoveAll empties every stack of a kind and returns how many items were in
 // them. Used by the incinerator, which destroys a hauler's whole load at once
 // rather than item by item.
 func (inv *Inventory) RemoveAll(kind ItemKind) int {
+	return removeAllStacks(inv[:], kind)
+}
+
+func removeAllStacks(stacks []ItemStack, kind ItemKind) int {
 	if kind == ItemNone {
 		return 0
 	}
 	removed := 0
-	for i := range inv {
-		if inv[i].Kind != kind || inv[i].Count == 0 {
+	for i := range stacks {
+		if stacks[i].Kind != kind || stacks[i].Count == 0 {
 			continue
 		}
-		removed += inv[i].Count
-		inv[i] = ItemStack{}
+		removed += stacks[i].Count
+		stacks[i] = ItemStack{}
 	}
 	return removed
 }
 
 // Count returns how many items of a kind the inventory holds across all stacks.
 func (inv *Inventory) Count(kind ItemKind) int {
+	return countStacks(inv[:], kind)
+}
+
+// CanAdd reports whether all quantity items can fit without changing the
+// inventory.
+func (inv *Inventory) CanAdd(kind ItemKind, quantity int) bool {
+	return canAddStacks(inv[:], kind, quantity)
+}
+
+func countStacks(stacks []ItemStack, kind ItemKind) int {
 	if kind == ItemNone {
 		return 0
 	}
 	n := 0
-	for _, stack := range inv {
+	for _, stack := range stacks {
 		if stack.Kind == kind {
 			n += stack.Count
 		}
@@ -134,9 +162,7 @@ func (inv *Inventory) Count(kind ItemKind) int {
 	return n
 }
 
-// CanAdd reports whether all quantity items can fit without changing the
-// inventory.
-func (inv *Inventory) CanAdd(kind ItemKind, quantity int) bool {
+func canAddStacks(stacks []ItemStack, kind ItemKind, quantity int) bool {
 	if kind == ItemNone || quantity < 0 {
 		return false
 	}
@@ -144,7 +170,7 @@ func (inv *Inventory) CanAdd(kind ItemKind, quantity int) bool {
 		return true
 	}
 	capacity := 0
-	for _, stack := range inv {
+	for _, stack := range stacks {
 		switch {
 		case stack.Count == 0:
 			capacity += MaxStackSize
@@ -162,12 +188,16 @@ func (inv *Inventory) CanAdd(kind ItemKind, quantity int) bool {
 // slots. It returns false and leaves the inventory unchanged if they do not all
 // fit.
 func (inv *Inventory) Add(kind ItemKind, quantity int) bool {
-	if !inv.CanAdd(kind, quantity) {
+	return addStacks(inv[:], kind, quantity)
+}
+
+func addStacks(stacks []ItemStack, kind ItemKind, quantity int) bool {
+	if !canAddStacks(stacks, kind, quantity) {
 		return false
 	}
 	remaining := quantity
-	for i := range inv {
-		stack := &inv[i]
+	for i := range stacks {
+		stack := &stacks[i]
 		if stack.Kind != kind || stack.Count == 0 || stack.Count == MaxStackSize {
 			continue
 		}
@@ -178,8 +208,8 @@ func (inv *Inventory) Add(kind ItemKind, quantity int) bool {
 			return true
 		}
 	}
-	for i := range inv {
-		stack := &inv[i]
+	for i := range stacks {
+		stack := &stacks[i]
 		if stack.Count != 0 {
 			continue
 		}
@@ -209,6 +239,45 @@ func (inv *Inventory) AddAll(stacks ...ItemStack) bool {
 // CanAddAll reports whether a heterogeneous group of stacks fits without
 // changing the inventory.
 func (inv *Inventory) CanAddAll(stacks ...ItemStack) bool {
+	next := *inv
+	return next.AddAll(stacks...)
+}
+
+// Count returns how many items of a kind the container holds.
+func (inv *StorageInventory) Count(kind ItemKind) int {
+	return countStacks(inv[:], kind)
+}
+
+// RemoveAll empties every stack of a kind and returns the number removed.
+func (inv *StorageInventory) RemoveAll(kind ItemKind) int {
+	return removeAllStacks(inv[:], kind)
+}
+
+// CanAdd reports whether all quantity items fit without changing the container.
+func (inv *StorageInventory) CanAdd(kind ItemKind, quantity int) bool {
+	return canAddStacks(inv[:], kind, quantity)
+}
+
+// Add stores all quantity items, or leaves the container unchanged if they do
+// not fit.
+func (inv *StorageInventory) Add(kind ItemKind, quantity int) bool {
+	return addStacks(inv[:], kind, quantity)
+}
+
+// AddAll stores heterogeneous stacks as one transaction.
+func (inv *StorageInventory) AddAll(stacks ...ItemStack) bool {
+	next := *inv
+	for _, stack := range stacks {
+		if stack.Count < 0 || (stack.Count > 0 && !next.Add(stack.Kind, stack.Count)) {
+			return false
+		}
+	}
+	*inv = next
+	return true
+}
+
+// CanAddAll reports whether heterogeneous stacks fit without mutation.
+func (inv *StorageInventory) CanAddAll(stacks ...ItemStack) bool {
 	next := *inv
 	return next.AddAll(stacks...)
 }

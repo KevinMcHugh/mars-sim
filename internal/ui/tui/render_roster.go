@@ -93,7 +93,7 @@ func (m Model) rosterRows() int {
 
 func (m Model) renderRoster() string {
 	header := m.renderHeader()
-	footer := m.footerLine("↑↓/jk select  shift+↑↓ pgup/pgdn scroll details  f filter  s spawn  b build  tab jobs  esc map  space pause  q quit")
+	footer := m.footerLine("DETAILS  ↑↓/jk select  shift+↑↓ pgup/pgdn scroll  f filter  tab jobs  esc map  space pause  q quit")
 
 	cs := m.rosterEntries()
 	if len(cs) == 0 {

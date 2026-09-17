@@ -17,9 +17,10 @@ type snapshotMsg struct{ snap *sim.Snapshot }
 type viewMode int
 
 const (
-	modeMap    viewMode = iota // the cavern map (default)
-	modeRoster                 // the colonist roster and inspector
-	modeJobs                   // the job board: queued projects and their tasks
+	modeMap     viewMode = iota // the cavern map (default)
+	modeRoster                  // the colonist roster and inspector
+	modeJobs                    // the job board: queued projects and their tasks
+	modeStorage                 // placed storage containers and their contents
 )
 
 // menuKind selects an open pick-one prompt, if any. Opening a menu (via `s` or
@@ -53,6 +54,7 @@ var buildMenuItems = []menuItem{
 	{"f", "facility room"},
 	{"d", "dormitory"},
 	{"t", "trash room"},
+	{"r", "storage container"},
 }
 
 // filterMenuItems are the roster's toggleable filters. Unlike the spawn/build
@@ -78,10 +80,17 @@ type Model struct {
 	cam          sim.Point // world coordinate shown at the map's top-left
 	camReady     bool
 
-	mode        viewMode
-	selected    int      // roster: index into the ID-sorted entity list
-	jobSelected int      // job board: index into the queued project list
-	menu        menuKind // an open spawn/build/filter picker, if any
+	mode            viewMode
+	selected        int      // roster: index into the ID-sorted entity list
+	jobSelected     int      // job board: index into the queued project list
+	storageSelected int      // storage details: index into Snapshot.Storages
+	menu            menuKind // an open spawn/build/filter picker, if any
+
+	// inspecting turns map arrows from camera panning into one-tile cursor
+	// movement. The cursor persists when inspection closes.
+	inspecting  bool
+	cursor      sim.Point
+	cursorReady bool
 
 	// detailScroll is the first line of the selected colonist's inspector
 	// that the detail panel shows. The inspector is taller than the panel for
@@ -181,6 +190,8 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.mode = modeRoster
 		case modeRoster:
 			m.mode = modeJobs
+		case modeJobs:
+			m.mode = modeStorage
 		default:
 			m.mode = modeMap
 		}
@@ -197,6 +208,8 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.handleRosterKey(msg)
 	case modeJobs:
 		return m.handleJobsKey(msg)
+	case modeStorage:
+		return m.handleStorageKey(msg)
 	default:
 		return m.handleMapKey(msg)
 	}
@@ -369,6 +382,8 @@ func (m Model) submitMenuItem(i int) {
 			m.eng.Send(sim.OrderDormitory{})
 		case "t":
 			m.eng.Send(sim.OrderTrashRoom{})
+		case "r":
+			m.eng.Send(sim.OrderStorageRoom{})
 		}
 	}
 }
@@ -419,6 +434,26 @@ func (m Model) filterPrompt() string {
 
 // handleMapKey handles keys specific to the map screen.
 func (m Model) handleMapKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	if m.inspecting {
+		switch msg.String() {
+		case "esc", "i":
+			m.inspecting = false
+		case "left", "h":
+			m.moveCursor(-1, 0)
+		case "right", "l":
+			m.moveCursor(1, 0)
+		case "up", "k":
+			m.moveCursor(0, -1)
+		case "down", "j":
+			m.moveCursor(0, 1)
+		case "enter":
+			if i := m.storageIndexAt(m.cursor); i >= 0 {
+				m.storageSelected = i
+				m.mode = modeStorage
+			}
+		}
+		return m, nil
+	}
 	switch msg.String() {
 	case "esc":
 		m.quitting = true
@@ -432,8 +467,44 @@ func (m Model) handleMapKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.panCamera(0, -2)
 	case "down", "j":
 		m.panCamera(0, 2)
+	case "i":
+		m.beginInspection()
 	}
 	return m, nil
+}
+
+func (m *Model) beginInspection() {
+	m.inspecting = true
+	if m.cursorReady || m.latest == nil {
+		return
+	}
+	cols, rows := m.viewportTiles()
+	m.cursor = m.cam.Add(cols/2, rows/2)
+	m.cursor.X = clamp(m.cursor.X, 0, m.latest.Width-1)
+	m.cursor.Y = clamp(m.cursor.Y, 0, m.latest.Height-1)
+	m.cursorReady = true
+}
+
+func (m *Model) moveCursor(dx, dy int) {
+	if m.latest == nil {
+		return
+	}
+	m.cursor = m.cursor.Add(dx, dy)
+	m.cursor.X = clamp(m.cursor.X, 0, m.latest.Width-1)
+	m.cursor.Y = clamp(m.cursor.Y, 0, m.latest.Height-1)
+
+	cols, rows := m.viewportTiles()
+	if m.cursor.X < m.cam.X {
+		m.cam.X = m.cursor.X
+	} else if m.cursor.X >= m.cam.X+cols {
+		m.cam.X = m.cursor.X - cols + 1
+	}
+	if m.cursor.Y < m.cam.Y {
+		m.cam.Y = m.cursor.Y
+	} else if m.cursor.Y >= m.cam.Y+rows {
+		m.cam.Y = m.cursor.Y - rows + 1
+	}
+	m.clampCamera()
 }
 
 // handleRosterKey handles keys specific to the roster screen: moving the
@@ -536,6 +607,41 @@ func (m Model) handleJobsKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	}
 	m.jobSelected = m.clampJobSelection(m.jobSelected)
 	return m, nil
+}
+
+// handleStorageKey navigates the placed containers in the storage details tab.
+func (m Model) handleStorageKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "esc":
+		m.mode = modeMap
+	case "up", "k":
+		m.storageSelected--
+	case "down", "j":
+		m.storageSelected++
+	case "home", "g":
+		m.storageSelected = 0
+	}
+	m.storageSelected = m.clampStorageSelection(m.storageSelected)
+	return m, nil
+}
+
+func (m Model) clampStorageSelection(i int) int {
+	if m.latest == nil || len(m.latest.Storages) == 0 {
+		return 0
+	}
+	return clamp(i, 0, len(m.latest.Storages)-1)
+}
+
+func (m Model) storageIndexAt(p sim.Point) int {
+	if m.latest == nil {
+		return -1
+	}
+	for i := range m.latest.Storages {
+		if m.latest.Storages[i].Pos == p {
+			return i
+		}
+	}
+	return -1
 }
 
 // clampJobSelection keeps a job board index within the current project list.

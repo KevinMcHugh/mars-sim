@@ -20,11 +20,13 @@ it, and seeds aliens out in the surrounding rock and cats/mice on the floor.
 ### Terrain and tiles
 
 `Terrain` is an enum: `Rock`, `Floor`, `Wall`, `NutrientPod`, `Toilet`, `Bed`,
-`Incinerator`. Only
+`Incinerator`, `Storage`. Only
 `Floor` is `Walkable()` — colonists, cats, and mice stay on floor; **aliens ignore
 walkability and burrow through anything**. Beds are dormitory bunks used from an
 adjacent floor tile; the incinerator is the machine refuse is burned in, used the
-same way (see [sanitation.md](./sanitation.md)).
+same way (see [sanitation.md](./sanitation.md)). Storage is a blocking trunk used
+from beside it; its large contents live in sparse world state rather than
+`Tile` (see [storage.md](./storage.md)).
 
 A `Tile` stores both `Terrain` and `RockComposition`. Composition is meaningful
 only while the terrain is `Rock`: ordinary rock yields one `RawRock`, while

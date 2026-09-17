@@ -33,12 +33,17 @@ type OrderDormitory struct{}
 // clean up; this is how a player gets one built ahead of the first death.
 type OrderTrashRoom struct{}
 
+// OrderStorageRoom asks the planner to place one storage container in a small
+// purpose-built room.
+type OrderStorageRoom struct{}
+
 func (TogglePause) isCommand()       {}
 func (SetTicksPerSecond) isCommand() {}
 func (Spawn) isCommand()             {}
 func (OrderFacilityRoom) isCommand() {}
 func (OrderDormitory) isCommand()    {}
 func (OrderTrashRoom) isCommand()    {}
+func (OrderStorageRoom) isCommand()  {}
 
 // Engine drives the simulation. It owns the World and is the only goroutine that
 // touches it. Frontends interact only through Subscribe (to receive Snapshots)
@@ -137,6 +142,8 @@ func (e *Engine) apply(cmd Command) (rateChanged bool) {
 		e.world.manualDormitories++
 	case OrderTrashRoom:
 		e.world.manualTrashRooms++
+	case OrderStorageRoom:
+		e.world.manualStorageRooms++
 	}
 	return false
 }

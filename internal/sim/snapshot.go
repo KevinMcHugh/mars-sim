@@ -1,5 +1,7 @@
 package sim
 
+import "sort"
+
 // EntityView is a read-only copy of an entity for a single frame. Frontends
 // receive these instead of *Entity so they can never touch live game state.
 // A living entity comes from Snapshot.Entities; a dead one (Dead == true)
@@ -62,6 +64,12 @@ type ProjectView struct {
 	Tasks      []TaskView
 }
 
+// StorageView is an immutable copy of one placed container and its contents.
+type StorageView struct {
+	Pos       Point
+	Inventory StorageInventory
+}
+
 // TasksDone counts tasks already built.
 func (p ProjectView) TasksDone() int {
 	n := 0
@@ -114,9 +122,10 @@ type Stats struct {
 	Beds      int // dormitory bunks built
 	// Incinerators built, and Refuse still on the floor (gore stains plus
 	// bodies) waiting to be hauled to one. See docs/sanitation.md.
-	Incinerators int
-	Refuse       int
-	Rooms        int // distinct rooms (connected floor areas)
+	Incinerators      int
+	StorageContainers int
+	Refuse            int
+	Rooms             int // distinct rooms (connected floor areas)
 }
 
 // Snapshot is an immutable, self-contained picture of the world at one tick.
@@ -143,13 +152,15 @@ type Snapshot struct {
 	NeedsMeta [numNeeds]NeedMeta
 
 	// Projects are the colony's queued construction work, for the job board.
-	// PendingFacilityRooms / PendingDormitories / PendingTrashRooms are manual
-	// orders (from 'f'/'d'/'t') not yet turned into a project because another is
-	// already in progress.
+	// PendingFacilityRooms / PendingDormitories / PendingTrashRooms /
+	// PendingStorageRooms are manual orders not yet turned into a project because
+	// another is already in progress.
 	Projects             []ProjectView
 	PendingFacilityRooms int
 	PendingDormitories   int
 	PendingTrashRooms    int
+	PendingStorageRooms  int
+	Storages             []StorageView
 
 	AffinityMax    int // affinity display bars run [-AffinityMax, AffinityMax]
 	MoodMax        int // mood display bar runs [-MoodMax, MoodMax]
@@ -191,8 +202,9 @@ func (w *World) snapshot(paused bool, tps int) *Snapshot {
 		Toilets:  w.terrainCounts[Toilet],
 		Beds:     w.terrainCounts[Bed],
 
-		Incinerators: w.terrainCounts[Incinerator],
-		Refuse:       w.refuseTotal(),
+		Incinerators:      w.terrainCounts[Incinerator],
+		StorageContainers: w.terrainCounts[Storage],
+		Refuse:            w.refuseTotal(),
 	}
 	for _, e := range w.entities {
 		ev := w.entityView(e, kinChildren, true)
@@ -237,6 +249,17 @@ func (w *World) snapshot(paused bool, tps int) *Snapshot {
 		})
 	}
 
+	storages := make([]StorageView, 0, len(w.storageContainers))
+	for _, container := range w.storageContainers {
+		storages = append(storages, StorageView{
+			Pos:       container.Pos,
+			Inventory: container.Inventory,
+		})
+	}
+	sort.Slice(storages, func(i, j int) bool {
+		return lessPoint(storages[i].Pos, storages[j].Pos)
+	})
+
 	return &Snapshot{
 		Tick:                 w.tick,
 		Width:                w.Width,
@@ -250,6 +273,8 @@ func (w *World) snapshot(paused bool, tps int) *Snapshot {
 		PendingFacilityRooms: w.manualFacilityRooms,
 		PendingDormitories:   w.manualDormitories,
 		PendingTrashRooms:    w.manualTrashRooms,
+		PendingStorageRooms:  w.manualStorageRooms,
+		Storages:             storages,
 		Graveyard:            append([]EntityView(nil), w.graveyard...),
 		AffinityMax:          w.cfg.AffinityMax,
 		MoodMax:              w.cfg.MoodMax,

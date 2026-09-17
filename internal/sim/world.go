@@ -50,6 +50,10 @@ const (
 	// trash room gets built at all. Used from an adjacent tile; blocks movement
 	// like any other structure. See docs/sanitation.md.
 	Incinerator
+	// Storage is a large trunk with six colonist inventories worth of slots.
+	// Its contents are sparse world state rather than part of every Tile; see
+	// storageContainers and docs/storage.md.
+	Storage
 
 	numTerrains // keep last: the number of terrain kinds
 )
@@ -70,6 +74,8 @@ func (t Terrain) String() string {
 		return "bed"
 	case Incinerator:
 		return "incinerator"
+	case Storage:
+		return "storage container"
 	default:
 		return "unknown"
 	}
@@ -339,6 +345,10 @@ type World struct {
 	manualFacilityRooms int
 	manualDormitories   int
 	manualTrashRooms    int
+	manualStorageRooms  int
+	// storageContainers holds mutable contents only for tiles whose terrain is
+	// Storage. Keeping it sparse avoids inflating every tile in a large map.
+	storageContainers map[Point]*StorageContainer
 	// buildTiles holds every not-yet-built task tile, rebuilt each tick. Colonists
 	// route around these so a crowd never parks on a tile a builder needs clear —
 	// otherwise a facility mobbed by its neighbors could never be raised. See
@@ -380,24 +390,25 @@ type World struct {
 func newWorld(cfg Config, rng *rand.Rand) *World {
 	n := cfg.Width * cfg.Height
 	w := &World{
-		Width:            cfg.Width,
-		Height:           cfg.Height,
-		tiles:            make([]Tile, n),
-		occ:              make([]EntityID, n),
-		entities:         make(map[EntityID]*Entity),
-		colonistNames:    make(map[string]EntityID),
-		buildTiles:       make(map[Point]bool),
-		kin:              make(map[kinID]*kinPerson),
-		nextKinID:        1,
-		kinRevision:      1,
-		kinChildrenCache: make(map[kinID][]kinID),
-		affinity:         make(map[EntityID]map[EntityID]int),
-		nextID:           1,
-		rng:              rng,
-		prng:             rand.New(rand.NewSource(cfg.Seed ^ 0x5DEECE66D)),
-		agePRNG:          rand.New(rand.NewSource(cfg.Seed ^ 0x6A09E667)),
-		log:              newEventLog(cfg.LogSize),
-		cfg:              cfg,
+		Width:             cfg.Width,
+		Height:            cfg.Height,
+		tiles:             make([]Tile, n),
+		occ:               make([]EntityID, n),
+		entities:          make(map[EntityID]*Entity),
+		colonistNames:     make(map[string]EntityID),
+		buildTiles:        make(map[Point]bool),
+		storageContainers: make(map[Point]*StorageContainer),
+		kin:               make(map[kinID]*kinPerson),
+		nextKinID:         1,
+		kinRevision:       1,
+		kinChildrenCache:  make(map[kinID][]kinID),
+		affinity:          make(map[EntityID]map[EntityID]int),
+		nextID:            1,
+		rng:               rng,
+		prng:              rand.New(rand.NewSource(cfg.Seed ^ 0x5DEECE66D)),
+		agePRNG:           rand.New(rand.NewSource(cfg.Seed ^ 0x6A09E667)),
+		log:               newEventLog(cfg.LogSize),
+		cfg:               cfg,
 	}
 	w.terrainCounts[Rock] = n // every tile starts as Rock
 
@@ -517,6 +528,12 @@ func (w *World) SetTerrain(p Point, t Terrain) {
 	}
 	if w.facilityTiles[t] != nil {
 		w.facilityTiles[t][p] = struct{}{}
+	}
+	if old == Storage {
+		delete(w.storageContainers, p)
+	}
+	if t == Storage {
+		w.storageContainers[p] = &StorageContainer{Pos: p}
 	}
 	if t != Rock {
 		if !w.carvedAny {

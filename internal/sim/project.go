@@ -297,6 +297,13 @@ var (
 		name: "trash room", kinds: []Terrain{Incinerator}, minFac: 1, maxFac: 1,
 		planLog: "The colony marks out a new trash room.",
 	}
+	// storageRoom encloses one large trunk. Containers are deliberately placed
+	// one at a time: unlike need facilities, their useful capacity is already
+	// six full colonist inventories and demand is player-directed.
+	storageRoom = roomRecipe{
+		name: "storage room", kinds: []Terrain{Storage}, minFac: 1, maxFac: 1,
+		planLog: "The colony marks out a new storage room.",
+	}
 )
 
 // bayWidth is the row width spanned by n facilities spaced one tile apart.
@@ -363,6 +370,14 @@ func (w *World) planRooms() {
 		w.planRoom(trashRoom)
 		if len(w.projects) > before {
 			w.manualTrashRooms--
+		}
+		return
+	}
+	if w.manualStorageRooms > 0 {
+		before := len(w.projects)
+		w.planRoom(storageRoom)
+		if len(w.projects) > before {
+			w.manualStorageRooms--
 		}
 		return
 	}

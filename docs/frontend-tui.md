@@ -34,13 +34,13 @@ newest available snapshot rather than building a terminal view for every tick.
 The model never mutates or reads live world state — only snapshots (see
 [architecture.md](./architecture.md)).
 
-### Three screens
+### Map and details panels
 
-`viewMode` cycles between the **map** (default), the **roster**, and the
-**job board**. `tab` advances map → roster → job board → map; `esc` returns
-straight to the map from either. Global keys (`handleKey`) work on every
-screen; the rest dispatch to `handleMapKey`, `handleRosterKey`, or
-`handleJobsKey`.
+`viewMode` cycles between the **map** (default) and three **details panels**:
+the **roster**, **job board**, and **storage**. `tab` advances map → roster →
+job board → storage → map; `esc` returns straight to the map from any details
+panel. Global keys (`handleKey`) work everywhere; the rest dispatch to the
+active panel's handler.
 
 - **Map** (`renderMap`): draws a camera-windowed view of the tile grid, two
   terminal cells per tile, overlaying entity glyphs (aliens win position ties).
@@ -73,6 +73,9 @@ screen; the rest dispatch to `handleMapKey`, `handleRosterKey`, or
   [architecture.md](./architecture.md) for how projects and tasks work. (This
   screen is unrelated to the engine's internal `jobBoard`, which tracks the
   mining frontier — see `internal/sim/jobboard.go`.)
+- **Storage** (`renderStorage`): a position-sorted list of built chests with
+  arrow navigation. Its detail pane shows the selected chest's occupied slots,
+  total item count, and 48-slot capacity.
 
 ### The scrolling inspector
 
@@ -119,7 +122,7 @@ position line lives on.
 `spawnMenuItems`/`buildMenuItems`) rather than sending a command directly.
 Within an open menu: `up`/`down` (or `k`/`j`) move the highlighted option,
 `enter` submits whichever is highlighted, a shortcut letter (`c`/`a`/`x`/`m`
-for spawn, `f`/`d` for build) jumps to and submits that option immediately,
+for spawn, `f`/`d`/`t`/`r` for build) jumps to and submits that option immediately,
 `esc` cancels with no command sent, and `q`/`ctrl+c` still quits. Every other
 key is ignored so the prompt stays open until answered.
 
@@ -134,6 +137,20 @@ from. This keeps the top-level key surface small as more spawnable/buildable
 kinds are added — new options are new entries in `spawnMenuItems`/
 `buildMenuItems` plus a case in `submitMenuItem`, not new top-level keys.
 
+### Map inspection and details panels
+
+Pressing `i` on the map enters inspection mode. A reverse-video cursor starts
+near the center of the viewport; arrows or `hjkl` move it one world tile at a
+time and pan the camera when it reaches an edge. The sidebar shows the cursor
+coordinate and terrain. For a storage container it also shows occupied stacks,
+and `enter` jumps directly to that container in the storage details panel.
+`i` or `esc` closes inspection without quitting.
+
+`tab` cycles **map → roster → jobs → storage → map**. Roster, jobs, and storage
+are collectively the details panels. In storage, `up`/`down` or `j`/`k` selects
+a chest from the position-sorted snapshot list; the inspector shows its occupied
+slots and total capacity.
+
 ### Controls
 
 | Key | Action |
@@ -141,11 +158,12 @@ kinds are added — new options are new entries in `spawnMenuItems`/
 | `space` | pause / resume (`TogglePause`) |
 | `+` / `-` | faster / slower (`SetTicksPerSecond`, ±2) |
 | `s` | open the spawn menu — `↑↓`/`enter` to pick, or `c`/`a`/`x`/`m` for colonist/alien/cat/mouse directly (`Spawn`) |
-| `b` | open the build menu — `↑↓`/`enter` to pick, or `f`/`d`/`t` for facility room/dormitory/trash room directly (`OrderFacilityRoom`, `OrderDormitory`, `OrderTrashRoom`) |
+| `b` | open the build menu — `↑↓`/`enter` to pick, or `f`/`d`/`t`/`r` for facility room/dormitory/trash room/storage container directly |
+| `i` (map only) | enter map inspection; arrows/`hjkl` move the cursor, `enter` opens a storage chest's details, and `i`/`esc` closes |
 | `f` (roster only) | open the roster's filter menu — `↑↓`/`enter`/`space` to toggle the highlighted checkbox, or `d`/`n` for dead/non-human directly; no command sent, this only changes what the roster shows |
 | arrows or `hjkl` | pan the camera (map) / move selection (roster, job board) |
 | `shift+↑↓`, `pgup`/`pgdn` (roster only) | scroll the selected colonist's inspector a line / a screenful |
-| `tab` | cycle map → roster → job board → map |
+| `tab` | cycle map → roster → job board → storage → map |
 | `q` / `esc` | quit (`esc` returns to the map from roster/job board, or cancels an open menu) |
 
 `s` and `b` work from every screen; `f` only does anything on the roster

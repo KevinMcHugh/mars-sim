@@ -152,7 +152,7 @@ func busySnapshot() *sim.Snapshot {
 	w, h := 60, 40
 	tiles := make([]sim.Tile, w*h)
 	terrains := []sim.Terrain{
-		sim.Rock, sim.Floor, sim.Wall, sim.NutrientPod, sim.Toilet, sim.Bed, sim.Incinerator,
+		sim.Rock, sim.Floor, sim.Wall, sim.NutrientPod, sim.Toilet, sim.Bed, sim.Incinerator, sim.Storage,
 	}
 	for i := range tiles {
 		tiles[i].Terrain = terrains[i%len(terrains)]
@@ -231,7 +231,7 @@ func TestListScreensFillTerminalHeight(t *testing.T) {
 	for _, mode := range []struct {
 		name string
 		mode viewMode
-	}{{"roster", modeRoster}, {"jobs", modeJobs}} {
+	}{{"roster", modeRoster}, {"jobs", modeJobs}, {"storage", modeStorage}} {
 		for _, size := range []struct{ w, h int }{{100, 30}, {120, 40}, {200, 50}, {80, 24}} {
 			m := New(nil, nil)
 			m.termW, m.termH = size.w, size.h

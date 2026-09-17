@@ -23,10 +23,11 @@ toilets) are the first — and currently only — project kind.
 
 The normal planner maintains life-support, bunk, and incinerator capacity
 automatically, but the TUI can queue explicit room orders: `b` opens a menu,
-then `f` requests one facility room, `d` one dormitory, and `t` one trash room.
-Each order just increments a counter
-(`manualFacilityRooms`/`manualDormitories`/`manualTrashRooms`) recorded on the
-engine-owned world, so several can be queued at once; `planRooms` works
+then `f` requests one facility room, `d` one dormitory, `t` one trash room, and
+`r` one storage room. Each order just increments a counter
+(`manualFacilityRooms`/`manualDormitories`/`manualTrashRooms`/
+`manualStorageRooms`) recorded on the engine-owned world, so several can be
+queued at once; `planRooms` works
 through them — one new project per call, life support before dormitories —
 whenever the colony is below its current concurrent-project cap and a suitable
 site exists (see *Planning cadence* below).
@@ -62,6 +63,7 @@ current recipes are:
 | facility room | alternating nutrient pods and toilets | 2 facilities | first, because food is fatal |
 | dormitory | beds/bunks | 1 bed | after the desired pods and toilets exist |
 | trash room | an incinerator | 1 incinerator (and at most 1, via `maxFac`) | last, and only once there is refuse to burn |
+| storage room | one storage container | exactly 1 container via `maxFac` | player-ordered only |
 
 `planRooms` checks each recipe's planned-or-built capacity, plans at most one
 new room per call (see *Planning cadence*), and always chooses a life-support
@@ -71,6 +73,11 @@ incinerator, and only once `refuseTotal() > 0` (see
 [sanitation.md](./sanitation.md)). A dormitory can therefore be built in a cramped
 cavern with a single bunk, and the colony adds more rooms — and, once the
 population justifies it, more of them at once — as it grows.
+
+Storage rooms are intentionally not demand-planned. A single container already
+holds six colonist inventories, and the simulation has no hauling policy from
+which to infer when more capacity is useful; the player places each one
+explicitly. See [storage.md](./storage.md).
 
 Beds use the same facility machinery as pods and toilets: a colonist approaches
 an adjacent tile, spends the sleep need's `UseTicks` sleeping, and then resets

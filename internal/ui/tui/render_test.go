@@ -56,7 +56,7 @@ func TestViewRendersEntities(t *testing.T) {
 
 func TestGlyphsOccupyOneTile(t *testing.T) {
 	terrain := []sim.Terrain{
-		sim.Floor, sim.Rock, sim.Wall, sim.NutrientPod, sim.Toilet, sim.Bed, sim.Incinerator,
+		sim.Floor, sim.Rock, sim.Wall, sim.NutrientPod, sim.Toilet, sim.Bed, sim.Incinerator, sim.Storage,
 	}
 	for _, tile := range terrain {
 		if got := cells.Width(terrainGlyph(tile)); got != tileWidth {
@@ -183,6 +183,65 @@ func TestJobBoardShowsProjectAndAssignee(t *testing.T) {
 		if !strings.Contains(out, want) {
 			t.Errorf("job board missing %q in:\n%s", want, out)
 		}
+	}
+}
+
+func TestStorageDetailsTabNavigatesContainerContents(t *testing.T) {
+	snap := makeSnapshot()
+	var first, second sim.StorageInventory
+	first[0] = sim.ItemStack{Kind: sim.IronOre, Count: 12}
+	second[0] = sim.ItemStack{Kind: sim.WaterIce, Count: 7}
+	snap.Storages = []sim.StorageView{
+		{Pos: sim.Point{X: 1, Y: 2}, Inventory: first},
+		{Pos: sim.Point{X: 4, Y: 2}, Inventory: second},
+	}
+
+	var model tea.Model = New(nil, nil)
+	model, _ = model.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
+	model, _ = model.Update(snapshotMsg{snap: snap})
+	for range 3 {
+		model, _ = model.Update(tea.KeyMsg{Type: tea.KeyTab})
+	}
+
+	if out := model.View(); !strings.Contains(out, "DETAILS · STORAGE") ||
+		!strings.Contains(out, "iron ore ×12") {
+		t.Fatalf("storage details did not show the first chest:\n%s", out)
+	}
+	model, _ = model.Update(tea.KeyMsg{Type: tea.KeyDown})
+	if out := model.View(); !strings.Contains(out, "Storage chest (4,2)") ||
+		!strings.Contains(out, "water ice ×7") {
+		t.Fatalf("down did not select the second chest:\n%s", out)
+	}
+}
+
+func TestMapCursorInspectsAndOpensStorage(t *testing.T) {
+	snap := makeSnapshot()
+	tiles := make([]sim.Tile, snap.Width*snap.Height)
+	for i := range tiles {
+		tiles[i].Terrain = sim.Rock
+	}
+	p := sim.Point{X: snap.Width - 1, Y: snap.Height - 1}
+	tiles[p.Y*snap.Width+p.X].Terrain = sim.Storage
+	snap.Tiles = sim.NewTileGrid(snap.Width, snap.Height, tiles)
+	var inventory sim.StorageInventory
+	inventory[0] = sim.ItemStack{Kind: sim.RawRock, Count: 9}
+	snap.Storages = []sim.StorageView{{Pos: p, Inventory: inventory}}
+
+	var model tea.Model = New(nil, nil)
+	model, _ = model.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
+	model, _ = model.Update(snapshotMsg{snap: snap})
+	model, _ = model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'i'}})
+	model, _ = model.Update(tea.KeyMsg{Type: tea.KeyRight})
+	model, _ = model.Update(tea.KeyMsg{Type: tea.KeyRight})
+	model, _ = model.Update(tea.KeyMsg{Type: tea.KeyDown})
+
+	if out := model.View(); !strings.Contains(out, "INSPECT") ||
+		!strings.Contains(out, "raw rock ×9") {
+		t.Fatalf("map cursor did not inspect storage:\n%s", out)
+	}
+	model, _ = model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	if out := model.View(); !strings.Contains(out, "DETAILS · STORAGE") {
+		t.Fatalf("enter did not open storage details:\n%s", out)
 	}
 }
 
