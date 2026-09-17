@@ -21,7 +21,7 @@ way it is without re-deriving it from the source each time.
 | [needs.md](./needs.md) | Colonist (and mouse) needs: hunger, bladder, lazy evaluation, starvation, and how to add a need. |
 | [mutation.md](./mutation.md) | Uranium deposits, the exposure dose, mutant body parts, and the Mutant / Mutant-Lover traits. |
 | [personality.md](./personality.md) | Names, attributes, traits, and the separate RNG stream that keeps flavor out of the simulation. |
-| [ages-and-family.md](./ages-and-family.md) | Colonist ages and the age invariant for parent/child relationships. |
+| [ages-and-family.md](./ages-and-family.md) | Colonist ages and the age invariants family ties have to satisfy. |
 | [heredity.md](./heredity.md) | What joining a family does to a colonist: a shared surname, inherited looks, and a warm start with relatives. |
 | [construction.md](./construction.md) | Construction projects and the facility-room design, including the deadlocks that shaped it. |
 | [sanitation.md](./sanitation.md) | Cleaning up gore and corpses, hauling refuse, the incinerator, and the trash room. |
