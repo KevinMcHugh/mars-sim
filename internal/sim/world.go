@@ -81,6 +81,11 @@ const (
 	OrdinaryRock RockComposition = iota
 	IronBearingRock
 	WaterIceBearingRock
+	// UraniumBearingRock yields uranium ore, the one deposit that is dangerous
+	// to be around: a colonist that mines near it or carries the ore
+	// accumulates a dose, and a long enough dose can mutate them. See
+	// mutation.go and docs/mutation.md.
+	UraniumBearingRock
 )
 
 func (c RockComposition) String() string {
@@ -91,6 +96,8 @@ func (c RockComposition) String() string {
 		return "iron-bearing rock"
 	case WaterIceBearingRock:
 		return "water ice-bearing rock"
+	case UraniumBearingRock:
+		return "uranium-bearing rock"
 	default:
 		return "unknown rock"
 	}
@@ -217,7 +224,7 @@ type World struct {
 
 	// Reactive plumbing: systems subscribe to world events; the job board is the
 	// first consumer, tracking the mineable frontier from TileChanged events.
-	subscribers []func(Event)
+	subscribers []func(WorldEvent)
 	board       *jobBoard
 	pf          *pathfinder
 
@@ -317,7 +324,7 @@ func newWorld(cfg Config, rng *rand.Rand) *World {
 	w.dirtyChunks = make(map[int]struct{})
 
 	w.board = newJobBoard(w)
-	w.subscribe(func(e Event) {
+	w.subscribe(func(e WorldEvent) {
 		if tc, ok := e.(TileChanged); ok {
 			w.board.onTileChanged(tc)
 		}
@@ -341,7 +348,7 @@ func newWorld(cfg Config, rng *rand.Rand) *World {
 			}
 		}
 	})
-	w.subscribe(func(e Event) {
+	w.subscribe(func(e WorldEvent) {
 		if _, ok := e.(TileChanged); ok {
 			for _, f := range w.fields {
 				if f != nil {

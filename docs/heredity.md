@@ -122,6 +122,13 @@ aren't all at a flat number per kind. Family arriving on the same ship have
 known each other for years; making them talk their way up from zero like
 strangers was plainly wrong.
 
+Affinity is stored per direction, but family warmth goes in through
+`addAffinity`, which writes both directions equally. That is deliberate: a
+shared history is a property of the pair, not something one relative can hold
+more of than the other. One-sided forces (a Mutant-Lover's pull toward a
+mutant, see [mutation.md](./mutation.md)) are what make the two readings
+diverge later in play.
+
 This writes simulation-visible state from the personality RNG stream — which is
 what family generation already does. The draws stay off `World.rng`, so the
 invariant in [`AGENTS.md`](../AGENTS.md) holds: a run with `FamilyChance = 0` is
@@ -174,7 +181,7 @@ never evicts the namesake who was there first.
   rounding error.
 
 Measured over 40 seeds of a 30-colonist colony: blood relatives share a natural
-hair color 60% of the time against a 31% colony baseline, and sit a mean 1.08
+hair color 61% of the time against a 32% colony baseline, and sit a mean 1.03
 skin-tone steps apart against a 1.61 baseline.
 
 ## Extending it
@@ -198,3 +205,5 @@ skin-tone steps apart against a 1.61 baseline.
 - [ages-and-family.md](./ages-and-family.md) — the kinship tree heredity reads, and the age rule that constrains it.
 - [personality.md](./personality.md) — the profile heredity partly overwrites, and the RNG-stream invariant.
 - [configuration.md](./configuration.md) — the four tunables and their flags.
+- [mutation.md](./mutation.md) — the other thing that rewrites a colonist's
+  body, and the one-sided affinity that makes the two directions diverge.

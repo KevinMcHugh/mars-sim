@@ -5,8 +5,8 @@
 ## What it is
 
 Colonists carry items in a fixed set of slots, each holding one homogeneous stack.
-Mining produces `RawRock` and may also produce `IronOre` or `WaterIce`, depending
-on the excavated tile's rock composition. Colonists may also carry `Pistol` or
+Mining produces `RawRock` and may also produce `IronOre`, `WaterIce`, or
+`UraniumOre`, depending on the excavated tile's rock composition. Colonists may also carry `Pistol` or
 `Shotgun` weapons from the colony ship's starting equipment; see
 [combat.md](./combat.md).
 
@@ -34,9 +34,15 @@ count 0 and `ItemNone`.
   carry completely.
 
 Mining is the one producer today. `miningYield` always returns one `RawRock` and
-adds one `IronOre` or `WaterIce` for a bearing tile. `jobMine` and construction
+adds one `IronOre`, `WaterIce`, or `UraniumOre` for a bearing tile. `jobMine` and construction
 dig tasks add that complete yield with `AddAll` **before** changing terrain, so
 limited inventory can never make one part of a deposit disappear.
+
+`UraniumOre` is the one item that acts on its carrier. Nothing can be dropped
+yet, so a colonist who mines uranium keeps it, and `Inventory.Has(UraniumOre)`
+is one of the two things that puts them under a mutation-causing dose every
+tick — see [mutation.md](./mutation.md). That makes "no drop" a balance
+decision rather than only a missing feature.
 
 Weapons are the other producer, though a one-time one: `equipColonyShip`
 (`combat.go`) hands a `Pistol` or `Shotgun` to a colonist's inventory once, at
@@ -73,5 +79,6 @@ render it without touching live state.
 ## Related
 
 - [entities-and-ai.md](./entities-and-ai.md) — mining, the current producer.
+- [mutation.md](./mutation.md) — what carrying uranium ore does to the carrier.
 - [combat.md](./combat.md) — the pistol/shotgun weapons carried in inventory.
 - [frontend-tui.md](./frontend-tui.md) — how the roster renders inventory.

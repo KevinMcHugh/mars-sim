@@ -5,8 +5,8 @@
 ## What it is
 
 The world is a single underground level: a dense, row-major grid of `Tile`s that
-starts as solid rock with ordinary, iron-bearing, or water ice-bearing
-composition. World generation carves a landing cavern, drops the colonists inside
+starts as solid rock with ordinary, iron-bearing, water ice-bearing, or
+uranium-bearing composition. World generation carves a landing cavern, drops the colonists inside
 it, and seeds aliens out in the surrounding rock and cats/mice on the floor.
 
 ## Source
@@ -27,10 +27,16 @@ adjacent floor tile.
 
 A `Tile` stores both `Terrain` and `RockComposition`. Composition is meaningful
 only while the terrain is `Rock`: ordinary rock yields one `RawRock`, while
-iron-bearing and water ice-bearing rock also yield one `IronOre` or `WaterIce`.
-Keeping composition separate from terrain means all three deposits share the
-same blocking, frontier, pathfinding, and excavation rules instead of multiplying
-terrain cases throughout the simulation.
+iron-bearing, water ice-bearing, and uranium-bearing rock also yield one
+`IronOre`, `WaterIce`, or `UraniumOre`. Keeping composition separate from terrain
+means every deposit shares the same blocking, frontier, pathfinding, and
+excavation rules instead of multiplying terrain cases throughout the simulation.
+
+Uranium is the one composition that does something beyond its yield: standing
+next to an unexcavated uranium deposit (or carrying the ore away from it) puts a
+colonist under a dose that can eventually mutate them. That lives entirely in
+`mutation.go` and reads the tile — the tile itself behaves like any other rock.
+See [mutation.md](./mutation.md).
 
 The grid is stored as a flat `[]Tile` of length `Width*Height`, indexed row-major
 via `World.index(p)`. `TerrainAt` returns `Rock` for out-of-bounds cells so the
@@ -64,9 +70,11 @@ go stale.
 
 `generate` (called once by `NewEngine`):
 
-1. Grows iron and water-ice deposits as meandering, occasionally branching veins using a
-   dedicated RNG derived from the simulation seed. The configurable iron and ice
-   percentages default to 10% and 5%; the remainder is ordinary rock. Veins
+1. Grows iron, water-ice, and uranium deposits as meandering, occasionally branching veins using a
+   dedicated RNG derived from the simulation seed. The configurable iron, ice, and
+   uranium percentages default to 10%, 5%, and 3%; the remainder is ordinary rock.
+   Uranium is grown last, so adding it left every existing seed's iron and ice
+   veins exactly where they were. Veins
    default to 8–24 orthogonally connected tiles.
 2. Carves an **oval cavern** at the map center. `caveRadii` sizes it to the
    starting colonist count (~10 tiles per colonist) at a 2:1 width:height ratio,

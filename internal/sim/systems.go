@@ -90,6 +90,11 @@ func (w *World) colonistTurn(e *Entity) {
 	// per tick.
 	w.observeNearby(e)
 
+	// Uranium does its work regardless of what the colonist is doing — fleeing,
+	// eating, or digging the vein itself — so the dose is taken before any
+	// branch below can return. See mutation.go.
+	w.applyUraniumExposure(e)
+
 	// Survival comes first: if an alien is close, an armed colonist stands and
 	// fights it instead of running (fleeing an armed threat that is faster to
 	// close than to outrun defeats the point of carrying a weapon); an unarmed
@@ -622,9 +627,15 @@ func (w *World) jobTalk(e *Entity) {
 // table lookup — so it travels on the LifeEvent itself via eventMood rather
 // than lifeEventMoodEffects. See docs/memories.md.
 func (w *World) finishTalk(a, b *Entity) {
-	existing := w.affinityBetween(a.ID, b.ID)
+	existing := w.mutualAffinity(a.ID, b.ID)
 	quality := w.rollTalkQuality(existing)
-	w.addAffinity(a.ID, b.ID, w.talkAffinityDelta(existing, quality))
+	// Affinity is credited per direction rather than through addAffinity: the
+	// conversation itself moves both sides by the same step, but a trait-driven
+	// bonus is one-sided (a Mutant-Lover's warmth toward a mutant is not
+	// returned in kind), and only a per-direction credit can express that.
+	step := w.talkAffinityDelta(existing, quality)
+	w.bumpAffinity(a.ID, b.ID, step+w.mutantAffinityBonus(a, b))
+	w.bumpAffinity(b.ID, a.ID, step+w.mutantAffinityBonus(b, a))
 	mood := w.talkMoodDelta(quality, existing)
 	w.remember(a, eventMood(EvtConversation, mood+w.noteConversation(a), "Had a conversation with %s.", b.displayName()))
 	w.remember(b, eventMood(EvtConversation, mood+w.noteConversation(b), "Had a conversation with %s.", a.displayName()))
@@ -1203,7 +1214,7 @@ func (w *World) alienTurn(e *Entity) {
 // the alien (observeNearby's own sighting radius) remembers watching it
 // happen. A fatal bite leaves gore behind.
 func (w *World) bite(alien, prey *Entity) {
-	part := w.rollHit()
+	part := w.rollHit(prey)
 	fatal := applyDamage(prey, part, w.cfg.AlienDamage)
 	witnesses := w.colonistsWithin(prey.Pos, w.cfg.FleeRadius, prey.ID)
 	if fatal {

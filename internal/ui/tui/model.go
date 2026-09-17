@@ -97,11 +97,14 @@ type Model struct {
 	showNonHuman bool
 
 	quitting bool
+
+	// cache carries rendering work between frames; see renderCache.
+	cache *renderCache
 }
 
 // New builds a Model bound to an engine and its snapshot channel.
 func New(eng *sim.Engine, snaps <-chan *sim.Snapshot) Model {
-	return Model{eng: eng, snaps: snaps}
+	return Model{eng: eng, snaps: snaps, cache: newRenderCache()}
 }
 
 // Init starts listening for snapshots.

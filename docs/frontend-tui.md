@@ -53,7 +53,10 @@ screen; the rest dispatch to `handleMapKey`, `handleRosterKey`, or
   the filter menu (`f`) turns those on — with each row's name, pronouns (or
   kind, for anything without a `Profile`), and current status (or cause of
   death). The detail pane for the selection is the full colonist inspector —
-  name, attributes, HP, a compact per-body-part wound summary, needs, the
+  name, attributes, HP, a compact per-body-part wound summary (`bodyPartLines`,
+  which lists only the parts that entity actually has, so a mutant's grown
+  limbs appear and nobody else shows empty ones — see
+  [mutation.md](./mutation.md)), needs, the
   eight-slot inventory, recent memories, and traits — for a colonist, or a
   shorter identity/status/body-part view (`renderNonColonistDetail`) for
   anything else. See [combat.md](./combat.md) for the wound and graveyard
@@ -149,6 +152,34 @@ When the terminal is too narrow for two panels side by side, the second one is
 dropped (`sidebarFits`, `splitPanels`) rather than squeezed. Flooring it at a
 minimum instead is what used to push the sidebar's border off the right edge.
 
+### Redraw cost
+
+The map screen is a full grid of emoji, and most of the cost of drawing one is
+measuring it: every `ansi.StringWidth` call runs a grapheme segmentation, which
+is at its slowest on emoji. Profiling found three places doing it for every line
+of every frame, plus a large per-frame garbage bill, and each is now avoided
+without dropping the guarantee it provided:
+
+- **Map and sidebar join.** `lipgloss.JoinHorizontal` cannot know its blocks'
+  widths, so it measured every line twice. `joinColumns` produces the same bytes
+  from widths the layout already knows (`TestJoinColumnsMatchesLipgloss`).
+- **Map rows.** Rows are exact by construction rather than re-fitted; see
+  [terminal-cell-widths.md](./terminal-cell-widths.md).
+- **`clampFrame`.** Reuses widths of lines unchanged since the previous frame.
+- **Sidebar.** Memoized: lipgloss's border, padding and wrapping dominate its
+  cost, and it only changes with the event log, the panel height, or the glyph
+  set (`TestSidebarCacheInvalidates`).
+- **Occupancy index.** `renderMap` indexes entities by position; it now stores
+  each occupant's glyph rather than copying its whole `EntityView` (profile,
+  inventory, needs, relations, memories) into a map every frame.
+
+The caches live in `renderCache`, behind a pointer shared by every copy of the
+by-value `Model`. Bubble Tea calls `Update` and `View` on one goroutine, so they
+need no lock, and a `Model` without a cache renders the same frames uncached
+(`TestCachedAndUncachedFramesMatch`). Together this took a 200x60 frame with
+entities moving every tick from about 1.7 ms to about 0.26 ms, with identical
+output.
+
 ### Headless mode
 
 `runHeadless` (in `main.go`) is a second, non-graphical consumer of the same
@@ -202,6 +233,7 @@ contract is genuinely frontend-agnostic.
 
 - [architecture.md](./architecture.md) — the snapshot/command contract this implements.
 - [combat.md](./combat.md) — body parts, weapons, and the gore glyph.
+- [mutation.md](./mutation.md) — the uranium-rock and mutant-colonist glyphs, and the per-entity body parts the inspector lists.
 - [inventory.md](./inventory.md) — what the roster's inventory view shows.
 - [personality.md](./personality.md) — the attributes and traits the inspector shows.
 - [terminal-cell-widths.md](./terminal-cell-widths.md) — how glyph widths are measured and kept honest.

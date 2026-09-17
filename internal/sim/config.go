@@ -9,10 +9,11 @@ type Config struct {
 	// World shape.
 	Width, Height int
 	// Rock composition percentages. The remainder is ordinary rock.
-	IronRockPercent int
-	IceRockPercent  int
-	RockVeinMin     int // minimum tiles in a generated deposit vein
-	RockVeinMax     int // maximum tiles in a generated deposit vein
+	IronRockPercent    int
+	IceRockPercent     int
+	UraniumRockPercent int
+	RockVeinMin        int // minimum tiles in a generated deposit vein
+	RockVeinMax        int // maximum tiles in a generated deposit vein
 
 	// Seed makes a run reproducible. Same seed + same code => same game.
 	Seed int64
@@ -73,6 +74,16 @@ type Config struct {
 	// from each trait group at spawn (0 disables traits; attributes are still
 	// generated). See personality.go.
 	TraitChance int
+
+	// Mutation. A colonist near a uranium deposit or carrying uranium ore takes
+	// a dose: every UraniumExposureTicks of accumulated exposure is one roll at
+	// MutationChance percent to grow an extra body part and become a Mutant.
+	// MutantLoverAffinityBonus is the extra affinity a Mutant-Lover gains
+	// toward a mutant per conversation, on top of the ordinary talk step. See
+	// mutation.go and docs/mutation.md.
+	UraniumExposureTicks     int
+	MutationChance           int
+	MutantLoverAffinityBonus int
 
 	// Family. FamilyChance is the percent chance a newly generated colonist is
 	// tied to an existing one (spouse, sibling, parent/child, aunt/uncle,
@@ -184,6 +195,7 @@ func DefaultConfig() Config {
 		Height:              40,
 		IronRockPercent:     10,
 		IceRockPercent:      5,
+		UraniumRockPercent:  3,
 		RockVeinMin:         8,
 		RockVeinMax:         24,
 		Seed:                time.Now().UnixNano(),
@@ -216,6 +228,13 @@ func DefaultConfig() Config {
 		SpouseSurnameChance:     50,
 		FamilyAffinity:          55,
 		FamilyAffinitySpread:    15,
+
+		// 100 ticks of dose per roll, and a roll that usually comes up clean:
+		// a miner who works a uranium vein and then carries the ore around
+		// mutates in the tens of minutes of play, not on the first tile.
+		UraniumExposureTicks:     100,
+		MutationChance:           25,
+		MutantLoverAffinityBonus: 3,
 
 		TalkChance:       25,
 		TalkRadius:       6,
