@@ -7,71 +7,78 @@ import "time"
 // systems. Zero values are not meaningful; use DefaultConfig and adjust.
 type Config struct {
 	// World shape.
-	Width, Height int
+	Width  int `cfg:"width" sec:"World" doc:"world width in tiles"`
+	Height int `cfg:"height" doc:"world height in tiles"`
 	// Rock composition percentages. The remainder is ordinary rock.
-	IronRockPercent    int
-	IceRockPercent     int
-	UraniumRockPercent int
-	ClayRockPercent    int
-	RockVeinMin        int // minimum tiles in a generated deposit vein
-	RockVeinMax        int // maximum tiles in a generated deposit vein
+	IronRockPercent    int `cfg:"iron-rock-percent" doc:"percent of rock tiles bearing iron"`
+	IceRockPercent     int `cfg:"ice-rock-percent" doc:"percent of rock tiles bearing water ice"`
+	UraniumRockPercent int `cfg:"uranium-rock-percent" doc:"percent of rock tiles bearing uranium"`
+	ClayRockPercent    int `cfg:"clay-rock-percent" doc:"percent of rock tiles bearing clay"`
+	RockVeinMin        int `cfg:"rock-vein-min" doc:"minimum tiles in a generated rock deposit vein"`
+	RockVeinMax        int `cfg:"rock-vein-max" doc:"maximum tiles in a generated rock deposit vein"`
 
 	// Seed makes a run reproducible. Same seed + same code => same game.
+	//
+	// Deliberately untagged: it is not a balance knob, and its default is the
+	// wall clock, so it cannot appear in a generated template. The config file
+	// and the -seed flag both carry it as a special case where 0 means "pick a
+	// fresh time-based seed" (see configfile.go and main.go).
 	Seed int64
 
 	// Starting population.
-	StartColonists int
-	StartAliens    int
-	StartCats      int
-	StartMice      int
+	StartColonists int `cfg:"colonists" sec:"Starting population" doc:"starting number of colonists"`
+	StartAliens    int `cfg:"aliens" doc:"starting number of aliens"`
+	StartCats      int `cfg:"cats" doc:"starting number of cats"`
+	StartMice      int `cfg:"mice" doc:"starting number of mice"`
 
 	// Starting equipment. The colony ship arrives with a handful of firearms
 	// for defense against aliens; worldgen hands them out to distinct
 	// colonists (see generate in worldgen.go).
-	StartPistols  int
-	StartShotguns int
+	StartPistols  int `cfg:"pistols" doc:"pistols the colony ship arrives with"`
+	StartShotguns int `cfg:"shotguns" doc:"shotguns the colony ship arrives with"`
 
 	// GraveyardSize is how many recent deaths (any kind) are kept as frozen
 	// records for the roster's "dead" filter; 0 disables death tracking
 	// entirely. See docs/combat.md.
-	GraveyardSize int
+	GraveyardSize int `cfg:"graveyard-size" doc:"recent deaths kept for the roster's dead filter (0 disables)"`
 
 	// Timing.
-	TicksPerSecond int // default simulation speed
-	LogSize        int // how many recent events to retain
+	TicksPerSecond int `cfg:"tps" sec:"Timing" doc:"simulation ticks per second"`
+	LogSize        int `cfg:"log-size" doc:"number of recent events retained"`
 
 	// Colonist stats.
-	ColonistHP         int
-	MineTicks          int // ticks of work to excavate one Rock tile
-	BuildTicks         int // ticks of work to raise one Wall
-	FacilityBuildTicks int // ticks of work to build a nutrient pod or toilet
-	FleeRadius         int // flee when an alien is within this many tiles
+	ColonistHP         int `cfg:"colonist-hp" sec:"Colonists" doc:"colonist hit points"`
+	MineTicks          int `cfg:"mine-ticks" doc:"ticks of work to excavate one rock tile"`
+	BuildTicks         int `cfg:"build-ticks" doc:"ticks of work to raise one wall"`
+	FacilityBuildTicks int `cfg:"facility-ticks" doc:"ticks of work to build a pod or toilet"`
+	FleeRadius         int `cfg:"flee-radius" doc:"colonist flees when an alien is within this many tiles"`
 	// StompRadius is how far an idle colonist notices a mouse and gives chase to
 	// crush it. Stomping is an idle whim: only colonists with nothing pressing
 	// (no threat, no urgent need, no work) hunt pests.
-	ColonistStompRadius int
+	ColonistStompRadius int `cfg:"stomp-radius" doc:"an idle colonist chases and crushes a mouse within this many tiles"`
 	// GoreSightRadius is how far a colonist notices gore on the ground (see
 	// observeGore in systems.go and EvtSawGore in lifeevents.go). Smaller than
 	// the creature-sighting radii: a bloodstain doesn't announce itself the way
 	// a moving alien does.
-	GoreSightRadius int
+	GoreSightRadius int `cfg:"gore-sight-radius" doc:"a colonist notices gore on the ground within this many tiles"`
 
 	// Sanitation. A colonist with no urgent need cleans up refuse — gore and
 	// corpses — and hauls it to an incinerator to burn. CleanRadius is how far
 	// it looks for a mess (larger than GoreSightRadius, which is about noticing
 	// one, not going to find it); a Tidy colonist searches twice as far. See
 	// docs/sanitation.md.
-	CleanRadius           int
-	CleanTicks            int // ticks to scrub one tile clean
-	IncinerateTicks       int // ticks spent feeding a load into the incinerator
-	IncineratorBuildTicks int // ticks of work to build an incinerator
+	CleanRadius           int `cfg:"clean-radius" sec:"Sanitation" doc:"how far a colonist looks for refuse to clean up (a Tidy colonist looks twice as far)"`
+	CleanTicks            int `cfg:"clean-ticks" doc:"ticks of work to scrub one tile of refuse clean"`
+	IncinerateTicks       int `cfg:"incinerate-ticks" doc:"ticks spent feeding a load of refuse into an incinerator"`
+	IncineratorBuildTicks int `cfg:"incinerator-ticks" doc:"ticks of work to build an incinerator"`
 
 	// Needs. One NeedSpec per NeedKind, indexed by that kind.
-	Needs                [numNeeds]NeedSpec
-	StarveDamage         int // HP lost per tick while a Fatal need sits at Max
-	ColonistsPerFacility int // desired colonists served by each facility of a kind (min 1)
-	RestTicks            int // ticks an idle colonist rests before re-checking for work
-	StuckLimit           int // ticks a colonist waits on a blocked path before abandoning the job
+	Needs                [numNeeds]NeedSpec `cfg:"needs" sec:"Needs"`
+	StarveDamage         int                `cfg:"starve-damage" doc:"HP lost per tick while a fatal need sits at its max"`
+	ColonistsPerFacility int                `cfg:"per-facility" doc:"colonists served by each life-support facility"`
+
+	RestTicks  int `cfg:"rest-ticks" sec:"Work and construction" doc:"ticks an idle colonist rests before re-checking for work"`
+	StuckLimit int `cfg:"stuck-limit" doc:"ticks a colonist waits on a blocked path before abandoning the job"`
 
 	// MaxConcurrentProjects is the ceiling on how many rooms can be under
 	// construction at once (min 1 is enforced); the actual cap also scales
@@ -79,12 +86,12 @@ type Config struct {
 	// early cramped cavern still builds one room at a time. Raising it lets a
 	// larger colony's facility supply keep pace with growth; see
 	// construction.md.
-	MaxConcurrentProjects int
+	MaxConcurrentProjects int `cfg:"max-concurrent-projects" doc:"rooms that can be under construction at once"`
 
 	// Personality. TraitChance is the percent chance a colonist receives a trait
 	// from each trait group at spawn (0 disables traits; attributes are still
 	// generated). See personality.go.
-	TraitChance int
+	TraitChance int `cfg:"trait-chance" sec:"Personality" doc:"percent chance a colonist gets a trait from each trait group (0 disables)"`
 
 	// Mutation. A colonist near a uranium deposit or carrying uranium ore takes
 	// a dose: every UraniumExposureTicks of accumulated exposure is one roll at
@@ -92,15 +99,15 @@ type Config struct {
 	// MutantLoverAffinityBonus is the extra affinity a Mutant-Lover gains
 	// toward a mutant per conversation, on top of the ordinary talk step. See
 	// mutation.go and docs/mutation.md.
-	UraniumExposureTicks     int
-	MutationChance           int
-	MutantLoverAffinityBonus int
+	UraniumExposureTicks     int `cfg:"uranium-exposure-ticks" sec:"Mutation" doc:"ticks of uranium exposure per mutation roll"`
+	MutationChance           int `cfg:"mutation-chance" doc:"percent chance each full uranium dose mutates a colonist (0 disables mutation)"`
+	MutantLoverAffinityBonus int `cfg:"mutant-lover-affinity" doc:"extra affinity a mutant-lover gains toward a mutant per conversation"`
 
 	// Family. FamilyChance is the percent chance a newly generated colonist is
 	// tied to an existing one (spouse, sibling, parent/child, aunt/uncle,
 	// nibling, or grandparent/grandchild). Uses the personality RNG, so it never
 	// perturbs the sim. 0 disables family generation. See relationships.go.
-	FamilyChance int
+	FamilyChance int `cfg:"family-chance" sec:"Family and heredity" doc:"percent chance a new colonist is tied to an existing one by family (0 disables)"`
 
 	// Heredity. Once a colonist has a family, that family decides part of who
 	// they are: they take its surname, they take after their closest relatives,
@@ -119,19 +126,19 @@ type Config struct {
 	// a percent of AffinityMax, scaled down per relation kind;
 	// FamilyAffinitySpread is the random swing around it in the same units, so
 	// relatives aren't all equally close. 0 starts family at a stranger's zero.
-	AppearanceInheritChance int
-	SpouseSurnameChance     int
-	FamilyAffinity          int
-	FamilyAffinitySpread    int
+	AppearanceInheritChance int `cfg:"appearance-inherit-chance" doc:"percent chance each of a colonist's features is inherited from a close relative (0 disables)"`
+	SpouseSurnameChance     int `cfg:"spouse-surname-chance" doc:"percent chance a colonist marrying in takes their spouse's surname"`
+	FamilyAffinity          int `cfg:"family-affinity" doc:"starting affinity between close relatives, as a percent of affinity-max (0 disables)"`
+	FamilyAffinitySpread    int `cfg:"family-affinity-spread" doc:"random swing around the starting family affinity, in the same units"`
 
 	// Socializing. An idle colonist with nothing productive to do may seek out a
 	// nearby colonist and talk, which shifts the pair's affinity and both their
 	// moods. Affinity is tracked only; nothing simulates against it yet.
-	TalkChance       int // percent chance an idle colonist starts a conversation (0 disables talking)
-	TalkRadius       int // how far a colonist looks for a conversation partner
-	TalkTicks        int // ticks a conversation lasts before its outcome is applied
-	TalkAffinityGain int // base affinity step per conversation (scaled by outcome and diminishing returns)
-	AffinityMax      int // affinity runs in [-AffinityMax, AffinityMax]; talking alone saturates at half of it
+	TalkChance       int `cfg:"talk-chance" sec:"Socializing" doc:"percent chance an idle colonist starts a conversation (0 disables talking)"`
+	TalkRadius       int `cfg:"talk-radius" doc:"how far a colonist looks for a conversation partner"`
+	TalkTicks        int `cfg:"talk-ticks" doc:"ticks a conversation lasts before affinity is credited"`
+	TalkAffinityGain int `cfg:"talk-affinity-gain" doc:"base affinity step per conversation (scaled by outcome and diminishing returns)"`
+	AffinityMax      int `cfg:"affinity-max" doc:"affinity runs in [-affinity-max, affinity-max]; talking alone saturates at half"`
 
 	// Conversation quality shapes both the affinity change and the mood change a
 	// chat produces. Quality is a signed roll in [-100, 100]: TalkQualityBias is
@@ -140,9 +147,9 @@ type Config struct {
 	// positive-feedback loop that exacerbates like and dislike alike), and
 	// TalkQualitySpread is the random swing around that mean, so any pair can still
 	// have a surprisingly good or bad conversation.
-	TalkQualityBias    int
-	TalkQualityValence int
-	TalkQualitySpread  int
+	TalkQualityBias    int `cfg:"talk-quality-bias" doc:"baseline lean of conversation quality (-100..100)"`
+	TalkQualityValence int `cfg:"talk-quality-valence" doc:"how strongly existing affinity biases conversation quality"`
+	TalkQualitySpread  int `cfg:"talk-quality-spread" doc:"random swing around a conversation's mean quality"`
 
 	// Mood. Each colonist carries a mood in [-MoodMax, MoodMax] (0 = neutral).
 	// Nothing simulates against mood yet, but tasks move it. A finished
@@ -150,53 +157,53 @@ type Config struct {
 	// the other, from affinity) plus a conversation term (how the chat went, from
 	// quality): a good chat with someone you dislike lifts your mood, while a
 	// merely so-so chat with a friend still nets a small lift.
-	MoodMax                int
-	MoodCompanyWeight      int
-	MoodConversationWeight int
-	SocialWindowTicks      int // rolling window used for introvert conversation fatigue
+	MoodMax                int `cfg:"mood-max" sec:"Mood" doc:"colonist mood runs in [-mood-max, mood-max]"`
+	MoodCompanyWeight      int `cfg:"mood-company-weight" doc:"mood shift per conversation from how one feels about the other"`
+	MoodConversationWeight int `cfg:"mood-conversation-weight" doc:"mood shift per conversation from how the chat itself went"`
+	SocialWindowTicks      int `cfg:"social-window-ticks" doc:"ticks in the rolling window for social conversation fatigue"`
 
 	// Mining strategy switch. Below both thresholds, miners use cached A* to a
 	// claimed tile (cheaper for small colonies); at or above either, they follow
 	// the shared frontier flow field (cheaper once many miners share the sweep).
-	FrontierFieldMinColonists int
-	FrontierFieldMinArea      int
+	FrontierFieldMinColonists int `cfg:"frontier-field-colonists" sec:"Mining strategy" doc:"colony size at/above which miners use the shared frontier flow field"`
+	FrontierFieldMinArea      int `cfg:"frontier-field-area" doc:"map area (tiles) at/above which miners use the shared frontier flow field"`
 
 	// Alien stats.
-	AlienHP       int
-	AlienDamage   int // HP removed per bite
-	AlienBiteRest int // cooldown ticks between bites
-	AlienSlowness int // alien acts once every N ticks (>=1); higher is slower
+	AlienHP       int `cfg:"alien-hp" sec:"Aliens" doc:"alien hit points"`
+	AlienDamage   int `cfg:"alien-damage" doc:"HP removed per alien bite"`
+	AlienBiteRest int `cfg:"alien-bite-rest" doc:"cooldown ticks between alien bites"`
+	AlienSlowness int `cfg:"alien-slowness" doc:"alien acts once every N ticks (higher = slower)"`
 
 	// Weapon stats. A colonist carrying one stands and fights an alien within
 	// Range instead of fleeing, firing once every FireRest ticks. See
 	// combat.go and docs/combat.md.
-	PistolDamage    int
-	PistolRange     int
-	PistolFireRest  int
-	ShotgunDamage   int
-	ShotgunRange    int
-	ShotgunFireRest int
+	PistolDamage    int `cfg:"pistol-damage" sec:"Weapons" doc:"HP removed per pistol shot"`
+	PistolRange     int `cfg:"pistol-range" doc:"max tiles a pistol can fire from"`
+	PistolFireRest  int `cfg:"pistol-fire-rest" doc:"cooldown ticks between pistol shots"`
+	ShotgunDamage   int `cfg:"shotgun-damage" doc:"HP removed per shotgun blast"`
+	ShotgunRange    int `cfg:"shotgun-range" doc:"max tiles a shotgun can fire from"`
+	ShotgunFireRest int `cfg:"shotgun-fire-rest" doc:"cooldown ticks between shotgun blasts"`
 
 	// Cat stats. Cats have no needs; they hunt mice on the floor by instinct.
-	CatHP         int
-	CatSlowness   int // cat acts once every N ticks (>=1); higher is slower
-	CatPounceRest int // cooldown ticks after catching a mouse
+	CatHP         int `cfg:"cat-hp" sec:"Cats" doc:"cat hit points"`
+	CatSlowness   int `cfg:"cat-slowness" doc:"cat acts once every N ticks (higher = slower)"`
+	CatPounceRest int `cfg:"cat-pounce-rest" doc:"cooldown ticks after a cat catches a mouse"`
 
 	// Mouse stats. Mice share the colonists' NeedFood but grow hungry far faster
 	// (they nibble constantly), and flee cats rather than aliens.
-	MouseHP         int
-	MouseHungerRise int // NeedFood gained per tick for mice (vs. Needs[NeedFood].Rise for colonists)
-	MouseFleeRadius int // flee when a cat is within this many tiles
+	MouseHP         int `cfg:"mouse-hp" sec:"Mice" doc:"mouse hit points"`
+	MouseHungerRise int `cfg:"mouse-hunger-rise" doc:"food need a mouse gains per tick (mice eat frequently)"`
+	MouseFleeRadius int `cfg:"mouse-flee-radius" doc:"mouse flees when a cat is within this many tiles"`
 
 	// Mouse breeding. Two adjacent mice of opposite sex mate; the female then
 	// carries a litter for MouseGestationTicks before birthing MouseLitterMin..Max
 	// pups onto nearby floor. MouseBreedCooldown spaces out a female's litters,
 	// and a newborn cannot breed for MouseMaturityTicks.
-	MouseGestationTicks int
-	MouseLitterMin      int
-	MouseLitterMax      int
-	MouseBreedCooldown  int
-	MouseMaturityTicks  int
+	MouseGestationTicks int `cfg:"mouse-gestation" doc:"ticks a pregnant mouse carries a litter before giving birth"`
+	MouseLitterMin      int `cfg:"mouse-litter-min" doc:"smallest mouse litter size"`
+	MouseLitterMax      int `cfg:"mouse-litter-max" doc:"largest mouse litter size"`
+	MouseBreedCooldown  int `cfg:"mouse-breed-cooldown" doc:"ticks a mouse waits before it can mate again"`
+	MouseMaturityTicks  int `cfg:"mouse-maturity" doc:"ticks a newborn mouse takes to mature enough to breed"`
 }
 
 // DefaultConfig returns a balanced starting point for a playable scaffold.

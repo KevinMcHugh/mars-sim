@@ -21,6 +21,19 @@ go run . -colonists 20 -aliens 5 -width 120 -height 60
 go run . -headless -duration 10s -seed 42   # reproducible, no TUI
 ```
 
+For settings you want to keep rather than retype, [`mars-sim.yaml`](mars-sim.yaml)
+is a committed file that sits between the compiled defaults and the flags. It
+ships with every setting shown at its default and commented out, so it changes
+nothing until you uncomment a line:
+
+```yaml
+## starting number of colonists
+colonists: 20
+```
+
+Flags still override the file for a single run, and `-config PATH` picks a
+different one. See the [settings file guide](docs/config-file.md).
+
 Terminal controls:
 
 | Key            | Action                          |

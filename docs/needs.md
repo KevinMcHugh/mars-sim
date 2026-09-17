@@ -184,6 +184,10 @@ Adding a need is meant to be a **table edit**:
    fatal).
 3. Give it a satisfying `Terrain` facility (a flow field is auto-allocated per
    facility terrain in `newWorld`) and a display `State` in `useState`.
+4. Regenerate the settings file (`go run . -print-config > mars-sim.yaml`): the
+   spec's tagged fields become `needs.<name>.*` settings and `-need-<name>-*`
+   flags automatically, named from the `String()` case in step 1. See
+   [config-file.md](./config-file.md).
 
 The systems iterate needs generically, so no behavior code needs to change. A new
 trait that scales the need slots in via `traitSpecs` (see
@@ -195,3 +199,4 @@ trait that scales the need slots in via `traitSpecs` (see
 - [personality.md](./personality.md) — traits that scale need rise rates.
 - [construction.md](./construction.md) — how the facilities that satisfy needs are built.
 - [configuration.md](./configuration.md) — where the needs table lives.
+- [config-file.md](./config-file.md) — tuning a need's spec from `mars-sim.yaml` or a flag.

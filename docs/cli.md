@@ -24,12 +24,16 @@ forwarded into `sim.Config`.
 Startup follows this order:
 
 1. Copy `sim.DefaultConfig()`.
-2. Register flags whose defaults come from that config.
-3. Parse flags (with `?`, `-?`, and `--?` as help aliases).
-4. Apply a non-zero `-seed` override.
-5. Validate dimensions, populations, rates, and other safety constraints.
-6. Create and subscribe to the engine before starting `Engine.Run`.
-7. Run either the TUI or the headless snapshot consumer.
+2. Apply the settings file (`mars-sim.yaml`, or `-config PATH`) on top of it.
+   This happens *before* the flags are registered, so the file's values become
+   the flag defaults — which is why `-config` is located by scanning `os.Args`
+   rather than by the flag package. See [config-file.md](./config-file.md).
+3. Register flags whose defaults come from that config.
+4. Parse flags (with `?`, `-?`, and `--?` as help aliases).
+5. Apply a non-zero `-seed` override.
+6. Validate dimensions, populations, rates, and other safety constraints.
+7. Create and subscribe to the engine before starting `Engine.Run`.
+8. Run either the TUI or the headless snapshot consumer.
 
 ### Application flags
 
@@ -40,6 +44,8 @@ These flags control how the process runs rather than the simulated world:
 | `-headless` | Skip the TUI and print periodic population/facility/excavation statistics. Useful for CI, profiling, and non-TTY runs. |
 | `-duration <time>` | Stop automatically after the duration, such as `10s` or `250ms`. The default `0` means run until quit/interruption. |
 | `-seed <int64>` | Select a reproducible world seed. `0` leaves the time-based default seed in place. |
+| `-config <path>` | Read this settings file instead of `mars-sim.yaml` in the working directory. A file named here that does not exist is an error; `-config ""` reads no file at all. |
+| `-print-config` | Write a commented settings file with every setting at its default to stdout, then exit. Redirect it to `mars-sim.yaml` to regenerate the committed file. |
 | `-glyphs <mode>` | How to draw map glyphs: `auto` (default) measures each glyph against the terminal at startup and falls back to ASCII if any is painted at an unexpected width; `emoji` skips the probe and trusts the built-in width table; `ascii` forces the fallback set. See [terminal-cell-widths.md](./terminal-cell-widths.md). |
 | `-h`, `-help`, `?` | Print usage, examples, and all available flags. |
 
@@ -62,6 +68,10 @@ go run . -colonists 20 -aliens 5 -cats 4 -mice 20 -tps 12
 
 # Inspect every available option.
 go run . -h
+
+# Start a settings file you can commit, then edit it and run with it.
+go run . -print-config > mars-sim.yaml
+go run .
 ```
 
 ### Validation
@@ -102,5 +112,6 @@ them to `validateConfig`.
 ## Related
 
 - [configuration.md](./configuration.md) — simulation tunables and defaults.
+- [config-file.md](./config-file.md) — the committed `mars-sim.yaml` settings layer.
 - [architecture.md](./architecture.md) — the engine/snapshot contract.
 - [frontend-tui.md](./frontend-tui.md) — the interactive frontend.
