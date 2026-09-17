@@ -299,10 +299,10 @@ In place now:
 - A two-level region/room system (floor grouped into per-chunk regions, then
   rooms as connected components of the region graph), maintained incrementally in
   ~microseconds per terrain change.
-- An event bus (`Event`/`TileChanged`) and a job board: the mineable frontier is
-  tracked incrementally from tile events, so colonists claim the nearest
-  reachable mine job instead of scanning the map, and in-progress builds are
-  counted in O(1).
+- An event bus (`WorldEvent`/`TileChanged`) and a job board: the mineable
+  frontier is tracked incrementally from tile events, so colonists claim the
+  nearest reachable mine job instead of scanning the map, and in-progress builds
+  are counted in O(1).
 - Lazy needs and resting AI: needs are stored as a base level plus a timestamp
   and computed on read, so a colonist stays on its task until the task finishes
   or a need crosses its threshold (whichever comes first), and an idle colonist
