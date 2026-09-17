@@ -213,7 +213,7 @@ func DefaultConfig() Config {
 		Height:              40,
 		IronRockPercent:     10,
 		IceRockPercent:      5,
-		UraniumRockPercent:  3,
+		UraniumRockPercent:  1,
 		ClayRockPercent:     5,
 		RockVeinMin:         8,
 		RockVeinMax:         24,
@@ -253,11 +253,19 @@ func DefaultConfig() Config {
 		FamilyAffinity:          55,
 		FamilyAffinitySpread:    15,
 
-		// 100 ticks of dose per roll, and a roll that usually comes up clean:
-		// a miner who works a uranium vein and then carries the ore around
-		// mutates in the tens of minutes of play, not on the first tile.
-		UraniumExposureTicks:     100,
-		MutationChance:           25,
+		// Mutation is meant to be a rarity the colony talks about, not a
+		// career stage every miner passes through. Exposure is cumulative and
+		// never decays, so the *number* of rolls, not the chance on any one of
+		// them, is what decides how many colonists end up mutants: at a dose
+		// per 100 ticks, dropping the chance from 25% to 1% still mutated a
+		// fifth of the colony, because a working miner simply rolls that many
+		// times. A dose worth 2000 ticks of exposure — several minutes spent
+		// beside a vein or carrying the ore, not one tile of digging — with a
+		// 1-in-100 roll at the end of it lands near 1% of colonists in a
+		// typical run, drifting to a few percent in a very long one because
+		// the dose is permanent. See docs/mutation.md.
+		UraniumExposureTicks:     2000,
+		MutationChance:           1,
 		MutantLoverAffinityBonus: 3,
 
 		TalkChance:       25,

@@ -318,8 +318,9 @@ type Entity struct {
 
 	// uraniumExposure counts the ticks this colonist has spent under a
 	// uranium dose. It is cumulative and never decays; each full
-	// UraniumExposureTicks of it is one roll against mutation. See
-	// mutation.go.
+	// UraniumExposureTicks of it is one roll against mutation. Because it
+	// never decays, this counter — not MutationChance — is what sets how many
+	// colonists ever mutate. See mutation.go.
 	uraniumExposure int
 
 	// Needs are stored lazily: Needs[i] is the level as of tick needSince[i], so

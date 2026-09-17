@@ -7,10 +7,15 @@
 Uranium is a fourth rock composition, mined like iron or water ice — and the
 only one that acts back on the colonist who handles it. A colonist standing
 beside an unexcavated uranium deposit, or carrying uranium ore in their pack,
-accumulates a **dose**. Every `UraniumExposureTicks` (100) of accumulated dose
-is one roll at `MutationChance` (25%) to **mutate**: grow a body part nobody is
+accumulates a **dose**. Every `UraniumExposureTicks` (2000) of accumulated dose
+is one roll at `MutationChance` (1%) to **mutate**: grow a body part nobody is
 born with (a third arm, an extra eye, a tail, a vestigial twin) and pick up the
 **Mutant** trait for good.
+
+Those two numbers are deliberately harsh. Mutation is a rarity the colony talks
+about, not a career stage: with uranium at `UraniumRockPercent` (1% of rock) and
+a dose this long, about **1% of colonists** are mutants after a typical run,
+creeping toward 3% in a very long one. See [Tuning the rate](#tuning-the-rate).
 
 Mutants are then a thing other colonists have opinions about. The
 **Mutant-Lover** trait, rolled at spawn like any other, makes a colonist warm to
@@ -118,9 +123,9 @@ cost of being a mutant is social, not physical.
 - **Exposure is proximity *or* carrying, not just mining.** Tying it to the
   moment of excavation would make it a single coin flip per uranium tile. Tying
   it to the ore in the pack makes uranium a liability you carry around, which
-  is the interesting version: with no way to drop items yet, a colonist who
-  mines uranium is permanently dosed and *will* eventually mutate. That is
-  intended, and it is why `MutationChance` is a tunable rather than a constant.
+  is the interesting version: a colonist keeps its dose until it hauls the ore
+  into a chest (`jobStore`, see [storage.md](./storage.md)), so how long a miner
+  stays dosed is a consequence of how the colony handles what it digs up.
 - **A mutant part adds HP instead of redistributing it.** Sizing all parts from
   one `MaxHP` would mean growing a third arm quietly weakened every limb the
   colonist already had — a mutation that makes you worse everywhere is not what
@@ -145,6 +150,49 @@ cost of being a mutant is social, not physical.
   per-direction credit can express that. Conversation quality and the mood's
   company term read `mutualAffinity` (the mean of both directions) so a
   *pair* property cannot depend on which colonist was passed first.
+
+## Tuning the rate
+
+The knob that decides how many colonists become mutants is **not**
+`MutationChance` — it is `UraniumExposureTicks`, because exposure never decays
+and a full dose is spent rather than latched. A colonist working near uranium
+accumulates dose indefinitely, so it is the *number* of rolls that converges,
+and the per-roll chance is close to saturated however low it is set.
+
+Measured over 8 seeds of a 120x60 map with 40 colonists and 10,000 ticks
+(colonists carrying the Mutant trait at the end of the run):
+
+| uranium % | `MutationChance` | `UraniumExposureTicks` | mutants |
+| --- | --- | --- | --- |
+| 3% | 25% | 100 | 70% |
+| 1% | 25% | 100 | 43% |
+| 1% | 5% | 100 | 40% |
+| 1% | 1% | 100 | 20% |
+| 1% | 1% | 500 | 3.8% |
+| 1% | 1% | 1000 | 3.1% |
+| **1%** | **1%** | **2000** | **0.9%** |
+
+Two lessons for anyone re-balancing this: cutting `MutationChance` alone barely
+moves the outcome (25% → 1% only took 43% of colonists down to 20%), and the
+curve is steep past a dose of ~1000 ticks. Lengthening the dose is the lever;
+the chance is the fine adjustment on top of it.
+
+### The rate drifts with game length
+
+Because the dose is permanent, the share of mutants is not a fixed rate — it
+keeps climbing for as long as a run goes on. At the defaults, over 20 seeds:
+
+| run | mutants |
+| --- | --- |
+| 80x40, 6 colonists, 10,000 ticks (~20 min at 8 tps) | 0.9% |
+| 80x40, 6 colonists, 30,000 ticks (~1 hr) | 3.6% |
+| 120x60, 40 colonists, 30,000 ticks | 2.9% |
+
+That drift is a property of the mechanic, not of the numbers: with a permanent
+dose and unbounded rolls, every colonist who keeps working uranium mutates
+eventually. Making the rate genuinely independent of game length would take a
+change to the mechanic — a decaying dose, or one roll per colonist per career —
+not a smaller `MutationChance`.
 
 ## Extending it
 

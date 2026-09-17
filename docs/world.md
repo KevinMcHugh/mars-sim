@@ -37,9 +37,11 @@ excavation rules instead of multiplying terrain cases throughout the simulation.
 
 Uranium is the one composition that does something beyond its yield: standing
 next to an unexcavated uranium deposit (or carrying the ore away from it) puts a
-colonist under a dose that can eventually mutate them. That lives entirely in
-`mutation.go` and reads the tile — the tile itself behaves like any other rock.
-See [mutation.md](./mutation.md).
+colonist under a dose that can eventually mutate them. It is also the scarcest
+deposit, at 1% of rock against iron's 10%, because that dose is the point of it:
+uranium is meant to be a hazard a colony stumbles onto, not a routine yield.
+That lives entirely in `mutation.go` and reads the tile — the tile itself
+behaves like any other rock. See [mutation.md](./mutation.md).
 
 Two further fields hold what is *lying on* a tile rather than what it is made
 of: `Gore` (a violent death's stains, see [combat.md](./combat.md)) and
@@ -81,7 +83,7 @@ go stale.
 
 1. Grows iron, water-ice, uranium, and clay deposits as meandering, occasionally branching veins using a
    dedicated RNG derived from the simulation seed. The configurable iron, ice, and
-   uranium, and clay percentages default to 10%, 5%, 3%, and 5%; the remainder
+   uranium, and clay percentages default to 10%, 5%, 1%, and 5%; the remainder
    is ordinary rock. New compositions are appended to the generation order, so
    clay was grown last and did not move the iron, ice, or uranium veins of
    established seeds. Veins
