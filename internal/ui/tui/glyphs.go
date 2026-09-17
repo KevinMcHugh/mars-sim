@@ -37,7 +37,7 @@ const tileWidth = 2
 // Skin tone and hair colour live in the colonist's flavour text instead (see
 // renderColonistDetail); they never enter a glyph.
 const (
-	glyphRock        = "\U0001F7EB" // 🟫 unexcavated regolith
+	glyphRock        = "\U0001F7E5" // 🟥 unexcavated regolith: Mars is the red planet
 	glyphIronRock    = "\U00002B1B" // ⬛ iron-bearing rock
 	glyphIceRock     = "\U0001F7E6" // 🟦 water ice-bearing rock
 	glyphUranium     = "\U0001F7E9" // 🟩 uranium-bearing rock (the glow is the warning)

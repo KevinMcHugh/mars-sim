@@ -163,6 +163,19 @@ func (c RockComposition) String() string {
 type Tile struct {
 	Terrain     Terrain
 	Composition RockComposition // meaningful only while Terrain is Rock
+	// Explored records that the colony has dug (or built) its way to within
+	// one tile of here, so a frontend may show what is on it. It only ever
+	// goes from false to true, and it is meaningful only when Config.FogOfWar
+	// is on — with fog off no tile is ever marked, and frontends read every
+	// tile as explored instead (see Snapshot.ExploredAt). See
+	// docs/fog-of-war.md.
+	//
+	// It sits here, beside the two enum bytes, rather than with the counters
+	// below: those are word-aligned ints, so a bool after them grows Tile from
+	// 24 bytes to 32, while here it lands in padding the struct was already
+	// carrying. A 7000x7000 map holds 49M tiles, and that page is what
+	// publishing a frame copies (see tilegrid.go).
+	Explored bool
 	// Gore is a violent death's visible residue on this tile: 0 is clean, and
 	// it climbs (capped at maxGore) as more kills happen here. It never affects
 	// Walkable or anything else, and digging a tile out does not wash it away —
@@ -597,8 +610,52 @@ func (w *World) SetTerrain(p Point, t Terrain) {
 	}
 	w.tiles[i].Terrain = t
 	w.markTilePageDirty(i)
+	// Changing a tile's terrain means somebody was standing next to it, so it
+	// and its neighbors are no longer unknown. This is the only place fog of
+	// war is lifted, for the same reason SetTerrain is the only terrain writer:
+	// every other system already funnels through here. See docs/fog-of-war.md.
+	w.revealAround(p)
 	w.dirtyChunks[w.chunkIndexOf(p)] = struct{}{}
 	w.emit(TileChanged{Pos: p, Old: old, New: t})
+}
+
+// revealAround marks p and its eight neighbors explored, lifting the fog over
+// one tile's worth of rock around a change. Nothing derived from terrain reads
+// Explored, so this emits no TileChanged — it only dirties the published pages
+// so the next Snapshot carries the reveal.
+func (w *World) revealAround(p Point) {
+	if !w.cfg.FogOfWar {
+		return
+	}
+	w.reveal(p)
+	for _, d := range neighbors8 {
+		w.reveal(p.Add(d.X, d.Y))
+	}
+}
+
+// reveal marks one in-bounds tile explored, for good.
+func (w *World) reveal(p Point) {
+	if !w.InBounds(p) {
+		return
+	}
+	i := w.index(p)
+	if w.tiles[i].Explored {
+		return
+	}
+	w.tiles[i].Explored = true
+	w.markTilePageDirty(i)
+}
+
+// Explored reports whether the colony has seen p. With fog of war off every
+// in-bounds tile counts as explored, since no tile is ever marked.
+func (w *World) Explored(p Point) bool {
+	if !w.InBounds(p) {
+		return false
+	}
+	if !w.cfg.FogOfWar {
+		return true
+	}
+	return w.tiles[w.index(p)].Explored
 }
 
 // Walkable reports whether a colonist can stand at p.

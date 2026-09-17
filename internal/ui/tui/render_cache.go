@@ -21,6 +21,7 @@ type renderCache struct {
 	sidebarValid bool
 	sidebarRows  int
 	sidebarASCII bool
+	sidebarFog   bool
 	sidebarLog   []string
 	sidebarOut   string
 
@@ -37,16 +38,18 @@ func newRenderCache() *renderCache {
 }
 
 // sidebar returns the memoized sidebar, calling draw only when an input it
-// depends on has changed: the panel height, the event log, or the glyph set.
-func (c *renderCache) sidebar(rows int, log []string, ascii bool, draw func() string) string {
+// depends on has changed: the panel height, the event log, the glyph set, or
+// whether fog of war is on (which adds a legend row).
+func (c *renderCache) sidebar(rows int, log []string, ascii, fog bool, draw func() string) string {
 	if c == nil {
 		return draw()
 	}
-	if c.sidebarValid && c.sidebarRows == rows && c.sidebarASCII == ascii && slices.Equal(c.sidebarLog, log) {
+	if c.sidebarValid && c.sidebarRows == rows && c.sidebarASCII == ascii && c.sidebarFog == fog &&
+		slices.Equal(c.sidebarLog, log) {
 		return c.sidebarOut
 	}
 	c.sidebarOut = draw()
-	c.sidebarRows, c.sidebarASCII = rows, ascii
+	c.sidebarRows, c.sidebarASCII, c.sidebarFog = rows, ascii, fog
 	c.sidebarLog = append(c.sidebarLog[:0], log...)
 	c.sidebarValid = true
 	return c.sidebarOut

@@ -69,8 +69,8 @@ func cacheTestModel(w, h int) tea.Model {
 }
 
 // The sidebar is memoized. A stale sidebar is the failure mode, so pin each
-// input that must invalidate it: a new log line, a panel height change, and a
-// switch of glyph set.
+// input that must invalidate it: a new log line, a panel height change, a
+// switch of glyph set, and fog of war going on or off.
 func TestSidebarCacheInvalidates(t *testing.T) {
 	t.Run("new log line", func(t *testing.T) {
 		m := cacheTestModel(120, 30)
@@ -101,6 +101,22 @@ func TestSidebarCacheInvalidates(t *testing.T) {
 		ascii := m.(Model).renderSidebar()
 		if emoji == ascii {
 			t.Error("sidebar did not change after switching to ASCII glyphs; cache is stale")
+		}
+	})
+
+	// The legend explains the fog only when there is fog, so the row has to
+	// come and go with the setting rather than stick at the first frame's.
+	t.Run("fog of war", func(t *testing.T) {
+		restoreGlyphs(t, false)
+		m := cacheTestModel(120, 30)
+		clear := m.(Model).renderSidebar()
+		foggy := busySnapshot()
+		foggy.FogOfWar = true
+		m, _ = m.Update(snapshotMsg{snap: foggy})
+		if fogged := m.(Model).renderSidebar(); fogged == clear {
+			t.Error("sidebar did not change after fog of war came on; cache is stale")
+		} else if !strings.Contains(fogged, "unexplored") {
+			t.Errorf("the legend does not explain the fog: %q", fogged)
 		}
 	})
 }

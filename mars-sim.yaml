@@ -48,6 +48,9 @@
 ## maximum tiles in a generated rock deposit vein
 # rock-vein-max: 24
 
+## hide rock the colony has not dug up to yet
+# fog-of-war: true
+
 # ── Starting population ─────────────────────────────────────────────────
 ## starting number of colonists
 # colonists: 6

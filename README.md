@@ -63,10 +63,17 @@ examples.
 
 Glyphs: 👷 colonist · 😱 fleeing colonist · 💬 talking colonist · 🥾 stomping
 colonist · 🧹 cleaning colonist · 📦 hauling colonist · 🧟 mutant colonist ·
-👽 alien · 🐈 cat · 🐁 mouse · 🟫 ordinary rock · ⬛ iron-bearing rock ·
-🟦 water ice-bearing rock · 🟩 uranium-bearing rock · 🧱 wall · 🥫 nutrient pod ·
-🚽 toilet · 🛌 dormitory bunk · 🔥 incinerator · 🩸 gore · 🦴 a body ·
-blank = open floor.
+👽 alien · 🐈 cat · 🐁 mouse · 🟥 ordinary rock · ⬛ iron-bearing rock ·
+🟦 water ice-bearing rock · 🟩 uranium-bearing rock · 🟧 clay-bearing rock ·
+🧱 wall · 🥫 nutrient pod · 🚽 toilet · 🛌 dormitory bunk · 🔥 incinerator ·
+🩸 gore · 🦴 a body · blank = open floor.
+
+The map is fogged. You see the landing cavern and the rim of rock the colony has
+dug up to; everything past it is a faintly shaded blank, and an alien burrowing
+toward you through it stays hidden until it breaks through. Mining peels the fog
+back one tile at a time, and a tile once seen stays seen. Run with
+`-fog-of-war=false` to show the whole map — see
+[fog of war](docs/fog-of-war.md).
 
 ### Documentation
 

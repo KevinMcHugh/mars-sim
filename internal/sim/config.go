@@ -16,6 +16,14 @@ type Config struct {
 	ClayRockPercent    int `cfg:"clay-rock-percent" doc:"percent of rock tiles bearing clay"`
 	RockVeinMin        int `cfg:"rock-vein-min" doc:"minimum tiles in a generated rock deposit vein"`
 	RockVeinMax        int `cfg:"rock-vein-max" doc:"maximum tiles in a generated rock deposit vein"`
+	// FogOfWar hides rock the colony has not dug up to yet: a tile is only
+	// shown once something has changed the terrain within one tile of it. It
+	// costs the simulation nothing (no system reads it) and is a display
+	// setting only in the sense that a frontend is what draws the fog — what
+	// the colony has *seen* is world state, so it lives here rather than in
+	// the UI. Off shows the whole map, as the game did before. See
+	// docs/fog-of-war.md.
+	FogOfWar bool `cfg:"fog-of-war" doc:"hide rock the colony has not dug up to yet"`
 
 	// Seed makes a run reproducible. Same seed + same code => same game.
 	//
@@ -217,6 +225,7 @@ func DefaultConfig() Config {
 		ClayRockPercent:     5,
 		RockVeinMin:         8,
 		RockVeinMax:         24,
+		FogOfWar:            true,
 		Seed:                time.Now().UnixNano(),
 		StartColonists:      6,
 		StartAliens:         3,

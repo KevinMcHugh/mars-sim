@@ -1,0 +1,193 @@
+package sim
+
+import "testing"
+
+// nearCarved reports whether p or one of its eight neighbors has been carved or
+// built — the predicate SetTerrain's reveal implements. Terrain only ever moves
+// away from Rock in a real game, so for a freshly generated (or freshly mined)
+// world this is exactly the explored set.
+func nearCarved(w *World, p Point) bool {
+	if w.TerrainAt(p) != Rock {
+		return true
+	}
+	for _, d := range neighbors8 {
+		q := p.Add(d.X, d.Y)
+		if w.InBounds(q) && w.TerrainAt(q) != Rock {
+			return true
+		}
+	}
+	return false
+}
+
+// Fog of war lifts exactly one tile past whatever the colony has touched: after
+// worldgen the landing cavern and the rock rim around it are explored, and the
+// rest of the map — including the rock the aliens are lurking in — is not.
+func TestWorldgenRevealsTheCavernAndItsRim(t *testing.T) {
+	w := newTestWorld(t, testConfig())
+
+	dark, litRock := 0, 0
+	for y := 0; y < w.Height; y++ {
+		for x := 0; x < w.Width; x++ {
+			p := Point{x, y}
+			want := nearCarved(w, p)
+			if got := w.Explored(p); got != want {
+				t.Fatalf("explored(%v) = %v, want %v (terrain %v)", p, got, want, w.TerrainAt(p))
+			}
+			switch {
+			case !want:
+				dark++
+			case w.TerrainAt(p) == Rock:
+				litRock++
+			}
+		}
+	}
+	if dark == 0 {
+		t.Error("the whole map starts explored; there is no fog to lift")
+	}
+	if litRock == 0 {
+		t.Error("no rock is visible around the cavern; the player cannot see what to mine")
+	}
+}
+
+// Digging lifts the fog one tile further: the ring of rock behind the tile just
+// mined out becomes visible, and nothing beyond it does.
+func TestDiggingLiftsTheFogAheadOfIt(t *testing.T) {
+	w := newTestWorld(t, testConfig())
+
+	// A frontier tile with something still dark behind it, which is every
+	// frontier tile on a map bigger than the cavern.
+	var target Point
+	var hidden []Point
+	for p := range w.board.frontier {
+		for _, d := range neighbors8 {
+			if q := p.Add(d.X, d.Y); w.InBounds(q) && !w.Explored(q) {
+				hidden = append(hidden, q)
+			}
+		}
+		if len(hidden) > 0 {
+			target = p
+			break
+		}
+	}
+	if len(hidden) == 0 {
+		t.Fatal("no frontier tile has unexplored rock behind it; nothing to test")
+	}
+
+	w.SetTerrain(target, Floor)
+	for _, p := range hidden {
+		if !w.Explored(p) {
+			t.Errorf("mining %v left its neighbor %v in the dark", target, p)
+		}
+	}
+	// One tile, not a sightline: the tile two steps past what was just dug is
+	// still unknown.
+	for _, p := range hidden {
+		for _, d := range neighbors8 {
+			q := p.Add(d.X, d.Y)
+			if w.InBounds(q) && w.Explored(q) && !nearCarved(w, q) {
+				t.Errorf("mining %v revealed %v, two tiles from any excavation", target, q)
+			}
+		}
+	}
+}
+
+// A reveal has to reach the published grid, which means dirtying the page it
+// landed on. Forgetting that leaves a frontend rendering fog over rock the
+// colony dug up to several frames ago.
+func TestRevealsReachThePublishedSnapshot(t *testing.T) {
+	w := newTestWorld(t, testConfig())
+
+	var target, hidden Point
+	found := false
+	for p := range w.board.frontier {
+		for _, d := range neighbors8 {
+			if q := p.Add(d.X, d.Y); w.InBounds(q) && !w.Explored(q) {
+				target, hidden, found = p, q, true
+				break
+			}
+		}
+		if found {
+			break
+		}
+	}
+	if !found {
+		t.Fatal("no frontier tile has unexplored rock behind it; nothing to test")
+	}
+
+	before := w.snapshot(false, 8)
+	if !before.FogOfWar {
+		t.Fatal("snapshot does not report fog of war as on")
+	}
+	if before.ExploredAt(hidden) {
+		t.Fatalf("%v is published as explored before anything dug toward it", hidden)
+	}
+
+	w.SetTerrain(target, Floor)
+	after := w.snapshot(false, 8)
+	if !after.ExploredAt(hidden) {
+		t.Errorf("the reveal of %v never reached the published grid", hidden)
+	}
+	// The frame already in a frontend's hands is immutable, reveals included.
+	if before.ExploredAt(hidden) {
+		t.Errorf("publishing a reveal changed a snapshot already handed out")
+	}
+}
+
+// With fog of war off nothing is marked — which is what keeps a huge map's tile
+// array untouched — and every in-bounds tile reads as explored anyway.
+func TestFogOfWarOffMarksNothingAndHidesNothing(t *testing.T) {
+	cfg := testConfig()
+	cfg.FogOfWar = false
+	w := newTestWorld(t, cfg)
+
+	snap := w.snapshot(false, 8)
+	if snap.FogOfWar {
+		t.Error("snapshot reports fog of war on with the setting off")
+	}
+	for y := 0; y < w.Height; y++ {
+		for x := 0; x < w.Width; x++ {
+			p := Point{x, y}
+			if w.TileAt(p).Explored {
+				t.Fatalf("tile %v was marked explored with fog of war off", p)
+			}
+			if !w.Explored(p) || !snap.ExploredAt(p) {
+				t.Fatalf("tile %v reads as unexplored with fog of war off", p)
+			}
+		}
+	}
+	if snap.ExploredAt(Point{-1, 0}) || snap.ExploredAt(Point{w.Width, 0}) {
+		t.Error("out-of-bounds tiles read as explored")
+	}
+}
+
+// Exploration never goes backwards, whatever the colony does to the terrain: a
+// tile it has seen stays seen even once a wall is raised over the floor that
+// revealed it.
+func TestExplorationOnlyGrows(t *testing.T) {
+	w := newTestWorld(t, testConfig())
+
+	seen := map[Point]bool{}
+	for y := 0; y < w.Height; y++ {
+		for x := 0; x < w.Width; x++ {
+			if p := (Point{x, y}); w.Explored(p) {
+				seen[p] = true
+			}
+		}
+	}
+
+	for i := 0; i < 200; i++ {
+		w.step()
+	}
+	// Wall off the cavern's rim for good measure: a build is a terrain change
+	// that makes a tile less walkable, not more.
+	for p := range w.board.frontier {
+		w.SetTerrain(p, Wall)
+		break
+	}
+
+	for p := range seen {
+		if !w.Explored(p) {
+			t.Fatalf("%v was explored and is not any more", p)
+		}
+	}
+}

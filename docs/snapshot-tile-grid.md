@@ -14,7 +14,7 @@ than to how big the map *is*.
 ## Source
 
 - [`internal/sim/tilegrid.go`](../internal/sim/tilegrid.go) — `TileGrid`, the page table, and `World.publishedTiles`.
-- [`internal/sim/world.go`](../internal/sim/world.go) — `SetTerrain` marks the changed tile's page dirty.
+- [`internal/sim/world.go`](../internal/sim/world.go) — `SetTerrain` (and `reveal`) mark the changed tile's page dirty.
 - [`internal/sim/snapshot.go`](../internal/sim/snapshot.go) — `Snapshot.Tiles` / `Snapshot.TerrainAt`.
 - [`internal/sim/tilegrid_test.go`](../internal/sim/tilegrid_test.go) — stability across later edits, page sharing, and a concurrent-reader run for `-race`.
 - [`internal/sim/bench_test.go`](../internal/sim/bench_test.go) — `BenchmarkPublishSmallColonyOnHugeMap2500` / `...10000`.
@@ -31,8 +31,9 @@ tax on every neighbor test. The paging exists only on the **published** side:
 | `World.snapGrid` | the grid handed to the most recent `Snapshot` |
 | `World.pageDirty` / `dirtyPages` | pages that have diverged from `snapGrid` since |
 
-`SetTerrain` — the only writer of `tiles` — calls `markTilePageDirty`, which is
-an array write and (first time per page) an append. `publishedTiles` then has
+`SetTerrain` — the only writer of a tile's terrain — calls `markTilePageDirty`,
+which is an array write and (first time per page) an append. (`World.reveal` is
+the one other writer of `tiles`, for the fog-of-war flag, and does the same.) `publishedTiles` then has
 three cases:
 
 1. **No grid yet** (the first frame, after worldgen): build every page once.
@@ -101,10 +102,16 @@ copied on every frame that changed anything. At 4096, a 7000x7000 map has a
 
 - **Adding a field to `Tile`** (ore, moisture, temperature) needs nothing here:
   pages are `[]Tile`, so they grow with the struct. Watch the page copy cost if
-  `Tile` gets large — that is when `tilePageBits` wants lowering.
+  `Tile` gets large — that is when `tilePageBits` wants lowering. `Explored` is
+  the worked example: declared beside the two enum bytes it lands in existing
+  padding, while after the two `int` counters it would have taken `Tile` from 24
+  bytes to 32 (and every page copy with it).
 - **A new mutator of `tiles`** must call `markTilePageDirty`, or frontends will
-  render stale terrain. Today `SetTerrain` is the only writer and the only place
-  that emits `TileChanged`; keep it that way.
+  render stale terrain. `SetTerrain` is the only writer of a tile's *terrain* and
+  the only place that emits `TileChanged`; keep it that way. `World.reveal`
+  (fog of war — see [fog-of-war.md](./fog-of-war.md)) writes `Tile.Explored` and
+  dirties the page without an event, since nothing derived from terrain reads
+  that flag.
 - **A new aggregate in `Stats`** should come from an incremental count, not from
   a walk of the grid. The scan this doc replaced is the cautionary tale.
 - The invariant to preserve: **a page that has been published is never written
@@ -112,6 +119,7 @@ copied on every frame that changed anything. At 4096, a 7000x7000 map has a
 
 ## Related
 
+- [fog-of-war.md](./fog-of-war.md) — `Tile.Explored`, which rides these pages to frontends.
 - [architecture.md](./architecture.md) — the snapshot/command contract this fits into.
 - [spatial-index-and-performance.md](./spatial-index-and-performance.md) — the incremental counts and the rest of the "never rescan the world" story.
 - [world.md](./world.md) — the tile grid itself and `SetTerrain`.
