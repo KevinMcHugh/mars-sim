@@ -322,11 +322,23 @@ func (m Model) detailLines(c sim.EntityView, inner, barW int) []string {
 		// at most maxColonistMemories of them (see docs/memories.md).
 		lines := make([]string, 0, len(c.Memories))
 		for _, memory := range c.Memories {
-			lines = append(lines, statStyle.Render(cells.Truncate(fmt.Sprintf("  t%d: %s", memory.Tick, memory.Text), inner-2)))
+			lines = append(lines, statStyle.Render(cells.Truncate("  "+memoryLine(memory), inner-2)))
 		}
 		b.WriteString(strings.Join(lines, "\n"))
 	}
 	return strings.Split(b.String(), "\n")
+}
+
+// memoryLine renders one memory the way the inspector lists it: the tick it
+// happened on, then its text. A memory that stands for a run of the same minor
+// event (see docs/memories.md) shows the span it covers and how many times it
+// happened instead — "t1511-1630: Finished mining. (x12)" — so a repetitive
+// stretch reads as one line without hiding when it started or when it ended.
+func memoryLine(m sim.Memory) string {
+	if m.Count > 1 {
+		return fmt.Sprintf("t%d-%d: %s (x%d)", m.Tick, m.LastTick, m.Text, m.Count)
+	}
+	return fmt.Sprintf("t%d: %s", m.Tick, m.Text)
 }
 
 // scrollDetail windows content to a panel of the given height, starting at

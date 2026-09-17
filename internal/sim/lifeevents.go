@@ -154,3 +154,29 @@ func (w *World) applyMoodEffects(e *Entity, evt LifeEvent) {
 		w.adjustMood(e, delta)
 	}
 }
+
+// lifeEventCollapseText is the collapse table: a non-empty entry marks a kind
+// as *minor and repetitive* — routine work and bodily upkeep, the things a
+// colonist does dozens of times in a row — and supplies the text a run of them
+// collapses to. The entry is deliberately less specific than the per-
+// occurrence text: once a memory stands for twelve digs, which tile each one
+// was at is not what the line is about any more, so "Finished mining at
+// (514, 501)." becomes "Finished mining." A kind with no entry (the zero
+// value, "") never collapses — every occurrence stays its own memory, which is
+// the right default for anything a player would read as a distinct beat in the
+// colonist's story (a kill, a bite, a mutation, a conversation with a
+// particular person).
+//
+// Making an existing kind collapsible, or changing what a run reads as, is an
+// edit here; nothing else changes. See docs/memories.md.
+var lifeEventCollapseText = [numLifeEventKinds]string{
+	EvtFinishedMining:       "Finished mining.",
+	EvtClearedRock:          "Cleared rock for a room.",
+	EvtFinishedConstruction: "Finished construction.",
+	EvtCleanedRefuse:        "Cleaned up refuse.",
+	EvtIncineratedRefuse:    "Burned refuse in the incinerator.",
+	EvtAte:                  "Had a meal.",
+	EvtUsedToilet:           "Used the toilet.",
+	EvtSlept:                "Slept in a bed.",
+	EvtNeedSatisfied:        "Satisfied a need.",
+}

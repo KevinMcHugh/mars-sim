@@ -12,14 +12,20 @@ this particular occurrence. A `LifeEventKind` also carries a table of mood
 effects, so remembering something and it affecting a colonist's mood are the
 same act, not two systems that have to be kept in sync by hand.
 
+Minor, repetitive events — a mining shift, a string of meals — collapse into a
+single `Memory` covering the whole run, so a colonist who mines for a thousand
+ticks has a history, not a mining log.
+
 ## Source
 
 - [`internal/sim/lifeevents.go`](../internal/sim/lifeevents.go) — `LifeEventKind`,
-  `LifeEvent`, `event`, `MoodEffect`, `lifeEventMoodEffects`, `applyMoodEffects`.
-- [`internal/sim/entity.go`](../internal/sim/entity.go) — `Memory` (now carries
-  `Kind`), the colonist's `Memories`/`seen`/`seeingGore` fields.
+  `LifeEvent`, `event`, `MoodEffect`, `lifeEventMoodEffects`, `applyMoodEffects`,
+  `lifeEventCollapseText`.
+- [`internal/sim/entity.go`](../internal/sim/entity.go) — `Memory` (carries
+  `Kind`, and `LastTick`/`Count` for a collapsed run), the colonist's
+  `Memories`/`seen`/`seeingGore` fields.
 - [`internal/sim/world.go`](../internal/sim/world.go) — `remember`, the one
-  funnel every memory and mood effect goes through.
+  funnel every memory and mood effect goes through, and `collapseRepeat`.
 - [`internal/sim/systems.go`](../internal/sim/systems.go) — `observeNearby`
   (creature sightings) and `observeGore` (gore sightings); every other
   `remember` call site records an experience at its completion.
@@ -29,6 +35,8 @@ same act, not two systems that have to be kept in sync by hand.
 - [`internal/sim/personality.go`](../internal/sim/personality.go) — `TraitTidy`
   and `TraitIndustrious`, the traits a mood effect is conditioned on today
   (see [personality.md](./personality.md)).
+- [`internal/ui/tui/render_roster.go`](../internal/ui/tui/render_roster.go) —
+  `memoryLine`, which renders a collapsed run as a span plus a count.
 - [`internal/sim/lifeevents_test.go`](../internal/sim/lifeevents_test.go),
   [`internal/sim/memories_test.go`](../internal/sim/memories_test.go) — the
   tests that pin this behavior.
@@ -52,8 +60,9 @@ which is `fmt.Sprintf` plus the `Kind` tag and leaves `Mood` at 0:
 w.remember(prey, event(EvtBitten, "Bitten in the %s by an alien!", part))
 ```
 
-`remember` (in `world.go`) is the single funnel: it appends the `Memory`
-(bounded at 64 per colonist, oldest evicted first) *and* calls
+`remember` (in `world.go`) is the single funnel: it records the `Memory`
+(bounded at 64 per colonist, oldest evicted first — or folds it into the
+previous one, see Collapsing runs of a minor event) *and* calls
 `applyMoodEffects(e, evt)` — recording something and it moving mood can never
 drift apart, because they happen in the same call, the same way
 `World.remove` is the one funnel for a death and its graveyard record (see
@@ -127,6 +136,92 @@ whole battlefield, so `observeGore` doesn't fire once per tile.
 sighting radii — a bloodstain doesn't call attention to itself the way a
 moving alien does.
 
+### Collapsing runs of a minor event
+
+A colonist assigned to the mining frontier finishes a dig every seven or eight
+ticks, forever. Recorded one memory per dig, that colonist's whole remembered
+history is a mining log: the 64-memory buffer holds about eight minutes of
+digging, and the conversation, the alien sighting, and the mutation that
+actually characterize them have all been evicted by tile coordinates.
+
+So `remember` folds consecutive occurrences of a *minor* event into one
+`Memory`:
+
+```go
+type Memory struct {
+    Tick     int // when it happened; the first occurrence of a collapsed run
+    LastTick int // the most recent occurrence; == Tick unless collapsed
+    Count    int // occurrences folded into this memory; 1 when uncollapsed
+    Text     string
+    Kind     LifeEventKind
+}
+```
+
+Which kinds are minor is a table, in the same spirit as the mood table —
+`lifeEventCollapseText`, where a non-empty entry both *marks* the kind
+collapsible and supplies the text a run reads as:
+
+```go
+var lifeEventCollapseText = [numLifeEventKinds]string{
+    EvtFinishedMining:       "Finished mining.",
+    EvtClearedRock:          "Cleared rock for a room.",
+    EvtFinishedConstruction: "Finished construction.",
+    EvtCleanedRefuse:        "Cleaned up refuse.",
+    EvtIncineratedRefuse:    "Burned refuse in the incinerator.",
+    EvtAte:                  "Had a meal.",
+    EvtUsedToilet:           "Used the toilet.",
+    EvtSlept:                "Slept in a bed.",
+    EvtNeedSatisfied:        "Satisfied a need.",
+}
+```
+
+Routine work and bodily upkeep collapse; everything with any narrative weight
+— kills, bites, sightings, mutations, conversations — does not. `remember`
+tries `collapseRepeat` first and only appends (and only then evicts) if it
+comes back false:
+
+```go
+func (w *World) collapseRepeat(e *Entity, evt LifeEvent) bool {
+    if lifeEventCollapseText[evt.Kind] == "" || len(e.Memories) == 0 {
+        return false
+    }
+    last := &e.Memories[len(e.Memories)-1]
+    if last.Kind != evt.Kind {
+        return false
+    }
+    last.Text = lifeEventCollapseText[evt.Kind]
+    last.LastTick = w.tick
+    last.Count++
+    return true
+}
+```
+
+Three decisions are worth spelling out:
+
+- **Only the newest memory is a candidate.** A run is *consecutive*
+  occurrences, so a meal in the middle of a mining shift ends the run and the
+  next dig starts a fresh memory. Folding into any older matching memory would
+  give one line per kind for a colonist's entire life and destroy the order
+  things happened in — which is most of what the log is for. The screenshot
+  case (mine ×6, eat, mine ×4) becomes exactly three lines.
+- **A run loses its per-occurrence text.** A single dig keeps
+  `"Finished mining at (514, 501)."`; the second one rewrites the memory to
+  `"Finished mining."`, because once the line stands for twelve digs, which
+  tile each was on is not what it is about. That is also why the collapse
+  table holds the text rather than a bare `bool` — "is this kind minor" and
+  "what does a run of it read as" are the same question, answered in one
+  place.
+- **Mood still applies per occurrence.** `applyMoodEffects` runs on every
+  call, collapsed or not: the twelfth completed job lifts an Industrious
+  colonist exactly as much as the first. Collapsing is about what the log
+  reads like, not about the simulation deciding repetition stops counting.
+
+`Tick`/`LastTick`/`Count` are what a frontend needs to render a run without
+pretending it was one event — the TUI writes
+`t1607-1630: Finished mining. (x12)` (`memoryLine`), and an uncollapsed memory
+(`Count` 1, `LastTick == Tick`) goes through the same code as a plain
+`t1586: Had a meal.` See [frontend-tui.md](./frontend-tui.md).
+
 ### The full `LifeEventKind` roster
 
 | Kind | Fires when | Mood effect |
@@ -151,7 +246,11 @@ moving alien does.
 | `EvtMutated` | uranium exposure grew a new body part | universal -14, +Mutant-Lover +28 (net +14) |
 | `EvtWitnessedMutation` | watched another colonist mutate | universal -6, +Mutant-Lover +12 (net +6) |
 
-"None yet" is a table entry away from having one — see Extending it.
+"None yet" is a table entry away from having one — see Extending it. The
+routine kinds in the bottom half of the table (`EvtAte`, `EvtUsedToilet`,
+`EvtSlept`, `EvtNeedSatisfied`, and the four job-completion kinds plus
+`EvtIncineratedRefuse`) are also the collapsible ones; everything above them
+records one memory per occurrence.
 
 ### Conversations: the one event with a computed delta
 
@@ -224,10 +323,28 @@ data rather than a branch in `mutate()`.
   general enough to express "scales with a live-rolled quality and the
   pair's affinity," which is a lot more machinery for a computation that
   happens in exactly one place.
-- **`Memory.Kind` is carried even though nothing reads it yet** (only `Text`
-  is displayed). It costs one field and means a future "what kind of thing
-  keeps happening to this colonist" view, or a different mood formula per
-  kind, doesn't require re-deriving the kind from memory text.
+- **Collapsing lives in `remember`, not in the frontend.** A renderer that
+  folded repeated lines at draw time would be reading a history that had
+  already thrown away everything a mining shift pushed out — the memory
+  buffer is 64 entries, and the point of collapsing is that a run costs one
+  of them instead of twelve. Doing it at write time also means every frontend
+  and any future save format gets it for free.
+- **Which kinds collapse is data, like their mood effects.** The alternative
+  — a `Minor` bit on `LifeEvent`, set at each call site — would put the same
+  fact in 25 places and let two mining call sites disagree about it. It also
+  keeps the two per-kind tables side by side in `lifeevents.go`, so adding a
+  kind means looking at both.
+- **No time window on a run.** Two digs a thousand ticks apart with nothing
+  between them still collapse. A gap threshold was considered and dropped: it
+  is another tunable to justify, and "nothing else happened to this colonist
+  in between" is already the honest summary of that stretch — if something
+  had, it would have broken the run.
+- **`Memory.Kind` is what collapsing matches on.** It was carried
+  speculatively before anything read it ("a future view, or a different mood
+  formula per kind, shouldn't have to re-derive the kind from memory text");
+  run-collapsing is the first thing to actually use it, and it is the reason
+  a run of digs at different coordinates can be recognized as the same thing
+  happening again.
 
 ## Extending it
 
@@ -239,6 +356,10 @@ data rather than a branch in `mutate()`.
   does): build it with `eventMood(kind, mood, format, args...)` instead of
   `event`, computing `mood` at the call site. It adds to, rather than
   replaces, whatever the table declares for that kind.
+- **Make an existing kind collapsible (or stop it collapsing)**: add or remove
+  its entry in `lifeEventCollapseText` (`lifeevents.go`). The entry's text is
+  what a run of it reads as; no call site changes. `EvtCrushedMouse` is the
+  most likely next candidate if stomping ever becomes routine.
 - **A new perception** (something a colonist should notice near it, like
   gore): add it to `observeNearby` (per-entity) or write an `observeGore`-like
   sibling (for anything not entity-shaped), and keep it edge-triggered —

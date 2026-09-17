@@ -13,9 +13,12 @@ func TestRememberKeepsRecentMemories(t *testing.T) {
 	col := newEntity(1, Colonist, Point{}, cfg)
 	w.entities[col.ID] = col
 
+	// EvtConversation, not one of the routine kinds: a collapsible kind would
+	// fold these into a single memory and never reach the cap at all (see
+	// TestRepeatedMinorEventsCollapse).
 	for i := 0; i < maxColonistMemories+3; i++ {
 		w.tick = i
-		w.remember(col, event(EvtNeedSatisfied, "event"))
+		w.remember(col, event(EvtConversation, "event"))
 	}
 	if got, want := len(col.Memories), maxColonistMemories; got != want {
 		t.Fatalf("memory count = %d, want %d", got, want)
@@ -126,5 +129,128 @@ func TestSnapshotCopiesMemories(t *testing.T) {
 	snap.Entities[0].Memories[0].Text = "mutated"
 	if got := col.Memories[0].Text; got != "a meal" {
 		t.Fatalf("snapshot mutation changed live memory to %q", got)
+	}
+}
+
+// A colonist grinding through a mining shift should end up with one memory
+// standing for the whole run — spanning first dig to last, counting them —
+// rather than a dozen near-identical lines.
+func TestRepeatedMinorEventsCollapse(t *testing.T) {
+	cfg := testConfig()
+	w := newTestWorld(t, cfg)
+
+	col := w.spawn(Colonist, Point{0, 0})
+	for i := 0; i < 12; i++ {
+		w.tick = 100 + i*7
+		w.remember(col, event(EvtFinishedMining, "Finished mining at (%d, %d).", i, i))
+	}
+
+	if got, want := len(col.Memories), 1; got != want {
+		t.Fatalf("memory count = %d, want %d", got, want)
+	}
+	m := col.Memories[0]
+	if m.Count != 12 {
+		t.Errorf("collapsed count = %d, want 12", m.Count)
+	}
+	if m.Tick != 100 || m.LastTick != 100+11*7 {
+		t.Errorf("collapsed span = t%d-%d, want t%d-%d", m.Tick, m.LastTick, 100, 100+11*7)
+	}
+	// The per-occurrence coordinates are gone: a run is about the repetition,
+	// not about which tile the eleventh dig was on.
+	if want := "Finished mining."; m.Text != want {
+		t.Errorf("collapsed text = %q, want %q", m.Text, want)
+	}
+	if m.Kind != EvtFinishedMining {
+		t.Errorf("collapsed kind = %v, want EvtFinishedMining", m.Kind)
+	}
+}
+
+// A single occurrence of a collapsible kind keeps its own specific text — the
+// generic wording is what a *run* reads as, not a tax on every routine event.
+func TestSingleMinorEventKeepsItsOwnText(t *testing.T) {
+	cfg := testConfig()
+	w := newTestWorld(t, cfg)
+
+	col := w.spawn(Colonist, Point{0, 0})
+	w.remember(col, event(EvtFinishedMining, "Finished mining at (514, 501)."))
+
+	m := col.Memories[0]
+	if want := "Finished mining at (514, 501)."; m.Text != want {
+		t.Errorf("text = %q, want %q", m.Text, want)
+	}
+	if m.Count != 1 || m.LastTick != m.Tick {
+		t.Errorf("uncollapsed memory = {Count: %d, Tick: %d, LastTick: %d}, want Count 1 and LastTick == Tick", m.Count, m.Tick, m.LastTick)
+	}
+}
+
+// Runs are consecutive: doing something else in the middle of a mining shift
+// breaks the run, so the log still shows the order things happened in.
+func TestDifferentEventBreaksACollapsedRun(t *testing.T) {
+	cfg := testConfig()
+	w := newTestWorld(t, cfg)
+
+	col := w.spawn(Colonist, Point{0, 0})
+	w.tick = 10
+	w.remember(col, event(EvtFinishedMining, "Finished mining at (1, 1)."))
+	w.tick = 20
+	w.remember(col, event(EvtFinishedMining, "Finished mining at (2, 2)."))
+	w.tick = 30
+	w.remember(col, event(EvtAte, "Had a meal."))
+	w.tick = 40
+	w.remember(col, event(EvtFinishedMining, "Finished mining at (3, 3)."))
+
+	if got, want := len(col.Memories), 3; got != want {
+		t.Fatalf("memory count = %d, want %d", got, want)
+	}
+	if col.Memories[0].Count != 2 || col.Memories[0].Kind != EvtFinishedMining {
+		t.Errorf("first memory = {Kind: %v, Count: %d}, want the two-dig run", col.Memories[0].Kind, col.Memories[0].Count)
+	}
+	if col.Memories[1].Kind != EvtAte || col.Memories[1].Count != 1 {
+		t.Errorf("second memory = {Kind: %v, Count: %d}, want a single meal", col.Memories[1].Kind, col.Memories[1].Count)
+	}
+	if col.Memories[2].Count != 1 || col.Memories[2].Tick != 40 {
+		t.Errorf("third memory = {Count: %d, Tick: %d}, want a fresh run starting at t40", col.Memories[2].Count, col.Memories[2].Tick)
+	}
+}
+
+// Notable events are never collapsed, even back to back: two conversations,
+// two kills, or two bites are two distinct beats in a colonist's story.
+func TestNotableEventsDoNotCollapse(t *testing.T) {
+	cfg := testConfig()
+	w := newTestWorld(t, cfg)
+
+	col := w.spawn(Colonist, Point{0, 0})
+	w.remember(col, event(EvtConversation, "Had a conversation with Ada."))
+	w.remember(col, event(EvtConversation, "Had a conversation with Bo."))
+
+	if got, want := len(col.Memories), 2; got != want {
+		t.Fatalf("memory count = %d, want %d", got, want)
+	}
+	if col.Memories[0].Text == col.Memories[1].Text {
+		t.Error("collapsing overwrote a conversation's text; each names its own partner")
+	}
+}
+
+// Collapsing is a display decision, not a mood one: the twelfth completed job
+// still lifts the colonist's mood the same as the first.
+func TestCollapsedRunStillAppliesMoodPerOccurrence(t *testing.T) {
+	cfg := testConfig()
+	w := newTestWorld(t, cfg)
+
+	once := w.spawn(Colonist, Point{0, 0})
+	once.Profile = &Profile{}
+	thrice := w.spawn(Colonist, Point{10, 10})
+	thrice.Profile = &Profile{}
+
+	w.remember(once, event(EvtFinishedMining, "Finished mining at (1, 1)."))
+	for i := 0; i < 3; i++ {
+		w.remember(thrice, event(EvtFinishedMining, "Finished mining at (%d, %d).", i, i))
+	}
+
+	if once.mood <= 0 {
+		t.Fatalf("mood after one job = %d, want positive", once.mood)
+	}
+	if thrice.mood != 3*once.mood {
+		t.Errorf("mood after three collapsed jobs = %d, want %d (three times one job's lift)", thrice.mood, 3*once.mood)
 	}
 }
