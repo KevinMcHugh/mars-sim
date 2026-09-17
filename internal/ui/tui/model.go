@@ -82,6 +82,14 @@ type Model struct {
 	jobSelected int      // job board: index into the queued project list
 	menu        menuKind // an open spawn/build/filter picker, if any
 
+	// detailScroll is the first line of the selected colonist's inspector
+	// that the detail panel shows. The inspector is taller than the panel for
+	// any colonist with a history — memories alone can run to 64 lines — so
+	// the player scrolls it (shift+↑↓, pgup/pgdn). It resets to the top
+	// whenever the selection or the roster filters change: the offset belongs
+	// to the colonist being read, not to the panel.
+	detailScroll int
+
 	// spawnCursor / buildCursor / filterCursor are each menu's highlighted
 	// option index. They persist across opens (and across submits/toggles),
 	// so e.g. spawning three mice is s, [navigate to mouse], enter, then just
@@ -266,7 +274,9 @@ func (m Model) handleFilterMenuKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-// toggleFilter flips the named filter's on/off state.
+// toggleFilter flips the named filter's on/off state. A filter changes which
+// entity the selection lands on, so the inspector goes back to the top with
+// it.
 func (m *Model) toggleFilter(key string) {
 	switch key {
 	case "d":
@@ -274,6 +284,7 @@ func (m *Model) toggleFilter(key string) {
 	case "n":
 		m.showNonHuman = !m.showNonHuman
 	}
+	m.detailScroll = 0
 }
 
 // filterOn reports the named filter's current on/off state.
@@ -423,23 +434,79 @@ func (m Model) handleMapKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 }
 
 // handleRosterKey handles keys specific to the roster screen: moving the
-// selection, opening the filter menu, and returning to the map.
+// selection, scrolling the selected colonist's inspector, opening the filter
+// menu, and returning to the map.
+//
+// The plain arrows stay on the list — moving between colonists is what the
+// roster is mostly for — so scrolling the detail panel is the shifted pair,
+// with pgup/pgdn for whole screenfuls.
 func (m Model) handleRosterKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "esc":
 		m.mode = modeMap
 	case "up", "k":
 		m.selected--
+		m.detailScroll = 0
 	case "down", "j":
 		m.selected++
+		m.detailScroll = 0
 	case "home", "g":
 		m.selected = 0
+		m.detailScroll = 0
+	case "shift+up":
+		m.detailScroll--
+	case "shift+down":
+		m.detailScroll++
+	case "pgup":
+		m.detailScroll -= m.detailPage()
+	case "pgdown":
+		m.detailScroll += m.detailPage()
 	case "f":
 		m.menu = menuFilter
 		return m, nil
 	}
 	m.selected = m.clampSelection(m.selected)
+	m.detailScroll = m.clampDetailScroll(m.detailScroll)
 	return m, nil
+}
+
+// clampDetailScroll keeps the inspector's scroll offset inside the selected
+// colonist's content. Clamping on the way in, rather than only at render
+// time, is what makes one shift+↑ after a run of pgdn move the panel: an
+// offset allowed to run past the end would need as many presses to come back.
+func (m Model) clampDetailScroll(off int) int {
+	total, height := m.detailExtent()
+	return clamp(off, 0, detailScrollMax(total, height))
+}
+
+// detailPage is how far pgup/pgdn move the inspector: a screenful less the
+// position line and one line of overlap, so the reader keeps their place
+// across a page.
+func (m Model) detailPage() int {
+	_, height := m.detailExtent()
+	if height < 4 {
+		return 1
+	}
+	return height - 2
+}
+
+// detailExtent measures the selected colonist's inspector: how many content
+// lines it has, and how many rows the panel has to show them in. Both are
+// recomputed from the latest frame and terminal size the same way the
+// renderer derives them, rather than remembered from the last draw — Update
+// runs on keys, which arrive between frames.
+func (m Model) detailExtent() (total, height int) {
+	cs := m.rosterEntries()
+	if len(cs) == 0 {
+		return 0, 0
+	}
+	_, detailWidth := m.splitPanels(rosterListWidth)
+	if detailWidth <= 0 {
+		return 0, 0 // too narrow for a detail panel; nothing to scroll
+	}
+	inner, barW := detailMetrics(detailWidth)
+	sel := clamp(m.selected, 0, len(cs)-1)
+	return len(m.detailLines(cs[sel], inner, barW)), m.rosterRows() - borderCells
 }
 
 // clampSelection keeps a roster index within the current filtered entity list.

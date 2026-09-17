@@ -95,7 +95,9 @@ func (m Model) renderProjectList(projects []sim.ProjectView, sel, rows, width in
 			b.WriteByte('\n')
 		}
 	}
-	return sidebarStyle.Width(width - borderCells).Height(rows - borderCells).MaxHeight(rows - borderCells).Render(b.String())
+	// MaxHeight counts the border and Height does not; see renderColonistList
+	// in render_roster.go for what passing the same number to both cost.
+	return sidebarStyle.Width(width - borderCells).Height(rows - borderCells).MaxHeight(rows).Render(b.String())
 }
 
 // renderProjectDetail draws the inspector for one project: its queued time,
@@ -144,7 +146,7 @@ func (m Model) renderProjectDetail(p sim.ProjectView, rows, width int) string {
 		b.WriteString(style.Render(cells.Truncate(line, inner-2)) + "\n")
 	}
 
-	return sidebarStyle.Width(width - borderCells).Height(rows - borderCells).MaxHeight(rows - borderCells).Render(b.String())
+	return sidebarStyle.Width(width - borderCells).Height(rows - borderCells).MaxHeight(rows).Render(b.String())
 }
 
 // colonistDisplayName looks up a colonist's name by ID, falling back to a

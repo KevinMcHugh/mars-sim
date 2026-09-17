@@ -36,9 +36,11 @@ Terminal controls:
 | `q` / `esc`    | quit                            |
 
 The **roster** (`tab`) lists every colonist; `↑`/`↓` select one to inspect its
-name, attributes, health, mood, needs, eight-slot inventory, traits, family, and
-affinities. `tab` or
-`esc` returns to the map.
+name, attributes, health, mood, needs, eight-slot inventory, traits, family,
+affinities, and everything it remembers. The inspector is taller than the
+panel, so `shift+↑`/`shift+↓` scroll it a line and `pgup`/`pgdn` a screenful —
+the bottom row says where in the colonist you are. `tab` or `esc` returns to
+the map.
 
 The command also supports `-headless` for periodic stats without a TUI,
 `-duration` for bounded runs, `-seed` for reproducibility, and `-glyphs` to

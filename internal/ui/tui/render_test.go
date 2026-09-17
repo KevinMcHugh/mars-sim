@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
@@ -433,5 +434,82 @@ func TestViewBeforeFirstFrame(t *testing.T) {
 	m := New(nil, nil)
 	if got := m.View(); !strings.Contains(got, "Booting") && !strings.Contains(got, "colony") {
 		t.Errorf("unexpected pre-frame view: %q", got)
+	}
+}
+
+// The inspector scrolls. A colonist with a long history has memories below
+// the fold; pgdn brings them into view, the panel says where in the text the
+// reader is, and moving the roster selection puts it back at the top.
+func TestRosterDetailScrolls(t *testing.T) {
+	snap := makeSnapshot()
+	snap.Entities[0].Profile = &sim.Profile{Name: "Zoe Vargas", Gender: sim.GenderWoman}
+	for i := 0; i < 30; i++ {
+		snap.Entities[0].Memories = append(snap.Entities[0].Memories,
+			sim.Memory{Tick: i, Text: fmt.Sprintf("Remembered thing %d.", i)})
+	}
+
+	var m tea.Model = New(nil, nil)
+	m, _ = m.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
+	m, _ = m.Update(snapshotMsg{snap: snap})
+	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyTab})
+
+	out := m.View()
+	if !strings.Contains(out, "STATUS") {
+		t.Fatal("the inspector should open at the top of the colonist")
+	}
+	if strings.Contains(out, "Remembered thing 29.") {
+		t.Fatal("the newest memory should start below the fold, or this test proves nothing")
+	}
+	if !strings.Contains(out, "1-24 of 59") {
+		t.Errorf("an overflowing inspector should say how much content there is:\n%s", out)
+	}
+
+	// Two screenfuls is past the end of this colonist; the panel stops at the
+	// last line rather than scrolling into blank space.
+	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyPgDown})
+	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyPgDown})
+	out = m.View()
+	if !strings.Contains(out, "Remembered thing 29.") {
+		t.Errorf("scrolling down should reach the newest memory:\n%s", out)
+	}
+	if strings.Contains(out, "STATUS") {
+		t.Error("scrolled to the bottom, the identity block should be off the panel")
+	}
+	if !strings.Contains(out, "36-59 of 59") {
+		t.Errorf("the bottom of the content should be the last line shown:\n%s", out)
+	}
+
+	// One line back up, then reselecting a colonist returns to the top.
+	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyShiftUp})
+	if out = m.View(); !strings.Contains(out, "35-58 of 59") {
+		t.Errorf("shift+up should move the window one line:\n%s", out)
+	}
+	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyDown})
+	if out = m.View(); !strings.Contains(out, "STATUS") {
+		t.Error("changing the roster selection should reset the inspector to the top")
+	}
+}
+
+// scrollDetail always fills exactly the rows it is given and keeps the last
+// one for the position line, whatever offset it is handed — the property the
+// roster's fixed-height layout depends on.
+func TestScrollDetailFillsItsPanel(t *testing.T) {
+	lines := make([]string, 40)
+	for i := range lines {
+		lines[i] = fmt.Sprintf("line %d", i)
+	}
+	const height = 10
+	for _, off := range []int{-5, 0, 3, 31, 39, 500} {
+		got := scrollDetail(lines, off, height, 20)
+		if len(got) != height {
+			t.Fatalf("offset %d: got %d lines, want %d", off, len(got), height)
+		}
+		if !strings.Contains(got[height-1], "of 40") {
+			t.Errorf("offset %d: last row should be the position line, got %q", off, got[height-1])
+		}
+	}
+	// Content that fits is left alone: no position line, no padding rows.
+	if got := scrollDetail(lines[:4], 0, height, 20); len(got) != 4 {
+		t.Errorf("content that fits should be returned as-is, got %d lines", len(got))
 	}
 }

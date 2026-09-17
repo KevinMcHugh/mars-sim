@@ -268,3 +268,6 @@ data rather than a branch in `mutate()`.
 - [entities-and-ai.md](./entities-and-ai.md) — `observeNearby`'s place in
   `colonistTurn`.
 - [architecture.md](./architecture.md) — how memories reach a `Snapshot`.
+- [frontend-tui.md](./frontend-tui.md) — the roster inspector, which now shows
+  a colonist's whole remembered history (up to `maxColonistMemories`) in a
+  scrolling panel rather than the last five.

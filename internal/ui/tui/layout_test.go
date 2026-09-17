@@ -209,3 +209,31 @@ func restoreGlyphs(t *testing.T, ascii bool) {
 	renderedGlyphs.Store(buildRenderedGlyphs(ascii))
 	asciiGlyphs.Store(ascii)
 }
+
+// The roster and job board fill the terminal exactly: header, two panels,
+// footer. They used
+// to come up two rows short, because their panels passed the content
+// height to MaxHeight — which trims the finished block, border included — and
+// lost their last row and bottom border to it. The detail panel's scroll
+// position line lives on that last row, so a short panel would hide it.
+func TestListScreensFillTerminalHeight(t *testing.T) {
+	for _, mode := range []struct {
+		name string
+		mode viewMode
+	}{{"roster", modeRoster}, {"jobs", modeJobs}} {
+		for _, size := range []struct{ w, h int }{{100, 30}, {120, 40}, {200, 50}, {80, 24}} {
+			m := New(nil, nil)
+			m.termW, m.termH = size.w, size.h
+			m.latest = busySnapshot()
+			m.mode = mode.mode
+
+			lines := strings.Split(m.renderFrame(), "\n")
+			if len(lines) != size.h {
+				t.Errorf("%s %dx%d: frame is %d rows, want %d", mode.name, size.w, size.h, len(lines), size.h)
+			}
+			if body := lines[len(lines)-2]; !strings.Contains(body, "╰") {
+				t.Errorf("%s %dx%d: expected the panels' bottom border above the footer, got %q", mode.name, size.w, size.h, body)
+			}
+		}
+	}
+}

@@ -81,9 +81,19 @@ func (m Model) rosterTitle(n int) string {
 	return title
 }
 
+// rosterRows is the height, in terminal rows, that the roster's two panels
+// get: everything the header and footer leave behind.
+func (m Model) rosterRows() int {
+	rows := m.termH - headerRows - footerRows
+	if rows < minRows {
+		rows = minRows
+	}
+	return rows
+}
+
 func (m Model) renderRoster() string {
 	header := m.renderHeader()
-	footer := m.footerLine("↑↓/jk select  f filter  s spawn  b build  tab jobs  esc map  space pause  q quit")
+	footer := m.footerLine("↑↓/jk select  shift+↑↓ pgup/pgdn scroll details  f filter  s spawn  b build  tab jobs  esc map  space pause  q quit")
 
 	cs := m.rosterEntries()
 	if len(cs) == 0 {
@@ -95,11 +105,7 @@ func (m Model) renderRoster() string {
 	}
 	sel := clamp(m.selected, 0, len(cs)-1)
 
-	rows := m.termH - headerRows - footerRows
-	if rows < minRows {
-		rows = minRows
-	}
-
+	rows := m.rosterRows()
 	listWidth, detailWidth := m.splitPanels(rosterListWidth)
 	body := m.renderColonistList(cs, sel, rows, listWidth)
 	if detailWidth > 0 {
@@ -177,30 +183,54 @@ func (m Model) renderColonistList(cs []sim.EntityView, sel, rows, width int) str
 			b.WriteByte('\n')
 		}
 	}
-	// MaxHeight matters here: selected-colonist details can contain a variable
-	// number of memories and must not make the whole roster taller than the
-	// terminal (which would push the header off-screen).
-	return sidebarStyle.Width(width - borderCells).Height(rows - borderCells).MaxHeight(rows - borderCells).Render(b.String())
+	// MaxHeight matters here: a panel taller than the terminal would push the
+	// header off-screen. It is the block's height, border included — Height
+	// sizes the content box but MaxHeight trims the finished block, so the
+	// two are two cells apart. Passing the content height to both is what
+	// used to eat the last row and the bottom border off every roster panel.
+	return sidebarStyle.Width(width - borderCells).Height(rows - borderCells).MaxHeight(rows).Render(b.String())
 }
 
-// renderColonistDetail draws the inspector for one colonist: identity,
-// attributes, health, needs, and traits.
-func (m Model) renderColonistDetail(c sim.EntityView, rows, width int) string {
-	inner := panelInner(width)
+// detailMetrics returns the inspector's writable width and the width of the
+// gauges drawn inside it, for a panel of the given total width.
+func detailMetrics(width int) (inner, barW int) {
+	inner = panelInner(width)
 	// Leave room in a bar line for the 7-wide label, two spaces, and the
 	// "NNNN/NNNN" count so it never wraps.
-	barW := inner - 20
+	barW = inner - 20
 	if barW < 6 {
 		barW = 6
 	}
 	if barW > 40 {
 		barW = 40
 	}
+	return inner, barW
+}
 
+// renderColonistDetail draws the inspector for one colonist: identity,
+// attributes, health, needs, traits, family, affinities, and memories. The
+// content routinely runs longer than the panel is tall, so it is windowed to
+// the player's scroll position (see scrollDetail) rather than simply clipped.
+func (m Model) renderColonistDetail(c sim.EntityView, rows, width int) string {
+	inner, barW := detailMetrics(width)
+	height := rows - borderCells
+	lines := scrollDetail(m.detailLines(c, inner, barW), m.detailScroll, height, inner)
+	// MaxHeight is belt and braces: scrollDetail already returns exactly
+	// height lines, but a line the terminal measures wider than we do would
+	// wrap and push the panel past the terminal's bottom, taking the header
+	// with it. It counts the border, unlike Height — see renderColonistList.
+	return sidebarStyle.Width(width - borderCells).Height(height).MaxHeight(height + borderCells).Render(strings.Join(lines, "\n"))
+}
+
+// detailLines builds the inspector's content as one string per terminal line,
+// so the caller can window it. A line that runs long is left for scrollDetail
+// to fit, which keeps the width work proportional to the rows on screen
+// rather than to a colonist's whole history.
+func (m Model) detailLines(c sim.EntityView, inner, barW int) []string {
 	var b strings.Builder
 	p := c.Profile
 	if p == nil {
-		return m.renderNonColonistDetail(c, rows, width, inner, barW)
+		return m.nonColonistDetailLines(c, inner, barW)
 	}
 
 	b.WriteString(titleStyle.Render(fitGlyph(colonistGlyph(p))+" "+p.Name) + "\n")
@@ -286,24 +316,81 @@ func (m Model) renderColonistDetail(c sim.EntityView, rows, width int) string {
 	if len(c.Memories) == 0 {
 		b.WriteString(statStyle.Render("  no memories yet"))
 	} else {
-		start := len(c.Memories) - 5
-		if start < 0 {
-			start = 0
+		// The whole remembered history, oldest first, not the last handful:
+		// the panel scrolls now, so there is no reason to decide for the
+		// player which memories are worth keeping on screen. A colonist holds
+		// at most maxColonistMemories of them (see docs/memories.md).
+		lines := make([]string, 0, len(c.Memories))
+		for _, memory := range c.Memories {
+			lines = append(lines, statStyle.Render(cells.Truncate(fmt.Sprintf("  t%d: %s", memory.Tick, memory.Text), inner-2)))
 		}
-		for _, memory := range c.Memories[start:] {
-			line := fmt.Sprintf("  t%d: %s", memory.Tick, memory.Text)
-			b.WriteString(statStyle.Render(cells.Truncate(line, inner-2)) + "\n")
-		}
+		b.WriteString(strings.Join(lines, "\n"))
 	}
-	return sidebarStyle.Width(width - borderCells).Height(rows - borderCells).MaxHeight(rows - borderCells).Render(b.String())
+	return strings.Split(b.String(), "\n")
 }
 
-// renderNonColonistDetail draws the inspector for an entity with no Profile:
+// scrollDetail windows content to a panel of the given height, starting at
+// line off and fitting each visible line to the panel's width.
+//
+// Content that fits is drawn as-is. Content that doesn't gives its bottom row
+// to a position line: without one, a panel that is merely clipped looks
+// exactly like a panel that ends there, and the player has no way to know
+// there is more to read or where in it they are.
+func scrollDetail(lines []string, off, height, inner int) []string {
+	if height < 1 {
+		height = 1
+	}
+	if len(lines) <= height {
+		out := make([]string, 0, len(lines))
+		for _, line := range lines {
+			out = append(out, cells.Truncate(line, inner))
+		}
+		return out
+	}
+	// Clamp here as well as in Update: the content shrinks on its own as a
+	// colonist's state changes, and a stale offset would otherwise scroll the
+	// panel past the end of its own text.
+	off = clamp(off, 0, detailScrollMax(len(lines), height))
+	end := min(off+height-1, len(lines))
+	out := make([]string, 0, height)
+	for _, line := range lines[off:end] {
+		out = append(out, cells.Truncate(line, inner))
+	}
+	return append(out, scrollStatusLine(off, end, len(lines), inner))
+}
+
+// detailScrollMax is the furthest a panel of the given height can scroll
+// through content of the given length: the offset that puts the last content
+// line on the last row above the position line. Content that fits cannot
+// scroll at all.
+func detailScrollMax(total, height int) int {
+	body := height - 1
+	if body < 1 || total <= height {
+		return 0
+	}
+	return total - body
+}
+
+// scrollStatusLine reports which slice of the content is on screen, and shows
+// arrows only for the directions that actually have more to show.
+func scrollStatusLine(first, last, total, inner int) string {
+	arrows := "↑↓"
+	switch {
+	case first == 0:
+		arrows = " ↓"
+	case last >= total:
+		arrows = "↑ "
+	}
+	line := fmt.Sprintf("%s  %d-%d of %d  shift+↑↓ scroll", arrows, first+1, last, total)
+	return labelStyle.Render(cells.Truncate(line, inner))
+}
+
+// nonColonistDetailLines builds the inspector for an entity with no Profile:
 // an alien, cat, mouse, or any dead entry lacking one. It has none of a
 // colonist's needs/traits/family — just identity, status, and a body-part
 // breakdown for the kinds that track one (Colonist and Alien; see
 // docs/combat.md).
-func (m Model) renderNonColonistDetail(c sim.EntityView, rows, width, inner, barW int) string {
+func (m Model) nonColonistDetailLines(c sim.EntityView, inner, barW int) []string {
 	var b strings.Builder
 	b.WriteString(titleStyle.Render(fitGlyph(entityGlyph(c))+" "+colonistName(c)) + "\n")
 	b.WriteString(statStyle.Render(fmt.Sprintf("%s · #%d · (%d, %d)", c.Kind, c.ID, c.Pos.X, c.Pos.Y)) + "\n\n")
@@ -319,7 +406,7 @@ func (m Model) renderNonColonistDetail(c sim.EntityView, rows, width, inner, bar
 	if c.Kind == sim.Alien {
 		b.WriteString(labelStyle.Render("BODY") + "  " + cells.Truncate(strings.Join(bodyPartLines(c), "  "), inner-8) + "\n")
 	}
-	return sidebarStyle.Width(width - borderCells).Height(rows - borderCells).Render(b.String())
+	return strings.Split(b.String(), "\n")
 }
 
 // bodyPartLines renders one "part cur/max" label per body part the entity
