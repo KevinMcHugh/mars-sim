@@ -47,9 +47,9 @@ choose between emoji and ASCII map symbols. See the
 examples.
 
 Glyphs: 👷 colonist · 😱 fleeing colonist · 💬 talking colonist · 🥾 stomping
-colonist · 👽 alien · 🐈 cat · 🐁 mouse · 🟫 ordinary rock · ⬛ iron-bearing
-rock · 🟦 water ice-bearing rock · 🧱 wall · 🥫 nutrient pod · 🚽 toilet ·
-🛌 dormitory bunk · blank = open floor.
+colonist · 🧟 mutant colonist · 👽 alien · 🐈 cat · 🐁 mouse · 🟫 ordinary rock ·
+⬛ iron-bearing rock · 🟦 water ice-bearing rock · 🟩 uranium-bearing rock ·
+🧱 wall · 🥫 nutrient pod · 🚽 toilet · 🛌 dormitory bunk · blank = open floor.
 
 ### Documentation
 
@@ -100,7 +100,8 @@ mutable state:
   into real components as systems grow. Per-tick behavior lives in
   `systems.go`.
   - **Colonists** walk only on floor. They mine rock into floor (carrying one raw
-    rock per excavated tile plus iron ore or water ice from a bearing deposit),
+    rock per excavated tile plus iron ore, water ice, or uranium ore from a
+    bearing deposit),
     build the colony's life-support as coordinated projects (see *Construction
     projects*), tend to their needs, and flee when an alien gets close. Each
     colonist has eight inventory slots, each holding a homogeneous stack of up
@@ -170,6 +171,9 @@ but traits change how a colonist plays:
 | Asocial      | never develops a social need              |
 | Introvert    | social need rises slowly; too much talking lowers mood |
 | Extrovert    | social need rises quickly                 |
+| Tidy         | the sight of gore hits morale harder      |
+| Mutant-Lover | warms to mutants far faster than to anyone else |
+| Mutant       | *not rolled at spawn* — what uranium does to a colonist |
 
 Traits are drawn from mutually exclusive groups (appetite, work ethic, social); a
 colonist gets at most one per group, each with `TraitChance` probability
@@ -226,6 +230,26 @@ Colonists are related and get to know each other (`internal/sim/relationships.go
 
 Family ties, affinities, and mood are all shown per colonist in the roster
 inspector.
+
+#### Uranium & mutation
+
+The regolith holds uranium as well as iron and water ice, and it is the one
+deposit that acts back on the colonist who digs it. Standing beside an
+unexcavated uranium vein — or carrying the ore, which with no way to drop
+anything yet means carrying it forever — puts a colonist under a cumulative
+**dose**. Every `-uranium-exposure-ticks` (100) of it is one roll at
+`-mutation-chance` (25%) to **mutate**: grow a body part nobody is born with (a
+third arm, an extra eye, a tail, a vestigial twin) and carry the **Mutant**
+trait from then on, drawn as 🧟 on the map.
+
+A grown part is extra flesh, not redistributed flesh: it adds its own HP and
+becomes one more place an attack can land, which also thins the odds that any
+one hit finds the head or torso. Mutants are, physically, slightly harder to
+kill. The cost is social — mutating is a hard mood hit, and so is watching it
+happen — except to a **Mutant-Lover**, who is delighted by both and warms to
+mutants far faster than to anyone else. That last part is why affinity is
+tracked per direction: a mutant-lover's regard is not returned in kind. Full
+write-up in [docs/mutation.md](docs/mutation.md).
 
 #### Construction projects
 

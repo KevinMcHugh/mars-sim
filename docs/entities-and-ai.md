@@ -68,6 +68,10 @@ Priority order each tick:
 
 1. **Starvation check** — `applyStarvation`; if it just died, release its job
    claims and remove it.
+1a. **Uranium dose** — `applyUraniumExposure` (right after the sighting pass,
+   before anything below can return): a colonist beside a uranium deposit or
+   carrying uranium ore accumulates exposure whatever else it is doing, and a
+   full dose rolls for a mutation. See [mutation.md](./mutation.md).
 2. **Survival** — if an alien is within `FleeRadius`: a colonist carrying a
    pistol or shotgun stands its ground and fights (`fightAlien`) instead;
    an unarmed one drops everything and flees, same as always. See

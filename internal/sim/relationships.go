@@ -12,8 +12,10 @@ import "sort"
 // and relatives who never joined the colony exist only as phantom tree nodes that
 // connect real colonists.
 //
-// Affinity is a warmth score between two colonists, in [-AffinityMax,
+// Affinity is a warmth score one colonist holds for another, in [-AffinityMax,
 // AffinityMax], shifted when they talk (see the Talking activity in systems.go).
+// It is stored per direction, and conversation moves both directions equally;
+// a one-sided force (the Mutant-Lover trait) is what can pull them apart.
 // Talking is mostly a diminishing-returns positive-feedback loop: a conversation
 // tends to exacerbate the valence of the pair's existing affinity (friends grow
 // closer, rivals drift further apart), with the step shrinking as affinity nears
@@ -454,13 +456,24 @@ func (w *World) bumpAffinity(a, b EntityID, delta int) {
 	m[b] = clampInt(m[b]+delta, -w.cfg.AffinityMax, w.cfg.AffinityMax)
 }
 
-// affinityBetween returns the (symmetric) affinity between two colonists, 0 if
-// they have never interacted.
+// affinityBetween returns a's affinity toward b, 0 if they have never
+// interacted. Affinity is stored per direction. Conversation moves both
+// directions by the same step, so for most pairs the two readings are equal;
+// they diverge only where something one-sided acts on them, such as a
+// Mutant-Lover's extra warmth toward a mutant (see mutantAffinityBonus).
 func (w *World) affinityBetween(a, b EntityID) int {
 	if m := w.affinity[a]; m != nil {
 		return m[b]
 	}
 	return 0
+}
+
+// mutualAffinity is how the pair regards each other overall: the mean of the
+// two directions. Anything that is a property of the *pair* rather than of one
+// of them — how a conversation between them tends to go — reads this, so its
+// answer cannot depend on which of the two happened to be passed first.
+func (w *World) mutualAffinity(a, b EntityID) int {
+	return (w.affinityBetween(a, b) + w.affinityBetween(b, a)) / 2
 }
 
 // affinitiesOf returns a colonist's affinities toward living colonists, strongest

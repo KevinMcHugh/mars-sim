@@ -40,6 +40,7 @@ const (
 	glyphRock     = "\U0001F7EB" // 🟫 unexcavated regolith
 	glyphIronRock = "\U00002B1B" // ⬛ iron-bearing rock
 	glyphIceRock  = "\U0001F7E6" // 🟦 water ice-bearing rock
+	glyphUranium  = "\U0001F7E9" // 🟩 uranium-bearing rock (the glow is the warning)
 	glyphFloor    = "  "         // open, walkable space
 	glyphWall     = "\U0001F9F1" // 🧱 built wall
 	glyphPod      = "\U0001F96B" // 🥫 nutrient pod (food)
@@ -55,6 +56,7 @@ const (
 	glyphStomp    = "\U0001F97E" // 🥾 colonist chasing down a mouse to stomp it
 	glyphFighting = "\U0001F52B" // 🔫 armed colonist standing its ground against an alien
 	glyphGore     = "\U0001FA78" // 🩸 a violent death's residue on a tile
+	glyphMutant   = "\U0001F9DF" // 🧟 colonist changed by uranium (see docs/mutation.md)
 
 	glyphManAdult     = "\U0001F468" // 👨 adult man colonist
 	glyphWomanAdult   = "\U0001F469" // 👩 adult woman colonist
@@ -92,6 +94,7 @@ var glyphRegistry = map[string]glyph{
 	glyphRock:     {glyphRock, 2, "##"},
 	glyphIronRock: {glyphIronRock, 2, "Fe"},
 	glyphIceRock:  {glyphIceRock, 2, "H2"},
+	glyphUranium:  {glyphUranium, 2, "U "},
 	glyphFloor:    {glyphFloor, 2, "  "},
 	glyphWall:     {glyphWall, 2, "[]"},
 	glyphPod:      {glyphPod, 2, "%%"},
@@ -107,6 +110,7 @@ var glyphRegistry = map[string]glyph{
 	glyphStomp:    {glyphStomp, 2, "@*"},
 	glyphFighting: {glyphFighting, 2, "@="},
 	glyphGore:     {glyphGore, 2, "~~"},
+	glyphMutant:   {glyphMutant, 2, "@%"},
 
 	glyphManAdult:     {glyphManAdult, 2, "M "},
 	glyphWomanAdult:   {glyphWomanAdult, 2, "W "},
@@ -172,9 +176,16 @@ func fitGlyph(symbol string) string {
 // colonistGlyph picks the default map glyph for a colonist at rest: a base
 // figure for their gender identity and age bracket. A colonist without a
 // profile falls back to glyphColonist.
+//
+// A mutant overrides all of that. What uranium did to them is the most
+// important thing about that figure on the map — it is why the colony treats
+// them differently — and it is not something a gender/age figure can show.
 func colonistGlyph(p *sim.Profile) string {
 	if p == nil {
 		return glyphColonist
+	}
+	if p.HasTrait(sim.TraitMutant) {
+		return glyphMutant
 	}
 	senior := p.Age >= seniorAge
 	switch p.Gender {
@@ -230,6 +241,8 @@ func tileGlyph(tile sim.Tile) string {
 		return fitGlyph(glyphIronRock)
 	case sim.WaterIceBearingRock:
 		return fitGlyph(glyphIceRock)
+	case sim.UraniumBearingRock:
+		return fitGlyph(glyphUranium)
 	default:
 		return fitGlyph(glyphRock)
 	}

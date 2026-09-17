@@ -81,6 +81,11 @@ const (
 	OrdinaryRock RockComposition = iota
 	IronBearingRock
 	WaterIceBearingRock
+	// UraniumBearingRock yields uranium ore, the one deposit that is dangerous
+	// to be around: a colonist that mines near it or carries the ore
+	// accumulates a dose, and a long enough dose can mutate them. See
+	// mutation.go and docs/mutation.md.
+	UraniumBearingRock
 )
 
 func (c RockComposition) String() string {
@@ -91,6 +96,8 @@ func (c RockComposition) String() string {
 		return "iron-bearing rock"
 	case WaterIceBearingRock:
 		return "water ice-bearing rock"
+	case UraniumBearingRock:
+		return "uranium-bearing rock"
 	default:
 		return "unknown rock"
 	}

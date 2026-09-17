@@ -20,6 +20,9 @@ func generate(w *World) {
 	compositionRNG := rand.New(rand.NewSource(w.cfg.Seed ^ 0x243F6A8885A308D3))
 	w.growRockVeins(compositionRNG, IronBearingRock, w.cfg.IronRockPercent)
 	w.growRockVeins(compositionRNG, WaterIceBearingRock, w.cfg.IceRockPercent)
+	// Uranium goes last so adding it leaves the iron and ice veins of every
+	// existing seed exactly where they were.
+	w.growRockVeins(compositionRNG, UraniumBearingRock, w.cfg.UraniumRockPercent)
 
 	// Carve an oval starting cavern large enough to hold the colonists with room
 	// to move and a rock frontier to mine.

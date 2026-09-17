@@ -168,6 +168,10 @@ const (
 	TraitIntrovert
 	TraitExtrovert
 	TraitTidy
+	// TraitMutant is not rolled at spawn: it is acquired in play, the moment
+	// uranium exposure first changes a colonist's body (see mutation.go).
+	TraitMutant
+	TraitMutantLover
 
 	numTraits // keep last
 )
@@ -186,6 +190,15 @@ const (
 	// Industrious Extrovert and Tidy. A future opposite (e.g. "Slob", numbed to
 	// gore) would join this group.
 	groupTemperament
+	// groupMutation holds what uranium did to a colonist. Nothing in it is
+	// rollable, so a colonist is never generated pre-mutated; the group exists
+	// so an acquired trait still has a home in the same table as every other
+	// trait rather than becoming a special case on Profile.
+	groupMutation
+	// groupMutantAttitude is how a colonist feels about mutants — its own axis,
+	// so it does not compete with temperament, and so the obvious opposite (a
+	// purist who recoils from them) can join it later.
+	groupMutantAttitude
 
 	numTraitGroups // keep last
 )
@@ -196,6 +209,11 @@ type traitSpec struct {
 	Name  string
 	Desc  string
 	group traitGroup
+	// acquired marks a trait that is only ever gained during play, never
+	// generated at spawn. rollTraits skips it (and skips its group entirely if
+	// nothing in the group is rollable, without drawing a number, so adding
+	// such a group cannot shift any other personality roll for a given seed).
+	acquired bool
 
 	needRiseScale  [numNeeds]float64 // per-need multiplier on how fast it rises
 	restScale      float64           // multiplier on idle rest duration
@@ -242,6 +260,19 @@ var traitSpecs = [numTraits]traitSpec{
 		group: groupTemperament,
 		// No need-rise/rest/work/social effect — Tidy's only effect is the extra
 		// EvtSawGore mood penalty declared in lifeevents.go, gated on this trait.
+	},
+	TraitMutant: {
+		Name: "Mutant", Desc: "Uranium rewrote them; they carry parts nobody is born with.",
+		group: groupMutation, acquired: true,
+		// No scalar effect. Being a mutant shows up as the extra body parts
+		// mutation grew (see mutation.go) and in how other colonists take
+		// them — this trait is the marker both of those read.
+	},
+	TraitMutantLover: {
+		Name: "Mutant-Lover", Desc: "Drawn to the changed; warms to mutants far faster than to anyone else.",
+		group: groupMutantAttitude,
+		// No scalar effect either: its work is the directional affinity bonus
+		// in finishTalk and the mood effects gated on it in lifeevents.go.
 	},
 }
 
@@ -363,14 +394,19 @@ func (w *World) resolveTraitEffects(e *Entity) {
 }
 
 // rollTraits picks at most one trait from each group, each group taken with
-// TraitChance probability.
+// TraitChance probability. A group with nothing rollable in it (see
+// traitSpec.acquired) is skipped before any number is drawn, so adding one
+// leaves every other colonist's generation identical for the same seed.
 func (w *World) rollTraits() []Trait {
 	var out []Trait
 	for g := traitGroup(0); g < numTraitGroups; g++ {
+		group := rollableTraitsInGroup(g)
+		if len(group) == 0 {
+			continue
+		}
 		if w.prng.Intn(100) >= w.cfg.TraitChance {
 			continue
 		}
-		group := traitsInGroup(g)
 		out = append(out, group[w.prng.Intn(len(group))])
 	}
 	return out
@@ -381,6 +417,18 @@ func traitsInGroup(g traitGroup) []Trait {
 	var out []Trait
 	for t := Trait(0); t < numTraits; t++ {
 		if traitSpecs[t].group == g {
+			out = append(out, t)
+		}
+	}
+	return out
+}
+
+// rollableTraitsInGroup is traitsInGroup without the traits that can only be
+// acquired in play.
+func rollableTraitsInGroup(g traitGroup) []Trait {
+	var out []Trait
+	for _, t := range traitsInGroup(g) {
+		if !traitSpecs[t].acquired {
 			out = append(out, t)
 		}
 	}

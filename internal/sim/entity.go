@@ -95,6 +95,13 @@ func (s State) String() string {
 // overall HP. Only Colonist and Alien use body parts (see Entity.hasParts);
 // cats and mice stay on a single HP pool, since nothing hits them with
 // anything more precise than a pounce or a boot.
+//
+// The enum has two halves. Everything below numBaseBodyParts is anatomy every
+// body has; everything above it is a *mutant* part, grown in play by uranium
+// exposure (see mutation.go). Which of them a particular entity actually has
+// is per-entity data, not a property of the enum: a part exists for an entity
+// only while its MaxParts entry is above zero, which is what distinguishes an
+// ungrown part from a destroyed one (Parts zero, MaxParts still set).
 type BodyPart uint8
 
 const (
@@ -105,8 +112,22 @@ const (
 	LeftLeg
 	RightLeg
 
+	// numBaseBodyParts separates the anatomy everyone is born with from the
+	// mutant parts below. Keep it directly after the last ordinary part.
+	numBaseBodyParts
+
+	// Mutant parts. None of them is Vital: a mutation adds somewhere to be
+	// wounded, it never adds a new way to die outright.
+	ThirdArm
+	ExtraEye
+	Tail
+	VestigialTwin
+
 	numBodyParts // keep last: the number of body parts
 )
+
+// Mutant reports whether a part is grown by mutation rather than born with.
+func (p BodyPart) Mutant() bool { return p > numBaseBodyParts && p < numBodyParts }
 
 func (p BodyPart) String() string {
 	switch p {
@@ -122,6 +143,14 @@ func (p BodyPart) String() string {
 		return "left leg"
 	case RightLeg:
 		return "right leg"
+	case ThirdArm:
+		return "third arm"
+	case ExtraEye:
+		return "extra eye"
+	case Tail:
+		return "tail"
+	case VestigialTwin:
+		return "vestigial twin"
 	default:
 		return "?"
 	}
@@ -144,6 +173,14 @@ func (p BodyPart) Short() string {
 		return "l.leg"
 	case RightLeg:
 		return "r.leg"
+	case ThirdArm:
+		return "3.arm"
+	case ExtraEye:
+		return "eye"
+	case Tail:
+		return "tail"
+	case VestigialTwin:
+		return "twin"
 	default:
 		return "?"
 	}
@@ -154,11 +191,16 @@ func (p BodyPart) Short() string {
 func (p BodyPart) Vital() bool { return p == Head || p == Torso }
 
 // bodyPartWeight is each part's share (out of 100) of an entity's MaxHP,
-// used to size its starting body part pools. The torso is the biggest and
-// toughest target (it carries the vital organs); the head is vital but small;
-// limbs split the remainder. Weights sum to 100 so distributeBodyParts can
-// hand any leftover from integer rounding to the torso and still total
-// exactly MaxHP.
+// used both to size a part's HP pool and to weight which one an attack lands
+// on. The torso is the biggest and toughest target (it carries the vital
+// organs); the head is vital but small; limbs split the remainder. The *base*
+// weights sum to 100 so distributeBodyParts can hand any leftover from integer
+// rounding to the torso and still total exactly MaxHP.
+//
+// A mutant part's weight is deliberately outside that hundred: growing one
+// adds its share on top of the body already there (see growPart) instead of
+// thinning the parts a colonist was born with, which would make a mutation
+// quietly weaken every limb it did not add.
 var bodyPartWeight = [numBodyParts]int{
 	Head:     15,
 	Torso:    35,
@@ -166,17 +208,23 @@ var bodyPartWeight = [numBodyParts]int{
 	RightArm: 12,
 	LeftLeg:  13,
 	RightLeg: 13,
+
+	ThirdArm:      12,
+	ExtraEye:      5,
+	Tail:          8,
+	VestigialTwin: 15,
 }
 
-// distributeBodyParts splits maxHP across body parts by bodyPartWeight,
-// crediting any rounding remainder to the torso so the parts always sum to
-// exactly maxHP.
+// distributeBodyParts splits maxHP across the base body parts by
+// bodyPartWeight, crediting any rounding remainder to the torso so the parts
+// always sum to exactly maxHP. Mutant parts are not included: nobody is born
+// with one, and each is added separately by growPart.
 func distributeBodyParts(maxHP int) [numBodyParts]int {
 	var parts [numBodyParts]int
 	sum := 0
-	for i, w := range bodyPartWeight {
-		parts[i] = maxHP * w / 100
-		sum += parts[i]
+	for p := BodyPart(0); p < numBaseBodyParts; p++ {
+		parts[p] = maxHP * bodyPartWeight[p] / 100
+		sum += parts[p]
 	}
 	parts[Torso] += maxHP - sum
 	return parts
@@ -227,7 +275,20 @@ type Entity struct {
 	// remains, the way a called shot should. Non-vital parts (limbs) can be
 	// destroyed without being fatal. Initialized by distributeBodyParts so
 	// Parts always sums to MaxHP at spawn.
-	Parts [numBodyParts]int
+	//
+	// MaxParts is the matching ceiling per part, and doubles as the entity's
+	// anatomy: a part it does not have reads zero there. It is stored rather
+	// than recomputed from MaxHP because mutation makes the two diverge — a
+	// grown part adds HP of its own (see growPart in mutation.go), so MaxHP
+	// alone no longer says how the body is divided up.
+	Parts    [numBodyParts]int
+	MaxParts [numBodyParts]int
+
+	// uraniumExposure counts the ticks this colonist has spent under a
+	// uranium dose. It is cumulative and never decays; each full
+	// UraniumExposureTicks of it is one roll against mutation. See
+	// mutation.go.
+	uraniumExposure int
 
 	// Needs are stored lazily: Needs[i] is the level as of tick needSince[i], so
 	// the current level is Needs[i] + needRise[i]*(now-needSince[i]) (see
@@ -363,6 +424,7 @@ func newEntity(id EntityID, kind Kind, p Point, cfg Config) *Entity {
 	e.HP = e.MaxHP
 	if e.hasParts() {
 		e.Parts = distributeBodyParts(e.MaxHP)
+		e.MaxParts = e.Parts
 	}
 	return e
 }
@@ -371,6 +433,12 @@ func newEntity(id EntityID, kind Kind, p Point, cfg Config) *Entity {
 // Cats and mice die from a single pounce or stomp regardless of HP, so they
 // have no need of the detail.
 func (e *Entity) hasParts() bool { return e.Kind == Colonist || e.Kind == Alien }
+
+// hasPart reports whether this entity actually has a given body part: every
+// base part for a kind tracked by body part, plus whichever mutant parts it
+// has grown. A destroyed part is still a part it has — MaxParts keeps its
+// ceiling — so "gone" and "never grown" stay distinguishable.
+func (e *Entity) hasPart(p BodyPart) bool { return p < numBodyParts && e.MaxParts[p] > 0 }
 
 // Alive reports whether the entity still has hit points and, for a kind
 // tracked by body part, has not had a vital part (Head or Torso) destroyed —

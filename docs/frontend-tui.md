@@ -53,7 +53,10 @@ screen; the rest dispatch to `handleMapKey`, `handleRosterKey`, or
   the filter menu (`f`) turns those on — with each row's name, pronouns (or
   kind, for anything without a `Profile`), and current status (or cause of
   death). The detail pane for the selection is the full colonist inspector —
-  name, attributes, HP, a compact per-body-part wound summary, needs, the
+  name, attributes, HP, a compact per-body-part wound summary (`bodyPartLines`,
+  which lists only the parts that entity actually has, so a mutant's grown
+  limbs appear and nobody else shows empty ones — see
+  [mutation.md](./mutation.md)), needs, the
   eight-slot inventory, recent memories, and traits — for a colonist, or a
   shorter identity/status/body-part view (`renderNonColonistDetail`) for
   anything else. See [combat.md](./combat.md) for the wound and graveyard
@@ -202,6 +205,7 @@ contract is genuinely frontend-agnostic.
 
 - [architecture.md](./architecture.md) — the snapshot/command contract this implements.
 - [combat.md](./combat.md) — body parts, weapons, and the gore glyph.
+- [mutation.md](./mutation.md) — the uranium-rock and mutant-colonist glyphs, and the per-entity body parts the inspector lists.
 - [inventory.md](./inventory.md) — what the roster's inventory view shows.
 - [personality.md](./personality.md) — the attributes and traits the inspector shows.
 - [terminal-cell-widths.md](./terminal-cell-widths.md) — how glyph widths are measured and kept honest.
