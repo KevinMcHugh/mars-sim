@@ -66,7 +66,13 @@ func main() {
 		os.Exit(2)
 	}
 
-	eng := sim.NewEngine(cfg)
+	// Everything above can still exit with a usage error, so the loading line
+	// starts here: the first thing it says is that the arguments were accepted.
+	load := newLoader(os.Stderr)
+	load.start()
+
+	eng := sim.NewEngine(cfg) // carves the world
+	load.step()
 
 	// Subscribe before starting the engine so the very first frame is not missed.
 	snaps := eng.Subscribe()
@@ -74,14 +80,18 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	go eng.Run(ctx)
+	load.step()
 
 	if headless {
+		load.clear() // runHeadless prints its own banner
 		runHeadless(snaps, cfg, duration)
 		return
 	}
 
-	setUpGlyphs(glyphs)
+	setUpGlyphs(glyphs, load)
+	load.step()
 
+	load.clear()
 	if err := runTUI(eng, snaps, duration); err != nil {
 		cancel()
 		fmt.Fprintln(os.Stderr, "mars-sim:", err)
@@ -278,12 +288,14 @@ const (
 
 // setUpGlyphs applies the -glyphs choice before the TUI starts. The probe needs
 // raw mode and sole use of stdin, which it can only have before Bubble Tea
-// takes the terminal.
+// takes the terminal. It is the slowest step of startup on a real terminal —
+// one write/read round trip per registered glyph — which is why the caller
+// marks it with its own dot on the loading line.
 //
 // A probe that cannot run is not an error. Failing to get an answer out of the
 // terminal leaves us exactly where a build without the probe would be — using
 // the static registry — so it is not worth interrupting a run over.
-func setUpGlyphs(mode string) {
+func setUpGlyphs(mode string, load *loader) {
 	switch mode {
 	case glyphModeASCII:
 		tui.UseASCIIGlyphs()
@@ -294,11 +306,15 @@ func setUpGlyphs(mode string) {
 			// a redirected stderr is where you look when the grid misbehaves.
 			// The probe writes its own escape sequences to /dev/tty, so a
 			// redirected stdout stays clean.
-			fmt.Fprintf(os.Stderr, "mars-sim: could not measure glyph widths (%v); using the built-in width table\n", err)
+			//
+			// Routed through the loader because the loading line is on stderr
+			// too and has no newline yet: printing straight to stderr would
+			// glue the message onto the end of it.
+			load.note("mars-sim: could not measure glyph widths (%v); using the built-in width table\n", err)
 			return
 		}
 		if check.Downgraded {
-			fmt.Fprintln(os.Stderr, "mars-sim:", check.Detail)
+			load.note("mars-sim: %s\n", check.Detail)
 		}
 	}
 }

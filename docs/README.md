@@ -33,6 +33,7 @@ way it is without re-deriving it from the source each time.
 | [snapshot-tile-grid.md](./snapshot-tile-grid.md) | The terrain a frontend reads: an immutable, page-shared grid so publishing a frame costs what the tick touched, not the map's area. |
 | [frontend-tui.md](./frontend-tui.md) | The Bubble Tea terminal frontend: map, roster, controls, and glyphs. |
 | [terminal-cell-widths.md](./terminal-cell-widths.md) | Why the grid used to shear: cell-accurate measurement, the vetted glyph registry, the startup width probe, and the ASCII fallback. |
+| [startup.md](./startup.md) | The `Mars awaits` loading line, and where startup time actually goes (spoiler: compiling, not world generation). |
 
 ## How the docs are organized
 

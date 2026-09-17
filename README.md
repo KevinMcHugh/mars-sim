@@ -11,6 +11,20 @@ out an underground colony on their own while burrowing aliens hunt them.
 go run .
 ```
 
+Startup prints `Mars awaits` and adds a dot as each phase finishes — world
+carved, engine running, glyphs measured — then clears the line and hands the
+screen to the UI.
+
+If the wait before that line feels long, it is the Go compiler, not the game: a
+cold `go run .` builds ~158 packages (about 11 s on a modest machine), while the
+simulation itself is ready in milliseconds. Build once and the wait goes away:
+
+```sh
+go build -o mars-sim . && ./mars-sim
+```
+
+See [docs/startup.md](docs/startup.md) for the full timing breakdown.
+
 Every simulation tunable is a command-line flag (world size, populations, speed,
 colonist/alien stats, build times, ...), each defaulting to the value in
 `sim.DefaultConfig`. List them with `-h` or `?`:
