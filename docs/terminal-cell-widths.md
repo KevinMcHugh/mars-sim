@@ -62,9 +62,18 @@ the exact function Bubble Tea's renderer and `lipgloss.Width` call. Agreeing
 with the renderer is not a style preference: if our arithmetic and the
 renderer's disagree, the renderer makes the wrong call about erasing the line.
 
-`cells.Fit(s, n)` returns *exactly* n cells, always. Map rows, legend rows and
-panel lines all go through it, which is what keeps a width surprise local to the
-line it happens on instead of shearing the frame.
+`cells.Fit(s, n)` returns *exactly* n cells, always. Legend rows and panel lines
+go through it, which is what keeps a width surprise local to the line it happens
+on instead of shearing the frame.
+
+Map rows are exact by construction instead. Every tile is a `fitGlyph` result of
+exactly `tileWidth` cells, and `TestAdjacentGlyphsNeverMerge` checks every
+ordered pair of glyphs in both sets to prove no two fuse into one grapheme
+cluster when drawn side by side, so a row's width is simply the sum of its
+tiles. Map rows used to be passed through `cells.Fit` as well, but that cost a
+grapheme scan of every row on every frame and could not catch anything:
+`cells.Fit` uses the same width table `fitGlyph` already did. Disagreement with
+the *terminal* is the startup probe's job, not the renderer's.
 
 **A registry instead of constants.** Each glyph declares its width and carries a
 two-cell ASCII fallback:
@@ -133,6 +142,14 @@ time. So `render()` is `clampFrame(renderFrame())`, and
 `TestFrameNeverExceedsTerminalWidth` asserts that `clampFrame` is a *no-op*: the
 renderers must be right, and the net is there for the case we did not think of.
 
+The net is kept cheap rather than removed. Measuring every line of every frame
+was about a fifth of the render, so `clampFrame` reuses the widths of lines that
+are unchanged since the previous frame (`renderCache` in `render_cache.go`).
+Width is a pure function of the string, so a reused width is exactly as correct
+as a fresh scan, and it is still compared against the *current* terminal width
+— a line that fit before a resize is trimmed after it
+(`TestClampFrameRechecksCachedLinesAfterResize`).
+
 **Two layout bugs found while testing this.** Both the map/sidebar split and the
 roster and job board's list/detail split floored one panel at a minimum width
 and gave the neighbour whatever was left — which, in a terminal that had no room
@@ -161,6 +178,8 @@ Invariants a change here must preserve:
 - Nothing measures a display string with `len()`, `len([]rune(...))`, or `%-Ns`.
   Use `cells`.
 - Every glyph reaches the terminal through `fitGlyph`.
+- No two glyphs fuse when drawn side by side (`TestAdjacentGlyphsNeverMerge`);
+  map rows rely on it instead of being measured.
 - A panel width constant is the panel's *total* footprint including its border;
   `lipgloss`'s `Style.Width` sets the content box, so renderers pass
   `Width(total - borderCells)`.
