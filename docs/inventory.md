@@ -8,11 +8,13 @@ Colonists carry items in a fixed set of slots, each holding one homogeneous stac
 Mining produces `RawRock` and may also produce `IronOre`, `WaterIce`, or
 `UraniumOre`, depending on the excavated tile's rock composition. Colonists may also carry `Pistol` or
 `Shotgun` weapons from the colony ship's starting equipment; see
-[combat.md](./combat.md).
+[combat.md](./combat.md). Cleaning up after the colony's dead fills slots too,
+with the `Viscera`/`Corpse` refuse a cleaner carries to the incinerator; see
+[sanitation.md](./sanitation.md).
 
 ## Source
 
-- [`internal/sim/inventory.go`](../internal/sim/inventory.go) — `ItemKind`, `ItemStack`, `Inventory`, and atomic add/yield helpers.
+- [`internal/sim/inventory.go`](../internal/sim/inventory.go) — `ItemKind`, `ItemStack`, `Inventory`, the atomic add/yield helpers, and `RemoveAll`/`Count` (how a load is burned).
 - [`internal/sim/entity.go`](../internal/sim/entity.go) — the `Inventory` field on `Entity`.
 - [`internal/sim/systems.go`](../internal/sim/systems.go) — mining awards `RawRock` (`jobMine`).
 

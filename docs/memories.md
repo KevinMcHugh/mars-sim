@@ -146,7 +146,8 @@ moving alien does.
 | `EvtWitnessedGunfight` | watched another colonist shoot at an alien, non-fatally | none yet |
 | `EvtConversation` | finished a conversation | computed per-occurrence (`LifeEvent.Mood`, from affinity + quality + social fatigue) — see below |
 | `EvtAte` / `EvtUsedToilet` / `EvtSlept` / `EvtNeedSatisfied` | finished using a facility | none yet |
-| `EvtFinishedMining` / `EvtClearedRock` / `EvtFinishedConstruction` | finished a dig or build job | universal +2, +Industrious +2 |
+| `EvtFinishedMining` / `EvtClearedRock` / `EvtFinishedConstruction` / `EvtCleanedRefuse` | finished a dig, build, or cleaning job | universal +2, +Industrious +2 |
+| `EvtIncineratedRefuse` | burned a load of refuse in the incinerator | universal +2, +Industrious +2, +Tidy +6 |
 | `EvtMutated` | uranium exposure grew a new body part | universal -14, +Mutant-Lover +28 (net +14) |
 | `EvtWitnessedMutation` | watched another colonist mutate | universal -6, +Mutant-Lover +12 (net +6) |
 

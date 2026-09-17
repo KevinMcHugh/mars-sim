@@ -47,9 +47,11 @@ choose between emoji and ASCII map symbols. See the
 examples.
 
 Glyphs: 👷 colonist · 😱 fleeing colonist · 💬 talking colonist · 🥾 stomping
-colonist · 🧟 mutant colonist · 👽 alien · 🐈 cat · 🐁 mouse · 🟫 ordinary rock ·
-⬛ iron-bearing rock · 🟦 water ice-bearing rock · 🟩 uranium-bearing rock ·
-🧱 wall · 🥫 nutrient pod · 🚽 toilet · 🛌 dormitory bunk · blank = open floor.
+colonist · 🧹 cleaning colonist · 📦 hauling colonist · 🧟 mutant colonist ·
+👽 alien · 🐈 cat · 🐁 mouse · 🟫 ordinary rock · ⬛ iron-bearing rock ·
+🟦 water ice-bearing rock · 🟩 uranium-bearing rock · 🧱 wall · 🥫 nutrient pod ·
+🚽 toilet · 🛌 dormitory bunk · 🔥 incinerator · 🩸 gore · 🦴 a body ·
+blank = open floor.
 
 ### Documentation
 
@@ -103,9 +105,9 @@ mutable state:
     rock per excavated tile plus iron ore, water ice, or uranium ore from a
     bearing deposit),
     build the colony's life-support as coordinated projects (see *Construction
-    projects*), tend to their needs, and flee when an alien gets close. Each
-    colonist has eight inventory slots, each holding a homogeneous stack of up
-    to 64 items.
+    projects*), clean up after the colony's dead (see *Sanitation*), tend to
+    their needs, and flee when an alien gets close. Each colonist has eight
+    inventory slots, each holding a homogeneous stack of up to 64 items.
   - **Aliens** burrow through *any* terrain to reach the nearest colonist and
     eat it.
   - **Cats** stalk the floor hunting mice, pouncing when adjacent (a single
@@ -263,6 +265,29 @@ mutants far faster than to anyone else. That last part is why affinity is
 tracked per direction: a mutant-lover's regard is not returned in kind. Full
 write-up in [docs/mutation.md](docs/mutation.md).
 
+#### Sanitation
+
+Violence leaves a mark. A messy kill splatters 🩸 gore across the tile, and a
+death nothing eats — a starvation, a gunned-down alien, a stomped mouse —
+leaves a 🦴 body lying where it fell. Both are **refuse**, and a colonist with
+nothing urgent to do cleans it up: scrub the tile (🧹), carry the load to an
+incinerator (📦), and burn it.
+
+The catch is that there has to be somewhere to burn it. A colonist never picks
+refuse up with no incinerator in reach — that would just hide the mess in an
+inventory slot — so instead the colony plans itself a **trash room**: the same
+walled shell as any other room, with a 🔥 incinerator in it. It queues one
+automatically the first time there is refuse to burn (after life support and
+bunks, which are what colonists die without), or on demand with `b` then `t`.
+
+Cleaning is *work*, not an idle whim like stomping mice: the mining frontier
+never runs out, so a chore that only happened when a colonist had nothing to do
+would never happen at all. It sits between construction and mining in the
+work-seeking order — a colony builds its life support first, then tidies up,
+then goes back to digging. A `Tidy` colonist, who takes the sight of gore
+hardest, ranges twice as far to find a mess and takes the most satisfaction in
+burning it. Full details in [docs/sanitation.md](docs/sanitation.md).
+
 #### Construction projects
 
 The colony builds structures as **projects** it plans as a group rather than one
@@ -272,9 +297,10 @@ individual tasks, so a room goes up collaboratively and in parallel. It is a
 general coordination backbone — rooms are the first project kind, and storage,
 workshops, and the like would be new task generators over the same machinery.
 
-Today the one project kind is a **facility room**: a bay of nutrient pods and
-toilets in a rock-backed niche at the cavern edge, inside a **complete placed-wall
-perimeter with a one-tile front doorway**. Construction is **phased** — every wall
+Every project kind today is a **room**: a bay of facilities in a rock-backed
+niche at the cavern edge, inside a **complete placed-wall perimeter with a
+one-tile front doorway** — nutrient pods and toilets in a facility room, bunks
+in a dormitory, an incinerator in a trash room. Construction is **phased** — every wall
 is raised (phase 0) before any facility comes online (phase 1) — and facilities
 are spaced one tile apart so each keeps several access tiles. Only one room is
 built at a time, so most colonists keep mining while a small crew finishes it.
@@ -286,13 +312,14 @@ earlier *wall-less* design was abandoned once colonists could pass through crowd
 and route around pending build tiles — lives in
 [docs/construction.md](docs/construction.md).
 
-Rooms come in two recipes over that shared shell (`roomRecipe`), differing only
-in what they line up along the back and how few facilities still make a room
-worth building: a **facility room** alternates 🍽️ pods and 🚽 toilets for the
-food and bladder needs, and a **dormitory** is a bay of 🛏️ bunks for sleep. The
-colony plans life support before bunks (food is fatal; a missing bed only makes a
-colonist wait), and adding a room kind is a recipe plus a demand check in
-`planRooms`.
+Rooms come in three recipes over that shared shell (`roomRecipe`), differing
+only in what they line up along the back and how few facilities still make a
+room worth building: a **facility room** alternates 🍽️ pods and 🚽 toilets for
+the food and bladder needs, a **dormitory** is a bay of 🛏️ bunks for sleep, and
+a **trash room** holds the 🔥 incinerator that refuse is burned in (see
+*Sanitation*). The colony plans life support before bunks (food is fatal; a
+missing bed only makes a colonist wait) and both before a trash room, and adding
+a room kind is a recipe plus a demand check in `planRooms`.
 
 One room is built at a time so most colonists keep mining (growing the cavern)
 while a small crew finishes the current room. A fully mined-out map is the one

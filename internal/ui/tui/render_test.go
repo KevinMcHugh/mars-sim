@@ -54,7 +54,9 @@ func TestViewRendersEntities(t *testing.T) {
 }
 
 func TestGlyphsOccupyOneTile(t *testing.T) {
-	terrain := []sim.Terrain{sim.Floor, sim.Rock, sim.Wall, sim.NutrientPod, sim.Toilet, sim.Bed}
+	terrain := []sim.Terrain{
+		sim.Floor, sim.Rock, sim.Wall, sim.NutrientPod, sim.Toilet, sim.Bed, sim.Incinerator,
+	}
 	for _, tile := range terrain {
 		if got := cells.Width(terrainGlyph(tile)); got != tileWidth {
 			t.Errorf("terrain %v occupies %d cells, want %d", tile, got, tileWidth)
@@ -66,6 +68,8 @@ func TestGlyphsOccupyOneTile(t *testing.T) {
 		{Kind: sim.Colonist, State: sim.Fleeing},
 		{Kind: sim.Colonist, State: sim.Talking},
 		{Kind: sim.Colonist, State: sim.Stomping},
+		{Kind: sim.Colonist, State: sim.Cleaning},
+		{Kind: sim.Colonist, State: sim.Hauling},
 		{Kind: sim.Alien},
 		{Kind: sim.Cat},
 		{Kind: sim.Mouse},

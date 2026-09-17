@@ -122,6 +122,10 @@ func bindConfigFlags(cfg *sim.Config) {
 	flag.IntVar(&cfg.FleeRadius, "flee-radius", cfg.FleeRadius, "colonist flees when an alien is within this many tiles")
 	flag.IntVar(&cfg.ColonistStompRadius, "stomp-radius", cfg.ColonistStompRadius, "an idle colonist chases and crushes a mouse within this many tiles")
 	flag.IntVar(&cfg.GoreSightRadius, "gore-sight-radius", cfg.GoreSightRadius, "a colonist notices gore on the ground within this many tiles")
+	flag.IntVar(&cfg.CleanRadius, "clean-radius", cfg.CleanRadius, "how far a colonist looks for refuse to clean up (a Tidy colonist looks twice as far)")
+	flag.IntVar(&cfg.CleanTicks, "clean-ticks", cfg.CleanTicks, "ticks of work to scrub one tile of refuse clean")
+	flag.IntVar(&cfg.IncinerateTicks, "incinerate-ticks", cfg.IncinerateTicks, "ticks spent feeding a load of refuse into an incinerator")
+	flag.IntVar(&cfg.IncineratorBuildTicks, "incinerator-ticks", cfg.IncineratorBuildTicks, "ticks of work to build an incinerator")
 	flag.IntVar(&cfg.StarveDamage, "starve-damage", cfg.StarveDamage, "HP lost per tick while starving")
 	flag.IntVar(&cfg.ColonistsPerFacility, "per-facility", cfg.ColonistsPerFacility, "colonists served by each life-support facility")
 	flag.IntVar(&cfg.MaxConcurrentProjects, "max-concurrent-projects", cfg.MaxConcurrentProjects, "rooms that can be under construction at once")
@@ -340,17 +344,20 @@ func runHeadless(snaps <-chan *sim.Snapshot, cfg sim.Config, duration time.Durat
 			latest = s
 		case <-report.C:
 			if latest != nil {
-				fmt.Printf("tick %5d | colonists %2d | aliens %2d | cats %2d | mice %2d | pods %d | toilets %d | beds %d | rooms %d | excavated %5d\n",
+				fmt.Printf("tick %5d | colonists %2d | aliens %2d | cats %2d | mice %2d | pods %d | toilets %d | beds %d | burners %d | refuse %d | rooms %d | excavated %5d\n",
 					latest.Tick, latest.Stats.Colonists, latest.Stats.Aliens,
 					latest.Stats.Cats, latest.Stats.Mice,
-					latest.Stats.Pods, latest.Stats.Toilets, latest.Stats.Beds, latest.Stats.Rooms, latest.Stats.FloorDug)
+					latest.Stats.Pods, latest.Stats.Toilets, latest.Stats.Beds,
+					latest.Stats.Incinerators, latest.Stats.Refuse,
+					latest.Stats.Rooms, latest.Stats.FloorDug)
 			}
 		case <-deadline:
 			if latest != nil {
-				fmt.Printf("done at tick %d: colonists %d, aliens %d, cats %d, mice %d, pods %d, toilets %d, beds %d, excavated %d tiles\n",
+				fmt.Printf("done at tick %d: colonists %d, aliens %d, cats %d, mice %d, pods %d, toilets %d, beds %d, incinerators %d, refuse %d, excavated %d tiles\n",
 					latest.Tick, latest.Stats.Colonists, latest.Stats.Aliens,
 					latest.Stats.Cats, latest.Stats.Mice,
-					latest.Stats.Pods, latest.Stats.Toilets, latest.Stats.Beds, latest.Stats.FloorDug)
+					latest.Stats.Pods, latest.Stats.Toilets, latest.Stats.Beds,
+					latest.Stats.Incinerators, latest.Stats.Refuse, latest.Stats.FloorDug)
 			}
 			return
 		}

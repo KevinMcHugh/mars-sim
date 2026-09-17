@@ -259,13 +259,19 @@ const (
 
 // roomRecipe describes a buildable room kind. The one wall-and-doorway shell is
 // shared; recipes differ only in the facilities they line up along the back and
-// how few of them still make a worthwhile room. Adding a room kind (barracks,
+// how few — or how many — of them still make a worthwhile room. Adding a room kind (barracks,
 // storage, ...) is a recipe here plus a demand check in planRooms.
 type roomRecipe struct {
-	name    string    // project name, also logged on completion
-	kinds   []Terrain // facilities placed left to right, cycled to fill the bay
-	minFac  int       // fewest facilities worth building as a partial room
-	planLog string    // logged when the room is marked out
+	name   string    // project name, also logged on completion
+	kinds  []Terrain // facilities placed left to right, cycled to fill the bay
+	minFac int       // fewest facilities worth building as a partial room
+	// maxFac caps the bay for a recipe whose facility is not wanted in bulk;
+	// 0 means the usual full-size room (roomFacilities). A trash room sets it
+	// to 1: the colony wants exactly one incinerator, and without the cap
+	// planRoom would happily fit a closet with three of them into the same
+	// walls.
+	maxFac  int
+	planLog string // logged when the room is marked out
 }
 
 var (
@@ -279,6 +285,17 @@ var (
 	dormRoom = roomRecipe{
 		name: "dormitory", kinds: []Terrain{Bed}, minFac: 1,
 		planLog: "The colony marks out a new dormitory.",
+	}
+	// trashRoom houses the incinerator that refuse is hauled to and burned in.
+	// One machine is a working trash room, so its minimum is one — and the
+	// planner only ever wants a single one (see planRooms), because an
+	// incinerator serves the whole colony rather than a share of its
+	// population the way a pod or a bunk does. Walling it in is the point:
+	// the bodies and the burning happen somewhere the colony chose, not
+	// wherever someone happened to die.
+	trashRoom = roomRecipe{
+		name: "trash room", kinds: []Terrain{Incinerator}, minFac: 1, maxFac: 1,
+		planLog: "The colony marks out a new trash room.",
 	}
 )
 
@@ -341,6 +358,14 @@ func (w *World) planRooms() {
 		}
 		return
 	}
+	if w.manualTrashRooms > 0 {
+		before := len(w.projects)
+		w.planRoom(trashRoom)
+		if len(w.projects) > before {
+			w.manualTrashRooms--
+		}
+		return
+	}
 	desired := w.desiredFacilities(w.countKind(Colonist))
 	if w.plannedFacilities(NutrientPod) < desired || w.plannedFacilities(Toilet) < desired {
 		w.planRoom(lifeSupportRoom)
@@ -348,14 +373,28 @@ func (w *World) planRooms() {
 	}
 	if w.plannedFacilities(Bed) < desired {
 		w.planRoom(dormRoom)
+		return
+	}
+	// Sanitation last, and only once there is actually a mess: an incinerator
+	// nothing has been killed near is a room's worth of digging spent on
+	// nothing. Demand is one — not desiredFacilities — because the colony's
+	// refuse is not proportional to its headcount the way its appetite is, and
+	// a second incinerator would only split the haulers.
+	if w.refuseTotal() > 0 && w.plannedFacilities(Incinerator) < 1 {
+		w.planRoom(trashRoom)
 	}
 }
 
 // planRoom designates a new room from a recipe at a suitable open site. It
-// prefers a full room (roomFacilities) but falls back to fewer when only a
-// shorter clear area is available, so progress is made even in a cramped cavern.
+// prefers the recipe's largest bay (roomFacilities, unless it caps itself with
+// maxFac) but falls back to fewer facilities when only a shorter clear area is
+// available, so progress is made even in a cramped cavern.
 func (w *World) planRoom(r roomRecipe) {
-	for n := roomFacilities; n >= r.minFac; n-- {
+	largest := r.maxFac
+	if largest <= 0 || largest > roomFacilities {
+		largest = roomFacilities
+	}
+	for n := largest; n >= r.minFac; n-- {
 		o, ok := w.findRoomSite(bayWidth(n))
 		if !ok {
 			continue // no site this wide; try a smaller room

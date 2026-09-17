@@ -58,6 +58,13 @@ also keeps O(1) counts of builds in progress per terrain (`startBuild`/`endBuild
 Claiming or releasing a frontier tile marks the frontier flow field stale, so
 other miners route around a claimed rock.
 
+The board also holds the **cleaning claims** (`claimClean`/`releaseClean`): the
+refuse tile each cleaner is walking to, so the colony does not converge on one
+splatter. There is no maintained refuse *set* to go with them — refuse is rare
+and scattered and cleaners only search a radius, so the frontier's incremental
+bookkeeping would cost more than it saved. See
+[sanitation.md](./sanitation.md).
+
 ### Publishing a frame
 
 The same rule governs the engine's output: a `Snapshot` does not re-copy the map.

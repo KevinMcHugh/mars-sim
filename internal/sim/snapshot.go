@@ -112,7 +112,11 @@ type Stats struct {
 	Pods      int // nutrient pods built
 	Toilets   int // toilets built
 	Beds      int // dormitory bunks built
-	Rooms     int // distinct rooms (connected floor areas)
+	// Incinerators built, and Refuse still on the floor (gore stains plus
+	// bodies) waiting to be hauled to one. See docs/sanitation.md.
+	Incinerators int
+	Refuse       int
+	Rooms        int // distinct rooms (connected floor areas)
 }
 
 // Snapshot is an immutable, self-contained picture of the world at one tick.
@@ -139,11 +143,13 @@ type Snapshot struct {
 	NeedsMeta [numNeeds]NeedMeta
 
 	// Projects are the colony's queued construction work, for the job board.
-	// PendingFacilityRooms / PendingDormitories are manual orders (from 'f'/'d')
-	// not yet turned into a project because another is already in progress.
+	// PendingFacilityRooms / PendingDormitories / PendingTrashRooms are manual
+	// orders (from 'f'/'d'/'t') not yet turned into a project because another is
+	// already in progress.
 	Projects             []ProjectView
 	PendingFacilityRooms int
 	PendingDormitories   int
+	PendingTrashRooms    int
 
 	AffinityMax    int // affinity display bars run [-AffinityMax, AffinityMax]
 	MoodMax        int // mood display bar runs [-MoodMax, MoodMax]
@@ -184,6 +190,9 @@ func (w *World) snapshot(paused bool, tps int) *Snapshot {
 		Pods:     w.terrainCounts[NutrientPod],
 		Toilets:  w.terrainCounts[Toilet],
 		Beds:     w.terrainCounts[Bed],
+
+		Incinerators: w.terrainCounts[Incinerator],
+		Refuse:       w.refuseTotal(),
 	}
 	for _, e := range w.entities {
 		ev := w.entityView(e, kinChildren, true)
@@ -240,6 +249,7 @@ func (w *World) snapshot(paused bool, tps int) *Snapshot {
 		Projects:             projects,
 		PendingFacilityRooms: w.manualFacilityRooms,
 		PendingDormitories:   w.manualDormitories,
+		PendingTrashRooms:    w.manualTrashRooms,
 		Graveyard:            append([]EntityView(nil), w.graveyard...),
 		AffinityMax:          w.cfg.AffinityMax,
 		MoodMax:              w.cfg.MoodMax,

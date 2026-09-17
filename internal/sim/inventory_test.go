@@ -139,3 +139,24 @@ func TestCompositionYieldIsAtomicWhenInventoryCannotFitExtra(t *testing.T) {
 		t.Fatalf("miner excavated terrain to %v without room for iron", got)
 	}
 }
+
+// The incinerator empties a hauler's whole load at once, so RemoveAll has to
+// clear every stack of a kind (and only that kind) and report the total burned.
+func TestInventoryRemoveAllClearsOneKind(t *testing.T) {
+	var inv Inventory
+	inv.Add(Viscera, MaxStackSize+3)
+	inv.Add(RawRock, 5)
+
+	if got := inv.Count(Viscera); got != MaxStackSize+3 {
+		t.Fatalf("viscera count = %d, want %d", got, MaxStackSize+3)
+	}
+	if got := inv.RemoveAll(Viscera); got != MaxStackSize+3 {
+		t.Fatalf("RemoveAll returned %d, want %d", got, MaxStackSize+3)
+	}
+	if got := inv.Count(Viscera); got != 0 {
+		t.Errorf("viscera left after RemoveAll = %d, want 0", got)
+	}
+	if got := inv.Count(RawRock); got != 5 {
+		t.Errorf("raw rock = %d, want 5 (untouched)", got)
+	}
+}

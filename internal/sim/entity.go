@@ -56,6 +56,8 @@ const (
 	Talking         // chatting with another colonist (builds affinity)
 	Stomping        // colonist chasing down and crushing a pest mouse
 	Fighting        // armed colonist standing its ground and firing on an alien
+	Cleaning        // colonist scrubbing refuse off a tile, or feeding the incinerator
+	Hauling         // colonist carrying gathered refuse to an incinerator
 )
 
 func (s State) String() string {
@@ -86,6 +88,10 @@ func (s State) String() string {
 		return "stomping"
 	case Fighting:
 		return "fighting"
+	case Cleaning:
+		return "cleaning"
+	case Hauling:
+		return "hauling"
 	default:
 		return "?"
 	}
@@ -240,6 +246,19 @@ const (
 	JobBuild         // construct BuildKind on the Floor tile at Target
 	JobUse           // walk to the facility at Target and satisfy Need
 	JobTalk          // walk to partner and chat, raising the pair's affinity
+	JobClean         // scrub refuse off Target, then haul it to an incinerator
+)
+
+// cleanStage is where a JobClean colonist is in the haul. The job is two legs
+// with the same shape (walk somewhere, work for a while), so it is one job with
+// a stage rather than two job kinds: abandoning it half-done has to release the
+// same claim either way, and a colonist that has already picked refuse up must
+// never be left holding it (see docs/sanitation.md).
+type cleanStage uint8
+
+const (
+	cleanGather cleanStage = iota // walking to Target to scrub it clean
+	cleanHaul                     // carrying the load to the incinerator at Target
 )
 
 // EntityID uniquely identifies an entity for its lifetime. IDs are never reused.
@@ -368,6 +387,11 @@ type Entity struct {
 	pathAt   int
 	pathGoal Point
 	stuck    int
+
+	// clean is the stage of a JobClean colonist's haul (gather, then deliver);
+	// meaningless for any other job. Target means the refuse tile while
+	// gathering and the incinerator while hauling.
+	clean cleanStage
 
 	// mineClaimed reports whether a JobMine colonist has claimed a specific rock
 	// (Target) to dig, as opposed to still following the frontier field to reach

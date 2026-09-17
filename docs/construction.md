@@ -21,10 +21,11 @@ toilets) are the first — and currently only — project kind.
 
 ## How it works
 
-The normal planner maintains life-support and bunk capacity automatically, but
-the TUI can queue explicit room orders: `b` opens a menu, then `f` requests one
-facility room and `d` requests one dormitory. Each order just increments a
-counter (`manualFacilityRooms`/`manualDormitories`) recorded on the
+The normal planner maintains life-support, bunk, and incinerator capacity
+automatically, but the TUI can queue explicit room orders: `b` opens a menu,
+then `f` requests one facility room, `d` one dormitory, and `t` one trash room.
+Each order just increments a counter
+(`manualFacilityRooms`/`manualDormitories`/`manualTrashRooms`) recorded on the
 engine-owned world, so several can be queued at once; `planRooms` works
 through them — one new project per call, life support before dormitories —
 whenever the colony is below its current concurrent-project cap and a suitable
@@ -60,10 +61,14 @@ current recipes are:
 | --- | --- | --- | --- |
 | facility room | alternating nutrient pods and toilets | 2 facilities | first, because food is fatal |
 | dormitory | beds/bunks | 1 bed | after the desired pods and toilets exist |
+| trash room | an incinerator | 1 incinerator (and at most 1, via `maxFac`) | last, and only once there is refuse to burn |
 
 `planRooms` checks each recipe's planned-or-built capacity, plans at most one
 new room per call (see *Planning cadence*), and always chooses a life-support
-room before a dormitory. A dormitory can therefore be built in a cramped
+room before a dormitory, and either before a trash room. Unlike the others, the
+trash room's demand is not a headcount ratio: the colony wants exactly one
+incinerator, and only once `refuseTotal() > 0` (see
+[sanitation.md](./sanitation.md)). A dormitory can therefore be built in a cramped
 cavern with a single bunk, and the colony adds more rooms — and, once the
 population justifies it, more of them at once — as it grows.
 

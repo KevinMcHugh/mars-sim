@@ -34,6 +34,8 @@ const (
 	EvtFinishedMining
 	EvtClearedRock
 	EvtFinishedConstruction
+	EvtCleanedRefuse
+	EvtIncineratedRefuse
 	EvtMutated
 	EvtWitnessedMutation
 
@@ -95,6 +97,15 @@ var lifeEventMoodEffects = [numLifeEventKinds][]MoodEffect{
 	EvtFinishedMining:       jobFinishedMood,
 	EvtClearedRock:          jobFinishedMood,
 	EvtFinishedConstruction: jobFinishedMood,
+	EvtCleanedRefuse:        jobFinishedMood,
+	// Burning the mess is the moment the colony is clean again, so it carries
+	// the ordinary job satisfaction plus an extra lift for the Tidy — the same
+	// colonist EvtSawGore hits hardest, relieved in the same terms.
+	EvtIncineratedRefuse: {
+		{Delta: 2},
+		{Conditional: true, Trait: TraitIndustrious, Delta: 2},
+		{Conditional: true, Trait: TraitTidy, Delta: 6},
+	},
 }
 
 // LifeEvent pairs what happened (Kind, which looks up the fixed mood effects

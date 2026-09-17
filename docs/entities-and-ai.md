@@ -85,7 +85,8 @@ Priority order each tick:
    aside if idling would block) rather than wandering off and losing your place.
 4. **Continue the current job** if one is set (`runJob`).
 5. **Look for work** (`assignWorkJob`): claim the nearest reachable construction
-   task first, else mine the frontier.
+   task first, then clean up refuse, else mine the frontier. Cleaning sits
+   between the two deliberately — see [sanitation.md](./sanitation.md).
 6. **Rest** — if there was no work and no pressing need, an idle colonist rests
    (skips the work search) until `wakeTick`, so an established colony with nothing
    to do stops rescanning the map every tick. A colonist never rests where it
@@ -106,6 +107,10 @@ Work jobs:
 - **`jobUse`** — follow the facility flow field, stand adjacent, use it for
   `UseTicks`, then reset the need. This covers eating, relieving, and sleeping;
   sleep is non-fatal, so no bunk means waiting rather than emergency building.
+- **`jobClean`** — scrub gore and bodies off a tile (`cleanGather`), then carry
+  the load to an incinerator and burn it (`cleanHaul`). Only offered when an
+  incinerator is reachable, so refuse is never picked up with nowhere to put it.
+  See [sanitation.md](./sanitation.md).
 
 ### Alien behavior (`alienTurn`)
 

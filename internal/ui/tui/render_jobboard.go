@@ -52,7 +52,10 @@ func (m Model) renderNoProjects(rows int) string {
 	if n := m.latest.PendingDormitories; n > 0 {
 		b.WriteString(fmt.Sprintf("%d dormitory order(s) waiting for a build site.\n", n))
 	}
-	b.WriteString("\nPress b to queue a facility room or dormitory.")
+	if n := m.latest.PendingTrashRooms; n > 0 {
+		b.WriteString(fmt.Sprintf("%d trash room order(s) waiting for a build site.\n", n))
+	}
+	b.WriteString("\nPress b to queue a facility room, dormitory, or trash room.")
 	return sidebarStyle.Width(m.termW - borderCells).Height(rows - borderCells).Render(b.String())
 }
 

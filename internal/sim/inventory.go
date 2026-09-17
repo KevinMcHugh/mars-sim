@@ -24,6 +24,12 @@ const (
 	// docs/combat.md.
 	Pistol
 	Shotgun
+	// Viscera is a gore stain scrubbed off the floor, and Corpse is a body
+	// carried off it. Both are refuse: a colonist gathers them while cleaning
+	// and they exist only to be destroyed in an incinerator. See cleaning.go
+	// and docs/sanitation.md.
+	Viscera
+	Corpse
 )
 
 func (k ItemKind) String() string {
@@ -40,6 +46,10 @@ func (k ItemKind) String() string {
 		return "pistol"
 	case Shotgun:
 		return "shotgun"
+	case Viscera:
+		return "viscera"
+	case Corpse:
+		return "corpse"
 	default:
 		return "empty"
 	}
@@ -67,19 +77,19 @@ func bestWeapon(inv Inventory) ItemKind {
 	return best
 }
 
+// isRefuse reports whether an item kind is waste bound for an incinerator. It
+// is the one place that decides what burns, so a future kind of trash (spoiled
+// rations, alien remains) joins the cleaning loop by being listed here.
+func (k ItemKind) isRefuse() bool {
+	return k == Viscera || k == Corpse
+}
+
 // Has reports whether the inventory holds at least one item of a kind. Used by
-// the per-tick uranium-exposure check, so it walks the eight slots rather than
-// building anything.
+// the per-tick uranium-exposure check; it is a Count in disguise rather than
+// its own loop, which over eight slots costs nothing and keeps one answer to
+// "how much of this is in here".
 func (inv *Inventory) Has(kind ItemKind) bool {
-	if kind == ItemNone {
-		return false
-	}
-	for _, stack := range inv {
-		if stack.Kind == kind && stack.Count > 0 {
-			return true
-		}
-	}
-	return false
+	return inv.Count(kind) > 0
 }
 
 // ItemStack is one homogeneous inventory slot. Empty slots have Count zero and
@@ -91,6 +101,38 @@ type ItemStack struct {
 
 // Inventory is a colonist's fixed set of carrying slots.
 type Inventory [InventorySlotCount]ItemStack
+
+// RemoveAll empties every stack of a kind and returns how many items were in
+// them. Used by the incinerator, which destroys a hauler's whole load at once
+// rather than item by item.
+func (inv *Inventory) RemoveAll(kind ItemKind) int {
+	if kind == ItemNone {
+		return 0
+	}
+	removed := 0
+	for i := range inv {
+		if inv[i].Kind != kind || inv[i].Count == 0 {
+			continue
+		}
+		removed += inv[i].Count
+		inv[i] = ItemStack{}
+	}
+	return removed
+}
+
+// Count returns how many items of a kind the inventory holds across all stacks.
+func (inv *Inventory) Count(kind ItemKind) int {
+	if kind == ItemNone {
+		return 0
+	}
+	n := 0
+	for _, stack := range inv {
+		if stack.Kind == kind {
+			n += stack.Count
+		}
+	}
+	return n
+}
 
 // CanAdd reports whether all quantity items can fit without changing the
 // inventory.

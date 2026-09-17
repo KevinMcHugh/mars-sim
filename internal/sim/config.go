@@ -55,6 +55,16 @@ type Config struct {
 	// a moving alien does.
 	GoreSightRadius int
 
+	// Sanitation. A colonist with no urgent need cleans up refuse — gore and
+	// corpses — and hauls it to an incinerator to burn. CleanRadius is how far
+	// it looks for a mess (larger than GoreSightRadius, which is about noticing
+	// one, not going to find it); a Tidy colonist searches twice as far. See
+	// docs/sanitation.md.
+	CleanRadius           int
+	CleanTicks            int // ticks to scrub one tile clean
+	IncinerateTicks       int // ticks spent feeding a load into the incinerator
+	IncineratorBuildTicks int // ticks of work to build an incinerator
+
 	// Needs. One NeedSpec per NeedKind, indexed by that kind.
 	Needs                [numNeeds]NeedSpec
 	StarveDamage         int // HP lost per tick while a Fatal need sits at Max
@@ -215,6 +225,11 @@ func DefaultConfig() Config {
 		FleeRadius:          5,
 		ColonistStompRadius: 4,
 		GoreSightRadius:     3,
+
+		CleanRadius:           10,
+		CleanTicks:            6,
+		IncinerateTicks:       8,
+		IncineratorBuildTicks: 20,
 
 		StarveDamage:          1,
 		ColonistsPerFacility:  5,

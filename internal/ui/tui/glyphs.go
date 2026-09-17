@@ -37,15 +37,16 @@ const tileWidth = 2
 // Skin tone and hair colour live in the colonist's flavour text instead (see
 // renderColonistDetail); they never enter a glyph.
 const (
-	glyphRock     = "\U0001F7EB" // 🟫 unexcavated regolith
-	glyphIronRock = "\U00002B1B" // ⬛ iron-bearing rock
-	glyphIceRock  = "\U0001F7E6" // 🟦 water ice-bearing rock
-	glyphUranium  = "\U0001F7E9" // 🟩 uranium-bearing rock (the glow is the warning)
-	glyphFloor    = "  "         // open, walkable space
-	glyphWall     = "\U0001F9F1" // 🧱 built wall
-	glyphPod      = "\U0001F96B" // 🥫 nutrient pod (food)
-	glyphToilet   = "\U0001F6BD" // 🚽 toilet (bladder)
-	glyphBed      = "\U0001F6CC" // 🛌 dormitory bunk (sleep)
+	glyphRock        = "\U0001F7EB" // 🟫 unexcavated regolith
+	glyphIronRock    = "\U00002B1B" // ⬛ iron-bearing rock
+	glyphIceRock     = "\U0001F7E6" // 🟦 water ice-bearing rock
+	glyphUranium     = "\U0001F7E9" // 🟩 uranium-bearing rock (the glow is the warning)
+	glyphFloor       = "  "         // open, walkable space
+	glyphWall        = "\U0001F9F1" // 🧱 built wall
+	glyphPod         = "\U0001F96B" // 🥫 nutrient pod (food)
+	glyphToilet      = "\U0001F6BD" // 🚽 toilet (bladder)
+	glyphBed         = "\U0001F6CC" // 🛌 dormitory bunk (sleep)
+	glyphIncinerator = "\U0001F525" // 🔥 incinerator: burns refuse hauled to the trash room
 
 	glyphColonist = "\U0001F477" // 👷 colonist of unknown age/gender (no profile)
 	glyphFleeing  = "\U0001F631" // 😱 colonist running from an alien
@@ -56,6 +57,9 @@ const (
 	glyphStomp    = "\U0001F97E" // 🥾 colonist chasing down a mouse to stomp it
 	glyphFighting = "\U0001F52B" // 🔫 armed colonist standing its ground against an alien
 	glyphGore     = "\U0001FA78" // 🩸 a violent death's residue on a tile
+	glyphCorpse   = "\U0001F9B4" // 🦴 a body left where something died, waiting to be hauled
+	glyphCleaning = "\U0001F9F9" // 🧹 colonist scrubbing refuse up or feeding the incinerator
+	glyphHauling  = "\U0001F4E6" // 📦 colonist carrying refuse to the incinerator
 	glyphMutant   = "\U0001F9DF" // 🧟 colonist changed by uranium (see docs/mutation.md)
 
 	glyphManAdult     = "\U0001F468" // 👨 adult man colonist
@@ -91,15 +95,16 @@ type glyph struct {
 // a glyph added to the code without an entry here fails a test rather than
 // quietly corrupting a frame at runtime.
 var glyphRegistry = map[string]glyph{
-	glyphRock:     {glyphRock, 2, "##"},
-	glyphIronRock: {glyphIronRock, 2, "Fe"},
-	glyphIceRock:  {glyphIceRock, 2, "H2"},
-	glyphUranium:  {glyphUranium, 2, "U "},
-	glyphFloor:    {glyphFloor, 2, "  "},
-	glyphWall:     {glyphWall, 2, "[]"},
-	glyphPod:      {glyphPod, 2, "%%"},
-	glyphToilet:   {glyphToilet, 2, "WC"},
-	glyphBed:      {glyphBed, 2, "=="},
+	glyphRock:        {glyphRock, 2, "##"},
+	glyphIronRock:    {glyphIronRock, 2, "Fe"},
+	glyphIceRock:     {glyphIceRock, 2, "H2"},
+	glyphUranium:     {glyphUranium, 2, "U "},
+	glyphFloor:       {glyphFloor, 2, "  "},
+	glyphWall:        {glyphWall, 2, "[]"},
+	glyphPod:         {glyphPod, 2, "%%"},
+	glyphToilet:      {glyphToilet, 2, "WC"},
+	glyphBed:         {glyphBed, 2, "=="},
+	glyphIncinerator: {glyphIncinerator, 2, "&&"},
 
 	glyphColonist: {glyphColonist, 2, "@ "},
 	glyphFleeing:  {glyphFleeing, 2, "@!"},
@@ -110,6 +115,9 @@ var glyphRegistry = map[string]glyph{
 	glyphStomp:    {glyphStomp, 2, "@*"},
 	glyphFighting: {glyphFighting, 2, "@="},
 	glyphGore:     {glyphGore, 2, "~~"},
+	glyphCorpse:   {glyphCorpse, 2, "%!"},
+	glyphCleaning: {glyphCleaning, 2, "@/"},
+	glyphHauling:  {glyphHauling, 2, "@+"},
 	glyphMutant:   {glyphMutant, 2, "@%"},
 
 	glyphManAdult:     {glyphManAdult, 2, "M "},
@@ -220,16 +228,24 @@ func terrainGlyph(t sim.Terrain) string {
 		symbol = glyphToilet
 	case sim.Bed:
 		symbol = glyphBed
+	case sim.Incinerator:
+		symbol = glyphIncinerator
 	default:
 		symbol = glyphRock
 	}
 	return fitGlyph(symbol)
 }
 
-// tileGlyph draws an empty tile: gore takes priority over bare terrain, since
-// it is the more notable thing to see there. Any of a stomp, a bite, or a
-// gunshot can leave it — see docs/combat.md.
+// tileGlyph draws an empty tile: refuse takes priority over bare terrain (and
+// over the ore in it), since it is the more notable thing to see there, and a
+// body outranks the stains around it — it is what a colonist is coming to haul
+// away. Any of a stomp, a bite, or a gunshot can leave gore (see
+// docs/combat.md); a body is left by a death nothing ate (see
+// docs/sanitation.md).
 func tileGlyph(tile sim.Tile) string {
+	if tile.Corpses > 0 {
+		return fitGlyph(glyphCorpse)
+	}
 	if tile.Gore > 0 {
 		return fitGlyph(glyphGore)
 	}
@@ -267,6 +283,10 @@ func entityGlyph(e sim.EntityView) string {
 			symbol = glyphStomp
 		case sim.Fighting:
 			symbol = glyphFighting
+		case sim.Cleaning:
+			symbol = glyphCleaning
+		case sim.Hauling:
+			symbol = glyphHauling
 		default:
 			symbol = colonistGlyph(e.Profile)
 		}

@@ -14,6 +14,12 @@ type jobBoard struct {
 	frontier map[Point]struct{} // all mineable rock (rock bordering floor)
 	claimed  map[Point]EntityID // frontier tiles currently being mined, by owner
 	building [numTerrains]int   // builds in progress, by terrain kind
+	// cleaning holds refuse tiles a colonist is on its way to scrub, by owner.
+	// Refuse is not maintained as a set the way the mining frontier is (it is
+	// rare and scattered, and cleaners search a small radius), so this tracks
+	// only the claims — enough to keep the whole colony from converging on one
+	// splatter. See cleaning.go.
+	cleaning map[Point]EntityID
 }
 
 func newJobBoard(w *World) *jobBoard {
@@ -21,6 +27,7 @@ func newJobBoard(w *World) *jobBoard {
 		w:        w,
 		frontier: make(map[Point]struct{}),
 		claimed:  make(map[Point]EntityID),
+		cleaning: make(map[Point]EntityID),
 	}
 }
 
@@ -76,6 +83,23 @@ func (b *jobBoard) releaseMine(p Point, id EntityID) {
 	if b.claimed[p] == id {
 		delete(b.claimed, p)
 		b.w.frontier.stale = true
+	}
+}
+
+// isCleanClaimed reports whether some colonist is already on its way to clean p.
+func (b *jobBoard) isCleanClaimed(p Point) bool {
+	_, ok := b.cleaning[p]
+	return ok
+}
+
+// claimClean marks a refuse tile as being cleaned by id.
+func (b *jobBoard) claimClean(p Point, id EntityID) { b.cleaning[p] = id }
+
+// releaseClean drops id's claim on p (if it holds it), reopening the tile for
+// another cleaner.
+func (b *jobBoard) releaseClean(p Point, id EntityID) {
+	if b.cleaning[p] == id {
+		delete(b.cleaning, p)
 	}
 }
 

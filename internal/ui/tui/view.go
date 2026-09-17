@@ -184,6 +184,8 @@ func (m Model) renderHeader() string {
 		fmt.Sprintf("%s %d", fitGlyph(glyphPod), s.Stats.Pods),
 		fmt.Sprintf("%s %d", fitGlyph(glyphToilet), s.Stats.Toilets),
 		fmt.Sprintf("%s %d", fitGlyph(glyphBed), s.Stats.Beds),
+		fmt.Sprintf("%s %d", fitGlyph(glyphIncinerator), s.Stats.Incinerators),
+		fmt.Sprintf("%s %d", fitGlyph(glyphGore), s.Stats.Refuse),
 		fmt.Sprintf("rooms %d", s.Stats.Rooms),
 		fmt.Sprintf("excavated %d", s.Stats.FloorDug),
 	}, "  "))
@@ -300,6 +302,7 @@ func (m Model) drawSidebar(rows int) string {
 		{{glyphFleeing, "fleeing"}, {glyphTalking, "talking"}},
 		{{glyphPod, "food pod"}, {glyphToilet, "toilet"}},
 		{{glyphBed, "bunk"}, {glyphWall, "wall"}},
+		{{glyphIncinerator, "burner"}, {glyphCorpse, "body"}},
 		{{glyphRock, "rock"}, {glyphIronRock, "iron rock"}},
 		{{glyphIceRock, "ice rock"}, {glyphFloor, "open"}},
 	}
