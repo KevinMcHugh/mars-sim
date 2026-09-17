@@ -58,6 +58,7 @@ const (
 	Fighting        // armed colonist standing its ground and firing on an alien
 	Cleaning        // colonist scrubbing refuse off a tile, or feeding the incinerator
 	Hauling         // colonist carrying gathered refuse to an incinerator
+	Storing         // colonist unloading general materials into storage
 )
 
 func (s State) String() string {
@@ -92,6 +93,8 @@ func (s State) String() string {
 		return "cleaning"
 	case Hauling:
 		return "hauling"
+	case Storing:
+		return "storing"
 	default:
 		return "?"
 	}
@@ -247,6 +250,7 @@ const (
 	JobUse           // walk to the facility at Target and satisfy Need
 	JobTalk          // walk to partner and chat, raising the pair's affinity
 	JobClean         // scrub refuse off Target, then haul it to an incinerator
+	JobStore         // unload general materials into the storage at Target
 )
 
 // cleanStage is where a JobClean colonist is in the haul. The job is two legs

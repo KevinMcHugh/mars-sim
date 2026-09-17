@@ -291,6 +291,8 @@ func entityGlyph(e sim.EntityView) string {
 			symbol = glyphCleaning
 		case sim.Hauling:
 			symbol = glyphHauling
+		case sim.Storing:
+			symbol = glyphHauling
 		default:
 			symbol = colonistGlyph(e.Profile)
 		}

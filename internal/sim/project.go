@@ -347,6 +347,12 @@ func (w *World) maxConcurrentProjects() int {
 // to fix there, not a priority order to bend here.
 func (w *World) planRooms() {
 	if len(w.projects) >= w.maxConcurrentProjects() {
+		// A full inventory can halt the dig phase of every project already in
+		// flight. Permit one storage room beyond the normal concurrency cap to
+		// break that circular dependency; no other recipe gets this exception.
+		if w.colonyNeedsStorage() {
+			w.planRoom(storageRoom)
+		}
 		return
 	}
 	if w.manualFacilityRooms > 0 {
@@ -384,6 +390,13 @@ func (w *World) planRooms() {
 	desired := w.desiredFacilities(w.countKind(Colonist))
 	if w.plannedFacilities(NutrientPod) < desired || w.plannedFacilities(Toilet) < desired {
 		w.planRoom(lifeSupportRoom)
+		return
+	}
+	// A full inventory stops mining and can also deadlock a room whose active
+	// phase consists of dig tasks. Storage therefore outranks non-fatal bunks:
+	// make somewhere to unload before asking the same workers to excavate more.
+	if w.colonyNeedsStorage() {
+		w.planRoom(storageRoom)
 		return
 	}
 	if w.plannedFacilities(Bed) < desired {

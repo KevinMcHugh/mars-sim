@@ -516,6 +516,8 @@ func (w *World) runJob(e *Entity) {
 		w.jobTalk(e)
 	case JobClean:
 		w.jobClean(e)
+	case JobStore:
+		w.jobStore(e)
 	default:
 		e.State = Idle
 		w.wanderStep(e)
@@ -658,6 +660,20 @@ func (w *World) finishTalk(a, b *Entity) {
 // first (life-support rooms), otherwise mine the frontier. Leaves JobNone if
 // nothing suitable is reachable.
 func (w *World) assignWorkJob(e *Entity) {
+	// A colonist whose load blocks further mining first unloads into reachable
+	// storage. If no chest exists yet, help build the project that will provide
+	// one rather than claiming unrelated work and leaving the storage job stalled.
+	if w.inventoryNeedsStorage(e) {
+		if w.tryAssignStore(e) {
+			return
+		}
+		if task, ok := w.claimNearestTaskProviding(e.Pos, e.ID, Storage); ok {
+			w.assignTask(e, task)
+			return
+		}
+		e.Job = JobNone
+		return
+	}
 	// Collaborate on planned construction (facility rooms, etc.): claim the
 	// nearest reachable task from the shared project pool.
 	if task, ok := w.claimNearestTask(e.Pos, e.ID); ok {
@@ -693,6 +709,88 @@ func (w *World) assignWorkJob(e *Entity) {
 		}
 	}
 	e.Job = JobNone
+}
+
+// inventoryNeedsStorage is the work-pressure trigger for unloading. Raw rock is
+// part of every mining yield, so inability to fit one more means the current
+// load blocks all further excavation. A load containing only weapons/refuse is
+// not diverted: weapons stay equipped and refuse belongs in the incinerator.
+func (w *World) inventoryNeedsStorage(e *Entity) bool {
+	return !e.Inventory.CanAdd(RawRock, 1) && len(e.Inventory.storableStacks()) > 0
+}
+
+// colonyNeedsStorage reports whether any blocked colonist lacks a reachable
+// chest that can take its complete material load. An existing storage project
+// suppresses duplicates while its dig/wall phases are still under construction.
+func (w *World) colonyNeedsStorage() bool {
+	if w.projectFacilityTasks(Storage) > 0 {
+		return false
+	}
+	for _, e := range w.entities {
+		if e.Kind != Colonist || !e.Alive() || !w.inventoryNeedsStorage(e) {
+			continue
+		}
+		if _, ok := w.chooseStorage(e, e.Inventory.storableStacks()); !ok {
+			return true
+		}
+	}
+	return false
+}
+
+func (w *World) tryAssignStore(e *Entity) bool {
+	target, ok := w.chooseStorage(e, e.Inventory.storableStacks())
+	if !ok {
+		return false
+	}
+	e.Job, e.Target, e.Progress = JobStore, target, 0
+	return true
+}
+
+// chooseStorage picks the nearest position-stable reachable chest that can take
+// the complete load. Room reachability is exact for connected floor, and ties
+// break by position to preserve seeded determinism.
+func (w *World) chooseStorage(e *Entity, stacks []ItemStack) (Point, bool) {
+	room := w.roomOf(e.Pos)
+	var best Point
+	bestDist := 1 << 30
+	found := false
+	for p, container := range w.storageContainers {
+		if !container.Inventory.CanAddAll(stacks...) || !w.taskReachable(p, room) {
+			continue
+		}
+		d := e.Pos.Chebyshev(p)
+		if !found || d < bestDist || (d == bestDist && lessPoint(p, best)) {
+			best, bestDist, found = p, d, true
+		}
+	}
+	return best, found
+}
+
+func (w *World) jobStore(e *Entity) {
+	container := w.storageContainers[e.Target]
+	stacks := e.Inventory.storableStacks()
+	if container == nil || len(stacks) == 0 || !container.Inventory.CanAddAll(stacks...) {
+		w.clearJob(e)
+		return
+	}
+	arrived, ok := w.travelTo(e, e.Target)
+	if !ok {
+		w.clearJob(e)
+		return
+	}
+	if !arrived {
+		e.State = Moving
+		return
+	}
+	if !container.Inventory.AddAll(stacks...) {
+		w.clearJob(e)
+		return
+	}
+	e.Inventory.removeStorable()
+	e.State = Storing
+	w.log.add(fmt.Sprintf("%s unloads materials into storage at (%d, %d).",
+		e.displayName(), e.Target.X, e.Target.Y))
+	w.clearJob(e)
 }
 
 // plannedFacilities counts a facility kind that already exists plus those a

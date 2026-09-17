@@ -447,6 +447,9 @@ func newWorld(cfg Config, rng *rand.Rand) *World {
 	// hauler still has to find and route to one — it needs the same tracked
 	// tile set and shared field as any facility. See docs/sanitation.md.
 	w.trackFacility(Incinerator)
+	// Storage does not satisfy a biological need, but full colonists still seek
+	// it through the same position index and pathing machinery.
+	w.trackFacility(Storage)
 	w.frontier = newFlowField(w, func(add func(Point)) {
 		// Goals: walkable neighbors of every unclaimed frontier rock tile.
 		for p := range w.board.frontier {

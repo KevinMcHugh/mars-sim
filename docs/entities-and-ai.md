@@ -36,9 +36,10 @@ The four kinds:
 | **Mouse** | Floor | (needs food) | cats | reuses the colonist food need; raids pods; never builds |
 
 `State` (idle, moving, mining, building, eating, relieving, fleeing, hunting,
-feeding, fighting) is a **display projection** derived from behavior each tick
-and surfaced in the UI. `JobKind` (none, mine, build, use) is the colonist's committed task and
-the single source of truth for its behavior.
+feeding, fighting, cleaning, hauling, storing) is a **display projection**
+derived from behavior each tick and surfaced in the UI. `JobKind` (none, mine,
+build, use, talk, clean, store) is the colonist's committed task and the single
+source of truth for its behavior.
 
 > The top-level README predates cats and mice; this doc is the current reference
 > for the creature roster.
@@ -74,7 +75,7 @@ Priority order each tick:
    full dose rolls for a mutation. See [mutation.md](./mutation.md).
 2. **Survival** — if an alien is within `FleeRadius`: a colonist carrying a
    pistol or shotgun stands its ground and fights (`fightAlien`) instead;
-   an unarmed one drops everything and flees, same as always. See
+   an unarmed one drops its current task and flees. See
    [combat.md](./combat.md).
 3. **Urgent need preemption** — `mostUrgentNeed` may interrupt the current task,
    unless the task already serves that need: a live conversation (social) or a
@@ -84,9 +85,11 @@ Priority order each tick:
    lone emergency build. If all reachable project tasks are claimed, wait (step
    aside if idling would block) rather than wandering off and losing your place.
 4. **Continue the current job** if one is set (`runJob`).
-5. **Look for work** (`assignWorkJob`): claim the nearest reachable construction
-   task first, then clean up refuse, else mine the frontier. Cleaning sits
-   between the two deliberately — see [sanitation.md](./sanitation.md).
+5. **Look for work** (`assignWorkJob`): a material load that blocks mining goes
+   to reachable storage first, or helps build storage if none is usable.
+   Otherwise claim the nearest reachable construction task, clean up refuse,
+   or mine the frontier. See [storage.md](./storage.md) and
+   [sanitation.md](./sanitation.md).
 6. **Rest** — if there was no work and no pressing need, an idle colonist rests
    (skips the work search) until `wakeTick`, so an established colony with nothing
    to do stops rescanning the map every tick. A colonist never rests where it
@@ -111,6 +114,10 @@ Work jobs:
   the load to an incinerator and burn it (`cleanHaul`). Only offered when an
   incinerator is reachable, so refuse is never picked up with nowhere to put it.
   See [sanitation.md](./sanitation.md).
+- **`jobStore`** — carry a work-blocking load of raw rock, iron ore, water ice,
+  and uranium ore to the nearest reachable chest that can fit it all, then
+  transfer atomically. Weapons remain equipped and refuse remains on its
+  incinerator route. See [storage.md](./storage.md).
 
 ### Alien behavior (`alienTurn`)
 

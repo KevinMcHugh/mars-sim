@@ -36,9 +36,24 @@ are sparse rather than embedded in `Tile`, because adding 48 stacks to every
 rock tile would make large maps prohibitively expensive.
 
 The build menu queues an `OrderStorageRoom`. The normal project planner finds a
-site and builds a small walled room containing one trunk. Snapshot storage views
-are sorted by position before publication, avoiding nondeterministic map
-iteration order.
+site and builds a small walled room containing one trunk. The planner also
+creates a storage room automatically when a colonist's material load prevents
+it from accepting the raw rock included in every mining yield and no reachable
+container can accept that complete load. Storage outranks non-fatal dormitory
+demand and may exceed the normal concurrent-project cap by one: otherwise full
+builders can deadlock every active project's excavation phase while the project
+cap prevents the one structure that would unblock them.
+
+During work selection, a blocked colonist seeks the nearest reachable chest that
+can accept its complete material load. If none exists but a storage project is
+active, it claims that project's reachable work instead of unrelated
+construction. At the chest, `JobStore` atomically adds all general materials,
+then removes them from the colonist. Raw rock, iron ore, water ice, and uranium
+ore are general materials. Weapons remain equipped, while viscera and corpses
+retain their dedicated incinerator route.
+
+Snapshot storage views are sorted by position before publication, avoiding
+nondeterministic map iteration order.
 
 The TUI exposes contents in two places:
 
@@ -49,9 +64,8 @@ The TUI exposes contents in two places:
   `up`/`down` or `j`/`k` selects among containers, and the right panel shows the
   selected chest's occupied slots, item count, and capacity.
 
-There is no automatic hauling policy yet. The container is a complete placeable
-storage primitive, while deciding what colonists should deposit and withdraw is
-a separate AI/job feature rather than hidden behavior attached to construction.
+Colonists deposit only when their inventory blocks further mining; they do not
+continually shuttle every new item. There is no automatic withdrawal policy yet.
 
 ## Why it is this way
 
@@ -61,17 +75,19 @@ a separate AI/job feature rather than hidden behavior attached to construction.
   rendering without bloating the page-shared tile grid.
 - **Shared stack rules** prevent colonist and container inventories from
   drifting on capacity or transaction semantics.
-- **No automatic hauling yet** avoids an arbitrary resource policy. Hauling
-  needs priorities, reservations, and destination selection; silently emptying
-  colonists into the nearest trunk would make weapons and uranium behavior
-  surprising.
+- **Work-blocked depositing** gives storage a concrete motivation without
+  turning every mined item into a hauling trip. Weapons and refuse are excluded
+  explicitly so unloading cannot disarm a colonist or bypass sanitation.
+- **Complete-load destination checks** keep transfer atomic and simple. A nearly
+  full chest is skipped rather than accepting part of a load and leaving the
+  colonist ambiguously blocked.
 
 ## Extending it
 
-A hauling system should reserve a source stack and destination capacity before
-assigning a job, then transfer only when the colonist reaches the adjacent
-container tile. Preserve all-or-nothing additions and ensure abandoning a job
-releases both reservations.
+A withdrawal/production system should add reservations before multiple jobs can
+promise the same stored items. Deposits currently need no reservation for
+correctness: the engine is single-threaded and rechecks capacity on arrival; a
+colonist simply retries another destination if somebody filled its chosen chest.
 
 If containers become destructible, define where their contents go before
 allowing terrain replacement in normal play; `SetTerrain` currently discards

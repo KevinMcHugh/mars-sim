@@ -40,11 +40,10 @@ adds one `IronOre`, `WaterIce`, or `UraniumOre` for a bearing tile. `jobMine` an
 dig tasks add that complete yield with `AddAll` **before** changing terrain, so
 limited inventory can never make one part of a deposit disappear.
 
-`UraniumOre` is the one item that acts on its carrier. Nothing can be transferred
-between a colonist and storage yet, so a colonist who mines uranium keeps it, and `Inventory.Has(UraniumOre)`
-is one of the two things that puts them under a mutation-causing dose every
-tick — see [mutation.md](./mutation.md). That makes "no drop" a balance
-decision rather than only a missing feature.
+`UraniumOre` is the one item that acts on its carrier.
+`Inventory.Has(UraniumOre)` is one of the two things that puts a colonist under
+a mutation-causing dose every tick — see [mutation.md](./mutation.md). The dose
+ends after a full colonist unloads its ore into storage.
 
 Weapons are the other producer, though a one-time one: `equipColonyShip`
 (`combat.go`) hands a `Pistol` or `Shotgun` to a colonist's inventory once, at
@@ -70,13 +69,11 @@ render it without touching live state.
 
 - **A new item**: add an `ItemKind` constant and its `String()` case; the stacking
   logic is generic. Add a producer/consumer where it makes sense.
-- **Stockpile hauling** would move stacks between an `Inventory` and the
-  `StorageInventory` of an existing [storage container](./storage.md). The
-  container and capacity model are in place; job selection and transfer policy
-  are intentionally separate follow-up work.
+- **Stockpile withdrawal** would move requested stacks from an existing
+  [storage container](./storage.md) back into an `Inventory`. Full colonists
+  already deposit general materials automatically.
 - **Picking up or dropping a weapon mid-game** would need a floor-item concept
-  the world doesn't have yet — today the only way an inventory changes is
-  mining or the one-time worldgen equip. See [combat.md](./combat.md)'s
+  the world doesn't have yet. See [combat.md](./combat.md)'s
   Extending it for more.
 
 ## Related

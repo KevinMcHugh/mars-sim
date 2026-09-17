@@ -74,10 +74,11 @@ incinerator, and only once `refuseTotal() > 0` (see
 cavern with a single bunk, and the colony adds more rooms — and, once the
 population justifies it, more of them at once — as it grows.
 
-Storage rooms are intentionally not demand-planned. A single container already
-holds six colonist inventories, and the simulation has no hauling policy from
-which to infer when more capacity is useful; the player places each one
-explicitly. See [storage.md](./storage.md).
+Storage rooms are player-placeable and also demand-planned when a full
+colonist has no reachable chest that can accept its complete material load.
+Storage then outranks dormitories and may temporarily exceed the concurrent
+project cap, because full builders otherwise cannot excavate active projects.
+See [storage.md](./storage.md).
 
 Beds use the same facility machinery as pods and toilets: a colonist approaches
 an adjacent tile, spends the sleep need's `UseTicks` sleeping, and then resets

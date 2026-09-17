@@ -87,6 +87,17 @@ func (k ItemKind) isRefuse() bool {
 	return k == Viscera || k == Corpse
 }
 
+// isStorableMaterial reports whether an item belongs in general colony storage.
+// Weapons stay equipped and refuse keeps its dedicated incinerator route.
+func (k ItemKind) isStorableMaterial() bool {
+	switch k {
+	case RawRock, IronOre, WaterIce, UraniumOre:
+		return true
+	default:
+		return false
+	}
+}
+
 // Has reports whether the inventory holds at least one item of a kind. Used by
 // the per-tick uranium-exposure check; it is a Count in disguise rather than
 // its own loop, which over eight slots costs nothing and keeps one answer to
@@ -241,6 +252,27 @@ func (inv *Inventory) AddAll(stacks ...ItemStack) bool {
 func (inv *Inventory) CanAddAll(stacks ...ItemStack) bool {
 	next := *inv
 	return next.AddAll(stacks...)
+}
+
+// storableStacks returns the material stacks a colonist can deposit in a chest.
+// The returned values are a copy, suitable for an atomic StorageInventory.AddAll.
+func (inv *Inventory) storableStacks() []ItemStack {
+	stacks := make([]ItemStack, 0, len(inv))
+	for _, stack := range inv {
+		if stack.Count > 0 && stack.Kind.isStorableMaterial() {
+			stacks = append(stacks, stack)
+		}
+	}
+	return stacks
+}
+
+// removeStorable clears all general materials after a successful deposit.
+func (inv *Inventory) removeStorable() {
+	for i := range inv {
+		if inv[i].Kind.isStorableMaterial() {
+			inv[i] = ItemStack{}
+		}
+	}
 }
 
 // Count returns how many items of a kind the container holds.
