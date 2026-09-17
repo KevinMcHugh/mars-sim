@@ -102,6 +102,16 @@ content overflows, the panel's bottom row becomes a position line
 the directions that have more to show. Content that fits is drawn untouched,
 with no position line.
 
+A run of the same routine event is already one `Memory` by the time the
+renderer sees it (see [memories.md](./memories.md)), so the panel does not
+need its own de-duplication pass: `memoryLine` just renders a memory with
+`Count > 1` as a span plus an occurrence count —
+`t1607-1630: Finished mining. (x12)` — and everything else as the plain
+`t1586: Had a meal.`. Collapsing happens in the simulation rather than here
+because the memory *is* one memory (it fills one of the colonist's 64 slots,
+not twelve); a frontend that folded lines at render time would still be
+reading a history where a mining shift had pushed out everything else.
+
 `scrollDetail` clamps the offset as well as `Update` does. Update-side
 clamping (`clampDetailScroll`, via `detailExtent`, which re-derives the
 content length and panel height the way the renderer does) is what makes one

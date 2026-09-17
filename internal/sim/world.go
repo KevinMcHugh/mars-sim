@@ -15,11 +15,47 @@ func (w *World) remember(e *Entity, evt LifeEvent) {
 	if e == nil || e.Kind != Colonist {
 		return
 	}
-	e.Memories = append(e.Memories, Memory{Tick: w.tick, Text: evt.Text, Kind: evt.Kind})
-	if len(e.Memories) > maxColonistMemories {
-		e.Memories = e.Memories[len(e.Memories)-maxColonistMemories:]
+	if !w.collapseRepeat(e, evt) {
+		e.Memories = append(e.Memories, Memory{
+			Tick:     w.tick,
+			LastTick: w.tick,
+			Count:    1,
+			Text:     evt.Text,
+			Kind:     evt.Kind,
+		})
+		if len(e.Memories) > maxColonistMemories {
+			e.Memories = e.Memories[len(e.Memories)-maxColonistMemories:]
+		}
 	}
+	// Mood is applied per occurrence either way: collapsing is about what the
+	// memory log reads like, not about the twelfth dig having stopped counting.
 	w.applyMoodEffects(e, evt)
+}
+
+// collapseRepeat folds evt into the colonist's most recent memory, reporting
+// whether it did. It collapses only when the kind is a minor, repetitive one
+// (a non-empty lifeEventCollapseText entry) and the newest memory is already
+// that same kind: a run is *consecutive* occurrences, so anything else the
+// colonist did — a meal in the middle of a mining shift — breaks the run and
+// the next dig starts a fresh memory. Folding into any older matching memory
+// instead would compress a whole life into one line per kind and lose the
+// order things happened in, which is most of what the log is for.
+//
+// The folded memory takes the kind's generic text, keeps Tick at the first
+// occurrence, and advances LastTick to this one, so the line can say both how
+// many times and over what span.
+func (w *World) collapseRepeat(e *Entity, evt LifeEvent) bool {
+	if lifeEventCollapseText[evt.Kind] == "" || len(e.Memories) == 0 {
+		return false
+	}
+	last := &e.Memories[len(e.Memories)-1]
+	if last.Kind != evt.Kind {
+		return false
+	}
+	last.Text = lifeEventCollapseText[evt.Kind]
+	last.LastTick = w.tick
+	last.Count++
+	return true
 }
 
 // Terrain is what fills a single tile. The world is a dense grid of tiles; as

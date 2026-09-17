@@ -576,3 +576,29 @@ func TestScrollDetailFillsItsPanel(t *testing.T) {
 		t.Errorf("content that fits should be returned as-is, got %d lines", len(got))
 	}
 }
+
+// A memory standing for a run of the same minor event should read as one line
+// that names the span and the number of occurrences; an ordinary single memory
+// should still read as a plain tick and text.
+func TestRosterDetailShowsCollapsedMemoryRun(t *testing.T) {
+	snap := makeSnapshot()
+	snap.Entities[0].Profile = &sim.Profile{Name: "Zoe Vargas", Gender: sim.GenderWoman}
+	snap.Entities[0].Memories = []sim.Memory{
+		{Tick: 1586, LastTick: 1586, Count: 1, Text: "Had a meal.", Kind: sim.EvtAte},
+		{Tick: 1607, LastTick: 1630, Count: 12, Text: "Finished mining.", Kind: sim.EvtFinishedMining},
+	}
+
+	var m tea.Model = New(nil, nil)
+	// Tall enough that the whole inspector fits without scrolling.
+	m, _ = m.Update(tea.WindowSizeMsg{Width: 120, Height: 60})
+	m, _ = m.Update(snapshotMsg{snap: snap})
+	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyTab})
+
+	out := m.View()
+	if !strings.Contains(out, "t1607-1630: Finished mining. (x12)") {
+		t.Errorf("collapsed memory line missing from inspector:\n%s", out)
+	}
+	if !strings.Contains(out, "t1586: Had a meal.") {
+		t.Errorf("single memory line missing from inspector:\n%s", out)
+	}
+}

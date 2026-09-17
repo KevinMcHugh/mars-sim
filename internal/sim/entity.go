@@ -273,10 +273,19 @@ type EntityID uint64
 // deliberately not recorded. Kind is the LifeEventKind that produced it (see
 // lifeevents.go) — carried along for any future filtering/UI, alongside the
 // player-facing Text that is what actually gets displayed.
+//
+// A Memory can stand for a *run* of the same minor event rather than a single
+// occurrence: a colonist who mines twelve times in a row holds one Memory with
+// Count 12 spanning Tick..LastTick, not twelve near-identical lines (see
+// remember in world.go and docs/memories.md). An ordinary, uncollapsed memory
+// has Count 1 and LastTick == Tick, so a frontend can render every Memory the
+// same way and only reach for the span when Count > 1.
 type Memory struct {
-	Tick int
-	Text string
-	Kind LifeEventKind
+	Tick     int // when it happened; the first occurrence of a collapsed run
+	LastTick int // the most recent occurrence; == Tick unless collapsed
+	Count    int // occurrences folded into this memory; 1 when uncollapsed
+	Text     string
+	Kind     LifeEventKind
 }
 
 // Entity is a single actor in the world. Rather than a strict ECS, we use one
