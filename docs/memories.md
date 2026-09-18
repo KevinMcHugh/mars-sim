@@ -9,8 +9,9 @@ conversing, sighting an alien, watching a fight — recorded as `Memory`
 entries. Every one of these is built from a `LifeEvent`: a `LifeEventKind`
 (what kind of thing happened) paired with the player-facing text describing
 this particular occurrence. A `LifeEventKind` also carries a table of mood
-effects, so remembering something and it affecting a colonist's mood are the
-same act, not two systems that have to be kept in sync by hand.
+effects and a transient-stimulus table, so remembering something, changing a
+colonist's mood, and influencing immediate focus are one ingestion act rather
+than systems call sites must keep in sync by hand.
 
 Minor, repetitive events — a mining shift, a string of meals — collapse into a
 single `Memory` covering the whole run, so a colonist who mines for a thousand
@@ -22,10 +23,13 @@ ticks has a history, not a mining log.
   `LifeEvent`, `event`, `MoodEffect`, `lifeEventMoodEffects`, `applyMoodEffects`,
   `lifeEventCollapseText`.
 - [`internal/sim/entity.go`](../internal/sim/entity.go) — `Memory` (carries
-  `Kind`, and `LastTick`/`Count` for a collapsed run), the colonist's
-  `Memories`/`seen`/`seeingGore` fields.
+  `Kind`, and `LastTick`/`Count` for a collapsed run), the colonist's fixed
+  stimulus storage, and `Memories`/`seen`/`seeingGore` fields.
+- [`internal/sim/stimulus.go`](../internal/sim/stimulus.go) — `Stimulus`, the
+  per-event specs, bounded coalescing/eviction, expiry, and focus bias.
 - [`internal/sim/world.go`](../internal/sim/world.go) — `remember`, the one
-  funnel every memory and mood effect goes through, and `collapseRepeat`.
+  funnel every memory, mood effect, and new stimulus goes through, and
+  `collapseRepeat`.
 - [`internal/sim/systems.go`](../internal/sim/systems.go) — `observeNearby`
   (creature sightings) and `observeGore` (gore sightings); every other
   `remember` call site records an experience at its completion.
@@ -47,27 +51,29 @@ ticks has a history, not a mining log.
 
 ```go
 type LifeEvent struct {
-    Kind LifeEventKind
-    Text string
-    Mood int // extra delta on top of Kind's table effects; 0 for a table-only event
+    Kind   LifeEventKind
+    Source EntityID // zero when the occurrence is not tied to an entity
+    Text   string
+    Mood   int // extra delta on top of Kind's table effects; 0 for a table-only event
 }
 ```
 
-Almost every call site constructs one with `event(kind, format, args...)`,
-which is `fmt.Sprintf` plus the `Kind` tag and leaves `Mood` at 0:
+Most call sites construct one with `event(kind, format, args...)`, which is
+`fmt.Sprintf` plus the `Kind` tag and leaves `Source` and `Mood` at 0. Events
+whose current context is a particular entity use `eventFrom` instead:
 
 ```go
-w.remember(prey, event(EvtBitten, "Bitten in the %s by an alien!", part))
+w.remember(prey, eventFrom(EvtBitten, alien.ID,
+    "Bitten in the %s by an alien!", part))
 ```
 
-`remember` (in `world.go`) is the single funnel: it records the `Memory`
-(bounded at 64 per colonist, oldest evicted first — or folds it into the
-previous one, see Collapsing runs of a minor event) *and* calls
-`applyMoodEffects(e, evt)` — recording something and it moving mood can never
-drift apart, because they happen in the same call, the same way
-`World.remove` is the one funnel for a death and its graveyard record (see
-[combat.md](./combat.md)). There is exactly one path a mood change can take
-in the whole simulation: through `remember`.
+`remember` (in `world.go`) is the single funnel: it applies mood, inserts or
+coalesces a configured active stimulus, and records the `Memory` (bounded at 64
+per colonist, oldest evicted first — or folds it into the previous one, see
+Collapsing runs of a minor event). A zero stimulus-table entry still records
+mood and memory normally. There is exactly one path for a new occurrence;
+ongoing alien perception may refresh the expiry of an existing context without
+recording another memory.
 
 ### Mood effects: a fixed table, plus room for a computed delta
 
@@ -123,6 +129,22 @@ w.remember(a, eventMood(EvtConversation, mood+w.noteConversation(a), "Had a conv
 number and makes one call to `adjustMood` — one clamp, one place mood
 actually changes, whether the delta came from a static table or a live
 computation.
+
+### Active stimuli are bounded current context
+
+Stimuli retain actionable aftereffects without pretending they are either mood
+or history. Each colonist reserves fixed storage for at most
+`ActiveStimulusLimit` entries (default 8, hard cap `MaxActiveStimuli`), so event
+ingestion does not allocate a stimulus slice. The same `(Kind, Source)` refreshes
+in place. At capacity, the weakest entry is selected by salience, then earliest
+expiry, then lowest source ID; an incoming event weaker than every retained
+entry is discarded rather than hiding stronger context.
+
+Expiry is exact: an entry is inactive when `tick >= ExpiresAt`. Focus scoring
+sums each active entry's per-focus contribution scaled by salience. Current
+flee/fight eligibility still comes from a live visible alien, not from lingering
+stimulus state, so removing an alien ends direct threat behavior immediately
+without erasing mood, stimulus aftereffects, or memory.
 
 ### Sightings, including gore, stay edge-triggered
 

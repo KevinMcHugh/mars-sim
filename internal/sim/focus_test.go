@@ -113,6 +113,7 @@ func TestVisibleThreatBeatsCriticalHunger(t *testing.T) {
 	w, c := focusTestColonist(t)
 	c.Needs[NeedFood] = w.cfg.Needs[NeedFood].Max
 	w.spawn(Alien, c.Pos.Add(1, 0))
+	w.observeNearby(c)
 	var candidates [numFocusKinds]FocusCandidate
 	if got := w.chooseFocus(c, &candidates).Kind; got != FocusFlee {
 		t.Fatalf("focus = %v, want flee from visible threat", got)
@@ -122,6 +123,7 @@ func TestVisibleThreatBeatsCriticalHunger(t *testing.T) {
 func TestArmedThreatCanFightAndUnarmedCannot(t *testing.T) {
 	w, c := focusTestColonist(t)
 	w.spawn(Alien, c.Pos.Add(1, 0))
+	w.observeNearby(c)
 	var candidates [numFocusKinds]FocusCandidate
 	w.focusCandidates(c, &candidates)
 	if candidates[FocusFight].Eligible {

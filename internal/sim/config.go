@@ -86,11 +86,12 @@ type Config struct {
 	ColonistsPerFacility int                `cfg:"per-facility" doc:"colonists served by each life-support facility"`
 
 	// Focus arbitration. One FocusSpec per FocusKind, indexed by that kind.
-	Focuses            [numFocusKinds]FocusSpec `cfg:"focuses" sec:"Focus arbitration"`
-	FocusCurrentBonus  int                      `cfg:"focus-current-bonus" doc:"score bonus for continuing the current eligible focus"`
-	FocusSwitchMargin  int                      `cfg:"focus-switch-margin" doc:"minimum score lead required to replace an eligible focus"`
-	FocusCriticalBonus int                      `cfg:"focus-critical-bonus" doc:"score bonus for a need at its critical boundary"`
-	FocusFatalBonus    int                      `cfg:"focus-fatal-bonus" doc:"score bonus for a pressing fatal need"`
+	Focuses             [numFocusKinds]FocusSpec `cfg:"focuses" sec:"Focus arbitration"`
+	FocusCurrentBonus   int                      `cfg:"focus-current-bonus" doc:"score bonus for continuing the current eligible focus"`
+	FocusSwitchMargin   int                      `cfg:"focus-switch-margin" doc:"minimum score lead required to replace an eligible focus"`
+	FocusCriticalBonus  int                      `cfg:"focus-critical-bonus" doc:"score bonus for a need at its critical boundary"`
+	FocusFatalBonus     int                      `cfg:"focus-fatal-bonus" doc:"score bonus for a pressing fatal need"`
+	ActiveStimulusLimit int                      `cfg:"active-stimulus-limit" doc:"maximum transient life-event appraisals retained per colonist"`
 
 	RestTicks  int `cfg:"rest-ticks" sec:"Work and construction" doc:"ticks an idle colonist rests before re-checking for work"`
 	StuckLimit int `cfg:"stuck-limit" doc:"ticks a colonist waits on a blocked path before abandoning the job"`
@@ -272,6 +273,7 @@ func DefaultConfig() Config {
 		FocusSwitchMargin:     10,
 		FocusCriticalBonus:    100,
 		FocusFatalBonus:       150,
+		ActiveStimulusLimit:   8,
 		RestTicks:             10,
 		StuckLimit:            8,
 		MaxConcurrentProjects: 2,

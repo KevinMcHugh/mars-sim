@@ -107,6 +107,16 @@ func TestValidateFocusConfig(t *testing.T) {
 	}
 }
 
+func TestValidateActiveStimulusLimit(t *testing.T) {
+	for _, limit := range []int{0, sim.MaxActiveStimuli + 1} {
+		cfg := sim.DefaultConfig()
+		cfg.ActiveStimulusLimit = limit
+		if err := validateConfig(cfg); err == nil || !strings.Contains(err.Error(), "active-stimulus-limit") {
+			t.Fatalf("limit %d error = %v, want active-stimulus-limit validation", limit, err)
+		}
+	}
+}
+
 func TestValidateNeedCriticalThreshold(t *testing.T) {
 	for _, alter := range []func(*sim.NeedSpec){
 		func(spec *sim.NeedSpec) { spec.CriticalAt = spec.SeekAt - 1 },

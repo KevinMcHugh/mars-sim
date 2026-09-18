@@ -363,9 +363,13 @@ type Entity struct {
 	mood int
 
 	// Focus is the colonist's current goal; Job is the concrete executor beneath
-	// it. focusSince supports commitment and later cognition caching.
-	focus      FocusKind
-	focusSince int
+	// it. focusSince supports commitment and later cognition caching. Stimuli use
+	// fixed storage so ingesting a life event never allocates a buffer.
+	focus         FocusKind
+	focusSince    int
+	focusDirty    bool
+	stimuli       [MaxActiveStimuli]Stimulus
+	stimulusCount int
 
 	// Memories is a bounded history of notable experiences. The internal slice
 	// is copied into EntityView so frontends cannot mutate the live world.

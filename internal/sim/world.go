@@ -4,17 +4,18 @@ import "math/rand"
 
 const maxColonistMemories = 64
 
-// remember adds a notable experience, retaining the most recent memories, and
-// applies whatever mood effect the LifeEvent carries (see lifeevents.go).
-// Every notable thing that happens to or near a colonist — including a
-// conversation's outcome, via finishTalk's eventMood — should be built with
-// event() or eventMood() and land here, so mood and memory can never drift
-// apart, and there is exactly one mechanism for "this happened, and here is
-// how it felt": the same way remove() is the one funnel for deaths.
+// remember is the single ingestion funnel for notable life events. One call
+// applies the scalar-affect placeholder, updates transient stimulus state when
+// configured, and records or collapses long-term memory. These products have
+// separate lifetimes, but call sites cannot accidentally update only one.
 func (w *World) remember(e *Entity, evt LifeEvent) {
 	if e == nil || e.Kind != Colonist {
 		return
 	}
+	// Mood is applied per occurrence either way: collapsing is about what the
+	// memory log reads like, not about the twelfth dig having stopped counting.
+	w.applyMoodEffects(e, evt)
+	w.addStimulus(e, evt)
 	if !w.collapseRepeat(e, evt) {
 		e.Memories = append(e.Memories, Memory{
 			Tick:     w.tick,
@@ -27,9 +28,6 @@ func (w *World) remember(e *Entity, evt LifeEvent) {
 			e.Memories = e.Memories[len(e.Memories)-maxColonistMemories:]
 		}
 	}
-	// Mood is applied per occurrence either way: collapsing is about what the
-	// memory log reads like, not about the twelfth dig having stopped counting.
-	w.applyMoodEffects(e, evt)
 }
 
 // collapseRepeat folds evt into the colonist's most recent memory, reporting

@@ -358,6 +358,9 @@
 ## score bonus for a pressing fatal need
 # focus-fatal-bonus: 150
 
+## maximum transient life-event appraisals retained per colonist
+# active-stimulus-limit: 8
+
 # ── Work and construction ───────────────────────────────────────────────
 ## ticks an idle colonist rests before re-checking for work
 # rest-ticks: 10

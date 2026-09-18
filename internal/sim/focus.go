@@ -156,6 +156,11 @@ func (w *World) focusCandidates(e *Entity, out *[numFocusKinds]FocusCandidate) {
 	}
 
 	out[FocusWork].Eligible = workJob(e.Job) || !e.resting || w.tick >= e.wakeTick
+	var stimulusBias [numFocusKinds]int
+	w.stimulusBiases(e, &stimulusBias)
+	for f := FocusKind(0); f < numFocusKinds; f++ {
+		out[f].Score.Stimulus = stimulusBias[f]
+	}
 
 	fatalPressing := false
 	for n := NeedKind(0); n < numNeeds; n++ {
@@ -195,11 +200,9 @@ func (w *World) focusCandidates(e *Entity, out *[numFocusKinds]FocusCandidate) {
 	if threat, ok := w.nearestAlien(e.Pos, w.cfg.FleeRadius); ok {
 		out[FocusFlee].Eligible = true
 		out[FocusFlee].Threat = threat.ID
-		out[FocusFlee].Score.Stimulus = 500
 		if bestWeapon(e.Inventory) != ItemNone {
 			out[FocusFight].Eligible = true
 			out[FocusFight].Threat = threat.ID
-			out[FocusFight].Score.Stimulus = 500
 			// Standing and firing has no locomotion cost when the target is in
 			// range. Evasion always spends at least one movement step, which also
 			// preserves the established armed-colonist behavior on an otherwise

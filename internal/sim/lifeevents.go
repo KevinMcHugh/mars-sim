@@ -115,9 +115,10 @@ var lifeEventMoodEffects = [numLifeEventKinds][]MoodEffect{
 // (it depends on something rolled or accumulated per occurrence, like a
 // conversation's quality).
 type LifeEvent struct {
-	Kind LifeEventKind
-	Text string
-	Mood int // extra delta on top of Kind's table effects; 0 for a table-only event
+	Kind   LifeEventKind
+	Source EntityID // zero when the occurrence is not tied to an entity
+	Text   string
+	Mood   int // extra delta on top of Kind's table effects; 0 for a table-only event
 }
 
 // event builds a LifeEvent with no per-occurrence mood component, formatting
@@ -126,6 +127,13 @@ type LifeEvent struct {
 // between a raw string and a formatted one.
 func event(kind LifeEventKind, format string, args ...any) LifeEvent {
 	return LifeEvent{Kind: kind, Text: fmt.Sprintf(format, args...)}
+}
+
+// eventFrom is event with the entity responsible for or represented by the
+// occurrence. Keeping source on the event lets stimulus ingestion remain in the
+// same funnel as mood and memory.
+func eventFrom(kind LifeEventKind, source EntityID, format string, args ...any) LifeEvent {
+	return LifeEvent{Kind: kind, Source: source, Text: fmt.Sprintf(format, args...)}
 }
 
 // eventMood is event() plus a caller-computed mood delta, for the rare event

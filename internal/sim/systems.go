@@ -96,8 +96,13 @@ func (w *World) colonistTurn(e *Entity) {
 	// branch below can return. See mutation.go.
 	w.applyUraniumExposure(e)
 
+	// Perception above refreshes ongoing threats. Expire everything else before
+	// scoring so an entry is inactive exactly at ExpiresAt.
+	w.expireStimuli(e)
+
 	var candidates [numFocusKinds]FocusCandidate
 	selected := w.chooseFocus(e, &candidates)
+	e.focusDirty = false
 	if selected.Kind != e.focus {
 		w.clearJob(e)
 		e.focus = selected.Kind
@@ -281,13 +286,18 @@ func (w *World) observeNearby(e *Entity) {
 		}
 		visible[other.ID] = true
 		if e.seen[other.ID] {
+			if kind == Alien {
+				// This is a refresh of ongoing context, not another life-event
+				// occurrence; memory remains edge-triggered.
+				w.addStimulus(e, LifeEvent{Kind: EvtSawAlien, Source: other.ID})
+			}
 			continue
 		}
 		evtKind := EvtSawMouse
 		if kind == Alien {
 			evtKind = EvtSawAlien
 		}
-		w.remember(e, event(evtKind, "Saw %s #%d.", kind, other.ID))
+		w.remember(e, eventFrom(evtKind, other.ID, "Saw %s #%d.", kind, other.ID))
 	}
 	e.seen = visible
 
@@ -1361,13 +1371,13 @@ func (w *World) bite(alien, prey *Entity) {
 		w.remove(prey.ID, "devoured by an alien")
 		w.log.add(fmt.Sprintf("An alien devours %s.", name))
 		for _, wit := range witnesses {
-			w.remember(wit, event(EvtWitnessedColonistKilled, "Watched an alien kill %s.", name))
+			w.remember(wit, eventFrom(EvtWitnessedColonistKilled, alien.ID, "Watched an alien kill %s.", name))
 		}
 	} else {
 		alien.State = Hunting
-		w.remember(prey, event(EvtBitten, "Bitten in the %s by an alien!", part))
+		w.remember(prey, eventFrom(EvtBitten, alien.ID, "Bitten in the %s by an alien!", part))
 		for _, wit := range witnesses {
-			w.remember(wit, event(EvtWitnessedColonistAttacked, "Watched an alien attack %s.", prey.displayName()))
+			w.remember(wit, eventFrom(EvtWitnessedColonistAttacked, alien.ID, "Watched an alien attack %s.", prey.displayName()))
 		}
 	}
 }

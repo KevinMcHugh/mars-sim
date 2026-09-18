@@ -12,14 +12,16 @@ import "testing"
 func TestArmedColonistKillsAlien(t *testing.T) {
 	cfg := testConfig()
 	cfg.StartColonists, cfg.StartAliens, cfg.StartCats, cfg.StartMice = 0, 0, 0, 0
-	cfg.AlienSlowness = 1
+	// Keep the target from biting between the two shots. A bite now creates an
+	// active flee stimulus, which is a separate behavior from gunfire itself.
+	cfg.AlienSlowness = 4
 	cfg.AlienDamage = 0
 	w := newTestWorld(t, cfg)
 
 	center := Point{w.Width / 2, w.Height / 2}
 	colonist := w.spawn(Colonist, center)
 	colonist.Inventory.Add(Shotgun, 1)
-	alien := w.spawn(Alien, center.Add(cfg.ShotgunRange+1, 0))
+	alien := w.spawn(Alien, center.Add(cfg.ShotgunRange, 0))
 
 	for i := 0; i < 200 && w.entities[alien.ID] != nil; i++ {
 		w.step()

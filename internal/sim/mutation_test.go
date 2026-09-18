@@ -262,13 +262,22 @@ func TestMutationIsDeterministicForASeed(t *testing.T) {
 		cfg := testConfig()
 		cfg.Width, cfg.Height = 40, 30
 		cfg.UraniumRockPercent = 20 // plenty of uranium, so mutations actually happen
-		cfg.UraniumExposureTicks = 20
+		cfg.UraniumExposureTicks = 1
 		cfg.MutationChance = 100
 		cfg.Seed = 999
 		w := NewEngine(cfg).world
-		for i := 0; i < 400; i++ {
-			w.step()
+		// Guarantee that this RNG test reaches mutation independently of which
+		// rock the evolving focus system chooses to mine first.
+		for _, id := range w.entityIDsSorted() {
+			if e := w.entities[id]; e.Kind == Colonist {
+				e.Inventory = Inventory{}
+				if !e.Inventory.Add(UraniumOre, 1) {
+					t.Fatal("could not equip deterministic uranium source")
+				}
+				break
+			}
 		}
+		w.step()
 		var out []string
 		for _, id := range w.entityIDsSorted() {
 			e := w.entities[id]
@@ -280,7 +289,7 @@ func TestMutationIsDeterministicForASeed(t *testing.T) {
 	}
 	first, second := run(), run()
 	if len(first) == 0 {
-		t.Fatal("no colonist mutated in 400 ticks of a uranium-rich map")
+		t.Fatal("guaranteed uranium dose did not mutate a colonist")
 	}
 	if len(first) != len(second) {
 		t.Fatalf("same seed mutated %d colonists then %d", len(first), len(second))

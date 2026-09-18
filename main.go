@@ -208,6 +208,8 @@ func validateConfig(cfg sim.Config) error {
 		return fmt.Errorf("per-facility must be at least 1 (got %d)", cfg.ColonistsPerFacility)
 	case cfg.MaxConcurrentProjects < 1:
 		return fmt.Errorf("max-concurrent-projects must be at least 1 (got %d)", cfg.MaxConcurrentProjects)
+	case cfg.ActiveStimulusLimit < 1 || cfg.ActiveStimulusLimit > sim.MaxActiveStimuli:
+		return fmt.Errorf("active-stimulus-limit must be between 1 and %d (got %d)", sim.MaxActiveStimuli, cfg.ActiveStimulusLimit)
 	case cfg.RestTicks < 1:
 		return fmt.Errorf("rest-ticks must be at least 1 (got %d)", cfg.RestTicks)
 	case cfg.StuckLimit < 1:
