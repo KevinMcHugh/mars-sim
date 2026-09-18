@@ -49,7 +49,7 @@ commit/checkpoint per phase. If commits are made, record their hashes.
 
 ## Current status
 
-**Current phase:** Phase 2 — independent need phases
+**Current phase:** Phase 3 — active stimuli
 
 **Overall state:** in progress
 
@@ -63,7 +63,7 @@ commit/checkpoint per phase. If commits are made, record their hashes.
 | --- | --- | --- | --- | --- |
 | 0. Baseline and code map | prerequisite | done | `c8c1cd5` | Build/tests pass; full benchmark suite and idle baseline recorded |
 | 1. Weighted focus | design milestone 1 | done | `0409ac2` | Deterministic weighted arbitration over existing executors; all tests pass |
-| 2. Independent need phases | design milestone 2 | not started | — | — |
+| 2. Independent need phases | design milestone 2 | done | `54b8946` | Independent phases, exact pressure, and boundary scheduling; all tests pass |
 | 3. Active stimuli | design milestone 3 | not started | — | — |
 | 4. Charge/grip affect | design milestone 4 | not started | — | — |
 | 5. Cognition caching and performance | performance follow-up | not started | — | — |
@@ -331,58 +331,62 @@ existing starvation semantics.
 
 ### Implementation tasks
 
-- [ ] Add `NeedPhase` and one phase slot per need.
-- [ ] Add `CriticalAt` to `NeedSpec`.
-- [ ] Add validation for `0 <= SeekAt <= CriticalAt <= Max`.
-- [ ] Add defaults specified by the design.
-- [ ] Implement `syncNeedPhase`.
-- [ ] Implement pressure normalization exactly as specified.
-- [ ] Synchronize phases:
-  - [ ] before focus arbitration
-  - [ ] after `resetNeed`
-  - [ ] after any future partial need adjustment
-- [ ] Make need candidate scoring consume phase and normalized pressure.
-- [ ] Remove duplicated threshold/urgency arithmetic from focus selection.
-- [ ] Preserve fatal-over-nonfatal semantics through `FocusFatalBonus`.
-- [ ] Calculate and store/test the next phase-boundary tick for later caching.
-- [ ] Regenerate `mars-sim.yaml`.
-- [ ] Update [`needs.md`](./needs.md) to describe phases and `CriticalAt`.
+- [x] Add `NeedPhase` and one phase slot per need.
+- [x] Add `CriticalAt` to `NeedSpec`.
+- [x] Add validation for `0 <= SeekAt <= CriticalAt <= Max`.
+- [x] Add defaults specified by the design.
+- [x] Implement `syncNeedPhase`.
+- [x] Implement pressure normalization exactly as specified.
+- [x] Synchronize phases:
+  - [x] before focus arbitration
+  - [x] after `resetNeed`
+  - [-] after any future partial need adjustment (no partial-adjustment API exists)
+- [x] Make need candidate scoring consume phase and normalized pressure.
+- [x] Remove duplicated threshold/urgency arithmetic from focus selection.
+- [x] Preserve fatal-over-nonfatal semantics through `FocusFatalBonus` and hard
+  fatal eligibility precedence.
+- [x] Calculate and store/test the next phase-boundary tick for later caching.
+- [x] Regenerate `mars-sim.yaml`.
+- [x] Update [`needs.md`](./needs.md) to describe phases and `CriticalAt`.
 
 ### Required tests
 
-- [ ] `NeedSatisfied -> NeedGrowing`.
-- [ ] `NeedGrowing -> NeedPressing`.
-- [ ] `NeedPressing -> NeedCritical`.
-- [ ] reset returns to `NeedSatisfied`.
-- [ ] lazy elapsed time crosses phases correctly.
-- [ ] `SeekAt == CriticalAt`.
-- [ ] `CriticalAt == Max`.
-- [ ] zero rise does not schedule a crossing.
-- [ ] Asocial social need remains satisfied/growing without becoming pressing.
-- [ ] fatal critical food eventually beats ordinary work commitment.
-- [ ] non-fatal need pressure cannot indefinitely suppress fatal food.
-- [ ] starvation grace and healing remain unchanged.
+- [x] `NeedSatisfied -> NeedGrowing`.
+- [x] `NeedGrowing -> NeedPressing`.
+- [x] `NeedPressing -> NeedCritical`.
+- [x] reset returns to `NeedSatisfied`.
+- [x] lazy elapsed time crosses phases correctly.
+- [x] `SeekAt == CriticalAt`.
+- [x] `CriticalAt == Max`.
+- [x] zero rise does not schedule a crossing.
+- [x] Asocial social need remains satisfied/growing without becoming pressing.
+- [x] fatal critical food eventually beats ordinary work commitment.
+- [x] non-fatal need pressure cannot indefinitely suppress fatal food.
+- [x] starvation grace and healing remain unchanged.
 
 ### Phase 2 evidence
 
 | Evidence | Result | Notes |
 | --- | --- | --- |
-| focused need tests | pending | |
-| `go build ./...` | pending | |
-| `go test ./...` | pending | |
-| simulation benchmark | pending | compare with Phase 1 |
-| generated config diff reviewed | pending | |
+| focused need tests | pass | Phase transitions, resets, lazy crossings, degenerate thresholds, zero rise, urgency, starvation, and healing |
+| `go build ./...` | pass | 2026-09-17 |
+| `go test ./...` | pass | All four packages |
+| simulation benchmark | active 21,397,454 ns/op; idle 18,687,577 ns/op; focus 64.63 ns/op, 0 allocs | Versus Phase 1: -1.50% active, +1.12% idle; no profiling threshold crossed |
+| generated config diff reviewed | pass | Added four commented `critical-at` defaults; no committed overrides existed |
 
 ### Phase 2 exit criteria
 
-- [ ] Every need has an independently correct phase.
-- [ ] Lazy need computation remains the only source of current level.
-- [ ] Focus scoring reads need pressure through one helper.
-- [ ] Config and need documentation are current.
+- [x] Every need has an independently correct phase.
+- [x] Lazy need computation remains the only source of current level.
+- [x] Focus scoring reads need pressure through one helper.
+- [x] Config and need documentation are current.
 
 ### Phase 2 verification log
 
-- Pending.
+- 2026-09-17, Delta agent: implemented independent need phases at `54b8946`.
+  `go build ./...`, `go test ./...`, `git diff --check`, focused need/focus tests,
+  and representative benchmarks pass. Phase synchronization preserves one lazy
+  level read per candidate, and direct focus generation remains allocation-free.
 
 ## Phase 3 — Active stimuli
 
@@ -801,6 +805,7 @@ Record material updates to this plan, not every checkbox.
 | --- | --- | --- |
 | initial | Delta agent | Created phased implementation, verification, and performance plan. |
 | Phase 1 / 2026-09-17 | Delta agent | Completed weighted focus arbitration, configuration, tests, documentation, and baseline comparison. |
+| Phase 2 / 2026-09-17 | Delta agent | Added independent need phases, normalized pressure, boundary scheduling, configuration, tests, and documentation. |
 
 ## Related
 

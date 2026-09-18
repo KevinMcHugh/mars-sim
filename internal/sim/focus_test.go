@@ -98,6 +98,17 @@ func TestFatalPressingNeedSuppressesNonFatalNeeds(t *testing.T) {
 	}
 }
 
+func TestCriticalFatalNeedBeatsWorkCommitment(t *testing.T) {
+	w, c := focusTestColonist(t)
+	c.focus = FocusWork
+	c.Job = JobMine
+	c.Needs[NeedFood], c.needSince[NeedFood] = w.cfg.Needs[NeedFood].Max, w.tick
+	var candidates [numFocusKinds]FocusCandidate
+	if got := w.chooseFocus(c, &candidates).Kind; got != FocusEat {
+		t.Fatalf("focus = %v, want critical food to preempt committed work", got)
+	}
+}
+
 func TestVisibleThreatBeatsCriticalHunger(t *testing.T) {
 	w, c := focusTestColonist(t)
 	c.Needs[NeedFood] = w.cfg.Needs[NeedFood].Max
