@@ -49,15 +49,19 @@ commit/checkpoint per phase. If commits are made, record their hashes.
 
 ## Current status
 
-**Current phase:** Phase 0 — baseline and code map  
-**Overall state:** not started  
-**Implementation branch:** `cascading-wsts-arch`  
-**Baseline commit:** _record when execution starts_  
-**Last updated by:** _record agent/person_  
+**Current phase:** Phase 1 — weighted focus
+
+**Overall state:** in progress
+
+**Implementation branch:** `cascading-wsts-implementation`
+
+**Baseline commit:** `c67068b`
+
+**Last updated by:** Delta agent, 2026-09-17
 
 | Phase | Design mapping | State | Commit/checkpoint | Verification summary |
 | --- | --- | --- | --- | --- |
-| 0. Baseline and code map | prerequisite | not started | — | — |
+| 0. Baseline and code map | prerequisite | done | `c8c1cd5` | Build/tests pass; full benchmark suite and idle baseline recorded |
 | 1. Weighted focus | design milestone 1 | not started | — | — |
 | 2. Independent need phases | design milestone 2 | not started | — | — |
 | 3. Active stimuli | design milestone 3 | not started | — | — |
@@ -94,28 +98,28 @@ preserve, and collect performance evidence before changing the hot path.
 
 ### Tasks
 
-- [ ] Record `git rev-parse HEAD` in `Baseline commit`.
-- [ ] Confirm the worktree is clean except for intentional plan/design changes.
-- [ ] Read `AGENTS.md`.
-- [ ] Read:
-  - [ ] [`cascading_wsts_architecture.md`](./cascading_wsts_architecture.md)
-  - [ ] [`entities-and-ai.md`](./entities-and-ai.md)
-  - [ ] [`needs.md`](./needs.md)
-  - [ ] [`personality.md`](./personality.md)
-  - [ ] [`memories.md`](./memories.md)
-  - [ ] [`configuration.md`](./configuration.md)
-  - [ ] [`config-file.md`](./config-file.md)
-- [ ] Map current colonist decision order in `colonistTurn`.
-- [ ] Map every `JobKind` claim/acquire/release path.
-- [ ] Map every `remember`/life-event call site.
-- [ ] Map scalar mood reads, writes, snapshot fields, UI rendering, and tests.
-- [ ] Map need reads, resets, starvation grace, and facility fallbacks.
-- [ ] Identify existing benchmarks and long-running fixed-seed tests.
-- [ ] Run baseline build and test commands.
-- [ ] Run baseline simulation benchmarks with allocation reporting.
-- [ ] Add missing benchmark coverage before behavior changes if current
+- [x] Record `git rev-parse HEAD` in `Baseline commit`.
+- [x] Confirm the worktree is clean except for intentional plan/design changes.
+- [x] Read `AGENTS.md`.
+- [x] Read:
+  - [x] [`cascading_wsts_architecture.md`](./cascading_wsts_architecture.md)
+  - [x] [`entities-and-ai.md`](./entities-and-ai.md)
+  - [x] [`needs.md`](./needs.md)
+  - [x] [`personality.md`](./personality.md)
+  - [x] [`memories.md`](./memories.md)
+  - [x] [`configuration.md`](./configuration.md)
+  - [x] [`config-file.md`](./config-file.md)
+- [x] Map current colonist decision order in `colonistTurn`.
+- [x] Map every `JobKind` claim/acquire/release path.
+- [x] Map every `remember`/life-event call site.
+- [x] Map scalar mood reads, writes, snapshot fields, UI rendering, and tests.
+- [x] Map need reads, resets, starvation grace, and facility fallbacks.
+- [x] Identify existing benchmarks and long-running fixed-seed tests.
+- [x] Run baseline build and test commands.
+- [x] Run baseline simulation benchmarks with allocation reporting.
+- [x] Add missing benchmark coverage before behavior changes if current
   benchmarks cannot measure an established or idle colony.
-- [ ] Record baseline results below.
+- [x] Record baseline results below.
 
 ### Required baseline commands
 
@@ -133,32 +137,83 @@ recording it.
 
 | Command or benchmark | Result | Notes |
 | --- | --- | --- |
-| `go build ./...` | pending | |
-| `go test ./...` | pending | |
-| simulation benchmark | pending | record exact name, ns/op, B/op, allocs/op |
-| established/idle colony benchmark | pending | add one if absent |
+| `go build ./...` | pass | Baseline `c67068b`, Apple M1 Pro / darwin arm64 |
+| `go test ./...` | pass | All four packages passed |
+| simulation benchmark | `BenchmarkStep500`: 21,904,075 ns/op, 2,328,241 B/op, 11,638 allocs/op | Full command: `go test ./internal/sim -run '^$' -bench . -benchmem` |
+| established/idle colony benchmark | `BenchmarkStepIdle500`: 18,357,399 ns/op, 2,104,874 B/op, 2,010 allocs/op | Added at `c8c1cd5`; command: `go test ./internal/sim -run '^$' -bench '^BenchmarkStepIdle500$' -benchmem` |
 
 ### Code map and risks discovered
 
 _Update during Phase 0. Link exact files/functions and note ownership,
 ordering, or determinism traps._
 
-- None recorded yet.
+- [`colonistTurn`](../internal/sim/systems.go) currently applies starvation and
+  removes the dead, observes nearby entities/gore, applies uranium exposure,
+  handles a visible alien, handles the single most urgent need, continues a
+  current job, searches for work, then performs idle talk/stomp/rest behavior.
+  Phase 1 must replace the threat/need/work priority ladder, while preserving
+  the first three operations and their same-turn effects.
+- `JobMine` claims through `jobBoard` either when a small-colony target is
+  selected or when a flow-field miner reaches the frontier. `clearJob` releases
+  only a held `mineClaimed` tile. `JobBuild` owns either a `buildTask` or an
+  ad-hoc build counter; `clearJob` releases the task owner or decrements the
+  counter. `JobClean` claims its refuse tile during `cleanGather` and releases
+  it on completion or abandonment; the `cleanHaul` stage deliberately carries
+  no tile claim. `JobUse` owns only its selected facility/path state. `JobTalk`
+  owns a mutual partner link and shared progress enforced by `jobTalk`.
+  `JobStore` has no reservation and revalidates destination capacity during
+  execution. All common teardown converges on
+  [`clearJob`](../internal/sim/systems.go).
+- Production life events enter [`remember`](../internal/sim/world.go) from
+  combat (`combat.go`), sanitation (`cleaning.go`), mutation (`mutation.go`),
+  and observation, conversation, work completion, need completion, alien
+  attacks, and cat catches (`systems.go`). Tests call the same funnel directly.
+  `remember` collapses/appends memory and then applies mood once per occurrence;
+  Phase 3/4 must extend this funnel rather than create parallel APIs.
+- Scalar mood is stored on `Entity`, configured by `MoodMax`,
+  `MoodCompanyWeight`, and `MoodConversationWeight`, written only through
+  `remember` -> `applyMoodEffects` -> `adjustMood`, and read by snapshots and
+  the TUI roster. Migration coverage lives in `lifeevents_test.go`,
+  `memories_test.go`, `mutation_test.go`, `relationships_test.go`,
+  `snapshot.go`, and `render_roster.go`.
+- Need levels are lazy base-plus-timestamp values read by starvation, urgency,
+  mouse behavior, availability checks, and snapshots. `resetNeed` is the sole
+  reset and restores only deprivation damage. Starvation grace covers carried
+  portable food, a reachable matching `JobUse`, and reachable matching
+  construction. Need execution may use a reachable facility, claim a matching
+  project task, perform an emergency build, or wait when all matching tasks are
+  claimed.
+- Determinism traps: entity turns are hunger-first with stable ID fallback;
+  candidate ties must not consume RNG; personality uses `World.prng`, while
+  gameplay uses `World.rng`; point and entity ties already use stable ordering.
+  Focus generation must not claim targets or call A*.
+- Existing representative coverage includes `TestDeterministicRun`,
+  `TestColonyKeepsExcavatingOnceNeedsBite`,
+  `TestColonyDoesNotStarveOverTime`,
+  `TestLargeColonyDoesNotGridlockAtFacilities`,
+  `TestColonyBuildsATrashRoomAndBurnsItsRefuse`, and the benchmark suite in
+  `bench_test.go`. The idle benchmark also reveals that observation and entity
+  turn setup still allocate and scan even when cognition rests; that is Phase
+  5 work, not a Phase 1 shortcut.
 
 ### Phase 0 exit criteria
 
-- [ ] Baseline build and tests pass.
-- [ ] At least one representative simulation benchmark is recorded.
-- [ ] The code map identifies claim release, life-event ingestion, scalar mood,
+- [x] Baseline build and tests pass.
+- [x] At least one representative simulation benchmark is recorded.
+- [x] The code map identifies claim release, life-event ingestion, scalar mood,
   need urgency, and snapshot/UI migration points.
-- [ ] Any pre-existing failures are recorded and separated from implementation
+- [x] Any pre-existing failures are recorded and separated from implementation
   failures.
 
 ### Phase 0 verification log
 
 _Record date/agent, commands, results, and checkpoint._
 
-- Pending.
+- 2026-09-17, Delta agent: baseline `c67068b`; `go build ./...`,
+  `go test ./...`, and the full `internal/sim` benchmark suite passed. Added
+  `BenchmarkStepIdle500` at checkpoint `c8c1cd5` because the existing
+  benchmarks did not isolate the established/resting-colony path. No
+  pre-existing failures found.
 
 ## Phase 1 — Weighted focus over existing behavior
 
