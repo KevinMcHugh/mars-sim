@@ -85,6 +85,13 @@ type Config struct {
 	StarveDamage         int                `cfg:"starve-damage" doc:"HP lost per tick while a fatal need sits at its max"`
 	ColonistsPerFacility int                `cfg:"per-facility" doc:"colonists served by each life-support facility"`
 
+	// Focus arbitration. One FocusSpec per FocusKind, indexed by that kind.
+	Focuses            [numFocusKinds]FocusSpec `cfg:"focuses" sec:"Focus arbitration"`
+	FocusCurrentBonus  int                      `cfg:"focus-current-bonus" doc:"score bonus for continuing the current eligible focus"`
+	FocusSwitchMargin  int                      `cfg:"focus-switch-margin" doc:"minimum score lead required to replace an eligible focus"`
+	FocusCriticalBonus int                      `cfg:"focus-critical-bonus" doc:"score bonus for a need at its critical boundary"`
+	FocusFatalBonus    int                      `cfg:"focus-fatal-bonus" doc:"score bonus for a pressing fatal need"`
+
 	RestTicks  int `cfg:"rest-ticks" sec:"Work and construction" doc:"ticks an idle colonist rests before re-checking for work"`
 	StuckLimit int `cfg:"stuck-limit" doc:"ticks a colonist waits on a blocked path before abandoning the job"`
 
@@ -249,8 +256,22 @@ func DefaultConfig() Config {
 		IncinerateTicks:       8,
 		IncineratorBuildTicks: 20,
 
-		StarveDamage:          1,
-		ColonistsPerFacility:  5,
+		StarveDamage:         1,
+		ColonistsPerFacility: 5,
+		Focuses: [numFocusKinds]FocusSpec{
+			FocusIdle:      {Name: "idle", Base: 0, NeedWeight: 0, ChargeWeight: -10, GripWeight: 0, DistanceWeight: 0},
+			FocusWork:      {Name: "work", Base: 25, NeedWeight: 0, ChargeWeight: 20, GripWeight: 10, DistanceWeight: 1},
+			FocusEat:       {Name: "eat", Base: 40, NeedWeight: 100, ChargeWeight: 0, GripWeight: 5, DistanceWeight: 1},
+			FocusRelieve:   {Name: "relieve", Base: 40, NeedWeight: 100, ChargeWeight: 0, GripWeight: 0, DistanceWeight: 1},
+			FocusSocialize: {Name: "socialize", Base: 40, NeedWeight: 100, ChargeWeight: 10, GripWeight: 5, DistanceWeight: 1},
+			FocusSleep:     {Name: "sleep", Base: 40, NeedWeight: 100, ChargeWeight: -30, GripWeight: 0, DistanceWeight: 1},
+			FocusFlee:      {Name: "flee", Base: 0, NeedWeight: 0, ChargeWeight: 20, GripWeight: -40, DistanceWeight: 1},
+			FocusFight:     {Name: "fight", Base: 0, NeedWeight: 0, ChargeWeight: 20, GripWeight: 40, DistanceWeight: 1},
+		},
+		FocusCurrentBonus:     25,
+		FocusSwitchMargin:     10,
+		FocusCriticalBonus:    100,
+		FocusFatalBonus:       150,
 		RestTicks:             10,
 		StuckLimit:            8,
 		MaxConcurrentProjects: 2,

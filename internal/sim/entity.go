@@ -239,8 +239,9 @@ func distributeBodyParts(maxHP int) [numBodyParts]int {
 	return parts
 }
 
-// JobKind is the task a colonist is currently committed to. It is the single
-// source of truth for behavior; State is just a display projection of it.
+// JobKind is the concrete task executing beneath a colonist's FocusKind. Focus
+// is the goal, Job owns exact targets/progress/claims, and State is the display
+// projection of the work performed this tick.
 type JobKind uint8
 
 const (
@@ -359,6 +360,11 @@ type Entity struct {
 	// LifeEvent remembered (see lifeevents.go and relationships.go).
 	mood int
 
+	// Focus is the colonist's current goal; Job is the concrete executor beneath
+	// it. focusSince supports commitment and later cognition caching.
+	focus      FocusKind
+	focusSince int
+
 	// Memories is a bounded history of notable experiences. The internal slice
 	// is copied into EntityView so frontends cannot mutate the live world.
 	Memories []Memory
@@ -438,7 +444,7 @@ type Entity struct {
 // baseline effective parameters here; assignPersonality later scales them by any
 // traits it rolls.
 func newEntity(id EntityID, kind Kind, p Point, cfg Config) *Entity {
-	e := &Entity{ID: id, Kind: kind, Pos: p, State: Idle, workScale: 1}
+	e := &Entity{ID: id, Kind: kind, Pos: p, State: Idle, workScale: 1, focus: FocusIdle}
 	if kind == Colonist {
 		e.seen = make(map[EntityID]bool)
 	}

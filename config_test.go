@@ -93,6 +93,20 @@ func TestCommittedSettingsFileLoads(t *testing.T) {
 	}
 }
 
+func TestValidateFocusConfig(t *testing.T) {
+	cfg := sim.DefaultConfig()
+	cfg.FocusSwitchMargin = -1
+	if err := validateConfig(cfg); err == nil || !strings.Contains(err.Error(), "focus") {
+		t.Fatalf("negative focus margin error = %v, want focus validation", err)
+	}
+
+	cfg = sim.DefaultConfig()
+	cfg.Focuses[sim.FocusWork].DistanceWeight = -1
+	if err := validateConfig(cfg); err == nil || !strings.Contains(err.Error(), "focus-work-distance-weight") {
+		t.Fatalf("negative work distance error = %v, want focus-work validation", err)
+	}
+}
+
 // The layering the whole feature exists for: file over defaults, flags over
 // file.
 func TestFlagsOverrideTheSettingsFile(t *testing.T) {

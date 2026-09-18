@@ -5,7 +5,7 @@
 ## What it is
 
 Every tunable knob for a run — world size, populations, timing, per-creature stats,
-need specs — lives in one `Config` struct. `DefaultConfig()` is the single source
+need and focus specs — lives in one `Config` struct. `DefaultConfig()` is the single source
 of truth for balance. Each field carries a `cfg` tag naming the knob once; that
 name becomes both its command-line flag and its key in the committed
 [`mars-sim.yaml`](./config-file.md) settings file.
@@ -80,6 +80,12 @@ Need specs are configured as data here too: `Config.Needs` is a `[numNeeds]NeedS
 indexed by `NeedKind`, and its tagged fields become nested settings
 (`needs.food.rise` in the file, `-need-food-rise` on the command line). See
 [needs.md](./needs.md).
+
+Focus arbitration follows the same pattern: `Config.Focuses` is indexed by
+`FocusKind`, producing settings such as `focuses.work.base` and flags such as
+`-focus-work-base`. Global commitment, switch-margin, critical, and fatal
+bonuses are top-level focus settings. See
+[`cascading_wsts_architecture.md`](./cascading_wsts_architecture.md).
 
 ## Related
 

@@ -37,9 +37,11 @@ The four kinds:
 
 `State` (idle, moving, mining, building, eating, relieving, fleeing, hunting,
 feeding, fighting, cleaning, hauling, storing) is a **display projection**
-derived from behavior each tick and surfaced in the UI. `JobKind` (none, mine,
-build, use, talk, clean, store) is the colonist's committed task and the single
-source of truth for its behavior.
+derived from behavior each tick and surfaced in the UI. A colonist's
+`FocusKind` is its weighted, persistent goal (work, a particular need, fight,
+flee, or idle), while `JobKind` is the concrete execution step beneath that
+goal. A hungry colonist building a nutrient pod therefore remains focused on
+eating while its job is building.
 
 > The top-level README predates cats and mice; this doc is the current reference
 > for the creature roster.
@@ -65,7 +67,15 @@ ordered, so runs stay deterministic.
 
 ### Colonist behavior (`colonistTurn`)
 
-Priority order each tick:
+Each turn first applies starvation, observations, and uranium exposure. It then
+generates a fixed set of cheap focus candidates and scores each from configured
+base, need pressure, visible stimuli, commitment, and distance contributions.
+The current eligible focus receives a commitment bonus, and a challenger must
+beat it by the configured switch margin. Ties are deterministic. Candidate
+scoring never claims a target or runs A*; only the winning focus invokes the
+existing job executors.
+
+Execution order and invariants:
 
 1. **Starvation check** — `applyStarvation`; if it just died, release its job
    claims and remove it.
@@ -73,19 +83,21 @@ Priority order each tick:
    before anything below can return): a colonist beside a uranium deposit or
    carrying uranium ore accumulates exposure whatever else it is doing, and a
    full dose rolls for a mutation. See [mutation.md](./mutation.md).
-2. **Survival** — if an alien is within `FleeRadius`: a colonist carrying a
-   pistol or shotgun stands its ground and fights (`fightAlien`) instead;
-   an unarmed one drops its current task and flees. See
-   [combat.md](./combat.md).
-3. **Urgent need preemption** — `mostUrgentNeed` may interrupt the current task,
+2. **Weighted focus arbitration** — visible aliens enable flee and, when armed,
+   fight; pressing needs enable their matching focus; valid work and idle
+   provide the ordinary alternatives. A visible alien's starting stimulus
+   weight dominates even critical hunger. See
+   [cascading_wsts_architecture.md](./cascading_wsts_architecture.md).
+3. **Need-focus execution** — a selected need focus may interrupt the current task,
    unless the task already serves that need: a live conversation (social) or a
    matching `JobUse`/`JobBuild` runs on rather than restarting. If a facility of
    the right kind is reachable, switch to `JobUse` and follow its flow field. Otherwise help with **reachable** facility construction; only
    a *fatal* need with no reachable life-support under construction justifies a
    lone emergency build. If all reachable project tasks are claimed, wait (step
    aside if idling would block) rather than wandering off and losing your place.
-4. **Continue the current job** if one is set (`runJob`).
-5. **Look for work** (`assignWorkJob`): a material load that blocks mining goes
+4. **Continue the focus's current job** if one is set (`runJob`).
+5. **Look for work** (`assignWorkJob`) only after work or idle execution wins:
+   a material load that blocks mining goes
    to reachable storage first, or helps build storage if none is usable.
    Otherwise claim the nearest reachable construction task, clean up refuse,
    or mine the frontier. See [storage.md](./storage.md) and
@@ -177,8 +189,9 @@ so it is safe to call per entity per tick.
 - **`Kind`-dispatched single struct** is the right amount of structure for a
   scaffold: an ECS would be premature complexity while there are four kinds and a
   handful of systems.
-- **`State` vs. `JobKind`** keeps display concerns from leaking into behavior;
-  the UI reads a label, the AI reads the job.
+- **`FocusKind` vs. `JobKind` vs. `State`** separates weighted intent, concrete
+  execution, and display. The AI arbitrates focus, executors own jobs and exact
+  targets, and the UI reads state plus the snapshot's current focus.
 - **Hunger-first turn order** was learned from colonies starving in full rooms;
   fairness of scheduling turned out to matter as much as job selection.
 - **Reachability-gated fallbacks** (build your own life support only when nothing

@@ -203,6 +203,149 @@
 ## colonists served by each life-support facility
 # per-facility: 5
 
+# ── Focus arbitration ───────────────────────────────────────────────────
+
+# focuses:
+#   idle:
+##     baseline score before state contributions
+#     base: 0
+
+##     matching need pressure contribution
+#     need-weight: 0
+
+##     signed response to affect charge
+#     charge-weight: -10
+
+##     signed response to affect grip
+#     grip-weight: 0
+
+##     penalty per cheap distance unit
+#     distance-weight: 0
+
+#   work:
+##     baseline score before state contributions
+#     base: 25
+
+##     matching need pressure contribution
+#     need-weight: 0
+
+##     signed response to affect charge
+#     charge-weight: 20
+
+##     signed response to affect grip
+#     grip-weight: 10
+
+##     penalty per cheap distance unit
+#     distance-weight: 1
+
+#   eat:
+##     baseline score before state contributions
+#     base: 40
+
+##     matching need pressure contribution
+#     need-weight: 100
+
+##     signed response to affect charge
+#     charge-weight: 0
+
+##     signed response to affect grip
+#     grip-weight: 5
+
+##     penalty per cheap distance unit
+#     distance-weight: 1
+
+#   relieve:
+##     baseline score before state contributions
+#     base: 40
+
+##     matching need pressure contribution
+#     need-weight: 100
+
+##     signed response to affect charge
+#     charge-weight: 0
+
+##     signed response to affect grip
+#     grip-weight: 0
+
+##     penalty per cheap distance unit
+#     distance-weight: 1
+
+#   socialize:
+##     baseline score before state contributions
+#     base: 40
+
+##     matching need pressure contribution
+#     need-weight: 100
+
+##     signed response to affect charge
+#     charge-weight: 10
+
+##     signed response to affect grip
+#     grip-weight: 5
+
+##     penalty per cheap distance unit
+#     distance-weight: 1
+
+#   sleep:
+##     baseline score before state contributions
+#     base: 40
+
+##     matching need pressure contribution
+#     need-weight: 100
+
+##     signed response to affect charge
+#     charge-weight: -30
+
+##     signed response to affect grip
+#     grip-weight: 0
+
+##     penalty per cheap distance unit
+#     distance-weight: 1
+
+#   flee:
+##     baseline score before state contributions
+#     base: 0
+
+##     matching need pressure contribution
+#     need-weight: 0
+
+##     signed response to affect charge
+#     charge-weight: 20
+
+##     signed response to affect grip
+#     grip-weight: -40
+
+##     penalty per cheap distance unit
+#     distance-weight: 1
+
+#   fight:
+##     baseline score before state contributions
+#     base: 0
+
+##     matching need pressure contribution
+#     need-weight: 0
+
+##     signed response to affect charge
+#     charge-weight: 20
+
+##     signed response to affect grip
+#     grip-weight: 40
+
+##     penalty per cheap distance unit
+#     distance-weight: 1
+
+## score bonus for continuing the current eligible focus
+# focus-current-bonus: 25
+
+## minimum score lead required to replace an eligible focus
+# focus-switch-margin: 10
+
+## score bonus for a need at its critical boundary
+# focus-critical-bonus: 100
+
+## score bonus for a pressing fatal need
+# focus-fatal-bonus: 150
+
 # ── Work and construction ───────────────────────────────────────────────
 ## ticks an idle colonist rests before re-checking for work
 # rest-ticks: 10

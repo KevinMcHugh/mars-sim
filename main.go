@@ -261,6 +261,20 @@ func validateConfig(cfg sim.Config) error {
 			return fmt.Errorf("need-%s use and grab ticks cannot be negative (got %d and %d)", spec.Name, spec.UseTicks, spec.GrabTicks)
 		}
 	}
+	if cfg.FocusCurrentBonus < 0 || cfg.FocusSwitchMargin < 0 ||
+		cfg.FocusCriticalBonus < 0 || cfg.FocusFatalBonus < 0 {
+		return fmt.Errorf("focus bonuses and switch margin cannot be negative")
+	}
+	for _, spec := range cfg.Focuses {
+		switch {
+		case spec.Name == "":
+			return fmt.Errorf("focus name cannot be empty")
+		case spec.NeedWeight < 0:
+			return fmt.Errorf("focus-%s-need-weight cannot be negative (got %d)", spec.Name, spec.NeedWeight)
+		case spec.DistanceWeight < 0:
+			return fmt.Errorf("focus-%s-distance-weight cannot be negative (got %d)", spec.Name, spec.DistanceWeight)
+		}
+	}
 	return nil
 }
 

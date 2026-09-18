@@ -55,8 +55,7 @@ func Knobs(cfg *Config) []Knob {
 }
 
 // collectKnobs walks a struct value, appending a Knob for every `cfg`-tagged
-// scalar field and recursing into the Needs array (whose element index names
-// the need, so needs.food.rise reads the way a player would say it).
+// scalar field and recursing into named spec arrays.
 func collectKnobs(v reflect.Value, prefix []string, section string, out *[]Knob) {
 	t := v.Type()
 	for i := 0; i < t.NumField(); i++ {
@@ -72,11 +71,10 @@ func collectKnobs(v reflect.Value, prefix []string, section string, out *[]Knob)
 		field := v.Field(i)
 
 		if field.Kind() == reflect.Array {
-			// The only array of specs is Needs, indexed by NeedKind.
 			for n := 0; n < field.Len(); n++ {
 				// Copy the prefix per element: appending to path in a loop
-				// would hand every need the same backing array.
-				elem := append(append([]string{}, path...), NeedKind(n).String())
+				// would hand every spec the same backing array.
+				elem := append(append([]string{}, path...), configArrayElementName(tag, n))
 				collectKnobs(field.Index(n), elem, section, out)
 				section = "" // the section heading belongs to the first knob only
 			}
@@ -95,6 +93,17 @@ func collectKnobs(v reflect.Value, prefix []string, section string, out *[]Knob)
 	}
 }
 
+func configArrayElementName(tag string, index int) string {
+	switch tag {
+	case "needs":
+		return NeedKind(index).String()
+	case "focuses":
+		return FocusKind(index).String()
+	default:
+		panic("unsupported config spec array: " + tag)
+	}
+}
+
 // knobFlagName flattens a config-file path into a command-line flag name.
 // Top-level knobs keep their key verbatim (-colonists); nested ones read as a
 // phrase (-need-food-rise), which is why the prefix is singular.
@@ -104,6 +113,9 @@ func knobFlagName(path []string) string {
 	}
 	if path[0] == "needs" {
 		return "need-" + strings.Join(path[1:], "-")
+	}
+	if path[0] == "focuses" {
+		return "focus-" + strings.Join(path[1:], "-")
 	}
 	return strings.Join(path, "-")
 }
