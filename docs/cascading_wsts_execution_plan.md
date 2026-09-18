@@ -49,7 +49,7 @@ commit/checkpoint per phase. If commits are made, record their hashes.
 
 ## Current status
 
-**Current phase:** Phase 5 — cognition caching and performance
+**Current phase:** Phase 6 — colony tuning
 
 **Overall state:** in progress
 
@@ -66,7 +66,7 @@ commit/checkpoint per phase. If commits are made, record their hashes.
 | 2. Independent need phases | design milestone 2 | done | `54b8946` | Independent phases, exact pressure, and boundary scheduling; all tests pass |
 | 3. Active stimuli | design milestone 3 | done | `26d8453` | Bounded deterministic stimuli integrated with life events and focus; all tests pass |
 | 4. Charge/grip affect | design milestone 4 | done | `32db9f2` | Charge/grip is the sole affect state; vector, trait, decay, label, focus, snapshot, and TUI tests pass |
-| 5. Cognition caching and performance | performance follow-up | in progress | — | Phase 4 comparison rerun at baseline `240813a`; implementation under way |
+| 5. Cognition caching and performance | performance follow-up | done | `ee147ef` | Cached arbitration and idle/sleep fast paths are behaviorally equivalent; active, idle, sleeping, and mixed benchmarks pass |
 | 6. Colony tuning | design milestone 5 | not started | — | — |
 | 7. Final integration review | completion gate | not started | — | — |
 
@@ -578,67 +578,86 @@ entity scheduler merely because it is listed as a possible future optimization.
 
 ### Step A: Cheap cached cognition
 
-- [ ] Add `mindDirty` and `nextThinkTick`.
-- [ ] Centralize `markMindDirty`.
-- [ ] Mark dirty on:
-  - [ ] need phase transition
-  - [ ] salient event/stimulus insertion
-  - [ ] relevant stimulus expiry
-  - [ ] threat appearance/disappearance
-  - [ ] job completion/failure/invalidation
-  - [ ] focus transition
-- [ ] Cache next need phase crossing.
-- [ ] Cache next stimulus expiry.
-- [ ] Reuse aggregate stimulus focus bias.
-- [ ] Separate `chooseFocus` from `runFocus`.
-- [ ] Skip arbitration while focus is valid, not dirty, and before
+- [x] Add `mindDirty` and `nextThinkTick`.
+- [x] Centralize `markMindDirty`.
+- [x] Mark dirty on:
+  - [x] need phase transition
+  - [x] salient event/stimulus insertion
+  - [x] relevant stimulus expiry
+  - [x] threat appearance/disappearance
+  - [x] job completion/failure/invalidation
+  - [x] focus transition
+- [x] Cache next need phase crossing.
+- [x] Cache next stimulus expiry.
+- [x] Reuse aggregate stimulus focus bias.
+- [x] Separate `chooseFocus` from `runFocus`.
+- [x] Skip arbitration while focus is valid, not dirty, and before
   `nextThinkTick`.
-- [ ] Keep a bounded fallback reconsideration deadline.
+- [x] Keep a bounded fallback reconsideration deadline (32 ticks).
 
 ### Step B: Idle and sleeping fast paths
 
-- [ ] Add an O(1), allocation-free fast path for resting idle colonists.
-- [ ] Add an O(1), allocation-free fast path for in-place sleeping.
-- [ ] Preserve immediate checks for:
-  - [ ] live threats
-  - [ ] fatal need deadlines
-  - [ ] job/facility invalidation
-  - [ ] uranium exposure where applicable
-- [ ] Derive timed action progress from start/deadline when safe instead of
-  incrementing cognition state merely to count ticks.
-- [ ] Confirm sleepers remain targetable, observable, and interruptible.
-- [ ] Confirm snapshot state remains correct while cognition is skipped.
+- [x] Add an O(1), allocation-free fast path for resting idle colonists.
+- [x] Add an O(1), allocation-free fast path for in-place sleeping.
+- [x] Preserve immediate checks for:
+  - [x] live threats
+  - [x] fatal need deadlines
+  - [x] job/facility invalidation
+  - [x] uranium exposure where applicable
+- [-] Derive timed action progress from start/deadline when safe instead of
+  incrementing cognition state merely to count ticks — no counter can safely be
+  removed: `Progress` is shared executor state, and sleeping execution still
+  publishes its state and checks completion every tick.
+- [x] Confirm sleepers remain targetable, observable, and interruptible.
+- [x] Confirm snapshot state remains correct while cognition is skipped.
 
 ### Step C: Validity horizon
 
 Implement only if benchmarks justify it.
 
-- [ ] Record winner/runner-up margin after arbitration.
-- [ ] Define and test a conservative maximum relative score drift per tick.
-- [ ] Set a safe `nextThinkTick` from margin/drift.
-- [ ] Cap the horizon at internal deadlines.
-- [ ] External events invalidate the horizon immediately.
-- [ ] Prove with differential tests that cached and always-arbitrate modes choose
-  the same focuses for fixed scenarios.
+- [-] Record winner/runner-up margin after arbitration — A+B already reduced
+  idle/sleeping colonies to 1.43 ms/tick and mixed colonies to 17.60–17.89
+  ms/tick, so the plan's stop gate applies.
+- [-] Define and test a conservative maximum relative score drift per tick — not
+  needed after the A+B result; changing scores instead retain per-tick arbitration.
+- [-] Set a safe `nextThinkTick` from margin/drift — not needed after A+B.
+- [-] Cap the horizon at internal deadlines — no score horizon was introduced;
+  the Step A deadline is already capped by need/stimulus/wake/fallback deadlines.
+- [-] External events invalidate the horizon immediately — no Step C horizon was
+  introduced; all Step A external events still call `markMindDirty` immediately.
+- [-] Prove with differential tests that cached and always-arbitrate modes choose
+  the same focuses for fixed scenarios — no validity horizon was introduced;
+  the independently required A+B differential test does prove cached-decision
+  equivalence over three fixed seeds.
 
 ### Step D: Revision-keyed world caches
 
 Implement only when a profile identifies repeated world feasibility queries.
 
-- [ ] Add narrow revisions for the measured dependency, not one global world
-  revision.
-- [ ] Candidate cache keys include relevant region/position identity.
-- [ ] Facility changes invalidate facility facts only.
-- [ ] Job-board/project changes invalidate work facts only.
-- [ ] Region changes invalidate reachability facts only.
-- [ ] Add stale-cache regression tests.
+- [-] Add narrow revisions for the measured dependency, not one global world
+  revision — the mixed CPU profile found no repeated candidate feasibility query
+  bottleneck (`focusCandidates` 1.6% cumulative); sorting dominated instead.
+- [-] Candidate cache keys include relevant region/position identity — no measured
+  candidate-cache dependency justified a cache.
+- [-] Facility changes invalidate facility facts only — exact `chooseFacility`
+  execution was 8.5% cumulative, not a repeated candidate fact.
+- [-] Job-board/project changes invalidate work facts only — not identified as a
+  profile bottleneck.
+- [-] Region changes invalidate reachability facts only — not identified as a
+  profile bottleneck.
+- [-] Add stale-cache regression tests — no revision-keyed cache was added; direct
+  stale-facility recovery is covered instead.
 
 ### Explicitly deferred unless separately approved
 
-- [ ] `[-]` Push-based perception notifications from every moving entity.
-- [ ] `[-]` A dormant-entity heap or timing wheel.
-- [ ] `[-]` Active-only replacement for global entity turn sorting.
-- [ ] `[-]` A precomputed cartesian product of all mental states.
+- [-] Push-based perception notifications from every moving entity — pre-decided
+  out of scope unless separately approved.
+- [-] A dormant-entity heap or timing wheel — pre-decided out of scope unless
+  separately approved.
+- [-] Active-only replacement for global entity turn sorting — pre-decided out of
+  scope; the Phase 5 profile escalates the dominant sorting cost as I-001 instead.
+- [-] A precomputed cartesian product of all mental states — pre-decided out of
+  scope unless separately approved.
 
 If profiling identifies global turn sorting as the dominant remaining cost,
 record it under [Open issues](#open-issues) and propose a separate scheduler
@@ -647,39 +666,61 @@ approval.
 
 ### Required benchmarks and tests
 
-- [ ] `BenchmarkFocusCandidates` remains `0 allocs/op`.
-- [ ] Add resting-colonist fast-path benchmark.
-- [ ] Add sleeping-colonist fast-path benchmark.
-- [ ] Compare active, idle, and mixed colonies with Phase 0 and Phase 4.
-- [ ] Add differential always-arbitrate versus cached-decision tests.
-- [ ] Add interruption tests for a sleeping colonist.
-- [ ] Add fatal-need deadline test for a sleeping colonist.
-- [ ] Add stale-target/facility invalidation test.
-- [ ] Confirm fixed-seed determinism.
-- [ ] Run a CPU profile if the mixed-colony benchmark is slower than Phase 4.
+- [x] `BenchmarkFocusCandidates` remains `0 allocs/op`.
+- [x] Add resting-colonist fast-path benchmark.
+- [x] Add sleeping-colonist fast-path benchmark.
+- [x] Compare active, idle, and mixed colonies with Phase 0 and Phase 4.
+- [x] Add differential always-arbitrate versus cached-decision tests.
+- [x] Add interruption tests for a sleeping colonist.
+- [x] Add fatal-need deadline test for a sleeping colonist.
+- [x] Add stale-target/facility invalidation test.
+- [x] Confirm fixed-seed determinism.
+- [-] Run a CPU profile if the mixed-colony benchmark is slower than Phase 4 —
+  the measured 17.60–17.89 ms/op was faster than both Phase 4 colony scenarios;
+  a five-second profile was still captured to disposition Step D.
 
 ### Performance results
 
 | Scenario | Baseline | Phase 4 | Phase 5 | Delta vs. Phase 4 | Allocations | Notes |
 | --- | ---: | ---: | ---: | ---: | ---: | --- |
-| focus scoring | pending | pending | pending | pending | pending | |
-| active colony | pending | pending | pending | pending | pending | |
-| established/idle colony | pending | pending | pending | pending | pending | |
-| sleeping colonists | pending | pending | pending | pending | pending | |
-| mixed colony | pending | pending | pending | pending | pending | |
+| focus scoring | n/a (pre-focus) | 122.1–124.6 ns/op | 114.7–118.2 ns/op | -3.2% to -7.9% | 0 B/op, 0 allocs/op | Direct `BenchmarkFocusCandidates` |
+| active colony | 21.904 ms/op | 27.45–27.59 ms/op | 25.17–25.23 ms/op | -8.1% to -8.8% | 2.11 MB/op, 11,712–11,948 allocs/op | `BenchmarkStep500`; still includes active observation and executor work |
+| established/idle colony | 18.357 ms/op | 23.66–23.92 ms/op | 1.428–1.441 ms/op | -93.9% to -94.0% | 4.25 KB/op, 5 allocs/op | 500 resting colonists |
+| sleeping colonists | n/a | n/a | 1.427–1.433 ms/op | n/a | 4.25 KB/op, 5 allocs/op | 500 sleepers; direct fast path 212.6–213.0 ns/op, 0 allocs |
+| mixed colony | n/a | n/a | 17.60–17.89 ms/op | n/a | 1.37–1.38 MB/op, 12,052–12,341 allocs/op | One-third active, resting, and sleeping; faster than Phase 0 active/idle and both Phase 4 scenarios |
 
 ### Phase 5 exit criteria
 
-- [ ] Focus scoring is allocation-free.
-- [ ] Idle and sleeping colonists avoid unnecessary arbitration.
-- [ ] Cached mode is behaviorally equivalent to always-arbitrate mode in
+- [x] Focus scoring is allocation-free.
+- [x] Idle and sleeping colonists avoid unnecessary arbitration.
+- [x] Cached mode is behaviorally equivalent to always-arbitrate mode in
   differential tests.
-- [ ] Threats, fatal needs, and invalidated jobs still interrupt correctly.
-- [ ] Remaining deferred optimizations have evidence-based dispositions.
+- [x] Threats, fatal needs, and invalidated jobs still interrupt correctly.
+- [x] Remaining deferred optimizations have evidence-based dispositions.
 
 ### Phase 5 verification log
 
-- Pending.
+- 2026-09-18, Delta agent: implemented cached cognition and resting/sleeping
+  fast paths at `ee147ef`. Focused cognition, threat interruption, fatal-need,
+  stale-facility, snapshot, and existing deterministic tests pass. `gofmt`,
+  `go build ./...`, `go test ./...`, and `git diff --check` pass on Apple M1 Pro /
+  darwin arm64. Exact comparison command:
+  `go test ./internal/sim -run '^$' -bench '^(BenchmarkFocusCandidates|BenchmarkStimulusUpdate|BenchmarkStep500|BenchmarkStepIdle500|BenchmarkRestingColonistFastPath|BenchmarkSleepingColonistFastPath|BenchmarkStepSleeping500|BenchmarkStepMixed500)$' -benchmem -count=3`.
+  Active measured 25.17–25.23 ms/op, idle 1.428–1.441 ms/op, sleeping
+  1.427–1.433 ms/op, mixed 17.60–17.89 ms/op, and both direct fast paths
+  212.6–213.0 ns/op with zero allocations. Focus scoring remained
+  114.7–118.2 ns/op with zero allocations. Incrementally maintaining the focus
+  bias moved `BenchmarkStimulusUpdate` from Phase 4's 22.24–22.28 ns/op to
+  50.06–50.10 ns/op, still bounded and allocation-free; events are rare while
+  arbitration reads the aggregate directly.
+- 2026-09-18, Delta agent: although the mixed benchmark did not cross the
+  regression threshold, Step D was dispositioned with
+  `go test ./internal/sim -run '^$' -bench '^BenchmarkStepMixed500$' -benchtime=5s -cpuprofile=<temp>/phase5-mixed.cpu`
+  and `go tool pprof -top`. The profile attributed 63.8% cumulative CPU to
+  observation's global ID sorting, 1.6% to `focusCandidates`, and 8.5% to exact
+  executor-time `chooseFacility`; it did not justify revision-keyed candidate
+  caches. The dominant sorting cost is recorded as I-001 and deliberately not
+  addressed by an unapproved scheduler.
 
 ## Phase 6 — Colony tuning
 
@@ -811,9 +852,7 @@ its resolution; do not delete history.
 
 | ID | Phase found | Severity | Status | Issue | Owner | Resolution/follow-up |
 | --- | --- | --- | --- | --- | --- | --- |
-| I-001 | — | — | — | _none recorded_ | — | — |
-
-Delete the placeholder row when recording the first real issue.
+| I-001 | 5 | performance | open | Mixed-colony profiling attributes 63.8% cumulative CPU to global entity-ID collection/sorting under `observeNearby`; replacing global turn/perception sorting crosses into scheduler/perception architecture. | Phase 6/7 owner | Propose and approve a separate deterministic active-entity/perception design; Phase 5 must not fold in the explicitly deferred scheduler. |
 
 ## Change log
 
@@ -826,6 +865,7 @@ Record material updates to this plan, not every checkbox.
 | Phase 2 / 2026-09-17 | Delta agent | Added independent need phases, normalized pressure, boundary scheduling, configuration, tests, and documentation. |
 | Phase 3 / 2026-09-18 | Delta agent | Added bounded active stimuli, life-event integration, ongoing threat refresh, deterministic expiry/eviction, focus scoring, tests, documentation, and profiling evidence. |
 | Phase 4 / 2026-09-18 | Delta agent | Replaced scalar mood with charge/grip vectors, trait appraisal, decay, cached contextual labels, additive focus terms, snapshot/TUI exposure, configuration, tests, documentation, and benchmark/profile evidence. |
+| Phase 5 / 2026-09-18 | Delta agent | Added deadline/dirty-triggered cognition caching, cached stimulus aggregates, allocation-free idle/sleep fast paths, differential and interruption coverage, benchmark comparisons, and profile-based dispositions for later optimizations. |
 
 ## Related
 
