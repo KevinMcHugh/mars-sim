@@ -49,7 +49,7 @@ commit/checkpoint per phase. If commits are made, record their hashes.
 
 ## Current status
 
-**Current phase:** Phase 1 — weighted focus
+**Current phase:** Phase 2 — independent need phases
 
 **Overall state:** in progress
 
@@ -62,7 +62,7 @@ commit/checkpoint per phase. If commits are made, record their hashes.
 | Phase | Design mapping | State | Commit/checkpoint | Verification summary |
 | --- | --- | --- | --- | --- |
 | 0. Baseline and code map | prerequisite | done | `c8c1cd5` | Build/tests pass; full benchmark suite and idle baseline recorded |
-| 1. Weighted focus | design milestone 1 | not started | — | — |
+| 1. Weighted focus | design milestone 1 | done | `0409ac2` | Deterministic weighted arbitration over existing executors; all tests pass |
 | 2. Independent need phases | design milestone 2 | not started | — | — |
 | 3. Active stimuli | design milestone 3 | not started | — | — |
 | 4. Charge/grip affect | design milestone 4 | not started | — | — |
@@ -224,99 +224,103 @@ without yet changing need storage or scalar mood.
 
 ### Implementation tasks
 
-- [ ] Add `internal/sim/focus.go`.
-- [ ] Define `FocusKind` and stable `String` values.
-- [ ] Define `FocusSpec`, `FocusScore`, and `FocusCandidate`.
-- [ ] Add `focus` and `focusSince` to colonists.
-- [ ] Initialize colonists to a valid focus.
-- [ ] Add `Config.Focuses` and global commitment/switch settings.
-- [ ] Extend config traversal to name both `Needs` and `Focuses` arrays by their
+- [x] Add `internal/sim/focus.go`.
+- [x] Define `FocusKind` and stable `String` values.
+- [x] Define `FocusSpec`, `FocusScore`, and `FocusCandidate`.
+- [x] Add `focus` and `focusSince` to colonists.
+- [x] Initialize colonists to a valid focus.
+- [x] Add `Config.Focuses` and global commitment/switch settings.
+- [x] Extend config traversal to name both `Needs` and `Focuses` arrays by their
   enums instead of assuming `Needs` is the only spec array.
-- [ ] Add config validation and default values from the design.
-- [ ] Add generated config/flag tests for every focus.
-- [ ] Regenerate `mars-sim.yaml`, preserving intentional committed overrides.
-- [ ] Implement allocation-free candidate generation.
-- [ ] Query each shared fact at most once per arbitration:
-  - [ ] visible threat
-  - [ ] current need levels
-  - [ ] current job validity
-  - [ ] cheap facility/flow-field distance where relevant
-- [ ] Give a currently visible alien the final `EvtSawAlien` flee/fight score
+- [x] Add config validation and default values from the design.
+- [x] Add generated config/flag tests for every focus.
+- [x] Regenerate `mars-sim.yaml`, preserving intentional committed overrides.
+- [x] Implement allocation-free candidate generation.
+- [x] Query each shared fact at most once per arbitration:
+  - [x] visible threat
+  - [x] current need levels
+  - [x] current job validity
+  - [-] cheap facility/flow-field distance where relevant (D-001)
+- [x] Give a currently visible alien the final `EvtSawAlien` flee/fight score
   contribution directly, without storing the Phase 3 stimulus buffer yet.
   Phase 3 must route this through refreshed stimulus state without double
   counting it.
-- [ ] Implement additive score components and `Total`.
-- [ ] Implement current-focus commitment.
-- [ ] Implement strict switch margin.
-- [ ] Implement deterministic tie ordering.
-- [ ] Implement hard eligibility separately from weights.
-- [ ] Implement a stable debug formatter for candidate breakdowns.
-- [ ] Refactor `colonistTurn` to:
-  - [ ] preserve starvation/removal ordering
-  - [ ] preserve observation and uranium behavior
-  - [ ] arbitrate focus
-  - [ ] transition focus through `clearJob`
-  - [ ] run the existing executor
-- [ ] Map need-focused facility construction to the originating need focus.
-- [ ] Preserve live-conversation progress.
-- [ ] Preserve portable-food progress and starvation grace.
-- [ ] Preserve idle step-aside, opportunistic talk, and pest behavior under
+- [x] Implement additive score components and `Total`.
+- [x] Implement current-focus commitment.
+- [x] Implement strict switch margin.
+- [x] Implement deterministic tie ordering.
+- [x] Implement hard eligibility separately from weights.
+- [x] Implement a stable debug formatter for candidate breakdowns.
+- [x] Refactor `colonistTurn` to:
+  - [x] preserve starvation/removal ordering
+  - [x] preserve observation and uranium behavior
+  - [x] arbitrate focus
+  - [x] transition focus through `clearJob`
+  - [x] run the existing executor
+- [x] Map need-focused facility construction to the originating need focus.
+- [x] Preserve live-conversation progress.
+- [x] Preserve portable-food progress and starvation grace.
+- [x] Preserve idle step-aside, opportunistic talk, and pest behavior under
   `FocusIdle`.
-- [ ] Keep scalar mood temporarily and confirm it does not affect focus scores.
-- [ ] Expose current focus through snapshots without removing display `State`.
+- [x] Keep scalar mood temporarily and confirm it does not affect focus scores.
+- [x] Expose current focus through snapshots without removing display `State`.
 
 ### Required tests
 
-- [ ] Score components sum exactly to total.
-- [ ] Current focus receives commitment only while eligible.
-- [ ] Challenger must exceed current focus by the strict margin.
-- [ ] Equal scores resolve deterministically.
-- [ ] Ineligible candidates cannot win.
-- [ ] Fatal urgent food beats urgent non-fatal needs.
-- [ ] Starting threat weights beat critical hunger.
-- [ ] Armed threat response can select fight; unarmed cannot.
-- [ ] Lower grip/high grip tests are deferred until Phase 4 and marked TODO
+- [x] Score components sum exactly to total.
+- [x] Current focus receives commitment only while eligible.
+- [x] Challenger must exceed current focus by the strict margin.
+- [x] Equal scores resolve deterministically.
+- [x] Ineligible candidates cannot win.
+- [x] Fatal urgent food beats urgent non-fatal needs.
+- [x] Starting threat weights beat critical hunger.
+- [x] Armed threat response can select fight; unarmed cannot.
+- [x] Lower grip/high grip tests are deferred until Phase 4 and marked TODO
   without being skipped failures.
-- [ ] Existing mutually urgent conversation test passes.
-- [ ] Existing portable-food tests pass.
-- [ ] Existing starvation/facility fallback tests pass.
-- [ ] Job/project claims are released on focus transition.
-- [ ] Fixed-seed outcomes are deterministic across repeated runs.
+- [x] Existing mutually urgent conversation test passes.
+- [x] Existing portable-food tests pass.
+- [x] Existing starvation/facility fallback tests pass.
+- [x] Job/project claims are released on focus transition.
+- [x] Fixed-seed outcomes are deterministic across repeated runs.
 
 ### Performance tasks
 
-- [ ] Add `BenchmarkFocusCandidates` or an equivalent direct benchmark.
-- [ ] Report allocations.
-- [ ] Use fixed-size/caller-owned candidate storage in the simulation hot path.
-- [ ] Confirm score explanation formatting is not called in the normal hot path.
-- [ ] Confirm candidate scoring performs no A*, full-map scan, or target claim.
-- [ ] Compare representative simulation benchmarks with Phase 0.
-- [ ] If steady-state CPU regresses by more than 10%, profile before proceeding
+- [x] Add `BenchmarkFocusCandidates` or an equivalent direct benchmark.
+- [x] Report allocations.
+- [x] Use fixed-size/caller-owned candidate storage in the simulation hot path.
+- [x] Confirm score explanation formatting is not called in the normal hot path.
+- [x] Confirm candidate scoring performs no A*, full-map scan, or target claim.
+- [x] Compare representative simulation benchmarks with Phase 0.
+- [x] If steady-state CPU regresses by more than 10%, profile before proceeding
   and record the cause. Do not hide the regression with an arbitrary cadence.
-- [ ] `BenchmarkFocusCandidates` reports `0 allocs/op`.
+- [x] `BenchmarkFocusCandidates` reports `0 allocs/op`.
 
 ### Phase 1 evidence
 
 | Evidence | Result | Notes |
 | --- | --- | --- |
-| focused tests | pending | |
-| `go build ./...` | pending | |
-| `go test ./...` | pending | |
-| `BenchmarkFocusCandidates` | pending | record ns/op, B/op, allocs/op |
-| simulation comparison | pending | baseline versus current |
-| generated config diff reviewed | pending | |
+| focused tests | pass | Focus arithmetic, eligibility, margins, ties, needs, threats, claim release, snapshots, and config names |
+| `go build ./...` | pass | 2026-09-17 |
+| `go test ./...` | pass | All four packages |
+| `BenchmarkFocusCandidates` | 47.98 ns/op, 0 B/op, 0 allocs/op | Urgent-need candidate included |
+| simulation comparison | `BenchmarkStep500` 21,723,804 ns/op; idle 18,480,421 ns/op | Versus Phase 0: -0.82% active, +0.67% idle; below profiling threshold |
+| generated config diff reviewed | pass | Added all focus specs as commented defaults; no committed overrides existed |
 
 ### Phase 1 exit criteria
 
-- [ ] Existing jobs execute behind `FocusKind`.
-- [ ] No duplicated priority ladder remains behaviorally active.
-- [ ] Candidate scores are inspectable and allocation-free.
-- [ ] Existing safety, needs, claims, and conversations remain correct.
-- [ ] Required configuration and documentation are current.
+- [x] Existing jobs execute behind `FocusKind`.
+- [x] No duplicated priority ladder remains behaviorally active.
+- [x] Candidate scores are inspectable and allocation-free.
+- [x] Existing safety, needs, claims, and conversations remain correct.
+- [x] Required configuration and documentation are current.
 
 ### Phase 1 verification log
 
-- Pending.
+- 2026-09-17, Delta agent: implemented weighted focus arbitration at
+  `0409ac2`. `go build ./...`, `go test ./...`, `git diff --check`, focused
+  benchmarks, existing fixed-seed tests, long-running colony tests, and TUI
+  tests pass. Active and idle CPU stayed within 1% of Phase 0; direct candidate
+  generation is allocation-free.
 
 ## Phase 2 — Independent need phases
 
@@ -776,9 +780,7 @@ design. A deviation is not approved merely because it is recorded. Mark it
 
 | ID | Phase | Status | Decision or deviation | Reason/evidence | Approved by | Resulting work |
 | --- | --- | --- | --- | --- | --- | --- |
-| D-001 | — | — | _example: retain scalar snapshot field for one phase_ | _why_ | _name_ | _follow-up_ |
-
-Delete the example row when recording the first real entry.
+| D-001 | 1 | approved | Do not read facility flow fields while scoring Phase 1 need candidates. | A field can refresh and allocate; exact facility selection already belongs to the winning executor, and the fixed design makes distance optional. | Fixed design, Distance section | Keep the `Distance` component and configured weights; add measured cached facility facts only if later profiling justifies them. |
 
 ## Open issues
 
@@ -798,6 +800,7 @@ Record material updates to this plan, not every checkbox.
 | Phase/date | Author | Change |
 | --- | --- | --- |
 | initial | Delta agent | Created phased implementation, verification, and performance plan. |
+| Phase 1 / 2026-09-17 | Delta agent | Completed weighted focus arbitration, configuration, tests, documentation, and baseline comparison. |
 
 ## Related
 

@@ -123,6 +123,9 @@ func TestArmedThreatCanFightAndUnarmedCannot(t *testing.T) {
 	}
 }
 
+// TODO(phase4): pin low-grip flee and high-grip fight ordering once
+// charge/grip affect contributes to focus scores.
+
 func TestFocusTransitionReleasesMineClaim(t *testing.T) {
 	w, c := focusTestColonist(t)
 	target := c.Pos.Add(1, 0)
