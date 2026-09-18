@@ -143,18 +143,6 @@ func workJob(job JobKind) bool {
 	}
 }
 
-// needPressureBeforePhases is Phase 1's temporary urgency projection. Phase 2
-// replaces it with the documented NeedPhase/CriticalAt normalization.
-func needPressureBeforePhases(level int, spec NeedSpec) int {
-	if level < spec.SeekAt {
-		return 0
-	}
-	if level >= spec.Max {
-		return 100
-	}
-	return clampInt(1+99*(level-spec.SeekAt)/atLeast1(spec.Max-spec.SeekAt), 1, 100)
-}
-
 // focusCandidates fills caller-owned storage so normal arbitration allocates
 // nothing. Shared facts (the visible threat and each lazy need level) are read
 // once per call.
@@ -171,17 +159,20 @@ func (w *World) focusCandidates(e *Entity, out *[numFocusKinds]FocusCandidate) {
 
 	fatalPressing := false
 	for n := NeedKind(0); n < numNeeds; n++ {
+		level := w.needLevel(e, n)
+		w.syncNeedPhaseAtLevel(e, n, level)
 		spec := w.cfg.Needs[n]
-		pressure := needPressureBeforePhases(w.needLevel(e, n), spec)
-		if pressure == 0 {
+		phase := e.needPhase[n]
+		if phase != NeedPressing && phase != NeedCritical {
 			continue
 		}
+		pressure := needPressure(level, spec)
 		f := focusForNeed(n)
 		c := &out[f]
 		c.Need = n
 		c.Eligible = true
 		c.Score.Need = pressure * w.cfg.Focuses[f].NeedWeight / 100
-		if pressure == 100 {
+		if phase == NeedCritical {
 			c.Score.Need += w.cfg.FocusCriticalBonus
 		}
 		if spec.Fatal {

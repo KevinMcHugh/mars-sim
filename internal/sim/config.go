@@ -317,7 +317,7 @@ func DefaultConfig() Config {
 		FrontierFieldMinArea:      90000, // ~300x300 and up
 		Needs: [numNeeds]NeedSpec{
 			NeedFood: {
-				Name: "food", Rise: 2, SeekAt: 650, Max: 1000,
+				Name: "food", Rise: 2, SeekAt: 650, CriticalAt: 1000, Max: 1000,
 				Facility: NutrientPod, UseTicks: 18, Fatal: true,
 				// A colonist grabs a portion in 3 ticks and eats it away from
 				// the pod, instead of occupying its one access tile for the
@@ -325,18 +325,18 @@ func DefaultConfig() Config {
 				GrabTicks: 3,
 			},
 			NeedBladder: {
-				Name: "bladder", Rise: 3, SeekAt: 600, Max: 1000,
+				Name: "bladder", Rise: 3, SeekAt: 600, CriticalAt: 900, Max: 1000,
 				Facility: Toilet, UseTicks: 10, Fatal: false,
 			},
 			NeedSocial: {
-				Name: "social", Rise: 2, SeekAt: 500, Max: 1000,
+				Name: "social", Rise: 2, SeekAt: 500, CriticalAt: 850, Max: 1000,
 				Facility: Rock, UseTicks: 0, Fatal: false,
 			},
 			NeedSleep: {
 				// Sleep builds slowly and, once sought, takes a long lie-down to
 				// clear. Non-fatal like bladder: a colonist with no bunk waits
 				// rather than dying.
-				Name: "sleep", Rise: 1, SeekAt: 700, Max: 1000,
+				Name: "sleep", Rise: 1, SeekAt: 700, CriticalAt: 900, Max: 1000,
 				Facility: Bed, UseTicks: 40, Fatal: false,
 			},
 		},

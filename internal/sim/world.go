@@ -725,6 +725,11 @@ func (w *World) spawn(kind Kind, p Point) *Entity {
 		if w.assignKin(e) {    // family tree node + any tie to an existing colonist
 			w.inheritFamily(e) // the surname, looks, and warmth that come with it
 		}
+		// Personality resolves the effective rise rates, so initialize phases and
+		// their next-boundary ticks only after that resolution is complete.
+		for n := NeedKind(0); n < numNeeds; n++ {
+			w.syncNeedPhase(e, n)
+		}
 	}
 	if kind == Mouse {
 		e.sex = w.rollMouseSex() // decides which mice can carry a litter

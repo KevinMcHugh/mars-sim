@@ -255,8 +255,9 @@ func validateConfig(cfg sim.Config) error {
 			return fmt.Errorf("need-%s-max must be at least 1 (got %d)", spec.Name, spec.Max)
 		case spec.Rise < 0:
 			return fmt.Errorf("need-%s-rise cannot be negative (got %d)", spec.Name, spec.Rise)
-		case spec.SeekAt < 0 || spec.SeekAt > spec.Max:
-			return fmt.Errorf("need-%s-seek-at must be between 0 and need-%s-max (got %d, max %d)", spec.Name, spec.Name, spec.SeekAt, spec.Max)
+		case spec.SeekAt < 0 || spec.SeekAt > spec.CriticalAt || spec.CriticalAt > spec.Max:
+			return fmt.Errorf("need-%s thresholds must satisfy 0 <= seek-at <= critical-at <= max (got %d, %d, %d)",
+				spec.Name, spec.SeekAt, spec.CriticalAt, spec.Max)
 		case spec.UseTicks < 0 || spec.GrabTicks < 0:
 			return fmt.Errorf("need-%s use and grab ticks cannot be negative (got %d and %d)", spec.Name, spec.UseTicks, spec.GrabTicks)
 		}

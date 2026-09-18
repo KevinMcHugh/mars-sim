@@ -128,6 +128,9 @@
 ##     level at which the colonist drops work to satisfy it
 #     seek-at: 650
 
+##     level at which the need becomes critical
+#     critical-at: 1000
+
 ##     ceiling; a fatal need sitting here drains HP
 #     max: 1000
 
@@ -146,6 +149,9 @@
 
 ##     level at which the colonist drops work to satisfy it
 #     seek-at: 600
+
+##     level at which the need becomes critical
+#     critical-at: 900
 
 ##     ceiling; a fatal need sitting here drains HP
 #     max: 1000
@@ -166,6 +172,9 @@
 ##     level at which the colonist drops work to satisfy it
 #     seek-at: 500
 
+##     level at which the need becomes critical
+#     critical-at: 850
+
 ##     ceiling; a fatal need sitting here drains HP
 #     max: 1000
 
@@ -184,6 +193,9 @@
 
 ##     level at which the colonist drops work to satisfy it
 #     seek-at: 700
+
+##     level at which the need becomes critical
+#     critical-at: 900
 
 ##     ceiling; a fatal need sitting here drains HP
 #     max: 1000

@@ -107,6 +107,19 @@ func TestValidateFocusConfig(t *testing.T) {
 	}
 }
 
+func TestValidateNeedCriticalThreshold(t *testing.T) {
+	for _, alter := range []func(*sim.NeedSpec){
+		func(spec *sim.NeedSpec) { spec.CriticalAt = spec.SeekAt - 1 },
+		func(spec *sim.NeedSpec) { spec.CriticalAt = spec.Max + 1 },
+	} {
+		cfg := sim.DefaultConfig()
+		alter(&cfg.Needs[sim.NeedFood])
+		if err := validateConfig(cfg); err == nil || !strings.Contains(err.Error(), "critical-at") {
+			t.Fatalf("invalid critical threshold error = %v, want critical-at validation", err)
+		}
+	}
+}
+
 // The layering the whole feature exists for: file over defaults, flags over
 // file.
 func TestFlagsOverrideTheSettingsFile(t *testing.T) {

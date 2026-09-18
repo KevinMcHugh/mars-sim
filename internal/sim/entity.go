@@ -329,8 +329,10 @@ type Entity struct {
 	// needLevel). Storing a base + timestamp instead of ticking every colonist
 	// every tick lets idle colonists rest without their needs drifting out of
 	// date. Used by colonists (all needs) and mice (food only).
-	Needs     [numNeeds]int
-	needSince [numNeeds]int
+	Needs             [numNeeds]int
+	needSince         [numNeeds]int
+	needPhase         [numNeeds]NeedPhase
+	nextNeedPhaseTick [numNeeds]int
 	// starvationDamage tracks HP lost to each fatal need separately from wounds.
 	// Satisfying that need restores its own deprivation damage without healing
 	// unrelated injuries such as alien bites.
