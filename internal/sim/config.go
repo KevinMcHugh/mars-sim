@@ -267,7 +267,16 @@ func DefaultConfig() Config {
 			FocusSocialize: {Name: "socialize", Base: 40, NeedWeight: 100, ChargeWeight: 10, GripWeight: 5, DistanceWeight: 1},
 			FocusSleep:     {Name: "sleep", Base: 40, NeedWeight: 100, ChargeWeight: -30, GripWeight: 0, DistanceWeight: 1},
 			FocusFlee:      {Name: "flee", Base: 0, NeedWeight: 0, ChargeWeight: 20, GripWeight: -40, DistanceWeight: 1},
-			FocusFight:     {Name: "fight", Base: 0, NeedWeight: 0, ChargeWeight: 20, GripWeight: 40, DistanceWeight: 1},
+			// FocusFight carries a positive base so an armed colonist's default
+			// posture is to stand and fight: the one-time grip hit from merely
+			// *seeing* an alien (EvtSawAlien, -10 grip) must not by itself out-vote
+			// that posture, or every armed colonist flees on first sight and the
+			// switch hysteresis (FocusCurrentBonus+FocusSwitchMargin) then locks
+			// them into fleeing even as grip decays back toward neutral. Genuinely
+			// frightening events (being bitten, watching a colonist killed) still
+			// carry enough grip penalty to tip an armed colonist toward flight. See
+			// D-002 in docs/cascading_wsts_execution_plan.md.
+			FocusFight: {Name: "fight", Base: 15, NeedWeight: 0, ChargeWeight: 20, GripWeight: 40, DistanceWeight: 1},
 		},
 		FocusCurrentBonus:     25,
 		FocusSwitchMargin:     10,

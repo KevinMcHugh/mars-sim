@@ -332,7 +332,7 @@
 
 #   fight:
 ##     baseline score before state contributions
-#     base: 0
+#     base: 15
 
 ##     matching need pressure contribution
 #     need-weight: 0

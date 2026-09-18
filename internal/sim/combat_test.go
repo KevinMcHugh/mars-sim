@@ -35,6 +35,35 @@ func TestArmedColonistKillsAlien(t *testing.T) {
 	}
 }
 
+// An armed colonist starting from neutral affect (no cheated grip) must
+// still stand and fight a fresh alien encounter rather than flee it forever.
+// This pins the regression found during Phase 4/5 playtesting: the one-time
+// grip hit from merely *seeing* an alien (EvtSawAlien) used to outweigh the
+// armed-colonist fight posture, and the focus switch hysteresis then locked
+// colonists into fleeing even after grip decayed back toward neutral,
+// leaving aliens never fought. See D-002 in
+// docs/cascading_wsts_execution_plan.md.
+func TestArmedColonistFightsFromNeutralAffect(t *testing.T) {
+	cfg := testConfig()
+	cfg.StartColonists, cfg.StartAliens, cfg.StartCats, cfg.StartMice = 0, 0, 0, 0
+	w := newTestWorld(t, cfg)
+
+	center := Point{w.Width / 2, w.Height / 2}
+	colonist := w.spawn(Colonist, center)
+	colonist.Inventory.Add(Shotgun, 1)
+	alien := w.spawn(Alien, center.Add(cfg.ShotgunRange+2, 0))
+
+	for i := 0; i < 300 && w.entities[alien.ID] != nil && w.entities[colonist.ID] != nil; i++ {
+		w.step()
+	}
+	if w.entities[colonist.ID] == nil {
+		t.Fatal("armed colonist died fleeing an alien it should have fought")
+	}
+	if w.entities[alien.ID] != nil {
+		t.Fatal("armed colonist starting from neutral affect never fought off the alien")
+	}
+}
+
 // Without a weapon, a colonist should still flee an alien rather than engage
 // it — arming the colony ship must not change unarmed behavior.
 func TestUnarmedColonistStillFlees(t *testing.T) {

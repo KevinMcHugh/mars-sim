@@ -744,7 +744,9 @@ new system sustains useful colony behavior over long fixed-seed runs.
   - [ ] work/mining
   - [ ] facility construction
   - [ ] storage/cleaning
-  - [ ] alien fight/flee
+  - [ ] alien fight/flee (note: D-002 already fixed the specific never-fights
+    regression by raising `FocusFight.Base`; this pass still owns broader
+    fight/flee/threat balance)
   - [ ] post-threat resumption
 - [ ] Measure short-window A-B-A focus switches.
 - [ ] Inspect candidate explanations for surprising transitions.
@@ -844,6 +846,7 @@ design. A deviation is not approved merely because it is recorded. Mark it
 | ID | Phase | Status | Decision or deviation | Reason/evidence | Approved by | Resulting work |
 | --- | --- | --- | --- | --- | --- | --- |
 | D-001 | 1 | approved | Do not read facility flow fields while scoring Phase 1 need candidates. | A field can refresh and allocate; exact facility selection already belongs to the winning executor, and the fixed design makes distance optional. | Fixed design, Distance section | Keep the `Distance` component and configured weights; add measured cached facility facts only if later profiling justifies them. |
+| D-002 | 4/5 | approved | Raised `FocusFight`'s default `Base` from 0 to 15; all other Phase 4 defaults are unchanged. | Playtesting after Phase 5 found armed colonists never fought aliens: the one-time grip hit from merely *seeing* an alien (`EvtSawAlien`, -10 grip) already outscored the armed-colonist fight/flee tiebreak (a 1-point distance nudge), so colonists fled on first sight. The switch hysteresis (`FocusCurrentBonus`+`FocusSwitchMargin`, 35 points) then locked them into fleeing even as grip decayed back toward neutral, since decay alone can only recover the original ~8-point swing. Reproduced directly: an armed colonist facing one alien from neutral affect fled for the entire encounter and died. A `+15` fight base restores the pre-Phase4 default posture (armed colonists stand and fight on a fresh sighting) while leaving larger fear events (being bitten, witnessing a colonist killed) able to still tip an armed colonist toward flight, and does not change the pinned low-grip/high-grip ordering tests, which use extreme grip values. | ngcruess | Bumped `FocusFight.Base` in `DefaultConfig`, regenerated `mars-sim.yaml`, added `TestArmedColonistFightsFromNeutralAffect` (internal/sim/combat_test.go) pinning the neutral-affect case. Phase 6's full tuning pass still owns broader fight/flee/threat-resumption tuning; this decision only fixes the specific regression. |
 
 ## Open issues
 
@@ -866,6 +869,7 @@ Record material updates to this plan, not every checkbox.
 | Phase 3 / 2026-09-18 | Delta agent | Added bounded active stimuli, life-event integration, ongoing threat refresh, deterministic expiry/eviction, focus scoring, tests, documentation, and profiling evidence. |
 | Phase 4 / 2026-09-18 | Delta agent | Replaced scalar mood with charge/grip vectors, trait appraisal, decay, cached contextual labels, additive focus terms, snapshot/TUI exposure, configuration, tests, documentation, and benchmark/profile evidence. |
 | Phase 5 / 2026-09-18 | Delta agent | Added deadline/dirty-triggered cognition caching, cached stimulus aggregates, allocation-free idle/sleep fast paths, differential and interruption coverage, benchmark comparisons, and profile-based dispositions for later optimizations. |
+| Post-Phase 5 / 2026-09-18 | Delta agent | Fixed a combat regression found in playtesting (see D-002): armed colonists never fought aliens because the sighting-triggered grip drop plus focus switch hysteresis locked them into fleeing. Raised `FocusFight.Base` from 0 to 15, regenerated `mars-sim.yaml`, and added a neutral-affect regression test. |
 
 ## Related
 
