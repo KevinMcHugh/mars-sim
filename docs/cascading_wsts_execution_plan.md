@@ -49,13 +49,13 @@ commit/checkpoint per phase. If commits are made, record their hashes.
 
 ## Current status
 
-**Current phase:** Phase 4 — charge/grip affect
+**Current phase:** Phase 5 — cognition caching and performance
 
 **Overall state:** in progress
 
 **Implementation branch:** `cascading-wsts-implementation`
 
-**Baseline commit:** `c67068b`
+**Baseline commit:** `32db9f2`
 
 **Last updated by:** Delta agent, 2026-09-18
 
@@ -65,7 +65,7 @@ commit/checkpoint per phase. If commits are made, record their hashes.
 | 1. Weighted focus | design milestone 1 | done | `0409ac2` | Deterministic weighted arbitration over existing executors; all tests pass |
 | 2. Independent need phases | design milestone 2 | done | `54b8946` | Independent phases, exact pressure, and boundary scheduling; all tests pass |
 | 3. Active stimuli | design milestone 3 | done | `26d8453` | Bounded deterministic stimuli integrated with life events and focus; all tests pass |
-| 4. Charge/grip affect | design milestone 4 | not started | — | — |
+| 4. Charge/grip affect | design milestone 4 | done | `32db9f2` | Charge/grip is the sole affect state; vector, trait, decay, label, focus, snapshot, and TUI tests pass |
 | 5. Cognition caching and performance | performance follow-up | not started | — | — |
 | 6. Colony tuning | design milestone 5 | not started | — | — |
 | 7. Final integration review | completion gate | not started | — | — |
@@ -472,85 +472,97 @@ trait transforms, decay, contextual labels, and focus contributions.
 
 ### Migration tasks
 
-- [ ] Inventory scalar mood producers and consumers again immediately before
+- [x] Inventory scalar mood producers and consumers again immediately before
   migration.
-- [ ] Add `internal/sim/affect.go`.
-- [ ] Add `AffectState`, `MoodVector`, `MoodKind`, and attractor specs.
-- [ ] Add the complete event-vector table from the design.
-- [ ] Implement vector addition and clamping.
-- [ ] Implement deterministic conversation outcome conversion.
-- [ ] Implement trait transforms:
-  - [ ] Tidy gore amplification
-  - [ ] Tidy incineration relief
-  - [ ] Industrious finished-work amplification
-  - [ ] Mutant-Lover grip reflection
-  - [ ] Introvert charge reflection
-- [ ] Implement deterministic cartesian decay toward home.
-- [ ] Implement contextual valence for display naming only.
-- [ ] Implement attractor claims and deterministic ties.
-- [ ] Implement label hysteresis.
-- [ ] Add charge/grip score contributions to focus arbitration.
-- [ ] Keep label strings out of behavioral branches.
-- [ ] Migrate life-event scalar effects to vectors.
-- [ ] Preserve computed per-occurrence conversation effects.
-- [ ] Delete scalar mood storage and adjustment helpers.
-- [ ] Delete or migrate scalar mood config fields that no longer have meaning.
-- [ ] Update snapshots with charge, grip, and mood label.
-- [ ] Update roster rendering without increasing required roster height.
-- [ ] Update [`memories.md`](./memories.md),
+- [x] Add `internal/sim/affect.go`.
+- [x] Add `AffectState`, `MoodVector`, `MoodKind`, and attractor specs.
+- [x] Add the complete event-vector table from the design.
+- [x] Implement vector addition and clamping.
+- [x] Implement deterministic conversation outcome conversion.
+- [x] Implement trait transforms:
+  - [x] Tidy gore amplification
+  - [x] Tidy incineration relief
+  - [x] Industrious finished-work amplification
+  - [x] Mutant-Lover grip reflection
+  - [x] Introvert charge reflection
+- [x] Implement deterministic cartesian decay toward home.
+- [x] Implement contextual valence for display naming only.
+- [x] Implement attractor claims and deterministic ties.
+- [x] Implement label hysteresis.
+- [x] Add charge/grip score contributions to focus arbitration.
+- [x] Keep label strings out of behavioral branches.
+- [x] Migrate life-event scalar effects to vectors.
+- [x] Preserve computed per-occurrence conversation effects.
+- [x] Delete scalar mood storage and adjustment helpers.
+- [x] Delete or migrate scalar mood config fields that no longer have meaning.
+- [x] Update snapshots with charge, grip, and mood label.
+- [x] Update roster rendering without increasing required roster height.
+- [x] Update [`memories.md`](./memories.md),
   [`personality.md`](./personality.md), and other affected docs.
 
 ### Required tests
 
-- [ ] Every non-zero event-vector row is covered by table or behavior tests.
-- [ ] Vector addition clamps both axes.
-- [ ] Positive, zero, and negative conversations map correctly.
-- [ ] Every trait transform is pinned.
-- [ ] Trait transform ordering is deterministic.
-- [ ] Charge decays faster than grip with defaults.
-- [ ] Decay does not overshoot home.
-- [ ] Attractor ties use declaration order.
-- [ ] Label hysteresis prevents boundary flicker.
-- [ ] Context changes good/bad wording without changing affect coordinates.
-- [ ] Derived valence does not feed focus scoring.
-- [ ] Low grip favors flee over fight when both are eligible.
-- [ ] High grip favors fight over flee when both are eligible.
-- [ ] Low charge favors sleep.
-- [ ] High charge favors work, subject to stronger needs/threats.
-- [ ] Tidy/Industrious/Mutant-Lover/Introvert behavior remains semantically
+- [x] Every non-zero event-vector row is covered by table or behavior tests.
+- [x] Vector addition clamps both axes.
+- [x] Positive, zero, and negative conversations map correctly.
+- [x] Every trait transform is pinned.
+- [x] Trait transform ordering is deterministic.
+- [x] Charge decays faster than grip with defaults.
+- [x] Decay does not overshoot home.
+- [x] Attractor ties use declaration order.
+- [x] Label hysteresis prevents boundary flicker.
+- [x] Context changes good/bad wording without changing affect coordinates.
+- [x] Derived valence does not feed focus scoring.
+- [x] Low grip favors flee over fight when both are eligible.
+- [x] High grip favors fight over flee when both are eligible.
+- [x] Low charge favors sleep.
+- [x] High charge favors work, subject to stronger needs/threats.
+- [x] Tidy/Industrious/Mutant-Lover/Introvert behavior remains semantically
   correct.
-- [ ] No scalar mood field or behaviorally active scalar mood config remains.
+- [x] No scalar mood field or behaviorally active scalar mood config remains.
 
 ### Performance tasks
 
-- [ ] Affect update uses integer arithmetic.
-- [ ] Mood labeling is cached or calculated only when affect/context changes.
-- [ ] No label/debug string formatting occurs in normal focus scoring.
-- [ ] Compare simulation and focus benchmarks with Phase 3.
-- [ ] Profile any regression over 10%.
+- [x] Affect update uses integer arithmetic.
+- [x] Mood labeling is cached or calculated only when affect/context changes.
+- [x] No label/debug string formatting occurs in normal focus scoring.
+- [x] Compare simulation and focus benchmarks with Phase 3.
+- [x] Profile any regression over 10%.
 
 ### Phase 4 evidence
 
 | Evidence | Result | Notes |
 | --- | --- | --- |
-| affect tests | pending | |
-| relationship/conversation tests | pending | |
-| snapshot/TUI tests | pending | |
-| `go build ./...` | pending | |
-| `go test ./...` | pending | |
-| benchmark comparison | pending | |
+| affect tests | pass | Focused command covered the complete vector table, clamps, conversation conversion, all transforms and ordering, decay, ties, hysteresis, contextual wording, score independence, focus ordering, snapshot exposure, and trait behavior |
+| relationship/conversation tests | pass | Existing relationship, conversation, memory-collapse, mutation, and fixed-seed tests pass with vector semantics; per-occurrence `talkMoodDelta`/`noteConversation` remains in the one funnel |
+| snapshot/TUI tests | pass | Snapshot exposes charge, grip, and cached mood word; roster renders all three on the existing single affect line |
+| `go build ./...` | pass | 2026-09-18, Apple M1 Pro / darwin arm64 |
+| `go test ./...` | pass | All four packages |
+| benchmark comparison | profiled | Active 27.45–27.59 ms/op and idle 23.66–23.92 ms/op (within 1.5% of Phase 3); focus 122.1–124.6 ns/op, 0 allocs (+29–32%); stimulus update 22.24–22.28 ns/op, 0 allocs. Focus profile attributes 97% cumulative to `focusCandidates`, including the required eight additive affect terms; `refreshMoodContext` is 2.8% cumulative. |
 
 ### Phase 4 exit criteria
 
-- [ ] Charge/grip is the only mood representation.
-- [ ] Affect influences focus only through numeric coordinates.
-- [ ] UI and snapshots expose the new representation coherently.
-- [ ] All scalar mood tests and docs have been migrated or intentionally
+- [x] Charge/grip is the only mood representation.
+- [x] Affect influences focus only through numeric coordinates.
+- [x] UI and snapshots expose the new representation coherently.
+- [x] All scalar mood tests and docs have been migrated or intentionally
   removed with a recorded reason.
 
 ### Phase 4 verification log
 
-- Pending.
+- 2026-09-18, Delta agent: implemented charge/grip affect at `32db9f2`.
+  Pre-migration `grep -i 'mood'` inventory covered `internal/sim` and
+  `internal/ui/tui`. Focused affect/relationship/snapshot/TUI tests, `gofmt`,
+  `go build ./...`, `go test ./...`, generated-config review, scalar-storage
+  search, and `git diff --check` pass. `MoodMax` remains only as the documented
+  bound for both axes; the scalar conversation-weight fields/keys were migrated
+  to outcome-specific names. The fixed architecture remains accurate
+  and was not edited. Exact benchmark command:
+  `go test ./internal/sim -run '^$' -bench '^(BenchmarkFocusCandidates|BenchmarkStimulusUpdate|BenchmarkStep500|BenchmarkStepIdle500)$' -benchmem -count=3`.
+  Focus CPU crossed the 10% threshold, so a five-second `-cpuprofile` run was
+  inspected with `go tool pprof -top`; the required per-focus affect arithmetic
+  explains the direct microbenchmark increase, while representative simulation
+  time stayed effectively flat and all measured hot paths remain allocation-free.
 
 ## Phase 5 — Cognition caching and performance
 
@@ -813,6 +825,7 @@ Record material updates to this plan, not every checkbox.
 | Phase 1 / 2026-09-17 | Delta agent | Completed weighted focus arbitration, configuration, tests, documentation, and baseline comparison. |
 | Phase 2 / 2026-09-17 | Delta agent | Added independent need phases, normalized pressure, boundary scheduling, configuration, tests, and documentation. |
 | Phase 3 / 2026-09-18 | Delta agent | Added bounded active stimuli, life-event integration, ongoing threat refresh, deterministic expiry/eviction, focus scoring, tests, documentation, and profiling evidence. |
+| Phase 4 / 2026-09-18 | Delta agent | Replaced scalar mood with charge/grip vectors, trait appraisal, decay, cached contextual labels, additive focus terms, snapshot/TUI exposure, configuration, tests, documentation, and benchmark/profile evidence. |
 
 ## Related
 
