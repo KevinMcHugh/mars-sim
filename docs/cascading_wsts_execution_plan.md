@@ -49,7 +49,7 @@ commit/checkpoint per phase. If commits are made, record their hashes.
 
 ## Current status
 
-**Current phase:** Phase 3 — active stimuli
+**Current phase:** Phase 4 — charge/grip affect
 
 **Overall state:** in progress
 
@@ -57,14 +57,14 @@ commit/checkpoint per phase. If commits are made, record their hashes.
 
 **Baseline commit:** `c67068b`
 
-**Last updated by:** Delta agent, 2026-09-17
+**Last updated by:** Delta agent, 2026-09-18
 
 | Phase | Design mapping | State | Commit/checkpoint | Verification summary |
 | --- | --- | --- | --- | --- |
 | 0. Baseline and code map | prerequisite | done | `c8c1cd5` | Build/tests pass; full benchmark suite and idle baseline recorded |
 | 1. Weighted focus | design milestone 1 | done | `0409ac2` | Deterministic weighted arbitration over existing executors; all tests pass |
 | 2. Independent need phases | design milestone 2 | done | `54b8946` | Independent phases, exact pressure, and boundary scheduling; all tests pass |
-| 3. Active stimuli | design milestone 3 | not started | — | — |
+| 3. Active stimuli | design milestone 3 | done | `26d8453` | Bounded deterministic stimuli integrated with life events and focus; all tests pass |
 | 4. Charge/grip affect | design milestone 4 | not started | — | — |
 | 5. Cognition caching and performance | performance follow-up | not started | — | — |
 | 6. Colony tuning | design milestone 5 | not started | — | — |
@@ -397,65 +397,71 @@ memory, while preserving the single life-event ingestion funnel.
 
 ### Implementation tasks
 
-- [ ] Add fixed-capacity stimulus storage; avoid one heap allocation per event.
-- [ ] Add `StimulusSpec` indexed by `LifeEventKind`.
-- [ ] Add the initial non-zero stimulus table from the design.
-- [ ] Implement deterministic coalescing by `(Kind, Source)`.
-- [ ] Implement deterministic expiry.
-- [ ] Implement deterministic full-buffer eviction:
-  - [ ] lowest salience
-  - [ ] earliest expiry
-  - [ ] lowest source ID
-- [ ] Maintain or cheaply derive aggregate per-focus stimulus bias.
-- [ ] Route stimulus insertion through the life-event funnel.
-- [ ] Refresh ongoing visible-threat context.
-- [ ] Remove direct threat eligibility as soon as the threat is no longer live
+- [x] Add fixed-capacity stimulus storage; avoid one heap allocation per event.
+- [x] Add `StimulusSpec` indexed by `LifeEventKind`.
+- [x] Add the initial non-zero stimulus table from the design.
+- [x] Implement deterministic coalescing by `(Kind, Source)`.
+- [x] Implement deterministic expiry.
+- [x] Implement deterministic full-buffer eviction:
+  - [x] lowest salience
+  - [x] earliest expiry
+  - [x] lowest source ID
+- [x] Maintain or cheaply derive aggregate per-focus stimulus bias.
+- [x] Route stimulus insertion through the life-event funnel.
+- [x] Refresh ongoing visible-threat context.
+- [x] Remove direct threat eligibility as soon as the threat is no longer live
   or visible.
-- [ ] Keep lingering affect/memory independent from threat eligibility.
-- [ ] Ensure zero-spec events still record memories normally.
-- [ ] Mark focus dirty/reconsiderable when a behaviorally relevant stimulus is
+- [x] Keep lingering affect/memory independent from threat eligibility.
+- [x] Ensure zero-spec events still record memories normally.
+- [x] Mark focus dirty/reconsiderable when a behaviorally relevant stimulus is
   inserted, changed, or expires.
 
 ### Required tests
 
-- [ ] Same-kind/source stimuli coalesce.
-- [ ] Different sources remain distinguishable.
-- [ ] Expiry is exact at the boundary tick.
-- [ ] Full-buffer eviction follows the total deterministic ordering.
-- [ ] New low-salience events do not hide a live alien.
-- [ ] Removing an alien removes flee/fight eligibility immediately.
-- [ ] Lingering stimulus expiry does not erase affect or memory.
-- [ ] Zero-spec life events do not create stimuli.
-- [ ] Repeated edge-triggered sightings do not spam memories.
-- [ ] Memory collapse behavior is unchanged.
+- [x] Same-kind/source stimuli coalesce.
+- [x] Different sources remain distinguishable.
+- [x] Expiry is exact at the boundary tick.
+- [x] Full-buffer eviction follows the total deterministic ordering.
+- [x] New low-salience events do not hide a live alien.
+- [x] Removing an alien removes flee/fight eligibility immediately.
+- [x] Lingering stimulus expiry does not erase affect or memory.
+- [x] Zero-spec life events do not create stimuli.
+- [x] Repeated edge-triggered sightings do not spam memories.
+- [x] Memory collapse behavior is unchanged.
 
 ### Performance tasks
 
-- [ ] Stimulus update has bounded work.
-- [ ] Normal arbitration does not allocate while reading stimuli.
-- [ ] Compare simulation and focus benchmarks with Phase 2.
-- [ ] Profile any regression over 10%.
+- [x] Stimulus update has bounded work.
+- [x] Normal arbitration does not allocate while reading stimuli.
+- [x] Compare simulation and focus benchmarks with Phase 2.
+- [x] Profile any regression over 10%.
 
 ### Phase 3 evidence
 
 | Evidence | Result | Notes |
 | --- | --- | --- |
-| focused stimulus tests | pending | |
-| memory/life-event tests | pending | |
-| `go build ./...` | pending | |
-| `go test ./...` | pending | |
-| benchmark comparison | pending | |
+| focused stimulus tests | pass | Coalescing, sources, exact expiry, eviction ordering, weak incoming events, zero specs, threat refresh/removal |
+| memory/life-event tests | pass | Full suite pins edge-triggering, collapse, scalar mood independence, and deterministic ingestion |
+| `go build ./...` | pass | 2026-09-18 |
+| `go test ./...` | pass | All four packages |
+| benchmark comparison | profiled | Focus 94.61 ns/op, update 22.27 ns/op, both 0 allocs; active 27.46–27.59 ms/op and idle 23.57–23.70 ms/op versus Phase 2's 21.40/18.69 ms. CPU profile attributes 84% cumulative idle time to pre-existing observation/entity sorting; `focusCandidates` is 3.5% cumulative. Phase 5 owns that hot path. |
 
 ### Phase 3 exit criteria
 
-- [ ] Stimulus, affect placeholder/scalar mood, and memory have distinct
+- [x] Stimulus, affect placeholder/scalar mood, and memory have distinct
   lifetimes and ownership.
-- [ ] The life-event funnel remains the only ingestion path.
-- [ ] Immediate threat behavior is correct and deterministic.
+- [x] The life-event funnel remains the only ingestion path.
+- [x] Immediate threat behavior is correct and deterministic.
 
 ### Phase 3 verification log
 
-- Pending.
+- 2026-09-18, Delta agent: implemented bounded active stimuli at `26d8453`.
+  `gofmt`, `go build ./...`, `go test ./...`, `git diff --check`, focused
+  stimulus/life-event tests, and allocation benchmarks pass. Both update and
+  arbitration remain allocation-free. The repeatable simulation benchmark
+  increase exceeded 10%, so an idle CPU profile was captured: existing global
+  entity sorting in `observeNearby` dominates while focus candidate generation
+  accounts for 3.5% cumulative CPU; optimization remains scoped to Phase 5.
 
 ## Phase 4 — Charge/grip affect
 
@@ -806,6 +812,7 @@ Record material updates to this plan, not every checkbox.
 | initial | Delta agent | Created phased implementation, verification, and performance plan. |
 | Phase 1 / 2026-09-17 | Delta agent | Completed weighted focus arbitration, configuration, tests, documentation, and baseline comparison. |
 | Phase 2 / 2026-09-17 | Delta agent | Added independent need phases, normalized pressure, boundary scheduling, configuration, tests, and documentation. |
+| Phase 3 / 2026-09-18 | Delta agent | Added bounded active stimuli, life-event integration, ongoing threat refresh, deterministic expiry/eviction, focus scoring, tests, documentation, and profiling evidence. |
 
 ## Related
 
