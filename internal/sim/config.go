@@ -275,7 +275,7 @@ func DefaultConfig() Config {
 			// them into fleeing even as grip decays back toward neutral. Genuinely
 			// frightening events (being bitten, watching a colonist killed) still
 			// carry enough grip penalty to tip an armed colonist toward flight. See
-			// D-002 in docs/cascading_wsts_execution_plan.md.
+			// The default combat posture is documented in docs/combat.md.
 			FocusFight: {Name: "fight", Base: 15, NeedWeight: 0, ChargeWeight: 20, GripWeight: 40, DistanceWeight: 1},
 		},
 		FocusCurrentBonus:     25,

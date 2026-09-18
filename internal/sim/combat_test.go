@@ -42,7 +42,7 @@ func TestArmedColonistKillsAlien(t *testing.T) {
 // armed-colonist fight posture, and the focus switch hysteresis then locked
 // colonists into fleeing even after grip decayed back toward neutral,
 // leaving aliens never fought. See D-002 in
-// docs/cascading_wsts_execution_plan.md.
+// The default is documented by the affect and combat behavior docs.
 func TestArmedColonistFightsFromNeutralAffect(t *testing.T) {
 	cfg := testConfig()
 	cfg.StartColonists, cfg.StartAliens, cfg.StartCats, cfg.StartMice = 0, 0, 0, 0
