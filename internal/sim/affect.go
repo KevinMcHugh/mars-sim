@@ -158,9 +158,14 @@ func transformMoodVector(e *Entity, kind LifeEventKind, v MoodVector) MoodVector
 }
 
 func (w *World) addAffect(e *Entity, v MoodVector) {
-	e.affect.Charge = clampInt(e.affect.Charge+v.Charge, -w.cfg.MoodMax, w.cfg.MoodMax)
-	e.affect.Grip = clampInt(e.affect.Grip+v.Grip, -w.cfg.MoodMax, w.cfg.MoodMax)
+	charge := clampInt(e.affect.Charge+v.Charge, -w.cfg.MoodMax, w.cfg.MoodMax)
+	grip := clampInt(e.affect.Grip+v.Grip, -w.cfg.MoodMax, w.cfg.MoodMax)
+	if charge == e.affect.Charge && grip == e.affect.Grip {
+		return
+	}
+	e.affect.Charge, e.affect.Grip = charge, grip
 	w.refreshMoodAttractor(e)
+	w.markMindDirty(e)
 }
 
 func approach(value, home, amount int) int {
@@ -184,6 +189,7 @@ func (w *World) decayAffect(e *Entity) {
 	}
 	e.affect.Charge, e.affect.Grip = charge, grip
 	w.refreshMoodAttractor(e)
+	w.markMindDirty(e)
 }
 
 func attractorClaim(a moodAttractor, charge, grip int) int {

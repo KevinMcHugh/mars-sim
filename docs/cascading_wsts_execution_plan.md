@@ -55,7 +55,7 @@ commit/checkpoint per phase. If commits are made, record their hashes.
 
 **Implementation branch:** `cascading-wsts-implementation`
 
-**Baseline commit:** `32db9f2`
+**Baseline commit:** `240813a`
 
 **Last updated by:** Delta agent, 2026-09-18
 
@@ -66,7 +66,7 @@ commit/checkpoint per phase. If commits are made, record their hashes.
 | 2. Independent need phases | design milestone 2 | done | `54b8946` | Independent phases, exact pressure, and boundary scheduling; all tests pass |
 | 3. Active stimuli | design milestone 3 | done | `26d8453` | Bounded deterministic stimuli integrated with life events and focus; all tests pass |
 | 4. Charge/grip affect | design milestone 4 | done | `32db9f2` | Charge/grip is the sole affect state; vector, trait, decay, label, focus, snapshot, and TUI tests pass |
-| 5. Cognition caching and performance | performance follow-up | not started | — | — |
+| 5. Cognition caching and performance | performance follow-up | in progress | — | Phase 4 comparison rerun at baseline `240813a`; implementation under way |
 | 6. Colony tuning | design milestone 5 | not started | — | — |
 | 7. Final integration review | completion gate | not started | — | — |
 

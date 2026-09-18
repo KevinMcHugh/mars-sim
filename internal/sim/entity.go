@@ -362,13 +362,17 @@ type Entity struct {
 	affect AffectState
 
 	// Focus is the colonist's current goal; Job is the concrete executor beneath
-	// it. focusSince supports commitment and later cognition caching. Stimuli use
-	// fixed storage so ingesting a life event never allocates a buffer.
-	focus         FocusKind
-	focusSince    int
-	focusDirty    bool
-	stimuli       [MaxActiveStimuli]Stimulus
-	stimulusCount int
+	// it. mindDirty and nextThinkTick gate arbitration only; the selected executor
+	// still runs every tick. Stimuli and their aggregate score use fixed storage so
+	// ingestion and arbitration never allocate.
+	focus              FocusKind
+	focusSince         int
+	mindDirty          bool
+	nextThinkTick      int
+	stimuli            [MaxActiveStimuli]Stimulus
+	stimulusCount      int
+	stimulusFocusBias  [numFocusKinds]int
+	nextStimulusExpiry int
 
 	// Memories is a bounded history of notable experiences. The internal slice
 	// is copied into EntityView so frontends cannot mutate the live world.
@@ -450,6 +454,9 @@ type Entity struct {
 // traits it rolls.
 func newEntity(id EntityID, kind Kind, p Point, cfg Config) *Entity {
 	e := &Entity{ID: id, Kind: kind, Pos: p, State: Idle, workScale: 1, focus: FocusIdle}
+	if kind == Colonist {
+		e.mindDirty = true
+	}
 	if kind == Colonist {
 		e.affect.Label = MoodSteady
 		e.affect.labelName = "steady"

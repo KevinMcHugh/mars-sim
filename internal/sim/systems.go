@@ -90,6 +90,13 @@ func (w *World) colonistTurn(e *Entity) {
 	// new event can influence arbitration immediately without decaying first.
 	w.decayAffect(e)
 
+	// A stable resting/sleeping colonist has no perception product to ingest when
+	// no creature or gore is nearby. The fast path still performs threat, fatal
+	// need, facility, and uranium checks before it can return.
+	if !w.alwaysArbitrate && w.tryCognitionFastPath(e) {
+		return
+	}
+
 	// Record the first sighting of each nearby creature. Seeing is edge-triggered:
 	// a colonist fleeing for many ticks remembers one encounter, not one memory
 	// per tick.
@@ -99,21 +106,99 @@ func (w *World) colonistTurn(e *Entity) {
 	// eating, or digging the vein itself — so the dose is taken before any
 	// branch below can return. See mutation.go.
 	w.applyUraniumExposure(e)
+	w.syncCognitionDeadlines(e)
+	w.runCognition(e)
+}
 
-	// Perception above refreshes ongoing threats. Expire everything else before
-	// scoring so an entry is inactive exactly at ExpiresAt. Candidate generation
-	// also refreshes cached mood wording from the need/threat facts it already reads.
-	w.expireStimuli(e)
-
-	var candidates [numFocusKinds]FocusCandidate
-	selected := w.chooseFocus(e, &candidates)
-	e.focusDirty = false
+func (w *World) runCognition(e *Entity) {
+	threat, _ := w.nearestAlien(e.Pos, w.cfg.FleeRadius)
+	shouldThink := w.alwaysArbitrate || e.mindDirty || w.tick >= e.nextThinkTick ||
+		!w.currentFocusEligible(e, threat)
+	selected := cachedFocusCandidate(e, threat)
+	if shouldThink {
+		var candidates [numFocusKinds]FocusCandidate
+		selected = w.chooseFocus(e, &candidates)
+		e.mindDirty = false
+		e.nextThinkTick = w.nextCognitionTick(e)
+	}
 	if selected.Kind != e.focus {
 		w.clearJob(e)
 		e.focus = selected.Kind
 		e.focusSince = w.tick
+		w.markMindDirty(e)
 	}
 	w.runFocus(e, selected)
+}
+
+// syncCognitionDeadlines applies only transitions whose cached boundary has
+// arrived. Fatal needs are also read every tick as a safety belt, independently
+// of the cache. Stimulus expiry remains exact at ExpiresAt.
+func (w *World) syncCognitionDeadlines(e *Entity) {
+	for n := NeedKind(0); n < numNeeds; n++ {
+		crossing := e.nextNeedPhaseTick[n]
+		if w.cfg.Needs[n].Fatal || crossing > 0 && w.tick >= crossing {
+			w.syncNeedPhase(e, n)
+		}
+	}
+	if e.nextStimulusExpiry > 0 && w.tick >= e.nextStimulusExpiry {
+		w.expireStimuli(e)
+	}
+}
+
+func (w *World) hasGoreNearby(e *Entity) bool {
+	r := w.cfg.GoreSightRadius
+	for y := -r; y <= r; y++ {
+		for x := -r; x <= r; x++ {
+			p := e.Pos.Add(x, y)
+			if w.InBounds(p) && w.tiles[w.index(p)].Gore > 0 {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func (w *World) tryCognitionFastPath(e *Entity) bool {
+	restingIdle := e.focus == FocusIdle && e.Job == JobNone && e.resting && w.tick < e.wakeTick
+	sleeping := e.focus == FocusSleep && e.Job == JobUse && e.Need == NeedSleep && !e.carrying &&
+		e.useFacilitySet && e.Pos.Adjacent(e.useFacility) &&
+		w.TerrainAt(e.useFacility) == w.cfg.Needs[NeedSleep].Facility
+	if (!restingIdle && !sleeping) || e.mindDirty || w.tick >= e.nextThinkTick ||
+		len(e.seen) != 0 || e.seeingGore {
+		return false
+	}
+	if threat, ok := w.nearestAlien(e.Pos, w.cfg.FleeRadius); ok && threat != nil {
+		return false
+	}
+	if mouse, ok := w.nearestMouse(e.Pos, w.cfg.ColonistStompRadius); ok && mouse != nil {
+		return false
+	}
+	if w.hasGoreNearby(e) {
+		return false
+	}
+
+	// Exposure can mutate a resting colonist and dirty cognition; it is never
+	// skipped merely because observation/arbitration are cached.
+	w.applyUraniumExposure(e)
+	w.syncCognitionDeadlines(e)
+	if e.mindDirty || w.tick >= e.nextThinkTick {
+		w.runCognition(e)
+		return true
+	}
+
+	if restingIdle {
+		e.State = Idle
+		return true
+	}
+	// In-place sleep has no path, target search, or claim machinery to run. Its
+	// only changing score strengthens the incumbent; nextCognitionTick caps this
+	// path at every competing need boundary and the fallback deadline.
+	e.State = Sleeping
+	e.Progress++
+	if e.Progress >= w.cfg.Needs[NeedSleep].UseTicks {
+		w.finishUse(e, w.cfg.Needs[NeedSleep])
+	}
+	return true
 }
 
 func (w *World) runFocus(e *Entity, selected FocusCandidate) {
@@ -159,6 +244,7 @@ func (w *World) finishFocus(e *Entity) {
 	w.clearJob(e)
 	e.focus = FocusIdle
 	e.focusSince = w.tick
+	w.markMindDirty(e)
 }
 
 func (w *World) runNeedFocus(e *Entity, need NeedKind) {
@@ -244,6 +330,7 @@ func (w *World) runIdleFocus(e *Entity) {
 	if e.Job != JobNone {
 		e.focus = FocusWork
 		e.focusSince = w.tick
+		w.markMindDirty(e)
 		e.resting = false
 		w.runJob(e)
 		return
@@ -271,7 +358,15 @@ func (w *World) runIdleFocus(e *Entity) {
 // encounter, not one memory per tick) and, via observeGore, the first sight
 // of gore in the same visit.
 func (w *World) observeNearby(e *Entity) {
+	hadThreat := false
+	for id := range e.seen {
+		if seen := w.entities[id]; seen != nil && seen.Kind == Alien {
+			hadThreat = true
+			break
+		}
+	}
 	visible := make(map[EntityID]bool)
+	seesThreat := false
 	for _, id := range w.entityIDsSorted() {
 		other := w.entities[id]
 		if other == e || !other.Alive() {
@@ -290,6 +385,9 @@ func (w *World) observeNearby(e *Entity) {
 			continue
 		}
 		visible[other.ID] = true
+		if kind == Alien {
+			seesThreat = true
+		}
 		if e.seen[other.ID] {
 			if kind == Alien {
 				// This is a refresh of ongoing context, not another life-event
@@ -305,6 +403,9 @@ func (w *World) observeNearby(e *Entity) {
 		w.remember(e, eventFrom(evtKind, other.ID, "Saw %s #%d.", kind, other.ID))
 	}
 	e.seen = visible
+	if hadThreat != seesThreat {
+		w.markMindDirty(e)
+	}
 
 	w.observeGore(e)
 }
@@ -500,6 +601,7 @@ func (w *World) assignTask(e *Entity, t *buildTask) {
 }
 
 func (w *World) clearJob(e *Entity) {
+	hadJob := e.Job != JobNone
 	switch e.Job {
 	case JobMine:
 		if e.mineClaimed {
@@ -522,6 +624,9 @@ func (w *World) clearJob(e *Entity) {
 	e.Job, e.Progress, e.partner = JobNone, 0, 0
 	e.useFacility, e.useFacilitySet, e.carrying = Point{}, false, false
 	e.clearPath()
+	if hadJob {
+		w.markMindDirty(e)
+	}
 }
 
 // runJob executes the colonist's current job for one tick.
@@ -594,6 +699,7 @@ func (w *World) beginTalk(a, b *Entity) {
 			e.focus = FocusIdle
 		}
 		e.focusSince = w.tick
+		w.markMindDirty(e)
 	}
 	a.clearPath()
 	b.clearPath()

@@ -73,9 +73,20 @@ func (w *World) addStimulus(e *Entity, evt LifeEvent) bool {
 	}
 	for i := 0; i < e.stimulusCount; i++ {
 		if e.stimuli[i].Kind == next.Kind && e.stimuli[i].Source == next.Source {
-			changed := e.stimuli[i] != next
+			old := e.stimuli[i]
+			changed := old != next
 			e.stimuli[i] = next
-			e.focusDirty = e.focusDirty || changed
+			// Refreshing only the expiry of an ongoing perception leaves every
+			// aggregate score unchanged. Recompute just the minimum deadline when
+			// the refreshed entry used to own it.
+			if old.Kind == next.Kind && old.Salience == next.Salience {
+				if old.ExpiresAt == e.nextStimulusExpiry {
+					w.refreshNextStimulusExpiry(e)
+				}
+			} else {
+				w.refreshStimulusCache(e)
+				w.markMindDirty(e)
+			}
 			return changed
 		}
 	}
@@ -87,7 +98,11 @@ func (w *World) addStimulus(e *Entity, evt LifeEvent) bool {
 	if e.stimulusCount < limit {
 		e.stimuli[e.stimulusCount] = next
 		e.stimulusCount++
-		e.focusDirty = true
+		e.addStimulusBias(next, 1)
+		if e.nextStimulusExpiry == 0 || next.ExpiresAt < e.nextStimulusExpiry {
+			e.nextStimulusExpiry = next.ExpiresAt
+		}
+		w.markMindDirty(e)
 		return true
 	}
 
@@ -100,8 +115,12 @@ func (w *World) addStimulus(e *Entity, evt LifeEvent) bool {
 	if !stimulusWeaker(e.stimuli[worst], next) {
 		return false
 	}
+	old := e.stimuli[worst]
 	e.stimuli[worst] = next
-	e.focusDirty = true
+	e.addStimulusBias(old, -1)
+	e.addStimulusBias(next, 1)
+	w.refreshNextStimulusExpiry(e)
+	w.markMindDirty(e)
 	return true
 }
 
@@ -136,12 +155,49 @@ func (w *World) expireStimuli(e *Entity) bool {
 		e.stimuli[i] = Stimulus{}
 	}
 	e.stimulusCount = write
-	e.focusDirty = true
+	w.refreshStimulusCache(e)
+	w.markMindDirty(e)
 	return true
 }
 
-// stimulusBiases derives every aggregate in one bounded pass over fixed
-// storage. Caller-owned output keeps normal arbitration allocation-free.
+func (e *Entity) addStimulusBias(s Stimulus, scale int) {
+	for f, contribution := range stimulusSpecs[s.Kind].Contribution {
+		e.stimulusFocusBias[f] += scale * contribution * s.Salience / 100
+	}
+}
+
+func (w *World) refreshNextStimulusExpiry(e *Entity) {
+	e.nextStimulusExpiry = 0
+	for i := 0; i < e.stimulusCount; i++ {
+		expires := e.stimuli[i].ExpiresAt
+		if expires > w.tick && (e.nextStimulusExpiry == 0 || expires < e.nextStimulusExpiry) {
+			e.nextStimulusExpiry = expires
+		}
+	}
+}
+
+// refreshStimulusCache updates the aggregate score and earliest expiry in one
+// bounded pass whenever fixed stimulus storage changes. Arbitration then reads
+// both facts in O(numFocusKinds), independent of the buffer occupancy.
+func (w *World) refreshStimulusCache(e *Entity) {
+	e.stimulusFocusBias = [numFocusKinds]int{}
+	e.nextStimulusExpiry = 0
+	for i := 0; i < e.stimulusCount; i++ {
+		s := e.stimuli[i]
+		if s.ExpiresAt <= w.tick {
+			continue
+		}
+		if e.nextStimulusExpiry == 0 || s.ExpiresAt < e.nextStimulusExpiry {
+			e.nextStimulusExpiry = s.ExpiresAt
+		}
+		for f, contribution := range stimulusSpecs[s.Kind].Contribution {
+			e.stimulusFocusBias[f] += contribution * s.Salience / 100
+		}
+	}
+}
+
+// stimulusBiases derives aggregates for component tests that directly populate
+// stimulus storage. Production arbitration uses stimulusFocusBias instead.
 func (w *World) stimulusBiases(e *Entity, out *[numFocusKinds]int) {
 	*out = [numFocusKinds]int{}
 	for i := 0; i < e.stimulusCount; i++ {

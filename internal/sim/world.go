@@ -428,12 +428,16 @@ type World struct {
 	// cfg.GraveyardSize by remove(), the only place entities die.
 	graveyard []EntityView
 
-	tick    int
-	rng     *rand.Rand
-	prng    *rand.Rand // personality generation, separate so flavor never perturbs the sim
-	agePRNG *rand.Rand // age generation, isolated so adding age does not shift personality
-	log     *eventLog
-	cfg     Config
+	tick int
+	// alwaysArbitrate is a test-only differential oracle. Production leaves it
+	// false; keeping the switch on World avoids a user-facing tuning knob for a
+	// correctness mode.
+	alwaysArbitrate bool
+	rng             *rand.Rand
+	prng            *rand.Rand // personality generation, separate so flavor never perturbs the sim
+	agePRNG         *rand.Rand // age generation, isolated so adding age does not shift personality
+	log             *eventLog
+	cfg             Config
 }
 
 // newWorld allocates an all-Rock world of the given size.

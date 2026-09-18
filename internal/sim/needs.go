@@ -121,6 +121,9 @@ func (w *World) syncNeedPhaseAtLevel(e *Entity, n NeedKind, level int) (changed 
 	changed = e.needPhase[n] != phase
 	e.needPhase[n] = phase
 	e.nextNeedPhaseTick[n] = nextNeedPhaseTick(w.tick, level, e.needRise[n], phase, spec)
+	if changed {
+		w.markMindDirty(e)
+	}
 	return changed
 }
 

@@ -153,6 +153,92 @@ func workJob(job JobKind) bool {
 	}
 }
 
+const cognitionFallbackTicks = 32
+
+// markMindDirty is the sole invalidation entry point for cached arbitration.
+// Moving the deadline to now is important: an event observed early in a turn
+// must affect the focus selected later in that same turn.
+func (w *World) markMindDirty(e *Entity) {
+	if e == nil || e.Kind != Colonist {
+		return
+	}
+	e.mindDirty = true
+	e.nextThinkTick = w.tick
+}
+
+// nextCognitionTick returns the first tick on which an internal score or
+// eligibility fact can change, capped by a bounded defensive reconsideration.
+// Pressing need pressure and non-neutral affect drift every tick, so those
+// states deliberately do not get a multi-tick horizon here; widening that
+// bound belongs to the separately gated validity-horizon step.
+func (w *World) nextCognitionTick(e *Entity) int {
+	next := w.tick + cognitionFallbackTicks
+	if e.resting && e.wakeTick > w.tick && e.wakeTick < next {
+		next = e.wakeTick
+	}
+	if e.nextStimulusExpiry > w.tick && e.nextStimulusExpiry < next {
+		next = e.nextStimulusExpiry
+	}
+	if e.affect.Charge != 0 || e.affect.Grip != 0 {
+		return w.tick + 1
+	}
+	sleepProgressOnly := e.focus == FocusSleep && e.Job == JobUse && e.Need == NeedSleep &&
+		!e.carrying && e.useFacilitySet && e.Pos.Adjacent(e.useFacility) &&
+		w.TerrainAt(e.useFacility) == w.cfg.Needs[NeedSleep].Facility
+	for n := NeedKind(0); n < numNeeds; n++ {
+		level := w.needLevel(e, n)
+		phase := e.needPhase[n]
+		if (phase == NeedPressing || phase == NeedCritical) && level < w.cfg.Needs[n].Max &&
+			!(sleepProgressOnly && n == NeedSleep) {
+			return w.tick + 1
+		}
+		if crossing := e.nextNeedPhaseTick[n]; crossing > w.tick && crossing < next {
+			next = crossing
+		}
+	}
+	return next
+}
+
+func (w *World) currentFocusEligible(e *Entity, threat *Entity) bool {
+	switch e.focus {
+	case FocusIdle:
+		return true
+	case FocusWork:
+		return workJob(e.Job) || !e.resting || w.tick >= e.wakeTick
+	case FocusEat, FocusRelieve, FocusSocialize, FocusSleep:
+		need, _ := needForFocus(e.focus)
+		phase := e.needPhase[need]
+		if phase != NeedPressing && phase != NeedCritical {
+			return false
+		}
+		if !w.cfg.Needs[need].Fatal {
+			for n := NeedKind(0); n < numNeeds; n++ {
+				if w.cfg.Needs[n].Fatal && (e.needPhase[n] == NeedPressing || e.needPhase[n] == NeedCritical) {
+					return false
+				}
+			}
+		}
+		return true
+	case FocusFlee:
+		return threat != nil
+	case FocusFight:
+		return threat != nil && bestWeapon(e.Inventory) != ItemNone
+	default:
+		return false
+	}
+}
+
+func cachedFocusCandidate(e *Entity, threat *Entity) FocusCandidate {
+	selected := FocusCandidate{Kind: e.focus, Eligible: true}
+	if need, ok := needForFocus(e.focus); ok {
+		selected.Need = need
+	}
+	if threat != nil && (e.focus == FocusFlee || e.focus == FocusFight) {
+		selected.Threat = threat.ID
+	}
+	return selected
+}
+
 // focusCandidates fills caller-owned storage so normal arbitration allocates
 // nothing. Shared facts (the visible threat and each lazy need level) are read
 // once per call.
@@ -170,10 +256,8 @@ func (w *World) focusCandidates(e *Entity, out *[numFocusKinds]FocusCandidate) {
 	}
 
 	out[FocusWork].Eligible = workJob(e.Job) || !e.resting || w.tick >= e.wakeTick
-	var stimulusBias [numFocusKinds]int
-	w.stimulusBiases(e, &stimulusBias)
 	for f := FocusKind(0); f < numFocusKinds; f++ {
-		out[f].Score.Stimulus = stimulusBias[f]
+		out[f].Score.Stimulus = e.stimulusFocusBias[f]
 	}
 
 	fatalPressing := false

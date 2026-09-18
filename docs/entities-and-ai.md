@@ -67,13 +67,23 @@ ordered, so runs stay deterministic.
 
 ### Colonist behavior (`colonistTurn`)
 
-Each turn first applies starvation, observations, and uranium exposure. It then
-generates a fixed set of cheap focus candidates and scores each from configured
-base, need pressure, visible stimuli, commitment, and distance contributions.
-The current eligible focus receives a commitment bonus, and a challenger must
-beat it by the configured switch margin. Ties are deterministic. Candidate
-scoring never claims a target or runs A*; only the winning focus invokes the
-existing job executors.
+Each turn first applies starvation, observations, and uranium exposure. Focus
+arbitration generates a fixed set of cheap candidates and scores each from
+configured base, need pressure, visible stimuli, commitment, and distance
+contributions. The current eligible focus receives a commitment bonus, and a
+challenger must beat it by the configured switch margin. Ties are deterministic.
+Candidate scoring never claims a target or runs A*; only the winning focus
+invokes the existing job executors.
+
+Arbitration is cached while the current focus remains eligible and no score can
+change. Need phase crossings, stimulus insertion/expiry, threat edges, affect
+changes, job teardown, and focus transitions invalidate the cache immediately;
+a bounded deadline is the backstop. Need pressure or affect that can drift still
+reconsiders every tick, rather than relying on an unsafe estimated horizon. The
+selected job executor continues every tick even when arbitration is skipped.
+Resting idle colonists and in-place sleepers additionally bypass the full
+observation/executor machinery when no nearby threat, mouse, or gore exists,
+while retaining per-tick starvation, uranium, fatal-need, and facility checks.
 
 Execution order and invariants:
 
@@ -103,8 +113,9 @@ Execution order and invariants:
    or mine the frontier. See [storage.md](./storage.md) and
    [sanitation.md](./sanitation.md).
 6. **Rest** — if there was no work and no pressing need, an idle colonist rests
-   (skips the work search) until `wakeTick`, so an established colony with nothing
-   to do stops rescanning the map every tick. A colonist never rests where it
+   (skips arbitration, observation with no nearby event, and the work search)
+   until `wakeTick`, so an established colony with nothing to do stops rescanning
+   the entity set and map every tick. A colonist never rests where it
    would block others (`idleWouldBlock`): parked on a facility access tile or a
    pending build tile, it `stepAside`s instead.
 
