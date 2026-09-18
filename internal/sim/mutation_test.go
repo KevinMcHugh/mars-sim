@@ -291,3 +291,38 @@ func TestMutationIsDeterministicForASeed(t *testing.T) {
 		}
 	}
 }
+
+// Mutation is meant to be a rarity, and the defaults are what make it one.
+// Because exposure never decays, a short MutationChance is not enough on its
+// own — an earlier balance pass mutated ~70% of a colony — so this pins the
+// outcome the defaults are tuned for rather than the individual knobs. See
+// "Tuning the rate" in docs/mutation.md.
+func TestDefaultsKeepMutationRare(t *testing.T) {
+	mutants, total := 0, 0
+	for seed := int64(1); seed <= 4; seed++ {
+		cfg := DefaultConfig()
+		cfg.Seed = seed * 7919
+		cfg.Width, cfg.Height = 80, 40
+		cfg.StartColonists, cfg.StartAliens, cfg.StartCats, cfg.StartMice = 30, 0, 0, 0
+		w := NewEngine(cfg).world
+		for i := 0; i < 5000; i++ {
+			w.step()
+		}
+		for _, id := range w.entityIDsSorted() {
+			e := w.entities[id]
+			if e.Kind != Colonist {
+				continue
+			}
+			total++
+			if e.Profile.HasTrait(TraitMutant) {
+				mutants++
+			}
+		}
+	}
+	// Generous headroom over the ~1% the defaults aim for: this is a guard
+	// against mutation becoming routine again, not a pin on an exact rate.
+	if limit := total / 10; mutants > limit {
+		t.Fatalf("%d of %d colonists mutated under the default config; "+
+			"mutation should stay rare (at most %d here)", mutants, total, limit)
+	}
+}

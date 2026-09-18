@@ -271,12 +271,15 @@ inspector.
 
 The regolith holds uranium as well as iron and water ice, and it is the one
 deposit that acts back on the colonist who digs it. Standing beside an
-unexcavated uranium vein — or carrying the ore, which with no way to drop
-anything yet means carrying it forever — puts a colonist under a cumulative
-**dose**. Every `-uranium-exposure-ticks` (100) of it is one roll at
-`-mutation-chance` (25%) to **mutate**: grow a body part nobody is born with (a
-third arm, an extra eye, a tail, a vestigial twin) and carry the **Mutant**
-trait from then on, drawn as 🧟 on the map.
+unexcavated uranium vein — or carrying the ore, until the colonist hauls it into
+a chest — puts a colonist under a cumulative **dose**. Every
+`-uranium-exposure-ticks` (2000) of it is one roll at `-mutation-chance` (1%) to
+**mutate**: grow a body part nobody is born with (a third arm, an extra eye, a
+tail, a vestigial twin) and carry the **Mutant** trait from then on, drawn as 🧟
+on the map. Uranium is scarce (`-uranium-rock-percent`, 1% of rock) and a dose
+is slow, so mutation lands on about **1% of colonists** in a typical run (a few
+percent in a very long one, since the dose never fades): an event the colony
+remembers, not a rite of passage.
 
 A grown part is extra flesh, not redistributed flesh: it adds its own HP and
 becomes one more place an attack can land, which also thins the odds that any

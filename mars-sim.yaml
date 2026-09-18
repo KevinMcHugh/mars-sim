@@ -37,7 +37,7 @@
 # ice-rock-percent: 5
 
 ## percent of rock tiles bearing uranium
-# uranium-rock-percent: 3
+# uranium-rock-percent: 1
 
 ## percent of rock tiles bearing clay
 # clay-rock-percent: 5
@@ -219,10 +219,10 @@
 
 # ── Mutation ────────────────────────────────────────────────────────────
 ## ticks of uranium exposure per mutation roll
-# uranium-exposure-ticks: 100
+# uranium-exposure-ticks: 2000
 
 ## percent chance each full uranium dose mutates a colonist (0 disables mutation)
-# mutation-chance: 25
+# mutation-chance: 1
 
 ## extra affinity a mutant-lover gains toward a mutant per conversation
 # mutant-lover-affinity: 3

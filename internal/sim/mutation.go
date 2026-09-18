@@ -8,7 +8,8 @@ import "fmt"
 // it. A colonist standing next to an unexcavated uranium deposit, or carrying
 // uranium ore in their pack, is *exposed*: every exposed tick adds to a
 // cumulative dose, and every UraniumExposureTicks of dose is one roll at
-// MutationChance to grow an extra body part and pick up the Mutant trait.
+// MutationChance to grow an extra body part and pick up the Mutant trait. The
+// defaults are tuned so that lands on about 1% of colonists in a typical run.
 //
 // Everything here runs on the simulation RNG (w.rng), not the personality
 // stream: a mutation changes a colonist's body and how combat resolves against
@@ -26,9 +27,9 @@ var mutantParts = [...]BodyPart{ThirdArm, ExtraEye, Tail, VestigialTwin}
 // every tick.
 //
 // Carrying the ore is the dominant path in practice: a miner picks a lump up
-// and, with nowhere to put it down yet, keeps it. Proximity matters anyway, so
-// that a colonist digging alongside a vein they never manage to break into is
-// still taking a dose.
+// and stays dosed until a full load sends it to a chest (jobStore). Proximity
+// matters anyway, so that a colonist digging alongside a vein they never manage
+// to break into is still taking a dose.
 func (w *World) uraniumExposed(e *Entity) bool {
 	if e.Inventory.Has(UraniumOre) {
 		return true
@@ -51,6 +52,11 @@ func (w *World) uraniumExposed(e *Entity) bool {
 // The dose never decays. "Prolonged exposure" is meant to be a record of how
 // much uranium this colonist has handled in total, not a level they can cool
 // off from by taking a shift away from the vein.
+//
+// That is also why UraniumExposureTicks, not MutationChance, is the knob that
+// decides how many colonists end up mutants: rolls keep coming for as long as
+// a colonist works uranium, so a low per-roll chance on its own barely changes
+// the outcome. See "Tuning the rate" in docs/mutation.md.
 func (w *World) applyUraniumExposure(e *Entity) {
 	if w.cfg.UraniumExposureTicks < 1 || !w.uraniumExposed(e) {
 		return
