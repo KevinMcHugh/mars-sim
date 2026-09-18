@@ -20,6 +20,7 @@ func TestArmedColonistKillsAlien(t *testing.T) {
 
 	center := Point{w.Width / 2, w.Height / 2}
 	colonist := w.spawn(Colonist, center)
+	colonist.affect.Grip = cfg.MoodMax // composed enough to stand and fight
 	colonist.Inventory.Add(Shotgun, 1)
 	alien := w.spawn(Alien, center.Add(cfg.ShotgunRange, 0))
 
@@ -60,6 +61,7 @@ func TestArmedColonistFightsInsteadOfFleeing(t *testing.T) {
 
 	center := Point{w.Width / 2, w.Height / 2}
 	colonist := w.spawn(Colonist, center)
+	colonist.affect.Grip = cfg.MoodMax // high grip favors confrontation
 	colonist.Inventory.Add(Pistol, 1)
 	w.spawn(Alien, center.Add(cfg.PistolRange, 0))
 

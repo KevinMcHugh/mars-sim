@@ -700,25 +700,18 @@ func (w *World) talkAffinityDelta(existing, quality int) int {
 	return -d
 }
 
-// talkMoodDelta is how much a conversation shifts a participant's mood: a company
-// term (how it feels to spend time with the other, from existing affinity) plus
-// a conversation term (how the chat itself went, from quality). So a good chat
-// with someone disliked still lifts mood, a so-so chat with a friend nets a
-// small lift, and only a genuinely bad chat with a friend turns it negative.
+// talkMoodDelta preserves the existing signed conversation outcome: a company
+// term (existing affinity) plus a conversation-quality term. The result is
+// converted to charge/grip during life-event ingestion, never stored directly.
 func (w *World) talkMoodDelta(quality, existing int) int {
-	company := existing * w.cfg.MoodCompanyWeight / atLeast1(w.cfg.AffinityMax)
-	conversation := quality * w.cfg.MoodConversationWeight / 100
+	company := existing * w.cfg.ConversationCompanyWeight / atLeast1(w.cfg.AffinityMax)
+	conversation := quality * w.cfg.ConversationQualityWeight / 100
 	return company + conversation
-}
-
-// adjustMood shifts a colonist's mood by delta, clamped to the mood range.
-func (w *World) adjustMood(e *Entity, delta int) {
-	e.mood = clampInt(e.mood+delta, -w.cfg.MoodMax, w.cfg.MoodMax)
 }
 
 // noteConversation records one completed conversation and returns any trait
 // fatigue it causes. Introverts have a small social capacity per window; every
-// conversation beyond it lowers morale. Other traits retain a large default
+// conversation beyond it worsens the signed outcome. Other traits retain a large default
 // capacity and do not incur this penalty.
 func (w *World) noteConversation(e *Entity) int {
 	if e.socialWindowStart == 0 || w.tick-e.socialWindowStart >= w.cfg.SocialWindowTicks {

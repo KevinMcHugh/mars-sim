@@ -426,18 +426,27 @@
 ## random swing around a conversation's mean quality
 # talk-quality-spread: 50
 
-# ── Mood ────────────────────────────────────────────────────────────────
-## colonist mood runs in [-mood-max, mood-max]
+# ── Affect ──────────────────────────────────────────────────────────────
+## charge and grip each run in [-mood-max, mood-max]
 # mood-max: 100
 
-## mood shift per conversation from how one feels about the other
-# mood-company-weight: 6
+## conversation outcome from how one feels about the other
+# conversation-company-weight: 6
 
-## mood shift per conversation from how the chat itself went
-# mood-conversation-weight: 10
+## conversation outcome from how the chat itself went
+# conversation-quality-weight: 10
 
 ## ticks in the rolling window for social conversation fatigue
 # social-window-ticks: 200
+
+## charge points that decay toward home per colonist turn
+# mood-charge-decay-per-tick: 2
+
+## grip points that decay toward home per colonist turn
+# mood-grip-decay-per-tick: 1
+
+## claim advantage required to switch mood attractors
+# mood-label-switch-margin: 5
 
 # ── Mining strategy ─────────────────────────────────────────────────────
 ## colony size at/above which miners use the shared frontier flow field

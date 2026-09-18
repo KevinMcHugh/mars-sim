@@ -5,16 +5,16 @@ import "math/rand"
 const maxColonistMemories = 64
 
 // remember is the single ingestion funnel for notable life events. One call
-// applies the scalar-affect placeholder, updates transient stimulus state when
+// applies charge/grip appraisal, updates transient stimulus state when
 // configured, and records or collapses long-term memory. These products have
 // separate lifetimes, but call sites cannot accidentally update only one.
 func (w *World) remember(e *Entity, evt LifeEvent) {
 	if e == nil || e.Kind != Colonist {
 		return
 	}
-	// Mood is applied per occurrence either way: collapsing is about what the
+	// Affect is applied per occurrence either way: collapsing is about what the
 	// memory log reads like, not about the twelfth dig having stopped counting.
-	w.applyMoodEffects(e, evt)
+	w.applyAffect(e, evt)
 	w.addStimulus(e, evt)
 	if !w.collapseRepeat(e, evt) {
 		e.Memories = append(e.Memories, Memory{

@@ -245,6 +245,8 @@ func validateConfig(cfg sim.Config) error {
 		return fmt.Errorf("mood-max must be at least 1 (got %d)", cfg.MoodMax)
 	case cfg.SocialWindowTicks < 1:
 		return fmt.Errorf("social-window-ticks must be at least 1 (got %d)", cfg.SocialWindowTicks)
+	case cfg.MoodChargeDecayPerTick < 0 || cfg.MoodGripDecayPerTick < 0 || cfg.MoodLabelSwitchMargin < 0:
+		return fmt.Errorf("affect decay and label switch margin cannot be negative")
 	case cfg.MouseLitterMin < 0 || cfg.MouseLitterMax < cfg.MouseLitterMin:
 		return fmt.Errorf("mouse litter range is invalid: min %d, max %d", cfg.MouseLitterMin, cfg.MouseLitterMax)
 	}

@@ -2,9 +2,8 @@ package sim
 
 import "testing"
 
-// Sighting an alien should drop mood, and more than sighting a mouse does —
-// aliens are the scarier thing to run into.
-func TestSeeingAlienDropsMoodMoreThanMouse(t *testing.T) {
+// Sighting an alien should activate a colonist and cost more grip than a mouse.
+func TestSeeingAlienAffectsChargeAndGripMoreThanMouse(t *testing.T) {
 	cfg := testConfig()
 	w := newTestWorld(t, cfg)
 
@@ -16,14 +15,11 @@ func TestSeeingAlienDropsMoodMoreThanMouse(t *testing.T) {
 	w.spawn(Mouse, Point{11, 10})
 	w.observeNearby(sawMouse)
 
-	if sawAlien.mood >= 0 {
-		t.Fatalf("mood after seeing an alien = %d, want negative", sawAlien.mood)
+	if sawAlien.affect.Charge <= sawMouse.affect.Charge {
+		t.Errorf("alien charge %d should exceed mouse charge %d", sawAlien.affect.Charge, sawMouse.affect.Charge)
 	}
-	if sawMouse.mood >= 0 {
-		t.Fatalf("mood after seeing a mouse = %d, want negative", sawMouse.mood)
-	}
-	if sawAlien.mood >= sawMouse.mood {
-		t.Errorf("alien sighting mood %d should drop more than mouse sighting mood %d", sawAlien.mood, sawMouse.mood)
+	if sawAlien.affect.Grip >= sawMouse.affect.Grip {
+		t.Errorf("alien grip %d should drop more than mouse grip %d", sawAlien.affect.Grip, sawMouse.affect.Grip)
 	}
 }
 
@@ -37,11 +33,11 @@ func TestRepeatedAlienSightingDoesNotRepeatMoodHit(t *testing.T) {
 	colonist := w.spawn(Colonist, Point{0, 0})
 	w.spawn(Alien, Point{1, 0})
 	w.observeNearby(colonist)
-	afterFirst := colonist.mood
+	afterFirst := colonist.affect
 
 	w.observeNearby(colonist)
-	if colonist.mood != afterFirst {
-		t.Errorf("mood changed on repeated sighting: %d -> %d", afterFirst, colonist.mood)
+	if colonist.affect != afterFirst {
+		t.Errorf("affect changed on repeated sighting: %+v -> %+v", afterFirst, colonist.affect)
 	}
 }
 
@@ -60,18 +56,15 @@ func TestKillingAlienRaisesMoodMoreThanWitnessing(t *testing.T) {
 
 	w.shoot(killer, alien, Shotgun, weaponStats(Shotgun, cfg))
 
-	if killer.mood <= 0 {
-		t.Fatalf("killer mood = %d, want positive", killer.mood)
+	if killer.affect.Charge <= witness.affect.Charge || killer.affect.Grip <= witness.affect.Grip {
+		t.Fatalf("killer affect %+v should exceed witness affect %+v on both axes", killer.affect, witness.affect)
 	}
-	if witness.mood <= 0 {
-		t.Fatalf("witness mood = %d, want positive", witness.mood)
-	}
-	if witness.mood >= killer.mood {
-		t.Errorf("witness mood %d should be less than killer mood %d", witness.mood, killer.mood)
+	if witness.affect.Charge <= 0 || witness.affect.Grip <= 0 {
+		t.Fatalf("witness affect = %+v, want both axes positive", witness.affect)
 	}
 }
 
-// Coming within sight of gore should drop mood.
+// Coming within sight of gore should lower both affect axes.
 func TestSeeingGoreDropsMood(t *testing.T) {
 	cfg := testConfig()
 	w := newTestWorld(t, cfg)
@@ -80,8 +73,8 @@ func TestSeeingGoreDropsMood(t *testing.T) {
 	w.addGore(colonist.Pos)
 
 	w.observeGore(colonist)
-	if colonist.mood >= 0 {
-		t.Fatalf("mood after seeing gore = %d, want negative", colonist.mood)
+	if colonist.affect.Charge >= 0 || colonist.affect.Grip >= 0 {
+		t.Fatalf("affect after seeing gore = %+v, want both axes negative", colonist.affect)
 	}
 }
 
@@ -101,8 +94,8 @@ func TestTidyTraitAmplifiesGoreMoodDrop(t *testing.T) {
 	w.observeGore(tidy)
 	w.observeGore(plain)
 
-	if tidy.mood >= plain.mood {
-		t.Errorf("Tidy colonist mood %d should drop more than plain colonist mood %d", tidy.mood, plain.mood)
+	if tidy.affect.Charge >= plain.affect.Charge || tidy.affect.Grip >= plain.affect.Grip {
+		t.Errorf("Tidy affect %+v should drop more than plain affect %+v", tidy.affect, plain.affect)
 	}
 }
 
@@ -117,11 +110,11 @@ func TestGoreSightIsEdgeTriggered(t *testing.T) {
 	w.addGore(colonist.Pos)
 
 	w.observeGore(colonist)
-	afterFirst := colonist.mood
+	afterFirst := colonist.affect
 	w.observeGore(colonist)
 
-	if colonist.mood != afterFirst {
-		t.Errorf("mood changed on repeated gore sighting while still in view: %d -> %d", afterFirst, colonist.mood)
+	if colonist.affect != afterFirst {
+		t.Errorf("affect changed on repeated gore sighting while still in view: %+v -> %+v", afterFirst, colonist.affect)
 	}
 	if len(colonist.Memories) != 1 {
 		t.Fatalf("expected exactly one gore memory, got %d", len(colonist.Memories))
@@ -155,7 +148,7 @@ func TestMemoryRecordsLifeEventKind(t *testing.T) {
 	}
 }
 
-// Being bitten and surviving should drop mood.
+// Being bitten and surviving should raise charge and lower grip.
 func TestBittenDropsMood(t *testing.T) {
 	cfg := testConfig()
 	w := newTestWorld(t, cfg)
@@ -169,13 +162,12 @@ func TestBittenDropsMood(t *testing.T) {
 
 	w.bite(alien, victim)
 
-	if victim.mood >= 0 {
-		t.Fatalf("mood after being bitten = %d, want negative", victim.mood)
+	if victim.affect.Charge <= 0 || victim.affect.Grip >= 0 {
+		t.Fatalf("affect after being bitten = %+v, want positive charge and negative grip", victim.affect)
 	}
 }
 
-// Finishing a work job should raise mood a little, and more for an
-// Industrious colonist than a plain one.
+// Finishing work should restore grip, doubled for an Industrious colonist.
 func TestFinishingJobRaisesMoodMoreForIndustrious(t *testing.T) {
 	cfg := testConfig()
 	w := newTestWorld(t, cfg)
@@ -188,32 +180,30 @@ func TestFinishingJobRaisesMoodMoreForIndustrious(t *testing.T) {
 	w.remember(plain, event(EvtFinishedMining, "Finished mining at (%d, %d).", 1, 1))
 	w.remember(industrious, event(EvtFinishedMining, "Finished mining at (%d, %d).", 1, 1))
 
-	if plain.mood <= 0 {
-		t.Fatalf("mood after finishing a job = %d, want positive", plain.mood)
+	if plain.affect.Grip <= 0 {
+		t.Fatalf("affect after finishing a job = %+v, want positive grip", plain.affect)
 	}
-	if industrious.mood <= plain.mood {
-		t.Errorf("industrious colonist mood %d should rise more than plain colonist mood %d", industrious.mood, plain.mood)
+	if industrious.affect.Grip != 2*plain.affect.Grip || industrious.affect.Charge != 2*plain.affect.Charge {
+		t.Errorf("industrious affect %+v should double plain affect %+v", industrious.affect, plain.affect)
 	}
 }
 
-// Every "finished a work job" kind should share the same mood bump, not just
-// mining — a regression guard for jobFinishedMood's table wiring.
+// Every finished-work kind should restore grip, not just mining.
 func TestAllJobCompletionKindsRaiseMood(t *testing.T) {
 	cfg := testConfig()
-	for _, kind := range []LifeEventKind{EvtFinishedMining, EvtClearedRock, EvtFinishedConstruction} {
+	for _, kind := range []LifeEventKind{EvtFinishedMining, EvtClearedRock, EvtFinishedConstruction, EvtCleanedRefuse, EvtIncineratedRefuse} {
 		w := newTestWorld(t, cfg)
 		c := w.spawn(Colonist, Point{0, 0})
 		c.Profile = &Profile{}
 		w.remember(c, event(kind, "did a job"))
-		if c.mood <= 0 {
-			t.Errorf("kind %v: mood = %d, want positive", kind, c.mood)
+		if c.affect.Grip <= 0 {
+			t.Errorf("kind %v: affect = %+v, want positive grip", kind, c.affect)
 		}
 	}
 }
 
-// A finished conversation should now go entirely through remember/LifeEvent:
-// one call records the memory and moves mood together, rather than two
-// separate mechanisms that could drift apart.
+// A finished conversation goes entirely through remember/LifeEvent: one call
+// records memory and moves affect together.
 func TestConversationRecordsMemoryAndMood(t *testing.T) {
 	cfg := testConfig()
 	w := newTestWorld(t, cfg)
@@ -235,7 +225,7 @@ func TestConversationRecordsMemoryAndMood(t *testing.T) {
 	if len(b.Memories) != 1 || b.Memories[0].Kind != EvtConversation {
 		t.Fatalf("expected one conversation memory on b, got %+v", b.Memories)
 	}
-	if a.mood <= 0 || b.mood <= 0 {
-		t.Fatalf("expected finishTalk to raise both participants' mood, got a=%d b=%d", a.mood, b.mood)
+	if a.affect.Grip <= 0 || b.affect.Grip <= 0 {
+		t.Fatalf("expected finishTalk to restore both participants' grip, got a=%+v b=%+v", a.affect, b.affect)
 	}
 }

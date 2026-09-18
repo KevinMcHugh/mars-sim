@@ -47,8 +47,7 @@ func (f FocusKind) String() string {
 }
 
 // FocusSpec contains the tunable part of one focus's score. ChargeWeight and
-// GripWeight are introduced now so configuration remains stable when affect
-// starts contributing in Phase 4; scalar mood never feeds either value.
+// GripWeight consume the numeric affect axes; display labels never feed scores.
 type FocusSpec struct {
 	Name           string
 	Base           int `cfg:"base" doc:"baseline score before state contributions"`
@@ -134,6 +133,17 @@ func needForFocus(f FocusKind) (NeedKind, bool) {
 	}
 }
 
+func affectContribution(charge, grip int, spec FocusSpec, moodMax int) int {
+	n := charge*spec.ChargeWeight + grip*spec.GripWeight
+	// The documented/default coordinate range is 100. Keep that overwhelmingly
+	// common divisor constant so the compiler avoids a runtime integer divide;
+	// custom ranges retain exact normalization.
+	if moodMax == 100 {
+		return n / 100
+	}
+	return n / atLeast1(moodMax)
+}
+
 func workJob(job JobKind) bool {
 	switch job {
 	case JobMine, JobBuild, JobClean, JobStore:
@@ -148,10 +158,14 @@ func workJob(job JobKind) bool {
 // once per call.
 func (w *World) focusCandidates(e *Entity, out *[numFocusKinds]FocusCandidate) {
 	for f := FocusKind(0); f < numFocusKinds; f++ {
+		spec := w.cfg.Focuses[f]
 		out[f] = FocusCandidate{
 			Kind:     f,
 			Eligible: f == FocusIdle,
-			Score:    FocusScore{Base: w.cfg.Focuses[f].Base},
+			Score: FocusScore{
+				Base:   spec.Base,
+				Affect: affectContribution(e.affect.Charge, e.affect.Grip, spec, w.cfg.MoodMax),
+			},
 		}
 	}
 
@@ -163,6 +177,7 @@ func (w *World) focusCandidates(e *Entity, out *[numFocusKinds]FocusCandidate) {
 	}
 
 	fatalPressing := false
+	needBad := 0
 	for n := NeedKind(0); n < numNeeds; n++ {
 		level := w.needLevel(e, n)
 		w.syncNeedPhaseAtLevel(e, n, level)
@@ -172,6 +187,7 @@ func (w *World) focusCandidates(e *Entity, out *[numFocusKinds]FocusCandidate) {
 			continue
 		}
 		pressure := needPressure(level, spec)
+		needBad = max(needBad, pressure)
 		f := focusForNeed(n)
 		c := &out[f]
 		c.Need = n
@@ -197,7 +213,9 @@ func (w *World) focusCandidates(e *Entity, out *[numFocusKinds]FocusCandidate) {
 		}
 	}
 
+	threatVisible := false
 	if threat, ok := w.nearestAlien(e.Pos, w.cfg.FleeRadius); ok {
+		threatVisible = true
 		out[FocusFlee].Eligible = true
 		out[FocusFlee].Threat = threat.ID
 		if bestWeapon(e.Inventory) != ItemNone {
@@ -210,6 +228,8 @@ func (w *World) focusCandidates(e *Entity, out *[numFocusKinds]FocusCandidate) {
 			out[FocusFlee].Score.Distance = -w.cfg.Focuses[FocusFlee].DistanceWeight
 		}
 	}
+
+	w.refreshMoodContext(e, needBad, threatVisible)
 
 	if e.focus < numFocusKinds && out[e.focus].Eligible {
 		out[e.focus].Score.Commitment = w.cfg.FocusCurrentBonus

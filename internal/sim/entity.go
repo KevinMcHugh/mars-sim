@@ -357,10 +357,9 @@ type Entity struct {
 	relations        []Relation
 	relationRevision uint64
 
-	// mood is the colonist's disposition in [-MoodMax, MoodMax], 0 neutral
-	// (colonists only). Conversations shift it, and so does every mood-bearing
-	// LifeEvent remembered (see lifeevents.go and relationships.go).
-	mood int
+	// affect is the colonist's bounded charge/grip state and cached display label.
+	// Focus scoring reads only its numeric axes; the label is display-only.
+	affect AffectState
 
 	// Focus is the colonist's current goal; Job is the concrete executor beneath
 	// it. focusSince supports commitment and later cognition caching. Stimuli use
@@ -451,6 +450,10 @@ type Entity struct {
 // traits it rolls.
 func newEntity(id EntityID, kind Kind, p Point, cfg Config) *Entity {
 	e := &Entity{ID: id, Kind: kind, Pos: p, State: Idle, workScale: 1, focus: FocusIdle}
+	if kind == Colonist {
+		e.affect.Label = MoodSteady
+		e.affect.labelName = "steady"
+	}
 	if kind == Colonist {
 		e.seen = make(map[EntityID]bool)
 	}

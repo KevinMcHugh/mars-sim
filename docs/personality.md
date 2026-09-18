@@ -73,10 +73,10 @@ per group, each taken with `TraitChance` probability:
 | Group | Traits | Effect |
 | --- | --- | --- |
 | appetite | Big Eater / Light Eater | food need rises 1.5x / 0.7x |
-| work ethic | Industrious / Lazy | work 0.75x time + rest 0.5x, plus a doubled mood lift on finishing a job / work 1.4x + rest 2.0x |
+| work ethic | Industrious / Lazy | work 0.75x time + rest 0.5x, plus doubled finished-work affect vectors / work 1.4x + rest 2.0x |
 | social | Asocial / Introvert / Extrovert | no social need / social need 0.5x plus conversation fatigue / social need 1.5x |
-| temperament | Tidy | an extra mood penalty on seeing gore (see below) |
-| mutant attitude | Mutant-Lover | extra affinity toward mutants per conversation, and the opposite mood reaction to a mutation |
+| temperament | Tidy | 2.2x gore appraisal and doubled grip relief from incineration |
+| mutant attitude | Mutant-Lover | extra affinity toward mutants and reflected mutation grip |
 | mutation | Mutant | *acquired in play only* — the marker for a colonist uranium has changed |
 
 `temperament` is a group of one today — unlike the others, Tidy isn't paired
@@ -100,7 +100,7 @@ Each trait is a `traitSpec` with multiplier effects (`needRiseScale`, `restScale
 social capacity and conversation-fatigue effects onto the entity. An Asocial
 colonist's social need rises at zero, so it never becomes an urgent reason to
 seek a conversation. An Introvert's need rises more slowly, but conversations
-past its per-window capacity reduce mood. An Extrovert's need rises faster, so it
+past its per-window capacity worsen conversation outcome. An Extrovert's need rises faster, so it
 seeks social contact more often.
 
 ### Trait resolution: pay once, not per tick
@@ -122,10 +122,9 @@ re-scanned during simulation. `newEntity` sets the config baselines, and
 ### The exception: traits checked live, at event time
 
 Not every trait fits that mold. `TraitTidy` has no need-rise/rest/work/social
-effect to resolve — its only effect is an extra mood penalty when a colonist
-sees gore, and that's read directly off `Profile.HasTrait(TraitTidy)` at the
-moment the sighting happens, in `lifeevents.go`'s `applyMoodEffects` (see
-[memories.md](./memories.md)). This doesn't violate "pay once, not per tick":
+effect to resolve — it transforms gore and incineration vectors, read directly
+off `Profile.HasTrait(TraitTidy)` during event appraisal in `affect.go` (see
+[affect.md](./affect.md)). This doesn't violate "pay once, not per tick":
 that principle is about the hot path, and a life event fires far less often
 than every tick for every colonist. Resolving Tidy into a spawn-time field
 would mean inventing an `Entity` field for a value `HasTrait` already answers
@@ -134,9 +133,9 @@ read: a per-tick or per-job cost belongs in `resolveTraitEffects`; a
 per-event cost is fine read live.
 
 `TraitIndustrious` shows a trait can use both mechanisms at once: its
-work/rest multipliers are resolved at spawn as always, but its extra mood
-lift on finishing a job (see [memories.md](./memories.md)) is a second,
-independent effect checked live via `HasTrait`, exactly like Tidy's. Nothing
+work/rest multipliers are resolved at spawn as always, but its finished-work
+vector amplification is a second, independent effect checked live via
+`HasTrait`, exactly like Tidy's. Nothing
 about having a `traitSpec` entry requires a trait to pick one mechanism
 exclusively.
 
@@ -164,10 +163,9 @@ exclusively.
 - **Making an attribute mechanical**: give it an effect and fold it into
   `resolveTraitEffects` (or an equivalent resolve step) so it stays off the hot
   path.
-- **A trait that affects a life event's mood impact** (like Tidy): no
-  `traitSpec` field needed — add a `Conditional` `MoodEffect` entry naming the
-  trait to the relevant `LifeEventKind`(s) in `lifeevents.go`. See
-  [memories.md](./memories.md).
+- **A trait that transforms life-event affect** (like Tidy): no `traitSpec`
+  field is needed — add its case to `transformMoodVector` in `affect.go` and
+  pin declaration-order behavior. See [affect.md](./affect.md).
 
 ## Related
 
@@ -175,7 +173,7 @@ exclusively.
 - [entities-and-ai.md](./entities-and-ai.md) — how `workScale`/`restTicks` feed behavior.
 - [configuration.md](./configuration.md) — `TraitChance`.
 - [mutation.md](./mutation.md) — `TraitMutant` and `TraitMutantLover`, and how a trait is acquired in play.
-- [memories.md](./memories.md) — life events, mood effects, and how `TraitTidy`
-  hooks into them.
+- [affect.md](./affect.md) — life-event vectors and how appraisal traits hook in.
+- [memories.md](./memories.md) — the one life-event ingestion funnel.
 - [heredity.md](./heredity.md) — the family pass that rewrites a generated
   profile's surname and appearance.

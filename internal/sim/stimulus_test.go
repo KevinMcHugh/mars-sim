@@ -21,10 +21,10 @@ func TestStimulusCoalescesByKindAndSource(t *testing.T) {
 	}
 }
 
-func TestStimulusExpiresExactlyAtBoundaryWithoutErasingMoodOrMemory(t *testing.T) {
+func TestStimulusExpiresExactlyAtBoundaryWithoutErasingAffectOrMemory(t *testing.T) {
 	w, c := focusTestColonist(t)
 	w.remember(c, eventFrom(EvtSawAlien, 7, "Saw alien #7."))
-	mood, memories := c.mood, len(c.Memories)
+	affect, memories := c.affect, len(c.Memories)
 	expires := c.stimuli[0].ExpiresAt
 
 	w.tick = expires - 1
@@ -37,8 +37,8 @@ func TestStimulusExpiresExactlyAtBoundaryWithoutErasingMoodOrMemory(t *testing.T
 	if c.stimulusCount != 0 {
 		t.Fatal("stimulus remained active at its boundary")
 	}
-	if c.mood != mood || len(c.Memories) != memories {
-		t.Fatalf("expiry changed durable products: mood %d/%d memories %d/%d", c.mood, mood, len(c.Memories), memories)
+	if c.affect != affect || len(c.Memories) != memories {
+		t.Fatalf("expiry changed durable products: affect %+v/%+v memories %d/%d", c.affect, affect, len(c.Memories), memories)
 	}
 }
 

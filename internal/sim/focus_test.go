@@ -131,13 +131,11 @@ func TestArmedThreatCanFightAndUnarmedCannot(t *testing.T) {
 	}
 
 	c.Inventory.Add(Pistol, 1)
+	c.affect.Grip = w.cfg.MoodMax
 	if got := w.chooseFocus(c, &candidates).Kind; got != FocusFight {
 		t.Fatalf("armed focus = %v, want fight", got)
 	}
 }
-
-// TODO(phase4): pin low-grip flee and high-grip fight ordering once
-// charge/grip affect contributes to focus scores.
 
 func TestFocusTransitionReleasesMineClaim(t *testing.T) {
 	w, c := focusTestColonist(t)

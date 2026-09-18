@@ -234,9 +234,8 @@ func TestOrdinaryConversationStaysSymmetric(t *testing.T) {
 	}
 }
 
-// A mutation is body horror to most colonists and a wonder to a mutant-lover:
-// the same life event moves their moods in opposite directions.
-func TestMutationMoodDependsOnMutantLoverTrait(t *testing.T) {
+// Mutation costs ordinary colonists grip; Mutant-Lovers reflect that axis.
+func TestMutationGripDependsOnMutantLoverTrait(t *testing.T) {
 	w := mutationWorld(t)
 	w.SetTerrain(Point{5, 5}, Floor)
 	w.SetTerrain(Point{6, 5}, Floor)
@@ -247,11 +246,11 @@ func TestMutationMoodDependsOnMutantLoverTrait(t *testing.T) {
 	w.mutate(plain)
 	w.mutate(lover)
 
-	if plain.mood >= 0 {
-		t.Fatalf("mutating should upset an ordinary colonist, mood = %d", plain.mood)
+	if plain.affect.Grip >= 0 {
+		t.Fatalf("ordinary mutation grip = %d, want negative", plain.affect.Grip)
 	}
-	if lover.mood <= 0 {
-		t.Fatalf("mutating should delight a mutant-lover, mood = %d", lover.mood)
+	if lover.affect.Grip <= 0 {
+		t.Fatalf("mutant-lover mutation grip = %d, want positive", lover.affect.Grip)
 	}
 }
 

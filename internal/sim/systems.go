@@ -86,6 +86,10 @@ func (w *World) colonistTurn(e *Entity) {
 		return
 	}
 
+	// Previously accumulated affect decays before this turn's observations, so a
+	// new event can influence arbitration immediately without decaying first.
+	w.decayAffect(e)
+
 	// Record the first sighting of each nearby creature. Seeing is edge-triggered:
 	// a colonist fleeing for many ticks remembers one encounter, not one memory
 	// per tick.
@@ -97,7 +101,8 @@ func (w *World) colonistTurn(e *Entity) {
 	w.applyUraniumExposure(e)
 
 	// Perception above refreshes ongoing threats. Expire everything else before
-	// scoring so an entry is inactive exactly at ExpiresAt.
+	// scoring so an entry is inactive exactly at ExpiresAt. Candidate generation
+	// also refreshes cached mood wording from the need/threat facts it already reads.
 	w.expireStimuli(e)
 
 	var candidates [numFocusKinds]FocusCandidate
@@ -656,15 +661,12 @@ func (w *World) jobTalk(e *Entity) {
 // finishTalk applies a completed conversation's outcome: it rolls the chat's
 // quality, shifts the pair's affinity (exacerbating its existing valence, with
 // diminishing returns), and records each participant's memory of it with the
-// mood delta that this particular conversation earned — a company term (how
-// it feels to spend time with the other, from affinity), a conversation term
-// (how the chat itself went, from quality), and each participant's own
-// social-fatigue penalty (noteConversation), which must still be called
-// exactly once per participant since it also advances their rolling
-// conversation-count window as a side effect. That computed total is
-// necessarily per-occurrence — unlike most LifeEvents it can't be a fixed
-// table lookup — so it travels on the LifeEvent itself via eventMood rather
-// than lifeEventMoodEffects. See docs/memories.md.
+// signed affect outcome that this conversation earned — a company term (how it
+// feels to spend time with the other), a quality term, and each participant's
+// social-fatigue penalty (noteConversation), which must still be called exactly
+// once because it advances the rolling window. The per-occurrence outcome
+// travels on LifeEvent and is deterministically converted to charge/grip in the
+// ingestion funnel. See docs/memories.md.
 func (w *World) finishTalk(a, b *Entity) {
 	existing := w.mutualAffinity(a.ID, b.ID)
 	quality := w.rollTalkQuality(existing)
@@ -675,9 +677,9 @@ func (w *World) finishTalk(a, b *Entity) {
 	step := w.talkAffinityDelta(existing, quality)
 	w.bumpAffinity(a.ID, b.ID, step+w.mutantAffinityBonus(a, b))
 	w.bumpAffinity(b.ID, a.ID, step+w.mutantAffinityBonus(b, a))
-	mood := w.talkMoodDelta(quality, existing)
-	w.remember(a, eventMood(EvtConversation, mood+w.noteConversation(a), "Had a conversation with %s.", b.displayName()))
-	w.remember(b, eventMood(EvtConversation, mood+w.noteConversation(b), "Had a conversation with %s.", a.displayName()))
+	outcome := w.talkMoodDelta(quality, existing)
+	w.remember(a, eventOutcome(EvtConversation, outcome+w.noteConversation(a), "Had a conversation with %s.", b.displayName()))
+	w.remember(b, eventOutcome(EvtConversation, outcome+w.noteConversation(b), "Had a conversation with %s.", a.displayName()))
 }
 
 // assignWorkJob picks something productive to do: help build a planned project

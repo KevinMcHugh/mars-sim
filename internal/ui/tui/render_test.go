@@ -123,7 +123,7 @@ func TestRosterShowsFamilyAndAffinity(t *testing.T) {
 	snap := makeSnapshot()
 	snap.AffinityMax, snap.MoodMax = 100, 100
 	snap.Entities[0].Profile = &sim.Profile{Name: "Zoe Vargas", Gender: sim.GenderWoman}
-	snap.Entities[0].Mood = 42
+	snap.Entities[0].Charge, snap.Entities[0].Grip, snap.Entities[0].MoodLabel = 42, -7, "anxious"
 	// Colonists Zoe is related to: one she likes, one she has come to dislike.
 	snap.Entities = append(snap.Entities,
 		sim.EntityView{
@@ -144,7 +144,7 @@ func TestRosterShowsFamilyAndAffinity(t *testing.T) {
 	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyTab})
 
 	out := m.View()
-	for _, want := range []string{"FAMILY", "sibling", "Ravi Boone", "AFFINITIES", "Omar Petrov", "-30", "mood", "+42"} {
+	for _, want := range []string{"FAMILY", "sibling", "Ravi Boone", "AFFINITIES", "Omar Petrov", "-30", "affect", "C+42", "G-7", "anxious"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("roster detail missing %q", want)
 		}

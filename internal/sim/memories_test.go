@@ -231,9 +231,9 @@ func TestNotableEventsDoNotCollapse(t *testing.T) {
 	}
 }
 
-// Collapsing is a display decision, not a mood one: the twelfth completed job
-// still lifts the colonist's mood the same as the first.
-func TestCollapsedRunStillAppliesMoodPerOccurrence(t *testing.T) {
+// Collapsing is a display decision, not an affect one: every completed job
+// still applies its vector.
+func TestCollapsedRunStillAppliesAffectPerOccurrence(t *testing.T) {
 	cfg := testConfig()
 	w := newTestWorld(t, cfg)
 
@@ -247,10 +247,10 @@ func TestCollapsedRunStillAppliesMoodPerOccurrence(t *testing.T) {
 		w.remember(thrice, event(EvtFinishedMining, "Finished mining at (%d, %d).", i, i))
 	}
 
-	if once.mood <= 0 {
-		t.Fatalf("mood after one job = %d, want positive", once.mood)
+	if once.affect.Grip <= 0 {
+		t.Fatalf("affect after one job = %+v, want positive grip", once.affect)
 	}
-	if thrice.mood != 3*once.mood {
-		t.Errorf("mood after three collapsed jobs = %d, want %d (three times one job's lift)", thrice.mood, 3*once.mood)
+	if thrice.affect.Charge != 3*once.affect.Charge || thrice.affect.Grip != 3*once.affect.Grip {
+		t.Errorf("affect after three collapsed jobs = %+v, want three times %+v", thrice.affect, once.affect)
 	}
 }

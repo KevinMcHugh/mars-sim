@@ -175,7 +175,9 @@ func TestKnobsAreWellFormed(t *testing.T) {
 			t.Errorf("knob %q collides with the special seed setting", k.Name)
 		}
 	}
-	if !names["colonists"] || !names["need-food-rise"] || !names["focus-work-base"] {
+	if !names["colonists"] || !names["need-food-rise"] || !names["focus-work-base"] ||
+		!names["mood-charge-decay-per-tick"] || !names["mood-grip-decay-per-tick"] ||
+		!names["mood-label-switch-margin"] {
 		t.Error("expected knobs are missing; did the cfg tags move?")
 	}
 }

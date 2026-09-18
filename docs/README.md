@@ -32,7 +32,8 @@ way it is without re-deriving it from the source each time.
 | [spatial-index-and-performance.md](./spatial-index-and-performance.md) | The occupancy index, incremental counts, chunk index, the job board, and the performance story. |
 | [inventory.md](./inventory.md) | Colonist inventory slots and stacking. |
 | [storage.md](./storage.md) | Placeable storage containers, their capacity, construction, and snapshot state. |
-| [memories.md](./memories.md) | Colonist memories and life events: notable experiences, sightings, mood effects, and snapshot exposure. |
+| [affect.md](./affect.md) | Charge/grip affect, event appraisal, trait transforms, decay, contextual labels, and focus contributions. |
+| [memories.md](./memories.md) | Colonist memories and life events: notable experiences, sightings, affect vectors, stimuli, and snapshot exposure. |
 | [snapshot-tile-grid.md](./snapshot-tile-grid.md) | The terrain a frontend reads: an immutable, page-shared grid so publishing a frame costs what the tick touched, not the map's area. |
 | [fog-of-war.md](./fog-of-war.md) | What the colony has seen: the explored flag, how digging lifts the fog, and how the map draws the unknown. |
 | [frontend-tui.md](./frontend-tui.md) | The Bubble Tea terminal frontend: map, roster, controls, and glyphs. |

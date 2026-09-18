@@ -107,6 +107,20 @@ func TestValidateFocusConfig(t *testing.T) {
 	}
 }
 
+func TestValidateAffectConfig(t *testing.T) {
+	for _, alter := range []func(*sim.Config){
+		func(cfg *sim.Config) { cfg.MoodChargeDecayPerTick = -1 },
+		func(cfg *sim.Config) { cfg.MoodGripDecayPerTick = -1 },
+		func(cfg *sim.Config) { cfg.MoodLabelSwitchMargin = -1 },
+	} {
+		cfg := sim.DefaultConfig()
+		alter(&cfg)
+		if err := validateConfig(cfg); err == nil || !strings.Contains(err.Error(), "affect") {
+			t.Fatalf("invalid affect config error = %v, want affect validation", err)
+		}
+	}
+}
+
 func TestValidateActiveStimulusLimit(t *testing.T) {
 	for _, limit := range []int{0, sim.MaxActiveStimuli + 1} {
 		cfg := sim.DefaultConfig()

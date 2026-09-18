@@ -179,7 +179,7 @@ func busySnapshot() *sim.Snapshot {
 	for i, p := range profiles {
 		entities = append(entities, sim.EntityView{
 			ID: sim.EntityID(i + 1), Kind: sim.Colonist, Pos: sim.Point{X: i, Y: 0},
-			HP: 40, MaxHP: 40, Mood: 20, State: states[i], Profile: p,
+			HP: 40, MaxHP: 40, Charge: 20, Grip: 10, MoodLabel: "driven", State: states[i], Profile: p,
 		})
 	}
 	for i, kind := range []sim.Kind{sim.Alien, sim.Cat, sim.Mouse} {

@@ -176,7 +176,7 @@ composition); `renderMap` (`view.go`) calls it via the new `Snapshot.TileAt`
 (alongside the existing `TerrainAt`) for any tile with no entity standing on
 it. Gore isn't just cosmetic to a colonist, either — coming within
 `Config.GoreSightRadius` of a gored tile is a `LifeEvent` (`EvtSawGore`) that
-drops mood, more so for a `TraitTidy` colonist; see
+lowers charge and grip, amplified for a `TraitTidy` colonist; see
 [memories.md](./memories.md).
 
 ### The graveyard
@@ -202,8 +202,8 @@ first — a `stomp`/`pounce`/kill flood shouldn't grow it without bound.
 a tile — its frozen `Pos` may not even be walkable anymore, or something
 else may be standing there now). `entityView`'s `full` parameter is what
 keeps a graveyard record cheap and honest: passing `false` skips computing
-`Relations`/`Affinities`/`Mood`, which only make sense for a colonist among
-its still-living kin, rather than showing them stale.
+`Relations`/`Affinities`, which only make sense for a colonist among living kin.
+Stored charge, grip, and the final cached mood word are frozen with the body.
 
 The [frontend-tui.md](./frontend-tui.md) roster is what actually surfaces
 this — the "dead" filter toggle and the per-entry cause of death.
@@ -295,7 +295,7 @@ this — the "dead" filter toggle and the per-entry cause of death.
 - [configuration.md](./configuration.md) — how weapon/equipment tunables
   become CLI flags.
 - [needs.md](./needs.md) — starvation, the other thing that drains HP.
-- [memories.md](./memories.md) — the life events and mood effects that
+- [memories.md](./memories.md) — the life events and affect vectors that
   bite/stomp/pounce/shoot and gore sightings feed.
 - [frontend-tui.md](./frontend-tui.md) — the fighting glyph, the gore glyph,
   and the roster's dead/non-human filter and wound line.
