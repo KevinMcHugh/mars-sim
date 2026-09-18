@@ -87,11 +87,10 @@ func (m Model) renderStorageDetail(storage sim.StorageView, rows, width int) str
 
 func (m Model) renderCursorInspector() string {
 	_, rows := m.viewportTiles()
-	tile := m.latest.TileAt(m.cursor)
 
 	var b strings.Builder
 	b.WriteString(labelStyle.Render("INSPECT"))
-	b.WriteString(fmt.Sprintf("\n(%d,%d)\n%s", m.cursor.X, m.cursor.Y, tile.Terrain))
+	b.WriteString(fmt.Sprintf("\n(%d,%d)\n%s", m.cursor.X, m.cursor.Y, m.terrainLabel(m.cursor)))
 	if i := m.storageIndexAt(m.cursor); i >= 0 {
 		storage := m.latest.Storages[i]
 		used, total := storageUsage(storage.Inventory)

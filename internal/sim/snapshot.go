@@ -166,6 +166,30 @@ type Snapshot struct {
 	MoodMax        int // mood display bar runs [-MoodMax, MoodMax]
 	Paused         bool
 	TicksPerSecond int
+
+	// FogOfWar says whether Tile.Explored is being maintained, so a frontend
+	// knows whether to hide the unexplored map. It is false on a hand-built
+	// Snapshot, which is what makes every tile of one read as explored (see
+	// ExploredAt) instead of a test fixture rendering as a blank screen.
+	FogOfWar bool
+}
+
+// ExploredAt reports whether the colony has seen p, and so whether a frontend
+// may draw what is on it. With fog of war off — including on any Snapshot
+// nobody set FogOfWar on — every in-bounds tile is explored.
+//
+// Asking here rather than reading Tile.Explored directly is what keeps the fog
+// off the engine's hot paths: turning fog off marks no tiles, so a huge map's
+// tile array stays the mostly-untouched zero pages that make publishing a
+// frame cheap (see tilegrid.go).
+func (s *Snapshot) ExploredAt(p Point) bool {
+	if p.X < 0 || p.X >= s.Width || p.Y < 0 || p.Y >= s.Height {
+		return false
+	}
+	if !s.FogOfWar {
+		return true
+	}
+	return s.Tiles.At(p).Explored
 }
 
 // TerrainAt reads the published grid; out-of-bounds reads return Rock so callers
@@ -280,6 +304,7 @@ func (w *World) snapshot(paused bool, tps int) *Snapshot {
 		MoodMax:              w.cfg.MoodMax,
 		Paused:               paused,
 		TicksPerSecond:       tps,
+		FogOfWar:             w.cfg.FogOfWar,
 	}
 }
 

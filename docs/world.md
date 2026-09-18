@@ -47,6 +47,12 @@ of: `Gore` (a violent death's stains, see [combat.md](./combat.md)) and
 [sanitation.md](./sanitation.md)). Raising a structure on a tile clears both;
 digging one out does not.
 
+`Explored` is the one field that is about the *player* rather than the tile: it
+records that the colony has dug or built its way to within one tile of here, and
+a frontend draws nothing on a tile that has not. It only ever goes from false to
+true, and it is set only by `SetTerrain` — see
+[fog-of-war.md](./fog-of-war.md).
+
 The grid is stored as a flat `[]Tile` of length `Width*Height`, indexed row-major
 via `World.index(p)`. `TerrainAt` returns `Rock` for out-of-bounds cells so the
 edge of the world reads as solid.
@@ -70,10 +76,11 @@ job board, flow fields, and the projects list. Those are documented in
 [pathfinding.md](./pathfinding.md), and [construction.md](./construction.md).
 
 The critical invariant lives in `SetTerrain`: it updates `terrainCounts`, marks
-the tile's chunk dirty (for region recompute), and **emits a `TileChanged` event**
-— which is how the job board and flow fields stay current. Always change terrain
-through `SetTerrain`, never by writing `tiles` directly, or those derived systems
-go stale.
+the tile's chunk dirty (for region recompute), lifts the fog of war over the
+tile and its eight neighbors (`revealAround`), and **emits a `TileChanged`
+event** — which is how the job board and flow fields stay current. Always change
+terrain through `SetTerrain`, never by writing `tiles` directly, or those
+derived systems go stale (and the map the player sees never grows).
 
 ### World generation
 
@@ -110,7 +117,9 @@ and it always finds a match if one exists.
   the many callers that ask "what's next to me?" — the world edge just behaves
   like solid wall.
 - **Terrain changes funnel through `SetTerrain`** so the event-driven systems can
-  be trusted; this is the linchpin of the reactive performance design.
+  be trusted; this is the linchpin of the reactive performance design. Fog of war
+  hangs off the same funnel, which is what makes revealing the map cost nothing
+  per tick (see [fog-of-war.md](./fog-of-war.md)).
 - **Composition is tile data, not terrain** because deposits do not differ in
   walkability or mining cost. New terrain kinds would complicate every rock
   predicate and derived index for no gameplay benefit.

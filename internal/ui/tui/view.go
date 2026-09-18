@@ -35,12 +35,18 @@ const (
 )
 
 var (
-	titleStyle   = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("203"))
-	statStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("245"))
-	pausedStyle  = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("214"))
-	helpStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
-	menuStyle    = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("214"))
-	cursorStyle  = lipgloss.NewStyle().Reverse(true)
+	titleStyle  = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("203"))
+	statStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("245"))
+	pausedStyle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("214"))
+	helpStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
+	menuStyle   = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("214"))
+	cursorStyle = lipgloss.NewStyle().Reverse(true)
+	// fogStyle paints an unexplored tile. Fog is blank rather than a glyph on
+	// purpose — the whole point is that there is nothing to see there — but
+	// open floor is blank too, so the unknown gets a faintly shaded background
+	// to tell the two apart. A background colour costs the row no cells (see
+	// cells.Width), so a fogged row is still exactly cols*tileWidth wide.
+	fogStyle     = lipgloss.NewStyle().Background(lipgloss.AdaptiveColor{Light: "252", Dark: "236"})
 	sidebarStyle = lipgloss.NewStyle().
 			Border(lipgloss.RoundedBorder()).
 			BorderForeground(lipgloss.Color("240")).
@@ -232,22 +238,68 @@ func (m Model) renderMap() string {
 	var b strings.Builder
 	b.Grow(rows * (rowWidth*2 + 1))
 	for y := 0; y < rows; y++ {
+		// Unexplored tiles are accumulated and emitted as one styled run per
+		// stretch rather than one per tile. Early on most of the screen is fog,
+		// and a pair of escape sequences per tile is the sort of ANSI bill that
+		// made redraws sluggish before (see Redraw cost in
+		// docs/frontend-tui.md); a run costs the same for eighty tiles as for
+		// one.
+		fog := 0
 		for x := 0; x < cols; x++ {
 			p := m.cam.Add(x, y)
-			drawn := tileGlyph(m.latest.TileAt(p))
-			if o, ok := occ[p]; ok {
-				drawn = o.glyph
+			explored := m.latest.ExploredAt(p)
+			atCursor := m.inspecting && p == m.cursor
+			if !explored && !atCursor {
+				fog++
+				continue
 			}
-			if m.inspecting && p == m.cursor {
+			if fog > 0 {
+				b.WriteString(fogCells(fog))
+				fog = 0
+			}
+			drawn := fogCells(1)
+			if explored {
+				// Entities are drawn only on explored tiles: an alien still
+				// burrowing through the unknown is exactly what the fog is
+				// there to hide, and drawing it over a blank tile would look
+				// like a bug besides.
+				drawn = tileGlyph(m.latest.TileAt(p))
+				if o, ok := occ[p]; ok {
+					drawn = o.glyph
+				}
+			}
+			if atCursor {
 				drawn = cursorStyle.Render(drawn)
 			}
 			b.WriteString(drawn)
+		}
+		if fog > 0 {
+			b.WriteString(fogCells(fog))
 		}
 		if y < rows-1 {
 			b.WriteByte('\n')
 		}
 	}
 	return b.String()
+}
+
+// fogCells renders n adjacent unexplored tiles as one styled blank run,
+// exactly n*tileWidth cells wide.
+func fogCells(n int) string {
+	if n < 1 {
+		return ""
+	}
+	return fogStyle.Render(strings.Repeat(" ", n*tileWidth))
+}
+
+// terrainLabel names what the player can see at p. An unexplored tile reads as
+// "unexplored" rather than as the rock the snapshot knows is there — the
+// inspector would otherwise hand straight back the map the fog is hiding.
+func (m Model) terrainLabel(p sim.Point) string {
+	if !m.latest.ExploredAt(p) {
+		return "unexplored"
+	}
+	return m.latest.TerrainAt(p).String()
 }
 
 // joinColumns lays right beside left with a panelGap between them, producing
@@ -288,7 +340,7 @@ func joinColumns(left string, leftWidth int, right string, rightWidth int) strin
 
 func (m Model) renderSidebar() string {
 	_, rows := m.viewportTiles()
-	return m.cache.sidebar(rows, m.latest.Log, usingASCIIGlyphs(), func() string {
+	return m.cache.sidebar(rows, m.latest.Log, usingASCIIGlyphs(), m.latest.FogOfWar, func() string {
 		return m.drawSidebar(rows)
 	})
 }
@@ -309,25 +361,32 @@ func (m Model) drawSidebar(rows int) string {
 	// Two columns of legend entries, each entry "<glyph> <label>". The label
 	// column is padded by cell count, not by %-Ns: fmt pads to a byte count,
 	// which is off by two for every one of these lines.
-	type entry struct{ symbol, label string }
+	//
+	// Entries carry the drawn form rather than the symbol, because fog is the
+	// one thing on the map that is not a glyph at all (see fogCells).
+	type entry struct{ drawn, label string }
+	g := func(symbol, label string) entry { return entry{fitGlyph(symbol), label} }
 	legendRows := [][2]entry{
-		{{glyphColonist, "colonist"}, {glyphAlien, "alien"}},
-		{{glyphCat, "cat"}, {glyphMouse, "mouse"}},
-		{{glyphFleeing, "fleeing"}, {glyphTalking, "talking"}},
-		{{glyphPod, "food pod"}, {glyphToilet, "toilet"}},
-		{{glyphBed, "bunk"}, {glyphWall, "wall"}},
-		{{glyphIncinerator, "burner"}, {glyphCorpse, "body"}},
-		{{glyphStorage, "storage"}, {glyphGore, "gore"}},
-		{{glyphRock, "rock"}, {glyphIronRock, "iron rock"}},
-		{{glyphIceRock, "ice rock"}, {glyphClayRock, "clay rock"}},
-		{{glyphUranium, "uranium"}, {glyphFloor, "open"}},
+		{g(glyphColonist, "colonist"), g(glyphAlien, "alien")},
+		{g(glyphCat, "cat"), g(glyphMouse, "mouse")},
+		{g(glyphFleeing, "fleeing"), g(glyphTalking, "talking")},
+		{g(glyphPod, "food pod"), g(glyphToilet, "toilet")},
+		{g(glyphBed, "bunk"), g(glyphWall, "wall")},
+		{g(glyphIncinerator, "burner"), g(glyphCorpse, "body")},
+		{g(glyphStorage, "storage"), g(glyphGore, "gore")},
+		{g(glyphRock, "rock"), g(glyphIronRock, "iron rock")},
+		{g(glyphIceRock, "ice rock"), g(glyphClayRock, "clay rock")},
+		{g(glyphUranium, "uranium"), g(glyphFloor, "open")},
+	}
+	if m.latest.FogOfWar {
+		legendRows = append(legendRows, [2]entry{{fogCells(1), "unexplored"}, {}})
 	}
 	column := inner / 2
 
 	lines := []string{"LEGEND"}
 	for _, r := range legendRows {
-		left := cells.Fit(fitGlyph(r[0].symbol)+" "+r[0].label, column)
-		right := fitGlyph(r[1].symbol) + " " + r[1].label
+		left := cells.Fit(r[0].drawn+" "+r[0].label, column)
+		right := r[1].drawn + " " + r[1].label
 		lines = append(lines, cells.Fit(left+right, inner))
 	}
 	lines = append(lines, "", "LOG")
@@ -355,7 +414,7 @@ func (m Model) renderFooter() string {
 	help := "space pause  +/- speed  s spawn  b build  i inspect  ←↑↓→/hjkl pan  tab details  q quit"
 	if m.inspecting {
 		help = fmt.Sprintf("inspect (%d,%d) %s  ←↑↓→/hjkl move  enter open storage  i/esc close  tab details",
-			m.cursor.X, m.cursor.Y, m.latest.TerrainAt(m.cursor))
+			m.cursor.X, m.cursor.Y, m.terrainLabel(m.cursor))
 	}
 	if usingASCIIGlyphs() {
 		// The player should know why the colony looks like a roguelike: the

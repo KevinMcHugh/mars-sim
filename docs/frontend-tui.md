@@ -46,7 +46,9 @@ active panel's handler.
   terminal cells per tile, overlaying entity glyphs (aliens win position ties).
   An empty tile with refuse on it (`tileGlyph`) draws a body 🦴 or, failing
   that, a splatter 🩸 instead of its bare terrain — see
-  [combat.md](./combat.md) and [sanitation.md](./sanitation.md). A sidebar shows
+  [combat.md](./combat.md) and [sanitation.md](./sanitation.md). A tile the
+  colony has not dug up to yet draws neither terrain nor occupant, just a
+  faintly shaded blank — see [fog-of-war.md](./fog-of-war.md). A sidebar shows
   a legend and the tail of the event log; the header shows tick, speed, pause
   state, and `Stats` counts, including built dormitory beds, incinerators, and
   refuse still on the floor.
@@ -152,7 +154,8 @@ kinds are added — new options are new entries in `spawnMenuItems`/
 Pressing `i` on the map enters inspection mode. A reverse-video cursor starts
 near the center of the viewport; arrows or `hjkl` move it one world tile at a
 time and pan the camera when it reaches an edge. The sidebar shows the cursor
-coordinate and terrain. For a storage container it also shows occupied stacks,
+coordinate and terrain — or `unexplored` (`terrainLabel`) for a tile still under
+fog, since naming the rock there would hand back the map the fog is hiding. For a storage container it also shows occupied stacks,
 and `enter` jumps directly to that container in the storage details panel.
 `i` or `esc` closes inspection without quitting.
 
@@ -200,6 +203,11 @@ is never a mystery.
 
 ### Glyphs
 
+Fog is the one thing the map draws that is **not** a glyph: an unexplored tile is
+two spaces with a shaded background (`fogStyle`/`fogCells`), so there is no
+symbol for the registry to measure and nothing for the probe to check. See
+[fog-of-war.md](./fog-of-war.md).
+
 Each tile is allocated **two terminal cells** (open floor is two spaces), and
 every glyph reaches the terminal through `fitGlyph`, which renders it in exactly
 that many cells. Glyphs are not loose constants: they live in a registry with a
@@ -238,8 +246,13 @@ without dropping the guarantee it provided:
   [terminal-cell-widths.md](./terminal-cell-widths.md).
 - **`clampFrame`.** Reuses widths of lines unchanged since the previous frame.
 - **Sidebar.** Memoized: lipgloss's border, padding and wrapping dominate its
-  cost, and it only changes with the event log, the panel height, or the glyph
-  set (`TestSidebarCacheInvalidates`).
+  cost, and it only changes with the event log, the panel height, the glyph
+  set, or whether fog of war is on — which adds a legend row
+  (`TestSidebarCacheInvalidates`).
+- **Fog runs.** Unexplored tiles are emitted as one styled run per stretch
+  rather than one per tile. Early on most of the screen is fog, and a pair of
+  escape sequences per tile would put tens of kilobytes of ANSI on every frame
+  — the same bill that made per-tile cursor positioning too slow to keep.
 - **Occupancy index.** `renderMap` indexes entities by position; it now stores
   each occupant's glyph rather than copying its whole `EntityView` (profile,
   inventory, needs, relations, memories) into a map every frame.
@@ -303,6 +316,7 @@ contract is genuinely frontend-agnostic.
 ## Related
 
 - [architecture.md](./architecture.md) — the snapshot/command contract this implements.
+- [fog-of-war.md](./fog-of-war.md) — what the colony has seen, and how the map draws the rest.
 - [combat.md](./combat.md) — body parts, weapons, and the gore glyph.
 - [mutation.md](./mutation.md) — the uranium-rock and mutant-colonist glyphs, and the per-entity body parts the inspector lists.
 - [inventory.md](./inventory.md) — what the roster's inventory view shows.
