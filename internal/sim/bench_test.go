@@ -47,6 +47,28 @@ func benchmarkStep(b *testing.B, colonists int) {
 func BenchmarkStep500(b *testing.B)  { benchmarkStep(b, 500) }
 func BenchmarkStep2000(b *testing.B) { benchmarkStep(b, 2000) }
 
+// BenchmarkStepIdle500 measures an established colony while every colonist is
+// in the existing resting fast path: no need can become urgent and no wake-up
+// can trigger a work search. This is the baseline for cognition caching, which
+// must not make otherwise dormant colonists more expensive.
+func BenchmarkStepIdle500(b *testing.B) {
+	w := benchWorld(500)
+	for _, e := range w.entities {
+		if e.Kind != Colonist {
+			continue
+		}
+		e.needRise = [numNeeds]int{}
+		e.resting = true
+		e.wakeTick = int(^uint(0) >> 1)
+	}
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		w.step()
+	}
+}
+
 // BenchmarkRoomRefresh measures the incremental cost of one terrain change in a
 // large open map: one chunk re-flooded plus a room relabel over the region
 // graph. It should stay flat as the map grows, unlike a global flood fill.
