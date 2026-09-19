@@ -208,6 +208,8 @@ func validateConfig(cfg sim.Config) error {
 		return fmt.Errorf("per-facility must be at least 1 (got %d)", cfg.ColonistsPerFacility)
 	case cfg.MaxConcurrentProjects < 1:
 		return fmt.Errorf("max-concurrent-projects must be at least 1 (got %d)", cfg.MaxConcurrentProjects)
+	case cfg.ActiveStimulusLimit < 1 || cfg.ActiveStimulusLimit > sim.MaxActiveStimuli:
+		return fmt.Errorf("active-stimulus-limit must be between 1 and %d (got %d)", sim.MaxActiveStimuli, cfg.ActiveStimulusLimit)
 	case cfg.RestTicks < 1:
 		return fmt.Errorf("rest-ticks must be at least 1 (got %d)", cfg.RestTicks)
 	case cfg.StuckLimit < 1:
@@ -243,6 +245,8 @@ func validateConfig(cfg sim.Config) error {
 		return fmt.Errorf("mood-max must be at least 1 (got %d)", cfg.MoodMax)
 	case cfg.SocialWindowTicks < 1:
 		return fmt.Errorf("social-window-ticks must be at least 1 (got %d)", cfg.SocialWindowTicks)
+	case cfg.MoodChargeDecayPerTick < 0 || cfg.MoodGripDecayPerTick < 0 || cfg.MoodLabelSwitchMargin < 0:
+		return fmt.Errorf("affect decay and label switch margin cannot be negative")
 	case cfg.MouseLitterMin < 0 || cfg.MouseLitterMax < cfg.MouseLitterMin:
 		return fmt.Errorf("mouse litter range is invalid: min %d, max %d", cfg.MouseLitterMin, cfg.MouseLitterMax)
 	}
@@ -255,10 +259,25 @@ func validateConfig(cfg sim.Config) error {
 			return fmt.Errorf("need-%s-max must be at least 1 (got %d)", spec.Name, spec.Max)
 		case spec.Rise < 0:
 			return fmt.Errorf("need-%s-rise cannot be negative (got %d)", spec.Name, spec.Rise)
-		case spec.SeekAt < 0 || spec.SeekAt > spec.Max:
-			return fmt.Errorf("need-%s-seek-at must be between 0 and need-%s-max (got %d, max %d)", spec.Name, spec.Name, spec.SeekAt, spec.Max)
+		case spec.SeekAt < 0 || spec.SeekAt > spec.CriticalAt || spec.CriticalAt > spec.Max:
+			return fmt.Errorf("need-%s thresholds must satisfy 0 <= seek-at <= critical-at <= max (got %d, %d, %d)",
+				spec.Name, spec.SeekAt, spec.CriticalAt, spec.Max)
 		case spec.UseTicks < 0 || spec.GrabTicks < 0:
 			return fmt.Errorf("need-%s use and grab ticks cannot be negative (got %d and %d)", spec.Name, spec.UseTicks, spec.GrabTicks)
+		}
+	}
+	if cfg.FocusCurrentBonus < 0 || cfg.FocusSwitchMargin < 0 ||
+		cfg.FocusCriticalBonus < 0 || cfg.FocusFatalBonus < 0 {
+		return fmt.Errorf("focus bonuses and switch margin cannot be negative")
+	}
+	for _, spec := range cfg.Focuses {
+		switch {
+		case spec.Name == "":
+			return fmt.Errorf("focus name cannot be empty")
+		case spec.NeedWeight < 0:
+			return fmt.Errorf("focus-%s-need-weight cannot be negative (got %d)", spec.Name, spec.NeedWeight)
+		case spec.DistanceWeight < 0:
+			return fmt.Errorf("focus-%s-distance-weight cannot be negative (got %d)", spec.Name, spec.DistanceWeight)
 		}
 	}
 	return nil

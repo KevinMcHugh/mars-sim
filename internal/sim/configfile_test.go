@@ -175,8 +175,25 @@ func TestKnobsAreWellFormed(t *testing.T) {
 			t.Errorf("knob %q collides with the special seed setting", k.Name)
 		}
 	}
-	if !names["colonists"] || !names["need-food-rise"] {
+	if !names["colonists"] || !names["need-food-rise"] || !names["focus-work-base"] ||
+		!names["mood-charge-decay-per-tick"] || !names["mood-grip-decay-per-tick"] ||
+		!names["mood-label-switch-margin"] {
 		t.Error("expected knobs are missing; did the cfg tags move?")
+	}
+}
+
+func TestFocusKnobsUseFocusNames(t *testing.T) {
+	cfg := DefaultConfig()
+	keys := map[string]string{}
+	for _, k := range Knobs(&cfg) {
+		keys[k.Name] = k.Key
+	}
+	for f := FocusKind(0); f < numFocusKinds; f++ {
+		name := "focus-" + f.String() + "-base"
+		want := "focuses." + f.String() + ".base"
+		if got := keys[name]; got != want {
+			t.Errorf("%s key = %q, want %q", name, got, want)
+		}
 	}
 }
 

@@ -12,14 +12,17 @@ import "testing"
 func TestArmedColonistKillsAlien(t *testing.T) {
 	cfg := testConfig()
 	cfg.StartColonists, cfg.StartAliens, cfg.StartCats, cfg.StartMice = 0, 0, 0, 0
-	cfg.AlienSlowness = 1
+	// Keep the target from biting between the two shots. A bite now creates an
+	// active flee stimulus, which is a separate behavior from gunfire itself.
+	cfg.AlienSlowness = 4
 	cfg.AlienDamage = 0
 	w := newTestWorld(t, cfg)
 
 	center := Point{w.Width / 2, w.Height / 2}
 	colonist := w.spawn(Colonist, center)
+	colonist.affect.Grip = cfg.MoodMax // composed enough to stand and fight
 	colonist.Inventory.Add(Shotgun, 1)
-	alien := w.spawn(Alien, center.Add(cfg.ShotgunRange+1, 0))
+	alien := w.spawn(Alien, center.Add(cfg.ShotgunRange, 0))
 
 	for i := 0; i < 200 && w.entities[alien.ID] != nil; i++ {
 		w.step()
@@ -29,6 +32,35 @@ func TestArmedColonistKillsAlien(t *testing.T) {
 	}
 	if w.entities[colonist.ID] == nil {
 		t.Fatal("armed colonist should have survived the fight")
+	}
+}
+
+// An armed colonist starting from neutral affect (no cheated grip) must
+// still stand and fight a fresh alien encounter rather than flee it forever.
+// This pins the regression found during Phase 4/5 playtesting: the one-time
+// grip hit from merely *seeing* an alien (EvtSawAlien) used to outweigh the
+// armed-colonist fight posture, and the focus switch hysteresis then locked
+// colonists into fleeing even after grip decayed back toward neutral,
+// leaving aliens never fought. See D-002 in
+// The default is documented by the affect and combat behavior docs.
+func TestArmedColonistFightsFromNeutralAffect(t *testing.T) {
+	cfg := testConfig()
+	cfg.StartColonists, cfg.StartAliens, cfg.StartCats, cfg.StartMice = 0, 0, 0, 0
+	w := newTestWorld(t, cfg)
+
+	center := Point{w.Width / 2, w.Height / 2}
+	colonist := w.spawn(Colonist, center)
+	colonist.Inventory.Add(Shotgun, 1)
+	alien := w.spawn(Alien, center.Add(cfg.ShotgunRange+2, 0))
+
+	for i := 0; i < 300 && w.entities[alien.ID] != nil && w.entities[colonist.ID] != nil; i++ {
+		w.step()
+	}
+	if w.entities[colonist.ID] == nil {
+		t.Fatal("armed colonist died fleeing an alien it should have fought")
+	}
+	if w.entities[alien.ID] != nil {
+		t.Fatal("armed colonist starting from neutral affect never fought off the alien")
 	}
 }
 
@@ -58,6 +90,7 @@ func TestArmedColonistFightsInsteadOfFleeing(t *testing.T) {
 
 	center := Point{w.Width / 2, w.Height / 2}
 	colonist := w.spawn(Colonist, center)
+	colonist.affect.Grip = cfg.MoodMax // high grip favors confrontation
 	colonist.Inventory.Add(Pistol, 1)
 	w.spawn(Alien, center.Add(cfg.PistolRange, 0))
 

@@ -50,9 +50,11 @@ type-switches over those pointers to register flags; `ConfigTemplate` renders
 them as commented YAML; `ApplyConfigFile` looks them up by key. Add a field with
 a tag and all three surfaces get it.
 
-`Config.Needs` is an array of `NeedSpec`, so its knobs nest: the file writes
-`needs.food.rise`, and the flag flattens to `-need-food-rise`. The need's name
-comes from `NeedKind.String()`, so the file reads the way a player would say it.
+`Config.Needs` and `Config.Focuses` are arrays of specs, so their knobs nest:
+the file writes `needs.food.rise` and `focuses.work.base`, while flags flatten
+those to `-need-food-rise` and `-focus-work-base`. Element names come from the
+corresponding enum's `String()` method, so both surfaces read the way a player
+would say them.
 
 ### Startup order
 

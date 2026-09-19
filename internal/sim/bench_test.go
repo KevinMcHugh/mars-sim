@@ -47,6 +47,125 @@ func benchmarkStep(b *testing.B, colonists int) {
 func BenchmarkStep500(b *testing.B)  { benchmarkStep(b, 500) }
 func BenchmarkStep2000(b *testing.B) { benchmarkStep(b, 2000) }
 
+// BenchmarkStepIdle500 measures an established colony while every colonist is
+// in the existing resting fast path: no need can become urgent and no wake-up
+// can trigger a work search. This is the baseline for cognition caching, which
+// must not make otherwise dormant colonists more expensive.
+func BenchmarkStepIdle500(b *testing.B) {
+	w := benchWorld(500)
+	for _, e := range w.entities {
+		if e.Kind != Colonist {
+			continue
+		}
+		prepareRestingBenchmarkColonist(w, e)
+	}
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		w.step()
+	}
+}
+
+func prepareRestingBenchmarkColonist(w *World, e *Entity) {
+	e.needRise = [numNeeds]int{}
+	e.focus, e.Job, e.State = FocusIdle, JobNone, Idle
+	e.resting = true
+	e.wakeTick = int(^uint(0) >> 1)
+	e.mindDirty = false
+	e.nextThinkTick = e.wakeTick
+}
+
+func prepareSleepingBenchmarkColonist(w *World, e *Entity) bool {
+	var bed Point
+	found := false
+	for _, d := range neighbors8 {
+		p := e.Pos.Add(d.X, d.Y)
+		if w.InBounds(p) && w.entityAt(p) == nil && w.TerrainAt(p) == Floor {
+			bed, found = p, true
+			break
+		}
+	}
+	if !found {
+		return false
+	}
+	w.SetTerrain(bed, Bed)
+	e.needRise = [numNeeds]int{}
+	e.Needs[NeedSleep] = w.cfg.Needs[NeedSleep].SeekAt
+	e.needPhase[NeedSleep] = NeedPressing
+	e.focus, e.Job, e.Need, e.State = FocusSleep, JobUse, NeedSleep, Sleeping
+	e.useFacility, e.useFacilitySet = bed, true
+	e.resting = false
+	e.mindDirty = false
+	e.nextThinkTick = int(^uint(0) >> 1)
+	return true
+}
+
+func BenchmarkRestingColonistFastPath(b *testing.B) {
+	w := benchWorldSized(64, 64, 1)
+	e := w.entities[1]
+	prepareRestingBenchmarkColonist(w, e)
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		w.tick++
+		w.colonistTurn(e)
+	}
+}
+
+func BenchmarkSleepingColonistFastPath(b *testing.B) {
+	w := benchWorldSized(64, 64, 1)
+	w.cfg.Needs[NeedSleep].UseTicks = int(^uint(0) >> 1)
+	e := w.entities[1]
+	if !prepareSleepingBenchmarkColonist(w, e) {
+		b.Fatal("no adjacent bed site")
+	}
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		w.tick++
+		w.colonistTurn(e)
+	}
+}
+
+func BenchmarkStepSleeping500(b *testing.B) {
+	w := benchWorld(500)
+	w.cfg.Needs[NeedSleep].UseTicks = int(^uint(0) >> 1)
+	for _, e := range w.entities {
+		if e.Kind == Colonist && !prepareSleepingBenchmarkColonist(w, e) {
+			prepareRestingBenchmarkColonist(w, e)
+		}
+	}
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		w.step()
+	}
+}
+
+func BenchmarkStepMixed500(b *testing.B) {
+	w := benchWorld(500)
+	i := 0
+	for _, id := range w.entityIDsSorted() {
+		e := w.entities[id]
+		if e.Kind != Colonist {
+			continue
+		}
+		switch i % 3 {
+		case 0:
+			prepareRestingBenchmarkColonist(w, e)
+		case 1:
+			prepareSleepingBenchmarkColonist(w, e)
+		}
+		i++
+	}
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		w.step()
+	}
+}
+
 // BenchmarkRoomRefresh measures the incremental cost of one terrain change in a
 // large open map: one chunk re-flooded plus a room relabel over the region
 // graph. It should stay flat as the map grows, unlike a global flood fill.

@@ -234,9 +234,8 @@ func TestOrdinaryConversationStaysSymmetric(t *testing.T) {
 	}
 }
 
-// A mutation is body horror to most colonists and a wonder to a mutant-lover:
-// the same life event moves their moods in opposite directions.
-func TestMutationMoodDependsOnMutantLoverTrait(t *testing.T) {
+// Mutation costs ordinary colonists grip; Mutant-Lovers reflect that axis.
+func TestMutationGripDependsOnMutantLoverTrait(t *testing.T) {
 	w := mutationWorld(t)
 	w.SetTerrain(Point{5, 5}, Floor)
 	w.SetTerrain(Point{6, 5}, Floor)
@@ -247,11 +246,11 @@ func TestMutationMoodDependsOnMutantLoverTrait(t *testing.T) {
 	w.mutate(plain)
 	w.mutate(lover)
 
-	if plain.mood >= 0 {
-		t.Fatalf("mutating should upset an ordinary colonist, mood = %d", plain.mood)
+	if plain.affect.Grip >= 0 {
+		t.Fatalf("ordinary mutation grip = %d, want negative", plain.affect.Grip)
 	}
-	if lover.mood <= 0 {
-		t.Fatalf("mutating should delight a mutant-lover, mood = %d", lover.mood)
+	if lover.affect.Grip <= 0 {
+		t.Fatalf("mutant-lover mutation grip = %d, want positive", lover.affect.Grip)
 	}
 }
 
@@ -262,13 +261,22 @@ func TestMutationIsDeterministicForASeed(t *testing.T) {
 		cfg := testConfig()
 		cfg.Width, cfg.Height = 40, 30
 		cfg.UraniumRockPercent = 20 // plenty of uranium, so mutations actually happen
-		cfg.UraniumExposureTicks = 20
+		cfg.UraniumExposureTicks = 1
 		cfg.MutationChance = 100
 		cfg.Seed = 999
 		w := NewEngine(cfg).world
-		for i := 0; i < 400; i++ {
-			w.step()
+		// Guarantee that this RNG test reaches mutation independently of which
+		// rock the evolving focus system chooses to mine first.
+		for _, id := range w.entityIDsSorted() {
+			if e := w.entities[id]; e.Kind == Colonist {
+				e.Inventory = Inventory{}
+				if !e.Inventory.Add(UraniumOre, 1) {
+					t.Fatal("could not equip deterministic uranium source")
+				}
+				break
+			}
 		}
+		w.step()
 		var out []string
 		for _, id := range w.entityIDsSorted() {
 			e := w.entities[id]
@@ -280,7 +288,7 @@ func TestMutationIsDeterministicForASeed(t *testing.T) {
 	}
 	first, second := run(), run()
 	if len(first) == 0 {
-		t.Fatal("no colonist mutated in 400 ticks of a uranium-rich map")
+		t.Fatal("guaranteed uranium dose did not mutate a colonist")
 	}
 	if len(first) != len(second) {
 		t.Fatalf("same seed mutated %d colonists then %d", len(first), len(second))

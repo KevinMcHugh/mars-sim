@@ -379,8 +379,8 @@ func TestTalkingRaisesAffinity(t *testing.T) {
 	if v := w.affinity[a.ID][b.ID]; v > w.cfg.AffinityMax {
 		t.Fatalf("affinity exceeded the cap: %d > %d", v, w.cfg.AffinityMax)
 	}
-	if a.mood == 0 && b.mood == 0 {
-		t.Fatalf("expected talking to move mood, both still 0")
+	if a.affect.Charge == 0 && a.affect.Grip == 0 && b.affect.Charge == 0 && b.affect.Grip == 0 {
+		t.Fatalf("expected talking to move affect, both still neutral")
 	}
 }
 

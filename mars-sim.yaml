@@ -128,6 +128,9 @@
 ##     level at which the colonist drops work to satisfy it
 #     seek-at: 650
 
+##     level at which the need becomes critical
+#     critical-at: 1000
+
 ##     ceiling; a fatal need sitting here drains HP
 #     max: 1000
 
@@ -146,6 +149,9 @@
 
 ##     level at which the colonist drops work to satisfy it
 #     seek-at: 600
+
+##     level at which the need becomes critical
+#     critical-at: 900
 
 ##     ceiling; a fatal need sitting here drains HP
 #     max: 1000
@@ -166,6 +172,9 @@
 ##     level at which the colonist drops work to satisfy it
 #     seek-at: 500
 
+##     level at which the need becomes critical
+#     critical-at: 850
+
 ##     ceiling; a fatal need sitting here drains HP
 #     max: 1000
 
@@ -185,6 +194,9 @@
 ##     level at which the colonist drops work to satisfy it
 #     seek-at: 700
 
+##     level at which the need becomes critical
+#     critical-at: 900
+
 ##     ceiling; a fatal need sitting here drains HP
 #     max: 1000
 
@@ -202,6 +214,152 @@
 
 ## colonists served by each life-support facility
 # per-facility: 5
+
+# ── Focus arbitration ───────────────────────────────────────────────────
+
+# focuses:
+#   idle:
+##     baseline score before state contributions
+#     base: 0
+
+##     matching need pressure contribution
+#     need-weight: 0
+
+##     signed response to affect charge
+#     charge-weight: -10
+
+##     signed response to affect grip
+#     grip-weight: 0
+
+##     penalty per cheap distance unit
+#     distance-weight: 0
+
+#   work:
+##     baseline score before state contributions
+#     base: 25
+
+##     matching need pressure contribution
+#     need-weight: 0
+
+##     signed response to affect charge
+#     charge-weight: 20
+
+##     signed response to affect grip
+#     grip-weight: 10
+
+##     penalty per cheap distance unit
+#     distance-weight: 1
+
+#   eat:
+##     baseline score before state contributions
+#     base: 40
+
+##     matching need pressure contribution
+#     need-weight: 100
+
+##     signed response to affect charge
+#     charge-weight: 0
+
+##     signed response to affect grip
+#     grip-weight: 5
+
+##     penalty per cheap distance unit
+#     distance-weight: 1
+
+#   relieve:
+##     baseline score before state contributions
+#     base: 40
+
+##     matching need pressure contribution
+#     need-weight: 100
+
+##     signed response to affect charge
+#     charge-weight: 0
+
+##     signed response to affect grip
+#     grip-weight: 0
+
+##     penalty per cheap distance unit
+#     distance-weight: 1
+
+#   socialize:
+##     baseline score before state contributions
+#     base: 40
+
+##     matching need pressure contribution
+#     need-weight: 100
+
+##     signed response to affect charge
+#     charge-weight: 10
+
+##     signed response to affect grip
+#     grip-weight: 5
+
+##     penalty per cheap distance unit
+#     distance-weight: 1
+
+#   sleep:
+##     baseline score before state contributions
+#     base: 40
+
+##     matching need pressure contribution
+#     need-weight: 100
+
+##     signed response to affect charge
+#     charge-weight: -30
+
+##     signed response to affect grip
+#     grip-weight: 0
+
+##     penalty per cheap distance unit
+#     distance-weight: 1
+
+#   flee:
+##     baseline score before state contributions
+#     base: 0
+
+##     matching need pressure contribution
+#     need-weight: 0
+
+##     signed response to affect charge
+#     charge-weight: 20
+
+##     signed response to affect grip
+#     grip-weight: -40
+
+##     penalty per cheap distance unit
+#     distance-weight: 1
+
+#   fight:
+##     baseline score before state contributions
+#     base: 15
+
+##     matching need pressure contribution
+#     need-weight: 0
+
+##     signed response to affect charge
+#     charge-weight: 20
+
+##     signed response to affect grip
+#     grip-weight: 40
+
+##     penalty per cheap distance unit
+#     distance-weight: 1
+
+## score bonus for continuing the current eligible focus
+# focus-current-bonus: 25
+
+## minimum score lead required to replace an eligible focus
+# focus-switch-margin: 10
+
+## score bonus for a need at its critical boundary
+# focus-critical-bonus: 100
+
+## score bonus for a pressing fatal need
+# focus-fatal-bonus: 150
+
+## maximum transient life-event appraisals retained per colonist
+# active-stimulus-limit: 8
 
 # ── Work and construction ───────────────────────────────────────────────
 ## ticks an idle colonist rests before re-checking for work
@@ -268,18 +426,27 @@
 ## random swing around a conversation's mean quality
 # talk-quality-spread: 50
 
-# ── Mood ────────────────────────────────────────────────────────────────
-## colonist mood runs in [-mood-max, mood-max]
+# ── Affect ──────────────────────────────────────────────────────────────
+## charge and grip each run in [-mood-max, mood-max]
 # mood-max: 100
 
-## mood shift per conversation from how one feels about the other
-# mood-company-weight: 6
+## conversation outcome from how one feels about the other
+# conversation-company-weight: 6
 
-## mood shift per conversation from how the chat itself went
-# mood-conversation-weight: 10
+## conversation outcome from how the chat itself went
+# conversation-quality-weight: 10
 
 ## ticks in the rolling window for social conversation fatigue
 # social-window-ticks: 200
+
+## charge points that decay toward home per colonist turn
+# mood-charge-decay-per-tick: 2
+
+## grip points that decay toward home per colonist turn
+# mood-grip-decay-per-tick: 1
+
+## claim advantage required to switch mood attractors
+# mood-label-switch-margin: 5
 
 # ── Mining strategy ─────────────────────────────────────────────────────
 ## colony size at/above which miners use the shared frontier flow field

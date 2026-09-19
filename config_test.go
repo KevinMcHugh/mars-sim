@@ -93,6 +93,57 @@ func TestCommittedSettingsFileLoads(t *testing.T) {
 	}
 }
 
+func TestValidateFocusConfig(t *testing.T) {
+	cfg := sim.DefaultConfig()
+	cfg.FocusSwitchMargin = -1
+	if err := validateConfig(cfg); err == nil || !strings.Contains(err.Error(), "focus") {
+		t.Fatalf("negative focus margin error = %v, want focus validation", err)
+	}
+
+	cfg = sim.DefaultConfig()
+	cfg.Focuses[sim.FocusWork].DistanceWeight = -1
+	if err := validateConfig(cfg); err == nil || !strings.Contains(err.Error(), "focus-work-distance-weight") {
+		t.Fatalf("negative work distance error = %v, want focus-work validation", err)
+	}
+}
+
+func TestValidateAffectConfig(t *testing.T) {
+	for _, alter := range []func(*sim.Config){
+		func(cfg *sim.Config) { cfg.MoodChargeDecayPerTick = -1 },
+		func(cfg *sim.Config) { cfg.MoodGripDecayPerTick = -1 },
+		func(cfg *sim.Config) { cfg.MoodLabelSwitchMargin = -1 },
+	} {
+		cfg := sim.DefaultConfig()
+		alter(&cfg)
+		if err := validateConfig(cfg); err == nil || !strings.Contains(err.Error(), "affect") {
+			t.Fatalf("invalid affect config error = %v, want affect validation", err)
+		}
+	}
+}
+
+func TestValidateActiveStimulusLimit(t *testing.T) {
+	for _, limit := range []int{0, sim.MaxActiveStimuli + 1} {
+		cfg := sim.DefaultConfig()
+		cfg.ActiveStimulusLimit = limit
+		if err := validateConfig(cfg); err == nil || !strings.Contains(err.Error(), "active-stimulus-limit") {
+			t.Fatalf("limit %d error = %v, want active-stimulus-limit validation", limit, err)
+		}
+	}
+}
+
+func TestValidateNeedCriticalThreshold(t *testing.T) {
+	for _, alter := range []func(*sim.NeedSpec){
+		func(spec *sim.NeedSpec) { spec.CriticalAt = spec.SeekAt - 1 },
+		func(spec *sim.NeedSpec) { spec.CriticalAt = spec.Max + 1 },
+	} {
+		cfg := sim.DefaultConfig()
+		alter(&cfg.Needs[sim.NeedFood])
+		if err := validateConfig(cfg); err == nil || !strings.Contains(err.Error(), "critical-at") {
+			t.Fatalf("invalid critical threshold error = %v, want critical-at validation", err)
+		}
+	}
+}
+
 // The layering the whole feature exists for: file over defaults, flags over
 // file.
 func TestFlagsOverrideTheSettingsFile(t *testing.T) {

@@ -2,6 +2,111 @@ package sim
 
 import "testing"
 
+// Each need independently projects its lazy level into a phase and normalized
+// actionable pressure.
+func TestNeedPhaseTransitionsAndPressure(t *testing.T) {
+	w := roomsTestWorld(20, 20)
+	c := w.spawn(Colonist, Point{5, 5})
+	n := NeedBladder
+	spec := w.cfg.Needs[n]
+
+	cases := []struct {
+		level    int
+		phase    NeedPhase
+		pressure int
+	}{
+		{0, NeedSatisfied, 0},
+		{1, NeedGrowing, 0},
+		{spec.SeekAt, NeedPressing, 1},
+		{spec.CriticalAt - 1, NeedPressing, 74},
+		{spec.CriticalAt, NeedCritical, 75},
+		{spec.Max, NeedCritical, 100},
+	}
+	for _, tc := range cases {
+		c.Needs[n], c.needSince[n] = tc.level, w.tick
+		w.syncNeedPhase(c, n)
+		if got := c.needPhase[n]; got != tc.phase {
+			t.Errorf("level %d phase = %v, want %v", tc.level, got, tc.phase)
+		}
+		if got := needPressure(tc.level, spec); got != tc.pressure {
+			t.Errorf("level %d pressure = %d, want %d", tc.level, got, tc.pressure)
+		}
+	}
+
+	w.resetNeed(c, n)
+	if c.needPhase[n] != NeedSatisfied {
+		t.Fatalf("phase after reset = %v, want satisfied", c.needPhase[n])
+	}
+}
+
+func TestNeedPhaseTracksLazyElapsedTimeAndNextBoundary(t *testing.T) {
+	w := roomsTestWorld(20, 20)
+	c := w.spawn(Colonist, Point{5, 5})
+	n := NeedBladder
+	spec := w.cfg.Needs[n]
+	c.Needs[n], c.needSince[n] = 0, w.tick
+
+	w.syncNeedPhase(c, n)
+	wantGrowing := w.tick + 1
+	if c.nextNeedPhaseTick[n] != wantGrowing {
+		t.Fatalf("next satisfied boundary = %d, want %d", c.nextNeedPhaseTick[n], wantGrowing)
+	}
+	w.tick = wantGrowing
+	w.syncNeedPhase(c, n)
+	if c.needPhase[n] != NeedGrowing {
+		t.Fatalf("phase after lazy rise = %v, want growing", c.needPhase[n])
+	}
+	wantPressing := w.tick + (spec.SeekAt-w.needLevel(c, n)+c.needRise[n]-1)/c.needRise[n]
+	if c.nextNeedPhaseTick[n] != wantPressing {
+		t.Fatalf("next growing boundary = %d, want %d", c.nextNeedPhaseTick[n], wantPressing)
+	}
+	w.tick = wantPressing
+	w.syncNeedPhase(c, n)
+	if c.needPhase[n] != NeedPressing {
+		t.Fatalf("phase at lazy seek crossing = %v, want pressing", c.needPhase[n])
+	}
+	wantCritical := w.tick + (spec.CriticalAt-w.needLevel(c, n)+c.needRise[n]-1)/c.needRise[n]
+	if c.nextNeedPhaseTick[n] != wantCritical {
+		t.Fatalf("next pressing boundary = %d, want %d", c.nextNeedPhaseTick[n], wantCritical)
+	}
+	w.tick = wantCritical
+	w.syncNeedPhase(c, n)
+	if c.needPhase[n] != NeedCritical || c.nextNeedPhaseTick[n] != 0 {
+		t.Fatalf("critical phase=%v boundary=%d, want critical and unscheduled",
+			c.needPhase[n], c.nextNeedPhaseTick[n])
+	}
+}
+
+func TestNeedPressureDegenerateThresholds(t *testing.T) {
+	spec := NeedSpec{SeekAt: 50, CriticalAt: 50, Max: 100}
+	if got := needPressure(50, spec); got != 75 {
+		t.Errorf("SeekAt == CriticalAt pressure = %d, want 75", got)
+	}
+	spec = NeedSpec{SeekAt: 50, CriticalAt: 100, Max: 100}
+	if got := needPressure(100, spec); got != 100 {
+		t.Errorf("CriticalAt == Max pressure = %d, want 100", got)
+	}
+}
+
+func TestZeroRiseSocialNeedNeverBecomesPressing(t *testing.T) {
+	w := roomsTestWorld(20, 20)
+	c := w.spawn(Colonist, Point{5, 5})
+	n := NeedSocial
+	c.Needs[n] = w.cfg.Needs[n].SeekAt - 1
+	c.needSince[n], c.needRise[n] = w.tick, 0 // resolved Asocial behavior
+	w.tick += 10_000
+	w.syncNeedPhase(c, n)
+	if c.needPhase[n] != NeedGrowing || c.nextNeedPhaseTick[n] != 0 {
+		t.Fatalf("zero-rise social need phase=%v boundary=%d, want growing and unscheduled",
+			c.needPhase[n], c.nextNeedPhaseTick[n])
+	}
+	c.Needs[n] = 0
+	w.syncNeedPhase(c, n)
+	if c.needPhase[n] != NeedSatisfied {
+		t.Fatalf("zero-level social phase = %v, want satisfied", c.needPhase[n])
+	}
+}
+
 // Need levels are computed lazily from a base + elapsed ticks, clamp at Max, and
 // reset to zero when satisfied.
 func TestNeedLevelIsLazy(t *testing.T) {

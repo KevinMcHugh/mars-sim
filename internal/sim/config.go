@@ -85,6 +85,14 @@ type Config struct {
 	StarveDamage         int                `cfg:"starve-damage" doc:"HP lost per tick while a fatal need sits at its max"`
 	ColonistsPerFacility int                `cfg:"per-facility" doc:"colonists served by each life-support facility"`
 
+	// Focus arbitration. One FocusSpec per FocusKind, indexed by that kind.
+	Focuses             [numFocusKinds]FocusSpec `cfg:"focuses" sec:"Focus arbitration"`
+	FocusCurrentBonus   int                      `cfg:"focus-current-bonus" doc:"score bonus for continuing the current eligible focus"`
+	FocusSwitchMargin   int                      `cfg:"focus-switch-margin" doc:"minimum score lead required to replace an eligible focus"`
+	FocusCriticalBonus  int                      `cfg:"focus-critical-bonus" doc:"score bonus for a need at its critical boundary"`
+	FocusFatalBonus     int                      `cfg:"focus-fatal-bonus" doc:"score bonus for a pressing fatal need"`
+	ActiveStimulusLimit int                      `cfg:"active-stimulus-limit" doc:"maximum transient life-event appraisals retained per colonist"`
+
 	RestTicks  int `cfg:"rest-ticks" sec:"Work and construction" doc:"ticks an idle colonist rests before re-checking for work"`
 	StuckLimit int `cfg:"stuck-limit" doc:"ticks a colonist waits on a blocked path before abandoning the job"`
 
@@ -140,15 +148,15 @@ type Config struct {
 	FamilyAffinitySpread    int `cfg:"family-affinity-spread" doc:"random swing around the starting family affinity, in the same units"`
 
 	// Socializing. An idle colonist with nothing productive to do may seek out a
-	// nearby colonist and talk, which shifts the pair's affinity and both their
-	// moods. Affinity is tracked only; nothing simulates against it yet.
+	// nearby colonist and talk, which shifts the pair's affinity and affect.
+	// Affinity is tracked only; nothing simulates against it yet.
 	TalkChance       int `cfg:"talk-chance" sec:"Socializing" doc:"percent chance an idle colonist starts a conversation (0 disables talking)"`
 	TalkRadius       int `cfg:"talk-radius" doc:"how far a colonist looks for a conversation partner"`
 	TalkTicks        int `cfg:"talk-ticks" doc:"ticks a conversation lasts before affinity is credited"`
 	TalkAffinityGain int `cfg:"talk-affinity-gain" doc:"base affinity step per conversation (scaled by outcome and diminishing returns)"`
 	AffinityMax      int `cfg:"affinity-max" doc:"affinity runs in [-affinity-max, affinity-max]; talking alone saturates at half"`
 
-	// Conversation quality shapes both the affinity change and the mood change a
+	// Conversation quality shapes both the affinity change and affect outcome a
 	// chat produces. Quality is a signed roll in [-100, 100]: TalkQualityBias is
 	// its baseline lean (chats are mildly positive by default), TalkQualityValence
 	// is how strongly existing affinity pulls quality toward its own sign (the
@@ -159,16 +167,16 @@ type Config struct {
 	TalkQualityValence int `cfg:"talk-quality-valence" doc:"how strongly existing affinity biases conversation quality"`
 	TalkQualitySpread  int `cfg:"talk-quality-spread" doc:"random swing around a conversation's mean quality"`
 
-	// Mood. Each colonist carries a mood in [-MoodMax, MoodMax] (0 = neutral).
-	// Nothing simulates against mood yet, but tasks move it. A finished
-	// conversation shifts both participants by a company term (how they feel about
-	// the other, from affinity) plus a conversation term (how the chat went, from
-	// quality): a good chat with someone you dislike lifts your mood, while a
-	// merely so-so chat with a friend still nets a small lift.
-	MoodMax                int `cfg:"mood-max" sec:"Mood" doc:"colonist mood runs in [-mood-max, mood-max]"`
-	MoodCompanyWeight      int `cfg:"mood-company-weight" doc:"mood shift per conversation from how one feels about the other"`
-	MoodConversationWeight int `cfg:"mood-conversation-weight" doc:"mood shift per conversation from how the chat itself went"`
-	SocialWindowTicks      int `cfg:"social-window-ticks" doc:"ticks in the rolling window for social conversation fatigue"`
+	// Affect. Charge and grip each run in [-MoodMax, MoodMax]. Conversation
+	// company/quality produce a temporary signed outcome which is converted to a
+	// vector, and charge settles faster than grip by default.
+	MoodMax                   int `cfg:"mood-max" sec:"Affect" doc:"charge and grip each run in [-mood-max, mood-max]"`
+	ConversationCompanyWeight int `cfg:"conversation-company-weight" doc:"conversation outcome from how one feels about the other"`
+	ConversationQualityWeight int `cfg:"conversation-quality-weight" doc:"conversation outcome from how the chat itself went"`
+	SocialWindowTicks         int `cfg:"social-window-ticks" doc:"ticks in the rolling window for social conversation fatigue"`
+	MoodChargeDecayPerTick    int `cfg:"mood-charge-decay-per-tick" doc:"charge points that decay toward home per colonist turn"`
+	MoodGripDecayPerTick      int `cfg:"mood-grip-decay-per-tick" doc:"grip points that decay toward home per colonist turn"`
+	MoodLabelSwitchMargin     int `cfg:"mood-label-switch-margin" doc:"claim advantage required to switch mood attractors"`
 
 	// Mining strategy switch. Below both thresholds, miners use cached A* to a
 	// claimed tile (cheaper for small colonies); at or above either, they follow
@@ -249,8 +257,32 @@ func DefaultConfig() Config {
 		IncinerateTicks:       8,
 		IncineratorBuildTicks: 20,
 
-		StarveDamage:          1,
-		ColonistsPerFacility:  5,
+		StarveDamage:         1,
+		ColonistsPerFacility: 5,
+		Focuses: [numFocusKinds]FocusSpec{
+			FocusIdle:      {Name: "idle", Base: 0, NeedWeight: 0, ChargeWeight: -10, GripWeight: 0, DistanceWeight: 0},
+			FocusWork:      {Name: "work", Base: 25, NeedWeight: 0, ChargeWeight: 20, GripWeight: 10, DistanceWeight: 1},
+			FocusEat:       {Name: "eat", Base: 40, NeedWeight: 100, ChargeWeight: 0, GripWeight: 5, DistanceWeight: 1},
+			FocusRelieve:   {Name: "relieve", Base: 40, NeedWeight: 100, ChargeWeight: 0, GripWeight: 0, DistanceWeight: 1},
+			FocusSocialize: {Name: "socialize", Base: 40, NeedWeight: 100, ChargeWeight: 10, GripWeight: 5, DistanceWeight: 1},
+			FocusSleep:     {Name: "sleep", Base: 40, NeedWeight: 100, ChargeWeight: -30, GripWeight: 0, DistanceWeight: 1},
+			FocusFlee:      {Name: "flee", Base: 0, NeedWeight: 0, ChargeWeight: 20, GripWeight: -40, DistanceWeight: 1},
+			// FocusFight carries a positive base so an armed colonist's default
+			// posture is to stand and fight: the one-time grip hit from merely
+			// *seeing* an alien (EvtSawAlien, -10 grip) must not by itself out-vote
+			// that posture, or every armed colonist flees on first sight and the
+			// switch hysteresis (FocusCurrentBonus+FocusSwitchMargin) then locks
+			// them into fleeing even as grip decays back toward neutral. Genuinely
+			// frightening events (being bitten, watching a colonist killed) still
+			// carry enough grip penalty to tip an armed colonist toward flight. See
+			// The default combat posture is documented in docs/combat.md.
+			FocusFight: {Name: "fight", Base: 15, NeedWeight: 0, ChargeWeight: 20, GripWeight: 40, DistanceWeight: 1},
+		},
+		FocusCurrentBonus:     25,
+		FocusSwitchMargin:     10,
+		FocusCriticalBonus:    100,
+		FocusFatalBonus:       150,
+		ActiveStimulusLimit:   8,
 		RestTicks:             10,
 		StuckLimit:            8,
 		MaxConcurrentProjects: 2,
@@ -287,16 +319,19 @@ func DefaultConfig() Config {
 		TalkQualityValence: 50,
 		TalkQualitySpread:  50,
 
-		MoodMax:                100,
-		MoodCompanyWeight:      6,
-		MoodConversationWeight: 10,
-		SocialWindowTicks:      200,
+		MoodMax:                   100,
+		ConversationCompanyWeight: 6,
+		ConversationQualityWeight: 10,
+		SocialWindowTicks:         200,
+		MoodChargeDecayPerTick:    2,
+		MoodGripDecayPerTick:      1,
+		MoodLabelSwitchMargin:     5,
 
 		FrontierFieldMinColonists: 800,
 		FrontierFieldMinArea:      90000, // ~300x300 and up
 		Needs: [numNeeds]NeedSpec{
 			NeedFood: {
-				Name: "food", Rise: 2, SeekAt: 650, Max: 1000,
+				Name: "food", Rise: 2, SeekAt: 650, CriticalAt: 1000, Max: 1000,
 				Facility: NutrientPod, UseTicks: 18, Fatal: true,
 				// A colonist grabs a portion in 3 ticks and eats it away from
 				// the pod, instead of occupying its one access tile for the
@@ -304,18 +339,18 @@ func DefaultConfig() Config {
 				GrabTicks: 3,
 			},
 			NeedBladder: {
-				Name: "bladder", Rise: 3, SeekAt: 600, Max: 1000,
+				Name: "bladder", Rise: 3, SeekAt: 600, CriticalAt: 900, Max: 1000,
 				Facility: Toilet, UseTicks: 10, Fatal: false,
 			},
 			NeedSocial: {
-				Name: "social", Rise: 2, SeekAt: 500, Max: 1000,
+				Name: "social", Rise: 2, SeekAt: 500, CriticalAt: 850, Max: 1000,
 				Facility: Rock, UseTicks: 0, Fatal: false,
 			},
 			NeedSleep: {
 				// Sleep builds slowly and, once sought, takes a long lie-down to
 				// clear. Non-fatal like bladder: a colonist with no bunk waits
 				// rather than dying.
-				Name: "sleep", Rise: 1, SeekAt: 700, Max: 1000,
+				Name: "sleep", Rise: 1, SeekAt: 700, CriticalAt: 900, Max: 1000,
 				Facility: Bed, UseTicks: 40, Fatal: false,
 			},
 		},

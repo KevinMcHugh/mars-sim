@@ -14,6 +14,7 @@ type EntityView struct {
 	HP        int
 	MaxHP     int
 	State     State
+	Focus     FocusKind
 	Needs     [numNeeds]int
 	Profile   *Profile  // colonists only; a deep copy, safe to read
 	Inventory Inventory // colonists only; copied by value
@@ -32,7 +33,9 @@ type EntityView struct {
 	// still-living one (see entityView's full parameter). See relationships.go.
 	Relations  []Relation
 	Affinities []Affinity
-	Mood       int // disposition in [-MoodMax, MoodMax], 0 neutral (colonists only)
+	Charge     int    // affect activation in [-MoodMax, MoodMax] (colonists only)
+	Grip       int    // affect control in [-MoodMax, MoodMax] (colonists only)
+	MoodLabel  string // cached contextual display projection (colonists only)
 	Memories   []Memory
 
 	// Dead, DiedTick, and Cause are set only on a Snapshot.Graveyard entry: it
@@ -163,7 +166,7 @@ type Snapshot struct {
 	Storages             []StorageView
 
 	AffinityMax    int // affinity display bars run [-AffinityMax, AffinityMax]
-	MoodMax        int // mood display bar runs [-MoodMax, MoodMax]
+	MoodMax        int // charge and grip each run in [-MoodMax, MoodMax]
 	Paused         bool
 	TicksPerSecond int
 
@@ -321,6 +324,7 @@ func (w *World) entityView(e *Entity, kinChildren map[kinID][]kinID, full bool) 
 		HP:        e.HP,
 		MaxHP:     e.MaxHP,
 		State:     e.State,
+		Focus:     e.focus,
 		Needs:     w.currentNeeds(e),
 		Profile:   e.Profile.clone(),
 		Inventory: e.Inventory,
@@ -330,11 +334,13 @@ func (w *World) entityView(e *Entity, kinChildren map[kinID][]kinID, full bool) 
 		ev.MaxParts = e.MaxParts
 	}
 	if e.Kind == Colonist {
+		ev.Charge = e.affect.Charge
+		ev.Grip = e.affect.Grip
+		ev.MoodLabel = e.affect.MoodName()
 		ev.Memories = append([]Memory(nil), e.Memories...)
 		if full {
 			ev.Relations = append([]Relation(nil), w.cachedRelations(e, kinChildren)...)
 			ev.Affinities = w.affinitiesOf(e.ID)
-			ev.Mood = e.mood
 		}
 	}
 	return ev

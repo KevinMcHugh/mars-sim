@@ -5,6 +5,33 @@ package sim
 // needs have a Facility to satisfy them; social is satisfied by conversation.
 type NeedKind uint8
 
+// NeedPhase is one need's discrete physiological state. Each need owns an
+// independent phase derived from its lazy level; satisfying a need remains an
+// executor fact rather than a phase.
+type NeedPhase uint8
+
+const (
+	NeedSatisfied NeedPhase = iota
+	NeedGrowing
+	NeedPressing
+	NeedCritical
+)
+
+func (p NeedPhase) String() string {
+	switch p {
+	case NeedSatisfied:
+		return "satisfied"
+	case NeedGrowing:
+		return "growing"
+	case NeedPressing:
+		return "pressing"
+	case NeedCritical:
+		return "critical"
+	default:
+		return "need phase"
+	}
+}
+
 const (
 	NeedFood NeedKind = iota
 	NeedBladder
@@ -36,13 +63,14 @@ func (n NeedKind) String() string {
 // balance, and changing them from a file would let a config rename a need out
 // from under the code that looks it up.
 type NeedSpec struct {
-	Name     string
-	Rise     int     `cfg:"rise" doc:"level gained per tick"`
-	SeekAt   int     `cfg:"seek-at" doc:"level at which the colonist drops work to satisfy it"`
-	Max      int     `cfg:"max" doc:"ceiling; a fatal need sitting here drains HP"`
-	Facility Terrain // structure that resets this need to 0
-	UseTicks int     `cfg:"use-ticks" doc:"ticks spent using the facility"`
-	Fatal    bool    `cfg:"fatal" doc:"whether sitting at the ceiling damages the colonist"`
+	Name       string
+	Rise       int     `cfg:"rise" doc:"level gained per tick"`
+	SeekAt     int     `cfg:"seek-at" doc:"level at which the colonist drops work to satisfy it"`
+	CriticalAt int     `cfg:"critical-at" doc:"level at which the need becomes critical"`
+	Max        int     `cfg:"max" doc:"ceiling; a fatal need sitting here drains HP"`
+	Facility   Terrain // structure that resets this need to 0
+	UseTicks   int     `cfg:"use-ticks" doc:"ticks spent using the facility"`
+	Fatal      bool    `cfg:"fatal" doc:"whether sitting at the ceiling damages the colonist"`
 	// GrabTicks, if positive and less than UseTicks, makes this need portable:
 	// a colonist spends only GrabTicks at the facility, then carries it away
 	// and spends the rest of UseTicks finishing elsewhere, freeing the
@@ -69,10 +97,74 @@ func (w *World) needLevel(e *Entity, i NeedKind) int {
 	return lvl
 }
 
-// resetNeed satisfies a need: its base drops to 0 as of the current tick.
+// syncNeedPhase projects one lazy need level into its discrete phase and caches
+// the next tick at which rising alone can change that phase. A zero boundary
+// tick means no future crossing is scheduled (the phase is critical or rise is
+// zero).
+func (w *World) syncNeedPhase(e *Entity, n NeedKind) (changed bool) {
+	return w.syncNeedPhaseAtLevel(e, n, w.needLevel(e, n))
+}
+
+func (w *World) syncNeedPhaseAtLevel(e *Entity, n NeedKind, level int) (changed bool) {
+	spec := w.cfg.Needs[n]
+	phase := NeedSatisfied
+	switch {
+	case level == 0:
+		phase = NeedSatisfied
+	case level < spec.SeekAt:
+		phase = NeedGrowing
+	case level < spec.CriticalAt:
+		phase = NeedPressing
+	default:
+		phase = NeedCritical
+	}
+	changed = e.needPhase[n] != phase
+	e.needPhase[n] = phase
+	e.nextNeedPhaseTick[n] = nextNeedPhaseTick(w.tick, level, e.needRise[n], phase, spec)
+	if changed {
+		w.markMindDirty(e)
+	}
+	return changed
+}
+
+func nextNeedPhaseTick(now, level, rise int, phase NeedPhase, spec NeedSpec) int {
+	if rise <= 0 || phase == NeedCritical {
+		return 0
+	}
+	target := 1
+	switch phase {
+	case NeedGrowing:
+		target = spec.SeekAt
+	case NeedPressing:
+		target = spec.CriticalAt
+	}
+	if target <= level {
+		return now
+	}
+	return now + (target-level+rise-1)/rise
+}
+
+// needPressure normalizes the actionable part of a need to [0, 100]. Growing
+// and satisfied needs emit no pressure; critical pressure occupies [75, 100].
+func needPressure(level int, spec NeedSpec) int {
+	if level < spec.SeekAt {
+		return 0
+	}
+	if level < spec.CriticalAt {
+		return clampInt(1+74*(level-spec.SeekAt)/atLeast1(spec.CriticalAt-spec.SeekAt), 1, 74)
+	}
+	if spec.CriticalAt == spec.Max && level >= spec.Max {
+		return 100
+	}
+	return clampInt(75+25*(level-spec.CriticalAt)/atLeast1(spec.Max-spec.CriticalAt), 75, 100)
+}
+
+// resetNeed satisfies a need: its base drops to 0 as of the current tick and
+// its phase/boundary cache are synchronized immediately.
 func (w *World) resetNeed(e *Entity, i NeedKind) {
 	e.Needs[i] = 0
 	e.needSince[i] = w.tick
+	w.syncNeedPhase(e, i)
 	if damage := e.starvationDamage[i]; damage > 0 {
 		e.HP = min(e.MaxHP, e.HP+damage)
 		e.starvationDamage[i] = 0

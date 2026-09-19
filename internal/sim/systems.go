@@ -86,6 +86,17 @@ func (w *World) colonistTurn(e *Entity) {
 		return
 	}
 
+	// Previously accumulated affect decays before this turn's observations, so a
+	// new event can influence arbitration immediately without decaying first.
+	w.decayAffect(e)
+
+	// A stable resting/sleeping colonist has no perception product to ingest when
+	// no creature or gore is nearby. The fast path still performs threat, fatal
+	// need, facility, and uranium checks before it can return.
+	if !w.alwaysArbitrate && w.tryCognitionFastPath(e) {
+		return
+	}
+
 	// Record the first sighting of each nearby creature. Seeing is edge-triggered:
 	// a colonist fleeing for many ticks remembers one encounter, not one memory
 	// per tick.
@@ -95,40 +106,152 @@ func (w *World) colonistTurn(e *Entity) {
 	// eating, or digging the vein itself — so the dose is taken before any
 	// branch below can return. See mutation.go.
 	w.applyUraniumExposure(e)
+	w.syncCognitionDeadlines(e)
+	w.runCognition(e)
+}
 
-	// Survival comes first: if an alien is close, an armed colonist stands and
-	// fights it instead of running (fleeing an armed threat that is faster to
-	// close than to outrun defeats the point of carrying a weapon); an unarmed
-	// one drops everything and runs, as before.
-	if threat, ok := w.nearestAlien(e.Pos, w.cfg.FleeRadius); ok {
+func (w *World) runCognition(e *Entity) {
+	threat, _ := w.nearestAlien(e.Pos, w.cfg.FleeRadius)
+	shouldThink := w.alwaysArbitrate || e.mindDirty || w.tick >= e.nextThinkTick ||
+		!w.currentFocusEligible(e, threat)
+	selected := cachedFocusCandidate(e, threat)
+	if shouldThink {
+		var candidates [numFocusKinds]FocusCandidate
+		selected = w.chooseFocus(e, &candidates)
+		e.mindDirty = false
+		e.nextThinkTick = w.nextCognitionTick(e)
+	}
+	if selected.Kind != e.focus {
 		w.clearJob(e)
-		if weapon := bestWeapon(e.Inventory); weapon != ItemNone {
-			w.fightAlien(e, threat, weapon)
+		e.focus = selected.Kind
+		e.focusSince = w.tick
+		w.markMindDirty(e)
+	}
+	w.runFocus(e, selected)
+}
+
+// syncCognitionDeadlines applies only transitions whose cached boundary has
+// arrived. Fatal needs are also read every tick as a safety belt, independently
+// of the cache. Stimulus expiry remains exact at ExpiresAt.
+func (w *World) syncCognitionDeadlines(e *Entity) {
+	for n := NeedKind(0); n < numNeeds; n++ {
+		crossing := e.nextNeedPhaseTick[n]
+		if w.cfg.Needs[n].Fatal || crossing > 0 && w.tick >= crossing {
+			w.syncNeedPhase(e, n)
+		}
+	}
+	if e.nextStimulusExpiry > 0 && w.tick >= e.nextStimulusExpiry {
+		w.expireStimuli(e)
+	}
+}
+
+func (w *World) hasGoreNearby(e *Entity) bool {
+	r := w.cfg.GoreSightRadius
+	for y := -r; y <= r; y++ {
+		for x := -r; x <= r; x++ {
+			p := e.Pos.Add(x, y)
+			if w.InBounds(p) && w.tiles[w.index(p)].Gore > 0 {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func (w *World) tryCognitionFastPath(e *Entity) bool {
+	restingIdle := e.focus == FocusIdle && e.Job == JobNone && e.resting && w.tick < e.wakeTick
+	sleeping := e.focus == FocusSleep && e.Job == JobUse && e.Need == NeedSleep && !e.carrying &&
+		e.useFacilitySet && e.Pos.Adjacent(e.useFacility) &&
+		w.TerrainAt(e.useFacility) == w.cfg.Needs[NeedSleep].Facility
+	if (!restingIdle && !sleeping) || e.mindDirty || w.tick >= e.nextThinkTick ||
+		len(e.seen) != 0 || e.seeingGore {
+		return false
+	}
+	if threat, ok := w.nearestAlien(e.Pos, w.cfg.FleeRadius); ok && threat != nil {
+		return false
+	}
+	if mouse, ok := w.nearestMouse(e.Pos, w.cfg.ColonistStompRadius); ok && mouse != nil {
+		return false
+	}
+	if w.hasGoreNearby(e) {
+		return false
+	}
+
+	// Exposure can mutate a resting colonist and dirty cognition; it is never
+	// skipped merely because observation/arbitration are cached.
+	w.applyUraniumExposure(e)
+	w.syncCognitionDeadlines(e)
+	if e.mindDirty || w.tick >= e.nextThinkTick {
+		w.runCognition(e)
+		return true
+	}
+
+	if restingIdle {
+		e.State = Idle
+		return true
+	}
+	// In-place sleep has no path, target search, or claim machinery to run. Its
+	// only changing score strengthens the incumbent; nextCognitionTick caps this
+	// path at every competing need boundary and the fallback deadline.
+	e.State = Sleeping
+	e.Progress++
+	if e.Progress >= w.cfg.Needs[NeedSleep].UseTicks {
+		w.finishUse(e, w.cfg.Needs[NeedSleep])
+	}
+	return true
+}
+
+func (w *World) runFocus(e *Entity, selected FocusCandidate) {
+	switch selected.Kind {
+	case FocusEat, FocusRelieve, FocusSocialize, FocusSleep:
+		need, _ := needForFocus(selected.Kind)
+		w.runNeedFocus(e, need)
+	case FocusFlee:
+		threat := w.entities[selected.Threat]
+		if threat == nil || !threat.Alive() {
+			w.finishFocus(e)
 			return
 		}
 		e.resting = false
 		e.State = Fleeing
 		w.fleeStep(e, threat.Pos)
-		return
-	}
-
-	// A need at its threshold preempts the current task — the colonist stays on
-	// task until either the task finishes (below) or a need crosses, whichever
-	// comes first. Head to the facility if one is reachable.
-	need, urgent := w.mostUrgentNeed(e)
-	if urgent && need == NeedSocial {
-		// Social need has no facility: it is satisfied by completing a
-		// conversation. It preempts ordinary work, but mostUrgentNeed has
-		// already given fatal needs priority.
+	case FocusFight:
+		threat := w.entities[selected.Threat]
+		weapon := bestWeapon(e.Inventory)
+		if threat == nil || !threat.Alive() || weapon == ItemNone {
+			w.finishFocus(e)
+			return
+		}
 		e.resting = false
-		// A conversation already under way *is* how this need gets met, so let
-		// it run — this is the social twin of the handlingNeed check below.
-		// Clearing it here instead meant a socially urgent colonist tore down
-		// its own talk and began a new one every tick, and beginTalk resets the
-		// shared timer: no conversation ever reached TalkTicks, so the need was
-		// never satisfied, so it stayed urgent and preempted every other job.
-		// A colony would settle into permanent failed small talk with nobody
-		// mining or building ever again.
+		w.fightAlien(e, threat, weapon)
+	case FocusWork:
+		if e.Job == JobNone {
+			w.assignWorkJob(e)
+		}
+		if e.Job == JobNone {
+			w.finishFocus(e)
+			w.runIdleFocus(e)
+			return
+		}
+		e.resting = false
+		w.runJob(e)
+	default:
+		w.runIdleFocus(e)
+	}
+}
+
+func (w *World) finishFocus(e *Entity) {
+	w.clearJob(e)
+	e.focus = FocusIdle
+	e.focusSince = w.tick
+	w.markMindDirty(e)
+}
+
+func (w *World) runNeedFocus(e *Entity, need NeedKind) {
+	e.resting = false
+	if need == NeedSocial {
+		// A conversation already under way is the executor for this focus. Never
+		// restart it and reset the pair's shared timer.
 		if _, ok := w.talkPartner(e); ok {
 			w.runJob(e)
 			return
@@ -137,117 +260,97 @@ func (w *World) colonistTurn(e *Entity) {
 		if w.tryStartTalk(e, true) {
 			w.runJob(e)
 		} else {
-			// Do not fall through to mining or construction while socially
-			// urgent. Wait for another colonist to become available.
 			e.State = Idle
 		}
 		return
 	}
+
 	handlingNeed := (e.Job == JobUse && e.Need == need) ||
 		(e.Job == JobBuild && (e.BuildKind == w.cfg.Needs[need].Facility || e.task != nil))
-	if urgent && !handlingNeed {
-		spec := w.cfg.Needs[need]
-		e.resting = false
-		field := w.facilityField(spec.Facility)
-		existingReachable := field != nil && field.at(e.Pos) >= 0
-		// If the colony still wants more of this facility than it has planned
-		// or built, an urgent colonist tries to help add that capacity before
-		// just joining the queue at an already-oversubscribed existing one —
-		// otherwise, once a single facility exists, every urgent colonist
-		// queues for it forever and none is ever free to build a second. Both
-		// this and the no-facility-reachable fallback below claim only from a
-		// project that actually provides this facility kind: the starvation
-		// grace period only covers reachable construction that provides it
-		// (see applyStarvation, reachableFacilityConstruction), so claiming
-		// just any reachable task — digging an unrelated dormitory while
-		// starving, say — leaves a colonist "busy" but ungraced, taking
-		// starvation damage the whole time. That happened in testing once
-		// excavation gave projects many more claimable tasks to keep a
-		// colonist perpetually busy on the wrong one.
-		needMore := w.plannedFacilities(spec.Facility) < w.desiredFacilities(w.countKind(Colonist))
-		var task *buildTask
-		var hasTask bool
-		if needMore || !existingReachable {
-			task, hasTask = w.claimNearestTaskProviding(e.Pos, e.ID, spec.Facility)
-		}
-
-		w.clearJob(e)
-		switch {
-		case needMore && hasTask:
-			w.assignTask(e, task)
-		case existingReachable:
-			// A facility of this kind is reachable: follow its shared flow field.
-			e.Job, e.Need, e.Progress = JobUse, need, 0
-			e.useFacility, e.useFacilitySet = w.chooseFacility(e, spec.Facility), true
-		case hasTask:
-			w.assignTask(e, task)
-		case !w.reachableFacilityConstruction(e.Pos, spec.Facility):
-			// Nothing reachable already provides this facility: rather than
-			// wait indefinitely (a project in a disconnected room must not
-			// suppress this fallback), build one — fatal or not, an urgent
-			// need with no path to relief is the loop this guards against.
-			if spot, ok := w.findBuildSpot(e.Pos, 20); ok {
-				w.assignBuild(e, spec.Facility, spot)
-			}
-		default:
-			// All reachable project tasks are claimed. Wait for their builders
-			// instead of taking unrelated work and losing our place in the queue.
-			e.State = Idle
-			if w.idleWouldBlock(e.Pos) {
-				w.stepAside(e)
-			} else {
-				w.wanderStep(e)
-			}
-			return
-		}
-	}
-
-	// Stay on the current task: movement and work progress happen here every tick
-	// until the job completes or is abandoned.
-	if e.Job != JobNone {
+	if handlingNeed {
 		w.runJob(e)
 		return
 	}
 
-	// Idle. If there was no work last time we looked and no need is pressing,
-	// rest (skip the work search) until wakeTick. This keeps an established colony
-	// with nothing available from re-scanning the map every tick.
-	if !urgent && e.resting && w.tick < e.wakeTick {
-		e.State = Idle
-		return
+	spec := w.cfg.Needs[need]
+	field := w.facilityField(spec.Facility)
+	existingReachable := field != nil && field.at(e.Pos) >= 0
+	needMore := w.plannedFacilities(spec.Facility) < w.desiredFacilities(w.countKind(Colonist))
+	var task *buildTask
+	var hasTask bool
+	if needMore || !existingReachable {
+		task, hasTask = w.claimNearestTaskProviding(e.Pos, e.ID, spec.Facility)
 	}
-	w.assignWorkJob(e)
-	if e.Job == JobNone {
+
+	w.clearJob(e)
+	switch {
+	case needMore && hasTask:
+		w.assignTask(e, task)
+	case existingReachable:
+		e.Job, e.Need, e.Progress = JobUse, need, 0
+		e.useFacility, e.useFacilitySet = w.chooseFacility(e, spec.Facility), true
+	case hasTask:
+		w.assignTask(e, task)
+	case !w.reachableFacilityConstruction(e.Pos, spec.Facility):
+		if spot, ok := w.findBuildSpot(e.Pos, 20); ok {
+			w.assignBuild(e, spec.Facility, spot)
+		}
+	default:
+		// All matching tasks are claimed. Wait rather than taking unrelated
+		// work and losing the focus that explains why this colonist is idle.
+		e.State = Idle
 		if w.idleWouldBlock(e.Pos) {
-			// Never idle where resting would block others. A satisfied colonist
-			// parked on a facility's access tile (often right where it just ate)
-			// keeps starving colonists from reaching it; one parked on a pending
-			// build tile keeps that structure from ever being built, stalling the
-			// whole project. Either way, step aside and re-check next tick rather
-			// than freezing here.
-			e.resting = false
-			e.State = Idle
 			w.stepAside(e)
-			return
+		} else {
+			w.wanderStep(e)
 		}
-		// Nothing productive to do: chat with a nearby colonist if one is free,
-		// which builds affinity between them. Otherwise rest.
-		if w.tryStartTalk(e, false) {
-			w.runJob(e)
-			return
-		}
-		// Nothing pressing: a colonist with time on its hands crushes a nearby
-		// pest if it sees one, otherwise rests.
-		if w.stompNearbyMouse(e) {
-			return
-		}
-		e.resting = true
-		e.wakeTick = w.tick + e.restTicks
+		return
+	}
+	if e.Job != JobNone {
+		w.runJob(e)
+	}
+}
+
+func (w *World) runIdleFocus(e *Entity) {
+	// An opportunistic conversation is idle execution, so preserve it until its
+	// shared timer completes.
+	if e.Job == JobTalk {
+		w.runJob(e)
+		return
+	}
+	if e.resting && w.tick < e.wakeTick {
 		e.State = Idle
 		return
 	}
-	e.resting = false
-	w.runJob(e)
+
+	// Exact work discovery belongs in execution rather than candidate scoring.
+	// Finding a job transitions to work immediately; finding none enters the
+	// existing bounded resting path.
+	w.assignWorkJob(e)
+	if e.Job != JobNone {
+		e.focus = FocusWork
+		e.focusSince = w.tick
+		w.markMindDirty(e)
+		e.resting = false
+		w.runJob(e)
+		return
+	}
+	if w.idleWouldBlock(e.Pos) {
+		e.resting = false
+		e.State = Idle
+		w.stepAside(e)
+		return
+	}
+	if w.tryStartTalk(e, false) {
+		w.runJob(e)
+		return
+	}
+	if w.stompNearbyMouse(e) {
+		return
+	}
+	e.resting = true
+	e.wakeTick = w.tick + e.restTicks
+	e.State = Idle
 }
 
 // observeNearby records the first sighting of each nearby creature (edge-
@@ -255,7 +358,15 @@ func (w *World) colonistTurn(e *Entity) {
 // encounter, not one memory per tick) and, via observeGore, the first sight
 // of gore in the same visit.
 func (w *World) observeNearby(e *Entity) {
+	hadThreat := false
+	for id := range e.seen {
+		if seen := w.entities[id]; seen != nil && seen.Kind == Alien {
+			hadThreat = true
+			break
+		}
+	}
 	visible := make(map[EntityID]bool)
+	seesThreat := false
 	for _, id := range w.entityIDsSorted() {
 		other := w.entities[id]
 		if other == e || !other.Alive() {
@@ -274,16 +385,27 @@ func (w *World) observeNearby(e *Entity) {
 			continue
 		}
 		visible[other.ID] = true
+		if kind == Alien {
+			seesThreat = true
+		}
 		if e.seen[other.ID] {
+			if kind == Alien {
+				// This is a refresh of ongoing context, not another life-event
+				// occurrence; memory remains edge-triggered.
+				w.addStimulus(e, LifeEvent{Kind: EvtSawAlien, Source: other.ID})
+			}
 			continue
 		}
 		evtKind := EvtSawMouse
 		if kind == Alien {
 			evtKind = EvtSawAlien
 		}
-		w.remember(e, event(evtKind, "Saw %s #%d.", kind, other.ID))
+		w.remember(e, eventFrom(evtKind, other.ID, "Saw %s #%d.", kind, other.ID))
 	}
 	e.seen = visible
+	if hadThreat != seesThreat {
+		w.markMindDirty(e)
+	}
 
 	w.observeGore(e)
 }
@@ -479,6 +601,7 @@ func (w *World) assignTask(e *Entity, t *buildTask) {
 }
 
 func (w *World) clearJob(e *Entity) {
+	hadJob := e.Job != JobNone
 	switch e.Job {
 	case JobMine:
 		if e.mineClaimed {
@@ -501,6 +624,9 @@ func (w *World) clearJob(e *Entity) {
 	e.Job, e.Progress, e.partner = JobNone, 0, 0
 	e.useFacility, e.useFacilitySet, e.carrying = Point{}, false, false
 	e.clearPath()
+	if hadJob {
+		w.markMindDirty(e)
+	}
 }
 
 // runJob executes the colonist's current job for one tick.
@@ -566,6 +692,15 @@ func (w *World) beginTalk(a, b *Entity) {
 	a.resting, b.resting = false, false
 	a.Job, a.partner, a.Progress = JobTalk, b.ID, 0
 	b.Job, b.partner, b.Progress = JobTalk, a.ID, 0
+	for _, e := range []*Entity{a, b} {
+		if w.needLevel(e, NeedSocial) >= w.cfg.Needs[NeedSocial].SeekAt {
+			e.focus = FocusSocialize
+		} else {
+			e.focus = FocusIdle
+		}
+		e.focusSince = w.tick
+		w.markMindDirty(e)
+	}
 	a.clearPath()
 	b.clearPath()
 	a.State, b.State = Talking, Talking
@@ -632,15 +767,12 @@ func (w *World) jobTalk(e *Entity) {
 // finishTalk applies a completed conversation's outcome: it rolls the chat's
 // quality, shifts the pair's affinity (exacerbating its existing valence, with
 // diminishing returns), and records each participant's memory of it with the
-// mood delta that this particular conversation earned — a company term (how
-// it feels to spend time with the other, from affinity), a conversation term
-// (how the chat itself went, from quality), and each participant's own
-// social-fatigue penalty (noteConversation), which must still be called
-// exactly once per participant since it also advances their rolling
-// conversation-count window as a side effect. That computed total is
-// necessarily per-occurrence — unlike most LifeEvents it can't be a fixed
-// table lookup — so it travels on the LifeEvent itself via eventMood rather
-// than lifeEventMoodEffects. See docs/memories.md.
+// signed affect outcome that this conversation earned — a company term (how it
+// feels to spend time with the other), a quality term, and each participant's
+// social-fatigue penalty (noteConversation), which must still be called exactly
+// once because it advances the rolling window. The per-occurrence outcome
+// travels on LifeEvent and is deterministically converted to charge/grip in the
+// ingestion funnel. See docs/memories.md.
 func (w *World) finishTalk(a, b *Entity) {
 	existing := w.mutualAffinity(a.ID, b.ID)
 	quality := w.rollTalkQuality(existing)
@@ -651,9 +783,9 @@ func (w *World) finishTalk(a, b *Entity) {
 	step := w.talkAffinityDelta(existing, quality)
 	w.bumpAffinity(a.ID, b.ID, step+w.mutantAffinityBonus(a, b))
 	w.bumpAffinity(b.ID, a.ID, step+w.mutantAffinityBonus(b, a))
-	mood := w.talkMoodDelta(quality, existing)
-	w.remember(a, eventMood(EvtConversation, mood+w.noteConversation(a), "Had a conversation with %s.", b.displayName()))
-	w.remember(b, eventMood(EvtConversation, mood+w.noteConversation(b), "Had a conversation with %s.", a.displayName()))
+	outcome := w.talkMoodDelta(quality, existing)
+	w.remember(a, eventOutcome(EvtConversation, outcome+w.noteConversation(a), "Had a conversation with %s.", b.displayName()))
+	w.remember(b, eventOutcome(EvtConversation, outcome+w.noteConversation(b), "Had a conversation with %s.", a.displayName()))
 }
 
 // assignWorkJob picks something productive to do: help build a planned project
@@ -1347,13 +1479,13 @@ func (w *World) bite(alien, prey *Entity) {
 		w.remove(prey.ID, "devoured by an alien")
 		w.log.add(fmt.Sprintf("An alien devours %s.", name))
 		for _, wit := range witnesses {
-			w.remember(wit, event(EvtWitnessedColonistKilled, "Watched an alien kill %s.", name))
+			w.remember(wit, eventFrom(EvtWitnessedColonistKilled, alien.ID, "Watched an alien kill %s.", name))
 		}
 	} else {
 		alien.State = Hunting
-		w.remember(prey, event(EvtBitten, "Bitten in the %s by an alien!", part))
+		w.remember(prey, eventFrom(EvtBitten, alien.ID, "Bitten in the %s by an alien!", part))
 		for _, wit := range witnesses {
-			w.remember(wit, event(EvtWitnessedColonistAttacked, "Watched an alien attack %s.", prey.displayName()))
+			w.remember(wit, eventFrom(EvtWitnessedColonistAttacked, alien.ID, "Watched an alien attack %s.", prey.displayName()))
 		}
 	}
 }

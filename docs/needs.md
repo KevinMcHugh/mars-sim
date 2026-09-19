@@ -4,13 +4,15 @@
 
 ## What it is
 
-Colonists accumulate **needs** (hunger, bladder) over time and drop work to
-satisfy them at a matching facility. Mice reuse the food need. Needs are stored
-lazily — a base level plus a timestamp — so idle colonists cost nothing per tick.
+Colonists accumulate **needs** (food, bladder, social contact, and sleep) over
+time and may switch focus to satisfy them. Each need independently projects its
+lazy numeric level into a discrete phase. Mice reuse the food level. Levels stay
+lazy — a base plus a timestamp — so idle colonists do not need per-tick storage
+updates.
 
 ## Source
 
-- [`internal/sim/needs.go`](../internal/sim/needs.go) — `NeedKind`, `NeedSpec`, lazy level math, starvation, urgency.
+- [`internal/sim/needs.go`](../internal/sim/needs.go) — `NeedKind`, `NeedPhase`, `NeedSpec`, lazy level math, phase synchronization, pressure, and starvation.
 - [`internal/sim/config.go`](../internal/sim/config.go) — the `Needs` table and `StarveDamage`, `ColonistsPerFacility`.
 - [`internal/sim/entity.go`](../internal/sim/entity.go) — the per-entity need storage (`Needs`, `needSince`, `needRise`, `starvationDamage`, `carrying`).
 - [`internal/sim/systems.go`](../internal/sim/systems.go) — `jobUse`, `jobUseCarrying`, `finishUse`, `availableToTalk`.
@@ -22,15 +24,17 @@ lazily — a base level plus a timestamp — so idle colonists cost nothing per 
 Each `NeedKind` (`NeedFood`, `NeedBladder`, `NeedSocial`, `NeedSleep`) has a `NeedSpec` in `Config.Needs`,
 indexed by the kind:
 
-| Need | Rise/tick | SeekAt | Max | Facility | UseTicks | GrabTicks | Fatal |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-| food | 2 | 650 | 1000 | NutrientPod | 18 | 3 | **yes** |
-| bladder | 3 | 600 | 1000 | Toilet | 10 | 0 | no |
-| sleep | 1 | 700 | 1000 | Bed | 40 | 0 | no |
-| social | 2 | 500 | 1000 | conversation | — | — | no |
+| Need | Rise/tick | SeekAt | CriticalAt | Max | Facility | UseTicks | GrabTicks | Fatal |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| food | 2 | 650 | 1000 | 1000 | NutrientPod | 18 | 3 | **yes** |
+| bladder | 3 | 600 | 900 | 1000 | Toilet | 10 | 0 | no |
+| sleep | 1 | 700 | 900 | 1000 | Bed | 40 | 0 | no |
+| social | 2 | 500 | 850 | 1000 | conversation | — | — | no |
 
-Levels run `0..Max`; 0 means satisfied. At `SeekAt` the colonist drops work to
-satisfy the need; a **fatal** need sitting at `Max` drains HP (`StarveDamage`).
+Levels run `0..Max`; 0 means satisfied. `SeekAt` makes the need actionable,
+`CriticalAt` adds critical focus pressure, and a **fatal** need sitting at `Max`
+drains HP (`StarveDamage`). Configuration enforces
+`0 <= SeekAt <= CriticalAt <= Max`.
 
 ### Lazy evaluation
 
@@ -43,8 +47,28 @@ level = clamp(Needs[i] + needRise[i] * (now - needSince[i]), 0, Max)
 ```
 
 `needRise[i]` is the entity's own per-tick rate: trait-scaled for colonists (see
-[personality.md](./personality.md)) and much faster for mice. `resetNeed` sets the
-base back to 0 as of the current tick when a facility is used.
+[personality.md](./personality.md)) and much faster for mice. `syncNeedPhase`
+reads this lazy level and updates only its discrete projection:
+
+| Phase | Level |
+| --- | --- |
+| `NeedSatisfied` | zero |
+| `NeedGrowing` | above zero but below `SeekAt` |
+| `NeedPressing` | `SeekAt` through just below `CriticalAt` |
+| `NeedCritical` | `CriticalAt` or above |
+
+Each need also caches the next tick at which its current rise rate can cross a
+phase boundary. Zero-rise and already-critical needs schedule no crossing. This
+cache does not change behavior yet; Phase 5 can use it to avoid needless focus
+arbitration without estimating when a lazy need changes. `resetNeed` sets the
+base back to 0 at the current tick and immediately synchronizes the phase and
+next boundary.
+
+Pressing and critical needs emit normalized pressure from 1 through 100 into
+weighted focus arbitration. Pressure is 1 at `SeekAt`, reaches 75 at
+`CriticalAt`, and reaches 100 at `Max`; satisfied and growing needs emit zero.
+Critical and fatal bonuses preserve urgency without embedding another priority
+ladder in the job executors.
 
 Social need has no physical facility. Once urgent, it preempts ordinary work and
 the colonist waits for a conversation partner; completing a conversation resets
@@ -180,8 +204,8 @@ facilities at once.
 Adding a need is meant to be a **table edit**:
 
 1. Append a `NeedKind` before `numNeeds` and add its `String()` case.
-2. Add its `NeedSpec` to `Config.Needs` (rise, seek, max, facility, use ticks,
-   fatal).
+2. Add its `NeedSpec` to `Config.Needs` (rise, seek, critical, max, facility,
+   use ticks, fatal).
 3. Give it a satisfying `Terrain` facility (a flow field is auto-allocated per
    facility terrain in `newWorld`) and a display `State` in `useState`.
 4. Regenerate the settings file (`go run . -print-config > mars-sim.yaml`): the

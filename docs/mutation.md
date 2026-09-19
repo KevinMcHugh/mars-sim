@@ -38,7 +38,7 @@ watching a mutation happen — or undergoing one.
 - [`internal/sim/combat.go`](../internal/sim/combat.go) — `rollHit` weighting
   over the target's own anatomy.
 - [`internal/sim/lifeevents.go`](../internal/sim/lifeevents.go) — `EvtMutated`,
-  `EvtWitnessedMutation` and their trait-conditional mood effects.
+  `EvtWitnessedMutation` and their trait-transformed affect vectors.
 - [`internal/sim/systems.go`](../internal/sim/systems.go) — `colonistTurn`'s
   exposure step, `finishTalk`'s per-direction affinity credit.
 - [`internal/sim/mutation_test.go`](../internal/sim/mutation_test.go) — the
@@ -104,10 +104,9 @@ cost of being a mutant is social, not physical.
 
 ### Being a mutant
 
-- **Mood.** `EvtMutated` is -14 for an ordinary colonist and, with the
-  Mutant-Lover conditional, +14 net for one who admires the changed. Watching it
-  happen is -6 / +6 the same way. Both are rows in `lifeEventMoodEffects` (see
-  [memories.md](./memories.md)), not branches in `mutate()`.
+- **Affect.** `EvtMutated` adds `(4,-18)` and witnessing adds `(2,-8)`.
+  Mutant-Lover appraisal reflects grip positive. The base rows and transform live
+  in `affect.go` (see [affect.md](./affect.md)), not branches in `mutate()`.
 - **Affinity.** `finishTalk` credits affinity **per direction** instead of
   through the symmetric `addAffinity`: both sides get the conversation's own
   step, and a Mutant-Lover additionally gets `MutantLoverAffinityBonus` (3) of
@@ -136,8 +135,8 @@ cost of being a mutant is social, not physical.
   diverge, and a derived value would have had to re-derive *which* parts this
   body has as well as their sizes.
 - **`TraitMutant` is an `acquired` trait in the ordinary trait table** rather
-  than a bool on `Profile`. It then gets trait display, trait-conditional mood
-  effects, and `HasTrait` checks for free. The `acquired` flag keeps
+  than a bool on `Profile`. It then gets trait display and `HasTrait` checks for
+  free. The `acquired` flag keeps
   `rollTraits` from ever generating a pre-mutated colonist, and a group with
   nothing rollable is skipped before drawing from the personality stream, so
   adding all of this left existing seeds' colonists unchanged.
@@ -147,8 +146,8 @@ cost of being a mutant is social, not physical.
 - **Affinity became directional.** Storage was always per-direction
   (`affinity[a][b]`); `addAffinity` just kept the two in step. The Mutant-Lover
   bonus is a fact about the admirer, not about the pair, and nothing but a
-  per-direction credit can express that. Conversation quality and the mood's
-  company term read `mutualAffinity` (the mean of both directions) so a
+  per-direction credit can express that. Conversation quality and the affect
+  outcome's company term read `mutualAffinity` (the mean of both directions) so a
   *pair* property cannot depend on which colonist was passed first.
 
 ## Tuning the rate
@@ -201,8 +200,8 @@ not a smaller `MutationChance`.
   entry in `mutantParts`. Keep it non-`Vital` unless a mutation really should
   add a new way to die outright.
 - **A mutant-hater ("Purist")**: a `traitSpec` in `groupMutantAttitude` plus a
-  negative `mutantAffinityBonus` branch, and conditional `MoodEffect` rows on
-  `EvtMutated`/`EvtWitnessedMutation`. The group was made its own axis for
+  negative `mutantAffinityBonus` branch, and a grip transform for
+  `EvtMutated`/`EvtWitnessedMutation` in `transformMoodVector`. The group was made its own axis for
   exactly this.
 - **Another source of mutation** (an alien bite, a lab accident): call
   `w.mutate(e)`. Nothing in it is uranium-specific past the memory text.
@@ -220,5 +219,6 @@ not a smaller `MutationChance`.
   carrying it a permanent dose.
 - [combat.md](./combat.md) — body parts, `rollHit`, and damage.
 - [personality.md](./personality.md) — traits, trait groups, and acquired traits.
-- [memories.md](./memories.md) — life events and trait-conditional mood effects.
+- [affect.md](./affect.md) — life-event vectors and trait transforms.
+- [memories.md](./memories.md) — the life-event ingestion funnel.
 - [configuration.md](./configuration.md) — the tunables and their flags.
