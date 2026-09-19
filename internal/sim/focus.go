@@ -179,6 +179,8 @@ func (w *World) nextCognitionTick(e *Entity) int {
 	if e.nextStimulusExpiry > w.tick && e.nextStimulusExpiry < next {
 		next = e.nextStimulusExpiry
 	}
+	// Charge and grip only: valence drifts too, but nothing scored reads it, so
+	// a lingering mood is no reason to make a colonist think again.
 	if e.affect.Charge != 0 || e.affect.Grip != 0 {
 		return w.tick + 1
 	}
@@ -261,7 +263,6 @@ func (w *World) focusCandidates(e *Entity, out *[numFocusKinds]FocusCandidate) {
 	}
 
 	fatalPressing := false
-	needBad := 0
 	for n := NeedKind(0); n < numNeeds; n++ {
 		level := w.needLevel(e, n)
 		w.syncNeedPhaseAtLevel(e, n, level)
@@ -271,7 +272,6 @@ func (w *World) focusCandidates(e *Entity, out *[numFocusKinds]FocusCandidate) {
 			continue
 		}
 		pressure := needPressure(level, spec)
-		needBad = max(needBad, pressure)
 		f := focusForNeed(n)
 		c := &out[f]
 		c.Need = n
@@ -297,9 +297,7 @@ func (w *World) focusCandidates(e *Entity, out *[numFocusKinds]FocusCandidate) {
 		}
 	}
 
-	threatVisible := false
 	if threat, ok := w.nearestAlien(e.Pos, w.cfg.FleeRadius); ok {
-		threatVisible = true
 		out[FocusFlee].Eligible = true
 		out[FocusFlee].Threat = threat.ID
 		if bestWeapon(e.Inventory) != ItemNone {
@@ -312,8 +310,6 @@ func (w *World) focusCandidates(e *Entity, out *[numFocusKinds]FocusCandidate) {
 			out[FocusFlee].Score.Distance = -w.cfg.Focuses[FocusFlee].DistanceWeight
 		}
 	}
-
-	w.refreshMoodContext(e, needBad, threatVisible)
 
 	if e.focus < numFocusKinds && out[e.focus].Eligible {
 		out[e.focus].Score.Commitment = w.cfg.FocusCurrentBonus
