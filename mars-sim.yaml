@@ -467,6 +467,9 @@
 ## event impact at or above which affect is relocated outright
 # mood-pull-impact: 70
 
+## percent of the way toward an event's worn reading per remembered occasion
+# mood-wear-per-occasion: 14
+
 # ── Mining strategy ─────────────────────────────────────────────────────
 ## colony size at/above which miners use the shared frontier flow field
 # frontier-field-colonists: 800

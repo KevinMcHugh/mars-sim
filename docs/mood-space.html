@@ -156,9 +156,10 @@ details > summary { cursor: pointer; font-size: 12px; color: var(--dim); margin:
   <p class="status"><strong>Tuning sandbox for <a href="./mood-space.md">docs/mood-space.md</a>.</strong>
   The three axes, the attractor table, and the impact-weighted push/pull blend all <em>ship</em> — their numbers
   here are seeded from <code>internal/sim/affect.go</code>, so tuning them here is tuning the real thing.
-  <strong>Wear</strong> (the fresh/worn pair) and <strong>tag-based trait rules</strong> are the proposed parts,
-  and the reason this page still exists. Known simplifications: wear counts raw occurrences rather than reading the
-  memory log, and conversation intensity is a slider rather than <code>conversationMoodVector</code>'s formula.</p>
+  Wear ships too, so the fresh/worn pairs here are the real ones. <strong>Tag-based trait rules</strong> are what is
+  still proposed, and the reason this page exists. Known simplifications: wear here counts each firing, where the sim
+  counts remembered <em>occasions</em> (a run of digs is one), and conversation intensity is a slider rather than
+  <code>conversationMoodVector</code>'s formula — the sim exempts conversations from wear entirely.</p>
   <p>A scratchpad for mars-sim's proposed mood. <strong>Charge</strong> (vertical) is how much energy is behind the
   next action. <strong>Grip</strong> (horizontal) is how much purchase the colonist feels they have on their
   situation. <strong>Valence</strong> (the gauge under the plane) is now stored per colonist and moves only through
@@ -276,8 +277,8 @@ details > summary { cursor: pointer; font-size: 12px; color: var(--dim); margin:
       <p class="hint">Click a kind to edit its <strong>fresh</strong> (first-occurrence) and <strong>worn</strong>
       (habituated) targets. Firing blends toward <code>lerp(fresh, worn, wear)</code> by
       <code>k = clamp((impact − threshold) / range, 0, 1)</code>: a low-impact event mostly nudges, a high-impact one
-      mostly relocates. Impact and fresh are the numbers <code>affect.go</code> runs on today; worn is the proposed
-      half, and a blanket first guess — tune it.</p>
+      mostly relocates. Impact, fresh and worn are all numbers <code>affect.go</code> runs on today — tuning them
+      here is tuning the real thing.</p>
       <div class="row" style="margin-top:6px">
         <span class="worldlabel">push / pull</span>
         <input type="range" id="pushThresh" min="0" max="100" value="30">
@@ -347,61 +348,61 @@ const DEFAULT_ATTRACTORS = [
 // both roles: at low impact the blend adds it like a small nudge, at high
 // impact it relocates toward it.
 //
-// `impact` and `fresh` are seeded from the shipped lifeEventAppraisals table,
-// so tuning them here is tuning what actually runs. `worn` is the proposed
-// half: wear does not exist in Go yet, and these values are a blanket first
-// guess (duller, less steadying, a worse day) for this page to argue with.
+// impact, fresh and worn are all seeded from the shipped lifeEventAppraisals
+// table, so tuning them here is tuning what actually runs. Note which way
+// round the pair runs for the traumatic kinds: fresh is the *stronger*
+// reading -- a first killing is a rallying cry, a tenth is collapse.
 const DEFAULT_EVENTS = [
   { kind: "EvtSawAlien",                  tags: ["threat", "alien"],
-    impact: 45, fresh: { c: 8, g: -10, v: -15 }, worn: { c: 5, g: -19, v: -24 } },
+    impact: 45, fresh: { c: 8, g: -10, v: -15 }, worn: { c: 5, g: -22, v: -22 } },
   { kind: "EvtSawMouse",                  tags: ["rodent"],
-    impact: 8,  fresh: { c: 2,  g: -3,  v: 0  }, worn: { c: 3,  g: -8,  v: -8  } },
+    impact: 8,  fresh: { c: 2,  g: -3,  v: 0  }, worn: { c: 1,  g: -1,  v: 0  } },
   { kind: "EvtSawGore",                   tags: ["gore"],
-    impact: 30, fresh: { c: -3, g: -7, v: -6 }, worn: { c: -2, g: -11, v: -10 } },
+    impact: 30, fresh: { c: -3, g: -7, v: -6 }, worn: { c: -6, g: -14, v: -10 } },
   { kind: "EvtBitten",                    tags: ["violence", "threat", "alien"],
-    impact: 70, fresh: { c: 55, g: -44,  v: -30 }, worn: { c: 38, g: -74, v: -60 } },
+    impact: 70, fresh: { c: 55, g: -44,  v: -30 }, worn: { c: 35, g: -80, v: -55 } },
   { kind: "EvtWitnessedColonistKilled",   tags: ["death", "violence", "social-loss", "gore"],
-    impact: 95, fresh: { c: 28, g: -74,  v: -60 }, worn: { c: 19, g: -100, v: -90 } },
+    impact: 95, fresh: { c: 70, g: 40,  v: -60 }, worn: { c: 20, g: -85, v: -85 } },
   { kind: "EvtWitnessedColonistAttacked", tags: ["violence", "social-loss"],
-    impact: 75, fresh: { c: 35, g: -63,  v: -40 }, worn: { c: 24, g: -93, v: -70 } },
+    impact: 75, fresh: { c: 45, g: 25,  v: -40 }, worn: { c: 25, g: -70, v: -60 } },
   { kind: "EvtCrushedMouse",              tags: ["pest-control"],
-    impact: 6,  fresh: { c: -1, g: 2,   v: 0   }, worn: { c: -4, g: 2,   v: -2  } },
+    impact: 6,  fresh: { c: -1, g: 2,   v: 0   }, worn: { c: -2, g: 0,   v: 0  } },
   { kind: "EvtWitnessedMouseCrushed",     tags: ["gore", "pest-control"],
-    impact: 8,  fresh: { c: -1, g: -2,  v: -1  }, worn: { c: -4, g: -10, v: -10 } },
+    impact: 8,  fresh: { c: -1, g: -2,  v: -1  }, worn: { c: -1, g: -1, v: 0 } },
   { kind: "EvtWitnessedCatCatch",         tags: ["pest-control"],
-    impact: 5,  fresh: { c: 1,  g: 1,   v: 0   }, worn: { c: 1,  g: 1,   v: -3  } },
+    impact: 5,  fresh: { c: 1,  g: 1,   v: 0   }, worn: { c: 0,  g: 0,   v: 0  } },
   { kind: "EvtKilledAlien",               tags: ["violence", "achievement", "alien"],
-    impact: 55, fresh: { c: 45, g: 52,  v: 35  }, worn: { c: 31, g: 22,  v: 5   } },
+    impact: 55, fresh: { c: 45, g: 52,  v: 35  }, worn: { c: 25, g: 20,  v: 8   } },
   { kind: "EvtWitnessedAlienKilled",      tags: ["violence", "alien"],
-    impact: 35, fresh: { c: 5, g: 6,  v: 4  }, worn: { c: 3, g: 2,   v: 0   } },
+    impact: 35, fresh: { c: 5, g: 6,  v: 4  }, worn: { c: 2, g: 2,   v: 0   } },
   { kind: "EvtWoundedAlien",              tags: ["violence", "alien"],
-    impact: 25, fresh: { c: 4, g: 5,  v: 2  }, worn: { c: 2,  g: 2,   v: -1   } },
+    impact: 25, fresh: { c: 4, g: 5,  v: 2  }, worn: { c: 2,  g: 2,   v: 0   } },
   { kind: "EvtWitnessedGunfight",         tags: ["violence", "threat"],
-    impact: 50, fresh: { c: 35, g: -25, v: -20 }, worn: { c: 24, g: -46, v: -41 } },
+    impact: 50, fresh: { c: 35, g: -25, v: -20 }, worn: { c: 18, g: -45, v: -35 } },
   { kind: "EvtConversation",              tags: ["social"],
     impact: 20, fresh: { c: 3,  g: 7,  v: 2  }, worn: { c: 2,  g: 3,  v: -2  }, outcome: true },
   { kind: "EvtAte",                       tags: ["food"],
-    impact: 10, fresh: { c: 4,  g: 2,   v: 1   }, worn: { c: 2,  g: -1,  v: -2 } },
+    impact: 10, fresh: { c: 4,  g: 2,   v: 1   }, worn: { c: 2,  g: -1,  v: 0 } },
   { kind: "EvtUsedToilet",                tags: ["hygiene"],
-    impact: 4,  fresh: { c: 1,  g: 2,   v: 0   }, worn: { c: 0,  g: 0,   v: -3  } },
+    impact: 4,  fresh: { c: 1,  g: 2,   v: 0   }, worn: { c: 0,  g: 0,   v: 0  } },
   { kind: "EvtSlept",                     tags: ["rest"],
-    impact: 25, fresh: { c: 15, g: 2,   v: 2  }, worn: { c: 10, g: -7,  v: -7  } },
+    impact: 25, fresh: { c: 15, g: 2,   v: 2  }, worn: { c: 12, g: -2,  v: 0  } },
   { kind: "EvtNeedSatisfied",             tags: ["achievement"],
-    impact: 8,  fresh: { c: 2,  g: 2,   v: 0   }, worn: { c: 1,  g: 0,   v: -3  } },
+    impact: 8,  fresh: { c: 2,  g: 2,   v: 0   }, worn: { c: 1,  g: 0,   v: 0  } },
   { kind: "EvtFinishedMining",            tags: ["work", "finished-work"],
-    impact: 15, fresh: { c: -1, g: 5,   v: 0  }, worn: { c: 0, g: 2,  v: -3 } },
+    impact: 15, fresh: { c: -1, g: 5,   v: 0  }, worn: { c: -5, g: -3,  v: 0 } },
   { kind: "EvtClearedRock",               tags: ["work", "finished-work"],
-    impact: 15, fresh: { c: -1, g: 5,   v: 0   }, worn: { c: 0, g: 2,  v: -3 } },
+    impact: 15, fresh: { c: -1, g: 5,   v: 0   }, worn: { c: -5, g: -3,  v: 0 } },
   { kind: "EvtFinishedConstruction",      tags: ["work", "finished-work", "achievement"],
-    impact: 18, fresh: { c: -1, g: 6,   v: 3  }, worn: { c: 0, g: 2,  v: -1 } },
+    impact: 18, fresh: { c: -1, g: 6,   v: 3  }, worn: { c: -4, g: 0,  v: 0 } },
   { kind: "EvtCleanedRefuse",             tags: ["work", "finished-work", "hygiene"],
-    impact: 14, fresh: { c: -1, g: 5,   v: 0   }, worn: { c: 0, g: 2,  v: -3 } },
+    impact: 14, fresh: { c: -1, g: 5,   v: 0   }, worn: { c: -5, g: -4,  v: 0 } },
   { kind: "EvtIncineratedRefuse",         tags: ["work", "finished-work", "hygiene", "incineration"],
-    impact: 16, fresh: { c: -1, g: 7,   v: 1  }, worn: { c: 0, g: 3,  v: -3 } },
+    impact: 16, fresh: { c: -1, g: 7,   v: 1  }, worn: { c: -4, g: 0,  v: 0 } },
   { kind: "EvtMutated",                   tags: ["mutation", "body-horror"],
-    impact: 60, fresh: { c: 18, g: -70, v: -35 }, worn: { c: 12, g: -100, v: -65 } },
+    impact: 60, fresh: { c: 18, g: -70, v: -35 }, worn: { c: 10, g: -90, v: -70 } },
   { kind: "EvtWitnessedMutation",         tags: ["mutation", "body-horror"],
-    impact: 35, fresh: { c: 2, g: -8, v: -10 }, worn: { c: 1,  g: -14, v: -16 } },
+    impact: 35, fresh: { c: 2, g: -8, v: -10 }, worn: { c: 1,  g: -16, v: -18 } },
 ];
 
 // TraitRule: matching is "any of anyTags (or anyTags empty => matches every
@@ -1278,11 +1279,11 @@ function generateGo() {
   }
   s += "}\n\n";
 
-  s += "// lifeEventProfile widens the shipped moodAppraisal by one field: Worn, the\n";
-  s += "// target once a colonist is used to the event (docs/mood-space.md Wear).\n";
-  s += "// Impact and Fresh below are what affect.go already runs on; Worn is the\n";
-  s += "// proposed half. A single row plays both the push (low impact) and pull\n";
-  s += "// (high impact) roles, as it already does today.\n";
+  s += "// lifeEventProfile widens the shipped moodAppraisal by one field: Tags,\n";
+  s += "// which TraitRules match against (docs/mood-space.md Tags).\n";
+  s += "// Impact, Fresh and Worn below are all what affect.go already runs on;\n";
+  s += "// only Tags are proposed. A single row plays both the push (low impact)\n";
+  s += "// and pull (high impact) roles, as it already does today.\n";
   s += "type lifeEventProfile struct {\n\tTags        []EventTag\n\tImpact      int\n\tFresh, Worn MoodVector\n}\n\n";
   s += "var lifeEventProfiles = [numLifeEventKinds]lifeEventProfile{\n";
   const kindW = Math.max(...events.map(e => e.kind.length)) + 2;

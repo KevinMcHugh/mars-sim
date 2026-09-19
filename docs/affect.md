@@ -9,8 +9,10 @@ so far. Charge and grip bias focus arbitration; valence records how that life
 has been going and picks which word the other two display as, without ever
 becoming behavioral state itself.
 
-How hard an event lands is not fixed. Each kind carries an **impact**, and
-impact alone decides whether the event nudges affect or relocates it outright.
+How hard an event lands is not fixed. Each kind carries an **impact**, which
+decides whether the event nudges affect or relocates it outright, and a pair of
+readings — **fresh** and **worn** — between which a colonist's history with that
+kind of thing picks.
 
 ## Source
 
@@ -27,11 +29,11 @@ impact alone decides whether the event nudges affect or relocates it outright.
 Charge is energy behind the next action, grip is felt control, and valence is
 whether life has been going well. All three are clamped to
 `[-MoodMax, MoodMax]`. Each `LifeEventKind` has one `moodAppraisal` in
-`lifeEventAppraisals`: an `Impact` and a `Target` vector. `remember` applies it
+`lifeEventAppraisals`: an `Impact` and a `Fresh`/`Worn` pair of targets. `remember` applies it
 once per occurrence before updating stimulus and memory state, so collapsed
 memories still reach the colonist each time.
 
-A `Target` is both a displacement and a destination — see the blend below —
+A target is both a displacement and a destination — see the blend below —
 which is why the handful of high-impact rows are written at the scale of the
 plane rather than the scale of a nudge.
 
@@ -48,6 +50,40 @@ funnel converts a positive outcome mostly into grip, a negative outcome into
 lower grip plus raised charge, and either into a quarter as much valence. No
 scalar outcome remains on the entity, and `EvtConversation` is the one row that
 declares an impact but no target, because its target cannot be a table lookup.
+
+### Wear: fresh and worn
+
+`moodWear` counts how many remembered **occasions** a colonist has of a kind,
+multiplies by `MoodWearPerOccasion`, and caps at 100. `wearTarget` then moves
+that kind's appraisal that far from `Fresh` toward `Worn`.
+
+Two details carry the design:
+
+- **Occasions, not occurrences.** A run of digs collapses into one memory, and
+  collapsing has already decided that run was one memorable thing. Counting
+  each occurrence instead would let a single long shift peg a colonist
+  permanently, which is the ratchet this has to avoid.
+- **The count comes from the bounded memory log**, so occasions roll off with
+  the memories holding them and wear falls again once something stops
+  happening. Recovery is most of what keeps this feeling like a person rather
+  than a counter.
+
+Note which way round the pair runs for the traumatic kinds: `Fresh` is the
+*stronger* reading. A first witnessed killing lands near `furious` — grip up,
+valence down, a rallying cry — and the tenth lands near `despairing`. Wear
+turns a reaction rather than merely quieting it, which a per-trait scale factor
+could not express.
+
+An activity a colonist does constantly does reach fully worn and stay there.
+That is the intended reading: they really are habituated to their job, and what
+it costs them is the lift the work used to give. The arc matters where it
+should, on the rare and terrible things, whose occasions accumulate slowly and
+roll off in between.
+
+Conversations are exempt. Their vector is already computed per occurrence, and
+`noteConversation`'s social fatigue window is wearing repetition down by the
+time appraisal happens; wearing it again would charge a talkative colonist
+twice for the same talkativeness.
 
 ### Push, pull, and impact
 
@@ -136,7 +172,7 @@ the old single mood line.
 ## Extending it
 
 Add a mood-bearing event by adding one row to `lifeEventAppraisals` — an impact
-and a target — and emitting it only through `remember`. Keep the target
+and a fresh/worn pair — and emitting it only through `remember`. Keep the target
 nudge-sized below `MoodPushImpact` and plane-sized above `MoodPullImpact`; a
 test checks that anything which relocates lands in named space, because
 relocating to a nudge-sized point would leave a colonist almost exactly neutral
@@ -150,4 +186,4 @@ attractor in `moodAttractors`, remembering that order is the tie-break. Never us
 - [memories.md](./memories.md) — the single event ingestion funnel and memory collapse.
 - [personality.md](./personality.md) — trait ordering and the personality RNG invariant.
 - [cascading_wsts_architecture.md](./cascading_wsts_architecture.md) — fixed design and score model.
-- [mood-space.md](./mood-space.md) — what is still proposed on top of this: habituation and tag-based trait rules.
+- [mood-space.md](./mood-space.md) — what is still proposed on top of this: tag-based trait rules and per-colonist baselines.

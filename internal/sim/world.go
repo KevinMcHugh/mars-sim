@@ -14,6 +14,10 @@ func (w *World) remember(e *Entity, evt LifeEvent) {
 	}
 	// Affect is applied per occurrence either way: collapsing is about what the
 	// memory log reads like, not about the twelfth dig having stopped counting.
+	// It does count for less, because wear reads this log and a collapsed run
+	// is one occasion in it -- but that is habituation, not a skipped update.
+	// Order matters here: appraisal runs before the memory is recorded, so an
+	// event a colonist has never had is appraised at its fresh reading.
 	w.applyAffect(e, evt)
 	w.addStimulus(e, evt)
 	if !w.collapseRepeat(e, evt) {

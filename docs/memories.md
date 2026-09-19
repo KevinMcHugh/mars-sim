@@ -77,12 +77,14 @@ recording another memory.
 
 ### Affect appraisals: one complete table plus a computed conversation outcome
 
-`lifeEventAppraisals` has one `moodAppraisal{Impact, Target}` slot per event
-kind, the target being a `MoodVector{Charge, Grip, Valence}`. Every non-zero row
+`lifeEventAppraisals` has one `moodAppraisal{Impact, Fresh, Worn}` slot per
+event kind, each target being a `MoodVector{Charge, Grip, Valence}`. Every non-zero row
 is semantic data in `affect.go`; adding an ordinary affect-bearing event is one
 table edit. `applyAffect` then applies trait transforms in declaration order,
 and `blendAffect` uses the impact to decide whether the target nudges the
-colonist or relocates them, clamping all three axes once.
+colonist or relocates them, clamping all three axes once. Which of the two
+targets it starts from depends on how many occasions of that kind this log
+already holds — see [affect.md](./affect.md).
 
 Conversation quality remains computed per occurrence because affinity, the live
 quality roll, and social fatigue cannot be a fixed row. `eventOutcome` carries
