@@ -23,7 +23,7 @@ const (
 	sidebarWidth = 30
 	borderCells  = 2 // one column of box border on each side
 	panelGap     = 1 // the single space between the map and the sidebar
-	headerRows   = 2
+	headerRows   = 3 // title/stats lines plus the tab strip (see renderHeader)
 	footerRows   = 1
 	minCols      = 10
 	minRows      = 6
@@ -46,8 +46,10 @@ var (
 	// open floor is blank too, so the unknown gets a faintly shaded background
 	// to tell the two apart. A background colour costs the row no cells (see
 	// cells.Width), so a fogged row is still exactly cols*tileWidth wide.
-	fogStyle     = lipgloss.NewStyle().Background(lipgloss.AdaptiveColor{Light: "252", Dark: "236"})
-	sidebarStyle = lipgloss.NewStyle().
+	fogStyle       = lipgloss.NewStyle().Background(lipgloss.AdaptiveColor{Light: "252", Dark: "236"})
+	tabActiveStyle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("0")).Background(lipgloss.Color("203")).Padding(0, 1)
+	tabStyle       = lipgloss.NewStyle().Foreground(lipgloss.Color("245")).Padding(0, 1)
+	sidebarStyle   = lipgloss.NewStyle().
 			Border(lipgloss.RoundedBorder()).
 			BorderForeground(lipgloss.Color("240")).
 			Padding(0, 1)
@@ -202,7 +204,26 @@ func (m Model) renderHeader() string {
 
 	line1 := lipgloss.JoinHorizontal(lipgloss.Left, title, "  ", sub)
 	line2 := lipgloss.JoinHorizontal(lipgloss.Left, statStyle.Render(state), "   ", counts)
-	return cells.Truncate(line1, m.termW) + "\n" + cells.Truncate(line2, m.termW)
+	return strings.Join([]string{
+		cells.Truncate(line1, m.termW),
+		cells.Truncate(line2, m.termW),
+		cells.Truncate(m.renderTabs(), m.termW),
+	}, "\n")
+}
+
+// renderTabs draws the screen-rotation strip: one label per screen in "tab"
+// order, with the current one picked out so a player mid-rotation can see
+// where they landed without counting keypresses.
+func (m Model) renderTabs() string {
+	labels := make([]string, len(tabLabels))
+	for i, name := range tabLabels {
+		if viewMode(i) == m.mode {
+			labels[i] = tabActiveStyle.Render(name)
+		} else {
+			labels[i] = tabStyle.Render(name)
+		}
+	}
+	return strings.Join(labels, "")
 }
 
 func (m Model) renderMap() string {

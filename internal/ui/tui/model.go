@@ -23,6 +23,10 @@ const (
 	modeStorage                 // placed storage containers and their contents
 )
 
+// tabLabels names the screens in tab order, matching the "tab" rotation below
+// and the strip drawn by renderTabs.
+var tabLabels = [...]string{modeMap: "Map", modeRoster: "Roster", modeJobs: "Jobs", modeStorage: "Storage"}
+
 // menuKind selects an open pick-one prompt, if any. Opening a menu (via `s` or
 // `b`) captures keypresses instead of routing them to the current screen:
 // up/down move the highlighted option, enter submits it, a shortcut letter
