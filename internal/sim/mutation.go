@@ -1,6 +1,9 @@
 package sim
 
-import "fmt"
+import (
+	"fmt"
+	"strings"
+)
 
 // ---- Uranium exposure and mutation -----------------------------------------
 //
@@ -71,22 +74,204 @@ func (w *World) applyUraniumExposure(e *Entity) {
 	}
 }
 
-// mutate grows one new body part on a colonist and marks them a Mutant. A
-// colonist who already has every mutant part keeps the trait and simply has
-// nothing left to grow.
+// mutate changes a colonist's body in the two ways uranium can change it —
+// growing a part nobody is born with, and resizing them — and marks them a
+// Mutant. Both are attempted on every mutation, and each can decline: a
+// colonist who has every mutant part has nothing left to grow, and one pinned
+// at a stature limit cannot go further that way. A mutation that finds nothing
+// at all to change is not a mutation: no trait, no memory, no log line.
 func (w *World) mutate(e *Entity) {
-	part, ok := w.rollMutantPart(e)
-	if !ok {
+	var changes []string
+	if part, ok := w.rollMutantPart(e); ok {
+		w.growPart(e, part)
+		changes = append(changes, "grew "+withArticle(part.String())) // "grew a tail"
+	}
+	if change, ok := w.resize(e); ok {
+		changes = append(changes, change)
+	}
+	if len(changes) == 0 {
 		return
 	}
-	w.growPart(e, part)
 	w.giveTrait(e, TraitMutant)
 
-	named := withArticle(part.String()) // "a tail", "an extra eye"
-	w.remember(e, event(EvtMutated, "The uranium changed them: grew %s.", named))
-	w.log.add(fmt.Sprintf("%s has mutated — %s.", e.displayName(), named))
+	what := joinAnd(changes)
+	w.remember(e, event(EvtMutated, "The uranium changed them: %s.", what))
+	w.log.add(fmt.Sprintf("%s has mutated — %s.", e.displayName(), what))
 	for _, wit := range w.colonistsWithin(e.Pos, w.cfg.FleeRadius, e.ID) {
-		w.remember(wit, event(EvtWitnessedMutation, "Watched %s grow %s.", e.displayName(), named))
+		w.remember(wit, event(EvtWitnessedMutation, "Watched %s mutate: %s.", e.displayName(), what))
+	}
+}
+
+// resize grows or shrinks a mutating colonist by MutationStaturePercent of the
+// height they are now, and reports the change as a past-tense phrase for the
+// memory and log lines. It returns false when there is nothing to do: an
+// entity with no profile (nothing has a height but a colonist), resizing
+// switched off, or a step too small to move a rounded centimetre.
+//
+// The step is a fixed percentage and only the *direction* is drawn, which
+// makes the walk legible: a colonist's height is their starting height times
+// 1.15 raised to (lucky doses minus unlucky ones). The extremes are therefore
+// a run of one-sided luck rather than a single jackpot roll, which is what
+// makes the ten-foot colonist in the dormitory a story instead of a number.
+//
+// Direction is drawn from the simulation RNG (w.rng), not the personality
+// stream: stature scales the body, and the body is combat (see scaleBody).
+func (w *World) resize(e *Entity) (string, bool) {
+	if e.Profile == nil || w.cfg.MutationStaturePercent <= 0 {
+		return "", false
+	}
+	before := e.Profile.HeightCM
+	after := w.rollStature(before)
+	if after == before {
+		return "", false
+	}
+	w.setStature(e, after)
+
+	verb := "shrank"
+	if after > before {
+		verb = "stretched"
+	}
+	return fmt.Sprintf("%s from %s to %s", verb, FormatHeight(before), FormatHeight(after)), true
+}
+
+// rollStature picks the height a mutation moves a colonist to. Both directions
+// are one MutationStaturePercent step from where they are now, held inside the
+// configured limits; a direction that no longer moves the colonist at all is
+// not a candidate, so one already pinned at a limit always goes the other way
+// instead of wasting the mutation. With both ends open it is an even coin flip
+// — uranium has no opinion about which way a body should go.
+//
+// Clamping each candidate (rather than refusing a step that would overshoot)
+// is also what walks a colonist back into a range they start outside of, which
+// a colony configured with a stature range narrower than ordinary human height
+// generates on purpose.
+func (w *World) rollStature(cm int) int {
+	lo, hi := w.statureLimits()
+	var candidates []int
+	if grown := clampInt(w.grownStature(cm), lo, hi); grown > cm {
+		candidates = append(candidates, grown)
+	}
+	if shrunk := clampInt(w.shrunkStature(cm), lo, hi); shrunk < cm {
+		candidates = append(candidates, shrunk)
+	}
+	if len(candidates) == 0 {
+		return cm
+	}
+	return candidates[w.rng.Intn(len(candidates))]
+}
+
+// grownStature and shrunkStature are the two ends of one mutation's step, and
+// are each other's inverse: growing multiplies by (100+pct)/100 and shrinking
+// divides by the same ratio, rather than subtracting the percentage. Taking
+// pct off and putting pct back on would not land where it started — 0.85 ×
+// 1.15 is 0.98 — and that missing two percent, compounded over a career of
+// doses, is a steady downward drift in a walk that is supposed to be a fair
+// coin flip.
+func (w *World) grownStature(cm int) int {
+	return scaleRound(cm, 100+w.cfg.MutationStaturePercent, 100)
+}
+
+func (w *World) shrunkStature(cm int) int {
+	return scaleRound(cm, 100, 100+w.cfg.MutationStaturePercent)
+}
+
+// setStature moves a colonist to a new height and brings the rest of the body
+// along with it: weight at their own unchanged build, and HP scaled so a
+// ten-foot colonist is genuinely harder to put down than a two-foot one.
+func (w *World) setStature(e *Entity, cm int) {
+	before := e.Profile.HeightCM
+	if before <= 0 || cm == before {
+		return
+	}
+	e.Profile.HeightCM = cm
+	// Weight follows the square of the height rather than the cube, which
+	// keeps the colonist's BMI — the build rollBody gave them — exactly as it
+	// was. A true volume scaling would be the physical answer for a statue
+	// scaled up, but these are people: the two-foot one should read as a small
+	// person, not as something that could blow away.
+	//
+	// It is computed from the body they were born with, never from the weight
+	// they are now, so a colonist stretched and shrunk back over a career lands
+	// on the weight they started at instead of on whatever a long chain of
+	// roundings left behind.
+	bornH, bornKG := e.Profile.BornHeightCM, e.Profile.BornWeightKG
+	if bornH <= 0 || bornKG <= 0 { // a profile built without a birth body
+		bornH, bornKG = before, e.Profile.WeightKG
+	}
+	e.Profile.WeightKG = atLeast1(scaleRound(bornKG*cm, cm, bornH*bornH))
+	scaleBody(e, cm, before)
+}
+
+// scaleBody scales an entity's HP pool, and every part of it, by num/den —
+// the ratio its height just changed by. HP tracks height linearly rather than
+// mass: mass grows as the square here, and a colonist who came out of the
+// uranium four times as hard to kill would end the alien problem by standing
+// in the wrong tunnel often enough.
+//
+// Current values scale alongside the maxima, so a resize neither heals a wound
+// nor opens one: a colonist half dead before is half dead after. A part that
+// is merely small never rounds away to nothing — a shrunken part is still a
+// part the colonist has, and MaxParts at zero is the test for an anatomy that
+// never had it (see Entity.hasPart) — but a destroyed part (current zero)
+// stays destroyed.
+func scaleBody(e *Entity, num, den int) {
+	if den <= 0 || num <= 0 || num == den {
+		return
+	}
+	e.MaxHP = atLeast1(scaleRound(e.MaxHP, num, den))
+	e.HP = min(scaleRound(e.HP, num, den), e.MaxHP)
+	for part := BodyPart(0); part < numBodyParts; part++ {
+		if e.MaxParts[part] <= 0 {
+			continue
+		}
+		e.MaxParts[part] = atLeast1(scaleRound(e.MaxParts[part], num, den))
+		e.Parts[part] = min(scaleRound(e.Parts[part], num, den), e.MaxParts[part])
+	}
+}
+
+// statureLimits is the configured height range, with the ordering defended so
+// a bad pair of limits pins colonists at one height instead of inverting the
+// clamp.
+func (w *World) statureLimits() (lo, hi int) {
+	lo, hi = w.cfg.StatureMinCM, w.cfg.StatureMaxCM
+	if lo < 1 {
+		lo = 1
+	}
+	if hi < lo {
+		hi = lo
+	}
+	return lo, hi
+}
+
+// scaleRound multiplies v by num/den, rounding to nearest instead of
+// truncating — over a career of resizes, truncation alone would walk a
+// colonist steadily downward.
+func scaleRound(v, num, den int) int {
+	if den == 0 {
+		return v
+	}
+	return (v*num*2 + den) / (den * 2)
+}
+
+// FormatHeight renders a height in centimetres the way the colony talks about
+// it: feet and inches, which is the only unit in which "ten foot tall" is a
+// thing to say. The rounding happens in inches, before the split into feet, so
+// a height just shy of six feet reads 6'0" rather than 5'12".
+func FormatHeight(cm int) string {
+	inches := scaleRound(cm, 100, 254)
+	return fmt.Sprintf("%d'%d\"", inches/12, inches%12)
+}
+
+// joinAnd renders a short list of phrases as plain English. Mutation produces
+// at most two, so this does not try to be a general Oxford-comma joiner.
+func joinAnd(parts []string) string {
+	switch len(parts) {
+	case 0:
+		return ""
+	case 1:
+		return parts[0]
+	default:
+		return strings.Join(parts[:len(parts)-1], ", ") + " and " + parts[len(parts)-1]
 	}
 }
 

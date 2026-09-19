@@ -17,6 +17,16 @@ about, not a career stage: with uranium at `UraniumRockPercent` (1% of rock) and
 a dose this long, about **1% of colonists** are mutants after a typical run,
 creeping toward 3% in a very long one. See [Tuning the rate](#tuning-the-rate).
 
+A mutation also **resizes** the colonist. Every one of them moves their height
+a `MutationStaturePercent` (15%) step up or down, and the body goes with it —
+weight, HP, and every body part scale together, between `StatureMinCM` (61 cm,
+two feet) and `StatureMaxCM` (305 cm, ten feet). Since each mutation is one
+step of a random walk, the ends of that range belong to the rare colonist who
+mutates over and over — a ten-foot one stooping through the dormitory, or a
+two-foot one who goes down to a single alien bite. At the default rate that is
+a whole colony's story, not a career; [Tuning the rate](#tuning-the-rate) says
+which knob to turn for more of it.
+
 Mutants are then a thing other colonists have opinions about. The
 **Mutant-Lover** trait, rolled at spawn like any other, makes a colonist warm to
 mutants much faster than to anyone else, and inverts how they feel about
@@ -25,7 +35,8 @@ watching a mutation happen — or undergoing one.
 ## Source
 
 - [`internal/sim/mutation.go`](../internal/sim/mutation.go) — exposure, the
-  mutation roll, `growPart`, `giveTrait`, `mutantAffinityBonus`.
+  mutation roll, `growPart`, `resize`/`rollStature`/`setStature`/`scaleBody`,
+  `FormatHeight`, `giveTrait`, `mutantAffinityBonus`.
 - [`internal/sim/entity.go`](../internal/sim/entity.go) — the mutant half of the
   `BodyPart` enum, `numBaseBodyParts`, `Entity.MaxParts`, `Entity.hasPart`,
   `Entity.uraniumExposure`.
@@ -34,7 +45,12 @@ watching a mutation happen — or undergoing one.
   `Inventory.Has`, `miningYield`.
 - [`internal/sim/worldgen.go`](../internal/sim/worldgen.go) — uranium veins.
 - [`internal/sim/personality.go`](../internal/sim/personality.go) —
-  `TraitMutant` (acquired), `TraitMutantLover`, `traitSpec.acquired`.
+  `TraitMutant` (acquired), `TraitMutantLover`, `traitSpec.acquired`,
+  `Profile.HeightCM`/`WeightKG` and the `BornHeightCM`/`BornWeightKG` they are
+  rescaled from, `rollBody`.
+- [`internal/sim/config.go`](../internal/sim/config.go) —
+  `UraniumExposureTicks`, `MutationChance`, `MutationStaturePercent`,
+  `StatureMinCM`, `StatureMaxCM`.
 - [`internal/sim/combat.go`](../internal/sim/combat.go) — `rollHit` weighting
   over the target's own anatomy.
 - [`internal/sim/lifeevents.go`](../internal/sim/lifeevents.go) — `EvtMutated`,
@@ -45,6 +61,8 @@ watching a mutation happen — or undergoing one.
   tests that pin this behavior.
 - [`internal/ui/tui/glyphs.go`](../internal/ui/tui/glyphs.go) — 🟩 uranium rock,
   🧟 mutant colonist.
+- [`internal/ui/tui/render_roster.go`](../internal/ui/tui/render_roster.go) —
+  the attributes line, which leads with feet and inches.
 
 ## How it works
 
@@ -70,12 +88,64 @@ keeps working a vein keeps rolling, and can mutate more than once over a career.
 
 ### Mutating
 
-`mutate(e)` draws uniformly (on `w.rng`, the simulation stream — this is
-gameplay, not flavor) among the mutant parts the colonist has *not* grown,
-calls `growPart`, and `giveTrait(e, TraitMutant)`. It records an `EvtMutated`
-memory for the colonist, an `EvtWitnessedMutation` memory for everyone close
-enough to see, and a colony log line. A colonist who already has all four parts
-keeps the trait and grows nothing further.
+`mutate(e)` attempts **both** changes uranium can make, and each can decline:
+
+1. It draws uniformly (on `w.rng`, the simulation stream — this is gameplay,
+   not flavor) among the mutant parts the colonist has *not* grown and calls
+   `growPart`. A colonist who already has all four grows nothing further.
+2. It calls `resize(e)`, which moves the colonist one stature step. A colonist
+   pinned at a limit can still move — the other way (see below).
+
+Whatever actually happened is joined into one phrase ("grew a tail and
+stretched from 5'10" to 6'9""), which becomes the colonist's `EvtMutated`
+memory, an `EvtWitnessedMutation` memory for everyone close enough to see, and
+a colony log line. `giveTrait(e, TraitMutant)` runs on any change. If *neither*
+half found anything to do — every part grown, and resizing disabled — nothing
+happened at all: no trait, no memory, no log line.
+
+### Stature
+
+`resize` is a fixed-size step in a drawn direction, not a drawn size:
+`rollStature` builds the candidates (one step up, one step down), drops
+whichever the configured limits forbid, and picks among what is left on
+`w.rng`. Two consequences fall out of that shape:
+
+- A colonist's height is their starting height times `1.15ⁿ`, where n is lucky
+  doses minus unlucky ones. Growing multiplies by 1.15 and shrinking *divides*
+  by it, rather than taking 15% off: the two must be exact inverses, or a walk
+  that is supposed to be a fair coin flip drifts steadily downward (0.85 × 1.15
+  is 0.98, and that missing 2% compounds over a career). From an average
+  178 cm it is two straight growths to clear seven feet, four to touch the
+  ten-foot ceiling, and eight shrinks to reach the two-foot floor.
+- A colonist **at** a limit is not wasting the dose: with one candidate
+  forbidden, the other one is certain, so the ten-foot colonist's next
+  mutation shrinks them. The extremes are sticky walls, not absorbing ones.
+
+`setStature` then moves the rest of the body:
+
+| | scales as | 178 cm → 305 cm | 178 cm → 61 cm |
+| --- | --- | --- | --- |
+| weight | height² (constant BMI) | 70 kg → 206 kg | 70 kg → 8 kg |
+| `MaxHP`, every part | height | 40 → ~69 | 40 → ~14 |
+
+Weight is recomputed from `BornHeightCM`/`BornWeightKG` — the body the colonist
+arrived with — rather than from the weight they are now. Rescaling a rounded
+integer over and over is a ratchet: an early version scaled from the current
+weight and ground an 80 kg colonist down to 1 kg over a career of stretching
+and shrinking back.
+
+`scaleBody` scales current values alongside the maxima, so a resize neither
+heals a wound nor opens one — a colonist half dead before is half dead after.
+A part that gets small never rounds away to nothing (`MaxParts` at zero means
+an anatomy that never had the part, which would be a silent amputation), while
+a *destroyed* part (current zero) stays destroyed. Unlike weight, the parts are
+scaled step by step from their current size, so a colonist resized dozens of
+times carries a few HP of rounding noise; it is bounded and unbiased, and the
+body still tracks the height within a few percent.
+
+Heights are displayed in feet and inches (`FormatHeight`), which is the only
+unit in which "ten foot tall" is a thing to say; the roster's attributes line
+leads with it and keeps the centimetres in parentheses.
 
 ### Body parts, before and after
 
@@ -125,6 +195,24 @@ cost of being a mutant is social, not physical.
   is the interesting version: a colonist keeps its dose until it hauls the ore
   into a chest (`jobStore`, see [storage.md](./storage.md)), so how long a miner
   stays dosed is a consequence of how the colony handles what it digs up.
+- **Mutation resizes as well as grows.** Growing a part is a strict
+  improvement — more HP, a bigger target pool — so mutation with parts alone is
+  a buff a colony would farm deliberately. Stature makes every mutation a coin
+  flip on the thing that matters most in a fight, which is what turns "go stand
+  by the uranium" from an exploit into a gamble. It is drawn on `w.rng` for the
+  same reason the part is: it changes how combat resolves.
+- **The step is fixed and only the direction is drawn.** Drawing a magnitude
+  too would make each mutation a little more surprising and the *history*
+  unreadable — with a fixed step, a colonist's height is a running count of
+  their luck, and the extremes are a story about a career at the vein rather
+  than one jackpot roll.
+- **Weight scales as height², HP as height¹.** Squaring the height keeps the
+  colonist's BMI — the build `rollBody` gave them — exactly as it was, so a
+  two-foot colonist reads as a small person rather than as something that could
+  blow away; a true cube law is the physical answer for a scaled statue, not
+  for a person. HP deliberately scales *slower* than mass: a ten-foot colonist
+  who came out of the uranium four times as hard to kill would end the alien
+  problem by standing in the wrong tunnel often enough.
 - **A mutant part adds HP instead of redistributing it.** Sizing all parts from
   one `MaxHP` would mean growing a third arm quietly weakened every limb the
   colonist already had — a mutation that makes you worse everywhere is not what
@@ -193,6 +281,28 @@ eventually. Making the rate genuinely independent of game length would take a
 change to the mechanic — a decaying dose, or one roll per colonist per career —
 not a smaller `MutationChance`.
 
+### Stature needs repeat mutations, so it is rarer still
+
+A mutation is one 15% step, and the extremes are several steps from an ordinary
+178 cm: four growths to the ten-foot ceiling, eight shrinks to the two-foot
+floor. At the default rate — where mutating *once* already puts a colonist in
+the 1% — a colonist reaching either end is a whole colony's story rather than
+something a run reliably produces.
+
+Two knobs change that, and they do different things:
+
+| want | turn | effect |
+| --- | --- | --- |
+| more mutants, same drama each | `UraniumExposureTicks` down | more colonists mutate, each still a 15% step |
+| the same rarity, more drama | `MutationStaturePercent` up | one mutation is a bigger jump |
+
+At `MutationStaturePercent` 40, a single mutation takes an average colonist to
+8'2" or down to 4'2", and two put them at a limit — so the first colonist to
+mutate is visibly a giant or a dwarf, without mutation itself becoming common.
+That is the knob to reach for if the extremes are the point; the default of 15
+is tuned for a legible history (a colonist's height reads as a running count of
+their luck) over immediate spectacle.
+
 ## Extending it
 
 - **A new mutant part**: add the constant between `numBaseBodyParts` and
@@ -205,9 +315,19 @@ not a smaller `MutationChance`.
   exactly this.
 - **Another source of mutation** (an alien bite, a lab accident): call
   `w.mutate(e)`. Nothing in it is uranium-specific past the memory text.
-- **Making mutation cost something physical** (a work or need penalty scaled by
-  part count) is the obvious balance lever if mutants prove strictly better;
-  `resolveTraitEffects` is where a scalar effect for `TraitMutant` would go.
+- **Making mutation cost something physical** beyond the stature gamble (a work
+  or need penalty scaled by part count) is the obvious balance lever if mutants
+  prove strictly better; `resolveTraitEffects` is where a scalar effect for
+  `TraitMutant` would go.
+- **Making stature do more than HP**: a giant that mines faster and eats more,
+  a two-foot colonist that squeezes through gaps or is passed over by aliens
+  hunting. `Profile.HeightCM` is live state any system can read; a scalar
+  derived from it would slot into `resolveTraitEffects` next to the trait
+  multipliers, which is already the one place `workScale` is set.
+- **A distinct glyph for the extremes** (the roster already reads 8'4"): the
+  mutant 🧟 could give way to something taller or smaller past a threshold. See
+  the tone/hair caveats in [personality.md](./personality.md) before reaching
+  for a composed emoji.
 - **Dropping ore into a stockpile** would turn permanent exposure back into a
   choice, and is the natural follow-up once hauling exists (see
   [inventory.md](./inventory.md)).

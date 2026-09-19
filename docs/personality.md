@@ -5,9 +5,12 @@
 ## What it is
 
 Every colonist has a `Profile`: a name, attributes (age, gender, orientation,
-height, weight, skin tone, hair color), and any traits. Attributes are flavor for now; **traits change
-how a colonist plays** by scaling need rates and work behavior. All of it is
-generated from a dedicated RNG stream so flavor never perturbs the simulation.
+height, weight, skin tone, hair color), and any traits. Most attributes are
+flavor; **traits change how a colonist plays** by scaling need rates and work
+behavior, and **height and weight are live state** once uranium is involved —
+mutation resizes a colonist and scales their body with them (see
+[mutation.md](./mutation.md)). All of it is *generated* from a dedicated RNG
+stream so flavor never perturbs the simulation.
 
 ## Source
 
@@ -30,10 +33,24 @@ did before personalities existed. Preserving this separation is a hard invariant
 ### Attributes (flavor)
 
 `assignPersonality` rolls age (18–80), gender, orientation, a correlated
-height/weight (via a BMI draw), a skin tone (uniform
-across the five emoji tone points), a hair color (white and bald weighted
-upward with age), and a name drawn from gender-appropriate pools. Nothing
-simulates against these yet — they exist for flavor and future systems.
+height/weight (via a BMI draw), a skin tone (uniform across the five emoji tone
+points), a hair color (white and bald weighted upward with age), and a name
+drawn from gender-appropriate pools. Nothing simulates against these at spawn —
+they exist for flavor and future systems.
+
+The one exception arrives later: `HeightCM`/`WeightKG` are what a mutation
+rescales, and the body scales with them, so they stop being flavor the moment a
+colonist takes a uranium dose. `BornHeightCM`/`BornWeightKG` keep the body the
+colonist was generated with, because weight is always recomputed from that
+rather than from the last rescaled value (see [mutation.md](./mutation.md)).
+Every path that *generates* a body ends in `rememberBornBody` — the original
+roll and heredity's `setHeightZ` re-framing alike — since inheriting a
+relative's frame changes who the colonist always was, while a mutation changes
+what became of them. Generated heights stay in the ordinary human 145–205 cm;
+the configured stature limits bound what mutation does, and a colonist
+generated outside a narrower range walks back into it on their first dose. The
+resize itself runs on the *simulation* stream, not this one — it changes how
+combat resolves.
 
 It rolls a **complete, standalone person**, and part of that person is then
 overwritten by [heredity.md](./heredity.md)'s family pass, which runs after kin

@@ -281,11 +281,23 @@ is slow, so mutation lands on about **1% of colonists** in a typical run (a few
 percent in a very long one, since the dose never fades): an event the colony
 remembers, not a rite of passage.
 
+A mutation also **resizes** the colonist: every one of them stretches or
+shrinks them by `-mutation-stature-percent` (15%), between `-stature-min-cm`
+(61 cm, two feet) and `-stature-max-cm` (305 cm, ten feet). Weight, HP and
+every body part scale with the height, so a colonist who mutates over and over
+becomes a ten-foot giant who is genuinely hard to put down, or a two-foot one
+who goes down to a single bite. At the default rate those are a colony's
+tallest tale; raise `-mutation-stature-percent` (try 40) to make the first
+mutation itself dramatic. The roster reads the result in feet and inches, and
+the colony log narrates each step ("Amara Moreau has mutated — grew a tail and
+stretched from 6'1" to 7'0"").
+
 A grown part is extra flesh, not redistributed flesh: it adds its own HP and
 becomes one more place an attack can land, which also thins the odds that any
-one hit finds the head or torso. Mutants are, physically, slightly harder to
-kill. The cost is social — mutating is a hard mood hit, and so is watching it
-happen — except to a **Mutant-Lover**, who is delighted by both and warms to
+one hit finds the head or torso. Which direction a mutation takes your
+stature, though, is a coin flip — that gamble is what keeps standing next to
+the uranium from being a free upgrade. The rest of the cost is social —
+mutating is a hard mood hit, and so is watching it happen — except to a **Mutant-Lover**, who is delighted by both and warms to
 mutants far faster than to anyone else. That last part is why affinity is
 tracked per direction: a mutant-lover's regard is not returned in kind. Full
 write-up in [docs/mutation.md](docs/mutation.md).

@@ -385,6 +385,16 @@
 ## extra affinity a mutant-lover gains toward a mutant per conversation
 # mutant-lover-affinity: 3
 
+# ── Stature ─────────────────────────────────────────────────────────────
+## percent a mutation grows or shrinks a colonist's height (0 disables resizing)
+# mutation-stature-percent: 15
+
+## shortest a colonist can be shrunk to, in centimetres
+# stature-min-cm: 61
+
+## tallest a colonist can grow to, in centimetres
+# stature-max-cm: 305
+
 # ── Family and heredity ─────────────────────────────────────────────────
 ## percent chance a new colonist is tied to an existing one by family (0 disables)
 # family-chance: 35

@@ -112,7 +112,14 @@ distribution keeps its shape. Families vary less internally than the colony
 does, without the colony as a whole creeping toward the mean as lines grow.
 `setHeightZ` re-frames a colonist at the new z-score while **keeping the BMI
 they were rolled with** — inheriting a frame should change how tall someone is,
-not how heavy-set.
+not how heavy-set. It ends in `rememberBornBody`, so the body
+mutation later rescales a colonist from is the one they ended generation with
+rather than a frame that was overwritten (see [mutation.md](./mutation.md)).
+Because the re-framing preserves BMI, the two agree to within a kilogram of
+rounding today — recording the final body is simply the honest one, and stays
+right if a future inherited attribute does move the build. Heredity is
+generation and runs at spawn; a mutated colonist is never re-framed by it
+afterwards.
 
 ### Starting affinity
 

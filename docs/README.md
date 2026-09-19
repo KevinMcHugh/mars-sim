@@ -21,7 +21,7 @@ way it is without re-deriving it from the source each time.
 | [combat.md](./combat.md) | Per-body-part HP, weapons (pistol/shotgun), the colony ship's starting equipment, and gore. |
 | [needs.md](./needs.md) | Colonist (and mouse) needs: hunger, bladder, lazy evaluation, starvation, and how to add a need. |
 | [cascading_wsts_architecture.md](./cascading_wsts_architecture.md) | Implementation design for independent need/affect processes feeding a weighted, explainable focus transition system. |
-| [mutation.md](./mutation.md) | Uranium deposits, the exposure dose, mutant body parts, and the Mutant / Mutant-Lover traits. |
+| [mutation.md](./mutation.md) | Uranium deposits, the exposure dose, mutant body parts, stature (two-foot to ten-foot colonists), and the Mutant / Mutant-Lover traits. |
 | [personality.md](./personality.md) | Names, attributes, traits, and the separate RNG stream that keeps flavor out of the simulation. |
 | [ages-and-family.md](./ages-and-family.md) | Colonist ages and the age invariants family ties have to satisfy. |
 | [heredity.md](./heredity.md) | What joining a family does to a colonist: a shared surname, inherited looks, and a warm start with relatives. |

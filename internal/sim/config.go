@@ -119,6 +119,16 @@ type Config struct {
 	MutationChance           int `cfg:"mutation-chance" doc:"percent chance each full uranium dose mutates a colonist (0 disables mutation)"`
 	MutantLoverAffinityBonus int `cfg:"mutant-lover-affinity" doc:"extra affinity a mutant-lover gains toward a mutant per conversation"`
 
+	// Stature. Every mutation also resizes the colonist by
+	// MutationStaturePercent of their current height, up or down, and their
+	// body (HP and every part) scales with them. StatureMinCM and StatureMaxCM
+	// are the hard limits a mutated colonist can reach — the two-foot and
+	// ten-foot ends of the colony. 0 percent disables resizing and leaves
+	// mutation growing parts only. See mutation.go and docs/mutation.md.
+	MutationStaturePercent int `cfg:"mutation-stature-percent" sec:"Stature" doc:"percent a mutation grows or shrinks a colonist's height (0 disables resizing)"`
+	StatureMinCM           int `cfg:"stature-min-cm" doc:"shortest a colonist can be shrunk to, in centimetres"`
+	StatureMaxCM           int `cfg:"stature-max-cm" doc:"tallest a colonist can grow to, in centimetres"`
+
 	// Family. FamilyChance is the percent chance a newly generated colonist is
 	// tied to an existing one (spouse, sibling, parent/child, aunt/uncle,
 	// nibling, or grandparent/grandchild). Uses the personality RNG, so it never
@@ -308,6 +318,16 @@ func DefaultConfig() Config {
 		UraniumExposureTicks:     2000,
 		MutationChance:           1,
 		MutantLoverAffinityBonus: 3,
+
+		// A 15% step is big enough to read on the roster the moment it
+		// happens, and small enough that the extremes take a run of one-sided
+		// luck: from an average 178 cm it is two straight growths to clear
+		// seven feet, four to touch the ten-foot ceiling, and eight shrinks
+		// to reach the two-foot floor. The limits are 2 ft and 10 ft in round
+		// centimetres.
+		MutationStaturePercent: 15,
+		StatureMinCM:           61,
+		StatureMaxCM:           305,
 
 		TalkChance:       25,
 		TalkRadius:       6,

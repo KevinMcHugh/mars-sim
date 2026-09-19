@@ -75,6 +75,12 @@ storing the result as both `Parts` and `MaxParts`. Mutant parts have weights
 of their own, deliberately *outside* that hundred: growing one adds its share
 on top of the existing body rather than thinning the parts already there.
 
+After spawn a body is no longer a pure function of its `MaxHP` tunable:
+mutation resizes a colonist, and `scaleBody` scales `MaxHP` and every part by
+the ratio their height changed by, so a ten-foot colonist is a bigger target
+pool than a two-foot one all the way down to the individual limb (see
+[mutation.md](./mutation.md)).
+
 `Entity.Alive()` is no longer just `HP > 0`: for a body-part entity it also
 requires `Parts[Head] > 0 && Parts[Torso] > 0`. A called shot to a vital part
 kills outright even if the aggregate HP pool has plenty left — the whole
