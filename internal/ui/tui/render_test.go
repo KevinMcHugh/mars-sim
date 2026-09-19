@@ -106,6 +106,11 @@ func TestRosterShowsColonistDetail(t *testing.T) {
 	if !strings.Contains(out, "age 32") {
 		t.Error("roster should show the colonist's age")
 	}
+	// Feet and inches first: mutation can put a colonist anywhere between two
+	// and ten feet, and that reads at a glance in a way centimetres do not.
+	if !strings.Contains(out, `5'6" (168 cm)`) {
+		t.Error("roster should show the colonist's height in feet and inches")
+	}
 	if !strings.Contains(out, "Big Eater") {
 		t.Error("roster should show the colonist's trait")
 	}

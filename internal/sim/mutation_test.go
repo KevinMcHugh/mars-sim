@@ -1,6 +1,9 @@
 package sim
 
-import "testing"
+import (
+	"math"
+	"testing"
+)
 
 // mutationWorld returns a world with no starting population, so tests place
 // exactly the colonists and deposits they care about.
@@ -100,10 +103,13 @@ func TestUraniumExposureAccumulatesAndRolls(t *testing.T) {
 }
 
 // A full dose with a certain roll mutates: the colonist grows a body part it
-// was not born with, gains HP for it, and picks up the Mutant trait.
+// was not born with, gains HP for it, and picks up the Mutant trait. Resizing
+// is switched off here so the part's own arithmetic is visible on its own; the
+// stature tests below cover the other half of a mutation.
 func TestMutationGrowsPartAndTrait(t *testing.T) {
 	w := mutationWorld(t)
 	w.cfg.MutationChance = 100
+	w.cfg.MutationStaturePercent = 0
 	w.SetTerrain(Point{5, 5}, Floor)
 	e := w.spawn(Colonist, Point{5, 5})
 	e.Inventory.Add(UraniumOre, 1)
@@ -332,5 +338,237 @@ func TestDefaultsKeepMutationRare(t *testing.T) {
 	if limit := total / 10; mutants > limit {
 		t.Fatalf("%d of %d colonists mutated under the default config; "+
 			"mutation should stay rare (at most %d here)", mutants, total, limit)
+	}
+}
+
+// Every mutation resizes the colonist by the configured step, and the body
+// goes with them: weight keeps their build, and HP and every body part scale
+// so a taller colonist is genuinely a bigger one.
+func TestMutationResizesColonistAndBody(t *testing.T) {
+	w := mutationWorld(t)
+	w.SetTerrain(Point{5, 5}, Floor)
+	e := w.spawn(Colonist, Point{5, 5})
+	e.Profile.HeightCM, e.Profile.WeightKG = 180, 80
+	e.Profile.BornHeightCM, e.Profile.BornWeightKG = 180, 80
+	beforeHP, beforeMax := e.HP, e.MaxHP
+	beforeTorso := e.MaxParts[Torso]
+
+	w.mutate(e)
+
+	step := w.cfg.MutationStaturePercent
+	grown, shrunk := scaleRound(180, 100+step, 100), scaleRound(180, 100, 100+step)
+	after := e.Profile.HeightCM
+	if after != grown && after != shrunk {
+		t.Fatalf("mutation moved height to %d cm, want %d (grown) or %d (shrunk)", after, grown, shrunk)
+	}
+	if want := scaleRound(80*after, after, 180*180); e.Profile.WeightKG != want {
+		t.Fatalf("weight = %d kg at %d cm, want %d (unchanged build)", e.Profile.WeightKG, after, want)
+	}
+	// A shrinking colonist also grew a part on this same mutation, so compare
+	// direction rather than exact totals: the body must move with the height.
+	if after > 180 && (e.MaxHP <= beforeMax || e.MaxParts[Torso] <= beforeTorso) {
+		t.Fatalf("stretching to %d cm left MaxHP %d->%d and torso %d->%d",
+			after, beforeMax, e.MaxHP, beforeTorso, e.MaxParts[Torso])
+	}
+	if after < 180 && e.MaxParts[Torso] >= beforeTorso {
+		t.Fatalf("shrinking to %d cm left the torso at %d->%d", after, beforeTorso, e.MaxParts[Torso])
+	}
+	if e.HP <= 0 || e.HP > e.MaxHP || beforeHP <= 0 {
+		t.Fatalf("resize left HP %d/%d", e.HP, e.MaxHP)
+	}
+}
+
+// A resize never heals or wounds: an undamaged colonist stays whole, and a
+// damaged one keeps roughly the same share of their body intact.
+func TestResizeKeepsWoundsProportional(t *testing.T) {
+	w := mutationWorld(t)
+	w.SetTerrain(Point{5, 5}, Floor)
+	e := w.spawn(Colonist, Point{5, 5})
+	applyDamage(e, LeftArm, e.Parts[LeftArm]) // destroyed outright
+	applyDamage(e, Torso, e.Parts[Torso]/2)   // half gone
+	beforeShare := float64(e.Parts[Torso]) / float64(e.MaxParts[Torso])
+
+	w.setStature(e, e.Profile.HeightCM*2)
+
+	if e.Parts[LeftArm] != 0 {
+		t.Fatalf("a destroyed arm grew back to %d on resize", e.Parts[LeftArm])
+	}
+	if !e.hasPart(LeftArm) {
+		t.Fatal("a destroyed arm stopped being a part the colonist has")
+	}
+	if share := float64(e.Parts[Torso]) / float64(e.MaxParts[Torso]); math.Abs(share-beforeShare) > 0.02 {
+		t.Fatalf("torso was %.2f intact before the resize and %.2f after", beforeShare, share)
+	}
+}
+
+// Shrinking to the floor never amputates: every part the colonist has stays a
+// part they have, however small it gets.
+func TestShrinkingNeverRoundsAPartAway(t *testing.T) {
+	w := mutationWorld(t)
+	w.SetTerrain(Point{5, 5}, Floor)
+	e := w.spawn(Colonist, Point{5, 5})
+	w.growPart(e, Tail)
+	w.setStature(e, w.cfg.StatureMinCM)
+
+	for part := BodyPart(0); part < numBodyParts; part++ {
+		if part == Tail || part < numBaseBodyParts {
+			if !e.hasPart(part) {
+				t.Fatalf("shrinking to %d cm cost the colonist their %s", w.cfg.StatureMinCM, part)
+			}
+		}
+	}
+	if e.HP < 1 || e.MaxHP < 1 {
+		t.Fatalf("shrinking left the colonist at %d/%d HP", e.HP, e.MaxHP)
+	}
+}
+
+// Growing and shrinking are each other's inverse, so a colonist stretched and
+// shrunk back over and over ends up exactly where they started — the same
+// height, and the same weight, which is recomputed from the body they were
+// born with rather than ground down by rescaling a rounded integer.
+func TestWeightSurvivesRepeatedResizing(t *testing.T) {
+	w := mutationWorld(t)
+	w.SetTerrain(Point{5, 5}, Floor)
+	e := w.spawn(Colonist, Point{5, 5})
+	height, weight := e.Profile.HeightCM, e.Profile.WeightKG
+
+	for i := 0; i < 50; i++ {
+		w.setStature(e, w.grownStature(e.Profile.HeightCM))
+		w.setStature(e, w.shrunkStature(e.Profile.HeightCM))
+	}
+
+	if e.Profile.HeightCM != height {
+		t.Fatalf("50 stretch/shrink cycles left the colonist at %d cm, want %d back where they started",
+			e.Profile.HeightCM, height)
+	}
+	if e.Profile.WeightKG != weight {
+		t.Fatalf("after 50 stretch/shrink cycles back at %d cm the colonist weighs %d kg, want %d",
+			height, e.Profile.WeightKG, weight)
+	}
+}
+
+// Uranium has no opinion about direction while both are open, but a colonist
+// pinned at a limit always goes the other way rather than wasting the dose.
+func TestStatureRollDirections(t *testing.T) {
+	w := mutationWorld(t)
+
+	var up, down int
+	for i := 0; i < 200; i++ {
+		switch h := w.rollStature(180); {
+		case h > 180:
+			up++
+		case h < 180:
+			down++
+		default:
+			t.Fatalf("a colonist in the middle of the range did not resize at all (%d cm)", h)
+		}
+	}
+	if up == 0 || down == 0 {
+		t.Fatalf("200 rolls from 180 cm went up %d times and down %d", up, down)
+	}
+	if h := w.rollStature(w.cfg.StatureMaxCM); h >= w.cfg.StatureMaxCM {
+		t.Fatalf("a colonist at the ceiling rolled %d cm, want a shrink", h)
+	}
+	if h := w.rollStature(w.cfg.StatureMinCM); h <= w.cfg.StatureMinCM {
+		t.Fatalf("a colonist at the floor rolled %d cm, want a growth", h)
+	}
+}
+
+// The whole point: a long enough career at the vein produces both ends of the
+// colony — a ten-foot colonist and a two-foot one — and never anything outside
+// the configured limits.
+func TestRepeatedMutationReachesBothExtremes(t *testing.T) {
+	w := mutationWorld(t)
+	w.SetTerrain(Point{5, 5}, Floor)
+	e := w.spawn(Colonist, Point{5, 5})
+
+	var tallest, shortest = e.Profile.HeightCM, e.Profile.HeightCM
+	for i := 0; i < 2000; i++ {
+		w.mutate(e)
+		h := e.Profile.HeightCM
+		if h < w.cfg.StatureMinCM || h > w.cfg.StatureMaxCM {
+			t.Fatalf("mutation put a colonist at %d cm, outside [%d, %d]",
+				h, w.cfg.StatureMinCM, w.cfg.StatureMaxCM)
+		}
+		tallest, shortest = max(tallest, h), min(shortest, h)
+	}
+	if tallest != w.cfg.StatureMaxCM {
+		t.Fatalf("2000 mutations peaked at %d cm, never reaching the %d cm ceiling", tallest, w.cfg.StatureMaxCM)
+	}
+	if shortest != w.cfg.StatureMinCM {
+		t.Fatalf("2000 mutations bottomed out at %d cm, never reaching the %d cm floor", shortest, w.cfg.StatureMinCM)
+	}
+	if got := FormatHeight(w.cfg.StatureMaxCM); got != `10'0"` {
+		t.Fatalf("the ceiling reads %s, want 10'0\"", got)
+	}
+	if got := FormatHeight(w.cfg.StatureMinCM); got != `2'0"` {
+		t.Fatalf("the floor reads %s, want 2'0\"", got)
+	}
+}
+
+// A colonist who has grown every mutant part still mutates: uranium goes on
+// resizing them, and it is still a memory-worthy event that costs them grip.
+func TestFullyGrownMutantStillResizes(t *testing.T) {
+	w := mutationWorld(t)
+	w.SetTerrain(Point{5, 5}, Floor)
+	e := w.spawn(Colonist, Point{5, 5})
+	for _, part := range mutantParts {
+		w.growPart(e, part)
+	}
+	height, memories := e.Profile.HeightCM, len(e.Memories)
+
+	w.mutate(e)
+
+	if e.Profile.HeightCM == height {
+		t.Fatalf("a fully grown mutant was not resized (still %d cm)", height)
+	}
+	if len(e.Memories) != memories+1 {
+		t.Fatalf("a resize-only mutation recorded %d memories, want 1", len(e.Memories)-memories)
+	}
+	if last := e.Memories[len(e.Memories)-1]; last.Kind != EvtMutated {
+		t.Fatalf("a resize-only mutation remembered %v, want EvtMutated", last.Kind)
+	}
+	if e.affect.Grip >= 0 {
+		t.Fatalf("a resize-only mutation left grip at %d, want body horror", e.affect.Grip)
+	}
+}
+
+// With resizing switched off, mutation is exactly what it was before stature
+// existed: parts only, and a colonist with all four stops mutating.
+func TestStatureCanBeDisabled(t *testing.T) {
+	w := mutationWorld(t)
+	w.cfg.MutationStaturePercent = 0
+	w.SetTerrain(Point{5, 5}, Floor)
+	e := w.spawn(Colonist, Point{5, 5})
+	height := e.Profile.HeightCM
+
+	for i := 0; i < len(mutantParts)+3; i++ {
+		w.mutate(e)
+	}
+	if e.Profile.HeightCM != height {
+		t.Fatalf("resizing is disabled but the colonist moved from %d to %d cm", height, e.Profile.HeightCM)
+	}
+	if len(e.Memories) != len(mutantParts) {
+		t.Fatalf("%d mutations with every part grown, want %d", len(e.Memories), len(mutantParts))
+	}
+}
+
+// Heights render in the units the colony talks in, rounded in inches so no
+// colonist is ever 5'12".
+func TestFormatHeight(t *testing.T) {
+	cases := []struct {
+		cm   int
+		want string
+	}{
+		{61, `2'0"`},
+		{145, `4'9"`},
+		{178, `5'10"`},
+		{182, `6'0"`},
+		{305, `10'0"`},
+	}
+	for _, tc := range cases {
+		if got := FormatHeight(tc.cm); got != tc.want {
+			t.Errorf("FormatHeight(%d) = %s, want %s", tc.cm, got, tc.want)
+		}
 	}
 }

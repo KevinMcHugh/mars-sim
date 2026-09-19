@@ -235,7 +235,11 @@ func (m Model) detailLines(c sim.EntityView, inner, barW int) []string {
 
 	b.WriteString(titleStyle.Render(fitGlyph(colonistGlyph(p))+" "+p.Name) + "\n")
 	b.WriteString(statStyle.Render(fmt.Sprintf("%s · %s", p.Gender.Pronouns(), p.Orientation)) + "\n")
-	b.WriteString(statStyle.Render(fmt.Sprintf("age %d · %d cm · %d kg", p.Age, p.HeightCM, p.WeightKG)) + "\n")
+	// Height reads in feet and inches first: mutation can stretch a colonist to
+	// ten feet or shrink them to two (see docs/mutation.md), and that is a fact
+	// about a person you want to take in at a glance, not convert in your head.
+	b.WriteString(statStyle.Render(fmt.Sprintf("age %d · %s (%d cm) · %d kg",
+		p.Age, sim.FormatHeight(p.HeightCM), p.HeightCM, p.WeightKG)) + "\n")
 	b.WriteString(statStyle.Render(fmt.Sprintf("%s skin · %s hair", p.SkinTone, p.HairColor)) + "\n\n")
 
 	status := c.State.String()
