@@ -177,16 +177,26 @@ type Config struct {
 	TalkQualityValence int `cfg:"talk-quality-valence" doc:"how strongly existing affinity biases conversation quality"`
 	TalkQualitySpread  int `cfg:"talk-quality-spread" doc:"random swing around a conversation's mean quality"`
 
-	// Affect. Charge and grip each run in [-MoodMax, MoodMax]. Conversation
-	// company/quality produce a temporary signed outcome which is converted to a
-	// vector, and charge settles faster than grip by default.
-	MoodMax                   int `cfg:"mood-max" sec:"Affect" doc:"charge and grip each run in [-mood-max, mood-max]"`
+	// Affect. Charge, grip and valence each run in [-MoodMax, MoodMax].
+	// Conversation company/quality produce a temporary signed outcome which is
+	// converted to a vector. The three axes settle at three speeds: charge
+	// fastest, then grip, then valence, which answers to hours rather than
+	// minutes and so decays a point at a time.
+	MoodMax                   int `cfg:"mood-max" sec:"Affect" doc:"charge, grip and valence each run in [-mood-max, mood-max]"`
 	ConversationCompanyWeight int `cfg:"conversation-company-weight" doc:"conversation outcome from how one feels about the other"`
 	ConversationQualityWeight int `cfg:"conversation-quality-weight" doc:"conversation outcome from how the chat itself went"`
 	SocialWindowTicks         int `cfg:"social-window-ticks" doc:"ticks in the rolling window for social conversation fatigue"`
 	MoodChargeDecayPerTick    int `cfg:"mood-charge-decay-per-tick" doc:"charge points that decay toward home per colonist turn"`
 	MoodGripDecayPerTick      int `cfg:"mood-grip-decay-per-tick" doc:"grip points that decay toward home per colonist turn"`
+	MoodValenceDecayTicks     int `cfg:"mood-valence-decay-ticks" doc:"ticks per point of valence decay toward neutral"`
 	MoodLabelSwitchMargin     int `cfg:"mood-label-switch-margin" doc:"claim advantage required to switch mood attractors"`
+
+	// Where an event stops nudging affect and starts relocating it. An event
+	// whose impact is at or below MoodPushImpact adds its vector; at or above
+	// MoodPullImpact it replaces affect with it; between the two it does some
+	// of each. See docs/mood-space.md.
+	MoodPushImpact int `cfg:"mood-push-impact" doc:"event impact at or below which affect is only nudged"`
+	MoodPullImpact int `cfg:"mood-pull-impact" doc:"event impact at or above which affect is relocated outright"`
 
 	// Mining strategy switch. Below both thresholds, miners use cached A* to a
 	// claimed tile (cheaper for small colonies); at or above either, they follow
@@ -345,7 +355,11 @@ func DefaultConfig() Config {
 		SocialWindowTicks:         200,
 		MoodChargeDecayPerTick:    2,
 		MoodGripDecayPerTick:      1,
+		MoodValenceDecayTicks:     12,
 		MoodLabelSwitchMargin:     5,
+
+		MoodPushImpact: 30,
+		MoodPullImpact: 70,
 
 		FrontierFieldMinColonists: 800,
 		FrontierFieldMinArea:      90000, // ~300x300 and up

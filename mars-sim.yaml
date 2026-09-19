@@ -437,7 +437,7 @@
 # talk-quality-spread: 50
 
 # ── Affect ──────────────────────────────────────────────────────────────
-## charge and grip each run in [-mood-max, mood-max]
+## charge, grip and valence each run in [-mood-max, mood-max]
 # mood-max: 100
 
 ## conversation outcome from how one feels about the other
@@ -455,8 +455,17 @@
 ## grip points that decay toward home per colonist turn
 # mood-grip-decay-per-tick: 1
 
+## ticks per point of valence decay toward neutral
+# mood-valence-decay-ticks: 12
+
 ## claim advantage required to switch mood attractors
 # mood-label-switch-margin: 5
+
+## event impact at or below which affect is only nudged
+# mood-push-impact: 30
+
+## event impact at or above which affect is relocated outright
+# mood-pull-impact: 70
 
 # ── Mining strategy ─────────────────────────────────────────────────────
 ## colony size at/above which miners use the shared frontier flow field
