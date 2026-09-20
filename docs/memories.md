@@ -66,8 +66,9 @@ w.remember(prey, eventFrom(EvtBitten, alien.ID,
     "Bitten in the %s by an alien!", part))
 ```
 
-`remember` (in `world.go`) is the single funnel: it applies the event's affect
-appraisal,
+`remember` (in `world.go`) is the single funnel: it stamps whatever tags only
+this occurrence knows (today, whether it happened to someone the colonist is
+close to), applies the event's affect appraisal,
 inserts or coalesces a configured active stimulus, and records the `Memory`
 (bounded at 64 per colonist, oldest evicted first — or folds it into the previous
 one, see Collapsing runs of a minor event). A zero stimulus-table entry still

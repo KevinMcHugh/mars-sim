@@ -1477,16 +1477,19 @@ func (w *World) bite(alien, prey *Entity) {
 		alien.State = Feeding
 		name := prey.displayName()
 		w.addGore(prey.Pos)
+		// Witnesses remember before the victim is removed: appraisal asks how
+		// close they were to whoever this happened to, and remove drops the
+		// affinity that answers it.
+		for _, wit := range witnesses {
+			w.remember(wit, eventAbout(EvtWitnessedColonistKilled, alien.ID, prey.ID, "Watched an alien kill %s.", name))
+		}
 		w.remove(prey.ID, "devoured by an alien")
 		w.log.add(fmt.Sprintf("An alien devours %s.", name))
-		for _, wit := range witnesses {
-			w.remember(wit, eventFrom(EvtWitnessedColonistKilled, alien.ID, "Watched an alien kill %s.", name))
-		}
 	} else {
 		alien.State = Hunting
 		w.remember(prey, eventFrom(EvtBitten, alien.ID, "Bitten in the %s by an alien!", part))
 		for _, wit := range witnesses {
-			w.remember(wit, eventFrom(EvtWitnessedColonistAttacked, alien.ID, "Watched an alien attack %s.", prey.displayName()))
+			w.remember(wit, eventAbout(EvtWitnessedColonistAttacked, alien.ID, prey.ID, "Watched an alien attack %s.", prey.displayName()))
 		}
 	}
 }

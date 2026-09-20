@@ -17,7 +17,7 @@ kind of thing picks.
 ## Source
 
 - [`internal/sim/affect.go`](../internal/sim/affect.go) — appraisals, the push/pull blend, trait transforms, decay, attractors, and labels.
-- [`internal/sim/lifeevents.go`](../internal/sim/lifeevents.go) — event kinds and the temporary per-conversation `Outcome`.
+- [`internal/sim/lifeevents.go`](../internal/sim/lifeevents.go) — event kinds, `Subject` versus `Source`, and the temporary per-conversation `Outcome`.
 - [`internal/sim/world.go`](../internal/sim/world.go) — `remember`, the single affect/stimulus/memory ingestion funnel.
 - [`internal/sim/focus.go`](../internal/sim/focus.go) — additive charge/grip focus contributions.
 - [`internal/sim/affect_test.go`](../internal/sim/affect_test.go) — semantic tables, transforms, decay, labels, and behavioral ordering.
@@ -103,14 +103,52 @@ started. That asymmetry is the point: under pure addition a good enough day
 would soften a killing, and it no longer can, because the killing moves the
 colonist rather than adding to them.
 
-Traits transform vectors in `Trait` declaration order:
+### Tags and trait rules
 
-| Trait | Appraisal |
-| --- | --- |
-| Tidy | scales gore by 2.2 and doubles incineration grip relief |
-| Industrious | doubles every finished-work vector |
-| Mutant-Lover | reflects mutation grip |
-| Introvert | reflects conversation charge |
+Traits do not react to event kinds. Each appraisal declares a set of `EventTag`
+flavors — a bitmask, so matching is a couple of ANDs and allocates nothing —
+and each entry in `traitRules` names the tags it cares about plus what it does
+about them:
+
+| Trait | Reacts to | Does |
+| --- | --- | --- |
+| Tidy | `gore` | scales the whole vector by 2.2 |
+| Tidy | `incineration` | doubles grip relief |
+| Industrious | `finished-work` | doubles the whole vector |
+| Introvert | `social` | reflects charge |
+| Mutant-Lover | `mutation` | reflects grip and valence |
+| Extrovert | `social-loss` **and** `friend` | 1.3x charge, 1.5x valence |
+| Resilient | anything | wears at 0.4x |
+| Cowardly | anything | wears at 1.8x |
+| Cowardly | `threat` | 1.5x impact |
+
+Every factor is a percentage where 100 — or an unset 0 — means no change,
+matching the convention `traitSpecs` already uses; a reflection is simply
+`-100`. Percentages rather than floats because appraisal is integer throughout,
+so a seeded run reproduces. `pct` truncates toward zero exactly as the
+per-trait arithmetic it replaced did, so the four transforms that predate the
+table still land on the same numbers.
+
+Rules apply in **rule declaration order**, so a colonist carrying two of them
+composes them the same way regardless of what order their traits are stored in.
+
+This is what keeps adding a trait from being a decision against every event and
+vice versa: a new event picks its tags, a new trait picks the tags it cares
+about, and neither has to know the other exists. It also generalizes in ways
+the old `switch` could not — Tidy was written against `EvtSawGore`, and now
+reacts to a colonist being eaten too, because that is also gore.
+
+Three of the factors do something no vector scale could say. `WearRate` changes
+how fast a colonist stops being new to a thing rather than how hard it hits;
+`Impact` changes how big a deal it is, and so whether it nudges them or moves
+them.
+
+**Dynamic tags.** `TagFriend` is the one tag no table can declare: `eventTags`
+stamps it per occurrence when the colonist was close enough (`MoodFriendAffinity`)
+to whoever the event happened *to*. That is why `LifeEvent` distinguishes
+`Source` (what caused it — what stimulus tracking keys on) from `Subject` (who
+it happened to). Relationship-, health- and location-dependent reactions all
+fall out of the same mechanism without the rule table learning about any of it.
 
 These event-time checks are intentionally rare-path `HasTrait` calls. Per-tick
 need/work effects remain resolved at spawn.
@@ -176,8 +214,11 @@ and a fresh/worn pair — and emitting it only through `remember`. Keep the targ
 nudge-sized below `MoodPushImpact` and plane-sized above `MoodPullImpact`; a
 test checks that anything which relocates lands in named space, because
 relocating to a nudge-sized point would leave a colonist almost exactly neutral
-after something terrible. Add an event-specific trait transform to
-`transformMoodVector`; preserve declaration-order iteration. Add or tune an
+after something terrible. Give a trait a reaction by adding a row to `traitRules` against tags that
+already exist; no event definition changes. Give an event a new flavor by
+adding a tag to its appraisal; no trait changes. Only reach for a new
+`EventTag` when no existing one describes the thing a trait would want to
+react to. Add or tune an
 attractor in `moodAttractors`, remembering that order is the tie-break. Never use
 `MoodName` or `MoodKind` in focus scoring or an executor.
 

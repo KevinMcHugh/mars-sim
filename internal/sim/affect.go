@@ -22,6 +22,7 @@ type MoodVector struct {
 // weaker one. The first death is a rallying cry and the tenth is catatonia, so
 // wear turns a reaction rather than just quieting it.
 type moodAppraisal struct {
+	Tags        EventTag
 	Impact      int
 	Fresh, Worn MoodVector
 }
@@ -77,6 +78,42 @@ var moodAttractors = [...]moodAttractor{
 	{MoodSteady, "steady", "flat", 0, 0, 28},
 }
 
+// EventTag is a set of flavors an occurrence has, one bit each. A trait reacts
+// to tags rather than to kinds, which is what keeps adding a trait from being a
+// decision against every event and vice versa: a new event picks its tags, a
+// new trait picks the tags it cares about, and neither has to know the other
+// exists.
+//
+// A set rather than a single value, because occurrences genuinely have several
+// flavors at once -- watching an alien eat someone is a death, an act of
+// violence, the loss of a colleague, and a mess, and different colonists react
+// to different parts of that.
+type EventTag uint32
+
+const (
+	TagThreat EventTag = 1 << iota
+	TagViolence
+	TagDeath
+	TagSocialLoss
+	TagGore
+	TagRodent
+	TagWork
+	TagFinishedWork
+	TagIncineration
+	TagAchievement
+	TagUpkeep
+	TagRest
+	TagSocial
+	TagMutation
+	// TagFriend is the one tag no table can declare: ingestion stamps it per
+	// occurrence when the colonist was close to whoever this happened to.
+	TagFriend
+)
+
+func (t EventTag) any(of EventTag) bool  { return of == 0 || t&of != 0 }
+func (t EventTag) all(of EventTag) bool  { return t&of == of }
+func (t EventTag) none(of EventTag) bool { return t&of == 0 }
+
 // lifeEventAppraisals is the complete semantic event appraisal table. Unlike
 // decay, hysteresis and the push/pull endpoints, these meanings are
 // intentionally not balance knobs.
@@ -99,35 +136,107 @@ var moodAttractors = [...]moodAttractor{
 // job used to give rather than making the job itself a misfortune, so it shows
 // up in grip rather than as a slow bleed of valence no colonist could explain.
 var lifeEventAppraisals = [numLifeEventKinds]moodAppraisal{
-	EvtSawAlien:                  {45, MoodVector{8, -10, -15}, MoodVector{5, -22, -22}},
-	EvtSawMouse:                  {8, MoodVector{2, -3, 0}, MoodVector{1, -1, 0}},
-	EvtSawGore:                   {30, MoodVector{-3, -7, -6}, MoodVector{-6, -14, -10}},
-	EvtBitten:                    {70, MoodVector{55, -44, -30}, MoodVector{35, -80, -55}},
-	EvtWitnessedColonistKilled:   {95, MoodVector{70, 40, -60}, MoodVector{20, -85, -85}},
-	EvtWitnessedColonistAttacked: {75, MoodVector{45, 25, -40}, MoodVector{25, -70, -60}},
-	EvtCrushedMouse:              {6, MoodVector{-1, 2, 0}, MoodVector{-2, 0, 0}},
-	EvtWitnessedMouseCrushed:     {8, MoodVector{-1, -2, -1}, MoodVector{-1, -1, 0}},
-	EvtWitnessedCatCatch:         {5, MoodVector{1, 1, 0}, MoodVector{0, 0, 0}},
-	EvtKilledAlien:               {55, MoodVector{45, 52, 35}, MoodVector{25, 20, 8}},
-	EvtWitnessedAlienKilled:      {35, MoodVector{5, 6, 4}, MoodVector{2, 2, 0}},
-	EvtWoundedAlien:              {25, MoodVector{4, 5, 2}, MoodVector{2, 2, 0}},
-	EvtWitnessedGunfight:         {50, MoodVector{35, -25, -20}, MoodVector{18, -45, -35}},
+	EvtSawAlien:                  {TagThreat, 45, MoodVector{8, -10, -15}, MoodVector{5, -22, -22}},
+	EvtSawMouse:                  {TagRodent, 8, MoodVector{2, -3, 0}, MoodVector{1, -1, 0}},
+	EvtSawGore:                   {TagGore, 30, MoodVector{-3, -7, -6}, MoodVector{-6, -14, -10}},
+	EvtBitten:                    {TagThreat | TagViolence, 70, MoodVector{55, -44, -30}, MoodVector{35, -80, -55}},
+	EvtWitnessedColonistKilled:   {TagDeath | TagViolence | TagSocialLoss | TagGore, 95, MoodVector{70, 40, -60}, MoodVector{20, -85, -85}},
+	EvtWitnessedColonistAttacked: {TagViolence | TagSocialLoss, 75, MoodVector{45, 25, -40}, MoodVector{25, -70, -60}},
+	EvtCrushedMouse:              {TagRodent | TagUpkeep, 6, MoodVector{-1, 2, 0}, MoodVector{-2, 0, 0}},
+	EvtWitnessedMouseCrushed:     {TagRodent | TagGore, 8, MoodVector{-1, -2, -1}, MoodVector{-1, -1, 0}},
+	EvtWitnessedCatCatch:         {TagRodent, 5, MoodVector{1, 1, 0}, MoodVector{0, 0, 0}},
+	EvtKilledAlien:               {TagViolence | TagAchievement, 55, MoodVector{45, 52, 35}, MoodVector{25, 20, 8}},
+	EvtWitnessedAlienKilled:      {TagViolence, 35, MoodVector{5, 6, 4}, MoodVector{2, 2, 0}},
+	EvtWoundedAlien:              {TagViolence, 25, MoodVector{4, 5, 2}, MoodVector{2, 2, 0}},
+	EvtWitnessedGunfight:         {TagThreat | TagViolence, 50, MoodVector{35, -25, -20}, MoodVector{18, -45, -35}},
 	// A chat's target is the one thing here that cannot be a table lookup: it
-	// comes from how that particular conversation went. Only the impact is
-	// declared; conversationMoodVector supplies the rest per occurrence, and
-	// wear leaves it alone (see applyAffect).
-	EvtConversation:         {Impact: 20},
-	EvtAte:                  {10, MoodVector{4, 2, 1}, MoodVector{2, -1, 0}},
-	EvtUsedToilet:           {4, MoodVector{1, 2, 0}, MoodVector{0, 0, 0}},
-	EvtSlept:                {25, MoodVector{15, 2, 2}, MoodVector{12, -2, 0}},
-	EvtNeedSatisfied:        {8, MoodVector{2, 2, 0}, MoodVector{1, 0, 0}},
-	EvtFinishedMining:       {15, MoodVector{-1, 5, 0}, MoodVector{-5, -3, 0}},
-	EvtClearedRock:          {15, MoodVector{-1, 5, 0}, MoodVector{-5, -3, 0}},
-	EvtFinishedConstruction: {18, MoodVector{-1, 6, 3}, MoodVector{-4, 0, 0}},
-	EvtCleanedRefuse:        {14, MoodVector{-1, 5, 0}, MoodVector{-5, -4, 0}},
-	EvtIncineratedRefuse:    {16, MoodVector{-1, 7, 1}, MoodVector{-4, 0, 0}},
-	EvtMutated:              {60, MoodVector{18, -70, -35}, MoodVector{10, -90, -70}},
-	EvtWitnessedMutation:    {35, MoodVector{2, -8, -10}, MoodVector{1, -16, -18}},
+	// comes from how that particular conversation went. Only the tags and
+	// impact are declared; conversationMoodVector supplies the rest per
+	// occurrence, and wear leaves it alone (see applyAffect).
+	EvtConversation:         {Tags: TagSocial, Impact: 20},
+	EvtAte:                  {TagUpkeep, 10, MoodVector{4, 2, 1}, MoodVector{2, -1, 0}},
+	EvtUsedToilet:           {TagUpkeep, 4, MoodVector{1, 2, 0}, MoodVector{0, 0, 0}},
+	EvtSlept:                {TagRest, 25, MoodVector{15, 2, 2}, MoodVector{12, -2, 0}},
+	EvtNeedSatisfied:        {TagUpkeep, 8, MoodVector{2, 2, 0}, MoodVector{1, 0, 0}},
+	EvtFinishedMining:       {TagWork | TagFinishedWork, 15, MoodVector{-1, 5, 0}, MoodVector{-5, -3, 0}},
+	EvtClearedRock:          {TagWork | TagFinishedWork, 15, MoodVector{-1, 5, 0}, MoodVector{-5, -3, 0}},
+	EvtFinishedConstruction: {TagWork | TagFinishedWork | TagAchievement, 18, MoodVector{-1, 6, 3}, MoodVector{-4, 0, 0}},
+	EvtCleanedRefuse:        {TagWork | TagFinishedWork | TagGore, 14, MoodVector{-1, 5, 0}, MoodVector{-5, -4, 0}},
+	EvtIncineratedRefuse:    {TagWork | TagFinishedWork | TagIncineration, 16, MoodVector{-1, 7, 1}, MoodVector{-4, 0, 0}},
+	EvtMutated:              {TagMutation, 60, MoodVector{18, -70, -35}, MoodVector{10, -90, -70}},
+	EvtWitnessedMutation:    {TagMutation, 35, MoodVector{2, -8, -10}, MoodVector{1, -16, -18}},
+}
+
+// traitRules is what a trait does when something happens, in place of a switch
+// over trait x event kind. Every factor is a percentage where 100 -- or an
+// unset 0 -- means no change, matching the convention traitSpecs already uses
+// for its scales; a reflection is simply -100. Percentages rather than floats
+// because appraisal is integer throughout, so that a seeded run reproduces.
+//
+// Declaration order is the application order, so a colonist carrying two rules
+// for one occurrence gets them composed the same way regardless of the order
+// their traits happen to be stored in.
+var traitRules = []traitRule{
+	{Trait: TraitTidy, Any: TagGore, Charge: 220, Grip: 220, Valence: 220},
+	{Trait: TraitTidy, Any: TagIncineration, Grip: 200},
+	{Trait: TraitIndustrious, Any: TagFinishedWork, Charge: 200, Grip: 200, Valence: 200},
+	{Trait: TraitIntrovert, Any: TagSocial, Charge: -100},
+	{Trait: TraitMutantLover, Any: TagMutation, Grip: -100, Valence: -100},
+	// The rule the dynamic tag exists for: losing a colleague is worse when
+	// they were not just a colleague, and worse again for someone who lives on
+	// the company of others. Charge and valence only -- whether it leaves them
+	// holding together or not is what grip already says.
+	{Trait: TraitExtrovert, All: TagSocialLoss | TagFriend, Charge: 130, Valence: 150},
+	// No tags: these two are about how a colonist meets anything at all.
+	{Trait: TraitResilient, WearRate: 40},
+	{Trait: TraitCowardly, WearRate: 180},
+	// The one rule that reads impact rather than the vector: a coward does not
+	// feel a threat differently so much as find it a bigger deal, which is what
+	// decides whether it nudges them or moves them.
+	{Trait: TraitCowardly, Any: TagThreat, Impact: 150},
+}
+
+// traitRule is one trait's reaction to a flavor of occurrence. Any empty
+// matches every event; All must all be present; None must all be absent.
+type traitRule struct {
+	Trait          Trait
+	Any, All, None EventTag
+
+	Impact   int
+	Charge   int
+	Grip     int
+	Valence  int
+	WearRate int
+}
+
+func (r traitRule) matches(tags EventTag) bool {
+	return tags.any(r.Any) && tags.all(r.All) && tags.none(r.None)
+}
+
+// pct scales by a percentage, truncating toward zero exactly as the per-trait
+// arithmetic it replaced did, so the transforms that predate the rule table
+// still land on the same numbers.
+func pct(v, scale int) int { return v * orPct(scale) / 100 }
+
+// orPct reads traitSpecs' convention: an unset factor means no change.
+func orPct(scale int) int {
+	if scale == 0 {
+		return 100
+	}
+	return scale
+}
+
+// colonistRules yields the rules that apply to this colonist and occurrence, in
+// declaration order.
+func (w *World) forEachRule(e *Entity, tags EventTag, fn func(traitRule)) {
+	if e.Profile == nil {
+		return
+	}
+	for _, r := range traitRules {
+		if r.matches(tags) && e.Profile.HasTrait(r.Trait) {
+			fn(r)
+		}
+	}
 }
 
 func roundedDiv(n, d int) int {
@@ -156,58 +265,29 @@ func conversationMoodVector(outcome int) MoodVector {
 	}
 }
 
-func finishedWorkEvent(kind LifeEventKind) bool {
-	switch kind {
-	case EvtFinishedMining, EvtClearedRock, EvtFinishedConstruction,
-		EvtCleanedRefuse, EvtIncineratedRefuse:
-		return true
-	default:
-		return false
-	}
+// transformMoodVector applies every trait rule matching this occurrence, in
+// rule declaration order, independent of the order traits happen to be stored
+// on a Profile.
+func (w *World) transformMoodVector(e *Entity, tags EventTag, v MoodVector) MoodVector {
+	w.forEachRule(e, tags, func(r traitRule) {
+		v.Charge = pct(v.Charge, r.Charge)
+		v.Grip = pct(v.Grip, r.Grip)
+		v.Valence = pct(v.Valence, r.Valence)
+	})
+	return v
 }
 
-// transformMoodVector applies event-only traits in Trait declaration order,
-// independent of the order traits happen to be stored on a Profile.
-func transformMoodVector(e *Entity, kind LifeEventKind, v MoodVector) MoodVector {
-	if e.Profile == nil {
-		return v
+// eventTags is the occurrence's declared flavors plus whatever only this
+// occurrence knows. Today that is one thing: whether it happened to someone
+// this colonist is close to, which is why remember passes the whole event here
+// rather than just its kind.
+func (w *World) eventTags(e *Entity, evt LifeEvent) EventTag {
+	tags := lifeEventAppraisals[evt.Kind].Tags
+	if evt.Subject != 0 && evt.Subject != e.ID &&
+		w.affinityBetween(e.ID, evt.Subject) >= w.cfg.MoodFriendAffinity {
+		tags |= TagFriend
 	}
-	for trait := Trait(0); trait < numTraits; trait++ {
-		if !e.Profile.HasTrait(trait) {
-			continue
-		}
-		switch trait {
-		case TraitIndustrious:
-			if finishedWorkEvent(kind) {
-				v.Charge *= 2
-				v.Grip *= 2
-				v.Valence *= 2
-			}
-		case TraitIntrovert:
-			// Charge only: the conversation still did them good, it just cost
-			// them something to have it.
-			if kind == EvtConversation {
-				v.Charge = -v.Charge
-			}
-		case TraitTidy:
-			switch kind {
-			case EvtSawGore:
-				v.Charge = v.Charge * 22 / 10
-				v.Grip = v.Grip * 22 / 10
-				v.Valence = v.Valence * 22 / 10
-			case EvtIncineratedRefuse:
-				v.Grip *= 2
-			}
-		case TraitMutantLover:
-			// Grip and valence both: to them the change is mastery, and a good
-			// thing to have happened.
-			if kind == EvtMutated || kind == EvtWitnessedMutation {
-				v.Grip = -v.Grip
-				v.Valence = -v.Valence
-			}
-		}
-	}
-	return v
+	return tags
 }
 
 // moodPull reports how much of an appraisal relocates rather than nudges, in
@@ -358,7 +438,13 @@ func (w *World) moodWear(e *Entity, kind LifeEventKind) int {
 			occasions++
 		}
 	}
-	return min(100, occasions*w.cfg.MoodWearPerOccasion)
+	rate := w.cfg.MoodWearPerOccasion
+	// Declared tags only: how fast someone gets used to a kind of thing is
+	// about the kind, not about who this particular one happened to.
+	w.forEachRule(e, lifeEventAppraisals[kind].Tags, func(r traitRule) {
+		rate = pct(rate, r.WearRate)
+	})
+	return min(100, occasions*rate)
 }
 
 // wearTarget moves an appraisal from its fresh reading toward its worn one.
@@ -375,6 +461,7 @@ func wearTarget(a moodAppraisal, wear int) MoodVector {
 
 func (w *World) applyAffect(e *Entity, evt LifeEvent) {
 	appraisal := lifeEventAppraisals[evt.Kind]
+	tags := w.eventTags(e, evt)
 	target := wearTarget(appraisal, w.moodWear(e, evt.Kind))
 	if evt.Outcome != 0 || evt.Kind == EvtConversation {
 		// A conversation is exempt: its vector is already computed per
@@ -383,6 +470,8 @@ func (w *World) applyAffect(e *Entity, evt LifeEvent) {
 		// charge a talkative colonist twice for the same talkativeness.
 		target = conversationMoodVector(evt.Outcome)
 	}
-	target = transformMoodVector(e, evt.Kind, target)
-	w.blendAffect(e, target, appraisal.Impact)
+	target = w.transformMoodVector(e, tags, target)
+	impact := appraisal.Impact
+	w.forEachRule(e, tags, func(r traitRule) { impact = pct(impact, r.Impact) })
+	w.blendAffect(e, target, impact)
 }

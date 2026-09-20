@@ -145,7 +145,10 @@ func TestConversationOutcomeVectors(t *testing.T) {
 	}
 }
 
+// The four transforms that predate the rule table have to survive the move to
+// it unchanged, for the events they already applied to.
 func TestTraitMoodTransforms(t *testing.T) {
+	w, _ := focusTestColonist(t)
 	cases := []struct {
 		name  string
 		trait Trait
@@ -161,7 +164,8 @@ func TestTraitMoodTransforms(t *testing.T) {
 	}
 	for _, tc := range cases {
 		e := &Entity{Profile: &Profile{Traits: []Trait{tc.trait}}}
-		if got := transformMoodVector(e, tc.kind, tc.in); got != tc.want {
+		tags := lifeEventAppraisals[tc.kind].Tags
+		if got := w.transformMoodVector(e, tags, tc.in); got != tc.want {
 			t.Errorf("%s = %+v, want %+v", tc.name, got, tc.want)
 		}
 	}
@@ -189,11 +193,13 @@ func TestTraitAppraisalThroughLifeEventFunnel(t *testing.T) {
 }
 
 func TestTraitTransformsUseDeclarationOrder(t *testing.T) {
+	w, _ := focusTestColonist(t)
 	in := lifeEventAppraisals[EvtIncineratedRefuse].Fresh
+	tags := lifeEventAppraisals[EvtIncineratedRefuse].Tags
 	a := &Entity{Profile: &Profile{Traits: []Trait{TraitTidy, TraitIndustrious}}}
 	b := &Entity{Profile: &Profile{Traits: []Trait{TraitIndustrious, TraitTidy}}}
-	gotA := transformMoodVector(a, EvtIncineratedRefuse, in)
-	gotB := transformMoodVector(b, EvtIncineratedRefuse, in)
+	gotA := w.transformMoodVector(a, tags, in)
+	gotB := w.transformMoodVector(b, tags, in)
 	if gotA != gotB || gotA != (MoodVector{-2, 28, 2}) {
 		t.Fatalf("stored trait order changed transform: %+v versus %+v", gotA, gotB)
 	}
@@ -495,5 +501,153 @@ func TestConversationIsExemptFromWear(t *testing.T) {
 	if c.affect.Grip != fresh.affect.Grip || c.affect.Valence != fresh.affect.Valence {
 		t.Fatalf("a worn colonist read a chat as %+v and a fresh one as %+v -- wear leaked into conversations",
 			c.affect, fresh.affect)
+	}
+}
+
+// The point of tags: a trait reacts to a flavor of occurrence, so an event it
+// was never written against still gets the right reaction. Tidy was declared
+// against gore, and a colonist being eaten is gore.
+func TestTraitRulesReachEventsTheyWereNotWrittenAgainst(t *testing.T) {
+	w, plain := focusTestColonist(t)
+	tidy := w.spawn(Colonist, plain.Pos.Add(10, 0))
+	tidy.Profile = &Profile{Traits: []Trait{TraitTidy}}
+	plain.Profile = &Profile{}
+
+	for _, c := range []*Entity{plain, tidy} {
+		w.remember(c, event(EvtWitnessedColonistKilled, "saw a killing"))
+	}
+	if tidy.affect.Valence >= plain.affect.Valence {
+		t.Fatalf("tidy colonist read a killing as valence %d, plain as %d -- the gore rule did not reach it",
+			tidy.affect.Valence, plain.affect.Valence)
+	}
+}
+
+func TestTraitRuleMatching(t *testing.T) {
+	both := TagGore | TagDeath
+	for _, tc := range []struct {
+		name string
+		rule traitRule
+		tags EventTag
+		want bool
+	}{
+		{"no tags matches anything", traitRule{}, TagRest, true},
+		{"any hits", traitRule{Any: TagGore}, both, true},
+		{"any misses", traitRule{Any: TagRest}, both, false},
+		{"all present", traitRule{All: both}, both, true},
+		{"all partially present", traitRule{All: both}, TagGore, false},
+		{"none excludes", traitRule{Any: TagGore, None: TagDeath}, both, false},
+		{"none allows", traitRule{Any: TagGore, None: TagRest}, both, true},
+	} {
+		if got := tc.rule.matches(tc.tags); got != tc.want {
+			t.Errorf("%s: matches = %v, want %v", tc.name, got, tc.want)
+		}
+	}
+}
+
+// A dynamic tag carries what no table could: who it happened to.
+func TestFriendTagStampedFromAffinity(t *testing.T) {
+	w, mourner := focusTestColonist(t)
+	stranger := w.spawn(Colonist, mourner.Pos.Add(5, 0))
+	friend := w.spawn(Colonist, mourner.Pos.Add(6, 0))
+	w.addAffinity(mourner.ID, friend.ID, w.cfg.MoodFriendAffinity+10)
+
+	killed := func(subject EntityID) EventTag {
+		return w.eventTags(mourner, eventAbout(EvtWitnessedColonistKilled, 99, subject, "died"))
+	}
+	if killed(friend.ID).none(TagFriend) {
+		t.Error("a death in the family was not tagged as one")
+	}
+	if !killed(stranger.ID).none(TagFriend) {
+		t.Error("a stranger's death was tagged as a friend's")
+	}
+	if !killed(0).none(TagFriend) {
+		t.Error("an event with no subject was tagged as a friend's")
+	}
+	if !killed(mourner.ID).none(TagFriend) {
+		t.Error("a colonist was counted as their own friend")
+	}
+}
+
+// Wear rules change how fast experience stops being new, which is the thing a
+// vector scale could never say.
+func TestNerveTraitsBendWearRate(t *testing.T) {
+	w, steady := focusTestColonist(t)
+	tough := w.spawn(Colonist, steady.Pos.Add(10, 0))
+	tough.Profile = &Profile{Traits: []Trait{TraitResilient}}
+	fragile := w.spawn(Colonist, steady.Pos.Add(20, 0))
+	fragile.Profile = &Profile{Traits: []Trait{TraitCowardly}}
+	steady.Profile = &Profile{}
+
+	for _, c := range []*Entity{steady, tough, fragile} {
+		for i := 0; i < 3; i++ {
+			w.remember(c, eventFrom(EvtSawGore, EntityID(i), "gore"))
+		}
+	}
+	base, resilient, cowardly := w.moodWear(steady, EvtSawGore), w.moodWear(tough, EvtSawGore), w.moodWear(fragile, EvtSawGore)
+	if !(resilient < base && base < cowardly) {
+		t.Fatalf("wear after three sightings: resilient %d, plain %d, cowardly %d -- want them ordered",
+			resilient, base, cowardly)
+	}
+}
+
+// And an impact rule changes how big a deal something is, which decides
+// whether it nudges a colonist or moves them.
+func TestCowardiceRaisesThreatImpact(t *testing.T) {
+	w, steady := focusTestColonist(t)
+	fragile := w.spawn(Colonist, steady.Pos.Add(10, 0))
+	fragile.Profile = &Profile{Traits: []Trait{TraitCowardly}}
+	steady.Profile = &Profile{}
+	for _, c := range []*Entity{steady, fragile} {
+		c.affect = AffectState{Charge: 60, Grip: 60}
+		w.remember(c, eventFrom(EvtSawAlien, 99, "an alien"))
+	}
+	// Both saw the same alien from the same mood. The coward is pulled further
+	// from where they were, because for them it was a bigger deal.
+	if fragile.affect.Grip >= steady.affect.Grip {
+		t.Fatalf("cowardly grip %d, steady grip %d -- want the coward relocated further",
+			fragile.affect.Grip, steady.affect.Grip)
+	}
+}
+
+// Adding a trait is one table edit: no event kind mentions any trait.
+func TestTraitRulesNameNoEventKinds(t *testing.T) {
+	for _, r := range traitRules {
+		if r.Trait >= numTraits {
+			t.Errorf("rule for trait %d is not a declared trait", r.Trait)
+		}
+		if r.Any == 0 && r.All == 0 && r.None == 0 &&
+			r.Charge == 0 && r.Grip == 0 && r.Valence == 0 && r.Impact == 0 && r.WearRate == 0 {
+			t.Errorf("rule for %v does nothing", r.Trait)
+		}
+	}
+	for kind := LifeEventKind(0); kind < numLifeEventKinds; kind++ {
+		if kind != EvtConversation && lifeEventAppraisals[kind].Tags == 0 {
+			t.Errorf("kind %d has no tags, so no trait can ever react to it", kind)
+		}
+	}
+}
+
+// The dynamic tag has to reach a rule, or stamping it is theatre.
+func TestLosingAFriendHitsAnExtrovertHarder(t *testing.T) {
+	w, c := focusTestColonist(t)
+	c.Profile = &Profile{Traits: []Trait{TraitExtrovert}}
+	friend := w.spawn(Colonist, c.Pos.Add(5, 0))
+	stranger := w.spawn(Colonist, c.Pos.Add(6, 0))
+	w.addAffinity(c.ID, friend.ID, w.cfg.MoodFriendAffinity+10)
+
+	died := func(subject EntityID) AffectState {
+		c.affect = AffectState{}
+		c.Memories = nil
+		w.remember(c, eventAbout(EvtWitnessedColonistKilled, 99, subject, "died"))
+		return c.affect
+	}
+	byStranger, byFriend := died(stranger.ID), died(friend.ID)
+	if byFriend.Valence >= byStranger.Valence {
+		t.Fatalf("a friend's death read as valence %d and a stranger's as %d",
+			byFriend.Valence, byStranger.Valence)
+	}
+	if byFriend.Grip != byStranger.Grip {
+		t.Fatalf("the rule moved grip (%d vs %d); it is meant to leave that to the event",
+			byFriend.Grip, byStranger.Grip)
 	}
 }

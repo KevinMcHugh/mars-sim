@@ -217,6 +217,11 @@ type Config struct {
 	// the memories that hold them, so this also sets how fast wear recovers.
 	MoodWearPerOccasion int `cfg:"mood-wear-per-occasion" doc:"percent of the way toward an event's worn reading per remembered occasion"`
 
+	// How warm a colonist has to be toward someone before what happens to that
+	// person is stamped as happening to a friend. Trait rules can then react to
+	// a death differently when the colonist knew them.
+	MoodFriendAffinity int `cfg:"mood-friend-affinity" doc:"affinity at or above which an occurrence counts as happening to a friend"`
+
 	// Mining strategy switch. Below both thresholds, miners use cached A* to a
 	// claimed tile (cheaper for small colonies); at or above either, they follow
 	// the shared frontier flow field (cheaper once many miners share the sweep).
@@ -380,6 +385,7 @@ func DefaultConfig() Config {
 		MoodPushImpact:      30,
 		MoodPullImpact:      70,
 		MoodWearPerOccasion: 14,
+		MoodFriendAffinity:  30,
 
 		FrontierFieldMinColonists: 800,
 		FrontierFieldMinArea:      90000, // ~300x300 and up
