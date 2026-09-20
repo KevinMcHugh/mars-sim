@@ -196,8 +196,13 @@ the two filters (both default off, so the roster's out-of-the-box view is
 unchanged); `rosterEntries()` (`render_roster.go`) is what every roster
 render calls instead of walking `Snapshot.Entities` directly — colonists are
 always eligible, `showNonHuman` admits aliens/cats/mice, and `showDead`
-additionally merges in `Snapshot.Graveyard` (subject to the same kind
-filter, so a dead mouse needs both filters on). The title above the list
+additionally merges in every dead colonist from `Snapshot.Deceased` (the
+permanent, by-ID archive — see docs/combat.md) plus any non-colonist entries
+from `Snapshot.Graveyard` (bounded, subject to the same kind filter, so a
+dead mouse needs both filters on); a colonist's own `Graveyard` entry, if
+any, is skipped there so one death is never listed twice. `colonistNames()`
+merges `Deceased` in too, so a living colonist's FAMILY section can name a
+dead relative instead of leaving their slot blank. The title above the list
 (`rosterTitle`) names which filters are active so a longer-than-expected list
 is never a mystery.
 

@@ -451,12 +451,14 @@ func TestFilterMenuTogglesNonHuman(t *testing.T) {
 	}
 }
 
-// Toggling the dead filter reveals a graveyard entry in the roster, including
-// its cause of death.
+// Toggling the dead filter reveals a deceased colonist in the roster,
+// including their cause of death. Dead colonists come from Snapshot.Deceased
+// (the permanent archive), not Snapshot.Graveyard (bounded, and shared with
+// non-colonist kinds) — see rosterEntries.
 func TestFilterMenuTogglesDead(t *testing.T) {
 	snap := makeSnapshot()
-	snap.Graveyard = []sim.EntityView{
-		{ID: 9, Kind: sim.Colonist, Dead: true, DiedTick: 3, Cause: "starved",
+	snap.Deceased = map[sim.EntityID]sim.EntityView{
+		9: {ID: 9, Kind: sim.Colonist, Dead: true, DiedTick: 3, Cause: "starved",
 			Profile: &sim.Profile{Name: "Ada Okafor", Gender: sim.GenderWoman}},
 	}
 

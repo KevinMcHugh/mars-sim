@@ -5,8 +5,10 @@ import "sort"
 // EntityView is a read-only copy of an entity for a single frame. Frontends
 // receive these instead of *Entity so they can never touch live game state.
 // A living entity comes from Snapshot.Entities; a dead one (Dead == true)
-// comes from Snapshot.Graveyard instead — a frozen record from the moment it
-// died, not a still-simulated thing occupying a tile. See docs/combat.md.
+// comes from Snapshot.Graveyard (bounded, any kind) or, for a colonist,
+// Snapshot.Deceased (permanent, by ID) instead — a frozen record from the
+// moment it died, not a still-simulated thing occupying a tile. See
+// docs/combat.md.
 type EntityView struct {
 	ID        EntityID
 	Kind      Kind
@@ -29,8 +31,11 @@ type EntityView struct {
 
 	// Relations are the colonist's familial ties to other colonists, derived from
 	// the family tree; Affinities are its tracked warmth toward colonists it has
-	// talked with, strongest first. Both are colonists only, and only for a
-	// still-living one (see entityView's full parameter). See relationships.go.
+	// talked with, strongest first. Both are colonists only, and computed only
+	// with entityView's full parameter — set for a still-living colonist and
+	// for a Snapshot.Deceased record (captured once, at the moment of death),
+	// but left empty on a bounded Snapshot.Graveyard record. See
+	// relationships.go.
 	Relations  []Relation
 	Affinities []Affinity
 	Charge     int    // affect activation in [-MoodMax, MoodMax] (colonists only)
@@ -38,10 +43,11 @@ type EntityView struct {
 	MoodLabel  string // cached contextual display projection (colonists only)
 	Memories   []Memory
 
-	// Dead, DiedTick, and Cause are set only on a Snapshot.Graveyard entry: it
-	// died at DiedTick (from Cause, a short player-facing phrase like "shot by
-	// Zoe Vargas with a shotgun"), and every other field is frozen from that
-	// moment — Pos is where it died, not where anything is now.
+	// Dead, DiedTick, and Cause are set only on a Snapshot.Graveyard or
+	// Snapshot.Deceased entry: it died at DiedTick (from Cause, a short
+	// player-facing phrase like "shot by Zoe Vargas with a shotgun"), and
+	// every other field is frozen from that moment — Pos is where it died,
+	// not where anything is now.
 	Dead     bool
 	DiedTick int
 	Cause    string
@@ -150,6 +156,12 @@ type Snapshot struct {
 	// Config.GraveyardSize), oldest first, for the roster's "dead" filter.
 	// See docs/combat.md.
 	Graveyard []EntityView
+	// Deceased is every colonist who has ever died, keyed by EntityID and
+	// never trimmed — unlike Graveyard, which also covers mice/cats/aliens
+	// and drops old entries. Consulted for durable by-ID lookups: a dead
+	// colonist's name, family relations, and frozen inventory all resolve
+	// through this map indefinitely. See docs/combat.md.
+	Deceased  map[EntityID]EntityView
 	Log       []string
 	Stats     Stats
 	NeedsMeta [numNeeds]NeedMeta
@@ -303,12 +315,24 @@ func (w *World) snapshot(paused bool, tps int) *Snapshot {
 		PendingStorageRooms:  w.manualStorageRooms,
 		Storages:             storages,
 		Graveyard:            append([]EntityView(nil), w.graveyard...),
+		Deceased:             cloneDeceased(w.deceasedColonists),
 		AffinityMax:          w.cfg.AffinityMax,
 		MoodMax:              w.cfg.MoodMax,
 		Paused:               paused,
 		TicksPerSecond:       tps,
 		FogOfWar:             w.cfg.FogOfWar,
 	}
+}
+
+// cloneDeceased returns a shallow copy of the world's permanent deceased-
+// colonist archive, so a Snapshot never shares a mutable map with the world
+// that produced it (the same reasoning as Graveyard's copy above).
+func cloneDeceased(m map[EntityID]EntityView) map[EntityID]EntityView {
+	out := make(map[EntityID]EntityView, len(m))
+	for id, ev := range m {
+		out[id] = ev
+	}
+	return out
 }
 
 // entityView builds a read-only copy of e for display. full additionally

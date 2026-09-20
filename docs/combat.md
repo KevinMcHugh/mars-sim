@@ -33,9 +33,10 @@ now leaves.
   (now leaves gore).
 - [`internal/sim/world.go`](../internal/sim/world.go) — `Tile.Gore`,
   `World.addGore`, `World.addCorpse`, `World.remove` (the graveyard funnel),
-  `World.graveyard`.
+  `World.graveyard`, `World.deceasedColonists` (the permanent archive).
 - [`internal/sim/snapshot.go`](../internal/sim/snapshot.go) — `EntityView`'s
-  `Dead`/`DiedTick`/`Cause` fields, `entityView`, `Snapshot.Graveyard`.
+  `Dead`/`DiedTick`/`Cause` fields, `entityView`, `Snapshot.Graveyard`,
+  `Snapshot.Deceased`.
 - [`internal/sim/config.go`](../internal/sim/config.go) — weapon, starting
   equipment, and `GraveyardSize` tunables.
 - [`internal/sim/combat_test.go`](../internal/sim/combat_test.go),
@@ -214,6 +215,39 @@ Stored charge, grip, and the final cached mood word are frozen with the body.
 The [frontend-tui.md](./frontend-tui.md) roster is what actually surfaces
 this — the "dead" filter toggle and the per-entry cause of death.
 
+### The deceased archive
+
+The graveyard's bound is right for a kill flood of mice, but wrong for a
+colonist: once a colonist's entry aged out of a 50-slot window, they were
+gone from every by-ID lookup — a surviving relative's family tree lost them,
+the roster couldn't name them, and their frozen inventory became
+unreachable, even though the colonist's identity (their `EntityID`, their
+node in the family tree) still meant something to the rest of the colony.
+`World.remove` addresses this with a second, colonist-only record:
+`World.deceasedColonists map[EntityID]EntityView`, written unconditionally
+(not gated by `Config.GraveyardSize`) whenever `e.Kind == Colonist`, and
+never trimmed. `Snapshot.Deceased` exposes a copy of it every frame.
+
+Two things make a colonist's archived record more complete than a graveyard
+entry: it is built with `entityView(e, w.cachedKinChildren(), true)` (`full`
+true) rather than `false`, so `Relations` and `Affinities` are computed and
+frozen as of the moment of death instead of left empty; and the kin node
+`remove` leaves behind (see the family tree docs) keeps pointing at the dead
+colonist's `EntityID` rather than going blank, so `relativesOf` keeps
+returning a `Relation` for them to every surviving relative who queries it —
+resolvable back to a name and the rest of their record through
+`Snapshot.Deceased`. The roster's "dead" filter reads dead colonists from
+here instead of `Graveyard` for exactly that reason: a colonist who died
+outside the graveyard's recent window should still show up.
+
+Unbounded is safe here in a way it would not be for `graveyard`: a colony's
+population is small and dying doesn't create more of it, so
+`deceasedColonists` can only ever grow to the number of colonists who ever
+existed. Mice/cats/aliens stay graveyard-only, bounded, and without
+`Relations`/`Affinities` — they have no family tree, and a horde of them
+dying repeatedly is exactly the kill-flood case `GraveyardSize` exists to
+cap.
+
 ## Why it is this way
 
 - **Body parts instead of a bigger HP number** is what "pretty specific
@@ -255,6 +289,15 @@ this — the "dead" filter toggle and the per-entry cause of death.
   none of that, at the price of not being a thing another system could ever
   interact with (no looting a corpse, no it blocking a tile) — a fair trade
   for what was asked, a way to review deaths, not a new interactable object.
+- **A second, unbounded `deceasedColonists` map instead of just dropping
+  `GraveyardSize`'s bound**: the bound is load-bearing for mice/cats/aliens
+  (a kill flood must not grow the graveyard without limit), but colonists
+  need durable by-ID lookups precisely because other live state (a surviving
+  relative's family tree) keeps referencing their `EntityID` forever.
+  Keeping these as two structures rather than one unbounded-or-bounded knob
+  means the mundane case (most deaths, most kinds) stays exactly as cheap and
+  bounded as before, and only colonists — whose population is naturally
+  capped by the colony, not by combat volume — pay for permanence.
 - **`remove` takes a cause string instead of inferring one from `w.log`'s
   last line**: the call site already knows exactly who or what did it and
   with what; reverse-engineering that from a log message would be both
