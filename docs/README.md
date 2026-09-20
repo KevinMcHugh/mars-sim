@@ -32,8 +32,8 @@ way it is without re-deriving it from the source each time.
 | [spatial-index-and-performance.md](./spatial-index-and-performance.md) | The occupancy index, incremental counts, chunk index, the job board, and the performance story. |
 | [inventory.md](./inventory.md) | Colonist inventory slots and stacking. |
 | [storage.md](./storage.md) | Placeable storage containers, their capacity, construction, and snapshot state. |
-| [affect.md](./affect.md) | Charge/grip/valence affect, the impact-weighted push/pull blend, fresh/worn wear, tag-based trait rules, decay, labels, and focus contributions. |
-| [mood-space.md](./mood-space.md) | **Proposal.** The one thing affect still lacks: per-colonist baselines, so two colonists with the same history settle differently. |
+| [affect.md](./affect.md) | Charge/grip/valence affect, the impact-weighted push/pull blend, fresh/worn wear, tag-based trait rules, per-colonist baselines, decay, labels, and focus contributions. |
+| [mood-space.md](./mood-space.md) | The design record behind affect: the dead ends it rejected, the questions still open, and the tuning sandbox. |
 | [memories.md](./memories.md) | Colonist memories and life events: notable experiences, sightings, affect vectors, stimuli, and snapshot exposure. |
 | [snapshot-tile-grid.md](./snapshot-tile-grid.md) | The terrain a frontend reads: an immutable, page-shared grid so publishing a frame costs what the tick touched, not the map's area. |
 | [fog-of-war.md](./fog-of-war.md) | What the colony has seen: the explored flag, how digging lifts the fog, and how the map draws the unknown. |

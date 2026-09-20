@@ -549,7 +549,9 @@ func TestFriendTagStampedFromAffinity(t *testing.T) {
 	w, mourner := focusTestColonist(t)
 	stranger := w.spawn(Colonist, mourner.Pos.Add(5, 0))
 	friend := w.spawn(Colonist, mourner.Pos.Add(6, 0))
-	w.addAffinity(mourner.ID, friend.ID, w.cfg.MoodFriendAffinity+10)
+	// Spawning can make relatives, who start warm to each other, so state the
+	// relationships outright rather than assuming a fresh colonist is nobody.
+	w.affinity[mourner.ID] = map[EntityID]int{friend.ID: w.cfg.MoodFriendAffinity + 10}
 
 	killed := func(subject EntityID) EventTag {
 		return w.eventTags(mourner, eventAbout(EvtWitnessedColonistKilled, 99, subject, "died"))
@@ -649,5 +651,94 @@ func TestLosingAFriendHitsAnExtrovertHarder(t *testing.T) {
 	if byFriend.Grip != byStranger.Grip {
 		t.Fatalf("the rule moved grip (%d vs %d); it is meant to leave that to the event",
 			byFriend.Grip, byStranger.Grip)
+	}
+}
+
+func baselineColonist(t *testing.T, w *World, at Point, traits ...Trait) *Entity {
+	t.Helper()
+	e := w.spawn(Colonist, at)
+	e.Profile = &Profile{Traits: traits}
+	w.resolveTraitEffects(e)
+	e.affect = AffectState{Charge: e.affectHome.Charge, Grip: e.affectHome.Grip, Valence: e.affectHome.Valence}
+	return e
+}
+
+// The point of the whole phase: same colony, same history, different people.
+func TestTemperamentsSettleToDifferentPlaces(t *testing.T) {
+	w, _ := focusTestColonist(t)
+	plain := baselineColonist(t, w, Point{5, 5})
+	glad := baselineColonist(t, w, Point{7, 5}, TraitOptimist)
+	grim := baselineColonist(t, w, Point{9, 5}, TraitPessimist)
+
+	// The same bad day, then long enough for all three to settle.
+	for _, c := range []*Entity{plain, glad, grim} {
+		w.remember(c, event(EvtSawGore, "gore"))
+	}
+	for i := 0; i < 2000; i++ {
+		w.tick = i
+		for _, c := range []*Entity{plain, glad, grim} {
+			w.decayAffect(c)
+		}
+	}
+	for _, c := range []*Entity{plain, glad, grim} {
+		if !c.affectSettled() {
+			t.Fatalf("%v never settled: affect %+v, home %+v", c.ID, c.affect, c.affectHome)
+		}
+	}
+	if !(grim.affect.Valence < plain.affect.Valence && plain.affect.Valence < glad.affect.Valence) {
+		t.Fatalf("settled valence: pessimist %d, plain %d, optimist %d -- want them ordered",
+			grim.affect.Valence, plain.affect.Valence, glad.affect.Valence)
+	}
+	if !(grim.affect.Grip < plain.affect.Grip && plain.affect.Grip < glad.affect.Grip) {
+		t.Fatalf("settled grip: pessimist %d, plain %d, optimist %d -- want them ordered",
+			grim.affect.Grip, plain.affect.Grip, glad.affect.Grip)
+	}
+	if plain.affect != (AffectState{Label: plain.affect.Label}) {
+		t.Fatalf("a colonist with no temperament settled at %+v, want the origin", plain.affect)
+	}
+}
+
+// At rest and with nothing wrong, two temperaments read as different people.
+func TestTemperamentShowsInTheRosterWord(t *testing.T) {
+	w, _ := focusTestColonist(t)
+	glad := baselineColonist(t, w, Point{7, 7}, TraitOptimist)
+	grim := baselineColonist(t, w, Point{9, 7}, TraitPessimist)
+	w.refreshMoodAttractor(glad)
+	w.refreshMoodAttractor(grim)
+	if glad.affect.MoodName() == grim.affect.MoodName() {
+		t.Fatalf("both temperaments read as %q at rest", glad.affect.MoodName())
+	}
+}
+
+// A settled temperament must not look like a mood in motion, or a colonist
+// with one re-arbitrates every tick for the rest of the run.
+func TestSettledTemperamentDoesNotDefeatTheCognitionCache(t *testing.T) {
+	w, _ := focusTestColonist(t)
+	grim := baselineColonist(t, w, Point{11, 11}, TraitPessimist)
+	if grim.affectHome.Grip == 0 {
+		t.Fatal("test needs a temperament that rests off the origin")
+	}
+	if next := w.nextCognitionTick(grim); next <= w.tick+1 {
+		t.Fatalf("a settled pessimist wants to think again at tick %d (now %d): resting off the "+
+			"origin is being mistaken for a mood still moving", next, w.tick)
+	}
+	grim.affect.Grip += 20
+	if next := w.nextCognitionTick(grim); next != w.tick+1 {
+		t.Fatalf("a colonist whose mood is actually moving deferred thinking to tick %d", next)
+	}
+}
+
+// A trait acquired in play changes where they will settle, not where they are.
+func TestAcquiringATraitDoesNotWipeTheMoodThatCausedIt(t *testing.T) {
+	w, _ := focusTestColonist(t)
+	c := baselineColonist(t, w, Point{13, 13})
+	w.remember(c, event(EvtWitnessedColonistKilled, "saw a killing"))
+	shaken := c.affect
+	w.giveTrait(c, TraitPessimist)
+	if c.affect != shaken {
+		t.Fatalf("acquiring a trait moved affect from %+v to %+v", shaken, c.affect)
+	}
+	if c.affectHome.Valence >= 0 {
+		t.Fatalf("acquiring Pessimist left home valence at %d", c.affectHome.Valence)
 	}
 }

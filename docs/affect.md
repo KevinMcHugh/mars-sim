@@ -156,11 +156,44 @@ need/work effects remain resolved at spawn.
 ### Decay and focus
 
 At the start of each colonist turn, `approach` moves each axis independently
-toward home `(0, 0, 0)` without overshoot. Defaults decay charge by 2 and grip
+toward that colonist's own resting point without overshoot. Defaults decay charge by 2 and grip
 by 1 per turn, so activation settles before felt control. Valence answers to
 hours rather than minutes, so it gives up one point every `MoodValenceDecayTicks`
 ticks instead of points every turn; the period counts world ticks rather than
 per-colonist turns, which keeps a seeded run reproducible.
+
+### Baselines: where a colonist settles
+
+Home is `(0, 0, 0)` for most colonists and is not for anyone with a
+temperament. `traitSpecs.affectHome` displaces it, summed across traits and
+resolved once at spawn by `resolveTraitEffects` — the same pay-once path as
+need rates and work speed, so the per-turn cost stays a subtraction rather than
+a trait scan. A colonist is also *born* at their resting point rather than at
+everyone's origin: a pessimist has been one since before the sim began.
+
+| Trait | Home |
+| --- | --- |
+| Optimist | grip +8, valence +25 |
+| Pessimist | grip −8, valence −25 |
+
+Valence carries the outlook, which is why the difference is legible at rest: a
+pessimist with nothing wrong reads `flat` where everyone else reads `steady`.
+The small grip offset is the part that reaches behavior, since flee and fight
+read grip — kept small deliberately, because grip feeding back into choices
+that produce more events is the doom-spiral risk the proposal flagged.
+
+Charge is deliberately left alone. It describes the energy behind the *next
+action*, so a permanent offset would misdescribe what the axis is for, and it
+is the fastest-decaying axis by design.
+
+`resolveTraitEffects` never touches current affect, only the home it will
+settle toward: it runs again when a trait is acquired in play, and a colonist
+who has just mutated should not have the mood that produced wiped.
+
+**`affectSettled` is not the same as neutral.** Cognition caching asks whether
+a mood is still moving, and a colonist with a temperament rests somewhere other
+than the origin. Comparing against zero would leave them re-arbitrating every
+tick for the rest of the run.
 
 Focus scoring normalizes charge and grip by `MoodMax`, multiplies each by the
 focus's `ChargeWeight`/`GripWeight`, and adds the result to `FocusScore.Affect`.
@@ -227,4 +260,4 @@ attractor in `moodAttractors`, remembering that order is the tie-break. Never us
 - [memories.md](./memories.md) — the single event ingestion funnel and memory collapse.
 - [personality.md](./personality.md) — trait ordering and the personality RNG invariant.
 - [cascading_wsts_architecture.md](./cascading_wsts_architecture.md) — fixed design and score model.
-- [mood-space.md](./mood-space.md) — what is still proposed on top of this: tag-based trait rules and per-colonist baselines.
+- [mood-space.md](./mood-space.md) — the design record behind all of this: the dead ends, the open questions, and the tuning sandbox.
