@@ -176,6 +176,8 @@ const (
 	TraitMutantLover
 	TraitResilient
 	TraitCowardly
+	TraitOptimist
+	TraitPessimist
 
 	numTraits // keep last
 )
@@ -209,6 +211,13 @@ const (
 	// can be both Tidy and Resilient. Declared last so adding it leaves every
 	// earlier group's roll for a given seed untouched.
 	groupNerve
+	// groupOutlook is where a colonist's mood settles when nothing in
+	// particular is happening. Its own axis rather than part of
+	// groupTemperament: being squeamish about mess says nothing about whether
+	// you expect things to go well, and a colonist should be able to be both.
+	// Declared last so adding it leaves every earlier group's roll for a given
+	// seed untouched.
+	groupOutlook
 
 	numTraitGroups // keep last
 )
@@ -232,6 +241,12 @@ type traitSpec struct {
 	socialScale    float64
 	socialCapacity int
 	socialPenalty  int
+
+	// affectHome displaces where this colonist's mood settles once nothing is
+	// happening to them, away from the neutral origin everyone else returns
+	// to. Summed across traits and resolved at spawn, like every other field
+	// here. See docs/affect.md.
+	affectHome MoodVector
 }
 
 // traitSpecs is the trait table. Adding a trait is a table edit here (plus a
@@ -277,6 +292,18 @@ var traitSpecs = [numTraits]traitSpec{
 		// No scalar effect. Being a mutant shows up as the extra body parts
 		// mutation grew (see mutation.go) and in how other colonists take
 		// them — this trait is the marker both of those read.
+	},
+	TraitOptimist: {
+		Name: "Optimist", Desc: "Settles back into expecting things to work out.",
+		group: groupOutlook,
+		// Valence carries the outlook itself; the small grip lift is the part
+		// that shows in behavior, since an optimist rattles a little less.
+		affectHome: MoodVector{Grip: 8, Valence: 25},
+	},
+	TraitPessimist: {
+		Name: "Pessimist", Desc: "Settles back into expecting the worst, whatever the day held.",
+		group:      groupOutlook,
+		affectHome: MoodVector{Grip: -8, Valence: -25},
 	},
 	TraitResilient: {
 		Name: "Resilient", Desc: "Slow to grow numb; the hundredth horror still lands like the first.",
@@ -387,6 +414,12 @@ func (w *World) assignPersonality(e *Entity) {
 	w.rollName(e)
 
 	w.resolveTraitEffects(e)
+	// A colonist starts where they will settle, rather than at everyone's
+	// origin: a pessimist has been a pessimist since before the sim began.
+	e.affect.Charge = e.affectHome.Charge
+	e.affect.Grip = e.affectHome.Grip
+	e.affect.Valence = e.affectHome.Valence
+	w.refreshMoodAttractor(e)
 }
 
 // rollAge generates an adult colonist age. Keeping colonists adults means every
@@ -406,8 +439,12 @@ func (w *World) resolveTraitEffects(e *Entity) {
 	restMul, workMul, socialMul := 1.0, 1.0, 1.0
 	socialNoNeed := false
 	socialCapacity, socialPenalty := 1<<30, 0
+	home := MoodVector{}
 	for _, tr := range e.Profile.Traits {
 		s := traitSpecs[tr]
+		home.Charge += s.affectHome.Charge
+		home.Grip += s.affectHome.Grip
+		home.Valence += s.affectHome.Valence
 		for i := 0; i < int(numNeeds); i++ {
 			if s.needRiseScale[i] > 0 {
 				riseMul[i] *= s.needRiseScale[i]
@@ -443,6 +480,16 @@ func (w *World) resolveTraitEffects(e *Entity) {
 	e.restTicks = atLeast1(int(math.Round(float64(w.cfg.RestTicks) * restMul)))
 	e.workScale = workMul
 	e.socialCapacity, e.socialPenalty = socialCapacity, socialPenalty
+	lim := w.cfg.MoodMax
+	e.affectHome = MoodVector{
+		Charge:  clampInt(home.Charge, -lim, lim),
+		Grip:    clampInt(home.Grip, -lim, lim),
+		Valence: clampInt(home.Valence, -lim, lim),
+	}
+	// Deliberately not touching e.affect: this also runs when a trait is
+	// acquired in play (see giveTrait), and a colonist who has just mutated
+	// should not have the mood that produced forgotten. Spawn seeds affect
+	// from the resolved home itself.
 }
 
 // rollTraits picks at most one trait from each group, each group taken with

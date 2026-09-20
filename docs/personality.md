@@ -95,6 +95,7 @@ per group, each taken with `TraitChance` probability:
 | temperament | Tidy | 2.2x appraisal of anything gory, and doubled grip relief from incineration |
 | mutant attitude | Mutant-Lover | extra affinity toward mutants and reflected mutation grip and valence |
 | nerve | Resilient / Cowardly | stops being new to things at 0.4x / 1.8x the usual rate, and a coward finds a threat 1.5x the deal |
+| outlook | Optimist / Pessimist | mood settles back to grip +8 / -8 and valence +25 / -25 rather than to neutral |
 | mutation | Mutant | *acquired in play only* — the marker for a colonist uranium has changed |
 
 `temperament` is a group of one today — unlike the others, Tidy isn't paired

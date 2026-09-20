@@ -343,6 +343,8 @@ func approach(value, home, amount int) int {
 	return value
 }
 
+// decayAffect settles a colonist back toward their own resting point, which is
+// the origin for most of them and is not for anyone with a temperament.
 func (w *World) decayAffect(e *Entity) {
 	// Valence describes how life has been going over hours and days, not the
 	// minutes charge and grip answer to, so it gives up a point every few turns
@@ -350,12 +352,19 @@ func (w *World) decayAffect(e *Entity) {
 	// per-colonist turns so a seeded run stays reproducible.
 	valence := e.affect.Valence
 	if n := w.cfg.MoodValenceDecayTicks; n > 0 && w.tick%n == 0 {
-		valence = approach(valence, 0, 1)
+		valence = approach(valence, e.affectHome.Valence, 1)
 	}
 	w.setAffect(e,
-		approach(e.affect.Charge, 0, w.cfg.MoodChargeDecayPerTick),
-		approach(e.affect.Grip, 0, w.cfg.MoodGripDecayPerTick),
+		approach(e.affect.Charge, e.affectHome.Charge, w.cfg.MoodChargeDecayPerTick),
+		approach(e.affect.Grip, e.affectHome.Grip, w.cfg.MoodGripDecayPerTick),
 		valence)
+}
+
+// affectSettled reports whether a colonist's mood has finished moving. Charge
+// and grip only: nothing scored reads valence, so its drift is no reason to
+// think again.
+func (e *Entity) affectSettled() bool {
+	return e.affect.Charge == e.affectHome.Charge && e.affect.Grip == e.affectHome.Grip
 }
 
 func attractorClaim(a moodAttractor, charge, grip int) int {

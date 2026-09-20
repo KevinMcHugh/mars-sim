@@ -357,9 +357,12 @@ type Entity struct {
 	relations        []Relation
 	relationRevision uint64
 
-	// affect is the colonist's bounded charge/grip state and cached display label.
-	// Focus scoring reads only its numeric axes; the label is display-only.
-	affect AffectState
+	// affect is the colonist's bounded charge/grip/valence state and its display
+	// label. Focus scoring reads only charge and grip; the label is
+	// display-only. affectHome is where those axes settle once nothing is
+	// happening, resolved once from traits at spawn (see resolveTraitEffects).
+	affect     AffectState
+	affectHome MoodVector
 
 	// Focus is the colonist's current goal; Job is the concrete executor beneath
 	// it. mindDirty and nextThinkTick gate arbitration only; the selected executor

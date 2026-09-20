@@ -179,9 +179,11 @@ func (w *World) nextCognitionTick(e *Entity) int {
 	if e.nextStimulusExpiry > w.tick && e.nextStimulusExpiry < next {
 		next = e.nextStimulusExpiry
 	}
-	// Charge and grip only: valence drifts too, but nothing scored reads it, so
-	// a lingering mood is no reason to make a colonist think again.
-	if e.affect.Charge != 0 || e.affect.Grip != 0 {
+	// While affect is still moving it changes every score every tick. Settled
+	// is not the same as neutral: a colonist with a temperament rests somewhere
+	// other than the origin, and comparing against zero instead would leave
+	// them re-arbitrating every tick forever.
+	if !e.affectSettled() {
 		return w.tick + 1
 	}
 	sleepProgressOnly := e.focus == FocusSleep && e.Job == JobUse && e.Need == NeedSleep &&

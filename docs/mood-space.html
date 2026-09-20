@@ -153,12 +153,13 @@ details > summary { cursor: pointer; font-size: 12px; color: var(--dim); margin:
 <body>
 <header>
   <h1>Mood Space — charge &times; grip &times; valence</h1>
-  <p class="status"><strong>Tuning sandbox for <a href="./mood-space.md">docs/mood-space.md</a>.</strong>
+  <p class="status"><strong>Tuning sandbox for colonist affect</strong> (see <a href="./affect.md">docs/affect.md</a>, and
+  <a href="./mood-space.md">mood-space.md</a> for why it is shaped this way).
   The three axes, the attractor table, and the impact-weighted push/pull blend all <em>ship</em> — their numbers
   here are seeded from <code>internal/sim/affect.go</code>, so tuning them here is tuning the real thing.
   Wear and tag-based trait rules ship too, so the numbers here are the real ones and tuning them is tuning the sim.
-  What is still proposed is <strong>per-colonist baselines</strong> — the home point below is one control here, and
-  would become a property each colonist is born with. Known simplifications: wear here counts each firing, where the
+  Baselines ship too: the home point below is one control here, where the sim gives each colonist their own,
+  resolved from their traits at spawn. Known simplifications: wear here counts each firing, where the
   sim counts remembered <em>occasions</em> (a run of digs is one), and conversation intensity is a slider rather than
   <code>conversationMoodVector</code>'s formula — the sim exempts conversations from wear entirely.</p>
   <p>A scratchpad for mars-sim's proposed mood. <strong>Charge</strong> (vertical) is how much energy is behind the
@@ -206,11 +207,12 @@ details > summary { cursor: pointer; font-size: 12px; color: var(--dim); margin:
       <p class="hint">Drag the small home crosshair on the plane for charge/grip. This baseline is resolved at spawn
       from traits (<code>docs/personality.md</code>'s pay-once principle), same as the two toggles below.</p>
       <div class="row">
-        <label class="ctl"><input type="checkbox" id="optimist"> Optimist <span class="badge proposed">proposed</span></label>
-        <label class="ctl"><input type="checkbox" id="pessimist"> Pessimist <span class="badge proposed">proposed</span></label>
+        <label class="ctl"><input type="checkbox" id="optimist"> Optimist <span class="badge shipped">shipped</span></label>
+        <label class="ctl"><input type="checkbox" id="pessimist"> Pessimist <span class="badge shipped">shipped</span></label>
       </div>
-      <p class="hint">Shift the baseline itself, not a per-event reaction — <code>groupTemperament</code>'s obvious
-      missing pair per the doc, so these are not <code>TraitRule</code>s.</p>
+      <p class="hint">Shift the baseline itself, not a per-event reaction, which is why these are resolved once at
+      spawn rather than being <code>TraitRule</code>s. They ship as <code>groupOutlook</code> — its own axis, so a
+      colonist can be both Tidy and an Optimist.</p>
       <div class="row">
         <span class="worldlabel">magnitude</span>
         <input type="range" id="rRate" min="1" max="120" value="20">
@@ -1321,8 +1323,8 @@ function generateGo() {
   s += "}\n\n";
 
   s += "// Baseline traits shift resolved-at-spawn home, not a TraitRule -- they\n";
-  s += "// belong in resolveTraitEffects alongside every other spawn-time trait\n";
-  s += "// effect, not the life-event funnel. Both PROPOSED; add to groupTemperament.\n";
+  s += "// live in traitSpecs.affectHome alongside every other spawn-time trait\n";
+  s += "// effect, not the life-event funnel. Both shipped, in groupOutlook.\n";
   s += "// TraitOptimist:  Home.Valence += 25, Home.Grip += 8\n";
   s += "// TraitPessimist: Home.Valence -= 25, Home.Grip -= 8\n\n";
 
