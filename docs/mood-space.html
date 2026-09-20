@@ -156,9 +156,10 @@ details > summary { cursor: pointer; font-size: 12px; color: var(--dim); margin:
   <p class="status"><strong>Tuning sandbox for <a href="./mood-space.md">docs/mood-space.md</a>.</strong>
   The three axes, the attractor table, and the impact-weighted push/pull blend all <em>ship</em> — their numbers
   here are seeded from <code>internal/sim/affect.go</code>, so tuning them here is tuning the real thing.
-  Wear ships too, so the fresh/worn pairs here are the real ones. <strong>Tag-based trait rules</strong> are what is
-  still proposed, and the reason this page exists. Known simplifications: wear here counts each firing, where the sim
-  counts remembered <em>occasions</em> (a run of digs is one), and conversation intensity is a slider rather than
+  Wear and tag-based trait rules ship too, so the numbers here are the real ones and tuning them is tuning the sim.
+  What is still proposed is <strong>per-colonist baselines</strong> — the home point below is one control here, and
+  would become a property each colonist is born with. Known simplifications: wear here counts each firing, where the
+  sim counts remembered <em>occasions</em> (a run of digs is one), and conversation intensity is a slider rather than
   <code>conversationMoodVector</code>'s formula — the sim exempts conversations from wear entirely.</p>
   <p>A scratchpad for mars-sim's proposed mood. <strong>Charge</strong> (vertical) is how much energy is behind the
   next action. <strong>Grip</strong> (horizontal) is how much purchase the colonist feels they have on their
@@ -421,16 +422,18 @@ const DEFAULT_RULES = [
   { trait: "TraitIntrovert", shipped: true, anyTags: ["social"], notTags: [],
     charge: -1, grip: 1, valence: 1, impact: 1, wear: 1, note: "talking drains rather than lifts" },
   { trait: "TraitExtrovert", shipped: false, anyTags: ["social"], notTags: [],
-    charge: 1.5, grip: 1.5, valence: 1, impact: 1, wear: 1, note: "talking counts double -- not yet in transformMoodVector" },
+    charge: 1.5, grip: 1.5, valence: 1, impact: 1, wear: 1, note: "talking counts double -- still just a proposal" },
   { trait: "TraitMutantLover", shipped: true, anyTags: ["mutation"], notTags: [],
     charge: 1, grip: -1, valence: 1, impact: 1, wear: 1, note: "body horror becomes mastery" },
-  { trait: "Resilient", shipped: false, anyTags: [], notTags: [],
-    charge: 1, grip: 1, valence: 1, impact: 1, wear: 0.4, note: "accrues wear slowly -- not yet a Trait" },
-  { trait: "Cowardly", shipped: false, anyTags: [], notTags: [],
-    charge: 1, grip: 1, valence: 1, impact: 1, wear: 1.8, note: "reaches worn in a couple of exposures -- not yet a Trait" },
-  { trait: "Loyal", shipped: false, anyTags: ["friend-died"], notTags: [],
-    charge: 1, grip: 0.7, valence: 1.4, impact: 1.1, wear: 0.6,
-    note: "the dynamic-tag example from the doc's Tags section: grieves harder and takes longer to move on when the checkbox marks the victim as a friend -- not yet a Trait, and this rule only fires when that checkbox is on" },
+  { trait: "TraitResilient", shipped: true, anyTags: [], notTags: [],
+    charge: 1, grip: 1, valence: 1, impact: 1, wear: 0.4, note: "stops being new to things slowly" },
+  { trait: "TraitCowardly", shipped: true, anyTags: [], notTags: [],
+    charge: 1, grip: 1, valence: 1, impact: 1, wear: 1.8, note: "reaches worn in a couple of exposures" },
+  { trait: "TraitCowardly", shipped: true, anyTags: ["threat"], notTags: [],
+    charge: 1, grip: 1, valence: 1, impact: 1.5, wear: 1, note: "finds a threat a bigger deal, so it moves them rather than nudging them" },
+  { trait: "TraitExtrovert", shipped: true, anyTags: ["friend-died"], notTags: [],
+    charge: 1.3, grip: 1, valence: 1.5, impact: 1, wear: 1,
+    note: "the dynamic tag, shipped: the sim stamps it when the colonist was close to whoever died, and an extrovert takes that harder. Toggle the checkbox below the events table to fire it." },
 ];
 
 let attractors, events, rules, activeRuleIds, wear, occurrences, log;
@@ -1279,11 +1282,11 @@ function generateGo() {
   }
   s += "}\n\n";
 
-  s += "// lifeEventProfile widens the shipped moodAppraisal by one field: Tags,\n";
-  s += "// which TraitRules match against (docs/mood-space.md Tags).\n";
-  s += "// Impact, Fresh and Worn below are all what affect.go already runs on;\n";
-  s += "// only Tags are proposed. A single row plays both the push (low impact)\n";
-  s += "// and pull (high impact) roles, as it already does today.\n";
+  s += "// lifeEventProfile is the shipped moodAppraisal; the sim spells its tag\n";
+  s += "// set as an EventTag bitmask rather than a slice.\n";
+  s += "// Tags, Impact, Fresh and Worn below are all what affect.go already runs\n";
+  s += "// on. A single row plays both the push (low impact) and pull (high\n";
+  s += "// impact) roles, as it already does today.\n";
   s += "type lifeEventProfile struct {\n\tTags        []EventTag\n\tImpact      int\n\tFresh, Worn MoodVector\n}\n\n";
   s += "var lifeEventProfiles = [numLifeEventKinds]lifeEventProfile{\n";
   const kindW = Math.max(...events.map(e => e.kind.length)) + 2;
@@ -1295,9 +1298,10 @@ function generateGo() {
   }
   s += "}\n\n";
 
-  s += "// TraitRule replaces transformMoodVector's per-kind switch (Phase 6). Every\n";
-  s += "// factor defaults to 1 (0 or unset -- no change), matching this codebase's\n";
-  s += "// scale-field convention; a reflection is simply -1. AnyTags empty matches\n";
+  s += "// TraitRule shipped in place of transformMoodVector's per-kind switch.\n";
+  s += "// The sim spells these factors as integer percentages (100 = no change,\n";
+  s += "// -100 = reflect) rather than floats, because appraisal is integer\n";
+  s += "// throughout so that a seeded run reproduces. AnyTags empty matches\n";
   s += "// every event.\n";
   s += "type TraitRule struct {\n\tTrait                     Trait\n\tAnyTags, AllTags, NotTags []EventTag\n\tImpact, Charge, Grip, Valence, WearRate float64\n}\n\n";
   s += "var traitRules = []TraitRule{\n";

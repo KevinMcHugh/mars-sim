@@ -91,9 +91,10 @@ per group, each taken with `TraitChance` probability:
 | --- | --- | --- |
 | appetite | Big Eater / Light Eater | food need rises 1.5x / 0.7x |
 | work ethic | Industrious / Lazy | work 0.75x time + rest 0.5x, plus doubled finished-work affect vectors / work 1.4x + rest 2.0x |
-| social | Asocial / Introvert / Extrovert | no social need / social need 0.5x plus conversation fatigue / social need 1.5x |
-| temperament | Tidy | 2.2x gore appraisal and doubled grip relief from incineration |
-| mutant attitude | Mutant-Lover | extra affinity toward mutants and reflected mutation grip |
+| social | Asocial / Introvert / Extrovert | no social need / social need 0.5x plus conversation fatigue / social need 1.5x, and a friend's death hits harder |
+| temperament | Tidy | 2.2x appraisal of anything gory, and doubled grip relief from incineration |
+| mutant attitude | Mutant-Lover | extra affinity toward mutants and reflected mutation grip and valence |
+| nerve | Resilient / Cowardly | stops being new to things at 0.4x / 1.8x the usual rate, and a coward finds a threat 1.5x the deal |
 | mutation | Mutant | *acquired in play only* — the marker for a colonist uranium has changed |
 
 `temperament` is a group of one today — unlike the others, Tidy isn't paired

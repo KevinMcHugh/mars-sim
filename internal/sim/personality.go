@@ -174,6 +174,8 @@ const (
 	// uranium exposure first changes a colonist's body (see mutation.go).
 	TraitMutant
 	TraitMutantLover
+	TraitResilient
+	TraitCowardly
 
 	numTraits // keep last
 )
@@ -201,6 +203,12 @@ const (
 	// so it does not compete with temperament, and so the obvious opposite (a
 	// purist who recoils from them) can join it later.
 	groupMutantAttitude
+	// groupNerve is how fast a colonist stops being new to things — whether
+	// repetition hardens them or wears them down. Its own axis: being steady
+	// under fire says nothing about being squeamish about mess, so a colonist
+	// can be both Tidy and Resilient. Declared last so adding it leaves every
+	// earlier group's roll for a given seed untouched.
+	groupNerve
 
 	numTraitGroups // keep last
 )
@@ -269,6 +277,18 @@ var traitSpecs = [numTraits]traitSpec{
 		// No scalar effect. Being a mutant shows up as the extra body parts
 		// mutation grew (see mutation.go) and in how other colonists take
 		// them — this trait is the marker both of those read.
+	},
+	TraitResilient: {
+		Name: "Resilient", Desc: "Slow to grow numb; the hundredth horror still lands like the first.",
+		group: groupNerve,
+		// No scalar effect. Resilience is a WearRate rule in affect.go: it
+		// changes how fast experience stops being new, not how hard it hits.
+	},
+	TraitCowardly: {
+		Name: "Cowardly", Desc: "Rattled easily, and worn down fast by what rattles them.",
+		group: groupNerve,
+		// No scalar effect either — see traitRules for the wear rate it bends
+		// and the weight it puts on a threat.
 	},
 	TraitMutantLover: {
 		Name: "Mutant-Lover", Desc: "Drawn to the changed; warms to mutants far faster than to anyone else.",

@@ -46,8 +46,13 @@ const (
 // the temporary signed result of a conversation; it is converted to a vector
 // during ingestion and is never stored as mood state.
 type LifeEvent struct {
-	Kind    LifeEventKind
-	Source  EntityID // zero when the occurrence is not tied to an entity
+	Kind LifeEventKind
+	// Source is what caused the occurrence -- the alien that bit someone --
+	// and is what stimulus tracking keys on. Subject is who it happened to,
+	// which is a different entity and a different question: whether the
+	// colonist remembering this cared about them. Either may be zero.
+	Subject EntityID
+	Source  EntityID
 	Text    string
 	Outcome int // meaningful only for EvtConversation
 }
@@ -65,6 +70,14 @@ func event(kind LifeEventKind, format string, args ...any) LifeEvent {
 // same funnel as mood and memory.
 func eventFrom(kind LifeEventKind, source EntityID, format string, args ...any) LifeEvent {
 	return LifeEvent{Kind: kind, Source: source, Text: fmt.Sprintf(format, args...)}
+}
+
+// eventAbout is eventFrom for an occurrence that happened *to* someone: the
+// source caused it, the subject suffered it. Ingestion reads the subject to
+// decide whether this happened to a stranger or to someone the colonist is
+// close to, which is not a fact any table could hold.
+func eventAbout(kind LifeEventKind, source, subject EntityID, format string, args ...any) LifeEvent {
+	return LifeEvent{Kind: kind, Source: source, Subject: subject, Text: fmt.Sprintf(format, args...)}
 }
 
 // eventOutcome carries the one per-occurrence appraisal input that cannot be a
