@@ -326,13 +326,15 @@ func (m Model) detailLines(c sim.EntityView, inner, barW int) []string {
 	if len(c.Memories) == 0 {
 		b.WriteString(statStyle.Render("  no memories yet"))
 	} else {
-		// The whole remembered history, oldest first, not the last handful:
-		// the panel scrolls now, so there is no reason to decide for the
-		// player which memories are worth keeping on screen. A colonist holds
-		// at most maxColonistMemories of them (see docs/memories.md).
+		// The whole remembered history, most recent first, not the last
+		// handful: the panel scrolls now, so there is no reason to decide for
+		// the player which memories are worth keeping on screen. A colonist
+		// holds at most maxColonistMemories of them (see docs/memories.md).
+		// Snapshots expose Memories oldest-first, so the display order is
+		// reversed here rather than by mutating the underlying slice.
 		lines := make([]string, 0, len(c.Memories))
-		for _, memory := range c.Memories {
-			lines = append(lines, statStyle.Render(cells.Truncate("  "+memoryLine(memory), inner-2)))
+		for i := len(c.Memories) - 1; i >= 0; i-- {
+			lines = append(lines, statStyle.Render(cells.Truncate("  "+memoryLine(c.Memories[i]), inner-2)))
 		}
 		b.WriteString(strings.Join(lines, "\n"))
 	}
