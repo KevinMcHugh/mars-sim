@@ -40,7 +40,8 @@ type EntityView struct {
 	Affinities []Affinity
 	Charge     int    // affect activation in [-MoodMax, MoodMax] (colonists only)
 	Grip       int    // affect control in [-MoodMax, MoodMax] (colonists only)
-	MoodLabel  string // cached contextual display projection (colonists only)
+	Valence    int    // how life has been going, in [-MoodMax, MoodMax] (colonists only)
+	MoodLabel  string // the attractor's name, read through valence (colonists only)
 	Memories   []Memory
 
 	// Dead, DiedTick, and Cause are set only on a Snapshot.Graveyard or
@@ -360,6 +361,7 @@ func (w *World) entityView(e *Entity, kinChildren map[kinID][]kinID, full bool) 
 	if e.Kind == Colonist {
 		ev.Charge = e.affect.Charge
 		ev.Grip = e.affect.Grip
+		ev.Valence = e.affect.Valence
 		ev.MoodLabel = e.affect.MoodName()
 		ev.Memories = append([]Memory(nil), e.Memories...)
 		if full {

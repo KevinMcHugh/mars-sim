@@ -1,0 +1,1451 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Tune mars-sim's proposed 3-axis (charge, grip, valence) mood space: impact-weighted push/pull, wear, and tag-based trait rules.">
+<title>Mood Space</title>
+<style>
+:root {
+  --bg: #fbfaf8;
+  --panel: #ffffff;
+  --ink: #1a1a1a;
+  --dim: #6b6b6b;
+  --line: #d9d6d0;
+  --accent: #b4541f;
+  --good: #2f6f4f;
+  --bad: #9c3232;
+  --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #14161a;
+    --panel: #1c1f24;
+    --ink: #e8e6e1;
+    --dim: #9a978f;
+    --line: #333840;
+    --accent: #e0834a;
+    --good: #67b58c;
+    --bad: #e07a7a;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #14161a; --panel: #1c1f24; --ink: #e8e6e1; --dim: #9a978f;
+  --line: #333840; --accent: #e0834a; --good: #67b58c; --bad: #e07a7a;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--bg); color: var(--ink);
+  font: 15px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+header { padding: 20px 16px 0; max-width: 1180px; margin: 0 auto; }
+h1 { font-size: 20px; margin: 0 0 4px; letter-spacing: -0.01em; }
+header p { margin: 0 0 4px; color: var(--dim); font-size: 13.5px; max-width: 74ch; }
+header p.status {
+  color: var(--ink); background: color-mix(in srgb, var(--accent) 10%, transparent);
+  border-left: 3px solid var(--accent); padding: 8px 10px; border-radius: 0 4px 4px 0;
+  margin-bottom: 10px;
+}
+main {
+  max-width: 1180px; margin: 0 auto; padding: 16px;
+  display: flex; gap: 16px; align-items: flex-start; flex-wrap: wrap;
+}
+.left { flex: 1 1 440px; min-width: 300px; }
+.right { flex: 1 1 420px; min-width: 300px; }
+.card {
+  background: var(--panel); border: 1px solid var(--line);
+  border-radius: 8px; padding: 12px; margin-bottom: 12px;
+}
+.card > h2 {
+  font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em;
+  color: var(--dim); margin: 0 0 10px; font-weight: 600;
+}
+canvas { width: 100%; height: auto; display: block; touch-action: none; cursor: crosshair; border-radius: 4px; }
+.readout { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; margin-bottom: 8px; }
+.moodname { font-size: 26px; font-weight: 600; letter-spacing: -0.02em; }
+.moodname.good { color: var(--good); }
+.moodname.bad { color: var(--bad); }
+.coords { font-family: var(--mono); font-size: 12px; color: var(--dim); }
+.row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin: 6px 0; }
+label.ctl { font-size: 12px; color: var(--dim); display: flex; align-items: center; gap: 6px; }
+button {
+  font: inherit; font-size: 13px; padding: 5px 10px; cursor: pointer;
+  background: var(--panel); color: var(--ink);
+  border: 1px solid var(--line); border-radius: 5px;
+}
+button:hover { border-color: var(--accent); color: var(--accent); }
+button.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+button.primary:hover { color: #fff; opacity: .9; }
+input[type=number] {
+  font: inherit; font-family: var(--mono); font-size: 12px; width: 52px;
+  padding: 3px 4px; background: var(--bg); color: var(--ink);
+  border: 1px solid var(--line); border-radius: 4px;
+}
+input[type=number].wide { width: 64px; }
+input[type=text] {
+  font: inherit; font-size: 13px; padding: 3px 6px; background: var(--bg);
+  color: var(--ink); border: 1px solid var(--line); border-radius: 4px; min-width: 0;
+}
+input[type=text].tag { font-family: var(--mono); font-size: 11.5px; }
+input[type=range] { accent-color: var(--accent); flex: 1 1 110px; min-width: 90px; }
+.tablewrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 12.5px; min-width: 290px; }
+th {
+  text-align: left; font-size: 10.5px; text-transform: uppercase;
+  letter-spacing: .06em; color: var(--dim); font-weight: 600;
+  padding: 3px 4px; border-bottom: 1px solid var(--line);
+}
+td { padding: 2px 4px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+tr:last-child td { border-bottom: none; }
+tr.selected td { background: color-mix(in srgb, var(--accent) 10%, transparent); }
+td.kind { font-family: var(--mono); font-size: 11.5px; cursor: pointer; }
+td.num { width: 52px; }
+td.act { width: 30px; text-align: right; }
+td.mini { font-family: var(--mono); font-size: 11px; color: var(--dim); width: 34px; text-align: right; }
+td.tagcell { font-family: var(--mono); font-size: 10.5px; color: var(--dim); max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fire { padding: 2px 7px; font-size: 12px; line-height: 1.3; }
+.badge {
+  display: inline-block; font-size: 9.5px; text-transform: uppercase; letter-spacing: .04em;
+  padding: 1px 5px; border-radius: 3px; font-weight: 600; margin-left: 5px; vertical-align: 1px;
+}
+.badge.proposed { background: color-mix(in srgb, var(--accent) 18%, transparent); color: var(--accent); }
+.badge.shipped { background: color-mix(in srgb, var(--good) 16%, transparent); color: var(--good); }
+.swatch { width: 9px; height: 9px; border-radius: 50%; display: inline-block; flex: none; }
+.attr-row, .rule-row { display: flex; gap: 5px; align-items: center; margin-bottom: 6px; flex-wrap: wrap; }
+.attr-row input[type=text] { flex: 1 1 60px; }
+.attr-row .good-in { color: var(--good); }
+.attr-row .bad-in { color: var(--bad); }
+.rule-row { border: 1px solid var(--line); border-radius: 6px; padding: 6px 7px; }
+.rule-head { display: flex; align-items: center; gap: 6px; flex: 1 1 100%; font-size: 12.5px; }
+.rule-head .name { font-weight: 600; }
+.rule-fields { display: flex; gap: 5px; flex-wrap: wrap; align-items: center; margin-top: 4px; }
+.mini-lab { font-size: 9.5px; color: var(--dim); text-transform: uppercase; letter-spacing: .04em; }
+.mini-field { display: flex; flex-direction: column; align-items: center; gap: 1px; }
+pre {
+  font-family: var(--mono); font-size: 11px; line-height: 1.45;
+  background: var(--bg); border: 1px solid var(--line); border-radius: 5px;
+  padding: 10px; overflow: auto; max-height: 320px; margin: 8px 0 0;
+}
+.hint { font-size: 11.5px; color: var(--dim); margin: 8px 0 0; }
+.worldlabel { font-family: var(--mono); font-size: 11px; width: 74px; text-align: right; flex: none; }
+.gauge-wrap { display: flex; align-items: center; gap: 8px; margin: 4px 0 2px; }
+.gauge-label { font-family: var(--mono); font-size: 10px; color: var(--dim); width: 54px; flex: none; }
+.gauge {
+  position: relative; flex: 1 1 auto; height: 12px; border-radius: 6px;
+  background: linear-gradient(90deg, var(--bad), var(--line) 50%, var(--good));
+  opacity: .85;
+}
+.gauge .mark {
+  position: absolute; top: -3px; width: 3px; height: 18px; border-radius: 2px;
+  background: var(--ink); transform: translateX(-50%);
+}
+.gauge .home {
+  position: absolute; top: -1px; width: 2px; height: 14px; background: var(--dim);
+  transform: translateX(-50%); opacity: .8;
+}
+.gauge-val { font-family: var(--mono); font-size: 11px; width: 32px; text-align: right; flex: none; }
+.loglist { max-height: 130px; overflow-y: auto; font-family: var(--mono); font-size: 11px; color: var(--dim); }
+.loglist div { padding: 1px 0; border-bottom: 1px dotted var(--line); }
+.loglist div:last-child { border-bottom: none; }
+details > summary { cursor: pointer; font-size: 12px; color: var(--dim); margin: 4px 0; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Mood Space — charge &times; grip &times; valence</h1>
+  <p class="status"><strong>Tuning sandbox for <a href="./mood-space.md">docs/mood-space.md</a>.</strong>
+  The three axes, the attractor table, and the impact-weighted push/pull blend all <em>ship</em> — their numbers
+  here are seeded from <code>internal/sim/affect.go</code>, so tuning them here is tuning the real thing.
+  <strong>Wear</strong> (the fresh/worn pair) and <strong>tag-based trait rules</strong> are the proposed parts,
+  and the reason this page still exists. Known simplifications: wear counts raw occurrences rather than reading the
+  memory log, and conversation intensity is a slider rather than <code>conversationMoodVector</code>'s formula.</p>
+  <p>A scratchpad for mars-sim's proposed mood. <strong>Charge</strong> (vertical) is how much energy is behind the
+  next action. <strong>Grip</strong> (horizontal) is how much purchase the colonist feels they have on their
+  situation. <strong>Valence</strong> (the gauge under the plane) is now stored per colonist and moves only through
+  events, not read live off needs/HP — the same state reads as
+  <span style="color:var(--good)">elated</span> or <span style="color:var(--bad)">furious</span> depending on it.
+  Drag the colonist, the home point, or any attractor. Fire events from the table on the right to see them compose.</p>
+</header>
+
+<main>
+  <div class="left">
+    <div class="card">
+      <div class="readout">
+        <span class="moodname" id="moodName">steady</span>
+        <span class="coords" id="coords"></span>
+      </div>
+      <canvas id="plane" width="900" height="900"></canvas>
+      <div class="gauge-wrap">
+        <span class="gauge-label">VALENCE</span>
+        <div class="gauge" id="gauge">
+          <div class="home" id="gaugeHome"></div>
+          <div class="mark" id="gaugeMark"></div>
+        </div>
+        <span class="gauge-val" id="gaugeVal"></span>
+      </div>
+      <div class="row" style="margin-top:10px">
+        <button class="primary" id="playBtn">Pause</button>
+        <button id="stepBtn">Step</button>
+        <button id="shiftBtn">Run a shift</button>
+        <button id="homeBtn">Snap to home</button>
+        <button id="clearBtn">Clear trail</button>
+      </div>
+      <p class="hint">Click empty space on the plane to place the colonist. Attractor naming (good/bad word) now
+      reads the valence gauge, not a world slider — two colonists at the same point can read differently.</p>
+    </div>
+
+    <div class="card">
+      <h2>Baseline &amp; decay — where mood settles, and how fast</h2>
+      <div class="row">
+        <span class="worldlabel">valence home</span>
+        <input type="range" id="homeValence" min="-100" max="100" value="0">
+        <span class="coords" id="homeValenceOut"></span>
+      </div>
+      <p class="hint">Drag the small home crosshair on the plane for charge/grip. This baseline is resolved at spawn
+      from traits (<code>docs/personality.md</code>'s pay-once principle), same as the two toggles below.</p>
+      <div class="row">
+        <label class="ctl"><input type="checkbox" id="optimist"> Optimist <span class="badge proposed">proposed</span></label>
+        <label class="ctl"><input type="checkbox" id="pessimist"> Pessimist <span class="badge proposed">proposed</span></label>
+      </div>
+      <p class="hint">Shift the baseline itself, not a per-event reaction — <code>groupTemperament</code>'s obvious
+      missing pair per the doc, so these are not <code>TraitRule</code>s.</p>
+      <div class="row">
+        <span class="worldlabel">magnitude</span>
+        <input type="range" id="rRate" min="1" max="120" value="20">
+        <span class="coords" id="rRateOut"></span>
+      </div>
+      <div class="row">
+        <span class="worldlabel">angle</span>
+        <input type="range" id="thRate" min="0" max="60" value="2">
+        <span class="coords" id="thRateOut"></span>
+      </div>
+      <div class="row">
+        <span class="worldlabel">valence</span>
+        <input type="range" id="vRate" min="0" max="40" value="4">
+        <span class="coords" id="vRateOut"></span>
+      </div>
+      <div class="row">
+        <span class="worldlabel">inertia</span>
+        <input type="range" id="inertia" min="1" max="40" value="10">
+        <span class="coords" id="inertiaOut"></span>
+      </div>
+      <div class="row">
+        <label class="ctl"><input type="checkbox" id="hyst" checked> name hysteresis</label>
+        <label class="ctl"><input type="checkbox" id="showField" checked> region tint</label>
+        <label class="ctl"><input type="checkbox" id="showTrail" checked> trail</label>
+      </div>
+      <p class="hint">Charge/grip decay in polar — magnitude fast, angle slow, toward the home point — so intensity
+      reads as mood and direction as temperament. Valence decays on its own, plain linear, slower still (hours-days
+      vs. grip's minutes-hours). <strong>Note:</strong> the shipped <code>decayAffect</code> is simpler than this —
+      plain per-axis linear decay toward <code>(0,0)</code>, no polar split. This page keeps exploring the richer
+      idea; reconciling the two is separable from the rest of this doc.</p>
+    </div>
+
+    <div class="card">
+      <h2>Attractors — names as a table, not sectors <span class="badge shipped">shipped as-is</span></h2>
+      <div id="attractors"></div>
+      <div class="row" style="margin-top:8px">
+        <button id="addAttr">Add attractor</button>
+        <button id="resetAll">Reset everything</button>
+      </div>
+      <p class="hint">Identical to <code>affect.go</code>'s <code>moodAttractors</code> — same nine points, same
+      radii. Nearest attractor by distance &divide; radius wins; unclaimed space reads as plain "settling".</p>
+    </div>
+  </div>
+
+  <div class="right">
+    <div class="card">
+      <h2>Trait rules — tags, not a per-kind switch</h2>
+      <div id="rules"></div>
+      <div class="row" style="margin-top:6px">
+        <button id="addRule">Add rule</button>
+      </div>
+      <p class="hint">Each multiplier defaults to <code>&times;1</code> (0 or blank means "no change", matching this
+      codebase's scale-field convention) — a reflection is just <code>&times;-1</code>. A rule with no tags matches
+      every event, which is how <strong>Resilient</strong>/<strong>Cowardly</strong> (both
+      <span class="badge proposed">proposed</span> — not yet <code>Trait</code>s) bend wear generally rather than
+      reacting to one kind. Matching is: any of <em>any-tags</em> (or no any-tags at all), none of <em>not-tags</em>.</p>
+    </div>
+
+    <div class="card">
+      <h2>Life events — impact, fresh, and worn</h2>
+      <div class="tablewrap"><table><thead><tr>
+        <th>Kind</th><th>impact</th><th>wear</th><th></th>
+      </tr></thead><tbody id="events"></tbody></table></div>
+      <div id="eventEditor"></div>
+      <p class="hint">Click a kind to edit its <strong>fresh</strong> (first-occurrence) and <strong>worn</strong>
+      (habituated) targets. Firing blends toward <code>lerp(fresh, worn, wear)</code> by
+      <code>k = clamp((impact − threshold) / range, 0, 1)</code>: a low-impact event mostly nudges, a high-impact one
+      mostly relocates. Impact and fresh are the numbers <code>affect.go</code> runs on today; worn is the proposed
+      half, and a blanket first guess — tune it.</p>
+      <div class="row" style="margin-top:6px">
+        <span class="worldlabel">push / pull</span>
+        <input type="range" id="pushThresh" min="0" max="100" value="30">
+        <span class="coords" id="pushThreshOut"></span>
+      </div>
+      <div class="row">
+        <span class="worldlabel">blend range</span>
+        <input type="range" id="pullRange" min="1" max="100" value="40">
+        <span class="coords" id="pullRangeOut"></span>
+      </div>
+      <div class="row">
+        <span class="worldlabel">wear step</span>
+        <input type="range" id="wearStep" min="1" max="50" value="15">
+        <span class="coords" id="wearStepOut"></span>
+      </div>
+      <label class="ctl"><input type="checkbox" id="friendDied"> the colonist who died was a friend</label>
+      <p class="hint"><code>remember()</code> already knows the relationship, so it would stamp <code>friend-died</code>
+      on <em>this</em> firing of <code>EvtWitnessedColonistKilled</code> only — the dynamic-tag mechanism from the
+      doc's Tags section, demonstrated rather than fully built (no relationship graph here). The
+      <strong>Loyal</strong> rule in the trait-rules card reacts to it; toggle the checkbox and compare a fire with
+      it on vs. off.</p>
+    </div>
+
+    <div class="card">
+      <h2>Recent events <span class="hint" style="margin:0">— feeds wear only; consolidation is Phase 5, deferred</span></h2>
+      <div class="loglist" id="log"></div>
+      <div class="row" style="margin-top:6px"><button id="resetWear">Reset wear</button></div>
+    </div>
+
+    <div class="card">
+      <h2>Export</h2>
+      <div class="row">
+        <button id="genBtn">Generate Go</button>
+        <button id="copyBtn">Copy</button>
+        <span class="coords" id="copyMsg"></span>
+      </div>
+      <pre id="out">Press "Generate Go" to emit the tuned tables.</pre>
+    </div>
+  </div>
+</main>
+
+<script>
+"use strict";
+
+// ---------------------------------------------------------------------------
+// Model
+// ---------------------------------------------------------------------------
+// The plane runs [-100, 100] on all three axes, matching Config.MoodMax so a
+// port to Go keeps the same numbers (see docs/mood-space.md open question 3).
+const LIM = 100;
+
+// Identical to affect.go's moodAttractors -- same nine points, same radii,
+// same declaration order (ties favor the earlier entry).
+const DEFAULT_ATTRACTORS = [
+  { good: "driven",   bad: "furious",    charge:  70, grip:  60, radius: 46 },
+  { good: "elated",   bad: "frantic",    charge:  88, grip:   0, radius: 42 },
+  { good: "giddy",    bad: "panicked",   charge:  65, grip: -62, radius: 46 },
+  { good: "adrift",   bad: "anxious",    charge:   0, grip: -85, radius: 42 },
+  { good: "listless", bad: "despairing", charge: -62, grip: -62, radius: 46 },
+  { good: "spent",    bad: "numb",       charge: -85, grip:   0, radius: 42 },
+  { good: "content",  bad: "grim",       charge: -60, grip:  60, radius: 46 },
+  { good: "composed", bad: "hardened",   charge:   0, grip:  85, radius: 42 },
+  { good: "steady",   bad: "flat",       charge:   0, grip:   0, radius: 28 },
+];
+
+// fresh/worn are absolute targets on the plane, not deltas -- one row plays
+// both roles: at low impact the blend adds it like a small nudge, at high
+// impact it relocates toward it.
+//
+// `impact` and `fresh` are seeded from the shipped lifeEventAppraisals table,
+// so tuning them here is tuning what actually runs. `worn` is the proposed
+// half: wear does not exist in Go yet, and these values are a blanket first
+// guess (duller, less steadying, a worse day) for this page to argue with.
+const DEFAULT_EVENTS = [
+  { kind: "EvtSawAlien",                  tags: ["threat", "alien"],
+    impact: 45, fresh: { c: 8, g: -10, v: -15 }, worn: { c: 5, g: -19, v: -24 } },
+  { kind: "EvtSawMouse",                  tags: ["rodent"],
+    impact: 8,  fresh: { c: 2,  g: -3,  v: 0  }, worn: { c: 3,  g: -8,  v: -8  } },
+  { kind: "EvtSawGore",                   tags: ["gore"],
+    impact: 30, fresh: { c: -3, g: -7, v: -6 }, worn: { c: -2, g: -11, v: -10 } },
+  { kind: "EvtBitten",                    tags: ["violence", "threat", "alien"],
+    impact: 70, fresh: { c: 55, g: -44,  v: -30 }, worn: { c: 38, g: -74, v: -60 } },
+  { kind: "EvtWitnessedColonistKilled",   tags: ["death", "violence", "social-loss", "gore"],
+    impact: 95, fresh: { c: 28, g: -74,  v: -60 }, worn: { c: 19, g: -100, v: -90 } },
+  { kind: "EvtWitnessedColonistAttacked", tags: ["violence", "social-loss"],
+    impact: 75, fresh: { c: 35, g: -63,  v: -40 }, worn: { c: 24, g: -93, v: -70 } },
+  { kind: "EvtCrushedMouse",              tags: ["pest-control"],
+    impact: 6,  fresh: { c: -1, g: 2,   v: 0   }, worn: { c: -4, g: 2,   v: -2  } },
+  { kind: "EvtWitnessedMouseCrushed",     tags: ["gore", "pest-control"],
+    impact: 8,  fresh: { c: -1, g: -2,  v: -1  }, worn: { c: -4, g: -10, v: -10 } },
+  { kind: "EvtWitnessedCatCatch",         tags: ["pest-control"],
+    impact: 5,  fresh: { c: 1,  g: 1,   v: 0   }, worn: { c: 1,  g: 1,   v: -3  } },
+  { kind: "EvtKilledAlien",               tags: ["violence", "achievement", "alien"],
+    impact: 55, fresh: { c: 45, g: 52,  v: 35  }, worn: { c: 31, g: 22,  v: 5   } },
+  { kind: "EvtWitnessedAlienKilled",      tags: ["violence", "alien"],
+    impact: 35, fresh: { c: 5, g: 6,  v: 4  }, worn: { c: 3, g: 2,   v: 0   } },
+  { kind: "EvtWoundedAlien",              tags: ["violence", "alien"],
+    impact: 25, fresh: { c: 4, g: 5,  v: 2  }, worn: { c: 2,  g: 2,   v: -1   } },
+  { kind: "EvtWitnessedGunfight",         tags: ["violence", "threat"],
+    impact: 50, fresh: { c: 35, g: -25, v: -20 }, worn: { c: 24, g: -46, v: -41 } },
+  { kind: "EvtConversation",              tags: ["social"],
+    impact: 20, fresh: { c: 3,  g: 7,  v: 2  }, worn: { c: 2,  g: 3,  v: -2  }, outcome: true },
+  { kind: "EvtAte",                       tags: ["food"],
+    impact: 10, fresh: { c: 4,  g: 2,   v: 1   }, worn: { c: 2,  g: -1,  v: -2 } },
+  { kind: "EvtUsedToilet",                tags: ["hygiene"],
+    impact: 4,  fresh: { c: 1,  g: 2,   v: 0   }, worn: { c: 0,  g: 0,   v: -3  } },
+  { kind: "EvtSlept",                     tags: ["rest"],
+    impact: 25, fresh: { c: 15, g: 2,   v: 2  }, worn: { c: 10, g: -7,  v: -7  } },
+  { kind: "EvtNeedSatisfied",             tags: ["achievement"],
+    impact: 8,  fresh: { c: 2,  g: 2,   v: 0   }, worn: { c: 1,  g: 0,   v: -3  } },
+  { kind: "EvtFinishedMining",            tags: ["work", "finished-work"],
+    impact: 15, fresh: { c: -1, g: 5,   v: 0  }, worn: { c: 0, g: 2,  v: -3 } },
+  { kind: "EvtClearedRock",               tags: ["work", "finished-work"],
+    impact: 15, fresh: { c: -1, g: 5,   v: 0   }, worn: { c: 0, g: 2,  v: -3 } },
+  { kind: "EvtFinishedConstruction",      tags: ["work", "finished-work", "achievement"],
+    impact: 18, fresh: { c: -1, g: 6,   v: 3  }, worn: { c: 0, g: 2,  v: -1 } },
+  { kind: "EvtCleanedRefuse",             tags: ["work", "finished-work", "hygiene"],
+    impact: 14, fresh: { c: -1, g: 5,   v: 0   }, worn: { c: 0, g: 2,  v: -3 } },
+  { kind: "EvtIncineratedRefuse",         tags: ["work", "finished-work", "hygiene", "incineration"],
+    impact: 16, fresh: { c: -1, g: 7,   v: 1  }, worn: { c: 0, g: 3,  v: -3 } },
+  { kind: "EvtMutated",                   tags: ["mutation", "body-horror"],
+    impact: 60, fresh: { c: 18, g: -70, v: -35 }, worn: { c: 12, g: -100, v: -65 } },
+  { kind: "EvtWitnessedMutation",         tags: ["mutation", "body-horror"],
+    impact: 35, fresh: { c: 2, g: -8, v: -10 }, worn: { c: 1,  g: -14, v: -16 } },
+];
+
+// TraitRule: matching is "any of anyTags (or anyTags empty => matches every
+// event) AND none of notTags". Each of the five factors defaults to 1 (no
+// change) when zero/blank; a reflection is scale -1. "shipped" rules mirror
+// transformMoodVector exactly; "proposed" ones are this doc's extensions --
+// Extrovert has no mood reaction in Go yet, and Resilient/Cowardly aren't
+// Traits yet at all.
+const DEFAULT_RULES = [
+  { trait: "TraitTidy", shipped: true, anyTags: ["gore"], notTags: [],
+    charge: 2.2, grip: 2.2, valence: 1, impact: 1, wear: 1, note: "gore hits harder" },
+  { trait: "TraitTidy", shipped: true, anyTags: ["incineration"], notTags: [],
+    charge: 1, grip: 2, valence: 1, impact: 1, wear: 1, note: "an incinerator matters more to a tidy colonist" },
+  { trait: "TraitIndustrious", shipped: true, anyTags: ["finished-work"], notTags: [],
+    charge: 2, grip: 2, valence: 1, impact: 1, wear: 1, note: "finished work means more" },
+  { trait: "TraitIntrovert", shipped: true, anyTags: ["social"], notTags: [],
+    charge: -1, grip: 1, valence: 1, impact: 1, wear: 1, note: "talking drains rather than lifts" },
+  { trait: "TraitExtrovert", shipped: false, anyTags: ["social"], notTags: [],
+    charge: 1.5, grip: 1.5, valence: 1, impact: 1, wear: 1, note: "talking counts double -- not yet in transformMoodVector" },
+  { trait: "TraitMutantLover", shipped: true, anyTags: ["mutation"], notTags: [],
+    charge: 1, grip: -1, valence: 1, impact: 1, wear: 1, note: "body horror becomes mastery" },
+  { trait: "Resilient", shipped: false, anyTags: [], notTags: [],
+    charge: 1, grip: 1, valence: 1, impact: 1, wear: 0.4, note: "accrues wear slowly -- not yet a Trait" },
+  { trait: "Cowardly", shipped: false, anyTags: [], notTags: [],
+    charge: 1, grip: 1, valence: 1, impact: 1, wear: 1.8, note: "reaches worn in a couple of exposures -- not yet a Trait" },
+  { trait: "Loyal", shipped: false, anyTags: ["friend-died"], notTags: [],
+    charge: 1, grip: 0.7, valence: 1.4, impact: 1.1, wear: 0.6,
+    note: "the dynamic-tag example from the doc's Tags section: grieves harder and takes longer to move on when the checkbox marks the victim as a friend -- not yet a Trait, and this rule only fires when that checkbox is on" },
+];
+
+let attractors, events, rules, activeRuleIds, wear, occurrences, log;
+let st   = { charge: 0, grip: 0, valence: 0 };   // the colonist
+let home = { charge: 0, grip: 0, valence: 0 };   // temperament: where mood decays back to
+let impulses = [];                   // {axis deltas, left} -- an application spent over N ticks
+let trail = [];
+let running = true;
+let currentName = null;              // for hysteresis
+let selectedKind = null;             // which event row's editor is open
+let optimistOn = false, pessimistOn = false;
+
+function ruleId(r, i) { return r.trait + "#" + i; }
+
+// ---------------------------------------------------------------------------
+// Persistence (a tuning tool is useless if it forgets your tuning)
+// ---------------------------------------------------------------------------
+function save() {
+  try {
+    localStorage.setItem("moodspace3", JSON.stringify({
+      attractors, events, rules, home,
+      activeRules: [...activeRuleIds],
+      wear, occurrences,
+      optimistOn, pessimistOn,
+      homeValence: +homeValence.value,
+      rRate: +rRate.value, thRate: +thRate.value, vRate: +vRate.value, inertia: +inertia.value,
+      pushThresh: +pushThresh.value, pullRange: +pullRange.value, wearStep: +wearStep.value,
+    }));
+  } catch (e) { /* private window, blocked storage -- the tool still works */ }
+}
+function load() {
+  attractors = DEFAULT_ATTRACTORS.map(a => ({ ...a }));
+  events     = DEFAULT_EVENTS.map(e => ({ ...e, fresh: { ...e.fresh }, worn: { ...e.worn }, tags: [...e.tags] }));
+  rules      = DEFAULT_RULES.map(r => ({ ...r, anyTags: [...r.anyTags], notTags: [...r.notTags] }));
+  activeRuleIds = new Set(rules.map((r, i) => ruleId(r, i)));
+  wear = {}; occurrences = {}; log = [];
+  try {
+    const raw = localStorage.getItem("moodspace3");
+    if (!raw) return;
+    const s = JSON.parse(raw);
+    if (Array.isArray(s.attractors) && s.attractors.length) attractors = s.attractors;
+    if (Array.isArray(s.events) && s.events.length)         events     = s.events;
+    if (Array.isArray(s.rules))                             rules      = s.rules;
+    if (Array.isArray(s.activeRules))  activeRuleIds = new Set(s.activeRules);
+    if (s.wear)        wear = s.wear;
+    if (s.occurrences) occurrences = s.occurrences;
+    if (s.home) home = s.home;
+    if (typeof s.optimistOn  === "boolean") optimistOn  = s.optimistOn;
+    if (typeof s.pessimistOn === "boolean") pessimistOn = s.pessimistOn;
+    if (typeof s.homeValence === "number") homeValence.value = s.homeValence;
+    if (typeof s.rRate      === "number") rRate.value      = s.rRate;
+    if (typeof s.thRate     === "number") thRate.value     = s.thRate;
+    if (typeof s.vRate      === "number") vRate.value      = s.vRate;
+    if (typeof s.inertia    === "number") inertia.value    = s.inertia;
+    if (typeof s.pushThresh === "number") pushThresh.value = s.pushThresh;
+    if (typeof s.pullRange  === "number") pullRange.value  = s.pullRange;
+    if (typeof s.wearStep   === "number") wearStep.value   = s.wearStep;
+  } catch (e) { /* corrupt or unreadable -- fall back to defaults */ }
+}
+
+// ---------------------------------------------------------------------------
+// Vector / rule helpers
+// ---------------------------------------------------------------------------
+const clamp = (v, lo, hi) => v < lo ? lo : v > hi ? hi : v;
+const mag   = p => Math.hypot(p.grip, p.charge);
+const numOr1 = v => (v === 0 || v === undefined || v === null || Number.isNaN(v)) ? 1 : v;
+const lerp = (a, b, t) => a + (b - a) * t;
+
+function activeRules() {
+  return rules.filter((r, i) => activeRuleIds.has(ruleId(r, i)));
+}
+
+function ruleMatches(r, tags) {
+  const any = r.anyTags.length === 0 || r.anyTags.some(t => tags.includes(t));
+  const not = r.notTags.some(t => tags.includes(t));
+  return any && !not;
+}
+
+function matchingRules(tags) {
+  return activeRules().filter(r => ruleMatches(r, tags));
+}
+
+// currentHome folds baseline-trait toggles into the draggable home point --
+// they shift where decay settles, not how any one event lands.
+function currentHome() {
+  return {
+    charge: home.charge,
+    grip: home.grip + (optimistOn ? 8 : 0) - (pessimistOn ? 8 : 0),
+    valence: clamp((+homeValence.value) + (optimistOn ? 25 : 0) - (pessimistOn ? 25 : 0), -LIM, LIM),
+  };
+}
+
+// wearOf is occurrence count x step size x active WearRate multipliers,
+// capped at 1. A real memory log (Phase 4/5, deferred) would recount this
+// from retained memories instead of a raw counter -- see open question 1.
+function wearOf(kind) {
+  return clamp(wear[kind] || 0, 0, 1);
+}
+
+function bumpWear(kind, tags) {
+  let mul = 1;
+  for (const r of matchingRules(tags)) mul *= numOr1(r.wear);
+  const step = (+wearStep.value) / 100 * mul;
+  wear[kind] = clamp((wear[kind] || 0) + step, 0, 1);
+  occurrences[kind] = (occurrences[kind] || 0) + 1;
+}
+
+function targetFor(ev, tags) {
+  const matches = matchingRules(tags);
+  const w = wearOf(ev.kind);
+  const axisTarget = axis => {
+    let fresh = ev.fresh[axis], worn = ev.worn[axis];
+    for (const r of matches) {
+      const m = numOr1(r[axis === "c" ? "charge" : axis === "g" ? "grip" : "valence"]);
+      fresh *= m; worn *= m;
+    }
+    return lerp(fresh, worn, w);
+  };
+  return { charge: axisTarget("c"), grip: axisTarget("g"), valence: axisTarget("v") };
+}
+
+function effectiveImpact(ev, tags) {
+  let impact = ev.impact;
+  for (const r of matchingRules(tags)) impact *= numOr1(r.impact);
+  return clamp(impact, 0, 100);
+}
+
+// nameAt scores every attractor by distance / radius and returns the best one
+// under 1.0. Above that the point is in unclaimed space, which deliberately
+// reads as plain rather than being forced into the nearest wedge.
+function nameAt(p) {
+  let best = null, bestScore = Infinity;
+  for (let i = 0; i < attractors.length; i++) {
+    const a = attractors[i];
+    const r = Math.max(1, a.radius);
+    const s = Math.hypot(p.grip - a.grip, p.charge - a.charge) / r;
+    if (s < bestScore) { bestScore = s; best = i; }
+  }
+  return bestScore <= 1 ? { idx: best, score: bestScore } : { idx: -1, score: bestScore };
+}
+
+function displayName(idx) {
+  if (idx < 0) return "settling";
+  const a = attractors[idx];
+  return st.valence >= 0 ? (a.good || "?") : (a.bad || "?");
+}
+
+const HUE = i => (i * 47 + 12) % 360;
+
+// ---------------------------------------------------------------------------
+// Simulation
+// ---------------------------------------------------------------------------
+// fire applies one event's impact-weighted push/pull blend:
+//   k = clamp((impact - pushThresh) / pullRange, 0, 1)
+//   target = lerp(fresh, worn, wear)   -- trait-scaled per axis
+//   state' = state*(1-k) + target      -- target doubles as v: at k=0 this is
+//                                           a plain nudge, at k=1 a relocation
+// spent over `inertia` ticks purely for a readable trail; the model itself is
+// instantaneous.
+function fire(ev, opts) {
+  opts = opts || {};
+  const extra = opts.extraTags || [];
+  const scale = opts.scale === undefined ? 1 : opts.scale;
+  const tags = ev.tags.concat(extra);
+  const impact = effectiveImpact(ev, tags);
+  const k = clamp((impact - (+pushThresh.value)) / Math.max(1, +pullRange.value), 0, 1);
+  const target = targetFor(ev, tags);
+  const n = Math.max(1, Math.round(+inertia.value));
+  const endState = {
+    charge:  clamp(st.charge  * (1 - k) + target.charge  * scale, -LIM, LIM),
+    grip:    clamp(st.grip    * (1 - k) + target.grip    * scale, -LIM, LIM),
+    valence: clamp(st.valence * (1 - k) + target.valence * scale, -LIM, LIM),
+  };
+  impulses.push({
+    dCharge:  (endState.charge  - st.charge)  / n,
+    dGrip:    (endState.grip    - st.grip)    / n,
+    dValence: (endState.valence - st.valence) / n,
+    left: n,
+  });
+  bumpWear(ev.kind, tags);
+  log.unshift({ kind: ev.kind, tags, impact: Math.round(impact), k: k.toFixed(2), t: Date.now() });
+  if (log.length > 40) log.length = 40;
+  renderEvents();
+  renderLog();
+  save();
+}
+
+function tick() {
+  for (const im of impulses) {
+    if (im.left <= 0) continue;
+    st.charge  += im.dCharge;
+    st.grip    += im.dGrip;
+    st.valence += im.dValence;
+    im.left--;
+  }
+  impulses = impulses.filter(im => im.left > 0);
+
+  const h = currentHome();
+
+  // Charge/grip decay in polar: magnitude is pulled toward home's magnitude
+  // quickly, angle rotates toward home's angle slowly -- "intensity fades but
+  // you keep facing the same way" is the mood/temperament split.
+  const rK  = (+rRate.value)  / 1000;
+  const thK = (+thRate.value) / 1000;
+  const hr = mag(h), hth = Math.atan2(h.charge, h.grip);
+  let r = mag(st), th = Math.atan2(st.charge, st.grip);
+  r += (hr - r) * rK;
+  if (hr > 0.5 && r > 0.5) {
+    let d = ((hth - th + Math.PI) % (2 * Math.PI) + 2 * Math.PI) % (2 * Math.PI) - Math.PI;
+    th += d * thK;
+  }
+  st.grip   = clamp(r * Math.cos(th), -LIM, LIM);
+  st.charge = clamp(r * Math.sin(th), -LIM, LIM);
+
+  // Valence has no angle -- it is one scalar, plain linear approach to its own
+  // home, on its own (slower) rate.
+  const vAmt = (+vRate.value) / 100;
+  st.valence = clamp(st.valence + (h.valence - st.valence) * vAmt, -LIM, LIM);
+
+  trail.push({ grip: st.grip, charge: st.charge });
+  if (trail.length > 500) trail.shift();
+}
+
+// A plausible sequence, to watch a day's worth of small vectors accumulate,
+// and to show EvtSawAlien wearing in across repeats.
+function runShift() {
+  const script = ["EvtSlept", "EvtAte", "EvtUsedToilet", "EvtFinishedMining", "EvtClearedRock",
+                  "EvtConversation", "EvtFinishedConstruction", "EvtSawGore", "EvtSawAlien",
+                  "EvtSawAlien", "EvtWitnessedAlienKilled", "EvtAte"];
+  let delay = 0;
+  for (const kind of script) {
+    const ev = events.find(e => e.kind === kind);
+    if (!ev) continue;
+    setTimeout(() => fire(ev), delay);
+    delay += 420;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Rendering: plane
+// ---------------------------------------------------------------------------
+const cv = document.getElementById("plane");
+const ctx = cv.getContext("2d");
+let S = 900, cx = 450, cy = 450, scale = 4;
+
+// The region tint is expensive per pixel, so it is computed once into a small
+// offscreen canvas and scaled up; it is only recomputed when an attractor moves.
+const FIELD = 150;
+const fieldCv = document.createElement("canvas");
+fieldCv.width = fieldCv.height = FIELD;
+const fieldCtx = fieldCv.getContext("2d");
+let fieldDirty = true;
+
+function drawField() {
+  const img = fieldCtx.createImageData(FIELD, FIELD);
+  const d = img.data;
+  for (let y = 0; y < FIELD; y++) {
+    const charge = LIM - (y / (FIELD - 1)) * 2 * LIM;
+    for (let x = 0; x < FIELD; x++) {
+      const grip = -LIM + (x / (FIELD - 1)) * 2 * LIM;
+      const hit = nameAt({ charge, grip });
+      const o = (y * FIELD + x) * 4;
+      if (hit.idx < 0) { d[o] = d[o+1] = d[o+2] = 128; d[o+3] = 10; continue; }
+      const [r, g, b] = hslToRgb(HUE(hit.idx) / 360, 0.62, 0.55);
+      d[o] = r; d[o+1] = g; d[o+2] = b;
+      d[o+3] = 40 + (1 - hit.score) * 95;   // brighter toward each attractor's core
+    }
+  }
+  fieldCtx.putImageData(img, 0, 0);
+  fieldDirty = false;
+}
+
+function hslToRgb(h, s, l) {
+  const f = n => {
+    const k = (n + h * 12) % 12;
+    const a = s * Math.min(l, 1 - l);
+    return Math.round(255 * (l - a * Math.max(-1, Math.min(k - 3, Math.min(9 - k, 1)))));
+  };
+  return [f(0), f(8), f(4)];
+}
+
+function resize() {
+  const w = Math.max(280, Math.min(cv.parentElement.clientWidth, 560));
+  const dpr = window.devicePixelRatio || 1;
+  S = w;
+  cv.style.height = w + "px";
+  cv.width = cv.height = Math.round(w * dpr);
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  cx = cy = w / 2;
+  scale = (w / 2 - 26) / LIM;
+  draw();
+}
+
+const px = p => ({ x: cx + p.grip * scale, y: cy - p.charge * scale });
+const toPlane = (x, y) => ({ grip: clamp((x - cx) / scale, -LIM, LIM), charge: clamp((cy - y) / scale, -LIM, LIM) });
+
+function css(v) { return getComputedStyle(document.documentElement).getPropertyValue(v).trim(); }
+
+function draw() {
+  const ink = css("--ink"), dim = css("--dim"), line = css("--line"), accent = css("--accent");
+  ctx.clearRect(0, 0, S, S);
+
+  if (showField.checked) {
+    if (fieldDirty) drawField();
+    ctx.imageSmoothingEnabled = true;
+    ctx.drawImage(fieldCv, cx - LIM * scale, cy - LIM * scale, 2 * LIM * scale, 2 * LIM * scale);
+  }
+
+  ctx.strokeStyle = line;
+  ctx.lineWidth = 1;
+  for (let r = 25; r <= LIM; r += 25) {
+    ctx.beginPath();
+    ctx.arc(cx, cy, r * scale, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+  ctx.globalAlpha = 0.55;
+  for (let a = 0; a < 360; a += 30) {
+    const rad = a * Math.PI / 180;
+    ctx.beginPath();
+    ctx.moveTo(cx, cy);
+    ctx.lineTo(cx + Math.cos(rad) * LIM * scale, cy - Math.sin(rad) * LIM * scale);
+    ctx.stroke();
+  }
+  ctx.globalAlpha = 1;
+
+  ctx.strokeStyle = dim;
+  ctx.lineWidth = 1.4;
+  ctx.beginPath();
+  ctx.moveTo(cx - LIM * scale, cy); ctx.lineTo(cx + LIM * scale, cy);
+  ctx.moveTo(cx, cy - LIM * scale); ctx.lineTo(cx, cy + LIM * scale);
+  ctx.stroke();
+
+  ctx.fillStyle = dim;
+  ctx.font = "600 10px " + css("--mono");
+  ctx.textAlign = "center";
+  ctx.fillText("CHARGE +", cx, 12);
+  ctx.fillText("CHARGE −", cx, S - 4);
+  ctx.save();
+  ctx.translate(10, cy); ctx.rotate(-Math.PI / 2);
+  ctx.fillText("GRIP −", 0, 0);
+  ctx.restore();
+  ctx.save();
+  ctx.translate(S - 10, cy); ctx.rotate(Math.PI / 2);
+  ctx.fillText("GRIP +", 0, 0);
+  ctx.restore();
+
+  ctx.textAlign = "center";
+  for (let i = 0; i < attractors.length; i++) {
+    const a = attractors[i], p = px(a);
+    ctx.strokeStyle = "hsl(" + HUE(i) + " 60% 50%)";
+    ctx.globalAlpha = 0.5;
+    ctx.lineWidth = 1;
+    ctx.setLineDash([3, 3]);
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, Math.max(1, a.radius) * scale, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.globalAlpha = 1;
+
+    ctx.fillStyle = "hsl(" + HUE(i) + " 60% 45%)";
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, 4, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = ink;
+    ctx.font = "600 11px " + css("--mono");
+    ctx.fillText(displayName(i), p.x, p.y - 9);
+  }
+
+  if (showTrail.checked && trail.length > 1) {
+    ctx.lineWidth = 1.6;
+    for (let i = 1; i < trail.length; i++) {
+      const a = px(trail[i - 1]), b = px(trail[i]);
+      ctx.globalAlpha = 0.06 + 0.5 * (i / trail.length);
+      ctx.strokeStyle = accent;
+      ctx.beginPath();
+      ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y);
+      ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  const h = currentHome();
+  const hp = px(h);
+  ctx.strokeStyle = dim;
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(hp.x - 5, hp.y); ctx.lineTo(hp.x + 5, hp.y);
+  ctx.moveTo(hp.x, hp.y - 5); ctx.lineTo(hp.x, hp.y + 5);
+  ctx.stroke();
+  ctx.fillStyle = dim;
+  ctx.font = "9px " + css("--mono");
+  ctx.fillText("home", hp.x, hp.y + 15);
+
+  const owed = impulses.reduce((s, im) => ({ c: s.c + im.dCharge * im.left, g: s.g + im.dGrip * im.left }), { c: 0, g: 0 });
+  const cp = px(st);
+  if (Math.hypot(owed.c, owed.g) > 0.4) {
+    const tip = px({ charge: st.charge + owed.c, grip: st.grip + owed.g });
+    arrow(cp, tip, accent, 0.45);
+  }
+
+  ctx.beginPath();
+  ctx.arc(cp.x, cp.y, 7, 0, Math.PI * 2);
+  ctx.fillStyle = accent;
+  ctx.fill();
+  ctx.strokeStyle = css("--panel");
+  ctx.lineWidth = 2;
+  ctx.stroke();
+}
+
+function arrow(from, to, color, alpha) {
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.strokeStyle = color;
+  ctx.fillStyle = color;
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(from.x, from.y); ctx.lineTo(to.x, to.y);
+  ctx.stroke();
+  const a = Math.atan2(to.y - from.y, to.x - from.x);
+  ctx.beginPath();
+  ctx.moveTo(to.x, to.y);
+  ctx.lineTo(to.x - 8 * Math.cos(a - 0.4), to.y - 8 * Math.sin(a - 0.4));
+  ctx.lineTo(to.x - 8 * Math.cos(a + 0.4), to.y - 8 * Math.sin(a + 0.4));
+  ctx.closePath();
+  ctx.fill();
+  ctx.restore();
+}
+
+// ---------------------------------------------------------------------------
+// Pointer interaction (charge/grip plane only -- valence has its own gauge)
+// ---------------------------------------------------------------------------
+let drag = null;
+
+function localPt(e) {
+  const r = cv.getBoundingClientRect();
+  return { x: e.clientX - r.left, y: e.clientY - r.top };
+}
+
+cv.addEventListener("pointerdown", e => {
+  const m = localPt(e);
+  cv.setPointerCapture(e.pointerId);
+  const cp = px(st);
+  if (Math.hypot(m.x - cp.x, m.y - cp.y) < 14) { drag = { what: "colonist" }; return; }
+  const hp = px(home);
+  if (Math.hypot(m.x - hp.x, m.y - hp.y) < 12) { drag = { what: "home" }; return; }
+  for (let i = 0; i < attractors.length; i++) {
+    const p = px(attractors[i]);
+    if (Math.hypot(m.x - p.x, m.y - p.y) < 12) { drag = { what: "attr", i }; return; }
+  }
+  const p = toPlane(m.x, m.y);
+  st.charge = p.charge; st.grip = p.grip;
+  trail.length = 0;
+  draw();
+});
+
+cv.addEventListener("pointermove", e => {
+  if (!drag) return;
+  const m = localPt(e);
+  if (drag.what === "colonist") {
+    const p = toPlane(m.x, m.y);
+    st.charge = p.charge; st.grip = p.grip;
+    trail.length = 0;
+  } else if (drag.what === "home") {
+    const p = toPlane(m.x, m.y);
+    home.charge = p.charge; home.grip = p.grip;
+  } else if (drag.what === "attr") {
+    const p = toPlane(m.x, m.y);
+    attractors[drag.i].charge = Math.round(p.charge);
+    attractors[drag.i].grip   = Math.round(p.grip);
+    fieldDirty = true;
+    renderAttractors();
+  }
+  draw();
+});
+
+cv.addEventListener("pointerup", () => {
+  if (drag) save();
+  drag = null;
+  draw();
+});
+
+// ---------------------------------------------------------------------------
+// Panels
+// ---------------------------------------------------------------------------
+const $ = id => document.getElementById(id);
+const rRate = $("rRate"), thRate = $("thRate"), vRate = $("vRate"), inertia = $("inertia");
+const homeValence = $("homeValence");
+const pushThresh = $("pushThresh"), pullRange = $("pullRange"), wearStep = $("wearStep");
+const showField = $("showField"), showTrail = $("showTrail"), hyst = $("hyst");
+const optimistBox = $("optimist"), pessimistBox = $("pessimist"), friendDied = $("friendDied");
+
+function renderEvents() {
+  const tb = $("events");
+  tb.innerHTML = "";
+  for (const ev of events) {
+    const tr = document.createElement("tr");
+    if (ev.kind === selectedKind) tr.className = "selected";
+
+    const name = document.createElement("td");
+    name.className = "kind";
+    name.textContent = ev.kind;
+    name.title = ev.tags.join(", ");
+    name.addEventListener("click", () => { selectedKind = (selectedKind === ev.kind) ? null : ev.kind; renderEvents(); renderEditor(); });
+    tr.appendChild(name);
+
+    const imp = document.createElement("td");
+    imp.className = "mini";
+    imp.textContent = ev.impact;
+    tr.appendChild(imp);
+
+    const w = document.createElement("td");
+    w.className = "mini";
+    w.textContent = Math.round(wearOf(ev.kind) * 100) + "%";
+    tr.appendChild(w);
+
+    const act = document.createElement("td");
+    act.className = "act";
+    const b = document.createElement("button");
+    b.className = "fire";
+    b.textContent = "▸";
+    b.title = "apply this event";
+    b.addEventListener("click", () => {
+      const opts = {};
+      if (ev.outcome) opts.scale = (+($("convOutcome") ? $("convOutcome").value : 60)) / 100;
+      if (ev.kind === "EvtWitnessedColonistKilled" && friendDied.checked) opts.extraTags = ["friend-died"];
+      fire(ev, opts);
+    });
+    act.appendChild(b);
+    tr.appendChild(act);
+
+    tb.appendChild(tr);
+  }
+}
+
+function renderEditor() {
+  const box = $("eventEditor");
+  box.innerHTML = "";
+  if (!selectedKind) return;
+  const ev = events.find(e => e.kind === selectedKind);
+  if (!ev) return;
+
+  const wrap = document.createElement("div");
+  wrap.className = "rule-row";
+
+  const head = document.createElement("div");
+  head.className = "rule-head";
+  head.innerHTML = "<span class='name'>" + ev.kind + "</span>";
+  wrap.appendChild(head);
+
+  const tagsRow = document.createElement("div");
+  tagsRow.className = "row";
+  const tagLab = document.createElement("span"); tagLab.className = "mini-lab"; tagLab.textContent = "tags";
+  tagsRow.appendChild(tagLab);
+  const tagInp = document.createElement("input");
+  tagInp.type = "text"; tagInp.className = "tag"; tagInp.style.flex = "1 1 auto";
+  tagInp.value = ev.tags.join(", ");
+  tagInp.addEventListener("change", () => {
+    ev.tags = tagInp.value.split(",").map(t => t.trim()).filter(Boolean);
+    renderEvents(); save();
+  });
+  tagsRow.appendChild(tagInp);
+  wrap.appendChild(tagsRow);
+
+  const impRow = document.createElement("div");
+  impRow.className = "row";
+  const impLab = document.createElement("span"); impLab.className = "mini-lab"; impLab.textContent = "impact";
+  impRow.appendChild(impLab);
+  const impInp = document.createElement("input");
+  impInp.type = "number"; impInp.className = "wide"; impInp.value = ev.impact;
+  impInp.addEventListener("change", () => { ev.impact = clamp(+impInp.value || 0, 0, 100); impInp.value = ev.impact; renderEvents(); save(); });
+  impRow.appendChild(impInp);
+  if (ev.outcome) {
+    impRow.appendChild(document.createTextNode(""));
+    const oLab = document.createElement("span"); oLab.className = "mini-lab"; oLab.style.marginLeft = "10px"; oLab.textContent = "outcome";
+    impRow.appendChild(oLab);
+    const oInp = document.createElement("input");
+    oInp.type = "range"; oInp.min = -100; oInp.max = 100; oInp.value = 60; oInp.id = "convOutcome";
+    oInp.style.flex = "1 1 80px";
+    impRow.appendChild(oInp);
+  }
+  wrap.appendChild(impRow);
+
+  for (const [label, key] of [["fresh", "fresh"], ["worn", "worn"]]) {
+    const row = document.createElement("div");
+    row.className = "rule-fields";
+    const lab = document.createElement("span"); lab.className = "mini-lab"; lab.style.width = "38px"; lab.textContent = label;
+    row.appendChild(lab);
+    for (const [axis, axisLabel] of [["c", "chg"], ["g", "grip"], ["v", "val"]]) {
+      const f = document.createElement("div"); f.className = "mini-field";
+      const al = document.createElement("span"); al.className = "mini-lab"; al.textContent = axisLabel;
+      const inp = document.createElement("input");
+      inp.type = "number"; inp.value = ev[key][axis];
+      inp.addEventListener("change", () => {
+        ev[key][axis] = clamp(+inp.value || 0, -LIM, LIM);
+        inp.value = ev[key][axis];
+        save(); draw();
+      });
+      f.appendChild(al); f.appendChild(inp);
+      row.appendChild(f);
+    }
+    wrap.appendChild(row);
+  }
+
+  box.appendChild(wrap);
+}
+
+function renderRules() {
+  const box = $("rules");
+  box.innerHTML = "";
+  rules.forEach((r, i) => {
+    const id = ruleId(r, i);
+    const row = document.createElement("div");
+    row.className = "rule-row";
+
+    const head = document.createElement("div");
+    head.className = "rule-head";
+    const cb = document.createElement("input");
+    cb.type = "checkbox"; cb.checked = activeRuleIds.has(id);
+    cb.addEventListener("change", () => {
+      if (cb.checked) activeRuleIds.add(id); else activeRuleIds.delete(id);
+      renderEvents(); save();
+    });
+    head.appendChild(cb);
+    const nameInp = document.createElement("input");
+    nameInp.type = "text"; nameInp.value = r.trait; nameInp.style.width = "120px";
+    nameInp.addEventListener("change", () => { r.trait = nameInp.value; renderRules(); save(); });
+    head.appendChild(nameInp);
+    const badge = document.createElement("span");
+    badge.className = "badge " + (r.shipped ? "shipped" : "proposed");
+    badge.textContent = r.shipped ? "shipped" : "proposed";
+    head.appendChild(badge);
+    const del = document.createElement("button");
+    del.className = "fire"; del.textContent = "×"; del.title = "remove";
+    del.style.marginLeft = "auto";
+    del.addEventListener("click", () => { rules.splice(i, 1); renderRules(); renderEvents(); save(); });
+    head.appendChild(del);
+    row.appendChild(head);
+
+    const tagRow = document.createElement("div");
+    tagRow.className = "row";
+    for (const [lab, key] of [["any", "anyTags"], ["not", "notTags"]]) {
+      const l = document.createElement("span"); l.className = "mini-lab"; l.textContent = lab;
+      tagRow.appendChild(l);
+      const inp = document.createElement("input");
+      inp.type = "text"; inp.className = "tag"; inp.style.flex = "1 1 70px";
+      inp.value = r[key].join(", ");
+      inp.addEventListener("change", () => {
+        r[key] = inp.value.split(",").map(t => t.trim()).filter(Boolean);
+        renderEvents(); save();
+      });
+      tagRow.appendChild(inp);
+    }
+    row.appendChild(tagRow);
+
+    const fields = document.createElement("div");
+    fields.className = "rule-fields";
+    for (const [lab, key] of [["chg", "charge"], ["grip", "grip"], ["val", "valence"], ["impact", "impact"], ["wear", "wear"]]) {
+      const f = document.createElement("div"); f.className = "mini-field";
+      const al = document.createElement("span"); al.className = "mini-lab"; al.textContent = lab;
+      const inp = document.createElement("input");
+      inp.type = "number"; inp.step = 0.1; inp.value = r[key];
+      inp.title = "×" + numOr1(r[key]) + " (0/blank = ×1)";
+      inp.addEventListener("change", () => {
+        r[key] = +inp.value; inp.value = r[key];
+        inp.title = "×" + numOr1(r[key]) + " (0/blank = ×1)";
+        renderEvents(); save();
+      });
+      f.appendChild(al); f.appendChild(inp);
+      fields.appendChild(f);
+    }
+    row.appendChild(fields);
+
+    if (r.note) {
+      const note = document.createElement("p");
+      note.className = "hint"; note.style.margin = "4px 0 0";
+      note.textContent = r.note;
+      row.appendChild(note);
+    }
+
+    box.appendChild(row);
+  });
+}
+
+function renderAttractors() {
+  const box = $("attractors");
+  box.innerHTML = "";
+  attractors.forEach((a, i) => {
+    const row = document.createElement("div");
+    row.className = "attr-row";
+
+    const sw = document.createElement("span");
+    sw.className = "swatch";
+    sw.style.background = "hsl(" + HUE(i) + " 60% 50%)";
+    row.appendChild(sw);
+
+    for (const [key, cls, ph] of [["good", "good-in", "valence ok"], ["bad", "bad-in", "valence bad"]]) {
+      const inp = document.createElement("input");
+      inp.type = "text";
+      inp.className = cls;
+      inp.value = a[key];
+      inp.placeholder = ph;
+      inp.addEventListener("input", () => { a[key] = inp.value; draw(); save(); });
+      row.appendChild(inp);
+    }
+
+    for (const key of ["charge", "grip", "radius"]) {
+      const inp = document.createElement("input");
+      inp.type = "number";
+      inp.value = a[key];
+      inp.title = key;
+      inp.addEventListener("change", () => {
+        a[key] = clamp(+inp.value || 0, key === "radius" ? 1 : -LIM, key === "radius" ? 300 : LIM);
+        inp.value = a[key];
+        fieldDirty = true;
+        draw();
+        save();
+      });
+      row.appendChild(inp);
+    }
+
+    const del = document.createElement("button");
+    del.className = "fire";
+    del.textContent = "×";
+    del.title = "remove";
+    del.addEventListener("click", () => {
+      attractors.splice(i, 1);
+      fieldDirty = true;
+      renderAttractors();
+      draw();
+      save();
+    });
+    row.appendChild(del);
+
+    box.appendChild(row);
+  });
+}
+
+function renderLog() {
+  const box = $("log");
+  box.innerHTML = "";
+  if (log.length === 0) { box.textContent = "Nothing fired yet."; return; }
+  for (const entry of log) {
+    const d = document.createElement("div");
+    const extra = entry.tags.length ? " [" + entry.tags.join(",") + "]" : "";
+    d.textContent = entry.kind + extra + "  impact=" + entry.impact + " k=" + entry.k;
+    box.appendChild(d);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Readout
+// ---------------------------------------------------------------------------
+function updateReadout() {
+  const hit = nameAt(st);
+  // Hysteresis: a challenger has to beat the incumbent by a margin before the
+  // name flips, so a colonist hovering on a boundary does not strobe between
+  // two words in the roster.
+  if (hyst.checked && currentName !== null && currentName >= 0 && currentName < attractors.length) {
+    const inc = attractors[currentName];
+    const incScore = Math.hypot(st.grip - inc.grip, st.charge - inc.charge) / Math.max(1, inc.radius);
+    if (!(hit.idx !== currentName && hit.score < incScore - 0.15)) {
+      if (incScore <= 1.15) hit.idx = currentName;
+    }
+  }
+  currentName = hit.idx;
+
+  const el = $("moodName");
+  el.textContent = displayName(hit.idx);
+  el.className = "moodname " + (hit.idx < 0 ? "" : (st.valence >= 0 ? "good" : "bad"));
+
+  const r = mag(st);
+  let deg = Math.atan2(st.charge, st.grip) * 180 / Math.PI;
+  if (deg < 0) deg += 360;
+  const dirs = ["→", "↗", "↑", "↖", "←", "↙", "↓", "↘"];
+  const arrowGlyph = r < 4 ? "·" : dirs[Math.round(deg / 45) % 8];
+  const n0 = v => { const n = Math.round(v); return n === 0 ? 0 : n; };
+  $("coords").textContent =
+    "charge " + n0(st.charge) + "  grip " + n0(st.grip) + "  valence " + n0(st.valence) +
+    "   r " + n0(r) + "  θ " + n0(deg) + "°  " + arrowGlyph +
+    (hit.idx < 0 ? "  (unclaimed)" : "");
+
+  const pct = (st.valence + LIM) / (2 * LIM) * 100;
+  $("gaugeMark").style.left = clamp(pct, 0, 100) + "%";
+  const h = currentHome();
+  const hpct = (h.valence + LIM) / (2 * LIM) * 100;
+  $("gaugeHome").style.left = clamp(hpct, 0, 100) + "%";
+  $("gaugeVal").textContent = n0(st.valence);
+}
+
+function updateLabels() {
+  const half = k => k <= 0 ? "never" : Math.round(Math.log(2) / (k / 1000)) + " ticks";
+  $("rRateOut").textContent  = "half-life " + half(+rRate.value);
+  $("thRateOut").textContent = "half-life " + half(+thRate.value);
+  $("vRateOut").textContent  = "half-life " + half(+vRate.value * 10);
+  $("inertiaOut").textContent = inertia.value + " ticks to spend an event";
+  $("homeValenceOut").textContent = (+homeValence.value >= 0 ? "+" : "") + homeValence.value;
+  $("pushThreshOut").textContent = "impact < " + pushThresh.value + " is a pure nudge";
+  $("pullRangeOut").textContent = "full relocation by impact " + (Number(pushThresh.value) + Number(pullRange.value));
+  $("wearStepOut").textContent = "+" + wearStep.value + "% wear per occurrence";
+}
+
+// ---------------------------------------------------------------------------
+// Export
+// ---------------------------------------------------------------------------
+function goInt(n) { return String(Math.round(n)); }
+function goFloat(n) {
+  const r = Math.round(n * 100) / 100;
+  return Number.isInteger(r) ? r.toFixed(1) : String(r);
+}
+function tagIdent(tag) {
+  return "Tag" + tag.split("-").map(w => w.charAt(0).toUpperCase() + w.slice(1)).join("");
+}
+function allTags() {
+  const s = new Set();
+  for (const e of events) for (const t of e.tags) s.add(t);
+  for (const r of rules) { for (const t of r.anyTags) s.add(t); for (const t of r.notTags) s.add(t); }
+  s.add("friend-died");
+  return [...s].sort();
+}
+
+function generateGo() {
+  const pad = (s, n) => s + " ".repeat(Math.max(0, n - s.length));
+  const nameW = Math.max(...attractors.map(a => (a.good || "").length)) + 3;
+  const tags = allTags();
+
+  let s = "// MoodVector already ships in affect.go with these three fields; it is\n";
+  s += "// repeated here only so the tables below are pasteable on their own.\n";
+  s += "type MoodVector struct{ Charge, Grip, Valence int }\n\n";
+
+  s += "// EventTag is free-form event flavor a TraitRule matches against. A dynamic\n";
+  s += "// tag (e.g. TagFriendDied) is stamped per occurrence by remember(), not here.\n";
+  s += "type EventTag string\n\nconst (\n";
+  for (const t of tags) s += "\t" + pad(tagIdent(t), 22) + " EventTag = " + JSON.stringify(t) + "\n";
+  s += ")\n\n";
+
+  s += "// MoodAttractor is unchanged from affect.go -- included for reference, not a\n";
+  s += "// proposed change.\n";
+  s += "var moodAttractors = []MoodAttractor{\n";
+  for (const a of attractors) {
+    s += "\t{GoodName: " + pad(JSON.stringify(a.good) + ",", nameW) +
+         " BadName: " + pad(JSON.stringify(a.bad) + ",", nameW) +
+         " Charge: " + pad(goInt(a.charge) + ",", 5) +
+         " Grip: " + pad(goInt(a.grip) + ",", 5) +
+         " Radius: " + goInt(a.radius) + "},\n";
+  }
+  s += "}\n\n";
+
+  s += "// lifeEventProfile widens the shipped moodAppraisal by one field: Worn, the\n";
+  s += "// target once a colonist is used to the event (docs/mood-space.md Wear).\n";
+  s += "// Impact and Fresh below are what affect.go already runs on; Worn is the\n";
+  s += "// proposed half. A single row plays both the push (low impact) and pull\n";
+  s += "// (high impact) roles, as it already does today.\n";
+  s += "type lifeEventProfile struct {\n\tTags        []EventTag\n\tImpact      int\n\tFresh, Worn MoodVector\n}\n\n";
+  s += "var lifeEventProfiles = [numLifeEventKinds]lifeEventProfile{\n";
+  const kindW = Math.max(...events.map(e => e.kind.length)) + 2;
+  for (const e of events) {
+    const tagList = e.tags.map(tagIdent).join(", ");
+    s += "\t" + pad(e.kind + ":", kindW) + " {Tags: []EventTag{" + tagList + "}, Impact: " + e.impact +
+         ", Fresh: MoodVector{Charge: " + goInt(e.fresh.c) + ", Grip: " + goInt(e.fresh.g) + ", Valence: " + goInt(e.fresh.v) +
+         "}, Worn: MoodVector{Charge: " + goInt(e.worn.c) + ", Grip: " + goInt(e.worn.g) + ", Valence: " + goInt(e.worn.v) + "}},\n";
+  }
+  s += "}\n\n";
+
+  s += "// TraitRule replaces transformMoodVector's per-kind switch (Phase 6). Every\n";
+  s += "// factor defaults to 1 (0 or unset -- no change), matching this codebase's\n";
+  s += "// scale-field convention; a reflection is simply -1. AnyTags empty matches\n";
+  s += "// every event.\n";
+  s += "type TraitRule struct {\n\tTrait                     Trait\n\tAnyTags, AllTags, NotTags []EventTag\n\tImpact, Charge, Grip, Valence, WearRate float64\n}\n\n";
+  s += "var traitRules = []TraitRule{\n";
+  for (const r of rules) {
+    if (!r.shipped) s += "\t// PROPOSED -- " + r.note + "\n";
+    const parts = [];
+    parts.push("Trait: " + r.trait);
+    if (r.anyTags.length) parts.push("AnyTags: []EventTag{" + r.anyTags.map(tagIdent).join(", ") + "}");
+    if (r.notTags.length) parts.push("NotTags: []EventTag{" + r.notTags.map(tagIdent).join(", ") + "}");
+    if (numOr1(r.impact) !== 1)  parts.push("Impact: " + goFloat(r.impact));
+    if (numOr1(r.charge) !== 1)  parts.push("Charge: " + goFloat(r.charge));
+    if (numOr1(r.grip) !== 1)    parts.push("Grip: " + goFloat(r.grip));
+    if (numOr1(r.valence) !== 1) parts.push("Valence: " + goFloat(r.valence));
+    if (numOr1(r.wear) !== 1)    parts.push("WearRate: " + goFloat(r.wear));
+    s += "\t{" + parts.join(", ") + "}" + (r.shipped ? "" : ", // not yet a rollable Trait") + "\n";
+  }
+  s += "}\n\n";
+
+  s += "// Baseline traits shift resolved-at-spawn home, not a TraitRule -- they\n";
+  s += "// belong in resolveTraitEffects alongside every other spawn-time trait\n";
+  s += "// effect, not the life-event funnel. Both PROPOSED; add to groupTemperament.\n";
+  s += "// TraitOptimist:  Home.Valence += 25, Home.Grip += 8\n";
+  s += "// TraitPessimist: Home.Valence -= 25, Home.Grip -= 8\n\n";
+
+  s += "// Tuned in docs/mood-space.html.\n";
+  s += "// PushImpactThreshold:        " + pushThresh.value + "  (below this, an event only nudges)\n";
+  s += "// PullImpactRange:            " + pullRange.value + "  (span over which push blends into relocation)\n";
+  s += "// WearIncrementPerOccurrence: " + (+wearStep.value / 100).toFixed(2) + "\n";
+  s += "// MoodChargeMagnitudeDecayPerMille: " + rRate.value + "\n";
+  s += "// MoodGripAngleDecayPerMille:       " + thRate.value + "\n";
+  s += "// MoodValenceDecayPerMille:         " + (vRate.value * 10) + "\n";
+  s += "// MoodEventInertiaTicks:            " + inertia.value + "\n";
+  return s;
+}
+
+// ---------------------------------------------------------------------------
+// Wiring
+// ---------------------------------------------------------------------------
+load();
+optimistBox.checked = optimistOn; pessimistBox.checked = pessimistOn;
+renderRules();
+renderEvents();
+renderEditor();
+renderAttractors();
+renderLog();
+updateLabels();
+
+for (const el of [rRate, thRate, vRate, inertia, homeValence]) {
+  el.addEventListener("input", () => { updateLabels(); draw(); updateReadout(); });
+  el.addEventListener("change", save);
+}
+for (const el of [pushThresh, pullRange, wearStep]) {
+  el.addEventListener("input", updateLabels);
+  el.addEventListener("change", save);
+}
+for (const el of [showField, showTrail, hyst]) el.addEventListener("change", draw);
+optimistBox.addEventListener("change", () => { optimistOn = optimistBox.checked; draw(); updateReadout(); save(); });
+pessimistBox.addEventListener("change", () => { pessimistOn = pessimistBox.checked; draw(); updateReadout(); save(); });
+
+$("playBtn").addEventListener("click", () => {
+  running = !running;
+  $("playBtn").textContent = running ? "Pause" : "Play";
+});
+$("stepBtn").addEventListener("click", () => { tick(); draw(); updateReadout(); });
+$("shiftBtn").addEventListener("click", runShift);
+$("homeBtn").addEventListener("click", () => {
+  const h = currentHome();
+  st = { charge: h.charge, grip: h.grip, valence: h.valence };
+  impulses = [];
+  trail.length = 0;
+  draw();
+  updateReadout();
+});
+$("clearBtn").addEventListener("click", () => { trail.length = 0; draw(); });
+$("addAttr").addEventListener("click", () => {
+  attractors.push({ good: "new", bad: "new", charge: 0, grip: 0, radius: 30 });
+  fieldDirty = true;
+  renderAttractors();
+  draw();
+  save();
+});
+$("addRule").addEventListener("click", () => {
+  const r = { trait: "NewTrait", shipped: false, anyTags: [], notTags: [], charge: 1, grip: 1, valence: 1, impact: 1, wear: 1, note: "" };
+  rules.push(r);
+  activeRuleIds.add(ruleId(r, rules.length - 1));
+  renderRules();
+  save();
+});
+$("resetWear").addEventListener("click", () => {
+  wear = {}; occurrences = {}; log = [];
+  renderEvents(); renderLog(); save();
+});
+$("resetAll").addEventListener("click", () => {
+  try { localStorage.removeItem("moodspace3"); } catch (e) {}
+  attractors = DEFAULT_ATTRACTORS.map(a => ({ ...a }));
+  events     = DEFAULT_EVENTS.map(e => ({ ...e, fresh: { ...e.fresh }, worn: { ...e.worn }, tags: [...e.tags] }));
+  rules      = DEFAULT_RULES.map(r => ({ ...r, anyTags: [...r.anyTags], notTags: [...r.notTags] }));
+  activeRuleIds = new Set(rules.map((r, i) => ruleId(r, i)));
+  wear = {}; occurrences = {}; log = [];
+  optimistOn = false; pessimistOn = false;
+  optimistBox.checked = false; pessimistBox.checked = false;
+  home = { charge: 0, grip: 0, valence: 0 };
+  st = { charge: 0, grip: 0, valence: 0 };
+  impulses = [];
+  trail.length = 0;
+  fieldDirty = true;
+  selectedKind = null;
+  renderRules();
+  renderEvents();
+  renderEditor();
+  renderAttractors();
+  renderLog();
+  draw();
+  updateReadout();
+});
+$("genBtn").addEventListener("click", () => { $("out").textContent = generateGo(); });
+$("copyBtn").addEventListener("click", async () => {
+  const text = $("out").textContent;
+  try {
+    await navigator.clipboard.writeText(text);
+    $("copyMsg").textContent = "copied";
+  } catch (e) {
+    $("copyMsg").textContent = "select the text above to copy";
+  }
+  setTimeout(() => { $("copyMsg").textContent = ""; }, 1800);
+});
+
+window.addEventListener("resize", resize);
+if (window.matchMedia) {
+  const mq = window.matchMedia("(prefers-color-scheme: dark)");
+  const onScheme = () => { fieldDirty = true; draw(); };
+  if (mq.addEventListener) mq.addEventListener("change", onScheme);
+}
+
+// 20 sim ticks a second, independent of the frame rate.
+let acc = 0, last = performance.now();
+function frame(now) {
+  const dt = Math.min(250, now - last);
+  last = now;
+  if (running) {
+    acc += dt;
+    while (acc >= 50) { tick(); acc -= 50; }
+  }
+  draw();
+  updateReadout();
+  requestAnimationFrame(frame);
+}
+resize();
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>

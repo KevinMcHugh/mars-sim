@@ -8,7 +8,7 @@ Colonists retain a short history of notable experiences — eating, mining,
 conversing, sighting an alien, watching a fight — recorded as `Memory`
 entries. Every one of these is built from a `LifeEvent`: a `LifeEventKind`
 (what kind of thing happened) paired with the player-facing text describing
-this particular occurrence. A `LifeEventKind` also indexes an affect-vector
+this particular occurrence. A `LifeEventKind` also indexes an affect-appraisal
 table and a transient-stimulus table, so remembering something, changing a
 colonist's affect, and influencing immediate focus are one ingestion act rather
 than systems call sites must keep in sync by hand.
@@ -22,7 +22,7 @@ ticks has a history, not a mining log.
 - [`internal/sim/lifeevents.go`](../internal/sim/lifeevents.go) — `LifeEventKind`,
   `LifeEvent`, event constructors, and `lifeEventCollapseText`.
 - [`internal/sim/affect.go`](../internal/sim/affect.go) — `MoodVector`,
-  `lifeEventMoodVectors`, trait transforms, and affect application.
+  `lifeEventAppraisals`, the push/pull blend, trait transforms, and affect application.
 - [`internal/sim/entity.go`](../internal/sim/entity.go) — `Memory` (carries
   `Kind`, and `LastTick`/`Count` for a collapsed run), the colonist's fixed
   stimulus storage, and `Memories`/`seen`/`seeingGore` fields.
@@ -66,7 +66,8 @@ w.remember(prey, eventFrom(EvtBitten, alien.ID,
     "Bitten in the %s by an alien!", part))
 ```
 
-`remember` (in `world.go`) is the single funnel: it applies charge/grip affect,
+`remember` (in `world.go`) is the single funnel: it applies the event's affect
+appraisal,
 inserts or coalesces a configured active stimulus, and records the `Memory`
 (bounded at 64 per colonist, oldest evicted first — or folds it into the previous
 one, see Collapsing runs of a minor event). A zero stimulus-table entry still
@@ -74,19 +75,21 @@ records affect and memory normally. There is exactly one path for a new occurren
 ongoing alien perception may refresh the expiry of an existing context without
 recording another memory.
 
-### Affect vectors: one complete table plus a computed conversation outcome
+### Affect appraisals: one complete table plus a computed conversation outcome
 
-`lifeEventMoodVectors` has one `MoodVector{Charge, Grip}` slot per event kind.
-Every non-zero row is semantic data in `affect.go`; adding an ordinary
-affect-bearing event is one table edit. `applyAffect` then applies trait
-transforms in declaration order and clamps both stored axes once.
+`lifeEventAppraisals` has one `moodAppraisal{Impact, Target}` slot per event
+kind, the target being a `MoodVector{Charge, Grip, Valence}`. Every non-zero row
+is semantic data in `affect.go`; adding an ordinary affect-bearing event is one
+table edit. `applyAffect` then applies trait transforms in declaration order,
+and `blendAffect` uses the impact to decide whether the target nudges the
+colonist or relocates them, clamping all three axes once.
 
 Conversation quality remains computed per occurrence because affinity, the live
 quality roll, and social fatigue cannot be a fixed row. `eventOutcome` carries
 that temporary signed result on the `LifeEvent`; ingestion converts it to a
 vector and applies the Introvert transform when relevant. The outcome is never
-stored as scalar mood. See [affect.md](./affect.md) for the complete vector and
-transform rules.
+stored as scalar mood. See [affect.md](./affect.md) for the complete appraisal
+and transform rules.
 
 ### Active stimuli are bounded current context
 
@@ -303,7 +306,7 @@ Mutant-Lover reflects grip positive, without a branch in `mutate()`.
 ## Extending it
 
 - **Give an existing kind affect, or add a new affect-bearing kind**: edit its
-  `MoodVector` row in `lifeEventMoodVectors` (`affect.go`). No call-site change.
+  `moodAppraisal` row in `lifeEventAppraisals` (`affect.go`). No call-site change.
 - **A computed conversation outcome** uses `eventOutcome`; keep that temporary
   input inside the one ingestion funnel rather than updating affect directly.
 - **Make an existing kind collapsible (or stop it collapsing)**: add or remove

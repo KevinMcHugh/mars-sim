@@ -459,7 +459,6 @@ func newEntity(id EntityID, kind Kind, p Point, cfg Config) *Entity {
 	}
 	if kind == Colonist {
 		e.affect.Label = MoodSteady
-		e.affect.labelName = "steady"
 	}
 	if kind == Colonist {
 		e.seen = make(map[EntityID]bool)

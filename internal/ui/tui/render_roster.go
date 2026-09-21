@@ -254,7 +254,7 @@ func (m Model) detailLines(c sim.EntityView, inner, barW int) []string {
 	}
 	b.WriteString(labelStyle.Render("STATUS") + "  " + status + "\n")
 	b.WriteString(bar("health", c.HP, c.MaxHP, barW) + "\n")
-	b.WriteString(moodLine(c.Charge, c.Grip, c.MoodLabel, barW) + "\n\n")
+	b.WriteString(moodLine(c.Charge, c.Grip, c.Valence, c.MoodLabel, barW) + "\n\n")
 
 	// One compact line rather than a bar per part: six more full gauge lines
 	// would crowd out everything below in the roster's fixed height (see
@@ -476,10 +476,10 @@ func affinityLine(name string, val, max, width int) string {
 	return fmt.Sprintf("%s %s %+d", cells.Fit(name, 12), divergeGauge(val, max, gaugeW), val)
 }
 
-// moodLine exposes both affect axes and the cached contextual label on the
+// moodLine exposes all three affect axes and the label they resolve to on the
 // single line formerly occupied by scalar mood, preserving roster height.
-func moodLine(charge, grip int, label string, width int) string {
-	line := fmt.Sprintf("%s C%+d G%+d %s", cells.Fit("affect", 7), charge, grip, label)
+func moodLine(charge, grip, valence int, label string, width int) string {
+	line := fmt.Sprintf("%s C%+d G%+d V%+d %s", cells.Fit("affect", 7), charge, grip, valence, label)
 	return cells.Truncate(line, max(1, width+20))
 }
 
