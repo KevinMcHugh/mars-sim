@@ -145,7 +145,7 @@ to one exactly the way an eater finds a nutrient pod, `chooseFacility` and all.
 - [entities-and-ai.md](./entities-and-ai.md) — where `JobClean` sits in the
   colonist's priority order.
 - [inventory.md](./inventory.md) — the stacks refuse is carried in.
-- [memories.md](./memories.md) — `EvtCleanedRefuse` / `EvtIncineratedRefuse` and
-  the Tidy colonist's relief at a clean colony.
+- [memories.md](./memories.md) — `cleaned-refuse` / `incinerated-refuse`
+  reactions and the Tidy colonist's relief at a clean colony.
 - [configuration.md](./configuration.md) — `CleanRadius`, `CleanTicks`,
   `IncinerateTicks`, `IncineratorBuildTicks` and their flags.

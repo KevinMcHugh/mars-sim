@@ -15,26 +15,25 @@ func TestMoodAttractorsIndexedByKind(t *testing.T) {
 	}
 }
 
-func TestLifeEventAppraisalTable(t *testing.T) {
+func TestReactionAppraisals(t *testing.T) {
 	cfg := DefaultConfig()
-	for kind := LifeEventKind(0); kind < numLifeEventKinds; kind++ {
-		a := lifeEventAppraisals[kind]
-		if a.Impact < 0 || a.Impact > 100 {
-			t.Errorf("kind %d impact %d outside [0, 100]", kind, a.Impact)
+	for _, reaction := range cfg.Cognition.Reactions {
+		if reaction.Impact < 0 || reaction.Impact > 100 {
+			t.Errorf("reaction %s impact %d outside [0, 100]", reaction.ID, reaction.Impact)
 		}
-		if a.Target != (MoodVector{}) && a.Impact == 0 {
-			t.Errorf("kind %d moves affect but has no impact, so it can only ever nudge", kind)
+		if reaction.Target != (MoodVector{}) && reaction.Impact == 0 {
+			t.Errorf("reaction %s moves affect but has no impact", reaction.ID)
 		}
-		for name, v := range map[string]int{"charge": a.Target.Charge, "grip": a.Target.Grip, "valence": a.Target.Valence} {
+		for name, v := range map[string]int{"charge": reaction.Target.Charge, "grip": reaction.Target.Grip, "valence": reaction.Target.Valence} {
 			if v < -cfg.MoodMax || v > cfg.MoodMax {
-				t.Errorf("kind %d %s target %d outside the plane", kind, name, v)
+				t.Errorf("reaction %s %s target %d outside the plane", reaction.ID, name, v)
 			}
 		}
 	}
-	// A conversation is the one kind whose target cannot be declared: it is
-	// computed per occurrence from how the chat actually went.
-	if got := lifeEventAppraisals[EvtConversation].Target; got != (MoodVector{}) {
-		t.Errorf("EvtConversation declares a target %+v that applyAffect always discards", got)
+	// Conversation is contextual, so its configured target is neutral.
+	conversation, _ := cfg.Cognition.reaction("conversation")
+	if got := conversation.Target; got != (MoodVector{}) {
+		t.Errorf("conversation declares a non-neutral fallback target %+v", got)
 	}
 }
 
@@ -43,13 +42,12 @@ func TestLifeEventAppraisalTable(t *testing.T) {
 // just watched someone die almost exactly neutral.
 func TestRelocatingEventsAreWrittenAtPlaneScale(t *testing.T) {
 	cfg := DefaultConfig()
-	for kind := LifeEventKind(0); kind < numLifeEventKinds; kind++ {
-		a := lifeEventAppraisals[kind]
-		if a.Impact < cfg.MoodPullImpact {
+	for _, reaction := range cfg.Cognition.Reactions {
+		if reaction.Impact < cfg.MoodPullImpact {
 			continue
 		}
-		if _, claim := bestMoodAttractor(a.Target.Charge, a.Target.Grip); claim < 0 {
-			t.Errorf("kind %d relocates to %+v, which lands in unnamed space", kind, a.Target)
+		if _, claim := bestMoodAttractor(reaction.Target.Charge, reaction.Target.Grip); claim < 0 {
+			t.Errorf("reaction %s relocates to %+v, which lands in unnamed space", reaction.ID, reaction.Target)
 		}
 	}
 }
@@ -84,14 +82,14 @@ func TestAGoodDayCannotSoftenAKilling(t *testing.T) {
 	w, fed := focusTestColonist(t)
 	bare := w.spawn(Colonist, fed.Pos.Add(10, 0))
 	for i := 0; i < 10; i++ {
-		w.remember(fed, event(EvtAte, "ate"))
-		w.remember(fed, event(EvtFinishedMining, "mined"))
+		rememberTest(w, fed, "ate", "ate")
+		rememberTest(w, fed, "finished-mining", "mined")
 	}
 	if fed.affect == (AffectState{Label: MoodSteady}) {
 		t.Fatal("a day of meals and work left affect untouched")
 	}
 	for _, c := range []*Entity{fed, bare} {
-		w.remember(c, event(EvtWitnessedColonistKilled, "saw a killing"))
+		rememberTest(w, c, "witnessed-colonist-killed", "saw a killing")
 	}
 	if fed.affect.Charge != bare.affect.Charge ||
 		fed.affect.Grip != bare.affect.Grip ||
@@ -108,9 +106,9 @@ func TestAGoodDayCannotSoftenAKilling(t *testing.T) {
 func TestRoutineEventsStillAccumulate(t *testing.T) {
 	w, once := focusTestColonist(t)
 	thrice := w.spawn(Colonist, once.Pos.Add(10, 0))
-	w.remember(once, event(EvtFinishedMining, "mined"))
+	rememberTest(w, once, "finished-mining", "mined")
 	for i := 0; i < 3; i++ {
-		w.remember(thrice, event(EvtFinishedMining, "mined"))
+		rememberTest(w, thrice, "finished-mining", "mined")
 	}
 	if thrice.affect.Grip != 3*once.affect.Grip || thrice.affect.Charge != 3*once.affect.Charge {
 		t.Fatalf("three digs = %+v, want three times one dig %+v", thrice.affect, once.affect)
@@ -138,37 +136,42 @@ func TestTraitMoodTransforms(t *testing.T) {
 	cases := []struct {
 		name  string
 		trait Trait
-		kind  LifeEventKind
+		rule  RuleID
 		in    MoodVector
 		want  MoodVector
 	}{
-		{"tidy gore", TraitTidy, EvtSawGore, MoodVector{-3, -7, -6}, MoodVector{-6, -15, -13}},
-		{"tidy incineration", TraitTidy, EvtIncineratedRefuse, MoodVector{-1, 7, 1}, MoodVector{-1, 14, 1}},
-		{"industrious work", TraitIndustrious, EvtFinishedConstruction, MoodVector{-1, 6, 3}, MoodVector{-2, 12, 6}},
-		{"mutant lover", TraitMutantLover, EvtMutated, MoodVector{18, -70, -35}, MoodVector{18, 70, 35}},
-		{"introvert", TraitIntrovert, EvtConversation, MoodVector{3, 7, 3}, MoodVector{-3, 7, 3}},
+		{"tidy gore", TraitTidy, "saw-gore", MoodVector{-3, -7, -6}, MoodVector{-6, -15, -13}},
+		{"tidy incineration", TraitTidy, "incinerated-refuse", MoodVector{-1, 7, 1}, MoodVector{-1, 14, 1}},
+		{"industrious work", TraitIndustrious, "finished-construction", MoodVector{-1, 6, 3}, MoodVector{-2, 12, 6}},
+		{"mutant lover", TraitMutantLover, "mutated", MoodVector{18, -70, -35}, MoodVector{18, 70, 35}},
+		{"introvert", TraitIntrovert, "conversation", MoodVector{3, 7, 3}, MoodVector{-3, 7, 3}},
 	}
+	cfg := DefaultCognitionConfig()
+	w := &World{cognition: cfg}
 	for _, tc := range cases {
 		e := &Entity{Profile: &Profile{Traits: []Trait{tc.trait}}}
-		if got := transformMoodVector(e, tc.kind, tc.in); got != tc.want {
+		reaction, _ := w.cognition.reaction(tc.rule)
+		got, _ := w.transformAppraisal(e, reaction, nil, tc.in, reaction.Impact)
+		if got != tc.want {
 			t.Errorf("%s = %+v, want %+v", tc.name, got, tc.want)
 		}
 	}
 }
 
-func TestTraitAppraisalThroughLifeEventFunnel(t *testing.T) {
+func TestTraitAppraisalThroughPerceptFunnel(t *testing.T) {
 	w, plain := focusTestColonist(t)
 	tidy := w.spawn(Colonist, plain.Pos.Add(10, 0))
 	tidy.Profile = &Profile{Traits: []Trait{TraitTidy}}
 	introvert := w.spawn(Colonist, plain.Pos.Add(20, 0))
 	introvert.Profile = &Profile{Traits: []Trait{TraitIntrovert}}
 
-	w.remember(plain, event(EvtIncineratedRefuse, "burned refuse"))
-	w.remember(tidy, event(EvtIncineratedRefuse, "burned refuse"))
+	rememberTest(w, plain, "incinerated-refuse", "burned refuse")
+	rememberTest(w, tidy, "incinerated-refuse", "burned refuse")
 	if tidy.affect.Grip != 2*plain.affect.Grip {
 		t.Fatalf("Tidy incineration grip %d, want twice plain %d", tidy.affect.Grip, plain.affect.Grip)
 	}
-	w.remember(introvert, eventOutcome(EvtConversation, 7, "talked"))
+	contextual := conversationMoodVector(7)
+	rememberTestReaction(w, introvert, "conversation", 0, "talked", &contextual)
 	if introvert.affect.Charge >= 0 || introvert.affect.Grip <= 0 {
 		t.Fatalf("Introvert conversation affect = %+v, want fatigue and restored grip", introvert.affect)
 	}
@@ -178,11 +181,14 @@ func TestTraitAppraisalThroughLifeEventFunnel(t *testing.T) {
 }
 
 func TestTraitTransformsUseDeclarationOrder(t *testing.T) {
-	in := lifeEventAppraisals[EvtIncineratedRefuse].Target
+	cfg := DefaultCognitionConfig()
+	w := &World{cognition: cfg}
+	reaction, _ := w.cognition.reaction("incinerated-refuse")
+	in := reaction.Target
 	a := &Entity{Profile: &Profile{Traits: []Trait{TraitTidy, TraitIndustrious}}}
 	b := &Entity{Profile: &Profile{Traits: []Trait{TraitIndustrious, TraitTidy}}}
-	gotA := transformMoodVector(a, EvtIncineratedRefuse, in)
-	gotB := transformMoodVector(b, EvtIncineratedRefuse, in)
+	gotA, _ := w.transformAppraisal(a, reaction, nil, in, reaction.Impact)
+	gotB, _ := w.transformAppraisal(b, reaction, nil, in, reaction.Impact)
 	if gotA != gotB || gotA != (MoodVector{-2, 28, 2}) {
 		t.Fatalf("stored trait order changed transform: %+v versus %+v", gotA, gotB)
 	}
@@ -290,6 +296,19 @@ func TestSnapshotExposesAffectCoordinatesAndLabel(t *testing.T) {
 	t.Fatal("colonist missing from snapshot")
 }
 
+func TestSnapshotUsesConfiguredAttractorNames(t *testing.T) {
+	w, c := focusTestColonist(t)
+	w.cognition.Attractors[MoodDriven].GoodName = "purposeful"
+	w.cognition.Attractors[MoodDriven].BadName = "seething"
+	c.affect = AffectState{Charge: 70, Grip: 60, Valence: -20, Label: MoodDriven}
+	snap := w.snapshot(false, 8)
+	for _, view := range snap.Entities {
+		if view.ID == c.ID && view.MoodLabel != "seething" {
+			t.Fatalf("configured mood label = %q, want seething", view.MoodLabel)
+		}
+	}
+}
+
 // Valence picks which of an attractor's two readings applies without moving
 // the colonist or renaming the region they are in.
 func TestValenceChangesMoodWordOnly(t *testing.T) {
@@ -313,7 +332,7 @@ func TestValenceChangesMoodWordOnly(t *testing.T) {
 // someone die reads badly even while well fed, unhurt and in no danger.
 func TestGriefOutlastsGoodCircumstances(t *testing.T) {
 	w, c := focusTestColonist(t)
-	w.remember(c, event(EvtWitnessedColonistKilled, "saw a killing"))
+	rememberTest(w, c, "witnessed-colonist-killed", "saw a killing")
 	for n := NeedKind(0); n < numNeeds; n++ {
 		c.Needs[n], c.needSince[n] = 0, w.tick
 	}

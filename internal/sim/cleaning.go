@@ -16,7 +16,7 @@ import "fmt"
 // slot. See docs/sanitation.md.
 
 // cleanRadius is how far a colonist will go looking for a mess. A Tidy colonist
-// — the one the sight of gore hits hardest (see EvtSawGore) — ranges twice as
+// — the one the configured gore reaction hits hardest — ranges twice as
 // far to get rid of it, which is the trait's first behavioral effect rather
 // than only a mood modifier.
 func (w *World) cleanRadius(e *Entity) int {
@@ -185,8 +185,10 @@ func (w *World) gatherRefuse(e *Entity, p Point) {
 	if corpses+viscera == 0 {
 		return
 	}
-	w.remember(e, event(EvtCleanedRefuse, "Cleaned up %s at (%d, %d).",
-		refusePhrase(corpses, viscera), p.X, p.Y))
+	o := occurrence(e, ActionClean, nil, p, "Cleaned up %s at (%d, %d).",
+		refusePhrase(corpses, viscera), p.X, p.Y)
+	o.Object = FactRef{Noun: NounRefuse, Label: "refuse"}
+	w.emitOccurrence(o)
 }
 
 // jobCleanHaul carries a gathered load to the incinerator and feeds it in.
@@ -229,7 +231,9 @@ func (w *World) incinerate(e *Entity) {
 		return
 	}
 	phrase := refusePhrase(corpses, viscera)
-	w.remember(e, event(EvtIncineratedRefuse, "Burned %s in the incinerator.", phrase))
+	o := occurrence(e, ActionIncinerate, nil, e.Pos, "Burned %s in the incinerator.", phrase)
+	o.Object = FactRef{Noun: NounRefuse, Label: "refuse"}
+	w.emitOccurrence(o)
 	w.log.add(fmt.Sprintf("%s incinerates %s.", e.displayName(), phrase))
 }
 

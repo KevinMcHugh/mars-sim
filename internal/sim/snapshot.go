@@ -362,7 +362,7 @@ func (w *World) entityView(e *Entity, kinChildren map[kinID][]kinID, full bool) 
 		ev.Charge = e.affect.Charge
 		ev.Grip = e.affect.Grip
 		ev.Valence = e.affect.Valence
-		ev.MoodLabel = e.affect.MoodName()
+		ev.MoodLabel = w.affectName(e.affect)
 		ev.Memories = append([]Memory(nil), e.Memories...)
 		if full {
 			ev.Relations = append([]Relation(nil), w.cachedRelations(e, kinChildren)...)

@@ -31,8 +31,9 @@ The implementation should introduce or update:
   stimulus tests.
 - `internal/sim/systems.go` — the colonist turn pipeline and focus executors.
 - `internal/sim/entity.go` — stored focus, need phases, affect, and stimuli.
-- `internal/sim/lifeevents.go` and `internal/sim/world.go` — the single
-  life-event ingestion funnel.
+- `internal/sim/perception.go`, `internal/sim/cognition_config.go`, and
+  `internal/sim/world.go` — compositional occurrences/percepts, configured
+  reactions, and the single ingestion funnel.
 - `internal/sim/config.go` — focus and affect tuning parameters.
 - `internal/sim/configfile.go` — config traversal for the focus-spec array.
 - `internal/sim/snapshot.go` and `internal/ui/tui/render_roster.go` — visible
@@ -156,7 +157,7 @@ const (
 )
 
 type Stimulus struct {
-    Kind      LifeEventKind
+    Rule      RuleID
     Source    EntityID
     Salience  int
     ExpiresAt int
@@ -299,9 +300,9 @@ Do not feed derived valence back into focus scoring in the first implementation;
 that would count needs, health, and threats twice. Focus scoring consumes the
 underlying signals directly.
 
-### Event vectors
+### Reaction vectors
 
-Replace scalar life-event mood deltas with cartesian vectors:
+Compositional reaction rules carry cartesian vectors:
 
 ```go
 type MoodVector struct {
@@ -310,39 +311,10 @@ type MoodVector struct {
 }
 ```
 
-Start from this table:
-
-| Event | Charge | Grip |
-| --- | ---: | ---: |
-| `EvtSawAlien` | +8 | -10 |
-| `EvtSawMouse` | +2 | -3 |
-| `EvtSawGore` | -3 | -7 |
-| `EvtBitten` | +10 | -8 |
-| `EvtWitnessedColonistKilled` | +6 | -16 |
-| `EvtWitnessedColonistAttacked` | +5 | -9 |
-| `EvtCrushedMouse` | -1 | +2 |
-| `EvtWitnessedMouseCrushed` | -1 | -2 |
-| `EvtWitnessedCatCatch` | +1 | +1 |
-| `EvtKilledAlien` | +12 | +14 |
-| `EvtWitnessedAlienKilled` | +5 | +6 |
-| `EvtWoundedAlien` | +4 | +5 |
-| `EvtWitnessedGunfight` | +7 | -5 |
-| `EvtConversation` | +3 | +7 |
-| `EvtAte` | +4 | +2 |
-| `EvtUsedToilet` | +1 | +2 |
-| `EvtSlept` | +15 | +2 |
-| `EvtNeedSatisfied` | +2 | +2 |
-| `EvtFinishedMining` | -1 | +5 |
-| `EvtClearedRock` | -1 | +5 |
-| `EvtFinishedConstruction` | -1 | +6 |
-| `EvtCleanedRefuse` | -1 | +5 |
-| `EvtIncineratedRefuse` | -1 | +7 |
-| `EvtMutated` | +4 | -18 |
-| `EvtWitnessedMutation` | +2 | -8 |
-
-These are semantic tables in code, like the current
-`lifeEventMoodEffects`; they are not command-line balance knobs. Keep them in a
-single indexed table so adding a mood-bearing event is a table edit.
+The shipped targets live in the `reactions` section of `cognition.yaml`. A
+reaction matches actor/action/object plus channel/role/phase; adding a new
+combination is config data rather than another enum-indexed Go row. Keep
+high-impact targets at plane scale and low-impact targets nudge-sized.
 
 Conversation outcome remains computed per occurrence. Let the existing
 `talkMoodDelta` plus `noteConversation` produce a temporary signed `outcome`;
@@ -470,25 +442,24 @@ not erase a still-visible alien.
 
 Store at most `ActiveStimulusLimit` stimuli per colonist.
 
-- Coalesce the same `(Kind, Source)` by replacing salience and expiry.
+- Coalesce the same `(Rule, Source)` by replacing salience and expiry.
 - Remove expired stimuli before scoring.
 - Ongoing perceptions may refresh expiry.
 - When full, evict lowest salience, then earliest expiry, then lowest source ID.
   This total ordering preserves determinism.
 - A `Source` of zero means the stimulus is not tied to an entity.
-- A table maps `LifeEventKind` to default salience, lifetime, and per-focus
-  contributions. A zero entry records memory and affect but creates no
-  stimulus.
+- Each reaction optionally configures salience, lifetime, and per-focus
+  contributions. A reaction without a stimulus still records memory and affect.
 
 The initial non-zero stimulus specs are:
 
 | Event | Salience | Lifetime | Focus contribution at salience 100 |
 | --- | ---: | ---: | --- |
-| `EvtSawAlien` | 100 | 12 ticks | flee +500, fight +500 |
-| `EvtBitten` | 100 | 20 ticks | flee +300, fight +150 |
-| `EvtWitnessedColonistKilled` | 90 | 20 ticks | flee +250, fight +100 |
-| `EvtWitnessedColonistAttacked` | 70 | 12 ticks | flee +200, fight +100 |
-| `EvtSawGore` | 35 | 30 ticks | work +20 |
+| `saw-alien` | 100 | 12 ticks | flee +500, fight +500 |
+| `bitten` | 100 | 20 ticks | flee +300, fight +150 |
+| `witnessed-colonist-killed` | 90 | 20 ticks | flee +250, fight +100 |
+| `witnessed-colonist-attacked` | 70 | 12 ticks | flee +200, fight +100 |
+| `saw-gore` | 35 | 30 ticks | work +20 |
 | finished-work events | 25 | 10 ticks | work +15 |
 
 Scale a listed contribution by `stimulus.Salience / 100`. Tidy may eventually
@@ -745,23 +716,22 @@ Do not run A* for every candidate. Exact pathfinding begins only after a focus
 wins. If execution discovers the estimate was wrong, it reports failure,
 clears any claim, and requests reconsideration.
 
-## Life-event ingestion
+## Percept ingestion
 
-Preserve one funnel. Today `remember` both records a memory and applies mood.
-After this change, one call must:
+`rememberPercept` is the one funnel. A resolved reaction:
 
-1. apply the event's trait-transformed mood vector;
+1. applies the reaction's trait/tag-transformed mood vector;
 2. update or insert its active stimulus when configured;
 3. record or collapse its memory;
 4. update the mood label;
 5. request focus reconsideration when the event is behaviorally salient.
 
-It is acceptable to keep the name `remember` or rename the public funnel to
-`ingestLifeEvent` with a private memory helper. It is not acceptable to expose
-separate call-site APIs that allow an event to update memory but forget affect,
-or update affect but forget memory.
+Do not expose separate call-site APIs that allow an occurrence to update memory
+but forget affect, or update affect but forget memory. Ongoing persistent
+perception is the narrow exception: it refreshes the enter reaction's stimulus
+without replaying durable products.
 
-Need reset remains part of the completing executor. Its completion life event
+Need reset remains part of the completing executor. Its completion occurrence
 then flows through the same ingestion path.
 
 ## Colonist turn order
@@ -830,7 +800,8 @@ At tick 100:
 
 At tick 101 the colonist sees an alien:
 
-1. `EvtSawAlien` adds `(8, -10)` to affect.
+1. `alien / present` enters sight and the `saw-alien` reaction adds `(8, -10)`
+   to affect.
 2. A high-salience alien stimulus is inserted.
 3. The visible alien makes flee eligible; fight is ineligible because the
    colonist is unarmed.
@@ -1124,6 +1095,7 @@ Before implementing a milestone:
 
 ## Related
 
+- [cognition-config-and-lab.md](./cognition-config-and-lab.md) — dedicated `cognition.yaml` balance settings and the Cognition Lab tool.
 - [needs.md](./needs.md) — lazy levels, starvation, and facilities.
 - [personality.md](./personality.md) — traits and resolved effective parameters.
 - [memories.md](./memories.md) — life events and the one-funnel invariant.

@@ -591,8 +591,8 @@ func TestRosterDetailShowsCollapsedMemoryRun(t *testing.T) {
 	snap := makeSnapshot()
 	snap.Entities[0].Profile = &sim.Profile{Name: "Zoe Vargas", Gender: sim.GenderWoman}
 	snap.Entities[0].Memories = []sim.Memory{
-		{Tick: 1586, LastTick: 1586, Count: 1, Text: "Had a meal.", Kind: sim.EvtAte},
-		{Tick: 1607, LastTick: 1630, Count: 12, Text: "Finished mining.", Kind: sim.EvtFinishedMining},
+		{Tick: 1586, LastTick: 1586, Count: 1, Text: "Had a meal.", Rule: "ate"},
+		{Tick: 1607, LastTick: 1630, Count: 12, Text: "Finished mining.", Rule: "finished-mining"},
 	}
 
 	var m tea.Model = New(nil, nil)

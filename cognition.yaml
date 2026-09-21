@@ -1,0 +1,219 @@
+# mars-sim compositional perception and cognition settings
+schema_version: 1
+
+# Stable content vocabulary used by editor dropdowns and rule validation.
+vocabulary:
+  nouns: [colonist, alien, cat, mouse, gore, meal, toilet, bed, need, rock, structure, refuse]
+  actions: [present, bite, attack, kill, crush, catch, wound, converse, eat, use, sleep, satisfy, mine, clear, construct, clean, incinerate, mutate]
+  tags: [gore, finished-work, conversation, mutation, incineration]
+
+attractors:
+  driven    : { good: "driven"    , bad: "furious"   , charge:  70, grip:  60, radius: 46 }
+  elated    : { good: "elated"    , bad: "frantic"   , charge:  88, grip:   0, radius: 42 }
+  giddy     : { good: "giddy"     , bad: "panicked"  , charge:  65, grip: -62, radius: 46 }
+  adrift    : { good: "adrift"    , bad: "anxious"   , charge:   0, grip: -85, radius: 42 }
+  listless  : { good: "listless"  , bad: "despairing", charge: -62, grip: -62, radius: 46 }
+  spent     : { good: "spent"     , bad: "numb"      , charge: -85, grip:   0, radius: 42 }
+  content   : { good: "content"   , bad: "grim"      , charge: -60, grip:  60, radius: 46 }
+  composed  : { good: "composed"  , bad: "hardened"  , charge:   0, grip:  85, radius: 42 }
+  steady    : { good: "steady"    , bad: "flat"      , charge:   0, grip:   0, radius: 28 }
+
+focuses:
+  idle      : { base:   0, need_weight:   0, charge_weight: -10, grip_weight:   0, distance_weight: 0 }
+  work      : { base:  25, need_weight:   0, charge_weight:  20, grip_weight:  10, distance_weight: 1 }
+  eat       : { base:  40, need_weight: 100, charge_weight:   0, grip_weight:   5, distance_weight: 1 }
+  relieve   : { base:  40, need_weight: 100, charge_weight:   0, grip_weight:   0, distance_weight: 1 }
+  socialize : { base:  40, need_weight: 100, charge_weight:  10, grip_weight:   5, distance_weight: 1 }
+  sleep     : { base:  40, need_weight: 100, charge_weight: -30, grip_weight:   0, distance_weight: 1 }
+  flee      : { base:   0, need_weight:   0, charge_weight:  20, grip_weight: -40, distance_weight: 1 }
+  fight     : { base:  15, need_weight:   0, charge_weight:  20, grip_weight:  40, distance_weight: 1 }
+
+arbitration:
+  current_bonus: 25
+  switch_margin: 10
+  critical_bonus: 100
+  fatal_bonus: 150
+  active_stimulus_limit: 8
+
+# Perception rules say who can notice an occurrence or persistent state.
+perceptions:
+  - id: direct-actor
+    sense: { channel: direct, role: actor, cadence: instant }
+  - id: direct-target
+    sense: { channel: direct, role: target, cadence: instant }
+  - id: visible-alien
+    match: { actor_noun: alien, action: present }
+    sense: { channel: sight, role: witness, radius: flee-radius, cadence: enter-and-ongoing }
+  - id: visible-mouse
+    match: { actor_noun: mouse, action: present }
+    sense: { channel: sight, role: witness, radius: stomp-radius, cadence: enter }
+  - id: visible-gore
+    match: { actor_noun: gore, action: present }
+    sense: { channel: sight, role: witness, radius: gore-sight-radius, cadence: enter }
+  - id: witness-alien-kill
+    match: { actor_noun: alien, action: kill, object_noun: colonist }
+    sense: { channel: sight, role: witness, radius: flee-radius, cadence: instant }
+  - id: witness-alien-attack
+    match: { actor_noun: alien, action: bite, object_noun: colonist }
+    sense: { channel: sight, role: witness, radius: flee-radius, cadence: instant }
+  - id: witness-mouse-crushed
+    match: { actor_noun: colonist, action: crush, object_noun: mouse }
+    sense: { channel: sight, role: witness, radius: stomp-radius, cadence: instant }
+  - id: witness-cat-catch
+    match: { actor_noun: cat, action: catch, object_noun: mouse }
+    sense: { channel: sight, role: witness, radius: stomp-radius, cadence: instant }
+  - id: witness-alien-killed
+    match: { actor_noun: colonist, action: kill, object_noun: alien }
+    sense: { channel: sight, role: witness, radius: flee-radius, cadence: instant }
+  - id: witness-gunfight
+    match: { actor_noun: colonist, action: wound, object_noun: alien }
+    sense: { channel: sight, role: witness, radius: flee-radius, cadence: instant }
+  - id: witness-mutation
+    match: { actor_noun: colonist, action: mutate }
+    sense: { channel: sight, role: witness, radius: flee-radius, cadence: instant }
+
+# Reaction rules select one deterministic cognitive interpretation per percept.
+reactions:
+  - id: saw-alien
+    match: { actor_noun: alien, action: present, channel: sight, role: witness, phase: enter }
+    memory: { record: true }
+    affect: { impact: 45, target: { charge: 8, grip: -10, valence: -15 } }
+    stimulus: { salience: 100, lifetime: 12, source: actor, contributions: {flee: 500, fight: 500} }
+  - id: saw-mouse
+    match: { actor_noun: mouse, action: present, channel: sight, role: witness, phase: enter }
+    memory: { record: true }
+    affect: { impact: 8, target: { charge: 2, grip: -3, valence: 0 } }
+  - id: saw-gore
+    match: { actor_noun: gore, action: present, channel: sight, role: witness, phase: enter }
+    tags: [gore]
+    memory: { record: true }
+    affect: { impact: 30, target: { charge: -3, grip: -7, valence: -6 } }
+    stimulus: { salience: 35, lifetime: 30, source: none, contributions: {work: 20} }
+  - id: bitten
+    match: { actor_noun: alien, action: bite, object_noun: colonist, channel: direct, role: target, phase: instant }
+    memory: { record: true }
+    affect: { impact: 70, target: { charge: 55, grip: -44, valence: -30 } }
+    stimulus: { salience: 100, lifetime: 20, source: actor, contributions: {flee: 300, fight: 150} }
+  - id: witnessed-colonist-killed
+    match: { actor_noun: alien, action: kill, object_noun: colonist, channel: sight, role: witness, phase: instant }
+    tags: [gore]
+    memory: { record: true }
+    affect: { impact: 95, target: { charge: 28, grip: -74, valence: -60 } }
+    stimulus: { salience: 90, lifetime: 20, source: actor, contributions: {flee: 250, fight: 100} }
+  - id: witnessed-colonist-attacked
+    match: { actor_noun: alien, action: bite, object_noun: colonist, channel: sight, role: witness, phase: instant }
+    memory: { record: true }
+    affect: { impact: 75, target: { charge: 35, grip: -63, valence: -40 } }
+    stimulus: { salience: 70, lifetime: 12, source: actor, contributions: {flee: 200, fight: 100} }
+  - id: crushed-mouse
+    match: { actor_noun: colonist, action: crush, object_noun: mouse, channel: direct, role: actor, phase: instant }
+    memory: { record: true }
+    affect: { impact: 6, target: { charge: -1, grip: 2, valence: 0 } }
+  - id: witnessed-mouse-crushed
+    match: { actor_noun: colonist, action: crush, object_noun: mouse, channel: sight, role: witness, phase: instant }
+    memory: { record: true }
+    affect: { impact: 8, target: { charge: -1, grip: -2, valence: -1 } }
+  - id: witnessed-cat-catch
+    match: { actor_noun: cat, action: catch, object_noun: mouse, channel: sight, role: witness, phase: instant }
+    memory: { record: true }
+    affect: { impact: 5, target: { charge: 1, grip: 1, valence: 0 } }
+  - id: killed-alien
+    match: { actor_noun: colonist, action: kill, object_noun: alien, channel: direct, role: actor, phase: instant }
+    memory: { record: true }
+    affect: { impact: 55, target: { charge: 45, grip: 52, valence: 35 } }
+  - id: witnessed-alien-killed
+    match: { actor_noun: colonist, action: kill, object_noun: alien, channel: sight, role: witness, phase: instant }
+    memory: { record: true }
+    affect: { impact: 35, target: { charge: 5, grip: 6, valence: 4 } }
+  - id: wounded-alien
+    match: { actor_noun: colonist, action: wound, object_noun: alien, channel: direct, role: actor, phase: instant }
+    memory: { record: true }
+    affect: { impact: 25, target: { charge: 4, grip: 5, valence: 2 } }
+  - id: witnessed-gunfight
+    match: { actor_noun: colonist, action: wound, object_noun: alien, channel: sight, role: witness, phase: instant }
+    memory: { record: true }
+    affect: { impact: 50, target: { charge: 35, grip: -25, valence: -20 } }
+  - id: conversation
+    match: { actor_noun: colonist, action: converse, object_noun: colonist, channel: direct, phase: instant }
+    tags: [conversation]
+    memory: { record: true }
+    affect: { impact: 20, target: { charge: 0, grip: 0, valence: 0 } }
+  - id: ate
+    match: { actor_noun: colonist, action: eat, object_noun: meal, channel: direct, role: actor, phase: instant }
+    memory: { record: true, collapse: "Had a meal." }
+    affect: { impact: 10, target: { charge: 4, grip: 2, valence: 1 } }
+  - id: used-toilet
+    match: { actor_noun: colonist, action: use, object_noun: toilet, channel: direct, role: actor, phase: instant }
+    memory: { record: true, collapse: "Used the toilet." }
+    affect: { impact: 4, target: { charge: 1, grip: 2, valence: 0 } }
+  - id: slept
+    match: { actor_noun: colonist, action: sleep, object_noun: bed, channel: direct, role: actor, phase: instant }
+    memory: { record: true, collapse: "Slept in a bed." }
+    affect: { impact: 25, target: { charge: 15, grip: 2, valence: 2 } }
+  - id: need-satisfied
+    match: { actor_noun: colonist, action: satisfy, object_noun: need, channel: direct, role: actor, phase: instant }
+    memory: { record: true, collapse: "Satisfied a need." }
+    affect: { impact: 8, target: { charge: 2, grip: 2, valence: 0 } }
+  - id: finished-mining
+    match: { actor_noun: colonist, action: mine, object_noun: rock, channel: direct, role: actor, phase: instant }
+    tags: [finished-work]
+    memory: { record: true, collapse: "Finished mining." }
+    affect: { impact: 15, target: { charge: -1, grip: 5, valence: 0 } }
+    stimulus: { salience: 25, lifetime: 10, source: none, contributions: {work: 15} }
+  - id: cleared-rock
+    match: { actor_noun: colonist, action: clear, object_noun: rock, channel: direct, role: actor, phase: instant }
+    tags: [finished-work]
+    memory: { record: true, collapse: "Cleared rock for a room." }
+    affect: { impact: 15, target: { charge: -1, grip: 5, valence: 0 } }
+    stimulus: { salience: 25, lifetime: 10, source: none, contributions: {work: 15} }
+  - id: finished-construction
+    match: { actor_noun: colonist, action: construct, object_noun: structure, channel: direct, role: actor, phase: instant }
+    tags: [finished-work]
+    memory: { record: true, collapse: "Finished construction." }
+    affect: { impact: 18, target: { charge: -1, grip: 6, valence: 3 } }
+    stimulus: { salience: 25, lifetime: 10, source: none, contributions: {work: 15} }
+  - id: cleaned-refuse
+    match: { actor_noun: colonist, action: clean, object_noun: refuse, channel: direct, role: actor, phase: instant }
+    tags: [finished-work]
+    memory: { record: true, collapse: "Cleaned up refuse." }
+    affect: { impact: 14, target: { charge: -1, grip: 5, valence: 0 } }
+    stimulus: { salience: 25, lifetime: 10, source: none, contributions: {work: 15} }
+  - id: incinerated-refuse
+    match: { actor_noun: colonist, action: incinerate, object_noun: refuse, channel: direct, role: actor, phase: instant }
+    tags: [finished-work, incineration]
+    memory: { record: true, collapse: "Burned refuse in the incinerator." }
+    affect: { impact: 16, target: { charge: -1, grip: 7, valence: 1 } }
+    stimulus: { salience: 25, lifetime: 10, source: none, contributions: {work: 15} }
+  - id: mutated
+    match: { actor_noun: colonist, action: mutate, channel: direct, role: actor, phase: instant }
+    tags: [mutation]
+    memory: { record: true }
+    affect: { impact: 60, target: { charge: 18, grip: -70, valence: -35 } }
+  - id: witnessed-mutation
+    match: { actor_noun: colonist, action: mutate, channel: sight, role: witness, phase: instant }
+    tags: [mutation]
+    memory: { record: true }
+    affect: { impact: 35, target: { charge: 2, grip: -8, valence: -10 } }
+
+# Trait modifiers compose over reaction tags. Scales are percentages.
+modifiers:
+  - id: industrious-finished-work
+    trait: industrious
+    any_tags: [finished-work]
+    scales: { impact: 100, charge: 200, grip: 200, valence: 200 }
+  - id: introvert-conversation
+    trait: introvert
+    any_tags: [conversation]
+    scales: { impact: 100, charge: -100, grip: 100, valence: 100 }
+  - id: tidy-gore
+    trait: tidy
+    any_tags: [gore]
+    scales: { impact: 100, charge: 220, grip: 220, valence: 220 }
+  - id: tidy-incineration
+    trait: tidy
+    any_tags: [incineration]
+    scales: { impact: 100, charge: 100, grip: 200, valence: 100 }
+  - id: mutant-lover-mutation
+    trait: mutant-lover
+    any_tags: [mutation]
+    scales: { impact: 100, charge: 100, grip: -100, valence: -100 }

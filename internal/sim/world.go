@@ -4,25 +4,47 @@ import "math/rand"
 
 const maxColonistMemories = 64
 
-// remember is the single ingestion funnel for notable life events. One call
-// applies charge/grip appraisal, updates transient stimulus state when
-// configured, and records or collapses long-term memory. These products have
-// separate lifetimes, but call sites cannot accidentally update only one.
-func (w *World) remember(e *Entity, evt LifeEvent) {
+// rememberPercept is the single cognition-ingestion funnel. A reaction rule
+// resolves the compositional percept once, then affect, transient attention,
+// and memory consume that same interpretation.
+func (w *World) rememberPercept(e *Entity, percept Percept) {
 	if e == nil || e.Kind != Colonist {
+		return
+	}
+	percept.Observer = e.ID
+	reaction, ok := w.cognition.reactionFor(percept)
+	if !ok && percept.Phase == PhaseOngoing {
+		// Enter reactions own the durable appraisal for persistent context;
+		// ongoing observations reuse their stimulus unless an explicit ongoing
+		// reaction was configured.
+		enter := percept
+		enter.Phase = PhaseEnter
+		reaction, ok = w.cognition.reactionFor(enter)
+	}
+	if !ok {
+		return
+	}
+	// Ongoing context refreshes attention without replaying a mood hit or
+	// adding another memory. Enter and instant percepts traverse every product.
+	if percept.Phase == PhaseOngoing {
+		w.addStimulus(e, reaction, percept)
 		return
 	}
 	// Affect is applied per occurrence either way: collapsing is about what the
 	// memory log reads like, not about the twelfth dig having stopped counting.
-	w.applyAffect(e, evt)
-	w.addStimulus(e, evt)
-	if !w.collapseRepeat(e, evt) {
+	w.applyAffect(e, reaction, percept)
+	w.addStimulus(e, reaction, percept)
+	if reaction.Memory == nil {
+		return
+	}
+	text := renderMemoryTemplate(reaction.Memory.Template, percept)
+	if !w.collapseRepeat(e, reaction, text) {
 		e.Memories = append(e.Memories, Memory{
 			Tick:     w.tick,
 			LastTick: w.tick,
 			Count:    1,
-			Text:     evt.Text,
-			Kind:     evt.Kind,
+			Text:     text,
+			Rule:     reaction.ID,
 		})
 		if len(e.Memories) > maxColonistMemories {
 			e.Memories = e.Memories[len(e.Memories)-maxColonistMemories:]
@@ -30,27 +52,17 @@ func (w *World) remember(e *Entity, evt LifeEvent) {
 	}
 }
 
-// collapseRepeat folds evt into the colonist's most recent memory, reporting
-// whether it did. It collapses only when the kind is a minor, repetitive one
-// (a non-empty lifeEventCollapseText entry) and the newest memory is already
-// that same kind: a run is *consecutive* occurrences, so anything else the
-// colonist did — a meal in the middle of a mining shift — breaks the run and
-// the next dig starts a fresh memory. Folding into any older matching memory
-// instead would compress a whole life into one line per kind and lose the
-// order things happened in, which is most of what the log is for.
-//
-// The folded memory takes the kind's generic text, keeps Tick at the first
-// occurrence, and advances LastTick to this one, so the line can say both how
-// many times and over what span.
-func (w *World) collapseRepeat(e *Entity, evt LifeEvent) bool {
-	if lifeEventCollapseText[evt.Kind] == "" || len(e.Memories) == 0 {
+// collapseRepeat folds consecutive routine reactions while preserving story
+// order. Stable rule IDs replace the old closed event enum as identity.
+func (w *World) collapseRepeat(e *Entity, reaction *ReactionSpec, text string) bool {
+	if reaction.Memory == nil || reaction.Memory.Collapse == "" || len(e.Memories) == 0 {
 		return false
 	}
 	last := &e.Memories[len(e.Memories)-1]
-	if last.Kind != evt.Kind {
+	if last.Rule != reaction.ID {
 		return false
 	}
-	last.Text = lifeEventCollapseText[evt.Kind]
+	last.Text = reaction.Memory.Collapse
 	last.LastTick = w.tick
 	last.Count++
 	return true
@@ -447,11 +459,16 @@ type World struct {
 	agePRNG         *rand.Rand // age generation, isolated so adding age does not shift personality
 	log             *eventLog
 	cfg             Config
+	cognition       CognitionConfig
 }
 
 // newWorld allocates an all-Rock world of the given size.
 func newWorld(cfg Config, rng *rand.Rand) *World {
 	n := cfg.Width * cfg.Height
+	cog := cfg.Cognition
+	if cog.Attractors[0].GoodName == "" {
+		cog = DefaultCognitionConfig()
+	}
 	w := &World{
 		Width:             cfg.Width,
 		Height:            cfg.Height,
@@ -473,6 +490,7 @@ func newWorld(cfg Config, rng *rand.Rand) *World {
 		agePRNG:           rand.New(rand.NewSource(cfg.Seed ^ 0x6A09E667)),
 		log:               newEventLog(cfg.LogSize),
 		cfg:               cfg,
+		cognition:         cog,
 	}
 	w.terrainCounts[Rock] = n // every tile starts as Rock
 

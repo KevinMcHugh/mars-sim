@@ -53,8 +53,9 @@ watching a mutation happen — or undergoing one.
   `StatureMinCM`, `StatureMaxCM`.
 - [`internal/sim/combat.go`](../internal/sim/combat.go) — `rollHit` weighting
   over the target's own anatomy.
-- [`internal/sim/lifeevents.go`](../internal/sim/lifeevents.go) — `EvtMutated`,
-  `EvtWitnessedMutation` and their trait-transformed affect vectors.
+- [`internal/sim/perception.go`](../internal/sim/perception.go) and
+  [`internal/sim/cognition_config.go`](../internal/sim/cognition_config.go) —
+  mutation occurrences plus direct/witness reactions and tag modifiers.
 - [`internal/sim/systems.go`](../internal/sim/systems.go) — `colonistTurn`'s
   exposure step, `finishTalk`'s per-direction affinity credit.
 - [`internal/sim/mutation_test.go`](../internal/sim/mutation_test.go) — the
@@ -97,8 +98,8 @@ keeps working a vein keeps rolling, and can mutate more than once over a career.
    pinned at a limit can still move — the other way (see below).
 
 Whatever actually happened is joined into one phrase ("grew a tail and
-stretched from 5'10" to 6'9""), which becomes the colonist's `EvtMutated`
-memory, an `EvtWitnessedMutation` memory for everyone close enough to see, and
+stretched from 5'10" to 6'9""), which becomes the actor's `mutated`
+reaction memory, a `witnessed-mutation` memory for everyone configured close enough to see, and
 a colony log line. `giveTrait(e, TraitMutant)` runs on any change. If *neither*
 half found anything to do — every part grown, and resizing disabled — nothing
 happened at all: no trait, no memory, no log line.
@@ -174,9 +175,10 @@ cost of being a mutant is social, not physical.
 
 ### Being a mutant
 
-- **Affect.** `EvtMutated` adds `(4,-18)` and witnessing adds `(2,-8)`.
-  Mutant-Lover appraisal reflects grip positive. The base rows and transform live
-  in `affect.go` (see [affect.md](./affect.md)), not branches in `mutate()`.
+- **Affect.** The `mutated` and `witnessed-mutation` reactions are tagged
+  `mutation`. The Mutant-Lover modifier reflects grip and valence positive.
+  The rules live in `cognition.yaml` (see [affect.md](./affect.md)), not
+  branches in `mutate()`.
 - **Affinity.** `finishTalk` credits affinity **per direction** instead of
   through the symmetric `addAffinity`: both sides get the conversation's own
   step, and a Mutant-Lover additionally gets `MutantLoverAffinityBonus` (3) of
@@ -310,9 +312,8 @@ their luck) over immediate spectacle.
   entry in `mutantParts`. Keep it non-`Vital` unless a mutation really should
   add a new way to die outright.
 - **A mutant-hater ("Purist")**: a `traitSpec` in `groupMutantAttitude` plus a
-  negative `mutantAffinityBonus` branch, and a grip transform for
-  `EvtMutated`/`EvtWitnessedMutation` in `transformMoodVector`. The group was made its own axis for
-  exactly this.
+  negative `mutantAffinityBonus` branch, and a negative configured modifier
+  matching the `mutation` tag. The group was made its own axis for exactly this.
 - **Another source of mutation** (an alien bite, a lab accident): call
   `w.mutate(e)`. Nothing in it is uranium-specific past the memory text.
 - **Making mutation cost something physical** beyond the stature gamble (a work

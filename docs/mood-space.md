@@ -8,26 +8,26 @@ The unbuilt half of colonist affect. [`affect.md`](./affect.md) documents what
 runs today: three stored axes, and an impact that decides whether an event
 nudges a colonist or relocates them. This doc covers what that leaves out.
 
-Three things, in the order they are worth building:
+The original proposal had three parts. Tags and config-driven trait rules have
+now shipped through the compositional cognition system; two remain:
 
 1. **Wear.** An event lands the same way the first time and the tenth. A
    colonist who has watched ten people die should not react like someone seeing
    their first.
-2. **Tags.** Trait appraisal is a `switch` over trait × event kind, so every new
-   trait has to be considered against every event and vice versa.
-3. **Baselines.** Affect decays to `(0, 0, 0)` for everyone. Nobody is natively
+2. **Baselines.** Affect decays to `(0, 0, 0)` for everyone. Nobody is natively
    anxious or natively hard to rattle.
 
-Nothing here is implemented. It is written to be argued with before any of it
-becomes Go.
+Wear and baselines are not implemented. The tags section records the shipped
+design because wear should build on its vocabulary rather than inventing
+another event identity.
 
 ## Source
 
 - [`mood-space.html`](./mood-space.html) — the tuning sandbox. Its event table
   is seeded from the shipped one, so the wear and tag mechanics below can be
   played with against real numbers. It emits the tuned tables as Go.
-- [`../internal/sim/affect.go`](../internal/sim/affect.go) — `lifeEventAppraisals`
-  and `transformMoodVector`, the two tables this proposal changes the shape of.
+- [`../internal/sim/cognition_config.go`](../internal/sim/cognition_config.go) —
+  shipped reaction tags and trait modifiers; the natural home for wear config.
 - [`../internal/sim/personality.go`](../internal/sim/personality.go) — `Trait`,
   `traitGroup`, and the resolve-at-spawn principle baselines follow.
 - [`../internal/sim/world.go`](../internal/sim/world.go) — `remember`, the one
@@ -45,12 +45,12 @@ occurrence, picks between them.
     target = lerp(fresh, worn, wear)
 
 This is also the change that lets the traumatic events say what they should.
-The shipped `EvtWitnessedColonistKilled` target is a compromise — one point
+The shipped `witnessed-colonist-killed` target is a compromise — one point
 standing in for two very different reactions — and it had to be the *later* of
 the two, because a colonist who reacts to every killing as a rallying cry is
 worse than one who is always shaken. Wear splits it back apart:
 
-| `EvtWitnessedColonistKilled` | charge | grip | valence | lands in |
+| `witnessed-colonist-killed` | charge | grip | valence | lands in |
 | --- | ---: | ---: | ---: | --- |
 | `fresh` | 70 | 40 | −60 | furious |
 | `worn` | 20 | −85 | −85 | despairing |
@@ -63,7 +63,7 @@ reaction on grip, not the weaker one. Wear is not a volume knob.
 For a mundane event the same pair reads as satisfaction and drudgery — no
 special case, no second mechanism:
 
-| `EvtFinishedMining` | charge | grip | valence | lands in |
+| `finished-mining` | charge | grip | valence | lands in |
 | --- | ---: | ---: | ---: | --- |
 | `fresh` | −1 | 5 | +3 | steady |
 | `worn` | −6 | −4 | −3 | flat |
@@ -87,11 +87,10 @@ for dedicated per-colonist state. Note the interaction with collapsed memories �
 a run of digs folds into one entry, so counting entries and counting occurrences
 are different numbers, and `Memory.Count` is the one to read.
 
-### Tags: making trait × event tractable
+### Tags: making trait × reaction tractable (shipped)
 
-Today `transformMoodVector` is a `switch` over trait × event kind, so adding a
-trait means considering it against every event, and vice versa — `t × e`
-decisions. Introduce an intermediate vocabulary:
+The compositional cognition system replaced the old trait × event switch with
+an intermediate vocabulary:
 
 **Events carry tags. Traits react to tags.** `t × e` becomes `t + e`.
 
@@ -106,7 +105,8 @@ type TraitRule struct {
 Every factor is a multiplier defaulting to 1 (0 or unset means no change,
 matching the convention `traitSpec` already uses), so a reflection is just −1
 and the four shipped transforms survive the translation unchanged.
-`EvtWitnessedColonistKilled` is tagged `death, violence, social-loss, gore`;
+`witnessed-colonist-killed` is tagged `gore` (the vocabulary can grow to
+`death, violence, social-loss` as rules need them);
 `TraitTidy` reacts to `gore`. A new trait is one rule against existing tags; a
 new event is a tagging decision. Nobody ever has to answer "does ItemPurchased
 impact Mutant?"
@@ -178,11 +178,11 @@ they were always meant to be.
 - **Watch for:** the same saturation trap valence hit. A wear term that only
   rises is a ratchet; check a long peaceful run before believing the numbers.
 
-### Phase 2 — Tags and trait rules
+### Phase 2 — Tags and trait rules (shipped foundation)
 
-Replace `transformMoodVector`'s switch with the tag vocabulary and `TraitRule`
-table. Add dynamic tagging at emit time in `remember`. Add `Resilient` and
-`Cowardly`, which need Phase 1 to have anything to bend.
+Reaction tags, configured trait modifiers, and occurrence-level dynamic tags
+now run in `rememberPercept`. `Resilient` and `Cowardly` still wait on Phase 1
+because there is no wear rate for them to bend.
 
 - **Verify:** adding a new trait touches one table and no event definitions; the
   four shipped transforms produce identical results through the new path.
@@ -240,9 +240,10 @@ costing real time.
 
 Once built, the intended shapes:
 
-- **A new life event** — a row in the appraisal table, plus its tags.
-- **A new trait** — one `TraitRule` against existing tags. No event definitions
-  are touched.
+- **A new cognitive reaction** — a compositional match in `cognition.yaml`,
+  plus its tags.
+- **A new trait effect** — one modifier against existing tags. No reaction
+  definitions are touched.
 - **A new mood name** — a row in the attractor table (already true today).
 
 ## Related

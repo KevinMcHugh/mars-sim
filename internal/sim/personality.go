@@ -261,7 +261,7 @@ var traitSpecs = [numTraits]traitSpec{
 		Name: "Tidy", Desc: "Squeamish about mess; the sight of gore hits morale harder.",
 		group: groupTemperament,
 		// No need-rise/rest/work/social effect — Tidy's only effect is the extra
-		// EvtSawGore mood penalty declared in lifeevents.go, gated on this trait.
+		// gore appraisal declared by the tidy-gore cognition modifier.
 	},
 	TraitMutant: {
 		Name: "Mutant", Desc: "Uranium rewrote them; they carry parts nobody is born with.",
@@ -274,7 +274,7 @@ var traitSpecs = [numTraits]traitSpec{
 		Name: "Mutant-Lover", Desc: "Drawn to the changed; warms to mutants far faster than to anyone else.",
 		group: groupMutantAttitude,
 		// No scalar effect either: its work is the directional affinity bonus
-		// in finishTalk and the mood effects gated on it in lifeevents.go.
+		// in finishTalk and the configured mutation mood modifier.
 	},
 }
 

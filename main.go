@@ -42,10 +42,15 @@ func main() {
 		}
 	}
 
-	// The settings file is read before any flag is registered, so that the
-	// values it sets become the flag defaults: flags then override the file
-	// for free, and -h prints the defaults this run will actually use. That
-	// means -config has to be found the hard way, before flag.Parse.
+	// Cognition and settings files are read before any flag is registered, so
+	// that the values they set become the flag defaults: flags then override
+	// the files for free, and -h prints the defaults this run will actually use.
+	cogPath, cogPathGiven := cognitionPathFromArgs(os.Args[1:])
+	if err := loadCognitionConfigFile(&cfg, cogPath, cogPathGiven); err != nil {
+		fmt.Fprintln(os.Stderr, "mars-sim:", err)
+		os.Exit(2)
+	}
+
 	cfgPath, cfgPathGiven := configPathFromArgs(os.Args[1:])
 	if err := loadConfigFile(&cfg, cfgPath, cfgPathGiven); err != nil {
 		fmt.Fprintln(os.Stderr, "mars-sim:", err)
@@ -54,20 +59,23 @@ func main() {
 
 	// Application flags (not part of the simulation config).
 	var (
-		duration    time.Duration
-		headless    bool
-		seed        int64
-		glyphs      string
-		printConfig bool
+		duration             time.Duration
+		headless             bool
+		seed                 int64
+		glyphs               string
+		printConfig          bool
+		printCognitionConfig bool
+		printCognitionVocab  bool
 	)
 	flag.DurationVar(&duration, "duration", 0, "auto-exit after this long (0 = run until quit); handy for smoke tests")
 	flag.BoolVar(&headless, "headless", false, "run without the TUI, printing periodic stats")
 	flag.Int64Var(&seed, "seed", 0, "world seed (0 = random each run)")
 	flag.StringVar(&glyphs, "glyphs", glyphModeAuto, "map glyphs: auto (measure the terminal), emoji (trust the width table), or ascii")
-	// Registered so it shows up in -h and is not rejected as unknown; the value
-	// was already consumed by configPathFromArgs above.
 	flag.String("config", cfgPath, "settings file to read before the flags (\"\" to ignore any file)")
+	flag.String("cognition", cogPath, "cognition balance file to read before flags (\"\" to ignore any file)")
 	flag.BoolVar(&printConfig, "print-config", false, "write a commented settings file with every setting at its default, then exit")
+	flag.BoolVar(&printCognitionConfig, "print-cognition-config", false, "write a cognition settings file with every setting at its default, then exit")
+	flag.BoolVar(&printCognitionVocab, "print-cognition-vocab", false, "write cognition vocabulary and editor schema as JSON, then exit")
 
 	// Simulation config flags, each defaulting to the value the settings file
 	// left in place.
@@ -80,6 +88,15 @@ func main() {
 		os.Stdout.Write(sim.ConfigTemplate())
 		return
 	}
+	if printCognitionConfig {
+		os.Stdout.Write(sim.CognitionConfigTemplate())
+		return
+	}
+	if printCognitionVocab {
+		os.Stdout.Write(sim.CognitionVocabularyJSON(cfg.Cognition))
+		return
+	}
+	cfg.SyncToCognition()
 
 	if seed != 0 {
 		cfg.Seed = seed // otherwise keep DefaultConfig's random, time-based seed
@@ -141,6 +158,43 @@ func bindConfigFlags(fs *flag.FlagSet, cfg *sim.Config) {
 			panic(fmt.Sprintf("mars-sim: setting %q has unsupported type %T", k.Name, k.Ptr))
 		}
 	}
+}
+
+// cognitionPathFromArgs finds the -cognition value before the flag package runs.
+func cognitionPathFromArgs(args []string) (path string, given bool) {
+	for i, a := range args {
+		name, value, hasValue := strings.Cut(a, "=")
+		if name != "-cognition" && name != "--cognition" {
+			continue
+		}
+		if hasValue {
+			return value, true
+		}
+		if i+1 < len(args) {
+			return args[i+1], true
+		}
+		return "", true
+	}
+	return sim.DefaultCognitionConfigFileName, false
+}
+
+// loadCognitionConfigFile applies a cognition balance file to cfg.
+func loadCognitionConfigFile(cfg *sim.Config, path string, given bool) error {
+	if path == "" {
+		return nil
+	}
+	data, err := os.ReadFile(path)
+	switch {
+	case errors.Is(err, fs.ErrNotExist) && !given:
+		return nil
+	case err != nil:
+		return fmt.Errorf("reading cognition settings: %w", err)
+	}
+	if err := sim.ApplyCognitionYAML(&cfg.Cognition, data); err != nil {
+		return err
+	}
+	cfg.SyncWithCognition()
+	return nil
 }
 
 // configPathFromArgs finds the -config value before the flag package runs.
