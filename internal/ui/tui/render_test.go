@@ -527,20 +527,26 @@ func TestRosterDetailScrolls(t *testing.T) {
 	if !strings.Contains(out, "STATUS") {
 		t.Fatal("the inspector should open at the top of the colonist")
 	}
-	if strings.Contains(out, "Remembered thing 29.") {
-		t.Fatal("the newest memory should start below the fold, or this test proves nothing")
+	if strings.Contains(out, "Remembered thing") {
+		t.Fatal("memories should start below the fold, or this test proves nothing")
 	}
 	if !strings.Contains(out, "1-23 of 59") {
 		t.Errorf("an overflowing inspector should say how much content there is:\n%s", out)
 	}
 
-	// Two screenfuls is past the end of this colonist; the panel stops at the
-	// last line rather than scrolling into blank space.
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyPgDown})
+	// One screenful down reaches the memory list, newest first.
 	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyPgDown})
 	out = m.View()
 	if !strings.Contains(out, "Remembered thing 29.") {
-		t.Errorf("scrolling down should reach the newest memory:\n%s", out)
+		t.Errorf("the newest memory should be listed first:\n%s", out)
+	}
+
+	// Two screenfuls is past the end of this colonist; the panel stops at the
+	// last line rather than scrolling into blank space, on the oldest memory.
+	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyPgDown})
+	out = m.View()
+	if !strings.Contains(out, "Remembered thing 0.") {
+		t.Errorf("scrolling down should reach the oldest memory last:\n%s", out)
 	}
 	if strings.Contains(out, "STATUS") {
 		t.Error("scrolled to the bottom, the identity block should be off the panel")
