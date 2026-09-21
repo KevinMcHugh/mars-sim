@@ -1,0 +1,38 @@
+# Sample director schedule.
+#
+# The director scripts major occurrences — a mouse plague, an alien swarm, a
+# supply drop — into tick windows. See docs/director.md.
+#
+# Copy this file to director.yaml (or run with -director director.yaml.example)
+# to try it. Nothing loads it automatically under this name.
+#
+# Each schedule has a tick window (earliest_tick..latest_tick) and a list of
+# candidate occurrences. Exactly one candidate fires, chosen with flat odds
+# across the list, at a tick drawn with flat odds from the window. A schedule
+# with only one occurrence still gets its tick randomized within the window;
+# it just has nothing to choose between.
+
+schedules:
+  - name: "first trouble"
+    earliest_tick: 500
+    latest_tick: 1200
+    occurrences:
+      - kind: alien-swarm
+        count: 4
+      - kind: mouse-plague
+        count: 20
+
+  - name: "a lucky break"
+    earliest_tick: 1000
+    latest_tick: 1500
+    occurrences:
+      - kind: supply-drop
+        pistols: 2
+        shotguns: 1
+
+  - name: "the mice come back"
+    earliest_tick: 3000
+    latest_tick: 4000
+    occurrences:
+      - kind: mouse-plague
+        count: 40

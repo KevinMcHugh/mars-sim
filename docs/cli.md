@@ -28,6 +28,8 @@ Startup follows this order:
    This happens *before* the flags are registered, so the file's values become
    the flag defaults — which is why `-config` is located by scanning `os.Args`
    rather than by the flag package. See [config-file.md](./config-file.md).
+2b. Apply the director's schedule file (`director.yaml`, or `-director PATH`)
+    the same way, for the same reason. See [director.md](./director.md).
 3. Register flags whose defaults come from that config.
 4. Parse flags (with `?`, `-?`, and `--?` as help aliases).
 5. Apply a non-zero `-seed` override.
@@ -45,6 +47,7 @@ These flags control how the process runs rather than the simulated world:
 | `-duration <time>` | Stop automatically after the duration, such as `10s` or `250ms`. The default `0` means run until quit/interruption. |
 | `-seed <int64>` | Select a reproducible world seed. `0` leaves the time-based default seed in place. |
 | `-config <path>` | Read this settings file instead of `mars-sim.yaml` in the working directory. A file named here that does not exist is an error; `-config ""` reads no file at all. |
+| `-director <path>` | Read this director schedule file instead of `director.yaml` in the working directory. A file named here that does not exist is an error; `-director ""` runs with no scheduled occurrences. See [director.md](./director.md). |
 | `-print-config` | Write a commented settings file with every setting at its default to stdout, then exit. Redirect it to `mars-sim.yaml` to regenerate the committed file. |
 | `-glyphs <mode>` | How to draw map glyphs: `auto` (default) measures each glyph against the terminal at startup and falls back to ASCII if any is painted at an unexpected width; `emoji` skips the probe and trusts the built-in width table; `ascii` forces the fallback set. See [terminal-cell-widths.md](./terminal-cell-widths.md). |
 | `-h`, `-help`, `?` | Print usage, examples, and all available flags. |
