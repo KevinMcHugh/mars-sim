@@ -408,6 +408,13 @@ type World struct {
 	// otherwise a facility mobbed by its neighbors could never be raised. See
 	// rebuildBuildTiles.
 	buildTiles map[Point]bool
+	// doorTiles holds the single exterior tile in front of every room's
+	// doorway ever designated, forever — even after the room finishes or a
+	// later room's wall would otherwise cover it. roomSiteClear checks it
+	// alongside a candidate site's own requirements so a new room can never
+	// wall over an existing room's sole way out. Rooms are never demolished
+	// or un-designated, so entries are only ever added. See designateRoom.
+	doorTiles map[Point]bool
 
 	// directorQueue is cfg.Schedules resolved to concrete (tick, occurrence)
 	// firings, sorted ascending; directorNext is how far runDirector has
@@ -470,6 +477,7 @@ func newWorld(cfg Config, rng *rand.Rand) *World {
 		entities:          make(map[EntityID]*Entity),
 		colonistNames:     make(map[string]EntityID),
 		buildTiles:        make(map[Point]bool),
+		doorTiles:         make(map[Point]bool),
 		storageContainers: make(map[Point]*StorageContainer),
 		kin:               make(map[kinID]*kinPerson),
 		nextKinID:         1,
