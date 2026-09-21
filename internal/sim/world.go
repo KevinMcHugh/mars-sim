@@ -468,12 +468,13 @@ type World struct {
 	log             *eventLog
 	cfg             Config
 
-	// alienSpecies is this world's one rolled kind of alien -- its build,
-	// its colloquial name, and the combat stats (bite damage/rest, burrow
-	// slowness) every Alien entity in the game reads instead of a flat
-	// Config value. Rolled once in newWorld, off its own seed-derived stream
-	// (neither rng nor prng). See lore.go.
-	alienSpecies AlienSpecies
+	// alienSpecies is this world's roster of rolled alien species -- each
+	// one's build, colloquial name, temperament, and the combat stats (bite
+	// damage/rest, burrow slowness) every Alien entity assigned to it (see
+	// Entity.Species, set in spawn) reads instead of a flat Config value.
+	// Rolled once in newWorld, off its own seed-derived stream (neither rng
+	// nor prng). See lore.go.
+	alienSpecies []AlienSpecies
 }
 
 // newWorld allocates an all-Rock world of the given size.
@@ -502,7 +503,7 @@ func newWorld(cfg Config, rng *rand.Rand) *World {
 		log:               newEventLog(cfg.LogSize),
 		cfg:               cfg,
 	}
-	w.alienSpecies = rollAlienSpecies(rand.New(rand.NewSource(cfg.Seed^alienLoreSeed)), cfg)
+	w.alienSpecies = rollAlienSpeciesRoster(rand.New(rand.NewSource(cfg.Seed^alienLoreSeed)), cfg)
 	w.terrainCounts[Rock] = n // every tile starts as Rock
 
 	for k := Kind(0); k < numKinds; k++ {
@@ -775,6 +776,12 @@ func (w *World) spawn(kind Kind, p Point) *Entity {
 	}
 	if kind == Mouse {
 		e.sex = w.rollMouseSex() // decides which mice can carry a litter
+	}
+	if kind == Alien && len(w.alienSpecies) > 0 {
+		// Which species this individual belongs to is an ordinary gameplay
+		// draw like where a colonist lands, not part of generating the
+		// species roster itself -- see lore.go.
+		e.Species = w.rng.Intn(len(w.alienSpecies))
 	}
 	w.nextID++
 	w.entities[e.ID] = e

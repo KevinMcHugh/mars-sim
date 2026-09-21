@@ -49,10 +49,11 @@ func TestBystanderRemembersAlienAttack(t *testing.T) {
 	// The exact body part hit is an RNG detail (see rollHit); only the shape
 	// of the message is pinned here. The species name is whatever this
 	// seed rolled (see lore.go), not literally "alien".
-	if got := lastMemory(victim); !strings.HasPrefix(got, "Bitten in the ") || !strings.HasSuffix(got, " by "+w.alienNoun()+"!") {
-		t.Fatalf("victim memory = %q, want a %q..%q message", got, "Bitten in the ", " by "+w.alienNoun()+"!")
+	noun := w.alienNounFor(alien)
+	if got := lastMemory(victim); !strings.HasPrefix(got, "Bitten in the ") || !strings.HasSuffix(got, " by "+noun+"!") {
+		t.Fatalf("victim memory = %q, want a %q..%q message", got, "Bitten in the ", " by "+noun+"!")
 	}
-	wantWitness := "Watched " + w.alienNoun() + " attack " + victim.displayName() + "."
+	wantWitness := "Watched " + noun + " attack " + victim.displayName() + "."
 	if got := lastMemory(bystander); got != wantWitness {
 		t.Fatalf("bystander memory = %q, want %q", got, wantWitness)
 	}
@@ -60,14 +61,14 @@ func TestBystanderRemembersAlienAttack(t *testing.T) {
 	// A second, fatal bite: the victim is removed and cannot hold a memory,
 	// but the bystander should remember watching the kill.
 	victim2 := w.spawn(Colonist, Point{1, 0})
-	victim2.HP = w.alienSpecies.BiteDamage
+	victim2.HP = w.alienSpeciesFor(alien).BiteDamage
 	name := victim2.displayName()
 	w.bite(alien, victim2)
 
 	if w.entities[victim2.ID] != nil {
 		t.Fatal("fatally bitten colonist should have been removed")
 	}
-	wantKillWitness := "Watched " + w.alienNoun() + " kill " + name + "."
+	wantKillWitness := "Watched " + noun + " kill " + name + "."
 	if got := lastMemory(bystander); got != wantKillWitness {
 		t.Fatalf("bystander memory after kill = %q, want %q", got, wantKillWitness)
 	}

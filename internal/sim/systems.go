@@ -1444,31 +1444,51 @@ func (w *World) bordersSolid(p Point) bool {
 
 // ---- Aliens ------------------------------------------------------------------
 
+// alienTurn dispatches on the alien's rolled species' Temperament
+// (AlienSpecies, see lore.go): Friendly never fights and only wanders;
+// Cautious reacts once a colonist comes within Config.AlienCautiousRadius but
+// does not chase one further off; Hostile hunts the nearest colonist
+// anywhere on the map, unconditionally, the way every alien behaved before
+// temperament existed.
 func (w *World) alienTurn(e *Entity) {
 	if e.Cooldown > 0 {
 		e.Cooldown-- // still digesting or mid-stride between slow steps
 		return
 	}
+	sp := w.alienSpeciesFor(e)
 
-	prey, ok := w.nearestOfKindAnywhere(e.Pos, Colonist)
+	if sp.Temperament == TemperamentFriendly {
+		e.State, e.Quarry = Idle, 0
+		w.wanderStep(e)
+		e.Cooldown = sp.Slowness - 1
+		return
+	}
+
+	var prey *Entity
+	var ok bool
+	if sp.Temperament == TemperamentHostile {
+		prey, ok = w.nearestOfKindAnywhere(e.Pos, Colonist)
+	} else { // Cautious: reacts, but does not go looking beyond its radius
+		prey, ok = w.nearestOfKind(e.Pos, Colonist, w.cfg.AlienCautiousRadius)
+	}
 	if !ok {
 		e.State, e.Quarry = Idle, 0
 		w.wanderStep(e)
-		e.Cooldown = w.alienSpecies.Slowness - 1
+		e.Cooldown = sp.Slowness - 1
 		return
 	}
 	e.Quarry = prey.ID
 
 	if e.Pos.Adjacent(prey.Pos) {
 		w.bite(e, prey)
-		e.Cooldown = w.alienSpecies.BiteRest
+		e.Cooldown = sp.BiteRest
 		return
 	}
 
 	// Aliens burrow: they step toward prey through any terrain.
 	e.State = Hunting
 	w.burrowStep(e, prey.Pos)
-	e.Cooldown = w.alienSpecies.Slowness - 1
+	e.Cooldown = sp.Slowness - 1
 }
 
 // bite deals damage to a random body part of a colonist and eats it if the
@@ -1478,22 +1498,23 @@ func (w *World) alienTurn(e *Entity) {
 // happen. A fatal bite leaves gore behind.
 func (w *World) bite(alien, prey *Entity) {
 	part := w.rollHit(prey)
-	fatal := applyDamage(prey, part, w.alienSpecies.BiteDamage)
+	fatal := applyDamage(prey, part, w.alienSpeciesFor(alien).BiteDamage)
 	witnesses := w.colonistsWithin(prey.Pos, w.cfg.FleeRadius, prey.ID)
+	noun := w.alienNounFor(alien)
 	if fatal {
 		alien.State = Feeding
 		name := prey.displayName()
 		w.addGore(prey.Pos)
-		w.remove(prey.ID, fmt.Sprintf("devoured by %s", w.alienNoun()))
-		w.log.add(fmt.Sprintf("%s devours %s.", capitalizeFirst(w.alienNoun()), name))
+		w.remove(prey.ID, fmt.Sprintf("devoured by %s", noun))
+		w.log.add(fmt.Sprintf("%s devours %s.", capitalizeFirst(noun), name))
 		for _, wit := range witnesses {
-			w.remember(wit, eventFrom(EvtWitnessedColonistKilled, alien.ID, "Watched %s kill %s.", w.alienNoun(), name))
+			w.remember(wit, eventFrom(EvtWitnessedColonistKilled, alien.ID, "Watched %s kill %s.", noun, name))
 		}
 	} else {
 		alien.State = Hunting
-		w.remember(prey, eventFrom(EvtBitten, alien.ID, "Bitten in the %s by %s!", part, w.alienNoun()))
+		w.remember(prey, eventFrom(EvtBitten, alien.ID, "Bitten in the %s by %s!", part, noun))
 		for _, wit := range witnesses {
-			w.remember(wit, eventFrom(EvtWitnessedColonistAttacked, alien.ID, "Watched %s attack %s.", w.alienNoun(), prey.displayName()))
+			w.remember(wit, eventFrom(EvtWitnessedColonistAttacked, alien.ID, "Watched %s attack %s.", noun, prey.displayName()))
 		}
 	}
 }

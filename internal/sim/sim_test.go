@@ -124,6 +124,14 @@ func TestAliensEatColonists(t *testing.T) {
 	cfg.StartAliens = 0
 	cfg.AlienSlowness = 1
 	w := newTestWorld(t, cfg)
+	// This test is about the bite/remove path, not about which temperament a
+	// seed happened to roll: force every rolled species Hostile so the
+	// surrounding aliens actually hunt rather than possibly wandering
+	// (Friendly) or only reacting within a radius (Cautious) that still
+	// covers this adjacency either way -- see lore.go.
+	for i := range w.alienSpecies {
+		w.alienSpecies[i].Temperament = TemperamentHostile
+	}
 
 	center := Point{w.Width / 2, w.Height / 2}
 	victim := w.spawn(Colonist, center)

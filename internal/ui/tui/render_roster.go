@@ -159,11 +159,11 @@ func (m Model) renderColonistList(cs []sim.EntityView, sel, rows, width int) str
 				age = fmt.Sprintf("age %d", c.Profile.Age)
 			}
 			infoLine = pronouns + divider + age
-		} else if c.Kind == sim.Alien && m.latest != nil {
-			// Not "alien": every world rolls its own kind at worldgen, and
-			// the roster is where a player can actually see what it is. See
-			// docs/lore.md.
-			infoLine = m.latest.AlienSpecies.RosterLabel()
+		} else if c.Kind == sim.Alien {
+			// Not "alien": every alien belongs to one of this world's rolled
+			// species, and the roster is where a player can actually see
+			// which. See docs/lore.md.
+			infoLine = c.AlienSpecies.RosterLabel()
 		}
 		if c.Dead {
 			state = "dead — " + c.Cause

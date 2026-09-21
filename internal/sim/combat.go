@@ -134,21 +134,22 @@ func (w *World) shoot(colonist, alien *Entity, weapon ItemKind, spec weaponSpec)
 	part := w.rollHit(alien)
 	fatal := applyDamage(alien, part, spec.damage)
 	witnesses := w.colonistsWithin(colonist.Pos, w.cfg.FleeRadius, colonist.ID)
+	noun := w.alienNounFor(alien)
 
 	if fatal {
 		w.addGore(alien.Pos)
 		w.addCorpse(alien.Pos) // nothing eats an alien: the body is the colony's to dispose of
 		w.remove(alien.ID, fmt.Sprintf("shot by %s with a %s", colonist.displayName(), weapon))
-		w.remember(colonist, event(EvtKilledAlien, "Killed %s with a %s!", w.alienNoun(), weapon))
-		w.log.add(fmt.Sprintf("%s guns down %s with a %s.", colonist.displayName(), w.alienNoun(), weapon))
+		w.remember(colonist, event(EvtKilledAlien, "Killed %s with a %s!", noun, weapon))
+		w.log.add(fmt.Sprintf("%s guns down %s with a %s.", colonist.displayName(), noun, weapon))
 		for _, wit := range witnesses {
-			w.remember(wit, event(EvtWitnessedAlienKilled, "Watched %s kill %s.", colonist.displayName(), w.alienNoun()))
+			w.remember(wit, event(EvtWitnessedAlienKilled, "Watched %s kill %s.", colonist.displayName(), noun))
 		}
 		return
 	}
-	w.remember(colonist, event(EvtWoundedAlien, "Shot %s in the %s with a %s.", w.alienNoun(), part, weapon))
+	w.remember(colonist, event(EvtWoundedAlien, "Shot %s in the %s with a %s.", noun, part, weapon))
 	for _, wit := range witnesses {
-		w.remember(wit, event(EvtWitnessedGunfight, "Watched %s fight off %s.", colonist.displayName(), w.alienNoun()))
+		w.remember(wit, event(EvtWitnessedGunfight, "Watched %s fight off %s.", colonist.displayName(), noun))
 	}
-	w.log.add(fmt.Sprintf("%s fires a %s at %s.", colonist.displayName(), weapon, w.alienNoun()))
+	w.log.add(fmt.Sprintf("%s fires a %s at %s.", colonist.displayName(), weapon, noun))
 }

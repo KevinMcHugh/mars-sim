@@ -147,15 +147,27 @@ func (w *World) fireMousePlague(ev scheduledEvent) {
 func (w *World) fireAlienSwarm(ev scheduledEvent) {
 	center := Point{w.Width / 2, w.Height / 2}
 	spawned := 0
+	var first *Entity
 	for i := 0; i < ev.Occurrence.Count; i++ {
 		p, ok := w.randomRockFar(center, 8)
 		if !ok {
 			break
 		}
-		w.spawn(Alien, p)
+		a := w.spawn(Alien, p)
+		if first == nil {
+			first = a
+		}
 		spawned++
 	}
-	w.log.add(fmt.Sprintf("%s: a swarm of %s burrows toward the colony (%d).", ev.Name, w.alienPlural(), spawned))
+	// With more than one species rolled for this world (AlienSpeciesCount),
+	// a swarm can be a mix; naming it after whichever spawned first is a
+	// deliberate simplification for one flavor line rather than a precise
+	// species-by-species breakdown.
+	noun := "aliens"
+	if first != nil {
+		noun = w.alienPluralFor(first)
+	}
+	w.log.add(fmt.Sprintf("%s: a swarm of %s burrows toward the colony (%d).", ev.Name, noun, spawned))
 }
 
 // fireSupplyDrop hands out weapons to living colonists, the same way the

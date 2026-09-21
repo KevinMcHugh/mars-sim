@@ -1,0 +1,135 @@
+# The built-in pool of alien names (see docs/lore.md). This file is compiled
+# into the binary (internal/sim/alien_names.go's go:embed) as
+# defaultAlienNames() -- the names any world uses unless -alien-names points
+# at a different file. Edit it to change the built-in set, or copy it
+# elsewhere and pass -alien-names to override without recompiling (see
+# alien-names.yaml.example at the repo root for a worked, commented example).
+#
+# Each entry is a candidate name with an optional "when" condition over the
+# rolled species' build. A name with no condition always applies. When more
+# than one name's condition matches a rolled species, one is picked at random
+# among them -- overlapping conditions are expected, not an error.
+
+names:
+  - name: alien
+    plural: aliens
+
+  - name: ET
+    plural: ETs
+
+  - name: xeno
+    plural: xenos
+
+  - name: gremlin
+    plural: gremlins
+    when:
+      any:
+        - temperament: friendly
+        - temperament: cautious
+
+  - name: critter
+    plural: critters
+    when:
+      any:
+        - temperament: friendly
+        - temperament: cautious
+
+  - name: bug
+    plural: bugs
+    when:
+      legs: { gt: 4 }
+
+  - name: centipede
+    plural: centipedes
+    when:
+      legs: { gt: 6 }
+
+  - name: centaur
+    plural: centaurs
+    when:
+      all:
+        - legs: { eq: 4 }
+        - arms: { eq: 2 }
+
+  - name: beetle
+    plural: beetles
+    when:
+      all:
+        - legs: { eq: 6 }
+        - skin: armored
+
+  - name: snake
+    plural: snakes
+    when:
+      all:
+        - limbs: { eq: 0 }
+        - skin: scaly
+
+  - name: reptile
+    plural: reptiles
+    when:
+      skin: scaly
+
+  - name: furball
+    plural: furballs
+    when:
+      skin: furry
+
+  - name: tank
+    plural: tanks
+    when:
+      skin: armored
+
+  - name: titan
+    plural: titans
+    when:
+      any:
+        - height: huge
+        - weight: huge
+
+  - name: wisp
+    plural: wisps
+    when:
+      any:
+        - height: tiny
+        - weight: tiny
+
+  - name: red
+    plural: reds
+    when: { color: red }
+
+  - name: orange
+    plural: oranges
+    when: { color: orange }
+
+  - name: yellow
+    plural: yellows
+    when: { color: yellow }
+
+  - name: green
+    plural: greens
+    when: { color: green }
+
+  - name: blue
+    plural: blues
+    when: { color: blue }
+
+  - name: purple
+    plural: purples
+    when: { color: purple }
+
+  - name: gray
+    plural: grays
+    when: { color: gray }
+
+  - name: black
+    plural: blacks
+    when: { color: black }
+
+  - name: white
+    plural: whites
+    when: { color: white }
+
+  - name: pale one
+    plural: pale ones
+    when: { color: pale }

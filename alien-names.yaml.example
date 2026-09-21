@@ -1,0 +1,61 @@
+# Sample alien name pool.
+#
+# A rolled AlienSpecies (see docs/lore.md) needs a name -- what colonists
+# call it -- and which names make sense depends on how it rolled: a
+# six-legged armored thing reads as a "beetle," a limbless scaly one as a
+# "snake." Each entry below is a candidate name plus a `when` condition over
+# the species' build; every entry whose condition matches the rolled species
+# is a candidate, and one is picked at random among them, so overlapping
+# conditions (a name that fits several kinds of species) are expected, not an
+# error. An entry with no `when` always applies.
+#
+# Copy this file to alien-names.yaml (or run with -alien-names
+# alien-names.yaml.example) to try it. Nothing loads it automatically under
+# this name -- the game's built-in pool (compiled in from
+# internal/sim/alien-names.yaml) is used unless a file is named.
+#
+# Condition fields:
+#   temperament: friendly | cautious | hostile
+#   skin:        smooth | scaly | furry | armored
+#   color:       red | orange | yellow | green | blue | purple | gray | black | white | pale
+#   height:      tiny | small | average | large | huge   (bucketed from the rolled range)
+#   weight:      tiny | small | average | large | huge   (bucketed from the rolled range)
+#   tail:        true | false
+#   legs / arms / limbs / eyes:  {eq: N} | {gt: N} | {gte: N} | {lt: N} | {lte: N}
+#
+# Combine with "all" (every sub-condition must match), "any" (at least one
+# must), and "not" (must not match) -- these nest to any depth.
+
+names:
+  # Unconditional fallbacks: always eligible, whatever the species rolled.
+  - name: alien
+    plural: aliens
+  - name: xeno
+    plural: xenos
+
+  # A compound condition: exactly six legs *and* armored skin.
+  - name: beetle
+    plural: beetles
+    when:
+      all:
+        - legs: { eq: 6 }
+        - skin: armored
+
+  # "any": either a passive temperament reads as this name.
+  - name: critter
+    plural: critters
+    when:
+      any:
+        - temperament: friendly
+        - temperament: cautious
+
+  # "not": a hostile, two-legged species that does *not* have a tail --
+  # something that could pass for upright and humanoid.
+  - name: stalker
+    plural: stalkers
+    when:
+      all:
+        - temperament: hostile
+        - legs: { eq: 2 }
+        - not:
+            tail: true

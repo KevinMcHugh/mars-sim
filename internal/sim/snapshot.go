@@ -29,6 +29,11 @@ type EntityView struct {
 	Parts    [numBodyParts]int
 	MaxParts [numBodyParts]int
 
+	// AlienSpecies is the rolled species this entity belongs to (Alien only;
+	// see Entity.Species and World.alienSpeciesFor). Zero-valued for every
+	// other kind. See docs/lore.md.
+	AlienSpecies AlienSpecies
+
 	// Relations are the colonist's familial ties to other colonists, derived from
 	// the family tree; Affinities are its tracked warmth toward colonists it has
 	// talked with, strongest first. Both are colonists only, and computed only
@@ -178,10 +183,11 @@ type Snapshot struct {
 	PendingStorageRooms  int
 	Storages             []StorageView
 
-	// AlienSpecies is this world's one rolled kind of alien -- its build,
-	// its colloquial name, and its temperament. Every Alien in Entities is
-	// one of these; see docs/lore.md.
-	AlienSpecies AlienSpecies
+	// AlienSpecies is this world's roster of rolled alien species -- each
+	// one's build, colloquial name, and temperament. Every Alien in Entities
+	// carries a copy of the one it belongs to on its own EntityView.AlienSpecies;
+	// this is the full roster, for a codex-style listing. See docs/lore.md.
+	AlienSpecies []AlienSpecies
 
 	AffinityMax    int // affinity display bars run [-AffinityMax, AffinityMax]
 	MoodMax        int // charge and grip each run in [-MoodMax, MoodMax]
@@ -322,7 +328,7 @@ func (w *World) snapshot(paused bool, tps int) *Snapshot {
 		Storages:             storages,
 		Graveyard:            append([]EntityView(nil), w.graveyard...),
 		Deceased:             cloneDeceased(w.deceasedColonists),
-		AlienSpecies:         w.alienSpecies,
+		AlienSpecies:         append([]AlienSpecies(nil), w.alienSpecies...),
 		AffinityMax:          w.cfg.AffinityMax,
 		MoodMax:              w.cfg.MoodMax,
 		Paused:               paused,
@@ -363,6 +369,9 @@ func (w *World) entityView(e *Entity, kinChildren map[kinID][]kinID, full bool) 
 	if e.hasParts() {
 		ev.Parts = e.Parts
 		ev.MaxParts = e.MaxParts
+	}
+	if e.Kind == Alien {
+		ev.AlienSpecies = w.alienSpeciesFor(e)
 	}
 	if e.Kind == Colonist {
 		ev.Charge = e.affect.Charge
