@@ -110,62 +110,38 @@ const (
 	TagFriend
 )
 
+// eventTagNames is how each tag is spelled in events.yaml, in bit order.
+var eventTagNames = []struct {
+	Tag  EventTag
+	Name string
+}{
+	{TagThreat, "threat"},
+	{TagViolence, "violence"},
+	{TagDeath, "death"},
+	{TagSocialLoss, "social-loss"},
+	{TagGore, "gore"},
+	{TagRodent, "rodent"},
+	{TagWork, "work"},
+	{TagFinishedWork, "finished-work"},
+	{TagIncineration, "incineration"},
+	{TagAchievement, "achievement"},
+	{TagUpkeep, "upkeep"},
+	{TagRest, "rest"},
+	{TagSocial, "social"},
+	{TagMutation, "mutation"},
+	{TagFriend, "friend"},
+}
+
 func (t EventTag) any(of EventTag) bool  { return of == 0 || t&of != 0 }
 func (t EventTag) all(of EventTag) bool  { return t&of == of }
 func (t EventTag) none(of EventTag) bool { return t&of == 0 }
 
-// lifeEventAppraisals is the complete semantic event appraisal table. Unlike
-// decay, hysteresis and the push/pull endpoints, these meanings are
-// intentionally not balance knobs.
-//
-// Reading a row: routine life sits under MoodPushImpact, where the target is a
-// small displacement that accumulates. The handful above it are targets in the
-// literal sense -- a colonist who watches someone die ends up near `anxious`
-// no matter how good their day had been -- so those rows are written at the
-// scale of the plane rather than the scale of a nudge, along the same
-// direction the smaller version pointed.
-//
-// Valence is mostly zero here on purpose. Charge and grip shed points every
-// turn, so a steady drip of small numbers goes nowhere, but valence settles a
-// point at a time and a colonist digs far more often than that: paying it for
-// routine upkeep pegged every colonist at the maximum within a few hundred
-// ticks, which is the same "everyone always reads as fine" failure the axis
-// exists to fix. So only what a colonist would actually count as a good or bad
-// day moves it, and an uneventful shift leaves it where it was. The worn
-// column holds that line for the same reason: monotony takes away the lift a
-// job used to give rather than making the job itself a misfortune, so it shows
-// up in grip rather than as a slow bleed of valence no colonist could explain.
-var lifeEventAppraisals = [numLifeEventKinds]moodAppraisal{
-	EvtSawAlien:                  {TagThreat, 45, MoodVector{8, -10, -15}, MoodVector{5, -22, -22}},
-	EvtSawMouse:                  {TagRodent, 8, MoodVector{2, -3, 0}, MoodVector{1, -1, 0}},
-	EvtSawGore:                   {TagGore, 30, MoodVector{-3, -7, -6}, MoodVector{-6, -14, -10}},
-	EvtBitten:                    {TagThreat | TagViolence, 70, MoodVector{55, -44, -30}, MoodVector{35, -80, -55}},
-	EvtWitnessedColonistKilled:   {TagDeath | TagViolence | TagSocialLoss | TagGore, 95, MoodVector{70, 40, -60}, MoodVector{20, -85, -85}},
-	EvtWitnessedColonistAttacked: {TagViolence | TagSocialLoss, 75, MoodVector{45, 25, -40}, MoodVector{25, -70, -60}},
-	EvtCrushedMouse:              {TagRodent | TagUpkeep, 6, MoodVector{-1, 2, 0}, MoodVector{-2, 0, 0}},
-	EvtWitnessedMouseCrushed:     {TagRodent | TagGore, 8, MoodVector{-1, -2, -1}, MoodVector{-1, -1, 0}},
-	EvtWitnessedCatCatch:         {TagRodent, 5, MoodVector{1, 1, 0}, MoodVector{0, 0, 0}},
-	EvtKilledAlien:               {TagViolence | TagAchievement, 55, MoodVector{45, 52, 35}, MoodVector{25, 20, 8}},
-	EvtWitnessedAlienKilled:      {TagViolence, 35, MoodVector{5, 6, 4}, MoodVector{2, 2, 0}},
-	EvtWoundedAlien:              {TagViolence, 25, MoodVector{4, 5, 2}, MoodVector{2, 2, 0}},
-	EvtWitnessedGunfight:         {TagThreat | TagViolence, 50, MoodVector{35, -25, -20}, MoodVector{18, -45, -35}},
-	// A chat's target is the one thing here that cannot be a table lookup: it
-	// comes from how that particular conversation went. Only the tags and
-	// impact are declared; conversationMoodVector supplies the rest per
-	// occurrence, and wear leaves it alone (see applyAffect).
-	EvtConversation:         {Tags: TagSocial, Impact: 20},
-	EvtAte:                  {TagUpkeep, 10, MoodVector{4, 2, 1}, MoodVector{2, -1, 0}},
-	EvtUsedToilet:           {TagUpkeep, 4, MoodVector{1, 2, 0}, MoodVector{0, 0, 0}},
-	EvtSlept:                {TagRest, 25, MoodVector{15, 2, 2}, MoodVector{12, -2, 0}},
-	EvtNeedSatisfied:        {TagUpkeep, 8, MoodVector{2, 2, 0}, MoodVector{1, 0, 0}},
-	EvtFinishedMining:       {TagWork | TagFinishedWork, 15, MoodVector{-1, 5, 0}, MoodVector{-5, -3, 0}},
-	EvtClearedRock:          {TagWork | TagFinishedWork, 15, MoodVector{-1, 5, 0}, MoodVector{-5, -3, 0}},
-	EvtFinishedConstruction: {TagWork | TagFinishedWork | TagAchievement, 18, MoodVector{-1, 6, 3}, MoodVector{-4, 0, 0}},
-	EvtCleanedRefuse:        {TagWork | TagFinishedWork | TagGore, 14, MoodVector{-1, 5, 0}, MoodVector{-5, -4, 0}},
-	EvtIncineratedRefuse:    {TagWork | TagFinishedWork | TagIncineration, 16, MoodVector{-1, 7, 1}, MoodVector{-4, 0, 0}},
-	EvtMutated:              {TagMutation, 60, MoodVector{18, -70, -35}, MoodVector{10, -90, -70}},
-	EvtWitnessedMutation:    {TagMutation, 35, MoodVector{2, -8, -10}, MoodVector{1, -16, -18}},
-}
+// lifeEventAppraisals is what each kind of occurrence means to a colonist,
+// loaded from events.yaml at init. It was a Go literal until the tag phase
+// left nothing in the engine branching on a specific kind, at which point
+// keeping 25 rows of pure data in source stopped paying for itself: the
+// sandbox that tunes these numbers can now emit the file the sim reads.
+var lifeEventAppraisals [numLifeEventKinds]moodAppraisal
 
 // traitRules is what a trait does when something happens, in place of a switch
 // over trait x event kind. Every factor is a percentage where 100 -- or an

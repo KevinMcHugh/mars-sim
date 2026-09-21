@@ -16,7 +16,8 @@ kind of thing picks.
 
 ## Source
 
-- [`internal/sim/affect.go`](../internal/sim/affect.go) — appraisals, the push/pull blend, trait transforms, decay, attractors, and labels.
+- [`internal/sim/affect.go`](../internal/sim/affect.go) — the push/pull blend, wear, trait rules, decay, attractors, and labels.
+- [`internal/sim/events.yaml`](../internal/sim/events.yaml) — the appraisal, stimulus and collapse tables, as data.
 - [`internal/sim/lifeevents.go`](../internal/sim/lifeevents.go) — event kinds, `Subject` versus `Source`, and the temporary per-conversation `Outcome`.
 - [`internal/sim/world.go`](../internal/sim/world.go) — `remember`, the single affect/stimulus/memory ingestion funnel.
 - [`internal/sim/focus.go`](../internal/sim/focus.go) — additive charge/grip focus contributions.
@@ -29,7 +30,8 @@ kind of thing picks.
 Charge is energy behind the next action, grip is felt control, and valence is
 whether life has been going well. All three are clamped to
 `[-MoodMax, MoodMax]`. Each `LifeEventKind` has one `moodAppraisal` in
-`lifeEventAppraisals`: an `Impact` and a `Fresh`/`Worn` pair of targets. `remember` applies it
+`lifeEventAppraisals`, loaded from [`events.yaml`](../internal/sim/events.yaml):
+an `Impact` and a `Fresh`/`Worn` pair of targets. `remember` applies it
 once per occurrence before updating stimulus and memory state, so collapsed
 memories still reach the colonist each time.
 
@@ -242,8 +244,10 @@ the old single mood line.
 
 ## Extending it
 
-Add a mood-bearing event by adding one row to `lifeEventAppraisals` — an impact
-and a fresh/worn pair — and emitting it only through `remember`. Keep the target
+Add a mood-bearing event by adding one row to `events.yaml` — tags, an impact
+and a fresh/worn pair — and emitting it only through `remember`. The numbers
+live in data; what fires the event does not, and deliberately so: see the
+header of `eventdata.go`. Keep the target
 nudge-sized below `MoodPushImpact` and plane-sized above `MoodPullImpact`; a
 test checks that anything which relocates lands in named space, because
 relocating to a nudge-sized point would leave a colonist almost exactly neutral

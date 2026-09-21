@@ -21,8 +21,12 @@ ticks has a history, not a mining log.
 
 - [`internal/sim/lifeevents.go`](../internal/sim/lifeevents.go) — `LifeEventKind`,
   `LifeEvent`, event constructors, and `lifeEventCollapseText`.
+- [`internal/sim/events.yaml`](../internal/sim/events.yaml) — what each kind
+  means: tags, impact, fresh/worn, collapse text, and stimulus.
+- [`internal/sim/eventdata.go`](../internal/sim/eventdata.go) — loads and
+  validates that file, and records where the line between data and code is.
 - [`internal/sim/affect.go`](../internal/sim/affect.go) — `MoodVector`,
-  `lifeEventAppraisals`, the push/pull blend, trait transforms, and affect application.
+  the push/pull blend, trait rules, and affect application.
 - [`internal/sim/entity.go`](../internal/sim/entity.go) — `Memory` (carries
   `Kind`, and `LastTick`/`Count` for a collapsed run), the colonist's fixed
   stimulus storage, and `Memories`/`seen`/`seeingGore` fields.
@@ -65,6 +69,11 @@ whose current context is a particular entity use `eventFrom` instead:
 w.remember(prey, eventFrom(EvtBitten, alien.ID,
     "Bitten in the %s by an alien!", part))
 ```
+
+`rememberWitnesses` is the one fan-out on top of it: an occurrence everybody
+nearby saw is recorded once per onlooker, with the event built once because
+what they saw is the same thing. Callers about to remove the entity it happened
+to must fan out first, since appraisal asks how close each witness was to them.
 
 `remember` (in `world.go`) is the single funnel: it stamps whatever tags only
 this occurrence knows (today, whether it happened to someone the colonist is
@@ -143,21 +152,15 @@ type Memory struct {
 }
 ```
 
-Which kinds are minor is a table, in the same spirit as the affect table —
-`lifeEventCollapseText`, where a non-empty entry both *marks* the kind
-collapsible and supplies the text a run reads as:
+Which kinds are minor is data, in the same spirit as the affect table — a
+`collapses-to` line in [`events.yaml`](../internal/sim/events.yaml), which both
+*marks* the kind collapsible and supplies the text a run reads as:
 
-```go
-var lifeEventCollapseText = [numLifeEventKinds]string{
-    EvtFinishedMining:       "Finished mining.",
-    EvtClearedRock:          "Cleared rock for a room.",
-    EvtFinishedConstruction: "Finished construction.",
-    EvtCleanedRefuse:        "Cleaned up refuse.",
-    EvtIncineratedRefuse:    "Burned refuse in the incinerator.",
-    EvtAte:                  "Had a meal.",
-    EvtUsedToilet:           "Used the toilet.",
-    EvtSlept:                "Slept in a bed.",
-    EvtNeedSatisfied:        "Satisfied a need.",
+```yaml
+  finished-mining:
+    collapses-to: "Finished mining."
+  ate:
+    collapses-to: "Had a meal."
 }
 ```
 
@@ -309,11 +312,12 @@ Mutant-Lover reflects grip positive, without a branch in `mutate()`.
 ## Extending it
 
 - **Give an existing kind affect, or add a new affect-bearing kind**: edit its
-  `moodAppraisal` row in `lifeEventAppraisals` (`affect.go`). No call-site change.
+  row in [`events.yaml`](../internal/sim/events.yaml). No call-site change, and
+  no Go change at all unless the kind itself is new.
 - **A computed conversation outcome** uses `eventOutcome`; keep that temporary
   input inside the one ingestion funnel rather than updating affect directly.
 - **Make an existing kind collapsible (or stop it collapsing)**: add or remove
-  its entry in `lifeEventCollapseText` (`lifeevents.go`). The entry's text is
+  its `collapses-to` line in `events.yaml`. The entry's text is
   what a run of it reads as; no call site changes. `EvtCrushedMouse` is the
   most likely next candidate if stomping ever becomes routine.
 - **A new perception** (something a colonist should notice near it, like

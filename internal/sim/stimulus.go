@@ -21,33 +21,7 @@ type StimulusSpec struct {
 	Contribution [numFocusKinds]int
 }
 
-var stimulusSpecs = [numLifeEventKinds]StimulusSpec{
-	EvtSawAlien: {
-		Salience: 100, Lifetime: 12,
-		Contribution: [numFocusKinds]int{FocusFlee: 500, FocusFight: 500},
-	},
-	EvtBitten: {
-		Salience: 100, Lifetime: 20,
-		Contribution: [numFocusKinds]int{FocusFlee: 300, FocusFight: 150},
-	},
-	EvtWitnessedColonistKilled: {
-		Salience: 90, Lifetime: 20,
-		Contribution: [numFocusKinds]int{FocusFlee: 250, FocusFight: 100},
-	},
-	EvtWitnessedColonistAttacked: {
-		Salience: 70, Lifetime: 12,
-		Contribution: [numFocusKinds]int{FocusFlee: 200, FocusFight: 100},
-	},
-	EvtSawGore: {
-		Salience: 35, Lifetime: 30,
-		Contribution: [numFocusKinds]int{FocusWork: 20},
-	},
-	EvtFinishedMining:       finishedWorkStimulusSpec(),
-	EvtClearedRock:          finishedWorkStimulusSpec(),
-	EvtFinishedConstruction: finishedWorkStimulusSpec(),
-	EvtCleanedRefuse:        finishedWorkStimulusSpec(),
-	EvtIncineratedRefuse:    finishedWorkStimulusSpec(),
-}
+var stimulusSpecs [numLifeEventKinds]StimulusSpec
 
 func finishedWorkStimulusSpec() StimulusSpec {
 	return StimulusSpec{
