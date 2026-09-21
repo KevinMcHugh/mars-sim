@@ -36,6 +36,8 @@ for the doc the same way they would ask for tests.
 - The simulation must stay deterministic for a given seed: keep flavor/RNG that
   should not affect gameplay on the personality stream (`World.prng`), not the
   simulation stream (`World.rng`). See [`docs/personality.md`](./docs/personality.md).
+  The other half is map iteration order — never let it decide an identity, an
+  assignment, or a tie. See [`docs/determinism.md`](./docs/determinism.md).
 - New tunables go in `sim.Config` with a `cfg:"name" doc:"..."` tag and a default
   in `DefaultConfig`. The tag generates both the command-line flag and the key in
   the committed `mars-sim.yaml`, so regenerate that file

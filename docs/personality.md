@@ -194,3 +194,5 @@ exclusively.
 - [memories.md](./memories.md) — the one life-event ingestion funnel.
 - [heredity.md](./heredity.md) — the family pass that rewrites a generated
   profile's surname and appearance.
+- [determinism.md](./determinism.md) — the non-RNG half of the same invariant:
+  map iteration order.

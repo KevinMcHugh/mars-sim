@@ -367,11 +367,14 @@ type World struct {
 	// Regions & rooms: floor tiles grouped into per-chunk regions, then into
 	// rooms (connected components of the region graph). Maintained incrementally
 	// as terrain changes so reachability queries stay cheap. See rooms.go.
-	regionOf    []RegionID // parallel to tiles; 0 = not floor / no region
-	regions     map[RegionID]*region
-	nextRegion  RegionID
-	dirtyChunks map[int]struct{} // chunks whose regions need recompute
-	roomCount   int
+	regionOf []RegionID // parallel to tiles; 0 = not floor / no region
+	regions  map[RegionID]*region
+	// regionLinkScratch backs sortedLinks, so the abstract search can expand
+	// neighbours in a stable order without allocating per node.
+	regionLinkScratch []RegionID
+	nextRegion        RegionID
+	dirtyChunks       map[int]struct{} // chunks whose regions need recompute
+	roomCount         int
 
 	// Reusable scratch buffers for refreshSpatial (avoid per-call allocation).
 	floodStack  []Point

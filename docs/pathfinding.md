@@ -29,13 +29,20 @@ Walkable tiles are grouped in two levels so updates stay cheap:
   [spatial-index-and-performance.md](./spatial-index-and-performance.md)).
 - A **room** is a connected component of the **region graph** — regions are linked
   when their floor cells touch across a chunk border. A room's ID is the smallest
-  `RegionID` it contains, so it is deterministic.
+  `RegionID` it contains, so it does not depend on the order the component is
+  walked.
 
 When a tile changes, `SetTerrain` marks its chunk dirty; `refreshSpatial`
 (end of each tick) re-floods only the dirty chunks' regions, re-links across
 borders, and relabels rooms from the small region graph. So excavating or walling
 a tile costs **O(one chunk)** to re-flood plus O(regions) to relabel, not a global
 O(map) flood fill.
+
+`refreshSpatial` walks the dirty chunks **in sorted order**, and that sort is
+load-bearing: a region's ID is the next value of a counter, so re-flooding in
+`map` order handed the same world different region IDs on different runs — and
+room IDs and the abstract search's tie-break are both built on those IDs. See
+[determinism.md](./determinism.md).
 
 `roomOf(p)` and `sameRoom(a, b)` are then O(1): two floor tiles are mutually
 reachable on foot iff they are in the same room. Every job-assignment routine uses
@@ -66,8 +73,9 @@ O(1) room check, then chooses a strategy:
 ### Hierarchical A\* (`hpa.go`)
 
 For a long trip, `abstractCorridor` first routes over the **region graph**
-(`region.links`, using region representatives for the heuristic) to get a corridor
-of regions — the broad "which rooms to cross" answer. `paintCorridor` stamps every
+(`region.links`, using region representatives for the heuristic, expanded in
+ascending region ID via `sortedLinks` so equal-cost corridors resolve the same
+way every run) to get a corridor of regions — the broad "which rooms to cross" answer. `paintCorridor` stamps every
 cell of those regions with a fresh generation, and the tile A\* then runs
 **constrained to the corridor** (an O(1) array membership test per neighbor). This
 bounds tile exploration to the abstract route instead of the whole reachable area.
@@ -142,3 +150,4 @@ the colony grows):
 - [entities-and-ai.md](./entities-and-ai.md) — the movement primitives that call this.
 - [construction.md](./construction.md) — room reachability and routing around build tiles.
 - [world.md](./world.md) — the grid and `SetTerrain`'s dirty-chunk marking.
+- [determinism.md](./determinism.md) — why the region/link ordering here is sorted.
