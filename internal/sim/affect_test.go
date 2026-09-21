@@ -611,17 +611,10 @@ func TestCowardiceRaisesThreatImpact(t *testing.T) {
 	}
 }
 
-// Adding a trait is one table edit: no event kind mentions any trait.
+// Adding a trait is one table edit: no event kind mentions any trait. (That a
+// rule names a real trait and actually does something is enforced when
+// traits.yaml loads; see traitdata_test.go.)
 func TestTraitRulesNameNoEventKinds(t *testing.T) {
-	for _, r := range traitRules {
-		if r.Trait >= numTraits {
-			t.Errorf("rule for trait %d is not a declared trait", r.Trait)
-		}
-		if r.Any == 0 && r.All == 0 && r.None == 0 &&
-			r.Charge == 0 && r.Grip == 0 && r.Valence == 0 && r.Impact == 0 && r.WearRate == 0 {
-			t.Errorf("rule for %v does nothing", r.Trait)
-		}
-	}
 	for kind := LifeEventKind(0); kind < numLifeEventKinds; kind++ {
 		if kind != EvtConversation && lifeEventAppraisals[kind].Tags == 0 {
 			t.Errorf("kind %d has no tags, so no trait can ever react to it", kind)

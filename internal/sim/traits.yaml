@@ -1,0 +1,64 @@
+# What a trait does when something happens.
+#
+# Loaded by traitdata.go. A rule matches an occurrence by its tags and then
+# scales what the occurrence does to the colonist carrying that trait, so a
+# trait never names an event kind and an event never names a trait: a new event
+# picks its tags and every trait that cares already reacts to it.
+#
+# Matching. `any` matches if the occurrence carries any of these tags, and a
+# rule with no `any` matches everything. `all` requires all of them. `none`
+# excludes. See docs/affect.md.
+#
+# Factors are percentages where 100 -- or leaving it out -- means no change,
+# matching the convention traitSpecs already uses for its scales. A reflection
+# is simply -100. They are percentages rather than floats because appraisal is
+# integer throughout, so that a seeded run reproduces.
+#
+#   impact     how big a deal the occurrence is to them, which decides whether
+#              it nudges them or relocates them
+#   charge     energy behind the next action
+#   grip       felt control
+#   valence    how well life is going
+#   wear-rate  how fast they stop being new to this kind of thing
+#
+# Order is application order: a colonist carrying two matching rules gets them
+# composed in the order written here, never in the order their traits happen to
+# be stored.
+#
+# What is not here: the spawn-resolved scales -- need rise, work speed, rest,
+# social capacity, and the temperament home points. Those are read every turn
+# and belong with the trait definitions in personality.go, not in a file about
+# how a trait colors one occurrence.
+
+rules:
+  - trait: tidy
+    any: [gore]
+    charge: 220
+    grip: 220
+    valence: 220
+  - trait: tidy
+    any: [incineration]
+    grip: 200
+  - trait: industrious
+    any: [finished-work]
+    charge: 200
+    grip: 200
+    valence: 200
+  - trait: introvert
+    any: [social]
+    charge: -100
+  - trait: mutant-lover
+    any: [mutation]
+    grip: -100
+    valence: -100
+  - trait: extrovert
+    all: [social-loss, friend]
+    charge: 130
+    valence: 150
+  - trait: resilient
+    wear-rate: 40
+  - trait: cowardly
+    wear-rate: 180
+  - trait: cowardly
+    any: [threat]
+    impact: 150

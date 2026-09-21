@@ -143,34 +143,9 @@ func (t EventTag) none(of EventTag) bool { return t&of == 0 }
 // sandbox that tunes these numbers can now emit the file the sim reads.
 var lifeEventAppraisals [numLifeEventKinds]moodAppraisal
 
-// traitRules is what a trait does when something happens, in place of a switch
-// over trait x event kind. Every factor is a percentage where 100 -- or an
-// unset 0 -- means no change, matching the convention traitSpecs already uses
-// for its scales; a reflection is simply -100. Percentages rather than floats
-// because appraisal is integer throughout, so that a seeded run reproduces.
-//
-// Declaration order is the application order, so a colonist carrying two rules
-// for one occurrence gets them composed the same way regardless of the order
-// their traits happen to be stored in.
-var traitRules = []traitRule{
-	{Trait: TraitTidy, Any: TagGore, Charge: 220, Grip: 220, Valence: 220},
-	{Trait: TraitTidy, Any: TagIncineration, Grip: 200},
-	{Trait: TraitIndustrious, Any: TagFinishedWork, Charge: 200, Grip: 200, Valence: 200},
-	{Trait: TraitIntrovert, Any: TagSocial, Charge: -100},
-	{Trait: TraitMutantLover, Any: TagMutation, Grip: -100, Valence: -100},
-	// The rule the dynamic tag exists for: losing a colleague is worse when
-	// they were not just a colleague, and worse again for someone who lives on
-	// the company of others. Charge and valence only -- whether it leaves them
-	// holding together or not is what grip already says.
-	{Trait: TraitExtrovert, All: TagSocialLoss | TagFriend, Charge: 130, Valence: 150},
-	// No tags: these two are about how a colonist meets anything at all.
-	{Trait: TraitResilient, WearRate: 40},
-	{Trait: TraitCowardly, WearRate: 180},
-	// The one rule that reads impact rather than the vector: a coward does not
-	// feel a threat differently so much as find it a bigger deal, which is what
-	// decides whether it nudges them or moves them.
-	{Trait: TraitCowardly, Any: TagThreat, Impact: 150},
-}
+// traitRules is what each trait does when something happens, loaded from
+// traits.yaml at init. Order is application order.
+var traitRules []traitRule
 
 // traitRule is one trait's reaction to a flavor of occurrence. Any empty
 // matches every event; All must all be present; None must all be absent.

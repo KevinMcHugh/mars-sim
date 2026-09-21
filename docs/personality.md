@@ -84,6 +84,11 @@ glyph sticks to age and gender only, which composes cleanly everywhere.
 
 ### Traits (mechanical)
 
+What a trait *does to mood* lives in [`traits.yaml`](../internal/sim/traits.yaml)
+as rules against event tags; the spawn-resolved scales below stay in
+`traitSpecs`, because they are read every turn rather than consulted when
+something happens.
+
 Traits are drawn from **mutually exclusive groups**; a colonist gets at most one
 per group, each taken with `TraitChance` probability:
 
