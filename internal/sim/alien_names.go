@@ -30,10 +30,17 @@ import (
 const AlienNameFileName = "alien-names.yaml"
 
 // AlienNameEntry is one candidate name and the condition a rolled species
-// must satisfy to be eligible for it.
+// must satisfy to be eligible for it. Emoji is a matching set of candidate
+// glyphs for the same name -- a rolled species draws one of them the same
+// way it draws one of the eligible names, so "reptile" can turn up as 🦎 one
+// seed and 🐍 the next. It is optional and purely cosmetic: this package
+// (and everything in it, including a species' rolled Emoji field) never
+// interprets the string as anything but data -- rendering it safely is the
+// frontend's job. See docs/lore.md.
 type AlienNameEntry struct {
 	Singular string        `yaml:"name"`
 	Plural   string        `yaml:"plural"`
+	Emoji    []string      `yaml:"emoji,omitempty"`
 	When     nameCondition `yaml:"when"`
 }
 
@@ -159,13 +166,16 @@ func (c nameCondition) matches(sp AlienSpecies) bool {
 }
 
 // pickAlienName draws one name at random from every entry in names whose
-// condition matches sp. rng is the caller's lore stream (see
-// rollAlienSpecies), so the pick stays part of the same reproducible roll.
-// An empty or wholly non-matching pool falls back to "alien"/"aliens" --
-// unreachable with defaultAlienNames() (its first entry is unconditional),
-// but a user-supplied -alien-names file could in principle define nothing
+// condition matches sp, then, independently, one emoji at random from that
+// entry's own candidates (if it listed any) -- two rolls, so two species
+// that land on the same name need not land on the same glyph. rng is the
+// caller's lore stream (see rollAlienSpecies), so both picks stay part of
+// the same reproducible roll. An empty or wholly non-matching pool falls
+// back to "alien"/"aliens" with no emoji -- unreachable with
+// defaultAlienNames() (its first entry is unconditional), but a
+// user-supplied -alien-names file could in principle define nothing
 // unconditional, and a species still needs a name either way.
-func pickAlienName(rng *rand.Rand, sp AlienSpecies, names []AlienNameEntry) (singular, plural string) {
+func pickAlienName(rng *rand.Rand, sp AlienSpecies, names []AlienNameEntry) (singular, plural, emoji string) {
 	var candidates []AlienNameEntry
 	for _, e := range names {
 		if e.When.matches(sp) {
@@ -173,13 +183,16 @@ func pickAlienName(rng *rand.Rand, sp AlienSpecies, names []AlienNameEntry) (sin
 		}
 	}
 	if len(candidates) == 0 {
-		return "alien", "aliens"
+		return "alien", "aliens", ""
 	}
 	e := candidates[rng.Intn(len(candidates))]
-	if e.Plural == "" {
-		return e.Singular, e.Singular + "s"
+	if len(e.Emoji) > 0 {
+		emoji = e.Emoji[rng.Intn(len(e.Emoji))]
 	}
-	return e.Singular, e.Plural
+	if e.Plural == "" {
+		return e.Singular, e.Singular + "s", emoji
+	}
+	return e.Singular, e.Plural, emoji
 }
 
 //go:embed alien-names.yaml

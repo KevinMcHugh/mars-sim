@@ -10,6 +10,7 @@ import (
 	"testing"
 	"unicode/utf8"
 
+	"github.com/kevinmchugh/mars-sim/internal/sim"
 	"github.com/kevinmchugh/mars-sim/internal/ui/tui/cells"
 
 	"github.com/charmbracelet/x/ansi"
@@ -201,5 +202,55 @@ func isEmoji(r rune) bool {
 		return true
 	default:
 		return false
+	}
+}
+
+// alienGlyph is the one place a runtime string from sim (AlienSpecies.Emoji,
+// ultimately sourced from a YAML file this package never validated) decides
+// whether it is safe to draw on the map's fixed two-cell tile. A species
+// whose rolled emoji names one of this package's own registered glyphs
+// should draw it; anything else -- empty, or a string nobody registered --
+// must fall back to the plain alien glyph rather than reach fitGlyph
+// unvetted.
+func TestAlienGlyphUsesARegisteredSpeciesEmoji(t *testing.T) {
+	if got := alienGlyph(sim.AlienSpecies{Emoji: glyphLizard}); got != glyphLizard {
+		t.Fatalf("alienGlyph with a registered emoji = %q, want %q", got, glyphLizard)
+	}
+}
+
+func TestAlienGlyphFallsBackForAnUnregisteredEmoji(t *testing.T) {
+	if got := alienGlyph(sim.AlienSpecies{Emoji: "🤡"}); got != glyphAlien {
+		t.Fatalf("alienGlyph with an unregistered emoji = %q, want the generic %q", got, glyphAlien)
+	}
+}
+
+func TestAlienGlyphFallsBackWhenEmojiIsEmpty(t *testing.T) {
+	if got := alienGlyph(sim.AlienSpecies{}); got != glyphAlien {
+		t.Fatalf("alienGlyph with no emoji = %q, want the generic %q", got, glyphAlien)
+	}
+}
+
+// Every glyph a species can actually roll (the built-in alien-names.yaml's
+// own emoji lists) must be one alienGlyph will accept -- otherwise the game
+// ships names that can never show their glyph on the map.
+func TestCuratedAlienEmojiAreAllRegistered(t *testing.T) {
+	for _, glyph := range []string{
+		glyphLizard, glyphSnake, glyphTurtle, glyphTRex, glyphSauropod,
+		glyphCaterpillar, glyphBeetle, glyphAnt, glyphCricket, glyphScorpion,
+		glyphWorm, glyphSaucer, glyphMicrobe, glyphSpaceInvader,
+	} {
+		if got := alienGlyph(sim.AlienSpecies{Emoji: glyph}); got != glyph {
+			t.Errorf("alienGlyph(%q) = %q, want it drawn as itself", glyph, got)
+		}
+	}
+}
+
+// entityGlyph must actually reach alienGlyph for an Alien entity, so a
+// species' rolled emoji shows up on the map and in the roster, not just
+// wherever alienGlyph is called directly.
+func TestEntityGlyphUsesTheAliensSpeciesEmoji(t *testing.T) {
+	e := sim.EntityView{Kind: sim.Alien, AlienSpecies: sim.AlienSpecies{Emoji: glyphBeetle}}
+	if got, want := entityGlyph(e), fitGlyph(glyphBeetle); got != want {
+		t.Fatalf("entityGlyph for an alien with a beetle emoji = %q, want %q", got, want)
 	}
 }
