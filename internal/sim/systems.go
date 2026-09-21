@@ -461,14 +461,12 @@ func (w *World) stompNearbyMouse(e *Entity) bool {
 // leaves it behind as gore. Any other colonist close enough to have noticed
 // the mouse remembers seeing it happen.
 func (w *World) stomp(colonist, mouse *Entity) {
-	witnesses := w.colonistsWithin(mouse.Pos, w.cfg.ColonistStompRadius, colonist.ID)
 	w.addGore(mouse.Pos)
 	w.addCorpse(mouse.Pos) // a crushed pest still has to be carried off
 	w.remove(mouse.ID, fmt.Sprintf("crushed by %s", colonist.displayName()))
 	w.remember(colonist, event(EvtCrushedMouse, "Crushed mouse #%d.", mouse.ID))
-	for _, wit := range witnesses {
-		w.remember(wit, event(EvtWitnessedMouseCrushed, "Watched a colonist crush mouse #%d.", mouse.ID))
-	}
+	w.rememberWitnesses(mouse.Pos, w.cfg.ColonistStompRadius, colonist.ID,
+		event(EvtWitnessedMouseCrushed, "Watched a colonist crush mouse #%d.", mouse.ID))
 	w.log.add(fmt.Sprintf("Colonist #%d stomps mouse #%d.", colonist.ID, mouse.ID))
 }
 
@@ -1471,7 +1469,6 @@ func (w *World) alienTurn(e *Entity) {
 func (w *World) bite(alien, prey *Entity) {
 	part := w.rollHit(prey)
 	fatal := applyDamage(prey, part, w.cfg.AlienDamage)
-	witnesses := w.colonistsWithin(prey.Pos, w.cfg.FleeRadius, prey.ID)
 	if fatal {
 		alien.State = Feeding
 		name := prey.displayName()
@@ -1479,17 +1476,15 @@ func (w *World) bite(alien, prey *Entity) {
 		// Witnesses remember before the victim is removed: appraisal asks how
 		// close they were to whoever this happened to, and remove drops the
 		// affinity that answers it.
-		for _, wit := range witnesses {
-			w.remember(wit, eventAbout(EvtWitnessedColonistKilled, alien.ID, prey.ID, "Watched an alien kill %s.", name))
-		}
+		w.rememberWitnesses(prey.Pos, w.cfg.FleeRadius, prey.ID,
+			eventAbout(EvtWitnessedColonistKilled, alien.ID, prey.ID, "Watched an alien kill %s.", name))
 		w.remove(prey.ID, "devoured by an alien")
 		w.log.add(fmt.Sprintf("An alien devours %s.", name))
 	} else {
 		alien.State = Hunting
 		w.remember(prey, eventFrom(EvtBitten, alien.ID, "Bitten in the %s by an alien!", part))
-		for _, wit := range witnesses {
-			w.remember(wit, eventAbout(EvtWitnessedColonistAttacked, alien.ID, prey.ID, "Watched an alien attack %s.", prey.displayName()))
-		}
+		w.rememberWitnesses(prey.Pos, w.cfg.FleeRadius, prey.ID,
+			eventAbout(EvtWitnessedColonistAttacked, alien.ID, prey.ID, "Watched an alien attack %s.", prey.displayName()))
 	}
 }
 
@@ -1533,9 +1528,8 @@ func (w *World) catTurn(e *Entity) {
 // seeing it happen.
 func (w *World) pounce(cat, prey *Entity) {
 	cat.State = Feeding
-	for _, wit := range w.colonistsWithin(prey.Pos, w.cfg.ColonistStompRadius, 0) {
-		w.remember(wit, event(EvtWitnessedCatCatch, "Watched a cat catch mouse #%d.", prey.ID))
-	}
+	w.rememberWitnesses(prey.Pos, w.cfg.ColonistStompRadius, 0,
+		event(EvtWitnessedCatCatch, "Watched a cat catch mouse #%d.", prey.ID))
 	w.remove(prey.ID, "caught by a cat")
 	w.log.add(fmt.Sprintf("A cat catches mouse #%d.", prey.ID))
 }

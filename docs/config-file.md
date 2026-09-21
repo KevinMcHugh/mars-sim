@@ -11,6 +11,12 @@ line of documentation above it — so the file as generated changes nothing. You
 uncomment a line to change it, and commit the result so everyone (and CI, and
 your next session) plays the same colony.
 
+Not to be confused with [`internal/sim/events.yaml`](../internal/sim/events.yaml),
+the other YAML file in the tree. That one is embedded in the binary and declares
+what life events *mean*; this one is generated from `sim.Config` and holds the
+pacing a player is meant to turn. A number belongs there if changing it changes
+what something is, and here if it changes how fast or how much.
+
 Settings apply in three layers, each overriding the one before it:
 
 ```

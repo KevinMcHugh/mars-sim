@@ -34,6 +34,18 @@ func (w *World) remember(e *Entity, evt LifeEvent) {
 	}
 }
 
+// rememberWitnesses records one occurrence for every colonist close enough to
+// have seen it, except the one it happened to. The event is built once and
+// shared: what the onlookers saw is the same thing, whatever it meant to each
+// of them. Callers that are about to remove the entity it happened to must
+// call this first -- appraisal asks how close a witness was to them, and
+// remove drops the affinity that answers it.
+func (w *World) rememberWitnesses(at Point, radius int, except EntityID, evt LifeEvent) {
+	for _, wit := range w.colonistsWithin(at, radius, except) {
+		w.remember(wit, evt)
+	}
+}
+
 // collapseRepeat folds evt into the colonist's most recent memory, reporting
 // whether it did. It collapses only when the kind is a minor, repetitive one
 // (a non-empty lifeEventCollapseText entry) and the newest memory is already

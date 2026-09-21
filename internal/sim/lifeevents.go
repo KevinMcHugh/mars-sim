@@ -42,6 +42,44 @@ const (
 	numLifeEventKinds // keep last
 )
 
+// lifeEventKindNames is how each kind is spelled in events.yaml. The enum
+// stays in Go because emit sites name kinds at compile time; the file supplies
+// what each one means, not which ones exist.
+var lifeEventKindNames = [numLifeEventKinds]string{
+	EvtSawAlien:                  "saw-alien",
+	EvtSawMouse:                  "saw-mouse",
+	EvtSawGore:                   "saw-gore",
+	EvtBitten:                    "bitten",
+	EvtWitnessedColonistKilled:   "witnessed-colonist-killed",
+	EvtWitnessedColonistAttacked: "witnessed-colonist-attacked",
+	EvtCrushedMouse:              "crushed-mouse",
+	EvtWitnessedMouseCrushed:     "witnessed-mouse-crushed",
+	EvtWitnessedCatCatch:         "witnessed-cat-catch",
+	EvtKilledAlien:               "killed-alien",
+	EvtWitnessedAlienKilled:      "witnessed-alien-killed",
+	EvtWoundedAlien:              "wounded-alien",
+	EvtWitnessedGunfight:         "witnessed-gunfight",
+	EvtConversation:              "conversation",
+	EvtAte:                       "ate",
+	EvtUsedToilet:                "used-toilet",
+	EvtSlept:                     "slept",
+	EvtNeedSatisfied:             "need-satisfied",
+	EvtFinishedMining:            "finished-mining",
+	EvtClearedRock:               "cleared-rock",
+	EvtFinishedConstruction:      "finished-construction",
+	EvtCleanedRefuse:             "cleaned-refuse",
+	EvtIncineratedRefuse:         "incinerated-refuse",
+	EvtMutated:                   "mutated",
+	EvtWitnessedMutation:         "witnessed-mutation",
+}
+
+func (k LifeEventKind) String() string {
+	if int(k) >= len(lifeEventKindNames) {
+		return "unknown"
+	}
+	return lifeEventKindNames[k]
+}
+
 // LifeEvent pairs what happened with its player-facing description. Outcome is
 // the temporary signed result of a conversation; it is converted to a vector
 // during ingestion and is never stored as mood state.
@@ -100,14 +138,4 @@ func eventOutcome(kind LifeEventKind, outcome int, format string, args ...any) L
 //
 // Making an existing kind collapsible, or changing what a run reads as, is an
 // edit here; nothing else changes. See docs/memories.md.
-var lifeEventCollapseText = [numLifeEventKinds]string{
-	EvtFinishedMining:       "Finished mining.",
-	EvtClearedRock:          "Cleared rock for a room.",
-	EvtFinishedConstruction: "Finished construction.",
-	EvtCleanedRefuse:        "Cleaned up refuse.",
-	EvtIncineratedRefuse:    "Burned refuse in the incinerator.",
-	EvtAte:                  "Had a meal.",
-	EvtUsedToilet:           "Used the toilet.",
-	EvtSlept:                "Slept in a bed.",
-	EvtNeedSatisfied:        "Satisfied a need.",
-}
+var lifeEventCollapseText [numLifeEventKinds]string

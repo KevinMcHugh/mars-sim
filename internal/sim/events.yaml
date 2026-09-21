@@ -1,0 +1,199 @@
+# What each life event means to a colonist.
+#
+# Loaded by eventdata.go, which is where the rules for this file are written
+# down. The short version: every kind in the LifeEventKind enum needs a row
+# here and unknown names are an error, because these tables used to be Go array
+# literals and the compiler used to catch both for us.
+#
+#   tags         what flavors the occurrence has. Traits react to these rather
+#                than to event kinds, so a new event picks its tags and every
+#                trait that cares already reacts to it. See docs/affect.md.
+#   impact       how big a deal it is, 0-100. Below mood-push-impact it nudges
+#                a colonist; at or above mood-pull-impact it relocates them.
+#   fresh / worn where it leaves someone it is new to, and someone it has
+#                stopped being new to. For the traumatic kinds fresh is the
+#                *stronger* reading: a first killing is a rallying cry and a
+#                tenth is collapse.
+#   collapses-to the line a consecutive run of this kind folds into. Only the
+#                minor repetitive kinds have one.
+#   stimulus     the transient attention it creates: how loud, for how many
+#                ticks, and what it adds to each focus score at salience 100.
+#
+# What is deliberately not here: when the event fires, who it happens to, and
+# what its text says. Those are facts about the code that produces them.
+#
+# docs/mood-space.html tunes these numbers against the same model the sim runs.
+
+events:
+  saw-alien:
+    tags: [threat]
+    impact: 45
+    fresh: {charge: 8, grip: -10, valence: -15}
+    worn:  {charge: 5, grip: -22, valence: -22}
+    stimulus:
+      salience: 100
+      lifetime: 12
+      focus: {flee: 500, fight: 500}
+  saw-mouse:
+    tags: [rodent]
+    impact: 8
+    fresh: {charge: 2, grip: -3, valence: 0}
+    worn:  {charge: 1, grip: -1, valence: 0}
+  saw-gore:
+    tags: [gore]
+    impact: 30
+    fresh: {charge: -3, grip: -7, valence: -6}
+    worn:  {charge: -6, grip: -14, valence: -10}
+    stimulus:
+      salience: 35
+      lifetime: 30
+      focus: {work: 20}
+  bitten:
+    tags: [threat, violence]
+    impact: 70
+    fresh: {charge: 55, grip: -44, valence: -30}
+    worn:  {charge: 35, grip: -80, valence: -55}
+    stimulus:
+      salience: 100
+      lifetime: 20
+      focus: {flee: 300, fight: 150}
+  witnessed-colonist-killed:
+    tags: [violence, death, social-loss, gore]
+    impact: 95
+    fresh: {charge: 70, grip: 40, valence: -60}
+    worn:  {charge: 20, grip: -85, valence: -85}
+    stimulus:
+      salience: 90
+      lifetime: 20
+      focus: {flee: 250, fight: 100}
+  witnessed-colonist-attacked:
+    tags: [violence, social-loss]
+    impact: 75
+    fresh: {charge: 45, grip: 25, valence: -40}
+    worn:  {charge: 25, grip: -70, valence: -60}
+    stimulus:
+      salience: 70
+      lifetime: 12
+      focus: {flee: 200, fight: 100}
+  crushed-mouse:
+    tags: [rodent, upkeep]
+    impact: 6
+    fresh: {charge: -1, grip: 2, valence: 0}
+    worn:  {charge: -2, grip: 0, valence: 0}
+  witnessed-mouse-crushed:
+    tags: [gore, rodent]
+    impact: 8
+    fresh: {charge: -1, grip: -2, valence: -1}
+    worn:  {charge: -1, grip: -1, valence: 0}
+  witnessed-cat-catch:
+    tags: [rodent]
+    impact: 5
+    fresh: {charge: 1, grip: 1, valence: 0}
+    worn:  {charge: 0, grip: 0, valence: 0}
+  killed-alien:
+    tags: [violence, achievement]
+    impact: 55
+    fresh: {charge: 45, grip: 52, valence: 35}
+    worn:  {charge: 25, grip: 20, valence: 8}
+  witnessed-alien-killed:
+    tags: [violence]
+    impact: 35
+    fresh: {charge: 5, grip: 6, valence: 4}
+    worn:  {charge: 2, grip: 2, valence: 0}
+  wounded-alien:
+    tags: [violence]
+    impact: 25
+    fresh: {charge: 4, grip: 5, valence: 2}
+    worn:  {charge: 2, grip: 2, valence: 0}
+  witnessed-gunfight:
+    tags: [threat, violence]
+    impact: 50
+    fresh: {charge: 35, grip: -25, valence: -20}
+    worn:  {charge: 18, grip: -45, valence: -35}
+  conversation:
+    tags: [social]
+    impact: 20
+  ate:
+    tags: [upkeep]
+    impact: 10
+    fresh: {charge: 4, grip: 2, valence: 1}
+    worn:  {charge: 2, grip: -1, valence: 0}
+    collapses-to: "Had a meal."
+  used-toilet:
+    tags: [upkeep]
+    impact: 4
+    fresh: {charge: 1, grip: 2, valence: 0}
+    worn:  {charge: 0, grip: 0, valence: 0}
+    collapses-to: "Used the toilet."
+  slept:
+    tags: [rest]
+    impact: 25
+    fresh: {charge: 15, grip: 2, valence: 2}
+    worn:  {charge: 12, grip: -2, valence: 0}
+    collapses-to: "Slept in a bed."
+  need-satisfied:
+    tags: [upkeep]
+    impact: 8
+    fresh: {charge: 2, grip: 2, valence: 0}
+    worn:  {charge: 1, grip: 0, valence: 0}
+    collapses-to: "Satisfied a need."
+  finished-mining:
+    tags: [work, finished-work]
+    impact: 15
+    fresh: {charge: -1, grip: 5, valence: 0}
+    worn:  {charge: -5, grip: -3, valence: 0}
+    collapses-to: "Finished mining."
+    stimulus:
+      salience: 25
+      lifetime: 10
+      focus: {work: 15}
+  cleared-rock:
+    tags: [work, finished-work]
+    impact: 15
+    fresh: {charge: -1, grip: 5, valence: 0}
+    worn:  {charge: -5, grip: -3, valence: 0}
+    collapses-to: "Cleared rock for a room."
+    stimulus:
+      salience: 25
+      lifetime: 10
+      focus: {work: 15}
+  finished-construction:
+    tags: [work, finished-work, achievement]
+    impact: 18
+    fresh: {charge: -1, grip: 6, valence: 3}
+    worn:  {charge: -4, grip: 0, valence: 0}
+    collapses-to: "Finished construction."
+    stimulus:
+      salience: 25
+      lifetime: 10
+      focus: {work: 15}
+  cleaned-refuse:
+    tags: [gore, work, finished-work]
+    impact: 14
+    fresh: {charge: -1, grip: 5, valence: 0}
+    worn:  {charge: -5, grip: -4, valence: 0}
+    collapses-to: "Cleaned up refuse."
+    stimulus:
+      salience: 25
+      lifetime: 10
+      focus: {work: 15}
+  incinerated-refuse:
+    tags: [work, finished-work, incineration]
+    impact: 16
+    fresh: {charge: -1, grip: 7, valence: 1}
+    worn:  {charge: -4, grip: 0, valence: 0}
+    collapses-to: "Burned refuse in the incinerator."
+    stimulus:
+      salience: 25
+      lifetime: 10
+      focus: {work: 15}
+  mutated:
+    tags: [mutation]
+    impact: 60
+    fresh: {charge: 18, grip: -70, valence: -35}
+    worn:  {charge: 10, grip: -90, valence: -70}
+  witnessed-mutation:
+    tags: [mutation]
+    impact: 35
+    fresh: {charge: 2, grip: -8, valence: -10}
+    worn:  {charge: 1, grip: -16, valence: -18}

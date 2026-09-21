@@ -97,9 +97,8 @@ func (w *World) mutate(e *Entity) {
 	what := joinAnd(changes)
 	w.remember(e, event(EvtMutated, "The uranium changed them: %s.", what))
 	w.log.add(fmt.Sprintf("%s has mutated — %s.", e.displayName(), what))
-	for _, wit := range w.colonistsWithin(e.Pos, w.cfg.FleeRadius, e.ID) {
-		w.remember(wit, event(EvtWitnessedMutation, "Watched %s mutate: %s.", e.displayName(), what))
-	}
+	w.rememberWitnesses(e.Pos, w.cfg.FleeRadius, e.ID,
+		event(EvtWitnessedMutation, "Watched %s mutate: %s.", e.displayName(), what))
 }
 
 // resize grows or shrinks a mutating colonist by MutationStaturePercent of the
