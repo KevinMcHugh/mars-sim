@@ -463,6 +463,12 @@ func (w *World) designateRoom(r roomRecipe, o Point, n int) {
 		}
 	}
 	doorX := o.X + width/2
+	// Reserve the tile directly outside the door, permanently: without this,
+	// nothing stops a later room from sitting its own wall or facility row
+	// right on top of it once the colony has grown enough to prefer that
+	// spot, sealing this room's only way out behind a wall its own doorway
+	// invariant never anticipated. See roomSiteClear.
+	w.doorTiles[Point{doorX, frontY + roomApproach}] = true
 	for x := o.X; x < o.X+width; x++ {
 		p.tasks = append(p.tasks,
 			&buildTask{pos: Point{x, backY}, terrain: Wall, phase: roomWallPhase})
@@ -604,6 +610,12 @@ func (w *World) findRoomSiteAllowingRock(width int, allowRock bool) (Point, bool
 // building its own. The exterior lanes and front approach (never dug) always
 // touch the interior's front row, so when allowRock permits solid rock there
 // is always at least one already-reachable tile to start digging from.
+//
+// The interior and side-wall checks also reject any tile in w.doorTiles: the
+// permanently-reserved exit tile of an existing room's doorway. Without this,
+// a room sited to reuse rock or wall backing near the colony's center — the
+// very spot an older room's door faces — could build a wall or facility
+// straight over that tile and seal the older room shut.
 func (w *World) roomSiteClear(ox, oy, width int, designated map[Point]bool, allowRock bool) bool {
 	backY := oy - 1
 	frontY := roomFrontWallY(oy)
@@ -616,7 +628,7 @@ func (w *World) roomSiteClear(ox, oy, width int, designated map[Point]bool, allo
 		for x := ox; x < ox+width; x++ {
 			p := Point{x, y}
 			t := w.TerrainAt(p)
-			if designated[p] || (t != Floor && !(allowRock && t == Rock)) {
+			if designated[p] || w.doorTiles[p] || (t != Floor && !(allowRock && t == Rock)) {
 				return false
 			}
 		}
@@ -626,7 +638,7 @@ func (w *World) roomSiteClear(ox, oy, width int, designated map[Point]bool, allo
 		// another room (shared outright: nothing more is needed on that side).
 		for _, side := range [2]struct{ wall, lane int }{{ox - 1, ox - 2}, {ox + width, ox + width + 1}} {
 			p := Point{side.wall, y}
-			if designated[p] {
+			if designated[p] || w.doorTiles[p] {
 				return false
 			}
 			switch w.TerrainAt(p) {

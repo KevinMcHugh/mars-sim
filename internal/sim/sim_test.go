@@ -1113,6 +1113,72 @@ func TestFacilityRoomHasCompleteWallsDoorAndBuildPhases(t *testing.T) {
 	}
 }
 
+// A room's doorway is only safe from being trapped if nothing can ever build
+// over the single exterior tile the door opens onto — including a later,
+// unrelated room. That tile carries no build task of its own (see
+// designateRoom), so without w.doorTiles it looks like ordinary, unclaimed
+// floor to a new room's site check, and a room sited to reuse an existing
+// wall as backing can land its own side wall right on top of it.
+func TestRoomSiteClearRejectsCoveringAnotherRoomsDoorway(t *testing.T) {
+	cfg := testConfig()
+	cfg.StartColonists, cfg.StartAliens = 0, 0
+	w := newTestWorld(t, cfg)
+
+	for y := 0; y < w.Height; y++ {
+		for x := 0; x < w.Width; x++ {
+			w.SetTerrain(Point{x, y}, Floor)
+		}
+	}
+	// Solid rock to back room A's rear wall.
+	for x := 0; x < w.Width; x++ {
+		w.SetTerrain(Point{x, 4}, Rock)
+	}
+	w.refreshSpatial()
+
+	siteA := Point{5, 6}
+	widthA := bayWidth(roomFacilities)
+	if !w.roomSiteClear(siteA.X, siteA.Y, widthA, map[Point]bool{}, false) {
+		t.Fatal("room A's own site is not clear before it is designated")
+	}
+	w.designateRoom(lifeSupportRoom, siteA, roomFacilities)
+
+	// Finish room A instantly by building every task in place, then prune
+	// its project — a completed room's tiles must no longer sit in the
+	// "designated" set that a later site check avoids, isolating this test
+	// to the doorTiles guard rather than that unrelated mechanism.
+	projA := w.projects[len(w.projects)-1]
+	for _, tk := range projA.tasks {
+		w.SetTerrain(tk.pos, tk.terrain)
+	}
+	w.refreshSpatial()
+	w.pruneProjects()
+	if len(w.projects) != 0 {
+		t.Fatalf("expected room A's project to be pruned once fully built, still has %d", len(w.projects))
+	}
+
+	frontYA := roomFrontWallY(siteA.Y)
+	doorA := Point{siteA.X + widthA/2, frontYA + roomApproach}
+	if !w.doorTiles[doorA] {
+		t.Fatalf("designateRoom did not reserve %v as room A's door tile", doorA)
+	}
+
+	// Room B sites entirely below and beside room A, backing onto room A's
+	// own front wall (a legitimate reuse, like sharing a party wall) — but
+	// its left side wall's column lands exactly on room A's door tile.
+	siteB := Point{doorA.X + 1, doorA.Y + 1}
+	widthB := bayWidth(2)
+
+	delete(w.doorTiles, doorA)
+	if !w.roomSiteClear(siteB.X, siteB.Y, widthB, map[Point]bool{}, false) {
+		t.Fatal("test geometry does not actually reach room A's doorway tile; not exercising the fix")
+	}
+	w.doorTiles[doorA] = true
+
+	if w.roomSiteClear(siteB.X, siteB.Y, widthB, map[Point]bool{}, false) {
+		t.Fatalf("room B's site was accepted even though its side wall would cover room A's doorway tile %v", doorA)
+	}
+}
+
 // A construction project is collaborative: several colonists claim and build its
 // tasks at once, and together they finish it faster than one could alone.
 func TestColonistsCollaborateOnProject(t *testing.T) {
