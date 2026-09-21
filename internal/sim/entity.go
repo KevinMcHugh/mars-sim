@@ -271,14 +271,14 @@ type EntityID uint64
 
 // Memory is a notable event remembered by a colonist. Memories are exposed in
 // chronological order through snapshots; routine movement and idling are
-// deliberately not recorded. Kind is the LifeEventKind that produced it (see
-// lifeevents.go) — carried along for any future filtering/UI, alongside the
-// player-facing Text that is what actually gets displayed.
+// deliberately not recorded. Rule is the stable configured reaction ID that
+// produced it — carried for filtering and collapse alongside player-facing
+// Text, which is what frontends display.
 //
 // A Memory can stand for a *run* of the same minor event rather than a single
 // occurrence: a colonist who mines twelve times in a row holds one Memory with
 // Count 12 spanning Tick..LastTick, not twelve near-identical lines (see
-// remember in world.go and docs/memories.md). An ordinary, uncollapsed memory
+// rememberPercept in world.go and docs/memories.md). An ordinary, uncollapsed memory
 // has Count 1 and LastTick == Tick, so a frontend can render every Memory the
 // same way and only reach for the span when Count > 1.
 type Memory struct {
@@ -286,7 +286,7 @@ type Memory struct {
 	LastTick int // the most recent occurrence; == Tick unless collapsed
 	Count    int // occurrences folded into this memory; 1 when uncollapsed
 	Text     string
-	Kind     LifeEventKind
+	Rule     RuleID // stable reaction identity used for consecutive collapse
 }
 
 // Entity is a single actor in the world. Rather than a strict ECS, we use one
@@ -376,13 +376,9 @@ type Entity struct {
 
 	// Memories is a bounded history of notable experiences. The internal slice
 	// is copied into EntityView so frontends cannot mutate the live world.
-	Memories []Memory
-	seen     map[EntityID]bool // nearby creatures already recorded as seen
-	// seeingGore edge-triggers EvtSawGore the same way seen does for entities,
-	// but as a single on/off flag rather than a per-tile map: "in sight of any
-	// gore" is one memory-worthy fact, not one per stained tile (see
-	// observeGore in systems.go).
-	seeingGore bool
+	Memories   []Memory
+	perceiving map[perceptionKey]Occurrence // persistent facts currently in range
+	seesThreat bool                         // cached alien-presence transition state
 
 	// Social conversation fatigue is counted within a rolling social window.
 	socialTalkCount   int
@@ -461,7 +457,7 @@ func newEntity(id EntityID, kind Kind, p Point, cfg Config) *Entity {
 		e.affect.Label = MoodSteady
 	}
 	if kind == Colonist {
-		e.seen = make(map[EntityID]bool)
+		e.perceiving = make(map[perceptionKey]Occurrence)
 	}
 	switch kind {
 	case Colonist:

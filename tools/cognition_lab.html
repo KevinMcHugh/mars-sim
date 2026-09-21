@@ -1,0 +1,1668 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mars-Sim Cognition Lab & Arbiter Workbench</title>
+<style>
+:root {
+  --bg: #14161a;
+  --panel: #1c2026;
+  --panel-alt: #242932;
+  --ink: #e8e6e1;
+  --dim: #9ba1ad;
+  --line: #313742;
+  --accent: #e0834a;
+  --accent-glow: rgba(224, 131, 74, 0.25);
+  --good: #5cb87a;
+  --bad: #e06c75;
+  --warn: #e5c07b;
+  --blue: #61afef;
+  --purple: #c678dd;
+  --cyan: #56b6c2;
+  --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+}
+@media (prefers-color-scheme: light) {
+  :root[data-theme="light"] {
+    --bg: #f5f4f0;
+    --panel: #ffffff;
+    --panel-alt: #edeae2;
+    --ink: #1e2024;
+    --dim: #646a75;
+    --line: #d6d3cb;
+    --accent: #b4541f;
+    --accent-glow: rgba(180, 84, 31, 0.15);
+    --good: #2e7d4f;
+    --bad: #bd3838;
+    --warn: #ad7817;
+    --blue: #2d6da8;
+    --purple: #804ba6;
+    --cyan: #28808c;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #14161a; --panel: #1c2026; --panel-alt: #242932;
+  --ink: #e8e6e1; --dim: #9ba1ad; --line: #313742;
+  --accent: #e0834a; --good: #5cb87a; --bad: #e06c75;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  background: var(--bg); color: var(--ink);
+  font: 14px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  padding: 16px;
+}
+header {
+  max-width: 1440px; margin: 0 auto 16px;
+  display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;
+  border-bottom: 1px solid var(--line); padding-bottom: 12px;
+}
+.title-group h1 {
+  font-size: 20px; font-weight: 700; letter-spacing: -0.01em; color: var(--accent);
+  display: flex; align-items: center; gap: 8px;
+}
+.title-group p { font-size: 13px; color: var(--dim); margin-top: 2px; }
+.actions-bar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+button {
+  background: var(--panel-alt); color: var(--ink); border: 1px solid var(--line);
+  padding: 6px 12px; font-size: 13px; font-weight: 500; border-radius: 5px; cursor: pointer;
+  transition: all 0.15s ease; display: inline-flex; align-items: center; gap: 6px;
+}
+button:hover { border-color: var(--accent); color: var(--accent); }
+button.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+button.primary:hover { opacity: 0.9; }
+button.sm { padding: 3px 8px; font-size: 12px; }
+
+main {
+  max-width: 1440px; margin: 0 auto;
+  display: grid; grid-template-columns: 460px 1fr; gap: 16px;
+}
+@media (max-width: 1080px) {
+  main { grid-template-columns: 1fr; }
+}
+
+.panel {
+  background: var(--panel); border: 1px solid var(--line); border-radius: 8px;
+  padding: 14px; margin-bottom: 16px;
+}
+.panel h2 {
+  font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em;
+  color: var(--dim); margin-bottom: 12px; font-weight: 700;
+  display: flex; justify-content: space-between; align-items: center;
+}
+
+/* 2D Canvas & Affect Plane */
+.affect-display {
+  display: flex; flex-direction: column; gap: 10px;
+}
+.canvas-wrap {
+  position: relative; width: 100%; aspect-ratio: 1;
+  background: var(--panel-alt); border-radius: 6px; border: 1px solid var(--line);
+  overflow: hidden; touch-action: none;
+}
+canvas { width: 100%; height: 100%; display: block; cursor: crosshair; }
+.affect-readout {
+  display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 12px;
+  padding: 8px 10px; background: var(--panel-alt); border-radius: 6px; border: 1px solid var(--line);
+}
+.mood-badge {
+  font-size: 20px; font-weight: 700; letter-spacing: -0.02em;
+}
+.mood-badge.good { color: var(--good); }
+.mood-badge.bad { color: var(--bad); }
+.coord-readout { font-family: var(--mono); font-size: 12px; color: var(--dim); }
+
+/* Valence Slider / Gauge */
+.valence-ctrl { display: flex; align-items: center; gap: 10px; margin-top: 4px; font-size: 12px; }
+.valence-slider { flex: 1; accent-color: var(--accent); }
+
+/* Events Grid */
+.event-section { margin-top: 10px; }
+.event-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 6px;
+  max-height: 220px; overflow-y: auto; padding: 4px 2px;
+}
+.evt-btn {
+  font-size: 11.5px; padding: 5px 8px; text-align: left;
+  border-radius: 4px; border: 1px solid var(--line); background: var(--panel-alt);
+  color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.evt-btn:hover { border-color: var(--accent); background: var(--accent-glow); }
+.evt-btn .meta { font-family: var(--mono); font-size: 10px; color: var(--dim); display: block; }
+
+/* Arbiter Bar Chart */
+.arbiter-card { display: flex; flex-direction: column; gap: 12px; }
+.verdict-banner {
+  padding: 10px 14px; border-radius: 6px; border-left: 4px solid var(--accent);
+  background: var(--panel-alt); display: flex; justify-content: space-between; align-items: center;
+}
+.verdict-main { font-size: 15px; font-weight: 600; }
+.verdict-sub { font-size: 12px; color: var(--dim); }
+
+.candidate-bars { display: flex; flex-direction: column; gap: 8px; }
+.cand-row { display: flex; flex-direction: column; gap: 3px; }
+.cand-header {
+  display: flex; justify-content: space-between; align-items: center; font-size: 12.5px;
+}
+.cand-name { font-weight: 600; display: flex; align-items: center; gap: 6px; }
+.cand-badge {
+  font-size: 9.5px; text-transform: uppercase; font-weight: 700; padding: 1px 5px;
+  border-radius: 3px; letter-spacing: 0.04em;
+}
+.cand-badge.winner { background: var(--good); color: #fff; }
+.cand-badge.current { background: var(--blue); color: #fff; }
+.cand-badge.ineligible { background: var(--dim); color: #fff; opacity: 0.6; }
+.cand-score { font-family: var(--mono); font-size: 13px; font-weight: 700; }
+
+.bar-track {
+  height: 20px; background: var(--panel-alt); border-radius: 4px;
+  display: flex; overflow: hidden; border: 1px solid var(--line); position: relative;
+}
+.bar-seg { height: 100%; transition: width 0.15s ease; position: relative; }
+.bar-seg.base { background: #6c7a89; }
+.bar-seg.need { background: var(--warn); }
+.bar-seg.affect { background: var(--purple); }
+.bar-seg.stimulus { background: var(--accent); }
+.bar-seg.commit { background: var(--blue); }
+.bar-seg.dist { background: var(--bad); }
+
+.chart-legend {
+  display: flex; flex-wrap: wrap; gap: 12px; font-size: 11.5px; color: var(--dim);
+  padding: 6px 0; border-top: 1px solid var(--line);
+}
+.legend-item { display: flex; align-items: center; gap: 5px; }
+.legend-swatch { width: 10px; height: 10px; border-radius: 2px; }
+
+/* Scenario Context Panel */
+.scenario-grid {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px;
+}
+.need-box {
+  background: var(--panel-alt); padding: 8px 10px; border-radius: 6px; border: 1px solid var(--line);
+}
+.need-head { display: flex; justify-content: space-between; font-size: 12px; font-weight: 600; margin-bottom: 4px; }
+.need-slider { width: 100%; accent-color: var(--accent); margin-bottom: 2px; }
+.need-meta { font-family: var(--mono); font-size: 10.5px; color: var(--dim); display: flex; justify-content: space-between; }
+.phase-pill { font-weight: 700; text-transform: uppercase; font-size: 9.5px; }
+.phase-satisfied { color: var(--good); }
+.phase-growing { color: var(--cyan); }
+.phase-pressing { color: var(--warn); }
+.phase-critical { color: var(--bad); }
+
+/* Context Toggles */
+.context-row { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; margin-top: 10px; }
+.form-grp { display: flex; flex-direction: column; gap: 4px; font-size: 12px; }
+.form-grp label { color: var(--dim); font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; }
+select, input[type=number] {
+  background: var(--panel-alt); color: var(--ink); border: 1px solid var(--line);
+  padding: 4px 8px; border-radius: 4px; font-family: inherit; font-size: 12px;
+}
+.rule-editor {
+  display: grid; grid-template-columns: repeat(4, minmax(125px, 1fr)); gap: 10px;
+}
+.rule-editor .wide { grid-column: span 2; }
+.rule-editor input[type=text] {
+  width: 100%; background: var(--panel-alt); color: var(--ink);
+  border: 1px solid var(--line); padding: 5px 8px; border-radius: 4px;
+  font-family: var(--mono); font-size: 12px;
+}
+.rule-editor select, .rule-editor input[type=number] { width: 100%; }
+.rule-list {
+  margin-top: 12px; max-height: 190px; overflow-y: auto;
+  border-top: 1px solid var(--line); padding-top: 8px;
+}
+.rule-row {
+  display: grid; grid-template-columns: minmax(180px, 1fr) 2fr auto; gap: 8px;
+  align-items: center; padding: 5px 0; border-bottom: 1px solid var(--line);
+  font-size: 11px;
+}
+.rule-row code { color: var(--accent); }
+.validation {
+  min-height: 18px; margin-top: 8px; color: var(--bad); font-size: 11px;
+}
+@media (max-width: 760px) {
+  .rule-editor { grid-template-columns: repeat(2, minmax(120px, 1fr)); }
+}
+
+/* Modal for YAML Import/Export */
+.modal-overlay {
+  display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.65);
+  backdrop-filter: blur(2px); z-index: 100; justify-content: center; align-items: center;
+}
+.modal-overlay.open { display: flex; }
+.modal-card {
+  background: var(--panel); border: 1px solid var(--line); border-radius: 8px;
+  width: 90%; max-width: 800px; max-height: 85vh; display: flex; flex-direction: column;
+  padding: 16px; box-shadow: 0 12px 36px rgba(0,0,0,0.4);
+}
+.modal-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+.modal-head h3 { font-size: 16px; font-weight: 700; }
+textarea.yaml-box {
+  flex: 1; min-height: 380px; background: var(--panel-alt); color: var(--ink);
+  font-family: var(--mono); font-size: 12px; line-height: 1.4; border: 1px solid var(--line);
+  border-radius: 4px; padding: 10px; resize: vertical; white-space: pre;
+}
+.modal-foot { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="title-group">
+    <h1>🪐 Mars-Sim Cognition Lab & Arbiter Workbench</h1>
+    <p>Interactive balance tuner and visualizer for colonist 3D affect, transient stimuli, and weighted focus arbitration.</p>
+  </div>
+  <div class="actions-bar">
+    <button id="btn-decay" title="Decay charge, grip, and valence toward neutral">⏳ Tick Decay</button>
+    <button id="btn-vocab-modal">📚 Import Vocabulary JSON</button>
+    <button id="btn-import-modal">📥 Import YAML</button>
+    <button id="btn-export-modal" class="primary">📤 Export YAML</button>
+    <button id="btn-reset">↺ Reset Defaults</button>
+  </div>
+</header>
+
+<main>
+  <!-- LEFT COLUMN: 2D Affect Plane & Event Triggers -->
+  <div class="left-col">
+    <section class="panel">
+      <h2>Affect Plane (Charge × Grip)</h2>
+      <div class="affect-display">
+        <div class="canvas-wrap">
+          <canvas id="affect-canvas" width="460" height="460"></canvas>
+        </div>
+        <div class="affect-readout">
+          <div>
+            <div id="mood-label" class="mood-badge good">steady</div>
+            <div id="mood-details" class="coord-readout">Claim: 100%</div>
+          </div>
+          <div class="valence-ctrl">
+            <label for="valence-range" style="color:var(--dim);">Valence:</label>
+            <input type="range" id="valence-range" class="valence-slider" min="-100" max="100" value="0">
+            <span id="valence-val" style="font-family:var(--mono); font-size:12px; width:34px; text-align:right;">0</span>
+          </div>
+          <div style="font-family:var(--mono); font-size:12px; text-align:right;">
+            <div>C: <span id="charge-val">0</span></div>
+            <div>G: <span id="grip-val">0</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="event-section">
+        <h2 style="margin-top:14px; margin-bottom:8px;">Trigger Reaction (Push / Relocate Blend)</h2>
+        <div class="event-grid" id="event-buttons"></div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2>Active Transient Stimuli</h2>
+      <div id="stimuli-list" style="display:flex; flex-direction:column; gap:6px; font-size:12px;"></div>
+    </section>
+  </div>
+
+  <!-- RIGHT COLUMN: Focus Candidate Arbiter & Scenarios -->
+  <div class="right-col">
+    <section class="panel arbiter-card">
+      <h2>Executive Focus Arbiter</h2>
+      <div class="verdict-banner">
+        <div>
+          <div class="verdict-main" id="verdict-text">Colonist remains in Work focus</div>
+          <div class="verdict-sub" id="verdict-sub">Winning candidate clears switch margin (margin: 10)</div>
+        </div>
+        <div id="verdict-score" style="font-family:var(--mono); font-size:22px; font-weight:700; color:var(--accent);">
+          Total: 65
+        </div>
+      </div>
+
+      <div class="candidate-bars" id="candidate-chart"></div>
+
+      <div class="chart-legend">
+        <div class="legend-item"><div class="legend-swatch" style="background:#6c7a89;"></div> Base</div>
+        <div class="legend-item"><div class="legend-swatch" style="background:var(--warn);"></div> Need</div>
+        <div class="legend-item"><div class="legend-swatch" style="background:var(--purple);"></div> Affect</div>
+        <div class="legend-item"><div class="legend-swatch" style="background:var(--accent);"></div> Stimulus</div>
+        <div class="legend-item"><div class="legend-swatch" style="background:var(--blue);"></div> Commitment</div>
+        <div class="legend-item"><div class="legend-swatch" style="background:var(--bad);"></div> Distance</div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2>Colonist State & World Context</h2>
+      <div class="scenario-grid">
+        <div class="need-box">
+          <div class="need-head"><span>Food</span> <span id="food-phase" class="phase-pill phase-satisfied">Satisfied</span></div>
+          <input type="range" class="need-slider" id="food-slider" min="0" max="1000" value="200">
+          <div class="need-meta"><span>Level: <span id="food-level">200</span></span><span>Press: <span id="food-press">0</span>%</span></div>
+        </div>
+        <div class="need-box">
+          <div class="need-head"><span>Bladder</span> <span id="bladder-phase" class="phase-pill phase-satisfied">Satisfied</span></div>
+          <input type="range" class="need-slider" id="bladder-slider" min="0" max="1000" value="150">
+          <div class="need-meta"><span>Level: <span id="bladder-level">150</span></span><span>Press: <span id="bladder-press">0</span>%</span></div>
+        </div>
+        <div class="need-box">
+          <div class="need-head"><span>Social</span> <span id="social-phase" class="phase-pill phase-satisfied">Satisfied</span></div>
+          <input type="range" class="need-slider" id="social-slider" min="0" max="1000" value="100">
+          <div class="need-meta"><span>Level: <span id="social-level">100</span></span><span>Press: <span id="social-press">0</span>%</span></div>
+        </div>
+        <div class="need-box">
+          <div class="need-head"><span>Sleep</span> <span id="sleep-phase" class="phase-pill phase-satisfied">Satisfied</span></div>
+          <input type="range" class="need-slider" id="sleep-slider" min="0" max="1000" value="250">
+          <div class="need-meta"><span>Level: <span id="sleep-level">250</span></span><span>Press: <span id="sleep-press">0</span>%</span></div>
+        </div>
+      </div>
+
+      <div class="context-row">
+        <div class="form-grp">
+          <label>Current Focus</label>
+          <select id="current-focus-sel">
+            <option value="0">idle</option>
+            <option value="1" selected>work</option>
+            <option value="2">eat</option>
+            <option value="3">relieve</option>
+            <option value="4">socialize</option>
+            <option value="5">sleep</option>
+            <option value="6">flee</option>
+            <option value="7">fight</option>
+          </select>
+        </div>
+        <div class="form-grp">
+          <label>Visible Alien</label>
+          <select id="alien-visible-sel">
+            <option value="no" selected>None</option>
+            <option value="yes">Alien within radius</option>
+          </select>
+        </div>
+        <div class="form-grp">
+          <label>Alien Distance</label>
+          <input type="number" id="threat-dist-input" min="1" max="15" value="4" style="width:65px;">
+        </div>
+        <div class="form-grp">
+          <label>Equipped Weapon</label>
+          <select id="weapon-sel">
+            <option value="none" selected>Unarmed</option>
+            <option value="pistol">Pistol</option>
+            <option value="shotgun">Shotgun</option>
+          </select>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2>Compositional Reaction Rules</h2>
+      <div class="rule-editor">
+        <div class="form-grp wide"><label>Stable Rule ID</label><input id="rule-id" type="text" placeholder="saw-cat-play"></div>
+        <div class="form-grp"><label>Actor noun</label><select id="rule-actor"></select></div>
+        <div class="form-grp"><label>Action</label><select id="rule-action"></select></div>
+        <div class="form-grp"><label>Object noun</label><select id="rule-object"></select></div>
+        <div class="form-grp"><label>Channel</label><select id="rule-channel"></select></div>
+        <div class="form-grp"><label>Observer role</label><select id="rule-role"></select></div>
+        <div class="form-grp"><label>Phase</label><select id="rule-phase"></select></div>
+        <div class="form-grp"><label>Impact</label><input id="rule-impact" type="number" min="0" max="100" value="10"></div>
+        <div class="form-grp"><label>Charge</label><input id="rule-charge" type="number" min="-100" max="100" value="0"></div>
+        <div class="form-grp"><label>Grip</label><input id="rule-grip" type="number" min="-100" max="100" value="0"></div>
+        <div class="form-grp"><label>Valence</label><input id="rule-valence" type="number" min="-100" max="100" value="0"></div>
+        <div class="form-grp wide"><label>Memory template</label><input id="rule-memory" type="text" placeholder="Watched {actor} play with {object}."></div>
+      </div>
+      <div style="display:flex; gap:8px; margin-top:10px;">
+        <button id="rule-new">New</button>
+        <button id="rule-save" class="primary">Save Rule</button>
+      </div>
+      <div id="rule-validation" class="validation"></div>
+      <div id="rule-list" class="rule-list"></div>
+
+      <h2 style="margin-top:18px;">Perception Rules</h2>
+      <div class="rule-editor">
+        <div class="form-grp wide"><label>Stable Rule ID</label><input id="perception-id" type="text" placeholder="see-cat-play"></div>
+        <div class="form-grp"><label>Actor noun</label><select id="perception-actor"></select></div>
+        <div class="form-grp"><label>Action</label><select id="perception-action"></select></div>
+        <div class="form-grp"><label>Object noun</label><select id="perception-object"></select></div>
+        <div class="form-grp"><label>Channel</label><select id="perception-channel"></select></div>
+        <div class="form-grp"><label>Observer role</label><select id="perception-role"></select></div>
+        <div class="form-grp"><label>Cadence</label><select id="perception-cadence"></select></div>
+        <div class="form-grp"><label>Named radius</label><select id="perception-radius"></select></div>
+        <div class="form-grp"><label>Fixed distance</label><input id="perception-distance" type="number" min="0" value="0"></div>
+        <div class="form-grp"><label>Line of sight</label><select id="perception-los"><option value="false">No</option><option value="true">Yes</option></select></div>
+      </div>
+      <div style="display:flex; gap:8px; margin-top:10px;">
+        <button id="perception-new">New</button>
+        <button id="perception-save" class="primary">Save Perception</button>
+      </div>
+      <div id="perception-validation" class="validation"></div>
+      <div id="perception-list" class="rule-list"></div>
+    </section>
+  </div>
+</main>
+
+<!-- YAML Modal -->
+<div class="modal-overlay" id="yaml-modal">
+  <div class="modal-card">
+    <div class="modal-head">
+      <h3 id="modal-title">Cognition Configuration (YAML)</h3>
+      <button class="sm" id="modal-close">&times;</button>
+    </div>
+    <textarea class="yaml-box" id="yaml-text" spellcheck="false"></textarea>
+    <div class="modal-foot">
+      <button id="modal-copy">📋 Copy to Clipboard</button>
+      <button id="modal-apply" class="primary">Apply to Workbench</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// --- DEFAULT CONFIGURATION DATA ---
+const DEFAULT_CONFIG = {
+  attractors: {
+    driven:    { good: "driven",    bad: "furious",    charge: 70,  grip: 60,  radius: 46 },
+    elated:    { good: "elated",    bad: "frantic",    charge: 88,  grip: 0,   radius: 42 },
+    giddy:     { good: "giddy",     bad: "panicked",   charge: 65,  grip: -62, radius: 46 },
+    adrift:    { good: "adrift",    bad: "anxious",    charge: 0,   grip: -85, radius: 42 },
+    listless:  { good: "listless",  bad: "despairing", charge: -62, grip: -62, radius: 46 },
+    spent:     { good: "spent",     bad: "numb",       charge: -85, grip: 0,   radius: 42 },
+    content:   { good: "content",   bad: "grim",       charge: -60, grip: 60,  radius: 46 },
+    composed:  { good: "composed",  bad: "hardened",   charge: 0,   grip: 85,  radius: 42 },
+    steady:    { good: "steady",    bad: "flat",       charge: 0,   grip: 0,   radius: 28 }
+  },
+  focuses: {
+    idle:      { base: 0,  need_weight: 0,   charge_weight: -10, grip_weight: 0,   distance_weight: 0 },
+    work:      { base: 25, need_weight: 0,   charge_weight: 20,  grip_weight: 10,  distance_weight: 1 },
+    eat:       { base: 40, need_weight: 100, charge_weight: 0,   grip_weight: 5,   distance_weight: 1 },
+    relieve:   { base: 40, need_weight: 100, charge_weight: 0,   grip_weight: 0,   distance_weight: 1 },
+    socialize: { base: 40, need_weight: 100, charge_weight: 10,  grip_weight: 5,   distance_weight: 1 },
+    sleep:     { base: 40, need_weight: 100, charge_weight: -30, grip_weight: 0,   distance_weight: 1 },
+    flee:      { base: 0,  need_weight: 0,   charge_weight: 20,  grip_weight: -40, distance_weight: 1 },
+    fight:     { base: 15, need_weight: 0,   charge_weight: 20,  grip_weight: 40,  distance_weight: 1 }
+  },
+  arbitration: {
+    current_bonus: 25,
+    switch_margin: 10,
+    critical_bonus: 100,
+    fatal_bonus: 150,
+    active_stimulus_limit: 8
+  },
+  reactions: {
+    "saw-alien":                  { impact: 45, target: { charge: 8, grip: -10, valence: -15 }, stimulus: { salience: 100, lifetime: 12, contributions: { flee: 500, fight: 500 } } },
+    "saw-mouse":                  { impact: 8,  target: { charge: 2, grip: -3, valence: 0 } },
+    "saw-gore":                   { impact: 30, target: { charge: -3, grip: -7, valence: -6 }, stimulus: { salience: 35, lifetime: 30, contributions: { work: 20 } } },
+    "bitten":                     { impact: 70, target: { charge: 55, grip: -44, valence: -30 }, stimulus: { salience: 100, lifetime: 20, contributions: { flee: 300, fight: 150 } } },
+    "witnessed-colonist-killed":   { impact: 95, target: { charge: 28, grip: -74, valence: -60 }, stimulus: { salience: 90, lifetime: 20, contributions: { flee: 250, fight: 100 } } },
+    "witnessed-colonist-attacked": { impact: 75, target: { charge: 35, grip: -63, valence: -40 }, stimulus: { salience: 70, lifetime: 12, contributions: { flee: 200, fight: 100 } } },
+    "crushed-mouse":              { impact: 6,  target: { charge: -1, grip: 2, valence: 0 } },
+    "witnessed-mouse-crushed":     { impact: 8,  target: { charge: -1, grip: -2, valence: -1 } },
+    "witnessed-cat-catch":         { impact: 5,  target: { charge: 1, grip: 1, valence: 0 } },
+    "killed-alien":               { impact: 55, target: { charge: 45, grip: 52, valence: 35 } },
+    "witnessed-alien-killed":      { impact: 35, target: { charge: 5, grip: 6, valence: 4 } },
+    "wounded-alien":              { impact: 25, target: { charge: 4, grip: 5, valence: 2 } },
+    "witnessed-gunfight":         { impact: 50, target: { charge: 35, grip: -25, valence: -20 } },
+    "conversation":               { impact: 20, target: { charge: 0, grip: 0, valence: 0 } },
+    "ate":                        { impact: 10, target: { charge: 4, grip: 2, valence: 1 } },
+    "used-toilet":                { impact: 4,  target: { charge: 1, grip: 2, valence: 0 } },
+    "slept":                      { impact: 25, target: { charge: 15, grip: 2, valence: 2 } },
+    "need-satisfied":             { impact: 8,  target: { charge: 2, grip: 2, valence: 0 } },
+    "finished-mining":            { impact: 15, target: { charge: -1, grip: 5, valence: 0 }, stimulus: { salience: 25, lifetime: 10, contributions: { work: 15 } } },
+    "cleared-rock":               { impact: 15, target: { charge: -1, grip: 5, valence: 0 }, stimulus: { salience: 25, lifetime: 10, contributions: { work: 15 } } },
+    "finished-construction":      { impact: 18, target: { charge: -1, grip: 6, valence: 3 }, stimulus: { salience: 25, lifetime: 10, contributions: { work: 15 } } },
+    "cleaned-refuse":             { impact: 14, target: { charge: -1, grip: 5, valence: 0 }, stimulus: { salience: 25, lifetime: 10, contributions: { work: 15 } } },
+    "incinerated-refuse":         { impact: 16, target: { charge: -1, grip: 7, valence: 1 }, stimulus: { salience: 25, lifetime: 10, contributions: { work: 15 } } },
+    "mutated":                    { impact: 60, target: { charge: 18, grip: -70, valence: -35 } },
+    "witnessed-mutation":         { impact: 35, target: { charge: 2, grip: -8, valence: -10 } }
+  }
+};
+
+const DEFAULT_VOCABULARY = {
+  nouns: ["colonist", "alien", "cat", "mouse", "gore", "meal", "toilet", "bed", "need", "rock", "structure", "refuse"],
+  actions: ["present", "bite", "attack", "kill", "crush", "catch", "wound", "converse", "eat", "use", "sleep", "satisfy", "mine", "clear", "construct", "clean", "incinerate", "mutate"],
+  tags: ["gore", "finished-work", "conversation", "mutation", "incineration"],
+  channels: ["direct", "sight", "hearing", "proximity"],
+  roles: ["actor", "target", "witness"],
+  phases: ["instant", "enter", "ongoing", "exit"],
+  cadences: ["instant", "enter", "enter-and-ongoing"],
+  radii: ["flee-radius", "stomp-radius", "gore-sight-radius"],
+  traits: ["big-eater", "light-eater", "industrious", "lazy", "asocial", "introvert", "extrovert", "tidy", "mutant", "mutant-lover"],
+  focuses: ["idle", "work", "eat", "relieve", "socialize", "sleep", "flee", "fight"]
+};
+
+const DEFAULT_MATCHES = {
+  "saw-alien":                  { actor_noun:"alien", action:"present", channel:"sight", role:"witness", phase:"enter" },
+  "saw-mouse":                  { actor_noun:"mouse", action:"present", channel:"sight", role:"witness", phase:"enter" },
+  "saw-gore":                   { actor_noun:"gore", action:"present", channel:"sight", role:"witness", phase:"enter" },
+  "bitten":                     { actor_noun:"alien", action:"bite", object_noun:"colonist", channel:"direct", role:"target", phase:"instant" },
+  "witnessed-colonist-killed":  { actor_noun:"alien", action:"kill", object_noun:"colonist", channel:"sight", role:"witness", phase:"instant" },
+  "witnessed-colonist-attacked":{ actor_noun:"alien", action:"bite", object_noun:"colonist", channel:"sight", role:"witness", phase:"instant" },
+  "crushed-mouse":              { actor_noun:"colonist", action:"crush", object_noun:"mouse", channel:"direct", role:"actor", phase:"instant" },
+  "witnessed-mouse-crushed":    { actor_noun:"colonist", action:"crush", object_noun:"mouse", channel:"sight", role:"witness", phase:"instant" },
+  "witnessed-cat-catch":        { actor_noun:"cat", action:"catch", object_noun:"mouse", channel:"sight", role:"witness", phase:"instant" },
+  "killed-alien":               { actor_noun:"colonist", action:"kill", object_noun:"alien", channel:"direct", role:"actor", phase:"instant" },
+  "witnessed-alien-killed":     { actor_noun:"colonist", action:"kill", object_noun:"alien", channel:"sight", role:"witness", phase:"instant" },
+  "wounded-alien":              { actor_noun:"colonist", action:"wound", object_noun:"alien", channel:"direct", role:"actor", phase:"instant" },
+  "witnessed-gunfight":         { actor_noun:"colonist", action:"wound", object_noun:"alien", channel:"sight", role:"witness", phase:"instant" },
+  "conversation":               { actor_noun:"colonist", action:"converse", object_noun:"colonist", channel:"direct", role:"", phase:"instant" },
+  "ate":                        { actor_noun:"colonist", action:"eat", object_noun:"meal", channel:"direct", role:"actor", phase:"instant" },
+  "used-toilet":                { actor_noun:"colonist", action:"use", object_noun:"toilet", channel:"direct", role:"actor", phase:"instant" },
+  "slept":                      { actor_noun:"colonist", action:"sleep", object_noun:"bed", channel:"direct", role:"actor", phase:"instant" },
+  "need-satisfied":             { actor_noun:"colonist", action:"satisfy", object_noun:"need", channel:"direct", role:"actor", phase:"instant" },
+  "finished-mining":            { actor_noun:"colonist", action:"mine", object_noun:"rock", channel:"direct", role:"actor", phase:"instant" },
+  "cleared-rock":               { actor_noun:"colonist", action:"clear", object_noun:"rock", channel:"direct", role:"actor", phase:"instant" },
+  "finished-construction":      { actor_noun:"colonist", action:"construct", object_noun:"structure", channel:"direct", role:"actor", phase:"instant" },
+  "cleaned-refuse":             { actor_noun:"colonist", action:"clean", object_noun:"refuse", channel:"direct", role:"actor", phase:"instant" },
+  "incinerated-refuse":         { actor_noun:"colonist", action:"incinerate", object_noun:"refuse", channel:"direct", role:"actor", phase:"instant" },
+  "mutated":                    { actor_noun:"colonist", action:"mutate", channel:"direct", role:"actor", phase:"instant" },
+  "witnessed-mutation":         { actor_noun:"colonist", action:"mutate", channel:"sight", role:"witness", phase:"instant" }
+};
+
+const DEFAULT_PERCEPTIONS = [
+  { id:"direct-actor", match:{}, sense:{ channel:"direct", role:"actor", cadence:"instant" } },
+  { id:"direct-target", match:{}, sense:{ channel:"direct", role:"target", cadence:"instant" } },
+  { id:"visible-alien", match:{ actor_noun:"alien", action:"present" }, sense:{ channel:"sight", role:"witness", radius:"flee-radius", cadence:"enter-and-ongoing" } },
+  { id:"visible-mouse", match:{ actor_noun:"mouse", action:"present" }, sense:{ channel:"sight", role:"witness", radius:"stomp-radius", cadence:"enter" } },
+  { id:"visible-gore", match:{ actor_noun:"gore", action:"present" }, sense:{ channel:"sight", role:"witness", radius:"gore-sight-radius", cadence:"enter" } },
+  { id:"witness-alien-kill", match:{ actor_noun:"alien", action:"kill", object_noun:"colonist" }, sense:{ channel:"sight", role:"witness", radius:"flee-radius", cadence:"instant" } },
+  { id:"witness-alien-attack", match:{ actor_noun:"alien", action:"bite", object_noun:"colonist" }, sense:{ channel:"sight", role:"witness", radius:"flee-radius", cadence:"instant" } },
+  { id:"witness-mouse-crushed", match:{ actor_noun:"colonist", action:"crush", object_noun:"mouse" }, sense:{ channel:"sight", role:"witness", radius:"stomp-radius", cadence:"instant" } },
+  { id:"witness-cat-catch", match:{ actor_noun:"cat", action:"catch", object_noun:"mouse" }, sense:{ channel:"sight", role:"witness", radius:"stomp-radius", cadence:"instant" } },
+  { id:"witness-alien-killed", match:{ actor_noun:"colonist", action:"kill", object_noun:"alien" }, sense:{ channel:"sight", role:"witness", radius:"flee-radius", cadence:"instant" } },
+  { id:"witness-gunfight", match:{ actor_noun:"colonist", action:"wound", object_noun:"alien" }, sense:{ channel:"sight", role:"witness", radius:"flee-radius", cadence:"instant" } },
+  { id:"witness-mutation", match:{ actor_noun:"colonist", action:"mutate" }, sense:{ channel:"sight", role:"witness", radius:"flee-radius", cadence:"instant" } }
+];
+
+const COLLAPSE_TEXT = {
+  "finished-mining":"Finished mining.", "cleared-rock":"Cleared rock for a room.",
+  "finished-construction":"Finished construction.", "cleaned-refuse":"Cleaned up refuse.",
+  "incinerated-refuse":"Burned refuse in the incinerator.", "ate":"Had a meal.",
+  "used-toilet":"Used the toilet.", "slept":"Slept in a bed.", "need-satisfied":"Satisfied a need."
+};
+const ACTOR_SOURCED_STIMULI = new Set([
+  "saw-alien", "bitten", "witnessed-colonist-killed", "witnessed-colonist-attacked"
+]);
+
+for (const [id, reaction] of Object.entries(DEFAULT_CONFIG.reactions)) {
+  reaction.match = DEFAULT_MATCHES[id] || {};
+  reaction.memory = { record:true };
+  if (COLLAPSE_TEXT[id]) reaction.memory.collapse = COLLAPSE_TEXT[id];
+  if (reaction.stimulus) reaction.stimulus.source = ACTOR_SOURCED_STIMULI.has(id) ? "actor" : "none";
+}
+DEFAULT_CONFIG.schema_version = 1;
+DEFAULT_CONFIG.vocabulary = JSON.parse(JSON.stringify(DEFAULT_VOCABULARY));
+DEFAULT_CONFIG.perceptions = JSON.parse(JSON.stringify(DEFAULT_PERCEPTIONS));
+DEFAULT_CONFIG.modifiers = [
+  { id:"industrious-finished-work", trait:"industrious", any_tags:["finished-work"], scales:{ impact:100, charge:200, grip:200, valence:200 } },
+  { id:"introvert-conversation", trait:"introvert", any_tags:["conversation"], scales:{ impact:100, charge:-100, grip:100, valence:100 } },
+  { id:"tidy-gore", trait:"tidy", any_tags:["gore"], scales:{ impact:100, charge:220, grip:220, valence:220 } },
+  { id:"tidy-incineration", trait:"tidy", any_tags:["incineration"], scales:{ impact:100, charge:100, grip:200, valence:100 } },
+  { id:"mutant-lover-mutation", trait:"mutant-lover", any_tags:["mutation"], scales:{ impact:100, charge:100, grip:-100, valence:-100 } }
+];
+const REACTION_TAGS = {
+  "saw-gore":["gore"], "witnessed-colonist-killed":["gore"],
+  "conversation":["conversation"], "mutated":["mutation"], "witnessed-mutation":["mutation"],
+  "finished-mining":["finished-work"], "cleared-rock":["finished-work"],
+  "finished-construction":["finished-work"], "cleaned-refuse":["finished-work"],
+  "incinerated-refuse":["finished-work", "incineration"]
+};
+for (const [id, tags] of Object.entries(REACTION_TAGS)) DEFAULT_CONFIG.reactions[id].tags = tags;
+
+const FOCUS_KINDS = ["idle", "work", "eat", "relieve", "socialize", "sleep", "flee", "fight"];
+const NEED_SPECS = {
+  food:    { seekAt: 650, critAt: 1000, max: 1000, fatal: true,  focus: "eat" },
+  bladder: { seekAt: 600, critAt: 900,  max: 1000, fatal: false, focus: "relieve" },
+  social:  { seekAt: 500, critAt: 850,  max: 1000, fatal: false, focus: "socialize" },
+  sleep:   { seekAt: 700, critAt: 900,  max: 1000, fatal: false, focus: "sleep" }
+};
+
+// Current App State
+let config = JSON.parse(JSON.stringify(DEFAULT_CONFIG));
+let state = {
+  charge: 0,
+  grip: 0,
+  valence: 0,
+  label: "steady",
+  needs: { food: 200, bladder: 150, social: 100, sleep: 250 },
+  currentFocus: 1, // work
+  threatVisible: false,
+  threatDist: 4,
+  weapon: "none",
+  stimuli: [] // { kind, salience, lifetime }
+};
+
+// --- SIMULATION LOGIC ---
+
+function calcNeedPhaseAndPressure(val, spec) {
+  let phase = "satisfied";
+  let pressure = 0;
+  if (val >= spec.critAt) {
+    phase = "critical";
+    pressure = Math.min(100, Math.floor(75 + 25 * (val - spec.critAt) / Math.max(1, spec.max - spec.critAt)));
+  } else if (val >= spec.seekAt) {
+    phase = "pressing";
+    pressure = Math.min(100, Math.floor(1 + 74 * (val - spec.seekAt) / Math.max(1, spec.critAt - spec.seekAt)));
+  } else if (val > 0) {
+    phase = "growing";
+    pressure = 0;
+  }
+  return { phase, pressure };
+}
+
+function moodPull(impact) {
+  const pushImpact = 50;
+  const pullImpact = 80;
+  if (impact <= pushImpact) return 0;
+  if (impact >= pullImpact) return 100;
+  return Math.floor(100 * (impact - pushImpact) / (pullImpact - pushImpact));
+}
+
+function blendAffect(target, impact) {
+  const pull = moodPull(impact);
+  const keep = 100 - pull;
+  const lim = 100;
+  state.charge = Math.max(-lim, Math.min(lim, Math.round((state.charge * keep) / 100) + target.charge));
+  state.grip   = Math.max(-lim, Math.min(lim, Math.round((state.grip * keep) / 100) + target.grip));
+  state.valence = Math.max(-lim, Math.min(lim, Math.round((state.valence * keep) / 100) + (target.valence || 0)));
+  updateMoodAttractor();
+}
+
+function attractorClaim(attr, c, g) {
+  const dc = c - attr.charge;
+  const dg = g - attr.grip;
+  const d2 = dc*dc + dg*dg;
+  const r2 = attr.radius * attr.radius;
+  return Math.floor(100 - (100 * d2) / r2);
+}
+
+function updateMoodAttractor() {
+  let bestKind = "steady";
+  let bestClaim = -9999;
+  for (const [name, attr] of Object.entries(config.attractors)) {
+    const claim = attractorClaim(attr, state.charge, state.grip);
+    if (claim >= 0 && claim > bestClaim) {
+      bestClaim = claim;
+      bestKind = name;
+    }
+  }
+
+  // Switch hysteresis
+  const currentAttr = config.attractors[state.label];
+  const curClaim = currentAttr ? attractorClaim(currentAttr, state.charge, state.grip) : -999;
+  if (bestKind !== state.label) {
+    if (bestClaim > curClaim + 5) {
+      state.label = bestKind;
+    }
+  }
+
+  const attr = config.attractors[state.label] || config.attractors["steady"];
+  const isBad = state.valence < 0;
+  const moodName = isBad ? attr.bad : attr.good;
+
+  const labelEl = document.getElementById("mood-label");
+  labelEl.textContent = moodName;
+  labelEl.className = "mood-badge " + (isBad ? "bad" : "good");
+  document.getElementById("mood-details").textContent = `Claim: ${Math.max(0, bestClaim)}% (${state.label})`;
+  document.getElementById("charge-val").textContent = state.charge;
+  document.getElementById("grip-val").textContent = state.grip;
+  document.getElementById("valence-val").textContent = state.valence;
+  document.getElementById("valence-range").value = state.valence;
+}
+
+// Compute Focus Candidates
+function arbitrate() {
+  const scores = {};
+  const candidates = [];
+
+  // Need pressures
+  const needPressures = {};
+  const needPhases = {};
+  for (const [nKey, nSpec] of Object.entries(NEED_SPECS)) {
+    const res = calcNeedPhaseAndPressure(state.needs[nKey], nSpec);
+    needPressures[nKey] = res.pressure;
+    needPhases[nKey] = res.phase;
+  }
+
+  // Stimulus contributions
+  const stimContrib = { idle:0, work:0, eat:0, relieve:0, socialize:0, sleep:0, flee:0, fight:0 };
+  for (const s of state.stimuli) {
+    const ev = config.reactions[s.kind];
+    if (ev && ev.stimulus && ev.stimulus.contributions) {
+      for (const [fName, val] of Object.entries(ev.stimulus.contributions)) {
+        if (stimContrib[fName] !== undefined) {
+          stimContrib[fName] += Math.floor((val * s.salience) / 100);
+        }
+      }
+    }
+  }
+
+  FOCUS_KINDS.forEach((fName, idx) => {
+    const spec = config.focuses[fName] || { base:0, need_weight:0, charge_weight:0, grip_weight:0, distance_weight:0 };
+    let eligible = true;
+
+    // Eligibility invariants
+    if (fName === "fight") {
+      eligible = state.threatVisible && state.weapon !== "none";
+    } else if (fName === "flee") {
+      eligible = state.threatVisible;
+    } else if (fName === "eat") {
+      eligible = (needPhases.food === "pressing" || needPhases.food === "critical");
+    } else if (fName === "relieve") {
+      eligible = (needPhases.bladder === "pressing" || needPhases.bladder === "critical");
+    } else if (fName === "socialize") {
+      eligible = (needPhases.social === "pressing" || needPhases.social === "critical");
+    } else if (fName === "sleep") {
+      eligible = (needPhases.sleep === "pressing" || needPhases.sleep === "critical");
+    }
+
+    // Terms
+    const base = spec.base;
+    let needTerm = 0;
+    if (fName === "eat" && eligible) {
+      needTerm = Math.floor((needPressures.food * spec.need_weight) / 100);
+      if (needPhases.food === "critical") needTerm += config.arbitration.critical_bonus;
+      needTerm += config.arbitration.fatal_bonus; // Food is fatal
+    } else if (fName === "relieve" && eligible) {
+      needTerm = Math.floor((needPressures.bladder * spec.need_weight) / 100);
+      if (needPhases.bladder === "critical") needTerm += config.arbitration.critical_bonus;
+    } else if (fName === "socialize" && eligible) {
+      needTerm = Math.floor((needPressures.social * spec.need_weight) / 100);
+      if (needPhases.social === "critical") needTerm += config.arbitration.critical_bonus;
+    } else if (fName === "sleep" && eligible) {
+      needTerm = Math.floor((needPressures.sleep * spec.need_weight) / 100);
+      if (needPhases.sleep === "critical") needTerm += config.arbitration.critical_bonus;
+    }
+
+    const affectTerm = Math.floor((state.charge * spec.charge_weight + state.grip * spec.grip_weight) / 100);
+    const stimTerm = stimContrib[fName] || 0;
+    const commitTerm = (idx === state.currentFocus && eligible) ? config.arbitration.current_bonus : 0;
+    const distTerm = (fName === "fight" || fName === "flee") ? -(state.threatDist * spec.distance_weight) : 0;
+
+    const total = base + needTerm + affectTerm + stimTerm + commitTerm + distTerm;
+
+    candidates.push({
+      kind: fName,
+      idx: idx,
+      eligible,
+      base,
+      need: needTerm,
+      affect: affectTerm,
+      stimulus: stimTerm,
+      commitment: commitTerm,
+      distance: distTerm,
+      total
+    });
+  });
+
+  // Determine winner
+  const curCandidate = candidates[state.currentFocus];
+  let winner = candidates[0];
+  let highestScore = -99999;
+
+  for (const c of candidates) {
+    if (!c.eligible) continue;
+    if (c.total > highestScore) {
+      highestScore = c.total;
+      winner = c;
+    }
+  }
+
+  // Check commitment / margin
+  let finalWinner = curCandidate;
+  if (!curCandidate.eligible || winner.total > curCandidate.total + config.arbitration.switch_margin) {
+    finalWinner = winner;
+  }
+
+  renderArbiterChart(candidates, curCandidate, finalWinner);
+}
+
+function renderArbiterChart(candidates, current, winner) {
+  const chartEl = document.getElementById("candidate-chart");
+  chartEl.innerHTML = "";
+
+  const maxScore = Math.max(100, ...candidates.map(c => Math.max(0, c.total)));
+
+  candidates.forEach(c => {
+    const row = document.createElement("div");
+    row.className = "cand-row";
+
+    const isWinner = c.idx === winner.idx;
+    const isCur = c.idx === current.idx;
+
+    let badge = "";
+    if (isWinner && isCur) badge = '<span class="cand-badge winner">Current & Winning</span>';
+    else if (isWinner) badge = '<span class="cand-badge winner">Winner</span>';
+    else if (isCur) badge = '<span class="cand-badge current">Current</span>';
+    else if (!c.eligible) badge = '<span class="cand-badge ineligible">Ineligible</span>';
+
+    row.innerHTML = `
+      <div class="cand-header">
+        <span class="cand-name">${c.kind} ${badge}</span>
+        <span class="cand-score" style="color:${isWinner ? 'var(--good)' : (c.eligible ? 'var(--ink)' : 'var(--dim)')}">${c.eligible ? c.total : '—'}</span>
+      </div>
+      <div class="bar-track" style="opacity:${c.eligible ? 1 : 0.4}">
+        <div class="bar-seg base" style="width:${Math.max(0, (c.base / maxScore) * 100)}%" title="Base: ${c.base}"></div>
+        <div class="bar-seg need" style="width:${Math.max(0, (c.need / maxScore) * 100)}%" title="Need: ${c.need}"></div>
+        <div class="bar-seg affect" style="width:${Math.max(0, (c.affect / maxScore) * 100)}%" title="Affect: ${c.affect}"></div>
+        <div class="bar-seg stimulus" style="width:${Math.max(0, (c.stimulus / maxScore) * 100)}%" title="Stimulus: ${c.stimulus}"></div>
+        <div class="bar-seg commit" style="width:${Math.max(0, (c.commitment / maxScore) * 100)}%" title="Commitment: ${c.commitment}"></div>
+        <div class="bar-seg dist" style="width:${Math.max(0, (Math.abs(c.distance) / maxScore) * 100)}%" title="Distance: ${c.distance}"></div>
+      </div>
+    `;
+    chartEl.appendChild(row);
+  });
+
+  const verdictText = document.getElementById("verdict-text");
+  const verdictSub = document.getElementById("verdict-sub");
+  const verdictScore = document.getElementById("verdict-score");
+
+  verdictScore.textContent = `Total: ${winner.total}`;
+  if (winner.idx === current.idx) {
+    verdictText.textContent = `Colonist maintains ${winner.kind.toUpperCase()} focus`;
+    verdictSub.textContent = `Current focus protected by +${config.arbitration.current_bonus} commitment and +${config.arbitration.switch_margin} margin.`;
+  } else {
+    verdictText.textContent = `SWITCH to ${winner.kind.toUpperCase()} focus`;
+    verdictSub.textContent = `Challenger score (${winner.total}) beats current (${current.total} + ${config.arbitration.switch_margin} margin).`;
+  }
+}
+
+// --- 2D CANVAS DRAWING ---
+const canvas = document.getElementById("affect-canvas");
+const ctx = canvas.getContext("2d");
+let isDragging = false;
+let vectorArrow = null;
+
+function worldToCanvas(c, g) {
+  const w = canvas.width;
+  const h = canvas.height;
+  const x = ((c + 100) / 200) * w;
+  const y = h - ((g + 100) / 200) * h;
+  return { x, y };
+}
+
+function canvasToWorld(x, y) {
+  const w = canvas.width;
+  const h = canvas.height;
+  const c = Math.round((x / w) * 200 - 100);
+  const g = Math.round(((h - y) / h) * 200 - 100);
+  return { c: Math.max(-100, Math.min(100, c)), g: Math.max(-100, Math.min(100, g)) };
+}
+
+function drawCanvas() {
+  const w = canvas.width;
+  const h = canvas.height;
+  ctx.clearRect(0, 0, w, h);
+
+  // Axes
+  ctx.strokeStyle = "rgba(100, 110, 125, 0.35)";
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(w / 2, 0); ctx.lineTo(w / 2, h);
+  ctx.moveTo(0, h / 2); ctx.lineTo(w, h / 2);
+  ctx.stroke();
+
+  // Axis labels
+  ctx.fillStyle = "rgba(150, 160, 175, 0.5)";
+  ctx.font = "10px monospace";
+  ctx.fillText("+Grip (Control)", w / 2 + 6, 14);
+  ctx.fillText("-Grip", w / 2 + 6, h - 6);
+  ctx.fillText("+Charge (Energy)", w - 95, h / 2 - 6);
+  ctx.fillText("-Charge", 6, h / 2 - 6);
+
+  // Attractors
+  for (const [name, attr] of Object.entries(config.attractors)) {
+    const center = worldToCanvas(attr.charge, attr.grip);
+    const radiusPx = (attr.radius / 200) * w;
+
+    const isCurrent = (name === state.label);
+
+    ctx.beginPath();
+    ctx.arc(center.x, center.y, radiusPx, 0, Math.PI * 2);
+    ctx.fillStyle = isCurrent ? "rgba(224, 131, 74, 0.15)" : "rgba(80, 90, 110, 0.12)";
+    ctx.fill();
+    ctx.strokeStyle = isCurrent ? "var(--accent)" : "rgba(120, 130, 150, 0.4)";
+    ctx.lineWidth = isCurrent ? 2 : 1;
+    ctx.stroke();
+
+    // Center point & name
+    ctx.fillStyle = isCurrent ? "var(--accent)" : "rgba(170, 180, 195, 0.7)";
+    ctx.beginPath();
+    ctx.arc(center.x, center.y, 2.5, 0, Math.PI * 2);
+    ctx.fill();
+
+    const isBad = state.valence < 0;
+    const displayName = isBad ? attr.bad : attr.good;
+    ctx.font = isCurrent ? "bold 11px sans-serif" : "10px sans-serif";
+    ctx.fillText(displayName, center.x - 18, center.y - 4);
+  }
+
+  // Vector Arrow (if event triggered recently)
+  if (vectorArrow) {
+    ctx.save();
+    ctx.strokeStyle = "var(--warn)";
+    ctx.fillStyle = "var(--warn)";
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    ctx.moveTo(vectorArrow.from.x, vectorArrow.from.y);
+    ctx.lineTo(vectorArrow.to.x, vectorArrow.to.y);
+    ctx.stroke();
+    // Arrowhead
+    const angle = Math.atan2(vectorArrow.to.y - vectorArrow.from.y, vectorArrow.to.x - vectorArrow.from.x);
+    ctx.beginPath();
+    ctx.arc(vectorArrow.to.x, vectorArrow.to.y, 4, 0, Math.PI*2);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  // Current affect dot
+  const curPos = worldToCanvas(state.charge, state.grip);
+  ctx.beginPath();
+  ctx.arc(curPos.x, curPos.y, 7, 0, Math.PI * 2);
+  ctx.fillStyle = "var(--accent)";
+  ctx.fill();
+  ctx.strokeStyle = "#fff";
+  ctx.lineWidth = 2;
+  ctx.stroke();
+}
+
+function setCoordsFromMouse(e) {
+  const rect = canvas.getBoundingClientRect();
+  const x = (e.clientX - rect.left) * (canvas.width / rect.width);
+  const y = (e.clientY - rect.top) * (canvas.height / rect.height);
+  const { c, g } = canvasToWorld(x, y);
+  state.charge = c;
+  state.grip = g;
+  vectorArrow = null;
+  updateMoodAttractor();
+  arbitrate();
+  drawCanvas();
+}
+
+canvas.addEventListener("pointerdown", e => { isDragging = true; setCoordsFromMouse(e); });
+window.addEventListener("pointermove", e => { if (isDragging) setCoordsFromMouse(e); });
+window.addEventListener("pointerup", () => { isDragging = false; });
+
+// --- EVENT PALETTE ---
+function buildEventPalette() {
+  const container = document.getElementById("event-buttons");
+  container.innerHTML = "";
+  for (const [name, ev] of Object.entries(config.reactions)) {
+    const btn = document.createElement("button");
+    btn.className = "evt-btn";
+    const hasStim = ev.stimulus ? "⚡" : "";
+    btn.innerHTML = `${name} ${hasStim}<span class="meta">Imp:${ev.Impact || ev.impact} (C:${ev.target.charge}, G:${ev.target.grip})</span>`;
+    btn.onclick = () => {
+      const fromPos = worldToCanvas(state.charge, state.grip);
+      blendAffect(ev.target, ev.Impact || ev.impact);
+      const toPos = worldToCanvas(state.charge, state.grip);
+      vectorArrow = { from: fromPos, to: toPos };
+
+      // Add stimulus if declared
+      if (ev.stimulus && ev.stimulus.salience > 0) {
+        addStimulus(name, ev.stimulus);
+      }
+
+      updateMoodAttractor();
+      arbitrate();
+      drawCanvas();
+    };
+    container.appendChild(btn);
+  }
+}
+
+function addStimulus(name, stim) {
+  // Evict or update existing
+  const existing = state.stimuli.find(s => s.kind === name);
+  if (existing) {
+    existing.salience = stim.salience;
+    existing.lifetime = stim.lifetime;
+  } else {
+    if (state.stimuli.length >= config.arbitration.active_stimulus_limit) {
+      state.stimuli.shift(); // evict oldest
+    }
+    state.stimuli.push({ kind: name, salience: stim.salience, lifetime: stim.lifetime });
+  }
+  renderStimuli();
+}
+
+function renderStimuli() {
+  const list = document.getElementById("stimuli-list");
+  if (state.stimuli.length === 0) {
+    list.innerHTML = `<span style="color:var(--dim); font-style:italic;">No active stimuli in attention buffer.</span>`;
+    return;
+  }
+  list.innerHTML = "";
+  state.stimuli.forEach((s, idx) => {
+    const row = document.createElement("div");
+    row.style.display = "flex";
+    row.style.justifyContent = "space-between";
+    row.style.alignItems = "center";
+    row.style.background = "var(--panel-alt)";
+    row.style.padding = "4px 8px";
+    row.style.borderRadius = "4px";
+    row.style.border = "1px solid var(--line)";
+    row.innerHTML = `
+      <span>⚡ <strong>${s.kind}</strong> (Sal: ${s.salience}, Ticks: ${s.lifetime})</span>
+      <button class="sm" onclick="removeStim(${idx})">&times;</button>
+    `;
+    list.appendChild(row);
+  });
+}
+
+window.removeStim = function(idx) {
+  state.stimuli.splice(idx, 1);
+  renderStimuli();
+  arbitrate();
+};
+
+// --- COMPOSITIONAL RULE EDITOR ---
+let editingRuleID = null;
+
+function fillSelect(id, values, wildcard = true) {
+  const select = document.getElementById(id);
+  const previous = select.value;
+  select.innerHTML = "";
+  if (wildcard) select.add(new Option("(any)", ""));
+  values.forEach(value => select.add(new Option(value, value)));
+  if ([...select.options].some(option => option.value === previous)) select.value = previous;
+}
+
+function populateRuleDropdowns() {
+  const vocab = config.vocabulary || DEFAULT_VOCABULARY;
+  fillSelect("rule-actor", vocab.nouns || []);
+  fillSelect("rule-action", vocab.actions || []);
+  fillSelect("rule-object", vocab.nouns || []);
+  fillSelect("rule-channel", vocab.channels || DEFAULT_VOCABULARY.channels);
+  fillSelect("rule-role", vocab.roles || DEFAULT_VOCABULARY.roles);
+  fillSelect("rule-phase", vocab.phases || DEFAULT_VOCABULARY.phases);
+  fillSelect("perception-actor", vocab.nouns || []);
+  fillSelect("perception-action", vocab.actions || []);
+  fillSelect("perception-object", vocab.nouns || []);
+  fillSelect("perception-channel", vocab.channels || DEFAULT_VOCABULARY.channels, false);
+  fillSelect("perception-role", vocab.roles || DEFAULT_VOCABULARY.roles, false);
+  fillSelect("perception-cadence", vocab.cadences || DEFAULT_VOCABULARY.cadences, false);
+  fillSelect("perception-radius", vocab.radii || DEFAULT_VOCABULARY.radii);
+}
+
+function clearRuleEditor() {
+  editingRuleID = null;
+  document.getElementById("rule-id").disabled = false;
+  document.getElementById("rule-id").value = "";
+  ["rule-actor","rule-action","rule-object","rule-channel","rule-role","rule-phase"].forEach(id => {
+    document.getElementById(id).value = "";
+  });
+  document.getElementById("rule-impact").value = 10;
+  document.getElementById("rule-charge").value = 0;
+  document.getElementById("rule-grip").value = 0;
+  document.getElementById("rule-valence").value = 0;
+  document.getElementById("rule-memory").value = "";
+  document.getElementById("rule-validation").textContent = "";
+}
+
+function editRule(id) {
+  const rule = config.reactions[id];
+  if (!rule) return;
+  editingRuleID = id;
+  const idInput = document.getElementById("rule-id");
+  idInput.value = id;
+  idInput.disabled = true;
+  document.getElementById("rule-actor").value = rule.match?.actor_noun || "";
+  document.getElementById("rule-action").value = rule.match?.action || "";
+  document.getElementById("rule-object").value = rule.match?.object_noun || "";
+  document.getElementById("rule-channel").value = rule.match?.channel || "";
+  document.getElementById("rule-role").value = rule.match?.role || "";
+  document.getElementById("rule-phase").value = rule.match?.phase || "";
+  document.getElementById("rule-impact").value = rule.impact ?? 0;
+  document.getElementById("rule-charge").value = rule.target?.charge ?? 0;
+  document.getElementById("rule-grip").value = rule.target?.grip ?? 0;
+  document.getElementById("rule-valence").value = rule.target?.valence ?? 0;
+  document.getElementById("rule-memory").value = rule.memory?.text || "";
+  document.getElementById("rule-validation").textContent = "";
+}
+
+function deleteRule(id) {
+  if (!config.reactions[id]) return;
+  delete config.reactions[id];
+  state.stimuli = state.stimuli.filter(stim => stim.kind !== id);
+  if (editingRuleID === id) clearRuleEditor();
+  renderRuleList();
+  buildEventPalette();
+  renderStimuli();
+  arbitrate();
+}
+
+function readRuleEditor() {
+  const id = document.getElementById("rule-id").value.trim().toLowerCase();
+  if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(id)) {
+    throw new Error("Rule ID must be lowercase kebab-case.");
+  }
+  if (!editingRuleID && config.reactions[id]) {
+    throw new Error(`Rule ID "${id}" already exists.`);
+  }
+  const impact = Number(document.getElementById("rule-impact").value);
+  if (!Number.isInteger(impact) || impact < 0 || impact > 100) {
+    throw new Error("Impact must be an integer from 0 to 100.");
+  }
+  const match = {
+    actor_noun: document.getElementById("rule-actor").value,
+    action: document.getElementById("rule-action").value,
+    object_noun: document.getElementById("rule-object").value,
+    channel: document.getElementById("rule-channel").value,
+    role: document.getElementById("rule-role").value,
+    phase: document.getElementById("rule-phase").value
+  };
+  const signature = JSON.stringify(match);
+  for (const [otherID, other] of Object.entries(config.reactions)) {
+    if (otherID !== editingRuleID && JSON.stringify(other.match || {}) === signature) {
+      throw new Error(`Match duplicates "${otherID}". Give one rule a more specific match.`);
+    }
+  }
+  return {
+    id,
+    rule: {
+      match,
+      memory: { record:true, text:document.getElementById("rule-memory").value },
+      impact,
+      target: {
+        charge:Number(document.getElementById("rule-charge").value) || 0,
+        grip:Number(document.getElementById("rule-grip").value) || 0,
+        valence:Number(document.getElementById("rule-valence").value) || 0
+      }
+    }
+  };
+}
+
+function renderRuleList() {
+  const list = document.getElementById("rule-list");
+  list.innerHTML = "";
+  for (const [id, rule] of Object.entries(config.reactions)) {
+    const row = document.createElement("div");
+    row.className = "rule-row";
+    const match = rule.match || {};
+    row.innerHTML = `<code>${id}</code><span>${match.channel || "*"} / ${match.role || "*"} · ${match.actor_noun || "*"} ${match.action || "*"} ${match.object_noun || ""}</span>`;
+    const actions = document.createElement("span");
+    const edit = document.createElement("button");
+    edit.className = "sm"; edit.textContent = "Edit"; edit.onclick = () => editRule(id);
+    const remove = document.createElement("button");
+    remove.className = "sm"; remove.textContent = "Delete"; remove.onclick = () => deleteRule(id);
+    actions.append(edit, remove);
+    row.appendChild(actions);
+    list.appendChild(row);
+  }
+}
+
+document.getElementById("rule-new").onclick = clearRuleEditor;
+document.getElementById("rule-save").onclick = () => {
+  const validation = document.getElementById("rule-validation");
+  try {
+    const {id, rule} = readRuleEditor();
+    config.reactions[id] = {...(config.reactions[id] || {}), ...rule};
+    editingRuleID = id;
+    document.getElementById("rule-id").disabled = true;
+    validation.style.color = "var(--good)";
+    validation.textContent = `Saved ${id}. Go validates the exported YAML again at load time.`;
+    renderRuleList();
+    buildEventPalette();
+  } catch (error) {
+    validation.style.color = "var(--bad)";
+    validation.textContent = error.message;
+  }
+};
+
+let editingPerceptionID = null;
+
+function clearPerceptionEditor() {
+  editingPerceptionID = null;
+  const id = document.getElementById("perception-id");
+  id.disabled = false;
+  id.value = "";
+  ["perception-actor","perception-action","perception-object","perception-radius"].forEach(field => {
+    document.getElementById(field).value = "";
+  });
+  document.getElementById("perception-channel").value = "sight";
+  document.getElementById("perception-role").value = "witness";
+  document.getElementById("perception-cadence").value = "instant";
+  document.getElementById("perception-distance").value = 0;
+  document.getElementById("perception-los").value = "false";
+  document.getElementById("perception-validation").textContent = "";
+}
+
+function editPerception(id) {
+  const perception = (config.perceptions || []).find(rule => rule.id === id);
+  if (!perception) return;
+  editingPerceptionID = id;
+  const idInput = document.getElementById("perception-id");
+  idInput.value = id;
+  idInput.disabled = true;
+  document.getElementById("perception-actor").value = perception.match?.actor_noun || "";
+  document.getElementById("perception-action").value = perception.match?.action || "";
+  document.getElementById("perception-object").value = perception.match?.object_noun || "";
+  document.getElementById("perception-channel").value = perception.sense?.channel || "sight";
+  document.getElementById("perception-role").value = perception.sense?.role || "witness";
+  document.getElementById("perception-cadence").value = perception.sense?.cadence || "instant";
+  document.getElementById("perception-radius").value = perception.sense?.radius || "";
+  document.getElementById("perception-distance").value = perception.sense?.distance || 0;
+  document.getElementById("perception-los").value = String(Boolean(perception.sense?.line_of_sight));
+}
+
+function deletePerception(id) {
+  config.perceptions = (config.perceptions || []).filter(rule => rule.id !== id);
+  if (editingPerceptionID === id) clearPerceptionEditor();
+  renderPerceptionList();
+}
+
+function readPerceptionEditor() {
+  const id = document.getElementById("perception-id").value.trim().toLowerCase();
+  if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(id)) throw new Error("Rule ID must be lowercase kebab-case.");
+  if (!editingPerceptionID && config.perceptions.some(rule => rule.id === id)) throw new Error(`Rule ID "${id}" already exists.`);
+  const distance = Number(document.getElementById("perception-distance").value) || 0;
+  const channel = document.getElementById("perception-channel").value;
+  const radius = document.getElementById("perception-radius").value;
+  const cadence = document.getElementById("perception-cadence").value;
+  if (channel !== "direct" && !radius && distance <= 0) throw new Error("Spatial perception needs a named radius or positive distance.");
+  if (channel === "direct" && (radius || distance || cadence !== "instant")) throw new Error("Direct perception must be instant and have no radius.");
+  return {
+    id,
+    match: {
+      actor_noun:document.getElementById("perception-actor").value,
+      action:document.getElementById("perception-action").value,
+      object_noun:document.getElementById("perception-object").value
+    },
+    sense: {
+      channel,
+      role:document.getElementById("perception-role").value,
+      radius,
+      distance,
+      line_of_sight:document.getElementById("perception-los").value === "true",
+      cadence
+    }
+  };
+}
+
+function renderPerceptionList() {
+  const list = document.getElementById("perception-list");
+  list.innerHTML = "";
+  for (const perception of (config.perceptions || [])) {
+    const row = document.createElement("div");
+    row.className = "rule-row";
+    row.innerHTML = `<code>${perception.id}</code><span>${perception.sense.channel} / ${perception.sense.role} · ${perception.match?.actor_noun || "*"} ${perception.match?.action || "*"} ${perception.match?.object_noun || ""}</span>`;
+    const actions = document.createElement("span");
+    const edit = document.createElement("button");
+    edit.className = "sm"; edit.textContent = "Edit"; edit.onclick = () => editPerception(perception.id);
+    const remove = document.createElement("button");
+    remove.className = "sm"; remove.textContent = "Delete"; remove.onclick = () => deletePerception(perception.id);
+    actions.append(edit, remove);
+    row.appendChild(actions);
+    list.appendChild(row);
+  }
+}
+
+document.getElementById("perception-new").onclick = clearPerceptionEditor;
+document.getElementById("perception-save").onclick = () => {
+  const validation = document.getElementById("perception-validation");
+  try {
+    const rule = readPerceptionEditor();
+    const index = config.perceptions.findIndex(candidate => candidate.id === (editingPerceptionID || rule.id));
+    if (index >= 0) config.perceptions[index] = rule;
+    else config.perceptions.push(rule);
+    editingPerceptionID = rule.id;
+    document.getElementById("perception-id").disabled = true;
+    validation.style.color = "var(--good)";
+    validation.textContent = `Saved ${rule.id}.`;
+    renderPerceptionList();
+  } catch (error) {
+    validation.style.color = "var(--bad)";
+    validation.textContent = error.message;
+  }
+};
+
+// --- CONTROLS WIRING ---
+document.getElementById("valence-range").addEventListener("input", e => {
+  state.valence = parseInt(e.target.value, 10);
+  updateMoodAttractor();
+  drawCanvas();
+});
+
+["food", "bladder", "social", "sleep"].forEach(need => {
+  const slider = document.getElementById(`${need}-slider`);
+  slider.addEventListener("input", e => {
+    const val = parseInt(e.target.value, 10);
+    state.needs[need] = val;
+    document.getElementById(`${need}-level`).textContent = val;
+    const { phase, pressure } = calcNeedPhaseAndPressure(val, NEED_SPECS[need]);
+    document.getElementById(`${need}-press`).textContent = pressure;
+    const phaseEl = document.getElementById(`${need}-phase`);
+    phaseEl.textContent = phase;
+    phaseEl.className = `phase-pill phase-${phase}`;
+    arbitrate();
+  });
+});
+
+document.getElementById("current-focus-sel").addEventListener("change", e => {
+  state.currentFocus = parseInt(e.target.value, 10);
+  arbitrate();
+});
+document.getElementById("alien-visible-sel").addEventListener("change", e => {
+  state.threatVisible = (e.target.value === "yes");
+  arbitrate();
+});
+document.getElementById("threat-dist-input").addEventListener("input", e => {
+  state.threatDist = parseInt(e.target.value, 10) || 1;
+  arbitrate();
+});
+document.getElementById("weapon-sel").addEventListener("change", e => {
+  state.weapon = e.target.value;
+  arbitrate();
+});
+
+// Tick Decay
+document.getElementById("btn-decay").onclick = () => {
+  // Charge decays by 2, grip by 1, valence by 1
+  if (state.charge > 0) state.charge = Math.max(0, state.charge - 2);
+  else if (state.charge < 0) state.charge = Math.min(0, state.charge + 2);
+
+  if (state.grip > 0) state.grip = Math.max(0, state.grip - 1);
+  else if (state.grip < 0) state.grip = Math.min(0, state.grip + 1);
+
+  if (state.valence > 0) state.valence = Math.max(0, state.valence - 1);
+  else if (state.valence < 0) state.valence = Math.min(0, state.valence + 1);
+
+  // Age stimuli
+  state.stimuli.forEach(s => s.lifetime--);
+  state.stimuli = state.stimuli.filter(s => s.lifetime > 0);
+
+  vectorArrow = null;
+  updateMoodAttractor();
+  renderStimuli();
+  arbitrate();
+  drawCanvas();
+};
+
+document.getElementById("btn-reset").onclick = () => {
+  config = JSON.parse(JSON.stringify(DEFAULT_CONFIG));
+  state.charge = 0; state.grip = 0; state.valence = 0;
+  state.stimuli = [];
+  populateRuleDropdowns();
+  clearRuleEditor();
+  renderRuleList();
+  clearPerceptionEditor();
+  renderPerceptionList();
+  buildEventPalette();
+  updateMoodAttractor();
+  renderStimuli();
+  arbitrate();
+  drawCanvas();
+};
+
+// --- YAML EXPORT & IMPORT ---
+function yamlScalar(value) {
+  if (typeof value === "boolean" || typeof value === "number") return String(value);
+  const text = String(value ?? "");
+  return /^[a-z0-9-]+$/.test(text) ? text : JSON.stringify(text);
+}
+
+function flowMap(object) {
+  return `{ ${Object.entries(object || {})
+    .filter(([, value]) => value !== "" && value !== undefined && value !== null)
+    .map(([key, value]) => `${key}: ${yamlScalar(value)}`).join(", ")} }`;
+}
+
+function dumpYAML(cfg) {
+  let out = `# mars-sim compositional perception and cognition settings\nschema_version: 1\n\n`;
+  const vocabulary = cfg.vocabulary || DEFAULT_VOCABULARY;
+  out += `vocabulary:\n`;
+  out += `  nouns: [${(vocabulary.nouns || []).join(", ")}]\n`;
+  out += `  actions: [${(vocabulary.actions || []).join(", ")}]\n`;
+  out += `  tags: [${(vocabulary.tags || []).join(", ")}]\n\n`;
+  out += `attractors:\n`;
+  for (const [k, a] of Object.entries(cfg.attractors)) {
+    out += `  ${k.padEnd(10)}: { good: "${a.good}", bad: "${a.bad}", charge: ${a.charge}, grip: ${a.grip}, radius: ${a.radius} }\n`;
+  }
+  out += `\nfocuses:\n`;
+  for (const [k, f] of Object.entries(cfg.focuses)) {
+    out += `  ${k.padEnd(10)}: { base: ${f.base}, need_weight: ${f.need_weight}, charge_weight: ${f.charge_weight}, grip_weight: ${f.grip_weight}, distance_weight: ${f.distance_weight} }\n`;
+  }
+  out += `\narbitration:\n`;
+  out += `  current_bonus: ${cfg.arbitration.current_bonus}\n`;
+  out += `  switch_margin: ${cfg.arbitration.switch_margin}\n`;
+  out += `  critical_bonus: ${cfg.arbitration.critical_bonus}\n`;
+  out += `  fatal_bonus: ${cfg.arbitration.fatal_bonus}\n`;
+  out += `  active_stimulus_limit: ${cfg.arbitration.active_stimulus_limit}\n`;
+
+  out += `\nperceptions:\n`;
+  for (const perception of (cfg.perceptions || [])) {
+    out += `  - id: ${perception.id}\n`;
+    if (Object.keys(perception.match || {}).length) out += `    match: ${flowMap(perception.match)}\n`;
+    out += `    sense: ${flowMap(perception.sense)}\n`;
+  }
+
+  out += `\nreactions:\n`;
+  for (const [id, reaction] of Object.entries(cfg.reactions)) {
+    out += `  - id: ${id}\n`;
+    if (reaction.priority) out += `    priority: ${reaction.priority}\n`;
+    out += `    match: ${flowMap(reaction.match)}\n`;
+    if (reaction.tags?.length) out += `    tags: [${reaction.tags.join(", ")}]\n`;
+    if (reaction.memory?.record === false) {
+      out += `    memory: { record: false }\n`;
+    } else {
+      const memory = {record:true};
+      if (reaction.memory?.text) memory.text = reaction.memory.text;
+      if (reaction.memory?.collapse) memory.collapse = reaction.memory.collapse;
+      out += `    memory: ${flowMap(memory)}\n`;
+    }
+    out += `    affect: { impact: ${reaction.impact}, target: { charge: ${reaction.target.charge}, grip: ${reaction.target.grip}, valence: ${reaction.target.valence} } }\n`;
+    if (reaction.stimulus) {
+      const contributions = flowMap(reaction.stimulus.contributions || {});
+      out += `    stimulus: { salience: ${reaction.stimulus.salience}, lifetime: ${reaction.stimulus.lifetime}, source: ${reaction.stimulus.source || "actor"}, contributions: ${contributions} }\n`;
+    }
+  }
+
+  out += `\nmodifiers:\n`;
+  for (const modifier of (cfg.modifiers || [])) {
+    out += `  - id: ${modifier.id}\n`;
+    out += `    trait: ${modifier.trait}\n`;
+    if (modifier.any_tags?.length) out += `    any_tags: [${modifier.any_tags.join(", ")}]\n`;
+    if (modifier.all_tags?.length) out += `    all_tags: [${modifier.all_tags.join(", ")}]\n`;
+    if (modifier.not_tags?.length) out += `    not_tags: [${modifier.not_tags.join(", ")}]\n`;
+    out += `    scales: ${flowMap(modifier.scales)}\n`;
+  }
+  return out;
+}
+
+const modal = document.getElementById("yaml-modal");
+const yamlBox = document.getElementById("yaml-text");
+let modalMode = "yaml";
+
+document.getElementById("btn-export-modal").onclick = () => {
+  modalMode = "yaml";
+  yamlBox.value = dumpYAML(config);
+  document.getElementById("modal-title").textContent = "Export cognition.yaml";
+  modal.classList.add("open");
+};
+
+document.getElementById("btn-import-modal").onclick = () => {
+  modalMode = "yaml";
+  yamlBox.value = "";
+  document.getElementById("modal-title").textContent = "Import cognition.yaml";
+  modal.classList.add("open");
+};
+
+document.getElementById("btn-vocab-modal").onclick = () => {
+  modalMode = "vocabulary";
+  yamlBox.value = "";
+  document.getElementById("modal-title").textContent = "Import -print-cognition-vocab JSON";
+  modal.classList.add("open");
+};
+
+document.getElementById("modal-close").onclick = () => modal.classList.remove("open");
+document.getElementById("modal-copy").onclick = () => {
+  navigator.clipboard.writeText(yamlBox.value).then(() => alert("Copied to clipboard!"));
+};
+
+document.getElementById("modal-apply").onclick = () => {
+  try {
+    const raw = yamlBox.value;
+    if (modalMode === "vocabulary") {
+      const imported = JSON.parse(raw);
+      const vocabulary = imported.vocabulary || imported;
+      if (!Array.isArray(vocabulary.nouns) || !Array.isArray(vocabulary.actions)) {
+        throw new Error("Vocabulary JSON needs nouns and actions arrays.");
+      }
+      config.vocabulary = {...DEFAULT_VOCABULARY, ...vocabulary};
+    } else {
+      parseAndApplyYAML(raw);
+    }
+    modal.classList.remove("open");
+    populateRuleDropdowns();
+    clearRuleEditor();
+    renderRuleList();
+    clearPerceptionEditor();
+    renderPerceptionList();
+    buildEventPalette();
+    updateMoodAttractor();
+    arbitrate();
+    drawCanvas();
+    alert("Configuration applied successfully!");
+  } catch (err) {
+    alert("Error parsing YAML: " + err.message);
+  }
+};
+
+function splitTopLevel(text, delimiter) {
+  const parts = [];
+  let start = 0, depth = 0, quote = null;
+  for (let i = 0; i < text.length; i++) {
+    const char = text[i];
+    if (quote) {
+      if (char === quote && text[i - 1] !== "\\") quote = null;
+      continue;
+    }
+    if (char === '"' || char === "'") quote = char;
+    else if (char === "{" || char === "[") depth++;
+    else if (char === "}" || char === "]") depth--;
+    else if (char === delimiter && depth === 0) {
+      parts.push(text.slice(start, i).trim());
+      start = i + 1;
+    }
+  }
+  parts.push(text.slice(start).trim());
+  return parts.filter(Boolean);
+}
+
+function parseYAMLValue(raw) {
+  const value = raw.trim();
+  if (value.startsWith("{") && value.endsWith("}")) {
+    const result = {};
+    for (const part of splitTopLevel(value.slice(1, -1), ",")) {
+      const pair = splitTopLevel(part, ":");
+      if (pair.length < 2) throw new Error(`Invalid flow map entry: ${part}`);
+      result[pair[0].trim()] = parseYAMLValue(pair.slice(1).join(":"));
+    }
+    return result;
+  }
+  if (value.startsWith("[") && value.endsWith("]")) {
+    return splitTopLevel(value.slice(1, -1), ",").map(parseYAMLValue);
+  }
+  if (value === "true" || value === "false") return value === "true";
+  if (/^-?\d+$/.test(value)) return Number(value);
+  if (value.startsWith('"')) return JSON.parse(value);
+  if (value.startsWith("'") && value.endsWith("'")) return value.slice(1, -1);
+  return value;
+}
+
+function linePair(trimmed) {
+  const colon = trimmed.indexOf(":");
+  if (colon < 0) throw new Error(`Expected key: value, got "${trimmed}"`);
+  return [trimmed.slice(0, colon).trim(), trimmed.slice(colon + 1).trim()];
+}
+
+function validateWorkbenchConfig(candidate) {
+  const vocab = candidate.vocabulary || DEFAULT_VOCABULARY;
+  const sets = {
+    actor_noun:new Set(vocab.nouns || []), object_noun:new Set(vocab.nouns || []),
+    action:new Set(vocab.actions || []), channel:new Set(vocab.channels || DEFAULT_VOCABULARY.channels),
+    role:new Set(vocab.roles || DEFAULT_VOCABULARY.roles), phase:new Set(vocab.phases || DEFAULT_VOCABULARY.phases)
+  };
+  const seen = new Set();
+  for (const [id, reaction] of Object.entries(candidate.reactions || {})) {
+    if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(id) || seen.has(id)) throw new Error(`Invalid or duplicate reaction ID "${id}"`);
+    seen.add(id);
+    for (const [field, allowed] of Object.entries(sets)) {
+      const value = reaction.match?.[field];
+      if (value && !allowed.has(value)) throw new Error(`Reaction ${id} uses unknown ${field} "${value}"`);
+    }
+    if (!Number.isInteger(reaction.impact) || reaction.impact < 0 || reaction.impact > 100) {
+      throw new Error(`Reaction ${id} impact must be 0..100`);
+    }
+  }
+  const perceptionIDs = new Set();
+  for (const perception of (candidate.perceptions || [])) {
+    if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(perception.id) || perceptionIDs.has(perception.id)) {
+      throw new Error(`Invalid or duplicate perception ID "${perception.id}"`);
+    }
+    perceptionIDs.add(perception.id);
+    for (const field of ["actor_noun","object_noun","action"]) {
+      const value = perception.match?.[field];
+      if (value && !sets[field].has(value)) throw new Error(`Perception ${perception.id} uses unknown ${field} "${value}"`);
+    }
+    if (!sets.channel.has(perception.sense?.channel) || !sets.role.has(perception.sense?.role)) {
+      throw new Error(`Perception ${perception.id} has an unknown channel or role`);
+    }
+  }
+}
+
+function parseAndApplyYAML(text) {
+  const candidate = JSON.parse(JSON.stringify(config));
+  let section = null, current = null;
+  const allowedSections = new Set(["vocabulary","attractors","focuses","arbitration","perceptions","reactions","modifiers"]);
+  for (const rawLine of text.split("\n")) {
+    const trimmed = rawLine.trim();
+    if (!trimmed || trimmed.startsWith("#") || trimmed.startsWith("schema_version:")) continue;
+    if (!rawLine.startsWith(" ") && trimmed.endsWith(":")) {
+      section = trimmed.slice(0, -1);
+      if (!allowedSections.has(section)) throw new Error(`Unknown section "${section}"`);
+      current = null;
+      if (section === "perceptions") candidate.perceptions = [];
+      if (section === "reactions") candidate.reactions = {};
+      if (section === "modifiers") candidate.modifiers = [];
+      continue;
+    }
+    if (!section) throw new Error(`Value outside a known section: ${trimmed}`);
+
+    if (section === "vocabulary") {
+      const [key, value] = linePair(trimmed);
+      candidate.vocabulary[key] = parseYAMLValue(value);
+    } else if (section === "attractors" || section === "focuses") {
+      const [key, value] = linePair(trimmed);
+      candidate[section][key] = {...(candidate[section][key] || {}), ...parseYAMLValue(value)};
+    } else if (section === "arbitration") {
+      const [key, value] = linePair(trimmed);
+      candidate.arbitration[key] = parseYAMLValue(value);
+    } else if (trimmed.startsWith("- id:")) {
+      const id = parseYAMLValue(trimmed.slice(trimmed.indexOf(":") + 1));
+      if (section === "reactions") {
+        current = {id, match:{}, memory:{record:true}, impact:0, target:{charge:0,grip:0,valence:0}};
+        candidate.reactions[id] = current;
+      } else {
+        current = {id};
+        candidate[section].push(current);
+      }
+    } else {
+      if (!current) throw new Error(`${section} field appeared before an id`);
+      const [key, value] = linePair(trimmed);
+      const parsed = parseYAMLValue(value);
+      if (section === "reactions" && key === "affect") {
+        current.impact = parsed.impact;
+        current.target = parsed.target;
+      } else {
+        current[key] = parsed;
+      }
+    }
+  }
+  validateWorkbenchConfig(candidate);
+  config = candidate;
+}
+
+// Initial Run
+populateRuleDropdowns();
+clearRuleEditor();
+renderRuleList();
+clearPerceptionEditor();
+renderPerceptionList();
+buildEventPalette();
+updateMoodAttractor();
+renderStimuli();
+arbitrate();
+drawCanvas();
+</script>
+</body>
+</html>

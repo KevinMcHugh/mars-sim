@@ -180,9 +180,9 @@ exclusively.
 - **Making an attribute mechanical**: give it an effect and fold it into
   `resolveTraitEffects` (or an equivalent resolve step) so it stays off the hot
   path.
-- **A trait that transforms life-event affect** (like Tidy): no `traitSpec`
-  field is needed — add its case to `transformMoodVector` in `affect.go` and
-  pin declaration-order behavior. See [affect.md](./affect.md).
+- **A trait that transforms percept affect** (like Tidy): no `traitSpec`
+  field is needed — add a trait/tag modifier in `cognition.yaml` and pin
+  declaration-order behavior. See [affect.md](./affect.md).
 
 ## Related
 

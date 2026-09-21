@@ -525,8 +525,8 @@ func TestFullyGrownMutantStillResizes(t *testing.T) {
 	if len(e.Memories) != memories+1 {
 		t.Fatalf("a resize-only mutation recorded %d memories, want 1", len(e.Memories)-memories)
 	}
-	if last := e.Memories[len(e.Memories)-1]; last.Kind != EvtMutated {
-		t.Fatalf("a resize-only mutation remembered %v, want EvtMutated", last.Kind)
+	if last := e.Memories[len(e.Memories)-1]; last.Rule != "mutated" {
+		t.Fatalf("a resize-only mutation remembered %v, want mutated", last.Rule)
 	}
 	if e.affect.Grip >= 0 {
 		t.Fatalf("a resize-only mutation left grip at %d, want body horror", e.affect.Grip)

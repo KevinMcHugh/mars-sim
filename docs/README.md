@@ -21,6 +21,8 @@ way it is without re-deriving it from the source each time.
 | [combat.md](./combat.md) | Per-body-part HP, weapons (pistol/shotgun), the colony ship's starting equipment, and gore. |
 | [needs.md](./needs.md) | Colonist (and mouse) needs: hunger, bladder, lazy evaluation, starvation, and how to add a need. |
 | [cascading_wsts_architecture.md](./cascading_wsts_architecture.md) | Implementation design for independent need/affect processes feeding a weighted, explainable focus transition system. |
+| [compositional-perception-and-events.md](./compositional-perception-and-events.md) | Feature description and design for occurrences, percepts, configurable perception/reaction rules, and the cognition funnel. |
+| [cognition-config-and-lab.md](./cognition-config-and-lab.md) | Compositional occurrences/percepts, configurable perception and reaction rules, strict `cognition.yaml`, and the typed Cognition Lab editor. |
 | [mutation.md](./mutation.md) | Uranium deposits, the exposure dose, mutant body parts, stature (two-foot to ten-foot colonists), and the Mutant / Mutant-Lover traits. |
 | [personality.md](./personality.md) | Names, attributes, traits, and the separate RNG stream that keeps flavor out of the simulation. |
 | [ages-and-family.md](./ages-and-family.md) | Colonist ages and the age invariants family ties have to satisfy. |
@@ -31,9 +33,9 @@ way it is without re-deriving it from the source each time.
 | [spatial-index-and-performance.md](./spatial-index-and-performance.md) | The occupancy index, incremental counts, chunk index, the job board, and the performance story. |
 | [inventory.md](./inventory.md) | Colonist inventory slots and stacking. |
 | [storage.md](./storage.md) | Placeable storage containers, their capacity, construction, and snapshot state. |
-| [affect.md](./affect.md) | Charge/grip/valence affect, the impact-weighted push/pull blend, event appraisal, trait transforms, decay, labels, and focus contributions. |
-| [mood-space.md](./mood-space.md) | **Proposal.** What affect still lacks: habituation, tag-based trait rules, and per-colonist baselines — plus the build plan and a tuning sandbox. |
-| [memories.md](./memories.md) | Colonist memories and life events: notable experiences, sightings, affect vectors, stimuli, and snapshot exposure. |
+| [affect.md](./affect.md) | Charge/grip/valence affect, impact-weighted push/pull appraisal, configured trait/tag modifiers, decay, labels, and focus contributions. |
+| [mood-space.md](./mood-space.md) | **Proposal.** What affect still lacks after tags shipped: habituation and per-colonist baselines — plus a tuning sandbox. |
+| [memories.md](./memories.md) | Colonist memories from compositional percepts: reaction identity, affect, stimuli, collapse, and snapshot exposure. |
 | [snapshot-tile-grid.md](./snapshot-tile-grid.md) | The terrain a frontend reads: an immutable, page-shared grid so publishing a frame costs what the tick touched, not the map's area. |
 | [fog-of-war.md](./fog-of-war.md) | What the colony has seen: the explored flag, how digging lifts the fog, and how the map draws the unknown. |
 | [frontend-tui.md](./frontend-tui.md) | The Bubble Tea terminal frontend: map, roster, controls, and glyphs. |

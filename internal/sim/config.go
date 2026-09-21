@@ -68,7 +68,7 @@ type Config struct {
 	// (no threat, no urgent need, no work) hunt pests.
 	ColonistStompRadius int `cfg:"stomp-radius" doc:"an idle colonist chases and crushes a mouse within this many tiles"`
 	// GoreSightRadius is how far a colonist notices gore on the ground (see
-	// observeGore in systems.go and EvtSawGore in lifeevents.go). Smaller than
+	// the visible-gore perception rule in cognition.yaml). Smaller than
 	// the creature-sighting radii: a bloodstain doesn't announce itself the way
 	// a moving alien does.
 	GoreSightRadius int `cfg:"gore-sight-radius" doc:"a colonist notices gore on the ground within this many tiles"`
@@ -95,6 +95,13 @@ type Config struct {
 	FocusCriticalBonus  int                      `cfg:"focus-critical-bonus" doc:"score bonus for a need at its critical boundary"`
 	FocusFatalBonus     int                      `cfg:"focus-fatal-bonus" doc:"score bonus for a pressing fatal need"`
 	ActiveStimulusLimit int                      `cfg:"active-stimulus-limit" doc:"maximum transient life-event appraisals retained per colonist"`
+
+	// CognitionFile is the path to an optional cognition.yaml file.
+	// Deliberately untagged: managed via -cognition flag.
+	CognitionFile string
+	// Cognition holds the full cognition configuration for affect, stimuli,
+	// and focus arbitration.
+	Cognition CognitionConfig
 
 	RestTicks  int `cfg:"rest-ticks" sec:"Work and construction" doc:"ticks an idle colonist rests before re-checking for work"`
 	StuckLimit int `cfg:"stuck-limit" doc:"ticks a colonist waits on a blocked path before abandoning the job"`
@@ -292,7 +299,7 @@ func DefaultConfig() Config {
 			FocusFlee:      {Name: "flee", Base: 0, NeedWeight: 0, ChargeWeight: 20, GripWeight: -40, DistanceWeight: 1},
 			// FocusFight carries a positive base so an armed colonist's default
 			// posture is to stand and fight: the one-time grip hit from merely
-			// *seeing* an alien (EvtSawAlien, -10 grip) must not by itself out-vote
+			// *seeing* an alien (the saw-alien reaction, -10 grip) must not by itself out-vote
 			// that posture, or every armed colonist flees on first sight and the
 			// switch hysteresis (FocusCurrentBonus+FocusSwitchMargin) then locks
 			// them into fleeing even as grip decays back toward neutral. Genuinely
@@ -306,6 +313,7 @@ func DefaultConfig() Config {
 		FocusCriticalBonus:    100,
 		FocusFatalBonus:       150,
 		ActiveStimulusLimit:   8,
+		Cognition:             DefaultCognitionConfig(),
 		RestTicks:             10,
 		StuckLimit:            8,
 		MaxConcurrentProjects: 2,
@@ -429,4 +437,26 @@ func tickInterval(ticksPerSecond int) time.Duration {
 		ticksPerSecond = 60
 	}
 	return time.Second / time.Duration(ticksPerSecond)
+}
+
+// SyncWithCognition copies the focuses and arbitration parameters from c.Cognition
+// into the mirrored fields of c.
+func (c *Config) SyncWithCognition() {
+	c.Focuses = c.Cognition.Focuses
+	c.FocusCurrentBonus = c.Cognition.Arbitration.CurrentBonus
+	c.FocusSwitchMargin = c.Cognition.Arbitration.SwitchMargin
+	c.FocusCriticalBonus = c.Cognition.Arbitration.CriticalBonus
+	c.FocusFatalBonus = c.Cognition.Arbitration.FatalBonus
+	c.ActiveStimulusLimit = c.Cognition.Arbitration.ActiveStimulusLimit
+}
+
+// SyncToCognition copies the mirrored focuses and arbitration parameters from c
+// into c.Cognition (e.g. after command-line flags have been parsed).
+func (c *Config) SyncToCognition() {
+	c.Cognition.Focuses = c.Focuses
+	c.Cognition.Arbitration.CurrentBonus = c.FocusCurrentBonus
+	c.Cognition.Arbitration.SwitchMargin = c.FocusSwitchMargin
+	c.Cognition.Arbitration.CriticalBonus = c.FocusCriticalBonus
+	c.Cognition.Arbitration.FatalBonus = c.FocusFatalBonus
+	c.Cognition.Arbitration.ActiveStimulusLimit = c.ActiveStimulusLimit
 }

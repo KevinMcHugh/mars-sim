@@ -181,9 +181,9 @@ and `pounce` — where the remains are eaten — leave only the stains.
 `Gore > 0` (a body on the same tile outranks it, and both outrank the rock's
 composition); `renderMap` (`view.go`) calls it via the new `Snapshot.TileAt`
 (alongside the existing `TerrainAt`) for any tile with no entity standing on
-it. Gore isn't just cosmetic to a colonist, either — coming within
-`Config.GoreSightRadius` of a gored tile is a `LifeEvent` (`EvtSawGore`) that
-lowers charge and grip, amplified for a `TraitTidy` colonist; see
+it. Gore isn't just cosmetic to a colonist, either — the `visible-gore`
+perception rule uses `Config.GoreSightRadius`, and its `saw-gore` reaction
+lowers charge and grip, amplified by the Tidy `gore` modifier; see
 [memories.md](./memories.md).
 
 ### The graveyard
