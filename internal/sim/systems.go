@@ -1148,7 +1148,14 @@ func (w *World) chooseFacility(e *Entity, kind Terrain) Point {
 		}
 		// Prefer the nearest facility unless its approach is congested. If
 		// every reachable option is busy, retain nearest as a fair fallback.
-		d := bestDist
+		//
+		// d starts at "unreached", not at bestDist: seeding it from the running
+		// best made a farther facility score as an exact tie (its own accesses
+		// never beat bestDist, so d stayed there) and then win the lessPoint
+		// tie-break. Which facility that hit depended on the iteration order of
+		// w.facilityTiles -- a map -- so the same seed sent a colonist to a
+		// different sink on different runs.
+		d := int32(^uint32(0) >> 1)
 		for _, n := range neighbors8 {
 			access := fac.Add(n.X, n.Y)
 			if !w.InBounds(access) {

@@ -2,7 +2,11 @@ package sim
 
 import (
 	"context"
+	"fmt"
 	"math/rand"
+	"sort"
+	"strconv"
+	"strings"
 	"testing"
 	"time"
 )
@@ -148,6 +152,98 @@ func TestDeterministicRun(t *testing.T) {
 	if a, b := run(), run(); a != b {
 		t.Fatalf("nondeterministic run: %d != %d", a, b)
 	}
+}
+
+// Determinism, the strong form: two worlds built from one seed must agree on
+// every tick, not just on a summary at the end.
+//
+// TestDeterministicRun above compares one number after 300 ticks, which a
+// colony can easily match while its colonists stand in different places. That
+// blind spot hid three order-dependent decisions for a long time -- see
+// docs/determinism.md -- so this walks two worlds in lockstep and reports the
+// first tick and the first field that disagree.
+//
+// The fingerprint deliberately includes the region and room labels and the job
+// board, not just entities: every bug this test was written for surfaced first
+// as a label or a claim, and only later as a colonist standing somewhere else.
+func TestDeterministicRunAgreesEveryTick(t *testing.T) {
+	mk := func() *World {
+		cfg := testConfig()
+		cfg.Seed = 99
+		cfg.Width, cfg.Height = 80, 50
+		cfg.StartColonists, cfg.StartCats, cfg.StartMice = 16, 2, 10
+		return newTestWorld(t, cfg)
+	}
+	a, b := mk(), mk()
+	for i := 0; i < 1500; i++ {
+		a.step()
+		b.step()
+		fa, fb := worldFingerprint(a), worldFingerprint(b)
+		for _, k := range fingerprintKeys {
+			if fa[k] != fb[k] {
+				t.Fatalf("worlds diverged at tick %d, field %q:\n  A: %s\n  B: %s",
+					a.tick, k, fa[k], fb[k])
+			}
+		}
+	}
+}
+
+// fingerprintKeys fixes the comparison order so a failure names the most
+// specific field that moved, rather than whichever one a map happened to yield.
+var fingerprintKeys = []string{"tiles", "regions", "rooms", "frontier", "cleaning", "entities"}
+
+// worldFingerprint reduces a world to comparable strings, one per subsystem.
+func worldFingerprint(w *World) map[string]string {
+	f := map[string]string{}
+
+	var b strings.Builder
+	for _, id := range w.entityIDsSorted() {
+		e := w.entities[id]
+		fmt.Fprintf(&b, "%d:%v@%v hp=%d st=%v job=%v tgt=%v path=%v\n",
+			id, e.Kind, e.Pos, e.HP, e.State, e.Job, e.Target, e.path)
+	}
+	f["entities"] = b.String()
+
+	// The three grid layers are hashed rather than rendered: at one entry per
+	// tile per tick they dominate the test's runtime, and "the region labels
+	// moved" is already the whole diagnosis -- the ordered key list below says
+	// which layer it was.
+	var tiles, regions, rooms uint64 = fnvSeed, fnvSeed, fnvSeed
+	for y := 0; y < w.Height; y++ {
+		for x := 0; x < w.Width; x++ {
+			i := w.index(Point{x, y})
+			tiles = fnvAdd(tiles, uint64(w.tiles[i].Terrain))
+			regions = fnvAdd(regions, uint64(w.regionOf[i]))
+			rooms = fnvAdd(rooms, uint64(w.roomOf(Point{x, y})))
+		}
+	}
+	f["tiles"] = strconv.FormatUint(tiles, 16)
+	f["regions"] = strconv.FormatUint(regions, 16)
+	f["rooms"] = strconv.FormatUint(rooms, 16)
+
+	f["frontier"] = sortedPointOwners(w.board.frontier, w.board.claimed)
+	f["cleaning"] = sortedPointOwners(nil, w.board.cleaning)
+	return f
+}
+
+const fnvSeed uint64 = 14695981039346656037
+
+func fnvAdd(h, v uint64) uint64 { return (h ^ v) * 1099511628211 }
+
+// sortedPointOwners renders a point set and its claims in a stable order. Both
+// arguments are maps, so the sort is what makes the rendering comparable at all.
+func sortedPointOwners(set map[Point]struct{}, owners map[Point]EntityID) string {
+	lines := make([]string, 0, len(set)+len(owners))
+	for p := range set {
+		lines = append(lines, fmt.Sprintf("%v:%d", p, owners[p]))
+	}
+	if set == nil {
+		for p, id := range owners {
+			lines = append(lines, fmt.Sprintf("%v:%d", p, id))
+		}
+	}
+	sort.Strings(lines)
+	return strings.Join(lines, " ")
 }
 
 // The engine goroutine should publish snapshots and honor pause without racing.

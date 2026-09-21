@@ -1,5 +1,7 @@
 package sim
 
+import "slices"
+
 // Rooms group the walkable map into connected areas, which the colonist AI uses
 // for reachability ("can I get from here to that job?"). They are built in two
 // levels so updates stay cheap as the map changes:
@@ -40,6 +42,13 @@ func (w *World) refreshSpatial() {
 	for ci := range w.dirtyChunks {
 		dirty = append(dirty, ci)
 	}
+	// Chunk order decides the order regions are created in, and a region's ID
+	// is just the next counter value. Leaving that to map iteration handed the
+	// same world different region IDs on different runs -- and since a room is
+	// named for the smallest region ID it contains, and the abstract search
+	// breaks ties toward the lower ID, that reached all the way out to which
+	// tile a colonist stepped on.
+	slices.Sort(dirty)
 	// Pass 1: re-flood each dirty chunk's regions (needs no neighbor state).
 	for _, ci := range dirty {
 		w.recomputeChunkRegions(ci)
