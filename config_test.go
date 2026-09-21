@@ -231,7 +231,7 @@ func TestFlagNamesDoNotCollide(t *testing.T) {
 	cfg := sim.DefaultConfig()
 	fs := flag.NewFlagSet("test", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
-	for _, name := range []string{"duration", "headless", "seed", "glyphs", "config", "print-config"} {
+	for _, name := range []string{"duration", "headless", "seed", "glyphs", "config", "director", "print-config"} {
 		fs.String(name, "", "application flag")
 	}
 	bindConfigFlags(fs, &cfg) // panics on a duplicate name

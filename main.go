@@ -52,6 +52,14 @@ func main() {
 		os.Exit(2)
 	}
 
+	// The director's schedule file loads the same way, before flags: found by
+	// hand for the same reason -config is (see below).
+	directorPath, directorPathGiven := directorPathFromArgs(os.Args[1:])
+	if err := loadDirectorFile(&cfg, directorPath, directorPathGiven); err != nil {
+		fmt.Fprintln(os.Stderr, "mars-sim:", err)
+		os.Exit(2)
+	}
+
 	// Application flags (not part of the simulation config).
 	var (
 		duration    time.Duration
@@ -67,6 +75,7 @@ func main() {
 	// Registered so it shows up in -h and is not rejected as unknown; the value
 	// was already consumed by configPathFromArgs above.
 	flag.String("config", cfgPath, "settings file to read before the flags (\"\" to ignore any file)")
+	flag.String("director", directorPath, "director schedule file to read (\"\" to run with no scheduled occurrences)")
 	flag.BoolVar(&printConfig, "print-config", false, "write a commented settings file with every setting at its default, then exit")
 
 	// Simulation config flags, each defaulting to the value the settings file
@@ -181,6 +190,49 @@ func loadConfigFile(cfg *sim.Config, path string, given bool) error {
 	if _, err := sim.ApplyConfigFile(cfg, data, path); err != nil {
 		return err
 	}
+	return nil
+}
+
+// directorPathFromArgs is configPathFromArgs's counterpart for -director,
+// found the same way and for the same reason: the director's schedule file
+// must be loaded before flag.Parse runs.
+func directorPathFromArgs(args []string) (path string, given bool) {
+	for i, a := range args {
+		name, value, hasValue := strings.Cut(a, "=")
+		if name != "-director" && name != "--director" {
+			continue
+		}
+		if hasValue {
+			return value, true
+		}
+		if i+1 < len(args) {
+			return args[i+1], true
+		}
+		return "", true // "-director" with nothing after it: read no file
+	}
+	return sim.DirectorFileName, false
+}
+
+// loadDirectorFile applies a director.yaml schedule file to cfg. An absent
+// default file is normal — most runs have no scripted occurrences — but a
+// file the player named explicitly, or one that does not parse, stops the
+// run rather than quietly playing without it.
+func loadDirectorFile(cfg *sim.Config, path string, given bool) error {
+	if path == "" {
+		return nil // -director "" opts out
+	}
+	data, err := os.ReadFile(path)
+	switch {
+	case errors.Is(err, fs.ErrNotExist) && !given:
+		return nil
+	case err != nil:
+		return fmt.Errorf("reading director schedule: %w", err)
+	}
+	schedules, err := sim.LoadSchedules(data, path)
+	if err != nil {
+		return err
+	}
+	cfg.Schedules = schedules
 	return nil
 }
 
@@ -299,7 +351,8 @@ func usage() {
 	fmt.Fprintf(out, "  %s -mice 20 -cats 4\n", name)
 	fmt.Fprintf(out, "  %s -width 120 -height 60 -tps 12\n", name)
 	fmt.Fprintf(out, "  %s -headless -duration 10s -seed 42\n", name)
-	fmt.Fprintf(out, "  %s -print-config > %s   # a settings file you can edit and commit\n\n", name, sim.ConfigFileName)
+	fmt.Fprintf(out, "  %s -print-config > %s   # a settings file you can edit and commit\n", name, sim.ConfigFileName)
+	fmt.Fprintf(out, "  %s -director %s        # script scheduled occurrences (mouse plagues, alien swarms, supply drops)\n\n", name, sim.DirectorFileName)
 	fmt.Fprintf(out, "Options:\n")
 	flag.PrintDefaults()
 }

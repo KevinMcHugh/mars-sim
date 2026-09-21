@@ -409,6 +409,12 @@ type World struct {
 	// rebuildBuildTiles.
 	buildTiles map[Point]bool
 
+	// directorQueue is cfg.Schedules resolved to concrete (tick, occurrence)
+	// firings, sorted ascending; directorNext is how far runDirector has
+	// worked through it. Resolved once in newWorld, off w.rng. See director.go.
+	directorQueue []scheduledEvent
+	directorNext  int
+
 	// Family tree and affinity, both colonist-only. kin holds every tree node
 	// (colonists plus phantom ancestors); affinity[a][b] is a's warmth toward b,
 	// raised when they talk. See relationships.go.
@@ -539,6 +545,7 @@ func newWorld(cfg Config, rng *rand.Rand) *World {
 			w.frontier.stale = true
 		}
 	})
+	w.directorQueue = resolveSchedules(cfg.Schedules, w.rng)
 	return w
 }
 

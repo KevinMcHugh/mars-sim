@@ -36,6 +36,7 @@ func (w *World) step() {
 		w.nextPlanTick = w.tick + planInterval
 	}
 	w.rebuildBuildTiles() // reflect this tick's completions and any new project
+	w.runDirector()       // fire any scripted occurrence whose tick has arrived
 }
 
 // planInterval is how often the colony re-plans construction, in ticks. Facility

@@ -33,6 +33,16 @@ type Config struct {
 	// fresh time-based seed" (see configfile.go and main.go).
 	Seed int64
 
+	// Schedules is the director's script: major scripted occurrences (a mouse
+	// plague, an alien swarm, a supply drop) each armed for a tick window.
+	// Deliberately untagged like Seed: it is not a scalar tunable the `cfg`
+	// reflection can drive a flag or template line from, and its meaningful
+	// zero value (nil) is "no director file was given" rather than a default
+	// worth documenting in mars-sim.yaml. It is loaded from director.yaml (or
+	// -director) the same way mars-sim.yaml loads into everything else. See
+	// director.go and docs/director.md.
+	Schedules []Schedule
+
 	// Starting population.
 	StartColonists int `cfg:"colonists" sec:"Starting population" doc:"starting number of colonists"`
 	StartAliens    int `cfg:"aliens" doc:"starting number of aliens"`
