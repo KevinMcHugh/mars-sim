@@ -85,8 +85,8 @@ func (m Model) renderProjectList(projects []sim.ProjectView, sel, rows, width in
 	for i := start; i < end; i++ {
 		p := projects[i]
 		nameLine := cells.Truncate(p.Name, inner-2)
-		progressLine := fmt.Sprintf("%d/%d tasks · %d assigned", p.TasksDone(), len(p.Tasks), len(p.Assignees()))
-		queuedLine := fmt.Sprintf("queued t%d · %d ticks ago", p.QueuedTick, m.latest.Tick-p.QueuedTick)
+		progressLine := fmt.Sprintf("%d/%d tasks"+divider+"%d assigned", p.TasksDone(), len(p.Tasks), len(p.Assignees()))
+		queuedLine := fmt.Sprintf("queued t%d"+divider+"%d ticks ago", p.QueuedTick, m.latest.Tick-p.QueuedTick)
 		marker := "•"
 		if i == sel {
 			marker = "›"
@@ -116,12 +116,12 @@ func (m Model) renderProjectDetail(p sim.ProjectView, rows, width int) string {
 	var b strings.Builder
 	b.WriteString(titleStyle.Render(p.Name) + "\n")
 	b.WriteString(statStyle.Render(fmt.Sprintf(
-		"queued tick %d · %d ticks ago", p.QueuedTick, m.latest.Tick-p.QueuedTick,
+		"queued tick %d"+divider+"%d ticks ago", p.QueuedTick, m.latest.Tick-p.QueuedTick,
 	)) + "\n\n")
 
 	remaining := p.TasksRemaining()
 	b.WriteString(labelStyle.Render("PROGRESS") + "  " +
-		fmt.Sprintf("%d/%d built · %d action(s) remaining\n", p.TasksDone(), len(p.Tasks), remaining))
+		fmt.Sprintf("%d/%d built"+divider+"%d action(s) remaining\n", p.TasksDone(), len(p.Tasks), remaining))
 
 	assignees := p.Assignees()
 	b.WriteString(labelStyle.Render("ASSIGNED") + "  ")
