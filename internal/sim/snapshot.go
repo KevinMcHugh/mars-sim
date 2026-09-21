@@ -178,6 +178,11 @@ type Snapshot struct {
 	PendingStorageRooms  int
 	Storages             []StorageView
 
+	// AlienSpecies is this world's one rolled kind of alien -- its build,
+	// its colloquial name, and its temperament. Every Alien in Entities is
+	// one of these; see docs/lore.md.
+	AlienSpecies AlienSpecies
+
 	AffinityMax    int // affinity display bars run [-AffinityMax, AffinityMax]
 	MoodMax        int // charge and grip each run in [-MoodMax, MoodMax]
 	Paused         bool
@@ -317,6 +322,7 @@ func (w *World) snapshot(paused bool, tps int) *Snapshot {
 		Storages:             storages,
 		Graveyard:            append([]EntityView(nil), w.graveyard...),
 		Deceased:             cloneDeceased(w.deceasedColonists),
+		AlienSpecies:         w.alienSpecies,
 		AffinityMax:          w.cfg.AffinityMax,
 		MoodMax:              w.cfg.MoodMax,
 		Paused:               paused,

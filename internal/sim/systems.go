@@ -1454,21 +1454,21 @@ func (w *World) alienTurn(e *Entity) {
 	if !ok {
 		e.State, e.Quarry = Idle, 0
 		w.wanderStep(e)
-		e.Cooldown = w.cfg.AlienSlowness - 1
+		e.Cooldown = w.alienSpecies.Slowness - 1
 		return
 	}
 	e.Quarry = prey.ID
 
 	if e.Pos.Adjacent(prey.Pos) {
 		w.bite(e, prey)
-		e.Cooldown = w.cfg.AlienBiteRest
+		e.Cooldown = w.alienSpecies.BiteRest
 		return
 	}
 
 	// Aliens burrow: they step toward prey through any terrain.
 	e.State = Hunting
 	w.burrowStep(e, prey.Pos)
-	e.Cooldown = w.cfg.AlienSlowness - 1
+	e.Cooldown = w.alienSpecies.Slowness - 1
 }
 
 // bite deals damage to a random body part of a colonist and eats it if the
@@ -1478,22 +1478,22 @@ func (w *World) alienTurn(e *Entity) {
 // happen. A fatal bite leaves gore behind.
 func (w *World) bite(alien, prey *Entity) {
 	part := w.rollHit(prey)
-	fatal := applyDamage(prey, part, w.cfg.AlienDamage)
+	fatal := applyDamage(prey, part, w.alienSpecies.BiteDamage)
 	witnesses := w.colonistsWithin(prey.Pos, w.cfg.FleeRadius, prey.ID)
 	if fatal {
 		alien.State = Feeding
 		name := prey.displayName()
 		w.addGore(prey.Pos)
-		w.remove(prey.ID, "devoured by an alien")
-		w.log.add(fmt.Sprintf("An alien devours %s.", name))
+		w.remove(prey.ID, fmt.Sprintf("devoured by %s", w.alienNoun()))
+		w.log.add(fmt.Sprintf("%s devours %s.", capitalizeFirst(w.alienNoun()), name))
 		for _, wit := range witnesses {
-			w.remember(wit, eventFrom(EvtWitnessedColonistKilled, alien.ID, "Watched an alien kill %s.", name))
+			w.remember(wit, eventFrom(EvtWitnessedColonistKilled, alien.ID, "Watched %s kill %s.", w.alienNoun(), name))
 		}
 	} else {
 		alien.State = Hunting
-		w.remember(prey, eventFrom(EvtBitten, alien.ID, "Bitten in the %s by an alien!", part))
+		w.remember(prey, eventFrom(EvtBitten, alien.ID, "Bitten in the %s by %s!", part, w.alienNoun()))
 		for _, wit := range witnesses {
-			w.remember(wit, eventFrom(EvtWitnessedColonistAttacked, alien.ID, "Watched an alien attack %s.", prey.displayName()))
+			w.remember(wit, eventFrom(EvtWitnessedColonistAttacked, alien.ID, "Watched %s attack %s.", w.alienNoun(), prey.displayName()))
 		}
 	}
 }

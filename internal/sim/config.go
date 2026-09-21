@@ -223,11 +223,17 @@ type Config struct {
 	FrontierFieldMinColonists int `cfg:"frontier-field-colonists" sec:"Mining strategy" doc:"colony size at/above which miners use the shared frontier flow field"`
 	FrontierFieldMinArea      int `cfg:"frontier-field-area" doc:"map area (tiles) at/above which miners use the shared frontier flow field"`
 
-	// Alien stats.
-	AlienHP       int `cfg:"alien-hp" sec:"Aliens" doc:"alien hit points"`
-	AlienDamage   int `cfg:"alien-damage" doc:"HP removed per alien bite"`
-	AlienBiteRest int `cfg:"alien-bite-rest" doc:"cooldown ticks between alien bites"`
-	AlienSlowness int `cfg:"alien-slowness" doc:"alien acts once every N ticks (higher = slower)"`
+	// Alien stats. AlienDamage/AlienBiteRest/AlienSlowness are baselines: the
+	// one alien species rolled for this world's lore (see lore.go) scales
+	// them by its rolled size and temperament, so what an alien actually
+	// deals and how fast it moves varies by seed even at the same config.
+	// AlienReferenceWeightKG is the specimen weight at which the rolled
+	// species deals exactly AlienDamage.
+	AlienHP                int `cfg:"alien-hp" sec:"Aliens" doc:"alien hit points"`
+	AlienDamage            int `cfg:"alien-damage" doc:"baseline HP removed per bite, before the rolled species' size scales it"`
+	AlienBiteRest          int `cfg:"alien-bite-rest" doc:"baseline cooldown ticks between bites, before the rolled species' aggression scales it"`
+	AlienSlowness          int `cfg:"alien-slowness" doc:"baseline: alien acts once every N ticks (higher = slower), before the rolled species' aggression scales it"`
+	AlienReferenceWeightKG int `cfg:"alien-reference-weight-kg" doc:"specimen weight in kg at which the rolled species deals exactly alien-damage"`
 
 	// Weapon stats. A colonist carrying one stands and fights an alien within
 	// Range instead of fleeing, firing once every FireRest ticks. See
@@ -408,10 +414,11 @@ func DefaultConfig() Config {
 				Facility: Bed, UseTicks: 40, Fatal: false,
 			},
 		},
-		AlienHP:       30,
-		AlienDamage:   6,
-		AlienBiteRest: 3,
-		AlienSlowness: 2,
+		AlienHP:                30,
+		AlienDamage:            6,
+		AlienBiteRest:          3,
+		AlienSlowness:          2,
+		AlienReferenceWeightKG: 80,
 
 		PistolDamage:    10,
 		PistolRange:     3,

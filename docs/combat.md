@@ -348,3 +348,5 @@ cap.
   bite/stomp/pounce/shoot and gore sightings feed.
 - [frontend-tui.md](./frontend-tui.md) — the fighting glyph, the gore glyph,
   and the roster's dead/non-human filter and wound line.
+- [lore.md](./lore.md) — the rolled alien species `bite`/`shoot` now read for
+  damage, pace, and the name they narrate with instead of "alien."

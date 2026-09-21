@@ -38,15 +38,21 @@ func TestBystanderRemembersAlienAttack(t *testing.T) {
 	victim := w.spawn(Colonist, Point{1, 0})
 	bystander := w.spawn(Colonist, Point{1, 1})
 
-	victim.HP = cfg.AlienDamage + 1 // survives this bite
+	// Plenty of HP on every part (not just the aggregate pool) so the bite
+	// survives regardless of this seed's rolled species size — a heavy
+	// species' bite can outweigh a stock body part's HP even while the
+	// aggregate pool has room. See lore.go.
+	victim.HP = 999
+	victim.Parts = [numBodyParts]int{999, 999, 999, 999, 999, 999}
 	w.bite(alien, victim)
 
 	// The exact body part hit is an RNG detail (see rollHit); only the shape
-	// of the message is pinned here.
-	if got := lastMemory(victim); !strings.HasPrefix(got, "Bitten in the ") || !strings.HasSuffix(got, " by an alien!") {
-		t.Fatalf("victim memory = %q, want a %q..%q message", got, "Bitten in the ", " by an alien!")
+	// of the message is pinned here. The species name is whatever this
+	// seed rolled (see lore.go), not literally "alien".
+	if got := lastMemory(victim); !strings.HasPrefix(got, "Bitten in the ") || !strings.HasSuffix(got, " by "+w.alienNoun()+"!") {
+		t.Fatalf("victim memory = %q, want a %q..%q message", got, "Bitten in the ", " by "+w.alienNoun()+"!")
 	}
-	wantWitness := "Watched an alien attack " + victim.displayName() + "."
+	wantWitness := "Watched " + w.alienNoun() + " attack " + victim.displayName() + "."
 	if got := lastMemory(bystander); got != wantWitness {
 		t.Fatalf("bystander memory = %q, want %q", got, wantWitness)
 	}
@@ -54,14 +60,14 @@ func TestBystanderRemembersAlienAttack(t *testing.T) {
 	// A second, fatal bite: the victim is removed and cannot hold a memory,
 	// but the bystander should remember watching the kill.
 	victim2 := w.spawn(Colonist, Point{1, 0})
-	victim2.HP = cfg.AlienDamage
+	victim2.HP = w.alienSpecies.BiteDamage
 	name := victim2.displayName()
 	w.bite(alien, victim2)
 
 	if w.entities[victim2.ID] != nil {
 		t.Fatal("fatally bitten colonist should have been removed")
 	}
-	wantKillWitness := "Watched an alien kill " + name + "."
+	wantKillWitness := "Watched " + w.alienNoun() + " kill " + name + "."
 	if got := lastMemory(bystander); got != wantKillWitness {
 		t.Fatalf("bystander memory after kill = %q, want %q", got, wantKillWitness)
 	}
@@ -77,7 +83,8 @@ func TestDistantColonistDoesNotWitnessAlienAttack(t *testing.T) {
 	victim := w.spawn(Colonist, Point{1, 0})
 	far := w.spawn(Colonist, Point{0, cfg.FleeRadius + 5})
 
-	victim.HP = cfg.AlienDamage + 1
+	victim.HP = 999
+	victim.Parts = [numBodyParts]int{999, 999, 999, 999, 999, 999}
 	w.bite(alien, victim)
 
 	if len(far.Memories) != 0 {

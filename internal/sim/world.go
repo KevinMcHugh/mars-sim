@@ -467,6 +467,13 @@ type World struct {
 	agePRNG         *rand.Rand // age generation, isolated so adding age does not shift personality
 	log             *eventLog
 	cfg             Config
+
+	// alienSpecies is this world's one rolled kind of alien -- its build,
+	// its colloquial name, and the combat stats (bite damage/rest, burrow
+	// slowness) every Alien entity in the game reads instead of a flat
+	// Config value. Rolled once in newWorld, off its own seed-derived stream
+	// (neither rng nor prng). See lore.go.
+	alienSpecies AlienSpecies
 }
 
 // newWorld allocates an all-Rock world of the given size.
@@ -495,6 +502,7 @@ func newWorld(cfg Config, rng *rand.Rand) *World {
 		log:               newEventLog(cfg.LogSize),
 		cfg:               cfg,
 	}
+	w.alienSpecies = rollAlienSpecies(rand.New(rand.NewSource(cfg.Seed^alienLoreSeed)), cfg)
 	w.terrainCounts[Rock] = n // every tile starts as Rock
 
 	for k := Kind(0); k < numKinds; k++ {

@@ -155,7 +155,7 @@ func (w *World) fireAlienSwarm(ev scheduledEvent) {
 		w.spawn(Alien, p)
 		spawned++
 	}
-	w.log.add(fmt.Sprintf("%s: an alien swarm burrows toward the colony (%d aliens).", ev.Name, spawned))
+	w.log.add(fmt.Sprintf("%s: a swarm of %s burrows toward the colony (%d).", ev.Name, w.alienPlural(), spawned))
 }
 
 // fireSupplyDrop hands out weapons to living colonists, the same way the

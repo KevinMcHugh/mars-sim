@@ -143,3 +143,5 @@ script.
   `supply-drop` mirrors.
 - [personality.md](./personality.md) — why gameplay RNG and flavor RNG are
   separate streams.
+- [lore.md](./lore.md) — the rolled alien species every `alien-swarm`
+  occurrence's aliens belong to, and its own dedicated RNG stream.

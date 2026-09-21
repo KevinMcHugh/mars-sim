@@ -155,3 +155,5 @@ and it always finds a match if one exists.
 - [entities-and-ai.md](./entities-and-ai.md) — who lives on the grid and how they act.
 - [spatial-index-and-performance.md](./spatial-index-and-performance.md) — the indexes over the grid.
 - [construction.md](./construction.md) — how floor becomes walls and facilities.
+- [lore.md](./lore.md) — the one alien species this seed's worldgen rolls,
+  layered on top of the aliens `generate` places here.

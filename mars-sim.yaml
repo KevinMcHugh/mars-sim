@@ -481,14 +481,17 @@
 ## alien hit points
 # alien-hp: 30
 
-## HP removed per alien bite
+## baseline HP removed per bite, before the rolled species' size scales it
 # alien-damage: 6
 
-## cooldown ticks between alien bites
+## baseline cooldown ticks between bites, before the rolled species' aggression scales it
 # alien-bite-rest: 3
 
-## alien acts once every N ticks (higher = slower)
+## baseline: alien acts once every N ticks (higher = slower), before the rolled species' aggression scales it
 # alien-slowness: 2
+
+## specimen weight in kg at which the rolled species deals exactly alien-damage
+# alien-reference-weight-kg: 80
 
 # ── Weapons ─────────────────────────────────────────────────────────────
 ## HP removed per pistol shot
