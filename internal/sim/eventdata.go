@@ -31,6 +31,26 @@ func init() {
 	}
 }
 
+// parseEventTags turns the names a data file uses into the bitmask the engine
+// matches on.
+func parseEventTags(names []string) (EventTag, error) {
+	var tags EventTag
+	for _, n := range names {
+		var bit EventTag
+		for _, known := range eventTagNames {
+			if known.Name == n {
+				bit = known.Tag
+				break
+			}
+		}
+		if bit == 0 {
+			return 0, fmt.Errorf("%q is not a known tag", n)
+		}
+		tags |= bit
+	}
+	return tags, nil
+}
+
 type eventDefinitionFile struct {
 	Events map[string]eventDefinition `yaml:"events"`
 }
@@ -78,10 +98,6 @@ func loadEventDefinitions(data []byte) error {
 	for k := LifeEventKind(0); k < numLifeEventKinds; k++ {
 		byName[lifeEventKindNames[k]] = k
 	}
-	tagByName := make(map[string]EventTag, len(eventTagNames))
-	for _, t := range eventTagNames {
-		tagByName[t.Name] = t.Tag
-	}
 	focusByName := make(map[string]FocusKind, numFocusKinds)
 	for f := FocusKind(0); f < numFocusKinds; f++ {
 		focusByName[f.String()] = f
@@ -99,13 +115,9 @@ func loadEventDefinitions(data []byte) error {
 		}
 		seen[kind] = true
 
-		var tags EventTag
-		for _, t := range def.Tags {
-			bit, ok := tagByName[t]
-			if !ok {
-				return fmt.Errorf("%s: %q is not a known tag", name, t)
-			}
-			tags |= bit
+		tags, err := parseEventTags(def.Tags)
+		if err != nil {
+			return fmt.Errorf("%s: %w", name, err)
 		}
 		if def.Impact < 0 || def.Impact > 100 {
 			return fmt.Errorf("%s: impact %d outside [0, 100]", name, def.Impact)

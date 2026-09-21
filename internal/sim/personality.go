@@ -182,6 +182,26 @@ const (
 	numTraits // keep last
 )
 
+// traitNames is how each trait is spelled in traits.yaml. Explicit rather than
+// derived from traitSpecs.Name, so renaming what the roster calls a trait
+// cannot silently break the file that says what it does.
+var traitNames = [numTraits]string{
+	TraitBigEater:    "big-eater",
+	TraitLightEater:  "light-eater",
+	TraitIndustrious: "industrious",
+	TraitLazy:        "lazy",
+	TraitAsocial:     "asocial",
+	TraitIntrovert:   "introvert",
+	TraitExtrovert:   "extrovert",
+	TraitTidy:        "tidy",
+	TraitMutant:      "mutant",
+	TraitMutantLover: "mutant-lover",
+	TraitResilient:   "resilient",
+	TraitCowardly:    "cowardly",
+	TraitOptimist:    "optimist",
+	TraitPessimist:   "pessimist",
+}
+
 // traitGroup collects mutually exclusive traits: a colonist gets at most one
 // trait from each group (you can't be both a big eater and a light eater).
 type traitGroup uint8

@@ -18,6 +18,7 @@ kind of thing picks.
 
 - [`internal/sim/affect.go`](../internal/sim/affect.go) — the push/pull blend, wear, trait rules, decay, attractors, and labels.
 - [`internal/sim/events.yaml`](../internal/sim/events.yaml) — the appraisal, stimulus and collapse tables, as data.
+- [`internal/sim/traits.yaml`](../internal/sim/traits.yaml) — how each trait reacts to those tags, as data.
 - [`internal/sim/lifeevents.go`](../internal/sim/lifeevents.go) — event kinds, `Subject` versus `Source`, and the temporary per-conversation `Outcome`.
 - [`internal/sim/world.go`](../internal/sim/world.go) — `remember`, the single affect/stimulus/memory ingestion funnel.
 - [`internal/sim/focus.go`](../internal/sim/focus.go) — additive charge/grip focus contributions.
@@ -109,8 +110,8 @@ colonist rather than adding to them.
 
 Traits do not react to event kinds. Each appraisal declares a set of `EventTag`
 flavors — a bitmask, so matching is a couple of ANDs and allocates nothing —
-and each entry in `traitRules` names the tags it cares about plus what it does
-about them:
+and each rule in [`traits.yaml`](../internal/sim/traits.yaml) names the tags it
+cares about plus what it does about them:
 
 | Trait | Reacts to | Does |
 | --- | --- | --- |
@@ -131,8 +132,10 @@ so a seeded run reproduces. `pct` truncates toward zero exactly as the
 per-trait arithmetic it replaced did, so the four transforms that predate the
 table still land on the same numbers.
 
-Rules apply in **rule declaration order**, so a colonist carrying two of them
-composes them the same way regardless of what order their traits are stored in.
+Rules apply in **file order**, so a colonist carrying two of them composes them
+the same way regardless of what order their traits are stored in. That is why
+`traits.yaml` is a list rather than a map: order is meaning, and map order is
+not a thing you get to rely on.
 
 This is what keeps adding a trait from being a decision against every event and
 vice versa: a new event picks its tags, a new trait picks the tags it cares
@@ -251,8 +254,8 @@ header of `eventdata.go`. Keep the target
 nudge-sized below `MoodPushImpact` and plane-sized above `MoodPullImpact`; a
 test checks that anything which relocates lands in named space, because
 relocating to a nudge-sized point would leave a colonist almost exactly neutral
-after something terrible. Give a trait a reaction by adding a row to `traitRules` against tags that
-already exist; no event definition changes. Give an event a new flavor by
+after something terrible. Give a trait a reaction by adding a rule to `traits.yaml` against tags that
+already exist; no event definition changes and no Go changes. Give an event a new flavor by
 adding a tag to its appraisal; no trait changes. Only reach for a new
 `EventTag` when no existing one describes the thing a trait would want to
 react to. Add or tune an
