@@ -156,14 +156,14 @@ func TestPickAlienNameFallsBackWhenNothingMatches(t *testing.T) {
 	entries := []AlienNameEntry{
 		{Singular: "gremlin", Plural: "gremlins", When: nameCondition{Temperament: "friendly"}},
 	}
-	singular, plural := pickAlienName(rng, sp, entries)
-	if singular != "alien" || plural != "aliens" {
-		t.Fatalf("no-match fallback = %q/%q, want alien/aliens", singular, plural)
+	singular, plural, emoji := pickAlienName(rng, sp, entries)
+	if singular != "alien" || plural != "aliens" || emoji != "" {
+		t.Fatalf("no-match fallback = %q/%q/%q, want alien/aliens/\"\"", singular, plural, emoji)
 	}
 
-	singular, plural = pickAlienName(rng, sp, nil)
-	if singular != "alien" || plural != "aliens" {
-		t.Fatalf("empty-pool fallback = %q/%q, want alien/aliens", singular, plural)
+	singular, plural, emoji = pickAlienName(rng, sp, nil)
+	if singular != "alien" || plural != "aliens" || emoji != "" {
+		t.Fatalf("empty-pool fallback = %q/%q/%q, want alien/aliens/\"\"", singular, plural, emoji)
 	}
 }
 
@@ -171,9 +171,32 @@ func TestPickAlienNameFallsBackWhenNothingMatches(t *testing.T) {
 func TestPickAlienNamePluralDefaultsToSingularPlusS(t *testing.T) {
 	rng := rand.New(rand.NewSource(1))
 	entries := []AlienNameEntry{{Singular: "blorp"}}
-	singular, plural := pickAlienName(rng, AlienSpecies{}, entries)
+	singular, plural, _ := pickAlienName(rng, AlienSpecies{}, entries)
 	if singular != "blorp" || plural != "blorps" {
 		t.Fatalf("got %q/%q, want blorp/blorps", singular, plural)
+	}
+}
+
+// pickAlienName draws an emoji from the winning entry's own candidates, not
+// from some other matching entry's list.
+func TestPickAlienNameDrawsEmojiFromTheWinningEntry(t *testing.T) {
+	rng := rand.New(rand.NewSource(1))
+	entries := []AlienNameEntry{{Singular: "gremlin", Plural: "gremlins", Emoji: []string{"🦎", "🐍"}}}
+	for i := 0; i < 20; i++ {
+		_, _, emoji := pickAlienName(rng, AlienSpecies{}, entries)
+		if emoji != "🦎" && emoji != "🐍" {
+			t.Fatalf("emoji = %q, want one of the entry's own candidates", emoji)
+		}
+	}
+}
+
+// An entry with no emoji list must not manufacture one.
+func TestPickAlienNameEmojiEmptyWhenEntryListsNone(t *testing.T) {
+	rng := rand.New(rand.NewSource(1))
+	entries := []AlienNameEntry{{Singular: "alien", Plural: "aliens"}}
+	_, _, emoji := pickAlienName(rng, AlienSpecies{}, entries)
+	if emoji != "" {
+		t.Fatalf("emoji = %q, want \"\" for an entry with no emoji list", emoji)
 	}
 }
 
@@ -206,7 +229,7 @@ func TestDefaultAlienNamesAlwaysNamesAnySpecies(t *testing.T) {
 		{Limbs: 6, Arms: 2, Skin: SkinSmooth, Temperament: TemperamentFriendly}, // centaur-ish
 		{Limbs: 2, Arms: 2, Skin: SkinFurry, Temperament: TemperamentCautious, Color: "pale"},
 	} {
-		singular, plural := pickAlienName(rng, sp, names)
+		singular, plural, _ := pickAlienName(rng, sp, names)
 		if singular == "" || plural == "" {
 			t.Fatalf("species %+v got an empty name", sp)
 		}

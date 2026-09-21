@@ -173,6 +173,14 @@ type AlienSpecies struct {
 	Singular string
 	Plural   string
 
+	// Emoji is a candidate glyph drawn alongside the name, from the same
+	// alien-names.yaml entry's own emoji list (see alien_names.go). Empty
+	// when the winning entry listed none. This package treats it as opaque
+	// data -- rendering it safely (falling back to a generic glyph for
+	// anything a frontend does not recognize) is the frontend's job; see
+	// docs/lore.md.
+	Emoji string
+
 	// Adult size, as a range: no two specimens are identical, but every one
 	// of them falls somewhere between these bounds. Bite damage is scaled
 	// from the range's midpoint weight -- see speciesDamage.
@@ -259,7 +267,7 @@ func rollAlienSpecies(rng *rand.Rand, cfg Config, names []AlienNameEntry) AlienS
 	sp.WeightMinKG = max(1, int(float64(sp.HeightMinCM)*density))
 	sp.WeightMaxKG = max(sp.WeightMinKG+1, int(float64(sp.HeightMaxCM)*density))
 
-	sp.Singular, sp.Plural = pickAlienName(rng, sp, names)
+	sp.Singular, sp.Plural, sp.Emoji = pickAlienName(rng, sp, names)
 
 	sp.BiteDamage = speciesDamage(sp, cfg)
 	sp.BiteRest = scaledByTemperament(cfg.AlienBiteRest, sp.Temperament)
@@ -330,9 +338,17 @@ func scaledByTemperament(base int, t AlienTemperament) int {
 }
 
 // RosterLabel is the one-line summary the roster shows for an Alien in place
-// of a colonist's pronouns/age line.
+// of a colonist's pronouns/age line. The emoji prefix is flavor text here --
+// this is a variable-width display string, safely truncatable by a
+// frontend, not a fixed-width map glyph (see AlienSpecies.Emoji) -- so it is
+// included whenever the rolled species has one, whether or not a frontend's
+// map would recognize it as a registered glyph.
 func (sp AlienSpecies) RosterLabel() string {
-	return fmt.Sprintf("%s · %s", capitalizeFirst(sp.Singular), sp.Temperament.String())
+	label := fmt.Sprintf("%s · %s", capitalizeFirst(sp.Singular), sp.Temperament.String())
+	if sp.Emoji == "" {
+		return label
+	}
+	return sp.Emoji + " " + label
 }
 
 // Description is a full narrative summary of the species, for logs or a

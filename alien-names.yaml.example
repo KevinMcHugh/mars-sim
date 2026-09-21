@@ -25,17 +25,29 @@
 #
 # Combine with "all" (every sub-condition must match), "any" (at least one
 # must), and "not" (must not match) -- these nest to any depth.
+#
+# emoji is an optional list of candidate glyphs for the name: a species that
+# lands on this entry also draws one of these at random. It's a plain string
+# as far as this file (and the sim) is concerned -- always safe as flavor
+# text in the roster and lore tab -- but the TUI's map tile only draws it if
+# the exact string matches one of its own vetted, registered glyphs
+# (internal/ui/tui/glyphs.go); anything else falls back to the plain alien
+# glyph there. Stick to the emoji already used in internal/sim/alien-names.yaml
+# if you want your own names to show up on the map too.
 
 names:
   # Unconditional fallbacks: always eligible, whatever the species rolled.
   - name: alien
     plural: aliens
+    emoji: ["👽"]
   - name: xeno
     plural: xenos
+    emoji: ["👽", "🛸"]
 
   # A compound condition: exactly six legs *and* armored skin.
   - name: beetle
     plural: beetles
+    emoji: ["🪲"]
     when:
       all:
         - legs: { eq: 6 }
@@ -44,13 +56,16 @@ names:
   # "any": either a passive temperament reads as this name.
   - name: critter
     plural: critters
+    emoji: ["👾", "🐛"]
     when:
       any:
         - temperament: friendly
         - temperament: cautious
 
   # "not": a hostile, two-legged species that does *not* have a tail --
-  # something that could pass for upright and humanoid.
+  # something that could pass for upright and humanoid. No emoji candidates
+  # here on purpose: it just falls back to the plain alien glyph on the map,
+  # which is a perfectly normal thing for an entry to do.
   - name: stalker
     plural: stalkers
     when:

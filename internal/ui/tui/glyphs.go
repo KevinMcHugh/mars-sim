@@ -64,6 +64,29 @@ const (
 	glyphHauling  = "\U0001F4E6" // 📦 colonist carrying refuse to the incinerator
 	glyphMutant   = "\U0001F9DF" // 🧟 colonist changed by uranium (see docs/mutation.md)
 
+	// Alien species flavor glyphs: the curated set an AlienSpecies.Emoji (see
+	// docs/lore.md and internal/sim/alien-names.yaml) can draw from and still
+	// reach the map, via alienGlyph. A species' rolled Emoji is arbitrary
+	// runtime data — sim knows nothing about glyphs or widths — so only a
+	// string that matches one of these vetted, registered symbols is ever
+	// drawn on the map; anything else (a custom -alien-names file's own
+	// choice, say) falls back to glyphAlien rather than reaching fitGlyph
+	// unvetted.
+	glyphLizard       = "\U0001F98E" // 🦎
+	glyphSnake        = "\U0001F40D" // 🐍
+	glyphTurtle       = "\U0001F422" // 🐢
+	glyphTRex         = "\U0001F996" // 🦖
+	glyphSauropod     = "\U0001F995" // 🦕
+	glyphCaterpillar  = "\U0001F41B" // 🐛
+	glyphBeetle       = "\U0001FAB2" // 🪲
+	glyphAnt          = "\U0001F41C" // 🐜
+	glyphCricket      = "\U0001F997" // 🦗
+	glyphScorpion     = "\U0001F982" // 🦂
+	glyphWorm         = "\U0001FAB1" // 🪱
+	glyphSaucer       = "\U0001F6F8" // 🛸
+	glyphMicrobe      = "\U0001F9A0" // 🦠
+	glyphSpaceInvader = "\U0001F47E" // 👾
+
 	glyphManAdult     = "\U0001F468" // 👨 adult man colonist
 	glyphWomanAdult   = "\U0001F469" // 👩 adult woman colonist
 	glyphPersonAdult  = "\U0001F9D1" // 🧑 adult non-binary colonist
@@ -123,6 +146,21 @@ var glyphRegistry = map[string]glyph{
 	glyphCleaning: {glyphCleaning, 2, "@/"},
 	glyphHauling:  {glyphHauling, 2, "@+"},
 	glyphMutant:   {glyphMutant, 2, "@%"},
+
+	glyphLizard:       {glyphLizard, 2, "Lz"},
+	glyphSnake:        {glyphSnake, 2, "Sn"},
+	glyphTurtle:       {glyphTurtle, 2, "Tu"},
+	glyphTRex:         {glyphTRex, 2, "Rx"},
+	glyphSauropod:     {glyphSauropod, 2, "Sp"},
+	glyphCaterpillar:  {glyphCaterpillar, 2, "Bg"},
+	glyphBeetle:       {glyphBeetle, 2, "Bt"},
+	glyphAnt:          {glyphAnt, 2, "An"},
+	glyphCricket:      {glyphCricket, 2, "Cr"},
+	glyphScorpion:     {glyphScorpion, 2, "Sc"},
+	glyphWorm:         {glyphWorm, 2, "Wm"},
+	glyphSaucer:       {glyphSaucer, 2, "UF"},
+	glyphMicrobe:      {glyphMicrobe, 2, "Mb"},
+	glyphSpaceInvader: {glyphSpaceInvader, 2, "SI"},
 
 	glyphManAdult:     {glyphManAdult, 2, "M "},
 	glyphWomanAdult:   {glyphWomanAdult, 2, "W "},
@@ -272,11 +310,29 @@ func tileGlyph(tile sim.Tile) string {
 	}
 }
 
+// alienGlyph picks a specific alien's map glyph: its species' rolled emoji
+// (see sim.AlienSpecies.Emoji), if it names one of this package's registered
+// glyphs, or the generic glyphAlien otherwise. sim carries Emoji as opaque
+// data — it could be any string a -alien-names file supplied — so this is
+// the one place that decides whether to trust it for the map's fixed
+// two-cell tile: a registered symbol has a declared width and an ASCII
+// fallback and reaches fitGlyph the ordinary way, exactly like every other
+// glyph; anything unrecognized draws the same generic alien every species
+// used to. See docs/lore.md.
+func alienGlyph(sp sim.AlienSpecies) string {
+	if sp.Emoji != "" {
+		if _, ok := glyphRegistry[sp.Emoji]; ok {
+			return sp.Emoji
+		}
+	}
+	return glyphAlien
+}
+
 func entityGlyph(e sim.EntityView) string {
 	var symbol string
 	switch e.Kind {
 	case sim.Alien:
-		symbol = glyphAlien
+		symbol = alienGlyph(e.AlienSpecies)
 	case sim.Cat:
 		symbol = glyphCat
 	case sim.Mouse:

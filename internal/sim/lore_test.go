@@ -331,3 +331,17 @@ func TestSnapshotExposesSeed(t *testing.T) {
 		t.Fatalf("snapshot seed = %d, want %d", got, cfg.Seed)
 	}
 }
+
+// RosterLabel prefixes the species' rolled emoji when it has one, and
+// otherwise reads exactly as it did before Emoji existed.
+func TestRosterLabelIncludesEmojiWhenPresent(t *testing.T) {
+	withEmoji := AlienSpecies{Singular: "xeno", Temperament: TemperamentHostile, Emoji: "🦎"}
+	if got, want := withEmoji.RosterLabel(), "🦎 Xeno · hostile"; got != want {
+		t.Fatalf("RosterLabel() = %q, want %q", got, want)
+	}
+
+	withoutEmoji := AlienSpecies{Singular: "xeno", Temperament: TemperamentHostile}
+	if got, want := withoutEmoji.RosterLabel(), "Xeno · hostile"; got != want {
+		t.Fatalf("RosterLabel() = %q, want %q", got, want)
+	}
+}

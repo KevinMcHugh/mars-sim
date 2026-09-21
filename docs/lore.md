@@ -24,17 +24,26 @@ than a hardcoded list.
   `rollAlienSpeciesRoster`, `speciesDamage`, `scaledByTemperament`, and the
   `World.alienSpeciesFor`/`alienNounFor`/`alienPluralFor` helpers.
 - [`internal/sim/alien_names.go`](../internal/sim/alien_names.go) —
-  `AlienNameEntry`, `nameCondition`/`intCondition` (the boolean condition
-  tree), `pickAlienName`, `LoadAlienNames`, `defaultAlienNames` (the
-  `//go:embed`ded built-in pool).
+  `AlienNameEntry` (including its `Emoji` candidates),
+  `nameCondition`/`intCondition` (the boolean condition tree),
+  `pickAlienName`, `LoadAlienNames`, `defaultAlienNames` (the `//go:embed`ded
+  built-in pool).
 - [`internal/sim/alien-names.yaml`](../internal/sim/alien-names.yaml) — the
-  built-in name pool, compiled into the binary.
+  built-in name pool, compiled into the binary, with the curated emoji
+  candidates each entry can roll.
 - [`alien-names.yaml.example`](../alien-names.yaml.example) — a commented,
   standalone example a player can copy and pass to `-alien-names`.
+- [`internal/ui/tui/glyphs.go`](../internal/ui/tui/glyphs.go) — the curated
+  reptile/bug/alien glyph set (`glyphLizard`, `glyphBeetle`, ...) and
+  `alienGlyph`, which decides whether a species' rolled `Emoji` is safe to
+  draw on the map.
 - [`internal/sim/lore_test.go`](../internal/sim/lore_test.go),
   [`internal/sim/alien_names_test.go`](../internal/sim/alien_names_test.go) —
-  determinism, invariants, temperament behavior, and the naming-condition
-  boolean logic.
+  determinism, invariants, temperament behavior, the naming-condition
+  boolean logic, and the emoji draw.
+- [`internal/ui/tui/glyphs_test.go`](../internal/ui/tui/glyphs_test.go) —
+  `alienGlyph`'s registered/unregistered/empty cases, and that every curated
+  emoji is actually registered.
 - [`internal/sim/world.go`](../internal/sim/world.go) — `World.alienSpecies`
   (now a roster, `[]AlienSpecies`) and where it's rolled, in `newWorld`; the
   per-`Alien` species draw in `spawn`; `World.exploredCount`, kept
@@ -202,6 +211,43 @@ loaded the same optional way `mars-sim.yaml`/`director.yaml` are) replaces
 the whole pool for that run. `rollAlienSpeciesRoster` falls back to
 `defaultAlienNames()` whenever `cfg.AlienNames` is empty.
 
+### Emoji: a shared source of truth, split at the render boundary
+
+Each `AlienNameEntry` can also list `Emoji []string` — candidate glyphs for
+that name. `pickAlienName` draws one of them the same way it draws the name
+itself: independently, from the winning entry's own list, so two species
+that land on the same name need not land on the same glyph. The result
+lands on `AlienSpecies.Emoji`, one more plain string field alongside `Skin`
+and `Color` — `lore.go`/`alien_names.go` never interpret it as anything but
+data, the same way they never interpret `Skin` as anything but a word.
+
+That YAML file is the shared source of truth the name says it is: `sim`
+parses it into `AlienSpecies.Emoji`, and the TUI reads that same field back
+off the `Snapshot`/`EntityView` it already gets everything else from — no
+separate name-to-glyph table maintained twice. What differs is what each
+side is allowed to *do* with the string. As flavor text (`RosterLabel()`,
+prefixed with the emoji when one is present — `"🦎 Xeno · hostile"` — shown
+in the roster and the lore tab) it is unconditionally safe: those are
+variable-width lines a frontend already truncates correctly regardless of
+what's in them. As a map glyph it is not: the map's tiles are a fixed two
+cells each (see [terminal-cell-widths.md](./terminal-cell-widths.md)), and
+nothing about an arbitrary runtime string guarantees a real terminal paints
+it at the width `sim` — which has no concept of terminal cells at all —
+would need it to be.
+
+So the TUI draws it on the map only through `alienGlyph(sp)`
+(`internal/ui/tui/glyphs.go`), which checks the exact string against its own
+`glyphRegistry` — the same vetted, width-tested, ASCII-fallback-carrying set
+every other glyph on the map comes from — and falls back to the generic
+`glyphAlien` for anything unregistered, `sp.Emoji == ""` included. The
+registry ships a curated set of reptile/bug/alien glyphs for this
+(`glyphLizard`, `glyphBeetle`, `glyphSaucer`, ...) that `internal/sim/
+alien-names.yaml`'s own emoji lists draw from, so the built-in pool's
+species always have a real, registered glyph to show on the map; a custom
+`-alien-names` file is free to name anything as flavor text, but only shows
+up on the map if it happens to spell one of those same registered symbols
+exactly (see the note in `alien-names.yaml.example`).
+
 ### Narration
 
 `World.alienNounFor(e)` (`withArticle(w.alienSpeciesFor(e).Singular)`,
@@ -241,6 +287,37 @@ word-wrapped to the panel width.
 
 ## Why it is this way
 
+- **`sim` carries `Emoji` as an opaque string, never a "glyph."** The ask
+  was explicit that `sim` shouldn't know anything about emoji, and it still
+  doesn't: `AlienSpecies.Emoji` is data of exactly the same kind as `Skin`
+  or `Color` — a string picked from YAML, never measured, registered, or
+  validated by anything in the `sim` package. The width-safety machinery
+  the map depends on (see [terminal-cell-widths.md](./terminal-cell-widths.md))
+  lives entirely on the TUI side, in `alienGlyph`, which is also the only
+  place a fallback to `glyphAlien` can happen. Splitting it this way is what
+  lets `sim`'s tests (and any other future consumer of a `Snapshot`) treat
+  species data uniformly without either package needing to know the other's
+  rules.
+- **A curated registry set, not "any YAML string reaches the map."** Every
+  other glyph on the map is a vetted, single-code-point,
+  cross-library-width-agreed, ASCII-fallback-carrying entry in
+  `glyphRegistry`, checked by a startup probe against the real terminal —
+  the whole point of [terminal-cell-widths.md](./terminal-cell-widths.md) is
+  that an unvetted string reaching a fixed two-cell tile is exactly the bug
+  that kept recurring. A YAML file is runtime data, so nothing stops an
+  emoji named there from carrying a variation selector or being one the
+  probe never got to check. Rather than trust it directly, `alien-names.yaml`
+  draws its candidates from a small set the TUI *also* ships
+  (`glyphLizard`, `glyphBeetle`, `glyphSaucer`, ...), and `alienGlyph` checks
+  the string against that same registry before ever handing it to `fitGlyph`.
+  A custom `-alien-names` file that names something else still works — it's
+  just flavor text until it happens to spell one of the registered symbols.
+- **Two independent rolls (name, then emoji from that name's own list), not
+  one combined table.** A flat `{name, emoji}` pairing would mean every
+  "reptile" species looks identical on the map; drawing the emoji separately
+  from the same entry's candidate list is what lets two "Reptile" species in
+  different games (or even the same game, with `alien-species-count` > 1)
+  come out as 🦎 and 🐍 respectively.
 - **A roster (`[]AlienSpecies`), not one species per world.** The follow-up
   ask ("parameterize alien species count") turned the original one-species
   design into a genuine roster with per-entity assignment
@@ -348,6 +425,17 @@ word-wrapped to the panel width.
   legs/arms/limbs/eyes today — a new leaf field is a small, mechanical
   addition (a struct field, a case in `matches`) if a new trait ever needs
   to gate a name.
+- **More map-safe emoji.** Adding a new glyph a name can draw on the map is
+  the same two-line edit any other glyph is (see
+  [terminal-cell-widths.md](./terminal-cell-widths.md)'s Extending it): a
+  `glyphX` constant and a `glyphRegistry` entry in `internal/ui/tui/glyphs.go`,
+  with a declared width and an ASCII fallback — the existing structural
+  tests (`TestGlyphRegistryIsUnambiguous` and friends) vet it the same way
+  they vet every other glyph. Then list the new emoji in whichever
+  `alien-names.yaml` entries should be able to roll it. A name's emoji list
+  can also freely include a string that is *not* in the registry — it still
+  works as roster/lore flavor text, just never appears on the map (see Why
+  it is this way).
 - **Wiring `Kind.String()`/`observeNearby`'s sighting text to a species**
   would need a `*World` (or the resolved noun) threaded through, since
   `Kind.String()` today is a plain enum method and `observeNearby`'s "Saw %s
@@ -379,6 +467,9 @@ word-wrapped to the panel width.
   own dedicated stream sits alongside.
 - [frontend-tui.md](./frontend-tui.md) — the lore tab, where a player
   actually reads all of this.
+- [terminal-cell-widths.md](./terminal-cell-widths.md) — the glyph registry
+  and startup probe `alienGlyph` defers to, and why an unvetted string never
+  reaches the map's fixed-width tile.
 - [fog-of-war.md](./fog-of-war.md) — `World.reveal`, where
   `Stats.ExploredTiles` is kept.
 - [configuration.md](./configuration.md) — how `AlienSpeciesCount`,

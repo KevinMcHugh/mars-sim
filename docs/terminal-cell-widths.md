@@ -185,7 +185,28 @@ Invariants a change here must preserve:
   `Width(total - borderCells)`.
 - `clampFrame` stays a no-op in the tests.
 
+**A glyph chosen by data outside this package**, rather than always by code
+in it, showed up for the first time with `AlienSpecies.Emoji` (see
+[lore.md](./lore.md)): `sim` rolls a plain string from a YAML file, with no
+idea this package's rules exist. The pattern that keeps the guarantees above
+intact is `alienGlyph`: check the runtime string against `glyphRegistry`
+(an exact key match — the string either *is* one of the vetted symbols
+above, or it isn't) and fall back to a plain, always-registered glyph for
+anything that doesn't match, rather than ever handing an unrecognized
+string to `fitGlyph`'s registry lookup and trusting its unregistered-input
+path (`cells.Fit`) to make it safe. That fallback path exists and is
+genuinely grid-safe — it forces exactly `tileWidth` cells no matter what —
+but it is not probed, has no real ASCII fallback, and its correctness
+depends on `ansi.StringWidth` agreeing with the actual terminal, which is
+exactly the class of disagreement this whole system exists to catch instead
+of trust. Any future glyph sourced from outside this package should draw
+from a registry-checked palette the same way, not lean on that fallback as
+a feature.
+
 ## Related
 
 - [frontend-tui.md](./frontend-tui.md) — the screens these glyphs are drawn on.
 - [cli.md](./cli.md) — the `-glyphs` flag.
+- [lore.md](./lore.md) — `alienGlyph`, the one place a runtime string from
+  outside this package (a rolled species' `Emoji`, ultimately sourced from a
+  YAML file) is checked against the registry before it can reach the map.

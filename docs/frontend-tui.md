@@ -45,8 +45,10 @@ from any details panel. Global keys (`handleKey`) work everywhere; the rest
 dispatch to the active panel's handler.
 
 - **Map** (`renderMap`): draws a camera-windowed view of the tile grid, two
-  terminal cells per tile, overlaying entity glyphs (aliens win position ties).
-  An empty tile with refuse on it (`tileGlyph`) draws a body 🦴 or, failing
+  terminal cells per tile, overlaying entity glyphs (aliens win position
+  ties). An alien's glyph is its rolled species' own emoji when it named a
+  registered one (`alienGlyph`), or the generic 👽 otherwise — see
+  [lore.md](./lore.md). An empty tile with refuse on it (`tileGlyph`) draws a body 🦴 or, failing
   that, a splatter 🩸 instead of its bare terrain — see
   [combat.md](./combat.md) and [sanitation.md](./sanitation.md). A tile the
   colony has not dug up to yet draws neither terrain nor occupant, just a

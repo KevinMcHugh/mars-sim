@@ -9,19 +9,33 @@
 # rolled species' build. A name with no condition always applies. When more
 # than one name's condition matches a rolled species, one is picked at random
 # among them -- overlapping conditions are expected, not an error.
+#
+# emoji is an optional list of candidate glyphs for that name: a species that
+# lands on this entry also draws one of these at random, independently of
+# the name draw. It is purely cosmetic flavor text everywhere except the map
+# tile itself, where the TUI only trusts an emoji it recognizes as one of its
+# own registered glyphs (internal/ui/tui/glyphs.go) -- an entry here is safe
+# to draw on the map only if it's spelled exactly like one of those. An entry
+# with no emoji list, or one the TUI doesn't recognize, just falls back to
+# the plain alien glyph there; it still shows up as flavor text in the
+# roster and lore tab either way.
 
 names:
   - name: alien
     plural: aliens
+    emoji: ["👽"]
 
   - name: ET
     plural: ETs
+    emoji: ["👽"]
 
   - name: xeno
     plural: xenos
+    emoji: ["👽", "🛸"]
 
   - name: gremlin
     plural: gremlins
+    emoji: ["👾"]
     when:
       any:
         - temperament: friendly
@@ -29,6 +43,7 @@ names:
 
   - name: critter
     plural: critters
+    emoji: ["👾", "🐛"]
     when:
       any:
         - temperament: friendly
@@ -36,11 +51,13 @@ names:
 
   - name: bug
     plural: bugs
+    emoji: ["🐛", "🪲", "🐜", "🦗"]
     when:
       legs: { gt: 4 }
 
   - name: centipede
     plural: centipedes
+    emoji: ["🪱", "🐜"]
     when:
       legs: { gt: 6 }
 
@@ -53,6 +70,7 @@ names:
 
   - name: beetle
     plural: beetles
+    emoji: ["🪲"]
     when:
       all:
         - legs: { eq: 6 }
@@ -60,6 +78,7 @@ names:
 
   - name: snake
     plural: snakes
+    emoji: ["🐍"]
     when:
       all:
         - limbs: { eq: 0 }
@@ -67,6 +86,7 @@ names:
 
   - name: reptile
     plural: reptiles
+    emoji: ["🦎", "🐍", "🐢"]
     when:
       skin: scaly
 
@@ -77,11 +97,13 @@ names:
 
   - name: tank
     plural: tanks
+    emoji: ["🦂"]
     when:
       skin: armored
 
   - name: titan
     plural: titans
+    emoji: ["🦖", "🦕"]
     when:
       any:
         - height: huge
@@ -89,10 +111,17 @@ names:
 
   - name: wisp
     plural: wisps
+    emoji: ["🐜"]
     when:
       any:
         - height: tiny
         - weight: tiny
+
+  - name: microbe
+    plural: microbes
+    emoji: ["🦠"]
+    when:
+      weight: tiny
 
   - name: red
     plural: reds
