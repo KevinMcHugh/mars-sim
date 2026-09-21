@@ -201,6 +201,12 @@ type Config struct {
 	MoodPushImpact int `cfg:"mood-push-impact" doc:"event impact at or below which affect is only nudged"`
 	MoodPullImpact int `cfg:"mood-pull-impact" doc:"event impact at or above which affect is relocated outright"`
 
+	// How fast a colonist stops being new to something. Each remembered
+	// occasion of a kind moves its appraisal this much further from its fresh
+	// reading toward its worn one, capped at fully worn. Occasions leave with
+	// the memories that hold them, so this also sets how fast wear recovers.
+	MoodWearPerOccasion int `cfg:"mood-wear-per-occasion" doc:"percent of the way toward an event's worn reading per remembered occasion"`
+
 	// Mining strategy switch. Below both thresholds, miners use cached A* to a
 	// claimed tile (cheaper for small colonies); at or above either, they follow
 	// the shared frontier flow field (cheaper once many miners share the sweep).
@@ -361,8 +367,9 @@ func DefaultConfig() Config {
 		MoodValenceDecayTicks:     12,
 		MoodLabelSwitchMargin:     5,
 
-		MoodPushImpact: 30,
-		MoodPullImpact: 70,
+		MoodPushImpact:      30,
+		MoodPullImpact:      70,
+		MoodWearPerOccasion: 14,
 
 		FrontierFieldMinColonists: 800,
 		FrontierFieldMinArea:      90000, // ~300x300 and up

@@ -22,18 +22,20 @@ func TestLifeEventAppraisalTable(t *testing.T) {
 		if a.Impact < 0 || a.Impact > 100 {
 			t.Errorf("kind %d impact %d outside [0, 100]", kind, a.Impact)
 		}
-		if a.Target != (MoodVector{}) && a.Impact == 0 {
+		if a.Fresh != (MoodVector{}) && a.Impact == 0 {
 			t.Errorf("kind %d moves affect but has no impact, so it can only ever nudge", kind)
 		}
-		for name, v := range map[string]int{"charge": a.Target.Charge, "grip": a.Target.Grip, "valence": a.Target.Valence} {
-			if v < -cfg.MoodMax || v > cfg.MoodMax {
-				t.Errorf("kind %d %s target %d outside the plane", kind, name, v)
+		for col, vec := range map[string]MoodVector{"fresh": a.Fresh, "worn": a.Worn} {
+			for name, v := range map[string]int{"charge": vec.Charge, "grip": vec.Grip, "valence": vec.Valence} {
+				if v < -cfg.MoodMax || v > cfg.MoodMax {
+					t.Errorf("kind %d %s %s %d outside the plane", kind, col, name, v)
+				}
 			}
 		}
 	}
 	// A conversation is the one kind whose target cannot be declared: it is
 	// computed per occurrence from how the chat actually went.
-	if got := lifeEventAppraisals[EvtConversation].Target; got != (MoodVector{}) {
+	if got := lifeEventAppraisals[EvtConversation].Fresh; got != (MoodVector{}) {
 		t.Errorf("EvtConversation declares a target %+v that applyAffect always discards", got)
 	}
 }
@@ -48,8 +50,10 @@ func TestRelocatingEventsAreWrittenAtPlaneScale(t *testing.T) {
 		if a.Impact < cfg.MoodPullImpact {
 			continue
 		}
-		if _, claim := bestMoodAttractor(a.Target.Charge, a.Target.Grip); claim < 0 {
-			t.Errorf("kind %d relocates to %+v, which lands in unnamed space", kind, a.Target)
+		for col, vec := range map[string]MoodVector{"fresh": a.Fresh, "worn": a.Worn} {
+			if _, claim := bestMoodAttractor(vec.Charge, vec.Grip); claim < 0 {
+				t.Errorf("kind %d relocates to %s %+v, which lands in unnamed space", kind, col, vec)
+			}
 		}
 	}
 }
@@ -98,13 +102,17 @@ func TestAGoodDayCannotSoftenAKilling(t *testing.T) {
 		fed.affect.Valence != bare.affect.Valence {
 		t.Fatalf("the day before changed where the killing left them: %+v versus %+v", fed.affect, bare.affect)
 	}
-	if fed.affect.Grip >= 0 || fed.affect.Valence >= 0 {
+	// Grip is deliberately *up* on a first killing -- that is the fresh
+	// reading, the rallying cry that wear later turns into collapse. Valence is
+	// what says it was a bad thing to have happened.
+	if fed.affect.Valence >= 0 || fed.affect.Charge <= 0 {
 		t.Fatalf("witnessing a killing left affect at %+v", fed.affect)
 	}
 }
 
 // Routine life stays additive: below the push threshold nothing is relocated,
-// so a second dig is worth exactly as much as the first.
+// so digs keep adding up rather than overwriting each other -- just by less
+// each time, as the job stops being novel.
 func TestRoutineEventsStillAccumulate(t *testing.T) {
 	w, once := focusTestColonist(t)
 	thrice := w.spawn(Colonist, once.Pos.Add(10, 0))
@@ -112,8 +120,11 @@ func TestRoutineEventsStillAccumulate(t *testing.T) {
 	for i := 0; i < 3; i++ {
 		w.remember(thrice, event(EvtFinishedMining, "mined"))
 	}
-	if thrice.affect.Grip != 3*once.affect.Grip || thrice.affect.Charge != 3*once.affect.Charge {
-		t.Fatalf("three digs = %+v, want three times one dig %+v", thrice.affect, once.affect)
+	if thrice.affect.Grip <= once.affect.Grip {
+		t.Fatalf("three digs = %+v, want more than one dig %+v", thrice.affect, once.affect)
+	}
+	if thrice.affect.Grip >= 3*once.affect.Grip {
+		t.Fatalf("three digs = %+v, want wear to have taken something off %+v x3", thrice.affect, once.affect)
 	}
 }
 
@@ -178,7 +189,7 @@ func TestTraitAppraisalThroughLifeEventFunnel(t *testing.T) {
 }
 
 func TestTraitTransformsUseDeclarationOrder(t *testing.T) {
-	in := lifeEventAppraisals[EvtIncineratedRefuse].Target
+	in := lifeEventAppraisals[EvtIncineratedRefuse].Fresh
 	a := &Entity{Profile: &Profile{Traits: []Trait{TraitTidy, TraitIndustrious}}}
 	b := &Entity{Profile: &Profile{Traits: []Trait{TraitIndustrious, TraitTidy}}}
 	gotA := transformMoodVector(a, EvtIncineratedRefuse, in)
@@ -370,5 +381,119 @@ func TestChargeOrdersSleepAndWork(t *testing.T) {
 		if charge < 0 && sleep <= work || charge > 0 && work <= sleep {
 			t.Fatalf("charge %d produced sleep=%d work=%d", charge, sleep, work)
 		}
+	}
+}
+
+// The headline behavior: the same event leaves a colonist somewhere different
+// once they have stopped being new to it.
+func TestFirstKillingAndTenthDifferInKind(t *testing.T) {
+	w, c := focusTestColonist(t)
+	w.remember(c, event(EvtWitnessedColonistKilled, "saw a killing"))
+	first := c.affect
+	for i := 0; i < 10; i++ {
+		w.remember(c, event(EvtWitnessedColonistKilled, "saw another killing"))
+	}
+	tenth := c.affect
+
+	if first.Grip <= 0 {
+		t.Fatalf("a first killing left grip at %d, want the fresh reading to hold them together", first.Grip)
+	}
+	if tenth.Grip >= 0 {
+		t.Fatalf("a tenth killing left grip at %d, want the worn reading to have broken it", tenth.Grip)
+	}
+	if tenth.Valence >= first.Valence {
+		t.Fatalf("valence went %d -> %d, want the tenth to read worse than the first", first.Valence, tenth.Valence)
+	}
+	if tenth.Charge >= first.Charge {
+		t.Fatalf("charge went %d -> %d, want the tenth to read number than the first", first.Charge, tenth.Charge)
+	}
+}
+
+// Wear is not a ratchet. Occasions live in the bounded memory log, so a
+// colonist who has not seen a thing in a long time meets it fresh again.
+func TestWearRecoversAsMemoriesRollOff(t *testing.T) {
+	w, c := focusTestColonist(t)
+	for i := 0; i < 6; i++ {
+		w.remember(c, event(EvtSawGore, "gore"))
+	}
+	worn := w.moodWear(c, EvtSawGore)
+	if worn <= 0 {
+		t.Fatalf("six sightings produced wear %d, want some", worn)
+	}
+	// A long stretch of anything else pushes those occasions out of the log.
+	for i := 0; i < maxColonistMemories; i++ {
+		w.remember(c, eventFrom(EvtWitnessedCatCatch, EntityID(i), "the cat got one"))
+	}
+	if got := w.moodWear(c, EvtSawGore); got != 0 {
+		t.Fatalf("wear after the memories rolled off = %d, want 0", got)
+	}
+}
+
+// Counting occurrences rather than occasions would let one uninterrupted shift
+// peg a colonist forever; collapsing has already called that run one thing.
+func TestCollapsedRunCountsAsOneOccasion(t *testing.T) {
+	w, c := focusTestColonist(t)
+	for i := 0; i < 20; i++ {
+		w.remember(c, event(EvtFinishedMining, "mined"))
+	}
+	if got, want := w.moodWear(c, EvtFinishedMining), w.cfg.MoodWearPerOccasion; got != want {
+		t.Fatalf("wear after one uninterrupted shift = %d, want %d for a single occasion", got, want)
+	}
+}
+
+func TestWearTargetInterpolatesAndCaps(t *testing.T) {
+	a := moodAppraisal{Fresh: MoodVector{10, 20, 30}, Worn: MoodVector{-10, 0, -10}}
+	for _, tc := range []struct {
+		wear int
+		want MoodVector
+	}{
+		{0, MoodVector{10, 20, 30}},
+		{50, MoodVector{0, 10, 10}},
+		{100, MoodVector{-10, 0, -10}},
+	} {
+		if got := wearTarget(a, tc.wear); got != tc.want {
+			t.Errorf("wearTarget at %d%% = %+v, want %+v", tc.wear, got, tc.want)
+		}
+	}
+}
+
+// A full memory log must not push wear past its worn reading and out the far
+// side of the plane.
+func TestWearCapsAtFullyWorn(t *testing.T) {
+	w, c := focusTestColonist(t)
+	for i := 0; i < maxColonistMemories; i++ {
+		w.remember(c, eventFrom(EvtSawGore, EntityID(i), "gore"))
+	}
+	if got := w.moodWear(c, EvtSawGore); got != 100 {
+		t.Fatalf("wear with a log full of one kind = %d, want it capped at 100", got)
+	}
+	a := lifeEventAppraisals[EvtSawGore]
+	if got := wearTarget(a, w.moodWear(c, EvtSawGore)); got != a.Worn {
+		t.Fatalf("fully worn target = %+v, want exactly the worn reading %+v", got, a.Worn)
+	}
+}
+
+// A conversation carries its own per-occurrence appraisal and its own fatigue
+// window; wearing it too would charge a talkative colonist twice.
+func TestConversationIsExemptFromWear(t *testing.T) {
+	w, c := focusTestColonist(t)
+	for i := 0; i < 8; i++ {
+		w.remember(c, eventOutcome(EvtConversation, 20, "talked"))
+	}
+	if w.moodWear(c, EvtConversation) == 0 {
+		t.Fatal("test no longer exercises a worn colonist")
+	}
+	// Both start from neutral, so this compares how the chat was appraised
+	// rather than where the earlier ones happened to leave them.
+	c.affect = AffectState{}
+	w.remember(c, eventOutcome(EvtConversation, 20, "talked"))
+
+	fw, fresh := focusTestColonist(t)
+	fresh.affect = AffectState{}
+	fw.remember(fresh, eventOutcome(EvtConversation, 20, "talked"))
+
+	if c.affect.Grip != fresh.affect.Grip || c.affect.Valence != fresh.affect.Valence {
+		t.Fatalf("a worn colonist read a chat as %+v and a fresh one as %+v -- wear leaked into conversations",
+			c.affect, fresh.affect)
 	}
 }

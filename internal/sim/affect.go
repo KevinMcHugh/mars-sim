@@ -15,9 +15,15 @@ type MoodVector struct {
 // to leave them, and how hard it insists. Impact alone chooses between the two
 // operations in blendAffect, which is why a run of good meals cannot cancel a
 // killing -- the killing moved the colonist rather than adding to them.
+//
+// Fresh is where the event leaves someone it is new to; Worn is where it
+// leaves someone it has stopped being new to. Note which way round the pair
+// runs for the traumatic kinds: Fresh is the *stronger* reading, not the
+// weaker one. The first death is a rallying cry and the tenth is catatonia, so
+// wear turns a reaction rather than just quieting it.
 type moodAppraisal struct {
-	Impact int
-	Target MoodVector
+	Impact      int
+	Fresh, Worn MoodVector
 }
 
 // MoodKind identifies a display attractor. It is never behavioral state: focus
@@ -88,36 +94,40 @@ var moodAttractors = [...]moodAttractor{
 // routine upkeep pegged every colonist at the maximum within a few hundred
 // ticks, which is the same "everyone always reads as fine" failure the axis
 // exists to fix. So only what a colonist would actually count as a good or bad
-// day moves it, and an uneventful shift leaves it where it was.
+// day moves it, and an uneventful shift leaves it where it was. The worn
+// column holds that line for the same reason: monotony takes away the lift a
+// job used to give rather than making the job itself a misfortune, so it shows
+// up in grip rather than as a slow bleed of valence no colonist could explain.
 var lifeEventAppraisals = [numLifeEventKinds]moodAppraisal{
-	EvtSawAlien:                  {45, MoodVector{8, -10, -15}},
-	EvtSawMouse:                  {8, MoodVector{2, -3, 0}},
-	EvtSawGore:                   {30, MoodVector{-3, -7, -6}},
-	EvtBitten:                    {70, MoodVector{55, -44, -30}},
-	EvtWitnessedColonistKilled:   {95, MoodVector{28, -74, -60}},
-	EvtWitnessedColonistAttacked: {75, MoodVector{35, -63, -40}},
-	EvtCrushedMouse:              {6, MoodVector{-1, 2, 0}},
-	EvtWitnessedMouseCrushed:     {8, MoodVector{-1, -2, -1}},
-	EvtWitnessedCatCatch:         {5, MoodVector{1, 1, 0}},
-	EvtKilledAlien:               {55, MoodVector{45, 52, 35}},
-	EvtWitnessedAlienKilled:      {35, MoodVector{5, 6, 4}},
-	EvtWoundedAlien:              {25, MoodVector{4, 5, 2}},
-	EvtWitnessedGunfight:         {50, MoodVector{35, -25, -20}},
+	EvtSawAlien:                  {45, MoodVector{8, -10, -15}, MoodVector{5, -22, -22}},
+	EvtSawMouse:                  {8, MoodVector{2, -3, 0}, MoodVector{1, -1, 0}},
+	EvtSawGore:                   {30, MoodVector{-3, -7, -6}, MoodVector{-6, -14, -10}},
+	EvtBitten:                    {70, MoodVector{55, -44, -30}, MoodVector{35, -80, -55}},
+	EvtWitnessedColonistKilled:   {95, MoodVector{70, 40, -60}, MoodVector{20, -85, -85}},
+	EvtWitnessedColonistAttacked: {75, MoodVector{45, 25, -40}, MoodVector{25, -70, -60}},
+	EvtCrushedMouse:              {6, MoodVector{-1, 2, 0}, MoodVector{-2, 0, 0}},
+	EvtWitnessedMouseCrushed:     {8, MoodVector{-1, -2, -1}, MoodVector{-1, -1, 0}},
+	EvtWitnessedCatCatch:         {5, MoodVector{1, 1, 0}, MoodVector{0, 0, 0}},
+	EvtKilledAlien:               {55, MoodVector{45, 52, 35}, MoodVector{25, 20, 8}},
+	EvtWitnessedAlienKilled:      {35, MoodVector{5, 6, 4}, MoodVector{2, 2, 0}},
+	EvtWoundedAlien:              {25, MoodVector{4, 5, 2}, MoodVector{2, 2, 0}},
+	EvtWitnessedGunfight:         {50, MoodVector{35, -25, -20}, MoodVector{18, -45, -35}},
 	// A chat's target is the one thing here that cannot be a table lookup: it
 	// comes from how that particular conversation went. Only the impact is
-	// declared; conversationMoodVector supplies the rest per occurrence.
+	// declared; conversationMoodVector supplies the rest per occurrence, and
+	// wear leaves it alone (see applyAffect).
 	EvtConversation:         {Impact: 20},
-	EvtAte:                  {10, MoodVector{4, 2, 1}},
-	EvtUsedToilet:           {4, MoodVector{1, 2, 0}},
-	EvtSlept:                {25, MoodVector{15, 2, 2}},
-	EvtNeedSatisfied:        {8, MoodVector{2, 2, 0}},
-	EvtFinishedMining:       {15, MoodVector{-1, 5, 0}},
-	EvtClearedRock:          {15, MoodVector{-1, 5, 0}},
-	EvtFinishedConstruction: {18, MoodVector{-1, 6, 3}},
-	EvtCleanedRefuse:        {14, MoodVector{-1, 5, 0}},
-	EvtIncineratedRefuse:    {16, MoodVector{-1, 7, 1}},
-	EvtMutated:              {60, MoodVector{18, -70, -35}},
-	EvtWitnessedMutation:    {35, MoodVector{2, -8, -10}},
+	EvtAte:                  {10, MoodVector{4, 2, 1}, MoodVector{2, -1, 0}},
+	EvtUsedToilet:           {4, MoodVector{1, 2, 0}, MoodVector{0, 0, 0}},
+	EvtSlept:                {25, MoodVector{15, 2, 2}, MoodVector{12, -2, 0}},
+	EvtNeedSatisfied:        {8, MoodVector{2, 2, 0}, MoodVector{1, 0, 0}},
+	EvtFinishedMining:       {15, MoodVector{-1, 5, 0}, MoodVector{-5, -3, 0}},
+	EvtClearedRock:          {15, MoodVector{-1, 5, 0}, MoodVector{-5, -3, 0}},
+	EvtFinishedConstruction: {18, MoodVector{-1, 6, 3}, MoodVector{-4, 0, 0}},
+	EvtCleanedRefuse:        {14, MoodVector{-1, 5, 0}, MoodVector{-5, -4, 0}},
+	EvtIncineratedRefuse:    {16, MoodVector{-1, 7, 1}, MoodVector{-4, 0, 0}},
+	EvtMutated:              {60, MoodVector{18, -70, -35}, MoodVector{10, -90, -70}},
+	EvtWitnessedMutation:    {35, MoodVector{2, -8, -10}, MoodVector{1, -16, -18}},
 }
 
 func roundedDiv(n, d int) int {
@@ -332,11 +342,47 @@ func (a AffectState) MoodName() string {
 	return moodName(a.Label, a.Valence < 0)
 }
 
+// moodWear reports how used to a kind of thing a colonist is, in hundredths.
+//
+// It counts remembered *occasions* rather than occurrences: a run of digs
+// folds into one memory, and collapsing has already decided that run was one
+// memorable thing. Counting each occurrence instead would let a single long
+// shift peg a colonist's wear permanently, which is the ratchet this has to
+// avoid. Entries roll off the bounded memory log, so wear falls again once
+// something stops happening -- recovery is most of what keeps this feeling
+// like a person rather than a counter.
+func (w *World) moodWear(e *Entity, kind LifeEventKind) int {
+	occasions := 0
+	for i := range e.Memories {
+		if e.Memories[i].Kind == kind {
+			occasions++
+		}
+	}
+	return min(100, occasions*w.cfg.MoodWearPerOccasion)
+}
+
+// wearTarget moves an appraisal from its fresh reading toward its worn one.
+func wearTarget(a moodAppraisal, wear int) MoodVector {
+	if wear <= 0 {
+		return a.Fresh
+	}
+	return MoodVector{
+		Charge:  a.Fresh.Charge + roundedDiv((a.Worn.Charge-a.Fresh.Charge)*wear, 100),
+		Grip:    a.Fresh.Grip + roundedDiv((a.Worn.Grip-a.Fresh.Grip)*wear, 100),
+		Valence: a.Fresh.Valence + roundedDiv((a.Worn.Valence-a.Fresh.Valence)*wear, 100),
+	}
+}
+
 func (w *World) applyAffect(e *Entity, evt LifeEvent) {
 	appraisal := lifeEventAppraisals[evt.Kind]
+	target := wearTarget(appraisal, w.moodWear(e, evt.Kind))
 	if evt.Outcome != 0 || evt.Kind == EvtConversation {
-		appraisal.Target = conversationMoodVector(evt.Outcome)
+		// A conversation is exempt: its vector is already computed per
+		// occurrence, and noteConversation's social fatigue window is wearing
+		// down repetition by the time it gets here. Wearing it again would
+		// charge a talkative colonist twice for the same talkativeness.
+		target = conversationMoodVector(evt.Outcome)
 	}
-	appraisal.Target = transformMoodVector(e, evt.Kind, appraisal.Target)
-	w.blendAffect(e, appraisal.Target, appraisal.Impact)
+	target = transformMoodVector(e, evt.Kind, target)
+	w.blendAffect(e, target, appraisal.Impact)
 }

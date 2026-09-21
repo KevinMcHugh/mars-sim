@@ -250,7 +250,15 @@ func TestCollapsedRunStillAppliesAffectPerOccurrence(t *testing.T) {
 	if once.affect.Grip <= 0 {
 		t.Fatalf("affect after one job = %+v, want positive grip", once.affect)
 	}
-	if thrice.affect.Charge != 3*once.affect.Charge || thrice.affect.Grip != 3*once.affect.Grip {
-		t.Errorf("affect after three collapsed jobs = %+v, want three times %+v", thrice.affect, once.affect)
+	// Not three times once: the second and third jobs land on a colonist who
+	// has done this before, and wear has started taking the lift out of it.
+	// Each one still counts, which is what collapsing must not change.
+	if thrice.affect.Grip <= once.affect.Grip || thrice.affect.Charge >= once.affect.Charge {
+		t.Errorf("affect after three collapsed jobs = %+v, want further along than one job %+v",
+			thrice.affect, once.affect)
+	}
+	if thrice.affect.Grip >= 3*once.affect.Grip {
+		t.Errorf("affect after three collapsed jobs = %+v, want wear to have taken something off %+v x3",
+			thrice.affect, once.affect)
 	}
 }
