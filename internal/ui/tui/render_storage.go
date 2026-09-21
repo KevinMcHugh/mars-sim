@@ -42,7 +42,7 @@ func (m Model) renderStorageList(storages []sim.StorageView, sel, rows, width in
 	end := min(len(storages), start+capacity)
 
 	var b strings.Builder
-	b.WriteString(labelStyle.Render(fmt.Sprintf("DETAILS · STORAGE (%d)", len(storages))))
+	b.WriteString(labelStyle.Render(fmt.Sprintf("DETAILS"+divider+"STORAGE (%d)", len(storages))))
 	b.WriteByte('\n')
 	for i := start; i < end; i++ {
 		storage := storages[i]
@@ -73,7 +73,7 @@ func (m Model) renderStorageDetail(storage sim.StorageView, rows, width int) str
 	var b strings.Builder
 	b.WriteString(titleStyle.Render(fmt.Sprintf("Storage chest (%d,%d)", storage.Pos.X, storage.Pos.Y)))
 	b.WriteString("\n")
-	b.WriteString(statStyle.Render(fmt.Sprintf("%d/%d slots used · %d/%d item capacity",
+	b.WriteString(statStyle.Render(fmt.Sprintf("%d/%d slots used"+divider+"%d/%d item capacity",
 		used, total, storageItemCount(storage.Inventory), total*sim.MaxStackSize)))
 	b.WriteString("\n\n")
 	b.WriteString(labelStyle.Render("CONTENTS"))

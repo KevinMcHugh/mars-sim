@@ -32,6 +32,12 @@ const (
 	// anything useful. A screen that cannot fit two panels at this width shows
 	// one, rather than drawing both and letting the second run off the edge.
 	minPanelWidth = 26
+
+	// divider joins short fields onto one line across the panels — "he/him ·
+	// age 62", "eating · flat", "DETAILS · STORAGE". A shared const keeps every
+	// such line using the same "·", rather than a stray literal like "*"
+	// creeping into just one of them.
+	divider = " · "
 )
 
 var (

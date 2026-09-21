@@ -14,8 +14,10 @@ import (
 // rosterListWidth is the list panel's total footprint in cells, border
 // included. It leaves room for the age/gender glyph and a space (3), the
 // longest generated name (17 columns), they/them (8), "age 80" (6), the
-// longest state ("relieving", 9), three separators (9), and the selection
-// marker (2), plus the panel chrome.
+// longest state ("relieving", 9) plus a mood suffix ("relieving · driven",
+// worst case), three separators (9), and the selection marker (2), plus the
+// panel chrome. A line longer than this still gets truncated rather than
+// wrapped, so the constant is a sizing target, not a hard cap.
 const rosterListWidth = 59
 
 // panelInner is the writable width inside a bordered panel of the given total
@@ -156,10 +158,12 @@ func (m Model) renderColonistList(cs []sim.EntityView, sel, rows, width int) str
 			if c.Profile.Age > 0 {
 				age = fmt.Sprintf("age %d", c.Profile.Age)
 			}
-			infoLine = fmt.Sprintf("%s · %s", pronouns, age)
+			infoLine = pronouns + divider + age
 		}
 		if c.Dead {
 			state = "dead — " + c.Cause
+		} else if c.MoodLabel != "" {
+			state += divider + c.MoodLabel
 		}
 		// The glyph goes through fitGlyph here exactly as it does on the map.
 		// The roster used to draw the bare constant, so a glyph the terminal
@@ -240,13 +244,13 @@ func (m Model) detailLines(c sim.EntityView, inner, barW int) []string {
 	}
 
 	b.WriteString(titleStyle.Render(fitGlyph(colonistGlyph(p))+" "+p.Name) + "\n")
-	b.WriteString(statStyle.Render(fmt.Sprintf("%s · %s", p.Gender.Pronouns(), p.Orientation)) + "\n")
+	b.WriteString(statStyle.Render(fmt.Sprintf("%s"+divider+"%s", p.Gender.Pronouns(), p.Orientation)) + "\n")
 	// Height reads in feet and inches first: mutation can stretch a colonist to
 	// ten feet or shrink them to two (see docs/mutation.md), and that is a fact
 	// about a person you want to take in at a glance, not convert in your head.
-	b.WriteString(statStyle.Render(fmt.Sprintf("age %d · %s (%d cm) · %d kg",
+	b.WriteString(statStyle.Render(fmt.Sprintf("age %d"+divider+"%s (%d cm)"+divider+"%d kg",
 		p.Age, sim.FormatHeight(p.HeightCM), p.HeightCM, p.WeightKG)) + "\n")
-	b.WriteString(statStyle.Render(fmt.Sprintf("%s skin · %s hair", p.SkinTone, p.HairColor)) + "\n\n")
+	b.WriteString(statStyle.Render(fmt.Sprintf("%s skin"+divider+"%s hair", p.SkinTone, p.HairColor)) + "\n\n")
 
 	status := c.State.String()
 	if c.Dead {
@@ -417,7 +421,7 @@ func scrollStatusLine(first, last, total, inner int) string {
 func (m Model) nonColonistDetailLines(c sim.EntityView, inner, barW int) []string {
 	var b strings.Builder
 	b.WriteString(titleStyle.Render(fitGlyph(entityGlyph(c))+" "+colonistName(c)) + "\n")
-	b.WriteString(statStyle.Render(fmt.Sprintf("%s · #%d · (%d, %d)", c.Kind, c.ID, c.Pos.X, c.Pos.Y)) + "\n\n")
+	b.WriteString(statStyle.Render(fmt.Sprintf("%s"+divider+"#%d"+divider+"(%d, %d)", c.Kind, c.ID, c.Pos.X, c.Pos.Y)) + "\n\n")
 
 	if c.Dead {
 		b.WriteString(labelStyle.Render("STATUS") + fmt.Sprintf("  dead (tick %d)\n", c.DiedTick))
