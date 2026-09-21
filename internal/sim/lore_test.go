@@ -319,3 +319,15 @@ func TestSnapshotExposesAlienSpecies(t *testing.T) {
 		t.Fatalf("entity view species = %+v, want %+v", view.AlienSpecies, w.alienSpeciesFor(alien))
 	}
 }
+
+// Snapshot.Seed is the one fact the lore panel shows that isn't derived from
+// anything else -- it must be the actual seed a run started from.
+func TestSnapshotExposesSeed(t *testing.T) {
+	cfg := testConfig()
+	cfg.Seed = 918273
+	w := newTestWorld(t, cfg)
+
+	if got := w.snapshot(false, 1).Seed; got != cfg.Seed {
+		t.Fatalf("snapshot seed = %d, want %d", got, cfg.Seed)
+	}
+}

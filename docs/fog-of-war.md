@@ -17,7 +17,7 @@ per-frame path entirely.
 ## Source
 
 - [`internal/sim/world.go`](../internal/sim/world.go) — `Tile.Explored`, `World.revealAround` / `reveal` / `Explored`, and the `SetTerrain` call that lifts the fog.
-- [`internal/sim/snapshot.go`](../internal/sim/snapshot.go) — `Snapshot.FogOfWar` and `Snapshot.ExploredAt`, the surface a frontend reads.
+- [`internal/sim/snapshot.go`](../internal/sim/snapshot.go) — `Snapshot.FogOfWar`, `Snapshot.ExploredAt`, and `Stats.ExploredTiles`, the surface a frontend reads.
 - [`internal/sim/config.go`](../internal/sim/config.go) — the `fog-of-war` knob.
 - [`internal/ui/tui/view.go`](../internal/ui/tui/view.go) — `renderMap`'s fog runs, `fogStyle`/`fogCells`, `terrainLabel`, and the legend swatch.
 - [`internal/sim/fog_test.go`](../internal/sim/fog_test.go) — what worldgen reveals, what a dig reveals, that reveals reach the published grid, and that exploration never goes backwards.
@@ -71,6 +71,21 @@ frontend's scratch frame — renders the whole map rather than a blank screen,
 because its zero value is "no fog".
 
 `World.Explored(p)` is the same question against live state, for the engine side.
+
+### Counting it
+
+`World.exploredCount` tracks how many tiles have ever been revealed,
+incremented the one time each tile's `Explored` flips in `reveal` — the
+same "maintained incrementally, never rescan the grid" pattern
+`terrainCounts` already uses for excavation progress (see
+[world.md](./world.md)). `Snapshot.Stats.ExploredTiles` publishes a copy of
+it every frame. It stays at zero with fog of war off, since `reveal` is
+never called then (`revealAround` returns immediately) — a caller wanting
+"how much is explored" checks `Snapshot.FogOfWar` first, the same way
+`ExploredAt` does, rather than reading a counter that was never asked to
+move. The TUI's lore tab (see [lore.md](./lore.md) and
+[frontend-tui.md](./frontend-tui.md)) is what actually shows this, as a
+percentage of the map's area.
 
 ### What the TUI does with it
 
@@ -181,3 +196,5 @@ this feature. See [configuration.md](./configuration.md) and
 - [frontend-tui.md](./frontend-tui.md) — how the map draws the fog.
 - [terminal-cell-widths.md](./terminal-cell-widths.md) — the row-width invariant fog has to respect.
 - [configuration.md](./configuration.md) — the `fog-of-war` knob.
+- [lore.md](./lore.md) — the lore tab's "how much is explored" line, read
+  from `Stats.ExploredTiles`.

@@ -132,9 +132,14 @@ type Stats struct {
 	Cats      int
 	Mice      int
 	FloorDug  int // tiles of Floor that exist (excavation progress)
-	Pods      int // nutrient pods built
-	Toilets   int // toilets built
-	Beds      int // dormitory bunks built
+	// ExploredTiles is how many tiles World.reveal has ever uncovered (see
+	// World.exploredCount). Only meaningful when FogOfWar is on -- with it
+	// off every tile already reads as explored (see Snapshot.ExploredAt)
+	// without this counter ever moving, since reveal is never called.
+	ExploredTiles int
+	Pods          int // nutrient pods built
+	Toilets       int // toilets built
+	Beds          int // dormitory bunks built
 	// Incinerators built, and Refuse still on the floor (gore stains plus
 	// bodies) waiting to be hauled to one. See docs/sanitation.md.
 	Incinerators      int
@@ -153,6 +158,11 @@ type Snapshot struct {
 	Tick   int
 	Width  int
 	Height int
+	// Seed is this run's world seed -- the one fact that, together with the
+	// rest of this Snapshot, would let someone else regenerate the same
+	// world. Shown on the lore panel so a player can share or record it. See
+	// docs/lore.md.
+	Seed int64
 	// Tiles is the terrain, as an immutable page-shared grid rather than a
 	// per-frame copy of the map — read it with TerrainAt (or Tiles.At). See
 	// tilegrid.go for why it is not a plain slice.
@@ -247,11 +257,12 @@ func (w *World) snapshot(paused bool, tps int) *Snapshot {
 	// counting them by walking the grid would put the map's whole area back on
 	// every tick, which is exactly what the shared grid above avoids.
 	stats := Stats{
-		Rooms:    w.roomCount,
-		FloorDug: w.terrainCounts[Floor],
-		Pods:     w.terrainCounts[NutrientPod],
-		Toilets:  w.terrainCounts[Toilet],
-		Beds:     w.terrainCounts[Bed],
+		Rooms:         w.roomCount,
+		FloorDug:      w.terrainCounts[Floor],
+		ExploredTiles: w.exploredCount,
+		Pods:          w.terrainCounts[NutrientPod],
+		Toilets:       w.terrainCounts[Toilet],
+		Beds:          w.terrainCounts[Bed],
 
 		Incinerators:      w.terrainCounts[Incinerator],
 		StorageContainers: w.terrainCounts[Storage],
@@ -315,6 +326,7 @@ func (w *World) snapshot(paused bool, tps int) *Snapshot {
 		Tick:                 w.tick,
 		Width:                w.Width,
 		Height:               w.Height,
+		Seed:                 w.cfg.Seed,
 		Tiles:                tiles,
 		Entities:             ents,
 		Log:                  w.log.tail(len(w.log.entries)),

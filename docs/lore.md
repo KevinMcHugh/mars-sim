@@ -37,7 +37,8 @@ than a hardcoded list.
   boolean logic.
 - [`internal/sim/world.go`](../internal/sim/world.go) — `World.alienSpecies`
   (now a roster, `[]AlienSpecies`) and where it's rolled, in `newWorld`; the
-  per-`Alien` species draw in `spawn`.
+  per-`Alien` species draw in `spawn`; `World.exploredCount`, kept
+  incrementally by `reveal`.
 - [`internal/sim/entity.go`](../internal/sim/entity.go) — `Entity.Species`,
   the index into `World.alienSpecies` an individual alien was assigned.
 - [`internal/sim/config.go`](../internal/sim/config.go) — `AlienSpeciesCount`,
@@ -51,10 +52,12 @@ than a hardcoded list.
   alien-swarm occurrence's flavor line, named after whichever spawned alien
   came first.
 - [`internal/sim/snapshot.go`](../internal/sim/snapshot.go) —
-  `Snapshot.AlienSpecies` (the full roster) and `EntityView.AlienSpecies`
-  (the one a living alien belongs to).
+  `Snapshot.AlienSpecies` (the full roster), `EntityView.AlienSpecies` (the
+  one a living alien belongs to), `Snapshot.Seed`, and `Stats.ExploredTiles`.
 - [`internal/ui/tui/render_roster.go`](../internal/ui/tui/render_roster.go) —
   the roster's alien entry, reading `EntityView.AlienSpecies` directly.
+- [`internal/ui/tui/render_lore.go`](../internal/ui/tui/render_lore.go) — the
+  lore tab: world facts and every rolled species' full write-up.
 - [`main.go`](../main.go) — `-alien-names`, loaded the same way `-director`
   loads `director.yaml`.
 
@@ -216,9 +219,25 @@ creature-sighting line in `observeNearby` (`systems.go`) still say "alien"
 deliberately — see Extending it.
 
 `AlienSpecies.Description()` renders a full narrative paragraph (build,
-skin, color, temperament) for a future lore/codex display; `RosterLabel()`
-is the short form (`"Xeno · hostile"`) the roster actually shows today in
-place of a colonist's pronouns/age line.
+skin, color, temperament); `RosterLabel()` is the short form
+(`"Xeno · hostile"`). Both are used in two places: the roster's alien entry
+(`RosterLabel()`, in place of a colonist's pronouns/age line) and the lore
+tab (both — see below).
+
+### The lore tab
+
+The TUI's fourth details panel (`internal/ui/tui/render_lore.go`, `tab` to
+reach it — see [frontend-tui.md](./frontend-tui.md)) is where a player
+actually reads all of this. Its list panel shows world facts —
+`Snapshot.Width`/`Height`, `Snapshot.Seed`, and how much of the map has
+been explored (`Stats.ExploredTiles`, kept incrementally the same way
+`Stats.FloorDug` already is, out of `World.reveal` — see
+[fog-of-war.md](./fog-of-war.md) and [world.md](./world.md)) — above a
+selectable list of `Snapshot.AlienSpecies`, each shown by `RosterLabel()`.
+The detail panel lists the selected species' full build as explicit stat
+lines (height/weight range, eyes, limb split, tail, skin, color, bite
+damage/pace) followed by `Description()`'s narrative paragraph,
+word-wrapped to the panel width.
 
 ## Why it is this way
 
@@ -313,11 +332,15 @@ place of a colonist's pronouns/age line.
   colony that stops fleeing a species it has observed being Friendly (or
   gets more cautious around one it has seen being Hostile) is a real next
   step, deliberately left out of this pass — see Why it is this way.
-- **A codex panel.** `Description()` and `RosterLabel()` already render
-  full-paragraph and roster-line summaries of a species; reaching them from
-  a dedicated "what has the colony learned about this world" panel, rather
-  than only the roster's alien entry, is a natural home for whatever
-  organizations/corporations/other-colonies lore is added next.
+- **A fuller codex.** The TUI's lore tab (see
+  [frontend-tui.md](./frontend-tui.md)) already reaches `Description()` and
+  `RosterLabel()` for every rolled species, plus world facts (size, how much
+  is explored, the seed). Growing it into a genuine "what has the colony
+  learned about this world" codex — sightings-gated reveal, a species' entry
+  staying blank until the colony has actually met one, whatever
+  organizations/corporations/other-colonies lore adds next — is the natural
+  next step; today every species and fact is shown unconditionally, whether
+  or not the colony has ever encountered it.
 - **More names, more conditions.** `internal/sim/alien-names.yaml` (or a
   file passed via `-alien-names`) is the whole pool; add an entry with
   whatever `all`/`any`/`not` condition fits. `nameCondition` covers
@@ -354,6 +377,10 @@ place of a colonist's pronouns/age line.
   simplification it makes when a swarm spans more than one rolled species.
 - [personality.md](./personality.md) — the `prng`/`rng` stream split lore's
   own dedicated stream sits alongside.
+- [frontend-tui.md](./frontend-tui.md) — the lore tab, where a player
+  actually reads all of this.
+- [fog-of-war.md](./fog-of-war.md) — `World.reveal`, where
+  `Stats.ExploredTiles` is kept.
 - [configuration.md](./configuration.md) — how `AlienSpeciesCount`,
   `AlienCautiousRadius`, and the other alien tunables become CLI flags and
   settings-file keys.

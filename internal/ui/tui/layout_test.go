@@ -104,6 +104,8 @@ func TestPanelsRenderAtTheirDeclaredWidth(t *testing.T) {
 		{"sidebar", sidebarWidth},
 		{"roster list", rosterListWidth},
 		{"job list", jobListWidth},
+		{"storage list", storageListWidth},
+		{"lore list", loreListWidth},
 	}
 	for _, tc := range cases {
 		got := sidebarStyle.Width(tc.width - borderCells).Height(4).Render("content")
@@ -189,8 +191,26 @@ func busySnapshot() *sim.Snapshot {
 	}
 
 	return &sim.Snapshot{
-		Tick: 1234, Width: w, Height: h, Tiles: sim.NewTileGrid(w, h, tiles), TicksPerSecond: 8,
+		Tick: 1234, Width: w, Height: h, Seed: 42, Tiles: sim.NewTileGrid(w, h, tiles), TicksPerSecond: 8,
 		MoodMax: 100, AffinityMax: 100, Entities: entities,
+		AlienSpecies: []sim.AlienSpecies{
+			{
+				Singular: "xeno", Plural: "xenos",
+				HeightMinCM: 180, HeightMaxCM: 220, WeightMinKG: 70, WeightMaxKG: 95,
+				Eyes: 4, Limbs: 6, Arms: 2, Tail: true,
+				Skin: sim.SkinScaly, Color: "green",
+				Temperament: sim.TemperamentHostile,
+				BiteDamage:  12, BiteRest: 2, Slowness: 1,
+			},
+			{
+				Singular: "gremlin", Plural: "gremlins",
+				HeightMinCM: 90, HeightMaxCM: 130, WeightMinKG: 25, WeightMaxKG: 40,
+				Eyes: 2, Limbs: 4, Arms: 2, Tail: false,
+				Skin: sim.SkinFurry, Color: "gray",
+				Temperament: sim.TemperamentCautious,
+				BiteDamage:  4, BiteRest: 3, Slowness: 2,
+			},
+		},
 		Projects: []sim.ProjectView{{
 			ID: 1, Name: "a dormitory with a deliberately long name", QueuedTick: 2,
 			Tasks: []sim.TaskView{
@@ -231,7 +251,7 @@ func TestListScreensFillTerminalHeight(t *testing.T) {
 	for _, mode := range []struct {
 		name string
 		mode viewMode
-	}{{"roster", modeRoster}, {"jobs", modeJobs}, {"storage", modeStorage}} {
+	}{{"roster", modeRoster}, {"jobs", modeJobs}, {"storage", modeStorage}, {"lore", modeLore}} {
 		for _, size := range []struct{ w, h int }{{100, 30}, {120, 40}, {200, 50}, {80, 24}} {
 			m := New(nil, nil)
 			m.termW, m.termH = size.w, size.h

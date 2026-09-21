@@ -316,6 +316,13 @@ type World struct {
 	// grid or the entity set to answer "how many of X?".
 	terrainCounts [numTerrains]int
 	kindCounts    [numKinds]int
+	// exploredCount is how many tiles reveal has ever marked Explored, kept
+	// incrementally the same way terrainCounts is: reveal only increments it
+	// the one time a tile flips (see reveal), so a frontend asking "how much
+	// of the map has the colony seen?" (the lore panel) never has to walk the
+	// grid to answer it. Stays 0 when Config.FogOfWar is off, since reveal is
+	// never called then -- Snapshot.FogOfWar is what a caller checks first.
+	exploredCount int
 	// goreTotal/corpseTotal are the same idea for tile refuse: the colony's
 	// sanitation planning asks "is there anything to clean up?" every planning
 	// cycle, which must not mean walking the map. See refuseTotal.
@@ -686,6 +693,7 @@ func (w *World) reveal(p Point) {
 		return
 	}
 	w.tiles[i].Explored = true
+	w.exploredCount++
 	w.markTilePageDirty(i)
 }
 

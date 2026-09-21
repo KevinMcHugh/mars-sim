@@ -141,6 +141,8 @@ func (m Model) renderFrame() string {
 		frame = m.renderJobs()
 	case modeStorage:
 		frame = m.renderStorage()
+	case modeLore:
+		frame = m.renderLore()
 	default:
 		body := m.renderMap()
 		if m.sidebarFits() {

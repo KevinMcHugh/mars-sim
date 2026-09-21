@@ -49,6 +49,58 @@ func TestWorldgenRevealsTheCavernAndItsRim(t *testing.T) {
 	}
 }
 
+// Stats.ExploredTiles is kept incrementally (see World.exploredCount) rather
+// than recomputed by scanning the grid, so it has to be checked against an
+// actual scan rather than trusted on its own.
+func TestExploredTilesCountMatchesTheExploredSet(t *testing.T) {
+	w := newTestWorld(t, testConfig())
+
+	want := 0
+	for y := 0; y < w.Height; y++ {
+		for x := 0; x < w.Width; x++ {
+			if w.Explored(Point{x, y}) {
+				want++
+			}
+		}
+	}
+	if got := w.snapshot(false, 8).Stats.ExploredTiles; got != want {
+		t.Fatalf("Stats.ExploredTiles = %d, want %d (scanned)", got, want)
+	}
+
+	// Digging further must move the counter by exactly the newly revealed
+	// tiles, not double-count ones already lit (reveal is a no-op past the
+	// first time — see World.reveal).
+	before := w.snapshot(false, 8).Stats.ExploredTiles
+	var target Point
+	for p := range w.board.frontier {
+		target = p
+		break
+	}
+	newlyRevealed := 0
+	for _, d := range append([]Point{{0, 0}}, neighbors8[:]...) {
+		if q := target.Add(d.X, d.Y); w.InBounds(q) && !w.Explored(q) {
+			newlyRevealed++
+		}
+	}
+	w.SetTerrain(target, Floor)
+	if got, want := w.snapshot(false, 8).Stats.ExploredTiles, before+newlyRevealed; got != want {
+		t.Fatalf("Stats.ExploredTiles after digging = %d, want %d (%d before + %d newly revealed)",
+			got, want, before, newlyRevealed)
+	}
+}
+
+// With fog of war off, reveal is never called (see revealAround), so the
+// counter must stay at zero rather than reporting a number nothing produced.
+func TestExploredTilesStaysZeroWithFogOff(t *testing.T) {
+	cfg := testConfig()
+	cfg.FogOfWar = false
+	w := newTestWorld(t, cfg)
+
+	if got := w.snapshot(false, 8).Stats.ExploredTiles; got != 0 {
+		t.Fatalf("Stats.ExploredTiles with fog off = %d, want 0", got)
+	}
+}
+
 // Digging lifts the fog one tile further: the ring of rock behind the tile just
 // mined out becomes visible, and nothing beyond it does.
 func TestDiggingLiftsTheFogAheadOfIt(t *testing.T) {
