@@ -45,9 +45,12 @@ type Config struct {
 	StartPistols  int `cfg:"pistols" doc:"pistols the colony ship arrives with"`
 	StartShotguns int `cfg:"shotguns" doc:"shotguns the colony ship arrives with"`
 
-	// GraveyardSize is how many recent deaths (any kind) are kept as frozen
-	// records for the roster's "dead" filter; 0 disables death tracking
-	// entirely. See docs/combat.md.
+	// GraveyardSize is how many recent deaths (any kind) are kept in the
+	// bounded graveyard feed used for the roster's "dead" filter on
+	// non-colonist kinds; 0 disables that feed entirely. It does not affect
+	// a colonist's permanent record in World.deceasedColonists, which is
+	// unbounded and always kept regardless of this setting. See
+	// docs/combat.md.
 	GraveyardSize int `cfg:"graveyard-size" doc:"recent deaths kept for the roster's dead filter (0 disables)"`
 
 	// Timing.

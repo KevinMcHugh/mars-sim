@@ -428,6 +428,15 @@ type World struct {
 	// cfg.GraveyardSize by remove(), the only place entities die.
 	graveyard []EntityView
 
+	// deceasedColonists permanently archives every colonist who has ever
+	// died, keyed by EntityID so family relations, name lookups, and a
+	// colonist's frozen inventory all keep resolving indefinitely instead of
+	// falling out of the bounded graveyard window. It is never trimmed:
+	// unlike graveyard (which also holds mice/cats/aliens and must survive a
+	// kill flood), the size of this map is bounded by how many colonists
+	// ever existed, not by combat volume. See docs/combat.md.
+	deceasedColonists map[EntityID]EntityView
+
 	tick int
 	// alwaysArbitrate is a test-only differential oracle. Production leaves it
 	// false; keeping the switch on World avoids a user-facing tuning knob for a
@@ -457,6 +466,7 @@ func newWorld(cfg Config, rng *rand.Rand) *World {
 		kinRevision:       1,
 		kinChildrenCache:  make(map[kinID][]kinID),
 		affinity:          make(map[EntityID]map[EntityID]int),
+		deceasedColonists: make(map[EntityID]EntityView),
 		nextID:            1,
 		rng:               rng,
 		prng:              rand.New(rand.NewSource(cfg.Seed ^ 0x5DEECE66D)),
@@ -763,15 +773,25 @@ func (w *World) remove(id EntityID, cause string) {
 			w.graveyard = w.graveyard[over:]
 		}
 	}
+	if e.Kind == Colonist {
+		// Computed with full=true, and before any of the bookkeeping below
+		// runs, so Relations/Affinities are captured as they stood at the
+		// moment of death rather than left empty. The kin node keeps
+		// pointing at id (see the kin comment below), so this colonist's own
+		// family ties resolve here forever, not just for one frozen frame.
+		dead := w.entityView(e, w.cachedKinChildren(), true)
+		dead.Dead, dead.DiedTick, dead.Cause = true, w.tick, cause
+		w.deceasedColonists[id] = dead
+	}
 	w.occ[w.index(e.Pos)] = 0
 	w.kindCounts[e.Kind]--
 	delete(w.kindEntities[e.Kind], id)
 	w.removeFromChunkIndex(w.chunkIndexOf(e.Pos), id)
-	if e.kin != 0 {
-		if kp := w.kin[e.kin]; kp != nil {
-			kp.entity = 0 // keep the node so surviving relatives stay connected
-		}
-	}
+	// The kin node (if any) is left as-is: its entity field keeps pointing at
+	// id so surviving relatives' family trees still name this colonist and
+	// so descendants stay connected through them. relativesOf resolves
+	// aliveness via w.entities/w.deceasedColonists, not by the node itself
+	// going blank.
 	w.dropAffinity(id)
 	w.releaseName(e)
 	delete(w.entities, id)

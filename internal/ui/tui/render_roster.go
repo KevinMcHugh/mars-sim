@@ -38,9 +38,12 @@ var (
 // rosterEntries returns the entities the roster currently shows, sorted by ID
 // so the order is stable frame to frame. Colonists are always eligible;
 // showNonHuman additionally admits aliens/cats/mice, and showDead further
-// admits frozen graveyard records (Snapshot.Graveyard), subject to the same
-// kind filter — a dead mouse only shows up once both filters are on. See
-// docs/combat.md.
+// admits dead colonists (every one, from the permanent Snapshot.Deceased
+// archive) and other recently-dead kinds (Snapshot.Graveyard, which is
+// bounded and covers mice/cats/aliens too), subject to the same kind filter
+// — a dead mouse only shows up once both filters are on. Graveyard also
+// contains colonist records, but only Deceased is used for colonists here so
+// one death is never listed twice. See docs/combat.md.
 func (m Model) rosterEntries() []sim.EntityView {
 	if m.latest == nil {
 		return nil
@@ -54,9 +57,12 @@ func (m Model) rosterEntries() []sim.EntityView {
 	}
 	if m.showDead {
 		for _, e := range m.latest.Graveyard {
-			if include(e.Kind) {
+			if e.Kind != sim.Colonist && include(e.Kind) {
 				cs = append(cs, e)
 			}
+		}
+		for _, e := range m.latest.Deceased {
+			cs = append(cs, e)
 		}
 	}
 	sort.Slice(cs, func(i, j int) bool { return cs[i].ID < cs[j].ID })
@@ -442,7 +448,9 @@ func bodyPartLines(c sim.EntityView) []string {
 }
 
 // colonistNames maps colonist IDs to display names for the latest frame, so the
-// inspector can name a colonist's relatives and acquaintances.
+// inspector can name a colonist's relatives and acquaintances — living or
+// dead: Deceased is consulted too, so a family tree that reaches a dead
+// relative still shows their name instead of a blank entry.
 func (m Model) colonistNames() map[sim.EntityID]string {
 	names := make(map[sim.EntityID]string)
 	if m.latest == nil {
@@ -452,6 +460,9 @@ func (m Model) colonistNames() map[sim.EntityID]string {
 		if e.Kind == sim.Colonist {
 			names[e.ID] = colonistName(e)
 		}
+	}
+	for _, e := range m.latest.Deceased {
+		names[e.ID] = colonistName(e)
 	}
 	return names
 }
