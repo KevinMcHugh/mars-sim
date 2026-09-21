@@ -14,7 +14,7 @@ import (
 // rosterListWidth is the list panel's total footprint in cells, border
 // included. It leaves room for the age/gender glyph and a space (3), the
 // longest generated name (17 columns), they/them (8), "age 80" (6), the
-// longest state ("relieving", 9) plus a mood suffix ("relieving * driven",
+// longest state ("relieving", 9) plus a mood suffix ("relieving · driven",
 // worst case), three separators (9), and the selection marker (2), plus the
 // panel chrome. A line longer than this still gets truncated rather than
 // wrapped, so the constant is a sizing target, not a hard cap.
@@ -163,7 +163,7 @@ func (m Model) renderColonistList(cs []sim.EntityView, sel, rows, width int) str
 		if c.Dead {
 			state = "dead — " + c.Cause
 		} else if c.MoodLabel != "" {
-			state += " * " + c.MoodLabel
+			state += " · " + c.MoodLabel
 		}
 		// The glyph goes through fitGlyph here exactly as it does on the map.
 		// The roster used to draw the bare constant, so a glyph the terminal
