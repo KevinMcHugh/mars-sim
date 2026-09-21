@@ -478,17 +478,26 @@
 # frontier-field-area: 90000
 
 # ── Aliens ──────────────────────────────────────────────────────────────
+## distinct alien species this seed rolls (every alien belongs to one)
+# alien-species-count: 1
+
 ## alien hit points
 # alien-hp: 30
 
-## HP removed per alien bite
+## baseline HP removed per bite, before a species' size scales it
 # alien-damage: 6
 
-## cooldown ticks between alien bites
+## baseline cooldown ticks between bites, before a species' temperament scales it
 # alien-bite-rest: 3
 
-## alien acts once every N ticks (higher = slower)
+## baseline: alien acts once every N ticks (higher = slower), before a species' temperament scales it
 # alien-slowness: 2
+
+## specimen weight in kg at which a species deals exactly alien-damage
+# alien-reference-weight-kg: 80
+
+## how close a colonist must come before a Cautious species reacts and closes in
+# alien-cautious-radius: 3
 
 # ── Weapons ─────────────────────────────────────────────────────────────
 ## HP removed per pistol shot

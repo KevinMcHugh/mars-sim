@@ -223,11 +223,33 @@ type Config struct {
 	FrontierFieldMinColonists int `cfg:"frontier-field-colonists" sec:"Mining strategy" doc:"colony size at/above which miners use the shared frontier flow field"`
 	FrontierFieldMinArea      int `cfg:"frontier-field-area" doc:"map area (tiles) at/above which miners use the shared frontier flow field"`
 
-	// Alien stats.
-	AlienHP       int `cfg:"alien-hp" sec:"Aliens" doc:"alien hit points"`
-	AlienDamage   int `cfg:"alien-damage" doc:"HP removed per alien bite"`
-	AlienBiteRest int `cfg:"alien-bite-rest" doc:"cooldown ticks between alien bites"`
-	AlienSlowness int `cfg:"alien-slowness" doc:"alien acts once every N ticks (higher = slower)"`
+	// Alien stats. AlienDamage/AlienBiteRest/AlienSlowness are baselines: each
+	// species rolled for this world's lore (see lore.go) scales them by its
+	// rolled size and temperament, so what an alien actually deals and how
+	// fast it moves varies by seed and by species even at the same config.
+	// AlienReferenceWeightKG is the specimen weight at which a species deals
+	// exactly AlienDamage. AlienSpeciesCount is how many distinct species a
+	// seed rolls; every Alien entity belongs to one of them.
+	// AlienCautiousRadius is how close a colonist has to come before a
+	// Cautious species reacts and closes in, rather than only a Hostile
+	// species' unconditional hunt.
+	AlienSpeciesCount      int `cfg:"alien-species-count" sec:"Aliens" doc:"distinct alien species this seed rolls (every alien belongs to one)"`
+	AlienHP                int `cfg:"alien-hp" doc:"alien hit points"`
+	AlienDamage            int `cfg:"alien-damage" doc:"baseline HP removed per bite, before a species' size scales it"`
+	AlienBiteRest          int `cfg:"alien-bite-rest" doc:"baseline cooldown ticks between bites, before a species' temperament scales it"`
+	AlienSlowness          int `cfg:"alien-slowness" doc:"baseline: alien acts once every N ticks (higher = slower), before a species' temperament scales it"`
+	AlienReferenceWeightKG int `cfg:"alien-reference-weight-kg" doc:"specimen weight in kg at which a species deals exactly alien-damage"`
+	AlienCautiousRadius    int `cfg:"alien-cautious-radius" doc:"how close a colonist must come before a Cautious species reacts and closes in"`
+
+	// AlienNames configures the pool of names ("xenos," "critters," ...) a
+	// rolled species can be given, each gated by a condition over its build
+	// (legs, arms, skin, color, temperament, size). Deliberately untagged
+	// like Schedules: it is not a scalar tunable, and its meaningful zero
+	// value (nil/empty) falls back to defaultAlienNames() rather than a
+	// default worth documenting in mars-sim.yaml. It is loaded from
+	// alien-names.yaml (or -alien-names) the same way director.yaml loads
+	// Schedules. See lore.go, alien_names.go and docs/lore.md.
+	AlienNames []AlienNameEntry
 
 	// Weapon stats. A colonist carrying one stands and fights an alien within
 	// Range instead of fleeing, firing once every FireRest ticks. See
@@ -408,10 +430,13 @@ func DefaultConfig() Config {
 				Facility: Bed, UseTicks: 40, Fatal: false,
 			},
 		},
-		AlienHP:       30,
-		AlienDamage:   6,
-		AlienBiteRest: 3,
-		AlienSlowness: 2,
+		AlienSpeciesCount:      1,
+		AlienHP:                30,
+		AlienDamage:            6,
+		AlienBiteRest:          3,
+		AlienSlowness:          2,
+		AlienReferenceWeightKG: 80,
+		AlienCautiousRadius:    3,
 
 		PistolDamage:    10,
 		PistolRange:     3,

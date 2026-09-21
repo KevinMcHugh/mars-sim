@@ -16,6 +16,8 @@ implement the same consumer contract.
 - [`internal/ui/tui/view.go`](../internal/ui/tui/view.go) — map, header, sidebar, footer rendering and layout.
 - [`internal/ui/tui/render_roster.go`](../internal/ui/tui/render_roster.go) — the colonist roster and inspector.
 - [`internal/ui/tui/render_jobboard.go`](../internal/ui/tui/render_jobboard.go) — the job board: queued projects and their tasks.
+- [`internal/ui/tui/render_storage.go`](../internal/ui/tui/render_storage.go) — placed storage containers and their contents.
+- [`internal/ui/tui/render_lore.go`](../internal/ui/tui/render_lore.go) — world facts and the rolled alien species.
 - [`internal/ui/tui/glyphs.go`](../internal/ui/tui/glyphs.go) — terrain and entity glyphs.
 - [`main.go`](../main.go) — `runTUI` (and `runHeadless`, the no-UI alternative).
 
@@ -36,11 +38,11 @@ The model never mutates or reads live world state — only snapshots (see
 
 ### Map and details panels
 
-`viewMode` cycles between the **map** (default) and three **details panels**:
-the **roster**, **job board**, and **storage**. `tab` advances map → roster →
-job board → storage → map; `esc` returns straight to the map from any details
-panel. Global keys (`handleKey`) work everywhere; the rest dispatch to the
-active panel's handler.
+`viewMode` cycles between the **map** (default) and four **details panels**:
+the **roster**, **job board**, **storage**, and **lore**. `tab` advances map →
+roster → job board → storage → lore → map; `esc` returns straight to the map
+from any details panel. Global keys (`handleKey`) work everywhere; the rest
+dispatch to the active panel's handler.
 
 - **Map** (`renderMap`): draws a camera-windowed view of the tile grid, two
   terminal cells per tile, overlaying entity glyphs (aliens win position ties).
@@ -78,6 +80,16 @@ active panel's handler.
 - **Storage** (`renderStorage`): a position-sorted list of built chests with
   arrow navigation. Its detail pane shows the selected chest's occupied slots,
   total item count, and 48-slot capacity.
+- **Lore** (`renderLore`): world facts the list panel above a species roster
+  — map size, how much of it has been explored (`Stats.ExploredTiles`, kept
+  incrementally the same way `Stats.FloorDug` is — see
+  [world.md](./world.md)) or "fog off" if there's no fog to track, and the
+  seed (`Snapshot.Seed`). Arrow navigation selects one of `Snapshot.AlienSpecies`
+  — every kind of alien this seed rolled — and the detail pane lists its full
+  build (height/weight range, eyes, limb split, tail, skin, color, bite
+  damage/pace) as scannable stat lines, plus `AlienSpecies.Description()`'s
+  narrative paragraph, word-wrapped (`wrapWords`) to the panel width. See
+  [lore.md](./lore.md).
 
 ### The scrolling inspector
 
@@ -159,10 +171,12 @@ fog, since naming the rock there would hand back the map the fog is hiding. For 
 and `enter` jumps directly to that container in the storage details panel.
 `i` or `esc` closes inspection without quitting.
 
-`tab` cycles **map → roster → jobs → storage → map**. Roster, jobs, and storage
-are collectively the details panels. In storage, `up`/`down` or `j`/`k` selects
-a chest from the position-sorted snapshot list; the inspector shows its occupied
-slots and total capacity.
+`tab` cycles **map → roster → jobs → storage → lore → map**. Roster, jobs,
+storage, and lore are collectively the details panels. In storage,
+`up`/`down` or `j`/`k` selects a chest from the position-sorted snapshot
+list; the inspector shows its occupied slots and total capacity. In lore,
+the same keys select a rolled alien species from `Snapshot.AlienSpecies`;
+the inspector shows its full build and a narrative description.
 
 ### Controls
 
@@ -176,8 +190,8 @@ slots and total capacity.
 | `f` (roster only) | open the roster's filter menu — `↑↓`/`enter`/`space` to toggle the highlighted checkbox, or `d`/`n` for dead/non-human directly; no command sent, this only changes what the roster shows |
 | arrows or `hjkl` | pan the camera (map) / move selection (roster, job board) |
 | `shift+↑↓`, `pgup`/`pgdn` (roster only) | scroll the selected colonist's inspector a line / a screenful |
-| `tab` | cycle map → roster → job board → storage → map |
-| `q` / `esc` | quit (`esc` returns to the map from roster/job board, or cancels an open menu) |
+| `tab` | cycle map → roster → job board → storage → lore → map |
+| `q` / `esc` | quit (`esc` returns to the map from any details panel, or cancels an open menu) |
 
 `s` and `b` work from every screen; `f` only does anything on the roster
 screen (`handleRosterKey`), since filtering only means something there. Every
@@ -327,3 +341,4 @@ contract is genuinely frontend-agnostic.
 - [inventory.md](./inventory.md) — what the roster's inventory view shows.
 - [personality.md](./personality.md) — the attributes and traits the inspector shows.
 - [terminal-cell-widths.md](./terminal-cell-widths.md) — how glyph widths are measured and kept honest.
+- [lore.md](./lore.md) — `AlienSpecies`, `Snapshot.AlienSpecies`/`Seed`, and the world-facts data the lore tab reads.

@@ -21,11 +21,14 @@ const (
 	modeRoster                  // the colonist roster and inspector
 	modeJobs                    // the job board: queued projects and their tasks
 	modeStorage                 // placed storage containers and their contents
+	modeLore                    // world facts and the rolled alien species
 )
 
 // tabLabels names the screens in tab order, matching the "tab" rotation below
 // and the strip drawn by renderTabs.
-var tabLabels = [...]string{modeMap: "Map", modeRoster: "Roster", modeJobs: "Jobs", modeStorage: "Storage"}
+var tabLabels = [...]string{
+	modeMap: "Map", modeRoster: "Roster", modeJobs: "Jobs", modeStorage: "Storage", modeLore: "Lore",
+}
 
 // menuKind selects an open pick-one prompt, if any. Opening a menu (via `s` or
 // `b`) captures keypresses instead of routing them to the current screen:
@@ -88,6 +91,7 @@ type Model struct {
 	selected        int      // roster: index into the ID-sorted entity list
 	jobSelected     int      // job board: index into the queued project list
 	storageSelected int      // storage details: index into Snapshot.Storages
+	loreSelected    int      // lore: index into Snapshot.AlienSpecies
 	menu            menuKind // an open spawn/build/filter picker, if any
 
 	// inspecting turns map arrows from camera panning into one-tile cursor
@@ -196,6 +200,8 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.mode = modeJobs
 		case modeJobs:
 			m.mode = modeStorage
+		case modeStorage:
+			m.mode = modeLore
 		default:
 			m.mode = modeMap
 		}
@@ -214,6 +220,8 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.handleJobsKey(msg)
 	case modeStorage:
 		return m.handleStorageKey(msg)
+	case modeLore:
+		return m.handleLoreKey(msg)
 	default:
 		return m.handleMapKey(msg)
 	}
@@ -627,6 +635,29 @@ func (m Model) handleStorageKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	}
 	m.storageSelected = m.clampStorageSelection(m.storageSelected)
 	return m, nil
+}
+
+// handleLoreKey navigates the rolled alien species in the lore tab.
+func (m Model) handleLoreKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "esc":
+		m.mode = modeMap
+	case "up", "k":
+		m.loreSelected--
+	case "down", "j":
+		m.loreSelected++
+	case "home", "g":
+		m.loreSelected = 0
+	}
+	m.loreSelected = m.clampLoreSelection(m.loreSelected)
+	return m, nil
+}
+
+func (m Model) clampLoreSelection(i int) int {
+	if m.latest == nil || len(m.latest.AlienSpecies) == 0 {
+		return 0
+	}
+	return clamp(i, 0, len(m.latest.AlienSpecies)-1)
 }
 
 func (m Model) clampStorageSelection(i int) int {

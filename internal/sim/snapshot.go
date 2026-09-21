@@ -29,6 +29,11 @@ type EntityView struct {
 	Parts    [numBodyParts]int
 	MaxParts [numBodyParts]int
 
+	// AlienSpecies is the rolled species this entity belongs to (Alien only;
+	// see Entity.Species and World.alienSpeciesFor). Zero-valued for every
+	// other kind. See docs/lore.md.
+	AlienSpecies AlienSpecies
+
 	// Relations are the colonist's familial ties to other colonists, derived from
 	// the family tree; Affinities are its tracked warmth toward colonists it has
 	// talked with, strongest first. Both are colonists only, and computed only
@@ -127,9 +132,14 @@ type Stats struct {
 	Cats      int
 	Mice      int
 	FloorDug  int // tiles of Floor that exist (excavation progress)
-	Pods      int // nutrient pods built
-	Toilets   int // toilets built
-	Beds      int // dormitory bunks built
+	// ExploredTiles is how many tiles World.reveal has ever uncovered (see
+	// World.exploredCount). Only meaningful when FogOfWar is on -- with it
+	// off every tile already reads as explored (see Snapshot.ExploredAt)
+	// without this counter ever moving, since reveal is never called.
+	ExploredTiles int
+	Pods          int // nutrient pods built
+	Toilets       int // toilets built
+	Beds          int // dormitory bunks built
 	// Incinerators built, and Refuse still on the floor (gore stains plus
 	// bodies) waiting to be hauled to one. See docs/sanitation.md.
 	Incinerators      int
@@ -148,6 +158,11 @@ type Snapshot struct {
 	Tick   int
 	Width  int
 	Height int
+	// Seed is this run's world seed -- the one fact that, together with the
+	// rest of this Snapshot, would let someone else regenerate the same
+	// world. Shown on the lore panel so a player can share or record it. See
+	// docs/lore.md.
+	Seed int64
 	// Tiles is the terrain, as an immutable page-shared grid rather than a
 	// per-frame copy of the map — read it with TerrainAt (or Tiles.At). See
 	// tilegrid.go for why it is not a plain slice.
@@ -177,6 +192,12 @@ type Snapshot struct {
 	PendingTrashRooms    int
 	PendingStorageRooms  int
 	Storages             []StorageView
+
+	// AlienSpecies is this world's roster of rolled alien species -- each
+	// one's build, colloquial name, and temperament. Every Alien in Entities
+	// carries a copy of the one it belongs to on its own EntityView.AlienSpecies;
+	// this is the full roster, for a codex-style listing. See docs/lore.md.
+	AlienSpecies []AlienSpecies
 
 	AffinityMax    int // affinity display bars run [-AffinityMax, AffinityMax]
 	MoodMax        int // charge and grip each run in [-MoodMax, MoodMax]
@@ -236,11 +257,12 @@ func (w *World) snapshot(paused bool, tps int) *Snapshot {
 	// counting them by walking the grid would put the map's whole area back on
 	// every tick, which is exactly what the shared grid above avoids.
 	stats := Stats{
-		Rooms:    w.roomCount,
-		FloorDug: w.terrainCounts[Floor],
-		Pods:     w.terrainCounts[NutrientPod],
-		Toilets:  w.terrainCounts[Toilet],
-		Beds:     w.terrainCounts[Bed],
+		Rooms:         w.roomCount,
+		FloorDug:      w.terrainCounts[Floor],
+		ExploredTiles: w.exploredCount,
+		Pods:          w.terrainCounts[NutrientPod],
+		Toilets:       w.terrainCounts[Toilet],
+		Beds:          w.terrainCounts[Bed],
 
 		Incinerators:      w.terrainCounts[Incinerator],
 		StorageContainers: w.terrainCounts[Storage],
@@ -304,6 +326,7 @@ func (w *World) snapshot(paused bool, tps int) *Snapshot {
 		Tick:                 w.tick,
 		Width:                w.Width,
 		Height:               w.Height,
+		Seed:                 w.cfg.Seed,
 		Tiles:                tiles,
 		Entities:             ents,
 		Log:                  w.log.tail(len(w.log.entries)),
@@ -317,6 +340,7 @@ func (w *World) snapshot(paused bool, tps int) *Snapshot {
 		Storages:             storages,
 		Graveyard:            append([]EntityView(nil), w.graveyard...),
 		Deceased:             cloneDeceased(w.deceasedColonists),
+		AlienSpecies:         append([]AlienSpecies(nil), w.alienSpecies...),
 		AffinityMax:          w.cfg.AffinityMax,
 		MoodMax:              w.cfg.MoodMax,
 		Paused:               paused,
@@ -357,6 +381,9 @@ func (w *World) entityView(e *Entity, kinChildren map[kinID][]kinID, full bool) 
 	if e.hasParts() {
 		ev.Parts = e.Parts
 		ev.MaxParts = e.MaxParts
+	}
+	if e.Kind == Alien {
+		ev.AlienSpecies = w.alienSpeciesFor(e)
 	}
 	if e.Kind == Colonist {
 		ev.Charge = e.affect.Charge

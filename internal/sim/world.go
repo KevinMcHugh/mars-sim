@@ -316,6 +316,13 @@ type World struct {
 	// grid or the entity set to answer "how many of X?".
 	terrainCounts [numTerrains]int
 	kindCounts    [numKinds]int
+	// exploredCount is how many tiles reveal has ever marked Explored, kept
+	// incrementally the same way terrainCounts is: reveal only increments it
+	// the one time a tile flips (see reveal), so a frontend asking "how much
+	// of the map has the colony seen?" (the lore panel) never has to walk the
+	// grid to answer it. Stays 0 when Config.FogOfWar is off, since reveal is
+	// never called then -- Snapshot.FogOfWar is what a caller checks first.
+	exploredCount int
 	// goreTotal/corpseTotal are the same idea for tile refuse: the colony's
 	// sanitation planning asks "is there anything to clean up?" every planning
 	// cycle, which must not mean walking the map. See refuseTotal.
@@ -467,6 +474,14 @@ type World struct {
 	agePRNG         *rand.Rand // age generation, isolated so adding age does not shift personality
 	log             *eventLog
 	cfg             Config
+
+	// alienSpecies is this world's roster of rolled alien species -- each
+	// one's build, colloquial name, temperament, and the combat stats (bite
+	// damage/rest, burrow slowness) every Alien entity assigned to it (see
+	// Entity.Species, set in spawn) reads instead of a flat Config value.
+	// Rolled once in newWorld, off its own seed-derived stream (neither rng
+	// nor prng). See lore.go.
+	alienSpecies []AlienSpecies
 }
 
 // newWorld allocates an all-Rock world of the given size.
@@ -495,6 +510,7 @@ func newWorld(cfg Config, rng *rand.Rand) *World {
 		log:               newEventLog(cfg.LogSize),
 		cfg:               cfg,
 	}
+	w.alienSpecies = rollAlienSpeciesRoster(rand.New(rand.NewSource(cfg.Seed^alienLoreSeed)), cfg)
 	w.terrainCounts[Rock] = n // every tile starts as Rock
 
 	for k := Kind(0); k < numKinds; k++ {
@@ -677,6 +693,7 @@ func (w *World) reveal(p Point) {
 		return
 	}
 	w.tiles[i].Explored = true
+	w.exploredCount++
 	w.markTilePageDirty(i)
 }
 
@@ -767,6 +784,12 @@ func (w *World) spawn(kind Kind, p Point) *Entity {
 	}
 	if kind == Mouse {
 		e.sex = w.rollMouseSex() // decides which mice can carry a litter
+	}
+	if kind == Alien && len(w.alienSpecies) > 0 {
+		// Which species this individual belongs to is an ordinary gameplay
+		// draw like where a colonist lands, not part of generating the
+		// species roster itself -- see lore.go.
+		e.Species = w.rng.Intn(len(w.alienSpecies))
 	}
 	w.nextID++
 	w.entities[e.ID] = e

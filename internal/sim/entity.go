@@ -439,6 +439,11 @@ type Entity struct {
 	// armed colonist between shots while fighting an alien (see fightAlien).
 	Cooldown int
 
+	// Species indexes World.alienSpecies (Alien only; see spawn in
+	// world.go and alienSpeciesFor in lore.go): which of this world's
+	// rolled alien species this individual belongs to.
+	Species int
+
 	// Mouse reproduction (mice only). sex decides who can carry a litter; a
 	// female mouse that mates becomes pregnant until dueTick, when she births a
 	// litter. mateReadyTick gates breeding: it holds a newborn back until it

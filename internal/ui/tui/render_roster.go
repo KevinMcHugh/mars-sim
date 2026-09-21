@@ -152,13 +152,18 @@ func (m Model) renderColonistList(cs []sim.EntityView, sel, rows, width int) str
 		if c.State == sim.Idle {
 			state = "idling"
 		}
-		infoLine := c.Kind.String() // overwritten below for a colonist with a profile
+		infoLine := c.Kind.String() // overwritten below for a colonist or an alien
 		if c.Profile != nil {
 			pronouns = c.Profile.Gender.Pronouns()
 			if c.Profile.Age > 0 {
 				age = fmt.Sprintf("age %d", c.Profile.Age)
 			}
 			infoLine = pronouns + divider + age
+		} else if c.Kind == sim.Alien {
+			// Not "alien": every alien belongs to one of this world's rolled
+			// species, and the roster is where a player can actually see
+			// which. See docs/lore.md.
+			infoLine = c.AlienSpecies.RosterLabel()
 		}
 		if c.Dead {
 			state = "dead — " + c.Cause

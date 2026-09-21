@@ -60,6 +60,16 @@ func main() {
 		os.Exit(2)
 	}
 
+	// The alien name pool loads the same way, before flags: found by hand
+	// for the same reason -config is (see below). An absent default file
+	// leaves cfg.AlienNames empty, which falls back to the built-in pool
+	// compiled into the sim package (see lore.go/alien_names.go).
+	alienNamesPath, alienNamesPathGiven := alienNamesPathFromArgs(os.Args[1:])
+	if err := loadAlienNamesFile(&cfg, alienNamesPath, alienNamesPathGiven); err != nil {
+		fmt.Fprintln(os.Stderr, "mars-sim:", err)
+		os.Exit(2)
+	}
+
 	// Application flags (not part of the simulation config).
 	var (
 		duration    time.Duration
@@ -76,6 +86,7 @@ func main() {
 	// was already consumed by configPathFromArgs above.
 	flag.String("config", cfgPath, "settings file to read before the flags (\"\" to ignore any file)")
 	flag.String("director", directorPath, "director schedule file to read (\"\" to run with no scheduled occurrences)")
+	flag.String("alien-names", alienNamesPath, "alien name pool file to read (\"\" to use the built-in pool)")
 	flag.BoolVar(&printConfig, "print-config", false, "write a commented settings file with every setting at its default, then exit")
 
 	// Simulation config flags, each defaulting to the value the settings file
@@ -236,6 +247,51 @@ func loadDirectorFile(cfg *sim.Config, path string, given bool) error {
 	return nil
 }
 
+// alienNamesPathFromArgs is configPathFromArgs's counterpart for
+// -alien-names, found the same way and for the same reason: the alien name
+// pool must be loaded before flag.Parse runs.
+func alienNamesPathFromArgs(args []string) (path string, given bool) {
+	for i, a := range args {
+		name, value, hasValue := strings.Cut(a, "=")
+		if name != "-alien-names" && name != "--alien-names" {
+			continue
+		}
+		if hasValue {
+			return value, true
+		}
+		if i+1 < len(args) {
+			return args[i+1], true
+		}
+		return "", true // "-alien-names" with nothing after it: use the built-in pool
+	}
+	return sim.AlienNameFileName, false
+}
+
+// loadAlienNamesFile applies an alien-names.yaml file to cfg. An absent
+// default file is normal — cfg.AlienNames then stays empty, and world
+// generation falls back to the built-in pool compiled into the sim package
+// (see lore.go's defaultAlienNames) — but a file the player named
+// explicitly, or one that does not parse, stops the run rather than quietly
+// playing without it.
+func loadAlienNamesFile(cfg *sim.Config, path string, given bool) error {
+	if path == "" {
+		return nil // -alien-names "" opts out
+	}
+	data, err := os.ReadFile(path)
+	switch {
+	case errors.Is(err, fs.ErrNotExist) && !given:
+		return nil
+	case err != nil:
+		return fmt.Errorf("reading alien name pool: %w", err)
+	}
+	names, err := sim.LoadAlienNames(data, path)
+	if err != nil {
+		return err
+	}
+	cfg.AlienNames = names
+	return nil
+}
+
 // validateConfig rejects settings that would break world generation or the
 // renderer, with a message a player can act on.
 func validateConfig(cfg sim.Config) error {
@@ -352,7 +408,8 @@ func usage() {
 	fmt.Fprintf(out, "  %s -width 120 -height 60 -tps 12\n", name)
 	fmt.Fprintf(out, "  %s -headless -duration 10s -seed 42\n", name)
 	fmt.Fprintf(out, "  %s -print-config > %s   # a settings file you can edit and commit\n", name, sim.ConfigFileName)
-	fmt.Fprintf(out, "  %s -director %s        # script scheduled occurrences (mouse plagues, alien swarms, supply drops)\n\n", name, sim.DirectorFileName)
+	fmt.Fprintf(out, "  %s -director %s        # script scheduled occurrences (mouse plagues, alien swarms, supply drops)\n", name, sim.DirectorFileName)
+	fmt.Fprintf(out, "  %s -alien-names %s   # customize what a seed's aliens can be named\n\n", name, sim.AlienNameFileName)
 	fmt.Fprintf(out, "Options:\n")
 	flag.PrintDefaults()
 }
