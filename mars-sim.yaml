@@ -90,6 +90,9 @@
 ## ticks of work to raise one wall
 # build-ticks: 8
 
+## ticks of work to break down one wall tile when escaping a sealed room
+# demolish-ticks: 16
+
 ## ticks of work to build a pod or toilet
 # facility-ticks: 12
 
@@ -346,6 +349,22 @@
 ##     penalty per cheap distance unit
 #     distance-weight: 1
 
+#   escape:
+##     baseline score before state contributions
+#     base: 400
+
+##     matching need pressure contribution
+#     need-weight: 0
+
+##     signed response to affect charge
+#     charge-weight: 0
+
+##     signed response to affect grip
+#     grip-weight: 0
+
+##     penalty per cheap distance unit
+#     distance-weight: 0
+
 ## score bonus for continuing the current eligible focus
 # focus-current-bonus: 25
 
@@ -370,6 +389,9 @@
 
 ## rooms that can be under construction at once
 # max-concurrent-projects: 2
+
+## ticks a colonist's room must stay cut off from the colony before it breaks out on its own
+# escape-grace-ticks: 32
 
 # ── Personality ─────────────────────────────────────────────────────────
 ## percent chance a colonist gets a trait from each trait group (0 disables)

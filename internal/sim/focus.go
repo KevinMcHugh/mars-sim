@@ -19,6 +19,7 @@ const (
 	FocusSleep
 	FocusFlee
 	FocusFight
+	FocusEscape
 
 	numFocusKinds
 )
@@ -41,6 +42,8 @@ func (f FocusKind) String() string {
 		return "flee"
 	case FocusFight:
 		return "fight"
+	case FocusEscape:
+		return "escape"
 	default:
 		return "focus"
 	}
@@ -225,6 +228,8 @@ func (w *World) currentFocusEligible(e *Entity, threat *Entity) bool {
 		return threat != nil
 	case FocusFight:
 		return threat != nil && bestWeapon(e.Inventory) != ItemNone
+	case FocusEscape:
+		return threat == nil && e.disconnectedTicks >= w.cfg.EscapeGraceTicks
 	default:
 		return false
 	}
@@ -297,7 +302,8 @@ func (w *World) focusCandidates(e *Entity, out *[numFocusKinds]FocusCandidate) {
 		}
 	}
 
-	if threat, ok := w.nearestAlien(e.Pos, w.cfg.FleeRadius); ok {
+	threat, hasThreat := w.nearestAlien(e.Pos, w.cfg.FleeRadius)
+	if hasThreat {
 		out[FocusFlee].Eligible = true
 		out[FocusFlee].Threat = threat.ID
 		if bestWeapon(e.Inventory) != ItemNone {
@@ -310,6 +316,15 @@ func (w *World) focusCandidates(e *Entity, out *[numFocusKinds]FocusCandidate) {
 			out[FocusFlee].Score.Distance = -w.cfg.Focuses[FocusFlee].DistanceWeight
 		}
 	}
+
+	// A room cut off from the colony's main network for EscapeGraceTicks
+	// straight is worth breaking out of on its own, ahead of even a fatal
+	// need: reachability, not local coping, is what actually stayed broken,
+	// and the nearest wall is very often the same one sealing off the very
+	// facility that need is failing to reach. An immediate predator is the one
+	// thing that still outranks it — self-preservation never waits on a wall.
+	// See updateDisconnected and rooms.go's mainRoom.
+	out[FocusEscape].Eligible = !hasThreat && e.disconnectedTicks >= w.cfg.EscapeGraceTicks
 
 	if e.focus < numFocusKinds && out[e.focus].Eligible {
 		out[e.focus].Score.Commitment = w.cfg.FocusCurrentBonus

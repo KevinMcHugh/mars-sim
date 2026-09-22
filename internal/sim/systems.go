@@ -91,6 +91,11 @@ func (w *World) colonistTurn(e *Entity) {
 	// new event can influence arbitration immediately without decaying first.
 	w.decayAffect(e)
 
+	// Room connectivity is tracked regardless of what the colonist is doing this
+	// tick — a sleeping or resting colonist sealed in by construction elsewhere
+	// must still notice, the same way uranium exposure or starvation do.
+	w.updateDisconnected(e)
+
 	// A stable resting/sleeping colonist has no perception product to ingest when
 	// no creature or gore is nearby. The fast path still performs threat, fatal
 	// need, facility, and uranium checks before it can return.
@@ -230,6 +235,17 @@ func (w *World) runFocus(e *Entity, selected FocusCandidate) {
 			w.assignWorkJob(e)
 		}
 		if e.Job == JobNone {
+			w.finishFocus(e)
+			w.runIdleFocus(e)
+			return
+		}
+		e.resting = false
+		w.runJob(e)
+	case FocusEscape:
+		if e.Job != JobDemolish && !w.assignDemolish(e) {
+			// Nothing reachable to break through (the pocket is bounded by rock,
+			// not a built wall) — fall back rather than spinning on this focus
+			// every tick with nothing to execute.
 			w.finishFocus(e)
 			w.runIdleFocus(e)
 			return
@@ -645,6 +661,8 @@ func (w *World) runJob(e *Entity) {
 		w.jobClean(e)
 	case JobStore:
 		w.jobStore(e)
+	case JobDemolish:
+		w.jobDemolish(e)
 	default:
 		e.State = Idle
 		w.wanderStep(e)
@@ -1001,6 +1019,100 @@ func (w *World) jobMine(e *Entity) {
 	e.stuck, e.State = 0, Moving
 }
 
+// ---- Escaping a sealed room ---------------------------------------------------
+
+// updateDisconnected tracks how many consecutive ticks a colonist's own room
+// has been cut off from the colony's main connected network (w.mainRoom; see
+// rooms.go). It runs every tick regardless of what else the colonist is doing,
+// the same way starvation and uranium exposure do, so a colonist sleeping or
+// tending a facility inside a pocket that construction elsewhere just sealed
+// still notices. See docs/escape.md.
+func (w *World) updateDisconnected(e *Entity) {
+	room := w.roomOf(e.Pos)
+	if room == 0 || room == w.mainRoom {
+		if e.disconnectedTicks > 0 {
+			w.markMindDirty(e) // just reconnected; worth reconsidering focus now
+		}
+		e.disconnectedTicks = 0
+		return
+	}
+	e.disconnectedTicks++
+	if e.disconnectedTicks == w.cfg.EscapeGraceTicks {
+		w.markMindDirty(e) // just became eligible; do not wait for the next think tick
+	}
+}
+
+// assignDemolish commits a colonist to breaking down the nearest reachable
+// wall bounding its own (cut-off) room. Reports whether one was found.
+func (w *World) assignDemolish(e *Entity) bool {
+	wall, ok := w.nearestEscapeWall(e.Pos)
+	if !ok {
+		return false
+	}
+	e.Job, e.Target, e.Progress = JobDemolish, wall, 0
+	return true
+}
+
+// nearestEscapeWall finds the closest Wall tile bounding from's own room, by
+// walking distance within that room rather than a global scan: a sealed
+// pocket is by definition small, so this stays cheap exactly where it matters
+// (a colony-wide scan for one trapped colonist would not). Returns false if
+// the room is bounded entirely by solid rock rather than any built wall — a
+// natural cavern separation JobDemolish cannot do anything about.
+func (w *World) nearestEscapeWall(from Point) (Point, bool) {
+	room := w.roomOf(from)
+	if room == 0 {
+		return Point{}, false
+	}
+	seen := map[Point]bool{from: true}
+	queue := []Point{from}
+	for len(queue) > 0 {
+		p := queue[0]
+		queue = queue[1:]
+		for _, d := range neighbors8 {
+			n := p.Add(d.X, d.Y)
+			if !w.InBounds(n) || seen[n] {
+				continue
+			}
+			seen[n] = true
+			if w.TerrainAt(n) == Wall {
+				return n, true
+			}
+			if w.Walkable(n) && w.roomOf(n) == room {
+				queue = append(queue, n)
+			}
+		}
+	}
+	return Point{}, false
+}
+
+// jobDemolish walks to the wall claimed by assignDemolish and breaks it down
+// over DemolishTicks, converting it back to Floor — mirroring jobMine's dig,
+// but reversing a wall instead of clearing rock. Reconnecting is implicit:
+// refreshSpatial folds the new Floor tile in at the end of this tick, and
+// updateDisconnected notices the room is whole again on the next.
+func (w *World) jobDemolish(e *Entity) {
+	if w.TerrainAt(e.Target) != Wall {
+		w.clearJob(e) // reconnected some other way, or someone else broke it first
+		return
+	}
+	if e.Pos.Adjacent(e.Target) {
+		e.State = Demolishing
+		e.Progress++
+		if e.Progress >= scaleTicks(w.cfg.DemolishTicks, e.workScale) {
+			w.SetTerrain(e.Target, Floor)
+			w.log.add(fmt.Sprintf("Colonist #%d breaks through a wall to escape a sealed room.", e.ID))
+			w.clearJob(e)
+		}
+		return
+	}
+	if _, ok := w.travelTo(e, e.Target); !ok {
+		w.clearJob(e)
+		return
+	}
+	e.State = Moving
+}
+
 func (w *World) jobBuild(e *Entity) {
 	// A dig task (BuildKind Floor) works rock down to floor; every other kind
 	// builds atop existing floor. Anything else at the target — already
@@ -1133,14 +1245,20 @@ func (w *World) chooseFacility(e *Entity, kind Terrain) Point {
 			if w.entityAt(access) != nil {
 				congested = true
 			}
-			for _, other := range w.entities {
-				if other != e && other.Alive() && other.Kind == Colonist &&
-					other.Pos.Chebyshev(access) <= 1 {
-					congested = true
-				}
-			}
 			// A committed user in the approach counts as a queue even when
-			// the access tile itself is currently free.
+			// the access tile itself is currently free. This — not mere
+			// nearby foot traffic — is what "congested" means: an earlier
+			// version also flagged a facility whenever any other colonist
+			// stood within one tile of any of its access tiles, whatever
+			// that colonist was actually doing. Facilities are packed one
+			// tile apart in a room (see construction.md), so their access
+			// neighborhoods overlap; in a merely busy room — colonists
+			// resting, chatting, walking through, using the facility next
+			// door — that overbroad check could flag every facility in it as
+			// "congested" at once, so this function's whole point (spread
+			// users across reachable facilities) gave up and fell back to
+			// "nearest for everyone," funneling a crowd onto one facility
+			// while others sat genuinely idle beside it.
 			queueCount := 0
 			for _, other := range w.entities {
 				if other == e || !other.Alive() || other.Kind != Colonist ||
@@ -1381,9 +1499,14 @@ func (w *World) travelTo(e *Entity, target Point) (arrived, ok bool) {
 		}
 		e.path, e.pathAt, e.pathGoal, e.stuck = route, 0, target, 0
 	}
-	// A colonist may pass through other colonists on its route, but it must end
-	// the tick on a free tile. Scan the occupied prefix and land on the first
-	// available route cell. Non-colonists still block movement.
+	// Any entity may pass through another mid-route, but it must end the tick
+	// on a free tile. Scan the occupied prefix and land on the first available
+	// route cell. An alien is the one exception: it is a real obstacle (and a
+	// threat), not clutter, so it still blocks movement outright — a cat, a
+	// mouse, or a fellow colonist standing in a narrow corridor must not. A
+	// stray cat used to wedge a whole queue of colonists there, each abandoning
+	// and immediately re-claiming the same path with nothing ever able to make
+	// it past — StuckLimit just reset the standoff instead of resolving it.
 	landing := e.pathAt
 	for landing < len(e.path) {
 		next := e.path[landing]
@@ -1395,7 +1518,7 @@ func (w *World) travelTo(e *Entity, target Point) (arrived, ok bool) {
 		if blocker == nil || blocker.ID == e.ID {
 			break
 		}
-		if blocker.Kind != Colonist {
+		if blocker.Kind == Alien {
 			landing = len(e.path)
 			break
 		}
@@ -1767,8 +1890,9 @@ func (w *World) wanderStep(e *Entity) {
 }
 
 // stepAside moves a colonist off a facility-access or pending-build tile. It may
-// pass through a packed group of colonists to find the nearest genuinely clear
-// landing, just as job navigation can pass through a crowd. A random one-step
+// search through a packed group of colonists, cats, and mice to find the
+// nearest genuinely clear landing, just as job navigation can pass through a
+// crowd (see travelTo) — only an alien stops the search. A random one-step
 // wander is insufficient here: in a full room there may be no adjacent vacancy,
 // leaving a builder or food queue blocked indefinitely.
 func (w *World) stepAside(e *Entity) bool {
@@ -1793,7 +1917,7 @@ func (w *World) stepAside(e *Entity) bool {
 				}
 				seen[pi] = true
 				if blocker := w.entityAt(p); blocker != nil && blocker.ID != e.ID {
-					if blocker.Kind == Colonist {
+					if blocker.Kind != Alien {
 						q = append(q, pi)
 					}
 					continue

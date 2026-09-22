@@ -139,17 +139,69 @@ delayed dormitory turn into an indefinite "stuck waiting" loop.
 ### Satisfying a need
 
 When a need is urgent and a facility of the right kind is reachable, the
-colonist normally takes a `JobUse` job and follows that facility's shared
-**flow field** to the nearest one, stands adjacent, and uses it for
-`UseTicks`. But if the colony still wants more of that facility than it has
-planned or built, the colonist tries to help build that capacity first
-(joining a reachable project task that actually provides it, via
-`claimNearestTaskProviding` — see [construction.md](./construction.md)) rather
-than just queueing — otherwise, once a single facility exists, no colonist is
-ever free to build a second. See [pathfinding.md](./pathfinding.md) for the
-flow fields and [construction.md](./construction.md) for how facilities get
-built and for this priority in full. The colony keeps `ColonistsPerFacility`
-colonists' worth of each facility planned or built.
+colonist normally takes a `JobUse` job. With fewer than two facilities of that
+kind, there's nothing to choose between, so it just follows that facility's
+shared **flow field** to the nearest one. Once a second exists, `jobUse`
+switches to routing at a *concrete* facility instead — see *Spreading users
+across facilities* below — stands adjacent to whichever it ends up at, and
+uses it for `UseTicks`. But if the colony still wants more of that facility
+than it has planned or built, the colonist tries to help build that capacity
+first (joining a reachable project task that actually provides it, via
+`claimNearestTaskProviding` — see [construction.md](./construction.md))
+rather than just queueing — otherwise, once a single facility exists, no
+colonist is ever free to build a second. See [pathfinding.md](./pathfinding.md)
+for the flow fields and [construction.md](./construction.md) for how
+facilities get built and for this priority in full. The colony keeps
+`ColonistsPerFacility` colonists' worth of each facility planned or built.
+
+### Spreading users across facilities
+
+`chooseFacility` picks *which* facility of a kind a colonist commits to once
+more than one exists, so a crowd doesn't all converge on the shared field's
+single nearest seed. It ranks reachable facilities by walkable distance
+(a BFS from the colonist, reusing a generation-stamped scratch buffer the same
+way `flowField` does) and skips any that's **congested** — something actually
+occupying its access tile right now, or another colonist already committed to
+it (`Job == JobUse`, `useFacilitySet`, `useFacility` equal to it) — falling
+back to nearest-even-if-congested only when every reachable option is busy,
+so a need is never declared unreachable and left to starve merely because
+everything is momentarily full. The choice is retained on the colonist for
+the whole `JobUse` job (`e.useFacility`), so it never re-litigates and
+ping-pongs between queues as counts change tick to tick.
+
+Two bugs here were serious enough to leave written down:
+
+- **"Congested" must mean actual contention, not nearby occupancy.** An
+  earlier version also flagged a facility whenever *any* other colonist stood
+  within one tile of *any* of its access tiles — whatever that colonist was
+  doing. Facilities sit one tile apart in a room (see
+  [construction.md](./construction.md)), so their access neighborhoods
+  overlap; in a merely busy room (colonists resting, chatting, walking
+  through, or using the facility next door) that overbroad check could flag
+  every facility in it "congested" at once. This function's whole point —
+  spread users across reachable facilities — then gave up and fell back to
+  "nearest for everyone," funneling a crowd onto one facility while others
+  sat genuinely idle beside it: from the outside, a long, static line for one
+  bathroom while others nearby looked untouched. See
+  `TestChooseFacilityIgnoresUnrelatedBystander`.
+- **A candidate's distance must start from scratch, not from the running
+  best.** The per-facility nearest-access-distance loop seeded its working
+  distance from `bestDist` (the best found *so far*) instead of from
+  "infinity." A facility whose true nearest access was farther than the
+  current best then had no way for its real distance to ever come out lower
+  than that seed, so it looked exactly *tied* with the current best — and the
+  tie-break could swap the current best out for it, a strictly farther and
+  wrong facility. Which candidate got treated as "best so far" when a worse
+  one was evaluated depends on the order facilities are visited, and they're
+  stored in a map — whose iteration order Go deliberately randomizes on every
+  `range` — so the same seed and the same world state could send a colonist
+  to a different, worse facility on different runs. That's a real break of
+  "same seed => same game" (see `AGENTS.md`), not a cosmetic one: it directly
+  caused colonists to queue at a busy facility while a closer, free one
+  existed. See `TestChooseFacilityPicksNearestAmongManyCandidates`, which
+  calls `chooseFacility` many times over an unchanged world specifically
+  because the bug only shows up under some map-iteration orders, not all of
+  them.
 
 ### Taking it to go
 

@@ -36,7 +36,7 @@ The four kinds:
 | **Mouse** | Floor | (needs food) | cats | reuses the colonist food need; raids pods; never builds |
 
 `State` (idle, moving, mining, building, eating, relieving, fleeing, hunting,
-feeding, fighting, cleaning, hauling, storing) is a **display projection**
+feeding, fighting, cleaning, hauling, storing, demolishing) is a **display projection**
 derived from behavior each tick and surfaced in the UI. A colonist's
 `FocusKind` is its weighted, persistent goal (work, a particular need, fight,
 flee, or idle), while `JobKind` is the concrete execution step beneath that
@@ -142,6 +142,13 @@ Work jobs:
   transfer atomically. Weapons remain equipped and refuse remains on its
   incinerator route. See [storage.md](./storage.md).
 
+`FocusEscape`/`jobDemolish` sit outside the need/work/threat groupings above: a
+colonist whose room has been cut off from the colony's main network for long
+enough breaks the nearest wall back down to Floor, regardless of what else it
+was doing — a detect-and-correct backstop for a room sealed shut by
+construction elsewhere, excluded whenever a threat is visible so it never
+competes with fleeing or fighting. See [escape.md](./escape.md).
+
 ### Alien behavior (`alienTurn`)
 
 Aliens are paced by a `Cooldown` (from `AlienSlowness`). Each active turn: find
@@ -182,9 +189,10 @@ otherwise scurry.
   random wander is insufficient in a full room, where there may be no adjacent
   vacancy and a blocked builder or food queue would stall indefinitely.
 - **`travelTo` / `followField`** — the two ways to move toward a goal: cached A\*
-  route vs. shared flow field. Both let a colonist pass through other colonists
-  mid-route but require it to end the tick on a free tile. Covered in
-  [pathfinding.md](./pathfinding.md).
+  route vs. shared flow field. Both let an entity pass through any other entity
+  mid-route except an alien — a real, dangerous obstacle, unlike a colonist,
+  cat, or mouse just standing in the way — but require it to end the tick on a
+  free tile. Covered in [pathfinding.md](./pathfinding.md).
 
 ### Neighbor queries
 
@@ -229,5 +237,6 @@ so it is safe to call per entity per tick.
 - [needs.md](./needs.md) — the drives that preempt colonist and mouse work.
 - [personality.md](./personality.md) — trait-scaled colonist parameters.
 - [construction.md](./construction.md) — how build jobs become rooms.
+- [escape.md](./escape.md) — breaking out of a room cut off from the colony.
 - [pathfinding.md](./pathfinding.md) — how entities actually move.
 - [inventory.md](./inventory.md) — what colonists carry.
