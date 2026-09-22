@@ -329,3 +329,19 @@ func benchmarkPublish(b *testing.B, mapSize int) {
 
 func BenchmarkPublishSmallColonyOnHugeMap2500(b *testing.B)  { benchmarkPublish(b, 2500) }
 func BenchmarkPublishSmallColonyOnHugeMap10000(b *testing.B) { benchmarkPublish(b, 10000) }
+
+// BenchmarkStepBigColonyOnHugeMap is the regime that motivated the sparse
+// grids (see docs/sparse-grids.md): a 10000x10000 map with a colony that has
+// opened ~160k tiles, matching the save that was using 16.59 GB. It is the
+// counterweight to BenchmarkStepSmallColonyOnHugeMap10000, where the reachable
+// area is so small that per-access overhead is all you can measure. Here the
+// flow-field rebuilds are large enough that how well the navigation data fits
+// in cache is what decides the tick.
+func BenchmarkStepBigColonyOnHugeMap(b *testing.B) {
+	w := benchWorldSmallColony(10000, 400, 50)
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		w.step()
+	}
+}

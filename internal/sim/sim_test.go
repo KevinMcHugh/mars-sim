@@ -221,7 +221,7 @@ func worldFingerprint(w *World) map[string]string {
 		for x := 0; x < w.Width; x++ {
 			i := w.index(Point{x, y})
 			tiles = fnvAdd(tiles, uint64(w.tiles[i].Terrain))
-			regions = fnvAdd(regions, uint64(w.regionOf[i]))
+			regions = fnvAdd(regions, uint64(w.regionOf.at(x, y)))
 			rooms = fnvAdd(rooms, uint64(w.roomOf(Point{x, y})))
 		}
 	}

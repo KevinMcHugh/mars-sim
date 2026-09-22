@@ -24,10 +24,14 @@ performance results they produced.
 
 ### Occupancy index
 
-`World.occ` is a dense slice parallel to `tiles`: `occ[i]` is the `EntityID`
-standing on that tile (0 = empty; IDs start at 1). It makes "who is here?" an O(1)
-lookup instead of an O(entities) scan, and it is the mechanism that enforces **one
-entity per tile**. `moveEntity`, `spawn`, and `remove` keep it in step.
+`World.occ` holds the `EntityID` standing on a tile (0 = empty; IDs start at 1).
+It makes "who is here?" an O(1) lookup instead of an O(entities) scan, and it is
+the mechanism that enforces **one entity per tile**. `moveEntity`, `spawn`, and
+`remove` keep it in step.
+
+It is a `pagedGrid`, not a dense slice: entities stand on a vanishing fraction
+of a big map, and 0 — what an unwritten page reads as — already means empty. See
+[sparse-grids.md](./sparse-grids.md).
 
 ### Incremental counts
 

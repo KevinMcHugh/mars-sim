@@ -53,9 +53,16 @@ this as a cheap gate before running any search.
 Colonists navigate with A\* over walkable tiles (8-connected, uniform cost, so the
 heuristic is Chebyshev). The search targets a tile **adjacent** to the work target
 (colonists mine/build/use facilities from a neighbor). The `pathfinder` holds
-reusable scratch sized to the grid, with a generation stamp so arrays need not be
-cleared between searches, and a hand-rolled binary heap to avoid `container/heap`
-interface boxing. Ties break on cell index for determinism.
+reusable scratch, with a generation stamp so it need not be cleared between
+searches, and a hand-rolled binary heap to avoid `container/heap` interface
+boxing. Ties break on cell index for determinism.
+
+That scratch is a `pagedGrid` rather than an array sized to the map, as are the
+flow fields below and the region labels above: all of them only ever hold a
+value on a walkable tile. Together they were 124 bytes per tile of permanently
+zero memory — most of a 16 GB process. See
+[sparse-grids.md](./sparse-grids.md), which also covers the two fast paths
+(`interiorPage`, `pageAt`) these searches use to get their speed back.
 
 A computed route is **cached on the colonist and followed one step per tick**
 (`travelTo` in `systems.go`), so A\* runs once per job, not every tick. Occupied

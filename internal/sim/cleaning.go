@@ -174,11 +174,11 @@ func (w *World) jobCleanGather(e *Entity) {
 // in one trip stays claimed-free for the next cleaner.
 func (w *World) gatherRefuse(e *Entity, p Point) {
 	corpses, viscera := 0, 0
-	for w.tiles[w.index(p)].Corpses > 0 && e.Inventory.Add(Corpse, 1) {
+	for w.corpsesAt(p) > 0 && e.Inventory.Add(Corpse, 1) {
 		w.takeCorpse(p)
 		corpses++
 	}
-	for w.tiles[w.index(p)].Gore > 0 && e.Inventory.Add(Viscera, 1) {
+	for w.goreAt(p) > 0 && e.Inventory.Add(Viscera, 1) {
 		w.takeGore(p)
 		viscera++
 	}

@@ -69,14 +69,18 @@ func (w *World) refreshSpatial() {
 func (w *World) recomputeChunkRegions(ci int) {
 	x0, y0, x1, y1 := w.chunkBounds(ci)
 
-	// Drop old regions in this chunk and unlink them from their neighbors.
+	// Drop old regions in this chunk and unlink them from their neighbors. The
+	// chunk lies inside a single page of regionOf (see pagedGrid.pageAt), so
+	// every access in this function hoists to one lookup.
+	regions := w.regionOf.pageAt(x0, y0)
 	old := make(map[RegionID]struct{})
-	for y := y0; y < y1; y++ {
-		for x := x0; x < x1; x++ {
-			i := y*w.Width + x
-			if rid := w.regionOf[i]; rid != 0 {
-				old[rid] = struct{}{}
-				w.regionOf[i] = 0
+	if regions != nil {
+		for y := y0; y < y1; y++ {
+			for x := x0; x < x1; x++ {
+				if o := offset(x, y); regions[o] != 0 {
+					old[regions[o]] = struct{}{}
+					regions[o] = 0
+				}
 			}
 		}
 	}
@@ -96,8 +100,13 @@ func (w *World) recomputeChunkRegions(ci int) {
 	// Flood-fill new regions, staying within the chunk bounds.
 	for y := y0; y < y1; y++ {
 		for x := x0; x < x1; x++ {
-			i := y*w.Width + x
-			if w.tiles[i].Terrain != Floor || w.regionOf[i] != 0 {
+			if w.tiles[y*w.Width+x].Terrain != Floor {
+				continue
+			}
+			if regions == nil {
+				regions = w.regionOf.pageAtAlloc(x0, y0)
+			}
+			if regions[offset(x, y)] != 0 {
 				continue
 			}
 			rid := w.nextRegion
@@ -106,7 +115,7 @@ func (w *World) recomputeChunkRegions(ci int) {
 			w.regions[rid] = reg
 
 			w.floodStack = append(w.floodStack[:0], Point{x, y})
-			w.regionOf[i] = rid
+			regions[offset(x, y)] = rid
 			for len(w.floodStack) > 0 {
 				p := w.floodStack[len(w.floodStack)-1]
 				w.floodStack = w.floodStack[:len(w.floodStack)-1]
@@ -117,8 +126,8 @@ func (w *World) recomputeChunkRegions(ci int) {
 						continue
 					}
 					j := qy*w.Width + qx
-					if w.tiles[j].Terrain == Floor && w.regionOf[j] == 0 {
-						w.regionOf[j] = rid
+					if o := offset(qx, qy); w.tiles[j].Terrain == Floor && regions[o] == 0 {
+						regions[o] = rid
 						w.floodStack = append(w.floodStack, Point{qx, qy})
 					}
 				}
@@ -132,9 +141,13 @@ func (w *World) recomputeChunkRegions(ci int) {
 // that touch are already the same region, so only cross-region touches matter.)
 func (w *World) linkChunkRegions(ci int) {
 	x0, y0, x1, y1 := w.chunkBounds(ci)
+	regions := w.regionOf.pageAt(x0, y0)
+	if regions == nil {
+		return // nothing in this chunk is floor, so there is nothing to link
+	}
 	for y := y0; y < y1; y++ {
 		for x := x0; x < x1; x++ {
-			rid := w.regionOf[y*w.Width+x]
+			rid := regions[offset(x, y)]
 			if rid == 0 {
 				continue
 			}
@@ -143,7 +156,7 @@ func (w *World) linkChunkRegions(ci int) {
 				if !w.InBounds(q) {
 					continue
 				}
-				nid := w.regionOf[w.index(q)]
+				nid := w.regionOf.at(q.X, q.Y)
 				if nid == 0 || nid == rid {
 					continue
 				}
@@ -197,7 +210,7 @@ func (w *World) roomOf(p Point) RoomID {
 	if !w.InBounds(p) {
 		return 0
 	}
-	rid := w.regionOf[w.index(p)]
+	rid := w.regionOf.at(p.X, p.Y)
 	if rid == 0 {
 		return 0
 	}

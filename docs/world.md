@@ -49,15 +49,31 @@ of: `Gore` (a violent death's stains, see [combat.md](./combat.md)) and
 [sanitation.md](./sanitation.md)). Raising a structure on a tile clears both;
 digging one out does not.
 
+Those two are **not stored per tile**. They describe the few hundred tiles
+anything has ever died on, so they live in `World.refuse`, a sparse
+`map[Point]refuseCell` — the same treatment placed storage containers get.
+`Tile` is an assembled view: `World.tile` and `TileGrid.At` put it together
+from the stored record plus the refuse index, so every reader still just sees a
+`Tile`. See [sparse-grids.md](./sparse-grids.md).
+
 `Explored` is the one field that is about the *player* rather than the tile: it
 records that the colony has dug or built its way to within one tile of here, and
 a frontend draws nothing on a tile that has not. It only ever goes from false to
 true, and it is set only by `SetTerrain` — see
 [fog-of-war.md](./fog-of-war.md).
 
-The grid is stored as a flat `[]Tile` of length `Width*Height`, indexed row-major
-via `World.index(p)`. `TerrainAt` returns `Rock` for out-of-bounds cells so the
-edge of the world reads as solid.
+The grid is stored as a flat `[]tileCell` of length `Width*Height`, indexed
+row-major via `World.index(p)`. `tileCell` is terrain, composition and the
+explored flag — **three bytes**, and deliberately so: this is the one structure
+in the simulation that genuinely needs an entry per tile, since composition is
+ore and worldgen threads veins through a fifth of the map. Every byte added
+here is 95 MB on a 10000x10000 map, and twice that once the published grid
+mirrors it, so `TestTileRecordStaysNarrow` fails if it grows. Everything else
+that was once per-tile is sparse instead — see
+[sparse-grids.md](./sparse-grids.md).
+
+`TerrainAt` returns `Rock` for out-of-bounds cells so the edge of the world
+reads as solid.
 
 ### Coordinates
 
