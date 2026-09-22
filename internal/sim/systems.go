@@ -83,7 +83,7 @@ func (w *World) colonistTurn(e *Entity) {
 		w.clearJob(e) // release any board claim before removal
 		w.addCorpse(e.Pos)
 		w.remove(e.ID, "starved")
-		w.log.add(fmt.Sprintf("Colonist #%s starved to death.", e.Profile.Name))
+		w.log.add(fmt.Sprintf("%s starved to death.", e.displayName()))
 		return
 	}
 
