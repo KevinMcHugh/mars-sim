@@ -174,20 +174,10 @@ names:
     when:
       weight: tiny
 
-  - name: red
-    plural: reds
-    emoji: ["👹", "👺"]
-    when: { color: red }
-
   - name: orange
     plural: oranges
     emoji: ["🎃"]
     when: { color: orange }
-
-  - name: yellow
-    plural: yellows
-    emoji: ["🐝"]
-    when: { color: yellow }
 
   - name: green
     plural: greens
@@ -213,3 +203,8 @@ names:
     plural: pale ones
     emoji: ["👻"]
     when: { color: pale }
+
+  - name: shadow
+    plural: shadows
+    emoji: ["⚫️", "🕷️", "♟️"]
+    when: { color: black }
