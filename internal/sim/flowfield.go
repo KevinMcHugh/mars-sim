@@ -10,34 +10,40 @@ package sim
 // A field is defined by its seed function, which reports the goal (distance-0)
 // tiles: walkable neighbors of facilities for a facility field, or of the
 // unclaimed mining frontier for the frontier field.
+// flowCell is one cell of a field: the distance, and the generation stamp that
+// says whether that distance belongs to the current rebuild. They live in one
+// struct because every read tests the stamp and then takes the distance, so
+// splitting them across two grids meant two page lookups and two cache lines
+// for what is one logical value.
+type flowCell struct {
+	gen  int32 // matches flowField.gen iff dist was written this rebuild
+	dist int32 // steps to the nearest goal
+}
+
 type flowField struct {
 	w    *World
 	seed func(add func(Point)) // reports goal tiles (each passed to add)
 
-	dist  []int32 // steps to nearest goal per cell (valid only where seen==gen)
-	seen  []int32 // generation stamp per cell; avoids an O(map) reset per rebuild
+	// cells is sparse: a field only ever writes a cell it reached, which means
+	// walkable tiles, which means the colony. A page nothing reached reads as
+	// the zero flowCell, whose gen can never match a live generation (rebuild
+	// pre-increments, so gen >= 1), so an untouched page reads as unreachable
+	// for free. See pagedgrid.go.
+	cells pagedGrid[flowCell]
 	gen   int32
 	queue []int32 // reusable BFS frontier (cell indices)
 
 	stale     bool // goals or terrain changed since the last rebuild
 	builtTick int  // tick of the last rebuild (bounds rebuilds to once per tick)
-
-	// Transit scratch supports looking through a crowd for a free landing tile.
-	// A generation stamp avoids clearing it between colonist moves.
-	transitSeen []int32
-	transitGen  int32
-	transitQ    []int32
 }
 
 func newFlowField(w *World, seed func(add func(Point))) *flowField {
 	return &flowField{
-		w:           w,
-		seed:        seed,
-		dist:        make([]int32, w.Width*w.Height),
-		seen:        make([]int32, w.Width*w.Height),
-		transitSeen: make([]int32, w.Width*w.Height),
-		stale:       true,
-		builtTick:   -1,
+		w:         w,
+		seed:      seed,
+		cells:     newPagedGrid[flowCell](w.Width, w.Height),
+		stale:     true,
+		builtTick: -1,
 	}
 }
 
@@ -48,11 +54,11 @@ func (f *flowField) at(p Point) int32 {
 	if !w.InBounds(p) {
 		return -1
 	}
-	i := w.index(p)
-	if f.seen[i] != f.gen { // not reached in the current field => unreachable
+	c := f.cells.at(p.X, p.Y)
+	if c.gen != f.gen { // not reached in the current field => unreachable
 		return -1
 	}
-	return f.dist[i]
+	return c.dist
 }
 
 // rebuild recomputes the field from scratch with a multi-source BFS from its
@@ -66,31 +72,56 @@ func (f *flowField) rebuild() {
 		if !w.Walkable(p) {
 			return
 		}
-		i := w.index(p)
-		if f.seen[i] == gen {
+		c := f.cells.ptr(p.X, p.Y)
+		if c.gen == gen {
 			return
 		}
-		f.seen[i] = gen
-		f.dist[i] = 0
-		q = append(q, int32(i))
+		c.gen, c.dist = gen, 0
+		q = append(q, int32(w.index(p)))
 	}
 	f.seed(add)
 
+	// Distance comes from the queue's layering rather than from reading the
+	// cell back: every seed is at 0 and each expansion is one step further, so
+	// the queue is in non-decreasing distance order and a layer ends where the
+	// previous pass stopped appending. That is one paged read saved per node,
+	// on the hottest loop in the simulation.
+	cd, levelEnd := int32(0), len(q)
 	for head := 0; head < len(q); head++ {
+		if head == levelEnd {
+			cd++
+			levelEnd = len(q)
+		}
 		ci := int(q[head])
-		cd := f.dist[ci]
 		cx, cy := ci%w.Width, ci/w.Width
+		page := f.cells.interiorPage(cx, cy)
 		for _, d := range neighbors8 {
 			nx, ny := cx+d.X, cy+d.Y
 			if nx < 0 || nx >= w.Width || ny < 0 || ny >= w.Height {
 				continue
 			}
 			ni := ny*w.Width + nx
-			if f.seen[ni] == gen || !w.tiles[ni].Terrain.Walkable() {
+			cells := page
+			if cells == nil {
+				// On a page edge, so this neighbour may be on a page that does
+				// not exist yet. Walkability has to be tested before asking for
+				// it: rock never enters a field, and allocating for one would
+				// give every field a border of pages around the reachable area.
+				if !w.tiles[ni].Terrain.Walkable() {
+					continue
+				}
+				cells = f.cells.pageAtAlloc(nx, ny)
+			}
+			// Stamp first, terrain second. Most neighbours in an open room are
+			// already stamped this generation, and the stamp is a read of a
+			// page this node is already holding, while the terrain read is a
+			// scattered hit on the dense tile array a row-stride away. Testing
+			// terrain first here cost 23% of the tick on a big colony.
+			cell := &cells[offset(nx, ny)]
+			if cell.gen == gen || !w.tiles[ni].Terrain.Walkable() {
 				continue
 			}
-			f.seen[ni] = gen
-			f.dist[ni] = cd + 1
+			cell.gen, cell.dist = gen, cd+1
 			q = append(q, int32(ni))
 		}
 	}
@@ -125,11 +156,11 @@ func (w *World) followField(e *Entity, f *flowField) bool {
 	if cur <= 0 {
 		return false
 	}
-	f.transitGen++
-	gen := f.transitGen
+	w.transitGen++
+	gen := w.transitGen
 	start := w.index(e.Pos)
-	f.transitSeen[start] = gen
-	q := append(f.transitQ[:0], int32(start))
+	w.transitSeen.set(e.Pos.X, e.Pos.Y, gen)
+	q := append(w.transitQ[:0], int32(start))
 	var cand [8]Point
 	var fallback [8]Point
 	fallbackN := 0
@@ -157,8 +188,8 @@ func (w *World) followField(e *Entity, f *flowField) bool {
 				}
 				blocker := w.entityAt(p)
 				if blocker != nil && blocker.ID != e.ID {
-					if blocker.Kind == Colonist && f.transitSeen[pi] != gen {
-						f.transitSeen[pi] = gen
+					if blocker.Kind == Colonist && w.transitSeen.at(p.X, p.Y) != gen {
+						w.transitSeen.set(p.X, p.Y, gen)
 						q = append(q, int32(pi))
 					}
 					continue
@@ -185,7 +216,7 @@ func (w *World) followField(e *Entity, f *flowField) bool {
 			}
 		}
 		if best != int32(1<<31-1) {
-			f.transitQ = q
+			w.transitQ = q
 			w.moveEntity(e, cand[w.rng.Intn(n)])
 			return true
 		}
@@ -194,11 +225,11 @@ func (w *World) followField(e *Entity, f *flowField) bool {
 		}
 	}
 	if fallbackN > 0 {
-		f.transitQ = q
+		w.transitQ = q
 		w.moveEntity(e, fallback[w.rng.Intn(fallbackN)])
 		return true
 	}
-	f.transitQ = q
+	w.transitQ = q
 	return false
 }
 

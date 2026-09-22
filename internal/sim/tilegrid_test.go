@@ -184,3 +184,62 @@ func TestSnapshotTilesSafeForConcurrentReaders(t *testing.T) {
 		}
 	}
 }
+
+// Refuse no longer rides the tile pages — it reaches frontends through the
+// refuse index's own revision (see World.publishedRefuse). These pin the two
+// halves of that: a refuse change with no terrain change still reaches the next
+// frame, and a frame already handed out never changes underneath its reader.
+func TestPublishedRefuseReachesFrontendsWithoutTerrainChange(t *testing.T) {
+	cfg := testConfig()
+	w := newTestWorld(t, cfg)
+	spot := Point{cfg.Width / 2, cfg.Height / 2}
+	w.SetTerrain(spot, Floor)
+	w.snapshot(false, 1) // publish, so the tile's page is clean from here on
+
+	w.addGore(spot)
+	w.addCorpse(spot)
+	got := w.snapshot(false, 1).TileAt(spot)
+	if got.Gore != 1 || got.Corpses != 1 {
+		t.Fatalf("published tile has gore %d, corpses %d; want 1 and 1 — a refuse change reached no frame",
+			got.Gore, got.Corpses)
+	}
+
+	// The frame above is now in a frontend's hands. Cleaning the tile must not
+	// alter it, and must show up in the frame after.
+	held := w.snapshot(false, 1)
+	if !w.takeGore(spot) || !w.takeCorpse(spot) {
+		t.Fatal("expected refuse to take")
+	}
+	if got := held.TileAt(spot); got.Gore != 1 || got.Corpses != 1 {
+		t.Errorf("a published frame changed under its reader: gore %d, corpses %d; want 1 and 1",
+			got.Gore, got.Corpses)
+	}
+	if got := w.snapshot(false, 1).TileAt(spot); got.Gore != 0 || got.Corpses != 0 {
+		t.Errorf("cleaned tile still publishes gore %d, corpses %d; want 0 and 0", got.Gore, got.Corpses)
+	}
+}
+
+// Building on a tile scrapes off whatever was lying on it, and that has to
+// reach frontends too — the refuse index and the terrain page change together.
+func TestPublishedRefuseClearedByConstruction(t *testing.T) {
+	cfg := testConfig()
+	w := newTestWorld(t, cfg)
+	spot := Point{cfg.Width / 2, cfg.Height / 2}
+	w.SetTerrain(spot, Floor)
+	w.addGore(spot)
+	w.addCorpse(spot)
+	if got := w.snapshot(false, 1).TileAt(spot); got.Gore == 0 || got.Corpses == 0 {
+		t.Fatalf("setup: expected refuse on the tile, got %+v", got)
+	}
+	w.SetTerrain(spot, Wall)
+	got := w.snapshot(false, 1).TileAt(spot)
+	if got.Gore != 0 || got.Corpses != 0 {
+		t.Errorf("wall published with gore %d, corpses %d; want both 0", got.Gore, got.Corpses)
+	}
+	if w.refuseTotal() != 0 {
+		t.Errorf("refuseTotal = %d after clearing the only dirty tile, want 0", w.refuseTotal())
+	}
+	if len(w.refuse) != 0 {
+		t.Errorf("refuse index kept %d entries for a clean map; setRefuse should drop them", len(w.refuse))
+	}
+}

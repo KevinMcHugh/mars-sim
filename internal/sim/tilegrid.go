@@ -25,7 +25,14 @@ const (
 
 type TileGrid struct {
 	width, height int
-	pages         [][]Tile
+	pages         [][]tileCell
+	// refuse is the published copy of the sparse gore/corpse index (see
+	// World.refuse). It is a whole map rather than a paged plane because it
+	// holds the tiles something died on, which is a few hundred entries in a
+	// long game — small enough that copying it outright when it changes beats
+	// any sharing scheme, and small enough that it does not belong in the
+	// per-tile record.
+	refuse map[Point]refuseCell
 }
 
 // NewTileGrid builds a standalone grid from a row-major tile slice. The engine
@@ -35,22 +42,32 @@ type TileGrid struct {
 // lookup deep inside a render.
 func NewTileGrid(width, height int, tiles []Tile) *TileGrid {
 	n := width * height
+	cells := make([]tileCell, min(len(tiles), n))
+	refuse := make(map[Point]refuseCell)
+	for i := range cells {
+		t := tiles[i]
+		cells[i] = tileCell{Terrain: t.Terrain, Composition: t.Composition, Explored: t.Explored}
+		if t.Gore != 0 || t.Corpses != 0 {
+			refuse[Point{i % width, i / width}] = refuseCell{Gore: t.Gore, Corpses: t.Corpses}
+		}
+	}
 	g := &TileGrid{
 		width:  width,
 		height: height,
-		pages:  make([][]Tile, ceilDiv(n, tilePageLen)),
+		pages:  make([][]tileCell, ceilDiv(n, tilePageLen)),
+		refuse: refuse,
 	}
 	for pi := range g.pages {
-		g.pages[pi] = clonePage(tiles, pi, n)
+		g.pages[pi] = clonePage(cells, pi, n)
 	}
 	return g
 }
 
 // clonePage copies page pi out of a row-major tile slice of n cells.
-func clonePage(tiles []Tile, pi, n int) []Tile {
+func clonePage(tiles []tileCell, pi, n int) []tileCell {
 	lo := pi * tilePageLen
 	hi := min(lo+tilePageLen, n)
-	page := make([]Tile, hi-lo) // zero value is Rock, so a short slice pads solid
+	page := make([]tileCell, hi-lo) // zero value is Rock, so a short slice pads solid
 	if lo < len(tiles) {
 		copy(page, tiles[lo:min(hi, len(tiles))])
 	}
@@ -68,11 +85,25 @@ func (g *TileGrid) At(p Point) Tile {
 		return Tile{Terrain: Rock}
 	}
 	i := p.Y*g.width + p.X
-	return g.pages[i>>tilePageBits][i&tilePageMask]
+	c := g.pages[i>>tilePageBits][i&tilePageMask]
+	r := g.refuse[p]
+	return Tile{
+		Terrain:     c.Terrain,
+		Composition: c.Composition,
+		Explored:    c.Explored,
+		Gore:        r.Gore,
+		Corpses:     r.Corpses,
+	}
 }
 
 // TerrainAt returns the terrain at p, or Rock out of bounds.
-func (g *TileGrid) TerrainAt(p Point) Terrain { return g.At(p).Terrain }
+func (g *TileGrid) TerrainAt(p Point) Terrain {
+	if g == nil || p.X < 0 || p.X >= g.width || p.Y < 0 || p.Y >= g.height {
+		return Rock
+	}
+	i := p.Y*g.width + p.X
+	return g.pages[i>>tilePageBits][i&tilePageMask].Terrain
+}
 
 // markTilePageDirty notes that the tile at row-major index i changed, so the
 // next published grid re-copies its page. Called from SetTerrain, the only
@@ -92,24 +123,48 @@ func (w *World) markTilePageDirty(i int) {
 // grid wholesale and costs nothing at all.
 func (w *World) publishedTiles() *TileGrid {
 	if w.snapGrid == nil {
-		w.snapGrid = NewTileGrid(w.Width, w.Height, w.tiles)
+		w.snapGrid = &TileGrid{
+			width:  w.Width,
+			height: w.Height,
+			pages:  make([][]tileCell, ceilDiv(len(w.tiles), tilePageLen)),
+			refuse: w.publishedRefuse(),
+		}
+		for pi := range w.snapGrid.pages {
+			w.snapGrid.pages[pi] = clonePage(w.tiles, pi, len(w.tiles))
+		}
 		w.clearDirtyPages()
 		return w.snapGrid
 	}
-	if len(w.dirtyPages) == 0 {
+	if len(w.dirtyPages) == 0 && w.refuseRev == w.snapRefuseRev {
 		return w.snapGrid
 	}
 	// Copy the page table (pointers only), then swap in fresh copies of the
 	// changed pages. Grids already published keep the old table, and with it
 	// the pre-change pages, so nothing a frontend holds is disturbed.
-	pages := make([][]Tile, len(w.snapGrid.pages))
+	pages := make([][]tileCell, len(w.snapGrid.pages))
 	copy(pages, w.snapGrid.pages)
 	for _, pi := range w.dirtyPages {
 		pages[pi] = clonePage(w.tiles, pi, len(w.tiles))
 	}
 	w.clearDirtyPages()
-	w.snapGrid = &TileGrid{width: w.Width, height: w.Height, pages: pages}
+	w.snapGrid = &TileGrid{width: w.Width, height: w.Height, pages: pages, refuse: w.publishedRefuse()}
 	return w.snapGrid
+}
+
+// publishedRefuse returns an immutable copy of the refuse index, reusing the
+// one already published when nothing has written to it since. Refuse changes
+// only when something dies or a cleaner hauls it away, so the copy is rare
+// even though the map is walked outright when it does happen.
+func (w *World) publishedRefuse() map[Point]refuseCell {
+	if w.snapGrid != nil && w.refuseRev == w.snapRefuseRev {
+		return w.snapGrid.refuse
+	}
+	out := make(map[Point]refuseCell, len(w.refuse))
+	for p, r := range w.refuse {
+		out[p] = r
+	}
+	w.snapRefuseRev = w.refuseRev
+	return out
 }
 
 func (w *World) clearDirtyPages() {

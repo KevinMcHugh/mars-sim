@@ -27,7 +27,8 @@ tax on every neighbor test. The paging exists only on the **published** side:
 
 | Piece | Role |
 | --- | --- |
-| `TileGrid.pages` | `[][]Tile`, each page a contiguous 4096-tile slice of the grid |
+| `TileGrid.pages` | `[][]tileCell`, each page a contiguous 4096-tile slice of the grid |
+| `TileGrid.refuse` | the published copy of the sparse gore/corpse index, shared between frames until it changes |
 | `World.snapGrid` | the grid handed to the most recent `Snapshot` |
 | `World.pageDirty` / `dirtyPages` | pages that have diverged from `snapGrid` since |
 
@@ -100,18 +101,25 @@ copied on every frame that changed anything. At 4096, a 7000x7000 map has a
 
 ## Extending it
 
-- **Adding a field to `Tile`** (ore, moisture, temperature) needs nothing here:
-  pages are `[]Tile`, so they grow with the struct. Watch the page copy cost if
-  `Tile` gets large — that is when `tilePageBits` wants lowering. `Explored` is
-  the worked example: declared beside the two enum bytes it lands in existing
-  padding, while after the two `int` counters it would have taken `Tile` from 24
-  bytes to 32 (and every page copy with it).
+- **Adding a field to the tile record** needs nothing here: pages are
+  `[]tileCell`, so they grow with the struct. But think hard before you do.
+  `tileCell` is three bytes and `TestTileRecordStaysNarrow` fails if it grows,
+  because a byte here is 95 MB on a 10000x10000 map and then 95 MB again in
+  these pages. If the new field is only true of *some* tiles — refuse was the
+  worked example, at two of the original 24 bytes for something true of a few
+  hundred — it belongs in a sparse index instead, like `World.refuse` or
+  `storageContainers`. See [sparse-grids.md](./sparse-grids.md).
 - **A new mutator of `tiles`** must call `markTilePageDirty`, or frontends will
   render stale terrain. `SetTerrain` is the only writer of a tile's *terrain* and
   the only place that emits `TileChanged`; keep it that way. `World.reveal`
-  (fog of war — see [fog-of-war.md](./fog-of-war.md)) writes `Tile.Explored` and
-  dirties the page without an event, since nothing derived from terrain reads
-  that flag.
+  (fog of war — see [fog-of-war.md](./fog-of-war.md)) writes the explored flag
+  and dirties the page without an event, since nothing derived from terrain
+  reads that flag.
+- **A new sparse index** published alongside the pages follows `World.refuse`:
+  bump a revision on every write, and hand the previous frame's copy back when
+  the revision has not moved (`publishedRefuse`). That is what lets refuse reach
+  frontends without dirtying a 4096-tile page every time something dies.
+  `TestPublishedRefuseReachesFrontendsWithoutTerrainChange` is the guard.
 - **A new aggregate in `Stats`** should come from an incremental count, not from
   a walk of the grid. The scan this doc replaced is the cautionary tale.
 - The invariant to preserve: **a page that has been published is never written

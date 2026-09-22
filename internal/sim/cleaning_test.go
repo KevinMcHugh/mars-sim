@@ -206,7 +206,7 @@ func TestDeathsLeaveCorpsesWhenNothingEatsThem(t *testing.T) {
 	w.SetTerrain(Point{4, 5}, Floor)
 	stomper := w.spawn(Colonist, Point{4, 5})
 	w.stomp(stomper, w.spawn(Mouse, stompSpot))
-	if got := w.tiles[w.index(stompSpot)].Corpses; got != 1 {
+	if got := w.corpsesAt(stompSpot); got != 1 {
 		t.Errorf("corpses at the stomp = %d, want 1", got)
 	}
 
@@ -215,7 +215,7 @@ func TestDeathsLeaveCorpsesWhenNothingEatsThem(t *testing.T) {
 	w.SetTerrain(Point{9, 5}, Floor)
 	cat := w.spawn(Cat, Point{9, 5})
 	w.pounce(cat, w.spawn(Mouse, eatenSpot))
-	if got := w.tiles[w.index(eatenSpot)].Corpses; got != 0 {
+	if got := w.corpsesAt(eatenSpot); got != 0 {
 		t.Errorf("corpses where a cat ate its catch = %d, want 0", got)
 	}
 }
@@ -239,7 +239,7 @@ func TestStarvationLeavesACorpse(t *testing.T) {
 	if w.entities[victim.ID] != nil {
 		t.Fatal("colonist should have starved")
 	}
-	if got := w.tiles[w.index(spot)].Corpses; got != 1 {
+	if got := w.corpsesAt(spot); got != 1 {
 		t.Errorf("corpses where the colonist starved = %d, want 1", got)
 	}
 }

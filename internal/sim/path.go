@@ -11,32 +11,39 @@ package sim
 // moves with uniform cost — matching the Chebyshev movement model used
 // everywhere else.
 
-// pathfinder holds reusable A* scratch sized to the grid, so repeated searches
-// do not reallocate. A generation stamp (seen/gen) avoids clearing the arrays
-// between searches. One per World; used only on the engine goroutine.
+// pfCell is A*'s per-cell state. The three fields are one struct because the
+// search reads and writes them together on every relaxation, so keeping them in
+// separate grids cost three page lookups and three cache lines for one logical
+// record. int32 rather than int: a cell index has to fit one anyway to travel
+// in flowField's queue, and halving the record is worth more here than the
+// headroom on a map nothing can allocate.
+type pfCell struct {
+	gen  int32 // == pathfinder.gen means this cell was touched this search
+	g    int32 // best known cost from start
+	from int32 // predecessor cell index (-1 at the start cell)
+}
+
+// pathfinder holds reusable A* scratch, so repeated searches do not reallocate.
+// A generation stamp (pfCell.gen vs gen) avoids clearing it between searches.
+// One per World; used only on the engine goroutine.
 type pathfinder struct {
-	w    *World
-	g    []int // best known cost from start, per cell
-	from []int // predecessor cell index, per cell
-	seen []int // generation stamp per cell (== gen means touched this search)
-	gen  int
-	open pfHeap
+	w     *World
+	cells pagedGrid[pfCell]
+	gen   int32
+	open  pfHeap
 
 	// corridorSeen marks cells inside the current HPA* corridor (== corridorGen),
 	// painted once per search so the per-neighbor membership test is an O(1) array
 	// read instead of a map lookup.
-	corridorSeen []int
-	corridorGen  int
+	corridorSeen pagedGrid[int32]
+	corridorGen  int32
 }
 
 func newPathfinder(w *World) *pathfinder {
-	n := w.Width * w.Height
 	return &pathfinder{
 		w:            w,
-		g:            make([]int, n),
-		from:         make([]int, n),
-		seen:         make([]int, n),
-		corridorSeen: make([]int, n),
+		cells:        newPagedGrid[pfCell](w.Width, w.Height),
+		corridorSeen: newPagedGrid[int32](w.Width, w.Height),
 	}
 }
 
@@ -53,11 +60,18 @@ func (pf *pathfinder) paintCorridor(corridor map[RegionID]bool) {
 			continue
 		}
 		x0, y0, x1, y1 := w.chunkBounds(reg.chunk)
+		// A chunk sits inside one page of each grid, so both lookups hoist out
+		// of the sweep. Painting a corridor stamps every tile of every chunk it
+		// crosses, which made this the single hottest paged read in the search.
+		regions := w.regionOf.pageAt(x0, y0)
+		if regions == nil {
+			continue // no region in this chunk, so none of it is rid
+		}
+		seen := pf.corridorSeen.pageAtAlloc(x0, y0)
 		for y := y0; y < y1; y++ {
 			for x := x0; x < x1; x++ {
-				i := y*w.Width + x
-				if w.regionOf[i] == rid {
-					pf.corridorSeen[i] = gen
+				if o := offset(x, y); regions[o] == rid {
+					seen[o] = gen
 				}
 			}
 		}
@@ -76,9 +90,7 @@ func (pf *pathfinder) toAdjacent(start, target Point, useCorridor bool) ([]Point
 	}
 	pf.gen++
 	si := w.index(start)
-	pf.g[si] = 0
-	pf.from[si] = -1
-	pf.seen[si] = pf.gen
+	pf.cells.set(start.X, start.Y, pfCell{gen: pf.gen, g: 0, from: -1})
 	pf.open.reset()
 	pf.open.push(pfNode{si, hAdjacent(start, target)})
 
@@ -90,22 +102,21 @@ func (pf *pathfinder) toAdjacent(start, target Point, useCorridor bool) ([]Point
 		if cp.Chebyshev(target) == 1 && (ci == si || !w.occupied(cp)) {
 			return pf.reconstruct(si, ci), true
 		}
-		cg := pf.g[ci]
+		cg := pf.cells.at(cp.X, cp.Y).g
 		for _, d := range neighbors8 {
 			np := cp.Add(d.X, d.Y)
 			if !w.Walkable(np) {
 				continue
 			}
-			ni := w.index(np)
-			if useCorridor && pf.corridorSeen[ni] != pf.corridorGen {
+			if useCorridor && pf.corridorSeen.at(np.X, np.Y) != pf.corridorGen {
 				continue // outside the abstract route
 			}
 			ng := cg + 1
-			if pf.seen[ni] != pf.gen || ng < pf.g[ni] {
-				pf.seen[ni] = pf.gen
-				pf.g[ni] = ng
-				pf.from[ni] = ci
-				pf.open.push(pfNode{ni, ng + hAdjacent(np, target)})
+			c := pf.cells.ptr(np.X, np.Y)
+			if c.gen != pf.gen || ng < c.g {
+				ni := w.index(np)
+				c.gen, c.g, c.from = pf.gen, ng, int32(ci)
+				pf.open.push(pfNode{ni, int(ng) + hAdjacent(np, target)})
 			}
 		}
 	}
@@ -117,8 +128,10 @@ func (pf *pathfinder) toAdjacent(start, target Point, useCorridor bool) ([]Point
 func (pf *pathfinder) reconstruct(start, goal int) []Point {
 	w := pf.w
 	var rev []Point
-	for ci := goal; ci != start; ci = pf.from[ci] {
-		rev = append(rev, Point{ci % w.Width, ci / w.Width})
+	for ci := goal; ci != start; {
+		p := Point{ci % w.Width, ci / w.Width}
+		rev = append(rev, p)
+		ci = int(pf.cells.at(p.X, p.Y).from)
 	}
 	for i, j := 0, len(rev)-1; i < j; i, j = i+1, j-1 {
 		rev[i], rev[j] = rev[j], rev[i]
@@ -221,8 +234,8 @@ func (w *World) pathToAdjacent(from, target Point) ([]Point, bool) {
 
 	// Short or same-region trips: a flat tile search already explores little, so
 	// skip the abstract routing overhead.
-	startRegion := w.regionOf[w.index(from)]
-	goalRegion := w.regionOf[w.index(goalCell)]
+	startRegion := w.regionOf.at(from.X, from.Y)
+	goalRegion := w.regionOf.at(goalCell.X, goalCell.Y)
 	if startRegion == goalRegion || from.Chebyshev(target) <= 2*chunkSize {
 		return w.pf.toAdjacent(from, target, false)
 	}

@@ -151,7 +151,7 @@ func (w *World) hasGoreNearby(e *Entity) bool {
 	for y := -r; y <= r; y++ {
 		for x := -r; x <= r; x++ {
 			p := e.Pos.Add(x, y)
-			if w.InBounds(p) && w.tiles[w.index(p)].Gore > 0 {
+			if w.InBounds(p) && w.goreAt(p) > 0 {
 				return true
 			}
 		}
@@ -422,7 +422,7 @@ outer:
 	for y := -r; y <= r; y++ {
 		for x := -r; x <= r; x++ {
 			p := e.Pos.Add(x, y)
-			if w.InBounds(p) && w.tiles[w.index(p)].Gore > 0 {
+			if w.InBounds(p) && w.goreAt(p) > 0 {
 				seeing = true
 				break outer
 			}
@@ -1066,37 +1066,48 @@ func (w *World) jobBuild(e *Entity) {
 // facility exists. The assignment is retained on the entity for the whole use
 // job, so a user never ping-pongs between queues as their counts change.
 func (w *World) chooseFacility(e *Entity, kind Terrain) Point {
-	// dist/distGen are reused across calls (and across ticks) via a generation
-	// stamp, the same trick flowField uses, so a call costs O(reachable area)
-	// rather than allocating and zeroing a Width*Height slice every time —
-	// critical on a large map, where the walkable area a colonist can actually
-	// reach is a tiny fraction of the grid.
+	// The distance cells are reused across calls (and across ticks) via a
+	// generation stamp, the same trick flowField uses (and the same flowCell),
+	// so a call costs O(reachable area) rather than allocating and zeroing a
+	// Width*Height slice every time — critical on a large map, where the
+	// walkable area a colonist can actually reach is a tiny fraction of the
+	// grid. The cells are paged for the same reason: only reachable tiles are
+	// ever stamped. See pagedgrid.go.
 	w.facilityGen++
 	gen := w.facilityGen
-	dist := w.facilityDist
-	distGen := w.facilityDistGen
+	cells := &w.facilityCells
 	reached := func(p Point) (int32, bool) {
-		i := w.index(p)
-		return dist[i], distGen[i] == gen
+		c := cells.at(p.X, p.Y)
+		return c.dist, c.gen == gen
 	}
-	start := w.index(e.Pos)
-	dist[start] = 0
-	distGen[start] = gen
+	cells.set(e.Pos.X, e.Pos.Y, flowCell{gen: gen, dist: 0})
 	queue := append(w.facilityQueue[:0], e.Pos)
+	// Layered like flowField.rebuild, and off the same interior-page fast
+	// path: uniform-cost BFS visits in non-decreasing distance order, so the
+	// depth is the layer, and a node away from a page edge reaches all eight
+	// neighbours through one page lookup.
+	pd, levelEnd := int32(0), len(queue)
 	for head := 0; head < len(queue); head++ {
+		if head == levelEnd {
+			pd++
+			levelEnd = len(queue)
+		}
 		p := queue[head]
-		pd, _ := reached(p)
+		page := cells.interiorPage(p.X, p.Y)
 		for _, d := range neighbors8 {
 			n := p.Add(d.X, d.Y)
 			if !w.Walkable(n) {
 				continue
 			}
-			ni := w.index(n)
-			if distGen[ni] == gen {
+			np := page
+			if np == nil {
+				np = cells.pageAtAlloc(n.X, n.Y)
+			}
+			c := &np[offset(n.X, n.Y)]
+			if c.gen == gen {
 				continue
 			}
-			dist[ni] = pd + 1
-			distGen[ni] = gen
+			c.gen, c.dist = gen, pd+1
 			queue = append(queue, n)
 		}
 	}

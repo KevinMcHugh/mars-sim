@@ -151,7 +151,7 @@ func TestViolentDeathsLeaveGore(t *testing.T) {
 	colonist := w.spawn(Colonist, Point{4, 5})
 	mouse := w.spawn(Mouse, mouseSpot)
 	w.stomp(colonist, mouse)
-	if w.tiles[w.index(mouseSpot)].Gore == 0 {
+	if w.goreAt(mouseSpot) == 0 {
 		t.Error("stomping a mouse should leave gore")
 	}
 
@@ -164,7 +164,7 @@ func TestViolentDeathsLeaveGore(t *testing.T) {
 	victim.HP = 1
 	victim.Parts = [numBodyParts]int{1, 1, 1, 1, 1, 1}
 	w.bite(alien, victim)
-	if w.tiles[w.index(victimSpot)].Gore == 0 {
+	if w.goreAt(victimSpot) == 0 {
 		t.Error("a fatal alien bite should leave gore")
 	}
 
@@ -177,7 +177,7 @@ func TestViolentDeathsLeaveGore(t *testing.T) {
 	target.Parts = [numBodyParts]int{1, 1, 1, 1, 1, 1}
 	shooter := w.spawn(Colonist, shooterSpot)
 	w.shoot(shooter, target, Shotgun, weaponStats(Shotgun, cfg))
-	if w.tiles[w.index(gunSpot)].Gore == 0 {
+	if w.goreAt(gunSpot) == 0 {
 		t.Error("a killing shot should leave gore")
 	}
 }

@@ -11,3 +11,6 @@
 *.swp
 .idea/
 .vscode/
+
+# Test binaries left by `go test -cpuprofile`
+*.test
