@@ -502,7 +502,12 @@ func TestUrgentColonistHelpsBuildWhenFacilityUndersupplied(t *testing.T) {
 
 // A colonist sealed away from any rock to mine or space to build cannot feed
 // itself and must eventually starve, exercising the fatal-need path.
-func TestColonistStarvesWhenTrapped(t *testing.T) {
+// A colonist sealed in by a *built* wall — as opposed to natural rock — is not
+// left to starve: FocusEscape eventually has it break the wall back down and
+// rejoin the colony's main room, the general backstop for any construction
+// that traps a colonist (see docs/escape.md). This same setup used to be
+// TestColonistStarvesWhenTrapped and asserted the opposite; that was the bug.
+func TestColonistEscapesSealedRoom(t *testing.T) {
 	cfg := testConfig()
 	cfg.StartColonists, cfg.StartAliens = 0, 0
 	w := newTestWorld(t, cfg)
@@ -510,15 +515,50 @@ func TestColonistStarvesWhenTrapped(t *testing.T) {
 	center := Point{w.Width / 2, w.Height / 2}
 	w.SetTerrain(center, Floor)
 	for _, d := range neighbors8 {
-		w.SetTerrain(center.Add(d.X, d.Y), Wall) // sealed pocket: no rock, no room
+		w.SetTerrain(center.Add(d.X, d.Y), Wall) // sealed pocket: no rock, only a wall
 	}
-	c := w.spawn(Colonist, center)
+	w.refreshSpatial()
+	if room := w.roomOf(center); room == w.mainRoom {
+		t.Fatal("test setup did not actually seal the colonist off")
+	}
 
+	c := w.spawn(Colonist, center)
+	for i := 0; i < 1500 && w.entities[c.ID] != nil; i++ {
+		w.step()
+	}
+	if w.entities[c.ID] == nil {
+		t.Fatal("colonist sealed in by a built wall starved instead of breaking out")
+	}
+	if room := w.roomOf(c.Pos); room != w.mainRoom {
+		t.Fatalf("colonist survived but never reconnected to the main room (in room %d, want %d)", room, w.mainRoom)
+	}
+}
+
+// A colonist sealed in by solid rock, with no built wall anywhere to break
+// down, has no recourse: JobDemolish only ever targets Wall. This still
+// starves, unchanged from before FocusEscape existed, and pins that natural
+// caverns aren't somehow now escapable too.
+func TestColonistStarvesWhenSealedByRock(t *testing.T) {
+	cfg := testConfig()
+	cfg.StartColonists, cfg.StartAliens = 0, 0
+	w := newTestWorld(t, cfg)
+
+	// Away from the map center: generate always carves a starting cavern there
+	// (at least an 8x4 ellipse, even with zero starting colonists — see
+	// caveRadii), so a pocket placed there would sit in the open, not sealed.
+	pocket := Point{3, 3}
+	w.SetTerrain(pocket, Floor) // every neighbor left as default Rock
+	w.refreshSpatial()
+	if room := w.roomOf(pocket); room == w.mainRoom {
+		t.Fatal("test setup did not actually isolate the pocket")
+	}
+
+	c := w.spawn(Colonist, pocket)
 	for i := 0; i < 1500 && w.entities[c.ID] != nil; i++ {
 		w.step()
 	}
 	if w.entities[c.ID] != nil {
-		t.Fatalf("trapped colonist survived with HP %d, food %d", c.HP, c.Needs[NeedFood])
+		t.Fatalf("colonist sealed in by rock survived with HP %d, food %d", c.HP, c.Needs[NeedFood])
 	}
 }
 

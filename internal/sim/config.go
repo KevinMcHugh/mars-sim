@@ -68,9 +68,14 @@ type Config struct {
 	LogSize        int `cfg:"log-size" doc:"number of recent events retained"`
 
 	// Colonist stats.
-	ColonistHP         int `cfg:"colonist-hp" sec:"Colonists" doc:"colonist hit points"`
-	MineTicks          int `cfg:"mine-ticks" doc:"ticks of work to excavate one rock tile"`
-	BuildTicks         int `cfg:"build-ticks" doc:"ticks of work to raise one wall"`
+	ColonistHP int `cfg:"colonist-hp" sec:"Colonists" doc:"colonist hit points"`
+	MineTicks  int `cfg:"mine-ticks" doc:"ticks of work to excavate one rock tile"`
+	BuildTicks int `cfg:"build-ticks" doc:"ticks of work to raise one wall"`
+	// DemolishTicks is how long breaking a wall down takes for a colonist
+	// escaping a sealed room (see FocusEscape, docs/escape.md). Costlier than
+	// raising one (BuildTicks): breaking out should be a last resort, not a
+	// cheaper substitute for a door once those exist.
+	DemolishTicks      int `cfg:"demolish-ticks" doc:"ticks of work to break down one wall tile when escaping a sealed room"`
 	FacilityBuildTicks int `cfg:"facility-ticks" doc:"ticks of work to build a pod or toilet"`
 	FleeRadius         int `cfg:"flee-radius" doc:"colonist flees when an alien is within this many tiles"`
 	// StompRadius is how far an idle colonist notices a mouse and gives chase to
@@ -116,6 +121,14 @@ type Config struct {
 	// larger colony's facility supply keep pace with growth; see
 	// construction.md.
 	MaxConcurrentProjects int `cfg:"max-concurrent-projects" doc:"rooms that can be under construction at once"`
+
+	// EscapeGraceTicks is how long a colonist's room must stay cut off from the
+	// colony's main connected network (see rooms.go's mainRoom) before it gives
+	// up waiting for reconnection and starts breaking down the nearest wall
+	// itself (FocusEscape). The grace period absorbs the ordinary one-tick lag
+	// between a terrain change and refreshSpatial folding it in — it is not
+	// meant to be tuned as a difficulty knob. See docs/escape.md.
+	EscapeGraceTicks int `cfg:"escape-grace-ticks" doc:"ticks a colonist's room must stay cut off from the colony before it breaks out on its own"`
 
 	// Personality. TraitChance is the percent chance a colonist receives a trait
 	// from each trait group at spawn (0 disables traits; attributes are still
@@ -308,6 +321,7 @@ func DefaultConfig() Config {
 		ColonistHP:          40,
 		MineTicks:           6,
 		BuildTicks:          8,
+		DemolishTicks:       16,
 		FacilityBuildTicks:  12,
 		FleeRadius:          5,
 		ColonistStompRadius: 4,
@@ -338,6 +352,19 @@ func DefaultConfig() Config {
 			// carry enough grip penalty to tip an armed colonist toward flight. See
 			// The default combat posture is documented in docs/combat.md.
 			FocusFight: {Name: "fight", Base: 15, NeedWeight: 0, ChargeWeight: 20, GripWeight: 40, DistanceWeight: 1},
+			// FocusEscape has no matching need, so its score is just Base: a
+			// sealed room is a structural fact, not a rising pressure. Base
+			// deliberately clears even a maxed-out fatal need (NeedWeight
+			// pressure(100) + FocusCriticalBonus(100) + FocusFatalBonus(150) =
+			// 350): reachability, not local coping, is what actually stayed
+			// broken, and the nearest wall very often sits between the
+			// colonist and the very facility that need is failing to reach —
+			// so escaping first is usually also the fastest way back to it.
+			// focusCandidates excludes it outright while a threat is visible,
+			// so it never competes with FocusFlee/FocusFight's much lower
+			// bases; self-preservation from an immediate predator always wins.
+			// See docs/escape.md.
+			FocusEscape: {Name: "escape", Base: 400, NeedWeight: 0, ChargeWeight: 0, GripWeight: 0, DistanceWeight: 0},
 		},
 		FocusCurrentBonus:     25,
 		FocusSwitchMargin:     10,
@@ -347,6 +374,7 @@ func DefaultConfig() Config {
 		RestTicks:             10,
 		StuckLimit:            8,
 		MaxConcurrentProjects: 2,
+		EscapeGraceTicks:      32,
 		TraitChance:           30,
 		FamilyChance:          35,
 

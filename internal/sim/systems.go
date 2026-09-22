@@ -91,6 +91,11 @@ func (w *World) colonistTurn(e *Entity) {
 	// new event can influence arbitration immediately without decaying first.
 	w.decayAffect(e)
 
+	// Room connectivity is tracked regardless of what the colonist is doing this
+	// tick — a sleeping or resting colonist sealed in by construction elsewhere
+	// must still notice, the same way uranium exposure or starvation do.
+	w.updateDisconnected(e)
+
 	// A stable resting/sleeping colonist has no perception product to ingest when
 	// no creature or gore is nearby. The fast path still performs threat, fatal
 	// need, facility, and uranium checks before it can return.
@@ -230,6 +235,17 @@ func (w *World) runFocus(e *Entity, selected FocusCandidate) {
 			w.assignWorkJob(e)
 		}
 		if e.Job == JobNone {
+			w.finishFocus(e)
+			w.runIdleFocus(e)
+			return
+		}
+		e.resting = false
+		w.runJob(e)
+	case FocusEscape:
+		if e.Job != JobDemolish && !w.assignDemolish(e) {
+			// Nothing reachable to break through (the pocket is bounded by rock,
+			// not a built wall) — fall back rather than spinning on this focus
+			// every tick with nothing to execute.
 			w.finishFocus(e)
 			w.runIdleFocus(e)
 			return
@@ -645,6 +661,8 @@ func (w *World) runJob(e *Entity) {
 		w.jobClean(e)
 	case JobStore:
 		w.jobStore(e)
+	case JobDemolish:
+		w.jobDemolish(e)
 	default:
 		e.State = Idle
 		w.wanderStep(e)
@@ -999,6 +1017,100 @@ func (w *World) jobMine(e *Entity) {
 		return
 	}
 	e.stuck, e.State = 0, Moving
+}
+
+// ---- Escaping a sealed room ---------------------------------------------------
+
+// updateDisconnected tracks how many consecutive ticks a colonist's own room
+// has been cut off from the colony's main connected network (w.mainRoom; see
+// rooms.go). It runs every tick regardless of what else the colonist is doing,
+// the same way starvation and uranium exposure do, so a colonist sleeping or
+// tending a facility inside a pocket that construction elsewhere just sealed
+// still notices. See docs/escape.md.
+func (w *World) updateDisconnected(e *Entity) {
+	room := w.roomOf(e.Pos)
+	if room == 0 || room == w.mainRoom {
+		if e.disconnectedTicks > 0 {
+			w.markMindDirty(e) // just reconnected; worth reconsidering focus now
+		}
+		e.disconnectedTicks = 0
+		return
+	}
+	e.disconnectedTicks++
+	if e.disconnectedTicks == w.cfg.EscapeGraceTicks {
+		w.markMindDirty(e) // just became eligible; do not wait for the next think tick
+	}
+}
+
+// assignDemolish commits a colonist to breaking down the nearest reachable
+// wall bounding its own (cut-off) room. Reports whether one was found.
+func (w *World) assignDemolish(e *Entity) bool {
+	wall, ok := w.nearestEscapeWall(e.Pos)
+	if !ok {
+		return false
+	}
+	e.Job, e.Target, e.Progress = JobDemolish, wall, 0
+	return true
+}
+
+// nearestEscapeWall finds the closest Wall tile bounding from's own room, by
+// walking distance within that room rather than a global scan: a sealed
+// pocket is by definition small, so this stays cheap exactly where it matters
+// (a colony-wide scan for one trapped colonist would not). Returns false if
+// the room is bounded entirely by solid rock rather than any built wall — a
+// natural cavern separation JobDemolish cannot do anything about.
+func (w *World) nearestEscapeWall(from Point) (Point, bool) {
+	room := w.roomOf(from)
+	if room == 0 {
+		return Point{}, false
+	}
+	seen := map[Point]bool{from: true}
+	queue := []Point{from}
+	for len(queue) > 0 {
+		p := queue[0]
+		queue = queue[1:]
+		for _, d := range neighbors8 {
+			n := p.Add(d.X, d.Y)
+			if !w.InBounds(n) || seen[n] {
+				continue
+			}
+			seen[n] = true
+			if w.TerrainAt(n) == Wall {
+				return n, true
+			}
+			if w.Walkable(n) && w.roomOf(n) == room {
+				queue = append(queue, n)
+			}
+		}
+	}
+	return Point{}, false
+}
+
+// jobDemolish walks to the wall claimed by assignDemolish and breaks it down
+// over DemolishTicks, converting it back to Floor — mirroring jobMine's dig,
+// but reversing a wall instead of clearing rock. Reconnecting is implicit:
+// refreshSpatial folds the new Floor tile in at the end of this tick, and
+// updateDisconnected notices the room is whole again on the next.
+func (w *World) jobDemolish(e *Entity) {
+	if w.TerrainAt(e.Target) != Wall {
+		w.clearJob(e) // reconnected some other way, or someone else broke it first
+		return
+	}
+	if e.Pos.Adjacent(e.Target) {
+		e.State = Demolishing
+		e.Progress++
+		if e.Progress >= scaleTicks(w.cfg.DemolishTicks, e.workScale) {
+			w.SetTerrain(e.Target, Floor)
+			w.log.add(fmt.Sprintf("Colonist #%d breaks through a wall to escape a sealed room.", e.ID))
+			w.clearJob(e)
+		}
+		return
+	}
+	if _, ok := w.travelTo(e, e.Target); !ok {
+		w.clearJob(e)
+		return
+	}
+	e.State = Moving
 }
 
 func (w *World) jobBuild(e *Entity) {

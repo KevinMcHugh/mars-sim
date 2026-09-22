@@ -482,6 +482,10 @@ type World struct {
 	nextRegion        RegionID
 	dirtyChunks       map[int]struct{} // chunks whose regions need recompute
 	roomCount         int
+	// mainRoom is the room with the most floor tiles, recomputed by
+	// relabelRooms — the colony's main connected network, against which every
+	// colonist's own room is checked each tick. See updateDisconnected.
+	mainRoom RoomID
 
 	// Reusable scratch buffers for refreshSpatial (avoid per-call allocation).
 	floodStack  []Point

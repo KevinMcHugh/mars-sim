@@ -125,6 +125,34 @@ Facilities stay spaced one tile apart because a colonist using a facility stands
 on its neighbor tiles — two adjacent facilities would mean one could never be
 built or used.
 
+### The doorway tile is reserved forever, not just guaranteed once
+
+The permanent doorway (see *Why it is this way*) only ever protected a room
+from trapping **its own builders** while it went up: the exterior tile
+directly outside the door is deliberately left as pre-existing floor with no
+task of its own, so nothing marked it as load-bearing to anything else. In a
+maturing colony, `findRoomSite` prefers sites nearest the map center — exactly
+the direction an older room's door faces as the colony fills in around it — so
+a later, unrelated room could legitimately back onto or sit flush against an
+older room's wall (an intentional feature; see the party-wall sharing above)
+while its own wall or facility row landed squarely on that older room's one
+exit tile, sealing it shut behind a wall its own doorway was supposed to make
+impossible.
+
+`w.doorTiles` closes this: `designateRoom` reserves each room's door-exterior
+tile the moment the room is designated, permanently (rooms are never
+demolished or un-designated, so entries are only ever added), and
+`roomSiteClear` rejects any candidate site whose own interior or side-wall
+footprint would cover one. See `TestRoomSiteClearRejectsCoveringAnotherRoomsDoorway`.
+
+This closes the single-tile case, not every way a room can end up sealed: a
+big enough colony can still enclose a pocket where no individual room's wall
+ever lands on another's reserved doorway tile — three rooms built around a
+shared middle, say, none of them individually at fault. Enumerating every path
+in to protect it does not scale, so that general case is handled downstream
+instead, as a detect-and-correct backstop rather than up-front prevention: see
+[escape.md](./escape.md).
+
 ### Excavating the interior
 
 A room's interior (where its own back/front walls, clear rows, and facilities
@@ -234,6 +262,9 @@ The room design is the product of watching colonies starve around earlier ones:
   **permanent doorway** means the last wall can never trap the builders. This is
   what replaced the README's old "no built walls" rule; real walls became viable
   once colonists could pass through crowds and route around pending build tiles.
+  That guarantee only ever covered a room trapping itself while it went up —
+  see *The doorway tile is reserved forever, not just guaranteed once* above
+  for the later, cross-room version of the same failure and how it's closed.
 - **Rock-backed niches, or a shared wall with a neighbor,** keep a room from
   becoming a free-standing obstacle that splits an open route, and mean the
   back wall's tasks are reached from the future facility row.
@@ -268,7 +299,13 @@ A fully mined-out map is one weak point: with nothing left to dig, the whole
 idle population mobs the few facilities and a colonist can occasionally be crowded
 out over a long run. This is a shared-facility crowd-flow limit, not a
 room-building one, and is moot once maps are larger than the colony can exhaust or
-colonists have other work.
+colonists have other work. In practice it shows up sooner than "fully
+mined-out" implies: a colony that has simply outgrown its current facility
+count queues visibly at whichever bathroom or pod is nearest, well before the
+map itself runs out of rock. Growing facility supply faster (a lower
+`ColonistsPerFacility`, or a planner less conservative about concurrent
+projects) reduces how often it bites; it is not yet fixed at the crowd-flow
+level itself.
 
 ## Extending it
 
@@ -288,3 +325,4 @@ colonists have other work.
 - [pathfinding.md](./pathfinding.md) — room reachability and routing around build tiles.
 - [needs.md](./needs.md) — why facilities exist and how many the colony wants.
 - [spatial-index-and-performance.md](./spatial-index-and-performance.md) — the job board's in-progress counters.
+- [escape.md](./escape.md) — what a colonist does when it ends up sealed off anyway.

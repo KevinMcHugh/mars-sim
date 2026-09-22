@@ -43,22 +43,23 @@ func (k Kind) String() string {
 type State uint8
 
 const (
-	Idle      State = iota
-	Moving          // travelling toward Target
-	Mining          // excavating Rock
-	Building        // constructing a structure
-	Eating          // using a nutrient pod
-	Relieving       // using a toilet
-	Sleeping        // sleeping in a bed
-	Fleeing         // running from a nearby predator (colonist from alien, mouse from cat)
-	Hunting         // predator closing on prey (alien on colonist, cat on mouse)
-	Feeding         // predator eating prey it has caught
-	Talking         // chatting with another colonist (builds affinity)
-	Stomping        // colonist chasing down and crushing a pest mouse
-	Fighting        // armed colonist standing its ground and firing on an alien
-	Cleaning        // colonist scrubbing refuse off a tile, or feeding the incinerator
-	Hauling         // colonist carrying gathered refuse to an incinerator
-	Storing         // colonist unloading general materials into storage
+	Idle        State = iota
+	Moving            // travelling toward Target
+	Mining            // excavating Rock
+	Building          // constructing a structure
+	Eating            // using a nutrient pod
+	Relieving         // using a toilet
+	Sleeping          // sleeping in a bed
+	Fleeing           // running from a nearby predator (colonist from alien, mouse from cat)
+	Hunting           // predator closing on prey (alien on colonist, cat on mouse)
+	Feeding           // predator eating prey it has caught
+	Talking           // chatting with another colonist (builds affinity)
+	Stomping          // colonist chasing down and crushing a pest mouse
+	Fighting          // armed colonist standing its ground and firing on an alien
+	Cleaning          // colonist scrubbing refuse off a tile, or feeding the incinerator
+	Hauling           // colonist carrying gathered refuse to an incinerator
+	Storing           // colonist unloading general materials into storage
+	Demolishing       // colonist breaking down a wall to escape a sealed room
 )
 
 func (s State) String() string {
@@ -95,6 +96,8 @@ func (s State) String() string {
 		return "hauling"
 	case Storing:
 		return "storing"
+	case Demolishing:
+		return "demolishing"
 	default:
 		return "?"
 	}
@@ -245,13 +248,14 @@ func distributeBodyParts(maxHP int) [numBodyParts]int {
 type JobKind uint8
 
 const (
-	JobNone  JobKind = iota
-	JobMine          // excavate the Rock tile at Target
-	JobBuild         // construct BuildKind on the Floor tile at Target
-	JobUse           // walk to the facility at Target and satisfy Need
-	JobTalk          // walk to partner and chat, raising the pair's affinity
-	JobClean         // scrub refuse off Target, then haul it to an incinerator
-	JobStore         // unload general materials into the storage at Target
+	JobNone     JobKind = iota
+	JobMine             // excavate the Rock tile at Target
+	JobBuild            // construct BuildKind on the Floor tile at Target
+	JobUse              // walk to the facility at Target and satisfy Need
+	JobTalk             // walk to partner and chat, raising the pair's affinity
+	JobClean            // scrub refuse off Target, then haul it to an incinerator
+	JobStore            // unload general materials into the storage at Target
+	JobDemolish         // break down the Wall tile at Target to escape a sealed room
 )
 
 // cleanStage is where a JobClean colonist is in the haul. The job is two legs
@@ -431,6 +435,11 @@ type Entity struct {
 	// it is building one). Distinguishes coordinated project work from a lone
 	// emergency build.
 	task *buildTask
+
+	// disconnectedTicks counts consecutive ticks this colonist's room has been
+	// cut off from the colony's main connected network (see World.mainRoom).
+	// Reset to 0 the moment it can reach mainRoom again. See FocusEscape.
+	disconnectedTicks int
 
 	// Display + shared behavior scratch.
 	State  State

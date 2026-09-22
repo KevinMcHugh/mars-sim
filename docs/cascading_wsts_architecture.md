@@ -152,6 +152,7 @@ const (
     FocusSleep
     FocusFlee
     FocusFight
+    FocusEscape
     numFocusKinds
 )
 
@@ -517,6 +518,7 @@ on?” Keep them distinct:
 | `FocusFlee` | Existing `fleeStep`. |
 | `FocusFight` | Existing `fightAlien`. |
 | `FocusIdle` | Existing rest, stomp, step-aside, and idle behavior. |
+| `FocusEscape` | `JobDemolish`: break the nearest wall bounding a room cut off from the colony. See [escape.md](./escape.md). |
 
 A need-focused colonist building the required facility remains in that need's
 focus even though its current job is `JobBuild`.
@@ -688,6 +690,10 @@ Candidate generation must enforce:
 - `FocusWork` may continue a valid work job. When entering work without a job,
   use existing assignment logic.
 - `FocusIdle` is always eligible.
+- `FocusEscape` requires the colonist's room to have been cut off from the
+  colony's main room for `EscapeGraceTicks` straight, and is never eligible
+  while a threat is visible — self-preservation always outranks it. See
+  [escape.md](./escape.md).
 - Dead entities never arbitrate.
 
 Keep these existing invariants:

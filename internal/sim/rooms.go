@@ -169,23 +169,32 @@ func (w *World) linkChunkRegions(ci int) {
 
 // relabelRooms recomputes room membership as connected components of the region
 // graph, giving each component the smallest RegionID it contains as its RoomID.
+// It also tracks mainRoom, the room with the most floor tiles: the colony's main
+// connected network, against which updateDisconnected checks every colonist so a
+// pocket cut off by later construction (see doorTiles in project.go) or any other
+// cause eventually notices and breaks itself out. See docs/escape.md.
 func (w *World) relabelRooms() {
 	visited := make(map[RegionID]bool, len(w.regions))
 	count := 0
+	var mainRoom RoomID
+	mainSize := -1
 	for start := range w.regions {
 		if visited[start] {
 			continue
 		}
 		count++
-		// Gather the component, tracking its minimum ID as the room ID.
+		// Gather the component, tracking its minimum ID as the room ID and its
+		// total floor tiles across all member regions.
 		component := w.roomScratch[:0]
 		stack := []RegionID{start}
 		visited[start] = true
 		minID := start
+		size := 0
 		for len(stack) > 0 {
 			r := stack[len(stack)-1]
 			stack = stack[:len(stack)-1]
 			component = append(component, r)
+			size += w.regions[r].size
 			if r < minID {
 				minID = r
 			}
@@ -201,8 +210,15 @@ func (w *World) relabelRooms() {
 			w.regions[r].room = room
 		}
 		w.roomScratch = component[:0]
+		// Compare explicitly rather than tracking "first seen": map iteration
+		// order is randomized, so only a deterministic tie-break (smallest
+		// RoomID) keeps mainRoom reproducible for a given seed.
+		if size > mainSize || (size == mainSize && room < mainRoom) {
+			mainSize, mainRoom = size, room
+		}
 	}
 	w.roomCount = count
+	w.mainRoom = mainRoom
 }
 
 // roomOf returns the room a tile belongs to, or 0 if it is not floor.

@@ -143,3 +143,74 @@ func TestStartingCavernIsOneRoom(t *testing.T) {
 		t.Fatalf("starting cavern should be 1 room, got %d", eng.world.roomCount)
 	}
 }
+
+// mainRoom always tracks the room with the most floor tiles, ties broken by
+// the smaller RoomID for determinism — not whichever room happened to exist
+// first or was discovered first in map iteration order (which Go randomizes).
+// See updateDisconnected, which every colonist is checked against.
+func TestMainRoomTracksLargestRoom(t *testing.T) {
+	w := roomsTestWorld(40, 24)
+	carve(w, Point{2, 5}, Point{3, 5}, Floor)   // small room: 2 tiles
+	carve(w, Point{10, 5}, Point{19, 5}, Floor) // big room: 10 tiles
+	w.refreshSpatial()
+	if w.roomCount != 2 {
+		t.Fatalf("expected 2 rooms, got %d", w.roomCount)
+	}
+	big := w.roomOf(Point{10, 5})
+	if w.mainRoom != big {
+		t.Fatalf("mainRoom = %d, want the bigger room %d", w.mainRoom, big)
+	}
+
+	// Growing the small room past the big one flips which is main.
+	carve(w, Point{2, 6}, Point{3, 15}, Floor) // +20 tiles onto the small room
+	w.refreshSpatial()
+	small := w.roomOf(Point{2, 5})
+	if w.mainRoom != small {
+		t.Fatalf("mainRoom = %d, want the now-bigger room %d", w.mainRoom, small)
+	}
+
+	// Walling the small room back off it entirely must never leave mainRoom
+	// pointing at a room that no longer exists. Re-derive the survivor's
+	// RoomID rather than reusing `big`: recomputing the dirty chunk can
+	// reassign fresh RegionIDs to an untouched room's portion that shares it,
+	// so a room's own ID is not guaranteed stable across an unrelated edit —
+	// only which physical room mainRoom names is.
+	carve(w, Point{2, 5}, Point{3, 15}, Wall)
+	w.refreshSpatial()
+	if stillBig := w.roomOf(Point{10, 5}); w.mainRoom != stillBig {
+		t.Fatalf("mainRoom = %d after removing the bigger room, want %d", w.mainRoom, stillBig)
+	}
+}
+
+// A colonist whose room is cut off from mainRoom accumulates disconnected
+// ticks every turn regardless of what else it is doing, and the counter
+// resets the instant it reconnects (see updateDisconnected).
+func TestUpdateDisconnectedTracksCutoffRoom(t *testing.T) {
+	w := roomsTestWorld(40, 24)
+	carve(w, Point{10, 5}, Point{19, 5}, Floor) // the main room: 10 tiles
+	pocket := Point{2, 5}
+	w.SetTerrain(pocket, Floor) // isolated: 1 tile, well short of the main room
+	w.refreshSpatial()
+	if w.roomOf(pocket) == w.mainRoom {
+		t.Fatal("test setup did not isolate the pocket")
+	}
+
+	e := w.spawn(Colonist, pocket)
+	for i := 1; i <= 3; i++ {
+		w.updateDisconnected(e)
+		if e.disconnectedTicks != i {
+			t.Fatalf("after %d calls, disconnectedTicks = %d, want %d", i, e.disconnectedTicks, i)
+		}
+	}
+
+	// Connect the pocket to the main room; the counter must reset immediately.
+	carve(w, Point{3, 5}, Point{9, 5}, Floor)
+	w.refreshSpatial()
+	if w.roomOf(pocket) != w.mainRoom {
+		t.Fatal("test setup did not reconnect the pocket")
+	}
+	w.updateDisconnected(e)
+	if e.disconnectedTicks != 0 {
+		t.Fatalf("disconnectedTicks = %d after reconnecting, want 0", e.disconnectedTicks)
+	}
+}
