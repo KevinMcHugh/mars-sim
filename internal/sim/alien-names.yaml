@@ -61,6 +61,22 @@ names:
     when:
       legs: { gt: 6 }
 
+  - name: octopus
+    plural: octopuses
+    emoji: ["🐙"]
+    when:
+      any:
+        - legs: { eq: 8 }
+        - arms: { eq: 8 }
+
+  - name: squid
+    plural: squids
+    emoji: ["🦑"]
+    when:
+      all:
+        - legs: { eq: 6 }
+        - arms: { eq: 2 }
+
   - name: centaur
     plural: centaurs
     emoji: ["🐎"]
@@ -117,10 +133,9 @@ names:
 
   - name: bear
     plural: bears
-    emoji: ["🐻", "🐻‍❄️"]
+    emoji: ["🐻", "🐻‍❄️","🧸","🐨"]
     when:
       all:
-        - height: huge
         - skin: furry
 
   - name: tank
