@@ -189,9 +189,10 @@ otherwise scurry.
   random wander is insufficient in a full room, where there may be no adjacent
   vacancy and a blocked builder or food queue would stall indefinitely.
 - **`travelTo` / `followField`** — the two ways to move toward a goal: cached A\*
-  route vs. shared flow field. Both let a colonist pass through other colonists
-  mid-route but require it to end the tick on a free tile. Covered in
-  [pathfinding.md](./pathfinding.md).
+  route vs. shared flow field. Both let an entity pass through any other entity
+  mid-route except an alien — a real, dangerous obstacle, unlike a colonist,
+  cat, or mouse just standing in the way — but require it to end the tick on a
+  free tile. Covered in [pathfinding.md](./pathfinding.md).
 
 ### Neighbor queries
 

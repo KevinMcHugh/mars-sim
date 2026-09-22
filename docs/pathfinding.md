@@ -66,10 +66,12 @@ zero memory — most of a 16 GB process. See
 
 A computed route is **cached on the colonist and followed one step per tick**
 (`travelTo` in `systems.go`), so A\* runs once per job, not every tick. Occupied
-tiles are valid transit cells but not valid destinations; a colonist may pass
-*through* a crowd of other colonists on its route but must end the tick on a free
-tile (non-colonists still block). It replans when the route is missing, was for a
-different goal, ran out, or the terrain changed under it.
+tiles are valid transit cells but not valid destinations; an entity may pass
+*through* any other entity on its route but must end the tick on a free tile —
+except an alien, which still blocks outright (a real, dangerous obstacle, not
+clutter to walk past; a colonist, cat, or mouse parked in a narrow corridor
+used to wedge a whole queue behind it before this). It replans when the route
+is missing, was for a different goal, ran out, or the terrain changed under it.
 
 `pathToAdjacent` is the entry point. It first rejects unreachable targets with the
 O(1) room check, then chooses a strategy:
@@ -90,6 +92,20 @@ If the abstract step or the constrained search fails, it falls back to the flat
 search. On a map where a wall forces a long detour, this cut a cross-fort search
 from ~1.0 ms to ~0.28 ms (~3.6x, ~4.5x fewer cells explored).
 
+`abstractCorridor`'s region-graph search sorts a region's neighbor IDs before
+expanding them, even though `regionHeap` itself already breaks ties
+deterministically by region ID. Without the sort, two neighbors that reach a
+third region at *exactly* equal cost raced: `gscore`'s strict less-than only
+records whichever is visited first, and `region.links` is a map, whose
+iteration order Go deliberately randomizes — so the same seed could pick a
+different (still equally short) corridor on every run, sending a colonist
+down a visibly different but equally valid route each time. That is a real,
+user-visible break of "same seed => same game" (see AGENTS.md), not a
+cosmetic one — it's what a long-distance job's route looked like changing
+between runs. If you touch this search again, keep the sort (or replace it
+with an equally order-independent reduction) — see the comment inline in
+`hpa.go`.
+
 ### Flow fields (`flowfield.go`)
 
 When *many* agents head to the *same* destinations, per-agent A\* is wasteful. A
@@ -107,12 +123,12 @@ tile marks the frontier field stale.
 
 There is one field per **facility terrain** (nutrient pods, toilets) and one
 **frontier** field toward the nearest *unclaimed* diggable rock. `followField`
-moves an agent along a field: it BFSes through occupied *colonist* tiles to the
-first depth with a free landing, preferring the lowest field distance but able to
-step **uphill** when every downhill route is occupied — an escape valve that is
-essential in a full room, where a crowd with only uphill free space would
-otherwise gridlock until its hungriest members starve. It never crosses a
-`buildTiles` tile a builder needs clear.
+moves an agent along a field: it BFSes through any occupied tile but an
+alien's to the first depth with a free landing, preferring the lowest field
+distance but able to step **uphill** when every downhill route is occupied —
+an escape valve that is essential in a full room, where a crowd with only
+uphill free space would otherwise gridlock until its hungriest members starve.
+It never crosses a `buildTiles` tile a builder needs clear.
 
 ### Two mining strategies
 

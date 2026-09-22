@@ -849,6 +849,80 @@ func TestColonyDoesNotStarveOverTime(t *testing.T) {
 	}
 }
 
+// Regression: chooseFacility's per-candidate nearest-access distance must
+// start fresh, not seeded from the running best. Facilities are stored in a
+// map, and Go deliberately randomizes range order on every call, so seeding
+// the distance from bestDist let a farther facility "tie" with whatever was
+// currently best purely because its own true distance never got a chance to
+// update that seed — and the tie-break could then swap in that strictly
+// farther, wrong facility, with the outcome depending on iteration order
+// alone. Same seed, same world, different facility chosen: exactly the
+// "same seed => same game" invariant this project requires (see AGENTS.md).
+// Called many times to reliably surface it regardless of which order this
+// particular process's map iteration happens to visit them in.
+func TestChooseFacilityPicksNearestAmongManyCandidates(t *testing.T) {
+	cfg := testConfig()
+	cfg.StartColonists, cfg.StartAliens = 0, 0
+	w := newTestWorld(t, cfg)
+
+	for y := 0; y < w.Height; y++ {
+		for x := 0; x < w.Width; x++ {
+			w.SetTerrain(Point{x, y}, Floor)
+		}
+	}
+	near := Point{20, 17} // a few tiles from the colonist
+	far := Point{5, 5}    // sorts before `near` (smaller Y) but is much farther
+	w.SetTerrain(near, NutrientPod)
+	w.SetTerrain(far, NutrientPod)
+	w.refreshSpatial()
+
+	c := w.spawn(Colonist, Point{20, 20})
+	for i := 0; i < 200; i++ {
+		if got := w.chooseFacility(c, NutrientPod); got != near {
+			t.Fatalf("call %d: chooseFacility = %v, want the nearer facility %v (got the farther %v)",
+				i, got, near, far)
+		}
+	}
+}
+
+// Regression: chooseFacility must ignore a colonist who merely happens to be
+// standing near a facility for some unrelated reason (idling, chatting,
+// passing through) — only an entity actually occupying the access tile, or
+// one committed to use that specific facility, makes it "congested." An
+// earlier version flagged a facility whenever any other colonist stood
+// within one tile of any of its access tiles, whatever that colonist was
+// doing; facilities sit one tile apart in a room (see construction.md), so
+// their access neighborhoods overlap enough that ordinary room occupancy
+// could mark every facility in a busy room "congested" at once, defeating
+// the whole point of spreading users across them.
+func TestChooseFacilityIgnoresUnrelatedBystander(t *testing.T) {
+	cfg := testConfig()
+	cfg.StartColonists, cfg.StartAliens = 0, 0
+	w := newTestWorld(t, cfg)
+
+	for y := 0; y < w.Height; y++ {
+		for x := 0; x < w.Width; x++ {
+			w.SetTerrain(Point{x, y}, Floor)
+		}
+	}
+	fac := Point{20, 17} // near the colonist, with a bystander nearby
+	other := Point{5, 5} // far away, but the only "uncongested" option if fac is wrongly flagged
+	w.SetTerrain(fac, NutrientPod)
+	w.SetTerrain(other, NutrientPod)
+	w.refreshSpatial()
+
+	// A bystander one tile beyond the facility's access ring — near enough
+	// to be within Chebyshev 1 of an access tile without standing on one —
+	// doing something else entirely (idle, no job) and not queued for it.
+	w.spawn(Colonist, fac.Add(2, 0))
+
+	c := w.spawn(Colonist, Point{20, 20})
+	if got, want := w.chooseFacility(c, NutrientPod), fac; got != want {
+		t.Fatalf("chooseFacility = %v, want the near facility %v (a mere bystander should not count as congestion and send it to the far one, %v)",
+			got, want, other)
+	}
+}
+
 // Regression: on a large, mature map the facility rooms can fill completely.
 // Hungry colonists must untangle crowded access, get a fair turn at vacancies,
 // and have enough grace to finish a reachable food journey. With permanent ID

@@ -138,19 +138,21 @@ func (f *flowField) ensureFresh() {
 	}
 }
 
-// followField moves a colonist along the field toward the nearest goal. Occupied
-// colonist tiles can be traversed, but the colonist only stops on a free tile.
-// Returns whether it moved; false means it has arrived (distance 0), is boxed
-// in, or the goal is unreachable from here.
+// followField moves a colonist along the field toward the nearest goal. Any
+// occupied tile can be traversed except an alien's, but the colonist only
+// stops on a free tile. Returns whether it moved; false means it has arrived
+// (distance 0), is boxed in, or the goal is unreachable from here.
 //
-// The breadth-first search expands only through occupied colonist tiles and
-// stops at the first depth with a free landing. Thus an open neighbor still
-// costs one ordinary step, while a colonist can cross an arbitrarily crowded
-// room or doorway in one turn without ever sharing a tile at rest. At that
-// depth it prefers the lowest field distance, but may step uphill when every
-// route toward the goal is occupied. That escape step is essential in a full
-// room: otherwise a crowd with only uphill free space can remain gridlocked
-// until its hungriest members starve.
+// The breadth-first search expands through any occupied tile but an alien's —
+// a cat or mouse parked in a narrow corridor must not wedge a colonist any
+// more than another colonist would — and stops at the first depth with a free
+// landing. Thus an open neighbor still costs one ordinary step, while a
+// colonist can cross an arbitrarily crowded room or doorway in one turn
+// without ever sharing a tile at rest. At that depth it prefers the lowest
+// field distance, but may step uphill when every route toward the goal is
+// occupied. That escape step is essential in a full room: otherwise a crowd
+// with only uphill free space can remain gridlocked until its hungriest
+// members starve.
 func (w *World) followField(e *Entity, f *flowField) bool {
 	cur := f.at(e.Pos)
 	if cur <= 0 {
@@ -188,7 +190,7 @@ func (w *World) followField(e *Entity, f *flowField) bool {
 				}
 				blocker := w.entityAt(p)
 				if blocker != nil && blocker.ID != e.ID {
-					if blocker.Kind == Colonist && w.transitSeen.at(p.X, p.Y) != gen {
+					if blocker.Kind != Alien && w.transitSeen.at(p.X, p.Y) != gen {
 						w.transitSeen.set(p.X, p.Y, gen)
 						q = append(q, int32(pi))
 					}

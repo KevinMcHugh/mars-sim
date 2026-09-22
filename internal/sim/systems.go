@@ -1245,14 +1245,20 @@ func (w *World) chooseFacility(e *Entity, kind Terrain) Point {
 			if w.entityAt(access) != nil {
 				congested = true
 			}
-			for _, other := range w.entities {
-				if other != e && other.Alive() && other.Kind == Colonist &&
-					other.Pos.Chebyshev(access) <= 1 {
-					congested = true
-				}
-			}
 			// A committed user in the approach counts as a queue even when
-			// the access tile itself is currently free.
+			// the access tile itself is currently free. This — not mere
+			// nearby foot traffic — is what "congested" means: an earlier
+			// version also flagged a facility whenever any other colonist
+			// stood within one tile of any of its access tiles, whatever
+			// that colonist was actually doing. Facilities are packed one
+			// tile apart in a room (see construction.md), so their access
+			// neighborhoods overlap; in a merely busy room — colonists
+			// resting, chatting, walking through, using the facility next
+			// door — that overbroad check could flag every facility in it as
+			// "congested" at once, so this function's whole point (spread
+			// users across reachable facilities) gave up and fell back to
+			// "nearest for everyone," funneling a crowd onto one facility
+			// while others sat genuinely idle beside it.
 			queueCount := 0
 			for _, other := range w.entities {
 				if other == e || !other.Alive() || other.Kind != Colonist ||
@@ -1493,9 +1499,14 @@ func (w *World) travelTo(e *Entity, target Point) (arrived, ok bool) {
 		}
 		e.path, e.pathAt, e.pathGoal, e.stuck = route, 0, target, 0
 	}
-	// A colonist may pass through other colonists on its route, but it must end
-	// the tick on a free tile. Scan the occupied prefix and land on the first
-	// available route cell. Non-colonists still block movement.
+	// Any entity may pass through another mid-route, but it must end the tick
+	// on a free tile. Scan the occupied prefix and land on the first available
+	// route cell. An alien is the one exception: it is a real obstacle (and a
+	// threat), not clutter, so it still blocks movement outright — a cat, a
+	// mouse, or a fellow colonist standing in a narrow corridor must not. A
+	// stray cat used to wedge a whole queue of colonists there, each abandoning
+	// and immediately re-claiming the same path with nothing ever able to make
+	// it past — StuckLimit just reset the standoff instead of resolving it.
 	landing := e.pathAt
 	for landing < len(e.path) {
 		next := e.path[landing]
@@ -1507,7 +1518,7 @@ func (w *World) travelTo(e *Entity, target Point) (arrived, ok bool) {
 		if blocker == nil || blocker.ID == e.ID {
 			break
 		}
-		if blocker.Kind != Colonist {
+		if blocker.Kind == Alien {
 			landing = len(e.path)
 			break
 		}
@@ -1879,8 +1890,9 @@ func (w *World) wanderStep(e *Entity) {
 }
 
 // stepAside moves a colonist off a facility-access or pending-build tile. It may
-// pass through a packed group of colonists to find the nearest genuinely clear
-// landing, just as job navigation can pass through a crowd. A random one-step
+// search through a packed group of colonists, cats, and mice to find the
+// nearest genuinely clear landing, just as job navigation can pass through a
+// crowd (see travelTo) — only an alien stops the search. A random one-step
 // wander is insufficient here: in a full room there may be no adjacent vacancy,
 // leaving a builder or food queue blocked indefinitely.
 func (w *World) stepAside(e *Entity) bool {
@@ -1905,7 +1917,7 @@ func (w *World) stepAside(e *Entity) bool {
 				}
 				seen[pi] = true
 				if blocker := w.entityAt(p); blocker != nil && blocker.ID != e.ID {
-					if blocker.Kind == Colonist {
+					if blocker.Kind != Alien {
 						q = append(q, pi)
 					}
 					continue
