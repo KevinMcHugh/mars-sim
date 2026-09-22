@@ -31,11 +31,11 @@ names:
 
   - name: xeno
     plural: xenos
-    emoji: ["👽", "🛸"]
+    emoji: ["👽"]
 
   - name: gremlin
     plural: gremlins
-    emoji: ["👾"]
+    emoji: ["👾", "😈"]
     when:
       any:
         - temperament: friendly
@@ -51,18 +51,19 @@ names:
 
   - name: bug
     plural: bugs
-    emoji: ["🐛", "🪲", "🐜", "🦗"]
+    emoji: ["🐛", "🪲", "🐜", "🦗", "🐞", "🪲", "🪳"]
     when:
       legs: { gt: 4 }
 
   - name: centipede
     plural: centipedes
-    emoji: ["🪱", "🐜"]
+    emoji: ["🪱", "🐛"]
     when:
       legs: { gt: 6 }
 
   - name: centaur
     plural: centaurs
+    emoji: ["🐎"]
     when:
       all:
         - legs: { eq: 4 }
@@ -70,7 +71,7 @@ names:
 
   - name: beetle
     plural: beetles
-    emoji: ["🪲"]
+    emoji: ["🪲","🪳"]
     when:
       all:
         - legs: { eq: 6 }
@@ -86,24 +87,59 @@ names:
 
   - name: reptile
     plural: reptiles
-    emoji: ["🦎", "🐍", "🐢"]
+    emoji: ["🦎", "🐍", "🐢", "🐊", "🐉"]
+    when:
+      skin: scaly
+
+  - name: reppy
+    plural: reppies
+    emoji: ["🦎", "🐍", "🐢", "🐊", "🐉"]
+    when:
+      skin: scaly
+
+  - name: rept
+    plural: repts
+    emoji: ["🦎", "🐍", "🐢", "🐊", "🐉"]
     when:
       skin: scaly
 
   - name: furball
     plural: furballs
+    emoji: ["🐹", "🐭", "🐰", "🐇"]
     when:
       skin: furry
 
+  - name: fuzzball
+    plural: fuzzballs
+    emoji: ["🐹", "🐭", "🐰", "🐇"]
+    when:
+      skin: furry
+
+  - name: bear
+    plural: bears
+    emoji: ["🐻", "🐻‍❄️"]
+    when:
+      all:
+        - height: huge
+        - skin: furry
+
   - name: tank
     plural: tanks
-    emoji: ["🦂"]
+    emoji: ["🦂","🐘"]
     when:
       skin: armored
 
+  - name: scorpion
+    plural: scorpions
+    emoji: ["🦂"]
+    when:
+      all:
+        - skin: armored
+        - limbs: { eq: 0 }
+
   - name: titan
     plural: titans
-    emoji: ["🦖", "🦕"]
+    emoji: ["🦖", "🦕","🐉","🐘"]
     when:
       any:
         - height: huge
@@ -111,54 +147,54 @@ names:
 
   - name: wisp
     plural: wisps
-    emoji: ["🐜"]
+    emoji: ["🐜", "👻"]
     when:
       any:
         - height: tiny
         - weight: tiny
 
-  - name: microbe
-    plural: microbes
+  - name: mini
+    plural: minis
     emoji: ["🦠"]
     when:
       weight: tiny
 
   - name: red
     plural: reds
+    emoji: ["👹", "👺"]
     when: { color: red }
 
   - name: orange
     plural: oranges
+    emoji: ["🎃"]
     when: { color: orange }
 
   - name: yellow
     plural: yellows
+    emoji: ["🐝"]
     when: { color: yellow }
 
   - name: green
     plural: greens
+    emoji: ["🐸", "🧌", "🐲"]
     when: { color: green }
 
   - name: blue
     plural: blues
+    emoji: ["🦋","🔵"]
     when: { color: blue }
 
   - name: purple
     plural: purples
+    emoji: ["😈", "👿", "🦄"]
     when: { color: purple }
 
   - name: gray
     plural: grays
+    emoji: ["👽", "🌚", "🐨", "🐺", "🦏", "🦡"]
     when: { color: gray }
-
-  - name: black
-    plural: blacks
-    when: { color: black }
-
-  - name: white
-    plural: whites
-    when: { color: white }
 
   - name: pale one
     plural: pale ones
+    emoji: ["👻"]
     when: { color: pale }
