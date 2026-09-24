@@ -24,7 +24,8 @@ else here is still unbuilt.
 | Phase | Status |
 | --- | --- |
 | E0 — Money | **Shipped** — [money.md](./money.md) |
-| E1–E8 | Proposed |
+| E1 — Property | **Shipped** — [property.md](./property.md) |
+| E2–E8 | Proposed |
 
 ## Source
 
@@ -510,13 +511,19 @@ Shipped as described; see [money.md](./money.md). One refinement: a dead
 colonist's wallet is frozen into `moneyFrozen`, so the audited identity is
 circulating + frozen == issued rather than a constant circulating total.
 
-### E1 — Property
+### E1 — Property (shipped)
 
 `Owner`, depot ledgers on storage containers, fixture records with access
 policies, owner-aware carried goods and cargo records. Planner-built facilities
 are community-owned and communal. Starting weapons are owned by their carriers.
 **Gate:** behavior identical to before (same lockstep trace for a given
 seed); ledger ⇔ physical-count invariant test; private-access routing test.
+Shipped; see [property.md](./property.md). All three gates are met (five seeds
+fingerprinted identically before and after). Two parts were deliberately
+deferred to the first job that needs them: **cargo records** (no job carries
+someone else's goods yet, so "what you carry is yours" is implicit) and ledger
+**withdrawal** (nothing takes goods out of storage yet). The lockstep
+fingerprint also gained a `property` field.
 
 ### E2 — Crash pods and meals
 

@@ -199,7 +199,7 @@ func TestDeterministicRunAgreesEveryTick(t *testing.T) {
 
 // fingerprintKeys fixes the comparison order so a failure names the most
 // specific field that moved, rather than whichever one a map happened to yield.
-var fingerprintKeys = []string{"tiles", "regions", "rooms", "frontier", "cleaning", "entities"}
+var fingerprintKeys = []string{"tiles", "regions", "rooms", "frontier", "cleaning", "property", "entities"}
 
 // worldFingerprint reduces a world to comparable strings, one per subsystem.
 func worldFingerprint(w *World) map[string]string {
@@ -232,6 +232,24 @@ func worldFingerprint(w *World) map[string]string {
 
 	f["frontier"] = sortedPointOwners(w.board.frontier, w.board.claimed)
 	f["cleaning"] = sortedPointOwners(nil, w.board.cleaning)
+
+	// Who owns what: balances, every fixture's owner and access, and every
+	// ledger line. The economy's decisions (who pays, whose ore) must be as
+	// seed-stable as where a colonist stands. See docs/property.md.
+	var p strings.Builder
+	fmt.Fprintf(&p, "treasury=%d frozen=%d issued=%d\n", w.treasury, w.moneyFrozen, w.moneyIssued)
+	for _, id := range w.entityIDsSorted() {
+		if e := w.entities[id]; e.Kind == Colonist {
+			fmt.Fprintf(&p, "%d:%d ", id, e.wallet)
+		}
+	}
+	for _, fx := range w.publishedFixtures() {
+		fmt.Fprintf(&p, "\n%v %v %v %v", fx.Pos, fx.Terrain, fx.Owner, fx.Access)
+	}
+	for _, st := range w.snapshotStorages() {
+		fmt.Fprintf(&p, "\n%v %v", st.Pos, st.Ledger)
+	}
+	f["property"] = p.String()
 	return f
 }
 

@@ -311,14 +311,18 @@ func (w *World) adjacentFacility(p Point, t Terrain) (Point, bool) {
 }
 
 // facilityGoal reports whether p is a goal of the facility field for kind:
-// walkable and next to a tile of that kind. It is facilitySeed for one tile.
+// walkable and next to a tile of that kind that everyone may use. It is
+// facilitySeed for one tile, and must agree with it, restricted fixtures and
+// all, or a repaired field would differ from a rebuilt one.
 func facilityGoal(w *World, kind Terrain) func(Point) bool {
 	return func(p Point) bool {
 		if !w.Walkable(p) {
 			return false
 		}
+		restricted := w.restrictedFixtures[kind] > 0
 		for _, d := range neighbors8 {
-			if w.TerrainAt(p.Add(d.X, d.Y)) == kind {
+			fc := p.Add(d.X, d.Y)
+			if w.TerrainAt(fc) == kind && (!restricted || w.communalFixture(fc)) {
 				return true
 			}
 		}
@@ -332,7 +336,14 @@ func facilityGoal(w *World, kind Terrain) func(Point) bool {
 // so cost tracks the number of facilities, not the map's area.
 func facilitySeed(w *World, kind Terrain) func(add func(Point)) {
 	return func(add func(Point)) {
+		restricted := w.restrictedFixtures[kind] > 0
 		for fc := range w.facilityTiles[kind] {
+			// The shared field is everyone's route, so it only leads to
+			// fixtures everyone may use. A colonist headed for its own
+			// private one routes there directly; see facilityReachable.
+			if restricted && !w.communalFixture(fc) {
+				continue
+			}
 			for _, d := range neighbors8 {
 				add(fc.Add(d.X, d.Y))
 			}

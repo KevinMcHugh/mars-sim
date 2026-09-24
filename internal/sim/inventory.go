@@ -34,6 +34,8 @@ const (
 	// and docs/sanitation.md.
 	Viscera
 	Corpse
+
+	numItemKinds // keep last: the number of item kinds
 )
 
 func (k ItemKind) String() string {
@@ -128,6 +130,11 @@ type StorageInventory [StorageInventorySlotCount]ItemStack
 type StorageContainer struct {
 	Pos       Point
 	Inventory StorageInventory
+	// Ledger says whose the items in Inventory are: one line per (owner,
+	// item), sorted, summing per item to what Inventory physically holds. The
+	// stacks themselves carry no owner. See property.go and
+	// docs/property.md.
+	Ledger []LedgerLine
 }
 
 // RemoveAll empties every stack of a kind and returns how many items were in

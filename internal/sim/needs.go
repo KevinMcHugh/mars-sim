@@ -188,7 +188,7 @@ func (w *World) applyStarvation(e *Entity) {
 				// Reaching food does not reset the need until UseTicks elapse. Give
 				// an entity committed to a reachable source enough grace to traverse
 				// its queue and finish eating rather than dying mid-meal.
-				if field := w.facilityField(spec.Facility); field != nil && field.at(e.Pos) >= 0 {
+				if w.facilityReachable(e, spec.Facility) {
 					continue
 				}
 			}

@@ -138,10 +138,12 @@ delayed dormitory turn into an indefinite "stuck waiting" loop.
 
 ### Satisfying a need
 
-When a need is urgent and a facility of the right kind is reachable, the
+When a need is urgent and a facility of the right kind that the colonist may
+use is reachable (`facilityReachable`: a communal one via the shared field, or
+its own private one — see [property.md](./property.md)), the
 colonist normally takes a `JobUse` job. With fewer than two facilities of that
-kind, there's nothing to choose between, so it just follows that facility's
-shared **flow field** to the nearest one. Once a second exists, `jobUse`
+kind — and none of them private — there's nothing to choose between, so it
+just follows that facility's shared **flow field** to the nearest one. Once a second exists, `jobUse`
 switches to routing at a *concrete* facility instead — see *Spreading users
 across facilities* below — stands adjacent to whichever it ends up at, and
 uses it for `UseTicks`. But if the colony still wants more of that facility
@@ -157,8 +159,9 @@ facilities get built and for this priority in full. The colony keeps
 ### Spreading users across facilities
 
 `chooseFacility` (`facilitychoice.go`) picks *which* facility of a kind a
-colonist commits to once more than one exists, so a crowd doesn't all converge
-on the shared field's single nearest seed. It ranks reachable facilities by
+colonist commits to once more than one exists — skipping any private fixture
+that is not its own — so a crowd doesn't all converge on the shared field's
+single nearest seed. It ranks reachable facilities by
 walkable distance and skips any that's **congested** — something actually
 occupying one of its reachable access tiles right now, or another colonist
 already committed to it (`Job == JobUse`, `useFacilitySet`, `useFacility` equal

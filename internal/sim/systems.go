@@ -317,8 +317,7 @@ func (w *World) runNeedFocus(e *Entity, need NeedKind) {
 	}
 
 	spec := w.cfg.Needs[need]
-	field := w.facilityField(spec.Facility)
-	existingReachable := field != nil && field.at(e.Pos) >= 0
+	existingReachable := w.facilityReachable(e, spec.Facility)
 	needMore := w.plannedFacilities(spec.Facility) < w.desiredFacilities(w.countKind(Colonist))
 	var task *buildTask
 	var hasTask bool
@@ -944,7 +943,7 @@ func (w *World) chooseStorage(e *Entity, stacks []ItemStack) (Point, bool) {
 	bestDist := 1 << 30
 	found := false
 	for p, container := range w.storageContainers {
-		if !container.Inventory.CanAddAll(stacks...) || !w.taskReachable(p, room) {
+		if !w.canUseFixture(e, p) || !container.Inventory.CanAddAll(stacks...) || !w.taskReachable(p, room) {
 			continue
 		}
 		d := e.Pos.Chebyshev(p)
@@ -971,9 +970,14 @@ func (w *World) jobStore(e *Entity) {
 		e.State = Moving
 		return
 	}
-	if !container.Inventory.AddAll(stacks...) {
+	if !w.canUseFixture(e, e.Target) || !container.Inventory.AddAll(stacks...) {
 		w.clearJob(e)
 		return
+	}
+	// What a colonist carries is its own (see docs/property.md), so the
+	// deposit is credited to it: the chest is shared, the ore stays theirs.
+	for _, stack := range stacks {
+		container.credit(ColonistOwner(e.ID), stack.Kind, stack.Count)
 	}
 	e.Inventory.removeStorable()
 	e.State = Storing
@@ -1218,11 +1222,12 @@ func (w *World) jobUse(e *Entity) {
 		return
 	}
 	field := w.facilityField(spec.Facility)
-	if field == nil || field.at(e.Pos) < 0 {
-		w.clearJob(e) // no facility of this kind is reachable anymore
+	if !w.facilityReachable(e, spec.Facility) {
+		w.clearJob(e) // no facility of this kind that e may use is reachable anymore
 		return
 	}
-	if !e.useFacilitySet || w.TerrainAt(e.useFacility) != spec.Facility {
+	if !e.useFacilitySet || w.TerrainAt(e.useFacility) != spec.Facility ||
+		!w.canUseFixture(e, e.useFacility) {
 		e.useFacility, e.useFacilitySet = w.chooseFacility(e, spec.Facility), true
 	}
 	// Arrived: standing next to a facility of the right kind — use it.
@@ -1255,7 +1260,11 @@ func (w *World) jobUse(e *Entity) {
 	// Keep the established shared-field behavior while there is no alternative
 	// room. Concrete routing is only needed once multiple facilities can split a
 	// queue; this also lets builders retain the field's crowd-transit behavior.
-	if w.countTerrain(spec.Facility) < 2 {
+	//
+	// Only while every facility of the kind is communal, though: the field leads
+	// only to communal ones, so it would walk a colonist past its own private
+	// bunk toward a shared one.
+	if w.countTerrain(spec.Facility) < 2 && w.restrictedFixtures[spec.Facility] == 0 {
 		if w.followField(e, field) {
 			e.stuck = 0
 			e.State = Moving

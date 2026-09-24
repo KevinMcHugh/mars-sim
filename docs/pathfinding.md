@@ -153,7 +153,10 @@ function (all goals, for a rebuild) and a goal predicate (one tile, for a
 repair), and the two must agree (`TestFlowFieldGoalAgreesWithSeed`).
 
 There is one field per **facility terrain** (nutrient pods, toilets) and one
-**frontier** field toward the nearest *unclaimed* diggable rock. `followField`
+**frontier** field toward the nearest *unclaimed* diggable rock. A facility
+field is everyone's route, so it only leads to **communal** fixtures; a
+colonist headed for its own private one routes there with A\* instead (see
+[property.md](./property.md)). `followField`
 moves an agent along a field: it BFSes through any occupied tile but an
 alien's to the first depth with a free landing, preferring the lowest field
 distance but able to step **uphill** when every downhill route is occupied —

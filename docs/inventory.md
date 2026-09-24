@@ -52,6 +52,10 @@ scans the stacks for the best weapon kind present, so carrying one *is*
 wielding it. Nothing removes a weapon from inventory today (no drop, no
 ammo, no loss on death), so once armed, always armed.
 
+Whatever a colonist carries is its own property — there is no owner on a
+stack. Once deposited, whose it is lives in the chest's ledger instead; see
+[property.md](./property.md).
+
 Inventory is copied by value into the snapshot's `EntityView`, so the frontend can
 render it without touching live state.
 

@@ -244,6 +244,13 @@ func TestMapCursorInspectsAndOpensStorage(t *testing.T) {
 		!strings.Contains(out, "raw rock ×9") {
 		t.Fatalf("map cursor did not inspect storage:\n%s", out)
 	}
+	// With an ownership record, the inspector names the owner and the access.
+	snap.Fixtures = []sim.FixtureView{{Pos: p, Terrain: sim.Storage, Owner: sim.ColonistOwner(1), Access: sim.AccessPrivate}}
+	snap.Entities[0].Profile = &sim.Profile{Name: "Cy Keeper"}
+	model, _ = model.Update(snapshotMsg{snap: snap})
+	if out := model.View(); !strings.Contains(out, "Owner: Cy Keeper") || !strings.Contains(out, "Access: private") {
+		t.Fatalf("inspector did not show the fixture's owner:\n%s", out)
+	}
 	model, _ = model.Update(tea.KeyMsg{Type: tea.KeyEnter})
 	if out := model.View(); !strings.Contains(out, "DETAILS · STORAGE") {
 		t.Fatalf("enter did not open storage details:\n%s", out)
@@ -646,5 +653,36 @@ func TestMarketTabListsAccountsAndMoneySupply(t *testing.T) {
 	model, _ = model.Update(tea.KeyMsg{Type: tea.KeyDown})
 	if out := model.View(); !strings.Contains(out, "Balance:      $900") {
 		t.Fatalf("down did not select the richest colonist:\n%s", out)
+	}
+}
+
+// Storage details say whose the contents are, and the market tab totals a
+// colonist's holdings across every chest.
+func TestLedgerShowsInStorageAndMarket(t *testing.T) {
+	snap := makeSnapshot()
+	snap.Entities[0].Profile = &sim.Profile{Name: "Dee Digger"}
+	snap.Entities[0].Wallet = 10
+	dee := sim.ColonistOwner(1)
+	var a, b sim.StorageInventory
+	a[0] = sim.ItemStack{Kind: sim.IronOre, Count: 5}
+	b[0] = sim.ItemStack{Kind: sim.IronOre, Count: 7}
+	snap.Storages = []sim.StorageView{
+		{Pos: sim.Point{X: 1, Y: 2}, Inventory: a, Ledger: []sim.LedgerLine{{Owner: dee, Item: sim.IronOre, Count: 5}}},
+		{Pos: sim.Point{X: 4, Y: 2}, Inventory: b, Ledger: []sim.LedgerLine{{Owner: dee, Item: sim.IronOre, Count: 7}}},
+	}
+
+	var model tea.Model = New(nil, nil)
+	model, _ = model.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
+	model, _ = model.Update(snapshotMsg{snap: snap})
+	for range 3 {
+		model, _ = model.Update(tea.KeyMsg{Type: tea.KeyTab})
+	}
+	if out := model.View(); !strings.Contains(out, "OWNED BY") || !strings.Contains(out, "Dee Digger: iron ore ×5") {
+		t.Fatalf("storage details did not show the ledger:\n%s", out)
+	}
+	model, _ = model.Update(tea.KeyMsg{Type: tea.KeyTab}) // market
+	model, _ = model.Update(tea.KeyMsg{Type: tea.KeyDown})
+	if out := model.View(); !strings.Contains(out, "HOLDINGS IN STORAGE") || !strings.Contains(out, "iron ore ×12") {
+		t.Fatalf("market did not total holdings across chests:\n%s", out)
 	}
 }

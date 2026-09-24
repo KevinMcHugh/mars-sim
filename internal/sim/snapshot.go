@@ -86,6 +86,9 @@ type ProjectView struct {
 type StorageView struct {
 	Pos       Point
 	Inventory StorageInventory
+	// Ledger is whose the contents are, sorted by owner then item. A copy:
+	// safe to read. See docs/property.md.
+	Ledger []LedgerLine
 }
 
 // TasksDone counts tasks already built.
@@ -127,6 +130,15 @@ type EconomyView struct {
 	Circulating Money // treasury plus every living colonist's wallet
 	Frozen      Money // locked in dead colonists' wallets
 	Issued      Money // every dollar ever minted
+}
+
+// FixtureAt returns the ownership record of the fixture at p, if there is one.
+func (s *Snapshot) FixtureAt(p Point) (FixtureView, bool) {
+	i := sort.Search(len(s.Fixtures), func(i int) bool { return !lessPoint(s.Fixtures[i].Pos, p) })
+	if i < len(s.Fixtures) && s.Fixtures[i].Pos == p {
+		return s.Fixtures[i], true
+	}
+	return FixtureView{}, false
 }
 
 // NeedMeta describes a need for display: its name, ceiling, and whether maxing
@@ -208,6 +220,10 @@ type Snapshot struct {
 	PendingTrashRooms    int
 	PendingStorageRooms  int
 	Storages             []StorageView
+	// Fixtures is the ownership of every placed fixture (pods, toilets, beds,
+	// incinerators, storage), sorted by position. The slice is shared between
+	// frames until a fixture changes, and never written after publication.
+	Fixtures []FixtureView
 
 	// AlienSpecies is this world's roster of rolled alien species -- each
 	// one's build, colloquial name, and temperament. Every Alien in Entities
@@ -336,16 +352,7 @@ func (w *World) snapshot(paused bool, tps int) *Snapshot {
 		})
 	}
 
-	storages := make([]StorageView, 0, len(w.storageContainers))
-	for _, container := range w.storageContainers {
-		storages = append(storages, StorageView{
-			Pos:       container.Pos,
-			Inventory: container.Inventory,
-		})
-	}
-	sort.Slice(storages, func(i, j int) bool {
-		return lessPoint(storages[i].Pos, storages[j].Pos)
-	})
+	storages := w.snapshotStorages()
 
 	return &Snapshot{
 		Tick:                 w.tick,
@@ -363,6 +370,7 @@ func (w *World) snapshot(paused bool, tps int) *Snapshot {
 		PendingTrashRooms:    w.manualTrashRooms,
 		PendingStorageRooms:  w.manualStorageRooms,
 		Storages:             storages,
+		Fixtures:             w.publishedFixtures(),
 		Graveyard:            append([]EntityView(nil), w.graveyard...),
 		Deceased:             w.publishedDeceasedColonists(),
 		AlienSpecies:         append([]AlienSpecies(nil), w.alienSpecies...),
@@ -378,6 +386,23 @@ func (w *World) snapshot(paused bool, tps int) *Snapshot {
 		TicksPerSecond: tps,
 		FogOfWar:       w.cfg.FogOfWar,
 	}
+}
+
+// snapshotStorages copies every storage container, ledger included, sorted by
+// position so the list never depends on map iteration order.
+func (w *World) snapshotStorages() []StorageView {
+	storages := make([]StorageView, 0, len(w.storageContainers))
+	for _, container := range w.storageContainers {
+		storages = append(storages, StorageView{
+			Pos:       container.Pos,
+			Inventory: container.Inventory,
+			Ledger:    append([]LedgerLine(nil), container.Ledger...),
+		})
+	}
+	sort.Slice(storages, func(i, j int) bool {
+		return lessPoint(storages[i].Pos, storages[j].Pos)
+	})
+	return storages
 }
 
 // publishedDeceasedColonists returns the deceased archive as snapshots

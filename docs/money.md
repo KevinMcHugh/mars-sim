@@ -34,7 +34,7 @@ supply, a set of accounts, and the rules that keep them honest.
 
 Every holder of money is an `Owner`: the community (`Community`), one colonist
 (`ColonistOwner(id)`), or nobody (`Nobody`). The type is shared with
-property (phase E1), so a wallet, a ledger line, and a bunk all name
+[property](./property.md), so a wallet, a ledger line, and a bunk all name
 their holder the same way. `OwnerNone` can own goods (abandoned property) but
 never money. An organization owner kind is a commented-out TODO.
 
@@ -117,5 +117,6 @@ colonist richest first, with the money supply beside the selected account.
 ## Related
 
 - [economy.md](./economy.md) — the full plan this is phase E0 of.
+- [property.md](./property.md) — the other half of `Owner`: who owns goods and fixtures.
 - [frontend-tui.md](./frontend-tui.md) — the market tab.
 - [configuration.md](./configuration.md) — the `founding-grant` and `crash-pod-purse` settings.

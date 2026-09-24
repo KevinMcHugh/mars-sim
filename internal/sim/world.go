@@ -550,6 +550,18 @@ type World struct {
 	// storageContainers holds mutable contents only for tiles whose terrain is
 	// Storage. Keeping it sparse avoids inflating every tile in a large map.
 	storageContainers map[Point]*StorageContainer
+	// fixtures holds the ownership record of every placed fixture tile (pods,
+	// toilets, beds, incinerators, storage), kept in step by SetTerrain.
+	// restrictedFixtures counts, per terrain, the ones that are not communal:
+	// while it is zero for a kind, ownership cannot change how colonists use
+	// that kind, and the access checks skip their extra work. fixtureRev
+	// advances on any change so snapshots can reuse the last published list
+	// (snapFixtures, taken at snapFixtureRev). See property.go.
+	fixtures           map[Point]*Fixture
+	restrictedFixtures [numTerrains]int
+	fixtureRev         uint64
+	snapFixtureRev     uint64
+	snapFixtures       []FixtureView
 	// buildTiles holds every not-yet-built task tile, rebuilt each tick. Colonists
 	// route around these so a crowd never parks on a tile a builder needs clear —
 	// otherwise a facility mobbed by its neighbors could never be raised. See
@@ -659,6 +671,7 @@ func newWorld(cfg Config, rng *rand.Rand) *World {
 		buildTiles:        make(map[Point]bool),
 		doorTiles:         make(map[Point]bool),
 		storageContainers: make(map[Point]*StorageContainer),
+		fixtures:          make(map[Point]*Fixture),
 		kin:               make(map[kinID]*kinPerson),
 		nextKinID:         1,
 		kinRevision:       1,
@@ -846,6 +859,12 @@ func (w *World) setTerrain(p Point, t Terrain, discover bool) {
 	}
 	if t == Storage {
 		w.storageContainers[p] = &StorageContainer{Pos: p}
+	}
+	if isFixtureTerrain(old) {
+		w.dropFixture(p)
+	}
+	if isFixtureTerrain(t) {
+		w.placeFixture(p, t)
 	}
 	if t != Rock && discover {
 		w.growCarvedBox(p)

@@ -19,6 +19,7 @@ const marketListWidth = 40
 type marketAccount struct {
 	label    string
 	balance  sim.Money
+	owner    sim.Owner
 	colonist *sim.EntityView // nil for the treasury
 }
 
@@ -26,14 +27,15 @@ type marketAccount struct {
 // first, ties by ID so the order is stable from frame to frame.
 func (m Model) marketAccounts() []marketAccount {
 	s := m.latest
-	accounts := []marketAccount{{label: "The colony (treasury)", balance: s.Economy.Treasury}}
+	accounts := []marketAccount{{label: "The colony (treasury)", balance: s.Economy.Treasury, owner: sim.Community}}
 	var colonists []marketAccount
 	for i := range s.Entities {
 		e := &s.Entities[i]
 		if e.Kind != sim.Colonist {
 			continue
 		}
-		colonists = append(colonists, marketAccount{label: colonistName(*e), balance: e.Wallet, colonist: e})
+		colonists = append(colonists, marketAccount{label: colonistName(*e), balance: e.Wallet,
+			owner: sim.ColonistOwner(e.ID), colonist: e})
 	}
 	sort.SliceStable(colonists, func(i, j int) bool {
 		if colonists[i].balance != colonists[j].balance {
@@ -108,10 +110,78 @@ func (m Model) renderMarketDetail(a marketAccount, rows, width int) string {
 	}
 
 	b.WriteString("\n")
+	b.WriteString(labelStyle.Render("HOLDINGS IN STORAGE"))
+	b.WriteByte('\n')
+	for _, line := range m.holdingLines(a.owner) {
+		b.WriteString(cells.Truncate(line, inner))
+		b.WriteByte('\n')
+	}
+	if n := m.fixturesOwnedBy(a.owner); n > 0 {
+		stat("Fixtures:", fmt.Sprintf("%d owned", n))
+	}
+
+	b.WriteString("\n")
 	b.WriteString(labelStyle.Render("MONEY SUPPLY"))
 	b.WriteByte('\n')
 	stat("Circulating:", econ.Circulating.String())
 	stat("Frozen:", econ.Frozen.String()+" (held by the dead)")
 	stat("Issued:", econ.Issued.String())
 	return sidebarStyle.Width(width - borderCells).Height(rows - borderCells).MaxHeight(rows).Render(b.String())
+}
+
+// holdingLines totals what owner holds across every storage ledger, one line
+// per item kind in item order.
+func (m Model) holdingLines(owner sim.Owner) []string {
+	totals := map[sim.ItemKind]int{}
+	var kinds []sim.ItemKind
+	for _, st := range m.latest.Storages {
+		for _, l := range st.Ledger {
+			if l.Owner != owner {
+				continue
+			}
+			if _, seen := totals[l.Item]; !seen {
+				kinds = append(kinds, l.Item)
+			}
+			totals[l.Item] += l.Count
+		}
+	}
+	if len(kinds) == 0 {
+		return []string{"nothing"}
+	}
+	sort.Slice(kinds, func(i, j int) bool { return kinds[i] < kinds[j] })
+	lines := make([]string, 0, len(kinds))
+	for _, k := range kinds {
+		lines = append(lines, fmt.Sprintf("%s ×%d", k, totals[k]))
+	}
+	return lines
+}
+
+// fixturesOwnedBy counts the placed fixtures owner owns.
+func (m Model) fixturesOwnedBy(owner sim.Owner) int {
+	n := 0
+	for _, f := range m.latest.Fixtures {
+		if f.Owner == owner {
+			n++
+		}
+	}
+	return n
+}
+
+// ownerLabel names an owner for display: a colonist by name (living or dead),
+// the colony, or nobody.
+func (m Model) ownerLabel(o sim.Owner) string {
+	switch o.Kind {
+	case sim.OwnerCommunity:
+		return "the colony"
+	case sim.OwnerColonist:
+		for i := range m.latest.Entities {
+			if e := m.latest.Entities[i]; e.ID == o.ID {
+				return colonistName(e)
+			}
+		}
+		if e, ok := m.latest.Deceased[o.ID]; ok {
+			return colonistName(e) + " (dead)"
+		}
+	}
+	return o.String()
 }

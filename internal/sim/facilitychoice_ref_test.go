@@ -60,6 +60,9 @@ func (w *World) chooseFacilityReference(e *Entity, kind Terrain) Point {
 
 	best, bestDist := Point{}, int32(^uint32(0)>>1)
 	for fac := range facilities {
+		if !w.canUseFixture(e, fac) {
+			continue // someone else's private fixture
+		}
 		accessible := false
 		congested := false
 		for _, d := range neighbors8 {

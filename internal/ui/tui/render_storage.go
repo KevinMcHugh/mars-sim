@@ -82,6 +82,13 @@ func (m Model) renderStorageDetail(storage sim.StorageView, rows, width int) str
 		b.WriteString(cells.Truncate(line, inner))
 		b.WriteByte('\n')
 	}
+	b.WriteByte('\n')
+	b.WriteString(labelStyle.Render("OWNED BY"))
+	b.WriteByte('\n')
+	for _, line := range m.ledgerLines(storage.Ledger) {
+		b.WriteString(cells.Truncate(line, inner))
+		b.WriteByte('\n')
+	}
 	return sidebarStyle.Width(width - borderCells).Height(rows - borderCells).MaxHeight(rows).Render(b.String())
 }
 
@@ -91,6 +98,9 @@ func (m Model) renderCursorInspector() string {
 	var b strings.Builder
 	b.WriteString(labelStyle.Render("INSPECT"))
 	b.WriteString(fmt.Sprintf("\n(%d,%d)\n%s", m.cursor.X, m.cursor.Y, m.terrainLabel(m.cursor)))
+	if f, ok := m.latest.FixtureAt(m.cursor); ok && m.latest.ExploredAt(m.cursor) {
+		b.WriteString(fmt.Sprintf("\nOwner: %s\nAccess: %s", m.ownerLabel(f.Owner), f.Access))
+	}
 	if i := m.storageIndexAt(m.cursor); i >= 0 {
 		storage := m.latest.Storages[i]
 		used, total := storageUsage(storage.Inventory)
@@ -135,6 +145,18 @@ func storageContentLines(inv sim.StorageInventory) []string {
 	}
 	if len(lines) == 0 {
 		return []string{"empty"}
+	}
+	return lines
+}
+
+// ledgerLines renders a container's ledger: who owns how many of what.
+func (m Model) ledgerLines(ledger []sim.LedgerLine) []string {
+	if len(ledger) == 0 {
+		return []string{"nobody (empty)"}
+	}
+	lines := make([]string, 0, len(ledger))
+	for _, l := range ledger {
+		lines = append(lines, fmt.Sprintf("%s: %s ×%d", m.ownerLabel(l.Owner), l.Item, l.Count))
 	}
 	return lines
 }
