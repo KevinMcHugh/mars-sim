@@ -730,6 +730,10 @@ func TestMarketTabShowsBooksTradesAndOrders(t *testing.T) {
 		Books:  []sim.BookView{{Item: sim.IronOre, Depot: silo, BestBid: 3, BidQty: 32, Last: 3, Volume: 10, Traded: true}},
 		Trades: []sim.Trade{{Tick: 40, Item: sim.IronOre, Depot: silo, Qty: 10, Price: 3, Buyer: sim.Community, Seller: ida}},
 		Orders: []sim.OrderView{{ID: 7, Side: sim.Ask, Item: sim.Meal, Qty: 2, Price: 5, Actor: ida, Depot: silo}},
+		WorkOrders: []sim.WorkOrderView{
+			{ID: 8, Kind: sim.WorkBuild, Issuer: sim.Community, Pay: 2, Units: 1},
+			{ID: 9, Kind: sim.WorkBuild, Issuer: sim.Community, Pay: 5, Units: 1},
+		},
 	}
 	var model tea.Model = New(nil, nil)
 	model, _ = model.Update(tea.WindowSizeMsg{Width: 120, Height: 40})
@@ -738,7 +742,7 @@ func TestMarketTabShowsBooksTradesAndOrders(t *testing.T) {
 		model, _ = model.Update(tea.KeyMsg{Type: tea.KeyTab})
 	}
 	out := model.View()
-	for _, want := range []string{"BOOKS", "iron ore (3,2): bid $3×32", "Ida Miner sold the colony 10 iron ore @ $3", "In escrow:"} {
+	for _, want := range []string{"BOOKS", "iron ore (3,2): bid $3×32", "the colony: 2 build tasks, $7 held", "Ida Miner sold the colony 10 iron ore @ $3", "In escrow:"} {
 		if !strings.Contains(out, want) {
 			t.Fatalf("market page missing %q:\n%s", want, out)
 		}

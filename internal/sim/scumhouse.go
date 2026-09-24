@@ -459,11 +459,14 @@ func (w *World) deliverBiomatter(e *Entity, c *StorageContainer) bool {
 	if len(stacks) == 0 || !c.Inventory.AddAll(stacks...) {
 		return false
 	}
+	units := 0
 	for _, s := range stacks {
 		c.credit(w.carriedOwner(e, s.Kind), s.Kind, s.Count)
 		e.Inventory.RemoveAll(s.Kind)
 		e.cargo[s.Kind] = Owner{}
+		units += s.Count
 	}
+	w.payBounty(e, c.Pos, units) // the colony's bounty, while it lasts
 	w.remember(e, event(EvtFedScumhouse, "Brought %s to the scumhouse.", stackPhrase(stacks)))
 	return true
 }

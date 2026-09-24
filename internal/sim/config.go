@@ -117,6 +117,21 @@ type Config struct {
 	MealKeep        int   `cfg:"meal-keep" doc:"meals a colonist keeps for itself before it takes the rest to market"`
 	MealWillingness int   `cfg:"meal-willingness" doc:"a hungry colonist pays up to this many times the meal price"`
 
+	// Labor. The colony pays for its public works: every task of a room it
+	// plans is a work order funded from the treasury at these wages, and a
+	// room it cannot fund is not planned. It also pays BountyPay for each
+	// unit of biomatter delivered to a scumhouse, keeping BountyUnits of
+	// bounty open per scumhouse. A colonist with HouseSavings dollars
+	// commissions its own house (0 disables), whose toilet charges others
+	// ToiletFee a use. See docs/labor.md.
+	WageDig      int64 `cfg:"wage-dig" sec:"Labor" doc:"what the colony pays to dig out one tile of a room"`
+	WageWall     int64 `cfg:"wage-wall" doc:"what the colony pays to raise one wall"`
+	WageFixture  int64 `cfg:"wage-fixture" doc:"what the colony pays to build one fixture (pod, toilet, bed, ...)"`
+	BountyPay    int64 `cfg:"bounty-pay" doc:"what the colony pays per unit of biomatter delivered to a scumhouse (0 disables)"`
+	BountyUnits  int   `cfg:"bounty-units" doc:"units of biomatter bounty the colony keeps open per scumhouse"`
+	HouseSavings int64 `cfg:"house-savings" doc:"a colonist with this much money commissions its own house (0 disables)"`
+	ToiletFee    int64 `cfg:"toilet-fee" doc:"what a house's toilet charges anyone but its owner per use (0: private)"`
+
 	// Crash pods. Every colonist arrives in one — at worldgen, from the spawn
 	// command, or from a director arrival — carrying its own bunk, toilet, and
 	// locker, and this manifest. See crashpod.go and docs/crash-pods.md.
@@ -413,6 +428,16 @@ func DefaultConfig() Config {
 		OrderTTL:        2000,
 		MealKeep:        5,
 		MealWillingness: 3,
+		// Wages sized so a typical room costs the colony about a hundred
+		// dollars: fifty rooms from the founding grant, less what it spends
+		// buying ore. A house is a real purchase, several weeks of prospecting.
+		WageDig:      2,
+		WageWall:     2,
+		WageFixture:  5,
+		BountyPay:    1,
+		BountyUnits:  30,
+		HouseSavings: 300,
+		ToiletFee:    2,
 		// A meal clears hunger for roughly 325 ticks at the baseline rise, so
 		// ten carry a colonist a few thousand ticks: long enough to settle in,
 		// short enough that food production matters once the safety net is

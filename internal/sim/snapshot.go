@@ -142,9 +142,22 @@ type EconomyView struct {
 	Orders []OrderView
 	Books  []BookView
 	Trades []Trade
+	// WorkOrders is every open work order, oldest first (see
+	// docs/labor.md).
+	WorkOrders []WorkOrderView
 	// Silo is the colony's market depot, when it has one.
 	Silo    Point
 	HasSilo bool
+}
+
+// WorkOrderView is an immutable copy of one open work order.
+type WorkOrderView struct {
+	ID     OrderID
+	Kind   WorkKind
+	Issuer Owner
+	Pay    Money // per unit
+	Units  int
+	Pos    Point
 }
 
 // OrderView is an immutable copy of one open order.
@@ -181,6 +194,10 @@ func (w *World) economyView() EconomyView {
 		Trades:      append([]Trade(nil), w.trades...),
 	}
 	v.Silo, v.HasSilo = w.marketDepot()
+	for _, o := range w.sortedWork(nil) {
+		v.WorkOrders = append(v.WorkOrders, WorkOrderView{ID: o.ID, Kind: o.Kind, Issuer: o.Issuer,
+			Pay: o.Pay, Units: o.Units, Pos: o.Pos})
+	}
 	for _, o := range w.sortedOrders(nil) {
 		v.Orders = append(v.Orders, OrderView{ID: o.ID, Side: o.Side, Item: o.Item, Qty: o.Qty,
 			Price: o.Price, Actor: o.Actor, Depot: o.Depot})

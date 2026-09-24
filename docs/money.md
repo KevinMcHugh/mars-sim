@@ -59,7 +59,8 @@ leave circulation, because nobody can spend them. So the books always balance:
 
 ```
 treasury + Σ living wallets (= moneyInCirculation) + moneyFrozen
-    + moneyEscrowed (held by open bids, see market.md) == moneyIssued
+    + moneyEscrowed (held by open bids and work orders, see market.md and
+      labor.md) == moneyIssued
 ```
 
 `TestMoneyIsConserved` checks that on every tick of a colony that is gaining

@@ -65,6 +65,7 @@ current recipes are:
 | trash room | an incinerator | 1 incinerator (and at most 1, via `maxFac`) | last, and only once there is refuse to burn |
 | storage room | one storage container | exactly 1 container via `maxFac` | player-ordered only |
 | scumhouse | one scumhouse | exactly 1 via `maxFac` | first of all with `infinite-food` off; otherwise player-ordered (see [scumhouse.md](./scumhouse.md)) |
+| house | a bunk and a toilet | exactly 2 | commissioned by a colonist with `house-savings`, paid from its wallet (see [labor.md](./labor.md)) |
 
 `planRooms` checks each recipe's planned-or-built capacity, plans at most one
 new room per call (see *Planning cadence*), and always chooses a life-support
@@ -74,6 +75,13 @@ incinerator, and only once `refuseTotal() > 0` (see
 [sanitation.md](./sanitation.md)). A dormitory can therefore be built in a cramped
 cavern with a single bunk, and the colony adds more rooms — and, once the
 population justifies it, more of them at once — as it grows.
+
+The colony **buys** the rooms it plans: every task is a work order paid from
+the treasury, funded in full before the room is marked out, and a room it
+cannot afford is not planned — so an empty treasury halts public works, while
+colonists' unpaid emergency builds keep them alive. A colonist can commission a
+room the same way from its own wallet (a house) and owns its fixtures. See
+[labor.md](./labor.md).
 
 The planner also builds a storage room when the colony has **no communal
 chest** at all: that chest is its silo, where the market happens (see

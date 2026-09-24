@@ -141,6 +141,13 @@ func (m Model) renderMarketDetail(a marketAccount, rows, width int) string {
 			b.WriteByte('\n')
 		}
 		b.WriteString("\n")
+		b.WriteString(labelStyle.Render("WORK ORDERS"))
+		b.WriteByte('\n')
+		for _, line := range m.workLines() {
+			b.WriteString(cells.Truncate(line, inner))
+			b.WriteByte('\n')
+		}
+		b.WriteString("\n")
 		b.WriteString(labelStyle.Render("RECENT TRADES"))
 		b.WriteByte('\n')
 		for _, line := range m.tradeLines(8) {
@@ -273,6 +280,38 @@ func (m Model) tradeLines(n int) []string {
 	}
 	if len(out) == 0 {
 		return []string{"none yet"}
+	}
+	return out
+}
+
+// workLines summarizes the open work orders by issuer and kind: how many
+// units of work are paid for, and what is held for them.
+func (m Model) workLines() []string {
+	type key struct {
+		issuer sim.Owner
+		kind   sim.WorkKind
+	}
+	var order []key
+	units := map[key]int{}
+	held := map[key]sim.Money{}
+	for _, o := range m.latest.Economy.WorkOrders {
+		k := key{o.Issuer, o.Kind}
+		if _, seen := units[k]; !seen {
+			order = append(order, k)
+		}
+		units[k] += o.Units
+		held[k] += o.Pay * sim.Money(o.Units)
+	}
+	var out []string
+	for _, k := range order {
+		what := "build tasks"
+		if k.kind == sim.WorkDeliver {
+			what = "units of biomatter bounty"
+		}
+		out = append(out, fmt.Sprintf("%s: %d %s, %v held", m.ownerLabel(k.issuer), units[k], what, held[k]))
+	}
+	if len(out) == 0 {
+		return []string{"none open"}
 	}
 	return out
 }

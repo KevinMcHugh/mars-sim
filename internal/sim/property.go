@@ -11,8 +11,10 @@ const (
 	AccessCommunal Access = iota
 	// AccessPrivate: only the owner may use it.
 	AccessPrivate
-	// TODO: AccessPaid — anyone may use it for a per-use charge to the owner.
-	// Arrives with labor orders (economy phase E5); see docs/economy.md.
+	// AccessPaid: the owner uses it free; anyone else who can pay its Price
+	// may use it, and pays the owner when they are done. A house's toilet
+	// is the first: renting out your spare toilet is a business.
+	AccessPaid
 )
 
 func (a Access) String() string {
@@ -21,6 +23,8 @@ func (a Access) String() string {
 		return "communal"
 	case AccessPrivate:
 		return "private"
+	case AccessPaid:
+		return "paid"
 	default:
 		return "unknown"
 	}
@@ -36,6 +40,7 @@ type Fixture struct {
 	Terrain Terrain
 	Owner   Owner
 	Access  Access
+	Price   Money // per use, for AccessPaid
 }
 
 // isFixtureTerrain reports whether a terrain kind gets a Fixture record: the
@@ -114,13 +119,39 @@ func (w *World) communalFixture(p Point) bool {
 }
 
 // canUseFixture reports whether e may use the fixture at p: anyone may use a
-// communal one, and only its owner a private one. Rats never own anything.
+// communal one, only its owner a private one, and its owner or anyone who can
+// pay the price a paid one. Rats never own anything, or pay.
 func (w *World) canUseFixture(e *Entity, p Point) bool {
 	f := w.fixtures[p]
 	if f == nil || f.Access == AccessCommunal {
 		return true
 	}
-	return e.Kind == Colonist && f.Owner == ColonistOwner(e.ID)
+	if e.Kind != Colonist {
+		return false
+	}
+	if f.Owner == ColonistOwner(e.ID) {
+		return true
+	}
+	return f.Access == AccessPaid && e.wallet >= f.Price
+}
+
+// setFixturePrice sets what a paid fixture charges per use.
+func (w *World) setFixturePrice(p Point, price Money) {
+	if f := w.fixtures[p]; f != nil && f.Price != price {
+		f.Price = price
+		w.fixtureRev++
+	}
+}
+
+// chargeForUse bills e for a finished use of the fixture at p, if it is a paid
+// one that e does not own. A colonist who can no longer pay by the time it is
+// done has had its use anyway; nobody chases the debt (there is no debt yet).
+func (w *World) chargeForUse(e *Entity, p Point) {
+	f := w.fixtures[p]
+	if f == nil || f.Access != AccessPaid || e.Kind != Colonist || f.Owner == ColonistOwner(e.ID) {
+		return
+	}
+	w.transfer(ColonistOwner(e.ID), f.Owner, f.Price)
 }
 
 // facilityReachable reports whether e can reach a facility of kind that it is
@@ -257,6 +288,7 @@ type FixtureView struct {
 	Terrain Terrain
 	Owner   Owner
 	Access  Access
+	Price   Money
 }
 
 // publishedFixtures returns the fixtures sorted by position for a snapshot.
@@ -270,7 +302,7 @@ func (w *World) publishedFixtures() []FixtureView {
 	}
 	out := make([]FixtureView, 0, len(w.fixtures))
 	for _, f := range w.fixtures {
-		out = append(out, FixtureView{Pos: f.Pos, Terrain: f.Terrain, Owner: f.Owner, Access: f.Access})
+		out = append(out, FixtureView{Pos: f.Pos, Terrain: f.Terrain, Owner: f.Owner, Access: f.Access, Price: f.Price})
 	}
 	sort.Slice(out, func(i, j int) bool { return lessPoint(out[i].Pos, out[j].Pos) })
 	w.snapFixtures, w.snapFixtureRev = out, w.fixtureRev

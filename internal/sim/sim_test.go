@@ -1068,7 +1068,7 @@ func TestRoomSiteSharesSideWallWithNeighbor(t *testing.T) {
 		t.Fatalf("site = %v, want %v (sharing the wall at x=%d)", site, want, ox-1)
 	}
 
-	w.designateRoom(dormRoom, site, 2) // bayWidth(2) == 3, matching the site carved above
+	w.designateRoom(dormRoom, site, 2, Community) // bayWidth(2) == 3, matching the site carved above
 	for _, tk := range w.projects[0].tasks {
 		if tk.pos == (Point{ox - 1, backY}) || tk.pos == (Point{ox - 1, frontY}) {
 			t.Fatalf("designateRoom added a redundant task %v on the shared wall", tk.pos)
@@ -1128,7 +1128,7 @@ func TestRoomSiteCanIncludeUnexcavatedRock(t *testing.T) {
 		t.Fatalf("site = %v, want %v", site, want)
 	}
 
-	w.designateRoom(lifeSupportRoom, site, roomFacilities)
+	w.designateRoom(lifeSupportRoom, site, roomFacilities, Community)
 	digs := 0
 	for _, tk := range w.projects[0].tasks {
 		if tk.phase == roomDigPhase {
@@ -1247,7 +1247,7 @@ func TestColonistsExcavateAndBuildRoomFromRock(t *testing.T) {
 	if !ok {
 		t.Fatal("expected a room site with an unexcavated interior")
 	}
-	w.designateRoom(lifeSupportRoom, site, roomFacilities)
+	w.designateRoom(lifeSupportRoom, site, roomFacilities, Community)
 	for i := 0; i < roomFacilities; i++ {
 		w.spawn(Colonist, Point{ox - 2, backY + i%(frontY-backY+1)})
 	}
@@ -1293,7 +1293,7 @@ func TestFacilityRoomHasCompleteWallsDoorAndBuildPhases(t *testing.T) {
 		t.Fatal("no room site despite a clear pocket")
 	}
 
-	w.designateRoom(lifeSupportRoom, site, roomFacilities)
+	w.designateRoom(lifeSupportRoom, site, roomFacilities, Community)
 	var facs []Point
 	walls := make(map[Point]bool)
 	for _, p := range w.projects {
@@ -1381,7 +1381,7 @@ func TestRoomSiteClearRejectsCoveringAnotherRoomsDoorway(t *testing.T) {
 	if !w.roomSiteClear(siteA.X, siteA.Y, widthA, map[Point]bool{}, false) {
 		t.Fatal("room A's own site is not clear before it is designated")
 	}
-	w.designateRoom(lifeSupportRoom, siteA, roomFacilities)
+	w.designateRoom(lifeSupportRoom, siteA, roomFacilities, Community)
 
 	// Finish room A instantly by building every task in place, then prune
 	// its project — a completed room's tiles must no longer sit in the
@@ -1443,7 +1443,7 @@ func TestColonistsCollaborateOnProject(t *testing.T) {
 	if !ok {
 		t.Fatal("no room site despite a clear pocket")
 	}
-	w.designateRoom(lifeSupportRoom, site, roomFacilities)
+	w.designateRoom(lifeSupportRoom, site, roomFacilities, Community)
 	for i := 0; i < roomFacilities; i++ {
 		w.spawn(Colonist, Point{site.X + i, roomFrontWallY(oy) + roomApproach})
 	}

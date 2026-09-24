@@ -680,6 +680,7 @@ type World struct {
 	// (item, depot), the most recent trades, and the cached location of the
 	// colony's silo (valid while marketDepotRev == fixtureRev+1).
 	orders         map[OrderID]*Order
+	workOrders     map[OrderID]*WorkOrder
 	books          map[bookKey]*book
 	trades         []Trade
 	nextOrderID    OrderID
@@ -757,6 +758,7 @@ func newWorld(cfg Config, rng *rand.Rand) *World {
 		storageContainers: make(map[Point]*StorageContainer),
 		fixtures:          make(map[Point]*Fixture),
 		orders:            make(map[OrderID]*Order),
+		workOrders:        make(map[OrderID]*WorkOrder),
 		books:             make(map[bookKey]*book),
 		kin:               make(map[kinID]*kinPerson),
 		nextKinID:         1,
@@ -1225,6 +1227,7 @@ func (w *World) remove(id EntityID, cause string) {
 		// Open orders go first, so a bid's escrow is back in the wallet
 		// before the wallet freezes.
 		w.cancelOrdersOf(ColonistOwner(e.ID))
+		w.cancelWorkOf(ColonistOwner(e.ID))
 		w.freezeWallet(e)
 		// Computed with full=true, and before any of the bookkeeping below
 		// runs, so Relations/Affinities are captured as they stood at the

@@ -18,6 +18,11 @@ type buildTask struct {
 	terrain Terrain  // desired terrain for pos
 	owner   EntityID // colonist currently building it; 0 if unclaimed
 	phase   int      // lower phases in this project must finish first
+	// order is the work order paying for this task, and proj the project it
+	// belongs to (see workorder.go). A task built by hand in a test has
+	// neither: it is unpaid, and its fixture stays the colony's.
+	order *WorkOrder
+	proj  *project
 }
 
 // project is a planned structure: the colony builds all its tasks, then it is
@@ -27,6 +32,9 @@ type project struct {
 	name       string
 	queuedTick int // w.tick when the project was designated, for job board display
 	tasks      []*buildTask
+	// issuer pays for the work and owns what is built: the colony for public
+	// works, a colonist for a commission (see workorder.go).
+	issuer Owner
 }
 
 // taskDone reports whether a task's tile already holds its desired terrain —
@@ -374,6 +382,10 @@ func (w *World) planRooms() {
 		}
 		return
 	}
+	w.commissionHouses()
+	if len(w.projects) >= w.maxConcurrentProjects() {
+		return
+	}
 	if w.manualFacilityRooms > 0 {
 		before := len(w.projects)
 		w.planRoom(w.facilityRoomRecipe())
@@ -469,6 +481,13 @@ func (w *World) facilityRoomRecipe() roomRecipe {
 // maxFac) but falls back to fewer facilities when only a shorter clear area is
 // available, so progress is made even in a cramped cavern.
 func (w *World) planRoom(r roomRecipe) {
+	w.planRoomFor(r, Community)
+}
+
+// planRoomFor plans a room paid for, and owned, by issuer, reporting whether
+// it did. A room whose site is found but whose work issuer cannot pay for is
+// not planned: that is how an empty treasury halts public works.
+func (w *World) planRoomFor(r roomRecipe, issuer Owner) bool {
 	largest := r.maxFac
 	if largest <= 0 || largest > roomFacilities {
 		largest = roomFacilities
@@ -478,20 +497,19 @@ func (w *World) planRoom(r roomRecipe) {
 		if !ok {
 			continue // no site this wide; try a smaller room
 		}
-		w.designateRoom(r, o, n)
-		return
+		return w.designateRoom(r, o, n, issuer)
 	}
 	// No site large enough for even this recipe's minimum yet; colonists dig
 	// on and planning retries later.
+	return false
 }
 
 // designateRoom adds a phased room project from a recipe. Any interior tile
 // still solid rock is dug first (roomDigPhase); its complete perimeter is
 // then built, except for the centered front doorway; then n facilities are
 // built one tile inside the back wall, drawn from the recipe's kinds in order.
-func (w *World) designateRoom(r roomRecipe, o Point, n int) {
-	p := &project{id: w.nextProjectID, name: r.name, queuedTick: w.tick}
-	w.nextProjectID++
+func (w *World) designateRoom(r roomRecipe, o Point, n int, issuer Owner) bool {
+	p := &project{id: w.nextProjectID, name: r.name, queuedTick: w.tick, issuer: issuer}
 	width := bayWidth(n)
 	backY := o.Y - 1
 	frontY := roomFrontWallY(o.Y)
@@ -514,12 +532,6 @@ func (w *World) designateRoom(r roomRecipe, o Point, n int) {
 		}
 	}
 	doorX := o.X + width/2
-	// Reserve the tile directly outside the door, permanently: without this,
-	// nothing stops a later room from sitting its own wall or facility row
-	// right on top of it once the colony has grown enough to prefer that
-	// spot, sealing this room's only way out behind a wall its own doorway
-	// invariant never anticipated. See roomSiteClear.
-	w.doorTiles[Point{doorX, frontY + roomApproach}] = true
 	for x := o.X; x < o.X+width; x++ {
 		p.tasks = append(p.tasks,
 			&buildTask{pos: Point{x, backY}, terrain: Wall, phase: roomWallPhase})
@@ -532,8 +544,24 @@ func (w *World) designateRoom(r roomRecipe, o Point, n int) {
 		p.tasks = append(p.tasks,
 			&buildTask{pos: Point{o.X + dx, o.Y}, terrain: r.kinds[i%len(r.kinds)], phase: roomFitPhase})
 	}
+	for _, t := range p.tasks {
+		t.proj = p
+	}
+	// The room is bought before anything about it becomes permanent: an
+	// issuer that cannot pay for all its work gets nothing marked out.
+	if !w.fundProject(p) {
+		return false
+	}
+	w.nextProjectID++
+	// Reserve the tile directly outside the door, permanently: without this,
+	// nothing stops a later room from sitting its own wall or facility row
+	// right on top of it once the colony has grown enough to prefer that
+	// spot, sealing this room's only way out behind a wall its own doorway
+	// invariant never anticipated. See roomSiteClear.
+	w.doorTiles[Point{doorX, frontY + roomApproach}] = true
 	w.projects = append(w.projects, p)
 	w.log.add(r.planLog)
+	return true
 }
 
 // findRoomSite returns the left end of a width-long facility row in a niche at

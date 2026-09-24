@@ -387,6 +387,9 @@ type Entity struct {
 	// fieldDetour counts down the ticks a JobUse colonist routes concretely
 	// instead of following the shared field; see jobUse.
 	fieldDetour int
+	// commissioned records that this colonist has commissioned its house, so
+	// it commissions one at most (see commissionHouses).
+	commissioned bool
 	// cargo records whose the carried items of each kind are, when they are
 	// not the carrier's own: biomatter gathered as community work is the
 	// colony's until it reaches the scumhouse. The zero Owner means "the

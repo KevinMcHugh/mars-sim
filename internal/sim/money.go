@@ -33,6 +33,10 @@ func (w *World) balance(o Owner) Money {
 		if ord := w.orders[OrderID(o.ID)]; ord != nil {
 			return ord.escrow
 		}
+	case ownerWork:
+		if wo := w.workOrders[OrderID(o.ID)]; wo != nil {
+			return wo.escrow
+		}
 	}
 	return 0
 }
@@ -51,6 +55,10 @@ func (w *World) account(o Owner) *Money {
 	case ownerOrder:
 		if ord := w.orders[OrderID(o.ID)]; ord != nil {
 			return &ord.escrow
+		}
+	case ownerWork:
+		if wo := w.workOrders[OrderID(o.ID)]; wo != nil {
+			return &wo.escrow
 		}
 	}
 	return nil

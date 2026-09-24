@@ -28,7 +28,8 @@ else here is still unbuilt.
 | E2 — Crash pods and meals | **Shipped** — [crash-pods.md](./crash-pods.md), [food.md](./food.md) |
 | E3 — Recipes and slurry | **Shipped** — [scumhouse.md](./scumhouse.md); construction costs in [construction.md](./construction.md) |
 | E4 — Order book | **Shipped** — [market.md](./market.md) |
-| E5–E8 | Proposed |
+| E5 — Labor orders | **Shipped** — [labor.md](./labor.md) |
+| E6–E8 | Proposed |
 
 ## Source
 
@@ -603,13 +604,25 @@ Shipped; see [market.md](./market.md). All three gates are tests. Notes:
   crossed the field's route. It now switches to A* when the field sends it
   uphill (see `fieldDetourTicks`).
 
-### E5 — Labor orders and the colony as buyer
+### E5 — Labor orders and the colony as buyer (shipped)
 
 `WorkOrder`; claiming and pay release; the room planner posting funded work
 orders; colonists posting their own (a house); paid biomatter hauling;
 `AccessPaid` fixtures.
 **Gate:** an unfunded treasury halts public works but not survival; a colonist
 can commission a structure and pay for it.
+Shipped; see [labor.md](./labor.md). Both gates are tests. Notes:
+
+- A room is funded in full before it is designated, or not at all; each task is
+  one work order, paid on completion.
+- Survival without money comes from unpaid emergency builds and crash pods.
+- Colonists commission a house (bunk + toilet) once they have `house-savings`;
+  its toilet is the first paid fixture.
+- The biomatter bounty is a standing work order at each scumhouse; the work
+  happens without it.
+- Colonists do not yet choose work by what it pays — that is E6.
+- The silo now takes only what sells, so unsold raw rock never crowds ore out
+  of the market; it is general storage only as a last resort.
 
 ### E6 — Valuation and the producer planner
 

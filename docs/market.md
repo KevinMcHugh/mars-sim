@@ -68,7 +68,8 @@ Cancelling or expiring returns whatever is left. Nothing moves physically: the
 goods were already in the depot, and taking them out is an ordinary withdrawal.
 
 Because escrow is just an owner, the audits keep working with orders open:
-money is `circulating + frozen + escrowed == issued`, and every ledger still
+money is `circulating + frozen + escrowed == issued` (escrowed counts work
+orders too, see [labor.md](./labor.md)), and every ledger still
 sums to its container's contents.
 
 Death cancels a colonist's orders (`cancelOrdersOf`, in `remove`) before its
@@ -88,12 +89,14 @@ the reference price, as far as the treasury stretches.
 
 ### Who trades what
 
-- **Miners sell ore.** A colonist whose load stops it mining unloads at the silo
-  when it can (`tryAssignStore`), and then offers everything of the goods it
-  just unloaded there at reference prices (`sellAtMarket`). The colony's
-  standing bid takes it at once: **prospecting pays**. Raw rock is not bought
-  by default (`price-raw-rock` 0) — there is always more, and buying it would
-  drain the treasury on nothing.
+- **Miners sell ore.** A colonist whose load stops it mining takes what sells
+  to the silo (`tryAssignStore`, `sellableStacks`) and offers it there at
+  reference prices (`sellAtMarket`). The colony's standing bid takes it at
+  once: **prospecting pays**. Raw rock is not bought by default
+  (`price-raw-rock` 0) — there is always more, and buying it would drain the
+  treasury on nothing — so it goes to an ordinary chest instead, and the silo
+  holds only what the market trades. (Before that rule, a colony's silo filled
+  with 1500 units of unsold rock.)
 - **Colonists sell surplus meals.** One holding more than `meal-keep` of its
   own meals outside the silo takes the rest there (`JobSell`: out of its
   locker, into its pockets, onto the silo's ledger in its own name) and asks

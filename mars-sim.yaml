@@ -145,6 +145,28 @@
 ## a hungry colonist pays up to this many times the meal price
 # meal-willingness: 3
 
+# ── Labor ───────────────────────────────────────────────────────────────
+## what the colony pays to dig out one tile of a room
+# wage-dig: 2
+
+## what the colony pays to raise one wall
+# wage-wall: 2
+
+## what the colony pays to build one fixture (pod, toilet, bed, ...)
+# wage-fixture: 5
+
+## what the colony pays per unit of biomatter delivered to a scumhouse (0 disables)
+# bounty-pay: 1
+
+## units of biomatter bounty the colony keeps open per scumhouse
+# bounty-units: 30
+
+## a colonist with this much money commissions its own house (0 disables)
+# house-savings: 300
+
+## what a house's toilet charges anyone but its owner per use (0: private)
+# toilet-fee: 2
+
 # ── Crash pods ──────────────────────────────────────────────────────────
 ## dollars each colonist arrives with
 # crash-pod-purse: 100

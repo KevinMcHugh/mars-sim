@@ -39,6 +39,7 @@ way it is without re-deriving it from the source each time.
 | [storage.md](./storage.md) | Placeable storage containers, their capacity, construction, and snapshot state. |
 | [affect.md](./affect.md) | Charge/grip/valence affect, the impact-weighted push/pull blend, fresh/worn wear, event appraisal, trait transforms, decay, labels, and focus contributions. |
 | [economy.md](./economy.md) | **Proposal.** Scarcity and economy: property and owners, crash-pod arrivals, dollars, recipes and slurry, the bid/ask book for goods and labor, and the phased build plan. |
+| [labor.md](./labor.md) | Work orders: the colony buying its public works from the treasury, commissions and houses, paid (pay-per-use) fixtures, and the biomatter bounty. Economy phase E5. |
 | [market.md](./market.md) | The order book: bids and asks at a depot, price-time matching, escrow, the colony's silo and paid prospecting, and buying and selling meals. Economy phase E4. |
 | [money.md](./money.md) | Dollars: wallets, the treasury, the one `transfer` funnel, the fixed money supply and how it is audited, and the market tab. Economy phase E0. |
 | [crash-pods.md](./crash-pods.md) | How every colonist arrives: the pod prefab (private bunk, toilet, locker), its manifest, where pods land and why, and the one `arrive` function. Economy phase E2. |

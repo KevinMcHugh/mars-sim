@@ -23,6 +23,10 @@ const (
 	// by its OrderID in Owner.ID. Unexported: nothing outside the market
 	// should ever pay one or own through one. See market.go.
 	ownerOrder
+	// ownerWork is an open work order holding the pay it has escrowed, named
+	// by its OrderID in Owner.ID. Unexported like ownerOrder. See
+	// workorder.go.
+	ownerWork
 	// TODO: OwnerOrganization — an organization could own property. Undefined
 	// for now; see docs/economy.md.
 )
@@ -73,6 +77,8 @@ func (o Owner) String() string {
 		return fmt.Sprintf("colonist #%d", o.ID)
 	case ownerOrder:
 		return fmt.Sprintf("order #%d", o.ID)
+	case ownerWork:
+		return fmt.Sprintf("work order #%d", o.ID)
 	default:
 		return "unknown"
 	}

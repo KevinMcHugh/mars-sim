@@ -268,9 +268,10 @@ func (w *World) expireOrders() {
 	}
 }
 
-// moneyEscrowed is every dollar held by open bids.
+// moneyEscrowed is every dollar held in escrow: by open bids, and by open work
+// orders (see workorder.go).
 func (w *World) moneyEscrowed() Money {
-	var total Money
+	total := w.workEscrowed()
 	for _, o := range w.orders {
 		total += o.escrow
 	}
@@ -372,6 +373,7 @@ func (w *World) runMarket() {
 	}
 	w.expireOrders()
 	w.refreshColonyBids()
+	w.refreshBiomatterBounty()
 }
 
 // refreshColonyBids keeps the colony's standing bids for ore at the silo
@@ -396,6 +398,18 @@ func (w *World) refreshColonyBids() {
 			w.post(Bid, k, want, price, Community, silo, 0)
 		}
 	}
+}
+
+// sellableStacks is what e carries that sells at the silo: general materials
+// with a reference price.
+func (w *World) sellableStacks(e *Entity) []ItemStack {
+	var out []ItemStack
+	for _, s := range e.Inventory.storableStacks() {
+		if w.refPrice(s.Kind) > 0 {
+			out = append(out, s)
+		}
+	}
+	return out
 }
 
 // sellAtMarket offers everything e holds of the sellable goods it just put in

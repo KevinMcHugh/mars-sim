@@ -193,11 +193,15 @@ func TestStoringCreditsTheDepositor(t *testing.T) {
 	container.Inventory.Add(Clay, 2)
 	container.credit(Community, Clay, 2)
 
-	if !w.tryAssignStore(e) {
-		t.Fatal("colonist would not store")
-	}
-	for i := 0; i < 60 && e.Job == JobStore; i++ {
-		w.jobStore(e)
+	// Two trips: what sells goes to the silo first, then — this chest being
+	// the only one — the rock, as a last resort.
+	for trip := 0; trip < 2; trip++ {
+		if !w.tryAssignStore(e) {
+			t.Fatalf("trip %d: colonist would not store", trip)
+		}
+		for i := 0; i < 60 && e.Job == JobStore; i++ {
+			w.jobStore(e)
+		}
 	}
 	me := ColonistOwner(e.ID)
 	if container.held(me, RawRock) != rock {

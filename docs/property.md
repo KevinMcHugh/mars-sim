@@ -62,12 +62,14 @@ to the carrier.
 die: placing a fixture terrain calls `placeFixture`, which records it as owned
 by the community and `AccessCommunal`; replacing one calls `dropFixture`.
 Anything that wants a different owner calls `setFixtureOwner(pos, owner,
-access)` afterwards. Nothing in normal play does yet; crash pods (E2) will be
-the first.
+access)` afterwards: crash pods (see [crash-pods.md](./crash-pods.md)) and
+commissioned rooms (see [labor.md](./labor.md)) do.
 
-`Access` is `AccessCommunal` (anyone) or `AccessPrivate` (the owner only). Paid
-access is a TODO for phase E5. `canUseFixture(e, pos)` answers "may e use
-this?"; a rat never owns anything, so it may use only communal fixtures.
+`Access` is `AccessCommunal` (anyone), `AccessPrivate` (the owner only), or
+`AccessPaid` (the owner free, anyone else who can pay `Fixture.Price`, charged
+by `chargeForUse` when the use finishes — see [labor.md](./labor.md)).
+`canUseFixture(e, pos)` answers "may e use this?"; a rat never owns anything or
+pays, so it may use only communal fixtures.
 
 ### Routing around what isn't yours
 
@@ -169,9 +171,9 @@ abandoned-property rules need law.
   find an incinerator through its shared field alone (`cleaning.go`). That is
   correct only while nothing makes an incinerator private — teach the haul
   route `canUseFixture` before anything does.
-- **Paid access (E5)**: a new `Access` value, a price on `Fixture`, and a
-  `transfer` in whatever executor finishes the use — plus `canUseFixture`
-  learning that "may use" now depends on whether you can pay.
+- **Charging for a new kind of use**: `AccessPaid` charges in `finishUse`;
+  any other executor that finishes a use of a paid fixture must call
+  `chargeForUse` too.
 - **Taking goods out of storage**: `debit(owner, kind, n)`. Never call
   `StorageInventory.Remove` directly on a container that has a ledger; that
   unbalances it.

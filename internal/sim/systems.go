@@ -980,12 +980,17 @@ func (w *World) colonyNeedsStorage() bool {
 
 func (w *World) tryAssignStore(e *Entity) bool {
 	stacks := e.Inventory.storableStacks()
-	// Unload at the silo when it can take the load: that is where the colony
-	// buys ore, so a miner who unloads there gets paid (see market.go).
-	if silo, ok := w.marketDepot(); ok && w.canUseFixture(e, silo) &&
-		w.taskReachable(silo, w.roomOf(e.Pos)) && w.storageContainers[silo].Inventory.CanAddAll(stacks...) {
-		e.Job, e.Target, e.Progress = JobStore, silo, 0
-		return true
+	// Take what sells to the silo first: that is where the colony buys ore,
+	// so a miner who unloads there gets paid (see market.go). Only what sells
+	// goes there — raw rock the colony does not buy would fill the market
+	// with nothing anyone wants — and the rest goes to an ordinary chest on
+	// the next trip.
+	if sell := w.sellableStacks(e); len(sell) > 0 {
+		if silo, ok := w.marketDepot(); ok && w.canUseFixture(e, silo) &&
+			w.taskReachable(silo, w.roomOf(e.Pos)) && w.storageContainers[silo].Inventory.CanAddAll(sell...) {
+			e.Job, e.Target, e.Progress = JobStore, silo, 0
+			return true
+		}
 	}
 	target, ok := w.chooseStorage(e, stacks)
 	if !ok {
@@ -999,12 +1004,25 @@ func (w *World) tryAssignStore(e *Entity) bool {
 // the complete load. Room reachability is exact for connected floor, and ties
 // break by position to preserve seeded determinism.
 func (w *World) chooseStorage(e *Entity, stacks []ItemStack) (Point, bool) {
+	// The silo is for what sells (see tryAssignStore): try every other chest
+	// first, and fall back on the silo only when nothing else can take the
+	// load, so rock is never stranded in a colony whose only chest it is.
+	if p, ok := w.nearestStorage(e, stacks, false); ok {
+		return p, true
+	}
+	return w.nearestStorage(e, stacks, true)
+}
+
+// nearestStorage is chooseStorage's search: the nearest reachable chest e may
+// use that can take the whole load, the silo included only if withSilo.
+func (w *World) nearestStorage(e *Entity, stacks []ItemStack, withSilo bool) (Point, bool) {
 	room := w.roomOf(e.Pos)
+	silo, hasSilo := w.marketDepot()
 	var best Point
 	bestDist := 1 << 30
 	found := false
 	for p, container := range w.storageContainers {
-		if container.Terrain != Storage || !w.canUseFixture(e, p) ||
+		if container.Terrain != Storage || (hasSilo && p == silo && !withSilo) || !w.canUseFixture(e, p) ||
 			!container.Inventory.CanAddAll(stacks...) || !w.taskReachable(p, room) {
 			continue
 		}
@@ -1019,6 +1037,11 @@ func (w *World) chooseStorage(e *Entity, stacks []ItemStack) (Point, bool) {
 func (w *World) jobStore(e *Entity) {
 	container := w.storageContainers[e.Target]
 	stacks := e.Inventory.storableStacks()
+	silo, hasSilo := w.marketDepot()
+	atSilo := hasSilo && e.Target == silo
+	if sell := w.sellableStacks(e); atSilo && len(sell) > 0 {
+		stacks = sell // what sells goes in first; the rest only as a last resort
+	}
 	if container == nil || len(stacks) == 0 || !container.Inventory.CanAddAll(stacks...) {
 		w.clearJob(e)
 		return
@@ -1040,12 +1063,12 @@ func (w *World) jobStore(e *Entity) {
 	// deposit is credited to it: the chest is shared, the ore stays theirs.
 	for _, stack := range stacks {
 		container.credit(ColonistOwner(e.ID), stack.Kind, stack.Count)
+		e.Inventory.RemoveAll(stack.Kind)
 	}
-	e.Inventory.removeStorable()
 	e.State = Storing
 	w.log.add(fmt.Sprintf("%s unloads materials into storage at (%d, %d).",
 		e.displayName(), e.Target.X, e.Target.Y))
-	if silo, ok := w.marketDepot(); ok && e.Target == silo {
+	if atSilo {
 		kinds := make([]ItemKind, 0, len(stacks))
 		for _, s := range stacks {
 			kinds = append(kinds, s.Kind)
@@ -1282,6 +1305,9 @@ func (w *World) jobBuild(e *Entity) {
 		}
 		w.SetTerrain(e.Target, Floor)
 		w.remember(e, event(EvtClearedRock, "Cleared rock for a room at (%d, %d).", e.Target.X, e.Target.Y))
+		if e.task != nil {
+			w.payWork(e.task.order, e)
+		}
 		w.clearJob(e)
 		return
 	}
@@ -1290,6 +1316,16 @@ func (w *World) jobBuild(e *Entity) {
 		return
 	}
 	w.SetTerrain(e.Target, e.BuildKind)
+	if t := e.task; t != nil {
+		// A commission's fixtures are its commissioner's; the colony's
+		// stay communal, as SetTerrain made them.
+		if p := t.proj; p != nil && p.issuer.Kind == OwnerColonist && isFixtureTerrain(e.BuildKind) {
+			access, price := w.fixtureAccess(p, e.BuildKind)
+			w.setFixtureOwner(e.Target, p.issuer, access)
+			w.setFixturePrice(e.Target, price)
+		}
+		w.payWork(t.order, e)
+	}
 	w.noteBuild(e.BuildKind)
 	w.remember(e, event(EvtFinishedConstruction, "Finished construction of %s at (%d, %d).",
 		e.BuildKind, e.Target.X, e.Target.Y))
@@ -1428,6 +1464,9 @@ func (w *World) jobUseCarrying(e *Entity, spec NeedSpec) {
 // finishUse applies a completed JobUse: resets the need, records a memory,
 // and clears the job. Shared by an in-place use and a carried-away one.
 func (w *World) finishUse(e *Entity, spec NeedSpec) {
+	if e.useFacilitySet {
+		w.chargeForUse(e, e.useFacility)
+	}
 	w.resetNeed(e, e.Need)
 	switch e.Need {
 	case NeedFood:

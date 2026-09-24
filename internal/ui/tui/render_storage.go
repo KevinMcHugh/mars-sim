@@ -99,7 +99,11 @@ func (m Model) renderCursorInspector() string {
 	b.WriteString(labelStyle.Render("INSPECT"))
 	b.WriteString(fmt.Sprintf("\n(%d,%d)\n%s", m.cursor.X, m.cursor.Y, m.terrainLabel(m.cursor)))
 	if f, ok := m.latest.FixtureAt(m.cursor); ok && m.latest.ExploredAt(m.cursor) {
-		b.WriteString(fmt.Sprintf("\nOwner: %s\nAccess: %s", m.ownerLabel(f.Owner), f.Access))
+		access := f.Access.String()
+		if f.Access == sim.AccessPaid {
+			access = fmt.Sprintf("paid, %v a use", f.Price)
+		}
+		b.WriteString(fmt.Sprintf("\nOwner: %s\nAccess: %s", m.ownerLabel(f.Owner), access))
 	}
 	if i := m.storageIndexAt(m.cursor); i >= 0 {
 		storage := m.latest.Storages[i]
