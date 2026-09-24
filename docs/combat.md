@@ -4,8 +4,10 @@
 
 ## What it is
 
-Colonists can now fight back against aliens. The colony ship arrives with a
-pistol and a shotgun (`Config.StartPistols`/`StartShotguns`); a colonist
+Colonists can now fight back against aliens. Every colonist lands with the
+weapons in its crash pod's manifest — a pistol each by default
+(`Config.CrashPodPistols`/`CrashPodShotguns`, see
+[crash-pods.md](./crash-pods.md)); a colonist
 carrying one stands its ground and shoots an alien that gets close instead of
 only fleeing. Damage — from a bite or a gunshot — lands on one of six body
 parts rather than a shared HP pool, so a wound can be a survivable graze or an
@@ -124,8 +126,7 @@ it.
 `colonistTurn`'s survival branch (`systems.go`) used to always flee a nearby
 alien. Now: if `bestWeapon(e.Inventory)` finds a weapon, the colonist calls
 `fightAlien` instead of fleeing; unarmed colonists flee exactly as before —
-arming the colony ship changes nothing about colonists who never picked up a
-gun.
+a colonist who lands without a gun (a manifest of zero) is unaffected.
 
 `fightAlien` is deliberately simple: if the alien is farther than the
 weapon's range, close the distance with `travelTo` (the same pathfinding
@@ -145,17 +146,25 @@ mechanism separately from that balance question).
 generic log line otherwise. `bite` was reworked the same way instead of
 subtracting a flat `AlienDamage` from `prey.HP`.
 
-### The colony ship's starting equipment
+### Starting weapons
 
-`generate()` (`worldgen.go`) spawns `StartColonists` colonists onto a
-shuffled list of floor tiles — already a random draw of who lands where —
-then calls `equipColonyShip(colonists, cfg)`, which hands out up to
-`StartShotguns` shotguns and `StartPistols` pistols, one per colonist, to
-distinct colonists in that same order. Defaults are one of each
-(`DefaultConfig`); both are ordinary CLI flags (`-pistols`, `-shotguns`) like
-every other tunable (see [configuration.md](./configuration.md)). There is no
-in-game way to pick up, drop, or transfer a weapon after spawn — whoever the
-colony ship armed is who stays armed.
+Weapons used to come from the colony ship: one pistol and one shotgun,
+handed to two of the settlers at worldgen (`equipColonyShip`, now removed).
+Every colonist now arrives in its own crash pod instead, carrying
+`crash-pod-pistols` pistols and `crash-pod-shotguns` shotguns — one pistol
+and no shotgun by default, so every settler lands armed, the way frontier
+settlers did. See [crash-pods.md](./crash-pods.md).
+
+That was a real balance change, and it was measured. Over 20 seeds at the
+default settings, the old two-guns-for-six colony still had anyone alive at
+tick 3000 on 9 seeds; a colony where everyone lands with a pistol, on 15. A
+seed that rolls a species strong enough (seed 5's "tank") still wipes the
+colony out either way: a pistol makes a colonist stand and fight rather than
+flee, and against that species it only changes where it dies.
+
+There is no in-game way to pick up, drop, or transfer a weapon after spawn
+beyond a director supply drop. What a colonist carries is its own property
+(see [property.md](./property.md)).
 
 ### Gore
 

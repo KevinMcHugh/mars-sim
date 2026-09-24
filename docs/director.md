@@ -68,7 +68,8 @@ director script every run.
 | --- | --- | --- |
 | `mouse-plague` | `count` | Spawns `count` mice on open floor, same placement as starting mice. |
 | `alien-swarm` | `count` | Spawns `count` aliens with the same placement as starting aliens: dormant on hidden cave floor, or colony floor far from the landing site when there is no cave room (see [caverns.md](./caverns.md#aliens-in-the-caves)). |
-| `supply-drop` | `pistols`, `shotguns` | Hands weapons to that many distinct living colonists (in random order), same distribution as the colony ship's starting equipment (`equipColonyShip`, [combat.md](./combat.md)). |
+| `supply-drop` | `pistols`, `shotguns` | Hands weapons to that many distinct living colonists (in random order), one each. What a colonist receives is its own ([property.md](./property.md)). |
+| `arrival` | `count` | Brings `count` new colonists down in crash pods, each through `arrive` — exactly as the founders landed ([crash-pods.md](./crash-pods.md)). |
 
 A colonist with a full inventory is skipped rather than blocking the drop; an
 item that cannot be placed on anyone is simply lost. A wave that runs out of
@@ -115,8 +116,8 @@ script.
 - **No ground-drop entity for supply crates.** The simulation has no notion
   of an item lying on the floor waiting to be picked up — inventory only
   exists on colonists and storage containers. Handing weapons straight to
-  colonists, the same way the colony ship's starting equipment already does,
-  reuses an existing, tested mechanic instead of inventing a new one for one
+  colonists, the way a crash pod's manifest arms its settler, reuses an
+  existing, tested mechanic instead of inventing a new one for one
   occurrence kind.
 
 ## Extending it
@@ -139,7 +140,8 @@ script.
 - [config-file.md](./config-file.md) — `mars-sim.yaml`, the tunable-knobs file
   this one deliberately does not try to be.
 - [architecture.md](./architecture.md) — the tick loop `runDirector` hooks into.
-- [combat.md](./combat.md) — aliens, weapons, and `equipColonyShip`, which
+- [crash-pods.md](./crash-pods.md) — `arrive`, which the `arrival` occurrence calls.
+- [combat.md](./combat.md) — aliens and weapons; the supply drop
   `supply-drop` mirrors.
 - [personality.md](./personality.md) — why gameplay RNG and flavor RNG are
   separate streams.

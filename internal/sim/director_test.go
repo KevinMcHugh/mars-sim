@@ -94,6 +94,11 @@ func TestLoadSchedulesErrors(t *testing.T) {
 			"needs count >= 1",
 		},
 		{
+			"empty arrival",
+			`schedules: [{name: x, earliest_tick: 0, latest_tick: 10, occurrences: [{kind: arrival}]}]`,
+			"needs count >= 1",
+		},
+		{
 			"empty supply drop",
 			`schedules: [{name: x, earliest_tick: 0, latest_tick: 10, occurrences: [{kind: supply-drop}]}]`,
 			"at least one pistol or shotgun",

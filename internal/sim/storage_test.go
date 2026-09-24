@@ -44,6 +44,7 @@ func TestStorageInventoryHoldsSixColonistInventories(t *testing.T) {
 func TestStorageTerrainOwnsSparseContainerState(t *testing.T) {
 	cfg := testConfig()
 	cfg.Width, cfg.Height = 12, 12
+	cfg.StartColonists = 0 // no crash pods: their lockers are storage too
 	w := newTestWorld(t, cfg)
 	p := Point{4, 5}
 

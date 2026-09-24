@@ -93,10 +93,12 @@ func TestDeathFreezesWallet(t *testing.T) {
 // With no taxes and no sinks, every dollar ever minted is either spendable or
 // frozen with the dead. This runs a live colony (arrivals, deaths to aliens)
 // while shuffling money between random accounts every tick, and checks the
-// books balance on every one of them.
+// books balance on every one of them. Whether the aliens kill anyone depends
+// on the seed, so the test also kills a colonist itself partway through:
+// that keeps freezing covered whatever worldgen does to the seed.
 func TestMoneyIsConserved(t *testing.T) {
 	cfg := testConfig()
-	cfg.Seed = 7 // a seed where the aliens win, so wallets freeze mid-run
+	cfg.Seed = 7
 	cfg.Width, cfg.Height = 80, 50
 	cfg.StartColonists = 16
 	w := newTestWorld(t, cfg)
@@ -107,6 +109,14 @@ func TestMoneyIsConserved(t *testing.T) {
 		if i%500 == 0 {
 			if p, ok := w.randomFloor(); ok && !w.occupied(p) {
 				w.spawn(Colonist, p)
+			}
+		}
+		if i == 1500 {
+			for _, id := range w.entityIDsSorted() {
+				if e := w.entities[id]; e.Kind == Colonist && e.wallet > 0 {
+					w.remove(id, "test")
+					break
+				}
 			}
 		}
 		owners := []Owner{Community, Nobody}

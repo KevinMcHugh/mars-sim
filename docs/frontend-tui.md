@@ -184,8 +184,10 @@ and `enter` jumps directly to that container in the storage details panel.
 
 `tab` cycles **map → roster → jobs → storage → market → lore → perf → map**. Roster,
 jobs, storage, market, lore, and perf are collectively the details panels. In storage,
-`up`/`down` or `j`/`k` selects a chest from the position-sorted snapshot
-list; the inspector shows its occupied slots and total capacity. In market
+`up`/`down` or `j`/`k` selects a container from the position-sorted snapshot
+list — a shared chest, or someone's crash-pod locker, labelled by owner — and
+the inspector shows its occupied slots, total capacity, and whose the contents
+are. In market
 (`render_market.go`), the same keys select an account — the colony's treasury
 first, then living colonists richest first — and the inspector shows its
 balance beside the money supply from `Snapshot.Economy` (see

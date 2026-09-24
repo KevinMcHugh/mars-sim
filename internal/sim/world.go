@@ -557,7 +557,11 @@ type World struct {
 	// that kind, and the access checks skip their extra work. fixtureRev
 	// advances on any change so snapshots can reuse the last published list
 	// (snapFixtures, taken at snapFixtureRev). See property.go.
-	fixtures           map[Point]*Fixture
+	fixtures map[Point]*Fixture
+	// podRingHint is the search ring the last crash pod landed on, so the
+	// next search starts near there instead of rescanning the packed middle.
+	// See findPodSite.
+	podRingHint        int
 	restrictedFixtures [numTerrains]int
 	fixtureRev         uint64
 	snapFixtureRev     uint64

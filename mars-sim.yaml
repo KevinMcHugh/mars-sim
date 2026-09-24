@@ -85,12 +85,6 @@
 ## starting number of mice
 # mice: 8
 
-## pistols the colony ship arrives with
-# pistols: 1
-
-## shotguns the colony ship arrives with
-# shotguns: 1
-
 ## recent deaths kept for the roster's dead filter (0 disables)
 # graveyard-size: 50
 
@@ -98,8 +92,21 @@
 ## dollars the colony treasury starts with
 # founding-grant: 5000
 
+## nutrient pods make free meals out of nothing (the safety net)
+# infinite-food: true
+
+# ── Crash pods ──────────────────────────────────────────────────────────
 ## dollars each colonist arrives with
 # crash-pod-purse: 100
+
+## meals stocked in each crash pod's locker
+# crash-pod-meals: 10
+
+## pistols each colonist arrives carrying
+# crash-pod-pistols: 1
+
+## shotguns each colonist arrives carrying
+# crash-pod-shotguns: 0
 
 # ── Timing ──────────────────────────────────────────────────────────────
 ## simulation ticks per second

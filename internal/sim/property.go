@@ -166,6 +166,30 @@ func (c *StorageContainer) credit(owner Owner, kind ItemKind, n int) {
 	c.Ledger[i] = LedgerLine{Owner: owner, Item: kind, Count: n}
 }
 
+// debit takes n of kind out of the container on owner's account: the physical
+// items and the ledger line together, or neither. It refuses to take more than
+// owner's line holds, so one owner can never withdraw another's goods.
+func (c *StorageContainer) debit(owner Owner, kind ItemKind, n int) bool {
+	if n <= 0 {
+		return n == 0
+	}
+	for i := range c.Ledger {
+		l := &c.Ledger[i]
+		if l.Owner != owner || l.Item != kind {
+			continue
+		}
+		if l.Count < n || !c.Inventory.Remove(kind, n) {
+			return false
+		}
+		l.Count -= n
+		if l.Count == 0 {
+			c.Ledger = append(c.Ledger[:i], c.Ledger[i+1:]...)
+		}
+		return true
+	}
+	return false
+}
+
 // held returns how many of kind owner holds in this container.
 func (c *StorageContainer) held(owner Owner, kind ItemKind) int {
 	for _, l := range c.Ledger {

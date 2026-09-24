@@ -107,9 +107,11 @@ order deposits arrived in. The one invariant is that, per item kind, the lines
 sum to exactly what the container physically holds (`ledgerBalanced`).
 `credit` must be called in the same step as the physical add; `jobStore` does
 both, crediting the depositing colonist for everything it unloads — so a chest
-is shared, but the ore in it stays the miner's. There is no withdrawal yet (no
-job takes anything out of storage), so there is no `debit` either; it arrives
-with the first consumer.
+is shared, but the ore in it stays the miner's. `debit` is the other half:
+it takes items out on one owner's account, the physical items and the ledger
+line together, and refuses to take more than that owner's line holds — so one
+owner can never withdraw another's goods. Eating a meal from a locker is its
+first user (see [food.md](./food.md)).
 
 ### Seeing it
 
@@ -165,9 +167,9 @@ abandoned-property rules need law.
 - **Paid access (E5)**: a new `Access` value, a price on `Fixture`, and a
   `transfer` in whatever executor finishes the use — plus `canUseFixture`
   learning that "may use" now depends on whether you can pay.
-- **Taking goods out of storage**: add `debit` beside `credit`, remove the
-  physical items in the same step, and refuse to take more than the owner's
-  line holds.
+- **Taking goods out of storage**: `debit(owner, kind, n)`. Never call
+  `StorageInventory.Remove` directly on a container that has a ledger; that
+  unbalances it.
 
 ## Related
 

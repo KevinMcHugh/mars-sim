@@ -62,12 +62,6 @@ type Config struct {
 	StartCats      int `cfg:"cats" doc:"starting number of cats"`
 	StartMice      int `cfg:"mice" doc:"starting number of mice"`
 
-	// Starting equipment. The colony ship arrives with a handful of firearms
-	// for defense against aliens; worldgen hands them out to distinct
-	// colonists (see generate in worldgen.go).
-	StartPistols  int `cfg:"pistols" doc:"pistols the colony ship arrives with"`
-	StartShotguns int `cfg:"shotguns" doc:"shotguns the colony ship arrives with"`
-
 	// GraveyardSize is how many recent deaths (any kind) are kept in the
 	// bounded graveyard feed used for the roster's "dead" filter on
 	// non-colonist kinds; 0 disables that feed entirely. It does not affect
@@ -78,11 +72,23 @@ type Config struct {
 
 	// Money. The colony's supply of dollars is fixed: the founding grant seeds
 	// the community treasury once, at world creation, and every colonist mints
-	// a purse when it arrives. Nothing else creates or destroys money yet. They
-	// are int64 rather than Money because the flag binder only knows the three
-	// scalar kinds (see bindConfigFlags in main.go). See docs/money.md.
+	// a purse when it arrives (CrashPodPurse, below). Nothing else creates or
+	// destroys money yet. Money settings are int64 rather than Money because
+	// the flag binder only knows the three scalar kinds (see bindConfigFlags
+	// in main.go). See docs/money.md.
 	FoundingGrant int64 `cfg:"founding-grant" sec:"Economy" doc:"dollars the colony treasury starts with"`
-	CrashPodPurse int64 `cfg:"crash-pod-purse" doc:"dollars each colonist arrives with"`
+	// InfiniteFood is the safety net: nutrient pods make meals out of nothing.
+	// Off, a pod serves nothing and the colony eats only what it landed with
+	// and what it produces. See docs/food.md.
+	InfiniteFood bool `cfg:"infinite-food" doc:"nutrient pods make free meals out of nothing (the safety net)"`
+
+	// Crash pods. Every colonist arrives in one — at worldgen, from the spawn
+	// command, or from a director arrival — carrying its own bunk, toilet, and
+	// locker, and this manifest. See crashpod.go and docs/crash-pods.md.
+	CrashPodPurse    int64 `cfg:"crash-pod-purse" sec:"Crash pods" doc:"dollars each colonist arrives with"`
+	CrashPodMeals    int   `cfg:"crash-pod-meals" doc:"meals stocked in each crash pod's locker"`
+	CrashPodPistols  int   `cfg:"crash-pod-pistols" doc:"pistols each colonist arrives carrying"`
+	CrashPodShotguns int   `cfg:"crash-pod-shotguns" doc:"shotguns each colonist arrives carrying"`
 
 	// Timing.
 	TicksPerSecond int `cfg:"tps" sec:"Timing" doc:"simulation ticks per second"`
@@ -341,12 +347,18 @@ func DefaultConfig() Config {
 		StartAliens:          3,
 		StartCats:            2,
 		StartMice:            8,
-		StartPistols:         1,
-		StartShotguns:        1,
 		// Placeholders until the market gives money a use: a treasury worth a
 		// few dozen purses, so the colony can outspend any one settler.
-		FoundingGrant:       5000,
-		CrashPodPurse:       100,
+		FoundingGrant: 5000,
+		InfiniteFood:  true,
+		CrashPodPurse: 100,
+		// A meal clears hunger for roughly 325 ticks at the baseline rise, so
+		// ten carry a colonist a few thousand ticks: long enough to settle in,
+		// short enough that food production matters once the safety net is
+		// off. Every settler lands armed, the way frontier settlers did.
+		CrashPodMeals:       10,
+		CrashPodPistols:     1,
+		CrashPodShotguns:    0,
 		GraveyardSize:       50,
 		TicksPerSecond:      8,
 		LogSize:             64,

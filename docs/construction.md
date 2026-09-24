@@ -60,7 +60,7 @@ current recipes are:
 
 | Recipe | Contents | Minimum size | Planning priority |
 | --- | --- | --- | --- |
-| facility room | alternating nutrient pods and toilets | 2 facilities | first, because food is fatal |
+| facility room | alternating nutrient pods and toilets (all toilets with `infinite-food` off, when pods feed nobody — see [food.md](./food.md)) | 2 facilities (1 when all toilets) | first, because food is fatal |
 | dormitory | beds/bunks | 1 bed | after the desired pods and toilets exist |
 | trash room | an incinerator | 1 incinerator (and at most 1, via `maxFac`) | last, and only once there is refuse to burn |
 | storage room | one storage container | exactly 1 container via `maxFac` | player-ordered only |
@@ -73,6 +73,12 @@ incinerator, and only once `refuseTotal() > 0` (see
 [sanitation.md](./sanitation.md)). A dormitory can therefore be built in a cramped
 cavern with a single bunk, and the colony adds more rooms — and, once the
 population justifies it, more of them at once — as it grows.
+
+Capacity counts private fixtures too: each settler's crash pod brings its own
+bunk and toilet (see [crash-pods.md](./crash-pods.md)), and `plannedFacilities`
+counts them, so a young colony builds no dormitories and few toilets until its
+population outgrows its pods. Nutrient pods are never in a crash pod, so the
+first facility room still goes up for the safety net.
 
 Storage rooms are player-placeable and also demand-planned when a full
 colonist has no reachable chest that can accept its complete material load.

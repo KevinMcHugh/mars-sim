@@ -51,7 +51,7 @@ func (m Model) renderStorageList(storages []sim.StorageView, sel, rows, width in
 			marker = "›"
 		}
 		used, total := storageUsage(storage.Inventory)
-		line := fmt.Sprintf("%s chest (%d,%d)  %d/%d slots", marker,
+		line := fmt.Sprintf("%s %s (%d,%d)  %d/%d slots", marker, m.storageLabel(storage),
 			storage.Pos.X, storage.Pos.Y, used, total)
 		if i == sel {
 			b.WriteString(rosterSelStyle.Render(cells.Truncate(line, inner)))
@@ -71,7 +71,7 @@ func (m Model) renderStorageDetail(storage sim.StorageView, rows, width int) str
 	lines := storageContentLines(storage.Inventory)
 
 	var b strings.Builder
-	b.WriteString(titleStyle.Render(fmt.Sprintf("Storage chest (%d,%d)", storage.Pos.X, storage.Pos.Y)))
+	b.WriteString(titleStyle.Render(fmt.Sprintf("Storage %s (%d,%d)", m.storageLabel(storage), storage.Pos.X, storage.Pos.Y)))
 	b.WriteString("\n")
 	b.WriteString(statStyle.Render(fmt.Sprintf("%d/%d slots used"+divider+"%d/%d item capacity",
 		used, total, storageItemCount(storage.Inventory), total*sim.MaxStackSize)))
@@ -159,4 +159,13 @@ func (m Model) ledgerLines(ledger []sim.LedgerLine) []string {
 		lines = append(lines, fmt.Sprintf("%s: %s ×%d", m.ownerLabel(l.Owner), l.Item, l.Count))
 	}
 	return lines
+}
+
+// storageLabel names a container by what it is to the colony: a shared chest,
+// or someone's crash-pod locker.
+func (m Model) storageLabel(st sim.StorageView) string {
+	if f, ok := m.latest.FixtureAt(st.Pos); ok && f.Access == sim.AccessPrivate {
+		return m.ownerLabel(f.Owner) + "'s locker"
+	}
+	return "chest"
 }

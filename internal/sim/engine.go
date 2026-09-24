@@ -254,9 +254,7 @@ func (e *Engine) spawn(kind Kind) {
 	center := Point{w.Width / 2, w.Height / 2}
 	switch kind {
 	case Colonist:
-		if p, ok := w.randomFloor(); ok {
-			w.spawn(Colonist, p)
-		}
+		w.arrive(true) // every colonist comes in a crash pod
 	case Alien:
 		if p, ok := w.alienSpawnSite(center, 8); ok {
 			w.spawn(Alien, p)

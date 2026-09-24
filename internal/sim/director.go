@@ -21,6 +21,7 @@ const (
 	OccMousePlague OccurrenceKind = iota
 	OccAlienSwarm
 	OccSupplyDrop
+	OccArrival
 )
 
 func (k OccurrenceKind) String() string {
@@ -31,6 +32,8 @@ func (k OccurrenceKind) String() string {
 		return "alien-swarm"
 	case OccSupplyDrop:
 		return "supply-drop"
+	case OccArrival:
+		return "arrival"
 	default:
 		return "unknown"
 	}
@@ -44,6 +47,8 @@ func parseOccurrenceKind(s string) (OccurrenceKind, bool) {
 		return OccAlienSwarm, true
 	case "supply-drop":
 		return OccSupplyDrop, true
+	case "arrival":
+		return OccArrival, true
 	default:
 		return 0, false
 	}
@@ -55,7 +60,7 @@ func parseOccurrenceKind(s string) (OccurrenceKind, bool) {
 // drop — the rest sit at zero.
 type Occurrence struct {
 	Kind     OccurrenceKind
-	Count    int // OccMousePlague: mice spawned. OccAlienSwarm: aliens spawned.
+	Count    int // OccMousePlague: mice spawned. OccAlienSwarm: aliens spawned. OccArrival: colonists.
 	Pistols  int // OccSupplyDrop only.
 	Shotguns int // OccSupplyDrop only.
 }
@@ -124,6 +129,8 @@ func (w *World) fireOccurrence(ev scheduledEvent) {
 		w.fireAlienSwarm(ev)
 	case OccSupplyDrop:
 		w.fireSupplyDrop(ev)
+	case OccArrival:
+		w.fireArrival(ev)
 	}
 }
 
@@ -170,10 +177,23 @@ func (w *World) fireAlienSwarm(ev scheduledEvent) {
 	w.log.add(fmt.Sprintf("%s: a swarm of %s stirs below (%d).", ev.Name, noun, spawned))
 }
 
-// fireSupplyDrop hands out weapons to living colonists, the same way the
-// colony ship's starting firearms are issued in equipColonyShip: spread
-// across distinct colonists rather than piled onto one, drawn in random
-// order so who gets armed is not predictable from ID. A colonist with no
+// fireArrival brings a wave of new colonists down in crash pods, each through
+// arrive — the same way the founders landed. See docs/crash-pods.md.
+func (w *World) fireArrival(ev scheduledEvent) {
+	landed := 0
+	for i := 0; i < ev.Occurrence.Count; i++ {
+		if w.arrive(false) == nil {
+			break
+		}
+		landed++
+	}
+	w.log.add(fmt.Sprintf("%s: %d crash pods streak down toward the colony.", ev.Name, landed))
+}
+
+// fireSupplyDrop hands out weapons to living colonists: spread across
+// distinct colonists rather than piled onto one, drawn in random order so who
+// gets armed is not predictable from ID. What each receives is its own, like
+// anything a colonist carries (see docs/property.md). A colonist with no
 // room in their inventory is simply skipped; any weapon that cannot be
 // placed is lost rather than left to accumulate somewhere with no holder.
 func (w *World) fireSupplyDrop(ev scheduledEvent) {
@@ -275,10 +295,10 @@ func (rs rawSchedule) toSchedule() (Schedule, error) {
 	for i, ro := range rs.Occurrences {
 		kind, ok := parseOccurrenceKind(ro.Kind)
 		if !ok {
-			return Schedule{}, fmt.Errorf("occurrence %d: unknown kind %q (want mouse-plague, alien-swarm or supply-drop)", i, ro.Kind)
+			return Schedule{}, fmt.Errorf("occurrence %d: unknown kind %q (want mouse-plague, alien-swarm, supply-drop or arrival)", i, ro.Kind)
 		}
 		switch kind {
-		case OccMousePlague, OccAlienSwarm:
+		case OccMousePlague, OccAlienSwarm, OccArrival:
 			if ro.Count < 1 {
 				return Schedule{}, fmt.Errorf("occurrence %d: %s needs count >= 1 (got %d)", i, kind, ro.Count)
 			}

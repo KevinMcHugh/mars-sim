@@ -309,6 +309,12 @@ func (w *World) runNeedFocus(e *Entity, need NeedKind) {
 		return
 	}
 
+	if need == NeedFood && e.Kind == Colonist {
+		if w.runFoodFocus(e) {
+			return
+		}
+	}
+
 	handlingNeed := (e.Job == JobUse && e.Need == need) ||
 		(e.Job == JobBuild && (e.BuildKind == w.cfg.Needs[need].Facility || e.task != nil))
 	if handlingNeed {
@@ -536,9 +542,19 @@ func (w *World) idleWouldBlock(p Point) bool {
 // onFacilityAccess reports whether p is next to a facility colonists walk to —
 // any need-satisfying structure, or the incinerator a hauler has to reach — so
 // an idle colonist standing there would block others from using it.
+//
+// Only communal fixtures count. A private bunk has one user, and treating it
+// like a shared one broke the colony the day crash pods landed: every tile
+// around every pod read as "in the way", so no idle colonist was ever
+// available to talk (availableToTalk), social need pinned at its ceiling, and
+// the colony stopped working to wait for conversations that never came.
 func (w *World) onFacilityAccess(p Point) bool {
 	for _, d := range neighbors8 {
-		t := w.TerrainAt(p.Add(d.X, d.Y))
+		n := p.Add(d.X, d.Y)
+		t := w.TerrainAt(n)
+		if isFixtureTerrain(t) && !w.communalFixture(n) {
+			continue
+		}
 		if t == Incinerator {
 			return true
 		}
@@ -674,6 +690,11 @@ func (w *World) clearJob(e *Entity) {
 			w.board.releaseClean(e.Target, e.ID) // reopen the mess for someone else
 		}
 		e.clean = cleanGather
+	case JobEat:
+		if e.eat == eatMeal {
+			e.Inventory.Add(Meal, 1) // the meal in hand goes back in the pocket
+		}
+		e.eat = eatFetch
 	}
 	e.Job, e.Progress, e.partner = JobNone, 0, 0
 	e.useFacility, e.useFacilitySet, e.carrying = Point{}, false, false
@@ -700,6 +721,8 @@ func (w *World) runJob(e *Entity) {
 		w.jobStore(e)
 	case JobDemolish:
 		w.jobDemolish(e)
+	case JobEat:
+		w.jobEat(e)
 	default:
 		e.State = Idle
 		w.wanderStep(e)
@@ -1222,7 +1245,7 @@ func (w *World) jobUse(e *Entity) {
 		return
 	}
 	field := w.facilityField(spec.Facility)
-	if !w.facilityReachable(e, spec.Facility) {
+	if !w.wantsFacility(spec.Facility) || !w.facilityReachable(e, spec.Facility) {
 		w.clearJob(e) // no facility of this kind that e may use is reachable anymore
 		return
 	}
@@ -1330,7 +1353,8 @@ func (w *World) finishUse(e *Entity, spec NeedSpec) {
 	w.resetNeed(e, e.Need)
 	switch e.Need {
 	case NeedFood:
-		w.remember(e, event(EvtAte, "Had a meal."))
+		// The safety net's food: it keeps a colonist alive and not much more.
+		w.remember(e, event(EvtAteGruel, "Ate a ration of nutrient-pod gruel."))
 	case NeedBladder:
 		w.remember(e, event(EvtUsedToilet, "Used the toilet."))
 	case NeedSleep:
@@ -1644,7 +1668,7 @@ func (w *World) mouseTurn(e *Entity) {
 	// Hungry? Head for a nutrient pod if one is reachable. Mice care only about
 	// food, so we check it directly rather than scanning every need.
 	hungry := w.needLevel(e, NeedFood) >= w.cfg.Needs[NeedFood].SeekAt
-	if hungry && e.Job != JobUse {
+	if hungry && e.Job != JobUse && w.podsFeed() {
 		if field := w.facilityField(NutrientPod); field != nil && field.at(e.Pos) >= 0 {
 			e.Job, e.Need, e.Progress = JobUse, NeedFood, 0
 		}

@@ -25,7 +25,8 @@ else here is still unbuilt.
 | --- | --- |
 | E0 — Money | **Shipped** — [money.md](./money.md) |
 | E1 — Property | **Shipped** — [property.md](./property.md) |
-| E2–E8 | Proposed |
+| E2 — Crash pods and meals | **Shipped** — [crash-pods.md](./crash-pods.md), [food.md](./food.md) |
+| E3–E8 | Proposed |
 
 ## Source
 
@@ -525,7 +526,7 @@ someone else's goods yet, so "what you carry is yours" is implicit) and ledger
 **withdrawal** (nothing takes goods out of storage yet). The lockstep
 fingerprint also gained a `property` field.
 
-### E2 — Crash pods and meals
+### E2 — Crash pods and meals (shipped)
 
 `Meal` item; the pod prefab, landing-site search, and crash-through fallback;
 manifest config replacing `pistols`/`shotguns`; `arrive()` shared by worldgen,
@@ -535,6 +536,22 @@ first; the safety net made the least attractive option.
 with meals doesn't use the safety net; `infinite-food: false` with no production
 starves the colony on the timeline the manifest predicts (a deliberate
 test of the scarcity itself).
+Shipped; see [crash-pods.md](./crash-pods.md) and [food.md](./food.md). All
+three gates are tests. What differs from the sketch above:
+
+- The pod is an open five-by-two footprint, not a walled shell, and it lands
+  only in the **lower half** of the map. Rooms site against rock above them,
+  and pods that spread into the top of the cavern left small colonies unable
+  to build anything. The landing cavern is sized for its pods for the same
+  reason.
+- The safety net is "least attractive" by rule and by mood: own meals, then the
+  colony's, then the pod, in that order, and pod food records `EvtAteGruel`
+  instead of a meal.
+- Every settler lands with a pistol by default. Survival across 20 seeds went
+  from 9 to 15 (see [combat.md](./combat.md)).
+- Private fixtures had to stop counting as "in the way" (`onFacilityAccess`),
+  or nobody near a pod could be talked to and the colony stalled on social need.
+- With the safety net off, mice starve: they only ever ate at pods.
 
 ### E3 — Recipes and slurry
 

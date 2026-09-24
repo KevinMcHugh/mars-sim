@@ -34,6 +34,10 @@ const (
 	// and docs/sanitation.md.
 	Viscera
 	Corpse
+	// Meal is one portion of food: eating one resets hunger the way a pod
+	// used to. Colonists land with a supply in their crash pod's locker. See
+	// food.go and docs/food.md.
+	Meal
 
 	numItemKinds // keep last: the number of item kinds
 )
@@ -58,6 +62,8 @@ func (k ItemKind) String() string {
 		return "viscera"
 	case Corpse:
 		return "corpse"
+	case Meal:
+		return "meal"
 	default:
 		return "empty"
 	}
@@ -142,6 +148,39 @@ type StorageContainer struct {
 // rather than item by item.
 func (inv *Inventory) RemoveAll(kind ItemKind) int {
 	return removeAllStacks(inv[:], kind)
+}
+
+// Remove takes exactly n items of a kind, or leaves the inventory unchanged
+// and returns false if it holds fewer.
+func (inv *Inventory) Remove(kind ItemKind, n int) bool {
+	return removeStacks(inv[:], kind, n)
+}
+
+// Remove takes exactly n items of a kind from the container, or leaves it
+// unchanged and returns false if it holds fewer. Callers that own the items
+// go through StorageContainer.debit instead, which keeps the ledger in step.
+func (inv *StorageInventory) Remove(kind ItemKind, n int) bool {
+	return removeStacks(inv[:], kind, n)
+}
+
+// removeStacks takes n items of a kind, emptying the last matching stacks
+// first so partially used stacks do not multiply. All-or-nothing, like add.
+func removeStacks(stacks []ItemStack, kind ItemKind, n int) bool {
+	if n < 0 || kind == ItemNone || countStacks(stacks, kind) < n {
+		return false
+	}
+	for i := len(stacks) - 1; i >= 0 && n > 0; i-- {
+		if stacks[i].Kind != kind || stacks[i].Count == 0 {
+			continue
+		}
+		take := min(n, stacks[i].Count)
+		stacks[i].Count -= take
+		n -= take
+		if stacks[i].Count == 0 {
+			stacks[i] = ItemStack{}
+		}
+	}
+	return true
 }
 
 func removeAllStacks(stacks []ItemStack, kind ItemKind) int {

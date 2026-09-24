@@ -26,10 +26,16 @@ indexed by the kind:
 
 | Need | Rise/tick | SeekAt | CriticalAt | Max | Facility | UseTicks | GrabTicks | Fatal |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| food | 2 | 650 | 1000 | 1000 | NutrientPod | 18 | 3 | **yes** |
+| food | 2 | 650 | 1000 | 1000 | meals, then NutrientPod | 18 | 3 | **yes** |
 | bladder | 3 | 600 | 900 | 1000 | Toilet | 10 | 0 | no |
 | sleep | 1 | 700 | 900 | 1000 | Bed | 40 | 0 | no |
 | social | 2 | 500 | 850 | 1000 | conversation | — | — | no |
+
+Food is the one need met by an item as well as a facility: a hungry colonist
+eats a real `Meal` it owns (or the colony owns) before it walks to a nutrient
+pod, and with `infinite-food` off pods feed nobody at all. See
+[food.md](./food.md); everything below about facilities applies to food only
+when the safety net is what the colonist is using.
 
 Levels run `0..Max`; 0 means satisfied. `SeekAt` makes the need actionable,
 `CriticalAt` adds critical focus pressure, and a **fatal** need sitting at `Max`

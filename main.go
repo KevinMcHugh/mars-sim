@@ -379,8 +379,8 @@ func validateConfig(cfg sim.Config) error {
 		return fmt.Errorf("cavern nest size range is invalid: min %d, max %d", cfg.CavernNestMin, cfg.CavernNestMax)
 	case cfg.StartColonists < 0 || cfg.StartAliens < 0 || cfg.StartCats < 0 || cfg.StartMice < 0:
 		return fmt.Errorf("population counts cannot be negative")
-	case cfg.StartPistols < 0 || cfg.StartShotguns < 0:
-		return fmt.Errorf("starting weapon counts cannot be negative")
+	case cfg.CrashPodMeals < 0 || cfg.CrashPodPistols < 0 || cfg.CrashPodShotguns < 0:
+		return fmt.Errorf("crash pod manifest counts cannot be negative")
 	case cfg.GraveyardSize < 0:
 		return fmt.Errorf("graveyard-size cannot be negative")
 	case cfg.FoundingGrant < 0 || cfg.CrashPodPurse < 0:

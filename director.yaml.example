@@ -1,7 +1,7 @@
 # Sample director schedule.
 #
 # The director scripts major occurrences — a mouse plague, an alien swarm, a
-# supply drop — into tick windows. See docs/director.md.
+# supply drop, a wave of new settlers — into tick windows. See docs/director.md.
 #
 # Copy this file to director.yaml (or run with -director director.yaml.example)
 # to try it. Nothing loads it automatically under this name.
@@ -29,6 +29,13 @@ schedules:
       - kind: supply-drop
         pistols: 2
         shotguns: 1
+
+  - name: "new arrivals"
+    earliest_tick: 2000
+    latest_tick: 2600
+    occurrences:
+      - kind: arrival
+        count: 3
 
   - name: "the mice come back"
     earliest_tick: 3000

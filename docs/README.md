@@ -22,7 +22,7 @@ way it is without re-deriving it from the source each time.
 | [caverns.md](./caverns.md) | Natural caverns and the passages between them: generated hidden, ignored by the colony until a dig breaks in, then revealed all at once. Breaking in can turn up an alien nest. |
 | [lore.md](./lore.md) | The world beyond the colony: the alien species roster each seed rolls (build, name, temperament — friendly/cautious/hostile), and how damage and pace scale from it. |
 | [entities-and-ai.md](./entities-and-ai.md) | The entity model, the per-tick systems, turn order, movement primitives, and the colonist / alien / cat / mouse behaviors. |
-| [combat.md](./combat.md) | Per-body-part HP, weapons (pistol/shotgun), the colony ship's starting equipment, and gore. |
+| [combat.md](./combat.md) | Per-body-part HP, weapons (pistol/shotgun), the guns every settler lands with, and gore. |
 | [needs.md](./needs.md) | Colonist (and mouse) needs: hunger, bladder, lazy evaluation, starvation, and how to add a need. |
 | [cascading_wsts_architecture.md](./cascading_wsts_architecture.md) | Implementation design for independent need/affect processes feeding a weighted, explainable focus transition system. |
 | [mutation.md](./mutation.md) | Uranium deposits, the exposure dose, mutant body parts, stature (two-foot to ten-foot colonists), and the Mutant / Mutant-Lover traits. |
@@ -40,6 +40,8 @@ way it is without re-deriving it from the source each time.
 | [affect.md](./affect.md) | Charge/grip/valence affect, the impact-weighted push/pull blend, fresh/worn wear, event appraisal, trait transforms, decay, labels, and focus contributions. |
 | [economy.md](./economy.md) | **Proposal.** Scarcity and economy: property and owners, crash-pod arrivals, dollars, recipes and slurry, the bid/ask book for goods and labor, and the phased build plan. |
 | [money.md](./money.md) | Dollars: wallets, the treasury, the one `transfer` funnel, the fixed money supply and how it is audited, and the market tab. Economy phase E0. |
+| [crash-pods.md](./crash-pods.md) | How every colonist arrives: the pod prefab (private bunk, toilet, locker), its manifest, where pods land and why, and the one `arrive` function. Economy phase E2. |
+| [food.md](./food.md) | Meals as items: eating your own, then the colony's, then the safety net's gruel; `infinite-food`; what changes with it off. Economy phase E2. |
 | [property.md](./property.md) | Who owns what: fixture records with owners and access (communal/private), per-chest ledgers of whose goods are inside, and how private fixtures route. Economy phase E1. |
 | [mood-space.md](./mood-space.md) | **Proposal.** What affect still lacks: tag-based trait rules and per-colonist baselines — plus the build plan and a tuning sandbox. |
 | [memories.md](./memories.md) | Colonist memories and life events: notable experiences, sightings, affect vectors, stimuli, and snapshot exposure. |

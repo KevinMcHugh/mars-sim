@@ -128,6 +128,10 @@ var lifeEventAppraisals = [numLifeEventKinds]moodAppraisal{
 	EvtIncineratedRefuse:    {16, MoodVector{-1, 7, 1}, MoodVector{-4, 0, 0}},
 	EvtMutated:              {60, MoodVector{18, -70, -35}, MoodVector{10, -90, -70}},
 	EvtWitnessedMutation:    {35, MoodVector{2, -8, -10}, MoodVector{1, -16, -18}},
+	// Gruel fills a stomach and nothing else: the safety net is meant to be
+	// the worst way to eat, so it reads as a small, dispiriting non-event next
+	// to a real meal's lift, and wears into a mild grievance.
+	EvtAteGruel: {10, MoodVector{0, 0, -1}, MoodVector{-1, -2, -1}},
 }
 
 func roundedDiv(n, d int) int {

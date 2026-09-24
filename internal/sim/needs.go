@@ -178,6 +178,12 @@ func (w *World) applyStarvation(e *Entity) {
 	for i := 0; i < int(numNeeds); i++ {
 		spec := w.cfg.Needs[i]
 		if spec.Fatal && w.needLevel(e, NeedKind(i)) >= spec.Max {
+			// A colonist already eating, or on its way to its own meal, is
+			// guaranteed food: jobEat ends the job if the meal turns out to be
+			// out of reach, and the grace with it.
+			if NeedKind(i) == NeedFood && e.Job == JobEat {
+				continue
+			}
 			if e.Job == JobUse && e.Need == NeedKind(i) {
 				// A colonist that has already grabbed a portable need (see
 				// NeedSpec.GrabTicks) is guaranteed to finish regardless of the

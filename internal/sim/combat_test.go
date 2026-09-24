@@ -182,33 +182,24 @@ func TestViolentDeathsLeaveGore(t *testing.T) {
 	}
 }
 
-// The colony ship's starting pistol and shotgun should be issued to distinct
-// colonists at worldgen.
-func TestColonyShipEquipsStartingColonists(t *testing.T) {
+// Every colonist lands armed with its crash pod's manifest of weapons.
+func TestCrashPodsArmTheirColonists(t *testing.T) {
 	cfg := testConfig()
 	cfg.StartAliens, cfg.StartCats, cfg.StartMice = 0, 0, 0
 	cfg.StartColonists = 4
-	cfg.StartPistols, cfg.StartShotguns = 1, 1
+	cfg.CrashPodPistols, cfg.CrashPodShotguns = 1, 1
 	w := newTestWorld(t, cfg)
 
-	pistols, shotguns := 0, 0
 	for _, e := range w.entities {
 		if e.Kind != Colonist {
 			continue
 		}
-		for _, stack := range e.Inventory {
-			switch stack.Kind {
-			case Pistol:
-				pistols += stack.Count
-			case Shotgun:
-				shotguns += stack.Count
-			}
+		if e.Inventory.Count(Pistol) != 1 || e.Inventory.Count(Shotgun) != 1 {
+			t.Errorf("%s carries %d pistols and %d shotguns, want 1 and 1",
+				e.displayName(), e.Inventory.Count(Pistol), e.Inventory.Count(Shotgun))
 		}
-	}
-	if pistols != cfg.StartPistols {
-		t.Errorf("pistols issued = %d, want %d", pistols, cfg.StartPistols)
-	}
-	if shotguns != cfg.StartShotguns {
-		t.Errorf("shotguns issued = %d, want %d", shotguns, cfg.StartShotguns)
+		if bestWeapon(e.Inventory) != Shotgun {
+			t.Errorf("%s would not fight with its shotgun", e.displayName())
+		}
 	}
 }

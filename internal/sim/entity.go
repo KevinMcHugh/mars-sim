@@ -256,6 +256,7 @@ const (
 	JobClean            // scrub refuse off Target, then haul it to an incinerator
 	JobStore            // unload general materials into the storage at Target
 	JobDemolish         // break down the Wall tile at Target to escape a sealed room
+	JobEat              // take a meal from the depot at Target (if needed) and eat it
 )
 
 // cleanStage is where a JobClean colonist is in the haul. The job is two legs
@@ -357,6 +358,14 @@ type Entity struct {
 	// wallet is the colonist's dollars (colonists only). Only transfer and mint
 	// change it; see money.go and docs/money.md.
 	wallet Money
+	// podOrigin is the top-left of the crash pod this colonist arrived in,
+	// when hasPod; colonists placed directly by tests or older code have none.
+	// See crashpod.go.
+	podOrigin Point
+	hasPod    bool
+	// eat is where a JobEat colonist is: fetching a meal, or eating one. See
+	// food.go.
+	eat eatStage
 	// kin is the colonist's node in the colony's family tree (colonists only; 0
 	// for aliens). Relations caches the derived display ties until the family
 	// tree changes. See relationships.go.

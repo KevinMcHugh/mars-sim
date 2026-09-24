@@ -82,25 +82,6 @@ func weaponStats(weapon ItemKind, cfg Config) weaponSpec {
 	}
 }
 
-// equipColonyShip hands out the colony ship's starting firearms: one weapon
-// per colonist, up to cfg.StartPistols pistols and cfg.StartShotguns shotguns,
-// spread across distinct colonists (so the first defenders aren't all carrying
-// the same gun) rather than piled onto one. Excess weapons beyond the
-// colonist count are simply not issued. colonists is already in a random
-// order (worldgen draws spawn positions from a shuffled tile list), so taking
-// it in order is itself a random draw of who gets armed.
-func equipColonyShip(colonists []*Entity, cfg Config) {
-	next := 0
-	issue := func(kind ItemKind, count int) {
-		for i := 0; i < count && next < len(colonists); i++ {
-			colonists[next].Inventory.Add(kind, 1)
-			next++
-		}
-	}
-	issue(Shotgun, cfg.StartShotguns)
-	issue(Pistol, cfg.StartPistols)
-}
-
 // fightAlien lets an armed colonist stand its ground against a nearby alien
 // instead of fleeing: close the distance if the alien is out of weapon range,
 // otherwise hold position and fire once the reload cooldown clears. Called

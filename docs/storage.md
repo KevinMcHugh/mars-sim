@@ -67,7 +67,14 @@ The TUI exposes contents in two places:
   selected chest's occupied slots, item count, and capacity.
 
 Colonists deposit only when their inventory blocks further mining; they do not
-continually shuttle every new item. There is no automatic withdrawal policy yet.
+continually shuttle every new item. The only withdrawal is a hungry colonist
+taking a meal out (see [food.md](./food.md)).
+
+Every crash pod brings a **locker**: an ordinary storage container, private to
+its settler (see [crash-pods.md](./crash-pods.md)). Its owner unloads into it
+like any chest, and nobody else can. So the colony only builds a shared storage
+room once a blocked colonist has no reachable chest — its own locker included —
+with room for its load. The storage tab labels lockers by owner.
 
 ## Why it is this way
 

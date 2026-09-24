@@ -38,6 +38,7 @@ const (
 	EvtIncineratedRefuse
 	EvtMutated
 	EvtWitnessedMutation
+	EvtAteGruel // ate the safety net's free pod gruel rather than a real meal
 
 	numLifeEventKinds // keep last
 )
@@ -94,6 +95,7 @@ var lifeEventCollapseText = [numLifeEventKinds]string{
 	EvtCleanedRefuse:        "Cleaned up refuse.",
 	EvtIncineratedRefuse:    "Burned refuse in the incinerator.",
 	EvtAte:                  "Had a meal.",
+	EvtAteGruel:             "Ate nutrient-pod gruel.",
 	EvtUsedToilet:           "Used the toilet.",
 	EvtSlept:                "Slept in a bed.",
 	EvtNeedSatisfied:        "Satisfied a need.",

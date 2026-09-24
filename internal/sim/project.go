@@ -281,6 +281,12 @@ var (
 		name: "facility room", kinds: []Terrain{NutrientPod, Toilet}, minFac: 2,
 		planLog: "The colony marks out a new facility room.",
 	}
+	// toiletRoom is the facility room with the safety net off: a nutrient pod
+	// feeds nobody then (see podsFeed), so the bay is all toilets.
+	toiletRoom = roomRecipe{
+		name: "facility room", kinds: []Terrain{Toilet}, minFac: 1,
+		planLog: "The colony marks out a new facility room.",
+	}
 	// dormRoom is a bay of bunks. Even a single bunk is worth raising.
 	dormRoom = roomRecipe{
 		name: "dormitory", kinds: []Terrain{Bed}, minFac: 1,
@@ -357,7 +363,7 @@ func (w *World) planRooms() {
 	}
 	if w.manualFacilityRooms > 0 {
 		before := len(w.projects)
-		w.planRoom(lifeSupportRoom)
+		w.planRoom(w.facilityRoomRecipe())
 		if len(w.projects) > before {
 			w.manualFacilityRooms--
 		}
@@ -388,8 +394,9 @@ func (w *World) planRooms() {
 		return
 	}
 	desired := w.desiredFacilities(w.countKind(Colonist))
-	if w.plannedFacilities(NutrientPod) < desired || w.plannedFacilities(Toilet) < desired {
-		w.planRoom(lifeSupportRoom)
+	if (w.wantsFacility(NutrientPod) && w.plannedFacilities(NutrientPod) < desired) ||
+		w.plannedFacilities(Toilet) < desired {
+		w.planRoom(w.facilityRoomRecipe())
 		return
 	}
 	// A full inventory stops mining and can also deadlock a room whose active
@@ -411,6 +418,15 @@ func (w *World) planRooms() {
 	if w.refuseTotal() > 0 && w.plannedFacilities(Incinerator) < 1 {
 		w.planRoom(trashRoom)
 	}
+}
+
+// facilityRoomRecipe is the life-support room the colony builds: pods and
+// toilets while pods feed anyone, toilets alone once they do not.
+func (w *World) facilityRoomRecipe() roomRecipe {
+	if w.wantsFacility(NutrientPod) {
+		return lifeSupportRoom
+	}
+	return toiletRoom
 }
 
 // planRoom designates a new room from a recipe at a suitable open site. It
