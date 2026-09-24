@@ -383,6 +383,8 @@ func validateConfig(cfg sim.Config) error {
 		return fmt.Errorf("starting weapon counts cannot be negative")
 	case cfg.GraveyardSize < 0:
 		return fmt.Errorf("graveyard-size cannot be negative")
+	case cfg.FoundingGrant < 0 || cfg.CrashPodPurse < 0:
+		return fmt.Errorf("founding-grant and crash-pod-purse cannot be negative (got %d and %d)", cfg.FoundingGrant, cfg.CrashPodPurse)
 	case cfg.TicksPerSecond < 1:
 		return fmt.Errorf("tps must be at least 1 (got %d)", cfg.TicksPerSecond)
 	case cfg.ColonistsPerFacility < 1:

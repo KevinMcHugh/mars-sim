@@ -354,6 +354,9 @@ type Entity struct {
 	// Inventory is carried by colonists. Each slot contains one homogeneous
 	// stack; other entity kinds leave it empty.
 	Inventory Inventory
+	// wallet is the colonist's dollars (colonists only). Only transfer and mint
+	// change it; see money.go and docs/money.md.
+	wallet Money
 	// kin is the colonist's node in the colony's family tree (colonists only; 0
 	// for aliens). Relations caches the derived display ties until the family
 	// tree changes. See relationships.go.

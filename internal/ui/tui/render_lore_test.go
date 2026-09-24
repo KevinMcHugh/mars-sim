@@ -42,7 +42,7 @@ func toLore(t *testing.T, snap *sim.Snapshot) tea.Model {
 	var model tea.Model = New(nil, nil)
 	model, _ = model.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
 	model, _ = model.Update(snapshotMsg{snap: snap})
-	for range 4 {
+	for range 5 {
 		model, _ = model.Update(tea.KeyMsg{Type: tea.KeyTab})
 	}
 	return model

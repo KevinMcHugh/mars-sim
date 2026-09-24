@@ -17,10 +17,14 @@ could make money with. The long-term goal is for supply chains to form on their
 own, tick over tick, as the order book fills in backwards from finished goods
 to raw materials.
 
-Nothing here is implemented. It is a design and a sequenced build plan, written
-to be argued with before it becomes Go. When a phase ships, move its content
-into a present-tense doc (or keep this one and change the status) and update
-the index.
+This is a design and a sequenced build plan. When a phase ships, its content
+moves into a present-tense doc and the phase below links to it; everything
+else here is still unbuilt.
+
+| Phase | Status |
+| --- | --- |
+| E0 — Money | **Shipped** — [money.md](./money.md) |
+| E1–E8 | Proposed |
 
 ## Source
 
@@ -497,11 +501,14 @@ an untuned economy to survive. Every phase updates this doc (or moves its
 content into a present-tense doc) and adds new tunables to `sim.Config`
 and `mars-sim.yaml`.
 
-### E0 — Money
+### E0 — Money (shipped)
 
 `Money`, wallets, treasury, `transfer`, `founding-grant`, `crash-pod-purse`
 (granted at spawn for now). A first market view listing wallets.
 **Gate:** a conservation test (the total is constant across a long run).
+Shipped as described; see [money.md](./money.md). One refinement: a dead
+colonist's wallet is frozen into `moneyFrozen`, so the audited identity is
+circulating + frozen == issued rather than a constant circulating total.
 
 ### E1 — Property
 

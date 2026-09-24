@@ -94,6 +94,13 @@
 ## recent deaths kept for the roster's dead filter (0 disables)
 # graveyard-size: 50
 
+# ── Economy ─────────────────────────────────────────────────────────────
+## dollars the colony treasury starts with
+# founding-grant: 5000
+
+## dollars each colonist arrives with
+# crash-pod-purse: 100
+
 # ── Timing ──────────────────────────────────────────────────────────────
 ## simulation ticks per second
 # tps: 8

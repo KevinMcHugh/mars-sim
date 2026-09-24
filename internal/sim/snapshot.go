@@ -20,6 +20,9 @@ type EntityView struct {
 	Needs     [numNeeds]int
 	Profile   *Profile  // colonists only; a deep copy, safe to read
 	Inventory Inventory // colonists only; copied by value
+	// Wallet is the colonist's dollars (colonists only). On a Deceased record
+	// it is the money frozen at death. See docs/money.md.
+	Wallet Money
 
 	// Parts and MaxParts are per-body-part current/max HP (Colonist and Alien
 	// only; see Entity.hasParts and docs/combat.md). A zero MaxParts entry
@@ -116,6 +119,16 @@ func (p ProjectView) Assignees() []EntityID {
 	return out
 }
 
+// EconomyView is the colony's money supply at a glance, for the market tab.
+// Issued always equals Circulating + Frozen; a frontend can show the three
+// side by side without re-deriving any of them. See docs/money.md.
+type EconomyView struct {
+	Treasury    Money // the community's balance
+	Circulating Money // treasury plus every living colonist's wallet
+	Frozen      Money // locked in dead colonists' wallets
+	Issued      Money // every dollar ever minted
+}
+
 // NeedMeta describes a need for display: its name, ceiling, and whether maxing
 // it out is fatal. Carried in the snapshot so frontends can render need bars
 // without reaching into Config.
@@ -201,6 +214,10 @@ type Snapshot struct {
 	// carries a copy of the one it belongs to on its own EntityView.AlienSpecies;
 	// this is the full roster, for a codex-style listing. See docs/lore.md.
 	AlienSpecies []AlienSpecies
+
+	// Economy is the money supply; each colonist's own balance is on its
+	// EntityView.Wallet.
+	Economy EconomyView
 
 	AffinityMax    int // affinity display bars run [-AffinityMax, AffinityMax]
 	MoodMax        int // charge and grip each run in [-MoodMax, MoodMax]
@@ -349,11 +366,17 @@ func (w *World) snapshot(paused bool, tps int) *Snapshot {
 		Graveyard:            append([]EntityView(nil), w.graveyard...),
 		Deceased:             w.publishedDeceasedColonists(),
 		AlienSpecies:         append([]AlienSpecies(nil), w.alienSpecies...),
-		AffinityMax:          w.cfg.AffinityMax,
-		MoodMax:              w.cfg.MoodMax,
-		Paused:               paused,
-		TicksPerSecond:       tps,
-		FogOfWar:             w.cfg.FogOfWar,
+		Economy: EconomyView{
+			Treasury:    w.treasury,
+			Circulating: w.moneyInCirculation(),
+			Frozen:      w.moneyFrozen,
+			Issued:      w.moneyIssued,
+		},
+		AffinityMax:    w.cfg.AffinityMax,
+		MoodMax:        w.cfg.MoodMax,
+		Paused:         paused,
+		TicksPerSecond: tps,
+		FogOfWar:       w.cfg.FogOfWar,
 	}
 }
 
@@ -390,6 +413,7 @@ func (w *World) entityView(e *Entity, kinChildren map[kinID][]kinID, full bool) 
 		Needs:     w.currentNeeds(e),
 		Profile:   e.Profile.clone(),
 		Inventory: e.Inventory,
+		Wallet:    e.wallet,
 	}
 	if e.hasParts() {
 		ev.Parts = e.Parts

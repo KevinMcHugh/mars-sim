@@ -615,3 +615,36 @@ func TestRosterDetailShowsCollapsedMemoryRun(t *testing.T) {
 		t.Errorf("single memory line missing from inspector:\n%s", out)
 	}
 }
+
+// The market tab lists the treasury first, then colonists richest first, and
+// shows the money supply beside the selected account.
+func TestMarketTabListsAccountsAndMoneySupply(t *testing.T) {
+	snap := makeSnapshot()
+	snap.Entities = append(snap.Entities,
+		sim.EntityView{ID: 3, Kind: sim.Colonist, Pos: sim.Point{X: 2, Y: 1}, HP: 40, MaxHP: 40,
+			Profile: &sim.Profile{Name: "Ada Richards"}, Wallet: 900})
+	snap.Entities[0].Profile = &sim.Profile{Name: "Bo Poorman"}
+	snap.Entities[0].Wallet = 25
+	snap.Economy = sim.EconomyView{Treasury: 4000, Circulating: 4925, Frozen: 75, Issued: 5000}
+
+	var model tea.Model = New(nil, nil)
+	model, _ = model.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
+	model, _ = model.Update(snapshotMsg{snap: snap})
+	for range 4 {
+		model, _ = model.Update(tea.KeyMsg{Type: tea.KeyTab})
+	}
+
+	out := model.View()
+	for _, want := range []string{"MARKET · ACCOUNTS (3)", "The colony (treasury)", "$4000", "Issued:", "$5000", "Frozen:", "$75"} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("market tab missing %q:\n%s", want, out)
+		}
+	}
+	if strings.Index(out, "Ada Richards") > strings.Index(out, "Bo Poorman") {
+		t.Fatalf("richer colonist should list first:\n%s", out)
+	}
+	model, _ = model.Update(tea.KeyMsg{Type: tea.KeyDown})
+	if out := model.View(); !strings.Contains(out, "Balance:      $900") {
+		t.Fatalf("down did not select the richest colonist:\n%s", out)
+	}
+}

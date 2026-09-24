@@ -582,6 +582,15 @@ type World struct {
 	entities map[EntityID]*Entity
 	nextID   EntityID
 
+	// The colony's money. treasury is the community's balance; moneyIssued is
+	// every dollar ever minted (the founding grant plus each arrival's purse)
+	// and moneyFrozen every dollar locked in a dead colonist's wallet, so the
+	// supply can be audited: treasury + living wallets + moneyFrozen ==
+	// moneyIssued. See money.go and docs/money.md.
+	treasury    Money
+	moneyIssued Money
+	moneyFrozen Money
+
 	// colonistNames indexes every living colonist's full name, so generation can
 	// check a name is free in one lookup instead of scanning the roster. See
 	// uniquifyName in personality.go.
@@ -743,6 +752,7 @@ func newWorld(cfg Config, rng *rand.Rand) *World {
 		}
 	})
 	w.directorQueue = resolveSchedules(cfg.Schedules, w.rng)
+	w.mint(Community, Money(cfg.FoundingGrant))
 	return w
 }
 
@@ -1067,6 +1077,11 @@ func (w *World) spawnAs(kind Kind, p Point, species int) *Entity {
 	w.kindEntities[kind][e.ID] = struct{}{}
 	ci := w.chunkIndexOf(p)
 	w.chunkEntities[ci] = append(w.chunkEntities[ci], e.ID)
+	if kind == Colonist {
+		// Every colonist arrives with a purse. Minted only now, once the
+		// colonist is registered, because mint pays into a living wallet.
+		w.mint(ColonistOwner(e.ID), Money(w.cfg.CrashPodPurse))
+	}
 	return e
 }
 
@@ -1088,6 +1103,7 @@ func (w *World) remove(id EntityID, cause string) {
 		}
 	}
 	if e.Kind == Colonist {
+		w.freezeWallet(e)
 		// Computed with full=true, and before any of the bookkeeping below
 		// runs, so Relations/Affinities are captured as they stood at the
 		// moment of death rather than left empty. The kin node keeps

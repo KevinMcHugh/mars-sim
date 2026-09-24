@@ -21,6 +21,7 @@ const (
 	modeRoster                  // the colonist roster and inspector
 	modeJobs                    // the job board: queued projects and their tasks
 	modeStorage                 // placed storage containers and their contents
+	modeMarket                  // accounts and the colony's money supply
 	modeLore                    // world facts and the rolled alien species
 	modePerf                    // engine tick rate and tick cost over time
 )
@@ -28,7 +29,7 @@ const (
 // tabLabels names the screens in tab order, matching the "tab" rotation below
 // and the strip drawn by renderTabs.
 var tabLabels = [...]string{
-	modeMap: "Map", modeRoster: "Roster", modeJobs: "Jobs", modeStorage: "Storage", modeLore: "Lore",
+	modeMap: "Map", modeRoster: "Roster", modeJobs: "Jobs", modeStorage: "Storage", modeMarket: "Market", modeLore: "Lore",
 	modePerf: "Perf",
 }
 
@@ -93,6 +94,7 @@ type Model struct {
 	selected        int      // roster: index into the ID-sorted entity list
 	jobSelected     int      // job board: index into the queued project list
 	storageSelected int      // storage details: index into Snapshot.Storages
+	marketSelected  int      // market: index into marketAccounts
 	loreSelected    int      // lore: index into Snapshot.AlienSpecies
 	menu            menuKind // an open spawn/build/filter picker, if any
 
@@ -211,6 +213,8 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.handleJobsKey(msg)
 	case modeStorage:
 		return m.handleStorageKey(msg)
+	case modeMarket:
+		return m.handleMarketKey(msg)
 	case modeLore:
 		return m.handleLoreKey(msg)
 	case modePerf:
@@ -630,6 +634,24 @@ func (m Model) handleStorageKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.storageSelected = 0
 	}
 	m.storageSelected = m.clampStorageSelection(m.storageSelected)
+	return m, nil
+}
+
+// handleMarketKey navigates the accounts in the market tab.
+func (m Model) handleMarketKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "esc":
+		m.mode = modeMap
+	case "up", "k":
+		m.marketSelected--
+	case "down", "j":
+		m.marketSelected++
+	case "home", "g":
+		m.marketSelected = 0
+	}
+	if m.latest != nil {
+		m.marketSelected = clamp(m.marketSelected, 0, len(m.marketAccounts())-1)
+	}
 	return m, nil
 }
 

@@ -42,9 +42,9 @@ The model never mutates or reads live world state — only snapshots (see
 
 ### Map and details panels
 
-`viewMode` cycles between the **map** (default) and five **details panels**:
-the **roster**, **job board**, **storage**, **lore**, and **perf**. `tab`
-advances map → roster → job board → storage → lore → perf → map, following
+`viewMode` cycles between the **map** (default) and six **details panels**:
+the **roster**, **job board**, **storage**, **market**, **lore**, and **perf**.
+`tab` advances map → roster → job board → storage → market → lore → perf → map, following
 `tabLabels`' order; `esc` returns straight to the map
 from any details panel. Global keys (`handleKey`) work everywhere; the rest
 dispatch to the active panel's handler.
@@ -182,10 +182,14 @@ fog, since naming the rock there would hand back the map the fog is hiding. For 
 and `enter` jumps directly to that container in the storage details panel.
 `i` or `esc` closes inspection without quitting.
 
-`tab` cycles **map → roster → jobs → storage → lore → perf → map**. Roster,
-jobs, storage, lore, and perf are collectively the details panels. In storage,
+`tab` cycles **map → roster → jobs → storage → market → lore → perf → map**. Roster,
+jobs, storage, market, lore, and perf are collectively the details panels. In storage,
 `up`/`down` or `j`/`k` selects a chest from the position-sorted snapshot
-list; the inspector shows its occupied slots and total capacity. In lore,
+list; the inspector shows its occupied slots and total capacity. In market
+(`render_market.go`), the same keys select an account — the colony's treasury
+first, then living colonists richest first — and the inspector shows its
+balance beside the money supply from `Snapshot.Economy` (see
+[money.md](./money.md)). In lore,
 the same keys select a rolled alien species from `Snapshot.AlienSpecies`;
 the inspector shows its full build and a narrative description.
 
@@ -201,7 +205,7 @@ the inspector shows its full build and a narrative description.
 | `f` (roster only) | open the roster's filter menu — `↑↓`/`enter`/`space` to toggle the highlighted checkbox, or `d`/`n` for dead/non-human directly; no command sent, this only changes what the roster shows |
 | arrows or `hjkl` | pan the camera (map) / move selection (roster, job board) |
 | `shift+↑↓`, `pgup`/`pgdn` (roster only) | scroll the selected colonist's inspector a line / a screenful |
-| `tab` | cycle map → roster → job board → storage → lore → perf → map |
+| `tab` | cycle map → roster → job board → storage → market → lore → perf → map |
 | `q` / `esc` | quit (`esc` returns to the map from any details panel, or cancels an open menu) |
 
 `s` and `b` work from every screen; `f` only does anything on the roster

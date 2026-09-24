@@ -141,6 +141,8 @@ func (m Model) renderFrame() string {
 		frame = m.renderJobs()
 	case modeStorage:
 		frame = m.renderStorage()
+	case modeMarket:
+		frame = m.renderMarket()
 	case modeLore:
 		frame = m.renderLore()
 	case modePerf:

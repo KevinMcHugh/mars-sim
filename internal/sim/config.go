@@ -76,6 +76,14 @@ type Config struct {
 	// docs/combat.md.
 	GraveyardSize int `cfg:"graveyard-size" doc:"recent deaths kept for the roster's dead filter (0 disables)"`
 
+	// Money. The colony's supply of dollars is fixed: the founding grant seeds
+	// the community treasury once, at world creation, and every colonist mints
+	// a purse when it arrives. Nothing else creates or destroys money yet. They
+	// are int64 rather than Money because the flag binder only knows the three
+	// scalar kinds (see bindConfigFlags in main.go). See docs/money.md.
+	FoundingGrant int64 `cfg:"founding-grant" sec:"Economy" doc:"dollars the colony treasury starts with"`
+	CrashPodPurse int64 `cfg:"crash-pod-purse" doc:"dollars each colonist arrives with"`
+
 	// Timing.
 	TicksPerSecond int `cfg:"tps" sec:"Timing" doc:"simulation ticks per second"`
 	LogSize        int `cfg:"log-size" doc:"number of recent events retained"`
@@ -335,17 +343,21 @@ func DefaultConfig() Config {
 		StartMice:            8,
 		StartPistols:         1,
 		StartShotguns:        1,
-		GraveyardSize:        50,
-		TicksPerSecond:       8,
-		LogSize:              64,
-		ColonistHP:           40,
-		MineTicks:            6,
-		BuildTicks:           8,
-		DemolishTicks:        16,
-		FacilityBuildTicks:   12,
-		FleeRadius:           5,
-		ColonistStompRadius:  4,
-		GoreSightRadius:      3,
+		// Placeholders until the market gives money a use: a treasury worth a
+		// few dozen purses, so the colony can outspend any one settler.
+		FoundingGrant:       5000,
+		CrashPodPurse:       100,
+		GraveyardSize:       50,
+		TicksPerSecond:      8,
+		LogSize:             64,
+		ColonistHP:          40,
+		MineTicks:           6,
+		BuildTicks:          8,
+		DemolishTicks:       16,
+		FacilityBuildTicks:  12,
+		FleeRadius:          5,
+		ColonistStompRadius: 4,
+		GoreSightRadius:     3,
 
 		CleanRadius:           10,
 		CleanTicks:            6,
