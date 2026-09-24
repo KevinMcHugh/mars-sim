@@ -38,6 +38,7 @@ way it is without re-deriving it from the source each time.
 | [inventory.md](./inventory.md) | Colonist inventory slots and stacking. |
 | [storage.md](./storage.md) | Placeable storage containers, their capacity, construction, and snapshot state. |
 | [affect.md](./affect.md) | Charge/grip/valence affect, the impact-weighted push/pull blend, fresh/worn wear, event appraisal, trait transforms, decay, labels, and focus contributions. |
+| [economy.md](./economy.md) | **Proposal.** Scarcity and economy: property and owners, crash-pod arrivals, dollars, recipes and slurry, the bid/ask book for goods and labor, and the phased build plan. |
 | [mood-space.md](./mood-space.md) | **Proposal.** What affect still lacks: tag-based trait rules and per-colonist baselines — plus the build plan and a tuning sandbox. |
 | [memories.md](./memories.md) | Colonist memories and life events: notable experiences, sightings, affect vectors, stimuli, and snapshot exposure. |
 | [sparse-grids.md](./sparse-grids.md) | `pagedGrid[T]`: why the flow fields, A\* scratch, region labels and occupancy index allocate with the colony instead of the map, and the fast paths that made it free. |
