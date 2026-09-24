@@ -95,6 +95,11 @@ const (
 	// Its contents are sparse world state rather than part of every Tile; see
 	// storageContainers and docs/storage.md.
 	Storage
+	// Scumhouse turns biomatter — cave scum, viscera, and every body but a
+	// colonist's — into meals of slurry. It is a workshop with a depot: its
+	// inputs and its meals sit in a storage container on its tile, with a
+	// ledger like any chest. See scumhouse.go and docs/scumhouse.md.
+	Scumhouse
 
 	numTerrains // keep last: the number of terrain kinds
 )
@@ -117,6 +122,8 @@ func (t Terrain) String() string {
 		return "incinerator"
 	case Storage:
 		return "storage container"
+	case Scumhouse:
+		return "scumhouse"
 	default:
 		return "unknown"
 	}
@@ -225,9 +232,36 @@ type tileCell struct {
 
 // refuseCell is what lies on a tile something died on. Absent from the refuse
 // index means a clean tile, so the index holds only tiles that are dirty.
+// Bodies are counted by kind (corpseKinds order), because the kind decides
+// where a cleaner takes one: a colonist's to the incinerator, anything else's
+// to a scumhouse (see docs/sanitation.md).
 type refuseCell struct {
 	Gore    uint8
-	Corpses uint16
+	Corpses [numCorpseKinds]uint16
+}
+
+// corpseKinds are the body items, in refuseCell.Corpses order.
+var corpseKinds = [...]ItemKind{ColonistCorpse, AlienCorpse, AnimalCorpse}
+
+const numCorpseKinds = len(corpseKinds)
+
+// corpseIndex returns kind's slot in refuseCell.Corpses, or -1.
+func corpseIndex(kind ItemKind) int {
+	for i, k := range corpseKinds {
+		if k == kind {
+			return i
+		}
+	}
+	return -1
+}
+
+// total is how many bodies of any kind lie on the tile.
+func (r refuseCell) total() int {
+	n := 0
+	for _, c := range r.Corpses {
+		n += int(c)
+	}
+	return n
 }
 
 // tile returns the assembled view of cell i, with any refuse on it.
@@ -239,7 +273,7 @@ func (w *World) tile(i int) Tile {
 		Composition: c.Composition,
 		Explored:    c.Explored,
 		Gore:        r.Gore,
-		Corpses:     r.Corpses,
+		Corpses:     uint16(r.total()),
 	}
 }
 
@@ -277,21 +311,23 @@ func (w *World) addGore(p Point) {
 	w.goreTotal++
 }
 
-// addCorpse leaves a body on p. It is addGore's counterpart for remains that
-// are still recognizably a body rather than a stain, and callers pick: a death
-// whose remains are eaten (an alien devouring a colonist, a cat swallowing a
-// mouse) leaves only gore, while a starvation, a gunshot, or a stomp leaves a
-// body to be hauled away. Like addGore it reaches frontends through the refuse
+// addCorpse leaves a body of the given kind (ColonistCorpse, AlienCorpse or
+// AnimalCorpse) on p. It is addGore's counterpart for remains that are still
+// recognizably a body rather than a stain, and callers pick: a death whose
+// remains are eaten (an alien devouring a colonist, a cat swallowing a mouse)
+// leaves only gore, while a starvation, a gunshot, or a stomp leaves a body to
+// be hauled away. Like addGore it reaches frontends through the refuse
 // index's revision rather than a tile page (see publishedRefuse).
-func (w *World) addCorpse(p Point) {
-	if !w.InBounds(p) {
+func (w *World) addCorpse(p Point, kind ItemKind) {
+	i := corpseIndex(kind)
+	if !w.InBounds(p) || i < 0 {
 		return
 	}
 	r := w.refuse[p]
-	if r.Corpses >= maxCorpses {
+	if r.Corpses[i] >= maxCorpses {
 		return
 	}
-	r.Corpses++
+	r.Corpses[i]++
 	w.setRefuse(p, r)
 	w.corpseTotal++
 }
@@ -304,13 +340,21 @@ func (w *World) refuseAt(p Point) int {
 		return 0
 	}
 	r := w.refuse[p]
-	return int(r.Gore) + int(r.Corpses)
+	return int(r.Gore) + r.total()
 }
 
 // goreAt and corpsesAt report one tile's refuse by kind, for the sight checks
 // and the gather loop that only care whether there is any.
 func (w *World) goreAt(p Point) int    { return int(w.refuse[p].Gore) }
-func (w *World) corpsesAt(p Point) int { return int(w.refuse[p].Corpses) }
+func (w *World) corpsesAt(p Point) int { return w.refuse[p].total() }
+
+// corpsesOfAt reports how many bodies of one kind lie on p.
+func (w *World) corpsesOfAt(p Point, kind ItemKind) int {
+	if i := corpseIndex(kind); i >= 0 {
+		return int(w.refuse[p].Corpses[i])
+	}
+	return 0
+}
 
 // refuseTotal is the whole map's outstanding refuse, maintained incrementally
 // by the add/take helpers so the planner never rescans the grid to decide
@@ -354,20 +398,22 @@ func (w *World) clearRefuse(p Point) {
 		return
 	}
 	w.goreTotal -= int(r.Gore)
-	w.corpseTotal -= int(r.Corpses)
+	w.corpseTotal -= r.total()
 	w.setRefuse(p, refuseCell{})
 }
 
-// takeCorpse removes one body from p, returning whether there was one.
-func (w *World) takeCorpse(p Point) bool {
-	if !w.InBounds(p) {
+// takeCorpse removes one body of the given kind from p, returning whether
+// there was one.
+func (w *World) takeCorpse(p Point, kind ItemKind) bool {
+	i := corpseIndex(kind)
+	if !w.InBounds(p) || i < 0 {
 		return false
 	}
 	r := w.refuse[p]
-	if r.Corpses == 0 {
+	if r.Corpses[i] == 0 {
 		return false
 	}
-	r.Corpses--
+	r.Corpses[i]--
 	w.setRefuse(p, r)
 	w.corpseTotal--
 	return true
@@ -558,6 +604,29 @@ type World struct {
 	// advances on any change so snapshots can reuse the last published list
 	// (snapFixtures, taken at snapFixtureRev). See property.go.
 	fixtures map[Point]*Fixture
+	// Cave scum (see scumhouse.go): the sparse patches, the ones a colonist
+	// can currently reach (on floor, or on rock that borders walkable floor),
+	// which patch each scraper is headed to, and which workshop each cook has
+	// claimed. exposedScum is kept in step from TileChanged events, the way
+	// the job board keeps the mining frontier, so finding scum to scrape never
+	// walks the map.
+	scum        map[Point]scumPatch
+	exposedScum map[Point]struct{}
+	// scumRev advances on every change to scum or exposedScum. With
+	// snapScumUntil, the tick the first published patch would visibly regrow,
+	// it lets publishing reuse the last published copy (snapScum, taken at
+	// snapScumRev); see publishedScum.
+	scumRev        uint64
+	snapScumRev    uint64
+	snapScumUntil  int
+	snapScum       map[Point]uint8
+	scumClaims     map[Point]EntityID
+	workshopClaims map[Point]EntityID
+	// communityMealsTick/communityMealsCache memoize communityMeals for one
+	// tick; see foodWanted.
+	communityMealsTick  int
+	communityMealsCache int
+	manualScumhouses    int
 	// podRingHint is the search ring the last crash pod landed on, so the
 	// next search starts near there instead of rescanning the packed middle.
 	// See findPodSite.
@@ -733,6 +802,18 @@ func newWorld(cfg Config, rng *rand.Rand) *World {
 	// Storage does not satisfy a biological need, but full colonists still seek
 	// it through the same position index and pathing machinery.
 	w.trackFacility(Storage)
+	// The scumhouse backs no need either, but haulers and cooks route to it.
+	w.trackFacility(Scumhouse)
+	w.communityMealsTick = -1
+	w.scum = make(map[Point]scumPatch)
+	w.exposedScum = make(map[Point]struct{})
+	w.scumClaims = make(map[Point]EntityID)
+	w.workshopClaims = make(map[Point]EntityID)
+	w.subscribe(func(e WorldEvent) {
+		if tc, ok := e.(TileChanged); ok {
+			w.refreshScumExposure(tc.Pos)
+		}
+	})
 	w.frontier = newFlowField(w, func(add func(Point)) {
 		// Goals: walkable neighbors of every unclaimed frontier rock tile.
 		for p := range w.board.frontier {
@@ -858,11 +939,11 @@ func (w *World) setTerrain(p Point, t Terrain, discover bool) {
 	if w.facilityTiles[t] != nil {
 		w.facilityTiles[t][p] = struct{}{}
 	}
-	if old == Storage {
+	if hasDepot(old) {
 		delete(w.storageContainers, p)
 	}
-	if t == Storage {
-		w.storageContainers[p] = &StorageContainer{Pos: p}
+	if hasDepot(t) {
+		w.storageContainers[p] = &StorageContainer{Pos: p, Terrain: t}
 	}
 	if isFixtureTerrain(old) {
 		w.dropFixture(p)
@@ -881,6 +962,7 @@ func (w *World) setTerrain(p Point, t Terrain, discover bool) {
 	// mining through to an old kill should expose the stain, not erase it.
 	if t != Floor && t != Rock {
 		w.clearRefuse(p)
+		w.clearScum(p) // a structure seals the biofilm under it for good
 	}
 	w.tiles[i].Terrain = t
 	w.markTilePageDirty(i)
@@ -967,6 +1049,7 @@ func (w *World) reveal(p Point) {
 // its region is marked discovered (see relabelRooms' mainRoom).
 func (w *World) discoverCavernTile(p Point) {
 	w.growCarvedBox(p)
+	w.refreshScumExposure(p) // the cavern's rim is reachable scum now
 	w.dirtyChunks[w.chunkIndexOf(p)] = struct{}{}
 	if w.board != nil {
 		w.board.refreshFrontierCell(p)

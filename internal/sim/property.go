@@ -43,11 +43,17 @@ type Fixture struct {
 // not used, so nobody needs to own one yet.
 func isFixtureTerrain(t Terrain) bool {
 	switch t {
-	case NutrientPod, Toilet, Bed, Incinerator, Storage:
+	case NutrientPod, Toilet, Bed, Incinerator, Storage, Scumhouse:
 		return true
 	default:
 		return false
 	}
+}
+
+// hasDepot reports whether a terrain kind carries a storage container: a chest,
+// or a scumhouse's store of inputs and meals.
+func hasDepot(t Terrain) bool {
+	return t == Storage || t == Scumhouse
 }
 
 // placeFixture records a newly placed fixture tile. SetTerrain calls it for

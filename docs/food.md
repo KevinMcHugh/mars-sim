@@ -39,8 +39,8 @@ first. It tries, in order:
 2. **A meal of its own in a depot it can reach** — its crash pod's locker, to
    begin with. Walk there, take one out (`debit`), step aside, eat it.
 3. **A meal the colony owns in a depot it can reach.** Anything the community
-   owns, everyone may use (see [property.md](./property.md)). Nothing produces
-   community meals yet; the scumhouse will.
+   owns, everyone may use (see [property.md](./property.md)). The scumhouse
+   makes these (see [scumhouse.md](./scumhouse.md)).
 4. **The safety net.** Only if `infinite-food` is on: the old `JobUse` at a
    nutrient pod, which makes gruel out of nothing.
 
@@ -70,8 +70,10 @@ more.
   (which only ever ate at pods) go hungry;
 - the colony stops planning pods: `wantsFacility(NutrientPod)` is false, and
   a facility room becomes `toiletRoom`, all toilets;
-- a hungry colonist with nothing to eat keeps working (`hungryWithoutFood`)
-  and looks for food again every turn, rather than waiting by an empty locker.
+- a hungry colonist with nothing to eat picks food work first — cooking, then
+  scraping scum (`hungryWithoutFood`) — or else keeps working, and looks for
+  food again every turn, rather than waiting by an empty locker;
+- the colony builds a scumhouse before anything else.
 
 `TestWithoutTheSafetyNetTheColonyStarvesOnSchedule` is the scarcity under
 test. With three meals each and nothing produced, nobody may die before the

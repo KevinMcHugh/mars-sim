@@ -70,6 +70,11 @@ Colonists deposit only when their inventory blocks further mining; they do not
 continually shuttle every new item. The only withdrawal is a hungry colonist
 taking a meal out (see [food.md](./food.md)).
 
+A **scumhouse** carries a storage container too — its store of biomatter and
+meals, with a ledger — but it is not a chest: general materials are only ever
+unloaded into `Storage` containers. The storage tab lists it as "scumhouse".
+See [scumhouse.md](./scumhouse.md).
+
 Every crash pod brings a **locker**: an ordinary storage container, private to
 its settler (see [crash-pods.md](./crash-pods.md)). Its owner unloads into it
 like any chest, and nobody else can. So the colony only builds a shared storage

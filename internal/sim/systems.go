@@ -108,7 +108,7 @@ func (w *World) colonistTurn(e *Entity) {
 	w.applyStarvation(e)
 	if !e.Alive() { // starved this tick
 		w.clearJob(e) // release any board claim before removal
-		w.addCorpse(e.Pos)
+		w.addCorpse(e.Pos, ColonistCorpse)
 		w.remove(e.ID, "starved")
 		w.log.add(fmt.Sprintf("%s starved to death.", e.displayName()))
 		return
@@ -341,7 +341,7 @@ func (w *World) runNeedFocus(e *Entity, need NeedKind) {
 	case hasTask:
 		w.assignTask(e, task)
 	case !w.reachableFacilityConstruction(e.Pos, spec.Facility):
-		if spot, ok := w.findBuildSpot(e.Pos, 20); ok {
+		if spot, ok := w.findBuildSpot(e.Pos, 20); ok && w.canAffordBuild(e, spec.Facility) {
 			w.assignBuild(e, spec.Facility, spot)
 		}
 	default:
@@ -523,7 +523,7 @@ func (w *World) stompNearbyMouse(e *Entity) bool {
 func (w *World) stomp(colonist, mouse *Entity) {
 	witnesses := w.colonistsWithin(mouse.Pos, w.cfg.ColonistStompRadius, colonist.ID)
 	w.addGore(mouse.Pos)
-	w.addCorpse(mouse.Pos) // a crushed pest still has to be carried off
+	w.addCorpse(mouse.Pos, AnimalCorpse) // a crushed pest still has to be carried off
 	w.remove(mouse.ID, fmt.Sprintf("crushed by %s", colonist.displayName()))
 	w.remember(colonist, event(EvtCrushedMouse, "Crushed mouse #%d.", mouse.ID))
 	for _, wit := range witnesses {
@@ -695,6 +695,15 @@ func (w *World) clearJob(e *Entity) {
 			e.Inventory.Add(Meal, 1) // the meal in hand goes back in the pocket
 		}
 		e.eat = eatFetch
+	case JobCraft:
+		if w.workshopClaims[e.Target] == e.ID {
+			delete(w.workshopClaims, e.Target)
+		}
+	case JobScrape:
+		if e.scrape == scrapeGather && w.scumClaims[e.Target] == e.ID {
+			delete(w.scumClaims, e.Target)
+		}
+		e.scrape = scrapeGather
 	}
 	e.Job, e.Progress, e.partner = JobNone, 0, 0
 	e.useFacility, e.useFacilitySet, e.carrying = Point{}, false, false
@@ -723,6 +732,10 @@ func (w *World) runJob(e *Entity) {
 		w.jobDemolish(e)
 	case JobEat:
 		w.jobEat(e)
+	case JobCraft:
+		w.jobCraft(e)
+	case JobScrape:
+		w.jobScrape(e)
 	default:
 		e.State = Idle
 		w.wanderStep(e)
@@ -896,7 +909,15 @@ func (w *World) assignWorkJob(e *Entity) {
 	// mining frontier is effectively endless. Cleaning placed after mining
 	// would therefore never come up at all. It still sits behind construction:
 	// life support outranks housekeeping.
+	// Food before refuse when the colony is short: cook what the scumhouse
+	// holds, then scrape more. Cleaning, next, feeds the scumhouse too.
+	if w.foodWanted() && w.tryAssignCraft(e) {
+		return
+	}
 	if w.tryAssignClean(e) {
+		return
+	}
+	if w.foodWanted() && w.tryAssignScrape(e) {
 		return
 	}
 	// Mining: big colonies/maps follow the shared frontier field (claim on
@@ -966,7 +987,8 @@ func (w *World) chooseStorage(e *Entity, stacks []ItemStack) (Point, bool) {
 	bestDist := 1 << 30
 	found := false
 	for p, container := range w.storageContainers {
-		if !w.canUseFixture(e, p) || !container.Inventory.CanAddAll(stacks...) || !w.taskReachable(p, room) {
+		if container.Terrain != Storage || !w.canUseFixture(e, p) ||
+			!container.Inventory.CanAddAll(stacks...) || !w.taskReachable(p, room) {
 			continue
 		}
 		d := e.Pos.Chebyshev(p)
@@ -1190,6 +1212,14 @@ func (w *World) jobBuild(e *Entity) {
 		w.clearJob(e)
 		return
 	}
+	// With construction costs on, fetch the materials first (see
+	// construction.go). Always ready with them off.
+	if ready, ok := w.gatherBuildMaterials(e); !ok {
+		w.clearJob(e)
+		return
+	} else if !ready {
+		return
+	}
 	arrived, ok := w.travelTo(e, e.Target)
 	if !ok {
 		w.clearJob(e)
@@ -1229,6 +1259,10 @@ func (w *World) jobBuild(e *Entity) {
 		w.SetTerrain(e.Target, Floor)
 		w.remember(e, event(EvtClearedRock, "Cleared rock for a room at (%d, %d).", e.Target.X, e.Target.Y))
 		w.clearJob(e)
+		return
+	}
+	if !w.payForBuild(e) {
+		w.clearJob(e) // the materials went somewhere; fetch them again later
 		return
 	}
 	w.SetTerrain(e.Target, e.BuildKind)
@@ -1645,7 +1679,7 @@ func (w *World) mouseTurn(e *Entity) {
 	w.applyStarvation(e)
 	if !e.Alive() { // starved this tick
 		w.clearJob(e)
-		w.addCorpse(e.Pos)
+		w.addCorpse(e.Pos, AnimalCorpse)
 		w.remove(e.ID, "starved")
 		w.log.add(fmt.Sprintf("Mouse #%d starves.", e.ID))
 		return

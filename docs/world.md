@@ -112,7 +112,9 @@ derived systems go stale (and the map the player sees never grows).
    is ordinary rock. New compositions are appended to the generation order, so
    clay was grown last and did not move the iron, ice, or uranium veins of
    established seeds. Veins
-   default to 8–24 orthogonally connected tiles.
+   default to 8–24 orthogonally connected tiles. Then it seeds **cave scum**
+   patches across `scum-percent` of the map's rock, on a stream of its own so
+   that adding scum moved no vein (see [scumhouse.md](./scumhouse.md)).
 2. Carves an **oval cavern** at the map center. `caveRadii` sizes it to the
    starting colonist count — ten tiles of elbow room per colonist plus the
    ground its crash pod takes, at a 2:1 width:height ratio, never less than

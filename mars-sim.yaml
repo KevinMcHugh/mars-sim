@@ -95,6 +95,25 @@
 ## nutrient pods make free meals out of nothing (the safety net)
 # infinite-food: true
 
+# ── Food production ─────────────────────────────────────────────────────
+## percent of rock tiles carrying a patch of cave scum
+# scum-percent: 6
+
+## units of scum a full patch holds
+# scum-max: 3
+
+## ticks for a scraped patch to regrow one unit of scum
+# scum-regrow-ticks: 400
+
+## ticks of work to scrape one unit of scum off a patch
+# scrape-ticks: 6
+
+## the colony makes food while it holds fewer meals than this per colonist
+# meal-reserve: 3
+
+## building consumes materials from the builder's own stock
+# construction-costs: false
+
 # ── Crash pods ──────────────────────────────────────────────────────────
 ## dollars each colonist arrives with
 # crash-pod-purse: 100

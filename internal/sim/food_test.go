@@ -75,7 +75,13 @@ func TestColonistsEatTheirOwnMealsBeforeGruel(t *testing.T) {
 // by m·(325+18+travel) + 500 + HP, allowing some walking.
 func TestWithoutTheSafetyNetTheColonyStarvesOnSchedule(t *testing.T) {
 	const meals = 3
-	w := foodWorld(t, meals, false)
+	cfg := testConfig()
+	cfg.Width, cfg.Height = 60, 36
+	cfg.StartAliens, cfg.StartCats, cfg.StartMice = 0, 0, 0
+	cfg.CrashPodMeals = meals
+	cfg.InfiniteFood = false
+	cfg.ScumPercent = 0 // nothing to make food from: no scum, and no creatures to die
+	w := newTestWorld(t, cfg)
 	spec := w.cfg.Needs[NeedFood]
 	rise := spec.Rise
 	cycle := spec.SeekAt/rise + spec.UseTicks

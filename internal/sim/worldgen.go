@@ -27,6 +27,9 @@ func generate(w *World) {
 	// Clay goes after all existing compositions so introducing it does not move
 	// their veins for an established seed.
 	w.growRockVeins(compositionRNG, ClayBearingRock, w.cfg.ClayRockPercent)
+	// Cave scum rides on the rock, not in it, and on its own stream, so adding
+	// it moved no vein of an established seed.
+	w.growScum(rand.New(rand.NewSource(w.cfg.Seed ^ 0x5CA1AB1E)))
 
 	// Carve an oval starting cavern large enough to hold the colonists with room
 	// to move and a rock frontier to mine.

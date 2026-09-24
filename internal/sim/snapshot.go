@@ -1,6 +1,9 @@
 package sim
 
-import "sort"
+import (
+	"math"
+	"sort"
+)
 
 // EntityView is a read-only copy of an entity for a single frame. Frontends
 // receive these instead of *Entity so they can never touch live game state.
@@ -85,6 +88,7 @@ type ProjectView struct {
 // StorageView is an immutable copy of one placed container and its contents.
 type StorageView struct {
 	Pos       Point
+	Terrain   Terrain // Storage (a chest or locker) or Scumhouse
 	Inventory StorageInventory
 	// Ledger is whose the contents are, sorted by owner then item. A copy:
 	// safe to read. See docs/property.md.
@@ -130,6 +134,37 @@ type EconomyView struct {
 	Circulating Money // treasury plus every living colonist's wallet
 	Frozen      Money // locked in dead colonists' wallets
 	Issued      Money // every dollar ever minted
+}
+
+// ScumAt reports how much cave scum a colonist could scrape off p right now.
+func (s *Snapshot) ScumAt(p Point) int { return int(s.Scum[p]) }
+
+// publishedScum returns an immutable copy of the scum on every exposed patch,
+// reusing the last one published while it is still exact: nothing has written
+// to the scum since (scumRev), and no published patch has regrown a unit yet
+// (snapScumUntil). Regrowth is lazy (see scumAt) — there is no write to watch
+// when a patch ticks up — so the copy records the earliest tick one will.
+//
+// It used to be rebuilt every frame. Publishing happens every tick, and on a
+// big map that made the scum copy most of what the engine did.
+func (w *World) publishedScum() map[Point]uint8 {
+	if w.snapScum != nil && w.snapScumRev == w.scumRev && w.tick < w.snapScumUntil {
+		return w.snapScum
+	}
+	out := make(map[Point]uint8, len(w.exposedScum))
+	until := math.MaxInt
+	for p := range w.exposedScum {
+		n := w.scumAt(p)
+		if n > 0 {
+			out[p] = uint8(n)
+		}
+		if regrow := w.cfg.ScumRegrowTicks; regrow > 0 && n < w.cfg.ScumMax {
+			s := w.scum[p]
+			until = min(until, s.since+((w.tick-s.since)/regrow+1)*regrow)
+		}
+	}
+	w.snapScum, w.snapScumRev, w.snapScumUntil = out, w.scumRev, until
+	return out
 }
 
 // FixtureAt returns the ownership record of the fixture at p, if there is one.
@@ -219,7 +254,12 @@ type Snapshot struct {
 	PendingDormitories   int
 	PendingTrashRooms    int
 	PendingStorageRooms  int
+	PendingScumhouses    int
 	Storages             []StorageView
+	// Scum is how much cave scum is on every exposed patch that has any,
+	// computed fresh each frame because patches regrow lazily (see
+	// scumhouse.go). Read it with ScumAt.
+	Scum map[Point]uint8
 	// Fixtures is the ownership of every placed fixture (pods, toilets, beds,
 	// incinerators, storage), sorted by position. The slice is shared between
 	// frames until a fixture changes, and never written after publication.
@@ -369,8 +409,10 @@ func (w *World) snapshot(paused bool, tps int) *Snapshot {
 		PendingDormitories:   w.manualDormitories,
 		PendingTrashRooms:    w.manualTrashRooms,
 		PendingStorageRooms:  w.manualStorageRooms,
+		PendingScumhouses:    w.manualScumhouses,
 		Storages:             storages,
 		Fixtures:             w.publishedFixtures(),
+		Scum:                 w.publishedScum(),
 		Graveyard:            append([]EntityView(nil), w.graveyard...),
 		Deceased:             w.publishedDeceasedColonists(),
 		AlienSpecies:         append([]AlienSpecies(nil), w.alienSpecies...),
@@ -395,6 +437,7 @@ func (w *World) snapshotStorages() []StorageView {
 	for _, container := range w.storageContainers {
 		storages = append(storages, StorageView{
 			Pos:       container.Pos,
+			Terrain:   container.Terrain,
 			Inventory: container.Inventory,
 			Ledger:    append([]LedgerLine(nil), container.Ledger...),
 		})

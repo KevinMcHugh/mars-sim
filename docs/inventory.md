@@ -58,6 +58,12 @@ Whatever a colonist carries is its own property — there is no owner on a
 stack. Once deposited, whose it is lives in the chest's ledger instead; see
 [property.md](./property.md).
 
+Biomatter is the other thing colonists carry for someone else: `CaveScum`
+scraped for the colony, and `Viscera`, `AlienCorpse` and `AnimalCorpse`
+gathered while cleaning, all bound for a scumhouse. `ColonistCorpse` goes only
+to the incinerator. See [scumhouse.md](./scumhouse.md) and
+[sanitation.md](./sanitation.md).
+
 Inventory is copied by value into the snapshot's `EntityView`, so the frontend can
 render it without touching live state.
 

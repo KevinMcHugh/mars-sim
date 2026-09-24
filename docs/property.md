@@ -48,10 +48,13 @@ things rather than on them, by the kind of thing:
 | Goods in a storage container | the container's `Ledger`: one line per (owner, item) |
 | Goods a colonist is carrying, weapons included | nowhere: **what you carry is yours** |
 
-The carrier rule is deliberately implicit. The design ([economy.md](./economy.md))
-calls for a *cargo record* on a job that carries someone else's goods — a hauler
-moving your ore — but no job does that yet, so there is nothing to record. It
-arrives with the first one (hauling for hire, phase E5/E7).
+The carrier rule is the default. The exception is a **cargo record**
+(`Entity.cargo`, one owner per item kind): a job that carries someone else's
+goods marks them. Scraping scum and cleaning up biomatter are community work,
+so what they gather is recorded as the colony's, and `deliverBiomatter` credits
+it to the colony when it reaches the scumhouse (see
+[scumhouse.md](./scumhouse.md)). `carriedOwner` reads the record, falling back
+to the carrier.
 
 ### Fixtures
 

@@ -132,6 +132,11 @@ var lifeEventAppraisals = [numLifeEventKinds]moodAppraisal{
 	// the worst way to eat, so it reads as a small, dispiriting non-event next
 	// to a real meal's lift, and wears into a mild grievance.
 	EvtAteGruel: {10, MoodVector{0, 0, -1}, MoodVector{-1, -2, -1}},
+	// Food work reads like the other chores: a little satisfying, and dull
+	// once it is routine.
+	EvtMadeSlurry:   {15, MoodVector{-1, 5, 1}, MoodVector{-5, -2, 0}},
+	EvtScrapedScum:  {12, MoodVector{-1, 4, 0}, MoodVector{-5, -3, 0}},
+	EvtFedScumhouse: {10, MoodVector{-1, 4, 0}, MoodVector{-4, -2, 0}},
 }
 
 func roundedDiv(n, d int) int {

@@ -296,7 +296,13 @@ func (m Model) renderMap() string {
 				// in an undiscovered cave is exactly what the fog is
 				// there to hide, and drawing it over a blank tile would look
 				// like a bug besides.
-				drawn = tileGlyph(m.latest.TileAt(p))
+				tile := m.latest.TileAt(p)
+				drawn = tileGlyph(tile)
+				// Scum shows under refuse, like terrain: a body on a patch
+				// is still the thing to see there.
+				if tile.Corpses == 0 && tile.Gore == 0 && m.latest.ScumAt(p) > 0 {
+					drawn = fitGlyph(glyphScum)
+				}
 				if o, ok := occ[p]; ok {
 					drawn = o.glyph
 				}
@@ -410,6 +416,7 @@ func (m Model) drawSidebar(rows int) string {
 		{g(glyphRock, "rock"), g(glyphIronRock, "iron rock")},
 		{g(glyphIceRock, "ice rock"), g(glyphClayRock, "clay rock")},
 		{g(glyphUranium, "uranium"), g(glyphFloor, "open")},
+		{g(glyphScumhouse, "scumhouse"), g(glyphScum, "cave scum")},
 	}
 	if m.latest.FogOfWar {
 		legendRows = append(legendRows, [2]entry{{fogCells(1), "unexplored"}, {}})

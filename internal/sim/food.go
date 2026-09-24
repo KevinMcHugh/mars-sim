@@ -162,12 +162,17 @@ func (w *World) runFoodFocus(e *Entity) bool {
 }
 
 // hungryWithoutFood is a turn for a colonist with nothing to eat and no
-// safety net. Waiting by an empty locker helps nobody, so it keeps working —
-// and checks for food again every turn, since runFoodFocus runs first.
+// safety net. Waiting by an empty locker helps nobody, so whenever it picks
+// new work it picks food work first — cooking, then scraping scum, whatever
+// the colony's stock says — and otherwise keeps working. A job already under
+// way is left to finish rather than dropped mid-tile. It checks for food again
+// every turn, since runFoodFocus runs first.
 func (w *World) hungryWithoutFood(e *Entity) {
 	if !workJob(e.Job) {
 		w.clearJob(e)
-		w.assignWorkJob(e)
+		if !w.tryAssignFoodWork(e, true) {
+			w.assignWorkJob(e)
+		}
 	}
 	if e.Job != JobNone {
 		e.resting = false

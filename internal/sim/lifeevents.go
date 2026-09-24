@@ -39,6 +39,9 @@ const (
 	EvtMutated
 	EvtWitnessedMutation
 	EvtAteGruel // ate the safety net's free pod gruel rather than a real meal
+	EvtMadeSlurry
+	EvtScrapedScum
+	EvtFedScumhouse
 
 	numLifeEventKinds // keep last
 )
@@ -95,6 +98,9 @@ var lifeEventCollapseText = [numLifeEventKinds]string{
 	EvtCleanedRefuse:        "Cleaned up refuse.",
 	EvtIncineratedRefuse:    "Burned refuse in the incinerator.",
 	EvtAte:                  "Had a meal.",
+	EvtMadeSlurry:           "Worked the scumhouse.",
+	EvtScrapedScum:          "Scraped cave scum.",
+	EvtFedScumhouse:         "Fed the scumhouse.",
 	EvtAteGruel:             "Ate nutrient-pod gruel.",
 	EvtUsedToilet:           "Used the toilet.",
 	EvtSlept:                "Slept in a bed.",

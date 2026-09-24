@@ -45,14 +45,14 @@ func TestColonistCleansAndIncineratesRefuse(t *testing.T) {
 	w, colonist, _ := cleanTestWorld(t, true)
 	mess := Point{7, 7}
 	w.addGore(mess)
-	w.addCorpse(mess)
+	w.addCorpse(mess, ColonistCorpse)
 
 	runColonist(w, colonist, 300)
 
 	if got := w.refuseAt(mess); got != 0 {
 		t.Errorf("refuse at %v = %d, want 0 (cleaned up)", mess, got)
 	}
-	if got := colonist.Inventory.Count(Viscera) + colonist.Inventory.Count(Corpse); got != 0 {
+	if got := colonist.Inventory.Count(Viscera) + colonist.Inventory.Count(ColonistCorpse); got != 0 {
 		t.Errorf("colonist still carries %d refuse, want 0 (burned)", got)
 	}
 	if w.refuseTotal() != 0 {
@@ -100,7 +100,7 @@ func TestNoCleaningWithoutIncinerator(t *testing.T) {
 // the carrier's next work search is a haul, whatever else is on offer.
 func TestCarriedRefuseIsHauledOnceAnIncineratorExists(t *testing.T) {
 	w, colonist, incinerator := cleanTestWorld(t, true)
-	colonist.Inventory.Add(Corpse, 1)
+	colonist.Inventory.Add(ColonistCorpse, 1)
 
 	w.colonistTurn(colonist)
 
@@ -112,7 +112,7 @@ func TestCarriedRefuseIsHauledOnceAnIncineratorExists(t *testing.T) {
 	}
 
 	runColonist(w, colonist, 200)
-	if got := colonist.Inventory.Count(Corpse); got != 0 {
+	if got := colonist.Inventory.Count(ColonistCorpse); got != 0 {
 		t.Errorf("colonist still carries %d corpses, want 0 (burned)", got)
 	}
 }
@@ -162,7 +162,7 @@ func TestBuildingOverRefuseClearsItButDiggingDoesNot(t *testing.T) {
 
 	built := Point{8, 8}
 	w.addGore(built)
-	w.addCorpse(built)
+	w.addCorpse(built, ColonistCorpse)
 	w.SetTerrain(built, Wall)
 	if got := w.refuseAt(built); got != 0 {
 		t.Errorf("refuse under a new wall = %d, want 0", got)

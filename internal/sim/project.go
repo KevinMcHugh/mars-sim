@@ -128,6 +128,11 @@ func (w *World) claimNearestTaskIn(from Point, id EntityID, projects []*project)
 				!w.taskReachable(t.pos, room) {
 				continue
 			}
+			// A colonist never claims what it could not pay for; it mines
+			// instead, and the rock is what it builds with next time.
+			if builder := w.entities[id]; builder != nil && !w.canAffordBuild(builder, t.terrain) {
+				continue
+			}
 			if d := from.Chebyshev(t.pos); best == nil || d < bestDist ||
 				(d == bestDist && lessPoint(t.pos, best.pos)) {
 				best, bestDist = t, d
@@ -310,6 +315,14 @@ var (
 		name: "storage room", kinds: []Terrain{Storage}, minFac: 1, maxFac: 1,
 		planLog: "The colony marks out a new storage room.",
 	}
+	// scumhouseRoom walls in one scumhouse. One serves a colony: its depot
+	// holds six inventories of biomatter and meals, and cooks queue for it
+	// one at a time. The planner wants one only when food is not free (see
+	// planRooms); otherwise it is player-ordered.
+	scumhouseRoom = roomRecipe{
+		name: "scumhouse", kinds: []Terrain{Scumhouse}, minFac: 1, maxFac: 1,
+		planLog: "The colony marks out a scumhouse.",
+	}
 )
 
 // bayWidth is the row width spanned by n facilities spaced one tile apart.
@@ -391,6 +404,21 @@ func (w *World) planRooms() {
 		if len(w.projects) > before {
 			w.manualStorageRooms--
 		}
+		return
+	}
+	if w.manualScumhouses > 0 {
+		before := len(w.projects)
+		w.planRoom(scumhouseRoom)
+		if len(w.projects) > before {
+			w.manualScumhouses--
+		}
+		return
+	}
+	// Without the safety net, food has to be made, and the scumhouse is the
+	// only place that makes it: it comes before every other room, as life
+	// support always has. Crash-pod meals buy the time to build it.
+	if !w.podsFeed() && w.plannedFacilities(Scumhouse) < 1 {
+		w.planRoom(scumhouseRoom)
 		return
 	}
 	desired := w.desiredFacilities(w.countKind(Colonist))

@@ -60,6 +60,8 @@ const (
 	Hauling           // colonist carrying gathered refuse to an incinerator
 	Storing           // colonist unloading general materials into storage
 	Demolishing       // colonist breaking down a wall to escape a sealed room
+	Crafting          // colonist working a recipe at a workshop (the scumhouse)
+	Scraping          // colonist scraping cave scum off a surface
 )
 
 func (s State) String() string {
@@ -98,6 +100,10 @@ func (s State) String() string {
 		return "storing"
 	case Demolishing:
 		return "demolishing"
+	case Crafting:
+		return "crafting"
+	case Scraping:
+		return "scraping"
 	default:
 		return "?"
 	}
@@ -257,6 +263,8 @@ const (
 	JobStore            // unload general materials into the storage at Target
 	JobDemolish         // break down the Wall tile at Target to escape a sealed room
 	JobEat              // take a meal from the depot at Target (if needed) and eat it
+	JobCraft            // work a recipe at the workshop at Target
+	JobScrape           // scrape the cave scum at Target, then haul it to a scumhouse
 )
 
 // cleanStage is where a JobClean colonist is in the haul. The job is two legs
@@ -366,6 +374,17 @@ type Entity struct {
 	// eat is where a JobEat colonist is: fetching a meal, or eating one. See
 	// food.go.
 	eat eatStage
+	// recipe and craftFor are a JobCraft colonist's recipe (an index into
+	// recipes) and whose inputs it is working; scrape is where a JobScrape
+	// colonist is. See scumhouse.go.
+	recipe   int
+	craftFor Owner
+	scrape   scrapeStage
+	// cargo records whose the carried items of each kind are, when they are
+	// not the carrier's own: biomatter gathered as community work is the
+	// colony's until it reaches the scumhouse. The zero Owner means "the
+	// carrier's". See carriedOwner and docs/property.md.
+	cargo [numItemKinds]Owner
 	// kin is the colonist's node in the colony's family tree (colonists only; 0
 	// for aliens). Relations caches the derived display ties until the family
 	// tree changes. See relationships.go.

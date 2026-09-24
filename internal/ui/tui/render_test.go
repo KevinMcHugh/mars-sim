@@ -686,3 +686,34 @@ func TestLedgerShowsInStorageAndMarket(t *testing.T) {
 		t.Fatalf("market did not total holdings across chests:\n%s", out)
 	}
 }
+
+// Scum shows on its tile, the scumhouse has its own glyph, and the storage tab
+// names the scumhouse's depot for what it is.
+func TestScumAndScumhouseAreDrawn(t *testing.T) {
+	restoreGlyphs(t, false)
+	snap := makeSnapshot()
+	tiles := make([]sim.Tile, snap.Width*snap.Height)
+	for i := range tiles {
+		tiles[i].Terrain = sim.Floor
+	}
+	house := sim.Point{X: 4, Y: 1}
+	tiles[house.Y*snap.Width+house.X].Terrain = sim.Scumhouse
+	snap.Tiles = sim.NewTileGrid(snap.Width, snap.Height, tiles)
+	snap.Entities = nil
+	snap.Scum = map[sim.Point]uint8{{X: 2, Y: 2}: 3}
+	snap.Storages = []sim.StorageView{{Pos: house, Terrain: sim.Scumhouse}}
+
+	var model tea.Model = New(nil, nil)
+	model, _ = model.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
+	model, _ = model.Update(snapshotMsg{snap: snap})
+	out := model.View()
+	if !strings.Contains(out, glyphScum) || !strings.Contains(out, glyphScumhouse) {
+		t.Fatalf("map is missing scum or the scumhouse:\n%s", out)
+	}
+	for range 3 {
+		model, _ = model.Update(tea.KeyMsg{Type: tea.KeyTab})
+	}
+	if out := model.View(); !strings.Contains(out, "scumhouse (4,1)") {
+		t.Fatalf("storage tab does not name the scumhouse:\n%s", out)
+	}
+}

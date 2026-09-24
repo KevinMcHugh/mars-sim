@@ -26,7 +26,8 @@ else here is still unbuilt.
 | E0 — Money | **Shipped** — [money.md](./money.md) |
 | E1 — Property | **Shipped** — [property.md](./property.md) |
 | E2 — Crash pods and meals | **Shipped** — [crash-pods.md](./crash-pods.md), [food.md](./food.md) |
-| E3–E8 | Proposed |
+| E3 — Recipes and slurry | **Shipped** — [scumhouse.md](./scumhouse.md); construction costs in [construction.md](./construction.md) |
+| E4–E8 | Proposed |
 
 ## Source
 
@@ -553,13 +554,30 @@ three gates are tests. What differs from the sketch above:
   or nobody near a pod could be talked to and the colony stalled on social need.
 - With the safety net off, mice starve: they only ever ate at pods.
 
-### E3 — Recipes and slurry
+### E3 — Recipes and slurry (shipped)
 
 Recipe table; workshop executor; corpse kinds (colonist corpses stay refuse; viscera and other corpses become biomatter);
 cave scum worldgen feature and harvesting; the scumhouse; community-assigned
 biomatter hauling. `construction-costs` switch (off by default).
 **Gate:** with the safety net off, a colony that harvests scum and hauls
 corpses sustains itself for a defined horizon on a reference seed.
+Shipped; see [scumhouse.md](./scumhouse.md), [sanitation.md](./sanitation.md)
+and [construction.md](./construction.md). The gate is
+`TestColonyFeedsItselfWithoutTheSafetyNet`: six colonists, three meals each,
+safety net off, all alive at tick 8000 (and all starved on schedule with scum
+turned off). Notes against the sketch:
+
+- The recipe table is Go data (`recipes`), four rows at the scumhouse:
+  alien carcass, animal carcass, viscera, cave scum.
+- Scum lives on rock *surfaces*: scrapable while exposed, left on the floor when
+  its rock is mined, destroyed when something is built over it. Regrowth is
+  lazy.
+- Gathered biomatter is the colony's through a **cargo record**, the first one;
+  so the meals it becomes are communal and anyone eats them.
+- The planner builds a scumhouse first when the safety net is off, and only on
+  order when it is on.
+- With construction costs on, builders pay from their own stock and donate it.
+  A colonist never claims a task it cannot pay for, so it mines instead.
 
 ### E4 — Order book
 

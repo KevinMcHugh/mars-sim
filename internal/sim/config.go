@@ -82,6 +82,23 @@ type Config struct {
 	// and what it produces. See docs/food.md.
 	InfiniteFood bool `cfg:"infinite-food" doc:"nutrient pods make free meals out of nothing (the safety net)"`
 
+	// Food production. Cave scum is a biofilm on cave surfaces, the renewable
+	// base of the food chain: ScumPercent of rock tiles carry a patch of up to
+	// ScumMax units, and a scraped patch regrows one unit every
+	// ScumRegrowTicks. A scumhouse turns scum and every other kind of
+	// biomatter into meals by the recipes in scumhouse.go. The colony makes
+	// food while it holds fewer than MealReserve meals per colonist. See
+	// docs/scumhouse.md.
+	ScumPercent     int `cfg:"scum-percent" sec:"Food production" doc:"percent of rock tiles carrying a patch of cave scum"`
+	ScumMax         int `cfg:"scum-max" doc:"units of scum a full patch holds"`
+	ScumRegrowTicks int `cfg:"scum-regrow-ticks" doc:"ticks for a scraped patch to regrow one unit of scum"`
+	ScrapeTicks     int `cfg:"scrape-ticks" doc:"ticks of work to scrape one unit of scum off a patch"`
+	MealReserve     int `cfg:"meal-reserve" doc:"the colony makes food while it holds fewer meals than this per colonist"`
+	// ConstructionCosts makes building consume materials: raw rock, and ore
+	// for machines (see constructionCost). Off, building is free, as it
+	// always was. See docs/construction.md.
+	ConstructionCosts bool `cfg:"construction-costs" doc:"building consumes materials from the builder's own stock"`
+
 	// Crash pods. Every colonist arrives in one — at worldgen, from the spawn
 	// command, or from a director arrival — carrying its own bunk, toilet, and
 	// locker, and this manifest. See crashpod.go and docs/crash-pods.md.
@@ -352,6 +369,15 @@ func DefaultConfig() Config {
 		FoundingGrant: 5000,
 		InfiniteFood:  true,
 		CrashPodPurse: 100,
+		// Scum is tuned so a small colony that keeps digging can feed itself
+		// once its crash-pod meals run out: see the sustain test in
+		// scumhouse_test.go before changing these.
+		ScumPercent:       6,
+		ScumMax:           3,
+		ScumRegrowTicks:   400,
+		ScrapeTicks:       6,
+		MealReserve:       3,
+		ConstructionCosts: false,
 		// A meal clears hunger for roughly 325 ticks at the baseline rise, so
 		// ten carry a colonist a few thousand ticks: long enough to settle in,
 		// short enough that food production matters once the safety net is

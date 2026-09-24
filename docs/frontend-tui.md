@@ -202,7 +202,7 @@ the inspector shows its full build and a narrative description.
 | `space` | pause / resume (`TogglePause`) |
 | `+` / `-` | faster / slower (`SetTicksPerSecond`, ±2) |
 | `s` | open the spawn menu — `↑↓`/`enter` to pick, or `c`/`a`/`x`/`m` for colonist/alien/cat/mouse directly (`Spawn`) |
-| `b` | open the build menu — `↑↓`/`enter` to pick, or `f`/`d`/`t`/`r` for facility room/dormitory/trash room/storage container directly |
+| `b` | open the build menu — `↑↓`/`enter` to pick, or `f`/`d`/`t`/`r`/`h` for facility room/dormitory/trash room/storage container/scumhouse directly |
 | `i` (map only) | enter map inspection; arrows/`hjkl` move the cursor, `enter` opens a storage chest's details, and `i`/`esc` closes |
 | `f` (roster only) | open the roster's filter menu — `↑↓`/`enter`/`space` to toggle the highlighted checkbox, or `d`/`n` for dead/non-human directly; no command sent, this only changes what the roster shows |
 | arrows or `hjkl` | pan the camera (map) / move selection (roster, job board) |

@@ -64,6 +64,7 @@ current recipes are:
 | dormitory | beds/bunks | 1 bed | after the desired pods and toilets exist |
 | trash room | an incinerator | 1 incinerator (and at most 1, via `maxFac`) | last, and only once there is refuse to burn |
 | storage room | one storage container | exactly 1 container via `maxFac` | player-ordered only |
+| scumhouse | one scumhouse | exactly 1 via `maxFac` | first of all with `infinite-food` off; otherwise player-ordered (see [scumhouse.md](./scumhouse.md)) |
 
 `planRooms` checks each recipe's planned-or-built capacity, plans at most one
 new room per call (see *Planning cadence*), and always chooses a life-support
@@ -91,6 +92,29 @@ an adjacent tile, spends the sleep need's `UseTicks` sleeping, and then resets
 the need. A bunk is not walkable and has no permanently assigned owner; capacity
 is represented by the number of `Bed` tiles, with the normal access and
 crowd-flow rules deciding who can use one next.
+
+### Construction costs
+
+With `construction-costs` on (off by default), raising a structure consumes
+materials (`constructionCost`, `construction.go`):
+
+| Structure | Cost |
+| --- | --- |
+| wall | 1 raw rock |
+| nutrient pod, toilet, bed | 2 raw rock |
+| storage container | 2 raw rock, 1 iron ore |
+| incinerator | 2 raw rock, 2 iron ore |
+| scumhouse | 2 raw rock, 2 clay |
+
+Digging costs nothing: it is where material comes from. The builder pays from
+its **own** stock — what it carries, topped up from its own ledger lines in a
+chest it can reach (`gatherBuildMaterials` walks there and `debit`s them) — and
+spends it when the tile goes up (`payForBuild`). A colonist never claims a
+task, or starts a lone emergency build, it could not pay for
+(`canAffordBuild`), so it mines instead, and the rock mining yields is what it
+builds with next. The builder donates what it spends; until labor orders exist
+there is nobody to pay it back. In testing, colonies with the switch on built
+the same rooms by tick 5000 as colonies without it.
 
 ### Facility-room geometry
 
