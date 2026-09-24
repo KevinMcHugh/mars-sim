@@ -46,12 +46,12 @@ Two fields on `Tile` hold everything there is to clean:
 | Field | Left by | Glyph |
 | --- | --- | --- |
 | `Gore` | any messy kill: an alien's bite, a gunshot, a boot (capped at `maxGore`) | 🩸 |
-| `Corpses` | a death nothing ate: starvation, a gunned-down alien, a stomped mouse | 🦴 |
+| `Corpses` | a death nothing ate: starvation, a gunned-down alien, a stomped rat | 🦴 |
 
 Behind `Tile.Corpses` (a total, for display) the refuse index counts bodies
 **by kind** — `ColonistCorpse`, `AlienCorpse`, `AnimalCorpse` — because the
 kind decides where one goes. Every `addCorpse` call names it: starvation leaves
-a colonist's body (or, for a mouse, an animal's), `shoot` an alien's, `stomp` an
+a colonist's body (or, for a rat, an animal's), `shoot` an alien's, `stomp` an
 animal's. Gore is one undifferentiated count: viscera is viscera, whoever it
 came from.
 
@@ -61,7 +61,7 @@ planner can ask "is the colony dirty?" without walking the grid.
 
 Which deaths leave a body is a decision at each call site, not a rule derived
 from the cause string: `bite` (an alien devouring a colonist) and `pounce` (a
-cat swallowing a mouse) leave only gore, because the remains were eaten. `shoot`,
+cat swallowing a rat) leave only gore, because the remains were eaten. `shoot`,
 `stomp`, and starvation call `addCorpse` as well.
 
 ### The cleaning job
@@ -110,7 +110,7 @@ to one exactly the way an eater finds a nutrient pod, `chooseFacility` and all.
 
 ## Why it is this way
 
-- **Cleaning is work, not an idle whim.** Stomping a mouse happens in
+- **Cleaning is work, not an idle whim.** Stomping a rat happens in
   `colonistTurn`'s idle branch, and cleaning started there too. It never fired:
   the mining frontier is effectively infinite, so a colonist is never actually
   out of work and the idle branch is only reached when nothing is reachable.

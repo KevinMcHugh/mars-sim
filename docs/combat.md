@@ -12,12 +12,12 @@ carrying one stands its ground and shoots an alien that gets close instead of
 only fleeing. Damage — from a bite or a gunshot — lands on one of six body
 parts rather than a shared HP pool, so a wound can be a survivable graze or an
 outright kill depending on where it lands. Violent deaths (a gunned-down
-alien, a bitten colonist, a stomped mouse) leave gore behind on the tile and a
+alien, a bitten colonist, a stomped rat) leave gore behind on the tile and a
 frozen record in the graveyard, so the roster can show what happened to
 something after the fact. A death nothing eats also leaves a body on the tile
 for someone to haul away — that half belongs to
 [sanitation.md](./sanitation.md). Human-vs-human violence and weapon skill are
-explicitly out of scope for this pass; mouse-killing (the existing
+explicitly out of scope for this pass; rat-killing (the existing
 stomp/pounce mechanics) is unchanged except for the mess and the record it
 now leaves.
 
@@ -59,9 +59,9 @@ organs), `LeftArm`, `RightArm`, `LeftLeg`, `RightLeg` — everything below the
 `numBaseBodyParts` marker. Above it sit the **mutant** parts (`ThirdArm`,
 `ExtraEye`, `Tail`, `VestigialTwin`), which nobody is born with and which
 uranium exposure grows during play; see [mutation.md](./mutation.md). Only
-`Colonist` and `Alien` track parts at all (`Entity.hasParts`) — cats and mice
+`Colonist` and `Alien` track parts at all (`Entity.hasParts`) — cats and rats
 are still one-shot kills (pounce, stomp) regardless of HP, which is the
-"human v mouse is fine as is" baseline the combat rework deliberately left
+"human v rat is fine as is" baseline the combat rework deliberately left
 alone.
 
 Which parts an individual entity has is per-entity data, not a property of the
@@ -179,8 +179,8 @@ it is half of what the cleaning job exists to remove.
 stops the counter climbing forever, since the renderer today draws one
 splatter glyph for any `Gore > 0` regardless of count — see Extending it).
 Three call sites splatter: a fatal `bite`, a killing `shoot`, and every
-`stomp` (a mouse is always fatal to crush, so it always leaves a mark). A
-cat's `pounce` does not — the user's ask was specifically "stomping a mouse
+`stomp` (a rat is always fatal to crush, so it always leaves a mark). A
+cat's `pounce` does not — the user's ask was specifically "stomping a rat
 should leave a mess," and a cat catching its natural prey reads as predation
 rather than the same kind of violence. The same call sites decide whether a
 *body* is left too (`addCorpse`): `shoot` and `stomp` leave one, while `bite`
@@ -206,7 +206,7 @@ set. `cause` is a short player-facing phrase built at the call site, where
 the context (who did it, with what) is available — `"starved"`,
 `"crushed by Zoe Vargas"`, `"devoured by an alien"`, `"caught by a cat"`,
 `"shot by Zoe Vargas with a shotgun"`. Every one of the six places an entity
-dies (colonist/mouse starvation, `stomp`, fatal `bite`, `pounce`, fatal
+dies (colonist/rat starvation, `stomp`, fatal `bite`, `pounce`, fatal
 `shoot`) is a call to `remove`, so this one funnel is the whole feature.
 
 The graveyard is capped at `Config.GraveyardSize` (default 50; 0 disables
@@ -226,7 +226,7 @@ this — the "dead" filter toggle and the per-entry cause of death.
 
 ### The deceased archive
 
-The graveyard's bound is right for a kill flood of mice, but wrong for a
+The graveyard's bound is right for a kill flood of rats, but wrong for a
 colonist: once a colonist's entry aged out of a 50-slot window, they were
 gone from every by-ID lookup — a surviving relative's family tree lost them,
 the roster couldn't name them, and their frozen inventory became
@@ -256,7 +256,7 @@ outside the graveyard's recent window should still show up.
 Unbounded is safe here in a way it would not be for `graveyard`: a colony's
 population is small and dying doesn't create more of it, so
 `deceasedColonists` can only ever grow to the number of colonists who ever
-existed. Mice/cats/aliens stay graveyard-only, bounded, and without
+existed. Rats/cats/aliens stay graveyard-only, bounded, and without
 `Relations`/`Affinities` — they have no family tree, and a horde of them
 dying repeatedly is exactly the kill-flood case `GraveyardSize` exists to
 cap.
@@ -290,9 +290,9 @@ cap.
   detail for a two-cell tile, and gore fading or being cleanable was called a
   reasonable follow-up rather than a requirement of the initial ask. Cleanable
   is what it became — see [sanitation.md](./sanitation.md).
-- **Human-vs-human and mouse combat untouched** were explicit descopes: the
+- **Human-vs-human and rat combat untouched** were explicit descopes: the
   request was about killing the alien, not a colonist-vs-colonist system, and
-  the existing stomp/pounce mechanics for mice already work and needed only
+  the existing stomp/pounce mechanics for rats already work and needed only
   the gore hook, not a rework.
 - **A frozen `EntityView` in a graveyard slice, not a corpse in the world**:
   keeping the dead entity around as a real, positioned `*Entity` would have
@@ -303,7 +303,7 @@ cap.
   interact with (no looting a corpse, no it blocking a tile) — a fair trade
   for what was asked, a way to review deaths, not a new interactable object.
 - **A second, unbounded `deceasedColonists` map instead of just dropping
-  `GraveyardSize`'s bound**: the bound is load-bearing for mice/cats/aliens
+  `GraveyardSize`'s bound**: the bound is load-bearing for rats/cats/aliens
   (a kill flood must not grow the graveyard without limit), but colonists
   need durable by-ID lookups precisely because other live state (a surviving
   relative's family tree) keeps referencing their `EntityID` forever.

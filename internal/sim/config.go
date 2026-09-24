@@ -46,7 +46,7 @@ type Config struct {
 	// fresh time-based seed" (see configfile.go and main.go).
 	Seed int64
 
-	// Schedules is the director's script: major scripted occurrences (a mouse
+	// Schedules is the director's script: major scripted occurrences (a rat
 	// plague, an alien swarm, a supply drop) each armed for a tick window.
 	// Deliberately untagged like Seed: it is not a scalar tunable the `cfg`
 	// reflection can drive a flag or template line from, and its meaningful
@@ -60,7 +60,7 @@ type Config struct {
 	StartColonists int `cfg:"colonists" sec:"Starting population" doc:"starting number of colonists"`
 	StartAliens    int `cfg:"aliens" doc:"starting number of aliens"`
 	StartCats      int `cfg:"cats" doc:"starting number of cats"`
-	StartMice      int `cfg:"mice" doc:"starting number of mice"`
+	StartRats      int `cfg:"rats" doc:"starting number of rats"`
 
 	// GraveyardSize is how many recent deaths (any kind) are kept in the
 	// bounded graveyard feed used for the roster's "dead" filter on
@@ -122,10 +122,10 @@ type Config struct {
 	DemolishTicks      int `cfg:"demolish-ticks" doc:"ticks of work to break down one wall tile when escaping a sealed room"`
 	FacilityBuildTicks int `cfg:"facility-ticks" doc:"ticks of work to build a pod or toilet"`
 	FleeRadius         int `cfg:"flee-radius" doc:"colonist flees when an alien is within this many tiles"`
-	// StompRadius is how far an idle colonist notices a mouse and gives chase to
+	// StompRadius is how far an idle colonist notices a rat and gives chase to
 	// crush it. Stomping is an idle whim: only colonists with nothing pressing
 	// (no threat, no urgent need, no work) hunt pests.
-	ColonistStompRadius int `cfg:"stomp-radius" doc:"an idle colonist chases and crushes a mouse within this many tiles"`
+	ColonistStompRadius int `cfg:"stomp-radius" doc:"an idle colonist chases and crushes a rat within this many tiles"`
 	// GoreSightRadius is how far a colonist notices gore on the ground (see
 	// observeGore in systems.go and EvtSawGore in lifeevents.go). Smaller than
 	// the creature-sighting radii: a bloodstain doesn't announce itself the way
@@ -318,26 +318,30 @@ type Config struct {
 	ShotgunRange    int `cfg:"shotgun-range" doc:"max tiles a shotgun can fire from"`
 	ShotgunFireRest int `cfg:"shotgun-fire-rest" doc:"cooldown ticks between shotgun blasts"`
 
-	// Cat stats. Cats have no needs; they hunt mice on the floor by instinct.
+	// Cat stats. Cats have no needs; they hunt rats on the floor by instinct.
 	CatHP         int `cfg:"cat-hp" sec:"Cats" doc:"cat hit points"`
 	CatSlowness   int `cfg:"cat-slowness" doc:"cat acts once every N ticks (higher = slower)"`
-	CatPounceRest int `cfg:"cat-pounce-rest" doc:"cooldown ticks after a cat catches a mouse"`
+	CatPounceRest int `cfg:"cat-pounce-rest" doc:"cooldown ticks after a cat catches a rat"`
 
-	// Mouse stats. Mice share the colonists' NeedFood but grow hungry far faster
+	// Rat stats. Rats share the colonists' NeedFood but grow hungry far faster
 	// (they nibble constantly), and flee cats rather than aliens.
-	MouseHP         int `cfg:"mouse-hp" sec:"Mice" doc:"mouse hit points"`
-	MouseHungerRise int `cfg:"mouse-hunger-rise" doc:"food need a mouse gains per tick (mice eat frequently)"`
-	MouseFleeRadius int `cfg:"mouse-flee-radius" doc:"mouse flees when a cat is within this many tiles"`
+	RatHP         int `cfg:"rat-hp" sec:"Rats" doc:"rat hit points"`
+	RatHungerRise int `cfg:"rat-hunger-rise" doc:"food need a rat gains per tick (rats eat frequently)"`
+	// RatScavengeRadius is how far a hungry rat looks for a body, gore, or
+	// cave scum to eat before it settles for raiding a nutrient pod. See
+	// scavenge.go.
+	RatScavengeRadius int `cfg:"rat-scavenge-radius" doc:"how far a hungry rat looks for bodies, gore, or scum to eat"`
+	RatFleeRadius     int `cfg:"rat-flee-radius" doc:"rat flees when a cat is within this many tiles"`
 
-	// Mouse breeding. Two adjacent mice of opposite sex mate; the female then
-	// carries a litter for MouseGestationTicks before birthing MouseLitterMin..Max
-	// pups onto nearby floor. MouseBreedCooldown spaces out a female's litters,
-	// and a newborn cannot breed for MouseMaturityTicks.
-	MouseGestationTicks int `cfg:"mouse-gestation" doc:"ticks a pregnant mouse carries a litter before giving birth"`
-	MouseLitterMin      int `cfg:"mouse-litter-min" doc:"smallest mouse litter size"`
-	MouseLitterMax      int `cfg:"mouse-litter-max" doc:"largest mouse litter size"`
-	MouseBreedCooldown  int `cfg:"mouse-breed-cooldown" doc:"ticks a mouse waits before it can mate again"`
-	MouseMaturityTicks  int `cfg:"mouse-maturity" doc:"ticks a newborn mouse takes to mature enough to breed"`
+	// Rat breeding. Two adjacent rats of opposite sex mate; the female then
+	// carries a litter for RatGestationTicks before birthing RatLitterMin..Max
+	// pups onto nearby floor. RatBreedCooldown spaces out a female's litters,
+	// and a newborn cannot breed for RatMaturityTicks.
+	RatGestationTicks int `cfg:"rat-gestation" doc:"ticks a pregnant rat carries a litter before giving birth"`
+	RatLitterMin      int `cfg:"rat-litter-min" doc:"smallest rat litter size"`
+	RatLitterMax      int `cfg:"rat-litter-max" doc:"largest rat litter size"`
+	RatBreedCooldown  int `cfg:"rat-breed-cooldown" doc:"ticks a rat waits before it can mate again"`
+	RatMaturityTicks  int `cfg:"rat-maturity" doc:"ticks a newborn rat takes to mature enough to breed"`
 }
 
 // DefaultConfig returns a balanced starting point for a playable scaffold.
@@ -363,7 +367,7 @@ func DefaultConfig() Config {
 		StartColonists:       6,
 		StartAliens:          3,
 		StartCats:            2,
-		StartMice:            8,
+		StartRats:            8,
 		// Placeholders until the market gives money a use: a treasury worth a
 		// few dozen purses, so the colony can outspend any one settler.
 		FoundingGrant: 5000,
@@ -547,15 +551,18 @@ func DefaultConfig() Config {
 		CatSlowness:   2,
 		CatPounceRest: 4,
 
-		MouseHP:         4,
-		MouseHungerRise: 8, // 4x the colonist food rise: mice eat very frequently
-		MouseFleeRadius: 6,
+		RatHP:         4,
+		RatHungerRise: 8, // 4x the colonist food rise: rats eat very frequently
+		// Farther than a colonist cleans (clean-radius): a rat finds the dead
+		// before the colony does.
+		RatScavengeRadius: 12,
+		RatFleeRadius:     6,
 
-		MouseGestationTicks: 300,
-		MouseLitterMin:      2,
-		MouseLitterMax:      5,
-		MouseBreedCooldown:  200,
-		MouseMaturityTicks:  400,
+		RatGestationTicks: 300,
+		RatLitterMin:      2,
+		RatLitterMax:      5,
+		RatBreedCooldown:  200,
+		RatMaturityTicks:  400,
 	}
 }
 

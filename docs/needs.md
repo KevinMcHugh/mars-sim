@@ -6,7 +6,7 @@
 
 Colonists accumulate **needs** (food, bladder, social contact, and sleep) over
 time and may switch focus to satisfy them. Each need independently projects its
-lazy numeric level into a discrete phase. Mice reuse the food level. Levels stay
+lazy numeric level into a discrete phase. Rats reuse the food level. Levels stay
 lazy — a base plus a timestamp — so idle colonists do not need per-tick storage
 updates.
 
@@ -53,7 +53,7 @@ level = clamp(Needs[i] + needRise[i] * (now - needSince[i]), 0, Max)
 ```
 
 `needRise[i]` is the entity's own per-tick rate: trait-scaled for colonists (see
-[personality.md](./personality.md)) and much faster for mice. `syncNeedPhase`
+[personality.md](./personality.md)) and much faster for rats. `syncNeedPhase`
 reads this lazy level and updates only its discrete projection:
 
 | Phase | Level |

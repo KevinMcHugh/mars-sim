@@ -17,13 +17,13 @@ way it is without re-deriving it from the source each time.
 | [cli.md](./cli.md) | The `mars-sim` command, application modes, duration/seed controls, validation, and CLI examples. |
 | [configuration.md](./configuration.md) | `sim.Config`, `DefaultConfig`, and how tunables become command-line flags. |
 | [config-file.md](./config-file.md) | `mars-sim.yaml`: the committed settings file between the compiled defaults and the flags, and the struct tags that generate it. |
-| [director.md](./director.md) | `director.yaml`: scheduling major occurrences (mouse plagues, alien swarms, supply drops) into tick windows, separate from what fires in them. |
+| [director.md](./director.md) | `director.yaml`: scheduling major occurrences (rat plagues, alien swarms, supply drops) into tick windows, separate from what fires in them. |
 | [world.md](./world.md) | The tile grid, terrain kinds, world state, and world generation. |
 | [caverns.md](./caverns.md) | Natural caverns and the passages between them: generated hidden, ignored by the colony until a dig breaks in, then revealed all at once. Breaking in can turn up an alien nest. |
 | [lore.md](./lore.md) | The world beyond the colony: the alien species roster each seed rolls (build, name, temperament — friendly/cautious/hostile), and how damage and pace scale from it. |
-| [entities-and-ai.md](./entities-and-ai.md) | The entity model, the per-tick systems, turn order, movement primitives, and the colonist / alien / cat / mouse behaviors. |
+| [entities-and-ai.md](./entities-and-ai.md) | The entity model, the per-tick systems, turn order, movement primitives, and the colonist / alien / cat / rat behaviors. |
 | [combat.md](./combat.md) | Per-body-part HP, weapons (pistol/shotgun), the guns every settler lands with, and gore. |
-| [needs.md](./needs.md) | Colonist (and mouse) needs: hunger, bladder, lazy evaluation, starvation, and how to add a need. |
+| [needs.md](./needs.md) | Colonist (and rat) needs: hunger, bladder, lazy evaluation, starvation, and how to add a need. |
 | [cascading_wsts_architecture.md](./cascading_wsts_architecture.md) | Implementation design for independent need/affect processes feeding a weighted, explainable focus transition system. |
 | [mutation.md](./mutation.md) | Uranium deposits, the exposure dose, mutant body parts, stature (two-foot to ten-foot colonists), and the Mutant / Mutant-Lover traits. |
 | [determinism.md](./determinism.md) | One seed, one simulation: how map iteration order breaks it, the lockstep regression test, and the three bugs that motivated both. |

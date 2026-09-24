@@ -13,7 +13,7 @@ schedules:
     earliest_tick: 100
     latest_tick: 200
     occurrences:
-      - kind: mouse-plague
+      - kind: rat-plague
         count: 25
       - kind: alien-swarm
         count: 4
@@ -36,7 +36,7 @@ schedules:
 		t.Fatalf("got %d occurrences, want 3", len(s.Occurrences))
 	}
 	want := []Occurrence{
-		{Kind: OccMousePlague, Count: 25},
+		{Kind: OccRatPlague, Count: 25},
 		{Kind: OccAlienSwarm, Count: 4},
 		{Kind: OccSupplyDrop, Pistols: 2, Shotguns: 1},
 	}
@@ -65,17 +65,17 @@ func TestLoadSchedulesErrors(t *testing.T) {
 	}{
 		{
 			"missing name",
-			`schedules: [{earliest_tick: 0, latest_tick: 10, occurrences: [{kind: mouse-plague, count: 1}]}]`,
+			`schedules: [{earliest_tick: 0, latest_tick: 10, occurrences: [{kind: rat-plague, count: 1}]}]`,
 			"name is required",
 		},
 		{
 			"latest before earliest",
-			`schedules: [{name: x, earliest_tick: 100, latest_tick: 50, occurrences: [{kind: mouse-plague, count: 1}]}]`,
+			`schedules: [{name: x, earliest_tick: 100, latest_tick: 50, occurrences: [{kind: rat-plague, count: 1}]}]`,
 			"cannot be before earliest_tick",
 		},
 		{
 			"negative earliest",
-			`schedules: [{name: x, earliest_tick: -1, latest_tick: 10, occurrences: [{kind: mouse-plague, count: 1}]}]`,
+			`schedules: [{name: x, earliest_tick: -1, latest_tick: 10, occurrences: [{kind: rat-plague, count: 1}]}]`,
 			"cannot be negative",
 		},
 		{
@@ -121,14 +121,14 @@ func TestResolveSchedulesDeterministic(t *testing.T) {
 		{
 			Name: "a", EarliestTick: 100, LatestTick: 500,
 			Occurrences: []Occurrence{
-				{Kind: OccMousePlague, Count: 10},
+				{Kind: OccRatPlague, Count: 10},
 				{Kind: OccAlienSwarm, Count: 5},
 				{Kind: OccSupplyDrop, Pistols: 1},
 			},
 		},
 		{
 			Name: "b", EarliestTick: 1000, LatestTick: 1000, // a zero-width window
-			Occurrences: []Occurrence{{Kind: OccMousePlague, Count: 3}},
+			Occurrences: []Occurrence{{Kind: OccRatPlague, Count: 3}},
 		},
 	}
 
@@ -162,21 +162,21 @@ func schedulesTestConfig(schedules []Schedule) Config {
 	return c
 }
 
-func TestDirectorFiresMousePlague(t *testing.T) {
+func TestDirectorFiresRatPlague(t *testing.T) {
 	cfg := schedulesTestConfig([]Schedule{
 		{
 			Name: "plague", EarliestTick: 1, LatestTick: 1,
-			Occurrences: []Occurrence{{Kind: OccMousePlague, Count: 15}},
+			Occurrences: []Occurrence{{Kind: OccRatPlague, Count: 15}},
 		},
 	})
 	w := newTestWorld(t, cfg)
-	before := w.countKind(Mouse)
+	before := w.countKind(Rat)
 
 	w.step()
 
-	after := w.countKind(Mouse)
+	after := w.countKind(Rat)
 	if after != before+15 {
-		t.Fatalf("mice after plague = %d, want %d (%d before + 15)", after, before+15, before)
+		t.Fatalf("rats after plague = %d, want %d (%d before + 15)", after, before+15, before)
 	}
 }
 
@@ -234,14 +234,14 @@ func TestDirectorFiresSupplyDrop(t *testing.T) {
 
 // A schedule's window can span many ticks; the event must fire exactly once,
 // on the tick it resolved to, not before and not again after. Population
-// counts alone are not a reliable signal here (mice breed and starve on
+// counts alone are not a reliable signal here (rats breed and starve on
 // their own), so this checks the director's own progress through its queue
 // instead.
 func TestDirectorFiresExactlyOnceAtResolvedTick(t *testing.T) {
 	cfg := schedulesTestConfig([]Schedule{
 		{
 			Name: "someday", EarliestTick: 5, LatestTick: 5,
-			Occurrences: []Occurrence{{Kind: OccMousePlague, Count: 4}},
+			Occurrences: []Occurrence{{Kind: OccRatPlague, Count: 4}},
 		},
 	})
 	w := newTestWorld(t, cfg)
@@ -270,19 +270,19 @@ func TestDirectorFiresOneOfSeveralCandidates(t *testing.T) {
 		{
 			Name: "one-of", EarliestTick: 1, LatestTick: 1,
 			Occurrences: []Occurrence{
-				{Kind: OccMousePlague, Count: 100},
+				{Kind: OccRatPlague, Count: 100},
 				{Kind: OccAlienSwarm, Count: 100},
 			},
 		},
 	})
 	w := newTestWorld(t, cfg)
-	beforeMice, beforeAliens := w.countKind(Mouse), w.countKind(Alien)
+	beforeRats, beforeAliens := w.countKind(Rat), w.countKind(Alien)
 
 	w.step()
 
-	miceFired := w.countKind(Mouse) > beforeMice
+	ratsFired := w.countKind(Rat) > beforeRats
 	aliensFired := w.countKind(Alien) > beforeAliens
-	if miceFired == aliensFired {
-		t.Fatalf("exactly one candidate should fire: mice fired=%v, aliens fired=%v", miceFired, aliensFired)
+	if ratsFired == aliensFired {
+		t.Fatalf("exactly one candidate should fire: rats fired=%v, aliens fired=%v", ratsFired, aliensFired)
 	}
 }

@@ -57,7 +57,7 @@ var spawnMenuItems = []menuItem{
 	{"c", "colonist"},
 	{"a", "alien"},
 	{"x", "cat"},
-	{"m", "mouse"},
+	{"m", "rat"},
 }
 
 var buildMenuItems = []menuItem{
@@ -115,7 +115,7 @@ type Model struct {
 
 	// spawnCursor / buildCursor / filterCursor are each menu's highlighted
 	// option index. They persist across opens (and across submits/toggles),
-	// so e.g. spawning three mice is s, [navigate to mouse], enter, then just
+	// so e.g. spawning three rats is s, [navigate to rat], enter, then just
 	// s, enter, s, enter.
 	spawnCursor  int
 	buildCursor  int
@@ -385,7 +385,7 @@ func (m Model) submitMenuItem(i int) {
 		case "x":
 			m.eng.Send(sim.Spawn{Kind: sim.Cat})
 		case "m":
-			m.eng.Send(sim.Spawn{Kind: sim.Mouse})
+			m.eng.Send(sim.Spawn{Kind: sim.Rat})
 		}
 	case menuBuild:
 		switch items[i].key {

@@ -82,8 +82,8 @@
 ## starting number of cats
 # cats: 2
 
-## starting number of mice
-# mice: 8
+## starting number of rats
+# rats: 8
 
 ## recent deaths kept for the roster's dead filter (0 disables)
 # graveyard-size: 50
@@ -153,7 +153,7 @@
 ## colonist flees when an alien is within this many tiles
 # flee-radius: 5
 
-## an idle colonist chases and crushes a mouse within this many tiles
+## an idle colonist chases and crushes a rat within this many tiles
 # stomp-radius: 4
 
 ## a colonist notices gore on the ground within this many tiles
@@ -601,31 +601,34 @@
 ## cat acts once every N ticks (higher = slower)
 # cat-slowness: 2
 
-## cooldown ticks after a cat catches a mouse
+## cooldown ticks after a cat catches a rat
 # cat-pounce-rest: 4
 
-# ── Mice ────────────────────────────────────────────────────────────────
-## mouse hit points
-# mouse-hp: 4
+# ── Rats ────────────────────────────────────────────────────────────────
+## rat hit points
+# rat-hp: 4
 
-## food need a mouse gains per tick (mice eat frequently)
-# mouse-hunger-rise: 8
+## food need a rat gains per tick (rats eat frequently)
+# rat-hunger-rise: 8
 
-## mouse flees when a cat is within this many tiles
-# mouse-flee-radius: 6
+## how far a hungry rat looks for bodies, gore, or scum to eat
+# rat-scavenge-radius: 12
 
-## ticks a pregnant mouse carries a litter before giving birth
-# mouse-gestation: 300
+## rat flees when a cat is within this many tiles
+# rat-flee-radius: 6
 
-## smallest mouse litter size
-# mouse-litter-min: 2
+## ticks a pregnant rat carries a litter before giving birth
+# rat-gestation: 300
 
-## largest mouse litter size
-# mouse-litter-max: 5
+## smallest rat litter size
+# rat-litter-min: 2
 
-## ticks a mouse waits before it can mate again
-# mouse-breed-cooldown: 200
+## largest rat litter size
+# rat-litter-max: 5
 
-## ticks a newborn mouse takes to mature enough to breed
-# mouse-maturity: 400
+## ticks a rat waits before it can mate again
+# rat-breed-cooldown: 200
+
+## ticks a newborn rat takes to mature enough to breed
+# rat-maturity: 400
 

@@ -8,7 +8,7 @@ func foodWorld(t *testing.T, meals int, infinite bool) *World {
 	t.Helper()
 	cfg := testConfig()
 	cfg.Width, cfg.Height = 60, 36
-	cfg.StartAliens, cfg.StartCats, cfg.StartMice = 0, 0, 0
+	cfg.StartAliens, cfg.StartCats, cfg.StartRats = 0, 0, 0
 	cfg.CrashPodMeals = meals
 	cfg.InfiniteFood = infinite
 	return newTestWorld(t, cfg)
@@ -77,7 +77,7 @@ func TestWithoutTheSafetyNetTheColonyStarvesOnSchedule(t *testing.T) {
 	const meals = 3
 	cfg := testConfig()
 	cfg.Width, cfg.Height = 60, 36
-	cfg.StartAliens, cfg.StartCats, cfg.StartMice = 0, 0, 0
+	cfg.StartAliens, cfg.StartCats, cfg.StartRats = 0, 0, 0
 	cfg.CrashPodMeals = meals
 	cfg.InfiniteFood = false
 	cfg.ScumPercent = 0 // nothing to make food from: no scum, and no creatures to die

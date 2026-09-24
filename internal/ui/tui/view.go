@@ -203,7 +203,7 @@ func (m Model) renderHeader() string {
 		fmt.Sprintf("%s %d", fitGlyph(glyphColonist), s.Stats.Colonists),
 		fmt.Sprintf("%s %d", fitGlyph(glyphAlien), s.Stats.Aliens),
 		fmt.Sprintf("%s %d", fitGlyph(glyphCat), s.Stats.Cats),
-		fmt.Sprintf("%s %d", fitGlyph(glyphMouse), s.Stats.Mice),
+		fmt.Sprintf("%s %d", fitGlyph(glyphRat), s.Stats.Rats),
 		fmt.Sprintf("%s %d", fitGlyph(glyphPod), s.Stats.Pods),
 		fmt.Sprintf("%s %d", fitGlyph(glyphToilet), s.Stats.Toilets),
 		fmt.Sprintf("%s %d", fitGlyph(glyphBed), s.Stats.Beds),
@@ -407,7 +407,7 @@ func (m Model) drawSidebar(rows int) string {
 	g := func(symbol, label string) entry { return entry{fitGlyph(symbol), label} }
 	legendRows := [][2]entry{
 		{g(glyphColonist, "colonist"), g(glyphAlien, "alien")},
-		{g(glyphCat, "cat"), g(glyphMouse, "mouse")},
+		{g(glyphCat, "cat"), g(glyphRat, "rat")},
 		{g(glyphFleeing, "fleeing"), g(glyphTalking, "talking")},
 		{g(glyphPod, "food pod"), g(glyphToilet, "toilet")},
 		{g(glyphBed, "bunk"), g(glyphWall, "wall")},

@@ -165,7 +165,7 @@ func TestValidateNeedCriticalThreshold(t *testing.T) {
 func TestFlagsOverrideTheSettingsFile(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, sim.ConfigFileName)
-	settings := "colonists: 12\nmice: 3\nneeds:\n  food:\n    rise: 9\n"
+	settings := "colonists: 12\nrats: 3\nneeds:\n  food:\n    rise: 9\n"
 	if err := os.WriteFile(path, []byte(settings), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -174,9 +174,9 @@ func TestFlagsOverrideTheSettingsFile(t *testing.T) {
 	if err := loadConfigFile(&cfg, path, true); err != nil {
 		t.Fatalf("loadConfigFile: %v", err)
 	}
-	if cfg.StartColonists != 12 || cfg.StartMice != 3 || cfg.Needs[sim.NeedFood].Rise != 9 {
-		t.Fatalf("settings file not applied: %d colonists, %d mice, food rise %d",
-			cfg.StartColonists, cfg.StartMice, cfg.Needs[sim.NeedFood].Rise)
+	if cfg.StartColonists != 12 || cfg.StartRats != 3 || cfg.Needs[sim.NeedFood].Rise != 9 {
+		t.Fatalf("settings file not applied: %d colonists, %d rats, food rise %d",
+			cfg.StartColonists, cfg.StartRats, cfg.Needs[sim.NeedFood].Rise)
 	}
 
 	fs := flag.NewFlagSet("test", flag.ContinueOnError)
@@ -191,8 +191,8 @@ func TestFlagsOverrideTheSettingsFile(t *testing.T) {
 	if cfg.Needs[sim.NeedFood].Rise != 1 {
 		t.Errorf("food rise = %d, want the flag's 1", cfg.Needs[sim.NeedFood].Rise)
 	}
-	if cfg.StartMice != 3 {
-		t.Errorf("mice = %d, want the file's 3 (no flag passed)", cfg.StartMice)
+	if cfg.StartRats != 3 {
+		t.Errorf("rats = %d, want the file's 3 (no flag passed)", cfg.StartRats)
 	}
 	if cfg.StartAliens != sim.DefaultConfig().StartAliens {
 		t.Errorf("aliens = %d, want the compiled-in default", cfg.StartAliens)
@@ -228,7 +228,7 @@ func TestConfigPathFromArgs(t *testing.T) {
 		{[]string{"-config=balance.yaml"}, "balance.yaml", true},
 		{[]string{"--config", "balance.yaml"}, "balance.yaml", true},
 		{[]string{"--config=balance.yaml"}, "balance.yaml", true},
-		{[]string{"-colonists", "9", "-config", "b.yaml", "-mice", "2"}, "b.yaml", true},
+		{[]string{"-colonists", "9", "-config", "b.yaml", "-rats", "2"}, "b.yaml", true},
 		{[]string{"-config", ""}, "", true},
 		{[]string{"-config"}, "", true},
 	}

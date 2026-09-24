@@ -39,7 +39,7 @@ const (
 	// used to. Colonists land with a supply in their crash pod's locker. See
 	// food.go and docs/food.md.
 	Meal
-	// AlienCorpse and AnimalCorpse are the bodies of aliens and of mice and
+	// AlienCorpse and AnimalCorpse are the bodies of aliens and of rats and
 	// cats: refuse to a cleaner, biomatter to a scumhouse. CaveScum is the
 	// biofilm scraped off cave surfaces, the renewable base of the food
 	// chain. See docs/scumhouse.md.

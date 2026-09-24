@@ -12,7 +12,7 @@ import (
 func cleanTestWorld(t *testing.T, withIncinerator bool) (*World, *Entity, Point) {
 	t.Helper()
 	cfg := testConfig()
-	cfg.StartColonists, cfg.StartAliens, cfg.StartCats, cfg.StartMice = 0, 0, 0, 0
+	cfg.StartColonists, cfg.StartAliens, cfg.StartCats, cfg.StartRats = 0, 0, 0, 0
 	w := newTestWorld(t, cfg)
 
 	for y := 5; y <= 15; y++ {
@@ -198,14 +198,14 @@ func TestTidyColonistSearchesFurtherForMess(t *testing.T) {
 // ends in a predator's stomach leaves only the stains.
 func TestDeathsLeaveCorpsesWhenNothingEatsThem(t *testing.T) {
 	cfg := testConfig()
-	cfg.StartColonists, cfg.StartAliens, cfg.StartCats, cfg.StartMice = 0, 0, 0, 0
+	cfg.StartColonists, cfg.StartAliens, cfg.StartCats, cfg.StartRats = 0, 0, 0, 0
 	w := newTestWorld(t, cfg)
 
 	stompSpot := Point{5, 5}
 	w.SetTerrain(stompSpot, Floor)
 	w.SetTerrain(Point{4, 5}, Floor)
 	stomper := w.spawn(Colonist, Point{4, 5})
-	w.stomp(stomper, w.spawn(Mouse, stompSpot))
+	w.stomp(stomper, w.spawn(Rat, stompSpot))
 	if got := w.corpsesAt(stompSpot); got != 1 {
 		t.Errorf("corpses at the stomp = %d, want 1", got)
 	}
@@ -214,7 +214,7 @@ func TestDeathsLeaveCorpsesWhenNothingEatsThem(t *testing.T) {
 	w.SetTerrain(eatenSpot, Floor)
 	w.SetTerrain(Point{9, 5}, Floor)
 	cat := w.spawn(Cat, Point{9, 5})
-	w.pounce(cat, w.spawn(Mouse, eatenSpot))
+	w.pounce(cat, w.spawn(Rat, eatenSpot))
 	if got := w.corpsesAt(eatenSpot); got != 0 {
 		t.Errorf("corpses where a cat ate its catch = %d, want 0", got)
 	}
@@ -223,7 +223,7 @@ func TestDeathsLeaveCorpsesWhenNothingEatsThem(t *testing.T) {
 // Starving to death leaves a body where the colonist fell.
 func TestStarvationLeavesACorpse(t *testing.T) {
 	cfg := testConfig()
-	cfg.StartColonists, cfg.StartAliens, cfg.StartCats, cfg.StartMice = 0, 0, 0, 0
+	cfg.StartColonists, cfg.StartAliens, cfg.StartCats, cfg.StartRats = 0, 0, 0, 0
 	w := newTestWorld(t, cfg)
 
 	spot := Point{6, 6}
@@ -248,7 +248,7 @@ func TestStarvationLeavesACorpse(t *testing.T) {
 // the colony mark out a trash room — and it only ever wants the one.
 func TestColonyPlansATrashRoomForItsRefuse(t *testing.T) {
 	cfg := testConfig()
-	cfg.StartAliens, cfg.StartCats, cfg.StartMice = 0, 0, 0
+	cfg.StartAliens, cfg.StartCats, cfg.StartRats = 0, 0, 0
 	w := newTestWorld(t, cfg)
 
 	// Satisfy every other demand so sanitation is what planRooms has left.
@@ -311,7 +311,7 @@ func TestColonyBuildsATrashRoomAndBurnsItsRefuse(t *testing.T) {
 }
 
 // dirtyNearAColonist drops gore on a free floor tile beside some colonist, the
-// way a stomped mouse or a gunned-down alien would.
+// way a stomped rat or a gunned-down alien would.
 func dirtyNearAColonist(w *World) {
 	for _, id := range w.entityIDsSorted() {
 		e := w.entities[id]

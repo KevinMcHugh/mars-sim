@@ -187,7 +187,7 @@ func busySnapshot() *sim.Snapshot {
 			HP: 40, MaxHP: 40, Charge: 20, Grip: 10, MoodLabel: "driven", State: states[i], Profile: p,
 		})
 	}
-	for i, kind := range []sim.Kind{sim.Alien, sim.Cat, sim.Mouse} {
+	for i, kind := range []sim.Kind{sim.Alien, sim.Cat, sim.Rat} {
 		entities = append(entities, sim.EntityView{
 			ID: sim.EntityID(100 + i), Kind: kind, Pos: sim.Point{X: i, Y: 1}, HP: 30, MaxHP: 30,
 		})
@@ -226,7 +226,7 @@ func busySnapshot() *sim.Snapshot {
 			"The colony ship settles onto the Martian crust.",
 			"A bunk is bolted into the dormitory floor.",
 			"A dormitory is complete.",
-			"Zoe Vargas stomps a mouse flat against the regolith.",
+			"Zoe Vargas stomps a rat flat against the regolith.",
 		},
 	}
 }

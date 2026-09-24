@@ -377,7 +377,7 @@ func validateConfig(cfg sim.Config) error {
 		return fmt.Errorf("cavern-nest-percent must be between 0 and 100 (got %d)", cfg.CavernNestPercent)
 	case cfg.CavernNestMin < 1 || cfg.CavernNestMax < cfg.CavernNestMin:
 		return fmt.Errorf("cavern nest size range is invalid: min %d, max %d", cfg.CavernNestMin, cfg.CavernNestMax)
-	case cfg.StartColonists < 0 || cfg.StartAliens < 0 || cfg.StartCats < 0 || cfg.StartMice < 0:
+	case cfg.StartColonists < 0 || cfg.StartAliens < 0 || cfg.StartCats < 0 || cfg.StartRats < 0:
 		return fmt.Errorf("population counts cannot be negative")
 	case cfg.CrashPodMeals < 0 || cfg.CrashPodPistols < 0 || cfg.CrashPodShotguns < 0:
 		return fmt.Errorf("crash pod manifest counts cannot be negative")
@@ -436,8 +436,8 @@ func validateConfig(cfg sim.Config) error {
 		return fmt.Errorf("social-window-ticks must be at least 1 (got %d)", cfg.SocialWindowTicks)
 	case cfg.MoodChargeDecayPerTick < 0 || cfg.MoodGripDecayPerTick < 0 || cfg.MoodLabelSwitchMargin < 0:
 		return fmt.Errorf("affect decay and label switch margin cannot be negative")
-	case cfg.MouseLitterMin < 0 || cfg.MouseLitterMax < cfg.MouseLitterMin:
-		return fmt.Errorf("mouse litter range is invalid: min %d, max %d", cfg.MouseLitterMin, cfg.MouseLitterMax)
+	case cfg.RatLitterMin < 0 || cfg.RatLitterMax < cfg.RatLitterMin:
+		return fmt.Errorf("rat litter range is invalid: min %d, max %d", cfg.RatLitterMin, cfg.RatLitterMax)
 	}
 	// Need specs are only reachable from the settings file and the -need-*
 	// flags, but a bad one breaks the colonists quietly (a need that never
@@ -479,11 +479,11 @@ func usage() {
 	fmt.Fprintf(out, "Usage:\n  %s [options]\n\n", name)
 	fmt.Fprintf(out, "Examples:\n")
 	fmt.Fprintf(out, "  %s -colonists 20 -aliens 5\n", name)
-	fmt.Fprintf(out, "  %s -mice 20 -cats 4\n", name)
+	fmt.Fprintf(out, "  %s -rats 20 -cats 4\n", name)
 	fmt.Fprintf(out, "  %s -width 120 -height 60 -tps 12\n", name)
 	fmt.Fprintf(out, "  %s -headless -duration 10s -seed 42\n", name)
 	fmt.Fprintf(out, "  %s -print-config > %s   # a settings file you can edit and commit\n", name, sim.ConfigFileName)
-	fmt.Fprintf(out, "  %s -director %s        # script scheduled occurrences (mouse plagues, alien swarms, supply drops)\n", name, sim.DirectorFileName)
+	fmt.Fprintf(out, "  %s -director %s        # script scheduled occurrences (rat plagues, alien swarms, supply drops)\n", name, sim.DirectorFileName)
 	fmt.Fprintf(out, "  %s -alien-names %s   # customize what a seed's aliens can be named\n\n", name, sim.AlienNameFileName)
 	fmt.Fprintf(out, "Options:\n")
 	flag.PrintDefaults()
@@ -564,8 +564,8 @@ func runHeadless(ctx context.Context, snaps <-chan *sim.Snapshot, cfg sim.Config
 	defer report.Stop()
 
 	var latest *sim.Snapshot
-	fmt.Printf("mars-sim headless: seed %d, %d colonists, %d aliens, %d cats, %d mice (Ctrl+C to stop)\n",
-		cfg.Seed, cfg.StartColonists, cfg.StartAliens, cfg.StartCats, cfg.StartMice)
+	fmt.Printf("mars-sim headless: seed %d, %d colonists, %d aliens, %d cats, %d rats (Ctrl+C to stop)\n",
+		cfg.Seed, cfg.StartColonists, cfg.StartAliens, cfg.StartCats, cfg.StartRats)
 	for {
 		select {
 		case s, ok := <-snaps:
@@ -575,9 +575,9 @@ func runHeadless(ctx context.Context, snaps <-chan *sim.Snapshot, cfg sim.Config
 			latest = s
 		case <-report.C:
 			if latest != nil {
-				fmt.Printf("tick %5d | colonists %2d | aliens %2d | cats %2d | mice %2d | pods %d | toilets %d | beds %d | burners %d | refuse %d | rooms %d | excavated %5d\n",
+				fmt.Printf("tick %5d | colonists %2d | aliens %2d | cats %2d | rats %2d | pods %d | toilets %d | beds %d | burners %d | refuse %d | rooms %d | excavated %5d\n",
 					latest.Tick, latest.Stats.Colonists, latest.Stats.Aliens,
-					latest.Stats.Cats, latest.Stats.Mice,
+					latest.Stats.Cats, latest.Stats.Rats,
 					latest.Stats.Pods, latest.Stats.Toilets, latest.Stats.Beds,
 					latest.Stats.Incinerators, latest.Stats.Refuse,
 					latest.Stats.Rooms, latest.Stats.FloorDug)
@@ -586,9 +586,9 @@ func runHeadless(ctx context.Context, snaps <-chan *sim.Snapshot, cfg sim.Config
 			return
 		case <-deadline:
 			if latest != nil {
-				fmt.Printf("done at tick %d: colonists %d, aliens %d, cats %d, mice %d, pods %d, toilets %d, beds %d, incinerators %d, refuse %d, excavated %d tiles\n",
+				fmt.Printf("done at tick %d: colonists %d, aliens %d, cats %d, rats %d, pods %d, toilets %d, beds %d, incinerators %d, refuse %d, excavated %d tiles\n",
 					latest.Tick, latest.Stats.Colonists, latest.Stats.Aliens,
-					latest.Stats.Cats, latest.Stats.Mice,
+					latest.Stats.Cats, latest.Stats.Rats,
 					latest.Stats.Pods, latest.Stats.Toilets, latest.Stats.Beds,
 					latest.Stats.Incinerators, latest.Stats.Refuse, latest.Stats.FloorDug)
 			}

@@ -114,7 +114,7 @@ func (w *World) communalFixture(p Point) bool {
 }
 
 // canUseFixture reports whether e may use the fixture at p: anyone may use a
-// communal one, and only its owner a private one. Mice never own anything.
+// communal one, and only its owner a private one. Rats never own anything.
 func (w *World) canUseFixture(e *Entity, p Point) bool {
 	f := w.fixtures[p]
 	if f == nil || f.Access == AccessCommunal {

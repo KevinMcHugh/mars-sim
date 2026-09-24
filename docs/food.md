@@ -18,7 +18,7 @@ covers where the first meals come from.
   `tryStartEating`, `nearestMealDepot`, `jobEat`, `takeMeal`,
   `hungryWithoutFood`, `podsFeed`, `wantsFacility`.
 - [`internal/sim/systems.go`](../internal/sim/systems.go) — `runNeedFocus`
-  hands food to `runFoodFocus` first; `finishUse` records gruel; mice only eat
+  hands food to `runFoodFocus` first; `finishUse` records gruel; rats only eat
   at pods that feed.
 - [`internal/sim/needs.go`](../internal/sim/needs.go) — the starvation grace
   covers `JobEat`.
@@ -66,8 +66,9 @@ more.
 
 `podsFeed` is false, so:
 
-- a nutrient pod serves nothing — `jobUse` drops a food job at one, and mice
-  (which only ever ate at pods) go hungry;
+- a nutrient pod serves nothing — `jobUse` drops a food job at one, and rats
+  live entirely on the bodies, gore, and scum they scavenge, in competition
+  with the scumhouse (see [entities-and-ai.md](./entities-and-ai.md));
 - the colony stops planning pods: `wantsFacility(NutrientPod)` is false, and
   a facility room becomes `toiletRoom`, all toilets;
 - a hungry colonist with nothing to eat picks food work first — cooking, then
@@ -114,9 +115,6 @@ covers one queued at a reachable pod.
   each its own life event and pick one in `jobEat`.
 - **Buying food**: a fourth source between "the colony's" and the safety net,
   once the order book exists (E4).
-- **Feeding mice without pods**: mice only ever ate at pods; with the safety
-  net off they starve. Cave scum is the obvious thing for them to eat once it
-  exists.
 
 ## Related
 

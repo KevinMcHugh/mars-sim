@@ -185,7 +185,7 @@ func TestScaledByTemperament(t *testing.T) {
 // w.alienSpeciesFor(alien).
 func TestBiteUsesRolledSpeciesDamage(t *testing.T) {
 	cfg := testConfig()
-	cfg.StartColonists, cfg.StartAliens, cfg.StartCats, cfg.StartMice = 0, 0, 0, 0
+	cfg.StartColonists, cfg.StartAliens, cfg.StartCats, cfg.StartRats = 0, 0, 0, 0
 	w := newTestWorld(t, cfg)
 
 	alien := w.spawn(Alien, Point{0, 0})
@@ -205,7 +205,7 @@ func TestBiteUsesRolledSpeciesDamage(t *testing.T) {
 // species roster, whatever AlienSpeciesCount was configured.
 func TestSpawnedAliensGetAValidSpecies(t *testing.T) {
 	cfg := testConfig()
-	cfg.StartColonists, cfg.StartAliens, cfg.StartCats, cfg.StartMice = 0, 0, 0, 0
+	cfg.StartColonists, cfg.StartAliens, cfg.StartCats, cfg.StartRats = 0, 0, 0, 0
 	cfg.AlienSpeciesCount = 5
 	w := newTestWorld(t, cfg)
 
@@ -225,7 +225,7 @@ func TestSpawnedAliensGetAValidSpecies(t *testing.T) {
 // HP never drops) and should never report Hunting.
 func TestFriendlyAlienNeverInitiatesCombat(t *testing.T) {
 	cfg := testConfig()
-	cfg.StartColonists, cfg.StartAliens, cfg.StartCats, cfg.StartMice = 0, 0, 0, 0
+	cfg.StartColonists, cfg.StartAliens, cfg.StartCats, cfg.StartRats = 0, 0, 0, 0
 	w := newTestWorld(t, cfg)
 	w.alienSpecies[0].Temperament = TemperamentFriendly
 
@@ -248,7 +248,7 @@ func TestFriendlyAlienNeverInitiatesCombat(t *testing.T) {
 // (it only wanders), but must react once one comes within it.
 func TestCautiousAlienOnlyReactsWithinRadius(t *testing.T) {
 	cfg := testConfig()
-	cfg.StartColonists, cfg.StartAliens, cfg.StartCats, cfg.StartMice = 0, 0, 0, 0
+	cfg.StartColonists, cfg.StartAliens, cfg.StartCats, cfg.StartRats = 0, 0, 0, 0
 	cfg.AlienCautiousRadius = 3
 	w := newTestWorld(t, cfg)
 	w.alienSpecies[0].Temperament = TemperamentCautious
@@ -277,7 +277,7 @@ func TestCautiousAlienOnlyReactsWithinRadius(t *testing.T) {
 // else, never one sealed off behind rock.
 func TestHostileAlienHuntsAcrossTheMap(t *testing.T) {
 	cfg := testConfig()
-	cfg.StartColonists, cfg.StartAliens, cfg.StartCats, cfg.StartMice = 0, 0, 0, 0
+	cfg.StartColonists, cfg.StartAliens, cfg.StartCats, cfg.StartRats = 0, 0, 0, 0
 	w := newTestWorld(t, cfg)
 	w.alienSpecies[0].Temperament = TemperamentHostile
 	carve(w, Point{1, 1}, Point{w.Width - 2, 1}, Floor)

@@ -42,8 +42,8 @@ func TestGenerateStartingState(t *testing.T) {
 	if got := w.countKind(Cat); got != cfg.StartCats {
 		t.Fatalf("cats: got %d want %d", got, cfg.StartCats)
 	}
-	if got := w.countKind(Mouse); got != cfg.StartMice {
-		t.Fatalf("mice: got %d want %d", got, cfg.StartMice)
+	if got := w.countKind(Rat); got != cfg.StartRats {
+		t.Fatalf("rats: got %d want %d", got, cfg.StartRats)
 	}
 
 	floor := 0
@@ -180,7 +180,7 @@ func TestDeterministicRunAgreesEveryTick(t *testing.T) {
 		cfg := testConfig()
 		cfg.Seed = 99
 		cfg.Width, cfg.Height = 80, 50
-		cfg.StartColonists, cfg.StartCats, cfg.StartMice = 16, 2, 10
+		cfg.StartColonists, cfg.StartCats, cfg.StartRats = 16, 2, 10
 		return newTestWorld(t, cfg)
 	}
 	a, b := mk(), mk()
@@ -581,11 +581,11 @@ func TestColonistStarvesWhenSealedByRock(t *testing.T) {
 	}
 }
 
-// A hungry mouse standing by a nutrient pod should feed itself instead of
+// A hungry rat standing by a nutrient pod should feed itself instead of
 // starving, reusing the same JobUse machinery colonists use.
-func TestMouseEatsFromPod(t *testing.T) {
+func TestRatEatsFromPod(t *testing.T) {
 	cfg := testConfig()
-	cfg.StartColonists, cfg.StartAliens, cfg.StartCats, cfg.StartMice = 0, 0, 0, 0
+	cfg.StartColonists, cfg.StartAliens, cfg.StartCats, cfg.StartRats = 0, 0, 0, 0
 	w := newTestWorld(t, cfg)
 
 	center := Point{w.Width / 2, w.Height / 2}
@@ -593,25 +593,25 @@ func TestMouseEatsFromPod(t *testing.T) {
 	w.SetTerrain(center, NutrientPod)
 	w.SetTerrain(stand, Floor)
 
-	m := w.spawn(Mouse, stand)
+	m := w.spawn(Rat, stand)
 	m.Needs[NeedFood] = cfg.Needs[NeedFood].SeekAt // hungry enough to seek
 
 	for i := 0; i < cfg.Needs[NeedFood].UseTicks+20; i++ {
 		w.step()
 	}
 	if w.entities[m.ID] == nil {
-		t.Fatal("mouse starved next to a working nutrient pod")
+		t.Fatal("rat starved next to a working nutrient pod")
 	}
 	if w.needLevel(m, NeedFood) >= cfg.Needs[NeedFood].SeekAt {
-		t.Fatalf("mouse food need not satisfied: %d", w.needLevel(m, NeedFood))
+		t.Fatalf("rat food need not satisfied: %d", w.needLevel(m, NeedFood))
 	}
 }
 
-// A mouse with no reachable food must eventually starve, exercising the fatal
-// food need for mice.
-func TestMouseStarvesWithoutFood(t *testing.T) {
+// A rat with no reachable food must eventually starve, exercising the fatal
+// food need for rats.
+func TestRatStarvesWithoutFood(t *testing.T) {
 	cfg := testConfig()
-	cfg.StartColonists, cfg.StartAliens, cfg.StartCats, cfg.StartMice = 0, 0, 0, 0
+	cfg.StartColonists, cfg.StartAliens, cfg.StartCats, cfg.StartRats = 0, 0, 0, 0
 	w := newTestWorld(t, cfg)
 
 	center := Point{w.Width / 2, w.Height / 2}
@@ -619,27 +619,27 @@ func TestMouseStarvesWithoutFood(t *testing.T) {
 	for _, d := range neighbors8 {
 		w.SetTerrain(center.Add(d.X, d.Y), Wall) // sealed pocket: no pod within reach
 	}
-	m := w.spawn(Mouse, center)
+	m := w.spawn(Rat, center)
 
 	for i := 0; i < 1000 && w.entities[m.ID] != nil; i++ {
 		w.step()
 	}
 	if w.entities[m.ID] != nil {
-		t.Fatalf("walled-in mouse survived with HP %d, food %d", m.HP, w.needLevel(m, NeedFood))
+		t.Fatalf("walled-in rat survived with HP %d, food %d", m.HP, w.needLevel(m, NeedFood))
 	}
 }
 
-// A cat cornered against a mouse it cannot escape should catch and eat it,
+// A cat cornered against a rat it cannot escape should catch and eat it,
 // exercising the pounce/remove path.
-func TestCatEatsMouse(t *testing.T) {
+func TestCatEatsRat(t *testing.T) {
 	cfg := testConfig()
-	cfg.StartColonists, cfg.StartAliens, cfg.StartCats, cfg.StartMice = 0, 0, 0, 0
+	cfg.StartColonists, cfg.StartAliens, cfg.StartCats, cfg.StartRats = 0, 0, 0, 0
 	cfg.CatSlowness = 1
 	w := newTestWorld(t, cfg)
 
 	center := Point{w.Width / 2, w.Height / 2}
 	w.SetTerrain(center, Floor)
-	// Wall the mouse in on every side but one, where the cat waits: the mouse
+	// Wall the rat in on every side but one, where the cat waits: the rat
 	// cannot flee, so the cat must catch it.
 	catSpot := center.Add(1, 0)
 	for _, d := range neighbors8 {
@@ -650,23 +650,23 @@ func TestCatEatsMouse(t *testing.T) {
 		}
 		w.SetTerrain(n, Wall)
 	}
-	mouse := w.spawn(Mouse, center)
+	rat := w.spawn(Rat, center)
 	w.spawn(Cat, catSpot)
 
-	for i := 0; i < 50 && w.entities[mouse.ID] != nil; i++ {
+	for i := 0; i < 50 && w.entities[rat.ID] != nil; i++ {
 		w.step()
 	}
-	if w.entities[mouse.ID] != nil {
-		t.Fatal("cornered mouse was never caught by the adjacent cat")
+	if w.entities[rat.ID] != nil {
+		t.Fatal("cornered rat was never caught by the adjacent cat")
 	}
 }
 
 // A colonist with nothing pressing to do — no threat, no urgent need, no work —
-// should crush a mouse it sees. Sealing a small floor pocket leaves the colonist
+// should crush a rat it sees. Sealing a small floor pocket leaves the colonist
 // idle (no rock to mine, no reachable construction), so it stomps the pest.
-func TestIdleColonistStompsMouse(t *testing.T) {
+func TestIdleColonistStompsRat(t *testing.T) {
 	cfg := testConfig()
-	cfg.StartColonists, cfg.StartAliens, cfg.StartCats, cfg.StartMice = 0, 0, 0, 0
+	cfg.StartColonists, cfg.StartAliens, cfg.StartCats, cfg.StartRats = 0, 0, 0, 0
 	w := newTestWorld(t, cfg)
 
 	center := Point{w.Width / 2, w.Height / 2}
@@ -682,7 +682,7 @@ func TestIdleColonistStompsMouse(t *testing.T) {
 		}
 	}
 
-	m := w.spawn(Mouse, center.Add(1, 0))
+	m := w.spawn(Rat, center.Add(1, 0))
 	c := w.spawn(Colonist, center)
 	// Fully satisfied, so no need preempts the stomp.
 	c.Needs[NeedFood], c.Needs[NeedBladder] = 0, 0
@@ -692,19 +692,19 @@ func TestIdleColonistStompsMouse(t *testing.T) {
 		w.step()
 	}
 	if w.entities[m.ID] != nil {
-		t.Fatal("idle colonist never stomped the nearby mouse")
+		t.Fatal("idle colonist never stomped the nearby rat")
 	}
 }
 
-// Two adjacent mice of opposite sex should mate, and the female should carry a
+// Two adjacent rats of opposite sex should mate, and the female should carry a
 // litter to term and give birth, growing the population.
-func TestMiceBreedAndGiveBirth(t *testing.T) {
+func TestRatsBreedAndGiveBirth(t *testing.T) {
 	cfg := testConfig()
-	cfg.StartColonists, cfg.StartAliens, cfg.StartCats, cfg.StartMice = 0, 0, 0, 0
-	cfg.MouseGestationTicks = 4
-	cfg.MouseLitterMin, cfg.MouseLitterMax = 3, 3
-	cfg.MouseBreedCooldown = 100
-	cfg.MouseMaturityTicks = 100
+	cfg.StartColonists, cfg.StartAliens, cfg.StartCats, cfg.StartRats = 0, 0, 0, 0
+	cfg.RatGestationTicks = 4
+	cfg.RatLitterMin, cfg.RatLitterMax = 3, 3
+	cfg.RatBreedCooldown = 100
+	cfg.RatMaturityTicks = 100
 	w := newTestWorld(t, cfg)
 
 	center := Point{w.Width / 2, w.Height / 2}
@@ -713,24 +713,24 @@ func TestMiceBreedAndGiveBirth(t *testing.T) {
 			w.SetTerrain(center.Add(x, y), Floor)
 		}
 	}
-	male := w.spawn(Mouse, center)
+	male := w.spawn(Rat, center)
 	male.sex = SexMale
-	female := w.spawn(Mouse, center.Add(1, 0))
+	female := w.spawn(Rat, center.Add(1, 0))
 	female.sex = SexFemale
 
-	for i := 0; i < cfg.MouseGestationTicks+5; i++ {
+	for i := 0; i < cfg.RatGestationTicks+5; i++ {
 		w.step()
 	}
-	if got, want := w.countKind(Mouse), 2+cfg.MouseLitterMin; got != want {
-		t.Fatalf("mouse count after a litter: got %d want %d", got, want)
+	if got, want := w.countKind(Rat), 2+cfg.RatLitterMin; got != want {
+		t.Fatalf("rat count after a litter: got %d want %d", got, want)
 	}
 }
 
-// Two mice of the same sex must never breed, so the population stays put.
-func TestSameSexMiceDoNotBreed(t *testing.T) {
+// Two rats of the same sex must never breed, so the population stays put.
+func TestSameSexRatsDoNotBreed(t *testing.T) {
 	cfg := testConfig()
-	cfg.StartColonists, cfg.StartAliens, cfg.StartCats, cfg.StartMice = 0, 0, 0, 0
-	cfg.MouseGestationTicks = 4
+	cfg.StartColonists, cfg.StartAliens, cfg.StartCats, cfg.StartRats = 0, 0, 0, 0
+	cfg.RatGestationTicks = 4
 	w := newTestWorld(t, cfg)
 
 	center := Point{w.Width / 2, w.Height / 2}
@@ -739,23 +739,23 @@ func TestSameSexMiceDoNotBreed(t *testing.T) {
 			w.SetTerrain(center.Add(x, y), Floor)
 		}
 	}
-	a := w.spawn(Mouse, center)
+	a := w.spawn(Rat, center)
 	a.sex = SexMale
-	b := w.spawn(Mouse, center.Add(1, 0))
+	b := w.spawn(Rat, center.Add(1, 0))
 	b.sex = SexMale
 
-	for i := 0; i < cfg.MouseGestationTicks+5; i++ {
+	for i := 0; i < cfg.RatGestationTicks+5; i++ {
 		w.step()
 	}
-	if got := w.countKind(Mouse); got != 2 {
-		t.Fatalf("same-sex mice bred: mouse count %d, want 2", got)
+	if got := w.countKind(Rat); got != 2 {
+		t.Fatalf("same-sex rats bred: rat count %d, want 2", got)
 	}
 }
 
-// With no mice to hunt, cats must not crash and should still be around.
+// With no rats to hunt, cats must not crash and should still be around.
 func TestCatsWanderWithoutPrey(t *testing.T) {
 	cfg := testConfig()
-	cfg.StartColonists, cfg.StartAliens, cfg.StartMice = 0, 0, 0
+	cfg.StartColonists, cfg.StartAliens, cfg.StartRats = 0, 0, 0
 	cfg.StartCats = 3
 	w := newTestWorld(t, cfg)
 	for i := 0; i < 100; i++ {
@@ -950,7 +950,10 @@ func TestChooseFacilityIgnoresUnrelatedBystander(t *testing.T) {
 func TestLargeColonyDoesNotGridlockAtFacilities(t *testing.T) {
 	cfg := DefaultConfig()
 	cfg.Seed = 9
-	cfg.StartColonists, cfg.StartAliens = 20, 0
+	// No aliens, nest-born included: breaking into a cavern can roll a nest
+	// (see caverns.md), and a nest's aliens killing colonists would fail
+	// this test for a reason that has nothing to do with facilities.
+	cfg.StartColonists, cfg.StartAliens, cfg.CavernNestPercent = 20, 0, 0
 	cfg.Width, cfg.Height = 200, 200
 	w := NewEngine(cfg).world
 

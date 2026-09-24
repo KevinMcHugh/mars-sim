@@ -11,7 +11,7 @@ func TestEntityIDsNearSortedMatchesAFullScan(t *testing.T) {
 	cfg := testConfig()
 	cfg.Seed = 3
 	cfg.Width, cfg.Height = 70, 45
-	cfg.StartColonists, cfg.StartMice, cfg.StartAliens = 20, 20, 2
+	cfg.StartColonists, cfg.StartRats, cfg.StartAliens = 20, 20, 2
 	w := newTestWorld(t, cfg)
 	for tick := 0; tick < 200; tick++ {
 		w.step()

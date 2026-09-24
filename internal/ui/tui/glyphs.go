@@ -56,9 +56,9 @@ const (
 	glyphFleeing  = "\U0001F631" // 😱 colonist running from an alien
 	glyphTalking  = "\U0001F4AC" // 💬 colonist chatting with another
 	glyphAlien    = "\U0001F47D" // 👽 subterranean mutant
-	glyphCat      = "\U0001F408" // 🐈 floor predator hunting mice
-	glyphMouse    = "\U0001F401" // 🐁 pest that raids the food pods
-	glyphStomp    = "\U0001F97E" // 🥾 colonist chasing down a mouse to stomp it
+	glyphCat      = "\U0001F408" // 🐈 floor predator hunting rats
+	glyphRat      = "\U0001F400" // 🐀 rat: scavenges pods, scum, and the dead
+	glyphStomp    = "\U0001F97E" // 🥾 colonist chasing down a rat to stomp it
 	glyphFighting = "\U0001F52B" // 🔫 armed colonist standing its ground against an alien
 	glyphGore     = "\U0001FA78" // 🩸 a violent death's residue on a tile
 	glyphCorpse   = "\U0001F9B4" // 🦴 a body left where something died, waiting to be hauled
@@ -142,7 +142,7 @@ var glyphRegistry = map[string]glyph{
 	glyphTalking:  {glyphTalking, 2, "@?"},
 	glyphAlien:    {glyphAlien, 2, "A "},
 	glyphCat:      {glyphCat, 2, "f "},
-	glyphMouse:    {glyphMouse, 2, "r "},
+	glyphRat:      {glyphRat, 2, "r "},
 	glyphStomp:    {glyphStomp, 2, "@*"},
 	glyphFighting: {glyphFighting, 2, "@="},
 	glyphGore:     {glyphGore, 2, "~~"},
@@ -341,8 +341,8 @@ func entityGlyph(e sim.EntityView) string {
 		symbol = alienGlyph(e.AlienSpecies)
 	case sim.Cat:
 		symbol = glyphCat
-	case sim.Mouse:
-		symbol = glyphMouse
+	case sim.Rat:
+		symbol = glyphRat
 	case sim.Colonist:
 		switch e.State {
 		case sim.Fleeing:

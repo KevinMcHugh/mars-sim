@@ -24,10 +24,10 @@ func scumhouseWorld(t *testing.T, burn bool) (w *World, house Point) {
 func TestDeathsLeaveBodiesOfTheirKind(t *testing.T) {
 	w := propertyWorld(t)
 	c := w.spawn(Colonist, Point{8, 8})
-	m := w.spawn(Mouse, Point{9, 8})
+	m := w.spawn(Rat, Point{9, 8})
 	w.stomp(c, m)
 	if w.corpsesOfAt(Point{9, 8}, AnimalCorpse) != 1 {
-		t.Fatalf("a stomped mouse left %d animal carcasses", w.corpsesOfAt(Point{9, 8}, AnimalCorpse))
+		t.Fatalf("a stomped rat left %d animal carcasses", w.corpsesOfAt(Point{9, 8}, AnimalCorpse))
 	}
 
 	a := w.spawn(Alien, Point{12, 8})
@@ -299,7 +299,7 @@ func TestPlannerBuildsAScumhouseWhenFoodIsNotFree(t *testing.T) {
 // into the cavern exposes it.
 func TestHiddenCavernScumIsNotExposedUntilFound(t *testing.T) {
 	cfg := testConfig()
-	cfg.StartColonists, cfg.StartAliens, cfg.StartCats, cfg.StartMice = 0, 0, 0, 0
+	cfg.StartColonists, cfg.StartAliens, cfg.StartCats, cfg.StartRats = 0, 0, 0, 0
 	cfg.Width, cfg.Height = 40, 24
 	w := newTestWorld(t, cfg)
 	for y := 0; y < w.Height; y++ {

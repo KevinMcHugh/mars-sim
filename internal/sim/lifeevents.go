@@ -14,13 +14,13 @@ type LifeEventKind uint8
 
 const (
 	EvtSawAlien LifeEventKind = iota
-	EvtSawMouse
+	EvtSawRat
 	EvtSawGore
 	EvtBitten
 	EvtWitnessedColonistKilled
 	EvtWitnessedColonistAttacked
-	EvtCrushedMouse
-	EvtWitnessedMouseCrushed
+	EvtCrushedRat
+	EvtWitnessedRatCrushed
 	EvtWitnessedCatCatch
 	EvtKilledAlien
 	EvtWitnessedAlienKilled

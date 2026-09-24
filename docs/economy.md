@@ -240,7 +240,7 @@ This needs three new pieces of world content:
 
 - **Split `Corpse` into kinds.** Today `Corpse` covers any dead body, and all of
   them go to the incinerator (see [sanitation.md](./sanitation.md)). Alien and
-  animal (mouse, cat) corpses become biomatter. **Colonist corpses must not.**
+  animal (rat, cat) corpses become biomatter. **Colonist corpses must not.**
   They keep the incinerator route. So `Corpse` splits into `ColonistCorpse` and
   `AlienCorpse`/`AnimalCorpse`, and `Tile.Corpses` must remember which kind
   lies there.
@@ -552,7 +552,9 @@ three gates are tests. What differs from the sketch above:
   from 9 to 15 (see [combat.md](./combat.md)).
 - Private fixtures had to stop counting as "in the way" (`onFacilityAccess`),
   or nobody near a pod could be talked to and the colony stalled on social need.
-- With the safety net off, mice starve: they only ever ate at pods.
+- Mice became **rats**, which scavenge bodies, gore, and exposed scum before
+  they raid a pod, competing directly with the scumhouse for biomatter
+  (shipped after E3; see [entities-and-ai.md](./entities-and-ai.md)).
 
 ### E3 — Recipes and slurry (shipped)
 

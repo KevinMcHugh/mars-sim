@@ -43,7 +43,7 @@ Terminal controls:
 | `c`            | drop in another colonist        |
 | `a`            | unleash another alien           |
 | `x`            | add another cat                 |
-| `m`            | add another mouse               |
+| `m`            | add another rat               |
 | arrows / `hjkl`| pan the camera                  |
 | `tab`          | toggle the colonist roster      |
 | `q` / `esc`    | quit                            |
@@ -63,7 +63,7 @@ examples.
 
 Glyphs: 👷 colonist · 😱 fleeing colonist · 💬 talking colonist · 🥾 stomping
 colonist · 🧹 cleaning colonist · 📦 hauling colonist · 🧟 mutant colonist ·
-👽 alien · 🐈 cat · 🐁 mouse · 🟥 ordinary rock · ⬛ iron-bearing rock ·
+👽 alien · 🐈 cat · 🐁 rat · 🟥 ordinary rock · ⬛ iron-bearing rock ·
 🟦 water ice-bearing rock · 🟩 uranium-bearing rock · 🟧 clay-bearing rock ·
 🧱 wall · 🥫 nutrient pod · 🚽 toilet · 🛌 dormitory bunk · 🔥 incinerator ·
 🩸 gore · 🦴 a body · blank = open floor.
@@ -133,27 +133,27 @@ mutable state:
   - **Aliens** walk the floor like everyone else, hunting the nearest colonist
     they can reach, and eat it. Most start dormant in hidden caves, and
     breaking into a cave can turn up a whole nest.
-  - **Cats** stalk the floor hunting mice, pouncing when adjacent (a single
+  - **Cats** stalk the floor hunting rats, pouncing when adjacent (a single
     pounce is fatal). They have no needs; they hunt by instinct.
-  - **Mice** are pests that scurry the floor and nibble the colony's nutrient
+  - **Rats** are pests that scurry the floor and nibble the colony's nutrient
     pods, sharing the colonists' food need but hungering far faster. They flee
     cats, and the colony keeps them in check (see *Wildlife*).
 
 #### Wildlife
 
-Cats and mice form a small ecosystem on the cavern floor, and the colonists take
+Cats and rats form a small ecosystem on the cavern floor, and the colonists take
 part in it:
 
-- **Colonists stomp mice.** A colonist with nothing pressing to do — no alien to
-  flee, no urgent need, and no reachable work — will chase down a mouse it notices
+- **Colonists stomp rats.** A colonist with nothing pressing to do — no alien to
+  flee, no urgent need, and no reachable work — will chase down a rat it notices
   (within `ColonistStompRadius`) and crush it. A stomp is instantly fatal. Pest
   control is strictly an idle whim: a threat, an urgent need, or any available
   job always wins, so stomping never pulls a colonist off real work.
-- **Mice breed.** Two adjacent mice of opposite sex with nothing pressing to do
-  mate; the female then carries a litter for `MouseGestationTicks` before giving
-  birth to `MouseLitterMin`..`MouseLitterMax` pups on nearby floor. A newborn
-  cannot breed until it matures (`MouseMaturityTicks`), and a female waits out
-  `MouseBreedCooldown` before her next litter, so a warren grows but does not
+- **Rats breed.** Two adjacent rats of opposite sex with nothing pressing to do
+  mate; the female then carries a litter for `RatGestationTicks` before giving
+  birth to `RatLitterMin`..`RatLitterMax` pups on nearby floor. A newborn
+  cannot breed until it matures (`RatMaturityTicks`), and a female waits out
+  `RatBreedCooldown` before her next litter, so a warren grows but does not
   explode every tick. Cats, colonists' boots, and starvation without reachable
   food all push back the other way.
 
@@ -306,7 +306,7 @@ write-up in [docs/mutation.md](docs/mutation.md).
 #### Sanitation
 
 Violence leaves a mark. A messy kill splatters 🩸 gore across the tile, and a
-death nothing eats — a starvation, a gunned-down alien, a stomped mouse —
+death nothing eats — a starvation, a gunned-down alien, a stomped rat —
 leaves a 🦴 body lying where it fell. Both are **refuse**, and a colonist with
 nothing urgent to do cleans it up: scrub the tile (🧹), carry the load to an
 incinerator (📦), and burn it.
@@ -318,7 +318,7 @@ walled shell as any other room, with a 🔥 incinerator in it. It queues one
 automatically the first time there is refuse to burn (after life support and
 bunks, which are what colonists die without), or on demand with `b` then `t`.
 
-Cleaning is *work*, not an idle whim like stomping mice: the mining frontier
+Cleaning is *work*, not an idle whim like stomping rats: the mining frontier
 never runs out, so a chore that only happened when a colonist had nothing to do
 would never happen at all. It sits between construction and mining in the
 work-seeking order — a colony builds its life support first, then tidies up,

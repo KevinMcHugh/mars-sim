@@ -24,7 +24,7 @@ func TestFlowFieldRepairMatchesRebuild(t *testing.T) {
 			cfg := testConfig()
 			cfg.Seed = tc.seed
 			cfg.Width, cfg.Height = 90, 60
-			cfg.StartColonists, cfg.StartMice, cfg.StartAliens = 30, 6, 1
+			cfg.StartColonists, cfg.StartRats, cfg.StartAliens = 30, 6, 1
 			if tc.frontier {
 				cfg.FrontierFieldMinArea, cfg.FrontierFieldMinColonists = 1, 1
 			}

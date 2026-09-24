@@ -154,8 +154,11 @@ the inputs.
 - **Skills** plug in at `Recipe.Skill` and the tick scaling in `jobCraft`.
 - **Paying for food work** (E5) replaces the community cargo record with a
   labor order: the colony, or anyone, posts pay for scum delivered.
-- **Mice eating scum** would give them a food source with the safety net off,
-  where today they starve (see [food.md](./food.md)).
+- **Rats eat biomatter too.** A hungry rat eats bodies, gore, and exposed scum
+  where they lie, before it would raid a pod, and claims nothing — so every
+  unit a rat reaches first is food the scumhouse never sees. A rat plague is a
+  famine risk with the safety net off; cats are the defense. See
+  [entities-and-ai.md](./entities-and-ai.md).
 
 ## Related
 

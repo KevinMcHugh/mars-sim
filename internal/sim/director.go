@@ -18,7 +18,7 @@ const DirectorFileName = "director.yaml"
 type OccurrenceKind uint8
 
 const (
-	OccMousePlague OccurrenceKind = iota
+	OccRatPlague OccurrenceKind = iota
 	OccAlienSwarm
 	OccSupplyDrop
 	OccArrival
@@ -26,8 +26,8 @@ const (
 
 func (k OccurrenceKind) String() string {
 	switch k {
-	case OccMousePlague:
-		return "mouse-plague"
+	case OccRatPlague:
+		return "rat-plague"
 	case OccAlienSwarm:
 		return "alien-swarm"
 	case OccSupplyDrop:
@@ -41,8 +41,8 @@ func (k OccurrenceKind) String() string {
 
 func parseOccurrenceKind(s string) (OccurrenceKind, bool) {
 	switch s {
-	case "mouse-plague":
-		return OccMousePlague, true
+	case "rat-plague", "mouse-plague": // mice became rats; old schedule files still load
+		return OccRatPlague, true
 	case "alien-swarm":
 		return OccAlienSwarm, true
 	case "supply-drop":
@@ -60,7 +60,7 @@ func parseOccurrenceKind(s string) (OccurrenceKind, bool) {
 // drop — the rest sit at zero.
 type Occurrence struct {
 	Kind     OccurrenceKind
-	Count    int // OccMousePlague: mice spawned. OccAlienSwarm: aliens spawned. OccArrival: colonists.
+	Count    int // OccRatPlague: rats spawned. OccAlienSwarm: aliens spawned. OccArrival: colonists.
 	Pistols  int // OccSupplyDrop only.
 	Shotguns int // OccSupplyDrop only.
 }
@@ -123,8 +123,8 @@ func (w *World) runDirector() {
 
 func (w *World) fireOccurrence(ev scheduledEvent) {
 	switch ev.Occurrence.Kind {
-	case OccMousePlague:
-		w.fireMousePlague(ev)
+	case OccRatPlague:
+		w.fireRatPlague(ev)
 	case OccAlienSwarm:
 		w.fireAlienSwarm(ev)
 	case OccSupplyDrop:
@@ -134,19 +134,19 @@ func (w *World) fireOccurrence(ev scheduledEvent) {
 	}
 }
 
-// fireMousePlague drops a wave of mice onto open floor, the same way starting
-// mice are placed in generate().
-func (w *World) fireMousePlague(ev scheduledEvent) {
+// fireRatPlague drops a wave of rats onto open floor, the same way starting
+// rats are placed in generate().
+func (w *World) fireRatPlague(ev scheduledEvent) {
 	spawned := 0
 	for i := 0; i < ev.Occurrence.Count; i++ {
 		p, ok := w.randomFloor()
 		if !ok {
 			break // the colony has no open floor left; stop rather than loop forever
 		}
-		w.spawn(Mouse, p)
+		w.spawn(Rat, p)
 		spawned++
 	}
-	w.log.add(fmt.Sprintf("%s: a plague of mice pours into the colony (%d mice).", ev.Name, spawned))
+	w.log.add(fmt.Sprintf("%s: a plague of rats pours into the colony (%d rats).", ev.Name, spawned))
 }
 
 // fireAlienSwarm drops a wave of aliens into the rock around the colony, the
@@ -295,10 +295,10 @@ func (rs rawSchedule) toSchedule() (Schedule, error) {
 	for i, ro := range rs.Occurrences {
 		kind, ok := parseOccurrenceKind(ro.Kind)
 		if !ok {
-			return Schedule{}, fmt.Errorf("occurrence %d: unknown kind %q (want mouse-plague, alien-swarm, supply-drop or arrival)", i, ro.Kind)
+			return Schedule{}, fmt.Errorf("occurrence %d: unknown kind %q (want rat-plague, alien-swarm, supply-drop or arrival)", i, ro.Kind)
 		}
 		switch kind {
-		case OccMousePlague, OccAlienSwarm, OccArrival:
+		case OccRatPlague, OccAlienSwarm, OccArrival:
 			if ro.Count < 1 {
 				return Schedule{}, fmt.Errorf("occurrence %d: %s needs count >= 1 (got %d)", i, kind, ro.Count)
 			}

@@ -269,9 +269,9 @@ func (e *Engine) spawn(kind Kind) {
 		if p, ok := w.randomFloor(); ok {
 			w.spawn(Cat, p)
 		}
-	case Mouse:
+	case Rat:
 		if p, ok := w.randomFloor(); ok {
-			w.spawn(Mouse, p)
+			w.spawn(Rat, p)
 		}
 	}
 }

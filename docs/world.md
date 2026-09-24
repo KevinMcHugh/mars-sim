@@ -9,7 +9,7 @@ starts as solid rock with ordinary, iron-bearing, water ice-bearing,
 uranium-bearing, or clay-bearing composition. World generation carves a landing cavern,
 hollows hidden natural caverns (some joined by passages) out of the rock
 beyond, lands the colonists' crash pods in the landing cavern, and seeds aliens
-out in the surrounding rock and cats/mice on the floor.
+out in the surrounding rock and cats/rats on the floor.
 
 ## Source
 
@@ -130,7 +130,7 @@ derived systems go stale (and the map the player sees never grows).
 5. Places aliens with `alienSpawnSite`: on hidden cavern floor, where they lie
    dormant until the colony digs in, or, with no cave room, on colony floor far
    from the landing site. See [caverns.md](./caverns.md#aliens-in-the-caves).
-6. Places mice and cats by shuffling the free floor tiles in and around the
+6. Places rats and cats by shuffling the free floor tiles in and around the
    cavern and drawing from the list (this beats rejection sampling, which can
    give up).
 7. Records each natural cavern's center (`trackCavernsForNests`), so that

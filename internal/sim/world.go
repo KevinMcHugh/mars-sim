@@ -199,7 +199,7 @@ type Tile struct {
 	Gore uint8
 	// Corpses is how many bodies lie on this tile, left by a death that did not
 	// end in something eating the remains (a starvation, a gunned-down alien, a
-	// stomped mouse). Like Gore it is tile state rather than an entity: a corpse
+	// stomped rat). Like Gore it is tile state rather than an entity: a corpse
 	// does not act, and the occupancy index allows one entity per tile, so a
 	// body modelled as an entity would wall off the spot where anything died.
 	// Colonists haul corpses to an incinerator; see docs/sanitation.md.
@@ -314,7 +314,7 @@ func (w *World) addGore(p Point) {
 // addCorpse leaves a body of the given kind (ColonistCorpse, AlienCorpse or
 // AnimalCorpse) on p. It is addGore's counterpart for remains that are still
 // recognizably a body rather than a stain, and callers pick: a death whose
-// remains are eaten (an alien devouring a colonist, a cat swallowing a mouse)
+// remains are eaten (an alien devouring a colonist, a cat swallowing a rat)
 // leaves only gore, while a starvation, a gunshot, or a stomp leaves a body to
 // be hauled away. Like addGore it reaches frontends through the refuse
 // index's revision rather than a tile page (see publishedRefuse).
@@ -485,7 +485,7 @@ type World struct {
 	// (see nearestOfKindAnywhere) can scan the handful of matching entities
 	// directly instead of nearestMatch's chunk-ring expansion, which is only
 	// cheap when the answer is nearby — an unbounded search (a cat with no
-	// mouse left nearby, say) forces it to visit every chunk on the map to
+	// rat left nearby, say) forces it to visit every chunk on the map to
 	// confirm nothing closer exists.
 	kindEntities [numKinds]map[EntityID]struct{}
 
@@ -690,7 +690,7 @@ type World struct {
 	// died, keyed by EntityID so family relations, name lookups, and a
 	// colonist's frozen inventory all keep resolving indefinitely instead of
 	// falling out of the bounded graveyard window. It is never trimmed:
-	// unlike graveyard (which also holds mice/cats/aliens and must survive a
+	// unlike graveyard (which also holds rats/cats/aliens and must survive a
 	// kill flood), the size of this map is bounded by how many colonists
 	// ever existed, not by combat volume. See docs/combat.md.
 	deceasedColonists map[EntityID]EntityView
@@ -1170,8 +1170,8 @@ func (w *World) spawnAs(kind Kind, p Point, species int) *Entity {
 			w.syncNeedPhase(e, n)
 		}
 	}
-	if kind == Mouse {
-		e.sex = w.rollMouseSex() // decides which mice can carry a litter
+	if kind == Rat {
+		e.sex = w.rollRatSex() // decides which rats can carry a litter
 	}
 	if kind == Alien {
 		e.Species = species

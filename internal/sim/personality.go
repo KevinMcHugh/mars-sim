@@ -15,7 +15,7 @@ import "math"
 // adding flavor never shifts the simulation's own RNG — with traits disabled the
 // sim plays bit-for-bit as it did before personalities existed.
 
-// Sex distinguishes male and female mice for breeding; colonists don't carry
+// Sex distinguishes male and female rats for breeding; colonists don't carry
 // a sex attribute, since biological sex isn't otherwise simulated.
 type Sex uint8
 

@@ -58,7 +58,7 @@ func generate(w *World) {
 		}
 	}
 
-	// Place mice and cats by drawing from one shuffled list of open floor
+	// Place rats and cats by drawing from one shuffled list of open floor
 	// tiles, so every placement is a uniform draw without replacement rather
 	// than rejection sampling, which could give up. Crash pods can only have
 	// added floor next to the cavern, so the cavern's box plus a pod's reach
@@ -89,11 +89,11 @@ func generate(w *World) {
 		}
 	}
 
-	// Mice and cats live on the floor with the colonists: mice raid the pods,
-	// cats chase the mice. Place whatever the cavern has room for.
-	for i := 0; i < w.cfg.StartMice; i++ {
+	// Rats and cats live on the floor with the colonists: rats scavenge the
+	// colony's biomatter and raid its pods, cats chase the rats. Place whatever the cavern has room for.
+	for i := 0; i < w.cfg.StartRats; i++ {
 		if p, ok := takeFloor(); ok {
-			w.spawn(Mouse, p)
+			w.spawn(Rat, p)
 		}
 	}
 	for i := 0; i < w.cfg.StartCats; i++ {
@@ -324,7 +324,7 @@ func (w *World) randomTileScan(pred func(Point) bool) (Point, bool) {
 }
 
 // randomFloor returns a random open, unoccupied floor tile the colony has
-// discovered: newcomers and mouse plagues arrive in the colony, not in a
+// discovered: newcomers and rat plagues arrive in the colony, not in a
 // natural cavern nobody has found.
 func (w *World) randomFloor() (Point, bool) {
 	return w.randomTile(func(p Point) bool { return w.Walkable(p) && w.discovered(p) && !w.occupied(p) })

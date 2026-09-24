@@ -68,7 +68,7 @@ go run .
 go run . -headless -duration 10s -seed 42
 
 # Run a larger colony and tune the simulation speed.
-go run . -colonists 20 -aliens 5 -cats 4 -mice 20 -tps 12
+go run . -colonists 20 -aliens 5 -cats 4 -rats 20 -tps 12
 
 # Inspect every available option.
 go run . -h

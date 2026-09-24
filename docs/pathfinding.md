@@ -77,7 +77,7 @@ A computed route is **cached on the colonist and followed one step per tick**
 tiles are valid transit cells but not valid destinations; an entity may pass
 *through* any other entity on its route but must end the tick on a free tile —
 except an alien, which still blocks outright (a real, dangerous obstacle, not
-clutter to walk past; a colonist, cat, or mouse parked in a narrow corridor
+clutter to walk past; a colonist, cat, or rat parked in a narrow corridor
 used to wedge a whole queue behind it before this). It replans when the route
 is missing, was for a different goal, ran out, or the terrain changed under it.
 

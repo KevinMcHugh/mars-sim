@@ -33,7 +33,7 @@ func assertOwnsPod(t *testing.T, w *World, e *Entity) {
 // pod the colonist owns.
 func TestEveryArrivalComesInACrashPod(t *testing.T) {
 	cfg := testConfig()
-	cfg.StartAliens, cfg.StartCats, cfg.StartMice = 0, 0, 0
+	cfg.StartAliens, cfg.StartCats, cfg.StartRats = 0, 0, 0
 	cfg.Width, cfg.Height = 80, 50
 	cfg.Schedules = []Schedule{{
 		Name: "second wave", EarliestTick: 1, LatestTick: 1,
@@ -64,7 +64,7 @@ func TestPodsLeaveRoomForTheFirstRooms(t *testing.T) {
 	for _, n := range []int{1, 3, 6, 10, 16, 40} {
 		cfg := testConfig()
 		cfg.StartColonists = n
-		cfg.StartAliens, cfg.StartCats, cfg.StartMice = 0, 0, 0
+		cfg.StartAliens, cfg.StartCats, cfg.StartRats = 0, 0, 0
 		if n > 6 {
 			cfg.Width, cfg.Height = 80, 50
 		}
@@ -84,7 +84,7 @@ func TestPodsLeaveRoomForTheFirstRooms(t *testing.T) {
 // footprint, and still opens onto the colony.
 func TestPodCrashesThroughRockWhenTheCavernIsFull(t *testing.T) {
 	cfg := testConfig()
-	cfg.StartColonists, cfg.StartAliens, cfg.StartCats, cfg.StartMice = 0, 0, 0, 0
+	cfg.StartColonists, cfg.StartAliens, cfg.StartCats, cfg.StartRats = 0, 0, 0, 0
 	cfg.Width, cfg.Height = 30, 20
 	w := newTestWorld(t, cfg)
 	// Solid rock but for a single open strip across the middle: no pod fits on

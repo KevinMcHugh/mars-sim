@@ -81,11 +81,11 @@ type NeedSpec struct {
 }
 
 // needLevel returns an entity's current level for one need, computed lazily
-// from its stored base and the elapsed ticks, clamped to [0, Max]. Mice share
+// from its stored base and the elapsed ticks, clamped to [0, Max]. Rats share
 // the food need with colonists but hunger at their own faster rate.
 func (w *World) needLevel(e *Entity, i NeedKind) int {
 	spec := w.cfg.Needs[i]
-	// needRise is the entity's per-need rate: colonists' is trait-scaled and mice
+	// needRise is the entity's per-need rate: colonists' is trait-scaled and rats
 	// hunger fast (see personality.go and newEntity).
 	lvl := e.Needs[i] + e.needRise[i]*(w.tick-e.needSince[i])
 	if lvl > spec.Max {

@@ -5,7 +5,7 @@ import "testing"
 func storageBehaviorWorld(t *testing.T, withStorage bool) (*World, *Entity, Point) {
 	t.Helper()
 	cfg := testConfig()
-	cfg.StartColonists, cfg.StartAliens, cfg.StartCats, cfg.StartMice = 0, 0, 0, 0
+	cfg.StartColonists, cfg.StartAliens, cfg.StartCats, cfg.StartRats = 0, 0, 0, 0
 	w := newTestWorld(t, cfg)
 	for y := 5; y <= 15; y++ {
 		for x := 5; x <= 22; x++ {

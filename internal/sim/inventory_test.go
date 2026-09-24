@@ -31,7 +31,7 @@ func TestInventoryRejectsOverflowWithoutChangingStacks(t *testing.T) {
 
 func TestMiningAwardsRawRock(t *testing.T) {
 	cfg := testConfig()
-	cfg.StartColonists, cfg.StartAliens, cfg.StartCats, cfg.StartMice = 0, 0, 0, 0
+	cfg.StartColonists, cfg.StartAliens, cfg.StartCats, cfg.StartRats = 0, 0, 0, 0
 	cfg.MineTicks = 1
 	w := newTestWorld(t, cfg)
 
@@ -54,7 +54,7 @@ func TestMiningAwardsRawRock(t *testing.T) {
 
 func TestFullInventoryPreventsMiningResourceLoss(t *testing.T) {
 	cfg := testConfig()
-	cfg.StartColonists, cfg.StartAliens, cfg.StartCats, cfg.StartMice = 0, 0, 0, 0
+	cfg.StartColonists, cfg.StartAliens, cfg.StartCats, cfg.StartRats = 0, 0, 0, 0
 	cfg.MineTicks = 1
 	w := newTestWorld(t, cfg)
 
@@ -88,7 +88,7 @@ func TestMiningAwardsRockCompositionMaterial(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := testConfig()
-			cfg.StartColonists, cfg.StartAliens, cfg.StartCats, cfg.StartMice = 0, 0, 0, 0
+			cfg.StartColonists, cfg.StartAliens, cfg.StartCats, cfg.StartRats = 0, 0, 0, 0
 			cfg.MineTicks = 1
 			w := newTestWorld(t, cfg)
 
@@ -114,7 +114,7 @@ func TestMiningAwardsRockCompositionMaterial(t *testing.T) {
 
 func TestCompositionYieldIsAtomicWhenInventoryCannotFitExtra(t *testing.T) {
 	cfg := testConfig()
-	cfg.StartColonists, cfg.StartAliens, cfg.StartCats, cfg.StartMice = 0, 0, 0, 0
+	cfg.StartColonists, cfg.StartAliens, cfg.StartCats, cfg.StartRats = 0, 0, 0, 0
 	cfg.MineTicks = 1
 	w := newTestWorld(t, cfg)
 

@@ -190,7 +190,7 @@ func (f *flowField) ensureFresh() {
 // (distance 0), is boxed in, or the goal is unreachable from here.
 //
 // The breadth-first search expands through any occupied tile but an alien's —
-// a cat or mouse parked in a narrow corridor must not wedge a colonist any
+// a cat or rat parked in a narrow corridor must not wedge a colonist any
 // more than another colonist would — and stops at the first depth with a free
 // landing. Thus an open neighbor still costs one ordinary step, while a
 // colonist can cross an arbitrarily crowded room or doorway in one turn

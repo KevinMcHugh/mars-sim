@@ -7,7 +7,7 @@ import "testing"
 func propertyWorld(t *testing.T) *World {
 	t.Helper()
 	cfg := testConfig()
-	cfg.StartColonists, cfg.StartAliens, cfg.StartCats, cfg.StartMice = 0, 0, 0, 0
+	cfg.StartColonists, cfg.StartAliens, cfg.StartCats, cfg.StartRats = 0, 0, 0, 0
 	w := newTestWorld(t, cfg)
 	for y := 5; y <= 15; y++ {
 		for x := 5; x <= 22; x++ {
@@ -80,7 +80,7 @@ func TestPrivateFixtureIsReachableOnlyToItsOwner(t *testing.T) {
 	w := propertyWorld(t)
 	owner := w.spawn(Colonist, Point{6, 6})
 	other := w.spawn(Colonist, Point{20, 14})
-	mouse := w.spawn(Mouse, Point{21, 14})
+	rat := w.spawn(Rat, Point{21, 14})
 	pod := Point{12, 10}
 	w.SetTerrain(pod, NutrientPod)
 	w.setFixtureOwner(pod, ColonistOwner(owner.ID), AccessPrivate)
@@ -92,15 +92,15 @@ func TestPrivateFixtureIsReachableOnlyToItsOwner(t *testing.T) {
 	if !w.facilityReachable(owner, NutrientPod) {
 		t.Fatal("owner cannot reach its own pod")
 	}
-	if w.facilityReachable(other, NutrientPod) || w.facilityReachable(mouse, NutrientPod) {
-		t.Fatal("a non-owner (colonist or mouse) can reach a private pod")
+	if w.facilityReachable(other, NutrientPod) || w.facilityReachable(rat, NutrientPod) {
+		t.Fatal("a non-owner (colonist or rat) can reach a private pod")
 	}
 
 	// Like a terrain change, an access change reaches the shared field on the
 	// next tick: fields rebuild at most once per tick (see ensureFresh).
 	w.setFixtureOwner(pod, ColonistOwner(owner.ID), AccessCommunal)
 	w.tick++
-	if !w.facilityReachable(other, NutrientPod) || !w.facilityReachable(mouse, NutrientPod) {
+	if !w.facilityReachable(other, NutrientPod) || !w.facilityReachable(rat, NutrientPod) {
 		t.Fatal("opening the pod to all did not make it reachable")
 	}
 }
@@ -225,7 +225,7 @@ func TestLedgerBalancesThroughALongRun(t *testing.T) {
 	cfg.Seed = 1
 	cfg.CavernPercent = 0
 	cfg.Width, cfg.Height = 80, 50
-	cfg.StartColonists, cfg.StartCats, cfg.StartMice = 16, 2, 10
+	cfg.StartColonists, cfg.StartCats, cfg.StartRats = 16, 2, 10
 	w := newTestWorld(t, cfg)
 	lines := 0
 	for i := 0; i < 5000; i++ {

@@ -67,7 +67,7 @@ the first.
 
 `Access` is `AccessCommunal` (anyone) or `AccessPrivate` (the owner only). Paid
 access is a TODO for phase E5. `canUseFixture(e, pos)` answers "may e use
-this?"; a mouse never owns anything, so it may use only communal fixtures.
+this?"; a rat never owns anything, so it may use only communal fixtures.
 
 ### Routing around what isn't yours
 

@@ -73,7 +73,7 @@ func TestGlyphsOccupyOneTile(t *testing.T) {
 		{Kind: sim.Colonist, State: sim.Hauling},
 		{Kind: sim.Alien},
 		{Kind: sim.Cat},
-		{Kind: sim.Mouse},
+		{Kind: sim.Rat},
 	}
 	for _, entity := range entities {
 		if got := cells.Width(entityGlyph(entity)); got != tileWidth {
@@ -333,13 +333,13 @@ func TestMenuArrowsMoveSelectionAndEnterConfirms(t *testing.T) {
 		t.Errorf("expected colonist highlighted by default:\n%s", out)
 	}
 
-	// colonist -> alien -> cat -> mouse.
+	// colonist -> alien -> cat -> rat.
 	for i := 0; i < 3; i++ {
 		m, _ = m.Update(tea.KeyMsg{Type: tea.KeyDown})
 	}
 	out = m.View()
-	if !strings.Contains(out, "[m mouse]") {
-		t.Errorf("expected mouse highlighted after three down presses:\n%s", out)
+	if !strings.Contains(out, "[m rat]") {
+		t.Errorf("expected rat highlighted after three down presses:\n%s", out)
 	}
 	if strings.Contains(out, "spawn:") == false {
 		t.Error("menu should still be open before enter is pressed")
@@ -353,8 +353,8 @@ func TestMenuArrowsMoveSelectionAndEnterConfirms(t *testing.T) {
 }
 
 // The highlighted option in each menu is remembered across opens, so
-// repeating a choice is just reopen-and-confirm: s -> navigate to mouse ->
-// enter, then s -> enter, s -> enter for three mice.
+// repeating a choice is just reopen-and-confirm: s -> navigate to rat ->
+// enter, then s -> enter, s -> enter for three rats.
 func TestMenuRemembersLastSelection(t *testing.T) {
 	eng := sim.NewEngine(sim.DefaultConfig())
 	var m tea.Model = New(eng, nil)
@@ -370,8 +370,8 @@ func TestMenuRemembersLastSelection(t *testing.T) {
 	for i := 0; i < 2; i++ {
 		m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("s")})
 		out := m.View()
-		if !strings.Contains(out, "[m mouse]") {
-			t.Fatalf("round %d: expected the menu to reopen with mouse still highlighted:\n%s", i, out)
+		if !strings.Contains(out, "[m rat]") {
+			t.Fatalf("round %d: expected the menu to reopen with rat still highlighted:\n%s", i, out)
 		}
 		m, _ = m.Update(tea.KeyMsg{Type: tea.KeyEnter})
 	}
@@ -396,12 +396,12 @@ func TestMenuShortcutKeyUpdatesRememberedSelection(t *testing.T) {
 }
 
 // By default the roster shows only living colonists — the alien in the
-// snapshot, and a dead mouse in the graveyard, should both be hidden until
+// snapshot, and a dead rat in the graveyard, should both be hidden until
 // their filters are turned on.
 func TestRosterHidesNonHumanAndDeadByDefault(t *testing.T) {
 	snap := makeSnapshot()
 	snap.Graveyard = []sim.EntityView{
-		{ID: 9, Kind: sim.Mouse, Dead: true, DiedTick: 3, Cause: "crushed by a colonist"},
+		{ID: 9, Kind: sim.Rat, Dead: true, DiedTick: 3, Cause: "crushed by a colonist"},
 	}
 
 	var m tea.Model = New(nil, nil)
@@ -414,7 +414,7 @@ func TestRosterHidesNonHumanAndDeadByDefault(t *testing.T) {
 		t.Error("roster should not show the alien until the non-human filter is on")
 	}
 	if strings.Contains(out, "crushed by a colonist") {
-		t.Error("roster should not show the dead mouse until the dead filter is on")
+		t.Error("roster should not show the dead rat until the dead filter is on")
 	}
 	if !strings.Contains(out, "ROSTER (1)") {
 		t.Errorf("roster should count only the one living colonist:\n%s", out)

@@ -26,8 +26,8 @@ func (w *World) step() {
 			w.alienTurn(e)
 		case Cat:
 			w.catTurn(e)
-		case Mouse:
-			w.mouseTurn(e)
+		case Rat:
+			w.ratTurn(e)
 		}
 	}
 	w.refreshSpatial() // fold in any digging/building from this tick
@@ -203,7 +203,7 @@ func (w *World) tryCognitionFastPath(e *Entity) bool {
 	if threat, ok := w.nearestAlien(e.Pos, w.cfg.FleeRadius); ok && threat != nil {
 		return false
 	}
-	if mouse, ok := w.nearestMouse(e.Pos, w.cfg.ColonistStompRadius); ok && mouse != nil {
+	if rat, ok := w.nearestRat(e.Pos, w.cfg.ColonistStompRadius); ok && rat != nil {
 		return false
 	}
 	if w.hasGoreNearby(e) {
@@ -394,7 +394,7 @@ func (w *World) runIdleFocus(e *Entity) {
 		w.runJob(e)
 		return
 	}
-	if w.stompNearbyMouse(e) {
+	if w.stompNearbyRat(e) {
 		return
 	}
 	e.resting = true
@@ -416,7 +416,7 @@ func (w *World) observeNearby(e *Entity) {
 	}
 	visible := make(map[EntityID]bool)
 	seesThreat := false
-	// Only aliens and mice are noticed, and only within their radii, so the
+	// Only aliens and rats are noticed, and only within their radii, so the
 	// candidates come from the chunk index around e rather than from every
 	// entity in the world. This used to walk (and sort) the whole entity
 	// list once per colonist per tick, which with a hundred colonists was a
@@ -436,7 +436,7 @@ func (w *World) observeNearby(e *Entity) {
 				continue
 			}
 			radius = w.cfg.FleeRadius
-		case Mouse:
+		case Rat:
 			radius = w.cfg.ColonistStompRadius
 		default:
 			continue
@@ -456,7 +456,7 @@ func (w *World) observeNearby(e *Entity) {
 			}
 			continue
 		}
-		evtKind := EvtSawMouse
+		evtKind := EvtSawRat
 		if kind == Alien {
 			evtKind = EvtSawAlien
 		}
@@ -493,13 +493,13 @@ outer:
 	e.seeingGore = seeing
 }
 
-// stompNearbyMouse lets a colonist with nothing pressing to do chase down and
-// crush a mouse it notices. Stomping is an idle whim, not work: colonistTurn has
+// stompNearbyRat lets a colonist with nothing pressing to do chase down and
+// crush a rat it notices. Stomping is an idle whim, not work: colonistTurn has
 // already ruled out threats, urgent needs, and available jobs before this runs.
-// A stomp is instantly fatal to the tiny mouse. Returns whether the colonist
+// A stomp is instantly fatal to the tiny rat. Returns whether the colonist
 // spent its tick on the hunt (closing in or stomping).
-func (w *World) stompNearbyMouse(e *Entity) bool {
-	prey, ok := w.nearestMouse(e.Pos, w.cfg.ColonistStompRadius)
+func (w *World) stompNearbyRat(e *Entity) bool {
+	prey, ok := w.nearestRat(e.Pos, w.cfg.ColonistStompRadius)
 	if !ok {
 		return false
 	}
@@ -517,19 +517,19 @@ func (w *World) stompNearbyMouse(e *Entity) bool {
 	return true
 }
 
-// stomp crushes a mouse underfoot. A stomp is always fatal to the mouse and
+// stomp crushes a rat underfoot. A stomp is always fatal to the rat and
 // leaves it behind as gore. Any other colonist close enough to have noticed
-// the mouse remembers seeing it happen.
-func (w *World) stomp(colonist, mouse *Entity) {
-	witnesses := w.colonistsWithin(mouse.Pos, w.cfg.ColonistStompRadius, colonist.ID)
-	w.addGore(mouse.Pos)
-	w.addCorpse(mouse.Pos, AnimalCorpse) // a crushed pest still has to be carried off
-	w.remove(mouse.ID, fmt.Sprintf("crushed by %s", colonist.displayName()))
-	w.remember(colonist, event(EvtCrushedMouse, "Crushed mouse #%d.", mouse.ID))
+// the rat remembers seeing it happen.
+func (w *World) stomp(colonist, rat *Entity) {
+	witnesses := w.colonistsWithin(rat.Pos, w.cfg.ColonistStompRadius, colonist.ID)
+	w.addGore(rat.Pos)
+	w.addCorpse(rat.Pos, AnimalCorpse) // a crushed pest still has to be carried off
+	w.remove(rat.ID, fmt.Sprintf("crushed by %s", colonist.displayName()))
+	w.remember(colonist, event(EvtCrushedRat, "Crushed rat #%d.", rat.ID))
 	for _, wit := range witnesses {
-		w.remember(wit, event(EvtWitnessedMouseCrushed, "Watched a colonist crush mouse #%d.", mouse.ID))
+		w.remember(wit, event(EvtWitnessedRatCrushed, "Watched a colonist crush rat #%d.", rat.ID))
 	}
-	w.log.add(fmt.Sprintf("Colonist #%d stomps mouse #%d.", colonist.ID, mouse.ID))
+	w.log.add(fmt.Sprintf("Colonist #%d stomps rat #%d.", colonist.ID, rat.ID))
 }
 
 // idleWouldBlock reports whether an idle colonist resting at p would get in the
@@ -736,6 +736,8 @@ func (w *World) runJob(e *Entity) {
 		w.jobCraft(e)
 	case JobScrape:
 		w.jobScrape(e)
+	case JobScavenge:
+		w.jobScavenge(e)
 	default:
 		e.State = Idle
 		w.wanderStep(e)
@@ -1458,7 +1460,7 @@ func (w *World) travelTo(e *Entity, target Point) (arrived, ok bool) {
 	// on a free tile. Scan the occupied prefix and land on the first available
 	// route cell. An alien is the one exception: it is a real obstacle (and a
 	// threat), not clutter, so it still blocks movement outright — a cat, a
-	// mouse, or a fellow colonist standing in a narrow corridor must not. A
+	// rat, or a fellow colonist standing in a narrow corridor must not. A
 	// stray cat used to wedge a whole queue of colonists there, each abandoning
 	// and immediately re-claiming the same path with nothing ever able to make
 	// it past — StuckLimit just reset the standoff instead of resolving it.
@@ -1624,7 +1626,7 @@ func (w *World) bite(alien, prey *Entity) {
 
 // ---- Cats --------------------------------------------------------------------
 
-// catTurn walks the cat toward the nearest mouse and pounces when adjacent. Cats
+// catTurn walks the cat toward the nearest rat and pounces when adjacent. Cats
 // have no needs; they simply hunt. Like everyone else they travel the floor
 // with cached A* and give up on prey they cannot reach.
 func (w *World) catTurn(e *Entity) {
@@ -1633,7 +1635,7 @@ func (w *World) catTurn(e *Entity) {
 		return
 	}
 
-	prey, ok := w.nearestOfKindAnywhere(e.Pos, Mouse)
+	prey, ok := w.nearestOfKindAnywhere(e.Pos, Rat)
 	if !ok {
 		e.State, e.Quarry = Idle, 0
 		w.wanderStep(e)
@@ -1650,69 +1652,79 @@ func (w *World) catTurn(e *Entity) {
 
 	e.State = Hunting
 	if _, ok := w.travelTo(e, prey.Pos); !ok {
-		// The mouse is unreachable on foot (walled off, or the cat is wedged):
+		// The rat is unreachable on foot (walled off, or the cat is wedged):
 		// prowl instead of standing still.
 		w.wanderStep(e)
 	}
 	e.Cooldown = w.cfg.CatSlowness - 1
 }
 
-// pounce catches and eats an adjacent mouse. A mouse is tiny, so a single pounce
-// is fatal. Any colonist close enough to have noticed the mouse remembers
+// pounce catches and eats an adjacent rat. A rat is tiny, so a single pounce
+// is fatal. Any colonist close enough to have noticed the rat remembers
 // seeing it happen.
 func (w *World) pounce(cat, prey *Entity) {
 	cat.State = Feeding
 	for _, wit := range w.colonistsWithin(prey.Pos, w.cfg.ColonistStompRadius, 0) {
-		w.remember(wit, event(EvtWitnessedCatCatch, "Watched a cat catch mouse #%d.", prey.ID))
+		w.remember(wit, event(EvtWitnessedCatCatch, "Watched a cat catch rat #%d.", prey.ID))
 	}
 	w.remove(prey.ID, "caught by a cat")
-	w.log.add(fmt.Sprintf("A cat catches mouse #%d.", prey.ID))
+	w.log.add(fmt.Sprintf("A cat catches rat #%d.", prey.ID))
 }
 
-// ---- Mice --------------------------------------------------------------------
+// ---- Rats --------------------------------------------------------------------
 
-// mouseTurn runs one mouse tick: starve, flee cats, feed at a nutrient pod when
-// hungry, otherwise scurry about. Mice reuse the colonists' food need and the
-// generic JobUse machinery, but never build — they depend on pods the colony
-// has already raised, and go hungry if none is reachable.
-func (w *World) mouseTurn(e *Entity) {
+// ratTurn runs one rat tick: starve, flee cats, scavenge (or raid a pod) when
+// hungry, breed, otherwise scurry about. Rats reuse the colonists' food need
+// but never build: they eat the same biomatter the scumhouse runs on, where it
+// lies, and fall back on pods only with nothing in reach. See scavenge.go.
+func (w *World) ratTurn(e *Entity) {
 	w.applyStarvation(e)
 	if !e.Alive() { // starved this tick
 		w.clearJob(e)
 		w.addCorpse(e.Pos, AnimalCorpse)
 		w.remove(e.ID, "starved")
-		w.log.add(fmt.Sprintf("Mouse #%d starves.", e.ID))
+		w.log.add(fmt.Sprintf("Rat #%d starves.", e.ID))
 		return
 	}
 
-	// A carried litter arrives once gestation completes, whatever else the mouse
+	// A carried litter arrives once gestation completes, whatever else the rat
 	// does with the rest of its tick.
 	if e.pregnant && w.tick >= e.dueTick {
 		w.giveBirth(e)
 	}
 
 	// Survival first: bolt from a nearby cat.
-	if threat, ok := w.nearestCat(e.Pos, w.cfg.MouseFleeRadius); ok {
+	if threat, ok := w.nearestCat(e.Pos, w.cfg.RatFleeRadius); ok {
 		w.clearJob(e)
 		e.State = Fleeing
 		w.fleeStep(e, threat.Pos)
 		return
 	}
 
-	// Hungry? Head for a nutrient pod if one is reachable. Mice care only about
-	// food, so we check it directly rather than scanning every need.
+	// Hungry? Scavenge the nearest body, gore, or scum in range — the same
+	// biomatter the scumhouse runs on (see scavenge.go) — and only with none
+	// in reach raid a nutrient pod. Rats care only about food, so we check it
+	// directly rather than scanning every need.
 	hungry := w.needLevel(e, NeedFood) >= w.cfg.Needs[NeedFood].SeekAt
-	if hungry && e.Job != JobUse && w.podsFeed() {
-		if field := w.facilityField(NutrientPod); field != nil && field.at(e.Pos) >= 0 {
-			e.Job, e.Need, e.Progress = JobUse, NeedFood, 0
+	if hungry && e.Job == JobNone {
+		if target, ok := w.nearestScavenge(e); ok {
+			e.Job, e.Target, e.Progress = JobScavenge, target, 0
+		} else if w.podsFeed() {
+			if field := w.facilityField(NutrientPod); field != nil && field.at(e.Pos) >= 0 {
+				e.Job, e.Need, e.Progress = JobUse, NeedFood, 0
+			}
 		}
 	}
-	if e.Job == JobUse {
+	switch e.Job {
+	case JobUse:
 		w.jobUse(e)
+		return
+	case JobScavenge:
+		w.jobScavenge(e)
 		return
 	}
 
-	// Nothing pressing: a mouse with no cat to flee and no hunger to sate looks
+	// Nothing pressing: a rat with no cat to flee and no hunger to sate looks
 	// to breed with an adjacent mate.
 	if w.tryMate(e) {
 		return
@@ -1722,24 +1734,24 @@ func (w *World) mouseTurn(e *Entity) {
 	w.wanderStep(e)
 }
 
-// rollMouseSex assigns a mouse its sex, an even male/female split. It draws from
+// rollRatSex assigns a rat its sex, an even male/female split. It draws from
 // the simulation RNG (not the personality stream) because breeding is a
 // simulation mechanic, not cosmetic flavor.
-func (w *World) rollMouseSex() Sex {
+func (w *World) rollRatSex() Sex {
 	if w.rng.Intn(2) == 0 {
 		return SexMale
 	}
 	return SexFemale
 }
 
-// canBreed reports whether a mouse may mate this tick: it is not already
+// canBreed reports whether a rat may mate this tick: it is not already
 // carrying a litter and is past mateReadyTick, which gates both a newborn's
 // maturation and a mother's post-birth cooldown.
 func (w *World) canBreed(e *Entity) bool {
-	return e.Kind == Mouse && !e.pregnant && w.tick >= e.mateReadyTick
+	return e.Kind == Rat && !e.pregnant && w.tick >= e.mateReadyTick
 }
 
-// tryMate pairs a mouse with an adjacent eligible mouse of the opposite sex. The
+// tryMate pairs a rat with an adjacent eligible rat of the opposite sex. The
 // female of the pair conceives a litter, and both go on a breeding cooldown so a
 // warren does not multiply every tick. Returns whether a mating happened.
 func (w *World) tryMate(e *Entity) bool {
@@ -1756,25 +1768,25 @@ func (w *World) tryMate(e *Entity) bool {
 			female, male = mate, e
 		}
 		female.pregnant = true
-		female.dueTick = w.tick + w.cfg.MouseGestationTicks
-		e.mateReadyTick = w.tick + w.cfg.MouseBreedCooldown
-		mate.mateReadyTick = w.tick + w.cfg.MouseBreedCooldown
+		female.dueTick = w.tick + w.cfg.RatGestationTicks
+		e.mateReadyTick = w.tick + w.cfg.RatBreedCooldown
+		mate.mateReadyTick = w.tick + w.cfg.RatBreedCooldown
 		e.State, mate.State = Idle, Idle
-		w.log.add(fmt.Sprintf("Mice #%d and #%d mate.", male.ID, female.ID))
+		w.log.add(fmt.Sprintf("Rats #%d and #%d mate.", male.ID, female.ID))
 		return true
 	}
 	return false
 }
 
-// giveBirth delivers a pregnant mouse's litter onto free floor tiles around her,
+// giveBirth delivers a pregnant rat's litter onto free floor tiles around her,
 // then resets her to a post-birth breeding cooldown. Litter size is random
 // within the configured range; pups with nowhere to land are simply not born (a
 // crowded cavern limits the warren). Newborns cannot breed until they mature.
 func (w *World) giveBirth(e *Entity) {
 	e.pregnant = false
-	e.mateReadyTick = w.tick + w.cfg.MouseBreedCooldown
-	litter := w.cfg.MouseLitterMin
-	if span := w.cfg.MouseLitterMax - w.cfg.MouseLitterMin; span > 0 {
+	e.mateReadyTick = w.tick + w.cfg.RatBreedCooldown
+	litter := w.cfg.RatLitterMin
+	if span := w.cfg.RatLitterMax - w.cfg.RatLitterMin; span > 0 {
 		litter += w.rng.Intn(span + 1)
 	}
 	born := 0
@@ -1786,12 +1798,12 @@ func (w *World) giveBirth(e *Entity) {
 		if !w.Walkable(p) || w.occupied(p) {
 			continue
 		}
-		pup := w.spawn(Mouse, p)
-		pup.mateReadyTick = w.tick + w.cfg.MouseMaturityTicks
+		pup := w.spawn(Rat, p)
+		pup.mateReadyTick = w.tick + w.cfg.RatMaturityTicks
 		born++
 	}
 	if born > 0 {
-		w.log.add(fmt.Sprintf("Mouse #%d gives birth to a litter of %d.", e.ID, born))
+		w.log.add(fmt.Sprintf("Rat #%d gives birth to a litter of %d.", e.ID, born))
 	}
 }
 
@@ -1835,7 +1847,7 @@ func (w *World) wanderStep(e *Entity) {
 }
 
 // stepAside moves a colonist off a facility-access or pending-build tile. It may
-// search through a packed group of colonists, cats, and mice to find the
+// search through a packed group of colonists, cats, and rats to find the
 // nearest genuinely clear landing, just as job navigation can pass through a
 // crowd (see travelTo) — only an alien stops the search. A random one-step
 // wander is insufficient here: in a full room there may be no adjacent vacancy,
@@ -1918,8 +1930,8 @@ func (w *World) nearestCat(from Point, within int) (*Entity, bool) {
 	return w.nearestOfKind(from, Cat, within)
 }
 
-func (w *World) nearestMouse(from Point, within int) (*Entity, bool) {
-	return w.nearestOfKind(from, Mouse, within)
+func (w *World) nearestRat(from Point, within int) (*Entity, bool) {
+	return w.nearestOfKind(from, Rat, within)
 }
 
 func (w *World) nearestOfKind(from Point, kind Kind, within int) (*Entity, bool) {
@@ -1947,7 +1959,7 @@ func (w *World) nearestReachableColonist(from Point) (*Entity, bool) {
 
 // nearestOfKindAnywhere returns the globally nearest living entity of kind, with
 // no range limit — for a hunter whose prey can be anywhere on the map (an
-// alien after the nearest colonist, a cat after the nearest mouse). It scans
+// alien after the nearest colonist, a cat after the nearest rat). It scans
 // World.kindEntities[kind] directly rather than going through nearestMatch's
 // chunk-ring expansion: that expansion is cheap when a match is nearby, but an
 // unbounded search forces it to visit every chunk on the map to confirm none

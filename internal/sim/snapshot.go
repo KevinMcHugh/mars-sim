@@ -190,7 +190,7 @@ type Stats struct {
 	Colonists int
 	Aliens    int
 	Cats      int
-	Mice      int
+	Rats      int
 	FloorDug  int // tiles of discovered Floor (excavation progress; undiscovered caverns excluded)
 	// ExploredTiles is how many tiles World.reveal has ever uncovered (see
 	// World.exploredCount). Only meaningful when FogOfWar is on -- with it
@@ -233,7 +233,7 @@ type Snapshot struct {
 	// See docs/combat.md.
 	Graveyard []EntityView
 	// Deceased is every colonist who has ever died, keyed by EntityID and
-	// never trimmed — unlike Graveyard, which also covers mice/cats/aliens
+	// never trimmed — unlike Graveyard, which also covers rats/cats/aliens
 	// and drops old entries. Consulted for durable by-ID lookups: a dead
 	// colonist's name, family relations, and frozen inventory all resolve
 	// through this map indefinitely. See docs/combat.md.
@@ -359,8 +359,8 @@ func (w *World) snapshot(paused bool, tps int) *Snapshot {
 			stats.Aliens++
 		case Cat:
 			stats.Cats++
-		case Mouse:
-			stats.Mice++
+		case Rat:
+			stats.Rats++
 		}
 	}
 

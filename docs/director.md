@@ -4,7 +4,7 @@
 
 ## What it is
 
-The director schedules major scripted occurrences — a mouse plague, an alien
+The director schedules major scripted occurrences — a rat plague, an alien
 swarm, a supply drop — for tick windows you define in `director.yaml`. It is
 the "GM" layer on top of the ordinary simulation: worldgen and the ordinary
 per-tick systems keep running as they always have, and the director just
@@ -29,7 +29,7 @@ schedules:
     earliest_tick: 1000
     latest_tick: 1500
     occurrences:
-      - kind: mouse-plague
+      - kind: rat-plague
         count: 25
       - kind: alien-swarm
         count: 5
@@ -66,7 +66,7 @@ director script every run.
 
 | Kind | Fields | Effect |
 | --- | --- | --- |
-| `mouse-plague` | `count` | Spawns `count` mice on open floor, same placement as starting mice. |
+| `rat-plague` | `count` | Spawns `count` rats on open floor, same placement as starting rats. `mouse-plague`, from before rats replaced mice, still loads as the same thing. |
 | `alien-swarm` | `count` | Spawns `count` aliens with the same placement as starting aliens: dormant on hidden cave floor, or colony floor far from the landing site when there is no cave room (see [caverns.md](./caverns.md#aliens-in-the-caves)). |
 | `supply-drop` | `pistols`, `shotguns` | Hands weapons to that many distinct living colonists (in random order), one each. What a colonist receives is its own ([property.md](./property.md)). |
 | `arrival` | `count` | Brings `count` new colonists down in crash pods, each through `arrive` — exactly as the founders landed ([crash-pods.md](./crash-pods.md)). |
