@@ -631,6 +631,9 @@ func (w *World) roomSiteClear(ox, oy, width int, designated map[Point]bool, allo
 			if designated[p] || w.doorTiles[p] || (t != Floor && !(allowRock && t == Rock)) {
 				return false
 			}
+			if t == Floor && !w.discovered(p) {
+				return false // an undiscovered cavern: see docs/caverns.md
+			}
 		}
 		// Each side wall is clear floor (this room will build its own wall
 		// there, so keep an exterior lane beside it reachable even after its
@@ -644,7 +647,7 @@ func (w *World) roomSiteClear(ox, oy, width int, designated map[Point]bool, allo
 			switch w.TerrainAt(p) {
 			case Floor:
 				lane := Point{side.lane, y}
-				if !w.Walkable(lane) || designated[lane] {
+				if !w.discovered(p) || !w.Walkable(lane) || !w.discovered(lane) || designated[lane] {
 					return false
 				}
 			case Wall:
@@ -667,7 +670,7 @@ func (w *World) roomSiteClear(ox, oy, width int, designated map[Point]bool, allo
 	}
 	for x := loX; x <= hiX; x++ {
 		p := Point{x, frontY + roomApproach}
-		if !w.Walkable(p) || designated[p] {
+		if !w.Walkable(p) || !w.discovered(p) || designated[p] {
 			return false
 		}
 	}

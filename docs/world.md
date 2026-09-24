@@ -7,12 +7,14 @@
 The world is a single underground level: a dense, row-major grid of `Tile`s that
 starts as solid rock with ordinary, iron-bearing, water ice-bearing,
 uranium-bearing, or clay-bearing composition. World generation carves a landing cavern, drops the colonists inside
-it, and seeds aliens out in the surrounding rock and cats/mice on the floor.
+it, hollows hidden natural caverns (some joined by passages) out of the rock
+beyond, and seeds aliens out in the surrounding rock and cats/mice on the floor.
 
 ## Source
 
 - [`internal/sim/world.go`](../internal/sim/world.go) — `Terrain`, `Tile`, `World`, tile/occupancy/entity accessors.
 - [`internal/sim/worldgen.go`](../internal/sim/worldgen.go) — `generate` and the placement helpers.
+- [`internal/sim/caverns.go`](../internal/sim/caverns.go) — natural caverns and passages (see [caverns.md](./caverns.md)).
 - [`internal/sim/geom.go`](../internal/sim/geom.go) — `Point`, Chebyshev distance, the 8-neighbor table.
 
 ## How it works
@@ -96,7 +98,7 @@ job board, flow fields, and the projects list. Those are documented in
 The critical invariant lives in `SetTerrain`: it updates `terrainCounts`, marks
 the tile's chunk dirty (for region recompute), lifts the fog of war over the
 tile and its eight neighbors (`revealAround`), and **emits a `TileChanged`
-event** — which is how the job board and flow fields stay current. Always change
+event** (worldgen's `carveHidden` is the same path minus the fog lift) — which is how the job board and flow fields stay current. Always change
 terrain through `SetTerrain`, never by writing `tiles` directly, or those
 derived systems go stale (and the map the player sees never grows).
 
@@ -114,13 +116,17 @@ derived systems go stale (and the map the player sees never grows).
 2. Carves an **oval cavern** at the map center. `caveRadii` sizes it to the
    starting colonist count (~10 tiles per colonist) at a 2:1 width:height ratio,
    clamped to the map.
-3. Places colonists by shuffling the list of free floor tiles and drawing from
+3. Hollows **natural caverns** out of the remaining rock with `carveHidden`, on
+   their own seed-derived RNG stream, and joins some to their nearest neighbor
+   with a passage. They stay under the fog, and out of every colony-facing
+   system, until a dig breaks into one. See [caverns.md](./caverns.md).
+4. Places colonists by shuffling the list of free (discovered) floor tiles and drawing from
    it, so every requested colonist is placed if the cavern has room (this beats
    rejection sampling, which can give up).
-4. Places aliens on random rock tiles **far** from the cavern (`randomRockFar`),
+5. Places aliens on random rock tiles **far** from the cavern (`randomRockFar`),
    so they must burrow in.
-5. Places mice and cats on random floor tiles inside the cavern.
-6. Runs `refreshSpatial` once so regions/rooms exist before the first tick.
+6. Places mice and cats on random floor tiles inside the cavern.
+7. Runs `refreshSpatial` once so regions/rooms exist before the first tick.
 
 `randomTile` reservoir-samples a tile satisfying a predicate in one pass — uniform,
 and it always finds a match if one exists.

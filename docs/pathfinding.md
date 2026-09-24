@@ -34,9 +34,16 @@ Walkable tiles are grouped in two levels so updates stay cheap:
 
 When a tile changes, `SetTerrain` marks its chunk dirty; `refreshSpatial`
 (end of each tick) re-floods only the dirty chunks' regions, re-links across
-borders, and relabels rooms from the small region graph. So excavating or walling
-a tile costs **O(one chunk)** to re-flood plus O(regions) to relabel, not a global
-O(map) flood fill.
+borders, and relabels rooms. Relabeling is incremental too: only components that
+touch a region just created, or that neighbored one just deleted, are re-walked
+(`relabelSeeds`), the rooms they used to belong to are dropped (`staleRooms`),
+and every other room keeps its label. So excavating or walling a tile costs
+**O(one chunk)** to re-flood plus O(the rooms it touches) to relabel, not a
+global O(map) flood fill — nor O(all regions), which is what relabeling used to
+cost and what became milliseconds a tick once undiscovered natural caverns put
+thousands of static rooms on a big map (see [caverns.md](./caverns.md)).
+`w.rooms` keeps every room's floor-tile size, so a room nobody touched never
+needs re-measuring.
 
 `refreshSpatial` walks the dirty chunks **in sorted order**, and that sort is
 load-bearing: a region's ID is the next value of a counter, so re-flooding in

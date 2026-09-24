@@ -18,6 +18,7 @@ way it is without re-deriving it from the source each time.
 | [config-file.md](./config-file.md) | `mars-sim.yaml`: the committed settings file between the compiled defaults and the flags, and the struct tags that generate it. |
 | [director.md](./director.md) | `director.yaml`: scheduling major occurrences (mouse plagues, alien swarms, supply drops) into tick windows, separate from what fires in them. |
 | [world.md](./world.md) | The tile grid, terrain kinds, world state, and world generation. |
+| [caverns.md](./caverns.md) | Natural caverns and the passages between them: generated hidden, ignored by the colony until a dig breaks in, then revealed all at once. |
 | [lore.md](./lore.md) | The world beyond the colony: the alien species roster each seed rolls (build, name, temperament — friendly/cautious/hostile), and how damage and pace scale from it. |
 | [entities-and-ai.md](./entities-and-ai.md) | The entity model, the per-tick systems, turn order, movement primitives, and the colonist / alien / cat / mouse behaviors. |
 | [combat.md](./combat.md) | Per-body-part HP, weapons (pistol/shotgun), the colony ship's starting equipment, and gore. |

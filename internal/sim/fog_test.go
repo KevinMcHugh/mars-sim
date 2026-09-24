@@ -89,8 +89,9 @@ func TestExploredTilesCountMatchesTheExploredSet(t *testing.T) {
 	}
 }
 
-// With fog of war off, reveal is never called (see revealAround), so the
-// counter must stay at zero rather than reporting a number nothing produced.
+// With fog of war off the counter means nothing to a frontend (every tile reads
+// as explored), so it is published as zero even though the simulation still
+// keeps it.
 func TestExploredTilesStaysZeroWithFogOff(t *testing.T) {
 	cfg := testConfig()
 	cfg.FogOfWar = false
@@ -185,9 +186,10 @@ func TestRevealsReachThePublishedSnapshot(t *testing.T) {
 	}
 }
 
-// With fog of war off nothing is marked — which is what keeps a huge map's tile
-// array untouched — and every in-bounds tile reads as explored anyway.
-func TestFogOfWarOffMarksNothingAndHidesNothing(t *testing.T) {
+// With fog of war off every in-bounds tile reads as explored, even though the
+// simulation still tracks what the colony has discovered underneath (natural
+// caverns depend on it — see docs/caverns.md).
+func TestFogOfWarOffHidesNothing(t *testing.T) {
 	cfg := testConfig()
 	cfg.FogOfWar = false
 	w := newTestWorld(t, cfg)
@@ -199,9 +201,6 @@ func TestFogOfWarOffMarksNothingAndHidesNothing(t *testing.T) {
 	for y := 0; y < w.Height; y++ {
 		for x := 0; x < w.Width; x++ {
 			p := Point{x, y}
-			if w.TileAt(p).Explored {
-				t.Fatalf("tile %v was marked explored with fog of war off", p)
-			}
 			if !w.Explored(p) || !snap.ExploredAt(p) {
 				t.Fatalf("tile %v reads as unexplored with fog of war off", p)
 			}

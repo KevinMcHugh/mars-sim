@@ -16,6 +16,14 @@ type Config struct {
 	ClayRockPercent    int `cfg:"clay-rock-percent" doc:"percent of rock tiles bearing clay"`
 	RockVeinMin        int `cfg:"rock-vein-min" doc:"minimum tiles in a generated rock deposit vein"`
 	RockVeinMax        int `cfg:"rock-vein-max" doc:"maximum tiles in a generated rock deposit vein"`
+	// Natural caverns: pockets of open floor worldgen hollows out of the rock
+	// away from the landing site, hidden until the colony digs into one, and
+	// sometimes joined to a neighbor by a winding passage. See
+	// docs/caverns.md.
+	CavernPercent        int `cfg:"cavern-percent" doc:"percent of the map hollowed into natural caverns"`
+	CavernMin            int `cfg:"cavern-min" doc:"minimum tiles in a natural cavern"`
+	CavernMax            int `cfg:"cavern-max" doc:"maximum tiles in a natural cavern"`
+	CavernPassagePercent int `cfg:"cavern-passage-percent" doc:"chance (percent) that a cavern is joined to its nearest neighbor by a passage"`
 	// FogOfWar hides rock the colony has not dug up to yet: a tile is only
 	// shown once something has changed the terrain within one tile of it. It
 	// costs the simulation nothing (no system reads it) and is a display
@@ -299,33 +307,37 @@ type Config struct {
 // DefaultConfig returns a balanced starting point for a playable scaffold.
 func DefaultConfig() Config {
 	return Config{
-		Width:               80,
-		Height:              40,
-		IronRockPercent:     10,
-		IceRockPercent:      5,
-		UraniumRockPercent:  1,
-		ClayRockPercent:     5,
-		RockVeinMin:         8,
-		RockVeinMax:         24,
-		FogOfWar:            true,
-		Seed:                time.Now().UnixNano(),
-		StartColonists:      6,
-		StartAliens:         3,
-		StartCats:           2,
-		StartMice:           8,
-		StartPistols:        1,
-		StartShotguns:       1,
-		GraveyardSize:       50,
-		TicksPerSecond:      8,
-		LogSize:             64,
-		ColonistHP:          40,
-		MineTicks:           6,
-		BuildTicks:          8,
-		DemolishTicks:       16,
-		FacilityBuildTicks:  12,
-		FleeRadius:          5,
-		ColonistStompRadius: 4,
-		GoreSightRadius:     3,
+		Width:                80,
+		Height:               40,
+		IronRockPercent:      10,
+		IceRockPercent:       5,
+		UraniumRockPercent:   1,
+		ClayRockPercent:      5,
+		RockVeinMin:          8,
+		RockVeinMax:          24,
+		CavernPercent:        4,
+		CavernMin:            15,
+		CavernMax:            60,
+		CavernPassagePercent: 50,
+		FogOfWar:             true,
+		Seed:                 time.Now().UnixNano(),
+		StartColonists:       6,
+		StartAliens:          3,
+		StartCats:            2,
+		StartMice:            8,
+		StartPistols:         1,
+		StartShotguns:        1,
+		GraveyardSize:        50,
+		TicksPerSecond:       8,
+		LogSize:              64,
+		ColonistHP:           40,
+		MineTicks:            6,
+		BuildTicks:           8,
+		DemolishTicks:        16,
+		FacilityBuildTicks:   12,
+		FleeRadius:           5,
+		ColonistStompRadius:  4,
+		GoreSightRadius:      3,
 
 		CleanRadius:           10,
 		CleanTicks:            6,

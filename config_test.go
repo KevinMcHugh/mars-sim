@@ -131,6 +131,22 @@ func TestValidateActiveStimulusLimit(t *testing.T) {
 	}
 }
 
+func TestValidateCaverns(t *testing.T) {
+	for name, alter := range map[string]func(*sim.Config){
+		"cavern-percent":         func(c *sim.Config) { c.CavernPercent = -1 },
+		"cavern-percent ":        func(c *sim.Config) { c.CavernPercent = 101 },
+		"cavern size range":      func(c *sim.Config) { c.CavernMin = 0 },
+		"cavern size range ":     func(c *sim.Config) { c.CavernMin, c.CavernMax = 20, 10 },
+		"cavern-passage-percent": func(c *sim.Config) { c.CavernPassagePercent = 101 },
+	} {
+		cfg := sim.DefaultConfig()
+		alter(&cfg)
+		if err := validateConfig(cfg); err == nil || !strings.Contains(err.Error(), strings.TrimSpace(name)) {
+			t.Fatalf("%s: error = %v, want %s validation", name, err, strings.TrimSpace(name))
+		}
+	}
+}
+
 func TestValidateNeedCriticalThreshold(t *testing.T) {
 	for _, alter := range []func(*sim.NeedSpec){
 		func(spec *sim.NeedSpec) { spec.CriticalAt = spec.SeekAt - 1 },

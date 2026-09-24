@@ -55,7 +55,8 @@ Frontends read through `Snapshot.TerrainAt(p)` (or `Tiles.At(p)`); both return
 alternative frontends can build a standalone grid with `NewTileGrid`.
 
 Terrain totals in `Stats` (`FloorDug`, `Pods`, `Toilets`, `Beds`) come from the
-incremental `terrainCounts` (see
+incremental `terrainCounts` (`FloorDug` less `hiddenFloor`, the undiscovered
+cavern floor — see [caverns.md](./caverns.md)) (see
 [spatial-index-and-performance.md](./spatial-index-and-performance.md)), not
 from walking the published grid — counting by walking would put the map's whole
 area straight back onto every tick.
