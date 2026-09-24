@@ -149,7 +149,11 @@ use is reachable (`facilityReachable`: a communal one via the shared field, or
 its own private one — see [property.md](./property.md)), the
 colonist normally takes a `JobUse` job. With fewer than two facilities of that
 kind — and none of them private — there's nothing to choose between, so it
-just follows that facility's shared **flow field** to the nearest one. Once a second exists, `jobUse`
+just follows that facility's shared **flow field** to the nearest one. The field
+knows terrain but not pending construction, which `followField` refuses to step
+on; when that leaves only an uphill step, the colonist routes by A* instead for
+`fieldDetourTicks`. Without that, construction across the field's route had a
+colonist pacing beside the colony's only toilet for hundreds of ticks. Once a second exists, `jobUse`
 switches to routing at a *concrete* facility instead — see *Spreading users
 across facilities* below — stands adjacent to whichever it ends up at, and
 uses it for `UseTicks`. But if the colony still wants more of that facility

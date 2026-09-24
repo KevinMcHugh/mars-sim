@@ -99,6 +99,24 @@ type Config struct {
 	// always was. See docs/construction.md.
 	ConstructionCosts bool `cfg:"construction-costs" doc:"building consumes materials from the builder's own stock"`
 
+	// Market. Reference prices are the colony charter's price list: what the
+	// colony bids for ore at its silo (paid prospecting) and what a colonist
+	// asks for a surplus meal. 0 means not traded at a reference price. The
+	// colony keeps SiloBidQty units of standing bids per ore; a colonist
+	// keeps MealKeep of its own meals and takes the rest to market; a hungry
+	// colonist pays up to MealWillingness times the meal price. See
+	// docs/market.md.
+	PriceMeal       int64 `cfg:"price-meal" sec:"Market" doc:"reference price of a meal, in dollars"`
+	PriceRawRock    int64 `cfg:"price-raw-rock" doc:"what the colony pays for raw rock at its silo (0: it buys none)"`
+	PriceIronOre    int64 `cfg:"price-iron-ore" doc:"what the colony pays for iron ore at its silo"`
+	PriceWaterIce   int64 `cfg:"price-water-ice" doc:"what the colony pays for water ice at its silo"`
+	PriceUraniumOre int64 `cfg:"price-uranium-ore" doc:"what the colony pays for uranium ore at its silo"`
+	PriceClay       int64 `cfg:"price-clay" doc:"what the colony pays for clay at its silo"`
+	SiloBidQty      int   `cfg:"silo-bid-qty" doc:"units of each ore the colony keeps a standing bid for at its silo"`
+	OrderTTL        int   `cfg:"order-ttl" doc:"ticks a colonist's resting order lives before it expires"`
+	MealKeep        int   `cfg:"meal-keep" doc:"meals a colonist keeps for itself before it takes the rest to market"`
+	MealWillingness int   `cfg:"meal-willingness" doc:"a hungry colonist pays up to this many times the meal price"`
+
 	// Crash pods. Every colonist arrives in one — at worldgen, from the spawn
 	// command, or from a director arrival — carrying its own bunk, toilet, and
 	// locker, and this manifest. See crashpod.go and docs/crash-pods.md.
@@ -382,6 +400,19 @@ func DefaultConfig() Config {
 		ScrapeTicks:       6,
 		MealReserve:       3,
 		ConstructionCosts: false,
+		// The charter's prices: a meal a few hours' pay, uranium dearest
+		// because it costs the miner a dose, raw rock not bought at all — there
+		// is always more, and buying it would drain the treasury on nothing.
+		PriceMeal:       5,
+		PriceRawRock:    0,
+		PriceIronOre:    3,
+		PriceWaterIce:   2,
+		PriceUraniumOre: 6,
+		PriceClay:       2,
+		SiloBidQty:      64,
+		OrderTTL:        2000,
+		MealKeep:        5,
+		MealWillingness: 3,
 		// A meal clears hunger for roughly 325 ticks at the baseline rise, so
 		// ten carry a colonist a few thousand ticks: long enough to settle in,
 		// short enough that food production matters once the safety net is

@@ -36,6 +36,7 @@ func (w *World) step() {
 		w.planRooms()
 		w.nextPlanTick = w.tick + planInterval
 	}
+	w.runMarket()         // expire stale orders; top up the colony's standing bids
 	w.rebuildBuildTiles() // reflect this tick's completions and any new project
 	w.runDirector()       // fire any scripted occurrence whose tick has arrived
 }
@@ -705,7 +706,7 @@ func (w *World) clearJob(e *Entity) {
 		}
 		e.scrape = scrapeGather
 	}
-	e.Job, e.Progress, e.partner = JobNone, 0, 0
+	e.Job, e.Progress, e.partner, e.fieldDetour = JobNone, 0, 0, 0
 	e.useFacility, e.useFacilitySet, e.carrying = Point{}, false, false
 	e.clearPath()
 	if hadJob {
@@ -738,6 +739,8 @@ func (w *World) runJob(e *Entity) {
 		w.jobScrape(e)
 	case JobScavenge:
 		w.jobScavenge(e)
+	case JobSell:
+		w.jobSell(e)
 	default:
 		e.State = Idle
 		w.wanderStep(e)
@@ -922,6 +925,10 @@ func (w *World) assignWorkJob(e *Entity) {
 	if w.foodWanted() && w.tryAssignScrape(e) {
 		return
 	}
+	// Surplus crash-pod meals go to market for someone hungrier to buy.
+	if w.tryAssignSellMeals(e) {
+		return
+	}
 	// Mining: big colonies/maps follow the shared frontier field (claim on
 	// arrival); small ones use cached A* to the nearest claimed tile. Either way
 	// only take a job when unclaimed frontier remains.
@@ -972,7 +979,15 @@ func (w *World) colonyNeedsStorage() bool {
 }
 
 func (w *World) tryAssignStore(e *Entity) bool {
-	target, ok := w.chooseStorage(e, e.Inventory.storableStacks())
+	stacks := e.Inventory.storableStacks()
+	// Unload at the silo when it can take the load: that is where the colony
+	// buys ore, so a miner who unloads there gets paid (see market.go).
+	if silo, ok := w.marketDepot(); ok && w.canUseFixture(e, silo) &&
+		w.taskReachable(silo, w.roomOf(e.Pos)) && w.storageContainers[silo].Inventory.CanAddAll(stacks...) {
+		e.Job, e.Target, e.Progress = JobStore, silo, 0
+		return true
+	}
+	target, ok := w.chooseStorage(e, stacks)
 	if !ok {
 		return false
 	}
@@ -1030,6 +1045,13 @@ func (w *World) jobStore(e *Entity) {
 	e.State = Storing
 	w.log.add(fmt.Sprintf("%s unloads materials into storage at (%d, %d).",
 		e.displayName(), e.Target.X, e.Target.Y))
+	if silo, ok := w.marketDepot(); ok && e.Target == silo {
+		kinds := make([]ItemKind, 0, len(stacks))
+		for _, s := range stacks {
+			kinds = append(kinds, s.Kind)
+		}
+		w.sellAtMarket(e, silo, kinds)
+	}
 	w.clearJob(e)
 }
 
@@ -1274,6 +1296,10 @@ func (w *World) jobBuild(e *Entity) {
 	w.clearJob(e) // endBuild decrements the in-progress counter
 }
 
+// fieldDetourTicks is how long a colonist routes to its facility concretely
+// after the shared field sent it uphill; see jobUse.
+const fieldDetourTicks = 20
+
 func (w *World) jobUse(e *Entity) {
 	spec := w.cfg.Needs[e.Need]
 	if e.carrying {
@@ -1323,12 +1349,28 @@ func (w *World) jobUse(e *Entity) {
 	// Only while every facility of the kind is communal, though: the field leads
 	// only to communal ones, so it would walk a colonist past its own private
 	// bunk toward a shared one.
-	if w.countTerrain(spec.Facility) < 2 && w.restrictedFixtures[spec.Facility] == 0 {
+	//
+	// And only while following it makes progress. The field is computed over
+	// terrain alone, but followField never steps onto a pending build tile,
+	// so when construction goes up across the field's route the only move
+	// left is uphill — and next tick downhill again, into the same wall of
+	// build tiles. A colonist once paced like that for hundreds of ticks
+	// beside the colony's only toilet. An uphill step therefore switches the
+	// colonist to concrete routing (A*, which does route around build tiles)
+	// for fieldDetourTicks.
+	if w.countTerrain(spec.Facility) < 2 && w.restrictedFixtures[spec.Facility] == 0 && e.fieldDetour == 0 {
+		before := field.at(e.Pos)
 		if w.followField(e, field) {
+			if field.at(e.Pos) >= before {
+				e.fieldDetour = fieldDetourTicks
+			}
 			e.stuck = 0
 			e.State = Moving
 			return
 		}
+	}
+	if e.fieldDetour > 0 {
+		e.fieldDetour--
 	}
 	// Route to the facility selected when the need became urgent. The shared field
 	// is still the reachability gate, but routing to a concrete facility prevents

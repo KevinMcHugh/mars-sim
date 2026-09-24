@@ -66,6 +66,12 @@ The TUI exposes contents in two places:
   `up`/`down` or `j`/`k` selects among containers, and the right panel shows the
   selected chest's occupied slots, item count, and capacity.
 
+A blocked colonist unloads at the colony's **silo** — its communal chest nearest
+the map centre — whenever it can, and then offers what it unloaded for sale
+there; the colony's standing bids buy the ore (see [market.md](./market.md)).
+Only when the silo cannot take the load does it use `chooseStorage`'s nearest
+chest.
+
 Colonists deposit only when their inventory blocks further mining; they do not
 continually shuttle every new item. The only withdrawal is a hungry colonist
 taking a meal out (see [food.md](./food.md)).

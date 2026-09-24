@@ -196,6 +196,34 @@ func (c *StorageContainer) debit(owner Owner, kind ItemKind, n int) bool {
 	return false
 }
 
+// moveLine reassigns n of kind from one owner to another inside the container,
+// with nothing moving physically: a sale, or an ask setting goods aside. It
+// refuses to move more than from's line holds.
+func (c *StorageContainer) moveLine(from, to Owner, kind ItemKind, n int) bool {
+	if n <= 0 {
+		return n == 0
+	}
+	if from == to {
+		return c.held(from, kind) >= n
+	}
+	for i := range c.Ledger {
+		l := &c.Ledger[i]
+		if l.Owner != from || l.Item != kind {
+			continue
+		}
+		if l.Count < n {
+			return false
+		}
+		l.Count -= n
+		if l.Count == 0 {
+			c.Ledger = append(c.Ledger[:i], c.Ledger[i+1:]...)
+		}
+		c.credit(to, kind, n)
+		return true
+	}
+	return false
+}
+
 // held returns how many of kind owner holds in this container.
 func (c *StorageContainer) held(owner Owner, kind ItemKind) int {
 	for _, l := range c.Ledger {

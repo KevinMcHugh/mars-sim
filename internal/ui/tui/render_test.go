@@ -717,3 +717,34 @@ func TestScumAndScumhouseAreDrawn(t *testing.T) {
 		t.Fatalf("storage tab does not name the scumhouse:\n%s", out)
 	}
 }
+
+// The treasury's market page shows the books and the latest trades, and a
+// colonist's shows its open orders.
+func TestMarketTabShowsBooksTradesAndOrders(t *testing.T) {
+	snap := makeSnapshot()
+	snap.Entities[0].Profile = &sim.Profile{Name: "Ida Miner"}
+	ida := sim.ColonistOwner(1)
+	silo := sim.Point{X: 3, Y: 2}
+	snap.Economy = sim.EconomyView{
+		Treasury: 900, Escrowed: 96, Issued: 1096, Circulating: 1000,
+		Books:  []sim.BookView{{Item: sim.IronOre, Depot: silo, BestBid: 3, BidQty: 32, Last: 3, Volume: 10, Traded: true}},
+		Trades: []sim.Trade{{Tick: 40, Item: sim.IronOre, Depot: silo, Qty: 10, Price: 3, Buyer: sim.Community, Seller: ida}},
+		Orders: []sim.OrderView{{ID: 7, Side: sim.Ask, Item: sim.Meal, Qty: 2, Price: 5, Actor: ida, Depot: silo}},
+	}
+	var model tea.Model = New(nil, nil)
+	model, _ = model.Update(tea.WindowSizeMsg{Width: 120, Height: 40})
+	model, _ = model.Update(snapshotMsg{snap: snap})
+	for range 4 {
+		model, _ = model.Update(tea.KeyMsg{Type: tea.KeyTab})
+	}
+	out := model.View()
+	for _, want := range []string{"BOOKS", "iron ore (3,2): bid $3×32", "Ida Miner sold the colony 10 iron ore @ $3", "In escrow:"} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("market page missing %q:\n%s", want, out)
+		}
+	}
+	model, _ = model.Update(tea.KeyMsg{Type: tea.KeyDown})
+	if out := model.View(); !strings.Contains(out, "ask 2 meal @ $5 (3,2)") {
+		t.Fatalf("colonist page missing its open order:\n%s", out)
+	}
+}

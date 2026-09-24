@@ -200,20 +200,25 @@ func TestStoringCreditsTheDepositor(t *testing.T) {
 		w.jobStore(e)
 	}
 	me := ColonistOwner(e.ID)
-	if container.held(me, RawRock) != rock || container.held(me, IronOre) != 3 {
+	if container.held(me, RawRock) != rock {
 		t.Fatalf("ledger = %+v", container.Ledger)
 	}
 	if !container.ledgerBalanced() {
 		t.Fatalf("ledger does not match contents: %+v", container.Ledger)
 	}
-	want := []LedgerLine{{Community, Clay, 2}, {me, RawRock, rock}, {me, IronOre, 3}}
-	if len(container.Ledger) != len(want) {
-		t.Fatalf("ledger = %+v, want %+v", container.Ledger, want)
+	// The chest is communal, so it is the colony's silo: unloading there
+	// offers the iron ore for sale at once, and with no bid to meet the ask
+	// rests, holding the ore on the order's own line. Raw rock is not bought
+	// (price-raw-rock 0), so it stays the miner's.
+	if len(container.Ledger) != 3 || container.Ledger[0] != (LedgerLine{Community, Clay, 2}) ||
+		container.Ledger[1] != (LedgerLine{me, RawRock, rock}) {
+		t.Fatalf("ledger = %+v", container.Ledger)
 	}
-	for i := range want {
-		if container.Ledger[i] != want[i] {
-			t.Fatalf("ledger[%d] = %+v, want %+v (lines must sort by owner, then item)", i, container.Ledger[i], want[i])
-		}
+	if l := container.Ledger[2]; l.Owner.Kind != ownerOrder || l.Item != IronOre || l.Count != 3 {
+		t.Fatalf("iron ore not on offer: %+v", l)
+	}
+	if o := w.orders[OrderID(container.Ledger[2].Owner.ID)]; o == nil || o.Actor != me || o.Side != Ask {
+		t.Fatalf("the ask holding the ore is %+v", o)
 	}
 }
 
@@ -236,7 +241,7 @@ func TestLedgerBalancesThroughALongRun(t *testing.T) {
 				t.Fatalf("tick %d: chest %v ledger %+v does not match its contents", w.tick, p, c.Ledger)
 			}
 			for _, l := range c.Ledger {
-				if l.Owner.Kind != OwnerColonist || l.Count <= 0 {
+				if l.Owner.Kind == OwnerNone || l.Count <= 0 {
 					t.Fatalf("tick %d: unexpected ledger line %+v", w.tick, l)
 				}
 			}

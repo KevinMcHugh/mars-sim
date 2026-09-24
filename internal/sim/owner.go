@@ -18,6 +18,11 @@ const (
 	OwnerCommunity
 	// OwnerColonist is one colonist, named by Owner.ID.
 	OwnerColonist
+	// ownerOrder is an open market order holding its own escrow — the money
+	// a bid has put up, or the goods an ask has set aside on a ledger — named
+	// by its OrderID in Owner.ID. Unexported: nothing outside the market
+	// should ever pay one or own through one. See market.go.
+	ownerOrder
 	// TODO: OwnerOrganization — an organization could own property. Undefined
 	// for now; see docs/economy.md.
 )
@@ -52,6 +57,12 @@ func (o Owner) less(p Owner) bool {
 	return o.ID < p.ID
 }
 
+// Order reports whether this owner is an open market order holding goods in
+// escrow, and which one: the "for sale" line of a ledger.
+func (o Owner) Order() (OrderID, bool) {
+	return OrderID(o.ID), o.Kind == ownerOrder
+}
+
 func (o Owner) String() string {
 	switch o.Kind {
 	case OwnerNone:
@@ -60,6 +71,8 @@ func (o Owner) String() string {
 		return "the colony"
 	case OwnerColonist:
 		return fmt.Sprintf("colonist #%d", o.ID)
+	case ownerOrder:
+		return fmt.Sprintf("order #%d", o.ID)
 	default:
 		return "unknown"
 	}

@@ -120,10 +120,40 @@ func (m Model) renderMarketDetail(a marketAccount, rows, width int) string {
 		stat("Fixtures:", fmt.Sprintf("%d owned", n))
 	}
 
+	if orders := m.orderLines(a.owner); len(orders) > 0 {
+		b.WriteString("\n")
+		b.WriteString(labelStyle.Render("OPEN ORDERS"))
+		b.WriteByte('\n')
+		for _, line := range orders {
+			b.WriteString(cells.Truncate(line, inner))
+			b.WriteByte('\n')
+		}
+	}
+
+	if a.colonist == nil {
+		// The treasury's page is the market's: every book and the latest
+		// trades.
+		b.WriteString("\n")
+		b.WriteString(labelStyle.Render("BOOKS"))
+		b.WriteByte('\n')
+		for _, line := range m.bookLines() {
+			b.WriteString(cells.Truncate(line, inner))
+			b.WriteByte('\n')
+		}
+		b.WriteString("\n")
+		b.WriteString(labelStyle.Render("RECENT TRADES"))
+		b.WriteByte('\n')
+		for _, line := range m.tradeLines(8) {
+			b.WriteString(cells.Truncate(line, inner))
+			b.WriteByte('\n')
+		}
+	}
+
 	b.WriteString("\n")
 	b.WriteString(labelStyle.Render("MONEY SUPPLY"))
 	b.WriteByte('\n')
 	stat("Circulating:", econ.Circulating.String())
+	stat("In escrow:", econ.Escrowed.String()+" (held by open bids)")
 	stat("Frozen:", econ.Frozen.String()+" (held by the dead)")
 	stat("Issued:", econ.Issued.String())
 	return sidebarStyle.Width(width - borderCells).Height(rows - borderCells).MaxHeight(rows).Render(b.String())
@@ -170,6 +200,14 @@ func (m Model) fixturesOwnedBy(owner sim.Owner) int {
 // ownerLabel names an owner for display: a colonist by name (living or dead),
 // the colony, or nobody.
 func (m Model) ownerLabel(o sim.Owner) string {
+	if id, ok := o.Order(); ok {
+		for _, ord := range m.latest.Economy.Orders {
+			if ord.ID == id {
+				return "for sale by " + m.ownerLabel(ord.Actor)
+			}
+		}
+		return "for sale"
+	}
 	switch o.Kind {
 	case sim.OwnerCommunity:
 		return "the colony"
@@ -184,4 +222,57 @@ func (m Model) ownerLabel(o sim.Owner) string {
 		}
 	}
 	return o.String()
+}
+
+// orderLines lists owner's open orders, oldest first.
+func (m Model) orderLines(owner sim.Owner) []string {
+	var out []string
+	for _, o := range m.latest.Economy.Orders {
+		if o.Actor == owner {
+			out = append(out, fmt.Sprintf("%s %d %s @ %v (%d,%d)", o.Side, o.Qty, o.Item, o.Price, o.Depot.X, o.Depot.Y))
+		}
+	}
+	return out
+}
+
+// bookLines summarizes every book: best bid and ask with depth, and the last
+// price.
+func (m Model) bookLines() []string {
+	var out []string
+	side := func(p sim.Money, q int) string {
+		if q == 0 {
+			return "—"
+		}
+		return fmt.Sprintf("%v×%d", p, q)
+	}
+	for _, b := range m.latest.Economy.Books {
+		if b.BidQty == 0 && b.AskQty == 0 && !b.Traded {
+			continue
+		}
+		last := "never traded"
+		if b.Traded {
+			last = fmt.Sprintf("last %v, %d traded", b.Last, b.Volume)
+		}
+		out = append(out, fmt.Sprintf("%s (%d,%d): bid %s  ask %s  · %s", b.Item, b.Depot.X, b.Depot.Y,
+			side(b.BestBid, b.BidQty), side(b.BestAsk, b.AskQty), last))
+	}
+	if len(out) == 0 {
+		return []string{"no orders yet"}
+	}
+	return out
+}
+
+// tradeLines lists the most recent trades, newest first.
+func (m Model) tradeLines(n int) []string {
+	trades := m.latest.Economy.Trades
+	var out []string
+	for i := len(trades) - 1; i >= 0 && len(out) < n; i-- {
+		t := trades[i]
+		out = append(out, fmt.Sprintf("t%d %s sold %s %d %s @ %v", t.Tick, m.ownerLabel(t.Seller),
+			m.ownerLabel(t.Buyer), t.Qty, t.Item, t.Price))
+	}
+	if len(out) == 0 {
+		return []string{"none yet"}
+	}
+	return out
 }

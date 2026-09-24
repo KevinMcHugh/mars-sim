@@ -137,6 +137,10 @@ var lifeEventAppraisals = [numLifeEventKinds]moodAppraisal{
 	EvtMadeSlurry:   {15, MoodVector{-1, 5, 1}, MoodVector{-5, -2, 0}},
 	EvtScrapedScum:  {12, MoodVector{-1, 4, 0}, MoodVector{-5, -3, 0}},
 	EvtFedScumhouse: {10, MoodVector{-1, 4, 0}, MoodVector{-4, -2, 0}},
+	// Trading is a small errand; buying food you could not otherwise have is
+	// a relief with a little sting in it.
+	EvtWentToMarket: {8, MoodVector{0, 3, 0}, MoodVector{-2, 0, 0}},
+	EvtBoughtMeal:   {12, MoodVector{2, 3, 0}, MoodVector{1, 0, 0}},
 }
 
 func roundedDiv(n, d int) int {

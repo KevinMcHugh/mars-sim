@@ -110,7 +110,9 @@ order deposits arrived in. The one invariant is that, per item kind, the lines
 sum to exactly what the container physically holds (`ledgerBalanced`).
 `credit` must be called in the same step as the physical add; `jobStore` does
 both, crediting the depositing colonist for everything it unloads — so a chest
-is shared, but the ore in it stays the miner's. `debit` is the other half:
+is shared, but the ore in it stays the miner's. `moveLine` reassigns units from one owner's line to another's with nothing
+moving physically — a sale, or an ask setting its goods aside on the order's
+own line (see [market.md](./market.md)). `debit` is the other half:
 it takes items out on one owner's account, the physical items and the ledger
 line together, and refuses to take more than that owner's line holds — so one
 owner can never withdraw another's goods. Eating a meal from a locker is its

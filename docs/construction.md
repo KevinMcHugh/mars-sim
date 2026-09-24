@@ -75,6 +75,11 @@ incinerator, and only once `refuseTotal() > 0` (see
 cavern with a single bunk, and the colony adds more rooms — and, once the
 population justifies it, more of them at once — as it grows.
 
+The planner also builds a storage room when the colony has **no communal
+chest** at all: that chest is its silo, where the market happens (see
+[market.md](./market.md)), and with a locker in every crash pod nothing else
+would ever call for one.
+
 Capacity counts private fixtures too: each settler's crash pod brings its own
 bunk and toilet (see [crash-pods.md](./crash-pods.md)), and `plannedFacilities`
 counts them, so a young colony builds no dormitories and few toilets until its

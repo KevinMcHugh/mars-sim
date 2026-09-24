@@ -154,6 +154,11 @@ func (w *World) runFoodFocus(e *Entity) bool {
 		w.runJob(e)
 		return true
 	}
+	// Nothing of its own or the colony's: buy a meal before settling for gruel.
+	if w.tryBuyMeal(e) && w.tryStartEating(e) {
+		w.runJob(e)
+		return true
+	}
 	if w.podsFeed() {
 		return false
 	}

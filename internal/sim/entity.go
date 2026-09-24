@@ -267,6 +267,7 @@ const (
 	JobCraft            // work a recipe at the workshop at Target
 	JobScrape           // scrape the cave scum at Target, then haul it to a scumhouse
 	JobScavenge         // (rats) eat the body, gore, or scum at Target where it lies
+	JobSell             // take surplus meals from the depot at Target to the silo and offer them
 )
 
 // cleanStage is where a JobClean colonist is in the haul. The job is two legs
@@ -382,6 +383,10 @@ type Entity struct {
 	recipe   int
 	craftFor Owner
 	scrape   scrapeStage
+	sell     sellStage
+	// fieldDetour counts down the ticks a JobUse colonist routes concretely
+	// instead of following the shared field; see jobUse.
+	fieldDetour int
 	// cargo records whose the carried items of each kind are, when they are
 	// not the carrier's own: biomatter gathered as community work is the
 	// colony's until it reaches the scumhouse. The zero Owner means "the

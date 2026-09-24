@@ -133,7 +133,81 @@ type EconomyView struct {
 	Treasury    Money // the community's balance
 	Circulating Money // treasury plus every living colonist's wallet
 	Frozen      Money // locked in dead colonists' wallets
-	Issued      Money // every dollar ever minted
+	Escrowed    Money // held by open bids until they fill or are cancelled
+	Issued      Money // every dollar ever minted: Circulating + Frozen + Escrowed
+
+	// The order book (see docs/market.md): every open order oldest first,
+	// every book that has ever had an order by depot then item, and the
+	// most recent trades, oldest first.
+	Orders []OrderView
+	Books  []BookView
+	Trades []Trade
+	// Silo is the colony's market depot, when it has one.
+	Silo    Point
+	HasSilo bool
+}
+
+// OrderView is an immutable copy of one open order.
+type OrderView struct {
+	ID    OrderID
+	Side  Side
+	Item  ItemKind
+	Qty   int
+	Price Money
+	Actor Owner
+	Depot Point
+}
+
+// BookView summarizes one (item, depot) book: the best price and depth on
+// each side, and what it last traded at.
+type BookView struct {
+	Item             ItemKind
+	Depot            Point
+	BestBid, BestAsk Money
+	BidQty, AskQty   int // units on offer at every price
+	Last             Money
+	Volume           int
+	Traded           bool
+}
+
+// economyView copies the money supply and the order book for a frame.
+func (w *World) economyView() EconomyView {
+	v := EconomyView{
+		Treasury:    w.treasury,
+		Circulating: w.moneyInCirculation(),
+		Frozen:      w.moneyFrozen,
+		Escrowed:    w.moneyEscrowed(),
+		Issued:      w.moneyIssued,
+		Trades:      append([]Trade(nil), w.trades...),
+	}
+	v.Silo, v.HasSilo = w.marketDepot()
+	for _, o := range w.sortedOrders(nil) {
+		v.Orders = append(v.Orders, OrderView{ID: o.ID, Side: o.Side, Item: o.Item, Qty: o.Qty,
+			Price: o.Price, Actor: o.Actor, Depot: o.Depot})
+	}
+	for k, b := range w.books {
+		bv := BookView{Item: k.Item, Depot: k.Depot, Last: b.last, Volume: b.volume, Traded: b.traded}
+		for _, o := range b.bids {
+			bv.BidQty += o.Qty
+		}
+		for _, o := range b.asks {
+			bv.AskQty += o.Qty
+		}
+		if len(b.bids) > 0 {
+			bv.BestBid = b.bids[0].Price
+		}
+		if len(b.asks) > 0 {
+			bv.BestAsk = b.asks[0].Price
+		}
+		v.Books = append(v.Books, bv)
+	}
+	sort.Slice(v.Books, func(i, j int) bool {
+		if v.Books[i].Depot != v.Books[j].Depot {
+			return lessPoint(v.Books[i].Depot, v.Books[j].Depot)
+		}
+		return v.Books[i].Item < v.Books[j].Item
+	})
+	return v
 }
 
 // ScumAt reports how much cave scum a colonist could scrape off p right now.
@@ -416,17 +490,12 @@ func (w *World) snapshot(paused bool, tps int) *Snapshot {
 		Graveyard:            append([]EntityView(nil), w.graveyard...),
 		Deceased:             w.publishedDeceasedColonists(),
 		AlienSpecies:         append([]AlienSpecies(nil), w.alienSpecies...),
-		Economy: EconomyView{
-			Treasury:    w.treasury,
-			Circulating: w.moneyInCirculation(),
-			Frozen:      w.moneyFrozen,
-			Issued:      w.moneyIssued,
-		},
-		AffinityMax:    w.cfg.AffinityMax,
-		MoodMax:        w.cfg.MoodMax,
-		Paused:         paused,
-		TicksPerSecond: tps,
-		FogOfWar:       w.cfg.FogOfWar,
+		Economy:              w.economyView(),
+		AffinityMax:          w.cfg.AffinityMax,
+		MoodMax:              w.cfg.MoodMax,
+		Paused:               paused,
+		TicksPerSecond:       tps,
+		FogOfWar:             w.cfg.FogOfWar,
 	}
 }
 

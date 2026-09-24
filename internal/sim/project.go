@@ -434,6 +434,13 @@ func (w *World) planRooms() {
 		w.planRoom(storageRoom)
 		return
 	}
+	// The colony trades at a communal chest, its silo (see market.go). Crash
+	// pods bring every settler a locker, so nothing else ever calls for a
+	// shared one: without this, a colony would never have a market at all.
+	if _, ok := w.marketDepot(); !ok && w.projectFacilityTasks(Storage) == 0 {
+		w.planRoom(storageRoom)
+		return
+	}
 	if w.plannedFacilities(Bed) < desired {
 		w.planRoom(dormRoom)
 		return

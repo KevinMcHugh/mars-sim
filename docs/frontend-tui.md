@@ -190,8 +190,9 @@ the inspector shows its occupied slots, total capacity, and whose the contents
 are. In market
 (`render_market.go`), the same keys select an account — the colony's treasury
 first, then living colonists richest first — and the inspector shows its
-balance beside the money supply from `Snapshot.Economy` (see
-[money.md](./money.md)). In lore,
+balance, holdings, and open orders beside the money supply from
+`Snapshot.Economy` (see [money.md](./money.md)). The treasury's page is the
+market's: every order book and the latest trades (see [market.md](./market.md)). In lore,
 the same keys select a rolled alien species from `Snapshot.AlienSpecies`;
 the inspector shows its full build and a narrative description.
 

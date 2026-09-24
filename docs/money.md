@@ -39,7 +39,9 @@ their holder the same way. `OwnerNone` can own goods (abandoned property) but
 never money. An organization owner kind is a commented-out TODO.
 
 `account(owner)` resolves an owner to the balance its money lives in: the
-treasury, or a **living** colonist's `wallet`. Anyone else has no account.
+treasury, a **living** colonist's `wallet`, or an open market order's escrow
+(an unexported owner kind, see [market.md](./market.md)). Anyone else has no
+account.
 
 ### The supply
 
@@ -56,7 +58,8 @@ stay on its permanent record (`EntityView.Wallet` in `Snapshot.Deceased`) but
 leave circulation, because nobody can spend them. So the books always balance:
 
 ```
-treasury + Σ living wallets (= moneyInCirculation) + moneyFrozen == moneyIssued
+treasury + Σ living wallets (= moneyInCirculation) + moneyFrozen
+    + moneyEscrowed (held by open bids, see market.md) == moneyIssued
 ```
 
 `TestMoneyIsConserved` checks that on every tick of a colony that is gaining

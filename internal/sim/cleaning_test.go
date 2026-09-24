@@ -259,6 +259,7 @@ func TestColonyPlansATrashRoomForItsRefuse(t *testing.T) {
 			w.SetTerrain(center.Add(-3+i, -3-n), kind)
 		}
 	}
+	w.SetTerrain(center.Add(1, -3), Storage) // a communal chest: the colony's silo
 	w.refreshSpatial()
 
 	w.planRooms()

@@ -27,7 +27,8 @@ else here is still unbuilt.
 | E1 — Property | **Shipped** — [property.md](./property.md) |
 | E2 — Crash pods and meals | **Shipped** — [crash-pods.md](./crash-pods.md), [food.md](./food.md) |
 | E3 — Recipes and slurry | **Shipped** — [scumhouse.md](./scumhouse.md); construction costs in [construction.md](./construction.md) |
-| E4–E8 | Proposed |
+| E4 — Order book | **Shipped** — [market.md](./market.md) |
+| E5–E8 | Proposed |
 
 ## Source
 
@@ -581,7 +582,7 @@ turned off). Notes against the sketch:
 - With construction costs on, builders pay from their own stock and donate it.
   A colonist never claims a task it cannot pay for, so it mines instead.
 
-### E4 — Order book
+### E4 — Order book (shipped)
 
 Goods orders, per-depot books, escrow, matching, settlement, expiry; reference
 prices; standing community ore bids at a silo (paid prospecting); colonists
@@ -590,6 +591,17 @@ Market view with books and trades.
 **Gate:** matching determinism (same orders → same trades regardless of
 insertion into maps), conservation with trades, no double-sale under
 contention.
+Shipped; see [market.md](./market.md). All three gates are tests. Notes:
+
+- Escrow is held by the order itself, as an owner (`ownerOrder`): money in its
+  own account, goods on its own ledger line. Every existing audit covers it.
+- The silo is the colony's communal chest nearest the centre; the planner
+  builds one if there is none, since crash-pod lockers mean nothing else would.
+- Raw rock is not bought by default; ores are.
+- A pre-existing routing bug surfaced: a colonist following the shared field
+  to the only facility of its kind could pace forever beside construction that
+  crossed the field's route. It now switches to A* when the field sends it
+  uphill (see `fieldDetourTicks`).
 
 ### E5 — Labor orders and the colony as buyer
 
