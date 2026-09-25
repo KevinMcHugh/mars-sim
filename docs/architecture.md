@@ -41,7 +41,8 @@ that touches `World`. Its loop (`engine.go`) selects over three things:
 
 Ticks are paced against fixed deadlines, not a `time.Ticker`: a ticker drops
 any tick whose wakeup came late, and macOS routinely wakes timers late to save
-power, which held a `-tps 100` game to about 60. The loop remembers when each
+power, so a ticker's achieved rate sinks to whatever cadence the OS delivers.
+The loop remembers when each
 tick was due (`nextDue`) and runs overdue ones straight away, up to
 `maxTickLag` behind; past that it restarts the schedule from now and simply
 runs flat out.
