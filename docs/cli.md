@@ -85,8 +85,11 @@ one max concurrent project, less than one rest tick, or a trait chance outside
 0–100. Invalid settings are reported to stderr and exit with status 2 before
 the engine starts.
 
-The ticker itself clamps rates to 1–60, and interactive speed changes use the
-same clamp. CLI validation covers values whose bad settings would make world
+The ticker raises rates below 1 to 1, and interactive speed changes use the
+same floor. There is deliberately no upper cap (there used to be one at 60):
+asking for more ticks per second than the machine can simulate just runs the
+sim flat out, because Go's ticker drops ticks a slow receiver misses instead of
+queueing them. CLI validation covers values whose bad settings would make world
 generation or gameplay invalid; if a new tunable has stronger invariants, add
 them to `validateConfig`.
 

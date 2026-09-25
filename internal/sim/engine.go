@@ -15,7 +15,8 @@ type Command interface{ isCommand() }
 // TogglePause pauses or resumes ticking.
 type TogglePause struct{}
 
-// SetTicksPerSecond changes the simulation speed. Values are clamped.
+// SetTicksPerSecond changes the simulation speed. Rates below 1 are raised to 1;
+// there is no upper cap.
 type SetTicksPerSecond struct{ Rate int }
 
 // Spawn injects a new entity of the given kind at a random valid location.
@@ -130,7 +131,7 @@ func (e *Engine) apply(cmd Command) (rateChanged bool) {
 		e.paused = !e.paused
 		e.publish() // reflect the paused flag immediately
 	case SetTicksPerSecond:
-		e.tps = clamp(c.Rate, 1, 60)
+		e.tps = max(c.Rate, 1)
 		e.publish()
 		return true
 	case Spawn:
@@ -202,14 +203,4 @@ func (e *Engine) closeSubs() {
 		close(ch)
 	}
 	e.subs = nil
-}
-
-func clamp(v, lo, hi int) int {
-	if v < lo {
-		return lo
-	}
-	if v > hi {
-		return hi
-	}
-	return v
 }
