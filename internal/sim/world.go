@@ -462,13 +462,19 @@ type World struct {
 	carvedMin Point
 	carvedMax Point
 
-	// Scratch for chooseFacility's per-call BFS, reused across calls via a
-	// generation stamp instead of reallocating (and zeroing) a Width*Height
-	// slice every time a colonist needs a facility. See flowField.seen/gen for
-	// the same trick.
+	// Scratch for chooseFacility's searches (facilitychoice.go), reused across
+	// calls via a generation stamp instead of reallocating (and zeroing) a
+	// Width*Height slice every time a colonist needs a facility. See
+	// flowField.gen for the same trick.
 	facilityCells pagedGrid[flowCell]
 	facilityGen   int32
 	facilityQueue []Point
+	facilityFound []foundFacility
+	// facilityCommitted is committedUsers' count for the current
+	// chooseFacility call (nil until first needed), kept in
+	// facilityCommittedBuf so the map is reused rather than reallocated.
+	facilityCommitted    map[Point]int
+	facilityCommittedBuf map[Point]int
 
 	// Transit scratch for followField's look-through-a-crowd search, shared by
 	// every flow field. It used to be three buffers per field, six fields deep,
