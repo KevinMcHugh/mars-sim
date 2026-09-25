@@ -21,8 +21,12 @@ import (
 	"fmt"
 	"io/fs"
 	"os"
+	"os/signal"
 	"path/filepath"
+	"runtime/pprof"
 	"strings"
+	"sync"
+	"syscall"
 	"time"
 
 	"github.com/kevinmchugh/mars-sim/internal/sim"
@@ -77,6 +81,7 @@ func main() {
 		seed        int64
 		glyphs      string
 		printConfig bool
+		cpuProfile  string
 	)
 	flag.DurationVar(&duration, "duration", 0, "auto-exit after this long (0 = run until quit); handy for smoke tests")
 	flag.BoolVar(&headless, "headless", false, "run without the TUI, printing periodic stats")
@@ -88,6 +93,7 @@ func main() {
 	flag.String("director", directorPath, "director schedule file to read (\"\" to run with no scheduled occurrences)")
 	flag.String("alien-names", alienNamesPath, "alien name pool file to read (\"\" to use the built-in pool)")
 	flag.BoolVar(&printConfig, "print-config", false, "write a commented settings file with every setting at its default, then exit")
+	flag.StringVar(&cpuProfile, "cpuprofile", "", "write a CPU profile of the whole run to this file (read it with go tool pprof)")
 
 	// Simulation config flags, each defaulting to the value the settings file
 	// left in place.
@@ -120,17 +126,30 @@ func main() {
 		os.Exit(2)
 	}
 
+	// Profiling starts before NewEngine so world generation is in the profile
+	// too; on a big map it is a real share of a short run.
+	stopProfile, err := startCPUProfile(cpuProfile)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "mars-sim:", err)
+		os.Exit(2)
+	}
+	defer stopProfile()
+
 	eng := sim.NewEngine(cfg)
 
 	// Subscribe before starting the engine so the very first frame is not missed.
 	snaps := eng.Subscribe()
 
-	ctx, cancel := context.WithCancel(context.Background())
+	// Ctrl+C cancels the context rather than killing the process, so a
+	// headless run returns through the deferred calls above and a -cpuprofile
+	// is flushed rather than left empty. (The TUI reads Ctrl+C as a key and
+	// quits on its own.)
+	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
 	go eng.Run(ctx)
 
 	if headless {
-		runHeadless(snaps, cfg, duration)
+		runHeadless(ctx, snaps, cfg, duration)
 		return
 	}
 
@@ -138,9 +157,35 @@ func main() {
 
 	if err := runTUI(eng, snaps, duration); err != nil {
 		cancel()
+		stopProfile() // os.Exit skips deferred calls
 		fmt.Fprintln(os.Stderr, "mars-sim:", err)
 		os.Exit(1)
 	}
+}
+
+// startCPUProfile begins writing a CPU profile to path, or does nothing if
+// path is empty. The returned stop function flushes and closes the file; it
+// is safe to call more than once.
+func startCPUProfile(path string) (stop func(), err error) {
+	if path == "" {
+		return func() {}, nil
+	}
+	f, err := os.Create(path)
+	if err != nil {
+		return nil, fmt.Errorf("creating CPU profile: %w", err)
+	}
+	if err := pprof.StartCPUProfile(f); err != nil {
+		f.Close()
+		return nil, fmt.Errorf("starting CPU profile: %w", err)
+	}
+	var once sync.Once
+	return func() {
+		once.Do(func() {
+			pprof.StopCPUProfile()
+			f.Close()
+			fmt.Fprintf(os.Stderr, "mars-sim: CPU profile written to %s (go tool pprof -http=: %s)\n", path, path)
+		})
+	}, nil
 }
 
 // bindConfigFlags registers a flag for every tunable in the simulation config,
@@ -504,7 +549,7 @@ func runTUI(eng *sim.Engine, snaps <-chan *sim.Snapshot, duration time.Duration)
 // runHeadless consumes snapshots and logs a stats line roughly once a second,
 // with no terminal UI. Useful for CI, profiling, and eyeballing balance without
 // a TTY. Stops after duration (0 means run until interrupted).
-func runHeadless(snaps <-chan *sim.Snapshot, cfg sim.Config, duration time.Duration) {
+func runHeadless(ctx context.Context, snaps <-chan *sim.Snapshot, cfg sim.Config, duration time.Duration) {
 	var deadline <-chan time.Time
 	if duration > 0 {
 		deadline = time.After(duration)
@@ -531,6 +576,8 @@ func runHeadless(snaps <-chan *sim.Snapshot, cfg sim.Config, duration time.Durat
 					latest.Stats.Incinerators, latest.Stats.Refuse,
 					latest.Stats.Rooms, latest.Stats.FloorDug)
 			}
+		case <-ctx.Done():
+			return
 		case <-deadline:
 			if latest != nil {
 				fmt.Printf("done at tick %d: colonists %d, aliens %d, cats %d, mice %d, pods %d, toilets %d, beds %d, incinerators %d, refuse %d, excavated %d tiles\n",

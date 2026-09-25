@@ -48,6 +48,7 @@ These flags control how the process runs rather than the simulated world:
 | `-seed <int64>` | Select a reproducible world seed. `0` leaves the time-based default seed in place. |
 | `-config <path>` | Read this settings file instead of `mars-sim.yaml` in the working directory. A file named here that does not exist is an error; `-config ""` reads no file at all. |
 | `-director <path>` | Read this director schedule file instead of `director.yaml` in the working directory. A file named here that does not exist is an error; `-director ""` runs with no scheduled occurrences. See [director.md](./director.md). |
+| `-cpuprofile <path>` | Write a CPU profile of the whole run (world generation included) to this file. See [Profiling](#profiling). |
 | `-print-config` | Write a commented settings file with every setting at its default to stdout, then exit. Redirect it to `mars-sim.yaml` to regenerate the committed file. |
 | `-glyphs <mode>` | How to draw map glyphs: `auto` (default) measures each glyph against the terminal at startup and falls back to ASCII if any is painted at an unexpected width; `emoji` skips the probe and trusts the built-in width table; `ascii` forces the fallback set. See [terminal-cell-widths.md](./terminal-cell-widths.md). |
 | `-h`, `-help`, `?` | Print usage, examples, and all available flags. |
@@ -98,6 +99,25 @@ sim flat out, because the engine catches up on late ticks only within
 `maxTickLag` (see [architecture.md](./architecture.md)). CLI validation covers values whose bad settings would make world
 generation or gameplay invalid; if a new tunable has stronger invariants, add
 them to `validateConfig`.
+
+### Profiling
+
+`-cpuprofile cpu.out` records a Go CPU profile from before world generation
+until the process exits, however it exits: `q` in the TUI, `-duration`, or
+Ctrl+C in headless mode. Headless mode catches Ctrl+C (and SIGTERM) and returns
+normally rather than dying on the signal, because a process killed mid-profile
+leaves an empty file. To read the profile:
+
+```sh
+go run . -headless -duration 60s -colonists 100 -tps 1000 -cpuprofile cpu.out
+go tool pprof -http=: cpu.out        # flame graph in the browser
+go tool pprof -top cpu.out           # or a plain table
+```
+
+Profile a real colony at a rate it cannot keep up with, so the engine is busy
+the whole run rather than sleeping between ticks. The Perf tab's `step %` says
+whether to look under `World.step` (the simulation) or under `publish` (the
+snapshot); see [perf-screen.md](./perf-screen.md).
 
 ## Why it is this way
 
