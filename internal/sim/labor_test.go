@@ -154,23 +154,31 @@ func TestPaidToiletsChargeTheirUsers(t *testing.T) {
 	}
 }
 
-// The colony pays a bounty for biomatter brought to its scumhouse.
-func TestBiomatterDeliveriesEarnTheBounty(t *testing.T) {
+// The colony keeps standing bids for biomatter at its scumhouse, and a
+// colonist delivering its own scum sells into them on arrival.
+func TestTheColonyBuysBiomatterAtItsScumhouse(t *testing.T) {
 	w, house := scumhouseWorld(t, false)
 	w.tick = marketInterval
 	w.runMarket()
-	if w.workEscrowed() != Money(w.cfg.BountyPay)*Money(w.cfg.BountyUnits) {
-		t.Fatalf("bounty escrow %v", w.workEscrowed())
+	for _, k := range biomatterKinds {
+		if got := w.openQty(Bid, k, house, Community); got != w.cfg.ScumhouseBidQty {
+			t.Fatalf("colony bids for %d %s, want %d", got, k, w.cfg.ScumhouseBidQty)
+		}
 	}
 	s := w.spawn(Colonist, Point{12, 12})
-	start := s.wallet
+	start, treasury := s.wallet, w.treasury+w.moneyEscrowed()
 	s.Inventory.Add(CaveScum, 3)
-	s.cargo[CaveScum] = Community
 	if !w.deliverBiomatter(s, w.storageContainers[house]) {
 		t.Fatal("delivery refused")
 	}
-	if s.wallet != start+3*Money(w.cfg.BountyPay) {
-		t.Fatalf("paid %v for 3 units", s.wallet-start)
+	if want := start + 3*Money(w.cfg.PriceCaveScum); s.wallet != want {
+		t.Fatalf("scraper has %v after selling 3 scum, want %v", s.wallet, want)
+	}
+	if got := w.storageContainers[house].held(Community, CaveScum); got != 3 {
+		t.Fatalf("colony owns %d scum at the scumhouse, want 3", got)
+	}
+	if w.treasury+w.moneyEscrowed() != treasury-3*Money(w.cfg.PriceCaveScum) {
+		t.Fatal("the colony did not pay for the scum")
 	}
 	assertMoneyConserved(t, w)
 }

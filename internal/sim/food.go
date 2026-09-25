@@ -4,11 +4,10 @@ package sim
 //
 // Food is an item now. A hungry colonist eats, in order: a meal it is carrying,
 // a meal of its own in a depot it can reach (its crash pod's locker, to begin
-// with), a meal the colony owns in a depot it can reach (anything the community
-// owns, everyone may use), and only then the safety net — a nutrient pod, which
-// makes gruel out of nothing while infinite-food is on and serves nothing when
-// it is off. The first three are JobEat; the last is the old JobUse at a pod.
-// See docs/food.md.
+// with), a meal it buys — the colony's scumhouse sells what it cooks — and
+// only then the safety net: a nutrient pod, which makes gruel out of nothing
+// while infinite-food is on and serves nothing when it is off. The first
+// three are JobEat; the last is the old JobUse at a pod. See docs/food.md.
 
 // eatStage is where a JobEat colonist is. In eatMeal the meal is in hand —
 // out of the inventory and the depot both — so clearJob puts it back in the
@@ -44,15 +43,14 @@ func (w *World) tryStartEating(e *Entity) bool {
 	return true
 }
 
-// mealOwners lists, in preference order, whose meals e may take: its own
-// first, then the colony's.
-func mealOwners(e *Entity) [2]Owner {
-	return [2]Owner{ColonistOwner(e.ID), Community}
+// mealOwners lists whose meals e may take: only its own. The colony's meals
+// are for sale, not for the taking (see refreshColonyMealAsks).
+func mealOwners(e *Entity) [1]Owner {
+	return [1]Owner{ColonistOwner(e.ID)}
 }
 
 // nearestMealDepot finds the depot e should fetch a meal from: the nearest
-// reachable one holding a meal of e's own, or failing that the nearest holding
-// one of the colony's. Distance is straight-line, ties by position, the same
+// reachable one holding a meal of e's own. Distance is straight-line, ties by position, the same
 // rule chooseStorage uses, so the choice never depends on map order.
 func (w *World) nearestMealDepot(e *Entity) (Point, bool) {
 	room := w.roomOf(e.Pos)

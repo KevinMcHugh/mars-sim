@@ -39,7 +39,7 @@ way it is without re-deriving it from the source each time.
 | [storage.md](./storage.md) | Placeable storage containers, their capacity, construction, and snapshot state. |
 | [affect.md](./affect.md) | Charge/grip/valence affect, the impact-weighted push/pull blend, fresh/worn wear, event appraisal, trait transforms, decay, labels, and focus contributions. |
 | [economy.md](./economy.md) | **Proposal.** Scarcity and economy: property and owners, crash-pod arrivals, dollars, recipes and slurry, the bid/ask book for goods and labor, and the phased build plan. |
-| [labor.md](./labor.md) | Work orders: the colony buying its public works from the treasury, commissions and houses, paid (pay-per-use) fixtures, and the biomatter bounty. Economy phase E5. |
+| [labor.md](./labor.md) | Work orders: the colony buying its public works from the treasury, commissions and houses, paid (pay-per-use) fixtures, and the colony's cook. Economy phase E5. |
 | [hauling.md](./hauling.md) | Moving goods between depots: arbitrage on a colonist's own account, hauling for hire, the colony keeping meals at its silo, selling back what it bought, and building public works from its own stock. Economy phase E7. |
 | [valuation.md](./valuation.md) | Prices that trades move, hungry colonists' bids, and the producer planner: filling bids at a profit and bidding for the inputs, so demand reaches down the recipe chain. The `-econ-trace` tuning harness. Economy phase E6. |
 | [market.md](./market.md) | The order book: bids and asks at a depot, price-time matching, escrow, the colony's silo and paid prospecting, and buying and selling meals. Economy phase E4. |

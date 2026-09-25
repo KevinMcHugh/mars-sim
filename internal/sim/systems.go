@@ -705,7 +705,7 @@ func (w *World) clearJob(e *Entity) {
 			delete(w.scumClaims, e.Target)
 		}
 		e.scrape = scrapeGather
-		e.scrapeFor, e.scrapeQty = Owner{}, 0
+		e.scrapeFor, e.scrapeQty, e.scrapeKeep = Owner{}, 0, false
 	case JobCarry:
 		if w.haulClaims[e.carryWork] == e.ID {
 			delete(w.haulClaims, e.carryWork)
@@ -930,7 +930,7 @@ func (w *World) assignWorkJob(e *Entity) {
 	if w.tryAssignClean(e) {
 		return
 	}
-	if w.foodWanted() && w.tryAssignScrape(e) {
+	if w.foodWanted() && w.tryAssignScrape(e, false) {
 		return
 	}
 	// Surplus crash-pod meals go to market for someone hungrier to buy.

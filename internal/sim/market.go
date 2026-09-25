@@ -381,8 +381,9 @@ func (w *World) runMarket() {
 	w.prunePlans()
 	w.refreshColonyBids()
 	w.refreshColonyAsks()
+	w.refreshBiomatterBids()
 	w.refreshSiloStock()
-	w.refreshBiomatterBounty()
+	w.refreshColonyMealAsks()
 }
 
 // refreshColonyBids keeps the colony's standing bids for ore at the silo
@@ -438,34 +439,51 @@ func (w *World) sellAtMarket(e *Entity, p Point, kinds []ItemKind) {
 	}
 }
 
-// tryBuyMeal buys a hungry colonist one meal at the silo, if one is on offer
-// at a price it will pay (mealBidLimit). The meal is then its own, at the
-// silo, and the ordinary eating job fetches it. If nothing fills, the bid
-// rests for demand-ttl ticks — at most one per colonist — as a standing sign
-// that someone wants a meal, which is what a producer's planner answers (see
+// tryBuyMeal buys a hungry colonist one meal, if one is on offer at a price
+// it will pay (mealBidLimit) at a depot it can reach and use: the silo, or a
+// scumhouse selling what it cooks. Cheapest wins, then nearest, then
+// position. The meal is then its own, where it bought it, and the ordinary
+// eating job fetches it. If nothing fills, a bid rests at the silo for
+// demand-ttl ticks — at most one per colonist — as a standing sign that
+// someone wants a meal, which is what a producer's planner answers (see
 // producer.go). A later fill leaves the meal at the silo in its name.
 func (w *World) tryBuyMeal(e *Entity) bool {
-	silo, ok := w.marketDepot()
-	if !ok || !w.canUseFixture(e, silo) || !w.taskReachable(silo, w.roomOf(e.Pos)) {
-		return false
-	}
 	me := ColonistOwner(e.ID)
 	limit := w.mealBidLimit(e)
-	if limit <= 0 || w.openQty(Bid, Meal, silo, me) > 0 {
+	if limit <= 0 {
 		return false
 	}
-	if ask, ok := w.bestAsk(Meal, silo); ok && ask.Actor != me && ask.Price <= limit {
-		price := ask.Price
-		o, filled := w.post(Bid, Meal, 1, price, me, silo, 0)
+	room := w.roomOf(e.Pos)
+	silo, hasSilo := w.marketDepot()
+	depots := w.scumhousesSorted()
+	if hasSilo {
+		depots = append(depots, silo)
+	}
+	var best *Order
+	for _, p := range depots {
+		ask, ok := w.bestAsk(Meal, p)
+		if !ok || ask.Actor == me || ask.Price > limit || !w.canUseFixture(e, p) || !w.taskReachable(p, room) {
+			continue
+		}
+		if best == nil || ask.Price < best.Price || (ask.Price == best.Price &&
+			(e.Pos.Chebyshev(p) < e.Pos.Chebyshev(best.Depot) ||
+				(e.Pos.Chebyshev(p) == e.Pos.Chebyshev(best.Depot) && lessPoint(p, best.Depot)))) {
+			best = ask
+		}
+	}
+	if best != nil {
+		price, at := best.Price, best.Depot
+		o, filled := w.post(Bid, Meal, 1, price, me, at, 0)
 		if o != nil && o.Qty > 0 {
-			w.cancel(o)
+			w.cancel(o) // buy now or not at all
 		}
 		if filled > 0 {
-			w.remember(e, event(EvtBoughtMeal, "Bought a meal at market for %v.", price))
+			w.remember(e, event(EvtBoughtMeal, "Bought a meal for %v.", price))
 			return true
 		}
 	}
-	if w.cfg.DemandTTL > 0 {
+	if w.cfg.DemandTTL > 0 && hasSilo && w.canUseFixture(e, silo) && w.taskReachable(silo, room) &&
+		w.openQty(Bid, Meal, silo, me) == 0 {
 		w.post(Bid, Meal, 1, limit, me, silo, w.cfg.DemandTTL)
 	}
 	return false

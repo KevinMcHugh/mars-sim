@@ -391,6 +391,7 @@ type Entity struct {
 	// carry fields are a JobCarry colonist's errand. See producer.go.
 	scrapeFor  Owner
 	scrapeQty  int
+	scrapeKeep bool // scraping to cook for itself, not to sell
 	plan       planID
 	carry      carryStage
 	carryItem  ItemKind

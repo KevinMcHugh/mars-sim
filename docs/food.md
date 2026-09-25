@@ -38,25 +38,23 @@ first. It tries, in order:
 1. **A meal in the colonist's pockets.** Eat it where it stands.
 2. **A meal of its own in a depot it can reach** — its crash pod's locker, to
    begin with. Walk there, take one out (`debit`), step aside, eat it.
-3. **A meal the colony owns in a depot it can reach.** Anything the community
-   owns, everyone may use (see [property.md](./property.md)). The scumhouse
-   makes these (see [scumhouse.md](./scumhouse.md)).
-4. **A meal bought at market.** The cheapest at the silo, if the colonist can
-   afford it and it costs no more than `meal-willingness` × the meal price
-   (see [market.md](./market.md)). The meal is then the colonist's own, and
-   step 2 fetches it.
-5. **The safety net.** Only if `infinite-food` is on: the old `JobUse` at a
+3. **A meal bought.** The cheapest on offer at the silo or a scumhouse it can
+   reach, up to its `mealBidLimit` (see [valuation.md](./valuation.md)). The
+   colony's scumhouses sell what they cook (see [scumhouse.md](./scumhouse.md)).
+   The meal is then the colonist's own, and step 2 fetches it. A colonist does
+   **not** eat the colony's meals free: those are for sale.
+4. **The safety net.** Only if `infinite-food` is on: the old `JobUse` at a
    nutrient pod, which makes gruel out of nothing.
 
-Steps 1–4 end in `JobEat`, with two stages: `eatFetch` walks to the depot at
+Steps 1–3 end in `JobEat`, with two stages: `eatFetch` walks to the depot at
 `Target`, `eatMeal` eats the meal in hand for the food need's `UseTicks`. A meal
 of the colonist's own is never skipped for the pod, even if the pod is closer —
 `TestColonistsEatTheirOwnMealsBeforeGruel` checks every tick of a 4000-tick run
 that nobody with a meal of its own is queued at a pod.
 
 A colonist never takes another colonist's meal: `takeMeal` only debits the
-colonist's own ledger line or the colony's, and `debit` refuses to take more
-than a line holds.
+colonist's own ledger line, and `debit` refuses to take more than a line
+holds.
 
 ### Gruel
 

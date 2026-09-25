@@ -161,8 +161,20 @@
 ## ticks a hungry colonist's unfilled bid for a meal rests in the book
 # demand-ttl: 300
 
-## reference value of a unit of cave scum until it trades
-# price-cave-scum: 1
+## what the colony pays for a unit of cave scum at its scumhouses
+# price-cave-scum: 2
+
+## what the colony pays for a unit of viscera at its scumhouses
+# price-viscera: 2
+
+## what the colony pays for an animal carcass at its scumhouses
+# price-animal-corpse: 3
+
+## what the colony pays for an alien carcass at its scumhouses
+# price-alien-corpse: 8
+
+## units of each kind of biomatter the colony keeps a standing bid for at each scumhouse
+# scumhouse-bid-qty: 12
 
 # ── Hauling ─────────────────────────────────────────────────────────────
 ## the colony sells the goods it bought, beyond its reserve, at its silo
@@ -190,11 +202,8 @@
 ## what the colony pays to build one fixture (pod, toilet, bed, ...)
 # wage-fixture: 5
 
-## what the colony pays per unit of biomatter delivered to a scumhouse (0 disables)
-# bounty-pay: 1
-
-## units of biomatter bounty the colony keeps open per scumhouse
-# bounty-units: 30
+## what the colony pays a cook each time it works a recipe on the colony's stock
+# wage-cook: 1
 
 ## a colonist with this much money commissions its own house (0 disables)
 # house-savings: 300

@@ -9,8 +9,9 @@ import (
 //
 // Most of what colonists do is work, not goods, so work has its own
 // instrument. A WorkOrder is pay, escrowed from its issuer when it is posted,
-// for a unit of work: raising one build task's tile, or delivering one unit of
-// biomatter to a scumhouse. Whoever does the work is paid when it is done.
+// for a unit of work: raising one build task's tile, or hauling one unit of
+// the issuer's goods between depots. Whoever does the work is paid when it is
+// done.
 //
 // The colony is an issuer like anyone else. The room planner still decides
 // what the colony needs, but it now buys the work: every task of a room it
@@ -22,20 +23,15 @@ import (
 type WorkKind uint8
 
 const (
-	WorkBuild   WorkKind = iota // raise one build task's tile
-	WorkDeliver                 // deliver a unit of biomatter to a scumhouse
-	WorkHaul                    // move a unit of the issuer's goods from one depot to another
+	WorkBuild WorkKind = iota // raise one build task's tile
+	WorkHaul                  // move a unit of the issuer's goods from one depot to another
 )
 
 func (k WorkKind) String() string {
-	switch k {
-	case WorkBuild:
+	if k == WorkBuild {
 		return "build"
-	case WorkDeliver:
-		return "deliver"
-	default:
-		return "haul"
 	}
+	return "haul"
 }
 
 // WorkOrder is pay escrowed for work.
@@ -45,7 +41,7 @@ type WorkOrder struct {
 	Issuer Owner
 	Pay    Money // per unit of work
 	Units  int   // units still to be paid for
-	Pos    Point // WorkBuild: the task's tile. WorkDeliver: the scumhouse. WorkHaul: where to.
+	Pos    Point // WorkBuild: the task's tile. WorkHaul: where to.
 	Posted int
 	// WorkHaul only: the depot the goods come from, and what they are. The
 	// goods stay the issuer's throughout; the hauler's cargo record says so.
@@ -215,47 +211,5 @@ func (w *World) commissionHouses() {
 			w.log.add(fmt.Sprintf("%s commissions a house.", e.displayName()))
 		}
 		return
-	}
-}
-
-// ---- Biomatter bounty ---------------------------------------------------------------
-
-// refreshBiomatterBounty keeps the colony's standing bounty for biomatter at
-// each scumhouse topped up to bounty-units units, at bounty-pay each, as far
-// as the treasury stretches. It pays scrapers and cleaners for what they
-// bring in (deliverBiomatter). Without it — or with the treasury empty —
-// they still do the work: it feeds everyone.
-func (w *World) refreshBiomatterBounty() {
-	pay := Money(w.cfg.BountyPay)
-	if pay <= 0 {
-		return
-	}
-	houses := make([]Point, 0, len(w.facilityTiles[Scumhouse]))
-	for p := range w.facilityTiles[Scumhouse] {
-		houses = append(houses, p)
-	}
-	sort.Slice(houses, func(i, j int) bool { return lessPoint(houses[i], houses[j]) })
-	for _, p := range houses {
-		have := 0
-		for _, o := range w.workOrders {
-			if o.Kind == WorkDeliver && o.Pos == p && o.Issuer == Community {
-				have += o.Units
-			}
-		}
-		want := min(w.cfg.BountyUnits-have, int(w.treasury/pay))
-		if want > 0 {
-			w.postWork(WorkDeliver, Community, pay, want, p)
-		}
-	}
-}
-
-// payBounty pays e for units of biomatter delivered to the scumhouse at p,
-// from the oldest open bounty there, as far as the bounties go.
-func (w *World) payBounty(e *Entity, p Point, units int) {
-	for _, o := range w.sortedWork(func(o *WorkOrder) bool { return o.Kind == WorkDeliver && o.Pos == p }) {
-		for units > 0 && w.workOrders[o.ID] == o {
-			w.payWork(o, e)
-			units--
-		}
 	}
 }

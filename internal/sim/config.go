@@ -117,26 +117,27 @@ type Config struct {
 	MealKeep        int   `cfg:"meal-keep" doc:"meals a colonist keeps for itself before it takes the rest to market"`
 	MealWillingness int   `cfg:"meal-willingness" doc:"a hungry colonist pays up to this many times the meal price"`
 
-	// Labor. The colony pays for its public works: every task of a room it
-	// plans is a work order funded from the treasury at these wages, and a
-	// room it cannot fund is not planned. It also pays BountyPay for each
-	// unit of biomatter delivered to a scumhouse, keeping BountyUnits of
-	// bounty open per scumhouse. A colonist with HouseSavings dollars
-	// commissions its own house (0 disables), whose toilet charges others
-	// ToiletFee a use. See docs/labor.md.
 	// Valuation and the producer planner. A colonist values its own time at
 	// LaborPrice dollars per 100 ticks of work, and takes on a plan only if it
 	// clears PlanMinProfit after inputs and labor. It considers the
 	// PlanCandidates best bids it could fill. A hungry colonist's unfilled bid
 	// for a meal rests for DemandTTL ticks; a plan that has not delivered in
-	// PlanTTL ticks is dropped, its derived bids with it. PriceCaveScum is
-	// scum's reference value until it trades. See docs/valuation.md.
+	// PlanTTL ticks is dropped, its derived bids with it. See
+	// docs/valuation.md.
 	LaborPrice     int64 `cfg:"labor-price" sec:"Valuation" doc:"what a colonist reckons 100 ticks of its own work are worth, in dollars"`
 	PlanMinProfit  int64 `cfg:"plan-min-profit" doc:"the least profit, in dollars, that makes a production plan worth taking on"`
 	PlanCandidates int   `cfg:"plan-candidates" doc:"how many of the best open bids a colonist's producer planner considers"`
 	PlanTTL        int   `cfg:"plan-ttl" doc:"ticks a production plan may take before it is dropped with its derived bids"`
 	DemandTTL      int   `cfg:"demand-ttl" doc:"ticks a hungry colonist's unfilled bid for a meal rests in the book"`
-	PriceCaveScum  int64 `cfg:"price-cave-scum" doc:"reference value of a unit of cave scum until it trades"`
+
+	// The colony buys biomatter at its scumhouses: it keeps ScumhouseBidQty
+	// units of standing bids per kind at each, at these prices, and sells the
+	// meals it cooks at price-meal. See docs/scumhouse.md.
+	PriceCaveScum     int64 `cfg:"price-cave-scum" doc:"what the colony pays for a unit of cave scum at its scumhouses"`
+	PriceViscera      int64 `cfg:"price-viscera" doc:"what the colony pays for a unit of viscera at its scumhouses"`
+	PriceAnimalCorpse int64 `cfg:"price-animal-corpse" doc:"what the colony pays for an animal carcass at its scumhouses"`
+	PriceAlienCorpse  int64 `cfg:"price-alien-corpse" doc:"what the colony pays for an alien carcass at its scumhouses"`
+	ScumhouseBidQty   int   `cfg:"scumhouse-bid-qty" doc:"units of each kind of biomatter the colony keeps a standing bid for at each scumhouse"`
 
 	// Hauling and the colony as seller. With ColonySells, the colony offers
 	// what it bought at its silo beyond ColonyStockReserve units of each good
@@ -149,11 +150,16 @@ type Config struct {
 	SiloMealStock      int   `cfg:"silo-meal-stock" doc:"meals the colony keeps at its silo, hauled in for hire from its scumhouses"`
 	HaulPay            int64 `cfg:"haul-pay" doc:"what the colony pays per unit hauled to its silo"`
 
+	// Labor. The colony pays for its public works: every task of a room it
+	// plans is a work order funded from the treasury at these wages, and a
+	// room it cannot fund is not planned. It pays WageCook each time a cook
+	// works a recipe on the colony's stock. A colonist with HouseSavings
+	// dollars commissions its own house (0 disables), whose toilet charges
+	// others ToiletFee a use. See docs/labor.md.
 	WageDig      int64 `cfg:"wage-dig" sec:"Labor" doc:"what the colony pays to dig out one tile of a room"`
 	WageWall     int64 `cfg:"wage-wall" doc:"what the colony pays to raise one wall"`
 	WageFixture  int64 `cfg:"wage-fixture" doc:"what the colony pays to build one fixture (pod, toilet, bed, ...)"`
-	BountyPay    int64 `cfg:"bounty-pay" doc:"what the colony pays per unit of biomatter delivered to a scumhouse (0 disables)"`
-	BountyUnits  int   `cfg:"bounty-units" doc:"units of biomatter bounty the colony keeps open per scumhouse"`
+	WageCook     int64 `cfg:"wage-cook" doc:"what the colony pays a cook each time it works a recipe on the colony's stock"`
 	HouseSavings int64 `cfg:"house-savings" doc:"a colonist with this much money commissions its own house (0 disables)"`
 	ToiletFee    int64 `cfg:"toilet-fee" doc:"what a house's toilet charges anyone but its owner per use (0: private)"`
 
@@ -473,14 +479,20 @@ func DefaultConfig() Config {
 		PlanCandidates:     4,
 		PlanTTL:            1500,
 		DemandTTL:          300,
-		PriceCaveScum:      1,
-		WageDig:            2,
-		WageWall:           2,
-		WageFixture:        5,
-		BountyPay:          1,
-		BountyUnits:        30,
-		HouseSavings:       300,
-		ToiletFee:          2,
+		// Priced by the meals they make (see recipes): two scum or two
+		// viscera to a $5 meal, so the colony roughly breaks even after the
+		// cook's wage; an alien carcass makes four.
+		PriceCaveScum:     2,
+		PriceViscera:      2,
+		PriceAnimalCorpse: 3,
+		PriceAlienCorpse:  8,
+		ScumhouseBidQty:   12,
+		WageDig:           2,
+		WageWall:          2,
+		WageFixture:       5,
+		WageCook:          1,
+		HouseSavings:      300,
+		ToiletFee:         2,
 		// A meal clears hunger for roughly 325 ticks at the baseline rise, so
 		// ten carry a colonist a few thousand ticks: long enough to settle in,
 		// short enough that food production matters once the safety net is

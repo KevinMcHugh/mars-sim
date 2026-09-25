@@ -213,8 +213,9 @@ func (w *World) jobCleanGather(e *Entity) {
 // gatherRefuse moves as much of a tile's refuse into the colonist's inventory
 // as will fit, taking bodies before stains (a corpse is the more urgent eyesore
 // and the more likely to be what the colonist came for). A colonist's body is
-// only picked up when there is an incinerator to take it to (burn). Biomatter
-// is gathered as community work, so the cargo record marks it the colony's.
+// only picked up when there is an incinerator to take it to (burn). What a
+// cleaner picks up is its own: biomatter it sells to the colony at the
+// scumhouse (see sellBiomatter).
 // A tile it cannot empty in one trip stays claimed-free for the next cleaner.
 func (w *World) gatherRefuse(e *Entity, p Point, burn bool) {
 	corpses, viscera := 0, 0
@@ -225,15 +226,11 @@ func (w *World) gatherRefuse(e *Entity, p Point, burn bool) {
 		for w.corpsesOfAt(p, kind) > 0 && e.Inventory.Add(kind, 1) {
 			w.takeCorpse(p, kind)
 			corpses++
-			if kind.isBiomatter() {
-				e.cargo[kind] = Community
-			}
 		}
 	}
 	for w.goreAt(p) > 0 && e.Inventory.Add(Viscera, 1) {
 		w.takeGore(p)
 		viscera++
-		e.cargo[Viscera] = Community
 	}
 	if corpses+viscera == 0 {
 		return

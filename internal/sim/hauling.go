@@ -172,6 +172,7 @@ func (w *World) refreshSiloStock() {
 		if c == nil || want <= 0 {
 			continue
 		}
+		w.withdrawColonyAsks(Meal, h) // meals on offer are locked in escrow; free them to haul
 		n := min(want, c.held(Community, Meal)-coming[h])
 		if n <= 0 {
 			continue

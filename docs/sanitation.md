@@ -71,12 +71,12 @@ cat swallowing a rat) leave only gore, because the remains were eaten. `shoot`,
 1. **`cleanGather`** — walk to the claimed refuse tile (standing on it or beside
    it both count) and scrub for `CleanTicks`. `gatherRefuse` then moves as much
    of the tile's refuse as fits into the colonist's inventory, bodies (as their
-   own item kinds) before `Viscera`. Biomatter is gathered as community work,
-   so its **cargo record** marks it the colony's (see
-   [property.md](./property.md)).
+   own item kinds) before `Viscera`. What a cleaner picks up is its own.
 2. **`cleanHaul`** — carry the load where it goes (`haulTarget`): to a
    scumhouse that can take all the biomatter carried, if any is carried, and
-   there `deliverBiomatter` puts it in the depot on the colony's account; then,
+   there `deliverBiomatter` puts it in the depot in the cleaner's name and
+   sells it into the colony's standing bids (see
+   [scumhouse.md](./scumhouse.md)); then,
    with whatever is left (a colonist's body, or biomatter no scumhouse had room
    for), to an incinerator, where `IncinerateTicks` later `incinerate` destroys
    the whole load at once.

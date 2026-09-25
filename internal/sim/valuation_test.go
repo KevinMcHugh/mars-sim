@@ -4,12 +4,12 @@ import "testing"
 
 // producerWorld is scumhouseWorld with a silo at (6, 6), cave scum on the rock
 // along the west wall, and n colonists, none of them hungry. The colony makes
-// no food of its own (meal-reserve 0) and pays no bounty, so any food work
-// that happens is somebody filling a bid.
+// no food of its own (meal-reserve 0) and posts no bids for biomatter, so any
+// food work that happens is somebody filling a customer's bid.
 func producerWorld(t *testing.T, n int) (w *World, house, silo Point, cols []*Entity) {
 	t.Helper()
 	w, house = scumhouseWorld(t, false)
-	w.cfg.MealReserve, w.cfg.BountyPay = 0, 0
+	w.cfg.MealReserve, w.cfg.ScumhouseBidQty = 0, 0
 	silo = Point{6, 6}
 	w.SetTerrain(silo, Storage)
 	for y := 5; y <= 15; y++ {

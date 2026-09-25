@@ -110,7 +110,7 @@ func TestHaulersStockTheSilo(t *testing.T) {
 	if !stocked() {
 		t.Fatalf("the silo holds %d of the colony's meals, want 3", w.storageContainers[silo].held(Community, Meal))
 	}
-	if got := c.held(Community, Meal); got != 2 {
+	if got := c.held(Community, Meal) + w.openQty(Ask, Meal, house, Community); got != 2 {
 		t.Fatalf("the scumhouse holds %d of the colony's meals, want the 2 not needed", got)
 	}
 	for _, o := range w.workOrders {

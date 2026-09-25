@@ -50,12 +50,10 @@ things rather than on them, by the kind of thing:
 
 The carrier rule is the default. The exception is a **cargo record**
 (`Entity.cargo`, one owner per item kind): a job that carries someone else's
-goods marks them. Scraping scum and cleaning up biomatter are community work,
-so what they gather is recorded as the colony's, and `deliverBiomatter` credits
-it to the colony when it reaches the scumhouse (see
-[scumhouse.md](./scumhouse.md)). The same record marks goods hauled for hire
-and building materials fetched from the colony's stock (see
-[hauling.md](./hauling.md)). `carriedOwner` reads the record, falling back
+goods marks them: goods hauled for hire, and building materials fetched from
+the colony's stock (see [hauling.md](./hauling.md)). Scum and biomatter are
+gathered on the gatherer's own account and sold to the colony at the
+scumhouse (see [scumhouse.md](./scumhouse.md)). `carriedOwner` reads the record, falling back
 to the carrier, and `jobStore` credits an unloaded stack to it.
 
 ### Fixtures

@@ -3,6 +3,7 @@ package sim
 import (
 	"fmt"
 	"math/rand"
+	"sort"
 )
 
 // ---- Scumhouse ---------------------------------------------------------------
@@ -176,6 +177,11 @@ func (w *World) communityMeals() int {
 	for _, c := range w.storageContainers {
 		n += c.held(Community, Meal)
 	}
+	for _, o := range w.orders {
+		if o.Side == Ask && o.Item == Meal && o.Actor == Community {
+			n += o.Qty // on offer: still the colony's until it sells
+		}
+	}
 	w.communityMealsTick, w.communityMealsCache = w.tick, n
 	return n
 }
@@ -188,14 +194,18 @@ func (w *World) foodWanted() bool {
 }
 
 // tryAssignFoodWork commits e to whichever food job is available: cooking
-// what the scumhouse already holds, then gathering more. force skips the
-// colony's reserve check — a colonist with nothing to eat makes food whatever
-// the stock says, since none of it is reachable to it.
+// what the scumhouse already holds, then gathering more. force is a hungry
+// colonist with nothing to eat and no meal it can buy: it skips the colony's
+// reserve check, cooks only its own scum, and scrapes to keep rather than to
+// sell, so a colonist with no money can still feed itself.
 func (w *World) tryAssignFoodWork(e *Entity, force bool) bool {
-	if !force && !w.foodWanted() {
+	if force {
+		return w.tryAssignCraftFor(e, []Owner{ColonistOwner(e.ID)}) || w.tryAssignScrape(e, true)
+	}
+	if !w.foodWanted() {
 		return false
 	}
-	return w.tryAssignCraft(e) || w.tryAssignScrape(e)
+	return w.tryAssignCraft(e) || w.tryAssignScrape(e, false)
 }
 
 // nearestScumhouse finds the nearest reachable scumhouse e may use that
@@ -233,8 +243,14 @@ func craftable(c *StorageContainer, r Recipe, owner Owner) bool {
 }
 
 // tryAssignCraft sends e to the nearest free scumhouse holding the inputs for
-// a recipe that e may use: its own, or the colony's.
+// a recipe that e may use: its own, or the colony's (paid work).
 func (w *World) tryAssignCraft(e *Entity) bool {
+	return w.tryAssignCraftFor(e, []Owner{ColonistOwner(e.ID), Community})
+}
+
+// tryAssignCraftFor is tryAssignCraft with the inputs' owners to look for, in
+// preference order.
+func (w *World) tryAssignCraftFor(e *Entity, owners []Owner) bool {
 	var recipe int
 	var owner Owner
 	p, ok := w.nearestScumhouse(e, func(c *StorageContainer) bool {
@@ -245,7 +261,7 @@ func (w *World) tryAssignCraft(e *Entity) bool {
 			if r.Facility != c.Terrain {
 				continue
 			}
-			for _, o := range mealOwners(e) {
+			for _, o := range owners {
 				if craftable(c, r, o) {
 					recipe, owner = i, o
 					return true
@@ -293,6 +309,9 @@ func (w *World) jobCraft(e *Entity) {
 		c.credit(e.craftFor, out.Kind, out.Count)
 	}
 	w.remember(e, event(EvtMadeSlurry, "Worked the scumhouse: %s.", r.Name))
+	if e.craftFor == Community && w.cfg.WageCook > 0 {
+		w.transfer(Community, ColonistOwner(e.ID), Money(w.cfg.WageCook)) // as far as the treasury goes
+	}
 	if p := w.plans[e.plan]; p != nil && p.kind == planCraft && p.workshop == e.Target {
 		p.crafted = true
 	}
@@ -303,10 +322,12 @@ func (w *World) jobCraft(e *Entity) {
 // patch's worth.
 func (w *World) scrapeLoad() int { return max(1, w.cfg.ScumMax) }
 
-// tryAssignScrape sends e to scrape scum for the colony: deliver any it is
-// already carrying, or head for the nearest unclaimed exposed patch with scum
-// on it — but only while a reachable scumhouse has room for the load.
-func (w *World) tryAssignScrape(e *Entity) bool {
+// tryAssignScrape sends e to scrape scum: deliver any it is already carrying,
+// or head for the nearest unclaimed exposed patch with scum on it — but only
+// while a reachable scumhouse has room for the load. The scum is e's own; at
+// the scumhouse it sells into the colony's bid, unless keep, when it holds on
+// to it to cook for itself.
+func (w *World) tryAssignScrape(e *Entity, keep bool) bool {
 	load := w.scrapeLoad()
 	house, ok := w.nearestScumhouse(e, func(c *StorageContainer) bool {
 		return c.Inventory.CanAdd(CaveScum, load)
@@ -316,6 +337,7 @@ func (w *World) tryAssignScrape(e *Entity) bool {
 	}
 	if e.Inventory.Has(CaveScum) {
 		e.Job, e.Target, e.scrape, e.Progress = JobScrape, house, scrapeHaul, 0
+		e.scrapeKeep = keep
 		return true
 	}
 	if !e.Inventory.CanAdd(CaveScum, load) {
@@ -327,6 +349,7 @@ func (w *World) tryAssignScrape(e *Entity) bool {
 	}
 	w.scumClaims[patch] = e.ID
 	e.Job, e.Target, e.scrape, e.Progress = JobScrape, patch, scrapeGather, 0
+	e.scrapeKeep = keep
 	return true
 }
 
@@ -402,10 +425,7 @@ func (w *World) jobScrape(e *Entity) {
 	e.Progress = 0
 	if w.takeScum(e.Target) {
 		e.Inventory.Add(CaveScum, 1)
-		e.cargo[CaveScum] = Community // scraped for the colony, not for itself
-		if e.scrapeFor.Kind != OwnerNone {
-			e.cargo[CaveScum] = e.scrapeFor // a plan's: scraped to sell
-		}
+		e.cargo[CaveScum] = e.scrapeFor // the scraper's own unless set
 	}
 }
 
@@ -469,20 +489,27 @@ func biomatterStacks(e *Entity) []ItemStack {
 
 // deliverBiomatter moves every unit of biomatter e carries into c, credited to
 // whoever it is carried for (see carriedOwner). All or nothing, like any
-// deposit.
+// deposit. What was e's own it then sells into the colony's standing bids
+// there (sellBiomatter), unless it is scraping to keep.
 func (w *World) deliverBiomatter(e *Entity, c *StorageContainer) bool {
 	stacks := biomatterStacks(e)
 	if len(stacks) == 0 || !c.Inventory.AddAll(stacks...) {
 		return false
 	}
-	units := 0
+	me := ColonistOwner(e.ID)
+	var mine []ItemStack
 	for _, s := range stacks {
-		c.credit(w.carriedOwner(e, s.Kind), s.Kind, s.Count)
+		owner := w.carriedOwner(e, s.Kind)
+		c.credit(owner, s.Kind, s.Count)
 		e.Inventory.RemoveAll(s.Kind)
 		e.cargo[s.Kind] = Owner{}
-		units += s.Count
+		if owner == me {
+			mine = append(mine, s)
+		}
 	}
-	w.payBounty(e, c.Pos, units) // the colony's bounty, while it lasts
+	if !e.scrapeKeep {
+		w.sellBiomatter(e, c, mine)
+	}
 	w.remember(e, event(EvtFedScumhouse, "Brought %s to the scumhouse.", stackPhrase(stacks)))
 	return true
 }
@@ -511,4 +538,129 @@ func stackPhrase(stacks []ItemStack) string {
 		out += fmt.Sprintf("%d %s", s.Count, s.Kind)
 	}
 	return out
+}
+
+// ---- The colony's scumhouse trade --------------------------------------------------
+//
+// The colony runs its scumhouses as a business: it buys biomatter at a
+// standing bid, pays a cook to work it, and sells the meals. Nothing it cooks
+// is free for the taking. See docs/scumhouse.md.
+
+// biomatterPrice is what the colony pays for a unit of k at its scumhouses; 0
+// for anything that is not biomatter, or that it does not buy.
+func (w *World) biomatterPrice(k ItemKind) Money {
+	switch k {
+	case CaveScum:
+		return Money(w.cfg.PriceCaveScum)
+	case Viscera:
+		return Money(w.cfg.PriceViscera)
+	case AnimalCorpse:
+		return Money(w.cfg.PriceAnimalCorpse)
+	case AlienCorpse:
+		return Money(w.cfg.PriceAlienCorpse)
+	default:
+		return 0
+	}
+}
+
+// biomatterKinds are the goods the colony bids for at its scumhouses.
+var biomatterKinds = [...]ItemKind{CaveScum, Viscera, AnimalCorpse, AlienCorpse}
+
+// scumhousesSorted lists every scumhouse by position.
+func (w *World) scumhousesSorted() []Point {
+	out := make([]Point, 0, len(w.facilityTiles[Scumhouse]))
+	for p := range w.facilityTiles[Scumhouse] {
+		out = append(out, p)
+	}
+	sort.Slice(out, func(i, j int) bool { return lessPoint(out[i], out[j]) })
+	return out
+}
+
+// refreshBiomatterBids keeps the colony's standing bids for biomatter at each
+// scumhouse topped up to scumhouse-bid-qty units per kind, at biomatterPrice,
+// as far as the treasury stretches — and only while the depot has room for
+// what it would buy.
+func (w *World) refreshBiomatterBids() {
+	for _, p := range w.scumhousesSorted() {
+		c := w.storageContainers[p]
+		if c == nil {
+			continue
+		}
+		for _, k := range biomatterKinds {
+			price := w.biomatterPrice(k)
+			if price <= 0 {
+				continue
+			}
+			want := w.cfg.ScumhouseBidQty - w.openQty(Bid, k, p, Community)
+			want = min(want, int(w.treasury/price))
+			for want > 0 && !c.Inventory.CanAdd(k, want) {
+				want--
+			}
+			if want > 0 {
+				w.post(Bid, k, want, price, Community, p, 0)
+			}
+		}
+	}
+}
+
+// sellBiomatter offers the biomatter e just delivered, its own, into the best
+// bids at c: the colony's standing bids, or a producer's. Whatever no bid
+// takes rests at the best bid's price for order-ttl; with no bid at all it
+// simply stays e's, in the depot, for e to cook or sell later.
+func (w *World) sellBiomatter(e *Entity, c *StorageContainer, stacks []ItemStack) {
+	me := ColonistOwner(e.ID)
+	for _, s := range stacks {
+		bid, ok := w.bestBid(s.Kind, c.Pos)
+		if !ok || bid.Actor == me {
+			continue
+		}
+		if n := min(s.Count, c.held(me, s.Kind)); n > 0 {
+			w.post(Ask, s.Kind, n, bid.Price, me, c.Pos, w.cfg.OrderTTL)
+		}
+	}
+}
+
+// pendingHaul is how many units of the colony's item open haul orders will
+// take out of the depot at from.
+func (w *World) pendingHaul(item ItemKind, from Point) int {
+	n := 0
+	for _, o := range w.workOrders {
+		if o.Kind == WorkHaul && o.Issuer == Community && o.Item == item && o.From == from {
+			n += o.Units
+		}
+	}
+	return n
+}
+
+// refreshColonyMealAsks offers every meal the colony holds, at each scumhouse
+// and at the silo, at the charter's meal price — less any a haul order is
+// about to take to the silo. This is the scumhouse charging for its meals.
+func (w *World) refreshColonyMealAsks() {
+	price := w.refPrice(Meal)
+	if price <= 0 {
+		return
+	}
+	depots := w.scumhousesSorted()
+	if silo, ok := w.marketDepot(); ok {
+		depots = append(depots, silo)
+	}
+	for _, p := range depots {
+		c := w.storageContainers[p]
+		if c == nil {
+			continue
+		}
+		if spare := c.held(Community, Meal) - w.pendingHaul(Meal, p); spare > 0 {
+			w.post(Ask, Meal, spare, price, Community, p, 0)
+		}
+	}
+}
+
+// withdrawColonyAsks takes the colony's asks for item at p off the book,
+// returning the goods to its ledger line — so they can be hauled.
+func (w *World) withdrawColonyAsks(item ItemKind, p Point) {
+	for _, o := range w.sortedOrders(func(o *Order) bool {
+		return o.Side == Ask && o.Item == item && o.Depot == p && o.Actor == Community
+	}) {
+		w.cancel(o)
+	}
 }

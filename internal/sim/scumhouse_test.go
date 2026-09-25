@@ -49,15 +49,19 @@ func TestDeathsLeaveBodiesOfTheirKind(t *testing.T) {
 	}
 }
 
-// A cleaner takes biomatter to the scumhouse, on the colony's account, and a
-// colonist's body to the incinerator. Nothing a scumhouse could use is burned.
+// A cleaner takes biomatter to the scumhouse and sells it to the colony, and
+// takes a colonist's body to the incinerator. Nothing a scumhouse could use is
+// burned.
 func TestCleanersFeedTheScumhouseAndBurnOnlyTheDead(t *testing.T) {
 	w, house := scumhouseWorld(t, true)
+	w.tick = marketInterval
+	w.runMarket() // the colony's standing bids for biomatter
 	mess := Point{12, 10}
 	w.addCorpse(mess, AlienCorpse)
 	w.addCorpse(mess, ColonistCorpse)
 	w.addGore(mess)
 	cleaner := w.spawn(Colonist, Point{12, 11})
+	purse := cleaner.wallet
 
 	if !w.tryAssignClean(cleaner) {
 		t.Fatal("no cleaning job")
@@ -68,6 +72,9 @@ func TestCleanersFeedTheScumhouseAndBurnOnlyTheDead(t *testing.T) {
 	c := w.storageContainers[house]
 	if c.held(Community, AlienCorpse) != 1 || c.held(Community, Viscera) != 1 {
 		t.Fatalf("scumhouse ledger = %+v, want the colony's alien carcass and viscera", c.Ledger)
+	}
+	if want := purse + w.biomatterPrice(AlienCorpse) + w.biomatterPrice(Viscera); cleaner.wallet != want {
+		t.Fatalf("the cleaner has %v, want %v after selling what it cleaned up", cleaner.wallet, want)
 	}
 	if c.Inventory.Count(ColonistCorpse) != 0 {
 		t.Fatal("a colonist's body went into the scumhouse")
@@ -87,6 +94,8 @@ func TestCleanersFeedTheScumhouseAndBurnOnlyTheDead(t *testing.T) {
 // and leaves colonists' bodies where they lie: nothing else takes those.
 func TestWithoutAnIncineratorColonistsBodiesStay(t *testing.T) {
 	w, house := scumhouseWorld(t, false)
+	w.tick = marketInterval
+	w.runMarket()
 	w.addCorpse(Point{10, 10}, ColonistCorpse)
 	w.addCorpse(Point{14, 10}, AnimalCorpse)
 	cleaner := w.spawn(Colonist, Point{12, 12})
@@ -107,14 +116,15 @@ func TestWithoutAnIncineratorColonistsBodiesStay(t *testing.T) {
 	}
 }
 
-// A cook turns the colony's biomatter into the colony's meals, which anyone
-// may eat.
+// A cook turns the colony's biomatter into the colony's meals, for a wage.
+// The meals are not free: the scumhouse sells them, and a colonist buys one.
 func TestCookingTurnsTheColonysScumIntoItsMeals(t *testing.T) {
 	w, house := scumhouseWorld(t, false)
 	c := w.storageContainers[house]
 	c.Inventory.Add(CaveScum, 2)
 	c.credit(Community, CaveScum, 2)
 	cook := w.spawn(Colonist, Point{12, 10})
+	wage := cook.wallet
 
 	if !w.tryAssignCraft(cook) {
 		t.Fatal("no cooking job")
@@ -129,9 +139,26 @@ func TestCookingTurnsTheColonysScumIntoItsMeals(t *testing.T) {
 	if c.held(Community, CaveScum) != 0 || c.held(Community, Meal) != 1 || !c.ledgerBalanced() {
 		t.Fatalf("scumhouse after cooking: %+v", c.Ledger)
 	}
-	if got, ok := w.nearestMealDepot(other); !ok || got != house {
-		t.Fatal("the colony's meal is not there for anyone to eat")
+	if cook.wallet != wage+Money(w.cfg.WageCook) {
+		t.Fatalf("the cook was paid %v, want %v", cook.wallet-wage, w.cfg.WageCook)
 	}
+	if _, ok := w.nearestMealDepot(other); ok {
+		t.Fatal("the colony's meal is free for the taking")
+	}
+	w.tick = marketInterval
+	w.runMarket()
+	if ask, ok := w.bestAsk(Meal, house); !ok || ask.Actor != Community || ask.Price != w.refPrice(Meal) {
+		t.Fatalf("the scumhouse is not selling its meal: best ask %+v", ask)
+	}
+	other.Needs[NeedFood] = w.cfg.Needs[NeedFood].Max
+	purse := other.wallet
+	if !w.tryBuyMeal(other) || other.wallet != purse-w.refPrice(Meal) {
+		t.Fatalf("a hungry colonist could not buy the meal (paid %v)", purse-other.wallet)
+	}
+	if got, ok := w.nearestMealDepot(other); !ok || got != house {
+		t.Fatal("the meal it bought is not there for it to eat")
+	}
+	assertMoneyConserved(t, w)
 }
 
 // Scum regrows lazily, a unit per ScumRegrowTicks, up to ScumMax.
@@ -184,12 +211,15 @@ func TestExposedScumIndexStaysInStep(t *testing.T) {
 // A scraper brings a patch's scum in for the colony.
 func TestScrapersBringScumInForTheColony(t *testing.T) {
 	w, house := scumhouseWorld(t, false)
+	w.tick = marketInterval
+	w.runMarket()
 	patch := Point{8, 12}
 	w.scum[patch] = scumPatch{amount: w.cfg.ScumMax, since: w.tick}
 	w.refreshScumExposure(patch)
 	s := w.spawn(Colonist, Point{12, 12})
+	purse := s.wallet
 
-	if !w.tryAssignScrape(s) {
+	if !w.tryAssignScrape(s, false) {
 		t.Fatal("no scraping job")
 	}
 	for i := 0; i < 400 && s.Job == JobScrape; i++ {
@@ -200,6 +230,33 @@ func TestScrapersBringScumInForTheColony(t *testing.T) {
 	}
 	if s.Inventory.Has(CaveScum) || s.cargo[CaveScum] != (Owner{}) {
 		t.Fatal("the scraper kept scum, or its cargo record, after delivering")
+	}
+	if want := purse + Money(w.cfg.ScumMax)*Money(w.cfg.PriceCaveScum); s.wallet != want {
+		t.Fatalf("the scraper has %v, want %v after selling its scum", s.wallet, want)
+	}
+}
+
+// A colonist scraping to feed itself keeps what it scrapes, and can cook it.
+func TestAHungryScraperKeepsItsScum(t *testing.T) {
+	w, house := scumhouseWorld(t, false)
+	w.tick = marketInterval
+	w.runMarket()
+	patch := Point{8, 12}
+	w.scum[patch] = scumPatch{amount: w.cfg.ScumMax, since: w.tick}
+	w.refreshScumExposure(patch)
+	s := w.spawn(Colonist, Point{12, 12})
+	if !w.tryAssignFoodWork(s, true) {
+		t.Fatal("no food work for a hungry colonist")
+	}
+	for i := 0; i < 400 && s.Job == JobScrape; i++ {
+		w.jobScrape(s)
+	}
+	me := ColonistOwner(s.ID)
+	if got := w.storageContainers[house].held(me, CaveScum); got != w.cfg.ScumMax {
+		t.Fatalf("the scraper owns %d scum at the scumhouse, want %d", got, w.cfg.ScumMax)
+	}
+	if !w.tryAssignFoodWork(s, true) || s.Job != JobCraft || s.craftFor != me {
+		t.Fatalf("a hungry colonist with its own scum did not cook it (job %v)", s.Job)
 	}
 }
 

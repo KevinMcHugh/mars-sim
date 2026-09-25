@@ -620,8 +620,8 @@ Shipped; see [labor.md](./labor.md). Both gates are tests. Notes:
 - Survival without money comes from unpaid emergency builds and crash pods.
 - Colonists commission a house (bunk + toilet) once they have `house-savings`;
   its toilet is the first paid fixture.
-- The biomatter bounty is a standing work order at each scumhouse; the work
-  happens without it.
+- The biomatter bounty was a standing work order at each scumhouse. It was
+  later replaced by the colony buying biomatter outright (see E7 below).
 - Colonists do not yet choose work by what it pays — that is E6.
 - The silo now takes only what sells, so unsold raw rock never crowds ore out
   of the market; it is general storage only as a last resort.
@@ -664,6 +664,12 @@ built two-depot world rather than a generated seed. Notes:
   reference. Public works (with construction costs on) draw on its stock first.
 - In ordinary play nothing yet buys ore privately, so the colony's asks
   rarely fill. The resale loop needs ore-consuming recipes or E8's scarcity.
+- **The scumhouse charges.** The colony buys biomatter at standing bids at
+  each scumhouse, pays its cook a wage, and sells the meals at `price-meal`;
+  colonists no longer eat the colony's meals free. With the safety net off,
+  reference seeds trade about 150 meals and 500–650 units of scum over 12000
+  ticks with nobody starving. A broke, hungry colonist scrapes to keep and
+  cooks its own. See [scumhouse.md](./scumhouse.md).
 
 ### E8 — Scarcity on
 

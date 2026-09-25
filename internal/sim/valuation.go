@@ -34,16 +34,13 @@ func (w *World) recordPrice(item ItemKind, price Money) {
 }
 
 // referenceValue is what an item is worth before it has ever traded: the
-// charter's price, or for goods the colony does not buy at a reference price,
-// their own setting.
+// charter's price, or for biomatter what the colony pays for it at its
+// scumhouses.
 func (w *World) referenceValue(k ItemKind) Money {
 	if p := w.refPrice(k); p > 0 {
 		return p
 	}
-	if k == CaveScum {
-		return Money(w.cfg.PriceCaveScum)
-	}
-	return 0
+	return w.biomatterPrice(k)
 }
 
 // valueOf is what an item is worth now: its smoothed trade price once it has

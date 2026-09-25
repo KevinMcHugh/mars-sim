@@ -19,8 +19,7 @@ and a toilet it rents out by the use. This is phase **E5** of the
 - [`internal/sim/workorder.go`](../internal/sim/workorder.go) — `WorkOrder`,
   `postWork`, `payWork`, `closeWork`, `cancelWorkOf`; `wageFor`,
   `projectCost`, `fundProject`; `houseRoom`, `fixtureAccess`,
-  `commissionHouses`; the biomatter bounty (`refreshBiomatterBounty`,
-  `payBounty`).
+  `commissionHouses`.
 - [`internal/sim/project.go`](../internal/sim/project.go) — `planRoomFor` and
   `designateRoom`, which fund a room before anything about it is marked out;
   `project.issuer`, `buildTask.order`/`proj`.
@@ -29,17 +28,16 @@ and a toilet it rents out by the use. This is phase **E5** of the
   `finishUse` charges for a paid fixture.
 - [`internal/sim/property.go`](../internal/sim/property.go) — `AccessPaid`,
   `Fixture.Price`, `setFixturePrice`, `chargeForUse`.
-- [`internal/sim/scumhouse.go`](../internal/sim/scumhouse.go) —
-  `deliverBiomatter` pays the bounty.
+- [`internal/sim/scumhouse.go`](../internal/sim/scumhouse.go) — `jobCraft`
+  pays the colony's cook.
 - [`internal/sim/labor_test.go`](../internal/sim/labor_test.go).
 
 ## How it works
 
 ### Work orders
 
-Three kinds exist: `WorkBuild` (a build task's tile), `WorkDeliver` (a unit of
-biomatter to a scumhouse), and `WorkHaul` (a unit of the issuer's goods from
-one depot to another; see [hauling.md](./hauling.md)).
+Two kinds exist: `WorkBuild` (a build task's tile) and `WorkHaul` (a unit of
+the issuer's goods from one depot to another; see [hauling.md](./hauling.md)).
 `postWork(kind, issuer, pay, units, pos)` moves `pay × units` from the issuer
 into the order's own account (the unexported `ownerWork` owner, the same trick
 market orders use — see [market.md](./market.md)), or refuses if the issuer
@@ -92,20 +90,18 @@ through `facilityReachable` and `chooseFacility`. A colonist that can no longer
 pay by the time it is done has had its use anyway — there is no debt to run up
 yet.
 
-### The biomatter bounty
+### Cooking for the colony
 
-The colony keeps `bounty-units` units of `WorkDeliver` bounty open at each
-scumhouse, at `bounty-pay` each, as far as the treasury stretches
-(`refreshBiomatterBounty`, in the market's upkeep). `deliverBiomatter` pays the
-deliverer per unit from the oldest open bounty. Scraping and cleaning still
-happen with no bounty or no money — the colony eats the result — so the bounty
-is income, not the reason the work gets done.
+A cook working a recipe on the colony's stock is paid `wage-cook` per recipe,
+straight from the treasury, as far as it goes. The colony used to pay a
+**bounty** here, a work order per unit of biomatter brought to a scumhouse. It
+now buys biomatter outright with standing bids (see
+[scumhouse.md](./scumhouse.md)), so delivering it is a sale, not work.
 
 | Setting | Default |
 | --- | --- |
 | `wage-dig` / `wage-wall` / `wage-fixture` | 2 / 2 / 5 |
-| `bounty-pay` | 1 |
-| `bounty-units` | 30 |
+| `wage-cook` | 1 per recipe |
 | `house-savings` | 300 (0 disables commissions) |
 | `toilet-fee` | 2 (0 makes a house's toilet private) |
 
@@ -148,4 +144,4 @@ occasional colonist bought itself a house.
 - [construction.md](./construction.md) — rooms, recipes, and the planner.
 - [property.md](./property.md) — owners, access, and paid fixtures.
 - [money.md](./money.md) — accounts and the audit.
-- [scumhouse.md](./scumhouse.md) — biomatter, and where the bounty is earned.
+- [scumhouse.md](./scumhouse.md) — biomatter, which the colony buys, and its cook.

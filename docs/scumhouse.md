@@ -8,9 +8,11 @@ The colony's first food production. A **scumhouse** turns biomatter — cave
 scum scraped off the rock, viscera scrubbed off the floor, and every body but a
 colonist's — into meals of slurry, by a data table of **recipes**. **Cave
 scum** is a biofilm seeded across the rock at worldgen that regrows after it is
-scraped: the renewable base of the food chain. Colonists gather biomatter and
-cook it as community work, so the meals belong to the colony and anyone may eat
-them. This is phase **E3** of the [economy plan](./economy.md), with the
+scraped: the renewable base of the food chain. The colony runs its scumhouses
+as a business: it keeps standing bids for biomatter, so scrapers and cleaners
+sell it what they bring in; it pays a cook to work it; and it **sells** the
+meals. Nothing it cooks is free for the taking. This is phase **E3** of the
+[economy plan](./economy.md), made a trade in E7, with the
 `construction-costs` switch documented in [construction.md](./construction.md).
 
 ## Source
@@ -19,7 +21,10 @@ them. This is phase **E3** of the [economy plan](./economy.md), with the
   `SkillKind`, the `recipes` table; `scumPatch`, `scumAt`, `takeScum`,
   `growScum`, the exposure index; `foodWanted`, `tryAssignFoodWork`,
   `tryAssignCraft`/`jobCraft`, `tryAssignScrape`/`jobScrape`,
-  `deliverBiomatter`, `carriedOwner`.
+  `deliverBiomatter`, `carriedOwner`; the colony's trade (`biomatterPrice`,
+  `refreshBiomatterBids`, `sellBiomatter`, `refreshColonyMealAsks`).
+- [`internal/sim/market.go`](../internal/sim/market.go) — `tryBuyMeal` buys
+  at a scumhouse or the silo.
 - [`internal/sim/cleaning.go`](../internal/sim/cleaning.go) — hauling
   biomatter to the scumhouse (see [sanitation.md](./sanitation.md)).
 - [`internal/sim/project.go`](../internal/sim/project.go) — `scumhouseRoom` and
@@ -96,13 +101,43 @@ asks). While it is, `assignWorkJob` offers, after construction:
    scum on it, scrape a unit per `scrape-ticks` until the patch is bare or the
    load (`scum-max`) is full, and haul it to a scumhouse with room.
 
-A hungry colonist with nothing to eat and no safety net does food work first
-whenever it picks a new job, whatever the reserve says (`hungryWithoutFood`).
+Scum and biomatter gathered this way is **the gatherer's own**.
+`deliverBiomatter` puts it in the depot in its name, then `sellBiomatter`
+offers it into the best bids there, which are normally the colony's. The
+colony then owns it, and a cook working the colony's stock is paid
+`wage-cook` per recipe by the colony (the recipe rule makes the colony own the
+meal).
 
-Scum and biomatter gathered this way is **the colony's**: the scraper's or
-cleaner's cargo record (`Entity.cargo`) says so, and `deliverBiomatter` credits
-it to the community. That is what makes the meals communal — the colony owned
-the inputs.
+A hungry colonist with nothing to eat, no meal it can buy, and no safety net
+does food work first whenever it picks a new job, whatever the reserve says
+(`hungryWithoutFood`). That food work is for itself: it cooks only its own
+scum, and it scrapes **to keep** (`scrapeKeep`) rather than to sell. So a
+colonist with no money can still feed itself.
+
+### The colony's trade
+
+In the market's upkeep, the colony:
+
+- **Buys**: `refreshBiomatterBids` keeps `scumhouse-bid-qty` units of
+  standing bids at each scumhouse for each kind of biomatter, at
+  `biomatterPrice`, as far as the treasury stretches and the depot has room.
+  The prices follow the meals each input makes: two scum or two viscera to a
+  $5 meal, four meals from an alien carcass.
+- **Sells**: `refreshColonyMealAsks` offers every meal the colony holds, at
+  each scumhouse and at the silo, at `price-meal`, less any that a haul order
+  is about to take to the silo. The haul order withdraws the asks it needs
+  first, since goods on offer are locked in escrow.
+
+A hungry colonist buys from whichever reachable depot has the cheapest meal it
+will pay for (`tryBuyMeal`). A meal on offer still counts toward the colony's
+`meal-reserve` (`communityMeals`), so the colony doesn't keep cooking what
+it has on the shelf.
+
+This replaced a delivery bounty (a work order paid per unit brought in, with
+the colony owning the result either way). Buying goods is the plan's own
+instrument for this (see [economy.md](./economy.md)). It makes the colony a
+producer that recovers its costs, and it makes scum an ordinary traded good
+that the producer planner can see.
 
 | Setting | Default |
 | --- | --- |
@@ -111,6 +146,9 @@ the inputs.
 | `scum-regrow-ticks` | 400 |
 | `scrape-ticks` | 6 |
 | `meal-reserve` | 3 per colonist |
+| `price-cave-scum` / `price-viscera` / `price-animal-corpse` / `price-alien-corpse` | 2 / 2 / 3 / 8 |
+| `scumhouse-bid-qty` | 12 per kind per scumhouse |
+| `wage-cook` | 1 per recipe |
 
 ## Why it is this way
 
@@ -123,11 +161,19 @@ the inputs.
   meals each — about 1750 ticks of food — with the safety net off, and requires
   every one alive at tick 8000. With `scum-percent` at 0 the same colony starves
   on schedule. Before changing the scum settings or the recipes, run it.
-- **Community work, community food.** Before the order book (E4) there is no
-  way to pay anyone for scraping, so the scraper works for the colony and the
-  colony owns the result. The recipe rule — inputs' owner owns the outputs —
-  already handles the other case: a colonist who brings its own scum gets its
+- **The scumhouse charges.** At first the colony owned all gathered
+  biomatter and anyone could eat its meals free, which was the only option
+  before there was money. Once there was money, that left the colony spending
+  on everything and earning on nothing, and it hid all food demand from the
+  market. Now the colony buys its inputs, pays its cook, and sells its meals
+  at about cost, so the treasury is not drained by feeding everyone, and a
+  meal has a price a producer can undercut. The recipe rule (inputs' owner
+  owns the outputs) still means a colonist who brings its own scum gets its
   own meals.
+- **Broke is not starving.** Without the scrape-to-keep path, a colonist with
+  no money and no safety net would starve beside a full scumhouse.
+  `TestColonyFeedsItselfWithoutTheSafetyNet` still passes, and
+  `TestAHungryScraperKeepsItsScum` pins the path.
 - **Lazy regrowth, indexed exposure.** Thousands of patches on a big map must
   cost nothing while nobody touches them. Same trick as needs and the mining
   frontier.

@@ -144,7 +144,8 @@ func TestInterruptedMealGoesBackInThePocket(t *testing.T) {
 	}
 }
 
-// A colonist may eat the colony's meals, but never another colonist's.
+// A colonist eats only its own meals: never another colonist's, and not the
+// colony's either — those are for sale (see TestCookingTurnsTheColonysScumIntoItsMeals).
 func TestColonistsEatOnlyMealsTheyMayTake(t *testing.T) {
 	w, e, chest := storageBehaviorWorld(t, true)
 	other := w.spawn(Colonist, Point{12, 12})
@@ -156,13 +157,19 @@ func TestColonistsEatOnlyMealsTheyMayTake(t *testing.T) {
 	}
 	c.Inventory.Add(Meal, 1)
 	c.credit(Community, Meal, 1)
-	if got, ok := w.nearestMealDepot(e); !ok || got != chest {
-		t.Fatal("did not find the colony's meal")
-	}
-	if !w.takeMeal(e, c) || c.held(Community, Meal) != 0 || c.held(ColonistOwner(other.ID), Meal) != 2 {
-		t.Fatalf("took the wrong meal: ledger %+v", c.Ledger)
+	if _, ok := w.nearestMealDepot(e); ok {
+		t.Fatal("found a depot holding only the colony's and someone else's meals")
 	}
 	if w.takeMeal(e, c) {
-		t.Fatal("took another colonist's meal")
+		t.Fatalf("took a meal that was not its own: ledger %+v", c.Ledger)
+	}
+	c.Inventory.Add(Meal, 1)
+	c.credit(ColonistOwner(e.ID), Meal, 1)
+	if got, ok := w.nearestMealDepot(e); !ok || got != chest {
+		t.Fatal("did not find its own meal")
+	}
+	if !w.takeMeal(e, c) || c.held(ColonistOwner(e.ID), Meal) != 0 || c.held(Community, Meal) != 1 ||
+		c.held(ColonistOwner(other.ID), Meal) != 2 {
+		t.Fatalf("took the wrong meal: ledger %+v", c.Ledger)
 	}
 }
