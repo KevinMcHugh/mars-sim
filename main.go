@@ -95,6 +95,11 @@ func main() {
 
 	flag.Usage = usage
 	flag.Parse()
+	if err := checkNoArgs(flag.Args()); err != nil {
+		fmt.Fprintln(os.Stderr, "mars-sim:", err)
+		fmt.Fprintln(os.Stderr, "run with -h for options")
+		os.Exit(2)
+	}
 
 	if printConfig {
 		os.Stdout.Write(sim.ConfigTemplate())
@@ -290,6 +295,19 @@ func loadAlienNamesFile(cfg *sim.Config, path string, given bool) error {
 	}
 	cfg.AlienNames = names
 	return nil
+}
+
+// checkNoArgs rejects anything left over after the flags. Go's flag package
+// stops at the first argument that is not a flag and leaves the rest
+// unparsed, so "mars-sim -- -tps 100" or "mars-sim x -tps 100" used to run at
+// the settings file's rate with no hint that -tps had been dropped. mars-sim
+// takes no positional arguments, so any leftover is a mistake worth stopping
+// for.
+func checkNoArgs(args []string) error {
+	if len(args) == 0 {
+		return nil
+	}
+	return fmt.Errorf("unexpected argument %q: mars-sim takes only flags, and every flag after it was ignored", args[0])
 }
 
 // validateConfig rejects settings that would break world generation or the

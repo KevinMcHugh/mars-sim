@@ -204,6 +204,11 @@ type Snapshot struct {
 	Paused         bool
 	TicksPerSecond int
 
+	// Perf is the engine's recent timing history, oldest first, one sample
+	// per PerfBucket of wall-clock time. It is shared between snapshots and
+	// must not be modified. See docs/perf-screen.md.
+	Perf []PerfSample
+
 	// FogOfWar says whether Tile.Explored is being maintained, so a frontend
 	// knows whether to hide the unexplored map. It is false on a hand-built
 	// Snapshot, which is what makes every tile of one read as explored (see
