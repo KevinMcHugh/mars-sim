@@ -177,6 +177,9 @@ type Snapshot struct {
 	// and drops old entries. Consulted for durable by-ID lookups: a dead
 	// colonist's name, family relations, and frozen inventory all resolve
 	// through this map indefinitely. See docs/combat.md.
+	//
+	// The map is shared by every snapshot published between two deaths, so
+	// it must not be modified.
 	Deceased  map[EntityID]EntityView
 	Log       []string
 	Stats     Stats
@@ -344,7 +347,7 @@ func (w *World) snapshot(paused bool, tps int) *Snapshot {
 		PendingStorageRooms:  w.manualStorageRooms,
 		Storages:             storages,
 		Graveyard:            append([]EntityView(nil), w.graveyard...),
-		Deceased:             cloneDeceased(w.deceasedColonists),
+		Deceased:             w.publishedDeceasedColonists(),
 		AlienSpecies:         append([]AlienSpecies(nil), w.alienSpecies...),
 		AffinityMax:          w.cfg.AffinityMax,
 		MoodMax:              w.cfg.MoodMax,
@@ -354,15 +357,20 @@ func (w *World) snapshot(paused bool, tps int) *Snapshot {
 	}
 }
 
-// cloneDeceased returns a shallow copy of the world's permanent deceased-
-// colonist archive, so a Snapshot never shares a mutable map with the world
-// that produced it (the same reasoning as Graveyard's copy above).
-func cloneDeceased(m map[EntityID]EntityView) map[EntityID]EntityView {
-	out := make(map[EntityID]EntityView, len(m))
-	for id, ev := range m {
-		out[id] = ev
+// publishedDeceasedColonists returns the deceased archive as snapshots
+// publish it: a copy, so a Snapshot never shares the map the world keeps
+// writing to (the same reasoning as Graveyard's copy above), but one copy
+// per death rather than one per frame. Every snapshot between two deaths
+// shares it, which is safe because nothing writes to it after it is made:
+// a death replaces it (World.remove clears it) instead of editing it.
+func (w *World) publishedDeceasedColonists() map[EntityID]EntityView {
+	if w.publishedDeceased == nil {
+		w.publishedDeceased = make(map[EntityID]EntityView, len(w.deceasedColonists))
+		for id, ev := range w.deceasedColonists {
+			w.publishedDeceased[id] = ev
+		}
 	}
-	return out
+	return w.publishedDeceased
 }
 
 // entityView builds a read-only copy of e for display. full additionally

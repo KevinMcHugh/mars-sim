@@ -594,6 +594,12 @@ type World struct {
 	// kill flood), the size of this map is bounded by how many colonists
 	// ever existed, not by combat volume. See docs/combat.md.
 	deceasedColonists map[EntityID]EntityView
+	// publishedDeceased is the copy of deceasedColonists that snapshots
+	// share, or nil when a death has made it stale. Snapshots used to copy
+	// the archive every frame; it only changes when a colonist dies, and the
+	// copy grows with every death, so a long game paid more per tick for the
+	// same data. See publishedDeceasedColonists.
+	publishedDeceased map[EntityID]EntityView
 
 	tick int
 	// alwaysArbitrate is a test-only differential oracle. Production leaves it
@@ -1042,6 +1048,7 @@ func (w *World) remove(id EntityID, cause string) {
 		dead := w.entityView(e, w.cachedKinChildren(), true)
 		dead.Dead, dead.DiedTick, dead.Cause = true, w.tick, cause
 		w.deceasedColonists[id] = dead
+		w.publishedDeceased = nil // the next snapshot publishes a fresh copy
 	}
 	w.occ.set(e.Pos.X, e.Pos.Y, 0)
 	w.kindCounts[e.Kind]--

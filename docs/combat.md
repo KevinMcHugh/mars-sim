@@ -226,7 +226,11 @@ node in the family tree) still meant something to the rest of the colony.
 `World.remove` addresses this with a second, colonist-only record:
 `World.deceasedColonists map[EntityID]EntityView`, written unconditionally
 (not gated by `Config.GraveyardSize`) whenever `e.Kind == Colonist`, and
-never trimmed. `Snapshot.Deceased` exposes a copy of it every frame.
+never trimmed. `Snapshot.Deceased` exposes a copy of it, made once per death
+rather than once per frame (`publishedDeceasedColonists`): every snapshot
+between two deaths shares the same read-only map. Copying it every frame was
+a cost that grew with every death and bought nothing, since the archive only
+changes when a colonist dies.
 
 Two things make a colonist's archived record more complete than a graveyard
 entry: it is built with `entityView(e, w.cachedKinChildren(), true)` (`full`
