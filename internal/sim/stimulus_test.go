@@ -2,12 +2,12 @@ package sim
 
 import "testing"
 
-func TestStimulusCoalescesByKindAndSource(t *testing.T) {
+func TestStimulusCoalescesByRuleAndSource(t *testing.T) {
 	w, c := focusTestColonist(t)
 	w.tick = 10
-	w.remember(c, eventFrom(EvtSawAlien, 7, "Saw alien #7."))
+	rememberTestFrom(w, c, "saw-alien", 7, "Saw alien #7.")
 	w.tick = 11
-	w.remember(c, eventFrom(EvtSawAlien, 7, "Saw alien #7 again."))
+	rememberTestFrom(w, c, "saw-alien", 7, "Saw alien #7 again.")
 	if c.stimulusCount != 1 {
 		t.Fatalf("stimulus count = %d, want 1", c.stimulusCount)
 	}
@@ -15,7 +15,7 @@ func TestStimulusCoalescesByKindAndSource(t *testing.T) {
 		t.Fatalf("expiry = %d, want refreshed %d", got, want)
 	}
 
-	w.remember(c, eventFrom(EvtSawAlien, 8, "Saw alien #8."))
+	rememberTestFrom(w, c, "saw-alien", 8, "Saw alien #8.")
 	if c.stimulusCount != 2 || c.stimuli[1].Source != 8 {
 		t.Fatalf("different source did not remain distinct: %+v", c.stimuli[:c.stimulusCount])
 	}
@@ -23,7 +23,7 @@ func TestStimulusCoalescesByKindAndSource(t *testing.T) {
 
 func TestStimulusExpiresExactlyAtBoundaryWithoutErasingAffectOrMemory(t *testing.T) {
 	w, c := focusTestColonist(t)
-	w.remember(c, eventFrom(EvtSawAlien, 7, "Saw alien #7."))
+	rememberTestFrom(w, c, "saw-alien", 7, "Saw alien #7.")
 	affect, memories := c.affect, len(c.Memories)
 	expires := c.stimuli[0].ExpiresAt
 
@@ -45,22 +45,22 @@ func TestStimulusExpiresExactlyAtBoundaryWithoutErasingAffectOrMemory(t *testing
 func TestStimulusEvictionOrderAndIncomingWeakEvent(t *testing.T) {
 	w, c := focusTestColonist(t)
 	w.cfg.ActiveStimulusLimit = 2
-	c.stimuli[0] = Stimulus{Kind: EvtSawAlien, Source: 9, Salience: 100, ExpiresAt: 20}
-	c.stimuli[1] = Stimulus{Kind: EvtSawGore, Source: 4, Salience: 35, ExpiresAt: 15}
+	c.stimuli[0] = Stimulus{Rule: "saw-alien", Source: 9, Salience: 100, ExpiresAt: 20}
+	c.stimuli[1] = Stimulus{Rule: "saw-gore", Source: 4, Salience: 35, ExpiresAt: 15}
 	c.stimulusCount = 2
 
 	// A weaker incoming event is itself the eviction candidate.
-	if w.addStimulus(c, event(EvtFinishedMining, "done")) {
+	if addTestStimulus(w, c, "finished-mining", 0) {
 		t.Fatal("weaker incoming stimulus displaced a live entry")
 	}
-	if c.stimuli[0].Kind != EvtSawAlien {
+	if c.stimuli[0].Rule != "saw-alien" {
 		t.Fatal("low-salience event hid live alien")
 	}
 
-	if !w.addStimulus(c, eventFrom(EvtWitnessedColonistAttacked, 8, "attack")) {
+	if !addTestStimulus(w, c, "witnessed-colonist-attacked", 8) {
 		t.Fatal("stronger stimulus was not inserted")
 	}
-	if c.stimuli[1].Kind != EvtWitnessedColonistAttacked {
+	if c.stimuli[1].Rule != "witnessed-colonist-attacked" {
 		t.Fatalf("wrong entry evicted: %+v", c.stimuli[:c.stimulusCount])
 	}
 }
@@ -88,11 +88,11 @@ func TestStimulusWeakOrdering(t *testing.T) {
 
 func TestZeroSpecEventRecordsMemoryWithoutStimulus(t *testing.T) {
 	w, c := focusTestColonist(t)
-	w.remember(c, event(EvtSawMouse, "Saw a mouse."))
+	rememberTest(w, c, "saw-mouse", "Saw a mouse.")
 	if c.stimulusCount != 0 {
 		t.Fatalf("zero-spec event created %d stimuli", c.stimulusCount)
 	}
-	if len(c.Memories) != 1 || c.Memories[0].Kind != EvtSawMouse {
+	if len(c.Memories) != 1 || c.Memories[0].Rule != "saw-mouse" {
 		t.Fatal("zero-spec event did not record memory")
 	}
 }
@@ -136,7 +136,7 @@ func BenchmarkStimulusUpdate(b *testing.B) {
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
 		w.tick = i
-		w.addStimulus(c, LifeEvent{Kind: EvtSawAlien, Source: EntityID(i%32 + 1)})
+		addTestStimulus(w, c, "saw-alien", EntityID(i%32+1))
 	}
 }
 
@@ -145,7 +145,7 @@ func BenchmarkStimulusBias(b *testing.B) {
 	w := newWorld(cfg, nil)
 	c := newEntity(1, Colonist, Point{1, 1}, cfg)
 	for i := 0; i < cfg.ActiveStimulusLimit; i++ {
-		c.stimuli[i] = Stimulus{Kind: EvtSawAlien, Source: EntityID(i + 1), Salience: 100, ExpiresAt: 100}
+		c.stimuli[i] = Stimulus{Rule: "saw-alien", Source: EntityID(i + 1), Salience: 100, ExpiresAt: 100}
 	}
 	c.stimulusCount = cfg.ActiveStimulusLimit
 	b.ReportAllocs()

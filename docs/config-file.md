@@ -17,6 +17,10 @@ Settings apply in three layers, each overriding the one before it:
 DefaultConfig()  →  mars-sim.yaml  →  command-line flags
 ```
 
+Cognition rules are a sibling file, not a `cfg` tag:
+`DefaultCognitionConfig()` → `cognition.yaml` → the mirrored focus knobs
+above. See [cognition-config-and-lab.md](./cognition-config-and-lab.md).
+
 ## Source
 
 - [`internal/sim/configfile.go`](../internal/sim/configfile.go) — `Knobs`,

@@ -35,7 +35,7 @@ schedules:
 	if len(s.Occurrences) != 3 {
 		t.Fatalf("got %d occurrences, want 3", len(s.Occurrences))
 	}
-	want := []Occurrence{
+	want := []DirectorOccurrence{
 		{Kind: OccMousePlague, Count: 25},
 		{Kind: OccAlienSwarm, Count: 4},
 		{Kind: OccSupplyDrop, Pistols: 2, Shotguns: 1},
@@ -115,7 +115,7 @@ func TestResolveSchedulesDeterministic(t *testing.T) {
 	schedules := []Schedule{
 		{
 			Name: "a", EarliestTick: 100, LatestTick: 500,
-			Occurrences: []Occurrence{
+			Occurrences: []DirectorOccurrence{
 				{Kind: OccMousePlague, Count: 10},
 				{Kind: OccAlienSwarm, Count: 5},
 				{Kind: OccSupplyDrop, Pistols: 1},
@@ -123,7 +123,7 @@ func TestResolveSchedulesDeterministic(t *testing.T) {
 		},
 		{
 			Name: "b", EarliestTick: 1000, LatestTick: 1000, // a zero-width window
-			Occurrences: []Occurrence{{Kind: OccMousePlague, Count: 3}},
+			Occurrences: []DirectorOccurrence{{Kind: OccMousePlague, Count: 3}},
 		},
 	}
 
@@ -161,7 +161,7 @@ func TestDirectorFiresMousePlague(t *testing.T) {
 	cfg := schedulesTestConfig([]Schedule{
 		{
 			Name: "plague", EarliestTick: 1, LatestTick: 1,
-			Occurrences: []Occurrence{{Kind: OccMousePlague, Count: 15}},
+			Occurrences: []DirectorOccurrence{{Kind: OccMousePlague, Count: 15}},
 		},
 	})
 	w := newTestWorld(t, cfg)
@@ -179,7 +179,7 @@ func TestDirectorFiresAlienSwarm(t *testing.T) {
 	cfg := schedulesTestConfig([]Schedule{
 		{
 			Name: "swarm", EarliestTick: 1, LatestTick: 1,
-			Occurrences: []Occurrence{{Kind: OccAlienSwarm, Count: 6}},
+			Occurrences: []DirectorOccurrence{{Kind: OccAlienSwarm, Count: 6}},
 		},
 	})
 	w := newTestWorld(t, cfg)
@@ -197,7 +197,7 @@ func TestDirectorFiresSupplyDrop(t *testing.T) {
 	cfg := schedulesTestConfig([]Schedule{
 		{
 			Name: "airdrop", EarliestTick: 1, LatestTick: 1,
-			Occurrences: []Occurrence{{Kind: OccSupplyDrop, Pistols: 3, Shotguns: 2}},
+			Occurrences: []DirectorOccurrence{{Kind: OccSupplyDrop, Pistols: 3, Shotguns: 2}},
 		},
 	})
 	w := newTestWorld(t, cfg)
@@ -232,7 +232,7 @@ func TestDirectorFiresExactlyOnceAtResolvedTick(t *testing.T) {
 	cfg := schedulesTestConfig([]Schedule{
 		{
 			Name: "someday", EarliestTick: 5, LatestTick: 5,
-			Occurrences: []Occurrence{{Kind: OccMousePlague, Count: 4}},
+			Occurrences: []DirectorOccurrence{{Kind: OccMousePlague, Count: 4}},
 		},
 	})
 	w := newTestWorld(t, cfg)
@@ -260,7 +260,7 @@ func TestDirectorFiresOneOfSeveralCandidates(t *testing.T) {
 	cfg := schedulesTestConfig([]Schedule{
 		{
 			Name: "one-of", EarliestTick: 1, LatestTick: 1,
-			Occurrences: []Occurrence{
+			Occurrences: []DirectorOccurrence{
 				{Kind: OccMousePlague, Count: 100},
 				{Kind: OccAlienSwarm, Count: 100},
 			},

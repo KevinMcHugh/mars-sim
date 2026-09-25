@@ -89,9 +89,16 @@ Focus arbitration follows the same pattern: `Config.Focuses` is indexed by
 bonuses are top-level focus settings. See
 [`cascading_wsts_architecture.md`](./cascading_wsts_architecture.md).
 
+Perception radii (`flee-radius`, `stomp-radius`, `gore-sight-radius`),
+`mood-wear-per-occasion`, and `mood-friend-affinity` stay in `Config` because
+they are simulation distances or pacing knobs. Reaction vectors, perception
+rules, and trait appraisal are the other file — see
+[cognition-config-and-lab.md](./cognition-config-and-lab.md).
+
 ## Related
 
 - [config-file.md](./config-file.md) — the committed `mars-sim.yaml` layer and the tags behind it.
+- [cognition-config-and-lab.md](./cognition-config-and-lab.md) — `cognition.yaml`, which is not a `cfg` tag.
 - [architecture.md](./architecture.md) — how the config seeds the engine.
 - [needs.md](./needs.md) — the `NeedSpec` table inside `Config`.
 - [entities-and-ai.md](./entities-and-ai.md) — the creature stats these fields tune.

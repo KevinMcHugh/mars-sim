@@ -95,11 +95,11 @@ func (w *World) mutate(e *Entity) {
 	w.giveTrait(e, TraitMutant)
 
 	what := joinAnd(changes)
-	w.remember(e, event(EvtMutated, "The uranium changed them: %s.", what))
+	o := occurrence(e, ActionMutate, nil, e.Pos, "")
+	o.ActorText = fmt.Sprintf("The uranium changed them: %s.", what)
+	o.WitnessText = fmt.Sprintf("Watched %s mutate: %s.", e.displayName(), what)
+	w.emitOccurrence(o)
 	w.log.add(fmt.Sprintf("%s has mutated — %s.", e.displayName(), what))
-	for _, wit := range w.colonistsWithin(e.Pos, w.cfg.FleeRadius, e.ID) {
-		w.remember(wit, event(EvtWitnessedMutation, "Watched %s mutate: %s.", e.displayName(), what))
-	}
 }
 
 // resize grows or shrinks a mutating colonist by MutationStaturePercent of the

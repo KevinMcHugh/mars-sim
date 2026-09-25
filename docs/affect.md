@@ -9,29 +9,38 @@ so far. Charge and grip bias focus arbitration; valence records how that life
 has been going and picks which word the other two display as, without ever
 becoming behavioral state itself.
 
-How hard an event lands is not fixed. Each kind carries an **impact**, which
-decides whether the event nudges affect or relocates it outright, and a pair of
-readings — **fresh** and **worn** — between which a colonist's history with that
-kind of thing picks.
+How hard an event lands is not fixed. Each reaction in
+[`cognition.yaml`](../cognition.yaml) carries an **impact**, which decides
+whether the percept nudges affect or relocates it outright, and a pair of
+readings — **fresh** and **worn** — between which a colonist's history with
+that reaction picks.
 
 ## Source
 
-- [`internal/sim/affect.go`](../internal/sim/affect.go) — appraisals, the push/pull blend, trait transforms, decay, attractors, and labels.
-- [`internal/sim/lifeevents.go`](../internal/sim/lifeevents.go) — event kinds and the temporary per-conversation `Outcome`.
-- [`internal/sim/world.go`](../internal/sim/world.go) — `remember`, the single affect/stimulus/memory ingestion funnel.
-- [`internal/sim/focus.go`](../internal/sim/focus.go) — additive charge/grip focus contributions.
-- [`internal/sim/affect_test.go`](../internal/sim/affect_test.go) — semantic tables, transforms, decay, labels, and behavioral ordering.
+- [`internal/sim/affect.go`](../internal/sim/affect.go) — the push/pull blend,
+  wear-policy registry, grammar-matched trait scales, decay toward
+  `affectHome`, attractors, and labels.
+- [`internal/sim/cognition_config.go`](../internal/sim/cognition_config.go) —
+  reaction `Fresh`/`Worn` pairs, wear-policy IDs, and trait rules.
+- [`internal/sim/world.go`](../internal/sim/world.go) — `rememberPercept`, the
+  single affect/stimulus/memory ingestion funnel.
+- [`internal/sim/focus.go`](../internal/sim/focus.go) — additive charge/grip
+  focus contributions and `affectSettled()`.
+- [`internal/sim/personality.go`](../internal/sim/personality.go) — per-colonist
+  `affectHome` resolved from outlook traits.
+- [`internal/sim/affect_test.go`](../internal/sim/affect_test.go) — semantic
+  tables, wear, baselines, transforms, decay, labels, and behavioral ordering.
 
 ## How it works
 
-### Coordinates and events
+### Coordinates and reactions
 
 Charge is energy behind the next action, grip is felt control, and valence is
 whether life has been going well. All three are clamped to
-`[-MoodMax, MoodMax]`. Each `LifeEventKind` has one `moodAppraisal` in
-`lifeEventAppraisals`: an `Impact` and a `Fresh`/`Worn` pair of targets. `remember` applies it
-once per occurrence before updating stimulus and memory state, so collapsed
-memories still reach the colonist each time.
+`[-MoodMax, MoodMax]`. Each reaction has one appraisal: an `Impact` and a
+`Fresh`/`Worn` pair of targets. `rememberPercept` applies it once per
+occurrence before updating stimulus and memory state, so collapsed memories
+still reach the colonist each time.
 
 A target is both a displacement and a destination — see the blend below —
 which is why the handful of high-impact rows are written at the scale of the
@@ -44,24 +53,25 @@ valence for ordinary work pegged every colonist at the maximum within a few
 hundred ticks, which is the "everyone always reads as fine" failure the axis
 exists to fix. Only what a colonist would count as a good or bad day moves it.
 
-Conversations preserve their existing per-occurrence calculation. `talkMoodDelta`
-and `noteConversation` produce a temporary signed `LifeEvent.Outcome`; the
-funnel converts a positive outcome mostly into grip, a negative outcome into
-lower grip plus raised charge, and either into a quarter as much valence. No
-scalar outcome remains on the entity, and `EvtConversation` is the one row that
-declares an impact but no target, because its target cannot be a table lookup.
+Conversations preserve their existing per-occurrence calculation.
+`talkMoodDelta` and `noteConversation` produce a per-observer contextual
+target on the shared occurrence. The conversation reaction declares an impact
+and uses wear policy `none`, because its target cannot be a table lookup and
+its repetition is already social fatigue.
 
-### Wear: fresh and worn
+### Wear: fresh, worn, and policy
 
-`moodWear` counts how many remembered **occasions** a colonist has of a kind,
-multiplies by `MoodWearPerOccasion`, and caps at 100. `wearTarget` then moves
-that kind's appraisal that far from `Fresh` toward `Worn`.
+`memory-occasions` counts how many remembered **occasions** a colonist has of
+a reaction (`Memory.Rule == reaction.ID`), multiplies by a trait-scaled
+`MoodWearPerOccasion`, and caps at 100. `wearTarget` then moves that
+reaction's appraisal that far from `Fresh` toward `Worn` with integer
+`roundedDiv` interpolation.
 
 Two details carry the design:
 
 - **Occasions, not occurrences.** A run of digs collapses into one memory, and
   collapsing has already decided that run was one memorable thing. Counting
-  each occurrence instead would let a single long shift peg a colonist
+  `Memory.Count` instead would let a single long shift peg a colonist
   permanently, which is the ratchet this has to avoid.
 - **The count comes from the bounded memory log**, so occasions roll off with
   the memories holding them and wear falls again once something stops
@@ -80,10 +90,13 @@ it costs them is the lift the work used to give. The arc matters where it
 should, on the rare and terrible things, whose occasions accumulate slowly and
 roll off in between.
 
-Conversations are exempt. Their vector is already computed per occurrence, and
-`noteConversation`'s social fatigue window is wearing repetition down by the
-time appraisal happens; wearing it again would charge a talkative colonist
-twice for the same talkativeness.
+Conversation does not hard-code an exemption in `applyAffect`. It selects wear
+policy `none`, which returns the contextual target when present and otherwise
+`Fresh`. The registry is the seam for a later relationship-aware conversation
+policy; that policy is not implemented here.
+
+Resilient scales global wear rate to 40. Cowardly scales it to 180. Those
+rules are data in `cognition.yaml`, not a switch in Go.
 
 ### Push, pull, and impact
 
@@ -103,26 +116,45 @@ started. That asymmetry is the point: under pure addition a good enough day
 would soften a killing, and it no longer can, because the killing moves the
 colonist rather than adding to them.
 
-Traits transform vectors in `Trait` declaration order:
+Traits scale impact and the resolved target through grammar-matched
+`trait_rules` in YAML declaration order. The shipped rules preserve the old
+transforms:
 
 | Trait | Appraisal |
 | --- | --- |
-| Tidy | scales gore by 2.2 and doubles incineration grip relief |
-| Industrious | doubles every finished-work vector |
-| Mutant-Lover | reflects mutation grip |
+| Tidy | scales visible gore, witnessed colonist death, witnessed mouse crush, and cleaning refuse by 2.2; doubles incineration grip relief |
+| Industrious | doubles the actor's finished mine/clear/construct/clean/incinerate vectors |
+| Mutant-Lover | reflects mutation grip for doing it or watching it |
 | Introvert | reflects conversation charge |
+| Cowardly | 1.5× impact on visible alien, being bitten, and witnessed gunfight |
+| Extrovert | 1.3× charge and 1.5× valence when the object relation is `friend` and an alien kills or bites that colonist |
 
-These event-time checks are intentionally rare-path `HasTrait` calls. Per-tick
-need/work effects remain resolved at spawn.
+These event-time checks are intentionally rare-path `HasTrait` calls plus a
+short rule walk. Per-tick need/work effects remain resolved at spawn.
+
+### Baselines
+
+A colonist decays toward `affectHome`, not the origin. Outlook traits set
+that home at spawn: Optimist is `{grip: 8, valence: 25}`, Pessimist is
+`{grip: -8, valence: -25}`. Re-resolving traits later updates home without
+overwriting current affect. A new colonist starts at home.
+
+`affectSettled()` is true when charge and grip have reached home. Focus
+caching uses that instead of "are we at the origin?", so an Optimist resting
+at a non-zero home does not re-arbitrate every tick.
+
+Valence still decays toward 0 on its own slower clock. The home valence is a
+resting expectation after events, not a second valence decay target.
 
 ### Decay and focus
 
-At the start of each colonist turn, `approach` moves each axis independently
-toward home `(0, 0, 0)` without overshoot. Defaults decay charge by 2 and grip
-by 1 per turn, so activation settles before felt control. Valence answers to
-hours rather than minutes, so it gives up one point every `MoodValenceDecayTicks`
-ticks instead of points every turn; the period counts world ticks rather than
-per-colonist turns, which keeps a seeded run reproducible.
+At the start of each colonist turn, `approach` moves charge and grip
+independently toward `affectHome` without overshoot. Defaults decay charge by
+2 and grip by 1 per turn, so activation settles before felt control. Valence
+answers to hours rather than minutes, so it gives up one point every
+`MoodValenceDecayTicks` ticks instead of points every turn; the period counts
+world ticks rather than per-colonist turns, which keeps a seeded run
+reproducible.
 
 Focus scoring normalizes charge and grip by `MoodMax`, multiplies each by the
 focus's `ChargeWeight`/`GripWeight`, and adds the result to `FocusScore.Affect`.
@@ -141,10 +173,10 @@ Unclaimed space is `MoodSettling`.
 Good/bad wording reads the stored valence: one `MoodDriven` point displays as
 `driven` while valence is at or above zero and `furious` below it. Valence
 changes only the word, never coordinates or `MoodKind`, and the word is never
-fed back into focus scoring. `moodName` indexes `moodAttractors` by `MoodKind`,
-which only works while the table stays in declaration order — a test guards
-that. Snapshots expose all three axes plus the word; the roster shows them on
-the old single mood line.
+fed back into focus scoring. Attractors now live in `cognition.yaml` and are
+indexed by `MoodKind` in declaration order — a test still guards that.
+Snapshots expose all three axes plus the word; the roster shows them on the
+old single mood line.
 
 ## Why it is this way
 
@@ -166,24 +198,35 @@ the old single mood line.
 - Labels are projections rather than states. Branching on `"panicked"` would
   hide numeric thresholds in UI vocabulary and double-count the context used to
   choose that word.
-- Event vectors are semantic code tables, not CLI knobs. Decay and hysteresis are
+- Event vectors are semantic data in `cognition.yaml`, not CLI knobs. Decay,
+  hysteresis, wear-per-occasion, and the friend-affinity threshold are
   user-facing pacing choices and therefore belong in `Config`.
+- Decay-to-home rather than decay-to-zero is how two colonists with the same
+  day still read differently at rest. `affectSettled` exists so that difference
+  does not fight the cognition cache.
 
 ## Extending it
 
-Add a mood-bearing event by adding one row to `lifeEventAppraisals` — an impact
-and a fresh/worn pair — and emitting it only through `remember`. Keep the target
-nudge-sized below `MoodPushImpact` and plane-sized above `MoodPullImpact`; a
-test checks that anything which relocates lands in named space, because
-relocating to a nudge-sized point would leave a colonist almost exactly neutral
-after something terrible. Add an event-specific trait transform to
-`transformMoodVector`; preserve declaration-order iteration. Add or tune an
-attractor in `moodAttractors`, remembering that order is the tie-break. Never use
-`MoodName` or `MoodKind` in focus scoring or an executor.
+Add a mood-bearing reaction in `cognition.yaml` — an impact, a fresh/worn pair,
+and a wear policy — and emit the occurrence only through `emitOccurrence` /
+`rememberPercept`. Keep the target nudge-sized below `MoodPushImpact` and
+plane-sized above `MoodPullImpact`; a test checks that anything which
+relocates lands in named space, because relocating to a nudge-sized point
+would leave a colonist almost exactly neutral after something terrible. Add a
+grammar-matched trait rule rather than a Go switch; rules compose in file
+order. Add or tune an attractor in `cognition.yaml`, remembering that order is
+the tie-break. Never use `MoodName` or `MoodKind` in focus scoring or an
+executor.
 
 ## Related
 
+- [compositional-perception-and-events.md](./compositional-perception-and-events.md)
+  — occurrence/percept/reaction grammar and wear-policy seam.
+- [cognition-config-and-lab.md](./cognition-config-and-lab.md) — authoring
+  schema and the Cognition Lab.
 - [memories.md](./memories.md) — the single event ingestion funnel and memory collapse.
-- [personality.md](./personality.md) — trait ordering and the personality RNG invariant.
+- [personality.md](./personality.md) — trait groups, affect homes, and the
+  personality RNG invariant.
 - [cascading_wsts_architecture.md](./cascading_wsts_architecture.md) — fixed design and score model.
-- [mood-space.md](./mood-space.md) — what is still proposed on top of this: tag-based trait rules and per-colonist baselines.
+- [mood-space.md](./mood-space.md) — what is still open after wear, trait
+  rules, and baselines shipped.

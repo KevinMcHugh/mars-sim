@@ -192,12 +192,15 @@ func (w *World) hasGoreNearby(e *Entity) bool {
 }
 
 func (w *World) tryCognitionFastPath(e *Entity) bool {
+	if w.hasCustomPersistentPerception() {
+		return false
+	}
 	restingIdle := e.focus == FocusIdle && e.Job == JobNone && e.resting && w.tick < e.wakeTick
 	sleeping := e.focus == FocusSleep && e.Job == JobUse && e.Need == NeedSleep && !e.carrying &&
 		e.useFacilitySet && e.Pos.Adjacent(e.useFacility) &&
 		w.TerrainAt(e.useFacility) == w.cfg.Needs[NeedSleep].Facility
 	if (!restingIdle && !sleeping) || e.mindDirty || w.tick >= e.nextThinkTick ||
-		len(e.seen) != 0 || e.seeingGore {
+		len(e.perceiving) != 0 {
 		return false
 	}
 	if threat, ok := w.nearestAlien(e.Pos, w.cfg.FleeRadius); ok && threat != nil {
@@ -232,6 +235,30 @@ func (w *World) tryCognitionFastPath(e *Entity) bool {
 		w.finishUse(e, w.cfg.Needs[NeedSleep])
 	}
 	return true
+}
+
+func (w *World) hasCustomPersistentPerception() bool {
+	return w.customPersistentPerception
+}
+
+func cognitionHasCustomPersistentPerception(cognition CognitionConfig) bool {
+	defaults := DefaultCognitionConfig().Perceptions
+	for _, rule := range cognition.Perceptions {
+		if rule.Cadence == CadenceInstant {
+			continue
+		}
+		found := false
+		for _, standard := range defaults {
+			if rule == standard {
+				found = true
+				break
+			}
+		}
+		if !found {
+			return true
+		}
+	}
+	return false
 }
 
 func (w *World) runFocus(e *Entity, selected FocusCandidate) {
@@ -397,92 +424,15 @@ func (w *World) runIdleFocus(e *Entity) {
 	e.State = Idle
 }
 
-// observeNearby records the first sighting of each nearby creature (edge-
-// triggered on e.seen, so a colonist fleeing for many ticks remembers one
-// encounter, not one memory per tick) and, via observeGore, the first sight
-// of gore in the same visit.
+// observeNearby evaluates every configured persistent perception rule. The
+// generic cache preserves enter/stay edge semantics across all content nouns.
 func (w *World) observeNearby(e *Entity) {
-	hadThreat := false
-	for id := range e.seen {
-		if seen := w.entities[id]; seen != nil && seen.Kind == Alien {
-			hadThreat = true
-			break
-		}
-	}
-	visible := make(map[EntityID]bool)
-	seesThreat := false
-	// Only aliens and mice are noticed, and only within their radii, so the
-	// candidates come from the chunk index around e rather than from every
-	// entity in the world. This used to walk (and sort) the whole entity
-	// list once per colonist per tick, which with a hundred colonists was a
-	// hundred full sorts a tick. The candidates are visited in ascending ID
-	// order, exactly as before, so memories and stimuli land in the same
-	// order and the simulation is unchanged.
-	near := w.entityIDsNearSorted(e.Pos, max(w.cfg.FleeRadius, w.cfg.ColonistStompRadius))
-	for _, id := range near {
-		other := w.entities[id]
-		if other == nil || other == e || !other.Alive() {
-			continue
-		}
-		kind, radius := other.Kind, 0
-		switch kind {
-		case Alien:
-			radius = w.cfg.FleeRadius
-		case Mouse:
-			radius = w.cfg.ColonistStompRadius
-		default:
-			continue
-		}
-		if e.Pos.Chebyshev(other.Pos) > radius {
-			continue
-		}
-		visible[other.ID] = true
-		if kind == Alien {
-			seesThreat = true
-		}
-		if e.seen[other.ID] {
-			if kind == Alien {
-				// This is a refresh of ongoing context, not another life-event
-				// occurrence; memory remains edge-triggered.
-				w.addStimulus(e, LifeEvent{Kind: EvtSawAlien, Source: other.ID})
-			}
-			continue
-		}
-		evtKind := EvtSawMouse
-		if kind == Alien {
-			evtKind = EvtSawAlien
-		}
-		w.remember(e, eventFrom(evtKind, other.ID, "Saw %s #%d.", kind, other.ID))
-	}
-	e.seen = visible
-	if hadThreat != seesThreat {
-		w.markMindDirty(e)
-	}
-
-	w.observeGore(e)
+	w.observePersistent(e, "")
 }
 
-// observeGore is observeNearby's counterpart for the environment rather than
-// other entities. Unlike e.seen it is a single edge-triggering flag, not a
-// per-tile map: "in sight of gore" is one memory-worthy fact whether it's one
-// stained tile or a whole battlefield, not one memory per tile.
+// observeGore remains as a focused component-test entry point.
 func (w *World) observeGore(e *Entity) {
-	seeing := false
-	r := w.cfg.GoreSightRadius
-outer:
-	for y := -r; y <= r; y++ {
-		for x := -r; x <= r; x++ {
-			p := e.Pos.Add(x, y)
-			if w.InBounds(p) && w.goreAt(p) > 0 {
-				seeing = true
-				break outer
-			}
-		}
-	}
-	if seeing && !e.seeingGore {
-		w.remember(e, event(EvtSawGore, "Saw the aftermath of violence nearby."))
-	}
-	e.seeingGore = seeing
+	w.observePersistent(e, NounGore)
 }
 
 // stompNearbyMouse lets a colonist with nothing pressing to do chase down and
@@ -513,14 +463,13 @@ func (w *World) stompNearbyMouse(e *Entity) bool {
 // leaves it behind as gore. Any other colonist close enough to have noticed
 // the mouse remembers seeing it happen.
 func (w *World) stomp(colonist, mouse *Entity) {
-	witnesses := w.colonistsWithin(mouse.Pos, w.cfg.ColonistStompRadius, colonist.ID)
+	o := occurrence(colonist, ActionCrush, mouse, mouse.Pos, "")
+	o.ActorText = fmt.Sprintf("Crushed mouse #%d.", mouse.ID)
+	o.WitnessText = fmt.Sprintf("Watched a colonist crush mouse #%d.", mouse.ID)
 	w.addGore(mouse.Pos)
 	w.addCorpse(mouse.Pos) // a crushed pest still has to be carried off
 	w.remove(mouse.ID, fmt.Sprintf("crushed by %s", colonist.displayName()))
-	w.remember(colonist, event(EvtCrushedMouse, "Crushed mouse #%d.", mouse.ID))
-	for _, wit := range witnesses {
-		w.remember(wit, event(EvtWitnessedMouseCrushed, "Watched a colonist crush mouse #%d.", mouse.ID))
-	}
+	w.emitOccurrence(o)
 	w.log.add(fmt.Sprintf("Colonist #%d stomps mouse #%d.", colonist.ID, mouse.ID))
 }
 
@@ -824,9 +773,9 @@ func (w *World) jobTalk(e *Entity) {
 // signed affect outcome that this conversation earned — a company term (how it
 // feels to spend time with the other), a quality term, and each participant's
 // social-fatigue penalty (noteConversation), which must still be called exactly
-// once because it advances the rolling window. The per-occurrence outcome
-// travels on LifeEvent and is deterministically converted to charge/grip in the
-// ingestion funnel. See docs/memories.md.
+// once because it advances the rolling window. Per-observer appraisal targets
+// travel on the compositional occurrence into the shared ingestion funnel. See
+// docs/memories.md.
 func (w *World) finishTalk(a, b *Entity) {
 	existing := w.mutualAffinity(a.ID, b.ID)
 	quality := w.rollTalkQuality(existing)
@@ -838,8 +787,14 @@ func (w *World) finishTalk(a, b *Entity) {
 	w.bumpAffinity(a.ID, b.ID, step+w.mutantAffinityBonus(a, b))
 	w.bumpAffinity(b.ID, a.ID, step+w.mutantAffinityBonus(b, a))
 	outcome := w.talkMoodDelta(quality, existing)
-	w.remember(a, eventOutcome(EvtConversation, outcome+w.noteConversation(a), "Had a conversation with %s.", b.displayName()))
-	w.remember(b, eventOutcome(EvtConversation, outcome+w.noteConversation(b), "Had a conversation with %s.", a.displayName()))
+	o := occurrence(a, ActionConverse, b, a.Pos, "")
+	o.ActorText = fmt.Sprintf("Had a conversation with %s.", b.displayName())
+	o.TargetText = fmt.Sprintf("Had a conversation with %s.", a.displayName())
+	o.Appraisals = []ObserverAppraisal{
+		{Observer: a.ID, Target: conversationMoodVector(outcome + w.noteConversation(a))},
+		{Observer: b.ID, Target: conversationMoodVector(outcome + w.noteConversation(b))},
+	}
+	w.emitOccurrence(o)
 }
 
 // assignWorkJob picks something productive to do: help build a planned project
@@ -867,7 +822,7 @@ func (w *World) assignWorkJob(e *Entity) {
 		return
 	}
 	// Tidy up before digging more: refuse is finite and demoralizing (every
-	// colonist that walks past a splatter takes the EvtSawGore hit), while the
+	// colonist that walks past a splatter matches the saw-gore reaction), while the
 	// mining frontier is effectively endless. Cleaning placed after mining
 	// would therefore never come up at all. It still sits behind construction:
 	// life support outranks housekeeping.
@@ -1020,7 +975,10 @@ func (w *World) jobMine(e *Entity) {
 					return
 				}
 				w.SetTerrain(e.Target, Floor) // TileChanged drops it from the frontier
-				w.remember(e, event(EvtFinishedMining, "Finished mining at (%d, %d).", e.Target.X, e.Target.Y))
+				o := occurrence(e, ActionMine, nil, e.Target,
+					"Finished mining at (%d, %d).", e.Target.X, e.Target.Y)
+				o.Object = FactRef{Noun: NounRock, Label: "rock"}
+				w.emitOccurrence(o)
 				w.clearJob(e)
 			}
 			return
@@ -1197,14 +1155,19 @@ func (w *World) jobBuild(e *Entity) {
 			return
 		}
 		w.SetTerrain(e.Target, Floor)
-		w.remember(e, event(EvtClearedRock, "Cleared rock for a room at (%d, %d).", e.Target.X, e.Target.Y))
+		o := occurrence(e, ActionClear, nil, e.Target,
+			"Cleared rock for a room at (%d, %d).", e.Target.X, e.Target.Y)
+		o.Object = FactRef{Noun: NounRock, Label: "rock"}
+		w.emitOccurrence(o)
 		w.clearJob(e)
 		return
 	}
 	w.SetTerrain(e.Target, e.BuildKind)
 	w.noteBuild(e.BuildKind)
-	w.remember(e, event(EvtFinishedConstruction, "Finished construction of %s at (%d, %d).",
-		e.BuildKind, e.Target.X, e.Target.Y))
+	o := occurrence(e, ActionConstruct, nil, e.Target, "Finished construction of %s at (%d, %d).",
+		e.BuildKind, e.Target.X, e.Target.Y)
+	o.Object = FactRef{Noun: NounStructure, Label: e.BuildKind.String()}
+	w.emitOccurrence(o)
 	w.clearJob(e) // endBuild decrements the in-progress counter
 }
 
@@ -1318,13 +1281,21 @@ func (w *World) finishUse(e *Entity, spec NeedSpec) {
 	w.resetNeed(e, e.Need)
 	switch e.Need {
 	case NeedFood:
-		w.remember(e, event(EvtAte, "Had a meal."))
+		o := occurrence(e, ActionEat, nil, e.Pos, "Had a meal.")
+		o.Object = FactRef{Noun: NounMeal, Label: "meal"}
+		w.emitOccurrence(o)
 	case NeedBladder:
-		w.remember(e, event(EvtUsedToilet, "Used the toilet."))
+		o := occurrence(e, ActionUse, nil, e.Pos, "Used the toilet.")
+		o.Object = FactRef{Noun: NounToilet, Label: "toilet"}
+		w.emitOccurrence(o)
 	case NeedSleep:
-		w.remember(e, event(EvtSlept, "Slept in a bed."))
+		o := occurrence(e, ActionSleep, nil, e.Pos, "Slept in a bed.")
+		o.Object = FactRef{Noun: NounBed, Label: "bed"}
+		w.emitOccurrence(o)
 	default:
-		w.remember(e, event(EvtNeedSatisfied, "Satisfied %s.", spec.Name))
+		o := occurrence(e, ActionSatisfy, nil, e.Pos, "Satisfied %s.", spec.Name)
+		o.Object = FactRef{Noun: NounNeed, Label: spec.Name}
+		w.emitOccurrence(o)
 	}
 	w.clearJob(e)
 }
@@ -1520,23 +1491,24 @@ func (w *World) alienTurn(e *Entity) {
 func (w *World) bite(alien, prey *Entity) {
 	part := w.rollHit(prey)
 	fatal := applyDamage(prey, part, w.alienSpeciesFor(alien).BiteDamage)
-	witnesses := w.colonistsWithin(prey.Pos, w.cfg.FleeRadius, prey.ID)
 	noun := w.alienNounFor(alien)
 	if fatal {
 		alien.State = Feeding
 		name := prey.displayName()
+		o := occurrence(alien, ActionKill, prey, prey.Pos, "")
+		o.Actor = w.factRef(alien)
+		o.WitnessText = fmt.Sprintf("Watched %s kill %s.", noun, name)
 		w.addGore(prey.Pos)
+		w.emitOccurrence(o)
 		w.remove(prey.ID, fmt.Sprintf("devoured by %s", noun))
 		w.log.add(fmt.Sprintf("%s devours %s.", capitalizeFirst(noun), name))
-		for _, wit := range witnesses {
-			w.remember(wit, eventFrom(EvtWitnessedColonistKilled, alien.ID, "Watched %s kill %s.", noun, name))
-		}
 	} else {
 		alien.State = Hunting
-		w.remember(prey, eventFrom(EvtBitten, alien.ID, "Bitten in the %s by %s!", part, noun))
-		for _, wit := range witnesses {
-			w.remember(wit, eventFrom(EvtWitnessedColonistAttacked, alien.ID, "Watched %s attack %s.", noun, prey.displayName()))
-		}
+		o := occurrence(alien, ActionBite, prey, prey.Pos, "")
+		o.Actor = w.factRef(alien)
+		o.TargetText = fmt.Sprintf("Bitten in the %s by %s!", part, noun)
+		o.WitnessText = fmt.Sprintf("Watched %s attack %s.", noun, prey.displayName())
+		w.emitOccurrence(o)
 	}
 }
 
@@ -1580,10 +1552,10 @@ func (w *World) catTurn(e *Entity) {
 // seeing it happen.
 func (w *World) pounce(cat, prey *Entity) {
 	cat.State = Feeding
-	for _, wit := range w.colonistsWithin(prey.Pos, w.cfg.ColonistStompRadius, 0) {
-		w.remember(wit, event(EvtWitnessedCatCatch, "Watched a cat catch mouse #%d.", prey.ID))
-	}
+	o := occurrence(cat, ActionCatch, prey, prey.Pos, "")
+	o.WitnessText = fmt.Sprintf("Watched a cat catch mouse #%d.", prey.ID)
 	w.remove(prey.ID, "caught by a cat")
+	w.emitOccurrence(o)
 	w.log.add(fmt.Sprintf("A cat catches mouse #%d.", prey.ID))
 }
 

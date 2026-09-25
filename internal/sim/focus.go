@@ -184,7 +184,7 @@ func (w *World) nextCognitionTick(e *Entity) int {
 	}
 	// Charge and grip only: valence drifts too, but nothing scored reads it, so
 	// a lingering mood is no reason to make a colonist think again.
-	if e.affect.Charge != 0 || e.affect.Grip != 0 {
+	if !e.affectSettled() {
 		return w.tick + 1
 	}
 	sleepProgressOnly := e.focus == FocusSleep && e.Job == JobUse && e.Need == NeedSleep &&
