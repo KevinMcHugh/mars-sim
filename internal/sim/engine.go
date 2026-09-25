@@ -55,6 +55,7 @@ type Engine struct {
 	cmds   chan Command
 	tps    int
 	paused bool
+	perf   perfRecorder
 
 	mu   sync.Mutex
 	subs []chan *Snapshot
@@ -116,11 +117,21 @@ func (e *Engine) Run(ctx context.Context) {
 
 		case <-ticker.C:
 			if !e.paused {
-				e.world.step()
-				e.publish()
+				e.tick()
 			}
 		}
 	}
+}
+
+// tick advances the world one step, publishes it, and records how long each
+// half took for the Perf screen.
+func (e *Engine) tick() {
+	start := time.Now()
+	e.perf.advance(start)
+	e.world.step()
+	stepped := time.Now()
+	e.publish()
+	e.perf.record(stepped.Sub(start), time.Since(stepped))
 }
 
 // apply handles one command and reports whether the tick interval changed (so
@@ -175,7 +186,12 @@ func (e *Engine) spawn(kind Kind) {
 // publish sends the current snapshot to every subscriber, replacing any frame a
 // subscriber has not yet consumed so the latest state always wins.
 func (e *Engine) publish() {
+	// Closing buckets here as well as in tick means a frame published while
+	// paused (a spawn, a speed change) shows the pause so far as the empty
+	// buckets it is, rather than a history that stopped when ticking did.
+	e.perf.advance(time.Now())
 	snap := e.world.snapshot(e.paused, e.tps)
+	snap.Perf = e.perf.samples()
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	for _, ch := range e.subs {

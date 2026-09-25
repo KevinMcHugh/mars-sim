@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/kevinmchugh/mars-sim/internal/sim"
 	"github.com/kevinmchugh/mars-sim/internal/ui/tui/cells"
@@ -32,6 +33,7 @@ func TestFrameNeverExceedsTerminalWidth(t *testing.T) {
 		{"map", nil},
 		{"roster", []tea.KeyMsg{{Type: tea.KeyTab}}},
 		{"jobs", []tea.KeyMsg{{Type: tea.KeyTab}, {Type: tea.KeyTab}}},
+		{"perf", []tea.KeyMsg{{Type: tea.KeyTab}, {Type: tea.KeyTab}, {Type: tea.KeyTab}, {Type: tea.KeyTab}, {Type: tea.KeyTab}}},
 		{"spawn menu", []tea.KeyMsg{{Type: tea.KeyRunes, Runes: []rune("s")}}},
 		{"build menu", []tea.KeyMsg{{Type: tea.KeyRunes, Runes: []rune("b")}}},
 	}
@@ -218,6 +220,7 @@ func busySnapshot() *sim.Snapshot {
 				{Pos: sim.Point{X: 2, Y: 1}, Terrain: sim.Wall, Owner: 2},
 			},
 		}},
+		Perf: busyPerf(),
 		Log: []string{
 			"The colony ship settles onto the Martian crust.",
 			"A bunk is bolted into the dormitory floor.",
@@ -225,6 +228,28 @@ func busySnapshot() *sim.Snapshot {
 			"Zoe Vargas stomps a mouse flat against the regolith.",
 		},
 	}
+}
+
+// busyPerf is a timing history with a pause in it (zero-tick buckets) and a
+// stall, so the Perf screen draws gaps and a spike.
+func busyPerf() []sim.PerfSample {
+	start := time.Date(2026, 9, 25, 19, 53, 13, 0, time.UTC)
+	var out []sim.PerfSample
+	for i := 0; i < 300; i++ {
+		s := sim.PerfSample{Start: start.Add(time.Duration(i) * sim.PerfBucket)}
+		if i < 120 || i > 140 {
+			s.Ticks = 2 + i%3
+			s.Step = time.Duration(s.Ticks) * time.Duration(900+i%7*40) * time.Microsecond
+			s.Publish = time.Duration(s.Ticks) * 150 * time.Microsecond
+			s.MaxTick = 2 * time.Millisecond
+		}
+		if i == 200 {
+			s.MaxTick = 40 * time.Millisecond
+			s.Step += 38 * time.Millisecond
+		}
+		out = append(out, s)
+	}
+	return out
 }
 
 // restoreGlyphs switches the glyph set for one test and puts it back
@@ -251,7 +276,7 @@ func TestListScreensFillTerminalHeight(t *testing.T) {
 	for _, mode := range []struct {
 		name string
 		mode viewMode
-	}{{"roster", modeRoster}, {"jobs", modeJobs}, {"storage", modeStorage}, {"lore", modeLore}} {
+	}{{"roster", modeRoster}, {"jobs", modeJobs}, {"storage", modeStorage}, {"lore", modeLore}, {"perf", modePerf}} {
 		for _, size := range []struct{ w, h int }{{100, 30}, {120, 40}, {200, 50}, {80, 24}} {
 			m := New(nil, nil)
 			m.termW, m.termH = size.w, size.h

@@ -22,12 +22,14 @@ const (
 	modeJobs                    // the job board: queued projects and their tasks
 	modeStorage                 // placed storage containers and their contents
 	modeLore                    // world facts and the rolled alien species
+	modePerf                    // engine tick rate and tick cost over time
 )
 
 // tabLabels names the screens in tab order, matching the "tab" rotation below
 // and the strip drawn by renderTabs.
 var tabLabels = [...]string{
 	modeMap: "Map", modeRoster: "Roster", modeJobs: "Jobs", modeStorage: "Storage", modeLore: "Lore",
+	modePerf: "Perf",
 }
 
 // menuKind selects an open pick-one prompt, if any. Opening a menu (via `s` or
@@ -193,18 +195,7 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.eng.Send(sim.SetTicksPerSecond{Rate: m.currentTPS() - 2})
 		return m, nil
 	case "tab":
-		switch m.mode {
-		case modeMap:
-			m.mode = modeRoster
-		case modeRoster:
-			m.mode = modeJobs
-		case modeJobs:
-			m.mode = modeStorage
-		case modeStorage:
-			m.mode = modeLore
-		default:
-			m.mode = modeMap
-		}
+		m.mode = (m.mode + 1) % viewMode(len(tabLabels))
 		return m, nil
 	case "s":
 		m.menu = menuSpawn
@@ -222,6 +213,11 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.handleStorageKey(msg)
 	case modeLore:
 		return m.handleLoreKey(msg)
+	case modePerf:
+		if msg.String() == "esc" {
+			m.mode = modeMap
+		}
+		return m, nil
 	default:
 		return m.handleMapKey(msg)
 	}

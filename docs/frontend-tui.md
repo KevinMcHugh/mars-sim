@@ -18,6 +18,7 @@ implement the same consumer contract.
 - [`internal/ui/tui/render_jobboard.go`](../internal/ui/tui/render_jobboard.go) — the job board: queued projects and their tasks.
 - [`internal/ui/tui/render_storage.go`](../internal/ui/tui/render_storage.go) — placed storage containers and their contents.
 - [`internal/ui/tui/render_lore.go`](../internal/ui/tui/render_lore.go) — world facts and the rolled alien species.
+- [`internal/ui/tui/render_perf.go`](../internal/ui/tui/render_perf.go) — the Perf screen's braille charts (see [perf-screen.md](./perf-screen.md)).
 - [`internal/ui/tui/glyphs.go`](../internal/ui/tui/glyphs.go) — terrain and entity glyphs.
 - [`main.go`](../main.go) — `runTUI` (and `runHeadless`, the no-UI alternative).
 
@@ -38,9 +39,10 @@ The model never mutates or reads live world state — only snapshots (see
 
 ### Map and details panels
 
-`viewMode` cycles between the **map** (default) and four **details panels**:
-the **roster**, **job board**, **storage**, and **lore**. `tab` advances map →
-roster → job board → storage → lore → map; `esc` returns straight to the map
+`viewMode` cycles between the **map** (default) and five **details panels**:
+the **roster**, **job board**, **storage**, **lore**, and **perf**. `tab`
+advances map → roster → job board → storage → lore → perf → map, following
+`tabLabels`' order; `esc` returns straight to the map
 from any details panel. Global keys (`handleKey`) work everywhere; the rest
 dispatch to the active panel's handler.
 
@@ -92,6 +94,10 @@ dispatch to the active panel's handler.
   damage/pace) as scannable stat lines, plus `AlienSpecies.Description()`'s
   narrative paragraph, word-wrapped (`wrapWords`) to the panel width. See
   [lore.md](./lore.md).
+- **Perf** (`renderPerf`): two gping-style braille line charts over time —
+  ticks per second actually achieved, and milliseconds each tick costs — from
+  the engine's `Snapshot.Perf` timing history. See
+  [perf-screen.md](./perf-screen.md).
 
 ### The scrolling inspector
 
@@ -173,8 +179,8 @@ fog, since naming the rock there would hand back the map the fog is hiding. For 
 and `enter` jumps directly to that container in the storage details panel.
 `i` or `esc` closes inspection without quitting.
 
-`tab` cycles **map → roster → jobs → storage → lore → map**. Roster, jobs,
-storage, and lore are collectively the details panels. In storage,
+`tab` cycles **map → roster → jobs → storage → lore → perf → map**. Roster,
+jobs, storage, lore, and perf are collectively the details panels. In storage,
 `up`/`down` or `j`/`k` selects a chest from the position-sorted snapshot
 list; the inspector shows its occupied slots and total capacity. In lore,
 the same keys select a rolled alien species from `Snapshot.AlienSpecies`;
@@ -192,7 +198,7 @@ the inspector shows its full build and a narrative description.
 | `f` (roster only) | open the roster's filter menu — `↑↓`/`enter`/`space` to toggle the highlighted checkbox, or `d`/`n` for dead/non-human directly; no command sent, this only changes what the roster shows |
 | arrows or `hjkl` | pan the camera (map) / move selection (roster, job board) |
 | `shift+↑↓`, `pgup`/`pgdn` (roster only) | scroll the selected colonist's inspector a line / a screenful |
-| `tab` | cycle map → roster → job board → storage → lore → map |
+| `tab` | cycle map → roster → job board → storage → lore → perf → map |
 | `q` / `esc` | quit (`esc` returns to the map from any details panel, or cancels an open menu) |
 
 `s` and `b` work from every screen; `f` only does anything on the roster
@@ -344,3 +350,4 @@ contract is genuinely frontend-agnostic.
 - [personality.md](./personality.md) — the attributes and traits the inspector shows.
 - [terminal-cell-widths.md](./terminal-cell-widths.md) — how glyph widths are measured and kept honest.
 - [lore.md](./lore.md) — `AlienSpecies`, `Snapshot.AlienSpecies`/`Seed`, and the world-facts data the lore tab reads.
+- [perf-screen.md](./perf-screen.md) — the engine's tick timing history and the Perf tab's charts.
