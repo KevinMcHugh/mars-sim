@@ -4,14 +4,14 @@
 
 ## What it is
 
-The rules of thumb we keep coming back to when deciding how a mechanic should
-look, as opposed to how a system is built. Each one is here because we learned
-it the hard way at least once. The linked docs have the details.
+The rules of thumb we keep coming back to, both for how a mechanic should
+behave and for how it gets built. Each one is here because we learned it the
+hard way at least once. The linked docs have the details.
 
 This is a living list. When a design argument keeps coming up, write down how it
 was settled here. If a principle stops being true, change it or remove it.
 
-## The principles
+## Designing the game
 
 ### 1. Integers are a bad interface unless they are a quantity
 
@@ -130,6 +130,69 @@ the director schedule, the tables of life-event vectors, and tunables in
 Structural correctness, such as job ownership, pathing and invariants, stays in
 code.
 
+## Building it
+
+### 9. Build for big colonies that run for a long time
+
+The target is thousands of colonists on maps thousands of tiles across, left
+running for hours. A mechanic that is fine with six colonists for ten minutes
+can be the thing that makes the game unplayable at that size. So performance at
+scale is part of the design from the start. It is not a pass we save for later.
+
+- **Never rescan the world.** Every "how many / who / where" question is
+  answered by an index that is updated as things change. That took a
+  2000-colonist tick from ~42 s to ~13 ms
+  ([spatial-index-and-performance.md](./spatial-index-and-performance.md)).
+- **Cost follows the colony, not the map.** Navigation grids allocate pages
+  only where the colony has been, and a published frame copies only what the
+  tick touched. A 10000x10000 world went from ~16 GB to ~590 MB
+  ([sparse-grids.md](./sparse-grids.md),
+  [snapshot-tile-grid.md](./snapshot-tile-grid.md)).
+- **Pay once, not per tick.** Traits resolve at spawn, needs are computed when
+  read, and a resting colonist does no work at all
+  ([personality.md](./personality.md), [needs.md](./needs.md)).
+- **Long runs have to stay bounded.** Per-colonist history is capped (the
+  memory buffer holds 64 entries, and repeated events collapse into one), and
+  dead colonists are archived so lookups by ID keep working
+  ([memories.md](./memories.md), [combat.md](./combat.md)). Decide how anything that grows over a run
+  stops growing.
+
+Before a new per-tick or per-colonist system is done, ask what it costs with
+2000 colonists and 100k ticks, and run the benchmarks in
+`internal/sim/bench_test.go`. Optimize with measurements, not guesses. Most
+of the numbers above come from a stress run that someone actually left
+running.
+
+### 10. Reuse an existing mechanic before inventing one
+
+A new mechanic needs its own tests, its own edge cases and its own doc. So look
+for an existing one first. Supply drops hand weapons straight to colonists
+through the same path as the ship's starting equipment, instead of adding
+items on the floor ([director.md](./director.md)). The focus system was
+layered on top of jobs and left jobs in place, because jobs already encode ownership,
+claims and pathing ([cascading_wsts_architecture.md](./cascading_wsts_architecture.md)).
+When a feature really does need a new mechanic, that is fine. It just shouldn't
+be the default.
+
+### 11. Ship the simplest version, without closing off the next one
+
+The director's first version picks a tick and a candidate uniformly at random.
+Mood decay is linear per axis, and polar decay waits until a behavior needs it.
+Colonists still treat every alien as a threat, whatever its temperament. Each of those was a deliberate
+first cut. The doc says what the next step would be, and the design leaves
+room for it. Start with the version you can explain in one sentence, and write
+down what you left out and why.
+
+### 12. The simulation doesn't know how it is drawn
+
+The engine publishes immutable snapshots and frontends render them
+([architecture.md](./architecture.md)). `sim` carries an alien's emoji as an
+opaque string; checking glyph widths and choosing a fallback is entirely the
+TUI's job ([lore.md](./lore.md), [terminal-cell-widths.md](./terminal-cell-widths.md)).
+That is what lets a second frontend (the web UI we want) arrive without
+touching gameplay. It also keeps the two sides from compromising each other,
+so display concerns never become game rules.
+
 ## Related
 
 - [personality.md](./personality.md), [heredity.md](./heredity.md),
@@ -137,3 +200,5 @@ code.
 - [affect.md](./affect.md), [mood-space.md](./mood-space.md): the mood work
   that principle 1 points at.
 - [determinism.md](./determinism.md): the engineering side of principles 3 and 4.
+- [spatial-index-and-performance.md](./spatial-index-and-performance.md),
+  [sparse-grids.md](./sparse-grids.md): the scale work behind principle 9.

@@ -13,7 +13,7 @@ way it is without re-deriving it from the source each time.
 | Doc | What it covers |
 | --- | --- |
 | [architecture.md](./architecture.md) | The engine/frontend split, the tick loop, snapshots, commands, and the event bus. Start here. |
-| [design-principles.md](./design-principles.md) | The game-design rules of thumb: enums over ints, detail without noise, flavor that never changes the simulation, explainable choices, and deaths that come from the story. |
+| [design-principles.md](./design-principles.md) | The game-design rules of thumb: enums over ints, detail without noise, flavor that never changes the simulation, explainable choices, deaths that come from the story, and building for big, long-running colonies. |
 | [cli.md](./cli.md) | The `mars-sim` command, application modes, duration/seed controls, validation, and CLI examples. |
 | [configuration.md](./configuration.md) | `sim.Config`, `DefaultConfig`, and how tunables become command-line flags. |
 | [config-file.md](./config-file.md) | `mars-sim.yaml`: the committed settings file between the compiled defaults and the flags, and the struct tags that generate it. |
