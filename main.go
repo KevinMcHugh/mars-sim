@@ -373,6 +373,10 @@ func validateConfig(cfg sim.Config) error {
 		return fmt.Errorf("cavern size range is invalid: min %d, max %d", cfg.CavernMin, cfg.CavernMax)
 	case cfg.CavernPassagePercent < 0 || cfg.CavernPassagePercent > 100:
 		return fmt.Errorf("cavern-passage-percent must be between 0 and 100 (got %d)", cfg.CavernPassagePercent)
+	case cfg.CavernNestPercent < 0 || cfg.CavernNestPercent > 100:
+		return fmt.Errorf("cavern-nest-percent must be between 0 and 100 (got %d)", cfg.CavernNestPercent)
+	case cfg.CavernNestMin < 1 || cfg.CavernNestMax < cfg.CavernNestMin:
+		return fmt.Errorf("cavern nest size range is invalid: min %d, max %d", cfg.CavernNestMin, cfg.CavernNestMax)
 	case cfg.StartColonists < 0 || cfg.StartAliens < 0 || cfg.StartCats < 0 || cfg.StartMice < 0:
 		return fmt.Errorf("population counts cannot be negative")
 	case cfg.StartPistols < 0 || cfg.StartShotguns < 0:

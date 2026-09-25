@@ -625,6 +625,10 @@ type World struct {
 	// Rolled once in newWorld, off its own seed-derived stream (neither rng
 	// nor prng). See lore.go.
 	alienSpecies []AlienSpecies
+
+	// nests are the alien nests worldgen seeded in natural caverns (see
+	// seedAlienNests); Entity.nest indexes it, 1-based. See docs/caverns.md.
+	nests []alienNest
 }
 
 // newWorld allocates an all-Rock world of the given size.
@@ -1001,6 +1005,21 @@ func (w *World) moveEntity(e *Entity, to Point) {
 // spawn creates an entity of the given kind at p and registers it, returning the
 // new entity so the caller can tune it. The tile must be in bounds and empty.
 func (w *World) spawn(kind Kind, p Point) *Entity {
+	species := 0
+	if kind == Alien && len(w.alienSpecies) > 0 {
+		// Which species this individual belongs to is an ordinary gameplay
+		// draw like where a colonist lands, not part of generating the
+		// species roster itself -- see lore.go.
+		species = w.rng.Intn(len(w.alienSpecies))
+	}
+	return w.spawnAs(kind, p, species)
+}
+
+// spawnAs is spawn with the alien species already chosen (ignored for every
+// other kind), for a caller that must not draw it from the simulation stream:
+// an alien nest, whose members share one species rolled at worldgen (see
+// seedAlienNests).
+func (w *World) spawnAs(kind Kind, p Point, species int) *Entity {
 	e := newEntity(w.nextID, kind, p, w.cfg)
 	for i := range e.needSince {
 		e.needSince[i] = w.tick // needs start rising from now
@@ -1026,11 +1045,8 @@ func (w *World) spawn(kind Kind, p Point) *Entity {
 	if kind == Mouse {
 		e.sex = w.rollMouseSex() // decides which mice can carry a litter
 	}
-	if kind == Alien && len(w.alienSpecies) > 0 {
-		// Which species this individual belongs to is an ordinary gameplay
-		// draw like where a colonist lands, not part of generating the
-		// species roster itself -- see lore.go.
-		e.Species = w.rng.Intn(len(w.alienSpecies))
+	if kind == Alien {
+		e.Species = species
 	}
 	w.nextID++
 	w.entities[e.ID] = e

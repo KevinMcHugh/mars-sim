@@ -43,7 +43,7 @@ func generate(w *World) {
 	// caverns does not reshuffle everything else about a seed — though aliens
 	// still land on whatever rock is left. See docs/caverns.md.
 	cavernRNG := rand.New(rand.NewSource(w.cfg.Seed ^ 0x13198A2E03707344))
-	w.generateCaverns(cavernRNG, center.Add(-rx, -ry), center.Add(rx, ry))
+	caves := w.generateCaverns(cavernRNG, center.Add(-rx, -ry), center.Add(rx, ry))
 
 	// Place colonists, then mice and cats, by drawing from one shuffled list of
 	// open floor tiles, so every placement is a uniform draw without replacement
@@ -99,6 +99,12 @@ func generate(w *World) {
 			w.spawn(Cat, p)
 		}
 	}
+
+	// A few caverns hold a dormant alien nest. Seeded last, on a stream of
+	// their own, so a seed without a nest keeps every entity ID and every
+	// draw on the simulation stream it had before nests existed.
+	nestRNG := rand.New(rand.NewSource(w.cfg.Seed ^ 0x0452821E638D0137))
+	w.seedAlienNests(nestRNG, caves)
 
 	w.log.add("The colony ship settles onto the Martian crust. Something below stirs.")
 	w.refreshSpatial()

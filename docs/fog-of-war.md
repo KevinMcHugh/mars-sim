@@ -12,9 +12,9 @@ it, floating in an otherwise blank map; mining peels that rim outward one tile a
 a time.
 
 It costs the simulation next to nothing and is off the per-frame path entirely.
-The flag has one simulation reader: an unexplored *floor* tile is a natural
-cavern the colony has not found yet, which colony-facing systems ignore (see
-[caverns.md](./caverns.md)).
+The flag has one simulation meaning: an unexplored *floor* tile is a natural
+cavern the colony has not found yet, which colony-facing systems ignore, and
+where a nest's aliens stay dormant (see [caverns.md](./caverns.md)).
 
 ## Source
 

@@ -160,6 +160,10 @@ wander. An alien hunts the same way whether or not its target is armed; the
 only difference a weapon makes is whether the colonist stands and shoots back
 instead of running.
 
+An alien born in a cavern nest skips all of this while its cave is
+undiscovered: it lies dormant, shuffling around its cave, unseen by colonists,
+until a dig breaks in. See [caverns.md](./caverns.md#alien-nests).
+
 ### Cat behavior (`catTurn`)
 
 Cats have no needs — they hunt mice by instinct, paced by `CatSlowness`. Unlike

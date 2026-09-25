@@ -126,7 +126,10 @@ derived systems go stale (and the map the player sees never grows).
 5. Places aliens on random rock tiles **far** from the cavern (`randomRockFar`),
    so they must burrow in.
 6. Places mice and cats on random floor tiles inside the cavern.
-7. Runs `refreshSpatial` once so regions/rooms exist before the first tick.
+7. Seeds **alien nests** in a few natural caverns (`seedAlienNests`), on their
+   own RNG stream: dormant aliens of one species that wake when the colony
+   breaks in. See [caverns.md](./caverns.md#alien-nests).
+8. Runs `refreshSpatial` once so regions/rooms exist before the first tick.
 
 `randomTile` reservoir-samples a tile satisfying a predicate in one pass — uniform,
 and it always finds a match if one exists.

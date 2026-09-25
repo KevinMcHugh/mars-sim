@@ -427,6 +427,9 @@ func (w *World) observeNearby(e *Entity) {
 		kind, radius := other.Kind, 0
 		switch kind {
 		case Alien:
+			if w.dormant(other) {
+				continue
+			}
 			radius = w.cfg.FleeRadius
 		case Mouse:
 			radius = w.cfg.ColonistStompRadius
@@ -1478,6 +1481,15 @@ func (w *World) alienTurn(e *Entity) {
 	}
 	sp := w.alienSpeciesFor(e)
 
+	if e.nest > 0 {
+		if w.dormant(e) {
+			w.nestTurn(e)
+			e.Cooldown = sp.Slowness - 1
+			return
+		}
+		w.rouse(e)
+	}
+
 	if sp.Temperament == TemperamentFriendly {
 		e.State, e.Quarry = Idle, 0
 		w.wanderStep(e)
@@ -1850,8 +1862,10 @@ func (w *World) nearestColonist(from Point, within int) (*Entity, bool) {
 	return w.nearestOfKind(from, Colonist, within)
 }
 
+// nearestAlien is the nearest alien the colony could know about: a dormant
+// nest alien (see World.dormant) is sealed in an undiscovered cave.
 func (w *World) nearestAlien(from Point, within int) (*Entity, bool) {
-	return w.nearestOfKind(from, Alien, within)
+	return w.nearestMatch(from, within, func(e *Entity) bool { return e.Kind == Alien && !w.dormant(e) })
 }
 
 func (w *World) nearestCat(from Point, within int) (*Entity, bool) {

@@ -1,6 +1,9 @@
 package sim
 
-import "math/rand"
+import (
+	"fmt"
+	"math/rand"
+)
 
 // Natural caverns: pockets of open floor hollowed out of the rock at world
 // generation, hidden under the fog until the colony digs into one, and
@@ -38,8 +41,8 @@ const (
 
 // cavern is one generated natural cavern.
 type cavern struct {
-	center Point // the seed tile the cavern was grown from; always inside it
-	size   int
+	center Point   // the seed tile the cavern was grown from; always inside it
+	tiles  []Point // every tile carved for it, in planCavern's order
 }
 
 // generateCaverns hollows natural caverns out of the rock until roughly
@@ -74,7 +77,7 @@ func (w *World) generateCaverns(rng *rand.Rand, landingLo, landingHi Point) []ca
 			w.carveHidden(p)
 		}
 		placed += len(tiles)
-		caves = append(caves, cavern{center: center, size: len(tiles)})
+		caves = append(caves, cavern{center: center, tiles: tiles})
 	}
 
 	w.joinCaverns(rng, caves, nearLanding)
@@ -214,4 +217,86 @@ func (w *World) planPassage(rng *rand.Rand, from, to Point, nearLanding func(Poi
 		path = append(path, cur)
 	}
 	return path, true
+}
+
+// alienNest is a handful of same-species aliens worldgen left in a natural
+// cavern. They lie dormant while their cave is undiscovered (see
+// World.dormant) and wake when the colony breaks in.
+type alienNest struct {
+	center  Point // the cavern's center, for tests and debugging
+	species int   // index into World.alienSpecies shared by every member
+	size    int   // how many aliens were placed
+	found   bool  // the colony has broken in and the log has said so
+}
+
+// seedAlienNests gives each cavern a CavernNestPercent chance of holding a
+// nest of CavernNestMin–CavernNestMax aliens of one species, placed on
+// distinct free tiles of that cavern. Everything -- the roll, the count, the
+// species and the tiles -- comes from rng, never the simulation stream, so a
+// seed whose caves roll no nest plays out exactly as it did before nests
+// existed.
+func (w *World) seedAlienNests(rng *rand.Rand, caves []cavern) {
+	if len(w.alienSpecies) == 0 || w.cfg.CavernNestPercent <= 0 {
+		return
+	}
+	lo := max(1, w.cfg.CavernNestMin)
+	hi := max(lo, w.cfg.CavernNestMax)
+	for _, c := range caves {
+		if rng.Intn(100) >= w.cfg.CavernNestPercent {
+			continue
+		}
+		want := lo + rng.Intn(hi-lo+1)
+		species := rng.Intn(len(w.alienSpecies))
+		id := len(w.nests) + 1
+		tiles := append([]Point(nil), c.tiles...)
+		placed := 0
+		// A partial Fisher-Yates shuffle: each step draws one distinct tile.
+		for i := 0; i < len(tiles) && placed < want; i++ {
+			j := i + rng.Intn(len(tiles)-i)
+			tiles[i], tiles[j] = tiles[j], tiles[i]
+			if w.occupied(tiles[i]) {
+				continue
+			}
+			w.spawnAs(Alien, tiles[i], species).nest = id
+			placed++
+		}
+		if placed > 0 {
+			w.nests = append(w.nests, alienNest{center: c.center, species: species, size: placed})
+		}
+	}
+}
+
+// dormant reports whether e is a nest alien whose cave the colony has not
+// found yet. A dormant alien keeps to its cave and is invisible to the colony:
+// nobody flees from, remembers, or fights an alien sealed behind rock they
+// have never dug into.
+func (w *World) dormant(e *Entity) bool {
+	return e.nest > 0 && !w.discovered(e.Pos)
+}
+
+// nestTurn is a dormant alien's turn: now and then it shifts to a neighboring
+// floor tile, never burrowing, so the nest stays in its cave.
+func (w *World) nestTurn(e *Entity) {
+	e.State, e.Quarry = Idle, 0
+	if w.rng.Intn(4) != 0 {
+		return
+	}
+	d := neighbors8[w.rng.Intn(len(neighbors8))]
+	n := e.Pos.Add(d.X, d.Y)
+	if w.Walkable(n) && !w.occupiedByOther(n, e.ID) {
+		w.moveEntity(e, n)
+	}
+}
+
+// rouse wakes a nest alien whose cave has been discovered: from here on it is
+// an ordinary alien of its species. The first member of a nest to wake
+// announces the find.
+func (w *World) rouse(e *Entity) {
+	n := &w.nests[e.nest-1]
+	e.nest = 0
+	if n.found {
+		return
+	}
+	n.found = true
+	w.log.add(fmt.Sprintf("The colony has broken into a nest of %s (%d)!", w.alienPluralFor(e), n.size))
 }

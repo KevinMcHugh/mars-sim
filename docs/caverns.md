@@ -11,6 +11,10 @@ systems. When a dig breaks into one, the whole connected cave system is revealed
 at once and becomes part of the colony: its walls become mining frontier,
 its floor becomes room for construction, and the log announces the find.
 
+A few caverns (`cavern-nest-percent`, default 10%) hold an **alien nest**: a
+handful of aliens of one species that lie dormant in the dark until the colony
+breaks in, then wake up and behave like any other alien of their species.
+
 ## Source
 
 - [`internal/sim/caverns.go`](../internal/sim/caverns.go) — `generateCaverns`, `planCavern`, `joinCaverns`, `planPassage`, and the placement constants.
@@ -19,8 +23,11 @@ its floor becomes room for construction, and the log announces the find.
 - [`internal/sim/rooms.go`](../internal/sim/rooms.go) — `region.discovered`, incremental `relabelRooms`, and `mainRoom` chosen from discovered rooms only.
 - [`internal/sim/systems.go`](../internal/sim/systems.go) — `bordersFloor`, which only counts discovered floor, so cave walls are not frontier.
 - [`internal/sim/project.go`](../internal/sim/project.go) — `roomSiteClear` refusing undiscovered floor.
-- [`internal/sim/config.go`](../internal/sim/config.go) — `cavern-percent`, `cavern-min`, `cavern-max`, `cavern-passage-percent`.
-- [`internal/sim/caverns_test.go`](../internal/sim/caverns_test.go) — hidden at generation, the breach, passages, determinism, and room labels under digging.
+- [`internal/sim/caverns.go`](../internal/sim/caverns.go) also holds the nests: `alienNest`, `seedAlienNests`, `dormant`, `nestTurn`, and `rouse`.
+- [`internal/sim/systems.go`](../internal/sim/systems.go) — `alienTurn`'s dormant branch, and `nearestAlien` / `observeNearby` skipping dormant aliens.
+- [`internal/sim/world.go`](../internal/sim/world.go) — `spawnAs`, `spawn` with the species already chosen.
+- [`internal/sim/config.go`](../internal/sim/config.go) — `cavern-percent`, `cavern-min`, `cavern-max`, `cavern-passage-percent`, `cavern-nest-percent`, `cavern-nest-min`, `cavern-nest-max`.
+- [`internal/sim/caverns_test.go`](../internal/sim/caverns_test.go) — hidden at generation, the breach, passages, determinism, room labels under digging, and nests (placement, seed stability, dormancy and waking).
 - [`internal/sim/rooms_test.go`](../internal/sim/rooms_test.go) — `checkRoomLabels`, the brute-force oracle for incremental relabeling.
 
 ## How it works
@@ -91,7 +98,30 @@ call. `discoverCavernTile` also:
 The same tick, the breach tile's `TileChanged` marks the frontier flow field
 stale, and `refreshSpatial` merges the cave into the colony's room.
 
-## Why it is this way
+### Alien nests
+
+After everything else is placed, `generate` calls `seedAlienNests` with the
+caverns `generateCaverns` returned. Each cavern gets one roll of
+`CavernNestPercent`. A hit places `CavernNestMin`–`CavernNestMax` aliens, all
+of one species, on distinct free tiles of that cavern (the tiles `planCavern`
+carved, so never in a passage). Each member's `Entity.nest` points at its
+entry in `World.nests`.
+
+A nest alien is **dormant** while its tile is undiscovered (`World.dormant`).
+A dormant alien:
+
+- takes `nestTurn` instead of its species' behavior: an occasional step to
+  neighboring floor, never through rock, so it stays in its cave system;
+- is skipped by `nearestAlien` and by `observeNearby`, so colonists do not
+  flee from, remember, or shoot at an alien behind rock they have never dug
+  through.
+
+When a breach floods the cave with discovery, every member stops being dormant
+at once. On its next turn `rouse` clears `nest` and it becomes an ordinary
+alien of its species: a Hostile nest hunts the colony, a Cautious one waits for
+colonists to come close, a Friendly one wanders. The first member to wake logs
+"The colony has broken into a nest of ... (n)!".
+
 
 - **Hidden, not just unreached.** An early version could have left the caves
   visible. But with fog on, a breach would reveal a one-tile hole with fog
@@ -133,15 +163,36 @@ stale, and `refreshSpatial` merges the cave into the colony's room.
   tile, while a neighborhood scan for landing floor would dominate worldgen on
   huge maps. The box is conservative, which is fine because caves are
   supposed to be a few tiles of digging away.
+- **Nests sleep until found.** Aliens already hunt through rock, so a Hostile
+  nest that was awake from tick one would burrow straight out and be just
+  another starting alien. Dormancy is what makes a nest a place: danger you
+  dig into, not danger that comes to you. Keying it off `discovered` (not a
+  wake-up flag set by the breach) means the breach code did not have to learn
+  about entities, and the whole cave system wakes together.
+- **Dormant aliens are invisible to colonists.** Colonists sense aliens by
+  distance, through rock. For a burrowing alien that is fair warning. For a
+  nest it would make miners flee from a cave wall and never breach it.
+- **Nests have their own RNG stream and are placed last.** The roll, size,
+  species and tiles all come from `Seed ^ 0x0452821E638D0137`, and members go
+  through `spawnAs` so the species is not drawn from `World.rng`. Placing them
+  after the mice and cats keeps every other entity's ID. So a seed whose
+  caverns roll no nest plays out exactly as before nests existed
+  (`TestAlienNestsOffLeavesSeedUnchanged`). A nest's dormant wandering does
+  draw from `World.rng`, as all gameplay does.
+- **Tests opt in.** `testConfig` sets `CavernNestPercent = 0`, like
+  `TraitChance`, because many tests set `StartAliens = 0` and expect no aliens.
+  A test built on `DefaultConfig` that needs an alien-free world must turn
+  nests off too (`TestColonyDoesNotStarveOverTime` found this the hard way: seed 2
+  dug into a nest and was eaten).
 - **Passages walk orthogonally.** Diagonal steps connect under 8-connectivity
   but look like a staircase of disconnected pockets on screen.
 
 ## Extending it
 
-- **Alien nests** (on the TODO list): `generateCaverns` returns every
-  `cavern` with its center and size; `generate` currently discards them.
-  Keeping them on `World` and seeding aliens in some would be the start. Aliens
-  spawn on rock today (`randomRockFar`), so a nest needs its own placement.
+- **Nests:** tune them with `cavern-nest-percent`, `cavern-nest-min` and
+  `cavern-nest-max`. A nest that should wake in other ways (noise, a colonist
+  close by) belongs in `World.dormant`. Anything new that lets colonists sense
+  or target aliens must skip dormant ones, as `nearestAlien` does.
 - **Anything that places or targets floor** must decide whether undiscovered
   cave floor counts. Colony-facing code should check `w.discovered(p)`. Only
   `carveHidden` may create unexplored floor; any other terrain writer must go

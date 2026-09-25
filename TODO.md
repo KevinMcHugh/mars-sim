@@ -1,5 +1,4 @@
 things to build/fix as we think of them:
-* caves could be alien nests (world gen has natural caverns now; see docs/caverns.md)
 * aliens should have different attack types
 * aliens should have scientific names (eg pseudoursus ares)
 * name groups - define criteria that apply to many possible names, eg repts, reptoids, scalies, lizards
