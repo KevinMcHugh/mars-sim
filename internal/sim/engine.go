@@ -57,6 +57,9 @@ type Engine struct {
 	paused bool
 	perf   perfRecorder
 
+	// lastPublish is when the last snapshot went out; see shouldPublish.
+	lastPublish time.Time
+
 	mu   sync.Mutex
 	subs []chan *Snapshot
 }
@@ -114,6 +117,45 @@ func (e *Engine) Run(ctx context.Context) {
 	e.publish()
 
 	for {
+		// Paused, there is nothing to time: wait for a command (resuming, most
+		// likely) instead of waking every interval to skip a tick.
+		if e.paused {
+			select {
+			case <-ctx.Done():
+				e.closeSubs()
+				return
+			case cmd := <-e.cmds:
+				e.apply(cmd)
+				interval = tickInterval(e.tps)
+				due = time.Now().Add(interval)
+			}
+			continue
+		}
+
+		// A tick that is already due runs without going to sleep first:
+		// parking on a timer that has already expired still costs a goroutine
+		// wakeup, and wakeups were over a fifth of one macOS profile at a few
+		// hundred ticks a second. Commands and cancellation are still checked
+		// between every tick, just without blocking.
+		if !due.After(time.Now()) {
+			select {
+			case <-ctx.Done():
+				e.closeSubs()
+				return
+			case cmd := <-e.cmds:
+				if e.apply(cmd) {
+					interval = tickInterval(e.tps)
+					due = time.Now().Add(interval)
+				}
+				continue
+			default:
+			}
+			e.tick()
+			due = nextDue(due, time.Now(), interval)
+			continue
+		}
+		timer.Reset(time.Until(due))
+
 		select {
 		case <-ctx.Done():
 			e.closeSubs()
@@ -123,16 +165,11 @@ func (e *Engine) Run(ctx context.Context) {
 			if e.apply(cmd) {
 				interval = tickInterval(e.tps)
 				due = time.Now().Add(interval)
-				timer.Reset(interval)
 			}
 
 		case <-timer.C:
-			if !e.paused {
-				e.tick()
-			}
-			now := time.Now()
-			due = nextDue(due, now, interval)
-			timer.Reset(due.Sub(now))
+			// Nothing to do here: the next pass through the loop finds the
+			// tick due and runs it.
 		}
 	}
 }
@@ -155,15 +192,35 @@ func nextDue(due, now time.Time, interval time.Duration) time.Time {
 	return next
 }
 
-// tick advances the world one step, publishes it, and records how long each
-// half took for the Perf screen.
+// tick advances the world one step, publishes it if a frontend could use a
+// new frame yet, and records how long each half took for the Perf screen.
 func (e *Engine) tick() {
 	start := time.Now()
 	e.perf.advance(start)
 	e.world.step()
 	stepped := time.Now()
-	e.publish()
-	e.perf.record(stepped.Sub(start), time.Since(stepped))
+	var published time.Duration
+	if shouldPublish(e.tps, stepped.Sub(e.lastPublish)) {
+		e.publish()
+		published = time.Since(stepped)
+	}
+	e.perf.record(stepped.Sub(start), published)
+}
+
+// maxPublishRate caps how many snapshots a second the engine publishes. The
+// TUI redraws at 30 fps and the one-slot subscription keeps only the newest
+// frame, so at a few hundred ticks a second nearly every snapshot was built
+// only to be thrown away, and every send woke the frontend's goroutine. A
+// snapshot is not cheap on a big colony, and at high rates publishing was a
+// third of the engine's time.
+const maxPublishRate = 60
+
+// shouldPublish reports whether a tick should publish, given the tick rate and
+// how long it has been since the last snapshot. At or below maxPublishRate
+// every tick publishes, so a slow game never skips a frame to timer jitter;
+// above it, a tick publishes once a publish interval has passed.
+func shouldPublish(tps int, sinceLast time.Duration) bool {
+	return tps <= maxPublishRate || sinceLast >= time.Second/maxPublishRate
 }
 
 // apply handles one command and reports whether the tick interval changed (so
@@ -222,6 +279,7 @@ func (e *Engine) publish() {
 	// paused (a spawn, a speed change) shows the pause so far as the empty
 	// buckets it is, rather than a history that stopped when ticking did.
 	e.perf.advance(time.Now())
+	e.lastPublish = time.Now()
 	snap := e.world.snapshot(e.paused, e.tps)
 	snap.Perf = e.perf.samples()
 	e.mu.Lock()

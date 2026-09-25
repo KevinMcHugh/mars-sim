@@ -23,8 +23,11 @@ is how you find out what rate a given colony can actually sustain.
 
 `Engine.tick` wraps each tick in two wall-clock timings: `World.step` (the
 simulation) and `publish` (building the snapshot and posting it). Both count as
-the tick's cost — publishing is real per-tick work, and on big maps it has been
-the expensive half before (see [snapshot-tile-grid.md](./snapshot-tile-grid.md)).
+the tick's cost — publishing is real work, and on big maps it has been the
+expensive half before (see [snapshot-tile-grid.md](./snapshot-tile-grid.md)).
+Above 60 tps most ticks skip publishing (see `maxPublishRate` in
+[architecture.md](./architecture.md)) and record zero publish time, so
+publishing's cost shows up spread across all the ticks.
 
 `perfRecorder` sums those into fixed **`PerfBucket` (250 ms)** samples: ticks
 completed, total step time, total publish time, and the slowest single tick.

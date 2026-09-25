@@ -36,14 +36,34 @@ that touches `World`. Its loop (`engine.go`) selects over three things:
 
 - `ctx.Done()` — shut down and close all subscriber channels.
 - an incoming `Command` — applied *between* ticks, so input never races the sim.
-- the tick timer — when not paused, `world.step()` then `publish()`.
+- the tick timer — when not paused, `world.step()` then, at most
+  `maxPublishRate` (60) times a second, `publish()`.
 
 Ticks are paced against fixed deadlines, not a `time.Ticker`: a ticker drops
 any tick whose wakeup came late, and macOS routinely wakes timers late to save
-power, which held a `-tps 100` game to about 60. The loop remembers when each
+power, so a ticker's achieved rate sinks to whatever cadence the OS delivers.
+The loop remembers when each
 tick was due (`nextDue`) and runs overdue ones straight away, up to
 `maxTickLag` behind; past that it restarts the schedule from now and simply
 runs flat out.
+
+Two things keep a fast engine from paying for work nobody sees:
+
+- **Publishing is capped at 60 frames a second** (`shouldPublish`). At or
+  below 60 tps every tick publishes; above it, a tick publishes only once
+  1/60 s has passed since the last frame. The TUI draws 30 frames a second and
+  keeps only the newest snapshot, so at a few hundred tps nearly every
+  snapshot used to be built only to be thrown away, and every send woke the
+  frontend's goroutine. A pause publishes straight away, so the paused frame is
+  always current.
+- **An overdue tick runs without sleeping first.** Parking on a timer that has
+  already fired still costs a goroutine wakeup, so the loop checks commands
+  without blocking and ticks. While paused it waits only for commands, rather
+  than waking every interval to skip a tick.
+
+Measured headless with 100 colonists, 10 s runs: at 5000 tps the same number of
+ticks took 1.5 s of CPU instead of 6.7 s (publishing fell from 34% of the
+profile to 4%); at 300 tps, 1.35 s instead of 1.63 s.
 
 Because commands are drained on the same goroutine that steps the world, there is
 no locking around game state at all. The only shared state is the slice of
@@ -57,6 +77,8 @@ A frontend interacts through exactly two methods:
   Call it *before* `Run` so the initial frame is not missed. The channel has
   **capacity 1 and the engine drops stale frames** rather than blocking, so a
   slow renderer can never stall the simulation (`publish` in `engine.go`).
+  Frames arrive at most 60 times a second whatever the tick rate, so a
+  consumer must not assume one snapshot per tick: compare `Snapshot.Tick`.
 - `Engine.Send(Command)` — submits input. It **never blocks**: if the command
   buffer is full the command is dropped, which is fine for interactive controls.
 
