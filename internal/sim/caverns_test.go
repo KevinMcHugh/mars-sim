@@ -272,127 +272,126 @@ func nestTestConfig() Config {
 	return cfg
 }
 
-// Each nest is a few aliens of one species, all in the same undiscovered
-// cavern, and nothing else about generation notices them.
-func TestAlienNestsSeedCaverns(t *testing.T) {
-	cfg := nestTestConfig()
-	w := newTestWorld(t, cfg)
-	if len(w.nests) == 0 {
-		t.Fatal("no nests seeded with cavern-nest-percent 100")
-	}
-	members := map[int][]*Entity{}
-	for _, e := range w.entities {
-		if e.Kind != Alien {
-			continue
-		}
-		if e.nest == 0 {
-			t.Fatalf("alien #%d at %v is not in a nest, but start-aliens is 0", e.ID, e.Pos)
-		}
-		if w.discovered(e.Pos) || w.TerrainAt(e.Pos) != Floor {
-			t.Fatalf("nest alien #%d at %v is not on undiscovered cavern floor", e.ID, e.Pos)
-		}
-		members[e.nest] = append(members[e.nest], e)
-	}
-	for i, n := range w.nests {
-		got := members[i+1]
-		if len(got) != n.size || n.size < cfg.CavernNestMin || n.size > cfg.CavernNestMax {
-			t.Fatalf("nest %d has %d aliens, recorded size %d, want %d-%d", i, len(got), n.size, cfg.CavernNestMin, cfg.CavernNestMax)
-		}
-		cave := map[Point]bool{}
-		for _, p := range floorComponent(w, n.center) {
-			cave[p] = true
-		}
-		for _, e := range got {
-			if e.Species != n.species {
-				t.Fatalf("nest %d member #%d is species %d, want the nest's %d", i, e.ID, e.Species, n.species)
-			}
-			if !cave[e.Pos] {
-				t.Fatalf("nest %d member #%d at %v is outside its cave system", i, e.ID, e.Pos)
-			}
-		}
-	}
-}
-
-// Turning nests off (or rolling none) leaves a seed exactly as it was: no
-// extra entities and the same draws on the simulation stream.
-func TestAlienNestsOffLeavesSeedUnchanged(t *testing.T) {
-	cfg := cavernTestConfig()
-	cfg.CavernNestPercent = 0
-	a := newTestWorld(t, cfg)
-	cfg.CavernNestPercent = 100
-	cfg.CavernNestMin, cfg.CavernNestMax = 0, 0 // max(1, ...) still places one
-	b := newTestWorld(t, cfg)
-	if len(b.nests) == 0 {
-		t.Fatal("expected nests in the second world")
-	}
-	if got, want := a.rng.Int63(), b.rng.Int63(); got != want {
-		t.Fatalf("seeding nests moved the simulation stream: %d vs %d", got, want)
-	}
-	for id, e := range a.entities {
-		if f := b.entities[id]; f == nil || f.Kind != e.Kind || f.Pos != e.Pos {
-			t.Fatalf("entity #%d differs once nests are seeded", id)
-		}
-	}
-}
-
-// A dormant nest stays in its cave and is invisible to the colony, however
-// long the simulation runs or however close a colonist stands behind the rock.
-// Breaking in rouses it and logs the find once.
-func TestAlienNestDormantUntilBreached(t *testing.T) {
-	cfg := nestTestConfig()
-	cfg.AlienSpeciesCount = 1
-	w := newTestWorld(t, cfg)
-	var member *Entity
-	for _, e := range w.entities {
-		if e.nest == 1 && (member == nil || e.ID < member.ID) {
-			member = e
-		}
-	}
-	for i := 0; i < 200; i++ {
-		w.alienTurn(member)
-		if w.TerrainAt(member.Pos) != Floor || w.discovered(member.Pos) {
-			t.Fatalf("dormant alien left its cave for %v", member.Pos)
-		}
-	}
-	if got, ok := w.nearestAlien(member.Pos, 5); ok {
-		t.Fatalf("nearestAlien found dormant alien #%d", got.ID)
-	}
-
-	// Dig in next to the member.
-	cave := floorComponent(w, member.Pos)
-	var breach Point
-	found := false
+// breachBeside digs through the rock next to some tile of the cave system
+// containing h, and returns that system's floor.
+func breachBeside(t *testing.T, w *World, h Point) []Point {
+	t.Helper()
+	cave := floorComponent(w, h)
 	for _, p := range cave {
 		for _, d := range veinNeighbors {
 			if q := p.Add(d.X, d.Y); w.TerrainAt(q) == Rock && q.X > 0 && q.Y > 0 && q.X < w.Width-1 && q.Y < w.Height-1 {
-				breach, found = q, true
-				break
+				w.SetTerrain(q, Floor)
+				return cave
 			}
 		}
-		if found {
-			break
+	}
+	t.Fatalf("cave at %v has no rock to dig through", h)
+	return nil
+}
+
+// Nests do not exist until found: worldgen places no aliens, and breaking into
+// a cave system spawns a nest of one species near each cavern center in it,
+// awake, and logs it.
+func TestAlienNestsSpawnWhenBreached(t *testing.T) {
+	cfg := nestTestConfig()
+	w := newTestWorld(t, cfg)
+	if n := w.countKind(Alien); n != 0 {
+		t.Fatalf("%d aliens exist before any cave was found", n)
+	}
+	if len(w.unfoundCaverns) == 0 {
+		t.Fatal("no caverns tracked for nests")
+	}
+
+	cave := breachBeside(t, w, hiddenFloorTiles(w)[0])
+	for _, p := range cave {
+		if _, ok := w.unfoundCaverns[p]; ok {
+			t.Fatalf("cavern center %v still unfound after the breach", p)
 		}
 	}
-	w.SetTerrain(breach, Floor)
-	if w.dormant(member) {
-		t.Fatal("nest alien still dormant after its cave was breached")
+	inCave := map[Point]bool{}
+	for _, p := range cave {
+		inCave[p] = true
 	}
-	if got, ok := w.nearestAlien(member.Pos, 0); !ok || got.ID != member.ID {
-		t.Fatal("nearestAlien does not see a roused nest alien")
+	aliens := []*Entity{}
+	for _, e := range w.entities {
+		if e.Kind == Alien {
+			aliens = append(aliens, e)
+		}
 	}
-	member.Cooldown = 0
-	w.alienTurn(member)
-	w.alienTurn(member)
-	if member.nest != 0 || !w.nests[0].found {
-		t.Fatalf("alien not roused: nest=%d found=%v", member.nest, w.nests[0].found)
+	if len(aliens) < cfg.CavernNestMin {
+		t.Fatalf("breach spawned %d aliens, want at least one nest of %d", len(aliens), cfg.CavernNestMin)
+	}
+	for _, e := range aliens {
+		if w.dormant(e) || !w.Walkable(e.Pos) {
+			t.Fatalf("nest alien #%d at %v is dormant or off the floor", e.ID, e.Pos)
+		}
+		if !inCave[e.Pos] {
+			t.Fatalf("nest alien #%d at %v is outside the breached cave system", e.ID, e.Pos)
+		}
 	}
 	logs := 0
-	for _, msg := range w.log.tail(20) {
+	for _, msg := range w.log.tail(50) {
 		if strings.Contains(msg, "nest of") {
 			logs++
 		}
 	}
-	if logs != 1 {
-		t.Fatalf("want exactly one nest log line, got %d: %q", logs, w.log.tail(20))
+	if logs == 0 {
+		t.Fatalf("no nest log line; log tail: %q", w.log.tail(10))
+	}
+}
+
+// Nests leave generation alone: the same seed with and without them builds
+// the same world and leaves the simulation stream at the same draw.
+func TestAlienNestsDoNotChangeGeneration(t *testing.T) {
+	cfg := cavernTestConfig()
+	cfg.CavernNestPercent = 0
+	a := newTestWorld(t, cfg)
+	cfg.CavernNestPercent = 100
+	b := newTestWorld(t, cfg)
+	if got, want := a.rng.Int63(), b.rng.Int63(); got != want {
+		t.Fatalf("nests moved the simulation stream: %d vs %d", got, want)
+	}
+	if len(a.entities) != len(b.entities) {
+		t.Fatalf("nests changed the starting population: %d vs %d", len(a.entities), len(b.entities))
+	}
+	for id, e := range a.entities {
+		if f := b.entities[id]; f == nil || f.Kind != e.Kind || f.Pos != e.Pos {
+			t.Fatalf("entity #%d differs once nests are on", id)
+		}
+	}
+}
+
+// An alien spawned in a hidden cave stays in it and is invisible to the
+// colony, however long the simulation runs; breaking in wakes it.
+func TestCaveAlienDormantUntilBreached(t *testing.T) {
+	cfg := cavernTestConfig()
+	cfg.CavernNestPercent = 0
+	cfg.StartAliens = 1
+	w := newTestWorld(t, cfg)
+	var alien *Entity
+	for _, e := range w.entities {
+		if e.Kind == Alien {
+			alien = e
+		}
+	}
+	if alien == nil || !w.dormant(alien) {
+		t.Fatal("starting alien was not placed dormant in a hidden cave")
+	}
+	for i := 0; i < 200; i++ {
+		w.alienTurn(alien)
+		if w.TerrainAt(alien.Pos) != Floor || w.discovered(alien.Pos) {
+			t.Fatalf("dormant alien left its cave for %v", alien.Pos)
+		}
+	}
+	if got, ok := w.nearestAlien(alien.Pos, 5); ok {
+		t.Fatalf("nearestAlien found dormant alien #%d", got.ID)
+	}
+
+	breachBeside(t, w, alien.Pos)
+	if w.dormant(alien) {
+		t.Fatal("alien still dormant after its cave was breached")
+	}
+	if got, ok := w.nearestAlien(alien.Pos, 0); !ok || got.ID != alien.ID {
+		t.Fatal("nearestAlien does not see a woken cave alien")
 	}
 }

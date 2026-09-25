@@ -3,6 +3,7 @@ package sim
 import (
 	"fmt"
 	"math/rand"
+	"slices"
 )
 
 // Natural caverns: pockets of open floor hollowed out of the rock at world
@@ -41,8 +42,8 @@ const (
 
 // cavern is one generated natural cavern.
 type cavern struct {
-	center Point   // the seed tile the cavern was grown from; always inside it
-	tiles  []Point // every tile carved for it, in planCavern's order
+	center Point // the seed tile the cavern was grown from; always inside it
+	size   int
 }
 
 // generateCaverns hollows natural caverns out of the rock until roughly
@@ -77,7 +78,7 @@ func (w *World) generateCaverns(rng *rand.Rand, landingLo, landingHi Point) []ca
 			w.carveHidden(p)
 		}
 		placed += len(tiles)
-		caves = append(caves, cavern{center: center, tiles: tiles})
+		caves = append(caves, cavern{center: center, size: len(tiles)})
 	}
 
 	w.joinCaverns(rng, caves, nearLanding)
@@ -152,19 +153,43 @@ func (w *World) joinCaverns(rng *rand.Rand, caves []cavern, nearLanding func(Poi
 	if len(caves) < 2 {
 		return
 	}
+	// Bucket centers into passageMaxSpan-sized cells, so a cavern only
+	// compares against those in its own and the 8 surrounding cells: every
+	// neighbor within passageMaxSpan is there, and one further away is
+	// skipped anyway. Comparing against every cavern made this quadratic,
+	// most of worldgen's time on a huge map. Candidates are checked in
+	// ascending index, keeping the old lowest-index tie-break.
+	cellOf := func(p Point) Point { return Point{p.X / passageMaxSpan, p.Y / passageMaxSpan} }
+	buckets := map[Point][]int{}
+	for i, c := range caves {
+		k := cellOf(c.center)
+		buckets[k] = append(buckets[k], i)
+	}
+	var near []int
 	rolled := map[[2]int]bool{}
 	for i, c := range caves {
-		nearest, best := -1, 1<<30
-		for j, d := range caves {
+		near = near[:0]
+		k := cellOf(c.center)
+		for dy := -1; dy <= 1; dy++ {
+			for dx := -1; dx <= 1; dx++ {
+				near = append(near, buckets[k.Add(dx, dy)]...)
+			}
+		}
+		slices.Sort(near)
+		nearest, best := -1, passageMaxSpan+1
+		for _, j := range near {
 			if j == i {
 				continue
 			}
-			if dist := c.center.Chebyshev(d.center); dist < best {
+			if dist := c.center.Chebyshev(caves[j].center); dist < best {
 				nearest, best = j, dist
 			}
 		}
+		if nearest < 0 {
+			continue // no cavern within passageMaxSpan
+		}
 		key := [2]int{min(i, nearest), max(i, nearest)}
-		if rolled[key] || best > passageMaxSpan {
+		if rolled[key] {
 			continue
 		}
 		rolled[key] = true
@@ -219,55 +244,75 @@ func (w *World) planPassage(rng *rand.Rand, from, to Point, nearLanding func(Poi
 	return path, true
 }
 
-// alienNest is a handful of same-species aliens worldgen left in a natural
-// cavern. They lie dormant while their cave is undiscovered (see
-// World.dormant) and wake when the colony breaks in.
-type alienNest struct {
-	center  Point // the cavern's center, for tests and debugging
-	species int   // index into World.alienSpecies shared by every member
-	size    int   // how many aliens were placed
-	found   bool  // the colony has broken in and the log has said so
+// nestRadius is how far (Chebyshev) from its cavern's center a nest's aliens
+// may be placed. Caverns are at least a few tiles across, so the nest lands in
+// its own cavern rather than spread down a passage.
+const nestRadius = 4
+
+// trackCavernsForNests remembers each cavern's center so a breach can roll
+// for its nest (see rollNests), and seeds the stream those rolls use. Only the
+// centers are kept: nothing about a nest exists until its cavern is found.
+func (w *World) trackCavernsForNests(caves []cavern) {
+	w.nestRNG = rand.New(rand.NewSource(w.cfg.Seed ^ 0x0452821E638D0137))
+	w.unfoundCaverns = make(map[Point]struct{}, len(caves))
+	for _, c := range caves {
+		w.unfoundCaverns[c.center] = struct{}{}
+	}
 }
 
-// seedAlienNests gives each cavern a CavernNestPercent chance of holding a
-// nest of CavernNestMin–CavernNestMax aliens of one species, placed on
-// distinct free tiles of that cavern. Everything -- the roll, the count, the
-// species and the tiles -- comes from rng, never the simulation stream, so a
-// seed whose caves roll no nest plays out exactly as it did before nests
-// existed.
-func (w *World) seedAlienNests(rng *rand.Rand, caves []cavern) {
-	if len(w.alienSpecies) == 0 || w.cfg.CavernNestPercent <= 0 {
-		return
-	}
-	lo := max(1, w.cfg.CavernNestMin)
-	hi := max(lo, w.cfg.CavernNestMax)
-	for _, c := range caves {
-		if rng.Intn(100) >= w.cfg.CavernNestPercent {
+// rollNests gives each cavern whose center a breach just discovered its one
+// CavernNestPercent roll for a nest, in discovery order. Rolling at the
+// breach rather than at worldgen means a huge map with thousands of caves
+// never holds (or generates) thousands of aliens nobody has met.
+func (w *World) rollNests(centers []Point) {
+	for _, c := range centers {
+		delete(w.unfoundCaverns, c)
+		if w.nestRNG == nil || len(w.alienSpecies) == 0 {
 			continue
 		}
-		want := lo + rng.Intn(hi-lo+1)
-		species := rng.Intn(len(w.alienSpecies))
-		id := len(w.nests) + 1
-		tiles := append([]Point(nil), c.tiles...)
-		placed := 0
-		// A partial Fisher-Yates shuffle: each step draws one distinct tile.
-		for i := 0; i < len(tiles) && placed < want; i++ {
-			j := i + rng.Intn(len(tiles)-i)
-			tiles[i], tiles[j] = tiles[j], tiles[i]
-			if w.occupied(tiles[i]) {
-				continue
+		if w.nestRNG.Intn(100) < w.cfg.CavernNestPercent {
+			w.spawnNest(c)
+		}
+	}
+}
+
+// spawnNest places CavernNestMin–CavernNestMax aliens of one species on
+// distinct free floor tiles within nestRadius of center. Everything -- the
+// count, the species and the tiles -- comes from nestRNG, never the
+// simulation stream, and members go through spawnAs so no species is drawn
+// from it either.
+func (w *World) spawnNest(center Point) {
+	lo := max(1, w.cfg.CavernNestMin)
+	hi := max(lo, w.cfg.CavernNestMax)
+	want := lo + w.nestRNG.Intn(hi-lo+1)
+	species := w.nestRNG.Intn(len(w.alienSpecies))
+	var sites []Point
+	for dy := -nestRadius; dy <= nestRadius; dy++ {
+		for dx := -nestRadius; dx <= nestRadius; dx++ {
+			if p := center.Add(dx, dy); w.Walkable(p) && w.discovered(p) && !w.occupied(p) {
+				sites = append(sites, p)
 			}
-			w.spawnAs(Alien, tiles[i], species).nest = id
-			placed++
 		}
-		if placed > 0 {
-			w.nests = append(w.nests, alienNest{center: c.center, species: species, size: placed})
+	}
+	placed := 0
+	var first *Entity
+	// A partial Fisher-Yates shuffle: each step draws one distinct tile.
+	for i := 0; i < len(sites) && placed < want; i++ {
+		j := i + w.nestRNG.Intn(len(sites)-i)
+		sites[i], sites[j] = sites[j], sites[i]
+		e := w.spawnAs(Alien, sites[i], species)
+		if first == nil {
+			first = e
 		}
+		placed++
+	}
+	if first != nil {
+		w.log.add(fmt.Sprintf("The colony has broken into a nest of %s (%d)!", w.alienPluralFor(first), placed))
 	}
 }
 
 // dormant reports whether e is an alien in a cave the colony has not found
-// yet: a nest member, or any alien that spawned on hidden cavern floor.
+// yet: one that spawned on hidden cavern floor (see alienSpawnSite).
 // Aliens walk only on floor, and undiscovered floor is always a sealed
 // cavern (see the invariant above), so a dormant alien cannot reach the
 // colony anyway. It keeps to its cave and is invisible to the colony: nobody
@@ -289,17 +334,4 @@ func (w *World) dormantTurn(e *Entity) {
 	if w.Walkable(n) && !w.occupiedByOther(n, e.ID) {
 		w.moveEntity(e, n)
 	}
-}
-
-// rouse wakes a nest alien whose cave has been discovered: from here on it is
-// an ordinary alien of its species. The first member of a nest to wake
-// announces the find.
-func (w *World) rouse(e *Entity) {
-	n := &w.nests[e.nest-1]
-	e.nest = 0
-	if n.found {
-		return
-	}
-	n.found = true
-	w.log.add(fmt.Sprintf("The colony has broken into a nest of %s (%d)!", w.alienPluralFor(e), n.size))
 }

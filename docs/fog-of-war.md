@@ -14,7 +14,7 @@ a time.
 It costs the simulation next to nothing and is off the per-frame path entirely.
 The flag has one simulation meaning: an unexplored *floor* tile is a natural
 cavern the colony has not found yet, which colony-facing systems ignore, and
-where a nest's aliens stay dormant (see [caverns.md](./caverns.md)).
+where aliens stay dormant (see [caverns.md](./caverns.md)).
 
 ## Source
 

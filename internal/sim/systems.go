@@ -1486,9 +1486,6 @@ func (w *World) alienTurn(e *Entity) {
 		e.Cooldown = sp.Slowness - 1
 		return
 	}
-	if e.nest > 0 {
-		w.rouse(e)
-	}
 
 	if sp.Temperament == TemperamentFriendly {
 		e.State, e.Quarry = Idle, 0
@@ -1845,7 +1842,7 @@ func (w *World) nearestColonist(from Point, within int) (*Entity, bool) {
 }
 
 // nearestAlien is the nearest alien the colony could know about: a dormant
-// nest alien (see World.dormant) is sealed in an undiscovered cave.
+// alien (see World.dormant) is sealed in an undiscovered cave.
 func (w *World) nearestAlien(from Point, within int) (*Entity, bool) {
 	return w.nearestMatch(from, within, func(e *Entity) bool { return e.Kind == Alien && !w.dormant(e) })
 }
