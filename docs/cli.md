@@ -85,6 +85,12 @@ one max concurrent project, less than one rest tick, or a trait chance outside
 0–100. Invalid settings are reported to stderr and exit with status 2 before
 the engine starts.
 
+`mars-sim` takes no positional arguments, and `checkNoArgs` rejects any that
+are left after the flags (also status 2). This matters because Go's flag
+package stops at the first non-flag argument and never looks at the rest:
+before the check, `mars-sim -- -tps 100` or `mars-sim x -tps 100` ran at the
+settings file's rate and never said that `-tps` had been dropped.
+
 The engine raises rates below 1 to 1, and interactive speed changes use the
 same floor. There is deliberately no upper cap (there used to be one at 60):
 asking for more ticks per second than the machine can simulate just runs the

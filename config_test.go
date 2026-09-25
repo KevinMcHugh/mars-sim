@@ -255,3 +255,23 @@ func TestFlagNamesDoNotCollide(t *testing.T) {
 		t.Error("expected config flags were not registered")
 	}
 }
+
+// Flags after a stray argument are silently skipped by the flag package, so a
+// stray argument must be an error rather than a run at the wrong settings.
+func TestLeftoverArgumentsAreRejected(t *testing.T) {
+	fs := flag.NewFlagSet("mars-sim", flag.ContinueOnError)
+	cfg := sim.DefaultConfig()
+	bindConfigFlags(fs, &cfg)
+	if err := fs.Parse([]string{"--", "-tps", "100"}); err != nil {
+		t.Fatal(err)
+	}
+	if cfg.TicksPerSecond == 100 {
+		t.Fatal("the flag package parsed past \"--\"; this test no longer demonstrates the trap")
+	}
+	if err := checkNoArgs(fs.Args()); err == nil {
+		t.Error("leftover arguments were accepted; -tps 100 would be ignored without a word")
+	}
+	if err := checkNoArgs(nil); err != nil {
+		t.Errorf("no leftover arguments: %v", err)
+	}
+}
