@@ -156,18 +156,71 @@ facilities get built and for this priority in full. The colony keeps
 
 ### Spreading users across facilities
 
-`chooseFacility` picks *which* facility of a kind a colonist commits to once
-more than one exists, so a crowd doesn't all converge on the shared field's
-single nearest seed. It ranks reachable facilities by walkable distance
-(a BFS from the colonist, reusing a generation-stamped scratch buffer the same
-way `flowField` does) and skips any that's **congested** — something actually
-occupying its access tile right now, or another colonist already committed to
-it (`Job == JobUse`, `useFacilitySet`, `useFacility` equal to it) — falling
-back to nearest-even-if-congested only when every reachable option is busy,
-so a need is never declared unreachable and left to starve merely because
-everything is momentarily full. The choice is retained on the colonist for
-the whole `JobUse` job (`e.useFacility`), so it never re-litigates and
-ping-pongs between queues as counts change tick to tick.
+`chooseFacility` (`facilitychoice.go`) picks *which* facility of a kind a
+colonist commits to once more than one exists, so a crowd doesn't all converge
+on the shared field's single nearest seed. It ranks reachable facilities by
+walkable distance and skips any that's **congested** — something actually
+occupying one of its reachable access tiles right now, or another colonist
+already committed to it (`Job == JobUse`, `useFacilitySet`, `useFacility` equal
+to it) — falling back to nearest-even-if-congested only when every reachable
+option is busy, so a need is never declared unreachable and left to starve
+merely because everything is momentarily full. Ties go to the lower
+`lessPoint`. The choice is retained on the colonist for the whole `JobUse` job
+(`e.useFacility`), so it never re-litigates and ping-pongs between queues as
+counts change tick to tick.
+
+#### How the choice is computed, and why not with one BFS
+
+It used to be one BFS from the colonist over everything it could reach,
+followed by a scan of every facility. That flood covered the whole reachable
+map on every need decision, even when the pod was three tiles away. On a big
+colony it was a third of a real CPU profile. The congestion check was
+expensive too: it scanned every entity once per access tile of every facility,
+so on a crowded colony (`BenchmarkNeedSeek`) it cost more than the BFS.
+
+The answer is the same, but it is now found in up to three steps, cheapest
+first:
+
+1. **The shared field names the nearest facilities.** The facility kind's flow
+   field already holds, for every tile, the distance D to the nearest facility
+   of that kind. `facilityByField` walks only *downhill* from the colonist
+   (each step to a neighbour whose distance is one less). That visits exactly
+   the tiles on shortest routes to the facilities at distance D, and nothing
+   else. If one of those facilities is free, that's the answer.
+2. **All busy?** If every nearest facility is congested, `anyFreeFacility`
+   checks whether *any* reachable facility is free. If none is, the answer is
+   the nearest one, already found in step 1. That is the common case exactly
+   when it matters most, in a colony short of facilities with a crowd choosing
+   at once, and without this check step 3 would flood the whole map looking for
+   a free facility that doesn't exist.
+3. **Bounded search.** Otherwise `facilityBySearch` runs the old BFS, but it
+   stops at the first distance at which it reaches a free facility.
+
+Commitments are counted once per call (`committedUsers`, one pass over the
+entities) and only for facilities that are actually in contention.
+`BenchmarkNeedSeek` went from 148 ms to 12 ms a tick. On a generated 400×250
+map with 150 colonists, `chooseFacility` went from 47% of the tick to 3%.
+
+Two decisions worth knowing before changing it:
+
+- **The field stores distances, not "which facility is nearest".** Labelling
+  each field cell with its nearest facility would make step 1 a single lookup,
+  but fields are kept current by incremental repair (see
+  [pathfinding.md](./pathfinding.md)), and a repair only follows *distance*
+  changes. A newly built facility can change which facility is nearest across
+  a whole region without changing a single distance, so the labels would
+  silently go stale. Reading the nearest set off the distances can't go stale.
+- **Reachability is judged by room.** To decide whether an occupied access tile
+  counts, the fast steps ask whether it's in the colonist's room rather than
+  whether a per-call BFS reached it. Rooms and fields are both refreshed
+  between ticks, not mid-tick. Mid-tick, after a dig or build, the answer can
+  therefore differ from a fresh BFS, but deterministically, and it matches the
+  view the colonist navigates by. Between ticks it is exactly the old answer:
+  `TestChooseFacilityMatchesReference` keeps the old implementation as a
+  test-only oracle and compares every colonist's choice of every facility kind
+  across several games. It also requires that all three steps get exercised.
+  Full games with the change play out identically, tick for tick, to games
+  without it.
 
 Two bugs here were serious enough to leave written down:
 

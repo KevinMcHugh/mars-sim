@@ -161,6 +161,11 @@ an escape valve that is essential in a full room, where a crowd with only
 uphill free space would otherwise gridlock until its hungriest members starve.
 It never crosses a `buildTiles` tile a builder needs clear.
 
+A facility field also answers *which* facilities are nearest, not just how
+far: walking only downhill from a tile visits exactly the shortest routes to
+the facilities at its distance. `chooseFacility` relies on that instead of
+running its own BFS (see [needs.md](./needs.md)).
+
 ### Two mining strategies
 
 Mining picks a strategy by threshold (`useFrontierMining`, checked dynamically as

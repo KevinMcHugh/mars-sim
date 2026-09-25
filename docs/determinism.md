@@ -24,7 +24,8 @@ two runs differ while the random numbers are identical.
   lockstep regression test, and `worldFingerprint`.
 - `internal/sim/rooms.go` — `refreshSpatial` sorts the dirty-chunk list.
 - `internal/sim/hpa.go` — `sortedLinks` orders abstract-graph expansion.
-- `internal/sim/systems.go` — `chooseFacility`, the nearest-facility scoring.
+- `internal/sim/facilitychoice.go` — `chooseFacility`, the nearest-facility
+  scoring (`compareFound` is its total order).
 
 ## How it works
 
@@ -115,6 +116,12 @@ sink to a far one. Seeding `d` at "unreached" instead fixes both. This is the
 pattern worth remembering — the comparison `(d == bestDist && lessPoint(...))`
 *looks* like a proper total order, and is one only if `d` is computed
 independently of `bestDist`.
+
+That loop is gone now (see [needs.md](./needs.md)): candidates are collected
+into a slice with their distances and sorted by `compareFound`, distance then
+`lessPoint`. The two map loops left, `anyFreeFacility` over `w.facilityTiles`
+and `committedUsers` over `w.entities`, compute an "any match" and a count: the
+order-independent shape.
 
 ### `region.links` expansion order chose the corridor
 

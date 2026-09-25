@@ -122,7 +122,7 @@ Three things got the time back, and none of them were micro-tuning:
 
 - **`interiorPage(x, y)`** returns the page holding `(x, y)` when all eight of
   its neighbours are in it too, and nil on a page edge. The 8-connected
-  searches — `flowField.rebuild`, `chooseFacility` — do one lookup per *node*
+  searches — `flowField.rebuild`, `chooseFacility`'s bounded search — do one lookup per *node*
   instead of nine for the ~94% of nodes that are not on an edge.
 - **`pageAt(x, y)`** hoists the lookup out of a whole-chunk sweep. A page holds
   a whole number of chunks and chunks are aligned, so every tile of a chunk is
