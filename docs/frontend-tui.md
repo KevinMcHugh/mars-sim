@@ -34,6 +34,9 @@ quits the program. The Bubble Tea renderer is capped at 30 redraws per second
 (`tuiFPS` in `main.go`), independently of the simulation's tick rate. Since the
 engine's one-slot subscription replaces stale frames, the renderer displays the
 newest available snapshot rather than building a terminal view for every tick.
+The engine itself publishes at most 60 snapshots a second (see
+[architecture.md](./architecture.md)), so the TUI never sees most ticks at high
+rates.
 The model never mutates or reads live world state — only snapshots (see
 [architecture.md](./architecture.md)).
 
