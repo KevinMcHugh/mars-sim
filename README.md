@@ -3,7 +3,7 @@
 A Mars-colonization simulation game, in the vein of Dwarf Fortress / RimWorld /
 Crusader Kings — corporate espionage, buried secrets, and mutants under the
 regolith (very much *Total Recall*). This is an early scaffold: colonists dig
-out an underground colony on their own while burrowing aliens hunt them.
+out an underground colony on their own while aliens lurk in the caves around them.
 
 ## Running
 
@@ -69,8 +69,8 @@ colonist · 🧹 cleaning colonist · 📦 hauling colonist · 🧟 mutant colon
 🩸 gore · 🦴 a body · blank = open floor.
 
 The map is fogged. You see the landing cavern and the rim of rock the colony has
-dug up to; everything past it is a faintly shaded blank, and an alien burrowing
-toward you through it stays hidden until it breaks through. Mining peels the fog
+dug up to; everything past it is a faintly shaded blank, and the aliens
+lurking in hidden caves stay hidden until you dig into one. Mining peels the fog
 back one tile at a time, and a tile once seen stays seen. Run with
 `-fog-of-war=false` to show the whole map — see
 [fog of war](docs/fog-of-war.md).
@@ -130,8 +130,9 @@ mutable state:
     projects*), clean up after the colony's dead (see *Sanitation*), tend to
     their needs, and flee when an alien gets close. Each colonist has eight
     inventory slots, each holding a homogeneous stack of up to 64 items.
-  - **Aliens** burrow through *any* terrain to reach the nearest colonist and
-    eat it.
+  - **Aliens** walk the floor like everyone else, hunting the nearest colonist
+    they can reach, and eat it. Most start dormant in hidden caves, and some
+    caves hold a whole nest.
   - **Cats** stalk the floor hunting mice, pouncing when adjacent (a single
     pounce is fatal). They have no needs; they hunt by instinct.
   - **Mice** are pests that scurry the floor and nibble the colony's nutrient

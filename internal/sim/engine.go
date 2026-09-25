@@ -258,7 +258,7 @@ func (e *Engine) spawn(kind Kind) {
 			w.spawn(Colonist, p)
 		}
 	case Alien:
-		if p, ok := w.randomRockFar(center, 8); ok {
+		if p, ok := w.alienSpawnSite(center, 8); ok {
 			w.spawn(Alien, p)
 		}
 	case Cat:

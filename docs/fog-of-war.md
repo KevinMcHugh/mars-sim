@@ -6,8 +6,8 @@
 
 The colony only sees the rock it has dug up to. A tile is **explored** once
 something has changed the terrain within one tile of it, and until then a
-frontend draws nothing there — no ore, no cavern shape, and no alien burrowing
-through it. The starting frame is the landing cavern plus the rim of rock around
+frontend draws nothing there — no ore, no cavern shape, and no alien lurking in
+it. The starting frame is the landing cavern plus the rim of rock around
 it, floating in an otherwise blank map; mining peels that rim outward one tile at
 a time.
 
@@ -119,8 +119,8 @@ terrain nor occupant:
   the invariant the whole map depends on (see
   [terminal-cell-widths.md](./terminal-cell-widths.md)) — and fog is deliberately
   *not* in the glyph registry, since there is no glyph to measure.
-- **Entities** on unexplored tiles are skipped. An alien burrowing through the
-  rock is exactly what the fog is for; drawing it on an otherwise blank tile
+- **Entities** on unexplored tiles are skipped. An alien dormant in an
+  undiscovered cave is exactly what the fog is for; drawing it on an otherwise blank tile
   would also just look like a bug. Colonists and pets live on floor, which is
   always explored, so nothing the player owns can hide from them.
 - **Runs, not tiles.** Consecutive fog tiles are emitted as one styled run. Early

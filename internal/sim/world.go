@@ -69,7 +69,7 @@ type Terrain uint8
 
 const (
 	// Rock is unexcavated Martian regolith. Colonists cannot walk through it,
-	// but they can mine it into Floor. Aliens burrow through it freely.
+	// but they can mine it into Floor. Nothing walks through it, aliens included.
 	Rock Terrain = iota
 	// Floor is open, walkable space: a mined-out cavern or corridor.
 	Floor
@@ -122,8 +122,8 @@ func (t Terrain) String() string {
 	}
 }
 
-// Walkable reports whether a colonist can stand on this terrain. Aliens ignore
-// this; they move through anything.
+// Walkable reports whether a creature can stand on this terrain. Everyone,
+// aliens included, keeps to walkable floor.
 func (t Terrain) Walkable() bool {
 	return t == Floor
 }
@@ -620,7 +620,7 @@ type World struct {
 
 	// alienSpecies is this world's roster of rolled alien species -- each
 	// one's build, colloquial name, temperament, and the combat stats (bite
-	// damage/rest, burrow slowness) every Alien entity assigned to it (see
+	// damage/rest, slowness) every Alien entity assigned to it (see
 	// Entity.Species, set in spawn) reads instead of a flat Config value.
 	// Rolled once in newWorld, off its own seed-derived stream (neither rng
 	// nor prng). See lore.go.

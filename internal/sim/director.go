@@ -149,7 +149,7 @@ func (w *World) fireAlienSwarm(ev scheduledEvent) {
 	spawned := 0
 	var first *Entity
 	for i := 0; i < ev.Occurrence.Count; i++ {
-		p, ok := w.randomRockFar(center, 8)
+		p, ok := w.alienSpawnSite(center, 8)
 		if !ok {
 			break
 		}
@@ -167,7 +167,7 @@ func (w *World) fireAlienSwarm(ev scheduledEvent) {
 	if first != nil {
 		noun = w.alienPluralFor(first)
 	}
-	w.log.add(fmt.Sprintf("%s: a swarm of %s burrows toward the colony (%d).", ev.Name, noun, spawned))
+	w.log.add(fmt.Sprintf("%s: a swarm of %s stirs below (%d).", ev.Name, noun, spawned))
 }
 
 // fireSupplyDrop hands out weapons to living colonists, the same way the

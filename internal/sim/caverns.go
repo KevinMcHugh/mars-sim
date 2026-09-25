@@ -266,17 +266,20 @@ func (w *World) seedAlienNests(rng *rand.Rand, caves []cavern) {
 	}
 }
 
-// dormant reports whether e is a nest alien whose cave the colony has not
-// found yet. A dormant alien keeps to its cave and is invisible to the colony:
-// nobody flees from, remembers, or fights an alien sealed behind rock they
-// have never dug into.
+// dormant reports whether e is an alien in a cave the colony has not found
+// yet: a nest member, or any alien that spawned on hidden cavern floor.
+// Aliens walk only on floor, and undiscovered floor is always a sealed
+// cavern (see the invariant above), so a dormant alien cannot reach the
+// colony anyway. It keeps to its cave and is invisible to the colony: nobody
+// flees from, remembers, or fights an alien sealed behind rock they have
+// never dug into.
 func (w *World) dormant(e *Entity) bool {
-	return e.nest > 0 && !w.discovered(e.Pos)
+	return e.Kind == Alien && !w.discovered(e.Pos)
 }
 
-// nestTurn is a dormant alien's turn: now and then it shifts to a neighboring
-// floor tile, never burrowing, so the nest stays in its cave.
-func (w *World) nestTurn(e *Entity) {
+// dormantTurn is a dormant alien's turn: now and then it shifts to a
+// neighboring floor tile of its cave.
+func (w *World) dormantTurn(e *Entity) {
 	e.State, e.Quarry = Idle, 0
 	if w.rng.Intn(4) != 0 {
 		return

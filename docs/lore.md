@@ -124,9 +124,9 @@ to branch on rather than an incidental zero:
   `nearestOfKind` instead of the unbounded `nearestOfKindAnywhere`, so it
   only ever notices — and then closes in on and bites — a colonist already
   close by.
-- **Hostile** hunts the nearest colonist anywhere on the map,
-  unconditionally: the same `nearestOfKindAnywhere` + burrow-toward-it
-  behavior every alien had before temperament existed.
+- **Hostile** hunts the nearest colonist anywhere it can walk to
+  (`nearestReachableColonist`: any distance, but only in its own room),
+  unconditionally. Cautious uses the same room check within its radius.
 
 `rollTemperament` makes Friendly rare (10%) and Cautious/Hostile common and
 roughly even (45% each) — the "ET to Xenomorph" spread the ask described.

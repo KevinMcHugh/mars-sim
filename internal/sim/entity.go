@@ -10,8 +10,8 @@ const (
 	// Colonist is a human worker: walks on Floor, mines Rock, builds structures,
 	// tends to its needs, and flees from aliens.
 	Colonist Kind = iota
-	// Alien is a subterranean mutant that burrows through any terrain to hunt
-	// and eat colonists.
+	// Alien is a subterranean mutant that walks the floor to hunt and eat
+	// colonists. Most start dormant in hidden caverns (see docs/caverns.md).
 	Alien
 	// Cat is a surface predator that stalks the floor hunting mice. It has no
 	// needs of its own; it hunts by instinct.
