@@ -503,9 +503,8 @@ func DefaultConfig() Config {
 
 // tickInterval converts a ticks-per-second rate into a sleep duration. There is
 // no upper cap on the rate: the only floors are one tick per second and a
-// non-zero interval (time.NewTicker panics on zero). Asking for more ticks than
-// the machine can simulate just runs flat out, since a ticker drops the ticks a
-// slow receiver misses rather than queueing them.
+// non-zero interval. Asking for more ticks than the machine can simulate just
+// runs flat out: Engine.Run catches up on late ticks only within maxTickLag.
 func tickInterval(ticksPerSecond int) time.Duration {
 	if ticksPerSecond < 1 {
 		ticksPerSecond = 1

@@ -75,6 +75,13 @@ along on every snapshot as `Snapshot.Perf`.
 - **Ticks/sec is averaged over a second.** At 8 tps a quarter-second bucket
   holds 1–3 ticks, and plotting counts×4 draws noise between 4 and 12.
 
+- **It caught a real bug on day one.** On macOS, `-tps 100` measured about
+  60 here, while `+` pushed it higher. The engine ran on a `time.Ticker`,
+  which drops any tick whose wakeup came late, and macOS coalesces timers.
+  The loop now paces against deadlines and makes late ticks up (see
+  [architecture.md](./architecture.md)). If ticks/sec sits below target while
+  ms/tick is well under budget, suspect the scheduler, not the simulation.
+
 ## Extending it
 
 - A new measure (say, time spent in pathfinding) is a field on `PerfSample`,

@@ -36,7 +36,14 @@ that touches `World`. Its loop (`engine.go`) selects over three things:
 
 - `ctx.Done()` — shut down and close all subscriber channels.
 - an incoming `Command` — applied *between* ticks, so input never races the sim.
-- the ticker — when not paused, `world.step()` then `publish()`.
+- the tick timer — when not paused, `world.step()` then `publish()`.
+
+Ticks are paced against fixed deadlines, not a `time.Ticker`: a ticker drops
+any tick whose wakeup came late, and macOS routinely wakes timers late to save
+power, which held a `-tps 100` game to about 60. The loop remembers when each
+tick was due (`nextDue`) and runs overdue ones straight away, up to
+`maxTickLag` behind; past that it restarts the schedule from now and simply
+runs flat out.
 
 Because commands are drained on the same goroutine that steps the world, there is
 no locking around game state at all. The only shared state is the slice of
@@ -105,7 +112,7 @@ flow fields subscribe to it to stay incrementally up to date. See
   add a field to `Snapshot`/`EntityView`/`Stats`.
 - **A new command**: add a type implementing `Command` (the `isCommand()` marker)
   and handle it in `Engine.apply`. Return `true` from `apply` if it changes the
-  tick rate so the loop resets the ticker.
+  tick rate so the loop restarts its tick schedule.
 - **A new derived system**: subscribe to the event bus in `newWorld` and keep
   your own incremental state, rather than scanning the world each tick.
 

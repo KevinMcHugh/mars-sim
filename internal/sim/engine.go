@@ -96,9 +96,18 @@ func (e *Engine) Send(cmd Command) {
 
 // Run drives the tick loop until ctx is cancelled. It is meant to be launched in
 // its own goroutine: go engine.Run(ctx).
+//
+// Ticks are paced against fixed deadlines rather than a time.Ticker. A ticker
+// drops every tick its receiver was not ready for, so a wakeup that arrives
+// late — routine on macOS, which coalesces timers to save power — costs a
+// whole tick, and the achieved rate sinks to whatever cadence the OS actually
+// delivers instead of the one asked for. Deadlines remember when each tick was
+// due, so a late wakeup is made up by ticking again straight away.
 func (e *Engine) Run(ctx context.Context) {
-	ticker := time.NewTicker(tickInterval(e.tps))
-	defer ticker.Stop()
+	interval := tickInterval(e.tps)
+	due := time.Now().Add(interval)
+	timer := time.NewTimer(interval)
+	defer timer.Stop()
 
 	// Publish the initial world so frontends have something to draw before the
 	// first tick fires.
@@ -112,15 +121,38 @@ func (e *Engine) Run(ctx context.Context) {
 
 		case cmd := <-e.cmds:
 			if e.apply(cmd) {
-				ticker.Reset(tickInterval(e.tps))
+				interval = tickInterval(e.tps)
+				due = time.Now().Add(interval)
+				timer.Reset(interval)
 			}
 
-		case <-ticker.C:
+		case <-timer.C:
 			if !e.paused {
 				e.tick()
 			}
+			now := time.Now()
+			due = nextDue(due, now, interval)
+			timer.Reset(due.Sub(now))
 		}
 	}
+}
+
+// maxTickLag is how far behind schedule the engine may fall before it stops
+// trying to catch up. Within it, missed ticks are run back to back; beyond it
+// (the machine cannot simulate this fast, or the process was suspended) the
+// schedule restarts from now, so the sim runs flat out rather than bursting
+// through a backlog it will never clear.
+const maxTickLag = 250 * time.Millisecond
+
+// nextDue returns when the tick after one due at due should run, given the
+// time is now: one interval later, or now if that has already slipped more
+// than maxTickLag into the past.
+func nextDue(due, now time.Time, interval time.Duration) time.Time {
+	next := due.Add(interval)
+	if now.Sub(next) > maxTickLag {
+		return now
+	}
+	return next
 }
 
 // tick advances the world one step, publishes it, and records how long each
