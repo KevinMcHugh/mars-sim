@@ -41,11 +41,28 @@ A 3×2 interior inside a one-tile **hull**: five wide, four tall. `Hull` is its
 own terrain so the map can show a pod as salvaged metal (⬜ in the TUI) rather
 than the colony's masonry (🧱), but it behaves like a `Wall`: it blocks
 movement, and a sealed-in colonist may break it down (`nearestEscapeWall`).
-Nothing builds it; it only arrives. `arrive`:
+Nothing builds it; it only arrives.
+
+Pods that land side by side share their side hull as a **party wall**, as the
+colony's own rooms do, so a row of them is one block of cabins:
+
+```
+□□□□□□□□□□□□□
+□BTL□BTL□BTL□
+□.@.□.@.□.@.□
+□□.□□□.□□□.□□
+.............   the walkway between rows, where the doorways open
+□□□□□□□□□□□□□
+```
+
+`podPartyWalls` decides it: a side is shared when a pod landed exactly one
+hull-width over in the same row (`World.pods` records every pod's origin) and
+that neighbor's side hull is still whole. `arrive`:
 
 1. finds a site (below) and stamps the hull, clearing any rock inside it — the
    displaced rock simply disappears;
-2. clears a one-tile **crater** of any rock around the hull, and reserves the
+2. clears a one-tile **crater** of any rock around the hull (except beyond a
+   shared side, which is the neighbor's inside), and reserves the
    approach below the doorway in `doorTiles` so no room or later pod covers it;
 3. places the three fixtures and spawns the colonist on the tile inside the
    door;
@@ -76,7 +93,8 @@ arming everyone did to survival.
 the map's middle row and takes the first **clean** site: footprint and one-tile
 margin all floor, nobody standing on the footprint, no construction designated
 there, no room's reserved door approach, and no wall, hull, or fixture in the
-margin. The first site it passes that is valid but not clean — some rock under
+margin — except beyond a party wall, where the margin is a neighbor's inside.
+The first site it passes that is valid but not clean — some rock under
 the footprint or in the margin, but with some margin already floor so the
 crater connects the doorway to the colony — is held as a crash site, and taken once the search is
 `podCrashSlack` (8) rings past it without finding open floor. A pod that clears
@@ -103,6 +121,13 @@ Five rules shape where pods end up, and each was learned the hard way:
   once the cavern filled. The crater fixes that: whatever side of the margin
   touches floor, the cleared ring leads from the doorway round to it, and it
   keeps a walkway between neighboring pods.
+- **Party walls, not a gap.** The first hulled pods kept a one-tile walkway
+  on every side, so a colony of them was a maze of separate boxes with
+  corridors between every pair. Sharing side walls halves the hull, packs a
+  row tight, and leaves the walkway only where it is needed: between rows,
+  in front of the doorways. The ring search finds the shared site first
+  anyway — a pod one hull-width over is two rings out, and the nearest
+  non-touching site is three.
 - **Only discovered floor counts.** The floor of a hidden natural cavern
   ([caverns.md](./caverns.md)) is open ground to a naive check, so pods used to
   land "cleanly" out in the rock, open the cavern around their colonist, and

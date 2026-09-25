@@ -19,6 +19,11 @@ import "fmt"
 //	H H . H H     the doorway
 //	    ^         the approach: kept open, and reserved like a room's
 //
+// Pods side by side in a row share their side hull as a party wall, the way
+// the colony's rooms do (see roomSiteClear), so a row of them reads as one
+// block of cabins rather than a scatter of boxes. Rows are kept a walkway
+// apart: that row is where the doorways open.
+//
 // The hull is what lets the fixtures sit side by side, where a built room
 // spaces them a tile apart: nothing can path through a pod, so no path is
 // cut by packing them, and each fixture is used from the floor row in front
@@ -73,7 +78,9 @@ func (w *World) arrive(announce bool) *Entity {
 	if !ok {
 		return nil
 	}
-	// The impact clears whatever rock it lands on; the rock is simply gone.
+	w.pods[o] = true
+	// The impact clears whatever rock it lands on; the rock is simply gone. A
+	// side shared with a neighbor is already hull, so stamping it is a no-op.
 	for dy := 0; dy < podHeight; dy++ {
 		for dx := 0; dx < podWidth; dx++ {
 			if p := o.Add(dx, dy); podHullAt(dx, dy) {
@@ -86,7 +93,8 @@ func (w *World) arrive(announce bool) *Entity {
 	// It blasts a one-tile crater round the hull, too: the walkway that takes
 	// the colonist from its doorway, around the pod, to whatever floor the
 	// margin touches (podSiteRock guarantees it touches some).
-	forEachPodMargin(o, func(p Point) {
+	shareL, shareR := w.podPartyWalls(o)
+	forEachPodMargin(o, shareL, shareR, func(p Point) {
 		if w.TerrainAt(p) == Rock {
 			w.SetTerrain(p, Floor)
 		}
@@ -249,8 +257,11 @@ func forEachRingPoint(c Point, r int, visit func(Point) bool) {
 // The footprint must be rock or bare floor with nobody standing on it and no
 // construction designated there, and must not cover a room's reserved door
 // approach. The one-tile margin around it must hold no wall, hull, or fixture,
-// so pods never land inside a built room or hull to hull: the margin is the
-// walkway between them, and the landing clears any rock in it (see arrive).
+// so pods never land inside a built room or wedged against one, and rows of
+// pods stay a walkway apart. The one exception is a party wall: a side of the
+// footprint that is exactly a neighboring pod's side hull is shared, and the
+// margin beyond it (the neighbor's inside) is not checked. The margin is the
+// walkway round the pod, and the landing clears any rock in it (see arrive).
 // That walkway is the only way out of the doorway, so it must lead somewhere:
 // some of the margin must already be floor, or the pod would seal its
 // colonist into the rock. Rock in the margin that a project means to dig is
@@ -264,9 +275,13 @@ func (w *World) podSiteRock(o Point, designated map[Point]bool) (rock, marginRoc
 	if o.X < 1 || o.Y < 1 || o.X+podWidth >= w.Width || o.Y+podHeight >= w.Height {
 		return 0, 0, false // the margin must be on the map too
 	}
+	shareL, shareR := w.podPartyWalls(o)
 	for dy := 0; dy < podHeight; dy++ {
 		for dx := 0; dx < podWidth; dx++ {
 			p := o.Add(dx, dy)
+			if (dx == 0 && shareL) || (dx == podWidth-1 && shareR) {
+				continue // the neighbor's hull, checked by podPartyWalls
+			}
 			switch w.TerrainAt(p) {
 			case Rock:
 				rock++
@@ -283,7 +298,7 @@ func (w *World) podSiteRock(o Point, designated map[Point]bool) (rock, marginRoc
 		}
 	}
 	touchesFloor, blocked := false, false
-	forEachPodMargin(o, func(p Point) {
+	forEachPodMargin(o, shareL, shareR, func(p Point) {
 		switch t := w.TerrainAt(p); {
 		case t == Wall || t == Hull || isFixtureTerrain(t):
 			blocked = true
@@ -300,14 +315,39 @@ func (w *World) podSiteRock(o Point, designated map[Point]bool) (rock, marginRoc
 	return rock, marginRock, true
 }
 
-// forEachPodMargin visits the one-tile ring around a pod whose top-left is o.
-func forEachPodMargin(o Point, visit func(Point)) {
+// forEachPodMargin visits the one-tile ring around a pod whose top-left is o,
+// leaving out the column beyond a side shared with a neighbor (shareL,
+// shareR): that column is the neighbor's inside, not a walkway.
+func forEachPodMargin(o Point, shareL, shareR bool, visit func(Point)) {
 	for dy := -1; dy <= podHeight; dy++ {
 		for dx := -1; dx <= podWidth; dx++ {
 			if dx >= 0 && dx < podWidth && dy >= 0 && dy < podHeight {
 				continue
 			}
+			inRow := dy >= 0 && dy < podHeight
+			if inRow && ((dx == -1 && shareL) || (dx == podWidth && shareR)) {
+				continue
+			}
 			visit(o.Add(dx, dy))
 		}
 	}
+}
+
+// podPartyWalls reports whether a pod with top-left o would share its left or
+// right side with a neighboring pod in the same row: one landed exactly one
+// hull-width over, whose side hull is still whole. A side broken down to
+// escape (see nearestEscapeWall) is not a wall to share.
+func (w *World) podPartyWalls(o Point) (left, right bool) {
+	side := func(neighbor Point, x int) bool {
+		if !w.pods[neighbor] {
+			return false
+		}
+		for dy := 0; dy < podHeight; dy++ {
+			if w.TerrainAt(Point{x, o.Y + dy}) != Hull {
+				return false
+			}
+		}
+		return true
+	}
+	return side(o.Add(-(podWidth-1), 0), o.X), side(o.Add(podWidth-1, 0), o.X+podWidth-1)
 }

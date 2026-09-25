@@ -121,7 +121,7 @@ func TestPodCrashesThroughRockWhenTheCavernIsFull(t *testing.T) {
 			}
 		}
 	}
-	forEachPodMargin(e.podOrigin, func(p Point) {
+	forEachPodMargin(e.podOrigin, false, false, func(p Point) {
 		if w.TerrainAt(p) == Rock {
 			t.Fatalf("rock left in the crater around the pod at %v", p)
 		}
@@ -192,5 +192,36 @@ func TestPodsNeverLandInAnUndiscoveredCavern(t *testing.T) {
 	w.refreshSpatial()
 	if w.roomOf(e.Pos) != w.roomOf(Point{5, 20}) {
 		t.Fatalf("the pod at %v landed cut off from the colony's corridor", e.podOrigin)
+	}
+}
+
+// Pods landing side by side share their side hull as a party wall, and every
+// colonist can still walk out of its pod to the rest of the colony.
+func TestPodsInARowSharePartyWalls(t *testing.T) {
+	cfg := testConfig()
+	cfg.Width, cfg.Height = 80, 40
+	cfg.StartColonists, cfg.StartAliens, cfg.StartCats, cfg.StartRats = 10, 0, 0, 0
+	w := newTestWorld(t, cfg)
+	w.refreshSpatial()
+	shared := 0
+	for _, id := range w.entityIDsSorted() {
+		e := w.entities[id]
+		if e.Kind != Colonist {
+			continue
+		}
+		if w.roomOf(e.Pos) != w.mainRoom {
+			t.Fatalf("%s is shut in its pod at %v", e.displayName(), e.podOrigin)
+		}
+		if right := e.podOrigin.Add(podWidth-1, 0); w.pods[right] {
+			shared++
+			for dy := 0; dy < podHeight; dy++ {
+				if p := right.Add(0, dy); w.TerrainAt(p) != Hull {
+					t.Fatalf("party wall between pods at %v and %v is %v at %v", e.podOrigin, right, w.TerrainAt(p), p)
+				}
+			}
+		}
+	}
+	if shared < 5 {
+		t.Fatalf("only %d of 10 pods share a wall with the next; want them packed in rows", shared)
 	}
 }

@@ -636,7 +636,10 @@ type World struct {
 	// podRingHint is the search ring the last crash pod landed on, so the
 	// next search starts near there instead of rescanning the packed middle.
 	// See findPodSite.
-	podRingHint        int
+	podRingHint int
+	// pods holds the top-left of every crash pod that has landed, so a new pod
+	// can tell a neighbor's side hull it may share. Lookups only; never ranged.
+	pods               map[Point]bool
 	restrictedFixtures [numTerrains]int
 	fixtureRev         uint64
 	snapFixtureRev     uint64
@@ -761,6 +764,7 @@ func newWorld(cfg Config, rng *rand.Rand) *World {
 		colonistNames:     make(map[string]EntityID),
 		buildTiles:        make(map[Point]bool),
 		doorTiles:         make(map[Point]bool),
+		pods:              make(map[Point]bool),
 		storageContainers: make(map[Point]*StorageContainer),
 		fixtures:          make(map[Point]*Fixture),
 		orders:            make(map[OrderID]*Order),
