@@ -23,6 +23,10 @@ type flowCell struct {
 type flowField struct {
 	w    *World
 	seed func(add func(Point)) // reports goal tiles (each passed to add)
+	// goal reports whether a walkable tile is a goal. It must agree with seed
+	// (a walkable tile is a goal iff seed passes it to add): seed builds the
+	// field from nothing, goal answers for single tiles during a repair.
+	goal func(Point) bool
 
 	// cells is sparse: a field only ever writes a cell it reached, which means
 	// walkable tiles, which means the colony. A page nothing reached reads as
@@ -33,18 +37,54 @@ type flowField struct {
 	gen   int32
 	queue []int32 // reusable BFS frontier (cell indices)
 
-	stale     bool // goals or terrain changed since the last rebuild
-	builtTick int  // tick of the last rebuild (bounds rebuilds to once per tick)
+	// full means the field must be rebuilt from scratch: it has never been
+	// built, or more changed than a repair is worth. Otherwise touched lists
+	// the places that changed since the last build, and ensureFresh repairs
+	// just the part of the field they can reach (see repair).
+	full      bool
+	touched   []Point
+	builtTick int // tick of the last build or repair (bounds them to once per tick)
+
+	repairScratch // reusable buffers for repair
 }
 
-func newFlowField(w *World, seed func(add func(Point))) *flowField {
+func newFlowField(w *World, seed func(add func(Point)), goal func(Point) bool) *flowField {
 	return &flowField{
 		w:         w,
 		seed:      seed,
+		goal:      goal,
 		cells:     newPagedGrid[flowCell](w.Width, w.Height),
-		stale:     true,
+		full:      true,
 		builtTick: -1,
 	}
+}
+
+// maxTouched is how many changes a field accumulates before it gives up on
+// repairing and rebuilds instead. Each touch costs a repair a few cells even
+// when nothing moves, so past this a rebuild (one pass over the colony) is the
+// cheaper and simpler answer; it is also what keeps world generation, which
+// changes millions of tiles before any field is read, from queueing them all.
+const maxTouched = 1024
+
+// touch records that something at p changed: p's walkability, or whether any
+// tile next to p is a goal (a facility built or removed beside it, a frontier
+// rock appearing, vanishing, or being claimed). The field repairs the tiles
+// around every touched point the next time it is read.
+func (f *flowField) touch(p Point) {
+	if f.full {
+		return
+	}
+	if len(f.touched) >= maxTouched {
+		f.invalidate()
+		return
+	}
+	f.touched = append(f.touched, p)
+}
+
+// invalidate forces the next read to rebuild the field from scratch.
+func (f *flowField) invalidate() {
+	f.full = true
+	f.touched = f.touched[:0]
 }
 
 // at returns the step distance from p to the nearest goal, or -1 if p is out of
@@ -128,14 +168,20 @@ func (f *flowField) rebuild() {
 	f.queue = q
 }
 
-// ensureFresh rebuilds the field if it is stale, at most once per tick: the
-// first reader of the tick pays for the shared field, the rest reuse it.
+// ensureFresh brings the field up to date, at most once per tick: the first
+// reader of the tick pays for the shared field, the rest reuse it. A field
+// that only has a few touched places is repaired around them; one that needs
+// it (or has never been built) is rebuilt.
 func (f *flowField) ensureFresh() {
-	if f.stale && f.builtTick != f.w.tick {
-		f.rebuild()
-		f.stale = false
-		f.builtTick = f.w.tick
+	if f.builtTick == f.w.tick || (!f.full && len(f.touched) == 0) {
+		return
 	}
+	if f.full || !f.repair() {
+		f.rebuild()
+	}
+	f.full = false
+	f.touched = f.touched[:0]
+	f.builtTick = f.w.tick
 }
 
 // followField moves a colonist along the field toward the nearest goal. Any
@@ -262,6 +308,22 @@ func (w *World) adjacentFacility(p Point, t Terrain) (Point, bool) {
 		}
 	}
 	return Point{}, false
+}
+
+// facilityGoal reports whether p is a goal of the facility field for kind:
+// walkable and next to a tile of that kind. It is facilitySeed for one tile.
+func facilityGoal(w *World, kind Terrain) func(Point) bool {
+	return func(p Point) bool {
+		if !w.Walkable(p) {
+			return false
+		}
+		for _, d := range neighbors8 {
+			if w.TerrainAt(p.Add(d.X, d.Y)) == kind {
+				return true
+			}
+		}
+		return false
+	}
 }
 
 // facilitySeed builds the goal-seeding closure for a facility field: the walkable

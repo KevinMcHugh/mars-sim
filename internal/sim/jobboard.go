@@ -43,14 +43,40 @@ func (b *jobBoard) onTileChanged(ev TileChanged) {
 // refreshFrontierCell recomputes whether one cell belongs to the frontier.
 func (b *jobBoard) refreshFrontierCell(p Point) {
 	w := b.w
+	_, was := b.frontier[p]
 	if w.InBounds(p) && w.TerrainAt(p) == Rock && w.bordersFloor(p) {
-		b.frontier[p] = struct{}{}
+		if !was {
+			b.frontier[p] = struct{}{}
+			b.touchFrontierField(p)
+		}
 		return
 	}
 	// No longer mineable (mined out, walled off, or out of bounds): drop it and
 	// release any claim so the miner's job resolves next tick.
-	delete(b.frontier, p)
-	delete(b.claimed, p)
+	_, claimed := b.claimed[p]
+	if was || claimed {
+		delete(b.frontier, p)
+		delete(b.claimed, p)
+		b.touchFrontierField(p)
+	}
+}
+
+// touchFrontierField tells the frontier flow field that whether p is an
+// unclaimed frontier tile has changed, so the goals around p may have too.
+func (b *jobBoard) touchFrontierField(p Point) {
+	if b.w.frontier != nil {
+		b.w.frontier.touch(p)
+	}
+}
+
+// isUnclaimedFrontier reports whether p is a frontier tile nobody is mining:
+// what the frontier flow field routes miners toward.
+func (b *jobBoard) isUnclaimedFrontier(p Point) bool {
+	if _, ok := b.frontier[p]; !ok {
+		return false
+	}
+	_, taken := b.claimed[p]
+	return !taken
 }
 
 // isFrontier reports whether p is a mineable rock tile.
@@ -74,7 +100,7 @@ func (b *jobBoard) unclaimedCount() int {
 // field so other miners route around it.
 func (b *jobBoard) claimMine(p Point, id EntityID) {
 	b.claimed[p] = id
-	b.w.frontier.stale = true
+	b.touchFrontierField(p)
 }
 
 // releaseMine drops id's claim on p (if it holds it), reopening the tile as a
@@ -82,7 +108,7 @@ func (b *jobBoard) claimMine(p Point, id EntityID) {
 func (b *jobBoard) releaseMine(p Point, id EntityID) {
 	if b.claimed[p] == id {
 		delete(b.claimed, p)
-		b.w.frontier.stale = true
+		b.touchFrontierField(p)
 	}
 }
 

@@ -702,15 +702,29 @@ func newWorld(cfg Config, rng *rand.Rand) *World {
 				add(p.Add(d.X, d.Y))
 			}
 		}
+	}, func(p Point) bool {
+		if !w.Walkable(p) {
+			return false
+		}
+		for _, d := range neighbors8 {
+			if w.board.isUnclaimedFrontier(p.Add(d.X, d.Y)) {
+				return true
+			}
+		}
+		return false
 	})
 	w.subscribe(func(e WorldEvent) {
-		if _, ok := e.(TileChanged); ok {
+		if tc, ok := e.(TileChanged); ok {
+			// The tile's walkability may have changed, and for a facility
+			// field so may the goal status of every tile around it. The
+			// frontier field hears about its goals from the job board, which
+			// touches it whenever frontier membership or a claim changes.
 			for _, f := range w.fields {
 				if f != nil {
-					f.stale = true // any terrain change can shift goals or routes
+					f.touch(tc.Pos)
 				}
 			}
-			w.frontier.stale = true
+			w.frontier.touch(tc.Pos)
 		}
 	})
 	w.directorQueue = resolveSchedules(cfg.Schedules, w.rng)
@@ -725,7 +739,7 @@ func (w *World) trackFacility(kind Terrain) {
 		return
 	}
 	w.facilityTiles[kind] = make(map[Point]struct{})
-	w.fields[kind] = newFlowField(w, facilitySeed(w, kind))
+	w.fields[kind] = newFlowField(w, facilitySeed(w, kind), facilityGoal(w, kind))
 }
 
 // index converts a coordinate to a slice offset. Callers must ensure the point
@@ -906,7 +920,7 @@ func (w *World) discoverCavernTile(p Point) {
 		}
 	}
 	if w.frontier != nil {
-		w.frontier.stale = true
+		w.frontier.touch(p)
 	}
 }
 
