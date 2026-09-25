@@ -452,10 +452,6 @@ type Entity struct {
 	// world.go and alienSpeciesFor in lore.go): which of this world's
 	// rolled alien species this individual belongs to.
 	Species int
-	// nest is 1 + the index into World.nests of the nest this alien was
-	// born in, or 0 for an alien that was never in one or has since been
-	// roused (see World.dormant and alienTurn).
-	nest int
 
 	// Mouse reproduction (mice only). sex decides who can carry a litter; a
 	// female mouse that mates becomes pregnant until dueTick, when she births a

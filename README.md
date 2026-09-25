@@ -131,8 +131,8 @@ mutable state:
     their needs, and flee when an alien gets close. Each colonist has eight
     inventory slots, each holding a homogeneous stack of up to 64 items.
   - **Aliens** walk the floor like everyone else, hunting the nearest colonist
-    they can reach, and eat it. Most start dormant in hidden caves, and some
-    caves hold a whole nest.
+    they can reach, and eat it. Most start dormant in hidden caves, and
+    breaking into a cave can turn up a whole nest.
   - **Cats** stalk the floor hunting mice, pouncing when adjacent (a single
     pounce is fatal). They have no needs; they hunt by instinct.
   - **Mice** are pests that scurry the floor and nibble the colony's nutrient

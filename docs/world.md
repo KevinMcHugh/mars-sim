@@ -126,9 +126,9 @@ derived systems go stale (and the map the player sees never grows).
    dormant until the colony digs in, or, with no cave room, on colony floor far
    from the landing site. See [caverns.md](./caverns.md#aliens-in-the-caves).
 6. Places mice and cats on random floor tiles inside the cavern.
-7. Seeds **alien nests** in a few natural caverns (`seedAlienNests`), on their
-   own RNG stream: dormant aliens of one species that wake when the colony
-   breaks in. See [caverns.md](./caverns.md#alien-nests).
+7. Records each natural cavern's center (`trackCavernsForNests`), so that
+   breaking into it later can roll for an **alien nest**. No nest aliens exist
+   before then. See [caverns.md](./caverns.md#alien-nests).
 8. Runs `refreshSpatial` once so regions/rooms exist before the first tick.
 
 `randomTile` reservoir-samples a tile satisfying a predicate in one pass — uniform,

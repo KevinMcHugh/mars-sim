@@ -626,9 +626,14 @@ type World struct {
 	// nor prng). See lore.go.
 	alienSpecies []AlienSpecies
 
-	// nests are the alien nests worldgen seeded in natural caverns (see
-	// seedAlienNests); Entity.nest indexes it, 1-based. See docs/caverns.md.
-	nests []alienNest
+	// unfoundCaverns holds the center of every natural cavern not yet
+	// discovered; a breach that reveals one rolls for its alien nest on
+	// nestRNG, a seed-derived stream of its own. See rollNests and
+	// docs/caverns.md.
+	unfoundCaverns map[Point]struct{}
+	nestRNG        *rand.Rand
+	// nestCenters is revealAround's scratch: cavern centers found this flood.
+	nestCenters []Point
 }
 
 // newWorld allocates an all-Rock world of the given size.
@@ -881,9 +886,16 @@ func (w *World) revealAround(p Point) {
 		found++
 		w.discoverCavernTile(q)
 		w.revealRing(q)
+		if _, ok := w.unfoundCaverns[q]; ok {
+			w.nestCenters = append(w.nestCenters, q)
+		}
 	}
 	if found > 0 {
 		w.log.add(fmt.Sprintf("The colony breaks through into a natural cavern (%d tiles of open floor).", found))
+		// Nests are rolled only now, once the whole system is revealed, so
+		// their aliens land on discovered floor, awake.
+		w.rollNests(w.nestCenters)
+		w.nestCenters = w.nestCenters[:0]
 	}
 }
 
@@ -1017,8 +1029,8 @@ func (w *World) spawn(kind Kind, p Point) *Entity {
 
 // spawnAs is spawn with the alien species already chosen (ignored for every
 // other kind), for a caller that must not draw it from the simulation stream:
-// an alien nest, whose members share one species rolled at worldgen (see
-// seedAlienNests).
+// an alien nest, whose members share one species rolled on the nest stream
+// (see spawnNest).
 func (w *World) spawnAs(kind Kind, p Point, species int) *Entity {
 	e := newEntity(w.nextID, kind, p, w.cfg)
 	for i := range e.needSince {

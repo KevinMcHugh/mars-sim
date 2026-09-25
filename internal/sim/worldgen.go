@@ -97,11 +97,9 @@ func generate(w *World) {
 		}
 	}
 
-	// A few caverns hold a dormant alien nest. Seeded last, on a stream of
-	// their own, so a seed without a nest keeps every entity ID and every
-	// draw on the simulation stream it had before nests existed.
-	nestRNG := rand.New(rand.NewSource(w.cfg.Seed ^ 0x0452821E638D0137))
-	w.seedAlienNests(nestRNG, caves)
+	// Alien nests are not placed now: each cavern rolls for one when the
+	// colony breaks into it (see rollNests).
+	w.trackCavernsForNests(caves)
 
 	w.log.add("The colony ship settles onto the Martian crust. Something below stirs.")
 	w.refreshSpatial()
