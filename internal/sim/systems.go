@@ -2,6 +2,7 @@ package sim
 
 import (
 	"fmt"
+	"slices"
 	"sort"
 )
 
@@ -72,6 +73,32 @@ func (w *World) entityIDsSorted() []EntityID {
 		ids = append(ids, id)
 	}
 	sort.Slice(ids, func(i, j int) bool { return ids[i] < ids[j] })
+	return ids
+}
+
+// entityIDsNearSorted returns, in ascending ID order, every entity whose
+// position is within Chebyshev distance radius of center. It scans only the
+// chunks that square overlaps, so its cost tracks the neighbourhood rather
+// than the world's population.
+func (w *World) entityIDsNearSorted(center Point, radius int) []EntityID {
+	if radius < 0 {
+		return nil
+	}
+	cx0 := max(0, (center.X-radius)/chunkSize)
+	cy0 := max(0, (center.Y-radius)/chunkSize)
+	cx1 := min(w.chunkCols-1, (center.X+radius)/chunkSize)
+	cy1 := min(w.chunkRows-1, (center.Y+radius)/chunkSize)
+	var ids []EntityID
+	for cy := cy0; cy <= cy1; cy++ {
+		for cx := cx0; cx <= cx1; cx++ {
+			for _, id := range w.chunkEntities[cy*w.chunkCols+cx] {
+				if e := w.entities[id]; e != nil && center.Chebyshev(e.Pos) <= radius {
+					ids = append(ids, id)
+				}
+			}
+		}
+	}
+	slices.Sort(ids)
 	return ids
 }
 
@@ -384,9 +411,17 @@ func (w *World) observeNearby(e *Entity) {
 	}
 	visible := make(map[EntityID]bool)
 	seesThreat := false
-	for _, id := range w.entityIDsSorted() {
+	// Only aliens and mice are noticed, and only within their radii, so the
+	// candidates come from the chunk index around e rather than from every
+	// entity in the world. This used to walk (and sort) the whole entity
+	// list once per colonist per tick, which with a hundred colonists was a
+	// hundred full sorts a tick. The candidates are visited in ascending ID
+	// order, exactly as before, so memories and stimuli land in the same
+	// order and the simulation is unchanged.
+	near := w.entityIDsNearSorted(e.Pos, max(w.cfg.FleeRadius, w.cfg.ColonistStompRadius))
+	for _, id := range near {
 		other := w.entities[id]
-		if other == e || !other.Alive() {
+		if other == nil || other == e || !other.Alive() {
 			continue
 		}
 		kind, radius := other.Kind, 0

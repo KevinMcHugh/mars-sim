@@ -49,6 +49,14 @@ as soon as the next ring cannot beat the best candidate. Chunks also bound regio
 recomputation (see [pathfinding.md](./pathfinding.md)). Buckets use swap-delete
 since order within a bucket does not matter (queries tie-break on ID).
 
+`entityIDsNearSorted` is the other chunk query: every entity within a square
+radius, in ascending ID order. `observeNearby` (a colonist noticing aliens and
+mice) uses it. It used to copy and sort *every* entity ID once per colonist per
+tick, so a 500-colonist tick did 500 full sorts; see the table below. Sorting
+only the few nearby hits keeps the same visiting order, and so the same
+memories and stimuli in the same order, which determinism needs (see
+[determinism.md](./determinism.md)).
+
 ### The job board (mining frontier)
 
 The `jobBoard` tracks the **mineable frontier** — rock tiles bordering floor — so
@@ -105,6 +113,15 @@ Cumulative effect of the reactive work on a 2000-colonist stress tick:
 | + occupancy index & counts | ~144 |
 | + chunk index, rooms, board | ~43 |
 | + lazy needs & resting AI | ~13 |
+
+Per-colonist full-entity sorts in `observeNearby`, replaced by
+`entityIDsNearSorted` (same seed, same simulation, before → after):
+
+| Benchmark | ms/tick before | after |
+| --- | --- | --- |
+| `BenchmarkStep500` | 34.6 | 15.6 |
+| `BenchmarkStepMixed500` | 23.0 | 9.0 |
+| `BenchmarkStepSmallColonyOnHugeMap10000` | 1.49 | 1.21 |
 
 Map size is the other axis, and it used to be the one that bit: with the colony
 held fixed, a fresh 6-colonist game published one frame per tick and paid for the
