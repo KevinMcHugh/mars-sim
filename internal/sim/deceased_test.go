@@ -155,3 +155,37 @@ func TestDeceasedRecordHasOwnRelations(t *testing.T) {
 		t.Fatalf("dead parent's archived relations = %+v, want a RelChild tie to %d", dead.Relations, child.ID)
 	}
 }
+
+// Snapshots between two deaths share one copy of the archive, and a death
+// publishes a new copy rather than writing into the one earlier snapshots
+// hold.
+func TestSnapshotDeceasedIsCopiedPerDeathNotPerFrame(t *testing.T) {
+	w := kinWorld()
+	first := w.spawn(Colonist, Point{1, 1})
+	second := w.spawn(Colonist, Point{2, 1})
+	w.remove(first.ID, "test")
+
+	const probeID = EntityID(1 << 30)
+	a, b := w.snapshot(false, 8), w.snapshot(false, 8)
+	if len(a.Deceased) != 1 {
+		t.Fatalf("snapshot has %d deceased, want 1", len(a.Deceased))
+	}
+	a.Deceased[probeID] = EntityView{} // probe for sharing, then undo
+	shared := len(b.Deceased) == 2
+	delete(a.Deceased, probeID)
+	if !shared {
+		t.Error("two snapshots with no death between them copied the archive twice")
+	}
+	if _, leaked := w.deceasedColonists[probeID]; leaked {
+		t.Error("a snapshot's Deceased map is the world's own archive")
+	}
+
+	w.remove(second.ID, "test")
+	c := w.snapshot(false, 8)
+	if len(c.Deceased) != 2 {
+		t.Errorf("snapshot after the second death has %d deceased, want 2", len(c.Deceased))
+	}
+	if len(a.Deceased) != 1 {
+		t.Errorf("an earlier snapshot's Deceased grew to %d: a death wrote into a published map", len(a.Deceased))
+	}
+}
