@@ -7,79 +7,33 @@ const MaxActiveStimuli = 16
 // Stimulus is a bounded, transient appraisal of a recent or ongoing event.
 // Source is zero for events that are not tied to a particular entity.
 type Stimulus struct {
-	Kind      LifeEventKind
+	Rule      RuleID
 	Source    EntityID
 	Salience  int
 	ExpiresAt int
 }
 
-// StimulusSpec declares the transient attention created by one life event.
-// Contributions are the focus scores produced at salience 100.
-type StimulusSpec struct {
-	Salience     int
-	Lifetime     int
-	Contribution [numFocusKinds]int
-}
-
-var stimulusSpecs = [numLifeEventKinds]StimulusSpec{
-	EvtSawAlien: {
-		Salience: 100, Lifetime: 12,
-		Contribution: [numFocusKinds]int{FocusFlee: 500, FocusFight: 500},
-	},
-	EvtBitten: {
-		Salience: 100, Lifetime: 20,
-		Contribution: [numFocusKinds]int{FocusFlee: 300, FocusFight: 150},
-	},
-	EvtWitnessedColonistKilled: {
-		Salience: 90, Lifetime: 20,
-		Contribution: [numFocusKinds]int{FocusFlee: 250, FocusFight: 100},
-	},
-	EvtWitnessedColonistAttacked: {
-		Salience: 70, Lifetime: 12,
-		Contribution: [numFocusKinds]int{FocusFlee: 200, FocusFight: 100},
-	},
-	EvtSawGore: {
-		Salience: 35, Lifetime: 30,
-		Contribution: [numFocusKinds]int{FocusWork: 20},
-	},
-	EvtFinishedMining:       finishedWorkStimulusSpec(),
-	EvtClearedRock:          finishedWorkStimulusSpec(),
-	EvtFinishedConstruction: finishedWorkStimulusSpec(),
-	EvtCleanedRefuse:        finishedWorkStimulusSpec(),
-	EvtIncineratedRefuse:    finishedWorkStimulusSpec(),
-}
-
-func finishedWorkStimulusSpec() StimulusSpec {
-	return StimulusSpec{
-		Salience: 25, Lifetime: 10,
-		Contribution: [numFocusKinds]int{FocusWork: 15},
-	}
-}
-
-// addStimulus inserts the configured appraisal for evt or refreshes the same
-// (kind, source). It considers the incoming stimulus in eviction selection, so
-// a weak new event cannot displace every stronger live event.
-func (w *World) addStimulus(e *Entity, evt LifeEvent) bool {
-	if evt.Kind >= numLifeEventKinds {
-		return false
-	}
-	spec := stimulusSpecs[evt.Kind]
-	if spec.Salience <= 0 || spec.Lifetime <= 0 || w.cfg.ActiveStimulusLimit <= 0 {
+// addStimulus inserts the configured attention for a reaction or refreshes the
+// same (rule, source). It considers the incoming stimulus in eviction
+// selection, so a weak new percept cannot displace stronger live context.
+func (w *World) addStimulus(e *Entity, reaction *ReactionSpec, percept Percept) bool {
+	spec := reaction.Stimulus
+	if spec == nil || spec.Salience <= 0 || spec.Lifetime <= 0 || w.cfg.ActiveStimulusLimit <= 0 {
 		return false
 	}
 	next := Stimulus{
-		Kind: evt.Kind, Source: evt.Source, Salience: spec.Salience,
+		Rule: reaction.ID, Source: percept.Occurrence.source(spec.Source), Salience: spec.Salience,
 		ExpiresAt: w.tick + spec.Lifetime,
 	}
 	for i := 0; i < e.stimulusCount; i++ {
-		if e.stimuli[i].Kind == next.Kind && e.stimuli[i].Source == next.Source {
+		if e.stimuli[i].Rule == next.Rule && e.stimuli[i].Source == next.Source {
 			old := e.stimuli[i]
 			changed := old != next
 			e.stimuli[i] = next
 			// Refreshing only the expiry of an ongoing perception leaves every
 			// aggregate score unchanged. Recompute just the minimum deadline when
 			// the refreshed entry used to own it.
-			if old.Kind == next.Kind && old.Salience == next.Salience {
+			if old.Rule == next.Rule && old.Salience == next.Salience {
 				if old.ExpiresAt == e.nextStimulusExpiry {
 					w.refreshNextStimulusExpiry(e)
 				}
@@ -98,7 +52,7 @@ func (w *World) addStimulus(e *Entity, evt LifeEvent) bool {
 	if e.stimulusCount < limit {
 		e.stimuli[e.stimulusCount] = next
 		e.stimulusCount++
-		e.addStimulusBias(next, 1)
+		w.addStimulusBias(e, next, 1)
 		if e.nextStimulusExpiry == 0 || next.ExpiresAt < e.nextStimulusExpiry {
 			e.nextStimulusExpiry = next.ExpiresAt
 		}
@@ -117,8 +71,8 @@ func (w *World) addStimulus(e *Entity, evt LifeEvent) bool {
 	}
 	old := e.stimuli[worst]
 	e.stimuli[worst] = next
-	e.addStimulusBias(old, -1)
-	e.addStimulusBias(next, 1)
+	w.addStimulusBias(e, old, -1)
+	w.addStimulusBias(e, next, 1)
 	w.refreshNextStimulusExpiry(e)
 	w.markMindDirty(e)
 	return true
@@ -160,8 +114,8 @@ func (w *World) expireStimuli(e *Entity) bool {
 	return true
 }
 
-func (e *Entity) addStimulusBias(s Stimulus, scale int) {
-	for f, contribution := range stimulusSpecs[s.Kind].Contribution {
+func (w *World) addStimulusBias(e *Entity, s Stimulus, scale int) {
+	for f, contribution := range w.stimulusContributions(s.Rule) {
 		e.stimulusFocusBias[f] += scale * contribution * s.Salience / 100
 	}
 }
@@ -174,6 +128,13 @@ func (w *World) refreshNextStimulusExpiry(e *Entity) {
 			e.nextStimulusExpiry = expires
 		}
 	}
+}
+
+func (w *World) stimulusContributions(id RuleID) [numFocusKinds]int {
+	if reaction, ok := w.cognition.reaction(id); ok && reaction.Stimulus != nil {
+		return reaction.Stimulus.Contribution
+	}
+	return [numFocusKinds]int{}
 }
 
 // refreshStimulusCache updates the aggregate score and earliest expiry in one
@@ -190,7 +151,7 @@ func (w *World) refreshStimulusCache(e *Entity) {
 		if e.nextStimulusExpiry == 0 || s.ExpiresAt < e.nextStimulusExpiry {
 			e.nextStimulusExpiry = s.ExpiresAt
 		}
-		for f, contribution := range stimulusSpecs[s.Kind].Contribution {
+		for f, contribution := range w.stimulusContributions(s.Rule) {
 			e.stimulusFocusBias[f] += contribution * s.Salience / 100
 		}
 	}
@@ -205,7 +166,7 @@ func (w *World) stimulusBiases(e *Entity, out *[numFocusKinds]int) {
 		if s.ExpiresAt <= w.tick {
 			continue
 		}
-		for f, contribution := range stimulusSpecs[s.Kind].Contribution {
+		for f, contribution := range w.stimulusContributions(s.Rule) {
 			out[f] += contribution * s.Salience / 100
 		}
 	}

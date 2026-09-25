@@ -13,12 +13,12 @@ func TestRememberKeepsRecentMemories(t *testing.T) {
 	col := newEntity(1, Colonist, Point{}, cfg)
 	w.entities[col.ID] = col
 
-	// EvtConversation, not one of the routine kinds: a collapsible kind would
+	// conversation, not one of the routine reactions: a collapsible reaction would
 	// fold these into a single memory and never reach the cap at all (see
 	// TestRepeatedMinorEventsCollapse).
 	for i := 0; i < maxColonistMemories+3; i++ {
 		w.tick = i
-		w.remember(col, event(EvtConversation, "event"))
+		rememberTest(w, col, "conversation", "event")
 	}
 	if got, want := len(col.Memories), maxColonistMemories; got != want {
 		t.Fatalf("memory count = %d, want %d", got, want)
@@ -131,7 +131,7 @@ func TestSnapshotCopiesMemories(t *testing.T) {
 	w := newWorld(cfg, rand.New(rand.NewSource(1)))
 	col := newEntity(1, Colonist, Point{}, cfg)
 	w.entities[col.ID] = col
-	w.remember(col, event(EvtAte, "a meal"))
+	rememberTest(w, col, "ate", "a meal")
 
 	snap := w.snapshot(false, 1)
 	snap.Entities[0].Memories[0].Text = "mutated"
@@ -150,7 +150,7 @@ func TestRepeatedMinorEventsCollapse(t *testing.T) {
 	col := w.spawn(Colonist, Point{0, 0})
 	for i := 0; i < 12; i++ {
 		w.tick = 100 + i*7
-		w.remember(col, event(EvtFinishedMining, "Finished mining at (%d, %d).", i, i))
+		rememberTest(w, col, "finished-mining", fmt.Sprintf("Finished mining at (%d, %d).", i, i))
 	}
 
 	if got, want := len(col.Memories), 1; got != want {
@@ -168,8 +168,8 @@ func TestRepeatedMinorEventsCollapse(t *testing.T) {
 	if want := "Finished mining."; m.Text != want {
 		t.Errorf("collapsed text = %q, want %q", m.Text, want)
 	}
-	if m.Kind != EvtFinishedMining {
-		t.Errorf("collapsed kind = %v, want EvtFinishedMining", m.Kind)
+	if m.Rule != "finished-mining" {
+		t.Errorf("collapsed rule = %v, want finished-mining", m.Rule)
 	}
 }
 
@@ -180,7 +180,7 @@ func TestSingleMinorEventKeepsItsOwnText(t *testing.T) {
 	w := newTestWorld(t, cfg)
 
 	col := w.spawn(Colonist, Point{0, 0})
-	w.remember(col, event(EvtFinishedMining, "Finished mining at (514, 501)."))
+	rememberTest(w, col, "finished-mining", "Finished mining at (514, 501).")
 
 	m := col.Memories[0]
 	if want := "Finished mining at (514, 501)."; m.Text != want {
@@ -199,22 +199,22 @@ func TestDifferentEventBreaksACollapsedRun(t *testing.T) {
 
 	col := w.spawn(Colonist, Point{0, 0})
 	w.tick = 10
-	w.remember(col, event(EvtFinishedMining, "Finished mining at (1, 1)."))
+	rememberTest(w, col, "finished-mining", "Finished mining at (1, 1).")
 	w.tick = 20
-	w.remember(col, event(EvtFinishedMining, "Finished mining at (2, 2)."))
+	rememberTest(w, col, "finished-mining", "Finished mining at (2, 2).")
 	w.tick = 30
-	w.remember(col, event(EvtAte, "Had a meal."))
+	rememberTest(w, col, "ate", "Had a meal.")
 	w.tick = 40
-	w.remember(col, event(EvtFinishedMining, "Finished mining at (3, 3)."))
+	rememberTest(w, col, "finished-mining", "Finished mining at (3, 3).")
 
 	if got, want := len(col.Memories), 3; got != want {
 		t.Fatalf("memory count = %d, want %d", got, want)
 	}
-	if col.Memories[0].Count != 2 || col.Memories[0].Kind != EvtFinishedMining {
-		t.Errorf("first memory = {Kind: %v, Count: %d}, want the two-dig run", col.Memories[0].Kind, col.Memories[0].Count)
+	if col.Memories[0].Count != 2 || col.Memories[0].Rule != "finished-mining" {
+		t.Errorf("first memory = {Rule: %v, Count: %d}, want the two-dig run", col.Memories[0].Rule, col.Memories[0].Count)
 	}
-	if col.Memories[1].Kind != EvtAte || col.Memories[1].Count != 1 {
-		t.Errorf("second memory = {Kind: %v, Count: %d}, want a single meal", col.Memories[1].Kind, col.Memories[1].Count)
+	if col.Memories[1].Rule != "ate" || col.Memories[1].Count != 1 {
+		t.Errorf("second memory = {Rule: %v, Count: %d}, want a single meal", col.Memories[1].Rule, col.Memories[1].Count)
 	}
 	if col.Memories[2].Count != 1 || col.Memories[2].Tick != 40 {
 		t.Errorf("third memory = {Count: %d, Tick: %d}, want a fresh run starting at t40", col.Memories[2].Count, col.Memories[2].Tick)
@@ -228,8 +228,8 @@ func TestNotableEventsDoNotCollapse(t *testing.T) {
 	w := newTestWorld(t, cfg)
 
 	col := w.spawn(Colonist, Point{0, 0})
-	w.remember(col, event(EvtConversation, "Had a conversation with Ada."))
-	w.remember(col, event(EvtConversation, "Had a conversation with Bo."))
+	rememberTest(w, col, "conversation", "Had a conversation with Ada.")
+	rememberTest(w, col, "conversation", "Had a conversation with Bo.")
 
 	if got, want := len(col.Memories), 2; got != want {
 		t.Fatalf("memory count = %d, want %d", got, want)
@@ -250,9 +250,9 @@ func TestCollapsedRunStillAppliesAffectPerOccurrence(t *testing.T) {
 	thrice := w.spawn(Colonist, Point{10, 10})
 	thrice.Profile = &Profile{}
 
-	w.remember(once, event(EvtFinishedMining, "Finished mining at (1, 1)."))
+	rememberTest(w, once, "finished-mining", "Finished mining at (1, 1).")
 	for i := 0; i < 3; i++ {
-		w.remember(thrice, event(EvtFinishedMining, "Finished mining at (%d, %d).", i, i))
+		rememberTest(w, thrice, "finished-mining", fmt.Sprintf("Finished mining at (%d, %d).", i, i))
 	}
 
 	if once.affect.Grip <= 0 {

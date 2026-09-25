@@ -15,28 +15,27 @@ func TestMoodAttractorsIndexedByKind(t *testing.T) {
 	}
 }
 
-func TestLifeEventAppraisalTable(t *testing.T) {
+func TestReactionAppraisals(t *testing.T) {
 	cfg := DefaultConfig()
-	for kind := LifeEventKind(0); kind < numLifeEventKinds; kind++ {
-		a := lifeEventAppraisals[kind]
-		if a.Impact < 0 || a.Impact > 100 {
-			t.Errorf("kind %d impact %d outside [0, 100]", kind, a.Impact)
+	for _, reaction := range cfg.Cognition.Reactions {
+		if reaction.Impact < 0 || reaction.Impact > 100 {
+			t.Errorf("reaction %s impact %d outside [0, 100]", reaction.ID, reaction.Impact)
 		}
-		if a.Fresh != (MoodVector{}) && a.Impact == 0 {
-			t.Errorf("kind %d moves affect but has no impact, so it can only ever nudge", kind)
+		if reaction.Fresh != (MoodVector{}) && reaction.Impact == 0 {
+			t.Errorf("reaction %s moves affect but has no impact", reaction.ID)
 		}
-		for col, vec := range map[string]MoodVector{"fresh": a.Fresh, "worn": a.Worn} {
-			for name, v := range map[string]int{"charge": vec.Charge, "grip": vec.Grip, "valence": vec.Valence} {
+		for state, target := range map[string]MoodVector{"fresh": reaction.Fresh, "worn": reaction.Worn} {
+			for name, v := range map[string]int{"charge": target.Charge, "grip": target.Grip, "valence": target.Valence} {
 				if v < -cfg.MoodMax || v > cfg.MoodMax {
-					t.Errorf("kind %d %s %s %d outside the plane", kind, col, name, v)
+					t.Errorf("reaction %s %s %s %d outside the plane", reaction.ID, state, name, v)
 				}
 			}
 		}
 	}
-	// A conversation is the one kind whose target cannot be declared: it is
-	// computed per occurrence from how the chat actually went.
-	if got := lifeEventAppraisals[EvtConversation].Fresh; got != (MoodVector{}) {
-		t.Errorf("EvtConversation declares a target %+v that applyAffect always discards", got)
+	// Conversation is contextual, so its configured target is neutral.
+	conversation, _ := cfg.Cognition.reaction("conversation")
+	if got := conversation.Fresh; got != (MoodVector{}) {
+		t.Errorf("conversation declares a non-neutral fallback target %+v", got)
 	}
 }
 
@@ -45,14 +44,13 @@ func TestLifeEventAppraisalTable(t *testing.T) {
 // just watched someone die almost exactly neutral.
 func TestRelocatingEventsAreWrittenAtPlaneScale(t *testing.T) {
 	cfg := DefaultConfig()
-	for kind := LifeEventKind(0); kind < numLifeEventKinds; kind++ {
-		a := lifeEventAppraisals[kind]
-		if a.Impact < cfg.MoodPullImpact {
+	for _, reaction := range cfg.Cognition.Reactions {
+		if reaction.Impact < cfg.MoodPullImpact {
 			continue
 		}
-		for col, vec := range map[string]MoodVector{"fresh": a.Fresh, "worn": a.Worn} {
-			if _, claim := bestMoodAttractor(vec.Charge, vec.Grip); claim < 0 {
-				t.Errorf("kind %d relocates to %s %+v, which lands in unnamed space", kind, col, vec)
+		for state, target := range map[string]MoodVector{"fresh": reaction.Fresh, "worn": reaction.Worn} {
+			if _, claim := bestMoodAttractor(target.Charge, target.Grip); claim < 0 {
+				t.Errorf("reaction %s relocates to %s %+v, which lands in unnamed space", reaction.ID, state, target)
 			}
 		}
 	}
@@ -88,14 +86,14 @@ func TestAGoodDayCannotSoftenAKilling(t *testing.T) {
 	w, fed := focusTestColonist(t)
 	bare := w.spawn(Colonist, fed.Pos.Add(10, 0))
 	for i := 0; i < 10; i++ {
-		w.remember(fed, event(EvtAte, "ate"))
-		w.remember(fed, event(EvtFinishedMining, "mined"))
+		rememberTest(w, fed, "ate", "ate")
+		rememberTest(w, fed, "finished-mining", "mined")
 	}
 	if fed.affect == (AffectState{Label: MoodSteady}) {
 		t.Fatal("a day of meals and work left affect untouched")
 	}
 	for _, c := range []*Entity{fed, bare} {
-		w.remember(c, event(EvtWitnessedColonistKilled, "saw a killing"))
+		rememberTest(w, c, "witnessed-colonist-killed", "saw a killing")
 	}
 	if fed.affect.Charge != bare.affect.Charge ||
 		fed.affect.Grip != bare.affect.Grip ||
@@ -116,9 +114,9 @@ func TestAGoodDayCannotSoftenAKilling(t *testing.T) {
 func TestRoutineEventsStillAccumulate(t *testing.T) {
 	w, once := focusTestColonist(t)
 	thrice := w.spawn(Colonist, once.Pos.Add(10, 0))
-	w.remember(once, event(EvtFinishedMining, "mined"))
+	rememberTest(w, once, "finished-mining", "mined")
 	for i := 0; i < 3; i++ {
-		w.remember(thrice, event(EvtFinishedMining, "mined"))
+		rememberTest(w, thrice, "finished-mining", "mined")
 	}
 	if thrice.affect.Grip <= once.affect.Grip {
 		t.Fatalf("three digs = %+v, want more than one dig %+v", thrice.affect, once.affect)
@@ -149,37 +147,48 @@ func TestTraitMoodTransforms(t *testing.T) {
 	cases := []struct {
 		name  string
 		trait Trait
-		kind  LifeEventKind
+		rule  RuleID
 		in    MoodVector
 		want  MoodVector
 	}{
-		{"tidy gore", TraitTidy, EvtSawGore, MoodVector{-3, -7, -6}, MoodVector{-6, -15, -13}},
-		{"tidy incineration", TraitTidy, EvtIncineratedRefuse, MoodVector{-1, 7, 1}, MoodVector{-1, 14, 1}},
-		{"industrious work", TraitIndustrious, EvtFinishedConstruction, MoodVector{-1, 6, 3}, MoodVector{-2, 12, 6}},
-		{"mutant lover", TraitMutantLover, EvtMutated, MoodVector{18, -70, -35}, MoodVector{18, 70, 35}},
-		{"introvert", TraitIntrovert, EvtConversation, MoodVector{3, 7, 3}, MoodVector{-3, 7, 3}},
+		{"tidy gore", TraitTidy, "saw-gore", MoodVector{-3, -7, -6}, MoodVector{-6, -15, -13}},
+		{"tidy incineration", TraitTidy, "incinerated-refuse", MoodVector{-1, 7, 1}, MoodVector{-1, 14, 1}},
+		{"industrious work", TraitIndustrious, "finished-construction", MoodVector{-1, 6, 3}, MoodVector{-2, 12, 6}},
+		{"mutant lover", TraitMutantLover, "mutated", MoodVector{18, -70, -35}, MoodVector{18, 70, 35}},
+		{"introvert", TraitIntrovert, "conversation", MoodVector{3, 7, 3}, MoodVector{-3, 7, 3}},
 	}
+	cfg := DefaultCognitionConfig()
+	w := &World{cognition: cfg}
 	for _, tc := range cases {
 		e := &Entity{Profile: &Profile{Traits: []Trait{tc.trait}}}
-		if got := transformMoodVector(e, tc.kind, tc.in); got != tc.want {
+		reaction, _ := w.cognition.reaction(tc.rule)
+		percept := testPercept(e, reaction)
+		got := tc.in
+		w.forEachTraitRule(e, percept, func(rule TraitRule) {
+			got.Charge = percent(got.Charge, rule.Charge)
+			got.Grip = percent(got.Grip, rule.Grip)
+			got.Valence = percent(got.Valence, rule.Valence)
+		})
+		if got != tc.want {
 			t.Errorf("%s = %+v, want %+v", tc.name, got, tc.want)
 		}
 	}
 }
 
-func TestTraitAppraisalThroughLifeEventFunnel(t *testing.T) {
+func TestTraitAppraisalThroughPerceptFunnel(t *testing.T) {
 	w, plain := focusTestColonist(t)
 	tidy := w.spawn(Colonist, plain.Pos.Add(10, 0))
 	tidy.Profile = &Profile{Traits: []Trait{TraitTidy}}
 	introvert := w.spawn(Colonist, plain.Pos.Add(20, 0))
 	introvert.Profile = &Profile{Traits: []Trait{TraitIntrovert}}
 
-	w.remember(plain, event(EvtIncineratedRefuse, "burned refuse"))
-	w.remember(tidy, event(EvtIncineratedRefuse, "burned refuse"))
+	rememberTest(w, plain, "incinerated-refuse", "burned refuse")
+	rememberTest(w, tidy, "incinerated-refuse", "burned refuse")
 	if tidy.affect.Grip != 2*plain.affect.Grip {
 		t.Fatalf("Tidy incineration grip %d, want twice plain %d", tidy.affect.Grip, plain.affect.Grip)
 	}
-	w.remember(introvert, eventOutcome(EvtConversation, 7, "talked"))
+	contextual := conversationMoodVector(7)
+	rememberTestReaction(w, introvert, "conversation", 0, "talked", &contextual)
 	if introvert.affect.Charge >= 0 || introvert.affect.Grip <= 0 {
 		t.Fatalf("Introvert conversation affect = %+v, want fatigue and restored grip", introvert.affect)
 	}
@@ -189,11 +198,22 @@ func TestTraitAppraisalThroughLifeEventFunnel(t *testing.T) {
 }
 
 func TestTraitTransformsUseDeclarationOrder(t *testing.T) {
-	in := lifeEventAppraisals[EvtIncineratedRefuse].Fresh
+	cfg := DefaultCognitionConfig()
+	w := &World{cognition: cfg}
+	reaction, _ := w.cognition.reaction("incinerated-refuse")
+	in := reaction.Fresh
 	a := &Entity{Profile: &Profile{Traits: []Trait{TraitTidy, TraitIndustrious}}}
 	b := &Entity{Profile: &Profile{Traits: []Trait{TraitIndustrious, TraitTidy}}}
-	gotA := transformMoodVector(a, EvtIncineratedRefuse, in)
-	gotB := transformMoodVector(b, EvtIncineratedRefuse, in)
+	transform := func(e *Entity) MoodVector {
+		got := in
+		w.forEachTraitRule(e, testPercept(e, reaction), func(rule TraitRule) {
+			got.Charge = percent(got.Charge, rule.Charge)
+			got.Grip = percent(got.Grip, rule.Grip)
+			got.Valence = percent(got.Valence, rule.Valence)
+		})
+		return got
+	}
+	gotA, gotB := transform(a), transform(b)
 	if gotA != gotB || gotA != (MoodVector{-2, 28, 2}) {
 		t.Fatalf("stored trait order changed transform: %+v versus %+v", gotA, gotB)
 	}
@@ -301,6 +321,19 @@ func TestSnapshotExposesAffectCoordinatesAndLabel(t *testing.T) {
 	t.Fatal("colonist missing from snapshot")
 }
 
+func TestSnapshotUsesConfiguredAttractorNames(t *testing.T) {
+	w, c := focusTestColonist(t)
+	w.cognition.Attractors[MoodDriven].GoodName = "purposeful"
+	w.cognition.Attractors[MoodDriven].BadName = "seething"
+	c.affect = AffectState{Charge: 70, Grip: 60, Valence: -20, Label: MoodDriven}
+	snap := w.snapshot(false, 8)
+	for _, view := range snap.Entities {
+		if view.ID == c.ID && view.MoodLabel != "seething" {
+			t.Fatalf("configured mood label = %q, want seething", view.MoodLabel)
+		}
+	}
+}
+
 // Valence picks which of an attractor's two readings applies without moving
 // the colonist or renaming the region they are in.
 func TestValenceChangesMoodWordOnly(t *testing.T) {
@@ -324,7 +357,7 @@ func TestValenceChangesMoodWordOnly(t *testing.T) {
 // someone die reads badly even while well fed, unhurt and in no danger.
 func TestGriefOutlastsGoodCircumstances(t *testing.T) {
 	w, c := focusTestColonist(t)
-	w.remember(c, event(EvtWitnessedColonistKilled, "saw a killing"))
+	rememberTest(w, c, "witnessed-colonist-killed", "saw a killing")
 	for n := NeedKind(0); n < numNeeds; n++ {
 		c.Needs[n], c.needSince[n] = 0, w.tick
 	}
@@ -388,10 +421,10 @@ func TestChargeOrdersSleepAndWork(t *testing.T) {
 // once they have stopped being new to it.
 func TestFirstKillingAndTenthDifferInKind(t *testing.T) {
 	w, c := focusTestColonist(t)
-	w.remember(c, event(EvtWitnessedColonistKilled, "saw a killing"))
+	rememberTest(w, c, "witnessed-colonist-killed", "saw a killing")
 	first := c.affect
 	for i := 0; i < 10; i++ {
-		w.remember(c, event(EvtWitnessedColonistKilled, "saw another killing"))
+		rememberTest(w, c, "witnessed-colonist-killed", "saw another killing")
 	}
 	tenth := c.affect
 
@@ -409,22 +442,30 @@ func TestFirstKillingAndTenthDifferInKind(t *testing.T) {
 	}
 }
 
+func testWearResult(w *World, c *Entity, id RuleID) WearResult {
+	reaction := testReaction(w, id)
+	return wearMemoryOccasions(w, WearContext{
+		Observer: c, Percept: testPercept(c, reaction), Reaction: reaction,
+		BaseRate: w.cfg.MoodWearPerOccasion,
+	})
+}
+
 // Wear is not a ratchet. Occasions live in the bounded memory log, so a
 // colonist who has not seen a thing in a long time meets it fresh again.
 func TestWearRecoversAsMemoriesRollOff(t *testing.T) {
 	w, c := focusTestColonist(t)
 	for i := 0; i < 6; i++ {
-		w.remember(c, event(EvtSawGore, "gore"))
+		rememberTest(w, c, "saw-gore", "gore")
 	}
-	worn := w.moodWear(c, EvtSawGore)
+	worn := testWearResult(w, c, "saw-gore").Level
 	if worn <= 0 {
 		t.Fatalf("six sightings produced wear %d, want some", worn)
 	}
 	// A long stretch of anything else pushes those occasions out of the log.
 	for i := 0; i < maxColonistMemories; i++ {
-		w.remember(c, eventFrom(EvtWitnessedCatCatch, EntityID(i), "the cat got one"))
+		rememberTestFrom(w, c, "witnessed-cat-catch", EntityID(i+1), "the cat got one")
 	}
-	if got := w.moodWear(c, EvtSawGore); got != 0 {
+	if got := testWearResult(w, c, "saw-gore").Level; got != 0 {
 		t.Fatalf("wear after the memories rolled off = %d, want 0", got)
 	}
 }
@@ -434,15 +475,15 @@ func TestWearRecoversAsMemoriesRollOff(t *testing.T) {
 func TestCollapsedRunCountsAsOneOccasion(t *testing.T) {
 	w, c := focusTestColonist(t)
 	for i := 0; i < 20; i++ {
-		w.remember(c, event(EvtFinishedMining, "mined"))
+		rememberTest(w, c, "finished-mining", "mined")
 	}
-	if got, want := w.moodWear(c, EvtFinishedMining), w.cfg.MoodWearPerOccasion; got != want {
+	if got, want := testWearResult(w, c, "finished-mining").Level, w.cfg.MoodWearPerOccasion; got != want {
 		t.Fatalf("wear after one uninterrupted shift = %d, want %d for a single occasion", got, want)
 	}
 }
 
 func TestWearTargetInterpolatesAndCaps(t *testing.T) {
-	a := moodAppraisal{Fresh: MoodVector{10, 20, 30}, Worn: MoodVector{-10, 0, -10}}
+	fresh, worn := MoodVector{10, 20, 30}, MoodVector{-10, 0, -10}
 	for _, tc := range []struct {
 		wear int
 		want MoodVector
@@ -451,7 +492,7 @@ func TestWearTargetInterpolatesAndCaps(t *testing.T) {
 		{50, MoodVector{0, 10, 10}},
 		{100, MoodVector{-10, 0, -10}},
 	} {
-		if got := wearTarget(a, tc.wear); got != tc.want {
+		if got := wearTarget(fresh, worn, tc.wear); got != tc.want {
 			t.Errorf("wearTarget at %d%% = %+v, want %+v", tc.wear, got, tc.want)
 		}
 	}
@@ -462,38 +503,134 @@ func TestWearTargetInterpolatesAndCaps(t *testing.T) {
 func TestWearCapsAtFullyWorn(t *testing.T) {
 	w, c := focusTestColonist(t)
 	for i := 0; i < maxColonistMemories; i++ {
-		w.remember(c, eventFrom(EvtSawGore, EntityID(i), "gore"))
+		rememberTestFrom(w, c, "saw-gore", EntityID(i+1), "gore")
 	}
-	if got := w.moodWear(c, EvtSawGore); got != 100 {
+	result := testWearResult(w, c, "saw-gore")
+	if got := result.Level; got != 100 {
 		t.Fatalf("wear with a log full of one kind = %d, want it capped at 100", got)
 	}
-	a := lifeEventAppraisals[EvtSawGore]
-	if got := wearTarget(a, w.moodWear(c, EvtSawGore)); got != a.Worn {
-		t.Fatalf("fully worn target = %+v, want exactly the worn reading %+v", got, a.Worn)
+	reaction := testReaction(w, "saw-gore")
+	if result.Target != reaction.Worn {
+		t.Fatalf("fully worn target = %+v, want exactly the worn reading %+v", result.Target, reaction.Worn)
 	}
 }
 
 // A conversation carries its own per-occurrence appraisal and its own fatigue
 // window; wearing it too would charge a talkative colonist twice.
-func TestConversationIsExemptFromWear(t *testing.T) {
+func TestConversationUsesNoneWearPolicy(t *testing.T) {
 	w, c := focusTestColonist(t)
+	contextual := conversationMoodVector(20)
 	for i := 0; i < 8; i++ {
-		w.remember(c, eventOutcome(EvtConversation, 20, "talked"))
+		rememberTestReaction(w, c, "conversation", 0, "talked", &contextual)
 	}
-	if w.moodWear(c, EvtConversation) == 0 {
-		t.Fatal("test no longer exercises a worn colonist")
+	reaction := testReaction(w, "conversation")
+	if reaction.WearPolicy != WearPolicyNone {
+		t.Fatalf("conversation wear policy = %q", reaction.WearPolicy)
 	}
 	// Both start from neutral, so this compares how the chat was appraised
 	// rather than where the earlier ones happened to leave them.
 	c.affect = AffectState{}
-	w.remember(c, eventOutcome(EvtConversation, 20, "talked"))
+	rememberTestReaction(w, c, "conversation", 0, "talked", &contextual)
 
 	fw, fresh := focusTestColonist(t)
 	fresh.affect = AffectState{}
-	fw.remember(fresh, eventOutcome(EvtConversation, 20, "talked"))
+	rememberTestReaction(fw, fresh, "conversation", 0, "talked", &contextual)
 
 	if c.affect.Grip != fresh.affect.Grip || c.affect.Valence != fresh.affect.Valence {
 		t.Fatalf("a worn colonist read a chat as %+v and a fresh one as %+v -- wear leaked into conversations",
 			c.affect, fresh.affect)
+	}
+}
+
+func TestNoneWearPolicyFallsBackToFresh(t *testing.T) {
+	w, c := focusTestColonist(t)
+	reaction := testReaction(w, "conversation")
+	reaction.Fresh = MoodVector{Charge: 3, Grip: 4, Valence: 5}
+	got := wearNone(w, WearContext{Observer: c, Reaction: reaction})
+	if got.Target != reaction.Fresh || got.Level != 0 {
+		t.Fatalf("none wear result = %+v, want fresh target", got)
+	}
+}
+
+func TestNerveTraitsScaleWearRate(t *testing.T) {
+	w, plain := focusTestColonist(t)
+	resilient := w.spawn(Colonist, plain.Pos.Add(10, 0))
+	cowardly := w.spawn(Colonist, plain.Pos.Add(20, 0))
+	plain.Profile = &Profile{}
+	resilient.Profile = &Profile{Traits: []Trait{TraitResilient}}
+	cowardly.Profile = &Profile{Traits: []Trait{TraitCowardly}}
+	for _, e := range []*Entity{plain, resilient, cowardly} {
+		e.Memories = []Memory{{Rule: "saw-gore"}, {Rule: "saw-gore"}, {Rule: "saw-gore"}}
+	}
+	reaction := testReaction(w, "saw-gore")
+	base := w.resolveWear(plain, reaction, testPercept(plain, reaction)).Level
+	tough := w.resolveWear(resilient, reaction, testPercept(resilient, reaction)).Level
+	fragile := w.resolveWear(cowardly, reaction, testPercept(cowardly, reaction)).Level
+	if !(tough < base && base < fragile) {
+		t.Fatalf("wear levels resilient/plain/cowardly = %d/%d/%d", tough, base, fragile)
+	}
+}
+
+func TestTraitBaselinesSpawnDecayAndReresolve(t *testing.T) {
+	w, _ := focusTestColonist(t)
+	spawned := w.spawn(Colonist, Point{20, 20})
+	if spawned.affect.Charge != spawned.affectHome.Charge ||
+		spawned.affect.Grip != spawned.affectHome.Grip ||
+		spawned.affect.Valence != spawned.affectHome.Valence {
+		t.Fatalf("spawn affect %+v does not start at home %+v", spawned.affect, spawned.affectHome)
+	}
+
+	spawned.Profile = &Profile{Traits: []Trait{TraitOptimist}}
+	spawned.affect = AffectState{Charge: -40, Grip: -50, Valence: -60}
+	before := spawned.affect
+	w.resolveTraitEffects(spawned)
+	if spawned.affect != before {
+		t.Fatalf("re-resolving traits wiped affect: %+v -> %+v", before, spawned.affect)
+	}
+	if spawned.affectHome != (MoodVector{Grip: 8, Valence: 25}) {
+		t.Fatalf("optimist home = %+v", spawned.affectHome)
+	}
+	for i := 0; i < 2000; i++ {
+		w.tick = i
+		w.decayAffect(spawned)
+	}
+	if !spawned.affectSettled() || spawned.affect.Valence != 25 {
+		t.Fatalf("optimist settled at %+v, home %+v", spawned.affect, spawned.affectHome)
+	}
+	for n := range spawned.needSince {
+		spawned.Needs[n], spawned.needSince[n] = 0, w.tick
+		spawned.needPhase[n] = NeedSatisfied
+		spawned.nextNeedPhaseTick[n] = 0
+	}
+	if next := w.nextCognitionTick(spawned); next <= w.tick+1 {
+		t.Fatalf("settled off-origin affect defeats cognition cache: next=%d now=%d", next, w.tick)
+	}
+
+	spawned.Profile.Traits = []Trait{TraitPessimist}
+	w.resolveTraitEffects(spawned)
+	if spawned.affectHome != (MoodVector{Grip: -8, Valence: -25}) {
+		t.Fatalf("pessimist home = %+v", spawned.affectHome)
+	}
+}
+
+func TestDefaultTraitRuleGrammarCoverage(t *testing.T) {
+	cfg := DefaultCognitionConfig()
+	want := map[RuleID]bool{
+		"tidy-visible-gore": true, "tidy-witnessed-colonist-killed": true,
+		"tidy-witnessed-mouse-crushed": true, "tidy-cleaned-refuse": true,
+		"tidy-incinerated-refuse": true, "industrious-mining": true,
+		"industrious-clearing": true, "industrious-construction": true,
+		"industrious-cleaning": true, "industrious-incinerating": true,
+		"introvert-conversation": true, "mutant-lover-mutated": true,
+		"mutant-lover-witnessed-mutation": true, "extrovert-friend-killed": true,
+		"extrovert-friend-attacked": true, "resilient-global-wear": true,
+		"cowardly-global-wear": true, "cowardly-visible-alien": true,
+		"cowardly-bitten": true, "cowardly-witnessed-gunfight": true,
+	}
+	for _, rule := range cfg.TraitRules {
+		delete(want, rule.ID)
+	}
+	if len(want) != 0 {
+		t.Fatalf("missing default trait rules: %v", want)
 	}
 }

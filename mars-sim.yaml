@@ -504,6 +504,9 @@
 ## percent of the way toward an event's worn reading per remembered occasion
 # mood-wear-per-occasion: 14
 
+## affinity at or above which an occurrence object is perceived as a friend
+# mood-friend-affinity: 30
+
 # ── Mining strategy ─────────────────────────────────────────────────────
 ## colony size at/above which miners use the shared frontier flow field
 # frontier-field-colonists: 800

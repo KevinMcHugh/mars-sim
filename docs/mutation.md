@@ -53,8 +53,8 @@ watching a mutation happen — or undergoing one.
   `StatureMinCM`, `StatureMaxCM`.
 - [`internal/sim/combat.go`](../internal/sim/combat.go) — `rollHit` weighting
   over the target's own anatomy.
-- [`internal/sim/lifeevents.go`](../internal/sim/lifeevents.go) — `EvtMutated`,
-  `EvtWitnessedMutation` and their trait-transformed affect vectors.
+- [`cognition.yaml`](../cognition.yaml) — `mutated` / `witnessed-mutation`
+  reactions and the Mutant-Lover trait rules.
 - [`internal/sim/systems.go`](../internal/sim/systems.go) — `colonistTurn`'s
   exposure step, `finishTalk`'s per-direction affinity credit.
 - [`internal/sim/mutation_test.go`](../internal/sim/mutation_test.go) — the
@@ -311,7 +311,7 @@ their luck) over immediate spectacle.
   add a new way to die outright.
 - **A mutant-hater ("Purist")**: a `traitSpec` in `groupMutantAttitude` plus a
   negative `mutantAffinityBonus` branch, and a grip transform for
-  `EvtMutated`/`EvtWitnessedMutation` in `transformMoodVector`. The group was made its own axis for
+  `mutated`/`witnessed-mutation` in `cognition.yaml` trait rules. The group was made its own axis for
   exactly this.
 - **Another source of mutation** (an alien bite, a lab accident): call
   `w.mutate(e)`. Nothing in it is uranium-specific past the memory text.

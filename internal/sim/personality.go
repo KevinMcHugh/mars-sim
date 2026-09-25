@@ -174,6 +174,10 @@ const (
 	// uranium exposure first changes a colonist's body (see mutation.go).
 	TraitMutant
 	TraitMutantLover
+	TraitResilient
+	TraitCowardly
+	TraitOptimist
+	TraitPessimist
 
 	numTraits // keep last
 )
@@ -201,6 +205,8 @@ const (
 	// so it does not compete with temperament, and so the obvious opposite (a
 	// purist who recoils from them) can join it later.
 	groupMutantAttitude
+	groupNerve
+	groupOutlook
 
 	numTraitGroups // keep last
 )
@@ -224,6 +230,7 @@ type traitSpec struct {
 	socialScale    float64
 	socialCapacity int
 	socialPenalty  int
+	affectHome     MoodVector
 }
 
 // traitSpecs is the trait table. Adding a trait is a table edit here (plus a
@@ -261,7 +268,7 @@ var traitSpecs = [numTraits]traitSpec{
 		Name: "Tidy", Desc: "Squeamish about mess; the sight of gore hits morale harder.",
 		group: groupTemperament,
 		// No need-rise/rest/work/social effect — Tidy's only effect is the extra
-		// EvtSawGore mood penalty declared in lifeevents.go, gated on this trait.
+		// gore appraisal declared by the tidy-gore cognition modifier.
 	},
 	TraitMutant: {
 		Name: "Mutant", Desc: "Uranium rewrote them; they carry parts nobody is born with.",
@@ -274,7 +281,23 @@ var traitSpecs = [numTraits]traitSpec{
 		Name: "Mutant-Lover", Desc: "Drawn to the changed; warms to mutants far faster than to anyone else.",
 		group: groupMutantAttitude,
 		// No scalar effect either: its work is the directional affinity bonus
-		// in finishTalk and the mood effects gated on it in lifeevents.go.
+		// in finishTalk and the configured mutation mood modifier.
+	},
+	TraitResilient: {
+		Name: "Resilient", Desc: "Slow to grow numb; repeated experiences stay relatively fresh.",
+		group: groupNerve,
+	},
+	TraitCowardly: {
+		Name: "Cowardly", Desc: "Rattled easily, and worn down quickly by threats.",
+		group: groupNerve,
+	},
+	TraitOptimist: {
+		Name: "Optimist", Desc: "Settles back into expecting things to work out.",
+		group: groupOutlook, affectHome: MoodVector{Grip: 8, Valence: 25},
+	},
+	TraitPessimist: {
+		Name: "Pessimist", Desc: "Settles back into expecting the worst.",
+		group: groupOutlook, affectHome: MoodVector{Grip: -8, Valence: -25},
 	},
 }
 
@@ -367,6 +390,10 @@ func (w *World) assignPersonality(e *Entity) {
 	w.rollName(e)
 
 	w.resolveTraitEffects(e)
+	e.affect.Charge = e.affectHome.Charge
+	e.affect.Grip = e.affectHome.Grip
+	e.affect.Valence = e.affectHome.Valence
+	w.refreshMoodAttractor(e)
 }
 
 // rollAge generates an adult colonist age. Keeping colonists adults means every
@@ -386,8 +413,12 @@ func (w *World) resolveTraitEffects(e *Entity) {
 	restMul, workMul, socialMul := 1.0, 1.0, 1.0
 	socialNoNeed := false
 	socialCapacity, socialPenalty := 1<<30, 0
+	home := MoodVector{}
 	for _, tr := range e.Profile.Traits {
 		s := traitSpecs[tr]
+		home.Charge += s.affectHome.Charge
+		home.Grip += s.affectHome.Grip
+		home.Valence += s.affectHome.Valence
 		for i := 0; i < int(numNeeds); i++ {
 			if s.needRiseScale[i] > 0 {
 				riseMul[i] *= s.needRiseScale[i]
@@ -423,6 +454,12 @@ func (w *World) resolveTraitEffects(e *Entity) {
 	e.restTicks = atLeast1(int(math.Round(float64(w.cfg.RestTicks) * restMul)))
 	e.workScale = workMul
 	e.socialCapacity, e.socialPenalty = socialCapacity, socialPenalty
+	lim := w.cfg.MoodMax
+	e.affectHome = MoodVector{
+		Charge:  clampInt(home.Charge, -lim, lim),
+		Grip:    clampInt(home.Grip, -lim, lim),
+		Valence: clampInt(home.Valence, -lim, lim),
+	}
 }
 
 // rollTraits picks at most one trait from each group, each group taken with

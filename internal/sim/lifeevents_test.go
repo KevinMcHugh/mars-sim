@@ -24,8 +24,7 @@ func TestSeeingAlienAffectsChargeAndGripMoreThanMouse(t *testing.T) {
 }
 
 // Sighting the same alien again on a later tick, still in view, should not
-// pile on another mood hit — it's the same encounter, edge-triggered on
-// e.seen exactly like the memory itself.
+// pile on another mood hit — it is the same cached persistent percept.
 func TestRepeatedAlienSightingDoesNotRepeatMoodHit(t *testing.T) {
 	cfg := testConfig()
 	w := newTestWorld(t, cfg)
@@ -123,25 +122,24 @@ func TestGoreSightIsEdgeTriggered(t *testing.T) {
 	// Moving away and the gore falling out of sight, then coming back, should
 	// let it fire again — a fresh encounter with the scene.
 	w.observeGore(colonist) // still in view; no-op, sanity check above already covers it
-	colonist.seeingGore = false
+	clear(colonist.perceiving)
 	w.observeGore(colonist)
 	if len(colonist.Memories) != 2 {
 		t.Fatalf("expected a second gore memory after the sighting reset, got %d", len(colonist.Memories))
 	}
 }
 
-// remember should tag the stored Memory with the LifeEventKind that produced
-// it, not just the rendered text.
-func TestMemoryRecordsLifeEventKind(t *testing.T) {
+// The cognition funnel stores the stable reaction ID, not just rendered text.
+func TestMemoryRecordsReactionRule(t *testing.T) {
 	cfg := testConfig()
 	w := newTestWorld(t, cfg)
 
 	colonist := w.spawn(Colonist, Point{0, 0})
-	w.remember(colonist, event(EvtAte, "Had a meal."))
+	rememberTest(w, colonist, "ate", "Had a meal.")
 
 	last := colonist.Memories[len(colonist.Memories)-1]
-	if last.Kind != EvtAte {
-		t.Errorf("memory kind = %v, want EvtAte", last.Kind)
+	if last.Rule != "ate" {
+		t.Errorf("memory rule = %v, want ate", last.Rule)
 	}
 	if last.Text != "Had a meal." {
 		t.Errorf("memory text = %q, want %q", last.Text, "Had a meal.")
@@ -165,6 +163,9 @@ func TestBittenDropsMood(t *testing.T) {
 	if victim.affect.Charge <= 0 || victim.affect.Grip >= 0 {
 		t.Fatalf("affect after being bitten = %+v, want positive charge and negative grip", victim.affect)
 	}
+	if victim.stimulusCount != 1 || victim.stimuli[0].Source != alien.ID {
+		t.Fatalf("bite stimulus source = %+v, want attacking alien %d", victim.stimuli[:victim.stimulusCount], alien.ID)
+	}
 }
 
 // Finishing work should restore grip, doubled for an Industrious colonist.
@@ -177,8 +178,8 @@ func TestFinishingJobRaisesMoodMoreForIndustrious(t *testing.T) {
 	industrious := w.spawn(Colonist, Point{5, 5})
 	industrious.Profile = &Profile{Traits: []Trait{TraitIndustrious}}
 
-	w.remember(plain, event(EvtFinishedMining, "Finished mining at (%d, %d).", 1, 1))
-	w.remember(industrious, event(EvtFinishedMining, "Finished mining at (%d, %d).", 1, 1))
+	rememberTest(w, plain, "finished-mining", "Finished mining at (1, 1).")
+	rememberTest(w, industrious, "finished-mining", "Finished mining at (1, 1).")
 
 	if plain.affect.Grip <= 0 {
 		t.Fatalf("affect after finishing a job = %+v, want positive grip", plain.affect)
@@ -191,19 +192,19 @@ func TestFinishingJobRaisesMoodMoreForIndustrious(t *testing.T) {
 // Every finished-work kind should restore grip, not just mining.
 func TestAllJobCompletionKindsRaiseMood(t *testing.T) {
 	cfg := testConfig()
-	for _, kind := range []LifeEventKind{EvtFinishedMining, EvtClearedRock, EvtFinishedConstruction, EvtCleanedRefuse, EvtIncineratedRefuse} {
+	for _, id := range []RuleID{"finished-mining", "cleared-rock", "finished-construction", "cleaned-refuse", "incinerated-refuse"} {
 		w := newTestWorld(t, cfg)
 		c := w.spawn(Colonist, Point{0, 0})
 		c.Profile = &Profile{}
-		w.remember(c, event(kind, "did a job"))
+		rememberTest(w, c, id, "did a job")
 		if c.affect.Grip <= 0 {
-			t.Errorf("kind %v: affect = %+v, want positive grip", kind, c.affect)
+			t.Errorf("rule %v: affect = %+v, want positive grip", id, c.affect)
 		}
 	}
 }
 
-// A finished conversation goes entirely through remember/LifeEvent: one call
-// records memory and moves affect together.
+// A finished conversation goes through the compositional funnel: one
+// occurrence records memory and moves affect together.
 func TestConversationRecordsMemoryAndMood(t *testing.T) {
 	cfg := testConfig()
 	w := newTestWorld(t, cfg)
@@ -219,10 +220,10 @@ func TestConversationRecordsMemoryAndMood(t *testing.T) {
 
 	w.finishTalk(a, b)
 
-	if len(a.Memories) != 1 || a.Memories[0].Kind != EvtConversation {
+	if len(a.Memories) != 1 || a.Memories[0].Rule != "conversation" {
 		t.Fatalf("expected one conversation memory on a, got %+v", a.Memories)
 	}
-	if len(b.Memories) != 1 || b.Memories[0].Kind != EvtConversation {
+	if len(b.Memories) != 1 || b.Memories[0].Rule != "conversation" {
 		t.Fatalf("expected one conversation memory on b, got %+v", b.Memories)
 	}
 	if a.affect.Grip <= 0 || b.affect.Grip <= 0 {
