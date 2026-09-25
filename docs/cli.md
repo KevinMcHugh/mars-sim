@@ -30,6 +30,8 @@ Startup follows this order:
    rather than by the flag package. See [config-file.md](./config-file.md).
 2b. Apply the director's schedule file (`director.yaml`, or `-director PATH`)
     the same way, for the same reason. See [director.md](./director.md).
+2c. Apply the cognition balance file (`cognition.yaml`, or `-cognition PATH`)
+    the same way. See [cognition-config-and-lab.md](./cognition-config-and-lab.md).
 3. Register flags whose defaults come from that config.
 4. Parse flags (with `?`, `-?`, and `--?` as help aliases).
 5. Apply a non-zero `-seed` override.
@@ -48,8 +50,11 @@ These flags control how the process runs rather than the simulated world:
 | `-seed <int64>` | Select a reproducible world seed. `0` leaves the time-based default seed in place. |
 | `-config <path>` | Read this settings file instead of `mars-sim.yaml` in the working directory. A file named here that does not exist is an error; `-config ""` reads no file at all. |
 | `-director <path>` | Read this director schedule file instead of `director.yaml` in the working directory. A file named here that does not exist is an error; `-director ""` runs with no scheduled occurrences. See [director.md](./director.md). |
+| `-cognition <path>` | Read this cognition balance file instead of `cognition.yaml` in the working directory. A file named here that does not exist is an error; `-cognition ""` uses the compiled defaults. See [cognition-config-and-lab.md](./cognition-config-and-lab.md). |
 | `-cpuprofile <path>` | Write a CPU profile of the whole run (world generation included) to this file. See [Profiling](#profiling). |
 | `-print-config` | Write a commented settings file with every setting at its default to stdout, then exit. Redirect it to `mars-sim.yaml` to regenerate the committed file. |
+| `-print-cognition-config` | Write a cognition settings file with every setting at its default to stdout, then exit. Redirect it to `cognition.yaml` after re-applying any authored comments. |
+| `-print-cognition-vocab` | Write cognition vocabulary and editor schema as JSON, then exit. This is the Lab's dropdown feed. |
 | `-glyphs <mode>` | How to draw map glyphs: `auto` (default) measures each glyph against the terminal at startup and falls back to ASCII if any is painted at an unexpected width; `emoji` skips the probe and trusts the built-in width table; `ascii` forces the fallback set. See [terminal-cell-widths.md](./terminal-cell-widths.md). |
 | `-h`, `-help`, `?` | Print usage, examples, and all available flags. |
 
@@ -76,6 +81,10 @@ go run . -h
 # Start a settings file you can commit, then edit it and run with it.
 go run . -print-config > mars-sim.yaml
 go run .
+
+# Dump cognition vocabulary for the Lab, or regenerate the authored file.
+go run . -print-cognition-vocab
+go run . -cognition "" -print-cognition-config
 ```
 
 ### Validation

@@ -11,21 +11,6 @@ type MoodVector struct {
 	Valence int
 }
 
-// moodAppraisal is how one life event kind reads to a colonist: where it wants
-// to leave them, and how hard it insists. Impact alone chooses between the two
-// operations in blendAffect, which is why a run of good meals cannot cancel a
-// killing -- the killing moved the colonist rather than adding to them.
-//
-// Fresh is where the event leaves someone it is new to; Worn is where it
-// leaves someone it has stopped being new to. Note which way round the pair
-// runs for the traumatic kinds: Fresh is the *stronger* reading, not the
-// weaker one. The first death is a rallying cry and the tenth is catatonia, so
-// wear turns a reaction rather than just quieting it.
-type moodAppraisal struct {
-	Impact      int
-	Fresh, Worn MoodVector
-}
-
 // MoodKind identifies a display attractor. It is never behavioral state: focus
 // scoring reads AffectState.Charge and AffectState.Grip directly.
 type MoodKind uint8
@@ -77,59 +62,6 @@ var moodAttractors = [...]moodAttractor{
 	{MoodSteady, "steady", "flat", 0, 0, 28},
 }
 
-// lifeEventAppraisals is the complete semantic event appraisal table. Unlike
-// decay, hysteresis and the push/pull endpoints, these meanings are
-// intentionally not balance knobs.
-//
-// Reading a row: routine life sits under MoodPushImpact, where the target is a
-// small displacement that accumulates. The handful above it are targets in the
-// literal sense -- a colonist who watches someone die ends up near `anxious`
-// no matter how good their day had been -- so those rows are written at the
-// scale of the plane rather than the scale of a nudge, along the same
-// direction the smaller version pointed.
-//
-// Valence is mostly zero here on purpose. Charge and grip shed points every
-// turn, so a steady drip of small numbers goes nowhere, but valence settles a
-// point at a time and a colonist digs far more often than that: paying it for
-// routine upkeep pegged every colonist at the maximum within a few hundred
-// ticks, which is the same "everyone always reads as fine" failure the axis
-// exists to fix. So only what a colonist would actually count as a good or bad
-// day moves it, and an uneventful shift leaves it where it was. The worn
-// column holds that line for the same reason: monotony takes away the lift a
-// job used to give rather than making the job itself a misfortune, so it shows
-// up in grip rather than as a slow bleed of valence no colonist could explain.
-var lifeEventAppraisals = [numLifeEventKinds]moodAppraisal{
-	EvtSawAlien:                  {45, MoodVector{8, -10, -15}, MoodVector{5, -22, -22}},
-	EvtSawMouse:                  {8, MoodVector{2, -3, 0}, MoodVector{1, -1, 0}},
-	EvtSawGore:                   {30, MoodVector{-3, -7, -6}, MoodVector{-6, -14, -10}},
-	EvtBitten:                    {70, MoodVector{55, -44, -30}, MoodVector{35, -80, -55}},
-	EvtWitnessedColonistKilled:   {95, MoodVector{70, 40, -60}, MoodVector{20, -85, -85}},
-	EvtWitnessedColonistAttacked: {75, MoodVector{45, 25, -40}, MoodVector{25, -70, -60}},
-	EvtCrushedMouse:              {6, MoodVector{-1, 2, 0}, MoodVector{-2, 0, 0}},
-	EvtWitnessedMouseCrushed:     {8, MoodVector{-1, -2, -1}, MoodVector{-1, -1, 0}},
-	EvtWitnessedCatCatch:         {5, MoodVector{1, 1, 0}, MoodVector{0, 0, 0}},
-	EvtKilledAlien:               {55, MoodVector{45, 52, 35}, MoodVector{25, 20, 8}},
-	EvtWitnessedAlienKilled:      {35, MoodVector{5, 6, 4}, MoodVector{2, 2, 0}},
-	EvtWoundedAlien:              {25, MoodVector{4, 5, 2}, MoodVector{2, 2, 0}},
-	EvtWitnessedGunfight:         {50, MoodVector{35, -25, -20}, MoodVector{18, -45, -35}},
-	// A chat's target is the one thing here that cannot be a table lookup: it
-	// comes from how that particular conversation went. Only the impact is
-	// declared; conversationMoodVector supplies the rest per occurrence, and
-	// wear leaves it alone (see applyAffect).
-	EvtConversation:         {Impact: 20},
-	EvtAte:                  {10, MoodVector{4, 2, 1}, MoodVector{2, -1, 0}},
-	EvtUsedToilet:           {4, MoodVector{1, 2, 0}, MoodVector{0, 0, 0}},
-	EvtSlept:                {25, MoodVector{15, 2, 2}, MoodVector{12, -2, 0}},
-	EvtNeedSatisfied:        {8, MoodVector{2, 2, 0}, MoodVector{1, 0, 0}},
-	EvtFinishedMining:       {15, MoodVector{-1, 5, 0}, MoodVector{-5, -3, 0}},
-	EvtClearedRock:          {15, MoodVector{-1, 5, 0}, MoodVector{-5, -3, 0}},
-	EvtFinishedConstruction: {18, MoodVector{-1, 6, 3}, MoodVector{-4, 0, 0}},
-	EvtCleanedRefuse:        {14, MoodVector{-1, 5, 0}, MoodVector{-5, -4, 0}},
-	EvtIncineratedRefuse:    {16, MoodVector{-1, 7, 1}, MoodVector{-4, 0, 0}},
-	EvtMutated:              {60, MoodVector{18, -70, -35}, MoodVector{10, -90, -70}},
-	EvtWitnessedMutation:    {35, MoodVector{2, -8, -10}, MoodVector{1, -16, -18}},
-}
-
 func roundedDiv(n, d int) int {
 	if d < 0 {
 		n, d = -n, -d
@@ -154,60 +86,6 @@ func conversationMoodVector(outcome int) MoodVector {
 	default:
 		return MoodVector{}
 	}
-}
-
-func finishedWorkEvent(kind LifeEventKind) bool {
-	switch kind {
-	case EvtFinishedMining, EvtClearedRock, EvtFinishedConstruction,
-		EvtCleanedRefuse, EvtIncineratedRefuse:
-		return true
-	default:
-		return false
-	}
-}
-
-// transformMoodVector applies event-only traits in Trait declaration order,
-// independent of the order traits happen to be stored on a Profile.
-func transformMoodVector(e *Entity, kind LifeEventKind, v MoodVector) MoodVector {
-	if e.Profile == nil {
-		return v
-	}
-	for trait := Trait(0); trait < numTraits; trait++ {
-		if !e.Profile.HasTrait(trait) {
-			continue
-		}
-		switch trait {
-		case TraitIndustrious:
-			if finishedWorkEvent(kind) {
-				v.Charge *= 2
-				v.Grip *= 2
-				v.Valence *= 2
-			}
-		case TraitIntrovert:
-			// Charge only: the conversation still did them good, it just cost
-			// them something to have it.
-			if kind == EvtConversation {
-				v.Charge = -v.Charge
-			}
-		case TraitTidy:
-			switch kind {
-			case EvtSawGore:
-				v.Charge = v.Charge * 22 / 10
-				v.Grip = v.Grip * 22 / 10
-				v.Valence = v.Valence * 22 / 10
-			case EvtIncineratedRefuse:
-				v.Grip *= 2
-			}
-		case TraitMutantLover:
-			// Grip and valence both: to them the change is mastery, and a good
-			// thing to have happened.
-			if kind == EvtMutated || kind == EvtWitnessedMutation {
-				v.Grip = -v.Grip
-				v.Valence = -v.Valence
-			}
-		}
-	}
-	return v
 }
 
 // moodPull reports how much of an appraisal relocates rather than nudges, in
@@ -270,12 +148,18 @@ func (w *World) decayAffect(e *Entity) {
 	// per-colonist turns so a seeded run stays reproducible.
 	valence := e.affect.Valence
 	if n := w.cfg.MoodValenceDecayTicks; n > 0 && w.tick%n == 0 {
-		valence = approach(valence, 0, 1)
+		valence = approach(valence, e.affectHome.Valence, 1)
 	}
 	w.setAffect(e,
-		approach(e.affect.Charge, 0, w.cfg.MoodChargeDecayPerTick),
-		approach(e.affect.Grip, 0, w.cfg.MoodGripDecayPerTick),
+		approach(e.affect.Charge, e.affectHome.Charge, w.cfg.MoodChargeDecayPerTick),
+		approach(e.affect.Grip, e.affectHome.Grip, w.cfg.MoodGripDecayPerTick),
 		valence)
+}
+
+// affectSettled reports whether the behaviorally relevant axes have reached
+// this colonist's trait-resolved resting point.
+func (e *Entity) affectSettled() bool {
+	return e.affect.Charge == e.affectHome.Charge && e.affect.Grip == e.affectHome.Grip
 }
 
 func attractorClaim(a moodAttractor, charge, grip int) int {
@@ -312,12 +196,37 @@ func moodClaim(kind MoodKind, charge, grip int) int {
 	return 0
 }
 
+func (w *World) bestMoodAttractor(charge, grip int) (MoodKind, int) {
+	kind, claim := MoodSettling, 0
+	found := false
+	for _, a := range w.cognition.Attractors {
+		c := attractorClaim(moodAttractor{Kind: a.Kind, Radius: a.Radius, Charge: a.Charge, Grip: a.Grip}, charge, grip)
+		if c < 0 || found && c <= claim {
+			continue
+		}
+		kind, claim, found = a.Kind, c, true
+	}
+	return kind, claim
+}
+
+func (w *World) moodClaim(kind MoodKind, charge, grip int) int {
+	if kind == MoodSettling {
+		return 0
+	}
+	for _, a := range w.cognition.Attractors {
+		if a.Kind == kind {
+			return attractorClaim(moodAttractor{Kind: a.Kind, Radius: a.Radius, Charge: a.Charge, Grip: a.Grip}, charge, grip)
+		}
+	}
+	return 0
+}
+
 func (w *World) refreshMoodAttractor(e *Entity) {
-	challenger, challengerClaim := bestMoodAttractor(e.affect.Charge, e.affect.Grip)
+	challenger, challengerClaim := w.bestMoodAttractor(e.affect.Charge, e.affect.Grip)
 	if challenger == e.affect.Label {
 		return
 	}
-	incumbentClaim := moodClaim(e.affect.Label, e.affect.Charge, e.affect.Grip)
+	incumbentClaim := w.moodClaim(e.affect.Label, e.affect.Charge, e.affect.Grip)
 	if challengerClaim > incumbentClaim+w.cfg.MoodLabelSwitchMargin {
 		e.affect.Label = challenger
 	}
@@ -342,47 +251,113 @@ func (a AffectState) MoodName() string {
 	return moodName(a.Label, a.Valence < 0)
 }
 
-// moodWear reports how used to a kind of thing a colonist is, in hundredths.
-//
-// It counts remembered *occasions* rather than occurrences: a run of digs
-// folds into one memory, and collapsing has already decided that run was one
-// memorable thing. Counting each occurrence instead would let a single long
-// shift peg a colonist's wear permanently, which is the ratchet this has to
-// avoid. Entries roll off the bounded memory log, so wear falls again once
-// something stops happening -- recovery is most of what keeps this feeling
-// like a person rather than a counter.
-func (w *World) moodWear(e *Entity, kind LifeEventKind) int {
+func (w *World) affectName(a AffectState) string {
+	if a.Label == MoodSettling {
+		return "settling"
+	}
+	for _, attractor := range w.cognition.Attractors {
+		if attractor.Kind != a.Label {
+			continue
+		}
+		if a.Valence < 0 {
+			return attractor.BadName
+		}
+		return attractor.GoodName
+	}
+	return "settling"
+}
+
+func (w *World) applyAffect(e *Entity, reaction *ReactionSpec, percept Percept) {
+	result := w.resolveWear(e, reaction, percept)
+	target := result.Target
+	impact := reaction.Impact
+	w.forEachTraitRule(e, percept, func(rule TraitRule) {
+		impact = percent(impact, rule.Impact)
+		target.Charge = percent(target.Charge, rule.Charge)
+		target.Grip = percent(target.Grip, rule.Grip)
+		target.Valence = percent(target.Valence, rule.Valence)
+	})
+	w.blendAffect(e, target, impact)
+}
+
+func (w *World) resolveWear(e *Entity, reaction *ReactionSpec, percept Percept) WearResult {
+	baseRate := w.cfg.MoodWearPerOccasion
+	w.forEachTraitRule(e, percept, func(rule TraitRule) {
+		baseRate = percent(baseRate, rule.WearRate)
+	})
+	var contextual *MoodVector
+	if target, ok := percept.Occurrence.appraisalFor(e.ID); ok {
+		contextual = &target
+	}
+	policy := wearPolicies[reaction.WearPolicy]
+	return policy(w, WearContext{
+		Observer: e, Percept: percept, Reaction: reaction,
+		ContextualTarget: contextual, BaseRate: baseRate,
+	})
+}
+
+func percent(value, scale int) int { return value * scale / 100 }
+
+func (w *World) forEachTraitRule(e *Entity, percept Percept, fn func(TraitRule)) {
+	if e.Profile == nil {
+		return
+	}
+	for _, rule := range w.cognition.TraitRules {
+		if e.Profile.HasTrait(rule.Trait) && rule.Match.matches(percept) {
+			fn(rule)
+		}
+	}
+}
+
+// WearContext is everything a wear policy may use to resolve one reaction.
+type WearContext struct {
+	Observer         *Entity
+	Percept          Percept
+	Reaction         *ReactionSpec
+	ContextualTarget *MoodVector
+	BaseRate         int
+}
+
+type WearResult struct {
+	Target MoodVector
+	Level  int
+}
+
+type WearPolicy func(*World, WearContext) WearResult
+
+var wearPolicies = map[WearPolicyID]WearPolicy{
+	WearPolicyMemoryOccasions: wearMemoryOccasions,
+	WearPolicyNone:            wearNone,
+}
+
+func wearMemoryOccasions(_ *World, ctx WearContext) WearResult {
 	occasions := 0
-	for i := range e.Memories {
-		if e.Memories[i].Kind == kind {
+	for _, memory := range ctx.Observer.Memories {
+		if memory.Rule == ctx.Reaction.ID {
 			occasions++
 		}
 	}
-	return min(100, occasions*w.cfg.MoodWearPerOccasion)
+	level := min(100, occasions*ctx.BaseRate)
+	return WearResult{Target: wearTarget(ctx.Reaction.Fresh, ctx.Reaction.Worn, level), Level: level}
 }
 
-// wearTarget moves an appraisal from its fresh reading toward its worn one.
-func wearTarget(a moodAppraisal, wear int) MoodVector {
-	if wear <= 0 {
-		return a.Fresh
+func wearNone(_ *World, ctx WearContext) WearResult {
+	if ctx.ContextualTarget != nil {
+		return WearResult{Target: *ctx.ContextualTarget}
+	}
+	return WearResult{Target: ctx.Reaction.Fresh}
+}
+
+func wearTarget(fresh, worn MoodVector, level int) MoodVector {
+	if level <= 0 {
+		return fresh
+	}
+	if level >= 100 {
+		return worn
 	}
 	return MoodVector{
-		Charge:  a.Fresh.Charge + roundedDiv((a.Worn.Charge-a.Fresh.Charge)*wear, 100),
-		Grip:    a.Fresh.Grip + roundedDiv((a.Worn.Grip-a.Fresh.Grip)*wear, 100),
-		Valence: a.Fresh.Valence + roundedDiv((a.Worn.Valence-a.Fresh.Valence)*wear, 100),
+		Charge:  fresh.Charge + roundedDiv((worn.Charge-fresh.Charge)*level, 100),
+		Grip:    fresh.Grip + roundedDiv((worn.Grip-fresh.Grip)*level, 100),
+		Valence: fresh.Valence + roundedDiv((worn.Valence-fresh.Valence)*level, 100),
 	}
-}
-
-func (w *World) applyAffect(e *Entity, evt LifeEvent) {
-	appraisal := lifeEventAppraisals[evt.Kind]
-	target := wearTarget(appraisal, w.moodWear(e, evt.Kind))
-	if evt.Outcome != 0 || evt.Kind == EvtConversation {
-		// A conversation is exempt: its vector is already computed per
-		// occurrence, and noteConversation's social fatigue window is wearing
-		// down repetition by the time it gets here. Wearing it again would
-		// charge a talkative colonist twice for the same talkativeness.
-		target = conversationMoodVector(evt.Outcome)
-	}
-	target = transformMoodVector(e, evt.Kind, target)
-	w.blendAffect(e, target, appraisal.Impact)
 }

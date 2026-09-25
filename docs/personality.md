@@ -91,10 +91,12 @@ per group, each taken with `TraitChance` probability:
 | --- | --- | --- |
 | appetite | Big Eater / Light Eater | food need rises 1.5x / 0.7x |
 | work ethic | Industrious / Lazy | work 0.75x time + rest 0.5x, plus doubled finished-work affect vectors / work 1.4x + rest 2.0x |
-| social | Asocial / Introvert / Extrovert | no social need / social need 0.5x plus conversation fatigue / social need 1.5x |
-| temperament | Tidy | 2.2x gore appraisal and doubled grip relief from incineration |
+| social | Asocial / Introvert / Extrovert | no social need / social need 0.5x plus conversation fatigue / social need 1.5x; Extrovert also scales witnessed friend-loss |
+| temperament | Tidy | 2.2x gore/death/mess appraisal and doubled grip relief from incineration |
 | mutant attitude | Mutant-Lover | extra affinity toward mutants and reflected mutation grip |
 | mutation | Mutant | *acquired in play only* — the marker for a colonist uranium has changed |
+| nerve | Resilient / Cowardly | wear rate 40 / 180; Cowardly also 1.5× threat impact |
+| outlook | Optimist / Pessimist | affect home `{grip: 8, valence: 25}` / `{grip: -8, valence: -25}` |
 
 `temperament` is a group of one today — unlike the others, Tidy isn't paired
 with a mutually-exclusive opposite yet (a "Slob", numbed to gore, would be
@@ -102,6 +104,9 @@ the natural one to add). It still needed its own group rather than joining
 an existing one: it isn't mutually exclusive with anything already there — a
 colonist can be both an Extrovert and Tidy. `mutant attitude` is the same
 shape, waiting on its own opposite (a purist who recoils from mutants).
+`nerve` and `outlook` were appended after the existing groups so every
+pre-existing group roll keeps its order; the extra draws intentionally
+change later personality outcomes for a given seed.
 
 `mutation` is different in kind: `TraitMutant` is marked `acquired`, so
 `rollTraits` never draws it and no colonist is ever *generated* a mutant —
@@ -131,30 +136,36 @@ colonist's traits into three fields on the `Entity`:
 - `workScale` — a mine/build time multiplier (via `scaleTicks`).
 - social need rise and conversation-fatigue capacity/penalty, used by the
   social-need and completed-conversation paths.
+- `affectHome` — the charge/grip/valence point decay walks toward, summed
+  from outlook traits and clamped to `MoodMax`.
 
 So the per-tick systems just read these numbers; a colonist's traits are never
 re-scanned during simulation. `newEntity` sets the config baselines, and
-`assignPersonality` scales them by whatever traits it rolled.
+`assignPersonality` scales them by whatever traits it rolled. A new colonist
+starts at home; re-resolving traits later updates home without wiping current
+mood.
 
 ### The exception: traits checked live, at event time
 
 Not every trait fits that mold. `TraitTidy` has no need-rise/rest/work/social
-effect to resolve — it transforms gore and incineration vectors, read directly
-off `Profile.HasTrait(TraitTidy)` during event appraisal in `affect.go` (see
-[affect.md](./affect.md)). This doesn't violate "pay once, not per tick":
-that principle is about the hot path, and a life event fires far less often
-than every tick for every colonist. Resolving Tidy into a spawn-time field
-would mean inventing an `Entity` field for a value `HasTrait` already answers
-in one slice scan. The pattern to follow depends on how often the effect is
-read: a per-tick or per-job cost belongs in `resolveTraitEffects`; a
-per-event cost is fine read live.
+effect to resolve — it transforms gore and incineration vectors through
+grammar-matched `trait_rules` in `cognition.yaml`, read when
+`Profile.HasTrait(TraitTidy)` is true (see [affect.md](./affect.md)). This
+doesn't violate "pay once, not per tick": that principle is about the hot
+path, and a percept fires far less often than every tick for every colonist.
+Resolving Tidy into a spawn-time field would mean inventing an `Entity` field
+for a value `HasTrait` already answers in one slice scan. The pattern to
+follow depends on how often the effect is read: a per-tick or per-job cost
+belongs in `resolveTraitEffects`; a per-event cost is data in
+`cognition.yaml`.
 
 `TraitIndustrious` shows a trait can use both mechanisms at once: its
 work/rest multipliers are resolved at spawn as always, but its finished-work
-vector amplification is a second, independent effect checked live via
-`HasTrait`, exactly like Tidy's. Nothing
-about having a `traitSpec` entry requires a trait to pick one mechanism
-exclusively.
+vector amplification is a second, independent effect matched live against the
+mine/clear/construct/clean/incinerate grammar. Nothing about having a
+`traitSpec` entry requires a trait to pick one mechanism exclusively.
+`TraitOptimist` is the other direction: its only mechanical effect is the
+home resolved at spawn.
 
 ## Why it is this way
 
@@ -180,9 +191,12 @@ exclusively.
 - **Making an attribute mechanical**: give it an effect and fold it into
   `resolveTraitEffects` (or an equivalent resolve step) so it stays off the hot
   path.
-- **A trait that transforms life-event affect** (like Tidy): no `traitSpec`
-  field is needed — add its case to `transformMoodVector` in `affect.go` and
-  pin declaration-order behavior. See [affect.md](./affect.md).
+- **A trait that transforms percept affect** (like Tidy): no `traitSpec`
+  field is needed — add a `trait_rules` row in `cognition.yaml` and pin
+  declaration-order composition. See [affect.md](./affect.md).
+- **A trait that changes resting affect** (like Optimist): set
+  `traitSpec.affectHome`. Decay and spawn initialization pick it up
+  automatically; append the group so earlier personality rolls stay put.
 
 ## Related
 
@@ -190,8 +204,11 @@ exclusively.
 - [entities-and-ai.md](./entities-and-ai.md) — how `workScale`/`restTicks` feed behavior.
 - [configuration.md](./configuration.md) — `TraitChance`.
 - [mutation.md](./mutation.md) — `TraitMutant` and `TraitMutantLover`, and how a trait is acquired in play.
-- [affect.md](./affect.md) — life-event vectors and how appraisal traits hook in.
-- [memories.md](./memories.md) — the one life-event ingestion funnel.
+- [affect.md](./affect.md) — reaction vectors, wear, baselines, and how
+  appraisal traits hook in.
+- [compositional-perception-and-events.md](./compositional-perception-and-events.md)
+  — grammar-matched trait rules.
+- [memories.md](./memories.md) — the one percept ingestion funnel.
 - [heredity.md](./heredity.md) — the family pass that rewrites a generated
   profile's surname and appearance.
 - [determinism.md](./determinism.md) — the non-RNG half of the same invariant:

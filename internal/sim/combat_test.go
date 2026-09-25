@@ -38,7 +38,7 @@ func TestArmedColonistKillsAlien(t *testing.T) {
 // An armed colonist starting from neutral affect (no cheated grip) must
 // still stand and fight a fresh alien encounter rather than flee it forever.
 // This pins the regression found during Phase 4/5 playtesting: the one-time
-// grip hit from merely *seeing* an alien (EvtSawAlien) used to outweigh the
+// grip hit from merely *seeing* an alien (`saw-alien`) used to outweigh the
 // armed-colonist fight posture, and the focus switch hysteresis then locked
 // colonists into fleeing even after grip decayed back toward neutral,
 // leaving aliens never fought. See D-002 in
