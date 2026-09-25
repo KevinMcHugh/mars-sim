@@ -16,6 +16,7 @@ get there?" in O(1) and bounds long searches.
 - [`internal/sim/path.go`](../internal/sim/path.go) — tile A\*, the reachability gate, corridor-constrained search.
 - [`internal/sim/hpa.go`](../internal/sim/hpa.go) — hierarchical routing over the region graph.
 - [`internal/sim/flowfield.go`](../internal/sim/flowfield.go) — shared multi-source BFS distance fields.
+- [`internal/sim/flowrepair.go`](../internal/sim/flowrepair.go) — repairing a field around what changed instead of rebuilding it.
 - [`internal/sim/systems.go`](../internal/sim/systems.go) — `travelTo` (follow a route) and how jobs invoke navigation.
 
 ## How it works
@@ -122,11 +123,34 @@ change with a **single multi-source BFS** from a seed function and then shared b
 every agent. Each agent just steps to a downhill neighbor — O(1) per tick —
 replacing N searches with one field.
 
-Fields are **lazy and generation-stamped**: `ensureFresh` rebuilds at most once
+Fields are **lazy and generation-stamped**: `ensureFresh` updates at most once
 per tick (the first reader of the tick pays, the rest reuse), and a new generation
 retires all prior distances without an O(map) clear, so a rebuild is O(reachable),
-not O(map). Terrain changes mark every field stale; claiming/unclaiming a mine
-tile marks the frontier field stale.
+not O(map).
+
+Fields are **repaired, not rebuilt**, when something changes. A terrain change
+`touch`es every field at that tile; a frontier rock appearing, vanishing, being
+claimed or released touches the frontier field there (the job board does it).
+The next read repairs the tiles around every touched point (`repair` in
+`flowrepair.go`):
+
+1. **Forget what went up.** Cells whose distance can no longer be supported (a
+   tile that became a wall or stopped being a goal, and every cell whose only
+   route ran through one) are found in order of their old distance and marked
+   unreachable. A cell at distance d survives if it is still a goal (d = 0) or
+   still has an unaffected neighbour at d - 1.
+2. **Relax outward.** Each forgotten cell and each changed tile is seeded with
+   the best its neighbours now offer (0 for a goal), and a unit-step Dijkstra
+   lowers distances until nothing changes. This also carries decreases from a
+   newly dug tile or a new goal.
+
+The result is identical to a rebuild — `TestFlowFieldRepairMatchesRebuild`
+checks every cell of every field on every tick of busy worlds — so readers
+cannot tell the difference. A field touched more than `maxTouched` times
+between reads, or whose repair would forget more than `maxRepairCells` cells,
+rebuilds instead; so does a field's first read. A field needs both a seed
+function (all goals, for a rebuild) and a goal predicate (one tile, for a
+repair), and the two must agree (`TestFlowFieldGoalAgreesWithSeed`).
 
 There is one field per **facility terrain** (nutrient pods, toilets) and one
 **frontier** field toward the nearest *unclaimed* diggable rock. `followField`
@@ -159,6 +183,15 @@ the colony grows):
 - **Flow fields** are the "everyone navigates the same" answer: they scale to
   thousands of agents converging on a handful of destinations, which per-agent
   search cannot.
+- **Repair instead of rebuild**, because the fields change constantly. Every
+  mined tile used to mark every field stale and every claim the frontier field,
+  so a digging colony rebuilt several fields with a BFS over its whole area
+  nearly every tick; on a 100-colonist game that was a quarter of the CPU. A
+  dug tile almost never moves more than a handful of distances. The repair
+  handles increases as well as decreases (claims and walls remove goals and
+  routes), which is what makes it exact rather than a heuristic; the cap on
+  forgotten cells keeps a change that really does reroute half the colony from
+  costing more than the rebuild it replaces.
 - **HPA\* corridors** keep long trips from exploring dead ends; the win grows with
   map size and obstacle density.
 - **The uphill escape step** and **transit-through-crowds** were both learned from
@@ -167,8 +200,11 @@ the colony grows):
 ## Extending it
 
 - **A new shared destination** (another facility kind, a stockpile): allocate a
-  flow field with a seed function reporting its goal tiles, and mark it stale on
-  the relevant events. Facility-terrain fields are auto-allocated in `newWorld`.
+  flow field with a seed function reporting its goal tiles and a goal predicate
+  that agrees with it, and `touch` it wherever a goal or walkability changes —
+  a missed touch leaves a wrong distance behind, which
+  `TestFlowFieldRepairMatchesRebuild` will catch if the new field is in it.
+  Facility-terrain fields are auto-allocated in `newWorld`.
 - **Reusing corridors**: HPA\* corridors are a natural thing to cache and share
   across agents — a noted future step.
 - **Z-levels**: the region, flow-field, and HPA\* machinery were built to extend

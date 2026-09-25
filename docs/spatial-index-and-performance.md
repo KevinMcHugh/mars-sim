@@ -59,8 +59,10 @@ arrival, keeping two colonists off one rock and making release safe. The board
 also keeps O(1) counts of builds in progress per terrain (`startBuild`/`endBuild`/
 `inProgress`), which is how `plannedFacilities` avoids scanning colonists.
 
-Claiming or releasing a frontier tile marks the frontier flow field stale, so
-other miners route around a claimed rock.
+Claiming or releasing a frontier tile, or a tile joining or leaving the
+frontier, touches the frontier flow field there, so other miners route around a
+claimed rock (the field repairs around touched tiles; see
+[pathfinding.md](./pathfinding.md)).
 
 The board also holds the **cleaning claims** (`claimClean`/`releaseClean`): the
 refuse tile each cleaner is walking to, so the colony does not converge on one
@@ -83,7 +85,7 @@ rather than the colony. See [snapshot-tile-grid.md](./snapshot-tile-grid.md).
 
 All of this hangs off the synchronous event bus (see
 [architecture.md](./architecture.md)). `newWorld` subscribes the job board and the
-flow-field staleness flags to `TileChanged`. Producers emit only on real changes
+flow fields (each `touch`ed at the changed tile) to `TileChanged`. Producers emit only on real changes
 (`SetTerrain` no-ops on unchanged terrain), because boxing a `WorldEvent` allocates.
 
 ## Why it is this way
