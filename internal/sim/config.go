@@ -78,8 +78,9 @@ type Config struct {
 	// in main.go). See docs/money.md.
 	FoundingGrant int64 `cfg:"founding-grant" sec:"Economy" doc:"dollars the colony treasury starts with"`
 	// InfiniteFood is the safety net: nutrient pods make meals out of nothing.
-	// Off, a pod serves nothing and the colony eats only what it landed with
-	// and what it produces. See docs/food.md.
+	// Off (the default since economy phase E8), a pod serves nothing and the
+	// colony eats only what it landed with and what it produces. On is for
+	// tests and balancing. See docs/food.md.
 	InfiniteFood bool `cfg:"infinite-food" doc:"nutrient pods make free meals out of nothing (the safety net)"`
 
 	// Food production. Cave scum is a biofilm on cave surfaces, the renewable
@@ -95,9 +96,10 @@ type Config struct {
 	ScrapeTicks     int `cfg:"scrape-ticks" doc:"ticks of work to scrape one unit of scum off a patch"`
 	MealReserve     int `cfg:"meal-reserve" doc:"the colony makes food while it holds fewer meals than this per colonist"`
 	// ConstructionCosts makes building consume materials: raw rock, and ore
-	// for machines (see constructionCost). Off, building is free, as it
-	// always was. See docs/construction.md.
-	ConstructionCosts bool `cfg:"construction-costs" doc:"building consumes materials from the builder's own stock"`
+	// for machines (see constructionCost), paid from the stock of whoever pays
+	// for the work, then the builder's. On by default since economy phase E8;
+	// off, building is free. See docs/construction.md.
+	ConstructionCosts bool `cfg:"construction-costs" doc:"building consumes materials, from the payer's stock first, then the builder's"`
 
 	// Market. Reference prices are the colony charter's price list: what the
 	// colony bids for ore at its silo (paid prospecting) and what a colonist
@@ -435,7 +437,10 @@ func DefaultConfig() Config {
 		// Placeholders until the market gives money a use: a treasury worth a
 		// few dozen purses, so the colony can outspend any one settler.
 		FoundingGrant: 5000,
-		InfiniteFood:  true,
+		// Scarcity is on (economy phase E8): food is made, not conjured, and
+		// building costs materials. The safety net stays a setting, for tests
+		// and for balancing. See docs/economy.md.
+		InfiniteFood:  false,
 		CrashPodPurse: 100,
 		// Scum is tuned so a small colony that keeps digging can feed itself
 		// once its crash-pod meals run out: see the sustain test in
@@ -445,7 +450,7 @@ func DefaultConfig() Config {
 		ScumRegrowTicks:   400,
 		ScrapeTicks:       6,
 		MealReserve:       3,
-		ConstructionCosts: false,
+		ConstructionCosts: true,
 		// The charter's prices: a meal a few hours' pay, uranium dearest
 		// because it costs the miner a dose, raw rock not bought at all — there
 		// is always more, and buying it would drain the treasury on nothing.

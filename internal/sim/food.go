@@ -173,7 +173,7 @@ func (w *World) runFoodFocus(e *Entity) bool {
 func (w *World) hungryWithoutFood(e *Entity) {
 	if !workJob(e.Job) {
 		w.clearJob(e)
-		if !w.tryAssignFoodWork(e, true) {
+		if !w.tryAssignFoodWork(e, true) && !w.tryEmergencyScumhouse(e) {
 			w.assignWorkJob(e)
 		}
 	}
@@ -184,4 +184,31 @@ func (w *World) hungryWithoutFood(e *Entity) {
 	}
 	e.State = Idle
 	w.wanderStep(e)
+}
+
+// tryEmergencyScumhouse is the scarcity version of the safety net's emergency
+// pod: a hungry colonist with nothing to eat and no scumhouse it can reach
+// helps build the one the colony has planned, or failing that raises one
+// itself, unpaid — the same way it would build itself a pod or a toilet.
+// Without it, a colony whose treasury cannot fund a scumhouse room has no way
+// to make food at all, and starves (see docs/food.md).
+func (w *World) tryEmergencyScumhouse(e *Entity) bool {
+	if w.podsFeed() {
+		return false
+	}
+	if _, ok := w.nearestScumhouse(e, nil); ok {
+		return false // there is one: food work, not building, is the answer
+	}
+	if task, ok := w.claimNearestTaskProviding(e.Pos, e.ID, Scumhouse); ok {
+		w.assignTask(e, task)
+		return true
+	}
+	if w.reachableFacilityConstruction(e.Pos, Scumhouse) {
+		return false // someone is already raising one within reach
+	}
+	if spot, ok := w.findBuildSpot(e.Pos, 20); ok && w.canAffordBuild(e, Scumhouse, Owner{}) {
+		w.assignBuild(e, Scumhouse, spot)
+		return true
+	}
+	return false
 }

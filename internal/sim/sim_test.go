@@ -24,6 +24,11 @@ func testConfig() Config {
 	c.Width, c.Height = 40, 24
 	c.TraitChance = 0       // mechanics tests want baseline colonists; trait tests opt in
 	c.CavernNestPercent = 0 // tests that zero StartAliens expect no aliens; nest tests opt in
+	// Mechanics tests exercise the safety net and free construction (pods,
+	// emergency builds, facility queues); the game's defaults turn both off
+	// (economy phase E8). Scarcity tests start from DefaultConfig or turn
+	// them back off themselves.
+	c.InfiniteFood, c.ConstructionCosts = true, false
 	return c
 }
 
@@ -947,6 +952,12 @@ func TestChooseFacilityIgnoresUnrelatedBystander(t *testing.T) {
 // Hungry colonists must untangle crowded access, get a fair turn at vacancies,
 // and have enough grace to finish a reachable food journey. With permanent ID
 // priority and no journey grace, this seed fell from 20 colonists to 9.
+//
+// It runs the game's defaults, so since economy phase E8 it is also the
+// scarcity gate: twenty colonists with no free food and paid-for building,
+// all alive at tick 10000. When scarcity first went on, four of them starved
+// with money in hand and meals on sale, queued single file behind the cook in
+// a one-tile-wide scumhouse room (see roomRecipe.aisle).
 func TestLargeColonyDoesNotGridlockAtFacilities(t *testing.T) {
 	cfg := DefaultConfig()
 	cfg.Seed = 9

@@ -415,3 +415,36 @@ func TestPublishedScumIsNeverStale(t *testing.T) {
 		t.Fatal("published scum was never reused; the cache does nothing")
 	}
 }
+
+// A scumhouse room has an aisle: three tiles wide, the scumhouse in the
+// middle, so its depot is reachable from beside the cook as well as behind.
+// In a cavern too cramped for that, it falls back to the narrow room.
+func TestScumhouseRoomHasAnAisle(t *testing.T) {
+	if got := scumhouseRoom.roomWidth(1); got != 3 {
+		t.Fatalf("scumhouse room is %d wide, want 3", got)
+	}
+	cfg := testConfig()
+	cfg.StartColonists, cfg.StartAliens, cfg.StartCats, cfg.StartRats = 0, 0, 0, 0
+	cfg.InfiniteFood = false
+	w := newTestWorld(t, cfg)
+	w.planRooms()
+	var house Point
+	found := false
+	for _, p := range w.projects {
+		for _, task := range p.tasks {
+			if task.terrain == Scumhouse {
+				house, found = task.pos, true
+			}
+		}
+	}
+	if !found {
+		t.Fatal("no scumhouse planned")
+	}
+	for _, p := range w.projects {
+		for _, task := range p.tasks {
+			if task.terrain == Wall && (task.pos == house.Add(-1, 0) || task.pos == house.Add(1, 0)) {
+				t.Fatalf("a wall is planned right beside the scumhouse at %v: no aisle", task.pos)
+			}
+		}
+	}
+}

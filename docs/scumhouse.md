@@ -44,10 +44,14 @@ meals. Nothing it cooks is free for the taking. This is phase **E3** of the
 It is not a chest, though — `chooseStorage` only unloads general materials into
 `Storage` containers — and it is communal, owned by the colony.
 
-The planner builds one in a walled room (`scumhouseRoom`, one scumhouse):
+The planner builds one in a walled room (`scumhouseRoom`, one scumhouse, with
+an aisle so the depot stays reachable while a cook works — see
+[construction.md](./construction.md)):
 
-- with `infinite-food` off, **first**, before any other room — food is fatal,
-  and it is the only place food comes from; crash-pod meals buy the time;
+- with `infinite-food` off (the default), **first**, before any other room —
+  food is fatal, and it is the only place food comes from; crash-pod meals buy
+  the time. If the treasury can't fund it, it is marked out anyway as unpaid
+  community work;
 - otherwise only when ordered (`b` then `h` in the TUI, `OrderScumhouse`).
 
 ### Recipes

@@ -142,7 +142,13 @@ func (w *World) projectCost(p *project) Money {
 // fundProject posts a work order for every task of p, paid by p.issuer, and
 // reports whether it could. It is all or nothing: an issuer who cannot afford
 // the whole room funds none of it.
+//
+// A project issued by nobody is unpaid community work: it posts no orders and
+// always goes ahead. Only life support is planned that way (see planRooms).
 func (w *World) fundProject(p *project) bool {
+	if p.issuer.Kind == OwnerNone {
+		return true
+	}
 	if w.balance(p.issuer) < w.projectCost(p) {
 		return false
 	}

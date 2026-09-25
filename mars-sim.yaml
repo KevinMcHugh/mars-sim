@@ -93,7 +93,7 @@
 # founding-grant: 5000
 
 ## nutrient pods make free meals out of nothing (the safety net)
-# infinite-food: true
+# infinite-food: false
 
 # ── Food production ─────────────────────────────────────────────────────
 ## percent of rock tiles carrying a patch of cave scum
@@ -111,8 +111,8 @@
 ## the colony makes food while it holds fewer meals than this per colonist
 # meal-reserve: 3
 
-## building consumes materials from the builder's own stock
-# construction-costs: false
+## building consumes materials, from the payer's stock first, then the builder's
+# construction-costs: true
 
 # ── Market ──────────────────────────────────────────────────────────────
 ## reference price of a meal, in dollars

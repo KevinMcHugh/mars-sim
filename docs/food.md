@@ -5,10 +5,11 @@
 ## What it is
 
 Food is an item now: a `Meal`. A hungry colonist eats real meals when it has
-them — its own first, then the colony's — and falls back on a nutrient pod's
-free gruel only when it has none. That fallback is the **safety net**, on by
-default (`infinite-food`); with it off, pods feed nobody and the colony lives
-on what it landed with and what it makes. This is the second half of phase
+them — its own first, then one it buys — and falls back on a nutrient pod's
+free gruel only when it has none. That fallback is the **safety net**
+(`infinite-food`), **off by default** since economy phase E8: pods feed
+nobody, and the colony lives on what it landed with and what it makes. The
+safety net stays a setting, for tests and balancing. This is the second half of phase
 **E2** of the [economy plan](./economy.md); [crash-pods.md](./crash-pods.md)
 covers where the first meals come from.
 
@@ -73,10 +74,15 @@ more.
   with the scumhouse (see [entities-and-ai.md](./entities-and-ai.md));
 - the colony stops planning pods: `wantsFacility(NutrientPod)` is false, and
   a facility room becomes `toiletRoom`, all toilets;
-- a hungry colonist with nothing to eat picks food work first — cooking, then
-  scraping scum (`hungryWithoutFood`) — or else keeps working, and looks for
-  food again every turn, rather than waiting by an empty locker;
-- the colony builds a scumhouse before anything else.
+- a hungry colonist with nothing to eat picks food work first — cooking its
+  own scum, then scraping to keep (`hungryWithoutFood`). If there is no
+  scumhouse it can reach, it helps build the planned one, or raises one
+  itself, unpaid (`tryEmergencyScumhouse`), the scarcity version of the
+  emergency pod. Otherwise it keeps working, and looks for food again every
+  turn, rather than waiting by an empty locker;
+- the colony builds a scumhouse before anything else, and it does not wait on
+  money: a colony that cannot fund it marks it out as unpaid community work
+  (see [labor.md](./labor.md)).
 
 `TestWithoutTheSafetyNetTheColonyStarvesOnSchedule` is the scarcity under
 test. With three meals each and nothing produced, nobody may die before the

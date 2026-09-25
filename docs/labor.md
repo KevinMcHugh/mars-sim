@@ -56,7 +56,11 @@ permanent (its reserved door tile, its project ID): an issuer that cannot pay
 for the whole room gets nothing marked out, and `planRoomFor` reports it. So:
 
 - **an empty treasury halts public works**, and the planner retries each
-  cycle;
+  cycle. The one exception is the colony's first scumhouse under scarcity:
+  life support doesn't wait on money, so a colony that can't fund it marks it
+  out with issuer `Nobody`. That's unpaid community work: `fundProject` posts
+  no orders and builders use their own materials
+  (`TestAColonyWithNoMoneyStillFeedsItself`);
 - **survival does not stop**: a colonist whose need has no facility it can
   reach still builds one for itself, unpaid, exactly as before (the emergency
   build in `runNeedFocus`), and crash pods bring everyone a bunk and a toilet.

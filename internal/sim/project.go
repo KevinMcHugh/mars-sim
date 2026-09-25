@@ -283,8 +283,32 @@ type roomRecipe struct {
 	// to 1: the colony wants exactly one incinerator, and without the cap
 	// planRoom would happily fit a closet with three of them into the same
 	// walls.
-	maxFac  int
+	maxFac int
+	// aisle widens the room by a tile of floor either side of its bay. A
+	// one-fixture room is otherwise one tile wide, so exactly one tile can
+	// reach its fixture: fine for a pod or a toilet, used in a moment, but a
+	// workshop or a shop has a cook working there for long stretches while
+	// others need the same depot — to sell, to buy, to fetch a meal they own.
+	// With the scumhouse one tile wide, the queue behind a cook starved three
+	// tiles from its own food.
+	aisle   bool
 	planLog string // logged when the room is marked out
+}
+
+// roomWidth is the interior width of a room of r with n facilities.
+func (r roomRecipe) roomWidth(n int) int {
+	if r.aisle {
+		return bayWidth(n) + 2
+	}
+	return bayWidth(n)
+}
+
+// bayOffset is how far in from a room's left wall its first facility sits.
+func (r roomRecipe) bayOffset() int {
+	if r.aisle {
+		return 1
+	}
+	return 0
 }
 
 var (
@@ -320,15 +344,17 @@ var (
 	// one at a time: unlike need facilities, their useful capacity is already
 	// six full colonist inventories and demand is player-directed.
 	storageRoom = roomRecipe{
-		name: "storage room", kinds: []Terrain{Storage}, minFac: 1, maxFac: 1,
+		name: "storage room", kinds: []Terrain{Storage}, minFac: 1, maxFac: 1, aisle: true,
 		planLog: "The colony marks out a new storage room.",
 	}
 	// scumhouseRoom walls in one scumhouse. One serves a colony: its depot
 	// holds six inventories of biomatter and meals, and cooks queue for it
 	// one at a time. The planner wants one only when food is not free (see
-	// planRooms); otherwise it is player-ordered.
+	// planRooms); otherwise it is player-ordered. It has an aisle, so the
+	// depot stays reachable while a cook works (see roomRecipe.aisle); so
+	// does a storage room, since the first is the colony's silo.
 	scumhouseRoom = roomRecipe{
-		name: "scumhouse", kinds: []Terrain{Scumhouse}, minFac: 1, maxFac: 1,
+		name: "scumhouse", kinds: []Terrain{Scumhouse}, minFac: 1, maxFac: 1, aisle: true,
 		planLog: "The colony marks out a scumhouse.",
 	}
 )
@@ -430,7 +456,13 @@ func (w *World) planRooms() {
 	// only place that makes it: it comes before every other room, as life
 	// support always has. Crash-pod meals buy the time to build it.
 	if !w.podsFeed() && w.plannedFacilities(Scumhouse) < 1 {
-		w.planRoom(scumhouseRoom)
+		// Life support does not wait on money: a colony that cannot fund its
+		// first scumhouse still marks it out, as unpaid community work, the
+		// way colonists always built themselves pods and toilets. Without
+		// this a colony founded with no grant starved to a colonist.
+		if !w.planRoomFor(scumhouseRoom, Community) {
+			w.planRoomFor(scumhouseRoom, Nobody)
+		}
 		return
 	}
 	desired := w.desiredFacilities(w.countKind(Colonist))
@@ -493,7 +525,17 @@ func (w *World) planRoomFor(r roomRecipe, issuer Owner) bool {
 		largest = roomFacilities
 	}
 	for n := largest; n >= r.minFac; n-- {
-		o, ok := w.findRoomSite(bayWidth(n))
+		o, ok := w.findRoomSite(r.roomWidth(n))
+		if !ok && r.aisle {
+			// A cramped cavern with no site wide enough for the aisle still
+			// gets the room, narrow: a scumhouse one tile can reach beats
+			// none at all.
+			narrow := r
+			narrow.aisle = false
+			if o, ok = w.findRoomSite(narrow.roomWidth(n)); ok {
+				return w.designateRoom(narrow, o, n, issuer)
+			}
+		}
 		if !ok {
 			continue // no site this wide; try a smaller room
 		}
@@ -510,7 +552,7 @@ func (w *World) planRoomFor(r roomRecipe, issuer Owner) bool {
 // built one tile inside the back wall, drawn from the recipe's kinds in order.
 func (w *World) designateRoom(r roomRecipe, o Point, n int, issuer Owner) bool {
 	p := &project{id: w.nextProjectID, name: r.name, queuedTick: w.tick, issuer: issuer}
-	width := bayWidth(n)
+	width := r.roomWidth(n)
 	backY := o.Y - 1
 	frontY := roomFrontWallY(o.Y)
 	for y := backY; y <= frontY; y++ {
@@ -542,7 +584,7 @@ func (w *World) designateRoom(r roomRecipe, o Point, n int, issuer Owner) bool {
 	}
 	for i, dx := 0, 0; i < n; i, dx = i+1, dx+2 {
 		p.tasks = append(p.tasks,
-			&buildTask{pos: Point{o.X + dx, o.Y}, terrain: r.kinds[i%len(r.kinds)], phase: roomFitPhase})
+			&buildTask{pos: Point{o.X + r.bayOffset() + dx, o.Y}, terrain: r.kinds[i%len(r.kinds)], phase: roomFitPhase})
 	}
 	for _, t := range p.tasks {
 		t.proj = p

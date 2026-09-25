@@ -671,10 +671,33 @@ built two-depot world rather than a generated seed. Notes:
   ticks with nobody starving. A broke, hungry colonist scrapes to keep and
   cooks its own. See [scumhouse.md](./scumhouse.md).
 
-### E8 — Scarcity on
+### E8 — Scarcity on (shipped)
 
 `infinite-food` and `construction-costs` flip defaults; the safety net
 remains available for tests and balancing. Tuning.
+
+Shipped. `infinite-food` is off and `construction-costs` on by default. Tests
+that exercise the safety net's mechanics (pods, emergency builds, facility
+queues) pin it on in `testConfig`; tests that use `DefaultConfig` now run
+under scarcity. `TestLargeColonyDoesNotGridlockAtFacilities` (20 colonists,
+10000 ticks, on defaults) is the gate. What turning it on found:
+
+- **A one-tile-wide scumhouse room starved colonists with money and meals in
+  reach.** The cook held the only tile that reaches the depot, and the queue
+  behind it gave up and starved. Scumhouse and storage rooms now have an
+  aisle (see [construction.md](./construction.md)). This was 4 of 20 dead;
+  now none.
+- **A colony founded with no money starved to a colonist.** It couldn't fund
+  a scumhouse, and without one no food can be made. Its first scumhouse is
+  now planned as unpaid community work when the treasury can't fund it. A
+  hungry colonist with no scumhouse in reach helps build one, or builds one
+  itself (see [food.md](./food.md)).
+- **Across 10 seeds at 6 and at 20 colonists** (10000 ticks, aliens on), one
+  colonist starved: the lone survivor of an alien massacre on seed 2, who
+  couldn't finish the colony's first scumhouse alone before its crash-pod
+  meals ran out. That's scarcity working as intended.
+- Throughput is unchanged: a 300-colonist run ticks as fast with scarcity on
+  as off.
 
 ## Deliberately not doing (yet)
 

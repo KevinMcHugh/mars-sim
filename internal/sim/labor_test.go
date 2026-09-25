@@ -48,6 +48,9 @@ func TestPublicWorksArePaidFromTheTreasury(t *testing.T) {
 
 // An empty treasury halts public works, but not survival: colonists still
 // build what they need to live on their own, unpaid, and nobody starves.
+//
+// This runs with the safety net on (testConfig); see
+// TestAColonyWithNoMoneyStillFeedsItself for the same promise under scarcity.
 func TestAnEmptyTreasuryHaltsPublicWorksNotSurvival(t *testing.T) {
 	cfg := testConfig()
 	cfg.StartAliens = 0
@@ -213,4 +216,32 @@ func TestACommissionDiesWithItsCommissioner(t *testing.T) {
 		}
 	}
 	assertMoneyConserved(t, w)
+}
+
+// Under scarcity (the game's defaults), a colony founded with no money still
+// feeds itself: it cannot pay for any room, but it marks out its first
+// scumhouse as unpaid community work — life support does not wait on money —
+// and nothing else.
+func TestAColonyWithNoMoneyStillFeedsItself(t *testing.T) {
+	for _, seed := range []int64{42, 1, 3} {
+		cfg := DefaultConfig()
+		cfg.Seed, cfg.TraitChance = seed, 0
+		cfg.Width, cfg.Height = 40, 24
+		cfg.StartAliens, cfg.FoundingGrant, cfg.CavernNestPercent = 0, 0, 0 // about food, not aliens
+		w := newTestWorld(t, cfg)
+		for i := 0; i < 8000; i++ {
+			w.step()
+			for _, p := range w.projects {
+				if p.name != scumhouseRoom.name || p.issuer != Nobody {
+					t.Fatalf("seed %d tick %d: planned %q for %v with no money", seed, w.tick, p.name, p.issuer)
+				}
+			}
+		}
+		if w.starved > 0 {
+			t.Fatalf("seed %d: %d colonists starved", seed, w.starved)
+		}
+		if w.countTerrain(Scumhouse) == 0 {
+			t.Fatalf("seed %d: no scumhouse was ever built", seed)
+		}
+	}
 }

@@ -156,11 +156,10 @@ e.g. `-infinite-food=false`.
 - **Prices in thousandths.** Money is whole dollars
   ([money.md](./money.md)), but smoothing by eighths in whole dollars rounds
   every move under $8 to nothing.
-- **What the trace shows today.** With the safety net on (the default), food
-  hardly trades: gruel is free. Even with `-infinite-food=false`, the colony's
-  own scumhouse feeds everyone on the reference seeds, and there's little
-  private food demand. The planner does its work when bids exist; scarcity on
-  (E8) is what will create more of them. Arbitrage is the planner's third plan
+- **What the trace shows.** With the safety net on, food hardly trades: gruel
+  is free. With it off (the default since E8), the colony's scumhouse sells
+  meals and buys scum, and on the reference seeds about 150 meals and 500–650
+  units of scum trade over 12000 ticks. Arbitrage is the planner's third plan
   (see [hauling.md](./hauling.md)).
 
 ## Extending it
