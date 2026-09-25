@@ -290,8 +290,8 @@ func (m Model) renderMap() string {
 			}
 			drawn := fogCells(1)
 			if explored {
-				// Entities are drawn only on explored tiles: an alien still
-				// burrowing through the unknown is exactly what the fog is
+				// Entities are drawn only on explored tiles: an alien lurking
+				// in an undiscovered cave is exactly what the fog is
 				// there to hide, and drawing it over a blank tile would look
 				// like a bug besides.
 				drawn = tileGlyph(m.latest.TileAt(p))

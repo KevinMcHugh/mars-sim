@@ -31,8 +31,8 @@ The four kinds:
 | Kind | Moves on | Eats | Flees | Notes |
 | --- | --- | --- | --- | --- |
 | **Colonist** | Floor | (needs food) | aliens | mines, builds, tends needs; has personality + inventory |
-| **Alien** | anything (burrows) | colonists | — | the antagonist; hunts the nearest colonist |
-| **Cat** | Floor | mice | — | no needs; hunts by instinct; cannot burrow |
+| **Alien** | Floor | colonists | — | the antagonist; hunts the nearest colonist it can reach |
+| **Cat** | Floor | mice | — | no needs; hunts by instinct |
 | **Mouse** | Floor | (needs food) | cats | reuses the colonist food need; raids pods; never builds |
 
 `State` (idle, moving, mining, building, eating, relieving, fleeing, hunting,
@@ -152,18 +152,28 @@ competes with fleeing or fighting. See [escape.md](./escape.md).
 ### Alien behavior (`alienTurn`)
 
 Aliens are paced by a `Cooldown` (from `AlienSlowness`). Each active turn: find
-the nearest colonist anywhere on the map; if adjacent, `bite` (lands
-`AlienDamage` on a random body part — see [combat.md](./combat.md) — eating
-the colonist if the wound is fatal, then rests `AlienBiteRest`); otherwise
-`burrowStep` toward it through any terrain. With no colonists left, they
-wander. An alien hunts the same way whether or not its target is armed; the
-only difference a weapon makes is whether the colonist stands and shoots back
+the nearest colonist in the alien's own room (`nearestReachableColonist`); if
+adjacent, `bite` (lands `AlienDamage` on a random body part — see
+[combat.md](./combat.md) — eating the colonist if the wound is fatal, then
+rests `AlienBiteRest`); otherwise `travelTo` it over the floor with cached A\*,
+exactly as a cat or colonist would. With no colonist in reach, they wander. An
+alien hunts the same way whether or not its target is armed; the only
+difference a weapon makes is whether the colonist stands and shoots back
 instead of running.
+
+Aliens follow the same movement rules as everyone else: floor only, never
+through rock, walls or facilities. A wall is a real defense, and a colonist
+sealed in another room is safe from them. Aliens used to burrow through any
+terrain; that was dropped so they play by the colony's rules.
+
+Most aliens spawn on hidden cavern floor (`alienSpawnSite`). An alien on
+undiscovered floor is **dormant**: it shuffles around its cave, unseen by
+colonists, until a dig breaks in. See [caverns.md](./caverns.md#aliens-in-the-caves).
 
 ### Cat behavior (`catTurn`)
 
-Cats have no needs — they hunt mice by instinct, paced by `CatSlowness`. Unlike
-aliens they **cannot burrow**: they travel the floor with cached A\* and `pounce`
+Cats have no needs — they hunt mice by instinct, paced by `CatSlowness`. They
+travel the floor with cached A\* and `pounce`
 when adjacent (a single pounce is fatal to a mouse), then rest `CatPounceRest`. If
 a mouse is walled off or the cat is wedged, it prowls (`wanderStep`) instead of
 freezing.
@@ -178,12 +188,10 @@ otherwise scurry.
 
 ### Movement primitives
 
-- **`burrowStep`** (aliens) — greedy step toward a destination through any terrain,
-  avoiding occupied tiles.
 - **`fleeStep`** (colonists, mice) — the walkable step that maximizes Chebyshev
   distance from the threat.
 - **`wanderStep`** — a small random step (often stays put so idlers don't jitter);
-  only aliens may enter non-floor, and colonists keep off pending build tiles.
+  floor only, and colonists keep off pending build tiles.
 - **`stepAside`** — a BFS off a facility-access or pending-build tile that may pass
   *through* a packed crowd to reach the nearest genuinely clear landing. A plain
   random wander is insufficient in a full room, where there may be no adjacent

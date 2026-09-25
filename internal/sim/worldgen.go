@@ -7,8 +7,7 @@ import (
 
 // generate carves the starting situation into a fresh all-Rock world: a central
 // landing cavern sized to the starting population, with the colonists inside it,
-// and a handful of aliens lurking out in the surrounding rock, ready to burrow
-// in.
+// and a handful of aliens lurking in the hidden caverns beyond it.
 func generate(w *World) {
 	center := Point{w.Width / 2, w.Height / 2}
 
@@ -43,7 +42,7 @@ func generate(w *World) {
 	// caverns does not reshuffle everything else about a seed — though aliens
 	// still land on whatever rock is left. See docs/caverns.md.
 	cavernRNG := rand.New(rand.NewSource(w.cfg.Seed ^ 0x13198A2E03707344))
-	w.generateCaverns(cavernRNG, center.Add(-rx, -ry), center.Add(rx, ry))
+	caves := w.generateCaverns(cavernRNG, center.Add(-rx, -ry), center.Add(rx, ry))
 
 	// Place colonists, then mice and cats, by drawing from one shuffled list of
 	// open floor tiles, so every placement is a uniform draw without replacement
@@ -76,13 +75,11 @@ func generate(w *World) {
 	}
 	equipColonyShip(colonists, w.cfg)
 
-	// Place aliens out in the rock, away from the cavern, so they must burrow in.
-	// Rock this far from a small starting cavern is the overwhelming majority of
-	// even a huge map, so random guessing (randomTile's rejection-sampling fast
-	// path) finds one immediately.
+	// Place aliens in the hidden caverns, where they lie dormant until the
+	// colony digs in (see alienSpawnSite and docs/caverns.md).
 	minDist := rx + ry + 4
 	for i := 0; i < w.cfg.StartAliens; i++ {
-		if p, ok := w.randomRockFar(center, minDist); ok {
+		if p, ok := w.alienSpawnSite(center, minDist); ok {
 			w.spawn(Alien, p)
 		}
 	}
@@ -99,6 +96,12 @@ func generate(w *World) {
 			w.spawn(Cat, p)
 		}
 	}
+
+	// A few caverns hold a dormant alien nest. Seeded last, on a stream of
+	// their own, so a seed without a nest keeps every entity ID and every
+	// draw on the simulation stream it had before nests existed.
+	nestRNG := rand.New(rand.NewSource(w.cfg.Seed ^ 0x0452821E638D0137))
+	w.seedAlienNests(nestRNG, caves)
 
 	w.log.add("The colony ship settles onto the Martian crust. Something below stirs.")
 	w.refreshSpatial()
@@ -268,9 +271,8 @@ const randomTileRejectionAttempts = 4096
 
 // randomTile samples one tile uniformly from those satisfying pred. It tries
 // bounded random rejection sampling first — cheap as long as pred matches some
-// non-tiny fraction of the map, e.g. randomRockFar's "any Rock tile far
-// enough away," true of nearly the whole map outside a small starting
-// cavern — and falls back to a full-grid reservoir scan, which always finds a
+// non-tiny fraction of the map, e.g. alienSpawnSite's "any hidden cave
+// floor," a few percent of the map by default — and falls back to a full-grid reservoir scan, which always finds a
 // match if one exists, only if that fails (as it will for a predicate matching
 // only a sliver of a huge map, such as "any free Floor tile" once the colony
 // has mined out just a small fraction of it).
@@ -314,10 +316,34 @@ func (w *World) randomFloor() (Point, bool) {
 	return w.randomTile(func(p Point) bool { return w.Walkable(p) && w.discovered(p) && !w.occupied(p) })
 }
 
-// randomRockFar returns a random unoccupied Rock tile at least minDist from
-// origin.
-func (w *World) randomRockFar(origin Point, minDist int) (Point, bool) {
-	return w.randomTile(func(p Point) bool {
-		return w.TerrainAt(p) == Rock && !w.occupied(p) && origin.Chebyshev(p) >= minDist
-	})
+// alienSpawnSite picks where a new alien appears. Aliens walk only on floor,
+// so rock is out. The first choice is free floor in a natural cavern the
+// colony has not found, where the alien lies dormant until a dig breaks in.
+// With no free cave floor left (or caves turned off) it falls back to free
+// discovered floor at least minDist from origin, and failing that to the
+// free discovered floor farthest from origin.
+func (w *World) alienSpawnSite(origin Point, minDist int) (Point, bool) {
+	if w.hiddenFloor > 0 {
+		if p, ok := w.randomTile(func(p Point) bool {
+			return w.Walkable(p) && !w.discovered(p) && !w.occupied(p)
+		}); ok {
+			return p, true
+		}
+	}
+	free := func(p Point) bool { return w.Walkable(p) && w.discovered(p) && !w.occupied(p) }
+	if p, ok := w.randomTile(func(p Point) bool { return free(p) && origin.Chebyshev(p) >= minDist }); ok {
+		return p, true
+	}
+	var best Point
+	bestDist := -1
+	for y := 0; y < w.Height; y++ {
+		for x := 0; x < w.Width; x++ {
+			if p := (Point{x, y}); free(p) {
+				if d := origin.Chebyshev(p); d > bestDist {
+					best, bestDist = p, d
+				}
+			}
+		}
+	}
+	return best, bestDist >= 0
 }

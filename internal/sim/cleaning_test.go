@@ -136,7 +136,7 @@ func TestRefuseTileIsClaimedByOneCleaner(t *testing.T) {
 	}
 }
 
-// Refuse inside solid rock — an alien shot dead while burrowing — is not
+// Refuse inside solid rock (aliens no longer burrow, but the case stands) is not
 // cleanable yet, and a cleaner must not be sent to stand at a tile it can never
 // scrub. Mining through to it later is what makes it cleanable.
 func TestUnreachableRefuseIsNotTargeted(t *testing.T) {

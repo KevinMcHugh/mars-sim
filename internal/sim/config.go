@@ -24,6 +24,11 @@ type Config struct {
 	CavernMin            int `cfg:"cavern-min" doc:"minimum tiles in a natural cavern"`
 	CavernMax            int `cfg:"cavern-max" doc:"maximum tiles in a natural cavern"`
 	CavernPassagePercent int `cfg:"cavern-passage-percent" doc:"chance (percent) that a cavern is joined to its nearest neighbor by a passage"`
+	// Alien nests: the chance a natural cavern is home to a few aliens of one
+	// species, lying dormant until the colony breaks in. See docs/caverns.md.
+	CavernNestPercent int `cfg:"cavern-nest-percent" doc:"chance (percent) that a natural cavern holds an alien nest"`
+	CavernNestMin     int `cfg:"cavern-nest-min" doc:"minimum aliens in a nest"`
+	CavernNestMax     int `cfg:"cavern-nest-max" doc:"maximum aliens in a nest"`
 	// FogOfWar hides rock the colony has not dug up to yet: a tile is only
 	// shown once something has changed the terrain within one tile of it. It
 	// costs the simulation nothing (no system reads it) and is a display
@@ -319,6 +324,9 @@ func DefaultConfig() Config {
 		CavernMin:            15,
 		CavernMax:            60,
 		CavernPassagePercent: 50,
+		CavernNestPercent:    10,
+		CavernNestMin:        2,
+		CavernNestMax:        4,
 		FogOfWar:             true,
 		Seed:                 time.Now().UnixNano(),
 		StartColonists:       6,

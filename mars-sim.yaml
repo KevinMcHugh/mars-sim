@@ -60,6 +60,15 @@
 ## chance (percent) that a cavern is joined to its nearest neighbor by a passage
 # cavern-passage-percent: 50
 
+## chance (percent) that a natural cavern holds an alien nest
+# cavern-nest-percent: 10
+
+## minimum aliens in a nest
+# cavern-nest-min: 2
+
+## maximum aliens in a nest
+# cavern-nest-max: 4
+
 ## hide rock the colony has not dug up to yet
 # fog-of-war: true
 

@@ -252,6 +252,8 @@ func TestCautiousAlienOnlyReactsWithinRadius(t *testing.T) {
 	cfg.AlienCautiousRadius = 3
 	w := newTestWorld(t, cfg)
 	w.alienSpecies[0].Temperament = TemperamentCautious
+	carve(w, Point{2, 5}, Point{5 + cfg.AlienCautiousRadius + 5, 5}, Floor) // one room, so both are reachable
+	w.refreshSpatial()
 
 	alien := w.spawn(Alien, Point{5, 5})
 	far := w.spawn(Colonist, Point{5 + cfg.AlienCautiousRadius + 5, 5})
@@ -270,20 +272,37 @@ func TestCautiousAlienOnlyReactsWithinRadius(t *testing.T) {
 	}
 }
 
-// A Hostile alien must hunt a colonist anywhere on the map, unconditionally
-// -- the behavior every alien had before temperament existed.
+// A Hostile alien must hunt a colonist anywhere it can walk to,
+// unconditionally, however far away -- but, walking the floor like everyone
+// else, never one sealed off behind rock.
 func TestHostileAlienHuntsAcrossTheMap(t *testing.T) {
 	cfg := testConfig()
 	cfg.StartColonists, cfg.StartAliens, cfg.StartCats, cfg.StartMice = 0, 0, 0, 0
 	w := newTestWorld(t, cfg)
 	w.alienSpecies[0].Temperament = TemperamentHostile
+	carve(w, Point{1, 1}, Point{w.Width - 2, 1}, Floor)
+	carve(w, Point{w.Width - 2, 1}, Point{w.Width - 2, w.Height - 2}, Floor)
+	w.refreshSpatial()
 
-	alien := w.spawn(Alien, Point{0, 0})
-	prey := w.spawn(Colonist, Point{w.Width - 1, w.Height - 1})
+	alien := w.spawn(Alien, Point{1, 1})
+	sealed := w.spawn(Colonist, Point{w.Width / 2, w.Height / 2}) // still the landing cave, closer
+	prey := w.spawn(Colonist, Point{w.Width - 2, w.Height - 2})
 
 	w.alienTurn(alien)
 	if alien.Quarry != prey.ID {
-		t.Fatal("hostile alien did not target the only colonist on the map")
+		t.Fatalf("hostile alien targeted #%d, want the far colonist #%d in its room, not #%d behind rock",
+			alien.Quarry, prey.ID, sealed.ID)
+	}
+	start := alien.Pos
+	for i := 0; i < 20; i++ {
+		alien.Cooldown = 0
+		w.alienTurn(alien)
+		if !w.Walkable(alien.Pos) {
+			t.Fatalf("alien left the floor for %v", alien.Pos)
+		}
+	}
+	if alien.Pos.Chebyshev(prey.Pos) >= start.Chebyshev(prey.Pos) {
+		t.Fatalf("alien made no progress toward its prey: %v -> %v", start, alien.Pos)
 	}
 }
 

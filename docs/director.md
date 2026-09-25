@@ -67,7 +67,7 @@ director script every run.
 | Kind | Fields | Effect |
 | --- | --- | --- |
 | `mouse-plague` | `count` | Spawns `count` mice on open floor, same placement as starting mice. |
-| `alien-swarm` | `count` | Spawns `count` aliens in the rock around the colony, same placement as starting aliens. |
+| `alien-swarm` | `count` | Spawns `count` aliens with the same placement as starting aliens: dormant on hidden cave floor, or colony floor far from the landing site when there is no cave room (see [caverns.md](./caverns.md#aliens-in-the-caves)). |
 | `supply-drop` | `pistols`, `shotguns` | Hands weapons to that many distinct living colonists (in random order), same distribution as the colony ship's starting equipment (`equipColonyShip`, [combat.md](./combat.md)). |
 
 A colonist with a full inventory is skipped rather than blocking the drop; an

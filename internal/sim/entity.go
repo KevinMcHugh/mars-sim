@@ -10,8 +10,8 @@ const (
 	// Colonist is a human worker: walks on Floor, mines Rock, builds structures,
 	// tends to its needs, and flees from aliens.
 	Colonist Kind = iota
-	// Alien is a subterranean mutant that burrows through any terrain to hunt
-	// and eat colonists.
+	// Alien is a subterranean mutant that walks the floor to hunt and eat
+	// colonists. Most start dormant in hidden caverns (see docs/caverns.md).
 	Alien
 	// Cat is a surface predator that stalks the floor hunting mice. It has no
 	// needs of its own; it hunts by instinct.
@@ -452,6 +452,10 @@ type Entity struct {
 	// world.go and alienSpeciesFor in lore.go): which of this world's
 	// rolled alien species this individual belongs to.
 	Species int
+	// nest is 1 + the index into World.nests of the nest this alien was
+	// born in, or 0 for an alien that was never in one or has since been
+	// roused (see World.dormant and alienTurn).
+	nest int
 
 	// Mouse reproduction (mice only). sex decides who can carry a litter; a
 	// female mouse that mates becomes pregnant until dueTick, when she births a

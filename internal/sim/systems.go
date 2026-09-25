@@ -427,6 +427,9 @@ func (w *World) observeNearby(e *Entity) {
 		kind, radius := other.Kind, 0
 		switch kind {
 		case Alien:
+			if w.dormant(other) {
+				continue
+			}
 			radius = w.cfg.FleeRadius
 		case Mouse:
 			radius = w.cfg.ColonistStompRadius
@@ -1478,6 +1481,15 @@ func (w *World) alienTurn(e *Entity) {
 	}
 	sp := w.alienSpeciesFor(e)
 
+	if w.dormant(e) {
+		w.dormantTurn(e)
+		e.Cooldown = sp.Slowness - 1
+		return
+	}
+	if e.nest > 0 {
+		w.rouse(e)
+	}
+
 	if sp.Temperament == TemperamentFriendly {
 		e.State, e.Quarry = Idle, 0
 		w.wanderStep(e)
@@ -1487,10 +1499,15 @@ func (w *World) alienTurn(e *Entity) {
 
 	var prey *Entity
 	var ok bool
+	// Aliens walk the floor like everyone else, so only a colonist in the
+	// same room is worth hunting: one behind a wall or across solid rock is
+	// out of reach.
 	if sp.Temperament == TemperamentHostile {
-		prey, ok = w.nearestOfKindAnywhere(e.Pos, Colonist)
+		prey, ok = w.nearestReachableColonist(e.Pos)
 	} else { // Cautious: reacts, but does not go looking beyond its radius
-		prey, ok = w.nearestOfKind(e.Pos, Colonist, w.cfg.AlienCautiousRadius)
+		prey, ok = w.nearestMatch(e.Pos, w.cfg.AlienCautiousRadius, func(c *Entity) bool {
+			return c.Kind == Colonist && w.sameRoom(e.Pos, c.Pos)
+		})
 	}
 	if !ok {
 		e.State, e.Quarry = Idle, 0
@@ -1506,9 +1523,10 @@ func (w *World) alienTurn(e *Entity) {
 		return
 	}
 
-	// Aliens burrow: they step toward prey through any terrain.
 	e.State = Hunting
-	w.burrowStep(e, prey.Pos)
+	if _, ok := w.travelTo(e, prey.Pos); !ok {
+		w.wanderStep(e) // wedged, or the route closed this tick
+	}
 	e.Cooldown = sp.Slowness - 1
 }
 
@@ -1543,8 +1561,8 @@ func (w *World) bite(alien, prey *Entity) {
 // ---- Cats --------------------------------------------------------------------
 
 // catTurn walks the cat toward the nearest mouse and pounces when adjacent. Cats
-// have no needs; they simply hunt. Unlike aliens they cannot burrow, so they
-// travel the floor with cached A* and give up on prey they cannot reach.
+// have no needs; they simply hunt. Like everyone else they travel the floor
+// with cached A* and give up on prey they cannot reach.
 func (w *World) catTurn(e *Entity) {
 	if e.Cooldown > 0 {
 		e.Cooldown-- // mid-stride between slow steps, or resting after a catch
@@ -1715,29 +1733,6 @@ func (w *World) giveBirth(e *Entity) {
 
 // ---- Movement primitives -----------------------------------------------------
 
-// burrowStep moves an alien one step toward dest through any terrain. It avoids
-// tiles already occupied by another entity (one body per tile); it attacks
-// colonists from an adjacent tile rather than stepping onto them.
-func (w *World) burrowStep(e *Entity, dest Point) {
-	target := stepToward(e.Pos, dest)
-	if w.InBounds(target) && !w.occupiedByOther(target, e.ID) {
-		w.moveEntity(e, target)
-		return
-	}
-	bestDist := e.Pos.Chebyshev(dest)
-	best := e.Pos
-	for _, d := range neighbors8 {
-		n := e.Pos.Add(d.X, d.Y)
-		if !w.InBounds(n) || w.occupiedByOther(n, e.ID) {
-			continue
-		}
-		if dd := n.Chebyshev(dest); dd < bestDist {
-			best, bestDist = n, dd
-		}
-	}
-	w.moveEntity(e, best)
-}
-
 // fleeStep moves a colonist one walkable step that maximizes distance from a
 // threat.
 func (w *World) fleeStep(e *Entity, threat Point) {
@@ -1755,9 +1750,8 @@ func (w *World) fleeStep(e *Entity, threat Point) {
 	w.moveEntity(e, best)
 }
 
-// wanderStep takes a small random step. Only aliens burrow; every other kind
-// (colonists, cats, mice) stays on walkable floor. Used when there is nothing
-// better to do.
+// wanderStep takes a small random step on walkable floor. Used when there is
+// nothing better to do.
 func (w *World) wanderStep(e *Entity) {
 	if w.rng.Intn(2) == 0 {
 		return // often stay put so idlers do not jitter constantly
@@ -1767,8 +1761,8 @@ func (w *World) wanderStep(e *Entity) {
 	if !w.InBounds(n) || w.occupiedByOther(n, e.ID) {
 		return
 	}
-	if e.Kind != Alien && !w.Walkable(n) {
-		return // only aliens burrow; colonists, cats, and mice stay on floor
+	if !w.Walkable(n) {
+		return
 	}
 	if e.Kind == Colonist && w.buildTiles[n] {
 		return // colonists keep off tiles a builder needs clear
@@ -1850,8 +1844,10 @@ func (w *World) nearestColonist(from Point, within int) (*Entity, bool) {
 	return w.nearestOfKind(from, Colonist, within)
 }
 
+// nearestAlien is the nearest alien the colony could know about: a dormant
+// nest alien (see World.dormant) is sealed in an undiscovered cave.
 func (w *World) nearestAlien(from Point, within int) (*Entity, bool) {
-	return w.nearestOfKind(from, Alien, within)
+	return w.nearestMatch(from, within, func(e *Entity) bool { return e.Kind == Alien && !w.dormant(e) })
 }
 
 func (w *World) nearestCat(from Point, within int) (*Entity, bool) {
@@ -1864,6 +1860,25 @@ func (w *World) nearestMouse(from Point, within int) (*Entity, bool) {
 
 func (w *World) nearestOfKind(from Point, kind Kind, within int) (*Entity, bool) {
 	return w.nearestMatch(from, within, func(e *Entity) bool { return e.Kind == kind })
+}
+
+// nearestReachableColonist is the nearest colonist in from's room -- one an
+// alien, which walks the floor, could actually get to -- with ties toward the
+// lower ID like nearestOfKindAnywhere.
+func (w *World) nearestReachableColonist(from Point) (*Entity, bool) {
+	var best *Entity
+	bestDist := 0
+	for id := range w.kindEntities[Colonist] {
+		c := w.entities[id]
+		if c == nil || !c.Alive() || !w.sameRoom(from, c.Pos) {
+			continue
+		}
+		d := from.Chebyshev(c.Pos)
+		if best == nil || d < bestDist || (d == bestDist && c.ID < best.ID) {
+			best, bestDist = c, d
+		}
+	}
+	return best, best != nil
 }
 
 // nearestOfKindAnywhere returns the globally nearest living entity of kind, with

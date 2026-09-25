@@ -182,6 +182,10 @@ func TestDirectorFiresAlienSwarm(t *testing.T) {
 			Occurrences: []Occurrence{{Kind: OccAlienSwarm, Count: 6}},
 		},
 	})
+	// Big enough for hidden caves, so the swarm lands dormant in them rather
+	// than on colony floor, where an armed colonist could shoot one the same
+	// tick and throw the count off.
+	cfg.Width, cfg.Height = 120, 60
 	w := newTestWorld(t, cfg)
 	before := w.countKind(Alien)
 

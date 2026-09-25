@@ -5,7 +5,9 @@ import "testing"
 // Sighting an alien should activate a colonist and cost more grip than a mouse.
 func TestSeeingAlienAffectsChargeAndGripMoreThanMouse(t *testing.T) {
 	cfg := testConfig()
+	cfg.StartAliens = 0 // no caves on this map, so they would land in the colony
 	w := newTestWorld(t, cfg)
+	carve(w, Point{0, 0}, Point{1, 0}, Floor) // an alien on hidden rock would be dormant, unseen
 
 	sawAlien := w.spawn(Colonist, Point{0, 0})
 	w.spawn(Alien, Point{1, 0})

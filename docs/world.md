@@ -23,8 +23,7 @@ beyond, and seeds aliens out in the surrounding rock and cats/mice on the floor.
 
 `Terrain` is an enum: `Rock`, `Floor`, `Wall`, `NutrientPod`, `Toilet`, `Bed`,
 `Incinerator`, `Storage`. Only
-`Floor` is `Walkable()` — colonists, cats, and mice stay on floor; **aliens ignore
-walkability and burrow through anything**. Beds are dormitory bunks used from an
+`Floor` is `Walkable()`, and every creature, aliens included, stays on floor. Beds are dormitory bunks used from an
 adjacent floor tile; the incinerator is the machine refuse is burned in, used the
 same way (see [sanitation.md](./sanitation.md)). Storage is a blocking trunk used
 from beside it; its large contents live in sparse world state rather than
@@ -82,8 +81,8 @@ reads as solid.
 `Point` is an integer grid coordinate; origin is top-left, X grows east, Y grows
 south. Movement is 8-directional, so distances everywhere use **Chebyshev**
 (king-move) distance, and `neighbors8` is the canonical 8-step table. `stepToward`
-gives the single greedy step that most reduces Chebyshev distance (used by alien
-burrowing and simple movement).
+gives the single greedy step that most reduces Chebyshev distance (used for
+simple movement).
 
 ### World state
 
@@ -123,10 +122,14 @@ derived systems go stale (and the map the player sees never grows).
 4. Places colonists by shuffling the list of free (discovered) floor tiles and drawing from
    it, so every requested colonist is placed if the cavern has room (this beats
    rejection sampling, which can give up).
-5. Places aliens on random rock tiles **far** from the cavern (`randomRockFar`),
-   so they must burrow in.
+5. Places aliens with `alienSpawnSite`: on hidden cavern floor, where they lie
+   dormant until the colony digs in, or, with no cave room, on colony floor far
+   from the landing site. See [caverns.md](./caverns.md#aliens-in-the-caves).
 6. Places mice and cats on random floor tiles inside the cavern.
-7. Runs `refreshSpatial` once so regions/rooms exist before the first tick.
+7. Seeds **alien nests** in a few natural caverns (`seedAlienNests`), on their
+   own RNG stream: dormant aliens of one species that wake when the colony
+   breaks in. See [caverns.md](./caverns.md#alien-nests).
+8. Runs `refreshSpatial` once so regions/rooms exist before the first tick.
 
 `randomTile` reservoir-samples a tile satisfying a predicate in one pass — uniform,
 and it always finds a match if one exists.

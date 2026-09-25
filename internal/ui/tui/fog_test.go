@@ -70,7 +70,7 @@ func TestMapDrawsOnlyExploredRock(t *testing.T) {
 	}
 }
 
-// An alien burrowing through the unknown is exactly what the fog hides, so it is
+// An alien lurking in the unknown is exactly what the fog hides, so it is
 // not drawn until the colony has dug up to it.
 func TestMapHidesEntitiesInTheFog(t *testing.T) {
 	restoreGlyphs(t, false)

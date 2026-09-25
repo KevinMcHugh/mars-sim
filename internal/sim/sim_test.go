@@ -22,7 +22,8 @@ func testConfig() Config {
 	c := DefaultConfig()
 	c.Seed = 42 // deterministic
 	c.Width, c.Height = 40, 24
-	c.TraitChance = 0 // mechanics tests want baseline colonists; trait tests opt in
+	c.TraitChance = 0       // mechanics tests want baseline colonists; trait tests opt in
+	c.CavernNestPercent = 0 // tests that zero StartAliens expect no aliens; nest tests opt in
 	return c
 }
 
@@ -838,6 +839,7 @@ func TestColonyDoesNotStarveOverTime(t *testing.T) {
 	for _, seed := range []int64{5, 1, 2, 7, 42, 9, 100} {
 		cfg := DefaultConfig()
 		cfg.Seed, cfg.StartColonists, cfg.StartAliens = seed, 20, 0
+		cfg.CavernNestPercent = 0 // no aliens at all: this is about food
 		w := NewEngine(cfg).world
 		for i := 0; i < 1500; i++ {
 			w.step()
