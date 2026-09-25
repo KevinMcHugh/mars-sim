@@ -50,8 +50,9 @@ whose sum exceeds 100, an invalid rock-vein or cavern size range, out-of-range
 cavern percentages, sub-1 rates) with a
 message a player can act on, before the engine is built.
 
-`tickInterval` converts `TicksPerSecond` into a sleep duration, clamped to
-[1, 60].
+`tickInterval` converts `TicksPerSecond` into a sleep duration. Rates below 1
+are raised to 1; there is no upper cap (it used to be 60), so a rate beyond what
+the machine can simulate simply runs flat out.
 
 ## Why it is this way
 
