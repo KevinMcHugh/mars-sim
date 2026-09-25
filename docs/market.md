@@ -10,7 +10,8 @@ and orders that cross trade at once. The colony keeps standing bids for ore at
 its **silo**, so digging ore pays; colonists take surplus meals there to sell,
 and a hungry colonist with nothing to eat buys one before it settles for gruel.
 This is phase **E4** of the [economy plan](./economy.md). Prices are still the
-colony charter's fixed reference prices; valuation (E6) is what will move them.
+colony charter's reference prices until they trade; after that, trades move
+them (see [valuation.md](./valuation.md)).
 
 ## Source
 
@@ -102,9 +103,10 @@ the reference price, as far as the treasury stretches.
   locker, into its pockets, onto the silo's ledger in its own name) and asks
   the reference price.
 - **Hungry colonists buy.** One with no meal of its own or the colony's in
-  reach buys the cheapest meal at the silo, if it costs no more than
-  `meal-willingness` × the meal price and it can afford it, before it eats
-  gruel. The bid never rests: whatever does not fill at once is cancelled.
+  reach buys the cheapest meal at the silo at up to its `mealBidLimit` (hunger
+  times the meal's value, capped by its money), before it eats gruel. If
+  nothing fills, the bid rests for `demand-ttl` ticks as demand the producer
+  planner can answer (see [valuation.md](./valuation.md)).
 
 | Setting | Default |
 | --- | --- |
@@ -141,8 +143,9 @@ spent about 1500 of its 5000.
 
 ## Extending it
 
-- **Prices that move** (E6): replace `refPrice` in `sellAtMarket`,
-  `tryBuyMeal`, and `refreshColonyBids` with a colonist's own valuation.
+- **Prices that move** (E6, see [valuation.md](./valuation.md)): `valueOf`
+  is an item's smoothed trade price, and `tryBuyMeal` bids by hunger. The
+  colony's standing bids and a miner's asks are still at reference prices.
 - **A new tradable good**: give it a reference price (a `price-*` setting and a
   case in `refPrice`); add it to `prospectingGoods` if the colony should buy it.
 - **The colony selling** (E7): the colony holds everything it bought on its own

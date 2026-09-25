@@ -293,6 +293,9 @@ func (w *World) jobCraft(e *Entity) {
 		c.credit(e.craftFor, out.Kind, out.Count)
 	}
 	w.remember(e, event(EvtMadeSlurry, "Worked the scumhouse: %s.", r.Name))
+	if p := w.plans[e.plan]; p != nil && p.kind == planCraft && p.workshop == e.Target {
+		p.crafted = true
+	}
 	w.clearJob(e)
 }
 
@@ -371,7 +374,11 @@ func (w *World) jobScrape(e *Entity) {
 		w.jobDeliverBiomatter(e)
 		return
 	}
-	if w.scumAt(e.Target) == 0 || e.Inventory.Count(CaveScum) >= w.scrapeLoad() ||
+	load := w.scrapeLoad()
+	if e.scrapeQty > 0 {
+		load = e.scrapeQty
+	}
+	if w.scumAt(e.Target) == 0 || e.Inventory.Count(CaveScum) >= load ||
 		!e.Inventory.CanAdd(CaveScum, 1) {
 		w.finishScraping(e)
 		return
@@ -396,6 +403,9 @@ func (w *World) jobScrape(e *Entity) {
 	if w.takeScum(e.Target) {
 		e.Inventory.Add(CaveScum, 1)
 		e.cargo[CaveScum] = Community // scraped for the colony, not for itself
+		if e.scrapeFor.Kind != OwnerNone {
+			e.cargo[CaveScum] = e.scrapeFor // a plan's: scraped to sell
+		}
 	}
 }
 
@@ -410,6 +420,9 @@ func (w *World) finishScraping(e *Entity) {
 	house, ok := w.nearestScumhouse(e, func(c *StorageContainer) bool {
 		return c.Inventory.CanAdd(CaveScum, e.Inventory.Count(CaveScum))
 	})
+	if p := w.plans[e.plan]; p != nil && p.kind == planGather {
+		house, ok = p.depot, true // to the scumhouse whose bid it is filling
+	}
 	if !ok {
 		w.clearJob(e) // the load stays carried until a scumhouse can take it
 		return
@@ -437,6 +450,9 @@ func (w *World) jobDeliverBiomatter(e *Entity) {
 		return
 	}
 	w.deliverBiomatter(e, c)
+	if p := w.plans[e.plan]; p != nil && p.kind == planGather && p.depot == c.Pos {
+		w.sellGathered(e, p)
+	}
 	w.clearJob(e)
 }
 

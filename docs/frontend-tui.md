@@ -192,7 +192,10 @@ are. In market
 first, then living colonists richest first — and the inspector shows its
 balance, holdings, and open orders beside the money supply from
 `Snapshot.Economy` (see [money.md](./money.md)). The treasury's page is the
-market's: every order book and the latest trades (see [market.md](./market.md)). In lore,
+market's: every order book, each good's price, the open production plans, and
+the latest trades (see [market.md](./market.md) and
+[valuation.md](./valuation.md)); a colonist's page shows its own plan. The
+money supply sits above those lists, which the panel may cut short. In lore,
 the same keys select a rolled alien species from `Snapshot.AlienSpecies`;
 the inspector shows its full build and a narrative description.
 

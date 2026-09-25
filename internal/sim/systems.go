@@ -705,6 +705,9 @@ func (w *World) clearJob(e *Entity) {
 			delete(w.scumClaims, e.Target)
 		}
 		e.scrape = scrapeGather
+		e.scrapeFor, e.scrapeQty = Owner{}, 0
+	case JobCarry:
+		e.carry = carryFetch
 	}
 	e.Job, e.Progress, e.partner, e.fieldDetour = JobNone, 0, 0, 0
 	e.useFacility, e.useFacilitySet, e.carrying = Point{}, false, false
@@ -741,6 +744,8 @@ func (w *World) runJob(e *Entity) {
 		w.jobScavenge(e)
 	case JobSell:
 		w.jobSell(e)
+	case JobCarry:
+		w.jobCarry(e)
 	default:
 		e.State = Idle
 		w.wanderStep(e)
@@ -927,6 +932,12 @@ func (w *World) assignWorkJob(e *Entity) {
 	}
 	// Surplus crash-pod meals go to market for someone hungrier to buy.
 	if w.tryAssignSellMeals(e) {
+		return
+	}
+	// Then the market: a bid somebody would pay for that this colonist can
+	// fill at a profit (see producer.go). Before mining, which pays only at
+	// the colony's fixed prospecting bids.
+	if w.tryAssignProduce(e) {
 		return
 	}
 	// Mining: big colonies/maps follow the shared frontier field (claim on

@@ -130,6 +130,28 @@ func (m Model) renderMarketDetail(a marketAccount, rows, width int) string {
 		}
 	}
 
+	// The money supply comes before the market's long lists, which the panel
+	// may have to cut short.
+	b.WriteString("\n")
+	b.WriteString(labelStyle.Render("MONEY SUPPLY"))
+	b.WriteByte('\n')
+	stat("Circulating:", econ.Circulating.String())
+	stat("In escrow:", econ.Escrowed.String()+" (held by open bids)")
+	stat("Frozen:", econ.Frozen.String()+" (held by the dead)")
+	stat("Issued:", econ.Issued.String())
+
+	if a.colonist != nil {
+		if plans := m.planLines(a.colonist.ID); len(plans) > 0 && plans[0] != "none" {
+			b.WriteString("\n")
+			b.WriteString(labelStyle.Render("PLAN"))
+			b.WriteByte('\n')
+			for _, line := range plans {
+				b.WriteString(cells.Truncate(line, inner))
+				b.WriteByte('\n')
+			}
+		}
+	}
+
 	if a.colonist == nil {
 		// The treasury's page is the market's: every book and the latest
 		// trades.
@@ -137,6 +159,20 @@ func (m Model) renderMarketDetail(a marketAccount, rows, width int) string {
 		b.WriteString(labelStyle.Render("BOOKS"))
 		b.WriteByte('\n')
 		for _, line := range m.bookLines() {
+			b.WriteString(cells.Truncate(line, inner))
+			b.WriteByte('\n')
+		}
+		b.WriteString("\n")
+		b.WriteString(labelStyle.Render("PRICES"))
+		b.WriteByte('\n')
+		for _, line := range m.priceLines() {
+			b.WriteString(cells.Truncate(line, inner))
+			b.WriteByte('\n')
+		}
+		b.WriteString("\n")
+		b.WriteString(labelStyle.Render(fmt.Sprintf("PLANS (chain depth %d)", econ.ChainDepth)))
+		b.WriteByte('\n')
+		for _, line := range m.planLines(0) {
 			b.WriteString(cells.Truncate(line, inner))
 			b.WriteByte('\n')
 		}
@@ -156,13 +192,6 @@ func (m Model) renderMarketDetail(a marketAccount, rows, width int) string {
 		}
 	}
 
-	b.WriteString("\n")
-	b.WriteString(labelStyle.Render("MONEY SUPPLY"))
-	b.WriteByte('\n')
-	stat("Circulating:", econ.Circulating.String())
-	stat("In escrow:", econ.Escrowed.String()+" (held by open bids)")
-	stat("Frozen:", econ.Frozen.String()+" (held by the dead)")
-	stat("Issued:", econ.Issued.String())
 	return sidebarStyle.Width(width - borderCells).Height(rows - borderCells).MaxHeight(rows).Render(b.String())
 }
 
@@ -265,6 +294,46 @@ func (m Model) bookLines() []string {
 	}
 	if len(out) == 0 {
 		return []string{"no orders yet"}
+	}
+	return out
+}
+
+// priceLines lists every good's value; "ref" marks one that has never traded
+// and is still at the charter's reference price.
+func (m Model) priceLines() []string {
+	var out []string
+	for _, p := range m.latest.Economy.Prices {
+		tag := "ref"
+		if p.Traded {
+			tag = "traded"
+		}
+		out = append(out, fmt.Sprintf("%s %v (%s)", p.Item, p.Value, tag))
+	}
+	if len(out) == 0 {
+		return []string{"none"}
+	}
+	return out
+}
+
+// planLines lists open production plans — every one, or only actor's when
+// actor is set — with who is working each.
+func (m Model) planLines(actor sim.EntityID) []string {
+	var out []string
+	for _, p := range m.latest.Economy.Plans {
+		if actor != 0 && p.Actor != actor {
+			continue
+		}
+		line := p.Summary
+		if actor == 0 {
+			line = m.ownerLabel(sim.ColonistOwner(p.Actor)) + ": " + line
+		}
+		if p.Waiting {
+			line += " (waiting on inputs)"
+		}
+		out = append(out, line)
+	}
+	if len(out) == 0 {
+		return []string{"none"}
 	}
 	return out
 }

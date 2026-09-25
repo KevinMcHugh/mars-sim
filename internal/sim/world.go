@@ -696,6 +696,16 @@ type World struct {
 	marketDepotAt  Point
 	marketDepotOK  bool
 	marketDepotRev uint64
+	// Valuation and production (see valuation.go, producer.go): each item's
+	// smoothed trade price, the open production plans by ID (the next ID from
+	// nextPlanID), how many colonists have starved, and the per-tick memo of
+	// the planner's candidate bids.
+	prices          [numItemKinds]priceMemory
+	plans           map[planID]*plan
+	nextPlanID      planID
+	starved         int
+	candidatesTick  int
+	candidatesCache []*Order
 
 	// colonistNames indexes every living colonist's full name, so generation can
 	// check a name is free in one lookup instead of scanning the roster. See
@@ -770,6 +780,8 @@ func newWorld(cfg Config, rng *rand.Rand) *World {
 		orders:            make(map[OrderID]*Order),
 		workOrders:        make(map[OrderID]*WorkOrder),
 		books:             make(map[bookKey]*book),
+		plans:             make(map[planID]*plan),
+		candidatesTick:    -1,
 		kin:               make(map[kinID]*kinPerson),
 		nextKinID:         1,
 		kinRevision:       1,
@@ -1224,6 +1236,9 @@ func (w *World) remove(id EntityID, cause string) {
 	e := w.entities[id]
 	if e == nil {
 		return
+	}
+	if e.Kind == Colonist && cause == "starved" {
+		w.starved++
 	}
 	if w.cfg.GraveyardSize > 0 {
 		dead := w.entityView(e, nil, false)

@@ -148,6 +148,29 @@ type EconomyView struct {
 	// Silo is the colony's market depot, when it has one.
 	Silo    Point
 	HasSilo bool
+	// Prices is every good's smoothed value, in item order; Plans every open
+	// production plan, oldest first; ChainDepth the deepest of them; Starved
+	// how many colonists have starved. See docs/valuation.md.
+	Prices     []PriceView
+	Plans      []PlanView
+	ChainDepth int
+	Starved    int
+}
+
+// PriceView is one good's value: its smoothed trade price, or its reference
+// value if it has never traded.
+type PriceView struct {
+	Item   ItemKind
+	Value  Money
+	Traded bool
+}
+
+// PlanView is an immutable copy of one production plan.
+type PlanView struct {
+	Actor   EntityID
+	Summary string // "craft 1 meal for $15 at (6, 6)"
+	Depth   int
+	Waiting bool // still waiting on inputs from its derived bids
 }
 
 // WorkOrderView is an immutable copy of one open work order.
@@ -218,6 +241,22 @@ func (w *World) economyView() EconomyView {
 		}
 		v.Books = append(v.Books, bv)
 	}
+	for k := ItemKind(0); k < numItemKinds; k++ {
+		if val := w.valueOf(k); val > 0 {
+			v.Prices = append(v.Prices, PriceView{Item: k, Value: val, Traded: w.prices[k].traded})
+		}
+	}
+	ids := make([]planID, 0, len(w.plans))
+	for id := range w.plans {
+		ids = append(ids, id)
+	}
+	sort.Slice(ids, func(i, j int) bool { return ids[i] < ids[j] })
+	for _, id := range ids {
+		p := w.plans[id]
+		v.Plans = append(v.Plans, PlanView{Actor: p.actor, Summary: p.summary(), Depth: p.depth,
+			Waiting: p.kind == planCraft && !p.crafted && len(p.derived) > 0})
+	}
+	v.ChainDepth, v.Starved = w.chainDepth(), w.starved
 	sort.Slice(v.Books, func(i, j int) bool {
 		if v.Books[i].Depot != v.Books[j].Depot {
 			return lessPoint(v.Books[i].Depot, v.Books[j].Depot)

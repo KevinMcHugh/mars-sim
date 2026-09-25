@@ -626,13 +626,24 @@ Shipped; see [labor.md](./labor.md). Both gates are tests. Notes:
 - The silo now takes only what sells, so unsold raw rock never crowds ore out
   of the market; it is general storage only as a last resort.
 
-### E6 — Valuation and the producer planner
+### E6 — Valuation and the producer planner (shipped)
 
 Need-driven willingness to pay; smoothed last prices; the producer planner and
 derived bids as a focus candidate; plan-linked bid withdrawal. A tuning harness
 that logs price series, volume, treasury, starvation, and chain depth per seed.
 **Gate:** on a reference seed, a finished-good bid with no stock produces
 trades at least two recipe levels down without any scripted help.
+Shipped; see [valuation.md](./valuation.md). The gate is
+`TestAMealBidReachesTheCaveWall`. Notes:
+
+- Prices are smoothed per item, not per depot; per-depot prices are E7's.
+- A derived bid offers the planner's whole margin, to keep a thin market
+  moving.
+- The planner runs after community work and before mining.
+- A hungry colonist's unfilled bid rests as demand (`demand-ttl`).
+- The harness is `mars-sim -econ-trace`; on the reference seeds, the colony's
+  own scumhouse still meets most food demand, so private food trade is rare
+  until E8.
 
 ### E7 — Hauling and arbitrage
 

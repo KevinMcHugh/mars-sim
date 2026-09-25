@@ -24,6 +24,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"runtime/pprof"
+	"strconv"
 	"strings"
 	"sync"
 	"syscall"
@@ -82,6 +83,9 @@ func main() {
 		glyphs      string
 		printConfig bool
 		cpuProfile  string
+		econTrace   int
+		econEvery   int
+		econSeeds   string
 	)
 	flag.DurationVar(&duration, "duration", 0, "auto-exit after this long (0 = run until quit); handy for smoke tests")
 	flag.BoolVar(&headless, "headless", false, "run without the TUI, printing periodic stats")
@@ -94,6 +98,9 @@ func main() {
 	flag.String("alien-names", alienNamesPath, "alien name pool file to read (\"\" to use the built-in pool)")
 	flag.BoolVar(&printConfig, "print-config", false, "write a commented settings file with every setting at its default, then exit")
 	flag.StringVar(&cpuProfile, "cpuprofile", "", "write a CPU profile of the whole run to this file (read it with go tool pprof)")
+	flag.IntVar(&econTrace, "econ-trace", 0, "run this many ticks as fast as possible and print an economy trace (CSV) instead of playing")
+	flag.IntVar(&econEvery, "econ-every", 100, "ticks between rows of an -econ-trace")
+	flag.StringVar(&econSeeds, "econ-seeds", "", "comma-separated seeds to trace one after another (default: -seed)")
 
 	// Simulation config flags, each defaulting to the value the settings file
 	// left in place.
@@ -134,6 +141,14 @@ func main() {
 		os.Exit(2)
 	}
 	defer stopProfile()
+
+	if econTrace > 0 {
+		if err := runEconTrace(cfg, econTrace, econEvery, econSeeds); err != nil {
+			fmt.Fprintln(os.Stderr, "mars-sim:", err)
+			os.Exit(2)
+		}
+		return
+	}
 
 	eng := sim.NewEngine(cfg)
 
@@ -383,6 +398,9 @@ func validateConfig(cfg sim.Config) error {
 		return fmt.Errorf("crash pod manifest counts cannot be negative")
 	case cfg.GraveyardSize < 0:
 		return fmt.Errorf("graveyard-size cannot be negative")
+	case cfg.LaborPrice < 0 || cfg.PlanMinProfit < 0 || cfg.PlanCandidates < 0 ||
+		cfg.PlanTTL < 0 || cfg.DemandTTL < 0 || cfg.PriceCaveScum < 0:
+		return fmt.Errorf("valuation settings (labor-price, plan-*, demand-ttl, price-cave-scum) cannot be negative")
 	case cfg.FoundingGrant < 0 || cfg.CrashPodPurse < 0:
 		return fmt.Errorf("founding-grant and crash-pod-purse cannot be negative (got %d and %d)", cfg.FoundingGrant, cfg.CrashPodPurse)
 	case cfg.TicksPerSecond < 1:
@@ -595,4 +613,37 @@ func runHeadless(ctx context.Context, snaps <-chan *sim.Snapshot, cfg sim.Config
 			return
 		}
 	}
+}
+
+// runEconTrace writes an economy trace for each seed in seeds (or cfg's own
+// seed), one after another under a single header. See sim.TraceEconomy and
+// docs/valuation.md.
+func runEconTrace(cfg sim.Config, ticks, every int, seeds string) error {
+	list := []int64{cfg.Seed}
+	if seeds != "" {
+		list = list[:0]
+		for _, f := range strings.Split(seeds, ",") {
+			n, err := strconv.ParseInt(strings.TrimSpace(f), 10, 64)
+			if err != nil {
+				return fmt.Errorf("-econ-seeds: %q is not a seed", f)
+			}
+			list = append(list, n)
+		}
+	}
+	for i, seed := range list {
+		c := cfg
+		c.Seed = seed
+		var buf strings.Builder
+		if err := sim.TraceEconomy(c, ticks, every, &buf); err != nil {
+			return err
+		}
+		out := buf.String()
+		if i > 0 {
+			out = out[strings.IndexByte(out, '\n')+1:] // one header for the lot
+		}
+		if _, err := os.Stdout.WriteString(out); err != nil {
+			return err
+		}
+	}
+	return nil
 }

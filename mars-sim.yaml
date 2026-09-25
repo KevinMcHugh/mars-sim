@@ -145,6 +145,25 @@
 ## a hungry colonist pays up to this many times the meal price
 # meal-willingness: 3
 
+# ── Valuation ───────────────────────────────────────────────────────────
+## what a colonist reckons 100 ticks of its own work are worth, in dollars
+# labor-price: 2
+
+## the least profit, in dollars, that makes a production plan worth taking on
+# plan-min-profit: 1
+
+## how many of the best open bids a colonist's producer planner considers
+# plan-candidates: 4
+
+## ticks a production plan may take before it is dropped with its derived bids
+# plan-ttl: 1500
+
+## ticks a hungry colonist's unfilled bid for a meal rests in the book
+# demand-ttl: 300
+
+## reference value of a unit of cave scum until it trades
+# price-cave-scum: 1
+
 # ── Labor ───────────────────────────────────────────────────────────────
 ## what the colony pays to dig out one tile of a room
 # wage-dig: 2

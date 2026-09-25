@@ -124,6 +124,20 @@ type Config struct {
 	// bounty open per scumhouse. A colonist with HouseSavings dollars
 	// commissions its own house (0 disables), whose toilet charges others
 	// ToiletFee a use. See docs/labor.md.
+	// Valuation and the producer planner. A colonist values its own time at
+	// LaborPrice dollars per 100 ticks of work, and takes on a plan only if it
+	// clears PlanMinProfit after inputs and labor. It considers the
+	// PlanCandidates best bids it could fill. A hungry colonist's unfilled bid
+	// for a meal rests for DemandTTL ticks; a plan that has not delivered in
+	// PlanTTL ticks is dropped, its derived bids with it. PriceCaveScum is
+	// scum's reference value until it trades. See docs/valuation.md.
+	LaborPrice     int64 `cfg:"labor-price" sec:"Valuation" doc:"what a colonist reckons 100 ticks of its own work are worth, in dollars"`
+	PlanMinProfit  int64 `cfg:"plan-min-profit" doc:"the least profit, in dollars, that makes a production plan worth taking on"`
+	PlanCandidates int   `cfg:"plan-candidates" doc:"how many of the best open bids a colonist's producer planner considers"`
+	PlanTTL        int   `cfg:"plan-ttl" doc:"ticks a production plan may take before it is dropped with its derived bids"`
+	DemandTTL      int   `cfg:"demand-ttl" doc:"ticks a hungry colonist's unfilled bid for a meal rests in the book"`
+	PriceCaveScum  int64 `cfg:"price-cave-scum" doc:"reference value of a unit of cave scum until it trades"`
+
 	WageDig      int64 `cfg:"wage-dig" sec:"Labor" doc:"what the colony pays to dig out one tile of a room"`
 	WageWall     int64 `cfg:"wage-wall" doc:"what the colony pays to raise one wall"`
 	WageFixture  int64 `cfg:"wage-fixture" doc:"what the colony pays to build one fixture (pod, toilet, bed, ...)"`
@@ -431,13 +445,23 @@ func DefaultConfig() Config {
 		// Wages sized so a typical room costs the colony about a hundred
 		// dollars: fifty rooms from the founding grant, less what it spends
 		// buying ore. A house is a real purchase, several weeks of prospecting.
-		WageDig:      2,
-		WageWall:     2,
-		WageFixture:  5,
-		BountyPay:    1,
-		BountyUnits:  30,
-		HouseSavings: 300,
-		ToiletFee:    2,
+		// A colonist's time is worth a couple of dollars per 100 ticks: less
+		// than a scraper earns selling scum into a meal-maker's bid, so the
+		// chain from a hungry colonist's bid down to the cave wall pays at
+		// every link. See docs/valuation.md.
+		LaborPrice:     2,
+		PlanMinProfit:  1,
+		PlanCandidates: 4,
+		PlanTTL:        1500,
+		DemandTTL:      300,
+		PriceCaveScum:  1,
+		WageDig:        2,
+		WageWall:       2,
+		WageFixture:    5,
+		BountyPay:      1,
+		BountyUnits:    30,
+		HouseSavings:   300,
+		ToiletFee:      2,
 		// A meal clears hunger for roughly 325 ticks at the baseline rise, so
 		// ten carry a colonist a few thousand ticks: long enough to settle in,
 		// short enough that food production matters once the safety net is

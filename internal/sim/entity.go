@@ -268,6 +268,7 @@ const (
 	JobScrape           // scrape the cave scum at Target, then haul it to a scumhouse
 	JobScavenge         // (rats) eat the body, gore, or scum at Target where it lies
 	JobSell             // take surplus meals from the depot at Target to the silo and offer them
+	JobCarry            // carry its own goods to a buyer's depot and ask the price (see producer.go)
 )
 
 // cleanStage is where a JobClean colonist is in the haul. The job is two legs
@@ -384,6 +385,18 @@ type Entity struct {
 	craftFor Owner
 	scrape   scrapeStage
 	sell     sellStage
+	// scrapeFor is whose a JobScrape colonist's scum is (the colony's unless
+	// a plan has it scraping for itself); scrapeQty, when set, is the load it
+	// stops at. plan is the production plan it is working, if any, and the
+	// carry fields are a JobCarry colonist's errand. See producer.go.
+	scrapeFor  Owner
+	scrapeQty  int
+	plan       planID
+	carry      carryStage
+	carryItem  ItemKind
+	carryQty   int
+	carryPrice Money
+	carryTo    Point
 	// fieldDetour counts down the ticks a JobUse colonist routes concretely
 	// instead of following the shared field; see jobUse.
 	fieldDetour int

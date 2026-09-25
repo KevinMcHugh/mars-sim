@@ -123,9 +123,10 @@ occasional colonist bought itself a house.
   becoming a famine.
 - **Pay on completion, not on claim.** A claim is released when a colonist
   drops a task (fleeing, eating); paying then would pay for nothing.
-- **Colonists do not yet choose work by pay.** Everyone still takes the
-  planner's tasks in the planner's order; pay only lands in their wallets. Choosing
-  work because it pays is the producer planner's job (E6).
+- **Public works are not chosen by pay.** Everyone still takes the room
+  planner's tasks in the planner's order; pay only lands in their wallets.
+  Market work (filling bids) is chosen by profit, by the producer planner
+  ([valuation.md](./valuation.md)); weighing wages against it is still to do.
 
 ## Extending it
 
@@ -133,8 +134,9 @@ occasional colonist bought itself a house.
   executor that calls `payWork` when a unit is done.
 - **More commissions**: any `roomRecipe` through `planRoomFor` with a colonist
   issuer; decide its fixtures' access in `fixtureAccess`.
-- **Choosing work by pay** (E6): the orders are all in `w.workOrders` with
-  their pay; the planner candidates read them.
+- **Choosing work by pay**: the orders are all in `w.workOrders` with their
+  pay. Making them producer-planner candidates would let a colonist weigh a
+  wage against a bid (see [valuation.md](./valuation.md)).
 
 ## Related
 

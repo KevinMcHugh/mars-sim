@@ -54,6 +54,11 @@ type Order struct {
 	// escrow is the money a bid is holding, Qty × Price at rest. An ask's
 	// escrow is goods, on the order's own ledger line at the depot.
 	escrow Money
+	// plan is the production plan a derived bid was posted for, and depth how
+	// many links below a finished-good bid it is (0 for a bid of its own).
+	// See producer.go.
+	plan  planID
+	depth int
 }
 
 // owner is the order itself as a ledger or money holder: where its escrow
@@ -196,6 +201,7 @@ func (w *World) settle(b *book, c *StorageContainer, bid, ask *Order, n int, pri
 	}
 	b.last, b.traded = price, true
 	b.volume += n
+	w.recordPrice(ask.Item, price)
 	w.trades = append(w.trades, Trade{Tick: w.tick, Item: ask.Item, Depot: ask.Depot, Qty: n,
 		Price: price, Buyer: bid.Actor, Seller: ask.Actor})
 	if over := len(w.trades) - maxTrades; over > 0 {
@@ -372,6 +378,7 @@ func (w *World) runMarket() {
 		return
 	}
 	w.expireOrders()
+	w.prunePlans()
 	w.refreshColonyBids()
 	w.refreshBiomatterBounty()
 }
@@ -430,30 +437,36 @@ func (w *World) sellAtMarket(e *Entity, p Point, kinds []ItemKind) {
 }
 
 // tryBuyMeal buys a hungry colonist one meal at the silo, if one is on offer
-// at a price it will pay and can afford. The meal is then its own, at the
-// silo, and the ordinary eating job fetches it.
+// at a price it will pay (mealBidLimit). The meal is then its own, at the
+// silo, and the ordinary eating job fetches it. If nothing fills, the bid
+// rests for demand-ttl ticks — at most one per colonist — as a standing sign
+// that someone wants a meal, which is what a producer's planner answers (see
+// producer.go). A later fill leaves the meal at the silo in its name.
 func (w *World) tryBuyMeal(e *Entity) bool {
 	silo, ok := w.marketDepot()
 	if !ok || !w.canUseFixture(e, silo) || !w.taskReachable(silo, w.roomOf(e.Pos)) {
 		return false
 	}
-	ask, ok := w.bestAsk(Meal, silo)
-	if !ok || ask.Actor == ColonistOwner(e.ID) {
+	me := ColonistOwner(e.ID)
+	limit := w.mealBidLimit(e)
+	if limit <= 0 || w.openQty(Bid, Meal, silo, me) > 0 {
 		return false
 	}
-	limit := w.refPrice(Meal) * Money(max(1, w.cfg.MealWillingness))
-	if ask.Price > limit || ask.Price > e.wallet {
-		return false
+	if ask, ok := w.bestAsk(Meal, silo); ok && ask.Actor != me && ask.Price <= limit {
+		price := ask.Price
+		o, filled := w.post(Bid, Meal, 1, price, me, silo, 0)
+		if o != nil && o.Qty > 0 {
+			w.cancel(o)
+		}
+		if filled > 0 {
+			w.remember(e, event(EvtBoughtMeal, "Bought a meal at market for %v.", price))
+			return true
+		}
 	}
-	price := ask.Price
-	o, filled := w.post(Bid, Meal, 1, price, ColonistOwner(e.ID), silo, 0)
-	if o != nil && o.Qty > 0 {
-		w.cancel(o) // buy now or not at all: nothing rests on a hungry whim
+	if w.cfg.DemandTTL > 0 {
+		w.post(Bid, Meal, 1, limit, me, silo, w.cfg.DemandTTL)
 	}
-	if filled > 0 {
-		w.remember(e, event(EvtBoughtMeal, "Bought a meal at market for %v.", price))
-	}
-	return filled > 0
+	return false
 }
 
 // ---- Taking goods to market -------------------------------------------------
