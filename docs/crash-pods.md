@@ -4,8 +4,8 @@
 
 ## What it is
 
-Every colonist arrives in a crash pod: a small prefab stamped into the world
-where it lands, holding the colonist's own bunk, toilet, and locker, stocked
+Every colonist arrives in a crash pod: a small metal-hulled room stamped into
+the world where it lands, holding the colonist's own bunk, toilet, and locker, stocked
 with a manifest of meals, and the colonist steps out carrying a gun and a purse.
 It is the only way into the game — worldgen, the spawn command, and the
 director's `arrival` occurrence all come through one function, `arrive`. This is
@@ -30,22 +30,31 @@ brings are what [food.md](./food.md) is about.
 ### The pod
 
 ```
-B . T . L     B bunk, T toilet, L locker (a storage container)
-. . @ . .     @ where the colonist steps out
+H H H H H     H hull (metal wall, the Hull terrain)
+H B T L H     B bunk, T toilet, L locker (a storage container)
+H . @ . H     @ where the colonist steps out
+H H . H H     the doorway
+    ^         the approach, reserved like a room's
 ```
 
-Five wide, two tall. The fixtures sit one tile apart, as in any room, so each
-keeps free access tiles; every other tile is floor. `arrive`:
+A 3×2 interior inside a one-tile **hull**: five wide, four tall. `Hull` is its
+own terrain so the map can show a pod as salvaged metal (⬜ in the TUI) rather
+than the colony's masonry (🧱), but it behaves like a `Wall`: it blocks
+movement, and a sealed-in colonist may break it down (`nearestEscapeWall`).
+Nothing builds it; it only arrives. `arrive`:
 
-1. finds a site (below) and clears any rock under the footprint — the displaced
-   rock simply disappears;
-2. places the three fixtures and spawns the colonist on the door tile;
-3. makes all three **private** to it (`setFixtureOwner`, see
+1. finds a site (below) and stamps the hull, clearing any rock inside it — the
+   displaced rock simply disappears;
+2. clears a one-tile **crater** of any rock around the hull, and reserves the
+   approach below the doorway in `doorTiles` so no room or later pod covers it;
+3. places the three fixtures and spawns the colonist on the tile inside the
+   door;
+4. makes all three **private** to it (`setFixtureOwner`, see
    [property.md](./property.md));
-4. puts `crash-pod-meals` meals in the locker, credited to the colonist on its
+5. puts `crash-pod-meals` meals in the locker, credited to the colonist on its
    ledger;
-5. hands it `crash-pod-pistols` pistols and `crash-pod-shotguns` shotguns;
-6. records `podOrigin` on the colonist.
+6. hands it `crash-pod-pistols` pistols and `crash-pod-shotguns` shotguns;
+7. records `podOrigin` on the colonist.
 
 The purse (`crash-pod-purse`) is minted by `spawn` itself, so it reaches every
 colonist however it was created (see [money.md](./money.md)).
@@ -66,14 +75,14 @@ arming everyone did to survival.
 `findPodSite` walks rings of candidate top-left corners outward from just below
 the map's middle row and takes the first **clean** site: footprint and one-tile
 margin all floor, nobody standing on the footprint, no construction designated
-there, no room's reserved door approach, and no wall or fixture in the margin.
-The first site it passes that is valid but not clean — some rock under the
-footprint or in the margin, but touching existing floor so the colonist is not
-sealed in — is held as a crash site, and taken once the search is
+there, no room's reserved door approach, and no wall, hull, or fixture in the
+margin. The first site it passes that is valid but not clean — some rock under
+the footprint or in the margin, but with some margin already floor so the
+crater connects the doorway to the colony — is held as a crash site, and taken once the search is
 `podCrashSlack` (8) rings past it without finding open floor. A pod that clears
 rock announces that it "smashes down through the rock".
 
-Four rules shape where pods end up, and each was learned the hard way:
+Five rules shape where pods end up, and each was learned the hard way:
 
 - **Lower half only.** Candidates above the middle row are skipped. Rooms are
   only ever sited against rock *above* them (see `roomSiteClear` in
@@ -88,6 +97,12 @@ Four rules shape where pods end up, and each was learned the hard way:
 - **A clean landing needs an open margin,** not just an open footprint. A pod
   that settles against the cavern wall takes exactly the rock-backed edge a
   room wants.
+- **The margin is the way out.** The door faces down, but a pod that crashes
+  into the rock below a full cavern has only rock below it. The first hulled
+  pods required the approach itself to touch floor and found no site at all
+  once the cavern filled. The crater fixes that: whatever side of the margin
+  touches floor, the cleared ring leads from the doorway round to it, and it
+  keeps a walkway between neighboring pods.
 - **Only discovered floor counts.** The floor of a hidden natural cavern
   ([caverns.md](./caverns.md)) is open ground to a naive check, so pods used to
   land "cleanly" out in the rock, open the cavern around their colonist, and
@@ -133,17 +148,24 @@ assumed every fixture was communal had to learn otherwise (see
   only its owner may use. So a colonist whose pockets fill up while mining
   unloads into its own locker, and the colony builds a shared storage room only
   once lockers are full or out of reach.
-- **The fixture row never touches another fixture.** A fixture is never
-  orthogonally adjacent to another, and every other footprint tile is floor, so
-  stamping a pod can never cut a path that crossed the footprint before.
+- **A hull, not an open footprint.** The first pods were an open five-by-two
+  patch of fixtures on the floor; on the map they looked like furniture left
+  out in the cavern, not somewhere a settler lives. The hull makes the pod read
+  as the colonist's own room.
+- **Fixtures side by side.** An open pod had to space its fixtures a tile
+  apart so stamping one could never cut a path across the footprint. A hulled
+  pod has no path across it, so the three sit on the back row, each used from
+  the floor tile in front of it — which is what fits them in a 3×2 interior.
 
 ## Extending it
 
 - **A new manifest item**: a `crash-pod-*` setting, and a line in `arrive` that
   puts it in the locker (credited to the colonist) or the colonist's pockets.
-- **A bigger or different pod**: change `podWidth`/`podHeight`/`podFixtures`.
-  Keep fixtures from touching orthogonally, and re-check
-  `TestPodsLeaveRoomForTheFirstRooms`, which is what a bigger pod will break.
+- **A bigger or different pod**: change `podWidth`/`podHeight`/`podFixtures`
+  and the door offsets (`podDoor`, `podDoorway`, `podApproach`); `podHullAt`
+  derives the hull from them. Every fixture needs a floor tile inside the hull
+  beside it. Re-check `TestPodsLeaveRoomForTheFirstRooms`, which is what a
+  bigger pod will break.
 - **Choosing where to land** (a player-picked site, or landing near family)
   belongs in `findPodSite`; keep it free of randomness or draw from `World.rng`.
 

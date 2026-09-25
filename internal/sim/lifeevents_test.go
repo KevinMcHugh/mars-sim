@@ -6,6 +6,7 @@ import "testing"
 func TestSeeingAlienAffectsChargeAndGripMoreThanRat(t *testing.T) {
 	cfg := testConfig()
 	cfg.StartAliens = 0 // no caves on this map, so they would land in the colony
+	cfg.StartRats = 0   // one sighting each: worldgen's rats would crowd the second colonist's view
 	w := newTestWorld(t, cfg)
 	carve(w, Point{0, 0}, Point{1, 0}, Floor) // an alien on hidden rock would be dormant, unseen
 

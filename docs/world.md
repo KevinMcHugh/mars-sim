@@ -23,7 +23,9 @@ out in the surrounding rock and cats/rats on the floor.
 ### Terrain and tiles
 
 `Terrain` is an enum: `Rock`, `Floor`, `Wall`, `NutrientPod`, `Toilet`, `Bed`,
-`Incinerator`, `Storage`. Only
+`Incinerator`, `Storage`, `Scumhouse`, `Hull`. `Hull` is a crash pod's metal
+wall: it behaves like `Wall` but only ever arrives with a pod (see
+[crash-pods.md](./crash-pods.md)). Only
 `Floor` is `Walkable()`, and every creature, aliens included, stays on floor. Beds are dormitory bunks used from an
 adjacent floor tile; the incinerator is the machine refuse is burned in, used the
 same way (see [sanitation.md](./sanitation.md)). Storage is a blocking trunk used

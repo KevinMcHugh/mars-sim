@@ -24,6 +24,17 @@ func assertOwnsPod(t *testing.T, w *World, e *Entity) {
 	if !locker.ledgerBalanced() {
 		t.Fatalf("%s's locker ledger does not match its contents", e.displayName())
 	}
+	for dy := 0; dy < podHeight; dy++ {
+		for dx := 0; dx < podWidth; dx++ {
+			p := e.podOrigin.Add(dx, dy)
+			if (w.TerrainAt(p) == Hull) != podHullAt(dx, dy) {
+				t.Fatalf("%s's pod at %v: %v where the hull should be %v", e.displayName(), p, w.TerrainAt(p), podHullAt(dx, dy))
+			}
+		}
+	}
+	if p := e.podOrigin.Add(podApproach.X, podApproach.Y); !w.Walkable(p) || !w.doorTiles[p] {
+		t.Fatalf("%s's pod approach %v is %v (reserved %v), want reserved floor", e.displayName(), p, w.TerrainAt(p), w.doorTiles[p])
+	}
 	if e.Inventory.Count(Pistol) != w.cfg.CrashPodPistols {
 		t.Fatalf("%s carries %d pistols, want %d", e.displayName(), e.Inventory.Count(Pistol), w.cfg.CrashPodPistols)
 	}
@@ -110,6 +121,12 @@ func TestPodCrashesThroughRockWhenTheCavernIsFull(t *testing.T) {
 			}
 		}
 	}
+	forEachPodMargin(e.podOrigin, func(p Point) {
+		if w.TerrainAt(p) == Rock {
+			t.Fatalf("rock left in the crater around the pod at %v", p)
+		}
+	})
+	assertOwnsPod(t, w, e)
 	w.refreshSpatial()
 	if w.roomOf(e.Pos) != w.roomOf(Point{6, 12}) {
 		t.Fatal("the crashed pod does not open onto the strip")
@@ -140,5 +157,40 @@ func TestPodLandingIsDeterministic(t *testing.T) {
 		if a[i] != b[i] {
 			t.Fatalf("pod %d landed at %v, then %v", i, a[i], b[i])
 		}
+	}
+}
+
+// A pod never lands on the floor of a natural cavern nobody has found: it would
+// open the cavern around its colonist, cut off from the colony. Here the only
+// clean landing is a hidden cavern right where the search starts; the pod must
+// crash beside the colony's one known corridor instead.
+func TestPodsNeverLandInAnUndiscoveredCavern(t *testing.T) {
+	cfg := testConfig()
+	cfg.StartColonists, cfg.StartAliens, cfg.StartCats, cfg.StartRats = 0, 0, 0, 0
+	cfg.Width, cfg.Height = 60, 30
+	w := newTestWorld(t, cfg)
+	for y := 0; y < w.Height; y++ {
+		for x := 0; x < w.Width; x++ {
+			w.SetTerrain(Point{x, y}, Rock)
+		}
+	}
+	for y := 15; y <= 26; y++ {
+		for x := 20; x <= 40; x++ {
+			w.tiles[w.index(Point{x, y})].Explored = false
+			w.carveHidden(Point{x, y})
+		}
+	}
+	for y := 10; y < 29; y++ {
+		w.SetTerrain(Point{5, y}, Floor)
+	}
+	w.refreshSpatial()
+
+	e := w.arrive(false)
+	if e == nil {
+		t.Fatal("no site found")
+	}
+	w.refreshSpatial()
+	if w.roomOf(e.Pos) != w.roomOf(Point{5, 20}) {
+		t.Fatalf("the pod at %v landed cut off from the colony's corridor", e.podOrigin)
 	}
 }

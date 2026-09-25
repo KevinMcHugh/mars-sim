@@ -542,8 +542,10 @@ test of the scarcity itself).
 Shipped; see [crash-pods.md](./crash-pods.md) and [food.md](./food.md). All
 three gates are tests. What differs from the sketch above:
 
-- The pod is an open five-by-two footprint, not a walled shell, and it lands
-  only in the **lower half** of the map. Rooms site against rock above them,
+- The pod first shipped as an open five-by-two footprint; it is now a walled
+  shell after all (a metal hull round a 3×2 interior, see
+  [crash-pods.md](./crash-pods.md)), because the open one did not read as
+  anybody's room. It lands only in the **lower half** of the map. Rooms site against rock above them,
   and pods that spread into the top of the cavern left small colonies unable
   to build anything. The landing cavern is sized for its pods for the same
   reason.

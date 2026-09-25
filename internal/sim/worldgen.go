@@ -65,7 +65,7 @@ func generate(w *World) {
 	// covers every candidate — not the whole map, which on a huge map would
 	// dwarf everything else generate() does for the sake of placing a handful
 	// of critters.
-	reach := podWidth + podCrashSlack
+	reach := podWidth + podHeight + podCrashSlack
 	floors := w.freeFloorTilesIn(center.Add(-rx-reach, -ry-reach), center.Add(rx+reach, ry+reach))
 	w.rng.Shuffle(len(floors), func(i, j int) { floors[i], floors[j] = floors[j], floors[i] })
 	next := 0

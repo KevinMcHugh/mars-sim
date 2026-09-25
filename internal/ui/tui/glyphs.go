@@ -44,6 +44,7 @@ const (
 	glyphClayRock    = "\U0001F7E7" // 🟧 clay-bearing rock
 	glyphFloor       = "  "         // open, walkable space
 	glyphWall        = "\U0001F9F1" // 🧱 built wall
+	glyphHull        = "\U00002B1C" // ⬜ crash pod hull: metal, not masonry
 	glyphPod         = "\U0001F96B" // 🥫 nutrient pod (food)
 	glyphToilet      = "\U0001F6BD" // 🚽 toilet (bladder)
 	glyphBed         = "\U0001F6CC" // 🛌 dormitory bunk (sleep)
@@ -129,6 +130,7 @@ var glyphRegistry = map[string]glyph{
 	glyphClayRock:    {glyphClayRock, 2, "Cl"},
 	glyphFloor:       {glyphFloor, 2, "  "},
 	glyphWall:        {glyphWall, 2, "[]"},
+	glyphHull:        {glyphHull, 2, "HH"},
 	glyphPod:         {glyphPod, 2, "%%"},
 	glyphToilet:      {glyphToilet, 2, "WC"},
 	glyphBed:         {glyphBed, 2, "=="},
@@ -268,6 +270,8 @@ func terrainGlyph(t sim.Terrain) string {
 		symbol = glyphFloor
 	case sim.Wall:
 		symbol = glyphWall
+	case sim.Hull:
+		symbol = glyphHull
 	case sim.NutrientPod:
 		symbol = glyphPod
 	case sim.Toilet:

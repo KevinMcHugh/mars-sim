@@ -1209,7 +1209,7 @@ func (w *World) nearestEscapeWall(from Point) (Point, bool) {
 				continue
 			}
 			seen[n] = true
-			if w.TerrainAt(n) == Wall {
+			if t := w.TerrainAt(n); t == Wall || t == Hull {
 				return n, true
 			}
 			if w.Walkable(n) && w.roomOf(n) == room {
@@ -1226,7 +1226,7 @@ func (w *World) nearestEscapeWall(from Point) (Point, bool) {
 // refreshSpatial folds the new Floor tile in at the end of this tick, and
 // updateDisconnected notices the room is whole again on the next.
 func (w *World) jobDemolish(e *Entity) {
-	if w.TerrainAt(e.Target) != Wall {
+	if t := w.TerrainAt(e.Target); t != Wall && t != Hull {
 		w.clearJob(e) // reconnected some other way, or someone else broke it first
 		return
 	}
@@ -1605,11 +1605,11 @@ func (w *World) bordersFloor(p Point) bool {
 	return false
 }
 
-// bordersSolid reports whether p has at least one Rock or Wall neighbor.
+// bordersSolid reports whether p has at least one Rock, Wall, or Hull neighbor.
 func (w *World) bordersSolid(p Point) bool {
 	for _, d := range neighbors8 {
 		switch w.TerrainAt(p.Add(d.X, d.Y)) {
-		case Rock, Wall:
+		case Rock, Wall, Hull:
 			return true
 		}
 	}

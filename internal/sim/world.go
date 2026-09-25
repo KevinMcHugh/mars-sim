@@ -100,6 +100,10 @@ const (
 	// inputs and its meals sit in a storage container on its tile, with a
 	// ledger like any chest. See scumhouse.go and docs/scumhouse.md.
 	Scumhouse
+	// Hull is the metal wall of a crash pod. It behaves like a Wall — it blocks
+	// movement, bounds a room, and can be broken down to escape one — but it is
+	// salvaged spacecraft, not something the colony builds. See docs/crash-pods.md.
+	Hull
 
 	numTerrains // keep last: the number of terrain kinds
 )
@@ -124,6 +128,8 @@ func (t Terrain) String() string {
 		return "storage container"
 	case Scumhouse:
 		return "scumhouse"
+	case Hull:
+		return "pod hull"
 	default:
 		return "unknown"
 	}

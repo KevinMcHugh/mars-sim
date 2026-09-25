@@ -417,6 +417,7 @@ func (m Model) drawSidebar(rows int) string {
 		{g(glyphIceRock, "ice rock"), g(glyphClayRock, "clay rock")},
 		{g(glyphUranium, "uranium"), g(glyphFloor, "open")},
 		{g(glyphScumhouse, "scumhouse"), g(glyphScum, "cave scum")},
+		{g(glyphHull, "pod hull"), {}},
 	}
 	if m.latest.FogOfWar {
 		legendRows = append(legendRows, [2]entry{{fogCells(1), "unexplored"}, {}})
