@@ -53,8 +53,10 @@ The carrier rule is the default. The exception is a **cargo record**
 goods marks them. Scraping scum and cleaning up biomatter are community work,
 so what they gather is recorded as the colony's, and `deliverBiomatter` credits
 it to the colony when it reaches the scumhouse (see
-[scumhouse.md](./scumhouse.md)). `carriedOwner` reads the record, falling back
-to the carrier.
+[scumhouse.md](./scumhouse.md)). The same record marks goods hauled for hire
+and building materials fetched from the colony's stock (see
+[hauling.md](./hauling.md)). `carriedOwner` reads the record, falling back
+to the carrier, and `jobStore` credits an unloaded stack to it.
 
 ### Fixtures
 

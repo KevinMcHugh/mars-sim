@@ -44,6 +44,7 @@ const (
 	EvtFedScumhouse
 	EvtWentToMarket
 	EvtBoughtMeal
+	EvtHauled // carried someone else's goods between depots for pay
 
 	numLifeEventKinds // keep last
 )
@@ -104,6 +105,7 @@ var lifeEventCollapseText = [numLifeEventKinds]string{
 	EvtScrapedScum:          "Scraped cave scum.",
 	EvtFedScumhouse:         "Fed the scumhouse.",
 	EvtWentToMarket:         "Went to market.",
+	EvtHauled:               "Hauled goods for hire.",
 	EvtAteGruel:             "Ate nutrient-pod gruel.",
 	EvtUsedToilet:           "Used the toilet.",
 	EvtSlept:                "Slept in a bed.",

@@ -24,13 +24,18 @@ type WorkKind uint8
 const (
 	WorkBuild   WorkKind = iota // raise one build task's tile
 	WorkDeliver                 // deliver a unit of biomatter to a scumhouse
+	WorkHaul                    // move a unit of the issuer's goods from one depot to another
 )
 
 func (k WorkKind) String() string {
-	if k == WorkBuild {
+	switch k {
+	case WorkBuild:
 		return "build"
+	case WorkDeliver:
+		return "deliver"
+	default:
+		return "haul"
 	}
-	return "deliver"
 }
 
 // WorkOrder is pay escrowed for work.
@@ -40,8 +45,12 @@ type WorkOrder struct {
 	Issuer Owner
 	Pay    Money // per unit of work
 	Units  int   // units still to be paid for
-	Pos    Point // WorkBuild: the task's tile. WorkDeliver: the scumhouse.
+	Pos    Point // WorkBuild: the task's tile. WorkDeliver: the scumhouse. WorkHaul: where to.
 	Posted int
+	// WorkHaul only: the depot the goods come from, and what they are. The
+	// goods stay the issuer's throughout; the hauler's cargo record says so.
+	From Point
+	Item ItemKind
 
 	escrow Money // Pay × Units at rest
 }

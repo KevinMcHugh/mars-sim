@@ -34,13 +34,18 @@ type planKind uint8
 const (
 	planGather planKind = iota // scrape scum and sell it into the bid
 	planCraft                  // work a recipe and deliver the output to the bid
+	planHaul                   // buy at one depot, carry, sell into the bid at another
 )
 
 func (k planKind) String() string {
-	if k == planGather {
+	switch k {
+	case planGather:
 		return "gather"
+	case planCraft:
+		return "craft"
+	default:
+		return "haul"
 	}
-	return "craft"
 }
 
 // plan is one colonist's scheme to fill one bid.
@@ -77,8 +82,8 @@ func producible(k ItemKind) bool {
 	return false
 }
 
-// candidateBids is every open bid for something a plan can make, best price
-// first, then oldest. It is memoized for the tick: every colonist choosing
+// candidateBids is every open bid, best price first, then oldest: a plan
+// might make what it wants, or carry it in from a depot where it is cheaper. It is memoized for the tick: every colonist choosing
 // work reads it, and the book changes far less often than that.
 func (w *World) candidateBids() []*Order {
 	if w.candidatesTick == w.tick {
@@ -86,7 +91,7 @@ func (w *World) candidateBids() []*Order {
 	}
 	out := w.candidatesCache[:0]
 	for _, o := range w.orders {
-		if o.Side == Bid && o.Qty > 0 && producible(o.Item) {
+		if o.Side == Bid && o.Qty > 0 {
 			out = append(out, o)
 		}
 	}
@@ -137,7 +142,14 @@ func (w *World) tryAssignProduce(e *Entity) bool {
 		if !w.canUseFixture(e, b.Depot) || !w.taskReachable(b.Depot, room) {
 			continue
 		}
+		ask, src, cheaper := w.cheapestAskElsewhere(e, b)
+		if !cheaper && !producible(b.Item) {
+			continue // nothing to make it from and nowhere cheaper to fetch it
+		}
 		considered++
+		if cheaper && w.planArbitrage(e, b, ask, src) {
+			return true
+		}
 		if b.Item == CaveScum {
 			if w.planGather(e, b) {
 				return true
@@ -364,7 +376,7 @@ func (w *World) advancePlan(e *Entity, p *plan) bool {
 		}
 		w.dropPlan(p) // the scrape was abandoned before it gathered anything
 		return false
-	case planCraft:
+	case planCraft, planHaul:
 		c := w.storageContainers[p.workshop]
 		if c == nil {
 			w.dropPlan(p)
@@ -410,6 +422,7 @@ const (
 func (w *World) assignCarry(e *Entity, p *plan, target Point, stage carryStage, qty int) {
 	e.Job, e.Target, e.Progress = JobCarry, target, 0
 	e.carry, e.carryItem, e.carryQty, e.carryPrice, e.carryTo = stage, p.item, qty, p.price, p.depot
+	e.carryFor, e.carryWork = Owner{}, 0
 }
 
 // jobCarry runs one tick of carrying goods to a buyer: fetch them out of a
@@ -426,22 +439,25 @@ func (w *World) jobCarry(e *Entity) {
 		return
 	}
 	c := w.storageContainers[e.Target]
-	me := ColonistOwner(e.ID)
+	owner := ColonistOwner(e.ID)
+	if e.carryFor.Kind != OwnerNone {
+		owner = e.carryFor // hauling someone else's goods for hire
+	}
 	if c == nil {
 		w.clearJob(e)
 		return
 	}
 	if e.carry == carryFetch {
-		n := min(e.carryQty, c.held(me, e.carryItem))
+		n := min(e.carryQty, c.held(owner, e.carryItem))
 		for n > 0 && !e.Inventory.CanAdd(e.carryItem, n) {
 			n--
 		}
-		if n <= 0 || !c.debit(me, e.carryItem, n) {
+		if n <= 0 || !c.debit(owner, e.carryItem, n) {
 			w.clearJob(e)
 			return
 		}
 		e.Inventory.Add(e.carryItem, n)
-		e.cargo[e.carryItem] = Owner{}
+		e.cargo[e.carryItem] = e.carryFor
 		e.carryQty, e.Target, e.carry = n, e.carryTo, carryDeliver
 		return
 	}
@@ -451,7 +467,13 @@ func (w *World) jobCarry(e *Entity) {
 		return
 	}
 	e.Inventory.Remove(e.carryItem, n)
-	c.credit(me, e.carryItem, n)
+	e.cargo[e.carryItem] = Owner{}
+	c.credit(owner, e.carryItem, n)
+	if e.carryWork != 0 {
+		w.finishHaul(e, n)
+		return
+	}
+	me := owner
 	_, filled := w.post(Ask, e.carryItem, n, e.carryPrice, me, e.Target, w.cfg.OrderTTL)
 	w.remember(e, event(EvtWentToMarket, "Delivered %d %s to market (%d sold at once).", n, e.carryItem, filled))
 	if p := w.plans[e.plan]; p != nil {

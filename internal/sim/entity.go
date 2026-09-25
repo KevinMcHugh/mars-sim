@@ -397,6 +397,11 @@ type Entity struct {
 	carryQty   int
 	carryPrice Money
 	carryTo    Point
+	// carryFor and carryWork, when set, make a JobCarry haul for hire: the
+	// goods are carryFor's, and each unit delivered is paid from the work
+	// order carryWork. See hauling.go.
+	carryFor  Owner
+	carryWork OrderID
 	// fieldDetour counts down the ticks a JobUse colonist routes concretely
 	// instead of following the shared field; see jobUse.
 	fieldDetour int

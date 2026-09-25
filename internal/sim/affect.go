@@ -140,6 +140,7 @@ var lifeEventAppraisals = [numLifeEventKinds]moodAppraisal{
 	// Trading is a small errand; buying food you could not otherwise have is
 	// a relief with a little sting in it.
 	EvtWentToMarket: {8, MoodVector{0, 3, 0}, MoodVector{-2, 0, 0}},
+	EvtHauled:       {8, MoodVector{0, 2, 0}, MoodVector{-2, 0, 0}},
 	EvtBoughtMeal:   {12, MoodVector{2, 3, 0}, MoodVector{1, 0, 0}},
 }
 

@@ -342,7 +342,7 @@ func (w *World) runNeedFocus(e *Entity, need NeedKind) {
 	case hasTask:
 		w.assignTask(e, task)
 	case !w.reachableFacilityConstruction(e.Pos, spec.Facility):
-		if spot, ok := w.findBuildSpot(e.Pos, 20); ok && w.canAffordBuild(e, spec.Facility) {
+		if spot, ok := w.findBuildSpot(e.Pos, 20); ok && w.canAffordBuild(e, spec.Facility, Owner{}) {
 			w.assignBuild(e, spec.Facility, spot)
 		}
 	default:
@@ -707,7 +707,10 @@ func (w *World) clearJob(e *Entity) {
 		e.scrape = scrapeGather
 		e.scrapeFor, e.scrapeQty = Owner{}, 0
 	case JobCarry:
-		e.carry = carryFetch
+		if w.haulClaims[e.carryWork] == e.ID {
+			delete(w.haulClaims, e.carryWork)
+		}
+		e.carry, e.carryFor, e.carryWork = carryFetch, Owner{}, 0
 	}
 	e.Job, e.Progress, e.partner, e.fieldDetour = JobNone, 0, 0, 0
 	e.useFacility, e.useFacilitySet, e.carrying = Point{}, false, false
@@ -937,7 +940,7 @@ func (w *World) assignWorkJob(e *Entity) {
 	// Then the market: a bid somebody would pay for that this colonist can
 	// fill at a profit (see producer.go). Before mining, which pays only at
 	// the colony's fixed prospecting bids.
-	if w.tryAssignProduce(e) {
+	if w.tryAssignHaul(e) || w.tryAssignProduce(e) {
 		return
 	}
 	// Mining: big colonies/maps follow the shared frontier field (claim on
@@ -1070,11 +1073,13 @@ func (w *World) jobStore(e *Entity) {
 		w.clearJob(e)
 		return
 	}
-	// What a colonist carries is its own (see docs/property.md), so the
-	// deposit is credited to it: the chest is shared, the ore stays theirs.
+	// What a colonist carries is its own (see docs/property.md), unless its
+	// cargo record says whose it is, so the deposit is credited to its owner:
+	// the chest is shared, the ore stays theirs.
 	for _, stack := range stacks {
-		container.credit(ColonistOwner(e.ID), stack.Kind, stack.Count)
+		container.credit(w.carriedOwner(e, stack.Kind), stack.Kind, stack.Count)
 		e.Inventory.RemoveAll(stack.Kind)
+		e.cargo[stack.Kind] = Owner{}
 	}
 	e.State = Storing
 	w.log.add(fmt.Sprintf("%s unloads materials into storage at (%d, %d).",

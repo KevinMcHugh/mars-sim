@@ -7,8 +7,11 @@ package sim
 // lines in chests it can reach — and a colonist never takes on a task it could
 // not pay for, so it mines instead and the rock that mining yields is what
 // the colony builds with. Off (the default), building is free, as it always
-// was. The builder donates what it spends: until labor orders exist (economy
-// phase E5) there is nobody to pay it back. See docs/construction.md.
+// was. Whoever pays for the work pays for its materials first: a public work
+// draws on the colony's own stock (what it bought at its silo), a commission
+// on its commissioner's, as far as a builder can reach them. Past that the
+// builder donates what it spends, which is what keeps the colony building
+// with an empty storeroom. See docs/construction.md and docs/hauling.md.
 
 // constructionCost is what raising a tile of terrain t consumes. Digging
 // (Floor) costs nothing; it is what produces material in the first place.
@@ -48,39 +51,63 @@ func missingMaterials(e *Entity, cost []ItemStack) []ItemStack {
 	return out
 }
 
-// materialSource finds the nearest chest e can reach and use that holds, on
-// e's own account, everything in missing. Ties break by position.
-func (w *World) materialSource(e *Entity, missing []ItemStack) (Point, bool) {
-	room := w.roomOf(e.Pos)
+// materialPayers is whose stock pays for e building for issuer, in order:
+// the issuer's, then e's own. A lone emergency build has no issuer.
+func materialPayers(e *Entity, issuer Owner) []Owner {
 	me := ColonistOwner(e.ID)
-	var best Point
-	bestDist, found := 1<<30, false
-	for p, c := range w.storageContainers {
-		if c.Terrain != Storage || !w.canUseFixture(e, p) || !w.taskReachable(p, room) {
-			continue
-		}
-		enough := true
-		for _, m := range missing {
-			if c.held(me, m.Kind) < m.Count {
-				enough = false
-				break
-			}
-		}
-		if !enough {
-			continue
-		}
-		d := e.Pos.Chebyshev(p)
-		if !found || d < bestDist || (d == bestDist && lessPoint(p, best)) {
-			best, bestDist, found = p, d, true
-		}
+	if issuer.Kind == OwnerNone || issuer == me {
+		return []Owner{me}
 	}
-	return best, found
+	return []Owner{issuer, me}
 }
 
-// canAffordBuild reports whether e could pay for building t: it carries the
-// materials, or can fetch the rest from one of its own chests. Always true
-// with construction costs off.
-func (w *World) canAffordBuild(e *Entity, t Terrain) bool {
+// materialSource finds the nearest chest e can reach and use that holds
+// everything in missing on one payer's line — the first payer that has it
+// anywhere. Ties break by position.
+func (w *World) materialSource(e *Entity, missing []ItemStack, payers []Owner) (Point, Owner, bool) {
+	room := w.roomOf(e.Pos)
+	for _, payer := range payers {
+		var best Point
+		bestDist, found := 1<<30, false
+		for p, c := range w.storageContainers {
+			if c.Terrain != Storage || !w.canUseFixture(e, p) || !w.taskReachable(p, room) {
+				continue
+			}
+			enough := true
+			for _, m := range missing {
+				if c.held(payer, m.Kind) < m.Count {
+					enough = false
+					break
+				}
+			}
+			if !enough {
+				continue
+			}
+			d := e.Pos.Chebyshev(p)
+			if !found || d < bestDist || (d == bestDist && lessPoint(p, best)) {
+				best, bestDist, found = p, d, true
+			}
+		}
+		if found {
+			return best, payer, true
+		}
+	}
+	return Point{}, Owner{}, false
+}
+
+// taskIssuer is who is paying for e's current build: its project's issuer,
+// or nobody for a lone emergency build.
+func taskIssuer(e *Entity) Owner {
+	if e.task != nil && e.task.proj != nil {
+		return e.task.proj.issuer
+	}
+	return Owner{}
+}
+
+// canAffordBuild reports whether e could pay for building t for issuer: it
+// carries the materials, or can fetch the rest from the issuer's stock or its
+// own. Always true with construction costs off.
+func (w *World) canAffordBuild(e *Entity, t Terrain, issuer Owner) bool {
 	missing := missingMaterials(e, w.buildCost(t))
 	if len(missing) == 0 {
 		return true
@@ -88,7 +115,7 @@ func (w *World) canAffordBuild(e *Entity, t Terrain) bool {
 	if !e.Inventory.CanAddAll(missing...) {
 		return false
 	}
-	_, ok := w.materialSource(e, missing)
+	_, _, ok := w.materialSource(e, missing, materialPayers(e, issuer))
 	return ok
 }
 
@@ -101,7 +128,7 @@ func (w *World) gatherBuildMaterials(e *Entity) (ready, ok bool) {
 	if len(missing) == 0 {
 		return true, true
 	}
-	src, found := w.materialSource(e, missing)
+	src, payer, found := w.materialSource(e, missing, materialPayers(e, taskIssuer(e)))
 	if !found || !e.Inventory.CanAddAll(missing...) {
 		return false, false
 	}
@@ -114,12 +141,14 @@ func (w *World) gatherBuildMaterials(e *Entity) (ready, ok bool) {
 		return false, true
 	}
 	c := w.storageContainers[src]
-	me := ColonistOwner(e.ID)
 	for _, m := range missing {
-		if !c.debit(me, m.Kind, m.Count) {
+		if !c.debit(payer, m.Kind, m.Count) {
 			return false, false
 		}
 		e.Inventory.Add(m.Kind, m.Count)
+		if payer != ColonistOwner(e.ID) {
+			e.cargo[m.Kind] = payer // the payer's until it is built with
+		}
 	}
 	return false, true // in hand; walk to the site next tick
 }
@@ -132,6 +161,9 @@ func (w *World) payForBuild(e *Entity) bool {
 	}
 	for _, c := range cost {
 		e.Inventory.Remove(c.Kind, c.Count)
+		if !e.Inventory.Has(c.Kind) {
+			e.cargo[c.Kind] = Owner{}
+		}
 	}
 	return true
 }

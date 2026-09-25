@@ -37,6 +37,9 @@ and a toilet it rents out by the use. This is phase **E5** of the
 
 ### Work orders
 
+Three kinds exist: `WorkBuild` (a build task's tile), `WorkDeliver` (a unit of
+biomatter to a scumhouse), and `WorkHaul` (a unit of the issuer's goods from
+one depot to another; see [hauling.md](./hauling.md)).
 `postWork(kind, issuer, pay, units, pos)` moves `pay × units` from the issuer
 into the order's own account (the unexported `ownerWork` owner, the same trick
 market orders use — see [market.md](./market.md)), or refuses if the issuer

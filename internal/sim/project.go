@@ -138,7 +138,7 @@ func (w *World) claimNearestTaskIn(from Point, id EntityID, projects []*project)
 			}
 			// A colonist never claims what it could not pay for; it mines
 			// instead, and the rock is what it builds with next time.
-			if builder := w.entities[id]; builder != nil && !w.canAffordBuild(builder, t.terrain) {
+			if builder := w.entities[id]; builder != nil && !w.canAffordBuild(builder, t.terrain, p.issuer) {
 				continue
 			}
 			if d := from.Chebyshev(t.pos); best == nil || d < bestDist ||

@@ -138,6 +138,17 @@ type Config struct {
 	DemandTTL      int   `cfg:"demand-ttl" doc:"ticks a hungry colonist's unfilled bid for a meal rests in the book"`
 	PriceCaveScum  int64 `cfg:"price-cave-scum" doc:"reference value of a unit of cave scum until it trades"`
 
+	// Hauling and the colony as seller. With ColonySells, the colony offers
+	// what it bought at its silo beyond ColonyStockReserve units of each good
+	// (kept for public works), at ColonyMarkup percent over the reference
+	// price. It keeps SiloMealStock of its meals at the silo, paying HaulPay
+	// a unit to have them hauled in from its scumhouses. See docs/hauling.md.
+	ColonySells        bool  `cfg:"colony-sells" sec:"Hauling" doc:"the colony sells the goods it bought, beyond its reserve, at its silo"`
+	ColonyMarkup       int   `cfg:"colony-markup" doc:"percent over the reference price the colony asks for what it sells"`
+	ColonyStockReserve int   `cfg:"colony-stock-reserve" doc:"units of each good the colony keeps back from sale for public works"`
+	SiloMealStock      int   `cfg:"silo-meal-stock" doc:"meals the colony keeps at its silo, hauled in for hire from its scumhouses"`
+	HaulPay            int64 `cfg:"haul-pay" doc:"what the colony pays per unit hauled to its silo"`
+
 	WageDig      int64 `cfg:"wage-dig" sec:"Labor" doc:"what the colony pays to dig out one tile of a room"`
 	WageWall     int64 `cfg:"wage-wall" doc:"what the colony pays to raise one wall"`
 	WageFixture  int64 `cfg:"wage-fixture" doc:"what the colony pays to build one fixture (pod, toilet, bed, ...)"`
@@ -449,19 +460,27 @@ func DefaultConfig() Config {
 		// than a scraper earns selling scum into a meal-maker's bid, so the
 		// chain from a hungry colonist's bid down to the cave wall pays at
 		// every link. See docs/valuation.md.
-		LaborPrice:     2,
-		PlanMinProfit:  1,
-		PlanCandidates: 4,
-		PlanTTL:        1500,
-		DemandTTL:      300,
-		PriceCaveScum:  1,
-		WageDig:        2,
-		WageWall:       2,
-		WageFixture:    5,
-		BountyPay:      1,
-		BountyUnits:    30,
-		HouseSavings:   300,
-		ToiletFee:      2,
+		// The colony sells at half again what it pays: enough over cost that
+		// its resales refill the treasury, not so much that a colonist would
+		// rather dig the ore itself every time. See docs/hauling.md.
+		ColonySells:        true,
+		ColonyMarkup:       50,
+		ColonyStockReserve: 8,
+		SiloMealStock:      6,
+		HaulPay:            1,
+		LaborPrice:         2,
+		PlanMinProfit:      1,
+		PlanCandidates:     4,
+		PlanTTL:            1500,
+		DemandTTL:          300,
+		PriceCaveScum:      1,
+		WageDig:            2,
+		WageWall:           2,
+		WageFixture:        5,
+		BountyPay:          1,
+		BountyUnits:        30,
+		HouseSavings:       300,
+		ToiletFee:          2,
 		// A meal clears hunger for roughly 325 ticks at the baseline rise, so
 		// ten carry a colonist a few thousand ticks: long enough to settle in,
 		// short enough that food production matters once the safety net is

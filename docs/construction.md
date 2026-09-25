@@ -119,14 +119,16 @@ materials (`constructionCost`, `construction.go`):
 | incinerator | 2 raw rock, 2 iron ore |
 | scumhouse | 2 raw rock, 2 clay |
 
-Digging costs nothing: it is where material comes from. The builder pays from
-its **own** stock — what it carries, topped up from its own ledger lines in a
-chest it can reach (`gatherBuildMaterials` walks there and `debit`s them) — and
+Digging costs nothing: it is where material comes from. Whoever pays for the
+work pays for its materials first (`materialPayers`): the colony's stock for a
+public work, the commissioner's for a commission, then the builder's own. The
+builder uses what it carries, topped up from a payer's ledger lines in a chest
+it can reach (`gatherBuildMaterials` walks there and `debit`s them), and
 spends it when the tile goes up (`payForBuild`). A colonist never claims a
 task, or starts a lone emergency build, it could not pay for
 (`canAffordBuild`), so it mines instead, and the rock mining yields is what it
-builds with next. The builder donates what it spends; until labor orders exist
-there is nobody to pay it back. In testing, colonies with the switch on built
+builds with next. What the builder spends of its own is donated. See
+[hauling.md](./hauling.md) for the colony's side. In testing, colonies with the switch on built
 the same rooms by tick 5000 as colonies without it.
 
 ### Facility-room geometry

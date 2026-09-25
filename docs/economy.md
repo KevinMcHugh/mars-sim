@@ -645,7 +645,7 @@ Shipped; see [valuation.md](./valuation.md). The gate is
   own scumhouse still meets most food demand, so private food trade is rare
   until E8.
 
-### E7 — Hauling and arbitrage
+### E7 — Hauling and arbitrage (shipped)
 
 Transport as a planner recipe (buy at A, carry, sell at B); hauling-for-hire
 labor orders; the colony selling its stock and paying public-works material
@@ -653,6 +653,17 @@ costs from it. Market view shows the price of each item across depots.
 **Gate:** on a reference seed with two depots and a price gap, a colonist
 hauls between them unprompted and the gap narrows; the treasury ends a long run
 above what it would have with the colony only buying.
+Shipped; see [hauling.md](./hauling.md). The gate is
+`TestArbitrageClosesAPriceGap` and `TestColonySellingPaysOverALongRun`, on a
+built two-depot world rather than a generated seed. Notes:
+
+- Arbitrage is a third producer-planner plan; the hauler owns the goods in
+  transit, and no bid is reserved ahead.
+- The colony hires haulers to keep `silo-meal-stock` of its meals at the silo.
+- The colony sells beyond `colony-stock-reserve` at `colony-markup` over
+  reference. Public works (with construction costs on) draw on its stock first.
+- In ordinary play nothing yet buys ore privately, so the colony's asks
+  rarely fill. The resale loop needs ore-consuming recipes or E8's scarcity.
 
 ### E8 — Scarcity on
 

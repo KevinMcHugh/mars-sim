@@ -401,6 +401,8 @@ func validateConfig(cfg sim.Config) error {
 	case cfg.LaborPrice < 0 || cfg.PlanMinProfit < 0 || cfg.PlanCandidates < 0 ||
 		cfg.PlanTTL < 0 || cfg.DemandTTL < 0 || cfg.PriceCaveScum < 0:
 		return fmt.Errorf("valuation settings (labor-price, plan-*, demand-ttl, price-cave-scum) cannot be negative")
+	case cfg.ColonyMarkup < 0 || cfg.ColonyStockReserve < 0 || cfg.SiloMealStock < 0 || cfg.HaulPay < 0:
+		return fmt.Errorf("hauling settings (colony-markup, colony-stock-reserve, silo-meal-stock, haul-pay) cannot be negative")
 	case cfg.FoundingGrant < 0 || cfg.CrashPodPurse < 0:
 		return fmt.Errorf("founding-grant and crash-pod-purse cannot be negative (got %d and %d)", cfg.FoundingGrant, cfg.CrashPodPurse)
 	case cfg.TicksPerSecond < 1:

@@ -752,3 +752,33 @@ func TestMarketTabShowsBooksTradesAndOrders(t *testing.T) {
 		t.Fatalf("colonist page missing its open order:\n%s", out)
 	}
 }
+
+// The market's price list shows each good's value and its quotes at every
+// depot, so a gap a hauler could close is visible; and the open plans.
+func TestMarketTabShowsPricesAcrossDepotsAndPlans(t *testing.T) {
+	snap := makeSnapshot()
+	snap.Entities[0].Profile = &sim.Profile{Name: "Hal Hauler"}
+	silo, far := sim.Point{X: 3, Y: 2}, sim.Point{X: 9, Y: 7}
+	snap.Economy = sim.EconomyView{
+		Treasury: 900, Issued: 1000, Circulating: 1000,
+		Books: []sim.BookView{
+			{Item: sim.IronOre, Depot: silo, BestAsk: 4, AskQty: 12},
+			{Item: sim.IronOre, Depot: far, BestBid: 12, BidQty: 8},
+		},
+		Prices:     []sim.PriceView{{Item: sim.IronOre, Value: 3}},
+		Plans:      []sim.PlanView{{Actor: 1, Summary: "haul 8 iron ore for $12 at (9, 7)", Depth: 1}},
+		ChainDepth: 1,
+	}
+	var model tea.Model = New(nil, nil)
+	model, _ = model.Update(tea.WindowSizeMsg{Width: 160, Height: 60})
+	model, _ = model.Update(snapshotMsg{snap: snap})
+	for range 4 {
+		model, _ = model.Update(tea.KeyMsg{Type: tea.KeyTab})
+	}
+	out := model.View()
+	for _, want := range []string{"iron ore $3 (ref) · (3,2) —/$4 · (9,7) $12/—", "PLANS (chain depth 1)", "Hal Hauler: haul 8 iron ore"} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("market tab missing %q:\n%s", want, out)
+		}
+	}
+}

@@ -139,7 +139,7 @@ spent about 1500 of its 5000.
   400 random orders twice and requires identical trades.
 - **One silo.** Matching only happens within a depot, so a single market depot
   keeps the thin early market from splitting into books nobody else is at.
-  Arbitrage between depots is E7's.
+  Arbitrage between depots closes the gaps (see [hauling.md](./hauling.md)).
 
 ## Extending it
 
@@ -148,9 +148,8 @@ spent about 1500 of its 5000.
   colony's standing bids and a miner's asks are still at reference prices.
 - **A new tradable good**: give it a reference price (a `price-*` setting and a
   case in `refPrice`); add it to `prospectingGoods` if the colony should buy it.
-- **The colony selling** (E7): the colony holds everything it bought on its own
-  ledger lines at the silo, so selling it back is `post(Ask, ..., Community,
-  silo, ...)`.
+- **The colony selling** (E7, see [hauling.md](./hauling.md)):
+  `refreshColonyAsks` offers what it bought beyond a reserve, at a markup.
 
 ## Related
 

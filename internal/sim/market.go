@@ -380,6 +380,8 @@ func (w *World) runMarket() {
 	w.expireOrders()
 	w.prunePlans()
 	w.refreshColonyBids()
+	w.refreshColonyAsks()
+	w.refreshSiloStock()
 	w.refreshBiomatterBounty()
 }
 

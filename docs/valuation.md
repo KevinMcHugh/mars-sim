@@ -159,9 +159,9 @@ e.g. `-infinite-food=false`.
 - **What the trace shows today.** With the safety net on (the default), food
   hardly trades: gruel is free. Even with `-infinite-food=false`, the colony's
   own scumhouse feeds everyone on the reference seeds, and there's little
-  private food demand. The planner does its work when bids exist; the colony
-  selling its stock and arbitrage (E7) and scarcity on (E8) are what create
-  more of them.
+  private food demand. The planner does its work when bids exist; scarcity on
+  (E8) is what will create more of them. Arbitrage is the planner's third plan
+  (see [hauling.md](./hauling.md)).
 
 ## Extending it
 

@@ -700,11 +700,14 @@ type World struct {
 	// smoothed trade price, the open production plans by ID (the next ID from
 	// nextPlanID), how many colonists have starved, and the per-tick memo of
 	// the planner's candidate bids.
-	prices          [numItemKinds]priceMemory
-	plans           map[planID]*plan
-	nextPlanID      planID
-	starved         int
-	candidatesTick  int
+	prices         [numItemKinds]priceMemory
+	plans          map[planID]*plan
+	nextPlanID     planID
+	starved        int
+	candidatesTick int
+	// haulClaims records which colonist has taken each open haul order, so
+	// two never set off for the same goods. See hauling.go.
+	haulClaims      map[OrderID]EntityID
 	candidatesCache []*Order
 
 	// colonistNames indexes every living colonist's full name, so generation can
@@ -781,6 +784,7 @@ func newWorld(cfg Config, rng *rand.Rand) *World {
 		workOrders:        make(map[OrderID]*WorkOrder),
 		books:             make(map[bookKey]*book),
 		plans:             make(map[planID]*plan),
+		haulClaims:        make(map[OrderID]EntityID),
 		candidatesTick:    -1,
 		kin:               make(map[kinID]*kinPerson),
 		nextKinID:         1,

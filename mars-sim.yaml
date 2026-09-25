@@ -164,6 +164,22 @@
 ## reference value of a unit of cave scum until it trades
 # price-cave-scum: 1
 
+# ── Hauling ─────────────────────────────────────────────────────────────
+## the colony sells the goods it bought, beyond its reserve, at its silo
+# colony-sells: true
+
+## percent over the reference price the colony asks for what it sells
+# colony-markup: 50
+
+## units of each good the colony keeps back from sale for public works
+# colony-stock-reserve: 8
+
+## meals the colony keeps at its silo, hauled in for hire from its scumhouses
+# silo-meal-stock: 6
+
+## what the colony pays per unit hauled to its silo
+# haul-pay: 1
+
 # ── Labor ───────────────────────────────────────────────────────────────
 ## what the colony pays to dig out one tile of a room
 # wage-dig: 2

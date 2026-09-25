@@ -298,8 +298,10 @@ func (m Model) bookLines() []string {
 	return out
 }
 
-// priceLines lists every good's value; "ref" marks one that has never traded
-// and is still at the charter's reference price.
+// priceLines lists every good's value — "ref" marks one that has never
+// traded and is still at the charter's reference price — and then its quotes
+// at every depot with orders open, bid/ask, so a price gap between depots
+// (the thing a hauler lives on) is plain to see.
 func (m Model) priceLines() []string {
 	var out []string
 	for _, p := range m.latest.Economy.Prices {
@@ -307,7 +309,21 @@ func (m Model) priceLines() []string {
 		if p.Traded {
 			tag = "traded"
 		}
-		out = append(out, fmt.Sprintf("%s %v (%s)", p.Item, p.Value, tag))
+		line := fmt.Sprintf("%s %v (%s)", p.Item, p.Value, tag)
+		for _, b := range m.latest.Economy.Books {
+			if b.Item != p.Item || (b.BidQty == 0 && b.AskQty == 0) {
+				continue
+			}
+			bid, ask := "—", "—"
+			if b.BidQty > 0 {
+				bid = b.BestBid.String()
+			}
+			if b.AskQty > 0 {
+				ask = b.BestAsk.String()
+			}
+			line += fmt.Sprintf(" · (%d,%d) %s/%s", b.Depot.X, b.Depot.Y, bid, ask)
+		}
+		out = append(out, line)
 	}
 	if len(out) == 0 {
 		return []string{"none"}
