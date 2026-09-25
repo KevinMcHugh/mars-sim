@@ -11,8 +11,10 @@ through it. The starting frame is the landing cavern plus the rim of rock around
 it, floating in an otherwise blank map; mining peels that rim outward one tile at
 a time.
 
-It costs the simulation nothing: no system reads the flag, and it is off the
-per-frame path entirely.
+It costs the simulation next to nothing and is off the per-frame path entirely.
+The flag has one simulation reader: an unexplored *floor* tile is a natural
+cavern the colony has not found yet, which colony-facing systems ignore (see
+[caverns.md](./caverns.md)).
 
 ## Source
 
@@ -22,6 +24,7 @@ per-frame path entirely.
 - [`internal/ui/tui/view.go`](../internal/ui/tui/view.go) — `renderMap`'s fog runs, `fogStyle`/`fogCells`, `terrainLabel`, and the legend swatch.
 - [`internal/sim/fog_test.go`](../internal/sim/fog_test.go) — what worldgen reveals, what a dig reveals, that reveals reach the published grid, and that exploration never goes backwards.
 - [`internal/sim/bench_test.go`](../internal/sim/bench_test.go) — `BenchmarkPublishSmallColonyOnHugeMap*`, where the reveal's page cost shows up.
+- [`internal/sim/caverns.go`](../internal/sim/caverns.go) — natural caverns, the one thing generated under the fog; `revealAround`'s cavern flood lives in world.go. See [caverns.md](./caverns.md).
 - [`internal/ui/tui/fog_test.go`](../internal/ui/tui/fog_test.go) — hidden rock, hidden entities, exact row widths with fog, and the inspector's "unexplored".
 
 ## How it works
@@ -33,10 +36,16 @@ of the tile grid, and the funnel every derived system hangs off (see
 [world.md](./world.md)) — is the only thing that sets it:
 
 ```go
-w.tiles[i].Terrain = t
-w.markTilePageDirty(i)
 w.revealAround(p)   // p and its eight neighbors are no longer unknown
+...
+w.tiles[i].Terrain = t
 ```
+
+(The reveal comes *before* the write, so the changed tile is revealed as
+whatever it was. That keeps "unexplored and not Rock" meaning exactly
+"undiscovered cavern floor". The one other terrain writer, worldgen's
+`carveHidden`, goes through the same `setTerrain` with the reveal switched off —
+that is how natural caverns start out under the fog.)
 
 `revealAround` marks `p` and its eight neighbors; `reveal` marks one tile and
 dirties its page so the next `Snapshot` carries it. That is the whole mechanism.
@@ -48,6 +57,11 @@ The rule "a terrain change reveals its neighborhood" is why worldgen needs no
 special case. Carving the cavern is `SetTerrain(..., Floor)` per cell, so the
 cavern and the ring of rock touching it come out explored and everything past
 them dark. Mining one frontier rock into floor reveals the next ring behind it.
+
+The one reveal that goes further is breaking into a natural cavern: if the ring
+`revealAround` uncovers holds undiscovered cavern floor, it keeps flooding
+through that floor until the whole connected cave system and its rock rim are
+revealed. See [caverns.md](./caverns.md).
 
 Exploration only ever goes from false to true. Nothing un-reveals a tile, so
 walling off a corridor or building over the floor that revealed a rock face does
@@ -62,15 +76,21 @@ func (s *Snapshot) ExploredAt(p Point) bool
 ```
 
 which reports `true` for every in-bounds tile when `Snapshot.FogOfWar` is off.
-That indirection is the point: with fog off **no tile is ever marked**, so a huge
-map's tile array stays the mostly-untouched zero pages that make publishing a
-frame cheap (see [snapshot-tile-grid.md](./snapshot-tile-grid.md)). Marking 49
-million tiles explored to say "there is no fog" would have cost more than the
-feature saves. It also means a hand-built `Snapshot` — a test fixture, another
+That indirection is the point: with fog off the flag is still maintained
+exactly as with it on (the simulation needs it to tell undiscovered caverns
+apart), but *only* around what the colony has touched, so a huge map's tile
+array stays the mostly-untouched zero pages that make publishing a frame cheap
+(see [snapshot-tile-grid.md](./snapshot-tile-grid.md)). Marking 49 million
+tiles explored to say "there is no fog" would have cost more than the feature
+saves. (Before natural caverns, fog off marked nothing at all; the colony-sized
+cost of marking anyway is the same one fog-on always paid.) It also means a hand-built `Snapshot` — a test fixture, another
 frontend's scratch frame — renders the whole map rather than a blank screen,
 because its zero value is "no fog".
 
-`World.Explored(p)` is the same question against live state, for the engine side.
+`World.Explored(p)` is the same question against live state, for the engine
+side, and likewise says yes to everything with fog off. Simulation code that
+means "has the colony found this?" calls `World.discovered(p)`, which reads the
+flag whatever the fog setting.
 
 ### Counting it
 
@@ -79,11 +99,10 @@ incremented the one time each tile's `Explored` flips in `reveal` — the
 same "maintained incrementally, never rescan the grid" pattern
 `terrainCounts` already uses for excavation progress (see
 [world.md](./world.md)). `Snapshot.Stats.ExploredTiles` publishes a copy of
-it every frame. It stays at zero with fog of war off, since `reveal` is
-never called then (`revealAround` returns immediately) — a caller wanting
-"how much is explored" checks `Snapshot.FogOfWar` first, the same way
-`ExploredAt` does, rather than reading a counter that was never asked to
-move. The TUI's lore tab (see [lore.md](./lore.md) and
+it every frame. With fog of war off the counter still moves, but the stat is
+published as zero (`exploredTilesStat`) — a caller wanting "how much is
+explored" checks `Snapshot.FogOfWar` first, the same way `ExploredAt` does,
+since with fog off every tile already reads as explored. The TUI's lore tab (see [lore.md](./lore.md) and
 [frontend-tui.md](./frontend-tui.md)) is what actually shows this, as a
 percentage of the map's area.
 
@@ -116,9 +135,10 @@ terrain nor occupant:
 
 ### The knob
 
-`fog-of-war` (default **on**) turns the whole thing off: nothing is marked,
-`ExploredAt` says yes to everything, and the map draws exactly as it did before
-this feature. See [configuration.md](./configuration.md) and
+`fog-of-war` (default **on**) turns the display off: `ExploredAt` says yes to
+everything and the map draws exactly as it did before this feature. The
+simulation still tracks what the colony has discovered underneath, because
+undiscovered natural caverns depend on it (see [caverns.md](./caverns.md)). See [configuration.md](./configuration.md) and
 [config-file.md](./config-file.md).
 
 ## Why it is this way
@@ -159,6 +179,9 @@ this feature. See [configuration.md](./configuration.md) and
 - **No `TileChanged` for a reveal.** The event bus exists so the job board and
   flow fields can stay current, and neither cares who has seen what. Emitting
   reveals would put eight events on the bus per mined tile for no subscriber.
+  The one reveal the job board does care about — a cavern breach, which turns
+  the cave's walls into mining frontier — is rare and handled directly by
+  `discoverCavernTile` rather than by eventing every reveal.
 - **Fog is blank rather than a dark glyph.** A solid emoji square for the unknown
   would make an unexplored map look exactly as busy as an explored one, just in
   a different colour — the screen would read as a wall of tiles rather than as

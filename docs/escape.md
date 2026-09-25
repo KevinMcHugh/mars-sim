@@ -12,8 +12,8 @@ sealed in indefinitely.
 
 ## Source
 
-- [`internal/sim/rooms.go`](../internal/sim/rooms.go) — `mainRoom`, the room
-  with the most floor tiles, recomputed by `relabelRooms`.
+- [`internal/sim/rooms.go`](../internal/sim/rooms.go) — `mainRoom`, the
+  discovered room with the most floor tiles, recomputed by `relabelRooms`.
 - [`internal/sim/systems.go`](../internal/sim/systems.go) —
   `updateDisconnected`, `assignDemolish`, `nearestEscapeWall`, `jobDemolish`.
 - [`internal/sim/focus.go`](../internal/sim/focus.go) — `FocusEscape`
@@ -27,15 +27,17 @@ sealed in indefinitely.
 
 ## How it works
 
-**`mainRoom`.** `relabelRooms` already walks every connected component of the
-region graph once per dirty-chunk refresh (see
-[pathfinding.md](./pathfinding.md)); it now also sums each component's floor
-tiles along the way and keeps the largest as `w.mainRoom`, tie-broken by the
-smaller `RoomID` for a deterministic result regardless of Go's randomized map
+**`mainRoom`.** `relabelRooms` already knows every room's floor-tile size
+(`w.rooms`, kept incrementally — see [pathfinding.md](./pathfinding.md)), and
+keeps the largest *discovered* room as `w.mainRoom`, tie-broken by the smaller
+`RoomID` for a deterministic result regardless of Go's randomized map
 iteration order. This is "the colony's main body" — normally every room the
 colony has built, linked through doorways and corridors into one component, so
-`mainRoom` is that whole network's ID. It updates for free: no scan of its own,
-just a running comparison already available while relabeling runs anyway.
+`mainRoom` is that whole network's ID. Only discovered rooms qualify because an
+undiscovered natural cavern is floor too, and can be bigger than the landing
+site: were it eligible, every colonist would count as cut off from a cave none
+of them has seen (see [caverns.md](./caverns.md)). Discovered rooms are few,
+so choosing among them is a trivial scan.
 
 **Detection.** `updateDisconnected(e)` runs in `colonistTurn` every tick,
 unconditionally — before the resting/sleeping fast path, the same way

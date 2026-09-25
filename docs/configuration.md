@@ -46,7 +46,8 @@ untagged too — a need's identity and its plumbing are not balance.
 
 `validateConfig` rejects settings that would break world generation or the
 renderer (too-small world, negative populations, rock composition percentages
-whose sum exceeds 100, an invalid rock-vein size range, sub-1 rates) with a
+whose sum exceeds 100, an invalid rock-vein or cavern size range, out-of-range
+cavern percentages, sub-1 rates) with a
 message a player can act on, before the engine is built.
 
 `tickInterval` converts `TicksPerSecond` into a sleep duration, clamped to

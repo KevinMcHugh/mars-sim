@@ -38,10 +38,18 @@ func generate(w *World) {
 		}
 	}
 
+	// Hollow natural caverns out of the rest of the rock, hidden until the
+	// colony digs into one. Their own stream, like the veins', so tuning
+	// caverns does not reshuffle everything else about a seed — though aliens
+	// still land on whatever rock is left. See docs/caverns.md.
+	cavernRNG := rand.New(rand.NewSource(w.cfg.Seed ^ 0x13198A2E03707344))
+	w.generateCaverns(cavernRNG, center.Add(-rx, -ry), center.Add(rx, ry))
+
 	// Place colonists, then mice and cats, by drawing from one shuffled list of
 	// open floor tiles, so every placement is a uniform draw without replacement
-	// rather than rejection sampling, which could give up. Every Floor tile at
-	// this point lies within the cavern just carved, so it is enough to collect
+	// rather than rejection sampling, which could give up. Every discovered
+	// Floor tile at this point lies within the cavern just carved (natural
+	// caverns are all still hidden), so it is enough to collect
 	// candidates from that small box — not the whole map, which on a huge map
 	// would dwarf everything else generate() does for the sake of placing a
 	// handful of colonists and critters.
@@ -226,8 +234,9 @@ func (w *World) caveRadii(n int) (rx, ry int) {
 	return rx, ry
 }
 
-// freeFloorTiles returns every walkable, unoccupied tile. Used for bulk
-// placement where we need a guaranteed, uniform draw.
+// freeFloorTiles returns every walkable, unoccupied tile the colony has
+// discovered — undiscovered natural caverns are no place to put anyone. Used
+// for bulk placement where we need a guaranteed, uniform draw.
 func (w *World) freeFloorTiles() []Point {
 	return w.freeFloorTilesIn(Point{0, 0}, Point{w.Width - 1, w.Height - 1})
 }
@@ -239,11 +248,11 @@ func (w *World) freeFloorTiles() []Point {
 func (w *World) freeFloorTilesIn(lo, hi Point) []Point {
 	x0, y0 := max(0, lo.X), max(0, lo.Y)
 	x1, y1 := min(w.Width-1, hi.X), min(w.Height-1, hi.Y)
-	out := make([]Point, 0, w.countTerrain(Floor))
+	out := make([]Point, 0, min(w.countTerrain(Floor)-w.hiddenFloor, (x1-x0+1)*(y1-y0+1)))
 	for y := y0; y <= y1; y++ {
 		for x := x0; x <= x1; x++ {
 			p := Point{x, y}
-			if w.Walkable(p) && !w.occupied(p) {
+			if w.Walkable(p) && w.discovered(p) && !w.occupied(p) {
 				out = append(out, p)
 			}
 		}
@@ -298,9 +307,11 @@ func (w *World) randomTileScan(pred func(Point) bool) (Point, bool) {
 	return chosen, found
 }
 
-// randomFloor returns a random open, unoccupied floor tile.
+// randomFloor returns a random open, unoccupied floor tile the colony has
+// discovered: newcomers and mouse plagues arrive in the colony, not in a
+// natural cavern nobody has found.
 func (w *World) randomFloor() (Point, bool) {
-	return w.randomTile(func(p Point) bool { return w.Walkable(p) && !w.occupied(p) })
+	return w.randomTile(func(p Point) bool { return w.Walkable(p) && w.discovered(p) && !w.occupied(p) })
 }
 
 // randomRockFar returns a random unoccupied Rock tile at least minDist from

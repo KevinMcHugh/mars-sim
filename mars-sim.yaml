@@ -48,6 +48,18 @@
 ## maximum tiles in a generated rock deposit vein
 # rock-vein-max: 24
 
+## percent of the map hollowed into natural caverns
+# cavern-percent: 4
+
+## minimum tiles in a natural cavern
+# cavern-min: 15
+
+## maximum tiles in a natural cavern
+# cavern-max: 60
+
+## chance (percent) that a cavern is joined to its nearest neighbor by a passage
+# cavern-passage-percent: 50
+
 ## hide rock the colony has not dug up to yet
 # fog-of-war: true
 

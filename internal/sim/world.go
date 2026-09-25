@@ -1,6 +1,9 @@
 package sim
 
-import "math/rand"
+import (
+	"fmt"
+	"math/rand"
+)
 
 const maxColonistMemories = 64
 
@@ -171,11 +174,13 @@ type Tile struct {
 	Terrain     Terrain
 	Composition RockComposition // meaningful only while Terrain is Rock
 	// Explored records that the colony has dug (or built) its way to within
-	// one tile of here, so a frontend may show what is on it. It only ever
-	// goes from false to true, and it is meaningful only when Config.FogOfWar
-	// is on — with fog off no tile is ever marked, and frontends read every
-	// tile as explored instead (see Snapshot.ExploredAt). See
-	// docs/fog-of-war.md.
+	// one tile of here (or broken into the natural cavern it lies in), so a
+	// frontend may show what is on it. It only ever goes from false to true.
+	// It is maintained whatever Config.FogOfWar says, because the simulation
+	// uses it too: an unexplored Floor tile is an undiscovered natural cavern
+	// the colony cannot yet reach (see docs/caverns.md). With fog off,
+	// frontends simply read every tile as explored instead (see
+	// Snapshot.ExploredAt). See docs/fog-of-war.md.
 	//
 	Explored bool
 	// Gore is a violent death's visible residue on this tile: 0 is clean, and
@@ -399,9 +404,17 @@ type World struct {
 	// incrementally the same way terrainCounts is: reveal only increments it
 	// the one time a tile flips (see reveal), so a frontend asking "how much
 	// of the map has the colony seen?" (the lore panel) never has to walk the
-	// grid to answer it. Stays 0 when Config.FogOfWar is off, since reveal is
-	// never called then -- Snapshot.FogOfWar is what a caller checks first.
+	// grid to answer it. Kept with fog off too, but only published with it on
+	// (see snapshot) -- Snapshot.FogOfWar is what a caller checks first.
 	exploredCount int
+	// hiddenFloor counts non-Rock tiles that are not yet Explored: the floor of
+	// natural caverns the colony has not broken into. Every tile the colony
+	// changes is revealed as it changes, so this is exactly the undiscovered
+	// cavern floor, and Stats.FloorDug subtracts it. See docs/caverns.md.
+	hiddenFloor int
+	// caveStack is revealAround's scratch for flooding the fog off a natural
+	// cavern the colony has just broken into.
+	caveStack []Point
 	// goreTotal/corpseTotal are the same idea for tile refuse: the colony's
 	// sanitation planning asks "is there anything to clean up?" every planning
 	// cycle, which must not mean walking the map. See refuseTotal.
@@ -482,7 +495,7 @@ type World struct {
 	nextRegion        RegionID
 	dirtyChunks       map[int]struct{} // chunks whose regions need recompute
 	roomCount         int
-	// mainRoom is the room with the most floor tiles, recomputed by
+	// mainRoom is the discovered room with the most floor tiles, recomputed by
 	// relabelRooms — the colony's main connected network, against which every
 	// colonist's own room is checked each tick. See updateDisconnected.
 	mainRoom RoomID
@@ -490,6 +503,20 @@ type World struct {
 	// Reusable scratch buffers for refreshSpatial (avoid per-call allocation).
 	floodStack  []Point
 	roomScratch []RegionID
+	roomStack   []RegionID
+	freshRooms  []roomInfo
+	// Incremental relabeling (see relabelRooms): regions whose component may
+	// have changed since the last refresh, the rooms those changes may have
+	// invalidated, and the floor-tile size of every current room (and of the
+	// discovered ones alone, which mainRoom is chosen from).
+	relabelSeeds    []RegionID
+	staleRooms      map[RoomID]struct{}
+	rooms           map[RoomID]int
+	discoveredRooms map[RoomID]int
+	// relabelPass numbers relabelRooms calls; a region whose visitPass equals
+	// it has been visited this pass. Cheaper than a fresh visited map per
+	// call once undiscovered caverns put thousands of regions on a big map.
+	relabelPass uint32
 
 	// Reactive plumbing: systems subscribe to world events; the job board is the
 	// first consumer, tracking the mineable frontier from TileChanged events.
@@ -633,6 +660,9 @@ func newWorld(cfg Config, rng *rand.Rand) *World {
 
 	w.regionOf = newPagedGrid[RegionID](cfg.Width, cfg.Height)
 	w.regions = make(map[RegionID]*region)
+	w.staleRooms = make(map[RoomID]struct{})
+	w.rooms = make(map[RoomID]int)
+	w.discoveredRooms = make(map[RoomID]int)
 	w.nextRegion = 1
 	w.dirtyChunks = make(map[int]struct{})
 
@@ -723,6 +753,23 @@ func (w *World) TileAt(p Point) Tile {
 // SetTerrain overwrites the terrain at p if it is in bounds, keeping the terrain
 // counts in step.
 func (w *World) SetTerrain(p Point, t Terrain) {
+	w.setTerrain(p, t, true)
+}
+
+// carveHidden turns rock at p into floor the colony has not discovered: a
+// natural cavern tile. It is SetTerrain in every respect — counts, chunks,
+// TileChanged — except that it lifts no fog and does not grow the carved box,
+// so the cavern stays unknown (and out of every colony-facing system) until a
+// dig breaks into it and revealAround floods it open. Worldgen only.
+func (w *World) carveHidden(p Point) {
+	if !w.InBounds(p) || w.tiles[w.index(p)].Explored || w.TerrainAt(p) != Rock {
+		return
+	}
+	w.hiddenFloor++
+	w.setTerrain(p, Floor, false)
+}
+
+func (w *World) setTerrain(p Point, t Terrain, discover bool) {
 	if !w.InBounds(p) {
 		return
 	}
@@ -730,6 +777,16 @@ func (w *World) SetTerrain(p Point, t Terrain) {
 	old := w.tiles[i].Terrain
 	if old == t {
 		return
+	}
+	if discover {
+		// Changing a tile's terrain means somebody was standing next to it, so
+		// it and its neighbors are no longer unknown. This is the only place
+		// fog of war is lifted, for the same reason SetTerrain is the only
+		// terrain writer: every other system already funnels through here.
+		// Reveal before writing, so the tile itself is revealed as whatever it
+		// was: that keeps "unexplored and not Rock" meaning exactly
+		// "undiscovered cavern floor". See docs/fog-of-war.md.
+		w.revealAround(p)
 	}
 	w.terrainCounts[old]--
 	w.terrainCounts[t]++
@@ -745,14 +802,8 @@ func (w *World) SetTerrain(p Point, t Terrain) {
 	if t == Storage {
 		w.storageContainers[p] = &StorageContainer{Pos: p}
 	}
-	if t != Rock {
-		if !w.carvedAny {
-			w.carvedAny = true
-			w.carvedMin, w.carvedMax = p, p
-		} else {
-			w.carvedMin.X, w.carvedMax.X = min(w.carvedMin.X, p.X), max(w.carvedMax.X, p.X)
-			w.carvedMin.Y, w.carvedMax.Y = min(w.carvedMin.Y, p.Y), max(w.carvedMax.Y, p.Y)
-		}
+	if t != Rock && discover {
+		w.growCarvedBox(p)
 	}
 	// Building on a tile scrapes or seals whatever was lying on it. That is
 	// partly flavor and partly an invariant the cleaning system depends on:
@@ -765,30 +816,59 @@ func (w *World) SetTerrain(p Point, t Terrain) {
 	}
 	w.tiles[i].Terrain = t
 	w.markTilePageDirty(i)
-	// Changing a tile's terrain means somebody was standing next to it, so it
-	// and its neighbors are no longer unknown. This is the only place fog of
-	// war is lifted, for the same reason SetTerrain is the only terrain writer:
-	// every other system already funnels through here. See docs/fog-of-war.md.
-	w.revealAround(p)
 	w.dirtyChunks[w.chunkIndexOf(p)] = struct{}{}
 	w.emit(TileChanged{Pos: p, Old: old, New: t})
 }
 
-// revealAround marks p and its eight neighbors explored, lifting the fog over
-// one tile's worth of rock around a change. Nothing derived from terrain reads
-// Explored, so this emits no TileChanged — it only dirties the published pages
-// so the next Snapshot carries the reveal.
-func (w *World) revealAround(p Point) {
-	if !w.cfg.FogOfWar {
+// growCarvedBox extends the carved bounding box (see carvedMin) to cover p.
+func (w *World) growCarvedBox(p Point) {
+	if !w.carvedAny {
+		w.carvedAny = true
+		w.carvedMin, w.carvedMax = p, p
 		return
 	}
+	w.carvedMin.X, w.carvedMax.X = min(w.carvedMin.X, p.X), max(w.carvedMax.X, p.X)
+	w.carvedMin.Y, w.carvedMax.Y = min(w.carvedMin.Y, p.Y), max(w.carvedMax.Y, p.Y)
+}
+
+// revealAround marks p and its eight neighbors explored, lifting the fog over
+// one tile's worth of rock around a change. Terrain-derived systems do not care
+// who has seen what, so this emits no TileChanged — it only dirties the
+// published pages so the next Snapshot carries the reveal.
+//
+// The one exception is breaking into a natural cavern. If the ring revealed
+// here holds undiscovered cavern floor, the colony has just holed through into
+// it: the fog lifts off the whole connected cave system (and the rock rim
+// around it) at once, and discoverCavernTile hands each newly found floor tile
+// to the systems that ignore undiscovered floor. See docs/caverns.md.
+func (w *World) revealAround(p Point) {
+	w.caveStack = w.caveStack[:0]
+	w.revealRing(p)
+	found := 0
+	for len(w.caveStack) > 0 {
+		q := w.caveStack[len(w.caveStack)-1]
+		w.caveStack = w.caveStack[:len(w.caveStack)-1]
+		found++
+		w.discoverCavernTile(q)
+		w.revealRing(q)
+	}
+	if found > 0 {
+		w.log.add(fmt.Sprintf("The colony breaks through into a natural cavern (%d tiles of open floor).", found))
+	}
+}
+
+// revealRing reveals p and its eight neighbors, queuing any undiscovered
+// cavern floor among them on caveStack.
+func (w *World) revealRing(p Point) {
 	w.reveal(p)
 	for _, d := range neighbors8 {
 		w.reveal(p.Add(d.X, d.Y))
 	}
 }
 
-// reveal marks one in-bounds tile explored, for good.
+// reveal marks one in-bounds tile explored, for good. A non-Rock tile that was
+// not yet explored can only be undiscovered cavern floor (see carveHidden), so
+// it goes on caveStack for revealAround to flood onward from.
 func (w *World) reveal(p Point) {
 	if !w.InBounds(p) {
 		return
@@ -800,10 +880,40 @@ func (w *World) reveal(p Point) {
 	w.tiles[i].Explored = true
 	w.exploredCount++
 	w.markTilePageDirty(i)
+	if w.tiles[i].Terrain != Rock {
+		w.hiddenFloor--
+		w.caveStack = append(w.caveStack, p)
+	}
 }
 
-// Explored reports whether the colony has seen p. With fog of war off every
-// in-bounds tile counts as explored, since no tile is ever marked.
+// discoverCavernTile brings one just-discovered cavern floor tile into the
+// colony's world: the rock around it becomes mineable frontier, it counts
+// toward the carved box room siting searches, and its chunk is re-flooded so
+// its region is marked discovered (see relabelRooms' mainRoom).
+func (w *World) discoverCavernTile(p Point) {
+	w.growCarvedBox(p)
+	w.dirtyChunks[w.chunkIndexOf(p)] = struct{}{}
+	if w.board != nil {
+		w.board.refreshFrontierCell(p)
+		for _, d := range neighbors8 {
+			w.board.refreshFrontierCell(p.Add(d.X, d.Y))
+		}
+	}
+	if w.frontier != nil {
+		w.frontier.stale = true
+	}
+}
+
+// discovered reports whether the colony knows about p, regardless of whether
+// fog of war is shown. Colony-facing systems use it to ignore the floor of
+// natural caverns nobody has broken into yet.
+func (w *World) discovered(p Point) bool {
+	return w.InBounds(p) && w.tiles[w.index(p)].Explored
+}
+
+// Explored reports whether the colony has seen p, as a frontend should show it:
+// with fog of war off every in-bounds tile counts as explored. Simulation code
+// that means "has the colony found this?" wants discovered instead.
 func (w *World) Explored(p Point) bool {
 	if !w.InBounds(p) {
 		return false

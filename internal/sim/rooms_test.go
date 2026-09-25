@@ -133,14 +133,29 @@ func TestRoomsIncrementalMatchesBruteForce(t *testing.T) {
 		if got, want := w.roomCount, bruteRoomCount(w); got != want {
 			t.Fatalf("edit %d at %v: roomCount %d, brute %d", step, p, got, want)
 		}
+		checkRoomLabels(t, w)
 	}
 }
 
-// The default starting cavern is a single room.
+// The default starting cavern is a single room: with natural caverns off it is
+// the only room, and with them on it is still the colony's main room, holding
+// every colonist, however big the undiscovered caves around it are.
 func TestStartingCavernIsOneRoom(t *testing.T) {
-	eng := NewEngine(DefaultConfig())
+	cfg := DefaultConfig()
+	cfg.CavernPercent = 0
+	eng := NewEngine(cfg)
 	if eng.world.roomCount != 1 {
 		t.Fatalf("starting cavern should be 1 room, got %d", eng.world.roomCount)
+	}
+
+	w := NewEngine(DefaultConfig()).world
+	if w.roomCount < 2 {
+		t.Fatalf("default map generated no natural caverns (%d rooms)", w.roomCount)
+	}
+	for _, e := range w.entities {
+		if e.Kind == Colonist && w.roomOf(e.Pos) != w.mainRoom {
+			t.Fatalf("colonist at %v is in room %d, not the main room %d", e.Pos, w.roomOf(e.Pos), w.mainRoom)
+		}
 	}
 }
 
@@ -212,5 +227,61 @@ func TestUpdateDisconnectedTracksCutoffRoom(t *testing.T) {
 	w.updateDisconnected(e)
 	if e.disconnectedTicks != 0 {
 		t.Fatalf("disconnectedTicks = %d after reconnecting, want 0", e.disconnectedTicks)
+	}
+}
+
+// checkRoomLabels verifies the incrementally maintained labels (see
+// relabelRooms) against a from-scratch flood fill over tiles: every floor
+// component is exactly one room, named for its smallest region, sized right,
+// and mainRoom is the largest discovered one.
+func checkRoomLabels(t *testing.T, w *World) {
+	t.Helper()
+	seen := make([]bool, len(w.tiles))
+	var mainRoom RoomID
+	mainSize := -1
+	labels := map[RoomID]bool{}
+	for i := range w.tiles {
+		if w.tiles[i].Terrain != Floor || seen[i] {
+			continue
+		}
+		start := Point{i % w.Width, i / w.Width}
+		room := w.roomOf(start)
+		minRegion := RegionID(1 << 30)
+		size, discovered := 0, false
+		stack := []Point{start}
+		seen[i] = true
+		for len(stack) > 0 {
+			p := stack[len(stack)-1]
+			stack = stack[:len(stack)-1]
+			size++
+			discovered = discovered || w.tiles[w.index(p)].Explored
+			if got := w.roomOf(p); got != room {
+				t.Fatalf("tile %v is in room %d, but its component started in room %d", p, got, room)
+			}
+			minRegion = min(minRegion, w.regionOf.at(p.X, p.Y))
+			for _, d := range neighbors8 {
+				q := p.Add(d.X, d.Y)
+				if w.InBounds(q) && w.tiles[w.index(q)].Terrain == Floor && !seen[w.index(q)] {
+					seen[w.index(q)] = true
+					stack = append(stack, q)
+				}
+			}
+		}
+		if room != RoomID(minRegion) {
+			t.Fatalf("component at %v labeled room %d, want its smallest region %d", start, room, minRegion)
+		}
+		if labels[room] {
+			t.Fatalf("room %d labels two separate components", room)
+		}
+		labels[room] = true
+		if w.rooms[room] != size {
+			t.Fatalf("room %d recorded size %d, want %d", room, w.rooms[room], size)
+		}
+		if discovered && (size > mainSize || (size == mainSize && room < mainRoom)) {
+			mainSize, mainRoom = size, room
+		}
+	}
+	if w.mainRoom != mainRoom {
+		t.Fatalf("mainRoom %d, want %d", w.mainRoom, mainRoom)
 	}
 }

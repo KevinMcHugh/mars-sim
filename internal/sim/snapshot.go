@@ -131,11 +131,11 @@ type Stats struct {
 	Aliens    int
 	Cats      int
 	Mice      int
-	FloorDug  int // tiles of Floor that exist (excavation progress)
+	FloorDug  int // tiles of discovered Floor (excavation progress; undiscovered caverns excluded)
 	// ExploredTiles is how many tiles World.reveal has ever uncovered (see
 	// World.exploredCount). Only meaningful when FogOfWar is on -- with it
-	// off every tile already reads as explored (see Snapshot.ExploredAt)
-	// without this counter ever moving, since reveal is never called.
+	// off every tile already reads as explored (see Snapshot.ExploredAt), so
+	// it is published as 0.
 	ExploredTiles int
 	Pods          int // nutrient pods built
 	Toilets       int // toilets built
@@ -145,7 +145,7 @@ type Stats struct {
 	Incinerators      int
 	StorageContainers int
 	Refuse            int
-	Rooms             int // distinct rooms (connected floor areas)
+	Rooms             int // distinct rooms (connected floor areas) the colony has discovered
 }
 
 // Snapshot is an immutable, self-contained picture of the world at one tick.
@@ -257,9 +257,9 @@ func (w *World) snapshot(paused bool, tps int) *Snapshot {
 	// counting them by walking the grid would put the map's whole area back on
 	// every tick, which is exactly what the shared grid above avoids.
 	stats := Stats{
-		Rooms:         w.roomCount,
-		FloorDug:      w.terrainCounts[Floor],
-		ExploredTiles: w.exploredCount,
+		Rooms:         len(w.discoveredRooms),
+		FloorDug:      w.terrainCounts[Floor] - w.hiddenFloor,
+		ExploredTiles: w.exploredTilesStat(),
 		Pods:          w.terrainCounts[NutrientPod],
 		Toilets:       w.terrainCounts[Toilet],
 		Beds:          w.terrainCounts[Bed],
@@ -406,4 +406,14 @@ func (w *World) currentNeeds(e *Entity) [numNeeds]int {
 		out[i] = w.needLevel(e, NeedKind(i))
 	}
 	return out
+}
+
+// exploredTilesStat is Stats.ExploredTiles: the explored count with fog of war
+// on, and 0 with it off, where the count means nothing to a frontend (every
+// tile reads as explored) even though the simulation still keeps it.
+func (w *World) exploredTilesStat() int {
+	if !w.cfg.FogOfWar {
+		return 0
+	}
+	return w.exploredCount
 }

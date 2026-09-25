@@ -26,9 +26,14 @@ type region struct {
 	id    RegionID
 	chunk int
 	size  int
-	room  RoomID
-	rep   Point                 // a representative cell (for the abstract heuristic)
-	links map[RegionID]struct{} // adjacent regions (across chunk borders)
+	// discovered is set if any of the region's cells is Explored. Undiscovered
+	// regions are natural cavern floor the colony has not broken into; they
+	// never count as the colony's main room. See docs/caverns.md.
+	discovered bool
+	visitPass  uint32 // see World.relabelPass
+	room       RoomID
+	rep        Point                 // a representative cell (for the abstract heuristic)
+	links      map[RegionID]struct{} // adjacent regions (across chunk borders)
 }
 
 // refreshSpatial brings regions and rooms up to date for any chunks that have
@@ -89,9 +94,14 @@ func (w *World) recomputeChunkRegions(ci int) {
 		if r == nil {
 			continue
 		}
+		// Whatever room this region was in may have split or shrunk, so it
+		// is relabeled from scratch; its surviving neighbors are where the
+		// flood starts (see relabelRooms).
+		w.staleRooms[r.room] = struct{}{}
 		for nb := range r.links {
 			if nr := w.regions[nb]; nr != nil {
 				delete(nr.links, rid)
+				w.relabelSeeds = append(w.relabelSeeds, nb)
 			}
 		}
 		delete(w.regions, rid)
@@ -113,6 +123,7 @@ func (w *World) recomputeChunkRegions(ci int) {
 			w.nextRegion++
 			reg := &region{id: rid, chunk: ci, rep: Point{x, y}, links: make(map[RegionID]struct{})}
 			w.regions[rid] = reg
+			w.relabelSeeds = append(w.relabelSeeds, rid)
 
 			w.floodStack = append(w.floodStack[:0], Point{x, y})
 			regions[offset(x, y)] = rid
@@ -120,6 +131,9 @@ func (w *World) recomputeChunkRegions(ci int) {
 				p := w.floodStack[len(w.floodStack)-1]
 				w.floodStack = w.floodStack[:len(w.floodStack)-1]
 				reg.size++
+				if w.tiles[p.Y*w.Width+p.X].Explored {
+					reg.discovered = true
+				}
 				for _, d := range neighbors8 {
 					qx, qy := p.X+d.X, p.Y+d.Y
 					if qx < x0 || qx >= x1 || qy < y0 || qy >= y1 {
@@ -167,58 +181,105 @@ func (w *World) linkChunkRegions(ci int) {
 	}
 }
 
-// relabelRooms recomputes room membership as connected components of the region
-// graph, giving each component the smallest RegionID it contains as its RoomID.
-// It also tracks mainRoom, the room with the most floor tiles: the colony's main
-// connected network, against which updateDisconnected checks every colonist so a
-// pocket cut off by later construction (see doorTiles in project.go) or any other
-// cause eventually notices and breaks itself out. See docs/escape.md.
+// relabelRooms brings room membership up to date after refreshSpatial has
+// re-flooded the dirty chunks. A room is a connected component of the region
+// graph, named for the smallest RegionID it contains.
+//
+// It is incremental: only components touching a region that was just created,
+// or that neighbored one just deleted, can have changed, so only those are
+// re-flooded (relabelSeeds), and every room they previously belonged to
+// (staleRooms) is dropped from w.rooms before the fresh components go in.
+// Every other room keeps its label untouched. That matters because
+// undiscovered natural caverns put thousands of static rooms on a big map (see
+// docs/caverns.md); walking all of them on every dig cost milliseconds a tick.
+//
+// It also tracks mainRoom, the discovered room with the most floor tiles (an
+// undiscovered cavern can be bigger than the landing site, but nobody lives
+// there): the colony's main connected network, against which
+// updateDisconnected checks every colonist so a pocket cut off by later
+// construction (see doorTiles in project.go) or any other cause eventually
+// notices and breaks itself out. See docs/escape.md.
 func (w *World) relabelRooms() {
-	visited := make(map[RegionID]bool, len(w.regions))
-	count := 0
-	var mainRoom RoomID
-	mainSize := -1
-	for start := range w.regions {
-		if visited[start] {
-			continue
+	w.relabelPass++
+	pass := w.relabelPass
+	fresh := w.freshRooms[:0]
+	for _, start := range w.relabelSeeds {
+		sr := w.regions[start]
+		if sr == nil || sr.visitPass == pass {
+			continue // deleted by a later dirty chunk, or already relabeled
 		}
-		count++
 		// Gather the component, tracking its minimum ID as the room ID and its
 		// total floor tiles across all member regions.
 		component := w.roomScratch[:0]
-		stack := []RegionID{start}
-		visited[start] = true
-		minID := start
-		size := 0
+		stack := append(w.roomStack[:0], start)
+		sr.visitPass = pass
+		info := roomInfo{id: RoomID(start)}
 		for len(stack) > 0 {
 			r := stack[len(stack)-1]
 			stack = stack[:len(stack)-1]
+			reg := w.regions[r]
 			component = append(component, r)
-			size += w.regions[r].size
-			if r < minID {
-				minID = r
+			info.size += reg.size
+			info.discovered = info.discovered || reg.discovered
+			if RoomID(r) < info.id {
+				info.id = RoomID(r)
 			}
-			for nb := range w.regions[r].links {
-				if !visited[nb] {
-					visited[nb] = true
+			if reg.room != 0 {
+				// A merge can pull in a room nothing was deleted from.
+				w.staleRooms[reg.room] = struct{}{}
+			}
+			for nb := range reg.links {
+				if nr := w.regions[nb]; nr.visitPass != pass {
+					nr.visitPass = pass
 					stack = append(stack, nb)
 				}
 			}
 		}
-		room := RoomID(minID)
+		w.roomStack = stack[:0]
 		for _, r := range component {
-			w.regions[r].room = room
+			w.regions[r].room = info.id
 		}
 		w.roomScratch = component[:0]
-		// Compare explicitly rather than tracking "first seen": map iteration
-		// order is randomized, so only a deterministic tie-break (smallest
-		// RoomID) keeps mainRoom reproducible for a given seed.
-		if size > mainSize || (size == mainSize && room < mainRoom) {
-			mainSize, mainRoom = size, room
+		fresh = append(fresh, info)
+	}
+	w.relabelSeeds = w.relabelSeeds[:0]
+
+	// Drop every stale room before adding the fresh ones: a component that
+	// kept its smallest region is still named the same.
+	for id := range w.staleRooms {
+		delete(w.rooms, id)
+		delete(w.discoveredRooms, id)
+		delete(w.staleRooms, id)
+	}
+	for _, info := range fresh {
+		w.rooms[info.id] = info.size
+		if info.discovered {
+			w.discoveredRooms[info.id] = info.size
 		}
 	}
-	w.roomCount = count
+	w.freshRooms = fresh[:0]
+	w.roomCount = len(w.rooms)
+
+	// Only discovered rooms can be the main one, and there are few of them (the
+	// colony and whatever caverns it has broken into), so a scan is cheap.
+	// Compare explicitly rather than tracking "first seen": map iteration order
+	// is randomized, so only a deterministic tie-break (smallest RoomID) keeps
+	// mainRoom reproducible for a given seed.
+	var mainRoom RoomID
+	mainSize := -1
+	for id, size := range w.discoveredRooms {
+		if size > mainSize || (size == mainSize && id < mainRoom) {
+			mainSize, mainRoom = size, id
+		}
+	}
 	w.mainRoom = mainRoom
+}
+
+// roomInfo summarizes one freshly flooded room for relabelRooms.
+type roomInfo struct {
+	id         RoomID
+	size       int
+	discovered bool
 }
 
 // roomOf returns the room a tile belongs to, or 0 if it is not floor.

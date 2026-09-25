@@ -304,6 +304,12 @@ func validateConfig(cfg sim.Config) error {
 			cfg.IronRockPercent, cfg.IceRockPercent, cfg.UraniumRockPercent, cfg.ClayRockPercent)
 	case cfg.RockVeinMin < 1 || cfg.RockVeinMax < cfg.RockVeinMin:
 		return fmt.Errorf("rock vein range is invalid: min %d, max %d", cfg.RockVeinMin, cfg.RockVeinMax)
+	case cfg.CavernPercent < 0 || cfg.CavernPercent > 100:
+		return fmt.Errorf("cavern-percent must be between 0 and 100 (got %d)", cfg.CavernPercent)
+	case cfg.CavernMin < 1 || cfg.CavernMax < cfg.CavernMin:
+		return fmt.Errorf("cavern size range is invalid: min %d, max %d", cfg.CavernMin, cfg.CavernMax)
+	case cfg.CavernPassagePercent < 0 || cfg.CavernPassagePercent > 100:
+		return fmt.Errorf("cavern-passage-percent must be between 0 and 100 (got %d)", cfg.CavernPassagePercent)
 	case cfg.StartColonists < 0 || cfg.StartAliens < 0 || cfg.StartCats < 0 || cfg.StartMice < 0:
 		return fmt.Errorf("population counts cannot be negative")
 	case cfg.StartPistols < 0 || cfg.StartShotguns < 0:

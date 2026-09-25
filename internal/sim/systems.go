@@ -1555,10 +1555,12 @@ func (w *World) findBuildSpot(from Point, radius int) (Point, bool) {
 	return best, found
 }
 
-// bordersFloor reports whether p has at least one walkable neighbor.
+// bordersFloor reports whether p has at least one walkable neighbor the colony
+// has discovered. The walls of a natural cavern nobody has broken into are not
+// mining frontier: no colonist could reach them (see docs/caverns.md).
 func (w *World) bordersFloor(p Point) bool {
 	for _, d := range neighbors8 {
-		if w.Walkable(p.Add(d.X, d.Y)) {
+		if q := p.Add(d.X, d.Y); w.Walkable(q) && w.discovered(q) {
 			return true
 		}
 	}
