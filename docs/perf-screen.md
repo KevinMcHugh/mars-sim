@@ -82,6 +82,9 @@ along on every snapshot as `Snapshot.Perf`.
   [architecture.md](./architecture.md)). If ticks/sec sits below target while
   ms/tick is well under budget, suspect the scheduler, not the simulation.
 
+The Perf tab tells you *how much* a tick costs. To see *where* the time goes,
+take a CPU profile with `-cpuprofile` (see [cli.md](./cli.md#profiling)).
+
 ## Extending it
 
 - A new measure (say, time spent in pathfinding) is a field on `PerfSample`,
