@@ -238,6 +238,8 @@ func TestCuratedAlienEmojiAreAllRegistered(t *testing.T) {
 		glyphLizard, glyphSnake, glyphTurtle, glyphTRex, glyphSauropod,
 		glyphCaterpillar, glyphBeetle, glyphAnt, glyphCricket, glyphScorpion,
 		glyphWorm, glyphSaucer, glyphMicrobe, glyphSpaceInvader,
+		glyphSkull, glyphCockroach, glyphSnail, glyphFrog, glyphTiger,
+		glyphTigerFace, glyphZebra, glyphLeopard, glyphLadybug,
 	} {
 		if got := alienGlyph(sim.AlienSpecies{Emoji: glyph}); got != glyph {
 			t.Errorf("alienGlyph(%q) = %q, want it drawn as itself", glyph, got)

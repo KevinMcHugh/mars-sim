@@ -268,6 +268,15 @@ species always have a real, registered glyph to show on the map; a custom
 up on the map if it happens to spell one of those same registered symbols
 exactly (see the note in `alien-names.yaml.example`).
 
+The hide/pattern names (`bonehead`, `roach`, `slug`, `toad`, `tiger`,
+`zebra`, `leopard`, `ladybug`) brought their own registered glyphs — 💀 🪳
+🐌 🐸 🐅 🐯 🦓 🐆 🐞 — all single code points with no variation selector.
+`bonehead` deliberately lists only 💀, not ☠️: the crossbones is U+2620 +
+VS16, exactly the width-ambiguous shape the registry exists to keep off the
+grid. When adding a name, register its emoji in `glyphs.go` and in
+`TestCuratedAlienEmojiAreAllRegistered` in the same change, or it silently
+renders as 👽 on the map.
+
 ### Narration
 
 `World.alienNounFor(e)` (`withArticle(w.alienSpeciesFor(e).Singular)`,

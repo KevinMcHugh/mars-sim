@@ -86,6 +86,15 @@ const (
 	glyphSaucer       = "\U0001F6F8" // 🛸
 	glyphMicrobe      = "\U0001F9A0" // 🦠
 	glyphSpaceInvader = "\U0001F47E" // 👾
+	glyphSkull        = "\U0001F480" // 💀 bony hides
+	glyphCockroach    = "\U0001FAB3" // 🪳 chitinous hides
+	glyphSnail        = "\U0001F40C" // 🐌 slimy hides
+	glyphFrog         = "\U0001F438" // 🐸 slimy and spotted
+	glyphTiger        = "\U0001F405" // 🐅 striped
+	glyphTigerFace    = "\U0001F42F" // 🐯 striped
+	glyphZebra        = "\U0001F993" // 🦓 striped, four legs
+	glyphLeopard      = "\U0001F406" // 🐆 spotted
+	glyphLadybug      = "\U0001F41E" // 🐞 red, spotted, chitinous
 
 	glyphManAdult     = "\U0001F468" // 👨 adult man colonist
 	glyphWomanAdult   = "\U0001F469" // 👩 adult woman colonist
@@ -161,6 +170,15 @@ var glyphRegistry = map[string]glyph{
 	glyphSaucer:       {glyphSaucer, 2, "UF"},
 	glyphMicrobe:      {glyphMicrobe, 2, "Mb"},
 	glyphSpaceInvader: {glyphSpaceInvader, 2, "SI"},
+	glyphSkull:        {glyphSkull, 2, "Sk"},
+	glyphCockroach:    {glyphCockroach, 2, "Rc"},
+	glyphSnail:        {glyphSnail, 2, "Sl"},
+	glyphFrog:         {glyphFrog, 2, "Fr"},
+	glyphTiger:        {glyphTiger, 2, "Tg"},
+	glyphTigerFace:    {glyphTigerFace, 2, "Tg"},
+	glyphZebra:        {glyphZebra, 2, "Zb"},
+	glyphLeopard:      {glyphLeopard, 2, "Lp"},
+	glyphLadybug:      {glyphLadybug, 2, "Lb"},
 
 	glyphManAdult:     {glyphManAdult, 2, "M "},
 	glyphWomanAdult:   {glyphWomanAdult, 2, "W "},
