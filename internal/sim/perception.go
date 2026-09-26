@@ -372,6 +372,17 @@ func (w *World) observePersistent(observer *Entity, only NounID) {
 		return
 	}
 	current := make(map[perceptionKey]Occurrence)
+	// Entity rules share one chunk-index query at the widest of their radii,
+	// visited in ascending ID order with each entity tried against every rule
+	// in declaration order. Querying once per rule instead walked (and sorted)
+	// the same neighborhood several times a tick, and building each
+	// candidate's labelled Occurrence before knowing whether any rule cared
+	// about its noun spent most of that time formatting strings for nearby
+	// colonists nobody reacts to. So the noun is checked first, and the
+	// labelled Occurrence is only built for an entering percept: an entity
+	// already in view reuses the one stored when it entered.
+	var entityRules, envRules []*PerceptionRule
+	queryRadius := -1
 	for i := range w.cognition.Perceptions {
 		rule := &w.cognition.Perceptions[i]
 		if rule.Cadence == CadenceInstant || rule.Match.Action != ActionPresent {
@@ -380,35 +391,53 @@ func (w *World) observePersistent(observer *Entity, only NounID) {
 		if only != "" && rule.Match.ActorNoun != only {
 			continue
 		}
-		radius := w.perceptionRadius(*rule)
-		switch rule.Match.ActorNoun {
-		case NounGore:
-			if p, ok := w.goreWithin(observer.Pos, radius); ok {
-				o := Occurrence{
-					Actor:  FactRef{Noun: NounGore, Label: "gore"},
-					Action: ActionPresent, Location: p,
-					Text: "Saw the aftermath of violence nearby.",
-				}
-				w.notePersistentPercept(observer, rule, o, current)
+		if rule.Match.ActorNoun == NounGore {
+			envRules = append(envRules, rule)
+			continue
+		}
+		entityRules = append(entityRules, rule)
+		queryRadius = max(queryRadius, w.perceptionRadius(*rule))
+	}
+	if len(entityRules) > 0 {
+		for _, id := range w.entityIDsNearSorted(observer.Pos, queryRadius) {
+			other := w.entities[id]
+			if other == nil || other == observer || !other.Alive() {
+				continue
 			}
-		default:
-			for _, id := range w.entityIDsNearSorted(observer.Pos, radius) {
-				other := w.entities[id]
-				if other == nil || other == observer || !other.Alive() {
-					continue
-				}
-				o := Occurrence{
-					Actor: w.factRef(other), Action: ActionPresent, Location: other.Pos,
-					Text: fmt.Sprintf("Saw %s.", w.factRef(other).Label),
-				}
-				if !rule.Match.matches(o) || observer.Pos.Chebyshev(other.Pos) > radius {
+			noun := nounForKind(other.Kind)
+			if noun == "" {
+				continue
+			}
+			// A label-free stand-in is enough to match: persistent patterns
+			// only read the nouns and action.
+			probe := Occurrence{Actor: FactRef{Noun: noun, Entity: other.ID}, Action: ActionPresent}
+			dist := observer.Pos.Chebyshev(other.Pos)
+			for _, rule := range entityRules {
+				if !rule.Match.matches(probe) || dist > w.perceptionRadius(*rule) {
 					continue
 				}
 				if rule.LineOfSight && !w.hasLineOfSight(observer.Pos, other.Pos) {
 					continue
 				}
+				key := perceptionKey{Rule: rule.ID, Source: other.ID, Noun: noun}
+				o, seen := observer.perceiving[key]
+				if !seen {
+					ref := w.factRef(other)
+					o = Occurrence{Actor: ref, Action: ActionPresent, Text: fmt.Sprintf("Saw %s.", ref.Label)}
+				}
+				o.Location = other.Pos
 				w.notePersistentPercept(observer, rule, o, current)
 			}
+		}
+	}
+	for _, rule := range envRules {
+		if p, ok := w.goreWithin(observer.Pos, w.perceptionRadius(*rule)); ok {
+			o := Occurrence{
+				Actor:  FactRef{Noun: NounGore, Label: "gore"},
+				Action: ActionPresent, Location: p,
+				Text: "Saw the aftermath of violence nearby.",
+			}
+			w.notePersistentPercept(observer, rule, o, current)
 		}
 	}
 	if only != "" {
