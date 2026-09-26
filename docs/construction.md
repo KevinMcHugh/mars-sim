@@ -75,7 +75,10 @@ file behind the cook. So a recipe with `aisle` gets a tile of floor either
 side of its bay (`roomWidth`, `bayOffset`): the scumhouse and the storage room
 (the first is the colony's silo) are three tiles wide. In a cavern with no
 site that wide, `planRoomFor` falls back to the narrow room: a scumhouse one
-tile can reach beats none.
+tile can reach beats none. That fallback is for the colony's first scumhouse
+only. Later ones set `aisleRequired` and wait for a wide site: a colony's
+fourth scumhouse, built narrow, starved a colonist whose meal was inside it
+while a cook held the only access tile.
 
 `planRooms` checks each recipe's planned-or-built capacity, plans at most one
 new room per call (see *Planning cadence*), and always chooses a life-support

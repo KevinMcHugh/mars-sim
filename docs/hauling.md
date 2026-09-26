@@ -76,7 +76,10 @@ upkeep, posts haul orders at `haul-pay` a unit. They bring the colony's meals
 in from its scumhouses, nearest first, until `silo-meal-stock` are there or on
 their way. The colony sells its meals at both ends (see
 [scumhouse.md](./scumhouse.md)), so the haul first withdraws the scumhouse's
-asks to free the meals it needs from escrow.
+asks to free the meals it needs from escrow. It doesn't stock the silo at all
+while anyone is queued for a meal (`anyoneWaitingForAMeal`): every meal then
+goes to the queue where it's cooked, and carting meals away only takes them
+out of the queue's reach.
 
 ### The colony sells
 

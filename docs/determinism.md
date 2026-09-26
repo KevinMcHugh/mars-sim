@@ -140,6 +140,23 @@ corridor only constrains the tile search, which usually finds the same optimal
 route inside a slightly different set of regions. A latent order dependence that
 is invisible today is exactly how the other two got in.
 
+### `tryAssignCraft` recorded its answer from inside a filter
+
+`nearestScumhouse(e, ok)` ranges over the scumhouse set (a map) and keeps the
+nearest candidate that passes `ok`. `tryAssignCraft`'s `ok` also *recorded*
+which recipe and whose inputs it found, as a side effect. Every candidate runs
+through the filter, so the recorded recipe was whichever candidate the map
+yielded last, not the one chosen. With one scumhouse that was invisible. With
+several, a cook could be sent to one kitchen with another's recipe,
+differently on each run: a 40-colonist colony starved a different number of
+people every time its seed was replayed. The filter now only answers yes or
+no, and the recipe is worked out for the scumhouse actually chosen
+(`craftableRecipe`). `TestDeterministicRunUnderScarcity` runs the lockstep
+check with several kitchens.
+
+The general rule: **a filter or comparator passed to a search over a map must
+be pure.** Anything it writes is written in map order.
+
 ## Extending it
 
 - **Adding a map to `World`**: before you iterate it, decide which of the three

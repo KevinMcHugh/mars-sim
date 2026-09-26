@@ -710,8 +710,12 @@ type World struct {
 	haulClaims map[OrderID]EntityID
 	// popHist is the Population tab's history, sampled every popEvery ticks
 	// (see population.go).
-	popHist         []PopulationSample
-	popEvery        int
+	popHist  []PopulationSample
+	popEvery int
+	// mealFetches counts, per depot, the colonists on their way to take a
+	// meal out of it this tick (memoized; see mealFetchesAt).
+	mealFetches     map[Point]int
+	mealFetchTick   int
 	candidatesCache []*Order
 
 	// colonistNames indexes every living colonist's full name, so generation can

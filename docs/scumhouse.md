@@ -124,18 +124,50 @@ In the market's upkeep, the colony:
 
 - **Buys**: `refreshBiomatterBids` keeps `scumhouse-bid-qty` units of
   standing bids at each scumhouse for each kind of biomatter, at
-  `biomatterPrice`, as far as the treasury stretches and the depot has room.
+  `biomatterPrice`, as far as the treasury stretches and the depot has room,
+  and only until the colony holds `scumhouse-stock-cap` units of that kind
+  there. More than its cooks can get through soon is money spent on a pile.
   The prices follow the meals each input makes: two scum or two viscera to a
   $5 meal, four meals from an alien carcass.
-- **Sells**: `refreshColonyMealAsks` offers every meal the colony holds, at
-  each scumhouse and at the silo, at `price-meal`, less any that a haul order
-  is about to take to the silo. The haul order withdraws the asks it needs
-  first, since goods on offer are locked in escrow.
+- **Sells**: every meal the colony holds, at each scumhouse and at the silo,
+  at `price-meal`, less any that a haul order is about to take to the silo.
+  A cook's meal goes on sale the moment it is made (`offerColonyMeals`, from
+  `jobCraft`), and `refreshColonyMealAsks` sweeps up the rest each upkeep. The
+  haul order withdraws the asks it needs first, since goods on offer are
+  locked in escrow.
 
 A hungry colonist buys from whichever reachable depot has the cheapest meal it
-will pay for (`tryBuyMeal`). A meal on offer still counts toward the colony's
+will pay for (`tryBuyMeal`). If none is on sale, its bid **queues at the
+nearest scumhouse**, so the next meal cooked there fills it at once, in bid
+order. A meal on offer still counts toward the colony's
 `meal-reserve` (`communityMeals`), so the colony doesn't keep cooking what
 it has on the shelf.
+
+### Keeping a big colony fed
+
+The planner wants a scumhouse for every `colonists-per-scumhouse` colonists
+(`desiredScumhouses`). Only the first is life support: it may be built unpaid
+and in a narrow room, and it holds up every other room until it's planned.
+Later ones are ordinary public works that need an aisle
+(`roomRecipe.aisleRequired`). A few rules keep kitchens usable:
+
+- **Scrape to sell only into a bid.** Scraping for money needs a buyer at the
+  scumhouse (`tryAssignScrape`). Scraping to feed yourself doesn't.
+- **Cook your own leftovers.** A colonist with scum of its own sitting in a
+  scumhouse cooks it (`assignWorkJob`, after the producer planner), into
+  meals it can eat or sell.
+- **Cooks give way.** A cook doesn't start a recipe at a workshop someone is
+  on their way to fetch a meal from (`mealFetchesAt`), so it steps off the
+  counter instead of holding the only access tile.
+
+With 40 colonists, a colony that kept one scumhouse lost 16 to 22 people to
+starvation by tick 8000. That wasn't for lack of food: over a thousand units
+of uncooked scum sat in its depot, the colony kept buying more, and meals
+came out one at a time. Starving colonists had money and a price they would
+pay; there was just never a meal on the counter when they looked, and their
+standing bids were queued at the silo, not the kitchen. Across 10 seeds each
+at 6, 20, and 40 colonists (10000 ticks, defaults), one colonist starved after
+these changes, and that one was cornered by an alien.
 
 This replaced a delivery bounty (a work order paid per unit brought in, with
 the colony owning the result either way). Buying goods is the plan's own
@@ -150,6 +182,8 @@ that the producer planner can see.
 | `scum-regrow-ticks` | 400 |
 | `scrape-ticks` | 6 |
 | `meal-reserve` | 3 per colonist |
+| `colonists-per-scumhouse` | 10 |
+| `scumhouse-stock-cap` | 40 per kind per scumhouse |
 | `price-cave-scum` / `price-viscera` / `price-animal-corpse` / `price-alien-corpse` | 2 / 2 / 3 / 8 |
 | `scumhouse-bid-qty` | 12 per kind per scumhouse |
 | `wage-cook` | 1 per recipe |

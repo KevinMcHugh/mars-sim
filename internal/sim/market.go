@@ -443,10 +443,14 @@ func (w *World) sellAtMarket(e *Entity, p Point, kinds []ItemKind) {
 // it will pay (mealBidLimit) at a depot it can reach and use: the silo, or a
 // scumhouse selling what it cooks. Cheapest wins, then nearest, then
 // position. The meal is then its own, where it bought it, and the ordinary
-// eating job fetches it. If nothing fills, a bid rests at the silo for
-// demand-ttl ticks — at most one per colonist — as a standing sign that
-// someone wants a meal, which is what a producer's planner answers (see
-// producer.go). A later fill leaves the meal at the silo in its name.
+// eating job fetches it. If nothing fills, a bid rests for demand-ttl ticks —
+// at most one per colonist — at the nearest scumhouse it can reach, where
+// meals are made, or else at the silo. That makes it a queue: the colony
+// offers each meal the moment it is cooked (offerColonyMeals), and a resting
+// bid there takes it at once, in bid order, rather than whoever happens to
+// ask next. It is also a standing sign that someone wants a meal, which is
+// what a producer's planner answers (see producer.go). A later fill leaves
+// the meal where the bid was, in its name.
 func (w *World) tryBuyMeal(e *Entity) bool {
 	me := ColonistOwner(e.ID)
 	limit := w.mealBidLimit(e)
@@ -482,9 +486,15 @@ func (w *World) tryBuyMeal(e *Entity) bool {
 			return true
 		}
 	}
-	if w.cfg.DemandTTL > 0 && hasSilo && w.canUseFixture(e, silo) && w.taskReachable(silo, room) &&
-		w.openQty(Bid, Meal, silo, me) == 0 {
-		w.post(Bid, Meal, 1, limit, me, silo, w.cfg.DemandTTL)
+	if w.cfg.DemandTTL <= 0 || w.hasOpenMealBid(me) {
+		return false
+	}
+	queue, ok := w.nearestScumhouse(e, nil)
+	if !ok && hasSilo && w.canUseFixture(e, silo) && w.taskReachable(silo, room) {
+		queue, ok = silo, true
+	}
+	if ok {
+		w.post(Bid, Meal, 1, limit, me, queue, w.cfg.DemandTTL)
 	}
 	return false
 }
@@ -590,4 +600,15 @@ func (w *World) jobSell(e *Entity) {
 	w.sellAtMarket(e, silo, []ItemKind{Meal})
 	w.remember(e, event(EvtWentToMarket, "Took %d meals to market.", n))
 	w.clearJob(e)
+}
+
+// hasOpenMealBid reports whether actor already has a meal bid resting
+// anywhere: a hungry colonist queues at one depot at a time.
+func (w *World) hasOpenMealBid(actor Owner) bool {
+	for _, o := range w.orders {
+		if o.Side == Bid && o.Item == Meal && o.Actor == actor {
+			return true
+		}
+	}
+	return false
 }

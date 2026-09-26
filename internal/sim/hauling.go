@@ -141,7 +141,10 @@ func (w *World) finishHaul(e *Entity, n int) {
 // for what is missing and not already on its way.
 func (w *World) refreshSiloStock() {
 	silo, ok := w.marketDepot()
-	if !ok || w.cfg.SiloMealStock <= 0 {
+	if !ok || w.cfg.SiloMealStock <= 0 || w.anyoneWaitingForAMeal() {
+		// While anyone is queued for a meal, every meal the colony cooks goes
+		// to them where it is cooked; carting meals off to the silo then only
+		// takes them out of the queue's reach.
 		return
 	}
 	coming := map[Point]int{} // open haul units by source
@@ -211,4 +214,14 @@ func (w *World) refreshColonyAsks() {
 			w.post(Ask, k, spare, w.colonyAskPrice(k), Community, silo, 0)
 		}
 	}
+}
+
+// anyoneWaitingForAMeal reports whether any colonist has a meal bid resting.
+func (w *World) anyoneWaitingForAMeal() bool {
+	for _, o := range w.orders {
+		if o.Side == Bid && o.Item == Meal && o.Actor.Kind == OwnerColonist {
+			return true
+		}
+	}
+	return false
 }

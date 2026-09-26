@@ -944,6 +944,11 @@ func (w *World) assignWorkJob(e *Entity) {
 	if w.tryAssignHaul(e) || w.tryAssignProduce(e) {
 		return
 	}
+	// Scum of its own sitting in a scumhouse (scraped to keep, or delivered
+	// when nobody was buying) is a meal it could cook for itself.
+	if w.tryAssignCraftFor(e, []Owner{ColonistOwner(e.ID)}) {
+		return
+	}
 	// Mining: big colonies/maps follow the shared frontier field (claim on
 	// arrival); small ones use cached A* to the nearest claimed tile. Either way
 	// only take a job when unclaimed frontier remains.

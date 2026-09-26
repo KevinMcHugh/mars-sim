@@ -55,8 +55,10 @@ has. A dollar matters more to someone who has few.
 
 `tryBuyMeal` (see [food.md](./food.md) for when it runs) buys at once if an ask
 is within the limit. If nothing fills, the bid **rests** for `demand-ttl`
-ticks, one per colonist, as standing demand. A later fill leaves the meal at
-the silo in its name, and the ordinary eating job fetches it.
+ticks, one per colonist, as standing demand, at the nearest scumhouse (else
+the silo). That makes it a queue: the colony offers each meal the moment it is
+cooked, and a waiting bid takes it at once. A later fill leaves the meal where
+the bid was, in its name, and the ordinary eating job fetches it.
 
 ### The planner
 

@@ -202,6 +202,39 @@ func TestDeterministicRunAgreesEveryTick(t *testing.T) {
 	}
 }
 
+// The same lockstep check under scarcity (the game's defaults), with a colony
+// big enough to run several scumhouses. That is where the economy's choices
+// live — which kitchen, which recipe, whose meal — and where a map-order bug
+// hid: tryAssignCraft recorded its recipe from inside a filter that ran on
+// every scumhouse in map order, so with more than one kitchen a cook could be
+// handed another kitchen's recipe, differently on each run.
+func TestDeterministicRunUnderScarcity(t *testing.T) {
+	mk := func() *World {
+		cfg := DefaultConfig()
+		cfg.Seed, cfg.TraitChance = 7, 0
+		cfg.Width, cfg.Height = 250, 150
+		cfg.StartColonists = 40
+		return newTestWorld(t, cfg)
+	}
+	a, b := mk(), mk()
+	for i := 0; i < 2500; i++ {
+		a.step()
+		b.step()
+		if a.tick%10 != 0 {
+			continue
+		}
+		fa, fb := worldFingerprint(a), worldFingerprint(b)
+		for _, k := range fingerprintKeys {
+			if fa[k] != fb[k] {
+				t.Fatalf("worlds diverged by tick %d, field %q", a.tick, k)
+			}
+		}
+	}
+	if a.countTerrain(Scumhouse) < 2 {
+		t.Fatalf("only %d scumhouse(s) by tick %d: the test no longer covers several kitchens", a.countTerrain(Scumhouse), a.tick)
+	}
+}
+
 // fingerprintKeys fixes the comparison order so a failure names the most
 // specific field that moved, rather than whichever one a map happened to yield.
 var fingerprintKeys = []string{"tiles", "regions", "rooms", "frontier", "cleaning", "property", "entities"}

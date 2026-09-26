@@ -140,6 +140,13 @@ type Config struct {
 	PriceAnimalCorpse int64 `cfg:"price-animal-corpse" doc:"what the colony pays for an animal carcass at its scumhouses"`
 	PriceAlienCorpse  int64 `cfg:"price-alien-corpse" doc:"what the colony pays for an alien carcass at its scumhouses"`
 	ScumhouseBidQty   int   `cfg:"scumhouse-bid-qty" doc:"units of each kind of biomatter the colony keeps a standing bid for at each scumhouse"`
+	// The colony stops buying a kind of biomatter at a scumhouse once it holds
+	// ScumhouseStockCap units of it there — more than its cooks can get
+	// through soon is money spent on a pile — and plans a scumhouse for
+	// every ColonistsPerScumhouse colonists, since one cook works one at a
+	// time. See docs/scumhouse.md.
+	ScumhouseStockCap     int `cfg:"scumhouse-stock-cap" doc:"units of each kind of biomatter the colony holds at a scumhouse before it stops buying more"`
+	ColonistsPerScumhouse int `cfg:"colonists-per-scumhouse" doc:"the colony plans another scumhouse for each this many colonists"`
 
 	// Hauling and the colony as seller. With ColonySells, the colony offers
 	// what it bought at its silo beyond ColonyStockReserve units of each good
@@ -492,12 +499,19 @@ func DefaultConfig() Config {
 		PriceAnimalCorpse: 3,
 		PriceAlienCorpse:  8,
 		ScumhouseBidQty:   12,
-		WageDig:           2,
-		WageWall:          2,
-		WageFixture:       5,
-		WageCook:          1,
-		HouseSavings:      300,
-		ToiletFee:         2,
+		// A cook turns 2 scum into a meal every dozen ticks or so, and a
+		// colonist eats about one meal every few hundred: one cook feeds
+		// roughly a dozen and a half people with nobody to spare, so a
+		// scumhouse per ten keeps up with slack. Forty units is twenty meals
+		// of stock: enough to cook from, not a hoard.
+		ScumhouseStockCap:     40,
+		ColonistsPerScumhouse: 10,
+		WageDig:               2,
+		WageWall:              2,
+		WageFixture:           5,
+		WageCook:              1,
+		HouseSavings:          300,
+		ToiletFee:             2,
 		// A meal clears hunger for roughly 325 ticks at the baseline rise, so
 		// ten carry a colonist a few thousand ticks: long enough to settle in,
 		// short enough that food production matters once the safety net is

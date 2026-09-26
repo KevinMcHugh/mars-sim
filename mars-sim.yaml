@@ -176,6 +176,12 @@
 ## units of each kind of biomatter the colony keeps a standing bid for at each scumhouse
 # scumhouse-bid-qty: 12
 
+## units of each kind of biomatter the colony holds at a scumhouse before it stops buying more
+# scumhouse-stock-cap: 40
+
+## the colony plans another scumhouse for each this many colonists
+# colonists-per-scumhouse: 10
+
 # ── Hauling ─────────────────────────────────────────────────────────────
 ## the colony sells the goods it bought, beyond its reserve, at its silo
 # colony-sells: true

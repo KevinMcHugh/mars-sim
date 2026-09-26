@@ -136,7 +136,9 @@ func TestCookingTurnsTheColonysScumIntoItsMeals(t *testing.T) {
 	for i := 0; i < 200 && cook.Job == JobCraft; i++ {
 		w.jobCraft(cook)
 	}
-	if c.held(Community, CaveScum) != 0 || c.held(Community, Meal) != 1 || !c.ledgerBalanced() {
+	// The meal goes straight on sale (offerColonyMeals): the colony's own,
+	// held in the ask's escrow until someone buys it.
+	if c.held(Community, CaveScum) != 0 || w.openQty(Ask, Meal, house, Community) != 1 || !c.ledgerBalanced() {
 		t.Fatalf("scumhouse after cooking: %+v", c.Ledger)
 	}
 	if cook.wallet != wage+Money(w.cfg.WageCook) {

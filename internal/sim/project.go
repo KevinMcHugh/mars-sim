@@ -291,8 +291,13 @@ type roomRecipe struct {
 	// others need the same depot — to sell, to buy, to fetch a meal they own.
 	// With the scumhouse one tile wide, the queue behind a cook starved three
 	// tiles from its own food.
-	aisle   bool
-	planLog string // logged when the room is marked out
+	aisle bool
+	// aisleRequired refuses the narrow fallback (see planRoomFor): the room
+	// waits for a site wide enough for its aisle. Every scumhouse but the
+	// colony's first sets it — a one-tile scumhouse whose cook never left
+	// its only access tile starved a colonist beside a meal of its own.
+	aisleRequired bool
+	planLog       string // logged when the room is marked out
 }
 
 // roomWidth is the interior width of a room of r with n facilities.
@@ -455,15 +460,25 @@ func (w *World) planRooms() {
 	// Without the safety net, food has to be made, and the scumhouse is the
 	// only place that makes it: it comes before every other room, as life
 	// support always has. Crash-pod meals buy the time to build it.
-	if !w.podsFeed() && w.plannedFacilities(Scumhouse) < 1 {
+	if !w.podsFeed() && w.plannedFacilities(Scumhouse) < w.desiredScumhouses() {
 		// Life support does not wait on money: a colony that cannot fund its
 		// first scumhouse still marks it out, as unpaid community work, the
 		// way colonists always built themselves pods and toilets. Without
 		// this a colony founded with no grant starved to a colonist.
-		if !w.planRoomFor(scumhouseRoom, Community) {
-			w.planRoomFor(scumhouseRoom, Nobody)
+		// Only the first comes free of charge, and only the first holds up
+		// everything else: later ones are ordinary public works, which wait
+		// on the treasury like any other room and let the planner move on
+		// when they cannot be placed or paid for.
+		first := w.plannedFacilities(Scumhouse) == 0
+		r := scumhouseRoom
+		r.aisleRequired = !first
+		if w.planRoomFor(r, Community) {
+			return
 		}
-		return
+		if first {
+			w.planRoomFor(scumhouseRoom, Nobody)
+			return
+		}
 	}
 	desired := w.desiredFacilities(w.countKind(Colonist))
 	if (w.wantsFacility(NutrientPod) && w.plannedFacilities(NutrientPod) < desired) ||
@@ -526,7 +541,7 @@ func (w *World) planRoomFor(r roomRecipe, issuer Owner) bool {
 	}
 	for n := largest; n >= r.minFac; n-- {
 		o, ok := w.findRoomSite(r.roomWidth(n))
-		if !ok && r.aisle {
+		if !ok && r.aisle && !r.aisleRequired {
 			// A cramped cavern with no site wide enough for the aisle still
 			// gets the room, narrow: a scumhouse one tile can reach beats
 			// none at all.
@@ -796,4 +811,13 @@ func (w *World) roomSiteClear(ox, oy, width int, designated map[Point]bool, allo
 		}
 	}
 	return true
+}
+
+// desiredScumhouses is how many scumhouses the colony wants with scarcity on:
+// one per colonists-per-scumhouse colonists, and always at least one. One cook
+// works a scumhouse at a time, so a growing colony that kept one kitchen
+// starved beside a pile of uncooked scum.
+func (w *World) desiredScumhouses() int {
+	per := max(1, w.cfg.ColonistsPerScumhouse)
+	return max(1, (w.countKind(Colonist)+per-1)/per)
 }

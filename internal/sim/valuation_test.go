@@ -117,9 +117,10 @@ func TestHungerRaisesTheMealBid(t *testing.T) {
 }
 
 // With nothing on offer, a hungry colonist's bid rests as demand — one at a
-// time — and expires after demand-ttl.
+// time, queued at the scumhouse where meals are made — and expires after
+// demand-ttl. A meal the colony cooks there fills it at once.
 func TestHungryBidRestsAsDemand(t *testing.T) {
-	w, _, silo, cols := producerWorld(t, 1)
+	w, house, _, cols := producerWorld(t, 1)
 	e := cols[0]
 	e.Needs[NeedFood] = w.cfg.Needs[NeedFood].Max
 	me := ColonistOwner(e.ID)
@@ -127,13 +128,21 @@ func TestHungryBidRestsAsDemand(t *testing.T) {
 		t.Fatal("bought a meal nobody sells")
 	}
 	w.tryBuyMeal(e)
-	if got := w.openQty(Bid, Meal, silo, me); got != 1 {
-		t.Fatalf("%d units of meal bid resting, want 1", got)
+	if got := w.openQty(Bid, Meal, house, me); got != 1 {
+		t.Fatalf("%d units of meal bid resting at the scumhouse, want 1", got)
 	}
 	w.tick += w.cfg.DemandTTL
 	w.expireOrders()
-	if got := w.openQty(Bid, Meal, silo, me); got != 0 {
+	if got := w.openQty(Bid, Meal, house, me); got != 0 {
 		t.Fatalf("the demand bid outlived demand-ttl: %d open", got)
+	}
+	w.tryBuyMeal(e) // queue again, then the colony cooks a meal
+	c := w.storageContainers[house]
+	c.Inventory.Add(Meal, 1)
+	c.credit(Community, Meal, 1)
+	w.offerColonyMeals(house)
+	if got := c.held(me, Meal); got != 1 {
+		t.Fatalf("the queued colonist holds %d meals after one was cooked, want 1", got)
 	}
 	assertMoneyConserved(t, w)
 }
