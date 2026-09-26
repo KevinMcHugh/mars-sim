@@ -57,10 +57,11 @@ type nameCondition struct {
 	Not *nameCondition  `yaml:"not,omitempty"`
 
 	Temperament string `yaml:"temperament,omitempty"` // friendly | cautious | hostile
-	Skin        string `yaml:"skin,omitempty"`        // smooth | scaly | furry | armored
+	Skin        string `yaml:"skin,omitempty"`        // smooth | scaly | furry | armored | bony | chitinous | slimy
 	Color       string `yaml:"color,omitempty"`
-	Height      string `yaml:"height,omitempty"` // tiny | small | average | large | huge
-	Weight      string `yaml:"weight,omitempty"` // tiny | small | average | large | huge
+	Pattern     string `yaml:"pattern,omitempty"` // solid | striped | spotted
+	Height      string `yaml:"height,omitempty"`  // tiny | small | average | large | huge
+	Weight      string `yaml:"weight,omitempty"`  // tiny | small | average | large | huge
 	Tail        *bool  `yaml:"tail,omitempty"`
 
 	Legs  *intCondition `yaml:"legs,omitempty"`
@@ -84,7 +85,7 @@ type intCondition struct {
 // case an entry with no `when` key parses to, and so matches every species.
 func (c nameCondition) isZero() bool {
 	return len(c.All) == 0 && len(c.Any) == 0 && c.Not == nil &&
-		c.Temperament == "" && c.Skin == "" && c.Color == "" && c.Height == "" && c.Weight == "" &&
+		c.Temperament == "" && c.Skin == "" && c.Color == "" && c.Pattern == "" && c.Height == "" && c.Weight == "" &&
 		c.Tail == nil && c.Legs == nil && c.Arms == nil && c.Limbs == nil && c.Eyes == nil
 }
 
@@ -139,6 +140,9 @@ func (c nameCondition) matches(sp AlienSpecies) bool {
 		return false
 	}
 	if c.Color != "" && !strings.EqualFold(c.Color, sp.Color) {
+		return false
+	}
+	if c.Pattern != "" && !strings.EqualFold(c.Pattern, sp.Pattern.String()) {
 		return false
 	}
 	if c.Height != "" && !strings.EqualFold(c.Height, sp.HeightTier().String()) {
