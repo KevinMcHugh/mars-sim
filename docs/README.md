@@ -44,6 +44,7 @@ way it is without re-deriving it from the source each time.
 | [snapshot-tile-grid.md](./snapshot-tile-grid.md) | The terrain a frontend reads: an immutable, page-shared grid so publishing a frame costs what the tick touched, not the map's area. |
 | [fog-of-war.md](./fog-of-war.md) | What the colony has seen: the explored flag, how digging lifts the fog, and how the map draws the unknown. |
 | [perf-screen.md](./perf-screen.md) | The Perf tab: how the engine times each tick into quarter-second samples, and the gping-style braille charts of tick rate and tick cost. |
+| [browser-frontend.md](./browser-frontend.md) | **Proposal.** Running the engine as WASM in a Web Worker behind a Svelte + WebGL UI: the steppable tick loop, the frame/topic wire, the map renderer, and measured WASM speed and determinism. |
 | [frontend-tui.md](./frontend-tui.md) | The Bubble Tea terminal frontend: map, roster, controls, and glyphs. |
 | [terminal-cell-widths.md](./terminal-cell-widths.md) | Why the grid used to shear: cell-accurate measurement, the vetted glyph registry, the startup width probe, and the ASCII fallback. |
 
