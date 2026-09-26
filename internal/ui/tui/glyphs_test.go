@@ -5,6 +5,7 @@ import (
 	"go/parser"
 	"go/token"
 	"io/fs"
+	"os"
 	"strconv"
 	"strings"
 	"testing"
@@ -232,17 +233,23 @@ func TestAlienGlyphFallsBackWhenEmojiIsEmpty(t *testing.T) {
 
 // Every glyph a species can actually roll (the built-in alien-names.yaml's
 // own emoji lists) must be one alienGlyph will accept -- otherwise the game
-// ships names that can never show their glyph on the map.
+// ships names that can never show their glyph on the map. Reads the real file
+// rather than a hand-kept list so a new name can't slip an unregistered emoji
+// past this test.
 func TestCuratedAlienEmojiAreAllRegistered(t *testing.T) {
-	for _, glyph := range []string{
-		glyphLizard, glyphSnake, glyphTurtle, glyphTRex, glyphSauropod,
-		glyphCaterpillar, glyphBeetle, glyphAnt, glyphCricket, glyphScorpion,
-		glyphWorm, glyphSaucer, glyphMicrobe, glyphSpaceInvader,
-		glyphSkull, glyphCockroach, glyphSnail, glyphFrog, glyphTiger,
-		glyphTigerFace, glyphZebra, glyphLeopard, glyphLadybug,
-	} {
-		if got := alienGlyph(sim.AlienSpecies{Emoji: glyph}); got != glyph {
-			t.Errorf("alienGlyph(%q) = %q, want it drawn as itself", glyph, got)
+	data, err := os.ReadFile("../../sim/alien-names.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	names, err := sim.LoadAlienNames(data, "alien-names.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, entry := range names {
+		for _, glyph := range entry.Emoji {
+			if got := alienGlyph(sim.AlienSpecies{Emoji: glyph}); got != glyph {
+				t.Errorf("%s: alienGlyph(%+q) = %q, want it drawn as itself", entry.Singular, glyph, got)
+			}
 		}
 	}
 }

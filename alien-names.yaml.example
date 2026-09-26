@@ -17,7 +17,7 @@
 # Condition fields:
 #   temperament: friendly | cautious | hostile
 #   skin:        smooth | scaly | furry | armored | bony | chitinous | slimy
-#   color:       red | orange | yellow | green | blue | purple | gray | black | white | pale
+#   color:       red | orange | yellow | green | blue | purple | gray | black | white | pale | iridescent
 #   pattern:     solid | striped | spotted   (how the color is laid out)
 #   height:      tiny | small | average | large | huge   (bucketed from the rolled range)
 #   weight:      tiny | small | average | large | huge   (bucketed from the rolled range)

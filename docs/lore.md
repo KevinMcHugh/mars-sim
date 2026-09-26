@@ -42,8 +42,8 @@ than a hardcoded list.
   determinism, invariants, temperament behavior, the naming-condition
   boolean logic, and the emoji draw.
 - [`internal/ui/tui/glyphs_test.go`](../internal/ui/tui/glyphs_test.go) —
-  `alienGlyph`'s registered/unregistered/empty cases, and that every curated
-  emoji is actually registered.
+  `alienGlyph`'s registered/unregistered/empty cases, and that every emoji
+  in the built-in `alien-names.yaml` is actually registered.
 - [`internal/sim/world.go`](../internal/sim/world.go) — `World.alienSpecies`
   (now a roster, `[]AlienSpecies`) and where it's rolled, in `newWorld`; the
   per-`Alien` species draw in `spawn`; `World.exploredCount`, kept
@@ -92,9 +92,10 @@ is how every other system reads the species a specific alien belongs to.
 
 `Skin` is one of seven hides — `smooth`, `scaly`, `furry`, `armored`,
 `bony`, `chitinous`, `slimy` — drawn uniformly. `Pattern` says how `Color`
-is laid over that hide: `solid` half the time, `striped` or `spotted` a
-quarter each (`rollPattern`), so a patterned species still reads as a bit
-special. Pattern is its own field rather than more entries in
+is laid over that hide: `striped` and `spotted` are 5% each and `solid` is
+the rest (`rollPattern`), so a patterned species is a genuine find rather
+than a coin flip. `Color` itself is drawn uniformly from `alienColors`,
+which includes `iridescent` alongside the ordinary hues. Pattern is its own field rather than more entries in
 `alienColors` so a naming condition can say "anything striped" (`tiger`)
 or "red and spotted" (`ladybug`) without enumerating every
 color-times-pattern string; `ColorPhrase()` folds the two back together
@@ -273,9 +274,12 @@ The hide/pattern names (`bonehead`, `roach`, `slug`, `toad`, `tiger`,
 🐌 🐸 🐅 🐯 🦓 🐆 🐞 — all single code points with no variation selector.
 `bonehead` deliberately lists only 💀, not ☠️: the crossbones is U+2620 +
 VS16, exactly the width-ambiguous shape the registry exists to keep off the
-grid. When adding a name, register its emoji in `glyphs.go` and in
-`TestCuratedAlienEmojiAreAllRegistered` in the same change, or it silently
-renders as 👽 on the map.
+grid. The same rule pruned the older entries: 🐻‍❄️ (a ZWJ sequence),
+⚫️/🕷️/♟️ (VS16) were dropped or swapped for single-code-point stand-ins
+(⚫ 🌑 🦇), and every remaining emoji in the built-in pool is registered.
+`TestCuratedAlienEmojiAreAllRegistered` reads `internal/sim/alien-names.yaml`
+itself, so adding a name whose emoji isn't in `glyphRegistry` fails the
+build instead of silently rendering as 👽 on the map.
 
 ### Narration
 

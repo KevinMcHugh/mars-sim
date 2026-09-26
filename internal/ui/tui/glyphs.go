@@ -95,6 +95,36 @@ const (
 	glyphZebra        = "\U0001F993" // 🦓 striped, four legs
 	glyphLeopard      = "\U0001F406" // 🐆 spotted
 	glyphLadybug      = "\U0001F41E" // 🐞 red, spotted, chitinous
+	glyphNewMoonFace  = "\U0001F31A" // 🌚
+	glyphPumpkin      = "\U0001F383" // 🎃
+	glyphRabbit       = "\U0001F407" // 🐇
+	glyphDragon       = "\U0001F409" // 🐉
+	glyphCrocodile    = "\U0001F40A" // 🐊
+	glyphHorse        = "\U0001F40E" // 🐎
+	glyphElephant     = "\U0001F418" // 🐘
+	glyphOctopus      = "\U0001F419" // 🐙
+	glyphKoala        = "\U0001F428" // 🐨
+	glyphMouseFace    = "\U0001F42D" // 🐭
+	glyphRabbitFace   = "\U0001F430" // 🐰
+	glyphDragonFace   = "\U0001F432" // 🐲
+	glyphHamster      = "\U0001F439" // 🐹
+	glyphWolf         = "\U0001F43A" // 🐺
+	glyphBear         = "\U0001F43B" // 🐻
+	glyphGhost        = "\U0001F47B" // 👻
+	glyphAngryImp     = "\U0001F47F" // 👿
+	glyphBlueCircle   = "\U0001F535" // 🔵
+	glyphSmilingImp   = "\U0001F608" // 😈
+	glyphUnicorn      = "\U0001F984" // 🦄
+	glyphButterfly    = "\U0001F98B" // 🦋
+	glyphRhino        = "\U0001F98F" // 🦏
+	glyphSquid        = "\U0001F991" // 🦑
+	glyphBadger       = "\U0001F9A1" // 🦡
+	glyphTroll        = "\U0001F9CC" // 🧌
+	glyphTeddyBear    = "\U0001F9F8" // 🧸
+	glyphBlackCircle  = "\U000026AB" // ⚫
+	glyphNewMoon      = "\U0001F311" // 🌑
+	glyphBat          = "\U0001F987" // 🦇
+	glyphPeacock      = "\U0001F99A" // 🦚
 
 	glyphManAdult     = "\U0001F468" // 👨 adult man colonist
 	glyphWomanAdult   = "\U0001F469" // 👩 adult woman colonist
@@ -179,6 +209,36 @@ var glyphRegistry = map[string]glyph{
 	glyphZebra:        {glyphZebra, 2, "Zb"},
 	glyphLeopard:      {glyphLeopard, 2, "Lp"},
 	glyphLadybug:      {glyphLadybug, 2, "Lb"},
+	glyphNewMoonFace:  {glyphNewMoonFace, 2, "Mn"},
+	glyphPumpkin:      {glyphPumpkin, 2, "Pk"},
+	glyphRabbit:       {glyphRabbit, 2, "Rb"},
+	glyphDragon:       {glyphDragon, 2, "Dr"},
+	glyphCrocodile:    {glyphCrocodile, 2, "Cc"},
+	glyphHorse:        {glyphHorse, 2, "Hr"},
+	glyphElephant:     {glyphElephant, 2, "El"},
+	glyphOctopus:      {glyphOctopus, 2, "Oc"},
+	glyphKoala:        {glyphKoala, 2, "Ko"},
+	glyphMouseFace:    {glyphMouseFace, 2, "Ms"},
+	glyphRabbitFace:   {glyphRabbitFace, 2, "Rb"},
+	glyphDragonFace:   {glyphDragonFace, 2, "Dr"},
+	glyphHamster:      {glyphHamster, 2, "Hm"},
+	glyphWolf:         {glyphWolf, 2, "Wf"},
+	glyphBear:         {glyphBear, 2, "Br"},
+	glyphGhost:        {glyphGhost, 2, "Gh"},
+	glyphAngryImp:     {glyphAngryImp, 2, "Im"},
+	glyphBlueCircle:   {glyphBlueCircle, 2, "Bl"},
+	glyphSmilingImp:   {glyphSmilingImp, 2, "Im"},
+	glyphUnicorn:      {glyphUnicorn, 2, "Un"},
+	glyphButterfly:    {glyphButterfly, 2, "Bf"},
+	glyphRhino:        {glyphRhino, 2, "Rh"},
+	glyphSquid:        {glyphSquid, 2, "Sq"},
+	glyphBadger:       {glyphBadger, 2, "Bd"},
+	glyphTroll:        {glyphTroll, 2, "Tl"},
+	glyphTeddyBear:    {glyphTeddyBear, 2, "Tb"},
+	glyphBlackCircle:  {glyphBlackCircle, 2, "Bk"},
+	glyphNewMoon:      {glyphNewMoon, 2, "Nm"},
+	glyphBat:          {glyphBat, 2, "Ba"},
+	glyphPeacock:      {glyphPeacock, 2, "Pc"},
 
 	glyphManAdult:     {glyphManAdult, 2, "M "},
 	glyphWomanAdult:   {glyphWomanAdult, 2, "W "},

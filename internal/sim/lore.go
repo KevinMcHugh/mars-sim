@@ -140,6 +140,7 @@ func (s AlienSkin) String() string {
 // per-color entries in alien-names.yaml).
 var alienColors = [...]string{
 	"red", "orange", "yellow", "green", "blue", "purple", "gray", "black", "white", "pale",
+	"iridescent",
 }
 
 // AlienPattern is how a species' Color is laid over its hide: one solid
@@ -166,16 +167,16 @@ func (p AlienPattern) String() string {
 	}
 }
 
-// rollPattern draws a species' pattern: solid half the time, striped or
-// spotted a quarter each, so a patterned species stays a little special.
+// rollPattern draws a species' pattern: striped and spotted are 5% each and
+// solid is everything else, so a patterned species is a genuine find.
 func rollPattern(rng *rand.Rand) AlienPattern {
-	switch r := rng.Intn(4); {
-	case r < 2:
-		return PatternSolid
-	case r == 2:
+	switch r := rng.Intn(100); {
+	case r < 5:
 		return PatternStriped
-	default:
+	case r < 10:
 		return PatternSpotted
+	default:
+		return PatternSolid
 	}
 }
 

@@ -133,7 +133,7 @@ names:
 
   - name: bear
     plural: bears
-    emoji: ["🐻", "🐻‍❄️","🧸","🐨"]
+    emoji: ["🐻", "🧸", "🐨"]
     when:
       all:
         - skin: furry
@@ -206,7 +206,7 @@ names:
 
   - name: shadow
     plural: shadows
-    emoji: ["⚫️", "🕷️", "♟️"]
+    emoji: ["⚫", "🌑", "🦇"]
     when: { color: black }
 
   - name: bonehead
@@ -276,3 +276,13 @@ names:
         - pattern: spotted
         - skin: chitinous
         - color: red
+
+  - name: shimmer
+    plural: shimmers
+    emoji: ["🦚", "🦋"]
+    when: { color: iridescent }
+
+  - name: opal
+    plural: opals
+    emoji: ["🦚"]
+    when: { color: iridescent }
