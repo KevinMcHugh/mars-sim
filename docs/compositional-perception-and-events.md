@@ -77,6 +77,14 @@ the chunk index (`entityIDsNearSorted`) plus a per-colonist cache: entering
 emits `enter`, staying may emit `ongoing`, leaving emits `exit`, and returning
 enters again.
 
+All entity rules share **one** chunk-index query per colonist, at the widest of
+their radii. Each candidate's noun is checked before anything else, and the
+labelled `Occurrence` is built only when a percept enters; an entity already in
+view reuses the one stored when it entered. The first version ran one query per
+rule and formatted a label for every nearby entity, colonists included, before
+matching. That roughly halved headless throughput at 300 colonists, because
+this runs for every colonist on every tick.
+
 LOS is computed only for a rule that asks for it, and only for in-range
 candidates. If no loaded perception uses LOS, the Bresenham walk never runs.
 
