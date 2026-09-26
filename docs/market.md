@@ -103,10 +103,10 @@ the reference price, as far as the treasury stretches.
   locker, into its pockets, onto the silo's ledger in its own name) and asks
   the reference price.
 - **Hungry colonists buy.** One with no meal of its own or the colony's in
-  reach buys the cheapest meal at the silo or a scumhouse, at up to its
+  reach buys the cheapest meal at the silo, a scumhouse, or a kitchen's pantry, at up to its
   `mealBidLimit` (hunger times the meal's value, capped by its money), before
   it eats gruel. If nothing fills, the bid queues for `demand-ttl` ticks at the
-  nearest scumhouse, as demand the kitchen fills next and the producer planner
+  nearest kitchen's pantry (see [scumhouse.md](./scumhouse.md)), as demand the kitchen fills next and the producer planner
   can answer (see [valuation.md](./valuation.md)).
 
 | Setting | Default |

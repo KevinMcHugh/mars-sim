@@ -418,35 +418,125 @@ func TestPublishedScumIsNeverStale(t *testing.T) {
 	}
 }
 
-// A scumhouse room has an aisle: three tiles wide, the scumhouse in the
-// middle, so its depot is reachable from beside the cook as well as behind.
-// In a cavern too cramped for that, it falls back to the narrow room.
-func TestScumhouseRoomHasAnAisle(t *testing.T) {
-	if got := scumhouseRoom.roomWidth(1); got != 3 {
-		t.Fatalf("scumhouse room is %d wide, want 3", got)
+// A kitchen is laid out as an assembly line: the scumhouse, a gap, and its
+// pantry (with an aisle either side when the site is wide enough), so the
+// stove and the pantry each keep their own access tiles. The planner links
+// the pantry to its scumhouse.
+func TestScumhouseRoomHasALinkedPantry(t *testing.T) {
+	if got := scumhouseRoom.roomWidth(2); got != 5 {
+		t.Fatalf("a full kitchen is %d wide, want 5", got)
 	}
 	cfg := testConfig()
+	cfg.Width, cfg.Height = 80, 50
 	cfg.StartColonists, cfg.StartAliens, cfg.StartCats, cfg.StartRats = 0, 0, 0, 0
 	cfg.InfiniteFood = false
 	w := newTestWorld(t, cfg)
 	w.planRooms()
-	var house Point
-	found := false
+	var house, pantry Point
+	var hasHouse, hasPantry bool
 	for _, p := range w.projects {
 		for _, task := range p.tasks {
-			if task.terrain == Scumhouse {
-				house, found = task.pos, true
+			switch task.terrain {
+			case Scumhouse:
+				house, hasHouse = task.pos, true
+			case Storage:
+				pantry, hasPantry = task.pos, true
 			}
 		}
 	}
-	if !found {
-		t.Fatal("no scumhouse planned")
+	if !hasHouse || !hasPantry {
+		t.Fatalf("kitchen planned with scumhouse %v, pantry %v", hasHouse, hasPantry)
 	}
+	if pantry != house.Add(2, 0) {
+		t.Fatalf("pantry at %v, want two tiles along from the scumhouse at %v", pantry, house)
+	}
+	if w.pantryOf[house] != pantry {
+		t.Fatal("the planner did not link the pantry to its scumhouse")
+	}
+	// Wide or narrow, the tile between the stove and the pantry is floor, so
+	// the pantry has an access tile the cook at the stove never stands on.
+	gap := house.Add(1, 0)
 	for _, p := range w.projects {
 		for _, task := range p.tasks {
-			if task.terrain == Wall && (task.pos == house.Add(-1, 0) || task.pos == house.Add(1, 0)) {
-				t.Fatalf("a wall is planned right beside the scumhouse at %v: no aisle", task.pos)
+			if task.pos == gap && task.terrain != Floor {
+				t.Fatalf("the gap between stove and pantry at %v is planned as %v", gap, task.terrain)
 			}
+		}
+	}
+}
+
+// The assembly line: meals cooked at the stove go into the pantry, and a
+// colonist can reach the pantry while a cook stands at the stove.
+func TestTheCookDoesNotBlockThePantry(t *testing.T) {
+	w := propertyWorld(t)
+	house, pantry := Point{10, 6}, Point{12, 6}
+	w.SetTerrain(house, Scumhouse)
+	w.SetTerrain(pantry, Storage)
+	w.pantryOf[house], w.pantryHouse[pantry] = pantry, house
+	// Walls either side of the stove, as in a narrow room: its one open
+	// access tile below it is where the cook will stand.
+	w.SetTerrain(Point{9, 6}, Wall)
+	w.SetTerrain(Point{9, 7}, Wall)
+	w.SetTerrain(Point{11, 7}, Wall)
+	w.refreshSpatial()
+	c := w.storageContainers[house]
+	c.Inventory.Add(CaveScum, 2)
+	c.credit(Community, CaveScum, 2)
+
+	cook := w.spawn(Colonist, Point{10, 7})
+	if !w.tryAssignCraft(cook) {
+		t.Fatal("no cooking job")
+	}
+	for i := 0; i < 200 && cook.Job == JobCraft; i++ {
+		w.jobCraft(cook)
+	}
+	if got := w.storageContainers[pantry].held(Community, Meal) + w.openQty(Ask, Meal, pantry, Community); got != 1 {
+		t.Fatalf("the pantry holds %d of the colony's meals, want the 1 just cooked", got)
+	}
+	if c.Inventory.Count(Meal) != 0 {
+		t.Fatal("the meal stayed in the stove's depot")
+	}
+	cook.Job = JobCraft // a cook standing at the stove, working the next recipe
+	if _, ok := w.pathToAdjacent(Point{16, 10}, pantry); !ok {
+		t.Fatal("nobody can reach the pantry while the cook stands at the stove")
+	}
+	buyer := w.spawn(Colonist, Point{16, 10})
+	buyer.Needs[NeedFood] = w.cfg.Needs[NeedFood].Max
+	if !w.tryBuyMeal(buyer) || w.storageContainers[pantry].held(ColonistOwner(buyer.ID), Meal) != 1 {
+		t.Fatal("a hungry colonist could not buy the meal at the pantry")
+	}
+	assertMoneyConserved(t, w)
+}
+
+// A narrow silo room is a dead-end corridor, one tile of which reaches the
+// chest. Someone loitering on that tile — eating a meal already in hand,
+// chatting, idle — steps aside for a colonist who needs it, rather than
+// starving the queue behind them.
+func TestLoiterersMakeWayAtADeadEnd(t *testing.T) {
+	for _, loiter := range []string{"eating", "idle"} {
+		w := propertyWorld(t)
+		// Walls either side of a corridor x=10, y=6..9, the chest at its end.
+		for y := 5; y <= 9; y++ {
+			w.SetTerrain(Point{9, y}, Wall)
+			w.SetTerrain(Point{11, y}, Wall)
+		}
+		chest, end := Point{10, 5}, Point{10, 6}
+		w.SetTerrain(chest, Storage)
+		w.refreshSpatial()
+		b := w.spawn(Colonist, end)
+		if loiter == "eating" {
+			b.Job, b.eat, b.Target, b.Progress = JobEat, eatMeal, chest, 0
+		}
+		e := w.spawn(Colonist, Point{10, 12})
+		arrived := false
+		for i := 0; i < 40 && !arrived; i++ {
+			arrived, _ = w.travelTo(e, chest)
+		}
+		if !arrived {
+			t.Fatalf("%s loiterer: the colonist never reached the chest; it is at %v, the loiterer at %v", loiter, e.Pos, b.Pos)
+		}
+		if loiter == "eating" && (b.Job != JobEat || b.eat != eatMeal) {
+			t.Fatal("making way interrupted the loiterer's meal")
 		}
 	}
 }

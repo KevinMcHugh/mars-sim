@@ -81,6 +81,16 @@ clutter to walk past; a colonist, cat, or rat parked in a narrow corridor
 used to wedge a whole queue behind it before this). It replans when the route
 is missing, was for a different goal, ran out, or the terrain changed under it.
 
+Passing through gets a colonist to the end of its route but not onto it. At a
+dead end, such as a narrow room's one-tile corridor to its chest, the end is
+the only tile that reaches the target. So when the landing tile is taken, or
+`pathToAdjacent` finds every access tile occupied, a colonist who is only
+loitering there steps aside (`nudgeLoiterer`, `makeWayAt`): idle, chatting,
+or eating a meal already in hand. Someone working the tile keeps it, and the
+mover waits, giving up after `StuckLimit` as before. Colonists starved single
+file behind a neighbor eating supper in a silo corridor before this (see
+[scumhouse.md](./scumhouse.md)).
+
 `pathToAdjacent` is the entry point. It first rejects unreachable targets with the
 O(1) room check, then chooses a strategy:
 

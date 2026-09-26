@@ -86,8 +86,9 @@ dispatch to the active panel's handler.
   screen is unrelated to the engine's internal `jobBoard`, which tracks the
   mining frontier — see `internal/sim/jobboard.go`.)
 - **Storage** (`renderStorage`): a position-sorted list of built chests with
-  arrow navigation. Its detail pane shows the selected chest's occupied slots,
-  total item count, and 48-slot capacity.
+  arrow navigation. A kitchen's pantry is labelled "pantry" (see
+  [scumhouse.md](./scumhouse.md)). Its detail pane shows the selected chest's
+  occupied slots, total item count, and 48-slot capacity.
 - **Lore** (`renderLore`): world facts the list panel above a species roster
   — map size, how much of it has been explored (`Stats.ExploredTiles`, kept
   incrementally the same way `Stats.FloorDug` is — see

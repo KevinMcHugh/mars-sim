@@ -64,7 +64,7 @@ current recipes are:
 | dormitory | beds/bunks | 1 bed | after the desired pods and toilets exist |
 | trash room | an incinerator | 1 incinerator (and at most 1, via `maxFac`) | last, and only once there is refuse to burn |
 | storage room | one storage container, with an aisle | exactly 1 container via `maxFac` | player-ordered only (and the planner's silo) |
-| scumhouse | one scumhouse, with an aisle | exactly 1 via `maxFac` | first of all with `infinite-food` off (the default); otherwise player-ordered (see [scumhouse.md](./scumhouse.md)) |
+| scumhouse (kitchen) | a scumhouse, a gap, and its pantry chest, with an aisle | 1 scumhouse (the pantry is dropped on a site too small for both) | first of all with `infinite-food` off (the default); otherwise player-ordered (see [scumhouse.md](./scumhouse.md)) |
 | house | a bunk and a toilet | exactly 2 | commissioned by a colonist with `house-savings`, paid from its wallet (see [labor.md](./labor.md)) |
 
 **Aisles.** A one-fixture room is one tile wide, so exactly one tile can reach
@@ -72,8 +72,10 @@ its fixture. That's fine for a pod or a toilet, used in a moment. But a cook
 works a scumhouse for long stretches while others need the same depot to sell,
 buy, or fetch a meal they own. When scarcity went on, colonists starved single
 file behind the cook. So a recipe with `aisle` gets a tile of floor either
-side of its bay (`roomWidth`, `bayOffset`): the scumhouse and the storage room
-(the first is the colony's silo) are three tiles wide. In a cavern with no
+side of its bay (`roomWidth`, `bayOffset`): the storage room (the first is the
+colony's silo) is three tiles wide and a full kitchen, stove and pantry, is
+five. A kitchen's pantry is linked to its scumhouse as the room is marked out
+(`linkPantry`, see [scumhouse.md](./scumhouse.md)). In a cavern with no
 site that wide, `planRoomFor` falls back to the narrow room: a scumhouse one
 tile can reach beats none. That fallback is for the colony's first scumhouse
 only. Later ones set `aisleRequired` and wait for a wide site: a colony's

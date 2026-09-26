@@ -159,16 +159,17 @@ func (w *World) refreshSiloStock() {
 	if want <= 0 {
 		return
 	}
-	houses := make([]Point, 0, len(w.facilityTiles[Scumhouse]))
-	for p := range w.facilityTiles[Scumhouse] {
-		houses = append(houses, p)
-	}
-	sort.Slice(houses, func(i, j int) bool {
-		di, dj := houses[i].Chebyshev(silo), houses[j].Chebyshev(silo)
-		if di != dj {
-			return di < dj
+	// Meals come from every kitchen: its pantry, and its stove's own depot
+	// (a kitchen without a pantry, or meals cooked before it had one).
+	var houses []Point
+	for _, h := range w.scumhousesSorted() {
+		houses = append(houses, h)
+		if p, ok := w.pantryFor(h); ok {
+			houses = append(houses, p)
 		}
-		return lessPoint(houses[i], houses[j])
+	}
+	sort.SliceStable(houses, func(i, j int) bool {
+		return houses[i].Chebyshev(silo) < houses[j].Chebyshev(silo)
 	})
 	for _, h := range houses {
 		c := w.storageContainers[h]

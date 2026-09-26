@@ -331,8 +331,8 @@ func (w *World) marketDepot() (Point, bool) {
 	var best Point
 	bestDist, found := 1<<30, false
 	for p, c := range w.storageContainers {
-		if c.Terrain != Storage || !w.communalFixture(p) {
-			continue
+		if c.Terrain != Storage || !w.communalFixture(p) || w.isPantry(p) {
+			continue // a pantry is a kitchen's, for meals: not the silo
 		}
 		d := center.Chebyshev(p)
 		if !found || d < bestDist || (d == bestDist && lessPoint(p, best)) {
@@ -459,12 +459,8 @@ func (w *World) tryBuyMeal(e *Entity) bool {
 	}
 	room := w.roomOf(e.Pos)
 	silo, hasSilo := w.marketDepot()
-	depots := w.scumhousesSorted()
-	if hasSilo {
-		depots = append(depots, silo)
-	}
 	var best *Order
-	for _, p := range depots {
+	for _, p := range w.mealDepots() {
 		ask, ok := w.bestAsk(Meal, p)
 		if !ok || ask.Actor == me || ask.Price > limit || !w.canUseFixture(e, p) || !w.taskReachable(p, room) {
 			continue
@@ -490,6 +486,9 @@ func (w *World) tryBuyMeal(e *Entity) bool {
 		return false
 	}
 	queue, ok := w.nearestScumhouse(e, nil)
+	if ok {
+		queue = w.outputDepot(queue) // at the pantry, where the meals come out
+	}
 	if !ok && hasSilo && w.canUseFixture(e, silo) && w.taskReachable(silo, room) {
 		queue, ok = silo, true
 	}

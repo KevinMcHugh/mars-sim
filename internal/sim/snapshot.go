@@ -88,7 +88,8 @@ type ProjectView struct {
 // StorageView is an immutable copy of one placed container and its contents.
 type StorageView struct {
 	Pos       Point
-	Terrain   Terrain // Storage (a chest or locker) or Scumhouse
+	Terrain   Terrain // Storage (a chest, locker, or pantry) or Scumhouse
+	Pantry    bool    // a kitchen's pantry: the chest its scumhouse cooks into
 	Inventory StorageInventory
 	// Ledger is whose the contents are, sorted by owner then item. A copy:
 	// safe to read. See docs/property.md.
@@ -567,6 +568,7 @@ func (w *World) snapshotStorages() []StorageView {
 		storages = append(storages, StorageView{
 			Pos:       container.Pos,
 			Terrain:   container.Terrain,
+			Pantry:    w.isPantry(container.Pos),
 			Inventory: container.Inventory,
 			Ledger:    append([]LedgerLine(nil), container.Ledger...),
 		})

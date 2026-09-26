@@ -714,8 +714,13 @@ type World struct {
 	popEvery int
 	// mealFetches counts, per depot, the colonists on their way to take a
 	// meal out of it this tick (memoized; see mealFetchesAt).
-	mealFetches     map[Point]int
-	mealFetchTick   int
+	mealFetches   map[Point]int
+	mealFetchTick int
+	// pantryOf links each scumhouse to its pantry, and pantryHouse the other
+	// way (see linkPantry). Set when a kitchen is marked out; lookups check
+	// the chest is actually built.
+	pantryOf        map[Point]Point
+	pantryHouse     map[Point]Point
 	candidatesCache []*Order
 
 	// colonistNames indexes every living colonist's full name, so generation can
@@ -793,6 +798,8 @@ func newWorld(cfg Config, rng *rand.Rand) *World {
 		books:             make(map[bookKey]*book),
 		plans:             make(map[planID]*plan),
 		haulClaims:        make(map[OrderID]EntityID),
+		pantryOf:          make(map[Point]Point),
+		pantryHouse:       make(map[Point]Point),
 		candidatesTick:    -1,
 		kin:               make(map[kinID]*kinPerson),
 		nextKinID:         1,

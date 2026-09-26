@@ -387,16 +387,17 @@ func (w *World) advancePlan(e *Entity, p *plan) bool {
 			return true
 		}
 		if p.crafted {
-			n := min(p.qty, c.held(me, p.item))
+			from := w.outputDepot(p.workshop) // a kitchen's pantry, or the depot itself
+			n := min(p.qty, w.storageContainers[from].held(me, p.item))
 			if n <= 0 {
 				w.dropPlan(p)
 				return false
 			}
-			w.assignCarry(e, p, p.workshop, carryFetch, n)
+			w.assignCarry(e, p, from, carryFetch, n)
 			return true
 		}
 		r := recipes[p.recipe]
-		if id := w.workshopClaims[p.workshop]; (id != 0 && id != e.ID) || !craftable(c, r, me) {
+		if id := w.workshopClaims[p.workshop]; (id != 0 && id != e.ID) || !w.canCraft(c, r, me) {
 			return false // waiting on inputs, or on the cook ahead of it
 		}
 		w.workshopClaims[p.workshop] = e.ID

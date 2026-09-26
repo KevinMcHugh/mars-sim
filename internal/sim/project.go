@@ -352,14 +352,19 @@ var (
 		name: "storage room", kinds: []Terrain{Storage}, minFac: 1, maxFac: 1, aisle: true,
 		planLog: "The colony marks out a new storage room.",
 	}
-	// scumhouseRoom walls in one scumhouse. One serves a colony: its depot
-	// holds six inventories of biomatter and meals, and cooks queue for it
-	// one at a time. The planner wants one only when food is not free (see
-	// planRooms); otherwise it is player-ordered. It has an aisle, so the
-	// depot stays reachable while a cook works (see roomRecipe.aisle); so
-	// does a storage room, since the first is the colony's silo.
+	// scumhouseRoom is a kitchen laid out as an assembly line: the scumhouse
+	// (the stove, whose depot holds the inputs) and, two tiles along, a
+	// pantry — a chest the cooked meals go straight into, where they are
+	// sold and fetched. Cooking and collecting use different fixtures with
+	// their own access tiles, so a cook at the stove never stands between a
+	// hungry colonist and its meal. A cramped site may leave room for the
+	// stove alone; then meals stay in its depot, as before pantries. The
+	// planner wants one per colonists-per-scumhouse when food is not free
+	// (see planRooms); otherwise it is player-ordered. It has an aisle (see
+	// roomRecipe.aisle), as does a storage room, since the first is the
+	// colony's silo. See docs/scumhouse.md.
 	scumhouseRoom = roomRecipe{
-		name: "scumhouse", kinds: []Terrain{Scumhouse}, minFac: 1, maxFac: 1, aisle: true,
+		name: "scumhouse", kinds: []Terrain{Scumhouse, Storage}, minFac: 1, maxFac: 2, aisle: true,
 		planLog: "The colony marks out a scumhouse.",
 	}
 )
@@ -617,6 +622,9 @@ func (w *World) designateRoom(r roomRecipe, o Point, n int, issuer Owner) bool {
 	// invariant never anticipated. See roomSiteClear.
 	w.doorTiles[Point{doorX, frontY + roomApproach}] = true
 	w.projects = append(w.projects, p)
+	if r.name == scumhouseRoom.name {
+		w.linkPantry(p)
+	}
 	w.log.add(r.planLog)
 	return true
 }

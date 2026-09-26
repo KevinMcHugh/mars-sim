@@ -1042,7 +1042,7 @@ func (w *World) nearestStorage(e *Entity, stacks []ItemStack, withSilo bool) (Po
 	bestDist := 1 << 30
 	found := false
 	for p, container := range w.storageContainers {
-		if container.Terrain != Storage || (hasSilo && p == silo && !withSilo) || !w.canUseFixture(e, p) ||
+		if container.Terrain != Storage || (hasSilo && p == silo && !withSilo) || w.isPantry(p) || !w.canUseFixture(e, p) ||
 			!container.Inventory.CanAddAll(stacks...) || !w.taskReachable(p, room) {
 			continue
 		}
@@ -1555,6 +1555,10 @@ func (w *World) travelTo(e *Entity, target Point) (arrived, ok bool) {
 		route, found := w.pathToAdjacent(e.Pos, target)
 		if !found {
 			e.clearPath()
+			if w.makeWayAt(e, target) && e.stuck < w.cfg.StuckLimit {
+				e.stuck++ // a loiterer is stepping off; plan again next tick
+				return false, true
+			}
 			return false, false
 		}
 		e.path, e.pathAt, e.pathGoal, e.stuck = route, 0, target, 0
@@ -1585,6 +1589,7 @@ func (w *World) travelTo(e *Entity, target Point) (arrived, ok bool) {
 		landing++
 	}
 	if landing == len(e.path) {
+		w.nudgeLoiterer(e, e.path[len(e.path)-1])
 		e.stuck++
 		if e.stuck > w.cfg.StuckLimit {
 			e.clearPath()
@@ -1596,6 +1601,49 @@ func (w *World) travelTo(e *Entity, target Point) (arrived, ok bool) {
 	e.pathAt = landing + 1
 	e.stuck = 0
 	return e.Pos.Adjacent(target), true
+}
+
+// nudgeLoiterer asks whoever stands on end — the last tile of e's route, the
+// one it must land on to arrive — to step aside, if they are only loitering
+// there: idle, chatting, or eating a meal already in hand. Passing through a
+// crowd (see travelTo) gets a colonist to the end of its route but not onto
+// it, and in a dead-end corridor, like a narrow silo room's, the end is the
+// only tile that reaches the depot: a colonist eating its supper on it
+// starved the queue behind it, three tiles from meals they had paid for.
+// Anyone working the tile (a builder, a cook, someone fetching) keeps it.
+// It reports whether anyone moved.
+func (w *World) nudgeLoiterer(e *Entity, end Point) bool {
+	b := w.entityAt(end)
+	if b == nil || b.ID == e.ID || b.Kind != Colonist {
+		return false
+	}
+	switch {
+	case b.Job == JobNone, b.Job == JobTalk, b.Job == JobEat && b.eat == eatMeal:
+	default:
+		return false
+	}
+	if b.Job == JobTalk {
+		if p, ok := w.talkPartner(b); ok {
+			w.clearJob(p)
+		}
+		w.clearJob(b)
+	}
+	return w.stepAside(b)
+}
+
+// makeWayAt nudges a loiterer off one of target's access tiles when every one
+// is taken — pathToAdjacent will not plan to an occupied tile at all, so
+// without this a colonist bound for a one-access depot gave up the trip
+// outright. Neighbors are tried in a fixed order, and only one moves.
+func (w *World) makeWayAt(e *Entity, target Point) bool {
+	room := w.roomOf(e.Pos)
+	for _, d := range neighbors8 {
+		n := target.Add(d.X, d.Y)
+		if w.Walkable(n) && w.roomOf(n) == room && w.nudgeLoiterer(e, n) {
+			return true
+		}
+	}
+	return false
 }
 
 // findBuildSpot returns the nearest open Floor tile that sits against Rock or

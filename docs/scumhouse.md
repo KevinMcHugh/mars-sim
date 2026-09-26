@@ -44,8 +44,7 @@ meals. Nothing it cooks is free for the taking. This is phase **E3** of the
 It is not a chest, though — `chooseStorage` only unloads general materials into
 `Storage` containers — and it is communal, owned by the colony.
 
-The planner builds one in a walled room (`scumhouseRoom`, one scumhouse, with
-an aisle so the depot stays reachable while a cook works — see
+The planner builds one in a walled room, a **kitchen** (`scumhouseRoom`, see
 [construction.md](./construction.md)):
 
 - with `infinite-food` off (the default), **first**, before any other room —
@@ -53,6 +52,34 @@ an aisle so the depot stays reachable while a cook works — see
   the time. If the treasury can't fund it, it is marked out anyway as unpaid
   community work;
 - otherwise only when ordered (`b` then `h` in the TUI, `OrderScumhouse`).
+
+### The kitchen is an assembly line
+
+A kitchen is two fixtures a tile apart: the scumhouse (the stove, whose depot
+holds the inputs) and a **pantry**, an ordinary `Storage` chest. Meals cooked
+at the stove go straight into the pantry (`outputDepot`); every sale, queued
+bid, and meal fetch happens there. The cook stands at the stove, so it never
+stands between a hungry colonist and a meal.
+
+`designateRoom` records the link when it marks the room out (`linkPantry`, in
+`pantryOf` and `pantryHouse`), rather than inferring it later from which chest
+is nearest: a silo or a locker could sit just as close. `pantryFor` checks the
+chest is still there, and a scumhouse without one (a narrow one-fixture room,
+or a pantry not yet built) keeps its meals in its own depot as before. A pantry
+is a meal shelf and nothing else. `nearestStorage` and `marketDepot` skip it,
+so ore is never unloaded there and it is never chosen as the silo. The TUI
+labels it "pantry". `mealDepots` lists every place a meal can be: scumhouses,
+their pantries, then the silo.
+
+Before the pantry, meals stayed in the stove's own depot, and a cook at work
+held a tile next to the depot everyone needed. The answer then was an aisle
+and a rule that cooks give way (see below). Both are still there, but the
+pantry is the fix: the stove and the shelf have separate access tiles.
+
+A colonist cooking its own supper while hungry (`cooksOwnSupper`: its own
+inputs, food pressing, room in its pockets) keeps one meal in hand instead
+of walking round to the pantry for it. Without that, the extra walk starved a
+penniless colonist on a small map.
 
 ### Recipes
 
@@ -131,15 +158,15 @@ In the market's upkeep, the colony:
   $5 meal, four meals from an alien carcass.
 - **Sells**: every meal the colony holds, at each scumhouse and at the silo,
   at `price-meal`, less any that a haul order is about to take to the silo.
-  A cook's meal goes on sale the moment it is made (`offerColonyMeals`, from
-  `jobCraft`), and `refreshColonyMealAsks` sweeps up the rest each upkeep. The
+  A cook's meal goes on sale in the pantry the moment it is made
+  (`offerColonyMeals`, from `jobCraft`), and `refreshColonyMealAsks` sweeps up the rest each upkeep. The
   haul order withdraws the asks it needs first, since goods on offer are
   locked in escrow.
 
 A hungry colonist buys from whichever reachable depot has the cheapest meal it
 will pay for (`tryBuyMeal`). If none is on sale, its bid **queues at the
-nearest scumhouse**, so the next meal cooked there fills it at once, in bid
-order. A meal on offer still counts toward the colony's
+nearest kitchen's pantry**, so the next meal cooked there fills it at once, in
+bid order. A meal on offer still counts toward the colony's
 `meal-reserve` (`communityMeals`), so the colony doesn't keep cooking what
 it has on the shelf.
 
@@ -158,7 +185,21 @@ Later ones are ordinary public works that need an aisle
   meals it can eat or sell.
 - **Cooks give way.** A cook doesn't start a recipe at a workshop someone is
   on their way to fetch a meal from (`mealFetchesAt`), so it steps off the
-  counter instead of holding the only access tile.
+  counter instead of holding the only access tile. With a pantry, nobody
+  fetches from the stove, so this matters only for a kitchen without one.
+- **Loiterers make way.** Someone idle, chatting, or eating a meal already in
+  hand, on the one tile that reaches a depot, steps aside for a colonist who
+  needs it (`nudgeLoiterer`, `makeWayAt`, from `travelTo`). A narrow silo
+  room is a dead-end corridor one tile wide. Colonists fetched a meal there,
+  stepped a tile back and ate it in the corridor, and the queue behind them
+  starved with meals they had paid for three tiles away. Anyone working the
+  tile, like a cook or a builder, keeps it.
+
+  Treating chests and scumhouses as facility access tiles, where nobody idles
+  (`onFacilityAccess`), looked like the obvious fix and made things far worse:
+  161 starved across the sweep instead of 2. `stepAside` and the chat-partner
+  search avoid those tiles too, and every crash-pod row has a locker chest, so
+  idle colonists ran out of places to stand.
 
 With 40 colonists, a colony that kept one scumhouse lost 16 to 22 people to
 starvation by tick 8000. That wasn't for lack of food: over a thousand units
@@ -167,7 +208,9 @@ came out one at a time. Starving colonists had money and a price they would
 pay; there was just never a meal on the counter when they looked, and their
 standing bids were queued at the silo, not the kitchen. Across 10 seeds each
 at 6, 20, and 40 colonists (10000 ticks, defaults), one colonist starved after
-these changes, and that one was cornered by an alien.
+these changes, and that one was cornered by an alien. After the pantry and
+loiterers making way, across 11 seeds at each size, one of 726 starved, again
+while fleeing an alien.
 
 This replaced a delivery bounty (a work order paid per unit brought in, with
 the colony owning the result either way). Buying goods is the plan's own

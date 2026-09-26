@@ -227,13 +227,18 @@ func (w *World) nearestScumhouse(e *Entity, ok func(*StorageContainer) bool) (Po
 	return best, found
 }
 
-// craftable reports whether owner has the inputs for r in c, and the outputs
-// would fit once those inputs are gone.
-func craftable(c *StorageContainer, r Recipe, owner Owner) bool {
+// canCraft reports whether owner has the inputs for r in the workshop depot
+// c, and the outputs would fit where they go: the workshop's pantry if it has
+// one, else c itself once the inputs are gone. A stove whose depot is full of
+// scum can still cook into an empty pantry.
+func (w *World) canCraft(c *StorageContainer, r Recipe, owner Owner) bool {
 	for _, in := range r.Inputs {
 		if c.held(owner, in.Kind) < in.Count {
 			return false
 		}
+	}
+	if out := w.outputDepot(c.Pos); out != c.Pos {
+		return w.storageContainers[out].Inventory.CanAddAll(r.Outputs...)
 	}
 	after := c.Inventory
 	for _, in := range r.Inputs {
@@ -263,13 +268,13 @@ func (w *World) tryAssignCraftFor(e *Entity, owners []Owner) bool {
 		if w.mealFetchesAt(c.Pos) > 0 {
 			return false // someone is coming for a meal: don't stand on the counter
 		}
-		_, _, ok := craftableRecipe(c, owners)
+		_, _, ok := w.craftableRecipe(c, owners)
 		return ok
 	})
 	if !ok {
 		return false
 	}
-	recipe, owner, _ := craftableRecipe(w.storageContainers[p], owners)
+	recipe, owner, _ := w.craftableRecipe(w.storageContainers[p], owners)
 	w.workshopClaims[p] = e.ID
 	e.Job, e.Target, e.Progress = JobCraft, p, 0
 	e.recipe, e.craftFor = recipe, owner
@@ -278,13 +283,13 @@ func (w *World) tryAssignCraftFor(e *Entity, owners []Owner) bool {
 
 // craftableRecipe is the first recipe (in table order) that c can work for
 // one of owners (in preference order), if any.
-func craftableRecipe(c *StorageContainer, owners []Owner) (int, Owner, bool) {
+func (w *World) craftableRecipe(c *StorageContainer, owners []Owner) (int, Owner, bool) {
 	for i, r := range recipes {
 		if r.Facility != c.Terrain {
 			continue
 		}
 		for _, o := range owners {
-			if craftable(c, r, o) {
+			if w.canCraft(c, r, o) {
 				return i, o, true
 			}
 		}
@@ -296,7 +301,7 @@ func craftableRecipe(c *StorageContainer, owners []Owner) (int, Owner, bool) {
 func (w *World) jobCraft(e *Entity) {
 	c := w.storageContainers[e.Target]
 	r := recipes[e.recipe]
-	if c == nil || !craftable(c, r, e.craftFor) {
+	if c == nil || !w.canCraft(c, r, e.craftFor) {
 		w.clearJob(e) // somebody used the inputs, or the workshop is gone
 		return
 	}
@@ -317,16 +322,26 @@ func (w *World) jobCraft(e *Entity) {
 	for _, in := range r.Inputs {
 		c.debit(e.craftFor, in.Kind, in.Count)
 	}
-	c.Inventory.AddAll(r.Outputs...)
-	for _, out := range r.Outputs {
-		c.credit(e.craftFor, out.Kind, out.Count)
+	// Down the line: the output goes straight into the pantry, if the
+	// kitchen has one, or back into the stove's own depot if not.
+	out := w.storageContainers[w.outputDepot(e.Target)]
+	outputs := r.Outputs
+	if w.cooksOwnSupper(e, r) {
+		// A hungry colonist cooking its own food keeps one meal in hand to
+		// eat at the stove, rather than walking to the pantry for it.
+		e.Inventory.Add(Meal, 1)
+		outputs = withoutOneMeal(outputs)
+	}
+	out.Inventory.AddAll(outputs...)
+	for _, o := range outputs {
+		out.credit(e.craftFor, o.Kind, o.Count)
 	}
 	w.remember(e, event(EvtMadeSlurry, "Worked the scumhouse: %s.", r.Name))
 	if e.craftFor == Community {
 		if w.cfg.WageCook > 0 {
 			w.transfer(Community, ColonistOwner(e.ID), Money(w.cfg.WageCook)) // as far as the treasury goes
 		}
-		w.offerColonyMeals(e.Target) // straight onto the counter: a waiting bid takes it now
+		w.offerColonyMeals(out.Pos) // straight onto the counter: a waiting bid takes it now
 	}
 	if p := w.plans[e.plan]; p != nil && p.kind == planCraft && p.workshop == e.Target {
 		p.crafted = true
@@ -670,11 +685,7 @@ func (w *World) refreshColonyMealAsks() {
 	if price <= 0 {
 		return
 	}
-	depots := w.scumhousesSorted()
-	if silo, ok := w.marketDepot(); ok {
-		depots = append(depots, silo)
-	}
-	for _, p := range depots {
+	for _, p := range w.mealDepots() {
 		w.offerColonyMeals(p)
 	}
 }
@@ -723,4 +734,107 @@ func (w *World) mealFetchesAt(p Point) int {
 		w.mealFetchTick = w.tick
 	}
 	return w.mealFetches[p]
+}
+
+// ---- Pantries ---------------------------------------------------------------------
+//
+// A kitchen is an assembly line: the scumhouse cooks, and a pantry beside it
+// — an ordinary chest the room planner links to it (linkPantry) — takes the
+// meals. Selling and fetching meals happen at the pantry, so they never
+// compete with the cook for the stove's access tiles. A scumhouse without a
+// pantry (a cramped first kitchen, or one built before pantries) keeps its
+// meals in its own depot. See docs/scumhouse.md.
+
+// linkPantry records which chest of a newly designated scumhouse room is its
+// pantry. The link is made when the room is marked out, where both positions
+// are known, rather than guessed later from what stands near what.
+func (w *World) linkPantry(p *project) {
+	var house, pantry Point
+	var hasHouse, hasPantry bool
+	for _, t := range p.tasks {
+		switch t.terrain {
+		case Scumhouse:
+			house, hasHouse = t.pos, true
+		case Storage:
+			pantry, hasPantry = t.pos, true
+		}
+	}
+	if hasHouse && hasPantry {
+		w.pantryOf[house] = pantry
+		w.pantryHouse[pantry] = house
+	}
+}
+
+// pantryFor is the built pantry of the scumhouse at house, if it has one.
+func (w *World) pantryFor(house Point) (Point, bool) {
+	p, ok := w.pantryOf[house]
+	if !ok || w.TerrainAt(p) != Storage || w.storageContainers[p] == nil {
+		return Point{}, false
+	}
+	return p, true
+}
+
+// isPantry reports whether the chest at p is some kitchen's pantry. A pantry
+// is for meals: it is not the silo, and nobody unloads ore into it.
+func (w *World) isPantry(p Point) bool {
+	_, ok := w.pantryHouse[p]
+	return ok && w.TerrainAt(p) == Storage
+}
+
+// outputDepot is where the scumhouse at house puts what it cooks: its
+// pantry, or its own depot if it has none.
+func (w *World) outputDepot(house Point) Point {
+	if p, ok := w.pantryFor(house); ok {
+		return p
+	}
+	return house
+}
+
+// mealDepots is every depot the colony sells its meals from: each scumhouse,
+// each pantry, and the silo, in a fixed order.
+func (w *World) mealDepots() []Point {
+	var out []Point
+	for _, h := range w.scumhousesSorted() {
+		out = append(out, h)
+		if p, ok := w.pantryFor(h); ok {
+			out = append(out, p)
+		}
+	}
+	if silo, ok := w.marketDepot(); ok {
+		out = append(out, silo)
+	}
+	return out
+}
+
+// cooksOwnSupper reports whether e, cooking r, is a hungry colonist cooking
+// its own food with room in its pockets for a meal of the output.
+func (w *World) cooksOwnSupper(e *Entity, r Recipe) bool {
+	if e.craftFor != ColonistOwner(e.ID) || !e.Inventory.CanAdd(Meal, 1) {
+		return false
+	}
+	if phase := e.needPhase[NeedFood]; phase != NeedPressing && phase != NeedCritical {
+		return false
+	}
+	for _, o := range r.Outputs {
+		if o.Kind == Meal && o.Count > 0 {
+			return true
+		}
+	}
+	return false
+}
+
+// withoutOneMeal is outputs less one meal.
+func withoutOneMeal(outputs []ItemStack) []ItemStack {
+	out := make([]ItemStack, 0, len(outputs))
+	taken := false
+	for _, o := range outputs {
+		if !taken && o.Kind == Meal && o.Count > 0 {
+			taken = true
+			if o.Count--; o.Count == 0 {
+				continue
+			}
+		}
+		out = append(out, o)
+	}
+	return out
 }
