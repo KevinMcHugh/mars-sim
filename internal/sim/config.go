@@ -46,7 +46,7 @@ type Config struct {
 	// fresh time-based seed" (see configfile.go and main.go).
 	Seed int64
 
-	// Schedules is the director's script: major scripted occurrences (a mouse
+	// Schedules is the director's script: major scripted occurrences (a rat
 	// plague, an alien swarm, a supply drop) each armed for a tick window.
 	// Deliberately untagged like Seed: it is not a scalar tunable the `cfg`
 	// reflection can drive a flag or template line from, and its meaningful
@@ -60,13 +60,7 @@ type Config struct {
 	StartColonists int `cfg:"colonists" sec:"Starting population" doc:"starting number of colonists"`
 	StartAliens    int `cfg:"aliens" doc:"starting number of aliens"`
 	StartCats      int `cfg:"cats" doc:"starting number of cats"`
-	StartMice      int `cfg:"mice" doc:"starting number of mice"`
-
-	// Starting equipment. The colony ship arrives with a handful of firearms
-	// for defense against aliens; worldgen hands them out to distinct
-	// colonists (see generate in worldgen.go).
-	StartPistols  int `cfg:"pistols" doc:"pistols the colony ship arrives with"`
-	StartShotguns int `cfg:"shotguns" doc:"shotguns the colony ship arrives with"`
+	StartRats      int `cfg:"rats" doc:"starting number of rats"`
 
 	// GraveyardSize is how many recent deaths (any kind) are kept in the
 	// bounded graveyard feed used for the roster's "dead" filter on
@@ -75,6 +69,116 @@ type Config struct {
 	// unbounded and always kept regardless of this setting. See
 	// docs/combat.md.
 	GraveyardSize int `cfg:"graveyard-size" doc:"recent deaths kept for the roster's dead filter (0 disables)"`
+
+	// Money. The colony's supply of dollars is fixed: the founding grant seeds
+	// the community treasury once, at world creation, and every colonist mints
+	// a purse when it arrives (CrashPodPurse, below). Nothing else creates or
+	// destroys money yet. Money settings are int64 rather than Money because
+	// the flag binder only knows the three scalar kinds (see bindConfigFlags
+	// in main.go). See docs/money.md.
+	FoundingGrant int64 `cfg:"founding-grant" sec:"Economy" doc:"dollars the colony treasury starts with"`
+	// InfiniteFood is the safety net: nutrient pods make meals out of nothing.
+	// Off (the default since economy phase E8), a pod serves nothing and the
+	// colony eats only what it landed with and what it produces. On is for
+	// tests and balancing. See docs/food.md.
+	InfiniteFood bool `cfg:"infinite-food" doc:"nutrient pods make free meals out of nothing (the safety net)"`
+
+	// Food production. Cave scum is a biofilm on cave surfaces, the renewable
+	// base of the food chain: ScumPercent of rock tiles carry a patch of up to
+	// ScumMax units, and a scraped patch regrows one unit every
+	// ScumRegrowTicks. A scumhouse turns scum and every other kind of
+	// biomatter into meals by the recipes in scumhouse.go. The colony makes
+	// food while it holds fewer than MealReserve meals per colonist. See
+	// docs/scumhouse.md.
+	ScumPercent     int `cfg:"scum-percent" sec:"Food production" doc:"percent of rock tiles carrying a patch of cave scum"`
+	ScumMax         int `cfg:"scum-max" doc:"units of scum a full patch holds"`
+	ScumRegrowTicks int `cfg:"scum-regrow-ticks" doc:"ticks for a scraped patch to regrow one unit of scum"`
+	ScrapeTicks     int `cfg:"scrape-ticks" doc:"ticks of work to scrape one unit of scum off a patch"`
+	MealReserve     int `cfg:"meal-reserve" doc:"the colony makes food while it holds fewer meals than this per colonist"`
+	// ConstructionCosts makes building consume materials: raw rock, and ore
+	// for machines (see constructionCost), paid from the stock of whoever pays
+	// for the work, then the builder's. On by default since economy phase E8;
+	// off, building is free. See docs/construction.md.
+	ConstructionCosts bool `cfg:"construction-costs" doc:"building consumes materials, from the payer's stock first, then the builder's"`
+
+	// Market. Reference prices are the colony charter's price list: what the
+	// colony bids for ore at its silo (paid prospecting) and what a colonist
+	// asks for a surplus meal. 0 means not traded at a reference price. The
+	// colony keeps SiloBidQty units of standing bids per ore; a colonist
+	// keeps MealKeep of its own meals and takes the rest to market; a hungry
+	// colonist pays up to MealWillingness times the meal price. See
+	// docs/market.md.
+	PriceMeal       int64 `cfg:"price-meal" sec:"Market" doc:"reference price of a meal, in dollars"`
+	PriceRawRock    int64 `cfg:"price-raw-rock" doc:"what the colony pays for raw rock at its silo (0: it buys none)"`
+	PriceIronOre    int64 `cfg:"price-iron-ore" doc:"what the colony pays for iron ore at its silo"`
+	PriceWaterIce   int64 `cfg:"price-water-ice" doc:"what the colony pays for water ice at its silo"`
+	PriceUraniumOre int64 `cfg:"price-uranium-ore" doc:"what the colony pays for uranium ore at its silo"`
+	PriceClay       int64 `cfg:"price-clay" doc:"what the colony pays for clay at its silo"`
+	SiloBidQty      int   `cfg:"silo-bid-qty" doc:"units of each ore the colony keeps a standing bid for at its silo"`
+	OrderTTL        int   `cfg:"order-ttl" doc:"ticks a colonist's resting order lives before it expires"`
+	MealKeep        int   `cfg:"meal-keep" doc:"meals a colonist keeps for itself before it takes the rest to market"`
+	MealWillingness int   `cfg:"meal-willingness" doc:"a hungry colonist pays up to this many times the meal price"`
+
+	// Valuation and the producer planner. A colonist values its own time at
+	// LaborPrice dollars per 100 ticks of work, and takes on a plan only if it
+	// clears PlanMinProfit after inputs and labor. It considers the
+	// PlanCandidates best bids it could fill. A hungry colonist's unfilled bid
+	// for a meal rests for DemandTTL ticks; a plan that has not delivered in
+	// PlanTTL ticks is dropped, its derived bids with it. See
+	// docs/valuation.md.
+	LaborPrice     int64 `cfg:"labor-price" sec:"Valuation" doc:"what a colonist reckons 100 ticks of its own work are worth, in dollars"`
+	PlanMinProfit  int64 `cfg:"plan-min-profit" doc:"the least profit, in dollars, that makes a production plan worth taking on"`
+	PlanCandidates int   `cfg:"plan-candidates" doc:"how many of the best open bids a colonist's producer planner considers"`
+	PlanTTL        int   `cfg:"plan-ttl" doc:"ticks a production plan may take before it is dropped with its derived bids"`
+	DemandTTL      int   `cfg:"demand-ttl" doc:"ticks a hungry colonist's unfilled bid for a meal rests in the book"`
+
+	// The colony buys biomatter at its scumhouses: it keeps ScumhouseBidQty
+	// units of standing bids per kind at each, at these prices, and sells the
+	// meals it cooks at price-meal. See docs/scumhouse.md.
+	PriceCaveScum     int64 `cfg:"price-cave-scum" doc:"what the colony pays for a unit of cave scum at its scumhouses"`
+	PriceViscera      int64 `cfg:"price-viscera" doc:"what the colony pays for a unit of viscera at its scumhouses"`
+	PriceAnimalCorpse int64 `cfg:"price-animal-corpse" doc:"what the colony pays for an animal carcass at its scumhouses"`
+	PriceAlienCorpse  int64 `cfg:"price-alien-corpse" doc:"what the colony pays for an alien carcass at its scumhouses"`
+	ScumhouseBidQty   int   `cfg:"scumhouse-bid-qty" doc:"units of each kind of biomatter the colony keeps a standing bid for at each scumhouse"`
+	// The colony stops buying a kind of biomatter at a scumhouse once it holds
+	// ScumhouseStockCap units of it there — more than its cooks can get
+	// through soon is money spent on a pile — and plans a scumhouse for
+	// every ColonistsPerScumhouse colonists, since one cook works one at a
+	// time. See docs/scumhouse.md.
+	ScumhouseStockCap     int `cfg:"scumhouse-stock-cap" doc:"units of each kind of biomatter the colony holds at a scumhouse before it stops buying more"`
+	ColonistsPerScumhouse int `cfg:"colonists-per-scumhouse" doc:"the colony plans another scumhouse for each this many colonists"`
+
+	// Hauling and the colony as seller. With ColonySells, the colony offers
+	// what it bought at its silo beyond ColonyStockReserve units of each good
+	// (kept for public works), at ColonyMarkup percent over the reference
+	// price. It keeps SiloMealStock of its meals at the silo, paying HaulPay
+	// a unit to have them hauled in from its scumhouses. See docs/hauling.md.
+	ColonySells        bool  `cfg:"colony-sells" sec:"Hauling" doc:"the colony sells the goods it bought, beyond its reserve, at its silo"`
+	ColonyMarkup       int   `cfg:"colony-markup" doc:"percent over the reference price the colony asks for what it sells"`
+	ColonyStockReserve int   `cfg:"colony-stock-reserve" doc:"units of each good the colony keeps back from sale for public works"`
+	SiloMealStock      int   `cfg:"silo-meal-stock" doc:"meals the colony keeps at its silo, hauled in for hire from its scumhouses"`
+	HaulPay            int64 `cfg:"haul-pay" doc:"what the colony pays per unit hauled to its silo"`
+
+	// Labor. The colony pays for its public works: every task of a room it
+	// plans is a work order funded from the treasury at these wages, and a
+	// room it cannot fund is not planned. It pays WageCook each time a cook
+	// works a recipe on the colony's stock. A colonist with HouseSavings
+	// dollars commissions its own house (0 disables), whose toilet charges
+	// others ToiletFee a use. See docs/labor.md.
+	WageDig      int64 `cfg:"wage-dig" sec:"Labor" doc:"what the colony pays to dig out one tile of a room"`
+	WageWall     int64 `cfg:"wage-wall" doc:"what the colony pays to raise one wall"`
+	WageFixture  int64 `cfg:"wage-fixture" doc:"what the colony pays to build one fixture (pod, toilet, bed, ...)"`
+	WageCook     int64 `cfg:"wage-cook" doc:"what the colony pays a cook each time it works a recipe on the colony's stock"`
+	HouseSavings int64 `cfg:"house-savings" doc:"a colonist with this much money commissions its own house (0 disables)"`
+	ToiletFee    int64 `cfg:"toilet-fee" doc:"what a house's toilet charges anyone but its owner per use (0: private)"`
+
+	// Crash pods. Every colonist arrives in one — at worldgen, from the spawn
+	// command, or from a director arrival — carrying its own bunk, toilet, and
+	// locker, and this manifest. See crashpod.go and docs/crash-pods.md.
+	CrashPodPurse    int64 `cfg:"crash-pod-purse" sec:"Crash pods" doc:"dollars each colonist arrives with"`
+	CrashPodMeals    int   `cfg:"crash-pod-meals" doc:"meals stocked in each crash pod's locker"`
+	CrashPodPistols  int   `cfg:"crash-pod-pistols" doc:"pistols each colonist arrives carrying"`
+	CrashPodShotguns int   `cfg:"crash-pod-shotguns" doc:"shotguns each colonist arrives carrying"`
 
 	// Timing.
 	TicksPerSecond int `cfg:"tps" sec:"Timing" doc:"simulation ticks per second"`
@@ -91,10 +195,10 @@ type Config struct {
 	DemolishTicks      int `cfg:"demolish-ticks" doc:"ticks of work to break down one wall tile when escaping a sealed room"`
 	FacilityBuildTicks int `cfg:"facility-ticks" doc:"ticks of work to build a pod or toilet"`
 	FleeRadius         int `cfg:"flee-radius" doc:"colonist flees when an alien is within this many tiles"`
-	// StompRadius is how far an idle colonist notices a mouse and gives chase to
+	// StompRadius is how far an idle colonist notices a rat and gives chase to
 	// crush it. Stomping is an idle whim: only colonists with nothing pressing
 	// (no threat, no urgent need, no work) hunt pests.
-	ColonistStompRadius int `cfg:"stomp-radius" doc:"an idle colonist chases and crushes a mouse within this many tiles"`
+	ColonistStompRadius int `cfg:"stomp-radius" doc:"an idle colonist chases and crushes a rat within this many tiles"`
 	// GoreSightRadius is how far a colonist notices gore on the ground (see
 	// observeGore in systems.go and EvtSawGore in lifeevents.go). Smaller than
 	// the creature-sighting radii: a bloodstain doesn't announce itself the way
@@ -287,26 +391,30 @@ type Config struct {
 	ShotgunRange    int `cfg:"shotgun-range" doc:"max tiles a shotgun can fire from"`
 	ShotgunFireRest int `cfg:"shotgun-fire-rest" doc:"cooldown ticks between shotgun blasts"`
 
-	// Cat stats. Cats have no needs; they hunt mice on the floor by instinct.
+	// Cat stats. Cats have no needs; they hunt rats on the floor by instinct.
 	CatHP         int `cfg:"cat-hp" sec:"Cats" doc:"cat hit points"`
 	CatSlowness   int `cfg:"cat-slowness" doc:"cat acts once every N ticks (higher = slower)"`
-	CatPounceRest int `cfg:"cat-pounce-rest" doc:"cooldown ticks after a cat catches a mouse"`
+	CatPounceRest int `cfg:"cat-pounce-rest" doc:"cooldown ticks after a cat catches a rat"`
 
-	// Mouse stats. Mice share the colonists' NeedFood but grow hungry far faster
+	// Rat stats. Rats share the colonists' NeedFood but grow hungry far faster
 	// (they nibble constantly), and flee cats rather than aliens.
-	MouseHP         int `cfg:"mouse-hp" sec:"Mice" doc:"mouse hit points"`
-	MouseHungerRise int `cfg:"mouse-hunger-rise" doc:"food need a mouse gains per tick (mice eat frequently)"`
-	MouseFleeRadius int `cfg:"mouse-flee-radius" doc:"mouse flees when a cat is within this many tiles"`
+	RatHP         int `cfg:"rat-hp" sec:"Rats" doc:"rat hit points"`
+	RatHungerRise int `cfg:"rat-hunger-rise" doc:"food need a rat gains per tick (rats eat frequently)"`
+	// RatScavengeRadius is how far a hungry rat looks for a body, gore, or
+	// cave scum to eat before it settles for raiding a nutrient pod. See
+	// scavenge.go.
+	RatScavengeRadius int `cfg:"rat-scavenge-radius" doc:"how far a hungry rat looks for bodies, gore, or scum to eat"`
+	RatFleeRadius     int `cfg:"rat-flee-radius" doc:"rat flees when a cat is within this many tiles"`
 
-	// Mouse breeding. Two adjacent mice of opposite sex mate; the female then
-	// carries a litter for MouseGestationTicks before birthing MouseLitterMin..Max
-	// pups onto nearby floor. MouseBreedCooldown spaces out a female's litters,
-	// and a newborn cannot breed for MouseMaturityTicks.
-	MouseGestationTicks int `cfg:"mouse-gestation" doc:"ticks a pregnant mouse carries a litter before giving birth"`
-	MouseLitterMin      int `cfg:"mouse-litter-min" doc:"smallest mouse litter size"`
-	MouseLitterMax      int `cfg:"mouse-litter-max" doc:"largest mouse litter size"`
-	MouseBreedCooldown  int `cfg:"mouse-breed-cooldown" doc:"ticks a mouse waits before it can mate again"`
-	MouseMaturityTicks  int `cfg:"mouse-maturity" doc:"ticks a newborn mouse takes to mature enough to breed"`
+	// Rat breeding. Two adjacent rats of opposite sex mate; the female then
+	// carries a litter for RatGestationTicks before birthing RatLitterMin..Max
+	// pups onto nearby floor. RatBreedCooldown spaces out a female's litters,
+	// and a newborn cannot breed for RatMaturityTicks.
+	RatGestationTicks int `cfg:"rat-gestation" doc:"ticks a pregnant rat carries a litter before giving birth"`
+	RatLitterMin      int `cfg:"rat-litter-min" doc:"smallest rat litter size"`
+	RatLitterMax      int `cfg:"rat-litter-max" doc:"largest rat litter size"`
+	RatBreedCooldown  int `cfg:"rat-breed-cooldown" doc:"ticks a rat waits before it can mate again"`
+	RatMaturityTicks  int `cfg:"rat-maturity" doc:"ticks a newborn rat takes to mature enough to breed"`
 }
 
 // DefaultConfig returns a balanced starting point for a playable scaffold.
@@ -332,20 +440,96 @@ func DefaultConfig() Config {
 		StartColonists:       6,
 		StartAliens:          3,
 		StartCats:            2,
-		StartMice:            8,
-		StartPistols:         1,
-		StartShotguns:        1,
-		GraveyardSize:        50,
-		TicksPerSecond:       8,
-		LogSize:              64,
-		ColonistHP:           40,
-		MineTicks:            6,
-		BuildTicks:           8,
-		DemolishTicks:        16,
-		FacilityBuildTicks:   12,
-		FleeRadius:           5,
-		ColonistStompRadius:  4,
-		GoreSightRadius:      3,
+		StartRats:            8,
+		// Placeholders until the market gives money a use: a treasury worth a
+		// few dozen purses, so the colony can outspend any one settler.
+		FoundingGrant: 5000,
+		// Scarcity is on (economy phase E8): food is made, not conjured, and
+		// building costs materials. The safety net stays a setting, for tests
+		// and for balancing. See docs/economy.md.
+		InfiniteFood:  false,
+		CrashPodPurse: 100,
+		// Scum is tuned so a small colony that keeps digging can feed itself
+		// once its crash-pod meals run out: see the sustain test in
+		// scumhouse_test.go before changing these.
+		ScumPercent:       6,
+		ScumMax:           3,
+		ScumRegrowTicks:   400,
+		ScrapeTicks:       6,
+		MealReserve:       3,
+		ConstructionCosts: true,
+		// The charter's prices: a meal a few hours' pay, uranium dearest
+		// because it costs the miner a dose, raw rock not bought at all — there
+		// is always more, and buying it would drain the treasury on nothing.
+		PriceMeal:       5,
+		PriceRawRock:    0,
+		PriceIronOre:    3,
+		PriceWaterIce:   2,
+		PriceUraniumOre: 6,
+		PriceClay:       2,
+		SiloBidQty:      64,
+		OrderTTL:        2000,
+		MealKeep:        5,
+		MealWillingness: 3,
+		// Wages sized so a typical room costs the colony about a hundred
+		// dollars: fifty rooms from the founding grant, less what it spends
+		// buying ore. A house is a real purchase, several weeks of prospecting.
+		// A colonist's time is worth a couple of dollars per 100 ticks: less
+		// than a scraper earns selling scum into a meal-maker's bid, so the
+		// chain from a hungry colonist's bid down to the cave wall pays at
+		// every link. See docs/valuation.md.
+		// The colony sells at half again what it pays: enough over cost that
+		// its resales refill the treasury, not so much that a colonist would
+		// rather dig the ore itself every time. See docs/hauling.md.
+		ColonySells:        true,
+		ColonyMarkup:       50,
+		ColonyStockReserve: 8,
+		SiloMealStock:      6,
+		HaulPay:            1,
+		LaborPrice:         2,
+		PlanMinProfit:      1,
+		PlanCandidates:     4,
+		PlanTTL:            1500,
+		DemandTTL:          300,
+		// Priced by the meals they make (see recipes): two scum or two
+		// viscera to a $5 meal, so the colony roughly breaks even after the
+		// cook's wage; an alien carcass makes four.
+		PriceCaveScum:     2,
+		PriceViscera:      2,
+		PriceAnimalCorpse: 3,
+		PriceAlienCorpse:  8,
+		ScumhouseBidQty:   12,
+		// A cook turns 2 scum into a meal every dozen ticks or so, and a
+		// colonist eats about one meal every few hundred: one cook feeds
+		// roughly a dozen and a half people with nobody to spare, so a
+		// scumhouse per ten keeps up with slack. Forty units is twenty meals
+		// of stock: enough to cook from, not a hoard.
+		ScumhouseStockCap:     40,
+		ColonistsPerScumhouse: 10,
+		WageDig:               2,
+		WageWall:              2,
+		WageFixture:           5,
+		WageCook:              1,
+		HouseSavings:          300,
+		ToiletFee:             2,
+		// A meal clears hunger for roughly 325 ticks at the baseline rise, so
+		// ten carry a colonist a few thousand ticks: long enough to settle in,
+		// short enough that food production matters once the safety net is
+		// off. Every settler lands armed, the way frontier settlers did.
+		CrashPodMeals:       10,
+		CrashPodPistols:     1,
+		CrashPodShotguns:    0,
+		GraveyardSize:       50,
+		TicksPerSecond:      8,
+		LogSize:             64,
+		ColonistHP:          40,
+		MineTicks:           6,
+		BuildTicks:          8,
+		DemolishTicks:       16,
+		FacilityBuildTicks:  12,
+		FleeRadius:          5,
+		ColonistStompRadius: 4,
+		GoreSightRadius:     3,
 
 		CleanRadius:           10,
 		CleanTicks:            6,
@@ -497,15 +681,18 @@ func DefaultConfig() Config {
 		CatSlowness:   2,
 		CatPounceRest: 4,
 
-		MouseHP:         4,
-		MouseHungerRise: 8, // 4x the colonist food rise: mice eat very frequently
-		MouseFleeRadius: 6,
+		RatHP:         4,
+		RatHungerRise: 8, // 4x the colonist food rise: rats eat very frequently
+		// Farther than a colonist cleans (clean-radius): a rat finds the dead
+		// before the colony does.
+		RatScavengeRadius: 12,
+		RatFleeRadius:     6,
 
-		MouseGestationTicks: 300,
-		MouseLitterMin:      2,
-		MouseLitterMax:      5,
-		MouseBreedCooldown:  200,
-		MouseMaturityTicks:  400,
+		RatGestationTicks: 300,
+		RatLitterMin:      2,
+		RatLitterMax:      5,
+		RatBreedCooldown:  200,
+		RatMaturityTicks:  400,
 	}
 }
 

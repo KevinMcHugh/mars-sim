@@ -39,11 +39,11 @@ var (
 
 // rosterEntries returns the entities the roster currently shows, sorted by ID
 // so the order is stable frame to frame. Colonists are always eligible;
-// showNonHuman additionally admits aliens/cats/mice, and showDead further
+// showNonHuman additionally admits aliens/cats/rats, and showDead further
 // admits dead colonists (every one, from the permanent Snapshot.Deceased
 // archive) and other recently-dead kinds (Snapshot.Graveyard, which is
-// bounded and covers mice/cats/aliens too), subject to the same kind filter
-// — a dead mouse only shows up once both filters are on. Graveyard also
+// bounded and covers rats/cats/aliens too), subject to the same kind filter
+// — a dead rat only shows up once both filters are on. Graveyard also
 // contains colonist records, but only Deceased is used for colonists here so
 // one death is never listed twice. See docs/combat.md.
 func (m Model) rosterEntries() []sim.EntityView {
@@ -419,7 +419,7 @@ func scrollStatusLine(first, last, total, inner int) string {
 }
 
 // nonColonistDetailLines builds the inspector for an entity with no Profile:
-// an alien, cat, mouse, or any dead entry lacking one. It has none of a
+// an alien, cat, rat, or any dead entry lacking one. It has none of a
 // colonist's needs/traits/family — just identity, status, and a body-part
 // breakdown for the kinds that track one (Colonist and Alien; see
 // docs/combat.md).

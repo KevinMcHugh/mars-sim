@@ -60,6 +60,9 @@ func (w *World) chooseFacilityReference(e *Entity, kind Terrain) Point {
 
 	best, bestDist := Point{}, int32(^uint32(0)>>1)
 	for fac := range facilities {
+		if !w.canUseFixture(e, fac) {
+			continue // someone else's private fixture
+		}
 		accessible := false
 		congested := false
 		for _, d := range neighbors8 {
@@ -138,6 +141,9 @@ func (w *World) chooseFacilityReference(e *Entity, kind Terrain) Point {
 	// unreachable and starving the colonist.
 	bestDist = int32(^uint32(0) >> 1)
 	for fac := range facilities {
+		if !w.canUseFixture(e, fac) {
+			continue // someone else's private fixture, busy or not
+		}
 		for _, d := range neighbors8 {
 			access := fac.Add(d.X, d.Y)
 			if !w.InBounds(access) {
@@ -210,8 +216,8 @@ func TestChooseFacilityMatchesReference(t *testing.T) {
 						}
 						compared++
 						room := w.roomOf(e.Pos)
-						if room == 0 {
-							searched++
+						if room == 0 || w.restrictedFixtures[kind] > 0 {
+							searched++ // chooseFacility goes straight to the search
 							continue
 						}
 						w.facilityCommitted = nil

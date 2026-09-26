@@ -308,7 +308,7 @@ func TestColonistNamesAreIndexedAndFreed(t *testing.T) {
 func TestGeneratedColonyFamilies(t *testing.T) {
 	cfg := DefaultConfig()
 	cfg.Seed, cfg.StartColonists = 7, 24
-	cfg.StartAliens, cfg.StartMice, cfg.StartCats = 0, 0, 0
+	cfg.StartAliens, cfg.StartRats, cfg.StartCats = 0, 0, 0
 	w := NewEngine(cfg).world
 
 	children := w.kinChildren()
@@ -355,7 +355,7 @@ func TestHeredityDeterministic(t *testing.T) {
 	colony := func() []string {
 		cfg := DefaultConfig()
 		cfg.Seed, cfg.StartColonists = 99, 20
-		cfg.StartAliens, cfg.StartMice, cfg.StartCats = 0, 0, 0
+		cfg.StartAliens, cfg.StartRats, cfg.StartCats = 0, 0, 0
 		w := NewEngine(cfg).world
 		var out []string
 		for _, id := range w.entityIDsSorted() {

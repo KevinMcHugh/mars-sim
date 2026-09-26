@@ -2,10 +2,11 @@ package sim
 
 import "testing"
 
-// Sighting an alien should activate a colonist and cost more grip than a mouse.
-func TestSeeingAlienAffectsChargeAndGripMoreThanMouse(t *testing.T) {
+// Sighting an alien should activate a colonist and cost more grip than a rat.
+func TestSeeingAlienAffectsChargeAndGripMoreThanRat(t *testing.T) {
 	cfg := testConfig()
 	cfg.StartAliens = 0 // no caves on this map, so they would land in the colony
+	cfg.StartRats = 0   // one sighting each: worldgen's rats would crowd the second colonist's view
 	w := newTestWorld(t, cfg)
 	carve(w, Point{0, 0}, Point{1, 0}, Floor) // an alien on hidden rock would be dormant, unseen
 
@@ -13,15 +14,15 @@ func TestSeeingAlienAffectsChargeAndGripMoreThanMouse(t *testing.T) {
 	w.spawn(Alien, Point{1, 0})
 	w.observeNearby(sawAlien)
 
-	sawMouse := w.spawn(Colonist, Point{10, 10})
-	w.spawn(Mouse, Point{11, 10})
-	w.observeNearby(sawMouse)
+	sawRat := w.spawn(Colonist, Point{10, 10})
+	w.spawn(Rat, Point{11, 10})
+	w.observeNearby(sawRat)
 
-	if sawAlien.affect.Charge <= sawMouse.affect.Charge {
-		t.Errorf("alien charge %d should exceed mouse charge %d", sawAlien.affect.Charge, sawMouse.affect.Charge)
+	if sawAlien.affect.Charge <= sawRat.affect.Charge {
+		t.Errorf("alien charge %d should exceed rat charge %d", sawAlien.affect.Charge, sawRat.affect.Charge)
 	}
-	if sawAlien.affect.Grip >= sawMouse.affect.Grip {
-		t.Errorf("alien grip %d should drop more than mouse grip %d", sawAlien.affect.Grip, sawMouse.affect.Grip)
+	if sawAlien.affect.Grip >= sawRat.affect.Grip {
+		t.Errorf("alien grip %d should drop more than rat grip %d", sawAlien.affect.Grip, sawRat.affect.Grip)
 	}
 }
 

@@ -6,9 +6,10 @@
 
 The world is a single underground level: a dense, row-major grid of `Tile`s that
 starts as solid rock with ordinary, iron-bearing, water ice-bearing,
-uranium-bearing, or clay-bearing composition. World generation carves a landing cavern, drops the colonists inside
-it, hollows hidden natural caverns (some joined by passages) out of the rock
-beyond, and seeds aliens out in the surrounding rock and cats/mice on the floor.
+uranium-bearing, or clay-bearing composition. World generation carves a landing cavern,
+hollows hidden natural caverns (some joined by passages) out of the rock
+beyond, lands the colonists' crash pods in the landing cavern, and seeds aliens
+out in the surrounding rock and cats/rats on the floor.
 
 ## Source
 
@@ -22,7 +23,9 @@ beyond, and seeds aliens out in the surrounding rock and cats/mice on the floor.
 ### Terrain and tiles
 
 `Terrain` is an enum: `Rock`, `Floor`, `Wall`, `NutrientPod`, `Toilet`, `Bed`,
-`Incinerator`, `Storage`. Only
+`Incinerator`, `Storage`, `Scumhouse`, `Hull`. `Hull` is a crash pod's metal
+wall: it behaves like `Wall` but only ever arrives with a pod (see
+[crash-pods.md](./crash-pods.md)). Only
 `Floor` is `Walkable()`, and every creature, aliens included, stays on floor. Beds are dormitory bunks used from an
 adjacent floor tile; the incinerator is the machine refuse is burned in, used the
 same way (see [sanitation.md](./sanitation.md)). Storage is a blocking trunk used
@@ -111,21 +114,27 @@ derived systems go stale (and the map the player sees never grows).
    is ordinary rock. New compositions are appended to the generation order, so
    clay was grown last and did not move the iron, ice, or uranium veins of
    established seeds. Veins
-   default to 8–24 orthogonally connected tiles.
+   default to 8–24 orthogonally connected tiles. Then it seeds **cave scum**
+   patches across `scum-percent` of the map's rock, on a stream of its own so
+   that adding scum moved no vein (see [scumhouse.md](./scumhouse.md)).
 2. Carves an **oval cavern** at the map center. `caveRadii` sizes it to the
-   starting colonist count (~10 tiles per colonist) at a 2:1 width:height ratio,
-   clamped to the map.
+   starting colonist count — ten tiles of elbow room per colonist plus the
+   ground its crash pod takes, at a 2:1 width:height ratio, never less than
+   `minCaveRy` (6) rows above and below the middle — clamped to the map. The
+   pods' share and the taller minimum both exist so the colony can still site
+   its first room once the pods are down; see [crash-pods.md](./crash-pods.md).
 3. Hollows **natural caverns** out of the remaining rock with `carveHidden`, on
    their own seed-derived RNG stream, and joins some to their nearest neighbor
    with a passage. They stay under the fog, and out of every colony-facing
    system, until a dig breaks into one. See [caverns.md](./caverns.md).
-4. Places colonists by shuffling the list of free (discovered) floor tiles and drawing from
-   it, so every requested colonist is placed if the cavern has room (this beats
-   rejection sampling, which can give up).
+4. Lands each colonist in a crash pod (`arrive`), in the lower half of the
+   cavern, crashing through the rock once the open floor runs out.
 5. Places aliens with `alienSpawnSite`: on hidden cavern floor, where they lie
    dormant until the colony digs in, or, with no cave room, on colony floor far
    from the landing site. See [caverns.md](./caverns.md#aliens-in-the-caves).
-6. Places mice and cats on random floor tiles inside the cavern.
+6. Places rats and cats by shuffling the free floor tiles in and around the
+   cavern and drawing from the list (this beats rejection sampling, which can
+   give up).
 7. Records each natural cavern's center (`trackCavernsForNests`), so that
    breaking into it later can roll for an **alien nest**. No nest aliens exist
    before then. See [caverns.md](./caverns.md#alien-nests).

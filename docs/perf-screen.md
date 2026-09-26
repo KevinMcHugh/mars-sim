@@ -97,6 +97,13 @@ take a CPU profile with `-cpuprofile` (see [cli.md](./cli.md#profiling)).
 - Do not write into `Snapshot.Perf` or the recorder's history in place (see
   above).
 
+## Shared with the Population screen
+
+`perfChart` also draws the [Population screen](./population-screen.md)'s
+charts. Two options exist for it: `xAxis` replaces the wall-clock time axis
+(that screen labels ticks), and `counts` gives the y axis whole-number labels,
+each shown once. Neither changes how the Perf charts draw.
+
 ## Related
 
 - [frontend-tui.md](./frontend-tui.md) — the tab rotation and the other screens.

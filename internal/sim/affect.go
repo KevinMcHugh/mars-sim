@@ -100,13 +100,13 @@ var moodAttractors = [...]moodAttractor{
 // up in grip rather than as a slow bleed of valence no colonist could explain.
 var lifeEventAppraisals = [numLifeEventKinds]moodAppraisal{
 	EvtSawAlien:                  {45, MoodVector{8, -10, -15}, MoodVector{5, -22, -22}},
-	EvtSawMouse:                  {8, MoodVector{2, -3, 0}, MoodVector{1, -1, 0}},
+	EvtSawRat:                    {8, MoodVector{2, -3, 0}, MoodVector{1, -1, 0}},
 	EvtSawGore:                   {30, MoodVector{-3, -7, -6}, MoodVector{-6, -14, -10}},
 	EvtBitten:                    {70, MoodVector{55, -44, -30}, MoodVector{35, -80, -55}},
 	EvtWitnessedColonistKilled:   {95, MoodVector{70, 40, -60}, MoodVector{20, -85, -85}},
 	EvtWitnessedColonistAttacked: {75, MoodVector{45, 25, -40}, MoodVector{25, -70, -60}},
-	EvtCrushedMouse:              {6, MoodVector{-1, 2, 0}, MoodVector{-2, 0, 0}},
-	EvtWitnessedMouseCrushed:     {8, MoodVector{-1, -2, -1}, MoodVector{-1, -1, 0}},
+	EvtCrushedRat:                {6, MoodVector{-1, 2, 0}, MoodVector{-2, 0, 0}},
+	EvtWitnessedRatCrushed:       {8, MoodVector{-1, -2, -1}, MoodVector{-1, -1, 0}},
 	EvtWitnessedCatCatch:         {5, MoodVector{1, 1, 0}, MoodVector{0, 0, 0}},
 	EvtKilledAlien:               {55, MoodVector{45, 52, 35}, MoodVector{25, 20, 8}},
 	EvtWitnessedAlienKilled:      {35, MoodVector{5, 6, 4}, MoodVector{2, 2, 0}},
@@ -128,6 +128,20 @@ var lifeEventAppraisals = [numLifeEventKinds]moodAppraisal{
 	EvtIncineratedRefuse:    {16, MoodVector{-1, 7, 1}, MoodVector{-4, 0, 0}},
 	EvtMutated:              {60, MoodVector{18, -70, -35}, MoodVector{10, -90, -70}},
 	EvtWitnessedMutation:    {35, MoodVector{2, -8, -10}, MoodVector{1, -16, -18}},
+	// Gruel fills a stomach and nothing else: the safety net is meant to be
+	// the worst way to eat, so it reads as a small, dispiriting non-event next
+	// to a real meal's lift, and wears into a mild grievance.
+	EvtAteGruel: {10, MoodVector{0, 0, -1}, MoodVector{-1, -2, -1}},
+	// Food work reads like the other chores: a little satisfying, and dull
+	// once it is routine.
+	EvtMadeSlurry:   {15, MoodVector{-1, 5, 1}, MoodVector{-5, -2, 0}},
+	EvtScrapedScum:  {12, MoodVector{-1, 4, 0}, MoodVector{-5, -3, 0}},
+	EvtFedScumhouse: {10, MoodVector{-1, 4, 0}, MoodVector{-4, -2, 0}},
+	// Trading is a small errand; buying food you could not otherwise have is
+	// a relief with a little sting in it.
+	EvtWentToMarket: {8, MoodVector{0, 3, 0}, MoodVector{-2, 0, 0}},
+	EvtHauled:       {8, MoodVector{0, 2, 0}, MoodVector{-2, 0, 0}},
+	EvtBoughtMeal:   {12, MoodVector{2, 3, 0}, MoodVector{1, 0, 0}},
 }
 
 func roundedDiv(n, d int) int {

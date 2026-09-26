@@ -65,7 +65,7 @@ impact Mutant?"
 
 The `Impact` and `WearRate` factors are what make this worth more than tidier
 plumbing: a rule can change how *significant* an event is to one colonist, and
-how fast they get used to it, not just how hard it lands. Seeing a mouse is
+how fast they get used to it, not just how hard it lands. Seeing a rat is
 near-zero impact unless you are a musophobe, and that cannot be said at all
 today — nor can "this one never gets used to it".
 

@@ -44,6 +44,13 @@ func carryingRefuse(e *Entity) bool {
 // else to do would never clean at all. assignWorkJob therefore offers cleaning
 // ahead of mining and behind construction — life support first, then tidy up,
 // then dig.
+//
+// A mess is only worth picking up if there is somewhere to take it. Biomatter
+// (viscera, and every body but a colonist's) goes to a scumhouse; a colonist's
+// body, and biomatter no scumhouse can take, goes to the incinerator. So with
+// only a scumhouse, a cleaner gathers biomatter and leaves colonists' bodies
+// where they lie; with only an incinerator, it burns everything, as the colony
+// always did. See docs/sanitation.md.
 func (w *World) tryAssignClean(e *Entity) bool {
 	// Cheap checks first: this runs for every work-seeking colonist every tick,
 	// and in a tidy colony it must not cost more than a couple of comparisons.
@@ -51,24 +58,22 @@ func (w *World) tryAssignClean(e *Entity) bool {
 	if !hauling && (w.refuseTotal() == 0 || !e.Inventory.CanAdd(Viscera, 1)) {
 		return false
 	}
-	// Nowhere to burn it: leave the mess be until a trash room exists. Picking
-	// a body up with no incinerator in reach would only move the mess into an
-	// inventory slot.
-	if field := w.facilityField(Incinerator); field == nil || field.at(e.Pos) < 0 {
+	burn, feed := w.refuseDestinations(e)
+	if !burn && !feed {
 		return false
 	}
-	// A colonist already holding a load (its last haul was interrupted, or an
-	// incinerator only just came online) delivers that before touching anything
-	// else. Refuse must never be stranded in an inventory slot.
+	// A colonist already holding a load (its last haul was interrupted, or a
+	// destination only just came online) delivers that before touching
+	// anything else. Refuse must never be stranded in an inventory slot.
 	if hauling {
-		fac, ok := w.nearestIncinerator(e)
+		dest, ok := w.haulTarget(e)
 		if !ok {
 			return false
 		}
-		e.Job, e.Target, e.clean, e.Progress = JobClean, fac, cleanHaul, 0
+		e.Job, e.Target, e.clean, e.Progress = JobClean, dest, cleanHaul, 0
 		return true
 	}
-	mess, ok := w.nearestRefuse(e.Pos, w.cleanRadius(e))
+	mess, ok := w.nearestRefuse(e.Pos, w.cleanRadius(e), burn)
 	if !ok {
 		return false
 	}
@@ -77,23 +82,45 @@ func (w *World) tryAssignClean(e *Entity) bool {
 	return true
 }
 
+// refuseDestinations reports whether e can reach an incinerator (burn) and a
+// scumhouse with room for more biomatter (feed).
+func (w *World) refuseDestinations(e *Entity) (burn, feed bool) {
+	if field := w.facilityField(Incinerator); field != nil && field.at(e.Pos) >= 0 {
+		burn = true
+	}
+	if w.countTerrain(Scumhouse) > 0 {
+		_, feed = w.nearestScumhouse(e, func(c *StorageContainer) bool {
+			return c.Inventory.CanAdd(Viscera, 1)
+		})
+	}
+	return burn, feed
+}
+
 // nearestRefuse finds the closest unclaimed refuse tile within radius that a
 // colonist standing at from could actually get to: it must be walkable floor in
 // the same room. A stain that ended up under a wall, or one across an
 // unexcavated vein, is not cleanable — and pretending otherwise would have
-// cleaners walk at a tile they can never reach.
-func (w *World) nearestRefuse(from Point, radius int) (Point, bool) {
+// cleaners walk at a tile they can never reach. Without an incinerator to burn
+// it in (burn false), a tile holding only colonists' bodies is not worth the
+// walk: nothing but an incinerator takes one.
+func (w *World) nearestRefuse(from Point, radius int, burn bool) (Point, bool) {
 	room := w.roomOf(from)
 	if room == 0 {
 		return Point{}, false
 	}
+	gatherable := func(p Point) bool {
+		if w.refuseAt(p) == 0 {
+			return false
+		}
+		return burn || w.goreAt(p) > 0 || w.corpsesAt(p) > w.corpsesOfAt(p, ColonistCorpse)
+	}
 	var best Point
 	found := false
-	if w.refuseAt(from) > 0 && !w.board.isCleanClaimed(from) {
+	if gatherable(from) && !w.board.isCleanClaimed(from) {
 		return from, true // standing in it
 	}
 	w.forEachInRadius(from, radius, func(p Point) bool {
-		if w.refuseAt(p) == 0 || !w.Walkable(p) || w.roomOf(p) != room ||
+		if !gatherable(p) || !w.Walkable(p) || w.roomOf(p) != room ||
 			w.board.isCleanClaimed(p) {
 			return false
 		}
@@ -119,8 +146,22 @@ func (w *World) nearestIncinerator(e *Entity) (Point, bool) {
 	return fac, true
 }
 
+// haulTarget is where a colonist carrying refuse takes it next: a scumhouse
+// that can take all the biomatter it carries, if it carries any, and otherwise
+// the incinerator.
+func (w *World) haulTarget(e *Entity) (Point, bool) {
+	if bio := biomatterStacks(e); len(bio) > 0 {
+		if p, ok := w.nearestScumhouse(e, func(c *StorageContainer) bool {
+			return c.Inventory.CanAddAll(bio...)
+		}); ok {
+			return p, true
+		}
+	}
+	return w.nearestIncinerator(e)
+}
+
 // jobClean runs one tick of a cleaning job: scrub the refuse at Target into the
-// inventory, then carry it to the incinerator at Target and burn it.
+// inventory, then carry it where it goes.
 func (w *World) jobClean(e *Entity) {
 	switch e.clean {
 	case cleanGather:
@@ -154,29 +195,38 @@ func (w *World) jobCleanGather(e *Entity) {
 	if e.Progress < scaleTicks(w.cfg.CleanTicks, e.workScale) {
 		return
 	}
-	w.gatherRefuse(e, e.Target)
-	// Hand the load off to the haul leg. Losing the incinerator between
+	burn, _ := w.refuseDestinations(e)
+	w.gatherRefuse(e, e.Target, burn)
+	// Hand the load off to the haul leg. Losing every destination between
 	// stages (it was never built, or the route closed) ends the job with the
 	// refuse still carried; tryAssignClean picks that up again later rather
 	// than dropping it back on the floor.
-	fac, ok := w.nearestIncinerator(e)
+	dest, ok := w.haulTarget(e)
 	if !ok {
 		w.clearJob(e)
 		return
 	}
 	w.board.releaseClean(e.Target, e.ID) // the tile is clean; stop holding it
-	e.Target, e.clean, e.Progress = fac, cleanHaul, 0
+	e.Target, e.clean, e.Progress = dest, cleanHaul, 0
 }
 
 // gatherRefuse moves as much of a tile's refuse into the colonist's inventory
 // as will fit, taking bodies before stains (a corpse is the more urgent eyesore
-// and the more likely to be what the colonist came for). A tile it cannot empty
-// in one trip stays claimed-free for the next cleaner.
-func (w *World) gatherRefuse(e *Entity, p Point) {
+// and the more likely to be what the colonist came for). A colonist's body is
+// only picked up when there is an incinerator to take it to (burn). What a
+// cleaner picks up is its own: biomatter it sells to the colony at the
+// scumhouse (see sellBiomatter).
+// A tile it cannot empty in one trip stays claimed-free for the next cleaner.
+func (w *World) gatherRefuse(e *Entity, p Point, burn bool) {
 	corpses, viscera := 0, 0
-	for w.corpsesAt(p) > 0 && e.Inventory.Add(Corpse, 1) {
-		w.takeCorpse(p)
-		corpses++
+	for _, kind := range corpseKinds {
+		if kind == ColonistCorpse && !burn {
+			continue
+		}
+		for w.corpsesOfAt(p, kind) > 0 && e.Inventory.Add(kind, 1) {
+			w.takeCorpse(p, kind)
+			corpses++
+		}
 	}
 	for w.goreAt(p) > 0 && e.Inventory.Add(Viscera, 1) {
 		w.takeGore(p)
@@ -189,19 +239,24 @@ func (w *World) gatherRefuse(e *Entity, p Point) {
 		refusePhrase(corpses, viscera), p.X, p.Y))
 }
 
-// jobCleanHaul carries a gathered load to the incinerator and feeds it in.
+// jobCleanHaul carries a gathered load where it goes. At a scumhouse it
+// unloads the biomatter, then carries on to the incinerator with whatever is
+// left; at the incinerator it burns the lot.
 func (w *World) jobCleanHaul(e *Entity) {
 	if !carryingRefuse(e) {
-		w.clearJob(e) // nothing left to burn
+		w.clearJob(e) // nothing left to deliver
 		return
 	}
-	if w.TerrainAt(e.Target) != Incinerator {
-		fac, ok := w.nearestIncinerator(e)
+	switch t := w.TerrainAt(e.Target); {
+	case t == Scumhouse && len(biomatterStacks(e)) > 0:
+	case t == Incinerator:
+	default:
+		dest, ok := w.haulTarget(e)
 		if !ok {
-			w.clearJob(e) // the load stays carried until one is reachable again
+			w.clearJob(e) // the load stays carried until somewhere can take it
 			return
 		}
-		e.Target = fac
+		e.Target, e.Progress = dest, 0
 	}
 	arrived, ok := w.travelTo(e, e.Target)
 	if !ok {
@@ -210,6 +265,17 @@ func (w *World) jobCleanHaul(e *Entity) {
 	}
 	if !arrived {
 		e.State = Hauling
+		return
+	}
+	if w.TerrainAt(e.Target) == Scumhouse {
+		c := w.storageContainers[e.Target]
+		if c == nil || !w.deliverBiomatter(e, c) {
+			e.Target = Point{-1, -1} // full after all: pick again next tick
+			return
+		}
+		if !carryingRefuse(e) {
+			w.clearJob(e)
+		}
 		return
 	}
 	e.State = Cleaning
@@ -223,8 +289,13 @@ func (w *World) jobCleanHaul(e *Entity) {
 // incinerate destroys everything burnable a colonist is carrying. The load goes
 // in whole rather than piece by piece: one trip, one burn.
 func (w *World) incinerate(e *Entity) {
-	corpses := e.Inventory.RemoveAll(Corpse)
+	corpses := 0
+	for _, kind := range corpseKinds {
+		corpses += e.Inventory.RemoveAll(kind)
+		e.cargo[kind] = Owner{}
+	}
 	viscera := e.Inventory.RemoveAll(Viscera)
+	e.cargo[Viscera] = Owner{}
 	if corpses+viscera == 0 {
 		return
 	}

@@ -1,6 +1,9 @@
 package sim
 
-import "sort"
+import (
+	"math"
+	"sort"
+)
 
 // EntityView is a read-only copy of an entity for a single frame. Frontends
 // receive these instead of *Entity so they can never touch live game state.
@@ -20,6 +23,9 @@ type EntityView struct {
 	Needs     [numNeeds]int
 	Profile   *Profile  // colonists only; a deep copy, safe to read
 	Inventory Inventory // colonists only; copied by value
+	// Wallet is the colonist's dollars (colonists only). On a Deceased record
+	// it is the money frozen at death. See docs/money.md.
+	Wallet Money
 
 	// Parts and MaxParts are per-body-part current/max HP (Colonist and Alien
 	// only; see Entity.hasParts and docs/combat.md). A zero MaxParts entry
@@ -82,7 +88,11 @@ type ProjectView struct {
 // StorageView is an immutable copy of one placed container and its contents.
 type StorageView struct {
 	Pos       Point
+	Terrain   Terrain // Storage (a chest or locker) or Scumhouse
 	Inventory StorageInventory
+	// Ledger is whose the contents are, sorted by owner then item. A copy:
+	// safe to read. See docs/property.md.
+	Ledger []LedgerLine
 }
 
 // TasksDone counts tasks already built.
@@ -116,6 +126,186 @@ func (p ProjectView) Assignees() []EntityID {
 	return out
 }
 
+// EconomyView is the colony's money supply at a glance, for the market tab.
+// Issued always equals Circulating + Frozen; a frontend can show the three
+// side by side without re-deriving any of them. See docs/money.md.
+type EconomyView struct {
+	Treasury    Money // the community's balance
+	Circulating Money // treasury plus every living colonist's wallet
+	Frozen      Money // locked in dead colonists' wallets
+	Escrowed    Money // held by open bids until they fill or are cancelled
+	Issued      Money // every dollar ever minted: Circulating + Frozen + Escrowed
+
+	// The order book (see docs/market.md): every open order oldest first,
+	// every book that has ever had an order by depot then item, and the
+	// most recent trades, oldest first.
+	Orders []OrderView
+	Books  []BookView
+	Trades []Trade
+	// WorkOrders is every open work order, oldest first (see
+	// docs/labor.md).
+	WorkOrders []WorkOrderView
+	// Silo is the colony's market depot, when it has one.
+	Silo    Point
+	HasSilo bool
+	// Prices is every good's smoothed value, in item order; Plans every open
+	// production plan, oldest first; ChainDepth the deepest of them; Starved
+	// how many colonists have starved. See docs/valuation.md.
+	Prices     []PriceView
+	Plans      []PlanView
+	ChainDepth int
+	Starved    int
+}
+
+// PriceView is one good's value: its smoothed trade price, or its reference
+// value if it has never traded.
+type PriceView struct {
+	Item   ItemKind
+	Value  Money
+	Traded bool
+}
+
+// PlanView is an immutable copy of one production plan.
+type PlanView struct {
+	Actor   EntityID
+	Summary string // "craft 1 meal for $15 at (6, 6)"
+	Depth   int
+	Waiting bool // still waiting on inputs from its derived bids
+}
+
+// WorkOrderView is an immutable copy of one open work order.
+type WorkOrderView struct {
+	ID     OrderID
+	Kind   WorkKind
+	Issuer Owner
+	Pay    Money // per unit
+	Units  int
+	Pos    Point
+}
+
+// OrderView is an immutable copy of one open order.
+type OrderView struct {
+	ID    OrderID
+	Side  Side
+	Item  ItemKind
+	Qty   int
+	Price Money
+	Actor Owner
+	Depot Point
+}
+
+// BookView summarizes one (item, depot) book: the best price and depth on
+// each side, and what it last traded at.
+type BookView struct {
+	Item             ItemKind
+	Depot            Point
+	BestBid, BestAsk Money
+	BidQty, AskQty   int // units on offer at every price
+	Last             Money
+	Volume           int
+	Traded           bool
+}
+
+// economyView copies the money supply and the order book for a frame.
+func (w *World) economyView() EconomyView {
+	v := EconomyView{
+		Treasury:    w.treasury,
+		Circulating: w.moneyInCirculation(),
+		Frozen:      w.moneyFrozen,
+		Escrowed:    w.moneyEscrowed(),
+		Issued:      w.moneyIssued,
+		Trades:      append([]Trade(nil), w.trades...),
+	}
+	v.Silo, v.HasSilo = w.marketDepot()
+	for _, o := range w.sortedWork(nil) {
+		v.WorkOrders = append(v.WorkOrders, WorkOrderView{ID: o.ID, Kind: o.Kind, Issuer: o.Issuer,
+			Pay: o.Pay, Units: o.Units, Pos: o.Pos})
+	}
+	for _, o := range w.sortedOrders(nil) {
+		v.Orders = append(v.Orders, OrderView{ID: o.ID, Side: o.Side, Item: o.Item, Qty: o.Qty,
+			Price: o.Price, Actor: o.Actor, Depot: o.Depot})
+	}
+	for k, b := range w.books {
+		bv := BookView{Item: k.Item, Depot: k.Depot, Last: b.last, Volume: b.volume, Traded: b.traded}
+		for _, o := range b.bids {
+			bv.BidQty += o.Qty
+		}
+		for _, o := range b.asks {
+			bv.AskQty += o.Qty
+		}
+		if len(b.bids) > 0 {
+			bv.BestBid = b.bids[0].Price
+		}
+		if len(b.asks) > 0 {
+			bv.BestAsk = b.asks[0].Price
+		}
+		v.Books = append(v.Books, bv)
+	}
+	for k := ItemKind(0); k < numItemKinds; k++ {
+		if val := w.valueOf(k); val > 0 {
+			v.Prices = append(v.Prices, PriceView{Item: k, Value: val, Traded: w.prices[k].traded})
+		}
+	}
+	ids := make([]planID, 0, len(w.plans))
+	for id := range w.plans {
+		ids = append(ids, id)
+	}
+	sort.Slice(ids, func(i, j int) bool { return ids[i] < ids[j] })
+	for _, id := range ids {
+		p := w.plans[id]
+		v.Plans = append(v.Plans, PlanView{Actor: p.actor, Summary: p.summary(), Depth: p.depth,
+			Waiting: p.kind == planCraft && !p.crafted && len(p.derived) > 0})
+	}
+	v.ChainDepth, v.Starved = w.chainDepth(), w.starved
+	sort.Slice(v.Books, func(i, j int) bool {
+		if v.Books[i].Depot != v.Books[j].Depot {
+			return lessPoint(v.Books[i].Depot, v.Books[j].Depot)
+		}
+		return v.Books[i].Item < v.Books[j].Item
+	})
+	return v
+}
+
+// ScumAt reports how much cave scum a colonist could scrape off p right now.
+func (s *Snapshot) ScumAt(p Point) int { return int(s.Scum[p]) }
+
+// publishedScum returns an immutable copy of the scum on every exposed patch,
+// reusing the last one published while it is still exact: nothing has written
+// to the scum since (scumRev), and no published patch has regrown a unit yet
+// (snapScumUntil). Regrowth is lazy (see scumAt) — there is no write to watch
+// when a patch ticks up — so the copy records the earliest tick one will.
+//
+// It used to be rebuilt every frame. Publishing happens every tick, and on a
+// big map that made the scum copy most of what the engine did.
+func (w *World) publishedScum() map[Point]uint8 {
+	if w.snapScum != nil && w.snapScumRev == w.scumRev && w.tick < w.snapScumUntil {
+		return w.snapScum
+	}
+	out := make(map[Point]uint8, len(w.exposedScum))
+	until := math.MaxInt
+	for p := range w.exposedScum {
+		n := w.scumAt(p)
+		if n > 0 {
+			out[p] = uint8(n)
+		}
+		if regrow := w.cfg.ScumRegrowTicks; regrow > 0 && n < w.cfg.ScumMax {
+			s := w.scum[p]
+			until = min(until, s.since+((w.tick-s.since)/regrow+1)*regrow)
+		}
+	}
+	w.snapScum, w.snapScumRev, w.snapScumUntil = out, w.scumRev, until
+	return out
+}
+
+// FixtureAt returns the ownership record of the fixture at p, if there is one.
+func (s *Snapshot) FixtureAt(p Point) (FixtureView, bool) {
+	i := sort.Search(len(s.Fixtures), func(i int) bool { return !lessPoint(s.Fixtures[i].Pos, p) })
+	if i < len(s.Fixtures) && s.Fixtures[i].Pos == p {
+		return s.Fixtures[i], true
+	}
+	return FixtureView{}, false
+}
+
 // NeedMeta describes a need for display: its name, ceiling, and whether maxing
 // it out is fatal. Carried in the snapshot so frontends can render need bars
 // without reaching into Config.
@@ -130,7 +320,7 @@ type Stats struct {
 	Colonists int
 	Aliens    int
 	Cats      int
-	Mice      int
+	Rats      int
 	FloorDug  int // tiles of discovered Floor (excavation progress; undiscovered caverns excluded)
 	// ExploredTiles is how many tiles World.reveal has ever uncovered (see
 	// World.exploredCount). Only meaningful when FogOfWar is on -- with it
@@ -173,7 +363,7 @@ type Snapshot struct {
 	// See docs/combat.md.
 	Graveyard []EntityView
 	// Deceased is every colonist who has ever died, keyed by EntityID and
-	// never trimmed — unlike Graveyard, which also covers mice/cats/aliens
+	// never trimmed — unlike Graveyard, which also covers rats/cats/aliens
 	// and drops old entries. Consulted for durable by-ID lookups: a dead
 	// colonist's name, family relations, and frozen inventory all resolve
 	// through this map indefinitely. See docs/combat.md.
@@ -194,13 +384,26 @@ type Snapshot struct {
 	PendingDormitories   int
 	PendingTrashRooms    int
 	PendingStorageRooms  int
+	PendingScumhouses    int
 	Storages             []StorageView
+	// Scum is how much cave scum is on every exposed patch that has any,
+	// computed fresh each frame because patches regrow lazily (see
+	// scumhouse.go). Read it with ScumAt.
+	Scum map[Point]uint8
+	// Fixtures is the ownership of every placed fixture (pods, toilets, beds,
+	// incinerators, storage), sorted by position. The slice is shared between
+	// frames until a fixture changes, and never written after publication.
+	Fixtures []FixtureView
 
 	// AlienSpecies is this world's roster of rolled alien species -- each
 	// one's build, colloquial name, and temperament. Every Alien in Entities
 	// carries a copy of the one it belongs to on its own EntityView.AlienSpecies;
 	// this is the full roster, for a codex-style listing. See docs/lore.md.
 	AlienSpecies []AlienSpecies
+
+	// Economy is the money supply; each colonist's own balance is on its
+	// EntityView.Wallet.
+	Economy EconomyView
 
 	AffinityMax    int // affinity display bars run [-AffinityMax, AffinityMax]
 	MoodMax        int // charge and grip each run in [-MoodMax, MoodMax]
@@ -211,6 +414,9 @@ type Snapshot struct {
 	// per PerfBucket of wall-clock time. It is shared between snapshots and
 	// must not be modified. See docs/perf-screen.md.
 	Perf []PerfSample
+	// Population is the colony's vital signs over the whole game, oldest
+	// first; see population.go. Shared between snapshots, never written.
+	Population []PopulationSample
 
 	// FogOfWar says whether Tile.Explored is being maintained, so a frontend
 	// knows whether to hide the unexplored map. It is false on a hand-built
@@ -286,8 +492,8 @@ func (w *World) snapshot(paused bool, tps int) *Snapshot {
 			stats.Aliens++
 		case Cat:
 			stats.Cats++
-		case Mouse:
-			stats.Mice++
+		case Rat:
+			stats.Rats++
 		}
 	}
 
@@ -319,16 +525,7 @@ func (w *World) snapshot(paused bool, tps int) *Snapshot {
 		})
 	}
 
-	storages := make([]StorageView, 0, len(w.storageContainers))
-	for _, container := range w.storageContainers {
-		storages = append(storages, StorageView{
-			Pos:       container.Pos,
-			Inventory: container.Inventory,
-		})
-	}
-	sort.Slice(storages, func(i, j int) bool {
-		return lessPoint(storages[i].Pos, storages[j].Pos)
-	})
+	storages := w.snapshotStorages()
 
 	return &Snapshot{
 		Tick:                 w.tick,
@@ -345,16 +542,39 @@ func (w *World) snapshot(paused bool, tps int) *Snapshot {
 		PendingDormitories:   w.manualDormitories,
 		PendingTrashRooms:    w.manualTrashRooms,
 		PendingStorageRooms:  w.manualStorageRooms,
+		PendingScumhouses:    w.manualScumhouses,
 		Storages:             storages,
+		Fixtures:             w.publishedFixtures(),
+		Scum:                 w.publishedScum(),
 		Graveyard:            append([]EntityView(nil), w.graveyard...),
 		Deceased:             w.publishedDeceasedColonists(),
 		AlienSpecies:         append([]AlienSpecies(nil), w.alienSpecies...),
+		Population:           w.popHist,
+		Economy:              w.economyView(),
 		AffinityMax:          w.cfg.AffinityMax,
 		MoodMax:              w.cfg.MoodMax,
 		Paused:               paused,
 		TicksPerSecond:       tps,
 		FogOfWar:             w.cfg.FogOfWar,
 	}
+}
+
+// snapshotStorages copies every storage container, ledger included, sorted by
+// position so the list never depends on map iteration order.
+func (w *World) snapshotStorages() []StorageView {
+	storages := make([]StorageView, 0, len(w.storageContainers))
+	for _, container := range w.storageContainers {
+		storages = append(storages, StorageView{
+			Pos:       container.Pos,
+			Terrain:   container.Terrain,
+			Inventory: container.Inventory,
+			Ledger:    append([]LedgerLine(nil), container.Ledger...),
+		})
+	}
+	sort.Slice(storages, func(i, j int) bool {
+		return lessPoint(storages[i].Pos, storages[j].Pos)
+	})
+	return storages
 }
 
 // publishedDeceasedColonists returns the deceased archive as snapshots
@@ -390,6 +610,7 @@ func (w *World) entityView(e *Entity, kinChildren map[kinID][]kinID, full bool) 
 		Needs:     w.currentNeeds(e),
 		Profile:   e.Profile.clone(),
 		Inventory: e.Inventory,
+		Wallet:    e.wallet,
 	}
 	if e.hasParts() {
 		ev.Parts = e.Parts

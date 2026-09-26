@@ -81,11 +81,11 @@ type NeedSpec struct {
 }
 
 // needLevel returns an entity's current level for one need, computed lazily
-// from its stored base and the elapsed ticks, clamped to [0, Max]. Mice share
+// from its stored base and the elapsed ticks, clamped to [0, Max]. Rats share
 // the food need with colonists but hunger at their own faster rate.
 func (w *World) needLevel(e *Entity, i NeedKind) int {
 	spec := w.cfg.Needs[i]
-	// needRise is the entity's per-need rate: colonists' is trait-scaled and mice
+	// needRise is the entity's per-need rate: colonists' is trait-scaled and rats
 	// hunger fast (see personality.go and newEntity).
 	lvl := e.Needs[i] + e.needRise[i]*(w.tick-e.needSince[i])
 	if lvl > spec.Max {
@@ -178,6 +178,12 @@ func (w *World) applyStarvation(e *Entity) {
 	for i := 0; i < int(numNeeds); i++ {
 		spec := w.cfg.Needs[i]
 		if spec.Fatal && w.needLevel(e, NeedKind(i)) >= spec.Max {
+			// A colonist already eating, or on its way to its own meal, is
+			// guaranteed food: jobEat ends the job if the meal turns out to be
+			// out of reach, and the grace with it.
+			if NeedKind(i) == NeedFood && e.Job == JobEat {
+				continue
+			}
 			if e.Job == JobUse && e.Need == NeedKind(i) {
 				// A colonist that has already grabbed a portable need (see
 				// NeedSpec.GrabTicks) is guaranteed to finish regardless of the
@@ -188,7 +194,7 @@ func (w *World) applyStarvation(e *Entity) {
 				// Reaching food does not reset the need until UseTicks elapse. Give
 				// an entity committed to a reachable source enough grace to traverse
 				// its queue and finish eating rather than dying mid-meal.
-				if field := w.facilityField(spec.Facility); field != nil && field.at(e.Pos) >= 0 {
+				if w.facilityReachable(e, spec.Facility) {
 					continue
 				}
 			}

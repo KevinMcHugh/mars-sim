@@ -24,6 +24,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"runtime/pprof"
+	"strconv"
 	"strings"
 	"sync"
 	"syscall"
@@ -82,6 +83,9 @@ func main() {
 		glyphs      string
 		printConfig bool
 		cpuProfile  string
+		econTrace   int
+		econEvery   int
+		econSeeds   string
 	)
 	flag.DurationVar(&duration, "duration", 0, "auto-exit after this long (0 = run until quit); handy for smoke tests")
 	flag.BoolVar(&headless, "headless", false, "run without the TUI, printing periodic stats")
@@ -94,6 +98,9 @@ func main() {
 	flag.String("alien-names", alienNamesPath, "alien name pool file to read (\"\" to use the built-in pool)")
 	flag.BoolVar(&printConfig, "print-config", false, "write a commented settings file with every setting at its default, then exit")
 	flag.StringVar(&cpuProfile, "cpuprofile", "", "write a CPU profile of the whole run to this file (read it with go tool pprof)")
+	flag.IntVar(&econTrace, "econ-trace", 0, "run this many ticks as fast as possible and print an economy trace (CSV) instead of playing")
+	flag.IntVar(&econEvery, "econ-every", 100, "ticks between rows of an -econ-trace")
+	flag.StringVar(&econSeeds, "econ-seeds", "", "comma-separated seeds to trace one after another (default: -seed)")
 
 	// Simulation config flags, each defaulting to the value the settings file
 	// left in place.
@@ -134,6 +141,14 @@ func main() {
 		os.Exit(2)
 	}
 	defer stopProfile()
+
+	if econTrace > 0 {
+		if err := runEconTrace(cfg, econTrace, econEvery, econSeeds); err != nil {
+			fmt.Fprintln(os.Stderr, "mars-sim:", err)
+			os.Exit(2)
+		}
+		return
+	}
 
 	eng := sim.NewEngine(cfg)
 
@@ -377,12 +392,19 @@ func validateConfig(cfg sim.Config) error {
 		return fmt.Errorf("cavern-nest-percent must be between 0 and 100 (got %d)", cfg.CavernNestPercent)
 	case cfg.CavernNestMin < 1 || cfg.CavernNestMax < cfg.CavernNestMin:
 		return fmt.Errorf("cavern nest size range is invalid: min %d, max %d", cfg.CavernNestMin, cfg.CavernNestMax)
-	case cfg.StartColonists < 0 || cfg.StartAliens < 0 || cfg.StartCats < 0 || cfg.StartMice < 0:
+	case cfg.StartColonists < 0 || cfg.StartAliens < 0 || cfg.StartCats < 0 || cfg.StartRats < 0:
 		return fmt.Errorf("population counts cannot be negative")
-	case cfg.StartPistols < 0 || cfg.StartShotguns < 0:
-		return fmt.Errorf("starting weapon counts cannot be negative")
+	case cfg.CrashPodMeals < 0 || cfg.CrashPodPistols < 0 || cfg.CrashPodShotguns < 0:
+		return fmt.Errorf("crash pod manifest counts cannot be negative")
 	case cfg.GraveyardSize < 0:
 		return fmt.Errorf("graveyard-size cannot be negative")
+	case cfg.LaborPrice < 0 || cfg.PlanMinProfit < 0 || cfg.PlanCandidates < 0 ||
+		cfg.PlanTTL < 0 || cfg.DemandTTL < 0 || cfg.PriceCaveScum < 0:
+		return fmt.Errorf("valuation settings (labor-price, plan-*, demand-ttl, price-cave-scum) cannot be negative")
+	case cfg.ColonyMarkup < 0 || cfg.ColonyStockReserve < 0 || cfg.SiloMealStock < 0 || cfg.HaulPay < 0:
+		return fmt.Errorf("hauling settings (colony-markup, colony-stock-reserve, silo-meal-stock, haul-pay) cannot be negative")
+	case cfg.FoundingGrant < 0 || cfg.CrashPodPurse < 0:
+		return fmt.Errorf("founding-grant and crash-pod-purse cannot be negative (got %d and %d)", cfg.FoundingGrant, cfg.CrashPodPurse)
 	case cfg.TicksPerSecond < 1:
 		return fmt.Errorf("tps must be at least 1 (got %d)", cfg.TicksPerSecond)
 	case cfg.ColonistsPerFacility < 1:
@@ -434,8 +456,8 @@ func validateConfig(cfg sim.Config) error {
 		return fmt.Errorf("social-window-ticks must be at least 1 (got %d)", cfg.SocialWindowTicks)
 	case cfg.MoodChargeDecayPerTick < 0 || cfg.MoodGripDecayPerTick < 0 || cfg.MoodLabelSwitchMargin < 0:
 		return fmt.Errorf("affect decay and label switch margin cannot be negative")
-	case cfg.MouseLitterMin < 0 || cfg.MouseLitterMax < cfg.MouseLitterMin:
-		return fmt.Errorf("mouse litter range is invalid: min %d, max %d", cfg.MouseLitterMin, cfg.MouseLitterMax)
+	case cfg.RatLitterMin < 0 || cfg.RatLitterMax < cfg.RatLitterMin:
+		return fmt.Errorf("rat litter range is invalid: min %d, max %d", cfg.RatLitterMin, cfg.RatLitterMax)
 	}
 	// Need specs are only reachable from the settings file and the -need-*
 	// flags, but a bad one breaks the colonists quietly (a need that never
@@ -477,11 +499,11 @@ func usage() {
 	fmt.Fprintf(out, "Usage:\n  %s [options]\n\n", name)
 	fmt.Fprintf(out, "Examples:\n")
 	fmt.Fprintf(out, "  %s -colonists 20 -aliens 5\n", name)
-	fmt.Fprintf(out, "  %s -mice 20 -cats 4\n", name)
+	fmt.Fprintf(out, "  %s -rats 20 -cats 4\n", name)
 	fmt.Fprintf(out, "  %s -width 120 -height 60 -tps 12\n", name)
 	fmt.Fprintf(out, "  %s -headless -duration 10s -seed 42\n", name)
 	fmt.Fprintf(out, "  %s -print-config > %s   # a settings file you can edit and commit\n", name, sim.ConfigFileName)
-	fmt.Fprintf(out, "  %s -director %s        # script scheduled occurrences (mouse plagues, alien swarms, supply drops)\n", name, sim.DirectorFileName)
+	fmt.Fprintf(out, "  %s -director %s        # script scheduled occurrences (rat plagues, alien swarms, supply drops)\n", name, sim.DirectorFileName)
 	fmt.Fprintf(out, "  %s -alien-names %s   # customize what a seed's aliens can be named\n\n", name, sim.AlienNameFileName)
 	fmt.Fprintf(out, "Options:\n")
 	flag.PrintDefaults()
@@ -562,8 +584,8 @@ func runHeadless(ctx context.Context, snaps <-chan *sim.Snapshot, cfg sim.Config
 	defer report.Stop()
 
 	var latest *sim.Snapshot
-	fmt.Printf("mars-sim headless: seed %d, %d colonists, %d aliens, %d cats, %d mice (Ctrl+C to stop)\n",
-		cfg.Seed, cfg.StartColonists, cfg.StartAliens, cfg.StartCats, cfg.StartMice)
+	fmt.Printf("mars-sim headless: seed %d, %d colonists, %d aliens, %d cats, %d rats (Ctrl+C to stop)\n",
+		cfg.Seed, cfg.StartColonists, cfg.StartAliens, cfg.StartCats, cfg.StartRats)
 	for {
 		select {
 		case s, ok := <-snaps:
@@ -573,9 +595,9 @@ func runHeadless(ctx context.Context, snaps <-chan *sim.Snapshot, cfg sim.Config
 			latest = s
 		case <-report.C:
 			if latest != nil {
-				fmt.Printf("tick %5d | colonists %2d | aliens %2d | cats %2d | mice %2d | pods %d | toilets %d | beds %d | burners %d | refuse %d | rooms %d | excavated %5d\n",
+				fmt.Printf("tick %5d | colonists %2d | aliens %2d | cats %2d | rats %2d | pods %d | toilets %d | beds %d | burners %d | refuse %d | rooms %d | excavated %5d\n",
 					latest.Tick, latest.Stats.Colonists, latest.Stats.Aliens,
-					latest.Stats.Cats, latest.Stats.Mice,
+					latest.Stats.Cats, latest.Stats.Rats,
 					latest.Stats.Pods, latest.Stats.Toilets, latest.Stats.Beds,
 					latest.Stats.Incinerators, latest.Stats.Refuse,
 					latest.Stats.Rooms, latest.Stats.FloorDug)
@@ -584,13 +606,46 @@ func runHeadless(ctx context.Context, snaps <-chan *sim.Snapshot, cfg sim.Config
 			return
 		case <-deadline:
 			if latest != nil {
-				fmt.Printf("done at tick %d: colonists %d, aliens %d, cats %d, mice %d, pods %d, toilets %d, beds %d, incinerators %d, refuse %d, excavated %d tiles\n",
+				fmt.Printf("done at tick %d: colonists %d, aliens %d, cats %d, rats %d, pods %d, toilets %d, beds %d, incinerators %d, refuse %d, excavated %d tiles\n",
 					latest.Tick, latest.Stats.Colonists, latest.Stats.Aliens,
-					latest.Stats.Cats, latest.Stats.Mice,
+					latest.Stats.Cats, latest.Stats.Rats,
 					latest.Stats.Pods, latest.Stats.Toilets, latest.Stats.Beds,
 					latest.Stats.Incinerators, latest.Stats.Refuse, latest.Stats.FloorDug)
 			}
 			return
 		}
 	}
+}
+
+// runEconTrace writes an economy trace for each seed in seeds (or cfg's own
+// seed), one after another under a single header. See sim.TraceEconomy and
+// docs/valuation.md.
+func runEconTrace(cfg sim.Config, ticks, every int, seeds string) error {
+	list := []int64{cfg.Seed}
+	if seeds != "" {
+		list = list[:0]
+		for _, f := range strings.Split(seeds, ",") {
+			n, err := strconv.ParseInt(strings.TrimSpace(f), 10, 64)
+			if err != nil {
+				return fmt.Errorf("-econ-seeds: %q is not a seed", f)
+			}
+			list = append(list, n)
+		}
+	}
+	for i, seed := range list {
+		c := cfg
+		c.Seed = seed
+		var buf strings.Builder
+		if err := sim.TraceEconomy(c, ticks, every, &buf); err != nil {
+			return err
+		}
+		out := buf.String()
+		if i > 0 {
+			out = out[strings.IndexByte(out, '\n')+1:] // one header for the lot
+		}
+		if _, err := os.Stdout.WriteString(out); err != nil {
+			return err
+		}
+	}
+	return nil
 }

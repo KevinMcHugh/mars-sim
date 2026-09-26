@@ -13,12 +13,13 @@ const (
 	// Alien is a subterranean mutant that walks the floor to hunt and eat
 	// colonists. Most start dormant in hidden caverns (see docs/caverns.md).
 	Alien
-	// Cat is a surface predator that stalks the floor hunting mice. It has no
+	// Cat is a surface predator that stalks the floor hunting rats. It has no
 	// needs of its own; it hunts by instinct.
 	Cat
-	// Mouse is a pest that scurries the floor and nibbles from nutrient pods.
+	// Rat is a pest that scurries the floor, scavenging bodies, gore, and cave
+	// scum, and nibbling from nutrient pods when there is nothing else.
 	// It has a hunger need and starves without food; cats eat it.
-	Mouse
+	Rat
 
 	numKinds // keep last: the number of entity kinds
 )
@@ -31,8 +32,8 @@ func (k Kind) String() string {
 		return "alien"
 	case Cat:
 		return "cat"
-	case Mouse:
-		return "mouse"
+	case Rat:
+		return "rat"
 	default:
 		return "unknown"
 	}
@@ -50,16 +51,18 @@ const (
 	Eating            // using a nutrient pod
 	Relieving         // using a toilet
 	Sleeping          // sleeping in a bed
-	Fleeing           // running from a nearby predator (colonist from alien, mouse from cat)
-	Hunting           // predator closing on prey (alien on colonist, cat on mouse)
+	Fleeing           // running from a nearby predator (colonist from alien, rat from cat)
+	Hunting           // predator closing on prey (alien on colonist, cat on rat)
 	Feeding           // predator eating prey it has caught
 	Talking           // chatting with another colonist (builds affinity)
-	Stomping          // colonist chasing down and crushing a pest mouse
+	Stomping          // colonist chasing down and crushing a pest rat
 	Fighting          // armed colonist standing its ground and firing on an alien
 	Cleaning          // colonist scrubbing refuse off a tile, or feeding the incinerator
 	Hauling           // colonist carrying gathered refuse to an incinerator
 	Storing           // colonist unloading general materials into storage
 	Demolishing       // colonist breaking down a wall to escape a sealed room
+	Crafting          // colonist working a recipe at a workshop (the scumhouse)
+	Scraping          // colonist scraping cave scum off a surface
 )
 
 func (s State) String() string {
@@ -98,6 +101,10 @@ func (s State) String() string {
 		return "storing"
 	case Demolishing:
 		return "demolishing"
+	case Crafting:
+		return "crafting"
+	case Scraping:
+		return "scraping"
 	default:
 		return "?"
 	}
@@ -105,7 +112,7 @@ func (s State) String() string {
 
 // BodyPart identifies one wound location tracked separately from an entity's
 // overall HP. Only Colonist and Alien use body parts (see Entity.hasParts);
-// cats and mice stay on a single HP pool, since nothing hits them with
+// cats and rats stay on a single HP pool, since nothing hits them with
 // anything more precise than a pounce or a boot.
 //
 // The enum has two halves. Everything below numBaseBodyParts is anatomy every
@@ -256,6 +263,12 @@ const (
 	JobClean            // scrub refuse off Target, then haul it to an incinerator
 	JobStore            // unload general materials into the storage at Target
 	JobDemolish         // break down the Wall tile at Target to escape a sealed room
+	JobEat              // take a meal from the depot at Target (if needed) and eat it
+	JobCraft            // work a recipe at the workshop at Target
+	JobScrape           // scrape the cave scum at Target, then haul it to a scumhouse
+	JobScavenge         // (rats) eat the body, gore, or scum at Target where it lies
+	JobSell             // take surplus meals from the depot at Target to the silo and offer them
+	JobCarry            // carry its own goods to a buyer's depot and ask the price (see producer.go)
 )
 
 // cleanStage is where a JobClean colonist is in the haul. The job is two legs
@@ -332,7 +345,7 @@ type Entity struct {
 	// the current level is Needs[i] + needRise[i]*(now-needSince[i]) (see
 	// needLevel). Storing a base + timestamp instead of ticking every colonist
 	// every tick lets idle colonists rest without their needs drifting out of
-	// date. Used by colonists (all needs) and mice (food only).
+	// date. Used by colonists (all needs) and rats (food only).
 	Needs             [numNeeds]int
 	needSince         [numNeeds]int
 	needPhase         [numNeeds]NeedPhase
@@ -354,6 +367,53 @@ type Entity struct {
 	// Inventory is carried by colonists. Each slot contains one homogeneous
 	// stack; other entity kinds leave it empty.
 	Inventory Inventory
+	// wallet is the colonist's dollars (colonists only). Only transfer and mint
+	// change it; see money.go and docs/money.md.
+	wallet Money
+	// podOrigin is the top-left of the crash pod this colonist arrived in,
+	// when hasPod; colonists placed directly by tests or older code have none.
+	// See crashpod.go.
+	podOrigin Point
+	hasPod    bool
+	// eat is where a JobEat colonist is: fetching a meal, or eating one. See
+	// food.go.
+	eat eatStage
+	// recipe and craftFor are a JobCraft colonist's recipe (an index into
+	// recipes) and whose inputs it is working; scrape is where a JobScrape
+	// colonist is. See scumhouse.go.
+	recipe   int
+	craftFor Owner
+	scrape   scrapeStage
+	sell     sellStage
+	// scrapeFor is whose a JobScrape colonist's scum is (the colony's unless
+	// a plan has it scraping for itself); scrapeQty, when set, is the load it
+	// stops at. plan is the production plan it is working, if any, and the
+	// carry fields are a JobCarry colonist's errand. See producer.go.
+	scrapeFor  Owner
+	scrapeQty  int
+	scrapeKeep bool // scraping to cook for itself, not to sell
+	plan       planID
+	carry      carryStage
+	carryItem  ItemKind
+	carryQty   int
+	carryPrice Money
+	carryTo    Point
+	// carryFor and carryWork, when set, make a JobCarry haul for hire: the
+	// goods are carryFor's, and each unit delivered is paid from the work
+	// order carryWork. See hauling.go.
+	carryFor  Owner
+	carryWork OrderID
+	// fieldDetour counts down the ticks a JobUse colonist routes concretely
+	// instead of following the shared field; see jobUse.
+	fieldDetour int
+	// commissioned records that this colonist has commissioned its house, so
+	// it commissions one at most (see commissionHouses).
+	commissioned bool
+	// cargo records whose the carried items of each kind are, when they are
+	// not the carrier's own: biomatter gathered as community work is the
+	// colony's until it reaches the scumhouse. The zero Owner means "the
+	// carrier's". See carriedOwner and docs/property.md.
+	cargo [numItemKinds]Owner
 	// kin is the colonist's node in the colony's family tree (colonists only; 0
 	// for aliens). Relations caches the derived display ties until the family
 	// tree changes. See relationships.go.
@@ -453,8 +513,8 @@ type Entity struct {
 	// rolled alien species this individual belongs to.
 	Species int
 
-	// Mouse reproduction (mice only). sex decides who can carry a litter; a
-	// female mouse that mates becomes pregnant until dueTick, when she births a
+	// Rat reproduction (rats only). sex decides who can carry a litter; a
+	// female rat that mates becomes pregnant until dueTick, when she births a
 	// litter. mateReadyTick gates breeding: it holds a newborn back until it
 	// matures and spaces out a female's litters after she gives birth.
 	sex           Sex
@@ -488,11 +548,11 @@ func newEntity(id EntityID, kind Kind, p Point, cfg Config) *Entity {
 		e.MaxHP = cfg.AlienHP
 	case Cat:
 		e.MaxHP = cfg.CatHP
-	case Mouse:
-		e.MaxHP = cfg.MouseHP
-		// Mice share the colonists' NeedFood but nibble constantly, so only their
+	case Rat:
+		e.MaxHP = cfg.RatHP
+		// Rats share the colonists' NeedFood but nibble constantly, so only their
 		// food need rises (fast); the others stay flat.
-		e.needRise[NeedFood] = cfg.MouseHungerRise
+		e.needRise[NeedFood] = cfg.RatHungerRise
 	}
 	e.HP = e.MaxHP
 	if e.hasParts() {
@@ -503,7 +563,7 @@ func newEntity(id EntityID, kind Kind, p Point, cfg Config) *Entity {
 }
 
 // hasParts reports whether this entity's wounds are tracked per body part.
-// Cats and mice die from a single pounce or stomp regardless of HP, so they
+// Cats and rats die from a single pounce or stomp regardless of HP, so they
 // have no need of the detail.
 func (e *Entity) hasParts() bool { return e.Kind == Colonist || e.Kind == Alien }
 

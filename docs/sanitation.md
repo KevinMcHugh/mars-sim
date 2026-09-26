@@ -6,9 +6,12 @@
 
 Colonies make a mess. A violent death splatters gore across a tile, and a death
 nothing eats leaves a body lying where it fell. Sanitation is the loop that
-deals with both: a colonist with nothing urgent to do **scrubs the refuse up,
-hauls it to an incinerator, and burns it** — and the colony builds itself a
-**trash room** to hold that incinerator once there is a mess to burn.
+deals with both: a colonist with nothing urgent to do **scrubs the refuse up
+and hauls it away** — **biomatter** (viscera, and every body but a
+colonist's) to a scumhouse to become food, and a **colonist's body** to an
+incinerator to be burned. The colony builds itself a **trash room** to hold
+that incinerator once there is a mess to burn. See
+[scumhouse.md](./scumhouse.md) for what the scumhouse does with its share.
 
 ## Source
 
@@ -16,14 +19,18 @@ hauls it to an incinerator, and burns it** — and the colony builds itself a
   job: `tryAssignClean`, `nearestRefuse`, `jobCleanGather`, `gatherRefuse`,
   `jobCleanHaul`, `incinerate`.
 - [`internal/sim/world.go`](../internal/sim/world.go) — the `Incinerator`
-  terrain, `Tile.Corpses`, `addCorpse`/`takeCorpse`/`takeGore`/`clearRefuse`,
-  `refuseAt`/`refuseTotal`, and `trackFacility`.
+  terrain, `refuseCell` (bodies counted by kind), `addCorpse`/`takeCorpse`/
+  `corpsesOfAt`/`takeGore`/`clearRefuse`, `refuseAt`/`refuseTotal`, and
+  `trackFacility`.
+- [`internal/sim/scumhouse.go`](../internal/sim/scumhouse.go) —
+  `deliverBiomatter`, `biomatterStacks`, `carriedOwner`.
 - [`internal/sim/project.go`](../internal/sim/project.go) — the `trashRoom`
   recipe and its slot in `planRooms`.
 - [`internal/sim/entity.go`](../internal/sim/entity.go) — `JobClean`,
   `cleanStage`, and the `Cleaning`/`Hauling` display states.
-- [`internal/sim/inventory.go`](../internal/sim/inventory.go) — the `Viscera`
-  and `Corpse` item kinds, `isRefuse`, `RemoveAll`, `Count`.
+- [`internal/sim/inventory.go`](../internal/sim/inventory.go) — the `Viscera`,
+  `ColonistCorpse`, `AlienCorpse` and `AnimalCorpse` item kinds, `isRefuse`,
+  `isBiomatter`, `RemoveAll`, `Count`.
 - [`internal/sim/jobboard.go`](../internal/sim/jobboard.go) — `claimClean` /
   `releaseClean`, so two colonists never walk at the same splatter.
 - [`internal/sim/cleaning_test.go`](../internal/sim/cleaning_test.go) — the
@@ -39,7 +46,14 @@ Two fields on `Tile` hold everything there is to clean:
 | Field | Left by | Glyph |
 | --- | --- | --- |
 | `Gore` | any messy kill: an alien's bite, a gunshot, a boot (capped at `maxGore`) | 🩸 |
-| `Corpses` | a death nothing ate: starvation, a gunned-down alien, a stomped mouse | 🦴 |
+| `Corpses` | a death nothing ate: starvation, a gunned-down alien, a stomped rat | 🦴 |
+
+Behind `Tile.Corpses` (a total, for display) the refuse index counts bodies
+**by kind** — `ColonistCorpse`, `AlienCorpse`, `AnimalCorpse` — because the
+kind decides where one goes. Every `addCorpse` call names it: starvation leaves
+a colonist's body (or, for a rat, an animal's), `shoot` an alien's, `stomp` an
+animal's. Gore is one undifferentiated count: viscera is viscera, whoever it
+came from.
 
 `refuseAt(p)` is their sum, and `refuseTotal()` is the map-wide running total,
 maintained incrementally by `addGore`/`addCorpse`/`takeGore`/`takeCorpse` so the
@@ -47,7 +61,7 @@ planner can ask "is the colony dirty?" without walking the grid.
 
 Which deaths leave a body is a decision at each call site, not a rule derived
 from the cause string: `bite` (an alien devouring a colonist) and `pounce` (a
-cat swallowing a mouse) leave only gore, because the remains were eaten. `shoot`,
+cat swallowing a rat) leave only gore, because the remains were eaten. `shoot`,
 `stomp`, and starvation call `addCorpse` as well.
 
 ### The cleaning job
@@ -56,10 +70,24 @@ cat swallowing a mouse) leave only gore, because the remains were eaten. `shoot`
 
 1. **`cleanGather`** — walk to the claimed refuse tile (standing on it or beside
    it both count) and scrub for `CleanTicks`. `gatherRefuse` then moves as much
-   of the tile's refuse as fits into the colonist's inventory as `Corpse` and
-   `Viscera` items, bodies first.
-2. **`cleanHaul`** — carry the load to an incinerator, spend `IncinerateTicks`
-   feeding it in, and `incinerate` destroys the whole load at once.
+   of the tile's refuse as fits into the colonist's inventory, bodies (as their
+   own item kinds) before `Viscera`. What a cleaner picks up is its own.
+2. **`cleanHaul`** — carry the load where it goes (`haulTarget`): to a
+   scumhouse that can take all the biomatter carried, if any is carried, and
+   there `deliverBiomatter` puts it in the depot in the cleaner's name and
+   sells it into the colony's standing bids (see
+   [scumhouse.md](./scumhouse.md)); then,
+   with whatever is left (a colonist's body, or biomatter no scumhouse had room
+   for), to an incinerator, where `IncinerateTicks` later `incinerate` destroys
+   the whole load at once.
+
+Where refuse can go decides what gets picked up (`refuseDestinations`):
+
+| Reachable | What a cleaner gathers |
+| --- | --- |
+| an incinerator | everything, as before |
+| only a scumhouse with room | biomatter only; a colonist's body stays where it lies |
+| neither | nothing |
 
 Both legs end in `clearJob`, which releases the tile claim if the colonist was
 still on its way to gather.
@@ -82,18 +110,25 @@ to one exactly the way an eater finds a nutrient pod, `chooseFacility` and all.
 
 ## Why it is this way
 
-- **Cleaning is work, not an idle whim.** Stomping a mouse happens in
+- **Cleaning is work, not an idle whim.** Stomping a rat happens in
   `colonistTurn`'s idle branch, and cleaning started there too. It never fired:
   the mining frontier is effectively infinite, so a colonist is never actually
   out of work and the idle branch is only reached when nothing is reachable.
   Refuse would have piled up forever in exactly the colony that generates it.
   Cleaning therefore sits in `assignWorkJob` — but *behind* project
   construction, so it can never delay life support.
-- **No incinerator, no cleaning.** A colonist that picked up a body with nowhere
-  to take it would just move the mess into an inventory slot, where it is
-  invisible, occupies carrying capacity, and is never destroyed. `tryAssignClean`
-  gates on a reachable incinerator, so refuse waits on the floor — visibly, and
-  as the planner's signal to build the trash room.
+- **Nowhere to take it, no cleaning.** A colonist that picked up a body with
+  nowhere to take it would just move the mess into an inventory slot, where it
+  is invisible, occupies carrying capacity, and is never destroyed.
+  `tryAssignClean` gates on a reachable destination for what it would pick up,
+  so refuse waits on the floor — visibly, and as the planner's signal to build
+  the trash room.
+- **A colonist's body is never food.** It goes to the incinerator and nowhere
+  else; `isBiomatter` leaves `ColonistCorpse` out, and a scumhouse depot never
+  receives one. Viscera, though, is viscera — the colony does not sort a stain
+  by whose it was.
+- **Biomatter is not burned while a scumhouse can take it.** `haulTarget` tries
+  the scumhouse first; only a load no scumhouse has room for goes to the fire.
 - **A load in hand is never stranded.** The one exception to that gate: a
   colonist already carrying refuse (its haul was interrupted by an alien, a
   meal, or a route that closed) takes the haul again ahead of any other work,
@@ -133,12 +168,13 @@ to one exactly the way an eater finds a nutrient pod, `chooseFacility` and all.
   colonist (Tidy searches twice as far) and `CleanTicks` runs through
   `scaleTicks(..., e.workScale)`, so both hooks are in place.
 - Invariant to preserve: **refuse is never held with nowhere to put it**. Any
-  new way to pick refuse up has to keep the "reachable incinerator first" gate
+  new way to pick refuse up has to keep the "reachable destination first" gate
   and the carrying-colonist fallback, or a load can be stranded in an inventory
   for the rest of the run.
 
 ## Related
 
+- [scumhouse.md](./scumhouse.md) — where biomatter goes, and what it becomes.
 - [combat.md](./combat.md) — where gore and most corpses come from.
 - [construction.md](./construction.md) — the project/recipe machinery the trash
   room is built with.

@@ -42,9 +42,10 @@ The model never mutates or reads live world state — only snapshots (see
 
 ### Map and details panels
 
-`viewMode` cycles between the **map** (default) and five **details panels**:
-the **roster**, **job board**, **storage**, **lore**, and **perf**. `tab`
-advances map → roster → job board → storage → lore → perf → map, following
+`viewMode` cycles between the **map** (default) and seven **details panels**:
+the **roster**, **job board**, **storage**, **market**, **lore**, **population**,
+and **perf**. `tab` advances map → roster → job board → storage → market → lore →
+population → perf → map, following
 `tabLabels`' order; `esc` returns straight to the map
 from any details panel. Global keys (`handleKey`) work everywhere; the rest
 dispatch to the active panel's handler.
@@ -62,7 +63,7 @@ dispatch to the active panel's handler.
   state, and `Stats` counts, including built dormitory beds, incinerators, and
   refuse still on the floor.
 - **Roster** (`renderRoster`): a scrolling, ID-sorted entity list — living
-  colonists by default, plus aliens/cats/mice and/or graveyard entries once
+  colonists by default, plus aliens/cats/rats and/or graveyard entries once
   the filter menu (`f`) turns those on — with each row's name, pronouns (or
   kind, for anything without a `Profile`), and current status (or cause of
   death). The detail pane for the selection is the full colonist inspector —
@@ -97,6 +98,10 @@ dispatch to the active panel's handler.
   damage/pace) as scannable stat lines, plus `AlienSpecies.Description()`'s
   narrative paragraph, word-wrapped (`wrapWords`) to the panel width. See
   [lore.md](./lore.md).
+- **Population** (`renderPopulation`): four braille line charts of the
+  colony over the whole game — colonists, meals in storage, colony size,
+  fixtures — from `Snapshot.Population`. See
+  [population-screen.md](./population-screen.md).
 - **Perf** (`renderPerf`): two gping-style braille line charts over time —
   ticks per second actually achieved, and milliseconds each tick costs — from
   the engine's `Snapshot.Perf` timing history. See
@@ -164,8 +169,8 @@ key is ignored so the prompt stays open until answered.
 Each menu remembers its own highlighted option (`spawnCursor`/`buildCursor` on
 `Model`) across opens *and* across submits — moving the highlight and
 submitting both update it — so repeating the same choice is just
-reopen-and-confirm: `s` → navigate to mouse → `enter` once, then `s` → `enter`,
-`s` → `enter` for two more mice, with no renavigating. While a menu is open its
+reopen-and-confirm: `s` → navigate to rat → `enter` once, then `s` → `enter`,
+`s` → `enter` for two more rats, with no renavigating. While a menu is open its
 prompt (current options, with the highlighted one bracketed) takes over the
 footer (styled distinctly via `menuStyle`) on whichever screen it was opened
 from. This keeps the top-level key surface small as more spawnable/buildable
@@ -182,10 +187,20 @@ fog, since naming the rock there would hand back the map the fog is hiding. For 
 and `enter` jumps directly to that container in the storage details panel.
 `i` or `esc` closes inspection without quitting.
 
-`tab` cycles **map → roster → jobs → storage → lore → perf → map**. Roster,
-jobs, storage, lore, and perf are collectively the details panels. In storage,
-`up`/`down` or `j`/`k` selects a chest from the position-sorted snapshot
-list; the inspector shows its occupied slots and total capacity. In lore,
+`tab` cycles **map → roster → jobs → storage → market → lore → population → perf → map**.
+Roster, jobs, storage, market, lore, population, and perf are collectively the details panels. In storage,
+`up`/`down` or `j`/`k` selects a container from the position-sorted snapshot
+list — a shared chest, or someone's crash-pod locker, labelled by owner — and
+the inspector shows its occupied slots, total capacity, and whose the contents
+are. In market
+(`render_market.go`), the same keys select an account — the colony's treasury
+first, then living colonists richest first — and the inspector shows its
+balance, holdings, and open orders beside the money supply from
+`Snapshot.Economy` (see [money.md](./money.md)). The treasury's page is the
+market's: every order book, each good's price, the open production plans, and
+the latest trades (see [market.md](./market.md) and
+[valuation.md](./valuation.md)); a colonist's page shows its own plan. The
+money supply sits above those lists, which the panel may cut short. In lore,
 the same keys select a rolled alien species from `Snapshot.AlienSpecies`;
 the inspector shows its full build and a narrative description.
 
@@ -195,13 +210,13 @@ the inspector shows its full build and a narrative description.
 | --- | --- |
 | `space` | pause / resume (`TogglePause`) |
 | `+` / `-` | faster / slower (`SetTicksPerSecond`, ±2) |
-| `s` | open the spawn menu — `↑↓`/`enter` to pick, or `c`/`a`/`x`/`m` for colonist/alien/cat/mouse directly (`Spawn`) |
-| `b` | open the build menu — `↑↓`/`enter` to pick, or `f`/`d`/`t`/`r` for facility room/dormitory/trash room/storage container directly |
+| `s` | open the spawn menu — `↑↓`/`enter` to pick, or `c`/`a`/`x`/`m` for colonist/alien/cat/rat directly (`Spawn`) |
+| `b` | open the build menu — `↑↓`/`enter` to pick, or `f`/`d`/`t`/`r`/`h` for facility room/dormitory/trash room/storage container/scumhouse directly |
 | `i` (map only) | enter map inspection; arrows/`hjkl` move the cursor, `enter` opens a storage chest's details, and `i`/`esc` closes |
 | `f` (roster only) | open the roster's filter menu — `↑↓`/`enter`/`space` to toggle the highlighted checkbox, or `d`/`n` for dead/non-human directly; no command sent, this only changes what the roster shows |
 | arrows or `hjkl` | pan the camera (map) / move selection (roster, job board) |
 | `shift+↑↓`, `pgup`/`pgdn` (roster only) | scroll the selected colonist's inspector a line / a screenful |
-| `tab` | cycle map → roster → job board → storage → lore → perf → map |
+| `tab` | cycle map → roster → job board → storage → market → lore → population → perf → map |
 | `q` / `esc` | quit (`esc` returns to the map from any details panel, or cancels an open menu) |
 
 `s` and `b` work from every screen; `f` only does anything on the roster
@@ -220,11 +235,11 @@ both in one visit is the normal case. `Model.showDead`/`showNonHuman` hold
 the two filters (both default off, so the roster's out-of-the-box view is
 unchanged); `rosterEntries()` (`render_roster.go`) is what every roster
 render calls instead of walking `Snapshot.Entities` directly — colonists are
-always eligible, `showNonHuman` admits aliens/cats/mice, and `showDead`
+always eligible, `showNonHuman` admits aliens/cats/rats, and `showDead`
 additionally merges in every dead colonist from `Snapshot.Deceased` (the
 permanent, by-ID archive — see docs/combat.md) plus any non-colonist entries
 from `Snapshot.Graveyard` (bounded, subject to the same kind filter, so a
-dead mouse needs both filters on); a colonist's own `Graveyard` entry, if
+dead rat needs both filters on); a colonist's own `Graveyard` entry, if
 any, is skipped there so one death is never listed twice. `colonistNames()`
 merges `Deceased` in too, so a living colonist's FAMILY section can name a
 dead relative instead of leaving their slot blank. The title above the list

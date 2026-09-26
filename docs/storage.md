@@ -48,7 +48,9 @@ During work selection, a blocked colonist seeks the nearest reachable chest that
 can accept its complete material load. If none exists but a storage project is
 active, it claims that project's reachable work instead of unrelated
 construction. At the chest, `JobStore` atomically adds all general materials,
-then removes them from the colonist. Raw rock, iron ore, water ice, uranium
+credits them to the depositing colonist on the chest's **ledger** (see
+[property.md](./property.md)), then removes them from the colonist. A chest
+someone else owns privately is skipped. Raw rock, iron ore, water ice, uranium
 ore, and clay are general materials. Weapons remain equipped, while viscera and corpses
 retain their dedicated incinerator route.
 
@@ -64,8 +66,27 @@ The TUI exposes contents in two places:
   `up`/`down` or `j`/`k` selects among containers, and the right panel shows the
   selected chest's occupied slots, item count, and capacity.
 
+A blocked colonist takes what sells (goods with a reference price) to the
+colony's **silo** — its communal chest nearest the map centre — and offers it
+there; the colony's standing bids buy the ore (see [market.md](./market.md)).
+Everything else goes to `chooseStorage`'s nearest other chest; the silo takes
+general materials only as a last resort, so unsold rock never crowds ore out of
+the market.
+
 Colonists deposit only when their inventory blocks further mining; they do not
-continually shuttle every new item. There is no automatic withdrawal policy yet.
+continually shuttle every new item. The only withdrawal is a hungry colonist
+taking a meal out (see [food.md](./food.md)).
+
+A **scumhouse** carries a storage container too — its store of biomatter and
+meals, with a ledger — but it is not a chest: general materials are only ever
+unloaded into `Storage` containers. The storage tab lists it as "scumhouse".
+See [scumhouse.md](./scumhouse.md).
+
+Every crash pod brings a **locker**: an ordinary storage container, private to
+its settler (see [crash-pods.md](./crash-pods.md)). Its owner unloads into it
+like any chest, and nobody else can. So the colony only builds a shared storage
+room once a blocked colonist has no reachable chest — its own locker included —
+with room for its load. The storage tab labels lockers by owner.
 
 ## Why it is this way
 

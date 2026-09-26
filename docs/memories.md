@@ -210,9 +210,9 @@ pretending it was one event — the TUI writes
 
 | Kind | Fires when | Affect vector |
 | --- | --- | --- |
-| `EvtSawAlien` / `EvtSawMouse` / `EvtSawGore` | first nearby sighting | `(8,-10)` / `(2,-3)` / `(-3,-7)` |
+| `EvtSawAlien` / `EvtSawRat` / `EvtSawGore` | first nearby sighting | `(8,-10)` / `(2,-3)` / `(-3,-7)` |
 | `EvtBitten` / witnessed colonist harm | alien attack experience | `(10,-8)`; killed `(6,-16)`; attacked `(5,-9)` |
-| mouse/cat events | stomp or catch | crusher `(-1,2)`; witness `(-1,-2)`; cat catch `(1,1)` |
+| rat/cat events | stomp or catch | crusher `(-1,2)`; witness `(-1,-2)`; cat catch `(1,1)` |
 | alien combat events | kill, wound, or witness | kill `(12,14)`; witnessed kill `(5,6)`; wound `(4,5)`; gunfight `(7,-5)` |
 | `EvtConversation` | finished a conversation | computed per occurrence, then converted to a vector |
 | need completions | ate, toilet, slept, generic satisfaction | `(4,2)`, `(1,2)`, `(15,2)`, `(2,2)` |
@@ -313,7 +313,7 @@ Mutant-Lover reflects grip positive, without a branch in `mutate()`.
   input inside the one ingestion funnel rather than updating affect directly.
 - **Make an existing kind collapsible (or stop it collapsing)**: add or remove
   its entry in `lifeEventCollapseText` (`lifeevents.go`). The entry's text is
-  what a run of it reads as; no call site changes. `EvtCrushedMouse` is the
+  what a run of it reads as; no call site changes. `EvtCrushedRat` is the
   most likely next candidate if stomping ever becomes routine.
 - **A new perception** (something a colonist should notice near it, like
   gore): add it to `observeNearby` (per-entity) or write an `observeGore`-like

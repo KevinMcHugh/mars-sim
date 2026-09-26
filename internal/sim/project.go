@@ -18,6 +18,11 @@ type buildTask struct {
 	terrain Terrain  // desired terrain for pos
 	owner   EntityID // colonist currently building it; 0 if unclaimed
 	phase   int      // lower phases in this project must finish first
+	// order is the work order paying for this task, and proj the project it
+	// belongs to (see workorder.go). A task built by hand in a test has
+	// neither: it is unpaid, and its fixture stays the colony's.
+	order *WorkOrder
+	proj  *project
 }
 
 // project is a planned structure: the colony builds all its tasks, then it is
@@ -27,6 +32,9 @@ type project struct {
 	name       string
 	queuedTick int // w.tick when the project was designated, for job board display
 	tasks      []*buildTask
+	// issuer pays for the work and owns what is built: the colony for public
+	// works, a colonist for a commission (see workorder.go).
+	issuer Owner
 }
 
 // taskDone reports whether a task's tile already holds its desired terrain —
@@ -126,6 +134,11 @@ func (w *World) claimNearestTaskIn(from Point, id EntityID, projects []*project)
 		for _, t := range p.tasks {
 			if t.phase != phase || t.owner != 0 || w.occupied(t.pos) || !w.taskWorkable(t) ||
 				!w.taskReachable(t.pos, room) {
+				continue
+			}
+			// A colonist never claims what it could not pay for; it mines
+			// instead, and the rock is what it builds with next time.
+			if builder := w.entities[id]; builder != nil && !w.canAffordBuild(builder, t.terrain, p.issuer) {
 				continue
 			}
 			if d := from.Chebyshev(t.pos); best == nil || d < bestDist ||
@@ -270,8 +283,37 @@ type roomRecipe struct {
 	// to 1: the colony wants exactly one incinerator, and without the cap
 	// planRoom would happily fit a closet with three of them into the same
 	// walls.
-	maxFac  int
-	planLog string // logged when the room is marked out
+	maxFac int
+	// aisle widens the room by a tile of floor either side of its bay. A
+	// one-fixture room is otherwise one tile wide, so exactly one tile can
+	// reach its fixture: fine for a pod or a toilet, used in a moment, but a
+	// workshop or a shop has a cook working there for long stretches while
+	// others need the same depot — to sell, to buy, to fetch a meal they own.
+	// With the scumhouse one tile wide, the queue behind a cook starved three
+	// tiles from its own food.
+	aisle bool
+	// aisleRequired refuses the narrow fallback (see planRoomFor): the room
+	// waits for a site wide enough for its aisle. Every scumhouse but the
+	// colony's first sets it — a one-tile scumhouse whose cook never left
+	// its only access tile starved a colonist beside a meal of its own.
+	aisleRequired bool
+	planLog       string // logged when the room is marked out
+}
+
+// roomWidth is the interior width of a room of r with n facilities.
+func (r roomRecipe) roomWidth(n int) int {
+	if r.aisle {
+		return bayWidth(n) + 2
+	}
+	return bayWidth(n)
+}
+
+// bayOffset is how far in from a room's left wall its first facility sits.
+func (r roomRecipe) bayOffset() int {
+	if r.aisle {
+		return 1
+	}
+	return 0
 }
 
 var (
@@ -279,6 +321,12 @@ var (
 	// food and bladder needs; a partial room must still serve both.
 	lifeSupportRoom = roomRecipe{
 		name: "facility room", kinds: []Terrain{NutrientPod, Toilet}, minFac: 2,
+		planLog: "The colony marks out a new facility room.",
+	}
+	// toiletRoom is the facility room with the safety net off: a nutrient pod
+	// feeds nobody then (see podsFeed), so the bay is all toilets.
+	toiletRoom = roomRecipe{
+		name: "facility room", kinds: []Terrain{Toilet}, minFac: 1,
 		planLog: "The colony marks out a new facility room.",
 	}
 	// dormRoom is a bay of bunks. Even a single bunk is worth raising.
@@ -301,8 +349,18 @@ var (
 	// one at a time: unlike need facilities, their useful capacity is already
 	// six full colonist inventories and demand is player-directed.
 	storageRoom = roomRecipe{
-		name: "storage room", kinds: []Terrain{Storage}, minFac: 1, maxFac: 1,
+		name: "storage room", kinds: []Terrain{Storage}, minFac: 1, maxFac: 1, aisle: true,
 		planLog: "The colony marks out a new storage room.",
+	}
+	// scumhouseRoom walls in one scumhouse. One serves a colony: its depot
+	// holds six inventories of biomatter and meals, and cooks queue for it
+	// one at a time. The planner wants one only when food is not free (see
+	// planRooms); otherwise it is player-ordered. It has an aisle, so the
+	// depot stays reachable while a cook works (see roomRecipe.aisle); so
+	// does a storage room, since the first is the colony's silo.
+	scumhouseRoom = roomRecipe{
+		name: "scumhouse", kinds: []Terrain{Scumhouse}, minFac: 1, maxFac: 1, aisle: true,
+		planLog: "The colony marks out a scumhouse.",
 	}
 )
 
@@ -355,9 +413,13 @@ func (w *World) planRooms() {
 		}
 		return
 	}
+	w.commissionHouses()
+	if len(w.projects) >= w.maxConcurrentProjects() {
+		return
+	}
 	if w.manualFacilityRooms > 0 {
 		before := len(w.projects)
-		w.planRoom(lifeSupportRoom)
+		w.planRoom(w.facilityRoomRecipe())
 		if len(w.projects) > before {
 			w.manualFacilityRooms--
 		}
@@ -387,15 +449,54 @@ func (w *World) planRooms() {
 		}
 		return
 	}
+	if w.manualScumhouses > 0 {
+		before := len(w.projects)
+		w.planRoom(scumhouseRoom)
+		if len(w.projects) > before {
+			w.manualScumhouses--
+		}
+		return
+	}
+	// Without the safety net, food has to be made, and the scumhouse is the
+	// only place that makes it: it comes before every other room, as life
+	// support always has. Crash-pod meals buy the time to build it.
+	if !w.podsFeed() && w.plannedFacilities(Scumhouse) < w.desiredScumhouses() {
+		// Life support does not wait on money: a colony that cannot fund its
+		// first scumhouse still marks it out, as unpaid community work, the
+		// way colonists always built themselves pods and toilets. Without
+		// this a colony founded with no grant starved to a colonist.
+		// Only the first comes free of charge, and only the first holds up
+		// everything else: later ones are ordinary public works, which wait
+		// on the treasury like any other room and let the planner move on
+		// when they cannot be placed or paid for.
+		first := w.plannedFacilities(Scumhouse) == 0
+		r := scumhouseRoom
+		r.aisleRequired = !first
+		if w.planRoomFor(r, Community) {
+			return
+		}
+		if first {
+			w.planRoomFor(scumhouseRoom, Nobody)
+			return
+		}
+	}
 	desired := w.desiredFacilities(w.countKind(Colonist))
-	if w.plannedFacilities(NutrientPod) < desired || w.plannedFacilities(Toilet) < desired {
-		w.planRoom(lifeSupportRoom)
+	if (w.wantsFacility(NutrientPod) && w.plannedFacilities(NutrientPod) < desired) ||
+		w.plannedFacilities(Toilet) < desired {
+		w.planRoom(w.facilityRoomRecipe())
 		return
 	}
 	// A full inventory stops mining and can also deadlock a room whose active
 	// phase consists of dig tasks. Storage therefore outranks non-fatal bunks:
 	// make somewhere to unload before asking the same workers to excavate more.
 	if w.colonyNeedsStorage() {
+		w.planRoom(storageRoom)
+		return
+	}
+	// The colony trades at a communal chest, its silo (see market.go). Crash
+	// pods bring every settler a locker, so nothing else ever calls for a
+	// shared one: without this, a colony would never have a market at all.
+	if _, ok := w.marketDepot(); !ok && w.projectFacilityTasks(Storage) == 0 {
 		w.planRoom(storageRoom)
 		return
 	}
@@ -413,35 +514,60 @@ func (w *World) planRooms() {
 	}
 }
 
+// facilityRoomRecipe is the life-support room the colony builds: pods and
+// toilets while pods feed anyone, toilets alone once they do not.
+func (w *World) facilityRoomRecipe() roomRecipe {
+	if w.wantsFacility(NutrientPod) {
+		return lifeSupportRoom
+	}
+	return toiletRoom
+}
+
 // planRoom designates a new room from a recipe at a suitable open site. It
 // prefers the recipe's largest bay (roomFacilities, unless it caps itself with
 // maxFac) but falls back to fewer facilities when only a shorter clear area is
 // available, so progress is made even in a cramped cavern.
 func (w *World) planRoom(r roomRecipe) {
+	w.planRoomFor(r, Community)
+}
+
+// planRoomFor plans a room paid for, and owned, by issuer, reporting whether
+// it did. A room whose site is found but whose work issuer cannot pay for is
+// not planned: that is how an empty treasury halts public works.
+func (w *World) planRoomFor(r roomRecipe, issuer Owner) bool {
 	largest := r.maxFac
 	if largest <= 0 || largest > roomFacilities {
 		largest = roomFacilities
 	}
 	for n := largest; n >= r.minFac; n-- {
-		o, ok := w.findRoomSite(bayWidth(n))
+		o, ok := w.findRoomSite(r.roomWidth(n))
+		if !ok && r.aisle && !r.aisleRequired {
+			// A cramped cavern with no site wide enough for the aisle still
+			// gets the room, narrow: a scumhouse one tile can reach beats
+			// none at all.
+			narrow := r
+			narrow.aisle = false
+			if o, ok = w.findRoomSite(narrow.roomWidth(n)); ok {
+				return w.designateRoom(narrow, o, n, issuer)
+			}
+		}
 		if !ok {
 			continue // no site this wide; try a smaller room
 		}
-		w.designateRoom(r, o, n)
-		return
+		return w.designateRoom(r, o, n, issuer)
 	}
 	// No site large enough for even this recipe's minimum yet; colonists dig
 	// on and planning retries later.
+	return false
 }
 
 // designateRoom adds a phased room project from a recipe. Any interior tile
 // still solid rock is dug first (roomDigPhase); its complete perimeter is
 // then built, except for the centered front doorway; then n facilities are
 // built one tile inside the back wall, drawn from the recipe's kinds in order.
-func (w *World) designateRoom(r roomRecipe, o Point, n int) {
-	p := &project{id: w.nextProjectID, name: r.name, queuedTick: w.tick}
-	w.nextProjectID++
-	width := bayWidth(n)
+func (w *World) designateRoom(r roomRecipe, o Point, n int, issuer Owner) bool {
+	p := &project{id: w.nextProjectID, name: r.name, queuedTick: w.tick, issuer: issuer}
+	width := r.roomWidth(n)
 	backY := o.Y - 1
 	frontY := roomFrontWallY(o.Y)
 	for y := backY; y <= frontY; y++ {
@@ -463,12 +589,6 @@ func (w *World) designateRoom(r roomRecipe, o Point, n int) {
 		}
 	}
 	doorX := o.X + width/2
-	// Reserve the tile directly outside the door, permanently: without this,
-	// nothing stops a later room from sitting its own wall or facility row
-	// right on top of it once the colony has grown enough to prefer that
-	// spot, sealing this room's only way out behind a wall its own doorway
-	// invariant never anticipated. See roomSiteClear.
-	w.doorTiles[Point{doorX, frontY + roomApproach}] = true
 	for x := o.X; x < o.X+width; x++ {
 		p.tasks = append(p.tasks,
 			&buildTask{pos: Point{x, backY}, terrain: Wall, phase: roomWallPhase})
@@ -479,10 +599,26 @@ func (w *World) designateRoom(r roomRecipe, o Point, n int) {
 	}
 	for i, dx := 0, 0; i < n; i, dx = i+1, dx+2 {
 		p.tasks = append(p.tasks,
-			&buildTask{pos: Point{o.X + dx, o.Y}, terrain: r.kinds[i%len(r.kinds)], phase: roomFitPhase})
+			&buildTask{pos: Point{o.X + r.bayOffset() + dx, o.Y}, terrain: r.kinds[i%len(r.kinds)], phase: roomFitPhase})
 	}
+	for _, t := range p.tasks {
+		t.proj = p
+	}
+	// The room is bought before anything about it becomes permanent: an
+	// issuer that cannot pay for all its work gets nothing marked out.
+	if !w.fundProject(p) {
+		return false
+	}
+	w.nextProjectID++
+	// Reserve the tile directly outside the door, permanently: without this,
+	// nothing stops a later room from sitting its own wall or facility row
+	// right on top of it once the colony has grown enough to prefer that
+	// spot, sealing this room's only way out behind a wall its own doorway
+	// invariant never anticipated. See roomSiteClear.
+	w.doorTiles[Point{doorX, frontY + roomApproach}] = true
 	w.projects = append(w.projects, p)
 	w.log.add(r.planLog)
+	return true
 }
 
 // findRoomSite returns the left end of a width-long facility row in a niche at
@@ -675,4 +811,13 @@ func (w *World) roomSiteClear(ox, oy, width int, designated map[Point]bool, allo
 		}
 	}
 	return true
+}
+
+// desiredScumhouses is how many scumhouses the colony wants with scarcity on:
+// one per colonists-per-scumhouse colonists, and always at least one. One cook
+// works a scumhouse at a time, so a growing colony that kept one kitchen
+// starved beside a pile of uncooked scum.
+func (w *World) desiredScumhouses() int {
+	per := max(1, w.cfg.ColonistsPerScumhouse)
+	return max(1, (w.countKind(Colonist)+per-1)/per)
 }

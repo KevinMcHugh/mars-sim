@@ -5,7 +5,7 @@ import "testing"
 func TestRockVeinsAreDeterministicAndMeetAbundanceTargets(t *testing.T) {
 	cfg := testConfig()
 	cfg.Width, cfg.Height = 40, 30
-	cfg.StartColonists, cfg.StartAliens, cfg.StartCats, cfg.StartMice = 0, 0, 0, 0
+	cfg.StartColonists, cfg.StartAliens, cfg.StartCats, cfg.StartRats = 0, 0, 0, 0
 	cfg.IronRockPercent, cfg.IceRockPercent, cfg.ClayRockPercent = 10, 5, 7
 	cfg.RockVeinMin, cfg.RockVeinMax = 8, 16
 	cfg.Seed = 314159
@@ -37,7 +37,7 @@ func TestRockVeinsAreDeterministicAndMeetAbundanceTargets(t *testing.T) {
 func TestRockDepositsAreVeinsRatherThanIsolatedTiles(t *testing.T) {
 	cfg := testConfig()
 	cfg.Width, cfg.Height = 40, 30
-	cfg.StartColonists, cfg.StartAliens, cfg.StartCats, cfg.StartMice = 0, 0, 0, 0
+	cfg.StartColonists, cfg.StartAliens, cfg.StartCats, cfg.StartRats = 0, 0, 0, 0
 	cfg.IronRockPercent, cfg.IceRockPercent, cfg.ClayRockPercent = 10, 5, 7
 	cfg.RockVeinMin, cfg.RockVeinMax = 8, 16
 	cfg.Seed = 271828

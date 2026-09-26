@@ -95,6 +95,15 @@ const (
 	// Its contents are sparse world state rather than part of every Tile; see
 	// storageContainers and docs/storage.md.
 	Storage
+	// Scumhouse turns biomatter — cave scum, viscera, and every body but a
+	// colonist's — into meals of slurry. It is a workshop with a depot: its
+	// inputs and its meals sit in a storage container on its tile, with a
+	// ledger like any chest. See scumhouse.go and docs/scumhouse.md.
+	Scumhouse
+	// Hull is the metal wall of a crash pod. It behaves like a Wall — it blocks
+	// movement, bounds a room, and can be broken down to escape one — but it is
+	// salvaged spacecraft, not something the colony builds. See docs/crash-pods.md.
+	Hull
 
 	numTerrains // keep last: the number of terrain kinds
 )
@@ -117,6 +126,10 @@ func (t Terrain) String() string {
 		return "incinerator"
 	case Storage:
 		return "storage container"
+	case Scumhouse:
+		return "scumhouse"
+	case Hull:
+		return "pod hull"
 	default:
 		return "unknown"
 	}
@@ -192,7 +205,7 @@ type Tile struct {
 	Gore uint8
 	// Corpses is how many bodies lie on this tile, left by a death that did not
 	// end in something eating the remains (a starvation, a gunned-down alien, a
-	// stomped mouse). Like Gore it is tile state rather than an entity: a corpse
+	// stomped rat). Like Gore it is tile state rather than an entity: a corpse
 	// does not act, and the occupancy index allows one entity per tile, so a
 	// body modelled as an entity would wall off the spot where anything died.
 	// Colonists haul corpses to an incinerator; see docs/sanitation.md.
@@ -225,9 +238,36 @@ type tileCell struct {
 
 // refuseCell is what lies on a tile something died on. Absent from the refuse
 // index means a clean tile, so the index holds only tiles that are dirty.
+// Bodies are counted by kind (corpseKinds order), because the kind decides
+// where a cleaner takes one: a colonist's to the incinerator, anything else's
+// to a scumhouse (see docs/sanitation.md).
 type refuseCell struct {
 	Gore    uint8
-	Corpses uint16
+	Corpses [numCorpseKinds]uint16
+}
+
+// corpseKinds are the body items, in refuseCell.Corpses order.
+var corpseKinds = [...]ItemKind{ColonistCorpse, AlienCorpse, AnimalCorpse}
+
+const numCorpseKinds = len(corpseKinds)
+
+// corpseIndex returns kind's slot in refuseCell.Corpses, or -1.
+func corpseIndex(kind ItemKind) int {
+	for i, k := range corpseKinds {
+		if k == kind {
+			return i
+		}
+	}
+	return -1
+}
+
+// total is how many bodies of any kind lie on the tile.
+func (r refuseCell) total() int {
+	n := 0
+	for _, c := range r.Corpses {
+		n += int(c)
+	}
+	return n
 }
 
 // tile returns the assembled view of cell i, with any refuse on it.
@@ -239,7 +279,7 @@ func (w *World) tile(i int) Tile {
 		Composition: c.Composition,
 		Explored:    c.Explored,
 		Gore:        r.Gore,
-		Corpses:     r.Corpses,
+		Corpses:     uint16(r.total()),
 	}
 }
 
@@ -277,21 +317,23 @@ func (w *World) addGore(p Point) {
 	w.goreTotal++
 }
 
-// addCorpse leaves a body on p. It is addGore's counterpart for remains that
-// are still recognizably a body rather than a stain, and callers pick: a death
-// whose remains are eaten (an alien devouring a colonist, a cat swallowing a
-// mouse) leaves only gore, while a starvation, a gunshot, or a stomp leaves a
-// body to be hauled away. Like addGore it reaches frontends through the refuse
+// addCorpse leaves a body of the given kind (ColonistCorpse, AlienCorpse or
+// AnimalCorpse) on p. It is addGore's counterpart for remains that are still
+// recognizably a body rather than a stain, and callers pick: a death whose
+// remains are eaten (an alien devouring a colonist, a cat swallowing a rat)
+// leaves only gore, while a starvation, a gunshot, or a stomp leaves a body to
+// be hauled away. Like addGore it reaches frontends through the refuse
 // index's revision rather than a tile page (see publishedRefuse).
-func (w *World) addCorpse(p Point) {
-	if !w.InBounds(p) {
+func (w *World) addCorpse(p Point, kind ItemKind) {
+	i := corpseIndex(kind)
+	if !w.InBounds(p) || i < 0 {
 		return
 	}
 	r := w.refuse[p]
-	if r.Corpses >= maxCorpses {
+	if r.Corpses[i] >= maxCorpses {
 		return
 	}
-	r.Corpses++
+	r.Corpses[i]++
 	w.setRefuse(p, r)
 	w.corpseTotal++
 }
@@ -304,13 +346,21 @@ func (w *World) refuseAt(p Point) int {
 		return 0
 	}
 	r := w.refuse[p]
-	return int(r.Gore) + int(r.Corpses)
+	return int(r.Gore) + r.total()
 }
 
 // goreAt and corpsesAt report one tile's refuse by kind, for the sight checks
 // and the gather loop that only care whether there is any.
 func (w *World) goreAt(p Point) int    { return int(w.refuse[p].Gore) }
-func (w *World) corpsesAt(p Point) int { return int(w.refuse[p].Corpses) }
+func (w *World) corpsesAt(p Point) int { return w.refuse[p].total() }
+
+// corpsesOfAt reports how many bodies of one kind lie on p.
+func (w *World) corpsesOfAt(p Point, kind ItemKind) int {
+	if i := corpseIndex(kind); i >= 0 {
+		return int(w.refuse[p].Corpses[i])
+	}
+	return 0
+}
 
 // refuseTotal is the whole map's outstanding refuse, maintained incrementally
 // by the add/take helpers so the planner never rescans the grid to decide
@@ -354,20 +404,22 @@ func (w *World) clearRefuse(p Point) {
 		return
 	}
 	w.goreTotal -= int(r.Gore)
-	w.corpseTotal -= int(r.Corpses)
+	w.corpseTotal -= r.total()
 	w.setRefuse(p, refuseCell{})
 }
 
-// takeCorpse removes one body from p, returning whether there was one.
-func (w *World) takeCorpse(p Point) bool {
-	if !w.InBounds(p) {
+// takeCorpse removes one body of the given kind from p, returning whether
+// there was one.
+func (w *World) takeCorpse(p Point, kind ItemKind) bool {
+	i := corpseIndex(kind)
+	if !w.InBounds(p) || i < 0 {
 		return false
 	}
 	r := w.refuse[p]
-	if r.Corpses == 0 {
+	if r.Corpses[i] == 0 {
 		return false
 	}
-	r.Corpses--
+	r.Corpses[i]--
 	w.setRefuse(p, r)
 	w.corpseTotal--
 	return true
@@ -439,7 +491,7 @@ type World struct {
 	// (see nearestOfKindAnywhere) can scan the handful of matching entities
 	// directly instead of nearestMatch's chunk-ring expansion, which is only
 	// cheap when the answer is nearby — an unbounded search (a cat with no
-	// mouse left nearby, say) forces it to visit every chunk on the map to
+	// rat left nearby, say) forces it to visit every chunk on the map to
 	// confirm nothing closer exists.
 	kindEntities [numKinds]map[EntityID]struct{}
 
@@ -550,6 +602,48 @@ type World struct {
 	// storageContainers holds mutable contents only for tiles whose terrain is
 	// Storage. Keeping it sparse avoids inflating every tile in a large map.
 	storageContainers map[Point]*StorageContainer
+	// fixtures holds the ownership record of every placed fixture tile (pods,
+	// toilets, beds, incinerators, storage), kept in step by SetTerrain.
+	// restrictedFixtures counts, per terrain, the ones that are not communal:
+	// while it is zero for a kind, ownership cannot change how colonists use
+	// that kind, and the access checks skip their extra work. fixtureRev
+	// advances on any change so snapshots can reuse the last published list
+	// (snapFixtures, taken at snapFixtureRev). See property.go.
+	fixtures map[Point]*Fixture
+	// Cave scum (see scumhouse.go): the sparse patches, the ones a colonist
+	// can currently reach (on floor, or on rock that borders walkable floor),
+	// which patch each scraper is headed to, and which workshop each cook has
+	// claimed. exposedScum is kept in step from TileChanged events, the way
+	// the job board keeps the mining frontier, so finding scum to scrape never
+	// walks the map.
+	scum        map[Point]scumPatch
+	exposedScum map[Point]struct{}
+	// scumRev advances on every change to scum or exposedScum. With
+	// snapScumUntil, the tick the first published patch would visibly regrow,
+	// it lets publishing reuse the last published copy (snapScum, taken at
+	// snapScumRev); see publishedScum.
+	scumRev        uint64
+	snapScumRev    uint64
+	snapScumUntil  int
+	snapScum       map[Point]uint8
+	scumClaims     map[Point]EntityID
+	workshopClaims map[Point]EntityID
+	// communityMealsTick/communityMealsCache memoize communityMeals for one
+	// tick; see foodWanted.
+	communityMealsTick  int
+	communityMealsCache int
+	manualScumhouses    int
+	// podRingHint is the search ring the last crash pod landed on, so the
+	// next search starts near there instead of rescanning the packed middle.
+	// See findPodSite.
+	podRingHint int
+	// pods holds the top-left of every crash pod that has landed, so a new pod
+	// can tell a neighbor's side hull it may share. Lookups only; never ranged.
+	pods               map[Point]bool
+	restrictedFixtures [numTerrains]int
+	fixtureRev         uint64
+	snapFixtureRev     uint64
+	snapFixtures       []FixtureView
 	// buildTiles holds every not-yet-built task tile, rebuilt each tick. Colonists
 	// route around these so a crowd never parks on a tile a builder needs clear —
 	// otherwise a facility mobbed by its neighbors could never be raised. See
@@ -582,6 +676,48 @@ type World struct {
 	entities map[EntityID]*Entity
 	nextID   EntityID
 
+	// The colony's money. treasury is the community's balance; moneyIssued is
+	// every dollar ever minted (the founding grant plus each arrival's purse)
+	// and moneyFrozen every dollar locked in a dead colonist's wallet, so the
+	// supply can be audited: treasury + living wallets + moneyFrozen ==
+	// moneyIssued. See money.go and docs/money.md.
+	treasury    Money
+	moneyIssued Money
+	moneyFrozen Money
+
+	// The order book (see market.go): every open order by ID, the books by
+	// (item, depot), the most recent trades, and the cached location of the
+	// colony's silo (valid while marketDepotRev == fixtureRev+1).
+	orders         map[OrderID]*Order
+	workOrders     map[OrderID]*WorkOrder
+	books          map[bookKey]*book
+	trades         []Trade
+	nextOrderID    OrderID
+	marketDepotAt  Point
+	marketDepotOK  bool
+	marketDepotRev uint64
+	// Valuation and production (see valuation.go, producer.go): each item's
+	// smoothed trade price, the open production plans by ID (the next ID from
+	// nextPlanID), how many colonists have starved, and the per-tick memo of
+	// the planner's candidate bids.
+	prices         [numItemKinds]priceMemory
+	plans          map[planID]*plan
+	nextPlanID     planID
+	starved        int
+	candidatesTick int
+	// haulClaims records which colonist has taken each open haul order, so
+	// two never set off for the same goods. See hauling.go.
+	haulClaims map[OrderID]EntityID
+	// popHist is the Population tab's history, sampled every popEvery ticks
+	// (see population.go).
+	popHist  []PopulationSample
+	popEvery int
+	// mealFetches counts, per depot, the colonists on their way to take a
+	// meal out of it this tick (memoized; see mealFetchesAt).
+	mealFetches     map[Point]int
+	mealFetchTick   int
+	candidatesCache []*Order
+
 	// colonistNames indexes every living colonist's full name, so generation can
 	// check a name is free in one lookup instead of scanning the roster. See
 	// uniquifyName in personality.go.
@@ -596,7 +732,7 @@ type World struct {
 	// died, keyed by EntityID so family relations, name lookups, and a
 	// colonist's frozen inventory all keep resolving indefinitely instead of
 	// falling out of the bounded graveyard window. It is never trimmed:
-	// unlike graveyard (which also holds mice/cats/aliens and must survive a
+	// unlike graveyard (which also holds rats/cats/aliens and must survive a
 	// kill flood), the size of this map is bounded by how many colonists
 	// ever existed, not by combat volume. See docs/combat.md.
 	deceasedColonists map[EntityID]EntityView
@@ -649,7 +785,15 @@ func newWorld(cfg Config, rng *rand.Rand) *World {
 		colonistNames:     make(map[string]EntityID),
 		buildTiles:        make(map[Point]bool),
 		doorTiles:         make(map[Point]bool),
+		pods:              make(map[Point]bool),
 		storageContainers: make(map[Point]*StorageContainer),
+		fixtures:          make(map[Point]*Fixture),
+		orders:            make(map[OrderID]*Order),
+		workOrders:        make(map[OrderID]*WorkOrder),
+		books:             make(map[bookKey]*book),
+		plans:             make(map[planID]*plan),
+		haulClaims:        make(map[OrderID]EntityID),
+		candidatesTick:    -1,
 		kin:               make(map[kinID]*kinPerson),
 		nextKinID:         1,
 		kinRevision:       1,
@@ -707,6 +851,18 @@ func newWorld(cfg Config, rng *rand.Rand) *World {
 	// Storage does not satisfy a biological need, but full colonists still seek
 	// it through the same position index and pathing machinery.
 	w.trackFacility(Storage)
+	// The scumhouse backs no need either, but haulers and cooks route to it.
+	w.trackFacility(Scumhouse)
+	w.communityMealsTick = -1
+	w.scum = make(map[Point]scumPatch)
+	w.exposedScum = make(map[Point]struct{})
+	w.scumClaims = make(map[Point]EntityID)
+	w.workshopClaims = make(map[Point]EntityID)
+	w.subscribe(func(e WorldEvent) {
+		if tc, ok := e.(TileChanged); ok {
+			w.refreshScumExposure(tc.Pos)
+		}
+	})
 	w.frontier = newFlowField(w, func(add func(Point)) {
 		// Goals: walkable neighbors of every unclaimed frontier rock tile.
 		for p := range w.board.frontier {
@@ -743,6 +899,7 @@ func newWorld(cfg Config, rng *rand.Rand) *World {
 		}
 	})
 	w.directorQueue = resolveSchedules(cfg.Schedules, w.rng)
+	w.mint(Community, Money(cfg.FoundingGrant))
 	return w
 }
 
@@ -831,11 +988,17 @@ func (w *World) setTerrain(p Point, t Terrain, discover bool) {
 	if w.facilityTiles[t] != nil {
 		w.facilityTiles[t][p] = struct{}{}
 	}
-	if old == Storage {
+	if hasDepot(old) {
 		delete(w.storageContainers, p)
 	}
-	if t == Storage {
-		w.storageContainers[p] = &StorageContainer{Pos: p}
+	if hasDepot(t) {
+		w.storageContainers[p] = &StorageContainer{Pos: p, Terrain: t}
+	}
+	if isFixtureTerrain(old) {
+		w.dropFixture(p)
+	}
+	if isFixtureTerrain(t) {
+		w.placeFixture(p, t)
 	}
 	if t != Rock && discover {
 		w.growCarvedBox(p)
@@ -848,6 +1011,7 @@ func (w *World) setTerrain(p Point, t Terrain, discover bool) {
 	// mining through to an old kill should expose the stain, not erase it.
 	if t != Floor && t != Rock {
 		w.clearRefuse(p)
+		w.clearScum(p) // a structure seals the biofilm under it for good
 	}
 	w.tiles[i].Terrain = t
 	w.markTilePageDirty(i)
@@ -934,6 +1098,7 @@ func (w *World) reveal(p Point) {
 // its region is marked discovered (see relabelRooms' mainRoom).
 func (w *World) discoverCavernTile(p Point) {
 	w.growCarvedBox(p)
+	w.refreshScumExposure(p) // the cavern's rim is reachable scum now
 	w.dirtyChunks[w.chunkIndexOf(p)] = struct{}{}
 	if w.board != nil {
 		w.board.refreshFrontierCell(p)
@@ -1054,8 +1219,8 @@ func (w *World) spawnAs(kind Kind, p Point, species int) *Entity {
 			w.syncNeedPhase(e, n)
 		}
 	}
-	if kind == Mouse {
-		e.sex = w.rollMouseSex() // decides which mice can carry a litter
+	if kind == Rat {
+		e.sex = w.rollRatSex() // decides which rats can carry a litter
 	}
 	if kind == Alien {
 		e.Species = species
@@ -1067,6 +1232,11 @@ func (w *World) spawnAs(kind Kind, p Point, species int) *Entity {
 	w.kindEntities[kind][e.ID] = struct{}{}
 	ci := w.chunkIndexOf(p)
 	w.chunkEntities[ci] = append(w.chunkEntities[ci], e.ID)
+	if kind == Colonist {
+		// Every colonist arrives with a purse. Minted only now, once the
+		// colonist is registered, because mint pays into a living wallet.
+		w.mint(ColonistOwner(e.ID), Money(w.cfg.CrashPodPurse))
+	}
 	return e
 }
 
@@ -1079,6 +1249,9 @@ func (w *World) remove(id EntityID, cause string) {
 	if e == nil {
 		return
 	}
+	if e.Kind == Colonist && cause == "starved" {
+		w.starved++
+	}
 	if w.cfg.GraveyardSize > 0 {
 		dead := w.entityView(e, nil, false)
 		dead.Dead, dead.DiedTick, dead.Cause = true, w.tick, cause
@@ -1088,6 +1261,11 @@ func (w *World) remove(id EntityID, cause string) {
 		}
 	}
 	if e.Kind == Colonist {
+		// Open orders go first, so a bid's escrow is back in the wallet
+		// before the wallet freezes.
+		w.cancelOrdersOf(ColonistOwner(e.ID))
+		w.cancelWorkOf(ColonistOwner(e.ID))
+		w.freezeWallet(e)
 		// Computed with full=true, and before any of the bookkeeping below
 		// runs, so Relations/Affinities are captured as they stood at the
 		// moment of death rather than left empty. The kin node keeps

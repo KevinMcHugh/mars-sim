@@ -17,13 +17,13 @@ way it is without re-deriving it from the source each time.
 | [cli.md](./cli.md) | The `mars-sim` command, application modes, duration/seed controls, validation, and CLI examples. |
 | [configuration.md](./configuration.md) | `sim.Config`, `DefaultConfig`, and how tunables become command-line flags. |
 | [config-file.md](./config-file.md) | `mars-sim.yaml`: the committed settings file between the compiled defaults and the flags, and the struct tags that generate it. |
-| [director.md](./director.md) | `director.yaml`: scheduling major occurrences (mouse plagues, alien swarms, supply drops) into tick windows, separate from what fires in them. |
+| [director.md](./director.md) | `director.yaml`: scheduling major occurrences (rat plagues, alien swarms, supply drops) into tick windows, separate from what fires in them. |
 | [world.md](./world.md) | The tile grid, terrain kinds, world state, and world generation. |
 | [caverns.md](./caverns.md) | Natural caverns and the passages between them: generated hidden, ignored by the colony until a dig breaks in, then revealed all at once. Breaking in can turn up an alien nest. |
 | [lore.md](./lore.md) | The world beyond the colony: the alien species roster each seed rolls (build, name, temperament — friendly/cautious/hostile), and how damage and pace scale from it. |
-| [entities-and-ai.md](./entities-and-ai.md) | The entity model, the per-tick systems, turn order, movement primitives, and the colonist / alien / cat / mouse behaviors. |
-| [combat.md](./combat.md) | Per-body-part HP, weapons (pistol/shotgun), the colony ship's starting equipment, and gore. |
-| [needs.md](./needs.md) | Colonist (and mouse) needs: hunger, bladder, lazy evaluation, starvation, and how to add a need. |
+| [entities-and-ai.md](./entities-and-ai.md) | The entity model, the per-tick systems, turn order, movement primitives, and the colonist / alien / cat / rat behaviors. |
+| [combat.md](./combat.md) | Per-body-part HP, weapons (pistol/shotgun), the guns every settler lands with, and gore. |
+| [needs.md](./needs.md) | Colonist (and rat) needs: hunger, bladder, lazy evaluation, starvation, and how to add a need. |
 | [cascading_wsts_architecture.md](./cascading_wsts_architecture.md) | Implementation design for independent need/affect processes feeding a weighted, explainable focus transition system. |
 | [mutation.md](./mutation.md) | Uranium deposits, the exposure dose, mutant body parts, stature (two-foot to ten-foot colonists), and the Mutant / Mutant-Lover traits. |
 | [determinism.md](./determinism.md) | One seed, one simulation: how map iteration order breaks it, the lockstep regression test, and the three bugs that motivated both. |
@@ -38,11 +38,22 @@ way it is without re-deriving it from the source each time.
 | [inventory.md](./inventory.md) | Colonist inventory slots and stacking. |
 | [storage.md](./storage.md) | Placeable storage containers, their capacity, construction, and snapshot state. |
 | [affect.md](./affect.md) | Charge/grip/valence affect, the impact-weighted push/pull blend, fresh/worn wear, event appraisal, trait transforms, decay, labels, and focus contributions. |
+| [economy.md](./economy.md) | **Proposal.** Scarcity and economy: property and owners, crash-pod arrivals, dollars, recipes and slurry, the bid/ask book for goods and labor, and the phased build plan. |
+| [labor.md](./labor.md) | Work orders: the colony buying its public works from the treasury, commissions and houses, paid (pay-per-use) fixtures, and the colony's cook. Economy phase E5. |
+| [hauling.md](./hauling.md) | Moving goods between depots: arbitrage on a colonist's own account, hauling for hire, the colony keeping meals at its silo, selling back what it bought, and building public works from its own stock. Economy phase E7. |
+| [valuation.md](./valuation.md) | Prices that trades move, hungry colonists' bids, and the producer planner: filling bids at a profit and bidding for the inputs, so demand reaches down the recipe chain. The `-econ-trace` tuning harness. Economy phase E6. |
+| [market.md](./market.md) | The order book: bids and asks at a depot, price-time matching, escrow, the colony's silo and paid prospecting, and buying and selling meals. Economy phase E4. |
+| [money.md](./money.md) | Dollars: wallets, the treasury, the one `transfer` funnel, the fixed money supply and how it is audited, and the market tab. Economy phase E0. |
+| [crash-pods.md](./crash-pods.md) | How every colonist arrives: the pod prefab (private bunk, toilet, locker), its manifest, where pods land and why, and the one `arrive` function. Economy phase E2. |
+| [food.md](./food.md) | Meals as items: eating your own, then buying one, then the safety net's gruel (off by default); `infinite-food`; what changes with it off. Economy phase E2. |
+| [scumhouse.md](./scumhouse.md) | Food production: the scumhouse, data-driven recipes, cave scum (seeding, lazy regrowth, exposure), and food work. Economy phase E3. |
+| [property.md](./property.md) | Who owns what: fixture records with owners and access (communal/private), per-chest ledgers of whose goods are inside, and how private fixtures route. Economy phase E1. |
 | [mood-space.md](./mood-space.md) | **Proposal.** What affect still lacks: tag-based trait rules and per-colonist baselines — plus the build plan and a tuning sandbox. |
 | [memories.md](./memories.md) | Colonist memories and life events: notable experiences, sightings, affect vectors, stimuli, and snapshot exposure. |
 | [sparse-grids.md](./sparse-grids.md) | `pagedGrid[T]`: why the flow fields, A\* scratch, region labels and occupancy index allocate with the colony instead of the map, and the fast paths that made it free. |
 | [snapshot-tile-grid.md](./snapshot-tile-grid.md) | The terrain a frontend reads: an immutable, page-shared grid so publishing a frame costs what the tick touched, not the map's area. |
 | [fog-of-war.md](./fog-of-war.md) | What the colony has seen: the explored flag, how digging lifts the fog, and how the map draws the unknown. |
+| [population-screen.md](./population-screen.md) | The Population tab: colonists, meals in storage, colony size, and fixtures charted over the whole game, sampled on the simulation clock into a history that halves its resolution to stay whole. |
 | [perf-screen.md](./perf-screen.md) | The Perf tab: how the engine times each tick into quarter-second samples, and the gping-style braille charts of tick rate and tick cost. |
 | [frontend-tui.md](./frontend-tui.md) | The Bubble Tea terminal frontend: map, roster, controls, and glyphs. |
 | [terminal-cell-widths.md](./terminal-cell-widths.md) | Why the grid used to shear: cell-accurate measurement, the vetted glyph registry, the startup width probe, and the ASCII fallback. |

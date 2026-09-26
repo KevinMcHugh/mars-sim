@@ -51,7 +51,7 @@ func (m Model) renderStorageList(storages []sim.StorageView, sel, rows, width in
 			marker = "›"
 		}
 		used, total := storageUsage(storage.Inventory)
-		line := fmt.Sprintf("%s chest (%d,%d)  %d/%d slots", marker,
+		line := fmt.Sprintf("%s %s (%d,%d)  %d/%d slots", marker, m.storageLabel(storage),
 			storage.Pos.X, storage.Pos.Y, used, total)
 		if i == sel {
 			b.WriteString(rosterSelStyle.Render(cells.Truncate(line, inner)))
@@ -71,7 +71,7 @@ func (m Model) renderStorageDetail(storage sim.StorageView, rows, width int) str
 	lines := storageContentLines(storage.Inventory)
 
 	var b strings.Builder
-	b.WriteString(titleStyle.Render(fmt.Sprintf("Storage chest (%d,%d)", storage.Pos.X, storage.Pos.Y)))
+	b.WriteString(titleStyle.Render(fmt.Sprintf("Storage %s (%d,%d)", m.storageLabel(storage), storage.Pos.X, storage.Pos.Y)))
 	b.WriteString("\n")
 	b.WriteString(statStyle.Render(fmt.Sprintf("%d/%d slots used"+divider+"%d/%d item capacity",
 		used, total, storageItemCount(storage.Inventory), total*sim.MaxStackSize)))
@@ -79,6 +79,13 @@ func (m Model) renderStorageDetail(storage sim.StorageView, rows, width int) str
 	b.WriteString(labelStyle.Render("CONTENTS"))
 	b.WriteByte('\n')
 	for _, line := range lines {
+		b.WriteString(cells.Truncate(line, inner))
+		b.WriteByte('\n')
+	}
+	b.WriteByte('\n')
+	b.WriteString(labelStyle.Render("OWNED BY"))
+	b.WriteByte('\n')
+	for _, line := range m.ledgerLines(storage.Ledger) {
 		b.WriteString(cells.Truncate(line, inner))
 		b.WriteByte('\n')
 	}
@@ -91,6 +98,13 @@ func (m Model) renderCursorInspector() string {
 	var b strings.Builder
 	b.WriteString(labelStyle.Render("INSPECT"))
 	b.WriteString(fmt.Sprintf("\n(%d,%d)\n%s", m.cursor.X, m.cursor.Y, m.terrainLabel(m.cursor)))
+	if f, ok := m.latest.FixtureAt(m.cursor); ok && m.latest.ExploredAt(m.cursor) {
+		access := f.Access.String()
+		if f.Access == sim.AccessPaid {
+			access = fmt.Sprintf("paid, %v a use", f.Price)
+		}
+		b.WriteString(fmt.Sprintf("\nOwner: %s\nAccess: %s", m.ownerLabel(f.Owner), access))
+	}
 	if i := m.storageIndexAt(m.cursor); i >= 0 {
 		storage := m.latest.Storages[i]
 		used, total := storageUsage(storage.Inventory)
@@ -137,4 +151,28 @@ func storageContentLines(inv sim.StorageInventory) []string {
 		return []string{"empty"}
 	}
 	return lines
+}
+
+// ledgerLines renders a container's ledger: who owns how many of what.
+func (m Model) ledgerLines(ledger []sim.LedgerLine) []string {
+	if len(ledger) == 0 {
+		return []string{"nobody (empty)"}
+	}
+	lines := make([]string, 0, len(ledger))
+	for _, l := range ledger {
+		lines = append(lines, fmt.Sprintf("%s: %s ×%d", m.ownerLabel(l.Owner), l.Item, l.Count))
+	}
+	return lines
+}
+
+// storageLabel names a container by what it is to the colony: a shared chest,
+// or someone's crash-pod locker.
+func (m Model) storageLabel(st sim.StorageView) string {
+	if st.Terrain == sim.Scumhouse {
+		return "scumhouse"
+	}
+	if f, ok := m.latest.FixtureAt(st.Pos); ok && f.Access == sim.AccessPrivate {
+		return m.ownerLabel(f.Owner) + "'s locker"
+	}
+	return "chest"
 }

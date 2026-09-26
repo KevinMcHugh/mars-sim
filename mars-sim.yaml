@@ -82,17 +82,153 @@
 ## starting number of cats
 # cats: 2
 
-## starting number of mice
-# mice: 8
-
-## pistols the colony ship arrives with
-# pistols: 1
-
-## shotguns the colony ship arrives with
-# shotguns: 1
+## starting number of rats
+# rats: 8
 
 ## recent deaths kept for the roster's dead filter (0 disables)
 # graveyard-size: 50
+
+# ── Economy ─────────────────────────────────────────────────────────────
+## dollars the colony treasury starts with
+# founding-grant: 5000
+
+## nutrient pods make free meals out of nothing (the safety net)
+# infinite-food: false
+
+# ── Food production ─────────────────────────────────────────────────────
+## percent of rock tiles carrying a patch of cave scum
+# scum-percent: 6
+
+## units of scum a full patch holds
+# scum-max: 3
+
+## ticks for a scraped patch to regrow one unit of scum
+# scum-regrow-ticks: 400
+
+## ticks of work to scrape one unit of scum off a patch
+# scrape-ticks: 6
+
+## the colony makes food while it holds fewer meals than this per colonist
+# meal-reserve: 3
+
+## building consumes materials, from the payer's stock first, then the builder's
+# construction-costs: true
+
+# ── Market ──────────────────────────────────────────────────────────────
+## reference price of a meal, in dollars
+# price-meal: 5
+
+## what the colony pays for raw rock at its silo (0: it buys none)
+# price-raw-rock: 0
+
+## what the colony pays for iron ore at its silo
+# price-iron-ore: 3
+
+## what the colony pays for water ice at its silo
+# price-water-ice: 2
+
+## what the colony pays for uranium ore at its silo
+# price-uranium-ore: 6
+
+## what the colony pays for clay at its silo
+# price-clay: 2
+
+## units of each ore the colony keeps a standing bid for at its silo
+# silo-bid-qty: 64
+
+## ticks a colonist's resting order lives before it expires
+# order-ttl: 2000
+
+## meals a colonist keeps for itself before it takes the rest to market
+# meal-keep: 5
+
+## a hungry colonist pays up to this many times the meal price
+# meal-willingness: 3
+
+# ── Valuation ───────────────────────────────────────────────────────────
+## what a colonist reckons 100 ticks of its own work are worth, in dollars
+# labor-price: 2
+
+## the least profit, in dollars, that makes a production plan worth taking on
+# plan-min-profit: 1
+
+## how many of the best open bids a colonist's producer planner considers
+# plan-candidates: 4
+
+## ticks a production plan may take before it is dropped with its derived bids
+# plan-ttl: 1500
+
+## ticks a hungry colonist's unfilled bid for a meal rests in the book
+# demand-ttl: 300
+
+## what the colony pays for a unit of cave scum at its scumhouses
+# price-cave-scum: 2
+
+## what the colony pays for a unit of viscera at its scumhouses
+# price-viscera: 2
+
+## what the colony pays for an animal carcass at its scumhouses
+# price-animal-corpse: 3
+
+## what the colony pays for an alien carcass at its scumhouses
+# price-alien-corpse: 8
+
+## units of each kind of biomatter the colony keeps a standing bid for at each scumhouse
+# scumhouse-bid-qty: 12
+
+## units of each kind of biomatter the colony holds at a scumhouse before it stops buying more
+# scumhouse-stock-cap: 40
+
+## the colony plans another scumhouse for each this many colonists
+# colonists-per-scumhouse: 10
+
+# ── Hauling ─────────────────────────────────────────────────────────────
+## the colony sells the goods it bought, beyond its reserve, at its silo
+# colony-sells: true
+
+## percent over the reference price the colony asks for what it sells
+# colony-markup: 50
+
+## units of each good the colony keeps back from sale for public works
+# colony-stock-reserve: 8
+
+## meals the colony keeps at its silo, hauled in for hire from its scumhouses
+# silo-meal-stock: 6
+
+## what the colony pays per unit hauled to its silo
+# haul-pay: 1
+
+# ── Labor ───────────────────────────────────────────────────────────────
+## what the colony pays to dig out one tile of a room
+# wage-dig: 2
+
+## what the colony pays to raise one wall
+# wage-wall: 2
+
+## what the colony pays to build one fixture (pod, toilet, bed, ...)
+# wage-fixture: 5
+
+## what the colony pays a cook each time it works a recipe on the colony's stock
+# wage-cook: 1
+
+## a colonist with this much money commissions its own house (0 disables)
+# house-savings: 300
+
+## what a house's toilet charges anyone but its owner per use (0: private)
+# toilet-fee: 2
+
+# ── Crash pods ──────────────────────────────────────────────────────────
+## dollars each colonist arrives with
+# crash-pod-purse: 100
+
+## meals stocked in each crash pod's locker
+# crash-pod-meals: 10
+
+## pistols each colonist arrives carrying
+# crash-pod-pistols: 1
+
+## shotguns each colonist arrives carrying
+# crash-pod-shotguns: 0
 
 # ── Timing ──────────────────────────────────────────────────────────────
 ## simulation ticks per second
@@ -120,7 +256,7 @@
 ## colonist flees when an alien is within this many tiles
 # flee-radius: 5
 
-## an idle colonist chases and crushes a mouse within this many tiles
+## an idle colonist chases and crushes a rat within this many tiles
 # stomp-radius: 4
 
 ## a colonist notices gore on the ground within this many tiles
@@ -568,31 +704,34 @@
 ## cat acts once every N ticks (higher = slower)
 # cat-slowness: 2
 
-## cooldown ticks after a cat catches a mouse
+## cooldown ticks after a cat catches a rat
 # cat-pounce-rest: 4
 
-# ── Mice ────────────────────────────────────────────────────────────────
-## mouse hit points
-# mouse-hp: 4
+# ── Rats ────────────────────────────────────────────────────────────────
+## rat hit points
+# rat-hp: 4
 
-## food need a mouse gains per tick (mice eat frequently)
-# mouse-hunger-rise: 8
+## food need a rat gains per tick (rats eat frequently)
+# rat-hunger-rise: 8
 
-## mouse flees when a cat is within this many tiles
-# mouse-flee-radius: 6
+## how far a hungry rat looks for bodies, gore, or scum to eat
+# rat-scavenge-radius: 12
 
-## ticks a pregnant mouse carries a litter before giving birth
-# mouse-gestation: 300
+## rat flees when a cat is within this many tiles
+# rat-flee-radius: 6
 
-## smallest mouse litter size
-# mouse-litter-min: 2
+## ticks a pregnant rat carries a litter before giving birth
+# rat-gestation: 300
 
-## largest mouse litter size
-# mouse-litter-max: 5
+## smallest rat litter size
+# rat-litter-min: 2
 
-## ticks a mouse waits before it can mate again
-# mouse-breed-cooldown: 200
+## largest rat litter size
+# rat-litter-max: 5
 
-## ticks a newborn mouse takes to mature enough to breed
-# mouse-maturity: 400
+## ticks a rat waits before it can mate again
+# rat-breed-cooldown: 200
+
+## ticks a newborn rat takes to mature enough to breed
+# rat-maturity: 400
 

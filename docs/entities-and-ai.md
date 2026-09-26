@@ -4,7 +4,7 @@
 
 ## What it is
 
-Every actor in the world — colonist, alien, cat, mouse — is one `Entity` struct
+Every actor in the world — colonist, alien, cat, rat — is one `Entity` struct
 interpreted by its `Kind`. Each tick, `World.step()` runs a per-kind behavior
 function for every living entity. This doc covers the entity model, the tick and
 turn order, the movement primitives, and each creature's behavior.
@@ -32,8 +32,8 @@ The four kinds:
 | --- | --- | --- | --- | --- |
 | **Colonist** | Floor | (needs food) | aliens | mines, builds, tends needs; has personality + inventory |
 | **Alien** | Floor | colonists | — | the antagonist; hunts the nearest colonist it can reach |
-| **Cat** | Floor | mice | — | no needs; hunts by instinct |
-| **Mouse** | Floor | (needs food) | cats | reuses the colonist food need; raids pods; never builds |
+| **Cat** | Floor | rats | — | no needs; hunts by instinct |
+| **Rat** | Floor | (needs food) | cats | reuses the colonist food need; scavenges bodies, gore, and scum, else raids pods; never builds |
 
 `State` (idle, moving, mining, building, eating, relieving, fleeing, hunting,
 feeding, fighting, cleaning, hauling, storing, demolishing) is a **display projection**
@@ -43,13 +43,13 @@ flee, or idle), while `JobKind` is the concrete execution step beneath that
 goal. A hungry colonist building a nutrient pod therefore remains focused on
 eating while its job is building.
 
-> The top-level README predates cats and mice; this doc is the current reference
+> The top-level README predates cats and rats; this doc is the current reference
 > for the creature roster.
 
 ### The tick: `step()`
 
 `World.step()` increments the tick, then for each entity in turn order runs
-`colonistTurn` / `alienTurn` / `catTurn` / `mouseTurn`. The dead are removed the
+`colonistTurn` / `alienTurn` / `catTurn` / `ratTurn`. The dead are removed the
 moment they are eaten or starve, so liveness is re-checked as the loop proceeds.
 After all entities act, `step` folds in the tick's terrain changes:
 `refreshSpatial` (regions/rooms), `pruneProjects`, `planFacilities` (on a
@@ -82,7 +82,7 @@ a bounded deadline is the backstop. Need pressure or affect that can drift still
 reconsiders every tick, rather than relying on an unsafe estimated horizon. The
 selected job executor continues every tick even when arbitration is skipped.
 Resting idle colonists and in-place sleepers additionally bypass the full
-observation/executor machinery when no nearby threat, mouse, or gore exists,
+observation/executor machinery when no nearby threat, rat, or gore exists,
 while retaining per-tick starvation, uranium, fatal-need, and facility checks.
 
 Execution order and invariants:
@@ -172,23 +172,32 @@ colonists, until a dig breaks in. See [caverns.md](./caverns.md#aliens-in-the-ca
 
 ### Cat behavior (`catTurn`)
 
-Cats have no needs — they hunt mice by instinct, paced by `CatSlowness`. They
+Cats have no needs — they hunt rats by instinct, paced by `CatSlowness`. They
 travel the floor with cached A\* and `pounce`
-when adjacent (a single pounce is fatal to a mouse), then rest `CatPounceRest`. If
-a mouse is walled off or the cat is wedged, it prowls (`wanderStep`) instead of
+when adjacent (a single pounce is fatal to a rat), then rest `CatPounceRest`. If
+a rat is walled off or the cat is wedged, it prowls (`wanderStep`) instead of
 freezing.
 
-### Mouse behavior (`mouseTurn`)
+### Rat behavior (`ratTurn`)
 
-Mice reuse the colonists' `NeedFood` and the generic `JobUse` machinery, but
-hunger far faster (`MouseHungerRise`) and **never build** — they depend on pods the
-colony has already raised and starve if none is reachable. Order: starve check,
-flee nearby cats (`MouseFleeRadius`), head to a nutrient pod when hungry,
+Rats reuse the colonists' `NeedFood`, but hunger far faster (`RatHungerRise`)
+and **never build**. They eat what the scumhouse eats: a hungry rat
+(`nearestScavenge`, `scavenge.go`) heads for the nearest tile within
+`rat-scavenge-radius` holding a body (any body, a colonist's included), gore,
+or exposed cave scum, and eats a unit there (`JobScavenge`). Only with nothing
+in range does it raid a nutrient pod through the generic `JobUse` machinery,
+and only while pods feed anyone. Rats claim nothing, so they race cleaners and
+scrapers for the same biomatter; every unit a rat eats is a unit the colony
+cannot turn into slurry, and cats are what keep them down. Order: starve check,
+flee nearby cats (`RatFleeRadius`), scavenge or raid when hungry, breed,
 otherwise scurry.
+
+Rats used to be mice, which only ate at pods and so starved as soon as the
+safety net was off. The rename came with the diet.
 
 ### Movement primitives
 
-- **`fleeStep`** (colonists, mice) — the walkable step that maximizes Chebyshev
+- **`fleeStep`** (colonists, rats) — the walkable step that maximizes Chebyshev
   distance from the threat.
 - **`wanderStep`** — a small random step (often stays put so idlers don't jitter);
   floor only, and colonists keep off pending build tiles.
@@ -199,13 +208,13 @@ otherwise scurry.
 - **`travelTo` / `followField`** — the two ways to move toward a goal: cached A\*
   route vs. shared flow field. Both let an entity pass through any other entity
   mid-route except an alien — a real, dangerous obstacle, unlike a colonist,
-  cat, or mouse just standing in the way — but require it to end the tick on a
+  cat, or rat just standing in the way — but require it to end the tick on a
   free tile. Covered in [pathfinding.md](./pathfinding.md).
 
 ### Neighbor queries
 
 `nearestOfKind` (and its `nearestColonist`/`nearestAlien`/`nearestCat`/
-`nearestMouse` wrappers) expands in **chunk rings** around the query point and
+`nearestRat` wrappers) expands in **chunk rings** around the query point and
 stops once the next ring cannot beat the best candidate found — so "nearest prey"
 is cheap even on a crowded map. Ties break toward the lower ID for determinism.
 `forEachInRadius` visits tiles in a square ring, nearest-first, allocation-free,
@@ -242,7 +251,7 @@ so it is safe to call per entity per tick.
 
 - [combat.md](./combat.md) — body-part HP, weapons, and how an armed colonist's
   survival priority differs from an unarmed one's.
-- [needs.md](./needs.md) — the drives that preempt colonist and mouse work.
+- [needs.md](./needs.md) — the drives that preempt colonist and rat work.
 - [personality.md](./personality.md) — trait-scaled colonist parameters.
 - [construction.md](./construction.md) — how build jobs become rooms.
 - [escape.md](./escape.md) — breaking out of a room cut off from the colony.

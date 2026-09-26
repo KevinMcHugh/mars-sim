@@ -60,10 +60,25 @@ current recipes are:
 
 | Recipe | Contents | Minimum size | Planning priority |
 | --- | --- | --- | --- |
-| facility room | alternating nutrient pods and toilets | 2 facilities | first, because food is fatal |
+| facility room | alternating nutrient pods and toilets (all toilets with `infinite-food` off, when pods feed nobody — see [food.md](./food.md)) | 2 facilities (1 when all toilets) | first, because food is fatal |
 | dormitory | beds/bunks | 1 bed | after the desired pods and toilets exist |
 | trash room | an incinerator | 1 incinerator (and at most 1, via `maxFac`) | last, and only once there is refuse to burn |
-| storage room | one storage container | exactly 1 container via `maxFac` | player-ordered only |
+| storage room | one storage container, with an aisle | exactly 1 container via `maxFac` | player-ordered only (and the planner's silo) |
+| scumhouse | one scumhouse, with an aisle | exactly 1 via `maxFac` | first of all with `infinite-food` off (the default); otherwise player-ordered (see [scumhouse.md](./scumhouse.md)) |
+| house | a bunk and a toilet | exactly 2 | commissioned by a colonist with `house-savings`, paid from its wallet (see [labor.md](./labor.md)) |
+
+**Aisles.** A one-fixture room is one tile wide, so exactly one tile can reach
+its fixture. That's fine for a pod or a toilet, used in a moment. But a cook
+works a scumhouse for long stretches while others need the same depot to sell,
+buy, or fetch a meal they own. When scarcity went on, colonists starved single
+file behind the cook. So a recipe with `aisle` gets a tile of floor either
+side of its bay (`roomWidth`, `bayOffset`): the scumhouse and the storage room
+(the first is the colony's silo) are three tiles wide. In a cavern with no
+site that wide, `planRoomFor` falls back to the narrow room: a scumhouse one
+tile can reach beats none. That fallback is for the colony's first scumhouse
+only. Later ones set `aisleRequired` and wait for a wide site: a colony's
+fourth scumhouse, built narrow, starved a colonist whose meal was inside it
+while a cook held the only access tile.
 
 `planRooms` checks each recipe's planned-or-built capacity, plans at most one
 new room per call (see *Planning cadence*), and always chooses a life-support
@@ -73,6 +88,24 @@ incinerator, and only once `refuseTotal() > 0` (see
 [sanitation.md](./sanitation.md)). A dormitory can therefore be built in a cramped
 cavern with a single bunk, and the colony adds more rooms — and, once the
 population justifies it, more of them at once — as it grows.
+
+The colony **buys** the rooms it plans: every task is a work order paid from
+the treasury, funded in full before the room is marked out, and a room it
+cannot afford is not planned — so an empty treasury halts public works, while
+colonists' unpaid emergency builds keep them alive. A colonist can commission a
+room the same way from its own wallet (a house) and owns its fixtures. See
+[labor.md](./labor.md).
+
+The planner also builds a storage room when the colony has **no communal
+chest** at all: that chest is its silo, where the market happens (see
+[market.md](./market.md)), and with a locker in every crash pod nothing else
+would ever call for one.
+
+Capacity counts private fixtures too: each settler's crash pod brings its own
+bunk and toilet (see [crash-pods.md](./crash-pods.md)), and `plannedFacilities`
+counts them, so a young colony builds no dormitories and few toilets until its
+population outgrows its pods. Nutrient pods are never in a crash pod, so the
+first facility room still goes up for the safety net.
 
 Storage rooms are player-placeable and also demand-planned when a full
 colonist has no reachable chest that can accept its complete material load.
@@ -85,6 +118,31 @@ an adjacent tile, spends the sleep need's `UseTicks` sleeping, and then resets
 the need. A bunk is not walkable and has no permanently assigned owner; capacity
 is represented by the number of `Bed` tiles, with the normal access and
 crowd-flow rules deciding who can use one next.
+
+### Construction costs
+
+With `construction-costs` on (the default since economy phase E8), raising a structure consumes
+materials (`constructionCost`, `construction.go`):
+
+| Structure | Cost |
+| --- | --- |
+| wall | 1 raw rock |
+| nutrient pod, toilet, bed | 2 raw rock |
+| storage container | 2 raw rock, 1 iron ore |
+| incinerator | 2 raw rock, 2 iron ore |
+| scumhouse | 2 raw rock, 2 clay |
+
+Digging costs nothing: it is where material comes from. Whoever pays for the
+work pays for its materials first (`materialPayers`): the colony's stock for a
+public work, the commissioner's for a commission, then the builder's own. The
+builder uses what it carries, topped up from a payer's ledger lines in a chest
+it can reach (`gatherBuildMaterials` walks there and `debit`s them), and
+spends it when the tile goes up (`payForBuild`). A colonist never claims a
+task, or starts a lone emergency build, it could not pay for
+(`canAffordBuild`), so it mines instead, and the rock mining yields is what it
+builds with next. What the builder spends of its own is donated. See
+[hauling.md](./hauling.md) for the colony's side. In testing, colonies with the switch on built
+the same rooms by tick 5000 as colonies without it.
 
 ### Facility-room geometry
 

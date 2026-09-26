@@ -26,8 +26,8 @@ func (w *World) step() {
 			w.alienTurn(e)
 		case Cat:
 			w.catTurn(e)
-		case Mouse:
-			w.mouseTurn(e)
+		case Rat:
+			w.ratTurn(e)
 		}
 	}
 	w.refreshSpatial() // fold in any digging/building from this tick
@@ -36,8 +36,10 @@ func (w *World) step() {
 		w.planRooms()
 		w.nextPlanTick = w.tick + planInterval
 	}
+	w.runMarket()         // expire stale orders; top up the colony's standing bids
 	w.rebuildBuildTiles() // reflect this tick's completions and any new project
 	w.runDirector()       // fire any scripted occurrence whose tick has arrived
+	w.samplePopulation()  // the Population tab's history (read-only bookkeeping)
 }
 
 // planInterval is how often the colony re-plans construction, in ticks. Facility
@@ -108,7 +110,7 @@ func (w *World) colonistTurn(e *Entity) {
 	w.applyStarvation(e)
 	if !e.Alive() { // starved this tick
 		w.clearJob(e) // release any board claim before removal
-		w.addCorpse(e.Pos)
+		w.addCorpse(e.Pos, ColonistCorpse)
 		w.remove(e.ID, "starved")
 		w.log.add(fmt.Sprintf("%s starved to death.", e.displayName()))
 		return
@@ -203,7 +205,7 @@ func (w *World) tryCognitionFastPath(e *Entity) bool {
 	if threat, ok := w.nearestAlien(e.Pos, w.cfg.FleeRadius); ok && threat != nil {
 		return false
 	}
-	if mouse, ok := w.nearestMouse(e.Pos, w.cfg.ColonistStompRadius); ok && mouse != nil {
+	if rat, ok := w.nearestRat(e.Pos, w.cfg.ColonistStompRadius); ok && rat != nil {
 		return false
 	}
 	if w.hasGoreNearby(e) {
@@ -309,6 +311,12 @@ func (w *World) runNeedFocus(e *Entity, need NeedKind) {
 		return
 	}
 
+	if need == NeedFood && e.Kind == Colonist {
+		if w.runFoodFocus(e) {
+			return
+		}
+	}
+
 	handlingNeed := (e.Job == JobUse && e.Need == need) ||
 		(e.Job == JobBuild && (e.BuildKind == w.cfg.Needs[need].Facility || e.task != nil))
 	if handlingNeed {
@@ -317,8 +325,7 @@ func (w *World) runNeedFocus(e *Entity, need NeedKind) {
 	}
 
 	spec := w.cfg.Needs[need]
-	field := w.facilityField(spec.Facility)
-	existingReachable := field != nil && field.at(e.Pos) >= 0
+	existingReachable := w.facilityReachable(e, spec.Facility)
 	needMore := w.plannedFacilities(spec.Facility) < w.desiredFacilities(w.countKind(Colonist))
 	var task *buildTask
 	var hasTask bool
@@ -336,7 +343,7 @@ func (w *World) runNeedFocus(e *Entity, need NeedKind) {
 	case hasTask:
 		w.assignTask(e, task)
 	case !w.reachableFacilityConstruction(e.Pos, spec.Facility):
-		if spot, ok := w.findBuildSpot(e.Pos, 20); ok {
+		if spot, ok := w.findBuildSpot(e.Pos, 20); ok && w.canAffordBuild(e, spec.Facility, Owner{}) {
 			w.assignBuild(e, spec.Facility, spot)
 		}
 	default:
@@ -389,7 +396,7 @@ func (w *World) runIdleFocus(e *Entity) {
 		w.runJob(e)
 		return
 	}
-	if w.stompNearbyMouse(e) {
+	if w.stompNearbyRat(e) {
 		return
 	}
 	e.resting = true
@@ -411,7 +418,7 @@ func (w *World) observeNearby(e *Entity) {
 	}
 	visible := make(map[EntityID]bool)
 	seesThreat := false
-	// Only aliens and mice are noticed, and only within their radii, so the
+	// Only aliens and rats are noticed, and only within their radii, so the
 	// candidates come from the chunk index around e rather than from every
 	// entity in the world. This used to walk (and sort) the whole entity
 	// list once per colonist per tick, which with a hundred colonists was a
@@ -431,7 +438,7 @@ func (w *World) observeNearby(e *Entity) {
 				continue
 			}
 			radius = w.cfg.FleeRadius
-		case Mouse:
+		case Rat:
 			radius = w.cfg.ColonistStompRadius
 		default:
 			continue
@@ -451,7 +458,7 @@ func (w *World) observeNearby(e *Entity) {
 			}
 			continue
 		}
-		evtKind := EvtSawMouse
+		evtKind := EvtSawRat
 		if kind == Alien {
 			evtKind = EvtSawAlien
 		}
@@ -488,13 +495,13 @@ outer:
 	e.seeingGore = seeing
 }
 
-// stompNearbyMouse lets a colonist with nothing pressing to do chase down and
-// crush a mouse it notices. Stomping is an idle whim, not work: colonistTurn has
+// stompNearbyRat lets a colonist with nothing pressing to do chase down and
+// crush a rat it notices. Stomping is an idle whim, not work: colonistTurn has
 // already ruled out threats, urgent needs, and available jobs before this runs.
-// A stomp is instantly fatal to the tiny mouse. Returns whether the colonist
+// A stomp is instantly fatal to the tiny rat. Returns whether the colonist
 // spent its tick on the hunt (closing in or stomping).
-func (w *World) stompNearbyMouse(e *Entity) bool {
-	prey, ok := w.nearestMouse(e.Pos, w.cfg.ColonistStompRadius)
+func (w *World) stompNearbyRat(e *Entity) bool {
+	prey, ok := w.nearestRat(e.Pos, w.cfg.ColonistStompRadius)
 	if !ok {
 		return false
 	}
@@ -512,19 +519,19 @@ func (w *World) stompNearbyMouse(e *Entity) bool {
 	return true
 }
 
-// stomp crushes a mouse underfoot. A stomp is always fatal to the mouse and
+// stomp crushes a rat underfoot. A stomp is always fatal to the rat and
 // leaves it behind as gore. Any other colonist close enough to have noticed
-// the mouse remembers seeing it happen.
-func (w *World) stomp(colonist, mouse *Entity) {
-	witnesses := w.colonistsWithin(mouse.Pos, w.cfg.ColonistStompRadius, colonist.ID)
-	w.addGore(mouse.Pos)
-	w.addCorpse(mouse.Pos) // a crushed pest still has to be carried off
-	w.remove(mouse.ID, fmt.Sprintf("crushed by %s", colonist.displayName()))
-	w.remember(colonist, event(EvtCrushedMouse, "Crushed mouse #%d.", mouse.ID))
+// the rat remembers seeing it happen.
+func (w *World) stomp(colonist, rat *Entity) {
+	witnesses := w.colonistsWithin(rat.Pos, w.cfg.ColonistStompRadius, colonist.ID)
+	w.addGore(rat.Pos)
+	w.addCorpse(rat.Pos, AnimalCorpse) // a crushed pest still has to be carried off
+	w.remove(rat.ID, fmt.Sprintf("crushed by %s", colonist.displayName()))
+	w.remember(colonist, event(EvtCrushedRat, "Crushed rat #%d.", rat.ID))
 	for _, wit := range witnesses {
-		w.remember(wit, event(EvtWitnessedMouseCrushed, "Watched a colonist crush mouse #%d.", mouse.ID))
+		w.remember(wit, event(EvtWitnessedRatCrushed, "Watched a colonist crush rat #%d.", rat.ID))
 	}
-	w.log.add(fmt.Sprintf("Colonist #%d stomps mouse #%d.", colonist.ID, mouse.ID))
+	w.log.add(fmt.Sprintf("Colonist #%d stomps rat #%d.", colonist.ID, rat.ID))
 }
 
 // idleWouldBlock reports whether an idle colonist resting at p would get in the
@@ -537,9 +544,19 @@ func (w *World) idleWouldBlock(p Point) bool {
 // onFacilityAccess reports whether p is next to a facility colonists walk to —
 // any need-satisfying structure, or the incinerator a hauler has to reach — so
 // an idle colonist standing there would block others from using it.
+//
+// Only communal fixtures count. A private bunk has one user, and treating it
+// like a shared one broke the colony the day crash pods landed: every tile
+// around every pod read as "in the way", so no idle colonist was ever
+// available to talk (availableToTalk), social need pinned at its ceiling, and
+// the colony stopped working to wait for conversations that never came.
 func (w *World) onFacilityAccess(p Point) bool {
 	for _, d := range neighbors8 {
-		t := w.TerrainAt(p.Add(d.X, d.Y))
+		n := p.Add(d.X, d.Y)
+		t := w.TerrainAt(n)
+		if isFixtureTerrain(t) && !w.communalFixture(n) {
+			continue
+		}
 		if t == Incinerator {
 			return true
 		}
@@ -675,8 +692,28 @@ func (w *World) clearJob(e *Entity) {
 			w.board.releaseClean(e.Target, e.ID) // reopen the mess for someone else
 		}
 		e.clean = cleanGather
+	case JobEat:
+		if e.eat == eatMeal {
+			e.Inventory.Add(Meal, 1) // the meal in hand goes back in the pocket
+		}
+		e.eat = eatFetch
+	case JobCraft:
+		if w.workshopClaims[e.Target] == e.ID {
+			delete(w.workshopClaims, e.Target)
+		}
+	case JobScrape:
+		if e.scrape == scrapeGather && w.scumClaims[e.Target] == e.ID {
+			delete(w.scumClaims, e.Target)
+		}
+		e.scrape = scrapeGather
+		e.scrapeFor, e.scrapeQty, e.scrapeKeep = Owner{}, 0, false
+	case JobCarry:
+		if w.haulClaims[e.carryWork] == e.ID {
+			delete(w.haulClaims, e.carryWork)
+		}
+		e.carry, e.carryFor, e.carryWork = carryFetch, Owner{}, 0
 	}
-	e.Job, e.Progress, e.partner = JobNone, 0, 0
+	e.Job, e.Progress, e.partner, e.fieldDetour = JobNone, 0, 0, 0
 	e.useFacility, e.useFacilitySet, e.carrying = Point{}, false, false
 	e.clearPath()
 	if hadJob {
@@ -701,6 +738,18 @@ func (w *World) runJob(e *Entity) {
 		w.jobStore(e)
 	case JobDemolish:
 		w.jobDemolish(e)
+	case JobEat:
+		w.jobEat(e)
+	case JobCraft:
+		w.jobCraft(e)
+	case JobScrape:
+		w.jobScrape(e)
+	case JobScavenge:
+		w.jobScavenge(e)
+	case JobSell:
+		w.jobSell(e)
+	case JobCarry:
+		w.jobCarry(e)
 	default:
 		e.State = Idle
 		w.wanderStep(e)
@@ -874,7 +923,30 @@ func (w *World) assignWorkJob(e *Entity) {
 	// mining frontier is effectively endless. Cleaning placed after mining
 	// would therefore never come up at all. It still sits behind construction:
 	// life support outranks housekeeping.
+	// Food before refuse when the colony is short: cook what the scumhouse
+	// holds, then scrape more. Cleaning, next, feeds the scumhouse too.
+	if w.foodWanted() && w.tryAssignCraft(e) {
+		return
+	}
 	if w.tryAssignClean(e) {
+		return
+	}
+	if w.foodWanted() && w.tryAssignScrape(e, false) {
+		return
+	}
+	// Surplus crash-pod meals go to market for someone hungrier to buy.
+	if w.tryAssignSellMeals(e) {
+		return
+	}
+	// Then the market: a bid somebody would pay for that this colonist can
+	// fill at a profit (see producer.go). Before mining, which pays only at
+	// the colony's fixed prospecting bids.
+	if w.tryAssignHaul(e) || w.tryAssignProduce(e) {
+		return
+	}
+	// Scum of its own sitting in a scumhouse (scraped to keep, or delivered
+	// when nobody was buying) is a meal it could cook for itself.
+	if w.tryAssignCraftFor(e, []Owner{ColonistOwner(e.ID)}) {
 		return
 	}
 	// Mining: big colonies/maps follow the shared frontier field (claim on
@@ -927,7 +999,20 @@ func (w *World) colonyNeedsStorage() bool {
 }
 
 func (w *World) tryAssignStore(e *Entity) bool {
-	target, ok := w.chooseStorage(e, e.Inventory.storableStacks())
+	stacks := e.Inventory.storableStacks()
+	// Take what sells to the silo first: that is where the colony buys ore,
+	// so a miner who unloads there gets paid (see market.go). Only what sells
+	// goes there — raw rock the colony does not buy would fill the market
+	// with nothing anyone wants — and the rest goes to an ordinary chest on
+	// the next trip.
+	if sell := w.sellableStacks(e); len(sell) > 0 {
+		if silo, ok := w.marketDepot(); ok && w.canUseFixture(e, silo) &&
+			w.taskReachable(silo, w.roomOf(e.Pos)) && w.storageContainers[silo].Inventory.CanAddAll(sell...) {
+			e.Job, e.Target, e.Progress = JobStore, silo, 0
+			return true
+		}
+	}
+	target, ok := w.chooseStorage(e, stacks)
 	if !ok {
 		return false
 	}
@@ -939,12 +1024,26 @@ func (w *World) tryAssignStore(e *Entity) bool {
 // the complete load. Room reachability is exact for connected floor, and ties
 // break by position to preserve seeded determinism.
 func (w *World) chooseStorage(e *Entity, stacks []ItemStack) (Point, bool) {
+	// The silo is for what sells (see tryAssignStore): try every other chest
+	// first, and fall back on the silo only when nothing else can take the
+	// load, so rock is never stranded in a colony whose only chest it is.
+	if p, ok := w.nearestStorage(e, stacks, false); ok {
+		return p, true
+	}
+	return w.nearestStorage(e, stacks, true)
+}
+
+// nearestStorage is chooseStorage's search: the nearest reachable chest e may
+// use that can take the whole load, the silo included only if withSilo.
+func (w *World) nearestStorage(e *Entity, stacks []ItemStack, withSilo bool) (Point, bool) {
 	room := w.roomOf(e.Pos)
+	silo, hasSilo := w.marketDepot()
 	var best Point
 	bestDist := 1 << 30
 	found := false
 	for p, container := range w.storageContainers {
-		if !container.Inventory.CanAddAll(stacks...) || !w.taskReachable(p, room) {
+		if container.Terrain != Storage || (hasSilo && p == silo && !withSilo) || !w.canUseFixture(e, p) ||
+			!container.Inventory.CanAddAll(stacks...) || !w.taskReachable(p, room) {
 			continue
 		}
 		d := e.Pos.Chebyshev(p)
@@ -958,6 +1057,11 @@ func (w *World) chooseStorage(e *Entity, stacks []ItemStack) (Point, bool) {
 func (w *World) jobStore(e *Entity) {
 	container := w.storageContainers[e.Target]
 	stacks := e.Inventory.storableStacks()
+	silo, hasSilo := w.marketDepot()
+	atSilo := hasSilo && e.Target == silo
+	if sell := w.sellableStacks(e); atSilo && len(sell) > 0 {
+		stacks = sell // what sells goes in first; the rest only as a last resort
+	}
 	if container == nil || len(stacks) == 0 || !container.Inventory.CanAddAll(stacks...) {
 		w.clearJob(e)
 		return
@@ -971,14 +1075,28 @@ func (w *World) jobStore(e *Entity) {
 		e.State = Moving
 		return
 	}
-	if !container.Inventory.AddAll(stacks...) {
+	if !w.canUseFixture(e, e.Target) || !container.Inventory.AddAll(stacks...) {
 		w.clearJob(e)
 		return
 	}
-	e.Inventory.removeStorable()
+	// What a colonist carries is its own (see docs/property.md), unless its
+	// cargo record says whose it is, so the deposit is credited to its owner:
+	// the chest is shared, the ore stays theirs.
+	for _, stack := range stacks {
+		container.credit(w.carriedOwner(e, stack.Kind), stack.Kind, stack.Count)
+		e.Inventory.RemoveAll(stack.Kind)
+		e.cargo[stack.Kind] = Owner{}
+	}
 	e.State = Storing
 	w.log.add(fmt.Sprintf("%s unloads materials into storage at (%d, %d).",
 		e.displayName(), e.Target.X, e.Target.Y))
+	if atSilo {
+		kinds := make([]ItemKind, 0, len(stacks))
+		for _, s := range stacks {
+			kinds = append(kinds, s.Kind)
+		}
+		w.sellAtMarket(e, silo, kinds)
+	}
 	w.clearJob(e)
 }
 
@@ -1113,7 +1231,7 @@ func (w *World) nearestEscapeWall(from Point) (Point, bool) {
 				continue
 			}
 			seen[n] = true
-			if w.TerrainAt(n) == Wall {
+			if t := w.TerrainAt(n); t == Wall || t == Hull {
 				return n, true
 			}
 			if w.Walkable(n) && w.roomOf(n) == room {
@@ -1130,7 +1248,7 @@ func (w *World) nearestEscapeWall(from Point) (Point, bool) {
 // refreshSpatial folds the new Floor tile in at the end of this tick, and
 // updateDisconnected notices the room is whole again on the next.
 func (w *World) jobDemolish(e *Entity) {
-	if w.TerrainAt(e.Target) != Wall {
+	if t := w.TerrainAt(e.Target); t != Wall && t != Hull {
 		w.clearJob(e) // reconnected some other way, or someone else broke it first
 		return
 	}
@@ -1161,6 +1279,14 @@ func (w *World) jobBuild(e *Entity) {
 	}
 	if w.TerrainAt(e.Target) != prereq {
 		w.clearJob(e)
+		return
+	}
+	// With construction costs on, fetch the materials first (see
+	// construction.go). Always ready with them off.
+	if ready, ok := w.gatherBuildMaterials(e); !ok {
+		w.clearJob(e)
+		return
+	} else if !ready {
 		return
 	}
 	arrived, ok := w.travelTo(e, e.Target)
@@ -1201,15 +1327,36 @@ func (w *World) jobBuild(e *Entity) {
 		}
 		w.SetTerrain(e.Target, Floor)
 		w.remember(e, event(EvtClearedRock, "Cleared rock for a room at (%d, %d).", e.Target.X, e.Target.Y))
+		if e.task != nil {
+			w.payWork(e.task.order, e)
+		}
 		w.clearJob(e)
 		return
 	}
+	if !w.payForBuild(e) {
+		w.clearJob(e) // the materials went somewhere; fetch them again later
+		return
+	}
 	w.SetTerrain(e.Target, e.BuildKind)
+	if t := e.task; t != nil {
+		// A commission's fixtures are its commissioner's; the colony's
+		// stay communal, as SetTerrain made them.
+		if p := t.proj; p != nil && p.issuer.Kind == OwnerColonist && isFixtureTerrain(e.BuildKind) {
+			access, price := w.fixtureAccess(p, e.BuildKind)
+			w.setFixtureOwner(e.Target, p.issuer, access)
+			w.setFixturePrice(e.Target, price)
+		}
+		w.payWork(t.order, e)
+	}
 	w.noteBuild(e.BuildKind)
 	w.remember(e, event(EvtFinishedConstruction, "Finished construction of %s at (%d, %d).",
 		e.BuildKind, e.Target.X, e.Target.Y))
 	w.clearJob(e) // endBuild decrements the in-progress counter
 }
+
+// fieldDetourTicks is how long a colonist routes to its facility concretely
+// after the shared field sent it uphill; see jobUse.
+const fieldDetourTicks = 20
 
 func (w *World) jobUse(e *Entity) {
 	spec := w.cfg.Needs[e.Need]
@@ -1218,11 +1365,12 @@ func (w *World) jobUse(e *Entity) {
 		return
 	}
 	field := w.facilityField(spec.Facility)
-	if field == nil || field.at(e.Pos) < 0 {
-		w.clearJob(e) // no facility of this kind is reachable anymore
+	if !w.wantsFacility(spec.Facility) || !w.facilityReachable(e, spec.Facility) {
+		w.clearJob(e) // no facility of this kind that e may use is reachable anymore
 		return
 	}
-	if !e.useFacilitySet || w.TerrainAt(e.useFacility) != spec.Facility {
+	if !e.useFacilitySet || w.TerrainAt(e.useFacility) != spec.Facility ||
+		!w.canUseFixture(e, e.useFacility) {
 		e.useFacility, e.useFacilitySet = w.chooseFacility(e, spec.Facility), true
 	}
 	// Arrived: standing next to a facility of the right kind — use it.
@@ -1255,12 +1403,32 @@ func (w *World) jobUse(e *Entity) {
 	// Keep the established shared-field behavior while there is no alternative
 	// room. Concrete routing is only needed once multiple facilities can split a
 	// queue; this also lets builders retain the field's crowd-transit behavior.
-	if w.countTerrain(spec.Facility) < 2 {
+	//
+	// Only while every facility of the kind is communal, though: the field leads
+	// only to communal ones, so it would walk a colonist past its own private
+	// bunk toward a shared one.
+	//
+	// And only while following it makes progress. The field is computed over
+	// terrain alone, but followField never steps onto a pending build tile,
+	// so when construction goes up across the field's route the only move
+	// left is uphill — and next tick downhill again, into the same wall of
+	// build tiles. A colonist once paced like that for hundreds of ticks
+	// beside the colony's only toilet. An uphill step therefore switches the
+	// colonist to concrete routing (A*, which does route around build tiles)
+	// for fieldDetourTicks.
+	if w.countTerrain(spec.Facility) < 2 && w.restrictedFixtures[spec.Facility] == 0 && e.fieldDetour == 0 {
+		before := field.at(e.Pos)
 		if w.followField(e, field) {
+			if field.at(e.Pos) >= before {
+				e.fieldDetour = fieldDetourTicks
+			}
 			e.stuck = 0
 			e.State = Moving
 			return
 		}
+	}
+	if e.fieldDetour > 0 {
+		e.fieldDetour--
 	}
 	// Route to the facility selected when the need became urgent. The shared field
 	// is still the reachability gate, but routing to a concrete facility prevents
@@ -1318,10 +1486,14 @@ func (w *World) jobUseCarrying(e *Entity, spec NeedSpec) {
 // finishUse applies a completed JobUse: resets the need, records a memory,
 // and clears the job. Shared by an in-place use and a carried-away one.
 func (w *World) finishUse(e *Entity, spec NeedSpec) {
+	if e.useFacilitySet {
+		w.chargeForUse(e, e.useFacility)
+	}
 	w.resetNeed(e, e.Need)
 	switch e.Need {
 	case NeedFood:
-		w.remember(e, event(EvtAte, "Had a meal."))
+		// The safety net's food: it keeps a colonist alive and not much more.
+		w.remember(e, event(EvtAteGruel, "Ate a ration of nutrient-pod gruel."))
 	case NeedBladder:
 		w.remember(e, event(EvtUsedToilet, "Used the toilet."))
 	case NeedSleep:
@@ -1391,7 +1563,7 @@ func (w *World) travelTo(e *Entity, target Point) (arrived, ok bool) {
 	// on a free tile. Scan the occupied prefix and land on the first available
 	// route cell. An alien is the one exception: it is a real obstacle (and a
 	// threat), not clutter, so it still blocks movement outright — a cat, a
-	// mouse, or a fellow colonist standing in a narrow corridor must not. A
+	// rat, or a fellow colonist standing in a narrow corridor must not. A
 	// stray cat used to wedge a whole queue of colonists there, each abandoning
 	// and immediately re-claiming the same path with nothing ever able to make
 	// it past — StuckLimit just reset the standoff instead of resolving it.
@@ -1455,11 +1627,11 @@ func (w *World) bordersFloor(p Point) bool {
 	return false
 }
 
-// bordersSolid reports whether p has at least one Rock or Wall neighbor.
+// bordersSolid reports whether p has at least one Rock, Wall, or Hull neighbor.
 func (w *World) bordersSolid(p Point) bool {
 	for _, d := range neighbors8 {
 		switch w.TerrainAt(p.Add(d.X, d.Y)) {
-		case Rock, Wall:
+		case Rock, Wall, Hull:
 			return true
 		}
 	}
@@ -1557,7 +1729,7 @@ func (w *World) bite(alien, prey *Entity) {
 
 // ---- Cats --------------------------------------------------------------------
 
-// catTurn walks the cat toward the nearest mouse and pounces when adjacent. Cats
+// catTurn walks the cat toward the nearest rat and pounces when adjacent. Cats
 // have no needs; they simply hunt. Like everyone else they travel the floor
 // with cached A* and give up on prey they cannot reach.
 func (w *World) catTurn(e *Entity) {
@@ -1566,7 +1738,7 @@ func (w *World) catTurn(e *Entity) {
 		return
 	}
 
-	prey, ok := w.nearestOfKindAnywhere(e.Pos, Mouse)
+	prey, ok := w.nearestOfKindAnywhere(e.Pos, Rat)
 	if !ok {
 		e.State, e.Quarry = Idle, 0
 		w.wanderStep(e)
@@ -1583,69 +1755,79 @@ func (w *World) catTurn(e *Entity) {
 
 	e.State = Hunting
 	if _, ok := w.travelTo(e, prey.Pos); !ok {
-		// The mouse is unreachable on foot (walled off, or the cat is wedged):
+		// The rat is unreachable on foot (walled off, or the cat is wedged):
 		// prowl instead of standing still.
 		w.wanderStep(e)
 	}
 	e.Cooldown = w.cfg.CatSlowness - 1
 }
 
-// pounce catches and eats an adjacent mouse. A mouse is tiny, so a single pounce
-// is fatal. Any colonist close enough to have noticed the mouse remembers
+// pounce catches and eats an adjacent rat. A rat is tiny, so a single pounce
+// is fatal. Any colonist close enough to have noticed the rat remembers
 // seeing it happen.
 func (w *World) pounce(cat, prey *Entity) {
 	cat.State = Feeding
 	for _, wit := range w.colonistsWithin(prey.Pos, w.cfg.ColonistStompRadius, 0) {
-		w.remember(wit, event(EvtWitnessedCatCatch, "Watched a cat catch mouse #%d.", prey.ID))
+		w.remember(wit, event(EvtWitnessedCatCatch, "Watched a cat catch rat #%d.", prey.ID))
 	}
 	w.remove(prey.ID, "caught by a cat")
-	w.log.add(fmt.Sprintf("A cat catches mouse #%d.", prey.ID))
+	w.log.add(fmt.Sprintf("A cat catches rat #%d.", prey.ID))
 }
 
-// ---- Mice --------------------------------------------------------------------
+// ---- Rats --------------------------------------------------------------------
 
-// mouseTurn runs one mouse tick: starve, flee cats, feed at a nutrient pod when
-// hungry, otherwise scurry about. Mice reuse the colonists' food need and the
-// generic JobUse machinery, but never build — they depend on pods the colony
-// has already raised, and go hungry if none is reachable.
-func (w *World) mouseTurn(e *Entity) {
+// ratTurn runs one rat tick: starve, flee cats, scavenge (or raid a pod) when
+// hungry, breed, otherwise scurry about. Rats reuse the colonists' food need
+// but never build: they eat the same biomatter the scumhouse runs on, where it
+// lies, and fall back on pods only with nothing in reach. See scavenge.go.
+func (w *World) ratTurn(e *Entity) {
 	w.applyStarvation(e)
 	if !e.Alive() { // starved this tick
 		w.clearJob(e)
-		w.addCorpse(e.Pos)
+		w.addCorpse(e.Pos, AnimalCorpse)
 		w.remove(e.ID, "starved")
-		w.log.add(fmt.Sprintf("Mouse #%d starves.", e.ID))
+		w.log.add(fmt.Sprintf("Rat #%d starves.", e.ID))
 		return
 	}
 
-	// A carried litter arrives once gestation completes, whatever else the mouse
+	// A carried litter arrives once gestation completes, whatever else the rat
 	// does with the rest of its tick.
 	if e.pregnant && w.tick >= e.dueTick {
 		w.giveBirth(e)
 	}
 
 	// Survival first: bolt from a nearby cat.
-	if threat, ok := w.nearestCat(e.Pos, w.cfg.MouseFleeRadius); ok {
+	if threat, ok := w.nearestCat(e.Pos, w.cfg.RatFleeRadius); ok {
 		w.clearJob(e)
 		e.State = Fleeing
 		w.fleeStep(e, threat.Pos)
 		return
 	}
 
-	// Hungry? Head for a nutrient pod if one is reachable. Mice care only about
-	// food, so we check it directly rather than scanning every need.
+	// Hungry? Scavenge the nearest body, gore, or scum in range — the same
+	// biomatter the scumhouse runs on (see scavenge.go) — and only with none
+	// in reach raid a nutrient pod. Rats care only about food, so we check it
+	// directly rather than scanning every need.
 	hungry := w.needLevel(e, NeedFood) >= w.cfg.Needs[NeedFood].SeekAt
-	if hungry && e.Job != JobUse {
-		if field := w.facilityField(NutrientPod); field != nil && field.at(e.Pos) >= 0 {
-			e.Job, e.Need, e.Progress = JobUse, NeedFood, 0
+	if hungry && e.Job == JobNone {
+		if target, ok := w.nearestScavenge(e); ok {
+			e.Job, e.Target, e.Progress = JobScavenge, target, 0
+		} else if w.podsFeed() {
+			if field := w.facilityField(NutrientPod); field != nil && field.at(e.Pos) >= 0 {
+				e.Job, e.Need, e.Progress = JobUse, NeedFood, 0
+			}
 		}
 	}
-	if e.Job == JobUse {
+	switch e.Job {
+	case JobUse:
 		w.jobUse(e)
+		return
+	case JobScavenge:
+		w.jobScavenge(e)
 		return
 	}
 
-	// Nothing pressing: a mouse with no cat to flee and no hunger to sate looks
+	// Nothing pressing: a rat with no cat to flee and no hunger to sate looks
 	// to breed with an adjacent mate.
 	if w.tryMate(e) {
 		return
@@ -1655,24 +1837,24 @@ func (w *World) mouseTurn(e *Entity) {
 	w.wanderStep(e)
 }
 
-// rollMouseSex assigns a mouse its sex, an even male/female split. It draws from
+// rollRatSex assigns a rat its sex, an even male/female split. It draws from
 // the simulation RNG (not the personality stream) because breeding is a
 // simulation mechanic, not cosmetic flavor.
-func (w *World) rollMouseSex() Sex {
+func (w *World) rollRatSex() Sex {
 	if w.rng.Intn(2) == 0 {
 		return SexMale
 	}
 	return SexFemale
 }
 
-// canBreed reports whether a mouse may mate this tick: it is not already
+// canBreed reports whether a rat may mate this tick: it is not already
 // carrying a litter and is past mateReadyTick, which gates both a newborn's
 // maturation and a mother's post-birth cooldown.
 func (w *World) canBreed(e *Entity) bool {
-	return e.Kind == Mouse && !e.pregnant && w.tick >= e.mateReadyTick
+	return e.Kind == Rat && !e.pregnant && w.tick >= e.mateReadyTick
 }
 
-// tryMate pairs a mouse with an adjacent eligible mouse of the opposite sex. The
+// tryMate pairs a rat with an adjacent eligible rat of the opposite sex. The
 // female of the pair conceives a litter, and both go on a breeding cooldown so a
 // warren does not multiply every tick. Returns whether a mating happened.
 func (w *World) tryMate(e *Entity) bool {
@@ -1689,25 +1871,25 @@ func (w *World) tryMate(e *Entity) bool {
 			female, male = mate, e
 		}
 		female.pregnant = true
-		female.dueTick = w.tick + w.cfg.MouseGestationTicks
-		e.mateReadyTick = w.tick + w.cfg.MouseBreedCooldown
-		mate.mateReadyTick = w.tick + w.cfg.MouseBreedCooldown
+		female.dueTick = w.tick + w.cfg.RatGestationTicks
+		e.mateReadyTick = w.tick + w.cfg.RatBreedCooldown
+		mate.mateReadyTick = w.tick + w.cfg.RatBreedCooldown
 		e.State, mate.State = Idle, Idle
-		w.log.add(fmt.Sprintf("Mice #%d and #%d mate.", male.ID, female.ID))
+		w.log.add(fmt.Sprintf("Rats #%d and #%d mate.", male.ID, female.ID))
 		return true
 	}
 	return false
 }
 
-// giveBirth delivers a pregnant mouse's litter onto free floor tiles around her,
+// giveBirth delivers a pregnant rat's litter onto free floor tiles around her,
 // then resets her to a post-birth breeding cooldown. Litter size is random
 // within the configured range; pups with nowhere to land are simply not born (a
 // crowded cavern limits the warren). Newborns cannot breed until they mature.
 func (w *World) giveBirth(e *Entity) {
 	e.pregnant = false
-	e.mateReadyTick = w.tick + w.cfg.MouseBreedCooldown
-	litter := w.cfg.MouseLitterMin
-	if span := w.cfg.MouseLitterMax - w.cfg.MouseLitterMin; span > 0 {
+	e.mateReadyTick = w.tick + w.cfg.RatBreedCooldown
+	litter := w.cfg.RatLitterMin
+	if span := w.cfg.RatLitterMax - w.cfg.RatLitterMin; span > 0 {
 		litter += w.rng.Intn(span + 1)
 	}
 	born := 0
@@ -1719,12 +1901,12 @@ func (w *World) giveBirth(e *Entity) {
 		if !w.Walkable(p) || w.occupied(p) {
 			continue
 		}
-		pup := w.spawn(Mouse, p)
-		pup.mateReadyTick = w.tick + w.cfg.MouseMaturityTicks
+		pup := w.spawn(Rat, p)
+		pup.mateReadyTick = w.tick + w.cfg.RatMaturityTicks
 		born++
 	}
 	if born > 0 {
-		w.log.add(fmt.Sprintf("Mouse #%d gives birth to a litter of %d.", e.ID, born))
+		w.log.add(fmt.Sprintf("Rat #%d gives birth to a litter of %d.", e.ID, born))
 	}
 }
 
@@ -1768,7 +1950,7 @@ func (w *World) wanderStep(e *Entity) {
 }
 
 // stepAside moves a colonist off a facility-access or pending-build tile. It may
-// search through a packed group of colonists, cats, and mice to find the
+// search through a packed group of colonists, cats, and rats to find the
 // nearest genuinely clear landing, just as job navigation can pass through a
 // crowd (see travelTo) — only an alien stops the search. A random one-step
 // wander is insufficient here: in a full room there may be no adjacent vacancy,
@@ -1851,8 +2033,8 @@ func (w *World) nearestCat(from Point, within int) (*Entity, bool) {
 	return w.nearestOfKind(from, Cat, within)
 }
 
-func (w *World) nearestMouse(from Point, within int) (*Entity, bool) {
-	return w.nearestOfKind(from, Mouse, within)
+func (w *World) nearestRat(from Point, within int) (*Entity, bool) {
+	return w.nearestOfKind(from, Rat, within)
 }
 
 func (w *World) nearestOfKind(from Point, kind Kind, within int) (*Entity, bool) {
@@ -1880,7 +2062,7 @@ func (w *World) nearestReachableColonist(from Point) (*Entity, bool) {
 
 // nearestOfKindAnywhere returns the globally nearest living entity of kind, with
 // no range limit — for a hunter whose prey can be anywhere on the map (an
-// alien after the nearest colonist, a cat after the nearest mouse). It scans
+// alien after the nearest colonist, a cat after the nearest rat). It scans
 // World.kindEntities[kind] directly rather than going through nearestMatch's
 // chunk-ring expansion: that expansion is cheap when a match is nearby, but an
 // unbounded search forces it to visit every chunk on the map to confirm none

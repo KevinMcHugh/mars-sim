@@ -14,13 +14,13 @@ type LifeEventKind uint8
 
 const (
 	EvtSawAlien LifeEventKind = iota
-	EvtSawMouse
+	EvtSawRat
 	EvtSawGore
 	EvtBitten
 	EvtWitnessedColonistKilled
 	EvtWitnessedColonistAttacked
-	EvtCrushedMouse
-	EvtWitnessedMouseCrushed
+	EvtCrushedRat
+	EvtWitnessedRatCrushed
 	EvtWitnessedCatCatch
 	EvtKilledAlien
 	EvtWitnessedAlienKilled
@@ -38,6 +38,13 @@ const (
 	EvtIncineratedRefuse
 	EvtMutated
 	EvtWitnessedMutation
+	EvtAteGruel // ate the safety net's free pod gruel rather than a real meal
+	EvtMadeSlurry
+	EvtScrapedScum
+	EvtFedScumhouse
+	EvtWentToMarket
+	EvtBoughtMeal
+	EvtHauled // carried someone else's goods between depots for pay
 
 	numLifeEventKinds // keep last
 )
@@ -94,6 +101,12 @@ var lifeEventCollapseText = [numLifeEventKinds]string{
 	EvtCleanedRefuse:        "Cleaned up refuse.",
 	EvtIncineratedRefuse:    "Burned refuse in the incinerator.",
 	EvtAte:                  "Had a meal.",
+	EvtMadeSlurry:           "Worked the scumhouse.",
+	EvtScrapedScum:          "Scraped cave scum.",
+	EvtFedScumhouse:         "Fed the scumhouse.",
+	EvtWentToMarket:         "Went to market.",
+	EvtHauled:               "Hauled goods for hire.",
+	EvtAteGruel:             "Ate nutrient-pod gruel.",
 	EvtUsedToilet:           "Used the toilet.",
 	EvtSlept:                "Slept in a bed.",
 	EvtNeedSatisfied:        "Satisfied a need.",
