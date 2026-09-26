@@ -9,7 +9,7 @@ things to build/fix as we think of them:
 * I think making it possible to convert a wall into a door will fix a lot of problems with folks getting stuck
   * so would allowing the user to create new doors
 * i sure do wanna do that web ui
-* barter/prices
+* barter/prices — now designed in docs/economy.md (proposal + build plan)
   * i kinda am thinking of a bid/ask market, everybody can say "I want better food" and say how much they'd pay for it, then colonists can decide on jobs based on their own ability to turn a profit
   * may help with fulfilling needs w/ complicated dependencies? you don't need to say "this person's job is to create gears" or "this person's job is to mine ore" if someone wants a machine - "I'll pay $100 for a machine" means someone can put in a bid for the necessary number of gears, all the way down to mining the ore. once every step of the value chain is met, the market fulfills the need automatically (?)
   * dunno how to square that with the communal property vibe rn
