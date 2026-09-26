@@ -145,6 +145,8 @@ func (m Model) renderFrame() string {
 		frame = m.renderMarket()
 	case modeLore:
 		frame = m.renderLore()
+	case modePopulation:
+		frame = m.renderPopulation()
 	case modePerf:
 		frame = m.renderPerf()
 	default:

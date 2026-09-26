@@ -39,6 +39,7 @@ func (w *World) step() {
 	w.runMarket()         // expire stale orders; top up the colony's standing bids
 	w.rebuildBuildTiles() // reflect this tick's completions and any new project
 	w.runDirector()       // fire any scripted occurrence whose tick has arrived
+	w.samplePopulation()  // the Population tab's history (read-only bookkeeping)
 }
 
 // planInterval is how often the colony re-plans construction, in ticks. Facility

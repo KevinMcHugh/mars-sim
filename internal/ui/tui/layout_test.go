@@ -33,7 +33,8 @@ func TestFrameNeverExceedsTerminalWidth(t *testing.T) {
 		{"map", nil},
 		{"roster", []tea.KeyMsg{{Type: tea.KeyTab}}},
 		{"jobs", []tea.KeyMsg{{Type: tea.KeyTab}, {Type: tea.KeyTab}}},
-		{"perf", []tea.KeyMsg{{Type: tea.KeyTab}, {Type: tea.KeyTab}, {Type: tea.KeyTab}, {Type: tea.KeyTab}, {Type: tea.KeyTab}, {Type: tea.KeyTab}}},
+		{"population", []tea.KeyMsg{{Type: tea.KeyTab}, {Type: tea.KeyTab}, {Type: tea.KeyTab}, {Type: tea.KeyTab}, {Type: tea.KeyTab}, {Type: tea.KeyTab}}},
+		{"perf", []tea.KeyMsg{{Type: tea.KeyTab}, {Type: tea.KeyTab}, {Type: tea.KeyTab}, {Type: tea.KeyTab}, {Type: tea.KeyTab}, {Type: tea.KeyTab}, {Type: tea.KeyTab}}},
 		{"market", []tea.KeyMsg{{Type: tea.KeyTab}, {Type: tea.KeyTab}, {Type: tea.KeyTab}, {Type: tea.KeyTab}}},
 		{"spawn menu", []tea.KeyMsg{{Type: tea.KeyRunes, Runes: []rune("s")}}},
 		{"build menu", []tea.KeyMsg{{Type: tea.KeyRunes, Runes: []rune("b")}}},
@@ -277,7 +278,7 @@ func TestListScreensFillTerminalHeight(t *testing.T) {
 	for _, mode := range []struct {
 		name string
 		mode viewMode
-	}{{"roster", modeRoster}, {"jobs", modeJobs}, {"storage", modeStorage}, {"market", modeMarket}, {"lore", modeLore}, {"perf", modePerf}} {
+	}{{"roster", modeRoster}, {"jobs", modeJobs}, {"storage", modeStorage}, {"market", modeMarket}, {"lore", modeLore}, {"population", modePopulation}, {"perf", modePerf}} {
 		for _, size := range []struct{ w, h int }{{100, 30}, {120, 40}, {200, 50}, {80, 24}} {
 			m := New(nil, nil)
 			m.termW, m.termH = size.w, size.h

@@ -707,7 +707,11 @@ type World struct {
 	candidatesTick int
 	// haulClaims records which colonist has taken each open haul order, so
 	// two never set off for the same goods. See hauling.go.
-	haulClaims      map[OrderID]EntityID
+	haulClaims map[OrderID]EntityID
+	// popHist is the Population tab's history, sampled every popEvery ticks
+	// (see population.go).
+	popHist         []PopulationSample
+	popEvery        int
 	candidatesCache []*Order
 
 	// colonistNames indexes every living colonist's full name, so generation can

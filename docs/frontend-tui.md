@@ -42,9 +42,10 @@ The model never mutates or reads live world state — only snapshots (see
 
 ### Map and details panels
 
-`viewMode` cycles between the **map** (default) and six **details panels**:
-the **roster**, **job board**, **storage**, **market**, **lore**, and **perf**.
-`tab` advances map → roster → job board → storage → market → lore → perf → map, following
+`viewMode` cycles between the **map** (default) and seven **details panels**:
+the **roster**, **job board**, **storage**, **market**, **lore**, **population**,
+and **perf**. `tab` advances map → roster → job board → storage → market → lore →
+population → perf → map, following
 `tabLabels`' order; `esc` returns straight to the map
 from any details panel. Global keys (`handleKey`) work everywhere; the rest
 dispatch to the active panel's handler.
@@ -97,6 +98,10 @@ dispatch to the active panel's handler.
   damage/pace) as scannable stat lines, plus `AlienSpecies.Description()`'s
   narrative paragraph, word-wrapped (`wrapWords`) to the panel width. See
   [lore.md](./lore.md).
+- **Population** (`renderPopulation`): four braille line charts of the
+  colony over the whole game — colonists, meals in storage, colony size,
+  fixtures — from `Snapshot.Population`. See
+  [population-screen.md](./population-screen.md).
 - **Perf** (`renderPerf`): two gping-style braille line charts over time —
   ticks per second actually achieved, and milliseconds each tick costs — from
   the engine's `Snapshot.Perf` timing history. See
@@ -182,8 +187,8 @@ fog, since naming the rock there would hand back the map the fog is hiding. For 
 and `enter` jumps directly to that container in the storage details panel.
 `i` or `esc` closes inspection without quitting.
 
-`tab` cycles **map → roster → jobs → storage → market → lore → perf → map**. Roster,
-jobs, storage, market, lore, and perf are collectively the details panels. In storage,
+`tab` cycles **map → roster → jobs → storage → market → lore → population → perf → map**.
+Roster, jobs, storage, market, lore, population, and perf are collectively the details panels. In storage,
 `up`/`down` or `j`/`k` selects a container from the position-sorted snapshot
 list — a shared chest, or someone's crash-pod locker, labelled by owner — and
 the inspector shows its occupied slots, total capacity, and whose the contents
@@ -211,7 +216,7 @@ the inspector shows its full build and a narrative description.
 | `f` (roster only) | open the roster's filter menu — `↑↓`/`enter`/`space` to toggle the highlighted checkbox, or `d`/`n` for dead/non-human directly; no command sent, this only changes what the roster shows |
 | arrows or `hjkl` | pan the camera (map) / move selection (roster, job board) |
 | `shift+↑↓`, `pgup`/`pgdn` (roster only) | scroll the selected colonist's inspector a line / a screenful |
-| `tab` | cycle map → roster → job board → storage → market → lore → perf → map |
+| `tab` | cycle map → roster → job board → storage → market → lore → population → perf → map |
 | `q` / `esc` | quit (`esc` returns to the map from any details panel, or cancels an open menu) |
 
 `s` and `b` work from every screen; `f` only does anything on the roster

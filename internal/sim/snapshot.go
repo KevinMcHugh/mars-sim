@@ -414,6 +414,9 @@ type Snapshot struct {
 	// per PerfBucket of wall-clock time. It is shared between snapshots and
 	// must not be modified. See docs/perf-screen.md.
 	Perf []PerfSample
+	// Population is the colony's vital signs over the whole game, oldest
+	// first; see population.go. Shared between snapshots, never written.
+	Population []PopulationSample
 
 	// FogOfWar says whether Tile.Explored is being maintained, so a frontend
 	// knows whether to hide the unexplored map. It is false on a hand-built
@@ -546,6 +549,7 @@ func (w *World) snapshot(paused bool, tps int) *Snapshot {
 		Graveyard:            append([]EntityView(nil), w.graveyard...),
 		Deceased:             w.publishedDeceasedColonists(),
 		AlienSpecies:         append([]AlienSpecies(nil), w.alienSpecies...),
+		Population:           w.popHist,
 		Economy:              w.economyView(),
 		AffinityMax:          w.cfg.AffinityMax,
 		MoodMax:              w.cfg.MoodMax,

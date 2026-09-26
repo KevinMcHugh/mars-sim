@@ -17,20 +17,21 @@ type snapshotMsg struct{ snap *sim.Snapshot }
 type viewMode int
 
 const (
-	modeMap     viewMode = iota // the cavern map (default)
-	modeRoster                  // the colonist roster and inspector
-	modeJobs                    // the job board: queued projects and their tasks
-	modeStorage                 // placed storage containers and their contents
-	modeMarket                  // accounts and the colony's money supply
-	modeLore                    // world facts and the rolled alien species
-	modePerf                    // engine tick rate and tick cost over time
+	modeMap        viewMode = iota // the cavern map (default)
+	modeRoster                     // the colonist roster and inspector
+	modeJobs                       // the job board: queued projects and their tasks
+	modeStorage                    // placed storage containers and their contents
+	modeMarket                     // accounts and the colony's money supply
+	modeLore                       // world facts and the rolled alien species
+	modePopulation                 // colonists, meals, colony size and fixtures over the game
+	modePerf                       // engine tick rate and tick cost over time
 )
 
 // tabLabels names the screens in tab order, matching the "tab" rotation below
 // and the strip drawn by renderTabs.
 var tabLabels = [...]string{
 	modeMap: "Map", modeRoster: "Roster", modeJobs: "Jobs", modeStorage: "Storage", modeMarket: "Market", modeLore: "Lore",
-	modePerf: "Perf",
+	modePopulation: "Population", modePerf: "Perf",
 }
 
 // menuKind selects an open pick-one prompt, if any. Opening a menu (via `s` or
@@ -218,7 +219,7 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.handleMarketKey(msg)
 	case modeLore:
 		return m.handleLoreKey(msg)
-	case modePerf:
+	case modePerf, modePopulation:
 		if msg.String() == "esc" {
 			m.mode = modeMap
 		}
