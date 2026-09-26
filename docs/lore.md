@@ -76,7 +76,7 @@ than a hardcoded list.
 
 `AlienSpecies` (`lore.go`) holds a build (height/weight ranges, eye count,
 limb count split into arms vs. legs via `Arms`/`Legs()`, tail or not, `Skin`,
-`Color`), a colloquial name (`Singular`/`Plural`, picked from a condition
+`Color`, `Pattern`), a colloquial name (`Singular`/`Plural`, picked from a condition
 pool — see below), a `Temperament`, and three precomputed combat stats:
 `BiteDamage`, `BiteRest`, `Slowness`.
 
@@ -87,6 +87,26 @@ pool — see below), a `Temperament`, and three precomputed combat stats:
 — so a world with more than one species can have a real mix wandering the
 rock, each with its own build, name, and temperament. `alienSpeciesFor(e)`
 is how every other system reads the species a specific alien belongs to.
+
+### Hide and pattern
+
+`Skin` is one of seven hides — `smooth`, `scaly`, `furry`, `armored`,
+`bony`, `chitinous`, `slimy` — drawn uniformly. `Pattern` says how `Color`
+is laid over that hide: `solid` half the time, `striped` or `spotted` a
+quarter each (`rollPattern`), so a patterned species still reads as a bit
+special. Pattern is its own field rather than more entries in
+`alienColors` so a naming condition can say "anything striped" (`tiger`)
+or "red and spotted" (`ladybug`) without enumerating every
+color-times-pattern string; `ColorPhrase()` folds the two back together
+("green-striped") for `Description()`. Both hide and pattern are plain
+naming-condition leaves (`skin:`, `pattern:`) and carry no gameplay effect
+today — they are flavor, like `Color`.
+
+Adding a hide or pattern shifts every later draw off the lore stream for a
+given seed (the roll is uniform over the slice), so the same seed rolls a
+different roster after such a change. That is fine — the stream is isolated
+from the simulation stream (below) — but expect seed-pinned lore tests to
+need new expectations.
 
 ### Where it rolls, and on what stream
 
@@ -176,7 +196,7 @@ type nameCondition struct {
 	Any []nameCondition
 	Not *nameCondition
 
-	Temperament, Skin, Color, Height, Weight string
+	Temperament, Skin, Color, Pattern, Height, Weight string
 	Tail                                     *bool
 	Legs, Arms, Limbs, Eyes                  *intCondition // {eq,gt,gte,lt,lte}
 }
@@ -282,7 +302,7 @@ been explored (`Stats.ExploredTiles`, kept incrementally the same way
 selectable list of `Snapshot.AlienSpecies`, each shown by `RosterLabel()`.
 The detail panel lists the selected species' full build as explicit stat
 lines (height/weight range, eyes, limb split, tail, skin, color, bite
-damage/pace) followed by `Description()`'s narrative paragraph,
+damage/pace, plus the color pattern) followed by `Description()`'s narrative paragraph,
 word-wrapped to the panel width.
 
 ## Why it is this way
