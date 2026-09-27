@@ -2,7 +2,7 @@ package sim
 
 import (
 	"fmt"
-	"math/rand"
+	"math/rand/v2"
 	"sort"
 )
 
@@ -150,15 +150,15 @@ func (w *World) growScum(rng *rand.Rand) {
 	}
 	target := len(w.tiles) * w.cfg.ScumPercent / 100
 	for placed, guard := 0, 0; placed < target && guard < target*8; guard++ {
-		p := Point{rng.Intn(w.Width), rng.Intn(w.Height)}
-		for run := 3 + rng.Intn(6); run > 0 && placed < target; run-- {
+		p := Point{rng.IntN(w.Width), rng.IntN(w.Height)}
+		for run := 3 + rng.IntN(6); run > 0 && placed < target; run-- {
 			if w.InBounds(p) && w.TerrainAt(p) == Rock {
 				if _, ok := w.scum[p]; !ok {
 					w.scum[p] = scumPatch{amount: w.cfg.ScumMax}
 					placed++
 				}
 			}
-			d := veinNeighbors[rng.Intn(len(veinNeighbors))]
+			d := veinNeighbors[rng.IntN(len(veinNeighbors))]
 			p = p.Add(d.X, d.Y)
 		}
 	}

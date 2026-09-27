@@ -1,7 +1,6 @@
 package sim
 
 import (
-	"math/rand"
 	"testing"
 )
 
@@ -11,7 +10,7 @@ func kinWorld() *World {
 	cfg := DefaultConfig()
 	cfg.Width, cfg.Height = 30, 20
 	cfg.TraitChance, cfg.FamilyChance = 0, 0
-	return newWorld(cfg, rand.New(rand.NewSource(1)))
+	return newWorld(cfg, newPCG(1))
 }
 
 // relationTo returns subject's derived familial tie to other, if any.
@@ -153,7 +152,7 @@ func TestGeneratedFamilyAgesHoldUp(t *testing.T) {
 	cfg.Seed = 11
 	cfg.Width, cfg.Height = 40, 24
 	cfg.FamilyChance = 100 // maximize ties so the colony is densely related
-	w := newWorld(cfg, rand.New(rand.NewSource(11)))
+	w := newWorld(cfg, newPCG(11))
 
 	for i := 0; i < 120; i++ {
 		w.spawn(Colonist, Point{i % w.Width, i / w.Width})
@@ -292,7 +291,7 @@ func TestGeneratedFamilyReciprocal(t *testing.T) {
 	cfg.Seed = 7
 	cfg.Width, cfg.Height = 40, 24
 	cfg.FamilyChance = 100 // maximize ties so the colony is densely related
-	w := newWorld(cfg, rand.New(rand.NewSource(7)))
+	w := newWorld(cfg, newPCG(7))
 
 	for i := 0; i < 40; i++ {
 		w.spawn(Colonist, Point{i % w.Width, i / w.Width})
@@ -338,7 +337,7 @@ func TestTalkingRaisesAffinity(t *testing.T) {
 	cfg.Width, cfg.Height = 30, 20
 	cfg.StartColonists, cfg.StartAliens = 0, 0
 	cfg.TalkChance = 100 // always chat when idle
-	w := newWorld(cfg, rand.New(rand.NewSource(3)))
+	w := newWorld(cfg, newPCG(3))
 
 	// A small floor pocket fully ringed by wall: no rock to mine, no work, so the
 	// colonists fall through to socializing.
@@ -394,7 +393,7 @@ func TestSocialNeedPreemptsWork(t *testing.T) {
 	// Asocial colonist has needRise 0 for social, so it never becomes urgent and
 	// this test used to fail a run in six.
 	cfg.Seed, cfg.TraitChance = 11, 0
-	w := newWorld(cfg, rand.New(rand.NewSource(11)))
+	w := newWorld(cfg, newPCG(11))
 	center := Point{w.Width / 2, w.Height / 2}
 	w.SetTerrain(center, Floor)
 	w.SetTerrain(center.Add(1, 0), Floor)
@@ -427,7 +426,7 @@ func TestMutuallyUrgentColonistsFinishConversation(t *testing.T) {
 	cfg.StartColonists, cfg.StartAliens, cfg.StartCats, cfg.StartRats = 0, 0, 0, 0
 	cfg.TalkChance = 0                // only the urgent need may start this chat
 	cfg.Seed, cfg.TraitChance = 11, 0 // no Asocial roll: see TestSocialNeedPreemptsWork
-	w := newWorld(cfg, rand.New(rand.NewSource(11)))
+	w := newWorld(cfg, newPCG(11))
 	center := Point{w.Width / 2, w.Height / 2}
 	w.SetTerrain(center, Floor)
 	w.SetTerrain(center.Add(1, 0), Floor)

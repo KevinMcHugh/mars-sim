@@ -1,7 +1,6 @@
 package sim
 
 import (
-	"math/rand"
 	"strings"
 	"testing"
 )
@@ -174,9 +173,9 @@ func cavernsOnly(t *testing.T, passagePercent int) (*World, []cavern) {
 	cfg := cavernTestConfig()
 	cfg.Width, cfg.Height = 200, 100
 	cfg.CavernPassagePercent = passagePercent
-	w := newWorld(cfg, rand.New(rand.NewSource(1)))
+	w := newWorld(cfg, newPCG(1))
 	c := Point{w.Width / 2, w.Height / 2}
-	caves := w.generateCaverns(rand.New(rand.NewSource(9)), c, c)
+	caves := w.generateCaverns(newRand(9), c, c)
 	w.refreshSpatial()
 	if len(caves) < 4 {
 		t.Fatalf("only %d caverns on a %dx%d map", len(caves), w.Width, w.Height)
@@ -236,16 +235,16 @@ func TestCavernsAreDeterministic(t *testing.T) {
 func TestRoomLabelsWithCaverns(t *testing.T) {
 	w := newTestWorld(t, cavernTestConfig())
 	checkRoomLabels(t, w)
-	rng := rand.New(rand.NewSource(11))
+	rng := newRand(11)
 	hidden := hiddenFloorTiles(w)
 	for step := 0; step < 300; step++ {
 		var p Point
 		if step%10 == 0 && len(hidden) > 0 {
-			p = hidden[rng.Intn(len(hidden))].Add(rng.Intn(3)-1, rng.Intn(3)-1)
+			p = hidden[rng.IntN(len(hidden))].Add(rng.IntN(3)-1, rng.IntN(3)-1)
 		} else {
-			p = Point{rng.Intn(w.Width), rng.Intn(w.Height)}
+			p = Point{rng.IntN(w.Width), rng.IntN(w.Height)}
 		}
-		switch rng.Intn(3) {
+		switch rng.IntN(3) {
 		case 0:
 			w.SetTerrain(p, Floor)
 		case 1:
@@ -348,7 +347,7 @@ func TestAlienNestsDoNotChangeGeneration(t *testing.T) {
 	a := newTestWorld(t, cfg)
 	cfg.CavernNestPercent = 100
 	b := newTestWorld(t, cfg)
-	if got, want := a.rng.Int63(), b.rng.Int63(); got != want {
+	if got, want := a.rng.Int64(), b.rng.Int64(); got != want {
 		t.Fatalf("nests moved the simulation stream: %d vs %d", got, want)
 	}
 	if len(a.entities) != len(b.entities) {

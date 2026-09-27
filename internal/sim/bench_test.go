@@ -1,7 +1,6 @@
 package sim
 
 import (
-	"math/rand"
 	"testing"
 )
 
@@ -16,7 +15,7 @@ func benchWorldSized(width, height, colonists int) *World {
 	cfg := DefaultConfig()
 	cfg.Seed = 1
 	cfg.Width, cfg.Height = width, height
-	w := newWorld(cfg, rand.New(rand.NewSource(1)))
+	w := newWorld(cfg, newPCG(1))
 
 	const border = 20
 	for y := border; y < w.Height-border; y++ {
@@ -244,7 +243,7 @@ func benchWorldSmallColony(mapSize, chamber, colonists int) *World {
 	cfg := DefaultConfig()
 	cfg.Seed = 1
 	cfg.Width, cfg.Height = mapSize, mapSize
-	w := newWorld(cfg, rand.New(rand.NewSource(1)))
+	w := newWorld(cfg, newPCG(1))
 
 	cx, cy := mapSize/2, mapSize/2
 	for y := cy - chamber/2; y < cy+chamber/2; y++ {

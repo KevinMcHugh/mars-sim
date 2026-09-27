@@ -1,7 +1,6 @@
 package sim
 
 import (
-	"math/rand"
 	"testing"
 )
 
@@ -10,7 +9,7 @@ func personalityWorld(traitChance int) *World {
 	cfg := DefaultConfig()
 	cfg.Width, cfg.Height = 30, 20
 	cfg.TraitChance = traitChance
-	return newWorld(cfg, rand.New(rand.NewSource(1)))
+	return newWorld(cfg, newPCG(1))
 }
 
 // Every colonist gets a populated profile: a name, age, and plausible attributes.

@@ -1,7 +1,6 @@
 package sim
 
 import (
-	"math/rand"
 	"testing"
 )
 
@@ -102,7 +101,7 @@ func TestMoneyIsConserved(t *testing.T) {
 	cfg.Width, cfg.Height = 80, 50
 	cfg.StartColonists = 16
 	w := newTestWorld(t, cfg)
-	r := rand.New(rand.NewSource(1)) // the test's own stream, never the world's
+	r := newRand(1) // the test's own stream, never the world's
 
 	for i := 0; i < 3000; i++ {
 		w.step()
@@ -126,8 +125,8 @@ func TestMoneyIsConserved(t *testing.T) {
 			}
 		}
 		for k := 0; k < 4; k++ {
-			from, to := owners[r.Intn(len(owners))], owners[r.Intn(len(owners))]
-			w.transfer(from, to, Money(r.Intn(300)))
+			from, to := owners[r.IntN(len(owners))], owners[r.IntN(len(owners))]
+			w.transfer(from, to, Money(r.IntN(300)))
 		}
 		assertMoneyConserved(t, w)
 	}

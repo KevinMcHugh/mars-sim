@@ -28,6 +28,7 @@ way it is without re-deriving it from the source each time.
 | [mutation.md](./mutation.md) | Uranium deposits, the exposure dose, mutant body parts, stature (two-foot to ten-foot colonists), and the Mutant / Mutant-Lover traits. |
 | [determinism.md](./determinism.md) | One seed, one simulation: how map iteration order breaks it, the lockstep regression test, and the three bugs that motivated both. |
 | [personality.md](./personality.md) | Names, attributes, traits, and the separate RNG stream that keeps flavor out of the simulation. |
+| [rng-streams.md](./rng-streams.md) | Every seed-derived `math/rand/v2` PCG stream, how they are seeded, and how their state is saved and restored for save/load. |
 | [ages-and-family.md](./ages-and-family.md) | Colonist ages and the age invariants family ties have to satisfy. |
 | [heredity.md](./heredity.md) | What joining a family does to a colonist: a shared surname, inherited looks, and a warm start with relatives. |
 | [construction.md](./construction.md) | Construction projects and the facility-room design, including the deadlocks that shaped it. |

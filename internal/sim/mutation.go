@@ -69,7 +69,7 @@ func (w *World) applyUraniumExposure(e *Entity) {
 		return
 	}
 	e.uraniumExposure = 0
-	if w.cfg.MutationChance > 0 && w.rng.Intn(100) < w.cfg.MutationChance {
+	if w.cfg.MutationChance > 0 && w.rng.IntN(100) < w.cfg.MutationChance {
 		w.mutate(e)
 	}
 }
@@ -157,7 +157,7 @@ func (w *World) rollStature(cm int) int {
 	if len(candidates) == 0 {
 		return cm
 	}
-	return candidates[w.rng.Intn(len(candidates))]
+	return candidates[w.rng.IntN(len(candidates))]
 }
 
 // grownStature and shrunkStature are the two ends of one mutation's step, and
@@ -302,7 +302,7 @@ func (w *World) rollMutantPart(e *Entity) (BodyPart, bool) {
 	if len(candidates) == 0 {
 		return 0, false
 	}
-	return candidates[w.rng.Intn(len(candidates))], true
+	return candidates[w.rng.IntN(len(candidates))], true
 }
 
 // growPart adds a body part to an entity at full health. Its pool is sized

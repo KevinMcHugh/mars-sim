@@ -3,7 +3,6 @@ package sim
 import (
 	"context"
 	"fmt"
-	"math/rand"
 	"sort"
 	"strconv"
 	"strings"
@@ -512,7 +511,8 @@ func TestUrgentNonFatalNeedTriggersEmergencyBuild(t *testing.T) {
 // buildable project sitting right there).
 func TestUrgentColonistHelpsBuildWhenFacilityUndersupplied(t *testing.T) {
 	cfg := testConfig()
-	cfg.StartColonists, cfg.StartAliens = 0, 0
+	// No cats or rats either: one standing on the wall task makes it unclaimable.
+	cfg.StartColonists, cfg.StartAliens, cfg.StartCats, cfg.StartRats = 0, 0, 0, 0
 	cfg.ColonistsPerFacility = 1 // three colonists want three toilets
 	w := newTestWorld(t, cfg)
 
@@ -810,24 +810,24 @@ func TestCatsWanderWithoutPrey(t *testing.T) {
 func TestNearestMatchesBruteForce(t *testing.T) {
 	cfg := DefaultConfig()
 	cfg.Seed, cfg.Width, cfg.Height = 1, 120, 90
-	w := newWorld(cfg, rand.New(rand.NewSource(9)))
+	w := newWorld(cfg, newPCG(9))
 
-	rng := rand.New(rand.NewSource(3))
+	rng := newRand(3)
 	for i := 0; i < 300; i++ {
-		p := Point{rng.Intn(w.Width), rng.Intn(w.Height)}
+		p := Point{rng.IntN(w.Width), rng.IntN(w.Height)}
 		if w.occupied(p) {
 			continue
 		}
 		kind := Colonist
-		if rng.Intn(2) == 0 {
+		if rng.IntN(2) == 0 {
 			kind = Alien
 		}
 		w.spawn(kind, p)
 	}
 
 	for i := 0; i < 1000; i++ {
-		from := Point{rng.Intn(w.Width), rng.Intn(w.Height)}
-		within := rng.Intn(200) + 1
+		from := Point{rng.IntN(w.Width), rng.IntN(w.Height)}
+		within := rng.IntN(200) + 1
 		for _, kind := range []Kind{Colonist, Alien} {
 			got, gok := w.nearestOfKind(from, kind, within)
 			want, wok := bruteNearestOfKind(w, from, kind, within)

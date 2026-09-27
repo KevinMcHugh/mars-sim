@@ -2,7 +2,6 @@ package sim
 
 import (
 	"context"
-	"math/rand"
 	"testing"
 	"time"
 )
@@ -12,7 +11,7 @@ func gridWorld(t testing.TB, size int) *World {
 	cfg := DefaultConfig()
 	cfg.Seed = 7
 	cfg.Width, cfg.Height = size, size
-	return newWorld(cfg, rand.New(rand.NewSource(7)))
+	return newWorld(cfg, newPCG(7))
 }
 
 // A published grid must never change under a frontend that is still holding it:

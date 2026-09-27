@@ -400,7 +400,7 @@ func (w *World) assignPersonality(e *Entity) {
 // generated person can work, while the range still leaves room for believable
 // parent/child relationships.
 func (w *World) rollAge() int {
-	return 18 + w.agePRNG.Intn(63) // 18..80
+	return 18 + w.agePRNG.IntN(63) // 18..80
 }
 
 // resolveTraitEffects recomputes a colonist's effective parameters from its
@@ -473,10 +473,10 @@ func (w *World) rollTraits() []Trait {
 		if len(group) == 0 {
 			continue
 		}
-		if w.prng.Intn(100) >= w.cfg.TraitChance {
+		if w.prng.IntN(100) >= w.cfg.TraitChance {
 			continue
 		}
-		out = append(out, group[w.prng.Intn(len(group))])
+		out = append(out, group[w.prng.IntN(len(group))])
 	}
 	return out
 }
@@ -506,7 +506,7 @@ func rollableTraitsInGroup(g traitGroup) []Trait {
 
 // rollGender picks a gender identity: mostly binary, occasionally non-binary.
 func (w *World) rollGender() Gender {
-	switch r := w.prng.Intn(100); {
+	switch r := w.prng.IntN(100); {
 	case r < 47:
 		return GenderMan
 	case r < 94:
@@ -517,7 +517,7 @@ func (w *World) rollGender() Gender {
 }
 
 func (w *World) rollOrientation() Orientation {
-	switch r := w.prng.Intn(100); {
+	switch r := w.prng.IntN(100); {
 	case r < 80:
 		return Heterosexual
 	case r < 90:
@@ -593,7 +593,7 @@ func weightFor(heightCM int, bmi float64) int {
 
 // rollSkinTone picks a skin tone uniformly across the five emoji tone points.
 func (w *World) rollSkinTone() SkinTone {
-	return SkinTone(w.prng.Intn(5))
+	return SkinTone(w.prng.IntN(5))
 }
 
 // rollHair picks both the color a colonist's hair grew in as and the color they
@@ -610,7 +610,7 @@ func (w *World) rollHair(age int) (base, shown HairColor) {
 	case age >= 45:
 		whiteChance, baldChance = 20, 8
 	}
-	switch r := w.prng.Intn(100); {
+	switch r := w.prng.IntN(100); {
 	case r < whiteChance:
 		return base, HairWhite
 	case r < whiteChance+baldChance:
@@ -623,7 +623,7 @@ func (w *World) rollHair(age int) (base, shown HairColor) {
 // rollHairBase picks a natural hair color. White and bald are not options here:
 // both are things age does to hair, applied on top by rollHair.
 func (w *World) rollHairBase() HairColor {
-	switch r := w.prng.Intn(100); {
+	switch r := w.prng.IntN(100); {
 	case r < 37:
 		return HairBlack
 	case r < 69:
@@ -642,7 +642,7 @@ func (w *World) rollHairBase() HairColor {
 func (w *World) rollName(e *Entity) {
 	p := e.Profile
 	p.given = w.rollGivenName(p.Gender)
-	p.surname = lastNames[w.prng.Intn(len(lastNames))]
+	p.surname = lastNames[w.prng.IntN(len(lastNames))]
 	p.Name = p.given + " " + p.surname
 	w.uniquifyName(e)
 }
@@ -697,13 +697,13 @@ func (w *World) rollGivenName(g Gender) string {
 	case GenderWoman:
 		pool = firstNamesFem
 	default: // non-binary draws from either pool
-		if w.prng.Intn(2) == 0 {
+		if w.prng.IntN(2) == 0 {
 			pool = firstNamesMasc
 		} else {
 			pool = firstNamesFem
 		}
 	}
-	return pool[w.prng.Intn(len(pool))]
+	return pool[w.prng.IntN(len(pool))]
 }
 
 // scaleTicks scales a base work duration by a colonist's workScale, never going

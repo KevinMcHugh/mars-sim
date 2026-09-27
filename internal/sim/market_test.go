@@ -1,7 +1,6 @@
 package sim
 
 import (
-	"math/rand"
 	"testing"
 )
 
@@ -129,7 +128,7 @@ func TestDeathCancelsOrders(t *testing.T) {
 func TestRandomTradingIsDeterministicAndConserved(t *testing.T) {
 	run := func() []Trade {
 		w, silo, cs := marketWorld(t)
-		r := rand.New(rand.NewSource(3))
+		r := newRand(3)
 		for _, c := range cs {
 			for _, k := range []ItemKind{IronOre, Clay, Meal} {
 				stock(w, silo, ColonistOwner(c.ID), k, 20)
@@ -138,12 +137,12 @@ func TestRandomTradingIsDeterministicAndConserved(t *testing.T) {
 		kinds := []ItemKind{IronOre, Clay, Meal}
 		for i := 0; i < 400; i++ {
 			w.tick++
-			who := ColonistOwner(cs[r.Intn(3)].ID)
-			if r.Intn(3) == 0 {
+			who := ColonistOwner(cs[r.IntN(3)].ID)
+			if r.IntN(3) == 0 {
 				who = Community
 			}
-			side := Side(r.Intn(2))
-			w.post(side, kinds[r.Intn(3)], 1+r.Intn(4), Money(1+r.Intn(8)), who, silo, 1+r.Intn(30))
+			side := Side(r.IntN(2))
+			w.post(side, kinds[r.IntN(3)], 1+r.IntN(4), Money(1+r.IntN(8)), who, silo, 1+r.IntN(30))
 			if i%7 == 0 {
 				w.expireOrders()
 			}
