@@ -42,8 +42,8 @@ than a hardcoded list.
   determinism, invariants, temperament behavior, the naming-condition
   boolean logic, and the emoji draw.
 - [`internal/ui/tui/glyphs_test.go`](../internal/ui/tui/glyphs_test.go) —
-  `alienGlyph`'s registered/unregistered/empty cases, and that every curated
-  emoji is actually registered.
+  `alienGlyph`'s registered/unregistered/empty cases, and that every emoji
+  in the built-in `alien-names.yaml` is actually registered.
 - [`internal/sim/world.go`](../internal/sim/world.go) — `World.alienSpecies`
   (now a roster, `[]AlienSpecies`) and where it's rolled, in `newWorld`; the
   per-`Alien` species draw in `spawn`; `World.exploredCount`, kept
@@ -76,7 +76,7 @@ than a hardcoded list.
 
 `AlienSpecies` (`lore.go`) holds a build (height/weight ranges, eye count,
 limb count split into arms vs. legs via `Arms`/`Legs()`, tail or not, `Skin`,
-`Color`), a colloquial name (`Singular`/`Plural`, picked from a condition
+`Color`, `Pattern`), a colloquial name (`Singular`/`Plural`, picked from a condition
 pool — see below), a `Temperament`, and three precomputed combat stats:
 `BiteDamage`, `BiteRest`, `Slowness`.
 
@@ -87,6 +87,27 @@ pool — see below), a `Temperament`, and three precomputed combat stats:
 — so a world with more than one species can have a real mix wandering the
 rock, each with its own build, name, and temperament. `alienSpeciesFor(e)`
 is how every other system reads the species a specific alien belongs to.
+
+### Hide and pattern
+
+`Skin` is one of seven hides — `smooth`, `scaly`, `furry`, `armored`,
+`bony`, `chitinous`, `slimy` — drawn uniformly. `Pattern` says how `Color`
+is laid over that hide: `striped` and `spotted` are 5% each and `solid` is
+the rest (`rollPattern`), so a patterned species is a genuine find rather
+than a coin flip. `Color` itself is drawn uniformly from `alienColors`,
+which includes `iridescent` alongside the ordinary hues. Pattern is its own field rather than more entries in
+`alienColors` so a naming condition can say "anything striped" (`tiger`)
+or "red and spotted" (`ladybug`) without enumerating every
+color-times-pattern string; `ColorPhrase()` folds the two back together
+("green-striped") for `Description()`. Both hide and pattern are plain
+naming-condition leaves (`skin:`, `pattern:`) and carry no gameplay effect
+today — they are flavor, like `Color`.
+
+Adding a hide or pattern shifts every later draw off the lore stream for a
+given seed (the roll is uniform over the slice), so the same seed rolls a
+different roster after such a change. That is fine — the stream is isolated
+from the simulation stream (below) — but expect seed-pinned lore tests to
+need new expectations.
 
 ### Where it rolls, and on what stream
 
@@ -176,7 +197,7 @@ type nameCondition struct {
 	Any []nameCondition
 	Not *nameCondition
 
-	Temperament, Skin, Color, Height, Weight string
+	Temperament, Skin, Color, Pattern, Height, Weight string
 	Tail                                     *bool
 	Legs, Arms, Limbs, Eyes                  *intCondition // {eq,gt,gte,lt,lte}
 }
@@ -248,6 +269,18 @@ species always have a real, registered glyph to show on the map; a custom
 up on the map if it happens to spell one of those same registered symbols
 exactly (see the note in `alien-names.yaml.example`).
 
+The hide/pattern names (`bonehead`, `roach`, `slug`, `toad`, `tiger`,
+`zebra`, `leopard`, `ladybug`) brought their own registered glyphs — 💀 🪳
+🐌 🐸 🐅 🐯 🦓 🐆 🐞 — all single code points with no variation selector.
+`bonehead` deliberately lists only 💀, not ☠️: the crossbones is U+2620 +
+VS16, exactly the width-ambiguous shape the registry exists to keep off the
+grid. The same rule pruned the older entries: 🐻‍❄️ (a ZWJ sequence),
+⚫️/🕷️/♟️ (VS16) were dropped or swapped for single-code-point stand-ins
+(⚫ 🌑 🦇), and every remaining emoji in the built-in pool is registered.
+`TestCuratedAlienEmojiAreAllRegistered` reads `internal/sim/alien-names.yaml`
+itself, so adding a name whose emoji isn't in `glyphRegistry` fails the
+build instead of silently rendering as 👽 on the map.
+
 ### Narration
 
 `World.alienNounFor(e)` (`withArticle(w.alienSpeciesFor(e).Singular)`,
@@ -282,7 +315,7 @@ been explored (`Stats.ExploredTiles`, kept incrementally the same way
 selectable list of `Snapshot.AlienSpecies`, each shown by `RosterLabel()`.
 The detail panel lists the selected species' full build as explicit stat
 lines (height/weight range, eyes, limb split, tail, skin, color, bite
-damage/pace) followed by `Description()`'s narrative paragraph,
+damage/pace, plus the color pattern) followed by `Description()`'s narrative paragraph,
 word-wrapped to the panel width.
 
 ## Why it is this way

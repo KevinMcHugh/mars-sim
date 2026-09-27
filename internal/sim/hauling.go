@@ -75,8 +75,8 @@ func (w *World) planArbitrage(e *Entity, b, ask *Order, src Point) bool {
 	}
 	p := w.newPlan(e, planHaul, b, filled)
 	p.workshop, p.crafted = src, true
-	w.remember(e, event(EvtWentToMarket, "Bought %d %s at (%d, %d) for %v to sell at (%d, %d) for %v.",
-		filled, b.Item, src.X, src.Y, ask.Price, b.Depot.X, b.Depot.Y, b.Price))
+	w.emitDone(e, ActionTrade, NounGoods, "Bought %d %s at (%d, %d) for %v to sell at (%d, %d) for %v.",
+		filled, b.Item, src.X, src.Y, ask.Price, b.Depot.X, b.Depot.Y, b.Price)
 	w.assignCarry(e, p, src, carryFetch, filled)
 	return true
 }
@@ -132,7 +132,7 @@ func (w *World) finishHaul(e *Entity, n int) {
 	for i := 0; i < n && o != nil && w.workOrders[o.ID] == o; i++ {
 		w.payWork(o, e)
 	}
-	w.remember(e, event(EvtHauled, "Hauled %d %s for hire.", n, e.carryItem))
+	w.emitDone(e, ActionHaul, NounGoods, "Hauled %d %s for hire.", n, e.carryItem)
 	w.clearJob(e)
 }
 

@@ -105,9 +105,14 @@ const (
 	SkinScaly
 	SkinFurry
 	SkinArmored
+	SkinBony
+	SkinChitinous
+	SkinSlimy
 )
 
-var alienSkins = [...]AlienSkin{SkinSmooth, SkinScaly, SkinFurry, SkinArmored}
+var alienSkins = [...]AlienSkin{
+	SkinSmooth, SkinScaly, SkinFurry, SkinArmored, SkinBony, SkinChitinous, SkinSlimy,
+}
 
 func (s AlienSkin) String() string {
 	switch s {
@@ -119,6 +124,12 @@ func (s AlienSkin) String() string {
 		return "furry"
 	case SkinArmored:
 		return "armored"
+	case SkinBony:
+		return "bony"
+	case SkinChitinous:
+		return "chitinous"
+	case SkinSlimy:
+		return "slimy"
 	default:
 		return "unknown"
 	}
@@ -129,6 +140,44 @@ func (s AlienSkin) String() string {
 // per-color entries in alien-names.yaml).
 var alienColors = [...]string{
 	"red", "orange", "yellow", "green", "blue", "purple", "gray", "black", "white", "pale",
+	"iridescent",
+}
+
+// AlienPattern is how a species' Color is laid over its hide: one solid
+// color, or striped or spotted with it. Flavor and a naming condition (see
+// alien_names.go's `pattern` field), like Skin and Color.
+type AlienPattern uint8
+
+const (
+	PatternSolid AlienPattern = iota
+	PatternStriped
+	PatternSpotted
+)
+
+func (p AlienPattern) String() string {
+	switch p {
+	case PatternSolid:
+		return "solid"
+	case PatternStriped:
+		return "striped"
+	case PatternSpotted:
+		return "spotted"
+	default:
+		return "unknown"
+	}
+}
+
+// rollPattern draws a species' pattern: striped and spotted are 5% each and
+// solid is everything else, so a patterned species is a genuine find.
+func rollPattern(rng *rand.Rand) AlienPattern {
+	switch r := rng.Intn(100); {
+	case r < 5:
+		return PatternStriped
+	case r < 10:
+		return PatternSpotted
+	default:
+		return PatternSolid
+	}
 }
 
 // AlienSizeTier buckets a continuous height or weight range into the coarse
@@ -194,6 +243,8 @@ type AlienSpecies struct {
 	Tail  bool
 	Skin  AlienSkin
 	Color string // one of alienColors
+	// Pattern is how Color is laid out: solid, striped, or spotted.
+	Pattern AlienPattern
 
 	// Temperament decides whether and how this species fights -- see
 	// AlienTemperament and alienTurn in systems.go.
@@ -254,6 +305,7 @@ func rollAlienSpecies(rng *rand.Rand, cfg Config, names []AlienNameEntry) AlienS
 	sp.Arms = rng.Intn(sp.Limbs + 1) // 0..Limbs; the rest are legs -- both
 	// "all legs" (Arms == 0) and "all arms" (Arms == Limbs) are valid rolls.
 	sp.Tail = rng.Intn(2) == 0
+	sp.Pattern = rollPattern(rng)
 
 	baseHeight := 45 + rng.Intn(330) // a 45cm gremlin up to a ~375cm brute
 	spread := 10 + rng.Intn(baseHeight/3+10)
@@ -359,8 +411,17 @@ func (sp AlienSpecies) Description() string {
 		"%s stand %d-%d cm and weigh %d-%d kg, with %s, %s and %s, %s skin, %s, %s. Temperament: %s.",
 		capitalizeFirst(sp.Plural), sp.HeightMinCM, sp.HeightMaxCM, sp.WeightMinKG, sp.WeightMaxKG,
 		pluralize(sp.Eyes, "eye", "eyes"), pluralize(sp.Arms, "arm", "arms"), pluralize(sp.Legs(), "leg", "legs"),
-		sp.Skin, sp.Color, tailPhrase(sp.Tail), sp.Temperament.String(),
+		sp.Skin, sp.ColorPhrase(), tailPhrase(sp.Tail), sp.Temperament.String(),
 	)
+}
+
+// ColorPhrase is Color with its Pattern folded in: "green" for a solid
+// species, "green-striped" or "green-spotted" otherwise.
+func (sp AlienSpecies) ColorPhrase() string {
+	if sp.Pattern == PatternSolid {
+		return sp.Color
+	}
+	return sp.Color + "-" + sp.Pattern.String()
 }
 
 func tailPhrase(hasTail bool) string {

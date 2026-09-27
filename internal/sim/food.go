@@ -107,7 +107,7 @@ func (w *World) jobEat(e *Entity) {
 		// again as an interrupted meal — and so feed the colony forever.
 		e.eat = eatFetch
 		w.resetNeed(e, NeedFood)
-		w.remember(e, event(EvtAte, "Had a meal."))
+		w.emitDone(e, ActionEat, NounMeal, "Had a meal.")
 		w.clearJob(e)
 	}
 }

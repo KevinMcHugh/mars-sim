@@ -48,7 +48,7 @@ func TestEveryArrivalComesInACrashPod(t *testing.T) {
 	cfg.Width, cfg.Height = 80, 50
 	cfg.Schedules = []Schedule{{
 		Name: "second wave", EarliestTick: 1, LatestTick: 1,
-		Occurrences: []Occurrence{{Kind: OccArrival, Count: 3}},
+		Occurrences: []DirectorOccurrence{{Kind: OccArrival, Count: 3}},
 	}}
 	eng := NewEngine(cfg)
 	w := eng.world

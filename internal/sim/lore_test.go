@@ -74,9 +74,14 @@ func TestRollAlienSpeciesInvariants(t *testing.T) {
 			t.Fatalf("seed %d: unknown temperament %v", seed, sp.Temperament)
 		}
 		switch sp.Skin {
-		case SkinSmooth, SkinScaly, SkinFurry, SkinArmored:
+		case SkinSmooth, SkinScaly, SkinFurry, SkinArmored, SkinBony, SkinChitinous, SkinSlimy:
 		default:
 			t.Fatalf("seed %d: unknown skin %v", seed, sp.Skin)
+		}
+		switch sp.Pattern {
+		case PatternSolid, PatternStriped, PatternSpotted:
+		default:
+			t.Fatalf("seed %d: unknown pattern %v", seed, sp.Pattern)
 		}
 		if sp.Color == "" {
 			t.Fatalf("seed %d: species has no color", seed)

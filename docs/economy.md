@@ -550,8 +550,8 @@ three gates are tests. What differs from the sketch above:
   to build anything. The landing cavern is sized for its pods for the same
   reason.
 - The safety net is "least attractive" by rule and by mood: own meals, then the
-  colony's, then the pod, in that order, and pod food records `EvtAteGruel`
-  instead of a meal.
+  colony's, then the pod, in that order, and pod food is the `ate-gruel`
+  reaction instead of `ate`.
 - Every settler lands with a pistol by default. Survival across 20 seeds went
   from 9 to 15 (see [combat.md](./combat.md)).
 - Private fixtures had to stop counting as "in the way" (`onFacilityAccess`),

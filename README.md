@@ -24,7 +24,10 @@ go run . -headless -duration 10s -seed 42   # reproducible, no TUI
 For settings you want to keep rather than retype, [`mars-sim.yaml`](mars-sim.yaml)
 is a committed file that sits between the compiled defaults and the flags. It
 ships with every setting shown at its default and commented out, so it changes
-nothing until you uncomment a line:
+nothing until you uncomment a line. Perception, reaction, and trait-appraisal
+rules live in the sibling [`cognition.yaml`](cognition.yaml); the Cognition Lab
+at [`tools/cognition_lab.html`](tools/cognition_lab.html) edits that file. See
+[cognition config and lab](docs/cognition-config-and-lab.md).
 
 ```yaml
 ## starting number of colonists

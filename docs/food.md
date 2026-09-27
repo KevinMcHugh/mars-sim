@@ -59,8 +59,9 @@ holds.
 
 ### Gruel
 
-Eating at a pod records `EvtAteGruel` ("Ate a ration of nutrient-pod gruel.")
-instead of `EvtAte`. Its appraisal is a small, slightly dispiriting non-event
+Eating at a pod emits `colonist / eat / gruel` ("Ate a ration of nutrient-pod
+gruel."), which the `ate-gruel` reaction in `cognition.yaml` answers, instead
+of `eat / meal` and `ate`. Its appraisal is a small, slightly dispiriting non-event
 next to a real meal's lift, and it wears into a mild grievance. The safety net
 is meant to be the worst way to eat: it keeps a colonist alive, and not much
 more.

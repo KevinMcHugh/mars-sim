@@ -92,6 +92,38 @@ func TestNameConditionSnakeExample(t *testing.T) {
 	}
 }
 
+// A pattern condition composes with skin: "toad" is slimy *and* spotted.
+func TestNameConditionPatternAndSkin(t *testing.T) {
+	toad := nameCondition{All: []nameCondition{
+		{Skin: "slimy"},
+		{Pattern: "spotted"},
+	}}
+	if !toad.matches(AlienSpecies{Skin: SkinSlimy, Pattern: PatternSpotted}) {
+		t.Fatal("toad condition did not match a slimy spotted species")
+	}
+	if toad.matches(AlienSpecies{Skin: SkinSlimy, Pattern: PatternStriped}) {
+		t.Fatal("toad condition matched a striped species")
+	}
+	if toad.matches(AlienSpecies{Skin: SkinChitinous, Pattern: PatternSpotted}) {
+		t.Fatal("toad condition matched a chitinous species")
+	}
+}
+
+// Every skin and pattern the roller can produce round-trips through its
+// String() into a condition that matches it, so a YAML entry can name any of
+// them.
+func TestNameConditionEveryHideAndPattern(t *testing.T) {
+	for _, skin := range alienSkins {
+		for _, pat := range []AlienPattern{PatternSolid, PatternStriped, PatternSpotted} {
+			sp := AlienSpecies{Skin: skin, Pattern: pat}
+			c := nameCondition{Skin: skin.String(), Pattern: pat.String()}
+			if !c.matches(sp) {
+				t.Fatalf("condition %+v did not match %v/%v", c, skin, pat)
+			}
+		}
+	}
+}
+
 // The centaur example: exactly 4 legs and 2 arms.
 func TestNameConditionCentaurExample(t *testing.T) {
 	centaur := nameCondition{All: []nameCondition{

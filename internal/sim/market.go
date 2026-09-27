@@ -478,7 +478,7 @@ func (w *World) tryBuyMeal(e *Entity) bool {
 			w.cancel(o) // buy now or not at all
 		}
 		if filled > 0 {
-			w.remember(e, event(EvtBoughtMeal, "Bought a meal for %v.", price))
+			w.emitDone(e, ActionBuy, NounMeal, "Bought a meal for %v.", price)
 			return true
 		}
 	}
@@ -597,7 +597,7 @@ func (w *World) jobSell(e *Entity) {
 	c.credit(me, Meal, n)
 	e.Inventory.RemoveAll(Meal)
 	w.sellAtMarket(e, silo, []ItemKind{Meal})
-	w.remember(e, event(EvtWentToMarket, "Took %d meals to market.", n))
+	w.emitDone(e, ActionTrade, NounGoods, "Took %d meals to market.", n)
 	w.clearJob(e)
 }
 

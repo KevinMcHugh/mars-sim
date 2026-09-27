@@ -133,7 +133,7 @@ names:
 
   - name: bear
     plural: bears
-    emoji: ["🐻", "🐻‍❄️","🧸","🐨"]
+    emoji: ["🐻", "🧸", "🐨"]
     when:
       all:
         - skin: furry
@@ -206,5 +206,83 @@ names:
 
   - name: shadow
     plural: shadows
-    emoji: ["⚫️", "🕷️", "♟️"]
+    emoji: ["⚫", "🌑", "🦇"]
     when: { color: black }
+
+  - name: bonehead
+    plural: boneheads
+    emoji: ["💀"]
+    when: { skin: bony }
+
+  - name: rattler
+    plural: rattlers
+    emoji: ["💀"]
+    when: { skin: bony }
+
+  - name: crawler
+    plural: crawlers
+    emoji: ["🪲", "🐜", "🦗"]
+    when: { skin: chitinous }
+
+  - name: roach
+    plural: roaches
+    emoji: ["🪳", "🪲"]
+    when:
+      all:
+        - skin: chitinous
+        - legs: { gte: 4 }
+
+  - name: slug
+    plural: slugs
+    emoji: ["🐌", "🪱"]
+    when: { skin: slimy }
+
+  - name: blob
+    plural: blobs
+    emoji: ["🦠", "👾"]
+    when: { skin: slimy }
+
+  - name: toad
+    plural: toads
+    emoji: ["🐸"]
+    when:
+      all:
+        - skin: slimy
+        - pattern: spotted
+
+  - name: tiger
+    plural: tigers
+    emoji: ["🐅", "🐯"]
+    when: { pattern: striped }
+
+  - name: zebra
+    plural: zebras
+    emoji: ["🦓"]
+    when:
+      all:
+        - pattern: striped
+        - legs: { eq: 4 }
+
+  - name: leopard
+    plural: leopards
+    emoji: ["🐆"]
+    when: { pattern: spotted }
+
+  - name: ladybug
+    plural: ladybugs
+    emoji: ["🐞"]
+    when:
+      all:
+        - pattern: spotted
+        - skin: chitinous
+        - color: red
+
+  - name: shimmer
+    plural: shimmers
+    emoji: ["🦚", "🦋"]
+    when: { color: iridescent }
+
+  - name: opal
+    plural: opals
+    emoji: ["🦚"]
+    when: { color: iridescent }

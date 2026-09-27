@@ -118,6 +118,7 @@ func (m Model) renderLoreDetail(sp sim.AlienSpecies, rows, width int) string {
 	stat("Tail:", tail)
 	stat("Skin:", sp.Skin.String())
 	stat("Color:", sp.Color)
+	stat("Pattern:", sp.Pattern.String())
 	stat("Bite damage:", fmt.Sprintf("%d", sp.BiteDamage))
 	stat("Bite cooldown:", fmt.Sprintf("%d ticks", sp.BiteRest))
 	stat("Move pace:", fmt.Sprintf("every %d ticks", sp.Slowness))

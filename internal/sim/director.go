@@ -54,11 +54,11 @@ func parseOccurrenceKind(s string) (OccurrenceKind, bool) {
 	}
 }
 
-// Occurrence is one candidate thing the director can make happen: a kind plus
+// DirectorOccurrence is one candidate thing the director can make happen: a kind plus
 // the parameters that kind reads. Only the fields a given Kind actually uses
 // are meaningful — Count for a plague/swarm, Pistols/Shotguns for a supply
 // drop — the rest sit at zero.
-type Occurrence struct {
+type DirectorOccurrence struct {
 	Kind     OccurrenceKind
 	Count    int // OccRatPlague: rats spawned. OccAlienSwarm: aliens spawned. OccArrival: colonists.
 	Pistols  int // OccSupplyDrop only.
@@ -78,7 +78,7 @@ type Schedule struct {
 	Name         string
 	EarliestTick int
 	LatestTick   int
-	Occurrences  []Occurrence
+	Occurrences  []DirectorOccurrence
 }
 
 // scheduledEvent is a Schedule resolved down to one concrete firing.
@@ -87,7 +87,7 @@ type Schedule struct {
 type scheduledEvent struct {
 	Tick       int
 	Name       string
-	Occurrence Occurrence
+	Occurrence DirectorOccurrence
 }
 
 // resolveSchedules rolls every Schedule down to a single scheduledEvent and
@@ -291,7 +291,7 @@ func (rs rawSchedule) toSchedule() (Schedule, error) {
 	if len(rs.Occurrences) == 0 {
 		return Schedule{}, fmt.Errorf("needs at least one occurrence")
 	}
-	occs := make([]Occurrence, len(rs.Occurrences))
+	occs := make([]DirectorOccurrence, len(rs.Occurrences))
 	for i, ro := range rs.Occurrences {
 		kind, ok := parseOccurrenceKind(ro.Kind)
 		if !ok {
@@ -310,7 +310,7 @@ func (rs rawSchedule) toSchedule() (Schedule, error) {
 				return Schedule{}, fmt.Errorf("occurrence %d: supply-drop needs at least one pistol or shotgun", i)
 			}
 		}
-		occs[i] = Occurrence{Kind: kind, Count: ro.Count, Pistols: ro.Pistols, Shotguns: ro.Shotguns}
+		occs[i] = DirectorOccurrence{Kind: kind, Count: ro.Count, Pistols: ro.Pistols, Shotguns: ro.Shotguns}
 	}
 	return Schedule{Name: rs.Name, EarliestTick: rs.EarliestTick, LatestTick: rs.LatestTick, Occurrences: occs}, nil
 }

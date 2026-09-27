@@ -253,7 +253,7 @@ func (w *World) sellGathered(e *Entity, p *plan) {
 	me := ColonistOwner(e.ID)
 	if n := min(p.qty, w.storageContainers[p.depot].held(me, p.item)); n > 0 {
 		w.post(Ask, p.item, n, p.price, me, p.depot, w.cfg.OrderTTL)
-		w.remember(e, event(EvtWentToMarket, "Scraped %d %s to sell for %v each.", n, p.item, p.price))
+		w.emitDone(e, ActionTrade, NounGoods, "Scraped %d %s to sell for %v each.", n, p.item, p.price)
 	}
 	w.dropPlan(p)
 }
@@ -354,7 +354,7 @@ func (w *World) planCraft(e *Entity, b *Order) (started, planned bool) {
 			}
 		}
 		if len(p.derived) > 0 {
-			w.remember(e, event(EvtWentToMarket, "Bid for %s to make %s for a customer.", stackPhrase(missing), b.Item))
+			w.emitDone(e, ActionTrade, NounGoods, "Bid for %s to make %s for a customer.", stackPhrase(missing), b.Item)
 		}
 		return w.advancePlan(e, p), true
 	}
@@ -476,7 +476,7 @@ func (w *World) jobCarry(e *Entity) {
 	}
 	me := owner
 	_, filled := w.post(Ask, e.carryItem, n, e.carryPrice, me, e.Target, w.cfg.OrderTTL)
-	w.remember(e, event(EvtWentToMarket, "Delivered %d %s to market (%d sold at once).", n, e.carryItem, filled))
+	w.emitDone(e, ActionTrade, NounGoods, "Delivered %d %s to market (%d sold at once).", n, e.carryItem, filled)
 	if p := w.plans[e.plan]; p != nil {
 		w.dropPlan(p)
 	}

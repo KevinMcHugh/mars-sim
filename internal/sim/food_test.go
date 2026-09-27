@@ -56,7 +56,7 @@ func TestColonistsEatTheirOwnMealsBeforeGruel(t *testing.T) {
 			t.Errorf("%s never ate any of its %d meals", e.displayName(), start[id])
 		}
 		for _, m := range e.Memories {
-			ateGruel = ateGruel || m.Kind == EvtAteGruel
+			ateGruel = ateGruel || m.Rule == "ate-gruel"
 		}
 	}
 	if !ateGruel {

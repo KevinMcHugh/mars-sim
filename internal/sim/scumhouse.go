@@ -336,7 +336,7 @@ func (w *World) jobCraft(e *Entity) {
 	for _, o := range outputs {
 		out.credit(e.craftFor, o.Kind, o.Count)
 	}
-	w.remember(e, event(EvtMadeSlurry, "Worked the scumhouse: %s.", r.Name))
+	w.emitDone(e, ActionCook, NounMeal, "Worked the scumhouse: %s.", r.Name)
 	if e.craftFor == Community {
 		if w.cfg.WageCook > 0 {
 			w.transfer(Community, ColonistOwner(e.ID), Money(w.cfg.WageCook)) // as far as the treasury goes
@@ -489,8 +489,8 @@ func (w *World) finishScraping(e *Entity) {
 		w.clearJob(e) // the load stays carried until a scumhouse can take it
 		return
 	}
-	w.remember(e, event(EvtScrapedScum, "Scraped %d units of cave scum at (%d, %d).",
-		e.Inventory.Count(CaveScum), e.Target.X, e.Target.Y))
+	w.emitDone(e, ActionScrape, NounScum, "Scraped %d units of cave scum at (%d, %d).",
+		e.Inventory.Count(CaveScum), e.Target.X, e.Target.Y)
 	e.Target, e.scrape, e.Progress = house, scrapeHaul, 0
 }
 
@@ -552,7 +552,7 @@ func (w *World) deliverBiomatter(e *Entity, c *StorageContainer) bool {
 	if !e.scrapeKeep {
 		w.sellBiomatter(e, c, mine)
 	}
-	w.remember(e, event(EvtFedScumhouse, "Brought %s to the scumhouse.", stackPhrase(stacks)))
+	w.emitDone(e, ActionDeliver, NounScumhouse, "Brought %s to the scumhouse.", stackPhrase(stacks))
 	return true
 }
 
