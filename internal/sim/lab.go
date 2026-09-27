@@ -2,7 +2,7 @@ package sim
 
 import (
 	"fmt"
-	"math/rand"
+	"math/rand/v2"
 )
 
 // The lab surface is the part of the sim a browser bench can call without a
@@ -191,8 +191,8 @@ func LabNeeds(needs [numNeeds]NeedSpec) []LabNeed {
 // same way World.prng and World.agePRNG are. It is not colonist N of a world:
 // worldgen spends those streams on family and heredity before the person.
 func LabRoll(seed int64, traitChance int) LabPerson {
-	prng := rand.New(rand.NewSource(seed ^ 0x5DEECE66D))
-	age := rand.New(rand.NewSource(seed ^ 0x6A09E667))
+	prng := rand.New(newPCG(seed ^ 0x5DEECE66D))
+	age := rand.New(newPCG(seed ^ 0x6A09E667))
 	p := rollProfile(prng, age, traitChance)
 	traits := make([]string, len(p.Traits))
 	for i, t := range p.Traits {

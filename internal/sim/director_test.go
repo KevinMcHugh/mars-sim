@@ -1,7 +1,6 @@
 package sim
 
 import (
-	"math/rand"
 	"strings"
 	"testing"
 )
@@ -132,8 +131,8 @@ func TestResolveSchedulesDeterministic(t *testing.T) {
 		},
 	}
 
-	first := resolveSchedules(schedules, rand.New(rand.NewSource(7)))
-	second := resolveSchedules(schedules, rand.New(rand.NewSource(7)))
+	first := resolveSchedules(schedules, newRand(7))
+	second := resolveSchedules(schedules, newRand(7))
 	if len(first) != 2 || len(second) != 2 {
 		t.Fatalf("got %d/%d events, want 2/2", len(first), len(second))
 	}

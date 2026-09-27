@@ -1,7 +1,6 @@
 package sim
 
 import (
-	"math/rand"
 	"testing"
 )
 
@@ -46,14 +45,14 @@ func bfsFacilityDist(w *World, t Terrain) map[Point]int {
 // grid, across a cluttered room with several facilities.
 func TestFlowFieldMatchesBFS(t *testing.T) {
 	w := roomsTestWorld(60, 40)
-	rng := rand.New(rand.NewSource(31))
+	rng := newRand(31)
 	carve(w, Point{2, 2}, Point{57, 37}, Floor)
 	for i := 0; i < 200; i++ {
-		w.SetTerrain(Point{2 + rng.Intn(56), 2 + rng.Intn(36)}, Wall)
+		w.SetTerrain(Point{2 + rng.IntN(56), 2 + rng.IntN(36)}, Wall)
 	}
 	// Scatter a few pods on floor tiles.
 	for i := 0; i < 6; i++ {
-		p := Point{2 + rng.Intn(56), 2 + rng.Intn(36)}
+		p := Point{2 + rng.IntN(56), 2 + rng.IntN(36)}
 		if w.TerrainAt(p) == Floor {
 			w.SetTerrain(p, NutrientPod)
 		}

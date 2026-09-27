@@ -26,7 +26,7 @@ ES modules do not load from `file://`. The shell mounts `#focus` or `#grammar` i
 
 Focus calls `evaluate` / `rollColonist` in `shared/sim.js` on each paint. Grammar does not. The bench gate (no pod, toilet, bed, or person nearby) runs after the real scores and only clears eligibility. `chooseFocus` does not know about it. Need pressure stays on the bar when a later gate knocks the focus out. The sentences under the bars narrate those facts.
 
-`LabRoll` uses Go's `math/rand` with the same stream keys as `World.prng` and `World.agePRNG`. It is not colonist N of a world seed: worldgen spends those streams on family and heredity first, and the bench rolls one person on a fresh pair of streams.
+`LabRoll` builds PCG streams with `newPCG` and the same keys as `World.prng` and `World.agePRNG`. It is not colonist N of a world seed: worldgen spends those streams on family and heredity first, and the bench rolls one person on a fresh pair of streams.
 
 ## Why it is this way
 

@@ -1,7 +1,6 @@
 package sim
 
 import (
-	"math/rand"
 	"testing"
 )
 
@@ -11,8 +10,8 @@ import (
 func TestRollAlienSpeciesRosterIsDeterministic(t *testing.T) {
 	cfg := DefaultConfig()
 	cfg.AlienSpeciesCount = 4
-	a := rollAlienSpeciesRoster(rand.New(rand.NewSource(12345)), cfg)
-	b := rollAlienSpeciesRoster(rand.New(rand.NewSource(12345)), cfg)
+	a := rollAlienSpeciesRoster(newRand(12345), cfg)
+	b := rollAlienSpeciesRoster(newRand(12345), cfg)
 	if len(a) != len(b) {
 		t.Fatalf("same seed rolled rosters of different length: %d vs %d", len(a), len(b))
 	}
@@ -31,7 +30,7 @@ func TestRollAlienSpeciesRosterHonorsCount(t *testing.T) {
 		{1, 1}, {3, 3}, {0, 1}, {-5, 1},
 	} {
 		cfg.AlienSpeciesCount = tc.configured
-		roster := rollAlienSpeciesRoster(rand.New(rand.NewSource(1)), cfg)
+		roster := rollAlienSpeciesRoster(newRand(1), cfg)
 		if len(roster) != tc.want {
 			t.Fatalf("AlienSpeciesCount %d rolled a roster of %d, want %d", tc.configured, len(roster), tc.want)
 		}
@@ -46,7 +45,7 @@ func TestRollAlienSpeciesInvariants(t *testing.T) {
 	cfg := DefaultConfig()
 	names := defaultAlienNames()
 	for seed := int64(0); seed < 500; seed++ {
-		sp := rollAlienSpecies(rand.New(rand.NewSource(seed)), cfg, names)
+		sp := rollAlienSpecies(newRand(seed), cfg, names)
 		if sp.Singular == "" || sp.Plural == "" {
 			t.Fatalf("seed %d: empty species name: %+v", seed, sp)
 		}
@@ -103,7 +102,7 @@ func TestRollAlienSpeciesVariesAcrossSeeds(t *testing.T) {
 	names := defaultAlienNames()
 	seen := map[AlienSpecies]bool{}
 	for seed := int64(0); seed < 100; seed++ {
-		seen[rollAlienSpecies(rand.New(rand.NewSource(seed)), cfg, names)] = true
+		seen[rollAlienSpecies(newRand(seed), cfg, names)] = true
 	}
 	if len(seen) < 20 {
 		t.Fatalf("only %d distinct species across 100 seeds, want plenty of variety", len(seen))
@@ -117,7 +116,7 @@ func TestRollTemperamentDistribution(t *testing.T) {
 	counts := map[AlienTemperament]int{}
 	const n = 20000
 	for seed := int64(0); seed < n; seed++ {
-		counts[rollTemperament(rand.New(rand.NewSource(seed)))]++
+		counts[rollTemperament(newRand(seed))]++
 	}
 	friendly, cautious, hostile := counts[TemperamentFriendly], counts[TemperamentCautious], counts[TemperamentHostile]
 	if friendly == 0 || friendly > n/5 {
@@ -136,7 +135,7 @@ func TestSpeciesDamageZeroBaselinePassesThrough(t *testing.T) {
 	cfg.AlienDamage = 0
 	names := defaultAlienNames()
 	for seed := int64(0); seed < 50; seed++ {
-		sp := rollAlienSpecies(rand.New(rand.NewSource(seed)), cfg, names)
+		sp := rollAlienSpecies(newRand(seed), cfg, names)
 		if sp.BiteDamage != 0 {
 			t.Fatalf("seed %d: bite damage = %d with AlienDamage 0, want 0", seed, sp.BiteDamage)
 		}

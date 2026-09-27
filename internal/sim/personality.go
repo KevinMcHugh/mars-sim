@@ -2,7 +2,7 @@ package sim
 
 import (
 	"math"
-	"math/rand"
+	"math/rand/v2"
 )
 
 // Personality gives colonists names, attributes, and traits. Most attributes
@@ -410,13 +410,13 @@ func rollProfile(prng, age *rand.Rand, traitChance int) *Profile {
 	p.hairBase, p.HairColor = rollHair(prng, p.Age)
 	p.Traits = rollTraits(prng, traitChance)
 	p.given = rollGivenName(prng, p.Gender)
-	p.surname = lastNames[prng.Intn(len(lastNames))]
+	p.surname = lastNames[prng.IntN(len(lastNames))]
 	p.Name = p.given + " " + p.surname
 	return p
 }
 
 func rollAge(r *rand.Rand) int {
-	return 18 + r.Intn(63) // 18..80
+	return 18 + r.IntN(63) // 18..80
 }
 
 // resolveTraitEffects recomputes a colonist's effective parameters from its
@@ -486,10 +486,10 @@ func rollTraits(r *rand.Rand, traitChance int) []Trait {
 		if len(group) == 0 {
 			continue
 		}
-		if r.Intn(100) >= traitChance {
+		if r.IntN(100) >= traitChance {
 			continue
 		}
-		out = append(out, group[r.Intn(len(group))])
+		out = append(out, group[r.IntN(len(group))])
 	}
 	return out
 }
@@ -562,7 +562,7 @@ func rollableTraitsInGroup(g traitGroup) []Trait {
 
 // rollGender picks a gender identity: mostly binary, occasionally non-binary.
 func rollGender(r *rand.Rand) Gender {
-	switch r := r.Intn(100); {
+	switch r := r.IntN(100); {
 	case r < 47:
 		return GenderMan
 	case r < 94:
@@ -573,7 +573,7 @@ func rollGender(r *rand.Rand) Gender {
 }
 
 func rollOrientation(rng *rand.Rand) Orientation {
-	switch n := rng.Intn(100); {
+	switch n := rng.IntN(100); {
 	case n < 80:
 		return Heterosexual
 	case n < 90:
@@ -649,7 +649,7 @@ func weightFor(heightCM int, bmi float64) int {
 
 // rollSkinTone picks a skin tone uniformly across the five emoji tone points.
 func rollSkinTone(r *rand.Rand) SkinTone {
-	return SkinTone(r.Intn(5))
+	return SkinTone(r.IntN(5))
 }
 
 // rollHair picks both the color a colonist's hair grew in as and the color they
@@ -666,7 +666,7 @@ func rollHair(r *rand.Rand, age int) (base, shown HairColor) {
 	case age >= 45:
 		whiteChance, baldChance = 20, 8
 	}
-	switch n := r.Intn(100); {
+	switch n := r.IntN(100); {
 	case n < whiteChance:
 		return base, HairWhite
 	case n < whiteChance+baldChance:
@@ -679,7 +679,7 @@ func rollHair(r *rand.Rand, age int) (base, shown HairColor) {
 // rollHairBase picks a natural hair color. White and bald are not options here:
 // both are things age does to hair, applied on top by rollHair.
 func rollHairBase(r *rand.Rand) HairColor {
-	switch n := r.Intn(100); {
+	switch n := r.IntN(100); {
 	case n < 37:
 		return HairBlack
 	case n < 69:
@@ -741,13 +741,13 @@ func rollGivenName(r *rand.Rand, g Gender) string {
 	case GenderWoman:
 		pool = firstNamesFem
 	default: // non-binary draws from either pool
-		if r.Intn(2) == 0 {
+		if r.IntN(2) == 0 {
 			pool = firstNamesMasc
 		} else {
 			pool = firstNamesFem
 		}
 	}
-	return pool[r.Intn(len(pool))]
+	return pool[r.IntN(len(pool))]
 }
 
 // scaleTicks scales a base work duration by a colonist's workScale, never going

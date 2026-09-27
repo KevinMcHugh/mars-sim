@@ -1,7 +1,6 @@
 package sim
 
 import (
-	"math/rand"
 	"testing"
 )
 
@@ -42,13 +41,13 @@ func detourWorld(size int) *World {
 // search's reachability and staying close to the BFS shortest length.
 func TestHPAValidAndNearOptimal(t *testing.T) {
 	w := detourWorld(96)
-	rng := rand.New(rand.NewSource(5))
+	rng := newRand(5)
 	floors := w.freeFloorTiles()
 
 	checked := 0
 	for i := 0; i < 300 && checked < 60; i++ {
-		from := floors[rng.Intn(len(floors))]
-		target := floors[rng.Intn(len(floors))]
+		from := floors[rng.IntN(len(floors))]
+		target := floors[rng.IntN(len(floors))]
 		if from.Equal(target) || from.Adjacent(target) {
 			continue
 		}

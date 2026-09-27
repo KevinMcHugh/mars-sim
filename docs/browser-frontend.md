@@ -260,15 +260,11 @@ world size. The browser can ship on eager worldgen at 10K in the meantime.
 
 ### 6. Save and load
 
-Saves are the one feature here the engine can't support today, for two
-reasons:
+Saves are the one feature here the engine can't support today. The RNG half
+is done: every stream is a `math/rand/v2` PCG whose state `World.saveRNG` /
+`loadRNG` round-trip (see [rng-streams.md](./rng-streams.md)). That move was
+the one-time break for shared seeds. What remains:
 
-- **The RNG streams can't be saved.** `World.rng`, `prng`, `agePRNG` and
-  `nestRNG` are `math/rand` v1 sources, whose state is private. Moving them to
-  `math/rand/v2`'s PCG, which implements `MarshalBinary`, fixes that. It
-  changes what every seed produces, so it is a one-time break for shared
-  seeds, and it should happen before the browser gives anyone a seed worth
-  sharing.
 - **There is no serializer.** The authoritative state needs one: tiles,
   entities (profiles, affect, memories, inventory), relationships, projects,
   storage, the director's schedule, the graveyard and deceased archive, the
@@ -436,7 +432,7 @@ Engine work that runs alongside, and benefits the TUI too:
 - **Same-thread consumers skip the published tile copy.** This removes 300 MB
   and 1.7 s at 10K.
 - **RNG streams move to `math/rand/v2` PCG**, so their state can be saved.
-  This is a one-time seed break, so do it early.
+  Done; see [rng-streams.md](./rng-streams.md).
 - **Save/load**: the serializer, rebuilding derived state on load, and the
   save → load → lockstep test. Then the browser adds OPFS slots, autosave, and
   export/import.

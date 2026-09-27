@@ -1,7 +1,6 @@
 package sim
 
 import (
-	"math/rand"
 	"testing"
 )
 
@@ -37,16 +36,16 @@ func assertFrontierMatches(t *testing.T, w *World, when string) {
 // terrain edits (digging and filling).
 func TestFrontierMatchesBruteForce(t *testing.T) {
 	w := roomsTestWorld(64, 48)
-	rng := rand.New(rand.NewSource(11))
+	rng := newRand(11)
 
 	for i := 0; i < 1500; i++ {
-		w.SetTerrain(Point{rng.Intn(w.Width), rng.Intn(w.Height)}, Floor)
+		w.SetTerrain(Point{rng.IntN(w.Width), rng.IntN(w.Height)}, Floor)
 	}
 	assertFrontierMatches(t, w, "after carving")
 
 	for step := 0; step < 400; step++ {
-		p := Point{rng.Intn(w.Width), rng.Intn(w.Height)}
-		switch rng.Intn(3) {
+		p := Point{rng.IntN(w.Width), rng.IntN(w.Height)}
+		switch rng.IntN(3) {
 		case 0:
 			w.SetTerrain(p, Floor)
 		case 1:

@@ -2,7 +2,7 @@ package sim
 
 import (
 	"fmt"
-	"math/rand"
+	"math/rand/v2"
 	"strings"
 )
 
@@ -86,7 +86,7 @@ func (t AlienTemperament) String() string {
 // initiates combat" a case the code has to handle, not a value that happens
 // to zero everything out.
 func rollTemperament(rng *rand.Rand) AlienTemperament {
-	switch r := rng.Intn(100); {
+	switch r := rng.IntN(100); {
 	case r < 10:
 		return TemperamentFriendly
 	case r < 55:
@@ -170,7 +170,7 @@ func (p AlienPattern) String() string {
 // rollPattern draws a species' pattern: striped and spotted are 5% each and
 // solid is everything else, so a patterned species is a genuine find.
 func rollPattern(rng *rand.Rand) AlienPattern {
-	switch r := rng.Intn(100); {
+	switch r := rng.IntN(100); {
 	case r < 5:
 		return PatternStriped
 	case r < 10:
@@ -296,19 +296,19 @@ func sizeTier(v, small, average, large, huge int) AlienSizeTier {
 // alien_names.go).
 func rollAlienSpecies(rng *rand.Rand, cfg Config, names []AlienNameEntry) AlienSpecies {
 	sp := AlienSpecies{
-		Eyes:        1 + rng.Intn(6), // 1..6
-		Limbs:       2 + rng.Intn(7), // 2..8
+		Eyes:        1 + rng.IntN(6), // 1..6
+		Limbs:       2 + rng.IntN(7), // 2..8
 		Temperament: rollTemperament(rng),
-		Skin:        alienSkins[rng.Intn(len(alienSkins))],
-		Color:       alienColors[rng.Intn(len(alienColors))],
+		Skin:        alienSkins[rng.IntN(len(alienSkins))],
+		Color:       alienColors[rng.IntN(len(alienColors))],
 	}
-	sp.Arms = rng.Intn(sp.Limbs + 1) // 0..Limbs; the rest are legs -- both
+	sp.Arms = rng.IntN(sp.Limbs + 1) // 0..Limbs; the rest are legs -- both
 	// "all legs" (Arms == 0) and "all arms" (Arms == Limbs) are valid rolls.
-	sp.Tail = rng.Intn(2) == 0
+	sp.Tail = rng.IntN(2) == 0
 	sp.Pattern = rollPattern(rng)
 
-	baseHeight := 45 + rng.Intn(330) // a 45cm gremlin up to a ~375cm brute
-	spread := 10 + rng.Intn(baseHeight/3+10)
+	baseHeight := 45 + rng.IntN(330) // a 45cm gremlin up to a ~375cm brute
+	spread := 10 + rng.IntN(baseHeight/3+10)
 	sp.HeightMinCM = max(20, baseHeight-spread)
 	sp.HeightMaxCM = baseHeight + spread
 

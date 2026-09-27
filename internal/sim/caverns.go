@@ -2,7 +2,7 @@ package sim
 
 import (
 	"fmt"
-	"math/rand"
+	"math/rand/v2"
 	"slices"
 )
 
@@ -67,7 +67,7 @@ func (w *World) generateCaverns(rng *rand.Rand, landingLo, landingHi Point) []ca
 	var caves []cavern
 	placed, failures := 0, 0
 	for placed < target && failures < cavernPlanFailures {
-		size := minSize + rng.Intn(maxSize-minSize+1)
+		size := minSize + rng.IntN(maxSize-minSize+1)
 		center, tiles, ok := w.planCavern(rng, size, nearLanding)
 		if !ok {
 			failures++
@@ -96,14 +96,14 @@ func (w *World) planCavern(rng *rand.Rand, size int, nearLanding func(Point) boo
 	if w.Width <= 2*m || w.Height <= 2*m {
 		return Point{}, nil, false
 	}
-	center := Point{m + rng.Intn(w.Width-2*m), m + rng.Intn(w.Height-2*m)}
+	center := Point{m + rng.IntN(w.Width-2*m), m + rng.IntN(w.Height-2*m)}
 
 	tiles := []Point{}
 	in := map[Point]bool{}
 	lobe := center
 	for lobes := 0; len(tiles) < size && lobes < cavernMaxLobes; lobes++ {
-		ry := 1 + rng.Intn(2)
-		rx := ry + 1 + rng.Intn(ry+1)
+		ry := 1 + rng.IntN(2)
+		rx := ry + 1 + rng.IntN(ry+1)
 		for y := -ry; y <= ry; y++ {
 			for x := -rx; x <= rx; x++ {
 				if float64(x*x)/float64(rx*rx)+float64(y*y)/float64(ry*ry) > 1.0 {
@@ -120,7 +120,7 @@ func (w *World) planCavern(rng *rand.Rand, size int, nearLanding func(Point) boo
 				tiles = append(tiles, p)
 			}
 		}
-		lobe = tiles[rng.Intn(len(tiles))]
+		lobe = tiles[rng.IntN(len(tiles))]
 	}
 	return center, tiles, true
 }
@@ -193,7 +193,7 @@ func (w *World) joinCaverns(rng *rand.Rand, caves []cavern, nearLanding func(Poi
 			continue
 		}
 		rolled[key] = true
-		if rng.Intn(100) >= w.cfg.CavernPassagePercent {
+		if rng.IntN(100) >= w.cfg.CavernPassagePercent {
 			continue
 		}
 		for attempt := 0; attempt < passageAttempts; attempt++ {
@@ -223,9 +223,9 @@ func (w *World) planPassage(rng *rand.Rand, from, to Point, nearLanding func(Poi
 		dx, dy := sign(to.X-cur.X), sign(to.Y-cur.Y)
 		var step Point
 		switch {
-		case rng.Intn(4) == 0:
-			step = veinNeighbors[rng.Intn(len(veinNeighbors))]
-		case dx != 0 && (dy == 0 || rng.Intn(2) == 0):
+		case rng.IntN(4) == 0:
+			step = veinNeighbors[rng.IntN(len(veinNeighbors))]
+		case dx != 0 && (dy == 0 || rng.IntN(2) == 0):
 			step = Point{dx, 0}
 		default:
 			step = Point{0, dy}
@@ -253,7 +253,8 @@ const nestRadius = 4
 // for its nest (see rollNests), and seeds the stream those rolls use. Only the
 // centers are kept: nothing about a nest exists until its cavern is found.
 func (w *World) trackCavernsForNests(caves []cavern) {
-	w.nestRNG = rand.New(rand.NewSource(w.cfg.Seed ^ 0x0452821E638D0137))
+	w.rngSrc.nest = newPCG(w.cfg.Seed ^ 0x0452821E638D0137)
+	w.nestRNG = rand.New(w.rngSrc.nest)
 	w.unfoundCaverns = make(map[Point]struct{}, len(caves))
 	for _, c := range caves {
 		w.unfoundCaverns[c.center] = struct{}{}
@@ -270,7 +271,7 @@ func (w *World) rollNests(centers []Point) {
 		if w.nestRNG == nil || len(w.alienSpecies) == 0 {
 			continue
 		}
-		if w.nestRNG.Intn(100) < w.cfg.CavernNestPercent {
+		if w.nestRNG.IntN(100) < w.cfg.CavernNestPercent {
 			w.spawnNest(c)
 		}
 	}
@@ -284,8 +285,8 @@ func (w *World) rollNests(centers []Point) {
 func (w *World) spawnNest(center Point) {
 	lo := max(1, w.cfg.CavernNestMin)
 	hi := max(lo, w.cfg.CavernNestMax)
-	want := lo + w.nestRNG.Intn(hi-lo+1)
-	species := w.nestRNG.Intn(len(w.alienSpecies))
+	want := lo + w.nestRNG.IntN(hi-lo+1)
+	species := w.nestRNG.IntN(len(w.alienSpecies))
 	var sites []Point
 	for dy := -nestRadius; dy <= nestRadius; dy++ {
 		for dx := -nestRadius; dx <= nestRadius; dx++ {
@@ -298,7 +299,7 @@ func (w *World) spawnNest(center Point) {
 	var first *Entity
 	// A partial Fisher-Yates shuffle: each step draws one distinct tile.
 	for i := 0; i < len(sites) && placed < want; i++ {
-		j := i + w.nestRNG.Intn(len(sites)-i)
+		j := i + w.nestRNG.IntN(len(sites)-i)
 		sites[i], sites[j] = sites[j], sites[i]
 		e := w.spawnAs(Alien, sites[i], species)
 		if first == nil {
@@ -326,10 +327,10 @@ func (w *World) dormant(e *Entity) bool {
 // neighboring floor tile of its cave.
 func (w *World) dormantTurn(e *Entity) {
 	e.State, e.Quarry = Idle, 0
-	if w.rng.Intn(4) != 0 {
+	if w.rng.IntN(4) != 0 {
 		return
 	}
-	d := neighbors8[w.rng.Intn(len(neighbors8))]
+	d := neighbors8[w.rng.IntN(len(neighbors8))]
 	n := e.Pos.Add(d.X, d.Y)
 	if w.Walkable(n) && !w.occupiedByOther(n, e.ID) {
 		w.moveEntity(e, n)

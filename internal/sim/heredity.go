@@ -2,7 +2,7 @@ package sim
 
 import (
 	"math"
-	"math/rand"
+	"math/rand/v2"
 )
 
 // Heredity is what family membership does to a newly generated colonist beyond
@@ -103,7 +103,7 @@ func (w *World) adoptSurname(e *Entity, rels []Relation) {
 	switch {
 	case line != nil:
 		w.takeSurname(e, line.Profile.surname)
-	case spouse != nil && w.prng.Intn(100) < w.cfg.SpouseSurnameChance:
+	case spouse != nil && w.prng.IntN(100) < w.cfg.SpouseSurnameChance:
 		w.takeSurname(e, spouse.Profile.surname)
 	}
 }
@@ -161,8 +161,8 @@ func (w *World) inheritAppearance(p *Profile, donors []*Entity, genes int) {
 	// donor draws a relative for one feature, reporting whether that feature is
 	// inherited at all. Drawing per feature is what mixes two parents together.
 	donor := func() (*Profile, bool) {
-		d := donors[w.prng.Intn(len(donors))].Profile
-		return d, w.prng.Intn(100) < chance
+		d := donors[w.prng.IntN(len(donors))].Profile
+		return d, w.prng.IntN(100) < chance
 	}
 
 	if d, ok := donor(); ok {
@@ -187,7 +187,7 @@ func (w *World) inheritAppearance(p *Profile, donors []*Entity, genes int) {
 // which is both truer and more legible in the roster than exact matches.
 func inheritSkinTone(rng *rand.Rand, t SkinTone) SkinTone {
 	step := 0
-	switch rng.Intn(4) {
+	switch rng.IntN(4) {
 	case 0:
 		step = -1
 	case 1:
@@ -222,7 +222,7 @@ func (w *World) seedFamilyAffinity(e *Entity, rels []Relation) {
 		}
 		v := base * kinBonds[r.Kind].warmth / 100
 		if s := w.cfg.FamilyAffinitySpread; s > 0 {
-			v += w.prng.Intn(2*s+1) - s
+			v += w.prng.IntN(2*s+1) - s
 		}
 		if v > 0 {
 			w.addAffinity(e.ID, r.Other, v)

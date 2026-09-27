@@ -1,7 +1,6 @@
 package sim
 
 import (
-	"math/rand"
 	"testing"
 )
 
@@ -15,7 +14,7 @@ func heredityWorld() *World {
 	cfg.AppearanceInheritChance = 100
 	cfg.SpouseSurnameChance = 100
 	cfg.FamilyAffinitySpread = 0
-	return newWorld(cfg, rand.New(rand.NewSource(1)))
+	return newWorld(cfg, newPCG(1))
 }
 
 // colonistAged spawns a colonist of a given age at a free tile.
