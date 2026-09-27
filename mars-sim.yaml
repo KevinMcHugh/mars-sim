@@ -197,6 +197,13 @@
 ## the colony plans another scumhouse for each this many colonists
 # colonists-per-scumhouse: 10
 
+# ── Foundry ─────────────────────────────────────────────────────────────
+## assault rifles the colony wants in its armory (0: it builds no foundry and buys none)
+# armory-rifles: 4
+
+## what the colony pays for an assault rifle at its silo
+# price-assault-rifle: 60
+
 # ── Hauling ─────────────────────────────────────────────────────────────
 ## the colony sells the goods it bought, beyond its reserve, at its silo
 # colony-sells: true
@@ -714,6 +721,15 @@
 
 ## cooldown ticks between shotgun blasts
 # shotgun-fire-rest: 2
+
+## HP removed per assault rifle burst
+# rifle-damage: 15
+
+## max tiles an assault rifle can fire from
+# rifle-range: 5
+
+## cooldown ticks between assault rifle bursts
+# rifle-fire-rest: 1
 
 # ── Cats ────────────────────────────────────────────────────────────────
 ## cat hit points

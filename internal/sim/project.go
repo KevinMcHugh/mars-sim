@@ -477,6 +477,14 @@ func (w *World) planRooms() {
 		}
 		return
 	}
+	if w.manualFoundries > 0 {
+		before := len(w.projects)
+		w.planRoom(foundryRoom)
+		if len(w.projects) > before {
+			w.manualFoundries--
+		}
+		return
+	}
 	// Without the safety net, food has to be made, and the scumhouse is the
 	// only place that makes it: it comes before every other room, as life
 	// support always has. Crash-pod meals buy the time to build it.
@@ -530,7 +538,15 @@ func (w *World) planRooms() {
 	// refuse is not proportional to its headcount the way its appetite is, and
 	// a second incinerator would only split the haulers.
 	if w.refuseTotal() > 0 && w.plannedFacilities(Incinerator) < 1 {
-		w.planRoom(trashRoom)
+		if w.planRoomFor(trashRoom, Community) {
+			return
+		}
+	}
+	// The foundry last of all: nothing about rifles keeps anyone alive, and
+	// everything above does. One is enough; its demand is the armory's, not
+	// a headcount (see foundry.go).
+	if w.wantsFoundry() {
+		w.planRoom(foundryRoom)
 	}
 }
 

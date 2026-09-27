@@ -82,6 +82,28 @@ func producible(k ItemKind) bool {
 	return false
 }
 
+// producibleHere reports whether some plan can make k in this colony: it is
+// scraped from the cave wall, or some recipe outputs it at a kind of workshop
+// that stands. A bid nothing here can make costs the planner nothing to pass
+// over: counting it against plan-candidates let a colony's unanswerable meal
+// bids crowd a smith's bid for ore out of every planner's view.
+func (w *World) producibleHere(k ItemKind) bool {
+	if k == CaveScum {
+		return true
+	}
+	for _, r := range recipes {
+		if w.countTerrain(r.Facility) == 0 {
+			continue
+		}
+		for _, out := range r.Outputs {
+			if out.Kind == k {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 // candidateBids is every open bid, best price first, then oldest: a plan
 // might make what it wants, or carry it in from a depot where it is cheaper. It is memoized for the tick: every colonist choosing
 // work reads it, and the book changes far less often than that.
@@ -143,10 +165,14 @@ func (w *World) tryAssignProduce(e *Entity) bool {
 			continue
 		}
 		ask, src, cheaper := w.cheapestAskElsewhere(e, b)
-		if !cheaper && !producible(b.Item) {
-			continue // nothing to make it from and nowhere cheaper to fetch it
+		stock, own := w.ownStockFor(e, b)
+		if !cheaper && !own && !w.producibleHere(b.Item) {
+			continue // nothing to make it with and nowhere cheaper to fetch it
 		}
 		considered++
+		if own && w.planSupply(e, b, stock) {
+			return true
+		}
 		if cheaper && w.planArbitrage(e, b, ask, src) {
 			return true
 		}
@@ -161,6 +187,16 @@ func (w *World) tryAssignProduce(e *Entity) bool {
 		}
 	}
 	return false
+}
+
+// tryDeliverPlan advances e's plan if its goods exist — crafted, or bought
+// to haul — so all that is left is carrying them to the buyer.
+func (w *World) tryDeliverPlan(e *Entity) bool {
+	p := w.plans[e.plan]
+	if p == nil || !p.crafted {
+		return false
+	}
+	return w.advancePlan(e, p)
 }
 
 // newPlan registers a plan serving bid b.
@@ -214,6 +250,20 @@ func (w *World) chainDepth() int {
 		d = max(d, p.depth)
 	}
 	return d
+}
+
+// planWaitingAt reports whether someone other than id has a craft plan at the
+// workshop at p still waiting on its inputs. One producer plans at a workshop
+// at a time, as one works it at a time: when four colonists each took a plan
+// to machine a rifle at the one gun bench, each waiting on steel, nobody was
+// left free to smelt any, and the chain stalled a link from the top.
+func (w *World) planWaitingAt(p Point, id EntityID) bool {
+	for _, pl := range w.plans {
+		if pl.kind == planCraft && pl.workshop == p && pl.actor != id && !pl.crafted {
+			return true
+		}
+	}
+	return false
 }
 
 // ---- Gathering -----------------------------------------------------------------------
@@ -275,9 +325,9 @@ func (w *World) planCraft(e *Entity, b *Order) (started, planned bool) {
 		if out == 0 {
 			continue
 		}
-		house, ok := w.nearestScumhouse(e, func(c *StorageContainer) bool {
+		house, ok := w.nearestWorkshop(e, r.Facility, func(c *StorageContainer) bool {
 			id := w.workshopClaims[c.Pos]
-			return c.Terrain == r.Facility && (id == 0 || id == e.ID)
+			return c.Terrain == r.Facility && (id == 0 || id == e.ID) && !w.planWaitingAt(c.Pos, e.ID)
 		})
 		if !ok {
 			continue
@@ -305,7 +355,7 @@ func (w *World) planCraft(e *Entity, b *Order) (started, planned bool) {
 				spent += Money(need) * ask.Price
 				continue
 			}
-			if !producible(in.Kind) {
+			if !producible(in.Kind) && !mined(in.Kind) {
 				feasible = false
 				break
 			}
@@ -392,6 +442,13 @@ func (w *World) advancePlan(e *Entity, p *plan) bool {
 			if n <= 0 {
 				w.dropPlan(p)
 				return false
+			}
+			if !e.Inventory.CanAdd(p.item, 1) {
+				// Pockets full of rock: unload first, then come back. A
+				// gunsmith with no room for its own rifle walked to the bench,
+				// found it could carry nothing, and did so until its plan ran
+				// out of time.
+				return w.tryAssignStore(e)
 			}
 			w.assignCarry(e, p, from, carryFetch, n)
 			return true

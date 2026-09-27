@@ -47,6 +47,10 @@ var recipes = []Recipe{
 	{Name: "render an animal carcass", Inputs: []ItemStack{{AnimalCorpse, 1}}, Outputs: []ItemStack{{Meal, 1}}, Facility: Scumhouse, Ticks: 10},
 	{Name: "press viscera", Inputs: []ItemStack{{Viscera, 2}}, Outputs: []ItemStack{{Meal, 1}}, Facility: Scumhouse, Ticks: 10},
 	{Name: "culture cave scum", Inputs: []ItemStack{{CaveScum, 2}}, Outputs: []ItemStack{{Meal, 1}}, Facility: Scumhouse, Ticks: 12},
+	// The foundry's chain: ore to steel at the forge, steel to rifles at the
+	// gun bench. See docs/foundry.md.
+	{Name: "smelt steel", Inputs: []ItemStack{{IronOre, 2}}, Outputs: []ItemStack{{SteelIngot, 1}}, Facility: Forge, Ticks: 40},
+	{Name: "machine an assault rifle", Inputs: []ItemStack{{SteelIngot, 3}}, Outputs: []ItemStack{{AssaultRifle, 1}}, Facility: GunBench, Ticks: 60},
 }
 
 // ---- Cave scum ------------------------------------------------------------------
@@ -190,10 +194,16 @@ func (w *World) tryAssignFoodWork(e *Entity, force bool) bool {
 // nearestScumhouse finds the nearest reachable scumhouse e may use that
 // passes ok, ties by position.
 func (w *World) nearestScumhouse(e *Entity, ok func(*StorageContainer) bool) (Point, bool) {
+	return w.nearestWorkshop(e, Scumhouse, ok)
+}
+
+// nearestWorkshop finds the nearest reachable workshop of kind e may use that
+// passes ok, ties by position.
+func (w *World) nearestWorkshop(e *Entity, kind Terrain, ok func(*StorageContainer) bool) (Point, bool) {
 	room := w.roomOf(e.Pos)
 	var best Point
 	bestDist, found := 1<<30, false
-	for p := range w.facilityTiles[Scumhouse] {
+	for p := range w.facilityTiles[kind] {
 		c := w.storageContainers[p]
 		if c == nil || !w.canUseFixture(e, p) || !w.taskReachable(p, room) || (ok != nil && !ok(c)) {
 			continue
@@ -315,7 +325,11 @@ func (w *World) jobCraft(e *Entity) {
 	for _, o := range outputs {
 		out.credit(e.craftFor, o.Kind, o.Count)
 	}
-	w.emitDone(e, ActionCook, NounMeal, "Worked the scumhouse: %s.", r.Name)
+	if r.Facility == Scumhouse {
+		w.emitDone(e, ActionCook, NounMeal, "Worked the scumhouse: %s.", r.Name)
+	} else {
+		w.emitDone(e, ActionCook, NounGoods, "Worked the %s: %s.", r.Facility, r.Name)
+	}
 	if e.craftFor == Community {
 		if w.cfg.WageCook > 0 {
 			w.transfer(Community, ColonistOwner(e.ID), Money(w.cfg.WageCook)) // as far as the treasury goes

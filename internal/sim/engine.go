@@ -25,6 +25,9 @@ type Spawn struct{ Kind Kind }
 // OrderScumhouse asks the planner to queue one scumhouse room.
 type OrderScumhouse struct{}
 
+// OrderFoundry asks the planner to queue one foundry: a forge and a gun bench.
+type OrderFoundry struct{}
+
 // OrderFacilityRoom asks the planner to queue one life-support room.
 type OrderFacilityRoom struct{}
 
@@ -48,6 +51,7 @@ func (OrderDormitory) isCommand()    {}
 func (OrderTrashRoom) isCommand()    {}
 func (OrderStorageRoom) isCommand()  {}
 func (OrderScumhouse) isCommand()    {}
+func (OrderFoundry) isCommand()      {}
 
 // Engine drives the simulation. It owns the World and is the only goroutine that
 // touches it. Frontends interact only through Subscribe (to receive Snapshots)
@@ -249,6 +253,8 @@ func (e *Engine) apply(cmd Command) (rateChanged bool) {
 		e.world.manualStorageRooms++
 	case OrderScumhouse:
 		e.world.manualScumhouses++
+	case OrderFoundry:
+		e.world.manualFoundries++
 	}
 	return false
 }

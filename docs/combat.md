@@ -111,10 +111,15 @@ through it: `bite` and `shoot` both call `rollHit` then `applyDamage`.
 
 ### Weapons
 
-Two `ItemKind`s, `Pistol` and `Shotgun`, live in a colonist's ordinary
+Three `ItemKind`s, `Pistol`, `Shotgun`, and `AssaultRifle`, live in a colonist's ordinary
 `Inventory` (see [inventory.md](./inventory.md)) — there is no separate
 equipment slot. `bestWeapon(inv)` scans it and returns the best one carried
-(`Shotgun` beats `Pistol`); a colonist with neither is unarmed. `weaponStats`
+(by `weaponRank`: rifle, then shotgun, then pistol); a colonist with none is
+unarmed. Nobody lands with a rifle: they're made at the foundry and bought by
+the colony's armory (see [foundry.md](./foundry.md)), so today the only
+colonist carrying one is a gunsmith taking it to the silo, who fights with
+it on the way. Rifle: 15 damage at range 5, every tick (`rifle-damage`,
+`rifle-range`, `rifle-fire-rest`). `weaponStats`
 resolves an `ItemKind` to `{damage, rng, fireRest}` from `Config`. Shotgun:
 more damage, shorter range, slower to fire again. Pistol: the opposite
 trade-off. There is no ammo and no reload beyond the `fireRest` cooldown —
@@ -320,8 +325,7 @@ cap.
 
 - **A new weapon**: add an `ItemKind`, a case in `weaponStats`, a
   `Config`/`DefaultConfig`/flag triple for its stats (see
-  [configuration.md](./configuration.md)), and update `bestWeapon`'s ranking
-  if it should ever be preferred over the shotgun.
+  [configuration.md](./configuration.md)), and a place in `weaponRank`.
 - **Weapon skill**: the natural home is a per-colonist accuracy or damage
   multiplier read in `shoot`, likely alongside the personality-trait pattern
   in [personality.md](./personality.md) rather than a new subsystem.

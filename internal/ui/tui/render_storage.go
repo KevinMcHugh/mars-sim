@@ -168,8 +168,8 @@ func (m Model) ledgerLines(ledger []sim.LedgerLine) []string {
 // storageLabel names a container by what it is to the colony: a shared chest,
 // a kitchen's pantry, or someone's crash-pod locker.
 func (m Model) storageLabel(st sim.StorageView) string {
-	if st.Terrain == sim.Scumhouse {
-		return "scumhouse"
+	if st.Terrain == sim.Scumhouse || st.Terrain == sim.Forge || st.Terrain == sim.GunBench {
+		return st.Terrain.String()
 	}
 	if st.Pantry {
 		return "pantry"

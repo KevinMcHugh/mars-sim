@@ -841,6 +841,13 @@ func (w *World) assignWorkJob(e *Entity) {
 		e.Job = JobNone
 		return
 	}
+	// Goods a plan has made or bought are sold already, to a buyer who is
+	// waiting: carry them before taking on anything new. Behind construction
+	// and food work, smiths and gunsmiths let their plans run out of time
+	// with the steel and the rifles still sitting in the foundry.
+	if w.tryDeliverPlan(e) {
+		return
+	}
 	// Collaborate on planned construction (facility rooms, etc.): claim the
 	// nearest reachable task from the shared project pool.
 	if task, ok := w.claimNearestTask(e.Pos, e.ID); ok {
@@ -1475,6 +1482,10 @@ func (w *World) noteBuild(kind Terrain) {
 		w.log.add(LogBuildComplete, "A bunk is bolted into the dormitory.")
 	case Incinerator:
 		w.log.add(LogBuildComplete, "The incinerator roars to life.")
+	case Forge:
+		w.log.add(LogBuildComplete, "The forge is lit.")
+	case GunBench:
+		w.log.add(LogBuildComplete, "A gun bench is set up in the foundry.")
 	}
 }
 

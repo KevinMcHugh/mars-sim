@@ -396,6 +396,7 @@ type Snapshot struct {
 	PendingTrashRooms    int
 	PendingStorageRooms  int
 	PendingScumhouses    int
+	PendingFoundries     int
 	Storages             []StorageView
 	// Scum is how much cave scum is on every exposed patch that has any,
 	// computed fresh each frame because patches regrow lazily (see
@@ -582,6 +583,7 @@ func (w *World) snapshot(paused bool, tps int) *Snapshot {
 		PendingTrashRooms:    w.manualTrashRooms,
 		PendingStorageRooms:  w.manualStorageRooms,
 		PendingScumhouses:    w.manualScumhouses,
+		PendingFoundries:     w.manualFoundries,
 		Storages:             storages,
 		Fixtures:             w.publishedFixtures(),
 		Scum:                 w.publishedScum(),

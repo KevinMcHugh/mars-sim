@@ -289,9 +289,11 @@ that the producer planner can see.
 ## Extending it
 
 - **A new recipe** is a row in `recipes`. A new workshop is a fixture terrain
-  with a depot (`hasDepot`), a room recipe, and `tryAssignCraft` learning to
-  look at more than scumhouses — it already matches recipes to the depot's
-  terrain.
+  that `isWorkshop` lists (which gives it a depot), a room recipe, and
+  `trackFacility`. The forge and the gun bench are the worked example (see
+  [foundry.md](./foundry.md)). The producer planner finds any workshop through
+  `nearestWorkshop`. The colony's own cooking (`tryAssignCraft`) still looks
+  only at scumhouses.
 - **Skills** plug in at `Recipe.Skill` and the tick scaling in `jobCraft`.
 - **Paying for food work** (E5) replaces the community cargo record with a
   labor order: the colony, or anyone, posts pay for scum delivered.
