@@ -21,7 +21,7 @@ run() {
 	fi
 }
 
-run "native ($(go env GOARCH))" env
+run "native ($(go env GOHOSTARCH))" env
 
 case "$(go env GOHOSTOS)/$(go env GOHOSTARCH)" in
 darwin/arm64)
@@ -36,12 +36,17 @@ darwin/arm64)
 	;;
 esac
 
-if command -v node >/dev/null; then
-	wasmexec="$(go env GOROOT)/lib/wasm/go_js_wasm_exec"
-	[ -x "$wasmexec" ] || wasmexec="$(go env GOROOT)/misc/wasm/go_js_wasm_exec"
-	run "js/wasm (node $(node --version))" env GOOS=js GOARCH=wasm GOFLAGS="-exec=$wasmexec"
-else
+# go test finds go_js_wasm_exec on PATH by itself; it lives in lib/wasm
+# (Go 1.24+) or misc/wasm (older).
+goroot="$(go env GOROOT)"
+if ! command -v node >/dev/null; then
 	echo "== js/wasm: skipped (node not on PATH)"
+elif [ -x "$goroot/lib/wasm/go_js_wasm_exec" ]; then
+	run "js/wasm (node $(node --version))" env PATH="$goroot/lib/wasm:$PATH" GOOS=js GOARCH=wasm
+elif [ -x "$goroot/misc/wasm/go_js_wasm_exec" ]; then
+	run "js/wasm (node $(node --version))" env PATH="$goroot/misc/wasm:$PATH" GOOS=js GOARCH=wasm
+else
+	echo "== js/wasm: skipped (go_js_wasm_exec not found under $goroot)"
 fi
 
 exit $fail

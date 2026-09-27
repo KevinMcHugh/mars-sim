@@ -649,6 +649,9 @@ type World struct {
 	nestRNG        *rand.Rand
 	// nestCenters is revealAround's scratch: cavern centers found this flood.
 	nestCenters []Point
+	// cavernBreaches counts the floods revealAround has run: how many times
+	// the colony has broken into a cave system it did not know about.
+	cavernBreaches int
 
 	cognition CognitionConfig
 }
@@ -920,6 +923,7 @@ func (w *World) revealAround(p Point) {
 		}
 	}
 	if found > 0 {
+		w.cavernBreaches++
 		w.log.add(fmt.Sprintf("The colony breaks through into a natural cavern (%d tiles of open floor).", found))
 		// Nests are rolled only now, once the whole system is revealed, so
 		// their aliens land on discovered floor, awake.

@@ -35,8 +35,8 @@ var goldenCases = []goldenCase{
 			return c
 		},
 		ticks: 400,
-		gen:   "tiles=3097a8b594818f5a entities=b3bee26800da242b n=19 floor=277 hidden=180",
-		run:   "tiles=23f0e5999ea404d2 entities=922fc2ea20977826 n=11 floor=385 hidden=180",
+		gen:   "tiles=3097a8b594818f5a entities=156872c017092c6f rng=baee6727c4c958c4 n=19 gore=0 corpses=0",
+		run:   "tiles=23f0e5999ea404d2 entities=5e745bdc76ac1c06 rng=3e0f2c24b8f8489a n=11 gore=0 corpses=2",
 	},
 	{
 		// Bigger than one worldgen chunk in both directions, with enough cave
@@ -52,15 +52,18 @@ var goldenCases = []goldenCase{
 		},
 		ticks:  600,
 		breach: true,
-		gen:    "tiles=c5135e7117d9eac4 entities=1168e71108ae1768 n=33 floor=7615 hidden=7394",
-		run:    "tiles=4ad7e77b53e4c1c9 entities=6dcbc445eebcb6c5 n=25 floor=7943 hidden=7186",
+		gen:    "tiles=c5135e7117d9eac4 entities=1bed1379517c376a rng=1bc129c24e9b6c32 n=33 gore=0 corpses=0",
+		run:    "tiles=4ad7e77b53e4c1c9 entities=94632c9f69c2edc3 rng=0cd4575ad36d2f5b n=25 gore=0 corpses=0",
 	},
 }
 
 // goldenHash condenses the simulation-visible world into one line: every
-// tile's terrain, composition and discovery, then every entity in ID order.
-// It reads through TileAt and discovered rather than the backing store, so it
-// describes what the simulation sees however tiles happen to be stored.
+// tile's terrain, composition and discovery, every entity in ID order, and
+// the simulation stream's state. It reads through TileAt and discovered
+// rather than the backing store, so it describes what the simulation sees
+// however tiles happen to be stored; neither ever generates a chunk. The RNG
+// state is the catch-all: any draw added, lost or reordered anywhere moves it
+// even when nothing visible has diverged yet.
 func goldenHash(w *World) string {
 	tiles := fnvSeed
 	for y := 0; y < w.Height; y++ {
@@ -77,19 +80,25 @@ func goldenHash(w *World) string {
 	ents := fnvSeed
 	for _, id := range w.entityIDsSorted() {
 		e := w.entities[id]
-		for _, v := range []int{int(id), int(e.Kind), e.Pos.X, e.Pos.Y, e.HP, int(e.State)} {
+		for _, v := range []int{int(id), int(e.Kind), e.Pos.X, e.Pos.Y, e.HP, int(e.State), e.Species} {
 			ents = fnvAdd(ents, uint64(v))
 		}
 	}
-	return fmt.Sprintf("tiles=%016x entities=%016x n=%d floor=%d hidden=%d",
-		tiles, ents, len(w.entities), w.terrainCounts[Floor], w.hiddenFloor)
+	rng := fnvSeed
+	if w.rngSrc.sim != nil {
+		b, _ := w.rngSrc.sim.MarshalBinary()
+		for _, c := range b {
+			rng = fnvAdd(rng, uint64(c))
+		}
+	}
+	return fmt.Sprintf("tiles=%016x entities=%016x rng=%016x n=%d gore=%d corpses=%d",
+		tiles, ents, rng, len(w.entities), w.goreTotal, w.corpseTotal)
 }
 
 func TestGoldenWorldHash(t *testing.T) {
 	for _, gc := range goldenCases {
 		t.Run(gc.name, func(t *testing.T) {
 			w := NewEngine(gc.cfg()).world
-			hidden := w.hiddenFloor
 			if got := goldenHash(w); got != gc.gen {
 				t.Errorf("tick 0:\n got  %s\n want %s", got, gc.gen)
 			}
@@ -99,7 +108,7 @@ func TestGoldenWorldHash(t *testing.T) {
 			if got := goldenHash(w); got != gc.run {
 				t.Errorf("tick %d:\n got  %s\n want %s", gc.ticks, got, gc.run)
 			}
-			if gc.breach && w.hiddenFloor == hidden {
+			if gc.breach && w.cavernBreaches == 0 {
 				t.Errorf("no cavern was breached in %d ticks; pick a config that breaks into one", gc.ticks)
 			}
 		})
