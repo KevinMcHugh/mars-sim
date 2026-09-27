@@ -32,7 +32,7 @@ func makeSnapshot() *sim.Snapshot {
 			{ID: 1, Kind: sim.Colonist, Pos: sim.Point{X: 1, Y: 1}, HP: 40, MaxHP: 40, State: sim.Mining},
 			{ID: 2, Kind: sim.Alien, Pos: sim.Point{X: 4, Y: 2}, HP: 30, MaxHP: 30, State: sim.Hunting},
 		},
-		Log: []string{"The colony ship settles onto the Martian crust."},
+		Log: []sim.LogEntry{{Text: "The colony ship settles onto the Martian crust."}},
 	}
 }
 

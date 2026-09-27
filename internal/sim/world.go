@@ -1134,7 +1134,7 @@ func (w *World) revealAround(p Point) {
 	}
 	if found > 0 {
 		w.cavernBreaches++
-		w.log.add(fmt.Sprintf("The colony breaks through into a natural cavern (%d tiles of open floor).", found))
+		w.log.add(LogCavern, fmt.Sprintf("The colony breaks through into a natural cavern (%d tiles of open floor).", found))
 		// Nests are rolled only now, once the whole system is revealed, so
 		// their aliens land on discovered floor, awake.
 		w.rollNests(w.nestCenters)

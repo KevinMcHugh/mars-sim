@@ -76,7 +76,7 @@ func TestSidebarCacheInvalidates(t *testing.T) {
 		m := cacheTestModel(120, 30)
 		_ = m.View()
 		next := busySnapshot()
-		next.Log = append(next.Log, "An alien surfaces nearby.")
+		next.Log = append(next.Log, sim.LogEntry{Text: "An alien surfaces nearby."})
 		m, _ = m.Update(snapshotMsg{snap: next})
 		if !strings.Contains(m.View(), "An alien surfaces nearby.") {
 			t.Error("sidebar did not show the new log line; cache is stale")

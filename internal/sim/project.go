@@ -247,7 +247,7 @@ func (w *World) pruneProjects() {
 					w.closeWork(t.order)
 				}
 			}
-			w.log.add("A " + p.name + " is complete.")
+			w.log.add(LogBuildComplete, "A "+p.name+" is complete.")
 			continue
 		}
 		kept = append(kept, p)
@@ -640,7 +640,7 @@ func (w *World) designateRoom(r roomRecipe, o Point, n int, issuer Owner) bool {
 	if r.name == scumhouseRoom.name {
 		w.linkPantry(p)
 	}
-	w.log.add(r.planLog)
+	w.log.add(LogBuildStart, r.planLog)
 	return true
 }
 

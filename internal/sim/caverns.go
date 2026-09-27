@@ -97,7 +97,7 @@ func (w *World) spawnNest(center Point) {
 		placed++
 	}
 	if first != nil {
-		w.log.add(fmt.Sprintf("The colony has broken into a nest of %s (%d)!", w.alienPluralFor(first), placed))
+		w.log.add(LogNest, fmt.Sprintf("The colony has broken into a nest of %s (%d)!", w.alienPluralFor(first), placed))
 	}
 }
 

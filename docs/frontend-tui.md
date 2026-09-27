@@ -18,6 +18,7 @@ implement the same consumer contract.
 - [`internal/ui/tui/render_jobboard.go`](../internal/ui/tui/render_jobboard.go) — the job board: queued projects and their tasks.
 - [`internal/ui/tui/render_storage.go`](../internal/ui/tui/render_storage.go) — placed storage containers and their contents.
 - [`internal/ui/tui/render_lore.go`](../internal/ui/tui/render_lore.go) — world facts and the rolled alien species.
+- [`internal/ui/tui/render_log.go`](../internal/ui/tui/render_log.go) — the colony log tab and the sidebar's wrapped tail.
 - [`internal/ui/tui/render_perf.go`](../internal/ui/tui/render_perf.go) — the Perf screen's braille charts (see [perf-screen.md](./perf-screen.md)).
 - [`internal/ui/tui/glyphs.go`](../internal/ui/tui/glyphs.go) — terrain and entity glyphs.
 - [`main.go`](../main.go) — `runTUI` (and `runHeadless`, the no-UI alternative).
@@ -42,10 +43,10 @@ The model never mutates or reads live world state — only snapshots (see
 
 ### Map and details panels
 
-`viewMode` cycles between the **map** (default) and seven **details panels**:
+`viewMode` cycles between the **map** (default) and eight **details panels**:
 the **roster**, **job board**, **storage**, **market**, **lore**, **population**,
-and **perf**. `tab` advances map → roster → job board → storage → market → lore →
-population → perf → map, following
+**log**, and **perf**. `tab` advances map → roster → job board → storage →
+market → lore → population → log → perf → map, following
 `tabLabels`' order; `esc` returns straight to the map
 from any details panel. Global keys (`handleKey`) work everywhere; the rest
 dispatch to the active panel's handler.
@@ -59,7 +60,10 @@ dispatch to the active panel's handler.
   [combat.md](./combat.md) and [sanitation.md](./sanitation.md). A tile the
   colony has not dug up to yet draws neither terrain nor occupant, just a
   faintly shaded blank — see [fog-of-war.md](./fog-of-war.md). A sidebar shows
-  a legend and the tail of the event log; the header shows tick, speed, pause
+  a legend and the tail of the event log. Log lines are word-wrapped to the
+  panel rather than cut with an ellipsis — a cut line reads as a finished
+  sentence — and each event keeps one stripe so a wrap stays visually one
+  entry (see The colony log). The header shows tick, speed, pause
   state, and `Stats` counts, including built dormitory beds, incinerators, and
   refuse still on the floor.
 - **Roster** (`renderRoster`): a scrolling, ID-sorted entity list — living
@@ -105,6 +109,10 @@ dispatch to the active panel's handler.
   colony over the whole game — colonists, meals in storage, colony size,
   fixtures — from `Snapshot.Population`. See
   [population-screen.md](./population-screen.md).
+- **Log** (`renderLog`): the retained colony log in full, as a live feed with
+  a type column (`death`, `build start`, `build complete`, …). The view
+  stays pinned to the newest event until the reader scrolls up; `end` (or
+  scrolling back to the tail) resumes following. See The colony log.
 - **Perf** (`renderPerf`): two gping-style braille line charts over time —
   ticks per second actually achieved, and milliseconds each tick costs — from
   the engine's `Snapshot.Perf` timing history. See
@@ -159,6 +167,53 @@ height to each, which quietly ate their last row and bottom border —
 `TestListScreensFillTerminalHeight` pins the fix, and it is the row the
 position line lives on.
 
+### The colony log
+
+The map sidebar only has room for the tail, and it used to cut each line with
+an ellipsis once it passed the panel. A cut line looks finished — "grew a
+tail and…" reads as the whole event — so both the sidebar and the log tab
+word-wrap (`wrapLogEntry`, on top of `wrapWords`) and never mark a line
+short. A word wider than the panel is hard-cut with no ellipsis, because an
+over-wide line shears the frame.
+
+Each entry carries a `LogKind` (`internal/sim/log.go`) as well as the
+sentence, and the log tab draws it as a type column: `death`, `build start`,
+`build complete`, and the rest (`combat`, `arrival`, `mutation`, `haul`,
+`burn`, `mate`, `birth`, `escape`, `cavern`, `nest`, and `note` for a line
+with nothing more specific). The column is the width of the longest label,
+so the sentences start in the same place, under a dim `type` / `event` header. A wrapped sentence leaves the
+column blank on the following rows and indents under the text — repeating
+the type would make one event look like several. The sidebar does not draw
+the column; thirty cells is not enough for a label and a sentence. A log
+panel that narrow drops it too, for the same reason. A new log line is a
+`log.add(kind, text)` at the point the event happens, and a new kind is a
+`LogKind` constant plus a `String` label no wider than `logKindColumn`.
+
+Entries alternate between two close shades (`logBandStyle`), and the stripe
+is per entry, not per visual row. Striping each row would split a wrapped
+event across both shades, which is the opposite of making the entries easy
+to tell apart. The odd band is a faint background, padded out to the panel
+width so the wrap reads as one bar.
+
+The shade has to survive the ring buffer. Coloring by index in the current
+slice flips every band when the oldest line drops off and every index shifts
+down by one. `Model.logBase` is the sequence number of the oldest retained
+entry; each snapshot adds however many entries fell off the front, and a
+line's stripe is `(logBase + index) % 2`. The snapshot does not report the
+drop, so `logEntriesDropped` finds it: the log only appends and trims the
+front, and some suffix of the previous slice is a prefix of the next one.
+
+The tab opens on the live tail. Scrolling up parks the view (`logScrolled`)
+on an entry plus a wrap row, not on a distance from the bottom — a distance
+from the bottom moves when a new line arrives, which yanks a reader who had
+scrolled away. New events extend past the window. `end` or scrolling onto
+the tail resumes following, so the next event keeps the view there instead
+of leaving it one line behind. When the ring drops lines, the anchor is
+rebased by the same drop count; an anchor that falls off the front lands on
+the oldest line still retained. The sidebar's stripe uses the same phase,
+and the memoized sidebar treats it as its own input, because a ring can
+rotate onto a slice that compares equal.
+
 ### Spawn and build menus
 
 `s` and `b` each open a picker (`menuKind` in `model.go`, options listed in
@@ -190,8 +245,8 @@ fog, since naming the rock there would hand back the map the fog is hiding. For 
 and `enter` jumps directly to that container in the storage details panel.
 `i` or `esc` closes inspection without quitting.
 
-`tab` cycles **map → roster → jobs → storage → market → lore → population → perf → map**.
-Roster, jobs, storage, market, lore, population, and perf are collectively the details panels. In storage,
+`tab` cycles **map → roster → jobs → storage → market → lore → population → log → perf → map**.
+Roster, jobs, storage, market, lore, population, log, and perf are collectively the details panels. In storage,
 `up`/`down` or `j`/`k` selects a container from the position-sorted snapshot
 list — a shared chest, or someone's crash-pod locker, labelled by owner — and
 the inspector shows its occupied slots, total capacity, and whose the contents
@@ -217,9 +272,10 @@ the inspector shows its full build and a narrative description.
 | `b` | open the build menu — `↑↓`/`enter` to pick, or `f`/`d`/`t`/`r`/`h` for facility room/dormitory/trash room/storage container/scumhouse directly |
 | `i` (map only) | enter map inspection; arrows/`hjkl` move the cursor, `enter` opens a storage chest's details, and `i`/`esc` closes |
 | `f` (roster only) | open the roster's filter menu — `↑↓`/`enter`/`space` to toggle the highlighted checkbox, or `d`/`n` for dead/non-human directly; no command sent, this only changes what the roster shows |
-| arrows or `hjkl` | pan the camera (map) / move selection (roster, job board) |
-| `shift+↑↓`, `pgup`/`pgdn` (roster only) | scroll the selected colonist's inspector a line / a screenful |
-| `tab` | cycle map → roster → job board → storage → market → lore → population → perf → map |
+| arrows or `hjkl` | pan the camera (map) / move selection (roster, job board, storage, market, lore) / scroll the log |
+| `shift+↑↓`, `pgup`/`pgdn` | scroll the roster inspector, or the log, a line / a screenful |
+| `home` / `end` (log) | jump to the oldest retained event / back to the live tail |
+| `tab` | cycle map → roster → job board → storage → market → lore → population → log → perf → map |
 | `q` / `esc` | quit (`esc` returns to the map from any details panel, or cancels an open menu) |
 
 `s` and `b` work from every screen; `f` only does anything on the roster
@@ -295,8 +351,9 @@ without dropping the guarantee it provided:
 - **`clampFrame`.** Reuses widths of lines unchanged since the previous frame.
 - **Sidebar.** Memoized: lipgloss's border, padding and wrapping dominate its
   cost, and it only changes with the event log, the panel height, the glyph
-  set, or whether fog of war is on — which adds a legend row
-  (`TestSidebarCacheInvalidates`).
+  set, whether fog of war is on — which adds a legend row — or the log
+  stripe phase (`TestSidebarCacheInvalidates`). The phase is its own input
+  because the ring can rotate onto a slice of text that compares equal.
 - **Fog runs.** Unexplored tiles are emitted as one styled run per stretch
   rather than one per tile. Early on most of the screen is fog, and a pair of
   escape sequences per tile would put tens of kilobytes of ANSI on every frame

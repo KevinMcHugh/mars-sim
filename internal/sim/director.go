@@ -146,7 +146,7 @@ func (w *World) fireRatPlague(ev scheduledEvent) {
 		w.spawn(Rat, p)
 		spawned++
 	}
-	w.log.add(fmt.Sprintf("%s: a plague of rats pours into the colony (%d rats).", ev.Name, spawned))
+	w.log.add(LogArrival, fmt.Sprintf("%s: a plague of rats pours into the colony (%d rats).", ev.Name, spawned))
 }
 
 // fireAlienSwarm drops a wave of aliens into the rock around the colony, the
@@ -174,7 +174,7 @@ func (w *World) fireAlienSwarm(ev scheduledEvent) {
 	if first != nil {
 		noun = w.alienPluralFor(first)
 	}
-	w.log.add(fmt.Sprintf("%s: a swarm of %s stirs below (%d).", ev.Name, noun, spawned))
+	w.log.add(LogArrival, fmt.Sprintf("%s: a swarm of %s stirs below (%d).", ev.Name, noun, spawned))
 }
 
 // fireArrival brings a wave of new colonists down in crash pods, each through
@@ -187,7 +187,7 @@ func (w *World) fireArrival(ev scheduledEvent) {
 		}
 		landed++
 	}
-	w.log.add(fmt.Sprintf("%s: %d crash pods streak down toward the colony.", ev.Name, landed))
+	w.log.add(LogArrival, fmt.Sprintf("%s: %d crash pods streak down toward the colony.", ev.Name, landed))
 }
 
 // fireSupplyDrop hands out weapons to living colonists: spread across
@@ -212,7 +212,7 @@ func (w *World) fireSupplyDrop(ev scheduledEvent) {
 	}
 	shotguns := issue(Shotgun, ev.Occurrence.Shotguns)
 	pistols := issue(Pistol, ev.Occurrence.Pistols)
-	w.log.add(fmt.Sprintf("%s: a supply drop lands (%d shotguns, %d pistols).", ev.Name, shotguns, pistols))
+	w.log.add(LogArrival, fmt.Sprintf("%s: a supply drop lands (%d shotguns, %d pistols).", ev.Name, shotguns, pistols))
 }
 
 // livingColonistsShuffled returns every living colonist in random order. IDs

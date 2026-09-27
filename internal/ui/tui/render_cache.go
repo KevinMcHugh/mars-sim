@@ -3,6 +3,7 @@ package tui
 import (
 	"slices"
 
+	"github.com/kevinmchugh/mars-sim/internal/sim"
 	"github.com/kevinmchugh/mars-sim/internal/ui/tui/cells"
 )
 
@@ -22,7 +23,8 @@ type renderCache struct {
 	sidebarRows  int
 	sidebarASCII bool
 	sidebarFog   bool
-	sidebarLog   []string
+	sidebarLog   []sim.LogEntry
+	sidebarBand  int
 	sidebarOut   string
 
 	// widths memoizes cells.Width for the lines of the previous frame. Width is
@@ -38,18 +40,20 @@ func newRenderCache() *renderCache {
 }
 
 // sidebar returns the memoized sidebar, calling draw only when an input it
-// depends on has changed: the panel height, the event log, the glyph set, or
-// whether fog of war is on (which adds a legend row).
-func (c *renderCache) sidebar(rows int, log []string, ascii, fog bool, draw func() string) string {
+// depends on has changed: the panel height, the event log, the glyph set,
+// whether fog of war is on (which adds a legend row), or the log stripe
+// phase. The phase is not a function of the log text — the ring can rotate
+// onto a slice that compares equal — so it is its own input.
+func (c *renderCache) sidebar(rows int, log []sim.LogEntry, ascii, fog bool, band int, draw func() string) string {
 	if c == nil {
 		return draw()
 	}
 	if c.sidebarValid && c.sidebarRows == rows && c.sidebarASCII == ascii && c.sidebarFog == fog &&
-		slices.Equal(c.sidebarLog, log) {
+		c.sidebarBand == band && slices.Equal(c.sidebarLog, log) {
 		return c.sidebarOut
 	}
 	c.sidebarOut = draw()
-	c.sidebarRows, c.sidebarASCII, c.sidebarFog = rows, ascii, fog
+	c.sidebarRows, c.sidebarASCII, c.sidebarFog, c.sidebarBand = rows, ascii, fog, band
 	c.sidebarLog = append(c.sidebarLog[:0], log...)
 	c.sidebarValid = true
 	return c.sidebarOut

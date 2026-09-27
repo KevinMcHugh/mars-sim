@@ -379,8 +379,10 @@ type Snapshot struct {
 	//
 	// The map is shared by every snapshot published between two deaths, so
 	// it must not be modified.
-	Deceased  map[EntityID]EntityView
-	Log       []string
+	Deceased map[EntityID]EntityView
+	// Log is the retained colony log, oldest first. Kind is the type column;
+	// Text is the sentence. See log.go.
+	Log       []LogEntry
 	Stats     Stats
 	NeedsMeta [numNeeds]NeedMeta
 
