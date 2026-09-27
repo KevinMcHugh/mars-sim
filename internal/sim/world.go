@@ -2,7 +2,7 @@ package sim
 
 import (
 	"fmt"
-	"math/rand"
+	"math/rand/v2"
 )
 
 const maxColonistMemories = 64
@@ -627,8 +627,11 @@ type World struct {
 	rng             *rand.Rand
 	prng            *rand.Rand // personality generation, separate so flavor never perturbs the sim
 	agePRNG         *rand.Rand // age generation, isolated so adding age does not shift personality
-	log             *eventLog
-	cfg             Config
+	// rngSrc holds the PCG sources behind rng, prng, agePRNG and nestRNG, so
+	// their state can be saved. See rng.go.
+	rngSrc rngSources
+	log    *eventLog
+	cfg    Config
 
 	// alienSpecies is this world's roster of rolled alien species -- each
 	// one's build, colloquial name, temperament, and the combat stats (bite
@@ -650,39 +653,46 @@ type World struct {
 	cognition CognitionConfig
 }
 
-// newWorld allocates an all-Rock world of the given size.
-func newWorld(cfg Config, rng *rand.Rand) *World {
+// newWorld allocates an all-Rock world of the given size. src seeds the
+// simulation stream (w.rng); nil leaves the world without one, for tests that
+// never draw from it.
+func newWorld(cfg Config, src *rand.PCG) *World {
 	n := cfg.Width * cfg.Height
 	if !cfg.Cognition.compiled {
 		cfg.Cognition = DefaultCognitionConfig()
 	}
 	cfg.SyncWithCognition()
 	w := &World{
-		Width:                      cfg.Width,
-		Height:                     cfg.Height,
-		tiles:                      make([]tileCell, n),
-		refuse:                     make(map[Point]refuseCell),
-		occ:                        newPagedGrid[EntityID](cfg.Width, cfg.Height),
-		entities:                   make(map[EntityID]*Entity),
-		colonistNames:              make(map[string]EntityID),
-		buildTiles:                 make(map[Point]bool),
-		doorTiles:                  make(map[Point]bool),
-		storageContainers:          make(map[Point]*StorageContainer),
-		kin:                        make(map[kinID]*kinPerson),
-		nextKinID:                  1,
-		kinRevision:                1,
-		kinChildrenCache:           make(map[kinID][]kinID),
-		affinity:                   make(map[EntityID]map[EntityID]int),
-		deceasedColonists:          make(map[EntityID]EntityView),
-		nextID:                     1,
-		rng:                        rng,
-		prng:                       rand.New(rand.NewSource(cfg.Seed ^ 0x5DEECE66D)),
-		agePRNG:                    rand.New(rand.NewSource(cfg.Seed ^ 0x6A09E667)),
-		log:                        newEventLog(cfg.LogSize),
-		cfg:       cfg,
-		cognition: cfg.Cognition,
+		Width:             cfg.Width,
+		Height:            cfg.Height,
+		tiles:             make([]tileCell, n),
+		refuse:            make(map[Point]refuseCell),
+		occ:               newPagedGrid[EntityID](cfg.Width, cfg.Height),
+		entities:          make(map[EntityID]*Entity),
+		colonistNames:     make(map[string]EntityID),
+		buildTiles:        make(map[Point]bool),
+		doorTiles:         make(map[Point]bool),
+		storageContainers: make(map[Point]*StorageContainer),
+		kin:               make(map[kinID]*kinPerson),
+		nextKinID:         1,
+		kinRevision:       1,
+		kinChildrenCache:  make(map[kinID][]kinID),
+		affinity:          make(map[EntityID]map[EntityID]int),
+		deceasedColonists: make(map[EntityID]EntityView),
+		nextID:            1,
+		log:               newEventLog(cfg.LogSize),
+		cfg:               cfg,
+		cognition:         cfg.Cognition,
 	}
-	w.alienSpecies = rollAlienSpeciesRoster(rand.New(rand.NewSource(cfg.Seed^alienLoreSeed)), cfg)
+	w.rngSrc.sim = src
+	if src != nil {
+		w.rng = rand.New(src)
+	}
+	w.rngSrc.personality = newPCG(cfg.Seed ^ 0x5DEECE66D)
+	w.prng = rand.New(w.rngSrc.personality)
+	w.rngSrc.age = newPCG(cfg.Seed ^ 0x6A09E667)
+	w.agePRNG = rand.New(w.rngSrc.age)
+	w.alienSpecies = rollAlienSpeciesRoster(newRand(cfg.Seed^alienLoreSeed), cfg)
 	w.terrainCounts[Rock] = n // every tile starts as Rock
 
 	for k := Kind(0); k < numKinds; k++ {
@@ -1041,7 +1051,7 @@ func (w *World) spawn(kind Kind, p Point) *Entity {
 		// Which species this individual belongs to is an ordinary gameplay
 		// draw like where a colonist lands, not part of generating the
 		// species roster itself -- see lore.go.
-		species = w.rng.Intn(len(w.alienSpecies))
+		species = w.rng.IntN(len(w.alienSpecies))
 	}
 	return w.spawnAs(kind, p, species)
 }
@@ -1058,7 +1068,7 @@ func (w *World) spawnAs(kind Kind, p Point, species int) *Entity {
 		// get hungry on the same tick and stampede the facilities at once.
 		if kind == Colonist {
 			if seek := w.cfg.Needs[i].SeekAt; seek > 0 {
-				e.Needs[i] = w.rng.Intn(seek)
+				e.Needs[i] = w.rng.IntN(seek)
 			}
 		}
 	}

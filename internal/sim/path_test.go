@@ -1,7 +1,6 @@
 package sim
 
 import (
-	"math/rand"
 	"testing"
 )
 
@@ -40,19 +39,19 @@ func bfsStepsToAdjacent(w *World, start, target Point) int {
 // random start/target pairs in a cluttered room.
 func TestPathOptimalMatchesBFS(t *testing.T) {
 	w := roomsTestWorld(60, 40)
-	rng := rand.New(rand.NewSource(21))
+	rng := newRand(21)
 	// Carve a large room, then pepper it with wall obstacles.
 	carve(w, Point{2, 2}, Point{57, 37}, Floor)
 	for i := 0; i < 300; i++ {
-		w.SetTerrain(Point{2 + rng.Intn(56), 2 + rng.Intn(36)}, Wall)
+		w.SetTerrain(Point{2 + rng.IntN(56), 2 + rng.IntN(36)}, Wall)
 	}
 	w.refreshSpatial()
 
 	floors := w.freeFloorTiles()
 	checked := 0
 	for i := 0; i < 400 && checked < 200; i++ {
-		start := floors[rng.Intn(len(floors))]
-		target := floors[rng.Intn(len(floors))]
+		start := floors[rng.IntN(len(floors))]
+		target := floors[rng.IntN(len(floors))]
 		if start.Equal(target) {
 			continue
 		}

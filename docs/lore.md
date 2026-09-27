@@ -114,7 +114,7 @@ need new expectations.
 The roster is rolled in `newWorld`, not `generate()` — a handful of tests
 build a `World` with `newWorld` directly and still spawn and fight `Alien`
 entities against it, and those need a valid roster too. It draws from a
-dedicated stream, `rand.New(rand.NewSource(cfg.Seed ^ alienLoreSeed))`, the
+dedicated stream, `newRand(cfg.Seed ^ alienLoreSeed)`, the
 same pattern `growRockVeins`' `compositionRNG` uses in `worldgen.go` and for
 the same two reasons:
 

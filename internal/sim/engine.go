@@ -2,7 +2,6 @@ package sim
 
 import (
 	"context"
-	"math/rand"
 	"sync"
 	"time"
 )
@@ -66,8 +65,7 @@ type Engine struct {
 
 // NewEngine builds an engine with a freshly generated world.
 func NewEngine(cfg Config) *Engine {
-	rng := rand.New(rand.NewSource(cfg.Seed))
-	w := newWorld(cfg, rng)
+	w := newWorld(cfg, newPCG(cfg.Seed))
 	generate(w)
 	return &Engine{
 		world: w,

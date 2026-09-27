@@ -1,7 +1,6 @@
 package sim
 
 import (
-	"math/rand"
 	"testing"
 )
 
@@ -9,7 +8,7 @@ func roomsTestWorld(w, h int) *World {
 	cfg := DefaultConfig()
 	cfg.Width, cfg.Height = w, h
 	cfg.TraitChance = 0 // baseline colonists for deterministic mechanics tests
-	return newWorld(cfg, rand.New(rand.NewSource(1)))
+	return newWorld(cfg, newPCG(1))
 }
 
 func carve(w *World, from, to Point, t Terrain) {
@@ -109,11 +108,11 @@ func TestRoomsCrossChunkBoundary(t *testing.T) {
 // random edits.
 func TestRoomsIncrementalMatchesBruteForce(t *testing.T) {
 	w := roomsTestWorld(64, 48)
-	rng := rand.New(rand.NewSource(7))
+	rng := newRand(7)
 
 	// Seed a random floor layout.
 	for i := 0; i < 1200; i++ {
-		p := Point{rng.Intn(w.Width), rng.Intn(w.Height)}
+		p := Point{rng.IntN(w.Width), rng.IntN(w.Height)}
 		w.SetTerrain(p, Floor)
 	}
 	w.refreshSpatial()
@@ -123,8 +122,8 @@ func TestRoomsIncrementalMatchesBruteForce(t *testing.T) {
 
 	// Apply random incremental edits and re-check against ground truth.
 	for step := 0; step < 200; step++ {
-		p := Point{rng.Intn(w.Width), rng.Intn(w.Height)}
-		if rng.Intn(2) == 0 {
+		p := Point{rng.IntN(w.Width), rng.IntN(w.Height)}
+		if rng.IntN(2) == 0 {
 			w.SetTerrain(p, Floor)
 		} else {
 			w.SetTerrain(p, Rock)

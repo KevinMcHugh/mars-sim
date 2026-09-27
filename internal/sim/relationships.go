@@ -141,7 +141,7 @@ func (w *World) ensureParent(x kinID) kinID {
 // arrived alone. Uses the personality RNG so it never perturbs the sim.
 func (w *World) assignKin(e *Entity) bool {
 	e.kin = w.newKin(e.ID)
-	if w.cfg.FamilyChance <= 0 || w.prng.Intn(100) >= w.cfg.FamilyChance {
+	if w.cfg.FamilyChance <= 0 || w.prng.IntN(100) >= w.cfg.FamilyChance {
 		return false
 	}
 	if r, ok := w.randomColonistKin(e.ID); ok {
@@ -161,7 +161,7 @@ func (w *World) randomColonistKin(self EntityID) (*Entity, bool) {
 			continue
 		}
 		k++
-		if w.prng.Intn(k) == 0 {
+		if w.prng.IntN(k) == 0 {
 			chosen = e
 		}
 	}
@@ -216,7 +216,7 @@ func (w *World) wireRelation(c, r *Entity, kind RelationKind) (ok bool) {
 		// A pairing involving a non-binary colonist isn't resolved by orientation
 		// alone (see spouseCompatible); a coin flip decides it instead, so anybody
 		// might marry an enby regardless of how they describe their orientation.
-		if nonbinaryPairing(c.Profile, r.Profile) && w.prng.Intn(2) == 0 {
+		if nonbinaryPairing(c.Profile, r.Profile) && w.prng.IntN(2) == 0 {
 			return false
 		}
 		pc.spouse, pr.spouse = kr, kc
@@ -651,7 +651,7 @@ func (w *World) rollTalkQuality(existing int) int {
 	frac := clampInt(existing*100/limit, -100, 100) // valence as a percent of the cap
 	mean := w.cfg.TalkQualityBias + w.cfg.TalkQualityValence*frac/100
 	if s := w.cfg.TalkQualitySpread; s > 0 {
-		mean += w.rng.Intn(2*s+1) - s
+		mean += w.rng.IntN(2*s+1) - s
 	}
 	return clampInt(mean, -100, 100)
 }

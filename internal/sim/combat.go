@@ -30,7 +30,7 @@ func (w *World) rollHit(target *Entity) BodyPart {
 	if total <= 0 {
 		return Torso // an entity with no parts tracked: fall back to the trunk
 	}
-	roll := w.rng.Intn(total)
+	roll := w.rng.IntN(total)
 	for part := BodyPart(0); part < numBodyParts; part++ {
 		if !target.hasPart(part) {
 			continue

@@ -636,7 +636,7 @@ func (w *World) runJob(e *Entity) {
 // TalkChance gates it (0 disables talking entirely, and the sim then plays as it
 // did before the activity existed).
 func (w *World) tryStartTalk(e *Entity, forced bool) bool {
-	if !forced && (w.cfg.TalkChance <= 0 || w.rng.Intn(100) >= w.cfg.TalkChance) {
+	if !forced && (w.cfg.TalkChance <= 0 || w.rng.IntN(100) >= w.cfg.TalkChance) {
 		return false
 	}
 	partner, ok := w.nearestMatch(e.Pos, w.cfg.TalkRadius, func(o *Entity) bool {
@@ -1602,7 +1602,7 @@ func (w *World) mouseTurn(e *Entity) {
 // the simulation RNG (not the personality stream) because breeding is a
 // simulation mechanic, not cosmetic flavor.
 func (w *World) rollMouseSex() Sex {
-	if w.rng.Intn(2) == 0 {
+	if w.rng.IntN(2) == 0 {
 		return SexMale
 	}
 	return SexFemale
@@ -1651,7 +1651,7 @@ func (w *World) giveBirth(e *Entity) {
 	e.mateReadyTick = w.tick + w.cfg.MouseBreedCooldown
 	litter := w.cfg.MouseLitterMin
 	if span := w.cfg.MouseLitterMax - w.cfg.MouseLitterMin; span > 0 {
-		litter += w.rng.Intn(span + 1)
+		litter += w.rng.IntN(span + 1)
 	}
 	born := 0
 	for _, d := range neighbors8 {
@@ -1693,10 +1693,10 @@ func (w *World) fleeStep(e *Entity, threat Point) {
 // wanderStep takes a small random step on walkable floor. Used when there is
 // nothing better to do.
 func (w *World) wanderStep(e *Entity) {
-	if w.rng.Intn(2) == 0 {
+	if w.rng.IntN(2) == 0 {
 		return // often stay put so idlers do not jitter constantly
 	}
-	d := neighbors8[w.rng.Intn(len(neighbors8))]
+	d := neighbors8[w.rng.IntN(len(neighbors8))]
 	n := e.Pos.Add(d.X, d.Y)
 	if !w.InBounds(n) || w.occupiedByOther(n, e.ID) {
 		return
@@ -1749,7 +1749,7 @@ func (w *World) stepAside(e *Entity) bool {
 			}
 		}
 		if len(candidates) > 0 {
-			w.moveEntity(e, candidates[w.rng.Intn(len(candidates))])
+			w.moveEntity(e, candidates[w.rng.IntN(len(candidates))])
 			return true
 		}
 	}

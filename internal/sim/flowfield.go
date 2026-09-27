@@ -265,7 +265,7 @@ func (w *World) followField(e *Entity, f *flowField) bool {
 		}
 		if best != int32(1<<31-1) {
 			w.transitQ = q
-			w.moveEntity(e, cand[w.rng.Intn(n)])
+			w.moveEntity(e, cand[w.rng.IntN(n)])
 			return true
 		}
 		if fallbackN == 0 && fallbackBest != int32(1<<31-1) {
@@ -274,7 +274,7 @@ func (w *World) followField(e *Entity, f *flowField) bool {
 	}
 	if fallbackN > 0 {
 		w.transitQ = q
-		w.moveEntity(e, fallback[w.rng.Intn(fallbackN)])
+		w.moveEntity(e, fallback[w.rng.IntN(fallbackN)])
 		return true
 	}
 	w.transitQ = q

@@ -2,7 +2,7 @@ package sim
 
 import (
 	"fmt"
-	"math/rand"
+	"math/rand/v2"
 	"sort"
 
 	"gopkg.in/yaml.v3"
@@ -96,10 +96,10 @@ func resolveSchedules(schedules []Schedule, rng *rand.Rand) []scheduledEvent {
 	}
 	events := make([]scheduledEvent, len(schedules))
 	for i, s := range schedules {
-		occ := s.Occurrences[rng.Intn(len(s.Occurrences))]
+		occ := s.Occurrences[rng.IntN(len(s.Occurrences))]
 		tick := s.EarliestTick
 		if span := s.LatestTick - s.EarliestTick; span > 0 {
-			tick += rng.Intn(span + 1)
+			tick += rng.IntN(span + 1)
 		}
 		events[i] = scheduledEvent{Tick: tick, Name: s.Name, Occurrence: occ}
 	}

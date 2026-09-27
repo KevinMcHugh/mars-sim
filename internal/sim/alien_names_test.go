@@ -1,7 +1,6 @@
 package sim
 
 import (
-	"math/rand"
 	"testing"
 )
 
@@ -183,7 +182,7 @@ func TestNameConditionSizeAndColor(t *testing.T) {
 // "alien"/"aliens" when nothing in the pool matches (including an empty
 // pool) -- a species always needs a name.
 func TestPickAlienNameFallsBackWhenNothingMatches(t *testing.T) {
-	rng := rand.New(rand.NewSource(1))
+	rng := newRand(1)
 	sp := AlienSpecies{Temperament: TemperamentHostile, Limbs: 2, Arms: 2}
 	entries := []AlienNameEntry{
 		{Singular: "gremlin", Plural: "gremlins", When: nameCondition{Temperament: "friendly"}},
@@ -201,7 +200,7 @@ func TestPickAlienNameFallsBackWhenNothingMatches(t *testing.T) {
 
 // pickAlienName's plural falls back to singular+"s" when an entry omits it.
 func TestPickAlienNamePluralDefaultsToSingularPlusS(t *testing.T) {
-	rng := rand.New(rand.NewSource(1))
+	rng := newRand(1)
 	entries := []AlienNameEntry{{Singular: "blorp"}}
 	singular, plural, _ := pickAlienName(rng, AlienSpecies{}, entries)
 	if singular != "blorp" || plural != "blorps" {
@@ -212,7 +211,7 @@ func TestPickAlienNamePluralDefaultsToSingularPlusS(t *testing.T) {
 // pickAlienName draws an emoji from the winning entry's own candidates, not
 // from some other matching entry's list.
 func TestPickAlienNameDrawsEmojiFromTheWinningEntry(t *testing.T) {
-	rng := rand.New(rand.NewSource(1))
+	rng := newRand(1)
 	entries := []AlienNameEntry{{Singular: "gremlin", Plural: "gremlins", Emoji: []string{"🦎", "🐍"}}}
 	for i := 0; i < 20; i++ {
 		_, _, emoji := pickAlienName(rng, AlienSpecies{}, entries)
@@ -224,7 +223,7 @@ func TestPickAlienNameDrawsEmojiFromTheWinningEntry(t *testing.T) {
 
 // An entry with no emoji list must not manufacture one.
 func TestPickAlienNameEmojiEmptyWhenEntryListsNone(t *testing.T) {
-	rng := rand.New(rand.NewSource(1))
+	rng := newRand(1)
 	entries := []AlienNameEntry{{Singular: "alien", Plural: "aliens"}}
 	_, _, emoji := pickAlienName(rng, AlienSpecies{}, entries)
 	if emoji != "" {
@@ -252,7 +251,7 @@ func TestDefaultAlienNamesAlwaysNamesAnySpecies(t *testing.T) {
 		t.Fatal("defaultAlienNames() has no unconditional entry to fall back to")
 	}
 
-	rng := rand.New(rand.NewSource(1))
+	rng := newRand(1)
 	// A handful of extreme/unusual builds, to make sure none of them ever
 	// fails to find a candidate.
 	for _, sp := range []AlienSpecies{

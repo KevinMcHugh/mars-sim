@@ -2,14 +2,13 @@ package sim
 
 import (
 	"fmt"
-	"math/rand"
 	"strings"
 	"testing"
 )
 
 func TestRememberKeepsRecentMemories(t *testing.T) {
 	cfg := DefaultConfig()
-	w := newWorld(cfg, rand.New(rand.NewSource(1)))
+	w := newWorld(cfg, newPCG(1))
 	col := newEntity(1, Colonist, Point{}, cfg)
 	w.entities[col.ID] = col
 
@@ -32,7 +31,7 @@ func TestRememberKeepsRecentMemories(t *testing.T) {
 // attack another colonist, whether or not the victim survives the bite.
 func TestBystanderRemembersAlienAttack(t *testing.T) {
 	cfg := DefaultConfig()
-	w := newWorld(cfg, rand.New(rand.NewSource(1)))
+	w := newWorld(cfg, newPCG(1))
 
 	alien := w.spawn(Alien, Point{0, 0})
 	victim := w.spawn(Colonist, Point{1, 0})
@@ -78,7 +77,7 @@ func TestBystanderRemembersAlienAttack(t *testing.T) {
 // memory of the attack.
 func TestDistantColonistDoesNotWitnessAlienAttack(t *testing.T) {
 	cfg := DefaultConfig()
-	w := newWorld(cfg, rand.New(rand.NewSource(1)))
+	w := newWorld(cfg, newPCG(1))
 
 	alien := w.spawn(Alien, Point{0, 0})
 	victim := w.spawn(Colonist, Point{1, 0})
@@ -97,7 +96,7 @@ func TestDistantColonistDoesNotWitnessAlienAttack(t *testing.T) {
 // it get crushed underfoot or caught by a cat.
 func TestBystanderRemembersMouseKilled(t *testing.T) {
 	cfg := DefaultConfig()
-	w := newWorld(cfg, rand.New(rand.NewSource(1)))
+	w := newWorld(cfg, newPCG(1))
 
 	colonist := w.spawn(Colonist, Point{0, 0})
 	bystander := w.spawn(Colonist, Point{0, 1})
@@ -128,7 +127,7 @@ func lastMemory(e *Entity) string {
 
 func TestSnapshotCopiesMemories(t *testing.T) {
 	cfg := DefaultConfig()
-	w := newWorld(cfg, rand.New(rand.NewSource(1)))
+	w := newWorld(cfg, newPCG(1))
 	col := newEntity(1, Colonist, Point{}, cfg)
 	w.entities[col.ID] = col
 	rememberTest(w, col, "ate", "a meal")

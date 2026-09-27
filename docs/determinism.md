@@ -146,8 +146,8 @@ is invisible today is exactly how the other two got in.
 - **Hunting a new divergence**: run two worlds in one process and diff them per
   tick — that is what the regression test does, and it beats hashing whole runs,
   which only tells you *that* they differ. If the fingerprint is not specific
-  enough, wrap `World.rng`'s source in a recorder that captures a stack trace per
-  draw and diff the traces: an identical RNG trace with divergent state proves
+  enough, point `World.rng` at a recorder wrapping `w.rngSrc.sim` that
+  captures a stack trace per draw and diff the traces: an identical RNG trace with divergent state proves
   the cause is ordering, not randomness, and narrows it to one call site.
 - **What the fingerprint does not cover**: affect, memories, relationships, and
   inventories. Add them if a bug lands there; they were left out because every
@@ -157,6 +157,8 @@ is invisible today is exactly how the other two got in.
 
 - [personality.md](./personality.md) — the two RNG streams and why flavor must
   not perturb the simulation.
+- [rng-streams.md](./rng-streams.md) — every RNG stream, its seed, and how its
+  state is saved.
 - [pathfinding.md](./pathfinding.md) — regions, rooms, and the abstract search
   whose tie-breaks depend on this.
 - [spatial-index-and-performance.md](./spatial-index-and-performance.md) — the

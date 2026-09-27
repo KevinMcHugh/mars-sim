@@ -2,7 +2,7 @@ package sim
 
 import (
 	"math"
-	"math/rand"
+	"math/rand/v2"
 )
 
 // generate carves the starting situation into a fresh all-Rock world: a central
@@ -16,7 +16,7 @@ func generate(w *World) {
 	// shift entity placement and every later decision on the main simulation
 	// stream. Composition does not affect terrain indexes, so initializing the
 	// dense tile data directly also avoids emitting TileChanged events.
-	compositionRNG := rand.New(rand.NewSource(w.cfg.Seed ^ 0x243F6A8885A308D3))
+	compositionRNG := newRand(w.cfg.Seed ^ 0x243F6A8885A308D3)
 	w.growRockVeins(compositionRNG, IronBearingRock, w.cfg.IronRockPercent)
 	w.growRockVeins(compositionRNG, WaterIceBearingRock, w.cfg.IceRockPercent)
 	// Uranium follows the older iron and ice compositions, preserving their
@@ -41,7 +41,7 @@ func generate(w *World) {
 	// colony digs into one. Their own stream, like the veins', so tuning
 	// caverns does not reshuffle everything else about a seed — though aliens
 	// still land on whatever rock is left. See docs/caverns.md.
-	cavernRNG := rand.New(rand.NewSource(w.cfg.Seed ^ 0x13198A2E03707344))
+	cavernRNG := newRand(w.cfg.Seed ^ 0x13198A2E03707344)
 	caves := w.generateCaverns(cavernRNG, center.Add(-rx, -ry), center.Add(rx, ry))
 
 	// Place colonists, then mice and cats, by drawing from one shuffled list of
@@ -136,13 +136,13 @@ func (w *World) growRockVeins(rng *rand.Rand, composition RockComposition, perce
 			neighbors := w.ordinaryNeighbors(current)
 			// A vein mostly advances from its tip. Occasionally branch from an
 			// earlier point; also do so whenever the current tip is boxed in.
-			if len(neighbors) == 0 || (len(vein) > 2 && rng.Intn(6) == 0) {
+			if len(neighbors) == 0 || (len(vein) > 2 && rng.IntN(6) == 0) {
 				current, neighbors = w.branchableVeinTile(rng, vein)
 				if len(neighbors) == 0 {
 					break
 				}
 			}
-			next := neighbors[rng.Intn(len(neighbors))]
+			next := neighbors[rng.IntN(len(neighbors))]
 			w.tiles[next].Composition = composition
 			placed++
 			vein = append(vein, next)
@@ -157,7 +157,7 @@ func (w *World) nextVeinSize(rng *rand.Rand, remaining int) int {
 	if remaining <= w.cfg.RockVeinMax {
 		return remaining
 	}
-	size := w.cfg.RockVeinMin + rng.Intn(w.cfg.RockVeinMax-w.cfg.RockVeinMin+1)
+	size := w.cfg.RockVeinMin + rng.IntN(w.cfg.RockVeinMax-w.cfg.RockVeinMin+1)
 	if remaining-size < w.cfg.RockVeinMin {
 		return remaining - w.cfg.RockVeinMin
 	}
@@ -169,7 +169,7 @@ func (w *World) ordinaryRockSeed(rng *rand.Rand) (int, bool) {
 	if len(w.tiles) == 0 {
 		return 0, false
 	}
-	start := rng.Intn(len(w.tiles))
+	start := rng.IntN(len(w.tiles))
 	for offset := 0; offset < len(w.tiles); offset++ {
 		i := (start + offset) % len(w.tiles)
 		if w.tiles[i].Composition == OrdinaryRock {
@@ -198,7 +198,7 @@ func (w *World) ordinaryNeighbors(index int) []int {
 // branchableVeinTile picks an existing point that can still grow. Starting at a
 // random offset prevents the earliest point from becoming the preferred hub.
 func (w *World) branchableVeinTile(rng *rand.Rand, vein []int) (int, []int) {
-	start := rng.Intn(len(vein))
+	start := rng.IntN(len(vein))
 	for offset := range vein {
 		i := vein[(start+offset)%len(vein)]
 		if neighbors := w.ordinaryNeighbors(i); len(neighbors) > 0 {
@@ -277,7 +277,7 @@ const randomTileRejectionAttempts = 4096
 
 func (w *World) randomTile(pred func(Point) bool) (Point, bool) {
 	for i := 0; i < randomTileRejectionAttempts; i++ {
-		p := Point{w.rng.Intn(w.Width), w.rng.Intn(w.Height)}
+		p := Point{w.rng.IntN(w.Width), w.rng.IntN(w.Height)}
 		if pred(p) {
 			return p, true
 		}
@@ -299,7 +299,7 @@ func (w *World) randomTileScan(pred func(Point) bool) (Point, bool) {
 				continue
 			}
 			k++
-			if w.rng.Intn(k) == 0 {
+			if w.rng.IntN(k) == 0 {
 				chosen, found = p, true
 			}
 		}
