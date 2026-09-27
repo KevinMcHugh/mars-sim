@@ -31,7 +31,7 @@ func TestInventoryRejectsOverflowWithoutChangingStacks(t *testing.T) {
 
 func TestMiningAwardsRawRock(t *testing.T) {
 	cfg := testConfig()
-	cfg.StartColonists, cfg.StartAliens, cfg.StartCats, cfg.StartMice = 0, 0, 0, 0
+	cfg.StartColonists, cfg.StartAliens, cfg.StartCats, cfg.StartRats = 0, 0, 0, 0
 	cfg.MineTicks = 1
 	w := newTestWorld(t, cfg)
 
@@ -54,7 +54,7 @@ func TestMiningAwardsRawRock(t *testing.T) {
 
 func TestFullInventoryPreventsMiningResourceLoss(t *testing.T) {
 	cfg := testConfig()
-	cfg.StartColonists, cfg.StartAliens, cfg.StartCats, cfg.StartMice = 0, 0, 0, 0
+	cfg.StartColonists, cfg.StartAliens, cfg.StartCats, cfg.StartRats = 0, 0, 0, 0
 	cfg.MineTicks = 1
 	w := newTestWorld(t, cfg)
 
@@ -88,7 +88,7 @@ func TestMiningAwardsRockCompositionMaterial(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := testConfig()
-			cfg.StartColonists, cfg.StartAliens, cfg.StartCats, cfg.StartMice = 0, 0, 0, 0
+			cfg.StartColonists, cfg.StartAliens, cfg.StartCats, cfg.StartRats = 0, 0, 0, 0
 			cfg.MineTicks = 1
 			w := newTestWorld(t, cfg)
 
@@ -96,7 +96,7 @@ func TestMiningAwardsRockCompositionMaterial(t *testing.T) {
 			w.SetTerrain(pos, Floor)
 			target := pos.Add(1, 0)
 			w.SetTerrain(target, Rock)
-			w.tiles[w.index(target)].Composition = tt.composition
+			cellAt(w, target).Composition = tt.composition
 			miner := w.spawn(Colonist, pos)
 			miner.Job, miner.Target, miner.mineClaimed = JobMine, target, true
 
@@ -114,7 +114,7 @@ func TestMiningAwardsRockCompositionMaterial(t *testing.T) {
 
 func TestCompositionYieldIsAtomicWhenInventoryCannotFitExtra(t *testing.T) {
 	cfg := testConfig()
-	cfg.StartColonists, cfg.StartAliens, cfg.StartCats, cfg.StartMice = 0, 0, 0, 0
+	cfg.StartColonists, cfg.StartAliens, cfg.StartCats, cfg.StartRats = 0, 0, 0, 0
 	cfg.MineTicks = 1
 	w := newTestWorld(t, cfg)
 
@@ -122,7 +122,7 @@ func TestCompositionYieldIsAtomicWhenInventoryCannotFitExtra(t *testing.T) {
 	w.SetTerrain(pos, Floor)
 	target := pos.Add(1, 0)
 	w.SetTerrain(target, Rock)
-	w.tiles[w.index(target)].Composition = IronBearingRock
+	cellAt(w, target).Composition = IronBearingRock
 	miner := w.spawn(Colonist, pos)
 	miner.Inventory[0] = ItemStack{Kind: RawRock, Count: MaxStackSize - 1}
 	for i := 1; i < InventorySlotCount; i++ {

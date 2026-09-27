@@ -2,7 +2,7 @@ package sim
 
 import (
 	"context"
-	"math/rand"
+	"slices"
 	"testing"
 	"time"
 )
@@ -12,7 +12,7 @@ func gridWorld(t testing.TB, size int) *World {
 	cfg := DefaultConfig()
 	cfg.Seed = 7
 	cfg.Width, cfg.Height = size, size
-	return newWorld(cfg, rand.New(rand.NewSource(7)))
+	return newWorld(cfg, newPCG(7))
 }
 
 // A published grid must never change under a frontend that is still holding it:
@@ -45,33 +45,42 @@ func TestSnapshotTilesAreStableAfterLaterEdits(t *testing.T) {
 func TestPublishedTilesShareUnchangedPages(t *testing.T) {
 	w := gridWorld(t, 200)
 	w.SetTerrain(Point{10, 10}, Floor)
+	w.SetTerrain(Point{100, 100}, Floor)
 	first, _ := w.publishedTiles()
 
 	if second, _ := w.publishedTiles(); second != first {
 		t.Error("publishing with no terrain change allocated a new grid")
 	}
 
-	p := Point{100, 100}
+	p := Point{101, 100}
 	w.SetTerrain(p, Floor)
 	third, _ := w.publishedTiles()
 	if third == first {
 		t.Fatal("publishing after a terrain change reused the stale grid")
 	}
 
-	changed := w.index(p) >> tilePageBits
-	shared := 0
+	changed := w.tiles.pageIndex(p.X, p.Y)
+	shared, written := 0, 0
 	for pi := range third.pages {
 		switch {
+		case third.pages[pi] == nil:
+			// Never written: nothing to share, and it must still read as rock.
+			if first.pages[pi] != nil {
+				t.Errorf("page %d was published and then dropped", pi)
+			}
 		case pi == changed:
-			if &third.pages[pi][0] == &first.pages[pi][0] {
+			if third.pages[pi] == first.pages[pi] {
 				t.Error("the changed page was not copied before it diverged")
 			}
-		case &third.pages[pi][0] == &first.pages[pi][0]:
-			shared++
+		default:
+			written++
+			if third.pages[pi] == first.pages[pi] {
+				shared++
+			}
 		}
 	}
-	if want := len(third.pages) - 1; shared != want {
-		t.Errorf("shared %d unchanged pages, want %d", shared, want)
+	if written == 0 || shared != written {
+		t.Errorf("shared %d of %d unchanged pages, want all of them", shared, written)
 	}
 }
 
@@ -197,7 +206,7 @@ func TestPublishedRefuseReachesFrontendsWithoutTerrainChange(t *testing.T) {
 	w.snapshot(false, 1) // publish, so the tile's page is clean from here on
 
 	w.addGore(spot)
-	w.addCorpse(spot)
+	w.addCorpse(spot, ColonistCorpse)
 	got := w.snapshot(false, 1).TileAt(spot)
 	if got.Gore != 1 || got.Corpses != 1 {
 		t.Fatalf("published tile has gore %d, corpses %d; want 1 and 1 — a refuse change reached no frame",
@@ -207,7 +216,7 @@ func TestPublishedRefuseReachesFrontendsWithoutTerrainChange(t *testing.T) {
 	// The frame above is now in a frontend's hands. Cleaning the tile must not
 	// alter it, and must show up in the frame after.
 	held := w.snapshot(false, 1)
-	if !w.takeGore(spot) || !w.takeCorpse(spot) {
+	if !w.takeGore(spot) || !w.takeCorpse(spot, ColonistCorpse) {
 		t.Fatal("expected refuse to take")
 	}
 	if got := held.TileAt(spot); got.Gore != 1 || got.Corpses != 1 {
@@ -227,7 +236,7 @@ func TestPublishedRefuseClearedByConstruction(t *testing.T) {
 	spot := Point{cfg.Width / 2, cfg.Height / 2}
 	w.SetTerrain(spot, Floor)
 	w.addGore(spot)
-	w.addCorpse(spot)
+	w.addCorpse(spot, ColonistCorpse)
 	if got := w.snapshot(false, 1).TileAt(spot); got.Gore == 0 || got.Corpses == 0 {
 		t.Fatalf("setup: expected refuse on the tile, got %+v", got)
 	}
@@ -259,9 +268,11 @@ func TestTileChangesReportDirtyPages(t *testing.T) {
 			t.Errorf("mode %d: quiet frame changes = %+v, want none", mode, c)
 		}
 		p := Point{100, 100}
-		w.SetTerrain(p, Floor)
+		w.SetTerrain(p, Floor) // also generates p's chunk, the first time
+		w.snapshot(false, 8)
+		w.SetTerrain(p.Add(1, 0), Floor)
 		c := w.snapshot(false, 8).TileChanges
-		if want := w.index(p) / TilePageLen; c.All || len(c.Pages) != 1 || c.Pages[0] != want {
+		if want := w.tiles.pageIndex(p.X, p.Y); c.All || len(c.Pages) != 1 || c.Pages[0] != want {
 			t.Errorf("mode %d: after one edit changes = %+v, want page %d", mode, c, want)
 		}
 		w.setRefuse(p, refuseCell{Gore: 1})
@@ -276,21 +287,60 @@ func TestTileChangesReportDirtyPages(t *testing.T) {
 // the only place a live frame may be read) sees it.
 func TestLiveTilesAliasTheWorld(t *testing.T) {
 	w := gridWorld(t, 200)
+	w.SetTerrain(Point{10, 10}, Floor)
 	w.SetTileSharing(TilesLive)
 	snap := w.snapshot(false, 8)
-	for pi, page := range snap.Tiles.pages {
-		if &page[0] != &w.tiles[pi*TilePageLen] {
-			t.Fatalf("page %d was copied, want it to alias World.tiles", pi)
+	assertAliased := func(g *TileGrid) {
+		t.Helper()
+		for pi, page := range w.tiles.pages {
+			var want *tilePage
+			if page != nil {
+				want = (*tilePage)(page)
+			}
+			if g.pages[pi] != want {
+				t.Fatalf("page %d is %p, want the world's own %p", pi, g.pages[pi], want)
+			}
 		}
 	}
-	p := Point{10, 10}
+	assertAliased(snap.Tiles)
+
+	p := Point{11, 10}
 	w.SetTerrain(p, Floor)
-	w.setRefuse(p, refuseCell{Corpses: 1})
-	if got := snap.TileAt(p); got.Terrain != Floor || got.Corpses != 1 {
+	w.setRefuse(p, refuseCell{Corpses: [numCorpseKinds]uint16{1}})
+	if got := snap.Tiles.At(p); got.Terrain != Floor || got.Corpses != 1 {
 		t.Errorf("live grid read %+v after the edit, want Floor with a corpse", got)
 	}
 	if next := w.snapshot(false, 8); next.Tiles != snap.Tiles {
 		t.Error("live mode allocated a new grid instead of reusing the live one")
+	}
+}
+
+// A chunk generated after the first live frame is a page the live table did
+// not point at yet. Publishing must pick it up, still without copying it.
+func TestLiveTilesPickUpNewChunks(t *testing.T) {
+	w := gridWorld(t, 200)
+	w.SetTerrain(Point{10, 10}, Floor)
+	w.SetTileSharing(TilesLive)
+	snap := w.snapshot(false, 8)
+
+	far := Point{190, 190}
+	pi := w.tiles.pageIndex(far.X, far.Y)
+	if snap.Tiles.pages[pi] != nil {
+		t.Fatal("test needs a page that is not generated yet")
+	}
+	w.SetTerrain(far, Floor)
+	next := w.snapshot(false, 8)
+	if !slices.Contains(next.TileChanges.Pages, pi) {
+		t.Errorf("changes %+v do not include the new page %d", next.TileChanges, pi)
+	}
+	if next.Tiles.pages[pi] != (*tilePage)(w.tiles.pages[pi]) {
+		t.Error("the new page was copied or missed, want it aliased")
+	}
+	if got := next.Tiles.TerrainAt(far); got != Floor {
+		t.Errorf("new chunk reads %v, want Floor", got)
+	}
+	if o := next.Tiles.PageOrigin(pi); o.X > far.X || o.Y > far.Y || far.X-o.X >= TilePageSide || far.Y-o.Y >= TilePageSide {
+		t.Errorf("PageOrigin(%d) = %v, which does not hold %v", pi, o, far)
 	}
 }
 
@@ -307,7 +357,7 @@ func TestSwitchingOffLiveTilesRestoresCopies(t *testing.T) {
 	}
 	p := Point{10, 10}
 	w.SetTerrain(p, Floor)
-	if got := snap.TerrainAt(p); got != Rock {
+	if got := snap.Tiles.TerrainAt(p); got != Rock {
 		t.Errorf("copy-on-write frame changed under us: %v, want Rock", got)
 	}
 }

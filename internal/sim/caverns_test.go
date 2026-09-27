@@ -1,7 +1,6 @@
 package sim
 
 import (
-	"math/rand"
 	"strings"
 	"testing"
 )
@@ -54,9 +53,12 @@ func TestCavernsGenerateHidden(t *testing.T) {
 	if w.hiddenFloor != len(hidden) {
 		t.Fatalf("hiddenFloor = %d, but %d unexplored floor tiles exist", w.hiddenFloor, len(hidden))
 	}
-	target := len(w.tiles) * cfg.CavernPercent / 100
-	if len(hidden) < target {
-		t.Fatalf("caverns cover %d tiles, want at least %d (%d%%)", len(hidden), target, cfg.CavernPercent)
+	// Cavern abundance is an expected value per chunk (see
+	// TestAbundanceDriftWithinTolerance), so a map this small only has to
+	// land in the neighbourhood of its target.
+	target := w.Width * w.Height * cfg.CavernPercent / 100
+	if len(hidden) < target/2 || len(hidden) > target*2 {
+		t.Fatalf("caverns cover %d tiles, want about %d (%d%%)", len(hidden), target, cfg.CavernPercent)
 	}
 
 	var known []Point
@@ -159,7 +161,7 @@ func TestBreachingACavernRevealsItsWholeSystem(t *testing.T) {
 	}
 	logged := false
 	for _, msg := range w.log.tail(5) {
-		logged = logged || strings.Contains(msg, "natural cavern")
+		logged = logged || strings.Contains(msg.Text, "natural cavern")
 	}
 	if !logged {
 		t.Fatalf("no log line for the breach; log tail: %q", w.log.tail(5))
@@ -169,14 +171,22 @@ func TestBreachingACavernRevealsItsWholeSystem(t *testing.T) {
 
 // caverns generates caverns alone (no landing site or entities) so a test can
 // look at them by cavern.
-func cavernsOnly(t *testing.T, passagePercent int) (*World, []cavern) {
+func cavernsOnly(t *testing.T, passagePercent int) (*World, []*genCavern) {
 	t.Helper()
 	cfg := cavernTestConfig()
 	cfg.Width, cfg.Height = 200, 100
 	cfg.CavernPassagePercent = passagePercent
-	w := newWorld(cfg, rand.New(rand.NewSource(1)))
+	w := newWorld(cfg, newPCG(1))
 	c := Point{w.Width / 2, w.Height / 2}
-	caves := w.generateCaverns(rand.New(rand.NewSource(9)), c, c)
+	r := cavernLandingClearance
+	w.gen = newWorldGenLanding(cfg, c.Add(-r, -r), c.Add(r, r))
+	var caves []*genCavern
+	for cy := 0; cy < w.gen.chunkRows(); cy++ {
+		for cx := 0; cx < w.gen.chunkCols(); cx++ {
+			w.applyChunk(cx, cy)
+			caves = append(caves, w.gen.keptCaverns(chunkKey{int32(cx), int32(cy)})...)
+		}
+	}
 	w.refreshSpatial()
 	if len(caves) < 4 {
 		t.Fatalf("only %d caverns on a %dx%d map", len(caves), w.Width, w.Height)
@@ -224,8 +234,9 @@ func TestCavernPassagesJoinNearestNeighbors(t *testing.T) {
 func TestCavernsAreDeterministic(t *testing.T) {
 	a := newTestWorld(t, cavernTestConfig())
 	b := newTestWorld(t, cavernTestConfig())
-	for i := range a.tiles {
-		if a.tiles[i] != b.tiles[i] {
+	at, bt := denseTiles(a), denseTiles(b)
+	for i := range at {
+		if at[i] != bt[i] {
 			t.Fatalf("tile %d differs between two worlds from the same seed", i)
 		}
 	}
@@ -236,16 +247,16 @@ func TestCavernsAreDeterministic(t *testing.T) {
 func TestRoomLabelsWithCaverns(t *testing.T) {
 	w := newTestWorld(t, cavernTestConfig())
 	checkRoomLabels(t, w)
-	rng := rand.New(rand.NewSource(11))
+	rng := newRand(11)
 	hidden := hiddenFloorTiles(w)
 	for step := 0; step < 300; step++ {
 		var p Point
 		if step%10 == 0 && len(hidden) > 0 {
-			p = hidden[rng.Intn(len(hidden))].Add(rng.Intn(3)-1, rng.Intn(3)-1)
+			p = hidden[rng.IntN(len(hidden))].Add(rng.IntN(3)-1, rng.IntN(3)-1)
 		} else {
-			p = Point{rng.Intn(w.Width), rng.Intn(w.Height)}
+			p = Point{rng.IntN(w.Width), rng.IntN(w.Height)}
 		}
-		switch rng.Intn(3) {
+		switch rng.IntN(3) {
 		case 0:
 			w.SetTerrain(p, Floor)
 		case 1:
@@ -331,7 +342,7 @@ func TestAlienNestsSpawnWhenBreached(t *testing.T) {
 	}
 	logs := 0
 	for _, msg := range w.log.tail(50) {
-		if strings.Contains(msg, "nest of") {
+		if strings.Contains(msg.Text, "nest of") {
 			logs++
 		}
 	}
@@ -348,7 +359,7 @@ func TestAlienNestsDoNotChangeGeneration(t *testing.T) {
 	a := newTestWorld(t, cfg)
 	cfg.CavernNestPercent = 100
 	b := newTestWorld(t, cfg)
-	if got, want := a.rng.Int63(), b.rng.Int63(); got != want {
+	if got, want := a.rng.Int64(), b.rng.Int64(); got != want {
 		t.Fatalf("nests moved the simulation stream: %d vs %d", got, want)
 	}
 	if len(a.entities) != len(b.entities) {

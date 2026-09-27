@@ -4,16 +4,18 @@
 
 ## What it is
 
-The world is a single underground level: a dense, row-major grid of `Tile`s that
+The world is a single underground level: a grid of `Tile`s, stored in 64×64 pages, that
 starts as solid rock with ordinary, iron-bearing, water ice-bearing,
-uranium-bearing, or clay-bearing composition. World generation carves a landing cavern, drops the colonists inside
-it, hollows hidden natural caverns (some joined by passages) out of the rock
-beyond, and seeds aliens out in the surrounding rock and cats/mice on the floor.
+uranium-bearing, or clay-bearing composition. World generation carves a landing cavern,
+hollows hidden natural caverns (some joined by passages) out of the rock
+beyond, lands the colonists' crash pods in the landing cavern, and seeds aliens
+out in the surrounding rock and cats/rats on the floor.
 
 ## Source
 
 - [`internal/sim/world.go`](../internal/sim/world.go) — `Terrain`, `Tile`, `World`, tile/occupancy/entity accessors.
-- [`internal/sim/worldgen.go`](../internal/sim/worldgen.go) — `generate` and the placement helpers.
+- [`internal/sim/worldgen.go`](../internal/sim/worldgen.go) — `generate`, `applyChunk` and the placement helpers.
+- [`internal/sim/worldgen_chunks.go`](../internal/sim/worldgen_chunks.go) — the chunk generator (see [worldgen-chunks.md](./worldgen-chunks.md)).
 - [`internal/sim/caverns.go`](../internal/sim/caverns.go) — natural caverns and passages (see [caverns.md](./caverns.md)).
 - [`internal/sim/geom.go`](../internal/sim/geom.go) — `Point`, Chebyshev distance, the 8-neighbor table.
 
@@ -22,7 +24,9 @@ beyond, and seeds aliens out in the surrounding rock and cats/mice on the floor.
 ### Terrain and tiles
 
 `Terrain` is an enum: `Rock`, `Floor`, `Wall`, `NutrientPod`, `Toilet`, `Bed`,
-`Incinerator`, `Storage`. Only
+`Incinerator`, `Storage`, `Scumhouse`, `Hull`. `Hull` is a crash pod's metal
+wall: it behaves like `Wall` but only ever arrives with a pod (see
+[crash-pods.md](./crash-pods.md)). Only
 `Floor` is `Walkable()`, and every creature, aliens included, stays on floor. Beds are dormitory bunks used from an
 adjacent floor tile; the incinerator is the machine refuse is burned in, used the
 same way (see [sanitation.md](./sanitation.md)). Storage is a blocking trunk used
@@ -63,8 +67,9 @@ a frontend draws nothing on a tile that has not. It only ever goes from false to
 true, and it is set only by `SetTerrain` — see
 [fog-of-war.md](./fog-of-war.md).
 
-The grid is stored as a flat `[]tileCell` of length `Width*Height`, indexed
-row-major via `World.index(p)`. `tileCell` is terrain, composition and the
+The grid is stored as a `pagedGrid[tileCell]`: 64×64 square pages, one per
+worldgen chunk (see [sparse-grids.md](./sparse-grids.md) and
+[worldgen-chunks.md](./worldgen-chunks.md)). `tileCell` is terrain, composition and the
 explored flag — **three bytes**, and deliberately so: this is the one structure
 in the simulation that genuinely needs an entry per tile, since composition is
 ore and worldgen threads veins through a fifth of the map. Every byte added
@@ -97,7 +102,9 @@ job board, flow fields, and the projects list. Those are documented in
 The critical invariant lives in `SetTerrain`: it updates `terrainCounts`, marks
 the tile's chunk dirty (for region recompute), lifts the fog of war over the
 tile and its eight neighbors (`revealAround`), and **emits a `TileChanged`
-event** (worldgen's `carveHidden` is the same path minus the fog lift) — which is how the job board and flow fields stay current. Always change
+event** (`carveHidden` is the same path minus the fog lift; worldgen's
+`applyChunk` writes hidden floor directly, see
+[worldgen-chunks.md](./worldgen-chunks.md)) — which is how the job board and flow fields stay current. Always change
 terrain through `SetTerrain`, never by writing `tiles` directly, or those
 derived systems go stale (and the map the player sees never grows).
 
@@ -105,40 +112,51 @@ derived systems go stale (and the map the player sees never grows).
 
 `generate` (called once by `NewEngine`):
 
-1. Grows iron, water-ice, uranium, and clay deposits as meandering, occasionally branching veins using a
-   dedicated RNG derived from the simulation seed. The configurable iron, ice, and
-   uranium, and clay percentages default to 10%, 5%, 1%, and 5%; the remainder
-   is ordinary rock. New compositions are appended to the generation order, so
-   clay was grown last and did not move the iron, ice, or uranium veins of
-   established seeds. Veins
-   default to 8–24 orthogonally connected tiles.
+1. Sets up **lazy, chunked generation**. Each 64×64 chunk holds iron,
+   water-ice, uranium, and clay veins, patches of **cave scum** (see
+   [scumhouse.md](./scumhouse.md)), plus hidden **natural caverns** and the
+   passages that join some of them. What a chunk holds is a pure function of
+   the config and its coordinates, on worldgen's own seed-derived streams.
+   Chunks are generated as the colony explores: carving the landing site
+   generates the chunks under it, and every chunk within `worldgen-halo` of
+   ground the colony has seen is generated too. See
+   [worldgen-chunks.md](./worldgen-chunks.md) for how, and for how far the
+   configured percentages (defaults 10%, 5%, 1% and 5% ore; 4% cavern) drift
+   from their targets. Veins default to 8–24 orthogonally connected tiles.
+   Caverns stay under the fog, and out of every colony-facing system, until a
+   dig breaks into one (see [caverns.md](./caverns.md)).
 2. Carves an **oval cavern** at the map center. `caveRadii` sizes it to the
-   starting colonist count (~10 tiles per colonist) at a 2:1 width:height ratio,
-   clamped to the map.
-3. Hollows **natural caverns** out of the remaining rock with `carveHidden`, on
-   their own seed-derived RNG stream, and joins some to their nearest neighbor
-   with a passage. They stay under the fog, and out of every colony-facing
-   system, until a dig breaks into one. See [caverns.md](./caverns.md).
-4. Places colonists by shuffling the list of free (discovered) floor tiles and drawing from
-   it, so every requested colonist is placed if the cavern has room (this beats
-   rejection sampling, which can give up).
-5. Places aliens with `alienSpawnSite`: on hidden cavern floor, where they lie
+   starting colonist count — ten tiles of elbow room per colonist plus the
+   ground its crash pod takes, at a 2:1 width:height ratio, never less than
+   `minCaveRy` (6) rows above and below the middle — clamped to the map. The
+   pods' share and the taller minimum both exist so the colony can still site
+   its first room once the pods are down; see [crash-pods.md](./crash-pods.md).
+   Caverns keep `cavernLandingClearance` tiles clear of its bounding box.
+3. Lands each colonist in a crash pod (`arrive`), in the lower half of the
+   cavern, crashing through the rock once the open floor runs out.
+4. Places aliens with `alienSpawnSite`: on hidden cavern floor, where they lie
    dormant until the colony digs in, or, with no cave room, on colony floor far
    from the landing site. See [caverns.md](./caverns.md#aliens-in-the-caves).
-6. Places mice and cats on random floor tiles inside the cavern.
-7. Records each natural cavern's center (`trackCavernsForNests`), so that
-   breaking into it later can roll for an **alien nest**. No nest aliens exist
-   before then. See [caverns.md](./caverns.md#alien-nests).
-8. Runs `refreshSpatial` once so regions/rooms exist before the first tick.
+5. Places rats and cats by shuffling the free floor tiles in and around the
+   cavern and drawing from the list (this beats rejection sampling, which can
+   give up).
+6. Starts the set of unfound cavern centers (`trackCavernsForNests`); each
+   chunk adds its caverns' centers as it is generated, so that breaking into
+   one later can roll for an **alien nest**. No nest aliens exist before
+   then. See [caverns.md](./caverns.md#alien-nests).
+7. Runs `refreshSpatial` once so regions/rooms exist before the first tick.
 
 `randomTile` reservoir-samples a tile satisfying a predicate in one pass — uniform,
 and it always finds a match if one exists.
 
 ## Why it is this way
 
-- **Flat row-major grid** keeps tile access to one multiply-add on the hot path
-  the simulation walks constantly. Frontends see the same grid through a paged,
-  page-shared copy instead, so publishing a frame does not re-copy the map — see
+- **Paged grid** costs a shift, a mask and a nil check per read. The searches
+  that walk it (A\*, flow fields, the region flood) take one page per node and
+  read all eight neighbours from it, which made them faster than the flat
+  row-major array this replaced. The paging is what lets a chunk nobody has
+  generated cost nothing. Frontends see the same pages through a page-shared
+  copy, so publishing a frame does not re-copy the map; see
   [snapshot-tile-grid.md](./snapshot-tile-grid.md).
 - **Out-of-bounds reads as `Rock`** removes bounds-checking special cases from
   the many callers that ask "what's next to me?" — the world edge just behaves
@@ -150,13 +168,17 @@ and it always finds a match if one exists.
 - **Composition is tile data, not terrain** because deposits do not differ in
   walkability or mining cost. New terrain kinds would complicate every rock
   predicate and derived index for no gameplay benefit.
-- **Composition has a separate seed-derived RNG stream** so generating deposits
-  remains reproducible without shifting colonist placement, alien placement, or
-  every later decision on the main simulation stream.
+- **Worldgen has its own seed-derived streams** (one per chunk and feature, see
+  [worldgen-chunks.md](./worldgen-chunks.md)) so generating deposits and
+  caverns remains reproducible without shifting colonist placement, alien
+  placement, or every later decision on the main simulation stream.
 - **Deposits grow as branching random walks** rather than rolling each tile
   independently. This produces narrow, irregular veins, keeps each generated
-  vein connected, and makes finding one deposit useful information about nearby
-  tiles, while still meeting the configured map-wide abundance target exactly.
+  vein connected (every deposit tile has an orthogonal neighbour of its own
+  composition), and makes finding one deposit useful information about nearby
+  tiles. Abundance is an expected value per chunk rather than an exact
+  map-wide count; [worldgen-chunks.md](./worldgen-chunks.md) measures the
+  drift.
 - **Shuffle-and-draw placement** guarantees the requested population actually
   spawns, which matters for reproducible, comparable runs.
 
@@ -166,11 +188,16 @@ and it always finds a match if one exists.
   `Walkable()` result, give it a glyph in the TUI, and (if it is a facility)
   wire it into the needs table. Flow fields are allocated per facility terrain
   in `newWorld`.
-- **A new rock composition**: add a `RockComposition`, its world-generation
-  weighting, mining yield, and TUI glyph. Leave it out of `Terrain` unless it
+- **Anything that writes tiles** must go through `SetTerrain` (or call
+  `generateChunkAt` first), so the tile's chunk is generated before it is
+  written. See [worldgen-chunks.md](./worldgen-chunks.md#when-chunks-are-generated).
+- **A new rock composition**: add a `RockComposition`, append it to
+  `veinLevels` with its percentage in `veinPercent`, and give it a mining
+  yield and TUI glyph. Leave it out of `Terrain` unless it
   actually changes movement or construction rules.
 - **Different deposit shapes**: adjust `RockVeinMin` / `RockVeinMax` for coarse
-  clustering. Change `growRockVeins` only when the topology itself should change;
+  clustering (a vein stays within `veinReach` of its origin, and is at least
+  two tiles). Change `walkVein` only when the topology itself should change;
   doing so intentionally changes generated maps for existing seeds.
 - **Multiple levels (z-layers)** are the big planned extension; the region and
   flow-field machinery were built to extend into it. This is not implemented yet.

@@ -206,11 +206,11 @@ This preserves the useful distinction between “first saw an alien” and “th
 alien is still demanding attention.”
 
 The resting/sleeping cognition fast path still skips observation when no
-nearby alien, mouse, or gore exists. A custom persistent rule does not flip
+nearby alien, rat, or gore exists. A custom persistent rule does not flip
 that path by existing: set `interrupt_rest: true` on the rule that should
 wake a rester. Tuning a shipped radius (or adding a flavor-only sighting)
 must not disable rest. Threat presence (`seesThreat`) stays alien-only —
-flee/fight eligibility still reads `nearestAlien`, so a mouse or a
+flee/fight eligibility still reads `nearestAlien`, so a rat or a
 configured “saw wolf” percept cannot become a legal fight/flee target.
 
 ### Wear as a policy, not a conversation exception
@@ -259,7 +259,7 @@ For a new feature:
 3. add direct or sensory perception rules;
 4. add reactions for the participant and witness perspectives that matter;
 5. add grammar-matched trait rules if a trait should change the appraisal;
-6. tune in the Cognition Lab;
+6. tune in [Scum Lab](./scum-lab.md);
 7. add parity and edge-transition tests, then run `go test ./...`.
 
 Preserve stable rule IDs, sorted traversal, integer appraisal math, and the
@@ -268,8 +268,7 @@ register a wear policy — do not special-case it in `rememberPercept`.
 
 ## Related
 
-- [cognition-config-and-lab.md](./cognition-config-and-lab.md) — authoring
-  schema and tool workflow.
+- [scum-lab.md](./scum-lab.md) — the bench that edits `cognition.yaml`.
 - [memories.md](./memories.md) — durable reaction identity and collapse.
 - [affect.md](./affect.md) — appraisal, wear, baselines, and trait rules.
 - [personality.md](./personality.md) — spawn-resolved trait mechanics and the

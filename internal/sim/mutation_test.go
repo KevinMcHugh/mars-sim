@@ -10,7 +10,7 @@ import (
 func mutationWorld(t *testing.T) *World {
 	t.Helper()
 	cfg := testConfig()
-	cfg.StartColonists, cfg.StartAliens, cfg.StartCats, cfg.StartMice = 0, 0, 0, 0
+	cfg.StartColonists, cfg.StartAliens, cfg.StartCats, cfg.StartRats = 0, 0, 0, 0
 	cfg.IronRockPercent, cfg.IceRockPercent, cfg.UraniumRockPercent, cfg.ClayRockPercent = 0, 0, 0, 0
 	return newTestWorld(t, cfg)
 }
@@ -35,19 +35,21 @@ func TestMiningUraniumYieldsOre(t *testing.T) {
 func TestWorldgenGrowsUraniumVeins(t *testing.T) {
 	cfg := testConfig()
 	cfg.Width, cfg.Height = 40, 30
-	cfg.StartColonists, cfg.StartAliens, cfg.StartCats, cfg.StartMice = 0, 0, 0, 0
+	cfg.StartColonists, cfg.StartAliens, cfg.StartCats, cfg.StartRats = 0, 0, 0, 0
 	cfg.IronRockPercent, cfg.IceRockPercent, cfg.UraniumRockPercent, cfg.ClayRockPercent = 10, 5, 3, 0
 	cfg.Seed = 161803
 	w := NewEngine(cfg).world
 
 	count := 0
-	for _, tile := range w.tiles {
+	for _, tile := range denseTiles(w) {
 		if tile.Composition == UraniumBearingRock {
 			count++
 		}
 	}
-	if want := len(w.tiles) * cfg.UraniumRockPercent / 100; count != want {
-		t.Fatalf("uranium-bearing tiles = %d, want %d", count, want)
+	// Abundance is an expected value under chunked generation; see
+	// TestAbundanceDriftWithinTolerance for the tight check.
+	if want := w.Width * w.Height * cfg.UraniumRockPercent / 100; count < want/2 || count > want*3/2 {
+		t.Fatalf("uranium-bearing tiles = %d, want about %d", count, want)
 	}
 }
 
@@ -62,12 +64,12 @@ func TestUraniumExposureSources(t *testing.T) {
 		t.Fatal("a colonist away from uranium should not be exposed")
 	}
 
-	w.tiles[w.index(Point{6, 5})].Composition = UraniumBearingRock
+	cellAt(w, Point{6, 5}).Composition = UraniumBearingRock
 	if !w.uraniumExposed(e) {
 		t.Fatal("a colonist beside a uranium deposit should be exposed")
 	}
 
-	w.tiles[w.index(Point{6, 5})].Composition = OrdinaryRock
+	cellAt(w, Point{6, 5}).Composition = OrdinaryRock
 	e.Inventory.Add(UraniumOre, 1)
 	if !w.uraniumExposed(e) {
 		t.Fatal("a colonist carrying uranium ore should be exposed")
@@ -317,7 +319,7 @@ func TestDefaultsKeepMutationRare(t *testing.T) {
 		cfg := DefaultConfig()
 		cfg.Seed = seed * 7919
 		cfg.Width, cfg.Height = 80, 40
-		cfg.StartColonists, cfg.StartAliens, cfg.StartCats, cfg.StartMice = 30, 0, 0, 0
+		cfg.StartColonists, cfg.StartAliens, cfg.StartCats, cfg.StartRats = 30, 0, 0, 0
 		w := NewEngine(cfg).world
 		for i := 0; i < 5000; i++ {
 			w.step()

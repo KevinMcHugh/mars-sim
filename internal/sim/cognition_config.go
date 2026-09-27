@@ -320,25 +320,27 @@ func DefaultCognitionConfig() CognitionConfig {
 	}
 
 	c.Nouns = []NounID{
-		NounColonist, NounAlien, NounCat, NounMouse, NounGore, NounMeal,
+		NounColonist, NounAlien, NounCat, NounRat, NounGore, NounMeal,
 		NounToilet, NounBed, NounNeed, NounRock, NounStructure, NounRefuse,
+		NounGruel, NounScum, NounScumhouse, NounGoods,
 	}
 	c.Actions = []ActionID{
 		ActionPresent, ActionBite, ActionAttack, ActionKill, ActionCrush,
 		ActionCatch, ActionWound, ActionConverse, ActionEat, ActionUse,
 		ActionSleep, ActionSatisfy, ActionMine, ActionClear, ActionConstruct,
-		ActionClean, ActionIncinerate, ActionMutate,
+		ActionClean, ActionIncinerate, ActionMutate, ActionCook, ActionScrape,
+		ActionDeliver, ActionTrade, ActionBuy, ActionHaul,
 	}
 	c.Perceptions = []PerceptionRule{
 		{ID: "direct-actor", Channel: ChannelDirect, Role: RoleActor, Cadence: CadenceInstant},
 		{ID: "direct-target", Channel: ChannelDirect, Role: RoleTarget, Cadence: CadenceInstant},
 		{ID: "visible-alien", Match: OccurrencePattern{ActorNoun: NounAlien, Action: ActionPresent}, Channel: ChannelSight, Role: RoleWitness, Radius: RadiusFlee, Cadence: CadenceEnterOngoing},
-		{ID: "visible-mouse", Match: OccurrencePattern{ActorNoun: NounMouse, Action: ActionPresent}, Channel: ChannelSight, Role: RoleWitness, Radius: RadiusStomp, Cadence: CadenceEnter},
+		{ID: "visible-rat", Match: OccurrencePattern{ActorNoun: NounRat, Action: ActionPresent}, Channel: ChannelSight, Role: RoleWitness, Radius: RadiusStomp, Cadence: CadenceEnter},
 		{ID: "visible-gore", Match: OccurrencePattern{ActorNoun: NounGore, Action: ActionPresent}, Channel: ChannelSight, Role: RoleWitness, Radius: RadiusGoreSight, Cadence: CadenceEnter},
 		{ID: "witness-alien-kill", Match: OccurrencePattern{ActorNoun: NounAlien, Action: ActionKill, ObjectNoun: NounColonist}, Channel: ChannelSight, Role: RoleWitness, Radius: RadiusFlee, Cadence: CadenceInstant},
 		{ID: "witness-alien-attack", Match: OccurrencePattern{ActorNoun: NounAlien, Action: ActionBite, ObjectNoun: NounColonist}, Channel: ChannelSight, Role: RoleWitness, Radius: RadiusFlee, Cadence: CadenceInstant},
-		{ID: "witness-mouse-crushed", Match: OccurrencePattern{ActorNoun: NounColonist, Action: ActionCrush, ObjectNoun: NounMouse}, Channel: ChannelSight, Role: RoleWitness, Radius: RadiusStomp, Cadence: CadenceInstant},
-		{ID: "witness-cat-catch", Match: OccurrencePattern{ActorNoun: NounCat, Action: ActionCatch, ObjectNoun: NounMouse}, Channel: ChannelSight, Role: RoleWitness, Radius: RadiusStomp, Cadence: CadenceInstant},
+		{ID: "witness-rat-crushed", Match: OccurrencePattern{ActorNoun: NounColonist, Action: ActionCrush, ObjectNoun: NounRat}, Channel: ChannelSight, Role: RoleWitness, Radius: RadiusStomp, Cadence: CadenceInstant},
+		{ID: "witness-cat-catch", Match: OccurrencePattern{ActorNoun: NounCat, Action: ActionCatch, ObjectNoun: NounRat}, Channel: ChannelSight, Role: RoleWitness, Radius: RadiusStomp, Cadence: CadenceInstant},
 		{ID: "witness-alien-killed", Match: OccurrencePattern{ActorNoun: NounColonist, Action: ActionKill, ObjectNoun: NounAlien}, Channel: ChannelSight, Role: RoleWitness, Radius: RadiusFlee, Cadence: CadenceInstant},
 		{ID: "witness-gunfight", Match: OccurrencePattern{ActorNoun: NounColonist, Action: ActionWound, ObjectNoun: NounAlien}, Channel: ChannelSight, Role: RoleWitness, Radius: RadiusFlee, Cadence: CadenceInstant},
 		{ID: "witness-mutation", Match: OccurrencePattern{ActorNoun: NounColonist, Action: ActionMutate}, Channel: ChannelSight, Role: RoleWitness, Radius: RadiusFlee, Cadence: CadenceInstant},
@@ -349,7 +351,7 @@ func DefaultCognitionConfig() CognitionConfig {
 		Salience: 100, Lifetime: 12, Source: StimulusSourceActor,
 		Contribution: [numFocusKinds]int{FocusFlee: 500, FocusFight: 500},
 	}
-	sawMouse := reaction("saw-mouse", sightMatch(ActionPresent, NounMouse, "", PhaseEnter), 8, MoodVector{2, -3, 0}, MoodVector{1, -1, 0})
+	sawRat := reaction("saw-rat", sightMatch(ActionPresent, NounRat, "", PhaseEnter), 8, MoodVector{2, -3, 0}, MoodVector{1, -1, 0})
 	sawGore := reaction("saw-gore", sightMatch(ActionPresent, NounGore, "", PhaseEnter), 30, MoodVector{-3, -7, -6}, MoodVector{-6, -14, -10})
 	sawGore.Stimulus = &EventStimulusSpec{
 		Salience: 35, Lifetime: 30, Source: StimulusSourceNone,
@@ -370,9 +372,9 @@ func DefaultCognitionConfig() CognitionConfig {
 		Salience: 70, Lifetime: 12, Source: StimulusSourceActor,
 		Contribution: [numFocusKinds]int{FocusFlee: 200, FocusFight: 100},
 	}
-	crushedMouse := reaction("crushed-mouse", directMatch(ActionCrush, NounColonist, NounMouse, RoleActor), 6, MoodVector{-1, 2, 0}, MoodVector{-2, 0, 0})
-	witnessedMouse := reaction("witnessed-mouse-crushed", sightMatch(ActionCrush, NounColonist, NounMouse, PhaseInstant), 8, MoodVector{-1, -2, -1}, MoodVector{-1, -1, 0})
-	witnessedCat := reaction("witnessed-cat-catch", sightMatch(ActionCatch, NounCat, NounMouse, PhaseInstant), 5, MoodVector{1, 1, 0}, MoodVector{})
+	crushedRat := reaction("crushed-rat", directMatch(ActionCrush, NounColonist, NounRat, RoleActor), 6, MoodVector{-1, 2, 0}, MoodVector{-2, 0, 0})
+	witnessedRat := reaction("witnessed-rat-crushed", sightMatch(ActionCrush, NounColonist, NounRat, PhaseInstant), 8, MoodVector{-1, -2, -1}, MoodVector{-1, -1, 0})
+	witnessedCat := reaction("witnessed-cat-catch", sightMatch(ActionCatch, NounCat, NounRat, PhaseInstant), 5, MoodVector{1, 1, 0}, MoodVector{})
 	killedAlien := reaction("killed-alien", directMatch(ActionKill, NounColonist, NounAlien, RoleActor), 55, MoodVector{45, 52, 35}, MoodVector{25, 20, 8})
 	witnessedAlien := reaction("witnessed-alien-killed", sightMatch(ActionKill, NounColonist, NounAlien, PhaseInstant), 35, MoodVector{5, 6, 4}, MoodVector{2, 2, 0})
 	woundedAlien := reaction("wounded-alien", directMatch(ActionWound, NounColonist, NounAlien, RoleActor), 25, MoodVector{4, 5, 2}, MoodVector{2, 2, 0})
@@ -393,10 +395,25 @@ func DefaultCognitionConfig() CognitionConfig {
 	incineratedRefuse := reaction("incinerated-refuse", directMatch(ActionIncinerate, NounColonist, NounRefuse, RoleActor), 16, MoodVector{-1, 7, 1}, MoodVector{-4, 0, 0})
 	mutated := reaction("mutated", directMatch(ActionMutate, NounColonist, "", RoleActor), 60, MoodVector{18, -70, -35}, MoodVector{10, -90, -70})
 	witnessedMutation := reaction("witnessed-mutation", sightMatch(ActionMutate, NounColonist, "", PhaseInstant), 35, MoodVector{2, -8, -10}, MoodVector{1, -16, -18})
+	// Gruel fills a stomach and nothing else: the safety net is meant to be
+	// the worst way to eat, so it reads as a small, dispiriting non-event next
+	// to a real meal's lift, and wears into a mild grievance.
+	ateGruel := reaction("ate-gruel", directMatch(ActionEat, NounColonist, NounGruel, RoleActor), 10, MoodVector{0, 0, -1}, MoodVector{-1, -2, -1})
+	// Food work reads like the other chores: a little satisfying, and dull
+	// once it is routine.
+	cooked := reaction("cooked", directMatch(ActionCook, NounColonist, NounMeal, RoleActor), 15, MoodVector{-1, 5, 1}, MoodVector{-5, -2, 0})
+	scrapedScum := reaction("scraped-scum", directMatch(ActionScrape, NounColonist, NounScum, RoleActor), 12, MoodVector{-1, 4, 0}, MoodVector{-5, -3, 0})
+	fedScumhouse := reaction("fed-scumhouse", directMatch(ActionDeliver, NounColonist, NounScumhouse, RoleActor), 10, MoodVector{-1, 4, 0}, MoodVector{-4, -2, 0})
+	// Trading is a small errand; buying food you could not otherwise have is
+	// a relief with a little sting in it.
+	wentToMarket := reaction("went-to-market", directMatch(ActionTrade, NounColonist, NounGoods, RoleActor), 8, MoodVector{0, 3, 0}, MoodVector{-2, 0, 0})
+	hauled := reaction("hauled", directMatch(ActionHaul, NounColonist, NounGoods, RoleActor), 8, MoodVector{0, 2, 0}, MoodVector{-2, 0, 0})
+	boughtMeal := reaction("bought-meal", directMatch(ActionBuy, NounColonist, NounMeal, RoleActor), 12, MoodVector{2, 3, 0}, MoodVector{1, 0, 0})
 
 	for _, r := range []*ReactionSpec{
 		&finishedMining, &clearedRock, &finishedConstruction, &cleanedRefuse,
 		&incineratedRefuse, &ate, &usedToilet, &slept, &needSatisfied,
+		&ateGruel, &cooked, &scrapedScum, &fedScumhouse, &wentToMarket, &hauled,
 	} {
 		r.Memory.Collapse = map[RuleID]string{
 			"finished-mining":       "Finished mining.",
@@ -408,6 +425,12 @@ func DefaultCognitionConfig() CognitionConfig {
 			"used-toilet":           "Used the toilet.",
 			"slept":                 "Slept in a bed.",
 			"need-satisfied":        "Satisfied a need.",
+			"ate-gruel":             "Ate nutrient-pod gruel.",
+			"cooked":                "Worked the scumhouse.",
+			"scraped-scum":          "Scraped cave scum.",
+			"fed-scumhouse":         "Fed the scumhouse.",
+			"went-to-market":        "Went to market.",
+			"hauled":                "Hauled goods for hire.",
 		}[r.ID]
 	}
 	workStimulus := func(r *ReactionSpec) {
@@ -423,11 +446,13 @@ func DefaultCognitionConfig() CognitionConfig {
 	workStimulus(&incineratedRefuse)
 
 	c.Reactions = []ReactionSpec{
-		sawAlien, sawMouse, sawGore, bitten, witnessedKilled, witnessedAttacked,
-		crushedMouse, witnessedMouse, witnessedCat, killedAlien, witnessedAlien,
+		sawAlien, sawRat, sawGore, bitten, witnessedKilled, witnessedAttacked,
+		crushedRat, witnessedRat, witnessedCat, killedAlien, witnessedAlien,
 		woundedAlien, witnessedFight, conversation, ate, usedToilet, slept,
 		needSatisfied, finishedMining, clearedRock, finishedConstruction,
 		cleanedRefuse, incineratedRefuse, mutated, witnessedMutation,
+		ateGruel, cooked, scrapedScum, fedScumhouse, wentToMarket, hauled,
+		boughtMeal,
 	}
 	scaled := func(id RuleID, trait Trait, match PerceptPattern, impact, charge, grip, valence, wear int) TraitRule {
 		return TraitRule{ID: id, Trait: trait, Match: match, Impact: impact, Charge: charge, Grip: grip, Valence: valence, WearRate: wear}
@@ -435,7 +460,7 @@ func DefaultCognitionConfig() CognitionConfig {
 	c.TraitRules = []TraitRule{
 		scaled("tidy-visible-gore", TraitTidy, sawGore.Match, 100, 220, 220, 220, 100),
 		scaled("tidy-witnessed-colonist-killed", TraitTidy, witnessedKilled.Match, 100, 220, 220, 220, 100),
-		scaled("tidy-witnessed-mouse-crushed", TraitTidy, witnessedMouse.Match, 100, 220, 220, 220, 100),
+		scaled("tidy-witnessed-rat-crushed", TraitTidy, witnessedRat.Match, 100, 220, 220, 220, 100),
 		scaled("tidy-cleaned-refuse", TraitTidy, cleanedRefuse.Match, 100, 220, 220, 220, 100),
 		scaled("tidy-incinerated-refuse", TraitTidy, incineratedRefuse.Match, 100, 100, 200, 100, 100),
 		scaled("industrious-mining", TraitIndustrious, finishedMining.Match, 100, 200, 200, 200, 100),
@@ -1284,7 +1309,7 @@ arbitration:
 
 # Perception rules say who can notice an occurrence or persistent state.
 # interrupt_rest on a persistent rule opts that rule out of the rest/sleep
-# observation fast path. Shipped alien/mouse/gore rules leave it off: those
+# observation fast path. Shipped alien/rat/gore rules leave it off: those
 # already have dedicated nearby checks, so tuning their radius must not
 # wake every sleeper.
 perceptions:

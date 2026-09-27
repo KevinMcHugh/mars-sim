@@ -90,7 +90,8 @@ implement the same contract unchanged.
 
 `World.snapshot()` builds a `Snapshot`: the terrain grid, a slice of
 `EntityView` value copies (with deep-copied `Profile`s and by-value inventories),
-the event log tail, and aggregate `Stats`. Nothing in a snapshot aliases live
+the event log (a kind and a sentence per line; see
+[frontend-tui.md](./frontend-tui.md)), and aggregate `Stats`. Nothing in a snapshot aliases live
 state, so a frontend can read a frame on its own goroutine while the engine keeps
 mutating the world. Need levels are computed *as of the snapshot tick* (see
 [needs.md](./needs.md)).

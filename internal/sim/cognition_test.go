@@ -30,7 +30,7 @@ func setUpCachedSleeper(t *testing.T, w *World, c *Entity) Point {
 func assertBehaviorEqual(t *testing.T, cached, full *World, tick int) {
 	t.Helper()
 	if cached.tick != full.tick || cached.terrainCounts != full.terrainCounts ||
-		cached.kindCounts != full.kindCounts || !reflect.DeepEqual(cached.tiles, full.tiles) {
+		cached.kindCounts != full.kindCounts || !reflect.DeepEqual(denseTiles(cached), denseTiles(full)) {
 		t.Fatalf("world behavior diverged at tick %d", tick)
 	}
 	cachedIDs, fullIDs := cached.entityIDsSorted(), full.entityIDsSorted()

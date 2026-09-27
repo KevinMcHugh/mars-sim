@@ -17,19 +17,22 @@ type snapshotMsg struct{ snap *sim.Snapshot }
 type viewMode int
 
 const (
-	modeMap     viewMode = iota // the cavern map (default)
-	modeRoster                  // the colonist roster and inspector
-	modeJobs                    // the job board: queued projects and their tasks
-	modeStorage                 // placed storage containers and their contents
-	modeLore                    // world facts and the rolled alien species
-	modePerf                    // engine tick rate and tick cost over time
+	modeMap        viewMode = iota // the cavern map (default)
+	modeRoster                     // the colonist roster and inspector
+	modeJobs                       // the job board: queued projects and their tasks
+	modeStorage                    // placed storage containers and their contents
+	modeMarket                     // accounts and the colony's money supply
+	modeLore                       // world facts and the rolled alien species
+	modePopulation                 // colonists, meals, colony size and fixtures over the game
+	modeLog                        // the colony log: the full retained feed, with scrollback
+	modePerf                       // engine tick rate and tick cost over time
 )
 
 // tabLabels names the screens in tab order, matching the "tab" rotation below
 // and the strip drawn by renderTabs.
 var tabLabels = [...]string{
-	modeMap: "Map", modeRoster: "Roster", modeJobs: "Jobs", modeStorage: "Storage", modeLore: "Lore",
-	modePerf: "Perf",
+	modeMap: "Map", modeRoster: "Roster", modeJobs: "Jobs", modeStorage: "Storage", modeMarket: "Market", modeLore: "Lore",
+	modePopulation: "Population", modeLog: "Log", modePerf: "Perf",
 }
 
 // menuKind selects an open pick-one prompt, if any. Opening a menu (via `s` or
@@ -56,7 +59,7 @@ var spawnMenuItems = []menuItem{
 	{"c", "colonist"},
 	{"a", "alien"},
 	{"x", "cat"},
-	{"m", "mouse"},
+	{"m", "rat"},
 }
 
 var buildMenuItems = []menuItem{
@@ -64,6 +67,7 @@ var buildMenuItems = []menuItem{
 	{"d", "dormitory"},
 	{"t", "trash room"},
 	{"r", "storage container"},
+	{"h", "scumhouse"},
 }
 
 // filterMenuItems are the roster's toggleable filters. Unlike the spawn/build
@@ -90,11 +94,27 @@ type Model struct {
 	camReady     bool
 
 	mode            viewMode
-	selected        int      // roster: index into the ID-sorted entity list
-	jobSelected     int      // job board: index into the queued project list
-	storageSelected int      // storage details: index into Snapshot.Storages
-	loreSelected    int      // lore: index into Snapshot.AlienSpecies
-	menu            menuKind // an open spawn/build/filter picker, if any
+	selected        int // roster: index into the ID-sorted entity list
+	jobSelected     int // job board: index into the queued project list
+	storageSelected int // storage details: index into Snapshot.Storages
+	marketSelected  int // market: index into marketAccounts, as last drawn
+	// marketOwner is whose account is selected. The list re-sorts by balance
+	// every frame, so an index alone let the highlight jump to whoever moved
+	// into that row; the index is the fallback once that account is gone.
+	marketOwner  sim.Owner
+	loreSelected int      // lore: index into Snapshot.AlienSpecies
+	menu         menuKind // an open spawn/build/filter picker, if any
+
+	// logScrolled is set once the log tab has moved off the live tail.
+	// logAnchor is the entry the viewport starts on, and logAnchorRow is
+	// which wrapped line of that entry. A new snapshot rebases the anchor
+	// by however many entries the ring dropped (see logEntriesDropped).
+	// logBase is the sequence number of the oldest retained entry, so a
+	// line keeps its stripe when that drop shifts every index down by one.
+	logScrolled  bool
+	logAnchor    int
+	logAnchorRow int
+	logBase      int
 
 	// inspecting turns map arrows from camera panning into one-tile cursor
 	// movement. The cursor persists when inspection closes.
@@ -112,7 +132,7 @@ type Model struct {
 
 	// spawnCursor / buildCursor / filterCursor are each menu's highlighted
 	// option index. They persist across opens (and across submits/toggles),
-	// so e.g. spawning three mice is s, [navigate to mouse], enter, then just
+	// so e.g. spawning three rats is s, [navigate to rat], enter, then just
 	// s, enter, s, enter.
 	spawnCursor  int
 	buildCursor  int
@@ -163,6 +183,17 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.quitting = true
 			return m, tea.Quit
 		}
+		if m.latest != nil {
+			dropped := logEntriesDropped(m.latest.Log, msg.snap.Log)
+			m.logBase += dropped
+			if m.logScrolled {
+				m.logAnchor -= dropped
+				if m.logAnchor < 0 {
+					m.logAnchor = 0
+					m.logAnchorRow = 0
+				}
+			}
+		}
 		m.latest = msg.snap
 		if !m.camReady {
 			m.centerCamera()
@@ -211,9 +242,13 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.handleJobsKey(msg)
 	case modeStorage:
 		return m.handleStorageKey(msg)
+	case modeMarket:
+		return m.handleMarketKey(msg)
 	case modeLore:
 		return m.handleLoreKey(msg)
-	case modePerf:
+	case modeLog:
+		return m.handleLogKey(msg)
+	case modePerf, modePopulation:
 		if msg.String() == "esc" {
 			m.mode = modeMap
 		}
@@ -380,7 +415,7 @@ func (m Model) submitMenuItem(i int) {
 		case "x":
 			m.eng.Send(sim.Spawn{Kind: sim.Cat})
 		case "m":
-			m.eng.Send(sim.Spawn{Kind: sim.Mouse})
+			m.eng.Send(sim.Spawn{Kind: sim.Rat})
 		}
 	case menuBuild:
 		switch items[i].key {
@@ -392,6 +427,8 @@ func (m Model) submitMenuItem(i int) {
 			m.eng.Send(sim.OrderTrashRoom{})
 		case "r":
 			m.eng.Send(sim.OrderStorageRoom{})
+		case "h":
+			m.eng.Send(sim.OrderScumhouse{})
 		}
 	}
 }
@@ -633,6 +670,30 @@ func (m Model) handleStorageKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+// handleMarketKey navigates the accounts in the market tab.
+func (m Model) handleMarketKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	if msg.String() == "esc" {
+		m.mode = modeMap
+		return m, nil
+	}
+	if m.latest == nil {
+		return m, nil
+	}
+	accounts := m.marketAccounts()
+	sel := m.marketSelection(accounts)
+	switch msg.String() {
+	case "up", "k":
+		sel--
+	case "down", "j":
+		sel++
+	case "home", "g":
+		sel = 0
+	}
+	sel = clamp(sel, 0, len(accounts)-1)
+	m.marketSelected, m.marketOwner = sel, accounts[sel].owner
+	return m, nil
+}
+
 // handleLoreKey navigates the rolled alien species in the lore tab.
 func (m Model) handleLoreKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
@@ -654,6 +715,36 @@ func (m Model) clampLoreSelection(i int) int {
 		return 0
 	}
 	return clamp(i, 0, len(m.latest.AlienSpecies)-1)
+}
+
+// handleLogKey scrolls the colony log. The plain arrows move through the
+// feed — there is no list beside it — and end (or G) pins the view back to
+// the newest event.
+func (m Model) handleLogKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "esc":
+		m.mode = modeMap
+	case "up", "k", "shift+up":
+		m = m.scrollLog(-1)
+	case "down", "j", "shift+down":
+		m = m.scrollLog(1)
+	case "pgup":
+		m = m.scrollLog(-m.logPage())
+	case "pgdown":
+		m = m.scrollLog(m.logPage())
+	case "home", "g":
+		visual, feed, _ := m.logLayout()
+		if len(visual) <= feed {
+			m.logScrolled = false
+			break
+		}
+		m.logScrolled = true
+		m.logAnchor = 0
+		m.logAnchorRow = 0
+	case "end", "G":
+		m.logScrolled = false
+	}
+	return m, nil
 }
 
 func (m Model) clampStorageSelection(i int) int {

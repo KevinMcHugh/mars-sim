@@ -76,7 +76,7 @@ func TestSidebarCacheInvalidates(t *testing.T) {
 		m := cacheTestModel(120, 30)
 		_ = m.View()
 		next := busySnapshot()
-		next.Log = append(next.Log, "An alien surfaces nearby.")
+		next.Log = append(next.Log, sim.LogEntry{Text: "An alien surfaces nearby."})
 		m, _ = m.Update(snapshotMsg{snap: next})
 		if !strings.Contains(m.View(), "An alien surfaces nearby.") {
 			t.Error("sidebar did not show the new log line; cache is stale")
@@ -169,7 +169,7 @@ func TestMapDrawsAlienOnSharedTile(t *testing.T) {
 	restoreGlyphs(t, false)
 	for _, alienFirst := range []bool{true, false} {
 		snap := busySnapshot()
-		shared := snap.Entities[len(snap.Entities)-1].Pos // the mouse's tile
+		shared := snap.Entities[len(snap.Entities)-1].Pos // the rat's tile
 		alien := snap.Entities[len(snap.Entities)-3]      // the alien
 		alien.ID, alien.Pos = 999, shared
 		if alienFirst {
@@ -186,8 +186,8 @@ func TestMapDrawsAlienOnSharedTile(t *testing.T) {
 		if !strings.Contains(row, fitGlyph(glyphAlien)) {
 			t.Fatalf("alienFirst=%v: shared tile row has no alien: %q", alienFirst, row)
 		}
-		if strings.Contains(row, fitGlyph(glyphMouse)) {
-			t.Errorf("alienFirst=%v: the mouse was drawn over the alien on a shared tile", alienFirst)
+		if strings.Contains(row, fitGlyph(glyphRat)) {
+			t.Errorf("alienFirst=%v: the rat was drawn over the alien on a shared tile", alienFirst)
 		}
 	}
 }

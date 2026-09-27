@@ -18,6 +18,7 @@ implement the same consumer contract.
 - [`internal/ui/tui/render_jobboard.go`](../internal/ui/tui/render_jobboard.go) — the job board: queued projects and their tasks.
 - [`internal/ui/tui/render_storage.go`](../internal/ui/tui/render_storage.go) — placed storage containers and their contents.
 - [`internal/ui/tui/render_lore.go`](../internal/ui/tui/render_lore.go) — world facts and the rolled alien species.
+- [`internal/ui/tui/render_log.go`](../internal/ui/tui/render_log.go) — the colony log tab and the sidebar's wrapped tail.
 - [`internal/ui/tui/render_perf.go`](../internal/ui/tui/render_perf.go) — the Perf screen's braille charts (see [perf-screen.md](./perf-screen.md)).
 - [`internal/ui/tui/glyphs.go`](../internal/ui/tui/glyphs.go) — terrain and entity glyphs.
 - [`main.go`](../main.go) — `runTUI` (and `runHeadless`, the no-UI alternative).
@@ -42,9 +43,10 @@ The model never mutates or reads live world state — only snapshots (see
 
 ### Map and details panels
 
-`viewMode` cycles between the **map** (default) and five **details panels**:
-the **roster**, **job board**, **storage**, **lore**, and **perf**. `tab`
-advances map → roster → job board → storage → lore → perf → map, following
+`viewMode` cycles between the **map** (default) and eight **details panels**:
+the **roster**, **job board**, **storage**, **market**, **lore**, **population**,
+**log**, and **perf**. `tab` advances map → roster → job board → storage →
+market → lore → population → log → perf → map, following
 `tabLabels`' order; `esc` returns straight to the map
 from any details panel. Global keys (`handleKey`) work everywhere; the rest
 dispatch to the active panel's handler.
@@ -58,11 +60,14 @@ dispatch to the active panel's handler.
   [combat.md](./combat.md) and [sanitation.md](./sanitation.md). A tile the
   colony has not dug up to yet draws neither terrain nor occupant, just a
   faintly shaded blank — see [fog-of-war.md](./fog-of-war.md). A sidebar shows
-  a legend and the tail of the event log; the header shows tick, speed, pause
+  a legend and the tail of the event log. Log lines are word-wrapped to the
+  panel rather than cut with an ellipsis — a cut line reads as a finished
+  sentence — and each event keeps one stripe so a wrap stays visually one
+  entry (see The colony log). The header shows tick, speed, pause
   state, and `Stats` counts, including built dormitory beds, incinerators, and
   refuse still on the floor.
 - **Roster** (`renderRoster`): a scrolling, ID-sorted entity list — living
-  colonists by default, plus aliens/cats/mice and/or graveyard entries once
+  colonists by default, plus aliens/cats/rats and/or graveyard entries once
   the filter menu (`f`) turns those on — with each row's name, pronouns (or
   kind, for anything without a `Profile`), and current status (or cause of
   death). The detail pane for the selection is the full colonist inspector —
@@ -85,18 +90,29 @@ dispatch to the active panel's handler.
   screen is unrelated to the engine's internal `jobBoard`, which tracks the
   mining frontier — see `internal/sim/jobboard.go`.)
 - **Storage** (`renderStorage`): a position-sorted list of built chests with
-  arrow navigation. Its detail pane shows the selected chest's occupied slots,
-  total item count, and 48-slot capacity.
+  arrow navigation. A kitchen's pantry is labelled "pantry" (see
+  [scumhouse.md](./scumhouse.md)). Its detail pane shows the selected chest's
+  occupied slots, total item count, and 48-slot capacity.
 - **Lore** (`renderLore`): world facts the list panel above a species roster
   — map size, how much of it has been explored (`Stats.ExploredTiles`, kept
   incrementally the same way `Stats.FloorDug` is — see
-  [world.md](./world.md)) or "fog off" if there's no fog to track, and the
-  seed (`Snapshot.Seed`). Arrow navigation selects one of `Snapshot.AlienSpecies`
+  [world.md](./world.md)) or "fog off" if there's no fog to track, how many
+  worldgen chunks have been generated (see
+  [worldgen-chunks.md](./worldgen-chunks.md)), and the seed
+  (`Snapshot.Seed`). Arrow navigation selects one of `Snapshot.AlienSpecies`
   — every kind of alien this seed rolled — and the detail pane lists its full
   build (height/weight range, eyes, limb split, tail, skin, color, bite
   damage/pace) as scannable stat lines, plus `AlienSpecies.Description()`'s
   narrative paragraph, word-wrapped (`wrapWords`) to the panel width. See
   [lore.md](./lore.md).
+- **Population** (`renderPopulation`): four braille line charts of the
+  colony over the whole game — colonists, meals in storage, colony size,
+  fixtures — from `Snapshot.Population`. See
+  [population-screen.md](./population-screen.md).
+- **Log** (`renderLog`): the retained colony log in full, as a live feed with
+  a type column (`death`, `build start`, `build complete`, …). The view
+  stays pinned to the newest event until the reader scrolls up; `end` (or
+  scrolling back to the tail) resumes following. See The colony log.
 - **Perf** (`renderPerf`): two gping-style braille line charts over time —
   ticks per second actually achieved, and milliseconds each tick costs — from
   the engine's `Snapshot.Perf` timing history. See
@@ -151,6 +167,53 @@ height to each, which quietly ate their last row and bottom border —
 `TestListScreensFillTerminalHeight` pins the fix, and it is the row the
 position line lives on.
 
+### The colony log
+
+The map sidebar only has room for the tail, and it used to cut each line with
+an ellipsis once it passed the panel. A cut line looks finished — "grew a
+tail and…" reads as the whole event — so both the sidebar and the log tab
+word-wrap (`wrapLogEntry`, on top of `wrapWords`) and never mark a line
+short. A word wider than the panel is hard-cut with no ellipsis, because an
+over-wide line shears the frame.
+
+Each entry carries a `LogKind` (`internal/sim/log.go`) as well as the
+sentence, and the log tab draws it as a type column: `death`, `build start`,
+`build complete`, and the rest (`combat`, `arrival`, `mutation`, `haul`,
+`burn`, `mate`, `birth`, `escape`, `cavern`, `nest`, and `note` for a line
+with nothing more specific). The column is the width of the longest label,
+so the sentences start in the same place, under a dim `type` / `event` header. A wrapped sentence leaves the
+column blank on the following rows and indents under the text — repeating
+the type would make one event look like several. The sidebar does not draw
+the column; thirty cells is not enough for a label and a sentence. A log
+panel that narrow drops it too, for the same reason. A new log line is a
+`log.add(kind, text)` at the point the event happens, and a new kind is a
+`LogKind` constant plus a `String` label no wider than `logKindColumn`.
+
+Entries alternate between two close shades (`logBandStyle`), and the stripe
+is per entry, not per visual row. Striping each row would split a wrapped
+event across both shades, which is the opposite of making the entries easy
+to tell apart. The odd band is a faint background, padded out to the panel
+width so the wrap reads as one bar.
+
+The shade has to survive the ring buffer. Coloring by index in the current
+slice flips every band when the oldest line drops off and every index shifts
+down by one. `Model.logBase` is the sequence number of the oldest retained
+entry; each snapshot adds however many entries fell off the front, and a
+line's stripe is `(logBase + index) % 2`. The snapshot does not report the
+drop, so `logEntriesDropped` finds it: the log only appends and trims the
+front, and some suffix of the previous slice is a prefix of the next one.
+
+The tab opens on the live tail. Scrolling up parks the view (`logScrolled`)
+on an entry plus a wrap row, not on a distance from the bottom — a distance
+from the bottom moves when a new line arrives, which yanks a reader who had
+scrolled away. New events extend past the window. `end` or scrolling onto
+the tail resumes following, so the next event keeps the view there instead
+of leaving it one line behind. When the ring drops lines, the anchor is
+rebased by the same drop count; an anchor that falls off the front lands on
+the oldest line still retained. The sidebar's stripe uses the same phase,
+and the memoized sidebar treats it as its own input, because a ring can
+rotate onto a slice that compares equal.
+
 ### Spawn and build menus
 
 `s` and `b` each open a picker (`menuKind` in `model.go`, options listed in
@@ -164,8 +227,8 @@ key is ignored so the prompt stays open until answered.
 Each menu remembers its own highlighted option (`spawnCursor`/`buildCursor` on
 `Model`) across opens *and* across submits — moving the highlight and
 submitting both update it — so repeating the same choice is just
-reopen-and-confirm: `s` → navigate to mouse → `enter` once, then `s` → `enter`,
-`s` → `enter` for two more mice, with no renavigating. While a menu is open its
+reopen-and-confirm: `s` → navigate to rat → `enter` once, then `s` → `enter`,
+`s` → `enter` for two more rats, with no renavigating. While a menu is open its
 prompt (current options, with the highlighted one bracketed) takes over the
 footer (styled distinctly via `menuStyle`) on whichever screen it was opened
 from. This keeps the top-level key surface small as more spawnable/buildable
@@ -182,10 +245,20 @@ fog, since naming the rock there would hand back the map the fog is hiding. For 
 and `enter` jumps directly to that container in the storage details panel.
 `i` or `esc` closes inspection without quitting.
 
-`tab` cycles **map → roster → jobs → storage → lore → perf → map**. Roster,
-jobs, storage, lore, and perf are collectively the details panels. In storage,
-`up`/`down` or `j`/`k` selects a chest from the position-sorted snapshot
-list; the inspector shows its occupied slots and total capacity. In lore,
+`tab` cycles **map → roster → jobs → storage → market → lore → population → log → perf → map**.
+Roster, jobs, storage, market, lore, population, log, and perf are collectively the details panels. In storage,
+`up`/`down` or `j`/`k` selects a container from the position-sorted snapshot
+list — a shared chest, or someone's crash-pod locker, labelled by owner — and
+the inspector shows its occupied slots, total capacity, and whose the contents
+are. In market
+(`render_market.go`), the same keys select an account — the colony's treasury
+first, then living colonists richest first — and the inspector shows its
+balance, holdings, and open orders beside the money supply from
+`Snapshot.Economy` (see [money.md](./money.md)). The treasury's page is the
+market's: every order book, each good's price, the open production plans, and
+the latest trades (see [market.md](./market.md) and
+[valuation.md](./valuation.md)); a colonist's page shows its own plan. The
+money supply sits above those lists, which the panel may cut short. In lore,
 the same keys select a rolled alien species from `Snapshot.AlienSpecies`;
 the inspector shows its full build and a narrative description.
 
@@ -195,13 +268,14 @@ the inspector shows its full build and a narrative description.
 | --- | --- |
 | `space` | pause / resume (`TogglePause`) |
 | `+` / `-` | faster / slower (`SetTicksPerSecond`, ±2) |
-| `s` | open the spawn menu — `↑↓`/`enter` to pick, or `c`/`a`/`x`/`m` for colonist/alien/cat/mouse directly (`Spawn`) |
-| `b` | open the build menu — `↑↓`/`enter` to pick, or `f`/`d`/`t`/`r` for facility room/dormitory/trash room/storage container directly |
+| `s` | open the spawn menu — `↑↓`/`enter` to pick, or `c`/`a`/`x`/`m` for colonist/alien/cat/rat directly (`Spawn`) |
+| `b` | open the build menu — `↑↓`/`enter` to pick, or `f`/`d`/`t`/`r`/`h` for facility room/dormitory/trash room/storage container/scumhouse directly |
 | `i` (map only) | enter map inspection; arrows/`hjkl` move the cursor, `enter` opens a storage chest's details, and `i`/`esc` closes |
 | `f` (roster only) | open the roster's filter menu — `↑↓`/`enter`/`space` to toggle the highlighted checkbox, or `d`/`n` for dead/non-human directly; no command sent, this only changes what the roster shows |
-| arrows or `hjkl` | pan the camera (map) / move selection (roster, job board) |
-| `shift+↑↓`, `pgup`/`pgdn` (roster only) | scroll the selected colonist's inspector a line / a screenful |
-| `tab` | cycle map → roster → job board → storage → lore → perf → map |
+| arrows or `hjkl` | pan the camera (map) / move selection (roster, job board, storage, market, lore) / scroll the log |
+| `shift+↑↓`, `pgup`/`pgdn` | scroll the roster inspector, or the log, a line / a screenful |
+| `home` / `end` (log) | jump to the oldest retained event / back to the live tail |
+| `tab` | cycle map → roster → job board → storage → market → lore → population → log → perf → map |
 | `q` / `esc` | quit (`esc` returns to the map from any details panel, or cancels an open menu) |
 
 `s` and `b` work from every screen; `f` only does anything on the roster
@@ -220,11 +294,11 @@ both in one visit is the normal case. `Model.showDead`/`showNonHuman` hold
 the two filters (both default off, so the roster's out-of-the-box view is
 unchanged); `rosterEntries()` (`render_roster.go`) is what every roster
 render calls instead of walking `Snapshot.Entities` directly — colonists are
-always eligible, `showNonHuman` admits aliens/cats/mice, and `showDead`
+always eligible, `showNonHuman` admits aliens/cats/rats, and `showDead`
 additionally merges in every dead colonist from `Snapshot.Deceased` (the
 permanent, by-ID archive — see docs/combat.md) plus any non-colonist entries
 from `Snapshot.Graveyard` (bounded, subject to the same kind filter, so a
-dead mouse needs both filters on); a colonist's own `Graveyard` entry, if
+dead rat needs both filters on); a colonist's own `Graveyard` entry, if
 any, is skipped there so one death is never listed twice. `colonistNames()`
 merges `Deceased` in too, so a living colonist's FAMILY section can name a
 dead relative instead of leaving their slot blank. The title above the list
@@ -277,8 +351,9 @@ without dropping the guarantee it provided:
 - **`clampFrame`.** Reuses widths of lines unchanged since the previous frame.
 - **Sidebar.** Memoized: lipgloss's border, padding and wrapping dominate its
   cost, and it only changes with the event log, the panel height, the glyph
-  set, or whether fog of war is on — which adds a legend row
-  (`TestSidebarCacheInvalidates`).
+  set, whether fog of war is on — which adds a legend row — or the log
+  stripe phase (`TestSidebarCacheInvalidates`). The phase is its own input
+  because the ring can rotate onto a slice of text that compares equal.
 - **Fog runs.** Unexplored tiles are emitted as one styled run per stretch
   rather than one per tile. Early on most of the screen is fog, and a pair of
   escape sequences per tile would put tens of kilobytes of ANSI on every frame

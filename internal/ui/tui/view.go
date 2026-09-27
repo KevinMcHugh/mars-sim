@@ -59,7 +59,6 @@ var (
 			Border(lipgloss.RoundedBorder()).
 			BorderForeground(lipgloss.Color("240")).
 			Padding(0, 1)
-	logStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("248"))
 )
 
 // splitPanels divides the terminal between a list panel and a detail panel,
@@ -141,8 +140,14 @@ func (m Model) renderFrame() string {
 		frame = m.renderJobs()
 	case modeStorage:
 		frame = m.renderStorage()
+	case modeMarket:
+		frame = m.renderMarket()
 	case modeLore:
 		frame = m.renderLore()
+	case modePopulation:
+		frame = m.renderPopulation()
+	case modeLog:
+		frame = m.renderLog()
 	case modePerf:
 		frame = m.renderPerf()
 	default:
@@ -201,7 +206,7 @@ func (m Model) renderHeader() string {
 		fmt.Sprintf("%s %d", fitGlyph(glyphColonist), s.Stats.Colonists),
 		fmt.Sprintf("%s %d", fitGlyph(glyphAlien), s.Stats.Aliens),
 		fmt.Sprintf("%s %d", fitGlyph(glyphCat), s.Stats.Cats),
-		fmt.Sprintf("%s %d", fitGlyph(glyphMouse), s.Stats.Mice),
+		fmt.Sprintf("%s %d", fitGlyph(glyphRat), s.Stats.Rats),
 		fmt.Sprintf("%s %d", fitGlyph(glyphPod), s.Stats.Pods),
 		fmt.Sprintf("%s %d", fitGlyph(glyphToilet), s.Stats.Toilets),
 		fmt.Sprintf("%s %d", fitGlyph(glyphBed), s.Stats.Beds),
@@ -294,7 +299,13 @@ func (m Model) renderMap() string {
 				// in an undiscovered cave is exactly what the fog is
 				// there to hide, and drawing it over a blank tile would look
 				// like a bug besides.
-				drawn = tileGlyph(m.latest.TileAt(p))
+				tile := m.latest.TileAt(p)
+				drawn = tileGlyph(tile)
+				// Scum shows under refuse, like terrain: a body on a patch
+				// is still the thing to see there.
+				if tile.Corpses == 0 && tile.Gore == 0 && m.latest.ScumAt(p) > 0 {
+					drawn = fitGlyph(glyphScum)
+				}
 				if o, ok := occ[p]; ok {
 					drawn = o.glyph
 				}
@@ -371,7 +382,7 @@ func joinColumns(left string, leftWidth int, right string, rightWidth int) strin
 
 func (m Model) renderSidebar() string {
 	_, rows := m.viewportTiles()
-	return m.cache.sidebar(rows, m.latest.Log, usingASCIIGlyphs(), m.latest.FogOfWar, func() string {
+	return m.cache.sidebar(rows, m.latest.Log, usingASCIIGlyphs(), m.latest.FogOfWar, m.logBase, func() string {
 		return m.drawSidebar(rows)
 	})
 }
@@ -399,7 +410,7 @@ func (m Model) drawSidebar(rows int) string {
 	g := func(symbol, label string) entry { return entry{fitGlyph(symbol), label} }
 	legendRows := [][2]entry{
 		{g(glyphColonist, "colonist"), g(glyphAlien, "alien")},
-		{g(glyphCat, "cat"), g(glyphMouse, "mouse")},
+		{g(glyphCat, "cat"), g(glyphRat, "rat")},
 		{g(glyphFleeing, "fleeing"), g(glyphTalking, "talking")},
 		{g(glyphPod, "food pod"), g(glyphToilet, "toilet")},
 		{g(glyphBed, "bunk"), g(glyphWall, "wall")},
@@ -408,6 +419,8 @@ func (m Model) drawSidebar(rows int) string {
 		{g(glyphRock, "rock"), g(glyphIronRock, "iron rock")},
 		{g(glyphIceRock, "ice rock"), g(glyphClayRock, "clay rock")},
 		{g(glyphUranium, "uranium"), g(glyphFloor, "open")},
+		{g(glyphScumhouse, "scumhouse"), g(glyphScum, "cave scum")},
+		{g(glyphHull, "pod hull"), {}},
 	}
 	if m.latest.FogOfWar {
 		legendRows = append(legendRows, [2]entry{{fogCells(1), "unexplored"}, {}})
@@ -423,21 +436,15 @@ func (m Model) drawSidebar(rows int) string {
 	lines = append(lines, "", "LOG")
 	legend := strings.Join(lines, "\n")
 
-	// Fill the rest of the panel height with the most recent log lines.
-	logLines := m.latest.Log
-	room := rows - len(lines) - 2
+	// Fill the rest of the panel with as many recent events as fit. Each one
+	// is wrapped to the panel: an ellipsis reads as the end of the sentence,
+	// and the log tab is where the rest of a long event is read, not where
+	// the sidebar pretends a cut line was the whole of it.
+	room := rows - len(lines) - borderCells
 	if room < 1 {
 		room = 1
 	}
-	if len(logLines) > room {
-		logLines = logLines[len(logLines)-room:]
-	}
-	wrapped := make([]string, 0, len(logLines))
-	for _, l := range logLines {
-		wrapped = append(wrapped, logStyle.Render(cells.Truncate(l, inner)))
-	}
-
-	content := legend + "\n" + strings.Join(wrapped, "\n")
+	content := legend + "\n" + strings.Join(m.sidebarLogLines(m.latest.Log, inner, room), "\n")
 	return sidebarStyle.Width(sidebarWidth - borderCells).Height(rows - borderCells).Render(content)
 }
 

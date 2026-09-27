@@ -21,7 +21,7 @@ name becomes both its command-line flag and its key in the committed
 
 `Config` groups its fields by concern: world shape and rock composition, seed,
 starting population and equipment, timing, colonist stats, needs, personality,
-the mining-strategy switch, and per-creature stats for aliens, cats, mice, and
+the mining-strategy switch, and per-creature stats for aliens, cats, rats, and
 weapons. Zero values are not meaningful — always start from `DefaultConfig()`
 and adjust.
 
@@ -47,7 +47,7 @@ untagged too — a need's identity and its plumbing are not balance.
 `validateConfig` rejects settings that would break world generation or the
 renderer (too-small world, negative populations, rock composition percentages
 whose sum exceeds 100, an invalid rock-vein or cavern size range, out-of-range
-cavern percentages, sub-1 rates) with a
+cavern percentages, a `worldgen-halo` below 1, sub-1 rates) with a
 message a player can act on, before the engine is built.
 
 `tickInterval` converts `TicksPerSecond` into a sleep duration. Rates below 1
@@ -89,18 +89,18 @@ indexed by `FocusKind`. Those fields are a copy of `cognition.yaml`'s
 in `cognition.yaml`; the mirrored `focuses.work.base` / `-focus-work-base`
 keys exist so existing files still parse, then get overwritten. See
 [`cascading_wsts_architecture.md`](./cascading_wsts_architecture.md) and
-[cognition-config-and-lab.md](./cognition-config-and-lab.md).
+[compositional-perception-and-events.md](./compositional-perception-and-events.md).
 
 Perception radii (`flee-radius`, `stomp-radius`, `gore-sight-radius`),
 `mood-wear-per-occasion`, and `mood-friend-affinity` stay in `Config` because
 they are simulation distances or pacing knobs. Reaction vectors, perception
 rules, and trait appraisal are the other file — see
-[cognition-config-and-lab.md](./cognition-config-and-lab.md).
+[compositional-perception-and-events.md](./compositional-perception-and-events.md).
 
 ## Related
 
 - [config-file.md](./config-file.md) — the committed `mars-sim.yaml` layer and the tags behind it.
-- [cognition-config-and-lab.md](./cognition-config-and-lab.md) — `cognition.yaml`, which is not a `cfg` tag.
+- [compositional-perception-and-events.md](./compositional-perception-and-events.md) — `cognition.yaml`, which is not a `cfg` tag.
 - [architecture.md](./architecture.md) — how the config seeds the engine.
 - [needs.md](./needs.md) — the `NeedSpec` table inside `Config`.
 - [entities-and-ai.md](./entities-and-ai.md) — the creature stats these fields tune.

@@ -1,7 +1,6 @@
 package sim
 
 import (
-	"math/rand"
 	"testing"
 )
 
@@ -15,7 +14,7 @@ func heredityWorld() *World {
 	cfg.AppearanceInheritChance = 100
 	cfg.SpouseSurnameChance = 100
 	cfg.FamilyAffinitySpread = 0
-	return newWorld(cfg, rand.New(rand.NewSource(1)))
+	return newWorld(cfg, newPCG(1))
 }
 
 // colonistAged spawns a colonist of a given age at a free tile.
@@ -308,7 +307,7 @@ func TestColonistNamesAreIndexedAndFreed(t *testing.T) {
 func TestGeneratedColonyFamilies(t *testing.T) {
 	cfg := DefaultConfig()
 	cfg.Seed, cfg.StartColonists = 7, 24
-	cfg.StartAliens, cfg.StartMice, cfg.StartCats = 0, 0, 0
+	cfg.StartAliens, cfg.StartRats, cfg.StartCats = 0, 0, 0
 	w := NewEngine(cfg).world
 
 	children := w.kinChildren()
@@ -355,7 +354,7 @@ func TestHeredityDeterministic(t *testing.T) {
 	colony := func() []string {
 		cfg := DefaultConfig()
 		cfg.Seed, cfg.StartColonists = 99, 20
-		cfg.StartAliens, cfg.StartMice, cfg.StartCats = 0, 0, 0
+		cfg.StartAliens, cfg.StartRats, cfg.StartCats = 0, 0, 0
 		w := NewEngine(cfg).world
 		var out []string
 		for _, id := range w.entityIDsSorted() {

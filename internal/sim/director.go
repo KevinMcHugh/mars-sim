@@ -2,7 +2,7 @@ package sim
 
 import (
 	"fmt"
-	"math/rand"
+	"math/rand/v2"
 	"sort"
 
 	"gopkg.in/yaml.v3"
@@ -18,19 +18,22 @@ const DirectorFileName = "director.yaml"
 type OccurrenceKind uint8
 
 const (
-	OccMousePlague OccurrenceKind = iota
+	OccRatPlague OccurrenceKind = iota
 	OccAlienSwarm
 	OccSupplyDrop
+	OccArrival
 )
 
 func (k OccurrenceKind) String() string {
 	switch k {
-	case OccMousePlague:
-		return "mouse-plague"
+	case OccRatPlague:
+		return "rat-plague"
 	case OccAlienSwarm:
 		return "alien-swarm"
 	case OccSupplyDrop:
 		return "supply-drop"
+	case OccArrival:
+		return "arrival"
 	default:
 		return "unknown"
 	}
@@ -38,12 +41,14 @@ func (k OccurrenceKind) String() string {
 
 func parseOccurrenceKind(s string) (OccurrenceKind, bool) {
 	switch s {
-	case "mouse-plague":
-		return OccMousePlague, true
+	case "rat-plague", "mouse-plague": // mice became rats; old schedule files still load
+		return OccRatPlague, true
 	case "alien-swarm":
 		return OccAlienSwarm, true
 	case "supply-drop":
 		return OccSupplyDrop, true
+	case "arrival":
+		return OccArrival, true
 	default:
 		return 0, false
 	}
@@ -55,7 +60,7 @@ func parseOccurrenceKind(s string) (OccurrenceKind, bool) {
 // drop — the rest sit at zero.
 type DirectorOccurrence struct {
 	Kind     OccurrenceKind
-	Count    int // OccMousePlague: mice spawned. OccAlienSwarm: aliens spawned.
+	Count    int // OccRatPlague: rats spawned. OccAlienSwarm: aliens spawned. OccArrival: colonists.
 	Pistols  int // OccSupplyDrop only.
 	Shotguns int // OccSupplyDrop only.
 }
@@ -96,10 +101,10 @@ func resolveSchedules(schedules []Schedule, rng *rand.Rand) []scheduledEvent {
 	}
 	events := make([]scheduledEvent, len(schedules))
 	for i, s := range schedules {
-		occ := s.Occurrences[rng.Intn(len(s.Occurrences))]
+		occ := s.Occurrences[rng.IntN(len(s.Occurrences))]
 		tick := s.EarliestTick
 		if span := s.LatestTick - s.EarliestTick; span > 0 {
-			tick += rng.Intn(span + 1)
+			tick += rng.IntN(span + 1)
 		}
 		events[i] = scheduledEvent{Tick: tick, Name: s.Name, Occurrence: occ}
 	}
@@ -118,28 +123,30 @@ func (w *World) runDirector() {
 
 func (w *World) fireOccurrence(ev scheduledEvent) {
 	switch ev.Occurrence.Kind {
-	case OccMousePlague:
-		w.fireMousePlague(ev)
+	case OccRatPlague:
+		w.fireRatPlague(ev)
 	case OccAlienSwarm:
 		w.fireAlienSwarm(ev)
 	case OccSupplyDrop:
 		w.fireSupplyDrop(ev)
+	case OccArrival:
+		w.fireArrival(ev)
 	}
 }
 
-// fireMousePlague drops a wave of mice onto open floor, the same way starting
-// mice are placed in generate().
-func (w *World) fireMousePlague(ev scheduledEvent) {
+// fireRatPlague drops a wave of rats onto open floor, the same way starting
+// rats are placed in generate().
+func (w *World) fireRatPlague(ev scheduledEvent) {
 	spawned := 0
 	for i := 0; i < ev.Occurrence.Count; i++ {
 		p, ok := w.randomFloor()
 		if !ok {
 			break // the colony has no open floor left; stop rather than loop forever
 		}
-		w.spawn(Mouse, p)
+		w.spawn(Rat, p)
 		spawned++
 	}
-	w.log.add(fmt.Sprintf("%s: a plague of mice pours into the colony (%d mice).", ev.Name, spawned))
+	w.log.add(LogArrival, fmt.Sprintf("%s: a plague of rats pours into the colony (%d rats).", ev.Name, spawned))
 }
 
 // fireAlienSwarm drops a wave of aliens into the rock around the colony, the
@@ -167,13 +174,26 @@ func (w *World) fireAlienSwarm(ev scheduledEvent) {
 	if first != nil {
 		noun = w.alienPluralFor(first)
 	}
-	w.log.add(fmt.Sprintf("%s: a swarm of %s stirs below (%d).", ev.Name, noun, spawned))
+	w.log.add(LogArrival, fmt.Sprintf("%s: a swarm of %s stirs below (%d).", ev.Name, noun, spawned))
 }
 
-// fireSupplyDrop hands out weapons to living colonists, the same way the
-// colony ship's starting firearms are issued in equipColonyShip: spread
-// across distinct colonists rather than piled onto one, drawn in random
-// order so who gets armed is not predictable from ID. A colonist with no
+// fireArrival brings a wave of new colonists down in crash pods, each through
+// arrive — the same way the founders landed. See docs/crash-pods.md.
+func (w *World) fireArrival(ev scheduledEvent) {
+	landed := 0
+	for i := 0; i < ev.Occurrence.Count; i++ {
+		if w.arrive(false) == nil {
+			break
+		}
+		landed++
+	}
+	w.log.add(LogArrival, fmt.Sprintf("%s: %d crash pods streak down toward the colony.", ev.Name, landed))
+}
+
+// fireSupplyDrop hands out weapons to living colonists: spread across
+// distinct colonists rather than piled onto one, drawn in random order so who
+// gets armed is not predictable from ID. What each receives is its own, like
+// anything a colonist carries (see docs/property.md). A colonist with no
 // room in their inventory is simply skipped; any weapon that cannot be
 // placed is lost rather than left to accumulate somewhere with no holder.
 func (w *World) fireSupplyDrop(ev scheduledEvent) {
@@ -192,7 +212,7 @@ func (w *World) fireSupplyDrop(ev scheduledEvent) {
 	}
 	shotguns := issue(Shotgun, ev.Occurrence.Shotguns)
 	pistols := issue(Pistol, ev.Occurrence.Pistols)
-	w.log.add(fmt.Sprintf("%s: a supply drop lands (%d shotguns, %d pistols).", ev.Name, shotguns, pistols))
+	w.log.add(LogArrival, fmt.Sprintf("%s: a supply drop lands (%d shotguns, %d pistols).", ev.Name, shotguns, pistols))
 }
 
 // livingColonistsShuffled returns every living colonist in random order. IDs
@@ -275,10 +295,10 @@ func (rs rawSchedule) toSchedule() (Schedule, error) {
 	for i, ro := range rs.Occurrences {
 		kind, ok := parseOccurrenceKind(ro.Kind)
 		if !ok {
-			return Schedule{}, fmt.Errorf("occurrence %d: unknown kind %q (want mouse-plague, alien-swarm or supply-drop)", i, ro.Kind)
+			return Schedule{}, fmt.Errorf("occurrence %d: unknown kind %q (want rat-plague, alien-swarm, supply-drop or arrival)", i, ro.Kind)
 		}
 		switch kind {
-		case OccMousePlague, OccAlienSwarm:
+		case OccRatPlague, OccAlienSwarm, OccArrival:
 			if ro.Count < 1 {
 				return Schedule{}, fmt.Errorf("occurrence %d: %s needs count >= 1 (got %d)", i, kind, ro.Count)
 			}

@@ -115,9 +115,7 @@ func (w *World) expireStimuli(e *Entity) bool {
 }
 
 func (w *World) addStimulusBias(e *Entity, s Stimulus, scale int) {
-	for f, contribution := range w.stimulusContributions(s.Rule) {
-		e.stimulusFocusBias[f] += scale * contribution * s.Salience / 100
-	}
+	accumulateStimulusBias(&e.stimulusFocusBias, w.stimulusContributions(s.Rule), scale*s.Salience)
 }
 
 func (w *World) refreshNextStimulusExpiry(e *Entity) {
@@ -151,9 +149,7 @@ func (w *World) refreshStimulusCache(e *Entity) {
 		if e.nextStimulusExpiry == 0 || s.ExpiresAt < e.nextStimulusExpiry {
 			e.nextStimulusExpiry = s.ExpiresAt
 		}
-		for f, contribution := range w.stimulusContributions(s.Rule) {
-			e.stimulusFocusBias[f] += contribution * s.Salience / 100
-		}
+		accumulateStimulusBias(&e.stimulusFocusBias, w.stimulusContributions(s.Rule), s.Salience)
 	}
 }
 
@@ -166,9 +162,16 @@ func (w *World) stimulusBiases(e *Entity, out *[numFocusKinds]int) {
 		if s.ExpiresAt <= w.tick {
 			continue
 		}
-		for f, contribution := range w.stimulusContributions(s.Rule) {
-			out[f] += contribution * s.Salience / 100
-		}
+		accumulateStimulusBias(out, w.stimulusContributions(s.Rule), s.Salience)
+	}
+}
+
+// accumulateStimulusBias adds one stimulus to a focus-score cache. Salience is
+// already scaled: production passes salience, or salience times -1/+1 when a
+// slot is replaced. The divisor is the salience-100 convention.
+func accumulateStimulusBias(out *[numFocusKinds]int, contrib [numFocusKinds]int, salience int) {
+	for f, contribution := range contrib {
+		out[f] += contribution * salience / 100
 	}
 }
 

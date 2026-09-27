@@ -114,9 +114,9 @@ need new expectations.
 The roster is rolled in `newWorld`, not `generate()` — a handful of tests
 build a `World` with `newWorld` directly and still spawn and fight `Alien`
 entities against it, and those need a valid roster too. It draws from a
-dedicated stream, `rand.New(rand.NewSource(cfg.Seed ^ alienLoreSeed))`, the
-same pattern `growRockVeins`' `compositionRNG` uses in `worldgen.go` and for
-the same two reasons:
+dedicated stream, `newRand(cfg.Seed ^ alienLoreSeed)`, the
+same pattern worldgen's own streams use (see
+[worldgen-chunks.md](./worldgen-chunks.md)) and for the same two reasons:
 
 - Not `World.prng` (the personality stream): a species' size and temperament
   are not flavor — they set actual bite damage and combat behavior — so they
@@ -311,7 +311,9 @@ actually reads all of this. Its list panel shows world facts —
 `Snapshot.Width`/`Height`, `Snapshot.Seed`, and how much of the map has
 been explored (`Stats.ExploredTiles`, kept incrementally the same way
 `Stats.FloorDug` already is, out of `World.reveal` — see
-[fog-of-war.md](./fog-of-war.md) and [world.md](./world.md)) — above a
+[fog-of-war.md](./fog-of-war.md) and [world.md](./world.md)), and how many
+worldgen chunks exist so far (`Stats.ChunksGenerated` of `Stats.Chunks`, see
+[worldgen-chunks.md](./worldgen-chunks.md)) — above a
 selectable list of `Snapshot.AlienSpecies`, each shown by `RosterLabel()`.
 The detail panel lists the selected species' full build as explicit stat
 lines (height/weight range, eyes, limb split, tail, skin, color, bite
@@ -472,7 +474,7 @@ word-wrapped to the panel width.
 - **Wiring `Kind.String()`/`observeNearby`'s sighting text to a species**
   would need a `*World` (or the resolved noun) threaded through, since
   `Kind.String()` today is a plain enum method and `observeNearby`'s "Saw %s
-  #%d." line is shared with mice. Worth doing once there's a second
+  #%d." line is shared with rats. Worth doing once there's a second
   world-scoped creature name to generalize the pattern for.
 - **A precise per-species breakdown for a mixed alien-swarm occurrence**,
   instead of `fireAlienSwarm`'s current one-name-for-the-whole-spawn

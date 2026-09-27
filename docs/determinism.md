@@ -22,6 +22,10 @@ two runs differ while the random numbers are identical.
 
 - `internal/sim/sim_test.go` — `TestDeterministicRunAgreesEveryTick`, the
   lockstep regression test, and `worldFingerprint`.
+- `internal/sim/golden_test.go` — `TestGoldenWorldHash`, pinned hashes of
+  what fixed seeds produce.
+- `tools/determinism-check.sh` — runs the golden hashes natively, under amd64
+  (Rosetta) and under js/wasm in Node.
 - `internal/sim/rooms.go` — `refreshSpatial` sorts the dirty-chunk list.
 - `internal/sim/hpa.go` — `sortedLinks` orders abstract-graph expansion.
 - `internal/sim/facilitychoice.go` — `chooseFacility`, the nearest-facility
@@ -55,7 +59,12 @@ nothing next to the work the loop then does.
 together, and compares a fingerprint after every tick. It fails on the first tick
 that disagrees and names the first field that moved, checked in a fixed order:
 
-    tiles → regions → rooms → frontier → cleaning → entities
+    tiles → regions → rooms → frontier → cleaning → property → entities
+
+`property` is the economy's state: the treasury and every wallet, each
+fixture's owner and access, and every storage ledger line (see
+[money.md](./money.md) and [property.md](./property.md)). Who got paid and
+whose ore is in a chest must be as seed-stable as where anyone stands.
 
 The order is the point. A determinism bug shows up in the *entities* field
 eventually — a colonist standing somewhere else — but by then it is hundreds of
@@ -65,6 +74,52 @@ ticks downstream of the cause. Seeing `field "regions"` at tick 7 instead says
 The grid layers are FNV-hashed rather than rendered; at one entry per tile per
 tick, formatting them dominated the test's runtime, and the field name is the
 whole diagnosis anyway.
+
+### Golden hashes and other machines
+
+The lockstep test compares two runs in one process, so it can never see a
+seed that plays out differently on another machine: both runs share the CPU,
+the compiler and the Go version. `TestGoldenWorldHash` compares against
+constants instead. Each case pins a hash of the generated world at tick 0 and
+again some ticks later: every tile's terrain, composition and discovery; every
+entity's kind, position, HP, state and species, in ID order; refuse totals; and
+the simulation stream's PCG state. The RNG state is the catch-all: a draw
+added, lost or reordered anywhere moves it before anything visible diverges.
+Needs, affect, inventories and projects are not hashed directly; they reach
+the hash through the draws and positions they cause.
+
+`tools/determinism-check.sh` runs it three ways: natively, as amd64 under
+Rosetta on Apple silicon, and as js/wasm under Node, which is the browser
+target. The usual ways a Go simulation drifts between machines are:
+
+- **Fused multiply-add.** The Go spec lets an implementation fuse `x*y + z`
+  into one FMA, which rounds once instead of twice. gc does this on arm64,
+  ppc64, s390x, riscv64 and loong64, and on amd64 when built with
+  `GOAMD64=v3` or higher; the default amd64 (v1) and wasm do not. Float
+  arithmetic that feeds a decision can therefore round differently on a Mac
+  and a PC. Keep gameplay geometry in integers, or force the rounding with an
+  explicit conversion, `float64(x*y) + z`.
+- **Map order**, above.
+- **`int` size.** `int` is 64 bits on every target we build (wasm included),
+  but hash and seed code should still use explicit `uint64`.
+
+On a Linux amd64 machine (typical CI) the script can only run amd64 and
+wasm, neither of which fuses, so it has to run on an arm64 host (any Apple
+silicon Mac) to cover FMA.
+
+The `lazy-1000x1010` case runs a big map with a halo of 1 and must generate
+chunks after tick 0, so it covers generation during play. Every hash includes
+the set of generated chunks: which chunks exist is part of the world, and it
+must come out the same everywhere (see
+[worldgen-chunks.md](./worldgen-chunks.md#when-chunks-are-generated)).
+
+The golden constants change whenever a change is meant to alter what seeds
+produce. Update them in that change, and say so in the commit message. A
+golden mismatch in a change that did not mean to break seeds is the bug. The
+`caves-300x150` case also insists that its run breaks into a cavern, so a
+re-pin cannot silently drop coverage of the breach flood. It checks
+`World.cavernBreaches` rather than `hiddenFloor`, because hidden floor can go
+up as well as down once chunks are generated during play.
 
 ## Why it is this way
 
@@ -135,6 +190,23 @@ corridor only constrains the tile search, which usually finds the same optimal
 route inside a slightly different set of regions. A latent order dependence that
 is invisible today is exactly how the other two got in.
 
+### `tryAssignCraft` recorded its answer from inside a filter
+
+`nearestScumhouse(e, ok)` ranges over the scumhouse set (a map) and keeps the
+nearest candidate that passes `ok`. `tryAssignCraft`'s `ok` also *recorded*
+which recipe and whose inputs it found, as a side effect. Every candidate runs
+through the filter, so the recorded recipe was whichever candidate the map
+yielded last, not the one chosen. With one scumhouse that was invisible. With
+several, a cook could be sent to one kitchen with another's recipe,
+differently on each run: a 40-colonist colony starved a different number of
+people every time its seed was replayed. The filter now only answers yes or
+no, and the recipe is worked out for the scumhouse actually chosen
+(`craftableRecipe`). `TestDeterministicRunUnderScarcity` runs the lockstep
+check with several kitchens.
+
+The general rule: **a filter or comparator passed to a search over a map must
+be pure.** Anything it writes is written in map order.
+
 ## Extending it
 
 - **Adding a map to `World`**: before you iterate it, decide which of the three
@@ -146,17 +218,22 @@ is invisible today is exactly how the other two got in.
 - **Hunting a new divergence**: run two worlds in one process and diff them per
   tick — that is what the regression test does, and it beats hashing whole runs,
   which only tells you *that* they differ. If the fingerprint is not specific
-  enough, wrap `World.rng`'s source in a recorder that captures a stack trace per
-  draw and diff the traces: an identical RNG trace with divergent state proves
+  enough, point `World.rng` at a recorder wrapping `w.rngSrc.sim` that
+  captures a stack trace per draw and diff the traces: an identical RNG trace with divergent state proves
   the cause is ordering, not randomness, and narrows it to one call site.
+- **Changing what a seed produces on purpose**: re-pin `goldenCases` and run
+  `tools/determinism-check.sh` before committing, so the new constants are
+  known to agree on every target.
 - **What the fingerprint does not cover**: affect, memories, relationships, and
-  inventories. Add them if a bug lands there; they were left out because every
+  colonist inventories. Add them if a bug lands there; they were left out because every
   divergence found so far surfaced in position or labelling first.
 
 ## Related
 
 - [personality.md](./personality.md) — the two RNG streams and why flavor must
   not perturb the simulation.
+- [rng-streams.md](./rng-streams.md) — every RNG stream, its seed, and how its
+  state is saved.
 - [pathfinding.md](./pathfinding.md) — regions, rooms, and the abstract search
   whose tie-breaks depend on this.
 - [spatial-index-and-performance.md](./spatial-index-and-performance.md) — the

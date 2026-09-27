@@ -135,6 +135,13 @@ func (f *flowField) rebuild() {
 		ci := int(q[head])
 		cx, cy := ci%w.Width, ci/w.Width
 		page := f.cells.interiorPage(cx, cy)
+		// Off a page edge, every neighbour's tile is in the same tile page
+		// as this node, at the same offset as its cell: one lookup for all
+		// eight terrain reads. This node is walkable, so its page exists.
+		var tiles []tileCell
+		if page != nil {
+			tiles = w.tiles.pageAt(cx, cy)
+		}
 		for _, d := range neighbors8 {
 			nx, ny := cx+d.X, cy+d.Y
 			if nx < 0 || nx >= w.Width || ny < 0 || ny >= w.Height {
@@ -142,24 +149,38 @@ func (f *flowField) rebuild() {
 			}
 			ni := ny*w.Width + nx
 			cells := page
+			walkable := false // known walkable already (page-edge path)
 			if cells == nil {
 				// On a page edge, so this neighbour may be on a page that does
 				// not exist yet. Walkability has to be tested before asking for
 				// it: rock never enters a field, and allocating for one would
 				// give every field a border of pages around the reachable area.
-				if !w.tiles[ni].Terrain.Walkable() {
+				if !w.tiles.at(nx, ny).Terrain.Walkable() {
 					continue
 				}
 				cells = f.cells.pageAtAlloc(nx, ny)
+				walkable = true
 			}
 			// Stamp first, terrain second. Most neighbours in an open room are
 			// already stamped this generation, and the stamp is a read of a
-			// page this node is already holding, while the terrain read is a
-			// scattered hit on the dense tile array a row-stride away. Testing
-			// terrain first here cost 23% of the tick on a big colony.
-			cell := &cells[offset(nx, ny)]
-			if cell.gen == gen || !w.tiles[ni].Terrain.Walkable() {
+			// page this node is already holding. Testing terrain first here
+			// cost 23% of the tick on a big colony, back when tiles were a
+			// dense array and the terrain read was a row-stride away.
+			o := offset(nx, ny)
+			cell := &cells[o]
+			if cell.gen == gen {
 				continue
+			}
+			if !walkable {
+				var t Terrain
+				if tiles != nil {
+					t = tiles[o].Terrain
+				} else {
+					t = w.tiles.at(nx, ny).Terrain
+				}
+				if !t.Walkable() {
+					continue
+				}
 			}
 			cell.gen, cell.dist = gen, cd+1
 			q = append(q, int32(ni))
@@ -190,7 +211,7 @@ func (f *flowField) ensureFresh() {
 // (distance 0), is boxed in, or the goal is unreachable from here.
 //
 // The breadth-first search expands through any occupied tile but an alien's —
-// a cat or mouse parked in a narrow corridor must not wedge a colonist any
+// a cat or rat parked in a narrow corridor must not wedge a colonist any
 // more than another colonist would — and stops at the first depth with a free
 // landing. Thus an open neighbor still costs one ordinary step, while a
 // colonist can cross an arbitrarily crowded room or doorway in one turn
@@ -265,7 +286,7 @@ func (w *World) followField(e *Entity, f *flowField) bool {
 		}
 		if best != int32(1<<31-1) {
 			w.transitQ = q
-			w.moveEntity(e, cand[w.rng.Intn(n)])
+			w.moveEntity(e, cand[w.rng.IntN(n)])
 			return true
 		}
 		if fallbackN == 0 && fallbackBest != int32(1<<31-1) {
@@ -274,7 +295,7 @@ func (w *World) followField(e *Entity, f *flowField) bool {
 	}
 	if fallbackN > 0 {
 		w.transitQ = q
-		w.moveEntity(e, fallback[w.rng.Intn(fallbackN)])
+		w.moveEntity(e, fallback[w.rng.IntN(fallbackN)])
 		return true
 	}
 	w.transitQ = q
@@ -311,14 +332,18 @@ func (w *World) adjacentFacility(p Point, t Terrain) (Point, bool) {
 }
 
 // facilityGoal reports whether p is a goal of the facility field for kind:
-// walkable and next to a tile of that kind. It is facilitySeed for one tile.
+// walkable and next to a tile of that kind that everyone may use. It is
+// facilitySeed for one tile, and must agree with it, restricted fixtures and
+// all, or a repaired field would differ from a rebuilt one.
 func facilityGoal(w *World, kind Terrain) func(Point) bool {
 	return func(p Point) bool {
 		if !w.Walkable(p) {
 			return false
 		}
+		restricted := w.restrictedFixtures[kind] > 0
 		for _, d := range neighbors8 {
-			if w.TerrainAt(p.Add(d.X, d.Y)) == kind {
+			fc := p.Add(d.X, d.Y)
+			if w.TerrainAt(fc) == kind && (!restricted || w.communalFixture(fc)) {
 				return true
 			}
 		}
@@ -332,7 +357,14 @@ func facilityGoal(w *World, kind Terrain) func(Point) bool {
 // so cost tracks the number of facilities, not the map's area.
 func facilitySeed(w *World, kind Terrain) func(add func(Point)) {
 	return func(add func(Point)) {
+		restricted := w.restrictedFixtures[kind] > 0
 		for fc := range w.facilityTiles[kind] {
+			// The shared field is everyone's route, so it only leads to
+			// fixtures everyone may use. A colonist headed for its own
+			// private one routes there directly; see facilityReachable.
+			if restricted && !w.communalFixture(fc) {
+				continue
+			}
 			for _, d := range neighbors8 {
 				add(fc.Add(d.X, d.Y))
 			}

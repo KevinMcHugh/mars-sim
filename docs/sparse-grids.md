@@ -61,11 +61,12 @@ Nowhere did a zero page have to be made to mean something it did not already.
 
 ### Square pages, not row-major runs
 
-This is the one place the paged grids differ from the published tile grid (see
-[snapshot-tile-grid.md](./snapshot-tile-grid.md)), which pages row-major. That
-grid memcpys whole pages, so contiguity is what it wants. These are written a
-tile at a time by things that spread outward from the colony, so what matters
-is how much of a page a blob-shaped colony actually uses.
+The published tile grid (see [snapshot-tile-grid.md](./snapshot-tile-grid.md))
+used to page row-major, because it memcpys whole pages and contiguity was
+what it wanted. These are written a tile at a time by things that spread
+outward from the colony, so what matters is how much of a page a blob-shaped
+colony actually uses. Both now use the same square pages, since the tiles
+themselves became a paged grid.
 
 On a 10000-wide map a 4096-entry row-major page is a strip two fifths of a row
 long. A 500x500 colony would touch one or two per row it spans — ~750 pages for
@@ -73,17 +74,21 @@ long. A 500x500 colony would touch one or two per row it spans — ~750 pages fo
 
 ### What is left, and why
 
-`World.tiles` stays dense. It is the one structure here that genuinely is:
-`Composition` is ore, and worldgen threads veins through 21% of the map, so
-every page has something in it. There is no sparsity to exploit, only width to
-cut — which is what the `tileCell` split did (see below). The remaining ~590 MB
-is 3 bytes of terrain/ore/fog per tile, mirrored once so frontends can read a
-frame lock-free.
+`World.tiles` stayed dense the longest. Composition is ore, and worldgen
+threads veins through 21% of the map, so every *generated* page has something
+in it. There was no sparsity to exploit, only width to cut, which is what the
+`tileCell` split did (see below). That left ~590 MB: 3 bytes of
+terrain/ore/fog per tile, mirrored once so frontends can read a frame
+lock-free.
 
-Going lower means making composition lazy, and it cannot be: `growRockVeins` is
-a sequential random walk over the whole map, so generating a page on demand
-would change the layout every existing seed produces. That is a gameplay
-change, not a refactor.
+It is a `pagedGrid[tileCell]` now, and one page is one worldgen chunk (see
+[worldgen-chunks.md](./worldgen-chunks.md)), so the sparsity comes from
+generation instead: a page nobody has generated is nil.
+
+Going lower meant making composition lazy, which the old `growRockVeins`
+could not be: it was a sequential random walk over the whole map. Chunked
+generation ([worldgen-chunks.md](./worldgen-chunks.md)) replaced it with a
+per-chunk pure function, at the cost of a one-time change to every seed.
 
 ## How it works
 
@@ -145,7 +150,7 @@ stop a rock neighbour allocating a page for it. That looks harmless and it cost
 The reason is that in an open room most neighbours are *already stamped this
 generation*, so the original order short-circuits on the stamp and never reads
 the tile. The stamp is a read of a page the node is already holding; the terrain
-read is a scattered hit on the dense tile array a row-stride away. Reordering
+read was a scattered hit on the dense tile array a row-stride away. Reordering
 turned a skipped read into eight of them per node.
 
 The fix is to keep the original order wherever the page is already in hand
@@ -200,7 +205,7 @@ Nothing outside `world.go` and `tilegrid.go` noticed.
 
 ## Related
 
-- [snapshot-tile-grid.md](./snapshot-tile-grid.md) — the published tile grid, which pages row-major for the opposite reason.
+- [snapshot-tile-grid.md](./snapshot-tile-grid.md) — the published tile grid, which mirrors the tile pages.
 - [pathfinding.md](./pathfinding.md) — the flow fields, A\* scratch and region labels that live in these grids.
 - [spatial-index-and-performance.md](./spatial-index-and-performance.md) — the occupancy index and the rest of the "never rescan the world" story.
 - [world.md](./world.md) — `Tile`, `tileCell`, and the refuse index.

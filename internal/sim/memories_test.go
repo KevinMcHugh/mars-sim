@@ -2,14 +2,13 @@ package sim
 
 import (
 	"fmt"
-	"math/rand"
 	"strings"
 	"testing"
 )
 
 func TestRememberKeepsRecentMemories(t *testing.T) {
 	cfg := DefaultConfig()
-	w := newWorld(cfg, rand.New(rand.NewSource(1)))
+	w := newWorld(cfg, newPCG(1))
 	col := newEntity(1, Colonist, Point{}, cfg)
 	w.entities[col.ID] = col
 
@@ -32,7 +31,7 @@ func TestRememberKeepsRecentMemories(t *testing.T) {
 // attack another colonist, whether or not the victim survives the bite.
 func TestBystanderRemembersAlienAttack(t *testing.T) {
 	cfg := DefaultConfig()
-	w := newWorld(cfg, rand.New(rand.NewSource(1)))
+	w := newWorld(cfg, newPCG(1))
 
 	alien := w.spawn(Alien, Point{0, 0})
 	victim := w.spawn(Colonist, Point{1, 0})
@@ -78,7 +77,7 @@ func TestBystanderRemembersAlienAttack(t *testing.T) {
 // memory of the attack.
 func TestDistantColonistDoesNotWitnessAlienAttack(t *testing.T) {
 	cfg := DefaultConfig()
-	w := newWorld(cfg, rand.New(rand.NewSource(1)))
+	w := newWorld(cfg, newPCG(1))
 
 	alien := w.spawn(Alien, Point{0, 0})
 	victim := w.spawn(Colonist, Point{1, 0})
@@ -93,27 +92,27 @@ func TestDistantColonistDoesNotWitnessAlienAttack(t *testing.T) {
 	}
 }
 
-// A bystander close enough to have noticed a mouse should remember watching
+// A bystander close enough to have noticed a rat should remember watching
 // it get crushed underfoot or caught by a cat.
-func TestBystanderRemembersMouseKilled(t *testing.T) {
+func TestBystanderRemembersRatKilled(t *testing.T) {
 	cfg := DefaultConfig()
-	w := newWorld(cfg, rand.New(rand.NewSource(1)))
+	w := newWorld(cfg, newPCG(1))
 
 	colonist := w.spawn(Colonist, Point{0, 0})
 	bystander := w.spawn(Colonist, Point{0, 1})
-	mouse := w.spawn(Mouse, Point{1, 0})
-	w.stomp(colonist, mouse)
+	rat := w.spawn(Rat, Point{1, 0})
+	w.stomp(colonist, rat)
 
-	want := fmt.Sprintf("Watched a colonist crush mouse #%d.", mouse.ID)
+	want := fmt.Sprintf("Watched a colonist crush rat #%d.", rat.ID)
 	if got := lastMemory(bystander); got != want {
 		t.Fatalf("bystander memory after stomp = %q, want %q", got, want)
 	}
 
 	cat := w.spawn(Cat, Point{0, 0})
-	mouse2 := w.spawn(Mouse, Point{1, 0})
-	w.pounce(cat, mouse2)
+	rat2 := w.spawn(Rat, Point{1, 0})
+	w.pounce(cat, rat2)
 
-	want2 := fmt.Sprintf("Watched a cat catch mouse #%d.", mouse2.ID)
+	want2 := fmt.Sprintf("Watched a cat catch rat #%d.", rat2.ID)
 	if got := lastMemory(bystander); got != want2 {
 		t.Fatalf("bystander memory after pounce = %q, want %q", got, want2)
 	}
@@ -128,7 +127,7 @@ func lastMemory(e *Entity) string {
 
 func TestSnapshotCopiesMemories(t *testing.T) {
 	cfg := DefaultConfig()
-	w := newWorld(cfg, rand.New(rand.NewSource(1)))
+	w := newWorld(cfg, newPCG(1))
 	col := newEntity(1, Colonist, Point{}, cfg)
 	w.entities[col.ID] = col
 	rememberTest(w, col, "ate", "a meal")

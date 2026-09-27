@@ -1,7 +1,6 @@
 package sim
 
 import (
-	"math/rand"
 	"testing"
 )
 
@@ -11,8 +10,8 @@ import (
 func TestRollAlienSpeciesRosterIsDeterministic(t *testing.T) {
 	cfg := DefaultConfig()
 	cfg.AlienSpeciesCount = 4
-	a := rollAlienSpeciesRoster(rand.New(rand.NewSource(12345)), cfg)
-	b := rollAlienSpeciesRoster(rand.New(rand.NewSource(12345)), cfg)
+	a := rollAlienSpeciesRoster(newRand(12345), cfg)
+	b := rollAlienSpeciesRoster(newRand(12345), cfg)
 	if len(a) != len(b) {
 		t.Fatalf("same seed rolled rosters of different length: %d vs %d", len(a), len(b))
 	}
@@ -31,7 +30,7 @@ func TestRollAlienSpeciesRosterHonorsCount(t *testing.T) {
 		{1, 1}, {3, 3}, {0, 1}, {-5, 1},
 	} {
 		cfg.AlienSpeciesCount = tc.configured
-		roster := rollAlienSpeciesRoster(rand.New(rand.NewSource(1)), cfg)
+		roster := rollAlienSpeciesRoster(newRand(1), cfg)
 		if len(roster) != tc.want {
 			t.Fatalf("AlienSpeciesCount %d rolled a roster of %d, want %d", tc.configured, len(roster), tc.want)
 		}
@@ -46,7 +45,7 @@ func TestRollAlienSpeciesInvariants(t *testing.T) {
 	cfg := DefaultConfig()
 	names := defaultAlienNames()
 	for seed := int64(0); seed < 500; seed++ {
-		sp := rollAlienSpecies(rand.New(rand.NewSource(seed)), cfg, names)
+		sp := rollAlienSpecies(newRand(seed), cfg, names)
 		if sp.Singular == "" || sp.Plural == "" {
 			t.Fatalf("seed %d: empty species name: %+v", seed, sp)
 		}
@@ -103,7 +102,7 @@ func TestRollAlienSpeciesVariesAcrossSeeds(t *testing.T) {
 	names := defaultAlienNames()
 	seen := map[AlienSpecies]bool{}
 	for seed := int64(0); seed < 100; seed++ {
-		seen[rollAlienSpecies(rand.New(rand.NewSource(seed)), cfg, names)] = true
+		seen[rollAlienSpecies(newRand(seed), cfg, names)] = true
 	}
 	if len(seen) < 20 {
 		t.Fatalf("only %d distinct species across 100 seeds, want plenty of variety", len(seen))
@@ -117,7 +116,7 @@ func TestRollTemperamentDistribution(t *testing.T) {
 	counts := map[AlienTemperament]int{}
 	const n = 20000
 	for seed := int64(0); seed < n; seed++ {
-		counts[rollTemperament(rand.New(rand.NewSource(seed)))]++
+		counts[rollTemperament(newRand(seed))]++
 	}
 	friendly, cautious, hostile := counts[TemperamentFriendly], counts[TemperamentCautious], counts[TemperamentHostile]
 	if friendly == 0 || friendly > n/5 {
@@ -136,7 +135,7 @@ func TestSpeciesDamageZeroBaselinePassesThrough(t *testing.T) {
 	cfg.AlienDamage = 0
 	names := defaultAlienNames()
 	for seed := int64(0); seed < 50; seed++ {
-		sp := rollAlienSpecies(rand.New(rand.NewSource(seed)), cfg, names)
+		sp := rollAlienSpecies(newRand(seed), cfg, names)
 		if sp.BiteDamage != 0 {
 			t.Fatalf("seed %d: bite damage = %d with AlienDamage 0, want 0", seed, sp.BiteDamage)
 		}
@@ -190,7 +189,7 @@ func TestScaledByTemperament(t *testing.T) {
 // w.alienSpeciesFor(alien).
 func TestBiteUsesRolledSpeciesDamage(t *testing.T) {
 	cfg := testConfig()
-	cfg.StartColonists, cfg.StartAliens, cfg.StartCats, cfg.StartMice = 0, 0, 0, 0
+	cfg.StartColonists, cfg.StartAliens, cfg.StartCats, cfg.StartRats = 0, 0, 0, 0
 	w := newTestWorld(t, cfg)
 
 	alien := w.spawn(Alien, Point{0, 0})
@@ -210,7 +209,7 @@ func TestBiteUsesRolledSpeciesDamage(t *testing.T) {
 // species roster, whatever AlienSpeciesCount was configured.
 func TestSpawnedAliensGetAValidSpecies(t *testing.T) {
 	cfg := testConfig()
-	cfg.StartColonists, cfg.StartAliens, cfg.StartCats, cfg.StartMice = 0, 0, 0, 0
+	cfg.StartColonists, cfg.StartAliens, cfg.StartCats, cfg.StartRats = 0, 0, 0, 0
 	cfg.AlienSpeciesCount = 5
 	w := newTestWorld(t, cfg)
 
@@ -230,7 +229,7 @@ func TestSpawnedAliensGetAValidSpecies(t *testing.T) {
 // HP never drops) and should never report Hunting.
 func TestFriendlyAlienNeverInitiatesCombat(t *testing.T) {
 	cfg := testConfig()
-	cfg.StartColonists, cfg.StartAliens, cfg.StartCats, cfg.StartMice = 0, 0, 0, 0
+	cfg.StartColonists, cfg.StartAliens, cfg.StartCats, cfg.StartRats = 0, 0, 0, 0
 	w := newTestWorld(t, cfg)
 	w.alienSpecies[0].Temperament = TemperamentFriendly
 
@@ -253,7 +252,7 @@ func TestFriendlyAlienNeverInitiatesCombat(t *testing.T) {
 // (it only wanders), but must react once one comes within it.
 func TestCautiousAlienOnlyReactsWithinRadius(t *testing.T) {
 	cfg := testConfig()
-	cfg.StartColonists, cfg.StartAliens, cfg.StartCats, cfg.StartMice = 0, 0, 0, 0
+	cfg.StartColonists, cfg.StartAliens, cfg.StartCats, cfg.StartRats = 0, 0, 0, 0
 	cfg.AlienCautiousRadius = 3
 	w := newTestWorld(t, cfg)
 	w.alienSpecies[0].Temperament = TemperamentCautious
@@ -282,7 +281,7 @@ func TestCautiousAlienOnlyReactsWithinRadius(t *testing.T) {
 // else, never one sealed off behind rock.
 func TestHostileAlienHuntsAcrossTheMap(t *testing.T) {
 	cfg := testConfig()
-	cfg.StartColonists, cfg.StartAliens, cfg.StartCats, cfg.StartMice = 0, 0, 0, 0
+	cfg.StartColonists, cfg.StartAliens, cfg.StartCats, cfg.StartRats = 0, 0, 0, 0
 	w := newTestWorld(t, cfg)
 	w.alienSpecies[0].Temperament = TemperamentHostile
 	carve(w, Point{1, 1}, Point{w.Width - 2, 1}, Floor)

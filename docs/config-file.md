@@ -19,7 +19,7 @@ DefaultConfig()  →  mars-sim.yaml  →  command-line flags
 
 Cognition rules are a sibling file, not a `cfg` tag:
 `DefaultCognitionConfig()` → `cognition.yaml` → the mirrored focus knobs
-above. See [cognition-config-and-lab.md](./cognition-config-and-lab.md).
+above. See [cli.md](./cli.md).
 
 ## Source
 
@@ -87,6 +87,16 @@ errors that stop startup, quoting the file and line:
 ```
 mars-sim: mars-sim.yaml:31: unknown setting "colonits" (run with -print-config to list every setting)
 ```
+
+Old names still mean something (`RenamedSettings`, `RetiredSettings` in
+`configfile.go`), in a file and as flags:
+
+- **Renamed** settings load under their new name: `mice` is `rats`.
+- **Retired** settings stop startup with what replaced them. `pistols` and
+  `shotguns` were the colony ship's armory; every colonist now lands with its
+  own (`crash-pod-pistols`, `crash-pod-shotguns`). The count is per colonist,
+  so reading the old colony-wide total as the new setting would arm everyone
+  many times over.
 
 ## Why it is this way
 

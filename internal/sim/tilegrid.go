@@ -1,5 +1,7 @@
 package sim
 
+import "slices"
+
 // TileGrid is an immutable view of the world's terrain, handed to frontends
 // inside a Snapshot. It exists so publishing a frame does not cost a copy of
 // the whole map: the grid is stored as fixed-size **pages**, and each new grid
@@ -10,23 +12,23 @@ package sim
 // diverge from the grid that published it (copy-on-write), so no TileGrid ever
 // changes under a reader, even though the engine keeps mutating the live world
 // on its own goroutine. The exception is a grid published under TilesLive,
-// whose pages alias the world's own tiles; see TileSharing.
+// whose pages alias the world's own; see TileSharing.
 //
-// Pages are slices of the row-major grid, so a page is one contiguous memcpy
-// and a lookup is a shift and a mask. The size is a compromise: smaller pages
-// copy less per changed tile, larger pages make the page table (which *is*
-// copied per published grid) smaller. At 4096 tiles a page, a 7000x7000 map
-// has a ~12k-entry table — under 100 KB per frame, against the 49 MB a full
-// grid copy would cost.
-const (
-	tilePageBits = 12
-	tilePageLen  = 1 << tilePageBits
-	tilePageMask = tilePageLen - 1
-)
-
+// The pages are the same 64x64 squares the World stores its tiles in
+// (pagedGrid, see pagedgrid.go), so publishing a page is one contiguous memcpy
+// of the world's own page, and a page the world has never written is nil here
+// too and reads as unexplored Rock. That is also one worldgen chunk (see
+// worldgen_chunks.go). The page table is copied per published grid: ~40k
+// entries on a 10000x10000 map (rounded up to a power-of-two width, as in
+// pagedGrid), about 320 KB per frame, against the 300 MB a full grid copy
+// would cost.
 type TileGrid struct {
 	width, height int
-	pages         [][]tileCell
+	colShift      int // as pagedGrid.colShift
+	// pages is laid out like the world's pagedGrid page table, but holds
+	// array pointers rather than slice headers: the table is what every
+	// published frame copies, and 8 bytes an entry is a third of 24.
+	pages []*tilePage
 	// refuse is the published copy of the sparse gore/corpse index (see
 	// World.refuse). It is a whole map rather than a paged plane because it
 	// holds the tiles something died on, which is a few hundred entries in a
@@ -36,43 +38,54 @@ type TileGrid struct {
 	refuse map[Point]refuseCell
 }
 
+// tilePage is one published page: a copy of one of the world's tile pages.
+type tilePage = [gridPageLen]tileCell
+
+// TilePageSide is the side, in tiles, of one TileGrid page. TileChanges.Pages
+// are page table indexes; PageOrigin turns one into the top-left tile of its
+// TilePageSide x TilePageSide square, which is clipped to the map.
+const TilePageSide = gridPageSide
+
+// PageOrigin returns the top-left tile of page pi (see TileChanges.Pages).
+func (g *TileGrid) PageOrigin(pi int) Point {
+	return Point{(pi & (1<<g.colShift - 1)) << gridPageBits, (pi >> g.colShift) << gridPageBits}
+}
+
+// clonePage copies one of the world's tile pages for publishing.
+func clonePage(page []tileCell) *tilePage {
+	c := tilePage(page)
+	return &c
+}
+
 // NewTileGrid builds a standalone grid from a row-major tile slice. The engine
 // publishes grids incrementally (see World.publishedTiles); this is for
 // frontends and tests that need to synthesize one. A tiles slice shorter than
 // width*height reads as Rock past its end rather than panicking on some later
 // lookup deep inside a render.
 func NewTileGrid(width, height int, tiles []Tile) *TileGrid {
-	n := width * height
-	cells := make([]tileCell, min(len(tiles), n))
+	cells := newPagedGrid[tileCell](width, height)
 	refuse := make(map[Point]refuseCell)
-	for i := range cells {
+	for i := 0; i < min(len(tiles), width*height); i++ {
 		t := tiles[i]
-		cells[i] = tileCell{Terrain: t.Terrain, Composition: t.Composition, Explored: t.Explored}
+		p := Point{i % width, i / width}
+		if c := (tileCell{Terrain: t.Terrain, Composition: t.Composition, Explored: t.Explored}); c != (tileCell{}) {
+			cells.set(p.X, p.Y, c)
+		}
 		if t.Gore != 0 || t.Corpses != 0 {
-			refuse[Point{i % width, i / width}] = refuseCell{Gore: t.Gore, Corpses: t.Corpses}
+			// A hand-built frame only says how many bodies, not whose; the
+			// count is all a renderer reads.
+			var c [numCorpseKinds]uint16
+			c[0] = t.Corpses
+			refuse[p] = refuseCell{Gore: t.Gore, Corpses: c}
 		}
 	}
-	g := &TileGrid{
-		width:  width,
-		height: height,
-		pages:  make([][]tileCell, ceilDiv(n, tilePageLen)),
-		refuse: refuse,
-	}
-	for pi := range g.pages {
-		g.pages[pi] = clonePage(cells, pi, n)
+	g := &TileGrid{width: width, height: height, colShift: cells.colShift, pages: make([]*tilePage, len(cells.pages)), refuse: refuse}
+	for pi, page := range cells.pages {
+		if page != nil {
+			g.pages[pi] = (*tilePage)(page)
+		}
 	}
 	return g
-}
-
-// clonePage copies page pi out of a row-major tile slice of n cells.
-func clonePage(tiles []tileCell, pi, n int) []tileCell {
-	lo := pi * tilePageLen
-	hi := min(lo+tilePageLen, n)
-	page := make([]tileCell, hi-lo) // zero value is Rock, so a short slice pads solid
-	if lo < len(tiles) {
-		copy(page, tiles[lo:min(hi, len(tiles))])
-	}
-	return page
 }
 
 // Width and Height report the grid's dimensions in tiles.
@@ -85,15 +98,14 @@ func (g *TileGrid) At(p Point) Tile {
 	if g == nil || p.X < 0 || p.X >= g.width || p.Y < 0 || p.Y >= g.height {
 		return Tile{Terrain: Rock}
 	}
-	i := p.Y*g.width + p.X
-	c := g.pages[i>>tilePageBits][i&tilePageMask]
+	c := g.cell(p)
 	r := g.refuse[p]
 	return Tile{
 		Terrain:     c.Terrain,
 		Composition: c.Composition,
 		Explored:    c.Explored,
 		Gore:        r.Gore,
-		Corpses:     r.Corpses,
+		Corpses:     uint16(r.total()),
 	}
 }
 
@@ -102,14 +114,23 @@ func (g *TileGrid) TerrainAt(p Point) Terrain {
 	if g == nil || p.X < 0 || p.X >= g.width || p.Y < 0 || p.Y >= g.height {
 		return Rock
 	}
-	i := p.Y*g.width + p.X
-	return g.pages[i>>tilePageBits][i&tilePageMask].Terrain
+	return g.cell(p).Terrain
 }
 
-// TilePageLen is how many tiles one TileGrid page holds. Page pi covers the
-// row-major tile indexes [pi*TilePageLen, (pi+1)*TilePageLen), clipped to the
-// map, which is how a consumer turns TileChanges.Pages into tiles.
-const TilePageLen = tilePageLen
+// hasPage reports whether the page holding the in-bounds p exists: in a
+// generated world, whether its chunk has been generated.
+func (g *TileGrid) hasPage(p Point) bool {
+	return g.pages[(p.Y>>gridPageBits)<<g.colShift|(p.X>>gridPageBits)] != nil
+}
+
+// cell reads the stored record at the in-bounds p; a page never written reads
+// as zero, which is unexplored Rock.
+func (g *TileGrid) cell(p Point) tileCell {
+	if page := g.pages[(p.Y>>gridPageBits)<<g.colShift|(p.X>>gridPageBits)]; page != nil {
+		return page[offset(p.X, p.Y)]
+	}
+	return tileCell{}
+}
 
 // TileSharing picks how a World publishes its terrain to Snapshots.
 type TileSharing uint8
@@ -120,14 +141,14 @@ const (
 	// goroutine while the engine keeps ticking. This is what the TUI needs,
 	// and the default.
 	TilesCopyOnWrite TileSharing = iota
-	// TilesLive publishes a grid whose pages alias World.tiles (and whose
-	// refuse aliases World.refuse) instead of copying them. It costs no
-	// memory beyond a page table built once, but the grid changes under the
+	// TilesLive publishes a grid whose pages alias the world's tile pages
+	// (and whose refuse aliases World.refuse) instead of copying them. It
+	// costs no memory beyond one page table, but the grid changes under the
 	// reader on the next tick: a Snapshot is only valid on the engine's
 	// goroutine, between the publish that made it and the next step. It is
 	// for a consumer that runs there — the browser worker's wire encoder
-	// (see the browser frontend proposal, PR 60) — and it is what saves that consumer a
-	// second copy of the map (300 MB at 10000x10000). Read TileChanges
+	// (see docs/browser-frontend.md) — and it is what saves that
+	// consumer a second copy of every generated chunk. Read TileChanges
 	// rather than page identity to learn what changed: live pages never move.
 	TilesLive
 )
@@ -151,18 +172,19 @@ type TileChanges struct {
 	// switching TileSharing): there is no previous grid, so every page is new.
 	// Pages is empty when All is set.
 	All bool
-	// Pages are the indexes of the pages (see TilePageLen) whose tiles changed,
-	// in the order they first changed. The slice belongs to the Snapshot.
+	// Pages are the page table indexes (see PageOrigin) of the pages whose
+	// tiles changed, in the order they first changed. That includes a chunk
+	// generated since the last frame, whose page is new. The slice belongs to
+	// the Snapshot.
 	Pages []int
 	// Refuse is set when the gore/corpse index changed.
 	Refuse bool
 }
 
-// markTilePageDirty notes that the tile at row-major index i changed, so the
-// next published grid re-copies its page. Called from SetTerrain, the only
-// writer of the tile slice.
-func (w *World) markTilePageDirty(i int) {
-	pi := i >> tilePageBits
+// markTilePageDirty notes that the page holding p changed, so the next
+// published grid re-copies it. Called by every writer of the tile grid.
+func (w *World) markTilePageDirty(p Point) {
+	pi := w.tiles.pageIndex(p.X, p.Y)
 	if w.pageDirty[pi] {
 		return
 	}
@@ -188,30 +210,30 @@ func (w *World) SetTileSharing(mode TileSharing) {
 func (w *World) publishedTiles() (*TileGrid, TileChanges) {
 	w.snapFrame++
 	if w.snapGrid == nil {
-		w.snapGrid = &TileGrid{
-			width:  w.Width,
-			height: w.Height,
-			pages:  make([][]tileCell, ceilDiv(len(w.tiles), tilePageLen)),
-		}
-		for pi := range w.snapGrid.pages {
-			if w.tileSharing == TilesLive {
-				w.snapGrid.pages[pi] = livePage(w.tiles, pi)
-			} else {
-				w.snapGrid.pages[pi] = clonePage(w.tiles, pi, len(w.tiles))
+		pages := make([]*tilePage, len(w.tiles.pages))
+		for pi, page := range w.tiles.pages {
+			if page != nil {
+				pages[pi] = w.publishPage(page)
 			}
 		}
-		w.snapGrid.refuse = w.publishedRefuse()
 		w.clearDirtyPages()
+		w.snapGrid = &TileGrid{width: w.Width, height: w.Height, colShift: w.tiles.colShift, pages: pages}
+		w.snapGrid.refuse = w.publishedRefuse()
 		return w.snapGrid, TileChanges{Frame: w.snapFrame, All: true, Refuse: true}
 	}
 	changes := TileChanges{Frame: w.snapFrame, Refuse: w.refuseRev != w.snapRefuseRev}
 	if len(w.dirtyPages) == 0 && !changes.Refuse {
 		return w.snapGrid, changes
 	}
-	changes.Pages = append([]int(nil), w.dirtyPages...)
+	changes.Pages = slices.Clone(w.dirtyPages)
 	if w.tileSharing == TilesLive {
-		// The pages and the refuse map are the live ones already; there is
-		// nothing to copy, only the dirty list to hand over.
+		// Existing pages are the live ones already. A dirty page may be a
+		// chunk generated since the last frame, which the table does not
+		// point at yet; the world never reallocates a page, so pointing at it
+		// once is enough. Nothing is copied.
+		for _, pi := range w.dirtyPages {
+			w.snapGrid.pages[pi] = (*tilePage)(w.tiles.pages[pi])
+		}
 		w.snapRefuseRev = w.refuseRev
 		w.clearDirtyPages()
 		return w.snapGrid, changes
@@ -219,20 +241,22 @@ func (w *World) publishedTiles() (*TileGrid, TileChanges) {
 	// Copy the page table (pointers only), then swap in fresh copies of the
 	// changed pages. Grids already published keep the old table, and with it
 	// the pre-change pages, so nothing a frontend holds is disturbed.
-	pages := make([][]tileCell, len(w.snapGrid.pages))
-	copy(pages, w.snapGrid.pages)
+	pages := slices.Clone(w.snapGrid.pages)
 	for _, pi := range w.dirtyPages {
-		pages[pi] = clonePage(w.tiles, pi, len(w.tiles))
+		pages[pi] = clonePage(w.tiles.pages[pi])
 	}
 	w.clearDirtyPages()
-	w.snapGrid = &TileGrid{width: w.Width, height: w.Height, pages: pages, refuse: w.publishedRefuse()}
+	w.snapGrid = &TileGrid{width: w.Width, height: w.Height, colShift: w.tiles.colShift, pages: pages, refuse: w.publishedRefuse()}
 	return w.snapGrid, changes
 }
 
-// livePage returns page pi of the row-major tile slice without copying it.
-func livePage(tiles []tileCell, pi int) []tileCell {
-	lo := pi * tilePageLen
-	return tiles[lo:min(lo+tilePageLen, len(tiles)):min(lo+tilePageLen, len(tiles))]
+// publishPage is how a world page enters a freshly built grid: a copy, or
+// under TilesLive the page itself.
+func (w *World) publishPage(page []tileCell) *tilePage {
+	if w.tileSharing == TilesLive {
+		return (*tilePage)(page)
+	}
+	return clonePage(page)
 }
 
 // publishedRefuse returns an immutable copy of the refuse index, reusing the

@@ -14,6 +14,7 @@ func loreSnapshot() *sim.Snapshot {
 	snap.Seed = 12345
 	snap.FogOfWar = true
 	snap.Stats.ExploredTiles = 6 // of the 6x4 = 24 tiles makeSnapshot lays out
+	snap.Stats.ChunksGenerated, snap.Stats.Chunks = 3, 40
 	snap.AlienSpecies = []sim.AlienSpecies{
 		{
 			Singular: "xeno", Plural: "xenos",
@@ -42,7 +43,7 @@ func toLore(t *testing.T, snap *sim.Snapshot) tea.Model {
 	var model tea.Model = New(nil, nil)
 	model, _ = model.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
 	model, _ = model.Update(snapshotMsg{snap: snap})
-	for range 4 {
+	for range 5 {
 		model, _ = model.Update(tea.KeyMsg{Type: tea.KeyTab})
 	}
 	return model
@@ -58,6 +59,7 @@ func TestLoreTabShowsWorldFactsAndFirstSpecies(t *testing.T) {
 		"LORE · WORLD",
 		"Size: 6 x 4 (24 tiles)",
 		"Explored: 25% (6/24 tiles)",
+		"Generated: 3/40 chunks",
 		"Seed: 12345",
 		"ALIEN SPECIES (2)",
 		"Xeno · hostile",

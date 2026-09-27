@@ -154,14 +154,17 @@ pretending it was one event — the TUI writes
 
 | Reaction | Fires when | Fresh charge/grip (valence) |
 | --- | --- | --- |
-| `saw-alien` / `saw-mouse` / `saw-gore` | first nearby sighting | `(8,-10,-15)` / `(2,-3,0)` / `(-3,-7,-6)` |
+| `saw-alien` / `saw-rat` / `saw-gore` | first nearby sighting | `(8,-10,-15)` / `(2,-3,0)` / `(-3,-7,-6)` |
 | `bitten` / witnessed colonist harm | alien attack experience | bitten `(55,-44,-30)`; killed `(70,40,-60)`; attacked `(45,25,-40)` |
-| mouse/cat events | stomp or catch | crusher `(-1,2,0)`; witness `(-1,-2,-1)`; cat catch `(1,1,0)` |
+| rat/cat events | stomp or catch | crusher `(-1,2,0)`; witness `(-1,-2,-1)`; cat catch `(1,1,0)` |
 | alien combat events | kill, wound, or witness | kill `(45,52,35)`; witnessed kill `(5,6,4)`; wound `(4,5,2)`; gunfight `(35,-25,-20)` |
 | `conversation` | finished a conversation | computed per occurrence |
 | need completions | ate, toilet, slept, generic satisfaction | `(4,2,1)`, `(1,2,0)`, `(15,2,2)`, `(2,2,0)` |
 | finished work | mining, clearing, construction, cleaning, incineration | `(-1,5,0)` / `(-1,5,0)` / `(-1,6,3)` / `(-1,5,0)` / `(-1,7,1)` |
 | mutation events | mutated or witnessed mutation | `(18,-70,-35)` / `(2,-8,-10)` |
+| `ate-gruel` | ate at the safety net's pod (`eat` / `gruel`) | `(0,0,-1)` |
+| food work | `cooked` (`cook` / `meal`), `scraped-scum` (`scrape` / `scum`), `fed-scumhouse` (`deliver` / `scumhouse`) | `(-1,5,1)` / `(-1,4,0)` / `(-1,4,0)` |
+| trade | `went-to-market` (`trade` / `goods`), `hauled` (`haul` / `goods`), `bought-meal` (`buy` / `meal`) | `(0,3,0)` / `(0,2,0)` / `(2,3,0)` |
 
 The routine need and work reactions are collapsible; the narrative-weight
 events above them record one memory per occurrence. Trait scales and worn
@@ -216,12 +219,12 @@ readings live next to these rows in `cognition.yaml`.
   selects wear policy `none`.
 - **Make an existing reaction collapsible (or stop it collapsing)**: add or
   remove `memory.collapse`. The text is what a run of it reads as; no call
-  site changes. `crushed-mouse` is the most likely next candidate if stomping
+  site changes. `crushed-rat` is the most likely next candidate if stomping
   ever becomes routine.
 - **A new perception** (something a colonist should notice near it, like
   gore): add a persistent perception rule. Do not add a special-case observer
   in `colonistTurn`. Set `interrupt_rest: true` only if that rule should
-  wake a resting or sleeping colonist; shipped alien/mouse/gore checks
+  wake a resting or sleeping colonist; shipped alien/rat/gore checks
   already cover the default fast-path exits.
 - **A new witnessable action**: emit one occurrence; add instant witness
   perception at the same radius the persistent rule uses for that noun.
@@ -233,8 +236,7 @@ readings live next to these rows in `cognition.yaml`.
 
 - [compositional-perception-and-events.md](./compositional-perception-and-events.md)
   — the grammar, perception engine, and wear-policy seam.
-- [cognition-config-and-lab.md](./cognition-config-and-lab.md) — authoring
-  schema and the Cognition Lab.
+- [scum-lab.md](./scum-lab.md) — the bench that edits `cognition.yaml`.
 - [combat.md](./combat.md) — the bite/stomp/pounce/shoot events, gore, and
   `World.remove`'s parallel one-funnel pattern for deaths.
 - [personality.md](./personality.md) — traits, and why trait *effects* are

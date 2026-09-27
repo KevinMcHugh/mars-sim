@@ -149,7 +149,7 @@ func affectContribution(charge, grip int, spec FocusSpec, moodMax int) int {
 
 func workJob(job JobKind) bool {
 	switch job {
-	case JobMine, JobBuild, JobClean, JobStore:
+	case JobMine, JobBuild, JobClean, JobStore, JobCraft, JobScrape, JobSell, JobCarry:
 		return true
 	default:
 		return false
@@ -246,47 +246,98 @@ func cachedFocusCandidate(e *Entity, threat *Entity) FocusCandidate {
 	return selected
 }
 
+// focusInputs is everything fillFocusCandidates reads. The world builds it
+// from a colonist; the lab builds it from the story on screen. Neither path
+// has its own copy of the score.
+type focusInputs struct {
+	focuses                                 [numFocusKinds]FocusSpec
+	needs                                   [numNeeds]NeedSpec
+	level                                   [numNeeds]int
+	phase                                   [numNeeds]NeedPhase
+	charge, grip, moodMax                   int
+	stimulus                                [numFocusKinds]int
+	current                                 FocusKind
+	workEligible                            bool
+	threat                                  bool
+	threatID                                EntityID
+	armed                                   bool
+	escape                                  bool
+	currentBonus, criticalBonus, fatalBonus int
+}
+
 // focusCandidates fills caller-owned storage so normal arbitration allocates
 // nothing. Shared facts (the visible threat and each lazy need level) are read
 // once per call.
 func (w *World) focusCandidates(e *Entity, out *[numFocusKinds]FocusCandidate) {
+	var level [numNeeds]int
+	var phase [numNeeds]NeedPhase
+	for n := NeedKind(0); n < numNeeds; n++ {
+		level[n] = w.needLevel(e, n)
+		w.syncNeedPhaseAtLevel(e, n, level[n])
+		phase[n] = e.needPhase[n]
+	}
+	threat, hasThreat := w.nearestAlien(e.Pos, w.cfg.FleeRadius)
+	var threatID EntityID
+	if hasThreat {
+		threatID = threat.ID
+	}
+	fillFocusCandidates(focusInputs{
+		focuses:       w.cfg.Focuses,
+		needs:         w.cfg.Needs,
+		level:         level,
+		phase:         phase,
+		charge:        e.affect.Charge,
+		grip:          e.affect.Grip,
+		moodMax:       w.cfg.MoodMax,
+		stimulus:      e.stimulusFocusBias,
+		current:       e.focus,
+		workEligible:  workJob(e.Job) || !e.resting || w.tick >= e.wakeTick,
+		threat:        hasThreat,
+		threatID:      threatID,
+		armed:         bestWeapon(e.Inventory) != ItemNone,
+		escape:        !hasThreat && e.disconnectedTicks >= w.cfg.EscapeGraceTicks,
+		currentBonus:  w.cfg.FocusCurrentBonus,
+		criticalBonus: w.cfg.FocusCriticalBonus,
+		fatalBonus:    w.cfg.FocusFatalBonus,
+	}, out)
+}
+
+func fillFocusCandidates(in focusInputs, out *[numFocusKinds]FocusCandidate) {
 	for f := FocusKind(0); f < numFocusKinds; f++ {
-		spec := w.cfg.Focuses[f]
+		spec := in.focuses[f]
 		out[f] = FocusCandidate{
 			Kind:     f,
 			Eligible: f == FocusIdle,
 			Score: FocusScore{
 				Base:   spec.Base,
-				Affect: affectContribution(e.affect.Charge, e.affect.Grip, spec, w.cfg.MoodMax),
+				Affect: affectContribution(in.charge, in.grip, spec, in.moodMax),
 			},
 		}
 	}
 
-	out[FocusWork].Eligible = workJob(e.Job) || !e.resting || w.tick >= e.wakeTick
+	out[FocusWork].Eligible = in.workEligible
 	for f := FocusKind(0); f < numFocusKinds; f++ {
-		out[f].Score.Stimulus = e.stimulusFocusBias[f]
+		out[f].Score.Stimulus = in.stimulus[f]
 	}
 
 	fatalPressing := false
 	for n := NeedKind(0); n < numNeeds; n++ {
-		level := w.needLevel(e, n)
-		w.syncNeedPhaseAtLevel(e, n, level)
-		spec := w.cfg.Needs[n]
-		phase := e.needPhase[n]
+		spec := in.needs[n]
+		phase := in.phase[n]
 		if phase != NeedPressing && phase != NeedCritical {
 			continue
 		}
-		pressure := needPressure(level, spec)
+		pressure := needPressure(in.level[n], spec)
 		f := focusForNeed(n)
 		c := &out[f]
 		c.Need = n
 		c.Eligible = true
-		c.Score.Need = pressure * w.cfg.Focuses[f].NeedWeight / 100
+		c.Score.Need = pressure * in.focuses[f].NeedWeight / 100
 		if phase == NeedCritical {
-			c.Score.Need += w.cfg.FocusCriticalBonus
+			c.Score.Need += in.criticalBonus
 		}
 		if spec.Fatal {
-			c.Score.Need += w.cfg.FocusFatalBonus
+			c.Score.Need += in.fatalBonus
 			fatalPressing = true
 		}
 	}
@@ -295,25 +346,24 @@ func (w *World) focusCandidates(e *Entity, out *[numFocusKinds]FocusCandidate) {
 	// non-fatal needs. Threats remain eligible and can still dominate it.
 	if fatalPressing {
 		for n := NeedKind(0); n < numNeeds; n++ {
-			if w.cfg.Needs[n].Fatal {
+			if in.needs[n].Fatal {
 				continue
 			}
 			out[focusForNeed(n)].Eligible = false
 		}
 	}
 
-	threat, hasThreat := w.nearestAlien(e.Pos, w.cfg.FleeRadius)
-	if hasThreat {
+	if in.threat {
 		out[FocusFlee].Eligible = true
-		out[FocusFlee].Threat = threat.ID
-		if bestWeapon(e.Inventory) != ItemNone {
+		out[FocusFlee].Threat = in.threatID
+		if in.armed {
 			out[FocusFight].Eligible = true
-			out[FocusFight].Threat = threat.ID
+			out[FocusFight].Threat = in.threatID
 			// Standing and firing has no locomotion cost when the target is in
 			// range. Evasion always spends at least one movement step, which also
 			// preserves the established armed-colonist behavior on an otherwise
 			// exact tie.
-			out[FocusFlee].Score.Distance = -w.cfg.Focuses[FocusFlee].DistanceWeight
+			out[FocusFlee].Score.Distance = -in.focuses[FocusFlee].DistanceWeight
 		}
 	}
 
@@ -324,10 +374,10 @@ func (w *World) focusCandidates(e *Entity, out *[numFocusKinds]FocusCandidate) {
 	// facility that need is failing to reach. An immediate predator is the one
 	// thing that still outranks it — self-preservation never waits on a wall.
 	// See updateDisconnected and rooms.go's mainRoom.
-	out[FocusEscape].Eligible = !hasThreat && e.disconnectedTicks >= w.cfg.EscapeGraceTicks
+	out[FocusEscape].Eligible = in.escape
 
-	if e.focus < numFocusKinds && out[e.focus].Eligible {
-		out[e.focus].Score.Commitment = w.cfg.FocusCurrentBonus
+	if in.current < numFocusKinds && out[in.current].Eligible {
+		out[in.current].Score.Commitment = in.currentBonus
 	}
 }
 
@@ -347,22 +397,30 @@ func betterFocus(a, b FocusCandidate, current FocusKind) bool {
 
 func (w *World) chooseFocus(e *Entity, candidates *[numFocusKinds]FocusCandidate) FocusCandidate {
 	w.focusCandidates(e, candidates)
+	return selectFocus(candidates, e.focus, w.cfg.FocusSwitchMargin)
+}
+
+func selectFocus(candidates *[numFocusKinds]FocusCandidate, current FocusKind, margin int) FocusCandidate {
+	best, found := leadingFocus(candidates, current)
+	if current < numFocusKinds {
+		held := candidates[current]
+		if held.Eligible && (!found || best.Kind != current) &&
+			best.Score.Total() <= held.Score.Total()+margin {
+			return held
+		}
+	}
+	return best
+}
+
+func leadingFocus(candidates *[numFocusKinds]FocusCandidate, current FocusKind) (FocusCandidate, bool) {
 	best := FocusCandidate{}
 	found := false
 	for i := range candidates {
 		c := candidates[i]
-		if !c.Eligible || found && !betterFocus(c, best, e.focus) {
+		if !c.Eligible || found && !betterFocus(c, best, current) {
 			continue
 		}
 		best, found = c, true
 	}
-
-	if e.focus < numFocusKinds {
-		current := candidates[e.focus]
-		if current.Eligible && best.Kind != e.focus &&
-			best.Score.Total() <= current.Score.Total()+w.cfg.FocusSwitchMargin {
-			return current
-		}
-	}
-	return best
+	return best, found
 }

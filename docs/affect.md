@@ -122,7 +122,7 @@ transforms:
 
 | Trait | Appraisal |
 | --- | --- |
-| Tidy | scales visible gore, witnessed colonist death, witnessed mouse crush, and cleaning refuse by 2.2; doubles incineration grip relief |
+| Tidy | scales visible gore, witnessed colonist death, witnessed rat crush, and cleaning refuse by 2.2; doubles incineration grip relief |
 | Industrious | doubles the actor's finished mine/clear/construct/clean/incinerate vectors |
 | Mutant-Lover | reflects mutation grip for doing it or watching it |
 | Introvert | reflects conversation charge |
@@ -223,8 +223,7 @@ loaded attractors rather than the static `moodAttractors` table.
 
 - [compositional-perception-and-events.md](./compositional-perception-and-events.md)
   — occurrence/percept/reaction grammar and wear-policy seam.
-- [cognition-config-and-lab.md](./cognition-config-and-lab.md) — authoring
-  schema and the Cognition Lab.
+- [scum-lab.md](./scum-lab.md) — the bench that edits `cognition.yaml`.
 - [memories.md](./memories.md) — the single event ingestion funnel and memory collapse.
 - [personality.md](./personality.md) — trait groups, affect homes, and the
   personality RNG invariant.

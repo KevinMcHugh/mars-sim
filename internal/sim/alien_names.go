@@ -3,7 +3,7 @@ package sim
 import (
 	_ "embed"
 	"fmt"
-	"math/rand"
+	"math/rand/v2"
 	"strings"
 
 	"gopkg.in/yaml.v3"
@@ -189,9 +189,9 @@ func pickAlienName(rng *rand.Rand, sp AlienSpecies, names []AlienNameEntry) (sin
 	if len(candidates) == 0 {
 		return "alien", "aliens", ""
 	}
-	e := candidates[rng.Intn(len(candidates))]
+	e := candidates[rng.IntN(len(candidates))]
 	if len(e.Emoji) > 0 {
-		emoji = e.Emoji[rng.Intn(len(e.Emoji))]
+		emoji = e.Emoji[rng.IntN(len(e.Emoji))]
 	}
 	if e.Plural == "" {
 		return e.Singular, e.Singular + "s", emoji
