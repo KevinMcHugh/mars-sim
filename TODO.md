@@ -17,3 +17,13 @@ things to build/fix as we think of them:
     * genuinely want to look at how frontier towns handled new arrivals. I know in the klondike they did supplies checks - you needed to demonstrate that you had 500lbs of supplies you were bringing in so the authorities weren't letting corpses in
 * centralized content for labels and free text (esp. actor labels and occurrence text)
   * an HTML tool for managing this content
+* families, romantic relationships, cohabitation
+* interpersonal conflict
+* organizational conflict: factions, gangs
+* crimes
+  * thievery, mugging? Mugging sounds hard to do— determining where to do it, witnesses, etc
+  * smuggling, illegal goods, black market
+* insurance
+* lending
+* prediction markets
+* sickness
