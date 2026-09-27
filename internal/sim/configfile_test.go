@@ -212,3 +212,21 @@ func TestKnobsPointAtTheConfig(t *testing.T) {
 	}
 	t.Fatal("needs.food.rise knob not found")
 }
+
+// Settings files written before a rename still load: mice became rats. A
+// retired setting says what replaced it rather than reading as a typo.
+func TestOldSettingNamesStillMeanSomething(t *testing.T) {
+	cfg := DefaultConfig()
+	if _, err := ApplyConfigFile(&cfg, []byte("mice: 3\n"), ConfigFileName); err != nil {
+		t.Fatalf("mice: %v", err)
+	}
+	if cfg.StartRats != 3 {
+		t.Fatalf("mice: 3 set rats to %d", cfg.StartRats)
+	}
+	for _, old := range []string{"pistols", "shotguns"} {
+		_, err := ApplyConfigFile(&cfg, []byte(old+": 2\n"), ConfigFileName)
+		if err == nil || !strings.Contains(err.Error(), "crash-pod-"+old) {
+			t.Fatalf("%s: error %v does not point to crash-pod-%s", old, err, old)
+		}
+	}
+}

@@ -34,13 +34,13 @@ const DEFAULT_CONFIG = {
   },
   reactions: {
     "saw-alien": { impact: 45, fresh: { charge: 8, grip: -10, valence: -15 }, worn: { charge: 5, grip: -22, valence: -22 }, wear_policy: "memory-occasions", stimulus: { salience: 100, lifetime: 12, contributions: { flee: 500, fight: 500 } } },
-    "saw-mouse": { impact: 8, fresh: { charge: 2, grip: -3, valence: 0 }, worn: { charge: 1, grip: -1, valence: 0 }, wear_policy: "memory-occasions" },
+    "saw-rat": { impact: 8, fresh: { charge: 2, grip: -3, valence: 0 }, worn: { charge: 1, grip: -1, valence: 0 }, wear_policy: "memory-occasions" },
     "saw-gore": { impact: 30, fresh: { charge: -3, grip: -7, valence: -6 }, worn: { charge: -6, grip: -14, valence: -10 }, wear_policy: "memory-occasions", stimulus: { salience: 35, lifetime: 30, contributions: { work: 20 } } },
     "bitten": { impact: 70, fresh: { charge: 55, grip: -44, valence: -30 }, worn: { charge: 35, grip: -80, valence: -55 }, wear_policy: "memory-occasions", stimulus: { salience: 100, lifetime: 20, contributions: { flee: 300, fight: 150 } } },
     "witnessed-colonist-killed": { impact: 95, fresh: { charge: 70, grip: 40, valence: -60 }, worn: { charge: 20, grip: -85, valence: -85 }, wear_policy: "memory-occasions", stimulus: { salience: 90, lifetime: 20, contributions: { flee: 250, fight: 100 } } },
     "witnessed-colonist-attacked": { impact: 75, fresh: { charge: 45, grip: 25, valence: -40 }, worn: { charge: 25, grip: -70, valence: -60 }, wear_policy: "memory-occasions", stimulus: { salience: 70, lifetime: 12, contributions: { flee: 200, fight: 100 } } },
-    "crushed-mouse": { impact: 6, fresh: { charge: -1, grip: 2, valence: 0 }, worn: { charge: -2, grip: 0, valence: 0 }, wear_policy: "memory-occasions" },
-    "witnessed-mouse-crushed": { impact: 8, fresh: { charge: -1, grip: -2, valence: -1 }, worn: { charge: -1, grip: -1, valence: 0 }, wear_policy: "memory-occasions" },
+    "crushed-rat": { impact: 6, fresh: { charge: -1, grip: 2, valence: 0 }, worn: { charge: -2, grip: 0, valence: 0 }, wear_policy: "memory-occasions" },
+    "witnessed-rat-crushed": { impact: 8, fresh: { charge: -1, grip: -2, valence: -1 }, worn: { charge: -1, grip: -1, valence: 0 }, wear_policy: "memory-occasions" },
     "witnessed-cat-catch": { impact: 5, fresh: { charge: 1, grip: 1, valence: 0 }, worn: { charge: 0, grip: 0, valence: 0 }, wear_policy: "memory-occasions" },
     "killed-alien": { impact: 55, fresh: { charge: 45, grip: 52, valence: 35 }, worn: { charge: 25, grip: 20, valence: 8 }, wear_policy: "memory-occasions" },
     "witnessed-alien-killed": { impact: 35, fresh: { charge: 5, grip: 6, valence: 4 }, worn: { charge: 2, grip: 2, valence: 0 }, wear_policy: "memory-occasions" },
@@ -57,13 +57,20 @@ const DEFAULT_CONFIG = {
     "cleaned-refuse": { impact: 14, fresh: { charge: -1, grip: 5, valence: 0 }, worn: { charge: -5, grip: -4, valence: 0 }, wear_policy: "memory-occasions", stimulus: { salience: 25, lifetime: 10, contributions: { work: 15 } } },
     "incinerated-refuse": { impact: 16, fresh: { charge: -1, grip: 7, valence: 1 }, worn: { charge: -4, grip: 0, valence: 0 }, wear_policy: "memory-occasions", stimulus: { salience: 25, lifetime: 10, contributions: { work: 15 } } },
     "mutated": { impact: 60, fresh: { charge: 18, grip: -70, valence: -35 }, worn: { charge: 10, grip: -90, valence: -70 }, wear_policy: "memory-occasions" },
-    "witnessed-mutation": { impact: 35, fresh: { charge: 2, grip: -8, valence: -10 }, worn: { charge: 1, grip: -16, valence: -18 }, wear_policy: "memory-occasions" }
+    "witnessed-mutation": { impact: 35, fresh: { charge: 2, grip: -8, valence: -10 }, worn: { charge: 1, grip: -16, valence: -18 }, wear_policy: "memory-occasions" },
+    "ate-gruel": { impact: 10, fresh: { charge: 0, grip: 0, valence: -1 }, worn: { charge: -1, grip: -2, valence: -1 }, wear_policy: "memory-occasions" },
+    "cooked": { impact: 15, fresh: { charge: -1, grip: 5, valence: 1 }, worn: { charge: -5, grip: -2, valence: 0 }, wear_policy: "memory-occasions" },
+    "scraped-scum": { impact: 12, fresh: { charge: -1, grip: 4, valence: 0 }, worn: { charge: -5, grip: -3, valence: 0 }, wear_policy: "memory-occasions" },
+    "fed-scumhouse": { impact: 10, fresh: { charge: -1, grip: 4, valence: 0 }, worn: { charge: -4, grip: -2, valence: 0 }, wear_policy: "memory-occasions" },
+    "went-to-market": { impact: 8, fresh: { charge: 0, grip: 3, valence: 0 }, worn: { charge: -2, grip: 0, valence: 0 }, wear_policy: "memory-occasions" },
+    "hauled": { impact: 8, fresh: { charge: 0, grip: 2, valence: 0 }, worn: { charge: -2, grip: 0, valence: 0 }, wear_policy: "memory-occasions" },
+    "bought-meal": { impact: 12, fresh: { charge: 2, grip: 3, valence: 0 }, worn: { charge: 1, grip: 0, valence: 0 }, wear_policy: "memory-occasions" }
   }
 };
 
 const DEFAULT_VOCABULARY = {
-  nouns: ["colonist", "alien", "cat", "mouse", "gore", "meal", "toilet", "bed", "need", "rock", "structure", "refuse"],
-  actions: ["present", "bite", "attack", "kill", "crush", "catch", "wound", "converse", "eat", "use", "sleep", "satisfy", "mine", "clear", "construct", "clean", "incinerate", "mutate"],
+  nouns: ["colonist", "alien", "cat", "rat", "gore", "meal", "toilet", "bed", "need", "rock", "structure", "refuse", "gruel", "scum", "scumhouse", "goods"],
+  actions: ["present", "bite", "attack", "kill", "crush", "catch", "wound", "converse", "eat", "use", "sleep", "satisfy", "mine", "clear", "construct", "clean", "incinerate", "mutate", "cook", "scrape", "deliver", "trade", "buy", "haul"],
   channels: ["direct", "sight", "hearing", "proximity"],
   roles: ["actor", "target", "witness"],
   phases: ["instant", "enter", "ongoing", "exit"],
@@ -77,14 +84,14 @@ const DEFAULT_VOCABULARY = {
 
 const DEFAULT_MATCHES = {
   "saw-alien":                  { actor_noun:"alien", action:"present", channel:"sight", role:"witness", phase:"enter" },
-  "saw-mouse":                  { actor_noun:"mouse", action:"present", channel:"sight", role:"witness", phase:"enter" },
+  "saw-rat":                    { actor_noun:"rat", action:"present", channel:"sight", role:"witness", phase:"enter" },
   "saw-gore":                   { actor_noun:"gore", action:"present", channel:"sight", role:"witness", phase:"enter" },
   "bitten":                     { actor_noun:"alien", action:"bite", object_noun:"colonist", channel:"direct", role:"target", phase:"instant" },
   "witnessed-colonist-killed":  { actor_noun:"alien", action:"kill", object_noun:"colonist", channel:"sight", role:"witness", phase:"instant" },
   "witnessed-colonist-attacked":{ actor_noun:"alien", action:"bite", object_noun:"colonist", channel:"sight", role:"witness", phase:"instant" },
-  "crushed-mouse":              { actor_noun:"colonist", action:"crush", object_noun:"mouse", channel:"direct", role:"actor", phase:"instant" },
-  "witnessed-mouse-crushed":    { actor_noun:"colonist", action:"crush", object_noun:"mouse", channel:"sight", role:"witness", phase:"instant" },
-  "witnessed-cat-catch":        { actor_noun:"cat", action:"catch", object_noun:"mouse", channel:"sight", role:"witness", phase:"instant" },
+  "crushed-rat":                { actor_noun:"colonist", action:"crush", object_noun:"rat", channel:"direct", role:"actor", phase:"instant" },
+  "witnessed-rat-crushed":      { actor_noun:"colonist", action:"crush", object_noun:"rat", channel:"sight", role:"witness", phase:"instant" },
+  "witnessed-cat-catch":        { actor_noun:"cat", action:"catch", object_noun:"rat", channel:"sight", role:"witness", phase:"instant" },
   "killed-alien":               { actor_noun:"colonist", action:"kill", object_noun:"alien", channel:"direct", role:"actor", phase:"instant" },
   "witnessed-alien-killed":     { actor_noun:"colonist", action:"kill", object_noun:"alien", channel:"sight", role:"witness", phase:"instant" },
   "wounded-alien":              { actor_noun:"colonist", action:"wound", object_noun:"alien", channel:"direct", role:"actor", phase:"instant" },
@@ -100,19 +107,26 @@ const DEFAULT_MATCHES = {
   "cleaned-refuse":             { actor_noun:"colonist", action:"clean", object_noun:"refuse", channel:"direct", role:"actor", phase:"instant" },
   "incinerated-refuse":         { actor_noun:"colonist", action:"incinerate", object_noun:"refuse", channel:"direct", role:"actor", phase:"instant" },
   "mutated":                    { actor_noun:"colonist", action:"mutate", channel:"direct", role:"actor", phase:"instant" },
-  "witnessed-mutation":         { actor_noun:"colonist", action:"mutate", channel:"sight", role:"witness", phase:"instant" }
+  "witnessed-mutation":         { actor_noun:"colonist", action:"mutate", channel:"sight", role:"witness", phase:"instant" },
+  "ate-gruel":                  { actor_noun:"colonist", action:"eat", object_noun:"gruel", channel:"direct", role:"actor", phase:"instant" },
+  "cooked":                     { actor_noun:"colonist", action:"cook", object_noun:"meal", channel:"direct", role:"actor", phase:"instant" },
+  "scraped-scum":               { actor_noun:"colonist", action:"scrape", object_noun:"scum", channel:"direct", role:"actor", phase:"instant" },
+  "fed-scumhouse":              { actor_noun:"colonist", action:"deliver", object_noun:"scumhouse", channel:"direct", role:"actor", phase:"instant" },
+  "went-to-market":             { actor_noun:"colonist", action:"trade", object_noun:"goods", channel:"direct", role:"actor", phase:"instant" },
+  "hauled":                     { actor_noun:"colonist", action:"haul", object_noun:"goods", channel:"direct", role:"actor", phase:"instant" },
+  "bought-meal":                { actor_noun:"colonist", action:"buy", object_noun:"meal", channel:"direct", role:"actor", phase:"instant" }
 };
 
 const DEFAULT_PERCEPTIONS = [
   { id:"direct-actor", match:{}, sense:{ channel:"direct", role:"actor", cadence:"instant" } },
   { id:"direct-target", match:{}, sense:{ channel:"direct", role:"target", cadence:"instant" } },
   { id:"visible-alien", match:{ actor_noun:"alien", action:"present" }, sense:{ channel:"sight", role:"witness", radius:"flee-radius", cadence:"enter-and-ongoing" } },
-  { id:"visible-mouse", match:{ actor_noun:"mouse", action:"present" }, sense:{ channel:"sight", role:"witness", radius:"stomp-radius", cadence:"enter" } },
+  { id:"visible-rat", match:{ actor_noun:"rat", action:"present" }, sense:{ channel:"sight", role:"witness", radius:"stomp-radius", cadence:"enter" } },
   { id:"visible-gore", match:{ actor_noun:"gore", action:"present" }, sense:{ channel:"sight", role:"witness", radius:"gore-sight-radius", cadence:"enter" } },
   { id:"witness-alien-kill", match:{ actor_noun:"alien", action:"kill", object_noun:"colonist" }, sense:{ channel:"sight", role:"witness", radius:"flee-radius", cadence:"instant" } },
   { id:"witness-alien-attack", match:{ actor_noun:"alien", action:"bite", object_noun:"colonist" }, sense:{ channel:"sight", role:"witness", radius:"flee-radius", cadence:"instant" } },
-  { id:"witness-mouse-crushed", match:{ actor_noun:"colonist", action:"crush", object_noun:"mouse" }, sense:{ channel:"sight", role:"witness", radius:"stomp-radius", cadence:"instant" } },
-  { id:"witness-cat-catch", match:{ actor_noun:"cat", action:"catch", object_noun:"mouse" }, sense:{ channel:"sight", role:"witness", radius:"stomp-radius", cadence:"instant" } },
+  { id:"witness-rat-crushed", match:{ actor_noun:"colonist", action:"crush", object_noun:"rat" }, sense:{ channel:"sight", role:"witness", radius:"stomp-radius", cadence:"instant" } },
+  { id:"witness-cat-catch", match:{ actor_noun:"cat", action:"catch", object_noun:"rat" }, sense:{ channel:"sight", role:"witness", radius:"stomp-radius", cadence:"instant" } },
   { id:"witness-alien-killed", match:{ actor_noun:"colonist", action:"kill", object_noun:"alien" }, sense:{ channel:"sight", role:"witness", radius:"flee-radius", cadence:"instant" } },
   { id:"witness-gunfight", match:{ actor_noun:"colonist", action:"wound", object_noun:"alien" }, sense:{ channel:"sight", role:"witness", radius:"flee-radius", cadence:"instant" } },
   { id:"witness-mutation", match:{ actor_noun:"colonist", action:"mutate" }, sense:{ channel:"sight", role:"witness", radius:"flee-radius", cadence:"instant" } }
@@ -122,7 +136,9 @@ const COLLAPSE_TEXT = {
   "finished-mining":"Finished mining.", "cleared-rock":"Cleared rock for a room.",
   "finished-construction":"Finished construction.", "cleaned-refuse":"Cleaned up refuse.",
   "incinerated-refuse":"Burned refuse in the incinerator.", "ate":"Had a meal.",
-  "used-toilet":"Used the toilet.", "slept":"Slept in a bed.", "need-satisfied":"Satisfied a need."
+  "used-toilet":"Used the toilet.", "slept":"Slept in a bed.", "need-satisfied":"Satisfied a need.",
+  "ate-gruel":"Ate nutrient-pod gruel.", "cooked":"Worked the scumhouse.", "scraped-scum":"Scraped cave scum.",
+  "fed-scumhouse":"Fed the scumhouse.", "went-to-market":"Went to market.", "hauled":"Hauled goods for hire."
 };
 const ACTOR_SOURCED_STIMULI = new Set([
   "saw-alien", "bitten", "witnessed-colonist-killed", "witnessed-colonist-attacked"
@@ -140,7 +156,7 @@ DEFAULT_CONFIG.perceptions = JSON.parse(JSON.stringify(DEFAULT_PERCEPTIONS));
 DEFAULT_CONFIG.trait_rules = [
   { id:"tidy-saw-gore", trait:"tidy", match:{ actor_noun:"gore", action:"present", channel:"sight", role:"witness", phase:"enter" }, scales:{ impact:100, charge:220, grip:220, valence:220, wear_rate:100 } },
   { id:"tidy-witnessed-colonist-killed", trait:"tidy", match:{ actor_noun:"alien", action:"kill", object_noun:"colonist", channel:"sight", role:"witness", phase:"instant" }, scales:{ impact:100, charge:220, grip:220, valence:220, wear_rate:100 } },
-  { id:"tidy-witnessed-mouse-crushed", trait:"tidy", match:{ actor_noun:"colonist", action:"crush", object_noun:"mouse", channel:"sight", role:"witness", phase:"instant" }, scales:{ impact:100, charge:220, grip:220, valence:220, wear_rate:100 } },
+  { id:"tidy-witnessed-rat-crushed", trait:"tidy", match:{ actor_noun:"colonist", action:"crush", object_noun:"rat", channel:"sight", role:"witness", phase:"instant" }, scales:{ impact:100, charge:220, grip:220, valence:220, wear_rate:100 } },
   { id:"tidy-cleaned-refuse", trait:"tidy", match:{ actor_noun:"colonist", action:"clean", object_noun:"refuse", channel:"direct", role:"actor", phase:"instant" }, scales:{ impact:100, charge:220, grip:220, valence:220, wear_rate:100 } },
   { id:"tidy-incinerated-refuse", trait:"tidy", match:{ actor_noun:"colonist", action:"incinerate", object_noun:"refuse", channel:"direct", role:"actor", phase:"instant" }, scales:{ impact:100, charge:100, grip:200, valence:100, wear_rate:100 } },
   { id:"industrious-mining", trait:"industrious", match:{ actor_noun:"colonist", action:"mine", object_noun:"rock", channel:"direct", role:"actor", phase:"instant" }, scales:{ impact:100, charge:200, grip:200, valence:200, wear_rate:100 } },

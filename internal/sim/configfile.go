@@ -293,6 +293,12 @@ func applyMapping(cfg *Config, node *yaml.Node, prefix []string, index map[strin
 			continue
 		}
 
+		if why, gone := RetiredSettings[path]; gone {
+			return fmt.Errorf("%s:%d: %q is no longer a setting: %s", name, keyNode.Line, path, why)
+		}
+		if to, renamed := RenamedSettings[path]; renamed {
+			path = to
+		}
 		knob, ok := index[path]
 		if !ok {
 			return unknownKeyError(name, keyNode, path)
@@ -345,6 +351,21 @@ func isKnobPrefix(index map[string]Knob, path string) bool {
 		}
 	}
 	return false
+}
+
+// RenamedSettings maps an old setting name to its new one, so settings files
+// and command lines written before the rename still load. Mice became rats.
+var RenamedSettings = map[string]string{
+	"mice": "rats",
+}
+
+// RetiredSettings are old setting names with no one-to-one replacement, and
+// what to use instead. The colony ship's armory became each crash pod's: a
+// per-colonist count, so reading the old colony-wide total as one would
+// silently arm everybody many times over.
+var RetiredSettings = map[string]string{
+	"pistols":  "every colonist now lands with its own; set crash-pod-pistols (per colonist) instead",
+	"shotguns": "every colonist now lands with its own; set crash-pod-shotguns (per colonist) instead",
 }
 
 func unknownKeyError(name string, node *yaml.Node, path string) error {

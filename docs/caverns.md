@@ -78,7 +78,7 @@ of the design depends on that one fact:
 | System | What it does with undiscovered floor |
 | --- | --- |
 | `bordersFloor` / job board | Cave walls are not mining frontier, so nobody tries to mine rock they cannot reach. |
-| `randomFloor`, `freeFloorTiles` | Colonists, cats, mice, arrivals, and mouse plagues are never placed in a cave. |
+| `randomFloor`, `freeFloorTiles` | Colonists, cats, rats, arrivals, and rat plagues are never placed in a cave. |
 | `roomSiteClear` | No room is sited on cave floor or cave lanes. |
 | `relabelRooms` → `mainRoom` | Only rooms with a discovered region can be the colony's main room (see [escape.md](./escape.md)). |
 | `Stats.FloorDug`, `Stats.Rooms` | Undiscovered floor and rooms are left out. |

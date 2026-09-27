@@ -55,7 +55,12 @@ nothing next to the work the loop then does.
 together, and compares a fingerprint after every tick. It fails on the first tick
 that disagrees and names the first field that moved, checked in a fixed order:
 
-    tiles → regions → rooms → frontier → cleaning → entities
+    tiles → regions → rooms → frontier → cleaning → property → entities
+
+`property` is the economy's state: the treasury and every wallet, each
+fixture's owner and access, and every storage ledger line (see
+[money.md](./money.md) and [property.md](./property.md)). Who got paid and
+whose ore is in a chest must be as seed-stable as where anyone stands.
 
 The order is the point. A determinism bug shows up in the *entities* field
 eventually — a colonist standing somewhere else — but by then it is hundreds of
@@ -135,6 +140,23 @@ corridor only constrains the tile search, which usually finds the same optimal
 route inside a slightly different set of regions. A latent order dependence that
 is invisible today is exactly how the other two got in.
 
+### `tryAssignCraft` recorded its answer from inside a filter
+
+`nearestScumhouse(e, ok)` ranges over the scumhouse set (a map) and keeps the
+nearest candidate that passes `ok`. `tryAssignCraft`'s `ok` also *recorded*
+which recipe and whose inputs it found, as a side effect. Every candidate runs
+through the filter, so the recorded recipe was whichever candidate the map
+yielded last, not the one chosen. With one scumhouse that was invisible. With
+several, a cook could be sent to one kitchen with another's recipe,
+differently on each run: a 40-colonist colony starved a different number of
+people every time its seed was replayed. The filter now only answers yes or
+no, and the recipe is worked out for the scumhouse actually chosen
+(`craftableRecipe`). `TestDeterministicRunUnderScarcity` runs the lockstep
+check with several kitchens.
+
+The general rule: **a filter or comparator passed to a search over a map must
+be pure.** Anything it writes is written in map order.
+
 ## Extending it
 
 - **Adding a map to `World`**: before you iterate it, decide which of the three
@@ -150,7 +172,7 @@ is invisible today is exactly how the other two got in.
   draw and diff the traces: an identical RNG trace with divergent state proves
   the cause is ordering, not randomness, and narrows it to one call site.
 - **What the fingerprint does not cover**: affect, memories, relationships, and
-  inventories. Add them if a bug lands there; they were left out because every
+  colonist inventories. Add them if a bug lands there; they were left out because every
   divergence found so far surfaced in position or labelling first.
 
 ## Related

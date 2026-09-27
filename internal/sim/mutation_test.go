@@ -10,7 +10,7 @@ import (
 func mutationWorld(t *testing.T) *World {
 	t.Helper()
 	cfg := testConfig()
-	cfg.StartColonists, cfg.StartAliens, cfg.StartCats, cfg.StartMice = 0, 0, 0, 0
+	cfg.StartColonists, cfg.StartAliens, cfg.StartCats, cfg.StartRats = 0, 0, 0, 0
 	cfg.IronRockPercent, cfg.IceRockPercent, cfg.UraniumRockPercent, cfg.ClayRockPercent = 0, 0, 0, 0
 	return newTestWorld(t, cfg)
 }
@@ -35,7 +35,7 @@ func TestMiningUraniumYieldsOre(t *testing.T) {
 func TestWorldgenGrowsUraniumVeins(t *testing.T) {
 	cfg := testConfig()
 	cfg.Width, cfg.Height = 40, 30
-	cfg.StartColonists, cfg.StartAliens, cfg.StartCats, cfg.StartMice = 0, 0, 0, 0
+	cfg.StartColonists, cfg.StartAliens, cfg.StartCats, cfg.StartRats = 0, 0, 0, 0
 	cfg.IronRockPercent, cfg.IceRockPercent, cfg.UraniumRockPercent, cfg.ClayRockPercent = 10, 5, 3, 0
 	cfg.Seed = 161803
 	w := NewEngine(cfg).world
@@ -317,7 +317,7 @@ func TestDefaultsKeepMutationRare(t *testing.T) {
 		cfg := DefaultConfig()
 		cfg.Seed = seed * 7919
 		cfg.Width, cfg.Height = 80, 40
-		cfg.StartColonists, cfg.StartAliens, cfg.StartCats, cfg.StartMice = 30, 0, 0, 0
+		cfg.StartColonists, cfg.StartAliens, cfg.StartCats, cfg.StartRats = 30, 0, 0, 0
 		w := NewEngine(cfg).world
 		for i := 0; i < 5000; i++ {
 			w.step()

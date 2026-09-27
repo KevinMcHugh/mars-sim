@@ -109,15 +109,15 @@ reactions:
 func TestTraitRulesMatchPerceptGrammar(t *testing.T) {
 	w, colonist := focusTestColonist(t)
 	colonist.Profile = &Profile{Traits: []Trait{TraitTidy}}
-	reaction := testReaction(w, "saw-mouse")
+	reaction := testReaction(w, "saw-rat")
 	w.cognition.TraitRules = append(w.cognition.TraitRules, TraitRule{
-		ID: "tidy-saw-mouse-test", Trait: TraitTidy, Match: reaction.Match,
+		ID: "tidy-saw-rat-test", Trait: TraitTidy, Match: reaction.Match,
 		Impact: 100, Charge: 220, Grip: 220, Valence: 220, WearRate: 100,
 	})
 	o := Occurrence{
-		Actor:  FactRef{Noun: NounMouse, Entity: 99, Label: "mouse #99"},
+		Actor:  FactRef{Noun: NounRat, Entity: 99, Label: "rat #99"},
 		Action: ActionPresent,
-		Text:   "Saw a bloody mouse.",
+		Text:   "Saw a bloody rat.",
 	}
 	w.rememberPercept(colonist, Percept{
 		Observer: colonist.ID, Channel: ChannelSight, Role: RoleWitness,
@@ -158,19 +158,19 @@ func TestFatalBiteComputesFriendRelationBeforeRemoval(t *testing.T) {
 
 func TestPersistentPerceptionUsesDeterministicEntityOrder(t *testing.T) {
 	cfg := testConfig()
-	cfg.StartColonists, cfg.StartAliens, cfg.StartCats, cfg.StartMice = 0, 0, 0, 0
+	cfg.StartColonists, cfg.StartAliens, cfg.StartCats, cfg.StartRats = 0, 0, 0, 0
 	w := newTestWorld(t, cfg)
 	observer := w.spawn(Colonist, Point{10, 10})
-	first := w.spawn(Mouse, Point{12, 10})
-	second := w.spawn(Mouse, Point{8, 10})
+	first := w.spawn(Rat, Point{12, 10})
+	second := w.spawn(Rat, Point{8, 10})
 
 	w.observeNearby(observer)
 
 	if len(observer.Memories) != 2 {
-		t.Fatalf("mouse memories = %d, want 2", len(observer.Memories))
+		t.Fatalf("rat memories = %d, want 2", len(observer.Memories))
 	}
-	if observer.Memories[0].Text != "Saw mouse #"+fmt.Sprint(first.ID)+"." ||
-		observer.Memories[1].Text != "Saw mouse #"+fmt.Sprint(second.ID)+"." {
+	if observer.Memories[0].Text != "Saw rat #"+fmt.Sprint(first.ID)+"." ||
+		observer.Memories[1].Text != "Saw rat #"+fmt.Sprint(second.ID)+"." {
 		t.Fatalf("persistent order = %+v, want entity ID order", observer.Memories)
 	}
 }
@@ -210,6 +210,7 @@ reactions:
 
 func TestRestingFastPathIgnoresCustomPersistentRuleWithoutInterruptRest(t *testing.T) {
 	cfg := testConfig()
+	cfg.StartAliens, cfg.StartRats = 0, 0 // nothing nearby that would wake a rester anyway
 	if err := ApplyCognitionYAML(&cfg.Cognition, []byte(`
 perceptions:
   - id: visible-cat
@@ -232,6 +233,7 @@ perceptions:
 
 func TestRestingFastPathSurvivesTunedShippedPersistentRule(t *testing.T) {
 	cfg := testConfig()
+	cfg.StartAliens, cfg.StartRats = 0, 0 // nothing nearby that would wake a rester anyway
 	if err := ApplyCognitionYAML(&cfg.Cognition, []byte(`
 perceptions:
   - id: visible-alien

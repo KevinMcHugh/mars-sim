@@ -51,7 +51,7 @@ since order within a bucket does not matter (queries tie-break on ID).
 
 `entityIDsNearSorted` is the other chunk query: every entity within a square
 radius, in ascending ID order. `observeNearby` (a colonist noticing aliens and
-mice) uses it. It used to copy and sort *every* entity ID once per colonist per
+rats) uses it. It used to copy and sort *every* entity ID once per colonist per
 tick, so a 500-colonist tick did 500 full sorts; see the table below. Sorting
 only the few nearby hits keeps the same visiting order, and so the same
 memories and stimuli in the same order, which determinism needs (see

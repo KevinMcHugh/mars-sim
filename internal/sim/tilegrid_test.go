@@ -197,7 +197,7 @@ func TestPublishedRefuseReachesFrontendsWithoutTerrainChange(t *testing.T) {
 	w.snapshot(false, 1) // publish, so the tile's page is clean from here on
 
 	w.addGore(spot)
-	w.addCorpse(spot)
+	w.addCorpse(spot, ColonistCorpse)
 	got := w.snapshot(false, 1).TileAt(spot)
 	if got.Gore != 1 || got.Corpses != 1 {
 		t.Fatalf("published tile has gore %d, corpses %d; want 1 and 1 — a refuse change reached no frame",
@@ -207,7 +207,7 @@ func TestPublishedRefuseReachesFrontendsWithoutTerrainChange(t *testing.T) {
 	// The frame above is now in a frontend's hands. Cleaning the tile must not
 	// alter it, and must show up in the frame after.
 	held := w.snapshot(false, 1)
-	if !w.takeGore(spot) || !w.takeCorpse(spot) {
+	if !w.takeGore(spot) || !w.takeCorpse(spot, ColonistCorpse) {
 		t.Fatal("expected refuse to take")
 	}
 	if got := held.TileAt(spot); got.Gore != 1 || got.Corpses != 1 {
@@ -227,7 +227,7 @@ func TestPublishedRefuseClearedByConstruction(t *testing.T) {
 	spot := Point{cfg.Width / 2, cfg.Height / 2}
 	w.SetTerrain(spot, Floor)
 	w.addGore(spot)
-	w.addCorpse(spot)
+	w.addCorpse(spot, ColonistCorpse)
 	if got := w.snapshot(false, 1).TileAt(spot); got.Gore == 0 || got.Corpses == 0 {
 		t.Fatalf("setup: expected refuse on the tile, got %+v", got)
 	}
