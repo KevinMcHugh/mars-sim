@@ -55,9 +55,25 @@ chunk takes two steps:
    tiles that fall inside it.
 
 The rule that keeps this bounded is **a chunk reads only plans, and a plan
-never needs another chunk to be generated**. Without it, generating B would
+never needs another chunk to be generated**. The planning horizon this
+produces is described below. Without it, generating B would
 generate A, A would generate its own neighbours, and the cascade would run
 across the map.
+
+A chunk only takes tiles from its eight neighbours, but the plans it reads
+depend on further plans. That makes the **planning horizon** four chunks out:
+
+- **Caverns:** chunk → `passagePlan` (radius 1) → `nearestCavern` (2) →
+  `keptCaverns` (3) → `cavernCandidates` (4).
+- **Veins:** each level reads the previous level's plans one chunk further out,
+  so clay reaches iron plans three chunks out.
+
+Every step reads only plans, so the horizon is fixed and does not grow into a
+cascade. It does make the first chunk in a new area expensive:
+`BenchmarkChunkCold` (empty cache) takes about 5.2 ms natively, and
+`BenchmarkChunkWarm` (a neighbour with the plans already cached) about 28 µs.
+The chunks around an area share nearly all their plans, so the cold cost is
+paid once per area, not once per chunk.
 
 Plans are cached in a `genCache`: two generations of map, where the older is
 dropped whole when the newer fills. The cache is only a cache. Dropping a plan
@@ -99,7 +115,9 @@ but no connectivity.
 The origin always has a free neighbour, so every vein has at least two tiles,
 and no later level ever overwrites an earlier one. `RockVeinMin` is raised to
 2 if it is set lower. `TestRockDepositsAreVeinsRatherThanIsolatedTiles` sweeps
-300 seeds under three configs (ordinary, crowded, and one-to-two-tile veins).
+300 seeds under three single-chunk configs (ordinary, crowded, and
+one-to-two-tile veins), plus 30 seeds of a crowded multi-chunk map where veins
+of every level meet their neighbours' veins.
 The old generator failed that invariant on about 6% of seeds: see
 [rng-streams.md](./rng-streams.md).
 

@@ -121,7 +121,10 @@ func (w *World) applyChunk(cx, cy int) []Point {
 			off := offset(x, y)
 			cell := &page[off]
 			cell.Composition = c.comp[off]
-			if !c.isFloor(off) || cell.Terrain != Rock {
+			// Hidden floor goes only on rock nobody has seen: a tile already
+			// revealed (or changed) keeps what the colony knows of it, which is
+			// what keeps "unexplored and not Rock" meaning undiscovered cave.
+			if !c.isFloor(off) || cell.Terrain != Rock || cell.Explored {
 				continue
 			}
 			if applyChunkViaCarveHidden {

@@ -97,6 +97,15 @@ func veinPercent(cfg *Config, level int) int {
 // chunkKey names a worldgen chunk.
 type chunkKey struct{ cx, cy int32 }
 
+// caveID names a planned cavern: its owner chunk and its index there.
+type caveID struct {
+	owner chunkKey
+	idx   int32
+}
+
+// nearestRef is a cached nearestCavern answer; c is nil for "none in range".
+type nearestRef struct{ c *genCavern }
+
 // genCavern is one planned natural cavern.
 type genCavern struct {
 	owner  chunkKey
@@ -153,6 +162,7 @@ type worldGen struct {
 	cands    genCache[chunkKey, []*genCavern]
 	kept     genCache[chunkKey, []*genCavern]
 	passages genCache[chunkKey, [][]Point]
+	nearest  genCache[caveID, nearestRef]
 
 	// Scratch, reused between plans.
 	mark    []bool // window bitmap for vein avoidance / cavern dilation
@@ -186,6 +196,7 @@ func (g *worldGen) forget() {
 	g.cands = newGenCache[chunkKey, []*genCavern](genCacheSize)
 	g.kept = newGenCache[chunkKey, []*genCavern](genCacheSize)
 	g.passages = newGenCache[chunkKey, [][]Point](genCacheSize)
+	g.nearest = newGenCache[caveID, nearestRef](genCacheSize * 8)
 }
 
 func (g *worldGen) chunkCols() int { return ceilDiv(g.width, genChunkSize) }
@@ -691,6 +702,12 @@ func (g *worldGen) planPassages(k chunkKey) [][]Point {
 // nearestCavern returns the kept cavern nearest c (Chebyshev, center to
 // center) within passageMaxSpan, ties going to the higher-ranked, or nil.
 func (g *worldGen) nearestCavern(c *genCavern) *genCavern {
+	// Every passage plan within one chunk asks about the same caverns, so
+	// the answer is worth keeping.
+	id := caveID{c.owner, c.idx}
+	if r, ok := g.nearest.get(id); ok {
+		return r.c
+	}
 	g.nearBuf = g.nearBuf[:0]
 	g.forNeighbours(c.owner, 1, func(n chunkKey) { g.nearBuf = append(g.nearBuf, g.keptCaverns(n)...) })
 	var best *genCavern
@@ -704,6 +721,7 @@ func (g *worldGen) nearestCavern(c *genCavern) *genCavern {
 			best, bestDist = o, d
 		}
 	}
+	g.nearest.put(id, nearestRef{best})
 	return best
 }
 

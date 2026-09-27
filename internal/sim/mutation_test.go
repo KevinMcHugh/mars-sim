@@ -48,7 +48,7 @@ func TestWorldgenGrowsUraniumVeins(t *testing.T) {
 	}
 	// Abundance is an expected value under chunked generation; see
 	// TestAbundanceDriftWithinTolerance for the tight check.
-	if want := w.Width*w.Height * cfg.UraniumRockPercent / 100; count < want/2 || count > want*3/2 {
+	if want := w.Width * w.Height * cfg.UraniumRockPercent / 100; count < want/2 || count > want*3/2 {
 		t.Fatalf("uranium-bearing tiles = %d, want about %d", count, want)
 	}
 }

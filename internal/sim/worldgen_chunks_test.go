@@ -46,12 +46,15 @@ func TestChunkGenerationIsOrderIndependent(t *testing.T) {
 		forgetful.cands = newGenCache[chunkKey, []*genCavern](cacheSize)
 		forgetful.kept = newGenCache[chunkKey, []*genCavern](cacheSize)
 		forgetful.passages = newGenCache[chunkKey, [][]Point](cacheSize)
+		forgetful.nearest = newGenCache[caveID, nearestRef](cacheSize)
 
+		// Raster order, then a seeded shuffle, so a failure reproduces.
 		order := make([]chunkKey, 0, len(want))
-		for k := range want {
-			order = append(order, k)
+		for cy := 0; cy < rows; cy++ {
+			for cx := 0; cx < cols; cx++ {
+				order = append(order, chunkKey{int32(cx), int32(cy)})
+			}
 		}
-		// Map order is random already; shuffle on top so a failure reproduces.
 		rng := rand.New(rand.NewPCG(uint64(seed), 99))
 		rng.Shuffle(len(order), func(i, j int) { order[i], order[j] = order[j], order[i] })
 
@@ -78,9 +81,10 @@ func sameChunk(a, b *chunkContent) bool {
 	return true
 }
 
-// Every feature a chunk plans must stay within the reach its neighbours
-// assume, or a chunk generated alone would miss part of it.
-func TestChunkFeaturesStayWithinReach(t *testing.T) {
+// Every feature a chunk plans must stay within the chunks around its owner,
+// which is all a chunk generated alone looks at, or it would miss part of the
+// feature. Caverns are also held to cavernReach from their center.
+func TestChunkFeaturesStayWithinNeighbours(t *testing.T) {
 	cfg := chunkTestConfig(3)
 	cfg.RockVeinMax = 200 // a vein this long must stop at its box, not escape it
 	g := newWorldGen(cfg)

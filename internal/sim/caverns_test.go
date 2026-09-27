@@ -56,7 +56,7 @@ func TestCavernsGenerateHidden(t *testing.T) {
 	// Cavern abundance is an expected value per chunk (see
 	// TestAbundanceDriftWithinTolerance), so a map this small only has to
 	// land in the neighbourhood of its target.
-	target := w.Width*w.Height * cfg.CavernPercent / 100
+	target := w.Width * w.Height * cfg.CavernPercent / 100
 	if len(hidden) < target/2 || len(hidden) > target*2 {
 		t.Fatalf("caverns cover %d tiles, want about %d (%d%%)", len(hidden), target, cfg.CavernPercent)
 	}

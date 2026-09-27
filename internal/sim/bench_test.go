@@ -372,3 +372,29 @@ func benchmarkStartup(b *testing.B, size int) {
 func BenchmarkStartup1000(b *testing.B)  { benchmarkStartup(b, 1000) }
 func BenchmarkStartup2500(b *testing.B)  { benchmarkStartup(b, 2500) }
 func BenchmarkStartup10000(b *testing.B) { benchmarkStartup(b, 10000) }
+
+// BenchmarkChunkCold generates one chunk with an empty plan cache: the cost of
+// the first chunk in a new area, which plans a radius of chunks around it
+// (see docs/worldgen-chunks.md). BenchmarkChunkWarm is the same chunk's next
+// neighbour, with those plans already cached: the steady cost of a colony
+// digging outward.
+func BenchmarkChunkCold(b *testing.B) {
+	cfg := DefaultConfig()
+	cfg.Seed = 7
+	cfg.Width, cfg.Height = 2048, 2048
+	for i := 0; i < b.N; i++ {
+		newWorldGen(cfg).chunk(16, 16)
+	}
+}
+
+func BenchmarkChunkWarm(b *testing.B) {
+	cfg := DefaultConfig()
+	cfg.Seed = 7
+	cfg.Width, cfg.Height = 2048, 2048
+	g := newWorldGen(cfg)
+	g.chunk(16, 16)
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		g.chunk(17, 16)
+	}
+}
