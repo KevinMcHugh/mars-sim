@@ -421,6 +421,8 @@ func validateConfig(cfg sim.Config) error {
 			cfg.IronRockPercent, cfg.IceRockPercent, cfg.UraniumRockPercent, cfg.ClayRockPercent)
 	case cfg.RockVeinMin < 1 || cfg.RockVeinMax < cfg.RockVeinMin:
 		return fmt.Errorf("rock vein range is invalid: min %d, max %d", cfg.RockVeinMin, cfg.RockVeinMax)
+	case cfg.WorldgenHalo < 1:
+		return fmt.Errorf("worldgen-halo must be at least 1 (got %d): the colony must never see a chunk that has not been generated", cfg.WorldgenHalo)
 	case cfg.CavernPercent < 0 || cfg.CavernPercent > 100:
 		return fmt.Errorf("cavern-percent must be between 0 and 100 (got %d)", cfg.CavernPercent)
 	case cfg.CavernMin < 1 || cfg.CavernMax < cfg.CavernMin:

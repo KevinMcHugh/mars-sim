@@ -149,6 +149,7 @@ func (f *flowField) rebuild() {
 			}
 			ni := ny*w.Width + nx
 			cells := page
+			walkable := false // known walkable already (page-edge path)
 			if cells == nil {
 				// On a page edge, so this neighbour may be on a page that does
 				// not exist yet. Walkability has to be tested before asking for
@@ -158,6 +159,7 @@ func (f *flowField) rebuild() {
 					continue
 				}
 				cells = f.cells.pageAtAlloc(nx, ny)
+				walkable = true
 			}
 			// Stamp first, terrain second. Most neighbours in an open room are
 			// already stamped this generation, and the stamp is a read of a
@@ -169,14 +171,16 @@ func (f *flowField) rebuild() {
 			if cell.gen == gen {
 				continue
 			}
-			var t Terrain
-			if tiles != nil {
-				t = tiles[o].Terrain
-			} else {
-				t = w.tiles.at(nx, ny).Terrain
-			}
-			if !t.Walkable() {
-				continue
+			if !walkable {
+				var t Terrain
+				if tiles != nil {
+					t = tiles[o].Terrain
+				} else {
+					t = w.tiles.at(nx, ny).Terrain
+				}
+				if !t.Walkable() {
+					continue
+				}
 			}
 			cell.gen, cell.dist = gen, cd+1
 			q = append(q, int32(ni))

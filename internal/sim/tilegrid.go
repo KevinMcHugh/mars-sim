@@ -17,18 +17,10 @@ import "slices"
 // (pagedGrid, see pagedgrid.go), so publishing a page is one contiguous memcpy
 // of the world's own page, and a page the world has never written is nil here
 // too and reads as unexplored Rock. That is also one worldgen chunk (see
-// worldgen_chunks.go). The page table is copied per published grid: ~24k
-// entries on a 10000x10000 map, under 600 KB per frame, against the 300 MB a
-// full grid copy would cost.
-// tilePage is one published page: a copy of one of the world's tile pages.
-type tilePage = [gridPageLen]tileCell
-
-// clonePage copies one of the world's tile pages for publishing.
-func clonePage(page []tileCell) *tilePage {
-	c := tilePage(page)
-	return &c
-}
-
+// worldgen_chunks.go). The page table is copied per published grid: ~40k
+// entries on a 10000x10000 map (rounded up to a power-of-two width, as in
+// pagedGrid), about 320 KB per frame, against the 300 MB a full grid copy
+// would cost.
 type TileGrid struct {
 	width, height int
 	colShift      int // as pagedGrid.colShift
@@ -43,6 +35,15 @@ type TileGrid struct {
 	// any sharing scheme, and small enough that it does not belong in the
 	// per-tile record.
 	refuse map[Point]refuseCell
+}
+
+// tilePage is one published page: a copy of one of the world's tile pages.
+type tilePage = [gridPageLen]tileCell
+
+// clonePage copies one of the world's tile pages for publishing.
+func clonePage(page []tileCell) *tilePage {
+	c := tilePage(page)
+	return &c
 }
 
 // NewTileGrid builds a standalone grid from a row-major tile slice. The engine

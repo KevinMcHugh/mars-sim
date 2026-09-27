@@ -8,8 +8,13 @@ World generation lays down ore veins, hidden natural caverns and the passages
 between them one 64×64 **chunk** at a time. What a chunk holds is a pure
 function of `(Config, cx, cy)`. It does not depend on which other chunks
 exist, or on the order anything was generated in. That property is what lets
-a chunk be generated only when the simulation first needs it, instead of
-laying out the whole map before the first tick.
+chunks be generated **lazily**: a new game generates the landing site's
+neighbourhood, and the rest of the map is generated as the colony explores
+toward it. On a 10000×10000 map, starting a game went from 6.4 s and 1 GB to
+18 ms and 26 MB.
+
+Only the simulation decides when a chunk is generated, never a frontend, so a
+seed produces the same world by the same tick on every machine.
 
 This replaced a whole-map generator (`growRockVeins` and `generateCaverns`)
 whose output depended on the order it ran in. That generator is described
@@ -20,8 +25,16 @@ under [Why it is this way](#why-it-is-this-way).
 - [`internal/sim/worldgen_chunks.go`](../internal/sim/worldgen_chunks.go):
   `worldGen`, the plans (`veinPlan`, `cavernCandidates`, `keptCaverns`,
   `passagePlan`), `chunk`, `featureRand`, `stratified` and `genCache`.
-- [`internal/sim/worldgen.go`](../internal/sim/worldgen.go): `generate`, which
-  applies every chunk, and `applyChunk`, which writes one into the tile grid.
+- [`internal/sim/worldgen.go`](../internal/sim/worldgen.go): `generate`,
+  `generateChunkAt` / `generateAround` / `generateChunk` (when chunks are
+  generated), `applyChunk` (writing one into the tile grid), and
+  `randomTile`'s sampling over generated chunks.
+- [`internal/sim/world.go`](../internal/sim/world.go): `setTerrain`,
+  `carveHidden` and `reveal`, the three places that trigger generation.
+- [`internal/sim/worldgen_lazy_test.go`](../internal/sim/worldgen_lazy_test.go):
+  lazy chunks match the pure generator, generation stays ahead of exploration
+  every tick, reading never generates, and a new game on a huge map generates
+  only the landing site.
 - [`internal/sim/worldgen_chunks_test.go`](../internal/sim/worldgen_chunks_test.go):
   order independence, reach, features crossing chunk edges, and the proof that
   writing hidden floor without `TileChanged` changes nothing.
@@ -145,6 +158,67 @@ The old generator failed that invariant on about 6% of seeds: see
   pair. The random walk is the old one, plus a box: it may not stray more than
   `passageSlack` outside the rectangle spanned by the two centers.
 
+### When chunks are generated
+
+The invariant: **every chunk within `WorldgenHalo` (`worldgen-halo`, default
+2) of a chunk holding a tile the colony has seen is generated, and no other
+chunk is.** Three hooks keep it:
+
+- `setTerrain`, `carveHidden` and `reveal` each call `generateChunkAt(p)`
+  before touching `p`. With the invariant in place this is one bool check and
+  never generates anything. It is a backstop, so that no write can ever reach
+  a chunk before its content.
+- The first time `reveal` marks a tile in a chunk as explored
+  (`World.genSeen`), it calls `generateAround`, which generates every chunk
+  within the halo.
+- `generate` does nothing special. Carving the landing site goes through
+  `SetTerrain`, which generates the chunks under it and reveals its rim, and
+  that generates the halo.
+
+Why this is enough:
+
+- **Colonists.** Every tile the colony can read or change is explored or
+  next to an explored tile. Mining a tile reveals its neighbours. A neighbour
+  is at most one chunk from an explored tile, so a halo of 1 already covers
+  it.
+- **Breach floods.** `revealAround` reveals cave tiles one ring at a time. Each
+  newly seen chunk generates its halo before the flood reads past it, so a
+  cave system that runs into ungenerated ground is generated as the flood
+  reaches it.
+- **Nests.** A cavern's center is registered in `unfoundCaverns` when its
+  owner chunk is generated. A flood can only reach that center after the
+  chunk exists, so no nest roll is missed.
+- **Dormant aliens.** They stay in generated chunks. A cave that continues
+  into ungenerated ground reads as Rock there until the colony's exploration
+  generates it. That is a difference from generating everything up front, but
+  it is deterministic.
+
+`applyChunk` panics if a chunk's tile page already exists when it is
+generated, because that would mean something wrote there first.
+`TestGenerationStaysAheadOfExploration` checks the invariant after every tick
+of a run that generates chunks during play and breaks into caves.
+
+**Reading never generates.** `TerrainAt`, `TileAt`, `Walkable`, snapshots and
+the golden hash read an ungenerated chunk as unexplored Rock
+(`TestReadingNeverGenerates`). Generation is triggered only by exploration,
+which is simulation state, so the set of generated chunks at any tick is the
+same on every machine, whatever a frontend is looking at. The golden hash
+includes that set.
+
+**Sampling.** `randomTile` (`randomFloor`, `alienSpawnSite`) picks a uniform
+generated chunk (from `genChunks`, kept sorted by row and column so it
+depends only on which chunks exist), then a uniform tile in it. A pick past
+the map's edge counts as a miss, which keeps the draw uniform over tiles.
+Every predicate these callers use needs a tile that is not Rock, so leaving
+out ungenerated chunks changes nothing about which tiles can be picked. What
+it avoids is thousands of guesses, and then a scan of the whole map, on
+chunks that do not exist.
+
+The one gameplay change: **aliens start only in generated caves**, meaning
+within the halo of the landing site, where the colony will meet them. They
+used to be spread over the whole map. Director spawns likewise land in caves
+the generated frontier has reached.
+
 ### Writing a chunk into the world
 
 `applyChunk` writes composition and hidden floor straight into `World.tiles`.
@@ -196,18 +270,26 @@ over 200 seeds, every feature appears on every seed.
 ### Startup cost
 
 `BenchmarkStartup*` measures `NewEngine` plus the first published frame, and
-the live heap afterwards. Measured natively on an M-series Mac, seed 7,
-default config:
+the live heap afterwards. Measured on an M-series Mac, seed 7, default config:
 
-| Map | Whole-map generator | Chunked, all chunks up front |
-| --- | ---: | ---: |
-| 1000×1000 | 70 ms, 11 MB | 58 ms, 11 MB |
-| 2500×2500 | 364 ms, 65 MB | 300 ms, 65 MB |
-| 10000×10000 | 6.43 s, 1032 MB | 4.95 s, 1028 MB |
+| Map | Whole-map generator | Chunked, all up front | Chunked, lazy |
+| --- | ---: | ---: | ---: |
+| 1000×1000 | 70 ms, 11 MB | 58 ms, 11 MB | 16 ms, 5 MB |
+| 2500×2500 | 364 ms, 65 MB | 300 ms, 65 MB | 15 ms, 6 MB |
+| 10000×10000 | 6.43 s, 1032 MB | 4.95 s, 1028 MB | 18 ms, 26 MB |
+| 10000×10000, js/wasm in Node | 37.7 s ([PR 60](https://github.com/KevinMcHugh/mars-sim/pull/60)) | | 88 ms, 26 MB |
 
-Generating every chunk up front is only a little faster. Most of what is left
-is writing 100M tiles for the first time (page faults and zeroing) and
-publishing them, and only generating fewer chunks removes that.
+Generating every chunk up front was only a little faster than the old
+generator. Most of what was left was writing 100M tiles for the first time
+(page faults and zeroing) and publishing them, and only laziness removes that.
+What remains at 10000×10000 is mostly the map-sized tables that are not tile
+data: the page tables, and `chunkEntities` for the entity index.
+
+**During play**, a tick that generates chunks costs 2 to 12 ms on a 4000×4000
+map with 60 colonists, depending on how many plans the cache already holds.
+That is below the ordinary p99 tick on the same run (8 to 11 ms), and it
+happened on 2 of 3000 ticks. `BenchmarkChunkCold` / `BenchmarkChunkWarm` are
+the building blocks: 5.2 ms / 28 µs natively, and 17 ms / 0.7 ms under wasm.
 
 ## Why it is this way
 
@@ -281,6 +363,29 @@ under target at every map size. Overlaps between veins of the same chunk were
 most of that, so each vein now steers around the ones its chunk planned
 before it, which brought iron to within 0.5%.
 
+### Why generation is triggered by exploration, not by the camera
+
+The first sketch ([PR 60](https://github.com/KevinMcHugh/mars-sim/pull/60))
+generated a chunk when "a dig reaches its border, pathfinding asks about it,
+or the camera looks at it". The camera cannot be allowed to do this. Cameras
+differ between machines, so the set of generated chunks would differ too, and
+with it `randomTile`'s candidates, `hiddenFloor`, `unfoundCaverns`, and the
+dormant aliens drawing from `World.rng`. Pathfinding cannot be a trigger
+either: it would make generation depend on which searches happened to run.
+Exploration is one bit per tile that only ever goes from false to true, set
+in one place (`reveal`). It is already simulation state and already
+deterministic. A frontend that wants to see ungenerated ground previews it
+with its own generator instead (see [Previewing](#previewing)).
+
+### Why a halo and not "generate on first touch"
+
+Generating a chunk only when a tile in it is first read or written would be
+enough for colonists, because `generateChunkAt` does exactly that. But a
+breach flood, `randomTile`, and dormant aliens all read tiles that are not
+being written, and a read that generated would be a trigger the frontends
+could also pull. The halo means reads never need to generate: anything the
+simulation can legitimately reach is already there.
+
 ## Extending it
 
 - **A new composition** goes at the end of `veinLevels`, so no existing vein
@@ -291,6 +396,13 @@ before it, which brought iron to within 0.5%.
 - **A feature bigger than a chunk** should not raise the reaches. Plan it at a
   coarser level (a region of several chunks), and let each chunk draw its own
   piece from the region plan.
+- **Anything that reads tiles far from the colony** (a new spawn rule, a
+  scan) must either stay within generated chunks (`forGeneratedTiles`,
+  `randomTile`) or accept that ungenerated chunks read as Rock. Never make it
+  generate: that is a trigger outside exploration.
+- **A new writer of `World.tiles`** must call `generateChunkAt` first, or
+  `applyChunk`'s panic will catch it the first time it runs ahead of the
+  halo.
 - **Any change to plans changes every seed.** Re-pin `goldenCases`, run
   `tools/determinism-check.sh`, and rerun the drift report.
 

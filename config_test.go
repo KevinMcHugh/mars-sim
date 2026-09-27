@@ -275,3 +275,11 @@ func TestLeftoverArgumentsAreRejected(t *testing.T) {
 		t.Errorf("no leftover arguments: %v", err)
 	}
 }
+
+func TestValidateWorldgenHalo(t *testing.T) {
+	cfg := sim.DefaultConfig()
+	cfg.WorldgenHalo = 0
+	if err := validateConfig(cfg); err == nil || !strings.Contains(err.Error(), "worldgen-halo") {
+		t.Fatalf("worldgen-halo 0 error = %v, want worldgen-halo validation", err)
+	}
+}

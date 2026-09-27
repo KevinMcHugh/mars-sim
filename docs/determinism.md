@@ -102,6 +102,12 @@ On a Linux amd64 machine (typical CI) the script can only run amd64 and
 wasm, neither of which fuses, so it has to run on an arm64 host (any Apple
 silicon Mac) to cover FMA.
 
+The `lazy-1000x1010` case runs a big map with a halo of 1 and must generate
+chunks after tick 0, so it covers generation during play. Every hash includes
+the set of generated chunks: which chunks exist is part of the world, and it
+must come out the same everywhere (see
+[worldgen-chunks.md](./worldgen-chunks.md#when-chunks-are-generated)).
+
 The golden constants change whenever a change is meant to alter what seeds
 produce. Update them in that change, and say so in the commit message. A
 golden mismatch in a change that did not mean to break seeds is the bug. The

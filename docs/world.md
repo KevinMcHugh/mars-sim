@@ -109,10 +109,13 @@ derived systems go stale (and the map the player sees never grows).
 
 `generate` (called once by `NewEngine`):
 
-1. Generates every 64×64 chunk (`applyChunk`): iron, water-ice, uranium, and
-   clay veins, plus hidden **natural caverns** and the passages that join
-   some of them. What a chunk holds is a pure function of the config and its
-   coordinates, on worldgen's own seed-derived streams. See
+1. Sets up **lazy, chunked generation**. Each 64×64 chunk holds iron,
+   water-ice, uranium, and clay veins, plus hidden **natural caverns** and the
+   passages that join some of them. What a chunk holds is a pure function of
+   the config and its coordinates, on worldgen's own seed-derived streams.
+   Chunks are generated as the colony explores: carving the landing site
+   generates the chunks under it, and every chunk within `worldgen-halo` of
+   ground the colony has seen is generated too. See
    [worldgen-chunks.md](./worldgen-chunks.md) for how, and for how far the
    configured percentages (defaults 10%, 5%, 1% and 5% ore; 4% cavern) drift
    from their targets. Veins default to 8–24 orthogonally connected tiles.
@@ -176,6 +179,9 @@ and it always finds a match if one exists.
   `Walkable()` result, give it a glyph in the TUI, and (if it is a facility)
   wire it into the needs table. Flow fields are allocated per facility terrain
   in `newWorld`.
+- **Anything that writes tiles** must go through `SetTerrain` (or call
+  `generateChunkAt` first), so the tile's chunk is generated before it is
+  written. See [worldgen-chunks.md](./worldgen-chunks.md#when-chunks-are-generated).
 - **A new rock composition**: add a `RockComposition`, append it to
   `veinLevels` with its percentage in `veinPercent`, and give it a mining
   yield and TUI glyph. Leave it out of `Terrain` unless it

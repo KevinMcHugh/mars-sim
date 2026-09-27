@@ -30,6 +30,9 @@
 ## world height in tiles
 # height: 40
 
+## chunks (64x64 tiles) generated ahead of what the colony has seen; at least 1
+# worldgen-halo: 2
+
 ## percent of rock tiles bearing iron
 # iron-rock-percent: 10
 

@@ -9,6 +9,12 @@ type Config struct {
 	// World shape.
 	Width  int `cfg:"width" sec:"World" doc:"world width in tiles"`
 	Height int `cfg:"height" doc:"world height in tiles"`
+	// WorldgenHalo is how far (in 64x64 chunks) world generation stays ahead
+	// of the colony: every chunk within this many of one holding a tile the
+	// colony has seen is generated, and no other. Aliens spawn only in caves
+	// of generated chunks, so this also sets how far out they can start. See
+	// docs/worldgen-chunks.md.
+	WorldgenHalo int `cfg:"worldgen-halo" doc:"chunks (64x64 tiles) generated ahead of what the colony has seen; at least 1"`
 	// Rock composition percentages. The remainder is ordinary rock.
 	IronRockPercent    int `cfg:"iron-rock-percent" doc:"percent of rock tiles bearing iron"`
 	IceRockPercent     int `cfg:"ice-rock-percent" doc:"percent of rock tiles bearing water ice"`
@@ -321,6 +327,7 @@ func DefaultConfig() Config {
 	cfg := Config{
 		Width:                80,
 		Height:               40,
+		WorldgenHalo:         2,
 		IronRockPercent:      10,
 		IceRockPercent:       5,
 		UraniumRockPercent:   1,

@@ -112,7 +112,12 @@ Aliens walk only on floor (see [entities-and-ai.md](./entities-and-ai.md)).
 `alienSpawnSite` places every starting alien, director swarm and trickle
 spawn:
 
-1. On random free floor in an undiscovered cavern, if any is left.
+1. On random free floor in an undiscovered cavern, if any is left. Only
+   generated chunks are considered, so at the start these are the caves
+   within `worldgen-halo` chunks of the landing site (see
+   [worldgen-chunks.md](./worldgen-chunks.md#when-chunks-are-generated)).
+   Aliens used to be spread over the whole map, which put most of them where
+   no colony would ever meet them.
 2. Otherwise on free discovered floor at least `minDist` from the landing
    site, and failing that on the free discovered floor farthest from it. This
    is the fallback for maps with no caves (`cavern-percent 0`, or a map too

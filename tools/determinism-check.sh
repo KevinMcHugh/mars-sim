@@ -8,7 +8,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-tests='TestGoldenWorldHash|TestDeterministic|TestChunk'
+tests='TestGoldenWorldHash|TestDeterministic|TestChunk|TestLazy|TestGenerationStays'
 pkg=./internal/sim
 fail=0
 

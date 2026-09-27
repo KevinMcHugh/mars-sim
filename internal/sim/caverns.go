@@ -40,16 +40,14 @@ const (
 // its own cavern rather than spread down a passage.
 const nestRadius = 4
 
-// trackCavernsForNests remembers each cavern's center so a breach can roll
-// for its nest (see rollNests), and seeds the stream those rolls use. Only the
+// trackCavernsForNests seeds the stream nest rolls use and starts the set of
+// unfound cavern centers, which generateChunk fills as chunks are generated,
+// so a breach can roll for each cavern's nest (see rollNests). Only the
 // centers are kept: nothing about a nest exists until its cavern is found.
-func (w *World) trackCavernsForNests(centers []Point) {
+func (w *World) trackCavernsForNests() {
 	w.rngSrc.nest = newPCG(w.cfg.Seed ^ 0x0452821E638D0137)
 	w.nestRNG = rand.New(w.rngSrc.nest)
-	w.unfoundCaverns = make(map[Point]struct{}, len(centers))
-	for _, c := range centers {
-		w.unfoundCaverns[c] = struct{}{}
-	}
+	w.unfoundCaverns = make(map[Point]struct{})
 }
 
 // rollNests gives each cavern whose center a breach just discovered its one

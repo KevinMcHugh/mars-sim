@@ -654,8 +654,16 @@ type World struct {
 	// nestCenters is revealAround's scratch: cavern centers found this flood.
 	nestCenters []Point
 	// gen generates chunks: their ore veins and hidden caverns. See
-	// worldgen_chunks.go.
+	// worldgen_chunks.go. nil for a world built without generate (tests),
+	// where every tile simply starts as Rock.
 	gen *worldGen
+	// genDone marks the chunks generated so far and genSeen the chunks
+	// holding a tile the colony has seen, both by tile page index (one page
+	// is one chunk). genChunks lists the generated chunks sorted by row then
+	// column, so sampling from them depends on which chunks exist, never on
+	// the order they were generated in. See generateChunkAt.
+	genDone, genSeen []bool
+	genChunks        []chunkKey
 	// cavernBreaches counts the floods revealAround has run: how many times
 	// the colony has broken into a cave system it did not know about.
 	cavernBreaches int
@@ -836,7 +844,11 @@ func (w *World) SetTerrain(p Point, t Terrain) {
 // so the cavern stays unknown (and out of every colony-facing system) until a
 // dig breaks into it and revealAround floods it open. Worldgen only.
 func (w *World) carveHidden(p Point) {
-	if !w.InBounds(p) || w.tiles.at(p.X, p.Y).Explored || w.TerrainAt(p) != Rock {
+	if !w.InBounds(p) {
+		return
+	}
+	w.generateChunkAt(p)
+	if w.tiles.at(p.X, p.Y).Explored || w.TerrainAt(p) != Rock {
 		return
 	}
 	w.hiddenFloor++
@@ -847,6 +859,7 @@ func (w *World) setTerrain(p Point, t Terrain, discover bool) {
 	if !w.InBounds(p) {
 		return
 	}
+	w.generateChunkAt(p)
 	old := w.tiles.at(p.X, p.Y).Terrain
 	if old == t {
 		return
@@ -954,6 +967,7 @@ func (w *World) reveal(p Point) {
 	if !w.InBounds(p) {
 		return
 	}
+	w.generateChunkAt(p)
 	c := w.tiles.ptr(p.X, p.Y)
 	if c.Explored {
 		return
@@ -964,6 +978,16 @@ func (w *World) reveal(p Point) {
 	if c.Terrain != Rock {
 		w.hiddenFloor--
 		w.caveStack = append(w.caveStack, p)
+	}
+	// The first tile seen in a chunk moves the generated frontier out
+	// around it. This is the only thing that generates chunks during play,
+	// and exploration is simulation state, so which chunks exist at any
+	// tick is the same on every machine.
+	if w.gen != nil {
+		if pi := w.tiles.pageIndex(p.X, p.Y); !w.genSeen[pi] {
+			w.genSeen[pi] = true
+			w.generateAround(p)
+		}
 	}
 }
 
