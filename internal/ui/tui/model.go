@@ -17,19 +17,21 @@ type snapshotMsg struct{ snap *sim.Snapshot }
 type viewMode int
 
 const (
-	modeMap     viewMode = iota // the cavern map (default)
-	modeRoster                  // the colonist roster and inspector
-	modeJobs                    // the job board: queued projects and their tasks
-	modeStorage                 // placed storage containers and their contents
-	modeLore                    // world facts and the rolled alien species
-	modePerf                    // engine tick rate and tick cost over time
+	modeMap        viewMode = iota // the cavern map (default)
+	modeRoster                     // the colonist roster and inspector
+	modeJobs                       // the job board: queued projects and their tasks
+	modeStorage                    // placed storage containers and their contents
+	modeMarket                     // accounts and the colony's money supply
+	modeLore                       // world facts and the rolled alien species
+	modePopulation                 // colonists, meals, colony size and fixtures over the game
+	modePerf                       // engine tick rate and tick cost over time
 )
 
 // tabLabels names the screens in tab order, matching the "tab" rotation below
 // and the strip drawn by renderTabs.
 var tabLabels = [...]string{
-	modeMap: "Map", modeRoster: "Roster", modeJobs: "Jobs", modeStorage: "Storage", modeLore: "Lore",
-	modePerf: "Perf",
+	modeMap: "Map", modeRoster: "Roster", modeJobs: "Jobs", modeStorage: "Storage", modeMarket: "Market", modeLore: "Lore",
+	modePopulation: "Population", modePerf: "Perf",
 }
 
 // menuKind selects an open pick-one prompt, if any. Opening a menu (via `s` or
@@ -56,7 +58,7 @@ var spawnMenuItems = []menuItem{
 	{"c", "colonist"},
 	{"a", "alien"},
 	{"x", "cat"},
-	{"m", "mouse"},
+	{"m", "rat"},
 }
 
 var buildMenuItems = []menuItem{
@@ -64,6 +66,7 @@ var buildMenuItems = []menuItem{
 	{"d", "dormitory"},
 	{"t", "trash room"},
 	{"r", "storage container"},
+	{"h", "scumhouse"},
 }
 
 // filterMenuItems are the roster's toggleable filters. Unlike the spawn/build
@@ -90,11 +93,16 @@ type Model struct {
 	camReady     bool
 
 	mode            viewMode
-	selected        int      // roster: index into the ID-sorted entity list
-	jobSelected     int      // job board: index into the queued project list
-	storageSelected int      // storage details: index into Snapshot.Storages
-	loreSelected    int      // lore: index into Snapshot.AlienSpecies
-	menu            menuKind // an open spawn/build/filter picker, if any
+	selected        int // roster: index into the ID-sorted entity list
+	jobSelected     int // job board: index into the queued project list
+	storageSelected int // storage details: index into Snapshot.Storages
+	marketSelected  int // market: index into marketAccounts, as last drawn
+	// marketOwner is whose account is selected. The list re-sorts by balance
+	// every frame, so an index alone let the highlight jump to whoever moved
+	// into that row; the index is the fallback once that account is gone.
+	marketOwner  sim.Owner
+	loreSelected int      // lore: index into Snapshot.AlienSpecies
+	menu         menuKind // an open spawn/build/filter picker, if any
 
 	// inspecting turns map arrows from camera panning into one-tile cursor
 	// movement. The cursor persists when inspection closes.
@@ -112,7 +120,7 @@ type Model struct {
 
 	// spawnCursor / buildCursor / filterCursor are each menu's highlighted
 	// option index. They persist across opens (and across submits/toggles),
-	// so e.g. spawning three mice is s, [navigate to mouse], enter, then just
+	// so e.g. spawning three rats is s, [navigate to rat], enter, then just
 	// s, enter, s, enter.
 	spawnCursor  int
 	buildCursor  int
@@ -211,9 +219,11 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.handleJobsKey(msg)
 	case modeStorage:
 		return m.handleStorageKey(msg)
+	case modeMarket:
+		return m.handleMarketKey(msg)
 	case modeLore:
 		return m.handleLoreKey(msg)
-	case modePerf:
+	case modePerf, modePopulation:
 		if msg.String() == "esc" {
 			m.mode = modeMap
 		}
@@ -380,7 +390,7 @@ func (m Model) submitMenuItem(i int) {
 		case "x":
 			m.eng.Send(sim.Spawn{Kind: sim.Cat})
 		case "m":
-			m.eng.Send(sim.Spawn{Kind: sim.Mouse})
+			m.eng.Send(sim.Spawn{Kind: sim.Rat})
 		}
 	case menuBuild:
 		switch items[i].key {
@@ -392,6 +402,8 @@ func (m Model) submitMenuItem(i int) {
 			m.eng.Send(sim.OrderTrashRoom{})
 		case "r":
 			m.eng.Send(sim.OrderStorageRoom{})
+		case "h":
+			m.eng.Send(sim.OrderScumhouse{})
 		}
 	}
 }
@@ -630,6 +642,30 @@ func (m Model) handleStorageKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.storageSelected = 0
 	}
 	m.storageSelected = m.clampStorageSelection(m.storageSelected)
+	return m, nil
+}
+
+// handleMarketKey navigates the accounts in the market tab.
+func (m Model) handleMarketKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	if msg.String() == "esc" {
+		m.mode = modeMap
+		return m, nil
+	}
+	if m.latest == nil {
+		return m, nil
+	}
+	accounts := m.marketAccounts()
+	sel := m.marketSelection(accounts)
+	switch msg.String() {
+	case "up", "k":
+		sel--
+	case "down", "j":
+		sel++
+	case "home", "g":
+		sel = 0
+	}
+	sel = clamp(sel, 0, len(accounts)-1)
+	m.marketSelected, m.marketOwner = sel, accounts[sel].owner
 	return m, nil
 }
 

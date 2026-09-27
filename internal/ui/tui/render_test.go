@@ -73,7 +73,7 @@ func TestGlyphsOccupyOneTile(t *testing.T) {
 		{Kind: sim.Colonist, State: sim.Hauling},
 		{Kind: sim.Alien},
 		{Kind: sim.Cat},
-		{Kind: sim.Mouse},
+		{Kind: sim.Rat},
 	}
 	for _, entity := range entities {
 		if got := cells.Width(entityGlyph(entity)); got != tileWidth {
@@ -244,6 +244,13 @@ func TestMapCursorInspectsAndOpensStorage(t *testing.T) {
 		!strings.Contains(out, "raw rock ×9") {
 		t.Fatalf("map cursor did not inspect storage:\n%s", out)
 	}
+	// With an ownership record, the inspector names the owner and the access.
+	snap.Fixtures = []sim.FixtureView{{Pos: p, Terrain: sim.Storage, Owner: sim.ColonistOwner(1), Access: sim.AccessPrivate}}
+	snap.Entities[0].Profile = &sim.Profile{Name: "Cy Keeper"}
+	model, _ = model.Update(snapshotMsg{snap: snap})
+	if out := model.View(); !strings.Contains(out, "Owner: Cy Keeper") || !strings.Contains(out, "Access: private") {
+		t.Fatalf("inspector did not show the fixture's owner:\n%s", out)
+	}
 	model, _ = model.Update(tea.KeyMsg{Type: tea.KeyEnter})
 	if out := model.View(); !strings.Contains(out, "DETAILS · STORAGE") {
 		t.Fatalf("enter did not open storage details:\n%s", out)
@@ -326,13 +333,13 @@ func TestMenuArrowsMoveSelectionAndEnterConfirms(t *testing.T) {
 		t.Errorf("expected colonist highlighted by default:\n%s", out)
 	}
 
-	// colonist -> alien -> cat -> mouse.
+	// colonist -> alien -> cat -> rat.
 	for i := 0; i < 3; i++ {
 		m, _ = m.Update(tea.KeyMsg{Type: tea.KeyDown})
 	}
 	out = m.View()
-	if !strings.Contains(out, "[m mouse]") {
-		t.Errorf("expected mouse highlighted after three down presses:\n%s", out)
+	if !strings.Contains(out, "[m rat]") {
+		t.Errorf("expected rat highlighted after three down presses:\n%s", out)
 	}
 	if strings.Contains(out, "spawn:") == false {
 		t.Error("menu should still be open before enter is pressed")
@@ -346,8 +353,8 @@ func TestMenuArrowsMoveSelectionAndEnterConfirms(t *testing.T) {
 }
 
 // The highlighted option in each menu is remembered across opens, so
-// repeating a choice is just reopen-and-confirm: s -> navigate to mouse ->
-// enter, then s -> enter, s -> enter for three mice.
+// repeating a choice is just reopen-and-confirm: s -> navigate to rat ->
+// enter, then s -> enter, s -> enter for three rats.
 func TestMenuRemembersLastSelection(t *testing.T) {
 	eng := sim.NewEngine(sim.DefaultConfig())
 	var m tea.Model = New(eng, nil)
@@ -363,8 +370,8 @@ func TestMenuRemembersLastSelection(t *testing.T) {
 	for i := 0; i < 2; i++ {
 		m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("s")})
 		out := m.View()
-		if !strings.Contains(out, "[m mouse]") {
-			t.Fatalf("round %d: expected the menu to reopen with mouse still highlighted:\n%s", i, out)
+		if !strings.Contains(out, "[m rat]") {
+			t.Fatalf("round %d: expected the menu to reopen with rat still highlighted:\n%s", i, out)
 		}
 		m, _ = m.Update(tea.KeyMsg{Type: tea.KeyEnter})
 	}
@@ -389,12 +396,12 @@ func TestMenuShortcutKeyUpdatesRememberedSelection(t *testing.T) {
 }
 
 // By default the roster shows only living colonists — the alien in the
-// snapshot, and a dead mouse in the graveyard, should both be hidden until
+// snapshot, and a dead rat in the graveyard, should both be hidden until
 // their filters are turned on.
 func TestRosterHidesNonHumanAndDeadByDefault(t *testing.T) {
 	snap := makeSnapshot()
 	snap.Graveyard = []sim.EntityView{
-		{ID: 9, Kind: sim.Mouse, Dead: true, DiedTick: 3, Cause: "crushed by a colonist"},
+		{ID: 9, Kind: sim.Rat, Dead: true, DiedTick: 3, Cause: "crushed by a colonist"},
 	}
 
 	var m tea.Model = New(nil, nil)
@@ -407,7 +414,7 @@ func TestRosterHidesNonHumanAndDeadByDefault(t *testing.T) {
 		t.Error("roster should not show the alien until the non-human filter is on")
 	}
 	if strings.Contains(out, "crushed by a colonist") {
-		t.Error("roster should not show the dead mouse until the dead filter is on")
+		t.Error("roster should not show the dead rat until the dead filter is on")
 	}
 	if !strings.Contains(out, "ROSTER (1)") {
 		t.Errorf("roster should count only the one living colonist:\n%s", out)
@@ -613,5 +620,165 @@ func TestRosterDetailShowsCollapsedMemoryRun(t *testing.T) {
 	}
 	if !strings.Contains(out, "t1586: Had a meal.") {
 		t.Errorf("single memory line missing from inspector:\n%s", out)
+	}
+}
+
+// The market tab lists the treasury first, then colonists richest first, and
+// shows the money supply beside the selected account.
+func TestMarketTabListsAccountsAndMoneySupply(t *testing.T) {
+	snap := makeSnapshot()
+	snap.Entities = append(snap.Entities,
+		sim.EntityView{ID: 3, Kind: sim.Colonist, Pos: sim.Point{X: 2, Y: 1}, HP: 40, MaxHP: 40,
+			Profile: &sim.Profile{Name: "Ada Richards"}, Wallet: 900})
+	snap.Entities[0].Profile = &sim.Profile{Name: "Bo Poorman"}
+	snap.Entities[0].Wallet = 25
+	snap.Economy = sim.EconomyView{Treasury: 4000, Circulating: 4925, Frozen: 75, Issued: 5000}
+
+	var model tea.Model = New(nil, nil)
+	model, _ = model.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
+	model, _ = model.Update(snapshotMsg{snap: snap})
+	for range 4 {
+		model, _ = model.Update(tea.KeyMsg{Type: tea.KeyTab})
+	}
+
+	out := model.View()
+	for _, want := range []string{"MARKET · ACCOUNTS (3)", "The colony (treasury)", "$4000", "Issued:", "$5000", "Frozen:", "$75"} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("market tab missing %q:\n%s", want, out)
+		}
+	}
+	if strings.Index(out, "Ada Richards") > strings.Index(out, "Bo Poorman") {
+		t.Fatalf("richer colonist should list first:\n%s", out)
+	}
+	model, _ = model.Update(tea.KeyMsg{Type: tea.KeyDown})
+	if out := model.View(); !strings.Contains(out, "Balance:      $900") {
+		t.Fatalf("down did not select the richest colonist:\n%s", out)
+	}
+}
+
+// Storage details say whose the contents are, and the market tab totals a
+// colonist's holdings across every chest.
+func TestLedgerShowsInStorageAndMarket(t *testing.T) {
+	snap := makeSnapshot()
+	snap.Entities[0].Profile = &sim.Profile{Name: "Dee Digger"}
+	snap.Entities[0].Wallet = 10
+	dee := sim.ColonistOwner(1)
+	var a, b sim.StorageInventory
+	a[0] = sim.ItemStack{Kind: sim.IronOre, Count: 5}
+	b[0] = sim.ItemStack{Kind: sim.IronOre, Count: 7}
+	snap.Storages = []sim.StorageView{
+		{Pos: sim.Point{X: 1, Y: 2}, Inventory: a, Ledger: []sim.LedgerLine{{Owner: dee, Item: sim.IronOre, Count: 5}}},
+		{Pos: sim.Point{X: 4, Y: 2}, Inventory: b, Ledger: []sim.LedgerLine{{Owner: dee, Item: sim.IronOre, Count: 7}}},
+	}
+
+	var model tea.Model = New(nil, nil)
+	model, _ = model.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
+	model, _ = model.Update(snapshotMsg{snap: snap})
+	for range 3 {
+		model, _ = model.Update(tea.KeyMsg{Type: tea.KeyTab})
+	}
+	if out := model.View(); !strings.Contains(out, "OWNED BY") || !strings.Contains(out, "Dee Digger: iron ore ×5") {
+		t.Fatalf("storage details did not show the ledger:\n%s", out)
+	}
+	model, _ = model.Update(tea.KeyMsg{Type: tea.KeyTab}) // market
+	model, _ = model.Update(tea.KeyMsg{Type: tea.KeyDown})
+	if out := model.View(); !strings.Contains(out, "HOLDINGS IN STORAGE") || !strings.Contains(out, "iron ore ×12") {
+		t.Fatalf("market did not total holdings across chests:\n%s", out)
+	}
+}
+
+// Scum shows on its tile, the scumhouse has its own glyph, and the storage tab
+// names the scumhouse's depot for what it is.
+func TestScumAndScumhouseAreDrawn(t *testing.T) {
+	restoreGlyphs(t, false)
+	snap := makeSnapshot()
+	tiles := make([]sim.Tile, snap.Width*snap.Height)
+	for i := range tiles {
+		tiles[i].Terrain = sim.Floor
+	}
+	house := sim.Point{X: 4, Y: 1}
+	tiles[house.Y*snap.Width+house.X].Terrain = sim.Scumhouse
+	snap.Tiles = sim.NewTileGrid(snap.Width, snap.Height, tiles)
+	snap.Entities = nil
+	snap.Scum = map[sim.Point]uint8{{X: 2, Y: 2}: 3}
+	snap.Storages = []sim.StorageView{{Pos: house, Terrain: sim.Scumhouse}}
+
+	var model tea.Model = New(nil, nil)
+	model, _ = model.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
+	model, _ = model.Update(snapshotMsg{snap: snap})
+	out := model.View()
+	if !strings.Contains(out, glyphScum) || !strings.Contains(out, glyphScumhouse) {
+		t.Fatalf("map is missing scum or the scumhouse:\n%s", out)
+	}
+	for range 3 {
+		model, _ = model.Update(tea.KeyMsg{Type: tea.KeyTab})
+	}
+	if out := model.View(); !strings.Contains(out, "scumhouse (4,1)") {
+		t.Fatalf("storage tab does not name the scumhouse:\n%s", out)
+	}
+}
+
+// The treasury's market page shows the books and the latest trades, and a
+// colonist's shows its open orders.
+func TestMarketTabShowsBooksTradesAndOrders(t *testing.T) {
+	snap := makeSnapshot()
+	snap.Entities[0].Profile = &sim.Profile{Name: "Ida Miner"}
+	ida := sim.ColonistOwner(1)
+	silo := sim.Point{X: 3, Y: 2}
+	snap.Economy = sim.EconomyView{
+		Treasury: 900, Escrowed: 96, Issued: 1096, Circulating: 1000,
+		Books:  []sim.BookView{{Item: sim.IronOre, Depot: silo, BestBid: 3, BidQty: 32, Last: 3, Volume: 10, Traded: true}},
+		Trades: []sim.Trade{{Tick: 40, Item: sim.IronOre, Depot: silo, Qty: 10, Price: 3, Buyer: sim.Community, Seller: ida}},
+		Orders: []sim.OrderView{{ID: 7, Side: sim.Ask, Item: sim.Meal, Qty: 2, Price: 5, Actor: ida, Depot: silo}},
+		WorkOrders: []sim.WorkOrderView{
+			{ID: 8, Kind: sim.WorkBuild, Issuer: sim.Community, Pay: 2, Units: 1},
+			{ID: 9, Kind: sim.WorkBuild, Issuer: sim.Community, Pay: 5, Units: 1},
+		},
+	}
+	var model tea.Model = New(nil, nil)
+	model, _ = model.Update(tea.WindowSizeMsg{Width: 120, Height: 40})
+	model, _ = model.Update(snapshotMsg{snap: snap})
+	for range 4 {
+		model, _ = model.Update(tea.KeyMsg{Type: tea.KeyTab})
+	}
+	out := model.View()
+	for _, want := range []string{"BOOKS", "iron ore (3,2): bid $3×32", "the colony: 2 build tasks, $7 held", "Ida Miner sold the colony 10 iron ore @ $3", "In escrow:"} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("market page missing %q:\n%s", want, out)
+		}
+	}
+	model, _ = model.Update(tea.KeyMsg{Type: tea.KeyDown})
+	if out := model.View(); !strings.Contains(out, "ask 2 meal @ $5 (3,2)") {
+		t.Fatalf("colonist page missing its open order:\n%s", out)
+	}
+}
+
+// The market's price list shows each good's value and its quotes at every
+// depot, so a gap a hauler could close is visible; and the open plans.
+func TestMarketTabShowsPricesAcrossDepotsAndPlans(t *testing.T) {
+	snap := makeSnapshot()
+	snap.Entities[0].Profile = &sim.Profile{Name: "Hal Hauler"}
+	silo, far := sim.Point{X: 3, Y: 2}, sim.Point{X: 9, Y: 7}
+	snap.Economy = sim.EconomyView{
+		Treasury: 900, Issued: 1000, Circulating: 1000,
+		Books: []sim.BookView{
+			{Item: sim.IronOre, Depot: silo, BestAsk: 4, AskQty: 12},
+			{Item: sim.IronOre, Depot: far, BestBid: 12, BidQty: 8},
+		},
+		Prices:     []sim.PriceView{{Item: sim.IronOre, Value: 3}},
+		Plans:      []sim.PlanView{{Actor: 1, Summary: "haul 8 iron ore for $12 at (9, 7)", Depth: 1}},
+		ChainDepth: 1,
+	}
+	var model tea.Model = New(nil, nil)
+	model, _ = model.Update(tea.WindowSizeMsg{Width: 160, Height: 60})
+	model, _ = model.Update(snapshotMsg{snap: snap})
+	for range 4 {
+		model, _ = model.Update(tea.KeyMsg{Type: tea.KeyTab})
+	}
+	out := model.View()
+	for _, want := range []string{"iron ore $3 (ref) · (3,2) —/$4 · (9,7) $12/—", "PLANS (chain depth 1)", "Hal Hauler: haul 8 iron ore"} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("market tab missing %q:\n%s", want, out)
+		}
 	}
 }

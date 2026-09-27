@@ -8,7 +8,7 @@ import (
 func focusTestColonist(t *testing.T) (*World, *Entity) {
 	t.Helper()
 	cfg := testConfig()
-	cfg.StartColonists, cfg.StartAliens, cfg.StartCats, cfg.StartMice = 0, 0, 0, 0
+	cfg.StartColonists, cfg.StartAliens, cfg.StartCats, cfg.StartRats = 0, 0, 0, 0
 	w := newTestWorld(t, cfg)
 	c := w.spawn(Colonist, Point{w.Width / 2, w.Height / 2})
 	return w, c

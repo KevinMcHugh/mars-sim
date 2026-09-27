@@ -226,6 +226,12 @@ type perfChart struct {
 	start  time.Time // wall time of values[0]
 	span   time.Duration
 	unit   string // appended to y-axis labels
+	// xAxis, when set, labels the x axis instead of start and span: charts
+	// on the simulation clock (the Population tab) label ticks, not times.
+	xAxis func(offset, plotW int) string
+	// counts marks a series of whole numbers (colonists, meals): its y axis
+	// labels whole numbers, each once, rather than "8.5 colonists".
+	counts bool
 }
 
 func (c perfChart) render(width, height int) string {
@@ -241,9 +247,12 @@ func (c perfChart) render(width, height int) string {
 		lines = append(lines, "", helpStyle.Render(cells.Truncate("collecting samples…", inner)))
 	case plotRows >= 1 && plotW >= 1:
 		lines = append(lines, c.plot(plotW, plotRows)...)
+		axis := timeAxis(c.start, c.span, perfLabelWidth+1, plotW)
+		if c.xAxis != nil {
+			axis = c.xAxis(perfLabelWidth+1, plotW)
+		}
 		lines = append(lines,
-			strings.Repeat(" ", perfLabelWidth)+"└"+strings.Repeat("─", plotW),
-			timeAxis(c.start, c.span, perfLabelWidth+1, plotW))
+			strings.Repeat(" ", perfLabelWidth)+"└"+strings.Repeat("─", plotW), axis)
 	}
 	return sidebarStyle.Width(width - borderCells).Height(content).MaxHeight(height).
 		Render(strings.Join(lines, "\n"))
@@ -280,10 +289,19 @@ func (c perfChart) plot(plotW, rows int) []string {
 	out := make([]string, rows)
 	every := max(1, rows/6) // a label roughly every sixth of the height
 	perRow := (hi - lo) / float64(max(rows-1, 1))
+	lastLabel := ""
 	for r := 0; r < rows; r++ {
 		label, axis := "", "│"
 		if r == 0 || r == rows-1 || (r%every == 0 && rows-1-r >= every/2+1) {
 			label, axis = axisLabel(hi-float64(r)*perRow, perRow*float64(every), c.unit), "┤"
+			if c.counts {
+				label = fmt.Sprintf("%.0f%s", math.Round(hi-float64(r)*perRow), c.unit)
+				if label == lastLabel {
+					label, axis = "", "│"
+				} else {
+					lastLabel = label
+				}
+			}
 		}
 		out[r] = fmt.Sprintf("%*s", perfLabelWidth, cells.Truncate(label, perfLabelWidth)) +
 			axis + c.style.Render(grid.row(r))

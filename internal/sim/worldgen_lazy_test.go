@@ -36,6 +36,9 @@ func TestLazyChunksMatchThePureGenerator(t *testing.T) {
 					if !got.Explored && (got.Terrain == Floor) != want.isFloor(off) {
 						t.Fatalf("%s: untouched tile (%d,%d) is %v, the generator says floor=%v", when, x, y, got.Terrain, want.isFloor(off))
 					}
+					if _, scum := w.scum[Point{x, y}]; !got.Explored && scum != want.isScum(off) {
+						t.Fatalf("%s: untouched tile (%d,%d) has scum=%v, the generator says %v", when, x, y, scum, want.isScum(off))
+					}
 				}
 			}
 		}

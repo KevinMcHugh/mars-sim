@@ -2,6 +2,7 @@ package sim
 
 import (
 	"fmt"
+	"slices"
 	"testing"
 )
 
@@ -37,18 +38,18 @@ var goldenCases = []goldenCase{
 		name: "lazy-1000x1010",
 		cfg: func() Config {
 			c := DefaultConfig()
-			c.Seed = 6
+			c.Seed = 5
 			c.Width, c.Height = 1000, 1010
 			c.StartColonists = 40
 			c.CavernPercent = 20
 			c.WorldgenHalo = 1
 			return c
 		},
-		ticks:  600,
+		ticks:  1200,
 		breach: true,
 		grows:  true,
-		gen:    "tiles=a6f94d1444bc448e entities=596c21893cebb8e7 rng=536ad4fea347a1eb chunks=622fc087dedf9013/15 n=53 gore=0 corpses=0",
-		run:    "tiles=8bf0348321c9dfec entities=76d93fa47b2dc3a7 rng=5efc8756a51ff80a chunks=41cd9f7e16938b42/19 n=45 gore=0 corpses=3",
+		gen:    "tiles=6eba3d92a4e07cbb entities=f7ee7a1387568a13 rng=a78d6b0ac12b9e48 chunks=562663220ec91645/16 scum=694edd31ec9d434c/3893 n=53 gore=0 corpses=0",
+		run:    "tiles=cadea17eecc0a404 entities=c5c513e0c6209015 rng=fbe54b39c4c9a706 chunks=693d999c36049d09/20 scum=b1f1e3aafe90baae/4846 n=45 gore=0 corpses=0",
 	},
 	{
 		name: "default-80x40",
@@ -58,8 +59,8 @@ var goldenCases = []goldenCase{
 			return c
 		},
 		ticks: 400,
-		gen:   "tiles=3bf4ed49f557125b entities=f08f76c37fee1a73 rng=54976373abdf4683 chunks=4d22107f9dcb30cc/2 n=19 gore=0 corpses=0",
-		run:   "tiles=40e2480531c8f90a entities=223f797e8f9391e8 rng=a9d8b2619047466b chunks=4d22107f9dcb30cc/2 n=11 gore=0 corpses=0",
+		gen:   "tiles=fb413f93fa91bc92 entities=7aab2da63776690c rng=fee2103ce8a0059c chunks=4d22107f9dcb30cc/2 scum=af3afd423d126e36/182 n=19 gore=0 corpses=0",
+		run:   "tiles=0a609054d8cd6183 entities=3f9591f4810acc64 rng=b762ff0a73c3a0cb chunks=4d22107f9dcb30cc/2 scum=af3afd423d126e36/182 n=11 gore=0 corpses=0",
 	},
 	{
 		// Bigger than one worldgen chunk in both directions, with enough cave
@@ -67,7 +68,7 @@ var goldenCases = []goldenCase{
 		name: "caves-300x150",
 		cfg: func() Config {
 			c := DefaultConfig()
-			c.Seed = 1
+			c.Seed = 2
 			c.Width, c.Height = 300, 150
 			c.StartColonists = 40
 			c.CavernPercent = 15
@@ -75,8 +76,8 @@ var goldenCases = []goldenCase{
 		},
 		ticks:  600,
 		breach: true,
-		gen:    "tiles=6b0ca3236d95b6b0 entities=7e7318a4509dbd72 rng=25f88bfb6e34d1c8 chunks=0e4ca4c26f1b3a34/15 n=53 gore=0 corpses=0",
-		run:    "tiles=449f87727c0c8805 entities=07060d07fbc89b07 rng=697d938a253059e4 chunks=0e4ca4c26f1b3a34/15 n=45 gore=0 corpses=6",
+		gen:    "tiles=e81568a6449387ae entities=851ce35d5a35cf74 rng=c60777d3a7dcdb4d chunks=0e4ca4c26f1b3a34/15 scum=d17b29c1b71c8ea6/2663 n=53 gore=0 corpses=0",
+		run:    "tiles=51fe15e8a3bb4847 entities=c88f09e19c5a834c rng=c1cd58c0adecb99c chunks=0e4ca4c26f1b3a34/15 scum=bd0400217ee59601/2658 n=45 gore=0 corpses=0",
 	},
 }
 
@@ -114,12 +115,28 @@ func goldenHash(w *World) string {
 			rng = fnvAdd(rng, uint64(c))
 		}
 	}
+	// Scum patches, in a fixed order: they are generated content too, and a
+	// map, so their order must not leak into the hash.
+	patches := make([]Point, 0, len(w.scum))
+	for p := range w.scum {
+		patches = append(patches, p)
+	}
+	slices.SortFunc(patches, func(a, b Point) int {
+		if a.Y != b.Y {
+			return a.Y - b.Y
+		}
+		return a.X - b.X
+	})
+	scum := fnvSeed
+	for _, p := range patches {
+		scum = fnvAdd(fnvAdd(fnvAdd(scum, uint64(p.X)), uint64(p.Y)), uint64(w.scumAt(p)))
+	}
 	chunks := fnvSeed
 	for _, k := range w.genChunks {
 		chunks = fnvAdd(fnvAdd(chunks, uint64(k.cx)), uint64(k.cy))
 	}
-	return fmt.Sprintf("tiles=%016x entities=%016x rng=%016x chunks=%016x/%d n=%d gore=%d corpses=%d",
-		tiles, ents, rng, chunks, len(w.genChunks), len(w.entities), w.goreTotal, w.corpseTotal)
+	return fmt.Sprintf("tiles=%016x entities=%016x rng=%016x chunks=%016x/%d scum=%016x/%d n=%d gore=%d corpses=%d",
+		tiles, ents, rng, chunks, len(w.genChunks), scum, len(patches), len(w.entities), w.goreTotal, w.corpseTotal)
 }
 
 func TestGoldenWorldHash(t *testing.T) {

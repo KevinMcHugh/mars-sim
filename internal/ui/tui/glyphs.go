@@ -44,19 +44,22 @@ const (
 	glyphClayRock    = "\U0001F7E7" // 🟧 clay-bearing rock
 	glyphFloor       = "  "         // open, walkable space
 	glyphWall        = "\U0001F9F1" // 🧱 built wall
+	glyphHull        = "\U00002B1C" // ⬜ crash pod hull: metal, not masonry
 	glyphPod         = "\U0001F96B" // 🥫 nutrient pod (food)
 	glyphToilet      = "\U0001F6BD" // 🚽 toilet (bladder)
 	glyphBed         = "\U0001F6CC" // 🛌 dormitory bunk (sleep)
 	glyphIncinerator = "\U0001F525" // 🔥 incinerator: burns refuse hauled to the trash room
 	glyphStorage     = "\U0001F9F0" // 🧰 storage container: six colonist inventories
+	glyphScumhouse   = "\U0001F372" // 🍲 scumhouse: biomatter in, slurry out
+	glyphScum        = "\U0001F7E2" // 🟢 cave scum a colonist could scrape
 
 	glyphColonist = "\U0001F477" // 👷 colonist of unknown age/gender (no profile)
 	glyphFleeing  = "\U0001F631" // 😱 colonist running from an alien
 	glyphTalking  = "\U0001F4AC" // 💬 colonist chatting with another
 	glyphAlien    = "\U0001F47D" // 👽 subterranean mutant
-	glyphCat      = "\U0001F408" // 🐈 floor predator hunting mice
-	glyphMouse    = "\U0001F401" // 🐁 pest that raids the food pods
-	glyphStomp    = "\U0001F97E" // 🥾 colonist chasing down a mouse to stomp it
+	glyphCat      = "\U0001F408" // 🐈 floor predator hunting rats
+	glyphRat      = "\U0001F400" // 🐀 rat: scavenges pods, scum, and the dead
+	glyphStomp    = "\U0001F97E" // 🥾 colonist chasing down a rat to stomp it
 	glyphFighting = "\U0001F52B" // 🔫 armed colonist standing its ground against an alien
 	glyphGore     = "\U0001FA78" // 🩸 a violent death's residue on a tile
 	glyphCorpse   = "\U0001F9B4" // 🦴 a body left where something died, waiting to be hauled
@@ -166,18 +169,21 @@ var glyphRegistry = map[string]glyph{
 	glyphClayRock:    {glyphClayRock, 2, "Cl"},
 	glyphFloor:       {glyphFloor, 2, "  "},
 	glyphWall:        {glyphWall, 2, "[]"},
+	glyphHull:        {glyphHull, 2, "HH"},
 	glyphPod:         {glyphPod, 2, "%%"},
 	glyphToilet:      {glyphToilet, 2, "WC"},
 	glyphBed:         {glyphBed, 2, "=="},
 	glyphIncinerator: {glyphIncinerator, 2, "&&"},
 	glyphStorage:     {glyphStorage, 2, "[]"},
+	glyphScumhouse:   {glyphScumhouse, 2, "Sh"},
+	glyphScum:        {glyphScum, 2, ",,"},
 
 	glyphColonist: {glyphColonist, 2, "@ "},
 	glyphFleeing:  {glyphFleeing, 2, "@!"},
 	glyphTalking:  {glyphTalking, 2, "@?"},
 	glyphAlien:    {glyphAlien, 2, "A "},
 	glyphCat:      {glyphCat, 2, "f "},
-	glyphMouse:    {glyphMouse, 2, "r "},
+	glyphRat:      {glyphRat, 2, "r "},
 	glyphStomp:    {glyphStomp, 2, "@*"},
 	glyphFighting: {glyphFighting, 2, "@="},
 	glyphGore:     {glyphGore, 2, "~~"},
@@ -342,6 +348,8 @@ func terrainGlyph(t sim.Terrain) string {
 		symbol = glyphFloor
 	case sim.Wall:
 		symbol = glyphWall
+	case sim.Hull:
+		symbol = glyphHull
 	case sim.NutrientPod:
 		symbol = glyphPod
 	case sim.Toilet:
@@ -352,6 +360,8 @@ func terrainGlyph(t sim.Terrain) string {
 		symbol = glyphIncinerator
 	case sim.Storage:
 		symbol = glyphStorage
+	case sim.Scumhouse:
+		symbol = glyphScumhouse
 	default:
 		symbol = glyphRock
 	}
@@ -413,8 +423,8 @@ func entityGlyph(e sim.EntityView) string {
 		symbol = alienGlyph(e.AlienSpecies)
 	case sim.Cat:
 		symbol = glyphCat
-	case sim.Mouse:
-		symbol = glyphMouse
+	case sim.Rat:
+		symbol = glyphRat
 	case sim.Colonist:
 		switch e.State {
 		case sim.Fleeing:

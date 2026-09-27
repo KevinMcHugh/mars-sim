@@ -41,6 +41,10 @@ const (
 	// passageSlack is how far a passage may wander outside the box spanned
 	// by the two cavern centers it joins.
 	passageSlack = 12
+	// scumRunMin and scumRunMax bound one run of cave scum patches: a short
+	// meandering walk, so a run reaches at most scumRunMax-1 tiles from where
+	// it started.
+	scumRunMin, scumRunMax = 3, 8
 	// veinOriginTries is how many sites a vein gets before it is skipped:
 	// each must be ordinary rock with room to grow.
 	veinOriginTries = 8
@@ -64,6 +68,7 @@ var (
 	_ = [1]struct{}{}[(2*veinReach)/genChunkSize]
 	_ = [1]struct{}{}[(2*cavernReach+cavernSpacing)/genChunkSize]
 	_ = [1]struct{}{}[(passageMaxSpan+passageSlack)/genChunkSize]
+	_ = [1]struct{}{}[scumRunMax/genChunkSize]
 )
 
 // Stream identifiers, mixed into every feature's seed so the streams stay
@@ -72,6 +77,7 @@ const (
 	genStreamVein    uint64 = 0x243F6A8885A308D3 // + composition level
 	genStreamCavern  uint64 = 0x13198A2E03707344
 	genStreamPassage uint64 = 0xA4093822299F31D0
+	genStreamScum    uint64 = 0x5CA1AB1E
 )
 
 // veinLevels lists the compositions in priority order. A vein avoids every
@@ -140,6 +146,7 @@ func (c *genCavern) before(o *genCavern) bool {
 type chunkContent struct {
 	comp  [genChunkArea]RockComposition
 	floor [genChunkArea / 64]uint64 // bit set: hidden cavern floor
+	scum  [genChunkArea / 64]uint64 // bit set: a full patch of cave scum
 	// caverns are the centers of the natural caverns this chunk owns, for
 	// nest tracking.
 	caverns []Point
@@ -147,6 +154,8 @@ type chunkContent struct {
 
 func (c *chunkContent) isFloor(off int) bool { return c.floor[off>>6]&(1<<(off&63)) != 0 }
 func (c *chunkContent) setFloor(off int)     { c.floor[off>>6] |= 1 << (off & 63) }
+func (c *chunkContent) isScum(off int) bool  { return c.scum[off>>6]&(1<<(off&63)) != 0 }
+func (c *chunkContent) setScum(off int)      { c.scum[off>>6] |= 1 << (off & 63) }
 
 // worldGen generates chunks for one world. It holds only config and caches,
 // so a frontend can own a second one to preview chunks without touching the
@@ -162,6 +171,7 @@ type worldGen struct {
 	cands    genCache[chunkKey, []*genCavern]
 	kept     genCache[chunkKey, []*genCavern]
 	passages genCache[chunkKey, [][]Point]
+	scum     genCache[chunkKey, []Point]
 	nearest  genCache[caveID, nearestRef]
 	// cacheSize is each plan cache's capacity (see newWorldGenLanding).
 	cacheSize int
@@ -213,6 +223,7 @@ func (g *worldGen) forget() {
 	g.cands = newGenCache[chunkKey, []*genCavern](g.cacheSize)
 	g.kept = newGenCache[chunkKey, []*genCavern](g.cacheSize)
 	g.passages = newGenCache[chunkKey, [][]Point](g.cacheSize)
+	g.scum = newGenCache[chunkKey, []Point](g.cacheSize)
 	g.nearest = newGenCache[caveID, nearestRef](g.cacheSize * 8)
 }
 
@@ -293,6 +304,16 @@ func (g *worldGen) chunk(cx, cy int) *chunkContent {
 			}
 		})
 	}
+
+	// Cave scum rides on the rock, not in it: a patch can sit on what
+	// becomes cavern or landing floor, as it always could.
+	g.forNeighbours(k, 1, func(n chunkKey) {
+		for _, p := range g.scumPlan(n) {
+			if off, ok := in(p); ok {
+				out.setScum(off)
+			}
+		}
+	})
 
 	// Caverns and passages.
 	g.forNeighbours(k, 1, func(n chunkKey) {
@@ -475,6 +496,44 @@ func (g *worldGen) walkVein(rng *rand.Rand, origin Point, size int, free func(Po
 		own[slot(p)] = false
 	}
 	return vein
+}
+
+// --- Cave scum ------------------------------------------------------------
+
+// scumPlan returns the tiles of the cave scum runs that start in chunk k:
+// ScumPercent of its area, in short meandering runs. It reads nothing, so
+// runs from neighbouring chunks may overlap near a chunk edge; a tile is
+// scummed or not, so an overlap only costs a little abundance. See
+// docs/scumhouse.md.
+func (g *worldGen) scumPlan(k chunkKey) []Point {
+	if v, ok := g.scum.get(k); ok {
+		return v
+	}
+	var tiles []Point
+	lo, hi, ok := g.chunkBounds(k)
+	if ok && g.cfg.ScumPercent > 0 && g.cfg.ScumMax > 0 {
+		// Budget distinct tiles, as the old whole-map pass did: a short walk
+		// often steps back onto itself, and counting steps instead came out
+		// a fifth short. Runs keep going until the chunk's share is placed,
+		// with a guard in case its map area is tiny.
+		rng := g.featureRand(genStreamScum, int64(k.cx), int64(k.cy))
+		area := int64(hi.X-lo.X+1) * int64(hi.Y-lo.Y+1)
+		budget := stratified(rng, area*int64(g.cfg.ScumPercent), 100)
+		placed := map[Point]bool{}
+		for guard := 0; len(tiles) < budget && guard < 8*budget; guard++ {
+			p := Point{lo.X + rng.IntN(hi.X-lo.X+1), lo.Y + rng.IntN(hi.Y-lo.Y+1)}
+			for n := scumRunMin + rng.IntN(scumRunMax-scumRunMin+1); n > 0 && len(tiles) < budget; n-- {
+				if g.inMap(p) && !placed[p] {
+					placed[p] = true
+					tiles = append(tiles, p)
+				}
+				d := veinNeighbors[rng.IntN(len(veinNeighbors))]
+				p = p.Add(d.X, d.Y)
+			}
+		}
+	}
+	g.scum.put(k, tiles)
+	return tiles
 }
 
 // --- Caverns --------------------------------------------------------------

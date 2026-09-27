@@ -4,14 +4,14 @@
 
 ## What it is
 
-World generation lays down ore veins, hidden natural caverns and the passages
-between them one 64×64 **chunk** at a time. What a chunk holds is a pure
+World generation lays down ore veins, cave scum, hidden natural caverns and
+the passages between them one 64×64 **chunk** at a time. What a chunk holds is a pure
 function of `(Config, cx, cy)`. It does not depend on which other chunks
 exist, or on the order anything was generated in. That property is what lets
 chunks be generated **lazily**: a new game generates the landing site's
 neighbourhood, and the rest of the map is generated as the colony explores
-toward it. On a 10000×10000 map, starting a game went from 6.4 s and 1 GB to
-18 ms and 26 MB.
+toward it. On a 10000×10000 map, starting a game went from 11.4 s and 1.35 GB
+to 27 ms and 28 MB.
 
 Only the simulation decides when a chunk is generated, never a frontend, so a
 seed produces the same world by the same tick on every machine.
@@ -23,8 +23,8 @@ under [Why it is this way](#why-it-is-this-way).
 ## Source
 
 - [`internal/sim/worldgen_chunks.go`](../internal/sim/worldgen_chunks.go):
-  `worldGen`, the plans (`veinPlan`, `cavernCandidates`, `keptCaverns`,
-  `passagePlan`), `chunk`, `featureRand`, `stratified` and `genCache`.
+  `worldGen`, the plans (`veinPlan`, `scumPlan`, `cavernCandidates`,
+  `keptCaverns`, `passagePlan`), `chunk`, `featureRand`, `stratified` and `genCache`.
 - [`internal/sim/worldgen.go`](../internal/sim/worldgen.go): `generate`,
   `generateChunkAt` / `generateAround` / `generateChunk` (when chunks are
   generated), `applyChunk` (writing one into the tile grid), and
@@ -63,6 +63,7 @@ Every feature is **owned** by the chunk its origin lies in, and has a bounded
 | Feature | Owner | Reach from its origin |
 | --- | --- | --- |
 | Vein | chunk of its first tile | `veinReach` = 16 |
+| Cave scum run | chunk it starts in | `scumRunMax` - 1 = 7 |
 | Cavern | chunk of its center | `cavernReach` = 20 |
 | Passage | chunk of the higher-ranked of its two caverns | `passageMaxSpan` + `passageSlack` = 44 |
 
@@ -150,6 +151,19 @@ one-to-two-tile veins), plus 30 seeds of a crowded multi-chunk map where veins
 of every level meet their neighbours' veins.
 The old generator failed that invariant on about 6% of seeds: see
 [rng-streams.md](./rng-streams.md).
+
+### Cave scum
+
+Each chunk places its share of `scum-percent` of its area as distinct tiles,
+in short meandering runs of `scumRunMin`–`scumRunMax` steps
+(`scumPlan`). Scum rides on the rock rather than in it, so it reads nothing
+and ignores caverns and ore, just as the old whole-map `growScum` did (it ran
+before anything was carved). Counting distinct tiles matters: the first
+version counted steps, and because short walks step back on themselves, it
+came out a fifth short. `applyChunk` adds each patch to `World.scum` at full
+strength and registers any that is already exposed. That is never the case
+in practice, because discovered floor always has its neighbours generated
+first.
 
 ### Caverns
 
@@ -297,22 +311,26 @@ TestAbundanceDriftReport -v`):
 | 80x40 | 500 | ice | 5 | 5.01 | +0.2% | 0.48 | 3.44 | 6.31 |
 | 80x40 | 500 | uranium | 1 | 1.01 | +0.8% | 0.41 | 0.12 | 2.00 |
 | 80x40 | 500 | clay | 5 | 4.97 | -0.5% | 0.49 | 3.66 | 6.31 |
-| 80x40 | 500 | cavern | 4 | 3.98 | -0.5% | 1.16 | 0.97 | 7.91 |
+| 80x40 | 500 | cavern | 4 | 3.91 | -2.2% | 1.15 | 0.97 | 7.22 |
+| 80x40 | 500 | scum | 6 | 6.00 | -0.1% | 0.02 | 5.88 | 6.03 |
 | 256x256 | 500 | iron | 10 | 9.97 | -0.3% | 0.26 | 9.29 | 10.54 |
 | 256x256 | 500 | ice | 5 | 4.98 | -0.5% | 0.15 | 4.62 | 5.42 |
 | 256x256 | 500 | uranium | 1 | 1.01 | +1.3% | 0.10 | 0.73 | 1.26 |
 | 256x256 | 500 | clay | 5 | 4.98 | -0.4% | 0.14 | 4.60 | 5.39 |
-| 256x256 | 500 | cavern | 4 | 4.11 | +2.8% | 0.33 | 3.09 | 5.06 |
+| 256x256 | 500 | cavern | 4 | 4.11 | +2.7% | 0.33 | 3.09 | 4.99 |
+| 256x256 | 500 | scum | 6 | 6.00 | -0.1% | 0.01 | 5.98 | 6.00 |
 | 1024x1024 | 100 | iron | 10 | 10.00 | -0.0% | 0.11 | 9.79 | 10.14 |
 | 1024x1024 | 100 | ice | 5 | 4.97 | -0.6% | 0.04 | 4.88 | 5.02 |
 | 1024x1024 | 100 | uranium | 1 | 1.00 | +0.1% | 0.04 | 0.95 | 1.07 |
 | 1024x1024 | 100 | clay | 5 | 4.95 | -0.9% | 0.03 | 4.89 | 4.99 |
 | 1024x1024 | 100 | cavern | 4 | 4.08 | +2.0% | 0.14 | 3.78 | 4.40 |
+| 1024x1024 | 100 | scum | 6 | 5.99 | -0.1% | 0.00 | 5.99 | 6.00 |
 | 4096x4096 | 10 | iron | 10 | 9.95 | -0.5% | 0.00 | 9.95 | 9.96 |
 | 4096x4096 | 10 | ice | 5 | 4.94 | -1.2% | 0.00 | 4.94 | 4.94 |
 | 4096x4096 | 10 | uranium | 1 | 0.97 | -3.0% | 0.00 | 0.97 | 0.97 |
 | 4096x4096 | 10 | clay | 5 | 4.94 | -1.2% | 0.00 | 4.94 | 4.94 |
 | 4096x4096 | 10 | cavern | 4 | 4.16 | +3.9% | 0.02 | 4.12 | 4.18 |
+| 4096x4096 | 10 | scum | 6 | 5.99 | -0.1% | 0.00 | 5.99 | 5.99 |
 
 Cavern floor now includes passages, which the old target did not count. The
 cavern's crowding drops and its passages roughly cancel at the default
@@ -327,10 +345,15 @@ the live heap afterwards. Measured on an M-series Mac, seed 7, default config:
 
 | Map | Whole-map generator | Chunked, all up front | Chunked, lazy |
 | --- | ---: | ---: | ---: |
-| 1000×1000 | 70 ms, 11 MB | 58 ms, 11 MB | 16 ms, 5 MB |
-| 2500×2500 | 364 ms, 65 MB | 300 ms, 65 MB | 15 ms, 6 MB |
-| 10000×10000 | 6.43 s, 1032 MB | 4.95 s, 1028 MB | 18 ms, 26 MB |
-| 10000×10000, js/wasm in Node | 37.7 s ([PR 60](https://github.com/KevinMcHugh/mars-sim/pull/60)) | | 88 ms, 26 MB |
+| 1000×1000 | 70 ms, 11 MB | 58 ms, 11 MB | 26 ms, 6 MB |
+| 2500×2500 | 364 ms, 65 MB | 300 ms, 65 MB | 23 ms, 7 MB |
+| 10000×10000 | 6.43 s, 1032 MB | 4.95 s, 1028 MB | 27 ms, 28 MB |
+| 10000×10000, js/wasm in Node | 37.7 s ([PR 60](https://github.com/KevinMcHugh/mars-sim/pull/60)) | | 118 ms, 28 MB |
+
+The first two columns were measured before the economy (crash pods, scum)
+landed. With it, the whole-map generator took 11.4 s and 1353 MB at
+10000×10000 (34.3 s under wasm). The lazy column includes the economy: most
+of its startup time is landing the crash pods.
 
 Generating every chunk up front was only a little faster than the old
 generator. Most of what was left was writing 100M tiles for the first time

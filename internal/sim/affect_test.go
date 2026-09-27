@@ -617,7 +617,7 @@ func TestDefaultTraitRuleGrammarCoverage(t *testing.T) {
 	cfg := DefaultCognitionConfig()
 	want := map[RuleID]bool{
 		"tidy-visible-gore": true, "tidy-witnessed-colonist-killed": true,
-		"tidy-witnessed-mouse-crushed": true, "tidy-cleaned-refuse": true,
+		"tidy-witnessed-rat-crushed": true, "tidy-cleaned-refuse": true,
 		"tidy-incinerated-refuse": true, "industrious-mining": true,
 		"industrious-clearing": true, "industrious-construction": true,
 		"industrious-cleaning": true, "industrious-incinerating": true,

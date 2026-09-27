@@ -8,12 +8,13 @@ import (
 )
 
 // generate carves the starting situation into a fresh all-Rock world: a central
-// landing cavern sized to the starting population, with the colonists inside it,
-// and a handful of aliens lurking in the hidden caverns beyond it.
+// landing cavern sized to the starting population, the colonists' crash pods
+// landed in and around it, and a handful of aliens lurking in the hidden
+// caverns beyond it.
 func generate(w *World) {
 	center := Point{w.Width / 2, w.Height / 2}
 
-	// Ore veins and hidden natural caverns are generated chunk by chunk,
+	// Ore veins, cave scum and hidden natural caverns are generated chunk by chunk,
 	// lazily: carving the landing site generates the chunks under it, and
 	// revealing tiles keeps generation WorldgenHalo chunks ahead of whatever
 	// the colony has seen (see generateChunkAt). What a chunk holds is a pure
@@ -44,15 +45,24 @@ func generate(w *World) {
 		}
 	}
 
-	// Place colonists, then mice and cats, by drawing from one shuffled list of
-	// open floor tiles, so every placement is a uniform draw without replacement
-	// rather than rejection sampling, which could give up. Every discovered
-	// Floor tile at this point lies within the cavern just carved (natural
-	// caverns are all still hidden), so it is enough to collect
-	// candidates from that small box — not the whole map, which on a huge map
-	// would dwarf everything else generate() does for the sake of placing a
-	// handful of colonists and critters.
-	floors := w.freeFloorTilesIn(center.Add(-rx, -ry), center.Add(rx, ry))
+	// Every colonist arrives in a crash pod, landing from the middle of the
+	// cavern outward and smashing through the rock around it once the open
+	// floor runs out. See crashpod.go.
+	for i := 0; i < w.cfg.StartColonists; i++ {
+		if w.arrive(false) == nil {
+			break
+		}
+	}
+
+	// Place rats and cats by drawing from one shuffled list of open floor
+	// tiles, so every placement is a uniform draw without replacement rather
+	// than rejection sampling, which could give up. Crash pods can only have
+	// added floor next to the cavern, so the cavern's box plus a pod's reach
+	// covers every candidate — not the whole map, which on a huge map would
+	// dwarf everything else generate() does for the sake of placing a handful
+	// of critters.
+	reach := podWidth + podHeight + podCrashSlack
+	floors := w.freeFloorTilesIn(center.Add(-rx-reach, -ry-reach), center.Add(rx+reach, ry+reach))
 	w.rng.Shuffle(len(floors), func(i, j int) { floors[i], floors[j] = floors[j], floors[i] })
 	next := 0
 	takeFloor := func() (Point, bool) {
@@ -64,31 +74,22 @@ func generate(w *World) {
 		return p, true
 	}
 
-	want := w.cfg.StartColonists
-	if want > len(floors) {
-		want = len(floors)
-	}
-	colonists := make([]*Entity, 0, want)
-	for i := 0; i < want; i++ {
-		p, _ := takeFloor()
-		colonists = append(colonists, w.spawn(Colonist, p))
-	}
-	equipColonyShip(colonists, w.cfg)
-
 	// Place aliens in the hidden caverns, where they lie dormant until the
-	// colony digs in (see alienSpawnSite and docs/caverns.md).
-	minDist := rx + ry + 4
+	// colony digs in (see alienSpawnSite and docs/caverns.md). Capped to fit
+	// the map: on a small map the cavern is sized for its crash pods
+	// (caveRadii), and rx+ry+4 can reach past every edge.
+	minDist := min(rx+ry+4, max(w.Width, w.Height)/2-1)
 	for i := 0; i < w.cfg.StartAliens; i++ {
 		if p, ok := w.alienSpawnSite(center, minDist); ok {
 			w.spawn(Alien, p)
 		}
 	}
 
-	// Mice and cats live on the floor with the colonists: mice raid the pods,
-	// cats chase the mice. Place whatever the cavern has room for.
-	for i := 0; i < w.cfg.StartMice; i++ {
+	// Rats and cats live on the floor with the colonists: rats scavenge the
+	// colony's biomatter and raid its pods, cats chase the rats. Place whatever the cavern has room for.
+	for i := 0; i < w.cfg.StartRats; i++ {
 		if p, ok := takeFloor(); ok {
-			w.spawn(Mouse, p)
+			w.spawn(Rat, p)
 		}
 	}
 	for i := 0; i < w.cfg.StartCats; i++ {
@@ -97,7 +98,7 @@ func generate(w *World) {
 		}
 	}
 
-	w.log.add("The colony ship settles onto the Martian crust. Something below stirs.")
+	w.log.add(fmt.Sprintf("%d crash pods come down on the Martian crust. Something below stirs.", w.countKind(Colonist)))
 	w.refreshSpatial()
 }
 
@@ -182,6 +183,9 @@ func (w *World) applyChunk(cx, cy int) []Point {
 			off := offset(x, y)
 			cell := &page[off]
 			cell.Composition = c.comp[off]
+			if c.isScum(off) {
+				w.scum[Point{x, y}] = scumPatch{amount: w.cfg.ScumMax, since: w.tick}
+			}
 			if !c.isFloor(off) {
 				continue
 			}
@@ -197,6 +201,17 @@ func (w *World) applyChunk(cx, cy int) []Point {
 		}
 	}
 	w.markTilePageDirty(Point{x0, y0})
+	// Nothing next to an ungenerated chunk has been discovered (discovered
+	// floor always has its neighbours revealed, which generates them first),
+	// so a new patch should never be exposed. Ask anyway, once the chunk's
+	// terrain is all down: it is cheap, and exposure is what scrapers search.
+	for y := y0; y < y1; y++ {
+		for x := x0; x < x1; x++ {
+			if c.isScum(offset(x, y)) {
+				w.refreshScumExposure(Point{x, y})
+			}
+		}
+	}
 	return c.caverns
 }
 
@@ -206,16 +221,27 @@ func (w *World) applyChunk(cx, cy int) []Point {
 // equivalent.
 var applyChunkViaCarveHidden = false
 
+// minCaveRy is the smallest half-height of a landing cavern; see caveRadii.
+const minCaveRy = 6
+
 // caveRadii returns the ellipse radii for a starting cavern big enough to hold n
 // colonists with breathing room, clamped to something sane and to the world
 // bounds. It keeps a 2:1 width:height shape to match the map.
 func caveRadii(width, height, n int) (rx, ry int) {
-	const tilesPerColonist = 10
+	// Ten tiles of elbow room per settler, plus the ground its crash pod
+	// takes up with the margin it keeps from its neighbors (see podSiteRock).
+	// Without the pods' share the pods filled the landing cavern on their own
+	// and the colony had nowhere clear left to site its first rooms.
+	const tilesPerColonist = 10 + (podWidth+1)*(podHeight+1)
 	// area = pi * rx * ry, with rx = 2*ry  =>  ry = sqrt(area / (2*pi)).
 	area := float64(n * tilesPerColonist)
 	ry = int(math.Ceil(math.Sqrt(area / (2 * math.Pi))))
-	if ry < 4 {
-		ry = 4
+	// Tall enough for a room against the top rim (rock above, five rows of
+	// room and one of approach — see roomSiteClear) with a row of crash pods
+	// still below it. At the old floor of 4 a small colony's nine-row cavern
+	// could hold one or the other, and its first pod left it nowhere to build.
+	if ry < minCaveRy {
+		ry = minCaveRy
 	}
 	rx = 2 * ry
 	if maxRx := width/2 - 2; rx > maxRx {
@@ -358,7 +384,7 @@ func (w *World) randomTileScan(pred func(Point) bool) (Point, bool) {
 }
 
 // randomFloor returns a random open, unoccupied floor tile the colony has
-// discovered: newcomers and mouse plagues arrive in the colony, not in a
+// discovered: newcomers and rat plagues arrive in the colony, not in a
 // natural cavern nobody has found.
 func (w *World) randomFloor() (Point, bool) {
 	return w.randomTile(func(p Point) bool { return w.Walkable(p) && w.discovered(p) && !w.occupied(p) })

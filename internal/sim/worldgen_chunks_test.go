@@ -117,6 +117,11 @@ func TestChunkFeaturesStayWithinNeighbours(t *testing.T) {
 					}
 				}
 			}
+			for _, p := range g.scumPlan(k) {
+				if !within(k, p) || !g.inMap(p) {
+					t.Fatalf("chunk %v: scum tile %v is out of reach", k, p)
+				}
+			}
 		}
 	}
 }

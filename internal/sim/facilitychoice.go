@@ -42,6 +42,15 @@ import "slices"
 // not mid-tick, so for the rest of a tick in which terrain changed, both can
 // lag the old per-call BFS. That is deterministic, and it's the same view of
 // the map the colonist navigates by.
+//
+// Ownership (see docs/property.md): a colonist never picks a fixture it may
+// not use, and the shared field leads only to communal fixtures, so the field
+// cannot see a colonist's own bunk — which may well be nearer than the nearest
+// communal one. While any fixture of a kind is restricted, then, the field
+// tiers are skipped and the bounded search runs, skipping what the colonist
+// may not use. With crash pods that is every bunk and toilet choice; the
+// search stops at the first usable free facility, usually the colonist's own
+// a few tiles away, so it stays cheap.
 
 // chooseFacility assigns a concrete facility to a need. The assignment is
 // retained on the entity for the whole use job, so a user never ping-pongs
@@ -49,7 +58,7 @@ import "slices"
 func (w *World) chooseFacility(e *Entity, kind Terrain) Point {
 	w.facilityCommitted = nil // counted on demand, once per call
 	room := w.roomOf(e.Pos)
-	if room == 0 {
+	if room == 0 || w.restrictedFixtures[kind] > 0 {
 		return w.facilityBySearch(e, kind, room)
 	}
 	nearest, free := w.facilityByField(e, kind, room)
@@ -88,7 +97,10 @@ func (w *World) chooseFacility(e *Entity, kind Terrain) Point {
 func (w *World) facilityCongested(e *Entity, fac Point, reachable func(Point) bool) bool {
 	for _, d := range neighbors8 {
 		access := fac.Add(d.X, d.Y)
-		if w.Walkable(access) && reachable(access) && w.entityAt(access) != nil {
+		// Not e itself: a colonist standing at its own pod's door would
+		// otherwise see its own bunk as taken, flood the whole room looking
+		// for another, and settle on the same bunk anyway.
+		if o := w.entityAt(access); o != nil && o != e && w.Walkable(access) && reachable(access) {
 			return true
 		}
 	}
@@ -133,6 +145,9 @@ func committedTo(e *Entity, fac Point) bool {
 func (w *World) anyFreeFacility(e *Entity, kind Terrain, room RoomID) bool {
 	inRoom := func(p Point) bool { return w.roomOf(p) == room }
 	for fac := range w.facilityTiles[kind] { // order-free: the result is a bool
+		if !w.canUseFixture(e, fac) {
+			continue
+		}
 		reachable := false
 		for _, d := range neighbors8 {
 			if a := fac.Add(d.X, d.Y); w.Walkable(a) && inRoom(a) {
@@ -289,7 +304,9 @@ func (w *World) facilityBySearch(e *Entity, kind Terrain, room RoomID) Point {
 			if t == kind && isAccess {
 				if c := cells.ptr(n.X, n.Y); c.gen != gen {
 					c.gen = gen
-					found = append(found, foundFacility{fac: n, dist: pd})
+					if w.canUseFixture(e, n) { // never someone else's private fixture
+						found = append(found, foundFacility{fac: n, dist: pd})
+					}
 				}
 				continue
 			}

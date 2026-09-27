@@ -6,9 +6,10 @@
 
 The world is a single underground level: a grid of `Tile`s, stored in 64×64 pages, that
 starts as solid rock with ordinary, iron-bearing, water ice-bearing,
-uranium-bearing, or clay-bearing composition. World generation carves a landing cavern, drops the colonists inside
-it, hollows hidden natural caverns (some joined by passages) out of the rock
-beyond, and seeds aliens out in the surrounding rock and cats/mice on the floor.
+uranium-bearing, or clay-bearing composition. World generation carves a landing cavern,
+hollows hidden natural caverns (some joined by passages) out of the rock
+beyond, lands the colonists' crash pods in the landing cavern, and seeds aliens
+out in the surrounding rock and cats/rats on the floor.
 
 ## Source
 
@@ -23,7 +24,9 @@ beyond, and seeds aliens out in the surrounding rock and cats/mice on the floor.
 ### Terrain and tiles
 
 `Terrain` is an enum: `Rock`, `Floor`, `Wall`, `NutrientPod`, `Toilet`, `Bed`,
-`Incinerator`, `Storage`. Only
+`Incinerator`, `Storage`, `Scumhouse`, `Hull`. `Hull` is a crash pod's metal
+wall: it behaves like `Wall` but only ever arrives with a pod (see
+[crash-pods.md](./crash-pods.md)). Only
 `Floor` is `Walkable()`, and every creature, aliens included, stays on floor. Beds are dormitory bunks used from an
 adjacent floor tile; the incinerator is the machine refuse is burned in, used the
 same way (see [sanitation.md](./sanitation.md)). Storage is a blocking trunk used
@@ -110,7 +113,8 @@ derived systems go stale (and the map the player sees never grows).
 `generate` (called once by `NewEngine`):
 
 1. Sets up **lazy, chunked generation**. Each 64×64 chunk holds iron,
-   water-ice, uranium, and clay veins, plus hidden **natural caverns** and the
+   water-ice, uranium, and clay veins, patches of **cave scum** (see
+   [scumhouse.md](./scumhouse.md)), plus hidden **natural caverns** and the
    passages that join some of them. What a chunk holds is a pure function of
    the config and its coordinates, on worldgen's own seed-derived streams.
    Chunks are generated as the colony explores: carving the landing site
@@ -122,19 +126,24 @@ derived systems go stale (and the map the player sees never grows).
    Caverns stay under the fog, and out of every colony-facing system, until a
    dig breaks into one (see [caverns.md](./caverns.md)).
 2. Carves an **oval cavern** at the map center. `caveRadii` sizes it to the
-   starting colonist count (~10 tiles per colonist) at a 2:1 width:height ratio,
-   clamped to the map. Caverns keep `cavernLandingClearance` tiles clear of its
-   bounding box.
-3. Places colonists by shuffling the list of free (discovered) floor tiles and drawing from
-   it, so every requested colonist is placed if the cavern has room (this beats
-   rejection sampling, which can give up).
+   starting colonist count — ten tiles of elbow room per colonist plus the
+   ground its crash pod takes, at a 2:1 width:height ratio, never less than
+   `minCaveRy` (6) rows above and below the middle — clamped to the map. The
+   pods' share and the taller minimum both exist so the colony can still site
+   its first room once the pods are down; see [crash-pods.md](./crash-pods.md).
+   Caverns keep `cavernLandingClearance` tiles clear of its bounding box.
+3. Lands each colonist in a crash pod (`arrive`), in the lower half of the
+   cavern, crashing through the rock once the open floor runs out.
 4. Places aliens with `alienSpawnSite`: on hidden cavern floor, where they lie
    dormant until the colony digs in, or, with no cave room, on colony floor far
    from the landing site. See [caverns.md](./caverns.md#aliens-in-the-caves).
-5. Places mice and cats on random floor tiles inside the cavern.
-6. Records each natural cavern's center (`trackCavernsForNests`), so that
-   breaking into it later can roll for an **alien nest**. No nest aliens exist
-   before then. See [caverns.md](./caverns.md#alien-nests).
+5. Places rats and cats by shuffling the free floor tiles in and around the
+   cavern and drawing from the list (this beats rejection sampling, which can
+   give up).
+6. Starts the set of unfound cavern centers (`trackCavernsForNests`); each
+   chunk adds its caverns' centers as it is generated, so that breaking into
+   one later can roll for an **alien nest**. No nest aliens exist before
+   then. See [caverns.md](./caverns.md#alien-nests).
 7. Runs `refreshSpatial` once so regions/rooms exist before the first tick.
 
 `randomTile` reservoir-samples a tile satisfying a predicate in one pass — uniform,

@@ -77,9 +77,19 @@ A computed route is **cached on the colonist and followed one step per tick**
 tiles are valid transit cells but not valid destinations; an entity may pass
 *through* any other entity on its route but must end the tick on a free tile —
 except an alien, which still blocks outright (a real, dangerous obstacle, not
-clutter to walk past; a colonist, cat, or mouse parked in a narrow corridor
+clutter to walk past; a colonist, cat, or rat parked in a narrow corridor
 used to wedge a whole queue behind it before this). It replans when the route
 is missing, was for a different goal, ran out, or the terrain changed under it.
+
+Passing through gets a colonist to the end of its route but not onto it. At a
+dead end, such as a narrow room's one-tile corridor to its chest, the end is
+the only tile that reaches the target. So when the landing tile is taken, or
+`pathToAdjacent` finds every access tile occupied, a colonist who is only
+loitering there steps aside (`nudgeLoiterer`, `makeWayAt`): idle, chatting,
+or eating a meal already in hand. Someone working the tile keeps it, and the
+mover waits, giving up after `StuckLimit` as before. Colonists starved single
+file behind a neighbor eating supper in a silo corridor before this (see
+[scumhouse.md](./scumhouse.md)).
 
 `pathToAdjacent` is the entry point. It first rejects unreachable targets with the
 O(1) room check, then chooses a strategy:
@@ -153,7 +163,10 @@ function (all goals, for a rebuild) and a goal predicate (one tile, for a
 repair), and the two must agree (`TestFlowFieldGoalAgreesWithSeed`).
 
 There is one field per **facility terrain** (nutrient pods, toilets) and one
-**frontier** field toward the nearest *unclaimed* diggable rock. `followField`
+**frontier** field toward the nearest *unclaimed* diggable rock. A facility
+field is everyone's route, so it only leads to **communal** fixtures; a
+colonist headed for its own private one routes there with A\* instead (see
+[property.md](./property.md)). `followField`
 moves an agent along a field: it BFSes through any occupied tile but an
 alien's to the first depth with a free landing, preferring the lowest field
 distance but able to step **uphill** when every downhill route is occupied —

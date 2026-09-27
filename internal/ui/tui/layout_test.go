@@ -33,7 +33,9 @@ func TestFrameNeverExceedsTerminalWidth(t *testing.T) {
 		{"map", nil},
 		{"roster", []tea.KeyMsg{{Type: tea.KeyTab}}},
 		{"jobs", []tea.KeyMsg{{Type: tea.KeyTab}, {Type: tea.KeyTab}}},
-		{"perf", []tea.KeyMsg{{Type: tea.KeyTab}, {Type: tea.KeyTab}, {Type: tea.KeyTab}, {Type: tea.KeyTab}, {Type: tea.KeyTab}}},
+		{"population", []tea.KeyMsg{{Type: tea.KeyTab}, {Type: tea.KeyTab}, {Type: tea.KeyTab}, {Type: tea.KeyTab}, {Type: tea.KeyTab}, {Type: tea.KeyTab}}},
+		{"perf", []tea.KeyMsg{{Type: tea.KeyTab}, {Type: tea.KeyTab}, {Type: tea.KeyTab}, {Type: tea.KeyTab}, {Type: tea.KeyTab}, {Type: tea.KeyTab}, {Type: tea.KeyTab}}},
+		{"market", []tea.KeyMsg{{Type: tea.KeyTab}, {Type: tea.KeyTab}, {Type: tea.KeyTab}, {Type: tea.KeyTab}}},
 		{"spawn menu", []tea.KeyMsg{{Type: tea.KeyRunes, Runes: []rune("s")}}},
 		{"build menu", []tea.KeyMsg{{Type: tea.KeyRunes, Runes: []rune("b")}}},
 	}
@@ -186,7 +188,7 @@ func busySnapshot() *sim.Snapshot {
 			HP: 40, MaxHP: 40, Charge: 20, Grip: 10, MoodLabel: "driven", State: states[i], Profile: p,
 		})
 	}
-	for i, kind := range []sim.Kind{sim.Alien, sim.Cat, sim.Mouse} {
+	for i, kind := range []sim.Kind{sim.Alien, sim.Cat, sim.Rat} {
 		entities = append(entities, sim.EntityView{
 			ID: sim.EntityID(100 + i), Kind: kind, Pos: sim.Point{X: i, Y: 1}, HP: 30, MaxHP: 30,
 		})
@@ -225,7 +227,7 @@ func busySnapshot() *sim.Snapshot {
 			"The colony ship settles onto the Martian crust.",
 			"A bunk is bolted into the dormitory floor.",
 			"A dormitory is complete.",
-			"Zoe Vargas stomps a mouse flat against the regolith.",
+			"Zoe Vargas stomps a rat flat against the regolith.",
 		},
 	}
 }
@@ -276,7 +278,7 @@ func TestListScreensFillTerminalHeight(t *testing.T) {
 	for _, mode := range []struct {
 		name string
 		mode viewMode
-	}{{"roster", modeRoster}, {"jobs", modeJobs}, {"storage", modeStorage}, {"lore", modeLore}, {"perf", modePerf}} {
+	}{{"roster", modeRoster}, {"jobs", modeJobs}, {"storage", modeStorage}, {"market", modeMarket}, {"lore", modeLore}, {"population", modePopulation}, {"perf", modePerf}} {
 		for _, size := range []struct{ w, h int }{{100, 30}, {120, 40}, {200, 50}, {80, 24}} {
 			m := New(nil, nil)
 			m.termW, m.termH = size.w, size.h

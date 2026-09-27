@@ -122,7 +122,7 @@ transforms:
 
 | Trait | Appraisal |
 | --- | --- |
-| Tidy | scales visible gore, witnessed colonist death, witnessed mouse crush, and cleaning refuse by 2.2; doubles incineration grip relief |
+| Tidy | scales visible gore, witnessed colonist death, witnessed rat crush, and cleaning refuse by 2.2; doubles incineration grip relief |
 | Industrious | doubles the actor's finished mine/clear/construct/clean/incinerate vectors |
 | Mutant-Lover | reflects mutation grip for doing it or watching it |
 | Introvert | reflects conversation charge |
