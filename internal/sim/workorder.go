@@ -214,7 +214,7 @@ func (w *World) commissionHouses() {
 		}
 		if w.planRoomFor(houseRoom, ColonistOwner(e.ID)) {
 			e.commissioned = true
-			w.log.add(fmt.Sprintf("%s commissions a house.", e.displayName()))
+			w.log.add(LogBuildStart, fmt.Sprintf("%s commissions a house.", e.displayName()))
 		}
 		return
 	}

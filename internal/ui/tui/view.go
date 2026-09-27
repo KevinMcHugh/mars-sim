@@ -59,7 +59,6 @@ var (
 			Border(lipgloss.RoundedBorder()).
 			BorderForeground(lipgloss.Color("240")).
 			Padding(0, 1)
-	logStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("248"))
 )
 
 // splitPanels divides the terminal between a list panel and a detail panel,
@@ -147,6 +146,8 @@ func (m Model) renderFrame() string {
 		frame = m.renderLore()
 	case modePopulation:
 		frame = m.renderPopulation()
+	case modeLog:
+		frame = m.renderLog()
 	case modePerf:
 		frame = m.renderPerf()
 	default:
@@ -381,7 +382,7 @@ func joinColumns(left string, leftWidth int, right string, rightWidth int) strin
 
 func (m Model) renderSidebar() string {
 	_, rows := m.viewportTiles()
-	return m.cache.sidebar(rows, m.latest.Log, usingASCIIGlyphs(), m.latest.FogOfWar, func() string {
+	return m.cache.sidebar(rows, m.latest.Log, usingASCIIGlyphs(), m.latest.FogOfWar, m.logBase, func() string {
 		return m.drawSidebar(rows)
 	})
 }
@@ -435,21 +436,15 @@ func (m Model) drawSidebar(rows int) string {
 	lines = append(lines, "", "LOG")
 	legend := strings.Join(lines, "\n")
 
-	// Fill the rest of the panel height with the most recent log lines.
-	logLines := m.latest.Log
-	room := rows - len(lines) - 2
+	// Fill the rest of the panel with as many recent events as fit. Each one
+	// is wrapped to the panel: an ellipsis reads as the end of the sentence,
+	// and the log tab is where the rest of a long event is read, not where
+	// the sidebar pretends a cut line was the whole of it.
+	room := rows - len(lines) - borderCells
 	if room < 1 {
 		room = 1
 	}
-	if len(logLines) > room {
-		logLines = logLines[len(logLines)-room:]
-	}
-	wrapped := make([]string, 0, len(logLines))
-	for _, l := range logLines {
-		wrapped = append(wrapped, logStyle.Render(cells.Truncate(l, inner)))
-	}
-
-	content := legend + "\n" + strings.Join(wrapped, "\n")
+	content := legend + "\n" + strings.Join(m.sidebarLogLines(m.latest.Log, inner, room), "\n")
 	return sidebarStyle.Width(sidebarWidth - borderCells).Height(rows - borderCells).Render(content)
 }
 

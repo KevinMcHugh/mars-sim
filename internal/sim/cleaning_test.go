@@ -347,7 +347,7 @@ func projectNames(projects []*project) []string {
 
 func loggedContaining(w *World, substr string) bool {
 	for _, line := range w.log.tail(len(w.log.entries)) {
-		if strings.Contains(line, substr) {
+		if strings.Contains(line.Text, substr) {
 			return true
 		}
 	}

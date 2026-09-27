@@ -55,8 +55,13 @@ The **roster** (`tab`) lists every colonist; `↑`/`↓` select one to inspect i
 name, attributes, health, mood, needs, eight-slot inventory, traits, family,
 affinities, and everything it remembers. The inspector is taller than the
 panel, so `shift+↑`/`shift+↓` scroll it a line and `pgup`/`pgdn` a screenful —
-the bottom row says where in the colonist you are. `tab` or `esc` returns to
-the map.
+the bottom row says where in the colonist you are. `esc` returns to the map;
+`tab` moves on to the next screen.
+
+Keep pressing `tab` to reach the **log** screen: the colony log in full, with
+a type column (death, build start, build complete, and so on) and long lines
+wrapped instead of cut off. It stays on the newest event until you scroll
+up; `end` jumps back to the live tail.
 
 The command also supports `-headless` for periodic stats without a TUI,
 `-duration` for bounded runs, `-seed` for reproducibility, and `-glyphs` to

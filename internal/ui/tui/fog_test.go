@@ -34,7 +34,7 @@ func fogSnapshot() *sim.Snapshot {
 			{ID: 1, Kind: sim.Colonist, Pos: sim.Point{X: 2, Y: 2}, HP: 40, MaxHP: 40},
 			{ID: 2, Kind: sim.Alien, Pos: sim.Point{X: 9, Y: 6}, HP: 30, MaxHP: 30},
 		},
-		Log: []string{"The colony ship settles onto the Martian crust."},
+		Log: []sim.LogEntry{{Text: "The colony ship settles onto the Martian crust."}},
 	}
 }
 

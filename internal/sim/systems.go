@@ -113,7 +113,7 @@ func (w *World) colonistTurn(e *Entity) {
 		w.clearJob(e) // release any board claim before removal
 		w.addCorpse(e.Pos, ColonistCorpse)
 		w.remove(e.ID, "starved")
-		w.log.add(fmt.Sprintf("%s starved to death.", e.displayName()))
+		w.log.add(LogDeath, fmt.Sprintf("%s starved to death.", e.displayName()))
 		return
 	}
 
@@ -454,7 +454,7 @@ func (w *World) stomp(colonist, rat *Entity) {
 	w.addCorpse(rat.Pos, AnimalCorpse) // a crushed pest still has to be carried off
 	w.remove(rat.ID, fmt.Sprintf("crushed by %s", colonist.displayName()))
 	w.emitOccurrence(o)
-	w.log.add(fmt.Sprintf("Colonist #%d stomps rat #%d.", colonist.ID, rat.ID))
+	w.log.add(LogDeath, fmt.Sprintf("Colonist #%d stomps rat #%d.", colonist.ID, rat.ID))
 }
 
 // idleWouldBlock reports whether an idle colonist resting at p would get in the
@@ -1018,7 +1018,7 @@ func (w *World) jobStore(e *Entity) {
 		e.Inventory.RemoveAll(stack.Kind)
 	}
 	e.State = Storing
-	w.log.add(fmt.Sprintf("%s unloads materials into storage at (%d, %d).",
+	w.log.add(LogHaul, fmt.Sprintf("%s unloads materials into storage at (%d, %d).",
 		e.displayName(), e.Target.X, e.Target.Y))
 	if atSilo {
 		kinds := make([]ItemKind, 0, len(stacks))
@@ -1190,7 +1190,7 @@ func (w *World) jobDemolish(e *Entity) {
 		e.Progress++
 		if e.Progress >= scaleTicks(w.cfg.DemolishTicks, e.workScale) {
 			w.SetTerrain(e.Target, Floor)
-			w.log.add(fmt.Sprintf("Colonist #%d breaks through a wall to escape a sealed room.", e.ID))
+			w.log.add(LogEscape, fmt.Sprintf("Colonist #%d breaks through a wall to escape a sealed room.", e.ID))
 			w.clearJob(e)
 		}
 		return
@@ -1468,13 +1468,13 @@ func (w *World) buildTicks(kind Terrain) int {
 func (w *World) noteBuild(kind Terrain) {
 	switch kind {
 	case NutrientPod:
-		w.log.add("A nutrient pod comes online.")
+		w.log.add(LogBuildComplete, "A nutrient pod comes online.")
 	case Toilet:
-		w.log.add("A latrine is installed.")
+		w.log.add(LogBuildComplete, "A latrine is installed.")
 	case Bed:
-		w.log.add("A bunk is bolted into the dormitory.")
+		w.log.add(LogBuildComplete, "A bunk is bolted into the dormitory.")
 	case Incinerator:
-		w.log.add("The incinerator roars to life.")
+		w.log.add(LogBuildComplete, "The incinerator roars to life.")
 	}
 }
 
@@ -1715,7 +1715,7 @@ func (w *World) bite(alien, prey *Entity) {
 		w.addGore(prey.Pos)
 		w.emitOccurrence(o)
 		w.remove(prey.ID, fmt.Sprintf("devoured by %s", noun))
-		w.log.add(fmt.Sprintf("%s devours %s.", capitalizeFirst(noun), name))
+		w.log.add(LogDeath, fmt.Sprintf("%s devours %s.", capitalizeFirst(noun), name))
 	} else {
 		alien.State = Hunting
 		o := w.occurrence(alien, ActionBite, prey, prey.Pos, "")
@@ -1769,7 +1769,7 @@ func (w *World) pounce(cat, prey *Entity) {
 	o.WitnessText = fmt.Sprintf("Watched a cat catch rat #%d.", prey.ID)
 	w.remove(prey.ID, "caught by a cat")
 	w.emitOccurrence(o)
-	w.log.add(fmt.Sprintf("A cat catches rat #%d.", prey.ID))
+	w.log.add(LogDeath, fmt.Sprintf("A cat catches rat #%d.", prey.ID))
 }
 
 // ---- Rats --------------------------------------------------------------------
@@ -1784,7 +1784,7 @@ func (w *World) ratTurn(e *Entity) {
 		w.clearJob(e)
 		w.addCorpse(e.Pos, AnimalCorpse)
 		w.remove(e.ID, "starved")
-		w.log.add(fmt.Sprintf("Rat #%d starves.", e.ID))
+		w.log.add(LogDeath, fmt.Sprintf("Rat #%d starves.", e.ID))
 		return
 	}
 
@@ -1873,7 +1873,7 @@ func (w *World) tryMate(e *Entity) bool {
 		e.mateReadyTick = w.tick + w.cfg.RatBreedCooldown
 		mate.mateReadyTick = w.tick + w.cfg.RatBreedCooldown
 		e.State, mate.State = Idle, Idle
-		w.log.add(fmt.Sprintf("Rats #%d and #%d mate.", male.ID, female.ID))
+		w.log.add(LogMate, fmt.Sprintf("Rats #%d and #%d mate.", male.ID, female.ID))
 		return true
 	}
 	return false
@@ -1904,7 +1904,7 @@ func (w *World) giveBirth(e *Entity) {
 		born++
 	}
 	if born > 0 {
-		w.log.add(fmt.Sprintf("Rat #%d gives birth to a litter of %d.", e.ID, born))
+		w.log.add(LogBirth, fmt.Sprintf("Rat #%d gives birth to a litter of %d.", e.ID, born))
 	}
 }
 

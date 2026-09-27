@@ -24,6 +24,7 @@ const (
 	modeMarket                     // accounts and the colony's money supply
 	modeLore                       // world facts and the rolled alien species
 	modePopulation                 // colonists, meals, colony size and fixtures over the game
+	modeLog                        // the colony log: the full retained feed, with scrollback
 	modePerf                       // engine tick rate and tick cost over time
 )
 
@@ -31,7 +32,7 @@ const (
 // and the strip drawn by renderTabs.
 var tabLabels = [...]string{
 	modeMap: "Map", modeRoster: "Roster", modeJobs: "Jobs", modeStorage: "Storage", modeMarket: "Market", modeLore: "Lore",
-	modePopulation: "Population", modePerf: "Perf",
+	modePopulation: "Population", modeLog: "Log", modePerf: "Perf",
 }
 
 // menuKind selects an open pick-one prompt, if any. Opening a menu (via `s` or
@@ -104,6 +105,17 @@ type Model struct {
 	loreSelected int      // lore: index into Snapshot.AlienSpecies
 	menu         menuKind // an open spawn/build/filter picker, if any
 
+	// logScrolled is set once the log tab has moved off the live tail.
+	// logAnchor is the entry the viewport starts on, and logAnchorRow is
+	// which wrapped line of that entry. A new snapshot rebases the anchor
+	// by however many entries the ring dropped (see logEntriesDropped).
+	// logBase is the sequence number of the oldest retained entry, so a
+	// line keeps its stripe when that drop shifts every index down by one.
+	logScrolled  bool
+	logAnchor    int
+	logAnchorRow int
+	logBase      int
+
 	// inspecting turns map arrows from camera panning into one-tile cursor
 	// movement. The cursor persists when inspection closes.
 	inspecting  bool
@@ -171,6 +183,17 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.quitting = true
 			return m, tea.Quit
 		}
+		if m.latest != nil {
+			dropped := logEntriesDropped(m.latest.Log, msg.snap.Log)
+			m.logBase += dropped
+			if m.logScrolled {
+				m.logAnchor -= dropped
+				if m.logAnchor < 0 {
+					m.logAnchor = 0
+					m.logAnchorRow = 0
+				}
+			}
+		}
 		m.latest = msg.snap
 		if !m.camReady {
 			m.centerCamera()
@@ -223,6 +246,8 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.handleMarketKey(msg)
 	case modeLore:
 		return m.handleLoreKey(msg)
+	case modeLog:
+		return m.handleLogKey(msg)
 	case modePerf, modePopulation:
 		if msg.String() == "esc" {
 			m.mode = modeMap
@@ -690,6 +715,36 @@ func (m Model) clampLoreSelection(i int) int {
 		return 0
 	}
 	return clamp(i, 0, len(m.latest.AlienSpecies)-1)
+}
+
+// handleLogKey scrolls the colony log. The plain arrows move through the
+// feed — there is no list beside it — and end (or G) pins the view back to
+// the newest event.
+func (m Model) handleLogKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "esc":
+		m.mode = modeMap
+	case "up", "k", "shift+up":
+		m = m.scrollLog(-1)
+	case "down", "j", "shift+down":
+		m = m.scrollLog(1)
+	case "pgup":
+		m = m.scrollLog(-m.logPage())
+	case "pgdown":
+		m = m.scrollLog(m.logPage())
+	case "home", "g":
+		visual, feed, _ := m.logLayout()
+		if len(visual) <= feed {
+			m.logScrolled = false
+			break
+		}
+		m.logScrolled = true
+		m.logAnchor = 0
+		m.logAnchorRow = 0
+	case "end", "G":
+		m.logScrolled = false
+	}
+	return m, nil
 }
 
 func (m Model) clampStorageSelection(i int) int {
