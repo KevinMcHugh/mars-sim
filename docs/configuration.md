@@ -83,15 +83,24 @@ indexed by `NeedKind`, and its tagged fields become nested settings
 (`needs.food.rise` in the file, `-need-food-rise` on the command line). See
 [needs.md](./needs.md).
 
-Focus arbitration follows the same pattern: `Config.Focuses` is indexed by
-`FocusKind`, producing settings such as `focuses.work.base` and flags such as
-`-focus-work-base`. Global commitment, switch-margin, critical, and fatal
-bonuses are top-level focus settings. See
-[`cascading_wsts_architecture.md`](./cascading_wsts_architecture.md).
+Focus arbitration follows the same pattern at runtime: `Config.Focuses` is
+indexed by `FocusKind`. Those fields are a copy of `cognition.yaml`'s
+`focuses` / `arbitration` tables, written by `SyncWithCognition`. Tune them
+in `cognition.yaml`; the mirrored `focuses.work.base` / `-focus-work-base`
+keys exist so existing files still parse, then get overwritten. See
+[`cascading_wsts_architecture.md`](./cascading_wsts_architecture.md) and
+[cognition-config-and-lab.md](./cognition-config-and-lab.md).
+
+Perception radii (`flee-radius`, `stomp-radius`, `gore-sight-radius`),
+`mood-wear-per-occasion`, and `mood-friend-affinity` stay in `Config` because
+they are simulation distances or pacing knobs. Reaction vectors, perception
+rules, and trait appraisal are the other file — see
+[cognition-config-and-lab.md](./cognition-config-and-lab.md).
 
 ## Related
 
 - [config-file.md](./config-file.md) — the committed `mars-sim.yaml` layer and the tags behind it.
+- [cognition-config-and-lab.md](./cognition-config-and-lab.md) — `cognition.yaml`, which is not a `cfg` tag.
 - [architecture.md](./architecture.md) — how the config seeds the engine.
 - [needs.md](./needs.md) — the `NeedSpec` table inside `Config`.
 - [entities-and-ai.md](./entities-and-ai.md) — the creature stats these fields tune.

@@ -182,9 +182,9 @@ and `pounce` — where the remains are eaten — leave only the stains.
 composition); `renderMap` (`view.go`) calls it via the new `Snapshot.TileAt`
 (alongside the existing `TerrainAt`) for any tile with no entity standing on
 it. Gore isn't just cosmetic to a colonist, either — coming within
-`Config.GoreSightRadius` of a gored tile is a `LifeEvent` (`EvtSawGore`) that
-lowers charge and grip, amplified for a `TraitTidy` colonist; see
-[memories.md](./memories.md).
+`Config.GoreSightRadius` of a gored tile is a persistent `gore / present`
+perception (`saw-gore`) that lowers charge and grip, amplified for a
+`TraitTidy` colonist; see [memories.md](./memories.md).
 
 ### The graveyard
 

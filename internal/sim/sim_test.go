@@ -933,6 +933,7 @@ func TestLargeColonyDoesNotGridlockAtFacilities(t *testing.T) {
 	cfg := DefaultConfig()
 	cfg.Seed = 9
 	cfg.StartColonists, cfg.StartAliens = 20, 0
+	cfg.CavernNestPercent = 0 // no aliens: this test is about facility access, not combat
 	cfg.Width, cfg.Height = 200, 200
 	w := NewEngine(cfg).world
 

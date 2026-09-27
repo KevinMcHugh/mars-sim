@@ -17,6 +17,10 @@ Settings apply in three layers, each overriding the one before it:
 DefaultConfig()  →  mars-sim.yaml  →  command-line flags
 ```
 
+Cognition rules are a sibling file, not a `cfg` tag:
+`DefaultCognitionConfig()` → `cognition.yaml` → the mirrored focus knobs
+above. See [cognition-config-and-lab.md](./cognition-config-and-lab.md).
+
 ## Source
 
 - [`internal/sim/configfile.go`](../internal/sim/configfile.go) — `Knobs`,
@@ -54,7 +58,8 @@ a tag and all three surfaces get it.
 the file writes `needs.food.rise` and `focuses.work.base`, while flags flatten
 those to `-need-food-rise` and `-focus-work-base`. Element names come from the
 corresponding enum's `String()` method, so both surfaces read the way a player
-would say them.
+would say them. Focus knobs are a runtime copy of `cognition.yaml`; a later
+`SyncWithCognition` overwrites them. Tune arbitration there.
 
 ### Startup order
 

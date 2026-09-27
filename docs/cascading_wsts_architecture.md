@@ -31,8 +31,8 @@ The implementation should introduce or update:
   stimulus tests.
 - `internal/sim/systems.go` — the colonist turn pipeline and focus executors.
 - `internal/sim/entity.go` — stored focus, need phases, affect, and stimuli.
-- `internal/sim/lifeevents.go` and `internal/sim/world.go` — the single
-  life-event ingestion funnel.
+- `internal/sim/perception.go` and `internal/sim/world.go` — the single
+  percept ingestion funnel.
 - `internal/sim/config.go` — focus and affect tuning parameters.
 - `internal/sim/configfile.go` — config traversal for the focus-spec array.
 - `internal/sim/snapshot.go` and `internal/ui/tui/render_roster.go` — visible
@@ -157,7 +157,7 @@ const (
 )
 
 type Stimulus struct {
-    Kind      LifeEventKind
+    Rule      RuleID
     Source    EntityID
     Salience  int
     ExpiresAt int
@@ -477,7 +477,7 @@ Store at most `ActiveStimulusLimit` stimuli per colonist.
 - When full, evict lowest salience, then earliest expiry, then lowest source ID.
   This total ordering preserves determinism.
 - A `Source` of zero means the stimulus is not tied to an entity.
-- A table maps `LifeEventKind` to default salience, lifetime, and per-focus
+- A table maps reaction `RuleID` to default salience, lifetime, and per-focus
   contributions. A zero entry records memory and affect but creates no
   stimulus.
 
@@ -485,7 +485,7 @@ The initial non-zero stimulus specs are:
 
 | Event | Salience | Lifetime | Focus contribution at salience 100 |
 | --- | ---: | ---: | --- |
-| `EvtSawAlien` | 100 | 12 ticks | flee +500, fight +500 |
+| `saw-alien` | 100 | 12 ticks | flee +500, fight +500 |
 | `EvtBitten` | 100 | 20 ticks | flee +300, fight +150 |
 | `EvtWitnessedColonistKilled` | 90 | 20 ticks | flee +250, fight +100 |
 | `EvtWitnessedColonistAttacked` | 70 | 12 ticks | flee +200, fight +100 |
@@ -763,7 +763,7 @@ After this change, one call must:
 5. request focus reconsideration when the event is behaviorally salient.
 
 It is acceptable to keep the name `remember` or rename the public funnel to
-`ingestLifeEvent` with a private memory helper. It is not acceptable to expose
+`rememberPercept` with a private memory helper. It is not acceptable to expose
 separate call-site APIs that allow an event to update memory but forget affect,
 or update affect but forget memory.
 

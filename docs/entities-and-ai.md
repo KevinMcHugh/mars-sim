@@ -83,7 +83,11 @@ reconsiders every tick, rather than relying on an unsafe estimated horizon. The
 selected job executor continues every tick even when arbitration is skipped.
 Resting idle colonists and in-place sleepers additionally bypass the full
 observation/executor machinery when no nearby threat, mouse, or gore exists,
-while retaining per-tick starvation, uranium, fatal-need, and facility checks.
+while retaining per-tick starvation, uranium, fatal-need, and facility
+checks. A custom persistent perception wakes them only when it sets
+`interrupt_rest`. Threat presence is still alien-only: `seesThreat` and
+`nearestAlien` answer the same question, so fight/flee cannot target a
+mouse or a configured non-alien sighting.
 
 Execution order and invariants:
 
