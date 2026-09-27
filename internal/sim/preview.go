@@ -21,8 +21,12 @@ type ChunkPreview struct {
 	chunks genCache[chunkKey, *chunkContent]
 }
 
-// previewCacheChunks bounds how many previewed chunks are kept: a screenful
-// of map is a handful, and a pan re-previews the few it uncovers.
+// previewCacheChunks bounds how many previewed chunks are kept: between this
+// many and twice it, since genCache keeps two generations. A screenful of map
+// is a handful of chunks, and a pan previews the few it uncovers. A view of
+// the whole map (a minimap, say) should walk it chunk by chunk rather than
+// row by row across a map wider than this many chunks, or it will preview
+// each chunk once per row of it.
 const previewCacheChunks = 256
 
 func newChunkPreview(cfg Config) *ChunkPreview {

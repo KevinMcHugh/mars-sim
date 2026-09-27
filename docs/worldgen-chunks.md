@@ -241,8 +241,13 @@ exactly what the chunk will hold when exploration generates it.
 `TestPreviewMatchesGeneration` checks that.
 
 The preview is safe for concurrent use, because every frontend reads it
-through the snapshots on its own goroutine. It caches `previewCacheChunks`
-(256) chunk contents. `TestPreviewNeverAffectsTheSimulation` plays the same
+through the snapshots on its own goroutine. It caches 256 to 511 chunk
+contents (`previewCacheChunks`, kept in two generations). A warm 300×90
+viewport costs about 0.5 ms a frame on a 10000×10000 map, and panning into
+new ground about 1.6 ms. A whole-map view such as a minimap should walk the
+map chunk by chunk: scanning row by row across more than 256 chunks would
+preview each chunk once per row. The preview exists only when fog is off,
+since nothing reads it otherwise. `TestPreviewNeverAffectsTheSimulation` plays the same
 seed with and without a frontend reading all over the map and demands the
 same golden hash.
 

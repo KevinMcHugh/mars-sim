@@ -170,8 +170,10 @@ type Snapshot struct {
 	// docs/lore.md.
 	Seed int64
 	// Tiles is the terrain, as an immutable page-shared grid rather than a
-	// per-frame copy of the map — read it with TerrainAt (or Tiles.At). See
-	// tilegrid.go for why it is not a plain slice.
+	// per-frame copy of the map. See tilegrid.go for why it is not a plain
+	// slice. Frontends should read it through TileAt / TerrainAt: Tiles.At
+	// holds only generated chunks, so with the fog off it would show the rest
+	// as bare rock where TileAt shows the preview.
 	Tiles    *TileGrid
 	Entities []EntityView
 	// Graveyard is the most recent violent/starvation deaths (bounded by

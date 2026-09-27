@@ -22,7 +22,11 @@ func generate(w *World) {
 	w.gen = newWorldGen(w.cfg)
 	w.genDone = make([]bool, len(w.tiles.pages))
 	w.genSeen = make([]bool, len(w.tiles.pages))
-	w.preview = newChunkPreview(w.cfg)
+	// Only a fog-off frontend ever reads ungenerated chunks (see
+	// Snapshot.TileAt), and the fog setting is fixed for a run.
+	if !w.cfg.FogOfWar {
+		w.preview = newChunkPreview(w.cfg)
+	}
 	// Alien nests are not placed at generation: each cavern rolls for one
 	// when the colony breaks into it (see rollNests). Chunks register their
 	// caverns' centers as they are generated.
