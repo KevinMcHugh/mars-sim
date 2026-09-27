@@ -444,6 +444,7 @@ textarea.yaml-box {
         <div class="form-grp"><label>Named radius</label><select id="perception-radius"></select></div>
         <div class="form-grp"><label>Fixed distance</label><input id="perception-distance" type="number" min="0" value="0"></div>
         <div class="form-grp"><label>Line of sight</label><select id="perception-los"><option value="false">No</option><option value="true">Yes</option></select></div>
+        <div class="form-grp"><label>Interrupt rest</label><select id="perception-interrupt-rest"><option value="false">No</option><option value="true">Yes</option></select></div>
       </div>
       <div style="display:flex; gap:8px; margin-top:10px;">
         <button id="perception-new">New</button>
@@ -1399,6 +1400,7 @@ function clearPerceptionEditor() {
   document.getElementById("perception-cadence").value = "instant";
   document.getElementById("perception-distance").value = 0;
   document.getElementById("perception-los").value = "false";
+  document.getElementById("perception-interrupt-rest").value = "false";
   document.getElementById("perception-validation").textContent = "";
 }
 
@@ -1418,6 +1420,7 @@ function editPerception(id) {
   document.getElementById("perception-radius").value = perception.sense?.radius || "";
   document.getElementById("perception-distance").value = perception.sense?.distance || 0;
   document.getElementById("perception-los").value = String(Boolean(perception.sense?.line_of_sight));
+  document.getElementById("perception-interrupt-rest").value = String(Boolean(perception.sense?.interrupt_rest));
 }
 
 function deletePerception(id) {
@@ -1434,8 +1437,19 @@ function readPerceptionEditor() {
   const channel = document.getElementById("perception-channel").value;
   const radius = document.getElementById("perception-radius").value;
   const cadence = document.getElementById("perception-cadence").value;
+  const interruptRest = document.getElementById("perception-interrupt-rest").value === "true";
   if (channel !== "direct" && !radius && distance <= 0) throw new Error("Spatial perception needs a named radius or positive distance.");
   if (channel === "direct" && (radius || distance || cadence !== "instant")) throw new Error("Direct perception must be instant and have no radius.");
+  if (interruptRest && cadence === "instant") throw new Error("interrupt_rest is only valid on persistent perception.");
+  const sense = {
+    channel,
+    role:document.getElementById("perception-role").value,
+    radius,
+    distance,
+    line_of_sight:document.getElementById("perception-los").value === "true",
+    cadence
+  };
+  if (interruptRest) sense.interrupt_rest = true;
   return {
     id,
     match: {
@@ -1443,14 +1457,7 @@ function readPerceptionEditor() {
       action:document.getElementById("perception-action").value,
       object_noun:document.getElementById("perception-object").value
     },
-    sense: {
-      channel,
-      role:document.getElementById("perception-role").value,
-      radius,
-      distance,
-      line_of_sight:document.getElementById("perception-los").value === "true",
-      cadence
-    }
+    sense
   };
 }
 

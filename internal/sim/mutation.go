@@ -95,7 +95,7 @@ func (w *World) mutate(e *Entity) {
 	w.giveTrait(e, TraitMutant)
 
 	what := joinAnd(changes)
-	o := occurrence(e, ActionMutate, nil, e.Pos, "")
+	o := w.occurrence(e, ActionMutate, nil, e.Pos, "")
 	o.ActorText = fmt.Sprintf("The uranium changed them: %s.", what)
 	o.WitnessText = fmt.Sprintf("Watched %s mutate: %s.", e.displayName(), what)
 	w.emitOccurrence(o)

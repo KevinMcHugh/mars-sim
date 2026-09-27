@@ -72,7 +72,9 @@ perceptions:
 ```
 
 Rules may use a named simulation radius or a fixed distance and may require
-line of sight. Instant occurrences fan out when emitted. Persistent facts use
+line of sight. Persistent rules may set `interrupt_rest` to wake resters;
+the compiler rejects that flag on instant rules. Instant occurrences fan
+out when emitted. Persistent facts use
 the chunk index (`entityIDsNearSorted`) plus a per-colonist cache: entering
 emits `enter`, staying may emit `ongoing`, leaving emits `exit`, and returning
 enters again.
@@ -203,10 +205,13 @@ Instead:
 This preserves the useful distinction between “first saw an alien” and “the
 alien is still demanding attention.”
 
-The resting/sleeping cognition fast path still skips observation when only the
-shipped persistent rules exist. Adding a custom persistent perception flips
-`hasCustomPersistentPerception`, so a new “saw a cat” rule cannot be skipped
-while a colonist rests.
+The resting/sleeping cognition fast path still skips observation when no
+nearby alien, mouse, or gore exists. A custom persistent rule does not flip
+that path by existing: set `interrupt_rest: true` on the rule that should
+wake a rester. Tuning a shipped radius (or adding a flavor-only sighting)
+must not disable rest. Threat presence (`seesThreat`) stays alien-only —
+flee/fight eligibility still reads `nearestAlien`, so a mouse or a
+configured “saw wolf” percept cannot become a legal fight/flee target.
 
 ### Wear as a policy, not a conversation exception
 

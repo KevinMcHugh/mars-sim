@@ -647,17 +647,16 @@ type World struct {
 	// nestCenters is revealAround's scratch: cavern centers found this flood.
 	nestCenters []Point
 
-	cognition                  CognitionConfig
-	customPersistentPerception bool
+	cognition CognitionConfig
 }
 
 // newWorld allocates an all-Rock world of the given size.
 func newWorld(cfg Config, rng *rand.Rand) *World {
 	n := cfg.Width * cfg.Height
-	cog := cfg.Cognition
-	if cog.Attractors[0].GoodName == "" {
-		cog = DefaultCognitionConfig()
+	if !cfg.Cognition.compiled {
+		cfg.Cognition = DefaultCognitionConfig()
 	}
+	cfg.SyncWithCognition()
 	w := &World{
 		Width:                      cfg.Width,
 		Height:                     cfg.Height,
@@ -680,9 +679,8 @@ func newWorld(cfg Config, rng *rand.Rand) *World {
 		prng:                       rand.New(rand.NewSource(cfg.Seed ^ 0x5DEECE66D)),
 		agePRNG:                    rand.New(rand.NewSource(cfg.Seed ^ 0x6A09E667)),
 		log:                        newEventLog(cfg.LogSize),
-		cfg:                        cfg,
-		cognition:                  cog,
-		customPersistentPerception: cognitionHasCustomPersistentPerception(cog),
+		cfg:       cfg,
+		cognition: cfg.Cognition,
 	}
 	w.alienSpecies = rollAlienSpeciesRoster(rand.New(rand.NewSource(cfg.Seed^alienLoreSeed)), cfg)
 	w.terrainCounts[Rock] = n // every tile starts as Rock

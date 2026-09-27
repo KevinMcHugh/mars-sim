@@ -48,8 +48,8 @@ type moodAttractor struct {
 }
 
 // Declaration order is significant twice over: equal claims choose the first
-// attractor, and moodName indexes this table by MoodKind (see
-// TestMoodAttractorsIndexedByKind).
+// attractor, and DefaultCognitionConfig copies this table by MoodKind index
+// (see TestMoodAttractorsIndexedByKind).
 var moodAttractors = [...]moodAttractor{
 	{MoodDriven, "driven", "furious", 70, 60, 46},
 	{MoodElated, "elated", "frantic", 88, 0, 42},
@@ -230,25 +230,6 @@ func (w *World) refreshMoodAttractor(e *Entity) {
 	if challengerClaim > incumbentClaim+w.cfg.MoodLabelSwitchMargin {
 		e.affect.Label = challenger
 	}
-}
-
-func moodName(kind MoodKind, bad bool) string {
-	if int(kind) >= len(moodAttractors) {
-		return "settling"
-	}
-	if bad {
-		return moodAttractors[kind].BadName
-	}
-	return moodAttractors[kind].GoodName
-}
-
-// MoodName is the word the roster shows. The attractor names a shape of
-// feeling and valence picks which of its two readings applies, so the same
-// charge and grip read as "driven" or "furious" depending on how the
-// colonist's life has actually been going -- not, as this once did, on
-// whether they happen to be hungry or standing near an alien right now.
-func (a AffectState) MoodName() string {
-	return moodName(a.Label, a.Valence < 0)
 }
 
 func (w *World) affectName(a AffectState) string {

@@ -82,6 +82,10 @@ can fire again.
 Named radii refer to existing simulation knobs (`flee-radius`, `stomp-radius`,
 and `gore-sight-radius`). A rule may instead specify a fixed positive
 `distance`. Direct rules must be instant and may not set a radius or LOS.
+Persistent rules may set `interrupt_rest: true` to skip the rest/sleep
+observation fast path; the compiler rejects that flag on instant rules.
+Shipped alien/mouse/gore rules leave it off because those already have
+dedicated nearby checks.
 
 ### Reaction rules
 
@@ -134,12 +138,17 @@ home) still live in `personality.go`. Appraisal is the part that became data.
 
 ### Loading and authoring
 
-Cognition settings layer separately from `mars-sim.yaml`:
+Cognition settings layer separately from `mars-sim.yaml`. `cognition.yaml` is
+the authoring seat for focuses and arbitration; `Config.Focuses` and the
+related `focus-*` fields are a one-way runtime copy written by
+`SyncWithCognition` at load and again after flags, so a later cognition file
+wins over mirrored `mars-sim.yaml` keys and `-focus-*` flags.
 
 1. `DefaultCognitionConfig()` compiled into the binary.
 2. `cognition.yaml` (or `-cognition PATH`).
-3. mirrored focus/arbitration fields in `mars-sim.yaml`.
-4. command-line flags for those mirrored fields.
+3. `SyncWithCognition` copies focuses/arbitration onto `Config`.
+4. `mars-sim.yaml` and command-line flags may write those mirrored fields,
+   then a final `SyncWithCognition` overwrites them from cognition.
 
 The loader uses strict field decoding, rejects duplicate/unknown vocabulary and
 rule IDs, unknown wear policies, unknown traits and relations, no-op trait

@@ -93,14 +93,15 @@ const (
 // PerceptionRule turns a world occurrence or persistent state into an
 // observer-relative percept.
 type PerceptionRule struct {
-	ID          RuleID
-	Match       OccurrencePattern
-	Channel     ChannelID
-	Role        ObserverRole
-	Radius      RadiusID
-	Distance    int
-	LineOfSight bool
-	Cadence     PerceptionCadence
+	ID            RuleID
+	Match         OccurrencePattern
+	Channel       ChannelID
+	Role          ObserverRole
+	Radius        RadiusID
+	Distance      int
+	LineOfSight   bool
+	Cadence       PerceptionCadence
+	InterruptRest bool // persistent rules only: skip the rest/sleep observation fast path
 }
 
 // TraitRule applies deterministic percentage scales to matching percepts.
@@ -143,6 +144,8 @@ type CognitionConfig struct {
 	TraitRules  []TraitRule
 
 	reactionIndex map[RuleID]int
+	compiled      bool
+	interruptRest bool // true if any persistent perception sets InterruptRest
 }
 
 func (m MoodKind) String() string {
@@ -297,8 +300,19 @@ func DefaultCognitionConfig() CognitionConfig {
 		FocusSocialize: {Name: "socialize", Base: 40, NeedWeight: 100, ChargeWeight: 10, GripWeight: 5, DistanceWeight: 1},
 		FocusSleep:     {Name: "sleep", Base: 40, NeedWeight: 100, ChargeWeight: -30, GripWeight: 0, DistanceWeight: 1},
 		FocusFlee:      {Name: "flee", Base: 0, NeedWeight: 0, ChargeWeight: 20, GripWeight: -40, DistanceWeight: 1},
-		FocusFight:     {Name: "fight", Base: 15, NeedWeight: 0, ChargeWeight: 20, GripWeight: 40, DistanceWeight: 1},
-		FocusEscape:    {Name: "escape", Base: 400, NeedWeight: 0, ChargeWeight: 0, GripWeight: 0, DistanceWeight: 0},
+		// FocusFight carries a positive base so an armed colonist's default
+		// posture is to stand and fight: the one-time grip hit from merely
+		// *seeing* an alien (the saw-alien reaction, -10 grip) must not by
+		// itself out-vote that posture, or every armed colonist flees on first
+		// sight and the switch hysteresis then locks them into fleeing even as
+		// grip decays. Genuinely frightening events still carry enough grip
+		// penalty to tip an armed colonist toward flight. See docs/combat.md.
+		FocusFight: {Name: "fight", Base: 15, NeedWeight: 0, ChargeWeight: 20, GripWeight: 40, DistanceWeight: 1},
+		// FocusEscape has no matching need, so its score is just Base: a
+		// sealed room is a structural fact, not a rising pressure. Base
+		// deliberately clears even a maxed-out fatal need. focusCandidates
+		// excludes it while a threat is visible. See docs/escape.md.
+		FocusEscape: {Name: "escape", Base: 400, NeedWeight: 0, ChargeWeight: 0, GripWeight: 0, DistanceWeight: 0},
 	}
 	c.Arbitration = ArbitrationConfig{
 		CurrentBonus: 25, SwitchMargin: 10, CriticalBonus: 100,
@@ -484,6 +498,7 @@ func compileCognition(c *CognitionConfig) error {
 		return err
 	}
 	c.reactionIndex = make(map[RuleID]int, len(c.Reactions))
+	c.interruptRest = false
 	perceptionIDs := make(map[RuleID]bool, len(c.Perceptions))
 	for i := range c.Perceptions {
 		r := &c.Perceptions[i]
@@ -512,6 +527,12 @@ func compileCognition(c *CognitionConfig) error {
 			}
 		} else if !validRadius(r.Radius) && r.Distance <= 0 {
 			return fmt.Errorf("perception %s: spatial perception needs a known radius or positive distance", r.ID)
+		}
+		if r.InterruptRest && r.Cadence == CadenceInstant {
+			return fmt.Errorf("perception %s: interrupt_rest is only valid on persistent perception", r.ID)
+		}
+		if r.InterruptRest {
+			c.interruptRest = true
 		}
 	}
 	for i := range c.Reactions {
@@ -569,6 +590,7 @@ func compileCognition(c *CognitionConfig) error {
 			return fmt.Errorf("trait rule %s: rule has no effect", m.ID)
 		}
 	}
+	c.compiled = true
 	return nil
 }
 
@@ -742,12 +764,13 @@ type yamlPerceptMatch struct {
 }
 
 type yamlSense struct {
-	Channel     string `yaml:"channel"`
-	Role        string `yaml:"role"`
-	Radius      string `yaml:"radius,omitempty"`
-	Distance    int    `yaml:"distance,omitempty"`
-	LineOfSight bool   `yaml:"line_of_sight,omitempty"`
-	Cadence     string `yaml:"cadence"`
+	Channel       string `yaml:"channel"`
+	Role          string `yaml:"role"`
+	Radius        string `yaml:"radius,omitempty"`
+	Distance      int    `yaml:"distance,omitempty"`
+	LineOfSight   bool   `yaml:"line_of_sight,omitempty"`
+	Cadence       string `yaml:"cadence"`
+	InterruptRest bool   `yaml:"interrupt_rest,omitempty"`
 }
 
 type yamlPerception struct {
@@ -989,6 +1012,7 @@ func applyYAMLPerception(cfg *CognitionConfig, y yamlPerception) error {
 		rule.Distance = y.Sense.Distance
 		rule.LineOfSight = y.Sense.LineOfSight
 		rule.Cadence = PerceptionCadence(canonicalID(y.Sense.Cadence))
+		rule.InterruptRest = y.Sense.InterruptRest
 	}
 	if i >= 0 {
 		cfg.Perceptions[i] = rule
@@ -1259,6 +1283,10 @@ arbitration:
   active_stimulus_limit: %d
 
 # Perception rules say who can notice an occurrence or persistent state.
+# interrupt_rest on a persistent rule opts that rule out of the rest/sleep
+# observation fast path. Shipped alien/mouse/gore rules leave it off: those
+# already have dedicated nearby checks, so tuning their radius must not
+# wake every sleeper.
 perceptions:
 `, def.Arbitration.CurrentBonus, def.Arbitration.SwitchMargin,
 		def.Arbitration.CriticalBonus, def.Arbitration.FatalBonus,
@@ -1282,6 +1310,9 @@ perceptions:
 		}
 		if p.LineOfSight {
 			b.WriteString(", line_of_sight: true")
+		}
+		if p.InterruptRest {
+			b.WriteString(", interrupt_rest: true")
 		}
 		fmt.Fprintf(&b, ", cadence: %s }\n", p.Cadence)
 	}

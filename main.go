@@ -127,7 +127,7 @@ func main() {
 		os.Stdout.Write(sim.CognitionVocabularyJSON(cfg.Cognition))
 		return
 	}
-	cfg.SyncToCognition()
+	cfg.SyncWithCognition()
 
 	if seed != 0 {
 		cfg.Seed = seed // otherwise keep DefaultConfig's random, time-based seed

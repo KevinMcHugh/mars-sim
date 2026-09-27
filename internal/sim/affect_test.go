@@ -2,8 +2,8 @@ package sim
 
 import "testing"
 
-// moodName indexes moodAttractors by MoodKind rather than searching it, which
-// is only safe while the table is declared in MoodKind order.
+// DefaultCognitionConfig copies moodAttractors by MoodKind index, which is
+// only safe while the table is declared in MoodKind order.
 func TestMoodAttractorsIndexedByKind(t *testing.T) {
 	for i, a := range moodAttractors {
 		if a.Kind != MoodKind(i) {
@@ -339,13 +339,13 @@ func TestSnapshotUsesConfiguredAttractorNames(t *testing.T) {
 func TestValenceChangesMoodWordOnly(t *testing.T) {
 	w, c := focusTestColonist(t)
 	c.affect = AffectState{Charge: 70, Grip: 60, Valence: 30, Label: MoodDriven}
-	if got := c.affect.MoodName(); got != "driven" {
+	if got := w.affectName(c.affect); got != "driven" {
 		t.Fatalf("good-valence name = %q", got)
 	}
 	before := c.affect
 	c.affect.Valence = -30
 	w.refreshMoodAttractor(c)
-	if got := c.affect.MoodName(); got != "furious" {
+	if got := w.affectName(c.affect); got != "furious" {
 		t.Fatalf("bad-valence name = %q", got)
 	}
 	if c.affect.Charge != before.Charge || c.affect.Grip != before.Grip || c.affect.Label != before.Label {
@@ -365,7 +365,7 @@ func TestGriefOutlastsGoodCircumstances(t *testing.T) {
 	if c.affect.Valence >= 0 {
 		t.Fatalf("valence after a killing = %d, want negative", c.affect.Valence)
 	}
-	if got := c.affect.MoodName(); got != moodName(c.affect.Label, true) {
+	if got := w.affectName(c.affect); got != w.affectName(AffectState{Label: c.affect.Label, Valence: -1}) {
 		t.Fatalf("mood name %q read as good while grieving", got)
 	}
 }

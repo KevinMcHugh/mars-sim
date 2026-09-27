@@ -136,8 +136,7 @@ func (w *World) shoot(colonist, alien *Entity, weapon ItemKind, spec weaponSpec)
 	noun := w.alienNounFor(alien)
 
 	if fatal {
-		o := occurrence(colonist, ActionKill, alien, colonist.Pos, "")
-		o.Object = w.factRef(alien)
+		o := w.occurrence(colonist, ActionKill, alien, colonist.Pos, "")
 		o.ActorText = fmt.Sprintf("Killed %s with a %s!", noun, weapon)
 		o.WitnessText = fmt.Sprintf("Watched %s kill %s.", colonist.displayName(), noun)
 		w.addGore(alien.Pos)
@@ -147,8 +146,7 @@ func (w *World) shoot(colonist, alien *Entity, weapon ItemKind, spec weaponSpec)
 		w.log.add(fmt.Sprintf("%s guns down %s with a %s.", colonist.displayName(), noun, weapon))
 		return
 	}
-	o := occurrence(colonist, ActionWound, alien, colonist.Pos, "")
-	o.Object = w.factRef(alien)
+	o := w.occurrence(colonist, ActionWound, alien, colonist.Pos, "")
 	o.ActorText = fmt.Sprintf("Shot %s in the %s with a %s.", noun, part, weapon)
 	o.WitnessText = fmt.Sprintf("Watched %s fight off %s.", colonist.displayName(), noun)
 	w.emitOccurrence(o)

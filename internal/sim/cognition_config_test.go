@@ -237,6 +237,11 @@ trait_rules:
     match: { object_relation: enemy }
     scales: { charge: 120 }
 `, "unknown object relation"},
+		{"interrupt rest on instant", `
+perceptions:
+  - id: witness-mutation
+    sense: { channel: sight, role: witness, radius: flee-radius, cadence: instant, interrupt_rest: true }
+`, "interrupt_rest is only valid on persistent perception"},
 		{"missing trait", `
 trait_rules:
   - id: missing-trait
@@ -254,6 +259,19 @@ trait_rules:
 				t.Fatal("failed load mutated live configuration")
 			}
 		})
+	}
+}
+
+func TestNewWorldFallsBackToCompiledDefaultCognition(t *testing.T) {
+	cfg := testConfig()
+	cfg.Cognition = CognitionConfig{}
+	w := newTestWorld(t, cfg)
+	if !w.cognition.compiled || len(w.cognition.Reactions) == 0 {
+		t.Fatalf("unset cognition did not fall back to compiled defaults: compiled=%v reactions=%d",
+			w.cognition.compiled, len(w.cognition.Reactions))
+	}
+	if w.cfg.Focuses[FocusEscape].Name != "escape" {
+		t.Fatalf("runtime focus copy missing after fallback: %+v", w.cfg.Focuses[FocusEscape])
 	}
 }
 

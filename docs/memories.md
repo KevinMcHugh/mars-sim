@@ -220,8 +220,9 @@ readings live next to these rows in `cognition.yaml`.
   ever becomes routine.
 - **A new perception** (something a colonist should notice near it, like
   gore): add a persistent perception rule. Do not add a special-case observer
-  in `colonistTurn`. Custom persistent rules automatically disable the
-  resting fast path.
+  in `colonistTurn`. Set `interrupt_rest: true` only if that rule should
+  wake a resting or sleeping colonist; shipped alien/mouse/gore checks
+  already cover the default fast-path exits.
 - **A new witnessable action**: emit one occurrence; add instant witness
   perception at the same radius the persistent rule uses for that noun.
 - **A trait that transforms many percepts** is a `trait_rules` row against

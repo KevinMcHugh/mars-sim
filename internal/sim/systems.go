@@ -192,7 +192,7 @@ func (w *World) hasGoreNearby(e *Entity) bool {
 }
 
 func (w *World) tryCognitionFastPath(e *Entity) bool {
-	if w.hasCustomPersistentPerception() {
+	if w.cognition.interruptRest {
 		return false
 	}
 	restingIdle := e.focus == FocusIdle && e.Job == JobNone && e.resting && w.tick < e.wakeTick
@@ -235,30 +235,6 @@ func (w *World) tryCognitionFastPath(e *Entity) bool {
 		w.finishUse(e, w.cfg.Needs[NeedSleep])
 	}
 	return true
-}
-
-func (w *World) hasCustomPersistentPerception() bool {
-	return w.customPersistentPerception
-}
-
-func cognitionHasCustomPersistentPerception(cognition CognitionConfig) bool {
-	defaults := DefaultCognitionConfig().Perceptions
-	for _, rule := range cognition.Perceptions {
-		if rule.Cadence == CadenceInstant {
-			continue
-		}
-		found := false
-		for _, standard := range defaults {
-			if rule == standard {
-				found = true
-				break
-			}
-		}
-		if !found {
-			return true
-		}
-	}
-	return false
 }
 
 func (w *World) runFocus(e *Entity, selected FocusCandidate) {
@@ -463,7 +439,7 @@ func (w *World) stompNearbyMouse(e *Entity) bool {
 // leaves it behind as gore. Any other colonist close enough to have noticed
 // the mouse remembers seeing it happen.
 func (w *World) stomp(colonist, mouse *Entity) {
-	o := occurrence(colonist, ActionCrush, mouse, mouse.Pos, "")
+	o := w.occurrence(colonist, ActionCrush, mouse, mouse.Pos, "")
 	o.ActorText = fmt.Sprintf("Crushed mouse #%d.", mouse.ID)
 	o.WitnessText = fmt.Sprintf("Watched a colonist crush mouse #%d.", mouse.ID)
 	w.addGore(mouse.Pos)
@@ -787,7 +763,7 @@ func (w *World) finishTalk(a, b *Entity) {
 	w.bumpAffinity(a.ID, b.ID, step+w.mutantAffinityBonus(a, b))
 	w.bumpAffinity(b.ID, a.ID, step+w.mutantAffinityBonus(b, a))
 	outcome := w.talkMoodDelta(quality, existing)
-	o := occurrence(a, ActionConverse, b, a.Pos, "")
+	o := w.occurrence(a, ActionConverse, b, a.Pos, "")
 	o.ActorText = fmt.Sprintf("Had a conversation with %s.", b.displayName())
 	o.TargetText = fmt.Sprintf("Had a conversation with %s.", a.displayName())
 	o.Appraisals = []ObserverAppraisal{
@@ -975,7 +951,7 @@ func (w *World) jobMine(e *Entity) {
 					return
 				}
 				w.SetTerrain(e.Target, Floor) // TileChanged drops it from the frontier
-				o := occurrence(e, ActionMine, nil, e.Target,
+				o := w.occurrence(e, ActionMine, nil, e.Target,
 					"Finished mining at (%d, %d).", e.Target.X, e.Target.Y)
 				o.Object = FactRef{Noun: NounRock, Label: "rock"}
 				w.emitOccurrence(o)
@@ -1155,7 +1131,7 @@ func (w *World) jobBuild(e *Entity) {
 			return
 		}
 		w.SetTerrain(e.Target, Floor)
-		o := occurrence(e, ActionClear, nil, e.Target,
+		o := w.occurrence(e, ActionClear, nil, e.Target,
 			"Cleared rock for a room at (%d, %d).", e.Target.X, e.Target.Y)
 		o.Object = FactRef{Noun: NounRock, Label: "rock"}
 		w.emitOccurrence(o)
@@ -1164,7 +1140,7 @@ func (w *World) jobBuild(e *Entity) {
 	}
 	w.SetTerrain(e.Target, e.BuildKind)
 	w.noteBuild(e.BuildKind)
-	o := occurrence(e, ActionConstruct, nil, e.Target, "Finished construction of %s at (%d, %d).",
+	o := w.occurrence(e, ActionConstruct, nil, e.Target, "Finished construction of %s at (%d, %d).",
 		e.BuildKind, e.Target.X, e.Target.Y)
 	o.Object = FactRef{Noun: NounStructure, Label: e.BuildKind.String()}
 	w.emitOccurrence(o)
@@ -1281,19 +1257,19 @@ func (w *World) finishUse(e *Entity, spec NeedSpec) {
 	w.resetNeed(e, e.Need)
 	switch e.Need {
 	case NeedFood:
-		o := occurrence(e, ActionEat, nil, e.Pos, "Had a meal.")
+		o := w.occurrence(e, ActionEat, nil, e.Pos, "Had a meal.")
 		o.Object = FactRef{Noun: NounMeal, Label: "meal"}
 		w.emitOccurrence(o)
 	case NeedBladder:
-		o := occurrence(e, ActionUse, nil, e.Pos, "Used the toilet.")
+		o := w.occurrence(e, ActionUse, nil, e.Pos, "Used the toilet.")
 		o.Object = FactRef{Noun: NounToilet, Label: "toilet"}
 		w.emitOccurrence(o)
 	case NeedSleep:
-		o := occurrence(e, ActionSleep, nil, e.Pos, "Slept in a bed.")
+		o := w.occurrence(e, ActionSleep, nil, e.Pos, "Slept in a bed.")
 		o.Object = FactRef{Noun: NounBed, Label: "bed"}
 		w.emitOccurrence(o)
 	default:
-		o := occurrence(e, ActionSatisfy, nil, e.Pos, "Satisfied %s.", spec.Name)
+		o := w.occurrence(e, ActionSatisfy, nil, e.Pos, "Satisfied %s.", spec.Name)
 		o.Object = FactRef{Noun: NounNeed, Label: spec.Name}
 		w.emitOccurrence(o)
 	}
@@ -1507,8 +1483,7 @@ func (w *World) bite(alien, prey *Entity) {
 	if fatal {
 		alien.State = Feeding
 		name := prey.displayName()
-		o := occurrence(alien, ActionKill, prey, prey.Pos, "")
-		o.Actor = w.factRef(alien)
+		o := w.occurrence(alien, ActionKill, prey, prey.Pos, "")
 		o.WitnessText = fmt.Sprintf("Watched %s kill %s.", noun, name)
 		w.addGore(prey.Pos)
 		w.emitOccurrence(o)
@@ -1516,8 +1491,7 @@ func (w *World) bite(alien, prey *Entity) {
 		w.log.add(fmt.Sprintf("%s devours %s.", capitalizeFirst(noun), name))
 	} else {
 		alien.State = Hunting
-		o := occurrence(alien, ActionBite, prey, prey.Pos, "")
-		o.Actor = w.factRef(alien)
+		o := w.occurrence(alien, ActionBite, prey, prey.Pos, "")
 		o.TargetText = fmt.Sprintf("Bitten in the %s by %s!", part, noun)
 		o.WitnessText = fmt.Sprintf("Watched %s attack %s.", noun, prey.displayName())
 		w.emitOccurrence(o)
@@ -1564,7 +1538,7 @@ func (w *World) catTurn(e *Entity) {
 // seeing it happen.
 func (w *World) pounce(cat, prey *Entity) {
 	cat.State = Feeding
-	o := occurrence(cat, ActionCatch, prey, prey.Pos, "")
+	o := w.occurrence(cat, ActionCatch, prey, prey.Pos, "")
 	o.WitnessText = fmt.Sprintf("Watched a cat catch mouse #%d.", prey.ID)
 	w.remove(prey.ID, "caught by a cat")
 	w.emitOccurrence(o)

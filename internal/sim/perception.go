@@ -152,19 +152,9 @@ type Occurrence struct {
 	Appraisals  []ObserverAppraisal
 }
 
-func occurrence(actor *Entity, action ActionID, object *Entity, at Point, format string, args ...any) Occurrence {
-	ref := func(e *Entity) FactRef {
-		if e == nil {
-			return FactRef{}
-		}
-		label := e.displayName()
-		if e.Kind != Colonist {
-			label = fmt.Sprintf("%s #%d", e.Kind, e.ID)
-		}
-		return FactRef{Noun: nounForKind(e.Kind), Entity: e.ID, Label: label}
-	}
+func (w *World) occurrence(actor *Entity, action ActionID, object *Entity, at Point, format string, args ...any) Occurrence {
 	return Occurrence{
-		Actor: ref(actor), Action: action, Object: ref(object), Location: at,
+		Actor: w.factRef(actor), Action: action, Object: w.factRef(object), Location: at,
 		Text: fmt.Sprintf(format, args...),
 	}
 }
@@ -474,6 +464,11 @@ func (w *World) observePersistent(observer *Entity, only NounID) {
 		}
 	}
 	observer.perceiving = current
+	// Threat presence is still alien-only. Flee/fight eligibility and
+	// fightAlien read nearestAlien — a mouse or a custom "saw wolf" percept
+	// can dirty the mind but cannot become a legal fight/flee target.
+	// seesThreat is the cheap edge detector for that same alien-presence
+	// question, not a general "something scary is nearby" flag.
 	observer.seesThreat = false
 	for key := range current {
 		if key.Noun == NounAlien {

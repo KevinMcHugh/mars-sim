@@ -215,8 +215,9 @@ relocates lands in named space, because relocating to a nudge-sized point
 would leave a colonist almost exactly neutral after something terrible. Add a
 grammar-matched trait rule rather than a Go switch; rules compose in file
 order. Add or tune an attractor in `cognition.yaml`, remembering that order is
-the tie-break. Never use `MoodName` or `MoodKind` in focus scoring or an
-executor.
+the tie-break. Never use `affectName` or `MoodKind` in focus scoring or an
+executor. Roster labels come from `World.affectName`, which reads the
+loaded attractors rather than the static `moodAttractors` table.
 
 ## Related
 

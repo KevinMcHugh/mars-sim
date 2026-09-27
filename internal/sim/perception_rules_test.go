@@ -30,7 +30,7 @@ reactions:
 	near := w.spawn(Colonist, Point{9, 5})
 	far := w.spawn(Colonist, Point{20, 20})
 
-	o := occurrence(actor, "play", nil, actor.Pos, "")
+	o := w.occurrence(actor, "play", nil, actor.Pos, "")
 	o.Object = FactRef{Noun: "toy", Label: "a toy"}
 	w.emitOccurrence(o)
 
@@ -175,13 +175,13 @@ func TestPersistentPerceptionUsesDeterministicEntityOrder(t *testing.T) {
 	}
 }
 
-func TestRestingFastPathDoesNotSkipCustomPersistentRule(t *testing.T) {
+func TestRestingFastPathDoesNotSkipInterruptRestRule(t *testing.T) {
 	cfg := testConfig()
 	if err := ApplyCognitionYAML(&cfg.Cognition, []byte(`
 perceptions:
   - id: visible-cat
     match: { actor_noun: cat, action: present }
-    sense: { channel: sight, role: witness, distance: 4, cadence: enter }
+    sense: { channel: sight, role: witness, distance: 4, cadence: enter, interrupt_rest: true }
 reactions:
   - id: saw-cat
     match: { actor_noun: cat, action: present, channel: sight, role: witness, phase: enter }
@@ -200,10 +200,64 @@ reactions:
 	observer.mindDirty, observer.nextThinkTick = false, w.tick+100
 
 	if w.tryCognitionFastPath(observer) {
-		t.Fatal("resting fast path skipped custom persistent perception")
+		t.Fatal("resting fast path skipped interrupt_rest perception")
 	}
 	w.observeNearby(observer)
 	if got := observer.Memories[len(observer.Memories)-1].Rule; got != "saw-cat" {
 		t.Fatalf("custom persistent memory = %q", got)
+	}
+}
+
+func TestRestingFastPathIgnoresCustomPersistentRuleWithoutInterruptRest(t *testing.T) {
+	cfg := testConfig()
+	if err := ApplyCognitionYAML(&cfg.Cognition, []byte(`
+perceptions:
+  - id: visible-cat
+    match: { actor_noun: cat, action: present }
+    sense: { channel: sight, role: witness, distance: 4, cadence: enter }
+`)); err != nil {
+		t.Fatalf("custom persistent config: %v", err)
+	}
+	cfg.SyncWithCognition()
+	w := newTestWorld(t, cfg)
+	observer := w.spawn(Colonist, Point{5, 5})
+	observer.focus, observer.Job = FocusIdle, JobNone
+	observer.resting, observer.wakeTick = true, w.tick+100
+	observer.mindDirty, observer.nextThinkTick = false, w.tick+100
+
+	if !w.tryCognitionFastPath(observer) {
+		t.Fatal("custom persistent rule without interrupt_rest disabled rest")
+	}
+}
+
+func TestRestingFastPathSurvivesTunedShippedPersistentRule(t *testing.T) {
+	cfg := testConfig()
+	if err := ApplyCognitionYAML(&cfg.Cognition, []byte(`
+perceptions:
+  - id: visible-alien
+    match: { actor_noun: alien, action: present }
+    sense: { channel: sight, role: witness, distance: 20, cadence: enter-and-ongoing }
+`)); err != nil {
+		t.Fatalf("tune shipped rule: %v", err)
+	}
+	cfg.SyncWithCognition()
+	w := newTestWorld(t, cfg)
+	observer := w.spawn(Colonist, Point{5, 5})
+	observer.focus, observer.Job = FocusIdle, JobNone
+	observer.resting, observer.wakeTick = true, w.tick+100
+	observer.mindDirty, observer.nextThinkTick = false, w.tick+100
+
+	if !w.tryCognitionFastPath(observer) {
+		t.Fatal("tuning visible-alien radius disabled the resting fast path")
+	}
+}
+
+func TestOccurrenceLabelsAliensWithSpeciesNoun(t *testing.T) {
+	cfg := testConfig()
+	w := newTestWorld(t, cfg)
+	alien := w.spawn(Alien, Point{5, 5})
+	o := w.occurrence(alien, ActionPresent, nil, alien.Pos, "")
+	if o.Actor != w.factRef(alien) {
+		t.Fatalf("occurrence actor = %+v, want %+v", o.Actor, w.factRef(alien))
 	}
 }

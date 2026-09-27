@@ -34,6 +34,8 @@ Startup follows this order:
     the same way. See [cognition-config-and-lab.md](./cognition-config-and-lab.md).
 3. Register flags whose defaults come from that config.
 4. Parse flags (with `?`, `-?`, and `--?` as help aliases).
+4b. `SyncWithCognition` copies `cognition.yaml`'s focuses/arbitration onto
+    `Config`, overwriting any mirrored `mars-sim.yaml` or `-focus-*` values.
 5. Apply a non-zero `-seed` override.
 6. Validate dimensions, populations, rates, and other safety constraints.
 7. Create and subscribe to the engine before starting `Engine.Run`.

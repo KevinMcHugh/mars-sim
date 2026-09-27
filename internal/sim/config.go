@@ -116,7 +116,9 @@ type Config struct {
 	StarveDamage         int                `cfg:"starve-damage" doc:"HP lost per tick while a fatal need sits at its max"`
 	ColonistsPerFacility int                `cfg:"per-facility" doc:"colonists served by each life-support facility"`
 
-	// Focus arbitration. One FocusSpec per FocusKind, indexed by that kind.
+	// Focus arbitration. Runtime copy of cognition.yaml's focuses/arbitration,
+	// written once at load by SyncWithCognition. Tune those tables there, not
+	// via these keys: a later SyncWithCognition overwrites them.
 	Focuses             [numFocusKinds]FocusSpec `cfg:"focuses" sec:"Focus arbitration"`
 	FocusCurrentBonus   int                      `cfg:"focus-current-bonus" doc:"score bonus for continuing the current eligible focus"`
 	FocusSwitchMargin   int                      `cfg:"focus-switch-margin" doc:"minimum score lead required to replace an eligible focus"`
@@ -124,11 +126,8 @@ type Config struct {
 	FocusFatalBonus     int                      `cfg:"focus-fatal-bonus" doc:"score bonus for a pressing fatal need"`
 	ActiveStimulusLimit int                      `cfg:"active-stimulus-limit" doc:"maximum transient life-event appraisals retained per colonist"`
 
-	// CognitionFile is the path to an optional cognition.yaml file.
-	// Deliberately untagged: managed via -cognition flag.
-	CognitionFile string
-	// Cognition holds the full cognition configuration for affect, stimuli,
-	// and focus arbitration.
+	// Cognition is the authored cognition configuration. Focuses and
+	// arbitration above are a runtime copy of its tables.
 	Cognition CognitionConfig
 
 	RestTicks  int `cfg:"rest-ticks" sec:"Work and construction" doc:"ticks an idle colonist rests before re-checking for work"`
@@ -319,7 +318,7 @@ type Config struct {
 
 // DefaultConfig returns a balanced starting point for a playable scaffold.
 func DefaultConfig() Config {
-	return Config{
+	cfg := Config{
 		Width:                80,
 		Height:               40,
 		IronRockPercent:      10,
@@ -362,44 +361,7 @@ func DefaultConfig() Config {
 
 		StarveDamage:         1,
 		ColonistsPerFacility: 5,
-		Focuses: [numFocusKinds]FocusSpec{
-			FocusIdle:      {Name: "idle", Base: 0, NeedWeight: 0, ChargeWeight: -10, GripWeight: 0, DistanceWeight: 0},
-			FocusWork:      {Name: "work", Base: 25, NeedWeight: 0, ChargeWeight: 20, GripWeight: 10, DistanceWeight: 1},
-			FocusEat:       {Name: "eat", Base: 40, NeedWeight: 100, ChargeWeight: 0, GripWeight: 5, DistanceWeight: 1},
-			FocusRelieve:   {Name: "relieve", Base: 40, NeedWeight: 100, ChargeWeight: 0, GripWeight: 0, DistanceWeight: 1},
-			FocusSocialize: {Name: "socialize", Base: 40, NeedWeight: 100, ChargeWeight: 10, GripWeight: 5, DistanceWeight: 1},
-			FocusSleep:     {Name: "sleep", Base: 40, NeedWeight: 100, ChargeWeight: -30, GripWeight: 0, DistanceWeight: 1},
-			FocusFlee:      {Name: "flee", Base: 0, NeedWeight: 0, ChargeWeight: 20, GripWeight: -40, DistanceWeight: 1},
-			// FocusFight carries a positive base so an armed colonist's default
-			// posture is to stand and fight: the one-time grip hit from merely
-			// *seeing* an alien (the saw-alien reaction, -10 grip) must not by itself out-vote
-			// that posture, or every armed colonist flees on first sight and the
-			// switch hysteresis (FocusCurrentBonus+FocusSwitchMargin) then locks
-			// them into fleeing even as grip decays back toward neutral. Genuinely
-			// frightening events (being bitten, watching a colonist killed) still
-			// carry enough grip penalty to tip an armed colonist toward flight. See
-			// The default combat posture is documented in docs/combat.md.
-			FocusFight: {Name: "fight", Base: 15, NeedWeight: 0, ChargeWeight: 20, GripWeight: 40, DistanceWeight: 1},
-			// FocusEscape has no matching need, so its score is just Base: a
-			// sealed room is a structural fact, not a rising pressure. Base
-			// deliberately clears even a maxed-out fatal need (NeedWeight
-			// pressure(100) + FocusCriticalBonus(100) + FocusFatalBonus(150) =
-			// 350): reachability, not local coping, is what actually stayed
-			// broken, and the nearest wall very often sits between the
-			// colonist and the very facility that need is failing to reach —
-			// so escaping first is usually also the fastest way back to it.
-			// focusCandidates excludes it outright while a threat is visible,
-			// so it never competes with FocusFlee/FocusFight's much lower
-			// bases; self-preservation from an immediate predator always wins.
-			// See docs/escape.md.
-			FocusEscape: {Name: "escape", Base: 400, NeedWeight: 0, ChargeWeight: 0, GripWeight: 0, DistanceWeight: 0},
-		},
-		FocusCurrentBonus:     25,
-		FocusSwitchMargin:     10,
-		FocusCriticalBonus:    100,
-		FocusFatalBonus:       150,
-		ActiveStimulusLimit:   8,
-		Cognition:             DefaultCognitionConfig(),
+		Cognition:            DefaultCognitionConfig(),
 		RestTicks:             10,
 		StuckLimit:            8,
 		MaxConcurrentProjects: 2,
@@ -517,6 +479,8 @@ func DefaultConfig() Config {
 		MouseBreedCooldown:  200,
 		MouseMaturityTicks:  400,
 	}
+	cfg.SyncWithCognition()
+	return cfg
 }
 
 // tickInterval converts a ticks-per-second rate into a sleep duration. There is
@@ -530,8 +494,8 @@ func tickInterval(ticksPerSecond int) time.Duration {
 	return max(time.Second/time.Duration(ticksPerSecond), 1)
 }
 
-// SyncWithCognition copies the focuses and arbitration parameters from c.Cognition
-// into the mirrored fields of c.
+// SyncWithCognition copies focuses and arbitration from the authored cognition
+// tables into the runtime Config fields focus.go reads.
 func (c *Config) SyncWithCognition() {
 	c.Focuses = c.Cognition.Focuses
 	c.FocusCurrentBonus = c.Cognition.Arbitration.CurrentBonus
@@ -539,15 +503,4 @@ func (c *Config) SyncWithCognition() {
 	c.FocusCriticalBonus = c.Cognition.Arbitration.CriticalBonus
 	c.FocusFatalBonus = c.Cognition.Arbitration.FatalBonus
 	c.ActiveStimulusLimit = c.Cognition.Arbitration.ActiveStimulusLimit
-}
-
-// SyncToCognition copies the mirrored focuses and arbitration parameters from c
-// into c.Cognition (e.g. after command-line flags have been parsed).
-func (c *Config) SyncToCognition() {
-	c.Cognition.Focuses = c.Focuses
-	c.Cognition.Arbitration.CurrentBonus = c.FocusCurrentBonus
-	c.Cognition.Arbitration.SwitchMargin = c.FocusSwitchMargin
-	c.Cognition.Arbitration.CriticalBonus = c.FocusCriticalBonus
-	c.Cognition.Arbitration.FatalBonus = c.FocusFatalBonus
-	c.Cognition.Arbitration.ActiveStimulusLimit = c.ActiveStimulusLimit
 }

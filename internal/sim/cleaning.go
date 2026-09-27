@@ -185,7 +185,7 @@ func (w *World) gatherRefuse(e *Entity, p Point) {
 	if corpses+viscera == 0 {
 		return
 	}
-	o := occurrence(e, ActionClean, nil, p, "Cleaned up %s at (%d, %d).",
+	o := w.occurrence(e, ActionClean, nil, p, "Cleaned up %s at (%d, %d).",
 		refusePhrase(corpses, viscera), p.X, p.Y)
 	o.Object = FactRef{Noun: NounRefuse, Label: "refuse"}
 	w.emitOccurrence(o)
@@ -231,7 +231,7 @@ func (w *World) incinerate(e *Entity) {
 		return
 	}
 	phrase := refusePhrase(corpses, viscera)
-	o := occurrence(e, ActionIncinerate, nil, e.Pos, "Burned %s in the incinerator.", phrase)
+	o := w.occurrence(e, ActionIncinerate, nil, e.Pos, "Burned %s in the incinerator.", phrase)
 	o.Object = FactRef{Noun: NounRefuse, Label: "refuse"}
 	w.emitOccurrence(o)
 	w.log.add(fmt.Sprintf("%s incinerates %s.", e.displayName(), phrase))
