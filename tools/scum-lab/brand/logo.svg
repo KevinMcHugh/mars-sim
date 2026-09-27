@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <title>Scum Lab</title>
+  <defs>
+    <linearGradient id="amber" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#f0b56a"/>
+      <stop offset="1" stop-color="#d9784f"/>
+    </linearGradient>
+    <clipPath id="glass"><path d="M27.5 19 V30 L17 46 Q14.5 51 20.5 51 H43.5 Q49.5 51 47 46 L36.5 30 V19 Z"/></clipPath>
+  </defs>
+  <rect x="3" y="3" width="58" height="58" rx="15" fill="url(#amber)"/>
+  <path d="M27.5 19 V30 L17 46 Q14.5 51 20.5 51 H43.5 Q49.5 51 47 46 L36.5 30 V19 Z" fill="#f6c68c"/>
+  <g clip-path="url(#glass)">
+    <path d="M0 38 Q6 35.5 12 38 T24 38 T36 38 T48 38 T60 38 V64 H0 Z" fill="#6e3428"/>
+    <g fill="#f0b56a"><circle cx="26" cy="45" r="2.6"/><circle cx="35" cy="42" r="1.7"/><circle cx="39" cy="47" r="1.2"/></g>
+    <g fill="#6e3428"><circle cx="31" cy="33" r="1.5"/><circle cx="33" cy="26" r="1.1"/></g>
+  </g>
+  <path d="M27.5 19 V30 L17 46 Q14.5 51 20.5 51 H43.5 Q49.5 51 47 46 L36.5 30 V19" fill="none" stroke="#6e3428" stroke-width="3" stroke-linejoin="round"/>
+  <path d="M24.5 19 H39.5" stroke="#6e3428" stroke-width="3" stroke-linecap="round"/>
+  <g fill="#6e3428"><circle cx="34" cy="13" r="2.2"/><circle cx="29.5" cy="9.5" r="1.5"/><circle cx="35.5" cy="7" r="1"/></g>
+</svg>

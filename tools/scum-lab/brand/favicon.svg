@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <title>Scum Lab</title>
+  <rect width="32" height="32" rx="7" fill="#e89a5a"/>
+  <path d="M12.5 7.5 V13 L6.8 23 Q5.6 26 9 26 H23 Q26.4 26 25.2 23 L19.5 13 V7.5" fill="#f6c68c" stroke="#6e3428" stroke-width="2.4" stroke-linejoin="round"/>
+  <path d="M10.2 7.5 H21.8" stroke="#6e3428" stroke-width="2.4" stroke-linecap="round"/>
+  <path d="M8.2 19.5 Q12 18 16 19.5 T23.8 19.5 L25.2 23 Q26.4 26 23 26 H9 Q5.6 26 6.8 23 Z" fill="#6e3428"/>
+  <circle cx="17" cy="3.8" r="1.6" fill="#6e3428"/>
+</svg>

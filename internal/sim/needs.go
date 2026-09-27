@@ -33,6 +33,40 @@ func (p NeedPhase) String() string {
 }
 
 const (
+	defaultTraitChance           = 30
+	defaultMoodMax               = 100
+	defaultMoodLabelSwitchMargin = 5
+)
+
+func defaultNeeds() [numNeeds]NeedSpec {
+	return [numNeeds]NeedSpec{
+		NeedFood: {
+			Name: "food", Rise: 2, SeekAt: 650, CriticalAt: 1000, Max: 1000,
+			Facility: NutrientPod, UseTicks: 18, Fatal: true,
+			// A colonist grabs a portion in 3 ticks and eats it away from
+			// the pod, instead of occupying its one access tile for the
+			// full 18 — far more throughput per pod at the same cost.
+			GrabTicks: 3,
+		},
+		NeedBladder: {
+			Name: "bladder", Rise: 3, SeekAt: 600, CriticalAt: 900, Max: 1000,
+			Facility: Toilet, UseTicks: 10, Fatal: false,
+		},
+		NeedSocial: {
+			Name: "social", Rise: 2, SeekAt: 500, CriticalAt: 850, Max: 1000,
+			Facility: Rock, UseTicks: 0, Fatal: false,
+		},
+		NeedSleep: {
+			// Sleep builds slowly and, once sought, takes a long lie-down to
+			// clear. Non-fatal like bladder: a colonist with no bunk waits
+			// rather than dying.
+			Name: "sleep", Rise: 1, SeekAt: 700, CriticalAt: 900, Max: 1000,
+			Facility: Bed, UseTicks: 40, Fatal: false,
+		},
+	}
+}
+
+const (
 	NeedFood NeedKind = iota
 	NeedBladder
 	NeedSocial
@@ -107,17 +141,7 @@ func (w *World) syncNeedPhase(e *Entity, n NeedKind) (changed bool) {
 
 func (w *World) syncNeedPhaseAtLevel(e *Entity, n NeedKind, level int) (changed bool) {
 	spec := w.cfg.Needs[n]
-	phase := NeedSatisfied
-	switch {
-	case level == 0:
-		phase = NeedSatisfied
-	case level < spec.SeekAt:
-		phase = NeedGrowing
-	case level < spec.CriticalAt:
-		phase = NeedPressing
-	default:
-		phase = NeedCritical
-	}
+	phase := phaseForLevel(level, spec)
 	changed = e.needPhase[n] != phase
 	e.needPhase[n] = phase
 	e.nextNeedPhaseTick[n] = nextNeedPhaseTick(w.tick, level, e.needRise[n], phase, spec)
@@ -142,6 +166,19 @@ func nextNeedPhaseTick(now, level, rise int, phase NeedPhase, spec NeedSpec) int
 		return now
 	}
 	return now + (target-level+rise-1)/rise
+}
+
+func phaseForLevel(level int, spec NeedSpec) NeedPhase {
+	switch {
+	case level == 0:
+		return NeedSatisfied
+	case level < spec.SeekAt:
+		return NeedGrowing
+	case level < spec.CriticalAt:
+		return NeedPressing
+	default:
+		return NeedCritical
+	}
 }
 
 // needPressure normalizes the actionable part of a need to [0, 100]. Growing

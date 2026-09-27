@@ -196,10 +196,10 @@ func moodClaim(kind MoodKind, charge, grip int) int {
 	return 0
 }
 
-func (w *World) bestMoodAttractor(charge, grip int) (MoodKind, int) {
+func bestAttractorSpecs(attractors []AttractorSpec, charge, grip int) (MoodKind, int) {
 	kind, claim := MoodSettling, 0
 	found := false
-	for _, a := range w.cognition.Attractors {
+	for _, a := range attractors {
 		c := attractorClaim(moodAttractor{Kind: a.Kind, Radius: a.Radius, Charge: a.Charge, Grip: a.Grip}, charge, grip)
 		if c < 0 || found && c <= claim {
 			continue
@@ -209,16 +209,53 @@ func (w *World) bestMoodAttractor(charge, grip int) (MoodKind, int) {
 	return kind, claim
 }
 
-func (w *World) moodClaim(kind MoodKind, charge, grip int) int {
+func attractorSpecClaim(attractors []AttractorSpec, kind MoodKind, charge, grip int) int {
 	if kind == MoodSettling {
 		return 0
 	}
-	for _, a := range w.cognition.Attractors {
+	for _, a := range attractors {
 		if a.Kind == kind {
 			return attractorClaim(moodAttractor{Kind: a.Kind, Radius: a.Radius, Charge: a.Charge, Grip: a.Grip}, charge, grip)
 		}
 	}
 	return 0
+}
+
+func (w *World) bestMoodAttractor(charge, grip int) (MoodKind, int) {
+	return bestAttractorSpecs(w.cognition.Attractors[:], charge, grip)
+}
+
+func (w *World) moodClaim(kind MoodKind, charge, grip int) int {
+	return attractorSpecClaim(w.cognition.Attractors[:], kind, charge, grip)
+}
+
+// moodReadout is the display label refreshMoodAttractor applies, without an
+// entity to write. Valence picks the good or bad word and never enters a score.
+func moodReadout(attractors []AttractorSpec, charge, grip, valence int, current MoodKind, hasCurrent bool, margin int) (MoodKind, string, int) {
+	kind, claim := bestAttractorSpecs(attractors, charge, grip)
+	if hasCurrent && current != kind {
+		incumbent := attractorSpecClaim(attractors, current, charge, grip)
+		if claim <= incumbent+margin {
+			kind = current
+			claim = incumbent
+		}
+	}
+	word := "settling"
+	for _, a := range attractors {
+		if a.Kind != kind {
+			continue
+		}
+		if valence < 0 {
+			word = a.BadName
+		} else {
+			word = a.GoodName
+		}
+		break
+	}
+	if claim < 0 {
+		claim = 0
+	}
+	return kind, word, claim
 }
 
 func (w *World) refreshMoodAttractor(e *Entity) {
@@ -270,7 +307,7 @@ func (w *World) resolveWear(e *Entity, reaction *ReactionSpec, percept Percept) 
 	if target, ok := percept.Occurrence.appraisalFor(e.ID); ok {
 		contextual = &target
 	}
-	policy := wearPolicies[reaction.WearPolicy]
+	policy := wearPolicy(reaction.WearPolicy)
 	return policy(w, WearContext{
 		Observer: e, Percept: percept, Reaction: reaction,
 		ContextualTarget: contextual, BaseRate: baseRate,
@@ -306,9 +343,15 @@ type WearResult struct {
 
 type WearPolicy func(*World, WearContext) WearResult
 
-var wearPolicies = map[WearPolicyID]WearPolicy{
-	WearPolicyMemoryOccasions: wearMemoryOccasions,
-	WearPolicyNone:            wearNone,
+func wearPolicy(id WearPolicyID) WearPolicy {
+	switch id {
+	case WearPolicyMemoryOccasions:
+		return wearMemoryOccasions
+	case WearPolicyNone:
+		return wearNone
+	default:
+		return nil
+	}
 }
 
 func wearMemoryOccasions(_ *World, ctx WearContext) WearResult {

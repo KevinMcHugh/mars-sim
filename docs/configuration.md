@@ -89,18 +89,18 @@ indexed by `FocusKind`. Those fields are a copy of `cognition.yaml`'s
 in `cognition.yaml`; the mirrored `focuses.work.base` / `-focus-work-base`
 keys exist so existing files still parse, then get overwritten. See
 [`cascading_wsts_architecture.md`](./cascading_wsts_architecture.md) and
-[cognition-config-and-lab.md](./cognition-config-and-lab.md).
+[compositional-perception-and-events.md](./compositional-perception-and-events.md).
 
 Perception radii (`flee-radius`, `stomp-radius`, `gore-sight-radius`),
 `mood-wear-per-occasion`, and `mood-friend-affinity` stay in `Config` because
 they are simulation distances or pacing knobs. Reaction vectors, perception
 rules, and trait appraisal are the other file — see
-[cognition-config-and-lab.md](./cognition-config-and-lab.md).
+[compositional-perception-and-events.md](./compositional-perception-and-events.md).
 
 ## Related
 
 - [config-file.md](./config-file.md) — the committed `mars-sim.yaml` layer and the tags behind it.
-- [cognition-config-and-lab.md](./cognition-config-and-lab.md) — `cognition.yaml`, which is not a `cfg` tag.
+- [compositional-perception-and-events.md](./compositional-perception-and-events.md) — `cognition.yaml`, which is not a `cfg` tag.
 - [architecture.md](./architecture.md) — how the config seeds the engine.
 - [needs.md](./needs.md) — the `NeedSpec` table inside `Config`.
 - [entities-and-ai.md](./entities-and-ai.md) — the creature stats these fields tune.

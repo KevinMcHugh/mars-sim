@@ -26,8 +26,8 @@ argued with before any of it becomes Go.
 ## Source
 
 - [`mood-space.html`](./mood-space.html) — the older tuning sandbox. Prefer
-  [`../tools/cognition_lab.html`](../tools/cognition_lab.html) for current
-  reactions, wear, trait rules, and affect-home.
+  [Scum Lab](./scum-lab.md) for current reactions, wear, trait rules, and the
+  focus story.
 - [`../internal/sim/affect.go`](../internal/sim/affect.go) — wear policies,
   trait-rule application, and decay toward home.
 - [`../cognition.yaml`](../cognition.yaml) — the sole event/trait-appraisal
@@ -132,8 +132,7 @@ costing real time.
   baselines, and the push/pull blend.
 - [compositional-perception-and-events.md](./compositional-perception-and-events.md)
   — why the grammar replaced both `LifeEventKind` and tags.
-- [cognition-config-and-lab.md](./cognition-config-and-lab.md) — authoring
-  and the current sandbox.
+- [scum-lab.md](./scum-lab.md) — the bench that edits `cognition.yaml`.
 - [memories.md](./memories.md) — the ingestion funnel, and the memory log
   wear counts from.
 - [personality.md](./personality.md) — trait groups and the resolve-at-spawn

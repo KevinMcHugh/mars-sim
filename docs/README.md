@@ -40,7 +40,8 @@ way it is without re-deriving it from the source each time.
 | [storage.md](./storage.md) | Placeable storage containers, their capacity, construction, and snapshot state. |
 | [affect.md](./affect.md) | Charge/grip/valence affect, the impact-weighted push/pull blend, fresh/worn wear, grammar-matched trait rules, per-colonist baselines, decay, labels, and focus contributions. |
 | [compositional-perception-and-events.md](./compositional-perception-and-events.md) | Occurrence/percept/reaction grammar: who notices a world fact, how they react, wear policies, and why tags were dropped. |
-| [cognition-config-and-lab.md](./cognition-config-and-lab.md) | `cognition.yaml` authoring, strict loading, vocabulary export, and the Cognition Lab workbench. |
+| [scum-lab.md](./scum-lab.md) | Scum Lab: the shared shell, Focus Tester, Grammar Builder, and how to add a tool. |
+| [wasm.md](./wasm.md) | The browser module Scum Lab calls, why importing `internal/sim` pulls in more than the focus functions, and the `internal/mind` split that fixes it. |
 | [economy.md](./economy.md) | **Proposal.** Scarcity and economy: property and owners, crash-pod arrivals, dollars, recipes and slurry, the bid/ask book for goods and labor, and the phased build plan. |
 | [labor.md](./labor.md) | Work orders: the colony buying its public works from the treasury, commissions and houses, paid (pay-per-use) fixtures, and the colony's cook. Economy phase E5. |
 | [hauling.md](./hauling.md) | Moving goods between depots: arbitrage on a colonist's own account, hauling for hire, the colony keeping meals at its silo, selling back what it bought, and building public works from its own stock. Economy phase E7. |

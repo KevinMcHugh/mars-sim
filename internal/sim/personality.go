@@ -1,6 +1,9 @@
 package sim
 
-import "math"
+import (
+	"math"
+	"math/rand/v2"
+)
 
 // Personality gives colonists names, attributes, and traits. Most attributes
 // (age, gender, orientation, skin tone, hair color) are populated for flavor
@@ -378,16 +381,10 @@ func (p *Profile) HasTrait(t Trait) bool {
 // into the per-colonist effective parameters the systems read (need rise, rest
 // duration, work speed). Uses the personality RNG so it never perturbs the sim.
 func (w *World) assignPersonality(e *Entity) {
-	p := &Profile{}
-	p.Age = w.rollAge()
-	p.Gender = w.rollGender()
-	p.Orientation = w.rollOrientation()
-	w.rollBody(p)
-	p.SkinTone = w.rollSkinTone()
-	p.hairBase, p.HairColor = w.rollHair(p.Age)
-	p.Traits = w.rollTraits()
-	e.Profile = p
-	w.rollName(e)
+	// uniquifyName is the only step that needs the colony. The draws themselves
+	// are rollProfile, which the lab's WASM build calls without a world.
+	e.Profile = rollProfile(w.prng, w.agePRNG, w.cfg.TraitChance)
+	w.uniquifyName(e)
 
 	w.resolveTraitEffects(e)
 	e.affect.Charge = e.affectHome.Charge
@@ -399,8 +396,27 @@ func (w *World) assignPersonality(e *Entity) {
 // rollAge generates an adult colonist age. Keeping colonists adults means every
 // generated person can work, while the range still leaves room for believable
 // parent/child relationships.
-func (w *World) rollAge() int {
-	return 18 + w.agePRNG.IntN(63) // 18..80
+// rollProfile draws one colonist the way assignPersonality does, minus the
+// colony name registry and minus trait effects, which need a config and an
+// entity. Draw order matches assignPersonality so a given stream position
+// still produces the same person.
+func rollProfile(prng, age *rand.Rand, traitChance int) *Profile {
+	p := &Profile{}
+	p.Age = rollAge(age)
+	p.Gender = rollGender(prng)
+	p.Orientation = rollOrientation(prng)
+	rollBody(prng, p)
+	p.SkinTone = rollSkinTone(prng)
+	p.hairBase, p.HairColor = rollHair(prng, p.Age)
+	p.Traits = rollTraits(prng, traitChance)
+	p.given = rollGivenName(prng, p.Gender)
+	p.surname = lastNames[prng.IntN(len(lastNames))]
+	p.Name = p.given + " " + p.surname
+	return p
+}
+
+func rollAge(r *rand.Rand) int {
+	return 18 + r.IntN(63) // 18..80
 }
 
 // resolveTraitEffects recomputes a colonist's effective parameters from its
@@ -413,12 +429,9 @@ func (w *World) resolveTraitEffects(e *Entity) {
 	restMul, workMul, socialMul := 1.0, 1.0, 1.0
 	socialNoNeed := false
 	socialCapacity, socialPenalty := 1<<30, 0
-	home := MoodVector{}
+	home := traitAffectHome(e.Profile.Traits)
 	for _, tr := range e.Profile.Traits {
 		s := traitSpecs[tr]
-		home.Charge += s.affectHome.Charge
-		home.Grip += s.affectHome.Grip
-		home.Valence += s.affectHome.Valence
 		for i := 0; i < int(numNeeds); i++ {
 			if s.needRiseScale[i] > 0 {
 				riseMul[i] *= s.needRiseScale[i]
@@ -466,19 +479,62 @@ func (w *World) resolveTraitEffects(e *Entity) {
 // TraitChance probability. A group with nothing rollable in it (see
 // traitSpec.acquired) is skipped before any number is drawn, so adding one
 // leaves every other colonist's generation identical for the same seed.
-func (w *World) rollTraits() []Trait {
+func rollTraits(r *rand.Rand, traitChance int) []Trait {
 	var out []Trait
 	for g := traitGroup(0); g < numTraitGroups; g++ {
 		group := rollableTraitsInGroup(g)
 		if len(group) == 0 {
 			continue
 		}
-		if w.prng.IntN(100) >= w.cfg.TraitChance {
+		if r.IntN(100) >= traitChance {
 			continue
 		}
-		out = append(out, group[w.prng.IntN(len(group))])
+		out = append(out, group[r.IntN(len(group))])
 	}
 	return out
+}
+
+func traitAffectHome(traits []Trait) MoodVector {
+	var home MoodVector
+	for _, tr := range traits {
+		s := traitSpecs[tr]
+		home.Charge += s.affectHome.Charge
+		home.Grip += s.affectHome.Grip
+		home.Valence += s.affectHome.Valence
+	}
+	return home
+}
+
+func clampedAffectHome(traits []Trait, moodMax int) MoodVector {
+	home := traitAffectHome(traits)
+	return MoodVector{
+		Charge:  clampInt(home.Charge, -moodMax, moodMax),
+		Grip:    clampInt(home.Grip, -moodMax, moodMax),
+		Valence: clampInt(home.Valence, -moodMax, moodMax),
+	}
+}
+
+func (g traitGroup) labID() string {
+	switch g {
+	case groupAppetite:
+		return "appetite"
+	case groupWorkEthic:
+		return "work"
+	case groupSocial:
+		return "social"
+	case groupTemperament:
+		return "temperament"
+	case groupMutation:
+		return "mutation"
+	case groupMutantAttitude:
+		return "mutant-attitude"
+	case groupNerve:
+		return "nerve"
+	case groupOutlook:
+		return "outlook"
+	default:
+		return "trait"
+	}
 }
 
 // traitsInGroup returns the traits belonging to a group, in declaration order.
@@ -505,8 +561,8 @@ func rollableTraitsInGroup(g traitGroup) []Trait {
 }
 
 // rollGender picks a gender identity: mostly binary, occasionally non-binary.
-func (w *World) rollGender() Gender {
-	switch r := w.prng.IntN(100); {
+func rollGender(r *rand.Rand) Gender {
+	switch r := r.IntN(100); {
 	case r < 47:
 		return GenderMan
 	case r < 94:
@@ -516,13 +572,13 @@ func (w *World) rollGender() Gender {
 	}
 }
 
-func (w *World) rollOrientation() Orientation {
-	switch r := w.prng.IntN(100); {
-	case r < 80:
+func rollOrientation(rng *rand.Rand) Orientation {
+	switch n := rng.IntN(100); {
+	case n < 80:
 		return Heterosexual
-	case r < 90:
+	case n < 90:
 		return Bisexual
-	case r < 97:
+	case n < 97:
 		return Homosexual
 	default:
 		return Asexual
@@ -534,9 +590,9 @@ func (w *World) rollOrientation() Orientation {
 // a z-score — standard deviations from the colonist's own gender mean — and kept
 // on the profile so a relative's frame can be inherited across genders without
 // dragging their absolute centimetres along with it (see heredity.go).
-func (w *World) rollBody(p *Profile) {
-	p.heightZ = w.prng.NormFloat64()
-	bmi := clampFloat(24.0+w.prng.NormFloat64()*3.5, 16, 38)
+func rollBody(r *rand.Rand, p *Profile) {
+	p.heightZ = r.NormFloat64()
+	bmi := clampFloat(24.0+r.NormFloat64()*3.5, 16, 38)
 	p.HeightCM = heightFromZ(p.Gender, p.heightZ)
 	p.WeightKG = weightFor(p.HeightCM, bmi)
 	p.rememberBornBody()
@@ -592,8 +648,8 @@ func weightFor(heightCM int, bmi float64) int {
 }
 
 // rollSkinTone picks a skin tone uniformly across the five emoji tone points.
-func (w *World) rollSkinTone() SkinTone {
-	return SkinTone(w.prng.IntN(5))
+func rollSkinTone(r *rand.Rand) SkinTone {
+	return SkinTone(r.IntN(5))
 }
 
 // rollHair picks both the color a colonist's hair grew in as and the color they
@@ -601,8 +657,8 @@ func (w *World) rollSkinTone() SkinTone {
 // shows white or bald over whatever they were born with. The two are kept apart
 // because relatives inherit the natural color, not the aged one — a grandmother
 // gone white still passes her brown hair down (see heredity.go).
-func (w *World) rollHair(age int) (base, shown HairColor) {
-	base = w.rollHairBase()
+func rollHair(r *rand.Rand, age int) (base, shown HairColor) {
+	base = rollHairBase(r)
 	whiteChance, baldChance := 5, 3
 	switch {
 	case age >= 60:
@@ -610,10 +666,10 @@ func (w *World) rollHair(age int) (base, shown HairColor) {
 	case age >= 45:
 		whiteChance, baldChance = 20, 8
 	}
-	switch r := w.prng.IntN(100); {
-	case r < whiteChance:
+	switch n := r.IntN(100); {
+	case n < whiteChance:
 		return base, HairWhite
-	case r < whiteChance+baldChance:
+	case n < whiteChance+baldChance:
 		return base, HairBald
 	default:
 		return base, base
@@ -622,29 +678,17 @@ func (w *World) rollHair(age int) (base, shown HairColor) {
 
 // rollHairBase picks a natural hair color. White and bald are not options here:
 // both are things age does to hair, applied on top by rollHair.
-func (w *World) rollHairBase() HairColor {
-	switch r := w.prng.IntN(100); {
-	case r < 37:
+func rollHairBase(r *rand.Rand) HairColor {
+	switch n := r.IntN(100); {
+	case n < 37:
 		return HairBlack
-	case r < 69:
+	case n < 69:
 		return HairBrown
-	case r < 95:
+	case n < 95:
 		return HairBlonde
 	default:
 		return HairRed
 	}
-}
-
-// rollName gives a profile a first + last name, drawing the first name from a
-// pool that suits the gender identity. The surname is only provisional: a
-// colonist generated into an existing family takes that family's name instead
-// (see heredity.go).
-func (w *World) rollName(e *Entity) {
-	p := e.Profile
-	p.given = w.rollGivenName(p.Gender)
-	p.surname = lastNames[w.prng.IntN(len(lastNames))]
-	p.Name = p.given + " " + p.surname
-	w.uniquifyName(e)
 }
 
 // givenNameRedraws bounds the search for a full name nobody in the colony is
@@ -664,7 +708,7 @@ func (w *World) uniquifyName(e *Entity) {
 	p := e.Profile
 	w.releaseName(e)
 	for i := 0; i < givenNameRedraws && w.nameTaken(p.Name, e.ID); i++ {
-		p.given = w.rollGivenName(p.Gender)
+		p.given = rollGivenName(w.prng, p.Gender)
 		p.Name = p.given + " " + p.surname
 	}
 	w.colonistNames[p.Name] = e.ID
@@ -689,7 +733,7 @@ func (w *World) releaseName(e *Entity) {
 }
 
 // rollGivenName draws a first name from a pool that suits the gender identity.
-func (w *World) rollGivenName(g Gender) string {
+func rollGivenName(r *rand.Rand, g Gender) string {
 	var pool []string
 	switch g {
 	case GenderMan:
@@ -697,13 +741,13 @@ func (w *World) rollGivenName(g Gender) string {
 	case GenderWoman:
 		pool = firstNamesFem
 	default: // non-binary draws from either pool
-		if w.prng.IntN(2) == 0 {
+		if r.IntN(2) == 0 {
 			pool = firstNamesMasc
 		} else {
 			pool = firstNamesFem
 		}
 	}
-	return pool[w.prng.IntN(len(pool))]
+	return pool[r.IntN(len(pool))]
 }
 
 // scaleTicks scales a base work duration by a colonist's workScale, never going

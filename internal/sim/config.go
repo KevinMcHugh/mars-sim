@@ -566,7 +566,7 @@ func DefaultConfig() Config {
 		StuckLimit:            8,
 		MaxConcurrentProjects: 2,
 		EscapeGraceTicks:      32,
-		TraitChance:           30,
+		TraitChance:           defaultTraitChance,
 		FamilyChance:          35,
 
 		AppearanceInheritChance: 75,
@@ -609,14 +609,14 @@ func DefaultConfig() Config {
 		TalkQualityValence: 50,
 		TalkQualitySpread:  50,
 
-		MoodMax:                   100,
+		MoodMax:                   defaultMoodMax,
 		ConversationCompanyWeight: 6,
 		ConversationQualityWeight: 10,
 		SocialWindowTicks:         200,
 		MoodChargeDecayPerTick:    2,
 		MoodGripDecayPerTick:      1,
 		MoodValenceDecayTicks:     12,
-		MoodLabelSwitchMargin:     5,
+		MoodLabelSwitchMargin:     defaultMoodLabelSwitchMargin,
 
 		MoodPushImpact:      30,
 		MoodPullImpact:      70,
@@ -625,38 +625,14 @@ func DefaultConfig() Config {
 
 		FrontierFieldMinColonists: 800,
 		FrontierFieldMinArea:      90000, // ~300x300 and up
-		Needs: [numNeeds]NeedSpec{
-			NeedFood: {
-				Name: "food", Rise: 2, SeekAt: 650, CriticalAt: 1000, Max: 1000,
-				Facility: NutrientPod, UseTicks: 18, Fatal: true,
-				// A colonist grabs a portion in 3 ticks and eats it away from
-				// the pod, instead of occupying its one access tile for the
-				// full 18 — far more throughput per pod at the same cost.
-				GrabTicks: 3,
-			},
-			NeedBladder: {
-				Name: "bladder", Rise: 3, SeekAt: 600, CriticalAt: 900, Max: 1000,
-				Facility: Toilet, UseTicks: 10, Fatal: false,
-			},
-			NeedSocial: {
-				Name: "social", Rise: 2, SeekAt: 500, CriticalAt: 850, Max: 1000,
-				Facility: Rock, UseTicks: 0, Fatal: false,
-			},
-			NeedSleep: {
-				// Sleep builds slowly and, once sought, takes a long lie-down to
-				// clear. Non-fatal like bladder: a colonist with no bunk waits
-				// rather than dying.
-				Name: "sleep", Rise: 1, SeekAt: 700, CriticalAt: 900, Max: 1000,
-				Facility: Bed, UseTicks: 40, Fatal: false,
-			},
-		},
-		AlienSpeciesCount:      1,
-		AlienHP:                30,
-		AlienDamage:            6,
-		AlienBiteRest:          3,
-		AlienSlowness:          2,
-		AlienReferenceWeightKG: 80,
-		AlienCautiousRadius:    3,
+		Needs:                     defaultNeeds(),
+		AlienSpeciesCount:         1,
+		AlienHP:                   30,
+		AlienDamage:               6,
+		AlienBiteRest:             3,
+		AlienSlowness:             2,
+		AlienReferenceWeightKG:    80,
+		AlienCautiousRadius:       3,
 
 		PistolDamage:    10,
 		PistolRange:     3,
