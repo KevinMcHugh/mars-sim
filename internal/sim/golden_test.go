@@ -31,23 +31,24 @@ type goldenCase struct {
 
 var goldenCases = []goldenCase{
 	{
-		// A big map with the smallest halo, so the colony's digging (and
-		// breaches) generate chunks during the run.
+		// A big map with the smallest halo, so the colony's digging, and a
+		// breach flood running into ground nobody had generated, generate
+		// chunks during the run (see TestGenerationStaysAheadOfExploration).
 		name: "lazy-1000x1010",
 		cfg: func() Config {
 			c := DefaultConfig()
-			c.Seed = 3
+			c.Seed = 6
 			c.Width, c.Height = 1000, 1010
 			c.StartColonists = 40
-			c.CavernPercent = 15
+			c.CavernPercent = 20
 			c.WorldgenHalo = 1
 			return c
 		},
 		ticks:  600,
 		breach: true,
 		grows:  true,
-		gen:    "tiles=911ee6d87732a215 entities=09ccf8326ab15b67 rng=aef18907a6e92720 chunks=622fc087dedf9013/15 n=53 gore=0 corpses=0",
-		run:    "tiles=8a7eba9151d46728 entities=148fae0dfddcd1ed rng=1edd3483d7e0941e chunks=562663220ec91645/16 n=49 gore=0 corpses=2",
+		gen:    "tiles=a6f94d1444bc448e entities=596c21893cebb8e7 rng=536ad4fea347a1eb chunks=622fc087dedf9013/15 n=53 gore=0 corpses=0",
+		run:    "tiles=8bf0348321c9dfec entities=76d93fa47b2dc3a7 rng=5efc8756a51ff80a chunks=41cd9f7e16938b42/19 n=45 gore=0 corpses=3",
 	},
 	{
 		name: "default-80x40",

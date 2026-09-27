@@ -35,6 +35,7 @@ func abundanceTargets(cfg Config) abundance {
 // still applies, as it does in a real world.
 func measureAbundance(cfg Config) abundance {
 	g := newWorldGen(cfg)
+	g.withCacheSize(2 * g.chunkCols() * (2*genHorizon + 1))
 	var counts [len(veinLevels) + 1]int
 	for cy := 0; cy < g.chunkRows(); cy++ {
 		for cx := 0; cx < g.chunkCols(); cx++ {

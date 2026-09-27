@@ -48,9 +48,9 @@ const (
 	// may re-roll before it stops planning caverns short of its budget. Only
 	// bites on a chunk that is mostly landing site.
 	cavernSiteFailures = 16
-	// genCacheSize is how many plans of each kind the generator keeps before
-	// it starts forgetting the oldest half (see genCache).
-	genCacheSize = 4096
+	// genHorizon is how many chunks out from a chunk its plans reach (see
+	// docs/worldgen-chunks.md, "planning horizon").
+	genHorizon = 4
 )
 
 // A worldgen chunk is exactly one page of every pagedGrid, so a generated
@@ -163,6 +163,8 @@ type worldGen struct {
 	kept     genCache[chunkKey, []*genCavern]
 	passages genCache[chunkKey, [][]Point]
 	nearest  genCache[caveID, nearestRef]
+	// cacheSize is each plan cache's capacity (see newWorldGenLanding).
+	cacheSize int
 
 	// Scratch, reused between plans.
 	mark    []bool // window bitmap for vein avoidance / cavern dilation
@@ -183,6 +185,21 @@ func newWorldGen(cfg Config) *worldGen {
 // that want caverns without a landing site in the way.
 func newWorldGenLanding(cfg Config, lo, hi Point) *worldGen {
 	g := &worldGen{cfg: cfg, width: cfg.Width, height: cfg.Height, landingLo: lo, landingHi: hi}
+	// Generating the halo around one newly seen chunk plans a square of
+	// 2*(halo+horizon)+1 chunks. Keep two of those per kind of plan, so
+	// digging along an edge reuses the plans its last step made, and no more:
+	// the cache lives as long as the game, and every entry is a few KB.
+	side := 2*(max(1, cfg.WorldgenHalo)+genHorizon) + 1
+	g.cacheSize = 2 * side * side
+	g.forget()
+	return g
+}
+
+// withCacheSize resizes the plan caches, for a caller that generates far more
+// chunks at once than one halo (a test sweeping a whole map in raster order
+// needs about 2*genHorizon+1 rows of chunks). It drops what is cached.
+func (g *worldGen) withCacheSize(n int) *worldGen {
+	g.cacheSize = n
 	g.forget()
 	return g
 }
@@ -191,12 +208,12 @@ func newWorldGenLanding(cfg Config, lo, hi Point) *worldGen {
 // memory and the time to recompute one.
 func (g *worldGen) forget() {
 	for i := range g.veins {
-		g.veins[i] = newGenCache[chunkKey, []Point](genCacheSize)
+		g.veins[i] = newGenCache[chunkKey, []Point](g.cacheSize)
 	}
-	g.cands = newGenCache[chunkKey, []*genCavern](genCacheSize)
-	g.kept = newGenCache[chunkKey, []*genCavern](genCacheSize)
-	g.passages = newGenCache[chunkKey, [][]Point](genCacheSize)
-	g.nearest = newGenCache[caveID, nearestRef](genCacheSize * 8)
+	g.cands = newGenCache[chunkKey, []*genCavern](g.cacheSize)
+	g.kept = newGenCache[chunkKey, []*genCavern](g.cacheSize)
+	g.passages = newGenCache[chunkKey, [][]Point](g.cacheSize)
+	g.nearest = newGenCache[caveID, nearestRef](g.cacheSize * 8)
 }
 
 func (g *worldGen) chunkCols() int { return ceilDiv(g.width, genChunkSize) }

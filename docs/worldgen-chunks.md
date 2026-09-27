@@ -102,6 +102,15 @@ and recomputing it gives the same answer, so its size can never change a
 world. `TestChunkGenerationIsOrderIndependent` runs with a three-entry cache
 to prove it.
 
+The cache lives as long as the game, so it is sized to what one step of
+exploration needs: generating the halo around a newly seen chunk plans a
+square of `2*(halo + genHorizon) + 1` chunks (13×13 at the default halo),
+and each kind of plan keeps two of those. The first version kept a flat 4096
+per kind and grew by about 90 MB over 2,900 generated chunks; sized to the
+halo, it is about 13 MB. Something that generates far more at once, like
+the drift report sweeping a map in raster order, raises it with
+`withCacheSize`.
+
 ### Streams
 
 `featureRand(stream, ids...)` seeds a PCG from the world seed, a stream
@@ -183,16 +192,25 @@ chunk is.** Three hooks keep it:
   `SetTerrain`, which generates the chunks under it and reveals its rim, and
   that generates the halo.
 
-Why this is enough:
+Two mechanisms, with different jobs:
 
-- **Colonists.** Every tile the colony can read or change is explored or
-  next to an explored tile. Mining a tile reveals its neighbours. A neighbour
-  is at most one chunk from an explored tile, so a halo of 1 already covers
-  it.
-- **Breach floods.** `revealAround` reveals cave tiles one ring at a time. Each
-  newly seen chunk generates its halo before the flood reads past it, so a
-  cave system that runs into ungenerated ground is generated as the flood
-  reaches it.
+- **The backstop keeps writes and reveals correct.** `reveal` generates a
+  tile's chunk before it reads the tile, and `setTerrain` before it writes one.
+  So the breach flood is complete however far it runs: a cave system that
+  runs into ungenerated ground has that ground generated as the flood reaches
+  it (`TestGenerationStaysAheadOfExploration` insists on a run where this
+  happens). Mining is covered the same way. This would hold with no halo at
+  all.
+- **The halo keeps plain reads correct.** Reads never generate (see below),
+  so anything the simulation *reads* without revealing has to be generated
+  already. The colony reads only explored tiles and their neighbours, which a
+  halo of 1 covers. `randomTile` spawn sites and dormant aliens read the
+  generated chunks by construction. The halo's real reach, then, is how far
+  from the colony those can be: where aliens start, and how much cave they
+  have to move in.
+
+More specifically:
+
 - **Nests.** A cavern's center is registered in `unfoundCaverns` when its
   owner chunk is generated. A flood can only reach that center after the
   chunk exists, so no nest roll is missed.
@@ -414,12 +432,14 @@ with its own generator instead (see [Previewing](#previewing)).
 
 ### Why a halo and not "generate on first touch"
 
-Generating a chunk only when a tile in it is first read or written would be
-enough for colonists, because `generateChunkAt` does exactly that. But a
-breach flood, `randomTile`, and dormant aliens all read tiles that are not
-being written, and a read that generated would be a trigger the frontends
-could also pull. The halo means reads never need to generate: anything the
-simulation can legitimately reach is already there.
+Generating a chunk when it is first written or revealed is what
+`generateChunkAt` does, and it is enough for mining and for the breach flood.
+It is not enough for reads: `randomTile`, dormant aliens, and the colony's
+own neighbour checks read tiles nobody is writing. Making reads generate
+would be a trigger a frontend could pull too. The halo makes sure that what
+the simulation reads without revealing is already there, so no read ever has
+to generate. It is also what gives aliens room to start away from the
+landing site.
 
 ## Extending it
 

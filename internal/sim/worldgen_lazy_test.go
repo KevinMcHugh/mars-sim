@@ -1,6 +1,9 @@
 package sim
 
-import "testing"
+import (
+	"slices"
+	"testing"
+)
 
 func lazyGoldenConfig(t *testing.T) (Config, int) {
 	t.Helper()
@@ -57,6 +60,7 @@ func TestGenerationStaysAheadOfExploration(t *testing.T) {
 	cfg, ticks := lazyGoldenConfig(t)
 	w := NewEngine(cfg).world
 	cols, rows := w.gen.chunkCols(), w.gen.chunkRows()
+	floodGenerated := false
 	generated := func(cx, cy int) bool {
 		return w.genDone[w.tiles.pageIndex(cx<<genChunkBits, cy<<genChunkBits)]
 	}
@@ -93,11 +97,20 @@ func TestGenerationStaysAheadOfExploration(t *testing.T) {
 			}
 		}
 		if tick < ticks {
+			chunks, breaches := len(w.genChunks), w.cavernBreaches
 			w.step()
+			if w.cavernBreaches > breaches && len(w.genChunks) > chunks {
+				floodGenerated = true
+			}
 		}
 	}
 	if w.cavernBreaches == 0 {
 		t.Fatal("the run never breached a cave, so the flood was not exercised")
+	}
+	// The case that matters most: a flood running into ground nobody had
+	// generated yet, which has to generate it mid-flood.
+	if !floodGenerated {
+		t.Fatal("no breach generated a chunk, so a flood crossing into new ground was not exercised")
 	}
 }
 
@@ -134,11 +147,23 @@ func TestNewGameOnHugeMapGeneratesOnlyTheLandingSite(t *testing.T) {
 	cfg.Seed = 7
 	cfg.Width, cfg.Height = 10000, 10000
 	w := NewEngine(cfg).world
-	// The landing cavern and its revealed rim span at most 2x2 chunks, and
-	// each seen chunk generates WorldgenHalo around it.
-	side := 2 + 2*cfg.WorldgenHalo
-	if n := len(w.genChunks); n == 0 || n > side*side {
-		t.Fatalf("generated %d chunks for a new game, want 1..%d", n, side*side)
+	// The landing cavern and its revealed rim are the only ground seen. On
+	// this map they span a rectangle of chunks (the ellipse reaches its
+	// bounding box at the ends of both axes), so exactly the chunks within
+	// WorldgenHalo of that rectangle are generated.
+	rx, ry := caveRadii(cfg.Width, cfg.Height, cfg.StartColonists)
+	c := Point{cfg.Width / 2, cfg.Height / 2}
+	h := cfg.WorldgenHalo
+	x0, x1 := (c.X-rx-1)>>genChunkBits-h, (c.X+rx+1)>>genChunkBits+h
+	y0, y1 := (c.Y-ry-1)>>genChunkBits-h, (c.Y+ry+1)>>genChunkBits+h
+	var want []chunkKey
+	for y := y0; y <= y1; y++ {
+		for x := x0; x <= x1; x++ {
+			want = append(want, chunkKey{int32(x), int32(y)})
+		}
+	}
+	if !slices.Equal(w.genChunks, want) {
+		t.Fatalf("generated chunks %v for a new game, want %v", w.genChunks, want)
 	}
 	if n := w.tiles.pagesAllocated(); n != len(w.genChunks) {
 		t.Fatalf("%d tile pages allocated for %d generated chunks", n, len(w.genChunks))
