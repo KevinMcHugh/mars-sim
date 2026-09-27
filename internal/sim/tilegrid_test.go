@@ -44,33 +44,42 @@ func TestSnapshotTilesAreStableAfterLaterEdits(t *testing.T) {
 func TestPublishedTilesShareUnchangedPages(t *testing.T) {
 	w := gridWorld(t, 200)
 	w.SetTerrain(Point{10, 10}, Floor)
+	w.SetTerrain(Point{100, 100}, Floor)
 	first := w.publishedTiles()
 
 	if second := w.publishedTiles(); second != first {
 		t.Error("publishing with no terrain change allocated a new grid")
 	}
 
-	p := Point{100, 100}
+	p := Point{101, 100}
 	w.SetTerrain(p, Floor)
 	third := w.publishedTiles()
 	if third == first {
 		t.Fatal("publishing after a terrain change reused the stale grid")
 	}
 
-	changed := w.index(p) >> tilePageBits
-	shared := 0
+	changed := w.tiles.pageIndex(p.X, p.Y)
+	shared, written := 0, 0
 	for pi := range third.pages {
 		switch {
+		case third.pages[pi] == nil:
+			// Never written: nothing to share, and it must still read as rock.
+			if first.pages[pi] != nil {
+				t.Errorf("page %d was published and then dropped", pi)
+			}
 		case pi == changed:
-			if &third.pages[pi][0] == &first.pages[pi][0] {
+			if third.pages[pi] == first.pages[pi] {
 				t.Error("the changed page was not copied before it diverged")
 			}
-		case &third.pages[pi][0] == &first.pages[pi][0]:
-			shared++
+		default:
+			written++
+			if third.pages[pi] == first.pages[pi] {
+				shared++
+			}
 		}
 	}
-	if want := len(third.pages) - 1; shared != want {
-		t.Errorf("shared %d unchanged pages, want %d", shared, want)
+	if written == 0 || shared != written {
+		t.Errorf("shared %d of %d unchanged pages, want all of them", shared, written)
 	}
 }
 

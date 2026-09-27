@@ -18,8 +18,8 @@ meals. Nothing it cooks is free for the taking. This is phase **E3** of the
 ## Source
 
 - [`internal/sim/scumhouse.go`](../internal/sim/scumhouse.go) — `Recipe`,
-  `SkillKind`, the `recipes` table; `scumPatch`, `scumAt`, `takeScum`,
-  `growScum`, the exposure index; `foodWanted`, `tryAssignFoodWork`,
+  `SkillKind`, the `recipes` table; `scumPatch`, `scumAt`, `takeScum`, the
+  exposure index; `foodWanted`, `tryAssignFoodWork`,
   `tryAssignCraft`/`jobCraft`, `tryAssignScrape`/`jobScrape`,
   `deliverBiomatter`, `carriedOwner`; the colony's trade (`biomatterPrice`,
   `refreshBiomatterBids`, `sellBiomatter`, `refreshColonyMealAsks`).
@@ -103,9 +103,13 @@ outputs to the same owner, so the depot's ledger always balances.
 
 ### Cave scum
 
-Worldgen seeds `scum-percent` of the map's rock with patches in short
-meandering runs (`growScum`, on its own seed-derived stream so it moved no
-ore vein of an established seed). A patch holds up to `scum-max` units. It is
+Worldgen seeds `scum-percent` of the map with patches in short meandering
+runs, chunk by chunk (`scumPlan` in `worldgen_chunks.go`, on its own
+per-chunk stream so it moves no ore vein; see
+[worldgen-chunks.md](./worldgen-chunks.md)). Each chunk places its share of
+distinct tiles, so abundance lands within a fraction of a percent of the
+target. Scum is laid down with the rest of a chunk, when exploration first
+reaches it, and `applyChunk` registers any patch that is already exposed. A patch holds up to `scum-max` units. It is
 **lazy**, like a need: `scumAt` is the stored amount plus a unit for every
 `scum-regrow-ticks` since it was last scraped, capped, with no per-tick work.
 

@@ -22,6 +22,10 @@ two runs differ while the random numbers are identical.
 
 - `internal/sim/sim_test.go` — `TestDeterministicRunAgreesEveryTick`, the
   lockstep regression test, and `worldFingerprint`.
+- `internal/sim/golden_test.go` — `TestGoldenWorldHash`, pinned hashes of
+  what fixed seeds produce.
+- `tools/determinism-check.sh` — runs the golden hashes natively, under amd64
+  (Rosetta) and under js/wasm in Node.
 - `internal/sim/rooms.go` — `refreshSpatial` sorts the dirty-chunk list.
 - `internal/sim/hpa.go` — `sortedLinks` orders abstract-graph expansion.
 - `internal/sim/facilitychoice.go` — `chooseFacility`, the nearest-facility
@@ -70,6 +74,52 @@ ticks downstream of the cause. Seeing `field "regions"` at tick 7 instead says
 The grid layers are FNV-hashed rather than rendered; at one entry per tile per
 tick, formatting them dominated the test's runtime, and the field name is the
 whole diagnosis anyway.
+
+### Golden hashes and other machines
+
+The lockstep test compares two runs in one process, so it can never see a
+seed that plays out differently on another machine: both runs share the CPU,
+the compiler and the Go version. `TestGoldenWorldHash` compares against
+constants instead. Each case pins a hash of the generated world at tick 0 and
+again some ticks later: every tile's terrain, composition and discovery; every
+entity's kind, position, HP, state and species, in ID order; refuse totals; and
+the simulation stream's PCG state. The RNG state is the catch-all: a draw
+added, lost or reordered anywhere moves it before anything visible diverges.
+Needs, affect, inventories and projects are not hashed directly; they reach
+the hash through the draws and positions they cause.
+
+`tools/determinism-check.sh` runs it three ways: natively, as amd64 under
+Rosetta on Apple silicon, and as js/wasm under Node, which is the browser
+target. The usual ways a Go simulation drifts between machines are:
+
+- **Fused multiply-add.** The Go spec lets an implementation fuse `x*y + z`
+  into one FMA, which rounds once instead of twice. gc does this on arm64,
+  ppc64, s390x, riscv64 and loong64, and on amd64 when built with
+  `GOAMD64=v3` or higher; the default amd64 (v1) and wasm do not. Float
+  arithmetic that feeds a decision can therefore round differently on a Mac
+  and a PC. Keep gameplay geometry in integers, or force the rounding with an
+  explicit conversion, `float64(x*y) + z`.
+- **Map order**, above.
+- **`int` size.** `int` is 64 bits on every target we build (wasm included),
+  but hash and seed code should still use explicit `uint64`.
+
+On a Linux amd64 machine (typical CI) the script can only run amd64 and
+wasm, neither of which fuses, so it has to run on an arm64 host (any Apple
+silicon Mac) to cover FMA.
+
+The `lazy-1000x1010` case runs a big map with a halo of 1 and must generate
+chunks after tick 0, so it covers generation during play. Every hash includes
+the set of generated chunks: which chunks exist is part of the world, and it
+must come out the same everywhere (see
+[worldgen-chunks.md](./worldgen-chunks.md#when-chunks-are-generated)).
+
+The golden constants change whenever a change is meant to alter what seeds
+produce. Update them in that change, and say so in the commit message. A
+golden mismatch in a change that did not mean to break seeds is the bug. The
+`caves-300x150` case also insists that its run breaks into a cavern, so a
+re-pin cannot silently drop coverage of the breach flood. It checks
+`World.cavernBreaches` rather than `hiddenFloor`, because hidden floor can go
+up as well as down once chunks are generated during play.
 
 ## Why it is this way
 
@@ -171,6 +221,9 @@ be pure.** Anything it writes is written in map order.
   enough, point `World.rng` at a recorder wrapping `w.rngSrc.sim` that
   captures a stack trace per draw and diff the traces: an identical RNG trace with divergent state proves
   the cause is ordering, not randomness, and narrows it to one call site.
+- **Changing what a seed produces on purpose**: re-pin `goldenCases` and run
+  `tools/determinism-check.sh` before committing, so the new constants are
+  known to agree on every target.
 - **What the fingerprint does not cover**: affect, memories, relationships, and
   colonist inventories. Add them if a bug lands there; they were left out because every
   divergence found so far surfaced in position or labelling first.

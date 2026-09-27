@@ -96,7 +96,7 @@ func TestMiningAwardsRockCompositionMaterial(t *testing.T) {
 			w.SetTerrain(pos, Floor)
 			target := pos.Add(1, 0)
 			w.SetTerrain(target, Rock)
-			w.tiles[w.index(target)].Composition = tt.composition
+			cellAt(w, target).Composition = tt.composition
 			miner := w.spawn(Colonist, pos)
 			miner.Job, miner.Target, miner.mineClaimed = JobMine, target, true
 
@@ -122,7 +122,7 @@ func TestCompositionYieldIsAtomicWhenInventoryCannotFitExtra(t *testing.T) {
 	w.SetTerrain(pos, Floor)
 	target := pos.Add(1, 0)
 	w.SetTerrain(target, Rock)
-	w.tiles[w.index(target)].Composition = IronBearingRock
+	cellAt(w, target).Composition = IronBearingRock
 	miner := w.spawn(Colonist, pos)
 	miner.Inventory[0] = ItemStack{Kind: RawRock, Count: MaxStackSize - 1}
 	for i := 1; i < InventorySlotCount; i++ {

@@ -135,6 +135,13 @@ func (f *flowField) rebuild() {
 		ci := int(q[head])
 		cx, cy := ci%w.Width, ci/w.Width
 		page := f.cells.interiorPage(cx, cy)
+		// Off a page edge, every neighbour's tile is in the same tile page
+		// as this node, at the same offset as its cell: one lookup for all
+		// eight terrain reads. This node is walkable, so its page exists.
+		var tiles []tileCell
+		if page != nil {
+			tiles = w.tiles.pageAt(cx, cy)
+		}
 		for _, d := range neighbors8 {
 			nx, ny := cx+d.X, cy+d.Y
 			if nx < 0 || nx >= w.Width || ny < 0 || ny >= w.Height {
@@ -142,24 +149,38 @@ func (f *flowField) rebuild() {
 			}
 			ni := ny*w.Width + nx
 			cells := page
+			walkable := false // known walkable already (page-edge path)
 			if cells == nil {
 				// On a page edge, so this neighbour may be on a page that does
 				// not exist yet. Walkability has to be tested before asking for
 				// it: rock never enters a field, and allocating for one would
 				// give every field a border of pages around the reachable area.
-				if !w.tiles[ni].Terrain.Walkable() {
+				if !w.tiles.at(nx, ny).Terrain.Walkable() {
 					continue
 				}
 				cells = f.cells.pageAtAlloc(nx, ny)
+				walkable = true
 			}
 			// Stamp first, terrain second. Most neighbours in an open room are
 			// already stamped this generation, and the stamp is a read of a
-			// page this node is already holding, while the terrain read is a
-			// scattered hit on the dense tile array a row-stride away. Testing
-			// terrain first here cost 23% of the tick on a big colony.
-			cell := &cells[offset(nx, ny)]
-			if cell.gen == gen || !w.tiles[ni].Terrain.Walkable() {
+			// page this node is already holding. Testing terrain first here
+			// cost 23% of the tick on a big colony, back when tiles were a
+			// dense array and the terrain read was a row-stride away.
+			o := offset(nx, ny)
+			cell := &cells[o]
+			if cell.gen == gen {
 				continue
+			}
+			if !walkable {
+				var t Terrain
+				if tiles != nil {
+					t = tiles[o].Terrain
+				} else {
+					t = w.tiles.at(nx, ny).Terrain
+				}
+				if !t.Walkable() {
+					continue
+				}
 			}
 			cell.gen, cell.dist = gen, cd+1
 			q = append(q, int32(ni))

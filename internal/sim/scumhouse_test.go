@@ -368,12 +368,12 @@ func TestHiddenCavernScumIsNotExposedUntilFound(t *testing.T) {
 	}
 	for y := 2; y <= 5; y++ {
 		for x := 2; x <= 6; x++ {
-			w.tiles[w.index(Point{x, y})].Explored = false
+			cellAt(w, Point{x, y}).Explored = false
 			w.carveHidden(Point{x, y})
 		}
 	}
 	rim := Point{7, 3}
-	w.tiles[w.index(rim)].Explored = false
+	cellAt(w, rim).Explored = false
 	w.scum[rim] = scumPatch{amount: w.cfg.ScumMax}
 	w.refreshScumExposure(rim)
 	if _, ok := w.exposedScum[rim]; ok {

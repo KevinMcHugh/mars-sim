@@ -51,7 +51,7 @@ func TestGenerateStartingState(t *testing.T) {
 	}
 
 	floor := 0
-	for _, tile := range w.tiles {
+	for _, tile := range denseTiles(w) {
 		if tile.Terrain == Floor {
 			floor++
 		}
@@ -257,8 +257,7 @@ func worldFingerprint(w *World) map[string]string {
 	var tiles, regions, rooms uint64 = fnvSeed, fnvSeed, fnvSeed
 	for y := 0; y < w.Height; y++ {
 		for x := 0; x < w.Width; x++ {
-			i := w.index(Point{x, y})
-			tiles = fnvAdd(tiles, uint64(w.tiles[i].Terrain))
+			tiles = fnvAdd(tiles, uint64(w.tiles.at(x, y).Terrain))
 			regions = fnvAdd(regions, uint64(w.regionOf.at(x, y)))
 			rooms = fnvAdd(rooms, uint64(w.roomOf(Point{x, y})))
 		}
@@ -347,9 +346,25 @@ func TestEnginePublishesAndPauses(t *testing.T) {
 	}
 }
 
+// denseTiles returns every tile record in row-major order, for tests that
+// want to compare or count the whole grid.
+func denseTiles(w *World) []tileCell {
+	out := make([]tileCell, 0, w.Width*w.Height)
+	for y := 0; y < w.Height; y++ {
+		for x := 0; x < w.Width; x++ {
+			out = append(out, w.tiles.at(x, y))
+		}
+	}
+	return out
+}
+
+// cellAt returns the stored record at the in-bounds p, for tests that set up
+// composition directly.
+func cellAt(w *World, p Point) *tileCell { return w.tiles.ptr(p.X, p.Y) }
+
 func floorCount(w *World) int {
 	n := 0
-	for _, tile := range w.tiles {
+	for _, tile := range denseTiles(w) {
 		if tile.Terrain == Floor {
 			n++
 		}

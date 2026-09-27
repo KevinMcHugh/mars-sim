@@ -41,13 +41,15 @@ func TestWorldgenGrowsUraniumVeins(t *testing.T) {
 	w := NewEngine(cfg).world
 
 	count := 0
-	for _, tile := range w.tiles {
+	for _, tile := range denseTiles(w) {
 		if tile.Composition == UraniumBearingRock {
 			count++
 		}
 	}
-	if want := len(w.tiles) * cfg.UraniumRockPercent / 100; count != want {
-		t.Fatalf("uranium-bearing tiles = %d, want %d", count, want)
+	// Abundance is an expected value under chunked generation; see
+	// TestAbundanceDriftWithinTolerance for the tight check.
+	if want := w.Width * w.Height * cfg.UraniumRockPercent / 100; count < want/2 || count > want*3/2 {
+		t.Fatalf("uranium-bearing tiles = %d, want about %d", count, want)
 	}
 }
 
@@ -62,12 +64,12 @@ func TestUraniumExposureSources(t *testing.T) {
 		t.Fatal("a colonist away from uranium should not be exposed")
 	}
 
-	w.tiles[w.index(Point{6, 5})].Composition = UraniumBearingRock
+	cellAt(w, Point{6, 5}).Composition = UraniumBearingRock
 	if !w.uraniumExposed(e) {
 		t.Fatal("a colonist beside a uranium deposit should be exposed")
 	}
 
-	w.tiles[w.index(Point{6, 5})].Composition = OrdinaryRock
+	cellAt(w, Point{6, 5}).Composition = OrdinaryRock
 	e.Inventory.Add(UraniumOre, 1)
 	if !w.uraniumExposed(e) {
 		t.Fatal("a colonist carrying uranium ore should be exposed")

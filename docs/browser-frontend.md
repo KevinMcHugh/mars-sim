@@ -238,25 +238,30 @@ So there are three limits, and they arrive in this order:
   existing dirty-page list, and the 300 MB copy disappears. The native TUI
   keeps the copy, because it really does read on another goroutine. This is
   a small, contained change.
-- **Chunked, lazy worldgen.** This is the real answer, and it is an engine
-  change, not a browser one. Divide the world into chunks (for example
-  256×256). Generate each one deterministically from `(seed, chunk x,
-  chunk y)` the first time anything needs it: a dig reaching its border,
-  pathfinding asking about it, or the camera looking at it (it would render
-  as fog anyway). Unvisited chunks cost nothing, so world size stops being a
-  memory question and becomes a coordinate-range question. Features that
-  cross chunk boundaries (veins, caverns, the passages between caverns) need
-  care. The usual approach: each feature is owned by the chunk that contains
-  its origin and is rolled from that chunk's seed, and a chunk is generated
-  after the neighbors whose features could reach into it. Caverns are
-  already hidden until a dig breaks in ([caverns.md](./caverns.md)), which
-  fits lazy generation well. The live grid, the regions and the flow fields
-  would then be paged by chunk, the way `pagedGrid` already is
-  ([sparse-grids.md](./sparse-grids.md)).
+- **Chunked, lazy worldgen. Done;** see
+  [worldgen-chunks.md](./worldgen-chunks.md). The world is 64×64 chunks,
+  each a pure function of `(config, cx, cy)`: every feature is owned by the
+  chunk its origin is in, rolled from that chunk's stream, and planned
+  without reading tiles, so a chunk can be generated alone. Two things
+  differ from the sketch above:
+  - **Only the simulation triggers generation, never the camera.** A
+    camera-driven trigger would make the set of generated chunks, and with
+    it spawn sampling and dormant aliens, differ between machines. Chunks
+    are generated when the colony first sees ground in or next to them
+    (`worldgen-halo`). A fog-off view previews the rest without generating
+    it.
+  - **Chunks are 64×64, not 256×256,** so a chunk is exactly one page of
+    every `pagedGrid`, and the tile grid itself is paged too.
 
-Chunking is also what keeps save files small (see the next section) and new
-games instant. It should be designed before the browser frontend depends on
-world size. The browser can ship on eager worldgen at 10K in the meantime.
+  A new 10000×10000 game now starts in about 27 ms and 28 MB natively
+  (118 ms under wasm), against 11.4 s and 1.35 GB (34 s under wasm) for
+  eager generation once the economy landed. Unvisited chunks cost nothing,
+  so world size is a coordinate-range question now: flow fields and
+  `flowrepair` still use `int32` row-major indices, and the page tables are
+  map-sized, which are the next limits past about 46000×46000.
+
+Chunking is also what keeps save files small (see the next section): a
+chunk nobody has changed can be regenerated from the seed instead of saved.
 
 ### 6. Save and load
 

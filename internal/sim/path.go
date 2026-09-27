@@ -103,9 +103,17 @@ func (pf *pathfinder) toAdjacent(start, target Point, useCorridor bool) ([]Point
 			return pf.reconstruct(si, ci), true
 		}
 		cg := pf.cells.at(cp.X, cp.Y).g
+		// Off a page edge all eight neighbours' tiles share this node's page:
+		// one lookup instead of eight. Tiles past the map's edge in the last
+		// page are never written, so they read as Rock without a bounds test.
+		tiles := w.tiles.interiorPage(cp.X, cp.Y)
 		for _, d := range neighbors8 {
 			np := cp.Add(d.X, d.Y)
-			if !w.Walkable(np) {
+			if tiles != nil {
+				if !tiles[offset(np.X, np.Y)].Terrain.Walkable() {
+					continue
+				}
+			} else if !w.Walkable(np) {
 				continue
 			}
 			if useCorridor && pf.corridorSeen.at(np.X, np.Y) != pf.corridorGen {

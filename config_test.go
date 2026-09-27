@@ -276,6 +276,14 @@ func TestLeftoverArgumentsAreRejected(t *testing.T) {
 	}
 }
 
+func TestValidateWorldgenHalo(t *testing.T) {
+	cfg := sim.DefaultConfig()
+	cfg.WorldgenHalo = 0
+	if err := validateConfig(cfg); err == nil || !strings.Contains(err.Error(), "worldgen-halo") {
+		t.Fatalf("worldgen-halo 0 error = %v, want worldgen-halo validation", err)
+	}
+}
+
 // Old flag names: -mice is -rats, and -pistols explains what replaced it.
 func TestOldFlagNamesStillMeanSomething(t *testing.T) {
 	cfg := sim.DefaultConfig()

@@ -2,7 +2,6 @@ package sim
 
 import (
 	"fmt"
-	"math/rand/v2"
 	"sort"
 )
 
@@ -140,29 +139,9 @@ func (w *World) refreshScumExposure(p Point) {
 	}
 }
 
-// growScum seeds patches of cave scum at worldgen: ScumPercent of the map's
-// rock, in short meandering runs, each patch full. It draws from its own
-// stream (like rock composition) so that scum never shifts where anything else
-// lands for a seed.
-func (w *World) growScum(rng *rand.Rand) {
-	if w.cfg.ScumPercent <= 0 || w.cfg.ScumMax <= 0 {
-		return
-	}
-	target := len(w.tiles) * w.cfg.ScumPercent / 100
-	for placed, guard := 0, 0; placed < target && guard < target*8; guard++ {
-		p := Point{rng.IntN(w.Width), rng.IntN(w.Height)}
-		for run := 3 + rng.IntN(6); run > 0 && placed < target; run-- {
-			if w.InBounds(p) && w.TerrainAt(p) == Rock {
-				if _, ok := w.scum[p]; !ok {
-					w.scum[p] = scumPatch{amount: w.cfg.ScumMax}
-					placed++
-				}
-			}
-			d := veinNeighbors[rng.IntN(len(veinNeighbors))]
-			p = p.Add(d.X, d.Y)
-		}
-	}
-}
+// Cave scum is laid down by world generation, chunk by chunk, as a pure
+// function of the seed like the ore veins (see scumPlan in
+// worldgen_chunks.go and applyChunk).
 
 // ---- Food work ------------------------------------------------------------------
 

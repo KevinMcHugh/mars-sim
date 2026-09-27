@@ -176,7 +176,7 @@ func TestPodsNeverLandInAnUndiscoveredCavern(t *testing.T) {
 	}
 	for y := 15; y <= 26; y++ {
 		for x := 20; x <= 40; x++ {
-			w.tiles[w.index(Point{x, y})].Explored = false
+			cellAt(w, Point{x, y}).Explored = false
 			w.carveHidden(Point{x, y})
 		}
 	}
@@ -243,7 +243,7 @@ func TestPodsNeverRevealAHiddenCavern(t *testing.T) {
 	for y := 5; y <= 25; y++ {
 		for x := 30; x <= 45; x++ {
 			p := Point{x, y}
-			w.tiles[w.index(p)].Explored = false
+			cellAt(w, p).Explored = false
 			w.carveHidden(p)
 			cavern = append(cavern, p)
 		}

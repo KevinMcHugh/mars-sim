@@ -30,8 +30,8 @@ import (
 //     combat behavior (see speciesDamage/scaledByTemperament below and
 //     alienTurn in systems.go), so they must stay reproducible on the
 //     deterministic side of the personality/sim split (see AGENTS.md).
-//   - Not w.rng, the simulation stream, for the same reason growRockVeins'
-//     compositionRNG (worldgen.go) is not: rolling species must not shift
+//   - Not w.rng, the simulation stream, for the same reason worldgen's
+//     streams (featureRand in worldgen_chunks.go) are not: rolling species must not shift
 //     where anything spawns or any later w.rng-driven decision, so it cannot
 //     share that stream's draw sequence. Which *species* a given Alien
 //     entity is assigned, though, is drawn from w.rng at spawn time (see
@@ -44,8 +44,8 @@ import (
 // with newWorld directly and still spawn and fight Aliens against it.
 
 // alienLoreSeed is this world's lore stream's XOR key against cfg.Seed,
-// distinct from prng's, agePRNG's, and compositionRNG's own keys so none of
-// the four ever draw from the same sequence.
+// distinct from prng's, agePRNG's, and worldgen's own keys so none of them
+// ever draw from the same sequence.
 const alienLoreSeed = 0x452821E638D01377
 
 // AlienTemperament is how a species relates to the colony -- whether it ever

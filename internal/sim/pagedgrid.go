@@ -13,18 +13,19 @@ package sim
 // them makes that memory track the size of the colony instead of the size of
 // the world. See docs/sparse-grids.md.
 //
-// Pages are square rather than row-major runs, which is the one place this
-// differs from the tile grid published to frontends (tilegrid.go). That grid
-// memcpys whole pages, so contiguity is what matters to it. These grids are
-// written a tile at a time by things that spread outward from the colony, so
-// what matters is how much of a page a blob-shaped colony actually uses. On a
-// 10000-wide map a 4096-entry row-major page is a strip two fifths of a row
-// long: a 500x500 colony would touch one or two of them per row it spans, ~750
-// pages for 250k tiles. The same colony fits in 64 square pages.
+// Pages are square rather than row-major runs. These grids are written a tile
+// at a time by things that spread outward from the colony, so what matters is
+// how much of a page a blob-shaped colony actually uses. On a 10000-wide map a
+// 4096-entry row-major page is a strip two fifths of a row long: a 500x500
+// colony would touch one or two of them per row it spans, ~750 pages for 250k
+// tiles. The same colony fits in 64 square pages. The tiles themselves use
+// the same pages (one per worldgen chunk), and so does the grid published to
+// frontends (tilegrid.go).
 //
 // Pages are never freed. Terrain only ever opens up (Rock -> Floor -> built),
-// so a page that has been written to is one the colony reached, and a colony
-// does not un-reach it.
+// so a navigation page that has been written to is one the colony reached,
+// and a colony does not un-reach it. A tile page is one worldgen has
+// generated, which likewise stays generated.
 const (
 	gridPageBits = 6                           // 64x64 tiles per page
 	gridPageSide = 1 << gridPageBits           // 64
@@ -34,8 +35,9 @@ const (
 
 // A page is a whole number of chunks on a side, which lets anything sweeping
 // one chunk hoist the page lookup out of its loop (see pageAt). The compiler
-// rejects a gridPageSide that stops dividing evenly.
-const _ = gridPageSide - chunkSize*(gridPageSide/chunkSize)
+// rejects a gridPageSide that stops dividing evenly: the array is only
+// assignable when its length is zero.
+var _ [0]struct{} = [gridPageSide % chunkSize]struct{}{}
 
 type pagedGrid[T any] struct {
 	// colShift indexes a page row by shifting rather than multiplying. The

@@ -53,9 +53,12 @@ func TestCavernsGenerateHidden(t *testing.T) {
 	if w.hiddenFloor != len(hidden) {
 		t.Fatalf("hiddenFloor = %d, but %d unexplored floor tiles exist", w.hiddenFloor, len(hidden))
 	}
-	target := len(w.tiles) * cfg.CavernPercent / 100
-	if len(hidden) < target {
-		t.Fatalf("caverns cover %d tiles, want at least %d (%d%%)", len(hidden), target, cfg.CavernPercent)
+	// Cavern abundance is an expected value per chunk (see
+	// TestAbundanceDriftWithinTolerance), so a map this small only has to
+	// land in the neighbourhood of its target.
+	target := w.Width * w.Height * cfg.CavernPercent / 100
+	if len(hidden) < target/2 || len(hidden) > target*2 {
+		t.Fatalf("caverns cover %d tiles, want about %d (%d%%)", len(hidden), target, cfg.CavernPercent)
 	}
 
 	var known []Point
@@ -168,14 +171,22 @@ func TestBreachingACavernRevealsItsWholeSystem(t *testing.T) {
 
 // caverns generates caverns alone (no landing site or entities) so a test can
 // look at them by cavern.
-func cavernsOnly(t *testing.T, passagePercent int) (*World, []cavern) {
+func cavernsOnly(t *testing.T, passagePercent int) (*World, []*genCavern) {
 	t.Helper()
 	cfg := cavernTestConfig()
 	cfg.Width, cfg.Height = 200, 100
 	cfg.CavernPassagePercent = passagePercent
 	w := newWorld(cfg, newPCG(1))
 	c := Point{w.Width / 2, w.Height / 2}
-	caves := w.generateCaverns(newRand(9), c, c)
+	r := cavernLandingClearance
+	w.gen = newWorldGenLanding(cfg, c.Add(-r, -r), c.Add(r, r))
+	var caves []*genCavern
+	for cy := 0; cy < w.gen.chunkRows(); cy++ {
+		for cx := 0; cx < w.gen.chunkCols(); cx++ {
+			w.applyChunk(cx, cy)
+			caves = append(caves, w.gen.keptCaverns(chunkKey{int32(cx), int32(cy)})...)
+		}
+	}
 	w.refreshSpatial()
 	if len(caves) < 4 {
 		t.Fatalf("only %d caverns on a %dx%d map", len(caves), w.Width, w.Height)
@@ -223,8 +234,9 @@ func TestCavernPassagesJoinNearestNeighbors(t *testing.T) {
 func TestCavernsAreDeterministic(t *testing.T) {
 	a := newTestWorld(t, cavernTestConfig())
 	b := newTestWorld(t, cavernTestConfig())
-	for i := range a.tiles {
-		if a.tiles[i] != b.tiles[i] {
+	at, bt := denseTiles(a), denseTiles(b)
+	for i := range at {
+		if at[i] != bt[i] {
 			t.Fatalf("tile %d differs between two worlds from the same seed", i)
 		}
 	}
