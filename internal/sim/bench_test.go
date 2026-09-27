@@ -1,6 +1,7 @@
 package sim
 
 import (
+	"runtime"
 	"testing"
 )
 
@@ -344,3 +345,30 @@ func BenchmarkStepBigColonyOnHugeMap(b *testing.B) {
 		w.step()
 	}
 }
+
+// benchmarkStartup measures what a new game costs before its first tick:
+// world generation and the first published frame, the two things a player
+// waits through on "New game". heap-MB is the live heap afterwards, which is
+// the memory the game starts with. See docs/worldgen-chunks.md for the
+// numbers these produced before and after chunked, lazy generation.
+func benchmarkStartup(b *testing.B, size int) {
+	cfg := DefaultConfig()
+	cfg.Seed = 7
+	cfg.Width, cfg.Height = size, size
+	var ms runtime.MemStats
+	for i := 0; i < b.N; i++ {
+		e := NewEngine(cfg)
+		e.world.snapshot(false, 8)
+		if i == b.N-1 {
+			b.StopTimer()
+			runtime.GC()
+			runtime.ReadMemStats(&ms)
+			b.ReportMetric(float64(ms.HeapAlloc)/(1<<20), "heap-MB")
+			runtime.KeepAlive(e)
+		}
+	}
+}
+
+func BenchmarkStartup1000(b *testing.B)  { benchmarkStartup(b, 1000) }
+func BenchmarkStartup2500(b *testing.B)  { benchmarkStartup(b, 2500) }
+func BenchmarkStartup10000(b *testing.B) { benchmarkStartup(b, 10000) }

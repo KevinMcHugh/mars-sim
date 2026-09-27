@@ -22,6 +22,10 @@ two runs differ while the random numbers are identical.
 
 - `internal/sim/sim_test.go` — `TestDeterministicRunAgreesEveryTick`, the
   lockstep regression test, and `worldFingerprint`.
+- `internal/sim/golden_test.go` — `TestGoldenWorldHash`, pinned hashes of
+  what fixed seeds produce.
+- `tools/determinism-check.sh` — runs the golden hashes natively, under amd64
+  (Rosetta) and under js/wasm in Node.
 - `internal/sim/rooms.go` — `refreshSpatial` sorts the dirty-chunk list.
 - `internal/sim/hpa.go` — `sortedLinks` orders abstract-graph expansion.
 - `internal/sim/facilitychoice.go` — `chooseFacility`, the nearest-facility
@@ -65,6 +69,34 @@ ticks downstream of the cause. Seeing `field "regions"` at tick 7 instead says
 The grid layers are FNV-hashed rather than rendered; at one entry per tile per
 tick, formatting them dominated the test's runtime, and the field name is the
 whole diagnosis anyway.
+
+### Golden hashes and other machines
+
+The lockstep test compares two runs in one process, so it can never see a
+seed that plays out differently on another machine: both runs share the CPU,
+the compiler and the Go version. `TestGoldenWorldHash` compares against
+constants instead. Each case pins a hash of the generated world at tick 0 and
+of the whole simulation some ticks later (tiles, discovery, and every entity's
+position, HP and state, in ID order).
+
+`tools/determinism-check.sh` runs it three ways: natively, as amd64 under
+Rosetta on Apple silicon, and as js/wasm under Node, which is the browser
+target. The usual ways a Go simulation drifts between machines are:
+
+- **Fused multiply-add.** The Go spec lets the compiler fuse `x*y + z` into
+  one FMA on arm64 (and ppc64, s390x), which rounds once instead of twice.
+  amd64 does not fuse by default. Float arithmetic that feeds a decision can
+  therefore round differently on a Mac and a PC. Keep gameplay geometry in
+  integers, or force the rounding with an explicit `float64(x*y) + z`.
+- **Map order**, above.
+- **`int` size.** `int` is 64 bits on every target we build (wasm included),
+  but hash and seed code should still use explicit `uint64`.
+
+The golden constants change whenever a change is meant to alter what seeds
+produce. Update them in that change, and say so in the commit message. A
+golden mismatch in a change that did not mean to break seeds is the bug. The
+`caves-300x150` case also insists that its run breaks into a cavern, so a
+re-pin cannot silently drop coverage of the breach flood.
 
 ## Why it is this way
 
@@ -149,6 +181,9 @@ is invisible today is exactly how the other two got in.
   enough, point `World.rng` at a recorder wrapping `w.rngSrc.sim` that
   captures a stack trace per draw and diff the traces: an identical RNG trace with divergent state proves
   the cause is ordering, not randomness, and narrows it to one call site.
+- **Changing what a seed produces on purpose**: re-pin `goldenCases` and run
+  `tools/determinism-check.sh` before committing, so the new constants are
+  known to agree on every target.
 - **What the fingerprint does not cover**: affect, memories, relationships, and
   inventories. Add them if a bug lands there; they were left out because every
   divergence found so far surfaced in position or labelling first.
