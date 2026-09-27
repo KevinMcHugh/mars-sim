@@ -277,7 +277,7 @@ func (w *World) tryAssignCraftFor(e *Entity, owners []Owner) bool {
 	recipe, owner, _ := w.craftableRecipe(w.storageContainers[p], owners)
 	w.workshopClaims[p] = e.ID
 	e.Job, e.Target, e.Progress = JobCraft, p, 0
-	e.recipe, e.craftFor = recipe, owner
+	e.recipe, e.craftFor, e.craftRun = recipe, owner, 0
 	return true
 }
 
@@ -346,7 +346,33 @@ func (w *World) jobCraft(e *Entity) {
 	if p := w.plans[e.plan]; p != nil && p.kind == planCraft && p.workshop == e.Target {
 		p.crafted = true
 	}
+	if w.cooksOn(e, c, r) {
+		e.Progress = 0
+		e.craftRun++
+		return
+	}
 	w.clearJob(e)
+}
+
+// cookBatch is how many recipes a colony cook works back to back before it
+// gives the stove up.
+const cookBatch = 6
+
+// cooksOn reports whether a colony cook that just finished r at c starts the
+// same recipe again rather than leaving: while the colony still wants food,
+// the stove still holds the inputs, the cook is not hungry itself, and it has
+// worked fewer than cookBatch in a row. A cook walked across the colony for
+// one twelve-tick recipe and left, so late in long runs twenty colonists
+// shared two stoves that stood idle most of the time, and ate faster than
+// the few cooks who came by could cook.
+func (w *World) cooksOn(e *Entity, c *StorageContainer, r Recipe) bool {
+	if e.craftFor != Community || e.plan != 0 || e.craftRun+1 >= cookBatch || !w.foodWanted() {
+		return false
+	}
+	if e.needPhase[NeedFood] >= NeedPressing || w.mealFetchesAt(c.Pos) > 0 {
+		return false
+	}
+	return w.canCraft(c, r, Community)
 }
 
 // scrapeLoad is how much scum a scraper gathers before hauling it in: one

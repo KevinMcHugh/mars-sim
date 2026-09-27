@@ -513,7 +513,7 @@ func TestTheCookDoesNotBlockThePantry(t *testing.T) {
 // chatting, idle — steps aside for a colonist who needs it, rather than
 // starving the queue behind them.
 func TestLoiterersMakeWayAtADeadEnd(t *testing.T) {
-	for _, loiter := range []string{"eating", "idle"} {
+	for _, loiter := range []string{"eating", "idle", "cat"} {
 		w := propertyWorld(t)
 		// Walls either side of a corridor x=10, y=6..9, the chest at its end.
 		for y := 5; y <= 9; y++ {
@@ -523,7 +523,11 @@ func TestLoiterersMakeWayAtADeadEnd(t *testing.T) {
 		chest, end := Point{10, 5}, Point{10, 6}
 		w.SetTerrain(chest, Storage)
 		w.refreshSpatial()
-		b := w.spawn(Colonist, end)
+		kind := Colonist
+		if loiter == "cat" {
+			kind = Cat
+		}
+		b := w.spawn(kind, end)
 		if loiter == "eating" {
 			b.Job, b.eat, b.Target, b.Progress = JobEat, eatMeal, chest, 0
 		}

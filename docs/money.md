@@ -63,9 +63,47 @@ treasury + Σ living wallets (= moneyInCirculation) + moneyFrozen
       labor.md) == moneyIssued
 ```
 
+The wealth levy (below) moves money from wallets to the treasury through
+`transfer`, so it changes nobody's total but its payers': the supply is still
+fixed.
+
 `TestMoneyIsConserved` checks that on every tick of a colony that is gaining
 arrivals, losing colonists to aliens, and shuffling random payments between
 random accounts.
+
+### The wealth levy
+
+The treasury pays wages, bounties, hauls, and its standing bids, and its only
+income was what it sold. That was not enough. A colonist who cooks its own
+scum rarely buys anything, so money pooled in wallets. With 20 colonists the
+treasury hit $0 somewhere between ticks 17,500 and 27,500 across seeds. The
+colony then stopped buying biomatter, which is where its food came from, and
+by tick 40,000 three-quarters of the colony had starved while wallets held
+about $5,000.
+
+So every `tax-interval` ticks (`levyWealthTax`), each living colonist pays
+`wealth-tax` percent of whatever it holds above `tax-floor` to the treasury:
+at least a dollar if it holds any excess, nothing otherwise.
+`taxCollected` counts it.
+
+| Setting | Default |
+| --- | --- |
+| `wealth-tax` | 2 (percent; 0 disables) |
+| `tax-floor` | 200 |
+| `tax-interval` | 100 ticks |
+
+- **A levy on holdings, not income.** An income tax only shrinks wages, and
+  the colony would still pay out more than it takes back. A levy on money
+  that sits idle bites when money stops moving, which is exactly when the
+  treasury starves. It leaves the poor alone.
+- **The floor is below `house-savings`.** At a $300 floor the levy barely
+  touched a colony whose wallets averaged about $300, and its treasury ran
+  near empty for 30,000 ticks. At $200 the same seeds hold $1,100 to $2,500.
+  Saving for a house just takes a little longer.
+- Across 9 seeds of 20 colonists at 40,000 ticks, with rations and batch
+  cooking (see [food.md](./food.md) and [scumhouse.md](./scumhouse.md)),
+  nobody starved and no treasury ran dry.
+  `TestTheTreasuryOutlastsALongRun` keeps one of those runs.
 
 ### Transfers
 
@@ -93,7 +131,7 @@ colonist richest first, with the money supply beside the selected account.
   its terms were summed in. `Money` is whole dollars; if prices ever need
   fractions it becomes cents.
 - **One funnel.** Every payment through `transfer` means one place to log, one
-  place a tax will hook in, and a supply that can be audited at all. A second
+  place a tax hooks in (the levy does), and a supply that can be audited at all. A second
   way to write a wallet is a leak waiting to happen.
 - **No negative balances — for now.** That is a v1 limit, not a principle.
   Debt and lending are a planned goal (see *Deliberately not doing* in

@@ -67,7 +67,7 @@ re-open them without a reason the conversation did not have.
 | --- | --- |
 | Owners | Nobody (abandoned), the community, or an individual. Organizations are **not defined**; leave a commented-out `// TODO: OwnerOrganization` where the enum would grow. |
 | Money | "Dollars". No physical presence, no inventory slot; every exchange is a digital transfer. |
-| Money supply | Fixed for now: a **founding grant** to the treasury plus each colonist's arrival purse. Taxes come later. We accept that a fixed supply is deflationary and pushes toward conservative behavior; revisit when it shows up. |
+| Money supply | Fixed for now: a **founding grant** to the treasury plus each colonist's arrival purse. A wealth levy returns idle money to the treasury (see [money.md](./money.md)). We accept that a fixed supply is deflationary and pushes toward conservative behavior; revisit when it shows up. |
 | Arrivals | Every colonist arrives in a crash pod — at worldgen, from the spawn command, and from a new director occurrence. There is no other way in. |
 | Food | The first produced food is **slurry**: colonists haul biomatter (alien and animal corpses, viscera, and cave scum/biofilm) to a **scumhouse** that turns it into meals. Viscera is viscera: it isn't told apart by where it came from. |
 | Safety net | The infinite community nutrient pod stays, behind a config switch, for a long while. Players can also spawn food during development. |
@@ -353,9 +353,11 @@ production that nobody else wants yet. Its stock then goes one of two ways:
   are paid for in materials as well as labor, and the colony's own stock covers
   them before it buys any more.
 
-That turns the founding grant into working capital rather than a countdown: a
-treasury that buys low and sells high can keep funding public works
-indefinitely, without taxes.
+That was meant to turn the founding grant into working capital rather than a
+countdown: a treasury that buys low and sells high, funding public works
+indefinitely without taxes. It didn't. Colonists who cook their own scum
+rarely buy, so resales never kept up and the treasury drained by tick 20,000
+or so. A wealth levy now returns idle money (see [money.md](./money.md)).
 
 **Prospecting** is a standing community **goods** bid, not labor: the colony
 posts evergreen bids for ore at the silo, and anyone who digs ore and deposits
@@ -721,8 +723,9 @@ Each item is a known TODO, not an oversight:
   lend or create money.
 - **Skills and identity.** A placeholder field on recipes; everyone is equally
   able, so nobody specializes yet (see *Who does what work*).
-- **Taxes and monetary policy.** The money supply is fixed; `transfer` is where a
-  tax would hook in.
+- **Monetary policy.** The money supply is fixed. The one tax is the wealth
+  levy (see [money.md](./money.md)); income or sales taxes would hook into
+  `transfer` the same way.
 - **Moving fixtures.** Packing up and moving a bunk.
 
 ## Open questions
@@ -749,8 +752,8 @@ Each item is a known TODO, not an oversight:
 - **Deflation.** A fixed money supply, plus money locked in escrow, may freeze
   trade once wallets thin. Log the share of money in escrow.
 - **Orphaned derived bids** filling the book with demand from abandoned plans.
-- **Treasury exhaustion** stopping public works before any tax exists: the
-  founding grant has to last until the colony's resales start paying (E7).
+- **Treasury exhaustion** stopping public works. Resales didn't pay enough on
+  their own. The wealth levy closes the loop (see [money.md](./money.md)).
 - **Churn without specialization.** Until skills and identity exist, colonists
   will hop between trades constantly. That's expected, but it can also look like
   thrashing between focuses; the focus system's commitment rules have to hold

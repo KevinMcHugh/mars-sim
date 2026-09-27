@@ -402,7 +402,7 @@ func (w *World) advancePlan(e *Entity, p *plan) bool {
 		}
 		w.workshopClaims[p.workshop] = e.ID
 		e.Job, e.Target, e.Progress = JobCraft, p.workshop, 0
-		e.recipe, e.craftFor = p.recipe, me
+		e.recipe, e.craftFor, e.craftRun = p.recipe, me, 0
 		return true
 	}
 	return false

@@ -173,3 +173,89 @@ func TestColonistsEatOnlyMealsTheyMayTake(t *testing.T) {
 		t.Fatalf("took the wrong meal: ledger %+v", c.Ledger)
 	}
 }
+
+// A colonist whose hunger is pressing, with scum of its own in a scumhouse,
+// drops whatever it was doing to cook it. Left to finish a dig, colonists starved
+// with their own scum sitting in a free scumhouse.
+func TestPressingHungerDropsWorkToCook(t *testing.T) {
+	w := propertyWorld(t)
+	w.cfg.InfiniteFood = false
+	house := Point{10, 6}
+	w.SetTerrain(house, Scumhouse)
+	w.SetTerrain(Point{20, 12}, Rock)
+	w.refreshSpatial()
+	e := w.spawn(Colonist, Point{10, 7})
+	me := ColonistOwner(e.ID)
+	c := w.storageContainers[house]
+	c.Inventory.Add(CaveScum, 2)
+	c.credit(me, CaveScum, 2)
+	w.assignMineTarget(e, Point{20, 12})
+
+	e.needPhase[NeedFood] = NeedGrowing
+	w.hungryWithoutFood(e)
+	if e.Job != JobMine {
+		t.Fatalf("growing hunger dropped the dig for job %v; it should finish it", e.Job)
+	}
+	e.needPhase[NeedFood] = NeedPressing
+	w.hungryWithoutFood(e)
+	if e.Job != JobCraft || e.craftFor != me {
+		t.Fatalf("pressing hunger kept job %v (for %v); want cooking its own scum", e.Job, e.craftFor)
+	}
+}
+
+// A colonist at critical hunger that cannot afford a meal is given one of the
+// colony's: only at critical hunger, and only one. The meal changes hands on
+// the ledger, never leaving the shelf.
+func TestTheColonyRationsTheStarving(t *testing.T) {
+	w := propertyWorld(t)
+	w.cfg.InfiniteFood = false
+	shelf := Point{10, 6}
+	w.SetTerrain(shelf, Storage)
+	w.refreshSpatial()
+	c := w.storageContainers[shelf]
+	c.Inventory.Add(Meal, 3)
+	c.credit(Community, Meal, 3)
+	w.offerColonyMeals(shelf) // on sale, in escrow
+	e := w.spawn(Colonist, Point{12, 8})
+	me := ColonistOwner(e.ID)
+	w.transfer(me, Community, e.wallet) // broke
+
+	e.needPhase[NeedFood] = NeedPressing
+	if w.tryRation(e) {
+		t.Fatal("rationed a colonist whose hunger is only pressing")
+	}
+	e.needPhase[NeedFood] = NeedCritical
+	if !w.tryRation(e) {
+		t.Fatal("no ration for a broke colonist at critical hunger")
+	}
+	if c.held(me, Meal) != 1 || c.Inventory.Count(Meal) != 3 || !c.ledgerBalanced() {
+		t.Fatalf("after the ration: held %d, on the shelf %d, ledger %v", c.held(me, Meal), c.Inventory.Count(Meal), c.Ledger)
+	}
+	if got := c.held(Community, Meal) + w.openQty(Ask, Meal, shelf, Community); got != 2 {
+		t.Fatalf("the colony has %d meals left, want 2", got)
+	}
+	assertMoneyConserved(t, w)
+}
+
+// A colony cook works a batch at the stove rather than walking across the
+// colony for every twelve-tick recipe.
+func TestAColonyCookWorksABatch(t *testing.T) {
+	w := propertyWorld(t)
+	w.cfg.InfiniteFood, w.cfg.MealReserve = false, 100
+	house := Point{10, 6}
+	w.SetTerrain(house, Scumhouse)
+	w.refreshSpatial()
+	c := w.storageContainers[house]
+	c.Inventory.Add(CaveScum, 20)
+	c.credit(Community, CaveScum, 20)
+	cook := w.spawn(Colonist, Point{10, 7})
+	if !w.tryAssignCraft(cook) || cook.craftFor != Community {
+		t.Fatal("no colony cooking job")
+	}
+	for i := 0; i < 1000 && cook.Job == JobCraft; i++ {
+		w.jobCraft(cook)
+	}
+	if got := c.held(Community, CaveScum); got != 20-2*cookBatch {
+		t.Fatalf("the cook used %d scum in one visit, want a batch of %d recipes", 20-got, cookBatch)
+	}
+}

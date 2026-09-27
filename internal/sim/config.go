@@ -77,6 +77,14 @@ type Config struct {
 	// the flag binder only knows the three scalar kinds (see bindConfigFlags
 	// in main.go). See docs/money.md.
 	FoundingGrant int64 `cfg:"founding-grant" sec:"Economy" doc:"dollars the colony treasury starts with"`
+	// The wealth levy returns money to the treasury, which otherwise only
+	// pays out: every TaxInterval ticks each colonist pays WealthTax percent
+	// of whatever it holds above TaxFloor. Without it the treasury ran dry
+	// by tick 20000 in a 20-colonist colony, the colony stopped buying
+	// biomatter, and most of the colony starved. See docs/money.md.
+	WealthTax   int   `cfg:"wealth-tax" doc:"percent of a colonist's money above tax-floor paid to the treasury each tax-interval (0 disables)"`
+	TaxFloor    int64 `cfg:"tax-floor" doc:"dollars a colonist keeps untaxed by the wealth levy"`
+	TaxInterval int   `cfg:"tax-interval" doc:"ticks between wealth levies"`
 	// InfiniteFood is the safety net: nutrient pods make meals out of nothing.
 	// Off (the default since economy phase E8), a pod serves nothing and the
 	// colony eats only what it landed with and what it produces. On is for
@@ -95,6 +103,9 @@ type Config struct {
 	ScumRegrowTicks int `cfg:"scum-regrow-ticks" doc:"ticks for a scraped patch to regrow one unit of scum"`
 	ScrapeTicks     int `cfg:"scrape-ticks" doc:"ticks of work to scrape one unit of scum off a patch"`
 	MealReserve     int `cfg:"meal-reserve" doc:"the colony makes food while it holds fewer meals than this per colonist"`
+	// Rations: a colonist at critical hunger who cannot afford a meal is
+	// given one of the colony's. See docs/food.md.
+	Rations bool `cfg:"rations" doc:"the colony gives a meal to a colonist at critical hunger who cannot afford one"`
 	// ConstructionCosts makes building consume materials: raw rock, and ore
 	// for machines (see constructionCost), paid from the stock of whoever pays
 	// for the work, then the builder's. On by default since economy phase E8;
@@ -451,6 +462,10 @@ func DefaultConfig() Config {
 		// Placeholders until the market gives money a use: a treasury worth a
 		// few dozen purses, so the colony can outspend any one settler.
 		FoundingGrant: 5000,
+		// The floor sits below house-savings: at 300 the levy barely touched
+		// a colony whose wallets averaged about that, and its treasury still
+		// ran near empty; saving for a house just takes a little longer.
+		WealthTax: 2, TaxFloor: 200, TaxInterval: 100,
 		// Scarcity is on (economy phase E8): food is made, not conjured, and
 		// building costs materials. The safety net stays a setting, for tests
 		// and for balancing. See docs/economy.md.
@@ -464,6 +479,7 @@ func DefaultConfig() Config {
 		ScumRegrowTicks:   400,
 		ScrapeTicks:       6,
 		MealReserve:       3,
+		Rations:           true,
 		ConstructionCosts: true,
 		// The charter's prices: a meal a few hours' pay, uranium dearest
 		// because it costs the miner a dose, raw rock not bought at all — there

@@ -695,7 +695,13 @@ type World struct {
 	// moneyIssued. See money.go and docs/money.md.
 	treasury    Money
 	moneyIssued Money
-	moneyFrozen Money
+	// taxCollected is every dollar the wealth levy has returned to the
+	// treasury (levyWealthTax), for the market tab and the economy trace.
+	taxCollected Money
+	// rationsGiven counts meals the colony has given to the starving (see
+	// tryRation).
+	rationsGiven int
+	moneyFrozen  Money
 
 	// The order book (see market.go): every open order by ID, the books by
 	// (item, depot), the most recent trades, and the cached location of the

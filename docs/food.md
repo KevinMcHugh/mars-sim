@@ -44,10 +44,14 @@ first. It tries, in order:
    colony's scumhouses sell what they cook (see [scumhouse.md](./scumhouse.md)).
    The meal is then the colonist's own, and step 2 fetches it. A colonist does
    **not** eat the colony's meals free: those are for sale.
-4. **The safety net.** Only if `infinite-food` is on: the old `JobUse` at a
+4. **A ration.** With `rations` on (the default) and the safety net off, a
+   colonist at **critical** hunger that could not buy is given one of the
+   colony's meals from the nearest reachable depot holding one (`tryRation`).
+   The meal changes hands on the ledger (`moveLine`) and step 2 fetches it.
+5. **The safety net.** Only if `infinite-food` is on: the old `JobUse` at a
    nutrient pod, which makes gruel out of nothing.
 
-Steps 1–3 end in `JobEat`, with two stages: `eatFetch` walks to the depot at
+Steps 1–4 end in `JobEat`, with two stages: `eatFetch` walks to the depot at
 `Target`, `eatMeal` eats the meal in hand for the food need's `UseTicks`. A meal
 of the colonist's own is never skipped for the pod, even if the pod is closer —
 `TestColonistsEatTheirOwnMealsBeforeGruel` checks every tick of a 4000-tick run
@@ -76,7 +80,9 @@ more.
 - the colony stops planning pods: `wantsFacility(NutrientPod)` is false, and
   a facility room becomes `toiletRoom`, all toilets;
 - a hungry colonist with nothing to eat picks food work first — cooking its
-  own scum, then scraping to keep (`hungryWithoutFood`). If there is no
+  own scum, then scraping to keep (`hungryWithoutFood`). Once hunger is
+  pressing it drops any other work under way to do so (`feedingItself`);
+  before that it finishes what it started. If there is no
   scumhouse it can reach, it helps build the planned one, or raises one
   itself, unpaid (`tryEmergencyScumhouse`), the scarcity version of the
   emergency pod. Otherwise it keeps working, and looks for food again every
@@ -91,6 +97,25 @@ manifest runs out — two full meal cycles, the last meal, then 500 ticks for
 hunger to climb from 0 to its max and 40 more to drain a colonist's HP — and
 everyone must be dead within a few walks of the prediction. It also checks that
 no pod was built and nobody queued at one.
+
+### Rations, and why food work starts at pressing
+
+Late in 40,000-tick runs with 20 colonists, the colonists who starved were
+broke, holding a few dollars when a meal costs $5. They died a few tiles from
+shelves holding a hundred of the colony's meals, scraping scum for a supper
+they didn't live to cook. Two changes followed:
+
+- **Food work starts at pressing hunger, not critical.** Waiting for critical
+  left too little time to scrape, haul, and cook. The reviewer's suggestion
+  was critical; pressing is what the long runs needed.
+- **A ration at critical hunger.** It's a lifeline, not a living: only after
+  buying failed, one meal at a time.
+
+The first version of `tryRation` used `debit` then `credit`. `debit` takes the
+physical meal as well as the ledger line, so the meal vanished and a phantom
+stayed on the colonist's line. The colonist then walked to that shelf forever,
+failed to take a meal that wasn't there, and never fell through to buying.
+`TestTheColonyRationsTheStarving` checks `ledgerBalanced`.
 
 ### Interruptions
 

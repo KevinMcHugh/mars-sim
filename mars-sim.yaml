@@ -92,6 +92,15 @@
 ## dollars the colony treasury starts with
 # founding-grant: 5000
 
+## percent of a colonist's money above tax-floor paid to the treasury each tax-interval (0 disables)
+# wealth-tax: 2
+
+## dollars a colonist keeps untaxed by the wealth levy
+# tax-floor: 200
+
+## ticks between wealth levies
+# tax-interval: 100
+
 ## nutrient pods make free meals out of nothing (the safety net)
 # infinite-food: false
 
@@ -110,6 +119,9 @@
 
 ## the colony makes food while it holds fewer meals than this per colonist
 # meal-reserve: 3
+
+## the colony gives a meal to a colonist at critical hunger who cannot afford one
+# rations: true
 
 ## building consumes materials, from the payer's stock first, then the builder's
 # construction-costs: true

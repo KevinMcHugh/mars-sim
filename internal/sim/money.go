@@ -101,6 +101,36 @@ func (w *World) mint(to Owner, amount Money) bool {
 	return true
 }
 
+// levyWealthTax collects the wealth levy: every tax-interval ticks each living
+// colonist pays wealth-tax percent of its money above tax-floor (at least a
+// dollar, if it holds any excess) to the treasury. It is money's way back:
+// the treasury pays wages, bounties and bids, and colonists who cook their
+// own scum rarely buy from it, so without a levy it only drained. A levy on
+// holdings rather than on income bites exactly when money stops moving, and
+// leaves the poor alone.
+func (w *World) levyWealthTax() {
+	if w.cfg.WealthTax <= 0 || w.cfg.TaxInterval <= 0 || w.tick%w.cfg.TaxInterval != 0 {
+		return
+	}
+	for _, id := range w.entityIDsSorted() {
+		e := w.entities[id]
+		if e.Kind != Colonist || !e.Alive() {
+			continue
+		}
+		excess := e.wallet - Money(w.cfg.TaxFloor)
+		if excess <= 0 {
+			continue
+		}
+		due := excess * Money(w.cfg.WealthTax) / 100
+		if due < 1 {
+			due = 1
+		}
+		if w.transfer(ColonistOwner(id), Community, due) {
+			w.taxCollected += due
+		}
+	}
+}
+
 // freezeWallet takes a dying colonist's money out of circulation. It is kept
 // on the frozen record (EntityView.Wallet) and counted in moneyFrozen, but
 // nobody can spend it: inheritance needs families-as-owners, which is

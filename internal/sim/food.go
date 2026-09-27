@@ -160,7 +160,53 @@ func (w *World) runFoodFocus(e *Entity) bool {
 	if w.podsFeed() {
 		return false
 	}
+	if w.tryRation(e) && w.tryStartEating(e) {
+		w.runJob(e)
+		return true
+	}
 	w.hungryWithoutFood(e)
+	return true
+}
+
+// tryRation gives a colonist at critical hunger that could not buy a meal one
+// of the colony's, from the nearest reachable depot holding one, and reports
+// whether it did. The meal changes hands on the depot's ledger (taken off the
+// colony's ask first, since goods on offer are in escrow); the ordinary
+// eating job then fetches it.
+//
+// It is a lifeline, not a living: only at critical hunger, and only after
+// buying failed. Late in long runs, colonists with a few dollars — less than a
+// meal — starved a few tiles from shelves holding a hundred of the colony's
+// meals, scraping scum for a supper they would not live to cook.
+func (w *World) tryRation(e *Entity) bool {
+	if !w.cfg.Rations || e.needPhase[NeedFood] != NeedCritical {
+		return false
+	}
+	room := w.roomOf(e.Pos)
+	var best Point
+	found := false
+	for _, p := range w.mealDepots() {
+		c := w.storageContainers[p]
+		if c.held(Community, Meal)+w.openQty(Ask, Meal, p, Community) == 0 ||
+			!w.canUseFixture(e, p) || !w.taskReachable(p, room) {
+			continue
+		}
+		if !found || e.Pos.Chebyshev(p) < e.Pos.Chebyshev(best) ||
+			(e.Pos.Chebyshev(p) == e.Pos.Chebyshev(best) && lessPoint(p, best)) {
+			best, found = p, true
+		}
+	}
+	if !found {
+		return false
+	}
+	c := w.storageContainers[best]
+	w.withdrawColonyAsks(Meal, best)
+	given := c.moveLine(Community, ColonistOwner(e.ID), Meal, 1)
+	w.offerColonyMeals(best) // the rest go back on sale
+	if !given {
+		return false
+	}
+	w.rationsGiven++
 	return true
 }
 
@@ -168,9 +214,16 @@ func (w *World) runFoodFocus(e *Entity) bool {
 // safety net. Waiting by an empty locker helps nobody, so whenever it picks
 // new work it picks food work first — cooking, then scraping scum, whatever
 // the colony's stock says — and otherwise keeps working. A job already under
-// way is left to finish rather than dropped mid-tile. It checks for food again
-// every turn, since runFoodFocus runs first.
+// way is left to finish rather than dropped mid-tile, until hunger is
+// pressing: then anything but feeding itself is dropped (feedingItself). Left
+// to finish, a long dig or haul let colonists starve with their own scum
+// sitting in a free scumhouse; waiting for critical hunger left too little
+// time to scrape, haul, and cook. It checks for food again every turn, since
+// runFoodFocus runs first.
 func (w *World) hungryWithoutFood(e *Entity) {
+	if workJob(e.Job) && e.needPhase[NeedFood] >= NeedPressing && !w.feedingItself(e) {
+		w.clearJob(e)
+	}
 	if !workJob(e.Job) {
 		w.clearJob(e)
 		if !w.tryAssignFoodWork(e, true) && !w.tryEmergencyScumhouse(e) {
@@ -184,6 +237,18 @@ func (w *World) hungryWithoutFood(e *Entity) {
 	}
 	e.State = Idle
 	w.wanderStep(e)
+}
+
+// feedingItself reports whether e's job is making food it will own: cooking
+// its own inputs, or scraping scum to keep.
+func (w *World) feedingItself(e *Entity) bool {
+	switch e.Job {
+	case JobCraft:
+		return e.craftFor == ColonistOwner(e.ID)
+	case JobScrape:
+		return e.scrapeKeep
+	}
+	return false
 }
 
 // tryEmergencyScumhouse is the scarcity version of the safety net's emergency

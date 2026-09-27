@@ -170,3 +170,54 @@ func openFloor(t *testing.T, w *World) Point {
 	t.Fatal("no open floor")
 	return Point{}
 }
+
+// The wealth levy takes wealth-tax percent of what a colonist holds above
+// tax-floor, every tax-interval ticks, and nothing from anyone at or below
+// the floor. The money goes to the treasury, so the supply is unchanged.
+func TestTheWealthLevyTaxesOnlyTheExcess(t *testing.T) {
+	cfg := testConfig()
+	cfg.StartColonists, cfg.StartAliens, cfg.StartCats, cfg.StartRats = 0, 0, 0, 0
+	cfg.WealthTax, cfg.TaxFloor, cfg.TaxInterval = 2, 300, 100
+	w := newTestWorld(t, cfg)
+	rich := w.spawn(Colonist, Point{5, 5})
+	poor := w.spawn(Colonist, Point{7, 5})
+	w.transfer(Community, ColonistOwner(rich.ID), 1000-rich.wallet)
+	w.transfer(Community, ColonistOwner(poor.ID), 300-poor.wallet)
+	richBefore, poorBefore, treasury := rich.wallet, poor.wallet, w.treasury
+
+	w.tick = 99
+	w.levyWealthTax()
+	if rich.wallet != richBefore {
+		t.Fatal("the levy ran between intervals")
+	}
+	w.tick = 100
+	w.levyWealthTax()
+	due := (richBefore - 300) * 2 / 100
+	if rich.wallet != richBefore-due || poor.wallet != poorBefore || w.treasury != treasury+due {
+		t.Fatalf("rich %v→%v, poor %v→%v, treasury %v→%v; want the rich to pay %v and the poor nothing",
+			richBefore, rich.wallet, poorBefore, poor.wallet, treasury, w.treasury, due)
+	}
+	assertMoneyConserved(t, w)
+}
+
+// A 20-colonist colony used to drain its treasury by tick 20000: the colony
+// only paid out, so it stopped buying biomatter and most of the colony
+// starved. The wealth levy is money's way back.
+func TestTheTreasuryOutlastsALongRun(t *testing.T) {
+	if testing.Short() {
+		t.Skip("long run")
+	}
+	cfg := DefaultConfig()
+	cfg.Seed, cfg.StartColonists, cfg.Width, cfg.Height = 9, 20, 200, 200
+	w := NewEngine(cfg).world
+	for i := 0; i < 30000; i++ {
+		w.step()
+		if w.tick > 1000 && w.treasury <= 0 {
+			t.Fatalf("tick %d: the treasury ran dry (wallets hold %v)", w.tick, w.moneyInCirculation()-w.treasury)
+		}
+	}
+	if w.starved > 2 {
+		t.Fatalf("%d of 20 colonists starved by tick 30000", w.starved)
+	}
+	assertMoneyConserved(t, w)
+}

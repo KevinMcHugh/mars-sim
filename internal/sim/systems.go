@@ -37,6 +37,7 @@ func (w *World) step() {
 		w.nextPlanTick = w.tick + planInterval
 	}
 	w.runMarket()         // expire stale orders; top up the colony's standing bids
+	w.levyWealthTax()     // money's way back to the treasury
 	w.rebuildBuildTiles() // reflect this tick's completions and any new project
 	w.runDirector()       // fire any scripted occurrence whose tick has arrived
 	w.samplePopulation()  // the Population tab's history (read-only bookkeeping)
@@ -1554,12 +1555,17 @@ func (w *World) travelTo(e *Entity, target Point) (arrived, ok bool) {
 // it, and in a dead-end corridor, like a narrow silo room's, the end is the
 // only tile that reaches the depot: a colonist eating its supper on it
 // starved the queue behind it, three tiles from meals they had paid for.
-// Anyone working the tile (a builder, a cook, someone fetching) keeps it.
-// It reports whether anyone moved.
+// Anyone working the tile (a builder, a cook, someone fetching) keeps it; a
+// cat or a rat always moves. It reports whether anyone moved.
 func (w *World) nudgeLoiterer(e *Entity, end Point) bool {
 	b := w.entityAt(end)
-	if b == nil || b.ID == e.ID || b.Kind != Colonist {
+	if b == nil || b.ID == e.ID || b.Kind == Alien {
 		return false
+	}
+	if b.Kind != Colonist {
+		// A cat or a rat never works a tile. A cat that settled on a narrow
+		// silo's one access tile starved eleven colonists queued behind it.
+		return w.stepAside(b)
 	}
 	switch {
 	case b.Job == JobNone, b.Job == JobTalk, b.Job == JobEat && b.eat == eatMeal:

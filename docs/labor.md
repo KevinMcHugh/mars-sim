@@ -110,9 +110,11 @@ now buys biomatter outright with standing bids (see
 | `toilet-fee` | 2 (0 makes a house's toilet private) |
 
 A typical room costs the colony about a hundred dollars, so the founding grant
-funds some fifty rooms, less what it spends on ore at the silo. In default
-colonies over 10000 ticks, wallets settled between about 170 and 300 and the
-occasional colonist bought itself a house.
+funds some fifty rooms, less what it spends on ore at the silo. Wallets don't
+settle on their own: the treasury only paid out, and on seed 9 with 6
+colonists the average wallet grew from about $315 at tick 10,000 to about
+$450 at 40,000 while the treasury fell. The wealth levy (see
+[money.md](./money.md)) is what brings money back.
 
 ## Why it is this way
 
@@ -122,8 +124,11 @@ occasional colonist bought itself a house.
 - **All or nothing.** Paying for half a room produces half a room. An issuer
   that cannot afford the whole thing waits.
 - **Emergency builds stay unpaid.** They are a colonist meeting its own need,
-  not work for anyone else — and they are what keeps an empty treasury from
-  becoming a famine.
+  not work for anyone else. They are not enough to keep an empty treasury from
+  becoming a famine: with 20 colonists and $0 in the treasury, most of the
+  colony starved. What prevents that is money coming back (the wealth levy,
+  [money.md](./money.md)), colonists turning to their own food in time, and
+  rations for the broke ([food.md](./food.md)).
 - **Pay on completion, not on claim.** A claim is released when a colonist
   drops a task (fleeing, eating); paying then would pay for nothing.
 - **Public works are not chosen by pay.** Everyone still takes the room

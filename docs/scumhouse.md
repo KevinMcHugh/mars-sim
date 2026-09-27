@@ -193,7 +193,17 @@ Later ones are ordinary public works that need an aisle
   room is a dead-end corridor one tile wide. Colonists fetched a meal there,
   stepped a tile back and ate it in the corridor, and the queue behind them
   starved with meals they had paid for three tiles away. Anyone working the
-  tile, like a cook or a builder, keeps it.
+  tile, like a cook or a builder, keeps it. A cat or a rat always moves: a cat
+  that settled on a narrow silo's one access tile starved eleven colonists
+  queued behind it.
+- **Colony cooks work a batch.** A cook of the colony's stock starts the same
+  recipe again rather than leaving (`cooksOn`), up to `cookBatch` recipes in
+  a row. It stops when the colony stops wanting food, the stove runs out of
+  inputs, the cook gets hungry, or someone is coming to fetch from the stove.
+  A cook used to walk across the colony for one twelve-tick recipe and leave.
+  Late in long runs, twenty colonists shared two stoves that stood idle most
+  of the time, and ate meals faster than the few passing cooks made them,
+  while 238 units of scum sat in the depots.
 
   Treating chests and scumhouses as facility access tiles, where nobody idles
   (`onFacilityAccess`), looked like the obvious fix and made things far worse:
