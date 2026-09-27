@@ -57,7 +57,14 @@ button { cursor: pointer; }
   border-bottom: 1px solid rgba(255, 220, 190, 0.35);
 }
 
-.brand { max-width: 640px; }
+.brand {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  max-width: 640px;
+}
+
+.logo { flex: none; width: 64px; height: 64px; }
 
 .eyebrow {
   margin: 0 0 6px;

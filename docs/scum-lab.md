@@ -11,6 +11,7 @@ Focus scoring and colonist rolls go through a WASM build of the sim. Do not reim
 ## Source
 
 - [`tools/scum-lab/`](../tools/scum-lab/) — the page. `shell.js` is hash routing and the YAML dialog. `tools/registry.js` is the tool list. `shared/store.js` is the one config. `shared/sim.js` talks to WASM. `shared/yaml.js` reads and writes the file the lab emits. `shared/defaults.js` is the reset snapshot.
+- [`tools/scum-lab/brand/`](../tools/scum-lab/brand/) — `logo.svg` (masthead) and `favicon.svg`. The favicon is a separate, simpler drawing on a 32px grid: the logo's bubbles and thin strokes blur into mush at 16px. Colors are the theme's amber and `--bg` rust; keep it free of white outlines.
 - [`tools/scum-lab/build.sh`](../tools/scum-lab/build.sh) — builds the module. `--open` serves port 8765 and opens the page.
 - [`cognition.yaml`](../cognition.yaml) — what the tools import and export.
 
