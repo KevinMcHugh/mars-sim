@@ -410,11 +410,10 @@ type Entity struct {
 	// commissioned records that this colonist has commissioned its house, so
 	// it commissions one at most (see commissionHouses).
 	commissioned bool
-	// cargo records whose the carried items of each kind are, when they are
-	// not the carrier's own: biomatter gathered as community work is the
-	// colony's until it reaches the scumhouse. The zero Owner means "the
-	// carrier's". See carriedOwner and docs/property.md.
-	cargo [numItemKinds]Owner
+	// cargo records which carried units are not the carrier's own: the
+	// colony's ore a builder fetched, the meals a hauler is moving. Every unit
+	// on no line is the carrier's. See cargo.go and docs/property.md.
+	cargo []cargoLine
 	// kin is the colonist's node in the colony's family tree (colonists only; 0
 	// for aliens). Relations caches the derived display ties until the family
 	// tree changes. See relationships.go.

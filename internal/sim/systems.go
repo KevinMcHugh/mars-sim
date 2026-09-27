@@ -1012,9 +1012,10 @@ func (w *World) jobStore(e *Entity) {
 	// cargo record says whose it is, so the deposit is credited to its owner:
 	// the chest is shared, the ore stays theirs.
 	for _, stack := range stacks {
-		container.credit(w.carriedOwner(e, stack.Kind), stack.Kind, stack.Count)
+		for _, share := range e.unloadCargo(stack.Kind) {
+			container.credit(share.Owner, stack.Kind, share.N)
+		}
 		e.Inventory.RemoveAll(stack.Kind)
-		e.cargo[stack.Kind] = Owner{}
 	}
 	e.State = Storing
 	w.log.add(fmt.Sprintf("%s unloads materials into storage at (%d, %d).",

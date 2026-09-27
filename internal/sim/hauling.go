@@ -89,8 +89,8 @@ func (w *World) planArbitrage(e *Entity, b, ask *Order, src Point) bool {
 func (w *World) tryAssignHaul(e *Entity) bool {
 	room := w.roomOf(e.Pos)
 	for _, o := range w.sortedWork(func(o *WorkOrder) bool { return o.Kind == WorkHaul }) {
-		if e.Inventory.Count(o.Item) > 0 && e.cargo[o.Item] == o.Issuer {
-			w.startHaul(e, o, carryDeliver, e.Inventory.Count(o.Item))
+		if n := e.carriedFor(o.Issuer, o.Item); n > 0 && o.Issuer != ColonistOwner(e.ID) {
+			w.startHaul(e, o, carryDeliver, n)
 			return true
 		}
 		if id := w.haulClaims[o.ID]; id != 0 && id != e.ID {
@@ -155,7 +155,12 @@ func (w *World) refreshSiloStock() {
 			total += o.Units
 		}
 	}
-	want := w.cfg.SiloMealStock - w.storageContainers[silo].held(Community, Meal) - total
+	// Meals on sale at the silo are in the ask's escrow, off the colony's
+	// ledger line, but still there: counting only the line re-ordered a haul
+	// every time the colony put the last one on sale, and a silo meant to keep
+	// 3 held 6.
+	want := w.cfg.SiloMealStock - w.storageContainers[silo].held(Community, Meal) -
+		w.openQty(Ask, Meal, silo, Community) - total
 	if want <= 0 {
 		return
 	}

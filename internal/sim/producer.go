@@ -371,7 +371,6 @@ func (w *World) advancePlan(e *Entity, p *plan) bool {
 		if e.Inventory.Count(CaveScum) > 0 {
 			e.Job, e.Target, e.scrape, e.Progress = JobScrape, p.depot, scrapeHaul, 0
 			e.scrapeFor, e.scrapeQty = me, p.qty
-			e.cargo[CaveScum] = me
 			return true
 		}
 		w.dropPlan(p) // the scrape was abandoned before it gathered anything
@@ -382,8 +381,9 @@ func (w *World) advancePlan(e *Entity, p *plan) bool {
 			w.dropPlan(p)
 			return false
 		}
-		if e.Inventory.Count(p.item) > 0 {
-			w.assignCarry(e, p, p.depot, carryDeliver, min(p.qty, e.Inventory.Count(p.item)))
+		// Only its own: units it carries for anyone else are not its to sell.
+		if n := e.ownCarried(p.item); n > 0 {
+			w.assignCarry(e, p, p.depot, carryDeliver, min(p.qty, n))
 			return true
 		}
 		if p.crafted {
@@ -458,17 +458,17 @@ func (w *World) jobCarry(e *Entity) {
 			return
 		}
 		e.Inventory.Add(e.carryItem, n)
-		e.cargo[e.carryItem] = e.carryFor
+		e.addCargo(owner, e.carryItem, n)
 		e.carryQty, e.Target, e.carry = n, e.carryTo, carryDeliver
 		return
 	}
-	n := min(e.carryQty, e.Inventory.Count(e.carryItem))
+	n := min(e.carryQty, e.carriedFor(owner, e.carryItem))
 	if n <= 0 || !c.Inventory.Add(e.carryItem, n) {
 		w.clearJob(e)
 		return
 	}
 	e.Inventory.Remove(e.carryItem, n)
-	e.cargo[e.carryItem] = Owner{}
+	e.takeCargo(owner, e.carryItem, n)
 	c.credit(owner, e.carryItem, n)
 	if e.carryWork != 0 {
 		w.finishHaul(e, n)

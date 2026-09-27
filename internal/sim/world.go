@@ -653,9 +653,16 @@ type World struct {
 	// can tell a neighbor's side hull it may share. Lookups only; never ranged.
 	pods               map[Point]bool
 	restrictedFixtures [numTerrains]int
-	fixtureRev         uint64
-	snapFixtureRev     uint64
-	snapFixtures       []FixtureView
+	// ownedFixtures indexes the restricted fixtures by owner, and
+	// paidFixtures the pay-per-use ones by terrain, so facilityReachable
+	// checks only those a colonist may use instead of every bunk in the
+	// colony, every tick, for every sleeper. Only ever read by "is any of
+	// these reachable", so their map order decides nothing.
+	ownedFixtures  map[Owner]map[Point]bool
+	paidFixtures   [numTerrains]map[Point]bool
+	fixtureRev     uint64
+	snapFixtureRev uint64
+	snapFixtures   []FixtureView
 	// buildTiles holds every not-yet-built task tile, rebuilt each tick. Colonists
 	// route around these so a crowd never parks on a tile a builder needs clear —
 	// otherwise a facility mobbed by its neighbors could never be raised. See
@@ -706,12 +713,16 @@ type World struct {
 	// The order book (see market.go): every open order by ID, the books by
 	// (item, depot), the most recent trades, and the cached location of the
 	// colony's silo (valid while marketDepotRev == fixtureRev+1).
-	orders         map[OrderID]*Order
-	workOrders     map[OrderID]*WorkOrder
-	books          map[bookKey]*book
-	trades         []Trade
-	nextOrderID    OrderID
-	marketDepotAt  Point
+	orders        map[OrderID]*Order
+	workOrders    map[OrderID]*WorkOrder
+	books         map[bookKey]*book
+	trades        []Trade
+	nextOrderID   OrderID
+	marketDepotAt Point
+	// siloWas is the silo the market's upkeep last saw (siloSeen once there
+	// has been one), so it can retire the colony's orders at an old one.
+	siloWas        Point
+	siloSeen       bool
 	marketDepotOK  bool
 	marketDepotRev uint64
 	// Valuation and production (see valuation.go, producer.go): each item's
@@ -1307,6 +1318,12 @@ func (w *World) remove(id EntityID, cause string) {
 		dead.Dead, dead.DiedTick, dead.Cause = true, w.tick, cause
 		w.deceasedColonists[id] = dead
 		w.publishedDeceased = nil // the next snapshot publishes a fresh copy
+		// Release whatever the job had claimed — a haul order, a stove, a
+		// scum patch, a task — after the views above recorded it. Only
+		// starvation used to clear the job first: a hauler an alien killed
+		// blocked its haul order forever (haul orders never expire), and a
+		// cook killed mid-recipe locked its scumhouse.
+		w.clearJob(e)
 	}
 	w.occ.set(e.Pos.X, e.Pos.Y, 0)
 	w.kindCounts[e.Kind]--

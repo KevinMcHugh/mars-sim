@@ -225,3 +225,43 @@ func TestPodsInARowSharePartyWalls(t *testing.T) {
 		t.Fatalf("only %d of 10 pods share a wall with the next; want them packed in rows", shared)
 	}
 }
+
+// A pod never lands close enough to a hidden cavern to reveal it: a landing
+// that broke through would flood the cavern into view and roll its nests
+// with nobody digging.
+func TestPodsNeverRevealAHiddenCavern(t *testing.T) {
+	cfg := testConfig()
+	cfg.StartColonists, cfg.StartAliens, cfg.StartCats, cfg.StartRats = 0, 0, 0, 0
+	cfg.Width, cfg.Height = 60, 30
+	w := newTestWorld(t, cfg)
+	for y := 0; y < w.Height; y++ {
+		for x := 0; x < w.Width; x++ {
+			w.SetTerrain(Point{x, y}, Rock)
+		}
+	}
+	var cavern []Point
+	for y := 5; y <= 25; y++ {
+		for x := 30; x <= 45; x++ {
+			p := Point{x, y}
+			w.tiles[w.index(p)].Explored = false
+			w.carveHidden(p)
+			cavern = append(cavern, p)
+		}
+	}
+	// The colony's corridor runs right alongside the cavern wall.
+	for y := 3; y < 28; y++ {
+		w.SetTerrain(Point{27, y}, Floor)
+	}
+	w.refreshSpatial()
+	for i := 0; i < 6; i++ {
+		if w.arrive(false) == nil {
+			break
+		}
+		w.refreshSpatial()
+	}
+	for _, p := range cavern {
+		if w.discovered(p) {
+			t.Fatalf("a pod landing revealed the hidden cavern at %v", p)
+		}
+	}
+}

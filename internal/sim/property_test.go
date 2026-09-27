@@ -296,3 +296,50 @@ func TestSnapshotPublishesFixtures(t *testing.T) {
 		t.Fatal("publishing a change rewrote an older frame")
 	}
 }
+
+// The restricted-fixture index agrees with the fixture records, and the fast
+// facilityReachable with the old scan over every fixture of the kind.
+func TestTheOwnedFixtureIndexMatchesTheRecords(t *testing.T) {
+	cfg := DefaultConfig()
+	cfg.Seed, cfg.StartColonists, cfg.StartAliens, cfg.CavernNestPercent = 5, 8, 0, 0
+	cfg.Width, cfg.Height = 80, 50
+	w := newTestWorld(t, cfg)
+	for i := 0; i < 1500; i++ {
+		w.step()
+	}
+	indexed := 0
+	for p, f := range w.fixtures {
+		inOwned := w.ownedFixtures[f.Owner][p]
+		inPaid := w.paidFixtures[f.Terrain][p]
+		if inOwned != (f.Access != AccessCommunal) || inPaid != (f.Access == AccessPaid) {
+			t.Fatalf("fixture %v (%v, %v, owner %v) indexed owned=%v paid=%v", p, f.Terrain, f.Access, f.Owner, inOwned, inPaid)
+		}
+		if inOwned {
+			indexed++
+		}
+	}
+	if indexed == 0 {
+		t.Fatal("no restricted fixtures to check: crash pods should have made some")
+	}
+	for _, id := range w.entityIDsSorted() {
+		e := w.entities[id]
+		if e.Kind != Colonist {
+			continue
+		}
+		for _, kind := range []Terrain{Bed, Toilet} {
+			slow := false
+			if field := w.facilityField(kind); field != nil && field.at(e.Pos) >= 0 {
+				slow = true
+			}
+			room := w.roomOf(e.Pos)
+			for p := range w.facilityTiles[kind] {
+				if !w.communalFixture(p) && w.canUseFixture(e, p) && w.taskReachable(p, room) {
+					slow = true
+				}
+			}
+			if got := w.facilityReachable(e, kind); got != slow {
+				t.Fatalf("colonist %d, %v: facilityReachable = %v, the full scan says %v", id, kind, got, slow)
+			}
+		}
+	}
+}

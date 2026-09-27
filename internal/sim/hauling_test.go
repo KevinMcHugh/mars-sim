@@ -149,13 +149,35 @@ func TestPublicWorksUseTheColonysStock(t *testing.T) {
 			break
 		}
 	}
-	if missing := missingMaterials(e, w.buildCost(Storage)); len(missing) > 0 {
+	if missing := missingMaterials(e, w.buildCost(Storage), materialPayers(e, Community)); len(missing) > 0 {
 		t.Fatalf("the builder still lacks %v", missing)
 	}
 	if got := c.held(Community, IronOre); got != 11 {
 		t.Fatalf("the colony holds %d iron at the silo, want 11 after one went to the chest", got)
 	}
-	if e.cargo[IronOre] != Community {
+	if e.carriedFor(Community, IronOre) == 0 {
 		t.Fatal("the fetched iron is not marked the colony's until it is built with")
+	}
+}
+
+// The silo stays at silo-meal-stock after it is stocked. Meals the colony puts
+// on sale there move into the ask's escrow; counting only its ledger line
+// read them as gone and ordered more, and a silo meant to hold 3 held 6.
+func TestTheSiloIsNotOverstocked(t *testing.T) {
+	w, house, silo, _ := producerWorld(t, 2)
+	w.cfg.SiloMealStock = 3
+	c := w.storageContainers[house]
+	c.Inventory.Add(Meal, 12)
+	c.credit(Community, Meal, 12)
+	atSilo := func() int {
+		return w.storageContainers[silo].held(Community, Meal) + w.openQty(Ask, Meal, silo, Community)
+	}
+	most := 0
+	stepFed(t, w, 3000, func() bool {
+		most = max(most, atSilo())
+		return false
+	})
+	if most != 3 {
+		t.Fatalf("the silo held up to %d of the colony's meals, want exactly silo-meal-stock (3)", most)
 	}
 }

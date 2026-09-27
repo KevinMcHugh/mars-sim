@@ -74,8 +74,8 @@ func (w *World) chooseFacilityReference(e *Entity, kind Terrain) Point {
 				continue
 			}
 			accessible = true
-			if w.entityAt(access) != nil {
-				congested = true
+			if o := w.entityAt(access); o != nil && o != e {
+				congested = true // e itself on an access tile is no queue
 			}
 			// A committed user in the approach counts as a queue even when
 			// the access tile itself is currently free. This — not mere

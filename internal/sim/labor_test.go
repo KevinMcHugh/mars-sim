@@ -245,3 +245,79 @@ func TestAColonyWithNoMoneyStillFeedsItself(t *testing.T) {
 		}
 	}
 }
+
+// A colonist killed mid-job releases what the job claimed: a haul order, a
+// stove, a scum patch. Only starvation used to clear the job first.
+func TestDeathReleasesAJobsClaims(t *testing.T) {
+	w := propertyWorld(t)
+	house, patch := Point{10, 6}, Point{15, 6}
+	w.SetTerrain(house, Scumhouse)
+	w.refreshSpatial()
+	cook := w.spawn(Colonist, Point{10, 7})
+	cook.Job, cook.Target = JobCraft, house
+	w.workshopClaims[house] = cook.ID
+	scraper := w.spawn(Colonist, Point{14, 7})
+	scraper.Job, scraper.Target, scraper.scrape = JobScrape, patch, scrapeGather
+	w.scumClaims[patch] = scraper.ID
+	hauler := w.spawn(Colonist, Point{12, 9})
+	hauler.Job, hauler.carryWork = JobCarry, 77
+	w.haulClaims[77] = hauler.ID
+
+	for _, e := range []*Entity{cook, scraper, hauler} {
+		w.remove(e.ID, "bitten")
+	}
+	if len(w.workshopClaims) != 0 || len(w.scumClaims) != 0 || len(w.haulClaims) != 0 {
+		t.Fatalf("claims outlived their claimants: workshops %v, scum %v, hauls %v", w.workshopClaims, w.scumClaims, w.haulClaims)
+	}
+}
+
+// A project finished without every task's order being paid — a dig tile
+// mined out by a miner who did not hold the task — refunds what is left when
+// it is pruned, rather than leaving the escrow in orders nobody will close.
+func TestAFinishedProjectRefundsUnpaidOrders(t *testing.T) {
+	cfg := testConfig()
+	cfg.StartAliens = 0
+	w := newTestWorld(t, cfg)
+	before := w.treasury + w.workEscrowed()
+	w.planRooms()
+	if len(w.projects) == 0 || w.workEscrowed() == 0 {
+		t.Fatal("no funded project planned")
+	}
+	p := w.projects[0]
+	for _, task := range p.tasks {
+		w.SetTerrain(task.pos, task.terrain) // done by nobody the orders pay
+	}
+	w.pruneProjects()
+	for _, q := range w.projects {
+		if q == p {
+			t.Fatal("the finished project was not pruned")
+		}
+	}
+	for _, task := range p.tasks {
+		if task.order != nil && w.workOrders[task.order.ID] != nil {
+			t.Fatalf("order %d for %v is still open", task.order.ID, task.pos)
+		}
+	}
+	if got := w.treasury + w.workEscrowed(); got != before {
+		t.Fatalf("the colony has %v, want its %v back", got, before)
+	}
+	assertMoneyConserved(t, w)
+}
+
+// Without the safety net the first scumhouse is planned before anything else,
+// a colonist's house included.
+func TestAHouseWaitsForTheFirstScumhouse(t *testing.T) {
+	cfg := DefaultConfig()
+	cfg.Seed, cfg.StartAliens, cfg.CavernNestPercent = 42, 0, 0
+	cfg.Width, cfg.Height = 80, 50
+	w := newTestWorld(t, cfg)
+	rich := w.entities[w.entityIDsSorted()[0]]
+	w.transfer(Community, ColonistOwner(rich.ID), Money(cfg.HouseSavings))
+	w.planRooms()
+	if len(w.projects) == 0 || w.projects[0].name != scumhouseRoom.name {
+		t.Fatalf("planned %v first; want the scumhouse", projectNames(w.projects))
+	}
+	if rich.commissioned {
+		t.Fatal("a house was commissioned before the colony had a scumhouse")
+	}
+}

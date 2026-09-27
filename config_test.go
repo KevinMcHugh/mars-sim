@@ -275,3 +275,34 @@ func TestLeftoverArgumentsAreRejected(t *testing.T) {
 		t.Errorf("no leftover arguments: %v", err)
 	}
 }
+
+// Old flag names: -mice is -rats, and -pistols explains what replaced it.
+func TestOldFlagNamesStillMeanSomething(t *testing.T) {
+	cfg := sim.DefaultConfig()
+	fs := flag.NewFlagSet("mars-sim", flag.ContinueOnError)
+	fs.SetOutput(io.Discard)
+	bindConfigFlags(fs, &cfg)
+	if err := fs.Parse([]string{"-mice", "4"}); err != nil || cfg.StartRats != 4 {
+		t.Fatalf("-mice 4: err %v, rats %d", err, cfg.StartRats)
+	}
+	fs = flag.NewFlagSet("mars-sim", flag.ContinueOnError)
+	fs.SetOutput(io.Discard)
+	bindConfigFlags(fs, &cfg)
+	if err := fs.Parse([]string{"-pistols", "2"}); err == nil || !strings.Contains(err.Error(), "crash-pod-pistols") {
+		t.Fatalf("-pistols 2: error %v does not point to crash-pod-pistols", err)
+	}
+}
+
+// A patch's scum is published as one byte, so scum-max above 255 would wrap
+// and a full patch would vanish from the map.
+func TestScumMaxMustFitAByte(t *testing.T) {
+	cfg := sim.DefaultConfig()
+	cfg.ScumMax = 256
+	if err := validateConfig(cfg); err == nil || !strings.Contains(err.Error(), "scum-max") {
+		t.Fatalf("scum-max 256: error %v", err)
+	}
+	cfg.ScumMax = 255
+	if err := validateConfig(cfg); err != nil {
+		t.Fatalf("scum-max 255: %v", err)
+	}
+}

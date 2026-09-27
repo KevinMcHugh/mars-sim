@@ -93,12 +93,16 @@ type Model struct {
 	camReady     bool
 
 	mode            viewMode
-	selected        int      // roster: index into the ID-sorted entity list
-	jobSelected     int      // job board: index into the queued project list
-	storageSelected int      // storage details: index into Snapshot.Storages
-	marketSelected  int      // market: index into marketAccounts
-	loreSelected    int      // lore: index into Snapshot.AlienSpecies
-	menu            menuKind // an open spawn/build/filter picker, if any
+	selected        int // roster: index into the ID-sorted entity list
+	jobSelected     int // job board: index into the queued project list
+	storageSelected int // storage details: index into Snapshot.Storages
+	marketSelected  int // market: index into marketAccounts, as last drawn
+	// marketOwner is whose account is selected. The list re-sorts by balance
+	// every frame, so an index alone let the highlight jump to whoever moved
+	// into that row; the index is the fallback once that account is gone.
+	marketOwner  sim.Owner
+	loreSelected int      // lore: index into Snapshot.AlienSpecies
+	menu         menuKind // an open spawn/build/filter picker, if any
 
 	// inspecting turns map arrows from camera panning into one-tile cursor
 	// movement. The cursor persists when inspection closes.
@@ -643,19 +647,25 @@ func (m Model) handleStorageKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 // handleMarketKey navigates the accounts in the market tab.
 func (m Model) handleMarketKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	switch msg.String() {
-	case "esc":
+	if msg.String() == "esc" {
 		m.mode = modeMap
+		return m, nil
+	}
+	if m.latest == nil {
+		return m, nil
+	}
+	accounts := m.marketAccounts()
+	sel := m.marketSelection(accounts)
+	switch msg.String() {
 	case "up", "k":
-		m.marketSelected--
+		sel--
 	case "down", "j":
-		m.marketSelected++
+		sel++
 	case "home", "g":
-		m.marketSelected = 0
+		sel = 0
 	}
-	if m.latest != nil {
-		m.marketSelected = clamp(m.marketSelected, 0, len(m.marketAccounts())-1)
-	}
+	sel = clamp(sel, 0, len(accounts)-1)
+	m.marketSelected, m.marketOwner = sel, accounts[sel].owner
 	return m, nil
 }
 

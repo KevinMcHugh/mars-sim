@@ -238,6 +238,15 @@ func (w *World) pruneProjects() {
 			}
 		}
 		if done {
+			// A task can be done without its order being paid: a room's dig
+			// tiles are ordinary mining targets too, and a miner that does
+			// not hold the task still digs one out. Its order would then sit
+			// open forever, its escrow neither paid nor refunded.
+			for _, t := range p.tasks {
+				if t.order != nil && w.workOrders[t.order.ID] == t.order {
+					w.closeWork(t.order)
+				}
+			}
 			w.log.add("A " + p.name + " is complete.")
 			continue
 		}
@@ -418,7 +427,13 @@ func (w *World) planRooms() {
 		}
 		return
 	}
-	w.commissionHouses()
+	// A house waits for the colony's first scumhouse: without the safety net
+	// it is life support, planned before any other room, and a commission
+	// taking the only construction slot first put food behind somebody's
+	// bunk.
+	if w.podsFeed() || w.plannedFacilities(Scumhouse) > 0 {
+		w.commissionHouses()
+	}
 	if len(w.projects) >= w.maxConcurrentProjects() {
 		return
 	}

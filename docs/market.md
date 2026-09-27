@@ -88,6 +88,13 @@ Every `marketInterval` ticks, `runMarket` expires stale orders and has the
 colony top up a standing bid of `silo-bid-qty` units for each ore it buys, at
 the reference price, as far as the treasury stretches.
 
+**When the silo moves**, because a communal chest was built nearer the centre
+or the silo chest was claimed, `retireOldSilo` cancels the colony's orders at
+the old one and closes unclaimed haul orders bound for it. The colony's upkeep
+only looks at the current silo, and its standing orders never expire, so
+without this their escrow was stranded for good. In a test, one chest built at
+the centre doubled the money in escrow and left 64 iron bids open.
+
 ### Who trades what
 
 - **Miners sell ore.** A colonist whose load stops it mining takes what sells

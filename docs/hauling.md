@@ -74,7 +74,10 @@ A `WorkHaul` work order pays `Pay` per unit to move `Units` of the issuer's
 **The colony keeps meals at its silo.** `refreshSiloStock`, in the market's
 upkeep, posts haul orders at `haul-pay` a unit. They bring the colony's meals
 in from its scumhouses and their pantries, nearest first, until `silo-meal-stock` are there or on
-their way. The colony sells its meals at both ends (see
+their way. "There" includes meals on sale at the silo, which sit in the ask's
+escrow rather than on the colony's line. Counting only the line ordered
+another haul every time the colony put its last meal on sale, and a silo meant
+to hold 3 held 6 (`TestTheSiloIsNotOverstocked`). The colony sells its meals at both ends (see
 [scumhouse.md](./scumhouse.md)), so the haul first withdraws the scumhouse's
 asks to free the meals it needs from escrow. It doesn't stock the silo at all
 while anyone is queued for a meal (`anyoneWaitingForAMeal`): every meal then

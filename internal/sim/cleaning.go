@@ -294,10 +294,10 @@ func (w *World) incinerate(e *Entity) {
 	corpses := 0
 	for _, kind := range corpseKinds {
 		corpses += e.Inventory.RemoveAll(kind)
-		e.cargo[kind] = Owner{}
+		e.dropCargoOf(kind)
 	}
 	viscera := e.Inventory.RemoveAll(Viscera)
-	e.cargo[Viscera] = Owner{}
+	e.dropCargoOf(Viscera)
 	if corpses+viscera == 0 {
 		return
 	}

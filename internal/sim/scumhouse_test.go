@@ -230,7 +230,7 @@ func TestScrapersBringScumInForTheColony(t *testing.T) {
 	if got := w.storageContainers[house].held(Community, CaveScum); got != w.cfg.ScumMax {
 		t.Fatalf("scumhouse holds %d of the colony's scum, want %d", got, w.cfg.ScumMax)
 	}
-	if s.Inventory.Has(CaveScum) || s.cargo[CaveScum] != (Owner{}) {
+	if s.Inventory.Has(CaveScum) || s.foreignCargo(CaveScum) != 0 {
 		t.Fatal("the scraper kept scum, or its cargo record, after delivering")
 	}
 	if want := purse + Money(w.cfg.ScumMax)*Money(w.cfg.PriceCaveScum); s.wallet != want {

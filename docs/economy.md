@@ -128,7 +128,7 @@ identity and should keep none:
 | Thing | Where ownership lives |
 | --- | --- |
 | Fungible goods in a depot (ore, meals, biomatter) | The **depot ledger**: `(depot, owner, item) → count`. The container's physical stacks carry no owner. |
-| Goods a colonist is carrying | The carrier owns them unless the current job has a **cargo record** saying who they belong to (a hauler moving your ore). Carrying isn't owning. |
+| Goods a colonist is carrying | The carrier owns them, except units a **cargo record** says belong to someone else (a hauler moving your ore), unit by unit. Carrying isn't owning. |
 | Placed fixtures (beds, toilets, scumhouses, storage containers) | A sparse **fixture record** keyed by position, like `World.storageContainers`: owner plus access policy. |
 | Unique carried items (weapons) | The carrier, same as other carried goods, until a floor-item concept exists. |
 

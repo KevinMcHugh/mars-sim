@@ -24,6 +24,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"runtime/pprof"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -243,6 +244,29 @@ func bindConfigFlags(fs *flag.FlagSet, cfg *sim.Config) {
 			panic(fmt.Sprintf("mars-sim: setting %q has unsupported type %T", k.Name, k.Ptr))
 		}
 	}
+	// Old names: a renamed setting is the same flag under its old name; a
+	// retired one explains itself rather than reading as a typo. Sorted, so
+	// -help lists them the same way every run.
+	for _, old := range sortedKeys(sim.RenamedSettings) {
+		if f := fs.Lookup(sim.RenamedSettings[old]); f != nil {
+			fs.Var(f.Value, old, "old name for -"+sim.RenamedSettings[old])
+		}
+	}
+	for _, old := range sortedKeys(sim.RetiredSettings) {
+		why := sim.RetiredSettings[old]
+		fs.Func(old, "no longer a setting: "+why, func(string) error {
+			return fmt.Errorf("-%s is no longer a setting: %s", old, why)
+		})
+	}
+}
+
+func sortedKeys(m map[string]string) []string {
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	return keys
 }
 
 // cognitionPathFromArgs finds the -cognition value before the flag package runs.
@@ -450,6 +474,13 @@ func validateConfig(cfg sim.Config) error {
 		return fmt.Errorf("population counts cannot be negative")
 	case cfg.CrashPodMeals < 0 || cfg.CrashPodPistols < 0 || cfg.CrashPodShotguns < 0:
 		return fmt.Errorf("crash pod manifest counts cannot be negative")
+	case cfg.ScumMax < 0 || cfg.ScumMax > 255:
+		// A patch's amount is published as one byte (Snapshot.Scum); 256
+		// would wrap to 0 and a full patch would vanish from the map.
+		return fmt.Errorf("scum-max must be between 0 and 255 (got %d)", cfg.ScumMax)
+	case cfg.WealthTax < 0 || cfg.WealthTax > 100 || cfg.TaxFloor < 0 || cfg.TaxInterval < 0:
+		return fmt.Errorf("wealth-tax must be 0-100, and tax-floor and tax-interval cannot be negative (got %d, %d, %d)",
+			cfg.WealthTax, cfg.TaxFloor, cfg.TaxInterval)
 	case cfg.GraveyardSize < 0:
 		return fmt.Errorf("graveyard-size cannot be negative")
 	case cfg.LaborPrice < 0 || cfg.PlanMinProfit < 0 || cfg.PlanCandidates < 0 ||

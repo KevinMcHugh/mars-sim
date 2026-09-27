@@ -46,6 +46,20 @@ func (m Model) marketAccounts() []marketAccount {
 	return append(accounts, colonists...)
 }
 
+// marketSelection is the row of the selected account: the one whose owner was
+// selected, wherever the balances have sorted it to, or the last selected row
+// if that account is gone (a colonist who died).
+func (m Model) marketSelection(accounts []marketAccount) int {
+	if m.marketOwner.Kind != sim.OwnerNone {
+		for i, a := range accounts {
+			if a.owner == m.marketOwner {
+				return i
+			}
+		}
+	}
+	return clamp(m.marketSelected, 0, len(accounts)-1)
+}
+
 // renderMarket draws the market tab: every account and its balance, and the
 // colony's money supply. It grows with the economy — the order book and the
 // depot ledgers land here as they are built. See docs/money.md.
@@ -55,7 +69,7 @@ func (m Model) renderMarket() string {
 	rows := m.rosterRows()
 
 	accounts := m.marketAccounts()
-	sel := clamp(m.marketSelected, 0, len(accounts)-1)
+	sel := m.marketSelection(accounts)
 	listWidth, detailWidth := m.splitPanels(marketListWidth)
 	body := m.renderMarketList(accounts, sel, rows, listWidth)
 	if detailWidth > 0 {

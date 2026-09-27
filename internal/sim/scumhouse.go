@@ -493,7 +493,7 @@ func (w *World) jobScrape(e *Entity) {
 	e.Progress = 0
 	if w.takeScum(e.Target) {
 		e.Inventory.Add(CaveScum, 1)
-		e.cargo[CaveScum] = e.scrapeFor // the scraper's own unless set
+		e.addCargo(e.scrapeFor, CaveScum, 1) // the scraper's own unless set
 	}
 }
 
@@ -567,29 +567,19 @@ func (w *World) deliverBiomatter(e *Entity, c *StorageContainer) bool {
 	me := ColonistOwner(e.ID)
 	var mine []ItemStack
 	for _, s := range stacks {
-		owner := w.carriedOwner(e, s.Kind)
-		c.credit(owner, s.Kind, s.Count)
-		e.Inventory.RemoveAll(s.Kind)
-		e.cargo[s.Kind] = Owner{}
-		if owner == me {
-			mine = append(mine, s)
+		for _, share := range e.unloadCargo(s.Kind) {
+			c.credit(share.Owner, s.Kind, share.N)
+			if share.Owner == me {
+				mine = append(mine, ItemStack{s.Kind, share.N})
+			}
 		}
+		e.Inventory.RemoveAll(s.Kind)
 	}
 	if !e.scrapeKeep {
 		w.sellBiomatter(e, c, mine)
 	}
 	w.emitDone(e, ActionDeliver, NounScumhouse, "Brought %s to the scumhouse.", stackPhrase(stacks))
 	return true
-}
-
-// carriedOwner is whose the items of kind a colonist is carrying are: the
-// cargo record's owner, if a job put one there, and otherwise the carrier's
-// own. See docs/property.md.
-func (w *World) carriedOwner(e *Entity, kind ItemKind) Owner {
-	if o := e.cargo[kind]; o.Kind != OwnerNone {
-		return o
-	}
-	return ColonistOwner(e.ID)
 }
 
 // stackPhrase renders a load for a memory: "3 cave scum and 1 viscera".

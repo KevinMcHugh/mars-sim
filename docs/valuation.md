@@ -63,9 +63,10 @@ the bid was, in its name, and the ordinary eating job fetches it.
 ### The planner
 
 When a colonist looks for work, `assignWorkJob` asks `tryAssignProduce` just
-before mining. The planner reads `candidateBids`, every open bid for a
-**producible** good (scum, or any recipe's output), best price first. The list
-is memoized per tick. The planner considers the first `plan-candidates` it can
+before mining. The planner reads `candidateBids`, every open bid, best price
+first, then oldest. A plan might make what a bid wants, or, since E7, carry it
+in from a depot where it's cheaper (see [hauling.md](./hauling.md)), so the
+list is no longer only bids for producible goods. It's memoized per tick. The planner considers the first `plan-candidates` it can
 reach and use, skipping its own bids and bids that other plans already cover
 in full. For each one it reckons, one recipe level deep:
 

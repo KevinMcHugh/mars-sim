@@ -133,6 +133,13 @@ Five rules shape where pods end up, and each was learned the hard way:
   land "cleanly" out in the rock, open the cavern around their colonist, and
   strand it with no way back to the colony (it starved). Undiscovered floor is
   never part of a footprint and never counts as a way out in the margin.
+- **Nor anywhere a landing would reveal.** Landing discovers the footprint,
+  and `revealAround` reveals the ring around every tile it touches, so hidden
+  floor up to two tiles out (`podRevealReach`) was flooded into view. That
+  broke into the cavern and rolled its nests with nobody digging: on a 120×70
+  map with 6 colonists, repeated arrivals breached a cavern in 29 of 30
+  seeds. `hiddenFloorNear` rejects any such site
+  (`TestPodsNeverRevealAHiddenCavern`).
 
 The cavern is sized for its pods (`caveRadii`: ten tiles per settler plus the
 pod's footprint with margin, and never fewer than `minCaveRy` = 6 rows above

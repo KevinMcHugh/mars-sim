@@ -28,7 +28,8 @@ const (
 // a hungry builder eats its own food rather than finishing a pod for someone
 // else's gruel.
 func (w *World) tryStartEating(e *Entity) bool {
-	if e.Inventory.Has(Meal) {
+	// Only a meal of its own: a hauler's pockets may hold the colony's.
+	if e.ownCarried(Meal) > 0 {
 		w.clearJob(e)
 		e.Inventory.Remove(Meal, 1)
 		e.Job, e.eat, e.Progress = JobEat, eatMeal, 0
@@ -107,6 +108,7 @@ func (w *World) jobEat(e *Entity) {
 		// again as an interrupted meal — and so feed the colony forever.
 		e.eat = eatFetch
 		w.resetNeed(e, NeedFood)
+		w.cancelMealBids(ColonistOwner(e.ID)) // fed: stop queuing for another
 		w.emitDone(e, ActionEat, NounMeal, "Had a meal.")
 		w.clearJob(e)
 	}

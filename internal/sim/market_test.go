@@ -233,3 +233,54 @@ func TestHungryColonistsBuyWhatOthersSell(t *testing.T) {
 	}
 	assertMoneyConserved(t, w)
 }
+
+// When the silo moves — a chest built nearer the centre — the colony's
+// standing orders at the old one are cancelled, so their escrow comes home
+// instead of sitting in orders nothing will ever look at again.
+func TestTheColonyRetiresItsOrdersWhenTheSiloMoves(t *testing.T) {
+	w, silo, _ := marketWorld(t)
+	w.tick = marketInterval
+	w.runMarket()
+	if w.openQty(Bid, IronOre, silo, Community) == 0 {
+		t.Fatal("no standing bids at the first silo")
+	}
+	escrow := w.moneyEscrowed()
+	nearer := Point{w.Width / 2, w.Height / 2}
+	w.SetTerrain(nearer, Storage)
+	w.refreshSpatial()
+	if s, _ := w.marketDepot(); s != nearer {
+		t.Fatalf("the silo is %v, want the new chest at the centre %v", s, nearer)
+	}
+	w.tick += marketInterval
+	w.runMarket()
+	for _, o := range w.sortedOrders(func(o *Order) bool { return o.Actor == Community && o.Depot == silo }) {
+		t.Errorf("order %d (%v %v) still open at the old silo", o.ID, o.Side, o.Item)
+	}
+	if got := w.moneyEscrowed(); got > escrow {
+		t.Fatalf("escrow grew from %v to %v: the old silo's bids were not retired", escrow, got)
+	}
+	assertMoneyConserved(t, w)
+}
+
+// A colonist that buys or eats withdraws any meal bid it left queued, so it
+// is not sold a second meal it no longer wants.
+func TestEatingWithdrawsAQueuedMealBid(t *testing.T) {
+	w, silo, cs := marketWorld(t)
+	e := cs[0]
+	me := ColonistOwner(e.ID)
+	w.post(Bid, Meal, 1, 3, me, silo, 500) // queued earlier, nothing on sale
+	if !w.hasOpenMealBid(me) {
+		t.Fatal("no queued bid to begin with")
+	}
+	e.Inventory.Add(Meal, 1)
+	if !w.tryStartEating(e) {
+		t.Fatal("did not start eating its own meal")
+	}
+	for i := 0; i < 200 && e.Job == JobEat; i++ {
+		w.jobEat(e)
+	}
+	if w.hasOpenMealBid(me) {
+		t.Fatal("the queued meal bid outlived the meal")
+	}
+	assertMoneyConserved(t, w)
+}

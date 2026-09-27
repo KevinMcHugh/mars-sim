@@ -309,10 +309,33 @@ func (w *World) podSiteRock(o Point, designated map[Point]bool) (rock, marginRoc
 			touchesFloor = true
 		}
 	})
-	if blocked || !touchesFloor {
+	if blocked || !touchesFloor || w.hiddenFloorNear(o) {
 		return 0, 0, false
 	}
 	return rock, marginRock, true
+}
+
+// podRevealReach is how far past its footprint a landing pod reveals the map:
+// arrive discovers the footprint, and revealAround reveals the ring around
+// every tile it touches.
+const podRevealReach = 2
+
+// hiddenFloorNear reports whether any undiscovered floor lies within
+// podRevealReach of a pod's footprint at o. Landing there would break into a
+// natural cavern nobody dug to — flooding it into view and rolling its nests
+// (see caverns.md) — so an arrival wave could wake aliens with nobody
+// digging: on a 120x70 map with 6 colonists, repeated arrivals breached a
+// cavern in 29 of 30 seeds.
+func (w *World) hiddenFloorNear(o Point) bool {
+	for y := o.Y - podRevealReach; y < o.Y+podHeight+podRevealReach; y++ {
+		for x := o.X - podRevealReach; x < o.X+podWidth+podRevealReach; x++ {
+			p := Point{x, y}
+			if w.InBounds(p) && w.TerrainAt(p) == Floor && !w.discovered(p) {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // forEachPodMargin visits the one-tile ring around a pod whose top-left is o,

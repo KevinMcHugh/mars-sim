@@ -287,7 +287,7 @@ func (w *World) publishedScum() map[Point]uint8 {
 	for p := range w.exposedScum {
 		n := w.scumAt(p)
 		if n > 0 {
-			out[p] = uint8(n)
+			out[p] = uint8(min(n, math.MaxUint8)) // scum-max is validated to fit; never wrap
 		}
 		if regrow := w.cfg.ScumRegrowTicks; regrow > 0 && n < w.cfg.ScumMax {
 			s := w.scum[p]

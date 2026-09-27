@@ -131,6 +131,21 @@ $450 at 40,000 while the treasury fell. The wealth levy (see
   rations for the broke ([food.md](./food.md)).
 - **Pay on completion, not on claim.** A claim is released when a colonist
   drops a task (fleeing, eating); paying then would pay for nothing.
+- **A finished project closes its leftover orders.** A task can be finished
+  without its order being paid: a room's dig tiles are ordinary mining targets
+  too, and a miner that doesn't hold the task digs one out. `pruneProjects`
+  closes whatever orders are still open when it drops a finished project,
+  refunding the issuer. Before that, the escrow sat in orders nobody would ever
+  close, and the money audit couldn't see the leak because `workEscrowed`
+  still counted it.
+- **A dead colonist's claims die with it.** `remove` clears a colonist's job
+  (`clearJob`), releasing its haul order, stove, scum patch, or task. Only
+  starvation used to clear the job first. A hauler an alien killed blocked its
+  haul order forever, since haul orders never expire, and a cook killed
+  mid-recipe locked its scumhouse.
+- **A house waits for the first scumhouse.** With the safety net off,
+  `commissionHouses` doesn't run until a scumhouse is planned, so a commission
+  can't take the only construction slot ahead of the colony's food.
 - **Public works are not chosen by pay.** Everyone still takes the room
   planner's tasks in the planner's order; pay only lands in their wallets.
   Market work (filling bids) is chosen by profit, by the producer planner

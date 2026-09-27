@@ -379,11 +379,36 @@ func (w *World) runMarket() {
 	}
 	w.expireOrders()
 	w.prunePlans()
+	w.retireOldSilo()
 	w.refreshColonyBids()
 	w.refreshColonyAsks()
 	w.refreshBiomatterBids()
 	w.refreshSiloStock()
 	w.refreshColonyMealAsks()
+}
+
+// retireOldSilo cancels the colony's orders at the old silo when the silo
+// moves: a communal chest built nearer the centre, or the silo chest claimed.
+// The colony's upkeep only ever looks at the current silo, and its standing
+// orders never expire, so without this their escrow was stranded for good:
+// one chest built at the centre doubled the money in escrow and left 64 iron
+// bids open at the old silo. Unclaimed haul orders bound for it close too; a
+// haul already under way finishes where it was going.
+func (w *World) retireOldSilo() {
+	silo, ok := w.marketDepot()
+	old, had := w.siloWas, w.siloSeen
+	w.siloWas, w.siloSeen = silo, ok
+	if !had || (ok && silo == old) {
+		return
+	}
+	for _, o := range w.sortedOrders(func(o *Order) bool { return o.Actor == Community && o.Depot == old }) {
+		w.cancel(o)
+	}
+	for _, o := range w.sortedWork(func(o *WorkOrder) bool {
+		return o.Kind == WorkHaul && o.Issuer == Community && o.Pos == old && w.haulClaims[o.ID] == 0
+	}) {
+		w.closeWork(o)
+	}
 }
 
 // refreshColonyBids keeps the colony's standing bids for ore at the silo
@@ -478,6 +503,7 @@ func (w *World) tryBuyMeal(e *Entity) bool {
 			w.cancel(o) // buy now or not at all
 		}
 		if filled > 0 {
+			w.cancelMealBids(me) // a queued bid elsewhere would buy it a second
 			w.emitDone(e, ActionBuy, NounMeal, "Bought a meal for %v.", price)
 			return true
 		}
@@ -511,7 +537,7 @@ const (
 // surplusMeals is how many of its own meals e holds beyond meal-keep, across
 // every depot but the silo (meals already there are for sale or bought).
 func (w *World) surplusMeals(e *Entity, silo Point) int {
-	n := e.Inventory.Count(Meal)
+	n := e.ownCarried(Meal)
 	for p, c := range w.storageContainers {
 		if p != silo {
 			n += c.held(ColonistOwner(e.ID), Meal)
@@ -532,7 +558,7 @@ func (w *World) tryAssignSellMeals(e *Entity) bool {
 	if !w.taskReachable(silo, room) || w.surplusMeals(e, silo) <= 0 {
 		return false
 	}
-	if e.Inventory.Has(Meal) {
+	if e.ownCarried(Meal) > 0 {
 		e.Job, e.Target, e.sell, e.Progress = JobSell, silo, sellDeliver, 0
 		return true
 	}
@@ -589,16 +615,27 @@ func (w *World) jobSell(e *Entity) {
 		e.Target, e.sell = silo, sellDeliver
 		return
 	}
-	n := e.Inventory.Count(Meal)
+	n := e.ownCarried(Meal) // never meals it carries for anyone else
 	if n == 0 || !c.Inventory.Add(Meal, n) {
 		w.clearJob(e)
 		return
 	}
 	c.credit(me, Meal, n)
-	e.Inventory.RemoveAll(Meal)
+	e.Inventory.Remove(Meal, n)
 	w.sellAtMarket(e, silo, []ItemKind{Meal})
 	w.emitDone(e, ActionTrade, NounGoods, "Took %d meals to market.", n)
 	w.clearJob(e)
+}
+
+// cancelMealBids withdraws every meal bid actor has resting: it has eaten or
+// bought, and a bid left queued would buy it a meal it no longer wants, and
+// keep producers planning for demand already met.
+func (w *World) cancelMealBids(actor Owner) {
+	for _, o := range w.sortedOrders(func(o *Order) bool {
+		return o.Side == Bid && o.Item == Meal && o.Actor == actor
+	}) {
+		w.cancel(o)
+	}
 }
 
 // hasOpenMealBid reports whether actor already has a meal bid resting

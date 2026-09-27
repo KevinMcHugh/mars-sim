@@ -97,7 +97,10 @@ func (w *World) chooseFacility(e *Entity, kind Terrain) Point {
 func (w *World) facilityCongested(e *Entity, fac Point, reachable func(Point) bool) bool {
 	for _, d := range neighbors8 {
 		access := fac.Add(d.X, d.Y)
-		if w.Walkable(access) && reachable(access) && w.entityAt(access) != nil {
+		// Not e itself: a colonist standing at its own pod's door would
+		// otherwise see its own bunk as taken, flood the whole room looking
+		// for another, and settle on the same bunk anyway.
+		if o := w.entityAt(access); o != nil && o != e && w.Walkable(access) && reachable(access) {
 			return true
 		}
 	}

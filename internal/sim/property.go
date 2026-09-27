@@ -79,6 +79,7 @@ func (w *World) dropFixture(p Point) {
 	if f.Access != AccessCommunal {
 		w.restrictedFixtures[f.Terrain]--
 	}
+	w.unindexFixture(f)
 	delete(w.fixtures, p)
 	w.fixtureRev++
 }
@@ -93,7 +94,9 @@ func (w *World) setFixtureOwner(p Point, owner Owner, access Access) bool {
 		return false
 	}
 	wasRestricted, restricted := f.Access != AccessCommunal, access != AccessCommunal
+	w.unindexFixture(f)
 	f.Owner, f.Access = owner, access
+	w.indexFixture(f)
 	if wasRestricted != restricted {
 		if restricted {
 			w.restrictedFixtures[f.Terrain]++
@@ -109,6 +112,38 @@ func (w *World) setFixtureOwner(p Point, owner Owner, access Access) bool {
 	}
 	w.fixtureRev++
 	return true
+}
+
+// indexFixture adds a restricted fixture to ownedFixtures, and a paid one to
+// paidFixtures too; unindexFixture takes it out. Communal fixtures are in
+// neither: the shared flow field answers for them.
+func (w *World) indexFixture(f *Fixture) {
+	if f.Access == AccessCommunal {
+		return
+	}
+	if w.ownedFixtures == nil {
+		w.ownedFixtures = make(map[Owner]map[Point]bool)
+	}
+	if w.ownedFixtures[f.Owner] == nil {
+		w.ownedFixtures[f.Owner] = make(map[Point]bool)
+	}
+	w.ownedFixtures[f.Owner][f.Pos] = true
+	if f.Access == AccessPaid {
+		if w.paidFixtures[f.Terrain] == nil {
+			w.paidFixtures[f.Terrain] = make(map[Point]bool)
+		}
+		w.paidFixtures[f.Terrain][f.Pos] = true
+	}
+}
+
+func (w *World) unindexFixture(f *Fixture) {
+	if own := w.ownedFixtures[f.Owner]; own != nil {
+		delete(own, f.Pos)
+		if len(own) == 0 {
+			delete(w.ownedFixtures, f.Owner)
+		}
+	}
+	delete(w.paidFixtures[f.Terrain], f.Pos)
 }
 
 // communalFixture reports whether anyone may use the tile at p. A tile with no
@@ -166,9 +201,17 @@ func (w *World) facilityReachable(e *Entity, kind Terrain) bool {
 	if w.restrictedFixtures[kind] == 0 {
 		return false
 	}
+	// Only the restricted ones e may use: its own, and anyone's paid ones.
+	// This used to walk every fixture of the kind, and with every bunk a
+	// private pod bunk that was every sleeper times every bunk, every tick.
 	room := w.roomOf(e.Pos)
-	for p := range w.facilityTiles[kind] {
-		if !w.communalFixture(p) && w.canUseFixture(e, p) && w.taskReachable(p, room) {
+	for p := range w.ownedFixtures[ColonistOwner(e.ID)] {
+		if w.TerrainAt(p) == kind && w.taskReachable(p, room) {
+			return true
+		}
+	}
+	for p := range w.paidFixtures[kind] {
+		if w.canUseFixture(e, p) && w.taskReachable(p, room) {
 			return true
 		}
 	}

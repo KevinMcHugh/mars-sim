@@ -49,12 +49,26 @@ things rather than on them, by the kind of thing:
 | Goods a colonist is carrying, weapons included | nowhere: **what you carry is yours** |
 
 The carrier rule is the default. The exception is a **cargo record**
-(`Entity.cargo`, one owner per item kind): a job that carries someone else's
-goods marks them: goods hauled for hire, and building materials fetched from
-the colony's stock (see [hauling.md](./hauling.md)). Scum and biomatter are
-gathered on the gatherer's own account and sold to the colony at the
-scumhouse (see [scumhouse.md](./scumhouse.md)). `carriedOwner` reads the record, falling back
-to the carrier, and `jobStore` credits an unloaded stack to it.
+(`Entity.cargo`, see `cargo.go`): lines saying that *n* units of a kind in the
+pockets are someone else's. A job that carries someone else's goods adds a
+line (`addCargo`): goods hauled for hire, and building materials fetched from
+the colony's stock (see [hauling.md](./hauling.md)). Every unit on no line is
+the carrier's. Scum and biomatter are gathered on the gatherer's own account
+and sold to the colony at the scumhouse (see [scumhouse.md](./scumhouse.md)).
+
+- **Unloading** (`jobStore`, `deliverBiomatter`) splits a stack by owner with
+  `unloadCargo`: each line to its owner, the rest to the carrier.
+- **Eating, selling, and building** use only the units that are the
+  colonist's to use. Eating and selling use `ownCarried`. Building uses
+  `carriedFor` over `materialPayers`: the issuer's units first, then the
+  builder's own. `missingMaterials` counts the same way.
+
+The record used to be one owner per item kind, so every unit of a kind was
+taken to be the same owner's. A builder that fetched the colony's iron and
+then mined some of its own delivered all of it to the colony, unpaid. A
+hauler ate the colony's meal it was carrying, free. A planner sold colony
+meals from a closed haul order as its own. The colony's rock in a builder's
+pockets paid for its own emergency build.
 
 ### Fixtures
 
@@ -85,13 +99,21 @@ field, or it would lead everyone else to a bed they may not use. So:
 - `facilityReachable(e, kind)` replaces the old "does the field reach me?"
   check in the need focus, `jobUse`, and the starvation grace. It is true if the
   field reaches `e`, **or** `e` may use a restricted fixture of that kind in its
-  own room.
+  own room. It checks only the fixtures `e` owns (`ownedFixtures`) and anyone's
+  paid ones (`paidFixtures`), both kept by `setFixtureOwner` and
+  `dropFixture`. It used to walk every fixture of the kind. With every bunk a
+  private pod bunk, and `jobUse` asking every tick for every sleeper, that was
+  sleepers × bunks per tick.
 - `chooseFacility` and `chooseStorage` skip fixtures `e` may not use, and
   `jobUse` re-chooses if the fixture it committed to stops being usable.
   `chooseFacility`'s fast tiers read the shared field, which can't see a
   colonist's own bunk, so while any fixture of a kind is restricted it goes
   straight to its bounded search (see [needs.md](./needs.md)). That search
-  stops at the first usable free facility, usually the colonist's own.
+  stops at the first usable free facility, usually the colonist's own. A
+  colonist standing on an access tile doesn't count as a queue for that
+  facility (`facilityCongested`). Before that, a colonist at its own pod door
+  saw its bunk as taken, flooded the whole room (345 tiles per choice in a
+  test room), and settled on the same bunk anyway.
 - `jobUse`'s shortcut for a lone facility — just follow the field — applies only
   while no fixture of that kind is restricted, since the field would walk an
   owner past its own bunk to a shared one.
