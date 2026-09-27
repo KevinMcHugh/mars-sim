@@ -146,6 +146,12 @@ type Stats struct {
 	StorageContainers int
 	Refuse            int
 	Rooms             int // distinct rooms (connected floor areas) the colony has discovered
+	// ChunksGenerated and Chunks are how many 64x64 worldgen chunks exist so
+	// far, and how many the map has. Chunks are generated lazily, as the
+	// colony explores (see docs/worldgen-chunks.md); Chunks is 0 for a world
+	// built without generation.
+	ChunksGenerated int
+	Chunks          int
 }
 
 // Snapshot is an immutable, self-contained picture of the world at one tick.
@@ -217,6 +223,11 @@ type Snapshot struct {
 	// Snapshot, which is what makes every tile of one read as explored (see
 	// ExploredAt) instead of a test fixture rendering as a blank screen.
 	FogOfWar bool
+
+	// preview shows ungenerated chunks when the fog is off (see TileAt). It
+	// is shared between snapshots and safe for concurrent use; nil for a
+	// world built without generation.
+	preview *ChunkPreview
 }
 
 // ExploredAt reports whether the colony has seen p, and so whether a frontend
@@ -238,21 +249,40 @@ func (s *Snapshot) ExploredAt(p Point) bool {
 }
 
 // TerrainAt reads the published grid; out-of-bounds reads return Rock so callers
-// (the renderer) can treat the world edge as solid.
+// (the renderer) can treat the world edge as solid. See TileAt for chunks the
+// simulation has not generated yet.
 func (s *Snapshot) TerrainAt(p Point) Terrain {
 	if p.X < 0 || p.X >= s.Width || p.Y < 0 || p.Y >= s.Height {
 		return Rock
+	}
+	if s.previewing(p) {
+		return s.preview.At(p).Terrain
 	}
 	return s.Tiles.TerrainAt(p)
 }
 
 // TileAt reads the published grid's full Tile (terrain, composition, and gore),
 // for renderers that need it. Out-of-bounds reads return clean ordinary rock.
+//
+// A chunk the simulation has not generated yet is not in the grid. With fog of
+// war on, all of it is unexplored, so it reads as unexplored Rock and is never
+// drawn. With fog off, the whole map is on show, so it reads from a preview:
+// exactly what the chunk will hold when the colony's exploration generates it,
+// computed without generating it (see ChunkPreview).
 func (s *Snapshot) TileAt(p Point) Tile {
 	if p.X < 0 || p.X >= s.Width || p.Y < 0 || p.Y >= s.Height {
 		return Tile{Terrain: Rock, Composition: OrdinaryRock}
 	}
+	if s.previewing(p) {
+		return s.preview.At(p)
+	}
 	return s.Tiles.At(p)
+}
+
+// previewing reports whether the in-bounds p should be read from the preview:
+// fog is off and its chunk has not been generated.
+func (s *Snapshot) previewing(p Point) bool {
+	return s.preview != nil && !s.FogOfWar && !s.Tiles.hasPage(p)
 }
 
 // snapshot builds an immutable view of the world's current state.
@@ -275,6 +305,10 @@ func (w *World) snapshot(paused bool, tps int) *Snapshot {
 		Incinerators:      w.terrainCounts[Incinerator],
 		StorageContainers: w.terrainCounts[Storage],
 		Refuse:            w.refuseTotal(),
+		ChunksGenerated:   len(w.genChunks),
+	}
+	if w.gen != nil {
+		stats.Chunks = w.gen.chunkCols() * w.gen.chunkRows()
 	}
 	for _, e := range w.entities {
 		ev := w.entityView(e, kinChildren, true)
@@ -354,6 +388,7 @@ func (w *World) snapshot(paused bool, tps int) *Snapshot {
 		Paused:               paused,
 		TicksPerSecond:       tps,
 		FogOfWar:             w.cfg.FogOfWar,
+		preview:              w.preview,
 	}
 }
 

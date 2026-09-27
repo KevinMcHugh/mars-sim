@@ -37,7 +37,9 @@ func (m Model) renderLore() string {
 // worldFactLines renders the handful of facts about the world itself, above
 // the species list. Explored tracks Stats.ExploredTiles, which only moves
 // while fog of war is on (see Snapshot.FogOfWar) -- with it off, every tile
-// is already visible, so the line says that instead of a stuck 0%.
+// is already visible, so the line says that instead of a stuck 0%. Generated
+// counts the worldgen chunks that exist so far (see docs/worldgen-chunks.md):
+// the world grows as the colony explores it.
 func (m Model) worldFactLines() []string {
 	s := m.latest
 	area := s.Width * s.Height
@@ -52,6 +54,9 @@ func (m Model) worldFactLines() []string {
 			pct = s.Stats.ExploredTiles * 100 / area
 		}
 		lines = append(lines, fmt.Sprintf("Explored: %d%% (%d/%d tiles)", pct, s.Stats.ExploredTiles, area))
+	}
+	if s.Stats.Chunks > 0 {
+		lines = append(lines, fmt.Sprintf("Generated: %d/%d chunks", s.Stats.ChunksGenerated, s.Stats.Chunks))
 	}
 	lines = append(lines, fmt.Sprintf("Seed: %d", s.Seed))
 	return lines

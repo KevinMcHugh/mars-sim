@@ -102,6 +102,12 @@ func (g *TileGrid) TerrainAt(p Point) Terrain {
 	return g.cell(p).Terrain
 }
 
+// hasPage reports whether the page holding the in-bounds p exists: in a
+// generated world, whether its chunk has been generated.
+func (g *TileGrid) hasPage(p Point) bool {
+	return g.pages[(p.Y>>gridPageBits)<<g.colShift|(p.X>>gridPageBits)] != nil
+}
+
 // cell reads the stored record at the in-bounds p; a page never written reads
 // as zero, which is unexplored Rock.
 func (g *TileGrid) cell(p Point) tileCell {

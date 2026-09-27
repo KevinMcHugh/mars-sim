@@ -52,8 +52,12 @@ Case 3 is the copy-on-write step, and the order matters: a page is copied
 `TileGrid` mutates under a reader. Grids already published keep the old table,
 and with it the pre-change pages.
 
-Frontends read through `Snapshot.TerrainAt(p)` (or `Tiles.At(p)`); both return
-`Rock` out of bounds so a camera can walk off the edge of the world. Tests and
+Frontends read through `Snapshot.TerrainAt(p)` / `TileAt(p)` (or `Tiles.At(p)`);
+all return `Rock` out of bounds so a camera can walk off the edge of the world.
+A page that is nil because its chunk has not been generated reads as
+unexplored Rock through `Tiles`. With fog off, `Snapshot.TileAt`/`TerrainAt`
+read it from a preview instead (see
+[worldgen-chunks.md](./worldgen-chunks.md#previewing)). Tests and
 alternative frontends can build a standalone grid with `NewTileGrid`.
 
 Terrain totals in `Stats` (`FloorDug`, `Pods`, `Toilets`, `Beds`) come from the

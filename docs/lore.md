@@ -311,7 +311,9 @@ actually reads all of this. Its list panel shows world facts —
 `Snapshot.Width`/`Height`, `Snapshot.Seed`, and how much of the map has
 been explored (`Stats.ExploredTiles`, kept incrementally the same way
 `Stats.FloorDug` already is, out of `World.reveal` — see
-[fog-of-war.md](./fog-of-war.md) and [world.md](./world.md)) — above a
+[fog-of-war.md](./fog-of-war.md) and [world.md](./world.md)), and how many
+worldgen chunks exist so far (`Stats.ChunksGenerated` of `Stats.Chunks`, see
+[worldgen-chunks.md](./worldgen-chunks.md)) — above a
 selectable list of `Snapshot.AlienSpecies`, each shown by `RosterLabel()`.
 The detail panel lists the selected species' full build as explicit stat
 lines (height/weight range, eyes, limb split, tail, skin, color, bite

@@ -664,6 +664,9 @@ type World struct {
 	// the order they were generated in. See generateChunkAt.
 	genDone, genSeen []bool
 	genChunks        []chunkKey
+	// preview is handed to Snapshots so a frontend with the fog off can see
+	// ungenerated chunks. The World never reads it.
+	preview *ChunkPreview
 	// cavernBreaches counts the floods revealAround has run: how many times
 	// the colony has broken into a cave system it did not know about.
 	cavernBreaches int

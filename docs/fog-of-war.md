@@ -87,6 +87,11 @@ cost of marking anyway is the same one fog-on always paid.) It also means a hand
 frontend's scratch frame — renders the whole map rather than a blank screen,
 because its zero value is "no fog".
 
+With fog off, the map a frontend draws includes chunks the simulation has
+not generated yet. `Snapshot.TileAt` shows those from a preview that never
+generates anything (see [worldgen-chunks.md](./worldgen-chunks.md#previewing)).
+With fog on they are unexplored, so they stay fog.
+
 `World.Explored(p)` is the same question against live state, for the engine
 side, and likewise says yes to everything with fog off. Simulation code that
 means "has the colony found this?" calls `World.discovered(p)`, which reads the

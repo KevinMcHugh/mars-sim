@@ -31,6 +31,14 @@ under [Why it is this way](#why-it-is-this-way).
   `randomTile`'s sampling over generated chunks.
 - [`internal/sim/world.go`](../internal/sim/world.go): `setTerrain`,
   `carveHidden` and `reveal`, the three places that trigger generation.
+- [`internal/sim/preview.go`](../internal/sim/preview.go): `ChunkPreview`,
+  which shows frontends ungenerated chunks without generating them.
+- [`internal/sim/snapshot.go`](../internal/sim/snapshot.go):
+  `Snapshot.TileAt` / `TerrainAt` reading the preview, and
+  `Stats.ChunksGenerated` / `Stats.Chunks`.
+- [`internal/sim/preview_test.go`](../internal/sim/preview_test.go): the
+  preview matches generation, stays behind the fog, never affects the game,
+  and is safe for concurrent readers.
 - [`internal/sim/worldgen_lazy_test.go`](../internal/sim/worldgen_lazy_test.go):
   lazy chunks match the pure generator, generation stays ahead of exploration
   every tick, reading never generates, and a new game on a huge map generates
@@ -218,6 +226,28 @@ The one gameplay change: **aliens start only in generated caves**, meaning
 within the halo of the landing site, where the colony will meet them. They
 used to be spread over the whole map. Director spawns likewise land in caves
 the generated frontier has reached.
+
+### Previewing
+
+With fog of war **on**, an ungenerated chunk is all unexplored, so it reads
+as unexplored Rock and is drawn as fog, which is what it always was.
+
+With fog **off**, a frontend draws the whole map, including chunks the colony
+has not come near. `Snapshot.TileAt` and `TerrainAt` read those from a
+`ChunkPreview`: a second `worldGen`, owned by the engine's snapshots and
+never by the World, that computes a chunk's content without generating it.
+Content is a pure function of the config and coordinates, so the preview is
+exactly what the chunk will hold when exploration generates it.
+`TestPreviewMatchesGeneration` checks that.
+
+The preview is safe for concurrent use, because every frontend reads it
+through the snapshots on its own goroutine. It caches `previewCacheChunks`
+(256) chunk contents. `TestPreviewNeverAffectsTheSimulation` plays the same
+seed with and without a frontend reading all over the map and demands the
+same golden hash.
+
+The TUI's lore tab shows `Generated: n/m chunks` (`Stats.ChunksGenerated`
+out of `Stats.Chunks`), so a player can watch the world grow.
 
 ### Writing a chunk into the world
 

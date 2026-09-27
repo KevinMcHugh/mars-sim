@@ -90,8 +90,10 @@ dispatch to the active panel's handler.
 - **Lore** (`renderLore`): world facts the list panel above a species roster
   — map size, how much of it has been explored (`Stats.ExploredTiles`, kept
   incrementally the same way `Stats.FloorDug` is — see
-  [world.md](./world.md)) or "fog off" if there's no fog to track, and the
-  seed (`Snapshot.Seed`). Arrow navigation selects one of `Snapshot.AlienSpecies`
+  [world.md](./world.md)) or "fog off" if there's no fog to track, how many
+  worldgen chunks have been generated (see
+  [worldgen-chunks.md](./worldgen-chunks.md)), and the seed
+  (`Snapshot.Seed`). Arrow navigation selects one of `Snapshot.AlienSpecies`
   — every kind of alien this seed rolled — and the detail pane lists its full
   build (height/weight range, eyes, limb split, tail, skin, color, bite
   damage/pace) as scannable stat lines, plus `AlienSpecies.Description()`'s
