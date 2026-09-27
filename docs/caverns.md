@@ -21,7 +21,8 @@ moment.
 
 ## Source
 
-- [`internal/sim/caverns.go`](../internal/sim/caverns.go) — `generateCaverns`, `planCavern`, `joinCaverns`, `planPassage`, and the placement constants.
+- [`internal/sim/worldgen_chunks.go`](../internal/sim/worldgen_chunks.go) — `cavernCandidates`, `growCavern`, `keptCaverns`, `passagePlan`, `walkPassage` (see [worldgen-chunks.md](./worldgen-chunks.md)).
+- [`internal/sim/caverns.go`](../internal/sim/caverns.go) — the placement constants.
 - [`internal/sim/world.go`](../internal/sim/world.go) — `carveHidden`, `setTerrain`'s `discover` switch, the breach flood in `revealAround` / `reveal` / `discoverCavernTile`, `discovered`, and `hiddenFloor`.
 - [`internal/sim/worldgen.go`](../internal/sim/worldgen.go) — where `generate` calls it, and `randomFloor` / `freeFloorTilesIn` skipping undiscovered floor.
 - [`internal/sim/rooms.go`](../internal/sim/rooms.go) — `region.discovered`, incremental `relabelRooms`, and `mainRoom` chosen from discovered rooms only.
@@ -39,34 +40,33 @@ moment.
 
 ### Generation
 
-`generate` carves the landing cavern first, then calls `generateCaverns` on a
-dedicated seed-derived RNG stream:
+Caverns are generated chunk by chunk with the ore veins, as a pure function of
+the config and the chunk's coordinates. The details, and why the old
+whole-map generator had to go, are in
+[worldgen-chunks.md](./worldgen-chunks.md). In short:
 
-1. Until about `CavernPercent` of the map is cavern floor, `planCavern` picks a
-   random site and grows a cavern of `CavernMin`–`CavernMax` tiles there. Each
-   cavern is a cluster of small overlapping ellipses, wider than they are tall
-   to match the map. Each new lobe is centered on a tile already in the cavern,
-   so the cavern is always one connected pocket. It overshoots the target size
-   by at most one lobe.
-2. A site is rejected if any tile falls within `cavernLandingClearance` (4) of
-   the landing cavern's bounding box, within `cavernSpacing` (3) of any floor
-   already carved, or on the map's outermost ring. After `cavernPlanFailures`
-   rejections in a row, generation stops short of the target. That only
-   happens on maps too small to fit it.
-3. `joinCaverns` gives each cavern one roll of `CavernPassagePercent` for a
-   passage to its nearest neighbor by center distance. A pair that are each
-   other's nearest are rolled only once, and pairs further apart than
-   `passageMaxSpan` are skipped. Centers are bucketed into
-   `passageMaxSpan`-sized cells so each cavern only looks at the 3×3 cells
-   around it. Comparing every pair was quadratic, and with 150,000 caverns
-   (a 10000×5000 map at 15%) it was most of worldgen. `planPassage` is a biased random walk in
-   orthogonal steps: toward the goal 3/4 of the time, a random direction
-   otherwise. A walk that strays near the landing site or runs too long is
-   discarded, with up to `passageAttempts` tries.
+1. Each chunk plans caverns until their tiles reach its share of
+   `CavernPercent`. Each cavern is a cluster of small overlapping ellipses of
+   about `CavernMin`–`CavernMax` tiles, wider than they are tall to match the
+   map. Each new lobe is centered on a tile already in the cavern, so the
+   cavern is always one connected pocket. It stays within `cavernReach` (20)
+   of its center and off the map's outermost ring.
+2. A site that touches the landing cavern's bounding box plus
+   `cavernLandingClearance` (4) is re-rolled. A cavern within `cavernSpacing`
+   (3) of a higher-ranked candidate (random key) is dropped.
+3. Each kept cavern's pair with its nearest kept neighbor by center distance,
+   within `passageMaxSpan`, gets one roll of `CavernPassagePercent` for a
+   passage. A pair that are each other's nearest are rolled only once. The
+   passage is a biased random walk in orthogonal steps: toward the goal 3/4
+   of the time, a random direction otherwise, never more than `passageSlack`
+   outside the box its two centers span. A walk that strays near the landing
+   site or runs too long is discarded, with up to `passageAttempts` tries.
 
-Every tile goes down through `carveHidden`. This is `setTerrain` with
-`discover=false`: counts, chunks and `TileChanged` all behave as usual, but no
-fog lifts, the carved bounding box does not grow, and `hiddenFloor` goes up.
+`applyChunk` writes the floor directly: counts, `hiddenFloor`, published
+pages and region chunks are kept in step, but no fog lifts, the carved
+bounding box does not grow, and no `TileChanged` fires. `carveHidden` (the
+same thing through `setTerrain` with `discover=false`) remains for tests and
+any future hidden carving during play.
 
 ### The invariant: unexplored floor is undiscovered cavern
 
@@ -176,12 +176,16 @@ their species.
   the components touched by a change brought it back to baseline.
   `TestRoomsIncrementalMatchesBruteForce` and `TestRoomLabelsWithCaverns`
   check it against a from-scratch flood through `checkRoomLabels`.
-- **`TileChanged` still fires for hidden carving.** Worldgen could write the
-  tiles directly the way ore veins do. But terrain, unlike composition, feeds
-  counts, chunks and facility sets, and duplicating `SetTerrain`'s bookkeeping
-  is how derived state goes stale. The cost is about 0.4 s extra worldgen on
-  an 8-million-tile map.
-- **Own RNG stream.** Caves use `Seed ^ 0x13198A2E03707344`, so tuning them does
+- **Hidden floor no longer fires `TileChanged`.** The first version carved
+  through `carveHidden` so that `SetTerrain`'s bookkeeping could not be
+  duplicated wrongly. Chunked generation writes the floor directly, because a
+  chunk generated during play would otherwise send the job board and every
+  flow field events for tiles nobody can reach (15% of worldgen on a
+  10000×10000 map). The bookkeeping that matters for hidden floor (counts,
+  pages, region chunks) is short, and `TestChunkApplyNeedsNoTileEvents` plays
+  a game both ways, through a breach, to prove nothing else was needed.
+- **Own RNG streams.** Each chunk's caverns and each passage have their own
+  stream (see [worldgen-chunks.md](./worldgen-chunks.md)), so tuning them does
   not reshuffle the veins or the main simulation stream. Aliens spawn on cave
   floor, so turning caves on or retuning them does change alien spawns for a
   seed.
@@ -230,10 +234,11 @@ their species.
   or target aliens must skip dormant ones, as `nearestAlien` does.
 - **Anything that places or targets floor** must decide whether undiscovered
   cave floor counts. Colony-facing code should check `w.discovered(p)`. Only
-  `carveHidden` may create unexplored floor; any other terrain writer must go
+  `applyChunk` and `carveHidden` may create unexplored floor; any other terrain writer must go
   through `SetTerrain`, or `hiddenFloor` and the breach flood stop being true.
-- **Different shapes:** change `planCavern`. Tune size with `cavern-min` /
-  `cavern-max`, and passage behavior with the constants in `caverns.go`.
+- **Different shapes:** change `growCavern`, keeping it within `cavernReach`.
+  Tune size with `cavern-min` / `cavern-max`, and passage behavior with the
+  constants in `caverns.go` and `worldgen_chunks.go`.
 
 ## Related
 

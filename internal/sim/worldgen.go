@@ -1,9 +1,6 @@
 package sim
 
-import (
-	"math"
-	"math/rand/v2"
-)
+import "math"
 
 // generate carves the starting situation into a fresh all-Rock world: a central
 // landing cavern sized to the starting population, with the colonists inside it,
@@ -11,38 +8,31 @@ import (
 func generate(w *World) {
 	center := Point{w.Width / 2, w.Height / 2}
 
-	// Grow useful deposits into connected veins before carving. Use a dedicated
-	// seed-derived stream: composition affects gameplay, but generating it must not
-	// shift entity placement and every later decision on the main simulation
-	// stream. Composition does not affect terrain indexes, so initializing the
-	// dense tile data directly also avoids emitting TileChanged events.
-	compositionRNG := newRand(w.cfg.Seed ^ 0x243F6A8885A308D3)
-	w.growRockVeins(compositionRNG, IronBearingRock, w.cfg.IronRockPercent)
-	w.growRockVeins(compositionRNG, WaterIceBearingRock, w.cfg.IceRockPercent)
-	// Uranium follows the older iron and ice compositions, preserving their
-	// veins for established seeds.
-	w.growRockVeins(compositionRNG, UraniumBearingRock, w.cfg.UraniumRockPercent)
-	// Clay goes after all existing compositions so introducing it does not move
-	// their veins for an established seed.
-	w.growRockVeins(compositionRNG, ClayBearingRock, w.cfg.ClayRockPercent)
+	// Lay down ore veins and hidden natural caverns chunk by chunk. What a
+	// chunk holds is a pure function of the config and its coordinates, on
+	// worldgen's own streams, so it shifts nothing on the simulation stream.
+	// See docs/worldgen-chunks.md.
+	w.gen = newWorldGen(w.cfg)
+	var caves []Point
+	for cy := 0; cy < w.gen.chunkRows(); cy++ {
+		for cx := 0; cx < w.gen.chunkCols(); cx++ {
+			caves = append(caves, w.applyChunk(cx, cy)...)
+		}
+	}
+	// Every chunk exists now, so no plan will be asked for again.
+	w.gen.forget()
 
 	// Carve an oval starting cavern large enough to hold the colonists with room
-	// to move and a rock frontier to mine.
-	rx, ry := w.caveRadii(w.cfg.StartColonists)
+	// to move and a rock frontier to mine. Natural caverns keep
+	// cavernLandingClearance tiles of rock from its bounding box.
+	rx, ry := caveRadii(w.Width, w.Height, w.cfg.StartColonists)
 	for y := -ry; y <= ry; y++ {
 		for x := -rx; x <= rx; x++ {
-			if float64(x*x)/float64(rx*rx)+float64(y*y)/float64(ry*ry) <= 1.0 {
+			if x*x*ry*ry+y*y*rx*rx <= rx*rx*ry*ry {
 				w.SetTerrain(center.Add(x, y), Floor)
 			}
 		}
 	}
-
-	// Hollow natural caverns out of the rest of the rock, hidden until the
-	// colony digs into one. Their own stream, like the veins', so tuning
-	// caverns does not reshuffle everything else about a seed — though aliens
-	// still land on whatever rock is left. See docs/caverns.md.
-	cavernRNG := newRand(w.cfg.Seed ^ 0x13198A2E03707344)
-	caves := w.generateCaverns(cavernRNG, center.Add(-rx, -ry), center.Add(rx, ry))
 
 	// Place colonists, then mice and cats, by drawing from one shuffled list of
 	// open floor tiles, so every placement is a uniform draw without replacement
@@ -105,6 +95,8 @@ func generate(w *World) {
 	w.refreshSpatial()
 }
 
+// veinNeighbors are the four orthogonal steps: veins and passages grow along
+// them, so a deposit or tunnel is connected edge to edge, not by corners.
 var veinNeighbors = [...]Point{
 	{0, -1},
 	{1, 0},
@@ -112,106 +104,50 @@ var veinNeighbors = [...]Point{
 	{-1, 0},
 }
 
-// growRockVeins fills percent of the map with composition, grouped into
-// orthogonally connected veins. Each vein takes a meandering random walk from
-// one seed, occasionally branching from an earlier tile, producing long,
-// irregular deposits instead of independent per-tile noise. Earlier
-// compositions are never overwritten.
-func (w *World) growRockVeins(rng *rand.Rand, composition RockComposition, percent int) {
-	target := len(w.tiles) * percent / 100
-	placed := 0
-	for placed < target {
-		remaining := target - placed
-		size := w.nextVeinSize(rng, remaining)
-		seed, ok := w.ordinaryRockSeed(rng)
-		if !ok {
-			return
-		}
-
-		w.tiles[seed].Composition = composition
-		placed++
-		vein := []int{seed}
-		current := seed
-		for len(vein) < size {
-			neighbors := w.ordinaryNeighbors(current)
-			// A vein mostly advances from its tip. Occasionally branch from an
-			// earlier point; also do so whenever the current tip is boxed in.
-			if len(neighbors) == 0 || (len(vein) > 2 && rng.IntN(6) == 0) {
-				current, neighbors = w.branchableVeinTile(rng, vein)
-				if len(neighbors) == 0 {
-					break
-				}
+// applyChunk writes one generated chunk into the tile grid and returns the
+// centers of the natural caverns it owns. Composition and hidden cavern floor
+// are written directly rather than through SetTerrain: nothing
+// colony-facing can see undiscovered floor (see docs/caverns.md), so the
+// TileChanged events carveHidden used to fire only did work for tiles nobody
+// could reach. The counts, the published pages and the region chunks are
+// kept in step here instead.
+func (w *World) applyChunk(cx, cy int) []Point {
+	c := w.gen.chunk(cx, cy)
+	x0, y0 := cx*genChunkSize, cy*genChunkSize
+	x1, y1 := min(x0+genChunkSize, w.Width), min(y0+genChunkSize, w.Height)
+	for y := y0; y < y1; y++ {
+		for x := x0; x < x1; x++ {
+			off := (y-y0)<<genChunkBits | (x - x0)
+			i := y*w.Width + x
+			w.tiles[i].Composition = c.comp[off]
+			if !c.isFloor(off) || w.tiles[i].Terrain != Rock {
+				continue
 			}
-			next := neighbors[rng.IntN(len(neighbors))]
-			w.tiles[next].Composition = composition
-			placed++
-			vein = append(vein, next)
-			current = next
+			if applyChunkViaCarveHidden {
+				w.carveHidden(Point{x, y})
+				continue
+			}
+			w.tiles[i].Terrain = Floor
+			w.terrainCounts[Rock]--
+			w.terrainCounts[Floor]++
+			w.hiddenFloor++
+			w.markTilePageDirty(i)
+			w.dirtyChunks[w.chunkIndexOf(Point{x, y})] = struct{}{}
 		}
 	}
+	return c.caverns
 }
 
-// nextVeinSize chooses a configured vein size without leaving a final fragment
-// smaller than RockVeinMin when the target has enough tiles to avoid one.
-func (w *World) nextVeinSize(rng *rand.Rand, remaining int) int {
-	if remaining <= w.cfg.RockVeinMax {
-		return remaining
-	}
-	size := w.cfg.RockVeinMin + rng.IntN(w.cfg.RockVeinMax-w.cfg.RockVeinMin+1)
-	if remaining-size < w.cfg.RockVeinMin {
-		return remaining - w.cfg.RockVeinMin
-	}
-	return size
-}
-
-// ordinaryRockSeed deterministically chooses an unassigned tile, if one remains.
-func (w *World) ordinaryRockSeed(rng *rand.Rand) (int, bool) {
-	if len(w.tiles) == 0 {
-		return 0, false
-	}
-	start := rng.IntN(len(w.tiles))
-	for offset := 0; offset < len(w.tiles); offset++ {
-		i := (start + offset) % len(w.tiles)
-		if w.tiles[i].Composition == OrdinaryRock {
-			return i, true
-		}
-	}
-	return 0, false
-}
-
-func (w *World) ordinaryNeighbors(index int) []int {
-	p := Point{X: index % w.Width, Y: index / w.Width}
-	out := make([]int, 0, len(veinNeighbors))
-	for _, d := range veinNeighbors {
-		n := p.Add(d.X, d.Y)
-		if !w.InBounds(n) {
-			continue
-		}
-		i := w.index(n)
-		if w.tiles[i].Composition == OrdinaryRock {
-			out = append(out, i)
-		}
-	}
-	return out
-}
-
-// branchableVeinTile picks an existing point that can still grow. Starting at a
-// random offset prevents the earliest point from becoming the preferred hub.
-func (w *World) branchableVeinTile(rng *rand.Rand, vein []int) (int, []int) {
-	start := rng.IntN(len(vein))
-	for offset := range vein {
-		i := vein[(start+offset)%len(vein)]
-		if neighbors := w.ordinaryNeighbors(i); len(neighbors) > 0 {
-			return i, neighbors
-		}
-	}
-	return 0, nil
-}
+// applyChunkViaCarveHidden makes applyChunk carve hidden floor through
+// carveHidden, firing TileChanged like the old generator did. Only
+// TestChunkApplyNeedsNoTileEvents sets it, to prove the direct write is
+// equivalent.
+var applyChunkViaCarveHidden = false
 
 // caveRadii returns the ellipse radii for a starting cavern big enough to hold n
 // colonists with breathing room, clamped to something sane and to the world
 // bounds. It keeps a 2:1 width:height shape to match the map.
-func (w *World) caveRadii(n int) (rx, ry int) {
+func caveRadii(width, height, n int) (rx, ry int) {
 	const tilesPerColonist = 10
 	// area = pi * rx * ry, with rx = 2*ry  =>  ry = sqrt(area / (2*pi)).
 	area := float64(n * tilesPerColonist)
@@ -220,10 +156,10 @@ func (w *World) caveRadii(n int) (rx, ry int) {
 		ry = 4
 	}
 	rx = 2 * ry
-	if maxRx := w.Width/2 - 2; rx > maxRx {
+	if maxRx := width/2 - 2; rx > maxRx {
 		rx = maxRx
 	}
-	if maxRy := w.Height/2 - 2; ry > maxRy {
+	if maxRy := height/2 - 2; ry > maxRy {
 		ry = maxRy
 	}
 	if rx < 1 {

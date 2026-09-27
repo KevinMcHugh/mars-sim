@@ -115,8 +115,8 @@ The roster is rolled in `newWorld`, not `generate()` — a handful of tests
 build a `World` with `newWorld` directly and still spawn and fight `Alien`
 entities against it, and those need a valid roster too. It draws from a
 dedicated stream, `newRand(cfg.Seed ^ alienLoreSeed)`, the
-same pattern `growRockVeins`' `compositionRNG` uses in `worldgen.go` and for
-the same two reasons:
+same pattern worldgen's own streams use (see
+[worldgen-chunks.md](./worldgen-chunks.md)) and for the same two reasons:
 
 - Not `World.prng` (the personality stream): a species' size and temperament
   are not flavor — they set actual bite damage and combat behavior — so they

@@ -46,8 +46,10 @@ func TestWorldgenGrowsUraniumVeins(t *testing.T) {
 			count++
 		}
 	}
-	if want := len(w.tiles) * cfg.UraniumRockPercent / 100; count != want {
-		t.Fatalf("uranium-bearing tiles = %d, want %d", count, want)
+	// Abundance is an expected value under chunked generation; see
+	// TestAbundanceDriftWithinTolerance for the tight check.
+	if want := len(w.tiles) * cfg.UraniumRockPercent / 100; count < want/2 || count > want*3/2 {
+		t.Fatalf("uranium-bearing tiles = %d, want about %d", count, want)
 	}
 }
 

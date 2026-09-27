@@ -649,6 +649,9 @@ type World struct {
 	nestRNG        *rand.Rand
 	// nestCenters is revealAround's scratch: cavern centers found this flood.
 	nestCenters []Point
+	// gen generates chunks: their ore veins and hidden caverns. See
+	// worldgen_chunks.go.
+	gen *worldGen
 	// cavernBreaches counts the floods revealAround has run: how many times
 	// the colony has broken into a cave system it did not know about.
 	cavernBreaches int

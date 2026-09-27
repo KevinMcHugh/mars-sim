@@ -35,8 +35,8 @@ var goldenCases = []goldenCase{
 			return c
 		},
 		ticks: 400,
-		gen:   "tiles=3097a8b594818f5a entities=156872c017092c6f rng=baee6727c4c958c4 n=19 gore=0 corpses=0",
-		run:   "tiles=23f0e5999ea404d2 entities=5e745bdc76ac1c06 rng=3e0f2c24b8f8489a n=11 gore=0 corpses=2",
+		gen:   "tiles=3bf4ed49f557125b entities=1071c72eb0b5c19f rng=acc8770e3c3d5ebe n=19 gore=0 corpses=0",
+		run:   "tiles=e4a13b7bca6e2f45 entities=51a382359d769fdd rng=01f37cc84c695cf6 n=11 gore=0 corpses=0",
 	},
 	{
 		// Bigger than one worldgen chunk in both directions, with enough cave
@@ -52,8 +52,8 @@ var goldenCases = []goldenCase{
 		},
 		ticks:  600,
 		breach: true,
-		gen:    "tiles=c5135e7117d9eac4 entities=1bed1379517c376a rng=1bc129c24e9b6c32 n=33 gore=0 corpses=0",
-		run:    "tiles=4ad7e77b53e4c1c9 entities=94632c9f69c2edc3 rng=0cd4575ad36d2f5b n=25 gore=0 corpses=0",
+		gen:    "tiles=3b40999502dd07a8 entities=618e8b2a157611b3 rng=6c608407ddab4530 n=33 gore=0 corpses=0",
+		run:    "tiles=2af5134c36af26d7 entities=2d98231c78255272 rng=d9ed19234ff0ad3e n=25 gore=0 corpses=0",
 	},
 }
 

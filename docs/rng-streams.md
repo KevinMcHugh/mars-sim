@@ -16,6 +16,8 @@ the RNG half of save/load.
   `rngState`, and `World.saveRNG` / `World.loadRNG`.
 - `internal/sim/world.go`: `newWorld` builds `rng`, `prng` and `agePRNG`.
 - `internal/sim/caverns.go`: `trackCavernsForNests` builds `nestRNG`.
+- `internal/sim/worldgen_chunks.go`: `featureRand`, the per-chunk worldgen
+  streams.
 - `internal/sim/rng_test.go`: the save/load round trip.
 
 ## How it works
@@ -26,8 +28,9 @@ the RNG half of save/load.
 | `World.prng` (personality) | `Seed ^ 0x5DEECE66D` | whole game | yes |
 | `World.agePRNG` (ages) | `Seed ^ 0x6A09E667` | whole game | yes |
 | `World.nestRNG` (alien nests) | `Seed ^ 0x0452821E638D0137` | whole game | yes |
-| `compositionRNG` (rock veins) | `Seed ^ 0x243F6A8885A308D3` | `generate` only | no |
-| `cavernRNG` (caverns) | `Seed ^ 0x13198A2E03707344` | `generate` only | no |
+| worldgen veins, per chunk and level | `featureRand(0x243F6A8885A308D3 + level, cx, cy)` | one plan | no |
+| worldgen caverns, per chunk | `featureRand(0x13198A2E03707344, cx, cy)` | one plan | no |
+| worldgen passages, per cavern pair | `featureRand(0xA4093822299F31D0, both caverns)` | one plan | no |
 | alien lore roster | `Seed ^ alienLoreSeed` | `newWorld` only | no |
 
 Why the streams are split is covered per stream in
@@ -67,10 +70,12 @@ from `w.rng` pass `nil`.
   - `TestUrgentColonistHelpsBuildWhenFacilityUndersupplied` left the random
     cats and mice on. About 1 seed in 18 put one on the wall task, which made
     it unclaimable. The test now spawns none.
-  - `TestRockDepositsAreVeinsRatherThanIsolatedTiles` catches a real worldgen
-    bug: a vein whose first tile has no free ordinary-rock neighbor stops at
-    one tile. That happens on about 6% of seeds under both v1 and v2. The test
-    is pinned to a seed that avoids it until the vein grower is fixed.
+  - `TestRockDepositsAreVeinsRatherThanIsolatedTiles` caught a real worldgen
+    bug: a vein whose first tile had no free ordinary-rock neighbor stopped
+    at one tile. That happened on about 6% of seeds under both v1 and v2, and
+    the test was pinned to a seed that avoided it. Chunked generation
+    ([worldgen-chunks.md](./worldgen-chunks.md)) fixed it, which was a second
+    seed break right after this one, and the test now sweeps 300 seeds.
 - **Splitmix, not `NewPCG(seed, 0)`.** Using the raw seed as one half of the
   state and a constant as the other would make small seeds and the XOR-derived
   seeds start close together in state space. Mixing costs nothing and removes
@@ -82,7 +87,10 @@ from `w.rng` pass `nil`.
   source in `rngSources`, and add a field to `rngState` and a row to
   `rngFields`. If it is missing from `rngFields`, a loaded game silently
   replays that stream from its seed.
-- **A new worldgen-only stream**: `newRand(Seed ^ <new constant>)` is enough.
+- **A new worldgen-only stream**: `newRand(Seed ^ <new constant>)` is enough
+  for something rolled once per world. Anything rolled per chunk or feature
+  uses `worldGen.featureRand` with its own stream constant, so it stays
+  independent of generation order.
 - **Changing a stream's seed derivation or draw order** changes every existing
   seed, and later every existing save. Treat it as a breaking change.
 - **Method names**: v2 uses `IntN`, `Int64`, `Int32N`, `Uint64` and so on.

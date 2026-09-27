@@ -80,10 +80,10 @@ cut — which is what the `tileCell` split did (see below). The remaining ~590 M
 is 3 bytes of terrain/ore/fog per tile, mirrored once so frontends can read a
 frame lock-free.
 
-Going lower means making composition lazy, and it cannot be: `growRockVeins` is
-a sequential random walk over the whole map, so generating a page on demand
-would change the layout every existing seed produces. That is a gameplay
-change, not a refactor.
+Going lower meant making composition lazy, which the old `growRockVeins`
+could not be: it was a sequential random walk over the whole map. Chunked
+generation ([worldgen-chunks.md](./worldgen-chunks.md)) replaced it with a
+per-chunk pure function, at the cost of a one-time change to every seed.
 
 ## How it works
 
