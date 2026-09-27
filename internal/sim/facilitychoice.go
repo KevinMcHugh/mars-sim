@@ -285,7 +285,7 @@ func (w *World) facilityBySearch(e *Entity, kind Terrain, room RoomID) Point {
 			if !w.InBounds(n) {
 				continue
 			}
-			t := w.tiles[w.index(n)].Terrain
+			t := w.tiles.at(n.X, n.Y).Terrain
 			if t == kind && isAccess {
 				if c := cells.ptr(n.X, n.Y); c.gen != gen {
 					c.gen = gen

@@ -21,13 +21,14 @@ than to how big the map *is*.
 
 ## How it works
 
-`World.tiles` stays exactly what it was — one flat row-major slice, because the
-simulation reads it constantly and a page lookup on that hot path would be a
-tax on every neighbor test. The paging exists only on the **published** side:
+`World.tiles` is a `pagedGrid[tileCell]`: 64×64 square pages, the same as
+every other per-tile grid (see [sparse-grids.md](./sparse-grids.md)), and one
+page per worldgen chunk (see [worldgen-chunks.md](./worldgen-chunks.md)). The
+published grid mirrors that page table exactly:
 
 | Piece | Role |
 | --- | --- |
-| `TileGrid.pages` | `[][]tileCell`, each page a contiguous 4096-tile slice of the grid |
+| `TileGrid.pages` | `[]*tilePage`, laid out like the world's page table; each entry a copy of one world page, or nil where the world has never written one (reads as unexplored Rock) |
 | `TileGrid.refuse` | the published copy of the sparse gore/corpse index, shared between frames until it changes |
 | `World.snapGrid` | the grid handed to the most recent `Snapshot` |
 | `World.pageDirty` / `dirtyPages` | pages that have diverged from `snapGrid` since |
@@ -37,7 +38,8 @@ which is an array write and (first time per page) an append. (`World.reveal` is
 the one other writer of `tiles`, for the fog-of-war flag, and does the same.) `publishedTiles` then has
 three cases:
 
-1. **No grid yet** (the first frame, after worldgen): build every page once.
+1. **No grid yet** (the first frame, after worldgen): copy every page the world
+   has, and leave the rest nil.
 2. **Nothing changed**: return `snapGrid` unchanged. The new `Snapshot` shares
    the previous frame's grid outright and publishing costs nothing. This is the
    common case — digging one rock takes `-mine-ticks` ticks, so most ticks
@@ -83,9 +85,24 @@ tick, while the world's own large arrays stay mostly untouched zero pages.
 
 Approaches that were considered and dropped:
 
-- **Page the live `World.tiles` too.** Rejected: the simulation reads terrain far
-  more often than it publishes, and every read would pay a shift and an indirect
-  load to save a copy that only happens once per frame.
+- **Page the live `World.tiles` too.** First rejected: the simulation reads
+  terrain far more often than it publishes, and every read would pay a shift
+  and an indirect load to save a copy that only happens once per frame. Then
+  adopted, because lazy world generation needs a tile grid that costs nothing
+  where no chunk has been generated. The read cost turned out small, and the
+  searches that hoist the page lookup (A\*, flow-field rebuilds, the region
+  flood) got faster, because a node's eight neighbours now share its page:
+
+  | Benchmark | Dense tiles | Paged tiles |
+  | --- | ---: | ---: |
+  | `Pathfind` | 13.9 µs | 12.6 µs |
+  | `StepBigColonyOnHugeMap` | 186 µs | 189 µs |
+  | `StepSmallColonyOnHugeMap10000` | 201 µs | 209 µs |
+  | `RoomRefresh` | 34.9 µs | 35.1 µs |
+  | `PublishSmallColonyOnHugeMap10000` | 288 µs, 650 KB | 286 µs, 422 KB |
+
+  The small-colony tick is the one that pays: its terrain reads are scattered
+  one at a time through `at`, about 5% of the tick.
 - **Ship only the camera's viewport.** Cheapest possible frame, but it puts the
   camera in the engine (a new command, a round trip per pan) and quietly breaks
   any frontend that wants the whole map — a minimap, a zoomed-out view, a test
@@ -95,10 +112,14 @@ Approaches that were considered and dropped:
   renderer on another goroutine, that is exactly the ownership question the
   immutable-snapshot design exists to avoid.
 
-The page size (4096 tiles, `tilePageBits`) is the one tuning knob. Smaller pages
-copy less per changed tile; larger pages shrink the page table, which *is*
-copied on every frame that changed anything. At 4096, a 7000x7000 map has a
-~12k-entry table — under 100 KB a frame, against the 49 MB it replaced.
+The page is 64×64 (`gridPageBits`), shared with every paged grid and with
+worldgen chunks, so it is no longer a knob of its own. The page table *is*
+copied on every frame that changed anything, which is why it holds 8-byte
+array pointers instead of 24-byte slice headers: a 10000x10000 map's table is
+~40k entries (rounded up to a power-of-two width, as in `pagedGrid`), about
+320 KB a frame, against the 300 MB it replaced. Row-major 4096-tile pages,
+the first design, had a smaller table (~24k entries) but a colony-shaped
+change dirtied a strip per row instead of one square.
 
 ## Extending it
 
@@ -119,7 +140,7 @@ copied on every frame that changed anything. At 4096, a 7000x7000 map has a
 - **A new sparse index** published alongside the pages follows `World.refuse`:
   bump a revision on every write, and hand the previous frame's copy back when
   the revision has not moved (`publishedRefuse`). That is what lets refuse reach
-  frontends without dirtying a 4096-tile page every time something dies.
+  frontends without dirtying a whole page every time something dies.
   `TestPublishedRefuseReachesFrontendsWithoutTerrainChange` is the guard.
 - **A new aggregate in `Stats`** should come from an incremental count, not from
   a walk of the grid. The scan this doc replaced is the cautionary tale.

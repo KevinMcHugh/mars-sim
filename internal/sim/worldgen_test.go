@@ -15,13 +15,10 @@ func TestRockVeinsAreDeterministicAndNearAbundanceTargets(t *testing.T) {
 
 	first := NewEngine(cfg).world
 	second := NewEngine(cfg).world
-	if len(first.tiles) != len(second.tiles) {
-		t.Fatal("same config generated different world sizes")
-	}
-
+	ft, st := denseTiles(first), denseTiles(second)
 	counts := map[RockComposition]int{}
-	for i, tile := range first.tiles {
-		if tile.Composition != second.tiles[i].Composition {
+	for i, tile := range ft {
+		if tile.Composition != st[i].Composition {
 			t.Fatalf("composition differs at tile %d for the same seed", i)
 		}
 		counts[tile.Composition]++
@@ -31,7 +28,7 @@ func TestRockVeinsAreDeterministicAndNearAbundanceTargets(t *testing.T) {
 		WaterIceBearingRock: cfg.IceRockPercent,
 		ClayBearingRock:     cfg.ClayRockPercent,
 	} {
-		want := float64(len(first.tiles) * pct / 100)
+		want := float64(len(ft) * pct / 100)
 		if got := float64(counts[comp]); got < 0.8*want || got > 1.2*want {
 			t.Errorf("%s tiles = %.0f, want within 20%% of %.0f", comp, got, want)
 		}

@@ -115,26 +115,27 @@ func (w *World) applyChunk(cx, cy int) []Point {
 	c := w.gen.chunk(cx, cy)
 	x0, y0 := cx*genChunkSize, cy*genChunkSize
 	x1, y1 := min(x0+genChunkSize, w.Width), min(y0+genChunkSize, w.Height)
+	page := w.tiles.pageAtAlloc(x0, y0) // one chunk is exactly one page
 	for y := y0; y < y1; y++ {
 		for x := x0; x < x1; x++ {
-			off := (y-y0)<<genChunkBits | (x - x0)
-			i := y*w.Width + x
-			w.tiles[i].Composition = c.comp[off]
-			if !c.isFloor(off) || w.tiles[i].Terrain != Rock {
+			off := offset(x, y)
+			cell := &page[off]
+			cell.Composition = c.comp[off]
+			if !c.isFloor(off) || cell.Terrain != Rock {
 				continue
 			}
 			if applyChunkViaCarveHidden {
 				w.carveHidden(Point{x, y})
 				continue
 			}
-			w.tiles[i].Terrain = Floor
+			cell.Terrain = Floor
 			w.terrainCounts[Rock]--
 			w.terrainCounts[Floor]++
 			w.hiddenFloor++
-			w.markTilePageDirty(i)
 			w.dirtyChunks[w.chunkIndexOf(Point{x, y})] = struct{}{}
 		}
 	}
+	w.markTilePageDirty(Point{x0, y0})
 	return c.caverns
 }
 

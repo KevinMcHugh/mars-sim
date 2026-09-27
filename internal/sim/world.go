@@ -242,10 +242,11 @@ type refuseCell struct {
 	Corpses uint16
 }
 
-// tile returns the assembled view of cell i, with any refuse on it.
-func (w *World) tile(i int) Tile {
-	c := w.tiles[i]
-	r := w.refuse[Point{i % w.Width, i / w.Width}]
+// tile returns the assembled view of the in-bounds tile at p, with any refuse
+// on it.
+func (w *World) tile(p Point) Tile {
+	c := w.tiles.at(p.X, p.Y)
+	r := w.refuse[p]
 	return Tile{
 		Terrain:     c.Terrain,
 		Composition: c.Composition,
@@ -390,7 +391,10 @@ func (w *World) takeCorpse(p Point) bool {
 // goroutine; frontends observe it through immutable Snapshots instead.
 type World struct {
 	Width, Height int
-	tiles         []tileCell // row-major, len == Width*Height
+	// tiles is terrain, composition and discovery, stored in the same 64x64
+	// pages as every other per-tile grid (see pagedgrid.go). One page is one
+	// worldgen chunk (see worldgen_chunks.go).
+	tiles pagedGrid[tileCell]
 
 	// The published tile grid handed to frontends in Snapshots, plus the pages
 	// of it that have gone stale since. Frames share every page that did not
@@ -671,7 +675,7 @@ func newWorld(cfg Config, src *rand.PCG) *World {
 	w := &World{
 		Width:             cfg.Width,
 		Height:            cfg.Height,
-		tiles:             make([]tileCell, n),
+		tiles:             newPagedGrid[tileCell](cfg.Width, cfg.Height),
 		refuse:            make(map[Point]refuseCell),
 		occ:               newPagedGrid[EntityID](cfg.Width, cfg.Height),
 		entities:          make(map[EntityID]*Entity),
@@ -708,7 +712,7 @@ func newWorld(cfg Config, src *rand.PCG) *World {
 	w.facilityCells = newPagedGrid[flowCell](cfg.Width, cfg.Height)
 	w.transitSeen = newPagedGrid[int32](cfg.Width, cfg.Height)
 
-	w.pageDirty = make([]bool, ceilDiv(n, tilePageLen))
+	w.pageDirty = make([]bool, len(w.tiles.pages))
 
 	w.chunkCols = ceilDiv(cfg.Width, chunkSize)
 	w.chunkRows = ceilDiv(cfg.Height, chunkSize)
@@ -809,7 +813,7 @@ func (w *World) TerrainAt(p Point) Terrain {
 	if !w.InBounds(p) {
 		return Rock
 	}
-	return w.tiles[w.index(p)].Terrain
+	return w.tiles.at(p.X, p.Y).Terrain
 }
 
 // TileAt returns the tile at p. Out-of-bounds cells behave as ordinary rock.
@@ -817,7 +821,7 @@ func (w *World) TileAt(p Point) Tile {
 	if !w.InBounds(p) {
 		return Tile{Terrain: Rock, Composition: OrdinaryRock}
 	}
-	return w.tile(w.index(p))
+	return w.tile(p)
 }
 
 // SetTerrain overwrites the terrain at p if it is in bounds, keeping the terrain
@@ -832,7 +836,7 @@ func (w *World) SetTerrain(p Point, t Terrain) {
 // so the cavern stays unknown (and out of every colony-facing system) until a
 // dig breaks into it and revealAround floods it open. Worldgen only.
 func (w *World) carveHidden(p Point) {
-	if !w.InBounds(p) || w.tiles[w.index(p)].Explored || w.TerrainAt(p) != Rock {
+	if !w.InBounds(p) || w.tiles.at(p.X, p.Y).Explored || w.TerrainAt(p) != Rock {
 		return
 	}
 	w.hiddenFloor++
@@ -843,8 +847,7 @@ func (w *World) setTerrain(p Point, t Terrain, discover bool) {
 	if !w.InBounds(p) {
 		return
 	}
-	i := w.index(p)
-	old := w.tiles[i].Terrain
+	old := w.tiles.at(p.X, p.Y).Terrain
 	if old == t {
 		return
 	}
@@ -884,8 +887,8 @@ func (w *World) setTerrain(p Point, t Terrain, discover bool) {
 	if t != Floor && t != Rock {
 		w.clearRefuse(p)
 	}
-	w.tiles[i].Terrain = t
-	w.markTilePageDirty(i)
+	w.tiles.ptr(p.X, p.Y).Terrain = t
+	w.markTilePageDirty(p)
 	w.dirtyChunks[w.chunkIndexOf(p)] = struct{}{}
 	w.emit(TileChanged{Pos: p, Old: old, New: t})
 }
@@ -951,14 +954,14 @@ func (w *World) reveal(p Point) {
 	if !w.InBounds(p) {
 		return
 	}
-	i := w.index(p)
-	if w.tiles[i].Explored {
+	c := w.tiles.ptr(p.X, p.Y)
+	if c.Explored {
 		return
 	}
-	w.tiles[i].Explored = true
+	c.Explored = true
 	w.exploredCount++
-	w.markTilePageDirty(i)
-	if w.tiles[i].Terrain != Rock {
+	w.markTilePageDirty(p)
+	if c.Terrain != Rock {
 		w.hiddenFloor--
 		w.caveStack = append(w.caveStack, p)
 	}
@@ -986,7 +989,7 @@ func (w *World) discoverCavernTile(p Point) {
 // fog of war is shown. Colony-facing systems use it to ignore the floor of
 // natural caverns nobody has broken into yet.
 func (w *World) discovered(p Point) bool {
-	return w.InBounds(p) && w.tiles[w.index(p)].Explored
+	return w.InBounds(p) && w.tiles.at(p.X, p.Y).Explored
 }
 
 // Explored reports whether the colony has seen p, as a frontend should show it:
@@ -999,12 +1002,12 @@ func (w *World) Explored(p Point) bool {
 	if !w.cfg.FogOfWar {
 		return true
 	}
-	return w.tiles[w.index(p)].Explored
+	return w.tiles.at(p.X, p.Y).Explored
 }
 
 // Walkable reports whether a colonist can stand at p.
 func (w *World) Walkable(p Point) bool {
-	return w.InBounds(p) && w.TerrainAt(p).Walkable()
+	return w.InBounds(p) && w.tiles.at(p.X, p.Y).Terrain.Walkable()
 }
 
 // ---- Occupancy ---------------------------------------------------------------

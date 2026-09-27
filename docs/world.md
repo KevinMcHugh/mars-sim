@@ -4,7 +4,7 @@
 
 ## What it is
 
-The world is a single underground level: a dense, row-major grid of `Tile`s that
+The world is a single underground level: a grid of `Tile`s, stored in 64×64 pages, that
 starts as solid rock with ordinary, iron-bearing, water ice-bearing,
 uranium-bearing, or clay-bearing composition. World generation carves a landing cavern, drops the colonists inside
 it, hollows hidden natural caverns (some joined by passages) out of the rock
@@ -64,8 +64,9 @@ a frontend draws nothing on a tile that has not. It only ever goes from false to
 true, and it is set only by `SetTerrain` — see
 [fog-of-war.md](./fog-of-war.md).
 
-The grid is stored as a flat `[]tileCell` of length `Width*Height`, indexed
-row-major via `World.index(p)`. `tileCell` is terrain, composition and the
+The grid is stored as a `pagedGrid[tileCell]`: 64×64 square pages, one per
+worldgen chunk (see [sparse-grids.md](./sparse-grids.md) and
+[worldgen-chunks.md](./worldgen-chunks.md)). `tileCell` is terrain, composition and the
 explored flag — **three bytes**, and deliberately so: this is the one structure
 in the simulation that genuinely needs an entry per tile, since composition is
 ore and worldgen threads veins through a fifth of the map. Every byte added
@@ -138,9 +139,12 @@ and it always finds a match if one exists.
 
 ## Why it is this way
 
-- **Flat row-major grid** keeps tile access to one multiply-add on the hot path
-  the simulation walks constantly. Frontends see the same grid through a paged,
-  page-shared copy instead, so publishing a frame does not re-copy the map — see
+- **Paged grid** costs a shift, a mask and a nil check per read. The searches
+  that walk it (A\*, flow fields, the region flood) take one page per node and
+  read all eight neighbours from it, which made them faster than the flat
+  row-major array this replaced. The paging is what lets a chunk nobody has
+  generated cost nothing. Frontends see the same pages through a page-shared
+  copy, so publishing a frame does not re-copy the map; see
   [snapshot-tile-grid.md](./snapshot-tile-grid.md).
 - **Out-of-bounds reads as `Rock`** removes bounds-checking special cases from
   the many callers that ask "what's next to me?" — the world edge just behaves

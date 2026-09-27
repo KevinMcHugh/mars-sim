@@ -107,10 +107,16 @@ func (w *World) recomputeChunkRegions(ci int) {
 		delete(w.regions, rid)
 	}
 
-	// Flood-fill new regions, staying within the chunk bounds.
+	// Flood-fill new regions, staying within the chunk bounds. A region
+	// chunk lies inside one tile page, so the page is looked up once; a
+	// chunk nothing was ever written to is all Rock and has no regions.
+	tiles := w.tiles.pageAt(x0, y0)
+	if tiles == nil {
+		return
+	}
 	for y := y0; y < y1; y++ {
 		for x := x0; x < x1; x++ {
-			if w.tiles[y*w.Width+x].Terrain != Floor {
+			if tiles[offset(x, y)].Terrain != Floor {
 				continue
 			}
 			if regions == nil {
@@ -131,7 +137,7 @@ func (w *World) recomputeChunkRegions(ci int) {
 				p := w.floodStack[len(w.floodStack)-1]
 				w.floodStack = w.floodStack[:len(w.floodStack)-1]
 				reg.size++
-				if w.tiles[p.Y*w.Width+p.X].Explored {
+				if tiles[offset(p.X, p.Y)].Explored {
 					reg.discovered = true
 				}
 				for _, d := range neighbors8 {
@@ -139,8 +145,7 @@ func (w *World) recomputeChunkRegions(ci int) {
 					if qx < x0 || qx >= x1 || qy < y0 || qy >= y1 {
 						continue
 					}
-					j := qy*w.Width + qx
-					if o := offset(qx, qy); w.tiles[j].Terrain == Floor && regions[o] == 0 {
+					if o := offset(qx, qy); tiles[o].Terrain == Floor && regions[o] == 0 {
 						regions[o] = rid
 						w.floodStack = append(w.floodStack, Point{qx, qy})
 					}

@@ -56,7 +56,7 @@ func TestCavernsGenerateHidden(t *testing.T) {
 	// Cavern abundance is an expected value per chunk (see
 	// TestAbundanceDriftWithinTolerance), so a map this small only has to
 	// land in the neighbourhood of its target.
-	target := len(w.tiles) * cfg.CavernPercent / 100
+	target := w.Width*w.Height * cfg.CavernPercent / 100
 	if len(hidden) < target/2 || len(hidden) > target*2 {
 		t.Fatalf("caverns cover %d tiles, want about %d (%d%%)", len(hidden), target, cfg.CavernPercent)
 	}
@@ -234,8 +234,9 @@ func TestCavernPassagesJoinNearestNeighbors(t *testing.T) {
 func TestCavernsAreDeterministic(t *testing.T) {
 	a := newTestWorld(t, cavernTestConfig())
 	b := newTestWorld(t, cavernTestConfig())
-	for i := range a.tiles {
-		if a.tiles[i] != b.tiles[i] {
+	at, bt := denseTiles(a), denseTiles(b)
+	for i := range at {
+		if at[i] != bt[i] {
 			t.Fatalf("tile %d differs between two worlds from the same seed", i)
 		}
 	}

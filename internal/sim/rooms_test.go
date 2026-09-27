@@ -22,13 +22,14 @@ func carve(w *World, from, to Point, t Terrain) {
 // bruteRoomCount counts connected floor components with a global flood fill —
 // the ground truth the two-level maintenance must match.
 func bruteRoomCount(w *World) int {
-	seen := make([]bool, len(w.tiles))
+	tiles := denseTiles(w)
+	seen := make([]bool, len(tiles))
 	count := 0
 	var stack []Point
 	for y := 0; y < w.Height; y++ {
 		for x := 0; x < w.Width; x++ {
 			i := y*w.Width + x
-			if w.tiles[i].Terrain != Floor || seen[i] {
+			if tiles[i].Terrain != Floor || seen[i] {
 				continue
 			}
 			count++
@@ -43,7 +44,7 @@ func bruteRoomCount(w *World) int {
 						continue
 					}
 					j := w.index(q)
-					if w.tiles[j].Terrain == Floor && !seen[j] {
+					if tiles[j].Terrain == Floor && !seen[j] {
 						seen[j] = true
 						stack = append(stack, q)
 					}
@@ -235,12 +236,13 @@ func TestUpdateDisconnectedTracksCutoffRoom(t *testing.T) {
 // and mainRoom is the largest discovered one.
 func checkRoomLabels(t *testing.T, w *World) {
 	t.Helper()
-	seen := make([]bool, len(w.tiles))
+	tiles := denseTiles(w)
+	seen := make([]bool, len(tiles))
 	var mainRoom RoomID
 	mainSize := -1
 	labels := map[RoomID]bool{}
-	for i := range w.tiles {
-		if w.tiles[i].Terrain != Floor || seen[i] {
+	for i := range tiles {
+		if tiles[i].Terrain != Floor || seen[i] {
 			continue
 		}
 		start := Point{i % w.Width, i / w.Width}
@@ -253,14 +255,14 @@ func checkRoomLabels(t *testing.T, w *World) {
 			p := stack[len(stack)-1]
 			stack = stack[:len(stack)-1]
 			size++
-			discovered = discovered || w.tiles[w.index(p)].Explored
+			discovered = discovered || tiles[w.index(p)].Explored
 			if got := w.roomOf(p); got != room {
 				t.Fatalf("tile %v is in room %d, but its component started in room %d", p, got, room)
 			}
 			minRegion = min(minRegion, w.regionOf.at(p.X, p.Y))
 			for _, d := range neighbors8 {
 				q := p.Add(d.X, d.Y)
-				if w.InBounds(q) && w.tiles[w.index(q)].Terrain == Floor && !seen[w.index(q)] {
+				if w.InBounds(q) && tiles[w.index(q)].Terrain == Floor && !seen[w.index(q)] {
 					seen[w.index(q)] = true
 					stack = append(stack, q)
 				}

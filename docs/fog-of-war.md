@@ -38,7 +38,7 @@ of the tile grid, and the funnel every derived system hangs off (see
 ```go
 w.revealAround(p)   // p and its eight neighbors are no longer unknown
 ...
-w.tiles[i].Terrain = t
+w.tiles.ptr(p.X, p.Y).Terrain = t
 ```
 
 (The reveal comes *before* the write, so the changed tile is revealed as
@@ -167,15 +167,16 @@ undiscovered natural caverns depend on it (see [caverns.md](./caverns.md)). See 
   costs nothing. A 7000x7000 map holds 49M tiles and pages of them are what
   publishing a frame copies, so the eight bytes were worth the field ordering.
 - **What it costs.** A dig used to dirty one published page; the reveal around it
-  touches up to three (the neighborhood spans three rows, and on a wide map
-  consecutive rows are more than a page apart), so publishing a frame that
-  contains a dig copies more. `BenchmarkPublishSmallColonyOnHugeMap2500` — 60
+  touched up to three when pages were row-major strips (the neighborhood spans
+  three rows, and on a wide map consecutive rows were more than a page apart),
+  so publishing a frame that contained a dig copied more. With square pages it
+  is one, or two to four on a page edge. `BenchmarkPublishSmallColonyOnHugeMap2500` — 60
   colonists mining flat out, which is the worst case for reveals — went from
   ~916 µs and ~245 KB per published frame to ~968 µs and ~295 KB: about 6% more
   time and 20% more bytes. Most of those nine `reveal` calls are no-ops that
   dirty nothing, which is why it is not 3x. Finer-grained paging would claw the
-  rest back and is not worth its complexity; if it ever is, `tilePageBits` is the
-  knob (see [snapshot-tile-grid.md](./snapshot-tile-grid.md)).
+  rest back and is not worth its complexity (see
+  [snapshot-tile-grid.md](./snapshot-tile-grid.md)).
 - **No `TileChanged` for a reveal.** The event bus exists so the job board and
   flow fields can stay current, and neither cares who has seen what. Emitting
   reveals would put eight events on the bus per mined tile for no subscriber.
