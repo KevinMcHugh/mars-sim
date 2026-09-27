@@ -15,8 +15,7 @@ things to build/fix as we think of them:
   * dunno how to square that with the communal property vibe rn
     * kind of thinking - every colonist arrives with a "crash pod" which is a basic bed, toilet, and small rations. after that they need to provide by working
     * genuinely want to look at how frontier towns handled new arrivals. I know in the klondike they did supplies checks - you needed to demonstrate that you had 500lbs of supplies you were bringing in so the authorities weren't letting corpses in
-* centralized content for labels and free text (esp. actor labels and occurrence text)
-  * an HTML tool for managing this content
+* centralize content for labels and free text (esp. actor labels and occurrence text) and add authoring to Scum Lab
 * families, romantic relationships, cohabitation
 * interpersonal conflict
 * organizational conflict: factions, gangs
@@ -27,3 +26,4 @@ things to build/fix as we think of them:
 * lending
 * prediction markets
 * sickness
+* atmospheric conditions and related: temperature, rain from condensation on the cavern roof, humidity, light levels
