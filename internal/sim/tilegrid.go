@@ -48,7 +48,11 @@ func NewTileGrid(width, height int, tiles []Tile) *TileGrid {
 		t := tiles[i]
 		cells[i] = tileCell{Terrain: t.Terrain, Composition: t.Composition, Explored: t.Explored}
 		if t.Gore != 0 || t.Corpses != 0 {
-			refuse[Point{i % width, i / width}] = refuseCell{Gore: t.Gore, Corpses: t.Corpses}
+			// A hand-built frame only says how many bodies, not whose; the
+			// count is all a renderer reads.
+			var c [numCorpseKinds]uint16
+			c[0] = t.Corpses
+			refuse[Point{i % width, i / width}] = refuseCell{Gore: t.Gore, Corpses: c}
 		}
 	}
 	g := &TileGrid{
@@ -92,7 +96,7 @@ func (g *TileGrid) At(p Point) Tile {
 		Composition: c.Composition,
 		Explored:    c.Explored,
 		Gore:        r.Gore,
-		Corpses:     r.Corpses,
+		Corpses:     uint16(r.total()),
 	}
 }
 

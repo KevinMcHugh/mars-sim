@@ -472,7 +472,7 @@ word-wrapped to the panel width.
 - **Wiring `Kind.String()`/`observeNearby`'s sighting text to a species**
   would need a `*World` (or the resolved noun) threaded through, since
   `Kind.String()` today is a plain enum method and `observeNearby`'s "Saw %s
-  #%d." line is shared with mice. Worth doing once there's a second
+  #%d." line is shared with rats. Worth doing once there's a second
   world-scoped creature name to generalize the pattern for.
 - **A precise per-species breakdown for a mixed alien-swarm occurrence**,
   instead of `fireAlienSwarm`'s current one-name-for-the-whole-spawn

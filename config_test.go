@@ -165,7 +165,7 @@ func TestValidateNeedCriticalThreshold(t *testing.T) {
 func TestFlagsOverrideTheSettingsFile(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, sim.ConfigFileName)
-	settings := "colonists: 12\nmice: 3\nneeds:\n  food:\n    rise: 9\n"
+	settings := "colonists: 12\nrats: 3\nneeds:\n  food:\n    rise: 9\n"
 	if err := os.WriteFile(path, []byte(settings), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -174,9 +174,9 @@ func TestFlagsOverrideTheSettingsFile(t *testing.T) {
 	if err := loadConfigFile(&cfg, path, true); err != nil {
 		t.Fatalf("loadConfigFile: %v", err)
 	}
-	if cfg.StartColonists != 12 || cfg.StartMice != 3 || cfg.Needs[sim.NeedFood].Rise != 9 {
-		t.Fatalf("settings file not applied: %d colonists, %d mice, food rise %d",
-			cfg.StartColonists, cfg.StartMice, cfg.Needs[sim.NeedFood].Rise)
+	if cfg.StartColonists != 12 || cfg.StartRats != 3 || cfg.Needs[sim.NeedFood].Rise != 9 {
+		t.Fatalf("settings file not applied: %d colonists, %d rats, food rise %d",
+			cfg.StartColonists, cfg.StartRats, cfg.Needs[sim.NeedFood].Rise)
 	}
 
 	fs := flag.NewFlagSet("test", flag.ContinueOnError)
@@ -191,8 +191,8 @@ func TestFlagsOverrideTheSettingsFile(t *testing.T) {
 	if cfg.Needs[sim.NeedFood].Rise != 1 {
 		t.Errorf("food rise = %d, want the flag's 1", cfg.Needs[sim.NeedFood].Rise)
 	}
-	if cfg.StartMice != 3 {
-		t.Errorf("mice = %d, want the file's 3 (no flag passed)", cfg.StartMice)
+	if cfg.StartRats != 3 {
+		t.Errorf("rats = %d, want the file's 3 (no flag passed)", cfg.StartRats)
 	}
 	if cfg.StartAliens != sim.DefaultConfig().StartAliens {
 		t.Errorf("aliens = %d, want the compiled-in default", cfg.StartAliens)
@@ -228,7 +228,7 @@ func TestConfigPathFromArgs(t *testing.T) {
 		{[]string{"-config=balance.yaml"}, "balance.yaml", true},
 		{[]string{"--config", "balance.yaml"}, "balance.yaml", true},
 		{[]string{"--config=balance.yaml"}, "balance.yaml", true},
-		{[]string{"-colonists", "9", "-config", "b.yaml", "-mice", "2"}, "b.yaml", true},
+		{[]string{"-colonists", "9", "-config", "b.yaml", "-rats", "2"}, "b.yaml", true},
 		{[]string{"-config", ""}, "", true},
 		{[]string{"-config"}, "", true},
 	}
@@ -273,5 +273,36 @@ func TestLeftoverArgumentsAreRejected(t *testing.T) {
 	}
 	if err := checkNoArgs(nil); err != nil {
 		t.Errorf("no leftover arguments: %v", err)
+	}
+}
+
+// Old flag names: -mice is -rats, and -pistols explains what replaced it.
+func TestOldFlagNamesStillMeanSomething(t *testing.T) {
+	cfg := sim.DefaultConfig()
+	fs := flag.NewFlagSet("mars-sim", flag.ContinueOnError)
+	fs.SetOutput(io.Discard)
+	bindConfigFlags(fs, &cfg)
+	if err := fs.Parse([]string{"-mice", "4"}); err != nil || cfg.StartRats != 4 {
+		t.Fatalf("-mice 4: err %v, rats %d", err, cfg.StartRats)
+	}
+	fs = flag.NewFlagSet("mars-sim", flag.ContinueOnError)
+	fs.SetOutput(io.Discard)
+	bindConfigFlags(fs, &cfg)
+	if err := fs.Parse([]string{"-pistols", "2"}); err == nil || !strings.Contains(err.Error(), "crash-pod-pistols") {
+		t.Fatalf("-pistols 2: error %v does not point to crash-pod-pistols", err)
+	}
+}
+
+// A patch's scum is published as one byte, so scum-max above 255 would wrap
+// and a full patch would vanish from the map.
+func TestScumMaxMustFitAByte(t *testing.T) {
+	cfg := sim.DefaultConfig()
+	cfg.ScumMax = 256
+	if err := validateConfig(cfg); err == nil || !strings.Contains(err.Error(), "scum-max") {
+		t.Fatalf("scum-max 256: error %v", err)
+	}
+	cfg.ScumMax = 255
+	if err := validateConfig(cfg); err != nil {
+		t.Fatalf("scum-max 255: %v", err)
 	}
 }

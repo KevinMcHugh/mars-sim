@@ -21,7 +21,7 @@ name becomes both its command-line flag and its key in the committed
 
 `Config` groups its fields by concern: world shape and rock composition, seed,
 starting population and equipment, timing, colonist stats, needs, personality,
-the mining-strategy switch, and per-creature stats for aliens, cats, mice, and
+the mining-strategy switch, and per-creature stats for aliens, cats, rats, and
 weapons. Zero values are not meaningful — always start from `DefaultConfig()`
 and adjust.
 

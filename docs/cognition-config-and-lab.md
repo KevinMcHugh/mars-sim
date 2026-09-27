@@ -84,7 +84,7 @@ and `gore-sight-radius`). A rule may instead specify a fixed positive
 `distance`. Direct rules must be instant and may not set a radius or LOS.
 Persistent rules may set `interrupt_rest: true` to skip the rest/sleep
 observation fast path; the compiler rejects that flag on instant rules.
-Shipped alien/mouse/gore rules leave it off because those already have
+Shipped alien/rat/gore rules leave it off because those already have
 dedicated nearby checks.
 
 ### Reaction rules

@@ -18,18 +18,19 @@ func TestDefaultCognitionRulesCompileAndCoverShippedContent(t *testing.T) {
 			t.Errorf("attractor %d mismatch: got %+v, want %+v", i, got, a)
 		}
 	}
-	if got, want := len(def.Reactions), 25; got != want {
+	if got, want := len(def.Reactions), 32; got != want {
 		t.Fatalf("reaction count = %d, want %d migrated reactions", got, want)
 	}
 	for _, id := range []RuleID{
-		"saw-alien", "saw-mouse", "saw-gore", "bitten",
+		"saw-alien", "saw-rat", "saw-gore", "bitten",
 		"witnessed-colonist-killed", "witnessed-colonist-attacked",
-		"crushed-mouse", "witnessed-mouse-crushed", "witnessed-cat-catch",
+		"crushed-rat", "witnessed-rat-crushed", "witnessed-cat-catch",
 		"killed-alien", "witnessed-alien-killed", "wounded-alien",
 		"witnessed-gunfight", "conversation", "ate", "used-toilet", "slept",
 		"need-satisfied", "finished-mining", "cleared-rock",
 		"finished-construction", "cleaned-refuse", "incinerated-refuse",
-		"mutated", "witnessed-mutation",
+		"mutated", "witnessed-mutation", "ate-gruel", "cooked", "scraped-scum",
+		"fed-scumhouse", "went-to-market", "hauled", "bought-meal",
 	} {
 		if _, ok := def.reaction(id); !ok {
 			t.Errorf("missing shipped reaction %q", id)
@@ -43,13 +44,13 @@ func TestDefaultCognitionRulesCompileAndCoverShippedContent(t *testing.T) {
 func TestDefaultReactionFreshWornParity(t *testing.T) {
 	want := map[RuleID][2]MoodVector{
 		"saw-alien":                   {{8, -10, -15}, {5, -22, -22}},
-		"saw-mouse":                   {{2, -3, 0}, {1, -1, 0}},
+		"saw-rat":                     {{2, -3, 0}, {1, -1, 0}},
 		"saw-gore":                    {{-3, -7, -6}, {-6, -14, -10}},
 		"bitten":                      {{55, -44, -30}, {35, -80, -55}},
 		"witnessed-colonist-killed":   {{70, 40, -60}, {20, -85, -85}},
 		"witnessed-colonist-attacked": {{45, 25, -40}, {25, -70, -60}},
-		"crushed-mouse":               {{-1, 2, 0}, {-2, 0, 0}},
-		"witnessed-mouse-crushed":     {{-1, -2, -1}, {-1, -1, 0}},
+		"crushed-rat":                 {{-1, 2, 0}, {-2, 0, 0}},
+		"witnessed-rat-crushed":       {{-1, -2, -1}, {-1, -1, 0}},
 		"witnessed-cat-catch":         {{1, 1, 0}, {}},
 		"killed-alien":                {{45, 52, 35}, {25, 20, 8}},
 		"witnessed-alien-killed":      {{5, 6, 4}, {2, 2, 0}},
@@ -67,6 +68,13 @@ func TestDefaultReactionFreshWornParity(t *testing.T) {
 		"incinerated-refuse":          {{-1, 7, 1}, {-4, 0, 0}},
 		"mutated":                     {{18, -70, -35}, {10, -90, -70}},
 		"witnessed-mutation":          {{2, -8, -10}, {1, -16, -18}},
+		"ate-gruel":                   {{0, 0, -1}, {-1, -2, -1}},
+		"cooked":                      {{-1, 5, 1}, {-5, -2, 0}},
+		"scraped-scum":                {{-1, 4, 0}, {-5, -3, 0}},
+		"fed-scumhouse":               {{-1, 4, 0}, {-4, -2, 0}},
+		"went-to-market":              {{0, 3, 0}, {-2, 0, 0}},
+		"hauled":                      {{0, 2, 0}, {-2, 0, 0}},
+		"bought-meal":                 {{2, 3, 0}, {1, 0, 0}},
 	}
 	cfg := DefaultCognitionConfig()
 	for id, vectors := range want {

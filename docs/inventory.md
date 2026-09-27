@@ -7,7 +7,7 @@
 Colonists carry items in a fixed set of slots, each holding one homogeneous stack.
 Mining produces `RawRock` and may also produce `IronOre`, `WaterIce`,
 `UraniumOre`, or `Clay`, depending on the excavated tile's rock composition. Colonists may also carry `Pistol` or
-`Shotgun` weapons from the colony ship's starting equipment; see
+`Shotgun` weapons from their crash pod's manifest; see
 [combat.md](./combat.md). Cleaning up after the colony's dead fills slots too,
 with the `Viscera`/`Corpse` refuse a cleaner carries to the incinerator; see
 [sanitation.md](./sanitation.md).
@@ -45,12 +45,24 @@ limited inventory can never make one part of a deposit disappear.
 a mutation-causing dose every tick — see [mutation.md](./mutation.md). The dose
 ends after a full colonist unloads its ore into storage.
 
-Weapons are the other producer, though a one-time one: `equipColonyShip`
-(`combat.go`) hands a `Pistol` or `Shotgun` to a colonist's inventory once, at
-worldgen. There is no equip/unequip step — `bestWeapon` (`inventory.go`) just
+Weapons are the other producer, though a one-time one: a colonist's crash pod
+(`arrive`, `crashpod.go`) hands it its manifest's `Pistol`s and `Shotgun`s
+once, as it lands. `Meal`s arrive the same way but go into the pod's locker
+rather than the colonist's pockets; a colonist carries one only while eating
+it, or if eating was interrupted (see [food.md](./food.md)). There is no equip/unequip step — `bestWeapon` (`inventory.go`) just
 scans the stacks for the best weapon kind present, so carrying one *is*
 wielding it. Nothing removes a weapon from inventory today (no drop, no
 ammo, no loss on death), so once armed, always armed.
+
+Whatever a colonist carries is its own property — there is no owner on a
+stack. Once deposited, whose it is lives in the chest's ledger instead; see
+[property.md](./property.md).
+
+Biomatter is the other thing colonists carry for someone else: `CaveScum`
+scraped for the colony, and `Viscera`, `AlienCorpse` and `AnimalCorpse`
+gathered while cleaning, all bound for a scumhouse. `ColonistCorpse` goes only
+to the incinerator. See [scumhouse.md](./scumhouse.md) and
+[sanitation.md](./sanitation.md).
 
 Inventory is copied by value into the snapshot's `EntityView`, so the frontend can
 render it without touching live state.

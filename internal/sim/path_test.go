@@ -176,7 +176,10 @@ func TestPathDestinationMustBeUnoccupied(t *testing.T) {
 	w.refreshSpatial()
 
 	mover := w.spawn(Colonist, Point{1, 2})
-	w.spawn(Colonist, Point{4, 2}) // the only tile adjacent to the target
+	// The only tile adjacent to the target, held by someone working there: a
+	// loiterer would be nudged aside instead (see nudgeLoiterer).
+	worker := w.spawn(Colonist, Point{4, 2})
+	worker.Job = JobCraft
 	target := Point{5, 2}
 
 	if _, ok := w.travelTo(mover, target); ok {

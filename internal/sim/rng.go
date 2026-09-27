@@ -30,8 +30,8 @@ func splitmix64(s *uint64) uint64 {
 // generation. A rand.Rand does not expose its source, so World keeps these
 // alongside the *rand.Rand it draws from; restoring a source's state
 // rewinds its Rand with it, since v2's Rand carries no state of its own.
-// Worldgen-only streams (composition, caverns, alien lore) are spent before
-// the first tick and are not here.
+// Worldgen-only streams (composition, scum, caverns, alien lore) are spent
+// before the first tick and are not here.
 type rngSources struct {
 	sim, personality, age, nest *rand.PCG
 }

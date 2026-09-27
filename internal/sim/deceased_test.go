@@ -24,7 +24,7 @@ func TestDeceasedColonistArchivedPermanently(t *testing.T) {
 	}
 }
 
-// Only colonists get a permanent archive entry — mice/cats/aliens rely on
+// Only colonists get a permanent archive entry — rats/cats/aliens rely on
 // the bounded graveyard only, since their death volume has no natural cap
 // the way a colony's population does.
 func TestNonColonistsNotArchivedPermanently(t *testing.T) {
@@ -32,12 +32,12 @@ func TestNonColonistsNotArchivedPermanently(t *testing.T) {
 	w := newTestWorld(t, cfg)
 	spot := Point{2, 0}
 	w.SetTerrain(spot, Floor)
-	mouse := w.spawn(Mouse, spot)
+	rat := w.spawn(Rat, spot)
 
-	w.remove(mouse.ID, "test")
+	w.remove(rat.ID, "test")
 
-	if _, ok := w.deceasedColonists[mouse.ID]; ok {
-		t.Fatal("a dead mouse should not be archived in deceasedColonists")
+	if _, ok := w.deceasedColonists[rat.ID]; ok {
+		t.Fatal("a dead rat should not be archived in deceasedColonists")
 	}
 }
 
@@ -58,8 +58,8 @@ func TestDeceasedSurvivesGraveyardEviction(t *testing.T) {
 	for i := 0; i < 3; i++ {
 		spot := Point{2, 0}
 		w.SetTerrain(spot, Floor)
-		mouse := w.spawn(Mouse, spot)
-		w.stomp(colonist, mouse)
+		rat := w.spawn(Rat, spot)
+		w.stomp(colonist, rat)
 	}
 
 	for _, g := range w.graveyard {

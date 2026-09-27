@@ -27,6 +27,7 @@ the RNG half of save/load.
 | `World.agePRNG` (ages) | `Seed ^ 0x6A09E667` | whole game | yes |
 | `World.nestRNG` (alien nests) | `Seed ^ 0x0452821E638D0137` | whole game | yes |
 | `compositionRNG` (rock veins) | `Seed ^ 0x243F6A8885A308D3` | `generate` only | no |
+| cave scum (`growScum`) | `Seed ^ 0x5CA1AB1E` | `generate` only | no |
 | `cavernRNG` (caverns) | `Seed ^ 0x13198A2E03707344` | `generate` only | no |
 | alien lore roster | `Seed ^ alienLoreSeed` | `newWorld` only | no |
 
@@ -57,9 +58,9 @@ from `w.rng` pass `nil`.
   `MarshalBinary` makes it 20 bytes per stream.
 - **The switch changed every seed's world.** v2 has different generators and a
   different algorithm for `IntN`, so no v1 seed reproduces its old world.
-  It was made in one go, before the browser frontend (proposed in
-  [PR 60](https://github.com/KevinMcHugh/mars-sim/pull/60), `browser-frontend.md`
-  section 6) gives anyone a seed worth sharing. Any seed quoted in an older issue or doc describes a
+  It was made in one go, before the browser frontend
+  ([browser-frontend.md](./browser-frontend.md), section 6) gives anyone a
+  seed worth sharing. Any seed quoted in an older issue or doc describes a
   different world now.
 - **Tests that depended on a lucky seed broke with it.** Two did, and in both
   the fix was to find what the seed was covering for, not to hunt for a new
@@ -93,5 +94,5 @@ from `w.rng` pass `nil`.
 - [personality.md](./personality.md): why flavor draws stay off `World.rng`.
 - [determinism.md](./determinism.md): the other half of the invariant (map
   order), and the lockstep test a save/load test will copy.
-- `browser-frontend.md` ([PR 60](https://github.com/KevinMcHugh/mars-sim/pull/60)):
-  the save/load design this unblocks.
+- [browser-frontend.md](./browser-frontend.md): the save/load design this
+  unblocks.
