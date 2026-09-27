@@ -316,13 +316,13 @@ Start from this table:
 | Event | Charge | Grip |
 | --- | ---: | ---: |
 | `EvtSawAlien` | +8 | -10 |
-| `EvtSawMouse` | +2 | -3 |
+| `EvtSawRat` | +2 | -3 |
 | `EvtSawGore` | -3 | -7 |
 | `EvtBitten` | +10 | -8 |
 | `EvtWitnessedColonistKilled` | +6 | -16 |
 | `EvtWitnessedColonistAttacked` | +5 | -9 |
-| `EvtCrushedMouse` | -1 | +2 |
-| `EvtWitnessedMouseCrushed` | -1 | -2 |
+| `EvtCrushedRat` | -1 | +2 |
+| `EvtWitnessedRatCrushed` | -1 | -2 |
 | `EvtWitnessedCatCatch` | +1 | +1 |
 | `EvtKilledAlien` | +12 | +14 |
 | `EvtWitnessedAlienKilled` | +5 | +6 |
@@ -464,7 +464,7 @@ One occurrence has three different lifetimes:
 
 Do not make affect carry exact world facts. Removing an alien should remove the
 active threat immediately without resetting the colonist's lingering affect.
-Do not use the literally newest memory as current context; a mouse sighting must
+Do not use the literally newest memory as current context; a rat sighting must
 not erase a still-visible alien.
 
 ### Buffer rules

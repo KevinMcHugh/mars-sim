@@ -28,12 +28,26 @@ const (
 	// docs/combat.md.
 	Pistol
 	Shotgun
-	// Viscera is a gore stain scrubbed off the floor, and Corpse is a body
-	// carried off it. Both are refuse: a colonist gathers them while cleaning
-	// and they exist only to be destroyed in an incinerator. See cleaning.go
-	// and docs/sanitation.md.
+	// Viscera is a gore stain scrubbed off the floor, and ColonistCorpse is a
+	// colonist's body carried off it. Both are refuse a cleaner gathers (see
+	// cleaning.go and docs/sanitation.md). Viscera is also biomatter — viscera
+	// is viscera, whoever it came from — and goes to a scumhouse when one can
+	// take it; a colonist's body never does, and is only ever burned.
 	Viscera
-	Corpse
+	ColonistCorpse
+	// Meal is one portion of food: eating one resets hunger the way a pod
+	// used to. Colonists land with a supply in their crash pod's locker. See
+	// food.go and docs/food.md.
+	Meal
+	// AlienCorpse and AnimalCorpse are the bodies of aliens and of rats and
+	// cats: refuse to a cleaner, biomatter to a scumhouse. CaveScum is the
+	// biofilm scraped off cave surfaces, the renewable base of the food
+	// chain. See docs/scumhouse.md.
+	AlienCorpse
+	AnimalCorpse
+	CaveScum
+
+	numItemKinds // keep last: the number of item kinds
 )
 
 func (k ItemKind) String() string {
@@ -54,8 +68,16 @@ func (k ItemKind) String() string {
 		return "shotgun"
 	case Viscera:
 		return "viscera"
-	case Corpse:
-		return "corpse"
+	case ColonistCorpse:
+		return "colonist's body"
+	case AlienCorpse:
+		return "alien carcass"
+	case AnimalCorpse:
+		return "animal carcass"
+	case CaveScum:
+		return "cave scum"
+	case Meal:
+		return "meal"
 	default:
 		return "empty"
 	}
@@ -83,11 +105,28 @@ func bestWeapon(inv Inventory) ItemKind {
 	return best
 }
 
-// isRefuse reports whether an item kind is waste bound for an incinerator. It
-// is the one place that decides what burns, so a future kind of trash (spoiled
-// rations, alien remains) joins the cleaning loop by being listed here.
+// isRefuse reports whether an item kind is something a cleaner gathers off
+// the floor: stains and bodies. It is the one place that decides what the
+// cleaning loop picks up; where a load goes after that — a scumhouse for
+// biomatter, the incinerator for everything else — is isBiomatter's call.
 func (k ItemKind) isRefuse() bool {
-	return k == Viscera || k == Corpse
+	switch k {
+	case Viscera, ColonistCorpse, AlienCorpse, AnimalCorpse:
+		return true
+	default:
+		return false
+	}
+}
+
+// isBiomatter reports whether a scumhouse can make food from an item kind.
+// Every body but a colonist's is; so is all viscera, whoever it came from.
+func (k ItemKind) isBiomatter() bool {
+	switch k {
+	case Viscera, AlienCorpse, AnimalCorpse, CaveScum:
+		return true
+	default:
+		return false
+	}
 }
 
 // isStorableMaterial reports whether an item belongs in general colony storage.
@@ -126,8 +165,17 @@ type StorageInventory [StorageInventorySlotCount]ItemStack
 // lives here rather than in StorageInventory so snapshots and future hauling
 // jobs can identify a container without scanning the terrain grid.
 type StorageContainer struct {
-	Pos       Point
+	Pos Point
+	// Terrain is what kind of fixture holds this depot: a Storage chest (or a
+	// crash pod's locker, which is one), or a Scumhouse's input and output
+	// store. General materials are only ever unloaded into chests.
+	Terrain   Terrain
 	Inventory StorageInventory
+	// Ledger says whose the items in Inventory are: one line per (owner,
+	// item), sorted, summing per item to what Inventory physically holds. The
+	// stacks themselves carry no owner. See property.go and
+	// docs/property.md.
+	Ledger []LedgerLine
 }
 
 // RemoveAll empties every stack of a kind and returns how many items were in
@@ -135,6 +183,39 @@ type StorageContainer struct {
 // rather than item by item.
 func (inv *Inventory) RemoveAll(kind ItemKind) int {
 	return removeAllStacks(inv[:], kind)
+}
+
+// Remove takes exactly n items of a kind, or leaves the inventory unchanged
+// and returns false if it holds fewer.
+func (inv *Inventory) Remove(kind ItemKind, n int) bool {
+	return removeStacks(inv[:], kind, n)
+}
+
+// Remove takes exactly n items of a kind from the container, or leaves it
+// unchanged and returns false if it holds fewer. Callers that own the items
+// go through StorageContainer.debit instead, which keeps the ledger in step.
+func (inv *StorageInventory) Remove(kind ItemKind, n int) bool {
+	return removeStacks(inv[:], kind, n)
+}
+
+// removeStacks takes n items of a kind, emptying the last matching stacks
+// first so partially used stacks do not multiply. All-or-nothing, like add.
+func removeStacks(stacks []ItemStack, kind ItemKind, n int) bool {
+	if n < 0 || kind == ItemNone || countStacks(stacks, kind) < n {
+		return false
+	}
+	for i := len(stacks) - 1; i >= 0 && n > 0; i-- {
+		if stacks[i].Kind != kind || stacks[i].Count == 0 {
+			continue
+		}
+		take := min(n, stacks[i].Count)
+		stacks[i].Count -= take
+		n -= take
+		if stacks[i].Count == 0 {
+			stacks[i] = ItemStack{}
+		}
+	}
+	return true
 }
 
 func removeAllStacks(stacks []ItemStack, kind ItemKind) int {

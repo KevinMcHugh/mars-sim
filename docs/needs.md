@@ -6,7 +6,7 @@
 
 Colonists accumulate **needs** (food, bladder, social contact, and sleep) over
 time and may switch focus to satisfy them. Each need independently projects its
-lazy numeric level into a discrete phase. Mice reuse the food level. Levels stay
+lazy numeric level into a discrete phase. Rats reuse the food level. Levels stay
 lazy — a base plus a timestamp — so idle colonists do not need per-tick storage
 updates.
 
@@ -26,10 +26,16 @@ indexed by the kind:
 
 | Need | Rise/tick | SeekAt | CriticalAt | Max | Facility | UseTicks | GrabTicks | Fatal |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| food | 2 | 650 | 1000 | 1000 | NutrientPod | 18 | 3 | **yes** |
+| food | 2 | 650 | 1000 | 1000 | meals, then NutrientPod | 18 | 3 | **yes** |
 | bladder | 3 | 600 | 900 | 1000 | Toilet | 10 | 0 | no |
 | sleep | 1 | 700 | 900 | 1000 | Bed | 40 | 0 | no |
 | social | 2 | 500 | 850 | 1000 | conversation | — | — | no |
+
+Food is the one need met by an item as well as a facility: a hungry colonist
+eats a real `Meal` it owns (or the colony owns) before it walks to a nutrient
+pod, and with `infinite-food` off pods feed nobody at all. See
+[food.md](./food.md); everything below about facilities applies to food only
+when the safety net is what the colonist is using.
 
 Levels run `0..Max`; 0 means satisfied. `SeekAt` makes the need actionable,
 `CriticalAt` adds critical focus pressure, and a **fatal** need sitting at `Max`
@@ -47,7 +53,7 @@ level = clamp(Needs[i] + needRise[i] * (now - needSince[i]), 0, Max)
 ```
 
 `needRise[i]` is the entity's own per-tick rate: trait-scaled for colonists (see
-[personality.md](./personality.md)) and much faster for mice. `syncNeedPhase`
+[personality.md](./personality.md)) and much faster for rats. `syncNeedPhase`
 reads this lazy level and updates only its discrete projection:
 
 | Phase | Level |
@@ -138,10 +144,16 @@ delayed dormitory turn into an indefinite "stuck waiting" loop.
 
 ### Satisfying a need
 
-When a need is urgent and a facility of the right kind is reachable, the
+When a need is urgent and a facility of the right kind that the colonist may
+use is reachable (`facilityReachable`: a communal one via the shared field, or
+its own private one — see [property.md](./property.md)), the
 colonist normally takes a `JobUse` job. With fewer than two facilities of that
-kind, there's nothing to choose between, so it just follows that facility's
-shared **flow field** to the nearest one. Once a second exists, `jobUse`
+kind — and none of them private — there's nothing to choose between, so it
+just follows that facility's shared **flow field** to the nearest one. The field
+knows terrain but not pending construction, which `followField` refuses to step
+on; when that leaves only an uphill step, the colonist routes by A* instead for
+`fieldDetourTicks`. Without that, construction across the field's route had a
+colonist pacing beside the colony's only toilet for hundreds of ticks. Once a second exists, `jobUse`
 switches to routing at a *concrete* facility instead — see *Spreading users
 across facilities* below — stands adjacent to whichever it ends up at, and
 uses it for `UseTicks`. But if the colony still wants more of that facility
@@ -157,8 +169,9 @@ facilities get built and for this priority in full. The colony keeps
 ### Spreading users across facilities
 
 `chooseFacility` (`facilitychoice.go`) picks *which* facility of a kind a
-colonist commits to once more than one exists, so a crowd doesn't all converge
-on the shared field's single nearest seed. It ranks reachable facilities by
+colonist commits to once more than one exists — skipping any private fixture
+that is not its own — so a crowd doesn't all converge on the shared field's
+single nearest seed. It ranks reachable facilities by
 walkable distance and skips any that's **congested** — something actually
 occupying one of its reachable access tiles right now, or another colonist
 already committed to it (`Job == JobUse`, `useFacilitySet`, `useFacility` equal

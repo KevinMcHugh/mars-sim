@@ -18,7 +18,7 @@ const (
 	NounColonist  NounID = "colonist"
 	NounAlien     NounID = "alien"
 	NounCat       NounID = "cat"
-	NounMouse     NounID = "mouse"
+	NounRat       NounID = "rat"
 	NounGore      NounID = "gore"
 	NounMeal      NounID = "meal"
 	NounToilet    NounID = "toilet"
@@ -27,6 +27,10 @@ const (
 	NounRock      NounID = "rock"
 	NounStructure NounID = "structure"
 	NounRefuse    NounID = "refuse"
+	NounGruel     NounID = "gruel"
+	NounScum      NounID = "scum"
+	NounScumhouse NounID = "scumhouse"
+	NounGoods     NounID = "goods"
 )
 
 const (
@@ -48,6 +52,12 @@ const (
 	ActionClean      ActionID = "clean"
 	ActionIncinerate ActionID = "incinerate"
 	ActionMutate     ActionID = "mutate"
+	ActionCook       ActionID = "cook"
+	ActionScrape     ActionID = "scrape"
+	ActionDeliver    ActionID = "deliver"
+	ActionTrade      ActionID = "trade"
+	ActionBuy        ActionID = "buy"
+	ActionHaul       ActionID = "haul"
 )
 
 // ChannelID says how an observer learned about an occurrence. Direct is
@@ -108,7 +118,7 @@ func (w *World) factRef(e *Entity) FactRef {
 	switch e.Kind {
 	case Alien:
 		label = fmt.Sprintf("%s #%d", w.alienNounFor(e), e.ID)
-	case Cat, Mouse:
+	case Cat, Rat:
 		label = fmt.Sprintf("%s #%d", e.Kind, e.ID)
 	}
 	return FactRef{Noun: nounForKind(e.Kind), Entity: e.ID, Label: label}
@@ -122,8 +132,8 @@ func nounForKind(kind Kind) NounID {
 		return NounAlien
 	case Cat:
 		return NounCat
-	case Mouse:
-		return NounMouse
+	case Rat:
+		return NounRat
 	default:
 		return ""
 	}
@@ -157,6 +167,14 @@ func (w *World) occurrence(actor *Entity, action ActionID, object *Entity, at Po
 		Actor: w.factRef(actor), Action: action, Object: w.factRef(object), Location: at,
 		Text: fmt.Sprintf(format, args...),
 	}
+}
+
+// emitDone emits e's own action on a thing that is not an entity — scum it
+// scraped, a meal it bought — for e's own memory and mood.
+func (w *World) emitDone(e *Entity, action ActionID, noun NounID, format string, args ...any) {
+	o := w.occurrence(e, action, nil, e.Pos, format, args...)
+	o.Object = FactRef{Noun: noun, Label: string(noun)}
+	w.emitOccurrence(o)
 }
 
 func (o Occurrence) source(selector StimulusSource) EntityID {
@@ -465,7 +483,7 @@ func (w *World) observePersistent(observer *Entity, only NounID) {
 	}
 	observer.perceiving = current
 	// Threat presence is still alien-only. Flee/fight eligibility and
-	// fightAlien read nearestAlien — a mouse or a custom "saw wolf" percept
+	// fightAlien read nearestAlien — a rat or a custom "saw wolf" percept
 	// can dirty the mind but cannot become a legal fight/flee target.
 	// seesThreat is the cheap edge detector for that same alien-presence
 	// question, not a general "something scary is nearby" flag.

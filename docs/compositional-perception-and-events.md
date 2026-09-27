@@ -206,11 +206,11 @@ This preserves the useful distinction between “first saw an alien” and “th
 alien is still demanding attention.”
 
 The resting/sleeping cognition fast path still skips observation when no
-nearby alien, mouse, or gore exists. A custom persistent rule does not flip
+nearby alien, rat, or gore exists. A custom persistent rule does not flip
 that path by existing: set `interrupt_rest: true` on the rule that should
 wake a rester. Tuning a shipped radius (or adding a flavor-only sighting)
 must not disable rest. Threat presence (`seesThreat`) stays alien-only —
-flee/fight eligibility still reads `nearestAlien`, so a mouse or a
+flee/fight eligibility still reads `nearestAlien`, so a rat or a
 configured “saw wolf” percept cannot become a legal fight/flee target.
 
 ### Wear as a policy, not a conversation exception

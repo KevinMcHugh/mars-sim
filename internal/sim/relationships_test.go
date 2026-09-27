@@ -388,7 +388,7 @@ func TestTalkingRaisesAffinity(t *testing.T) {
 // conversation even when opportunistic talking is disabled.
 func TestSocialNeedPreemptsWork(t *testing.T) {
 	cfg := DefaultConfig()
-	cfg.StartColonists, cfg.StartAliens, cfg.StartCats, cfg.StartMice = 0, 0, 0, 0
+	cfg.StartColonists, cfg.StartAliens, cfg.StartCats, cfg.StartRats = 0, 0, 0, 0
 	cfg.TalkChance = 0
 	// DefaultConfig's seed is time-based, and traits are rolled off it: an
 	// Asocial colonist has needRise 0 for social, so it never becomes urgent and
@@ -424,7 +424,7 @@ func TestSocialNeedPreemptsWork(t *testing.T) {
 // mining and building for good.
 func TestMutuallyUrgentColonistsFinishConversation(t *testing.T) {
 	cfg := DefaultConfig()
-	cfg.StartColonists, cfg.StartAliens, cfg.StartCats, cfg.StartMice = 0, 0, 0, 0
+	cfg.StartColonists, cfg.StartAliens, cfg.StartCats, cfg.StartRats = 0, 0, 0, 0
 	cfg.TalkChance = 0                // only the urgent need may start this chat
 	cfg.Seed, cfg.TraitChance = 11, 0 // no Asocial roll: see TestSocialNeedPreemptsWork
 	w := newWorld(cfg, rand.New(rand.NewSource(11)))

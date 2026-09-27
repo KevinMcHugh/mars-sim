@@ -23,6 +23,9 @@ type SetTicksPerSecond struct{ Rate int }
 // Handy for stress-testing and for player actions later.
 type Spawn struct{ Kind Kind }
 
+// OrderScumhouse asks the planner to queue one scumhouse room.
+type OrderScumhouse struct{}
+
 // OrderFacilityRoom asks the planner to queue one life-support room.
 type OrderFacilityRoom struct{}
 
@@ -45,6 +48,7 @@ func (OrderFacilityRoom) isCommand() {}
 func (OrderDormitory) isCommand()    {}
 func (OrderTrashRoom) isCommand()    {}
 func (OrderStorageRoom) isCommand()  {}
+func (OrderScumhouse) isCommand()    {}
 
 // Engine drives the simulation. It owns the World and is the only goroutine that
 // touches it. Frontends interact only through Subscribe (to receive Snapshots)
@@ -245,6 +249,8 @@ func (e *Engine) apply(cmd Command) (rateChanged bool) {
 		e.world.manualTrashRooms++
 	case OrderStorageRoom:
 		e.world.manualStorageRooms++
+	case OrderScumhouse:
+		e.world.manualScumhouses++
 	}
 	return false
 }
@@ -254,9 +260,7 @@ func (e *Engine) spawn(kind Kind) {
 	center := Point{w.Width / 2, w.Height / 2}
 	switch kind {
 	case Colonist:
-		if p, ok := w.randomFloor(); ok {
-			w.spawn(Colonist, p)
-		}
+		w.arrive(true) // every colonist comes in a crash pod
 	case Alien:
 		if p, ok := w.alienSpawnSite(center, 8); ok {
 			w.spawn(Alien, p)
@@ -265,9 +269,9 @@ func (e *Engine) spawn(kind Kind) {
 		if p, ok := w.randomFloor(); ok {
 			w.spawn(Cat, p)
 		}
-	case Mouse:
+	case Rat:
 		if p, ok := w.randomFloor(); ok {
-			w.spawn(Mouse, p)
+			w.spawn(Rat, p)
 		}
 	}
 }

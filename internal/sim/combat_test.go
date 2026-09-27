@@ -11,7 +11,7 @@ import "testing"
 // playtesting, not this unit test.
 func TestArmedColonistKillsAlien(t *testing.T) {
 	cfg := testConfig()
-	cfg.StartColonists, cfg.StartAliens, cfg.StartCats, cfg.StartMice = 0, 0, 0, 0
+	cfg.StartColonists, cfg.StartAliens, cfg.StartCats, cfg.StartRats = 0, 0, 0, 0
 	// Keep the target from biting between the two shots. A bite now creates an
 	// active flee stimulus, which is a separate behavior from gunfire itself.
 	cfg.AlienSlowness = 4
@@ -45,7 +45,7 @@ func TestArmedColonistKillsAlien(t *testing.T) {
 // The default is documented by the affect and combat behavior docs.
 func TestArmedColonistFightsFromNeutralAffect(t *testing.T) {
 	cfg := testConfig()
-	cfg.StartColonists, cfg.StartAliens, cfg.StartCats, cfg.StartMice = 0, 0, 0, 0
+	cfg.StartColonists, cfg.StartAliens, cfg.StartCats, cfg.StartRats = 0, 0, 0, 0
 	w := newTestWorld(t, cfg)
 
 	center := Point{w.Width / 2, w.Height / 2}
@@ -68,7 +68,7 @@ func TestArmedColonistFightsFromNeutralAffect(t *testing.T) {
 // it — arming the colony ship must not change unarmed behavior.
 func TestUnarmedColonistStillFlees(t *testing.T) {
 	cfg := testConfig()
-	cfg.StartColonists, cfg.StartAliens, cfg.StartCats, cfg.StartMice = 0, 0, 0, 0
+	cfg.StartColonists, cfg.StartAliens, cfg.StartCats, cfg.StartRats = 0, 0, 0, 0
 	w := newTestWorld(t, cfg)
 
 	center := Point{w.Width / 2, w.Height / 2}
@@ -85,7 +85,7 @@ func TestUnarmedColonistStillFlees(t *testing.T) {
 // An armed colonist within weapon range should stand and fight instead.
 func TestArmedColonistFightsInsteadOfFleeing(t *testing.T) {
 	cfg := testConfig()
-	cfg.StartColonists, cfg.StartAliens, cfg.StartCats, cfg.StartMice = 0, 0, 0, 0
+	cfg.StartColonists, cfg.StartAliens, cfg.StartCats, cfg.StartRats = 0, 0, 0, 0
 	w := newTestWorld(t, cfg)
 
 	center := Point{w.Width / 2, w.Height / 2}
@@ -140,19 +140,19 @@ func TestLimbDestroyedIsNotFatal(t *testing.T) {
 	}
 }
 
-// Stomping a mouse, an alien bite that kills a colonist, and gunfire that
+// Stomping a rat, an alien bite that kills a colonist, and gunfire that
 // kills an alien should all leave gore on the tile where it happened.
 func TestViolentDeathsLeaveGore(t *testing.T) {
 	cfg := testConfig()
 	w := newTestWorld(t, cfg)
 
-	mouseSpot := Point{5, 5}
-	w.SetTerrain(mouseSpot, Floor)
+	ratSpot := Point{5, 5}
+	w.SetTerrain(ratSpot, Floor)
 	colonist := w.spawn(Colonist, Point{4, 5})
-	mouse := w.spawn(Mouse, mouseSpot)
-	w.stomp(colonist, mouse)
-	if w.goreAt(mouseSpot) == 0 {
-		t.Error("stomping a mouse should leave gore")
+	rat := w.spawn(Rat, ratSpot)
+	w.stomp(colonist, rat)
+	if w.goreAt(ratSpot) == 0 {
+		t.Error("stomping a rat should leave gore")
 	}
 
 	alienSpot := Point{10, 5}
@@ -182,33 +182,24 @@ func TestViolentDeathsLeaveGore(t *testing.T) {
 	}
 }
 
-// The colony ship's starting pistol and shotgun should be issued to distinct
-// colonists at worldgen.
-func TestColonyShipEquipsStartingColonists(t *testing.T) {
+// Every colonist lands armed with its crash pod's manifest of weapons.
+func TestCrashPodsArmTheirColonists(t *testing.T) {
 	cfg := testConfig()
-	cfg.StartAliens, cfg.StartCats, cfg.StartMice = 0, 0, 0
+	cfg.StartAliens, cfg.StartCats, cfg.StartRats = 0, 0, 0
 	cfg.StartColonists = 4
-	cfg.StartPistols, cfg.StartShotguns = 1, 1
+	cfg.CrashPodPistols, cfg.CrashPodShotguns = 1, 1
 	w := newTestWorld(t, cfg)
 
-	pistols, shotguns := 0, 0
 	for _, e := range w.entities {
 		if e.Kind != Colonist {
 			continue
 		}
-		for _, stack := range e.Inventory {
-			switch stack.Kind {
-			case Pistol:
-				pistols += stack.Count
-			case Shotgun:
-				shotguns += stack.Count
-			}
+		if e.Inventory.Count(Pistol) != 1 || e.Inventory.Count(Shotgun) != 1 {
+			t.Errorf("%s carries %d pistols and %d shotguns, want 1 and 1",
+				e.displayName(), e.Inventory.Count(Pistol), e.Inventory.Count(Shotgun))
 		}
-	}
-	if pistols != cfg.StartPistols {
-		t.Errorf("pistols issued = %d, want %d", pistols, cfg.StartPistols)
-	}
-	if shotguns != cfg.StartShotguns {
-		t.Errorf("shotguns issued = %d, want %d", shotguns, cfg.StartShotguns)
+		if bestWeapon(e.Inventory) != Shotgun {
+			t.Errorf("%s would not fight with its shotgun", e.displayName())
+		}
 	}
 }

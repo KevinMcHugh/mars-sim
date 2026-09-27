@@ -88,11 +88,11 @@ func TestStimulusWeakOrdering(t *testing.T) {
 
 func TestZeroSpecEventRecordsMemoryWithoutStimulus(t *testing.T) {
 	w, c := focusTestColonist(t)
-	rememberTest(w, c, "saw-mouse", "Saw a mouse.")
+	rememberTest(w, c, "saw-rat", "Saw a rat.")
 	if c.stimulusCount != 0 {
 		t.Fatalf("zero-spec event created %d stimuli", c.stimulusCount)
 	}
-	if len(c.Memories) != 1 || c.Memories[0].Rule != "saw-mouse" {
+	if len(c.Memories) != 1 || c.Memories[0].Rule != "saw-rat" {
 		t.Fatal("zero-spec event did not record memory")
 	}
 }
