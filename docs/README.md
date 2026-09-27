@@ -39,7 +39,8 @@ way it is without re-deriving it from the source each time.
 | [storage.md](./storage.md) | Placeable storage containers, their capacity, construction, and snapshot state. |
 | [affect.md](./affect.md) | Charge/grip/valence affect, the impact-weighted push/pull blend, fresh/worn wear, grammar-matched trait rules, per-colonist baselines, decay, labels, and focus contributions. |
 | [compositional-perception-and-events.md](./compositional-perception-and-events.md) | Occurrence/percept/reaction grammar: who notices a world fact, how they react, wear policies, and why tags were dropped. |
-| [cognition-config-and-lab.md](./cognition-config-and-lab.md) | `cognition.yaml` authoring, strict loading, vocabulary export, and the Cognition Lab workbench. |
+| [scum-lab.md](./scum-lab.md) | Scum Lab: the shared shell, Focus Tester, Grammar Builder, and how to add a tool. |
+| [wasm.md](./wasm.md) | The browser module Scum Lab calls, why importing `internal/sim` pulls in more than the focus functions, and the `internal/mind` split that fixes it. |
 | [mood-space.md](./mood-space.md) | What is still open after wear, trait rules, and baselines shipped — plus the rejected tag design. |
 | [memories.md](./memories.md) | Colonist memories and compositional events: notable experiences, sightings, affect vectors, stimuli, and snapshot exposure. |
 | [sparse-grids.md](./sparse-grids.md) | `pagedGrid[T]`: why the flow fields, A\* scratch, region labels and occupancy index allocate with the colony instead of the map, and the fast paths that made it free. |

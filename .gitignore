@@ -2,6 +2,7 @@
 /mars-sim
 *.exe
 *.out
+tools/scum-lab/scumlab.wasm
 
 # Go
 /vendor/

@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Scum Lab</title>
+  <link rel="stylesheet" href="scum.css">
+</head>
+<body>
+  <header class="mast">
+    <div class="brand">
+      <p class="eyebrow">Mars colony · tuning bench</p>
+      <h1>Scum Lab</h1>
+    </div>
+    <div class="mast-actions">
+      <button type="button" id="vocab" class="ghost">Vocabulary</button>
+      <button type="button" id="import" class="ghost">Import</button>
+      <button type="button" id="export" class="primary">Export</button>
+      <button type="button" id="reset" class="ghost">Reset file</button>
+    </div>
+  </header>
+  <nav id="nav" class="nav" aria-label="Scum Lab tools"></nav>
+  <main id="tool"></main>
+
+  <dialog id="modal">
+    <div class="modal-head">
+      <h2 id="modal-title">cognition.yaml</h2>
+      <button type="button" id="modal-close" class="ghost">Close</button>
+    </div>
+    <textarea id="modal-text" spellcheck="false"></textarea>
+    <div class="modal-actions">
+      <p id="modal-note" class="note"></p>
+      <span>
+        <button type="button" id="modal-copy" class="ghost">Copy</button>
+        <button type="button" id="modal-apply" class="primary">Apply</button>
+      </span>
+    </div>
+  </dialog>
+  <script src="wasm_exec.js"></script>
+  <script type="module" src="shell.js"></script>
+</body>
+</html>

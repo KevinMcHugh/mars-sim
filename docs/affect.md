@@ -223,8 +223,7 @@ loaded attractors rather than the static `moodAttractors` table.
 
 - [compositional-perception-and-events.md](./compositional-perception-and-events.md)
   — occurrence/percept/reaction grammar and wear-policy seam.
-- [cognition-config-and-lab.md](./cognition-config-and-lab.md) — authoring
-  schema and the Cognition Lab.
+- [scum-lab.md](./scum-lab.md) — the bench that edits `cognition.yaml`.
 - [memories.md](./memories.md) — the single event ingestion funnel and memory collapse.
 - [personality.md](./personality.md) — trait groups, affect homes, and the
   personality RNG invariant.

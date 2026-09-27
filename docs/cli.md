@@ -31,7 +31,7 @@ Startup follows this order:
 2b. Apply the director's schedule file (`director.yaml`, or `-director PATH`)
     the same way, for the same reason. See [director.md](./director.md).
 2c. Apply the cognition balance file (`cognition.yaml`, or `-cognition PATH`)
-    the same way. See [cognition-config-and-lab.md](./cognition-config-and-lab.md).
+    the same way. See [compositional-perception-and-events.md](./compositional-perception-and-events.md).
 3. Register flags whose defaults come from that config.
 4. Parse flags (with `?`, `-?`, and `--?` as help aliases).
 4b. `SyncWithCognition` copies `cognition.yaml`'s focuses/arbitration onto
@@ -52,7 +52,7 @@ These flags control how the process runs rather than the simulated world:
 | `-seed <int64>` | Select a reproducible world seed. `0` leaves the time-based default seed in place. |
 | `-config <path>` | Read this settings file instead of `mars-sim.yaml` in the working directory. A file named here that does not exist is an error; `-config ""` reads no file at all. |
 | `-director <path>` | Read this director schedule file instead of `director.yaml` in the working directory. A file named here that does not exist is an error; `-director ""` runs with no scheduled occurrences. See [director.md](./director.md). |
-| `-cognition <path>` | Read this cognition balance file instead of `cognition.yaml` in the working directory. A file named here that does not exist is an error; `-cognition ""` uses the compiled defaults. See [cognition-config-and-lab.md](./cognition-config-and-lab.md). |
+| `-cognition <path>` | Read this cognition balance file instead of `cognition.yaml` in the working directory. A file named here that does not exist is an error; `-cognition ""` uses the compiled defaults. See [compositional-perception-and-events.md](./compositional-perception-and-events.md). |
 | `-cpuprofile <path>` | Write a CPU profile of the whole run (world generation included) to this file. See [Profiling](#profiling). |
 | `-print-config` | Write a commented settings file with every setting at its default to stdout, then exit. Redirect it to `mars-sim.yaml` to regenerate the committed file. |
 | `-print-cognition-config` | Write a cognition settings file with every setting at its default to stdout, then exit. Redirect it to `cognition.yaml` after re-applying any authored comments. |

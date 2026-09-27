@@ -233,8 +233,7 @@ readings live next to these rows in `cognition.yaml`.
 
 - [compositional-perception-and-events.md](./compositional-perception-and-events.md)
   — the grammar, perception engine, and wear-policy seam.
-- [cognition-config-and-lab.md](./cognition-config-and-lab.md) — authoring
-  schema and the Cognition Lab.
+- [scum-lab.md](./scum-lab.md) — the bench that edits `cognition.yaml`.
 - [combat.md](./combat.md) — the bite/stomp/pounce/shoot events, gore, and
   `World.remove`'s parallel one-funnel pattern for deaths.
 - [personality.md](./personality.md) — traits, and why trait *effects* are
