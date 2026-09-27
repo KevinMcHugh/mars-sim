@@ -27,3 +27,4 @@ things to build/fix as we think of them:
 * prediction markets
 * sickness
 * atmospheric conditions and related: temperature, rain from condensation on the cavern roof, humidity, light levels
+* scum farms grow cave scum faster and in a more convenient location. But they should require up front investment, tending, and ongoing maintenance somehow
