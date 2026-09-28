@@ -31,6 +31,7 @@ const (
 	NounScum      NounID = "scum"
 	NounScumhouse NounID = "scumhouse"
 	NounGoods     NounID = "goods"
+	NounSkill     NounID = "skill"
 )
 
 const (
@@ -58,6 +59,7 @@ const (
 	ActionTrade      ActionID = "trade"
 	ActionBuy        ActionID = "buy"
 	ActionHaul       ActionID = "haul"
+	ActionLearn      ActionID = "learn"
 )
 
 // ChannelID says how an observer learned about an occurrence. Direct is

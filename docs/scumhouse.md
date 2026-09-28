@@ -18,7 +18,7 @@ meals. Nothing it cooks is free for the taking. This is phase **E3** of the
 ## Source
 
 - [`internal/sim/scumhouse.go`](../internal/sim/scumhouse.go) — `Recipe`,
-  `SkillKind`, the `recipes` table; `scumPatch`, `scumAt`, `takeScum`, the
+  the `recipes` table; `scumPatch`, `scumAt`, `takeScum`, the
   exposure index; `foodWanted`, `tryAssignFoodWork`,
   `tryAssignCraft`/`jobCraft`, `tryAssignScrape`/`jobScrape`,
   `deliverBiomatter`, `carriedOwner`; the colony's trade (`biomatterPrice`,
@@ -84,9 +84,10 @@ penniless colonist on a small map.
 ### Recipes
 
 A `Recipe` consumes `Inputs` from a workshop's depot, takes `Ticks` of labor
-there (scaled by `workScale`), and puts `Outputs` in the same depot. **Whoever
-owns the inputs owns the outputs**; the workshop's owner does not. `Skill` is a
-placeholder (`SkillNone`) so the table's shape survives skills arriving.
+there (cut by the worker's rank in the recipe's `Skill`, then scaled by
+`workScale`), and puts `Outputs` in the same depot, sometimes one more for a
+skilled worker ([skills.md](./skills.md)). **Whoever owns the inputs owns the
+outputs**; the workshop's owner does not.
 
 | Recipe | In | Out | Ticks |
 | --- | --- | --- | --- |
@@ -294,7 +295,8 @@ that the producer planner can see.
   [foundry.md](./foundry.md)). The producer planner finds any workshop through
   `nearestWorkshop`. The colony's own cooking (`tryAssignCraft`) still looks
   only at scumhouses.
-- **Skills** plug in at `Recipe.Skill` and the tick scaling in `jobCraft`.
+- **A recipe's skill** is `Recipe.Skill`; `jobCraft` applies its speed and yield
+  and credits the practice (see [skills.md](./skills.md)).
 - **Paying for food work** (E5) replaces the community cargo record with a
   labor order: the colony, or anyone, posts pay for scum delivered.
 - **Rats eat biomatter too.** A hungry rat eats bodies, gore, and exposed scum

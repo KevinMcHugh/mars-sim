@@ -72,8 +72,8 @@ re-open them without a reason the conversation did not have.
 | Food | The first produced food is **slurry**: colonists haul biomatter (alien and animal corpses, viscera, and cave scum/biofilm) to a **scumhouse** that turns it into meals. Viscera is viscera: it isn't told apart by where it came from. |
 | Safety net | The infinite community nutrient pod stays, behind a config switch, for a long while. Players can also spawn food during development. |
 | Recipes | Data, not code. |
-| Skills | Placeholder only. Everybody can do everything for now; specialization is what makes the market more interesting later. |
-| Specialization | Not yet, and we know it. With equal skills nobody sticks to a trade; see *Who does what work*. Skills and identity will each make colonists tend to keep doing the same kind of work. |
+| Skills | Colonists earn skills by working and arrive with some; skilled work is faster and yields more ([skills.md](./skills.md)). Anyone can still do anything. |
+| Specialization | Comes from skill paying better, through opportunity cost in the producer planner ([skills.md](./skills.md), S3), and later from identity. Small colonies stay generalist; see *Who does what work*. |
 | Labor | Any actor can post a labor order: a colonist can order a house the same way the colony orders a town hall. |
 | Prospecting | Anyone may dig ore and sell it to whoever wants it. The colony keeps no standing ore bids: ore is dug for real demand, such as a smith's bid or a builder's materials. See [work-market.md](./work-market.md) (W6). |
 | The colony trades | The colony buys to encourage early production, then either sells what it bought or spends it on community construction. It can make money, not just spend it. |
@@ -217,7 +217,8 @@ type Recipe struct {
     Inputs   []ItemStack // consumed from the workshop's depot ledger, owned by the worker
     Outputs  []ItemStack // credited to the worker's ledger line at the workshop
     Facility Terrain     // workshop tile it runs at
-    Ticks    int         // labor, scaled by workScale (and later, skills)
+    Ticks    int         // labor, cut by the worker's skill, then scaled by workScale
+    Skill    SkillKind   // what working it practises (skills.md)
 }
 ```
 
@@ -226,8 +227,8 @@ workshop pays that workshop's access price. The workshop's owner doesn't
 automatically own what it produces. That's what lets a machine be capital
 someone rents out rather than a job someone has.
 
-**Skills** get one placeholder field (`Skill SkillKind`, always `SkillNone`),
-so the table's shape doesn't change when expertise arrives.
+Each recipe names the **skill** it practises. A skilled worker takes fewer
+ticks and, for recipes, sometimes makes an extra unit ([skills.md](./skills.md)).
 
 The first chain:
 
@@ -439,27 +440,24 @@ Without it, every depot is its own island market with a handful of colonists.
 
 ### Who does what work
 
-For now every colonist is equally good at everything, so there's nothing to
-keep anyone in a trade. Colonists here are perfectly spherical, perfectly
-rational utility maximizers: any order that can be filled profitably will be,
-by whoever's planner finds it first, and the same colonist may mine, haul, cook
-slurry, and build walls in one afternoon. Expect that, and don't read it as a
-bug: nobody has a career yet.
+Colonists have skills ([skills.md](./skills.md)), but nothing yet makes a
+colonist prefer the work it's good at: any order that can be filled profitably
+will be, by whoever's planner finds it first, and the same colonist may mine,
+haul, cook slurry, and build walls in one afternoon. Expect that, and don't
+read it as a bug: nobody has a career yet.
 
-Two later systems will change it, and both push the same way, toward
-individuals doing the same kind of work over time:
+Two systems push toward individuals doing the same kind of work over time:
 
-- **Skills.** Practice makes a colonist faster or better at a kind of work, so
-  its margins there beat everyone else's, and its planner keeps picking it.
+- **Skills.** A skilled colonist's work is faster and yields more. Once the
+  producer planner prices each colonist's own time (skills.md, S3), its
+  margins there beat everyone else's, and its planner keeps picking it.
   That's specialization through comparative advantage.
 - **Identity.** A colonist who has hauled for months starts to think of itself
   as a hauler: a preference that shows up in focus scoring even when the
   margin elsewhere is slightly better, and that ties into traits, memories,
   and affect ([personality.md](./personality.md), [memories.md](./memories.md)).
 
-Until then, the recipe table's `Skill` placeholder and the planner's labor
-price are where each of these will plug in.
-The skills half is proposed in [skills.md](./skills.md).
+The planner's labor price is where each of these plugs in.
 
 ### Market view
 
@@ -725,8 +723,8 @@ Each item is a known TODO, not an oversight:
   principal, interest, due tick), a rule for what happens on default (which
   pulls on enforcement), and a decision on whether the community treasury can
   lend or create money.
-- **Skills and identity.** A placeholder field on recipes; everyone is equally
-  able, so nobody specializes yet (see *Who does what work*).
+- **Identity.** Skills exist ([skills.md](./skills.md)); identity doesn't, and
+  nobody specializes yet (see *Who does what work*).
 - **Monetary policy.** The money supply is fixed. The one tax is the wealth
   levy (see [money.md](./money.md)); income or sales taxes would hook into
   `transfer` the same way.
@@ -758,7 +756,7 @@ Each item is a known TODO, not an oversight:
 - **Orphaned derived bids** filling the book with demand from abandoned plans.
 - **Treasury exhaustion** stopping public works. Resales didn't pay enough on
   their own. The wealth levy closes the loop (see [money.md](./money.md)).
-- **Churn without specialization.** Until skills and identity exist, colonists
+- **Churn without specialization.** Until skill steers who works and identity exists, colonists
   will hop between trades constantly. That's expected, but it can also look like
   thrashing between focuses; the focus system's commitment rules have to hold
   a plan long enough to finish it.

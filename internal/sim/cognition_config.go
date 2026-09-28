@@ -322,14 +322,14 @@ func DefaultCognitionConfig() CognitionConfig {
 	c.Nouns = []NounID{
 		NounColonist, NounAlien, NounCat, NounRat, NounGore, NounMeal,
 		NounToilet, NounBed, NounNeed, NounRock, NounStructure, NounRefuse,
-		NounGruel, NounScum, NounScumhouse, NounGoods,
+		NounGruel, NounScum, NounScumhouse, NounGoods, NounSkill,
 	}
 	c.Actions = []ActionID{
 		ActionPresent, ActionBite, ActionAttack, ActionKill, ActionCrush,
 		ActionCatch, ActionWound, ActionConverse, ActionEat, ActionUse,
 		ActionSleep, ActionSatisfy, ActionMine, ActionClear, ActionConstruct,
 		ActionClean, ActionIncinerate, ActionMutate, ActionCook, ActionScrape,
-		ActionDeliver, ActionTrade, ActionBuy, ActionHaul,
+		ActionDeliver, ActionTrade, ActionBuy, ActionHaul, ActionLearn,
 	}
 	c.Perceptions = []PerceptionRule{
 		{ID: "direct-actor", Channel: ChannelDirect, Role: RoleActor, Cadence: CadenceInstant},
@@ -408,6 +408,9 @@ func DefaultCognitionConfig() CognitionConfig {
 	// a relief with a little sting in it.
 	wentToMarket := reaction("went-to-market", directMatch(ActionTrade, NounColonist, NounGoods, RoleActor), 8, MoodVector{0, 3, 0}, MoodVector{-2, 0, 0})
 	hauled := reaction("hauled", directMatch(ActionHaul, NounColonist, NounGoods, RoleActor), 8, MoodVector{0, 2, 0}, MoodVector{-2, 0, 0})
+	// Rising in a trade is a quiet pride: a new title doesn't come often, and
+	// it stays a good memory.
+	roseInTrade := reaction("rose-in-trade", directMatch(ActionLearn, NounColonist, NounSkill, RoleActor), 20, MoodVector{2, 8, 6}, MoodVector{1, 4, 3})
 	boughtMeal := reaction("bought-meal", directMatch(ActionBuy, NounColonist, NounMeal, RoleActor), 12, MoodVector{2, 3, 0}, MoodVector{1, 0, 0})
 
 	for _, r := range []*ReactionSpec{
@@ -452,7 +455,7 @@ func DefaultCognitionConfig() CognitionConfig {
 		needSatisfied, finishedMining, clearedRock, finishedConstruction,
 		cleanedRefuse, incineratedRefuse, mutated, witnessedMutation,
 		ateGruel, cooked, scrapedScum, fedScumhouse, wentToMarket, hauled,
-		boughtMeal,
+		boughtMeal, roseInTrade,
 	}
 	scaled := func(id RuleID, trait Trait, match PerceptPattern, impact, charge, grip, valence, wear int) TraitRule {
 		return TraitRule{ID: id, Trait: trait, Match: match, Impact: impact, Charge: charge, Grip: grip, Valence: valence, WearRate: wear}

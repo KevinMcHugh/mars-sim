@@ -49,7 +49,7 @@ var goldenCases = []goldenCase{
 		breach: true,
 		grows:  true,
 		gen:    "tiles=6eba3d92a4e07cbb entities=f7ee7a1387568a13 rng=a78d6b0ac12b9e48 chunks=562663220ec91645/16 scum=694edd31ec9d434c/3893 n=53 gore=0 corpses=0",
-		run:    "tiles=cadea17eecc0a404 entities=c5c513e0c6209015 rng=fbe54b39c4c9a706 chunks=693d999c36049d09/20 scum=b1f1e3aafe90baae/4846 n=45 gore=0 corpses=0",
+		run:    "tiles=8fb516a90fea17a0 entities=d5af18e8451f1305 rng=a74fb03b732bb042 chunks=693d999c36049d09/20 scum=cff47ed9deda22da/4848 n=45 gore=0 corpses=0",
 	},
 	{
 		name: "default-80x40",
@@ -60,7 +60,7 @@ var goldenCases = []goldenCase{
 		},
 		ticks: 400,
 		gen:   "tiles=fb413f93fa91bc92 entities=7aab2da63776690c rng=fee2103ce8a0059c chunks=4d22107f9dcb30cc/2 scum=af3afd423d126e36/182 n=19 gore=0 corpses=0",
-		run:   "tiles=0a609054d8cd6183 entities=3f9591f4810acc64 rng=b762ff0a73c3a0cb chunks=4d22107f9dcb30cc/2 scum=af3afd423d126e36/182 n=11 gore=0 corpses=0",
+		run:   "tiles=4496c9aa3c8ccadc entities=d263b75535e4b2b6 rng=384ac425724b7d32 chunks=4d22107f9dcb30cc/2 scum=af3afd423d126e36/182 n=11 gore=0 corpses=0",
 	},
 	{
 		// Bigger than one worldgen chunk in both directions, with enough cave
@@ -77,7 +77,7 @@ var goldenCases = []goldenCase{
 		ticks:  600,
 		breach: true,
 		gen:    "tiles=e81568a6449387ae entities=851ce35d5a35cf74 rng=c60777d3a7dcdb4d chunks=0e4ca4c26f1b3a34/15 scum=d17b29c1b71c8ea6/2663 n=53 gore=0 corpses=0",
-		run:    "tiles=51fe15e8a3bb4847 entities=c88f09e19c5a834c rng=c1cd58c0adecb99c chunks=0e4ca4c26f1b3a34/15 scum=bd0400217ee59601/2658 n=45 gore=0 corpses=0",
+		run:    "tiles=fff66a8979c9bbcb entities=5e4dd912f8af64bb rng=66fa8d938f157622 chunks=0e4ca4c26f1b3a34/15 scum=745ab4731d98d93c/2656 n=45 gore=0 corpses=0",
 	},
 }
 

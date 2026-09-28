@@ -192,7 +192,7 @@ e.g. `-infinite-food=false`.
   at or below the margin, or the planner loses money by design.
 - **Wanting more than food**: a willingness-to-pay rule like `mealBidLimit`
   for the need, and a caller that posts the bid.
-- **Skills** (see [economy.md](./economy.md)): a per-colonist `laborCost`,
+- **Skills** (see [skills.md](./skills.md), S3): a per-colonist `laborCost`,
   cheaper for the practiced. Plans then fall to whoever is best at the work.
 
 ## Related

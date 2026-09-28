@@ -1,49 +1,61 @@
-# Skills and professions (proposal)
+# Skills and professions
 
 > Part of the [mars-sim documentation](./README.md).
 
 ## What it is
 
-A plan to give colonists **skills** they earn by doing work and start with
-from their pasts, a few labelled **ranks** in each skill that make a skilled
-colonist faster and more productive, and **opportunity cost** in the producer
-planner so colonists drift toward the work that pays them best. That work is,
-more and more, the work they're good at.
+Colonists get better at work by doing it. Each colonist has **practice** in
+five skills (mining, foraging, cooking, construction, smithing), counted in
+base work ticks of completed work, and arrives with some from its past. A
+skill's **rank** is where that practice sits on the skill's logarithmic
+curve. Each rank has a label ("journeyman smith") and makes the work faster
+and, for recipes, more productive. A colonist's **profession** is the skill
+it stands highest in.
 
-Today every colonist is equally good at everything, so the same colonist
-mines, scrapes, cooks, builds and smelts steel in one afternoon (see *Who does
-what work* in [economy.md](./economy.md)). The goal is not to assign careers.
-It's to make careers pay, and let colonists find them. Small colonies should
-stay mostly generalist, and specialization should come with a deep economy.
+Skills don't yet steer who does what. Any colonist still takes any work, so
+the same colonist mines, scrapes, cooks and smelts steel in one afternoon, and
+every colonist gets better at all of it. The next phase (S3) puts
+**opportunity cost** in the producer planner, so colonists drift toward the
+work that pays them best, which is more and more the work they're good at.
+The goal is not to assign careers. It's to make careers pay, and let colonists
+find them. Small colonies should stay mostly generalist, and specialization
+should come with a deep economy.
 
-This is a design and a sequenced build plan. Nothing here is built. The
-recipe table's `Skill SkillKind` field (always `SkillNone`) is the only piece
-already in the code.
+S1 and S2 are built. S3 to S5 are the plan.
 
 | Phase | What ships | Status |
 | --- | --- | --- |
-| S1 | Practice, ranks and labels; skills rolled at character generation; rank-up memories; roster display. No effect on behavior. | Proposed |
-| S2 | Effects: skill makes work faster and increases yield, by more per rank for steeper skills. | Proposed |
+| S1 | Practice, ranks and labels; skills rolled at character generation; rank-up memories; profession; roster display. | Shipped |
+| S2 | Effects: skill makes work faster and increases yield, by more per rank for steeper skills. | Shipped |
 | S3 | Opportunity cost in the producer planner: skill-aware costs, choosing the best-paying plan, and a reservation rate from what the colonist has been earning. | Proposed |
 | S4 | Competition: drop the planner's reservations on opportunities, so colonists race for bids and undercut each other. | Proposed |
 | S5 | A workshop of one's own: a skilled colonist builds a forge or a scumhouse on its own account when the returns pay for it. | Proposed |
 
 ## Source
 
-Nothing exists yet. The expected footprint:
+- [`internal/sim/skills.go`](../internal/sim/skills.go) — `SkillKind`, the
+  `skillSpecs` table (curves, labels, effects), `rankAt`, `practise`,
+  `updateProfession`, `workTicks`, `skillYield`, the background table and
+  `rollBackground`, and `SkillView`.
+- [`internal/sim/entity.go`](../internal/sim/entity.go) — `practice`,
+  `yieldAcc` and `profession` on `Entity`.
+- [`internal/sim/systems.go`](../internal/sim/systems.go) — mining and build
+  completion (`jobMine`, `jobBuild`, `buildSkill`);
+  [`scumhouse.go`](../internal/sim/scumhouse.go) — recipe runs (`jobCraft`,
+  with yield) and scraping (`jobScrape`); `Recipe.Skill` on every recipe.
+- [`internal/sim/crashpod.go`](../internal/sim/crashpod.go) — `arrive` rolls
+  the background.
+- [`internal/sim/rng.go`](../internal/sim/rng.go),
+  [`world.go`](../internal/sim/world.go) — the `skillRNG` stream.
+- [`internal/sim/cognition_config.go`](../internal/sim/cognition_config.go),
+  [`cognition.yaml`](../cognition.yaml) — the `rose-in-trade` reaction.
+- [`internal/sim/snapshot.go`](../internal/sim/snapshot.go) —
+  `EntityView.Skills`, `Profession`, `ProfessionLabel`;
+  [`render_roster.go`](../internal/ui/tui/render_roster.go) — the SKILLS
+  section of a colonist's details.
+- [`internal/sim/skills_test.go`](../internal/sim/skills_test.go).
 
-- `internal/sim/skills.go` — `SkillKind` (moved from `scumhouse.go`), the skill
-  and effect tables, `practise`, `rank`, the earnings memory, and the
-  background table.
-- `internal/sim/entity.go` — `Entity.practice [numSkills]uint32`, the
-  per-skill yield accumulators, and the earnings memory.
-- `internal/sim/systems.go`, `scumhouse.go` — the completion sites credit
-  practice and apply speed and yield.
-- `internal/sim/crashpod.go` — `arrive` rolls the background.
-- `internal/sim/producer.go`, `valuation.go` — per-colonist labor cost, best-of-N
-  plan choice, and the reservation rate (S3).
-- `internal/sim/rng.go` — a new saved stream for backgrounds.
-- `internal/sim/snapshot.go` and the TUI roster — rank labels and profession.
+For S3, the planner changes land in `producer.go` and `valuation.go`.
 
 ## Decisions already made
 
@@ -62,13 +74,15 @@ reason the conversation didn't have.
 | Quality | Out of scope. Effects are speed and yield. |
 | Competition | Each colonist acts in its own interest, even when that means competing with other colonists. The planner must not share out opportunities the way a central planner would. |
 | Capital | A good smith builds its own forge, so it can take work without waiting on the colony's forge or bench. Workshops aren't only the colony's to build. |
+| Traits and learning | Traits don't change learning. Practice is credited in base ticks, so an Industrious colonist gets through more work, and so more practice, but no more per unit. |
 | Smithing | One skill, covering both the forge and the gun bench ([foundry.md](./foundry.md)). Splitting it would cut an already small volume in half; see *Open questions*. |
 
-## What the colony does today
+## Who does what without skills
 
 These are the numbers the design is set against. They come from default-config
-runs with counters added at each completion site, 100,000 ticks, after the
-foundry landed.
+runs of the code before skills, with counters added at each completion site,
+100,000 ticks, after the foundry landed. Running with `-skills=false
+-skill-practice-percent 0` reproduces that code's results exactly.
 
 **Units of work completed per colonist, seed 1, 6 colonists:**
 
@@ -136,7 +150,7 @@ these problems. Each has an answer in the design below.
    What pushes against it is the reward: a steeper skill pays more per rank,
    and opportunity cost makes the better-paying skill win.
 
-## How it works (proposed)
+## How it works
 
 ### Skills
 
@@ -152,37 +166,38 @@ Hauling and cleaning aren't skills. Hauling is walking, and a skill that made
 walking faster would leak into everything (and would erase the constant-cost
 effect below). Cleaning is under 0.1% of anyone's time. Recipes already carry
 a `Skill` field, so cooking and smithing get their skill from the recipe
-table. Mining, foraging and construction credit it at their completion sites.
+table (`Recipe.Skill`). Mining, foraging and construction are credited at
+their completion sites: a mined tile, a scraped unit of scum, a raised wall or
+fixture. Digging out a room's floor is mining.
 
 ### Practice
 
 `Entity.practice [numSkills]uint32` holds **base** work ticks of completed
 work per skill. It's a fixed array, not a map: no allocation, no iteration
-order, 20 bytes per colonist. `w.practise(e, skill, baseTicks)` is called
-where a unit of work completes, the same places that compare
-`e.Progress` against `scaleTicks(...)` today, scaled by a global
-`skill-practice-percent`. Crediting base ticks, not actual ticks, means getting
+order, 24 bytes per colonist. `w.practise(e, skill, baseTicks)` is called
+where a unit of work completes, scaled by a global `skill-practice-percent`. Crediting base ticks, not actual ticks, means getting
 faster doesn't slow a colonist's learning. Crediting on completion keeps
 "successful": half a job teaches nothing. All completed work counts, paid or
-unpaid. Practice never decays in v1.
+unpaid. Practice never decays.
 
 ### Ranks
 
 ```go
 type skillSpec struct {
-    Name   string
-    Unit   uint32   // base work ticks to reach rank 1
-    Base   uint32   // each later rank needs Base× the previous threshold
-    Labels []string // rank 0 first; len(Labels)-1 is the top rank
+    Name    string
+    Unit    uint32       // base work ticks to reach rank 1
+    Base    uint32       // each later rank needs Base× the previous threshold
+    Labels  []string     // rank 0 ("untrained") first; the last is the top rank
+    Effects []rankEffect // one per rank
 }
 ```
 
 Rank *r* ≥ 1 is reached at `Unit × Base^(r−1)` practice, which is
 ⌊log_Base(practice / Unit)⌋ + 1, computed by an integer walk and capped at the
-top label. `SkillRank` is a small named type. Other systems call
-`e.rank(SkillSmithing)`, and only `skills.go` sees practice.
+top label. Other systems call `e.rank(SkillSmithing)` or read a label; only
+`skills.go` sees practice.
 
-Illustrative tables (all to be tuned):
+The curves, all in `skillSpecs`:
 
 **Smithing** — `Unit 80` (two smelts), `Base 6`
 
@@ -208,17 +223,21 @@ separate rarity knob.
 | 3 | Chef | 1,920 | 160 |
 | 4 | Master chef | 7,680 | 640 |
 
-Today every colonist in a small colony cooks 130–390 batches, so everyone is a
-Cook or a Chef. A colonist who did most of a colony's cooking (~1,400 batches)
-would be a Master chef.
+In a small colony every colonist cooks a few hundred batches in 100,000
+ticks and becomes a Chef (see *What skills do in a run*). A colonist who did
+most of a colony's cooking (~1,400 batches) would be a Master chef.
 
 **Mining** — `Unit 60` (10 tiles), `Base 2`: Rockbreaker (10 tiles), Digger
 (20–40), Tunneler (80–160), Miner (320), Seasoned miner (640), Master miner
-(1,280). Everyone reaches Miner in a small colony today. Two labels can share
-a rank range, which keeps a fine curve under fewer names.
+(1,280). Everyone in a small colony reaches Miner. Two labels can share a
+rank range, which keeps a fine curve under fewer names.
 
-**Foraging** (`Base 3`) and **construction** (`Base 4`, `Unit ~40`, about 5
-walls) follow the same pattern.
+**Foraging** — `Unit 60` (10 units of scum), `Base 3`: Gleaner (10), Scraper
+(30), Forager (90), Seasoned forager (270), Master forager (810).
+
+**Construction** — `Unit 40` (5 walls), `Base 4`: Laborer (5), Builder (20),
+Mason (80), Master builder (320). A small colony builds only about a hundred
+walls in 100,000 ticks, so few get past Builder.
 
 ### Effects: steeper skills pay more
 
@@ -231,18 +250,21 @@ type rankEffect struct {
 }
 ```
 
-- **Speed** multiplies into the existing `scaleTicks` call. (`workScale` stays
-  a float; skill effects are integer percents so they add no rounding of their
+- **Speed**: `workTicks` cuts the base ticks by `TicksPct` in integers, then
+  `scaleTicks` applies the traits' `workScale` as before. (`workScale` stays a
+  float; skill effects are integer percents so they add no rounding of their
   own.)
 - **Yield** above 100 is paid out by an accumulator, not a roll. Each run adds
-  `YieldPct − 100` to `e.yieldAcc[skill]`, and every 100 adds one more output
-  unit. Yield adds no RNG draws and is exact over time.
+  `YieldPct − 100` to `e.yieldAcc[skill]`, and every 100 adds one more unit of
+  the recipe's first output. If the output depot has no room for it, it waits
+  for a run where there is. Yield adds no RNG draws and is exact over time.
+- With `skills` off, every effect is neutral.
 
 **Throughput** is `YieldPct / TicksPct`: output per base tick of work. The
 decision that steeper skills pay more becomes a rule for writing these tables:
 **each rank multiplies throughput by more the higher the base**. As a starting
-point, about +10% per rank at base 2, +30% at base 4 and +50% at base 6,
-compounded:
+point, about +10% per rank at base 2, +20% at base 3, +30% at base 4 and +50%
+at base 6, compounded:
 
 | Smithing rank | TicksPct | YieldPct | Throughput |
 | --- | --- | --- | --- |
@@ -258,8 +280,25 @@ compounded:
 | Chef | 70 | 120 | ~1.7× |
 | Master chef | 60 | 130 | ~2.2× |
 
-Mining tops out around 1.4× (`TicksPct 70`, no yield). You can't mine more ore
-out of a tile.
+| Foraging rank | TicksPct | Throughput |
+| --- | --- | --- |
+| Untrained / Gleaner | 100 | 1.0× |
+| Scraper | 83 | ~1.2× |
+| Forager | 69 | ~1.45× |
+| Seasoned forager | 58 | ~1.7× |
+| Master forager | 48 | ~2.1× |
+
+| Construction rank | TicksPct | Throughput |
+| --- | --- | --- |
+| Untrained / Laborer | 100 | 1.0× |
+| Builder | 77 | ~1.3× |
+| Mason | 59 | ~1.7× |
+| Master builder | 45 | ~2.2× |
+
+Mining is flat to rank 5, then `TicksPct` 80 at Miner and Seasoned miner and
+70 at Master miner: it tops out around 1.4×. Mining, foraging and
+construction have no yield: you can't mine more ore out of a tile than it
+holds, or scrape more scum than a patch has.
 
 A Master smith gets about 2.4× a Journeyman's throughput from the same ore,
 which is the "dramatically better" the design asks for. Because a Master
@@ -276,7 +315,7 @@ practice: the curve makes you work harder for each rank and pays more for it.
 `arrive` rolls each colonist's past from a weighted table, most often one
 skill at a modest rank, sometimes a second, rarely a master:
 
-| Roll | Chance (proposed) |
+| Roll | Chance |
 | --- | --- |
 | One skill at rank 1 | 45% |
 | One skill at rank 2 | 30% |
@@ -285,17 +324,19 @@ skill at a modest rank, sometimes a second, rarely a master:
 | One skill at its top rank | 2% |
 
 Which skill is weighted per skill. Smithing gets half the weight of the
-others, so a Master smith is about 1 colonist in 500, and a Smith or better
-about 1 in 100. The roll sets practice to the rank's threshold, so a
-background is ordinary practice from then on.
+others, so a Master smith is about 1 colonist in 450, and a Smith or better
+about 1 in 90. The roll sets practice to the rank's threshold, so a
+background is ordinary practice from then on. It records no memory; it's
+where the colonist starts. With `skills` off, nobody arrives with one.
 
 The roll affects the simulation, so it can't come from the personality stream
 (principle 3). Adding it to `World.rng` would shift every later draw on every
-seed. It gets its own saved stream (`skillRNG`, `Seed ^ const`, per
-[rng-streams.md](./rng-streams.md)). The background is also a line in the
-colonist's biography ("a smith in the Tharsis yards").
+seed. It gets its own saved stream (`skillRNG`, per
+[rng-streams.md](./rng-streams.md)). `TestBackgroundsDrawFromTheirOwnStream`
+checks that a world generated with backgrounds is otherwise identical to one
+without.
 
-### Opportunity cost in the producer planner (S3)
+### Opportunity cost in the producer planner (S3, proposed)
 
 This is the core of the design. It has three parts, each small.
 
@@ -349,7 +390,7 @@ What this does:
 - **A novice takes what it can get.** With no earnings history, its
   reservation is `labor-price`, and it takes any plan that clears the minimum.
 
-### Competing, not coordinating (S4)
+### Competing, not coordinating (S4, proposed)
 
 Each colonist already decides for itself, from its own wallet and position,
 and supply chains form through ordinary bids. But the planner has rules that
@@ -372,7 +413,7 @@ Duplicate effort is the price of competition, and it's the real one: two
 smiths making steel for one bid is what a market with two smiths does. The
 loser's steel isn't wasted. It's stock with an ask on it.
 
-### A workshop of one's own (S5)
+### A workshop of one's own (S5, proposed)
 
 Today only the colony builds workshops (`planRooms`), and a colonist only
 commissions a house, by a fixed savings rule. The plumbing for more is there:
@@ -433,28 +474,64 @@ claim instead of trusting it.
 
 ### Profession, memories and the roster
 
-- A colonist's **profession** is a label, not a rule: its highest-ranked
-  skill, with hysteresis (it changes only when another skill pulls a full rank
-  ahead). It shows in the roster ("Chef") and is the hook for the planned
-  identity system ([economy.md](./economy.md)). Nothing in allocation reads it.
-- Reaching a rank with a new label, and changing profession, are notable
-  memories ("Became a journeyman smith."). They collapse the way a mining
-  shift does ([memories.md](./memories.md)).
-- A colonist's details show each skill's label, as snapshot fields sorted by
-  `SkillKind` (principle 12). A dead master's skill dies with it. That's a
-  real loss to the colony, and a story.
+- A colonist's **profession** is a label, not a rule: the skill it stands
+  highest in, where standing is rank as a share of the skill's top rank. Raw
+  ranks don't compare across curves: mining's shallow curve has eight ranks to
+  cooking's four, so by rank every colonist who mines a little would be a
+  miner before it was a chef. The profession changes only when another skill
+  stands at least level even a rank down (`updateProfession`), so a colonist
+  doesn't flip between trades at a threshold. It shows in the roster, and is
+  the hook for the planned identity system ([economy.md](./economy.md)).
+  Nothing in allocation reads it.
+- Reaching a rank with a new label ("Became a journeyman smith.") and taking
+  up a new trade ("Took up mining as a trade.") are memories, through the
+  `rose-in-trade` reaction: a small, lasting lift in mood. They don't collapse
+  into runs. Moving up within a label records nothing.
+- A colonist's details list each skill it has a rank in, with its label and
+  rank out of the top, and mark its profession, from `EntityView.Skills` in
+  `SkillKind` order (principle 12). A dead master's skill dies with it. That's
+  a real loss to the colony, and a story.
+
+### What skills do in a run
+
+After 100,000 ticks on seeds 1 and 2 (6 colonists each), whatever a colonist
+arrived with, nearly all of them are a Miner, a Chef, and a Forager or
+Seasoned forager, and an Apprentice smith. They're generalists, because
+nothing yet makes a colonist prefer its best work (S3). Their professions
+mostly come from the early game: mining dominates the first 10,000 ticks, the
+colonist becomes a Miner first, and a Chef level with it a rank later doesn't
+displace it. Two arrived as Journeyman smiths on seed 2 and are still
+Journeymen: the armory's 4 rifles give no more smithing to do.
+
+The effects are a colony-wide lift, not specialization: every colonist cooks
+at a Chef's 120% yield by mid-game.
+
+Starvation over 30,000 ticks on seeds 1–64, all with the cook livelock fix
+from #67:
+
+| | Starved | Seeds with any | Colonists alive at the end |
+| --- | --- | --- | --- |
+| Before skills | 2 | 2 | 306 |
+| Skills on | 12 | 8 | 310 |
+| Skills off | 9 | 6 | 301 |
+
+"Skills off" differs from the code before skills only in the rank-up
+memories' mood lift, and it starves 9 to 2. On seeds 17–64 alone, skills on
+starves fewer than skills off. Starvation here is sensitive to any
+perturbation of a run, not to skills as such. The deaths inspected (seed 9)
+are colonists starving while they flee aliens, with the colony's meals on the
+shelves.
 
 ### Configuration
 
 The skill, effect and background tables are content in Go tables, like
-`recipes`. Tunables go in `sim.Config` with `cfg`/`doc` tags and are
-regenerated into `mars-sim.yaml` in the phase that adds them:
+`recipes`. The tunables are in `sim.Config`:
 
-| Key | Default (proposed) | Phase |
+| Key | Default | |
 | --- | --- | --- |
-| `skill-practice-percent` | 100 | S1 |
-| `skills` | on (off: everyone untrained with no effects, for A/B runs) | S2 |
-| `rate-memory` | a few thousand ticks | S3 |
+| `skills` | true | Off: no backgrounds and no effects; practice is still counted. For A/B runs. |
+| `skill-practice-percent` | 100 | Percent of each unit's base ticks credited as practice. |
+| `rate-memory` | a few thousand ticks | Proposed, S3. |
 
 `plan-candidates` (4) matters more under S3. With best-of-N, it's the size of
 the choice a colonist has.
@@ -492,8 +569,10 @@ the choice a colonist has.
   they aren't flavor. A new stream keeps every existing seed's other draws
   where they were.
 - **No decay of practice.** Rust is good flavor, but the fading earnings
-  memory already makes an unused skill stop steering a colonist's choices,
+  memory (S3) will make an unused skill stop steering a colonist's choices,
   without taking the rank away.
+- **Profession by standing, not rank.** By raw rank the shallowest curve wins
+  every profession: in a 100,000-tick run, every colonist would be a miner.
 
 ## Extending it
 
@@ -532,9 +611,6 @@ works or wins a tie.
 - **One smithing skill or two?** The foundry calls them the smith and the
   gunsmith. Splitting would halve an already tiny volume. Revisit when rifle
   demand stops being capped.
-- **Traits and learning.** Should Industrious and Lazy change learning speed as
-  well as work speed? Decide before S1 ships, so practice doesn't change
-  meaning later.
 - **Professions without a skill.** Some professions are about capital or
   judgment, not practice. Shopkeeping is the example: its real skill is
   forecasting demand, which ranks and speed don't express. Shopkeeping is
@@ -554,8 +630,7 @@ works or wins a tie.
   which S3 makes per colonist.
 - [foundry.md](./foundry.md) — the smithing chain and the armory's cap.
 - [labor.md](./labor.md) — wages and public works.
-- [scumhouse.md](./scumhouse.md) — the recipe table and its `Skill`
-  placeholder.
+- [scumhouse.md](./scumhouse.md) — the recipe table and `Recipe.Skill`.
 - [personality.md](./personality.md) — `workScale` and the traits effects
   compose with.
 - [rng-streams.md](./rng-streams.md) — where the background stream goes.

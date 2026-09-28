@@ -136,6 +136,15 @@ type Config struct {
 	MealKeep        int   `cfg:"meal-keep" doc:"meals a colonist keeps for itself before it takes the rest to market"`
 	MealWillingness int   `cfg:"meal-willingness" doc:"a hungry colonist pays up to this many times the meal price"`
 
+	// Skills. A colonist is credited SkillPracticePercent percent of the base
+	// ticks of every unit of work it completes, in that work's skill; ranks
+	// come from practice, and each rank makes the work faster and, for
+	// recipes, more productive. With Skills off, nobody arrives with a
+	// background and no rank has an effect (practice is still counted). See
+	// docs/skills.md.
+	Skills               bool `cfg:"skills" sec:"Skills" doc:"colonists arrive with skills, and skilled work is faster and yields more (off: no backgrounds, no effects)"`
+	SkillPracticePercent int  `cfg:"skill-practice-percent" doc:"percent of a unit of work's base ticks credited as practice in its skill"`
+
 	// Valuation and the producer planner. A colonist values its own time at
 	// LaborPrice dollars per 100 ticks of work, and takes on a plan only if it
 	// clears PlanMinProfit after inputs and labor. It considers the
@@ -523,16 +532,18 @@ func DefaultConfig() Config {
 		// The colony sells at half again what it pays: enough over cost that
 		// its resales refill the treasury, not so much that a colonist would
 		// rather dig the ore itself every time. See docs/hauling.md.
-		ColonySells:        true,
-		ColonyMarkup:       50,
-		ColonyStockReserve: 8,
-		SiloMealStock:      6,
-		HaulPay:            1,
-		LaborPrice:         2,
-		PlanMinProfit:      1,
-		PlanCandidates:     4,
-		PlanTTL:            1500,
-		DemandTTL:          300,
+		ColonySells:          true,
+		ColonyMarkup:         50,
+		ColonyStockReserve:   8,
+		SiloMealStock:        6,
+		HaulPay:              1,
+		Skills:               true,
+		SkillPracticePercent: 100,
+		LaborPrice:           2,
+		PlanMinProfit:        1,
+		PlanCandidates:       4,
+		PlanTTL:              1500,
+		DemandTTL:            300,
 		// Priced by the meals they make (see recipes): two scum or two
 		// viscera to a $5 meal, so the colony roughly breaks even after the
 		// cook's wage; an alien carcass makes four.

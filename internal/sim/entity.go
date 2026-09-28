@@ -364,6 +364,14 @@ type Entity struct {
 	restTicks int           // idle rest duration (base scaled by traits)
 	workScale float64       // mine/build time multiplier (1.0 = baseline)
 
+	// Skills (colonists only). practice is base work ticks of completed work
+	// per skill; ranks and labels are derived from it, never stored. yieldAcc
+	// counts toward a recipe's next extra unit, and profession is the skill
+	// the colonist is known for. See skills.go and docs/skills.md.
+	practice   [numSkills]uint32
+	yieldAcc   [numSkills]int32
+	profession SkillKind
+
 	// Inventory is carried by colonists. Each slot contains one homogeneous
 	// stack; other entity kinds leave it empty.
 	Inventory Inventory

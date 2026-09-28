@@ -307,6 +307,22 @@ func (m Model) detailLines(c sim.EntityView, inner, barW int) []string {
 		b.WriteString(strings.Join(lines, "\n"))
 	}
 
+	b.WriteString("\n\n" + labelStyle.Render("SKILLS") + "\n")
+	if len(c.Skills) == 0 {
+		b.WriteString(statStyle.Render("  untrained"))
+	} else {
+		lines := make([]string, 0, len(c.Skills))
+		for _, s := range c.Skills {
+			mark := "  "
+			if s.Skill == c.Profession {
+				mark = "* " // the trade it's known for
+			}
+			line := fmt.Sprintf("%s%s — %s (%d/%d)", mark, s.Skill, s.Label, s.Rank, s.MaxRank)
+			lines = append(lines, statStyle.Render(cells.Truncate(line, inner-2)))
+		}
+		b.WriteString(strings.Join(lines, "\n"))
+	}
+
 	names := m.colonistNames()
 	b.WriteString("\n\n" + labelStyle.Render("FAMILY") + "\n")
 	if len(c.Relations) == 0 {

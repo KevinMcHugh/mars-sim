@@ -55,6 +55,14 @@ type EntityView struct {
 	MoodLabel  string // the attractor's name, read through valence (colonists only)
 	Memories   []Memory
 
+	// Skills is every skill the colonist has a rank in, in SkillKind order;
+	// Profession is the skill it's known for (SkillNone: none yet) and
+	// ProfessionLabel its title in it, like "journeyman smith". Colonists
+	// only. See docs/skills.md.
+	Skills          []SkillView
+	Profession      SkillKind
+	ProfessionLabel string
+
 	// Dead, DiedTick, and Cause are set only on a Snapshot.Graveyard or
 	// Snapshot.Deceased entry: it died at DiedTick (from Cause, a short
 	// player-facing phrase like "shot by Zoe Vargas with a shotgun"), and
@@ -668,6 +676,8 @@ func (w *World) entityView(e *Entity, kinChildren map[kinID][]kinID, full bool) 
 		ev.Valence = e.affect.Valence
 		ev.MoodLabel = w.affectName(e.affect)
 		ev.Memories = append([]Memory(nil), e.Memories...)
+		ev.Skills = e.skillViews()
+		ev.Profession, ev.ProfessionLabel = e.profession, e.professionLabel()
 		if full {
 			ev.Relations = append([]Relation(nil), w.cachedRelations(e, kinChildren)...)
 			ev.Affinities = w.affinitiesOf(e.ID)

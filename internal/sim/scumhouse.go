@@ -16,14 +16,6 @@ import (
 //
 // What turns into what is the recipe table, below. See docs/scumhouse.md.
 
-// SkillKind is the expertise a recipe calls for. It is a placeholder: everyone
-// can do everything for now, and every recipe asks for SkillNone. It exists so
-// the recipe table's shape does not change when skills arrive (see
-// docs/economy.md).
-type SkillKind uint8
-
-const SkillNone SkillKind = 0
-
 // Recipe is one way of making something: consume Inputs from a workshop's
 // depot, spend Ticks of labor at it, and put Outputs in the same depot. Whoever
 // owns the inputs owns the outputs — the workshop's owner does not, which is
@@ -34,8 +26,8 @@ type Recipe struct {
 	Inputs   []ItemStack
 	Outputs  []ItemStack
 	Facility Terrain
-	Ticks    int // labor, scaled by the worker's workScale
-	Skill    SkillKind
+	Ticks    int       // labor at base skill, before the worker's skill and workScale
+	Skill    SkillKind // what working it practises, and whose rank speeds it up (skills.go)
 }
 
 // recipes is every recipe in the game, in preference order: a cook works the
@@ -43,14 +35,14 @@ type Recipe struct {
 // because it is the most food for the work and the least pleasant thing to
 // leave lying in a depot.
 var recipes = []Recipe{
-	{Name: "render an alien carcass", Inputs: []ItemStack{{AlienCorpse, 1}}, Outputs: []ItemStack{{Meal, 4}}, Facility: Scumhouse, Ticks: 30},
-	{Name: "render an animal carcass", Inputs: []ItemStack{{AnimalCorpse, 1}}, Outputs: []ItemStack{{Meal, 1}}, Facility: Scumhouse, Ticks: 10},
-	{Name: "press viscera", Inputs: []ItemStack{{Viscera, 2}}, Outputs: []ItemStack{{Meal, 1}}, Facility: Scumhouse, Ticks: 10},
-	{Name: "culture cave scum", Inputs: []ItemStack{{CaveScum, 2}}, Outputs: []ItemStack{{Meal, 1}}, Facility: Scumhouse, Ticks: 12},
+	{Name: "render an alien carcass", Inputs: []ItemStack{{AlienCorpse, 1}}, Outputs: []ItemStack{{Meal, 4}}, Facility: Scumhouse, Ticks: 30, Skill: SkillCooking},
+	{Name: "render an animal carcass", Inputs: []ItemStack{{AnimalCorpse, 1}}, Outputs: []ItemStack{{Meal, 1}}, Facility: Scumhouse, Ticks: 10, Skill: SkillCooking},
+	{Name: "press viscera", Inputs: []ItemStack{{Viscera, 2}}, Outputs: []ItemStack{{Meal, 1}}, Facility: Scumhouse, Ticks: 10, Skill: SkillCooking},
+	{Name: "culture cave scum", Inputs: []ItemStack{{CaveScum, 2}}, Outputs: []ItemStack{{Meal, 1}}, Facility: Scumhouse, Ticks: 12, Skill: SkillCooking},
 	// The foundry's chain: ore to steel at the forge, steel to rifles at the
 	// gun bench. See docs/foundry.md.
-	{Name: "smelt steel", Inputs: []ItemStack{{IronOre, 2}}, Outputs: []ItemStack{{SteelIngot, 1}}, Facility: Forge, Ticks: 40},
-	{Name: "machine an assault rifle", Inputs: []ItemStack{{SteelIngot, 3}}, Outputs: []ItemStack{{AssaultRifle, 1}}, Facility: GunBench, Ticks: 60},
+	{Name: "smelt steel", Inputs: []ItemStack{{IronOre, 2}}, Outputs: []ItemStack{{SteelIngot, 1}}, Facility: Forge, Ticks: 40, Skill: SkillSmithing},
+	{Name: "machine an assault rifle", Inputs: []ItemStack{{SteelIngot, 3}}, Outputs: []ItemStack{{AssaultRifle, 1}}, Facility: GunBench, Ticks: 60, Skill: SkillSmithing},
 }
 
 // ---- Cave scum ------------------------------------------------------------------
@@ -305,7 +297,7 @@ func (w *World) jobCraft(e *Entity) {
 	}
 	e.State = Crafting
 	e.Progress++
-	if e.Progress < scaleTicks(r.Ticks, e.workScale) {
+	if e.Progress < w.workTicks(e, r.Skill, r.Ticks) {
 		return
 	}
 	for _, in := range r.Inputs {
@@ -315,6 +307,15 @@ func (w *World) jobCraft(e *Entity) {
 	// kitchen has one, or back into the stove's own depot if not.
 	out := w.storageContainers[w.outputDepot(e.Target)]
 	outputs := r.Outputs
+	if len(outputs) > 0 && w.skillEffect(e, r.Skill).YieldPct > 100 {
+		// A skilled worker's yield: now and then one unit more of the
+		// recipe's first output, if the depot has room for it (skillYield).
+		more := append([]ItemStack(nil), outputs...)
+		more[0].Count++
+		if w.skillYield(e, r.Skill, func() bool { return out.Inventory.CanAddAll(more...) }) {
+			outputs = more
+		}
+	}
 	if w.cooksOwnSupper(e, r) {
 		// A hungry colonist cooking its own food keeps one meal in hand to
 		// eat at the stove, rather than walking to the pantry for it.
@@ -325,6 +326,7 @@ func (w *World) jobCraft(e *Entity) {
 	for _, o := range outputs {
 		out.credit(e.craftFor, o.Kind, o.Count)
 	}
+	w.practise(e, r.Skill, r.Ticks)
 	if r.Facility == Scumhouse {
 		w.emitDone(e, ActionCook, NounMeal, "Worked the scumhouse: %s.", r.Name)
 	} else {
@@ -480,11 +482,12 @@ func (w *World) jobScrape(e *Entity) {
 	}
 	e.State = Scraping
 	e.Progress++
-	if e.Progress < scaleTicks(w.cfg.ScrapeTicks, e.workScale) {
+	if e.Progress < w.workTicks(e, SkillForaging, w.cfg.ScrapeTicks) {
 		return
 	}
 	e.Progress = 0
 	if w.takeScum(e.Target) {
+		w.practise(e, SkillForaging, w.cfg.ScrapeTicks)
 		e.Inventory.Add(CaveScum, 1)
 		e.addCargo(e.scrapeFor, CaveScum, 1) // the scraper's own unless set
 	}

@@ -123,6 +123,7 @@ func (w *World) arrive(announce bool) *Entity {
 		e.Inventory.Add(Pistol, 1)
 	}
 	e.podOrigin, e.hasPod = o, true
+	w.rollBackground(e)
 
 	if announce {
 		how := "lands"
