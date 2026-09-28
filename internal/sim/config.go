@@ -403,6 +403,12 @@ type Config struct {
 	AlienSlowness          int `cfg:"alien-slowness" doc:"baseline: alien acts once every N ticks (higher = slower), before a species' temperament scales it"`
 	AlienReferenceWeightKG int `cfg:"alien-reference-weight-kg" doc:"specimen weight in kg at which a species deals exactly alien-damage"`
 	AlienCautiousRadius    int `cfg:"alien-cautious-radius" doc:"how close a colonist must come before a Cautious species reacts and closes in"`
+	// AlienHungerRise is the food need an alien gains per tick. Only Friendly
+	// and Cautious species act on it: once it passes the food need's seek-at
+	// they graze exposed cave scum within AlienGrazeRadius (Hostile ones eat
+	// colonists instead). Aliens never starve. See alienGraze.
+	AlienHungerRise  int `cfg:"alien-hunger-rise" doc:"food need a Friendly or Cautious alien gains per tick before it goes grazing on cave scum"`
+	AlienGrazeRadius int `cfg:"alien-graze-radius" doc:"how far a hungry Friendly or Cautious alien looks for cave scum to eat"`
 
 	// AlienNames configures the pool of names ("xenos," "critters," ...) a
 	// rolled species can be given, each gated by a condition over its build
@@ -658,6 +664,8 @@ func DefaultConfig() Config {
 		AlienSlowness:             2,
 		AlienReferenceWeightKG:    80,
 		AlienCautiousRadius:       3,
+		AlienHungerRise:           2, // the colonist food rise: a grazer eats about as often as a colonist
+		AlienGrazeRadius:          12,
 
 		PistolDamage:    10,
 		PistolRange:     3,

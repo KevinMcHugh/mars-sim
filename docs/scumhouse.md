@@ -302,6 +302,9 @@ that the producer planner can see.
   unit a rat reaches first is food the scumhouse never sees. A rat plague is a
   famine risk with the safety net off; cats are the defense. See
   [entities-and-ai.md](./entities-and-ai.md).
+- **Peaceful aliens eat scum too.** A hungry Friendly or Cautious alien grazes
+  exposed cave scum the same way (scum only, not bodies or gore). See
+  [lore.md](./lore.md#what-peaceful-species-eat-cave-scum).
 
 ## Related
 

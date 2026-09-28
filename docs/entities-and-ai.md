@@ -31,9 +31,9 @@ The four kinds:
 | Kind | Moves on | Eats | Flees | Notes |
 | --- | --- | --- | --- | --- |
 | **Colonist** | Floor | (needs food) | aliens | mines, builds, tends needs; has personality + inventory |
-| **Alien** | Floor | colonists | — | the antagonist; hunts the nearest colonist it can reach |
+| **Alien** | Floor | colonists, rats, other species' aliens (Hostile); cave scum (Friendly, Cautious) | — | the antagonist; a Hostile species hunts the nearest prey it can reach |
 | **Cat** | Floor | rats | — | no needs; hunts by instinct |
-| **Rat** | Floor | (needs food) | cats | reuses the colonist food need; scavenges bodies, gore, and scum, else raids pods; never builds |
+| **Rat** | Floor | (needs food) | cats (not aliens, which also eat them) | reuses the colonist food need; scavenges bodies, gore, and scum, else raids pods; never builds |
 
 `State` (idle, moving, mining, building, eating, relieving, fleeing, hunting,
 feeding, fighting, cleaning, hauling, storing, demolishing) is a **display projection**
@@ -156,11 +156,15 @@ competes with fleeing or fighting. See [escape.md](./escape.md).
 ### Alien behavior (`alienTurn`)
 
 Aliens are paced by a `Cooldown` (from `AlienSlowness`). Each active turn: find
-the nearest colonist in the alien's own room (`nearestReachableColonist`); if
-adjacent, `bite` (lands `AlienDamage` on a random body part — see
-[combat.md](./combat.md) — eating the colonist if the wound is fatal, then
-rests `AlienBiteRest`); otherwise `travelTo` it over the floor with cached A\*,
-exactly as a cat or colonist would. With no colonist in reach, they wander. An
+the nearest prey in the alien's own room (`nearestReachablePrey`: a colonist,
+a rat, or an alien of another species); if adjacent, `bite` (lands
+`AlienDamage` on a random body part — see [combat.md](./combat.md) — eating
+the prey if the wound is fatal, then rests `AlienBiteRest`); otherwise `travelTo` it over the floor with cached A\*,
+exactly as a cat or colonist would. That is a Hostile species; a Friendly one
+never hunts and a Cautious one only reacts inside `alien-cautious-radius` (see
+[lore.md](./lore.md#temperament-whether-a-species-fights-at-all)). A Friendly
+or Cautious alien with no colonist to react to grazes cave scum when hungry
+(`alienGraze`). With nothing else to do, aliens wander. An
 alien hunts the same way whether or not its target is armed; the only
 difference a weapon makes is whether the colonist stands and shoots back
 instead of running.
