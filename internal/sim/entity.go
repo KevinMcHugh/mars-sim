@@ -427,6 +427,11 @@ type Entity struct {
 	// commissioned records that this colonist has commissioned its house, so
 	// it commissions one at most (see commissionHouses).
 	commissioned bool
+	// kitchenCommissioned records that it has commissioned a kitchen of its
+	// own, and kitchen where its stove stands once built (hasKitchen). See
+	// commissionKitchens.
+	kitchenCommissioned, hasKitchen bool
+	kitchen                         Point
 	// cargo records which carried units are not the carrier's own: the
 	// colony's ore a builder fetched, the meals a hauler is moving. Every unit
 	// on no line is the carrier's. See cargo.go and docs/property.md.

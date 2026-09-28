@@ -433,6 +433,7 @@ func (w *World) planRooms() {
 	// bunk.
 	if w.podsFeed() || w.plannedFacilities(Scumhouse) > 0 {
 		w.commissionHouses()
+		w.commissionKitchens()
 	}
 	if len(w.projects) >= w.maxConcurrentProjects() {
 		return
@@ -488,7 +489,7 @@ func (w *World) planRooms() {
 	// Without the safety net, food has to be made, and the scumhouse is the
 	// only place that makes it: it comes before every other room, as life
 	// support always has. Crash-pod meals buy the time to build it.
-	if !w.podsFeed() && w.plannedFacilities(Scumhouse) < w.desiredScumhouses() {
+	if !w.podsFeed() && w.plannedColonyKitchens() < w.desiredScumhouses() {
 		// Life support does not wait on money: a colony that cannot fund its
 		// first scumhouse still marks it out, as unpaid community work, the
 		// way colonists always built themselves pods and toilets. Without
@@ -859,15 +860,31 @@ func (w *World) roomSiteClear(ox, oy, width int, designated map[Point]bool, allo
 // at a time, so a growing colony that kept one kitchen starved beside a pile
 // of uncooked scum. A kitchen per ten colonists was a guess at what a colony
 // needs; kitchens that are behind are a measurement of it.
+//
+// A chef's own kitchen is not the colony's: the colony can't cook there or buy
+// scum there, so it's counted neither built nor planned. When a chef's kitchen
+// was counted, every one a chef bought was one the colony stopped building.
 func (w *World) desiredScumhouses() int {
 	per := max(1, w.cfg.ColonistsPerScumhouse)
 	n := w.countKind(Colonist)
 	want := max(1, (n+per-1)/per)
-	built := w.countTerrain(Scumhouse)
-	if built >= want && built < max(1, n/3) && w.plannedFacilities(Scumhouse) == built && w.kitchensBehind() {
+	built := len(w.colonyKitchens())
+	if built >= want && built < max(1, n/3) && w.plannedColonyKitchens() == built && w.kitchensBehind() {
 		want = built + 1
 	}
 	return want
+}
+
+// plannedColonyKitchens is plannedFacilities(Scumhouse) less the kitchens
+// living chefs have bought or are having built.
+func (w *World) plannedColonyKitchens() int {
+	chefs := 0
+	for _, e := range w.entities {
+		if e.Kind == Colonist && e.Alive() && e.kitchenCommissioned {
+			chefs++
+		}
+	}
+	return max(0, w.plannedFacilities(Scumhouse)-chefs)
 }
 
 // kitchensBehind reports whether cooking is what holds the colony's food
@@ -877,7 +894,7 @@ func (w *World) kitchensBehind() bool {
 	if !w.foodWanted() {
 		return false
 	}
-	houses := w.scumhousesSorted()
+	houses := w.colonyKitchens()
 	if len(houses) == 0 {
 		return false
 	}

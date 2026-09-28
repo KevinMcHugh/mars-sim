@@ -868,6 +868,11 @@ func (w *World) assignWorkJob(e *Entity) {
 	// a meal it cooks and sells earns it the meal's price, while the colony
 	// pays a dollar a unit of scum and a dollar a recipe. So cook its own
 	// scum, or scrape some to cook (tryAssignScrapeToSell).
+	// A chef with scum it bought in its own kitchen cooks it whether or not
+	// scraping more would pay: the scum is paid for already.
+	if w.ownKitchenStocked(e) && w.tryAssignCraftFor(e, []Owner{ColonistOwner(e.ID)}) {
+		return
+	}
 	if w.foodPays(e) && (w.tryAssignCraftFor(e, []Owner{ColonistOwner(e.ID)}) || w.tryAssignScrapeToSell(e)) {
 		return
 	}
@@ -1303,6 +1308,11 @@ func (w *World) jobBuild(e *Entity) {
 			access, price := w.fixtureAccess(p, e.BuildKind)
 			w.setFixtureOwner(e.Target, p.issuer, access)
 			w.setFixturePrice(e.Target, price)
+			if e.BuildKind == Scumhouse {
+				if owner := w.entities[p.issuer.ID]; owner != nil {
+					owner.kitchen, owner.hasKitchen = e.Target, true
+				}
+			}
 		}
 		w.payWork(t.order, e)
 	}

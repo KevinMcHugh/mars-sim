@@ -387,10 +387,14 @@ func (w *World) planCraft(e *Entity, b *Order, probe *planOffer) (started, plann
 		if out == 0 {
 			continue
 		}
-		house, ok := w.nearestWorkshop(e, r.Facility, func(c *StorageContainer) bool {
+		usable := func(c *StorageContainer) bool {
 			id := w.workshopClaims[c.Pos]
-			return c.Terrain == r.Facility && (id == 0 || id == e.ID) && !w.planWaitingAt(c.Pos, e.ID)
-		})
+			return c.Terrain == r.Facility && (id == 0 || id == e.ID) && !w.planWaitingAt(c.Pos, e.ID) && w.mayCookAt(e, c.Pos)
+		}
+		house, ok := w.nearestWorkshop(e, r.Facility, usable)
+		if own, mine := w.ownKitchen(e); mine && r.Facility == Scumhouse && usable(w.storageContainers[own]) {
+			house, ok = own, true // a chef cooks at its own kitchen
+		}
 		if !ok {
 			continue
 		}

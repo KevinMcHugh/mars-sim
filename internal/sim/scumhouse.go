@@ -246,6 +246,9 @@ func (w *World) tryAssignCraftFor(e *Entity, owners []Owner) bool {
 		if id := w.workshopClaims[c.Pos]; id != 0 && id != e.ID {
 			return false // one cook per workshop
 		}
+		if !w.mayCookAt(e, c.Pos) {
+			return false // someone else's own kitchen
+		}
 		if w.mealFetchesAt(c.Pos) > 0 {
 			return false // someone is coming for a meal: don't stand on the counter
 		}
@@ -395,7 +398,7 @@ func (w *World) tryAssignScrape(e *Entity, keep bool) bool {
 			return false
 		}
 		if keep {
-			return true
+			return w.mayCookAt(e, c.Pos) // scum to cook goes where it may cook
 		}
 		// Scraping to sell needs a buyer. Without this check scrapers kept
 		// bringing scum to a scumhouse whose colony had stopped buying,
@@ -403,6 +406,11 @@ func (w *World) tryAssignScrape(e *Entity, keep bool) bool {
 		bid, ok := w.bestBid(CaveScum, c.Pos)
 		return ok && bid.Actor != me
 	})
+	if own, mine := w.ownKitchen(e); mine && keep {
+		if c := w.storageContainers[own]; c.Inventory.CanAdd(CaveScum, load) {
+			house, ok = own, true // a chef's scum goes to its own kitchen
+		}
+	}
 	if !ok {
 		return false
 	}
@@ -510,7 +518,7 @@ func (w *World) finishScraping(e *Entity) {
 		return
 	}
 	house, ok := w.nearestScumhouse(e, func(c *StorageContainer) bool {
-		return c.Inventory.CanAdd(CaveScum, e.Inventory.Count(CaveScum))
+		return w.mayStockAt(e, c.Pos, CaveScum) && c.Inventory.CanAdd(CaveScum, e.Inventory.Count(CaveScum))
 	})
 	if p := w.plans[e.plan]; p != nil && p.kind == planGather {
 		house, ok = p.depot, true // to the scumhouse whose bid it is filling
@@ -643,7 +651,7 @@ func (w *World) scumhousesSorted() []Point {
 // as far as the treasury stretches — and only while the depot has room for
 // what it would buy.
 func (w *World) refreshBiomatterBids() {
-	for _, p := range w.scumhousesSorted() {
+	for _, p := range w.colonyKitchens() {
 		c := w.storageContainers[p]
 		if c == nil {
 			continue
@@ -664,6 +672,59 @@ func (w *World) refreshBiomatterBids() {
 			if want > 0 {
 				w.post(Bid, k, want, price, Community, p, 0)
 			}
+		}
+	}
+}
+
+// refreshChefBids has every chef with a kitchen of its own bid for cave scum
+// there, at the colony's price, from its own wallet, while a meal it cooks
+// sells for more than the scum costs. It's how a chef's kitchen is stocked:
+// scrapers selling their scum take the chef's bid as readily as the colony's,
+// the chef cooks what it bought (tryAssignCraftFor, for itself) and sells the
+// meals from the pantry (offerOwnMeals). The colony neither buys nor cooks
+// there, so without its own bids a chef's kitchen stood empty and idle while
+// the colony's stoves were the ones it was bought to relieve.
+//
+// Scum only. Carcasses and viscera come in as refuse, now and then; bidding
+// for every kind escrowed a chef's whole wallet in bids that never filled,
+// and it had nothing left to buy the scum it could have cooked.
+func (w *World) refreshChefBids() {
+	r, ok := scumMealRecipe()
+	if !ok {
+		return
+	}
+	k, need := r.Inputs[0].Kind, r.Inputs[0].Count
+	price := w.biomatterPrice(k)
+	meals := 0
+	for _, o := range r.Outputs {
+		if o.Kind == Meal {
+			meals += o.Count
+		}
+	}
+	if price <= 0 || w.mealSellPrice()*Money(meals) <= price*Money(need) {
+		return
+	}
+	for _, id := range w.entityIDsSorted() {
+		e := w.entities[id]
+		if e.Kind != Colonist || !e.Alive() {
+			continue
+		}
+		p, ok := w.ownKitchen(e)
+		if !ok {
+			continue
+		}
+		c := w.storageContainers[p]
+		me := ColonistOwner(e.ID)
+		want := w.cfg.ScumhouseBidQty - w.openQty(Bid, k, p, me)
+		if cap := w.cfg.ScumhouseStockCap; cap > 0 {
+			want = min(want, cap-c.held(me, k)-w.openQty(Bid, k, p, me))
+		}
+		want = min(want, int(w.balance(me)/price))
+		for want > 0 && !c.Inventory.CanAdd(k, want) {
+			want--
+		}
+		if want > 0 {
+			w.post(Bid, k, want, price, me, p, 0)
 		}
 	}
 }
@@ -1000,4 +1061,87 @@ func (w *World) storedMeals() int {
 	}
 	w.storedMealsTick, w.storedMealsCache = w.tick, n
 	return n
+}
+
+// mayCookAt reports whether e may cook at the workshop at p: a colonist's own
+// kitchen is only its owner's to cook at, while anyone may bring scum to it
+// or fetch meals from its pantry. Once its owner is dead, it's anyone's.
+func (w *World) mayCookAt(e *Entity, p Point) bool {
+	f := w.fixtures[p]
+	if f == nil || f.Owner.Kind != OwnerColonist || f.Owner.ID == e.ID {
+		return true
+	}
+	owner := w.entities[f.Owner.ID]
+	return owner == nil || !owner.Alive()
+}
+
+// mayStockAt reports whether e may leave its item at the scumhouse at p:
+// where it may cook it, or where someone else bids for it. In someone else's
+// own kitchen with no bid for it, the item could be neither cooked by the
+// one who left it nor sold, and there it would sit: scrapers left hundreds of
+// units of their scum in chefs' kitchens, and big colonies starved.
+func (w *World) mayStockAt(e *Entity, p Point, item ItemKind) bool {
+	if w.mayCookAt(e, p) {
+		return true
+	}
+	bid, ok := w.bestBid(item, p)
+	return ok && bid.Actor != ColonistOwner(e.ID)
+}
+
+// privateKitchen reports whether the scumhouse at p belongs to a living
+// colonist: the colony neither cooks nor buys biomatter there.
+func (w *World) privateKitchen(p Point) bool {
+	f := w.fixtures[p]
+	if f == nil || f.Owner.Kind != OwnerColonist {
+		return false
+	}
+	owner := w.entities[f.Owner.ID]
+	return owner != nil && owner.Alive()
+}
+
+// colonyKitchens is every scumhouse that isn't a living colonist's own, in
+// position order.
+func (w *World) colonyKitchens() []Point {
+	var out []Point
+	for _, p := range w.scumhousesSorted() {
+		if !w.privateKitchen(p) {
+			out = append(out, p)
+		}
+	}
+	return out
+}
+
+// kitchensCrowded reports whether at least three in four of the colony's
+// kitchens have a cook at them: stoves, not scum, are what's short.
+func (w *World) kitchensCrowded() bool {
+	houses := w.colonyKitchens()
+	if len(houses) == 0 {
+		return false
+	}
+	busy := 0
+	for _, p := range houses {
+		if w.workshopClaims[p] != 0 {
+			busy++
+		}
+	}
+	return 4*busy >= 3*len(houses)
+}
+
+// ownKitchen is e's own kitchen, if it has one it can reach.
+func (w *World) ownKitchen(e *Entity) (Point, bool) {
+	if !e.hasKitchen || w.TerrainAt(e.kitchen) != Scumhouse || w.storageContainers[e.kitchen] == nil {
+		return Point{}, false
+	}
+	return e.kitchen, w.taskReachable(e.kitchen, w.roomOf(e.Pos))
+}
+
+// ownKitchenStocked reports whether e's own kitchen holds enough of e's
+// biomatter for a recipe.
+func (w *World) ownKitchenStocked(e *Entity) bool {
+	p, ok := w.ownKitchen(e)
+	if !ok {
+		return false
+	}
+	_, _, ok = w.craftableRecipe(w.storageContainers[p], []Owner{ColonistOwner(e.ID)})
+	return ok
 }

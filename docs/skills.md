@@ -21,7 +21,7 @@ The goal is not to assign careers. It's to make careers pay, and let colonists
 find them. Small colonies should stay mostly generalist, and specialization
 should come with a deep economy.
 
-S1 to S3 are built, and S4 in part. S5 is the plan.
+S1 to S3 are built, S4 in part, and S5 for kitchens.
 
 | Phase | What ships | Status |
 | --- | --- | --- |
@@ -29,7 +29,7 @@ S1 to S3 are built, and S4 in part. S5 is the plan.
 | S2 | Effects: skill makes work faster and increases yield, by more per rank for steeper skills. | Shipped |
 | S3 | Opportunity cost in the producer planner: skill-aware costs, choosing the best-paying plan, and a reservation rate from what the colonist has been earning. | Shipped |
 | S4 | Competition: drop the planner's reservations on opportunities, so colonists race for bids and undercut each other. | Shipped in part: bids are open to everyone; shrewd bidding and private price memory are still proposed |
-| S5 | A workshop of one's own: a skilled colonist builds a forge or a scumhouse on its own account when the returns pay for it. | Proposed |
+| S5 | A workshop of one's own: a skilled colonist builds a forge or a scumhouse on its own account. | Shipped for kitchens: a chef buys one when the shared stoves are crowded; forges are still proposed |
 
 ## Source
 
@@ -423,39 +423,70 @@ Duplicate effort is the price of competition, and it's the real one: two
 smiths making steel for one bid is what a market with two smiths does. The
 loser's steel isn't wasted. It's stock with an ask on it.
 
-### A workshop of one's own (S5, proposed)
+### A workshop of one's own (S5)
 
-Today only the colony builds workshops (`planRooms`), and a colonist only
-commissions a house, by a fixed savings rule. The plumbing for more is there:
-`planRoomFor(recipe, issuer)` works for any issuer, a commission's fixtures
-become the commissioner's (`fixtureAccess`), and recipes already give the
-output to whoever owns the inputs, not to the workshop's owner.
+Only a chef buys a kitchen. A colonist with cooking rank `kitchen-rank` (3, a
+chef) and `kitchen-savings` ($100) in its wallet commissions a scumhouse room
+of its own when at least three in four of the colony's kitchens have a cook
+at them (`kitchensCrowded`, `commissionKitchens`), one per planning cycle,
+paid from its wallet through the ordinary commission machinery
+(`planRoomFor` with the chef as issuer). A colonist that cooks now and then is
+better served by the shared stoves; only a chef cooks enough, well enough, to
+keep a stove busy.
 
-A colonist decides to build a workshop as an investment:
+What owning it means:
 
-```
-gain per tick = rate with its own workshop − rate at the best shared one
-                (no queue, no walk across the colony, no access fee)
-build it when   gain per tick × horizon > room cost (wages + materials)
-```
+- **Only the owner cooks there** (`mayCookAt`). Anyone may walk in, deliver
+  into a bid and fetch meals it bought (the fixture is `AccessCommunal`).
+- **The colony doesn't count it.** It neither bids for biomatter nor cooks
+  there, and `desiredScumhouses` counts only colony kitchens
+  (`colonyKitchens`, `plannedColonyKitchens`), so a chef's kitchen adds to the
+  colony's rather than replacing one.
+- **The chef stocks it from its own wallet.** It bids for cave scum there at
+  the colony's price (`refreshChefBids`), cooks what it holds before other
+  work (`ownKitchenStocked`), and sells the meals from the pantry
+  (`offerOwnMeals`).
+- **Nobody strands food there.** A colonist leaves scum or refuse biomatter
+  in a scumhouse only where it may cook it or where someone bids for it
+  (`mayStockAt`).
+- A dead chef's kitchen becomes the colony's.
 
-The horizon is a config value (how far ahead a colonist looks), and the rates
-come from the earnings memory (S3). A Master smith with fresh smithing
-earnings who keeps losing time waiting at the colony's forge crosses the line
-first. A novice with no earnings history never does. That's how professions
-turn into capital. Once a colonist owns a forge, walking and waiting drop out
-of its plans, work becomes a bigger part of each plan's ticks, and its skill
-counts for more. That's the deep-economy effect in *Why small colonies stay
-generalist*, bought by one colonist.
+Every rule above is a measured failure:
 
-A private workshop can be `AccessPaid`: the owner works it free, and other
-smiths pay per use. That makes the forge capital someone rents out (see
-[economy.md](./economy.md)).
+- With only the cooking restriction, scrapers delivered their own scum to
+  the nearest scumhouse, chefs' included, and could not cook it there. One
+  chef's kitchen held over 500 units of other colonists' scum while 100
+  colonists starved around it (252 of 800 starved, seeds 1–8).
+- Counting a chef's kitchen as the colony's stopped the colony building one
+  of its own for every one a chef bought.
+- Without its own bids, a chef's kitchen stood empty: the colony doesn't buy
+  there, and the chef scraped for its supper like anyone else.
+- A chef that could just afford the room was left with nothing to buy scum
+  with, hence `kitchen-savings`. A chef that bid for every kind of biomatter
+  escrowed its whole wallet in bids for carcasses that rarely came, hence
+  scum only.
 
-The limit is demand. A private forge only pays if there's smithing to sell,
-and the armory stops at 4 rifles (see *Open questions*). Until colonists
-themselves want rifles, S5 will rarely trigger for smiths. It will for
-cooks: meal demand never stops.
+With those, chefs cook in their own kitchens and earn: on seed 1 two chefs
+held $281 and $444 by tick 10,000, and the colony's stores held 395 meals
+there, not 144. It does not yet beat the kitchen fixes it builds on. 100
+colonists on a 300×150 map, 30,000 ticks, starved:
+
+| | Without S5 | With S5 |
+| --- | --- | --- |
+| Seeds 1–8, pocket meals on | 46 (seed 2) | 65 (seed 2) |
+| Seeds 1–8, pocket meals off | 1 | 1 |
+| Seeds 9–16, pocket meals on | 0 | 13 (seed 11) |
+| Six colonists, seeds 1–32 | 2 | 2 |
+
+Why S5 loses more with pocket meals on is not yet understood; see *Open
+questions*.
+
+Forges are the same idea and not built. A private forge only pays if there's
+smithing to sell, and the armory stops at 4 rifles; until colonists
+themselves want rifles, a smith would rarely buy one. The rule to generalise
+is the one kitchens settled on: a skill threshold, savings that cover the
+room and working capital, and the owner buying its own inputs on the order
+book.
 
 ### What S3 and S4 do in a run
 
@@ -557,6 +588,8 @@ The skill, effect and background tables are content in Go tables, like
 | `skills` | true | Off: no backgrounds and no effects; practice is still counted. For A/B runs. |
 | `skill-practice-percent` | 100 | Percent of each unit's base ticks credited as practice. |
 | `rate-memory` | 4000 | Ticks over which what a colonist earned fades back to `labor-price`. |
+| `kitchen-rank` | 3 | Cooking rank at which a colonist buys a kitchen of its own when the shared stoves are crowded (0 disables). |
+| `kitchen-savings` | 100 | Money a chef needs to commission one: the room and scum to cook. |
 
 `plan-candidates` (4) matters more under S3. With best-of-N, it's the size of
 the choice a colonist has.
@@ -618,6 +651,11 @@ derived, never stored. Nothing in skill code iterates a map to decide who
 works or wins a tie.
 
 ## Open questions
+
+- **Why chefs' kitchens cost lives with pocket meals on.** S5 loses 19 more
+  colonists on seed 2 and 13 on seed 11 than the kitchen fixes alone, and
+  none with pocket meals off. Suspects: chefs' meals priced at the selling
+  price rather than the colony's, and pocket meals raising consumption.
 
 - **Rifle demand is capped at 4.** Until rifles are wanted continuously
   (arming colonists, wear, a market among colonists; see

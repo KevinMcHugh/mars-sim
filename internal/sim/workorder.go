@@ -193,12 +193,52 @@ var houseRoom = roomRecipe{
 }
 
 // fixtureAccess is how a commissioned room's fixtures are opened to others:
-// a house's toilet takes paying customers; everything else is private.
+// a house's toilet takes paying customers; a kitchen is open to anyone, who
+// may bring its scum and fetch the meals they bought there, though only its
+// owner cooks at it (mayCookAt); everything else is private.
 func (w *World) fixtureAccess(p *project, t Terrain) (Access, Money) {
 	if p.name == houseRoom.name && t == Toilet && w.cfg.ToiletFee > 0 {
 		return AccessPaid, Money(w.cfg.ToiletFee)
 	}
+	if p.name == scumhouseRoom.name {
+		return AccessCommunal, 0
+	}
 	return AccessPrivate, 0
+}
+
+// commissionKitchens has the first colonist (by ID) with a chef's rank in
+// cooking (kitchen-rank), kitchen-savings in its wallet, and no kitchen of its
+// own, commission one when the shared stoves are crowded, paid from its own
+// wallet. One per planning cycle.
+//
+// The savings are the room and working capital. A chef that could just
+// afford the room bought it and was left with nothing to bid for scum with:
+// its kitchen stood empty, and it went back to scraping for its supper.
+//
+// A chef that waits for a shared stove wastes the skill the colony most
+// needs, and a crowded stove is what held big colonies' food back. A kitchen
+// of its own is a chef's capital: it cooks there without waiting, scrapers
+// sell it scum there, and hungry colonists buy its meals from the pantry.
+// Only a chef buys one, since only a chef cooks enough, well enough, to keep
+// a stove busy: a colonist that cooks now and then is better served by the
+// shared ones. The colony keeps building public kitchens (desiredScumhouses);
+// a chef's adds to them.
+func (w *World) commissionKitchens() {
+	rank := w.cfg.KitchenRank
+	if rank <= 0 || !w.kitchensCrowded() {
+		return
+	}
+	for _, id := range w.entityIDsSorted() {
+		e := w.entities[id]
+		if e.Kind != Colonist || !e.Alive() || e.kitchenCommissioned || e.rank(SkillCooking) < rank || e.wallet < Money(w.cfg.KitchenSavings) {
+			continue
+		}
+		if w.planRoomFor(scumhouseRoom, ColonistOwner(e.ID)) {
+			e.kitchenCommissioned = true
+			w.log.add(LogBuildStart, fmt.Sprintf("%s, %s, commissions a kitchen of its own.", e.displayName(), withArticle(e.skillLabel(SkillCooking))))
+		}
+		return
+	}
 }
 
 // commissionHouses has the first colonist (by ID) who can afford a house and

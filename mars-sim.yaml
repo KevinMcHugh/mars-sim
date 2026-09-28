@@ -252,6 +252,12 @@
 ## a colonist with this much money commissions its own house (0 disables)
 # house-savings: 300
 
+## cooking rank at which a colonist buys a kitchen of its own when the shared stoves are crowded (3: a chef; 0 disables)
+# kitchen-rank: 3
+
+## money a chef needs to commission its own kitchen: the room (about $50) and scum to cook in it
+# kitchen-savings: 100
+
 ## what a house's toilet charges anyone but its owner per use (0: private)
 # toilet-fee: 2
 

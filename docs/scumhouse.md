@@ -244,6 +244,8 @@ The planner wants a scumhouse for every `colonists-per-scumhouse` colonists
 (`kitchensBehind`: short of the meal reserve with, on average, half a
 scumhouse's stock cap of biomatter waiting to be cooked), up to one per three
 colonists. It adds that one only once every scumhouse it planned is built. A
+chef's own kitchen isn't counted: the colony can't cook or buy scum there
+(see *A workshop of one's own* in [skills.md](./skills.md)). A
 kitchen per ten colonists is a guess at what a colony needs; kitchens that
 are behind are a measurement of it.
 
