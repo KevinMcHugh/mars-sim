@@ -135,6 +135,7 @@ type Config struct {
 	OrderTTL        int   `cfg:"order-ttl" doc:"ticks a colonist's resting order lives before it expires"`
 	MealKeep        int   `cfg:"meal-keep" doc:"meals a colonist keeps for itself before it takes the rest to market"`
 	MealWillingness int   `cfg:"meal-willingness" doc:"a hungry colonist pays up to this many times the meal price"`
+	MealPriceMax    int   `cfg:"meal-price-max" doc:"what the colony asks for a meal with its shelves bare, as a percent of price-meal; it rises to this as its stock falls below meal-reserve per colonist (100: a fixed price)"`
 
 	// Skills. A colonist is credited SkillPracticePercent percent of the base
 	// ticks of every unit of work it completes, in that work's skill; ranks
@@ -529,6 +530,7 @@ func DefaultConfig() Config {
 		OrderTTL:        2000,
 		MealKeep:        5,
 		MealWillingness: 3,
+		MealPriceMax:    100,
 		// Wages sized so a typical room costs the colony about a hundred
 		// dollars: fifty rooms from the founding grant, less what it spends
 		// buying ore. A house is a real purchase, several weeks of prospecting.

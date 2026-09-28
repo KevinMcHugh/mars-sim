@@ -332,6 +332,9 @@ func (w *World) jobCraft(e *Entity) {
 	} else {
 		w.emitDone(e, ActionCook, NounGoods, "Worked the %s: %s.", r.Facility, r.Name)
 	}
+	if e.craftFor == ColonistOwner(e.ID) && e.plan == 0 {
+		w.offerOwnMeals(e, out.Pos)
+	}
 	if e.craftFor == Community {
 		if w.cfg.WageCook > 0 {
 			w.transfer(Community, ColonistOwner(e.ID), Money(w.cfg.WageCook)) // as far as the treasury goes
@@ -690,24 +693,61 @@ func (w *World) pendingHaul(item ItemKind, from Point) int {
 }
 
 // refreshColonyMealAsks offers every meal the colony holds, at each scumhouse
-// and at the silo, at the charter's meal price — less any a haul order is
-// about to take to the silo. This is the scumhouse charging for its meals.
+// and at the silo, at colonyMealPrice — less any a haul order is about to
+// take to the silo. This is the scumhouse charging for its meals. When the
+// price has moved since the asks were posted, they're withdrawn and posted
+// again at the new one.
 func (w *World) refreshColonyMealAsks() {
-	price := w.refPrice(Meal)
+	price := w.colonyMealPrice()
 	if price <= 0 {
 		return
 	}
+	reprice := price != w.colonyMealAsk
+	w.colonyMealAsk = price
 	for _, p := range w.mealDepots() {
+		if reprice {
+			w.withdrawColonyAsks(Meal, p)
+		}
 		w.offerColonyMeals(p)
 	}
 }
 
+// colonyMealPrice is what the colony asks for a meal: the charter's price
+// while the colony's stores hold meal-reserve meals per colonist, rising in
+// step as they fall short of that, to meal-price-max percent of the charter's
+// price with the shelves bare.
+//
+// Scarcity is every meal in storage, not only the colony's: at landing the
+// colony has none, and colonists' lockers hold ten each. Priced on the
+// colony's stock alone, the price started at its maximum, every colonist
+// turned to cooking for itself, and the colony's food never got going.
+//
+// A fixed price sent no signal: a colony whose stock was running out still
+// sold its last meals at $5, first come first served, and a shortage never
+// made cooking pay better. Rising, it rations the last meals toward the
+// hungriest (a hungry colonist bids more the hungrier it is; see
+// mealBidLimit), and it makes cooking to sell worth a colonist's while
+// (tryAssignScrapeToSell).
+func (w *World) colonyMealPrice() Money {
+	ref := w.refPrice(Meal)
+	top := int64(w.cfg.MealPriceMax)
+	target := int64(w.cfg.MealReserve) * int64(w.countKind(Colonist))
+	if ref <= 0 || top <= 100 || target <= 0 {
+		return ref
+	}
+	short := target - int64(w.storedMeals())
+	if short <= 0 {
+		return ref
+	}
+	return Money((int64(ref)*(100*target+(top-100)*short) + 50*target) / (100 * target))
+}
+
 // offerColonyMeals offers every meal the colony holds at p, less any a haul
-// order is about to take, at the charter's meal price. Resting bids there —
-// hungry colonists queued for a meal — fill at once.
+// order is about to take, at colonyMealPrice. Resting bids there — hungry
+// colonists queued for a meal — fill at once.
 func (w *World) offerColonyMeals(p Point) {
 	c := w.storageContainers[p]
-	price := w.refPrice(Meal)
+	price := w.colonyMealPrice()
 	if c == nil || price <= 0 {
 		return
 	}
@@ -849,4 +889,98 @@ func withoutOneMeal(outputs []ItemStack) []ItemStack {
 		out = append(out, o)
 	}
 	return out
+}
+
+// mealSellPrice is what a colonist asks for a meal it sells: a dollar under
+// the colony's price when scarcity has raised it, so a colonist's meal sells
+// first, and the charter's price otherwise.
+func (w *World) mealSellPrice() Money {
+	p, ref := w.colonyMealPrice(), w.refPrice(Meal)
+	if p > ref {
+		return p - 1
+	}
+	return p
+}
+
+// scumMealRecipe is the recipe that turns cave scum into meals.
+func scumMealRecipe() (Recipe, bool) {
+	for _, r := range recipes {
+		if len(r.Inputs) == 1 && r.Inputs[0].Kind == CaveScum {
+			return r, true
+		}
+	}
+	return Recipe{}, false
+}
+
+// foodPays reports whether a meal sells for enough more than making one costs
+// e: scum at its value, and e's labor scraping it, cooking it and walking to
+// the nearest scumhouse and back, at labor-price:
+//
+//	margin = mealSellPrice × meals − scum × its value − labor
+//
+// It's the producer planner's test, and it has to clear plan-min-profit. At
+// the charter's price it rarely does; when scarcity raises the colony's
+// price (colonyMealPrice), it does.
+func (w *World) foodPays(e *Entity) bool {
+	r, ok := scumMealRecipe()
+	if !ok || w.countTerrain(r.Facility) == 0 {
+		return false
+	}
+	house, ok := w.nearestScumhouse(e, nil)
+	if !ok {
+		return false
+	}
+	meals := 0
+	for _, o := range r.Outputs {
+		if o.Kind == Meal {
+			meals += o.Count
+		}
+	}
+	scum := r.Inputs[0].Count
+	ticks := r.Ticks + scum*w.cfg.ScrapeTicks + 2*e.Pos.Chebyshev(house)
+	margin := w.mealSellPrice()*Money(meals) - Money(scum)*w.valueOf(CaveScum) - w.laborCost(ticks)
+	return margin >= Money(w.cfg.PlanMinProfit)
+}
+
+// tryAssignScrapeToSell sends e to scrape scum of its own, to cook into meals
+// and sell, when food pays (foodPays). The rest is existing work: scum kept
+// at a scumhouse is cooked by tryAssignCraftFor, and jobCraft offers the meals
+// beyond meal-keep for sale where they're made, at mealSellPrice. So a
+// colonist makes food on its own account whenever food pays, whatever the
+// treasury holds. The colony's own food chain runs on the treasury: in a
+// 100-colonist colony, building its rooms spent it to $0 and the colony
+// stopped buying scum.
+func (w *World) tryAssignScrapeToSell(e *Entity) bool {
+	return w.foodPays(e) && w.tryAssignScrape(e, true)
+}
+
+// offerOwnMeals offers the meals e has just cooked at p for sale where they
+// are, at mealSellPrice: those beyond what it keeps (surplusMeals, meal-keep
+// and its pocket meal). Hungry colonists' bids rest at a scumhouse's pantry,
+// so a meal on offer there sells to the next of them at once, without a walk
+// to the silo.
+func (w *World) offerOwnMeals(e *Entity, p Point) {
+	c := w.storageContainers[p]
+	silo, _ := w.marketDepot()
+	if c == nil || p == silo {
+		return
+	}
+	n := min(c.held(ColonistOwner(e.ID), Meal), w.surplusMeals(e, silo))
+	if price := w.mealSellPrice(); n > 0 && price > 0 {
+		w.post(Ask, Meal, n, price, ColonistOwner(e.ID), p, w.cfg.OrderTTL)
+	}
+}
+
+// storedMeals is every meal in every depot, whoever owns it, memoized for
+// the tick: colonyMealPrice reads it for every colonist deciding on work.
+func (w *World) storedMeals() int {
+	if w.storedMealsTick == w.tick {
+		return w.storedMealsCache
+	}
+	n := 0
+	for _, c := range w.storageContainers {
+		n += c.Inventory.Count(Meal)
+	}
+	w.storedMealsTick, w.storedMealsCache = w.tick, n
+	return n
 }

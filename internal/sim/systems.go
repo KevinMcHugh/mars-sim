@@ -859,6 +859,13 @@ func (w *World) assignWorkJob(e *Entity) {
 	// mining frontier is effectively endless. Cleaning placed after mining
 	// would therefore never come up at all. It still sits behind construction:
 	// life support outranks housekeeping.
+	// Food on its own account, when food pays, before the colony's food work:
+	// a meal it cooks and sells earns it the meal's price, while the colony
+	// pays a dollar a unit of scum and a dollar a recipe. So cook its own
+	// scum, or scrape some to cook (tryAssignScrapeToSell).
+	if w.foodPays(e) && (w.tryAssignCraftFor(e, []Owner{ColonistOwner(e.ID)}) || w.tryAssignScrapeToSell(e)) {
+		return
+	}
 	// Food before refuse when the colony is short: cook what the scumhouse
 	// holds, then scrape more. Cleaning, next, feeds the scumhouse too.
 	if w.foodWanted() && w.tryAssignCraft(e) {

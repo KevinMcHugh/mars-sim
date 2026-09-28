@@ -657,10 +657,16 @@ type World struct {
 	workshopClaims map[Point]EntityID
 	// communityMealsTick/communityMealsCache memoize communityMeals for one
 	// tick; see foodWanted.
-	communityMealsTick  int
+	communityMealsTick int
+	// colonyMealAsk is the price the colony's meal asks were last posted at,
+	// so they're reposted only when colonyMealPrice moves (see scumhouse.go).
+	colonyMealAsk       Money
 	communityMealsCache int
-	manualScumhouses    int
-	manualFoundries     int
+	// storedMealsTick/storedMealsCache memoize storedMeals for one tick.
+	storedMealsTick  int
+	storedMealsCache int
+	manualScumhouses int
+	manualFoundries  int
 	// podRingHint is the search ring the last crash pod landed on, so the
 	// next search starts near there instead of rescanning the packed middle.
 	// See findPodSite.
@@ -947,6 +953,7 @@ func newWorld(cfg Config, src *rand.PCG) *World {
 	w.trackFacility(Forge)
 	w.trackFacility(GunBench)
 	w.communityMealsTick = -1
+	w.storedMealsTick = -1
 	w.scum = make(map[Point]scumPatch)
 	w.exposedScum = make(map[Point]struct{})
 	w.scumClaims = make(map[Point]EntityID)

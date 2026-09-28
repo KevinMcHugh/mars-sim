@@ -49,7 +49,7 @@ var goldenCases = []goldenCase{
 		breach: true,
 		grows:  true,
 		gen:    "tiles=6eba3d92a4e07cbb entities=f7ee7a1387568a13 rng=a78d6b0ac12b9e48 chunks=562663220ec91645/16 scum=694edd31ec9d434c/3893 n=53 gore=0 corpses=0",
-		run:    "tiles=8fb516a90fea17a0 entities=d5af18e8451f1305 rng=a74fb03b732bb042 chunks=693d999c36049d09/20 scum=cff47ed9deda22da/4848 n=45 gore=0 corpses=0",
+		run:    "tiles=1e34f783b932e65a entities=9ff3796074f21afd rng=18846d5c3be59b9a chunks=693d999c36049d09/20 scum=23e2c6fc03c030ec/4848 n=45 gore=0 corpses=0",
 	},
 	{
 		name: "default-80x40",

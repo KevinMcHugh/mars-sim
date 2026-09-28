@@ -119,6 +119,7 @@ the centre doubled the money in escrow and left 64 iron bids open.
 | Setting | Default |
 | --- | --- |
 | `price-meal` | 5 |
+| `meal-price-max` | 100 (a fixed price; see [scumhouse.md](./scumhouse.md)) |
 | `price-raw-rock` | 0 (not bought) |
 | `price-iron-ore` / `price-water-ice` / `price-uranium-ore` / `price-clay` | 3 / 2 / 6 / 2 |
 | `silo-bid-qty` | 64 |

@@ -160,6 +160,9 @@
 ## a hungry colonist pays up to this many times the meal price
 # meal-willingness: 3
 
+## what the colony asks for a meal with its shelves bare, as a percent of price-meal; it rises to this as its stock falls below meal-reserve per colonist (100: a fixed price)
+# meal-price-max: 100
+
 # ── Skills ──────────────────────────────────────────────────────────────
 ## colonists arrive with skills, and skilled work is faster and yields more (off: no backgrounds, no effects)
 # skills: true

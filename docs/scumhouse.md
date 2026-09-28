@@ -20,7 +20,10 @@ meals. Nothing it cooks is free for the taking. This is phase **E3** of the
 - [`internal/sim/scumhouse.go`](../internal/sim/scumhouse.go) — `Recipe`,
   the `recipes` table; `scumPatch`, `scumAt`, `takeScum`, the
   exposure index; `foodWanted`, `tryAssignFoodWork`,
-  `tryAssignCraft`/`jobCraft`, `tryAssignScrape`/`jobScrape`,
+  `tryAssignCraft`/`jobCraft`, `tryAssignScrape`/`jobScrape`; food on a
+  colonist's own account (`foodPays`, `tryAssignScrapeToSell`,
+  `offerOwnMeals`, `mealSellPrice`); the colony's meal price
+  (`colonyMealPrice`, `storedMeals`);
   `deliverBiomatter`, `carriedOwner`; the colony's trade (`biomatterPrice`,
   `refreshBiomatterBids`, `sellBiomatter`, `refreshColonyMealAsks`).
 - [`internal/sim/market.go`](../internal/sim/market.go) — `tryBuyMeal` buys
@@ -125,10 +128,36 @@ the job board keeps the mining frontier, so finding scum never walks the map.
 
 ### Food work
 
+**Food on its own account comes first.** When a meal sells for enough more
+than it costs a colonist to make (`foodPays`), `assignWorkJob` offers, right
+after construction and before the colony's food work, cooking the colonist's
+own scum (`tryAssignCraftFor`) or scraping scum to keep and cook
+(`tryAssignScrapeToSell`). `foodPays` is the producer planner's test:
+
+```
+margin = mealSellPrice × meals − scum × its value − labor (scraping, cooking, the walk to the nearest scumhouse and back)
+```
+
+and it has to clear `plan-min-profit`. A meal a colonist cooks earns it the
+meal's price, where the colony pays a dollar a unit of scum and a dollar a
+recipe, so when food pays, a colonist does it for itself. `jobCraft` then
+offers its meals beyond `meal-keep` for sale where they're made
+(`offerOwnMeals`), at `mealSellPrice`: hungry colonists' bids queue at the
+pantry, so the next of them buys it at once.
+
+At the charter's $5 this pays only for colonists near a scumhouse. In a
+6-colonist colony it never does, and seeds 1–48 play exactly as they would
+without it. In a 100-colonist colony on a 300×150 map (seeds 1–4, 30,000
+ticks) it starved 49 of 400 colonists, against 73 without, and two of the
+four seeds lost nobody. The colony's own food chain runs on its treasury,
+which building rooms for 100 colonists spends to $0 early on; food made on
+colonists' own account doesn't wait for it.
+
 `foodWanted` is true while the colony has a scumhouse and owns fewer than
 `meal-reserve` meals per colonist (`communityMeals`, memoized per tick —
 crash-pod lockers make one depot per settler, and every work-seeking colonist
-asks). While it is, `assignWorkJob` offers, after construction:
+asks). While it is, `assignWorkJob` offers, after construction and food on
+a colonist's own account:
 
 1. **cooking** (`JobCraft`) what the scumhouse already holds;
 2. **cleaning**, which feeds the scumhouse too (see
@@ -162,7 +191,12 @@ In the market's upkeep, the colony:
   The prices follow the meals each input makes: two scum or two viscera to a
   $5 meal, four meals from an alien carcass.
 - **Sells**: every meal the colony holds, at each scumhouse and at the silo,
-  at `price-meal`, less any that a haul order is about to take to the silo.
+  at `colonyMealPrice`, less any that a haul order is about to take to the
+  silo. With `meal-price-max` above 100 the price rises as stored meals (every
+  meal in storage, anyone's) fall short of `meal-reserve` per colonist, to
+  that percent of `price-meal` with nothing stored; `refreshColonyMealAsks`
+  reposts the colony's asks when it moves. It's off (100) by default: see
+  *A scarcity price*.
   A cook's meal goes on sale in the pantry the moment it is made
   (`offerColonyMeals`, from `jobCraft`), and `refreshColonyMealAsks` sweeps up the rest each upkeep. The
   haul order withdraws the asks it needs first, since goods on offer are
@@ -174,6 +208,34 @@ nearest kitchen's pantry**, so the next meal cooked there fills it at once, in
 bid order. A meal on offer still counts toward the colony's
 `meal-reserve` (`communityMeals`), so the colony doesn't keep cooking what
 it has on the shelf.
+
+### A scarcity price
+
+A price that rises as stores fall is meant to ration the last meals toward
+the hungriest (a colonist's bid rises with its hunger; see
+[valuation.md](./valuation.md)) and make cooking to sell pay. `meal-price-max`
+does that, and it's off by default because in every form measured it starved
+more colonists, not fewer. 100 colonists on a 300×150 map, seeds 1–4, 30,000
+ticks, starved of 400:
+
+| | Starved |
+| --- | --- |
+| Fixed price, food on own account first (the default) | 49 |
+| Without food on own account | 73 |
+| `meal-price-max 300`, scarcity from the colony's stock | 273 |
+| `meal-price-max 300`, scarcity from all stored meals | 127 |
+
+Priced on the colony's own stock, the price starts at its maximum, because
+the colony holds no meals at landing while the lockers hold 1,000. Every
+colonist turns to cooking for itself, the colony never buys any scum, and
+100 private cooks jam ten stoves. Priced on all stored meals, it starts at
+$5 and rises as the lockers empty. The rising price moves money from wallets
+to the treasury (in one run, wallets fell from $12,000 to $5,700 while the
+treasury rose to $7,000), and the colony can't turn that money into food: its
+scum bids are capped by quantity, not money. Its dearer meals also answer the
+hungry colonists' resting bids that private producers used to fill, so less
+food gets made. A useful scarcity price probably needs the colony not to be
+the seller that captures it (see [work-market.md](./work-market.md)).
 
 ### Keeping a big colony fed
 
