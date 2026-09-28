@@ -292,3 +292,92 @@ func TestAColonyCookWorksABatch(t *testing.T) {
 		t.Fatalf("the cook used %d scum in one visit, want a batch of %d recipes", 20-got, cookBatch)
 	}
 }
+
+// setHunger puts e's food need at level as of now.
+func setHunger(w *World, e *Entity, level int) {
+	e.Needs[NeedFood], e.needSince[NeedFood] = level, w.tick
+	w.syncNeedPhase(e, NeedFood)
+}
+
+// Before it's hungry enough to eat, a colonist with no meal on it fetches
+// one of its own to carry, and eats it the moment hunger presses: no walk.
+func TestAColonistCarriesItsNextMeal(t *testing.T) {
+	w := propertyWorld(t)
+	w.cfg.InfiniteFood = false
+	shelf := Point{16, 10}
+	w.SetTerrain(shelf, Storage)
+	w.refreshSpatial()
+	e := w.spawn(Colonist, Point{8, 8})
+	me := ColonistOwner(e.ID)
+	c := w.storageContainers[shelf]
+	c.Inventory.Add(Meal, 2)
+	c.credit(me, Meal, 2)
+
+	setHunger(w, e, w.cfg.PocketMealAt-1)
+	if w.tryPocketMeal(e) {
+		t.Fatal("fetched a pocket meal before pocket-meal-at")
+	}
+	setHunger(w, e, w.cfg.PocketMealAt)
+	w.assignWorkJob(e)
+	if e.Job != JobEat || !e.eatKeep {
+		t.Fatalf("at pocket-meal-at: job %v (keep %v), want fetching a meal to carry", e.Job, e.eatKeep)
+	}
+	for i := 0; i < 200 && e.Job == JobEat; i++ {
+		w.jobEat(e)
+	}
+	if e.ownCarried(Meal) != 1 || c.held(me, Meal) != 1 {
+		t.Fatalf("after the fetch: %d carried, %d on the shelf; want 1 and 1", e.ownCarried(Meal), c.held(me, Meal))
+	}
+	if w.needLevel(e, NeedFood) == 0 {
+		t.Fatal("fetching a pocket meal fed the colonist")
+	}
+	w.assignWorkJob(e)
+	if e.Job == JobEat {
+		t.Fatal("a colonist with a meal on it fetched another")
+	}
+
+	setHunger(w, e, w.cfg.Needs[NeedFood].SeekAt)
+	if !w.tryStartEating(e) || e.eat != eatMeal {
+		t.Fatalf("pressing hunger with a pocket meal: job %v stage %v, want eating at once", e.Job, e.eat)
+	}
+}
+
+// A pocket meal is only ever the colonist's own: it never buys one, so it
+// never takes a meal off the shelf from a colonist hungrier than it is.
+func TestAPocketMealIsNeverBought(t *testing.T) {
+	w := propertyWorld(t)
+	w.cfg.InfiniteFood = false
+	shelf := Point{16, 10}
+	w.SetTerrain(shelf, Storage)
+	w.refreshSpatial()
+	c := w.storageContainers[shelf]
+	c.Inventory.Add(Meal, 1)
+	c.credit(Community, Meal, 1)
+	w.offerColonyMeals(shelf)
+	e := w.spawn(Colonist, Point{8, 8})
+	me := ColonistOwner(e.ID)
+	setHunger(w, e, w.cfg.PocketMealAt)
+	if w.tryPocketMeal(e) || c.held(me, Meal) != 0 || w.hasOpenMealBid(me) {
+		t.Fatalf("with only the colony's meal on sale: job %v, %d bought", e.Job, c.held(me, Meal))
+	}
+}
+
+// Taking surplus meals to market never sells the pocket meal.
+func TestSellingSurplusKeepsThePocketMeal(t *testing.T) {
+	w := propertyWorld(t)
+	w.cfg.MealKeep = 0
+	w.SetTerrain(Point{14, 10}, Storage)
+	w.refreshSpatial()
+	e := w.spawn(Colonist, Point{8, 8})
+	e.Inventory.Add(Meal, 1)
+	silo, ok := w.marketDepot()
+	if !ok {
+		t.Fatal("no silo to sell at")
+	}
+	if w.surplusMeals(e, silo) != 0 {
+		t.Fatalf("surplus with only a pocket meal = %d, want 0", w.surplusMeals(e, silo))
+	}
+	if w.tryAssignSellMeals(e) {
+		t.Fatal("went to market to sell its pocket meal")
+	}
+}

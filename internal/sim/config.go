@@ -135,6 +135,7 @@ type Config struct {
 	OrderTTL        int   `cfg:"order-ttl" doc:"ticks a colonist's resting order lives before it expires"`
 	MealKeep        int   `cfg:"meal-keep" doc:"meals a colonist keeps for itself before it takes the rest to market"`
 	MealWillingness int   `cfg:"meal-willingness" doc:"a hungry colonist pays up to this many times the meal price"`
+	PocketMealAt    int   `cfg:"pocket-meal-at" doc:"food need at which a colonist with no meal on it fetches or buys one to carry, before it's hungry enough to eat (0: never)"`
 
 	// Valuation and the producer planner. A colonist values its own time at
 	// LaborPrice dollars per 100 ticks of work, and takes on a plan only if it
@@ -519,6 +520,7 @@ func DefaultConfig() Config {
 		OrderTTL:        2000,
 		MealKeep:        5,
 		MealWillingness: 3,
+		PocketMealAt:    300,
 		// Wages sized so a typical room costs the colony about a hundred
 		// dollars: fifty rooms from the founding grant, less what it spends
 		// buying ore. A house is a real purchase, several weeks of prospecting.

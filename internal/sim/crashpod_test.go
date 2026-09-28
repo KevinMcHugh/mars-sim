@@ -18,8 +18,9 @@ func assertOwnsPod(t *testing.T, w *World, e *Entity) {
 		}
 	}
 	locker := w.storageContainers[e.podOrigin.Add(podFixtures[2].dx, podFixtures[2].dy)]
-	if got := locker.held(me, Meal); got != w.cfg.CrashPodMeals {
-		t.Fatalf("%s's locker holds %d meals of its own, want %d", e.displayName(), got, w.cfg.CrashPodMeals)
+	// A meal it has taken out to carry (a pocket meal) is still the manifest's.
+	if got := locker.held(me, Meal) + e.ownCarried(Meal); got != w.cfg.CrashPodMeals {
+		t.Fatalf("%s's locker and pockets hold %d meals of its own, want %d", e.displayName(), got, w.cfg.CrashPodMeals)
 	}
 	if !locker.ledgerBalanced() {
 		t.Fatalf("%s's locker ledger does not match its contents", e.displayName())

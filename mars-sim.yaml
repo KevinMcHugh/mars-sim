@@ -160,6 +160,9 @@
 ## a hungry colonist pays up to this many times the meal price
 # meal-willingness: 3
 
+## food need at which a colonist with no meal on it fetches or buys one to carry, before it's hungry enough to eat (0: never)
+# pocket-meal-at: 300
+
 # ── Valuation ───────────────────────────────────────────────────────────
 ## what a colonist reckons 100 ticks of its own work are worth, in dollars
 # labor-price: 2

@@ -36,7 +36,8 @@ covers where the first meals come from.
 When the food need is pressing, `runNeedFocus` gives `runFoodFocus` the turn
 first. It tries, in order:
 
-1. **A meal in the colonist's pockets.** Eat it where it stands.
+1. **A meal in the colonist's pockets**, usually its pocket meal (see *Pocket
+   meals*). Eat it where it stands.
 2. **A meal of its own in a depot it can reach** — its crash pod's locker, to
    begin with. Walk there, take one out (`debit`), step aside, eat it.
 3. **A meal bought.** The cheapest on offer at the silo or a scumhouse it can
@@ -128,6 +129,54 @@ to buy the meals they weren't finishing. Cooking meals for anyone is now food
 work that hunger doesn't interrupt (`makingMeals`). A colony cook already stops
 its batch once it's hungry (`cooksOn`), so this holds it for one recipe, not a
 shift. `TestPressingHungerFinishesTheColonysCooking` pins it.
+
+### Pocket meals
+
+A colonist whose hunger reaches `pocket-meal-at` (300; it eats at 650) with no
+meal on it, and a meal of its own in a depot it can reach, fetches that meal
+to carry when it next picks work (`tryPocketMeal`, at the top of
+`assignWorkJob`). It's a `JobEat` fetch with `eatKeep` set: the meal goes in
+the pocket and the job ends. When hunger turns pressing, step 1 of *Who eats
+what* eats it where the colonist stands. From pressing hunger to critical is
+about 175 ticks, and about 40 more to death; on a big map, one walk to a
+locker used most of that. With a pocket meal, the walk happens while there's
+time to spare.
+
+A pocket meal is only ever the colonist's own. It never buys one: a colonist
+that isn't hungry yet buying a meal takes it off the shelf from one that is.
+Measured on the 100-colonist shortage below (seeds 1–4, 30,000 ticks), buying
+pocket meals starved 150 of 400 colonists, against 96 without pocket meals.
+Own meals only starved 97, and on seeds 1–16 of the default six-colonist
+colony nobody starved either way. So the pocket meal doesn't prevent a
+shortage. It moves a colonist's own walk earlier, and the shortage is a
+production problem (see *Die-offs in big colonies*).
+
+Selling surplus meals (`tryAssignSellMeals`) never sells the pocket meal:
+surplus counts at least one meal kept back.
+
+### Die-offs in big colonies
+
+A 100-colonist colony on a 300×150 map loses a quarter of its colonists
+around tick 14,000–16,000 on every seed tried. Stored meals fall at a steady
+rate from the start: production runs at about 85–90% of what 100 colonists
+eat, and the stock only hides the shortfall. When the shelves empty, colonists
+die until the colony is small enough to feed, 70–77, and stock recovers.
+
+More stock makes it worse, not better (seeds 1–3, 30,000 ticks, starved of
+300):
+
+| Setting | Starved |
+| --- | --- |
+| Defaults | 79 |
+| `founding-grant` 15,000 | 84 |
+| `meal-reserve` 6 | 132 |
+| `crash-pod-meals` 20 | 172 |
+
+Two things hold production back. The colony's standing bids for scum are
+funded from the treasury, which building rooms for 100 colonists drains to $0
+by about tick 4,000, while colonists still eating their pod meals buy nothing.
+And the colony sells every meal at the reference price however low its stock
+is, so a shortage never raises the price that would draw more producers in.
 
 ### Interruptions
 
