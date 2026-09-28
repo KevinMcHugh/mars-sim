@@ -136,6 +136,7 @@ type Config struct {
 	MealKeep        int   `cfg:"meal-keep" doc:"meals a colonist keeps for itself before it takes the rest to market"`
 	MealWillingness int   `cfg:"meal-willingness" doc:"a hungry colonist pays up to this many times the meal price"`
 	MealPriceMax    int   `cfg:"meal-price-max" doc:"what the colony asks for a meal with its shelves bare, as a percent of price-meal; it rises to this as its stock falls below meal-reserve per colonist (100: a fixed price)"`
+	PocketMealAt    int   `cfg:"pocket-meal-at" doc:"food need at which a colonist with no meal on it fetches one of its own to carry, before it's hungry enough to eat (0: never)"`
 
 	// Skills. A colonist is credited SkillPracticePercent percent of the base
 	// ticks of every unit of work it completes, in that work's skill; ranks
@@ -531,6 +532,7 @@ func DefaultConfig() Config {
 		MealKeep:        5,
 		MealWillingness: 3,
 		MealPriceMax:    100,
+		PocketMealAt:    300,
 		// Wages sized so a typical room costs the colony about a hundred
 		// dollars: fifty rooms from the founding grant, less what it spends
 		// buying ore. A house is a real purchase, several weeks of prospecting.

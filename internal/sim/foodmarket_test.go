@@ -76,7 +76,7 @@ func TestFoodOnItsOwnAccountWhenItPays(t *testing.T) {
 // keeps, at the colonist's selling price.
 func TestACookSellsItsSurplusWhereItCooks(t *testing.T) {
 	w, house := scumhouseWorld(t, false)
-	w.cfg.MealKeep = 0
+	w.cfg.MealKeep, w.cfg.PocketMealAt = 0, 0 // keep nothing back: no meal-keep, no pocket meal
 	c := w.storageContainers[house]
 	cook := w.spawn(Colonist, Point{12, 10})
 	me := ColonistOwner(cook.ID)

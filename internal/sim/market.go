@@ -548,7 +548,7 @@ func (w *World) surplusMeals(e *Entity, silo Point) int {
 			n += c.held(ColonistOwner(e.ID), Meal)
 		}
 	}
-	return n - w.cfg.MealKeep
+	return n - max(w.cfg.MealKeep, w.pocketMeals()) // never the pocket meal
 }
 
 // tryAssignSellMeals sends e to take its surplus meals to the silo and offer
@@ -563,7 +563,7 @@ func (w *World) tryAssignSellMeals(e *Entity) bool {
 	if !w.taskReachable(silo, room) || w.surplusMeals(e, silo) <= 0 {
 		return false
 	}
-	if e.ownCarried(Meal) > 0 {
+	if e.ownCarried(Meal) > w.pocketMeals() {
 		e.Job, e.Target, e.sell, e.Progress = JobSell, silo, sellDeliver, 0
 		return true
 	}
@@ -620,8 +620,10 @@ func (w *World) jobSell(e *Entity) {
 		e.Target, e.sell = silo, sellDeliver
 		return
 	}
-	n := e.ownCarried(Meal) // never meals it carries for anyone else
-	if n == 0 || !c.Inventory.Add(Meal, n) {
+	// Never meals it carries for anyone else, and only its surplus: a pocket
+	// meal stays in the pocket.
+	n := min(e.ownCarried(Meal), w.surplusMeals(e, silo))
+	if n <= 0 || !c.Inventory.Add(Meal, n) {
 		w.clearJob(e)
 		return
 	}
