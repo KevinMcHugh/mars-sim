@@ -26,6 +26,8 @@ already in the code.
 | S2 | Effects: skill makes work faster and increases yield, by more per rank for steeper skills. | Proposed |
 | S3 | Opportunity cost in the producer planner: skill-aware costs, choosing the best-paying plan, and a reservation rate from what the colonist has been earning. | Proposed |
 | S4 | Wages in the same comparison: public works and the colony's cook weighed against market work. | Proposed |
+| S5 | Competition: drop the planner's reservations on opportunities, so colonists race for bids and undercut each other. | Proposed |
+| S6 | A workshop of one's own: a skilled colonist builds a forge or a scumhouse on its own account when the returns pay for it. | Proposed |
 
 ## Source
 
@@ -61,6 +63,8 @@ reason the conversation didn't have.
 | Small colonies | Specialize slowly. Specialization is a product of a deep economy. It should fall out of colonists in small colonies spending more of their time on constant-cost activities (walking, fetching, carrying), where skill doesn't help. |
 | Character generation | Colonists arrive with skills already rolled. |
 | Quality | Out of scope. Effects are speed and yield. |
+| Competition | Each colonist acts in its own interest, even when that means competing with other colonists. The planner must not share out opportunities the way a central planner would. |
+| Capital | A good smith builds its own forge, so it can take work without waiting on the colony's forge or bench. Workshops aren't only the colony's to build. |
 | Smithing | One skill, covering both the forge and the gun bench ([foundry.md](./foundry.md)). Splitting it would cut an already small volume in half; see *Open questions*. |
 
 ## What the colony does today
@@ -348,6 +352,63 @@ What this does:
 - **A novice takes what it can get.** With no earnings history, its
   reservation is `labor-price`, and it takes any plan that clears the minimum.
 
+### Competing, not coordinating (S5)
+
+Each colonist already decides for itself, from its own wallet and position,
+and supply chains form through ordinary bids. But the planner has rules that
+share opportunities out instead of letting colonists compete for them:
+
+| Rule today | What it does | Replace with |
+| --- | --- | --- |
+| `plannedQty` | A bid that other plans already cover is invisible to everyone else. | Anyone may pursue any bid. The first to deliver fills it. Whoever arrives late owns goods and posts an ask, as an arbitrageur already does when its bid is gone. |
+| `planWaitingAt` | One colonist plans at a workshop at a time. | Queueing at a shared workshop is a cost in the plan's rate (expected wait). A colonist that doesn't want to wait uses another workshop, or builds one (S6). |
+| Ask at the bid's price | Every seller is a price-taker. | A producer with stock and no bid may ask below the going price to sell first. The ask is also how a producer can make goods to sell, not only to fill a bid it saw. |
+| Derived bid at the whole margin | A buyer offers everything it can afford. | Offer less while more than one seller is around, and raise the offer only if the bid goes unfilled. |
+| One global price memory | Everyone knows every trade instantly. Identical colonists with identical information reach identical conclusions, and the claims above then hand the work out in turn order. That is a dispatcher. | A per-colonist price memory of the trades it made or saw. It costs a small table per colonist, but colonists disagreeing about prices is what makes trades. |
+
+Races are resolved by turn order, and that stays deterministic. Turn order is
+by ID, so low IDs win every tie. Proximity (the nearer colonist arrives
+first) should decide most races on its own. If it doesn't, rotate the turn
+order by tick.
+
+Duplicate effort is the price of competition, and it's the real one: two
+smiths making steel for one bid is what a market with two smiths does. The
+loser's steel isn't wasted. It's stock with an ask on it.
+
+### A workshop of one's own (S6)
+
+Today only the colony builds workshops (`planRooms`), and a colonist only
+commissions a house, by a fixed savings rule. The plumbing for more is there:
+`planRoomFor(recipe, issuer)` works for any issuer, a commission's fixtures
+become the commissioner's (`fixtureAccess`), and recipes already give the
+output to whoever owns the inputs, not to the workshop's owner.
+
+A colonist decides to build a workshop as an investment:
+
+```
+gain per tick = rate with its own workshop − rate at the best shared one
+                (no queue, no walk across the colony, no access fee)
+build it when   gain per tick × horizon > room cost (wages + materials)
+```
+
+The horizon is a config value (how far ahead a colonist looks), and the rates
+come from the earnings memory (S3). A Master smith with fresh smithing
+earnings who keeps losing time waiting at the colony's forge crosses the line
+first. A novice with no earnings history never does. That's how professions
+turn into capital. Once a colonist owns a forge, walking and waiting drop out
+of its plans, work becomes a bigger part of each plan's ticks, and its skill
+counts for more. That's the deep-economy effect in *Why small colonies stay
+generalist*, bought by one colonist.
+
+A private workshop can be `AccessPaid`: the owner works it free, and other
+smiths pay per use. That makes the forge capital someone rents out (see
+[economy.md](./economy.md)).
+
+The limit is demand. A private forge only pays if there's smithing to sell,
+and the armory stops at 4 rifles (see *Open questions*). Until colonists
+themselves want rifles, S6 will rarely trigger for smiths. It will for
+cooks: meal demand never stops.
+
 ### Why small colonies stay generalist
 
 This isn't a setting. It comes out of the cost split above.
@@ -427,6 +488,14 @@ the choice a colonist has.
   advantage entirely, and turn order decides. Best-of-N over a bounded
   candidate list is the cheapest way to let a colonist prefer what it's good
   at.
+- **Competition over coordination.** Claims on bids and workshops made the
+  planner a dispatcher: identical colonists with the same information, handed
+  the work in turn order. Letting them race and undercut duplicates some
+  work, but it's the only way a better producer wins business it wasn't
+  handed.
+- **Investing is a rate comparison, not a savings threshold.** A house is
+  bought at `house-savings`. A workshop is bought when it pays back, so it
+  goes to the colonists whose skill makes it pay.
 - **Hauling isn't a skill.** Walking is the constant cost that keeps small
   colonies generalist. A skill that shrank it would erase the effect the
   design depends on.
@@ -465,12 +534,15 @@ works or wins a tie.
   [foundry.md](./foundry.md)), smithing is 720 base ticks per game and nobody
   can practise past Journeyman. That's fine for "rare master", but it means
   the smithing curve can't be tuned by play yet.
-- **Contested bids.** Colonists plan in turn order. In a small colony a novice
-  will often take a bid a free Master was about to take, which is the intended
-  generalism. In a deep economy it may still hand good work to the wrong
-  colonist. If it does, the cheap fix is for the planner to skip a bid when a
-  free colonist of higher rank in its skill is in range, using an incremental
-  count, not a scan. Measure before adding it.
+- **Contested bids.** With competition (S5), a novice and a Master can race
+  for the same bid. The Master should usually win because it works faster,
+  but a nearer novice will win some races. That's fine: it's a market, not an
+  assignment. What still needs measuring is how much work is duplicated, and
+  whether losers' stock clears or piles up.
+- **Rifle demand.** Whether colonists should want rifles themselves (a
+  willingness to pay keyed on danger, as [foundry.md](./foundry.md)
+  suggests). Without it, smithing demand is fixed at 4 rifles and no smith
+  ever has a reason to invest.
 - **One smithing skill or two?** The foundry calls them the smith and the
   gunsmith. Splitting would halve an already tiny volume. Revisit when rifle
   demand stops being capped.
