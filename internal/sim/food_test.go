@@ -203,6 +203,39 @@ func TestPressingHungerDropsWorkToCook(t *testing.T) {
 	}
 }
 
+// A colonist at pressing hunger with nothing of its own to cook, cooking the
+// colony's scum, finishes the recipe: the meal goes on the colony's counter,
+// where it can buy it, or be rationed it at critical hunger. hungryWithoutFood
+// used to drop the job (it was not "feeding itself") and assignWorkJob handed
+// the same job straight back, every turn, so the recipe never got past its
+// first tick and the colony's last colonists starved at the stove beside its
+// scum (seed 4 with -silo-bid-qty 0).
+func TestPressingHungerFinishesTheColonysCooking(t *testing.T) {
+	w := propertyWorld(t)
+	w.cfg.InfiniteFood, w.cfg.MealReserve = false, 100
+	house := Point{10, 6}
+	w.SetTerrain(house, Scumhouse)
+	w.refreshSpatial()
+	c := w.storageContainers[house]
+	c.Inventory.Add(CaveScum, 2)
+	c.credit(Community, CaveScum, 2)
+	for p := range w.scum {
+		w.clearScum(p) // nothing on the walls: the colony's scum is the only food to make
+	}
+	e := w.spawn(Colonist, Point{10, 7})
+	e.needPhase[NeedFood] = NeedPressing
+
+	for i := 0; i < 200 && c.held(Community, CaveScum) > 0; i++ {
+		w.hungryWithoutFood(e)
+	}
+	if got := c.held(Community, CaveScum); got != 0 {
+		t.Fatalf("the colony still holds %d scum after 200 turns: the hungry cook never finished a recipe", got)
+	}
+	if w.communityMeals()+w.openQty(Ask, Meal, w.outputDepot(house), Community) == 0 {
+		t.Fatal("the recipe ran but the colony has no meal to sell")
+	}
+}
+
 // A colonist at critical hunger that cannot afford a meal is given one of the
 // colony's: only at critical hunger, and only one. The meal changes hands on
 // the ledger, never leaving the shelf.

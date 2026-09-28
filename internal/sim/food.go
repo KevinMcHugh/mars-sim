@@ -220,10 +220,11 @@ func (w *World) tryRation(e *Entity) bool {
 // pressing: then anything but feeding itself is dropped (feedingItself). Left
 // to finish, a long dig or haul let colonists starve with their own scum
 // sitting in a free scumhouse; waiting for critical hunger left too little
-// time to scrape, haul, and cook. It checks for food again every turn, since
-// runFoodFocus runs first.
+// time to scrape, haul, and cook. Cooking the colony's meals is food work
+// too (makingMeals) and is never dropped for hunger. It checks for food again
+// every turn, since runFoodFocus runs first.
 func (w *World) hungryWithoutFood(e *Entity) {
-	if workJob(e.Job) && e.needPhase[NeedFood] >= NeedPressing && !w.feedingItself(e) {
+	if workJob(e.Job) && e.needPhase[NeedFood] >= NeedPressing && !w.feedingItself(e) && !w.makingMeals(e) {
 		w.clearJob(e)
 	}
 	if !workJob(e.Job) {
@@ -239,6 +240,26 @@ func (w *World) hungryWithoutFood(e *Entity) {
 	}
 	e.State = Idle
 	w.wanderStep(e)
+}
+
+// makingMeals reports whether e is working a recipe that makes meals, for
+// anyone. A hungry colonist cooking the colony's scum is making the meal it
+// will buy, or be rationed at critical hunger. Dropping that job for hunger
+// was a livelock: with no food work of its own to take, assignWorkJob handed
+// the same colony cooking straight back, the next turn dropped it again, and
+// the recipe never got past its first tick while the colony's last colonists
+// starved at the stove beside its scum. A colony cook stops batching once it
+// is hungry (cooksOn), so this keeps it for one recipe, not a shift.
+func (w *World) makingMeals(e *Entity) bool {
+	if e.Job != JobCraft {
+		return false
+	}
+	for _, o := range recipes[e.recipe].Outputs {
+		if o.Kind == Meal && o.Count > 0 {
+			return true
+		}
+	}
+	return false
 }
 
 // feedingItself reports whether e's job is making food it will own: cooking
