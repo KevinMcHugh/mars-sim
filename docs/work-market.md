@@ -23,6 +23,8 @@ comparison*).
 | W2 | Every communal job becomes an order: cleaning, burning corpses, cooking for the colony, demolition, frontier digging. | Proposed |
 | W3 | The colony's willingness to pay: wages that rise with urgency, and a budget. | Proposed |
 | W4 | Delete the ladder. What's left of `assignWorkJob` is survival and finishing what the colonist started. | Proposed |
+| W5 | Colonists offer their labor: standing asks for work at skill-adjusted prices, which issuers hire from and the colony's wages follow. | Proposed |
+| W6 | The colony steps back: no standing ore bids, no reselling, no workshops of its own. Colonists build and own. | Proposed |
 
 ## Source
 
@@ -49,6 +51,12 @@ What changes, when built:
 | The ladder | Goes. Communal work isn't a special case. It's orders on the book, and colonists choose it the way they choose anything else. |
 | Self-interest | A colonist does colony work because it pays, not because it's first on a list. |
 | Competition | Colonists compete for work as for bids (see [skills.md](./skills.md), S5). |
+| The colony's size | A minor economic player. It pays for public goods; it doesn't run the economy. |
+| Prospecting | The colony's standing ore bids go. They were a make-work program from before there was real demand for ore. |
+| Ownership | Colonists build and own workshops, depots and shops for themselves ([skills.md](./skills.md), S6). |
+| Labor | Colonists offer labor proactively, at prices that reflect their skill. |
+| Masters' prices | A master crafter's goods can be the cheapest per unit. That's accepted until there's artifact quality. |
+| Shops | Shopkeeping is a profession: buying stock and holding it to sell at a premium ([shopkeeping.md](./shopkeeping.md)). |
 
 ## What the ladder does today
 
@@ -173,6 +181,97 @@ so the treasury rations it, cheapest priorities first to go. Urgency raises
 what the colony offers per unit, and it also decides what gets funded when
 money is short.
 
+### Offering labor (W5)
+
+Work orders are the buy side of labor: an issuer offers pay for a unit of
+work. W5 adds the sell side. A colonist posts a **labor ask**, a standing
+offer to do a kind of work at a price per unit:
+
+```go
+type LaborAsk struct {
+    Worker  EntityID
+    Kind    WorkKind  // WorkCook, WorkBuild, ... or a recipe-for-hire kind
+    Price   Money     // per unit, at the work site
+    Expires int
+}
+```
+
+- **The price is skill-adjusted.** Price per unit = reservation rate × the
+  colonist's own work ticks for the unit (see [skills.md](./skills.md), S3). A
+  Master's rate is higher, but its ticks are fewer.
+- **It crosses a work order** when the order's pay covers the ask plus the
+  walk. The asker is one body, so its asks are withdrawn when it takes any
+  job, and reposted when it's free. One ask per kind, for its best one or two
+  kinds of work, keeps the book the size of the population.
+- **Issuers hire from it.** A colonist commissioning a house can take the
+  cheapest builders' asks instead of guessing a wage. The colony's wages (W3)
+  start from the going price in the labor book, raised by urgency, instead of
+  from charter settings like `wage-wall`. That's also the answer to W3's
+  tuning problem: wages come from the market.
+- **Work for hire on your own goods.** A colonist who owns ore but isn't a
+  smith can hire a smith to smelt it at a forge, instead of selling the ore.
+  That's a `WorkCraft` order: the inputs, and the output, stay the issuer's.
+
+**Masters and the lowest price.** A Master's cost per unit is the lowest in
+the colony. That doesn't mean its ask should be. A rational seller who is
+cheapest doesn't price at its own cost; it prices just under the next-cheapest
+seller and keeps the difference. So an ask is:
+
+```
+ask = max(own cost per unit + plan-min-profit, best competing ask − 1)
+```
+
+Prices then settle near the cost of the least-skilled seller the market needs,
+and the Master's advantage is profit, not a discount. That's Ricardian rent,
+and it's what makes skill pay in money and not only in speed. Where a Master
+is the only seller, it's the cheapest by default, and that's the accepted
+oddity until quality exists. The same rule applies to goods asks (skills.md,
+S5).
+
+### The colony steps back (W6)
+
+The colony started as the economy's main actor, to get a thin market moving.
+With real demand arriving, it becomes a minor one:
+
+| Colony role today | After W6 |
+| --- | --- |
+| Standing bids for ore, rock, ice, clay at the silo (`refreshColonyBids`, "paid prospecting") | Gone. Ore is mined when someone wants it: a smith's bid, a builder's materials |
+| Reselling what it bought above `colony-stock-reserve` at `colony-markup` (`refreshColonyAsks`) | Gone. It has nothing bought to resell. Holding stock to sell at a premium is a shopkeeper's business |
+| Building public works from its own stock | It buys materials on the book like anyone else, or pays a builder who brings them |
+| Building every workshop (`planRooms`: scumhouse, foundry) | Colonists build workshops as investments (skills.md, S6). The colony keeps public goods: corridors, the incinerator, the trash room, and the first scumhouse as a bootstrap (see *Open questions*) |
+| Standing bids for biomatter; the armory | Stay for now: they're the colony buying things it uses. They're candidates to shrink next |
+
+**What dropping the ore bids does now.** Measured with `-silo-bid-qty 0`,
+which turns off only the standing ore bids, on seeds 1–8, 30,000 ticks:
+
+| | With ore bids | Without |
+| --- | --- | --- |
+| Ore trades per run | 159–274 | 24–35 |
+| Armory filled (4 rifles) | 6 of 8 seeds | 6 of 8 seeds |
+| Treasury at the end | ~$3,200–3,700 | ~$4,300–4,700 |
+| Colonists' wallets (total) | $370–1,100 | $0–920: lower on 6 of the 7 seeds where anyone was left, by 12–46% |
+
+The foundry doesn't need the colony's ore. The smith's derived bids for ore
+are filled by miners selling their own stock (`planSupply`), 25–35 trades a
+run, which is the real demand. Most of what the colony bought was make-work,
+as intended when it was built. Its money was a transfer from the treasury to
+miners. Without it, the treasury holds on to about $1,000 more, which is
+money no one spends: the founding grant can shrink by the same amount.
+
+One run got worse, and the cause is a bug on main, not the ore bids. On seed 4
+the colony dies out around tick 18,700, where with ore bids it keeps four
+colonists. The last colonists starve at the scumhouse beside 14 units of the
+colony's scum, with money in their wallets. The cause is a livelock:
+`hungryWithoutFood` clears a hungry colonist's job cooking for the colony
+(it isn't "feeding itself"), then falls through to `assignWorkJob`, which
+hands it the same cooking job again. The job is cleared again the next tick,
+so progress never passes 1. Dropping the ore bids only changed the run
+enough to reach it. Seeds 9–16 show no starvation either way.
+
+Mining itself doesn't stop yet, since the ladder still sends idle colonists
+to the frontier. Once the ladder goes (W4), ore is dug only when there's a
+buyer, plus whatever the colony pays to explore (`WorkDig`).
+
 ### What's left of `assignWorkJob` (W4)
 
 Survival, commitments and one call to the chooser. The rungs listed above are
@@ -208,9 +307,17 @@ input to the colony's cooking wage.
   need taxes first? Paying wages **in kind** (meals from the colony's stock)
   is a stopgap that fits the market: a broke colony with food can still hire.
 - **The first scumhouse.** It's unpaid under scarcity today because life
-  support can't wait on money. With no ladder, whoever builds it needs a
-  reason. The emergency build for its own need covers a starving colonist
-  but not a colony that isn't starving yet.
+  support can't wait on money. With colonists building workshops, the first
+  scumhouse needs an investor before anyone has earned anything, so the
+  investment rule (skills.md, S6) has no earnings history to go on. Either it
+  estimates the rate from the hungry bids already on the book, or the colony
+  keeps building the first one as a bootstrap. The second is safer
+  (principle 7), and "minor player" allows it.
+- **The cook livelock** (see W6) should be fixed before any of this ships:
+  a hungry colonist must either finish a colony cooking run, whose meal it
+  can then buy, or not be handed that job again in the same turn. Removing
+  the ladder (W4) removes the path by which it's handed back, but fix it on
+  main first.
 - **Unpaid civic work.** Some colonists might clean for nothing because
   it's their colony. That's identity, not self-interest, and it belongs with
   the identity system ([economy.md](./economy.md)), not the chooser.
