@@ -165,6 +165,15 @@ type Config struct {
 	ScumhouseStockCap     int `cfg:"scumhouse-stock-cap" doc:"units of each kind of biomatter the colony holds at a scumhouse before it stops buying more"`
 	ColonistsPerScumhouse int `cfg:"colonists-per-scumhouse" doc:"the colony plans another scumhouse for each this many colonists"`
 
+	// The foundry: a forge smelts iron ore into steel ingots, and a gun bench
+	// machines steel into assault rifles. The colony wants ArmoryRifles of
+	// them in its armory (the silo) and keeps a standing bid for the
+	// shortfall at PriceAssaultRifle, once it has a gun bench; the producer
+	// planner does the rest, from the ore vein up. 0 builds no foundry. See
+	// docs/foundry.md.
+	ArmoryRifles      int   `cfg:"armory-rifles" sec:"Foundry" doc:"assault rifles the colony wants in its armory (0: it builds no foundry and buys none)"`
+	PriceAssaultRifle int64 `cfg:"price-assault-rifle" doc:"what the colony pays for an assault rifle at its silo"`
+
 	// Hauling and the colony as seller. With ColonySells, the colony offers
 	// what it bought at its silo beyond ColonyStockReserve units of each good
 	// (kept for public works), at ColonyMarkup percent over the reference
@@ -414,6 +423,9 @@ type Config struct {
 	ShotgunDamage   int `cfg:"shotgun-damage" doc:"HP removed per shotgun blast"`
 	ShotgunRange    int `cfg:"shotgun-range" doc:"max tiles a shotgun can fire from"`
 	ShotgunFireRest int `cfg:"shotgun-fire-rest" doc:"cooldown ticks between shotgun blasts"`
+	RifleDamage     int `cfg:"rifle-damage" doc:"HP removed per assault rifle burst"`
+	RifleRange      int `cfg:"rifle-range" doc:"max tiles an assault rifle can fire from"`
+	RifleFireRest   int `cfg:"rifle-fire-rest" doc:"cooldown ticks between assault rifle bursts"`
 
 	// Cat stats. Cats have no needs; they hunt rats on the floor by instinct.
 	CatHP         int `cfg:"cat-hp" sec:"Cats" doc:"cat hit points"`
@@ -536,12 +548,18 @@ func DefaultConfig() Config {
 		// of stock: enough to cook from, not a hoard.
 		ScumhouseStockCap:     40,
 		ColonistsPerScumhouse: 10,
-		WageDig:               2,
-		WageWall:              2,
-		WageFixture:           5,
-		WageCook:              1,
-		HouseSavings:          300,
-		ToiletFee:             2,
+		// A rifle is three steel ingots and a steel ingot two iron ore, so a
+		// rifle is six ore — $24 at the colony's resale price — plus three
+		// links of work and carrying. $60 leaves each link a margin worth the
+		// walk (see docs/foundry.md for the arithmetic).
+		ArmoryRifles:      4,
+		PriceAssaultRifle: 60,
+		WageDig:           2,
+		WageWall:          2,
+		WageFixture:       5,
+		WageCook:          1,
+		HouseSavings:      300,
+		ToiletFee:         2,
 		// A meal clears hunger for roughly 325 ticks at the baseline rise, so
 		// ten carry a colonist a few thousand ticks: long enough to settle in,
 		// short enough that food production matters once the safety net is
@@ -647,6 +665,9 @@ func DefaultConfig() Config {
 		ShotgunDamage:   20,
 		ShotgunRange:    2,
 		ShotgunFireRest: 2,
+		RifleDamage:     15,
+		RifleRange:      5,
+		RifleFireRest:   1,
 
 		CatHP:         12,
 		CatSlowness:   2,

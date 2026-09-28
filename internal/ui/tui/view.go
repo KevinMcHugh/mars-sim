@@ -420,6 +420,7 @@ func (m Model) drawSidebar(rows int) string {
 		{g(glyphIceRock, "ice rock"), g(glyphClayRock, "clay rock")},
 		{g(glyphUranium, "uranium"), g(glyphFloor, "open")},
 		{g(glyphScumhouse, "scumhouse"), g(glyphScum, "cave scum")},
+		{g(glyphForge, "forge"), g(glyphGunBench, "gun bench")},
 		{g(glyphHull, "pod hull"), {}},
 	}
 	if m.latest.FogOfWar {

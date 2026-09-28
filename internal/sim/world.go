@@ -116,6 +116,13 @@ const (
 	// movement, bounds a room, and can be broken down to escape one — but it is
 	// salvaged spacecraft, not something the colony builds. See docs/crash-pods.md.
 	Hull
+	// Forge smelts iron ore into steel ingots, and GunBench machines steel
+	// into assault rifles. Both are workshops with a depot, like the
+	// scumhouse: inputs and outputs sit in a storage container on the tile,
+	// with a ledger. The planner builds them together in a foundry room. See
+	// docs/foundry.md.
+	Forge
+	GunBench
 
 	numTerrains // keep last: the number of terrain kinds
 )
@@ -142,6 +149,10 @@ func (t Terrain) String() string {
 		return "scumhouse"
 	case Hull:
 		return "pod hull"
+	case Forge:
+		return "forge"
+	case GunBench:
+		return "gun bench"
 	default:
 		return "unknown"
 	}
@@ -649,6 +660,7 @@ type World struct {
 	communityMealsTick  int
 	communityMealsCache int
 	manualScumhouses    int
+	manualFoundries     int
 	// podRingHint is the search ring the last crash pod landed on, so the
 	// next search starts near there instead of rescanning the packed middle.
 	// See findPodSite.
@@ -927,6 +939,9 @@ func newWorld(cfg Config, src *rand.PCG) *World {
 	w.trackFacility(Storage)
 	// The scumhouse backs no need either, but haulers and cooks route to it.
 	w.trackFacility(Scumhouse)
+	// So do smiths and gunsmiths to the foundry's workshops.
+	w.trackFacility(Forge)
+	w.trackFacility(GunBench)
 	w.communityMealsTick = -1
 	w.scum = make(map[Point]scumPatch)
 	w.exposedScum = make(map[Point]struct{})

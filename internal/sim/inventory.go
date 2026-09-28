@@ -46,6 +46,12 @@ const (
 	AlienCorpse
 	AnimalCorpse
 	CaveScum
+	// SteelIngot is iron ore smelted at a forge, and AssaultRifle is steel
+	// machined at a gun bench: the colony's first supply chain that is not
+	// food, three links long from the ore vein to the armory. See
+	// docs/foundry.md.
+	SteelIngot
+	AssaultRifle
 
 	numItemKinds // keep last: the number of item kinds
 )
@@ -78,6 +84,10 @@ func (k ItemKind) String() string {
 		return "cave scum"
 	case Meal:
 		return "meal"
+	case SteelIngot:
+		return "steel ingot"
+	case AssaultRifle:
+		return "assault rifle"
 	default:
 		return "empty"
 	}
@@ -85,24 +95,37 @@ func (k ItemKind) String() string {
 
 // isWeapon reports whether an item kind is a wieldable combat weapon.
 func (k ItemKind) isWeapon() bool {
-	return k == Pistol || k == Shotgun
+	return k == Pistol || k == Shotgun || k == AssaultRifle
 }
 
 // bestWeapon returns the most effective weapon in inv, or ItemNone if the
-// colonist is unarmed. A shotgun beats a pistol; ties within a kind don't
-// matter since only its presence is checked.
+// colonist is unarmed. An assault rifle beats a shotgun, which beats a
+// pistol; ties within a kind don't matter since only its presence is checked.
 func bestWeapon(inv Inventory) ItemKind {
 	best := ItemNone
 	for _, stack := range inv {
 		if stack.Count == 0 || !stack.Kind.isWeapon() {
 			continue
 		}
-		if stack.Kind == Shotgun {
-			return Shotgun // nothing beats it
+		if weaponRank(stack.Kind) > weaponRank(best) {
+			best = stack.Kind
 		}
-		best = stack.Kind
 	}
 	return best
+}
+
+// weaponRank orders the weapons from worst to best; 0 is unarmed.
+func weaponRank(k ItemKind) int {
+	switch k {
+	case Pistol:
+		return 1
+	case Shotgun:
+		return 2
+	case AssaultRifle:
+		return 3
+	default:
+		return 0
+	}
 }
 
 // isRefuse reports whether an item kind is something a cleaner gathers off

@@ -68,7 +68,11 @@ first, then oldest. A plan might make what a bid wants, or, since E7, carry it
 in from a depot where it's cheaper (see [hauling.md](./hauling.md)), so the
 list is no longer only bids for producible goods. It's memoized per tick. The planner considers the first `plan-candidates` it can
 reach and use, skipping its own bids and bids that other plans already cover
-in full. For each one it reckons, one recipe level deep:
+in full. A bid only counts against `plan-candidates` if something could fill
+it: a workshop that makes it stands (`producibleHere`), it's cheaper
+elsewhere, or the colonist owns some. Otherwise hungry colonists' meal bids,
+with no kitchen able to cook, crowded a smith's bid for ore out of view (see
+[foundry.md](./foundry.md)). For each one it reckons, one recipe level deep:
 
 ```
 profit = bid price × units − input cost − labor ticks × labor-price / 100
@@ -83,16 +87,29 @@ profit = bid price × units − input cost − labor ticks × labor-price / 100
   bid's price. Each input is costed as follows:
   - An input the colonist already owns at the workshop costs its value.
   - One on offer there costs its ask, and the planner buys it now.
-  - One nobody offers is **missing**.
+  - One nobody offers is **missing**. That's allowed if a recipe makes it
+    or it comes out of the rock (`mined`: a miner or a hauler can bring
+    ore). Otherwise the recipe is out.
 
   The margin left over, less `plan-min-profit`, divided by the missing units,
   is the most the colonist can pay per missing unit. If that's at least a
   dollar and the colonist can fund it, it posts a **derived bid** for them at
   the workshop, at that price.
 
+  Only one colonist plans at a workshop at a time (`planWaitingAt`): a
+  second waits until the first plan's output is made.
+
+- **Supply** (a bid for ore or a foundry good the colonist already owns): take
+  its own stock there from its pockets or a chest (`planSupply`), or sell on
+  the spot if it's already at the bid's depot. Its own stock is costed at the
+  reference price, what the colony would pay, not the remembered trade price.
+
 A plan with derived bids leaves the colonist free for other work until the
 inputs arrive. Later calls pick it up (`advancePlan`): cook once the inputs are
-in, then carry the output.
+in, then carry the output. Once the output exists, carrying it comes before
+any other work (`tryDeliverPlan`, at the top of `assignWorkJob`), and a
+colonist with full pockets unloads first. Without both, finished steel and
+rifles sat in the foundry until their plans expired.
 
 ### Plans and their bids
 
@@ -148,7 +165,8 @@ e.g. `-infinite-food=false`.
   a derived bid that a scraper finds not worth the walk breaks the chain.
   Paying up is what keeps the thin early market moving. It can get shrewder
   once there's competition.
-- **The planner runs just before mining, after community work.** Building,
+- **The planner runs just before mining, after community work.** Delivering
+  a plan whose goods already exist is the exception: it comes first. Building,
   cooking and cleaning for the colony still come first: they are what keep
   everyone alive, and they don't depend on anyone's wallet. Mining pays only
   at the colony's fixed prospecting bids, so a better-paying bid should beat

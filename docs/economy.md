@@ -667,6 +667,9 @@ built two-depot world rather than a generated seed. Notes:
   reference. Public works (with construction costs on) draw on its stock first.
 - In ordinary play nothing yet buys ore privately, so the colony's asks
   rarely fill. The resale loop needs ore-consuming recipes or E8's scarcity.
+  The foundry is the first ore-consuming recipe: smiths' ore bids are filled
+  by hauling the colony's surplus from the silo (see
+  [foundry.md](./foundry.md)).
 - **The scumhouse charges.** The colony buys biomatter at standing bids at
   each scumhouse, pays its cook a wage, and sells the meals at `price-meal`;
   colonists no longer eat the colony's meals free. With the safety net off,
