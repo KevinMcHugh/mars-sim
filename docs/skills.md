@@ -25,9 +25,8 @@ already in the code.
 | S1 | Practice, ranks and labels; skills rolled at character generation; rank-up memories; roster display. No effect on behavior. | Proposed |
 | S2 | Effects: skill makes work faster and increases yield, by more per rank for steeper skills. | Proposed |
 | S3 | Opportunity cost in the producer planner: skill-aware costs, choosing the best-paying plan, and a reservation rate from what the colonist has been earning. | Proposed |
-| S4 | Wages in the same comparison. Superseded by [work-market.md](./work-market.md): every communal job becomes an order on the book. | Superseded |
-| S5 | Competition: drop the planner's reservations on opportunities, so colonists race for bids and undercut each other. | Proposed |
-| S6 | A workshop of one's own: a skilled colonist builds a forge or a scumhouse on its own account when the returns pay for it. | Proposed |
+| S4 | Competition: drop the planner's reservations on opportunities, so colonists race for bids and undercut each other. | Proposed |
+| S5 | A workshop of one's own: a skilled colonist builds a forge or a scumhouse on its own account when the returns pay for it. | Proposed |
 
 ## Source
 
@@ -43,8 +42,6 @@ Nothing exists yet. The expected footprint:
 - `internal/sim/crashpod.go` — `arrive` rolls the background.
 - `internal/sim/producer.go`, `valuation.go` — per-colonist labor cost, best-of-N
   plan choice, and the reservation rate (S3).
-- `internal/sim/workorder.go`, `systems.go` (`assignWorkJob`) — wages weighed
-  against plans (S4).
 - `internal/sim/rng.go` — a new saved stream for backgrounds.
 - `internal/sim/snapshot.go` and the TUI roster — rank labels and profession.
 
@@ -328,7 +325,7 @@ reservation = max(labor-price, remembered rate of its best-paying skill)
 ```
 
 Each colonist remembers, per skill, a smoothed rate: profit per tick realized
-on completed plans (and, in S4, wages per tick), in integer milli-dollars
+on completed plans and wages from work orders ([work-market.md](./work-market.md)), in integer milli-dollars
 like `priceMemory`, with the tick it last earned. A memory **fades back
 toward `labor-price`** over `rate-memory` ticks without new earnings. What you
 earned last year says little about what's on offer now.
@@ -352,7 +349,7 @@ What this does:
 - **A novice takes what it can get.** With no earnings history, its
   reservation is `labor-price`, and it takes any plan that clears the minimum.
 
-### Competing, not coordinating (S5)
+### Competing, not coordinating (S4)
 
 Each colonist already decides for itself, from its own wallet and position,
 and supply chains form through ordinary bids. But the planner has rules that
@@ -361,7 +358,7 @@ share opportunities out instead of letting colonists compete for them:
 | Rule today | What it does | Replace with |
 | --- | --- | --- |
 | `plannedQty` | A bid that other plans already cover is invisible to everyone else. | Anyone may pursue any bid. The first to deliver fills it. Whoever arrives late owns goods and posts an ask, as an arbitrageur already does when its bid is gone. |
-| `planWaitingAt` | One colonist plans at a workshop at a time. | Queueing at a shared workshop is a cost in the plan's rate (expected wait). A colonist that doesn't want to wait uses another workshop, or builds one (S6). |
+| `planWaitingAt` | One colonist plans at a workshop at a time. | Queueing at a shared workshop is a cost in the plan's rate (expected wait). A colonist that doesn't want to wait uses another workshop, or builds one (S5). |
 | Ask at the bid's price | Every seller is a price-taker. | A producer with stock and no bid may ask below the going price to sell first. The ask is also how a producer can make goods to sell, not only to fill a bid it saw. |
 | Derived bid at the whole margin | A buyer offers everything it can afford. | Offer less while more than one seller is around, and raise the offer only if the bid goes unfilled. |
 | One global price memory | Everyone knows every trade instantly. Identical colonists with identical information reach identical conclusions, and the claims above then hand the work out in turn order. That is a dispatcher. | A per-colonist price memory of the trades it made or saw. It costs a small table per colonist, but colonists disagreeing about prices is what makes trades. |
@@ -375,7 +372,7 @@ Duplicate effort is the price of competition, and it's the real one: two
 smiths making steel for one bid is what a market with two smiths does. The
 loser's steel isn't wasted. It's stock with an ask on it.
 
-### A workshop of one's own (S6)
+### A workshop of one's own (S5)
 
 Today only the colony builds workshops (`planRooms`), and a colonist only
 commissions a house, by a fixed savings rule. The plumbing for more is there:
@@ -406,7 +403,7 @@ smiths pay per use. That makes the forge capital someone rents out (see
 
 The limit is demand. A private forge only pays if there's smithing to sell,
 and the armory stops at 4 rifles (see *Open questions*). Until colonists
-themselves want rifles, S6 will rarely trigger for smiths. It will for
+themselves want rifles, S5 will rarely trigger for smiths. It will for
 cooks: meal demand never stops.
 
 ### Why small colonies stay generalist
@@ -433,20 +430,6 @@ In a deep economy two things change:
 
 Both are measurable in `-econ-trace` once S3 ships. That's how to check the
 claim instead of trusting it.
-
-### Wages in the same comparison (S4)
-
-> Superseded by [work-market.md](./work-market.md), which removes the
-> community ladder entirely instead of adding wages to it.
-
-Work orders are piece rates ([labor.md](./labor.md)): a builder is paid per
-tile, so a faster builder already earns more per tick. But `assignWorkJob` still
-puts construction on everyone's ladder ahead of the market, so a Master smith
-drops the forge to raise a wall at $2. S4 turns an open build task or the
-colony's cook wage into one more candidate with a rate (wage over the
-colonist's own ticks for it), judged against the same reservation. Life-support
-construction (the first scumhouse, a missing toilet) stays exempt, like the
-emergency builds.
 
 ### Profession, memories and the roster
 
@@ -537,7 +520,7 @@ works or wins a tie.
   [foundry.md](./foundry.md)), smithing is 720 base ticks per game and nobody
   can practise past Journeyman. That's fine for "rare master", but it means
   the smithing curve can't be tuned by play yet.
-- **Contested bids.** With competition (S5), a novice and a Master can race
+- **Contested bids.** With competition (S4), a novice and a Master can race
   for the same bid. The Master should usually win because it works faster,
   but a nearer novice will win some races. That's fine: it's a market, not an
   assignment. What still needs measuring is how much work is duplicated, and
@@ -565,10 +548,12 @@ works or wins a tie.
 ## Related
 
 - [economy.md](./economy.md) — the plan this extends; *Who does what work*.
+- [work-market.md](./work-market.md) — communal work as paid orders, chosen
+  by the same rate comparison.
 - [valuation.md](./valuation.md) — the producer planner and `labor-price`,
   which S3 makes per colonist.
 - [foundry.md](./foundry.md) — the smithing chain and the armory's cap.
-- [labor.md](./labor.md) — wages and public works (S4).
+- [labor.md](./labor.md) — wages and public works.
 - [scumhouse.md](./scumhouse.md) — the recipe table and its `Skill`
   placeholder.
 - [personality.md](./personality.md) — `workScale` and the traits effects

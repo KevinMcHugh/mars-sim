@@ -14,8 +14,7 @@ urgent a job is shows in what it pays, not in where it sits on a list.
 
 Nothing here is built. It carries out the direction set in
 [skills.md](./skills.md): colonists act in their own interest, compete, and
-weigh opportunity cost. It replaces that doc's phase S4 (*Wages in the same
-comparison*).
+weigh opportunity cost.
 
 | Phase | What ships | Status |
 | --- | --- | --- |
@@ -50,10 +49,10 @@ What changes, when built:
 | --- | --- |
 | The ladder | Goes. Communal work isn't a special case. It's orders on the book, and colonists choose it the way they choose anything else. |
 | Self-interest | A colonist does colony work because it pays, not because it's first on a list. |
-| Competition | Colonists compete for work as for bids (see [skills.md](./skills.md), S5). |
+| Competition | Colonists compete for work as for bids (see [skills.md](./skills.md), S4). |
 | The colony's size | A minor economic player. It pays for public goods; it doesn't run the economy. |
 | Prospecting | The colony keeps no standing ore bids. Ore is dug for real demand. |
-| Ownership | Colonists build and own workshops and depots for themselves ([skills.md](./skills.md), S6). |
+| Ownership | Colonists build and own workshops and depots for themselves ([skills.md](./skills.md), S5). |
 | Labor | Colonists offer labor proactively, at prices that reflect their skill. |
 | Masters' prices | A master crafter's goods can be the cheapest per unit. That's accepted until there's artifact quality. |
 | Shops | Deferred. Shopkeeping (buying stock to hold and sell at a premium) is a profession without a crafting skill. Its real skill is forecasting demand, and it depends on who knows which prices where. Both are problems for another time. |
@@ -226,7 +225,7 @@ and the Master's advantage is profit, not a discount. That's Ricardian rent,
 and it's what makes skill pay in money and not only in speed. Where a Master
 is the only seller, it's the cheapest by default, and that's the accepted
 oddity until quality exists. The same rule applies to goods asks (skills.md,
-S5).
+S4).
 
 ### The colony steps back (W6)
 
@@ -238,7 +237,7 @@ things it uses, and colonists do the rest:
 | Standing bids for ore, rock, ice, clay at the silo (`refreshColonyBids`, "paid prospecting") | Gone. Ore is mined when someone wants it: a smith's bid, a builder's materials |
 | Reselling what it bought above `colony-stock-reserve` at `colony-markup` (`refreshColonyAsks`) | Gone. It has nothing bought to resell. Holding stock to sell at a premium is a colonist's business, if anyone's (shopkeeping is deferred) |
 | Building public works from its own stock | It buys materials on the book like anyone else, or pays a builder who brings them |
-| Building every workshop (`planRooms`: scumhouse, foundry) | Colonists build workshops as investments (skills.md, S6). The colony keeps public goods: corridors, the incinerator, the trash room, and the first scumhouse as a bootstrap (see *Open questions*) |
+| Building every workshop (`planRooms`: scumhouse, foundry) | Colonists build workshops as investments (skills.md, S5). The colony keeps public goods: corridors, the incinerator, the trash room, and the first scumhouse as a bootstrap (see *Open questions*) |
 | Standing bids for biomatter; the armory | Stay for now: they're the colony buying things it uses. They're candidates to shrink next |
 
 **What dropping the ore bids does.** Measured with `-silo-bid-qty 0`, which
@@ -287,7 +286,7 @@ input to the colony's cooking wage.
   colonist would cost a scan per decision at 2,000 colonists. Nearest per
   kind is what the job board already knows how to answer.
 - **Claims per unit, not per opportunity.** A tile can only be scrubbed once,
-  so a unit claim is physical. What S5 in skills.md removes are claims that
+  so a unit claim is physical. What S4 in skills.md removes are claims that
   hide an opportunity from others, not ones that stop two colonists doing the
   same physical work.
 
@@ -302,7 +301,7 @@ input to the colony's cooking wage.
 - **The first scumhouse.** It's unpaid under scarcity today because life
   support can't wait on money. With colonists building workshops, the first
   scumhouse needs an investor before anyone has earned anything, so the
-  investment rule (skills.md, S6) has no earnings history to go on. Either it
+  investment rule (skills.md, S5) has no earnings history to go on. Either it
   estimates the rate from the hungry bids already on the book, or the colony
   keeps building the first one as a bootstrap. The second is safer
   (principle 7), and "minor player" allows it.
@@ -319,7 +318,7 @@ input to the colony's cooking wage.
 ## Related
 
 - [skills.md](./skills.md) — opportunity cost, reservation rates, competition
-  and workshop ownership; this doc replaces its S4.
+  and workshop ownership.
 - [labor.md](./labor.md) — work orders, public works, wages.
 - [valuation.md](./valuation.md) — the producer planner, which becomes the
   chooser.
