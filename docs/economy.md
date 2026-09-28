@@ -459,6 +459,7 @@ individuals doing the same kind of work over time:
 
 Until then, the recipe table's `Skill` placeholder and the planner's labor
 price are where each of these will plug in.
+The skills half is proposed in [skills.md](./skills.md).
 
 ### Market view
 

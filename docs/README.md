@@ -44,6 +44,7 @@ way it is without re-deriving it from the source each time.
 | [scum-lab.md](./scum-lab.md) | Scum Lab: the shared shell, Focus Tester, Grammar Builder, and how to add a tool. |
 | [wasm.md](./wasm.md) | The browser module Scum Lab calls, why importing `internal/sim` pulls in more than the focus functions, and the `internal/mind` split that fixes it. |
 | [economy.md](./economy.md) | **Proposal.** Scarcity and economy: property and owners, crash-pod arrivals, dollars, recipes and slurry, the bid/ask book for goods and labor, and the phased build plan. |
+| [skills.md](./skills.md) | **Proposal.** Skills and professions: practice counted in work ticks, a few labelled ranks per skill on a per-skill log curve, professionals getting first claim on their work, and opportunity cost, with measurements of who does what today and the flaws in a pure `log_X(uses)` design. |
 | [labor.md](./labor.md) | Work orders: the colony buying its public works from the treasury, commissions and houses, paid (pay-per-use) fixtures, and the colony's cook. Economy phase E5. |
 | [hauling.md](./hauling.md) | Moving goods between depots: arbitrage on a colonist's own account, hauling for hire, the colony keeping meals at its silo, selling back what it bought, and building public works from its own stock. Economy phase E7. |
 | [valuation.md](./valuation.md) | Prices that trades move, hungry colonists' bids, and the producer planner: filling bids at a profit and bidding for the inputs, so demand reaches down the recipe chain. The `-econ-trace` tuning harness. Economy phase E6. |
