@@ -31,7 +31,7 @@ The four kinds:
 | Kind | Moves on | Eats | Flees | Notes |
 | --- | --- | --- | --- | --- |
 | **Colonist** | Floor | (needs food) | aliens | mines, builds, tends needs; has personality + inventory |
-| **Alien** | Floor | colonists | — | the antagonist; hunts the nearest colonist it can reach |
+| **Alien** | Floor | colonists (Hostile); cave scum (Friendly, Cautious) | — | the antagonist; a Hostile species hunts the nearest colonist it can reach |
 | **Cat** | Floor | rats | — | no needs; hunts by instinct |
 | **Rat** | Floor | (needs food) | cats | reuses the colonist food need; scavenges bodies, gore, and scum, else raids pods; never builds |
 
@@ -160,7 +160,11 @@ the nearest colonist in the alien's own room (`nearestReachableColonist`); if
 adjacent, `bite` (lands `AlienDamage` on a random body part — see
 [combat.md](./combat.md) — eating the colonist if the wound is fatal, then
 rests `AlienBiteRest`); otherwise `travelTo` it over the floor with cached A\*,
-exactly as a cat or colonist would. With no colonist in reach, they wander. An
+exactly as a cat or colonist would. That is a Hostile species; a Friendly one
+never hunts and a Cautious one only reacts inside `alien-cautious-radius` (see
+[lore.md](./lore.md#temperament-whether-a-species-fights-at-all)). A Friendly
+or Cautious alien with no colonist to react to grazes cave scum when hungry
+(`alienGraze`). With nothing else to do, aliens wander. An
 alien hunts the same way whether or not its target is armed; the only
 difference a weapon makes is whether the colonist stands and shoots back
 instead of running.

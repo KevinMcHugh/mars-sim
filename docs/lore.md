@@ -51,7 +51,7 @@ than a hardcoded list.
 - [`internal/sim/entity.go`](../internal/sim/entity.go) — `Entity.Species`,
   the index into `World.alienSpecies` an individual alien was assigned.
 - [`internal/sim/config.go`](../internal/sim/config.go) — `AlienSpeciesCount`,
-  `AlienCautiousRadius`, `AlienNames`, and `AlienDamage`/`AlienBiteRest`/
+  `AlienCautiousRadius`, `AlienHungerRise`, `AlienGrazeRadius`, `AlienNames`, and `AlienDamage`/`AlienBiteRest`/
   `AlienSlowness`/`AlienReferenceWeightKG` (now baselines a species scales).
 - [`internal/sim/combat.go`](../internal/sim/combat.go),
   [`internal/sim/systems.go`](../internal/sim/systems.go) — `alienTurn`'s
@@ -136,18 +136,46 @@ same pattern worldgen's own streams use (see
 score, specifically so "never initiates combat" is a real case the code has
 to branch on rather than an incidental zero:
 
-- **Friendly** never fights. `alienTurn` (`systems.go`) returns immediately
-  to `wanderStep` for it — it never looks for prey at all. (A colonist may
-  still flee or fight one on its own initiative; that side of the
+- **Friendly** never fights. `alienTurn` (`systems.go`) never looks for
+  prey for it at all: it grazes cave scum when hungry, else wanders. (A
+  colonist may still flee or fight one on its own initiative; that side of the
   interaction is explicitly unchanged for now — see Why it is this way.)
 - **Cautious** does not hunt, but reacts once a colonist comes within
   `Config.AlienCautiousRadius`: `alienTurn` calls the radius-bounded
   `nearestOfKind` instead of the unbounded `nearestOfKindAnywhere`, so it
   only ever notices — and then closes in on and bites — a colonist already
-  close by.
+  close by. Left alone, it grazes cave scum when hungry, else wanders.
 - **Hostile** hunts the nearest colonist anywhere it can walk to
   (`nearestReachableColonist`: any distance, but only in its own room),
   unconditionally. Cautious uses the same room check within its radius.
+
+### What peaceful species eat: cave scum
+
+A Hostile alien eats colonists. Friendly and Cautious ones, which do not hunt,
+**graze cave scum** instead (`alienGraze`, `systems.go`). Every alien has a
+food need rising at `alien-hunger-rise` per tick (set in `newEntity`; the
+other needs stay flat, as for rats). Once it passes the food need's
+`seek-at`, a Friendly alien — or a Cautious one with no colonist inside its
+radius — looks for the nearest exposed scum patch within `alien-graze-radius`
+that it can reach (`nearestEdible` with `grazeable`, `scavenge.go`: floor in
+its own room, or a rock face that room touches), walks there, and eats one
+unit, which sates it. It then rests `BiteRest`, as after a bite. With no scum
+in reach, or not hungry, it wanders as before.
+
+- Reacting beats grazing: a hungry Cautious alien with a colonist in its
+  radius goes for the colonist. Grazing is what it does when left alone.
+- Aliens **never starve**. `alienTurn` does not call `applyStarvation`, so a
+  grazer on a bare map is merely hungry. Starving aliens would quietly thin
+  out the peaceful species on scum-poor seeds while Hostile ones (whose
+  hunger is never read) lived forever — a balance change nobody asked for.
+- Scum only — not bodies or gore, which rats also eat. "Peaceful species eat
+  the biofilm" is the ask, and a Friendly alien picking at a colonist's
+  corpse would read as anything but friendly.
+- A grazer competes with the colony for scum exactly as a rat does: every
+  unit it eats is one the scumhouse never sees (see
+  [scumhouse.md](./scumhouse.md)). A peaceful species is not free.
+- Dormant aliens (on undiscovered cavern floor) do not graze; `dormantTurn`
+  runs first, and hidden scum is not exposed anyway.
 
 `rollTemperament` makes Friendly rare (10%) and Cautious/Hostile common and
 roughly even (45% each) — the "ET to Xenomorph" spread the ask described.

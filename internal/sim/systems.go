@@ -1655,7 +1655,8 @@ func (w *World) bordersSolid(p Point) bool {
 // Cautious reacts once a colonist comes within Config.AlienCautiousRadius but
 // does not chase one further off; Hostile hunts the nearest colonist
 // anywhere on the map, unconditionally, the way every alien behaved before
-// temperament existed.
+// temperament existed. Friendly and Cautious aliens eat cave scum instead of
+// colonists: when hungry and not reacting to anyone, they graze.
 func (w *World) alienTurn(e *Entity) {
 	if e.Cooldown > 0 {
 		e.Cooldown-- // still digesting or mid-stride between slow steps
@@ -1670,7 +1671,11 @@ func (w *World) alienTurn(e *Entity) {
 	}
 
 	if sp.Temperament == TemperamentFriendly {
-		e.State, e.Quarry = Idle, 0
+		e.Quarry = 0
+		if w.alienGraze(e, sp) {
+			return
+		}
+		e.State = Idle
 		w.wanderStep(e)
 		e.Cooldown = sp.Slowness - 1
 		return
@@ -1689,7 +1694,11 @@ func (w *World) alienTurn(e *Entity) {
 		})
 	}
 	if !ok {
-		e.State, e.Quarry = Idle, 0
+		e.Quarry = 0
+		if sp.Temperament == TemperamentCautious && w.alienGraze(e, sp) {
+			return
+		}
+		e.State = Idle
 		w.wanderStep(e)
 		e.Cooldown = sp.Slowness - 1
 		return
@@ -1707,6 +1716,36 @@ func (w *World) alienTurn(e *Entity) {
 		w.wanderStep(e) // wedged, or the route closed this tick
 	}
 	e.Cooldown = sp.Slowness - 1
+}
+
+// alienGraze feeds a hungry Friendly or Cautious alien on cave scum: it walks
+// to the nearest exposed patch within AlienGrazeRadius it can reach and eats a
+// unit, which sates it. It reports whether the alien spent its turn grazing;
+// a sated alien, or one with no scum in reach, wanders instead. A grazer eats
+// scum the colony could have scraped for its scumhouse, like a rat does, so a
+// peaceful species is still a competitor. See docs/lore.md.
+func (w *World) alienGraze(e *Entity, sp AlienSpecies) bool {
+	if w.needLevel(e, NeedFood) < w.cfg.Needs[NeedFood].SeekAt {
+		return false
+	}
+	target, ok := w.nearestEdible(e, w.cfg.AlienGrazeRadius, w.grazeable)
+	if !ok {
+		return false
+	}
+	if e.Pos.Chebyshev(target) <= 1 {
+		e.State = Eating
+		if w.takeScum(target) {
+			w.resetNeed(e, NeedFood)
+		}
+		e.Cooldown = sp.BiteRest
+		return true
+	}
+	if _, ok := w.travelTo(e, target); !ok {
+		return false // wedged, or the route closed this tick
+	}
+	e.State = Moving
+	e.Cooldown = sp.Slowness - 1
+	return true
 }
 
 // bite deals damage to a random body part of a colonist and eats it if the

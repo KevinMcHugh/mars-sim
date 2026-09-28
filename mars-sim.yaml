@@ -703,6 +703,12 @@
 ## how close a colonist must come before a Cautious species reacts and closes in
 # alien-cautious-radius: 3
 
+## food need a Friendly or Cautious alien gains per tick before it goes grazing on cave scum
+# alien-hunger-rise: 2
+
+## how far a hungry Friendly or Cautious alien looks for cave scum to eat
+# alien-graze-radius: 12
+
 # ── Weapons ─────────────────────────────────────────────────────────────
 ## HP removed per pistol shot
 # pistol-damage: 10

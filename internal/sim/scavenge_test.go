@@ -101,3 +101,88 @@ func TestRatsLiveOnScumWithoutTheSafetyNet(t *testing.T) {
 		t.Fatalf("rat-ticks alive: %d with scum, %d without", fed, starved)
 	}
 }
+
+// hungryAlien puts an alien of the given temperament at p with its hunger just
+// past seeking.
+func hungryAlien(w *World, p Point, temp AlienTemperament) *Entity {
+	w.alienSpecies[0].Temperament = temp
+	a := w.spawn(Alien, p)
+	a.Needs[NeedFood] = w.cfg.Needs[NeedFood].SeekAt + 10
+	a.needSince[NeedFood] = w.tick
+	return a
+}
+
+// Friendly and Cautious aliens graze exposed cave scum when hungry, and only
+// scum they can get at; a sated one leaves it alone.
+func TestPeacefulAliensGrazeScum(t *testing.T) {
+	for _, temp := range []AlienTemperament{TemperamentFriendly, TemperamentCautious} {
+		t.Run(temp.String(), func(t *testing.T) {
+			w := propertyWorld(t)
+			noScum(w)
+			buried := Point{30, 30} // deep in rock: not exposed
+			w.scum[buried] = scumPatch{amount: w.cfg.ScumMax, since: w.tick}
+			w.refreshScumExposure(buried)
+			patch := Point{16, 10}
+			w.scum[patch] = scumPatch{amount: w.cfg.ScumMax, since: w.tick}
+			w.refreshScumExposure(patch)
+			if w.grazeable(buried) || !w.grazeable(patch) {
+				t.Fatalf("grazeable: buried %v, patch %v", w.grazeable(buried), w.grazeable(patch))
+			}
+
+			a := hungryAlien(w, Point{8, 10}, temp)
+			for i := 0; i < 100 && w.scumAt(patch) == w.cfg.ScumMax; i++ {
+				w.alienTurn(a)
+			}
+			if w.scumAt(patch) == w.cfg.ScumMax {
+				t.Fatal("the hungry alien never grazed the scum")
+			}
+			if w.needLevel(a, NeedFood) >= w.cfg.Needs[NeedFood].SeekAt {
+				t.Fatalf("the alien is still hungry (%d) after grazing", w.needLevel(a, NeedFood))
+			}
+			if w.scumAt(buried) != w.cfg.ScumMax {
+				t.Fatal("scum sealed in rock was grazed")
+			}
+
+			left := w.scumAt(patch)
+			for i := 0; i < 5; i++ {
+				a.Cooldown = 0
+				w.alienTurn(a)
+			}
+			if w.scumAt(patch) != left {
+				t.Fatal("a sated alien kept grazing")
+			}
+		})
+	}
+}
+
+// A Hostile alien eats colonists, not scum: hungry or not, it never grazes.
+func TestHostileAliensDoNotGraze(t *testing.T) {
+	w := propertyWorld(t)
+	noScum(w)
+	patch := Point{9, 10}
+	w.scum[patch] = scumPatch{amount: w.cfg.ScumMax, since: w.tick}
+	w.refreshScumExposure(patch)
+	a := hungryAlien(w, Point{8, 10}, TemperamentHostile)
+	for i := 0; i < 50; i++ {
+		w.alienTurn(a)
+	}
+	if w.scumAt(patch) != w.cfg.ScumMax {
+		t.Fatal("a hostile alien grazed scum")
+	}
+}
+
+// A Cautious alien with a colonist in its radius reacts to the colonist,
+// however hungry it is: grazing is what it does when left alone.
+func TestCautiousAlienReactsBeforeGrazing(t *testing.T) {
+	w := propertyWorld(t)
+	noScum(w)
+	patch := Point{9, 10}
+	w.scum[patch] = scumPatch{amount: w.cfg.ScumMax, since: w.tick}
+	w.refreshScumExposure(patch)
+	a := hungryAlien(w, Point{8, 10}, TemperamentCautious)
+	c := w.spawn(Colonist, Point{8, 11})
+	w.alienTurn(a)
+	if a.Quarry != c.ID || w.scumAt(patch) != w.cfg.ScumMax {
+		t.Fatalf("quarry %d (want %d), scum %d: the alien grazed instead of reacting", a.Quarry, c.ID, w.scumAt(patch))
+	}
+}

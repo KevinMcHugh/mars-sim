@@ -24,20 +24,37 @@ func (w *World) scavengeable(p Point) bool {
 
 // nearestScavenge finds the nearest tile within the rat's scavenging radius
 // holding something it can eat and can get to: refuse or scum on floor in its
-// own room, or scum on a rock face that room touches. Nearest ring first, in
-// forEachInRadius's fixed order, so the choice is the same for a given world.
+// own room, or scum on a rock face that room touches.
 func (w *World) nearestScavenge(e *Entity) (Point, bool) {
+	return w.nearestEdible(e, w.cfg.RatScavengeRadius, w.scavengeable)
+}
+
+// grazeable reports whether a grazing alien could eat something on p right
+// now: exposed cave scum, and nothing else. See alienGraze.
+func (w *World) grazeable(p Point) bool {
+	if w.scumAt(p) == 0 {
+		return false
+	}
+	_, exposed := w.exposedScum[p]
+	return exposed
+}
+
+// nearestEdible finds the nearest tile within radius for which edible is
+// true and that e can get to: on floor in its own room, or on a rock face that
+// room touches. Nearest ring first, in forEachInRadius's fixed order, so the
+// choice is the same for a given world.
+func (w *World) nearestEdible(e *Entity, radius int, edible func(Point) bool) (Point, bool) {
 	room := w.roomOf(e.Pos)
 	if room == 0 {
 		return Point{}, false
 	}
-	if w.scavengeable(e.Pos) {
+	if edible(e.Pos) {
 		return e.Pos, true
 	}
 	var best Point
 	found := false
-	w.forEachInRadius(e.Pos, w.cfg.RatScavengeRadius, func(p Point) bool {
-		if !w.scavengeable(p) {
+	w.forEachInRadius(e.Pos, radius, func(p Point) bool {
+		if !edible(p) {
 			return false
 		}
 		if w.Walkable(p) {

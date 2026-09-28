@@ -543,6 +543,9 @@ func newEntity(id EntityID, kind Kind, p Point, cfg Config) *Entity {
 		e.restTicks = cfg.RestTicks
 	case Alien:
 		e.MaxHP = cfg.AlienHP
+		// Only the food need rises: Friendly and Cautious species graze cave
+		// scum when it presses (see alienGraze). Aliens never starve.
+		e.needRise[NeedFood] = cfg.AlienHungerRise
 	case Cat:
 		e.MaxHP = cfg.CatHP
 	case Rat:
