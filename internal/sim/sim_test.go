@@ -21,8 +21,9 @@ func testConfig() Config {
 	c := DefaultConfig()
 	c.Seed = 42 // deterministic
 	c.Width, c.Height = 40, 24
-	c.TraitChance = 0       // mechanics tests want baseline colonists; trait tests opt in
-	c.CavernNestPercent = 0 // tests that zero StartAliens expect no aliens; nest tests opt in
+	c.TraitChance = 0        // mechanics tests want baseline colonists; trait tests opt in
+	c.CavernNestPercent = 0  // tests that zero StartAliens expect no aliens; nest tests opt in
+	c.CrashPodMealSpread = 0 // mechanics tests count on every pod holding exactly crash-pod-meals
 	// Mechanics tests exercise the safety net and free construction (pods,
 	// emergency builds, facility queues); the game's defaults turn both off
 	// (economy phase E8). Scarcity tests start from DefaultConfig or turn

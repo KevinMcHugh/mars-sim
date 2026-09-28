@@ -201,10 +201,11 @@ type Config struct {
 	// Crash pods. Every colonist arrives in one — at worldgen, from the spawn
 	// command, or from a director arrival — carrying its own bunk, toilet, and
 	// locker, and this manifest. See crashpod.go and docs/crash-pods.md.
-	CrashPodPurse    int64 `cfg:"crash-pod-purse" sec:"Crash pods" doc:"dollars each colonist arrives with"`
-	CrashPodMeals    int   `cfg:"crash-pod-meals" doc:"meals stocked in each crash pod's locker"`
-	CrashPodPistols  int   `cfg:"crash-pod-pistols" doc:"pistols each colonist arrives carrying"`
-	CrashPodShotguns int   `cfg:"crash-pod-shotguns" doc:"shotguns each colonist arrives carrying"`
+	CrashPodPurse      int64 `cfg:"crash-pod-purse" sec:"Crash pods" doc:"dollars each colonist arrives with"`
+	CrashPodMeals      int   `cfg:"crash-pod-meals" doc:"meals stocked in each crash pod's locker, on average"`
+	CrashPodMealSpread int   `cfg:"crash-pod-meal-spread" doc:"each pod's meals vary by up to this many either side of crash-pod-meals"`
+	CrashPodPistols    int   `cfg:"crash-pod-pistols" doc:"pistols each colonist arrives carrying"`
+	CrashPodShotguns   int   `cfg:"crash-pod-shotguns" doc:"shotguns each colonist arrives carrying"`
 
 	// Timing.
 	TicksPerSecond int `cfg:"tps" sec:"Timing" doc:"simulation ticks per second"`
@@ -571,6 +572,7 @@ func DefaultConfig() Config {
 		// short enough that food production matters once the safety net is
 		// off. Every settler lands armed, the way frontier settlers did.
 		CrashPodMeals:       10,
+		CrashPodMealSpread:  0,
 		CrashPodPistols:     1,
 		CrashPodShotguns:    0,
 		GraveyardSize:       50,
