@@ -23,8 +23,8 @@ toilets) are the first — and currently only — project kind.
 
 The normal planner maintains life-support, bunk, and incinerator capacity
 automatically, but the TUI can queue explicit room orders: `b` opens a menu,
-then `f` requests one facility room, `d` one dormitory, `t` one trash room, and
-`r` one storage room. Each order just increments a counter
+then `f` requests one facility room, `d` one dormitory, `t` one trash room,
+`r` one storage room, `h` one scumhouse, and `g` one foundry. Each order just increments a counter
 (`manualFacilityRooms`/`manualDormitories`/`manualTrashRooms`/
 `manualStorageRooms`) recorded on the engine-owned world, so several can be
 queued at once; `planRooms` works
@@ -66,6 +66,7 @@ current recipes are:
 | storage room | one storage container, with an aisle | exactly 1 container via `maxFac` | player-ordered only (and the planner's silo) |
 | scumhouse (kitchen) | a scumhouse, a gap, and its pantry chest, with an aisle | 1 scumhouse (the pantry is dropped on a site too small for both) | first of all with `infinite-food` off (the default); otherwise player-ordered (see [scumhouse.md](./scumhouse.md)) |
 | house | a bunk and a toilet | exactly 2 | commissioned by a colonist with `house-savings`, paid from its wallet (see [labor.md](./labor.md)) |
+| foundry | a forge, a gap, and a gun bench, with an aisle | exactly 2 (narrow in a cramped cavern) | last of all, while `armory-rifles` > 0 and there's no forge or gun bench; or player-ordered (`b` then `g`). See [foundry.md](./foundry.md) |
 
 **Aisles.** A one-fixture room is one tile wide, so exactly one tile can reach
 its fixture. That's fine for a pod or a toilet, used in a moment. But a cook
@@ -133,6 +134,8 @@ materials (`constructionCost`, `construction.go`):
 | storage container | 2 raw rock, 1 iron ore |
 | incinerator | 2 raw rock, 2 iron ore |
 | scumhouse | 2 raw rock, 2 clay |
+| forge | 4 clay |
+| gun bench | 2 raw rock, 2 iron ore |
 
 Digging costs nothing: it is where material comes from. Whoever pays for the
 work pays for its materials first (`materialPayers`): the colony's stock for a

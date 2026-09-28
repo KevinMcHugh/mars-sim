@@ -77,6 +77,8 @@ func weaponStats(weapon ItemKind, cfg Config) weaponSpec {
 		return weaponSpec{damage: cfg.ShotgunDamage, rng: cfg.ShotgunRange, fireRest: cfg.ShotgunFireRest}
 	case Pistol:
 		return weaponSpec{damage: cfg.PistolDamage, rng: cfg.PistolRange, fireRest: cfg.PistolFireRest}
+	case AssaultRifle:
+		return weaponSpec{damage: cfg.RifleDamage, rng: cfg.RifleRange, fireRest: cfg.RifleFireRest}
 	default:
 		return weaponSpec{}
 	}

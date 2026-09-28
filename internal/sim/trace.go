@@ -17,7 +17,7 @@ import (
 // docs/valuation.md.
 
 // tracedGoods are the goods a trace follows, in column order.
-var tracedGoods = [...]ItemKind{Meal, CaveScum, IronOre, WaterIce, UraniumOre, Clay}
+var tracedGoods = [...]ItemKind{Meal, CaveScum, IronOre, WaterIce, UraniumOre, Clay, SteelIngot, AssaultRifle}
 
 // TraceEconomy runs a world built from cfg for ticks ticks and writes a CSV
 // trace to out: a header, then a row every every ticks and one for the last.
@@ -28,6 +28,7 @@ func TraceEconomy(cfg Config, ticks, every int, out io.Writer) error {
 		name := strings.ReplaceAll(k.String(), " ", "_")
 		header = append(header, "price_"+name, "volume_"+name)
 	}
+	header = append(header, "armory")
 	if _, err := fmt.Fprintln(out, strings.Join(header, ",")); err != nil {
 		return err
 	}
@@ -60,6 +61,7 @@ func (w *World) traceRow() string {
 	for _, k := range tracedGoods {
 		cols = append(cols, fmt.Sprint(int64(w.valueOf(k))), fmt.Sprint(w.volumeOf(k)))
 	}
+	cols = append(cols, fmt.Sprint(w.armoryStock()))
 	return strings.Join(cols, ",")
 }
 
