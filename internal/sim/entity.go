@@ -400,7 +400,7 @@ type Entity struct {
 	// colonist is. See scumhouse.go.
 	recipe   int
 	craftFor Owner
-	craftRun int // recipes worked back to back at this stove (see cookBatch)
+	craftRun int // recipes worked back to back at this stove (see cooksOn)
 	scrape   scrapeStage
 	sell     sellStage
 	// scrapeFor is whose a JobScrape colonist's scum is (the colony's unless

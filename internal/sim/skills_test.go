@@ -151,13 +151,13 @@ func TestAMasterChefCooksMore(t *testing.T) {
 	}
 	out := w.storageContainers[w.outputDepot(house)]
 	meals := out.held(Community, Meal) + w.openQty(Ask, Meal, out.Pos, Community)
-	// A batch is cookBatch recipes of 2 scum for 1 meal; at 130% the sixth
-	// run's accumulator has passed 100 once.
-	if meals != cookBatch+1 {
-		t.Fatalf("a master chef's batch made %d meals, want %d", meals, cookBatch+1)
+	// It cooks all 20 scum, 10 recipes of 2 scum for 1 meal; at 130% the
+	// accumulator passes 100 three times.
+	if meals != 13 {
+		t.Fatalf("a master chef made %d meals from 20 scum, want 13", meals)
 	}
-	if got := cook.practice[SkillCooking] - before; got != uint32(cookBatch*12) {
-		t.Fatalf("credited %d ticks of cooking, want %d", got, cookBatch*12)
+	if got := cook.practice[SkillCooking] - before; got != 10*12 {
+		t.Fatalf("credited %d ticks of cooking, want %d", got, 10*12)
 	}
 }
 

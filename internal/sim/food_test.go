@@ -288,8 +288,8 @@ func TestAColonyCookWorksABatch(t *testing.T) {
 	for i := 0; i < 1000 && cook.Job == JobCraft; i++ {
 		w.jobCraft(cook)
 	}
-	if got := c.held(Community, CaveScum); got != 20-2*cookBatch {
-		t.Fatalf("the cook used %d scum in one visit, want a batch of %d recipes", 20-got, cookBatch)
+	if got := c.held(Community, CaveScum); got != 0 {
+		t.Fatalf("the cook left %d scum uncooked; it should stay at the stove until it's gone", got)
 	}
 }
 

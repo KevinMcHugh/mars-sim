@@ -49,7 +49,7 @@ var goldenCases = []goldenCase{
 		breach: true,
 		grows:  true,
 		gen:    "tiles=6eba3d92a4e07cbb entities=f7ee7a1387568a13 rng=a78d6b0ac12b9e48 chunks=562663220ec91645/16 scum=694edd31ec9d434c/3893 n=53 gore=0 corpses=0",
-		run:    "tiles=54c37f452ee5179d entities=1797505cf7ffdc22 rng=52528bf6a1e2e76d chunks=693d999c36049d09/20 scum=fee7a5213d09f27b/4850 n=45 gore=0 corpses=0",
+		run:    "tiles=ab717e1b52e7436e entities=bd564f4c08d73a75 rng=a8bf68c1533bd76c chunks=693d999c36049d09/20 scum=8c46d785925be0b9/4847 n=45 gore=0 corpses=0",
 	},
 	{
 		name: "default-80x40",
@@ -77,7 +77,7 @@ var goldenCases = []goldenCase{
 		ticks:  1700, // long enough to breach: the first is at about tick 1635
 		breach: true,
 		gen:    "tiles=e81568a6449387ae entities=851ce35d5a35cf74 rng=c60777d3a7dcdb4d chunks=0e4ca4c26f1b3a34/15 scum=d17b29c1b71c8ea6/2663 n=53 gore=0 corpses=0",
-		run:    "tiles=37e3b83f3888405e entities=1acdc333444b22c8 rng=f14a84f62bb3dd0f chunks=0e4ca4c26f1b3a34/15 scum=a6ed831c10a99849/2654 n=45 gore=0 corpses=0",
+		run:    "tiles=7987c7ab7eebd83c entities=095474338c4e0a82 rng=b8e12f446fd505aa chunks=0e4ca4c26f1b3a34/15 scum=03ae152dba3eee64/2655 n=45 gore=0 corpses=0",
 	},
 }
 

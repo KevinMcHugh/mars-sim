@@ -853,10 +853,41 @@ func (w *World) roomSiteClear(ox, oy, width int, designated map[Point]bool, allo
 }
 
 // desiredScumhouses is how many scumhouses the colony wants with scarcity on:
-// one per colonists-per-scumhouse colonists, and always at least one. One cook
-// works a scumhouse at a time, so a growing colony that kept one kitchen
-// starved beside a pile of uncooked scum.
+// one per colonists-per-scumhouse colonists, and always at least one, and one
+// more whenever its kitchens are behind (kitchensBehind) and every one it
+// planned is built, up to one per three colonists. One cook works a scumhouse
+// at a time, so a growing colony that kept one kitchen starved beside a pile
+// of uncooked scum. A kitchen per ten colonists was a guess at what a colony
+// needs; kitchens that are behind are a measurement of it.
 func (w *World) desiredScumhouses() int {
 	per := max(1, w.cfg.ColonistsPerScumhouse)
-	return max(1, (w.countKind(Colonist)+per-1)/per)
+	n := w.countKind(Colonist)
+	want := max(1, (n+per-1)/per)
+	built := w.countTerrain(Scumhouse)
+	if built >= want && built < max(1, n/3) && w.plannedFacilities(Scumhouse) == built && w.kitchensBehind() {
+		want = built + 1
+	}
+	return want
+}
+
+// kitchensBehind reports whether cooking is what holds the colony's food
+// back: it's short of its meal reserve while its scumhouses hold, on average,
+// half their stock cap of biomatter waiting to be cooked.
+func (w *World) kitchensBehind() bool {
+	if !w.foodWanted() {
+		return false
+	}
+	houses := w.scumhousesSorted()
+	if len(houses) == 0 {
+		return false
+	}
+	waiting := 0
+	for _, p := range houses {
+		if c := w.storageContainers[p]; c != nil {
+			for _, k := range biomatterKinds {
+				waiting += c.held(Community, k)
+			}
+		}
+	}
+	return waiting >= len(houses)*max(1, w.cfg.ScumhouseStockCap/2)
 }

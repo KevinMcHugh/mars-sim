@@ -352,25 +352,30 @@ func (w *World) jobCraft(e *Entity) {
 	w.clearJob(e)
 }
 
-// cookBatch is how many recipes a colony cook works back to back before it
-// gives the stove up.
-const cookBatch = 6
-
-// cooksOn reports whether a colony cook that just finished r at c starts the
-// same recipe again rather than leaving: while the colony still wants food,
-// the stove still holds the inputs, the cook is not hungry itself, and it has
-// worked fewer than cookBatch in a row. A cook walked across the colony for
-// one twelve-tick recipe and left, so late in long runs twenty colonists
-// shared two stoves that stood idle most of the time, and ate faster than
-// the few cooks who came by could cook.
+// cooksOn reports whether a cook that just finished r at c starts it again
+// rather than leaving: it stays at the stove as long as the stove holds the
+// inputs, the cook isn't hungry, and nobody is coming for a meal there. A
+// colony cook also stops once the colony has its reserve; a colonist cooking
+// its own scum cooks all of it.
+//
+// A cook at the stove is the kitchen's throughput. Every time one leaves,
+// the stove waits for the next to walk over: with cooks leaving after six
+// recipes, a 100-colonist colony's stoves spent 53% of the time claimed by a
+// cook who wasn't cooking and only 30% cooking, and the colony starved beside
+// hundreds of units of uncooked scum. A cook who stays is the division of
+// labor the skills plan wants: scrapers bring scum, cooks cook, and the cook
+// gets better at it (see docs/skills.md).
 func (w *World) cooksOn(e *Entity, c *StorageContainer, r Recipe) bool {
-	if e.craftFor != Community || e.plan != 0 || e.craftRun+1 >= cookBatch || !w.foodWanted() {
+	if e.plan != 0 || e.needPhase[NeedFood] >= NeedPressing || w.mealFetchesAt(c.Pos) > 0 {
 		return false
 	}
-	if e.needPhase[NeedFood] >= NeedPressing || w.mealFetchesAt(c.Pos) > 0 {
-		return false
+	switch e.craftFor {
+	case Community:
+		return w.foodWanted() && w.canCraft(c, r, Community)
+	case ColonistOwner(e.ID):
+		return w.canCraft(c, r, e.craftFor)
 	}
-	return w.canCraft(c, r, Community)
+	return false
 }
 
 // scrapeLoad is how much scum a scraper gathers before hauling it in: one
@@ -766,12 +771,24 @@ func (w *World) withdrawColonyAsks(item ItemKind, p Point) {
 	}
 }
 
-// mealFetchesAt is how many colonists are on their way to take a meal out of
-// the depot at p. A cook stands on a workshop's access tile for the whole of
-// a recipe; one that went straight on to the next recipe, and the next, could
-// hold a narrow room's only access tile against a starving colonist coming
-// for a meal it owned. So a cook does not start a recipe while anyone is
-// coming. It is memoized for the tick: every work-seeking colonist asks.
+// mealFetchRadius is how close a colonist coming for a meal has to be before
+// a cook gives way to it.
+const mealFetchRadius = 3
+
+// mealFetchesAt is how many colonists are about to take a meal out of the
+// depot at p: on their way to it, and within mealFetchRadius of it. A cook
+// stands on a workshop's access tile for the whole of a recipe; one that went
+// straight on to the next recipe, and the next, could hold a narrow room's
+// only access tile against a starving colonist coming for a meal it owned.
+// So a cook doesn't start a recipe while anyone is at the door. One arriving
+// mid-recipe waits one recipe at most.
+//
+// It counts only colonists nearby. Counting everyone on their way from
+// anywhere kept stoves idle: in a 100-colonist colony whose cramped kitchens
+// had no pantries, and so kept their meals in the stove's own depot, somebody
+// was nearly always walking toward one, and that was why a stove stood idle
+// beside scum waiting to be cooked 90% of the time it did. It is memoized
+// for the tick: every work-seeking colonist asks.
 func (w *World) mealFetchesAt(p Point) int {
 	if w.mealFetchTick != w.tick || w.mealFetches == nil {
 		if w.mealFetches == nil {
@@ -779,7 +796,7 @@ func (w *World) mealFetchesAt(p Point) int {
 		}
 		clear(w.mealFetches)
 		for _, e := range w.entities {
-			if e.Kind == Colonist && e.Job == JobEat && e.eat == eatFetch {
+			if e.Kind == Colonist && e.Job == JobEat && e.eat == eatFetch && e.Pos.Chebyshev(e.Target) <= mealFetchRadius {
 				w.mealFetches[e.Target]++
 			}
 		}

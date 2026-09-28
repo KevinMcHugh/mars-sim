@@ -240,7 +240,20 @@ the seller that captures it (see [work-market.md](./work-market.md)).
 ### Keeping a big colony fed
 
 The planner wants a scumhouse for every `colonists-per-scumhouse` colonists
-(`desiredScumhouses`). Only the first is life support: it may be built unpaid
+(`desiredScumhouses`), and one more whenever its kitchens are behind
+(`kitchensBehind`: short of the meal reserve with, on average, half a
+scumhouse's stock cap of biomatter waiting to be cooked), up to one per three
+colonists. It adds that one only once every scumhouse it planned is built. A
+kitchen per ten colonists is a guess at what a colony needs; kitchens that
+are behind are a measurement of it.
+
+Together with cooks staying at the stove and giving way only to someone at
+the door (both below), this is what ended most big-colony die-offs: 100
+colonists on a 300×150 map, seeds 1–8, 30,000 ticks, starved 46 of 800
+(all on seed 2) where about 227 starved before, and 1 with pocket meals off.
+Six-colonist colonies, seeds 1–32, were unchanged (2 starved).
+
+Only the first is life support: it may be built unpaid
 and in a narrow room, and it holds up every other room until it's planned.
 Later ones are ordinary public works that need an aisle
 (`roomRecipe.aisleRequired`). A few rules keep kitchens usable:
@@ -250,10 +263,15 @@ Later ones are ordinary public works that need an aisle
 - **Cook your own leftovers.** A colonist with scum of its own sitting in a
   scumhouse cooks it (`assignWorkJob`, after the producer planner), into
   meals it can eat or sell.
-- **Cooks give way.** A cook doesn't start a recipe at a workshop someone is
-  on their way to fetch a meal from (`mealFetchesAt`), so it steps off the
-  counter instead of holding the only access tile. With a pantry, nobody
-  fetches from the stove, so this matters only for a kitchen without one.
+- **Cooks give way.** A cook doesn't start a recipe at a workshop when
+  someone coming to fetch a meal from it is within `mealFetchRadius` (3)
+  tiles (`mealFetchesAt`), so it steps off the counter instead of holding the
+  only access tile; one arriving mid-recipe waits one recipe at most. With a
+  pantry, nobody fetches from the stove, so this matters only for a kitchen
+  without one, and cramped kitchens often have none. It counts only colonists
+  at the door: counting everyone on their way from anywhere, in a
+  100-colonist colony where six of ten kitchens had no pantry, kept stoves
+  idle beside waiting scum, and 90% of that idle time was this rule.
 - **Loiterers make way.** Someone idle, chatting, or eating a meal already in
   hand, on the one tile that reaches a depot, steps aside for a colonist who
   needs it (`nudgeLoiterer`, `makeWayAt`, from `travelTo`). A narrow silo
@@ -263,14 +281,18 @@ Later ones are ordinary public works that need an aisle
   tile, like a cook or a builder, keeps it. A cat or a rat always moves: a cat
   that settled on a narrow silo's one access tile starved eleven colonists
   queued behind it.
-- **Colony cooks work a batch.** A cook of the colony's stock starts the same
-  recipe again rather than leaving (`cooksOn`), up to `cookBatch` recipes in
-  a row. It stops when the colony stops wanting food, the stove runs out of
-  inputs, the cook gets hungry, or someone is coming to fetch from the stove.
-  A cook used to walk across the colony for one twelve-tick recipe and leave.
-  Late in long runs, twenty colonists shared two stoves that stood idle most
-  of the time, and ate meals faster than the few passing cooks made them,
-  while 238 units of scum sat in the depots.
+- **Cooks stay at the stove.** A cook starts the same recipe again rather
+  than leaving (`cooksOn`), for as long as the stove holds the inputs, the
+  cook isn't hungry and nobody is at the door for a meal; a colony cook also
+  stops once the colony has its reserve. That covers a colonist cooking its
+  own scum too. A cook who walks across the colony for one twelve-tick recipe
+  and leaves keeps the stove waiting for the next: late in long runs, twenty
+  colonists shared two stoves that stood idle most of the time while 238
+  units of scum sat in the depots. Capped at six recipes, a 100-colonist
+  colony's stoves were claimed by a cook who wasn't cooking 53% of the time
+  and cooking 30%. A cook who stays is the division of labor the skills plan
+  wants: scrapers bring the scum, and the cook gets better at cooking (see
+  [skills.md](./skills.md)).
 
   Treating chests and scumhouses as facility access tiles, where nobody idles
   (`onFacilityAccess`), looked like the obvious fix and made things far worse:
