@@ -937,8 +937,8 @@ func (w *World) foodPays(e *Entity) bool {
 		}
 	}
 	scum := r.Inputs[0].Count
-	ticks := r.Ticks + scum*w.cfg.ScrapeTicks + 2*e.Pos.Chebyshev(house)
-	margin := w.mealSellPrice()*Money(meals) - Money(scum)*w.valueOf(CaveScum) - w.laborCost(ticks)
+	ticks := w.ownWorkTicks(e, r.Skill, r.Ticks) + scum*w.ownWorkTicks(e, SkillForaging, w.cfg.ScrapeTicks) + 2*e.Pos.Chebyshev(house)
+	margin := w.mealSellPrice()*Money(meals) - Money(scum)*w.valueOf(CaveScum) - w.laborCostFor(e, ticks)
 	return margin >= Money(w.cfg.PlanMinProfit)
 }
 

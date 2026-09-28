@@ -64,6 +64,25 @@ type plan struct {
 	derived  []OrderID
 	depth    int // links below a finished-good bid: 1 serves one directly
 	expires  int
+	// started, skill and expect are what the plan tells its colonist about
+	// its time when it's done: taken on at started, at work in skill, for an
+	// expected profit of expect (see notePlanEarned).
+	started int
+	skill   SkillKind
+	expect  Money
+}
+
+// planOffer is what a plan would earn its colonist, reckoned without taking it
+// on: profit after inputs and the colonist's own time, over ticks of it.
+type planOffer struct {
+	profit Money
+	ticks  int
+}
+
+// rate is the offer's profit per 100 ticks, in thousandths of a dollar: what
+// a colonist choosing among plans compares.
+func (o planOffer) rate() int64 {
+	return int64(o.profit) * 100_000 / int64(max(1, o.ticks))
 }
 
 // producible reports whether some plan can make k: it is scraped from the
@@ -127,17 +146,6 @@ func (w *World) candidateBids() []*Order {
 	return out
 }
 
-// plannedQty is how many units of bid b open plans already mean to deliver.
-func (w *World) plannedQty(b *Order) int {
-	n := 0
-	for _, p := range w.plans {
-		if p.target == b.ID {
-			n += p.qty
-		}
-	}
-	return n
-}
-
 // tryAssignProduce advances e's plan, or looks for a bid worth a new one. It
 // reports whether e has a job to do now; a plan waiting on its derived bids
 // leaves e free for other work.
@@ -154,11 +162,33 @@ func (w *World) tryAssignProduce(e *Entity) bool {
 	me := ColonistOwner(e.ID)
 	room := w.roomOf(e.Pos)
 	considered := 0
+	// Every plan it could take on is reckoned first, without taking it on,
+	// and the one that pays best per tick of its time wins; ties go to the
+	// first reckoned. Taking the first that paid at all let turn order and
+	// the book's order decide what colonists did, not what they were good at.
+	type option struct {
+		kind  planKind
+		b     *Order
+		ask   *Order
+		src   Point
+		stock ownStock
+		offer planOffer
+	}
+	var best option
+	found := false
+	consider := func(o option) {
+		if !found || o.offer.rate() > best.offer.rate() {
+			best, found = o, true
+		}
+	}
 	for _, b := range w.candidateBids() {
 		if considered >= w.cfg.PlanCandidates {
 			break
 		}
-		if b.Actor == me || w.orders[b.ID] != b || b.Qty-w.plannedQty(b) <= 0 {
+		// A bid other colonists already mean to fill is still open to this
+		// one: it may be quicker, or better at the work. Whoever delivers
+		// first fills it; a later delivery rests as an ask.
+		if b.Actor == me || w.orders[b.ID] != b || b.Qty <= 0 {
 			continue
 		}
 		if !w.canUseFixture(e, b.Depot) || !w.taskReachable(b.Depot, room) {
@@ -170,23 +200,47 @@ func (w *World) tryAssignProduce(e *Entity) bool {
 			continue // nothing to make it with and nowhere cheaper to fetch it
 		}
 		considered++
-		if own && w.planSupply(e, b, stock) {
-			return true
+		var o planOffer
+		if own && w.planSupply(e, b, stock, &o) {
+			consider(option{kind: planHaul, b: b, stock: stock, offer: o})
 		}
-		if cheaper && w.planArbitrage(e, b, ask, src) {
-			return true
+		if cheaper && w.planArbitrage(e, b, ask, src, &o) {
+			consider(option{kind: planHaul, b: b, ask: ask, src: src, offer: o})
 		}
 		if b.Item == CaveScum {
-			if w.planGather(e, b) {
-				return true
+			if w.planGather(e, b, &o) {
+				consider(option{kind: planGather, b: b, offer: o})
 			}
 			continue
 		}
-		if started, planned := w.planCraft(e, b); planned {
-			return started
+		if _, planned := w.planCraft(e, b, &o); planned {
+			consider(option{kind: planCraft, b: b, offer: o})
 		}
 	}
-	return false
+	if !found {
+		return false
+	}
+	switch {
+	case best.kind == planGather:
+		return w.planGather(e, best.b, nil)
+	case best.kind == planCraft:
+		started, _ := w.planCraft(e, best.b, nil)
+		return started
+	case best.ask != nil:
+		return w.planArbitrage(e, best.b, best.ask, best.src, nil)
+	default:
+		return w.planSupply(e, best.b, best.stock, nil)
+	}
+}
+
+// notePlanEarned tells e what its plan p paid for its time: the profit it
+// expected, over the ticks since it took the plan on.
+func (w *World) notePlanEarned(e *Entity, p *plan) {
+	if p.expect <= 0 {
+		return
+	}
+	ticks := int64(max(1, w.tick-p.started))
+	w.noteEarnings(e, p.skill, int64(p.expect)*100_000/ticks)
 }
 
 // tryDeliverPlan advances e's plan if its goods exist — crafted, or bought
@@ -204,7 +258,7 @@ func (w *World) newPlan(e *Entity, kind planKind, b *Order, qty int) *plan {
 	w.nextPlanID++
 	p := &plan{id: w.nextPlanID, kind: kind, actor: e.ID, target: b.ID, item: b.Item,
 		qty: qty, price: b.Price, depot: b.Depot, depth: b.depth + 1,
-		expires: w.tick + max(1, w.cfg.PlanTTL)}
+		expires: w.tick + max(1, w.cfg.PlanTTL), started: w.tick}
 	w.plans[p.id] = p
 	e.plan = p.id
 	return p
@@ -269,13 +323,13 @@ func (w *World) planWaitingAt(p Point, id EntityID) bool {
 // ---- Gathering -----------------------------------------------------------------------
 
 // planGather takes on scraping scum on e's own account to sell into bid b at a
-// scumhouse, if it pays.
-func (w *World) planGather(e *Entity, b *Order) bool {
+// scumhouse, if it pays. With probe set it only reckons the plan, into probe.
+func (w *World) planGather(e *Entity, b *Order, probe *planOffer) bool {
 	c := w.storageContainers[b.Depot]
 	if c == nil || c.Terrain != Scumhouse || e.Inventory.Has(CaveScum) {
 		return false
 	}
-	qty := min(b.Qty-w.plannedQty(b), w.scrapeLoad())
+	qty := min(b.Qty, w.scrapeLoad())
 	for qty > 0 && !e.Inventory.CanAdd(CaveScum, qty) {
 		qty--
 	}
@@ -286,11 +340,17 @@ func (w *World) planGather(e *Entity, b *Order) bool {
 	if !ok {
 		return false
 	}
-	ticks := qty*w.cfg.ScrapeTicks + e.Pos.Chebyshev(patch) + patch.Chebyshev(b.Depot)
-	if b.Price*Money(qty)-w.laborCost(ticks) < Money(w.cfg.PlanMinProfit) {
+	ticks := qty*w.ownWorkTicks(e, SkillForaging, w.cfg.ScrapeTicks) + e.Pos.Chebyshev(patch) + patch.Chebyshev(b.Depot)
+	profit := b.Price*Money(qty) - w.laborCostFor(e, ticks)
+	if profit < Money(w.cfg.PlanMinProfit) {
 		return false
 	}
+	if probe != nil {
+		*probe = planOffer{profit, ticks}
+		return true
+	}
 	p := w.newPlan(e, planGather, b, qty)
+	p.skill, p.expect = SkillForaging, profit
 	w.scumClaims[patch] = e.ID
 	e.Job, e.Target, e.scrape, e.Progress = JobScrape, patch, scrapeGather, 0
 	e.scrapeFor, e.scrapeQty = ColonistOwner(e.ID), p.qty
@@ -304,6 +364,7 @@ func (w *World) sellGathered(e *Entity, p *plan) {
 	if n := min(p.qty, w.storageContainers[p.depot].held(me, p.item)); n > 0 {
 		w.post(Ask, p.item, n, p.price, me, p.depot, w.cfg.OrderTTL)
 		w.emitDone(e, ActionTrade, NounGoods, "Scraped %d %s to sell for %v each.", n, p.item, p.price)
+		w.notePlanEarned(e, p)
 	}
 	w.dropPlan(p)
 }
@@ -312,8 +373,9 @@ func (w *World) sellGathered(e *Entity, p *plan) {
 
 // planCraft looks for a recipe whose output fills bid b at a profit. planned
 // reports whether it took one on; started, whether e has a job now (false
-// while the plan waits on its derived bids).
-func (w *World) planCraft(e *Entity, b *Order) (started, planned bool) {
+// while the plan waits on its derived bids). With probe set it only reckons
+// the plan, into probe, and reports planned.
+func (w *World) planCraft(e *Entity, b *Order, probe *planOffer) (started, planned bool) {
 	me := ColonistOwner(e.ID)
 	for ri, r := range recipes {
 		out := 0
@@ -333,9 +395,10 @@ func (w *World) planCraft(e *Entity, b *Order) (started, planned bool) {
 			continue
 		}
 		c := w.storageContainers[house]
-		qty := min(out, b.Qty-w.plannedQty(b))
+		qty := min(out, b.Qty)
 		revenue := b.Price * Money(qty)
-		spent := w.laborCost(r.Ticks + e.Pos.Chebyshev(house) + house.Chebyshev(b.Depot))
+		ticks := w.ownWorkTicks(e, r.Skill, r.Ticks) + e.Pos.Chebyshev(house) + house.Chebyshev(b.Depot)
+		spent := w.laborCostFor(e, ticks)
 		type buy struct {
 			ask *Order
 			n   int
@@ -385,8 +448,19 @@ func (w *World) planCraft(e *Entity, b *Order) (started, planned bool) {
 		if e.wallet < cash+unit*Money(units) {
 			continue
 		}
+		// Missing inputs are bid for with the whole margin, so what the plan
+		// keeps is plan-min-profit; with every input in hand, all of it.
+		expect := Money(w.cfg.PlanMinProfit)
+		if units == 0 {
+			expect += margin
+		}
+		if probe != nil {
+			*probe = planOffer{expect, ticks}
+			return false, true
+		}
 		p := w.newPlan(e, planCraft, b, qty)
 		p.workshop, p.recipe = house, ri
+		p.skill, p.expect = r.Skill, expect
 		for _, x := range buys {
 			o, _ := w.post(Bid, x.ask.Item, x.n, x.ask.Price, me, house, 0)
 			if o != nil && o.Qty > 0 {
@@ -535,6 +609,7 @@ func (w *World) jobCarry(e *Entity) {
 	_, filled := w.post(Ask, e.carryItem, n, e.carryPrice, me, e.Target, w.cfg.OrderTTL)
 	w.emitDone(e, ActionTrade, NounGoods, "Delivered %d %s to market (%d sold at once).", n, e.carryItem, filled)
 	if p := w.plans[e.plan]; p != nil {
+		w.notePlanEarned(e, p)
 		w.dropPlan(p)
 	}
 	w.clearJob(e)

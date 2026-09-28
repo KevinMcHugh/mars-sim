@@ -368,7 +368,13 @@ type Entity struct {
 	// per skill; ranks and labels are derived from it, never stored. yieldAcc
 	// counts toward a recipe's next extra unit, and profession is the skill
 	// the colonist is known for. See skills.go and docs/skills.md.
-	practice   [numSkills]uint32
+	practice [numSkills]uint32
+	// earned is what the colonist has been earning at each kind of work, in
+	// thousandths of a dollar per 100 ticks, smoothed, and earnedTick when it
+	// last earned at it; SkillNone is work with no skill (hauling, supplying).
+	// See reservation in valuation.go.
+	earned     [numSkills]int64
+	earnedTick [numSkills]int
 	yieldAcc   [numSkills]int32
 	profession SkillKind
 

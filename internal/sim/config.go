@@ -158,6 +158,7 @@ type Config struct {
 	PlanMinProfit  int64 `cfg:"plan-min-profit" doc:"the least profit, in dollars, that makes a production plan worth taking on"`
 	PlanCandidates int   `cfg:"plan-candidates" doc:"how many of the best open bids a colonist's producer planner considers"`
 	PlanTTL        int   `cfg:"plan-ttl" doc:"ticks a production plan may take before it is dropped with its derived bids"`
+	RateMemory     int   `cfg:"rate-memory" doc:"ticks over which what a colonist earned at a kind of work fades back to labor-price in its reckoning of what its time is worth (0: it always reckons labor-price)"`
 	DemandTTL      int   `cfg:"demand-ttl" doc:"ticks a hungry colonist's unfilled bid for a meal rests in the book"`
 
 	// The colony buys biomatter at its scumhouses: it keeps ScumhouseBidQty
@@ -554,6 +555,7 @@ func DefaultConfig() Config {
 		PlanMinProfit:        1,
 		PlanCandidates:       4,
 		PlanTTL:              1500,
+		RateMemory:           4000,
 		DemandTTL:            300,
 		// Priced by the meals they make (see recipes): two scum or two
 		// viscera to a $5 meal, so the colony roughly breaks even after the

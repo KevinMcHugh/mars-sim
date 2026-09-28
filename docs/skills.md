@@ -21,14 +21,14 @@ The goal is not to assign careers. It's to make careers pay, and let colonists
 find them. Small colonies should stay mostly generalist, and specialization
 should come with a deep economy.
 
-S1 and S2 are built. S3 to S5 are the plan.
+S1 to S3 are built, and S4 in part. S5 is the plan.
 
 | Phase | What ships | Status |
 | --- | --- | --- |
 | S1 | Practice, ranks and labels; skills rolled at character generation; rank-up memories; profession; roster display. | Shipped |
 | S2 | Effects: skill makes work faster and increases yield, by more per rank for steeper skills. | Shipped |
-| S3 | Opportunity cost in the producer planner: skill-aware costs, choosing the best-paying plan, and a reservation rate from what the colonist has been earning. | Proposed |
-| S4 | Competition: drop the planner's reservations on opportunities, so colonists race for bids and undercut each other. | Proposed |
+| S3 | Opportunity cost in the producer planner: skill-aware costs, choosing the best-paying plan, and a reservation rate from what the colonist has been earning. | Shipped |
+| S4 | Competition: drop the planner's reservations on opportunities, so colonists race for bids and undercut each other. | Shipped in part: bids are open to everyone; shrewd bidding and private price memory are still proposed |
 | S5 | A workshop of one's own: a skilled colonist builds a forge or a scumhouse on its own account when the returns pay for it. | Proposed |
 
 ## Source
@@ -55,7 +55,12 @@ S1 and S2 are built. S3 to S5 are the plan.
   section of a colonist's details.
 - [`internal/sim/skills_test.go`](../internal/sim/skills_test.go).
 
-For S3, the planner changes land in `producer.go` and `valuation.go`.
+- [`internal/sim/producer.go`](../internal/sim/producer.go) — best-rate
+  plan choice (`tryAssignProduce`, `planOffer`, the `probe` on each plan
+  function) and `notePlanEarned`;
+  [`valuation.go`](../internal/sim/valuation.go) — `reservation`,
+  `noteEarnings`, `laborCostFor`, `ownWorkTicks`.
+- [`internal/sim/planner_test.go`](../internal/sim/planner_test.go).
 
 ## Decisions already made
 
@@ -336,73 +341,78 @@ seed. It gets its own saved stream (`skillRNG`, per
 checks that a world generated with backgrounds is otherwise identical to one
 without.
 
-### Opportunity cost in the producer planner (S3, proposed)
+### Opportunity cost in the producer planner (S3)
 
-This is the core of the design. It has three parts, each small.
+Three parts, in `producer.go` and `valuation.go`.
 
-**1. Costs are the colonist's own.** `planCraft`, `planGather` and
-`planSupply` currently price labor as `laborCost(ticks)`, the same for
-everyone. S3 splits a plan's ticks into the parts skill does and doesn't touch:
-
-```
-ticks   = constant ticks                  (walking, fetching, carrying: same for everyone)
-        + work ticks × TicksPct / 100     (the recipe, scrape or dig: the colonist's skill)
-revenue = bid price × output × YieldPct / 100
-```
-
-A skilled colonist sees more profit on the same bid, and sooner.
-
-**2. The best plan, not the first.** `tryAssignProduce` takes the first of its
-`plan-candidates` bids that clears `plan-min-profit`. S3 evaluates all of them
-and takes the best **rate**: profit per tick of the plan. Ties go to the bid
-ID. The candidate set stays bounded (principle 9), so this costs a few more
-profit calculations per decision and no searches.
-
-**3. A reservation rate.** A colonist takes a plan only if its rate beats what
-its time is worth to it:
+**1. Costs are the colonist's own.** Every plan (`planCraft`, `planGather`,
+`planSupply`, `planArbitrage`) and `foodPays` prices a colonist's time with
+`laborCostFor(e, ticks)`, where the ticks split into the parts skill does and
+doesn't touch:
 
 ```
-reservation = max(labor-price, remembered rate of its best-paying skill)
+ticks = constant ticks                          (walking, fetching, carrying: the same for everyone)
+      + ownWorkTicks(work ticks, rank's TicksPct)   (the recipe or the scrape: the colonist's skill)
 ```
 
-Each colonist remembers, per skill, a smoothed rate: profit per tick realized
-on completed plans and wages from work orders ([work-market.md](./work-market.md)), in integer milli-dollars
-like `priceMemory`, with the tick it last earned. A memory **fades back
-toward `labor-price`** over `rate-memory` ticks without new earnings. What you
-earned last year says little about what's on offer now.
+A skilled colonist sees more profit on the same bid. Yield isn't counted in
+the plan: a plan delivers what its bid asks for, and a skilled worker's
+extra unit is a bonus that stays in its name.
+
+**2. The best plan, not the first.** `tryAssignProduce` reckons every one of
+its `plan-candidates` bids without taking any on (each plan function takes a
+`probe` and fills in a `planOffer` instead of acting), then takes the one with
+the best **rate**, profit per 100 ticks of the colonist's time; ties go to the
+first reckoned. The candidate set stays bounded (principle 9).
+`TestThePlannerTakesTheBestRate` has a dearer bid across the map lose to a
+cheaper one beside the scum.
+
+**3. A reservation rate.** A colonist's time costs it its **reservation**:
+
+```
+reservation = max(labor-price, remembered rate at its best-paying work)
+```
+
+When a plan delivers (`notePlanEarned`), the colonist remembers what it paid:
+the profit the plan expected, over the ticks it took, smoothed per skill
+(`noteEarnings`; hauling and supplying, which have no skill, count under
+`SkillNone`). A memory **fades back toward `labor-price`** over `rate-memory`
+(4000) ticks without earning there again. A plan's profit has to clear
+`plan-min-profit` after the colonist's time at that rate, so a colonist that
+earns well passes over work that pays less. What it expects from a craft plan
+with missing inputs is `plan-min-profit`, since it bids its whole margin for
+them, so crafting only raises a reservation when the colonist has the inputs.
 
 What this does:
 
-- **A smith doesn't cook.** While there are steel bids, a Master smith's
-  smithing rate is high, so a scum-culture plan paying a Cook's rate fails its
-  reservation.
+- **A well-paid colonist passes on poor work**
+  (`TestAWellPaidColonistPassesOnPoorWork`), until the price of that work
+  rises past its rate.
 - **Except in an emergency.** Hungry colonists bid more for meals as they get
-  hungrier (up to `meal-willingness` × a meal's value; see
-  [valuation.md](./valuation.md)). When meal bids climb past the smith's rate,
-  it cooks. There's no special case for this. A colonist with a critical need
-  of its own still bypasses all of this (`tryAssignFoodWork(e, force=true)`).
-- **A master smith is wasted on a small colony.** Once the armory has its 4
-  rifles, no steel bids come. The smith's smithing memory fades, its
-  reservation falls to `labor-price`, and it scrapes scum with everyone else.
-  If the colony posts a rifle bid again, the smith wins it: its rate on that
-  bid beats anyone else's, so it's the one whose plan clears first and pays
-  most.
-- **A novice takes what it can get.** With no earnings history, its
-  reservation is `labor-price`, and it takes any plan that clears the minimum.
+  hungrier (see [valuation.md](./valuation.md)). A colonist with a critical
+  need of its own still bypasses all of this (`tryAssignFoodWork(e,
+  force=true)`).
+- **A stranded specialist rejoins general work** as its memory fades.
+- **A novice takes what it can get**: with no earnings its reservation is
+  `labor-price`.
 
-### Competing, not coordinating (S4, proposed)
+Wages from work orders don't count toward a reservation yet: public works
+still come off the community ladder ([work-market.md](./work-market.md)).
 
-Each colonist already decides for itself, from its own wallet and position,
-and supply chains form through ordinary bids. But the planner has rules that
-share opportunities out instead of letting colonists compete for them:
+### Competing, not coordinating (S4)
 
-| Rule today | What it does | Replace with |
+Each colonist decides for itself, from its own wallet and position, and
+supply chains form through ordinary bids. S4 removes the rule that shared
+opportunities out instead of letting colonists compete for them, and leaves
+the rest for later:
+
+| Rule | What it did | Now |
 | --- | --- | --- |
-| `plannedQty` | A bid that other plans already cover is invisible to everyone else. | Anyone may pursue any bid. The first to deliver fills it. Whoever arrives late owns goods and posts an ask, as an arbitrageur already does when its bid is gone. |
-| `planWaitingAt` | One colonist plans at a workshop at a time. | Queueing at a shared workshop is a cost in the plan's rate (expected wait). A colonist that doesn't want to wait uses another workshop, or builds one (S5). |
-| Ask at the bid's price | Every seller is a price-taker. | A producer with stock and no bid may ask below the going price to sell first. The ask is also how a producer can make goods to sell, not only to fill a bid it saw. |
-| Derived bid at the whole margin | A buyer offers everything it can afford. | Offer less while more than one seller is around, and raise the offer only if the bid goes unfilled. |
-| One global price memory | Everyone knows every trade instantly. Identical colonists with identical information reach identical conclusions, and the claims above then hand the work out in turn order. That is a dispatcher. | A per-colonist price memory of the trades it made or saw. It costs a small table per colonist, but colonists disagreeing about prices is what makes trades. |
+| `plannedQty` | A bid that other plans already covered was invisible to everyone else. | **Gone.** Anyone may pursue any bid; the first to deliver fills it, and a later delivery rests as an ask (`TestColonistsCompeteForABid`). |
+| `planWaitingAt` | One colonist plans at a workshop at a time. | **Kept.** It's the physical constraint of one bench: without it, four colonists each held a plan at the one gun bench waiting on steel, and nobody was left to smelt ([foundry.md](./foundry.md)). Pricing the queue into the rate is still to do. |
+| Ask at the bid's price | Every seller is a price-taker. | Meals undercut the colony by a dollar (`mealSellPrice`); other goods still ask the bid's price. Proposed. |
+| Derived bid at the whole margin | A buyer offers everything it can afford. | Proposed: offer less while more than one seller is around. |
+| One global price memory | Everyone knows every trade instantly. | Proposed: a per-colonist price memory. |
 
 Races are resolved by turn order, and that stays deterministic. Turn order is
 by ID, so low IDs win every tie. Proximity (the nearer colonist arrives
@@ -446,6 +456,21 @@ The limit is demand. A private forge only pays if there's smithing to sell,
 and the armory stops at 4 rifles (see *Open questions*). Until colonists
 themselves want rifles, S5 will rarely trigger for smiths. It will for
 cooks: meal demand never stops.
+
+### What S3 and S4 do in a run
+
+They don't end the big-colony die-off (see [scumhouse.md](./scumhouse.md) and
+[food.md](./food.md)). 100 colonists on a 300×150 map, seeds 1–12, 30,000
+ticks, starved of 1,200:
+
+| | Pocket meals on (default) | Pocket meals off |
+| --- | --- | --- |
+| Before S3/S4 | 310 | 185 |
+| S3 and S4 | 318 | 196 |
+
+The difference is within the spread between seeds. The die-off is a
+production problem, and choosing better plans doesn't make more food. Six
+colonists, seeds 1–32: 2 starved against 10.
 
 ### Why small colonies stay generalist
 
@@ -531,7 +556,7 @@ The skill, effect and background tables are content in Go tables, like
 | --- | --- | --- |
 | `skills` | true | Off: no backgrounds and no effects; practice is still counted. For A/B runs. |
 | `skill-practice-percent` | 100 | Percent of each unit's base ticks credited as practice. |
-| `rate-memory` | a few thousand ticks | Proposed, S3. |
+| `rate-memory` | 4000 | Ticks over which what a colonist earned fades back to `labor-price`. |
 
 `plan-candidates` (4) matters more under S3. With best-of-N, it's the size of
 the choice a colonist has.

@@ -67,16 +67,21 @@ before mining. The planner reads `candidateBids`, every open bid, best price
 first, then oldest. A plan might make what a bid wants, or, since E7, carry it
 in from a depot where it's cheaper (see [hauling.md](./hauling.md)), so the
 list is no longer only bids for producible goods. It's memoized per tick. The planner considers the first `plan-candidates` it can
-reach and use, skipping its own bids and bids that other plans already cover
-in full. A bid only counts against `plan-candidates` if something could fill
+reach and use, skipping its own bids. A bid other colonists already plan to
+fill is still open: they compete, and the first to deliver fills it. A bid only counts against `plan-candidates` if something could fill
 it: a workshop that makes it stands (`producibleHere`), it's cheaper
 elsewhere, or the colonist owns some. Otherwise hungry colonists' meal bids,
 with no kitchen able to cook, crowded a smith's bid for ore out of view (see
 [foundry.md](./foundry.md)). For each one it reckons, one recipe level deep:
 
 ```
-profit = bid price × units − input cost − labor ticks × labor-price / 100
+profit = bid price × units − input cost − the colonist's ticks × its reservation / 100
 ```
+
+It reckons every candidate first and takes the plan with the best profit per
+tick of the colonist's time, where the colonist's ticks are its own (a skilled
+worker's recipe or scrape is quicker) and its reservation is `labor-price` or
+what it has recently earned, if more. See [skills.md](./skills.md), S3.
 
 - **Gather** (a bid for scum at a scumhouse): scrape the nearest patch on its
   own account (`scrapeFor`), deliver to that scumhouse in its own name, and
@@ -148,6 +153,7 @@ e.g. `-infinite-food=false`.
 | `plan-min-profit` | 1 |
 | `plan-candidates` | 4 |
 | `plan-ttl` | 1500 |
+| `rate-memory` | 4000 |
 | `demand-ttl` | 300 |
 | `price-cave-scum` | 1 |
 
@@ -192,8 +198,9 @@ e.g. `-infinite-food=false`.
   at or below the margin, or the planner loses money by design.
 - **Wanting more than food**: a willingness-to-pay rule like `mealBidLimit`
   for the need, and a caller that posts the bid.
-- **Skills** (see [skills.md](./skills.md), S3): a per-colonist `laborCost`,
-  cheaper for the practiced. Plans then fall to whoever is best at the work.
+- **Skills** (see [skills.md](./skills.md)): the planner already prices each
+  colonist's own time. Next is pricing a queue at a shared workshop into a
+  plan's rate, in place of `planWaitingAt`.
 
 ## Related
 

@@ -186,6 +186,9 @@
 ## ticks a production plan may take before it is dropped with its derived bids
 # plan-ttl: 1500
 
+## ticks over which what a colonist earned at a kind of work fades back to labor-price in its reckoning of what its time is worth (0: it always reckons labor-price)
+# rate-memory: 4000
+
 ## ticks a hungry colonist's unfilled bid for a meal rests in the book
 # demand-ttl: 300
 

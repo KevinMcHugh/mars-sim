@@ -77,7 +77,7 @@ var goldenCases = []goldenCase{
 		ticks:  1700, // long enough to breach: the first is at about tick 1635
 		breach: true,
 		gen:    "tiles=e81568a6449387ae entities=851ce35d5a35cf74 rng=c60777d3a7dcdb4d chunks=0e4ca4c26f1b3a34/15 scum=d17b29c1b71c8ea6/2663 n=53 gore=0 corpses=0",
-		run:    "tiles=c3719d649292c149 entities=2253ee88736377db rng=230e5bea4523d875 chunks=0e4ca4c26f1b3a34/15 scum=71e78d0a8afdc783/2658 n=45 gore=0 corpses=0",
+		run:    "tiles=37e3b83f3888405e entities=1acdc333444b22c8 rng=f14a84f62bb3dd0f chunks=0e4ca4c26f1b3a34/15 scum=a6ed831c10a99849/2654 n=45 gore=0 corpses=0",
 	},
 }
 
