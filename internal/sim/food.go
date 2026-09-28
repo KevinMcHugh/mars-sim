@@ -244,12 +244,12 @@ func (w *World) hungryWithoutFood(e *Entity) {
 
 // makingMeals reports whether e is working a recipe that makes meals, for
 // anyone. A hungry colonist cooking the colony's scum is making the meal it
-// will buy, or be rationed at critical hunger. Dropping that job for hunger
-// was a livelock: with no food work of its own to take, assignWorkJob handed
-// the same colony cooking straight back, the next turn dropped it again, and
-// the recipe never got past its first tick while the colony's last colonists
-// starved at the stove beside its scum. A colony cook stops batching once it
-// is hungry (cooksOn), so this keeps it for one recipe, not a shift.
+// will buy, or be rationed at critical hunger, so hunger doesn't interrupt it.
+// Dropping it would livelock: with no food work of its own to take,
+// assignWorkJob hands back the same colony cooking, the next turn drops it
+// again, and the recipe never gets past its first tick while the colonist
+// starves at the stove. A colony cook stops batching once it is hungry
+// (cooksOn), so this keeps it for one recipe, not a shift.
 func (w *World) makingMeals(e *Entity) bool {
 	if e.Job != JobCraft {
 		return false

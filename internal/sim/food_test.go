@@ -205,11 +205,10 @@ func TestPressingHungerDropsWorkToCook(t *testing.T) {
 
 // A colonist at pressing hunger with nothing of its own to cook, cooking the
 // colony's scum, finishes the recipe: the meal goes on the colony's counter,
-// where it can buy it, or be rationed it at critical hunger. hungryWithoutFood
-// used to drop the job (it was not "feeding itself") and assignWorkJob handed
-// the same job straight back, every turn, so the recipe never got past its
-// first tick and the colony's last colonists starved at the stove beside its
-// scum (seed 4 with -silo-bid-qty 0).
+// where it can buy it, or be rationed it at critical hunger. Dropping the job
+// would livelock: assignWorkJob hands the same job straight back every turn,
+// the recipe never gets past its first tick, and the colonist starves at the
+// stove beside the colony's scum.
 func TestPressingHungerFinishesTheColonysCooking(t *testing.T) {
 	w := propertyWorld(t)
 	w.cfg.InfiniteFood, w.cfg.MealReserve = false, 100

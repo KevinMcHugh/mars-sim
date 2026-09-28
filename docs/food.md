@@ -118,16 +118,15 @@ stayed on the colonist's line. The colonist then walked to that shelf forever,
 failed to take a meal that wasn't there, and never fell through to buying.
 `TestTheColonyRationsTheStarving` checks `ledgerBalanced`.
 
-Dropping work at pressing hunger once caused a livelock of its own. A hungry
-colonist cooking the colony's scum isn't feeding itself, so
-`hungryWithoutFood` dropped the job. With no scum of its own to cook,
-`assignWorkJob` then handed it the same colony cooking job, and the next turn
-dropped it again. The recipe never got past its first tick, and a colony's
-last colonists starved at the stove beside 14 units of its scum, with money
-to buy the meals they weren't finishing. Cooking meals for anyone is now food
-work that hunger doesn't interrupt (`makingMeals`). A colony cook already stops
-its batch once it's hungry (`cooksOn`), so this holds it for one recipe, not a
-shift. `TestPressingHungerFinishesTheColonysCooking` pins it.
+Cooking meals for anyone is food work that hunger doesn't interrupt
+(`makingMeals`), even though cooking the colony's scum isn't feeding itself.
+Dropping it would livelock. With no scum of its own to cook, the colonist
+falls through to `assignWorkJob`, which hands it the same colony cooking job,
+and the next turn drops it again. The recipe never gets past its first tick,
+and the colonist starves at the stove beside the colony's scum with money to
+buy the meal it isn't finishing. A colony cook stops its batch once it's
+hungry (`cooksOn`), so this holds it for one recipe, not a shift.
+`TestPressingHungerFinishesTheColonysCooking` pins it.
 
 ### Interruptions
 
