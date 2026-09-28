@@ -81,8 +81,9 @@ more.
   a facility room becomes `toiletRoom`, all toilets;
 - a hungry colonist with nothing to eat picks food work first — cooking its
   own scum, then scraping to keep (`hungryWithoutFood`). Once hunger is
-  pressing it drops any other work under way to do so (`feedingItself`);
-  before that it finishes what it started. If there is no
+  pressing it drops any other work under way to do so (`feedingItself`),
+  except cooking the colony's meals (`makingMeals`), which makes the meal it
+  will buy; before that it finishes what it started. If there is no
   scumhouse it can reach, it helps build the planned one, or raises one
   itself, unpaid (`tryEmergencyScumhouse`), the scarcity version of the
   emergency pod. Otherwise it keeps working, and looks for food again every
@@ -116,6 +117,17 @@ physical meal as well as the ledger line, so the meal vanished and a phantom
 stayed on the colonist's line. The colonist then walked to that shelf forever,
 failed to take a meal that wasn't there, and never fell through to buying.
 `TestTheColonyRationsTheStarving` checks `ledgerBalanced`.
+
+Dropping work at pressing hunger once caused a livelock of its own. A hungry
+colonist cooking the colony's scum isn't feeding itself, so
+`hungryWithoutFood` dropped the job. With no scum of its own to cook,
+`assignWorkJob` then handed it the same colony cooking job, and the next turn
+dropped it again. The recipe never got past its first tick, and a colony's
+last colonists starved at the stove beside 14 units of its scum, with money
+to buy the meals they weren't finishing. Cooking meals for anyone is now food
+work that hunger doesn't interrupt (`makingMeals`). A colony cook already stops
+its batch once it's hungry (`cooksOn`), so this holds it for one recipe, not a
+shift. `TestPressingHungerFinishesTheColonysCooking` pins it.
 
 ### Interruptions
 

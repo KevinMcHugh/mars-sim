@@ -210,10 +210,11 @@ type Config struct {
 	// Crash pods. Every colonist arrives in one — at worldgen, from the spawn
 	// command, or from a director arrival — carrying its own bunk, toilet, and
 	// locker, and this manifest. See crashpod.go and docs/crash-pods.md.
-	CrashPodPurse    int64 `cfg:"crash-pod-purse" sec:"Crash pods" doc:"dollars each colonist arrives with"`
-	CrashPodMeals    int   `cfg:"crash-pod-meals" doc:"meals stocked in each crash pod's locker"`
-	CrashPodPistols  int   `cfg:"crash-pod-pistols" doc:"pistols each colonist arrives carrying"`
-	CrashPodShotguns int   `cfg:"crash-pod-shotguns" doc:"shotguns each colonist arrives carrying"`
+	CrashPodPurse      int64 `cfg:"crash-pod-purse" sec:"Crash pods" doc:"dollars each colonist arrives with"`
+	CrashPodMeals      int   `cfg:"crash-pod-meals" doc:"meals stocked in each crash pod's locker, on average"`
+	CrashPodMealSpread int   `cfg:"crash-pod-meal-spread" doc:"each pod's meals vary by up to this many either side of crash-pod-meals"`
+	CrashPodPistols    int   `cfg:"crash-pod-pistols" doc:"pistols each colonist arrives carrying"`
+	CrashPodShotguns   int   `cfg:"crash-pod-shotguns" doc:"shotguns each colonist arrives carrying"`
 
 	// Timing.
 	TicksPerSecond int `cfg:"tps" sec:"Timing" doc:"simulation ticks per second"`
@@ -412,6 +413,12 @@ type Config struct {
 	AlienSlowness          int `cfg:"alien-slowness" doc:"baseline: alien acts once every N ticks (higher = slower), before a species' temperament scales it"`
 	AlienReferenceWeightKG int `cfg:"alien-reference-weight-kg" doc:"specimen weight in kg at which a species deals exactly alien-damage"`
 	AlienCautiousRadius    int `cfg:"alien-cautious-radius" doc:"how close a colonist must come before a Cautious species reacts and closes in"`
+	// AlienHungerRise is the food need an alien gains per tick. Only Friendly
+	// and Cautious species act on it: once it passes the food need's seek-at
+	// they graze exposed cave scum within AlienGrazeRadius (Hostile ones eat
+	// colonists instead). Aliens never starve. See alienGraze.
+	AlienHungerRise  int `cfg:"alien-hunger-rise" doc:"food need a Friendly or Cautious alien gains per tick before it goes grazing on cave scum"`
+	AlienGrazeRadius int `cfg:"alien-graze-radius" doc:"how far a hungry Friendly or Cautious alien looks for cave scum to eat"`
 
 	// AlienNames configures the pool of names ("xenos," "critters," ...) a
 	// rolled species can be given, each gated by a condition over its build
@@ -576,6 +583,7 @@ func DefaultConfig() Config {
 		// short enough that food production matters once the safety net is
 		// off. Every settler lands armed, the way frontier settlers did.
 		CrashPodMeals:       10,
+		CrashPodMealSpread:  0,
 		CrashPodPistols:     1,
 		CrashPodShotguns:    0,
 		GraveyardSize:       50,
@@ -669,6 +677,8 @@ func DefaultConfig() Config {
 		AlienSlowness:             2,
 		AlienReferenceWeightKG:    80,
 		AlienCautiousRadius:       3,
+		AlienHungerRise:           2, // the colonist food rise: a grazer eats about as often as a colonist
+		AlienGrazeRadius:          12,
 
 		PistolDamage:    10,
 		PistolRange:     3,

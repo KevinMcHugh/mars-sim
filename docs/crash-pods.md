@@ -68,7 +68,8 @@ that neighbor's side hull is still whole. `arrive`:
    door;
 4. makes all three **private** to it (`setFixtureOwner`, see
    [property.md](./property.md));
-5. puts `crash-pod-meals` meals in the locker, credited to the colonist on its
+5. puts `crash-pod-meals` meals in the locker, give or take up to
+   `crash-pod-meal-spread` (`podMeals`), credited to the colonist on its
    ledger;
 6. hands it `crash-pod-pistols` pistols and `crash-pod-shotguns` shotguns;
 7. records `podOrigin` on the colonist.
@@ -80,12 +81,33 @@ colonist however it was created (see [money.md](./money.md)).
 | --- | --- |
 | `crash-pod-purse` | 100 dollars |
 | `crash-pod-meals` | 10 |
+| `crash-pod-meal-spread` | 0 |
 | `crash-pod-pistols` | 1 |
 | `crash-pod-shotguns` | 0 |
 
 These replace the colony ship's `pistols`/`shotguns` settings, which issued two
 guns among the whole founding party. See [combat.md](./combat.md) for what
 arming everyone did to survival.
+
+**Meal spread.** `podMeals` varies each pod's meals evenly within
+`crash-pod-meal-spread` of `crash-pod-meals`. It's a pure function of the
+seed and the colonist's ID, not a draw from a random stream, so it shifts no
+other draw and doesn't depend on arrival order. It staggers when lockers run
+dry. It's off by default because it makes starvation
+worse: 100 colonists on a 300×150 map, seeds 1–4, 30,000 ticks:
+
+| `crash-pod-meal-spread` | Starved (of 400) |
+| --- | --- |
+| 0 | 96 |
+| 4 | 117 |
+| 8 | 172 |
+
+With a spread of 8 the colony produces less food, with fewer colonists cooking
+for it (4–6 against 6–10) and less scum delivered, and its stock runs out
+around tick 8,500 instead of 14,000. Why fewer colonists cook isn't
+established. The lockers aren't what drives the die-off at the default
+anyway: they're empty by about tick 3,500, and the colony starves around
+tick 14,000, when its production falls behind (see [food.md](./food.md)).
 
 ### Where a pod lands
 

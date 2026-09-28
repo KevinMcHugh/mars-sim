@@ -1665,9 +1665,10 @@ func (w *World) bordersSolid(p Point) bool {
 // alienTurn dispatches on the alien's rolled species' Temperament
 // (AlienSpecies, see lore.go): Friendly never fights and only wanders;
 // Cautious reacts once a colonist comes within Config.AlienCautiousRadius but
-// does not chase one further off; Hostile hunts the nearest colonist
-// anywhere on the map, unconditionally, the way every alien behaved before
-// temperament existed.
+// does not chase one further off; Hostile hunts the nearest prey it can
+// reach anywhere on the map, unconditionally -- a colonist, a rat, or an
+// alien of another species (see nearestReachablePrey). Friendly and Cautious aliens eat cave scum instead of
+// colonists: when hungry and not reacting to anyone, they graze.
 func (w *World) alienTurn(e *Entity) {
 	if e.Cooldown > 0 {
 		e.Cooldown-- // still digesting or mid-stride between slow steps
@@ -1682,7 +1683,11 @@ func (w *World) alienTurn(e *Entity) {
 	}
 
 	if sp.Temperament == TemperamentFriendly {
-		e.State, e.Quarry = Idle, 0
+		e.Quarry = 0
+		if w.alienGraze(e, sp) {
+			return
+		}
+		e.State = Idle
 		w.wanderStep(e)
 		e.Cooldown = sp.Slowness - 1
 		return
@@ -1694,14 +1699,18 @@ func (w *World) alienTurn(e *Entity) {
 	// same room is worth hunting: one behind a wall or across solid rock is
 	// out of reach.
 	if sp.Temperament == TemperamentHostile {
-		prey, ok = w.nearestReachableColonist(e.Pos)
+		prey, ok = w.nearestReachablePrey(e)
 	} else { // Cautious: reacts, but does not go looking beyond its radius
 		prey, ok = w.nearestMatch(e.Pos, w.cfg.AlienCautiousRadius, func(c *Entity) bool {
 			return c.Kind == Colonist && w.sameRoom(e.Pos, c.Pos)
 		})
 	}
 	if !ok {
-		e.State, e.Quarry = Idle, 0
+		e.Quarry = 0
+		if sp.Temperament == TemperamentCautious && w.alienGraze(e, sp) {
+			return
+		}
+		e.State = Idle
 		w.wanderStep(e)
 		e.Cooldown = sp.Slowness - 1
 		return
@@ -1721,18 +1730,49 @@ func (w *World) alienTurn(e *Entity) {
 	e.Cooldown = sp.Slowness - 1
 }
 
-// bite deals damage to a random body part of a colonist and eats it if the
-// wound is fatal (a vital part destroyed, or HP exhausted). The victim
-// remembers the attack, and any other colonist close enough to have noticed
-// the alien (observeNearby's own sighting radius) remembers watching it
-// happen. A fatal bite leaves gore behind.
+// alienGraze feeds a hungry Friendly or Cautious alien on cave scum: it walks
+// to the nearest exposed patch within AlienGrazeRadius it can reach and eats a
+// unit, which sates it. It reports whether the alien spent its turn grazing;
+// a sated alien, or one with no scum in reach, wanders instead. A grazer eats
+// scum the colony could have scraped for its scumhouse, like a rat does, so a
+// peaceful species is still a competitor. See docs/lore.md.
+func (w *World) alienGraze(e *Entity, sp AlienSpecies) bool {
+	if w.needLevel(e, NeedFood) < w.cfg.Needs[NeedFood].SeekAt {
+		return false
+	}
+	target, ok := w.nearestEdible(e, w.cfg.AlienGrazeRadius, w.grazeable)
+	if !ok {
+		return false
+	}
+	if e.Pos.Chebyshev(target) <= 1 {
+		e.State = Eating
+		if w.takeScum(target) {
+			w.resetNeed(e, NeedFood)
+		}
+		e.Cooldown = sp.BiteRest
+		return true
+	}
+	if _, ok := w.travelTo(e, target); !ok {
+		return false // wedged, or the route closed this tick
+	}
+	e.State = Moving
+	e.Cooldown = sp.Slowness - 1
+	return true
+}
+
+// bite deals damage to a random body part of the alien's prey and eats it if
+// the wound is fatal (a vital part destroyed, or HP exhausted). A rat has no
+// parts to hit, so a bite just takes its HP. The prey remembers the attack,
+// and any other colonist close enough to have noticed the alien
+// (observeNearby's own sighting radius) remembers watching it happen. A
+// fatal bite leaves gore behind; the prey is eaten, so there is no body.
 func (w *World) bite(alien, prey *Entity) {
 	part := w.rollHit(prey)
 	fatal := applyDamage(prey, part, w.alienSpeciesFor(alien).BiteDamage)
 	noun := w.alienNounFor(alien)
+	name := w.preyName(prey)
 	if fatal {
 		alien.State = Feeding
-		name := prey.displayName()
 		o := w.occurrence(alien, ActionKill, prey, prey.Pos, "")
 		o.WitnessText = fmt.Sprintf("Watched %s kill %s.", noun, name)
 		w.addGore(prey.Pos)
@@ -1743,8 +1783,21 @@ func (w *World) bite(alien, prey *Entity) {
 		alien.State = Hunting
 		o := w.occurrence(alien, ActionBite, prey, prey.Pos, "")
 		o.TargetText = fmt.Sprintf("Bitten in the %s by %s!", part, noun)
-		o.WitnessText = fmt.Sprintf("Watched %s attack %s.", noun, prey.displayName())
+		o.WitnessText = fmt.Sprintf("Watched %s attack %s.", noun, name)
 		w.emitOccurrence(o)
+	}
+}
+
+// preyName is how the log and a witness name an alien's prey: a colonist by
+// name, another alien by its species' noun, a rat by number.
+func (w *World) preyName(prey *Entity) string {
+	switch prey.Kind {
+	case Alien:
+		return w.alienNounFor(prey)
+	case Rat:
+		return fmt.Sprintf("rat #%d", prey.ID)
+	default:
+		return prey.displayName()
 	}
 }
 
@@ -2062,20 +2115,25 @@ func (w *World) nearestOfKind(from Point, kind Kind, within int) (*Entity, bool)
 	return w.nearestMatch(from, within, func(e *Entity) bool { return e.Kind == kind })
 }
 
-// nearestReachableColonist is the nearest colonist in from's room -- one an
-// alien, which walks the floor, could actually get to -- with ties toward the
-// lower ID like nearestOfKindAnywhere.
-func (w *World) nearestReachableColonist(from Point) (*Entity, bool) {
+// nearestReachablePrey is what a Hostile alien hunts: the nearest colonist,
+// rat, or alien of another species in its own room, with ties toward the lower
+// ID. Its own species is never prey, so a nest does not eat itself. Each
+// candidate kind is scanned from kindEntities directly (see
+// nearestOfKindAnywhere for why); the distance-then-ID order makes the answer
+// independent of map iteration order.
+func (w *World) nearestReachablePrey(e *Entity) (*Entity, bool) {
 	var best *Entity
 	bestDist := 0
-	for id := range w.kindEntities[Colonist] {
-		c := w.entities[id]
-		if c == nil || !c.Alive() || !w.sameRoom(from, c.Pos) {
-			continue
-		}
-		d := from.Chebyshev(c.Pos)
-		if best == nil || d < bestDist || (d == bestDist && c.ID < best.ID) {
-			best, bestDist = c, d
+	for _, kind := range [...]Kind{Colonist, Rat, Alien} {
+		for id := range w.kindEntities[kind] {
+			c := w.entities[id]
+			if c == nil || c == e || !c.Alive() || (kind == Alien && c.Species == e.Species) || !w.sameRoom(e.Pos, c.Pos) {
+				continue
+			}
+			d := e.Pos.Chebyshev(c.Pos)
+			if best == nil || d < bestDist || (d == bestDist && c.ID < best.ID) {
+				best, bestDist = c, d
+			}
 		}
 	}
 	return best, best != nil

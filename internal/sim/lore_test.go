@@ -368,3 +368,44 @@ func TestRosterLabelIncludesEmojiWhenPresent(t *testing.T) {
 		t.Fatalf("RosterLabel() = %q, want %q", got, want)
 	}
 }
+
+// A Hostile alien hunts rats and aliens of other species, not only colonists,
+// and eats what it kills.
+func TestHostileAlienHuntsRatsAndOtherSpecies(t *testing.T) {
+	for _, preyKind := range []Kind{Rat, Alien} {
+		t.Run(preyKind.String(), func(t *testing.T) {
+			w := propertyWorld(t)
+			w.alienSpecies[0].Temperament = TemperamentHostile
+			other := w.alienSpecies[0]
+			other.Temperament = TemperamentFriendly // never fights back
+			w.alienSpecies = append(w.alienSpecies, other)
+
+			hunter := w.spawnAs(Alien, Point{6, 10}, 0)
+			prey := w.spawnAs(preyKind, Point{16, 10}, 1)
+			for i := 0; i < 400 && w.entities[prey.ID] != nil; i++ {
+				w.alienTurn(hunter)
+				if hunter.Quarry != 0 && hunter.Quarry != prey.ID {
+					t.Fatalf("hunting %d, want the %s %d", hunter.Quarry, preyKind, prey.ID)
+				}
+			}
+			if w.entities[prey.ID] != nil {
+				t.Fatalf("the hostile alien never killed the %s", preyKind)
+			}
+		})
+	}
+}
+
+// A Hostile alien never hunts its own species, so a nest does not eat itself.
+func TestHostileAlienSparesItsOwnSpecies(t *testing.T) {
+	w := propertyWorld(t)
+	w.alienSpecies[0].Temperament = TemperamentHostile
+	a := w.spawnAs(Alien, Point{6, 10}, 0)
+	b := w.spawnAs(Alien, Point{7, 10}, 0)
+	for i := 0; i < 50; i++ {
+		w.alienTurn(a)
+		w.alienTurn(b)
+	}
+	if a.Quarry != 0 || b.Quarry != 0 || a.HP != a.MaxHP || b.HP != b.MaxHP {
+		t.Fatalf("same-species aliens fought: quarries %d/%d, HP %d/%d", a.Quarry, b.Quarry, a.HP, b.HP)
+	}
+}
