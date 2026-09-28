@@ -145,13 +145,27 @@ to branch on rather than an incidental zero:
   `nearestOfKind` instead of the unbounded `nearestOfKindAnywhere`, so it
   only ever notices — and then closes in on and bites — a colonist already
   close by. Left alone, it grazes cave scum when hungry, else wanders.
-- **Hostile** hunts the nearest colonist anywhere it can walk to
-  (`nearestReachableColonist`: any distance, but only in its own room),
-  unconditionally. Cautious uses the same room check within its radius.
+- **Hostile** hunts the nearest prey anywhere it can walk to
+  (`nearestReachablePrey`: any distance, but only in its own room),
+  unconditionally. Prey is a colonist, a rat, or an alien of **another
+  species**; whichever is nearest, ties to the lower ID. Cautious uses the
+  same room check within its radius, but only ever reacts to colonists.
+
+A Hostile alien never hunts its own species: every alien of a species shares
+its temperament, and a nest (one species, spawned together) would otherwise
+eat itself on the first tick. With the default `alien-species-count: 1`,
+then, a Hostile species hunts colonists and rats; alien-on-alien fights need
+a roster of two or more. The victim does not fight back — a bitten Cautious
+alien still reacts only to colonists, and a Friendly one never fights —
+which keeps this change to the hunter's side. `bite` handles any prey
+(`rollHit` falls back to the torso for a rat, which has no parts, drawing no
+RNG), names it with `preyName`, and eats it on a kill: gore, no body, as
+for a colonist. The colonists' perception rules match on a colonist victim,
+so watching an alien eat a rat or another alien moves nobody's mood.
 
 ### What peaceful species eat: cave scum
 
-A Hostile alien eats colonists. Friendly and Cautious ones, which do not hunt,
+A Hostile alien eats what it kills. Friendly and Cautious ones, which do not hunt,
 **graze cave scum** instead (`alienGraze`, `systems.go`). Every alien has a
 food need rising at `alien-hunger-rise` per tick (set in `newEntity`; the
 other needs stay flat, as for rats). Once it passes the food need's

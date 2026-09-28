@@ -21,7 +21,7 @@ way it is without re-deriving it from the source each time.
 | [world.md](./world.md) | The tile grid, terrain kinds, world state, and world generation. |
 | [worldgen-chunks.md](./worldgen-chunks.md) | Chunked, lazy world generation: ore veins, caverns and passages as a pure function of seed and chunk, generated only as the colony explores (never because a frontend looked), why the old whole-map generator could not be made lazy, and how far abundance drifts from its targets. |
 | [caverns.md](./caverns.md) | Natural caverns and the passages between them: generated hidden, ignored by the colony until a dig breaks in, then revealed all at once. Breaking in can turn up an alien nest. |
-| [lore.md](./lore.md) | The world beyond the colony: the alien species roster each seed rolls (build, name, temperament — friendly/cautious/hostile), how damage and pace scale from it, and the peaceful species' scum grazing. |
+| [lore.md](./lore.md) | The world beyond the colony: the alien species roster each seed rolls (build, name, temperament — friendly/cautious/hostile), how damage and pace scale from it, the peaceful species' scum grazing, and what the hostile ones hunt. |
 | [entities-and-ai.md](./entities-and-ai.md) | The entity model, the per-tick systems, turn order, movement primitives, and the colonist / alien / cat / rat behaviors. |
 | [combat.md](./combat.md) | Per-body-part HP, weapons (pistol/shotgun), the guns every settler lands with, and gore. |
 | [needs.md](./needs.md) | Colonist (and rat) needs: hunger, bladder, lazy evaluation, starvation, and how to add a need. |
