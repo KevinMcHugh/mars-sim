@@ -243,8 +243,11 @@
 ## dollars each colonist arrives with
 # crash-pod-purse: 100
 
-## meals stocked in each crash pod's locker
+## meals stocked in each crash pod's locker, on average
 # crash-pod-meals: 10
+
+## each pod's meals vary by up to this many either side of crash-pod-meals
+# crash-pod-meal-spread: 0
 
 ## pistols each colonist arrives carrying
 # crash-pod-pistols: 1

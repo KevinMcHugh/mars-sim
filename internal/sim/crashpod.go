@@ -113,7 +113,7 @@ func (w *World) arrive(announce bool) *Entity {
 		w.setFixtureOwner(o.Add(f.dx, f.dy), me, AccessPrivate)
 	}
 	locker := w.storageContainers[o.Add(podFixtures[2].dx, podFixtures[2].dy)]
-	if n := w.cfg.CrashPodMeals; n > 0 && locker.Inventory.Add(Meal, n) {
+	if n := w.podMeals(e.ID); n > 0 && locker.Inventory.Add(Meal, n) {
 		locker.credit(me, Meal, n)
 	}
 	for i := 0; i < w.cfg.CrashPodShotguns; i++ {
@@ -373,4 +373,29 @@ func (w *World) podPartyWalls(o Point) (left, right bool) {
 		return true
 	}
 	return side(o.Add(-(podWidth-1), 0), o.X), side(o.Add(podWidth-1, 0), o.X+podWidth-1)
+}
+
+// podMealSalt separates podMeals' hash from anything else derived from the
+// seed.
+const podMealSalt = 0x6D2B79F5A0761D65
+
+// podMeals is how many meals the pod of the colonist with this ID carries:
+// crash-pod-meals, give or take up to crash-pod-meal-spread, evenly.
+//
+// With every pod the same, every locker runs dry within a few hundred ticks
+// of every other. A spread staggers that. It is off by default because, in
+// the runs measured, it starved more colonists, not fewer (see
+// docs/crash-pods.md).
+//
+// It is a pure function of the seed and the ID, not a draw from a stream, so
+// it shifts no other random draw and doesn't depend on the order colonists
+// arrive in.
+func (w *World) podMeals(id EntityID) int {
+	n, spread := w.cfg.CrashPodMeals, w.cfg.CrashPodMealSpread
+	if n <= 0 || spread <= 0 {
+		return max(0, n)
+	}
+	s := uint64(w.cfg.Seed) ^ uint64(id)*0x9E3779B97F4A7C15 ^ podMealSalt
+	d := int(splitmix64(&s)%uint64(2*spread+1)) - spread
+	return max(0, n+d)
 }

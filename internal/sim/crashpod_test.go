@@ -265,3 +265,36 @@ func TestPodsNeverRevealAHiddenCavern(t *testing.T) {
 		}
 	}
 }
+
+// Pods carry crash-pod-meals give or take crash-pod-meal-spread, so lockers
+// don't all run dry on the same tick. The count is a pure function of the seed
+// and the colonist: the same every time, with no spread at all at 0.
+func TestPodMealsSpreadAroundTheManifest(t *testing.T) {
+	w := propertyWorld(t)
+	w.cfg.CrashPodMeals, w.cfg.CrashPodMealSpread = 10, 4
+	seen := map[int]bool{}
+	sum := 0
+	for id := EntityID(1); id <= 400; id++ {
+		n := w.podMeals(id)
+		if n < 6 || n > 14 {
+			t.Fatalf("colonist %d's pod has %d meals, outside 10±4", id, n)
+		}
+		if n != w.podMeals(id) {
+			t.Fatalf("colonist %d's pod meals changed between calls", id)
+		}
+		seen[n] = true
+		sum += n
+	}
+	if len(seen) < 7 {
+		t.Fatalf("only %d distinct meal counts across 400 pods: %v", len(seen), seen)
+	}
+	if mean := float64(sum) / 400; mean < 9.5 || mean > 10.5 {
+		t.Fatalf("mean meals per pod %.2f, want about 10", mean)
+	}
+	w.cfg.CrashPodMealSpread = 0
+	for id := EntityID(1); id <= 20; id++ {
+		if n := w.podMeals(id); n != 10 {
+			t.Fatalf("with no spread, colonist %d's pod has %d meals", id, n)
+		}
+	}
+}
