@@ -75,7 +75,7 @@ re-open them without a reason the conversation did not have.
 | Skills | Placeholder only. Everybody can do everything for now; specialization is what makes the market more interesting later. |
 | Specialization | Not yet, and we know it. With equal skills nobody sticks to a trade; see *Who does what work*. Skills and identity will each make colonists tend to keep doing the same kind of work. |
 | Labor | Any actor can post a labor order: a colonist can order a house the same way the colony orders a town hall. |
-| Prospecting | An evergreen job: anyone may dig for ore and sell it. At first the colony is the buyer; later other colonists will want the ore too. **Being reversed:** the standing ore bids are to be dropped now that there's real demand for ore; see [work-market.md](./work-market.md) (W6). |
+| Prospecting | Anyone may dig ore and sell it to whoever wants it. The colony keeps no standing ore bids: ore is dug for real demand, such as a smith's bid or a builder's materials. See [work-market.md](./work-market.md) (W6). |
 | The colony trades | The colony buys to encourage early production, then either sells what it bought or spends it on community construction. It can make money, not just spend it. |
 | Hauling | In scope, not a someday. Buying at one depot and selling at another for more is valuable work, and colonists should make money hauling. |
 | Crash-through rubble | The rock a pod displaces disappears. |

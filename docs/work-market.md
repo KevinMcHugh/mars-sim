@@ -52,7 +52,7 @@ What changes, when built:
 | Self-interest | A colonist does colony work because it pays, not because it's first on a list. |
 | Competition | Colonists compete for work as for bids (see [skills.md](./skills.md), S5). |
 | The colony's size | A minor economic player. It pays for public goods; it doesn't run the economy. |
-| Prospecting | The colony's standing ore bids go. They were a make-work program from before there was real demand for ore. |
+| Prospecting | The colony keeps no standing ore bids. Ore is dug for real demand. |
 | Ownership | Colonists build and own workshops and depots for themselves ([skills.md](./skills.md), S6). |
 | Labor | Colonists offer labor proactively, at prices that reflect their skill. |
 | Masters' prices | A master crafter's goods can be the cheapest per unit. That's accepted until there's artifact quality. |
@@ -230,8 +230,8 @@ S5).
 
 ### The colony steps back (W6)
 
-The colony started as the economy's main actor, to get a thin market moving.
-With real demand arriving, it becomes a minor one:
+The colony is a minor economic player. It pays for public goods and a few
+things it uses, and colonists do the rest:
 
 | Colony role today | After W6 |
 | --- | --- |
@@ -241,38 +241,29 @@ With real demand arriving, it becomes a minor one:
 | Building every workshop (`planRooms`: scumhouse, foundry) | Colonists build workshops as investments (skills.md, S6). The colony keeps public goods: corridors, the incinerator, the trash room, and the first scumhouse as a bootstrap (see *Open questions*) |
 | Standing bids for biomatter; the armory | Stay for now: they're the colony buying things it uses. They're candidates to shrink next |
 
-**What dropping the ore bids does now.** Measured with `-silo-bid-qty 0`,
-which turns off only the standing ore bids, on seeds 1–8, 30,000 ticks:
+**What dropping the ore bids does.** Measured with `-silo-bid-qty 0`, which
+turns off only the standing ore bids, on seeds 1–8, 30,000 ticks, with the
+cook livelock fix from #67:
 
 | | With ore bids | Without |
 | --- | --- | --- |
 | Ore trades per run | 159–274 | 24–35 |
-| Armory filled (4 rifles) | 6 of 8 seeds | 6 of 8 seeds |
-| Treasury at the end | ~$3,200–3,700 | ~$4,300–4,700 |
-| Colonists' wallets (total) | $370–1,100 | $0–920: lower on 6 of the 7 seeds where anyone was left, by 12–46% |
+| Armory filled (4 rifles) | 7 of 8 seeds | 7 of 8 seeds |
+| Starved | 0 | 0 |
+| Treasury at the end | $3,202–3,694 | $4,266–4,719 |
+| Colonists' wallets (total, seeds with survivors) | $371–1,106 | $471–910: lower on 6 of those 7 seeds, by 12–47% |
+
+The seed that misses the armory is seed 6, whose colony dies out either way.
 
 The foundry doesn't need the colony's ore. The smith's derived bids for ore
-are filled by miners selling their own stock (`planSupply`), 25–35 trades a
-run, which is the real demand. Most of what the colony bought was make-work,
-as intended when it was built. Its money was a transfer from the treasury to
-miners. Without it, the treasury holds on to about $1,000 more, which is
-money no one spends: the founding grant can shrink by the same amount.
+are filled by miners selling their own stock (`planSupply`), 24–35 trades a
+run. That's the real demand for ore. The rest of what the colony buys is a
+transfer from the treasury to miners. Without it, the treasury keeps about
+$1,000 that no one spends, so the founding grant can shrink by that much.
 
-One run got worse, and the cause is a bug on main, not the ore bids. On seed 4
-the colony dies out around tick 18,700, where with ore bids it keeps four
-colonists. The last colonists starve at the scumhouse beside 14 units of the
-colony's scum, with money in their wallets. The cause is a livelock:
-`hungryWithoutFood` clears a hungry colonist's job cooking for the colony
-(it isn't "feeding itself"), then falls through to `assignWorkJob`, which
-hands it the same cooking job again. The job is cleared again the next tick,
-so progress never passes 1. Dropping the ore bids only changed the run
-enough to reach it. With that fixed (branch `claude/fix-cook-livelock`; see
-[food.md](./food.md)), seed 4 without ore bids keeps three colonists, and
-nobody starves on seeds 1–16 with or without the bids.
-
-Mining itself doesn't stop yet, since the ladder still sends idle colonists
-to the frontier. Once the ladder goes (W4), ore is dug only when there's a
-buyer, plus whatever the colony pays to explore (`WorkDig`).
+While the ladder exists, idle colonists still mine the frontier. After W4,
+ore is dug only for a buyer, plus whatever the colony pays to explore
+(`WorkDig`).
 
 ### What's left of `assignWorkJob` (W4)
 

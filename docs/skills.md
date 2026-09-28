@@ -112,32 +112,32 @@ What follows:
    practise their way to master smith today. Masters exist only if they
    arrive as masters. That fits "rare", and it's also why one would be wasted.
 
-## Problems with the original brief
+## Problems with ranking skills by log_X(uses)
 
-The first draft of this doc raised these. Most are now settled by the
-decisions above. What's left of each is noted.
+A skill's rank as `log_X(n)`, with `n` the number of successful uses, has
+these problems. Each has an answer in the design below.
 
-1. **Speed bonuses do little in an idle colony.** Still true, and now it's the
-   intended mechanism. Skill only scales the work part of a job, never the
-   walking. See *Why small colonies stay generalist*.
-2. **A skill level alone doesn't make a smith refuse to cook.** Settled:
-   opportunity cost (S3) does it, and it also lets the smith cook in an
-   emergency, when hungry colonists' meal bids climb.
-3. **The base doesn't set how many ranks anyone reaches; volume does.** Still
-   true. Base 10 smithing with rank 1 at one gun needs 1,000 guns for rank 3.
-   The fix stays: a per-skill `Unit` sets where rank 1 is, and the label list
-   caps how many ranks there are. The base only sets the spacing and, now, the
-   payoff.
+1. **Speed bonuses do little in an idle colony.** Skill only scales the work
+   part of a job, never the walking, so in a small colony a skilled
+   colonist's advantage is small. The design relies on that: see *Why small
+   colonies stay generalist*.
+2. **A skill level alone doesn't make a smith refuse to cook.** Opportunity
+   cost (S3) does, and it also lets the smith cook in an emergency, when
+   hungry colonists' meal bids climb.
+3. **The base doesn't set how many ranks anyone reaches; volume does.** At
+   base 10 with rank 1 at one gun, rank 3 takes 1,000 guns. A per-skill
+   `Unit` sets where rank 1 is, and the label list caps how many ranks there
+   are. The base sets the spacing and the payoff per rank.
 4. **"Uses" aren't a common unit.** Practice is counted in base work ticks of
-   completed work. A 60-tick rifle teaches more than a 6-tick tile.
+   completed work, so a 60-tick rifle teaches more than a 6-tick tile.
 5. **Floating-point log gets exact powers wrong.** In Go,
    `math.Log(1000)/math.Log(10)` is `2.9999999999999996`. Ranks come from an
    integer walk up the thresholds.
-6. **Starting at zero lets turn order pick careers.** Settled: skills are
-   rolled at character generation.
-7. **Log curves favor generalists.** Now intended for small colonies. What
-   pushes against it is the reward. A steeper skill pays more per rank, and
-   opportunity cost makes the better-paying skill win.
+6. **Starting at zero lets turn order pick careers.** Skills are rolled at
+   character generation.
+7. **Log curves favor generalists.** That's intended for small colonies.
+   What pushes against it is the reward: a steeper skill pays more per rank,
+   and opportunity cost makes the better-paying skill win.
 
 ## How it works (proposed)
 
