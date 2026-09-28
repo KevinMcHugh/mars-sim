@@ -619,7 +619,7 @@ func (w *World) clearJob(e *Entity) {
 		if e.eat == eatMeal {
 			e.Inventory.Add(Meal, 1) // the meal in hand goes back in the pocket
 		}
-		e.eat = eatFetch
+		e.eat, e.eatKeep = eatFetch, false
 	case JobCraft:
 		if w.workshopClaims[e.Target] == e.ID {
 			delete(w.workshopClaims, e.Target)
@@ -827,6 +827,11 @@ func (w *World) finishTalk(a, b *Entity) {
 // first (life-support rooms), otherwise mine the frontier. Leaves JobNone if
 // nothing suitable is reachable.
 func (w *World) assignWorkJob(e *Entity) {
+	// A meal in its pockets before it's hungry, so hunger never starts with a
+	// walk across the colony (see food.go).
+	if w.tryPocketMeal(e) {
+		return
+	}
 	// A colonist whose load blocks further mining first unloads into reachable
 	// storage. If no chest exists yet, help build the project that will provide
 	// one rather than claiming unrelated work and leaving the storage job stalled.

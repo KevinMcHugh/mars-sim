@@ -44,6 +44,45 @@ func (w *World) tryStartEating(e *Entity) bool {
 	return true
 }
 
+// pocketMeals is how many meals a colonist keeps on it: one with pocket
+// meals on, none without.
+func (w *World) pocketMeals() int {
+	if w.cfg.PocketMealAt > 0 {
+		return 1
+	}
+	return 0
+}
+
+// tryPocketMeal sends e to fetch one of its own meals to carry, from the
+// nearest depot holding one, before it's hungry enough to eat. It reports
+// whether e has that job. It waits for pocket-meal-at, so the meal it carries
+// is the next one it eats, not a spare.
+//
+// A hungry colonist has about 175 ticks from pressing hunger, when it goes to
+// eat, to critical, and about 40 more to death. On a big map one walk to its
+// locker used most of that; with a meal on it, hunger starts with food in
+// hand, and the trip happens while it has time to spare.
+//
+// It never buys a pocket meal. A colonist that isn't hungry yet buying one
+// takes a meal off the shelf from a colonist who is: in a 100-colonist
+// shortage, buying pocket meals starved 150 of 400 colonists, against 96
+// without pocket meals (see docs/food.md).
+func (w *World) tryPocketMeal(e *Entity) bool {
+	at := w.cfg.PocketMealAt
+	if at <= 0 || e.Kind != Colonist || e.ownCarried(Meal) > 0 || !e.Inventory.CanAdd(Meal, 1) {
+		return false
+	}
+	if e.needPhase[NeedFood] >= NeedPressing || w.needLevel(e, NeedFood) < at {
+		return false // pressing hunger eats (runFoodFocus); before at, it has time
+	}
+	depot, ok := w.nearestMealDepot(e)
+	if !ok {
+		return false
+	}
+	e.Job, e.eat, e.eatKeep, e.Target, e.Progress = JobEat, eatFetch, true, depot, 0
+	return true
+}
+
 // mealOwners lists whose meals e may take: only its own. The colony's meals
 // are for sale, not for the taking (see refreshColonyMealAsks).
 func mealOwners(e *Entity) [1]Owner {
@@ -93,6 +132,11 @@ func (w *World) jobEat(e *Entity) {
 		c := w.storageContainers[e.Target]
 		if c == nil || !w.takeMeal(e, c) {
 			w.clearJob(e) // somebody got the last one first; think again
+			return
+		}
+		if e.eatKeep {
+			e.Inventory.Add(Meal, 1) // for later: in the pocket, not the mouth
+			w.clearJob(e)
 			return
 		}
 		e.eat, e.Progress = eatMeal, 0

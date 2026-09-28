@@ -378,6 +378,9 @@ type Entity struct {
 	// eat is where a JobEat colonist is: fetching a meal, or eating one. See
 	// food.go.
 	eat eatStage
+	// eatKeep marks a JobEat fetch for the pocket, not the mouth: the meal it
+	// takes out goes in its pockets and the job ends (see tryPocketMeal).
+	eatKeep bool
 	// recipe and craftFor are a JobCraft colonist's recipe (an index into
 	// recipes) and whose inputs it is working; scrape is where a JobScrape
 	// colonist is. See scumhouse.go.

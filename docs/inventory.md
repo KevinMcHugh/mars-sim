@@ -48,8 +48,9 @@ ends after a full colonist unloads its ore into storage.
 Weapons are the other producer, though a one-time one: a colonist's crash pod
 (`arrive`, `crashpod.go`) hands it its manifest's `Pistol`s and `Shotgun`s
 once, as it lands. `Meal`s arrive the same way but go into the pod's locker
-rather than the colonist's pockets; a colonist carries one only while eating
-it, or if eating was interrupted (see [food.md](./food.md)). There is no equip/unequip step — `bestWeapon` (`inventory.go`) just
+rather than the colonist's pockets; a colonist carries one only as its next
+meal (a pocket meal), while eating it, or if eating was interrupted (see
+[food.md](./food.md)). There is no equip/unequip step — `bestWeapon` (`inventory.go`) just
 scans the stacks for the best weapon kind present, so carrying one *is*
 wielding it. Nothing removes a weapon from inventory today (no drop, no
 ammo, no loss on death), so once armed, always armed.
