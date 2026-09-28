@@ -25,7 +25,7 @@ already in the code.
 | S1 | Practice, ranks and labels; skills rolled at character generation; rank-up memories; roster display. No effect on behavior. | Proposed |
 | S2 | Effects: skill makes work faster and increases yield, by more per rank for steeper skills. | Proposed |
 | S3 | Opportunity cost in the producer planner: skill-aware costs, choosing the best-paying plan, and a reservation rate from what the colonist has been earning. | Proposed |
-| S4 | Wages in the same comparison: public works and the colony's cook weighed against market work. | Proposed |
+| S4 | Wages in the same comparison. Superseded by [work-market.md](./work-market.md): every communal job becomes an order on the book. | Superseded |
 | S5 | Competition: drop the planner's reservations on opportunities, so colonists race for bids and undercut each other. | Proposed |
 | S6 | A workshop of one's own: a skilled colonist builds a forge or a scumhouse on its own account when the returns pay for it. | Proposed |
 
@@ -435,6 +435,9 @@ Both are measurable in `-econ-trace` once S3 ships. That's how to check the
 claim instead of trusting it.
 
 ### Wages in the same comparison (S4)
+
+> Superseded by [work-market.md](./work-market.md), which removes the
+> community ladder entirely instead of adding wages to it.
 
 Work orders are piece rates ([labor.md](./labor.md)): a builder is paid per
 tile, so a faster builder already earns more per tick. But `assignWorkJob` still
