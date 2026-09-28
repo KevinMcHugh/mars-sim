@@ -552,6 +552,12 @@ works or wins a tie.
 - **Traits and learning.** Should Industrious and Lazy change learning speed as
   well as work speed? Decide before S1 ships, so practice doesn't change
   meaning later.
+- **Professions without a skill.** Some professions are about capital or
+  judgment, not practice. Shopkeeping is the example: its real skill is
+  forecasting demand, which ranks and speed don't express. Shopkeeping is
+  deferred ([work-market.md](./work-market.md)), but the profession label
+  may need to come from what a colonist owns and does, not only from its
+  highest skill.
 - **Children.** When families produce colonists
   ([ages-and-family.md](./ages-and-family.md)), do they inherit a leaning, or
   learn from their parents?

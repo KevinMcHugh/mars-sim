@@ -53,10 +53,10 @@ What changes, when built:
 | Competition | Colonists compete for work as for bids (see [skills.md](./skills.md), S5). |
 | The colony's size | A minor economic player. It pays for public goods; it doesn't run the economy. |
 | Prospecting | The colony's standing ore bids go. They were a make-work program from before there was real demand for ore. |
-| Ownership | Colonists build and own workshops, depots and shops for themselves ([skills.md](./skills.md), S6). |
+| Ownership | Colonists build and own workshops and depots for themselves ([skills.md](./skills.md), S6). |
 | Labor | Colonists offer labor proactively, at prices that reflect their skill. |
 | Masters' prices | A master crafter's goods can be the cheapest per unit. That's accepted until there's artifact quality. |
-| Shops | Shopkeeping is a profession: buying stock and holding it to sell at a premium ([shopkeeping.md](./shopkeeping.md)). |
+| Shops | Deferred. Shopkeeping (buying stock to hold and sell at a premium) is a profession without a crafting skill. Its real skill is forecasting demand, and it depends on who knows which prices where. Both are problems for another time. |
 
 ## What the ladder does today
 
@@ -236,7 +236,7 @@ With real demand arriving, it becomes a minor one:
 | Colony role today | After W6 |
 | --- | --- |
 | Standing bids for ore, rock, ice, clay at the silo (`refreshColonyBids`, "paid prospecting") | Gone. Ore is mined when someone wants it: a smith's bid, a builder's materials |
-| Reselling what it bought above `colony-stock-reserve` at `colony-markup` (`refreshColonyAsks`) | Gone. It has nothing bought to resell. Holding stock to sell at a premium is a shopkeeper's business |
+| Reselling what it bought above `colony-stock-reserve` at `colony-markup` (`refreshColonyAsks`) | Gone. It has nothing bought to resell. Holding stock to sell at a premium is a colonist's business, if anyone's (shopkeeping is deferred) |
 | Building public works from its own stock | It buys materials on the book like anyone else, or pays a builder who brings them |
 | Building every workshop (`planRooms`: scumhouse, foundry) | Colonists build workshops as investments (skills.md, S6). The colony keeps public goods: corridors, the incinerator, the trash room, and the first scumhouse as a bootstrap (see *Open questions*) |
 | Standing bids for biomatter; the armory | Stay for now: they're the colony buying things it uses. They're candidates to shrink next |
@@ -266,7 +266,9 @@ colony's scum, with money in their wallets. The cause is a livelock:
 (it isn't "feeding itself"), then falls through to `assignWorkJob`, which
 hands it the same cooking job again. The job is cleared again the next tick,
 so progress never passes 1. Dropping the ore bids only changed the run
-enough to reach it. Seeds 9–16 show no starvation either way.
+enough to reach it. With that fixed (branch `claude/fix-cook-livelock`; see
+[food.md](./food.md)), seed 4 without ore bids keeps three colonists, and
+nobody starves on seeds 1–16 with or without the bids.
 
 Mining itself doesn't stop yet, since the ladder still sends idle colonists
 to the frontier. Once the ladder goes (W4), ore is dug only when there's a
@@ -313,11 +315,6 @@ input to the colony's cooking wage.
   estimates the rate from the hungry bids already on the book, or the colony
   keeps building the first one as a bootstrap. The second is safer
   (principle 7), and "minor player" allows it.
-- **The cook livelock** (see W6) should be fixed before any of this ships:
-  a hungry colonist must either finish a colony cooking run, whose meal it
-  can then buy, or not be handed that job again in the same turn. Removing
-  the ladder (W4) removes the path by which it's handed back, but fix it on
-  main first.
 - **Unpaid civic work.** Some colonists might clean for nothing because
   it's their colony. That's identity, not self-interest, and it belongs with
   the identity system ([economy.md](./economy.md)), not the chooser.
