@@ -1,0 +1,5 @@
+node_modules/
+dist/
+# Built by build-wasm.sh
+public/mars-sim.wasm
+public/wasm_exec.js

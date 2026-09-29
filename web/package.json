@@ -1,0 +1,18 @@
+{
+  "name": "mars-sim-web",
+  "private": true,
+  "type": "module",
+  "description": "The browser frontend for mars-sim. See docs/browser-frontend.md.",
+  "scripts": {
+    "wasm": "sh build-wasm.sh",
+    "dev": "vite",
+    "build": "sh build-wasm.sh && tsc --noEmit && vite build",
+    "check": "tsc --noEmit",
+    "test": "node --test wire/decode.test.mjs",
+    "preview": "vite preview"
+  },
+  "devDependencies": {
+    "typescript": "^7.0.2",
+    "vite": "^8.3.1"
+  }
+}

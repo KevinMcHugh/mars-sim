@@ -20,7 +20,8 @@ implement the same consumer contract.
 - [`internal/ui/tui/render_lore.go`](../internal/ui/tui/render_lore.go) — world facts and the rolled alien species.
 - [`internal/ui/tui/render_log.go`](../internal/ui/tui/render_log.go) — the colony log tab and the sidebar's wrapped tail.
 - [`internal/ui/tui/render_perf.go`](../internal/ui/tui/render_perf.go) — the Perf screen's braille charts (see [perf-screen.md](./perf-screen.md)).
-- [`internal/ui/tui/glyphs.go`](../internal/ui/tui/glyphs.go) — terrain and entity glyphs.
+- [`internal/ui/tui/glyphs.go`](../internal/ui/tui/glyphs.go) — the glyph registry (widths, ASCII fallbacks) and `fitGlyph`.
+- [`internal/glyphs/glyphs.go`](../internal/glyphs/glyphs.go) — the glyphs themselves and which one a tile or entity draws as, shared with the browser map.
 - [`main.go`](../main.go) — `runTUI` (and `runHeadless`, the no-UI alternative).
 
 ## How it works
@@ -414,10 +415,13 @@ contract is genuinely frontend-agnostic.
   render it; do not reach into engine internals.
 - **A new control**: add a key case that `Send`s a `Command` (add the command
   type in `sim` if needed — see [architecture.md](./architecture.md)).
-- **A new glyph**: add the constant *and* a `glyphRegistry` entry in
-  `glyphs.go`, then map the terrain/kind/state to it. The tests reject a glyph
-  whose width terminals would disagree about — see
-  [terminal-cell-widths.md](./terminal-cell-widths.md).
+- **A new glyph**: add the constant to `internal/glyphs` (and to its `All`
+  list), map the terrain/kind/state to it in the `For…` function there, and add
+  a `glyphRegistry` entry in this package's `glyphs.go`.
+  `TestGlyphRegistryCoversEveryGlyph` fails if the registry and `glyphs.All`
+  differ, and the other tests reject a glyph whose width terminals would
+  disagree about — see [terminal-cell-widths.md](./terminal-cell-widths.md).
+  The browser map picks the new glyph up from the Hello with no change.
 - **A new roster filter**: add a field to `Model`, an entry to
   `filterMenuItems`, a case in `toggleFilter`/`filterOn`, and a clause in
   `rosterEntries`'s `include` closure — the list, count, and title all update

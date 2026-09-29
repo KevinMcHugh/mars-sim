@@ -33,10 +33,11 @@ than a hardcoded list.
   candidates each entry can roll.
 - [`alien-names.yaml.example`](../alien-names.yaml.example) — a commented,
   standalone example a player can copy and pass to `-alien-names`.
-- [`internal/ui/tui/glyphs.go`](../internal/ui/tui/glyphs.go) — the curated
-  reptile/bug/alien glyph set (`glyphLizard`, `glyphBeetle`, ...) and
-  `alienGlyph`, which decides whether a species' rolled `Emoji` is safe to
-  draw on the map.
+- [`internal/glyphs/glyphs.go`](../internal/glyphs/glyphs.go) — the curated
+  reptile/bug/alien glyph set (`Lizard`, `Beetle`, ...) and `ForAlien`, which
+  decides whether a species' rolled `Emoji` is safe to draw on the map. The
+  TUI (`alienGlyph` in `internal/ui/tui/glyphs.go`) and the browser map both
+  go through it.
 - [`internal/sim/lore_test.go`](../internal/sim/lore_test.go),
   [`internal/sim/alien_names_test.go`](../internal/sim/alien_names_test.go) —
   determinism, invariants, temperament behavior, the naming-condition
@@ -298,9 +299,10 @@ nothing about an arbitrary runtime string guarantees a real terminal paints
 it at the width `sim` — which has no concept of terminal cells at all —
 would need it to be.
 
-So the TUI draws it on the map only through `alienGlyph(sp)`
-(`internal/ui/tui/glyphs.go`), which checks the exact string against its own
-`glyphRegistry` — the same vetted, width-tested, ASCII-fallback-carrying set
+So the TUI draws it on the map only through `alienGlyph(sp)`, which is
+`glyphs.ForAlien` (`internal/glyphs`, also used by the browser map). It checks
+the exact string against `glyphs.All`, which the TUI's `glyphRegistry` must
+cover exactly — the same vetted, width-tested, ASCII-fallback-carrying set
 every other glyph on the map comes from — and falls back to the generic
 `glyphAlien` for anything unregistered, `sp.Emoji == ""` included. The
 registry ships a curated set of reptile/bug/alien glyphs for this
@@ -370,7 +372,8 @@ word-wrapped to the panel width.
   or `Color` — a string picked from YAML, never measured, registered, or
   validated by anything in the `sim` package. The width-safety machinery
   the map depends on (see [terminal-cell-widths.md](./terminal-cell-widths.md))
-  lives entirely on the TUI side, in `alienGlyph`, which is also the only
+  lives entirely on the frontends' side, in `glyphs.ForAlien` (the TUI's
+  `alienGlyph`), which is also the only
   place a fallback to `glyphAlien` can happen. Splitting it this way is what
   lets `sim`'s tests (and any other future consumer of a `Snapshot`) treat
   species data uniformly without either package needing to know the other's
@@ -505,8 +508,9 @@ word-wrapped to the panel width.
 - **More map-safe emoji.** Adding a new glyph a name can draw on the map is
   the same two-line edit any other glyph is (see
   [terminal-cell-widths.md](./terminal-cell-widths.md)'s Extending it): a
-  `glyphX` constant and a `glyphRegistry` entry in `internal/ui/tui/glyphs.go`,
-  with a declared width and an ASCII fallback — the existing structural
+  constant (and `All` entry) in `internal/glyphs/glyphs.go` and a
+  `glyphRegistry` entry in `internal/ui/tui/glyphs.go`, with a declared width
+  and an ASCII fallback — the existing structural
   tests (`TestGlyphRegistryIsUnambiguous` and friends) vet it the same way
   they vet every other glyph. Then list the new emoji in whichever
   `alien-names.yaml` entries should be able to roll it. A name's emoji list

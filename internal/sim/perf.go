@@ -92,6 +92,10 @@ func (p *perfRecorder) record(step, publish time.Duration) {
 	p.cur.MaxTick = max(p.cur.MaxTick, step+publish)
 }
 
+// addPublish charges a publish that was not part of a recorded tick (the one
+// Advance makes at the end of a call) to the open bucket.
+func (p *perfRecorder) addPublish(d time.Duration) { p.cur.Publish += d }
+
 // samples returns the closed history, oldest first. Callers must not modify
 // it (see close).
 func (p *perfRecorder) samples() []PerfSample { return p.hist }

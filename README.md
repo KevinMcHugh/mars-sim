@@ -11,6 +11,10 @@ out an underground colony on their own while aliens lurk in the caves around the
 go run .
 ```
 
+Or play it in a browser at <https://kevinmchugh.github.io/mars-sim/>. It is the
+same engine, compiled to WebAssembly and running in the page; see
+[docs/frontend-web.md](docs/frontend-web.md) to build it yourself.
+
 Every simulation tunable is a command-line flag (world size, populations, speed,
 colonist/alien stats, build times, ...), each defaulting to the value in
 `sim.DefaultConfig`. List them with `-h` or `?`:

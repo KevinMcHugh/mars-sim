@@ -1,0 +1,98 @@
+{
+  "version": 2,
+  "paused": false,
+  "fogOfWar": true,
+  "tilesReset": true,
+  "refuseFrame": true,
+  "tick": 1234,
+  "tileFrame": 1,
+  "tps": 8,
+  "pagesOwed": 0,
+  "stats": [
+    1,
+    1,
+    1,
+    0,
+    1500,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+  ],
+  "entities": [
+    {
+      "id": 1,
+      "x": 10,
+      "y": 3,
+      "glyph": 17,
+      "kind": 0,
+      "state": 2,
+      "focus": 1
+    },
+    {
+      "id": 2,
+      "x": 70,
+      "y": 20,
+      "glyph": 21,
+      "kind": 2,
+      "state": 8,
+      "focus": 0
+    },
+    {
+      "id": 9,
+      "x": 149,
+      "y": 69,
+      "glyph": 36,
+      "kind": 1,
+      "state": 6,
+      "focus": 0
+    }
+  ],
+  "pages": [
+    {
+      "px": 1,
+      "py": 0,
+      "tileSum": 2187061881
+    },
+    {
+      "px": 0,
+      "py": 0,
+      "tileSum": 3981402267
+    },
+    {
+      "px": 2,
+      "py": 0,
+      "tileSum": 4009253739
+    },
+    {
+      "px": 0,
+      "py": 1,
+      "tileSum": 1679641450
+    },
+    {
+      "px": 2,
+      "py": 1,
+      "tileSum": 281993039
+    }
+  ],
+  "refuse": [
+    {
+      "x": 10,
+      "y": 3,
+      "corpses": 0,
+      "gore": 2
+    },
+    {
+      "x": 130,
+      "y": 40,
+      "corpses": 3,
+      "gore": 0
+    }
+  ]
+}

@@ -179,6 +179,8 @@ const (
 	// mutation.go and docs/mutation.md.
 	UraniumBearingRock
 	ClayBearingRock
+
+	numRockCompositions // keep last: the number of compositions
 )
 
 func (c RockComposition) String() string {

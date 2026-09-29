@@ -11,18 +11,40 @@ other frontend ([architecture.md](./architecture.md)): the engine publishes
 snapshots, the frontend sends commands. The difference is that a
 `postMessage` boundary now sits between the two, where a Go channel used to be.
 
-Nothing here is built yet. It is a sketch to argue with before any code is
-written. The numbers in it come from a spike run against the current tree, not
-from guesses.
+Most of it is still a proposal. What is built: the engine-side prerequisites
+(the steppable loop, live tiles, chunked worldgen, saveable RNG) and a
+**spike**, a headless worker plus a measurement page, whose results are in
+[The spike](#the-spike-what-a-real-browser-measured) below. The wire, the map
+and the Svelte UI are not started. The numbers here come from runs against
+the tree, not from guesses.
 
 ## Source
 
-Nothing yet. The proposed layout:
+Built so far:
 
-- `cmd/mars-sim-wasm/` — the `GOOS=js GOARCH=wasm` entry point. It owns the
-  worker's message loop and never imports the TUI or Bubble Tea.
-- `internal/wire/` — turns a `*sim.Snapshot` into wire messages and decodes
-  commands. It is plain Go, so it is tested natively. It knows nothing about JS.
+- [`internal/sim/engine.go`](../internal/sim/engine.go) — `Engine.Advance`, the
+  steppable tick loop, sharing its schedule with `Run`.
+- [`internal/sim/advance_test.go`](../internal/sim/advance_test.go) — budgets,
+  pausing, the Run/Advance exclusion, and every frame reaching the host.
+- [`cmd/mars-sim-wasm/`](../cmd/mars-sim-wasm/main.go) — the `GOOS=js
+  GOARCH=wasm` entry point. It exports `start`, `advance`, `interest`, `send`
+  and `memory` on `globalThis.marssim`; `advance` returns a binary wire frame
+  ([wire-format.md](./wire-format.md)), the rest JSON. It never imports the TUI.
+- [`web/public/worker.js`](../web/public/worker.js) — the host loop, shared by
+  the game and the spike. [`web/build-wasm.sh`](../web/build-wasm.sh) builds the
+  WASM next to it.
+- [`web/spike/index.html`](../web/spike/index.html) — the measurement page. It
+  runs under `npm run dev` in `web/` at `/spike/`; add
+  `?auto=1&width=…&tps=…&viewW=…` to start straight away.
+- The game page and the map renderer, in `web/`: see
+  [frontend-web.md](./frontend-web.md).
+
+- [`internal/wire/`](../internal/wire/wire.go) and
+  [`web/wire/decode.js`](../web/wire/decode.js) — the frame tier of the wire:
+  the Hello, the binary frame, and its decoder. See
+  [wire-format.md](./wire-format.md).
+
+Still proposed:
 - `web/` — Vite + Svelte 5 + TypeScript.
   - `web/src/sim/` — the worker bootstrap, `SimClient`, and the frame decoder.
   - `web/src/map/` — the WebGL map renderer. It is framework-free.
@@ -34,7 +56,7 @@ Nothing yet. The proposed layout:
  main thread                                   worker
 ┌──────────────────────────────────────┐      ┌─────────────────────────────┐
 │ Svelte shell (tabs, panels, dialogs) │      │ JS driver loop              │
-│        ▲  topic stores, ~4-10 Hz     │      │   │ advance(now, budget)    │
+│        ▲  topic stores, ~4-10 Hz     │      │   │ advance(budget)         │
 │        │                             │      │   ▼                         │
 │ SimClient ── decode ──▶ FrameStore ──┼──┐   │ Go/WASM: sim.Engine         │
 │    │                       │         │  │   │   │ *Snapshot               │
@@ -54,7 +76,7 @@ Nothing yet. The proposed layout:
 terminal I/O, and `main.go` does all the file reading. Two things still need
 doing.
 
-**The tick loop has to give control back to JS.** `Engine.Run` never returns,
+**The tick loop has to give control back to JS. Done:** `Engine.Advance`. `Engine.Run` never returns,
 and when it falls behind schedule it runs overdue ticks back to back without
 blocking ([architecture.md](./architecture.md)). Go's WASM runtime only returns
 to the JS event loop when every goroutine is blocked. So a sim running flat out
@@ -62,28 +84,50 @@ would starve `onmessage`, and a pause command would never arrive. Parking on a
 Go timer every tick doesn't fix this either: that becomes a nested `setTimeout`,
 which browsers clamp to at least 4 ms, so the sim tops out near 250 ticks/s.
 
-The fix is to turn the loop inside out. Pull the scheduling logic (`nextDue`,
-`shouldPublish`, `maxTickLag`) out into a steppable call, roughly:
+The loop is turned inside out:
 
 ```go
-// Advance runs every tick due by now, stopping early once budget is spent,
-// and reports the snapshot to publish (nil if none is due yet).
-func (e *Engine) Advance(now time.Time, budget time.Duration) *Snapshot
+// Advance applies queued commands, runs the ticks due, stops once budget has
+// elapsed (after at least one due tick), and returns the frame it published,
+// if any, and how long to wait before calling again (0: a tick is due now;
+// negative: paused, only a command changes anything).
+func (e *Engine) Advance(budget time.Duration) (*Snapshot, time.Duration)
 ```
 
-`Run` becomes a thin native wrapper around `Advance`, so there is still only one
-scheduler and the TUI doesn't notice the change. In the worker, a JS driver calls
-`advance` once per slice (a budget of about 8 ms), posts any frame it gets back,
-and yields. It yields through a `MessageChannel` ping rather than `setTimeout`,
-so it doesn't hit the clamp. Commands arrive between slices, just as they are
-applied between ticks today.
+`Run` and `Advance` share one schedule (`restartSchedule`, `handle`,
+`runDueTick`, over the same `nextDue` and `maxTickLag`); `Run` only adds the
+blocking. An engine takes one or the other (mixing them panics), and
+`ShareLiveTiles` is refused once either has started.
+
+Three decisions in it that were not obvious up front:
+
+- **One publish per call, at its end.** Under `Run`, a tick or a command
+  publishes on the spot. Under `Advance` that lost frames: a spawn published,
+  then a tick in the same call published again, and the host only ever saw the
+  second. With live tiles that is a correctness bug, not a waste, because
+  `TileChanges` is a delta against the previous frame *built*, so the first
+  frame's changed pages were gone. So in stepping mode `publish` becomes a
+  request (`requestPublish`) that the end of the call honours, along with the
+  usual 60-a-second cap; unpublished ticks' changes accumulate into the next
+  frame. `TestAdvanceWithLiveTilesSeesEveryFrame` pins it.
+- **At least one tick per call.** A budget smaller than one tick (a 200-colonist
+  tick is 5 ms in the browser) would otherwise never tick.
+- **The host decides how to wait.** `worker.js` re-queues through a
+  `MessageChannel` ping only when a tick is due *now* (wait 0). Any positive
+  wait goes to `setTimeout`, 4 ms clamp and all. Pinging for sub-millisecond
+  waits was the first version, and it spun the worker at 33,000 empty slices a
+  second at 1000 tps. The clamp costs nothing because the schedule is fixed
+  deadlines: a slice that wakes 4 ms late runs the four ticks it owes, and
+  1000 tps held at 999 with 180 slices a second.
 
 **The toolchain is standard Go, not TinyGo.** `yaml.v3` and the config struct tags
 rely on `reflect`, and TinyGo's GC is weaker. The alternative is
 `GOOS=wasip1` with `//go:wasmexport`: JS could read a frame buffer straight out of
-linear memory, but it needs a WASI shim. It is worth measuring during the spike.
-The default is `js/wasm` with `wasm_exec.js`, which crosses into JS once per
-frame (`js.CopyBytesToJS`).
+linear memory, but it needs a WASI shim. The spike uses `js/wasm` with
+`wasm_exec.js` and crosses into Go once per slice; it did not try `wasip1`,
+because the spike's frames are tiny and the question only matters once the
+wire's binary frames exist. Measure it then. The release build is 7.1 MB,
+1.9 MB gzipped.
 
 ### 2. The wire: topics, not snapshots
 
@@ -124,6 +168,14 @@ viewport, still matters on the first frame and as the colony explores. A page is
 a 64×64 square (`TilePageSide`, located with `TileGrid.PageOrigin`), which lines
 up well with the renderer's `texSubImage2D` uploads.
 
+**The frame tier is built** ([wire-format.md](./wire-format.md)), with a few
+differences from the sketch above. Entities carry id, position, kind, state
+and focus so far (no species or hp yet). Refuse is a whole list sent when it
+changes, not deltas, and the log isn't carried yet. The view is a tile
+rectangle (`interest`), with no zoom. A frame carries at most 64 pages, and
+the rest are "owed" and follow straight away, nearest the middle of the view
+first. Topics are not built.
+
 **Enums travel as a catalog, not as duplicated TS tables.** On startup the worker
 sends a `hello` message with:
 
@@ -161,6 +213,12 @@ and the docs already design for 10000×10000 maps. So:
 - **Rendering runs on `requestAnimationFrame`** from the newest decoded frame, and
   never once per frame received. The same rule as the TUI: keep the latest frame,
   draw at the display rate.
+
+**Built, with flat colors** ([frontend-web.md](./frontend-web.md)). Terrain
+is `RG8UI` chunk textures filled straight from the wire's page bytes. Entities
+and refuse are instanced quads. Occupants of unseen tiles are filtered out.
+Zoomed in, glyphs from an emoji atlas replace the flat colors, and each
+entity's glyph is picked in Go (`internal/glyphs`, shared with the TUI).
 
 The renderer is a plain TS class that owns its `<canvas>`. Svelte mounts it and
 passes it the camera, and that's all. Keeping it framework-free means it can move
@@ -345,9 +403,11 @@ past a plain static host, and none of them is planned:
   `application/wasm` for streaming compilation, and compressed. GitHub Pages
   does both (gzip). Brotli would shave a bit more, which Cloudflare does.
 
-Cloudflare Pages is the suggested host: free, static, custom headers if they
-are ever needed, and brotli. GitHub Pages works too, with the headers caveat
-above.
+**It is on GitHub Pages** (see [frontend-web.md](./frontend-web.md),
+"Hosting"): the repo already lives on GitHub, and nothing above needs custom
+headers. Cloudflare Pages was the first suggestion, for brotli and a
+`_headers` file. It is still the place to move if `SharedArrayBuffer` ever
+becomes necessary.
 
 **Mobile, later.** Nothing above rules it out: WebGL2, workers, OPFS and WASM
 all work on current iOS and Android. What to do now, so it stays possible:
@@ -358,6 +418,56 @@ all work on current iOS and Android. What to do now, so it stays possible:
 - Don't assume desktop memory. A 10K eager world won't fit on a phone, so
   mobile realistically waits on chunked worldgen (or ships with a smaller
   default map).
+
+## The spike: what a real browser measured
+
+Headless Chromium (Playwright's build, in a cloud container, so absolute
+numbers are a slow machine's), driving the spike page. Seed 7, default
+config otherwise, `tps` 0 meaning flat out:
+
+| Scenario | New game | Ticks/s | Go heap | Main thread worst frame gap |
+| --- | --- | --- | --- | --- |
+| 10000×10000, 6 colonists, flat out | 348 ms | ~10,000 | 43 MB | 16.8 ms |
+| 10000×10000, 200 colonists, flat out | 695 ms | 194 | 52 MB | 16.8 ms |
+| 200×200, 6 colonists, 60 tps | 115 ms | 60.1 | 3 MB | 16.8 ms |
+| 200×200, 6 colonists, 1000 tps | 129 ms | 999 | 4 MB | 16.8 ms |
+
+What it settles:
+
+- **Big worlds are no longer a browser problem.** Before chunked worldgen, a
+  10K new game was 38 s and 1.4 GB in WASM (see Big worlds). Now it is well
+  under a second and tens of megabytes, because only the landing site is
+  generated. The wasm32 4 GB ceiling is now about how much a colony
+  *explores*, not how big the map is.
+- **The worker keeps the page smooth.** The worst gap between animation
+  frames stayed at one 60 Hz frame (16.8 ms) in every run, including the
+  flat-out ones where the worker never idles.
+- **Commands are prompt.** Pausing a flat-out 10K game showed up as a paused
+  frame 14 ms after the click.
+- **Pacing is exact** at 60 and 1000 tps (see the `setTimeout` note above).
+- **The slowdown against native is 3–8×, and larger on small ticks.** Native,
+  same scenarios: the 200-colonist 10K world ticks at 1.6 ms (browser 5.2 ms,
+  3.3×) and generates in 115 ms (browser 695 ms, 6×); a 6-colonist 200×200
+  game's ticks cost 0.04 ms late in the game (browser ~0.2 ms, 5×). The Node
+  benchmarks below said 2.3–3.3×, on bigger ticks.
+
+What it leaves open:
+
+- **Low tick rates read slow per tick.** At 60 tps the browser reported
+  1.3 ms per early-game tick, where native spends 0.15 ms (8×), and the
+  1000 tps run's ticks were cheaper than that despite being later in the game.
+  The likeliest cause is waking from idle every 16 ms (CPU frequency, cold
+  caches, the Go scheduler resuming), which a headless container exaggerates.
+  It does not affect the tick rate, which held exactly, but it would affect a
+  big colony at normal speed. Check it on real hardware.
+- **Per-tick timings are coarse in a browser.** Go's clock there is
+  `performance.now()`, which Chrome rounds to 100 µs without cross-origin
+  isolation (Firefox and Safari to 1 ms or so). The Perf screen's per-tick
+  numbers will be noisy for sub-millisecond ticks; tick *rates* are fine.
+- **Firefox and Safari are unmeasured.** Only Chromium was available. Run
+  `npm run wasm && npm run dev` in `web/` and open `/spike/` in each; the numbers above
+  are the comparison. Safari matters most, for memory limits.
+- **Real hardware.** All of the above is a shared cloud CPU.
 
 ## Why it is this way
 
@@ -413,21 +523,18 @@ entities are cheap on the wire. Tiles are where the interest set earns its keep.
 
 A suggested order. Each step is worth landing on its own:
 
-1. **Spike.** Add `Engine.Advance` and move `Run` onto it, with native tests
-   unchanged. Then add `cmd/mars-sim-wasm` running headless in a worker, posting
-   `Stats` only. Measure ticks/s in Chrome, Firefox and Safari against the table
-   above, and try `wasip1` + `wasmexport`. Include a 10K world to measure load
-   time and peak memory in a real browser tab, not just Node.
-2. **Cross-platform determinism in CI.** Build the lockstep fingerprint test for
-   `js/wasm` and compare its hash against native. Note:
-   `go_js_wasm_exec` passes the whole environment to Node and trips
-   *"total length of command line and environment variables exceeds limit"*, so
-   run it under `env -i PATH=… HOME=…`.
-3. **`internal/wire`.** Add the frame encoder, the topics, and the
-   `hello` catalog, with golden-byte tests natively. Keep a TS decoder test fed
-   by the same golden files, so the two sides can't drift apart.
-4. **The map renderer.** Terrain textures, sprites, camera, fog, and click-to-pick
-   (resolved on the main thread from the frame's positions).
+1. **Spike. Done** for Chromium; see [The spike](#the-spike-what-a-real-browser-measured).
+   Firefox, Safari and real hardware are still to measure, with the same page.
+2. **Cross-platform determinism. Done as a test** (`golden_test.go`, run
+   natively and under `js/wasm` by `tools/determinism-check.sh`). The repo has no
+   CI, so nothing runs it automatically yet.
+3. **`internal/wire`. Frame tier done** ([wire-format.md](./wire-format.md)):
+   the Hello (map, enum names, stat names), the binary frame, golden frames,
+   and a JS decoder tested against them. The spike page decodes real frames.
+   Topics and the config schema come with the panels that need them.
+4. **The map renderer. Done with flat colors** ([frontend-web.md](./frontend-web.md)):
+   terrain textures, sprites, camera, fog, pan and zoom, and hover. Next:
+   glyphs (done; see frontend-web.md), then click-to-select and page eviction.
 5. **Svelte shell.** The header stats, controls (pause, speed, spawn, the
    build orders) and the roster with its inspector. Then the job board, storage,
    lore and perf.
@@ -444,8 +551,6 @@ Engine work that runs alongside, and benefits the TUI too:
 - **Save/load**: the serializer, rebuilding derived state on load, and the
   save → load → lockstep test. Then the browser adds OPFS slots, autosave, and
   export/import.
-- **Chunked lazy worldgen.** It needs its own design doc before code. It
-  unlocks unbounded worlds, instant new games, small saves and mobile.
 
 Invariants to preserve:
 
@@ -454,8 +559,10 @@ Invariants to preserve:
 - UI-only messages (`setInterest`, `subscribe`) never reach `sim` and never
   affect the simulation. Only `sim.Command`s do, which is what keeps
   seed + command log a complete replay.
-- Tile pages are sent by identity, never by rescanning, the same
-  "never walk the map per frame" rule the engine follows.
+- Tile pages are sent from `TileChanges`, never by rescanning, the same
+  "never walk the map per frame" rule the engine follows. The host must see
+  every frame `Advance` returns, or `TileChanges.Frame` will skip and it must
+  resend everything.
 
 Decided so far:
 
@@ -466,12 +573,11 @@ Decided so far:
   shared with the native build.
 - **Mobile:** wanted, not day one. Use pointer events and a responsive layout
   from the start.
-- **Hosting:** static (Cloudflare Pages suggested).
+- **Hosting:** static, on GitHub Pages
+  (<https://kevinmchugh.github.io/mars-sim/>).
 
 Still open:
 
-- **How much of the 38 s load to accept** before chunked worldgen lands: ship
-  eager worldgen at 10K behind a progress bar, or make chunking a prerequisite?
 - **Whether a replay log is also kept.** It is nearly free (seed plus the
   command log) and good for bug reports, but it is not a substitute for saves.
 

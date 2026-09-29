@@ -11,6 +11,7 @@ import (
 	"testing"
 	"unicode/utf8"
 
+	"github.com/kevinmchugh/mars-sim/internal/glyphs"
 	"github.com/kevinmchugh/mars-sim/internal/sim"
 	"github.com/kevinmchugh/mars-sim/internal/ui/tui/cells"
 
@@ -115,42 +116,20 @@ func TestFitGlyphAlwaysFillsOneTile(t *testing.T) {
 // glyphs again (a list that would drift), this parses glyphs.go and requires
 // every glyph* constant declared there to have an entry.
 func TestGlyphRegistryCoversEveryGlyph(t *testing.T) {
-	fset := token.NewFileSet()
-	file, err := parser.ParseFile(fset, "glyphs.go", nil, 0)
-	if err != nil {
-		t.Fatalf("parsing glyphs.go: %v", err)
+	// Every glyph the shared set can pick (internal/glyphs) must be vetted
+	// here, with a declared width and an ASCII fallback, or the startup probe
+	// cannot check it; and a registry entry for a glyph nobody can pick is
+	// dead weight.
+	for _, symbol := range glyphs.All {
+		if _, ok := glyphRegistry[symbol]; !ok {
+			t.Errorf("glyph %+q is in glyphs.All but not in glyphRegistry: add it with a declared width and an ASCII fallback", symbol)
+		}
 	}
-
-	found := 0
-	ast.Inspect(file, func(n ast.Node) bool {
-		spec, ok := n.(*ast.ValueSpec)
-		if !ok || len(spec.Names) != 1 || len(spec.Values) != 1 {
-			return true
-		}
-		name := spec.Names[0].Name
-		if !strings.HasPrefix(name, "glyph") || name == "glyphRegistry" {
-			return true
-		}
-		lit, ok := spec.Values[0].(*ast.BasicLit)
-		if !ok || lit.Kind != token.STRING {
-			return true
-		}
-		value, err := strconv.Unquote(lit.Value)
-		if err != nil {
-			return true
-		}
-		found++
-		if _, ok := glyphRegistry[value]; !ok {
-			t.Errorf("%s = %+q is not in glyphRegistry: add it (with a declared width and an ASCII fallback) so the startup probe can vet it", name, value)
-		}
-		return true
-	})
-
-	if found != len(glyphRegistry) {
-		t.Errorf("found %d glyph constants but the registry has %d entries; a registry entry with no constant is dead weight", found, len(glyphRegistry))
+	if len(glyphs.All) != len(glyphRegistry) {
+		t.Errorf("glyphs.All has %d glyphs but the registry has %d entries", len(glyphs.All), len(glyphRegistry))
 	}
-	if found == 0 {
-		t.Error("found no glyph constants in glyphs.go — this test is no longer checking anything")
+	if len(glyphs.All) == 0 {
+		t.Error("glyphs.All is empty — this test is no longer checking anything")
 	}
 }
 

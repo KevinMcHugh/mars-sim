@@ -5,6 +5,7 @@ import (
 
 	"github.com/kevinmchugh/mars-sim/internal/ui/tui/cells"
 
+	"github.com/kevinmchugh/mars-sim/internal/glyphs"
 	"github.com/kevinmchugh/mars-sim/internal/sim"
 )
 
@@ -32,121 +33,107 @@ const tileWidth = 2
 //   - U+1F3FB..U+1F3FF skin tone modifiers, which a terminal that does not fuse
 //     them paints as a separate coloured square.
 //
-// Every glyph below is therefore a single code point with
+// Every glyph (internal/glyphs) is therefore a single code point with
 // Emoji_Presentation=Yes, the one case terminals agree on: two cells, always.
 // Skin tone and hair colour live in the colonist's flavour text instead (see
 // renderColonistDetail); they never enter a glyph.
+
+// The symbols themselves, and the rules for picking one, live in
+// internal/glyphs, shared with the browser. These aliases keep this package's
+// rendering code and tests reading as before; the registry below is what the
+// terminal adds: a declared width and an ASCII fallback for each.
 const (
-	glyphRock        = "\U0001F7E5" // 🟥 unexcavated regolith: Mars is the red planet
-	glyphIronRock    = "\U00002B1B" // ⬛ iron-bearing rock
-	glyphIceRock     = "\U0001F7E6" // 🟦 water ice-bearing rock
-	glyphUranium     = "\U0001F7E9" // 🟩 uranium-bearing rock (the glow is the warning)
-	glyphClayRock    = "\U0001F7E7" // 🟧 clay-bearing rock
-	glyphFloor       = "  "         // open, walkable space
-	glyphWall        = "\U0001F9F1" // 🧱 built wall
-	glyphHull        = "\U00002B1C" // ⬜ crash pod hull: metal, not masonry
-	glyphPod         = "\U0001F96B" // 🥫 nutrient pod (food)
-	glyphToilet      = "\U0001F6BD" // 🚽 toilet (bladder)
-	glyphBed         = "\U0001F6CC" // 🛌 dormitory bunk (sleep)
-	glyphIncinerator = "\U0001F525" // 🔥 incinerator: burns refuse hauled to the trash room
-	glyphStorage     = "\U0001F9F0" // 🧰 storage container: six colonist inventories
-	glyphScumhouse   = "\U0001F372" // 🍲 scumhouse: biomatter in, slurry out
-	glyphScum        = "\U0001F7E2" // 🟢 cave scum a colonist could scrape
-	glyphForge       = "\U0001F3ED" // 🏭 forge: iron ore in, steel ingots out
-	glyphGunBench    = "\U0001F528" // 🔨 gun bench: steel in, assault rifles out
-
-	glyphColonist = "\U0001F477" // 👷 colonist of unknown age/gender (no profile)
-	glyphFleeing  = "\U0001F631" // 😱 colonist running from an alien
-	glyphTalking  = "\U0001F4AC" // 💬 colonist chatting with another
-	glyphAlien    = "\U0001F47D" // 👽 subterranean mutant
-	glyphCat      = "\U0001F408" // 🐈 floor predator hunting rats
-	glyphRat      = "\U0001F400" // 🐀 rat: scavenges pods, scum, and the dead
-	glyphStomp    = "\U0001F97E" // 🥾 colonist chasing down a rat to stomp it
-	glyphFighting = "\U0001F52B" // 🔫 armed colonist standing its ground against an alien
-	glyphGore     = "\U0001FA78" // 🩸 a violent death's residue on a tile
-	glyphCorpse   = "\U0001F9B4" // 🦴 a body left where something died, waiting to be hauled
-	glyphCleaning = "\U0001F9F9" // 🧹 colonist scrubbing refuse up or feeding the incinerator
-	glyphHauling  = "\U0001F4E6" // 📦 colonist carrying refuse to the incinerator
-	glyphMutant   = "\U0001F9DF" // 🧟 colonist changed by uranium (see docs/mutation.md)
-
-	// Alien species flavor glyphs: the curated set an AlienSpecies.Emoji (see
-	// docs/lore.md and internal/sim/alien-names.yaml) can draw from and still
-	// reach the map, via alienGlyph. A species' rolled Emoji is arbitrary
-	// runtime data — sim knows nothing about glyphs or widths — so only a
-	// string that matches one of these vetted, registered symbols is ever
-	// drawn on the map; anything else (a custom -alien-names file's own
-	// choice, say) falls back to glyphAlien rather than reaching fitGlyph
-	// unvetted.
-	glyphLizard       = "\U0001F98E" // 🦎
-	glyphSnake        = "\U0001F40D" // 🐍
-	glyphTurtle       = "\U0001F422" // 🐢
-	glyphTRex         = "\U0001F996" // 🦖
-	glyphSauropod     = "\U0001F995" // 🦕
-	glyphCaterpillar  = "\U0001F41B" // 🐛
-	glyphBeetle       = "\U0001FAB2" // 🪲
-	glyphAnt          = "\U0001F41C" // 🐜
-	glyphCricket      = "\U0001F997" // 🦗
-	glyphScorpion     = "\U0001F982" // 🦂
-	glyphWorm         = "\U0001FAB1" // 🪱
-	glyphSaucer       = "\U0001F6F8" // 🛸
-	glyphMicrobe      = "\U0001F9A0" // 🦠
-	glyphSpaceInvader = "\U0001F47E" // 👾
-	glyphSkull        = "\U0001F480" // 💀 bony hides
-	glyphCockroach    = "\U0001FAB3" // 🪳 chitinous hides
-	glyphSnail        = "\U0001F40C" // 🐌 slimy hides
-	glyphFrog         = "\U0001F438" // 🐸 slimy and spotted
-	glyphTiger        = "\U0001F405" // 🐅 striped
-	glyphTigerFace    = "\U0001F42F" // 🐯 striped
-	glyphZebra        = "\U0001F993" // 🦓 striped, four legs
-	glyphLeopard      = "\U0001F406" // 🐆 spotted
-	glyphLadybug      = "\U0001F41E" // 🐞 red, spotted, chitinous
-	glyphNewMoonFace  = "\U0001F31A" // 🌚
-	glyphPumpkin      = "\U0001F383" // 🎃
-	glyphRabbit       = "\U0001F407" // 🐇
-	glyphDragon       = "\U0001F409" // 🐉
-	glyphCrocodile    = "\U0001F40A" // 🐊
-	glyphHorse        = "\U0001F40E" // 🐎
-	glyphElephant     = "\U0001F418" // 🐘
-	glyphOctopus      = "\U0001F419" // 🐙
-	glyphKoala        = "\U0001F428" // 🐨
-	glyphMouseFace    = "\U0001F42D" // 🐭
-	glyphRabbitFace   = "\U0001F430" // 🐰
-	glyphDragonFace   = "\U0001F432" // 🐲
-	glyphHamster      = "\U0001F439" // 🐹
-	glyphWolf         = "\U0001F43A" // 🐺
-	glyphBear         = "\U0001F43B" // 🐻
-	glyphGhost        = "\U0001F47B" // 👻
-	glyphAngryImp     = "\U0001F47F" // 👿
-	glyphBlueCircle   = "\U0001F535" // 🔵
-	glyphSmilingImp   = "\U0001F608" // 😈
-	glyphUnicorn      = "\U0001F984" // 🦄
-	glyphButterfly    = "\U0001F98B" // 🦋
-	glyphRhino        = "\U0001F98F" // 🦏
-	glyphSquid        = "\U0001F991" // 🦑
-	glyphBadger       = "\U0001F9A1" // 🦡
-	glyphTroll        = "\U0001F9CC" // 🧌
-	glyphTeddyBear    = "\U0001F9F8" // 🧸
-	glyphBlackCircle  = "\U000026AB" // ⚫
-	glyphNewMoon      = "\U0001F311" // 🌑
-	glyphBat          = "\U0001F987" // 🦇
-	glyphPeacock      = "\U0001F99A" // 🦚
-
-	glyphManAdult     = "\U0001F468" // 👨 adult man colonist
-	glyphWomanAdult   = "\U0001F469" // 👩 adult woman colonist
-	glyphPersonAdult  = "\U0001F9D1" // 🧑 adult non-binary colonist
-	glyphManSenior    = "\U0001F474" // 👴 senior man colonist
-	glyphWomanSenior  = "\U0001F475" // 👵 senior woman colonist
-	glyphPersonSenior = "\U0001F9D3" // 🧓 senior non-binary colonist
-
-	// glyphMars is the header's planet mark. It is drawn inline rather than on
-	// the grid, but it goes through the registry like everything else so the
-	// startup probe covers it too.
-	glyphMars = "\U0001F534" // 🔴
+	glyphRock         = glyphs.Rock
+	glyphIronRock     = glyphs.IronRock
+	glyphIceRock      = glyphs.IceRock
+	glyphUranium      = glyphs.Uranium
+	glyphClayRock     = glyphs.ClayRock
+	glyphFloor        = glyphs.Floor
+	glyphWall         = glyphs.Wall
+	glyphHull         = glyphs.Hull
+	glyphPod          = glyphs.Pod
+	glyphToilet       = glyphs.Toilet
+	glyphBed          = glyphs.Bed
+	glyphIncinerator  = glyphs.Incinerator
+	glyphStorage      = glyphs.Storage
+	glyphScumhouse    = glyphs.Scumhouse
+	glyphScum         = glyphs.Scum
+	glyphForge        = glyphs.Forge
+	glyphGunBench     = glyphs.GunBench
+	glyphColonist     = glyphs.Colonist
+	glyphFleeing      = glyphs.Fleeing
+	glyphTalking      = glyphs.Talking
+	glyphAlien        = glyphs.Alien
+	glyphCat          = glyphs.Cat
+	glyphRat          = glyphs.Rat
+	glyphStomp        = glyphs.Stomp
+	glyphFighting     = glyphs.Fighting
+	glyphGore         = glyphs.Gore
+	glyphCorpse       = glyphs.Corpse
+	glyphCleaning     = glyphs.Cleaning
+	glyphHauling      = glyphs.Hauling
+	glyphMutant       = glyphs.Mutant
+	glyphLizard       = glyphs.Lizard
+	glyphSnake        = glyphs.Snake
+	glyphTurtle       = glyphs.Turtle
+	glyphTRex         = glyphs.TRex
+	glyphSauropod     = glyphs.Sauropod
+	glyphCaterpillar  = glyphs.Caterpillar
+	glyphBeetle       = glyphs.Beetle
+	glyphAnt          = glyphs.Ant
+	glyphCricket      = glyphs.Cricket
+	glyphScorpion     = glyphs.Scorpion
+	glyphWorm         = glyphs.Worm
+	glyphSaucer       = glyphs.Saucer
+	glyphMicrobe      = glyphs.Microbe
+	glyphSpaceInvader = glyphs.SpaceInvader
+	glyphSkull        = glyphs.Skull
+	glyphCockroach    = glyphs.Cockroach
+	glyphSnail        = glyphs.Snail
+	glyphFrog         = glyphs.Frog
+	glyphTiger        = glyphs.Tiger
+	glyphTigerFace    = glyphs.TigerFace
+	glyphZebra        = glyphs.Zebra
+	glyphLeopard      = glyphs.Leopard
+	glyphLadybug      = glyphs.Ladybug
+	glyphNewMoonFace  = glyphs.NewMoonFace
+	glyphPumpkin      = glyphs.Pumpkin
+	glyphRabbit       = glyphs.Rabbit
+	glyphDragon       = glyphs.Dragon
+	glyphCrocodile    = glyphs.Crocodile
+	glyphHorse        = glyphs.Horse
+	glyphElephant     = glyphs.Elephant
+	glyphOctopus      = glyphs.Octopus
+	glyphKoala        = glyphs.Koala
+	glyphMouseFace    = glyphs.MouseFace
+	glyphRabbitFace   = glyphs.RabbitFace
+	glyphDragonFace   = glyphs.DragonFace
+	glyphHamster      = glyphs.Hamster
+	glyphWolf         = glyphs.Wolf
+	glyphBear         = glyphs.Bear
+	glyphGhost        = glyphs.Ghost
+	glyphAngryImp     = glyphs.AngryImp
+	glyphBlueCircle   = glyphs.BlueCircle
+	glyphSmilingImp   = glyphs.SmilingImp
+	glyphUnicorn      = glyphs.Unicorn
+	glyphButterfly    = glyphs.Butterfly
+	glyphRhino        = glyphs.Rhino
+	glyphSquid        = glyphs.Squid
+	glyphBadger       = glyphs.Badger
+	glyphTroll        = glyphs.Troll
+	glyphTeddyBear    = glyphs.TeddyBear
+	glyphBlackCircle  = glyphs.BlackCircle
+	glyphNewMoon      = glyphs.NewMoon
+	glyphBat          = glyphs.Bat
+	glyphPeacock      = glyphs.Peacock
+	glyphManAdult     = glyphs.ManAdult
+	glyphWomanAdult   = glyphs.WomanAdult
+	glyphPersonAdult  = glyphs.PersonAdult
+	glyphManSenior    = glyphs.ManSenior
+	glyphWomanSenior  = glyphs.WomanSenior
+	glyphPersonSenior = glyphs.PersonSenior
+	glyphMars         = glyphs.Mars
 )
-
-// seniorAge is the age at which a colonist's default glyph switches from an
-// adult to a senior variant.
-const seniorAge = 60
 
 // glyph is one drawable symbol: what we want to draw, how many cells we claim
 // it takes, and what to draw instead on a terminal that disagrees.
@@ -311,149 +298,17 @@ func fitGlyph(symbol string) string {
 	return cells.Fit(symbol, tileWidth)
 }
 
-// colonistGlyph picks the default map glyph for a colonist at rest: a base
-// figure for their gender identity and age bracket. A colonist without a
-// profile falls back to glyphColonist.
-//
-// A mutant overrides all of that. What uranium did to them is the most
-// important thing about that figure on the map — it is why the colony treats
-// them differently — and it is not something a gender/age figure can show.
-func colonistGlyph(p *sim.Profile) string {
-	if p == nil {
-		return glyphColonist
-	}
-	if p.HasTrait(sim.TraitMutant) {
-		return glyphMutant
-	}
-	senior := p.Age >= seniorAge
-	switch p.Gender {
-	case sim.GenderMan:
-		if senior {
-			return glyphManSenior
-		}
-		return glyphManAdult
-	case sim.GenderWoman:
-		if senior {
-			return glyphWomanSenior
-		}
-		return glyphWomanAdult
-	default:
-		if senior {
-			return glyphPersonSenior
-		}
-		return glyphPersonAdult
-	}
-}
+// colonistGlyph, terrainGlyph, tileGlyph, alienGlyph and entityGlyph pick
+// through internal/glyphs, so the TUI and the browser agree on every choice;
+// see those functions for the rules. The ones that return a fitted string are
+// the ones the map draws directly.
 
-func terrainGlyph(t sim.Terrain) string {
-	var symbol string
-	switch t {
-	case sim.Floor:
-		symbol = glyphFloor
-	case sim.Wall:
-		symbol = glyphWall
-	case sim.Hull:
-		symbol = glyphHull
-	case sim.NutrientPod:
-		symbol = glyphPod
-	case sim.Toilet:
-		symbol = glyphToilet
-	case sim.Bed:
-		symbol = glyphBed
-	case sim.Incinerator:
-		symbol = glyphIncinerator
-	case sim.Storage:
-		symbol = glyphStorage
-	case sim.Scumhouse:
-		symbol = glyphScumhouse
-	case sim.Forge:
-		symbol = glyphForge
-	case sim.GunBench:
-		symbol = glyphGunBench
-	default:
-		symbol = glyphRock
-	}
-	return fitGlyph(symbol)
-}
+func colonistGlyph(p *sim.Profile) string { return glyphs.ForColonist(p) }
 
-// tileGlyph draws an empty tile: refuse takes priority over bare terrain (and
-// over the ore in it), since it is the more notable thing to see there, and a
-// body outranks the stains around it — it is what a colonist is coming to haul
-// away. Any of a stomp, a bite, or a gunshot can leave gore (see
-// docs/combat.md); a body is left by a death nothing ate (see
-// docs/sanitation.md).
-func tileGlyph(tile sim.Tile) string {
-	if tile.Corpses > 0 {
-		return fitGlyph(glyphCorpse)
-	}
-	if tile.Gore > 0 {
-		return fitGlyph(glyphGore)
-	}
-	if tile.Terrain != sim.Rock {
-		return terrainGlyph(tile.Terrain)
-	}
-	switch tile.Composition {
-	case sim.IronBearingRock:
-		return fitGlyph(glyphIronRock)
-	case sim.WaterIceBearingRock:
-		return fitGlyph(glyphIceRock)
-	case sim.UraniumBearingRock:
-		return fitGlyph(glyphUranium)
-	case sim.ClayBearingRock:
-		return fitGlyph(glyphClayRock)
-	default:
-		return fitGlyph(glyphRock)
-	}
-}
+func terrainGlyph(t sim.Terrain) string { return fitGlyph(glyphs.ForTerrain(t)) }
 
-// alienGlyph picks a specific alien's map glyph: its species' rolled emoji
-// (see sim.AlienSpecies.Emoji), if it names one of this package's registered
-// glyphs, or the generic glyphAlien otherwise. sim carries Emoji as opaque
-// data — it could be any string a -alien-names file supplied — so this is
-// the one place that decides whether to trust it for the map's fixed
-// two-cell tile: a registered symbol has a declared width and an ASCII
-// fallback and reaches fitGlyph the ordinary way, exactly like every other
-// glyph; anything unrecognized draws the same generic alien every species
-// used to. See docs/lore.md.
-func alienGlyph(sp sim.AlienSpecies) string {
-	if sp.Emoji != "" {
-		if _, ok := glyphRegistry[sp.Emoji]; ok {
-			return sp.Emoji
-		}
-	}
-	return glyphAlien
-}
+func tileGlyph(tile sim.Tile) string { return fitGlyph(glyphs.ForTile(tile)) }
 
-func entityGlyph(e sim.EntityView) string {
-	var symbol string
-	switch e.Kind {
-	case sim.Alien:
-		symbol = alienGlyph(e.AlienSpecies)
-	case sim.Cat:
-		symbol = glyphCat
-	case sim.Rat:
-		symbol = glyphRat
-	case sim.Colonist:
-		switch e.State {
-		case sim.Fleeing:
-			symbol = glyphFleeing
-		case sim.Talking:
-			symbol = glyphTalking
-		case sim.Stomping:
-			symbol = glyphStomp
-		case sim.Fighting:
-			symbol = glyphFighting
-		case sim.Cleaning:
-			symbol = glyphCleaning
-		case sim.Hauling:
-			symbol = glyphHauling
-		case sim.Storing:
-			symbol = glyphHauling
-		default:
-			symbol = colonistGlyph(e.Profile)
-		}
-	default:
-		symbol = glyphColonist
-	}
-	return fitGlyph(symbol)
-}
+func alienGlyph(sp sim.AlienSpecies) string { return glyphs.ForAlien(sp) }
+
+func entityGlyph(e sim.EntityView) string { return fitGlyph(glyphs.ForEntity(e)) }
