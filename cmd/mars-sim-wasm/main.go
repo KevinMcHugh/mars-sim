@@ -10,9 +10,13 @@
 //	start(settings)        new game; settings is a mars-sim.yaml mapping as
 //	                       JSON. Returns JSON: timings and the wire Hello.
 //	advance(ms)            run the ticks due within a budget (see
-//	                       sim.Engine.Advance). Returns {wait, frame, perf}:
-//	                       frame is a wire frame (Uint8Array) or null.
+//	                       sim.Engine.Advance). Returns {wait, frame, perf,
+//	                       topics}: frame is a wire frame (Uint8Array) or
+//	                       null; topics is JSON of the panel topics due, or
+//	                       null (see wire.Topics).
 //	interest(x0,y0,x1,y1)  the map region the page shows, in tiles
+//	subscribe(topic)       start sending a panel's topic ("lore")
+//	unsubscribe(topic)     stop sending it
 //	send(command)          queue a command (JSON), applied at the next advance
 //	memory()               the Go heap, as JSON
 //
@@ -41,6 +45,9 @@ var (
 	// interestMoved says the view changed since the last frame, so the next
 	// advance sends a frame even without a new snapshot.
 	interestMoved bool
+	// topics are the panels the page has open; see wire.Topics. They outlive
+	// a new game: an open panel should keep receiving its data.
+	topics = wire.NewTopics()
 )
 
 func main() {
@@ -61,6 +68,21 @@ func main() {
 			budget = time.Duration(args[0].Float() * float64(time.Millisecond))
 		}
 		return advance(budget)
+	}))
+	api.Set("subscribe", js.FuncOf(func(_ js.Value, args []js.Value) any {
+		if len(args) < 1 {
+			return toJSON(errorResult("subscribe needs a topic"))
+		}
+		if err := topics.Subscribe(args[0].String()); err != nil {
+			return toJSON(errorResult(err.Error()))
+		}
+		return toJSON(struct{}{})
+	}))
+	api.Set("unsubscribe", js.FuncOf(func(_ js.Value, args []js.Value) any {
+		if len(args) > 0 {
+			topics.Unsubscribe(args[0].String())
+		}
+		return toJSON(struct{}{})
 	}))
 	api.Set("interest", js.FuncOf(func(_ js.Value, args []js.Value) any {
 		if enc == nil || len(args) < 4 {
@@ -159,6 +181,14 @@ func advance(budget time.Duration) js.Value {
 		}))
 	} else {
 		out.Set("perf", js.Null())
+	}
+	// Topics go out at their own pace, from the newest snapshot, whether or
+	// not this call published one: a panel opened on a paused game still
+	// gets its data.
+	if due := topics.Due(last, time.Now()); due != nil {
+		out.Set("topics", toJSON(due))
+	} else {
+		out.Set("topics", js.Null())
 	}
 	return out
 }

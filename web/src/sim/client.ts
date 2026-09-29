@@ -20,6 +20,8 @@ export class SimClient {
   private pending: ((s: Started) => void) | null = null;
   private failed: ((e: Error) => void) | null = null;
   onFrame: (f: Frame, bytes: number) => void = () => {};
+  /** Panel topics that changed, by name (see internal/wire/topics.go). */
+  onTopics: (topics: Record<string, unknown>) => void = () => {};
   onError: (message: string) => void = () => {};
 
   constructor(workerURL: URL) {
@@ -40,6 +42,14 @@ export class SimClient {
     this.worker.postMessage({ type: 'command', command: c });
   }
 
+  subscribe(topic: string): void {
+    this.worker.postMessage({ type: 'subscribe', topic });
+  }
+
+  unsubscribe(topic: string): void {
+    this.worker.postMessage({ type: 'unsubscribe', topic });
+  }
+
   setInterest(r: TileRect): void {
     this.worker.postMessage({ type: 'interest', rect: r });
   }
@@ -56,6 +66,9 @@ export class SimClient {
         break;
       case 'frame':
         this.onFrame(decodeFrame(msg.buffer), msg.buffer.byteLength);
+        break;
+      case 'topics':
+        this.onTopics(msg.topics);
         break;
       case 'error':
         this.onError(msg.error);

@@ -8,8 +8,8 @@ The messages the browser build's worker sends the page: a JSON **Hello** once
 per game, then a binary **frame** per published snapshot. A frame carries the
 tick, the `Stats`, every entity's position and kind, the tile pages in view that
 the page lacks, and gore and corpses when they changed. It is the frame tier of
-the plan in [browser-frontend.md](./browser-frontend.md). The panel "topics"
-(roster, inspector, job board) are not built yet.
+the plan in [browser-frontend.md](./browser-frontend.md). Beside frames go
+**topics**: JSON for one open panel at a time (see Topics).
 
 ## Source
 
@@ -118,6 +118,23 @@ A page that changes while out of view is dropped from the held set and sent
 again when it comes back into view. The page may keep drawing the stale copy
 meanwhile (a minimap would); it is never told it is stale.
 
+### Topics
+
+The second tier: one panel's data, as JSON, sent only while a panel subscribes
+to it (`internal/wire/topics.go`). The page sends `subscribe` or `unsubscribe`
+with a topic name. `advance` then returns, next to the frame, a `topics` object
+of the payloads due, by name:
+
+- **On subscribe:** a topic is sent at once, paused or not.
+- **After that:** it is rebuilt at most once per its interval, and sent only
+  if its JSON changed. A panel over a paused game gets nothing further.
+- **Unknown names** fail the subscribe.
+- **New games:** subscriptions outlive them, so an open panel keeps its data.
+
+| Topic | Every | Payload |
+| --- | --- | --- |
+| `lore` | 1 s | `world` (size, fog, explored tiles, chunks generated, seed) and `species` (each rolled species' roster label, map glyph, build, temperament, bite and pace, and field notes) |
+
 ### When the host encodes
 
 `cmd/mars-sim-wasm`'s `advance` encodes when `Engine.Advance` published a
@@ -160,6 +177,11 @@ Entities in a re-encode are from the newest snapshot, not newer ticks.
   bottleneck yet).
 
 ## Extending it
+
+- **A new topic**: a `topicTable` entry in `topics.go` (an interval, and a
+  function from the snapshot to a JSON-able value, with its own
+  `json`-tagged types), a test, and a row in the Topics table above. Topics
+  are JSON, not part of the frame layout, so they need no `Version` bump.
 
 - **A field on an entity** (hp): add an array to the entities section in
   both `Encoder.Encode` and `decode.js`, bump `Version`, regenerate the golden

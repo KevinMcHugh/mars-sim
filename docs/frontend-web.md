@@ -6,17 +6,32 @@
 
 The game in a browser tab: the engine as WASM in a Web Worker, and a WebGL2 map
 on the page that draws its frames. Right now that is a map in flat colors when
-zoomed out and in the TUI's emoji when zoomed in, pan and zoom, a hover
-readout, pause and speed, and a new-game form. There are no panels
-yet (roster, job board, lore). The plan it is part of is
+zoomed out and in the TUI's emoji when zoomed in, with pan, zoom and a hover
+readout. Around it is a Svelte chrome:
+
+- **A top bar:** the clock, a Pause / Normal / Fast / Faster / Max speed selector, and
+  the TUI header's counts.
+- **A side panel,** with the Lore tab and a new-game form.
+
+The rest of the TUI's tabs are planned in
+[browser-frontend.md](./browser-frontend.md), "Parity with the TUI". The plan it is part of is
 [browser-frontend.md](./browser-frontend.md), and the messages it reads are
 [wire-format.md](./wire-format.md).
 
 ## Source
 
 - [`web/index.html`](../web/index.html), [`web/src/main.ts`](../web/src/main.ts)
-  — the page: boot, the HUD, the new-game form, hover, the view it sends the
-  worker.
+  — the page: boot, the map and the worker, keyboard shortcuts, hover, and the
+  view it sends the worker.
+- [`web/src/game.svelte.ts`](../web/src/game.svelte.ts) — where the map side
+  meets Svelte: the UI state (`ui`), topic payloads (`topics`), and the
+  actions panels take (`subscribe`, `setSpeed`, `newGame`).
+- [`web/src/ui/`](../web/src/ui/App.svelte) — the Svelte chrome: `App`,
+  `TopBar`, `SpeedControl`, `SidePanel`, and one component per tab
+  (`LorePanel`, `NewGamePanel`).
+- [`web/src/speed.ts`](../web/src/speed.ts) — the speed selector's steps.
+- [`web/src/settings.ts`](../web/src/settings.ts) — new-game settings from the
+  URL.
 - [`web/src/map/atlas.ts`](../web/src/map/atlas.ts) — the emoji atlas.
 - [`internal/glyphs/glyphs.go`](../internal/glyphs/glyphs.go) — which emoji a
   terrain or entity draws as; shared with the TUI.
@@ -44,6 +59,10 @@ after any Go change) and `npm run dev`. That serves the game on
 settings: `?width=2000&height=2000&seed=7&fog-of-war=false`. `npm run build`
 writes a static site to `web/dist/`. `npm run check` type-checks and `npm test`
 runs the wire decoder's tests. All of these need Go on the path.
+
+**Keys:** space toggles pause; `+` and `-` step the speed selector (Pause,
+Normal, Fast, Faster, Max); arrows or WASD pan; `[` and `]` zoom; Escape closes the
+side panel.
 
 **Hosting:** [`.github/workflows/pages.yml`](../.github/workflows/pages.yml)
 publishes it to GitHub Pages, at <https://kevinmchugh.github.io/mars-sim/>,
@@ -132,6 +151,25 @@ map draws the same emoji as the TUI:
 Zoomed further out, a glyph would be a few pixels of mush, so the flat colors
 and dots stay.
 
+**The chrome is Svelte; the map is not.** Frames arrive at up to 60 a second
+and go straight from the worker to the renderer. What the chrome shows (tick,
+stats, pause and speed) is copied into `ui` in `game.svelte.ts` at most
+`UI_HZ` (10) times a second, and at once when pause flips, so the DOM does not
+re-render per frame. Panels get their data from topics: a tab component calls
+`subscribe('lore')` in an `$effect`, whose cleanup unsubscribes. So closing
+the panel stops the worker building that data. Subscriptions are
+reference-counted, and payloads are `$state.raw`, replaced whole, never
+deep-proxied.
+
+**The speed selector** is Pause plus four running speeds (`speed.ts`): Normal
+is the game's default 8 ticks a second, Fast is 32, Faster is 128, and Max is
+flat out.
+Pause is separate from the rate in the engine (`TogglePause` and
+`SetTicksPerSecond`), so choosing a speed while paused sends both, and pausing
+keeps the rate. After a press, the selector shows the press for half a second
+before it trusts the engine's report again, so a quick `+ +` steps twice
+instead of reading back the old speed.
+
 **Colors are keyed by name**, from Hello's enum lists, not by value. So
 renumbering an enum in Go cannot recolor the map, and a new terrain with no
 color here shows up magenta.
@@ -178,6 +216,9 @@ nothing.
     software rasterizer's ceiling there.
   - Check it on a real GPU before optimizing anything here.
   - The production JS is 16.5 KB (6.5 KB gzipped), plus the 7 MB WASM.
+- **TypeScript 6, not 7.** `svelte-check`, which type-checks `.svelte` files
+  (and the `.ts` ones), needs TypeScript's JavaScript API, and TypeScript 7 is
+  the native port without it. `npm run check` is `svelte-check`.
 - **The worker is a classic script in `public/`**, not a Vite module worker:
   Go's `wasm_exec.js` is loaded with `importScripts`, and both pages (the game
   and the spike) share the one worker and the one WASM.
@@ -201,8 +242,10 @@ nothing.
   whole 10000² map would end up holding it all, both on the GPU (in chunks)
   and on the CPU (the hover copies). An eviction needs a message telling the
   worker, so it stops counting the page as held.
-- **Panels**: Svelte mounts beside the canvas and never touches the renderer's
-  state (see [browser-frontend.md](./browser-frontend.md), "The other views").
+- **A new tab**: a component in `web/src/ui/` that calls `subscribe('<topic>')`
+  in an `$effect` and reads `topics.data.<topic>`, plus a topic in
+  `internal/wire/topics.go` (see [wire-format.md](./wire-format.md)), and an
+  entry in `SidePanel.svelte`'s `tabs`. It never touches the renderer's state.
 
 ## Related
 
