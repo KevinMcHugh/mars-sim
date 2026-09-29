@@ -11,7 +11,8 @@ import "slices"
 // That sharing is what makes it safe to expose: a page is copied before it can
 // diverge from the grid that published it (copy-on-write), so no TileGrid ever
 // changes under a reader, even though the engine keeps mutating the live world
-// on its own goroutine.
+// on its own goroutine. The exception is a grid published under TilesLive,
+// whose pages alias the world's own; see TileSharing.
 //
 // The pages are the same 64x64 squares the World stores its tiles in
 // (pagedGrid, see pagedgrid.go), so publishing a page is one contiguous memcpy
@@ -39,6 +40,16 @@ type TileGrid struct {
 
 // tilePage is one published page: a copy of one of the world's tile pages.
 type tilePage = [gridPageLen]tileCell
+
+// TilePageSide is the side, in tiles, of one TileGrid page. TileChanges.Pages
+// are page table indexes; PageOrigin turns one into the top-left tile of its
+// TilePageSide x TilePageSide square, which is clipped to the map.
+const TilePageSide = gridPageSide
+
+// PageOrigin returns the top-left tile of page pi (see TileChanges.Pages).
+func (g *TileGrid) PageOrigin(pi int) Point {
+	return Point{(pi & (1<<g.colShift - 1)) << gridPageBits, (pi >> g.colShift) << gridPageBits}
+}
 
 // clonePage copies one of the world's tile pages for publishing.
 func clonePage(page []tileCell) *tilePage {
@@ -121,6 +132,55 @@ func (g *TileGrid) cell(p Point) tileCell {
 	return tileCell{}
 }
 
+// TileSharing picks how a World publishes its terrain to Snapshots.
+type TileSharing uint8
+
+const (
+	// TilesCopyOnWrite publishes an immutable page-shared grid: every page a
+	// Snapshot holds is frozen, so the frame is safe to read on another
+	// goroutine while the engine keeps ticking. This is what the TUI needs,
+	// and the default.
+	TilesCopyOnWrite TileSharing = iota
+	// TilesLive publishes a grid whose pages alias the world's tile pages
+	// (and whose refuse aliases World.refuse) instead of copying them. It
+	// costs no memory beyond one page table, but the grid changes under the
+	// reader on the next tick: a Snapshot is only valid on the engine's
+	// goroutine, between the publish that made it and the next step. It is
+	// for a consumer that runs there — the browser worker's wire encoder
+	// (see docs/browser-frontend.md) — and it is what saves that
+	// consumer a second copy of every generated chunk. Read TileChanges
+	// rather than page identity to learn what changed: live pages never move.
+	TilesLive
+)
+
+// TileChanges says what in a Snapshot's Tiles differs from the Snapshot the
+// same World published before it. The copy-on-write grid also shows this
+// through page identity, but a live grid's pages never move, so this is the
+// signal that works in both modes.
+//
+// It is a delta against the previous Snapshot *built*, not the previous one a
+// consumer *saw*: the dirty list is cleared on every publish. A consumer that
+// applies changes incrementally must see every frame, which a Subscribe
+// channel does not promise (it drops stale frames). Frame is how a consumer
+// notices a gap: if it last applied frame F and receives anything but F+1, it
+// missed changes and must reread every page it cares about, as if All were set.
+type TileChanges struct {
+	// Frame numbers this World's published Snapshots, starting at 1. The
+	// changes below are relative to Frame-1.
+	Frame uint64
+	// All is set on the first Snapshot a World publishes (and the first after
+	// switching TileSharing): there is no previous grid, so every page is new.
+	// Pages is empty when All is set.
+	All bool
+	// Pages are the page table indexes (see PageOrigin) of the pages whose
+	// tiles changed, in the order they first changed. That includes a chunk
+	// generated since the last frame, whose page is new. The slice belongs to
+	// the Snapshot.
+	Pages []int
+	// Refuse is set when the gore/corpse index changed.
+	Refuse bool
+}
+
 // markTilePageDirty notes that the page holding p changed, so the next
 // published grid re-copies it. Called by every writer of the tile grid.
 func (w *World) markTilePageDirty(p Point) {
@@ -132,24 +192,51 @@ func (w *World) markTilePageDirty(p Point) {
 	w.dirtyPages = append(w.dirtyPages, pi)
 }
 
-// publishedTiles returns the immutable grid for the next Snapshot, re-copying
-// only the pages changed since the last one. A tick that changed no terrain —
-// most ticks, since digging a single rock takes several — reuses the previous
-// grid wholesale and costs nothing at all.
-func (w *World) publishedTiles() *TileGrid {
+// SetTileSharing switches how later Snapshots publish terrain. Switching drops
+// the published grid, so the next Snapshot rebuilds it and reports All.
+func (w *World) SetTileSharing(mode TileSharing) {
+	if mode == w.tileSharing {
+		return
+	}
+	w.tileSharing = mode
+	w.snapGrid = nil
+}
+
+// publishedTiles returns the grid for the next Snapshot and what changed in it
+// since the last one. In TilesCopyOnWrite mode it re-copies only the pages
+// changed since the last grid; a tick that changed no terrain — most ticks,
+// since digging a single rock takes several — reuses the previous grid
+// wholesale and costs nothing at all. In TilesLive mode it copies nothing.
+func (w *World) publishedTiles() (*TileGrid, TileChanges) {
+	w.snapFrame++
 	if w.snapGrid == nil {
 		pages := make([]*tilePage, len(w.tiles.pages))
 		for pi, page := range w.tiles.pages {
 			if page != nil {
-				pages[pi] = clonePage(page)
+				pages[pi] = w.publishPage(page)
 			}
 		}
 		w.clearDirtyPages()
-		w.snapGrid = &TileGrid{width: w.Width, height: w.Height, colShift: w.tiles.colShift, pages: pages, refuse: w.publishedRefuse()}
-		return w.snapGrid
+		w.snapGrid = &TileGrid{width: w.Width, height: w.Height, colShift: w.tiles.colShift, pages: pages}
+		w.snapGrid.refuse = w.publishedRefuse()
+		return w.snapGrid, TileChanges{Frame: w.snapFrame, All: true, Refuse: true}
 	}
-	if len(w.dirtyPages) == 0 && w.refuseRev == w.snapRefuseRev {
-		return w.snapGrid
+	changes := TileChanges{Frame: w.snapFrame, Refuse: w.refuseRev != w.snapRefuseRev}
+	if len(w.dirtyPages) == 0 && !changes.Refuse {
+		return w.snapGrid, changes
+	}
+	changes.Pages = slices.Clone(w.dirtyPages)
+	if w.tileSharing == TilesLive {
+		// Existing pages are the live ones already. A dirty page may be a
+		// chunk generated since the last frame, which the table does not
+		// point at yet; the world never reallocates a page, so pointing at it
+		// once is enough. Nothing is copied.
+		for _, pi := range w.dirtyPages {
+			w.snapGrid.pages[pi] = (*tilePage)(w.tiles.pages[pi])
+		}
+		w.snapRefuseRev = w.refuseRev
+		w.clearDirtyPages()
+		return w.snapGrid, changes
 	}
 	// Copy the page table (pointers only), then swap in fresh copies of the
 	// changed pages. Grids already published keep the old table, and with it
@@ -160,7 +247,16 @@ func (w *World) publishedTiles() *TileGrid {
 	}
 	w.clearDirtyPages()
 	w.snapGrid = &TileGrid{width: w.Width, height: w.Height, colShift: w.tiles.colShift, pages: pages, refuse: w.publishedRefuse()}
-	return w.snapGrid
+	return w.snapGrid, changes
+}
+
+// publishPage is how a world page enters a freshly built grid: a copy, or
+// under TilesLive the page itself.
+func (w *World) publishPage(page []tileCell) *tilePage {
+	if w.tileSharing == TilesLive {
+		return (*tilePage)(page)
+	}
+	return clonePage(page)
 }
 
 // publishedRefuse returns an immutable copy of the refuse index, reusing the
@@ -168,7 +264,11 @@ func (w *World) publishedTiles() *TileGrid {
 // only when something dies or a cleaner hauls it away, so the copy is rare
 // even though the map is walked outright when it does happen.
 func (w *World) publishedRefuse() map[Point]refuseCell {
-	if w.snapGrid != nil && w.refuseRev == w.snapRefuseRev {
+	if w.tileSharing == TilesLive {
+		w.snapRefuseRev = w.refuseRev
+		return w.refuse
+	}
+	if w.snapGrid != nil && w.snapGrid.refuse != nil && w.refuseRev == w.snapRefuseRev {
 		return w.snapGrid.refuse
 	}
 	out := make(map[Point]refuseCell, len(w.refuse))

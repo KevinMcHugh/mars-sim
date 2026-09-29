@@ -172,7 +172,8 @@ func TestNewGameOnHugeMapGeneratesOnlyTheLandingSite(t *testing.T) {
 		t.Fatalf("%d tile pages allocated for %d generated chunks", n, len(w.genChunks))
 	}
 	published := 0
-	for _, p := range w.publishedTiles().pages {
+	grid, _ := w.publishedTiles()
+	for _, p := range grid.pages {
 		if p != nil {
 			published++
 		}

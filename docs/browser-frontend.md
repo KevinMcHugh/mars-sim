@@ -109,18 +109,20 @@ the wire:
 - `setInterest{rect, zoom}` — the map region the renderer wants tiles for.
 - `subscribe` / `unsubscribe{topic}` — which panels are open.
 
-**Tiles ride the existing page scheme.** `TileGrid` pages are already
-copy-on-write ([snapshot-tile-grid.md](./snapshot-tile-grid.md)). A page whose
-slice pointer is the same as the one sent last time hasn't changed. The encoder
-keeps the last `*TileGrid` it sent and sends a page only when both of these hold:
+**Tiles ride the existing page scheme.** Every `Snapshot` carries
+`TileChanges`: the pages that changed since the previous one, including newly
+generated chunks, plus a frame number to detect a gap
+([snapshot-tile-grid.md](./snapshot-tile-grid.md)). The encoder runs with
+`Engine.ShareLiveTiles`, sees every frame, and sends a page only when both of
+these hold:
 
 - the page is in the interest set, and
-- its identity has changed since the client last received it.
+- it is in `TileChanges.Pages` (or `All` is set) since the client last received it.
 
-This matters most on the first frame: a 10000×10000 map is 300 MB of
-`tileCell`s. Sending the map lazily, by viewport, is required, not an
-optimization. A page is a 4096-tile stretch of one row, which lines up well with
-the renderer's `texSubImage2D` uploads.
+Page identity is not the signal: live pages never move. Sending lazily, by
+viewport, still matters on the first frame and as the colony explores. A page is
+a 64×64 square (`TilePageSide`, located with `TileGrid.PageOrigin`), which lines
+up well with the renderer's `texSubImage2D` uploads.
 
 **Enums travel as a catalog, not as duplicated TS tables.** On startup the worker
 sends a `hello` message with:
@@ -231,13 +233,14 @@ So there are three limits, and they arrive in this order:
 
 **Two fixes, in order of payoff:**
 
-- **Skip the published copy in the worker.** In the browser, the wire encoder
-  runs on the same thread as the engine, *between* ticks. Nothing reads a
-  frame while the world mutates, so the copy-on-write grid buys nothing
-  there. A same-thread consumer can read `World.tiles` directly plus the
-  existing dirty-page list, and the 300 MB copy disappears. The native TUI
-  keeps the copy, because it really does read on another goroutine. This is
-  a small, contained change.
+- **Skip the published copy in the worker. Done;** see
+  `Engine.ShareLiveTiles` in [snapshot-tile-grid.md](./snapshot-tile-grid.md).
+  The encoder runs on the same thread as the engine, *between* ticks, so the
+  copy-on-write grid buys nothing there; live sharing points the published
+  grid at the world's own pages and reports changes through `TileChanges`.
+  The native TUI keeps the copy. Chunked worldgen landed first and shrank the
+  copy from the whole map to the generated chunks (12 KiB each), so this now
+  saves kilobytes, not 300 MB.
 - **Chunked, lazy worldgen. Done;** see
   [worldgen-chunks.md](./worldgen-chunks.md). The world is 64×64 chunks,
   each a pure function of `(config, cx, cy)`: every feature is owned by the
@@ -434,8 +437,8 @@ A suggested order. Each step is worth landing on its own:
 
 Engine work that runs alongside, and benefits the TUI too:
 
-- **Same-thread consumers skip the published tile copy.** This removes 300 MB
-  and 1.7 s at 10K.
+- **Same-thread consumers skip the published tile copy. Done.** After chunked
+  worldgen it saves 12 KiB per generated chunk rather than 300 MB.
 - **RNG streams move to `math/rand/v2` PCG**, so their state can be saved.
   Done; see [rng-streams.md](./rng-streams.md).
 - **Save/load**: the serializer, rebuilding derived state on load, and the

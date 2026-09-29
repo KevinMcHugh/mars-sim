@@ -2,6 +2,7 @@ package sim
 
 import (
 	"context"
+	"slices"
 	"testing"
 	"time"
 )
@@ -45,15 +46,15 @@ func TestPublishedTilesShareUnchangedPages(t *testing.T) {
 	w := gridWorld(t, 200)
 	w.SetTerrain(Point{10, 10}, Floor)
 	w.SetTerrain(Point{100, 100}, Floor)
-	first := w.publishedTiles()
+	first, _ := w.publishedTiles()
 
-	if second := w.publishedTiles(); second != first {
+	if second, _ := w.publishedTiles(); second != first {
 		t.Error("publishing with no terrain change allocated a new grid")
 	}
 
 	p := Point{101, 100}
 	w.SetTerrain(p, Floor)
-	third := w.publishedTiles()
+	third, _ := w.publishedTiles()
 	if third == first {
 		t.Fatal("publishing after a terrain change reused the stale grid")
 	}
@@ -249,5 +250,173 @@ func TestPublishedRefuseClearedByConstruction(t *testing.T) {
 	}
 	if len(w.refuse) != 0 {
 		t.Errorf("refuse index kept %d entries for a clean map; setRefuse should drop them", len(w.refuse))
+	}
+}
+
+// TileChanges must name exactly the pages a consumer has to resend, in both
+// sharing modes: everything on the first frame, nothing on a quiet tick, and
+// the one page a single edit touched.
+func TestTileChangesReportDirtyPages(t *testing.T) {
+	for _, mode := range []TileSharing{TilesCopyOnWrite, TilesLive} {
+		w := gridWorld(t, 200)
+		w.SetTileSharing(mode)
+
+		if c := w.snapshot(false, 8).TileChanges; !c.All || len(c.Pages) != 0 {
+			t.Errorf("mode %d: first frame changes = %+v, want All", mode, c)
+		}
+		if c := w.snapshot(false, 8).TileChanges; c.All || len(c.Pages) != 0 || c.Refuse {
+			t.Errorf("mode %d: quiet frame changes = %+v, want none", mode, c)
+		}
+		p := Point{100, 100}
+		w.SetTerrain(p, Floor) // also generates p's chunk, the first time
+		w.snapshot(false, 8)
+		w.SetTerrain(p.Add(1, 0), Floor)
+		c := w.snapshot(false, 8).TileChanges
+		if want := w.tiles.pageIndex(p.X, p.Y); c.All || len(c.Pages) != 1 || c.Pages[0] != want {
+			t.Errorf("mode %d: after one edit changes = %+v, want page %d", mode, c, want)
+		}
+		w.setRefuse(p, refuseCell{Gore: 1})
+		if c := w.snapshot(false, 8).TileChanges; !c.Refuse || len(c.Pages) != 0 {
+			t.Errorf("mode %d: after a death changes = %+v, want Refuse only", mode, c)
+		}
+	}
+}
+
+// Under TilesLive the published grid is the world's own map: no page is
+// copied, and a frame read after an edit (on the engine's goroutine, which is
+// the only place a live frame may be read) sees it.
+func TestLiveTilesAliasTheWorld(t *testing.T) {
+	w := gridWorld(t, 200)
+	w.SetTerrain(Point{10, 10}, Floor)
+	w.SetTileSharing(TilesLive)
+	snap := w.snapshot(false, 8)
+	assertAliased := func(g *TileGrid) {
+		t.Helper()
+		for pi, page := range w.tiles.pages {
+			var want *tilePage
+			if page != nil {
+				want = (*tilePage)(page)
+			}
+			if g.pages[pi] != want {
+				t.Fatalf("page %d is %p, want the world's own %p", pi, g.pages[pi], want)
+			}
+		}
+	}
+	assertAliased(snap.Tiles)
+
+	p := Point{11, 10}
+	w.SetTerrain(p, Floor)
+	w.setRefuse(p, refuseCell{Corpses: [numCorpseKinds]uint16{1}})
+	if got := snap.Tiles.At(p); got.Terrain != Floor || got.Corpses != 1 {
+		t.Errorf("live grid read %+v after the edit, want Floor with a corpse", got)
+	}
+	if next := w.snapshot(false, 8); next.Tiles != snap.Tiles {
+		t.Error("live mode allocated a new grid instead of reusing the live one")
+	}
+}
+
+// A chunk generated after the first live frame is a page the live table did
+// not point at yet. Publishing must pick it up, still without copying it.
+func TestLiveTilesPickUpNewChunks(t *testing.T) {
+	w := gridWorld(t, 200)
+	w.SetTerrain(Point{10, 10}, Floor)
+	w.SetTileSharing(TilesLive)
+	snap := w.snapshot(false, 8)
+
+	far := Point{190, 190}
+	pi := w.tiles.pageIndex(far.X, far.Y)
+	if snap.Tiles.pages[pi] != nil {
+		t.Fatal("test needs a page that is not generated yet")
+	}
+	w.SetTerrain(far, Floor)
+	next := w.snapshot(false, 8)
+	if !slices.Contains(next.TileChanges.Pages, pi) {
+		t.Errorf("changes %+v do not include the new page %d", next.TileChanges, pi)
+	}
+	if next.Tiles.pages[pi] != (*tilePage)(w.tiles.pages[pi]) {
+		t.Error("the new page was copied or missed, want it aliased")
+	}
+	if got := next.Tiles.TerrainAt(far); got != Floor {
+		t.Errorf("new chunk reads %v, want Floor", got)
+	}
+	if o := next.Tiles.PageOrigin(pi); o.X > far.X || o.Y > far.Y || far.X-o.X >= TilePageSide || far.Y-o.Y >= TilePageSide {
+		t.Errorf("PageOrigin(%d) = %v, which does not hold %v", pi, o, far)
+	}
+}
+
+// Switching back to copy-on-write rebuilds a private grid, so frames published
+// afterwards are immutable again.
+func TestSwitchingOffLiveTilesRestoresCopies(t *testing.T) {
+	w := gridWorld(t, 200)
+	w.SetTileSharing(TilesLive)
+	_ = w.snapshot(false, 8)
+	w.SetTileSharing(TilesCopyOnWrite)
+	snap := w.snapshot(false, 8)
+	if !snap.TileChanges.All {
+		t.Error("switching modes did not report a full resend")
+	}
+	p := Point{10, 10}
+	w.SetTerrain(p, Floor)
+	if got := snap.Tiles.TerrainAt(p); got != Rock {
+		t.Errorf("copy-on-write frame changed under us: %v, want Rock", got)
+	}
+}
+
+// A live grid cannot cross goroutines, so the engine refuses to combine it
+// with a channel subscriber in either order.
+func TestShareLiveTilesExcludesSubscribers(t *testing.T) {
+	cfg := DefaultConfig()
+	cfg.Width, cfg.Height = 60, 40
+
+	mustPanic := func(name string, f func()) {
+		t.Helper()
+		defer func() {
+			if recover() == nil {
+				t.Errorf("%s did not panic", name)
+			}
+		}()
+		f()
+	}
+
+	e := NewEngine(cfg)
+	e.ShareLiveTiles()
+	mustPanic("Subscribe after ShareLiveTiles", func() { e.Subscribe() })
+
+	e = NewEngine(cfg)
+	e.Subscribe()
+	mustPanic("ShareLiveTiles after Subscribe", e.ShareLiveTiles)
+
+	// Once Run owns the world, switching its sharing mode would race.
+	e = NewEngine(cfg)
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan struct{})
+	go func() { e.Run(ctx); close(done) }()
+	for {
+		e.mu.Lock()
+		running := e.running
+		e.mu.Unlock()
+		if running {
+			break
+		}
+		time.Sleep(time.Millisecond)
+	}
+	mustPanic("ShareLiveTiles after Run", e.ShareLiveTiles)
+	cancel()
+	<-done
+}
+
+// Frame numbers every published snapshot consecutively, so a consumer that
+// skips one (a Subscribe channel dropping a stale frame) can tell it missed
+// the changes in between.
+func TestTileChangesFrameCountsEveryPublish(t *testing.T) {
+	w := gridWorld(t, 200)
+	for want := uint64(1); want <= 3; want++ {
+		if got := w.snapshot(false, 8).TileChanges.Frame; got != want {
+			t.Fatalf("frame = %d, want %d", got, want)
+		}
+	}
+	w.SetTileSharing(TilesLive)
+	if c := w.snapshot(false, 8).TileChanges; c.Frame != 4 || !c.All {
+		t.Errorf("after a mode switch changes = %+v, want frame 4 with All", c)
 	}
 }

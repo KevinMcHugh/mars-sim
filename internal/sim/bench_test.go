@@ -330,6 +330,44 @@ func benchmarkPublish(b *testing.B, mapSize int) {
 func BenchmarkPublishSmallColonyOnHugeMap2500(b *testing.B)  { benchmarkPublish(b, 2500) }
 func BenchmarkPublishSmallColonyOnHugeMap10000(b *testing.B) { benchmarkPublish(b, 10000) }
 
+// benchmarkFirstPublish measures the first frame a world publishes on a
+// 10000x10000 map, which is where the tile grid is built, and reports the heap
+// that frame keeps alive (retained-B/op). Under TilesCopyOnWrite that is a
+// clone of every page — a second copy of the map; under TilesLive the grid
+// aliases World.tiles and should retain only its page table. See
+// docs/snapshot-tile-grid.md.
+func benchmarkFirstPublish(b *testing.B, mode TileSharing) {
+	w := benchWorldSmallColony(10000, 60, 50)
+	w.SetTileSharing(mode)
+	var retained int64
+	var ms runtime.MemStats
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		b.StopTimer()
+		w.snapGrid = nil // force a first frame
+		runtime.GC()
+		runtime.ReadMemStats(&ms)
+		before := int64(ms.HeapAlloc)
+		b.StartTimer()
+
+		snap := w.snapshot(false, 8)
+
+		b.StopTimer()
+		runtime.GC()
+		runtime.ReadMemStats(&ms)
+		retained += int64(ms.HeapAlloc) - before // signed: a GC can leave the heap smaller
+		runtime.KeepAlive(snap)
+		b.StartTimer()
+	}
+	b.ReportMetric(float64(retained)/float64(b.N), "retained-B/op")
+}
+
+func BenchmarkFirstPublishHugeMapCopyOnWrite(b *testing.B) {
+	benchmarkFirstPublish(b, TilesCopyOnWrite)
+}
+func BenchmarkFirstPublishHugeMapLive(b *testing.B) { benchmarkFirstPublish(b, TilesLive) }
+
 // BenchmarkStepBigColonyOnHugeMap is the regime that motivated the sparse
 // grids (see docs/sparse-grids.md): a 10000x10000 map with a colony that has
 // opened ~160k tiles, matching the save that was using 16.59 GB. It is the

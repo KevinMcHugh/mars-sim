@@ -462,10 +462,15 @@ type World struct {
 	// The published tile grid handed to frontends in Snapshots, plus the pages
 	// of it that have gone stale since. Frames share every page that did not
 	// change, so publishing costs a page table and the handful of pages a tick
-	// actually touched instead of a copy of the whole map. See tilegrid.go.
-	snapGrid   *TileGrid
-	pageDirty  []bool // pageDirty[pi]: page pi differs from snapGrid
-	dirtyPages []int  // the same pages, in mark order, for cheap iteration
+	// actually touched instead of a copy of the whole map. With tileSharing
+	// set to TilesLive the grid aliases tiles instead and nothing is copied;
+	// the dirty list is then only reported, in Snapshot.TileChanges. See
+	// tilegrid.go.
+	snapGrid    *TileGrid
+	snapFrame   uint64 // publishes so far; TileChanges.Frame
+	tileSharing TileSharing
+	pageDirty   []bool // pageDirty[pi]: page pi changed since the last publish
+	dirtyPages  []int  // the same pages, in mark order, for cheap iteration
 
 	// occ is the occupancy index: occ holds the EntityID standing on a tile, or
 	// 0 for empty (IDs start at 1). It turns "who is here?" from an

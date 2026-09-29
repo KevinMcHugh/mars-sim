@@ -69,6 +69,12 @@ type Engine struct {
 
 	mu   sync.Mutex
 	subs []chan *Snapshot
+	// liveTiles is set by ShareLiveTiles; it rules out Subscribe. It mirrors
+	// the world's TileSharing so Subscribe can check it under mu without
+	// touching the world, which belongs to the Run goroutine.
+	liveTiles bool
+	// running is set once Run starts; ShareLiveTiles is refused after that.
+	running bool
 }
 
 // NewEngine builds an engine with a freshly generated world.
@@ -86,12 +92,42 @@ func NewEngine(cfg Config) *Engine {
 // channel has capacity 1 and the engine drops stale frames rather than blocking,
 // so a slow renderer can never stall the simulation. Call before Run so the
 // initial frame is not missed.
+//
+// Subscribe panics after ShareLiveTiles: a channel hands frames to another
+// goroutine, and a live grid is only safe on the engine's own.
 func (e *Engine) Subscribe() <-chan *Snapshot {
 	ch := make(chan *Snapshot, 1)
 	e.mu.Lock()
+	if e.liveTiles {
+		e.mu.Unlock()
+		panic("sim: Subscribe after ShareLiveTiles; live tiles cannot cross goroutines")
+	}
 	e.subs = append(e.subs, ch)
 	e.mu.Unlock()
 	return ch
+}
+
+// ShareLiveTiles makes every later Snapshot's Tiles alias the live map
+// (TilesLive) instead of a copy-on-write grid, which spares a frontend that
+// reads frames on the engine's goroutine, between ticks, a second copy of the
+// whole map. It is for the browser worker, whose encoder runs in the same
+// thread as the engine (see docs/browser-frontend.md). The native TUI reads
+// frames on its own goroutine and must keep the default.
+//
+// Call it before Run, and never together with Subscribe: it panics if Run has
+// started (the world then belongs to Run's goroutine) or a subscriber is
+// already registered.
+func (e *Engine) ShareLiveTiles() {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	if e.running {
+		panic("sim: ShareLiveTiles after Run started")
+	}
+	if len(e.subs) > 0 {
+		panic("sim: ShareLiveTiles with a subscriber; live tiles cannot cross goroutines")
+	}
+	e.liveTiles = true
+	e.world.SetTileSharing(TilesLive)
 }
 
 // Send submits a command. It never blocks: if the command buffer is full the
@@ -113,6 +149,10 @@ func (e *Engine) Send(cmd Command) {
 // delivers instead of the one asked for. Deadlines remember when each tick was
 // due, so a late wakeup is made up by ticking again straight away.
 func (e *Engine) Run(ctx context.Context) {
+	e.mu.Lock()
+	e.running = true
+	e.mu.Unlock()
+
 	interval := tickInterval(e.tps)
 	due := time.Now().Add(interval)
 	timer := time.NewTimer(interval)

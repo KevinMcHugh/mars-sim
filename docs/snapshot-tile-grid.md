@@ -13,11 +13,12 @@ than to how big the map *is*.
 
 ## Source
 
-- [`internal/sim/tilegrid.go`](../internal/sim/tilegrid.go) — `TileGrid`, the page table, and `World.publishedTiles`.
+- [`internal/sim/tilegrid.go`](../internal/sim/tilegrid.go) — `TileGrid`, the page table, `World.publishedTiles`, and the `TileSharing` / `TileChanges` types.
+- [`internal/sim/engine.go`](../internal/sim/engine.go) — `Engine.ShareLiveTiles`, the opt-in for the live mode below.
 - [`internal/sim/world.go`](../internal/sim/world.go) — `SetTerrain` (and `reveal`) mark the changed tile's page dirty.
 - [`internal/sim/snapshot.go`](../internal/sim/snapshot.go) — `Snapshot.Tiles` / `Snapshot.TerrainAt`.
-- [`internal/sim/tilegrid_test.go`](../internal/sim/tilegrid_test.go) — stability across later edits, page sharing, and a concurrent-reader run for `-race`.
-- [`internal/sim/bench_test.go`](../internal/sim/bench_test.go) — `BenchmarkPublishSmallColonyOnHugeMap2500` / `...10000`.
+- [`internal/sim/tilegrid_test.go`](../internal/sim/tilegrid_test.go) — stability across later edits, page sharing, a concurrent-reader run for `-race`, `TileChanges` in both modes, live aliasing, switching modes, and the `ShareLiveTiles` guards.
+- [`internal/sim/bench_test.go`](../internal/sim/bench_test.go) — `BenchmarkPublishSmallColonyOnHugeMap2500` / `...10000`, and `BenchmarkFirstPublishHugeMapCopyOnWrite` / `...Live` for the memory the first frame retains.
 
 ## How it works
 
@@ -31,7 +32,8 @@ published grid mirrors that page table exactly:
 | `TileGrid.pages` | `[]*tilePage`, laid out like the world's page table; each entry a copy of one world page, or nil where the world has never written one (reads as unexplored Rock) |
 | `TileGrid.refuse` | the published copy of the sparse gore/corpse index, shared between frames until it changes |
 | `World.snapGrid` | the grid handed to the most recent `Snapshot` |
-| `World.pageDirty` / `dirtyPages` | pages that have diverged from `snapGrid` since |
+| `World.pageDirty` / `dirtyPages` | pages whose tiles changed since the last publish |
+| `Snapshot.TileChanges` | those pages (and whether refuse changed), handed to the frontend |
 
 `SetTerrain` — the only writer of a tile's terrain — calls `markTilePageDirty`,
 which is an array write and (first time per page) an append. (`World.reveal` is
@@ -51,6 +53,70 @@ Case 3 is the copy-on-write step, and the order matters: a page is copied
 *before* the grid that published it could ever observe the change, so no
 `TileGrid` mutates under a reader. Grids already published keep the old table,
 and with it the pre-change pages.
+
+Every snapshot also carries `TileChanges`: `All` on the first frame, otherwise
+the page table indexes that changed (`TileGrid.PageOrigin` turns one into the
+top-left tile of its `TilePageSide`-square page) and whether refuse did. A newly
+generated chunk counts as a changed page. A frontend that redraws from scratch
+can ignore it; one that forwards terrain incrementally (the browser's wire
+encoder) sends exactly those pages.
+
+The catch is that the delta is against the previous snapshot the world *built*,
+not the one the consumer *saw*: publishing clears the dirty list every time. A
+`Subscribe` channel drops stale frames, so a channel reader applying deltas
+would silently lose the pages changed in a frame it never received. That is why
+`TileChanges.Frame` numbers the snapshots: a consumer that last applied frame F
+and gets anything other than F+1 missed something and must reread every page it
+cares about, as if `All` were set. An incremental consumer should be one that
+sees every frame, like the same-goroutine encoder below.
+
+### Live sharing, for a same-goroutine frontend
+
+The copy-on-write grid exists because the TUI reads a frame on its own goroutine
+while the engine keeps ticking. A frontend that reads frames on the *engine's*
+goroutine, between ticks, gets nothing from it, and it costs a second copy of
+every generated chunk. The browser worker is that frontend: its wire encoder
+runs in the same thread as the engine (see the browser frontend proposal,
+`docs/browser-frontend.md`).
+
+`Engine.ShareLiveTiles()` (or `World.SetTileSharing(TilesLive)`) switches the
+world to `TilesLive`. `publishedTiles` then builds one grid whose page entries
+point at the world's own pages and whose `refuse` is `World.refuse` itself, and
+hands that same grid out on every frame. When a chunk is generated later, its
+page arrives dirty and publishing points the grid's empty slot at it; pages are
+never reallocated, so that is the only upkeep. Nothing is copied; the dirty list
+is only reported, through `TileChanges`. Readers keep using `TerrainAt` /
+`Tiles.At` unchanged. The price is that the frame is not immutable: its terrain
+is only correct until the next step. Two things keep that from leaking into the
+TUI:
+
+- `ShareLiveTiles` and `Subscribe` panic if combined, in either order, because a
+  subscription channel is how a frame reaches another goroutine. `ShareLiveTiles`
+  also panics once `Run` has started.
+- `TilesCopyOnWrite` stays the zero value, so every existing caller is unchanged.
+
+**What it saves is now small.** This mode was written against eager worldgen,
+where the second copy was the whole map: 287 MiB at 10000x10000, and 1032 MiB of
+heap against 746 MiB with live sharing. Chunked lazy worldgen
+([worldgen-chunks.md](./worldgen-chunks.md)) then made the published copy track
+generated chunks instead of map area. Measured after that change, 10000x10000,
+seed 7, default config:
+
+| | Copy-on-write | Live |
+| --- | --- | --- |
+| Heap after first publish (30 chunks generated) | 28 MiB | 27 MiB |
+| Heap after 3000 ticks (36 chunks) | 29 MiB | 28-29 MiB |
+| Retained by the first frame (`BenchmarkFirstPublishHugeMap*`) | 419 KiB | 371 KiB |
+
+The difference is 12 KiB per generated chunk (one 64x64 page of 3-byte cells);
+the rest is the page table, which both modes hold. It grows with how much of the
+world the colony has explored, never with the map's area. Keep the mode for a
+consumer that needs every frame anyway, and because it costs nothing, but it is
+not a memory fix any more.
+
+Page identity cannot tell a live consumer what changed (live pages never move),
+which is why `TileChanges` exists rather than asking consumers to compare page
+pointers.
 
 Frontends read through `Snapshot.TerrainAt(p)` / `TileAt(p)` (or `Tiles.At(p)`);
 all return `Rock` out of bounds so a camera can walk off the edge of the world.
@@ -149,7 +215,13 @@ change dirtied a strip per row instead of one square.
 - **A new aggregate in `Stats`** should come from an incremental count, not from
   a walk of the grid. The scan this doc replaced is the cautionary tale.
 - The invariant to preserve: **a page that has been published is never written
-  again**. Copy first, then change the copy.
+  again**. Copy first, then change the copy. The one exception is `TilesLive`,
+  which publishes the live pages on purpose and is only allowed where no frame
+  crosses a goroutine; don't loosen the `Subscribe` guard.
+- **A new same-goroutine frontend** (a WebSocket server driving the browser UI
+  from a native engine would be one, if it encodes on the engine goroutine)
+  opts in with `ShareLiveTiles` and reads `TileChanges`. A frontend that reads
+  frames anywhere else must not.
 
 ## Related
 

@@ -351,6 +351,10 @@ type Stats struct {
 // copied outright, and the terrain is a page-shared grid whose pages are copied
 // before they can change (see tilegrid.go). Either way a frame is safe to read
 // on another goroutine for as long as it is held.
+//
+// The one exception is opt-in: under TilesLive (see Engine.ShareLiveTiles),
+// Tiles aliases the live map, and the frame's terrain is only good on the
+// engine's goroutine until the next tick. Everything else stays a copy.
 type Snapshot struct {
 	Tick   int
 	Width  int
@@ -365,8 +369,12 @@ type Snapshot struct {
 	// slice. Frontends should read it through TileAt / TerrainAt: Tiles.At
 	// holds only generated chunks, so with the fog off it would show the rest
 	// as bare rock where TileAt shows the preview.
-	Tiles    *TileGrid
-	Entities []EntityView
+	Tiles *TileGrid
+	// TileChanges says which pages of Tiles changed since the previous
+	// Snapshot, for a consumer that forwards terrain incrementally (the
+	// browser's wire encoder). See tilegrid.go.
+	TileChanges TileChanges
+	Entities    []EntityView
 	// Graveyard is the most recent violent/starvation deaths (bounded by
 	// Config.GraveyardSize), oldest first, for the roster's "dead" filter.
 	// See docs/combat.md.
@@ -499,7 +507,7 @@ func (s *Snapshot) previewing(p Point) bool {
 
 // snapshot builds an immutable view of the world's current state.
 func (w *World) snapshot(paused bool, tps int) *Snapshot {
-	tiles := w.publishedTiles()
+	tiles, tileChanges := w.publishedTiles()
 
 	ents := make([]EntityView, 0, len(w.entities))
 	kinChildren := w.cachedKinChildren()
@@ -573,6 +581,7 @@ func (w *World) snapshot(paused bool, tps int) *Snapshot {
 		Height:               w.Height,
 		Seed:                 w.cfg.Seed,
 		Tiles:                tiles,
+		TileChanges:          tileChanges,
 		Entities:             ents,
 		Log:                  w.log.tail(len(w.log.entries)),
 		Stats:                stats,
