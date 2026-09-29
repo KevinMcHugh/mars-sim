@@ -12,12 +12,12 @@ const hex = (h: string): RGB => [
 
 export const MISSING = hex('#ff00ff');
 export const OFF_MAP = hex('#050404');
-export const FOG = hex('#120d0b');
+export const FOG = hex('#2e0d0b');
 
 const terrains: Record<string, string> = {
   // Rock takes its color from its composition instead; see compositions.
-  rock: '#5a3a2c',
-  floor: '#c8a27c',
+  rock: '#a8402a',
+  floor: '#f78765',
   wall: '#8a8d91',
   'pod hull': '#6f7c86',
   'nutrient pod': '#4caf7a',
@@ -31,12 +31,12 @@ const terrains: Record<string, string> = {
 };
 
 const compositions: Record<string, string> = {
-  'ordinary rock': '#5a3a2c',
-  'iron-bearing rock': '#8a3f22',
+  'ordinary rock': '#a8402a',
+  'iron-bearing rock': '#7a2a1a',
   'water ice-bearing rock': '#7fa6b8',
   // Bright, so it can't be mistaken for the dark green of scum (filthTint).
   'uranium-bearing rock': '#9cc93a',
-  'clay-bearing rock': '#8c6a48',
+  'clay-bearing rock': '#b8694a',
 };
 
 const kinds: Record<string, string> = {
@@ -47,7 +47,7 @@ const kinds: Record<string, string> = {
 };
 
 /** Under a facility's glyph: the floor, a shade darker, so the room reads. */
-export const GLYPH_BACKDROP = hex('#b08b68');
+export const GLYPH_BACKDROP = hex('#d96d4e');
 export const CORPSE = hex('#efe6d4');
 
 function lookup(names: string[], table: Record<string, string>): RGB[] {
