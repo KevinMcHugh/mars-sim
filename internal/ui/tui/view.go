@@ -146,6 +146,8 @@ func (m Model) renderFrame() string {
 		frame = m.renderLore()
 	case modePopulation:
 		frame = m.renderPopulation()
+	case modeActivity:
+		frame = m.renderActivity()
 	case modeLog:
 		frame = m.renderLog()
 	case modePerf:

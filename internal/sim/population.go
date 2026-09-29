@@ -21,6 +21,14 @@ type PopulationSample struct {
 	Meals      int // meals in any depot, whoever owns them and whether or not they are on offer
 	ColonySize int // floor tiles the colony has dug or discovered
 	Fixtures   int // placed fixtures: bunks, toilets, pods, lockers, workshops...
+	// Activity counts colonist-ticks spent on each Activity since the
+	// previous sample (or the start of the game): divided by the ticks
+	// between the two samples, it is the average number of colonists doing
+	// each thing over that stretch. See activity.go.
+	Activity [NumActivities]int
+	// Walking is the part of each Activity count spent walking there:
+	// fetching a meal, heading to the scumhouse to cook.
+	Walking [NumActivities]int
 }
 
 const (
@@ -43,6 +51,8 @@ func (w *World) samplePopulation() {
 		Colonists:  w.countKind(Colonist),
 		ColonySize: w.terrainCounts[Floor] - w.hiddenFloor,
 		Fixtures:   len(w.fixtures),
+		Activity:   w.actTally,
+		Walking:    w.walkTally,
 	}
 	for _, c := range w.storageContainers {
 		s.Meals += c.Inventory.Count(Meal)
@@ -51,19 +61,39 @@ func (w *World) samplePopulation() {
 	if len(h) >= popHistory {
 		// Halve: keep the samples still on the doubled interval.
 		w.popEvery *= 2
+		// A dropped sample's activity folds into the next kept one, so the
+		// tallies still cover every tick.
 		kept := make([]PopulationSample, 0, popHistory)
+		var carry, carryWalk [NumActivities]int
 		for _, x := range h {
+			addTally(&x.Activity, carry)
+			addTally(&x.Walking, carryWalk)
+			carry, carryWalk = [NumActivities]int{}, [NumActivities]int{}
 			if x.Tick%w.popEvery == 0 {
 				kept = append(kept, x)
+			} else {
+				carry, carryWalk = x.Activity, x.Walking
 			}
 		}
 		h = kept
+		// A trailing dropped sample's activity belongs to the next one taken.
+		addTally(&w.actTally, carry)
+		addTally(&w.walkTally, carryWalk)
 		if w.tick%w.popEvery != 0 {
 			w.popHist = h
 			return
 		}
+		s.Activity, s.Walking = w.actTally, w.walkTally
 	}
+	w.actTally, w.walkTally = [NumActivities]int{}, [NumActivities]int{}
 	// Published snapshots share the history, so it is never written in place:
 	// a full-capacity slice makes append copy, as with the perf history.
 	w.popHist = append(h[:len(h):len(h)], s)
+}
+
+// addTally adds tally from into to.
+func addTally(to *[NumActivities]int, from [NumActivities]int) {
+	for a, n := range from {
+		to[a] += n
+	}
 }

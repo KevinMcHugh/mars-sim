@@ -280,7 +280,7 @@ func TestListScreensFillTerminalHeight(t *testing.T) {
 	for _, mode := range []struct {
 		name string
 		mode viewMode
-	}{{"roster", modeRoster}, {"jobs", modeJobs}, {"storage", modeStorage}, {"market", modeMarket}, {"lore", modeLore}, {"population", modePopulation}, {"log", modeLog}, {"perf", modePerf}} {
+	}{{"roster", modeRoster}, {"jobs", modeJobs}, {"storage", modeStorage}, {"market", modeMarket}, {"lore", modeLore}, {"population", modePopulation}, {"activity", modeActivity}, {"log", modeLog}, {"perf", modePerf}} {
 		for _, size := range []struct{ w, h int }{{100, 30}, {120, 40}, {200, 50}, {80, 24}} {
 			m := New(nil, nil)
 			m.termW, m.termH = size.w, size.h

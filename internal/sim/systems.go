@@ -22,6 +22,7 @@ func (w *World) step() {
 		switch e.Kind {
 		case Colonist:
 			w.colonistTurn(e)
+			w.tallyActivity(e) // the Activity tab's tally (read-only bookkeeping)
 		case Alien:
 			w.alienTurn(e)
 		case Cat:
