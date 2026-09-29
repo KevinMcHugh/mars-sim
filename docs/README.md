@@ -64,6 +64,7 @@ way it is without re-deriving it from the source each time.
 | [perf-screen.md](./perf-screen.md) | The Perf tab: how the engine times each tick into quarter-second samples, and the gping-style braille charts of tick rate and tick cost. |
 | [browser-frontend.md](./browser-frontend.md) | **Proposal, spike built.** Running the engine as WASM in a Web Worker behind a Svelte + WebGL UI: `Engine.Advance` and the worker loop (built), what the spike measured in Chromium, and the proposed frame/topic wire, map renderer, save/load and static hosting. |
 | [wire-format.md](./wire-format.md) | The browser build's messages: the JSON Hello, the binary frame layout (stats, entities, tile pages, refuse), which pages go when, and the golden frames both decoders are tested against. |
+| [frontend-web.md](./frontend-web.md) | The browser map: WebGL2 terrain from chunk textures, instanced entity sprites, the camera and the view it streams, and how to run `web/`. |
 | [frontend-tui.md](./frontend-tui.md) | The Bubble Tea terminal frontend: map, roster, controls, and glyphs. |
 | [terminal-cell-widths.md](./terminal-cell-widths.md) | Why the grid used to shear: cell-accurate measurement, the vetted glyph registry, the startup width probe, and the ASCII fallback. |
 

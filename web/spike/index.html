@@ -97,7 +97,7 @@ for (const k of ['width', 'height', 'colonists', 'seed', 'tps', 'budget', 'viewW
   if (params.has(k)) $(k).value = params.get(k);
 }
 
-const worker = new Worker('worker.js');
+const worker = new Worker('../worker.js');
 const ticks = [];         // [time, tick] over the last second
 const frames = [];        // [arrival time, bytes] over the last second
 const pages = new Set();  // tile pages held, as "px,py"

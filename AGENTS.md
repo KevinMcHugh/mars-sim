@@ -33,6 +33,8 @@ for the doc the same way they would ask for tests.
 ## Other expectations
 
 - `go build ./...` and `go test ./...` pass before you call a change done.
+- A change to `web/` or `internal/wire` also passes `npm run check` and `npm test`
+  in `web/` (see [`docs/frontend-web.md`](./docs/frontend-web.md)).
 - The simulation must stay deterministic for a given seed: keep flavor/RNG that
   should not affect gameplay on the personality stream (`World.prng`), not the
   simulation stream (`World.rng`). See [`docs/personality.md`](./docs/personality.md).

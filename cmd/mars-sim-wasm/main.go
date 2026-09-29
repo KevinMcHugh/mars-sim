@@ -3,7 +3,7 @@
 // The browser build of the engine, for a Web Worker (see
 // docs/browser-frontend.md). Build it with:
 //
-//	web/spike/build.sh
+//	web/build-wasm.sh (then npm run dev in web/)
 //
 // It exports these on globalThis.marssim:
 //
@@ -16,7 +16,7 @@
 //	send(command)          queue a command (JSON), applied at the next advance
 //	memory()               the Go heap, as JSON
 //
-// The JS side owns the loop (web/spike/worker.js): it calls advance, posts the
+// The JS side owns the loop (web/public/worker.js): it calls advance, posts the
 // frame if there is one, and calls again after the returned wait.
 package main
 

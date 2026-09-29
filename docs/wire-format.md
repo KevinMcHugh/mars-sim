@@ -128,7 +128,7 @@ Entities in a re-encode are from the newest snapshot, not newer ticks.
   new ground. Publishing just to pan would also build the whole snapshot again.
 - **Hello in JSON.** It is sent once, and being able to read it in devtools is
   worth more than the bytes.
-- **Measured** (headless Chromium, `web/spike`): a flat-out 10000×10000 game
+- **Measured** (headless Chromium, the spike page): a flat-out 10000×10000 game
   with 6 colonists sends about 11 KB a frame, 655 KB/s at 58 frames a second;
   most of that is the page the colony is digging in, resent as it changes. A
   400×250-tile view at 60 tps holds 30 pages and averages 232 KB/s.

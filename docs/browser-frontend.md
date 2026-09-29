@@ -30,10 +30,14 @@ Built so far:
   GOARCH=wasm` entry point. It exports `start`, `advance`, `interest`, `send`
   and `memory` on `globalThis.marssim`; `advance` returns a binary wire frame
   ([wire-format.md](./wire-format.md)), the rest JSON. It never imports the TUI.
-- [`web/spike/`](../web/spike/) — `worker.js` (the host loop), `index.html` (the
-  measurement page, which decodes real frames) and `build.sh`
-  (`web/spike/build.sh --serve`, then open <http://127.0.0.1:8766/spike/>; add
-  `?auto=1&width=…&tps=…&viewW=…` to start straight away).
+- [`web/public/worker.js`](../web/public/worker.js) — the host loop, shared by
+  the game and the spike. [`web/build-wasm.sh`](../web/build-wasm.sh) builds the
+  WASM next to it.
+- [`web/spike/index.html`](../web/spike/index.html) — the measurement page. It
+  runs under `npm run dev` in `web/` at `/spike/`; add
+  `?auto=1&width=…&tps=…&viewW=…` to start straight away.
+- The game page and the map renderer, in `web/`: see
+  [frontend-web.md](./frontend-web.md).
 
 - [`internal/wire/`](../internal/wire/wire.go) and
   [`web/wire/decode.js`](../web/wire/decode.js) — the frame tier of the wire:
@@ -209,6 +213,11 @@ and the docs already design for 10000×10000 maps. So:
 - **Rendering runs on `requestAnimationFrame`** from the newest decoded frame, and
   never once per frame received. The same rule as the TUI: keep the latest frame,
   draw at the display rate.
+
+**Built, with flat colors** ([frontend-web.md](./frontend-web.md)). Terrain
+is `RG8UI` chunk textures filled straight from the wire's page bytes. Entities
+and refuse are instanced quads. Occupants of unseen tiles are filtered out.
+The emoji atlas is the next step.
 
 The renderer is a plain TS class that owns its `<canvas>`. Svelte mounts it and
 passes it the camera, and that's all. Keeping it framework-free means it can move
@@ -410,7 +419,7 @@ all work on current iOS and Android. What to do now, so it stays possible:
 ## The spike: what a real browser measured
 
 Headless Chromium (Playwright's build, in a cloud container, so absolute
-numbers are a slow machine's), driving `web/spike/index.html`. Seed 7, default
+numbers are a slow machine's), driving the spike page. Seed 7, default
 config otherwise, `tps` 0 meaning flat out:
 
 | Scenario | New game | Ticks/s | Go heap | Main thread worst frame gap |
@@ -453,7 +462,7 @@ What it leaves open:
   isolation (Firefox and Safari to 1 ms or so). The Perf screen's per-tick
   numbers will be noisy for sub-millisecond ticks; tick *rates* are fine.
 - **Firefox and Safari are unmeasured.** Only Chromium was available. Run
-  `web/spike/build.sh --serve` and open the page in each; the numbers above
+  `npm run wasm && npm run dev` in `web/` and open `/spike/` in each; the numbers above
   are the comparison. Safari matters most, for memory limits.
 - **Real hardware.** All of the above is a shared cloud CPU.
 
@@ -520,8 +529,9 @@ A suggested order. Each step is worth landing on its own:
    the Hello (map, enum names, stat names), the binary frame, golden frames,
    and a JS decoder tested against them. The spike page decodes real frames.
    Topics and the config schema come with the panels that need them.
-4. **The map renderer.** Terrain textures, sprites, camera, fog, and click-to-pick
-   (resolved on the main thread from the frame's positions).
+4. **The map renderer. Done with flat colors** ([frontend-web.md](./frontend-web.md)):
+   terrain textures, sprites, camera, fog, pan and zoom, and hover. Next:
+   glyphs, click-to-select, and page eviction.
 5. **Svelte shell.** The header stats, controls (pause, speed, spawn, the
    build orders) and the roster with its inspector. Then the job board, storage,
    lore and perf.
