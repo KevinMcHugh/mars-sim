@@ -37,6 +37,7 @@ when the tick is a multiple of the current interval:
 | `Meals` | meals physically in any depot (lockers, chests, scumhouses, the silo), whoever owns them and whether or not they're on offer. Meals in someone's pockets aren't counted. |
 | `ColonySize` | floor tiles the colony has dug or discovered (the header's "excavated") |
 | `Fixtures` | placed fixtures: bunks, toilets, pods, lockers, chests, scumhouses, incinerators |
+| `Activity` | colonist-ticks per activity since the previous sample, for the [Activity tab](./activity-screen.md). Halving folds a dropped sample's tally into the next kept one. |
 
 ### A history that always spans the game
 
@@ -89,7 +90,7 @@ Perf screen's fractional ones.
   `samplePopulation`, and a `popSeries` entry. Four charts fill the 2×2 grid;
   a fifth needs a layout change in `renderPopulation`.
 - **Finer history**: raise `popHistory` or lower `popFirstEvery`. Each sample
-  is five ints, so even thousands are cheap.
+  is under twenty ints, so even thousands are cheap.
 
 ## Related
 

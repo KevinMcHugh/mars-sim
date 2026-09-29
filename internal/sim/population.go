@@ -21,6 +21,11 @@ type PopulationSample struct {
 	Meals      int // meals in any depot, whoever owns them and whether or not they are on offer
 	ColonySize int // floor tiles the colony has dug or discovered
 	Fixtures   int // placed fixtures: bunks, toilets, pods, lockers, workshops...
+	// Activity counts colonist-ticks spent on each Activity since the
+	// previous sample (or the start of the game): divided by the ticks
+	// between the two samples, it is the average number of colonists doing
+	// each thing over that stretch. See activity.go.
+	Activity [NumActivities]int
 }
 
 const (
@@ -43,6 +48,7 @@ func (w *World) samplePopulation() {
 		Colonists:  w.countKind(Colonist),
 		ColonySize: w.terrainCounts[Floor] - w.hiddenFloor,
 		Fixtures:   len(w.fixtures),
+		Activity:   w.actTally,
 	}
 	for _, c := range w.storageContainers {
 		s.Meals += c.Inventory.Count(Meal)
@@ -51,18 +57,33 @@ func (w *World) samplePopulation() {
 	if len(h) >= popHistory {
 		// Halve: keep the samples still on the doubled interval.
 		w.popEvery *= 2
+		// A dropped sample's activity folds into the next kept one, so the
+		// tallies still cover every tick.
 		kept := make([]PopulationSample, 0, popHistory)
+		var carry [NumActivities]int
 		for _, x := range h {
+			for a, n := range carry {
+				x.Activity[a] += n
+			}
+			carry = [NumActivities]int{}
 			if x.Tick%w.popEvery == 0 {
 				kept = append(kept, x)
+			} else {
+				carry = x.Activity
 			}
 		}
 		h = kept
+		// A trailing dropped sample's activity belongs to the next one taken.
+		for a, n := range carry {
+			w.actTally[a] += n
+		}
 		if w.tick%w.popEvery != 0 {
 			w.popHist = h
 			return
 		}
+		s.Activity = w.actTally
 	}
+	w.actTally = [NumActivities]int{}
 	// Published snapshots share the history, so it is never written in place:
 	// a full-capacity slice makes append copy, as with the perf history.
 	w.popHist = append(h[:len(h):len(h)], s)

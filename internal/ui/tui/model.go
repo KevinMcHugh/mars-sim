@@ -24,6 +24,7 @@ const (
 	modeMarket                     // accounts and the colony's money supply
 	modeLore                       // world facts and the rolled alien species
 	modePopulation                 // colonists, meals, colony size and fixtures over the game
+	modeActivity                   // what the colonists spend their time doing, over the game
 	modeLog                        // the colony log: the full retained feed, with scrollback
 	modePerf                       // engine tick rate and tick cost over time
 )
@@ -32,7 +33,7 @@ const (
 // and the strip drawn by renderTabs.
 var tabLabels = [...]string{
 	modeMap: "Map", modeRoster: "Roster", modeJobs: "Jobs", modeStorage: "Storage", modeMarket: "Market", modeLore: "Lore",
-	modePopulation: "Population", modeLog: "Log", modePerf: "Perf",
+	modePopulation: "Population", modeActivity: "Activity", modeLog: "Log", modePerf: "Perf",
 }
 
 // menuKind selects an open pick-one prompt, if any. Opening a menu (via `s` or
@@ -105,6 +106,9 @@ type Model struct {
 	marketOwner  sim.Owner
 	loreSelected int      // lore: index into Snapshot.AlienSpecies
 	menu         menuKind // an open spawn/build/filter picker, if any
+	// activityCounts switches the Activity tab from shares of colonist time
+	// to average colonists per activity.
+	activityCounts bool
 
 	// logScrolled is set once the log tab has moved off the live tail.
 	// logAnchor is the entry the viewport starts on, and logAnchorRow is
@@ -249,6 +253,8 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.handleLoreKey(msg)
 	case modeLog:
 		return m.handleLogKey(msg)
+	case modeActivity:
+		return m.handleActivityKey(msg)
 	case modePerf, modePopulation:
 		if msg.String() == "esc" {
 			m.mode = modeMap
