@@ -6,6 +6,10 @@ set -eu
 
 cd "$(CDPATH= cd -- "$(dirname "$0")/.." && pwd)"
 
+# The toolchain's copy is read-only, and cp keeps its mode, so remove the last
+# build's copy first (cp cannot overwrite it) and leave the new one writable.
+rm -f web/public/wasm_exec.js
 cp "$(go env GOROOT)/lib/wasm/wasm_exec.js" web/public/wasm_exec.js
+chmod u+w web/public/wasm_exec.js
 GOOS=js GOARCH=wasm go build -ldflags="-s -w" -o web/public/mars-sim.wasm ./cmd/mars-sim-wasm
 printf 'built web/public/mars-sim.wasm\n'
