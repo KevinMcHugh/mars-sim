@@ -17,7 +17,7 @@ export const FOG = hex('#2e0d0b');
 const terrains: Record<string, string> = {
   // Rock takes its color from its composition instead; see compositions.
   rock: '#a8402a',
-  floor: '#f0cfcf',
+  floor: '#f78765',
   wall: '#8a8d91',
   'pod hull': '#6f7c86',
   'nutrient pod': '#4caf7a',
@@ -47,7 +47,7 @@ const kinds: Record<string, string> = {
 };
 
 /** Under a facility's glyph: the floor, a shade darker, so the room reads. */
-export const GLYPH_BACKDROP = hex('#d9adb0');
+export const GLYPH_BACKDROP = hex('#d96d4e');
 export const CORPSE = hex('#efe6d4');
 
 function lookup(names: string[], table: Record<string, string>): RGB[] {
