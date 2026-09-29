@@ -91,11 +91,12 @@ solid. The tint is a premultiplied full-tile quad per dirty tile, drawn between
 the terrain and the sprites, so it works the same at every zoom and under
 glyphs.
 
-Scum grows on cave *walls* (rock facing open floor, see
-[scumhouse.md](./scumhouse.md)), so its green lands on rock, and viscera's red
-mostly on floor. A tinted rock tile hides its ore color, and the hover readout
-still names it. Uranium rock is drawn a bright yellow-green, so it can't be
-mistaken for scum. Bodies keep their marker, because a body is something to
+Scum is seeded on rock, and mining a scummy tile leaves the patch on the new
+floor (see [scumhouse.md](./scumhouse.md)). So the green lands on both: cave
+walls facing open floor, and the floor of anything dug through them. Viscera's
+red lands mostly on floor. A tinted rock tile hides its ore color, and the
+hover readout still names it. Uranium rock is drawn a bright yellow-green, so
+it can't be mistaken for scum. Bodies keep their marker, because a body is something to
 haul away, not a stain.
 
 This replaced the TUI's 🟢 and 🩸 in the browser: a symbol per tile turned a
