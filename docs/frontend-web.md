@@ -21,7 +21,8 @@ yet (roster, job board, lore). The plan it is part of is
 - [`internal/glyphs/glyphs.go`](../internal/glyphs/glyphs.go) — which emoji a
   terrain or entity draws as; shared with the TUI.
 - [`web/src/map/renderer.ts`](../web/src/map/renderer.ts) — `MapRenderer`: the
-  terrain textures, the shaders, and the entity and refuse sprites.
+  terrain textures, the shaders, the entity and body sprites, and the filth
+  tint.
 - [`web/src/map/camera.ts`](../web/src/map/camera.ts) — the camera: a center in
   tiles and a zoom in pixels per tile.
 - [`web/src/map/input.ts`](../web/src/map/input.ts) — drag, wheel, pinch and
@@ -71,19 +72,43 @@ buffer. Drawing is one quad per chunk on screen. The fragment shader
 At 14 or more pixels a tile, it also adds a faint grid. So the cost of a frame
 is the number of pixels, not the number of tiles.
 
-**Entities and refuse** are instanced quads: one draw each, with per-instance
+**Entities and bodies** are instanced quads: one draw each, with per-instance
 tile positions (`int`) and a palette index (`uint`). They are uploaded fresh
 each frame from the frame's typed arrays. Entities are round with a dark rim so
-they read against any floor. Refuse is small squares, red for gore and bone-white
-for a body. Both stay at least a few pixels across when zoomed out.
+they read against any floor. A body is a small bone-white square (🦴 zoomed
+in). Both stay at least a few pixels across when zoomed out.
 
-**Occupants of unseen tiles are not drawn.** An entity or refuse on a tile that
-is not visible, or on a page not held, is filtered out before upload. Otherwise
-a dormant alien would give away the undiscovered cavern it sleeps in, and the
-TUI never draws an occupant on an unexplored tile
-([fog-of-war.md](./fog-of-war.md)). Refuse arrives only when it changes, but
-what is visible changes as the colony digs, so the renderer keeps the last list
-and refilters it every frame.
+**Filth is a tint, not a symbol.** Viscera (the refuse list's gore) and cave
+scum (the scum list) color the tile they are on:
+
+- **dark red** for gore;
+- **dark green** for scum;
+- **brown** for a tile with both.
+
+The more there is (gore out of `Hello.goreMax`, scum out of `Hello.scumMax`),
+the deeper the color. One unit reads plainly, and a full tile is nearly
+solid. The tint is a premultiplied full-tile quad per dirty tile, drawn between
+the terrain and the sprites, so it works the same at every zoom and under
+glyphs.
+
+Scum is seeded on rock, and mining a scummy tile leaves the patch on the new
+floor (see [scumhouse.md](./scumhouse.md)). So the green lands on both: cave
+walls facing open floor, and the floor of anything dug through them. Viscera's
+red lands mostly on floor. A tinted rock tile hides its ore color, and the
+hover readout still names it. Uranium rock is drawn a bright yellow-green, so
+it can't be mistaken for scum. Bodies keep their marker, because a body is something to
+haul away, not a stain.
+
+This replaced the TUI's 🟢 and 🩸 in the browser: a symbol per tile turned a
+scum-lined cave into a field of dots, where a wash of color reads as a place.
+
+**Occupants of unseen tiles are not drawn.** An entity, a body or a stain on a
+tile that is not visible, or on a page not held, is filtered out before upload.
+Otherwise a dormant alien would give away the undiscovered cavern it sleeps in,
+and the TUI never draws an occupant on an unexplored tile
+([fog-of-war.md](./fog-of-war.md)). Refuse and scum arrive only when they
+change, but what is visible changes as the colony digs. So the renderer keeps
+the last lists and refilters them whenever a list or a page arrives.
 
 **Glyphs, zoomed in.** From 10 CSS pixels a tile (`GLYPH_ZOOM`) and up, the
 map draws the same emoji as the TUI:
@@ -98,7 +123,7 @@ map draws the same emoji as the TUI:
   (`glyphs.Swatch`: rock of every composition, floor, hull) keeps its flat
   color. The squares are a terminal's way of drawing a color, and a browser
   has real ones.
-- **Entities and refuse** draw their emoji instead of dots. An entity's glyph
+- **Entities and bodies** draw their emoji instead of dots. An entity's glyph
   index comes in the frame, picked in Go by `glyphs.ForEntity`: 👨 👩 🧑 👴 by
   gender and age, 🧟 for a mutant, 😱 🔫 🧹 📦 by what it is doing, and each
   alien species' own emoji. So the choice is the TUI's exactly, from data the
@@ -164,8 +189,9 @@ nothing.
   with no change here. A new terrain whose glyph is a picture draws it
   automatically; one that should stay a flat color belongs in
   `glyphs.Swatch`.
-- **Cave scum** (the TUI's 🟢) is not drawn yet: `Snapshot.Scum` is not on the
-  wire. It is a sparse overlay like refuse, so it would travel the same way.
+- **Filth colors** are `filthTint` in `palette.ts`; the levels come from
+  `Hello.goreMax` and `Hello.scumMax`. A new kind of stain would be another
+  sparse list on the wire (as scum is) and another input to `filthTint`.
 - **A new terrain or kind**: add its color to `palette.ts` by the name its
   `String` method gives. Magenta on the map means one is missing.
 - **Picking** (click to select): the hover code already finds the entity on a

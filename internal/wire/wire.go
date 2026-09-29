@@ -25,7 +25,7 @@ import (
 // Version is the frame layout's version, carried in every frame header and in
 // Hello. Bump it on any change to the layout, and update the decoder
 // (web/wire/decode.js) and the golden files in the same change.
-const Version = 2
+const Version = 3
 
 // Hello is the once-per-game message.
 type Hello struct {
@@ -41,6 +41,10 @@ type Hello struct {
 	Stats []string `json:"stats"`
 	// Glyphs is the emoji set, for a frontend that draws them.
 	Glyphs HelloGlyphs `json:"glyphs"`
+	// GoreMax and ScumMax are the most gore and scum one tile holds, so the
+	// page can shade a tile by how much is on it.
+	GoreMax int `json:"goreMax"`
+	ScumMax int `json:"scumMax"`
 }
 
 // HelloGlyphs is the map's emoji (internal/glyphs) as the page needs them: the
@@ -94,6 +98,8 @@ func NewHello(snap *sim.Snapshot) Hello {
 		Enums:    sim.EnumNames(),
 		Stats:    statNames,
 		Glyphs:   helloGlyphs(),
+		GoreMax:  sim.MaxGore,
+		ScumMax:  snap.ScumMax,
 	}
 }
 

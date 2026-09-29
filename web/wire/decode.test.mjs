@@ -34,6 +34,10 @@ function asGolden(f) {
     refuse: r === null ? [] : Array.from({ length: r.count }, (_, i) => ({
       x: r.x[i], y: r.y[i], corpses: r.corpses[i], gore: r.gore[i],
     })),
+    scumFrame: f.scum !== null,
+    scum: f.scum === null ? [] : Array.from({ length: f.scum.count }, (_, i) => ({
+      x: f.scum.x[i], y: f.scum.y[i], amount: f.scum.amount[i],
+    })),
   };
 }
 

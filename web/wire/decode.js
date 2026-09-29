@@ -6,9 +6,9 @@
 // The views alias the buffer. Keep the buffer (or copy out) for as long as you
 // read them.
 
-export const VERSION = 2;
+export const VERSION = 3;
 
-const HEADER = 48;
+const HEADER = 56;
 export const PAGE_SIDE = 64;
 export const PAGE_TILES = PAGE_SIDE * PAGE_SIDE;
 export const TILE_BYTES = 2; // terrain, flags
@@ -20,6 +20,7 @@ const FLAG_PAUSED = 1 << 0;
 const FLAG_FOG = 1 << 1;
 const FLAG_RESET = 1 << 2;
 const FLAG_REFUSE = 1 << 3;
+const FLAG_SCUM = 1 << 4;
 
 // Typed arrays read in the platform's byte order, and the wire is little
 // endian. Every browser that runs WASM is little endian; say so if not.
@@ -42,6 +43,7 @@ export function decodeFrame(buffer) {
   const n = dv.getUint32(32, true);
   const nPages = dv.getUint32(36, true);
   const nRefuse = dv.getUint32(40, true);
+  const nScum = dv.getUint32(48, true);
 
   let at = HEADER;
   const stats = new Int32Array(buffer, at, nStats);
@@ -87,6 +89,18 @@ export function decodeFrame(buffer) {
     };
   }
   at += 8 * nRefuse + align4(2 * nRefuse) + align4(nRefuse);
+
+  let scum = null;
+  if (flags & FLAG_SCUM) {
+    scum = {
+      count: nScum,
+      x: new Int32Array(buffer, at, nScum),
+      y: new Int32Array(buffer, at + 4 * nScum, nScum),
+      // 1..hello.scumMax
+      amount: new Uint8Array(buffer, at + 8 * nScum, nScum),
+    };
+  }
+  at += 8 * nScum + align4(nScum);
   if (at !== buffer.byteLength) {
     throw new Error(`wire: frame is ${buffer.byteLength} bytes, sections add up to ${at}`);
   }
@@ -107,6 +121,8 @@ export function decodeFrame(buffer) {
     pages,
     // The whole refuse list when it changed, else null: keep the last one.
     refuse,
+    // Likewise the whole scum list (cave scum on rock), or null.
+    scum,
   };
 }
 

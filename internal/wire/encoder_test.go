@@ -27,6 +27,14 @@ type decoded struct {
 	Entities  []decodedEnt   `json:"entities"`
 	Pages     []decodedPage  `json:"pages"`
 	Refuse    []decodedWaste `json:"refuse"`
+	HasScum   bool           `json:"scumFrame"`
+	Scum      []decodedScum  `json:"scum"`
+}
+
+type decodedScum struct {
+	X      int32 `json:"x"`
+	Y      int32 `json:"y"`
+	Amount uint8 `json:"amount"`
 }
 
 type decodedEnt struct {
@@ -68,6 +76,7 @@ func decode(t *testing.T, b []byte) decoded {
 		FogOfWar:  flags&flagFogOfWar != 0,
 		Reset:     flags&flagTilesReset != 0,
 		HasRefuse: flags&flagRefuseFrame != 0,
+		HasScum:   flags&flagScumFrame != 0,
 		Tick:      le.Uint64(b[8:]),
 		TileFrame: le.Uint64(b[16:]),
 		TPS:       le.Uint32(b[24:]),
@@ -75,6 +84,7 @@ func decode(t *testing.T, b []byte) decoded {
 	}
 	nStats, n := int(le.Uint32(b[28:])), int(le.Uint32(b[32:]))
 	nPages, nRefuse := int(le.Uint32(b[36:])), int(le.Uint32(b[40:]))
+	nScum := int(le.Uint32(b[48:]))
 	at := headerLen
 	for i := 0; i < nStats; i++ {
 		d.Stats = append(d.Stats, int32(le.Uint32(b[at:])))
@@ -112,6 +122,13 @@ func decode(t *testing.T, b []byte) decoded {
 		d.Refuse[i].Gore = b[at+8*nRefuse+align4(2*nRefuse)+i]
 	}
 	at += 8*nRefuse + align4(2*nRefuse) + align4(nRefuse)
+	d.Scum = make([]decodedScum, nScum)
+	for i := range d.Scum {
+		d.Scum[i].X = int32(le.Uint32(b[at+4*i:]))
+		d.Scum[i].Y = int32(le.Uint32(b[at+4*(nScum+i):]))
+		d.Scum[i].Amount = b[at+8*nScum+i]
+	}
+	at += 8*nScum + align4(nScum)
 	if at != len(b) {
 		t.Fatalf("frame is %d bytes, sections add up to %d", len(b), at)
 	}
@@ -165,6 +182,8 @@ func fixture(fog bool) *sim.Snapshot {
 				AlienSpecies: sim.AlienSpecies{Emoji: glyphs.Beetle}},
 		},
 		Stats:          sim.Stats{Colonists: 1, Cats: 1, Aliens: 1, FloorDug: 1500},
+		Scum:           map[sim.Point]uint8{{X: 12, Y: 4}: 3, {X: 2, Y: 4}: 1, {X: 130, Y: 1}: 2},
+		ScumMax:        3,
 		TicksPerSecond: 8,
 		FogOfWar:       fog,
 	}
@@ -383,6 +402,9 @@ func TestHelloNamesEverythingAFrameIndexes(t *testing.T) {
 	if g.Symbols[g.Gore] != glyphs.Gore || g.Symbols[g.Corpse] != glyphs.Corpse {
 		t.Error("refuse glyphs point at the wrong symbols")
 	}
+	if h.GoreMax != sim.MaxGore || h.ScumMax != 3 {
+		t.Errorf("goreMax %d scumMax %d", h.GoreMax, h.ScumMax)
+	}
 	if len(glyphs.All) > 0xFFFF {
 		t.Error("glyph indexes no longer fit a frame's uint16")
 	}
@@ -391,5 +413,37 @@ func TestHelloNamesEverythingAFrameIndexes(t *testing.T) {
 	}
 	if len(h.Enums.Terrains) > 256 || len(h.Enums.States) > 256 || len(h.Enums.Kinds) > 256 || len(h.Enums.Focuses) > 256 {
 		t.Error("an enum no longer fits its byte on the wire")
+	}
+}
+
+// Scum goes whole, in row order, on the first frame and whenever the engine
+// publishes a different scum map; a frame that shares the last map sends none.
+func TestEncodeSendsScumWhenItChanges(t *testing.T) {
+	snap := fixture(true)
+	e := NewEncoder()
+	d := decode(t, e.Encode(snap))
+	want := []decodedScum{{X: 130, Y: 1, Amount: 2}, {X: 2, Y: 4, Amount: 1}, {X: 12, Y: 4, Amount: 3}}
+	if !d.HasScum || !slices.Equal(d.Scum, want) {
+		t.Fatalf("first frame scum %v %+v, want %+v", d.HasScum, d.Scum, want)
+	}
+
+	same := *snap
+	same.TileChanges = sim.TileChanges{Frame: 2}
+	if d := decode(t, e.Encode(&same)); d.HasScum || len(d.Scum) != 0 {
+		t.Errorf("unchanged scum was sent again: %+v", d.Scum)
+	}
+
+	scraped := same
+	scraped.TileChanges = sim.TileChanges{Frame: 3}
+	scraped.Scum = map[sim.Point]uint8{{X: 12, Y: 4}: 2}
+	if d := decode(t, e.Encode(&scraped)); !d.HasScum || !slices.Equal(d.Scum, []decodedScum{{X: 12, Y: 4, Amount: 2}}) {
+		t.Errorf("changed scum: %v %+v", d.HasScum, d.Scum)
+	}
+
+	gone := scraped
+	gone.TileChanges = sim.TileChanges{Frame: 4}
+	gone.Scum = map[sim.Point]uint8{}
+	if d := decode(t, e.Encode(&gone)); !d.HasScum || len(d.Scum) != 0 {
+		t.Errorf("all scum scraped: want an empty scum frame, got %v %+v", d.HasScum, d.Scum)
 	}
 }

@@ -3,6 +3,7 @@ package wire
 import (
 	"encoding/binary"
 	"math"
+	"reflect"
 	"slices"
 
 	"github.com/kevinmchugh/mars-sim/internal/glyphs"
@@ -13,7 +14,7 @@ import (
 // can view it as an Int32Array or Uint8Array in place. docs/wire-format.md is
 // the reference; this is the code.
 const (
-	headerLen = 48
+	headerLen = 56
 	pageTiles = sim.TilePageSide * sim.TilePageSide
 	// tileBytes is one tile on the wire: terrain, then flags.
 	tileBytes = 2
@@ -22,6 +23,7 @@ const (
 	flagFogOfWar    = 1 << 1
 	flagTilesReset  = 1 << 2 // drop every page held; the ones in this frame start over
 	flagRefuseFrame = 1 << 3 // the refuse section is the whole list; without it, keep the last one
+	flagScumFrame   = 1 << 4 // the scum section is the whole list; without it, keep the last one
 
 	// The tile flags byte: the rock composition in the low bits, and whether
 	// the tile may be drawn (explored, or the fog is off).
@@ -56,7 +58,11 @@ type Encoder struct {
 
 	held      map[int]bool // page table indexes whose current tiles the page holds
 	lastFrame uint64       // TileChanges.Frame of the last snapshot applied
-	owed      int          // pages in view still to send after the last frame
+	// lastScum is the Snapshot.Scum map last sent. The engine hands out the
+	// same map until the scum changes (see sim.World.publishedScum), so a
+	// different map is the signal to send the list again.
+	lastScum uintptr
+	owed     int // pages in view still to send after the last frame
 
 	buf   []byte
 	tiles []sim.Tile
@@ -124,13 +130,20 @@ func (e *Encoder) Encode(snap *sim.Snapshot) []byte {
 	if flags&flagRefuseFrame != 0 {
 		refuse = snap.Tiles.RefuseTiles()
 	}
+	var scum []scumTile
+	if id := reflect.ValueOf(snap.Scum).Pointer(); id != e.lastScum || flags&flagTilesReset != 0 {
+		flags |= flagScumFrame
+		scum = scumTiles(snap.Scum)
+		e.lastScum = id
+	}
 
 	n := len(snap.Entities)
 	size := headerLen +
 		4*len(statFields) +
 		n*(4+4+4) + align4(n*2) + align4(n*3) +
 		len(pages)*(4+4) + len(pages)*pageTiles*tileBytes +
-		len(refuse)*(4+4) + align4(len(refuse)*2) + align4(len(refuse))
+		len(refuse)*(4+4) + align4(len(refuse)*2) + align4(len(refuse)) +
+		len(scum)*(4+4) + align4(len(scum))
 	e.buf = slices.Grow(e.buf[:0], size)[:size]
 	clear(e.buf)
 	b := e.buf
@@ -147,6 +160,8 @@ func (e *Encoder) Encode(snap *sim.Snapshot) []byte {
 	le.PutUint32(b[36:], uint32(len(pages)))
 	le.PutUint32(b[40:], uint32(len(refuse)))
 	le.PutUint32(b[44:], uint32(e.owed))
+	le.PutUint32(b[48:], uint32(len(scum)))
+	// b[52:56] is reserved, and zero.
 	at := headerLen
 
 	for _, v := range statValues(snap.Stats) {
@@ -215,6 +230,18 @@ func (e *Encoder) Encode(snap *sim.Snapshot) []byte {
 		b[at+i] = t.Gore
 	}
 	at += align4(r)
+
+	// Scum: xs, ys, amount (uint8, 1..Hello.scumMax).
+	c := len(scum)
+	for i, t := range scum {
+		le.PutUint32(b[at+4*i:], uint32(int32(t.pos.X)))
+		le.PutUint32(b[at+4*(c+i):], uint32(int32(t.pos.Y)))
+	}
+	at += 8 * c
+	for i, t := range scum {
+		b[at+i] = t.amount
+	}
+	at += align4(c)
 
 	if at != size {
 		panic("wire: frame size miscounted")
@@ -288,4 +315,25 @@ func align4(n int) int { return (n + 3) &^ 3 }
 
 func clampInt32(v int) int32 {
 	return int32(max(min(v, math.MaxInt32), math.MinInt32))
+}
+
+type scumTile struct {
+	pos    sim.Point
+	amount uint8
+}
+
+// scumTiles lists the scum map in row order: map order is random, and the
+// frame's bytes should not be (the golden tests compare them).
+func scumTiles(m map[sim.Point]uint8) []scumTile {
+	out := make([]scumTile, 0, len(m))
+	for p, n := range m {
+		out = append(out, scumTile{p, n})
+	}
+	slices.SortFunc(out, func(a, b scumTile) int {
+		if a.pos.Y != b.pos.Y {
+			return a.pos.Y - b.pos.Y
+		}
+		return a.pos.X - b.pos.X
+	})
+	return out
 }

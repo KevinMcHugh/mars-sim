@@ -427,6 +427,7 @@ type Snapshot struct {
 
 	AffinityMax    int // affinity display bars run [-AffinityMax, AffinityMax]
 	MoodMax        int // charge and grip each run in [-MoodMax, MoodMax]
+	ScumMax        int // a full scum patch; Scum values run 1..ScumMax
 	Paused         bool
 	TicksPerSecond int
 
@@ -603,6 +604,7 @@ func (w *World) snapshot(paused bool, tps int) *Snapshot {
 		Economy:              w.economyView(),
 		AffinityMax:          w.cfg.AffinityMax,
 		MoodMax:              w.cfg.MoodMax,
+		ScumMax:              w.cfg.ScumMax,
 		Paused:               paused,
 		TicksPerSecond:       tps,
 		FogOfWar:             w.cfg.FogOfWar,

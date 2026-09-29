@@ -314,6 +314,10 @@ func (w *World) tile(p Point) Tile {
 // glyph for any Gore > 0; the cap keeps room for a future intensity display).
 const maxGore = 3
 
+// MaxGore is the most Gore a tile holds, for a frontend that shades gore by
+// amount (the browser map does).
+const MaxGore = maxGore
+
 // maxCorpses caps a tile's body count at the width of the field. Nothing in
 // play is expected to come near it — a colonist hauls bodies off long before —
 // but a cap turns an overflow that would silently empty a tile and desync

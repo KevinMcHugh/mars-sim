@@ -1,5 +1,5 @@
 {
-  "version": 2,
+  "version": 3,
   "paused": true,
   "fogOfWar": true,
   "tilesReset": false,
@@ -74,5 +74,7 @@
       "corpses": 3,
       "gore": 0
     }
-  ]
+  ],
+  "scumFrame": false,
+  "scum": []
 }
