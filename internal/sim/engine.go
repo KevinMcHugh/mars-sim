@@ -67,13 +67,26 @@ type Engine struct {
 	// lastPublish is when the last snapshot went out; see shouldPublish.
 	lastPublish time.Time
 
+	// The tick schedule, shared by Run and Advance: ticks are interval apart
+	// and the next one is due at due. See restartSchedule and runDueTick.
+	interval time.Duration
+	due      time.Time
+
+	// stepping is set once Advance has been called: the host owns the loop.
+	// Publishing then happens at most once per Advance, at its end, so no
+	// frame is built only to be overwritten before the host sees it (see
+	// requestPublish); publishWanted asks for that end-of-call frame.
+	stepping      bool
+	publishWanted bool
+
 	mu   sync.Mutex
 	subs []chan *Snapshot
 	// liveTiles is set by ShareLiveTiles; it rules out Subscribe. It mirrors
 	// the world's TileSharing so Subscribe can check it under mu without
 	// touching the world, which belongs to the Run goroutine.
 	liveTiles bool
-	// running is set once Run starts; ShareLiveTiles is refused after that.
+	// running is set once Run or Advance starts; ShareLiveTiles is refused
+	// after that.
 	running bool
 }
 
@@ -114,14 +127,14 @@ func (e *Engine) Subscribe() <-chan *Snapshot {
 // thread as the engine (see docs/browser-frontend.md). The native TUI reads
 // frames on its own goroutine and must keep the default.
 //
-// Call it before Run, and never together with Subscribe: it panics if Run has
-// started (the world then belongs to Run's goroutine) or a subscriber is
-// already registered.
+// Call it before Run (or the first Advance), and never together with
+// Subscribe: it panics if the engine has started (the world then belongs to
+// whoever drives it) or a subscriber is already registered.
 func (e *Engine) ShareLiveTiles() {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	if e.running {
-		panic("sim: ShareLiveTiles after Run started")
+		panic("sim: ShareLiveTiles after the engine started")
 	}
 	if len(e.subs) > 0 {
 		panic("sim: ShareLiveTiles with a subscriber; live tiles cannot cross goroutines")
@@ -148,19 +161,17 @@ func (e *Engine) Send(cmd Command) {
 // whole tick, and the achieved rate sinks to whatever cadence the OS actually
 // delivers instead of the one asked for. Deadlines remember when each tick was
 // due, so a late wakeup is made up by ticking again straight away.
+//
+// Run and Advance share the schedule (restartSchedule, handle, runDueTick);
+// Run adds only the blocking: on a timer, on commands, and on ctx.
 func (e *Engine) Run(ctx context.Context) {
-	e.mu.Lock()
-	e.running = true
-	e.mu.Unlock()
+	if e.stepping {
+		panic("sim: Run on an engine driven by Advance")
+	}
+	e.start()
 
-	interval := tickInterval(e.tps)
-	due := time.Now().Add(interval)
-	timer := time.NewTimer(interval)
+	timer := time.NewTimer(e.interval)
 	defer timer.Stop()
-
-	// Publish the initial world so frontends have something to draw before the
-	// first tick fires.
-	e.publish()
 
 	for {
 		// Paused, there is nothing to time: wait for a command (resuming, most
@@ -171,9 +182,7 @@ func (e *Engine) Run(ctx context.Context) {
 				e.closeSubs()
 				return
 			case cmd := <-e.cmds:
-				e.apply(cmd)
-				interval = tickInterval(e.tps)
-				due = time.Now().Add(interval)
+				e.handle(cmd)
 			}
 			continue
 		}
@@ -183,24 +192,20 @@ func (e *Engine) Run(ctx context.Context) {
 		// wakeup, and wakeups were over a fifth of one macOS profile at a few
 		// hundred ticks a second. Commands and cancellation are still checked
 		// between every tick, just without blocking.
-		if !due.After(time.Now()) {
+		if !e.due.After(time.Now()) {
 			select {
 			case <-ctx.Done():
 				e.closeSubs()
 				return
 			case cmd := <-e.cmds:
-				if e.apply(cmd) {
-					interval = tickInterval(e.tps)
-					due = time.Now().Add(interval)
-				}
+				e.handle(cmd)
 				continue
 			default:
 			}
-			e.tick()
-			due = nextDue(due, time.Now(), interval)
+			e.runDueTick()
 			continue
 		}
-		timer.Reset(time.Until(due))
+		timer.Reset(time.Until(e.due))
 
 		select {
 		case <-ctx.Done():
@@ -208,16 +213,123 @@ func (e *Engine) Run(ctx context.Context) {
 			return
 
 		case cmd := <-e.cmds:
-			if e.apply(cmd) {
-				interval = tickInterval(e.tps)
-				due = time.Now().Add(interval)
-			}
+			e.handle(cmd)
 
 		case <-timer.C:
 			// Nothing to do here: the next pass through the loop finds the
 			// tick due and runs it.
 		}
 	}
+}
+
+// Advance is Run turned inside out, for a host that owns the event loop and
+// cannot give the engine a goroutine that blocks: the browser worker (see
+// docs/browser-frontend.md). Go's WASM runtime only hands control back to
+// JavaScript when every goroutine is blocked, so Run ticking flat out would
+// starve the worker's message handler, and pausing it would never arrive.
+//
+// Each call applies the commands sent since the last one, then runs the ticks
+// that are due, stopping once budget has elapsed. At least one due tick runs
+// per call, however small the budget, so a slow tick cannot stall the game.
+// The first call also publishes the initial frame.
+//
+// It returns the snapshot published at the end of the call, or nil if there was
+// none: a call publishes at most once, under the same frame-rate cap as Run
+// (shouldPublish), or because a command asked for a fresh frame. A tick whose
+// changes were not published is carried by the next frame, because
+// TileChanges accumulates until a publish; so every frame reaches the host
+// and TileChanges.Frame never skips. It also returns how long the host should
+// wait before calling again: 0 means a tick is already due, and a negative
+// wait means the engine is paused and only a command (Send, then Advance)
+// will change anything.
+//
+// Advance never blocks, and it must be called from one goroutine only. It does
+// not mix with Run.
+func (e *Engine) Advance(budget time.Duration) (snap *Snapshot, wait time.Duration) {
+	if !e.stepping {
+		e.mu.Lock()
+		byRun := e.running
+		e.mu.Unlock()
+		if byRun {
+			panic("sim: Advance on an engine driven by Run")
+		}
+		e.stepping = true
+		e.start()
+	}
+	deadline := time.Now().Add(budget)
+	ticked := false
+	for {
+		e.drainCommands()
+		if e.paused {
+			wait = -1
+			break
+		}
+		now := time.Now()
+		if e.due.After(now) {
+			wait = e.due.Sub(now)
+			break
+		}
+		if ticked && !now.Before(deadline) {
+			break // out of budget with a tick still due: wait stays 0
+		}
+		e.runDueTick()
+		ticked = true
+	}
+	if e.publishWanted || ticked && shouldPublish(e.tps, time.Since(e.lastPublish)) {
+		e.publishWanted = false
+		start := time.Now()
+		snap = e.publish()
+		if ticked {
+			e.perf.addPublish(time.Since(start))
+		}
+	}
+	return snap, wait
+}
+
+// start marks the engine running, schedules the first tick, and publishes the
+// initial world so frontends have something to draw before it fires.
+func (e *Engine) start() {
+	e.mu.Lock()
+	e.running = true
+	e.mu.Unlock()
+	e.restartSchedule()
+	e.requestPublish()
+}
+
+// restartSchedule puts the next tick one interval from now at the current
+// rate, forgetting any backlog.
+func (e *Engine) restartSchedule() {
+	e.interval = tickInterval(e.tps)
+	e.due = time.Now().Add(e.interval)
+}
+
+// handle applies one command. A rate change restarts the schedule at the new
+// interval, and so does anything received while paused: a resume should wait
+// one interval rather than burst through the time spent paused.
+func (e *Engine) handle(cmd Command) {
+	wasPaused := e.paused
+	if e.apply(cmd) || wasPaused {
+		e.restartSchedule()
+	}
+}
+
+// drainCommands handles every command waiting in the buffer, without
+// blocking.
+func (e *Engine) drainCommands() {
+	for {
+		select {
+		case cmd := <-e.cmds:
+			e.handle(cmd)
+		default:
+			return
+		}
+	}
+}
+
+// runDueTick runs the tick that is due and schedules the next.
+func (e *Engine) runDueTick() {
+	e.tick()
+	e.due = nextDue(e.due, time.Now(), e.interval)
 }
 
 // maxTickLag is how far behind schedule the engine may fall before it stops
@@ -246,7 +358,7 @@ func (e *Engine) tick() {
 	e.world.step()
 	stepped := time.Now()
 	var published time.Duration
-	if shouldPublish(e.tps, stepped.Sub(e.lastPublish)) {
+	if !e.stepping && shouldPublish(e.tps, stepped.Sub(e.lastPublish)) {
 		e.publish()
 		published = time.Since(stepped)
 	}
@@ -270,19 +382,19 @@ func shouldPublish(tps int, sinceLast time.Duration) bool {
 }
 
 // apply handles one command and reports whether the tick interval changed (so
-// Run can reset the ticker).
+// handle can restart the schedule).
 func (e *Engine) apply(cmd Command) (rateChanged bool) {
 	switch c := cmd.(type) {
 	case TogglePause:
 		e.paused = !e.paused
-		e.publish() // reflect the paused flag immediately
+		e.requestPublish() // reflect the paused flag immediately
 	case SetTicksPerSecond:
 		e.tps = max(c.Rate, 1)
-		e.publish()
+		e.requestPublish()
 		return true
 	case Spawn:
 		e.spawn(c.Kind)
-		e.publish()
+		e.requestPublish()
 	case OrderFacilityRoom:
 		e.world.manualFacilityRooms++
 	case OrderDormitory:
@@ -322,7 +434,7 @@ func (e *Engine) spawn(kind Kind) {
 
 // publish sends the current snapshot to every subscriber, replacing any frame a
 // subscriber has not yet consumed so the latest state always wins.
-func (e *Engine) publish() {
+func (e *Engine) publish() *Snapshot {
 	// Closing buckets here as well as in tick means a frame published while
 	// paused (a spawn, a speed change) shows the pause so far as the empty
 	// buckets it is, rather than a history that stopped when ticking did.
@@ -348,6 +460,18 @@ func (e *Engine) publish() {
 			}
 		}
 	}
+	return snap
+}
+
+// requestPublish asks for a fresh frame now. Under Run that is a publish on
+// the spot; under Advance it is deferred to the end of the call, so one call
+// never publishes twice and a frame is never overwritten unseen.
+func (e *Engine) requestPublish() {
+	if e.stepping {
+		e.publishWanted = true
+		return
+	}
+	e.publish()
 }
 
 func (e *Engine) closeSubs() {

@@ -47,6 +47,17 @@ tick was due (`nextDue`) and runs overdue ones straight away, up to
 `maxTickLag` behind; past that it restarts the schedule from now and simply
 runs flat out.
 
+**`Advance` is the same loop for a host that cannot block.** The browser
+build runs the engine in a Web Worker, where Go's WASM runtime only yields to
+JavaScript once every goroutine is blocked, so a `Run` ticking flat out would
+starve the worker's message handler. `Engine.Advance(budget)` runs the due
+ticks for up to a budget, then returns the frame it published (if any) and how
+long to wait before calling again; the host owns the loop and the waiting.
+`Run` and `Advance` share the schedule (`restartSchedule`, `handle`,
+`runDueTick`), and an engine takes one or the other. Under `Advance`, a call
+publishes at most once, at its end, so the host sees every frame; see
+[browser-frontend.md](./browser-frontend.md).
+
 Two things keep a fast engine from paying for work nobody sees:
 
 - **Publishing is capped at 60 frames a second** (`shouldPublish`). At or

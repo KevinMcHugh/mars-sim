@@ -62,7 +62,7 @@ way it is without re-deriving it from the source each time.
 | [population-screen.md](./population-screen.md) | The Population tab: colonists, meals in storage, colony size, and fixtures charted over the whole game, sampled on the simulation clock into a history that halves its resolution to stay whole. |
 | [activity-screen.md](./activity-screen.md) | The Activity tab: every colonist-tick tallied under one activity (cooking, fleeing, fighting, …) and whether it was spent walking there, carried on the Population history, and drawn as a stacked half-block area chart. |
 | [perf-screen.md](./perf-screen.md) | The Perf tab: how the engine times each tick into quarter-second samples, and the gping-style braille charts of tick rate and tick cost. |
-| [browser-frontend.md](./browser-frontend.md) | **Proposal.** Running the engine as WASM in a Web Worker behind a Svelte + WebGL UI: the steppable tick loop, the frame/topic wire, the map renderer, big-world limits, save/load, static hosting, and measured WASM speed and determinism. |
+| [browser-frontend.md](./browser-frontend.md) | **Proposal, spike built.** Running the engine as WASM in a Web Worker behind a Svelte + WebGL UI: `Engine.Advance` and the worker loop (built), what the spike measured in Chromium, and the proposed frame/topic wire, map renderer, save/load and static hosting. |
 | [frontend-tui.md](./frontend-tui.md) | The Bubble Tea terminal frontend: map, roster, controls, and glyphs. |
 | [terminal-cell-widths.md](./terminal-cell-widths.md) | Why the grid used to shear: cell-accurate measurement, the vetted glyph registry, the startup width probe, and the ASCII fallback. |
 

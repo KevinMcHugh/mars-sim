@@ -1,0 +1,210 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>mars-sim browser spike</title>
+<style>
+  :root {
+    --bg: #fbfaf8; --fg: #1d1b19; --muted: #6b655e; --line: #e4dfd8;
+    --panel: #ffffff; --accent: #b4461f; --bad: #b3261e; --good: #2e6b3a;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #161412; --fg: #ece7e1; --muted: #9a928a; --line: #2f2b27;
+      --panel: #1e1b18; --accent: #e07a4f; --bad: #f2877e; --good: #7cc48b;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 24px 16px 48px; background: var(--bg); color: var(--fg);
+    font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  main { max-width: 880px; margin: 0 auto; }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  p.lede { margin: 0 0 20px; color: var(--muted); }
+  fieldset {
+    border: 1px solid var(--line); border-radius: 8px; background: var(--panel);
+    padding: 12px 14px; margin: 0 0 16px;
+    display: grid; gap: 10px 14px; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  }
+  legend { padding: 0 6px; color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .04em; }
+  label { display: grid; gap: 3px; font-size: 12px; color: var(--muted); }
+  input {
+    font: inherit; color: var(--fg); background: var(--bg); border: 1px solid var(--line);
+    border-radius: 6px; padding: 5px 8px; width: 100%;
+  }
+  .buttons { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 16px; }
+  button {
+    font: inherit; border: 1px solid var(--line); background: var(--panel); color: var(--fg);
+    border-radius: 6px; padding: 6px 12px; cursor: pointer;
+  }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  button:disabled { opacity: .45; cursor: default; }
+  .grid { display: grid; gap: 10px; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); }
+  .stat { border: 1px solid var(--line); border-radius: 8px; background: var(--panel); padding: 10px 12px; }
+  .stat .k { font-size: 12px; color: var(--muted); }
+  .stat .v { font-size: 22px; font-variant-numeric: tabular-nums; margin-top: 2px; }
+  .stat .n { font-size: 12px; color: var(--muted); margin-top: 2px; }
+  #status { margin: 0 0 16px; color: var(--muted); min-height: 1.45em; }
+  #status.error { color: var(--bad); }
+</style>
+</head>
+<body>
+<main>
+  <h1>mars-sim browser spike</h1>
+  <p class="lede">The engine as WASM in a Web Worker, stepped by <code>Engine.Advance</code>. No map yet: this page measures tick rate, new-game time, memory, and whether the main thread stays free.</p>
+
+  <fieldset>
+    <legend>New game</legend>
+    <label>Width <input id="width" type="number" value="10000" min="16"></label>
+    <label>Height <input id="height" type="number" value="10000" min="16"></label>
+    <label>Colonists <input id="colonists" type="number" value="6" min="0"></label>
+    <label>Seed <input id="seed" type="number" value="7"></label>
+    <label>Ticks/s (0 = flat out) <input id="tps" type="number" value="0" min="0"></label>
+    <label>Slice budget ms <input id="budget" type="number" value="8" min="0" step="1"></label>
+  </fieldset>
+
+  <div class="buttons">
+    <button id="start" class="primary">Start</button>
+    <button id="pause" disabled>Pause / resume</button>
+    <button id="spawn" disabled>+10 colonists</button>
+  </div>
+
+  <p id="status">Not started.</p>
+
+  <div class="grid">
+    <div class="stat"><div class="k">Ticks per second</div><div class="v" id="tpsOut">–</div><div class="n" id="tickOut">tick –</div></div>
+    <div class="stat"><div class="k">Step per tick</div><div class="v" id="stepOut">–</div><div class="n" id="maxOut">slowest –</div></div>
+    <div class="stat"><div class="k">Publish per bucket</div><div class="v" id="pubOut">–</div><div class="n">snapshot build, per ¼ s</div></div>
+    <div class="stat"><div class="k">New game</div><div class="v" id="genOut">–</div><div class="n" id="loadOut">wasm load –</div></div>
+    <div class="stat"><div class="k">Go heap in use</div><div class="v" id="heapOut">–</div><div class="n" id="sysOut">reserved –</div></div>
+    <div class="stat"><div class="k">Frames received</div><div class="v" id="fpsOut">–</div><div class="n" id="sliceOut">slices –</div></div>
+    <div class="stat"><div class="k">Main thread, worst frame gap</div><div class="v" id="jankOut">–</div><div class="n">last second; ~17 ms is smooth</div></div>
+    <div class="stat"><div class="k">Tile pages delivered</div><div class="v" id="pagesOut">–</div><div class="n" id="entOut">entities –</div></div>
+  </div>
+</main>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const params = new URLSearchParams(location.search);
+for (const k of ['width', 'height', 'colonists', 'seed', 'tps', 'budget']) {
+  if (params.has(k)) $(k).value = params.get(k);
+}
+
+const worker = new Worker('worker.js');
+const ticks = [];         // [time, tick] over the last second
+const frames = [];        // arrival times over the last second
+const pages = new Set();  // tile pages ever delivered
+let lastFrame = null, lastMemory = null, lastSlices = 0, started = null;
+let worstGap = 0, gapWindow = [], prevRaf = performance.now();
+
+// Everything the page shows, for automation (Playwright) to read.
+window.spike = { results: () => ({
+  started, frame: lastFrame, memory: lastMemory, slices: lastSlices,
+  ticksPerSecond: rate(), framesPerSecond: framesInLastSecond(), worstGapMs: worstGap, pages: pages.size,
+}) };
+
+function rate() {
+  if (ticks.length < 2) return 0;
+  const [t0, k0] = ticks[0], [t1, k1] = ticks[ticks.length - 1];
+  return t1 > t0 ? (k1 - k0) * 1000 / (t1 - t0) : 0;
+}
+
+function framesInLastSecond() {
+  const cut = performance.now() - 1000;
+  return frames.filter((t) => t >= cut).length;
+}
+
+function status(text, error = false) {
+  $('status').textContent = text;
+  $('status').className = error ? 'error' : '';
+}
+
+const fmtMs = (v) => v >= 100 ? `${v.toFixed(0)} ms` : v >= 10 ? `${v.toFixed(1)} ms` : `${v.toFixed(2)} ms`;
+const fmtMB = (b) => `${(b / 1048576).toFixed(0)} MB`;
+
+$('start').onclick = () => {
+  const settings = {
+    seed: +$('seed').value, width: +$('width').value, height: +$('height').value,
+    colonists: +$('colonists').value, tps: +$('tps').value || 1000000,
+  };
+  $('start').disabled = true;
+  status(`Generating a ${settings.width}×${settings.height} world…`);
+  worker.postMessage({ type: 'start', settings, budgetMs: +$('budget').value });
+};
+$('budget').onchange = () => worker.postMessage({ type: 'budget', budgetMs: +$('budget').value });
+$('pause').onclick = () => worker.postMessage({ type: 'command', command: { type: 'pause' } });
+$('spawn').onclick = () => {
+  for (let i = 0; i < 10; i++) worker.postMessage({ type: 'command', command: { type: 'spawn', kind: 'colonist' } });
+};
+
+worker.onmessage = (e) => {
+  const msg = e.data;
+  const now = performance.now();
+  switch (msg.type) {
+    case 'started':
+      if (msg.result.error) { status(msg.result.error, true); $('start').disabled = false; return; }
+      started = { ...msg.result, loadMs: msg.loadMs };
+      $('genOut').textContent = fmtMs(msg.result.genMs);
+      $('loadOut').textContent = `wasm load ${fmtMs(msg.loadMs)}`;
+      $('pause').disabled = $('spawn').disabled = false;
+      status(`Running seed ${msg.result.seed}, ${msg.result.width}×${msg.result.height}.`);
+      break;
+    case 'frame': {
+      const f = msg.frame;
+      lastFrame = f;
+      ticks.push([now, f.tick]);
+      frames.push(now);
+      if (f.tilePages) for (const p of f.tilePages) pages.add(p);
+      $('tickOut').textContent = `tick ${f.tick}${f.paused ? ' · paused' : ''}`;
+      $('entOut').textContent = `entities ${f.entities}, colonists ${f.stats.Colonists}`;
+      $('pagesOut').textContent = f.tileAll ? 'all' : pages.size;
+      if (f.perf && f.perf.ticks) {
+        $('stepOut').textContent = fmtMs(f.perf.stepMs / f.perf.ticks);
+        $('maxOut').textContent = `slowest ${fmtMs(f.perf.maxTickMs)}`;
+      }
+      if (f.perf) $('pubOut').textContent = fmtMs(f.perf.publishMs);
+      break;
+    }
+    case 'memory':
+      lastMemory = msg.memory;
+      lastSlices = msg.slices;
+      $('heapOut').textContent = fmtMB(msg.memory.heapInuse);
+      $('sysOut').textContent = `reserved ${fmtMB(msg.memory.sys)}, ${msg.memory.numGC} GCs`;
+      $('sliceOut').textContent = `${msg.slices} slices/s`;
+      break;
+    case 'error':
+      status(msg.error, true);
+      break;
+  }
+};
+
+// Once a second: roll the windows and refresh the rates.
+setInterval(() => {
+  const cut = performance.now() - 1000;
+  while (ticks.length > 2 && ticks[0][0] < cut) ticks.shift();
+  while (frames.length && frames[0] < cut) frames.shift();
+  if (lastFrame) {
+    $('tpsOut').textContent = lastFrame.paused ? '0' : rate().toFixed(0);
+    $('fpsOut').textContent = `${framesInLastSecond()}/s`;
+  }
+}, 1000);
+
+// The main thread's own health: the longest gap between animation frames.
+// If the worker is doing its job this stays near 17 ms however hard the sim
+// works.
+function raf(now) {
+  gapWindow.push([now, now - prevRaf]);
+  prevRaf = now;
+  while (gapWindow.length && gapWindow[0][0] < now - 1000) gapWindow.shift();
+  worstGap = Math.max(0, ...gapWindow.map(([, g]) => g));
+  $('jankOut').textContent = fmtMs(worstGap);
+  requestAnimationFrame(raf);
+}
+requestAnimationFrame(raf);
+
+if (params.has('auto')) $('start').click();
+</script>
+</body>
+</html>
