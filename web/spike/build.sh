@@ -1,6 +1,6 @@
 #!/bin/sh
 # Build the browser spike: the engine as WASM plus Go's JS glue, next to the
-# page. --serve also serves web/spike on http://127.0.0.1:8766/.
+# page. --serve also serves the page on http://127.0.0.1:8766/spike/.
 set -eu
 
 cd "$(CDPATH= cd -- "$(dirname "$0")/../.." && pwd)"
@@ -11,8 +11,9 @@ printf 'built web/spike/mars-sim.wasm\n'
 
 case "${1:-}" in
   --serve)
-    printf 'serving http://127.0.0.1:8766/\n'
-    exec python3 -m http.server 8766 --bind 127.0.0.1 --directory web/spike
+    # Serve web/, not web/spike/: the page imports ../wire/decode.js.
+    printf 'serving http://127.0.0.1:8766/spike/\n'
+    exec python3 -m http.server 8766 --bind 127.0.0.1 --directory web
     ;;
   "") ;;
   *)

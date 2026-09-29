@@ -63,6 +63,8 @@
     <label>Seed <input id="seed" type="number" value="7"></label>
     <label>Ticks/s (0 = flat out) <input id="tps" type="number" value="0" min="0"></label>
     <label>Slice budget ms <input id="budget" type="number" value="8" min="0" step="1"></label>
+    <label>View width, tiles <input id="viewW" type="number" value="160" min="1"></label>
+    <label>View height, tiles <input id="viewH" type="number" value="100" min="1"></label>
   </fieldset>
 
   <div class="buttons">
@@ -81,28 +83,32 @@
     <div class="stat"><div class="k">Go heap in use</div><div class="v" id="heapOut">–</div><div class="n" id="sysOut">reserved –</div></div>
     <div class="stat"><div class="k">Frames received</div><div class="v" id="fpsOut">–</div><div class="n" id="sliceOut">slices –</div></div>
     <div class="stat"><div class="k">Main thread, worst frame gap</div><div class="v" id="jankOut">–</div><div class="n">last second; ~17 ms is smooth</div></div>
-    <div class="stat"><div class="k">Tile pages delivered</div><div class="v" id="pagesOut">–</div><div class="n" id="entOut">entities –</div></div>
+    <div class="stat"><div class="k">Wire traffic</div><div class="v" id="wireOut">–</div><div class="n" id="pagesOut">pages –</div></div>
+    <div class="stat"><div class="k">Entities</div><div class="v" id="entOut">–</div><div class="n" id="colOut">colonists –</div></div>
   </div>
 </main>
 
-<script>
+<script type="module">
+import { decodeFrame, namedStats } from '../wire/decode.js';
+
 const $ = (id) => document.getElementById(id);
 const params = new URLSearchParams(location.search);
-for (const k of ['width', 'height', 'colonists', 'seed', 'tps', 'budget']) {
+for (const k of ['width', 'height', 'colonists', 'seed', 'tps', 'budget', 'viewW', 'viewH']) {
   if (params.has(k)) $(k).value = params.get(k);
 }
 
 const worker = new Worker('worker.js');
 const ticks = [];         // [time, tick] over the last second
-const frames = [];        // arrival times over the last second
-const pages = new Set();  // tile pages ever delivered
-let lastFrame = null, lastMemory = null, lastSlices = 0, started = null;
+const frames = [];        // [arrival time, bytes] over the last second
+const pages = new Set();  // tile pages held, as "px,py"
+let lastFrame = null, lastMemory = null, lastSlices = 0, started = null, hello = null;
 let worstGap = 0, gapWindow = [], prevRaf = performance.now();
 
 // Everything the page shows, for automation (Playwright) to read.
 window.spike = { results: () => ({
   started, frame: lastFrame, memory: lastMemory, slices: lastSlices,
   ticksPerSecond: rate(), framesPerSecond: framesInLastSecond(), worstGapMs: worstGap, pages: pages.size,
+  bytesPerSecond: bytesInLastSecond(),
 }) };
 
 function rate() {
@@ -113,7 +119,12 @@ function rate() {
 
 function framesInLastSecond() {
   const cut = performance.now() - 1000;
-  return frames.filter((t) => t >= cut).length;
+  return frames.filter(([t]) => t >= cut).length;
+}
+
+function bytesInLastSecond() {
+  const cut = performance.now() - 1000;
+  return frames.reduce((sum, [t, b]) => (t >= cut ? sum + b : sum), 0);
 }
 
 function status(text, error = false) {
@@ -143,28 +154,42 @@ worker.onmessage = (e) => {
   const msg = e.data;
   const now = performance.now();
   switch (msg.type) {
-    case 'started':
+    case 'started': {
       if (msg.result.error) { status(msg.result.error, true); $('start').disabled = false; return; }
-      started = { ...msg.result, loadMs: msg.loadMs };
+      hello = msg.result.hello;
+      started = { genMs: msg.result.genMs, loadMs: msg.loadMs, hello };
       $('genOut').textContent = fmtMs(msg.result.genMs);
       $('loadOut').textContent = `wasm load ${fmtMs(msg.loadMs)}`;
       $('pause').disabled = $('spawn').disabled = false;
-      status(`Running seed ${msg.result.seed}, ${msg.result.width}×${msg.result.height}.`);
+      status(`Running seed ${hello.seed}, ${hello.width}×${hello.height}.`);
+      // No map yet: stand in for one by viewing a window on the map's middle,
+      // which is where the colony lands.
+      const w = +$('viewW').value, h = +$('viewH').value;
+      const x0 = Math.floor((hello.width - w) / 2), y0 = Math.floor((hello.height - h) / 2);
+      worker.postMessage({ type: 'interest', rect: { x0, y0, x1: x0 + w, y1: y0 + h } });
       break;
+    }
     case 'frame': {
-      const f = msg.frame;
-      lastFrame = f;
+      const f = decodeFrame(msg.buffer);
+      const stats = namedStats(f, hello);
       ticks.push([now, f.tick]);
-      frames.push(now);
-      if (f.tilePages) for (const p of f.tilePages) pages.add(p);
+      frames.push([now, msg.buffer.byteLength]);
+      if (f.tilesReset) pages.clear();
+      for (let i = 0; i < f.pages.count; i++) pages.add(`${f.pages.px[i]},${f.pages.py[i]}`);
+      lastFrame = {
+        tick: f.tick, paused: f.paused, entities: f.entities.count, stats,
+        pagesOwed: f.pagesOwed, perf: msg.perf ?? lastFrame?.perf,
+      };
       $('tickOut').textContent = `tick ${f.tick}${f.paused ? ' · paused' : ''}`;
-      $('entOut').textContent = `entities ${f.entities}, colonists ${f.stats.Colonists}`;
-      $('pagesOut').textContent = f.tileAll ? 'all' : pages.size;
-      if (f.perf && f.perf.ticks) {
-        $('stepOut').textContent = fmtMs(f.perf.stepMs / f.perf.ticks);
-        $('maxOut').textContent = `slowest ${fmtMs(f.perf.maxTickMs)}`;
+      $('entOut').textContent = f.entities.count;
+      $('colOut').textContent = `colonists ${stats.Colonists}`;
+      $('pagesOut').textContent = `pages held ${pages.size}${f.pagesOwed ? `, ${f.pagesOwed} owed` : ''}`;
+      const perf = msg.perf;
+      if (perf && perf.ticks) {
+        $('stepOut').textContent = fmtMs(perf.stepMs / perf.ticks);
+        $('maxOut').textContent = `slowest ${fmtMs(perf.maxTickMs)}`;
       }
-      if (f.perf) $('pubOut').textContent = fmtMs(f.perf.publishMs);
+      if (perf) $('pubOut').textContent = fmtMs(perf.publishMs);
       break;
     }
     case 'memory':
@@ -184,10 +209,11 @@ worker.onmessage = (e) => {
 setInterval(() => {
   const cut = performance.now() - 1000;
   while (ticks.length > 2 && ticks[0][0] < cut) ticks.shift();
-  while (frames.length && frames[0] < cut) frames.shift();
+  while (frames.length && frames[0][0] < cut) frames.shift();
   if (lastFrame) {
     $('tpsOut').textContent = lastFrame.paused ? '0' : rate().toFixed(0);
     $('fpsOut').textContent = `${framesInLastSecond()}/s`;
+    $('wireOut').textContent = `${(bytesInLastSecond() / 1024).toFixed(0)} KB/s`;
   }
 }, 1000);
 

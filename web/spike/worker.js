@@ -34,9 +34,13 @@ function schedule(waitMs) {
 
 function slice() {
   slices++;
-  const r = JSON.parse(marssim.advance(budgetMs));
-  if (r.error) { postMessage({ type: 'error', error: r.error }); return; }
-  if (r.frame) postMessage({ type: 'frame', frame: r.frame, at: performance.now() });
+  const r = marssim.advance(budgetMs);
+  if (typeof r === 'string') { postMessage({ type: 'error', error: JSON.parse(r).error }); return; }
+  if (r.frame) {
+    // The frame is a fresh, exactly sized buffer: transfer it, don't copy it.
+    const buffer = r.frame.buffer;
+    postMessage({ type: 'frame', buffer, perf: r.perf && JSON.parse(r.perf) }, [buffer]);
+  }
   schedule(r.wait);
 }
 
@@ -74,5 +78,11 @@ onmessage = async (e) => {
     case 'budget':
       budgetMs = msg.budgetMs;
       break;
+    case 'interest': {
+      const { x0, y0, x1, y1 } = msg.rect;
+      marssim.interest(x0, y0, x1, y1);
+      schedule(0); // send the newly visible pages now, even if paused
+      break;
+    }
   }
 };

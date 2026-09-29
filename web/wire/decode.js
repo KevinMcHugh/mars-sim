@@ -1,0 +1,112 @@
+// Decoder for the engine's binary frames (internal/wire; layout in
+// docs/wire-format.md). It parses nothing: every section comes back as a
+// typed-array view over the frame's own buffer, so a frame with thousands of
+// entities costs a handful of allocations, not one object per entity.
+//
+// The views alias the buffer. Keep the buffer (or copy out) for as long as you
+// read them.
+
+export const VERSION = 1;
+
+const HEADER = 48;
+export const PAGE_SIDE = 64;
+export const PAGE_TILES = PAGE_SIDE * PAGE_SIDE;
+export const TILE_BYTES = 2; // terrain, flags
+
+export const TILE_COMPOSITION_MASK = 0x0f;
+export const TILE_VISIBLE = 1 << 4;
+
+const FLAG_PAUSED = 1 << 0;
+const FLAG_FOG = 1 << 1;
+const FLAG_RESET = 1 << 2;
+const FLAG_REFUSE = 1 << 3;
+
+// Typed arrays read in the platform's byte order, and the wire is little
+// endian. Every browser that runs WASM is little endian; say so if not.
+if (new Uint8Array(new Uint16Array([1]).buffer)[0] !== 1) {
+  throw new Error('wire: big-endian platform; the frame decoder assumes little endian');
+}
+
+const align4 = (n) => (n + 3) & ~3;
+
+/**
+ * @param {ArrayBuffer} buffer one frame
+ */
+export function decodeFrame(buffer) {
+  const dv = new DataView(buffer);
+  if (dv.getUint32(0, true) !== 0x5246534d) throw new Error('wire: not a frame (bad magic)');
+  const version = dv.getUint16(4, true);
+  if (version !== VERSION) throw new Error(`wire: frame version ${version}, decoder speaks ${VERSION}`);
+  const flags = dv.getUint16(6, true);
+  const nStats = dv.getUint32(28, true);
+  const n = dv.getUint32(32, true);
+  const nPages = dv.getUint32(36, true);
+  const nRefuse = dv.getUint32(40, true);
+
+  let at = HEADER;
+  const stats = new Int32Array(buffer, at, nStats);
+  at += 4 * nStats;
+
+  const entities = {
+    count: n,
+    id: new Uint32Array(buffer, at, n),
+    x: new Int32Array(buffer, at + 4 * n, n),
+    y: new Int32Array(buffer, at + 8 * n, n),
+    kind: new Uint8Array(buffer, at + 12 * n, n),
+    state: new Uint8Array(buffer, at + 13 * n, n),
+    focus: new Uint8Array(buffer, at + 14 * n, n),
+  };
+  at += 12 * n + align4(3 * n);
+
+  const pages = {
+    count: nPages,
+    px: new Int32Array(buffer, at, nPages),
+    py: new Int32Array(buffer, at + 4 * nPages, nPages),
+    // Page i's tiles are tiles.subarray(i * PAGE_TILES * TILE_BYTES, ...),
+    // row by row, TILE_BYTES each: terrain, then flags.
+    tiles: null,
+  };
+  at += 8 * nPages;
+  pages.tiles = new Uint8Array(buffer, at, nPages * PAGE_TILES * TILE_BYTES);
+  at += nPages * PAGE_TILES * TILE_BYTES;
+
+  let refuse = null;
+  if (flags & FLAG_REFUSE) {
+    refuse = {
+      count: nRefuse,
+      x: new Int32Array(buffer, at, nRefuse),
+      y: new Int32Array(buffer, at + 4 * nRefuse, nRefuse),
+      corpses: new Uint16Array(buffer, at + 8 * nRefuse, nRefuse),
+      gore: new Uint8Array(buffer, at + 8 * nRefuse + align4(2 * nRefuse), nRefuse),
+    };
+  }
+  at += 8 * nRefuse + align4(2 * nRefuse) + align4(nRefuse);
+  if (at !== buffer.byteLength) {
+    throw new Error(`wire: frame is ${buffer.byteLength} bytes, sections add up to ${at}`);
+  }
+
+  return {
+    version,
+    paused: (flags & FLAG_PAUSED) !== 0,
+    fogOfWar: (flags & FLAG_FOG) !== 0,
+    // Drop every page held before applying this frame's pages.
+    tilesReset: (flags & FLAG_RESET) !== 0,
+    tick: Number(dv.getBigUint64(8, true)),
+    tileFrame: Number(dv.getBigUint64(16, true)),
+    tps: dv.getUint32(24, true),
+    // Pages in view the worker still owes; they follow in the next frames.
+    pagesOwed: dv.getUint32(44, true),
+    stats,
+    entities,
+    pages,
+    // The whole refuse list when it changed, else null: keep the last one.
+    refuse,
+  };
+}
+
+/** Name the stats section with Hello.stats: { Colonists: 6, ... }. */
+export function namedStats(frame, hello) {
+  const out = {};
+  hello.stats.forEach((name, i) => { out[name] = frame.stats[i]; });
+  return out;
+}

@@ -27,16 +27,20 @@ Built so far:
 - [`internal/sim/advance_test.go`](../internal/sim/advance_test.go) — budgets,
   pausing, the Run/Advance exclusion, and every frame reaching the host.
 - [`cmd/mars-sim-wasm/`](../cmd/mars-sim-wasm/main.go) — the `GOOS=js
-  GOARCH=wasm` entry point. It exports `start`, `advance`, `send` and `memory`
-  on `globalThis.marssim`, JSON in and out. Its frame is a stand-in for the wire
-  (header and stats, nothing colony-sized). It never imports the TUI.
+  GOARCH=wasm` entry point. It exports `start`, `advance`, `interest`, `send`
+  and `memory` on `globalThis.marssim`; `advance` returns a binary wire frame
+  ([wire-format.md](./wire-format.md)), the rest JSON. It never imports the TUI.
 - [`web/spike/`](../web/spike/) — `worker.js` (the host loop), `index.html` (the
-  measurement page) and `build.sh` (`web/spike/build.sh --serve`, then open
-  <http://127.0.0.1:8766/>; add `?auto=1&width=…&tps=…` to start straight away).
+  measurement page, which decodes real frames) and `build.sh`
+  (`web/spike/build.sh --serve`, then open <http://127.0.0.1:8766/spike/>; add
+  `?auto=1&width=…&tps=…&viewW=…` to start straight away).
+
+- [`internal/wire/`](../internal/wire/wire.go) and
+  [`web/wire/decode.js`](../web/wire/decode.js) — the frame tier of the wire:
+  the Hello, the binary frame, and its decoder. See
+  [wire-format.md](./wire-format.md).
 
 Still proposed:
-- `internal/wire/` — turns a `*sim.Snapshot` into wire messages and decodes
-  commands. It is plain Go, so it is tested natively. It knows nothing about JS.
 - `web/` — Vite + Svelte 5 + TypeScript.
   - `web/src/sim/` — the worker bootstrap, `SimClient`, and the frame decoder.
   - `web/src/map/` — the WebGL map renderer. It is framework-free.
@@ -159,6 +163,14 @@ Page identity is not the signal: live pages never move. Sending lazily, by
 viewport, still matters on the first frame and as the colony explores. A page is
 a 64×64 square (`TilePageSide`, located with `TileGrid.PageOrigin`), which lines
 up well with the renderer's `texSubImage2D` uploads.
+
+**The frame tier is built** ([wire-format.md](./wire-format.md)), with a few
+differences from the sketch above. Entities carry id, position, kind, state
+and focus so far (no species or hp yet). Refuse is a whole list sent when it
+changes, not deltas, and the log isn't carried yet. The view is a tile
+rectangle (`interest`), with no zoom. A frame carries at most 64 pages, and
+the rest are "owed" and follow straight away, nearest the middle of the view
+first. Topics are not built.
 
 **Enums travel as a catalog, not as duplicated TS tables.** On startup the worker
 sends a `hello` message with:
@@ -504,9 +516,10 @@ A suggested order. Each step is worth landing on its own:
 2. **Cross-platform determinism. Done as a test** (`golden_test.go`, run
    natively and under `js/wasm` by `tools/determinism-check.sh`). The repo has no
    CI, so nothing runs it automatically yet.
-3. **`internal/wire`.** Add the frame encoder, the topics, and the
-   `hello` catalog, with golden-byte tests natively. Keep a TS decoder test fed
-   by the same golden files, so the two sides can't drift apart.
+3. **`internal/wire`. Frame tier done** ([wire-format.md](./wire-format.md)):
+   the Hello (map, enum names, stat names), the binary frame, golden frames,
+   and a JS decoder tested against them. The spike page decodes real frames.
+   Topics and the config schema come with the panels that need them.
 4. **The map renderer.** Terrain textures, sprites, camera, fog, and click-to-pick
    (resolved on the main thread from the frame's positions).
 5. **Svelte shell.** The header stats, controls (pause, speed, spawn, the

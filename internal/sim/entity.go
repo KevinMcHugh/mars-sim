@@ -63,6 +63,8 @@ const (
 	Demolishing       // colonist breaking down a wall to escape a sealed room
 	Crafting          // colonist working a recipe at a workshop (the scumhouse)
 	Scraping          // colonist scraping cave scum off a surface
+
+	numStates // keep last: the number of states
 )
 
 func (s State) String() string {
