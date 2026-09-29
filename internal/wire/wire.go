@@ -54,8 +54,11 @@ type Hello struct {
 type HelloGlyphs struct {
 	Symbols []string `json:"symbols"`
 	Terrain []int    `json:"terrain"`
-	Gore    int      `json:"gore"`
-	Corpse  int      `json:"corpse"`
+	// Kinds is each creature kind's generic glyph (glyphs.ForKind), for
+	// counts and legends.
+	Kinds  []int `json:"kinds"`
+	Gore   int   `json:"gore"`
+	Corpse int   `json:"corpse"`
 }
 
 // glyphIndex is each glyph's position in glyphs.All, the index frames carry.
@@ -68,12 +71,17 @@ var glyphIndex = func() map[string]uint16 {
 }()
 
 func helloGlyphs() HelloGlyphs {
-	terrains := sim.EnumNames().Terrains
+	enums := sim.EnumNames()
+	terrains := enums.Terrains
 	h := HelloGlyphs{
 		Symbols: glyphs.All,
 		Terrain: make([]int, len(terrains)),
+		Kinds:   make([]int, len(enums.Kinds)),
 		Gore:    int(glyphIndex[glyphs.Gore]),
 		Corpse:  int(glyphIndex[glyphs.Corpse]),
+	}
+	for k := range enums.Kinds {
+		h.Kinds[k] = int(glyphIndex[glyphs.ForKind(sim.Kind(k))])
 	}
 	for t := range terrains {
 		g := glyphs.ForTerrain(sim.Terrain(t))

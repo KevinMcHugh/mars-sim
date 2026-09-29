@@ -35,6 +35,14 @@ import (
 	"github.com/kevinmchugh/mars-sim/internal/wire"
 )
 
+// hostAPI versions this file's exports: bump it whenever one is added,
+// removed or changes shape, together with HOST_API in web/src/sim/client.ts.
+// The page checks it at start, so a mars-sim.wasm left over from an older
+// build (npm run wasm not rerun after a pull) fails with a message saying so,
+// instead of a panel that silently never loads. 1 was everything before
+// subscribe/unsubscribe.
+const hostAPI = 2
+
 var (
 	eng *sim.Engine
 	enc *wire.Encoder
@@ -52,6 +60,7 @@ var (
 
 func main() {
 	api := js.Global().Get("Object").New()
+	api.Set("api", hostAPI)
 	api.Set("start", js.FuncOf(func(_ js.Value, args []js.Value) any {
 		settings := "{}"
 		if len(args) > 0 && args[0].Type() == js.TypeString {

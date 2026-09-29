@@ -362,6 +362,22 @@ func ForAlien(sp sim.AlienSpecies) string {
 	return Alien
 }
 
+// ForKind is the generic glyph for a kind of creature, for a count or a
+// legend rather than a particular entity: the TUI's header and the browser's
+// top bar. See ForEntity for the glyph a given entity draws as.
+func ForKind(k sim.Kind) string {
+	switch k {
+	case sim.Alien:
+		return Alien
+	case sim.Cat:
+		return Cat
+	case sim.Rat:
+		return Rat
+	default:
+		return Colonist
+	}
+}
+
 // ForEntity is an entity's map glyph. A colonist's shows what it is doing when
 // that is the notable thing (fleeing, fighting, hauling), and otherwise who it
 // is (see ForColonist).

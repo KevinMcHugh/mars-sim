@@ -399,6 +399,9 @@ func TestHelloNamesEverythingAFrameIndexes(t *testing.T) {
 	if i := g.Terrain[sim.Bed]; i < 0 || g.Symbols[i] != glyphs.Bed {
 		t.Errorf("bed draws as glyph %d", i)
 	}
+	if len(g.Kinds) != len(h.Enums.Kinds) || g.Symbols[g.Kinds[sim.Colonist]] != glyphs.Colonist || g.Symbols[g.Kinds[sim.Alien]] != glyphs.Alien {
+		t.Errorf("kind glyphs: %v", g.Kinds)
+	}
 	if g.Symbols[g.Gore] != glyphs.Gore || g.Symbols[g.Corpse] != glyphs.Corpse {
 		t.Error("refuse glyphs point at the wrong symbols")
 	}

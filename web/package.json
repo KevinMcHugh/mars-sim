@@ -5,6 +5,7 @@
   "description": "The browser frontend for mars-sim. See docs/browser-frontend.md.",
   "scripts": {
     "wasm": "sh build-wasm.sh",
+    "predev": "sh build-wasm.sh",
     "dev": "vite",
     "build": "sh build-wasm.sh && svelte-check --fail-on-warnings && vite build",
     "check": "svelte-check --fail-on-warnings",

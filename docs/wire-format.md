@@ -46,7 +46,8 @@ enum *values*; the page never keeps its own copy of the tables.
 Since version 2, Hello also carries the **glyphs** (`internal/glyphs`):
 `symbols` (every emoji, `glyphs.All`; an entity's glyph indexes it), `terrain`
 (each terrain's glyph index, or -1 for a swatch such as rock, floor or hull,
-which the page draws as a color), and the `gore` and `corpse` glyphs. Since
+which the page draws as a color), `kinds` (each creature kind's generic glyph,
+`glyphs.ForKind`, for counts), and the `gore` and `corpse` glyphs. Since
 version 3 it carries `goreMax` (`sim.MaxGore`) and `scumMax`
 (`Snapshot.ScumMax`, from `-scum-max`), so the page can shade a tile by how
 much is on it.

@@ -33,6 +33,9 @@ func TestAllIsASetOfEveryPickableGlyph(t *testing.T) {
 			picked = append(picked, ForColonist(&sim.Profile{Gender: g, Age: age}))
 		}
 	}
+	for k := sim.Kind(0); k < 8; k++ {
+		picked = append(picked, ForKind(k))
+	}
 	picked = append(picked, Gore, Corpse, Scum, Mars)
 	for _, s := range picked {
 		if !Known(s) {
