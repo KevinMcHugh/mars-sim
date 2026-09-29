@@ -135,6 +135,15 @@ of the payloads due, by name:
 | Topic | Every | Payload |
 | --- | --- | --- |
 | `lore` | 1 s | `world` (size, fog, explored tiles, chunks generated, seed) and `species` (each rolled species' roster label, map glyph, build, temperament, bite and pace, and field notes) |
+| `entity:<id>` | 250 ms | One creature (`EntityTopic`): name, glyph, position, state, focus, health, body parts, and death if dead; an alien's species; a colonist's profile, wallet, affect, needs, inventory, traits, family, affinities and memories (newest first). Looked up among the living, then `Deceased`, then `Graveyard`; `found: false` once it is in none of them. |
+| `tile:<x>,<y>` | 250 ms | One tile (`TileTopic`): terrain (a rock's composition), glyph, the fixture's owner and access, a container's contents and ledger, and the creatures on it. Under fog, only `explored: false`. |
+
+The inspector's two topics take a parameter, so they are not in `topicTable`:
+`paramTopic` (`internal/wire/inspect.go`) parses them on subscribe, and a
+malformed one (`entity:x`, `tile:3`) fails like an unknown name. Each
+selection is its own topic, so the dedupe and the interval work per creature
+with no extra state. Filth is not in the tile topic: the page already has it
+from the frames.
 
 ### When the host encodes
 
@@ -179,6 +188,7 @@ Entities in a re-encode are from the newest snapshot, not newer ticks.
 
 ## Extending it
 
+- **A new topic with a parameter** (`project:<id>`): a case in `paramTopic`.
 - **A new topic**: a `topicTable` entry in `topics.go` (an interval, and a
   function from the snapshot to a JSON-able value, with its own
   `json`-tagged types), a test, and a row in the Topics table above. Topics

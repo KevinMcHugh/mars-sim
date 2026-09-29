@@ -26,7 +26,8 @@ type topic struct {
 	build func(*sim.Snapshot) any
 }
 
-// topicTable is every topic a page can subscribe to, by name.
+// topicTable is every topic a page can subscribe to by a fixed name. Topics
+// with a parameter ("entity:12") are resolved by paramTopic.
 var topicTable = map[string]topic{
 	"lore": {every: time.Second, build: loreTopic},
 }
@@ -37,6 +38,7 @@ type Topics struct {
 }
 
 type topicState struct {
+	tp    topic
 	built time.Time // when it was last built; zero until the first build
 	sent  []byte    // the JSON last sent, to skip an unchanged rebuild
 }
@@ -47,10 +49,14 @@ func NewTopics() *Topics { return &Topics{subs: map[string]*topicState{}} }
 // Subscribe starts sending name. Subscribing again restarts it: the next Due
 // sends it whatever changed, so a panel that reopens gets its data at once.
 func (t *Topics) Subscribe(name string) error {
-	if _, ok := topicTable[name]; !ok {
+	tp, ok := topicTable[name]
+	if !ok {
+		tp, ok = paramTopic(name)
+	}
+	if !ok {
 		return fmt.Errorf("unknown topic %q", name)
 	}
-	t.subs[name] = &topicState{}
+	t.subs[name] = &topicState{tp: tp}
 	return nil
 }
 
@@ -67,7 +73,7 @@ func (t *Topics) Due(snap *sim.Snapshot, now time.Time) map[string]json.RawMessa
 	}
 	var out map[string]json.RawMessage
 	for name, st := range t.subs {
-		tp := topicTable[name]
+		tp := st.tp
 		if !st.built.IsZero() && now.Sub(st.built) < tp.every {
 			continue
 		}

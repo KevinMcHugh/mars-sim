@@ -173,6 +173,38 @@ void main() {
   outColor = vec4(c, 1.0);
 }`;
 
+// The selection marker: a square ring around one tile, a dark line outside a
+// bright one so it reads on any ground. Sized in pixels, not tiles, so it
+// stays visible zoomed out.
+const MARK_VS = `#version 300 es
+in vec2 aCorner;
+uniform vec2 uTile;     // the marked tile
+uniform float uPad;     // tiles of margin around it
+uniform vec2 uCam;
+uniform float uScale;
+uniform vec2 uView;
+out vec2 vPx;           // pixels from the ring's top-left corner
+uniform float uSide;    // the ring's side, pixels
+void main() {
+  vPx = aCorner * uSide;
+  vec2 tile = uTile - uPad + aCorner * (1.0 + 2.0 * uPad);
+  vec2 px = (tile - uCam) * uScale;
+  gl_Position = vec4(px.x / (uView.x * 0.5), -px.y / (uView.y * 0.5), 0.0, 1.0);
+}`;
+
+const MARK_FS = `#version 300 es
+precision highp float;
+in vec2 vPx;
+uniform float uSide;
+uniform float uLine;    // device pixels per line
+uniform vec3 uColor;
+out vec4 outColor;
+void main() {
+  float edge = min(min(vPx.x, vPx.y), min(uSide - vPx.x, uSide - vPx.y));
+  if (edge > 2.0 * uLine) discard;
+  outColor = edge < uLine ? vec4(0.0, 0.0, 0.0, 0.85) : vec4(uColor, 1.0);
+}`;
+
 interface Chunk { tex: WebGLTexture; cx: number; cy: number }
 
 /** A copy of one page's tiles on the CPU, for hover lookups. */
@@ -215,6 +247,9 @@ export class MapRenderer {
   readonly filth = new Map<number, Filth>();
   /** The last frame, for hover lookups of entities. */
   lastFrame: Frame | null = null;
+  private markProg: WebGLProgram;
+  private markVAO: WebGLVertexArrayObject;
+  private mark: [number, number] | null = null;
   private dirty = true;
   private raf = 0;
 
@@ -228,6 +263,10 @@ export class MapRenderer {
     this.spriteProg = program(gl, SPRITE_VS, SPRITE_FS);
     this.tintProg = program(gl, TINT_VS, TINT_FS);
     for (const n of ['uCam', 'uScale', 'uView']) this.u['f.' + n] = gl.getUniformLocation(this.tintProg, n);
+    this.markProg = program(gl, MARK_VS, MARK_FS);
+    for (const n of ['uTile', 'uPad', 'uCam', 'uScale', 'uView', 'uSide', 'uLine', 'uColor']) {
+      this.u['m.' + n] = gl.getUniformLocation(this.markProg, n);
+    }
     for (const [prog, names] of [
       [this.terrainProg, ['uOrigin', 'uSize', 'uCam', 'uScale', 'uView', 'uTerrain', 'uTerrainColors', 'uRockColors', 'uFog',
         'uGlyphs', 'uAtlas', 'uAtlasGrid', 'uTerrainGlyph', 'uGlyphBackdrop']],
@@ -264,6 +303,9 @@ export class MapRenderer {
     gl.enableVertexAttribArray(tColor);
     gl.vertexAttribPointer(tColor, 4, gl.UNSIGNED_BYTE, true, 0, 0);
     gl.vertexAttribDivisor(tColor, 1);
+    this.markVAO = gl.createVertexArray()!;
+    gl.bindVertexArray(this.markVAO);
+    corner(gl, this.markProg, this.quad);
     gl.bindVertexArray(null);
 
     new ResizeObserver(() => this.resize()).observe(canvas);
@@ -446,6 +488,14 @@ export class MapRenderer {
     return [page[off], page[off + 1]];
   }
 
+  /** Mark one tile (the inspector's selection), or none. */
+  setMark(at: [number, number] | null): void {
+    const m = this.mark;
+    if (m === at || (m && at && m[0] === at[0] && m[1] === at[1])) return;
+    this.mark = at;
+    this.dirty = true;
+  }
+
   /** Ask for a redraw on the next animation frame (the camera moved). */
   invalidate(): void { this.dirty = true; }
 
@@ -588,6 +638,23 @@ export class MapRenderer {
       gl.uniform1f(this.u['s.uSize'], glyphs ? 1.0 : Math.max(0.9, 5 / cam.zoom));
       gl.uniform1i(this.u['s.uRound'], 1);
       gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, this.entityCount);
+    }
+
+    if (this.mark) {
+      // At least 14 CSS pixels across, so a zoomed-out marker still rings
+      // the dot it belongs to.
+      const pad = Math.max(0.15, (14 / cam.zoom - 1) / 2);
+      gl.useProgram(this.markProg);
+      gl.bindVertexArray(this.markVAO);
+      gl.uniform2f(this.u['m.uTile'], this.mark[0], this.mark[1]);
+      gl.uniform1f(this.u['m.uPad'], pad);
+      gl.uniform2f(this.u['m.uCam'], cam.cx, cam.cy);
+      gl.uniform1f(this.u['m.uScale'], scale);
+      gl.uniform2f(this.u['m.uView'], this.canvas.width, this.canvas.height);
+      gl.uniform1f(this.u['m.uSide'], (1 + 2 * pad) * scale);
+      gl.uniform1f(this.u['m.uLine'], Math.max(1, Math.round(1.5 * dpr)));
+      gl.uniform3fv(this.u['m.uColor'], palette.MARK);
+      gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
     }
     gl.disable(gl.BLEND);
     gl.bindVertexArray(null);

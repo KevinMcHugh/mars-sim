@@ -22,7 +22,38 @@ export const ui = $state({
   hover: null as string | null,
   status: 'Loading…' as string | null,
   statusError: false,
+  /** The open side-panel tab (SidePanel.svelte), or null. */
+  panel: null as string | null,
+  /** What the Inspect tab shows, and the map marks. */
+  selected: null as Selection | null,
 });
+
+/** A creature by id, or a tile. */
+export type Selection = { entity: number } | { tile: [number, number] };
+
+/** The topic that carries a selection (internal/wire/inspect.go). */
+export function selectionTopic(s: Selection): string {
+  return 'entity' in s ? `entity:${s.entity}` : `tile:${s.tile[0]},${s.tile[1]}`;
+}
+
+/** Inspect something: select it and open the Inspect tab. */
+export function inspect(s: Selection): void {
+  ui.selected = s;
+  ui.panel = 'inspect';
+  ctl?.selected();
+}
+
+/**
+ * Open a side-panel tab, or close the panel (null). Leaving the inspector
+ * drops the selection, so the map's marker goes with it.
+ */
+export function setPanel(id: string | null): void {
+  if (ui.panel === 'inspect' && id !== 'inspect' && ui.selected) {
+    ui.selected = null;
+    ctl?.selected();
+  }
+  ui.panel = id;
+}
 
 /**
  * Topic payloads by name. Raw, not deep, state: a payload is immutable data
@@ -48,6 +79,10 @@ export interface Controller {
   subscribe(topic: string): void;
   unsubscribe(topic: string): void;
   newGame(settings: Settings): void;
+  /** Center the map on a tile. */
+  centerOn(x: number, y: number): void;
+  /** ui.selected changed: move the map's marker. */
+  selected(): void;
 }
 let ctl: Controller | null = null;
 export function install(c: Controller): void { ctl = c; }
@@ -71,6 +106,7 @@ export function subscribe(topic: string): () => void {
 }
 
 export function newGame(settings: Settings): void { ctl?.newGame(settings); }
+export function centerOn(x: number, y: number): void { ctl?.centerOn(x, y); }
 
 export function togglePause(): void {
   ctl?.command({ type: 'pause' });
