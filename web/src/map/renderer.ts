@@ -10,6 +10,11 @@
 // uniform palettes, so drawing costs the same at any zoom: one quad per chunk
 // on screen, not one draw per tile.
 //
+// Filth (viscera and cave scum) is not a symbol but a tint over the tile:
+// dark red for gore, dark green for scum, brown for both, deeper the more
+// there is (a full-tile quad per dirty tile, drawn between terrain and
+// sprites). Bodies keep a marker: they are a thing to haul, not a stain.
+//
 // Zoomed in (GLYPH_ZOOM and up), glyphs replace the flat colors: a facility's
 // emoji over a floor backdrop, and each entity's own emoji (picked in Go, see
 // internal/glyphs) from the atlas (atlas.ts). Zoomed out, a glyph would be a
@@ -27,8 +32,7 @@ const CHUNK_TILES = CHUNK_PAGES * PAGE_SIDE; // 2048: under every WebGL2 max tex
 const MAX_TERRAINS = 32;
 const MAX_COMPOSITIONS = 16;
 const MAX_KINDS = 8;
-// Instance "kinds" past the entity kinds, for refuse.
-const KIND_GORE = MAX_KINDS - 2;
+// An instance "kind" past the entity kinds, for a body's marker.
 const KIND_CORPSE = MAX_KINDS - 1;
 /** CSS pixels per tile at which the map switches from flat colors to glyphs. */
 export const GLYPH_ZOOM = 10;
@@ -94,6 +98,29 @@ void main() {
   }
   outColor = vec4(c, 1.0);
 }`;
+
+const TINT_VS = `#version 300 es
+in vec2 aCorner;
+in ivec2 aPos;          // per instance: tile
+in vec4 aColor;         // per instance: premultiplied tint
+uniform vec2 uCam;
+uniform float uScale;
+uniform vec2 uView;
+out vec4 vColor;
+void main() {
+  vColor = aColor;
+  vec2 px = (vec2(aPos) + aCorner - uCam) * uScale;
+  gl_Position = vec4(px.x / (uView.x * 0.5), -px.y / (uView.y * 0.5), 0.0, 1.0);
+}`;
+
+const TINT_FS = `#version 300 es
+precision highp float;
+in vec4 vColor;
+out vec4 outColor;
+void main() { outColor = vColor; }`;
+
+/** What is on one dirty tile, for the tint and the hover readout. */
+export interface Filth { gore: number; scum: number; corpses: number }
 
 const SPRITE_VS = `#version 300 es
 in vec2 aCorner;
@@ -178,6 +205,14 @@ export class MapRenderer {
   private entityCount = 0;
   private refuseCount = 0;
   private refuse: Frame['refuse'] = null;
+  private scum: Frame['scum'] = null;
+  private tintProg: WebGLProgram;
+  private tintVAO: WebGLVertexArrayObject;
+  private tintPos: WebGLBuffer;
+  private tintColor: WebGLBuffer;
+  private tintCount = 0;
+  /** Filth on visible tiles, by tileKey. Rebuilt when refuse, scum or pages change. */
+  readonly filth = new Map<number, Filth>();
   /** The last frame, for hover lookups of entities. */
   lastFrame: Frame | null = null;
   private dirty = true;
@@ -191,6 +226,8 @@ export class MapRenderer {
 
     this.terrainProg = program(gl, TERRAIN_VS, TERRAIN_FS);
     this.spriteProg = program(gl, SPRITE_VS, SPRITE_FS);
+    this.tintProg = program(gl, TINT_VS, TINT_FS);
+    for (const n of ['uCam', 'uScale', 'uView']) this.u['f.' + n] = gl.getUniformLocation(this.tintProg, n);
     for (const [prog, names] of [
       [this.terrainProg, ['uOrigin', 'uSize', 'uCam', 'uScale', 'uView', 'uTerrain', 'uTerrainColors', 'uRockColors', 'uFog',
         'uGlyphs', 'uAtlas', 'uAtlasGrid', 'uTerrainGlyph', 'uGlyphBackdrop']],
@@ -212,6 +249,21 @@ export class MapRenderer {
     this.refuseKind = gl.createBuffer()!;
     this.refuseGlyph = gl.createBuffer()!;
     this.refuseVAO = this.spriteVAO(this.refusePos, this.refuseKind, this.refuseGlyph);
+    this.tintPos = gl.createBuffer()!;
+    this.tintColor = gl.createBuffer()!;
+    this.tintVAO = gl.createVertexArray()!;
+    gl.bindVertexArray(this.tintVAO);
+    corner(gl, this.tintProg, this.quad);
+    const tPos = gl.getAttribLocation(this.tintProg, 'aPos');
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.tintPos);
+    gl.enableVertexAttribArray(tPos);
+    gl.vertexAttribIPointer(tPos, 2, gl.INT, 0, 0);
+    gl.vertexAttribDivisor(tPos, 1);
+    const tColor = gl.getAttribLocation(this.tintProg, 'aColor');
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.tintColor);
+    gl.enableVertexAttribArray(tColor);
+    gl.vertexAttribPointer(tColor, 4, gl.UNSIGNED_BYTE, true, 0, 0);
+    gl.vertexAttribDivisor(tColor, 1);
     gl.bindVertexArray(null);
 
     new ResizeObserver(() => this.resize()).observe(canvas);
@@ -229,8 +281,10 @@ export class MapRenderer {
     for (const c of this.chunks.values()) this.gl.deleteTexture(c.tex);
     this.chunks.clear();
     this.pages.clear();
-    this.entityCount = this.refuseCount = 0;
+    this.entityCount = this.refuseCount = this.tintCount = 0;
     this.refuse = null;
+    this.scum = null;
+    this.filth.clear();
     this.lastFrame = null;
 
     const gl = this.gl;
@@ -247,7 +301,6 @@ export class MapRenderer {
     this.atlas = buildAtlas(gl, hello.glyphs.symbols);
     gl.useProgram(this.spriteProg);
     const kinds = pad(palette.kindColors(hello.enums.kinds), MAX_KINDS);
-    kinds.set(palette.GORE, KIND_GORE * 3);
     kinds.set(palette.CORPSE, KIND_CORPSE * 3);
     gl.uniform3fv(this.u['s.uColors'], kinds);
     this.dirty = true;
@@ -301,35 +354,82 @@ export class MapRenderer {
     gl.bindBuffer(gl.ARRAY_BUFFER, this.entityGlyph);
     gl.bufferData(gl.ARRAY_BUFFER, glyph.subarray(0, n), gl.DYNAMIC_DRAW);
 
-    // Refuse arrives only when it changes, but what is visible changes as
-    // the colony digs, so keep the list and refilter it every frame.
+    // Refuse and scum arrive only when they change, but what is visible
+    // changes as the colony digs, so keep the lists and refilter them
+    // whenever either list or any page changed.
     if (f.refuse) this.refuse = f.refuse;
-    const r = this.refuse;
-    if (r) {
-      const rpos = new Int32Array(r.count * 2);
-      const rkind = new Uint8Array(r.count);
-      const rglyph = new Uint16Array(r.count);
-      const g = this.hello!.glyphs;
-      let m = 0;
-      for (let i = 0; i < r.count; i++) {
-        if (!this.visible(r.x[i], r.y[i])) continue;
-        rpos[2 * m] = r.x[i]; rpos[2 * m + 1] = r.y[i];
-        // A body outranks the stains around it, as in the TUI (glyphs.ForTile).
-        const corpse = r.corpses[i] > 0;
-        rkind[m] = corpse ? KIND_CORPSE : KIND_GORE;
-        rglyph[m] = corpse ? g.corpse : g.gore;
-        m++;
-      }
-      this.refuseCount = m;
-      gl.bindBuffer(gl.ARRAY_BUFFER, this.refusePos);
-      gl.bufferData(gl.ARRAY_BUFFER, rpos.subarray(0, 2 * m), gl.DYNAMIC_DRAW);
-      gl.bindBuffer(gl.ARRAY_BUFFER, this.refuseKind);
-      gl.bufferData(gl.ARRAY_BUFFER, rkind.subarray(0, m), gl.DYNAMIC_DRAW);
-      gl.bindBuffer(gl.ARRAY_BUFFER, this.refuseGlyph);
-      gl.bufferData(gl.ARRAY_BUFFER, rglyph.subarray(0, m), gl.DYNAMIC_DRAW);
-    }
+    if (f.scum) this.scum = f.scum;
+    if (f.refuse || f.scum || f.pages.count > 0 || f.tilesReset) this.rebuildFilth();
     this.lastFrame = f;
     this.dirty = true;
+  }
+
+  /**
+   * Rebuild the filth on visible tiles: the tint quads (gore, scum, or both
+   * on one tile) and the body markers, which stay sprites.
+   */
+  private rebuildFilth(): void {
+    const gl = this.gl;
+    const hello = this.hello!;
+    this.filth.clear();
+    const at = (x: number, y: number) => {
+      const k = tileKey(x, y);
+      let v = this.filth.get(k);
+      if (!v) { v = { gore: 0, scum: 0, corpses: 0 }; this.filth.set(k, v); }
+      return v;
+    };
+    const r = this.refuse;
+    if (r) for (let i = 0; i < r.count; i++) {
+      if (!this.visible(r.x[i], r.y[i])) continue;
+      const v = at(r.x[i], r.y[i]);
+      v.gore = r.gore[i];
+      v.corpses = r.corpses[i];
+    }
+    const sc = this.scum;
+    if (sc) for (let i = 0; i < sc.count; i++) {
+      if (!this.visible(sc.x[i], sc.y[i])) continue;
+      at(sc.x[i], sc.y[i]).scum = sc.amount[i];
+    }
+
+    const n = this.filth.size;
+    const tpos = new Int32Array(n * 2);
+    const tcolor = new Uint8Array(n * 4);
+    const bpos = new Int32Array(n * 2);
+    const bkind = new Uint8Array(n);
+    const bglyph = new Uint16Array(n);
+    let t = 0, b = 0;
+    for (const [k, v] of this.filth) {
+      const x = k % TILE_KEY_ROW, y = Math.floor(k / TILE_KEY_ROW);
+      if (v.gore > 0 || v.scum > 0) {
+        const tint = palette.filthTint(v.gore / Math.max(1, hello.goreMax), v.scum / Math.max(1, hello.scumMax));
+        tpos[2 * t] = x; tpos[2 * t + 1] = y;
+        tcolor.set(tint, 4 * t);
+        t++;
+      }
+      if (v.corpses > 0) {
+        bpos[2 * b] = x; bpos[2 * b + 1] = y;
+        bkind[b] = KIND_CORPSE;
+        bglyph[b] = hello.glyphs.corpse;
+        b++;
+      }
+    }
+    this.tintCount = t;
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.tintPos);
+    gl.bufferData(gl.ARRAY_BUFFER, tpos.subarray(0, 2 * t), gl.DYNAMIC_DRAW);
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.tintColor);
+    gl.bufferData(gl.ARRAY_BUFFER, tcolor.subarray(0, 4 * t), gl.DYNAMIC_DRAW);
+    this.refuseCount = b;
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.refusePos);
+    gl.bufferData(gl.ARRAY_BUFFER, bpos.subarray(0, 2 * b), gl.DYNAMIC_DRAW);
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.refuseKind);
+    gl.bufferData(gl.ARRAY_BUFFER, bkind.subarray(0, b), gl.DYNAMIC_DRAW);
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.refuseGlyph);
+    gl.bufferData(gl.ARRAY_BUFFER, bglyph.subarray(0, b), gl.DYNAMIC_DRAW);
+  }
+
+  /** The filth on (x, y) if the colony can see it, for the hover readout. */
+  filthAt(x: number, y: number): Filth | undefined {
+    return this.filth.get(tileKey(x, y));
   }
 
   /** Whether the colony can see (x, y): its page is held and the tile visible. */
@@ -455,7 +555,19 @@ export class MapRenderer {
       gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
     }
 
-    // Refuse under entities; both at least a few pixels wide when zoomed out.
+    // Filth tints the tiles under everything that stands on them.
+    gl.enable(gl.BLEND);
+    gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA); // tints and the atlas are premultiplied
+    if (this.tintCount > 0) {
+      gl.useProgram(this.tintProg);
+      gl.bindVertexArray(this.tintVAO);
+      gl.uniform2f(this.u['f.uCam'], cam.cx, cam.cy);
+      gl.uniform1f(this.u['f.uScale'], scale);
+      gl.uniform2f(this.u['f.uView'], this.canvas.width, this.canvas.height);
+      gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, this.tintCount);
+    }
+
+    // Bodies under entities; both at least a few pixels wide when zoomed out.
     gl.useProgram(this.spriteProg);
     gl.uniform2f(this.u['s.uCam'], cam.cx, cam.cy);
     gl.uniform1f(this.u['s.uScale'], scale);
@@ -465,8 +577,6 @@ export class MapRenderer {
       gl.uniform1i(this.u['s.uAtlas'], 1);
       gl.uniform2f(this.u['s.uAtlasGrid'], this.atlas.cols, this.atlas.rows);
     }
-    gl.enable(gl.BLEND);
-    gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA); // the atlas is premultiplied
     if (this.refuseCount > 0) {
       gl.bindVertexArray(this.refuseVAO);
       gl.uniform1f(this.u['s.uSize'], glyphs ? 0.85 : Math.max(0.45, 3 / cam.zoom));
@@ -482,6 +592,12 @@ export class MapRenderer {
     gl.disable(gl.BLEND);
     gl.bindVertexArray(null);
   }
+}
+
+/** One number per tile, for the filth map. */
+const TILE_KEY_ROW = 1 << 26; // wider than any map, and x + y*row stays exact in a double
+function tileKey(x: number, y: number): number {
+  return y * TILE_KEY_ROW + x;
 }
 
 /** One number per (x, y) pair of page or chunk coordinates. */

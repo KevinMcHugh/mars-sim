@@ -1,5 +1,5 @@
 {
-  "version": 2,
+  "version": 3,
   "paused": false,
   "fogOfWar": false,
   "tilesReset": true,
@@ -88,6 +88,24 @@
       "y": 40,
       "corpses": 3,
       "gore": 0
+    }
+  ],
+  "scumFrame": true,
+  "scum": [
+    {
+      "x": 130,
+      "y": 1,
+      "amount": 2
+    },
+    {
+      "x": 2,
+      "y": 4,
+      "amount": 1
+    },
+    {
+      "x": 12,
+      "y": 4,
+      "amount": 3
     }
   ]
 }

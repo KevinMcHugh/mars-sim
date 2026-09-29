@@ -30,6 +30,9 @@ export interface Hello {
     gore: number;
     corpse: number;
   };
+  /** The most gore / scum one tile holds, for shading by amount. */
+  goreMax: number;
+  scumMax: number;
 }
 
 export interface Frame {
@@ -64,6 +67,12 @@ export interface Frame {
     y: Int32Array;
     corpses: Uint16Array;
     gore: Uint8Array;
+  } | null;
+  scum: {
+    count: number;
+    x: Int32Array;
+    y: Int32Array;
+    amount: Uint8Array;
   } | null;
 }
 

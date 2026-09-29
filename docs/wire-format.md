@@ -46,7 +46,10 @@ enum *values*; the page never keeps its own copy of the tables.
 Since version 2, Hello also carries the **glyphs** (`internal/glyphs`):
 `symbols` (every emoji, `glyphs.All`; an entity's glyph indexes it), `terrain`
 (each terrain's glyph index, or -1 for a swatch such as rock, floor or hull,
-which the page draws as a color), and the `gore` and `corpse` glyphs.
+which the page draws as a color), and the `gore` and `corpse` glyphs. Since
+version 3 it carries `goreMax` (`sim.MaxGore`) and `scumMax`
+(`Snapshot.ScumMax`, from `-scum-max`), so the page can shade a tile by how
+much is on it.
 
 ### A frame
 
@@ -57,8 +60,8 @@ nothing).
 | Offset | Size | Field |
 | --- | --- | --- |
 | 0 | 4 | magic `MSFR` |
-| 4 | 2 | `Version` (2) |
-| 6 | 2 | flags: 1 paused, 2 fog of war, 4 **tiles reset**, 8 **refuse frame** |
+| 4 | 2 | `Version` (3) |
+| 6 | 2 | flags: 1 paused, 2 fog of war, 4 **tiles reset**, 8 **refuse frame**, 16 **scum frame** |
 | 8 | 8 | tick |
 | 16 | 8 | `TileChanges.Frame` |
 | 24 | 4 | ticks per second |
@@ -67,6 +70,8 @@ nothing).
 | 36 | 4 | P, tile pages |
 | 40 | 4 | R, refuse tiles |
 | 44 | 4 | pages owed (see below) |
+| 48 | 4 | C, scum tiles |
+| 52 | 4 | reserved, zero |
 
 Then the sections, in order:
 
@@ -85,6 +90,12 @@ Then the sections, in order:
 - **refuse**: `int32 x × R`, `int32 y × R`, `uint16 corpses × R` (padded),
   `uint8 gore × R` (padded). R is 0 unless the refuse-frame flag is set; then
   it is the *whole* list, and the page replaces its last one.
+- **scum**: `int32 x × C`, `int32 y × C`, `uint8 amount × C` (padded), in row
+  order. Amounts run 1 to `Hello.scumMax`. C is 0 unless the scum-frame flag
+  is set; then, like refuse, it is the whole list. The encoder sends it when
+  `Snapshot.Scum` is a different map from the last one sent. The engine hands
+  out the same map until scum is scraped or regrows (`publishedScum`), so map
+  identity is an exact, free change signal. It is also sent on a tiles reset.
 
 ### Which pages go
 
@@ -127,6 +138,9 @@ Entities in a re-encode are from the newest snapshot, not newer ticks.
 - **Refuse as a sparse list, not a tile bit.** `TileChanges.Refuse` says the
   list changed, not *where*, so a per-tile bit would mean resending every page
   in view on every death. The list is a few hundred entries in a long game.
+  Scum follows the same pattern for the same reason. It is a longer list (every
+  scummy patch of cave wall, about 850 in a 150,000-tick game), but it changes
+  only when a patch is scraped or regrows.
 - **A per-frame page cap.** A first frame, a zoom-out or a fast pan can put
   hundreds of pages in view. Without a cap, one frame would be megabytes and
   the worker would stall building it; with it, the view fills in from the

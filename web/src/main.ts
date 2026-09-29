@@ -181,6 +181,10 @@ function showHover(sx: number, sy: number): void {
       ? hello.enums.compositions[flags & TILE_COMPOSITION_MASK] ?? 'rock'
       : hello.enums.terrains[terrain] ?? `terrain ${terrain}`;
     parts.push(glyph >= 0 ? `${hello.glyphs.symbols[glyph]} ${name}` : name);
+    const filth = map.filthAt(x, y);
+    if (filth?.gore) parts.push(`viscera ${filth.gore}/${hello.goreMax}`);
+    if (filth?.scum) parts.push(`scum ${filth.scum}/${hello.scumMax}`);
+    if (filth?.corpses) parts.push(filth.corpses === 1 ? 'a body' : `${filth.corpses} bodies`);
     if (last) {
       const e = last.entities;
       for (let i = 0; i < e.count; i++) {
