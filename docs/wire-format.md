@@ -136,6 +136,7 @@ of the payloads due, by name:
 | --- | --- | --- |
 | `lore` | 1 s | `world` (size, fog, explored tiles, chunks generated, seed) and `species` (each rolled species' roster label, map glyph, build, temperament, bite and pace, and field notes) |
 | `names` | 1 s | Every living colonist's name, by id (as a string key). The page holds it open for the hover readout, since frames carry ids, not names. It changes only on an arrival or a death. |
+| `roster`, `roster:<filters>` | 500 ms | One row per creature the TUI's roster lists (`RosterRow`): glyph, name, an info line (pronouns and age, an alien's species, or the kind), a state line (state and mood, or `dead — <cause>`), and health. By ID. Filters, comma-separated: `dead` (every dead colonist from `Deceased`, and the graveyard's other kinds the other filter admits) and `nonhuman` (aliens, cats, rats). |
 | `entity:<id>` | 250 ms | One creature (`EntityTopic`): name, glyph, position, state, focus, health, body parts, and death if dead; an alien's species; a colonist's profile, wallet, affect, needs, inventory, traits, family, affinities and memories (newest first). Looked up among the living, then `Deceased`, then `Graveyard`; `found: false` once it is in none of them. |
 | `tile:<x>,<y>` | 250 ms | One tile (`TileTopic`): terrain (a rock's composition), glyph, the fixture's owner and access, a container's contents and ledger, and the creatures on it. Under fog, only `explored: false`. |
 
@@ -190,6 +191,8 @@ Entities in a re-encode are from the newest snapshot, not newer ticks.
 ## Extending it
 
 - **A new topic with a parameter** (`project:<id>`): a case in `paramTopic`.
+  The roster's filters work this way: each filter set is its own topic, so
+  toggling one is an unsubscribe and a subscribe, with no per-page state in Go.
 - **A new topic**: a `topicTable` entry in `topics.go` (an interval, and a
   function from the snapshot to a JSON-able value, with its own
   `json`-tagged types), a test, and a row in the Topics table above. Topics

@@ -40,6 +40,8 @@ func paramTopic(name string) (topic, bool) {
 			return topic{}, false
 		}
 		return topic{every: inspectEvery, build: func(s *sim.Snapshot) any { return tileTopic(s, sim.Point{X: x, Y: y}) }}, true
+	case "roster":
+		return rosterParam(arg)
 	}
 	return topic{}, false
 }

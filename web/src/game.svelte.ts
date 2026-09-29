@@ -26,6 +26,11 @@ export const ui = $state({
   panel: null as string | null,
   /** What the Inspect tab shows, and the map marks. */
   selected: null as Selection | null,
+  /** The tab a selection was made from, for the inspector's way back. */
+  inspectFrom: null as string | null,
+  /** The roster's filters, kept while the tab is closed (the TUI's f). */
+  rosterDead: false,
+  rosterNonHuman: false,
 });
 
 /** A creature by id, or a tile. */
@@ -37,18 +42,20 @@ export function selectionTopic(s: Selection): string {
 }
 
 /** Inspect something: select it and open the Inspect tab. */
-export function inspect(s: Selection): void {
+export function inspect(s: Selection, from: string | null = null): void {
   ui.selected = s;
+  ui.inspectFrom = from;
   ui.panel = 'inspect';
   ctl?.selected();
 }
 
 /**
  * Open a side-panel tab, or close the panel (null). Leaving the inspector
- * drops the selection, so the map's marker goes with it.
+ * and the roster drops the selection, so the map's marker goes with it; the
+ * roster keeps it, to show which row the inspector had.
  */
 export function setPanel(id: string | null): void {
-  if (ui.panel === 'inspect' && id !== 'inspect' && ui.selected) {
+  if (id !== 'inspect' && id !== 'roster' && ui.selected) {
     ui.selected = null;
     ctl?.selected();
   }
