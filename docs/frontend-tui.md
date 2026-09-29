@@ -111,7 +111,8 @@ dispatch to the active panel's handler.
   [population-screen.md](./population-screen.md).
 - **Activity** (`renderActivity`): a stacked area chart of what the colonists
   spend their time doing over the whole game (sleeping, eating, cooking,
-  mining, fighting, fleeing, …) with a legend of each activity's share now
+  mining, fighting, fleeing, …), each band shaded darker for the time spent
+  walking to it, with a legend of each activity's share now
   and over the game; `c` switches between shares and average colonists. See
   [activity-screen.md](./activity-screen.md).
 - **Log** (`renderLog`): the retained colony log in full, as a live feed with

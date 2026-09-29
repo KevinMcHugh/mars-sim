@@ -757,9 +757,10 @@ type World struct {
 	// (see population.go).
 	popHist  []PopulationSample
 	popEvery int
-	// actTally counts colonist-ticks per Activity since the last sample
-	// (see activity.go).
-	actTally [NumActivities]int
+	// actTally counts colonist-ticks per Activity since the last sample, and
+	// walkTally the part of them spent walking there (see activity.go).
+	actTally  [NumActivities]int
+	walkTally [NumActivities]int
 	// mealFetches counts, per depot, the colonists on their way to take a
 	// meal out of it this tick (memoized; see mealFetchesAt).
 	mealFetches   map[Point]int

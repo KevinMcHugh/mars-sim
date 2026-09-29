@@ -2,30 +2,34 @@ package sim
 
 import "testing"
 
-// A colonist walking somewhere is credited to what it is walking there to do:
-// its job when the job names the work, else its focus.
+// A colonist walking somewhere is credited to what it is walking there to do
+// (its job when the job names the work, else its focus) and marked as
+// walking there; one visibly at the work is doing it.
 func TestActivityCreditsTheWalkToItsPurpose(t *testing.T) {
 	cases := []struct {
 		state State
 		job   JobKind
 		focus FocusKind
 		want  Activity
+		walk  bool
 	}{
-		{Crafting, JobCraft, FocusWork, ActCooking},
-		{Storing, JobStore, FocusWork, ActHauling},
-		{Stomping, JobNone, FocusIdle, ActFighting},
-		{Building, JobBuild, FocusEat, ActBuilding}, // a hungry colonist building a pod is building
-		{Moving, JobMine, FocusWork, ActMining},
-		{Moving, JobCraft, FocusWork, ActCooking},
-		{Moving, JobUse, FocusSleep, ActSleeping},
-		{Moving, JobUse, FocusRelieve, ActRelieving},
-		{Moving, JobNone, FocusFlee, ActFleeing},
-		{Idle, JobNone, FocusIdle, ActIdle},
+		{Crafting, JobCraft, FocusWork, ActCooking, false},
+		{Storing, JobStore, FocusWork, ActHauling, false},
+		{Stomping, JobNone, FocusIdle, ActFighting, false},
+		{Fleeing, JobNone, FocusFlee, ActFleeing, false},   // running is the fleeing
+		{Building, JobBuild, FocusEat, ActBuilding, false}, // a hungry colonist building a pod is building
+		{Moving, JobMine, FocusWork, ActMining, true},
+		{Moving, JobCraft, FocusWork, ActCooking, true}, // on the way to cook
+		{Moving, JobUse, FocusSleep, ActSleeping, true},
+		{Moving, JobUse, FocusRelieve, ActRelieving, true},
+		{Idle, JobMine, FocusWork, ActMining, false}, // waiting at the face is not walking
+		{Idle, JobNone, FocusIdle, ActIdle, false},
 	}
 	for _, c := range cases {
 		e := &Entity{Kind: Colonist, State: c.state, Job: c.job, focus: c.focus}
-		if got := activityOf(e); got != c.want {
-			t.Errorf("%v/%v/%v: got %v, want %v", c.state, c.job, c.focus, got, c.want)
+		if got, walk := activityOf(e); got != c.want || walk != c.walk {
+			t.Errorf("%v/%v/%v: got %v (walking %v), want %v (walking %v)",
+				c.state, c.job, c.focus, got, walk, c.want, c.walk)
 		}
 	}
 }
@@ -39,9 +43,9 @@ func TestActivityTallyCoversEveryTick(t *testing.T) {
 	b := w.spawn(Colonist, Point{10, 8})
 	for tick := 1; tick <= 60000; tick++ {
 		w.tick = tick
-		a.State = Mining
+		a.State, a.Job = Mining, JobMine
 		if tick%3 == 0 {
-			a.State = Eating
+			a.State, a.Job = Moving, JobEat // fetching a meal
 		}
 		b.State = Sleeping
 		w.tallyActivity(a)
@@ -51,12 +55,13 @@ func TestActivityTallyCoversEveryTick(t *testing.T) {
 	if w.popEvery <= popFirstEvery {
 		t.Fatal("the history never halved")
 	}
-	var total [NumActivities]int
+	var total, walked [NumActivities]int
 	prev := 0
 	for _, s := range w.popHist {
 		sum := 0
 		for i, n := range s.Activity {
 			total[i] += n
+			walked[i] += s.Walking[i]
 			sum += n
 		}
 		if want := 2 * (s.Tick - prev); sum != want {
@@ -68,6 +73,9 @@ func TestActivityTallyCoversEveryTick(t *testing.T) {
 	if total[ActSleeping] != last || total[ActEating] != last/3 || total[ActMining] != last-last/3 {
 		t.Fatalf("tallies %v over %d ticks: mining %d, eating %d, sleeping %d expected",
 			total, last, last-last/3, last/3, last)
+	}
+	if walked != [NumActivities]int{ActEating: last / 3} {
+		t.Fatalf("walking tallies %v, want all %d eating ticks and nothing else", walked, last/3)
 	}
 }
 

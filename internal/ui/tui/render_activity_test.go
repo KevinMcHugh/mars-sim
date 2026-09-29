@@ -2,6 +2,7 @@ package tui
 
 import (
 	"os"
+	"slices"
 	"strings"
 	"testing"
 
@@ -13,7 +14,8 @@ import (
 
 // activitySnapshot is populationSnapshot with activity tallies: four
 // colonists sleeping a quarter of the time, then an alien raid in the second
-// half that has the two miners fleeing instead.
+// half that has the two miners fleeing instead. The cook spends two ticks in
+// five walking to the scumhouse.
 func activitySnapshot(n int) *sim.Snapshot {
 	snap := populationSnapshot(n)
 	for i := range snap.Population {
@@ -21,6 +23,7 @@ func activitySnapshot(n int) *sim.Snapshot {
 		a[sim.ActSleeping] = 50
 		a[sim.ActMining] = 100
 		a[sim.ActCooking] = 50
+		snap.Population[i].Walking[sim.ActCooking] = 20
 		if i >= n/2 {
 			a[sim.ActMining] = 0
 			a[sim.ActFleeing] = 100
@@ -44,8 +47,14 @@ func TestActivityTabShowsSharesAndCounts(t *testing.T) {
 		}
 	}
 	// Fleeing is half the time now and a quarter over the game.
-	if !legendRow(out, "fleeing", "50%", "25%") {
+	if !legendRow(out, "fleeing", "50%", "25%", "0%") {
 		t.Fatalf("fleeing's legend row is wrong:\n%s", out)
+	}
+	if !legendRow(out, "cooking", "25%", "25%", "40%") {
+		t.Fatalf("cooking's legend row does not show its walking:\n%s", out)
+	}
+	if !legendRow(out, "building", "0%", "0%", "-") {
+		t.Fatalf("an activity nobody did should show no walking share:\n%s", out)
 	}
 	for i, line := range strings.Split(out, "\n") {
 		if w := cells.Width(line); w > m.termW {
@@ -64,12 +73,13 @@ func TestActivityTabShowsSharesAndCounts(t *testing.T) {
 	}
 }
 
-// legendRow reports whether a line names activity followed by the two values.
-func legendRow(out, activity, now, game string) bool {
+// legendRow reports whether a line names activity followed by values.
+func legendRow(out, activity string, values ...string) bool {
 	for _, line := range strings.Split(out, "\n") {
 		fields := strings.Fields(line)
 		for i, f := range fields {
-			if f == activity && i+2 < len(fields) && fields[i+1] == now && fields[i+2] == game {
+			if f == activity && i+len(values) < len(fields) &&
+				slices.Equal(fields[i+1:i+1+len(values)], values) {
 				return true
 			}
 		}

@@ -6,18 +6,22 @@
 
 A TUI tab, **Activity** (between Population and Log), with a stacked area chart
 of what the colonists spend their time doing over the whole game: sleeping,
-eating, cooking, mining, building, hauling, fighting, fleeing, and so on. A
-legend beside it gives each activity's share over the latest sample and over
-the whole game. `c` switches the chart between **shares** of colonist time
+eating, cooking, mining, building, hauling, fighting, fleeing, and so on. Each
+band is split in two: the activity itself in its colour, and **walking to it**
+(fetching a meal, heading to the scumhouse to cook) in a darker shade just
+above. A legend beside it gives each activity's share over the latest sample
+and over the whole game, and how much of its time was spent walking. `c` switches the chart between **shares** of colonist time
 (the stack always fills to 100%) and **average colonists** (the stack's height
 is the population, so a death or a new arrival shows).
 
 ## Source
 
 - [`internal/sim/activity.go`](../internal/sim/activity.go): `Activity`,
-  `activityOf` (the classifier), and `tallyActivity`.
+  `activityOf` (the classifier, and whether the colonist is walking), and
+  `tallyActivity`.
 - [`internal/sim/population.go`](../internal/sim/population.go):
-  `PopulationSample.Activity`, and how halving folds dropped tallies forward.
+  `PopulationSample.Activity` and `.Walking`, and how halving folds dropped
+  tallies forward.
 - [`internal/sim/systems.go`](../internal/sim/systems.go): `step` tallies each
   colonist right after its turn.
 - [`internal/ui/tui/render_activity.go`](../internal/ui/tui/render_activity.go):
@@ -31,8 +35,10 @@ is the population, so a death or a new arrival shows).
 ### What is counted
 
 Every tick, right after a colonist's turn, `tallyActivity` adds one to
-`World.actTally[activityOf(e)]`. The next [Population](./population-screen.md)
-sample copies the tally into `PopulationSample.Activity` and resets it. A
+`World.actTally` for the colonist's activity, and to `World.walkTally` as well
+if it was walking there. The next [Population](./population-screen.md) sample
+copies both into `PopulationSample.Activity` and `.Walking` and resets them.
+`Walking` is a part of `Activity`, not an addition to it. A
 sample's tally is therefore **colonist-ticks since the previous sample**. Divided
 by the ticks between the two samples, it gives the average number of colonists
 doing each thing over that stretch. Divided by the tally's own total, it gives
@@ -48,7 +54,13 @@ the share of colonist time.
    for: `JobMine` is mining, `JobCraft` is cooking, `JobStore`/`JobSell`/
    `JobCarry` are hauling, and so on.
 3. For `JobUse` or no job, the **focus**: a colonist walking to a bed is
-   sleeping, one running with `FocusFlee` is fleeing. Anything left is idle.
+   sleeping. Anything left is idle.
+
+Only steps 2 and 3 can count as walking, and only when the State is `Moving`.
+A colonist whose State already names the work is doing it, even when that work
+moves it: running is what `Fleeing` is, and carrying refuse to the incinerator
+(`Hauling`) is the hauling. An `Idle` colonist holding a job (waiting at the
+rock face for a claim) counts as doing the job, not walking to it.
 
 ### Halving keeps every tick
 
@@ -66,8 +78,10 @@ summing the samples in each column's range. A short history is repeated
 across the columns and a long one is summed down. Each column sums its own
 ticks as well, so count mode divides by the right span.
 
-`stackPlot` stacks `activityBands` bottom to top. Each cell is two "dots" tall:
-a `▀` in the upper dot's band colour on the lower dot's band as background.
+`stackPlot` stacks `activityBands` bottom to top, each as two segments: the
+activity's time less its walking in the band's colour, then its walking in the
+band's `walk` shade. Each cell is two "dots" tall:
+a `▀` in the upper dot's segment colour on the lower dot's as background.
 This doubles the vertical resolution of plain blocks and needs no special
 font support. `halfBlockRow` styles each run of identical cells once, instead
 of once per cell, because a full-screen chart would otherwise cost thousands
@@ -92,6 +106,11 @@ column, rounded up to a whole colonist. The x axis reuses the Population tab's
   difference between "40% moving" and "the colony spends a third of its day
   fetching meals". The classification lives in the sim, beside the fields it
   reads (`focus` is unexported), and not in the frontend.
+- **Walking as a shade of the band, not a band of its own.** A single
+  "moving" band says the colony walks a lot but not why; a separate
+  "walking to X" band per activity doubles the legend. A darker shade directly
+  above each activity keeps the two together, so "cooking is a third walking"
+  reads off the chart, and the legend's `walk` column gives the number.
 - **Stacking order.** Needs sit at the floor, work in the middle, danger
   (escaping, fleeing, fighting) above that, and idle on top as a grey lid. A
   raid shows up as red and magenta swelling just under the lid, where the eye
@@ -102,11 +121,14 @@ column, rounded up to a whole colonist. The x axis reuses the Population tab's
 ## Extending it
 
 - **A new activity**: add it to `Activity` before `NumActivities` (with a
-  `String` case), classify it in `activityOf`, and give it a band and colour in
+  `String` case), classify it in `activityOfState` and/or
+  `activityOfPurpose`, and give it a band, colour, and walking shade in
   `activityBands`. The legend grows by a row. Every band must appear in
   `activityBands`, or its time silently vanishes from the stack.
 - **A new State or JobKind**: decide which activity it belongs to in
-  `activityOf`. Unclassified work falls through to the focus and then to idle,
+  `activityOfState` or `activityOfPurpose`. A State that names work is never
+  counted as walking; a travel State other than `Moving` needs `activityOf`
+  taught about it. Unclassified work falls through to the focus and then to idle,
   which is quiet but wrong.
 
 ## Related

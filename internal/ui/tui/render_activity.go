@@ -14,37 +14,50 @@ import (
 // The Activity screen: a stacked area chart of what the colonists spend their
 // time doing over the whole game — sleeping, eating, cooking, mining,
 // fighting, fleeing — from the activity tallies on Snapshot.Population, with
-// a legend of each activity's share now and over the game. `c` switches the
-// chart between shares of colonist time and average colonists. See
+// a legend of each activity's share now and over the game. Each band is
+// split: the activity itself in its colour, and the time spent walking to it
+// (fetching a meal, heading to the scumhouse to cook) in a darker shade just
+// above. `c` switches the chart between shares of colonist time and average
+// colonists. See
 // docs/activity-screen.md.
 
-// activityBand is one stacked band: which activity, and its colour.
+// activityBand is one stacked band: which activity, its colour, and the
+// darker shade of it for walking there.
 type activityBand struct {
-	act   sim.Activity
-	color lipgloss.Color
+	act         sim.Activity
+	color, walk lipgloss.Color
 }
 
 // activityBands is the stacking order, bottom to top: needs at the floor,
 // work in the middle, danger above it, and idle as the lid, so a crisis reads
 // as the red and magenta bands swelling up under the lid.
 var activityBands = []activityBand{
-	{sim.ActSleeping, "61"},
-	{sim.ActEating, "208"},
-	{sim.ActRelieving, "94"},
-	{sim.ActSocializing, "213"},
-	{sim.ActCooking, "226"},
-	{sim.ActMining, "248"},
-	{sim.ActBuilding, "33"},
-	{sim.ActHauling, "37"},
-	{sim.ActCleaning, "113"},
-	{sim.ActEscaping, "130"},
-	{sim.ActFleeing, "201"},
-	{sim.ActFighting, "196"},
-	{sim.ActIdle, "239"},
+	{sim.ActSleeping, "61", "60"},
+	{sim.ActEating, "208", "130"},
+	{sim.ActRelieving, "94", "58"},
+	{sim.ActSocializing, "213", "133"},
+	{sim.ActCooking, "226", "142"},
+	{sim.ActMining, "248", "243"},
+	{sim.ActBuilding, "33", "25"},
+	{sim.ActHauling, "37", "30"},
+	{sim.ActCleaning, "113", "65"},
+	{sim.ActEscaping, "137", "95"},
+	{sim.ActFleeing, "201", "90"},
+	{sim.ActFighting, "196", "88"},
+	{sim.ActIdle, "239", "236"},
+}
+
+// segment i of the stack is band i/2: even segments the activity itself,
+// odd ones walking to it.
+func segmentColor(i int) lipgloss.Color {
+	if i%2 == 1 {
+		return activityBands[i/2].walk
+	}
+	return activityBands[i/2].color
 }
 
 // activityLegendWidth is the legend panel's width, borders included.
-const activityLegendWidth = 30
+const activityLegendWidth = 36
 
 func (m Model) handleActivityKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
@@ -76,10 +89,10 @@ func (m Model) renderActivity() string {
 }
 
 // activitySlice is the tallies of a run of samples: colonist-ticks per
-// activity, and the ticks they cover.
+// activity, the part of them spent walking there, and the ticks they cover.
 type activitySlice struct {
-	n     [sim.NumActivities]int
-	ticks int
+	n, walk [sim.NumActivities]int
+	ticks   int
 }
 
 func (s activitySlice) total() int {
@@ -93,14 +106,20 @@ func (s activitySlice) total() int {
 // value is how much of the slice activity a takes: its share of colonist
 // time, or the average number of colonists doing it.
 func (s activitySlice) value(a sim.Activity, counts bool) float64 {
+	return s.scale(s.n[a], counts)
+}
+
+// scale turns colonist-ticks n into a share of the slice's colonist time, or
+// an average number of colonists over it.
+func (s activitySlice) scale(n int, counts bool) float64 {
 	if counts {
 		if s.ticks == 0 {
 			return 0
 		}
-		return float64(s.n[a]) / float64(s.ticks)
+		return float64(n) / float64(s.ticks)
 	}
 	if t := s.total(); t > 0 {
-		return float64(s.n[a]) / float64(t)
+		return float64(n) / float64(t)
 	}
 	return 0
 }
@@ -112,6 +131,7 @@ func sliceOf(samples []sim.PopulationSample, lo, hi int) activitySlice {
 	for _, x := range samples[lo:hi] {
 		for a, n := range x.Activity {
 			s.n[a] += n
+			s.walk[a] += x.Walking[a]
 		}
 	}
 	prev := 0
@@ -163,9 +183,10 @@ func activityChart(samples []sim.PopulationSample, counts bool, width, height in
 }
 
 // stackPlot draws rows lines of the stacked bands, each a y-axis label, the
-// axis, and one cell per column. Each cell is two dots tall — an upper half
-// block in the upper band's colour on the lower band's — which doubles the
-// vertical resolution of plain blocks.
+// axis, and one cell per column. Each band is two segments, the activity and
+// then walking to it. Each cell is two dots tall — an upper half block in the
+// upper segment's colour on the lower segment's — which doubles the vertical
+// resolution of plain blocks.
 func stackPlot(cols []activitySlice, counts bool, plotW, rows int) []string {
 	top := 1.0 // shares fill the plot
 	if counts {
@@ -178,16 +199,18 @@ func stackPlot(cols []activitySlice, counts bool, plotW, rows int) []string {
 		top = max(1, float64(int(top+0.999))) // a whole number of colonists
 	}
 	dots := rows * 2
-	// band[x][d] is the band index at dot d (0 at the bottom) of column x,
-	// or -1 above the stack.
+	// band[x][d] is the segment at dot d (0 at the bottom) of column x, or
+	// -1 above the stack.
 	band := make([][]int, plotW)
 	for x, c := range cols {
 		band[x] = make([]int, dots)
-		bounds := make([]float64, len(activityBands))
+		bounds := make([]float64, 2*len(activityBands))
 		sum := 0.0
 		for i, b := range activityBands {
-			sum += c.value(b.act, counts)
-			bounds[i] = sum
+			sum += c.scale(c.n[b.act]-c.walk[b.act], counts)
+			bounds[2*i] = sum
+			sum += c.scale(c.walk[b.act], counts)
+			bounds[2*i+1] = sum
 		}
 		i := 0
 		for d := range band[x] {
@@ -238,13 +261,13 @@ func halfBlockRow(band [][]int, upper, lower int) string {
 		case u < 0 && l < 0:
 			return " ", st
 		case u == l:
-			return "█", st.Foreground(activityBands[u].color)
+			return "█", st.Foreground(segmentColor(u))
 		case u < 0:
-			return "▄", st.Foreground(activityBands[l].color)
+			return "▄", st.Foreground(segmentColor(l))
 		case l < 0: // a band ending mid-cell with nothing below cannot happen in a stack, but stay safe
-			return "▀", st.Foreground(activityBands[u].color)
+			return "▀", st.Foreground(segmentColor(u))
 		default:
-			return "▀", st.Foreground(activityBands[u].color).Background(activityBands[l].color)
+			return "▀", st.Foreground(segmentColor(u)).Background(segmentColor(l))
 		}
 	}
 	for x := 0; x < len(band); {
@@ -262,7 +285,8 @@ func halfBlockRow(band [][]int, upper, lower int) string {
 
 // activityLegend lists every band, top of the stack first to match the chart,
 // with its share over the latest sample and over the whole game (or, counting,
-// the average colonists on it).
+// the average colonists on it), and how much of its time over the game went
+// on walking there. The swatch shows both shades.
 func activityLegend(samples []sim.PopulationSample, counts bool, width, height int) string {
 	inner := panelInner(width)
 	content := max(0, height-borderCells)
@@ -279,13 +303,18 @@ func activityLegend(samples []sim.PopulationSample, counts bool, width, height i
 	}
 	lines := []string{
 		labelStyle.Render("LEGEND"),
-		labelStyle.Render(fmt.Sprintf("%-14s %5s %5s", "", "now", "game")),
+		labelStyle.Render(fmt.Sprintf("%-14s %5s %5s %5s", "", "now", "game", "walk")),
 	}
 	for i := len(activityBands) - 1; i >= 0; i-- {
 		b := activityBands[i]
-		swatch := lipgloss.NewStyle().Foreground(b.color).Render("██")
-		lines = append(lines, cells.Truncate(fmt.Sprintf("%s %-11s %s %s",
-			swatch, b.act, format(now, b.act), format(game, b.act)), inner))
+		swatch := lipgloss.NewStyle().Foreground(b.color).Render("█") +
+			lipgloss.NewStyle().Foreground(b.walk).Render("█")
+		walk := "    -"
+		if n := game.n[b.act]; n > 0 {
+			walk = fmt.Sprintf("%4.0f%%", 100*float64(game.walk[b.act])/float64(n))
+		}
+		lines = append(lines, cells.Truncate(fmt.Sprintf("%s %-11s %s %s %s",
+			swatch, b.act, format(now, b.act), format(game, b.act), walk), inner))
 	}
 	return sidebarStyle.Width(width - borderCells).Height(content).MaxHeight(height).
 		Render(strings.Join(lines, "\n"))

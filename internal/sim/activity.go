@@ -66,35 +66,51 @@ func (a Activity) String() string {
 	}
 }
 
-// activityOf classifies what colonist e did this tick: its State when that
-// names the work, else (Moving, Idle) the job or focus it is travelling for.
-func activityOf(e *Entity) Activity {
-	switch e.State {
-	case Eating:
-		return ActEating
-	case Sleeping:
-		return ActSleeping
-	case Relieving:
-		return ActRelieving
-	case Talking:
-		return ActSocializing
-	case Crafting:
-		return ActCooking
-	case Mining:
-		return ActMining
-	case Building:
-		return ActBuilding
-	case Hauling, Storing:
-		return ActHauling
-	case Cleaning, Scraping:
-		return ActCleaning
-	case Fighting, Stomping:
-		return ActFighting
-	case Fleeing:
-		return ActFleeing
-	case Demolishing:
-		return ActEscaping
+// activityOf classifies what colonist e did this tick, and whether it was
+// walking there rather than doing it. Its State counts when that names the
+// work; otherwise (Moving, Idle) the job or focus says what the colonist is
+// on its way to do, and a Moving colonist is walking there.
+func activityOf(e *Entity) (a Activity, walking bool) {
+	if a, ok := activityOfState(e.State); ok {
+		return a, false
 	}
+	return activityOfPurpose(e), e.State == Moving
+}
+
+// activityOfState is the activity a State names, if it names one.
+func activityOfState(s State) (Activity, bool) {
+	switch s {
+	case Eating:
+		return ActEating, true
+	case Sleeping:
+		return ActSleeping, true
+	case Relieving:
+		return ActRelieving, true
+	case Talking:
+		return ActSocializing, true
+	case Crafting:
+		return ActCooking, true
+	case Mining:
+		return ActMining, true
+	case Building:
+		return ActBuilding, true
+	case Hauling, Storing:
+		return ActHauling, true
+	case Cleaning, Scraping:
+		return ActCleaning, true
+	case Fighting, Stomping:
+		return ActFighting, true
+	case Fleeing:
+		return ActFleeing, true
+	case Demolishing:
+		return ActEscaping, true
+	}
+	return 0, false
+}
+
+// activityOfPurpose is what a colonist that is not visibly working is on its
+// way to do: its job's, else its focus's.
+func activityOfPurpose(e *Entity) Activity {
 	switch e.Job {
 	case JobMine:
 		return ActMining
@@ -137,6 +153,10 @@ func activityOf(e *Entity) Activity {
 // Population sample.
 func (w *World) tallyActivity(e *Entity) {
 	if e.Kind == Colonist && e.Alive() {
-		w.actTally[activityOf(e)]++
+		a, walking := activityOf(e)
+		w.actTally[a]++
+		if walking {
+			w.walkTally[a]++
+		}
 	}
 }

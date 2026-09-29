@@ -26,6 +26,9 @@ type PopulationSample struct {
 	// between the two samples, it is the average number of colonists doing
 	// each thing over that stretch. See activity.go.
 	Activity [NumActivities]int
+	// Walking is the part of each Activity count spent walking there:
+	// fetching a meal, heading to the scumhouse to cook.
+	Walking [NumActivities]int
 }
 
 const (
@@ -49,6 +52,7 @@ func (w *World) samplePopulation() {
 		ColonySize: w.terrainCounts[Floor] - w.hiddenFloor,
 		Fixtures:   len(w.fixtures),
 		Activity:   w.actTally,
+		Walking:    w.walkTally,
 	}
 	for _, c := range w.storageContainers {
 		s.Meals += c.Inventory.Count(Meal)
@@ -60,31 +64,36 @@ func (w *World) samplePopulation() {
 		// A dropped sample's activity folds into the next kept one, so the
 		// tallies still cover every tick.
 		kept := make([]PopulationSample, 0, popHistory)
-		var carry [NumActivities]int
+		var carry, carryWalk [NumActivities]int
 		for _, x := range h {
-			for a, n := range carry {
-				x.Activity[a] += n
-			}
-			carry = [NumActivities]int{}
+			addTally(&x.Activity, carry)
+			addTally(&x.Walking, carryWalk)
+			carry, carryWalk = [NumActivities]int{}, [NumActivities]int{}
 			if x.Tick%w.popEvery == 0 {
 				kept = append(kept, x)
 			} else {
-				carry = x.Activity
+				carry, carryWalk = x.Activity, x.Walking
 			}
 		}
 		h = kept
 		// A trailing dropped sample's activity belongs to the next one taken.
-		for a, n := range carry {
-			w.actTally[a] += n
-		}
+		addTally(&w.actTally, carry)
+		addTally(&w.walkTally, carryWalk)
 		if w.tick%w.popEvery != 0 {
 			w.popHist = h
 			return
 		}
-		s.Activity = w.actTally
+		s.Activity, s.Walking = w.actTally, w.walkTally
 	}
-	w.actTally = [NumActivities]int{}
+	w.actTally, w.walkTally = [NumActivities]int{}, [NumActivities]int{}
 	// Published snapshots share the history, so it is never written in place:
 	// a full-capacity slice makes append copy, as with the perf history.
 	w.popHist = append(h[:len(h):len(h)], s)
+}
+
+// addTally adds tally from into to.
+func addTally(to *[NumActivities]int, from [NumActivities]int) {
+	for a, n := range from {
+		to[a] += n
+	}
 }
