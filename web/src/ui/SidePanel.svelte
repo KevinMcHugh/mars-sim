@@ -8,9 +8,11 @@
   import InspectPanel from './InspectPanel.svelte';
   import LorePanel from './LorePanel.svelte';
   import NewGamePanel from './NewGamePanel.svelte';
+  import RosterPanel from './RosterPanel.svelte';
 
   const tabs = [
     { id: 'inspect', label: 'Inspect', component: InspectPanel },
+    { id: 'roster', label: 'Roster', component: RosterPanel },
     { id: 'lore', label: 'Lore', component: LorePanel },
     { id: 'game', label: 'New game', component: NewGamePanel },
   ] as const;

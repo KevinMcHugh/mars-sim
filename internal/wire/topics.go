@@ -30,8 +30,9 @@ type topic struct {
 // topicTable is every topic a page can subscribe to by a fixed name. Topics
 // with a parameter ("entity:12") are resolved by paramTopic.
 var topicTable = map[string]topic{
-	"lore":  {every: time.Second, build: loreTopic},
-	"names": {every: time.Second, build: namesTopic},
+	"lore":   {every: time.Second, build: loreTopic},
+	"names":  {every: time.Second, build: namesTopic},
+	"roster": {every: rosterEvery, build: func(s *sim.Snapshot) any { return rosterTopic(s, false, false) }},
 }
 
 // namesTopic is every living colonist's name by id, for the map's hover

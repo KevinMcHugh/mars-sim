@@ -11,8 +11,8 @@ readout. Around it is a Svelte chrome:
 
 - **A top bar:** the clock, a Pause / Normal / Fast / Faster / Max speed selector, and
   the TUI header's counts, as emoji (👷 👽 🐈 🐀, then each fixture's glyph).
-- **A side panel,** with the Inspect tab (click the map), the Lore tab and a
-  new-game form.
+- **A side panel,** with the Inspect tab (click the map), the Roster, the
+  Lore tab and a new-game form.
 
 The rest of the TUI's tabs are planned in
 [browser-frontend.md](./browser-frontend.md), "Parity with the TUI". The plan it is part of is
@@ -29,7 +29,7 @@ The rest of the TUI's tabs are planned in
   actions panels take (`subscribe`, `setSpeed`, `newGame`).
 - [`web/src/ui/`](../web/src/ui/App.svelte) — the Svelte chrome: `App`,
   `TopBar`, `SpeedControl`, `SidePanel`, `Bar` (a gauge), and one component
-  per tab (`InspectPanel`, `LorePanel`, `NewGamePanel`). `inspect.ts` types the
+  per tab (`InspectPanel`, `RosterPanel`, `LorePanel`, `NewGamePanel`). `inspect.ts` types the
   inspector's payloads.
 - [`web/src/speed.ts`](../web/src/speed.ts) — the speed selector's steps.
 - [`web/src/settings.ts`](../web/src/settings.ts) — new-game settings from the
@@ -201,6 +201,23 @@ Inspect tab:
   zoomed out. It hides while the creature is under fog, as the creature does.
 - **Closing the Inspect tab** (or switching tabs) drops the selection and the
   marker, and unmounting the panel unsubscribes its topic.
+
+**The roster** lists the colony from the `roster` topic, by ID, three lines a
+row as in the TUI: name, pronouns and age (or an alien's species), and what it
+is doing with its mood. A hurt creature shows its health.
+
+- **Filters.** *Dead* and *Non-human* are the TUI's `f` filters. They pick the
+  topic (`roster:dead,nonhuman`), so the Go side does the filtering, and they
+  are kept in `ui` while the tab is closed. *Find by name* filters the rows in
+  the page, by name or info line.
+- **Virtualized.** Rows are a fixed 62 px, and only those on screen, plus six
+  either side, are in the DOM. A long game lists every dead colonist, and the
+  rows are replaced twice a second, so rendering all of them would be the
+  cost of the tab.
+- **A row opens the inspector,** which then offers *← Roster*. Going back
+  keeps the selection, so the row stays highlighted and the map keeps its
+  marker; switching to any other tab drops it. Links inside the inspector keep
+  the way back.
 
 **The speed selector** is Pause plus four running speeds (`speed.ts`): Normal
 is the game's default 8 ticks a second, Fast is 32, Faster is 128, and Max is
