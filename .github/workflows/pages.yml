@@ -1,0 +1,76 @@
+# Build the browser game (web/) and publish it to GitHub Pages:
+# https://kevinmchugh.github.io/mars-sim/ (the spike page is at /spike/).
+#
+# It runs on every push to main that could change the site, and by hand from
+# the Actions tab. One-time setup: Settings -> Pages -> Build and deployment ->
+# Source: "GitHub Actions". See docs/frontend-web.md.
+name: Pages
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "web/**"
+      - "cmd/mars-sim-wasm/**"
+      - "internal/**"
+      - "go.mod"
+      - "go.sum"
+      - ".github/workflows/pages.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# One deploy at a time; a newer push replaces a queued one.
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Install
+        working-directory: web
+        run: npm ci
+
+      - name: Test the wire decoder
+        working-directory: web
+        run: npm test
+
+      # Builds the engine as WASM (build-wasm.sh), type-checks, and bundles
+      # the static site into web/dist with relative URLs, so it works under
+      # the /mars-sim/ subpath.
+      - name: Build
+        working-directory: web
+        run: npm run build
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: web/dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

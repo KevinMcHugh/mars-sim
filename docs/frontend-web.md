@@ -44,6 +44,17 @@ settings: `?width=2000&height=2000&seed=7&fog-of-war=false`. `npm run build`
 writes a static site to `web/dist/`. `npm run check` type-checks and `npm test`
 runs the wire decoder's tests. All of these need Go on the path.
 
+**Hosting:** [`.github/workflows/pages.yml`](../.github/workflows/pages.yml)
+publishes it to GitHub Pages, at <https://kevinmchugh.github.io/mars-sim/>,
+with the spike at `/mars-sim/spike/`. It builds on every push to `main` that
+touches `web/`, the engine or the wire, and can be run by hand from the Actions
+tab. It runs `npm ci`, `npm test` and `npm run build`, then deploys `web/dist`.
+The one-time setup is in the repo settings: **Pages → Build and deployment →
+Source: GitHub Actions**. The build needs nothing special for the subpath:
+Vite's `base: './'` keeps every URL relative, and the worker is found from
+`document.baseURI`. Tested by serving `web/dist` under `/mars-sim/`, as Pages
+does.
+
 ## How it works
 
 **Terrain** lives in *chunk textures*: `RG8UI`, 2048×2048 tiles each, which is

@@ -403,9 +403,11 @@ past a plain static host, and none of them is planned:
   `application/wasm` for streaming compilation, and compressed. GitHub Pages
   does both (gzip). Brotli would shave a bit more, which Cloudflare does.
 
-Cloudflare Pages is the suggested host: free, static, custom headers if they
-are ever needed, and brotli. GitHub Pages works too, with the headers caveat
-above.
+**It is on GitHub Pages** (see [frontend-web.md](./frontend-web.md),
+"Hosting"): the repo already lives on GitHub, and nothing above needs custom
+headers. Cloudflare Pages was the first suggestion, for brotli and a
+`_headers` file. It is still the place to move if `SharedArrayBuffer` ever
+becomes necessary.
 
 **Mobile, later.** Nothing above rules it out: WebGL2, workers, OPFS and WASM
 all work on current iOS and Android. What to do now, so it stays possible:
@@ -571,7 +573,8 @@ Decided so far:
   shared with the native build.
 - **Mobile:** wanted, not day one. Use pointer events and a responsive layout
   from the start.
-- **Hosting:** static (Cloudflare Pages suggested).
+- **Hosting:** static, on GitHub Pages
+  (<https://kevinmchugh.github.io/mars-sim/>).
 
 Still open:
 
