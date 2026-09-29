@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/kevinmchugh/mars-sim/internal/glyphs"
@@ -29,7 +30,21 @@ type topic struct {
 // topicTable is every topic a page can subscribe to by a fixed name. Topics
 // with a parameter ("entity:12") are resolved by paramTopic.
 var topicTable = map[string]topic{
-	"lore": {every: time.Second, build: loreTopic},
+	"lore":  {every: time.Second, build: loreTopic},
+	"names": {every: time.Second, build: namesTopic},
+}
+
+// namesTopic is every living colonist's name by id, for the map's hover
+// readout: frames carry ids, not names. It changes only when someone arrives
+// or dies, so after the first send it is almost never sent again.
+func namesTopic(s *sim.Snapshot) any {
+	names := map[string]string{}
+	for _, e := range s.Entities {
+		if e.Kind == sim.Colonist {
+			names[strconv.FormatUint(uint64(e.ID), 10)] = entityName(e)
+		}
+	}
+	return names
 }
 
 // Topics tracks one page's subscriptions and what was last sent for each.

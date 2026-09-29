@@ -9,7 +9,7 @@
 import { mount } from 'svelte';
 import type { Frame, Hello } from '../wire/decode.js';
 import { namedStats, TILE_COMPOSITION_MASK, TILE_VISIBLE } from '../wire/decode.js';
-import { inspect, install, stepSpeed, syncFrame, togglePause, topics, ui, UI_HZ } from './game.svelte';
+import { inspect, install, stepSpeed, subscribe, syncFrame, togglePause, topics, ui, UI_HZ } from './game.svelte';
 import { attachInput } from './map/input';
 import { MapRenderer } from './map/renderer';
 import type { TileRect } from './map/camera';
@@ -55,6 +55,9 @@ install({
   centerOn: (x, y) => { cam.cx = x + 0.5; cam.cy = y + 0.5; viewChanged(); },
   selected: () => updateMark(),
 });
+// Colonists' names for the hover readout; frames carry only ids. Held for
+// the page's life, across new games.
+subscribe('names');
 
 sim.onError = (m) => status(m, true);
 sim.onTopics = (t) => {
@@ -198,6 +201,7 @@ function showHover(sx: number, sy: number): void {
   const [fx, fy] = cam.toTile(sx, sy);
   const x = Math.floor(fx), y = Math.floor(fy);
   if (x < 0 || y < 0 || x >= hello.width || y >= hello.height) { ui.hover = null; return; }
+  const names = topics.data.names as Record<string, string> | undefined;
   const parts = [`${x}, ${y}`];
   const cell = map.tileAt(x, y);
   if (!cell || !(cell[1] & TILE_VISIBLE)) {
@@ -218,7 +222,8 @@ function showHover(sx: number, sy: number): void {
       for (let i = 0; i < e.count; i++) {
         if (e.x[i] !== x || e.y[i] !== y) continue;
         const g = hello.glyphs.symbols[e.glyph[i]] ?? '';
-        parts.push(`${g} ${hello.enums.kinds[e.kind[i]]} #${e.id[i]}, ${hello.enums.states[e.state[i]]}`);
+        const name = names?.[e.id[i]] ?? `${hello.enums.kinds[e.kind[i]]} #${e.id[i]}`;
+        parts.push(`${g} ${name}, ${hello.enums.states[e.state[i]]}`);
       }
     }
   }

@@ -75,6 +75,11 @@ worker now reports every failure to the page as well.
 Normal, Fast, Faster, Max); arrows or WASD pan; `[` and `]` zoom; Escape closes the
 side panel. A click (or tap) on the map inspects what is there.
 
+**The hover readout** names the tile under the pointer and who is on it. A
+colonist is named from the `names` topic, which `main.ts` subscribes to for
+the page's whole life: frames carry only ids. Other creatures read as
+"alien #7", as in the TUI.
+
 **Hosting:** [`.github/workflows/pages.yml`](../.github/workflows/pages.yml)
 publishes it to GitHub Pages, at <https://kevinmchugh.github.io/mars-sim/>,
 with the spike at `/mars-sim/spike/`. It builds on every push to `main` that

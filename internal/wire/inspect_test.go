@@ -106,6 +106,17 @@ func TestInspectRealColony(t *testing.T) {
 	}
 }
 
+// The names topic names living colonists by id, and nothing else.
+func TestNamesTopic(t *testing.T) {
+	snap := fixture(true)
+	snap.Entities[0].Profile = &sim.Profile{Name: "Uma Xu"}
+	var names map[string]string
+	due(t, snap, "names", &names)
+	if len(names) != 1 || names["1"] != "Uma Xu" {
+		t.Errorf("names = %v", names)
+	}
+}
+
 // The fog hides a tile's contents, creatures included.
 func TestInspectUnexploredTile(t *testing.T) {
 	snap := fixture(true)

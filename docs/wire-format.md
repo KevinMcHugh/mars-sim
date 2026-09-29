@@ -135,6 +135,7 @@ of the payloads due, by name:
 | Topic | Every | Payload |
 | --- | --- | --- |
 | `lore` | 1 s | `world` (size, fog, explored tiles, chunks generated, seed) and `species` (each rolled species' roster label, map glyph, build, temperament, bite and pace, and field notes) |
+| `names` | 1 s | Every living colonist's name, by id (as a string key). The page holds it open for the hover readout, since frames carry ids, not names. It changes only on an arrival or a death. |
 | `entity:<id>` | 250 ms | One creature (`EntityTopic`): name, glyph, position, state, focus, health, body parts, and death if dead; an alien's species; a colonist's profile, wallet, affect, needs, inventory, traits, family, affinities and memories (newest first). Looked up among the living, then `Deceased`, then `Graveyard`; `found: false` once it is in none of them. |
 | `tile:<x>,<y>` | 250 ms | One tile (`TileTopic`): terrain (a rock's composition), glyph, the fixture's owner and access, a container's contents and ledger, and the creatures on it. Under fog, only `explored: false`. |
 
