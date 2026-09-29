@@ -58,11 +58,6 @@ export const terrainColors = (names: string[]) => lookup(names, terrains);
 export const compositionColors = (names: string[]) => lookup(names, compositions);
 export const kindColors = (names: string[]) => lookup(names, kinds);
 
-/** CSS form of a kind's color, for the HUD legend. */
-export function kindCSS(name: string): string {
-  return kinds[name] ?? '#ff00ff';
-}
-
 // Filth tints (see renderer.ts): a wash over the tile, deeper with more on it.
 const FILTH_GORE = hex('#6e0f0f');
 const FILTH_SCUM = hex('#24561a');

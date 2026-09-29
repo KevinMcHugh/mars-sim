@@ -27,6 +27,8 @@ export interface Hello {
     symbols: string[];
     /** Per terrain value: its glyph's index, or -1 to draw its color instead. */
     terrain: number[];
+    /** Per kind value: its generic glyph's index (glyphs.ForKind), for counts. */
+    kinds: number[];
     gore: number;
     corpse: number;
   };

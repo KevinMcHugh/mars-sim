@@ -15,6 +15,13 @@ export type Command =
 
 export interface Started { hello: Hello; genMs: number; loadMs: number }
 
+/**
+ * The WASM exports this page expects (hostAPI in cmd/mars-sim-wasm/main.go).
+ * A mismatch means mars-sim.wasm is from another build: usually a pull without
+ * rerunning npm run wasm.
+ */
+export const HOST_API = 2;
+
 export class SimClient {
   private worker: Worker;
   private pending: ((s: Started) => void) | null = null;
@@ -57,7 +64,11 @@ export class SimClient {
   private receive(msg: any): void {
     switch (msg.type) {
       case 'started':
-        if (msg.result.error) {
+        if (msg.api !== HOST_API) {
+          this.failed?.(new Error(
+            `mars-sim.wasm is out of date (it speaks version ${msg.api}; this page needs ${HOST_API}). ` +
+            'Rebuild it with npm run wasm (npm run dev does this for you) and reload.'));
+        } else if (msg.result.error) {
           this.failed?.(new Error(msg.result.error));
         } else {
           this.pending?.({ hello: msg.result.hello, genMs: msg.result.genMs, loadMs: msg.loadMs });
@@ -65,7 +76,11 @@ export class SimClient {
         this.pending = this.failed = null;
         break;
       case 'frame':
-        this.onFrame(decodeFrame(msg.buffer), msg.buffer.byteLength);
+        try {
+          this.onFrame(decodeFrame(msg.buffer), msg.buffer.byteLength);
+        } catch (err) {
+          this.onError(String((err as Error).message ?? err));
+        }
         break;
       case 'topics':
         this.onTopics(msg.topics);

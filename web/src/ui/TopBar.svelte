@@ -2,10 +2,9 @@
   // The top bar: the clock, the speed selector, and the TUI header's counts
   // (creatures, fixtures, refuse, rooms, excavated). Refreshes at UI_HZ.
   import { ui } from '../game.svelte';
-  import { kindCSS } from '../map/palette';
   import SpeedControl from './SpeedControl.svelte';
 
-  // Creatures: a colored dot, as on the map when zoomed out.
+  // Creatures: their generic glyph (glyphs.ForKind), as the TUI's header shows them.
   const creatures: [stat: string, kind: string][] = [
     ['Colonists', 'colonist'], ['Aliens', 'alien'], ['Cats', 'cat'], ['Rats', 'rat'],
   ];
@@ -14,6 +13,13 @@
     ['Pods', 'nutrient pod'], ['Toilets', 'toilet'], ['Beds', 'bed'],
     ['Incinerators', 'incinerator'], ['StorageContainers', 'storage container'],
   ];
+
+  function kindGlyph(name: string): string {
+    const h = ui.hello;
+    if (!h) return '';
+    const g = h.glyphs.kinds[h.enums.kinds.indexOf(name)] ?? -1;
+    return g >= 0 ? h.glyphs.symbols[g] : '';
+  }
 
   function terrainGlyph(name: string): string {
     const h = ui.hello;
@@ -31,7 +37,7 @@
   {#if ui.hello}
     <span class="counts">
       {#each creatures as [stat, kind] (stat)}
-        <span title={`${kind}s`}><i class="dot" style:background={kindCSS(kind)}></i>{ui.stats[stat] ?? 0}</span>
+        <span title={`${kind}s`}>{kindGlyph(kind)} {ui.stats[stat] ?? 0}</span>
       {/each}
       {#each fixtures as [stat, terrain] (stat)}
         <span title={`${terrain}s`}>{terrainGlyph(terrain)} {ui.stats[stat] ?? 0}</span>
@@ -59,7 +65,6 @@
   .title { letter-spacing: 0.02em; }
   .readout { font-variant-numeric: tabular-nums; color: var(--muted); min-width: 10ch; }
   .counts { display: flex; gap: 12px; flex-wrap: wrap; font-variant-numeric: tabular-nums; }
-  .dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 5px; }
 
   /* A phone: the panel's tabs move to the bottom sheet, so the bar can span the top. */
   @media (max-width: 700px) {

@@ -59,14 +59,30 @@ setInterval(() => {
   slices = 0;
 }, 1000);
 
+// The handler is async (start awaits the WASM), so an exception in it would
+// become an unhandled rejection that the page never hears about: a panel
+// waiting on a topic would just sit on "Loading…". Report every failure.
 onmessage = async (e) => {
-  const msg = e.data;
+  try {
+    await handle(e.data);
+  } catch (err) {
+    postMessage({ type: 'error', error: String(err && err.message ? err.message : err) });
+  }
+};
+
+async function handle(msg) {
+  // Every message waits for the engine to load, not just start: a panel
+  // opened while the page is still loading subscribes before marssim
+  // exists, and that subscription must not be lost. Awaiting one promise
+  // resumes in arrival order, so messages keep their order.
+  const loadMs = await ready;
   switch (msg.type) {
     case 'start': {
-      const loadMs = await ready;
       budgetMs = msg.budgetMs ?? budgetMs;
+      // Builds before the API was versioned have no marssim.api: call them 1.
+      const api = marssim.api ?? 1;
       const r = JSON.parse(marssim.start(JSON.stringify(msg.settings)));
-      postMessage({ type: 'started', result: r, loadMs });
+      postMessage({ type: 'started', result: r, loadMs, api });
       if (!r.error) schedule(0);
       break;
     }
@@ -93,4 +109,4 @@ onmessage = async (e) => {
       break;
     }
   }
-};
+}

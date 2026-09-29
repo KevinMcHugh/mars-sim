@@ -10,7 +10,7 @@ zoomed out and in the TUI's emoji when zoomed in, with pan, zoom and a hover
 readout. Around it is a Svelte chrome:
 
 - **A top bar:** the clock, a Pause / Normal / Fast / Faster / Max speed selector, and
-  the TUI header's counts.
+  the TUI header's counts, as emoji (👷 👽 🐈 🐀, then each fixture's glyph).
 - **A side panel,** with the Lore tab and a new-game form.
 
 The rest of the TUI's tabs are planned in
@@ -53,12 +53,21 @@ The rest of the TUI's tabs are planned in
 - [`web/spike/index.html`](../web/spike/index.html) — the measurement page, on
   the same worker.
 
-**Running it:** from `web/`, run `npm install` once, then `npm run wasm` (again
-after any Go change) and `npm run dev`. That serves the game on
+**Running it:** from `web/`, run `npm install` once, then `npm run dev`, which
+rebuilds the WASM first (`predev`), then serves the game on
 <http://localhost:5173/> and the spike on `/spike/`. The URL takes new-game
 settings: `?width=2000&height=2000&seed=7&fog-of-war=false`. `npm run build`
 writes a static site to `web/dist/`. `npm run check` type-checks and `npm test`
-runs the wire decoder's tests. All of these need Go on the path.
+runs the wire decoder's tests. All of these need Go on the path. After a Go
+change with the dev server already running, run `npm run wasm` and reload.
+
+**A stale WASM says so.** The WASM's exports carry a version (`hostAPI` in
+`cmd/mars-sim-wasm/main.go`, `HOST_API` in `web/src/sim/client.ts`, bumped
+together). The page checks it at start and, on a mismatch, shows "mars-sim.wasm
+is out of date … rebuild it". It used to fail silently: a page newer than its
+WASM called an export that did not exist, the error vanished inside the
+worker's async message handler, and the Lore panel sat on "Loading…". The
+worker now reports every failure to the page as well.
 
 **Keys:** space toggles pause; `+` and `-` step the speed selector (Pause,
 Normal, Fast, Faster, Max); arrows or WASD pan; `[` and `]` zoom; Escape closes the
@@ -222,6 +231,10 @@ nothing.
 - **The worker is a classic script in `public/`**, not a Vite module worker:
   Go's `wasm_exec.js` is loaded with `importScripts`, and both pages (the game
   and the spike) share the one worker and the one WASM.
+- **Every worker message waits for the WASM to load**, not only `start`. A
+  panel opened while the page is still loading subscribes before the engine
+  exists; handled at once, that subscription was lost, and the panel never
+  loaded.
 
 ## Extending it
 
