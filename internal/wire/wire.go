@@ -18,13 +18,14 @@ package wire
 import (
 	"reflect"
 
+	"github.com/kevinmchugh/mars-sim/internal/glyphs"
 	"github.com/kevinmchugh/mars-sim/internal/sim"
 )
 
 // Version is the frame layout's version, carried in every frame header and in
 // Hello. Bump it on any change to the layout, and update the decoder
 // (web/wire/decode.js) and the golden files in the same change.
-const Version = 1
+const Version = 2
 
 // Hello is the once-per-game message.
 type Hello struct {
@@ -38,6 +39,47 @@ type Hello struct {
 	// Stats names the frame's stats section, in order: frame stat i is
 	// the Stats field Stats[i].
 	Stats []string `json:"stats"`
+	// Glyphs is the emoji set, for a frontend that draws them.
+	Glyphs HelloGlyphs `json:"glyphs"`
+}
+
+// HelloGlyphs is the map's emoji (internal/glyphs) as the page needs them: the
+// symbols, which a frame's entity glyphs index; which glyph each terrain draws
+// as; and the refuse glyphs. A terrain whose glyph is only a patch of color
+// (glyphs.Swatch: rock, floor, hull) has -1: the page draws its color instead.
+type HelloGlyphs struct {
+	Symbols []string `json:"symbols"`
+	Terrain []int    `json:"terrain"`
+	Gore    int      `json:"gore"`
+	Corpse  int      `json:"corpse"`
+}
+
+// glyphIndex is each glyph's position in glyphs.All, the index frames carry.
+var glyphIndex = func() map[string]uint16 {
+	m := make(map[string]uint16, len(glyphs.All))
+	for i, s := range glyphs.All {
+		m[s] = uint16(i)
+	}
+	return m
+}()
+
+func helloGlyphs() HelloGlyphs {
+	terrains := sim.EnumNames().Terrains
+	h := HelloGlyphs{
+		Symbols: glyphs.All,
+		Terrain: make([]int, len(terrains)),
+		Gore:    int(glyphIndex[glyphs.Gore]),
+		Corpse:  int(glyphIndex[glyphs.Corpse]),
+	}
+	for t := range terrains {
+		g := glyphs.ForTerrain(sim.Terrain(t))
+		if glyphs.Swatch(g) {
+			h.Terrain[t] = -1
+		} else {
+			h.Terrain[t] = int(glyphIndex[g])
+		}
+	}
+	return h
 }
 
 // NewHello builds the Hello for the game snap belongs to.
@@ -51,6 +93,7 @@ func NewHello(snap *sim.Snapshot) Hello {
 		FogOfWar: snap.FogOfWar,
 		Enums:    sim.EnumNames(),
 		Stats:    statNames,
+		Glyphs:   helloGlyphs(),
 	}
 }
 

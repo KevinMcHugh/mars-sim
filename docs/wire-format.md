@@ -43,6 +43,11 @@ in frame order. Stats are every `int` field of `sim.Stats`, found by
 reflection, so a new stat reaches the page with no change here. Frames carry
 enum *values*; the page never keeps its own copy of the tables.
 
+Since version 2, Hello also carries the **glyphs** (`internal/glyphs`):
+`symbols` (every emoji, `glyphs.All`; an entity's glyph indexes it), `terrain`
+(each terrain's glyph index, or -1 for a swatch such as rock, floor or hull,
+which the page draws as a color), and the `gore` and `corpse` glyphs.
+
 ### A frame
 
 Little-endian. Every section starts on a 4-byte boundary, so the page views each
@@ -52,7 +57,7 @@ nothing).
 | Offset | Size | Field |
 | --- | --- | --- |
 | 0 | 4 | magic `MSFR` |
-| 4 | 2 | `Version` (1) |
+| 4 | 2 | `Version` (2) |
 | 6 | 2 | flags: 1 paused, 2 fog of war, 4 **tiles reset**, 8 **refuse frame** |
 | 8 | 8 | tick |
 | 16 | 8 | `TileChanges.Frame` |
@@ -67,8 +72,11 @@ Then the sections, in order:
 
 - **stats**: `int32 × S`, named by `Hello.stats`.
 - **entities**, struct-of-arrays: `uint32 id × N`, `int32 x × N`,
-  `int32 y × N`, then `uint8 kind × N`, `uint8 state × N`, `uint8 focus × N`,
-  padded to 4.
+  `int32 y × N`, `uint16 glyph × N` (padded to 4), then `uint8 kind × N`,
+  `uint8 state × N`, `uint8 focus × N`, padded to 4. The glyph is picked in Go
+  by `glyphs.ForEntity`, from things the page never sees (a colonist's gender,
+  age and traits, an alien's species), so the TUI and the browser always
+  agree.
 - **pages**: `int32 px × P`, `int32 py × P` (page coordinates, so tile
   `px*64`), then P × 4096 tiles of 2 bytes, row by row: **terrain**, then
   **flags** (rock composition in the low 4 bits, bit 4 *visible* = explored,
@@ -139,7 +147,7 @@ Entities in a re-encode are from the newest snapshot, not newer ticks.
 
 ## Extending it
 
-- **A field on an entity** (hp, species): add an array to the entities section in
+- **A field on an entity** (hp): add an array to the entities section in
   both `Encoder.Encode` and `decode.js`, bump `Version`, regenerate the golden
   files (`go test ./internal/wire -run Golden -update`), and extend
   `decode.test.mjs`'s reshaping. Keep sections 4-byte aligned: put 4-byte arrays

@@ -18,6 +18,8 @@ treated a symptom.
 
 - `internal/ui/tui/cells/cells.go` — `Width`, `Truncate`, `Pad`, `Fit`. The only
   sanctioned way to measure or size a string.
+- `internal/glyphs/glyphs.go` — the glyphs themselves (`All`) and the rules for
+  picking one, shared with the browser map.
 - `internal/ui/tui/glyphs.go` — the glyph registry: declared widths, ASCII
   fallbacks, and `fitGlyph`.
 - `internal/ui/tui/probe.go` — the cursor-position-report probe.
@@ -166,8 +168,10 @@ tofu. That is what `-glyphs ascii` is for.
 
 ## Extending it
 
-**Adding a glyph** is a two-line edit to `glyphs.go`: a `glyphX` constant and a
-`glyphRegistry` entry with its declared width and an ASCII fallback. The tests
+**Adding a glyph** is a constant (and its place in `All`) in
+`internal/glyphs`, plus a `glyphRegistry` entry in the TUI's `glyphs.go` with
+its declared width and an ASCII fallback. `TestGlyphRegistryCoversEveryGlyph`
+requires the registry to cover `glyphs.All` exactly. The tests
 enforce the rest — if the glyph carries a variation selector, a ZWJ or a skin
 tone modifier, or if the width tables disagree about it, `go test` fails and
 names the reason. Pick a single code point with Emoji_Presentation=Yes and it
@@ -189,7 +193,8 @@ Invariants a change here must preserve:
 in it, showed up for the first time with `AlienSpecies.Emoji` (see
 [lore.md](./lore.md)): `sim` rolls a plain string from a YAML file, with no
 idea this package's rules exist. The pattern that keeps the guarantees above
-intact is `alienGlyph`: check the runtime string against `glyphRegistry`
+intact is `alienGlyph` (now `glyphs.ForAlien`, shared with the browser): check
+the runtime string against `glyphs.All`, which the registry must cover exactly
 (an exact key match — the string either *is* one of the vetted symbols
 above, or it isn't) and fall back to a plain, always-registered glyph for
 anything that doesn't match, rather than ever handing an unrecognized

@@ -46,6 +46,8 @@ const kinds: Record<string, string> = {
 };
 
 export const GORE = hex('#9b1010');
+/** Under a facility's glyph: the floor, a shade darker, so the room reads. */
+export const GLYPH_BACKDROP = hex('#b08b68');
 export const CORPSE = hex('#efe6d4');
 
 function lookup(names: string[], table: Record<string, string>): RGB[] {

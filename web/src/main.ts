@@ -176,14 +176,17 @@ function showHover(sx: number, sy: number): void {
     parts.push('unexplored');
   } else {
     const [terrain, flags] = cell;
-    parts.push(terrain === 0
+    const glyph = hello.glyphs.terrain[terrain] ?? -1;
+    const name = terrain === 0
       ? hello.enums.compositions[flags & TILE_COMPOSITION_MASK] ?? 'rock'
-      : hello.enums.terrains[terrain] ?? `terrain ${terrain}`);
+      : hello.enums.terrains[terrain] ?? `terrain ${terrain}`;
+    parts.push(glyph >= 0 ? `${hello.glyphs.symbols[glyph]} ${name}` : name);
     if (last) {
       const e = last.entities;
       for (let i = 0; i < e.count; i++) {
         if (e.x[i] !== x || e.y[i] !== y) continue;
-        parts.push(`${hello.enums.kinds[e.kind[i]]} #${e.id[i]}, ${hello.enums.states[e.state[i]]}`);
+        const g = hello.glyphs.symbols[e.glyph[i]] ?? '';
+        parts.push(`${g} ${hello.enums.kinds[e.kind[i]]} #${e.id[i]}, ${hello.enums.states[e.state[i]]}`);
       }
     }
   }

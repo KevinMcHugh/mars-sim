@@ -26,7 +26,7 @@ function asGolden(f) {
     tick: f.tick, tileFrame: f.tileFrame, tps: f.tps, pagesOwed: f.pagesOwed,
     stats: Array.from(f.stats),
     entities: Array.from({ length: e.count }, (_, i) => ({
-      id: e.id[i], x: e.x[i], y: e.y[i], kind: e.kind[i], state: e.state[i], focus: e.focus[i],
+      id: e.id[i], x: e.x[i], y: e.y[i], glyph: e.glyph[i], kind: e.kind[i], state: e.state[i], focus: e.focus[i],
     })),
     pages: Array.from({ length: p.count }, (_, i) => ({
       px: p.px[i], py: p.py[i], tileSum: tileSum(p.tiles.subarray(i * pageBytes, (i + 1) * pageBytes)),

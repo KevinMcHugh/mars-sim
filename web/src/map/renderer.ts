@@ -9,9 +9,16 @@
 // buffer. The fragment shader reads a tile with texelFetch and colors it from
 // uniform palettes, so drawing costs the same at any zoom: one quad per chunk
 // on screen, not one draw per tile.
+//
+// Zoomed in (GLYPH_ZOOM and up), glyphs replace the flat colors: a facility's
+// emoji over a floor backdrop, and each entity's own emoji (picked in Go, see
+// internal/glyphs) from the atlas (atlas.ts). Zoomed out, a glyph would be a
+// few pixels of mush, so the flat colors and dots stay.
 
 import type { Frame, Hello } from '../../wire/decode.js';
 import { PAGE_SIDE, PAGE_TILES, TILE_BYTES, TILE_VISIBLE } from '../../wire/decode.js';
+import { buildAtlas } from './atlas';
+import type { Atlas } from './atlas';
 import { Camera } from './camera';
 import * as palette from './palette';
 
@@ -23,6 +30,8 @@ const MAX_KINDS = 8;
 // Instance "kinds" past the entity kinds, for refuse.
 const KIND_GORE = MAX_KINDS - 2;
 const KIND_CORPSE = MAX_KINDS - 1;
+/** CSS pixels per tile at which the map switches from flat colors to glyphs. */
+export const GLYPH_ZOOM = 10;
 
 const TERRAIN_VS = `#version 300 es
 in vec2 aCorner;
@@ -47,8 +56,17 @@ uniform vec3 uTerrainColors[${MAX_TERRAINS}];
 uniform vec3 uRockColors[${MAX_COMPOSITIONS}];
 uniform vec3 uFog;
 uniform float uScale;
+uniform bool uGlyphs;                       // draw glyphs (zoomed in)
+uniform sampler2D uAtlas;
+uniform vec2 uAtlasGrid;                    // atlas columns, rows
+uniform int uTerrainGlyph[${MAX_TERRAINS}]; // atlas index per terrain, -1 for none
+uniform vec3 uGlyphBackdrop;                // what a glyph terrain sits on
 out vec4 outColor;
 void main() {
+  // Gradients before any branch, for textureGrad: fract() jumps at tile
+  // edges, and implicit derivatives there would pick a tiny mip level and
+  // draw a seam around every tile.
+  vec2 gx = dFdx(vTile) / uAtlasGrid, gy = dFdy(vTile) / uAtlasGrid;
   ivec2 t = ivec2(floor(vTile));
   uvec2 cell = texelFetch(uTerrain, t, 0).rg;
   uint terrain = cell.r;
@@ -60,6 +78,13 @@ void main() {
     c = uRockColors[min(flags & 15u, ${MAX_COMPOSITIONS - 1}u)];
   } else {
     c = uTerrainColors[min(terrain, ${MAX_TERRAINS - 1}u)];
+    int g = uGlyphs ? uTerrainGlyph[min(int(terrain), ${MAX_TERRAINS - 1})] : -1;
+    if (g >= 0) {
+      int cols = int(uAtlasGrid.x);
+      vec2 uv = (vec2(float(g % cols), float(g / cols)) + fract(vTile)) / uAtlasGrid;
+      vec4 s = textureGrad(uAtlas, uv, gx, gy); // premultiplied
+      c = uGlyphBackdrop * (1.0 - s.a) + s.rgb;
+    }
   }
   // A faint grid once tiles are big enough to tell apart.
   if (uScale >= 14.0) {
@@ -74,15 +99,18 @@ const SPRITE_VS = `#version 300 es
 in vec2 aCorner;
 in ivec2 aPos;          // per instance: tile
 in uint aKind;          // per instance: palette index
+in uint aGlyph;         // per instance: atlas index
 uniform vec2 uCam;
 uniform float uScale;
 uniform vec2 uView;
 uniform float uSize;    // sprite size in tiles
 out vec2 vCorner;
 flat out uint vKind;
+flat out uint vGlyph;
 void main() {
   vCorner = aCorner;
   vKind = aKind;
+  vGlyph = aGlyph;
   vec2 tile = vec2(aPos) + 0.5 + (aCorner - 0.5) * uSize;
   vec2 px = (tile - uCam) * uScale;
   gl_Position = vec4(px.x / (uView.x * 0.5), -px.y / (uView.y * 0.5), 0.0, 1.0);
@@ -92,10 +120,23 @@ const SPRITE_FS = `#version 300 es
 precision highp float;
 in vec2 vCorner;
 flat in uint vKind;
+flat in uint vGlyph;
 uniform vec3 uColors[${MAX_KINDS}];
 uniform bool uRound;
+uniform bool uGlyphs;
+uniform sampler2D uAtlas;
+uniform vec2 uAtlasGrid;
 out vec4 outColor;
 void main() {
+  if (uGlyphs) {
+    int cols = int(uAtlasGrid.x);
+    int g = int(vGlyph);
+    vec2 uv = (vec2(float(g % cols), float(g / cols)) + vCorner) / uAtlasGrid;
+    vec4 s = texture(uAtlas, uv); // premultiplied; blended ONE, ONE_MINUS_SRC_ALPHA
+    if (s.a < 0.02) discard;
+    outColor = s;
+    return;
+  }
   vec3 c = uColors[min(vKind, ${MAX_KINDS - 1}u)];
   if (uRound) {
     float d = length(vCorner - 0.5);
@@ -124,8 +165,11 @@ export class MapRenderer {
   private refuseVAO: WebGLVertexArrayObject;
   private entityPos: WebGLBuffer;
   private entityKind: WebGLBuffer;
+  private entityGlyph: WebGLBuffer;
   private refusePos: WebGLBuffer;
   private refuseKind: WebGLBuffer;
+  private refuseGlyph: WebGLBuffer;
+  private atlas: Atlas | null = null;
   private u: Record<string, WebGLUniformLocation | null> = {};
 
   private chunks = new Map<number, Chunk>();
@@ -148,8 +192,9 @@ export class MapRenderer {
     this.terrainProg = program(gl, TERRAIN_VS, TERRAIN_FS);
     this.spriteProg = program(gl, SPRITE_VS, SPRITE_FS);
     for (const [prog, names] of [
-      [this.terrainProg, ['uOrigin', 'uSize', 'uCam', 'uScale', 'uView', 'uTerrain', 'uTerrainColors', 'uRockColors', 'uFog']],
-      [this.spriteProg, ['uCam', 'uScale', 'uView', 'uSize', 'uColors', 'uRound']],
+      [this.terrainProg, ['uOrigin', 'uSize', 'uCam', 'uScale', 'uView', 'uTerrain', 'uTerrainColors', 'uRockColors', 'uFog',
+        'uGlyphs', 'uAtlas', 'uAtlasGrid', 'uTerrainGlyph', 'uGlyphBackdrop']],
+      [this.spriteProg, ['uCam', 'uScale', 'uView', 'uSize', 'uColors', 'uRound', 'uGlyphs', 'uAtlas', 'uAtlasGrid']],
     ] as const) {
       for (const n of names) this.u[(prog === this.terrainProg ? 't.' : 's.') + n] = gl.getUniformLocation(prog, n);
     }
@@ -161,10 +206,12 @@ export class MapRenderer {
 
     this.entityPos = gl.createBuffer()!;
     this.entityKind = gl.createBuffer()!;
-    this.entityVAO = this.spriteVAO(this.entityPos, this.entityKind);
+    this.entityGlyph = gl.createBuffer()!;
+    this.entityVAO = this.spriteVAO(this.entityPos, this.entityKind, this.entityGlyph);
     this.refusePos = gl.createBuffer()!;
     this.refuseKind = gl.createBuffer()!;
-    this.refuseVAO = this.spriteVAO(this.refusePos, this.refuseKind);
+    this.refuseGlyph = gl.createBuffer()!;
+    this.refuseVAO = this.spriteVAO(this.refusePos, this.refuseKind, this.refuseGlyph);
     gl.bindVertexArray(null);
 
     new ResizeObserver(() => this.resize()).observe(canvas);
@@ -191,6 +238,13 @@ export class MapRenderer {
     gl.uniform3fv(this.u['t.uTerrainColors'], pad(palette.terrainColors(hello.enums.terrains), MAX_TERRAINS));
     gl.uniform3fv(this.u['t.uRockColors'], pad(palette.compositionColors(hello.enums.compositions), MAX_COMPOSITIONS));
     gl.uniform3fv(this.u['t.uFog'], palette.FOG);
+    const terrainGlyphs = new Int32Array(MAX_TERRAINS).fill(-1);
+    hello.glyphs.terrain.slice(0, MAX_TERRAINS).forEach((g, i) => { terrainGlyphs[i] = g; });
+    gl.uniform1iv(this.u['t.uTerrainGlyph'], terrainGlyphs);
+    gl.uniform3fv(this.u['t.uGlyphBackdrop'], palette.GLYPH_BACKDROP);
+
+    if (this.atlas) gl.deleteTexture(this.atlas.texture);
+    this.atlas = buildAtlas(gl, hello.glyphs.symbols);
     gl.useProgram(this.spriteProg);
     const kinds = pad(palette.kindColors(hello.enums.kinds), MAX_KINDS);
     kinds.set(palette.GORE, KIND_GORE * 3);
@@ -232,10 +286,11 @@ export class MapRenderer {
     const e = f.entities;
     const pos = new Int32Array(e.count * 2);
     const kind = new Uint8Array(e.count);
+    const glyph = new Uint16Array(e.count);
     let n = 0;
     for (let i = 0; i < e.count; i++) {
       if (!this.visible(e.x[i], e.y[i])) continue;
-      pos[2 * n] = e.x[i]; pos[2 * n + 1] = e.y[i]; kind[n] = e.kind[i];
+      pos[2 * n] = e.x[i]; pos[2 * n + 1] = e.y[i]; kind[n] = e.kind[i]; glyph[n] = e.glyph[i];
       n++;
     }
     this.entityCount = n;
@@ -243,6 +298,8 @@ export class MapRenderer {
     gl.bufferData(gl.ARRAY_BUFFER, pos.subarray(0, 2 * n), gl.DYNAMIC_DRAW);
     gl.bindBuffer(gl.ARRAY_BUFFER, this.entityKind);
     gl.bufferData(gl.ARRAY_BUFFER, kind.subarray(0, n), gl.DYNAMIC_DRAW);
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.entityGlyph);
+    gl.bufferData(gl.ARRAY_BUFFER, glyph.subarray(0, n), gl.DYNAMIC_DRAW);
 
     // Refuse arrives only when it changes, but what is visible changes as
     // the colony digs, so keep the list and refilter it every frame.
@@ -251,11 +308,16 @@ export class MapRenderer {
     if (r) {
       const rpos = new Int32Array(r.count * 2);
       const rkind = new Uint8Array(r.count);
+      const rglyph = new Uint16Array(r.count);
+      const g = this.hello!.glyphs;
       let m = 0;
       for (let i = 0; i < r.count; i++) {
         if (!this.visible(r.x[i], r.y[i])) continue;
         rpos[2 * m] = r.x[i]; rpos[2 * m + 1] = r.y[i];
-        rkind[m] = r.corpses[i] > 0 ? KIND_CORPSE : KIND_GORE;
+        // A body outranks the stains around it, as in the TUI (glyphs.ForTile).
+        const corpse = r.corpses[i] > 0;
+        rkind[m] = corpse ? KIND_CORPSE : KIND_GORE;
+        rglyph[m] = corpse ? g.corpse : g.gore;
         m++;
       }
       this.refuseCount = m;
@@ -263,6 +325,8 @@ export class MapRenderer {
       gl.bufferData(gl.ARRAY_BUFFER, rpos.subarray(0, 2 * m), gl.DYNAMIC_DRAW);
       gl.bindBuffer(gl.ARRAY_BUFFER, this.refuseKind);
       gl.bufferData(gl.ARRAY_BUFFER, rkind.subarray(0, m), gl.DYNAMIC_DRAW);
+      gl.bindBuffer(gl.ARRAY_BUFFER, this.refuseGlyph);
+      gl.bufferData(gl.ARRAY_BUFFER, rglyph.subarray(0, m), gl.DYNAMIC_DRAW);
     }
     this.lastFrame = f;
     this.dirty = true;
@@ -306,7 +370,7 @@ export class MapRenderer {
     return c;
   }
 
-  private spriteVAO(posBuf: WebGLBuffer, kindBuf: WebGLBuffer): WebGLVertexArrayObject {
+  private spriteVAO(posBuf: WebGLBuffer, kindBuf: WebGLBuffer, glyphBuf: WebGLBuffer): WebGLVertexArrayObject {
     const gl = this.gl;
     const vao = gl.createVertexArray()!;
     gl.bindVertexArray(vao);
@@ -321,6 +385,11 @@ export class MapRenderer {
     gl.enableVertexAttribArray(aKind);
     gl.vertexAttribIPointer(aKind, 1, gl.UNSIGNED_BYTE, 0, 0);
     gl.vertexAttribDivisor(aKind, 1);
+    const aGlyph = gl.getAttribLocation(this.spriteProg, 'aGlyph');
+    gl.bindBuffer(gl.ARRAY_BUFFER, glyphBuf);
+    gl.enableVertexAttribArray(aGlyph);
+    gl.vertexAttribIPointer(aGlyph, 1, gl.UNSIGNED_SHORT, 0, 0);
+    gl.vertexAttribDivisor(aGlyph, 1);
     return vao;
   }
 
@@ -365,6 +434,14 @@ export class MapRenderer {
     gl.uniform2f(this.u['t.uCam'], cam.cx, cam.cy);
     gl.uniform1f(this.u['t.uScale'], scale);
     gl.uniform2f(this.u['t.uView'], this.canvas.width, this.canvas.height);
+    const glyphs = this.atlas !== null && cam.zoom >= GLYPH_ZOOM;
+    gl.uniform1i(this.u['t.uGlyphs'], glyphs ? 1 : 0);
+    if (this.atlas) {
+      gl.activeTexture(gl.TEXTURE1);
+      gl.bindTexture(gl.TEXTURE_2D, this.atlas.texture);
+      gl.uniform1i(this.u['t.uAtlas'], 1);
+      gl.uniform2f(this.u['t.uAtlasGrid'], this.atlas.cols, this.atlas.rows);
+    }
     gl.uniform1i(this.u['t.uTerrain'], 0);
     gl.activeTexture(gl.TEXTURE0);
     const view = cam.visibleTiles(hello.width, hello.height);
@@ -383,18 +460,26 @@ export class MapRenderer {
     gl.uniform2f(this.u['s.uCam'], cam.cx, cam.cy);
     gl.uniform1f(this.u['s.uScale'], scale);
     gl.uniform2f(this.u['s.uView'], this.canvas.width, this.canvas.height);
+    gl.uniform1i(this.u['s.uGlyphs'], glyphs ? 1 : 0);
+    if (this.atlas) {
+      gl.uniform1i(this.u['s.uAtlas'], 1);
+      gl.uniform2f(this.u['s.uAtlasGrid'], this.atlas.cols, this.atlas.rows);
+    }
+    gl.enable(gl.BLEND);
+    gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA); // the atlas is premultiplied
     if (this.refuseCount > 0) {
       gl.bindVertexArray(this.refuseVAO);
-      gl.uniform1f(this.u['s.uSize'], Math.max(0.45, 3 / cam.zoom));
+      gl.uniform1f(this.u['s.uSize'], glyphs ? 0.85 : Math.max(0.45, 3 / cam.zoom));
       gl.uniform1i(this.u['s.uRound'], 0);
       gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, this.refuseCount);
     }
     if (this.entityCount > 0) {
       gl.bindVertexArray(this.entityVAO);
-      gl.uniform1f(this.u['s.uSize'], Math.max(0.9, 5 / cam.zoom));
+      gl.uniform1f(this.u['s.uSize'], glyphs ? 1.0 : Math.max(0.9, 5 / cam.zoom));
       gl.uniform1i(this.u['s.uRound'], 1);
       gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, this.entityCount);
     }
+    gl.disable(gl.BLEND);
     gl.bindVertexArray(null);
   }
 }

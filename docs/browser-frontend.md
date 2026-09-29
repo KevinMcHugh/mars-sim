@@ -217,7 +217,8 @@ and the docs already design for 10000×10000 maps. So:
 **Built, with flat colors** ([frontend-web.md](./frontend-web.md)). Terrain
 is `RG8UI` chunk textures filled straight from the wire's page bytes. Entities
 and refuse are instanced quads. Occupants of unseen tiles are filtered out.
-The emoji atlas is the next step.
+Zoomed in, glyphs from an emoji atlas replace the flat colors, and each
+entity's glyph is picked in Go (`internal/glyphs`, shared with the TUI).
 
 The renderer is a plain TS class that owns its `<canvas>`. Svelte mounts it and
 passes it the camera, and that's all. Keeping it framework-free means it can move
@@ -531,7 +532,7 @@ A suggested order. Each step is worth landing on its own:
    Topics and the config schema come with the panels that need them.
 4. **The map renderer. Done with flat colors** ([frontend-web.md](./frontend-web.md)):
    terrain textures, sprites, camera, fog, pan and zoom, and hover. Next:
-   glyphs, click-to-select, and page eviction.
+   glyphs (done; see frontend-web.md), then click-to-select and page eviction.
 5. **Svelte shell.** The header stats, controls (pause, speed, spawn, the
    build orders) and the roster with its inspector. Then the job board, storage,
    lore and perf.

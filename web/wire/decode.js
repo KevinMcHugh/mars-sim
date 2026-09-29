@@ -6,7 +6,7 @@
 // The views alias the buffer. Keep the buffer (or copy out) for as long as you
 // read them.
 
-export const VERSION = 1;
+export const VERSION = 2;
 
 const HEADER = 48;
 export const PAGE_SIDE = 64;
@@ -52,11 +52,17 @@ export function decodeFrame(buffer) {
     id: new Uint32Array(buffer, at, n),
     x: new Int32Array(buffer, at + 4 * n, n),
     y: new Int32Array(buffer, at + 8 * n, n),
-    kind: new Uint8Array(buffer, at + 12 * n, n),
-    state: new Uint8Array(buffer, at + 13 * n, n),
-    focus: new Uint8Array(buffer, at + 14 * n, n),
+    // Index into hello.glyphs.symbols: the emoji the engine picked for it.
+    glyph: new Uint16Array(buffer, at + 12 * n, n),
+    kind: null,
+    state: null,
+    focus: null,
   };
-  at += 12 * n + align4(3 * n);
+  at += 12 * n + align4(2 * n);
+  entities.kind = new Uint8Array(buffer, at, n);
+  entities.state = new Uint8Array(buffer, at + n, n);
+  entities.focus = new Uint8Array(buffer, at + 2 * n, n);
+  at += align4(3 * n);
 
   const pages = {
     count: nPages,

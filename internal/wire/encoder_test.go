@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/kevinmchugh/mars-sim/internal/glyphs"
 	"github.com/kevinmchugh/mars-sim/internal/sim"
 )
 
@@ -32,6 +33,7 @@ type decodedEnt struct {
 	ID    uint32 `json:"id"`
 	X     int32  `json:"x"`
 	Y     int32  `json:"y"`
+	Glyph uint16 `json:"glyph"`
 	Kind  uint8  `json:"kind"`
 	State uint8  `json:"state"`
 	Focus uint8  `json:"focus"`
@@ -84,12 +86,13 @@ func decode(t *testing.T, b []byte) decoded {
 			ID:    le.Uint32(b[at+4*i:]),
 			X:     int32(le.Uint32(b[at+4*(n+i):])),
 			Y:     int32(le.Uint32(b[at+4*(2*n+i):])),
-			Kind:  b[at+12*n+i],
-			State: b[at+13*n+i],
-			Focus: b[at+14*n+i],
+			Glyph: le.Uint16(b[at+12*n+2*i:]),
+			Kind:  b[at+12*n+align4(2*n)+i],
+			State: b[at+12*n+align4(2*n)+n+i],
+			Focus: b[at+12*n+align4(2*n)+2*n+i],
 		}
 	}
-	at += 12*n + align4(3*n)
+	at += 12*n + align4(2*n) + align4(3*n)
 	d.Pages = make([]decodedPage, nPages)
 	for i := range d.Pages {
 		d.Pages[i].PX = int32(le.Uint32(b[at+4*i:]))
@@ -158,7 +161,8 @@ func fixture(fog bool) *sim.Snapshot {
 		Entities: []sim.EntityView{
 			{ID: 1, Kind: sim.Colonist, Pos: sim.Point{X: 10, Y: 3}, State: sim.Mining, Focus: sim.FocusWork},
 			{ID: 2, Kind: sim.Cat, Pos: sim.Point{X: 70, Y: 20}, State: sim.Hunting},
-			{ID: 9, Kind: sim.Alien, Pos: sim.Point{X: 149, Y: 69}, State: sim.Sleeping},
+			{ID: 9, Kind: sim.Alien, Pos: sim.Point{X: 149, Y: 69}, State: sim.Sleeping,
+				AlienSpecies: sim.AlienSpecies{Emoji: glyphs.Beetle}},
 		},
 		Stats:          sim.Stats{Colonists: 1, Cats: 1, Aliens: 1, FloorDug: 1500},
 		TicksPerSecond: 8,
@@ -184,9 +188,9 @@ func TestEncodeFirstFrame(t *testing.T) {
 		t.Errorf("FloorDug stat = %d", got)
 	}
 	wantEnts := []decodedEnt{
-		{ID: 1, X: 10, Y: 3, Kind: uint8(sim.Colonist), State: uint8(sim.Mining), Focus: uint8(sim.FocusWork)},
-		{ID: 2, X: 70, Y: 20, Kind: uint8(sim.Cat), State: uint8(sim.Hunting)},
-		{ID: 9, X: 149, Y: 69, Kind: uint8(sim.Alien), State: uint8(sim.Sleeping)},
+		{ID: 1, X: 10, Y: 3, Glyph: glyphIndex[glyphs.Colonist], Kind: uint8(sim.Colonist), State: uint8(sim.Mining), Focus: uint8(sim.FocusWork)},
+		{ID: 2, X: 70, Y: 20, Glyph: glyphIndex[glyphs.Cat], Kind: uint8(sim.Cat), State: uint8(sim.Hunting)},
+		{ID: 9, X: 149, Y: 69, Glyph: glyphIndex[glyphs.Beetle], Kind: uint8(sim.Alien), State: uint8(sim.Sleeping)},
 	}
 	if !slices.Equal(d.Entities, wantEnts) {
 		t.Errorf("entities = %+v", d.Entities)
@@ -365,6 +369,22 @@ func TestHelloNamesEverythingAFrameIndexes(t *testing.T) {
 	}
 	if len(h.Stats) != len(statFields) || h.Stats[0] != "Colonists" {
 		t.Errorf("stats = %v", h.Stats)
+	}
+	g := h.Glyphs
+	if len(g.Symbols) != len(glyphs.All) || len(g.Terrain) != len(h.Enums.Terrains) {
+		t.Fatalf("glyphs: %d symbols, %d terrains", len(g.Symbols), len(g.Terrain))
+	}
+	if g.Terrain[sim.Floor] != -1 || g.Terrain[sim.Rock] != -1 || g.Terrain[sim.Hull] != -1 {
+		t.Errorf("swatch terrains should have no glyph: %v", g.Terrain)
+	}
+	if i := g.Terrain[sim.Bed]; i < 0 || g.Symbols[i] != glyphs.Bed {
+		t.Errorf("bed draws as glyph %d", i)
+	}
+	if g.Symbols[g.Gore] != glyphs.Gore || g.Symbols[g.Corpse] != glyphs.Corpse {
+		t.Error("refuse glyphs point at the wrong symbols")
+	}
+	if len(glyphs.All) > 0xFFFF {
+		t.Error("glyph indexes no longer fit a frame's uint16")
 	}
 	if n := len(h.Enums.Compositions); n > tileCompositionMask+1 {
 		t.Errorf("%d rock compositions do not fit the tile flags' %d bits", n, 4)

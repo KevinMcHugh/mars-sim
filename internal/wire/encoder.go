@@ -5,6 +5,7 @@ import (
 	"math"
 	"slices"
 
+	"github.com/kevinmchugh/mars-sim/internal/glyphs"
 	"github.com/kevinmchugh/mars-sim/internal/sim"
 )
 
@@ -127,7 +128,7 @@ func (e *Encoder) Encode(snap *sim.Snapshot) []byte {
 	n := len(snap.Entities)
 	size := headerLen +
 		4*len(statFields) +
-		n*(4+4+4) + align4(n*3) +
+		n*(4+4+4) + align4(n*2) + align4(n*3) +
 		len(pages)*(4+4) + len(pages)*pageTiles*tileBytes +
 		len(refuse)*(4+4) + align4(len(refuse)*2) + align4(len(refuse))
 	e.buf = slices.Grow(e.buf[:0], size)[:size]
@@ -153,8 +154,8 @@ func (e *Encoder) Encode(snap *sim.Snapshot) []byte {
 		at += 4
 	}
 
-	// Entities, as struct-of-arrays: ids, xs, ys, then a byte each of kind,
-	// state and focus.
+	// Entities, as struct-of-arrays: ids, xs, ys, glyphs (uint16, an index
+	// into Hello.Glyphs.Symbols), then a byte each of kind, state and focus.
 	for i := range snap.Entities {
 		le.PutUint32(b[at+4*i:], uint32(snap.Entities[i].ID))
 	}
@@ -167,6 +168,10 @@ func (e *Encoder) Encode(snap *sim.Snapshot) []byte {
 		le.PutUint32(b[at+4*i:], uint32(int32(snap.Entities[i].Pos.Y)))
 	}
 	at += 4 * n
+	for i := range snap.Entities {
+		le.PutUint16(b[at+2*i:], glyphIndex[glyphs.ForEntity(snap.Entities[i])])
+	}
+	at += align4(2 * n)
 	for i := range snap.Entities {
 		ev := &snap.Entities[i]
 		b[at+i] = byte(ev.Kind)

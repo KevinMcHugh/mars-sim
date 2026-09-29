@@ -22,6 +22,14 @@ export interface Hello {
     focuses: string[];
   };
   stats: string[];
+  glyphs: {
+    /** The emoji; a frame's entities.glyph indexes this. */
+    symbols: string[];
+    /** Per terrain value: its glyph's index, or -1 to draw its color instead. */
+    terrain: number[];
+    gore: number;
+    corpse: number;
+  };
 }
 
 export interface Frame {
@@ -39,6 +47,7 @@ export interface Frame {
     id: Uint32Array;
     x: Int32Array;
     y: Int32Array;
+    glyph: Uint16Array;
     kind: Uint8Array;
     state: Uint8Array;
     focus: Uint8Array;
