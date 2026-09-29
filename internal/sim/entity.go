@@ -366,6 +366,20 @@ type Entity struct {
 	restTicks int           // idle rest duration (base scaled by traits)
 	workScale float64       // mine/build time multiplier (1.0 = baseline)
 
+	// Skills (colonists only). practice is base work ticks of completed work
+	// per skill; ranks and labels are derived from it, never stored. yieldAcc
+	// counts toward a recipe's next extra unit, and profession is the skill
+	// the colonist is known for. See skills.go and docs/skills.md.
+	practice [numSkills]uint32
+	// earned is what the colonist has been earning at each kind of work, in
+	// thousandths of a dollar per 100 ticks, smoothed, and earnedTick when it
+	// last earned at it; SkillNone is work with no skill (hauling, supplying).
+	// See reservation in valuation.go.
+	earned     [numSkills]int64
+	earnedTick [numSkills]int
+	yieldAcc   [numSkills]int32
+	profession SkillKind
+
 	// Inventory is carried by colonists. Each slot contains one homogeneous
 	// stack; other entity kinds leave it empty.
 	Inventory Inventory
@@ -388,7 +402,7 @@ type Entity struct {
 	// colonist is. See scumhouse.go.
 	recipe   int
 	craftFor Owner
-	craftRun int // recipes worked back to back at this stove (see cookBatch)
+	craftRun int // recipes worked back to back at this stove (see cooksOn)
 	scrape   scrapeStage
 	sell     sellStage
 	// scrapeFor is whose a JobScrape colonist's scum is (the colony's unless
@@ -415,6 +429,11 @@ type Entity struct {
 	// commissioned records that this colonist has commissioned its house, so
 	// it commissions one at most (see commissionHouses).
 	commissioned bool
+	// kitchenCommissioned records that it has commissioned a kitchen of its
+	// own, and kitchen where its stove stands once built (hasKitchen). See
+	// commissionKitchens.
+	kitchenCommissioned, hasKitchen bool
+	kitchen                         Point
 	// cargo records which carried units are not the carrier's own: the
 	// colony's ore a builder fetched, the meals a hauler is moving. Every unit
 	// on no line is the carrier's. See cargo.go and docs/property.md.

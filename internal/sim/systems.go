@@ -865,6 +865,18 @@ func (w *World) assignWorkJob(e *Entity) {
 	// mining frontier is effectively endless. Cleaning placed after mining
 	// would therefore never come up at all. It still sits behind construction:
 	// life support outranks housekeeping.
+	// Food on its own account, when food pays, before the colony's food work:
+	// a meal it cooks and sells earns it the meal's price, while the colony
+	// pays a dollar a unit of scum and a dollar a recipe. So cook its own
+	// scum, or scrape some to cook (tryAssignScrapeToSell).
+	// A chef with scum it bought in its own kitchen cooks it whether or not
+	// scraping more would pay: the scum is paid for already.
+	if w.ownKitchenStocked(e) && w.tryAssignCraftFor(e, []Owner{ColonistOwner(e.ID)}) {
+		return
+	}
+	if w.foodPays(e) && (w.tryAssignCraftFor(e, []Owner{ColonistOwner(e.ID)}) || w.tryAssignScrapeToSell(e)) {
+		return
+	}
 	// Food before refuse when the colony is short: cook what the scumhouse
 	// holds, then scrape more. Cleaning, next, feeds the scumhouse too.
 	if w.foodWanted() && w.tryAssignCraft(e) {
@@ -1076,7 +1088,7 @@ func (w *World) jobMine(e *Entity) {
 		if e.Pos.Adjacent(e.Target) {
 			e.State = Mining
 			e.Progress++
-			if e.Progress >= scaleTicks(w.cfg.MineTicks, e.workScale) {
+			if e.Progress >= w.workTicks(e, SkillMining, w.cfg.MineTicks) {
 				// Award the complete composition-dependent yield before changing
 				// terrain so limited inventory can never make material disappear.
 				if !e.Inventory.AddAll(miningYield(w.TileAt(e.Target))...) {
@@ -1084,6 +1096,7 @@ func (w *World) jobMine(e *Entity) {
 					return
 				}
 				w.SetTerrain(e.Target, Floor) // TileChanged drops it from the frontier
+				w.practise(e, SkillMining, w.cfg.MineTicks)
 				o := w.occurrence(e, ActionMine, nil, e.Target,
 					"Finished mining at (%d, %d).", e.Target.X, e.Target.Y)
 				o.Object = FactRef{Noun: NounRock, Label: "rock"}
@@ -1258,7 +1271,7 @@ func (w *World) jobBuild(e *Entity) {
 	e.stuck = 0
 	e.State = Building
 	e.Progress++
-	if e.Progress < scaleTicks(w.buildTicks(e.BuildKind), e.workScale) {
+	if e.Progress < w.workTicks(e, buildSkill(e.BuildKind), w.buildTicks(e.BuildKind)) {
 		return
 	}
 	if e.BuildKind == Floor {
@@ -1272,6 +1285,7 @@ func (w *World) jobBuild(e *Entity) {
 			return
 		}
 		w.SetTerrain(e.Target, Floor)
+		w.practise(e, SkillMining, w.buildTicks(Floor))
 		o := w.occurrence(e, ActionClear, nil, e.Target,
 			"Cleared rock for a room at (%d, %d).", e.Target.X, e.Target.Y)
 		o.Object = FactRef{Noun: NounRock, Label: "rock"}
@@ -1287,6 +1301,7 @@ func (w *World) jobBuild(e *Entity) {
 		return
 	}
 	w.SetTerrain(e.Target, e.BuildKind)
+	w.practise(e, SkillConstruction, w.buildTicks(e.BuildKind))
 	if t := e.task; t != nil {
 		// A commission's fixtures are its commissioner's; the colony's
 		// stay communal, as SetTerrain made them.
@@ -1294,6 +1309,11 @@ func (w *World) jobBuild(e *Entity) {
 			access, price := w.fixtureAccess(p, e.BuildKind)
 			w.setFixtureOwner(e.Target, p.issuer, access)
 			w.setFixturePrice(e.Target, price)
+			if e.BuildKind == Scumhouse {
+				if owner := w.entities[p.issuer.ID]; owner != nil {
+					owner.kitchen, owner.hasKitchen = e.Target, true
+				}
+			}
 		}
 		w.payWork(t.order, e)
 	}
@@ -1464,6 +1484,15 @@ func (w *World) finishUse(e *Entity, spec NeedSpec) {
 }
 
 // buildTicks is how long a given structure takes to raise.
+// buildSkill is the skill a build task practises: digging a room's floor is
+// mining; raising anything is construction.
+func buildSkill(kind Terrain) SkillKind {
+	if kind == Floor {
+		return SkillMining
+	}
+	return SkillConstruction
+}
+
 func (w *World) buildTicks(kind Terrain) int {
 	switch kind {
 	case Wall:

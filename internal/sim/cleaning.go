@@ -90,7 +90,7 @@ func (w *World) refuseDestinations(e *Entity) (burn, feed bool) {
 	}
 	if w.countTerrain(Scumhouse) > 0 {
 		_, feed = w.nearestScumhouse(e, func(c *StorageContainer) bool {
-			return c.Inventory.CanAdd(Viscera, 1)
+			return w.mayStockAt(e, c.Pos, Viscera) && c.Inventory.CanAdd(Viscera, 1)
 		})
 	}
 	return burn, feed
@@ -152,6 +152,11 @@ func (w *World) nearestIncinerator(e *Entity) (Point, bool) {
 func (w *World) haulTarget(e *Entity) (Point, bool) {
 	if bio := biomatterStacks(e); len(bio) > 0 {
 		if p, ok := w.nearestScumhouse(e, func(c *StorageContainer) bool {
+			for _, b := range bio {
+				if !w.mayStockAt(e, c.Pos, b.Kind) {
+					return false
+				}
+			}
 			return c.Inventory.CanAddAll(bio...)
 		}); ok {
 			return p, true

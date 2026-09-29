@@ -135,7 +135,17 @@ type Config struct {
 	OrderTTL        int   `cfg:"order-ttl" doc:"ticks a colonist's resting order lives before it expires"`
 	MealKeep        int   `cfg:"meal-keep" doc:"meals a colonist keeps for itself before it takes the rest to market"`
 	MealWillingness int   `cfg:"meal-willingness" doc:"a hungry colonist pays up to this many times the meal price"`
-	PocketMealAt    int   `cfg:"pocket-meal-at" doc:"food need at which a colonist with no meal on it fetches or buys one to carry, before it's hungry enough to eat (0: never)"`
+	MealPriceMax    int   `cfg:"meal-price-max" doc:"what the colony asks for a meal with its shelves bare, as a percent of price-meal; it rises to this as its stock falls below meal-reserve per colonist (100: a fixed price)"`
+	PocketMealAt    int   `cfg:"pocket-meal-at" doc:"food need at which a colonist with no meal on it fetches one of its own to carry, before it's hungry enough to eat (0: never)"`
+
+	// Skills. A colonist is credited SkillPracticePercent percent of the base
+	// ticks of every unit of work it completes, in that work's skill; ranks
+	// come from practice, and each rank makes the work faster and, for
+	// recipes, more productive. With Skills off, nobody arrives with a
+	// background and no rank has an effect (practice is still counted). See
+	// docs/skills.md.
+	Skills               bool `cfg:"skills" sec:"Skills" doc:"colonists arrive with skills, and skilled work is faster and yields more (off: no backgrounds, no effects)"`
+	SkillPracticePercent int  `cfg:"skill-practice-percent" doc:"percent of a unit of work's base ticks credited as practice in its skill"`
 
 	// Valuation and the producer planner. A colonist values its own time at
 	// LaborPrice dollars per 100 ticks of work, and takes on a plan only if it
@@ -148,6 +158,7 @@ type Config struct {
 	PlanMinProfit  int64 `cfg:"plan-min-profit" doc:"the least profit, in dollars, that makes a production plan worth taking on"`
 	PlanCandidates int   `cfg:"plan-candidates" doc:"how many of the best open bids a colonist's producer planner considers"`
 	PlanTTL        int   `cfg:"plan-ttl" doc:"ticks a production plan may take before it is dropped with its derived bids"`
+	RateMemory     int   `cfg:"rate-memory" doc:"ticks over which what a colonist earned at a kind of work fades back to labor-price in its reckoning of what its time is worth (0: it always reckons labor-price)"`
 	DemandTTL      int   `cfg:"demand-ttl" doc:"ticks a hungry colonist's unfilled bid for a meal rests in the book"`
 
 	// The colony buys biomatter at its scumhouses: it keeps ScumhouseBidQty
@@ -192,12 +203,14 @@ type Config struct {
 	// works a recipe on the colony's stock. A colonist with HouseSavings
 	// dollars commissions its own house (0 disables), whose toilet charges
 	// others ToiletFee a use. See docs/labor.md.
-	WageDig      int64 `cfg:"wage-dig" sec:"Labor" doc:"what the colony pays to dig out one tile of a room"`
-	WageWall     int64 `cfg:"wage-wall" doc:"what the colony pays to raise one wall"`
-	WageFixture  int64 `cfg:"wage-fixture" doc:"what the colony pays to build one fixture (pod, toilet, bed, ...)"`
-	WageCook     int64 `cfg:"wage-cook" doc:"what the colony pays a cook each time it works a recipe on the colony's stock"`
-	HouseSavings int64 `cfg:"house-savings" doc:"a colonist with this much money commissions its own house (0 disables)"`
-	ToiletFee    int64 `cfg:"toilet-fee" doc:"what a house's toilet charges anyone but its owner per use (0: private)"`
+	WageDig        int64 `cfg:"wage-dig" sec:"Labor" doc:"what the colony pays to dig out one tile of a room"`
+	WageWall       int64 `cfg:"wage-wall" doc:"what the colony pays to raise one wall"`
+	WageFixture    int64 `cfg:"wage-fixture" doc:"what the colony pays to build one fixture (pod, toilet, bed, ...)"`
+	WageCook       int64 `cfg:"wage-cook" doc:"what the colony pays a cook each time it works a recipe on the colony's stock"`
+	HouseSavings   int64 `cfg:"house-savings" doc:"a colonist with this much money commissions its own house (0 disables)"`
+	KitchenRank    int   `cfg:"kitchen-rank" doc:"cooking rank at which a colonist buys a kitchen of its own when the shared stoves are crowded (3: a chef; 0 disables)"`
+	KitchenSavings int64 `cfg:"kitchen-savings" doc:"money a chef needs to commission its own kitchen: the room (about $50) and scum to cook in it"`
+	ToiletFee      int64 `cfg:"toilet-fee" doc:"what a house's toilet charges anyone but its owner per use (0: private)"`
 
 	// Crash pods. Every colonist arrives in one — at worldgen, from the spawn
 	// command, or from a director arrival — carrying its own bunk, toilet, and
@@ -521,6 +534,7 @@ func DefaultConfig() Config {
 		OrderTTL:        2000,
 		MealKeep:        5,
 		MealWillingness: 3,
+		MealPriceMax:    100,
 		PocketMealAt:    300,
 		// Wages sized so a typical room costs the colony about a hundred
 		// dollars: fifty rooms from the founding grant, less what it spends
@@ -532,16 +546,19 @@ func DefaultConfig() Config {
 		// The colony sells at half again what it pays: enough over cost that
 		// its resales refill the treasury, not so much that a colonist would
 		// rather dig the ore itself every time. See docs/hauling.md.
-		ColonySells:        true,
-		ColonyMarkup:       50,
-		ColonyStockReserve: 8,
-		SiloMealStock:      6,
-		HaulPay:            1,
-		LaborPrice:         2,
-		PlanMinProfit:      1,
-		PlanCandidates:     4,
-		PlanTTL:            1500,
-		DemandTTL:          300,
+		ColonySells:          true,
+		ColonyMarkup:         50,
+		ColonyStockReserve:   8,
+		SiloMealStock:        6,
+		HaulPay:              1,
+		Skills:               true,
+		SkillPracticePercent: 100,
+		LaborPrice:           2,
+		PlanMinProfit:        1,
+		PlanCandidates:       4,
+		PlanTTL:              1500,
+		RateMemory:           4000,
+		DemandTTL:            300,
 		// Priced by the meals they make (see recipes): two scum or two
 		// viscera to a $5 meal, so the colony roughly breaks even after the
 		// cook's wage; an alien carcass makes four.
@@ -568,6 +585,8 @@ func DefaultConfig() Config {
 		WageFixture:       5,
 		WageCook:          1,
 		HouseSavings:      300,
+		KitchenRank:       3,
+		KitchenSavings:    100,
 		ToiletFee:         2,
 		// A meal clears hunger for roughly 325 ticks at the baseline rise, so
 		// ten carry a colonist a few thousand ticks: long enough to settle in,

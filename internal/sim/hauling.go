@@ -53,9 +53,9 @@ func (w *World) cheapestAskElsewhere(e *Entity, b *Order) (*Order, Point, bool) 
 
 // planArbitrage buys at src and takes the goods to bid b, if the spread pays
 // for the walk.
-func (w *World) planArbitrage(e *Entity, b, ask *Order, src Point) bool {
+func (w *World) planArbitrage(e *Entity, b, ask *Order, src Point, probe *planOffer) bool {
 	me := ColonistOwner(e.ID)
-	qty := min(ask.Qty, b.Qty-w.plannedQty(b))
+	qty := min(ask.Qty, b.Qty)
 	for qty > 0 && !e.Inventory.CanAdd(b.Item, qty) {
 		qty--
 	}
@@ -63,8 +63,13 @@ func (w *World) planArbitrage(e *Entity, b, ask *Order, src Point) bool {
 		return false
 	}
 	walk := e.Pos.Chebyshev(src) + src.Chebyshev(b.Depot)
-	if Money(qty)*(b.Price-ask.Price)-w.laborCost(walk) < Money(w.cfg.PlanMinProfit) {
+	profit := Money(qty)*(b.Price-ask.Price) - w.laborCostFor(e, walk)
+	if profit < Money(w.cfg.PlanMinProfit) {
 		return false
+	}
+	if probe != nil {
+		*probe = planOffer{profit, walk}
+		return true
 	}
 	o, filled := w.post(Bid, b.Item, qty, ask.Price, me, src, 0)
 	if o != nil && o.Qty > 0 {
@@ -75,6 +80,7 @@ func (w *World) planArbitrage(e *Entity, b, ask *Order, src Point) bool {
 	}
 	p := w.newPlan(e, planHaul, b, filled)
 	p.workshop, p.crafted = src, true
+	p.expect = Money(filled)*(b.Price-ask.Price) - w.laborCostFor(e, walk)
 	w.emitDone(e, ActionTrade, NounGoods, "Bought %d %s at (%d, %d) for %v to sell at (%d, %d) for %v.",
 		filled, b.Item, src.X, src.Y, ask.Price, b.Depot.X, b.Depot.Y, b.Price)
 	w.assignCarry(e, p, src, carryFetch, filled)

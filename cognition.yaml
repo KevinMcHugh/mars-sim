@@ -3,8 +3,8 @@ schema_version: 1
 
 # Stable content vocabulary used by editor dropdowns and rule validation.
 vocabulary:
-  nouns: [colonist, alien, cat, rat, gore, meal, toilet, bed, need, rock, structure, refuse, gruel, scum, scumhouse, goods]
-  actions: [present, bite, attack, kill, crush, catch, wound, converse, eat, use, sleep, satisfy, mine, clear, construct, clean, incinerate, mutate, cook, scrape, deliver, trade, buy, haul]
+  nouns: [colonist, alien, cat, rat, gore, meal, toilet, bed, need, rock, structure, refuse, gruel, scum, scumhouse, goods, skill]
+  actions: [present, bite, attack, kill, crush, catch, wound, converse, eat, use, sleep, satisfy, mine, clear, construct, clean, incinerate, mutate, cook, scrape, deliver, trade, buy, haul, learn]
 
 attractors:
   driven    : { good: "driven"    , bad: "furious"   , charge:  70, grip:  60, radius: 46 }
@@ -247,6 +247,11 @@ reactions:
     match: { actor_noun: colonist, action: buy, object_noun: meal, channel: direct, role: actor, phase: instant }
     memory: { record: true }
     affect: { impact: 12, fresh: { charge: 2, grip: 3, valence: 0 }, worn: { charge: 1, grip: 0, valence: 0 } }
+    wear_policy: memory-occasions
+  - id: rose-in-trade
+    match: { actor_noun: colonist, action: learn, object_noun: skill, channel: direct, role: actor, phase: instant }
+    memory: { record: true }
+    affect: { impact: 20, fresh: { charge: 2, grip: 8, valence: 6 }, worn: { charge: 1, grip: 4, valence: 3 } }
     wear_policy: memory-occasions
 
 # Trait rules compose in declaration order. Scales are percentages.

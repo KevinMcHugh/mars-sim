@@ -383,6 +383,7 @@ func (w *World) runMarket() {
 	w.refreshColonyBids()
 	w.refreshColonyAsks()
 	w.refreshBiomatterBids()
+	w.refreshChefBids()
 	w.refreshArmoryBids()
 	w.refreshSiloStock()
 	w.refreshColonyMealAsks()
@@ -449,8 +450,9 @@ func (w *World) sellableStacks(e *Entity) []ItemStack {
 }
 
 // sellAtMarket offers everything e holds of the sellable goods it just put in
-// the depot at p, at reference prices. It trades at once against any bid (the
-// colony's, for ore); the rest rests for order-ttl ticks.
+// the depot at p, at reference prices, and meals at mealSellPrice. It trades
+// at once against any bid (the colony's, for ore); the rest rests for
+// order-ttl ticks.
 func (w *World) sellAtMarket(e *Entity, p Point, kinds []ItemKind) {
 	c := w.storageContainers[p]
 	if c == nil {
@@ -459,6 +461,9 @@ func (w *World) sellAtMarket(e *Entity, p Point, kinds []ItemKind) {
 	me := ColonistOwner(e.ID)
 	for _, k := range kinds {
 		price := w.refPrice(k)
+		if k == Meal {
+			price = w.mealSellPrice()
+		}
 		if n := c.held(me, k); n > 0 && price > 0 {
 			w.post(Ask, k, n, price, me, p, w.cfg.OrderTTL)
 		}

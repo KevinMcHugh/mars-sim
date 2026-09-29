@@ -6,7 +6,7 @@
 
 Every random draw in the sim comes from a `math/rand/v2` PCG generator derived
 from `Config.Seed`. There are several separate streams, so one system's draws
-never shift another's. The four that live past world generation keep their
+never shift another's. The five that live past world generation keep their
 PCG source next to them, which lets their state be saved and restored. That is
 the RNG half of save/load.
 
@@ -14,7 +14,7 @@ the RNG half of save/load.
 
 - `internal/sim/rng.go`: `newPCG` / `newRand` (seeding), `rngSources`,
   `rngState`, and `World.saveRNG` / `World.loadRNG`.
-- `internal/sim/world.go`: `newWorld` builds `rng`, `prng` and `agePRNG`.
+- `internal/sim/world.go`: `newWorld` builds `rng`, `prng`, `agePRNG` and `skillRNG`.
 - `internal/sim/caverns.go`: `trackCavernsForNests` builds `nestRNG`.
 - `internal/sim/worldgen_chunks.go`: `featureRand`, the per-chunk worldgen
   streams.
@@ -28,6 +28,7 @@ the RNG half of save/load.
 | `World.prng` (personality) | `Seed ^ 0x5DEECE66D` | whole game | yes |
 | `World.agePRNG` (ages) | `Seed ^ 0x6A09E667` | whole game | yes |
 | `World.nestRNG` (alien nests) | `Seed ^ 0x0452821E638D0137` | whole game | yes |
+| `World.skillRNG` (arrival backgrounds) | `Seed ^ 0x3C6EF372FE94F82B` | whole game | yes |
 | worldgen veins, per chunk and level | `featureRand(0x243F6A8885A308D3 + level, cx, cy)` | one plan | no |
 | worldgen cave scum, per chunk | `featureRand(0x5CA1AB1E, cx, cy)` | one plan | no |
 | worldgen caverns, per chunk | `featureRand(0x13198A2E03707344, cx, cy)` | one plan | no |
@@ -35,8 +36,8 @@ the RNG half of save/load.
 | alien lore roster | `Seed ^ alienLoreSeed` | `newWorld` only | no |
 
 Why the streams are split is covered per stream in
-[personality.md](./personality.md), [caverns.md](./caverns.md) and
-[lore.md](./lore.md).
+[personality.md](./personality.md), [caverns.md](./caverns.md),
+[lore.md](./lore.md) and [skills.md](./skills.md).
 
 **Seeding.** `newPCG(seed)` feeds the int64 through splitmix64 twice to fill
 PCG's 128-bit state. Seeds that are next to each other, or differ only by one

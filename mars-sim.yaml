@@ -160,8 +160,18 @@
 ## a hungry colonist pays up to this many times the meal price
 # meal-willingness: 3
 
-## food need at which a colonist with no meal on it fetches or buys one to carry, before it's hungry enough to eat (0: never)
+## what the colony asks for a meal with its shelves bare, as a percent of price-meal; it rises to this as its stock falls below meal-reserve per colonist (100: a fixed price)
+# meal-price-max: 100
+
+## food need at which a colonist with no meal on it fetches one of its own to carry, before it's hungry enough to eat (0: never)
 # pocket-meal-at: 300
+
+# ── Skills ──────────────────────────────────────────────────────────────
+## colonists arrive with skills, and skilled work is faster and yields more (off: no backgrounds, no effects)
+# skills: true
+
+## percent of a unit of work's base ticks credited as practice in its skill
+# skill-practice-percent: 100
 
 # ── Valuation ───────────────────────────────────────────────────────────
 ## what a colonist reckons 100 ticks of its own work are worth, in dollars
@@ -175,6 +185,9 @@
 
 ## ticks a production plan may take before it is dropped with its derived bids
 # plan-ttl: 1500
+
+## ticks over which what a colonist earned at a kind of work fades back to labor-price in its reckoning of what its time is worth (0: it always reckons labor-price)
+# rate-memory: 4000
 
 ## ticks a hungry colonist's unfilled bid for a meal rests in the book
 # demand-ttl: 300
@@ -238,6 +251,12 @@
 
 ## a colonist with this much money commissions its own house (0 disables)
 # house-savings: 300
+
+## cooking rank at which a colonist buys a kitchen of its own when the shared stoves are crowded (3: a chef; 0 disables)
+# kitchen-rank: 3
+
+## money a chef needs to commission its own kitchen: the room (about $50) and scum to cook in it
+# kitchen-savings: 100
 
 ## what a house's toilet charges anyone but its owner per use (0: private)
 # toilet-fee: 2

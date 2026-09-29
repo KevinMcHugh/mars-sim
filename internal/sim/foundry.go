@@ -147,8 +147,8 @@ func (w *World) ownStockFor(e *Entity, b *Order) (ownStock, bool) {
 // bid, its reference price, not its remembered trade price: the smith's first
 // fill at $8 made iron "worth" $8, and nobody would carry their own ore to an
 // $8 bid for no profit while the colony was paying $3 for it.
-func (w *World) planSupply(e *Entity, b *Order, s ownStock) bool {
-	qty := min(s.n, b.Qty-w.plannedQty(b))
+func (w *World) planSupply(e *Entity, b *Order, s ownStock, probe *planOffer) bool {
+	qty := min(s.n, b.Qty)
 	if !s.carried {
 		for qty > 0 && !e.Inventory.CanAdd(b.Item, qty) {
 			qty--
@@ -171,11 +171,16 @@ func (w *World) planSupply(e *Entity, b *Order, s ownStock) bool {
 	if !s.carried {
 		walk = e.Pos.Chebyshev(s.from) + s.from.Chebyshev(b.Depot)
 	}
-	if Money(qty)*(b.Price-w.refPrice(b.Item))-w.laborCost(walk) < Money(w.cfg.PlanMinProfit) {
+	profit := Money(qty)*(b.Price-w.refPrice(b.Item)) - w.laborCostFor(e, walk)
+	if profit < Money(w.cfg.PlanMinProfit) {
 		return false
 	}
+	if probe != nil {
+		*probe = planOffer{profit, walk}
+		return true
+	}
 	p := w.newPlan(e, planHaul, b, qty)
-	p.crafted = true
+	p.crafted, p.expect = true, profit
 	w.emitDone(e, ActionTrade, NounGoods, "Took %d of its own %s to sell at (%d, %d) for %v.",
 		qty, b.Item, b.Depot.X, b.Depot.Y, b.Price)
 	if s.carried {

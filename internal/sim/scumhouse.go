@@ -16,14 +16,6 @@ import (
 //
 // What turns into what is the recipe table, below. See docs/scumhouse.md.
 
-// SkillKind is the expertise a recipe calls for. It is a placeholder: everyone
-// can do everything for now, and every recipe asks for SkillNone. It exists so
-// the recipe table's shape does not change when skills arrive (see
-// docs/economy.md).
-type SkillKind uint8
-
-const SkillNone SkillKind = 0
-
 // Recipe is one way of making something: consume Inputs from a workshop's
 // depot, spend Ticks of labor at it, and put Outputs in the same depot. Whoever
 // owns the inputs owns the outputs — the workshop's owner does not, which is
@@ -34,8 +26,8 @@ type Recipe struct {
 	Inputs   []ItemStack
 	Outputs  []ItemStack
 	Facility Terrain
-	Ticks    int // labor, scaled by the worker's workScale
-	Skill    SkillKind
+	Ticks    int       // labor at base skill, before the worker's skill and workScale
+	Skill    SkillKind // what working it practises, and whose rank speeds it up (skills.go)
 }
 
 // recipes is every recipe in the game, in preference order: a cook works the
@@ -43,14 +35,14 @@ type Recipe struct {
 // because it is the most food for the work and the least pleasant thing to
 // leave lying in a depot.
 var recipes = []Recipe{
-	{Name: "render an alien carcass", Inputs: []ItemStack{{AlienCorpse, 1}}, Outputs: []ItemStack{{Meal, 4}}, Facility: Scumhouse, Ticks: 30},
-	{Name: "render an animal carcass", Inputs: []ItemStack{{AnimalCorpse, 1}}, Outputs: []ItemStack{{Meal, 1}}, Facility: Scumhouse, Ticks: 10},
-	{Name: "press viscera", Inputs: []ItemStack{{Viscera, 2}}, Outputs: []ItemStack{{Meal, 1}}, Facility: Scumhouse, Ticks: 10},
-	{Name: "culture cave scum", Inputs: []ItemStack{{CaveScum, 2}}, Outputs: []ItemStack{{Meal, 1}}, Facility: Scumhouse, Ticks: 12},
+	{Name: "render an alien carcass", Inputs: []ItemStack{{AlienCorpse, 1}}, Outputs: []ItemStack{{Meal, 4}}, Facility: Scumhouse, Ticks: 30, Skill: SkillCooking},
+	{Name: "render an animal carcass", Inputs: []ItemStack{{AnimalCorpse, 1}}, Outputs: []ItemStack{{Meal, 1}}, Facility: Scumhouse, Ticks: 10, Skill: SkillCooking},
+	{Name: "press viscera", Inputs: []ItemStack{{Viscera, 2}}, Outputs: []ItemStack{{Meal, 1}}, Facility: Scumhouse, Ticks: 10, Skill: SkillCooking},
+	{Name: "culture cave scum", Inputs: []ItemStack{{CaveScum, 2}}, Outputs: []ItemStack{{Meal, 1}}, Facility: Scumhouse, Ticks: 12, Skill: SkillCooking},
 	// The foundry's chain: ore to steel at the forge, steel to rifles at the
 	// gun bench. See docs/foundry.md.
-	{Name: "smelt steel", Inputs: []ItemStack{{IronOre, 2}}, Outputs: []ItemStack{{SteelIngot, 1}}, Facility: Forge, Ticks: 40},
-	{Name: "machine an assault rifle", Inputs: []ItemStack{{SteelIngot, 3}}, Outputs: []ItemStack{{AssaultRifle, 1}}, Facility: GunBench, Ticks: 60},
+	{Name: "smelt steel", Inputs: []ItemStack{{IronOre, 2}}, Outputs: []ItemStack{{SteelIngot, 1}}, Facility: Forge, Ticks: 40, Skill: SkillSmithing},
+	{Name: "machine an assault rifle", Inputs: []ItemStack{{SteelIngot, 3}}, Outputs: []ItemStack{{AssaultRifle, 1}}, Facility: GunBench, Ticks: 60, Skill: SkillSmithing},
 }
 
 // ---- Cave scum ------------------------------------------------------------------
@@ -254,6 +246,9 @@ func (w *World) tryAssignCraftFor(e *Entity, owners []Owner) bool {
 		if id := w.workshopClaims[c.Pos]; id != 0 && id != e.ID {
 			return false // one cook per workshop
 		}
+		if !w.mayCookAt(e, c.Pos) {
+			return false // someone else's own kitchen
+		}
 		if w.mealFetchesAt(c.Pos) > 0 {
 			return false // someone is coming for a meal: don't stand on the counter
 		}
@@ -305,7 +300,7 @@ func (w *World) jobCraft(e *Entity) {
 	}
 	e.State = Crafting
 	e.Progress++
-	if e.Progress < scaleTicks(r.Ticks, e.workScale) {
+	if e.Progress < w.workTicks(e, r.Skill, r.Ticks) {
 		return
 	}
 	for _, in := range r.Inputs {
@@ -315,6 +310,15 @@ func (w *World) jobCraft(e *Entity) {
 	// kitchen has one, or back into the stove's own depot if not.
 	out := w.storageContainers[w.outputDepot(e.Target)]
 	outputs := r.Outputs
+	if len(outputs) > 0 && w.skillEffect(e, r.Skill).YieldPct > 100 {
+		// A skilled worker's yield: now and then one unit more of the
+		// recipe's first output, if the depot has room for it (skillYield).
+		more := append([]ItemStack(nil), outputs...)
+		more[0].Count++
+		if w.skillYield(e, r.Skill, func() bool { return out.Inventory.CanAddAll(more...) }) {
+			outputs = more
+		}
+	}
 	if w.cooksOwnSupper(e, r) {
 		// A hungry colonist cooking its own food keeps one meal in hand to
 		// eat at the stove, rather than walking to the pantry for it.
@@ -325,10 +329,14 @@ func (w *World) jobCraft(e *Entity) {
 	for _, o := range outputs {
 		out.credit(e.craftFor, o.Kind, o.Count)
 	}
+	w.practise(e, r.Skill, r.Ticks)
 	if r.Facility == Scumhouse {
 		w.emitDone(e, ActionCook, NounMeal, "Worked the scumhouse: %s.", r.Name)
 	} else {
 		w.emitDone(e, ActionCook, NounGoods, "Worked the %s: %s.", r.Facility, r.Name)
+	}
+	if e.craftFor == ColonistOwner(e.ID) && e.plan == 0 {
+		w.offerOwnMeals(e, out.Pos)
 	}
 	if e.craftFor == Community {
 		if w.cfg.WageCook > 0 {
@@ -347,25 +355,30 @@ func (w *World) jobCraft(e *Entity) {
 	w.clearJob(e)
 }
 
-// cookBatch is how many recipes a colony cook works back to back before it
-// gives the stove up.
-const cookBatch = 6
-
-// cooksOn reports whether a colony cook that just finished r at c starts the
-// same recipe again rather than leaving: while the colony still wants food,
-// the stove still holds the inputs, the cook is not hungry itself, and it has
-// worked fewer than cookBatch in a row. A cook walked across the colony for
-// one twelve-tick recipe and left, so late in long runs twenty colonists
-// shared two stoves that stood idle most of the time, and ate faster than
-// the few cooks who came by could cook.
+// cooksOn reports whether a cook that just finished r at c starts it again
+// rather than leaving: it stays at the stove as long as the stove holds the
+// inputs, the cook isn't hungry, and nobody is coming for a meal there. A
+// colony cook also stops once the colony has its reserve; a colonist cooking
+// its own scum cooks all of it.
+//
+// A cook at the stove is the kitchen's throughput. Every time one leaves,
+// the stove waits for the next to walk over: with cooks leaving after six
+// recipes, a 100-colonist colony's stoves spent 53% of the time claimed by a
+// cook who wasn't cooking and only 30% cooking, and the colony starved beside
+// hundreds of units of uncooked scum. A cook who stays is the division of
+// labor the skills plan wants: scrapers bring scum, cooks cook, and the cook
+// gets better at it (see docs/skills.md).
 func (w *World) cooksOn(e *Entity, c *StorageContainer, r Recipe) bool {
-	if e.craftFor != Community || e.plan != 0 || e.craftRun+1 >= cookBatch || !w.foodWanted() {
+	if e.plan != 0 || e.needPhase[NeedFood] >= NeedPressing || w.mealFetchesAt(c.Pos) > 0 {
 		return false
 	}
-	if e.needPhase[NeedFood] >= NeedPressing || w.mealFetchesAt(c.Pos) > 0 {
-		return false
+	switch e.craftFor {
+	case Community:
+		return w.foodWanted() && w.canCraft(c, r, Community)
+	case ColonistOwner(e.ID):
+		return w.canCraft(c, r, e.craftFor)
 	}
-	return w.canCraft(c, r, Community)
+	return false
 }
 
 // scrapeLoad is how much scum a scraper gathers before hauling it in: one
@@ -385,7 +398,7 @@ func (w *World) tryAssignScrape(e *Entity, keep bool) bool {
 			return false
 		}
 		if keep {
-			return true
+			return w.mayCookAt(e, c.Pos) // scum to cook goes where it may cook
 		}
 		// Scraping to sell needs a buyer. Without this check scrapers kept
 		// bringing scum to a scumhouse whose colony had stopped buying,
@@ -393,6 +406,11 @@ func (w *World) tryAssignScrape(e *Entity, keep bool) bool {
 		bid, ok := w.bestBid(CaveScum, c.Pos)
 		return ok && bid.Actor != me
 	})
+	if own, mine := w.ownKitchen(e); mine && keep {
+		if c := w.storageContainers[own]; c.Inventory.CanAdd(CaveScum, load) {
+			house, ok = own, true // a chef's scum goes to its own kitchen
+		}
+	}
 	if !ok {
 		return false
 	}
@@ -480,11 +498,12 @@ func (w *World) jobScrape(e *Entity) {
 	}
 	e.State = Scraping
 	e.Progress++
-	if e.Progress < scaleTicks(w.cfg.ScrapeTicks, e.workScale) {
+	if e.Progress < w.workTicks(e, SkillForaging, w.cfg.ScrapeTicks) {
 		return
 	}
 	e.Progress = 0
 	if w.takeScum(e.Target) {
+		w.practise(e, SkillForaging, w.cfg.ScrapeTicks)
 		e.Inventory.Add(CaveScum, 1)
 		e.addCargo(e.scrapeFor, CaveScum, 1) // the scraper's own unless set
 	}
@@ -499,7 +518,7 @@ func (w *World) finishScraping(e *Entity) {
 		return
 	}
 	house, ok := w.nearestScumhouse(e, func(c *StorageContainer) bool {
-		return c.Inventory.CanAdd(CaveScum, e.Inventory.Count(CaveScum))
+		return w.mayStockAt(e, c.Pos, CaveScum) && c.Inventory.CanAdd(CaveScum, e.Inventory.Count(CaveScum))
 	})
 	if p := w.plans[e.plan]; p != nil && p.kind == planGather {
 		house, ok = p.depot, true // to the scumhouse whose bid it is filling
@@ -632,7 +651,7 @@ func (w *World) scumhousesSorted() []Point {
 // as far as the treasury stretches — and only while the depot has room for
 // what it would buy.
 func (w *World) refreshBiomatterBids() {
-	for _, p := range w.scumhousesSorted() {
+	for _, p := range w.colonyKitchens() {
 		c := w.storageContainers[p]
 		if c == nil {
 			continue
@@ -653,6 +672,59 @@ func (w *World) refreshBiomatterBids() {
 			if want > 0 {
 				w.post(Bid, k, want, price, Community, p, 0)
 			}
+		}
+	}
+}
+
+// refreshChefBids has every chef with a kitchen of its own bid for cave scum
+// there, at the colony's price, from its own wallet, while a meal it cooks
+// sells for more than the scum costs. It's how a chef's kitchen is stocked:
+// scrapers selling their scum take the chef's bid as readily as the colony's,
+// the chef cooks what it bought (tryAssignCraftFor, for itself) and sells the
+// meals from the pantry (offerOwnMeals). The colony neither buys nor cooks
+// there, so without its own bids a chef's kitchen stood empty and idle while
+// the colony's stoves were the ones it was bought to relieve.
+//
+// Scum only. Carcasses and viscera come in as refuse, now and then; bidding
+// for every kind escrowed a chef's whole wallet in bids that never filled,
+// and it had nothing left to buy the scum it could have cooked.
+func (w *World) refreshChefBids() {
+	r, ok := scumMealRecipe()
+	if !ok {
+		return
+	}
+	k, need := r.Inputs[0].Kind, r.Inputs[0].Count
+	price := w.biomatterPrice(k)
+	meals := 0
+	for _, o := range r.Outputs {
+		if o.Kind == Meal {
+			meals += o.Count
+		}
+	}
+	if price <= 0 || w.mealSellPrice()*Money(meals) <= price*Money(need) {
+		return
+	}
+	for _, id := range w.entityIDsSorted() {
+		e := w.entities[id]
+		if e.Kind != Colonist || !e.Alive() {
+			continue
+		}
+		p, ok := w.ownKitchen(e)
+		if !ok {
+			continue
+		}
+		c := w.storageContainers[p]
+		me := ColonistOwner(e.ID)
+		want := w.cfg.ScumhouseBidQty - w.openQty(Bid, k, p, me)
+		if cap := w.cfg.ScumhouseStockCap; cap > 0 {
+			want = min(want, cap-c.held(me, k)-w.openQty(Bid, k, p, me))
+		}
+		want = min(want, int(w.balance(me)/price))
+		for want > 0 && !c.Inventory.CanAdd(k, want) {
+			want--
+		}
+		if want > 0 {
+			w.post(Bid, k, want, price, me, p, 0)
 		}
 	}
 }
@@ -687,24 +759,61 @@ func (w *World) pendingHaul(item ItemKind, from Point) int {
 }
 
 // refreshColonyMealAsks offers every meal the colony holds, at each scumhouse
-// and at the silo, at the charter's meal price — less any a haul order is
-// about to take to the silo. This is the scumhouse charging for its meals.
+// and at the silo, at colonyMealPrice — less any a haul order is about to
+// take to the silo. This is the scumhouse charging for its meals. When the
+// price has moved since the asks were posted, they're withdrawn and posted
+// again at the new one.
 func (w *World) refreshColonyMealAsks() {
-	price := w.refPrice(Meal)
+	price := w.colonyMealPrice()
 	if price <= 0 {
 		return
 	}
+	reprice := price != w.colonyMealAsk
+	w.colonyMealAsk = price
 	for _, p := range w.mealDepots() {
+		if reprice {
+			w.withdrawColonyAsks(Meal, p)
+		}
 		w.offerColonyMeals(p)
 	}
 }
 
+// colonyMealPrice is what the colony asks for a meal: the charter's price
+// while the colony's stores hold meal-reserve meals per colonist, rising in
+// step as they fall short of that, to meal-price-max percent of the charter's
+// price with the shelves bare.
+//
+// Scarcity is every meal in storage, not only the colony's: at landing the
+// colony has none, and colonists' lockers hold ten each. Priced on the
+// colony's stock alone, the price started at its maximum, every colonist
+// turned to cooking for itself, and the colony's food never got going.
+//
+// A fixed price sent no signal: a colony whose stock was running out still
+// sold its last meals at $5, first come first served, and a shortage never
+// made cooking pay better. Rising, it rations the last meals toward the
+// hungriest (a hungry colonist bids more the hungrier it is; see
+// mealBidLimit), and it makes cooking to sell worth a colonist's while
+// (tryAssignScrapeToSell).
+func (w *World) colonyMealPrice() Money {
+	ref := w.refPrice(Meal)
+	top := int64(w.cfg.MealPriceMax)
+	target := int64(w.cfg.MealReserve) * int64(w.countKind(Colonist))
+	if ref <= 0 || top <= 100 || target <= 0 {
+		return ref
+	}
+	short := target - int64(w.storedMeals())
+	if short <= 0 {
+		return ref
+	}
+	return Money((int64(ref)*(100*target+(top-100)*short) + 50*target) / (100 * target))
+}
+
 // offerColonyMeals offers every meal the colony holds at p, less any a haul
-// order is about to take, at the charter's meal price. Resting bids there —
-// hungry colonists queued for a meal — fill at once.
+// order is about to take, at colonyMealPrice. Resting bids there — hungry
+// colonists queued for a meal — fill at once.
 func (w *World) offerColonyMeals(p Point) {
 	c := w.storageContainers[p]
-	price := w.refPrice(Meal)
+	price := w.colonyMealPrice()
 	if c == nil || price <= 0 {
 		return
 	}
@@ -723,12 +832,24 @@ func (w *World) withdrawColonyAsks(item ItemKind, p Point) {
 	}
 }
 
-// mealFetchesAt is how many colonists are on their way to take a meal out of
-// the depot at p. A cook stands on a workshop's access tile for the whole of
-// a recipe; one that went straight on to the next recipe, and the next, could
-// hold a narrow room's only access tile against a starving colonist coming
-// for a meal it owned. So a cook does not start a recipe while anyone is
-// coming. It is memoized for the tick: every work-seeking colonist asks.
+// mealFetchRadius is how close a colonist coming for a meal has to be before
+// a cook gives way to it.
+const mealFetchRadius = 3
+
+// mealFetchesAt is how many colonists are about to take a meal out of the
+// depot at p: on their way to it, and within mealFetchRadius of it. A cook
+// stands on a workshop's access tile for the whole of a recipe; one that went
+// straight on to the next recipe, and the next, could hold a narrow room's
+// only access tile against a starving colonist coming for a meal it owned.
+// So a cook doesn't start a recipe while anyone is at the door. One arriving
+// mid-recipe waits one recipe at most.
+//
+// It counts only colonists nearby. Counting everyone on their way from
+// anywhere kept stoves idle: in a 100-colonist colony whose cramped kitchens
+// had no pantries, and so kept their meals in the stove's own depot, somebody
+// was nearly always walking toward one, and that was why a stove stood idle
+// beside scum waiting to be cooked 90% of the time it did. It is memoized
+// for the tick: every work-seeking colonist asks.
 func (w *World) mealFetchesAt(p Point) int {
 	if w.mealFetchTick != w.tick || w.mealFetches == nil {
 		if w.mealFetches == nil {
@@ -736,7 +857,7 @@ func (w *World) mealFetchesAt(p Point) int {
 		}
 		clear(w.mealFetches)
 		for _, e := range w.entities {
-			if e.Kind == Colonist && e.Job == JobEat && e.eat == eatFetch {
+			if e.Kind == Colonist && e.Job == JobEat && e.eat == eatFetch && e.Pos.Chebyshev(e.Target) <= mealFetchRadius {
 				w.mealFetches[e.Target]++
 			}
 		}
@@ -846,4 +967,181 @@ func withoutOneMeal(outputs []ItemStack) []ItemStack {
 		out = append(out, o)
 	}
 	return out
+}
+
+// mealSellPrice is what a colonist asks for a meal it sells: a dollar under
+// the colony's price when scarcity has raised it, so a colonist's meal sells
+// first, and the charter's price otherwise.
+func (w *World) mealSellPrice() Money {
+	p, ref := w.colonyMealPrice(), w.refPrice(Meal)
+	if p > ref {
+		return p - 1
+	}
+	return p
+}
+
+// scumMealRecipe is the recipe that turns cave scum into meals.
+func scumMealRecipe() (Recipe, bool) {
+	for _, r := range recipes {
+		if len(r.Inputs) == 1 && r.Inputs[0].Kind == CaveScum {
+			return r, true
+		}
+	}
+	return Recipe{}, false
+}
+
+// foodPays reports whether a meal sells for enough more than making one costs
+// e: scum at its value, and e's labor scraping it, cooking it and walking to
+// the nearest scumhouse and back, at labor-price:
+//
+//	margin = mealSellPrice × meals − scum × its value − labor
+//
+// It's the producer planner's test, and it has to clear plan-min-profit. At
+// the charter's price it rarely does; when scarcity raises the colony's
+// price (colonyMealPrice), it does.
+func (w *World) foodPays(e *Entity) bool {
+	r, ok := scumMealRecipe()
+	if !ok || w.countTerrain(r.Facility) == 0 {
+		return false
+	}
+	house, ok := w.nearestScumhouse(e, nil)
+	if !ok {
+		return false
+	}
+	meals := 0
+	for _, o := range r.Outputs {
+		if o.Kind == Meal {
+			meals += o.Count
+		}
+	}
+	scum := r.Inputs[0].Count
+	ticks := w.ownWorkTicks(e, r.Skill, r.Ticks) + scum*w.ownWorkTicks(e, SkillForaging, w.cfg.ScrapeTicks) + 2*e.Pos.Chebyshev(house)
+	margin := w.mealSellPrice()*Money(meals) - Money(scum)*w.valueOf(CaveScum) - w.laborCostFor(e, ticks)
+	return margin >= Money(w.cfg.PlanMinProfit)
+}
+
+// tryAssignScrapeToSell sends e to scrape scum of its own, to cook into meals
+// and sell, when food pays (foodPays). The rest is existing work: scum kept
+// at a scumhouse is cooked by tryAssignCraftFor, and jobCraft offers the meals
+// beyond meal-keep for sale where they're made, at mealSellPrice. So a
+// colonist makes food on its own account whenever food pays, whatever the
+// treasury holds. The colony's own food chain runs on the treasury: in a
+// 100-colonist colony, building its rooms spent it to $0 and the colony
+// stopped buying scum.
+func (w *World) tryAssignScrapeToSell(e *Entity) bool {
+	return w.foodPays(e) && w.tryAssignScrape(e, true)
+}
+
+// offerOwnMeals offers the meals e has just cooked at p for sale where they
+// are, at mealSellPrice: those beyond what it keeps (surplusMeals, meal-keep
+// and its pocket meal). Hungry colonists' bids rest at a scumhouse's pantry,
+// so a meal on offer there sells to the next of them at once, without a walk
+// to the silo.
+func (w *World) offerOwnMeals(e *Entity, p Point) {
+	c := w.storageContainers[p]
+	silo, _ := w.marketDepot()
+	if c == nil || p == silo {
+		return
+	}
+	n := min(c.held(ColonistOwner(e.ID), Meal), w.surplusMeals(e, silo))
+	if price := w.mealSellPrice(); n > 0 && price > 0 {
+		w.post(Ask, Meal, n, price, ColonistOwner(e.ID), p, w.cfg.OrderTTL)
+	}
+}
+
+// storedMeals is every meal in every depot, whoever owns it, memoized for
+// the tick: colonyMealPrice reads it for every colonist deciding on work.
+func (w *World) storedMeals() int {
+	if w.storedMealsTick == w.tick {
+		return w.storedMealsCache
+	}
+	n := 0
+	for _, c := range w.storageContainers {
+		n += c.Inventory.Count(Meal)
+	}
+	w.storedMealsTick, w.storedMealsCache = w.tick, n
+	return n
+}
+
+// mayCookAt reports whether e may cook at the workshop at p: a colonist's own
+// kitchen is only its owner's to cook at, while anyone may bring scum to it
+// or fetch meals from its pantry. Once its owner is dead, it's anyone's.
+func (w *World) mayCookAt(e *Entity, p Point) bool {
+	f := w.fixtures[p]
+	if f == nil || f.Owner.Kind != OwnerColonist || f.Owner.ID == e.ID {
+		return true
+	}
+	owner := w.entities[f.Owner.ID]
+	return owner == nil || !owner.Alive()
+}
+
+// mayStockAt reports whether e may leave its item at the scumhouse at p:
+// where it may cook it, or where someone else bids for it. In someone else's
+// own kitchen with no bid for it, the item could be neither cooked by the
+// one who left it nor sold, and there it would sit: scrapers left hundreds of
+// units of their scum in chefs' kitchens, and big colonies starved.
+func (w *World) mayStockAt(e *Entity, p Point, item ItemKind) bool {
+	if w.mayCookAt(e, p) {
+		return true
+	}
+	bid, ok := w.bestBid(item, p)
+	return ok && bid.Actor != ColonistOwner(e.ID)
+}
+
+// privateKitchen reports whether the scumhouse at p belongs to a living
+// colonist: the colony neither cooks nor buys biomatter there.
+func (w *World) privateKitchen(p Point) bool {
+	f := w.fixtures[p]
+	if f == nil || f.Owner.Kind != OwnerColonist {
+		return false
+	}
+	owner := w.entities[f.Owner.ID]
+	return owner != nil && owner.Alive()
+}
+
+// colonyKitchens is every scumhouse that isn't a living colonist's own, in
+// position order.
+func (w *World) colonyKitchens() []Point {
+	var out []Point
+	for _, p := range w.scumhousesSorted() {
+		if !w.privateKitchen(p) {
+			out = append(out, p)
+		}
+	}
+	return out
+}
+
+// kitchensCrowded reports whether at least three in four of the colony's
+// kitchens have a cook at them: stoves, not scum, are what's short.
+func (w *World) kitchensCrowded() bool {
+	houses := w.colonyKitchens()
+	if len(houses) == 0 {
+		return false
+	}
+	busy := 0
+	for _, p := range houses {
+		if w.workshopClaims[p] != 0 {
+			busy++
+		}
+	}
+	return 4*busy >= 3*len(houses)
+}
+
+// ownKitchen is e's own kitchen, if it has one it can reach.
+func (w *World) ownKitchen(e *Entity) (Point, bool) {
+	if !e.hasKitchen || w.TerrainAt(e.kitchen) != Scumhouse || w.storageContainers[e.kitchen] == nil {
+		return Point{}, false
+	}
+	return e.kitchen, w.taskReachable(e.kitchen, w.roomOf(e.Pos))
+}
+
+// ownKitchenStocked reports whether e's own kitchen holds enough of e's
+// biomatter for a recipe.
+func (w *World) ownKitchenStocked(e *Entity) bool {
+	p, ok := w.ownKitchen(e)
+	if !ok {
+		return false
+	}
+	_, _, ok = w.craftableRecipe(w.storageContainers[p], []Owner{ColonistOwner(e.ID)})
+	return ok
 }

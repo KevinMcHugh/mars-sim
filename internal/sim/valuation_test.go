@@ -153,7 +153,7 @@ func TestDerivedBidsDieWithTheirPlan(t *testing.T) {
 	w, house, silo, cols := producerWorld(t, 2)
 	customer, cook := cols[0], cols[1]
 	target, _ := w.post(Bid, Meal, 1, 15, ColonistOwner(customer.ID), silo, 0)
-	started, planned := w.planCraft(cook, target)
+	started, planned := w.planCraft(cook, target, nil)
 	if !planned || started {
 		t.Fatalf("planCraft: started %v, planned %v; want a plan waiting on scum", started, planned)
 	}
