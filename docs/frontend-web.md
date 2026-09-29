@@ -9,7 +9,7 @@ on the page that draws its frames. Right now that is a map in flat colors when
 zoomed out and in the TUI's emoji when zoomed in, with pan, zoom and a hover
 readout. Around it is a Svelte chrome:
 
-- **A top bar:** the clock, a Pause / Fast / Faster / Max speed selector, and
+- **A top bar:** the clock, a Pause / Normal / Fast / Faster / Max speed selector, and
   the TUI header's counts.
 - **A side panel,** with the Lore tab and a new-game form.
 
@@ -61,7 +61,7 @@ writes a static site to `web/dist/`. `npm run check` type-checks and `npm test`
 runs the wire decoder's tests. All of these need Go on the path.
 
 **Keys:** space toggles pause; `+` and `-` step the speed selector (Pause,
-Fast, Faster, Max); arrows or WASD pan; `[` and `]` zoom; Escape closes the
+Normal, Fast, Faster, Max); arrows or WASD pan; `[` and `]` zoom; Escape closes the
 side panel.
 
 **Hosting:** [`.github/workflows/pages.yml`](../.github/workflows/pages.yml)
@@ -161,8 +161,9 @@ the panel stops the worker building that data. Subscriptions are
 reference-counted, and payloads are `$state.raw`, replaced whole, never
 deep-proxied.
 
-**The speed selector** is Pause plus three running speeds (`speed.ts`): Fast
-is the game's default 8 ticks a second, Faster is 64, and Max is flat out.
+**The speed selector** is Pause plus four running speeds (`speed.ts`): Normal
+is the game's default 8 ticks a second, Fast is 32, Faster is 128, and Max is
+flat out.
 Pause is separate from the rate in the engine (`TogglePause` and
 `SetTicksPerSecond`), so choosing a speed while paused sends both, and pausing
 keeps the rate. After a press, the selector shows the press for half a second

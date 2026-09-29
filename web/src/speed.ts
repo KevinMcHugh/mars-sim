@@ -1,4 +1,4 @@
-// The speed selector: Pause, then three running speeds. + and - step through
+// The speed selector: Pause, then four running speeds. + and - step through
 // them in this order, and space toggles pause. The engine's speed is ticks per
 // second (sim.SetTicksPerSecond), and pause is separate from it, so "Pause"
 // keeps the last running speed and resuming goes back to it.
@@ -13,8 +13,9 @@ export interface Speed {
 export const SPEEDS: Speed[] = [
   { name: 'Pause', title: 'Pause (space)' },
   // The game's default pace (tps in sim.DefaultConfig).
-  { name: 'Fast', tps: 8, title: '8 ticks a second' },
-  { name: 'Faster', tps: 64, title: '64 ticks a second' },
+  { name: 'Normal', tps: 8, title: '8 ticks a second' },
+  { name: 'Fast', tps: 32, title: '32 ticks a second' },
+  { name: 'Faster', tps: 128, title: '128 ticks a second' },
   // As fast as the machine can: the engine has no upper cap.
   { name: 'Max', tps: 1_000_000, title: 'As fast as it will go' },
 ];

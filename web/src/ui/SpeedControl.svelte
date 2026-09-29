@@ -1,5 +1,5 @@
 <script lang="ts">
-  // Pause · Fast · Faster · Max. + and - step through it; space toggles pause.
+  // Pause · Normal · Fast · Faster · Max. + and - step through it; space toggles pause.
   import { ui, setSpeed } from '../game.svelte';
   import { SPEEDS } from '../speed';
 </script>

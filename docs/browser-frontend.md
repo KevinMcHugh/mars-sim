@@ -284,7 +284,7 @@ Decisions so far:
   later; a panel is a self-contained component that subscribes to its own
   topic, so moving panels into windows would not change them.
 - **Svelte 5** for the chrome, and **uPlot** for the charts.
-- **Speed:** a Pause / Fast (8 tps) / Faster (64) / Max selector. `+` and `-`
+- **Speed:** a Pause / Normal (8 tps) / Fast (32) / Faster (128) / Max selector. `+` and `-`
   step through it, and space toggles pause. The TUI's spawn (`s`) and build
   (`b`) menus are left out for now.
 
