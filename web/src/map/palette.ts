@@ -49,6 +49,8 @@ const kinds: Record<string, string> = {
 /** Under a facility's glyph: the floor, a shade darker, so the room reads. */
 export const GLYPH_BACKDROP = hex('#d96d4e');
 export const CORPSE = hex('#efe6d4');
+/** The inspector's selection ring. */
+export const MARK = hex('#fff2a8');
 
 function lookup(names: string[], table: Record<string, string>): RGB[] {
   return names.map((n) => (table[n] ? hex(table[n]) : MISSING));

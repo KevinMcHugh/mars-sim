@@ -11,7 +11,8 @@ readout. Around it is a Svelte chrome:
 
 - **A top bar:** the clock, a Pause / Normal / Fast / Faster / Max speed selector, and
   the TUI header's counts, as emoji (👷 👽 🐈 🐀, then each fixture's glyph).
-- **A side panel,** with the Lore tab and a new-game form.
+- **A side panel,** with the Inspect tab (click the map), the Lore tab and a
+  new-game form.
 
 The rest of the TUI's tabs are planned in
 [browser-frontend.md](./browser-frontend.md), "Parity with the TUI". The plan it is part of is
@@ -27,8 +28,9 @@ The rest of the TUI's tabs are planned in
   meets Svelte: the UI state (`ui`), topic payloads (`topics`), and the
   actions panels take (`subscribe`, `setSpeed`, `newGame`).
 - [`web/src/ui/`](../web/src/ui/App.svelte) — the Svelte chrome: `App`,
-  `TopBar`, `SpeedControl`, `SidePanel`, and one component per tab
-  (`LorePanel`, `NewGamePanel`).
+  `TopBar`, `SpeedControl`, `SidePanel`, `Bar` (a gauge), and one component
+  per tab (`InspectPanel`, `LorePanel`, `NewGamePanel`). `inspect.ts` types the
+  inspector's payloads.
 - [`web/src/speed.ts`](../web/src/speed.ts) — the speed selector's steps.
 - [`web/src/settings.ts`](../web/src/settings.ts) — new-game settings from the
   URL.
@@ -71,7 +73,12 @@ worker now reports every failure to the page as well.
 
 **Keys:** space toggles pause; `+` and `-` step the speed selector (Pause,
 Normal, Fast, Faster, Max); arrows or WASD pan; `[` and `]` zoom; Escape closes the
-side panel.
+side panel. A click (or tap) on the map inspects what is there.
+
+**The hover readout** names the tile under the pointer and who is on it. A
+colonist is named from the `names` topic, which `main.ts` subscribes to for
+the page's whole life: frames carry only ids. Other creatures read as
+"alien #7", as in the TUI.
 
 **Hosting:** [`.github/workflows/pages.yml`](../.github/workflows/pages.yml)
 publishes it to GitHub Pages, at <https://kevinmchugh.github.io/mars-sim/>,
@@ -170,6 +177,31 @@ the panel stops the worker building that data. Subscriptions are
 reference-counted, and payloads are `$state.raw`, replaced whole, never
 deep-proxied.
 
+**The inspector.** A press and release that moves less than 5 pixels, with no
+second finger down, is a click (`input.ts`); anything more is a drag. A click
+selects (`ui.selected`, via `inspect()` in `game.svelte.ts`) and opens the
+Inspect tab:
+
+- **What a click picks.** The creatures on that tile in turn, then the tile
+  itself, so repeated clicks step through a crowd and end on the ground under
+  it. Only creatures the colony can see count, from the last frame's arrays, as
+  the hover does.
+- **What it shows.** `InspectPanel` subscribes to `entity:<id>` or
+  `tile:<x>,<y>` (see [wire-format.md](./wire-format.md), "Topics"). A
+  colonist gets the TUI roster inspector's sections: identity, status, health
+  and the three affect axes, body parts, needs, inventory, traits, family,
+  affinities, and every memory. Other creatures get status, health and body. A
+  tile gets its terrain, its fixture's owner and access, a container's contents
+  and ledger, and who stands on it. Names (kin, acquaintances, an owner, a
+  creature on a tile) are links that inspect them in turn; **Find** centers the
+  map on the creature.
+- **The marker** is a square ring on the selected tile, or on the selected
+  creature wherever the latest frame puts it (`MapRenderer.setMark`, its own
+  small shader). It is at least 14 CSS pixels across, so it still rings a dot
+  zoomed out. It hides while the creature is under fog, as the creature does.
+- **Closing the Inspect tab** (or switching tabs) drops the selection and the
+  marker, and unmounting the panel unsubscribes its topic.
+
 **The speed selector** is Pause plus four running speeds (`speed.ts`): Normal
 is the game's default 8 ticks a second, Fast is 32, Faster is 128, and Max is
 flat out.
@@ -248,9 +280,13 @@ nothing.
   sparse list on the wire (as scum is) and another input to `filthTint`.
 - **A new terrain or kind**: add its color to `palette.ts` by the name its
   `String` method gives. Magenta on the map means one is missing.
-- **Picking** (click to select): the hover code already finds the entity on a
-  tile from the last frame's arrays. Selection needs the worker to send the
-  entity's details (a topic; see [browser-frontend.md](./browser-frontend.md)).
+- **More in the inspector**: add the field to `EntityTopic` or `TileTopic` in
+  `internal/wire/inspect.go`, its type in `web/src/ui/inspect.ts`, and a row
+  in `InspectPanel.svelte`. Anything the fog should hide goes after the
+  `ExploredAt` check in `tileTopic`.
+- **Something else to select** (a project's tiles, a room): another
+  `Selection` variant in `game.svelte.ts`, with its own topic in
+  `selectionTopic`.
 - **Evicting pages**: nothing is dropped yet. A long session that pans across a
   whole 10000² map would end up holding it all, both on the GPU (in chunks)
   and on the CPU (the hover copies). An eviction needs a message telling the

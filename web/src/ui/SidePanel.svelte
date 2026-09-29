@@ -2,35 +2,37 @@
   // The side panel: one tab open at a time, beside the map, which stays
   // visible (docs/browser-frontend.md, "Parity with the TUI"). A closed panel
   // unmounts its tab, and with it the tab's topic subscription, so the worker
-  // stops building data nobody is looking at.
+  // stops building data nobody is looking at. Which tab is open is ui.panel,
+  // so a click on the map can open the inspector.
+  import { setPanel, ui } from '../game.svelte';
+  import InspectPanel from './InspectPanel.svelte';
   import LorePanel from './LorePanel.svelte';
   import NewGamePanel from './NewGamePanel.svelte';
 
   const tabs = [
+    { id: 'inspect', label: 'Inspect', component: InspectPanel },
     { id: 'lore', label: 'Lore', component: LorePanel },
     { id: 'game', label: 'New game', component: NewGamePanel },
   ] as const;
-  type TabId = (typeof tabs)[number]['id'];
 
-  let open: TabId | null = $state(null);
-  const current = $derived(tabs.find((t) => t.id === open));
+  const current = $derived(tabs.find((t) => t.id === ui.panel));
 
-  function toggle(id: TabId) { open = open === id ? null : id; }
+  function toggle(id: string) { setPanel(ui.panel === id ? null : id); }
 
   $effect(() => {
     // Escape closes the panel, unless a field has the focus.
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && open && !(e.target instanceof HTMLInputElement)) open = null;
+      if (e.key === 'Escape' && ui.panel && !(e.target instanceof HTMLInputElement)) setPanel(null);
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   });
 </script>
 
-<aside class="side" class:open={open !== null}>
+<aside class="side" class:open={current !== undefined}>
   <nav class="tabs hud" aria-label="Panels">
     {#each tabs as t (t.id)}
-      <button type="button" class:on={open === t.id} aria-pressed={open === t.id} onclick={() => toggle(t.id)}>{t.label}</button>
+      <button type="button" class:on={ui.panel === t.id} aria-pressed={ui.panel === t.id} onclick={() => toggle(t.id)}>{t.label}</button>
     {/each}
   </nav>
   {#if current}

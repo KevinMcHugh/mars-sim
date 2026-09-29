@@ -9,7 +9,7 @@
 import { mount } from 'svelte';
 import type { Frame, Hello } from '../wire/decode.js';
 import { namedStats, TILE_COMPOSITION_MASK, TILE_VISIBLE } from '../wire/decode.js';
-import { install, stepSpeed, syncFrame, togglePause, topics, ui, UI_HZ } from './game.svelte';
+import { inspect, install, stepSpeed, subscribe, syncFrame, togglePause, topics, ui, UI_HZ } from './game.svelte';
 import { attachInput } from './map/input';
 import { MapRenderer } from './map/renderer';
 import type { TileRect } from './map/camera';
@@ -52,7 +52,12 @@ install({
   subscribe: (t) => sim.subscribe(t),
   unsubscribe: (t) => sim.unsubscribe(t),
   newGame: (s) => { void newGame(s); },
+  centerOn: (x, y) => { cam.cx = x + 0.5; cam.cy = y + 0.5; viewChanged(); },
+  selected: () => updateMark(),
 });
+// Colonists' names for the hover readout; frames carry only ids. Held for
+// the page's life, across new games.
+subscribe('names');
 
 sim.onError = (m) => status(m, true);
 sim.onTopics = (t) => {
@@ -62,6 +67,7 @@ sim.onFrame = (f, bytes) => {
   if (!hello) return;
   last = f;
   map.applyFrame(f);
+  updateMark();
   debug.frames++;
   debug.bytes += bytes;
   debug.tick = f.tick;
@@ -85,6 +91,7 @@ attachInput(canvas, cam, {
   changed: () => { viewChanged(); },
   hover: (x, y) => { hoverAt = [x, y]; showHover(x, y); },
   leave: () => { hoverAt = null; ui.hover = null; },
+  click: (x, y) => select(x, y),
 });
 window.addEventListener('resize', () => viewChanged());
 window.addEventListener('keydown', (e) => {
@@ -102,6 +109,8 @@ async function newGame(settings: Settings): Promise<void> {
   status(`Generating a ${settings.width}×${settings.height} world…`);
   hello = null;
   ui.hello = null;
+  ui.selected = null;
+  map.setMark(null);
   centered = false;
   lastInterest = '';
   try {
@@ -148,12 +157,51 @@ function centerOnColony(f: Frame): void {
   viewChanged();
 }
 
+/**
+ * A click on the map inspects what is there: a creature if one stands on the
+ * tile (clicking again steps through a crowd), else the tile. Only creatures
+ * the colony can see count, as on the map itself.
+ */
+function select(sx: number, sy: number): void {
+  if (!hello) return;
+  const [fx, fy] = cam.toTile(sx, sy);
+  const x = Math.floor(fx), y = Math.floor(fy);
+  if (x < 0 || y < 0 || x >= hello.width || y >= hello.height) return;
+  const here: number[] = [];
+  if (last && map.visible(x, y)) {
+    const e = last.entities;
+    for (let i = 0; i < e.count; i++) if (e.x[i] === x && e.y[i] === y) here.push(e.id[i]);
+  }
+  // Each click steps one along: the creatures here in turn, then the tile.
+  const sel = ui.selected;
+  const at = sel && 'entity' in sel ? here.indexOf(sel.entity) : -1;
+  inspect(at + 1 < here.length ? { entity: here[at + 1] } : { tile: [x, y] });
+}
+
+/** Put the map's marker on the selection: a tile, or where the creature is now. */
+function updateMark(): void {
+  const s = ui.selected;
+  if (!s) { map.setMark(null); return; }
+  if ('tile' in s) { map.setMark(s.tile); return; }
+  const e = last?.entities;
+  if (e) {
+    for (let i = 0; i < e.count; i++) {
+      if (e.id[i] !== s.entity) continue;
+      // Not while the fog hides it, or the marker would give it away.
+      map.setMark(map.visible(e.x[i], e.y[i]) ? [e.x[i], e.y[i]] : null);
+      return;
+    }
+  }
+  map.setMark(null); // dead or gone
+}
+
 /** Describe the tile under the pointer: terrain, and whatever is on it. */
 function showHover(sx: number, sy: number): void {
   if (!hello) return;
   const [fx, fy] = cam.toTile(sx, sy);
   const x = Math.floor(fx), y = Math.floor(fy);
   if (x < 0 || y < 0 || x >= hello.width || y >= hello.height) { ui.hover = null; return; }
+  const names = topics.data.names as Record<string, string> | undefined;
   const parts = [`${x}, ${y}`];
   const cell = map.tileAt(x, y);
   if (!cell || !(cell[1] & TILE_VISIBLE)) {
@@ -174,7 +222,8 @@ function showHover(sx: number, sy: number): void {
       for (let i = 0; i < e.count; i++) {
         if (e.x[i] !== x || e.y[i] !== y) continue;
         const g = hello.glyphs.symbols[e.glyph[i]] ?? '';
-        parts.push(`${g} ${hello.enums.kinds[e.kind[i]]} #${e.id[i]}, ${hello.enums.states[e.state[i]]}`);
+        const name = names?.[e.id[i]] ?? `${hello.enums.kinds[e.kind[i]]} #${e.id[i]}`;
+        parts.push(`${g} ${name}, ${hello.enums.states[e.state[i]]}`);
       }
     }
   }
