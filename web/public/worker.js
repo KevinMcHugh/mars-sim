@@ -41,6 +41,7 @@ function slice() {
     const buffer = r.frame.buffer;
     postMessage({ type: 'frame', buffer, perf: r.perf && JSON.parse(r.perf) }, [buffer]);
   }
+  if (r.topics) postMessage({ type: 'topics', topics: JSON.parse(r.topics) });
   schedule(r.wait);
 }
 
@@ -78,6 +79,13 @@ onmessage = async (e) => {
     case 'budget':
       budgetMs = msg.budgetMs;
       break;
+    case 'subscribe':
+    case 'unsubscribe': {
+      const r = JSON.parse(marssim[msg.type](msg.topic));
+      if (r.error) postMessage({ type: 'error', error: r.error });
+      schedule(0); // a new subscription is sent on the next advance, even paused
+      break;
+    }
     case 'interest': {
       const { x0, y0, x1, y1 } = msg.rect;
       marssim.interest(x0, y0, x1, y1);

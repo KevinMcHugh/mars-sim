@@ -244,6 +244,16 @@ lore, perf). There is no "economy" system in the sim yet. The storage/inventory
 data is the closest thing, and an economy view would start as a topic built from
 it.
 
+**Built** ([frontend-web.md](./frontend-web.md)). The map stays a canvas, and
+the chrome around it is Svelte 5:
+
+- **A top bar:** the clock, the speed selector, and the TUI header's counts.
+- **A side panel:** one tab open at a time, beside the map, so the map stays
+  visible.
+
+Frame data reaches Svelte at most 10 times a second, through
+`web/src/game.svelte.ts`. Topic payloads are `$state.raw`, replaced whole.
+
 **Alternatives considered:**
 
 - **React.** The virtual-DOM diff on 10 Hz data is avoidable overhead, and the
@@ -251,6 +261,32 @@ it.
 - **Solid.** About as good a fit as Svelte. Pick whichever is more pleasant to
   write.
 - **Vanilla TS everywhere.** Fine for the map, tedious for forms and lists.
+
+### Parity with the TUI
+
+What the browser still lacks against the terminal UI, in the order it is being
+built. No step needs engine work: every panel's data is already in a
+`Snapshot`. Each is a topic on the wire (see [wire-format.md](./wire-format.md),
+"Topics") plus a panel.
+
+| Step | Contents | Status |
+| --- | --- | --- |
+| A. Shell | Svelte, side panel, top bar with the TUI's counts, speed selector, topics, Lore | **Done** |
+| B. Inspector | Click an entity or tile. Colonist inspector: need, HP-per-part, mood (charge, grip, valence) and affinity bars; inventory, traits, family, memories. Tile inspector: fixture owner, storage contents. | |
+| C. Roster, Log | Virtualized roster with the TUI's filters (non-humans, the dead) and B's inspector. Log tab, and a log ticker on the map. | |
+| D. List tabs | Jobs (and a project's tiles highlighted on the map), Storage, Market | |
+| E. Charts (uPlot) | Perf (tps, ms per tick), Population (four series over the game), Activity (stacked shares with walk-to bands; share or average toggle) | |
+
+Decisions so far:
+
+- **Layout:** the map is always visible, and tabs open in a side panel, which
+  is a bottom sheet on a phone. Windows (several panels open at once) may come
+  later; a panel is a self-contained component that subscribes to its own
+  topic, so moving panels into windows would not change them.
+- **Svelte 5** for the chrome, and **uPlot** for the charts.
+- **Speed:** a Pause / Fast (8 tps) / Faster (64) / Max selector. `+` and `-`
+  step through it, and space toggles pause. The TUI's spawn (`s`) and build
+  (`b`) menus are left out for now.
 
 ### 5. Big worlds: 10K×10K now, unbounded later
 
@@ -535,9 +571,8 @@ A suggested order. Each step is worth landing on its own:
 4. **The map renderer. Done with flat colors** ([frontend-web.md](./frontend-web.md)):
    terrain textures, sprites, camera, fog, pan and zoom, and hover. Next:
    glyphs (done; see frontend-web.md), then click-to-select and page eviction.
-5. **Svelte shell.** The header stats, controls (pause, speed, spawn, the
-   build orders) and the roster with its inspector. Then the job board, storage,
-   lore and perf.
+5. **Svelte shell. Done**, with the Lore tab. The rest of the TUI's tabs
+   follow the plan in "Parity with the TUI".
 6. **New game / config.** A form generated from the `hello` schema.
    `director.yaml` and `alien-names.yaml` become fetched or uploaded bytes that
    the WASM entry point parses, instead of files `main.go` reads.

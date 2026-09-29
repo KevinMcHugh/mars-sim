@@ -1,28 +1,31 @@
-// The game page: start the worker, draw its frames on the map, and forward the
-// view and the controls. See docs/browser-frontend.md.
+// The game page: start the worker, draw its frames on the map, forward the
+// view and the controls, and mount the Svelte chrome (ui/App.svelte) around
+// the map. See docs/frontend-web.md.
+//
+// The map and the worker stay outside Svelte: frames arrive at up to 60 a
+// second and go straight to the renderer. What the panels read goes through
+// game.svelte.ts, at most UI_HZ times a second.
 
+import { mount } from 'svelte';
 import type { Frame, Hello } from '../wire/decode.js';
 import { namedStats, TILE_COMPOSITION_MASK, TILE_VISIBLE } from '../wire/decode.js';
+import { install, stepSpeed, syncFrame, togglePause, topics, ui, UI_HZ } from './game.svelte';
 import { attachInput } from './map/input';
-import { kindCSS } from './map/palette';
 import { MapRenderer } from './map/renderer';
 import type { TileRect } from './map/camera';
+import { initialSettings } from './settings';
 import { SimClient } from './sim/client';
 import type { Settings } from './sim/client';
-
-const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
-const canvas = $<HTMLCanvasElement>('map');
-const statusEl = $('status');
-const hoverEl = $('hover');
-const pauseBtn = $<HTMLButtonElement>('pause');
-const speedSel = $<HTMLSelectElement>('speed');
+import App from './ui/App.svelte';
 
 function status(text: string | null, error = false): void {
-  statusEl.hidden = text === null;
-  statusEl.textContent = text ?? '';
-  statusEl.classList.toggle('error', error);
+  ui.status = text;
+  ui.statusError = error;
 }
 
+mount(App, { target: document.getElementById('app')! });
+
+const canvas = document.getElementById('map') as HTMLCanvasElement;
 let map: MapRenderer;
 try {
   map = new MapRenderer(canvas);
@@ -38,12 +41,23 @@ let last: Frame | null = null;
 let centered = false;
 let lastInterest = '';
 let hoverAt: [number, number] | null = null;
+let lastUI = 0;
 
 // What the page shows and has received, for automation (Playwright) to read.
 const debug = { frames: 0, bytes: 0, hello: null as Hello | null, genMs: 0, tick: 0, pagesHeld: 0, pagesOwed: 0 };
-(window as any).marsMap = { debug, camera: cam, renderer: map };
+(window as any).marsMap = { debug, camera: cam, renderer: map, ui, topics };
+
+install({
+  command: (c) => sim.command(c),
+  subscribe: (t) => sim.subscribe(t),
+  unsubscribe: (t) => sim.unsubscribe(t),
+  newGame: (s) => { void newGame(s); },
+});
 
 sim.onError = (m) => status(m, true);
+sim.onTopics = (t) => {
+  for (const [name, payload] of Object.entries(t)) topics.set(name, payload);
+};
 sim.onFrame = (f, bytes) => {
   if (!hello) return;
   last = f;
@@ -57,65 +71,49 @@ sim.onFrame = (f, bytes) => {
     centerOnColony(f);
     centered = true;
   }
-  updateHUD(f);
-  if (hoverAt) showHover(...hoverAt);
+  // The chrome refreshes at UI_HZ, and at once when pause flips, so the
+  // selector never lags a press.
+  const now = performance.now();
+  if (now - lastUI >= 1000 / UI_HZ || f.paused !== ui.paused) {
+    lastUI = now;
+    syncFrame(f.tick, f.paused, f.tps, namedStats(f, hello));
+    if (hoverAt) showHover(...hoverAt);
+  }
 };
 
 attachInput(canvas, cam, {
   changed: () => { viewChanged(); },
   hover: (x, y) => { hoverAt = [x, y]; showHover(x, y); },
-  leave: () => { hoverAt = null; hoverEl.hidden = true; },
+  leave: () => { hoverAt = null; ui.hover = null; },
 });
 window.addEventListener('resize', () => viewChanged());
 window.addEventListener('keydown', (e) => {
-  if (e.key === ' ' && !(e.target instanceof HTMLInputElement)) {
-    e.preventDefault();
-    sim.command({ type: 'pause' });
+  if (!hello || e.target instanceof HTMLInputElement || e.target instanceof HTMLSelectElement) return;
+  switch (e.key) {
+    case ' ': togglePause(); break;
+    case '+': case '=': stepSpeed(1); break;
+    case '-': case '_': stepSpeed(-1); break;
+    default: return;
   }
-});
-pauseBtn.onclick = () => sim.command({ type: 'pause' });
-speedSel.onchange = () => sim.command({ type: 'speed', rate: Number(speedSel.value) });
-
-// New game: the form, seeded from the URL (?width=…&seed=…&fog-of-war=false).
-const form = $<HTMLFormElement>('newgameForm');
-const params = new URLSearchParams(location.search);
-for (const el of Array.from(form.elements) as HTMLInputElement[]) {
-  if (!el.name || !params.has(el.name)) continue;
-  if (el.type === 'checkbox') el.checked = params.get(el.name) !== 'false';
-  else el.value = params.get(el.name)!;
-}
-form.onsubmit = (e) => {
   e.preventDefault();
-  newGame(readForm());
-};
-
-function readForm(): Settings {
-  const s: Settings = {};
-  for (const el of Array.from(form.elements) as HTMLInputElement[]) {
-    if (!el.name) continue;
-    if (el.type === 'checkbox') s[el.name] = el.checked;
-    else if (el.value !== '') s[el.name] = Number(el.value); // blank seed: the engine picks one
-  }
-  return s;
-}
+});
 
 async function newGame(settings: Settings): Promise<void> {
   status(`Generating a ${settings.width}×${settings.height} world…`);
-  pauseBtn.disabled = speedSel.disabled = true;
   hello = null;
+  ui.hello = null;
   centered = false;
   lastInterest = '';
   try {
     const started = await sim.start({ tps: 8, ...settings });
     hello = started.hello;
+    ui.hello = hello;
     debug.hello = hello;
     debug.genMs = started.genMs;
     map.reset(hello);
     cam.cx = hello.width / 2;
     cam.cy = hello.height / 2;
     viewChanged();
-    pauseBtn.disabled = speedSel.disabled = false;
-    speedSel.value = '8';
     status(null);
   } catch (e) {
     status(String((e as Error).message), true);
@@ -150,26 +148,12 @@ function centerOnColony(f: Frame): void {
   viewChanged();
 }
 
-function updateHUD(f: Frame): void {
-  const h = hello!;
-  const stats = namedStats(f, h);
-  $('clock').textContent = `tick ${f.tick.toLocaleString()}${f.paused ? ' · paused' : ''}`;
-  pauseBtn.textContent = f.paused ? 'Resume' : 'Pause';
-  const counts: [string, number][] = [
-    ['colonist', stats.Colonists], ['alien', stats.Aliens], ['cat', stats.Cats], ['rat', stats.Rats],
-  ];
-  $('census').innerHTML = counts
-    .filter(([, n]) => n !== undefined)
-    .map(([k, n]) => `<span><i class="dot" style="background:${kindCSS(k)}"></i>${n} ${k}${n === 1 ? '' : 's'}</span>`)
-    .join('');
-}
-
 /** Describe the tile under the pointer: terrain, and whatever is on it. */
 function showHover(sx: number, sy: number): void {
   if (!hello) return;
   const [fx, fy] = cam.toTile(sx, sy);
   const x = Math.floor(fx), y = Math.floor(fy);
-  if (x < 0 || y < 0 || x >= hello.width || y >= hello.height) { hoverEl.hidden = true; return; }
+  if (x < 0 || y < 0 || x >= hello.width || y >= hello.height) { ui.hover = null; return; }
   const parts = [`${x}, ${y}`];
   const cell = map.tileAt(x, y);
   if (!cell || !(cell[1] & TILE_VISIBLE)) {
@@ -194,8 +178,7 @@ function showHover(sx: number, sy: number): void {
       }
     }
   }
-  hoverEl.textContent = parts.join(' · ');
-  hoverEl.hidden = false;
+  ui.hover = parts.join(' · ');
 }
 
-newGame(readForm());
+void newGame(initialSettings());

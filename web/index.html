@@ -8,39 +8,8 @@
 </head>
 <body>
 <canvas id="map" aria-label="Colony map"></canvas>
-
-<header class="hud top">
-  <strong class="title">mars-sim</strong>
-  <span id="clock" class="readout">–</span>
-  <button id="pause" disabled title="Pause or resume (space)">Pause</button>
-  <label class="speed">Speed
-    <select id="speed" disabled>
-      <option value="8">1×</option>
-      <option value="32">4×</option>
-      <option value="128">16×</option>
-      <option value="1024">128×</option>
-      <option value="1000000">Max</option>
-    </select>
-  </label>
-  <span id="census" class="census"></span>
-</header>
-
-<div id="hover" class="hud hover" hidden></div>
-
-<details id="newgame" class="hud panel">
-  <summary>New game</summary>
-  <form id="newgameForm">
-    <label>Width <input name="width" type="number" min="64" value="10000"></label>
-    <label>Height <input name="height" type="number" min="64" value="10000"></label>
-    <label>Colonists <input name="colonists" type="number" min="1" value="6"></label>
-    <label>Seed <input name="seed" type="number" placeholder="random"></label>
-    <label class="check"><input name="fog-of-war" type="checkbox" checked> Fog of war</label>
-    <button type="submit">Start</button>
-  </form>
-</details>
-
-<div id="status" class="status">Loading…</div>
-
+<!-- The Svelte chrome (src/ui/App.svelte): top bar, side panel, hover, status. -->
+<div id="app"></div>
 <script type="module" src="./src/main.ts"></script>
 </body>
 </html>

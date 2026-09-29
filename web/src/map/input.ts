@@ -66,15 +66,16 @@ export function attachInput(canvas: HTMLCanvasElement, cam: Camera, hooks: Input
   }, { passive: false });
 
   window.addEventListener('keydown', (e) => {
-    if (e.target instanceof HTMLInputElement) return;
+    if (e.target instanceof HTMLInputElement || e.target instanceof HTMLSelectElement) return;
     const step = 80;
     switch (e.key) {
       case 'ArrowLeft': case 'a': cam.panPixels(step, 0); break;
       case 'ArrowRight': case 'd': cam.panPixels(-step, 0); break;
       case 'ArrowUp': case 'w': cam.panPixels(0, step); break;
       case 'ArrowDown': case 's': cam.panPixels(0, -step); break;
-      case '+': case '=': cam.zoomAt(1.25, cam.width / 2, cam.height / 2); break;
-      case '-': case '_': cam.zoomAt(0.8, cam.width / 2, cam.height / 2); break;
+      // + and - are the speed selector's (main.ts); zoom by key is [ and ].
+      case ']': cam.zoomAt(1.25, cam.width / 2, cam.height / 2); break;
+      case '[': cam.zoomAt(0.8, cam.width / 2, cam.height / 2); break;
       default: return;
     }
     e.preventDefault();

@@ -5,6 +5,10 @@
   --fg: #efe6de;
   --muted: #a89c92;
   --accent: #e0703a;
+  /* The side panel's width, and how much of the top edge its tab strip
+     keeps clear of the top bar. */
+  --panel-width: min(380px, calc(100vw - 20px));
+  --panel-reserve: 190px;
   color-scheme: dark;
 }
 
@@ -38,26 +42,6 @@ html, body {
   backdrop-filter: blur(6px);
 }
 
-.top {
-  top: max(10px, env(safe-area-inset-top));
-  left: 10px;
-  right: 10px;
-  max-width: max-content;
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px 14px;
-  padding: 7px 12px;
-}
-.title { letter-spacing: 0.02em; }
-.readout { font-variant-numeric: tabular-nums; color: var(--muted); min-width: 11ch; }
-.speed { display: flex; gap: 6px; align-items: center; color: var(--muted); }
-.census { display: flex; gap: 12px; flex-wrap: wrap; font-variant-numeric: tabular-nums; }
-.census .dot {
-  display: inline-block; width: 9px; height: 9px; border-radius: 50%;
-  margin-right: 5px; vertical-align: 0;
-}
-
 button, select, input {
   font: inherit;
   color: var(--fg);
@@ -68,9 +52,9 @@ button, select, input {
 }
 button { cursor: pointer; }
 button:disabled, select:disabled { opacity: 0.45; cursor: default; }
-button[type="submit"] { background: var(--accent); border-color: var(--accent); color: #fff; }
 
 .hover {
+  position: fixed;
   left: 10px;
   bottom: max(10px, env(safe-area-inset-bottom));
   padding: 6px 10px;
@@ -78,17 +62,6 @@ button[type="submit"] { background: var(--accent); border-color: var(--accent); 
   pointer-events: none;
   max-width: calc(100vw - 20px);
 }
-
-.panel {
-  right: 10px;
-  bottom: max(10px, env(safe-area-inset-bottom));
-  padding: 6px 12px;
-}
-.panel summary { cursor: pointer; color: var(--muted); }
-.panel form { display: grid; gap: 8px; padding: 8px 0 4px; min-width: 190px; }
-.panel label { display: grid; gap: 3px; color: var(--muted); }
-.panel label.check { display: flex; gap: 8px; align-items: center; color: var(--fg); }
-.panel input[type="number"] { width: 100%; }
 
 .status {
   position: fixed;
@@ -105,7 +78,3 @@ button[type="submit"] { background: var(--accent); border-color: var(--accent); 
 .status.error { color: #f2877e; }
 .status[hidden] { display: none; }
 
-@media (max-width: 600px) {
-  .top { right: 10px; max-width: none; }
-  .readout { min-width: 0; }
-}
