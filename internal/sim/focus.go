@@ -204,6 +204,25 @@ func (w *World) nextCognitionTick(e *Entity) int {
 	return next
 }
 
+// focusThreat is the alien a colonist's threat foci answer to. Anyone reacts
+// to an alien within FleeRadius. A colonist already fleeing also keeps
+// answering to one out to FleeRadius+FleeReleaseMargin — flee's hysteresis
+// band — and held reports that the threat is only in that band, where flee
+// stays eligible but fight and the other threat-gated checks do not start.
+// Without the band, stepping one tile out of FleeRadius dropped flee, the
+// next focus walked back in, and the colonist flickered every tick.
+func (w *World) focusThreat(e *Entity) (threat *Entity, held bool) {
+	if a, ok := w.nearestAlien(e.Pos, w.cfg.FleeRadius); ok {
+		return a, false
+	}
+	if e.focus == FocusFlee && w.cfg.FleeReleaseMargin > 0 {
+		if a, ok := w.nearestAlien(e.Pos, w.cfg.FleeRadius+w.cfg.FleeReleaseMargin); ok {
+			return a, true
+		}
+	}
+	return nil, false
+}
+
 func (w *World) currentFocusEligible(e *Entity, threat *Entity) bool {
 	switch e.focus {
 	case FocusIdle:
@@ -259,6 +278,7 @@ type focusInputs struct {
 	current                                 FocusKind
 	workEligible                            bool
 	threat                                  bool
+	holdFlee                                bool // already fleeing, alien only in the release band
 	threatID                                EntityID
 	armed                                   bool
 	escape                                  bool
@@ -276,9 +296,10 @@ func (w *World) focusCandidates(e *Entity, out *[numFocusKinds]FocusCandidate) {
 		w.syncNeedPhaseAtLevel(e, n, level[n])
 		phase[n] = e.needPhase[n]
 	}
-	threat, hasThreat := w.nearestAlien(e.Pos, w.cfg.FleeRadius)
+	threat, holdFlee := w.focusThreat(e)
+	hasThreat := threat != nil && !holdFlee
 	var threatID EntityID
-	if hasThreat {
+	if threat != nil {
 		threatID = threat.ID
 	}
 	fillFocusCandidates(focusInputs{
@@ -293,6 +314,7 @@ func (w *World) focusCandidates(e *Entity, out *[numFocusKinds]FocusCandidate) {
 		current:       e.focus,
 		workEligible:  workJob(e.Job) || !e.resting || w.tick >= e.wakeTick,
 		threat:        hasThreat,
+		holdFlee:      holdFlee,
 		threatID:      threatID,
 		armed:         bestWeapon(e.Inventory) != ItemNone,
 		escape:        !hasThreat && e.disconnectedTicks >= w.cfg.EscapeGraceTicks,
@@ -365,6 +387,13 @@ func fillFocusCandidates(in focusInputs, out *[numFocusKinds]FocusCandidate) {
 			// exact tie.
 			out[FocusFlee].Score.Distance = -in.focuses[FocusFlee].DistanceWeight
 		}
+	} else if in.holdFlee {
+		// Flee's release band (see focusThreat): the colonist keeps running
+		// from an alien it has not yet put clearly behind it. Fight is not
+		// offered here — nobody turns to shoot at something they could not
+		// have started a fight with.
+		out[FocusFlee].Eligible = true
+		out[FocusFlee].Threat = in.threatID
 	}
 
 	// A room cut off from the colony's main network for EscapeGraceTicks

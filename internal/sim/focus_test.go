@@ -178,3 +178,99 @@ func BenchmarkFocusCandidates(b *testing.B) {
 		w.focusCandidates(c, &candidates)
 	}
 }
+
+// fleeCorridorBounces puts a colonist who needs the toilet in a one-tile
+// corridor whose only toilet lies past an alien, and counts flee bounces: a
+// focus change A->B followed within three ticks by B->A with flee on one side.
+// The alien is never given a turn, so it holds still at the worst place: the
+// relieve focus walks the colonist straight back toward it every time flee lets
+// go.
+func fleeCorridorBounces(t *testing.T, margin int) int {
+	t.Helper()
+	w := roomsTestWorld(48, 12)
+	w.cfg.FleeReleaseMargin = margin
+	carve(w, Point{2, 6}, Point{40, 6}, Floor)
+	w.SetTerrain(Point{41, 6}, Toilet)
+	w.refreshSpatial()
+	w.spawn(Alien, Point{24, 6})
+	c := w.spawn(Colonist, Point{8, 6})
+	for n := NeedKind(0); n < numNeeds; n++ {
+		c.Needs[n] = 0
+	}
+	c.Needs[NeedBladder] = w.cfg.Needs[NeedBladder].SeekAt + 10
+	for n := NeedKind(0); n < numNeeds; n++ {
+		w.syncNeedPhase(c, n)
+	}
+
+	type change struct {
+		tick     int
+		from, to FocusKind
+	}
+	var prev *change
+	bounces, fled := 0, false
+	for i := 0; i < 120; i++ {
+		w.tick++
+		before := c.focus
+		w.colonistTurn(c)
+		if c.focus == before {
+			continue
+		}
+		fled = fled || c.focus == FocusFlee
+		now := &change{tick: w.tick, from: before, to: c.focus}
+		if prev != nil && prev.from == now.to && prev.to == now.from &&
+			(now.from == FocusFlee || now.to == FocusFlee) && now.tick-prev.tick <= 3 {
+			bounces++
+		}
+		prev = now
+	}
+	if !fled {
+		t.Fatal("the colonist never fled; the scenario no longer reaches the alien")
+	}
+	return bounces
+}
+
+// A colonist that starts fleeing keeps fleeing until the alien is past
+// FleeRadius+FleeReleaseMargin, so it no longer flickers flee/relieve every
+// tick at the edge of FleeRadius. The margin-0 run proves the scenario still
+// provokes the flicker the margin exists to stop.
+func TestFleeHysteresisStopsBounce(t *testing.T) {
+	if got := fleeCorridorBounces(t, 0); got < 20 {
+		t.Fatalf("margin 0: %d bounces, want the edge flicker (>= 20) this test guards against", got)
+	}
+	if got := fleeCorridorBounces(t, DefaultConfig().FleeReleaseMargin); got != 0 {
+		t.Fatalf("default margin: %d flee bounces within 3 ticks, want 0", got)
+	}
+}
+
+// The release band only holds a flee already under way: it does not start one,
+// and it never offers fight, so an armed colonist's fight/flee choice is still
+// made only inside FleeRadius.
+func TestFleeReleaseBandHoldsOnlyFlee(t *testing.T) {
+	w, c := focusTestColonist(t)
+	c.Inventory.Add(Pistol, 1)
+	w.spawn(Alien, c.Pos.Add(w.cfg.FleeRadius+1, 0))
+	w.observeNearby(c)
+	var candidates [numFocusKinds]FocusCandidate
+
+	c.focus = FocusWork
+	w.focusCandidates(c, &candidates)
+	if candidates[FocusFlee].Eligible || candidates[FocusFight].Eligible {
+		t.Fatal("an alien in the release band started a threat focus for a colonist not fleeing")
+	}
+
+	c.focus = FocusFlee
+	w.focusCandidates(c, &candidates)
+	if !candidates[FocusFlee].Eligible {
+		t.Fatal("a fleeing colonist dropped flee one tile outside FleeRadius")
+	}
+	if candidates[FocusFight].Eligible {
+		t.Fatal("the release band offered fight")
+	}
+
+	far := c.Pos.Add(-(w.cfg.FleeRadius + w.cfg.FleeReleaseMargin + 1), 0)
+	w.moveEntity(c, far)
+	w.focusCandidates(c, &candidates)
+	if candidates[FocusFlee].Eligible {
+		t.Fatal("flee stayed eligible past FleeRadius+FleeReleaseMargin")
+	}
+}
