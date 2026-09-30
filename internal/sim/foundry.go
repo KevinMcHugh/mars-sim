@@ -181,8 +181,8 @@ func (w *World) planSupply(e *Entity, b *Order, s ownStock, probe *planOffer) bo
 	}
 	p := w.newPlan(e, planHaul, b, qty)
 	p.crafted, p.expect = true, profit
-	w.emitDone(e, ActionTrade, NounGoods, "Took %d of its own %s to sell at (%d, %d) for %v.",
-		qty, b.Item, b.Depot.X, b.Depot.Y, b.Price)
+	w.emitDone(e, ActionTrade, NounGoods, "Took %d of %s own %s to sell at (%d, %d) for %v.",
+		qty, e.possessive(), b.Item, b.Depot.X, b.Depot.Y, b.Price)
 	if s.carried {
 		p.workshop = b.Depot
 		w.assignCarry(e, p, b.Depot, carryDeliver, qty)

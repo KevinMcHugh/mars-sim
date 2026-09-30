@@ -619,6 +619,15 @@ func (e *Entity) displayName() string {
 	return fmt.Sprintf("colonist #%d", e.ID)
 }
 
+// possessive is the colonist's possessive determiner for log lines: never
+// "its", since colonists have pronouns. Falls back to "their" with no profile.
+func (e *Entity) possessive() string {
+	if e.Profile == nil {
+		return "their"
+	}
+	return e.Profile.Gender.Possessive()
+}
+
 // clearPath discards any cached navigation route.
 func (e *Entity) clearPath() {
 	e.path = e.path[:0]
