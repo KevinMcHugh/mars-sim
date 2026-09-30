@@ -74,6 +74,19 @@ func (g Gender) Pronouns() string {
 	}
 }
 
+// Possessive returns the possessive determiner ("his", "her", "their") for
+// log lines about a colonist.
+func (g Gender) Possessive() string {
+	switch g {
+	case GenderMan:
+		return "his"
+	case GenderWoman:
+		return "her"
+	default:
+		return "their"
+	}
+}
+
 // Orientation is a colonist's sexual orientation.
 type Orientation uint8
 
