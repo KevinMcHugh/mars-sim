@@ -17,7 +17,8 @@ covers where the first meals come from.
 
 - [`internal/sim/food.go`](../internal/sim/food.go) — `runFoodFocus`,
   `tryStartEating`, `nearestMealDepot`, `jobEat`, `takeMeal`,
-  `hungryWithoutFood`, `podsFeed`, `wantsFacility`.
+  `hungryWithoutFood`, `podsFeed`, `wantsFacility`; foraging
+  (`planForage`, `tryProspect`, see [foraging.md](./foraging.md)).
 - [`internal/sim/systems.go`](../internal/sim/systems.go) — `runNeedFocus`
   hands food to `runFoodFocus` first; `finishUse` records gruel; rats only eat
   at pods that feed.
@@ -80,15 +81,19 @@ more.
   with the scumhouse (see [entities-and-ai.md](./entities-and-ai.md));
 - the colony stops planning pods: `wantsFacility(NutrientPod)` is false, and
   a facility room becomes `toiletRoom`, all toilets;
-- a hungry colonist with nothing to eat picks food work first — cooking its
-  own scum, then scraping to keep (`hungryWithoutFood`). Once hunger is
-  pressing it drops any other work under way to do so (`feedingItself`),
-  except cooking the colony's meals (`makingMeals`), which makes the meal it
-  will buy; before that it finishes what it started. If there is no
-  scumhouse it can reach, it helps build the planned one, or raises one
-  itself, unpaid (`tryEmergencyScumhouse`), the scarcity version of the
-  emergency pod. Otherwise it keeps working, and looks for food again every
-  turn, rather than waiting by an empty locker;
+- a hungry colonist with nothing to eat **forages** (`hungryWithoutFood`,
+  see [foraging.md](./foraging.md)). It drops other work under way, once,
+  unless it feeds itself (`feedingItself`) or cooks the colony's meals
+  (`makingMeals`), which makes the meal it will buy. Then it:
+  - raises a scumhouse if there is none it can reach
+    (`tryEmergencyScumhouse`, the scarcity version of the emergency pod);
+  - cooks what a scumhouse holds;
+  - waits for a meal on the colony's stove;
+  - scrapes exposed scum to keep;
+  - otherwise digs into rock nobody has seen, to expose more.
+
+  Each job is seen through before it plans again, and it looks for food
+  every turn. It never takes unrelated work while hungry;
 - the colony builds a scumhouse before anything else, and it does not wait on
   money: a colony that cannot fund it marks it out as unpaid community work
   (see [labor.md](./labor.md)).
@@ -129,6 +134,12 @@ to buy the meals they weren't finishing. Cooking meals for anyone is now food
 work that hunger doesn't interrupt (`makingMeals`). A colony cook already stops
 its batch once it's hungry (`cooksOn`), so this holds it for one recipe, not a
 shift. `TestPressingHungerFinishesTheColonysCooking` pins it.
+
+The same loop remained for every other job, and it was the main cause of
+starvation on big maps: a hungry miner dropped its dig, found no food work,
+and `assignWorkJob` handed the dig straight back, every turn. Foraging
+replaced the fallback to `assignWorkJob` altogether (see
+[foraging.md](./foraging.md)).
 
 ### Pocket meals
 
@@ -194,9 +205,11 @@ covers one queued at a reachable pod.
 - **Own, then colony, then gruel.** The order is hard-coded rather than scored
   because there is no market yet to price the difference. When there is, the
   choice becomes "eat my own, or buy one" with a price on each.
-- **Keep working while hungry.** Idling beside an empty locker helps nobody.
+- **Forage while hungry.** Idling beside an empty locker helps nobody.
   Once the scumhouse exists, a hungry colonist with nothing to eat is the one
-  most motivated to go and make food.
+  most motivated to go and make food. That means food work, not work in
+  general: "keep working" once meant re-taking a dig it had just dropped,
+  every turn, until it starved.
 - **A bug worth remembering.** The first version put the finished meal back in
   the pocket: `clearJob` saw a meal "in hand" at the end of `jobEat` and
   treated it as an interrupted meal. Every colonist ate forever from a locker

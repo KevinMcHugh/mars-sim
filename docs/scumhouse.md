@@ -179,11 +179,13 @@ regrowing on their own tiles) never starved on that seed.
 `TestScumSpawnsAtItsRateOnAnyMap` checks the rate on 256², 1000² and
 10,000² maps.
 
-Still open: regrowth lands anywhere in the generated chunks, not where the
-colony can reach it, so a colony that stays put can scrape its reachable
-scum bare. On that seed the fixed rate holds the colony past tick 16,000,
-then it starves by 20,000. The answer planned for that is colonists going
-out to look for food, not scum that favours the colony.
+Regrowth lands anywhere in the generated chunks, not where the colony can
+reach it, so a colony that stays put scrapes its reachable scum bare. On
+that seed the fixed rate held the colony past tick 16,000, then it starved
+by 20,000. The answer is colonists going out to look for it, not scum that
+favours the colony. Hungry colonists **forage**, and the colony
+**prospects** when it is short: both dig into rock nobody has seen, where
+the uneaten scum is (see [foraging.md](./foraging.md)).
 
 A patch can be scraped while it is **exposed**: on walkable floor, or on rock
 with walkable floor beside it — floor the colony has **discovered**. The rim
@@ -233,6 +235,9 @@ a colonist's own account:
 3. **scraping** (`JobScrape`): walk to the nearest unclaimed exposed patch with
    scum on it, scrape a unit per `scrape-ticks` until the patch is bare or the
    load (`scum-max`) is full, and haul it to a scumhouse with room.
+4. **prospecting**, when no exposed patch is left unclaimed: digging into
+   rock nobody has seen, to expose more (`tryProspect`, see
+   [foraging.md](./foraging.md)).
 
 Scum and biomatter gathered this way is **the gatherer's own**.
 `deliverBiomatter` puts it in the depot in its name, then `sellBiomatter`
@@ -242,10 +247,11 @@ colony then owns it, and a cook working the colony's stock is paid
 meal).
 
 A hungry colonist with nothing to eat, no meal it can buy, and no safety net
-does food work first whenever it picks a new job, whatever the reserve says
-(`hungryWithoutFood`). That food work is for itself: it cooks only its own
-scum, and it scrapes **to keep** (`scrapeKeep`) rather than to sell. So a
-colonist with no money can still feed itself.
+forages (`hungryWithoutFood`, see [foraging.md](./foraging.md)). That food work
+is for itself: it cooks its own scum, and it scrapes **to keep**
+(`scrapeKeep`) rather than to sell, carrying a part load from patch to patch
+until it has a meal's worth. So a colonist with no money can still feed
+itself.
 
 ### The colony's trade
 

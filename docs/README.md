@@ -53,6 +53,7 @@ way it is without re-deriving it from the source each time.
 | [money.md](./money.md) | Dollars: wallets, the treasury, the one `transfer` funnel, the fixed money supply and how it is audited, and the market tab. Economy phase E0. |
 | [crash-pods.md](./crash-pods.md) | How every colonist arrives: the pod prefab (private bunk, toilet, locker), its manifest, where pods land and why, and the one `arrive` function. Economy phase E2. |
 | [food.md](./food.md) | Meals as items: eating your own, then buying one, then the safety net's gruel (off by default); `infinite-food`; what changes with it off. Economy phase E2. |
+| [foraging.md](./foraging.md) | What a hungry colonist with no food does: one plan seen through (the drop-work/re-take-work loop it replaced), scraping to keep, and prospecting into rock nobody has seen for the scum there. The colony prospects too, once it is short. |
 | [scumhouse.md](./scumhouse.md) | Food production: the scumhouse, data-driven recipes, cave scum (seeding, accretion, exposure), and food work. Economy phase E3. |
 | [foundry.md](./foundry.md) | The first non-food supply chain: iron ore to steel ingots at a forge, steel to assault rifles at a gun bench, the foundry room, the colony's armory bid, and the planner fixes a three-link chain needed. |
 | [property.md](./property.md) | Who owns what: fixture records with owners and access (communal/private), per-chest ledgers of whose goods are inside, and how private fixtures route. Economy phase E1. |

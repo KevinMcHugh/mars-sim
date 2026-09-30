@@ -1,5 +1,7 @@
 package sim
 
+import "fmt"
+
 // ---- Food ---------------------------------------------------------------------
 //
 // Food is an item now. A hungry colonist eats, in order: a meal it is carrying,
@@ -256,34 +258,318 @@ func (w *World) tryRation(e *Entity) bool {
 	return true
 }
 
-// hungryWithoutFood is a turn for a colonist with nothing to eat and no
-// safety net. Waiting by an empty locker helps nobody, so whenever it picks
-// new work it picks food work first — cooking, then scraping scum, whatever
-// the colony's stock says — and otherwise keeps working. A job already under
-// way is left to finish rather than dropped mid-tile, until hunger is
-// pressing: then anything but feeding itself is dropped (feedingItself). Left
-// to finish, a long dig or haul let colonists starve with their own scum
-// sitting in a free scumhouse; waiting for critical hunger left too little
-// time to scrape, haul, and cook. Cooking the colony's meals is food work
-// too (makingMeals) and is never dropped for hunger. It checks for food again
-// every turn, since runFoodFocus runs first.
+// hungryWithoutFood is a turn for a colonist with nothing to eat, no meal it
+// can buy, and no safety net: it forages (planForage). It checks for food
+// again every turn first, since runFoodFocus runs before this.
+//
+// Work it was doing when hunger turned pressing is dropped, once, unless it
+// makes food: cooking or scraping for itself (feedingItself), or cooking
+// meals for anyone (makingMeals), which makes the meal it will buy. Whatever
+// it then picks as a forager it sees through (e.foraging), re-planning only
+// when that job ends.
+//
+// This used to drop any other work and then, finding no food work, fall back
+// on assignWorkJob, which handed it the same dig or build straight back; the
+// next turn dropped it again. The job never got past its first tick: a
+// colonist stood "walking to" the same rock for 200 ticks until it starved,
+// and a whole colony died that way on seed 1790737522337000000 with rock
+// full of scum all round it. Work that feeds nobody is now never taken while
+// hungry. See docs/food.md.
 func (w *World) hungryWithoutFood(e *Entity) {
-	if workJob(e.Job) && e.needPhase[NeedFood] >= NeedPressing && !w.feedingItself(e) && !w.makingMeals(e) {
-		w.clearJob(e)
-	}
-	if !workJob(e.Job) {
-		w.clearJob(e)
-		if !w.tryAssignFoodWork(e, true) && !w.tryEmergencyScumhouse(e) {
-			w.assignWorkJob(e)
-		}
-	}
-	if e.Job != JobNone {
+	if e.Job != JobNone && (e.foraging || w.feedingItself(e) || w.makingMeals(e)) {
 		e.resting = false
 		w.runJob(e)
 		return
 	}
+	w.clearJob(e)
+	if w.tick >= e.forageRetry {
+		if w.planForage(e) {
+			e.foraging, e.resting = true, false
+			w.noteForaging(e)
+			w.runJob(e)
+			return
+		}
+		// Nothing to do yet (a meal on the stove, or nothing to dig): look
+		// again shortly rather than searching every tick.
+		e.forageRetry = w.tick + forageRetryTicks
+	}
 	e.State = Idle
-	w.wanderStep(e)
+	if w.idleWouldBlock(e.Pos) {
+		w.stepAside(e)
+	} else {
+		w.wanderStep(e)
+	}
+}
+
+// forageRetryTicks is how long a hungry colonist that found nothing to forage
+// waits before looking again. Eating is still checked every turn.
+const forageRetryTicks = 8
+
+// planForage gives a hungry colonist with nothing to eat a job that gets it
+// food, and reports whether it did. In order:
+//
+//  1. no scumhouse it can reach: build one (tryEmergencyScumhouse);
+//  2. cook what a scumhouse already holds: its own scum, or the colony's
+//     while the colony is short (a meal it can buy, or be rationed);
+//  3. enough meals on the colony's stoves for everyone hungry: wait for
+//     them (false), rather than walking off to dig (foodCooking);
+//  4. carrying a meal's worth of its own scum, counting any it has in the
+//     scumhouse: take it in to cook;
+//  5. scrape exposed scum, keeping it, unloading first if its pack has no
+//     room for scum;
+//  6. prospect: dig into rock nobody has seen, to expose more scum;
+//  7. bank what little scum it carries, so a later find makes a meal.
+//
+// Scraping and prospecting carry a part load from patch to patch rather than
+// walking each unit home (finishScraping), so a forager is out at the rock
+// face until it has a meal's worth.
+func (w *World) planForage(e *Entity) bool {
+	if w.tryEmergencyScumhouse(e) {
+		return true
+	}
+	if w.tryAssignCraftFor(e, []Owner{ColonistOwner(e.ID)}) ||
+		(w.foodWanted() && w.tryAssignCraft(e)) {
+		return true
+	}
+	if w.foodCooking(e) {
+		return false
+	}
+	carried := e.ownCarried(CaveScum)
+	if carried > 0 && carried+w.ownScumBanked(e) >= w.scumPerMeal() && w.tryAssignScrape(e, true) {
+		return true // tryAssignScrape hauls what it is carrying
+	}
+	// Room in the pack for what it finds. A miner's pack is often seven
+	// stacks of rubble: it could still dig plain rock, and dug past patch
+	// after patch it had no room to scrape.
+	if !e.Inventory.CanAdd(CaveScum, 1) && w.tryForageUnload(e) {
+		return true
+	}
+	if w.tryForageScrape(e) {
+		return true
+	}
+	if _, ok := w.scrapeDestination(e, true); ok && w.tryProspect(e, true) {
+		return true // only where there is a scumhouse to cook what it finds
+	}
+	return carried > 0 && w.tryAssignScrape(e, true)
+}
+
+// noteForaging logs, once a hunger, that e has gone looking for food.
+func (w *World) noteForaging(e *Entity) {
+	if e.forageNoted {
+		return
+	}
+	e.forageNoted = true
+	w.logEvent(LogNote, fmt.Sprintf("%s has nothing to eat and goes looking for scum.", e.displayName()))
+}
+
+// foodCooking reports whether the colony's cooks, at scumhouses e can
+// reach, will make enough meals from the stock at their stoves for every
+// hungry colonist without one: food is on its way, for sale, and e should
+// wait for it rather than dig. Only the colony's meals count. A colonist
+// cooking its own scum is cooking its own supper, and counting it once kept
+// a forager standing beside 40 units of scum it had just dug out while a
+// neighbour ate. And a cook's meals feed as many as they feed: in a
+// 100-colonist colony, 30 hungry colonists waited on stoves making a meal
+// at a time, beside scum they could have scraped, and died there.
+//
+// It only sums, so the order it visits the claims in cannot matter.
+func (w *World) foodCooking(e *Entity) bool {
+	room := w.roomOf(e.Pos)
+	coming := 0
+	for p, id := range w.workshopClaims {
+		cook := w.entities[id]
+		if cook == nil || cook.Job != JobCraft || cook.craftFor != Community || w.TerrainAt(p) != Scumhouse ||
+			!recipeMakesMeals(recipes[cook.recipe]) || !w.taskReachable(p, room) {
+			continue
+		}
+		coming += colonyMealsIn(w.storageContainers[p])
+	}
+	return coming > 0 && coming >= w.hungryWithoutMeals()
+}
+
+// colonyMealsIn is how many meals the colony's stock in scumhouse depot c
+// would make, recipe by recipe.
+func colonyMealsIn(c *StorageContainer) int {
+	if c == nil {
+		return 0
+	}
+	n := 0
+	for _, r := range recipes {
+		if r.Facility != Scumhouse || !recipeMakesMeals(r) {
+			continue
+		}
+		times := 1 << 30
+		for _, in := range r.Inputs {
+			times = min(times, c.held(Community, in.Kind)/max(1, in.Count))
+		}
+		for _, o := range r.Outputs {
+			if o.Kind == Meal {
+				n += times * o.Count
+			}
+		}
+	}
+	return n
+}
+
+// hungryWithoutMeals is how many colonists are hungry enough to eat and not
+// eating: everyone a meal coming off the stove might go to. Memoized for the
+// tick, since every waiting forager asks.
+func (w *World) hungryWithoutMeals() int {
+	if w.hungryTick == w.tick {
+		return w.hungryCache
+	}
+	n := 0
+	for _, e := range w.entities {
+		if e.Kind == Colonist && e.focus == FocusEat && e.Job != JobEat {
+			n++
+		}
+	}
+	w.hungryTick, w.hungryCache = w.tick, n
+	return n
+}
+
+// recipeMakesMeals reports whether r has a meal among its outputs.
+func recipeMakesMeals(r Recipe) bool {
+	for _, o := range r.Outputs {
+		if o.Kind == Meal && o.Count > 0 {
+			return true
+		}
+	}
+	return false
+}
+
+// scumPerMeal is how much cave scum one meal takes.
+func (w *World) scumPerMeal() int {
+	if r, ok := scumMealRecipe(); ok {
+		return r.Inputs[0].Count
+	}
+	return 1
+}
+
+// ownScumBanked is how much of its own scum e has in the nearest scumhouse
+// it may cook at: what a forager's carried scum adds to.
+func (w *World) ownScumBanked(e *Entity) int {
+	p, ok := w.nearestScumhouse(e, func(c *StorageContainer) bool { return w.mayCookAt(e, c.Pos) })
+	if !ok {
+		return 0
+	}
+	return w.storageContainers[p].held(ColonistOwner(e.ID), CaveScum)
+}
+
+// tryForageScrape sends a forager to the nearest exposed patch to scrape and
+// keep, whatever it is already carrying: tryAssignScrape would take that
+// straight home instead. It still needs a scumhouse to cook at, since scum
+// it cannot cook feeds nobody.
+func (w *World) tryForageScrape(e *Entity) bool {
+	if _, ok := w.scrapeDestination(e, true); !ok || !e.Inventory.CanAdd(CaveScum, 1) {
+		return false
+	}
+	patch, ok := w.nearestScum(e)
+	if !ok {
+		return false
+	}
+	w.scumClaims[patch] = e.ID
+	e.Job, e.Target, e.scrape, e.Progress = JobScrape, patch, scrapeGather, 0
+	e.scrapeKeep = true
+	return true
+}
+
+// tryProspect sends a forager to dig into rock the colony has not seen, to
+// expose the scum in it, and reports whether it did. Scum covers a fixed
+// share of the rock, but only rock beside discovered floor can be scraped,
+// so once the colony has scraped its walls bare the rest of it is in rock
+// nobody has dug to. Digging one tile reveals its eight neighbours (see
+// docs/fog-of-war.md), so the best dig is the one that reveals the most
+// unseen tiles per tick spent walking to it and digging it:
+//
+//	fresh / (dig ticks + distance)
+//
+// That keeps a prospector tunnelling into new rock (three fresh tiles a dig)
+// rather than squaring off a room it has already seen round. A forager
+// (unload) whose pack is too full for any dig's yield unloads first; a
+// colonist prospecting as ordinary work leaves that to assignWorkJob.
+func (w *World) tryProspect(e *Entity, unload bool) bool {
+	room := w.roomOf(e.Pos)
+	if room == 0 {
+		return false
+	}
+	dig := w.workTicks(e, SkillMining, w.cfg.MineTicks)
+	var best Point
+	bestFresh, bestCost := 0, 0
+	found, packFull := false, false
+	for p := range w.board.frontier {
+		cost := dig + e.Pos.Chebyshev(p)
+		// Even all eight neighbours unseen couldn't beat the best so far:
+		// skip it before the neighbour walks. Only strictly worse rock is
+		// skipped, so the choice never depends on the order p comes in.
+		if found && len(neighbors8)*bestCost < bestFresh*cost {
+			continue
+		}
+		if w.board.isClaimed(p) || !w.frontierReachable(p, room) {
+			continue
+		}
+		fresh := w.unexploredAround(p)
+		if fresh == 0 {
+			continue
+		}
+		if !e.Inventory.CanAddAll(miningYield(w.TileAt(p))...) {
+			packFull = true
+			continue
+		}
+		// fresh/cost > bestFresh/bestCost, without dividing.
+		better := !found || fresh*bestCost > bestFresh*cost ||
+			(fresh*bestCost == bestFresh*cost && lessPoint(p, best))
+		if better {
+			best, bestFresh, bestCost, found = p, fresh, cost, true
+		}
+	}
+	if !found {
+		return unload && packFull && w.tryForageUnload(e)
+	}
+	w.board.claimMine(best, e.ID)
+	w.assignMineTarget(e, best)
+	return true
+}
+
+// prospectingForFood reports whether the colony has no exposed scum left for
+// anyone to scrape: every patch beside open floor is bare or claimed, so more
+// has to be dug out. It only asks whether one patch exists, so the order it
+// visits them in cannot matter.
+func (w *World) prospectingForFood() bool {
+	for p := range w.exposedScum {
+		if w.scumAt(p) > 0 && w.scumClaims[p] == 0 {
+			return false
+		}
+	}
+	return true
+}
+
+// tryForageUnload empties a forager's pack of rock and ore in one trip, to
+// the nearest chest that takes it all. tryAssignStore takes what sells to the
+// silo first and the rest on a second trip, which is a fair trade for a miner
+// and cost a starving forager the walk that would have fed it.
+func (w *World) tryForageUnload(e *Entity) bool {
+	stacks := e.Inventory.storableStacks()
+	if len(stacks) == 0 {
+		return false
+	}
+	if p, ok := w.chooseStorage(e, stacks); ok {
+		e.Job, e.Target, e.Progress = JobStore, p, 0
+		return true
+	}
+	return w.tryAssignStore(e)
+}
+
+// unexploredAround counts p's neighbours the colony has not seen: what
+// digging p would reveal.
+func (w *World) unexploredAround(p Point) int {
+	n := 0
+	for _, d := range neighbors8 {
+		if q := p.Add(d.X, d.Y); w.InBounds(q) && !w.discovered(q) {
+			n++
+		}
+	}
+	return n
 }
 
 // makingMeals reports whether e is working a recipe that makes meals, for
@@ -295,15 +581,7 @@ func (w *World) hungryWithoutFood(e *Entity) {
 // starved at the stove beside its scum. A colony cook stops batching once it
 // is hungry (cooksOn), so this keeps it for one recipe, not a shift.
 func (w *World) makingMeals(e *Entity) bool {
-	if e.Job != JobCraft {
-		return false
-	}
-	for _, o := range recipes[e.recipe].Outputs {
-		if o.Kind == Meal && o.Count > 0 {
-			return true
-		}
-	}
-	return false
+	return e.Job == JobCraft && recipeMakesMeals(recipes[e.recipe])
 }
 
 // feedingItself reports whether e's job is making food it will own: cooking

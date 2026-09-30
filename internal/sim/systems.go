@@ -640,6 +640,7 @@ func (w *World) clearJob(e *Entity) {
 	}
 	e.Job, e.Progress, e.partner, e.fieldDetour = JobNone, 0, 0, 0
 	e.useFacility, e.useFacilitySet, e.carrying = Point{}, false, false
+	e.foraging = false
 	e.clearPath()
 	if hadJob {
 		w.markMindDirty(e)
@@ -887,6 +888,15 @@ func (w *World) assignWorkJob(e *Entity) {
 		return
 	}
 	if w.foodWanted() && w.tryAssignScrape(e, false) {
+		return
+	}
+	// Short of food with no scum to scrape: dig where it will expose some,
+	// before anyone is hungry. Scum covers a fixed share of the rock but is
+	// only scrapeable beside open floor, so once the colony's walls are bare
+	// the rest is in rock nobody has dug to; left to hungry foragers alone,
+	// a colony of twenty ran out all at once and lost most of itself (see
+	// tryProspect and docs/food.md).
+	if w.foodWanted() && w.prospectingForFood() && e.Inventory.CanAdd(RawRock, 1) && w.tryProspect(e, false) {
 		return
 	}
 	// Surplus crash-pod meals go to market for someone hungrier to buy.

@@ -552,6 +552,33 @@ func (w *World) scrapeLoad() int { return max(1, w.cfg.ScumMax) }
 // the scumhouse it sells into the colony's bid, unless keep, when it holds on
 // to it to cook for itself.
 func (w *World) tryAssignScrape(e *Entity, keep bool) bool {
+	house, ok := w.scrapeDestination(e, keep)
+	if !ok {
+		return false
+	}
+	if e.Inventory.Has(CaveScum) {
+		e.Job, e.Target, e.scrape, e.Progress = JobScrape, house, scrapeHaul, 0
+		e.scrapeKeep = keep
+		return true
+	}
+	if !e.Inventory.CanAdd(CaveScum, w.scrapeLoad()) {
+		return false
+	}
+	patch, ok := w.nearestScum(e)
+	if !ok {
+		return false
+	}
+	w.scumClaims[patch] = e.ID
+	e.Job, e.Target, e.scrape, e.Progress = JobScrape, patch, scrapeGather, 0
+	e.scrapeKeep = keep
+	return true
+}
+
+// scrapeDestination is the scumhouse a load of scum e scrapes would go to:
+// the nearest reachable one with room for a load that it may cook at when
+// keep, or that has a buyer's bid when not. A chef keeping scum takes it to
+// its own kitchen.
+func (w *World) scrapeDestination(e *Entity, keep bool) (Point, bool) {
 	load := w.scrapeLoad()
 	me := ColonistOwner(e.ID)
 	house, ok := w.nearestScumhouse(e, func(c *StorageContainer) bool {
@@ -572,25 +599,7 @@ func (w *World) tryAssignScrape(e *Entity, keep bool) bool {
 			house, ok = own, true // a chef's scum goes to its own kitchen
 		}
 	}
-	if !ok {
-		return false
-	}
-	if e.Inventory.Has(CaveScum) {
-		e.Job, e.Target, e.scrape, e.Progress = JobScrape, house, scrapeHaul, 0
-		e.scrapeKeep = keep
-		return true
-	}
-	if !e.Inventory.CanAdd(CaveScum, load) {
-		return false
-	}
-	patch, ok := w.nearestScum(e)
-	if !ok {
-		return false
-	}
-	w.scumClaims[patch] = e.ID
-	e.Job, e.Target, e.scrape, e.Progress = JobScrape, patch, scrapeGather, 0
-	e.scrapeKeep = keep
-	return true
+	return house, ok
 }
 
 // nearestScum finds the nearest exposed, unclaimed patch with scum on it that
@@ -675,6 +684,12 @@ func (w *World) jobScrape(e *Entity) {
 func (w *World) finishScraping(e *Entity) {
 	delete(w.scumClaims, e.Target)
 	if !e.Inventory.Has(CaveScum) {
+		w.clearJob(e)
+		return
+	}
+	// A forager short of a meal's worth keeps what it has and looks for more
+	// (planForage) rather than walking one unit home from the rock face.
+	if e.foraging && e.ownCarried(CaveScum)+w.ownScumBanked(e) < w.scumPerMeal() {
 		w.clearJob(e)
 		return
 	}
