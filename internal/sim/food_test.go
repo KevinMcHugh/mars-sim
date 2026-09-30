@@ -191,11 +191,8 @@ func TestPressingHungerDropsWorkToCook(t *testing.T) {
 	c.credit(me, CaveScum, 2)
 	w.assignMineTarget(e, Point{20, 12})
 
-	e.needPhase[NeedFood] = NeedGrowing
-	w.hungryWithoutFood(e)
-	if e.Job != JobMine {
-		t.Fatalf("growing hunger dropped the dig for job %v; it should finish it", e.Job)
-	}
+	// hungryWithoutFood only ever runs at pressing hunger: the eat focus
+	// isn't eligible before that.
 	e.needPhase[NeedFood] = NeedPressing
 	w.hungryWithoutFood(e)
 	if e.Job != JobCraft || e.craftFor != me {

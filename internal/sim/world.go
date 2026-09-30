@@ -671,6 +671,9 @@ type World struct {
 	// communityMealsTick/communityMealsCache memoize communityMeals for one
 	// tick; see foodWanted.
 	communityMealsTick int
+	// hungryTick/hungryCache memoize hungryWithoutMeals for one tick; see
+	// foodCooking.
+	hungryTick, hungryCache int
 	// colonyMealAsk is the price the colony's meal asks were last posted at,
 	// so they're reposted only when colonyMealPrice moves (see scumhouse.go).
 	colonyMealAsk       Money
@@ -971,6 +974,7 @@ func newWorld(cfg Config, src *rand.PCG) *World {
 	w.trackFacility(GunBench)
 	w.communityMealsTick = -1
 	w.storedMealsTick = -1
+	w.hungryTick = -1
 	w.scum = make(map[Point]scumPatch)
 	w.exposedScum = make(map[Point]struct{})
 	w.scumClaims = make(map[Point]EntityID)

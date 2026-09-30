@@ -201,6 +201,9 @@ func needPressure(level int, spec NeedSpec) int {
 func (w *World) resetNeed(e *Entity, i NeedKind) {
 	e.Needs[i] = 0
 	e.needSince[i] = w.tick
+	if i == NeedFood {
+		e.forageNoted, e.forageRetry = false, 0 // fed: the next hunger is a new search
+	}
 	w.syncNeedPhase(e, i)
 	if damage := e.starvationDamage[i]; damage > 0 {
 		e.HP = min(e.MaxHP, e.HP+damage)
@@ -219,6 +222,13 @@ func (w *World) applyStarvation(e *Entity) {
 			// guaranteed food: jobEat ends the job if the meal turns out to be
 			// out of reach, and the grace with it.
 			if NeedKind(i) == NeedFood && e.Job == JobEat {
+				continue
+			}
+			// So is one cooking its own supper out of scum already in the
+			// scumhouse: a forager who dug it out, scraped it and carried it
+			// home died at the stove, a recipe short of the meal.
+			if NeedKind(i) == NeedFood && e.Job == JobCraft && e.craftFor == ColonistOwner(e.ID) &&
+				recipeMakesMeals(recipes[e.recipe]) {
 				continue
 			}
 			if e.Job == JobUse && e.Need == NeedKind(i) {

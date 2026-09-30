@@ -412,6 +412,16 @@ type Entity struct {
 	scrapeFor  Owner
 	scrapeQty  int
 	scrapeKeep bool // scraping to cook for itself, not to sell
+
+	// foraging marks a job a hungry colonist with nothing to eat chose to
+	// find food (planForage): it is kept until it ends, never dropped and
+	// re-planned mid-way. clearJob clears it. forageNoted is whether this
+	// hunger's "went foraging" line has been logged; eating resets it, and
+	// forageRetry is the tick a forager that found nothing to do looks again.
+	foraging    bool
+	forageNoted bool
+	forageRetry int
+
 	plan       planID
 	carry      carryStage
 	carryItem  ItemKind
