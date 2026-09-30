@@ -54,6 +54,7 @@ install({
   newGame: (s) => { void newGame(s); },
   centerOn: (x, y) => { cam.cx = x + 0.5; cam.cy = y + 0.5; viewChanged(); },
   selected: () => updateMark(),
+  highlight: (tiles) => map.setHighlight(tiles),
 });
 // Colonists' names for the hover readout; frames carry only ids. Held for
 // the page's life, across new games.
@@ -118,6 +119,7 @@ async function newGame(settings: Settings): Promise<void> {
   ui.hello = null;
   ui.selected = null;
   colonyLog.clear();
+  map.setHighlight(null);
   map.setMark(null);
   centered = false;
   lastInterest = '';

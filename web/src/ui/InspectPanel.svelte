@@ -8,6 +8,9 @@
   import Bar from './Bar.svelte';
   import type { EntityInfo, TileInfo } from './inspect';
 
+  // The tabs that open the inspector, for its way back.
+  const backLabels: Record<string, string> = { roster: 'Roster', jobs: 'Jobs', storage: 'Storage', market: 'Market' };
+
   const topic = $derived(ui.selected ? selectionTopic(ui.selected) : null);
   $effect(() => {
     if (topic) return subscribe(topic);
@@ -22,8 +25,8 @@
   }
 </script>
 
-{#if ui.inspectFrom === 'roster'}
-  <button type="button" class="link back" onclick={() => setPanel('roster')}>← Roster</button>
+{#if ui.inspectFrom && backLabels[ui.inspectFrom]}
+  <button type="button" class="link back" onclick={() => setPanel(ui.inspectFrom)}>← {backLabels[ui.inspectFrom]}</button>
 {/if}
 {#if !ui.selected}
   <p class="muted">Click a colonist, a creature or a tile on the map, or pick one from the Roster.</p>

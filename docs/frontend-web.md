@@ -12,7 +12,7 @@ readout. Around it is a Svelte chrome:
 - **A top bar:** the clock, a Pause / Normal / Fast / Faster / Max speed selector, and
   the TUI header's counts, as emoji (👷 👽 🐈 🐀, then each fixture's glyph).
 - **A side panel,** with the Inspect tab (click the map), the Roster, the
-  Log, the Lore tab and a new-game form.
+  Log, Jobs, Storage, Market, the Lore tab and a new-game form.
 - **A log ticker** over the map's bottom-left corner: the last few colony-log
   lines, fading after a few seconds.
 
@@ -31,8 +31,9 @@ The rest of the TUI's tabs are planned in
   actions panels take (`subscribe`, `setSpeed`, `newGame`).
 - [`web/src/ui/`](../web/src/ui/App.svelte) — the Svelte chrome: `App`,
   `TopBar`, `SpeedControl`, `SidePanel`, `Bar` (a gauge), and one component
-  per tab (`InspectPanel`, `RosterPanel`, `LogPanel`, `LorePanel`,
-  `NewGamePanel`), and `LogTicker`. `logkinds.ts` colors the log's types. `inspect.ts` types the
+  per tab (`InspectPanel`, `RosterPanel`, `LogPanel`, `JobsPanel`,
+  `StoragePanel`, `MarketPanel` with `AccountDetail`, `LorePanel`,
+  `NewGamePanel`), and `LogTicker`. `format.ts` formats money. `logkinds.ts` colors the log's types. `inspect.ts` types the
   inspector's payloads.
 - [`web/src/speed.ts`](../web/src/speed.ts) — the speed selector's steps.
 - [`web/src/settings.ts`](../web/src/settings.ts) — new-game settings from the
@@ -241,6 +242,30 @@ closed.
   seconds after they arrive, fading out; a click opens the Log tab, and it
   hides while that tab is open. Its fade timer stops once the newest line has
   faded, so a quiet colony runs no timer.
+
+**The list tabs** are the TUI's details tabs, each from its own topic:
+
+- **Jobs** lists the queued projects with a progress bar. Opening one lists
+  its tasks and assignees and **lays its tiles over the map**: yellow queued,
+  orange being built, green done (`MapRenderer.setHighlight`, the filth
+  tint's shader with its own buffers, so it works at every zoom). The
+  highlight goes when the project closes, finishes, or the tab unmounts.
+  **Find** centers the map on the tiles still to build.
+- **Storage** lists every container with a fill bar and what it holds most
+  of. A row opens its tile in the inspector, which already shows contents and
+  ledger, rather than a second copy of that view.
+- **Market** shows the money supply, the accounts (an account opens in place,
+  from its own `account:<key>` topic, so only the open one is built), and the
+  books, prices, plans, work orders and recent trades. A depot or a planner is
+  a link to the inspector.
+
+A link from any of these into the inspector remembers its tab
+(`ui.inspectFrom`), so the inspector offers **← Jobs**, **← Storage** or
+**← Market**. Going back keeps the selection, so the row stays highlighted.
+
+**The top bar stops short of the panel column** (`--panel-reserve` is the
+panel's width): with eight tabs the tab strip wraps to two rows there, and it
+used to sit on the end of the top bar's counts.
 
 **The speed selector** is Pause plus four running speeds (`speed.ts`): Normal
 is the game's default 8 ticks a second, Fast is 32, Faster is 128, and Max is

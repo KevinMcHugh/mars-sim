@@ -8,7 +8,7 @@
   /* The side panel's width, and how much of the top edge its tab strip
      keeps clear of the top bar. */
   --panel-width: min(380px, calc(100vw - 20px));
-  --panel-reserve: 190px;
+  --panel-reserve: var(--panel-width);
   color-scheme: dark;
 }
 

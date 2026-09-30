@@ -51,11 +51,11 @@ export function inspect(s: Selection, from: string | null = null): void {
 
 /**
  * Open a side-panel tab, or close the panel (null). Leaving the inspector
- * and the roster drops the selection, so the map's marker goes with it; the
- * roster keeps it, to show which row the inspector had.
+ * drops the selection, so the map's marker goes with it, except for the tab
+ * the selection came from (and the roster), which highlight its row.
  */
 export function setPanel(id: string | null): void {
-  if (id !== 'inspect' && id !== 'roster' && ui.selected) {
+  if (id !== 'inspect' && id !== 'roster' && id !== ui.inspectFrom && ui.selected) {
     ui.selected = null;
     ctl?.selected();
   }
@@ -113,6 +113,8 @@ export interface Controller {
   centerOn(x: number, y: number): void;
   /** ui.selected changed: move the map's marker. */
   selected(): void;
+  /** Tint these tiles on the map (a job's), or none. */
+  highlight(tiles: { x: number; y: number; color: Uint8Array }[] | null): void;
 }
 let ctl: Controller | null = null;
 export function install(c: Controller): void { ctl = c; }
@@ -137,6 +139,7 @@ export function subscribe(topic: string): () => void {
 
 export function newGame(settings: Settings): void { ctl?.newGame(settings); }
 export function centerOn(x: number, y: number): void { ctl?.centerOn(x, y); }
+export function highlight(tiles: { x: number; y: number; color: Uint8Array }[] | null): void { ctl?.highlight(tiles); }
 
 export function togglePause(): void {
   ctl?.command({ type: 'pause' });

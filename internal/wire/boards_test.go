@@ -1,0 +1,113 @@
+package wire
+
+import (
+	"fmt"
+	"testing"
+	"time"
+
+	"github.com/kevinmchugh/mars-sim/internal/sim"
+)
+
+// colony runs a real game flat out until it is past tick n.
+func colony(t *testing.T, n int) *sim.Snapshot {
+	t.Helper()
+	cfg := sim.DefaultConfig()
+	cfg.Seed = 7
+	cfg.Width, cfg.Height = 200, 200
+	cfg.TicksPerSecond = 1_000_000
+	eng := sim.NewEngine(cfg)
+	var snap *sim.Snapshot
+	for deadline := time.Now().Add(time.Minute); snap == nil || snap.Tick < n; {
+		if s, _ := eng.Advance(50 * time.Millisecond); s != nil {
+			snap = s
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("stuck before tick %d", n)
+		}
+	}
+	return snap
+}
+
+// The list tabs carry what the TUI's show, from a colony a few thousand ticks
+// in: projects with their tiles, containers, and a working market.
+func TestBoardTopics(t *testing.T) {
+	snap := colony(t, 3000)
+
+	var jobs JobsTopic
+	due(t, snap, "jobs", &jobs)
+	if len(jobs.Projects) != len(snap.Projects) {
+		t.Fatalf("%d projects, snapshot has %d", len(jobs.Projects), len(snap.Projects))
+	}
+	for i, p := range jobs.Projects {
+		src := snap.Projects[i]
+		if p.Name != src.Name || len(p.Tasks) != len(src.Tasks) || p.Done != src.TasksDone() {
+			t.Errorf("project %d = %+v", i, p)
+		}
+		for _, tk := range p.Tasks {
+			if tk.Done && tk.Builder != nil {
+				t.Errorf("a done task has a builder: %+v", tk)
+			}
+		}
+	}
+
+	var storage []StorageRow
+	due(t, snap, "storage", &storage)
+	if len(storage) != len(snap.Storages) || len(storage) == 0 {
+		t.Fatalf("%d containers, snapshot has %d", len(storage), len(snap.Storages))
+	}
+	for _, r := range storage {
+		if r.Label == "" || r.Slots == 0 || r.Used > r.Slots || (r.Used > 0) != (r.Top != "") {
+			t.Errorf("container = %+v", r)
+		}
+	}
+
+	var m MarketTopic
+	due(t, snap, "market", &m)
+	if m.Accounts[0].Key != "colony" || len(m.Accounts) != snap.Stats.Colonists+1 {
+		t.Fatalf("accounts = %+v", m.Accounts)
+	}
+	for i := 2; i < len(m.Accounts); i++ {
+		if m.Accounts[i].Balance > m.Accounts[i-1].Balance {
+			t.Errorf("accounts not richest first: %+v", m.Accounts)
+		}
+	}
+	if m.Supply.Issued != int64(snap.Economy.Issued) || len(m.Prices) == 0 {
+		t.Errorf("supply %+v, %d prices", m.Supply, len(m.Prices))
+	}
+	if len(snap.Economy.Trades) > 0 && m.Trades[0].Tick != snap.Economy.Trades[len(snap.Economy.Trades)-1].Tick {
+		t.Errorf("trades not newest first: %+v", m.Trades[0])
+	}
+
+	// Every account's page resolves, and a colonist's balance matches.
+	for _, a := range m.Accounts {
+		var acct AccountTopic
+		due(t, snap, "account:"+a.Key, &acct)
+		if !acct.Found || acct.Balance != a.Balance || acct.Label != a.Label {
+			t.Errorf("account %s = %+v, listed as %+v", a.Key, acct, a)
+		}
+	}
+	var gone AccountTopic
+	due(t, snap, fmt.Sprintf("account:%d", 1<<40), &gone)
+	if gone.Found {
+		t.Error("an unknown colonist's account was found")
+	}
+	if err := NewTopics().Subscribe("account:treasury"); err == nil {
+		t.Error("a malformed account subscribed")
+	}
+}
+
+// Holdings total across containers, by owner, in item order.
+func TestAccountHoldings(t *testing.T) {
+	snap := fixture(true)
+	me := sim.ColonistOwner(1)
+	snap.Entities[0].Profile = &sim.Profile{Name: "Uma Xu"}
+	snap.Storages = []sim.StorageView{
+		{Pos: sim.Point{X: 1, Y: 1}, Ledger: []sim.LedgerLine{{Owner: me, Item: sim.Meal, Count: 2}, {Owner: sim.Community, Item: sim.Meal, Count: 5}}},
+		{Pos: sim.Point{X: 2, Y: 1}, Ledger: []sim.LedgerLine{{Owner: me, Item: sim.Meal, Count: 3}, {Owner: me, Item: sim.RawRock, Count: 1}}},
+	}
+	var a AccountTopic
+	due(t, snap, "account:1", &a)
+	if len(a.Holdings) != 2 || a.Holdings[0].Item != sim.RawRock.String() || a.Holdings[1].Count != 5 {
+		t.Errorf("holdings = %+v", a.Holdings)
+	}
+}

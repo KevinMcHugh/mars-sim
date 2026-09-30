@@ -250,6 +250,11 @@ export class MapRenderer {
   private markProg: WebGLProgram;
   private markVAO: WebGLVertexArrayObject;
   private mark: [number, number] | null = null;
+  // Highlighted tiles (a job's): tint quads like filth's, in their own buffers.
+  private hiVAO: WebGLVertexArrayObject;
+  private hiPos: WebGLBuffer;
+  private hiColor: WebGLBuffer;
+  private hiCount = 0;
   private dirty = true;
   private raf = 0;
 
@@ -303,6 +308,19 @@ export class MapRenderer {
     gl.enableVertexAttribArray(tColor);
     gl.vertexAttribPointer(tColor, 4, gl.UNSIGNED_BYTE, true, 0, 0);
     gl.vertexAttribDivisor(tColor, 1);
+    this.hiPos = gl.createBuffer()!;
+    this.hiColor = gl.createBuffer()!;
+    this.hiVAO = gl.createVertexArray()!;
+    gl.bindVertexArray(this.hiVAO);
+    corner(gl, this.tintProg, this.quad);
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.hiPos);
+    gl.enableVertexAttribArray(tPos);
+    gl.vertexAttribIPointer(tPos, 2, gl.INT, 0, 0);
+    gl.vertexAttribDivisor(tPos, 1);
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.hiColor);
+    gl.enableVertexAttribArray(tColor);
+    gl.vertexAttribPointer(tColor, 4, gl.UNSIGNED_BYTE, true, 0, 0);
+    gl.vertexAttribDivisor(tColor, 1);
     this.markVAO = gl.createVertexArray()!;
     gl.bindVertexArray(this.markVAO);
     corner(gl, this.markProg, this.quad);
@@ -323,7 +341,7 @@ export class MapRenderer {
     for (const c of this.chunks.values()) this.gl.deleteTexture(c.tex);
     this.chunks.clear();
     this.pages.clear();
-    this.entityCount = this.refuseCount = this.tintCount = 0;
+    this.entityCount = this.refuseCount = this.tintCount = this.hiCount = 0;
     this.refuse = null;
     this.scum = null;
     this.filth.clear();
@@ -488,6 +506,24 @@ export class MapRenderer {
     return [page[off], page[off + 1]];
   }
 
+  /**
+   * Tint a set of tiles (a job's), each with a premultiplied RGBA color, or
+   * none. Drawn over filth and under creatures, at every zoom.
+   */
+  setHighlight(tiles: { x: number; y: number; color: Uint8Array }[] | null): void {
+    const n = tiles?.length ?? 0;
+    const pos = new Int32Array(n * 2);
+    const color = new Uint8Array(n * 4);
+    tiles?.forEach((t, i) => { pos[2 * i] = t.x; pos[2 * i + 1] = t.y; color.set(t.color, 4 * i); });
+    const gl = this.gl;
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.hiPos);
+    gl.bufferData(gl.ARRAY_BUFFER, pos, gl.DYNAMIC_DRAW);
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.hiColor);
+    gl.bufferData(gl.ARRAY_BUFFER, color, gl.DYNAMIC_DRAW);
+    this.hiCount = n;
+    this.dirty = true;
+  }
+
   /** Mark one tile (the inspector's selection), or none. */
   setMark(at: [number, number] | null): void {
     const m = this.mark;
@@ -615,6 +651,14 @@ export class MapRenderer {
       gl.uniform1f(this.u['f.uScale'], scale);
       gl.uniform2f(this.u['f.uView'], this.canvas.width, this.canvas.height);
       gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, this.tintCount);
+    }
+    if (this.hiCount > 0) {
+      gl.useProgram(this.tintProg);
+      gl.bindVertexArray(this.hiVAO);
+      gl.uniform2f(this.u['f.uCam'], cam.cx, cam.cy);
+      gl.uniform1f(this.u['f.uScale'], scale);
+      gl.uniform2f(this.u['f.uView'], this.canvas.width, this.canvas.height);
+      gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, this.hiCount);
     }
 
     // Bodies under entities; both at least a few pixels wide when zoomed out.
