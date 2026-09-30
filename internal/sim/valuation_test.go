@@ -14,7 +14,7 @@ func producerWorld(t *testing.T, n int) (w *World, house, silo Point, cols []*En
 	w.SetTerrain(silo, Storage)
 	for y := 5; y <= 15; y++ {
 		p := Point{4, y}
-		w.scum[p] = scumPatch{amount: w.cfg.ScumMax, since: w.tick}
+		w.scum[p] = scumPatch{amount: w.cfg.ScumMax}
 		w.refreshScumExposure(p)
 	}
 	w.refreshSpatial()

@@ -7,8 +7,9 @@
 The colony's first food production. A **scumhouse** turns biomatter — cave
 scum scraped off the rock, viscera scrubbed off the floor, and every body but a
 colonist's — into meals of slurry, by a data table of **recipes**. **Cave
-scum** is a biofilm seeded across the rock at worldgen that regrows after it is
-scraped: the renewable base of the food chain. The colony runs its scumhouses
+scum** is a biofilm seeded across the rock at worldgen that then **accretes**:
+it spawns at a low fixed rate anywhere and spreads from patches already there,
+the renewable base of the food chain. The colony runs its scumhouses
 as a business: it keeps standing bids for biomatter, so scrapers and cleaners
 sell it what they bring in; it pays a cook to work it; and it **sells** the
 meals. Nothing it cooks is free for the taking. This is phase **E3** of the
@@ -113,9 +114,35 @@ per-chunk stream so it moves no ore vein; see
 [worldgen-chunks.md](./worldgen-chunks.md)). Each chunk places its share of
 distinct tiles, so abundance lands within a fraction of a percent of the
 target. Scum is laid down with the rest of a chunk, when exploration first
-reaches it, and `applyChunk` registers any patch that is already exposed. A patch holds up to `scum-max` units. It is
-**lazy**, like a need: `scumAt` is the stored amount plus a unit for every
-`scum-regrow-ticks` since it was last scraped, capped, with no per-tick work.
+reaches it, and `applyChunk` registers any patch that is already exposed. A
+patch holds up to `scum-max` units. This is only the **starting stock**: no
+tile is a permanent source. A patch scraped to its last unit is deleted, and
+the scum comes back the way it first arrived.
+
+**Accretion** (`growScum`, once a tick). Each tick it visits a sample of the
+tiles, on average one visit per tile per 16 ticks (`scumTrialDivisor`), and at
+each visited tile:
+
+- with chance `scum-spawn-ppm` (in millionths, default 20) scum appears there
+  from nothing;
+- otherwise it looks at one of the nine tiles in and around it, at random,
+  and if that tile holds scum, adds a unit with chance `scum-spread-percent`
+  (default 40).
+
+So a tile's odds grow with the scum around it: with no scum near, only the
+spawn chance applies; each neighbouring patch adds about `spread/9/16` per
+tick, and a patch already there thickens the same way. New patches start at
+one unit, appear only on `Rock` in a generated chunk (never on the colony's
+floor or under a structure), and stop once patches cover `scum-percent` of
+the generated tiles, so scraping is what makes room. Left alone, scum
+therefore creeps back toward the seeded density; a scraped bare patch beside
+others fills in within a few hundred ticks, and an isolated one may not come
+back for a long time.
+
+Draws are a hash of the seed, the tick and the draw index, not a stream: it
+moves no other RNG, and a save has no state to keep. On a huge map the visits
+are capped at 4,096 a tick and the chances scaled up to match
+(`scumMaxTrials`), so the cost of growth does not follow the map's area.
 
 A patch can be scraped while it is **exposed**: on walkable floor, or on rock
 with walkable floor beside it — floor the colony has **discovered**. The rim
@@ -323,7 +350,8 @@ that the producer planner can see.
 | --- | --- |
 | `scum-percent` | 6 |
 | `scum-max` | 3 |
-| `scum-regrow-ticks` | 400 |
+| `scum-spawn-ppm` | 20 |
+| `scum-spread-percent` | 40 |
 | `scrape-ticks` | 6 |
 | `meal-reserve` | 3 per colonist |
 | `colonists-per-scumhouse` | 10 |
@@ -335,7 +363,7 @@ that the producer planner can see.
 ## Why it is this way
 
 - **Scum is the renewable base.** Bodies and viscera only come from deaths, and
-  a colony that eats only its dead is waiting to starve. Scum regrows, and
+  a colony that eats only its dead is waiting to starve. Scum accretes, and
   digging keeps exposing fresh patches, so a colony that keeps working keeps
   eating.
 - **Tuned against a gate, not a guess.**
@@ -356,19 +384,26 @@ that the producer planner can see.
   no money and no safety net would starve beside a full scumhouse.
   `TestColonyFeedsItselfWithoutTheSafetyNet` still passes, and
   `TestAHungryScraperKeepsItsScum` pins the path.
-- **Lazy regrowth, indexed exposure.** Thousands of patches on a big map must
-  cost nothing while nobody touches them. Same trick as needs and the mining
-  frontier.
+- **Accretion, not a fixed source.** Scum used to regrow lazily on every seeded
+  tile forever, so the map's scum was a fixed set of fountains and depleting one
+  was never permanent. Now a patch is only scum, and it spreads: colonies that
+  scrape everything near home have to go and find more, and unlucky spawns can
+  seed new ground. Growth is sampled, not scheduled, because tests and worldgen
+  write the scum map directly and a sampled tile needs no index to stay in step.
+  Trials read one neighbour rather than counting eight, so a visit costs one
+  lookup, not nine.
+- **Indexed exposure.** Thousands of patches on a big map must cost nothing
+  while nobody touches them. Same trick as the mining frontier.
 - **Only discovered floor exposes scum.** When hidden caverns arrived, their
   floor counted as "walkable floor beside it", so every patch on every hidden
   cavern's rim was exposed: 5,851 of 5,864 exposed patches on a 1000×1000 map.
   Scrapers searched them, rats smelled them, and every frame published them.
 - **Published scum is cached.** `publishedScum` reuses the last published map
-  until something writes to the scum (`scumRev`) or a published patch's lazy
-  regrowth ticks up a unit (`snapScumUntil`, the earliest such tick). It was
-  rebuilt every frame, and since the engine publishes every tick, a profile of
-  a big map was three-quarters `publishedScum`. `TestPublishedScumIsNeverStale`
-  checks the cache against a fresh copy on every tick of a scraping colony.
+  until something writes to an exposed patch (`scumRev`, which growth bumps
+  too). It was rebuilt every frame, and since the engine publishes every tick, a
+  profile of a big map was three-quarters `publishedScum`.
+  `TestPublishedScumIsNeverStale` checks the cache against a fresh copy on every
+  tick of a scraping colony with growth turned way up.
 - **A scumhouse is a depot, not a chest.** Keeping ore out of it
   (`chooseStorage` checks the terrain) keeps its 48 slots for biomatter and
   meals, and keeps "where do I unload?" from sending a miner to the kitchen.

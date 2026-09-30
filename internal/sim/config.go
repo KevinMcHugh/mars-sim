@@ -99,16 +99,18 @@ type Config struct {
 
 	// Food production. Cave scum is a biofilm on cave surfaces, the renewable
 	// base of the food chain: ScumPercent of rock tiles carry a patch of up to
-	// ScumMax units, and a scraped patch regrows one unit every
-	// ScumRegrowTicks. A scumhouse turns scum and every other kind of
+	// ScumMax units to start with. After that scum accretes (growScum): it
+	// spawns anywhere at a low fixed chance and spreads from existing patches,
+	// up to that share of the map. A scumhouse turns scum and every other kind of
 	// biomatter into meals by the recipes in scumhouse.go. The colony makes
 	// food while it holds fewer than MealReserve meals per colonist. See
 	// docs/scumhouse.md.
-	ScumPercent     int `cfg:"scum-percent" sec:"Food production" doc:"percent of rock tiles carrying a patch of cave scum"`
-	ScumMax         int `cfg:"scum-max" doc:"units of scum a full patch holds"`
-	ScumRegrowTicks int `cfg:"scum-regrow-ticks" doc:"ticks for a scraped patch to regrow one unit of scum"`
-	ScrapeTicks     int `cfg:"scrape-ticks" doc:"ticks of work to scrape one unit of scum off a patch"`
-	MealReserve     int `cfg:"meal-reserve" doc:"the colony makes food while it holds fewer meals than this per colonist"`
+	ScumPercent       int `cfg:"scum-percent" sec:"Food production" doc:"percent of rock tiles carrying a patch of cave scum"`
+	ScumMax           int `cfg:"scum-max" doc:"units of scum a full patch holds"`
+	ScumSpawnPPM      int `cfg:"scum-spawn-ppm" doc:"chance in a million, per tile visited, that scum appears on rock from nothing"`
+	ScumSpreadPercent int `cfg:"scum-spread-percent" doc:"percent chance a tile visited grows a unit if a tile in or beside it holds scum"`
+	ScrapeTicks       int `cfg:"scrape-ticks" doc:"ticks of work to scrape one unit of scum off a patch"`
+	MealReserve       int `cfg:"meal-reserve" doc:"the colony makes food while it holds fewer meals than this per colonist"`
 	// Rations: a colonist at critical hunger who cannot afford a meal is
 	// given one of the colony's. See docs/food.md.
 	Rations bool `cfg:"rations" doc:"the colony gives a meal to a colonist at critical hunger who cannot afford one"`
@@ -516,7 +518,8 @@ func DefaultConfig() Config {
 		// scumhouse_test.go before changing these.
 		ScumPercent:       6,
 		ScumMax:           3,
-		ScumRegrowTicks:   400,
+		ScumSpawnPPM:      20,
+		ScumSpreadPercent: 40,
 		ScrapeTicks:       6,
 		MealReserve:       3,
 		Rations:           true,

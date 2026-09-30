@@ -184,7 +184,7 @@ func (w *World) applyChunk(cx, cy int) []Point {
 			cell := &page[off]
 			cell.Composition = c.comp[off]
 			if c.isScum(off) {
-				w.scum[Point{x, y}] = scumPatch{amount: w.cfg.ScumMax, since: w.tick}
+				w.scum[Point{x, y}] = scumPatch{amount: w.cfg.ScumMax}
 			}
 			if !c.isFloor(off) {
 				continue

@@ -32,6 +32,7 @@ func (w *World) step() {
 		}
 	}
 	w.refreshSpatial() // fold in any digging/building from this tick
+	w.growScum()       // cave scum spawns and spreads
 	w.pruneProjects()
 	if w.tick >= w.nextPlanTick {
 		w.planRooms()

@@ -47,35 +47,30 @@ var recipes = []Recipe{
 
 // ---- Cave scum ------------------------------------------------------------------
 
-// scumPatch is the biofilm on one tile. Like a need, its level is lazy: amount
-// is what it held at tick since, and it regrows a unit every ScumRegrowTicks
-// from there, up to ScumMax, without any per-tick work.
+// scumPatch is the biofilm on one tile: up to ScumMax units. Nothing on the
+// tile regrows it by itself. Patches accrete: see growScum.
 type scumPatch struct {
 	amount int
-	since  int
 }
 
 // scumAt is how much scum is on p now.
 func (w *World) scumAt(p Point) int {
-	s, ok := w.scum[p]
-	if !ok {
-		return 0
-	}
-	if w.cfg.ScumRegrowTicks > 0 {
-		s.amount += (w.tick - s.since) / w.cfg.ScumRegrowTicks
-	}
-	return min(s.amount, w.cfg.ScumMax)
+	return min(w.scum[p].amount, w.cfg.ScumMax)
 }
 
-// takeScum scrapes one unit off p, reporting whether there was any. Regrowth
-// restarts from now, so a patch scraped bare takes a full ScumRegrowTicks to
-// show a unit again.
+// takeScum scrapes one unit off p, reporting whether there was any. A patch
+// scraped bare is gone: it comes back only the way scum first arrives, by
+// spawning or by spreading from a neighbour.
 func (w *World) takeScum(p Point) bool {
 	n := w.scumAt(p)
 	if n == 0 {
 		return false
 	}
-	w.scum[p] = scumPatch{amount: n - 1, since: w.tick}
+	if n == 1 {
+		w.clearScum(p)
+		return true
+	}
+	w.scum[p] = scumPatch{amount: n - 1}
 	w.scumRev++
 	return true
 }
@@ -137,7 +132,87 @@ func (w *World) refreshScumExposure(p Point) {
 
 // Cave scum is laid down by world generation, chunk by chunk, as a pure
 // function of the seed like the ore veins (see scumPlan in
-// worldgen_chunks.go and applyChunk).
+// worldgen_chunks.go and applyChunk). That is only the starting stock: after
+// that it grows by growScum.
+
+// scumTrialDivisor is how many ticks, on average, pass between growScum's
+// visits to any one tile. scumMaxTrials bounds the visits per tick on a huge
+// map; growScum scales its chances up to make the difference good.
+const (
+	scumTrialDivisor = 16
+	scumMaxTrials    = 4096
+)
+
+// growScum lets cave scum accrete. Each tick it visits a sample of the map's
+// tiles (a hash of the seed, tick and draw, so it needs no stream of its own
+// and a save has nothing extra to keep), and at each:
+//
+//   - with a fixed low chance (ScumSpawnPPM) scum appears there from nothing;
+//   - it looks at one of the nine tiles in and around it, and if that one
+//     holds scum, adds a unit with chance ScumSpreadPercent.
+//
+// A tile with more scum around it is therefore more likely to grow, and one
+// with none only ever spawns. New patches start at one unit, appear only on
+// rock in a generated chunk, and stop when the map holds ScumPercent of its
+// tiles in patches, so the colony's scraping is what makes room for more.
+func (w *World) growScum() {
+	spawn, spread := w.cfg.ScumSpawnPPM, w.cfg.ScumSpreadPercent*10000
+	if w.cfg.ScumMax <= 0 || (spawn <= 0 && spread <= 0) {
+		return
+	}
+	area := w.Width * w.Height
+	trials, scale := area/scumTrialDivisor, 1
+	if trials > scumMaxTrials {
+		scale = (trials + scumMaxTrials - 1) / scumMaxTrials
+		trials = scumMaxTrials
+	}
+	spawn, spread = min(spawn*scale, 1_000_000), min(spread*scale, 1_000_000)
+	generated := area
+	if w.gen != nil {
+		generated = min(area, len(w.genChunks)*genChunkArea)
+	}
+	room := len(w.scum) < generated*w.cfg.ScumPercent/100
+	h := uint64(w.cfg.Seed)*0x9E3779B97F4A7C15 ^ uint64(w.tick)*0xD1B54A32D192ED03
+	for i := 0; i < trials; i++ {
+		r := h + uint64(i)*4*0x9E3779B97F4A7C15 // three draws each, so no two trials share one
+		a, b, c := splitmix64(&r), splitmix64(&r), splitmix64(&r)
+		p := Point{int(a % uint64(w.Width)), int((a >> 32) % uint64(w.Height))}
+		if w.gen != nil && !w.genDone[w.tiles.pageIndex(p.X, p.Y)] {
+			continue
+		}
+		grew := spawn > 0 && int(b%1_000_000) < spawn
+		if !grew && spread > 0 && int((b>>32)%1_000_000) < spread {
+			d := neighbors9[c%9]
+			grew = w.scum[p.Add(d.X, d.Y)].amount > 0
+		}
+		if grew {
+			w.addScum(p, room)
+		}
+	}
+}
+
+// neighbors9 is a tile and its eight neighbours.
+var neighbors9 = [9]Point{{0, 0}, {1, 0}, {-1, 0}, {0, 1}, {0, -1}, {1, 1}, {1, -1}, {-1, 1}, {-1, -1}}
+
+// addScum adds a unit to p: thickening a patch already there, or, when room
+// allows, starting one on rock.
+func (w *World) addScum(p Point, room bool) {
+	if s, ok := w.scum[p]; ok {
+		if s.amount >= w.cfg.ScumMax {
+			return
+		}
+		w.scum[p] = scumPatch{amount: s.amount + 1}
+		if _, exposed := w.exposedScum[p]; exposed {
+			w.scumRev++
+		}
+		return
+	}
+	if !room || w.TerrainAt(p) != Rock {
+		return
+	}
+	w.scum[p] = scumPatch{amount: 1}
+	w.refreshScumExposure(p)
+}
 
 // ---- Food work ------------------------------------------------------------------
 
