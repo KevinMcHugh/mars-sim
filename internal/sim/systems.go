@@ -149,7 +149,9 @@ func (w *World) colonistTurn(e *Entity) {
 }
 
 func (w *World) runCognition(e *Entity) {
-	threat, _ := w.nearestAlien(e.Pos, w.cfg.FleeRadius)
+	// Only a fleeing colonist can get a held (release-band) threat, and only
+	// flee's eligibility and threat ID read it below.
+	threat, _ := w.focusThreat(e)
 	shouldThink := w.alwaysArbitrate || e.mindDirty || w.tick >= e.nextThinkTick ||
 		!w.currentFocusEligible(e, threat)
 	selected := cachedFocusCandidate(e, threat)

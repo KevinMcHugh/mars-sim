@@ -100,8 +100,11 @@ Execution order and invariants:
 2. **Weighted focus arbitration** — visible aliens enable flee and, when armed,
    fight; pressing needs enable their matching focus; valid work and idle
    provide the ordinary alternatives. A visible alien's starting stimulus
-   weight dominates even critical hunger. See
-   [cascading_wsts_architecture.md](./cascading_wsts_architecture.md).
+   weight dominates even critical hunger. A colonist already fleeing keeps
+   flee eligible until the alien is past `FleeRadius+FleeReleaseMargin`
+   (`focusThreat`), so it doesn't flicker flee/relieve at the radius edge.
+   Fight still needs the alien inside `FleeRadius`. See
+   [cascading_wsts_architecture.md](./cascading_wsts_architecture.md#flee-hysteresis).
 3. **Need-focus execution** — a selected need focus may interrupt the current task,
    unless the task already serves that need: a live conversation (social) or a
    matching `JobUse`/`JobBuild` runs on rather than restarting. If a facility of

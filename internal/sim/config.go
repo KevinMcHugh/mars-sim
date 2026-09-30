@@ -238,6 +238,13 @@ type Config struct {
 	DemolishTicks      int `cfg:"demolish-ticks" doc:"ticks of work to break down one wall tile when escaping a sealed room"`
 	FacilityBuildTicks int `cfg:"facility-ticks" doc:"ticks of work to build a pod or toilet"`
 	FleeRadius         int `cfg:"flee-radius" doc:"colonist flees when an alien is within this many tiles"`
+	// FleeReleaseMargin is flee's hysteresis band: a colonist already fleeing
+	// keeps fleeing until no alien is within FleeRadius+FleeReleaseMargin.
+	// Without it, one step out of FleeRadius ends the flee, the next focus
+	// (often a toilet or job past the same alien) walks straight back in, and
+	// the colonist flickers flee/relieve every tick. Only flee is held; fight
+	// still needs an alien inside FleeRadius. See docs/entities-and-ai.md.
+	FleeReleaseMargin int `cfg:"flee-release-margin" doc:"a fleeing colonist keeps fleeing until no alien is within flee-radius plus this many tiles"`
 	// StompRadius is how far an idle colonist notices a rat and gives chase to
 	// crush it. Stomping is an idle whim: only colonists with nothing pressing
 	// (no threat, no urgent need, no work) hunt pests.
@@ -608,6 +615,7 @@ func DefaultConfig() Config {
 		DemolishTicks:       16,
 		FacilityBuildTicks:  12,
 		FleeRadius:          5,
+		FleeReleaseMargin:   3,
 		ColonistStompRadius: 4,
 		GoreSightRadius:     3,
 

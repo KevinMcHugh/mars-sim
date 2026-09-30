@@ -91,8 +91,8 @@ keys exist so existing files still parse, then get overwritten. See
 [`cascading_wsts_architecture.md`](./cascading_wsts_architecture.md) and
 [compositional-perception-and-events.md](./compositional-perception-and-events.md).
 
-Perception radii (`flee-radius`, `stomp-radius`, `gore-sight-radius`),
-`mood-wear-per-occasion`, and `mood-friend-affinity` stay in `Config` because
+Perception radii (`flee-radius`, `stomp-radius`, `gore-sight-radius`), flee's
+hysteresis band (`flee-release-margin`), `mood-wear-per-occasion`, and `mood-friend-affinity` stay in `Config` because
 they are simulation distances or pacing knobs. Reaction vectors, perception
 rules, and trait appraisal are the other file — see
 [compositional-perception-and-events.md](./compositional-perception-and-events.md).

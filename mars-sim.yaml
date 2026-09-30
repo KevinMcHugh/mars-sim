@@ -306,6 +306,9 @@
 ## colonist flees when an alien is within this many tiles
 # flee-radius: 5
 
+## a fleeing colonist keeps fleeing until no alien is within flee-radius plus this many tiles
+# flee-release-margin: 3
+
 ## an idle colonist chases and crushes a rat within this many tiles
 # stomp-radius: 4
 

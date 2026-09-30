@@ -683,7 +683,9 @@ Weights choose among valid candidates. They do not replace structural rules.
 Candidate generation must enforce:
 
 - `FocusFight` requires a live visible threat and a usable weapon.
-- `FocusFlee` requires a live visible threat.
+- `FocusFlee` requires a live visible threat — an alien within `FleeRadius`,
+  or, for a colonist already fleeing, within `FleeRadius+FleeReleaseMargin`
+  (the release band; see [Flee hysteresis](#flee-hysteresis)).
 - Need focuses require a pressing or critical need.
 - `FocusSocialize` may remain eligible while waiting for a partner; the
   executor must not restart a live conversation.
@@ -738,6 +740,50 @@ Do not add random tie breaking. Equal totals prefer:
 1. the current focus;
 2. the lower `FocusKind`;
 3. the lower target/source entity ID.
+
+### Flee hysteresis
+
+Commitment and the switch margin only act on *scores*. They cannot hold a focus
+whose candidate has gone ineligible, and flee's eligibility used to be one hard
+edge: an alien within `FleeRadius`. So a colonist fled one tile past the edge,
+flee became ineligible (its 500-plus stimulus notwithstanding), the next focus
+— typically relieve or work, whose toilet or job lay past the same alien —
+stepped it back inside, and flee won again. With default config, seed 3
+produced about 290 flee bounces (A→B→A within three ticks) in 15,000 ticks,
+mostly flee↔relieve at distance 5/6 from an idle alien.
+
+`FleeReleaseMargin` (default 3) is a hysteresis band on that edge.
+`focusThreat` answers "which alien do this colonist's threat foci see?": anyone
+reacts to one within `FleeRadius`; a colonist whose current focus is flee also
+keeps one out to `FleeRadius+FleeReleaseMargin` (reported as *held*). In the
+band only flee is eligible:
+
+- A colonist not already fleeing does not start fleeing in the band. The entry
+  edge stays `FleeRadius`.
+- Fight is never offered in the band, and flee does not get the armed
+  `Distance` penalty there. The fight-versus-flee choice is still made only
+  inside `FleeRadius`, exactly as before. Holding fight as well would have an
+  armed colonist charge an alien up to eight tiles away, which is a behavior
+  change rather than a flicker fix.
+- `FocusEscape` still keys off `FleeRadius`, so a sealed-in colonist in the band
+  can prefer breaking out on score.
+- Perception (`visible-alien`, `seesThreat`) is unchanged and still uses
+  `FleeRadius`. Leaving that radius still dirties the mind. The rethink then
+  finds flee still eligible and keeps it.
+
+Why a distance band and not a minimum flee duration: a timer holds a colonist
+in flee after the alien is gone or dead, and it does nothing about the geometry
+that causes the bounce. The band ends flee on the fact that matters: the alien
+is clearly behind them.
+
+What the band does not fix: if the only toilet sits past an alien that stays put,
+the colonist still paces. It flees out to distance 9, relieve walks it back to 5,
+and it flees again, in an eight-tick cycle instead of an every-tick flicker. Fixing
+that needs need executors that route around threats, not arbitration.
+Measured over seeds 1–12 × 15,000 ticks: fast flee bounces fell from 1063 to
+13, slower (4–12 tick) ones stayed flat (19 → 17). Margin 4 pushed more bounces
+into the slow bucket (45), so 3 is the default. `TestFleeHysteresisStopsBounce`
+pins the corridor version of the scenario.
 
 ### Distance
 
@@ -844,7 +890,9 @@ At tick 101 the colonist sees an alien:
    contributions by more than `FocusSwitchMargin`.
 5. The transition clears the food job and runs `fleeStep` in the same turn.
 
-At tick 180 the alien dies or leaves perception:
+At tick 180 the alien dies or ends up clearly out of range (beyond
+`FleeRadius+FleeReleaseMargin`; merely stepping out of `FleeRadius` does not
+end a flee under way):
 
 1. The direct threat candidate and ongoing stimulus disappear.
 2. Affect remains high-charge/low-grip until decay repairs it.
