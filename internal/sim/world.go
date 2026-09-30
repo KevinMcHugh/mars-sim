@@ -656,6 +656,10 @@ type World struct {
 	// walks the map.
 	scum        map[Point]scumPatch
 	exposedScum map[Point]struct{}
+	// scumPatches lists every patch in scum, sorted by cmpScumPatch, so
+	// growScum can draw a patch at random without the map's order deciding
+	// which (see setScum).
+	scumPatches []Point
 	// scumRev advances on every change to scum or exposedScum that publishing
 	// can see. It lets publishing reuse the last published copy (snapScum,
 	// taken at snapScumRev); see publishedScum.

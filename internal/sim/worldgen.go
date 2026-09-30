@@ -178,6 +178,7 @@ func (w *World) applyChunk(cx, cy int) []Point {
 		panic(fmt.Sprintf("worldgen: chunk (%d, %d) was written before it was generated", cx, cy))
 	}
 	page := w.tiles.pageAtAlloc(x0, y0)
+	var patches []Point // row by row, which is cmpScumPatch's order within a chunk
 	for y := y0; y < y1; y++ {
 		for x := x0; x < x1; x++ {
 			off := offset(x, y)
@@ -185,6 +186,7 @@ func (w *World) applyChunk(cx, cy int) []Point {
 			cell.Composition = c.comp[off]
 			if c.isScum(off) {
 				w.scum[Point{x, y}] = scumPatch{amount: w.cfg.ScumMax}
+				patches = append(patches, Point{x, y})
 			}
 			if !c.isFloor(off) {
 				continue
@@ -199,6 +201,10 @@ func (w *World) applyChunk(cx, cy int) []Point {
 			w.hiddenFloor++
 			w.dirtyChunks[w.chunkIndexOf(Point{x, y})] = struct{}{}
 		}
+	}
+	if len(patches) > 0 {
+		i, _ := slices.BinarySearchFunc(w.scumPatches, patches[0], cmpScumPatch)
+		w.scumPatches = slices.Insert(w.scumPatches, i, patches...)
 	}
 	w.markTilePageDirty(Point{x0, y0})
 	// Nothing next to an ungenerated chunk has been discovered (discovered

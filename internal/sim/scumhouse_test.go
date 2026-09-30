@@ -3,6 +3,8 @@ package sim
 import (
 	"fmt"
 	"maps"
+	"math"
+	"slices"
 	"testing"
 )
 
@@ -167,7 +169,7 @@ func TestCookingTurnsTheColonysScumIntoItsMeals(t *testing.T) {
 func TestScumScrapedBareIsGone(t *testing.T) {
 	w := propertyWorld(t)
 	p := Point{10, 10}
-	w.scum[p] = scumPatch{amount: w.cfg.ScumMax}
+	w.setScum(p, w.cfg.ScumMax)
 	for i := 0; i < w.cfg.ScumMax; i++ {
 		if !w.takeScum(p) {
 			t.Fatalf("patch ran out after %d units", i)
@@ -179,7 +181,7 @@ func TestScumScrapedBareIsGone(t *testing.T) {
 	if _, ok := w.scum[p]; ok {
 		t.Fatal("a bare patch is still on the map")
 	}
-	w.scum[p] = scumPatch{amount: 1}
+	w.setScum(p, 1)
 	w.SetTerrain(p, Wall)
 	if w.scumAt(p) != 0 {
 		t.Fatal("scum survived a wall being built on it")
@@ -196,8 +198,7 @@ func TestScumSpawnsAndSpreads(t *testing.T) {
 	cfg.ScumSpawnPPM = 50
 	cfg.ScumSpreadPercent = 50
 	w := newTestWorld(t, cfg)
-	clear(w.scum)
-	clear(w.exposedScum)
+	noScum(w)
 	// A patch in solid rock, so its neighbours are eligible to grow.
 	var seed Point
 	for y := 4; y < cfg.Height-4 && seed == (Point{}); y++ {
@@ -217,7 +218,7 @@ func TestScumSpawnsAndSpreads(t *testing.T) {
 	if seed == (Point{}) {
 		t.Fatal("no solid rock to seed a patch in")
 	}
-	w.scum[seed] = scumPatch{amount: w.cfg.ScumMax}
+	w.setScum(seed, w.cfg.ScumMax)
 	near, far := 0, 0
 	for i := 0; i < 600; i++ {
 		w.growScum()
@@ -252,6 +253,104 @@ func TestScumSpawnsAndSpreads(t *testing.T) {
 	}
 }
 
+// Scum grows at the rate its settings say on the ground that's generated,
+// whatever the map's size. It used to sample the whole map and scale its
+// chances to make up for the ungenerated chunks it skipped, which stopped
+// working once a chance passed certainty: on a 10,000×10,000 map the colony
+// had barely explored, scum came back about 600 times too slowly, and a
+// six-colonist colony starved (see docs/scumhouse.md).
+var scumRateMapSizes = []int{256, 1000, 10000}
+
+func TestScumSpawnsAtItsRateOnAnyMap(t *testing.T) {
+	const ticks = 200
+	for _, size := range scumRateMapSizes {
+		cfg := testConfig()
+		cfg.Width, cfg.Height = size, size
+		cfg.ScumPercent = 100 // room for every patch, so only the rate counts
+		cfg.ScumSpawnPPM = 10000
+		cfg.ScumSpreadPercent = 0
+		w := newTestWorld(t, cfg)
+		noScum(w)
+		rock := 0
+		for _, k := range w.genChunks {
+			for off := 0; off < genChunkArea; off++ {
+				p := Point{int(k.cx)<<genChunkBits + off%genChunkSize, int(k.cy)<<genChunkBits + off/genChunkSize}
+				if w.InBounds(p) && w.TerrainAt(p) == Rock {
+					rock++
+				}
+			}
+		}
+		for i := 0; i < ticks; i++ {
+			w.growScum()
+			w.tick++
+		}
+		// Each rock tile rolls ticks/16 visits at 1%; a second spawn on a
+		// tile thickens its patch rather than making another.
+		want := float64(rock) * (1 - math.Exp(-ticks/float64(scumTrialDivisor)*0.01))
+		if got := float64(len(w.scum)); math.Abs(got-want) > want*0.05 {
+			t.Errorf("%dx%d map, %d chunks: %.0f patches spawned in %d ticks, want about %.0f",
+				size, size, len(w.genChunks), got, ticks, want)
+		}
+		assertScumPatchesListed(t, w)
+	}
+}
+
+// Spread is the same on any map too, and growScum draws it from the patches
+// rather than visiting tiles: each patch sends a unit to one of the nine
+// tiles in and around it at ScumSpreadPercent/16 a tick. With no room for new
+// patches and no cap on a patch, every draw that lands on a patch thickens it,
+// so the units added are exactly countable.
+func TestScumSpreadsAtItsRateOnAnyMap(t *testing.T) {
+	const ticks = 100
+	for _, size := range scumRateMapSizes {
+		cfg := testConfig()
+		cfg.Width, cfg.Height = size, size
+		w := newTestWorld(t, cfg)
+		w.cfg.ScumPercent = 0 // no room: spread only thickens
+		w.cfg.ScumMax = 1 << 30
+		w.cfg.ScumSpawnPPM, w.cfg.ScumSpreadPercent = 0, 40
+		before, landing := 0, 0
+		for p, s := range w.scum {
+			before += s.amount
+			for _, d := range neighbors9 {
+				if _, ok := w.scum[p.Add(d.X, d.Y)]; ok {
+					landing++
+				}
+			}
+		}
+		for i := 0; i < ticks; i++ {
+			w.growScum()
+			w.tick++
+		}
+		after := 0
+		for _, s := range w.scum {
+			after += s.amount
+		}
+		want := float64(landing) / 9 * 0.40 / scumTrialDivisor * ticks
+		if got := float64(after - before); math.Abs(got-want) > want*0.05 {
+			t.Errorf("%dx%d map, %d patches: spread added %.0f units in %d ticks, want about %.0f",
+				size, size, len(w.scum), got, ticks, want)
+		}
+	}
+}
+
+// assertScumPatchesListed checks that scumPatches lists exactly the patches
+// on the map, in cmpScumPatch order: growScum draws from it.
+func assertScumPatchesListed(t *testing.T, w *World) {
+	t.Helper()
+	if len(w.scumPatches) != len(w.scum) {
+		t.Fatalf("scumPatches lists %d patches, the map holds %d", len(w.scumPatches), len(w.scum))
+	}
+	if !slices.IsSortedFunc(w.scumPatches, cmpScumPatch) {
+		t.Fatal("scumPatches is out of order")
+	}
+	for _, p := range w.scumPatches {
+		if _, ok := w.scum[p]; !ok {
+			t.Fatalf("scumPatches lists %v, which has no patch", p)
+		}
+	}
+}
+
 // The exposed-scum index agrees with a brute-force check after a colony has
 // dug and built for a while.
 func TestExposedScumIndexStaysInStep(t *testing.T) {
@@ -270,6 +369,7 @@ func TestExposedScumIndexStaysInStep(t *testing.T) {
 			t.Fatalf("patch %v: indexed %v, exposed %v", p, indexed, w.scumExposed(p))
 		}
 	}
+	assertScumPatchesListed(t, w)
 }
 
 // A scraper brings a patch's scum in for the colony.
@@ -278,7 +378,7 @@ func TestScrapersBringScumInForTheColony(t *testing.T) {
 	w.tick = marketInterval
 	w.runMarket()
 	patch := Point{8, 12}
-	w.scum[patch] = scumPatch{amount: w.cfg.ScumMax}
+	w.setScum(patch, w.cfg.ScumMax)
 	w.refreshScumExposure(patch)
 	s := w.spawn(Colonist, Point{12, 12})
 	purse := s.wallet
@@ -306,7 +406,7 @@ func TestAHungryScraperKeepsItsScum(t *testing.T) {
 	w.tick = marketInterval
 	w.runMarket()
 	patch := Point{8, 12}
-	w.scum[patch] = scumPatch{amount: w.cfg.ScumMax}
+	w.setScum(patch, w.cfg.ScumMax)
 	w.refreshScumExposure(patch)
 	s := w.spawn(Colonist, Point{12, 12})
 	if !w.tryAssignFoodWork(s, true) {
@@ -436,7 +536,7 @@ func TestHiddenCavernScumIsNotExposedUntilFound(t *testing.T) {
 	}
 	rim := Point{7, 3}
 	cellAt(w, rim).Explored = false
-	w.scum[rim] = scumPatch{amount: w.cfg.ScumMax}
+	w.setScum(rim, w.cfg.ScumMax)
 	w.refreshScumExposure(rim)
 	if _, ok := w.exposedScum[rim]; ok {
 		t.Fatal("scum on a hidden cavern's rim is exposed before anyone found the cavern")

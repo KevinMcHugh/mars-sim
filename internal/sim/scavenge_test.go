@@ -7,6 +7,7 @@ import "testing"
 func noScum(w *World) {
 	w.scum = map[Point]scumPatch{}
 	w.exposedScum = map[Point]struct{}{}
+	w.scumPatches = nil
 }
 
 // hungryRat puts a rat at p with its hunger just past seeking.
@@ -56,10 +57,10 @@ func TestRatsEatGoreAndExposedScum(t *testing.T) {
 	}
 
 	buried := Point{30, 30} // deep in rock: not exposed
-	w.scum[buried] = scumPatch{amount: w.cfg.ScumMax}
+	w.setScum(buried, w.cfg.ScumMax)
 	w.refreshScumExposure(buried)
 	face := Point{5, 4} // rock on the edge of the open floor
-	w.scum[face] = scumPatch{amount: w.cfg.ScumMax}
+	w.setScum(face, w.cfg.ScumMax)
 	w.refreshScumExposure(face)
 	if w.scavengeable(buried) || !w.scavengeable(face) {
 		t.Fatalf("scavengeable: buried %v, face %v", w.scavengeable(buried), w.scavengeable(face))
@@ -120,10 +121,10 @@ func TestPeacefulAliensGrazeScum(t *testing.T) {
 			w := propertyWorld(t)
 			noScum(w)
 			buried := Point{30, 30} // deep in rock: not exposed
-			w.scum[buried] = scumPatch{amount: w.cfg.ScumMax}
+			w.setScum(buried, w.cfg.ScumMax)
 			w.refreshScumExposure(buried)
 			patch := Point{16, 10}
-			w.scum[patch] = scumPatch{amount: w.cfg.ScumMax}
+			w.setScum(patch, w.cfg.ScumMax)
 			w.refreshScumExposure(patch)
 			if w.grazeable(buried) || !w.grazeable(patch) {
 				t.Fatalf("grazeable: buried %v, patch %v", w.grazeable(buried), w.grazeable(patch))
@@ -160,7 +161,7 @@ func TestHostileAliensDoNotGraze(t *testing.T) {
 	w := propertyWorld(t)
 	noScum(w)
 	patch := Point{9, 10}
-	w.scum[patch] = scumPatch{amount: w.cfg.ScumMax}
+	w.setScum(patch, w.cfg.ScumMax)
 	w.refreshScumExposure(patch)
 	a := hungryAlien(w, Point{8, 10}, TemperamentHostile)
 	for i := 0; i < 50; i++ {
@@ -177,7 +178,7 @@ func TestCautiousAlienReactsBeforeGrazing(t *testing.T) {
 	w := propertyWorld(t)
 	noScum(w)
 	patch := Point{9, 10}
-	w.scum[patch] = scumPatch{amount: w.cfg.ScumMax}
+	w.setScum(patch, w.cfg.ScumMax)
 	w.refreshScumExposure(patch)
 	a := hungryAlien(w, Point{8, 10}, TemperamentCautious)
 	c := w.spawn(Colonist, Point{8, 11})
