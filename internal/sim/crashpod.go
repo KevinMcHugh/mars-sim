@@ -130,7 +130,7 @@ func (w *World) arrive(announce bool) *Entity {
 		if crashed {
 			how = "smashes down through the rock"
 		}
-		w.log.add(LogArrival, fmt.Sprintf("A crash pod %s at (%d, %d): %s has arrived.", how, o.X, o.Y, e.displayName()))
+		w.logEvent(LogArrival, fmt.Sprintf("A crash pod %s at (%d, %d): %s has arrived.", how, o.X, o.Y, e.displayName()))
 	}
 	return e
 }

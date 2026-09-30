@@ -59,10 +59,17 @@ func (k LogKind) String() string {
 	}
 }
 
-// LogEntry is one retained colony-log line: a type and the sentence.
+// LogEntry is one retained colony-log line: a type and the sentence, when
+// it happened, and where it falls in the whole game's log.
 type LogEntry struct {
 	Kind LogKind
 	Text string
+	// Tick is the tick the line was logged on.
+	Tick int
+	// Seq numbers every line the game has ever logged, from 0, so a reader
+	// holding older lines can tell which in a snapshot are new: the ring
+	// drops lines from the front and says nothing about it.
+	Seq int
 }
 
 // eventLog is a fixed-size ring buffer of colony-log lines. Snapshots
@@ -71,6 +78,7 @@ type LogEntry struct {
 type eventLog struct {
 	entries []LogEntry
 	max     int
+	next    int // the Seq of the next line
 }
 
 func newEventLog(max int) *eventLog {
@@ -80,13 +88,17 @@ func newEventLog(max int) *eventLog {
 	return &eventLog{max: max}
 }
 
-// add appends a line, trimming the oldest entries past the cap.
-func (l *eventLog) add(kind LogKind, msg string) {
-	l.entries = append(l.entries, LogEntry{Kind: kind, Text: msg})
+// add appends a line logged at tick, trimming the oldest entries past the cap.
+func (l *eventLog) add(tick int, kind LogKind, msg string) {
+	l.entries = append(l.entries, LogEntry{Kind: kind, Text: msg, Tick: tick, Seq: l.next})
+	l.next++
 	if len(l.entries) > l.max {
 		l.entries = l.entries[len(l.entries)-l.max:]
 	}
 }
+
+// logEvent adds a line to the colony log, stamped with the current tick.
+func (w *World) logEvent(kind LogKind, msg string) { w.log.add(w.tick, kind, msg) }
 
 // tail returns up to n most recent lines, oldest first, as a fresh slice
 // (safe to hand to another goroutine).

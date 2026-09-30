@@ -9,7 +9,7 @@
 import { mount } from 'svelte';
 import type { Frame, Hello } from '../wire/decode.js';
 import { namedStats, TILE_COMPOSITION_MASK, TILE_VISIBLE } from '../wire/decode.js';
-import { inspect, install, stepSpeed, subscribe, syncFrame, togglePause, topics, ui, UI_HZ } from './game.svelte';
+import { colonyLog, inspect, install, stepSpeed, subscribe, syncFrame, togglePause, topics, ui, UI_HZ } from './game.svelte';
 import { attachInput } from './map/input';
 import { MapRenderer } from './map/renderer';
 import type { TileRect } from './map/camera';
@@ -45,7 +45,7 @@ let lastUI = 0;
 
 // What the page shows and has received, for automation (Playwright) to read.
 const debug = { frames: 0, bytes: 0, hello: null as Hello | null, genMs: 0, tick: 0, pagesHeld: 0, pagesOwed: 0 };
-(window as any).marsMap = { debug, camera: cam, renderer: map, ui, topics };
+(window as any).marsMap = { debug, camera: cam, renderer: map, ui, topics, log: colonyLog };
 
 install({
   command: (c) => sim.command(c),
@@ -54,14 +54,22 @@ install({
   newGame: (s) => { void newGame(s); },
   centerOn: (x, y) => { cam.cx = x + 0.5; cam.cy = y + 0.5; viewChanged(); },
   selected: () => updateMark(),
+  highlight: (tiles) => map.setHighlight(tiles),
 });
 // Colonists' names for the hover readout; frames carry only ids. Held for
 // the page's life, across new games.
 subscribe('names');
+// The colony log, for the Log tab and the map's ticker: held for the page's
+// life, like names.
+subscribe('log');
 
 sim.onError = (m) => status(m, true);
 sim.onTopics = (t) => {
-  for (const [name, payload] of Object.entries(t)) topics.set(name, payload);
+  for (const [name, payload] of Object.entries(t)) {
+    // The log is a stream of deltas, kept in colonyLog, not a payload to hold.
+    if (name === 'log') colonyLog.apply(payload as Parameters<typeof colonyLog.apply>[0]);
+    else topics.set(name, payload);
+  }
 };
 sim.onFrame = (f, bytes) => {
   if (!hello) return;
@@ -110,6 +118,8 @@ async function newGame(settings: Settings): Promise<void> {
   hello = null;
   ui.hello = null;
   ui.selected = null;
+  colonyLog.clear();
+  map.setHighlight(null);
   map.setMark(null);
   centered = false;
   lastInterest = '';

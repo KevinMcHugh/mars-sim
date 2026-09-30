@@ -126,12 +126,12 @@ func (w *World) shoot(colonist, alien *Entity, weapon ItemKind, spec weaponSpec)
 		w.addCorpse(alien.Pos, AlienCorpse) // nothing eats an alien: the body is the colony's to dispose of
 		w.remove(alien.ID, fmt.Sprintf("shot by %s with a %s", colonist.displayName(), weapon))
 		w.emitOccurrence(o)
-		w.log.add(LogDeath, fmt.Sprintf("%s guns down %s with a %s.", colonist.displayName(), noun, weapon))
+		w.logEvent(LogDeath, fmt.Sprintf("%s guns down %s with a %s.", colonist.displayName(), noun, weapon))
 		return
 	}
 	o := w.occurrence(colonist, ActionWound, alien, colonist.Pos, "")
 	o.ActorText = fmt.Sprintf("Shot %s in the %s with a %s.", noun, part, weapon)
 	o.WitnessText = fmt.Sprintf("Watched %s fight off %s.", colonist.displayName(), noun)
 	w.emitOccurrence(o)
-	w.log.add(LogCombat, fmt.Sprintf("%s fires a %s at %s.", colonist.displayName(), weapon, noun))
+	w.logEvent(LogCombat, fmt.Sprintf("%s fires a %s at %s.", colonist.displayName(), weapon, noun))
 }

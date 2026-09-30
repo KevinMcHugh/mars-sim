@@ -51,11 +51,11 @@ export function inspect(s: Selection, from: string | null = null): void {
 
 /**
  * Open a side-panel tab, or close the panel (null). Leaving the inspector
- * and the roster drops the selection, so the map's marker goes with it; the
- * roster keeps it, to show which row the inspector had.
+ * drops the selection, so the map's marker goes with it, except for the tab
+ * the selection came from (and the roster), which highlight its row.
  */
 export function setPanel(id: string | null): void {
-  if (id !== 'inspect' && id !== 'roster' && ui.selected) {
+  if (id !== 'inspect' && id !== 'roster' && id !== ui.inspectFrom && ui.selected) {
     ui.selected = null;
     ctl?.selected();
   }
@@ -80,6 +80,29 @@ class TopicData {
 }
 export const topics = new TopicData();
 
+/** One colony-log line (internal/wire/log.go), and when the page got it. */
+export interface LogLine { seq: number; tick: number; kind: string; text: string; at: number }
+
+/** How many log lines the page keeps. The engine keeps only -log-size (64). */
+export const LOG_KEEP = 2000;
+
+/**
+ * The colony log, built up from the log topic's deltas: the engine's ring is
+ * short, the page's history is LOG_KEEP lines. Raw state, replaced on each
+ * change, like a topic payload.
+ */
+class ColonyLog {
+  lines: LogLine[] = $state.raw([]);
+  apply(p: { reset: boolean; entries: Omit<LogLine, 'at'>[] }): void {
+    const at = performance.now();
+    const add = p.entries.map((e) => ({ ...e, at }));
+    const kept = p.reset ? add : this.lines.concat(add);
+    this.lines = kept.length > LOG_KEEP ? kept.slice(kept.length - LOG_KEEP) : kept;
+  }
+  clear(): void { this.lines = []; }
+}
+export const colonyLog = new ColonyLog();
+
 // The controller main.ts installs: how the panels reach the worker.
 export interface Controller {
   command(c: Command): void;
@@ -90,6 +113,8 @@ export interface Controller {
   centerOn(x: number, y: number): void;
   /** ui.selected changed: move the map's marker. */
   selected(): void;
+  /** Tint these tiles on the map (a job's), or none. */
+  highlight(tiles: { x: number; y: number; color: Uint8Array }[] | null): void;
 }
 let ctl: Controller | null = null;
 export function install(c: Controller): void { ctl = c; }
@@ -114,6 +139,7 @@ export function subscribe(topic: string): () => void {
 
 export function newGame(settings: Settings): void { ctl?.newGame(settings); }
 export function centerOn(x: number, y: number): void { ctl?.centerOn(x, y); }
+export function highlight(tiles: { x: number; y: number; color: Uint8Array }[] | null): void { ctl?.highlight(tiles); }
 
 export function togglePause(): void {
   ctl?.command({ type: 'pause' });

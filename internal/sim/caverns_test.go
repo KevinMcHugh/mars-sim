@@ -164,7 +164,7 @@ func TestBreachingACavernRevealsItsWholeSystem(t *testing.T) {
 		logged = logged || strings.Contains(msg.Text, "natural cavern")
 	}
 	if !logged {
-		t.Fatalf("no log line for the breach; log tail: %q", w.log.tail(5))
+		t.Fatalf("no log line for the breach; log tail: %v", w.log.tail(5))
 	}
 	checkRoomLabels(t, w)
 }
@@ -347,7 +347,7 @@ func TestAlienNestsSpawnWhenBreached(t *testing.T) {
 		}
 	}
 	if logs == 0 {
-		t.Fatalf("no nest log line; log tail: %q", w.log.tail(10))
+		t.Fatalf("no nest log line; log tail: %v", w.log.tail(10))
 	}
 }
 

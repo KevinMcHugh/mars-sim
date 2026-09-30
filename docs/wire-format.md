@@ -131,12 +131,18 @@ of the payloads due, by name:
   if its JSON changed. A panel over a paused game gets nothing further.
 - **Unknown names** fail the subscribe.
 - **New games:** subscriptions outlive them, so an open panel keeps its data.
+  The host calls `Topics.Restart` on `start`, so each is sent again at once.
 
 | Topic | Every | Payload |
 | --- | --- | --- |
 | `lore` | 1 s | `world` (size, fog, explored tiles, chunks generated, seed) and `species` (each rolled species' roster label, map glyph, build, temperament, bite and pace, and field notes) |
 | `names` | 1 s | Every living colonist's name, by id (as a string key). The page holds it open for the hover readout, since frames carry ids, not names. It changes only on an arrival or a death. |
 | `roster`, `roster:<filters>` | 500 ms | One row per creature the TUI's roster lists (`RosterRow`): glyph, name, an info line (pronouns and age, an alien's species, or the kind), a state line (state and mood, or `dead — <cause>`), and health. By ID. Filters, comma-separated: `dead` (every dead colonist from `Deceased`, and the graveyard's other kinds the other filter admits) and `nonhuman` (aliens, cats, rats). |
+| `log` | 250 ms | The colony log as a stream (`LogTopic`): only the lines newer than the last send, each with `seq`, `tick`, `kind` (the `LogKind` label) and `text`. The first send, and the first after a new game, has `reset: true` and the whole ring. |
+| `jobs` | 500 ms | The job board (`JobsTopic`): each queued project with its tasks (tile, terrain, phase, done, and who is building it) and assignees, and the manual orders still waiting for a build site. |
+| `storage` | 500 ms | Every container (`StorageRow`): position, label (chest, pantry, someone's locker, a workshop), slots and items used, and what it holds most of. Contents and ledger are the tile topic's. |
+| `market` | 500 ms | The market tab (`MarketTopic`): accounts (the treasury, then colonists richest first), the money supply, books, prices, plans, work orders totalled by issuer and kind, and the last 20 trades, newest first. |
+| `account:<key>` | 500 ms | One account's page (`AccountTopic`), `colony` or a colonist's id: balance, share of circulating money, holdings summed across every storage ledger, fixtures owned, open orders, and a colonist's plans. `found: false` once the colonist is gone. |
 | `entity:<id>` | 250 ms | One creature (`EntityTopic`): name, glyph, position, state, focus, health, body parts, and death if dead; an alien's species; a colonist's profile, wallet, affect, needs, inventory, traits, family, affinities and memories (newest first). Looked up among the living, then `Deceased`, then `Graveyard`; `found: false` once it is in none of them. |
 | `tile:<x>,<y>` | 250 ms | One tile (`TileTopic`): terrain (a rock's composition), glyph, the fixture's owner and access, a container's contents and ledger, and the creatures on it. Under fog, only `explored: false`. |
 
@@ -190,6 +196,9 @@ Entities in a re-encode are from the newest snapshot, not newer ticks.
 
 ## Extending it
 
+- **A topic with state** (the log remembers what it sent): a constructor
+  like `newLogTopic`, called from `Subscribe`, so each subscription (and each
+  `Restart`) gets its own. The JSON dedupe still applies on top.
 - **A new topic with a parameter** (`project:<id>`): a case in `paramTopic`.
   The roster's filters work this way: each filter set is its own topic, so
   toggling one is an unsubscribe and a subscribe, with no per-page state in Go.

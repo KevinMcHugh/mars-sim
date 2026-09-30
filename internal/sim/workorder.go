@@ -235,7 +235,7 @@ func (w *World) commissionKitchens() {
 		}
 		if w.planRoomFor(scumhouseRoom, ColonistOwner(e.ID)) {
 			e.kitchenCommissioned = true
-			w.log.add(LogBuildStart, fmt.Sprintf("%s, %s, commissions a kitchen of its own.", e.displayName(), withArticle(e.skillLabel(SkillCooking))))
+			w.logEvent(LogBuildStart, fmt.Sprintf("%s, %s, commissions a kitchen of its own.", e.displayName(), withArticle(e.skillLabel(SkillCooking))))
 		}
 		return
 	}
@@ -254,7 +254,7 @@ func (w *World) commissionHouses() {
 		}
 		if w.planRoomFor(houseRoom, ColonistOwner(e.ID)) {
 			e.commissioned = true
-			w.log.add(LogBuildStart, fmt.Sprintf("%s commissions a house.", e.displayName()))
+			w.logEvent(LogBuildStart, fmt.Sprintf("%s commissions a house.", e.displayName()))
 		}
 		return
 	}

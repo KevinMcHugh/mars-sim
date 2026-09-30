@@ -76,3 +76,12 @@ export function filthTint(gore: number, scum: number): Uint8Array {
   const a = 0.4 + 0.5 * level;
   return new Uint8Array([color[0] * a * 255, color[1] * a * 255, color[2] * a * 255, a * 255]);
 }
+
+// A job's tiles on the map (the Jobs tab's highlight), premultiplied RGBA.
+const premul = (h: string, a: number) => {
+  const c = hex(h);
+  return new Uint8Array([c[0] * a * 255, c[1] * a * 255, c[2] * a * 255, a * 255]);
+};
+export const JOB_QUEUED = premul('#ffe066', 0.5);
+export const JOB_BUILDING = premul('#ff9f1c', 0.6);
+export const JOB_DONE = premul('#5fd38d', 0.35);

@@ -6,6 +6,10 @@
   // so a click on the map can open the inspector.
   import { setPanel, ui } from '../game.svelte';
   import InspectPanel from './InspectPanel.svelte';
+  import JobsPanel from './JobsPanel.svelte';
+  import MarketPanel from './MarketPanel.svelte';
+  import StoragePanel from './StoragePanel.svelte';
+  import LogPanel from './LogPanel.svelte';
   import LorePanel from './LorePanel.svelte';
   import NewGamePanel from './NewGamePanel.svelte';
   import RosterPanel from './RosterPanel.svelte';
@@ -13,6 +17,10 @@
   const tabs = [
     { id: 'inspect', label: 'Inspect', component: InspectPanel },
     { id: 'roster', label: 'Roster', component: RosterPanel },
+    { id: 'log', label: 'Log', component: LogPanel },
+    { id: 'jobs', label: 'Jobs', component: JobsPanel },
+    { id: 'storage', label: 'Storage', component: StoragePanel },
+    { id: 'market', label: 'Market', component: MarketPanel },
     { id: 'lore', label: 'Lore', component: LorePanel },
     { id: 'game', label: 'New game', component: NewGamePanel },
   ] as const;

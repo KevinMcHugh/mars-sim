@@ -30,9 +30,12 @@ type topic struct {
 // topicTable is every topic a page can subscribe to by a fixed name. Topics
 // with a parameter ("entity:12") are resolved by paramTopic.
 var topicTable = map[string]topic{
-	"lore":   {every: time.Second, build: loreTopic},
-	"names":  {every: time.Second, build: namesTopic},
-	"roster": {every: rosterEvery, build: func(s *sim.Snapshot) any { return rosterTopic(s, false, false) }},
+	"lore":    {every: time.Second, build: loreTopic},
+	"names":   {every: time.Second, build: namesTopic},
+	"jobs":    {every: boardEvery, build: func(s *sim.Snapshot) any { return jobsTopic(s) }},
+	"storage": {every: boardEvery, build: func(s *sim.Snapshot) any { return storageTopic(s) }},
+	"market":  {every: boardEvery, build: func(s *sim.Snapshot) any { return marketTopic(s) }},
+	"roster":  {every: rosterEvery, build: func(s *sim.Snapshot) any { return rosterTopic(s, false, false) }},
 }
 
 // namesTopic is every living colonist's name by id, for the map's hover
@@ -66,6 +69,9 @@ func NewTopics() *Topics { return &Topics{subs: map[string]*topicState{}} }
 // sends it whatever changed, so a panel that reopens gets its data at once.
 func (t *Topics) Subscribe(name string) error {
 	tp, ok := topicTable[name]
+	if name == "log" {
+		tp, ok = newLogTopic(), true
+	}
 	if !ok {
 		tp, ok = paramTopic(name)
 	}
@@ -74,6 +80,14 @@ func (t *Topics) Subscribe(name string) error {
 	}
 	t.subs[name] = &topicState{tp: tp}
 	return nil
+}
+
+// Restart is for a new game: every subscription starts over, as if just
+// subscribed, so each is sent at once and the log sends its whole new ring.
+func (t *Topics) Restart() {
+	for name := range t.subs {
+		_ = t.Subscribe(name) // it subscribed once, so it resolves again
+	}
 }
 
 // Unsubscribe stops sending name. Unsubscribing from something not

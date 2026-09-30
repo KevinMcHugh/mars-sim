@@ -310,7 +310,7 @@ func (w *World) incinerate(e *Entity) {
 	o := w.occurrence(e, ActionIncinerate, nil, e.Pos, "Burned %s in the incinerator.", phrase)
 	o.Object = FactRef{Noun: NounRefuse, Label: "refuse"}
 	w.emitOccurrence(o)
-	w.log.add(LogBurn, fmt.Sprintf("%s incinerates %s.", e.displayName(), phrase))
+	w.logEvent(LogBurn, fmt.Sprintf("%s incinerates %s.", e.displayName(), phrase))
 }
 
 // refusePhrase describes a load of refuse for a log line or a memory.
