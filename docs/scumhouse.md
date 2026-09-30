@@ -139,10 +139,51 @@ therefore creeps back toward the seeded density; a scraped bare patch beside
 others fills in within a few hundred ticks, and an isolated one may not come
 back for a long time.
 
-Draws are a hash of the seed, the tick and the draw index, not a stream: it
-moves no other RNG, and a save has no state to keep. On a huge map the visits
-are capped at 4,096 a tick and the chances scaled up to match
-(`scumMaxTrials`), so the cost of growth does not follow the map's area.
+That is the model. `growScum` doesn't walk the visits: almost all of them
+change nothing, so it draws only the ones that roll, how many of each this
+tick (`scumDraws`), and where each lands:
+
+- **Spawns**: generated tiles × `scum-spawn-ppm` / 16 a tick, each on a
+  uniform tile of the generated chunks (`scumDrawTile`).
+- **Spreads**, turned around to start from the scum. A visit picks each of
+  the nine tiles in and around it with chance 1/9, so every patch is picked
+  by each of its nine tiles' visits at 1/16 × 1/9 a tick: the same as each
+  patch sending a unit to one of its nine tiles, at random, at
+  `scum-spread-percent` / 16 a tick. So it draws patches × spread / 16 rolls,
+  each a patch from `scumPatches` and one of its nine tiles.
+  `TestScumSpreadsAtItsRateOnAnyMap` passes under both forms.
+
+The rate is the model's on any map, and the cost follows the scum, not the
+map: on a 10,000×10,000 map with 36 chunks generated, about 220 spread draws
+a tick. Draws are a hash of the seed, the tick and the draw index, not a
+stream, so growth moves no other RNG. `scumPatches` is every patch sorted by
+chunk, then row by row within the chunk (`cmpScumPatch`), the way `genChunks`
+is sorted: which patch a draw picks depends on which patches exist, never on
+the order they arrived in. A chunk's patches sit together, so `applyChunk`
+adds them in one insert; `setScum` and `clearScum` keep the list in step
+with the map one patch at a time. A test that puts scum down goes through
+`setScum` (or `noScum` to clear it), never the map directly.
+
+**Why not a fixed sample.** The first version visited a sample of tiles over
+the whole map, skipped the ones in chunks not yet generated, capped the
+sample at 4,096 a tick, and scaled the chances up to make the difference
+good. Spawn's chance stayed small enough to scale. Spread's 40% passed 100%
+on any map over about 405×405, and past that spread ran at 4,096 ×
+generated / area samples a tick, a share of the model's rate that fell with
+the map's size, not with anything on the ground: about 6 times too slow on
+1000×1000 and 600 times on 10,000×10,000, for the same explored ground. On
+the web game's 10,000×10,000 map, seed 1790737522337000000's colony scraped
+every patch it could reach bare by tick 13,000, none came back, and all six
+colonists starved by 14,750. The code from before accretion (patches
+regrowing on their own tiles) never starved on that seed.
+`TestScumSpawnsAtItsRateOnAnyMap` checks the rate on 256², 1000² and
+10,000² maps.
+
+Still open: regrowth lands anywhere in the generated chunks, not where the
+colony can reach it, so a colony that stays put can scrape its reachable
+scum bare. On that seed the fixed rate holds the colony past tick 16,000,
+then it starves by 20,000. The answer planned for that is colonists going
+out to look for food, not scum that favours the colony.
 
 A patch can be scraped while it is **exposed**: on walkable floor, or on rock
 with walkable floor beside it — floor the colony has **discovered**. The rim

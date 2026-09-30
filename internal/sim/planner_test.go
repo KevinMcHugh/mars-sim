@@ -10,7 +10,7 @@ func scumBidWorld(t *testing.T) (w *World, e *Entity, near, far *Order) {
 	w = propertyWorld(t)
 	noScum(w)
 	for _, p := range []Point{{6, 10}, {6, 11}} {
-		w.scum[p] = scumPatch{amount: w.cfg.ScumMax}
+		w.setScum(p, w.cfg.ScumMax)
 		w.refreshScumExposure(p)
 	}
 	w.SetTerrain(Point{8, 10}, Scumhouse)

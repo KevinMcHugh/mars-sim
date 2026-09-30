@@ -1,7 +1,9 @@
 package sim
 
 import (
+	"cmp"
 	"fmt"
+	"slices"
 	"sort"
 )
 
@@ -80,8 +82,37 @@ func (w *World) clearScum(p Point) {
 	if _, ok := w.scum[p]; ok {
 		delete(w.scum, p)
 		delete(w.exposedScum, p)
+		if i, found := slices.BinarySearchFunc(w.scumPatches, p, cmpScumPatch); found {
+			w.scumPatches = slices.Delete(w.scumPatches, i, i+1)
+		}
 		w.scumRev++
 	}
+}
+
+// setScum puts amount units on p, listing p in scumPatches if the patch is
+// new. Every patch goes on the map through here or applyChunk, so the two
+// agree.
+func (w *World) setScum(p Point, amount int) {
+	if _, ok := w.scum[p]; !ok {
+		i, _ := slices.BinarySearchFunc(w.scumPatches, p, cmpScumPatch)
+		w.scumPatches = slices.Insert(w.scumPatches, i, p)
+	}
+	w.scum[p] = scumPatch{amount: amount}
+}
+
+// cmpScumPatch orders patches by chunk, the way genChunks is ordered, then
+// row by row within the chunk, so a newly generated chunk's patches sit
+// together in scumPatches and go in with one insert.
+func cmpScumPatch(a, b Point) int {
+	ka := chunkKey{int32(a.X >> genChunkBits), int32(a.Y >> genChunkBits)}
+	kb := chunkKey{int32(b.X >> genChunkBits), int32(b.Y >> genChunkBits)}
+	if c := cmpChunkKey(ka, kb); c != 0 {
+		return c
+	}
+	if a.Y != b.Y {
+		return cmp.Compare(a.Y, b.Y)
+	}
+	return cmp.Compare(a.X, b.X)
 }
 
 // scumExposed reports whether a colonist can get at p's patch: it is on
@@ -136,16 +167,11 @@ func (w *World) refreshScumExposure(p Point) {
 // that it grows by growScum.
 
 // scumTrialDivisor is how many ticks, on average, pass between growScum's
-// visits to any one tile. scumMaxTrials bounds the visits per tick on a huge
-// map; growScum scales its chances up to make the difference good.
-const (
-	scumTrialDivisor = 16
-	scumMaxTrials    = 4096
-)
+// visits to any one tile.
+const scumTrialDivisor = 16
 
-// growScum lets cave scum accrete. Each tick it visits a sample of the map's
-// tiles (a hash of the seed, tick and draw, so it needs no stream of its own
-// and a save has nothing extra to keep), and at each:
+// growScum lets cave scum accrete. The model is a visit to every generated
+// tile once per scumTrialDivisor ticks, on average, and at each:
 //
 //   - with a fixed low chance (ScumSpawnPPM) scum appears there from nothing;
 //   - it looks at one of the nine tiles in and around it, and if that one
@@ -155,40 +181,100 @@ const (
 // with none only ever spawns. New patches start at one unit, appear only on
 // rock in a generated chunk, and stop when the map holds ScumPercent of its
 // tiles in patches, so the colony's scraping is what makes room for more.
+//
+// It does not walk the visits; it draws only the ones that change
+// something, so the rate is the same on every map and the cost follows the
+// scum, not the map (scumDraws):
+//
+//   - Spawns: generated tiles × ScumSpawnPPM / 16 a tick, each on a uniform
+//     generated tile.
+//   - Spreads: turned around to start from the scum. A visit to p picks each
+//     of its nine tiles with chance 1/9, so each patch is picked by each of
+//     its nine tiles' visits at 1/16 × 1/9 a tick. That comes to each patch
+//     sending a unit to one of its nine tiles, at random, at ScumSpreadPercent
+//     / 16 a tick. Drawing from the patches (scumPatches) rather than the
+//     tiles skips the visits that land beside no scum, most of them.
+//
+// Draws are a hash of the seed, tick and draw index, so growth needs no
+// stream of its own; scumPatches is sorted, so which patch a draw picks
+// depends only on which patches exist.
+//
+// The first version sampled tiles over the whole map, skipped the ones in
+// chunks not yet generated, and capped the samples at 4,096 a tick with the
+// chances scaled up to make the difference good. Spread's 40% passed 100% on
+// any map over about 405×405, and past that growth ran at 4,096 × generated
+// / area samples a tick: about 600 times too slow on a 10,000×10,000 map the
+// colony had barely explored, and a different rate for the same ground on
+// every map size. Scum near the colony stopped coming back, and the colony
+// starved (see docs/scumhouse.md).
 func (w *World) growScum() {
-	spawn, spread := w.cfg.ScumSpawnPPM, w.cfg.ScumSpreadPercent*10000
-	if w.cfg.ScumMax <= 0 || (spawn <= 0 && spread <= 0) {
+	if w.cfg.ScumMax <= 0 {
 		return
 	}
-	area := w.Width * w.Height
-	trials, scale := area/scumTrialDivisor, 1
-	if trials > scumMaxTrials {
-		scale = (trials + scumMaxTrials - 1) / scumMaxTrials
-		trials = scumMaxTrials
-	}
-	spawn, spread = min(spawn*scale, 1_000_000), min(spread*scale, 1_000_000)
-	generated := area
+	// span is the tiles spawns land on: whole chunks, so a draw past the
+	// map's edge in an edge chunk is a miss and every real tile gets the same
+	// rate. A world built without generate (tests) is all generated.
+	span := w.Width * w.Height
 	if w.gen != nil {
-		generated = min(area, len(w.genChunks)*genChunkArea)
+		span = len(w.genChunks) * genChunkArea
 	}
-	room := len(w.scum) < generated*w.cfg.ScumPercent/100
+	if span == 0 {
+		return
+	}
+	room := len(w.scum) < min(w.Width*w.Height, span)*w.cfg.ScumPercent/100
 	h := uint64(w.cfg.Seed)*0x9E3779B97F4A7C15 ^ uint64(w.tick)*0xD1B54A32D192ED03
-	for i := 0; i < trials; i++ {
-		r := h + uint64(i)*4*0x9E3779B97F4A7C15 // three draws each, so no two trials share one
-		a, b, c := splitmix64(&r), splitmix64(&r), splitmix64(&r)
-		p := Point{int(a % uint64(w.Width)), int((a >> 32) % uint64(w.Height))}
-		if w.gen != nil && !w.genDone[w.tiles.pageIndex(p.X, p.Y)] {
-			continue
-		}
-		grew := spawn > 0 && int(b%1_000_000) < spawn
-		if !grew && spread > 0 && int((b>>32)%1_000_000) < spread {
-			d := neighbors9[c%9]
-			grew = w.scum[p.Add(d.X, d.Y)].amount > 0
-		}
-		if grew {
+	hs := h ^ 0x5CA1AB1E // spawns draw apart from spreads
+	for i := range scumDraws(span, w.cfg.ScumSpawnPPM, hs) {
+		r := hs + uint64(i+1)*2*0x9E3779B97F4A7C15
+		if p, ok := w.scumDrawTile(splitmix64(&r)); ok {
 			w.addScum(p, room)
 		}
 	}
+	for i := range scumDraws(len(w.scumPatches), w.cfg.ScumSpreadPercent*10000, h) {
+		r := h + uint64(i+1)*2*0x9E3779B97F4A7C15 // two draws each, so no two share one
+		a, b := splitmix64(&r), splitmix64(&r)
+		from := w.scumPatches[a%uint64(len(w.scumPatches))]
+		d := neighbors9[b%9]
+		if p := from.Add(d.X, d.Y); w.generatedTile(p) {
+			w.addScum(p, room)
+		}
+	}
+}
+
+// scumDraws is how many of n things' visits this tick roll a chance of ppm
+// in a million: n/scumTrialDivisor visits, so n×ppm/16 millionths of a roll,
+// whole rolls outright and the fraction on a draw from h. Its mean is exact
+// for any n, which a fixed sample with its chance scaled up is not once the
+// scaled chance passes certainty.
+func scumDraws(n, ppm int, h uint64) int {
+	if n <= 0 || ppm <= 0 {
+		return 0
+	}
+	micro := int64(n) * int64(ppm) / scumTrialDivisor
+	rolls := int(micro / 1_000_000)
+	if splitmix64(&h)%1_000_000 < uint64(micro%1_000_000) {
+		rolls++
+	}
+	return rolls
+}
+
+// scumDrawTile turns a draw into a uniform tile of the generated chunks (the
+// whole map, for a world built without generate), reporting false for a tile
+// past the map's edge in a partial edge chunk.
+func (w *World) scumDrawTile(a uint64) (Point, bool) {
+	if w.gen == nil {
+		return Point{int(a % uint64(w.Width)), int((a >> 32) % uint64(w.Height))}, true
+	}
+	k := w.genChunks[a%uint64(len(w.genChunks))]
+	off := int((a >> 32) % genChunkArea)
+	p := Point{int(k.cx)<<genChunkBits + (off & (genChunkSize - 1)), int(k.cy)<<genChunkBits + (off >> genChunkBits)}
+	return p, w.InBounds(p)
+}
+
+// generatedTile reports whether p is on the map in a generated chunk (every
+// tile, for a world built without generate).
+func (w *World) generatedTile(p Point) bool {
+	return w.InBounds(p) && (w.gen == nil || w.genDone[w.tiles.pageIndex(p.X, p.Y)])
 }
 
 // neighbors9 is a tile and its eight neighbours.
@@ -210,7 +296,7 @@ func (w *World) addScum(p Point, room bool) {
 	if !room || w.TerrainAt(p) != Rock {
 		return
 	}
-	w.scum[p] = scumPatch{amount: 1}
+	w.setScum(p, 1)
 	w.refreshScumExposure(p)
 }
 
