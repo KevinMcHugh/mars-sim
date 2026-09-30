@@ -40,8 +40,8 @@ import (
 // The page checks it at start, so a mars-sim.wasm left over from an older
 // build (npm run wasm not rerun after a pull) fails with a message saying so,
 // instead of a panel that silently never loads. 1 was everything before
-// subscribe/unsubscribe; 2 had no entity: or tile: topics; 3 no roster.
-const hostAPI = 4
+// subscribe/unsubscribe; 2 had no entity: or tile: topics; 3 no roster; 4 no log.
+const hostAPI = 5
 
 var (
 	eng *sim.Engine
@@ -145,6 +145,7 @@ func start(settings string) startResult {
 	eng.ShareLiveTiles()
 	genMs := ms(time.Since(t0))
 	enc = wire.NewEncoder()
+	topics.Restart()
 	last, interestMoved = nil, false
 	// The first advance publishes the initial frame; take it now, so the
 	// Hello can describe it and the page can set its view before any ticks.

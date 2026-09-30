@@ -12,7 +12,9 @@ readout. Around it is a Svelte chrome:
 - **A top bar:** the clock, a Pause / Normal / Fast / Faster / Max speed selector, and
   the TUI header's counts, as emoji (👷 👽 🐈 🐀, then each fixture's glyph).
 - **A side panel,** with the Inspect tab (click the map), the Roster, the
-  Lore tab and a new-game form.
+  Log, the Lore tab and a new-game form.
+- **A log ticker** over the map's bottom-left corner: the last few colony-log
+  lines, fading after a few seconds.
 
 The rest of the TUI's tabs are planned in
 [browser-frontend.md](./browser-frontend.md), "Parity with the TUI". The plan it is part of is
@@ -29,7 +31,8 @@ The rest of the TUI's tabs are planned in
   actions panels take (`subscribe`, `setSpeed`, `newGame`).
 - [`web/src/ui/`](../web/src/ui/App.svelte) — the Svelte chrome: `App`,
   `TopBar`, `SpeedControl`, `SidePanel`, `Bar` (a gauge), and one component
-  per tab (`InspectPanel`, `RosterPanel`, `LorePanel`, `NewGamePanel`). `inspect.ts` types the
+  per tab (`InspectPanel`, `RosterPanel`, `LogPanel`, `LorePanel`,
+  `NewGamePanel`), and `LogTicker`. `logkinds.ts` colors the log's types. `inspect.ts` types the
   inspector's payloads.
 - [`web/src/speed.ts`](../web/src/speed.ts) — the speed selector's steps.
 - [`web/src/settings.ts`](../web/src/settings.ts) — new-game settings from the
@@ -218,6 +221,26 @@ is doing with its mood. A hurt creature shows its health.
   keeps the selection, so the row stays highlighted and the map keeps its
   marker; switching to any other tab drops it. Links inside the inspector keep
   the way back.
+
+**The log** is built up in the page (`colonyLog` in `game.svelte.ts`). The
+engine keeps only the last `-log-size` lines (64), so the `log` topic sends
+only lines newer than it last sent, numbered by `LogEntry.Seq`, and the page
+appends them and keeps the last 2000 (`LOG_KEEP`). A new game's first send
+says `reset`, and the page starts over. `main.ts` subscribes to it for the
+page's whole life, like `names`, because the ticker needs it with the tab
+closed.
+
+- **The Log tab** shows each line with its type (colored), its tick, and the
+  sentence, wrapped, never cut: the TUI found a cut sentence reads as a
+  finished one. It follows the tail while scrolled to the bottom; scrolled
+  back, it stays put and offers "↓ N new". A type menu and a search filter
+  it. Lines use `content-visibility: auto` rather than a virtual list:
+  wrapped lines have no fixed height, and the browser skips laying out the
+  ones off screen.
+- **The ticker** (`LogTicker.svelte`) shows the last four lines for 12
+  seconds after they arrive, fading out; a click opens the Log tab, and it
+  hides while that tab is open. Its fade timer stops once the newest line has
+  faded, so a quiet colony runs no timer.
 
 **The speed selector** is Pause plus four running speeds (`speed.ts`): Normal
 is the game's default 8 ticks a second, Fast is 32, Faster is 128, and Max is

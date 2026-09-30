@@ -4,10 +4,12 @@
   import { ui } from '../game.svelte';
   import TopBar from './TopBar.svelte';
   import SidePanel from './SidePanel.svelte';
+  import LogTicker from './LogTicker.svelte';
 </script>
 
 <TopBar />
 <SidePanel />
+<LogTicker />
 
 {#if ui.hover}
   <div class="hud hover">{ui.hover}</div>

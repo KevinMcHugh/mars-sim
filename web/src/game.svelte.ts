@@ -80,6 +80,29 @@ class TopicData {
 }
 export const topics = new TopicData();
 
+/** One colony-log line (internal/wire/log.go), and when the page got it. */
+export interface LogLine { seq: number; tick: number; kind: string; text: string; at: number }
+
+/** How many log lines the page keeps. The engine keeps only -log-size (64). */
+export const LOG_KEEP = 2000;
+
+/**
+ * The colony log, built up from the log topic's deltas: the engine's ring is
+ * short, the page's history is LOG_KEEP lines. Raw state, replaced on each
+ * change, like a topic payload.
+ */
+class ColonyLog {
+  lines: LogLine[] = $state.raw([]);
+  apply(p: { reset: boolean; entries: Omit<LogLine, 'at'>[] }): void {
+    const at = performance.now();
+    const add = p.entries.map((e) => ({ ...e, at }));
+    const kept = p.reset ? add : this.lines.concat(add);
+    this.lines = kept.length > LOG_KEEP ? kept.slice(kept.length - LOG_KEEP) : kept;
+  }
+  clear(): void { this.lines = []; }
+}
+export const colonyLog = new ColonyLog();
+
 // The controller main.ts installs: how the panels reach the worker.
 export interface Controller {
   command(c: Command): void;

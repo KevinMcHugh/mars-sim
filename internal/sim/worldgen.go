@@ -98,7 +98,7 @@ func generate(w *World) {
 		}
 	}
 
-	w.log.add(LogArrival, fmt.Sprintf("%d crash pods come down on the Martian crust. Something below stirs.", w.countKind(Colonist)))
+	w.logEvent(LogArrival, fmt.Sprintf("%d crash pods come down on the Martian crust. Something below stirs.", w.countKind(Colonist)))
 	w.refreshSpatial()
 }
 

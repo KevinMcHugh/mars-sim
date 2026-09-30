@@ -273,7 +273,7 @@ built. No step needs engine work: every panel's data is already in a
 | --- | --- | --- |
 | A. Shell | Svelte, side panel, top bar with the TUI's counts, speed selector, topics, Lore | **Done** |
 | B. Inspector | Click an entity or tile. Colonist inspector: need, HP-per-part, mood (charge, grip, valence) and affinity bars; inventory, traits, family, memories. Tile inspector: fixture owner, storage contents. | **Done** |
-| C. Roster, Log | Virtualized roster with the TUI's filters (non-humans, the dead) and B's inspector. Log tab, and a log ticker on the map. | Roster **done**; log next |
+| C. Roster, Log | Virtualized roster with the TUI's filters (non-humans, the dead) and B's inspector. Log tab, and a log ticker on the map. | **Done** |
 | D. List tabs | Jobs (and a project's tiles highlighted on the map), Storage, Market | |
 | E. Charts (uPlot) | Perf (tps, ms per tick), Population (four series over the game), Activity (stacked shares with walk-to bands; share or average toggle) | |
 

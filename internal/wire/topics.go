@@ -66,6 +66,9 @@ func NewTopics() *Topics { return &Topics{subs: map[string]*topicState{}} }
 // sends it whatever changed, so a panel that reopens gets its data at once.
 func (t *Topics) Subscribe(name string) error {
 	tp, ok := topicTable[name]
+	if name == "log" {
+		tp, ok = newLogTopic(), true
+	}
 	if !ok {
 		tp, ok = paramTopic(name)
 	}
@@ -74,6 +77,14 @@ func (t *Topics) Subscribe(name string) error {
 	}
 	t.subs[name] = &topicState{tp: tp}
 	return nil
+}
+
+// Restart is for a new game: every subscription starts over, as if just
+// subscribed, so each is sent at once and the log sends its whole new ring.
+func (t *Topics) Restart() {
+	for name := range t.subs {
+		_ = t.Subscribe(name) // it subscribed once, so it resolves again
+	}
 }
 
 // Unsubscribe stops sending name. Unsubscribing from something not

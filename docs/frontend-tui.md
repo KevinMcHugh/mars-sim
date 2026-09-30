@@ -193,8 +193,15 @@ column blank on the following rows and indents under the text — repeating
 the type would make one event look like several. The sidebar does not draw
 the column; thirty cells is not enough for a label and a sentence. A log
 panel that narrow drops it too, for the same reason. A new log line is a
-`log.add(kind, text)` at the point the event happens, and a new kind is a
-`LogKind` constant plus a `String` label no wider than `logKindColumn`.
+`w.logEvent(kind, text)` at the point the event happens, and a new kind is a
+`LogKind` constant plus a `String` label no wider than `logKindColumn` (and a
+color in the browser's `web/src/ui/logkinds.ts`).
+
+Each entry also carries the `Tick` it was logged on and a `Seq`, its number
+in the whole game's log (from 0). `logEvent` stamps both, so no call site
+passes a tick. The ring drops lines from the front without saying so; `Seq`
+is what lets the browser's log topic send only new lines, and keep a history
+longer than `-log-size` (see [frontend-web.md](./frontend-web.md)).
 
 Entries alternate between two close shades (`logBandStyle`), and the stripe
 is per entry, not per visual row. Striping each row would split a wrapped
