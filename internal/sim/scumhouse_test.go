@@ -163,11 +163,11 @@ func TestCookingTurnsTheColonysScumIntoItsMeals(t *testing.T) {
 	assertMoneyConserved(t, w)
 }
 
-// Scum regrows lazily, a unit per ScumRegrowTicks, up to ScumMax.
-func TestScumRegrows(t *testing.T) {
+// A patch scraped bare is gone, and a wall built on one destroys it.
+func TestScumScrapedBareIsGone(t *testing.T) {
 	w := propertyWorld(t)
 	p := Point{10, 10}
-	w.scum[p] = scumPatch{amount: w.cfg.ScumMax, since: w.tick}
+	w.scum[p] = scumPatch{amount: w.cfg.ScumMax}
 	for i := 0; i < w.cfg.ScumMax; i++ {
 		if !w.takeScum(p) {
 			t.Fatalf("patch ran out after %d units", i)
@@ -176,17 +176,79 @@ func TestScumRegrows(t *testing.T) {
 	if w.takeScum(p) {
 		t.Fatal("scraped an empty patch")
 	}
-	w.tick += w.cfg.ScumRegrowTicks
-	if w.scumAt(p) != 1 {
-		t.Fatalf("after one regrowth period the patch holds %d", w.scumAt(p))
+	if _, ok := w.scum[p]; ok {
+		t.Fatal("a bare patch is still on the map")
 	}
-	w.tick += 100 * w.cfg.ScumRegrowTicks
-	if w.scumAt(p) != w.cfg.ScumMax {
-		t.Fatalf("a long-idle patch holds %d, want the cap %d", w.scumAt(p), w.cfg.ScumMax)
-	}
+	w.scum[p] = scumPatch{amount: 1}
 	w.SetTerrain(p, Wall)
 	if w.scumAt(p) != 0 {
 		t.Fatal("scum survived a wall being built on it")
+	}
+}
+
+// Scum accretes: with no patches anywhere it still spawns at a low rate, and
+// a lone patch spreads to its neighbours far more often than scum appears
+// elsewhere.
+func TestScumSpawnsAndSpreads(t *testing.T) {
+	cfg := testConfig()
+	cfg.Width, cfg.Height = 60, 36
+	cfg.ScumPercent = 30
+	cfg.ScumSpawnPPM = 50
+	cfg.ScumSpreadPercent = 50
+	w := newTestWorld(t, cfg)
+	clear(w.scum)
+	clear(w.exposedScum)
+	// A patch in solid rock, so its neighbours are eligible to grow.
+	var seed Point
+	for y := 4; y < cfg.Height-4 && seed == (Point{}); y++ {
+		for x := 4; x < cfg.Width-4; x++ {
+			solid := true
+			for dy := -3; dy <= 3; dy++ {
+				for dx := -3; dx <= 3; dx++ {
+					solid = solid && w.TerrainAt(Point{x + dx, y + dy}) == Rock
+				}
+			}
+			if solid {
+				seed = Point{x, y}
+				break
+			}
+		}
+	}
+	if seed == (Point{}) {
+		t.Fatal("no solid rock to seed a patch in")
+	}
+	w.scum[seed] = scumPatch{amount: w.cfg.ScumMax}
+	near, far := 0, 0
+	for i := 0; i < 600; i++ {
+		w.growScum()
+		w.tick++
+	}
+	for p := range w.scum {
+		if p == seed {
+			continue
+		}
+		if seed.Chebyshev(p) <= 3 {
+			near++
+		} else {
+			far++
+		}
+	}
+	// 49 tiles within 3 of the seed against 2,111 elsewhere.
+	if near == 0 || far == 0 {
+		t.Fatalf("near=%d far=%d: want both spread from the patch and spawns elsewhere", near, far)
+	}
+	if near*2111 < far*49*3 {
+		t.Fatalf("near=%d far=%d: scum is no likelier beside scum", near, far)
+	}
+	cfg.ScumSpawnPPM, cfg.ScumSpreadPercent = 0, 0
+	w2 := newTestWorld(t, cfg)
+	before := len(w2.scum)
+	for i := 0; i < 400; i++ {
+		w2.growScum()
+		w2.tick++
+	}
+	if len(w2.scum) != before {
+		t.Fatal("scum grew with both rates at zero")
 	}
 }
 
@@ -216,7 +278,7 @@ func TestScrapersBringScumInForTheColony(t *testing.T) {
 	w.tick = marketInterval
 	w.runMarket()
 	patch := Point{8, 12}
-	w.scum[patch] = scumPatch{amount: w.cfg.ScumMax, since: w.tick}
+	w.scum[patch] = scumPatch{amount: w.cfg.ScumMax}
 	w.refreshScumExposure(patch)
 	s := w.spawn(Colonist, Point{12, 12})
 	purse := s.wallet
@@ -244,7 +306,7 @@ func TestAHungryScraperKeepsItsScum(t *testing.T) {
 	w.tick = marketInterval
 	w.runMarket()
 	patch := Point{8, 12}
-	w.scum[patch] = scumPatch{amount: w.cfg.ScumMax, since: w.tick}
+	w.scum[patch] = scumPatch{amount: w.cfg.ScumMax}
 	w.refreshScumExposure(patch)
 	s := w.spawn(Colonist, Point{12, 12})
 	if !w.tryAssignFoodWork(s, true) {
@@ -393,7 +455,7 @@ func TestHiddenCavernScumIsNotExposedUntilFound(t *testing.T) {
 func TestPublishedScumIsNeverStale(t *testing.T) {
 	cfg := testConfig()
 	cfg.Width, cfg.Height = 60, 36
-	cfg.ScumRegrowTicks = 7 // regrowth boundaries often, to catch a missed expiry
+	cfg.ScumSpawnPPM, cfg.ScumSpreadPercent = 20000, 90 // grow often, to catch a missed invalidation
 	w := newTestWorld(t, cfg)
 	reused := 0
 	for i := 0; i < 2000; i++ {

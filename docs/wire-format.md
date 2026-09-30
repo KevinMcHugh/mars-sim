@@ -95,7 +95,7 @@ Then the sections, in order:
   order. Amounts run 1 to `Hello.scumMax`. C is 0 unless the scum-frame flag
   is set; then, like refuse, it is the whole list. The encoder sends it when
   `Snapshot.Scum` is a different map from the last one sent. The engine hands
-  out the same map until scum is scraped or regrows (`publishedScum`), so map
+  out the same map until scum is scraped or grows (`publishedScum`), so map
   identity is an exact, free change signal. It is also sent on a tiles reset.
 
 ### Which pages go
@@ -175,7 +175,7 @@ Entities in a re-encode are from the newest snapshot, not newer ticks.
   in view on every death. The list is a few hundred entries in a long game.
   Scum follows the same pattern for the same reason. It is a longer list (every
   scummy patch of cave wall, about 850 in a 150,000-tick game), but it changes
-  only when a patch is scraped or regrows.
+  only when a patch is scraped or grows (spawns or spreads).
 - **A per-frame page cap.** A first frame, a zoom-out or a fast pan can put
   hundreds of pages in view. Without a cap, one frame would be megabytes and
   the worker would stall building it; with it, the view fills in from the

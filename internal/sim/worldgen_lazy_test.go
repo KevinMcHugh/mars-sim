@@ -21,6 +21,9 @@ func lazyGoldenConfig(t *testing.T) (Config, int) {
 // every tile, same hidden floor on every tile the colony has not touched.
 func TestLazyChunksMatchThePureGenerator(t *testing.T) {
 	cfg, ticks := lazyGoldenConfig(t)
+	// Scum accretes after generation (growScum); this test is about what the
+	// generator laid down.
+	cfg.ScumSpawnPPM, cfg.ScumSpreadPercent = 0, 0
 	w := NewEngine(cfg).world
 	check := func(when string) {
 		fresh := newWorldGen(cfg)

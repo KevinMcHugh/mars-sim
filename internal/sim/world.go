@@ -656,13 +656,11 @@ type World struct {
 	// walks the map.
 	scum        map[Point]scumPatch
 	exposedScum map[Point]struct{}
-	// scumRev advances on every change to scum or exposedScum. With
-	// snapScumUntil, the tick the first published patch would visibly regrow,
-	// it lets publishing reuse the last published copy (snapScum, taken at
-	// snapScumRev); see publishedScum.
+	// scumRev advances on every change to scum or exposedScum that publishing
+	// can see. It lets publishing reuse the last published copy (snapScum,
+	// taken at snapScumRev); see publishedScum.
 	scumRev        uint64
 	snapScumRev    uint64
-	snapScumUntil  int
 	snapScum       map[Point]uint8
 	scumClaims     map[Point]EntityID
 	workshopClaims map[Point]EntityID

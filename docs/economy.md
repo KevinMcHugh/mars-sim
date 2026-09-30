@@ -577,8 +577,8 @@ turned off). Notes against the sketch:
 - The recipe table is Go data (`recipes`), four rows at the scumhouse:
   alien carcass, animal carcass, viscera, cave scum.
 - Scum lives on rock *surfaces*: scrapable while exposed, left on the floor when
-  its rock is mined, destroyed when something is built over it. Regrowth is
-  lazy.
+  its rock is mined, destroyed when something is built over it. It accretes:
+  spawns anywhere at a low rate and spreads from patches (see scumhouse.md).
 - Gathered biomatter is the colony's through a **cargo record**, the first one;
   so the meals it becomes are communal and anyone eats them.
 - The planner builds a scumhouse first when the safety net is off, and only on

@@ -280,29 +280,21 @@ func (s *Snapshot) ScumAt(p Point) int { return int(s.Scum[p]) }
 
 // publishedScum returns an immutable copy of the scum on every exposed patch,
 // reusing the last one published while it is still exact: nothing has written
-// to the scum since (scumRev), and no published patch has regrown a unit yet
-// (snapScumUntil). Regrowth is lazy (see scumAt) — there is no write to watch
-// when a patch ticks up — so the copy records the earliest tick one will.
+// to an exposed patch since (scumRev). Growth (growScum) bumps it too.
 //
 // It used to be rebuilt every frame. Publishing happens every tick, and on a
 // big map that made the scum copy most of what the engine did.
 func (w *World) publishedScum() map[Point]uint8 {
-	if w.snapScum != nil && w.snapScumRev == w.scumRev && w.tick < w.snapScumUntil {
+	if w.snapScum != nil && w.snapScumRev == w.scumRev {
 		return w.snapScum
 	}
 	out := make(map[Point]uint8, len(w.exposedScum))
-	until := math.MaxInt
 	for p := range w.exposedScum {
-		n := w.scumAt(p)
-		if n > 0 {
+		if n := w.scumAt(p); n > 0 {
 			out[p] = uint8(min(n, math.MaxUint8)) // scum-max is validated to fit; never wrap
 		}
-		if regrow := w.cfg.ScumRegrowTicks; regrow > 0 && n < w.cfg.ScumMax {
-			s := w.scum[p]
-			until = min(until, s.since+((w.tick-s.since)/regrow+1)*regrow)
-		}
 	}
-	w.snapScum, w.snapScumRev, w.snapScumUntil = out, w.scumRev, until
+	w.snapScum, w.snapScumRev = out, w.scumRev
 	return out
 }
 
