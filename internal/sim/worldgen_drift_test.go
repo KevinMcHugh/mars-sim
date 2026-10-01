@@ -16,10 +16,10 @@ import (
 // percentages over many seeds. See docs/worldgen-chunks.md for the numbers.
 
 // abundance is one generated world's actual percentages, by composition level
-// (see veinLevels), then cavern floor, then cave scum.
-type abundance [len(veinLevels) + 2]float64
+// (see veinLevels), then cavern floor, then cave scum, then salt.
+type abundance [len(veinLevels) + 3]float64
 
-var abundanceNames = [len(veinLevels) + 2]string{"iron", "ice", "uranium", "clay", "cavern", "scum"}
+var abundanceNames = [len(veinLevels) + 3]string{"iron", "ice", "uranium", "clay", "cavern", "scum", "salt"}
 
 func abundanceTargets(cfg Config) abundance {
 	var a abundance
@@ -28,6 +28,7 @@ func abundanceTargets(cfg Config) abundance {
 	}
 	a[len(veinLevels)] = float64(cfg.CavernPercent)
 	a[len(veinLevels)+1] = float64(cfg.ScumPercent)
+	a[len(veinLevels)+2] = float64(cfg.SaltPercent)
 	return a
 }
 
@@ -37,7 +38,7 @@ func abundanceTargets(cfg Config) abundance {
 func measureAbundance(cfg Config) abundance {
 	g := newWorldGen(cfg)
 	g.withCacheSize(2 * g.chunkCols() * (2*genHorizon + 1))
-	var counts [len(veinLevels) + 2]int
+	var counts [len(veinLevels) + 3]int
 	for cy := 0; cy < g.chunkRows(); cy++ {
 		for cx := 0; cx < g.chunkCols(); cx++ {
 			c := g.chunk(cx, cy)
@@ -53,6 +54,9 @@ func measureAbundance(cfg Config) abundance {
 					}
 					if c.isScum(off) {
 						counts[len(veinLevels)+1]++
+					}
+					if c.isSalt(off) {
+						counts[len(veinLevels)+2]++
 					}
 				}
 			}
@@ -84,7 +88,7 @@ func summarize(xs []float64) driftStats {
 	return s
 }
 
-func driftSweep(size [2]int, seeds int) [len(veinLevels) + 2]driftStats {
+func driftSweep(size [2]int, seeds int) [len(veinLevels) + 3]driftStats {
 	cfg := DefaultConfig()
 	cfg.Width, cfg.Height = size[0], size[1]
 	per := make([][]float64, len(abundanceNames))
@@ -95,7 +99,7 @@ func driftSweep(size [2]int, seeds int) [len(veinLevels) + 2]driftStats {
 			per[i] = append(per[i], a[i])
 		}
 	}
-	var out [len(veinLevels) + 2]driftStats
+	var out [len(veinLevels) + 3]driftStats
 	for i := range out {
 		out[i] = summarize(per[i])
 	}

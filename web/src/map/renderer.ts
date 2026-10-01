@@ -14,6 +14,8 @@
 // dark red for gore, dark green for scum, brown for both, deeper the more
 // there is (a full-tile quad per dirty tile, drawn between terrain and
 // sprites). Bodies keep a marker: they are a thing to haul, not a stain.
+// A salt deposit is a pale tint through the same quads; it never shares a tile
+// with scum, and gore on it wins.
 //
 // Zoomed in (GLYPH_ZOOM and up), glyphs replace the flat colors: a facility's
 // emoji over a floor backdrop, and each entity's own emoji (picked in Go, see
@@ -120,7 +122,7 @@ out vec4 outColor;
 void main() { outColor = vColor; }`;
 
 /** What is on one dirty tile, for the tint and the hover readout. */
-export interface Filth { gore: number; scum: number; corpses: number }
+export interface Filth { gore: number; scum: number; salt: boolean; corpses: number }
 
 const SPRITE_VS = `#version 300 es
 in vec2 aCorner;
@@ -238,12 +240,13 @@ export class MapRenderer {
   private refuseCount = 0;
   private refuse: Frame['refuse'] = null;
   private scum: Frame['scum'] = null;
+  private salt: Frame['salt'] = null;
   private tintProg: WebGLProgram;
   private tintVAO: WebGLVertexArrayObject;
   private tintPos: WebGLBuffer;
   private tintColor: WebGLBuffer;
   private tintCount = 0;
-  /** Filth on visible tiles, by tileKey. Rebuilt when refuse, scum or pages change. */
+  /** Filth and salt on visible tiles, by tileKey. Rebuilt when refuse, scum, salt or pages change. */
   readonly filth = new Map<number, Filth>();
   /** The last frame, for hover lookups of entities. */
   lastFrame: Frame | null = null;
@@ -344,6 +347,7 @@ export class MapRenderer {
     this.entityCount = this.refuseCount = this.tintCount = this.hiCount = 0;
     this.refuse = null;
     this.scum = null;
+    this.salt = null;
     this.filth.clear();
     this.lastFrame = null;
 
@@ -414,19 +418,20 @@ export class MapRenderer {
     gl.bindBuffer(gl.ARRAY_BUFFER, this.entityGlyph);
     gl.bufferData(gl.ARRAY_BUFFER, glyph.subarray(0, n), gl.DYNAMIC_DRAW);
 
-    // Refuse and scum arrive only when they change, but what is visible
+    // Refuse, scum and salt arrive only when they change, but what is visible
     // changes as the colony digs, so keep the lists and refilter them
-    // whenever either list or any page changed.
+    // whenever any list or any page changed.
     if (f.refuse) this.refuse = f.refuse;
     if (f.scum) this.scum = f.scum;
-    if (f.refuse || f.scum || f.pages.count > 0 || f.tilesReset) this.rebuildFilth();
+    if (f.salt) this.salt = f.salt;
+    if (f.refuse || f.scum || f.salt || f.pages.count > 0 || f.tilesReset) this.rebuildFilth();
     this.lastFrame = f;
     this.dirty = true;
   }
 
   /**
-   * Rebuild the filth on visible tiles: the tint quads (gore, scum, or both
-   * on one tile) and the body markers, which stay sprites.
+   * Rebuild the filth on visible tiles: the tint quads (gore, scum, both on
+   * one tile, or a salt deposit) and the body markers, which stay sprites.
    */
   private rebuildFilth(): void {
     const gl = this.gl;
@@ -435,7 +440,7 @@ export class MapRenderer {
     const at = (x: number, y: number) => {
       const k = tileKey(x, y);
       let v = this.filth.get(k);
-      if (!v) { v = { gore: 0, scum: 0, corpses: 0 }; this.filth.set(k, v); }
+      if (!v) { v = { gore: 0, scum: 0, salt: false, corpses: 0 }; this.filth.set(k, v); }
       return v;
     };
     const r = this.refuse;
@@ -450,6 +455,11 @@ export class MapRenderer {
       if (!this.visible(sc.x[i], sc.y[i])) continue;
       at(sc.x[i], sc.y[i]).scum = sc.amount[i];
     }
+    const sa = this.salt;
+    if (sa) for (let i = 0; i < sa.count; i++) {
+      if (!this.visible(sa.x[i], sa.y[i])) continue;
+      at(sa.x[i], sa.y[i]).salt = true;
+    }
 
     const n = this.filth.size;
     const tpos = new Int32Array(n * 2);
@@ -460,8 +470,10 @@ export class MapRenderer {
     let t = 0, b = 0;
     for (const [k, v] of this.filth) {
       const x = k % TILE_KEY_ROW, y = Math.floor(k / TILE_KEY_ROW);
-      if (v.gore > 0 || v.scum > 0) {
-        const tint = palette.filthTint(v.gore / Math.max(1, hello.goreMax), v.scum / Math.max(1, hello.scumMax));
+      if (v.gore > 0 || v.scum > 0 || v.salt) {
+        const tint = v.gore > 0 || v.scum > 0
+          ? palette.filthTint(v.gore / Math.max(1, hello.goreMax), v.scum / Math.max(1, hello.scumMax))
+          : palette.SALT_TINT;
         tpos[2 * t] = x; tpos[2 * t + 1] = y;
         tcolor.set(tint, 4 * t);
         t++;

@@ -114,7 +114,8 @@ derived systems go stale (and the map the player sees never grows).
 
 1. Sets up **lazy, chunked generation**. Each 64×64 chunk holds iron,
    water-ice, uranium, and clay veins, patches of **cave scum** (see
-   [scumhouse.md](./scumhouse.md)), plus hidden **natural caverns** and the
+   [scumhouse.md](./scumhouse.md)) and **salt** deposits (see
+   [salt.md](./salt.md)), plus hidden **natural caverns** and the
    passages that join some of them. What a chunk holds is a pure function of
    the config and its coordinates, on worldgen's own seed-derived streams.
    Chunks are generated as the colony explores: carving the landing site

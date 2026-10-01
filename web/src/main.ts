@@ -226,6 +226,7 @@ function showHover(sx: number, sy: number): void {
     const filth = map.filthAt(x, y);
     if (filth?.gore) parts.push(`viscera ${filth.gore}/${hello.goreMax}`);
     if (filth?.scum) parts.push(`scum ${filth.scum}/${hello.scumMax}`);
+    if (filth?.salt) parts.push('salt');
     if (filth?.corpses) parts.push(filth.corpses === 1 ? 'a body' : `${filth.corpses} bodies`);
     if (last) {
       const e = last.entities;

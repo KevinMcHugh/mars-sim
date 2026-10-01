@@ -33,6 +33,7 @@ const (
 	Storage     = "\U0001F9F0" // 🧰 storage container: six colonist inventories
 	Scumhouse   = "\U0001F372" // 🍲 scumhouse: biomatter in, slurry out
 	Scum        = "\U0001F7E2" // 🟢 cave scum a colonist could scrape
+	Salt        = "\U0001F9C2" // 🧂 a salt deposit on the rock
 	Forge       = "\U0001F3ED" // 🏭 forge: iron ore in, steel ingots out
 	GunBench    = "\U0001F528" // 🔨 gun bench: steel in, assault rifles out
 
@@ -219,6 +220,8 @@ var All = []string{
 	WomanSenior,
 	PersonSenior,
 	Mars,
+	// Salt is last so it moved no existing glyph's index in the wire.
+	Salt,
 }
 
 var known = func() map[string]bool {

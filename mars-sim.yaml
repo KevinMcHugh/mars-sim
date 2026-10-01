@@ -33,16 +33,16 @@
 ## chunks (64x64 tiles) generated ahead of what the colony has seen; at least 1
 # worldgen-halo: 2
 
-## percent of rock tiles bearing iron
+## percent of the map's tiles bearing iron
 # iron-rock-percent: 10
 
-## percent of rock tiles bearing water ice
+## percent of the map's tiles bearing water ice
 # ice-rock-percent: 5
 
-## percent of rock tiles bearing uranium
+## percent of the map's tiles bearing uranium
 # uranium-rock-percent: 1
 
-## percent of rock tiles bearing clay
+## percent of the map's tiles bearing clay
 # clay-rock-percent: 5
 
 ## minimum tiles in a generated rock deposit vein
@@ -50,6 +50,9 @@
 
 ## maximum tiles in a generated rock deposit vein
 # rock-vein-max: 24
+
+## percent of the map's tiles carrying a deposit of salt
+# salt-percent: 3
 
 ## percent of the map hollowed into natural caverns
 # cavern-percent: 4
@@ -108,7 +111,7 @@
 # infinite-food: false
 
 # ── Food production ─────────────────────────────────────────────────────
-## percent of rock tiles carrying a patch of cave scum
+## percent of the map's tiles carrying a patch of cave scum
 # scum-percent: 6
 
 ## units of scum a full patch holds

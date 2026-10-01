@@ -24,6 +24,7 @@ const (
 	flagTilesReset  = 1 << 2 // drop every page held; the ones in this frame start over
 	flagRefuseFrame = 1 << 3 // the refuse section is the whole list; without it, keep the last one
 	flagScumFrame   = 1 << 4 // the scum section is the whole list; without it, keep the last one
+	flagSaltFrame   = 1 << 5 // the salt section is the whole list; without it, keep the last one
 
 	// The tile flags byte: the rock composition in the low bits, and whether
 	// the tile may be drawn (explored, or the fog is off).
@@ -62,7 +63,8 @@ type Encoder struct {
 	// same map until the scum changes (see sim.World.publishedScum), so a
 	// different map is the signal to send the list again.
 	lastScum uintptr
-	owed     int // pages in view still to send after the last frame
+	lastSalt uintptr // likewise for Snapshot.Salt
+	owed     int     // pages in view still to send after the last frame
 
 	buf   []byte
 	tiles []sim.Tile
@@ -136,6 +138,12 @@ func (e *Encoder) Encode(snap *sim.Snapshot) []byte {
 		scum = scumTiles(snap.Scum)
 		e.lastScum = id
 	}
+	var salt []sim.Point
+	if id := reflect.ValueOf(snap.Salt).Pointer(); id != e.lastSalt || flags&flagTilesReset != 0 {
+		flags |= flagSaltFrame
+		salt = saltTiles(snap.Salt)
+		e.lastSalt = id
+	}
 
 	n := len(snap.Entities)
 	size := headerLen +
@@ -143,7 +151,8 @@ func (e *Encoder) Encode(snap *sim.Snapshot) []byte {
 		n*(4+4+4) + align4(n*2) + align4(n*3) +
 		len(pages)*(4+4) + len(pages)*pageTiles*tileBytes +
 		len(refuse)*(4+4) + align4(len(refuse)*2) + align4(len(refuse)) +
-		len(scum)*(4+4) + align4(len(scum))
+		len(scum)*(4+4) + align4(len(scum)) +
+		len(salt)*(4+4)
 	e.buf = slices.Grow(e.buf[:0], size)[:size]
 	clear(e.buf)
 	b := e.buf
@@ -161,7 +170,7 @@ func (e *Encoder) Encode(snap *sim.Snapshot) []byte {
 	le.PutUint32(b[40:], uint32(len(refuse)))
 	le.PutUint32(b[44:], uint32(e.owed))
 	le.PutUint32(b[48:], uint32(len(scum)))
-	// b[52:56] is reserved, and zero.
+	le.PutUint32(b[52:], uint32(len(salt)))
 	at := headerLen
 
 	for _, v := range statValues(snap.Stats) {
@@ -242,6 +251,14 @@ func (e *Encoder) Encode(snap *sim.Snapshot) []byte {
 		b[at+i] = t.amount
 	}
 	at += align4(c)
+
+	// Salt: xs, ys.
+	s := len(salt)
+	for i, p := range salt {
+		le.PutUint32(b[at+4*i:], uint32(int32(p.X)))
+		le.PutUint32(b[at+4*(s+i):], uint32(int32(p.Y)))
+	}
+	at += 8 * s
 
 	if at != size {
 		panic("wire: frame size miscounted")
@@ -334,6 +351,21 @@ func scumTiles(m map[sim.Point]uint8) []scumTile {
 			return a.pos.Y - b.pos.Y
 		}
 		return a.pos.X - b.pos.X
+	})
+	return out
+}
+
+// saltTiles lists the salt set in row order, for the same reason as scumTiles.
+func saltTiles(m map[sim.Point]struct{}) []sim.Point {
+	out := make([]sim.Point, 0, len(m))
+	for p := range m {
+		out = append(out, p)
+	}
+	slices.SortFunc(out, func(a, b sim.Point) int {
+		if a.Y != b.Y {
+			return a.Y - b.Y
+		}
+		return a.X - b.X
 	})
 	return out
 }

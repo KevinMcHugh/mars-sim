@@ -648,6 +648,17 @@ type World struct {
 	// advances on any change so snapshots can reuse the last published list
 	// (snapFixtures, taken at snapFixtureRev). See property.go.
 	fixtures map[Point]*Fixture
+	// salt holds every tile carrying a deposit of salt (see salt.go). It
+	// never overlaps scum, and is never added to after generation.
+	salt map[Point]struct{}
+	// exposedSalt is the salt a colonist could reach, as exposedScum is for
+	// scum, so publishing never walks the whole map's deposits. saltRev
+	// advances when it changes and lets publishing reuse the last copy
+	// (snapSalt, taken at snapSaltRev); see publishedSalt.
+	exposedSalt map[Point]struct{}
+	saltRev     uint64
+	snapSaltRev uint64
+	snapSalt    map[Point]struct{}
 	// Cave scum (see scumhouse.go): the sparse patches, the ones a colonist
 	// can currently reach (on floor, or on rock that borders walkable floor),
 	// which patch each scraper is headed to, and which workshop each cook has
@@ -976,12 +987,15 @@ func newWorld(cfg Config, src *rand.PCG) *World {
 	w.storedMealsTick = -1
 	w.hungryTick = -1
 	w.scum = make(map[Point]scumPatch)
+	w.salt = make(map[Point]struct{})
+	w.exposedSalt = make(map[Point]struct{})
 	w.exposedScum = make(map[Point]struct{})
 	w.scumClaims = make(map[Point]EntityID)
 	w.workshopClaims = make(map[Point]EntityID)
 	w.subscribe(func(e WorldEvent) {
 		if tc, ok := e.(TileChanged); ok {
 			w.refreshScumExposure(tc.Pos)
+			w.refreshSaltExposure(tc.Pos)
 		}
 	})
 	w.frontier = newFlowField(w, func(add func(Point)) {
@@ -1137,6 +1151,7 @@ func (w *World) setTerrain(p Point, t Terrain, discover bool) {
 	if t != Floor && t != Rock {
 		w.clearRefuse(p)
 		w.clearScum(p) // a structure seals the biofilm under it for good
+		w.clearSalt(p) // and buries the salt
 	}
 	w.tiles.ptr(p.X, p.Y).Terrain = t
 	w.markTilePageDirty(p)
@@ -1236,6 +1251,7 @@ func (w *World) reveal(p Point) {
 func (w *World) discoverCavernTile(p Point) {
 	w.growCarvedBox(p)
 	w.refreshScumExposure(p) // the cavern's rim is reachable scum now
+	w.refreshSaltExposure(p) // and salt
 	w.dirtyChunks[w.chunkIndexOf(p)] = struct{}{}
 	if w.board != nil {
 		w.board.refreshFrontierCell(p)

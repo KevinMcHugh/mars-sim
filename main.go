@@ -480,6 +480,12 @@ func validateConfig(cfg sim.Config) error {
 		// A patch's amount is published as one byte (Snapshot.Scum); 256
 		// would wrap to 0 and a full patch would vanish from the map.
 		return fmt.Errorf("scum-max must be between 0 and 255 (got %d)", cfg.ScumMax)
+	case cfg.ScumPercent < 0 || cfg.SaltPercent < 0 || cfg.ScumPercent+cfg.SaltPercent > 100:
+		// Salt never shares a tile with scum, so together they cannot cover
+		// more than the map; past that, generation walks every chunk's runs
+		// to their guard looking for room that is not there.
+		return fmt.Errorf("scum-percent and salt-percent must be non-negative and total at most 100 (got scum %d + salt %d)",
+			cfg.ScumPercent, cfg.SaltPercent)
 	case cfg.WealthTax < 0 || cfg.WealthTax > 100 || cfg.TaxFloor < 0 || cfg.TaxInterval < 0:
 		return fmt.Errorf("wealth-tax must be 0-100, and tax-floor and tax-interval cannot be negative (got %d, %d, %d)",
 			cfg.WealthTax, cfg.TaxFloor, cfg.TaxInterval)

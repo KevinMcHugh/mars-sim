@@ -1,6 +1,7 @@
 package sim
 
 import (
+	"fmt"
 	"runtime"
 	"testing"
 )
@@ -434,5 +435,29 @@ func BenchmarkChunkWarm(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		g.chunk(17, 16)
+	}
+}
+
+// BenchmarkGenerateMap generates every chunk of a 1024×1024 map in raster
+// order, the way the drift report sweeps one: the whole-map cost of the
+// plans, with and without salt (whose plan reads its neighbours' scum).
+func BenchmarkGenerateMap(b *testing.B) {
+	for _, salt := range []int{0, 3} {
+		b.Run(fmt.Sprintf("salt=%d", salt), func(b *testing.B) {
+			cfg := DefaultConfig()
+			cfg.Seed = 7
+			cfg.Width, cfg.Height = 1024, 1024
+			cfg.SaltPercent = salt
+			b.ReportAllocs()
+			for i := 0; i < b.N; i++ {
+				g := newWorldGen(cfg)
+				g.withCacheSize(2 * g.chunkCols() * (2*genHorizon + 1))
+				for cy := 0; cy < g.chunkRows(); cy++ {
+					for cx := 0; cx < g.chunkCols(); cx++ {
+						g.chunk(cx, cy)
+					}
+				}
+			}
+		})
 	}
 }

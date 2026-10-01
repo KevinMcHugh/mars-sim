@@ -314,3 +314,29 @@ func TestScumMaxMustFitAByte(t *testing.T) {
 		t.Fatalf("scum-max 255: %v", err)
 	}
 }
+
+// Salt never shares a tile with scum, so the two cannot cover more than the
+// whole map between them.
+func TestScumAndSaltPercentsMustFitTheMap(t *testing.T) {
+	for _, c := range []struct {
+		scum, salt int
+		ok         bool
+	}{
+		{6, 3, true},
+		{0, 100, true},
+		{60, 40, true},
+		{60, 41, false},
+		{-1, 3, false},
+		{6, -1, false},
+	} {
+		cfg := sim.DefaultConfig()
+		cfg.ScumPercent, cfg.SaltPercent = c.scum, c.salt
+		err := validateConfig(cfg)
+		if c.ok && err != nil {
+			t.Errorf("scum %d + salt %d: %v", c.scum, c.salt, err)
+		}
+		if !c.ok && (err == nil || !strings.Contains(err.Error(), "salt-percent")) {
+			t.Errorf("scum %d + salt %d: error %v, want one naming salt-percent", c.scum, c.salt, err)
+		}
+	}
+}

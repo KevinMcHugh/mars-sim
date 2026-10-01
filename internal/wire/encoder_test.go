@@ -29,6 +29,13 @@ type decoded struct {
 	Refuse    []decodedWaste `json:"refuse"`
 	HasScum   bool           `json:"scumFrame"`
 	Scum      []decodedScum  `json:"scum"`
+	HasSalt   bool           `json:"saltFrame"`
+	Salt      []decodedSalt  `json:"salt"`
+}
+
+type decodedSalt struct {
+	X int32 `json:"x"`
+	Y int32 `json:"y"`
 }
 
 type decodedScum struct {
@@ -77,6 +84,7 @@ func decode(t *testing.T, b []byte) decoded {
 		Reset:     flags&flagTilesReset != 0,
 		HasRefuse: flags&flagRefuseFrame != 0,
 		HasScum:   flags&flagScumFrame != 0,
+		HasSalt:   flags&flagSaltFrame != 0,
 		Tick:      le.Uint64(b[8:]),
 		TileFrame: le.Uint64(b[16:]),
 		TPS:       le.Uint32(b[24:]),
@@ -84,7 +92,7 @@ func decode(t *testing.T, b []byte) decoded {
 	}
 	nStats, n := int(le.Uint32(b[28:])), int(le.Uint32(b[32:]))
 	nPages, nRefuse := int(le.Uint32(b[36:])), int(le.Uint32(b[40:]))
-	nScum := int(le.Uint32(b[48:]))
+	nScum, nSalt := int(le.Uint32(b[48:])), int(le.Uint32(b[52:]))
 	at := headerLen
 	for i := 0; i < nStats; i++ {
 		d.Stats = append(d.Stats, int32(le.Uint32(b[at:])))
@@ -129,6 +137,12 @@ func decode(t *testing.T, b []byte) decoded {
 		d.Scum[i].Amount = b[at+8*nScum+i]
 	}
 	at += 8*nScum + align4(nScum)
+	d.Salt = make([]decodedSalt, nSalt)
+	for i := range d.Salt {
+		d.Salt[i].X = int32(le.Uint32(b[at+4*i:]))
+		d.Salt[i].Y = int32(le.Uint32(b[at+4*(nSalt+i):]))
+	}
+	at += 8 * nSalt
 	if at != len(b) {
 		t.Fatalf("frame is %d bytes, sections add up to %d", len(b), at)
 	}
@@ -184,6 +198,7 @@ func fixture(fog bool) *sim.Snapshot {
 		Stats:          sim.Stats{Colonists: 1, Cats: 1, Aliens: 1, FloorDug: 1500},
 		Scum:           map[sim.Point]uint8{{X: 12, Y: 4}: 3, {X: 2, Y: 4}: 1, {X: 130, Y: 1}: 2},
 		ScumMax:        3,
+		Salt:           map[sim.Point]struct{}{{X: 7, Y: 9}: {}, {X: 1, Y: 9}: {}, {X: 129, Y: 0}: {}},
 		TicksPerSecond: 8,
 		FogOfWar:       fog,
 	}
@@ -419,8 +434,9 @@ func TestHelloNamesEverythingAFrameIndexes(t *testing.T) {
 	}
 }
 
-// Scum goes whole, in row order, on the first frame and whenever the engine
-// publishes a different scum map; a frame that shares the last map sends none.
+// Scum goes whole, in row order, on the first frame, whenever the engine
+// publishes a different scum map, and on a tiles reset; a frame that shares the
+// last map sends none.
 func TestEncodeSendsScumWhenItChanges(t *testing.T) {
 	snap := fixture(true)
 	e := NewEncoder()
@@ -436,17 +452,63 @@ func TestEncodeSendsScumWhenItChanges(t *testing.T) {
 		t.Errorf("unchanged scum was sent again: %+v", d.Scum)
 	}
 
+	// A tiles reset drops everything the page holds, so the same map goes
+	// again.
+	reset := same
+	reset.TileChanges = sim.TileChanges{Frame: 3, All: true}
+	if d := decode(t, e.Encode(&reset)); !d.HasScum || !slices.Equal(d.Scum, want) {
+		t.Errorf("scum after a tiles reset: %v %+v, want %+v", d.HasScum, d.Scum, want)
+	}
+
 	scraped := same
-	scraped.TileChanges = sim.TileChanges{Frame: 3}
+	scraped.TileChanges = sim.TileChanges{Frame: 4}
 	scraped.Scum = map[sim.Point]uint8{{X: 12, Y: 4}: 2}
 	if d := decode(t, e.Encode(&scraped)); !d.HasScum || !slices.Equal(d.Scum, []decodedScum{{X: 12, Y: 4, Amount: 2}}) {
 		t.Errorf("changed scum: %v %+v", d.HasScum, d.Scum)
 	}
 
 	gone := scraped
-	gone.TileChanges = sim.TileChanges{Frame: 4}
+	gone.TileChanges = sim.TileChanges{Frame: 5}
 	gone.Scum = map[sim.Point]uint8{}
 	if d := decode(t, e.Encode(&gone)); !d.HasScum || len(d.Scum) != 0 {
 		t.Errorf("all scum scraped: want an empty scum frame, got %v %+v", d.HasScum, d.Scum)
+	}
+}
+
+// Salt goes whole, in row order, on the first frame and whenever the engine
+// publishes a different salt map or the tiles start over, exactly as scum does.
+func TestEncodeSendsSaltWhenItChanges(t *testing.T) {
+	snap := fixture(true)
+	e := NewEncoder()
+	d := decode(t, e.Encode(snap))
+	want := []decodedSalt{{X: 129, Y: 0}, {X: 1, Y: 9}, {X: 7, Y: 9}}
+	if !d.HasSalt || !slices.Equal(d.Salt, want) {
+		t.Fatalf("first frame salt %v %+v, want %+v", d.HasSalt, d.Salt, want)
+	}
+
+	same := *snap
+	same.TileChanges = sim.TileChanges{Frame: 2}
+	if d := decode(t, e.Encode(&same)); d.HasSalt || len(d.Salt) != 0 {
+		t.Errorf("unchanged salt was sent again: %+v", d.Salt)
+	}
+
+	reset := same
+	reset.TileChanges = sim.TileChanges{Frame: 3, All: true}
+	if d := decode(t, e.Encode(&reset)); !d.HasSalt || !slices.Equal(d.Salt, want) {
+		t.Errorf("salt after a tiles reset: %v %+v, want %+v", d.HasSalt, d.Salt, want)
+	}
+
+	built := same
+	built.TileChanges = sim.TileChanges{Frame: 4}
+	built.Salt = map[sim.Point]struct{}{{X: 1, Y: 9}: {}}
+	if d := decode(t, e.Encode(&built)); !d.HasSalt || !slices.Equal(d.Salt, []decodedSalt{{X: 1, Y: 9}}) {
+		t.Errorf("changed salt: %v %+v", d.HasSalt, d.Salt)
+	}
+
+	gone := built
+	gone.TileChanges = sim.TileChanges{Frame: 5}
+	gone.Salt = map[sim.Point]struct{}{}
+	if d := decode(t, e.Encode(&gone)); !d.HasSalt || len(d.Salt) != 0 {
+		t.Errorf("all salt built over: want an empty salt frame, got %v %+v", d.HasSalt, d.Salt)
 	}
 }

@@ -77,6 +77,15 @@ export function filthTint(gore: number, scum: number): Uint8Array {
   return new Uint8Array([color[0] * a * 255, color[1] * a * 255, color[2] * a * 255, a * 255]);
 }
 
+/**
+ * A salt deposit: a pale wash, light enough to read as frosting on the red
+ * rock and clear of the blue of water ice and the greens of scum and uranium.
+ */
+export const SALT_TINT = (() => {
+  const c = hex('#efeae0'), a = 0.55;
+  return new Uint8Array([c[0] * a * 255, c[1] * a * 255, c[2] * a * 255, a * 255]);
+})();
+
 // A job's tiles on the map (the Jobs tab's highlight), premultiplied RGBA.
 const premul = (h: string, a: number) => {
   const c = hex(h);

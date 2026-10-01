@@ -38,6 +38,10 @@ function asGolden(f) {
     scum: f.scum === null ? [] : Array.from({ length: f.scum.count }, (_, i) => ({
       x: f.scum.x[i], y: f.scum.y[i], amount: f.scum.amount[i],
     })),
+    saltFrame: f.salt !== null,
+    salt: f.salt === null ? [] : Array.from({ length: f.salt.count }, (_, i) => ({
+      x: f.salt.x[i], y: f.salt.y[i],
+    })),
   };
 }
 

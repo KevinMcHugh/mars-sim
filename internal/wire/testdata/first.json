@@ -1,5 +1,5 @@
 {
-  "version": 3,
+  "version": 4,
   "paused": false,
   "fogOfWar": true,
   "tilesReset": true,
@@ -111,6 +111,21 @@
       "x": 12,
       "y": 4,
       "amount": 3
+    }
+  ],
+  "saltFrame": true,
+  "salt": [
+    {
+      "x": 129,
+      "y": 0
+    },
+    {
+      "x": 1,
+      "y": 9
+    },
+    {
+      "x": 7,
+      "y": 9
     }
   ]
 }

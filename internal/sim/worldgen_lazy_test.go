@@ -42,6 +42,13 @@ func TestLazyChunksMatchThePureGenerator(t *testing.T) {
 					if _, scum := w.scum[Point{x, y}]; !got.Explored && scum != want.isScum(off) {
 						t.Fatalf("%s: untouched tile (%d,%d) has scum=%v, the generator says %v", when, x, y, scum, want.isScum(off))
 					}
+					// Salt is only ever lost, never grown, so a tile the colony
+					// has not built on holds exactly what was generated.
+					if _, salt := w.salt[Point{x, y}]; salt && !want.isSalt(off) {
+						t.Fatalf("%s: tile (%d,%d) has salt the generator did not place", when, x, y)
+					} else if !salt && want.isSalt(off) && w.tiles.at(x, y).Terrain == Rock {
+						t.Fatalf("%s: untouched tile (%d,%d) lost its salt", when, x, y)
+					}
 				}
 			}
 		}

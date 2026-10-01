@@ -133,7 +133,7 @@ So a tile's odds grow with the scum around it: with no scum near, only the
 spawn chance applies; each neighbouring patch adds about `spread/9/16` per
 tick, and a patch already there thickens the same way. New patches start at
 one unit, appear only on `Rock` in a generated chunk (never on the colony's
-floor or under a structure), and stop once patches cover `scum-percent` of
+floor, under a structure, or on a tile with a [salt](./salt.md) deposit), and stop once patches cover `scum-percent` of
 the generated tiles, so scraping is what makes room. Left alone, scum
 therefore creeps back toward the seeded density; a scraped bare patch beside
 others fills in within a few hundred ticks, and an isolated one may not come
