@@ -64,7 +64,7 @@ func (w *World) entityTurnOrder() []EntityID {
 			return a.Kind == Colonist
 		}
 		if a.Kind == Colonist {
-			ah, bh := w.needLevel(a, NeedFood), w.needLevel(b, NeedFood)
+			ah, bh := w.driveLevel(a, DriveFood), w.driveLevel(b, DriveFood)
 			if ah != bh {
 				return ah > bh
 			}
@@ -113,7 +113,7 @@ func (w *World) entityIDsNearSorted(center Point, radius int) []EntityID {
 // ---- Colonists ---------------------------------------------------------------
 
 func (w *World) colonistTurn(e *Entity) {
-	w.applyStarvation(e)
+	w.applyDriveConsequences(e)
 	if !e.Alive() { // starved this tick
 		w.clearJob(e) // release any board claim before removal
 		w.addCorpse(e.Pos, ColonistCorpse)
@@ -177,10 +177,10 @@ func (w *World) runCognition(e *Entity) {
 // arrived. Fatal needs are also read every tick as a safety belt, independently
 // of the cache. Stimulus expiry remains exact at ExpiresAt.
 func (w *World) syncCognitionDeadlines(e *Entity) {
-	for n := NeedKind(0); n < numNeeds; n++ {
-		crossing := e.nextNeedPhaseTick[n]
-		if w.cfg.Needs[n].Fatal || crossing > 0 && w.tick >= crossing {
-			w.syncNeedPhase(e, n)
+	for n := DriveKind(0); n < numDrives; n++ {
+		crossing := e.nextDrivePhaseTick[n]
+		if w.cfg.Drives[n].Fatal() || crossing > 0 && w.tick >= crossing {
+			w.syncDrivePhase(e, n)
 		}
 	}
 	if e.nextStimulusExpiry > 0 && w.tick >= e.nextStimulusExpiry {
@@ -206,9 +206,9 @@ func (w *World) tryCognitionFastPath(e *Entity) bool {
 		return false
 	}
 	restingIdle := e.focus == FocusIdle && e.Job == JobNone && e.resting && w.tick < e.wakeTick
-	sleeping := e.focus == FocusSleep && e.Job == JobUse && e.Need == NeedSleep && !e.carrying &&
+	sleeping := e.focus == FocusSleep && e.Job == JobUse && e.Drive == DriveSleep && !e.carrying &&
 		e.useFacilitySet && e.Pos.Adjacent(e.useFacility) &&
-		w.TerrainAt(e.useFacility) == w.cfg.Needs[NeedSleep].Facility
+		w.TerrainAt(e.useFacility) == w.cfg.Drives[DriveSleep].Facility
 	if (!restingIdle && !sleeping) || e.mindDirty || w.tick >= e.nextThinkTick ||
 		len(e.perceiving) != 0 {
 		return false
@@ -241,8 +241,8 @@ func (w *World) tryCognitionFastPath(e *Entity) bool {
 	// path at every competing need boundary and the fallback deadline.
 	e.State = Sleeping
 	e.Progress++
-	if e.Progress >= w.cfg.Needs[NeedSleep].UseTicks {
-		w.finishUse(e, w.cfg.Needs[NeedSleep])
+	if e.Progress >= w.cfg.Drives[DriveSleep].UseTicks {
+		w.finishUse(e, w.cfg.Drives[DriveSleep])
 	}
 	return true
 }
@@ -250,7 +250,7 @@ func (w *World) tryCognitionFastPath(e *Entity) bool {
 func (w *World) runFocus(e *Entity, selected FocusCandidate) {
 	switch selected.Kind {
 	case FocusEat, FocusRelieve, FocusSocialize, FocusSleep:
-		need, _ := needForFocus(selected.Kind)
+		need, _ := driveForFocus(selected.Kind)
 		w.runNeedFocus(e, need)
 	case FocusFlee:
 		threat := w.entities[selected.Threat]
@@ -304,9 +304,9 @@ func (w *World) finishFocus(e *Entity) {
 	w.markMindDirty(e)
 }
 
-func (w *World) runNeedFocus(e *Entity, need NeedKind) {
+func (w *World) runNeedFocus(e *Entity, need DriveKind) {
 	e.resting = false
-	if need == NeedSocial {
+	if need == DriveSocial {
 		// A conversation already under way is the executor for this focus. Never
 		// restart it and reset the pair's shared timer.
 		if _, ok := w.talkPartner(e); ok {
@@ -325,20 +325,20 @@ func (w *World) runNeedFocus(e *Entity, need NeedKind) {
 		return
 	}
 
-	if need == NeedFood && e.Kind == Colonist {
+	if need == DriveFood && e.Kind == Colonist {
 		if w.runFoodFocus(e) {
 			return
 		}
 	}
 
-	handlingNeed := (e.Job == JobUse && e.Need == need) ||
-		(e.Job == JobBuild && (e.BuildKind == w.cfg.Needs[need].Facility || e.task != nil))
+	handlingNeed := (e.Job == JobUse && e.Drive == need) ||
+		(e.Job == JobBuild && (e.BuildKind == w.cfg.Drives[need].Facility || e.task != nil))
 	if handlingNeed {
 		w.runJob(e)
 		return
 	}
 
-	spec := w.cfg.Needs[need]
+	spec := w.cfg.Drives[need]
 	existingReachable := w.facilityReachable(e, spec.Facility)
 	needMore := w.plannedFacilities(spec.Facility) < w.desiredFacilities(w.countKind(Colonist))
 	var task *buildTask
@@ -352,7 +352,7 @@ func (w *World) runNeedFocus(e *Entity, need NeedKind) {
 	case needMore && hasTask:
 		w.assignTask(e, task)
 	case existingReachable:
-		e.Job, e.Need, e.Progress = JobUse, need, 0
+		e.Job, e.Drive, e.Progress = JobUse, need, 0
 		e.useFacility, e.useFacilitySet = w.chooseFacility(e, spec.Facility), true
 	case hasTask:
 		w.assignTask(e, task)
@@ -493,8 +493,8 @@ func (w *World) onFacilityAccess(p Point) bool {
 		if t == Incinerator {
 			return true
 		}
-		for i := 0; i < int(numNeeds); i++ {
-			if w.cfg.Needs[i].Facility != Rock && w.cfg.Needs[i].Facility == t {
+		for i := 0; i < int(numDrives); i++ {
+			if w.cfg.Drives[i].Facility != Rock && w.cfg.Drives[i].Facility == t {
 				return true
 			}
 		}
@@ -728,7 +728,7 @@ func (w *World) availableToTalk(o *Entity) bool {
 	if o.Job != JobNone || o.State == Fleeing {
 		return false
 	}
-	if need, urgent := w.mostUrgentNeed(o); urgent && need != NeedSocial {
+	if need, urgent := w.mostUrgentDrive(o); urgent && need != DriveSocial {
 		return false
 	}
 	return !w.idleWouldBlock(o.Pos)
@@ -740,7 +740,7 @@ func (w *World) beginTalk(a, b *Entity) {
 	a.Job, a.partner, a.Progress = JobTalk, b.ID, 0
 	b.Job, b.partner, b.Progress = JobTalk, a.ID, 0
 	for _, e := range []*Entity{a, b} {
-		if w.needLevel(e, NeedSocial) >= w.cfg.Needs[NeedSocial].SeekAt {
+		if w.driveLevel(e, DriveSocial) >= w.cfg.Drives[DriveSocial].SeekAt {
 			e.focus = FocusSocialize
 		} else {
 			e.focus = FocusIdle
@@ -803,8 +803,8 @@ func (w *World) jobTalk(e *Entity) {
 		e.Progress++
 		if e.Progress >= w.cfg.TalkTicks {
 			w.finishTalk(e, p)
-			w.resetNeed(e, NeedSocial)
-			w.resetNeed(p, NeedSocial)
+			w.resetDrive(e, DriveSocial)
+			w.resetDrive(p, DriveSocial)
 			w.clearJob(p)
 			w.clearJob(e)
 		}
@@ -1386,7 +1386,7 @@ func (w *World) jobBuild(e *Entity) {
 const fieldDetourTicks = 20
 
 func (w *World) jobUse(e *Entity) {
-	spec := w.cfg.Needs[e.Need]
+	spec := w.cfg.Drives[e.Drive]
 	if e.carrying {
 		w.jobUseCarrying(e, spec)
 		return
@@ -1407,7 +1407,7 @@ func (w *World) jobUse(e *Entity) {
 			w.clearJob(e)
 			return
 		}
-		e.State = useState(e.Need)
+		e.State = useState(e.Drive)
 		e.Progress++
 		portable := spec.GrabTicks > 0 && spec.GrabTicks < spec.UseTicks
 		if portable {
@@ -1498,12 +1498,12 @@ func (w *World) jobUse(e *Entity) {
 	e.State = Moving
 }
 
-// jobUseCarrying finishes a portable need (see NeedSpec.GrabTicks) away from
+// jobUseCarrying finishes a portable need (see DriveSpec.GrabTicks) away from
 // the facility. The colonist already grabbed it, so completion is guaranteed
 // — no travel, no facility reachability or crowding to worry about — freeing
 // the access tile it used to occupy for the rest of the process.
-func (w *World) jobUseCarrying(e *Entity, spec NeedSpec) {
-	e.State = useState(e.Need)
+func (w *World) jobUseCarrying(e *Entity, spec DriveSpec) {
+	e.State = useState(e.Drive)
 	e.Progress++
 	if e.Progress >= spec.UseTicks-spec.GrabTicks {
 		w.finishUse(e, spec)
@@ -1512,22 +1512,22 @@ func (w *World) jobUseCarrying(e *Entity, spec NeedSpec) {
 
 // finishUse applies a completed JobUse: resets the need, records a memory,
 // and clears the job. Shared by an in-place use and a carried-away one.
-func (w *World) finishUse(e *Entity, spec NeedSpec) {
+func (w *World) finishUse(e *Entity, spec DriveSpec) {
 	if e.useFacilitySet {
 		w.chargeForUse(e, e.useFacility)
 	}
-	w.resetNeed(e, e.Need)
-	switch e.Need {
-	case NeedFood:
+	w.resetDrive(e, e.Drive)
+	switch e.Drive {
+	case DriveFood:
 		// The safety net's food: it keeps a colonist alive and not much more.
 		o := w.occurrence(e, ActionEat, nil, e.Pos, "Ate a ration of nutrient-pod gruel.")
 		o.Object = FactRef{Noun: NounGruel, Label: "gruel"}
 		w.emitOccurrence(o)
-	case NeedBladder:
+	case DriveBladder:
 		o := w.occurrence(e, ActionUse, nil, e.Pos, "Used the toilet.")
 		o.Object = FactRef{Noun: NounToilet, Label: "toilet"}
 		w.emitOccurrence(o)
-	case NeedSleep:
+	case DriveSleep:
 		o := w.occurrence(e, ActionSleep, nil, e.Pos, "Slept in a bed.")
 		o.Object = FactRef{Noun: NounBed, Label: "bed"}
 		w.emitOccurrence(o)
@@ -1820,7 +1820,7 @@ func (w *World) alienTurn(e *Entity) {
 // scum the colony could have scraped for its scumhouse, like a rat does, so a
 // peaceful species is still a competitor. See docs/lore.md.
 func (w *World) alienGraze(e *Entity, sp AlienSpecies) bool {
-	if w.needLevel(e, NeedFood) < w.cfg.Needs[NeedFood].SeekAt {
+	if w.driveLevel(e, DriveFood) < w.cfg.Drives[DriveFood].SeekAt {
 		return false
 	}
 	target, ok := w.nearestEdible(e, w.cfg.AlienGrazeRadius, w.grazeable)
@@ -1830,7 +1830,7 @@ func (w *World) alienGraze(e *Entity, sp AlienSpecies) bool {
 	if e.Pos.Chebyshev(target) <= 1 {
 		e.State = Eating
 		if w.takeScum(target) {
-			w.resetNeed(e, NeedFood)
+			w.resetDrive(e, DriveFood)
 		}
 		e.Cooldown = sp.BiteRest
 		return true
@@ -1938,7 +1938,7 @@ func (w *World) pounce(cat, prey *Entity) {
 // but never build: they eat the same biomatter the scumhouse runs on, where it
 // lies, and fall back on pods only with nothing in reach. See scavenge.go.
 func (w *World) ratTurn(e *Entity) {
-	w.applyStarvation(e)
+	w.applyDriveConsequences(e)
 	if !e.Alive() { // starved this tick
 		w.clearJob(e)
 		w.addCorpse(e.Pos, AnimalCorpse)
@@ -1965,13 +1965,13 @@ func (w *World) ratTurn(e *Entity) {
 	// biomatter the scumhouse runs on (see scavenge.go) — and only with none
 	// in reach raid a nutrient pod. Rats care only about food, so we check it
 	// directly rather than scanning every need.
-	hungry := w.needLevel(e, NeedFood) >= w.cfg.Needs[NeedFood].SeekAt
+	hungry := w.driveLevel(e, DriveFood) >= w.cfg.Drives[DriveFood].SeekAt
 	if hungry && e.Job == JobNone {
 		if target, ok := w.nearestScavenge(e); ok {
 			e.Job, e.Target, e.Progress = JobScavenge, target, 0
 		} else if w.podsFeed() {
 			if field := w.facilityField(NutrientPod); field != nil && field.at(e.Pos) >= 0 {
-				e.Job, e.Need, e.Progress = JobUse, NeedFood, 0
+				e.Job, e.Drive, e.Progress = JobUse, DriveFood, 0
 			}
 		}
 	}

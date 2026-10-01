@@ -23,7 +23,7 @@ The implementation should introduce or update:
 - `internal/sim/focus.go` — focus kinds, candidates, scoring, arbitration, and
   transitions.
 - `internal/sim/focus_test.go` — component-level scoring and transition tests.
-- `internal/sim/needs.go` — per-need phases and pressure emission, while keeping
+- `internal/sim/drives.go` — per-need phases and pressure emission, while keeping
   lazy level calculation.
 - `internal/sim/affect.go` — charge/grip state, event vectors, decay, appraisal,
   mood labels, and active stimuli.
@@ -40,7 +40,7 @@ The implementation should introduce or update:
 
 Existing references:
 
-- [`needs.md`](./needs.md) — current lazy need levels and urgency rules.
+- [`drives.md`](./drives.md) — current lazy need levels and urgency rules.
 - [`personality.md`](./personality.md) — trait resolution and personality RNG.
 - [`memories.md`](./memories.md) — life events, memories, and the one-funnel
   invariant.
@@ -126,13 +126,13 @@ Use small value types. Names may move between files, but preserve these
 responsibilities:
 
 ```go
-type NeedPhase uint8
+type DrivePhase uint8
 
 const (
-    NeedSatisfied NeedPhase = iota
-    NeedGrowing
-    NeedPressing
-    NeedCritical
+    DriveSatisfied DrivePhase = iota
+    DriveGrowing
+    DrivePressing
+    DriveCritical
 )
 
 type AffectState struct {
@@ -167,7 +167,7 @@ type Stimulus struct {
 Add the following colonist-only fields to `Entity`:
 
 ```go
-needPhase [numNeeds]NeedPhase
+drivePhase [numDrives]DrivePhase
 affect    AffectState
 focus     FocusKind
 focusSince int
@@ -184,16 +184,16 @@ selected executor remains the source of truth for exact targets and claims.
 
 Do not create one global physiological state such as `Ravenous`. A colonist can
 be ravenous, exhausted, socially deprived, and bladder-satisfied at the same
-time. Each `NeedKind` owns an independent phase:
+time. Each `DriveKind` owns an independent phase:
 
 ```mermaid
 stateDiagram-v2
-    NeedSatisfied --> NeedGrowing: level rises above zero
-    NeedGrowing --> NeedPressing: level reaches SeekAt
-    NeedPressing --> NeedCritical: level reaches CriticalAt
-    NeedCritical --> NeedPressing: partial recovery
-    NeedPressing --> NeedGrowing: level falls below release threshold
-    NeedGrowing --> NeedSatisfied: level reaches zero
+    DriveSatisfied --> DriveGrowing: level rises above zero
+    DriveGrowing --> DrivePressing: level reaches SeekAt
+    DrivePressing --> DriveCritical: level reaches CriticalAt
+    DriveCritical --> DrivePressing: partial recovery
+    DrivePressing --> DriveGrowing: level falls below release threshold
+    DriveGrowing --> DriveSatisfied: level reaches zero
 ```
 
 The first implementation still resets a need to zero when satisfaction
@@ -204,11 +204,11 @@ without a fake phase transition.
 
 ### Keep lazy levels
 
-Keep the existing base-plus-timestamp calculation. `syncNeedPhase` reads the
+Keep the existing base-plus-timestamp calculation. `syncDrivePhase` reads the
 lazy level and transitions the phase only:
 
 ```go
-func (w *World) syncNeedPhase(e *Entity, n NeedKind) (changed bool)
+func (w *World) syncDrivePhase(e *Entity, n DriveKind) (changed bool)
 ```
 
 Call it before arbitration and after resetting a need. A phase change requests
@@ -216,7 +216,7 @@ focus reconsideration but does not itself assign a job.
 
 ### Thresholds
 
-Add `CriticalAt` to `NeedSpec`, with a `cfg:"critical-at"` tag. Required
+Add `CriticalAt` to `DriveSpec`, with a `cfg:"critical-at"` tag. Required
 validation:
 
 ```text
@@ -251,19 +251,19 @@ Clamp the result to `[0, 100]`. The explicit `1` at `SeekAt` makes a threshold
 crossing observable even when integer division would produce zero. When
 `CriticalAt == Max`, a level at `Max` produces pressure 100.
 
-Only a need at `NeedPressing` or `NeedCritical` emits a candidate in the first
+Only a need at `DrivePressing` or `DriveCritical` emits a candidate in the first
 implementation. This preserves the current meaning of `SeekAt`; anticipatory
-behavior can later be introduced by allowing `NeedGrowing` to emit a smaller
+behavior can later be introduced by allowing `DriveGrowing` to emit a smaller
 score.
 
 Map needs to focus:
 
 | Need | Focus |
 | --- | --- |
-| `NeedFood` | `FocusEat` |
-| `NeedBladder` | `FocusRelieve` |
-| `NeedSocial` | `FocusSocialize` |
-| `NeedSleep` | `FocusSleep` |
+| `DriveFood` | `FocusEat` |
+| `DriveBladder` | `FocusRelieve` |
+| `DriveSocial` | `FocusSocialize` |
+| `DriveSleep` | `FocusSleep` |
 
 Fatal urgent needs receive `FocusFatalBonus`. This preserves the existing rule
 that food outranks non-fatal needs when both are urgent.
@@ -545,7 +545,7 @@ func (s FocusScore) Total() int {
 
 type FocusCandidate struct {
     Kind     FocusKind
-    Need     NeedKind // meaningful only for a need focus
+    Need     DriveKind // meaningful only for a need focus
     Threat   EntityID // meaningful only for flee/fight
     Eligible bool
     Score    FocusScore
@@ -618,7 +618,7 @@ type Config struct {
 Give every scalar a `cfg` and `doc` tag. Extend config traversal so arrays are
 named by their enum:
 
-- `Needs` elements use `NeedKind.String()`;
+- `Needs` elements use `DriveKind.String()`;
 - `Focuses` elements use `FocusKind.String()`.
 
 Do not leave the current “the only array is Needs” assumption in
@@ -875,7 +875,7 @@ to the player; job is implementation detail unless a debug view asks for it.
 
 At tick 100:
 
-- food is `NeedPressing`, pressure 70;
+- food is `DrivePressing`, pressure 70;
 - affect is charge `0`, grip `20`;
 - focus is `FocusEat`, executing travel to a nutrient pod;
 - current-focus commitment makes eating score 86.
@@ -896,7 +896,7 @@ end a flee under way):
 
 1. The direct threat candidate and ongoing stimulus disappear.
 2. Affect remains high-charge/low-grip until decay repairs it.
-3. Food has advanced to `NeedCritical`, pressure 95.
+3. Food has advanced to `DriveCritical`, pressure 95.
 4. Flee is no longer eligible. Eating wins and resumes through the ordinary
    facility executor.
 
@@ -948,7 +948,7 @@ Acceptance:
 
 ### Milestone 2: Independent need phases
 
-1. Add `NeedPhase` storage and `CriticalAt`.
+1. Add `DrivePhase` storage and `CriticalAt`.
 2. Implement phase synchronization and pressure normalization.
 3. Make need candidate generation consume phases/pressure instead of duplicating
    threshold arithmetic.
@@ -960,7 +960,7 @@ Acceptance:
 - every boundary and degenerate threshold (`SeekAt == CriticalAt == Max`) is
   tested;
 - phase changes reflect lazy levels after many idle ticks;
-- resetting a need synchronizes it to `NeedSatisfied`;
+- resetting a need synchronizes it to `DriveSatisfied`;
 - fatal critical food can overcome work commitment;
 - non-fatal needs cannot suppress fatal food indefinitely.
 
@@ -1139,7 +1139,7 @@ invariants for no architectural benefit.
 
 ### Add a need
 
-Follow [`needs.md`](./needs.md), add `CriticalAt`, map it to a focus, and test
+Follow [`drives.md`](./drives.md), add `CriticalAt`, map it to a focus, and test
 all phase boundaries. If several needs can motivate the same focus, sum or take
 the maximum in one documented helper; do not silently depend on iteration
 order.
@@ -1178,7 +1178,7 @@ Before implementing a milestone:
 
 ## Related
 
-- [needs.md](./needs.md) — lazy levels, starvation, and facilities.
+- [drives.md](./drives.md) — lazy levels, starvation, and facilities.
 - [personality.md](./personality.md) — traits and resolved effective parameters.
 - [memories.md](./memories.md) — life events and the one-funnel invariant.
 - [entities-and-ai.md](./entities-and-ai.md) — jobs, turn order, and movement.

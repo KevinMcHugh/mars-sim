@@ -20,7 +20,7 @@ There is no `internal/mind` package yet. The functions live in `internal/sim`. T
 
 ## How it works
 
-`LabSettings` returns `defaultNeeds()` plus the trait-chance and mood constants. It does not call `DefaultConfig()`: that builds `DefaultCognitionConfig()`, and the bench already has the open file.
+`LabSettings` returns `defaultDrives()` plus the trait-chance and mood constants. It does not call `DefaultConfig()`: that builds `DefaultCognitionConfig()`, and the bench already has the open file.
 
 `LabEvaluate` decodes the file the page is editing (focus specs, arbitration, attractors, live stimuli) and the situation. It fills candidates, applies the bench reachability gate, then `selectFocus`. The gate is `applyBenchReach` in `lab.go`. It sets `Eligible` false and drops commitment on the current focus. It does not change the need score. Do not fold that gate into `chooseFocus`; the sim still lets a need win and then walks or builds.
 
@@ -44,7 +44,7 @@ Importing `internal/sim` from the browser runs that package's initializer and ev
 
 `newWorld` is not in the module. The module is still several megabytes, mostly the Go runtime plus yaml's init plus `encoding/json`.
 
-The small build is a new package, `internal/mind`, that holds the focus and personality functions and the types they need. It must not import the YAML loader and must not mention `*World`. `internal/sim` imports it; world methods stay wrappers. The wasm `main` imports only `internal/mind`. Moving the types (`FocusKind`, `NeedSpec`, `Trait`, the roll tables) is the work. A second copy of `fillFocusCandidates` or `rollProfile` in JavaScript or in the wasm package is the failure mode.
+The small build is a new package, `internal/mind`, that holds the focus and personality functions and the types they need. It must not import the YAML loader and must not mention `*World`. `internal/sim` imports it; world methods stay wrappers. The wasm `main` imports only `internal/mind`. Moving the types (`FocusKind`, `DriveSpec`, `Trait`, the roll tables) is the work. A second copy of `fillFocusCandidates` or `rollProfile` in JavaScript or in the wasm package is the failure mode.
 
 `LabEvaluate` takes the editor's JSON, not `ApplyCognitionYAML`, on purpose. The loader overlays a document on the shipped defaults. The bench has to score the file on screen, including a deleted rule.
 

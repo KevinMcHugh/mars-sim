@@ -271,14 +271,14 @@ func (m Model) detailLines(c sim.EntityView, inner, barW int) []string {
 	// not a gauge — the health bar above already gives the big picture.
 	b.WriteString(labelStyle.Render("BODY") + "  " + cells.Truncate(strings.Join(bodyPartLines(c), "  "), inner-8) + "\n\n")
 
-	b.WriteString(labelStyle.Render("NEEDS") + "\n")
-	for i := range c.Needs {
-		meta := m.latest.NeedsMeta[i]
+	b.WriteString(labelStyle.Render("DRIVES") + "\n")
+	for i := range c.Drives {
+		meta := m.latest.DrivesMeta[i]
 		name := meta.Name
-		if meta.Fatal {
+		if meta.Fatal() {
 			name += "!"
 		}
-		b.WriteString(bar(name, c.Needs[i], meta.Max, barW) + "\n")
+		b.WriteString(bar(name, c.Drives[i], meta.Max, barW) + "\n")
 	}
 
 	b.WriteString("\n" + labelStyle.Render("INVENTORY") + "\n")

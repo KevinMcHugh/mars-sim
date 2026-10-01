@@ -185,7 +185,7 @@ pattern worth remembering — the comparison `(d == bestDist && lessPoint(...))`
 *looks* like a proper total order, and is one only if `d` is computed
 independently of `bestDist`.
 
-That loop is gone now (see [needs.md](./needs.md)): candidates are collected
+That loop is gone now (see [drives.md](./drives.md)): candidates are collected
 into a slice with their distances and sorted by `compareFound`, distance then
 `lessPoint`. The two map loops left, `anyFreeFacility` over `w.facilityTiles`
 and `committedUsers` over `w.entities`, compute an "any match" and a count: the

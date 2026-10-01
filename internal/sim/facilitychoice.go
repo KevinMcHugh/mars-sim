@@ -2,7 +2,7 @@ package sim
 
 import "slices"
 
-// Choosing which facility of a kind a colonist commits to. See docs/needs.md
+// Choosing which facility of a kind a colonist commits to. See docs/drives.md
 // ("Spreading users across facilities") for what the choice is and why it
 // avoids congested facilities.
 //

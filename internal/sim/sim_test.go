@@ -390,16 +390,16 @@ func TestColonistUsesNutrientPod(t *testing.T) {
 	w.SetTerrain(stand, Floor)
 
 	c := w.spawn(Colonist, stand)
-	c.Needs[NeedFood] = cfg.Needs[NeedFood].Max // ravenous
+	c.Drives[DriveFood] = cfg.Drives[DriveFood].Max // ravenous
 
-	for i := 0; i < cfg.Needs[NeedFood].UseTicks+10; i++ {
+	for i := 0; i < cfg.Drives[DriveFood].UseTicks+10; i++ {
 		w.step()
 	}
 	if w.entities[c.ID] == nil {
 		t.Fatal("colonist starved next to a working nutrient pod")
 	}
-	if c.Needs[NeedFood] >= cfg.Needs[NeedFood].SeekAt {
-		t.Fatalf("food need not satisfied: %d", c.Needs[NeedFood])
+	if c.Drives[DriveFood] >= cfg.Drives[DriveFood].SeekAt {
+		t.Fatalf("food need not satisfied: %d", c.Drives[DriveFood])
 	}
 }
 
@@ -416,16 +416,16 @@ func TestColonistUsesBed(t *testing.T) {
 	w.SetTerrain(stand, Floor)
 
 	c := w.spawn(Colonist, stand)
-	c.Needs[NeedSleep], c.needSince[NeedSleep] = cfg.Needs[NeedSleep].Max, w.tick // dead on its feet
+	c.Drives[DriveSleep], c.driveSince[DriveSleep] = cfg.Drives[DriveSleep].Max, w.tick // dead on its feet
 	// Clear the other (staggered) needs so nothing fatal outranks sleep here.
-	c.Needs[NeedFood], c.needSince[NeedFood] = 0, w.tick
-	c.Needs[NeedBladder], c.needSince[NeedBladder] = 0, w.tick
+	c.Drives[DriveFood], c.driveSince[DriveFood] = 0, w.tick
+	c.Drives[DriveBladder], c.driveSince[DriveBladder] = 0, w.tick
 
-	for i := 0; i < cfg.Needs[NeedSleep].UseTicks+10; i++ {
+	for i := 0; i < cfg.Drives[DriveSleep].UseTicks+10; i++ {
 		w.step()
 	}
-	if c.Needs[NeedSleep] >= cfg.Needs[NeedSleep].SeekAt {
-		t.Fatalf("sleep need not satisfied: %d", c.Needs[NeedSleep])
+	if c.Drives[DriveSleep] >= cfg.Drives[DriveSleep].SeekAt {
+		t.Fatalf("sleep need not satisfied: %d", c.Drives[DriveSleep])
 	}
 }
 
@@ -473,7 +473,7 @@ func TestUrgentColonistFinishesEmergencyBuild(t *testing.T) {
 	w := newTestWorld(t, cfg)
 	center := Point{w.Width / 2, w.Height / 2}
 	c := w.spawn(Colonist, center)
-	c.Needs[NeedFood] = cfg.Needs[NeedFood].SeekAt
+	c.Drives[DriveFood] = cfg.Drives[DriveFood].SeekAt
 	target, ok := w.findBuildSpot(c.Pos, 20)
 	if !ok {
 		t.Fatal("no emergency build spot")
@@ -502,10 +502,10 @@ func TestUrgentNonFatalNeedTriggersEmergencyBuild(t *testing.T) {
 	w := newTestWorld(t, cfg)
 	center := Point{w.Width / 2, w.Height / 2}
 	c := w.spawn(Colonist, center)
-	c.Needs[NeedBladder], c.needSince[NeedBladder] = cfg.Needs[NeedBladder].SeekAt, w.tick
+	c.Drives[DriveBladder], c.driveSince[DriveBladder] = cfg.Drives[DriveBladder].SeekAt, w.tick
 	// Clear the other (staggered) needs so bladder is the one being addressed.
-	c.Needs[NeedFood], c.needSince[NeedFood] = 0, w.tick
-	c.Needs[NeedSleep], c.needSince[NeedSleep] = 0, w.tick
+	c.Drives[DriveFood], c.driveSince[DriveFood] = 0, w.tick
+	c.Drives[DriveSleep], c.driveSince[DriveSleep] = 0, w.tick
 
 	w.tick++
 	w.colonistTurn(c)
@@ -563,9 +563,9 @@ func TestUrgentColonistHelpsBuildWhenFacilityUndersupplied(t *testing.T) {
 	// existing toilet plus the project's own (still unbuilt) toilet task.
 	w.spawn(Colonist, center)
 	w.spawn(Colonist, center)
-	c.Needs[NeedBladder], c.needSince[NeedBladder] = cfg.Needs[NeedBladder].SeekAt, w.tick
-	c.Needs[NeedFood], c.needSince[NeedFood] = 0, w.tick
-	c.Needs[NeedSleep], c.needSince[NeedSleep] = 0, w.tick
+	c.Drives[DriveBladder], c.driveSince[DriveBladder] = cfg.Drives[DriveBladder].SeekAt, w.tick
+	c.Drives[DriveFood], c.driveSince[DriveFood] = 0, w.tick
+	c.Drives[DriveSleep], c.driveSince[DriveSleep] = 0, w.tick
 
 	w.tick++
 	w.colonistTurn(c)
@@ -635,7 +635,7 @@ func TestColonistStarvesWhenSealedByRock(t *testing.T) {
 		w.step()
 	}
 	if w.entities[c.ID] != nil {
-		t.Fatalf("colonist sealed in by rock survived with HP %d, food %d", c.HP, c.Needs[NeedFood])
+		t.Fatalf("colonist sealed in by rock survived with HP %d, food %d", c.HP, c.Drives[DriveFood])
 	}
 }
 
@@ -652,16 +652,16 @@ func TestRatEatsFromPod(t *testing.T) {
 	w.SetTerrain(stand, Floor)
 
 	m := w.spawn(Rat, stand)
-	m.Needs[NeedFood] = cfg.Needs[NeedFood].SeekAt // hungry enough to seek
+	m.Drives[DriveFood] = cfg.Drives[DriveFood].SeekAt // hungry enough to seek
 
-	for i := 0; i < cfg.Needs[NeedFood].UseTicks+20; i++ {
+	for i := 0; i < cfg.Drives[DriveFood].UseTicks+20; i++ {
 		w.step()
 	}
 	if w.entities[m.ID] == nil {
 		t.Fatal("rat starved next to a working nutrient pod")
 	}
-	if w.needLevel(m, NeedFood) >= cfg.Needs[NeedFood].SeekAt {
-		t.Fatalf("rat food need not satisfied: %d", w.needLevel(m, NeedFood))
+	if w.driveLevel(m, DriveFood) >= cfg.Drives[DriveFood].SeekAt {
+		t.Fatalf("rat food need not satisfied: %d", w.driveLevel(m, DriveFood))
 	}
 }
 
@@ -683,7 +683,7 @@ func TestRatStarvesWithoutFood(t *testing.T) {
 		w.step()
 	}
 	if w.entities[m.ID] != nil {
-		t.Fatalf("walled-in rat survived with HP %d, food %d", m.HP, w.needLevel(m, NeedFood))
+		t.Fatalf("walled-in rat survived with HP %d, food %d", m.HP, w.driveLevel(m, DriveFood))
 	}
 }
 
@@ -743,8 +743,8 @@ func TestIdleColonistStompsRat(t *testing.T) {
 	m := w.spawn(Rat, center.Add(1, 0))
 	c := w.spawn(Colonist, center)
 	// Fully satisfied, so no need preempts the stomp.
-	c.Needs[NeedFood], c.Needs[NeedBladder] = 0, 0
-	c.needSince[NeedFood], c.needSince[NeedBladder] = w.tick, w.tick
+	c.Drives[DriveFood], c.Drives[DriveBladder] = 0, 0
+	c.driveSince[DriveFood], c.driveSince[DriveBladder] = w.tick, w.tick
 
 	for i := 0; i < 10 && w.entities[m.ID] != nil; i++ {
 		w.step()

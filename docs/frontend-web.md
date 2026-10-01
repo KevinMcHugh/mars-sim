@@ -211,7 +211,7 @@ Inspect tab:
 - **What it shows.** `InspectPanel` subscribes to `entity:<id>` or
   `tile:<x>,<y>` (see [wire-format.md](./wire-format.md), "Topics"). A
   colonist gets the TUI roster inspector's sections: identity, status, health
-  and the three affect axes, body parts, needs, inventory, traits, skills
+  and the three affect axes, body parts, drives, inventory, traits, skills
   (each rank as a bar out of the skill's top rank, with its label; the
   profession starred, and its title under the name), family, affinities, and
   every memory. Other creatures get status, health and body. A

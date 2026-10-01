@@ -76,11 +76,11 @@
     {/if}
 
     {#if c}
-      <h4>Needs</h4>
+      <h4>Drives</h4>
       <div class="bars">
-        {#each c.needs as n (n.name)}
-          <Bar label={n.name + (n.fatal ? '!' : '')} value={n.value} max={n.max} danger={n.fatal}
-            title={n.fatal ? 'Fatal when full' : undefined} />
+        {#each c.drives as d (d.name)}
+          <Bar label={d.name + (d.consequence === 'death' ? '!' : '')} value={d.value} max={d.max}
+            danger={d.consequence === 'death'} title={d.consequence === 'death' ? 'Fatal when full' : undefined} />
         {/each}
       </div>
 

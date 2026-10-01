@@ -92,7 +92,7 @@ rat or a configured non-alien sighting.
 
 Execution order and invariants:
 
-1. **Starvation check** — `applyStarvation`; if it just died, release its job
+1. **Starvation check** — `applyDriveConsequences`; if it just died, release its job
    claims and remove it.
 1a. **Uranium dose** — `applyUraniumExposure` (right after the sighting pass,
    before anything below can return): a colonist beside a uranium deposit or
@@ -198,7 +198,7 @@ rats: chickens are not prey, and a chicken does not flee a cat.
 
 ### Rat behavior (`ratTurn`)
 
-Rats reuse the colonists' `NeedFood`, but hunger far faster (`RatHungerRise`)
+Rats reuse the colonists' `DriveFood`, but hunger far faster (`RatHungerRise`)
 and **never build**. They eat what the scumhouse eats: a hungry rat
 (`nearestScavenge`, `scavenge.go`) heads for the nearest tile within
 `rat-scavenge-radius` holding a body (any body, a colonist's included), gore,
@@ -269,7 +269,7 @@ so it is safe to call per entity per tick.
 
 - [combat.md](./combat.md) — body-part HP, weapons, and how an armed colonist's
   survival priority differs from an unarmed one's.
-- [needs.md](./needs.md) — the drives that preempt colonist and rat work.
+- [drives.md](./drives.md) — the drives that preempt colonist and rat work.
 - [personality.md](./personality.md) — trait-scaled colonist parameters.
 - [construction.md](./construction.md) — how build jobs become rooms.
 - [escape.md](./escape.md) — breaking out of a room cut off from the colony.

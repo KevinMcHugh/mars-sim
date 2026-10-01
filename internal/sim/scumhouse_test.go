@@ -41,7 +41,7 @@ func TestDeathsLeaveBodiesOfTheirKind(t *testing.T) {
 	}
 
 	starving := w.spawn(Colonist, Point{15, 12})
-	starving.Needs[NeedFood] = w.cfg.Needs[NeedFood].Max
+	starving.Drives[DriveFood] = w.cfg.Drives[DriveFood].Max
 	starving.HP = 1
 	for i := 0; i < 5 && w.entities[starving.ID] != nil; i++ {
 		w.step()
@@ -154,7 +154,7 @@ func TestCookingTurnsTheColonysScumIntoItsMeals(t *testing.T) {
 	if ask, ok := w.bestAsk(Meal, house); !ok || ask.Actor != Community || ask.Price != w.refPrice(Meal) {
 		t.Fatalf("the scumhouse is not selling its meal: best ask %+v", ask)
 	}
-	other.Needs[NeedFood] = w.cfg.Needs[NeedFood].Max
+	other.Drives[DriveFood] = w.cfg.Drives[DriveFood].Max
 	purse := other.wallet
 	if !w.tryBuyMeal(other) || other.wallet != purse-w.refPrice(Meal) {
 		t.Fatalf("a hungry colonist could not buy the meal (paid %v)", purse-other.wallet)
@@ -663,7 +663,7 @@ func TestTheCookDoesNotBlockThePantry(t *testing.T) {
 		t.Fatal("nobody can reach the pantry while the cook stands at the stove")
 	}
 	buyer := w.spawn(Colonist, Point{16, 10})
-	buyer.Needs[NeedFood] = w.cfg.Needs[NeedFood].Max
+	buyer.Drives[DriveFood] = w.cfg.Drives[DriveFood].Max
 	if !w.tryBuyMeal(buyer) || w.storageContainers[pantry].held(ColonistOwner(buyer.ID), Meal) != 1 {
 		t.Fatal("a hungry colonist could not buy the meal at the pantry")
 	}

@@ -287,10 +287,10 @@ type Config struct {
 	IncinerateTicks       int `cfg:"incinerate-ticks" doc:"ticks spent feeding a load of refuse into an incinerator"`
 	IncineratorBuildTicks int `cfg:"incinerator-ticks" doc:"ticks of work to build an incinerator"`
 
-	// Needs. One NeedSpec per NeedKind, indexed by that kind.
-	Needs                [numNeeds]NeedSpec `cfg:"needs" sec:"Needs"`
-	StarveDamage         int                `cfg:"starve-damage" doc:"HP lost per tick while a fatal need sits at its max"`
-	ColonistsPerFacility int                `cfg:"per-facility" doc:"colonists served by each life-support facility"`
+	// Drives. One DriveSpec per DriveKind, indexed by that kind.
+	Drives               [numDrives]DriveSpec `cfg:"drives" sec:"Drives"`
+	StarveDamage         int                  `cfg:"starve-damage" doc:"HP lost per tick while a drive whose consequence is death sits at its max"`
+	ColonistsPerFacility int                  `cfg:"per-facility" doc:"colonists served by each life-support facility"`
 
 	// Focus arbitration. Runtime copy of cognition.yaml's focuses/arbitration,
 	// written once at load by SyncWithCognition. Tune those tables there, not
@@ -515,7 +515,7 @@ type Config struct {
 	TroughLow  int `cfg:"trough-low" doc:"a keeper refills its trough once it holds fewer than this many units of feed (0: keepers never tend)"`
 	TroughFill int `cfg:"trough-fill" doc:"units of feed a keeper fills its trough to"`
 
-	// Rat stats. Rats share the colonists' NeedFood but grow hungry far faster
+	// Rat stats. Rats share the colonists' DriveFood but grow hungry far faster
 	// (they nibble constantly), and flee cats rather than aliens.
 	RatHP         int `cfg:"rat-hp" sec:"Rats" doc:"rat hit points"`
 	RatHungerRise int `cfg:"rat-hunger-rise" doc:"food need a rat gains per tick (rats eat frequently)"`
@@ -764,7 +764,7 @@ func DefaultConfig() Config {
 
 		FrontierFieldMinColonists: 800,
 		FrontierFieldMinArea:      90000, // ~300x300 and up
-		Needs:                     defaultNeeds(),
+		Drives:                    defaultDrives(),
 		AlienSpeciesCount:         1,
 		AlienHP:                   30,
 		AlienDamage:               6,

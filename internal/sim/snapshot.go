@@ -20,7 +20,7 @@ type EntityView struct {
 	MaxHP     int
 	State     State
 	Focus     FocusKind
-	Needs     [numNeeds]int
+	Drives    [numDrives]int
 	Profile   *Profile  // colonists only; a deep copy, safe to read
 	Inventory Inventory // colonists only; copied by value
 	// Wallet is the colonist's dollars (colonists only). On a Deceased record
@@ -345,14 +345,18 @@ func (s *Snapshot) FixtureAt(p Point) (FixtureView, bool) {
 	return FixtureView{}, false
 }
 
-// NeedMeta describes a need for display: its name, ceiling, and whether maxing
-// it out is fatal. Carried in the snapshot so frontends can render need bars
-// without reaching into Config.
-type NeedMeta struct {
-	Name  string
-	Max   int
-	Fatal bool
+// DriveMeta describes a drive for display: its name, ceiling, and what
+// reaching that ceiling does. Carried in the snapshot so frontends can render
+// drive bars without reaching into Config.
+type DriveMeta struct {
+	Name        string
+	Max         int
+	Consequence Consequence
 }
+
+// Fatal reports whether a drive at its ceiling kills: the bar a frontend paints
+// red when full.
+func (m DriveMeta) Fatal() bool { return m.Consequence == ConsequenceDeath }
 
 // Stats summarizes the world at a glance for the UI header.
 type Stats struct {
@@ -429,9 +433,9 @@ type Snapshot struct {
 	Deceased map[EntityID]EntityView
 	// Log is the retained colony log, oldest first. Kind is the type column;
 	// Text is the sentence. See log.go.
-	Log       []LogEntry
-	Stats     Stats
-	NeedsMeta [numNeeds]NeedMeta
+	Log        []LogEntry
+	Stats      Stats
+	DrivesMeta [numDrives]DriveMeta
 
 	// Projects are the colony's queued construction work, for the job board.
 	// PendingFacilityRooms / PendingDormitories / PendingTrashRooms /
@@ -601,10 +605,10 @@ func (w *World) snapshot(paused bool, tps int) *Snapshot {
 		}
 	}
 
-	var needsMeta [numNeeds]NeedMeta
-	for i := 0; i < int(numNeeds); i++ {
-		spec := w.cfg.Needs[i]
-		needsMeta[i] = NeedMeta{Name: spec.Name, Max: spec.Max, Fatal: spec.Fatal}
+	var needsMeta [numDrives]DriveMeta
+	for i := 0; i < int(numDrives); i++ {
+		spec := w.cfg.Drives[i]
+		needsMeta[i] = DriveMeta{Name: spec.Name, Max: spec.Max, Consequence: spec.Consequence}
 	}
 
 	projects := make([]ProjectView, 0, len(w.projects))
@@ -641,7 +645,7 @@ func (w *World) snapshot(paused bool, tps int) *Snapshot {
 		Entities:             ents,
 		Log:                  w.log.tail(len(w.log.entries)),
 		Stats:                stats,
-		NeedsMeta:            needsMeta,
+		DrivesMeta:           needsMeta,
 		Projects:             projects,
 		PendingFacilityRooms: w.manualFacilityRooms,
 		PendingDormitories:   w.manualDormitories,
@@ -719,7 +723,7 @@ func (w *World) entityView(e *Entity, kinChildren map[kinID][]kinID, full bool) 
 		MaxHP:     e.MaxHP,
 		State:     e.State,
 		Focus:     e.focus,
-		Needs:     w.currentNeeds(e),
+		Drives:    w.currentDrives(e),
 		Profile:   e.Profile.clone(),
 		Inventory: e.Inventory,
 		Wallet:    e.wallet,
@@ -748,11 +752,11 @@ func (w *World) entityView(e *Entity, kinChildren map[kinID][]kinID, full bool) 
 	return ev
 }
 
-// currentNeeds returns a colonist's need levels as of now, computed lazily.
-func (w *World) currentNeeds(e *Entity) [numNeeds]int {
-	var out [numNeeds]int
-	for i := 0; i < int(numNeeds); i++ {
-		out[i] = w.needLevel(e, NeedKind(i))
+// currentDrives returns a colonist's need levels as of now, computed lazily.
+func (w *World) currentDrives(e *Entity) [numDrives]int {
+	var out [numDrives]int
+	for i := 0; i < int(numDrives); i++ {
+		out[i] = w.driveLevel(e, DriveKind(i))
 	}
 	return out
 }

@@ -39,7 +39,7 @@ ignore each other.
 
 `chickenTurn` runs once a tick, paced by `chicken-slowness`:
 
-1. **Starve.** Like a rat, a chicken has only `NeedFood`
+1. **Starve.** Like a rat, a chicken has only `DriveFood`
    (`chicken-hunger-rise`, a colonist's rate) and starves at the top of it,
    leaving an animal carcass.
 2. **Eat**, once hungry (`SeekAt`): from its trough if it has feed and is

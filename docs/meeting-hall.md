@@ -102,6 +102,6 @@ of the walk), and a meal fetched to keep (`eatKeep`).
 
 ## Related
 
-- [needs.md](./needs.md) — the social need and how conversations meet it.
+- [drives.md](./drives.md) — the social need and how conversations meet it.
 - [food.md](./food.md) — the eating job the `eatWalk` stage extends.
 - [construction.md](./construction.md) — room recipes and the planner.
