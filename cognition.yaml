@@ -3,8 +3,8 @@ schema_version: 1
 
 # Stable content vocabulary used by editor dropdowns and rule validation.
 vocabulary:
-  nouns: [colonist, alien, cat, rat, gore, meal, toilet, bed, need, rock, structure, refuse, gruel, scum, scumhouse, goods, skill]
-  actions: [present, bite, attack, kill, crush, catch, wound, converse, eat, use, sleep, satisfy, mine, clear, construct, clean, incinerate, mutate, cook, scrape, deliver, trade, buy, haul, learn]
+  nouns: [colonist, alien, cat, rat, gore, meal, toilet, bed, need, rock, structure, refuse, gruel, scum, scumhouse, goods, skill, loneliness]
+  actions: [present, bite, attack, kill, crush, catch, wound, converse, eat, use, sleep, satisfy, mine, clear, construct, clean, incinerate, mutate, cook, scrape, deliver, trade, buy, haul, learn, feel, socialize]
 
 attractors:
   driven    : { good: "driven"    , bad: "furious"   , charge:  70, grip:  60, radius: 46 }
@@ -252,6 +252,21 @@ reactions:
     match: { actor_noun: colonist, action: learn, object_noun: skill, channel: direct, role: actor, phase: instant }
     memory: { record: true }
     affect: { impact: 20, fresh: { charge: 2, grip: 8, valence: 6 }, worn: { charge: 1, grip: 4, valence: 3 } }
+    wear_policy: memory-occasions
+  # The social drive's consequence: a colonist whose social drive sits at its
+  # ceiling feels lonely, again every consequence-every ticks while it stays
+  # there. Worn is worse than fresh: loneliness that keeps coming back hurts more.
+  - id: felt-lonely
+    match: { actor_noun: colonist, action: feel, object_noun: loneliness, channel: direct, role: actor, phase: instant }
+    memory: { record: true, collapse: "Felt lonely." }
+    affect: { impact: 30, fresh: { charge: -8, grip: -6, valence: -12 }, worn: { charge: -12, grip: -10, valence: -20 } }
+    wear_policy: memory-occasions
+  # A conversation a colonist went into with its social drive at seek-at or
+  # above: company it needed, on top of the conversation's own appraisal.
+  - id: socialized
+    match: { actor_noun: colonist, action: socialize, channel: direct, role: actor, phase: instant }
+    memory: { record: true, collapse: "Enjoyed some company." }
+    affect: { impact: 20, fresh: { charge: 5, grip: 4, valence: 5 }, worn: { charge: 3, grip: 2, valence: 2 } }
     wear_policy: memory-occasions
 
 # Trait rules compose in declaration order. Scales are percentages.

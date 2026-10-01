@@ -254,3 +254,81 @@ func TestEntityDoesNotStarveWhileSeekingReachableFood(t *testing.T) {
 		t.Fatalf("colonist seeking reachable food lost HP: %d -> %d", hp, c.HP)
 	}
 }
+
+// memoriesOf counts the occurrences of one reaction in a colonist's memories,
+// collapsed runs included.
+func memoriesOf(e *Entity, rule RuleID) int {
+	n := 0
+	for _, m := range e.Memories {
+		if m.Rule == rule {
+			n += m.Count
+		}
+	}
+	return n
+}
+
+// A social drive at its ceiling is felt as loneliness: once on arrival, again
+// every ConsequenceEvery ticks while it stays, and afresh after it is met.
+func TestLonelinessIsFeltAtTheCeiling(t *testing.T) {
+	w := roomsTestWorld(20, 20)
+	c := w.spawn(Colonist, Point{5, 5})
+	spec := w.cfg.Drives[DriveSocial]
+	if spec.Consequence != ConsequenceLoneliness || spec.ConsequenceEvery <= 1 {
+		t.Skip("assumes social's consequence is loneliness with a repeat interval")
+	}
+	c.driveRise[DriveSocial] = 0 // hold the level where the test puts it
+	c.Drives[DriveSocial], c.driveSince[DriveSocial] = spec.Max-1, w.tick
+
+	w.applyDriveConsequences(c)
+	if got := memoriesOf(c, "felt-lonely"); got != 0 {
+		t.Fatalf("felt lonely below the ceiling: %d", got)
+	}
+
+	c.Drives[DriveSocial] = spec.Max
+	valence := c.affect.Valence
+	w.applyDriveConsequences(c)
+	if got := memoriesOf(c, "felt-lonely"); got != 1 {
+		t.Fatalf("felt-lonely at the ceiling = %d, want 1", got)
+	}
+	if c.affect.Valence >= valence {
+		t.Fatalf("loneliness did not lower valence: %d -> %d", valence, c.affect.Valence)
+	}
+
+	w.tick += spec.ConsequenceEvery - 1
+	w.applyDriveConsequences(c)
+	if got := memoriesOf(c, "felt-lonely"); got != 1 {
+		t.Fatalf("felt lonely again before consequence-every: %d", got)
+	}
+	w.tick++
+	w.applyDriveConsequences(c)
+	if got := memoriesOf(c, "felt-lonely"); got != 2 {
+		t.Fatalf("felt-lonely after consequence-every = %d, want 2", got)
+	}
+
+	w.resetDrive(c, DriveSocial)
+	c.Drives[DriveSocial] = spec.Max
+	w.tick++
+	w.applyDriveConsequences(c)
+	if got := memoriesOf(c, "felt-lonely"); got != 3 {
+		t.Fatalf("a new stay at the ceiling should be felt at once: %d, want 3", got)
+	}
+}
+
+// Only the side of a conversation that came to it wanting company socialized.
+func TestConversationWhileLonelySocializes(t *testing.T) {
+	w := roomsTestWorld(20, 20)
+	carve(w, Point{5, 5}, Point{6, 5}, Floor)
+	lonely := w.spawn(Colonist, Point{5, 5})
+	content := w.spawn(Colonist, Point{6, 5})
+	spec := w.cfg.Drives[DriveSocial]
+	lonely.Drives[DriveSocial], lonely.driveSince[DriveSocial] = spec.SeekAt, w.tick
+	content.Drives[DriveSocial], content.driveSince[DriveSocial] = spec.SeekAt-1, w.tick
+
+	w.finishTalk(lonely, content)
+	if got := memoriesOf(lonely, "socialized"); got != 1 {
+		t.Errorf("lonely partner socialized = %d, want 1", got)
+	}
+	if got := memoriesOf(content, "socialized"); got != 0 {
+		t.Errorf("content partner socialized = %d, want 0", got)
+	}
+}

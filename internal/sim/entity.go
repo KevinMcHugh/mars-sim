@@ -363,6 +363,10 @@ type Entity struct {
 	// Satisfying that drive restores its own deprivation damage without healing
 	// unrelated injuries such as alien bites.
 	starvationDamage [numDrives]int
+	// nextConsequence is the first tick a drive's experience consequence
+	// (loneliness) may fire again during its current stay at the ceiling; 0
+	// until it first fires. resetDrive clears it. See consequenceDue.
+	nextConsequence [numDrives]int
 
 	// Personality (colonists only). Profile holds the name, attributes, and
 	// traits; driveRise, restTicks, and workScale are the trait-resolved effective

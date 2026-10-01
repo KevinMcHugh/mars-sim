@@ -848,6 +848,18 @@ func (w *World) finishTalk(a, b *Entity) {
 		{Observer: b.ID, Target: conversationMoodVector(outcome + w.noteConversation(b))},
 	}
 	w.emitOccurrence(o)
+	// Company sought while lonely is its own experience, on top of how the
+	// talk went: a colonist who came to it with its social drive at seek-at
+	// or above "socialized". Read before jobTalk resets the drive.
+	for _, e := range []*Entity{a, b} {
+		if w.driveLevel(e, DriveSocial) >= w.cfg.Drives[DriveSocial].SeekAt {
+			other := b
+			if e == b {
+				other = a
+			}
+			w.emitOccurrence(w.occurrence(e, ActionSocialize, nil, e.Pos, "Enjoyed %s's company.", other.displayName()))
+		}
+	}
 }
 
 // assignWorkJob picks something productive to do: help build a planned project

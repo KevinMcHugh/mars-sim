@@ -377,6 +377,9 @@
 ##     ticks spent using the facility
 #     use-ticks: 18
 
+##     ticks between repeats of the drive's felt consequence while it stays at its ceiling (0: once until satisfied)
+#     consequence-every: 0
+
 ##     ticks at the facility before carrying the rest away (0 = must be used in place)
 #     grab-ticks: 3
 
@@ -395,6 +398,9 @@
 
 ##     ticks spent using the facility
 #     use-ticks: 10
+
+##     ticks between repeats of the drive's felt consequence while it stays at its ceiling (0: once until satisfied)
+#     consequence-every: 0
 
 ##     ticks at the facility before carrying the rest away (0 = must be used in place)
 #     grab-ticks: 0
@@ -415,6 +421,9 @@
 ##     ticks spent using the facility
 #     use-ticks: 0
 
+##     ticks between repeats of the drive's felt consequence while it stays at its ceiling (0: once until satisfied)
+#     consequence-every: 200
+
 ##     ticks at the facility before carrying the rest away (0 = must be used in place)
 #     grab-ticks: 0
 
@@ -433,6 +442,9 @@
 
 ##     ticks spent using the facility
 #     use-ticks: 40
+
+##     ticks between repeats of the drive's felt consequence while it stays at its ceiling (0: once until satisfied)
+#     consequence-every: 0
 
 ##     ticks at the facility before carrying the rest away (0 = must be used in place)
 #     grab-ticks: 0

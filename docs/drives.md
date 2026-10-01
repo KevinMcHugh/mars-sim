@@ -14,12 +14,12 @@ updates.
 
 These used to be called *needs*. They were renamed because not everything this
 system is going to model is a need: the plan (beauty, comfort, hygiene, and
-consequences like depression and embarrassment) is in
+consequences like embarrassment) is in
 [drives-redesign.md](./drives-redesign.md). This doc describes what exists today.
 
 ## Source
 
-- [`internal/sim/drives.go`](../internal/sim/drives.go) — `DriveKind`, `DrivePhase`, `Consequence`, `DriveSpec`, lazy level math, phase synchronization, pressure, consequences (starvation), and `mostUrgentDrive`.
+- [`internal/sim/drives.go`](../internal/sim/drives.go) — `DriveKind`, `DrivePhase`, `Consequence`, `DriveSpec`, lazy level math, phase synchronization, pressure, consequences (starvation, loneliness), and `mostUrgentDrive`.
 - [`internal/sim/config.go`](../internal/sim/config.go) — the `Drives` table and `StarveDamage`, `ColonistsPerFacility`.
 - [`internal/sim/entity.go`](../internal/sim/entity.go) — the per-entity drive storage (`Drives`, `driveSince`, `driveRise`, `starvationDamage`, `carrying`).
 - [`internal/sim/systems.go`](../internal/sim/systems.go) — `jobUse`, `jobUseCarrying`, `finishUse`, `availableToTalk`.
@@ -36,7 +36,7 @@ indexed by the kind:
 | food | 2 | 650 | 1000 | 1000 | meals, then NutrientPod | 18 | 3 | **death** |
 | bladder | 3 | 600 | 900 | 1000 | Toilet | 10 | 0 | none (planned: soiling) |
 | sleep | 1 | 700 | 900 | 1000 | Bed | 40 | 0 | none |
-| social | 2 | 500 | 850 | 1000 | conversation | — | — | none (planned: depression) |
+| social | 2 | 500 | 850 | 1000 | conversation | — | — | **loneliness** (felt every 200 ticks) |
 
 Food is the one drive met by an item as well as a facility: a hungry colonist
 eats a real `Meal` it owns (or the colony owns) before it walks to a nutrient
@@ -136,8 +136,34 @@ drive sitting at `Max`, and dispatches on its `Consequence`:
 
 | Consequence | Effect | Drives |
 | --- | --- | --- |
-| `ConsequenceNone` | nothing beyond maximal focus pressure | bladder, social, sleep |
+| `ConsequenceNone` | nothing beyond maximal focus pressure | bladder, sleep |
 | `ConsequenceDeath` | `starve`: drain HP, healed on satisfaction | food |
+| `ConsequenceLoneliness` | the colonist *feels lonely*: an experience, repeated every `consequence-every` ticks | social |
+
+Death is a **drain**: it applies every tick at the ceiling and is undone by
+satisfying the drive. Loneliness is an **experience**: `consequenceDue` books
+it on the first tick at the ceiling and then every `ConsequenceEvery` ticks
+(`drives.social.consequence-every`, 200 by default; 0 means once per stay at
+the ceiling), and `resetDrive` clears the booking (`nextConsequence`). What
+the experience *does* is not in Go at all: it is a `feel loneliness`
+occurrence through the perception grammar, and the `felt-lonely` reaction in
+[`cognition.yaml`](../cognition.yaml) gives it its mood hit (charge, grip and
+valence down) and its memory ("Felt lonely."). Its worn reading is *worse*
+than its fresh one, so loneliness that keeps coming back hurts more, and
+eases again as those memories roll off the log. That is all "depression" is
+for now: no new colonist state, just an experience that compounds.
+
+The other half is in `finishTalk`: a colonist that comes to a conversation
+with its social drive at `SeekAt` or above also gets a `socialize`
+occurrence — the `socialized` reaction ("Enjoyed some company.", charge, grip
+and valence up) — on top of the conversation's own appraisal. A chat between
+two content colonists is just a chat; company you went looking for is a lift.
+It is read before `jobTalk` resets the drive.
+
+Measured over 6000 ticks of the default game on seeds 1–3: 2, 7 and 14
+felt-lonely occasions (tracking 293, 959 and 2420 colonist-ticks at the
+social ceiling), and about 70% of conversations counted as socialized, since
+most talks start because someone went looking for one.
 
 `DriveSpec.Fatal()` (and `DriveMeta.Fatal()` in the snapshot) is shorthand
 for `Consequence == ConsequenceDeath`. Arbitration still reasons in terms of
@@ -374,8 +400,11 @@ Adding a drive whose consequence already exists is meant to be a **table edit**:
 Adding a **consequence** means a new `Consequence` constant, its `String()`
 case, and a branch in `applyDriveConsequences`. Keep each consequence in its
 own function the way `starve` is, so the grace rules for one do not leak into
-another. The planned ones (soiling, depression) and the open questions about
-them are in [drives-redesign.md](./drives-redesign.md).
+another. A consequence that is something the colonist *feels* should be an
+occurrence plus a reaction row, the way loneliness is, with its cadence from
+`consequenceDue`, rather than code that moves affect directly. The planned
+one (soiling) and the open questions are in
+[drives-redesign.md](./drives-redesign.md).
 
 A drive with no facility (like social), or one satisfied by the environment
 rather than an action (the planned beauty and comfort), does not fit step 3

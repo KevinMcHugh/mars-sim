@@ -1,5 +1,7 @@
 package sim
 
+import "math"
+
 // DriveKind enumerates a colonist's drives: pressures that accumulate on their
 // own and are discharged by acting on them. Every drive is the same shape — a
 // lazily accumulating level, a seek threshold, a critical threshold, a ceiling,
@@ -42,10 +44,10 @@ func (p DrivePhase) String() string {
 // tunable from the settings file: the rest of the simulation (which drive
 // outranks which, the grace periods, what a frontend paints red) keys off it.
 //
-// Only death is implemented so far. The redesign's planned consequences —
-// depression for an unmet social drive, soiling oneself (and the embarrassment
-// that follows) for bladder — are described in docs/drives-redesign.md; until
-// they land those drives are ConsequenceNone and simply sit at their ceiling.
+// Death is a drain (HP, every tick at the ceiling); loneliness is an
+// experience (an occurrence the colonist feels and remembers). Soiling oneself
+// for bladder is planned (docs/drives-redesign.md); until it lands bladder is
+// ConsequenceNone and simply sits at its ceiling.
 type Consequence uint8
 
 const (
@@ -54,6 +56,11 @@ const (
 	// ConsequenceDeath: HP drains (StarveDamage a tick) while the drive sits at
 	// its ceiling, and is restored when it is satisfied. Starvation.
 	ConsequenceDeath
+	// ConsequenceLoneliness: the colonist feels lonely — a "felt-lonely"
+	// occurrence through the perception grammar, so its mood hit and memory
+	// are cognition.yaml rows — on reaching the ceiling, and again every
+	// ConsequenceEvery ticks while it stays there. Unmet social.
+	ConsequenceLoneliness
 
 	numConsequences // keep last: the count of consequences
 )
@@ -64,6 +71,8 @@ func (c Consequence) String() string {
 		return "none"
 	case ConsequenceDeath:
 		return "death"
+	case ConsequenceLoneliness:
+		return "loneliness"
 	default:
 		return "consequence"
 	}
@@ -91,9 +100,11 @@ func defaultDrives() [numDrives]DriveSpec {
 			Facility: Toilet, UseTicks: 10, Consequence: ConsequenceNone,
 		},
 		DriveSocial: {
-			// Planned consequence: depression (docs/drives-redesign.md).
+			// A colonist left without company feels lonely, and feels it again
+			// every 200 ticks (about four conversations' worth) it goes on.
 			Name: "social", Rise: 2, SeekAt: 500, CriticalAt: 850, Max: 1000,
-			Facility: Rock, UseTicks: 0, Consequence: ConsequenceNone,
+			Facility: Rock, UseTicks: 0,
+			Consequence: ConsequenceLoneliness, ConsequenceEvery: 200,
 		},
 		DriveSleep: {
 			// Sleep builds slowly and, once sought, takes a long lie-down to
@@ -146,6 +157,10 @@ type DriveSpec struct {
 	Facility    Terrain     // structure that resets this drive to 0
 	UseTicks    int         `cfg:"use-ticks" doc:"ticks spent using the facility"`
 	Consequence Consequence // what reaching Max does to the colonist
+	// ConsequenceEvery is how often an experience consequence (loneliness)
+	// recurs while the drive stays at Max. Zero means once per stay at the
+	// ceiling. Drains (death) apply every tick regardless.
+	ConsequenceEvery int `cfg:"consequence-every" doc:"ticks between repeats of the drive's felt consequence while it stays at its ceiling (0: once until satisfied)"`
 	// GrabTicks, if positive and less than UseTicks, makes this drive portable:
 	// a colonist spends only GrabTicks at the facility, then carries it away
 	// and spends the rest of UseTicks finishing elsewhere, freeing the
@@ -250,6 +265,7 @@ func (w *World) resetDrive(e *Entity, i DriveKind) {
 	if i == DriveFood {
 		e.forageNoted, e.forageRetry = false, 0 // fed: the next hunger is a new search
 	}
+	e.nextConsequence[i] = 0
 	w.syncDrivePhase(e, i)
 	if damage := e.starvationDamage[i]; damage > 0 {
 		e.HP = min(e.MaxHP, e.HP+damage)
@@ -269,8 +285,30 @@ func (w *World) applyDriveConsequences(e *Entity) {
 		switch spec.Consequence {
 		case ConsequenceDeath:
 			w.starve(e, i, spec)
+		case ConsequenceLoneliness:
+			// Only colonists feel anything; a rat's social drive never rises,
+			// but nothing here should depend on that.
+			if e.Kind == Colonist && w.consequenceDue(e, i, spec) {
+				w.emitDone(e, ActionFeel, NounLoneliness, "Felt lonely.")
+			}
 		}
 	}
+}
+
+// consequenceDue reports whether an experience consequence should fire now,
+// and books the next one if so: the first tick at the ceiling, then every
+// ConsequenceEvery ticks while the drive stays there (never again, with 0).
+// resetDrive clears the booking, so the next stay at the ceiling starts fresh.
+func (w *World) consequenceDue(e *Entity, i DriveKind, spec DriveSpec) bool {
+	if w.tick < e.nextConsequence[i] {
+		return false
+	}
+	if spec.ConsequenceEvery > 0 {
+		e.nextConsequence[i] = w.tick + spec.ConsequenceEvery
+	} else {
+		e.nextConsequence[i] = math.MaxInt
+	}
+	return true
 }
 
 // starve is ConsequenceDeath: it drains HP for a drive at its ceiling, unless

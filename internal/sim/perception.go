@@ -15,23 +15,24 @@ type ActionID string
 type RuleID string
 
 const (
-	NounColonist  NounID = "colonist"
-	NounAlien     NounID = "alien"
-	NounCat       NounID = "cat"
-	NounRat       NounID = "rat"
-	NounGore      NounID = "gore"
-	NounMeal      NounID = "meal"
-	NounToilet    NounID = "toilet"
-	NounBed       NounID = "bed"
-	NounNeed      NounID = "need"
-	NounRock      NounID = "rock"
-	NounStructure NounID = "structure"
-	NounRefuse    NounID = "refuse"
-	NounGruel     NounID = "gruel"
-	NounScum      NounID = "scum"
-	NounScumhouse NounID = "scumhouse"
-	NounGoods     NounID = "goods"
-	NounSkill     NounID = "skill"
+	NounColonist   NounID = "colonist"
+	NounAlien      NounID = "alien"
+	NounCat        NounID = "cat"
+	NounRat        NounID = "rat"
+	NounGore       NounID = "gore"
+	NounMeal       NounID = "meal"
+	NounToilet     NounID = "toilet"
+	NounBed        NounID = "bed"
+	NounNeed       NounID = "need"
+	NounRock       NounID = "rock"
+	NounStructure  NounID = "structure"
+	NounRefuse     NounID = "refuse"
+	NounGruel      NounID = "gruel"
+	NounScum       NounID = "scum"
+	NounScumhouse  NounID = "scumhouse"
+	NounGoods      NounID = "goods"
+	NounSkill      NounID = "skill"
+	NounLoneliness NounID = "loneliness"
 )
 
 const (
@@ -60,6 +61,8 @@ const (
 	ActionBuy        ActionID = "buy"
 	ActionHaul       ActionID = "haul"
 	ActionLearn      ActionID = "learn"
+	ActionFeel       ActionID = "feel"
+	ActionSocialize  ActionID = "socialize"
 )
 
 // ChannelID says how an observer learned about an occurrence. Direct is
