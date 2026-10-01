@@ -277,11 +277,17 @@
 ## each pod's meals vary by up to this many either side of crash-pod-meals
 # crash-pod-meal-spread: 0
 
-## pistols each colonist arrives carrying
+## pistols in each crash pod's manifest, at most
 # crash-pod-pistols: 1
 
-## shotguns each colonist arrives carrying
-# crash-pod-shotguns: 0
+## shotguns in each crash pod's manifest, at most
+# crash-pod-shotguns: 1
+
+## percent chance each manifest pistol is aboard a given colonist's pod
+# crash-pod-pistol-percent: 70
+
+## percent chance each manifest shotgun is aboard a given colonist's pod
+# crash-pod-shotgun-percent: 20
 
 # ── Timing ──────────────────────────────────────────────────────────────
 ## simulation ticks per second

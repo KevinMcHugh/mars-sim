@@ -223,8 +223,13 @@ type Config struct {
 	CrashPodPurse      int64 `cfg:"crash-pod-purse" sec:"Crash pods" doc:"dollars each colonist arrives with"`
 	CrashPodMeals      int   `cfg:"crash-pod-meals" doc:"meals stocked in each crash pod's locker, on average"`
 	CrashPodMealSpread int   `cfg:"crash-pod-meal-spread" doc:"each pod's meals vary by up to this many either side of crash-pod-meals"`
-	CrashPodPistols    int   `cfg:"crash-pod-pistols" doc:"pistols each colonist arrives carrying"`
-	CrashPodShotguns   int   `cfg:"crash-pod-shotguns" doc:"shotguns each colonist arrives carrying"`
+	CrashPodPistols    int   `cfg:"crash-pod-pistols" doc:"pistols in each crash pod's manifest, at most"`
+	CrashPodShotguns   int   `cfg:"crash-pod-shotguns" doc:"shotguns in each crash pod's manifest, at most"`
+	// Each gun the manifest lists is actually aboard a given pod with these
+	// odds, rolled per colonist, so some colonists land better armed than
+	// others and some land with no gun at all. See docs/crash-pods.md.
+	CrashPodPistolPercent  int `cfg:"crash-pod-pistol-percent" doc:"percent chance each manifest pistol is aboard a given colonist's pod"`
+	CrashPodShotgunPercent int `cfg:"crash-pod-shotgun-percent" doc:"percent chance each manifest shotgun is aboard a given colonist's pod"`
 
 	// Timing.
 	TicksPerSecond int `cfg:"tps" sec:"Timing" doc:"simulation ticks per second"`
@@ -606,22 +611,26 @@ func DefaultConfig() Config {
 		// ten carry a colonist a few thousand ticks: long enough to settle in,
 		// short enough that food production matters once the safety net is
 		// off. Every settler lands armed, the way frontier settlers did.
-		CrashPodMeals:       10,
-		CrashPodMealSpread:  0,
-		CrashPodPistols:     1,
-		CrashPodShotguns:    0,
-		GraveyardSize:       50,
-		TicksPerSecond:      8,
-		LogSize:             64,
-		ColonistHP:          40,
-		MineTicks:           6,
-		BuildTicks:          8,
-		DemolishTicks:       16,
-		FacilityBuildTicks:  12,
-		FleeRadius:          5,
-		FleeReleaseMargin:   3,
-		ColonistStompRadius: 4,
-		GoreSightRadius:     3,
+		CrashPodMeals:      10,
+		CrashPodMealSpread: 0,
+		CrashPodPistols:    1,
+		CrashPodShotguns:   1,
+		// About one colonist in four lands unarmed (30% × 80%), and one in
+		// five carries a shotgun.
+		CrashPodPistolPercent:  70,
+		CrashPodShotgunPercent: 20,
+		GraveyardSize:          50,
+		TicksPerSecond:         8,
+		LogSize:                64,
+		ColonistHP:             40,
+		MineTicks:              6,
+		BuildTicks:             8,
+		DemolishTicks:          16,
+		FacilityBuildTicks:     12,
+		FleeRadius:             5,
+		FleeReleaseMargin:      3,
+		ColonistStompRadius:    4,
+		GoreSightRadius:        3,
 
 		CleanRadius:           10,
 		CleanTicks:            6,

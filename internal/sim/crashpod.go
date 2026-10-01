@@ -116,11 +116,11 @@ func (w *World) arrive(announce bool) *Entity {
 	if n := w.podMeals(e.ID); n > 0 && locker.Inventory.Add(Meal, n) {
 		locker.credit(me, Meal, n)
 	}
-	for i := 0; i < w.cfg.CrashPodShotguns; i++ {
-		e.Inventory.Add(Shotgun, 1)
+	if n := w.podGuns(e.ID, Shotgun); n > 0 {
+		e.Inventory.Add(Shotgun, n)
 	}
-	for i := 0; i < w.cfg.CrashPodPistols; i++ {
-		e.Inventory.Add(Pistol, 1)
+	if n := w.podGuns(e.ID, Pistol); n > 0 {
+		e.Inventory.Add(Pistol, n)
 	}
 	e.podOrigin, e.hasPod = o, true
 	w.rollBackground(e)
@@ -399,4 +399,38 @@ func (w *World) podMeals(id EntityID) int {
 	s := uint64(w.cfg.Seed) ^ uint64(id)*0x9E3779B97F4A7C15 ^ podMealSalt
 	d := int(splitmix64(&s)%uint64(2*spread+1)) - spread
 	return max(0, n+d)
+}
+
+// podGunSalt separates podGuns' hash from podMeals' and anything else derived
+// from the seed.
+const podGunSalt = 0xA24BAED4963EE407
+
+// podGuns is how many guns of kind k (Pistol or Shotgun) the pod of the
+// colonist with this ID carries: each of the manifest's crash-pod-pistols (or
+// crash-pod-shotguns) is aboard with crash-pod-pistol-percent (or
+// crash-pod-shotgun-percent) odds, rolled on its own. So colonists land
+// unevenly armed, and some land with nothing.
+//
+// Like podMeals it is a pure function of the seed, the ID, and the gun, not a
+// draw from a stream: it shifts no other random draw and doesn't depend on
+// arrival order.
+func (w *World) podGuns(id EntityID, k ItemKind) int {
+	n, pct := w.cfg.CrashPodPistols, w.cfg.CrashPodPistolPercent
+	if k == Shotgun {
+		n, pct = w.cfg.CrashPodShotguns, w.cfg.CrashPodShotgunPercent
+	}
+	if n <= 0 || pct <= 0 {
+		return 0
+	}
+	if pct >= 100 {
+		return n
+	}
+	s := uint64(w.cfg.Seed) ^ uint64(id)*0x9E3779B97F4A7C15 ^ uint64(k)*0xD1B54A32D192ED03 ^ podGunSalt
+	got := 0
+	for i := 0; i < n; i++ {
+		if splitmix64(&s)%100 < uint64(pct) {
+			got++
+		}
+	}
+	return got
 }

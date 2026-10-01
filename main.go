@@ -476,6 +476,8 @@ func validateConfig(cfg sim.Config) error {
 		return fmt.Errorf("population counts cannot be negative")
 	case cfg.CrashPodMeals < 0 || cfg.CrashPodPistols < 0 || cfg.CrashPodShotguns < 0:
 		return fmt.Errorf("crash pod manifest counts cannot be negative")
+	case cfg.CrashPodPistolPercent < 0 || cfg.CrashPodPistolPercent > 100 || cfg.CrashPodShotgunPercent < 0 || cfg.CrashPodShotgunPercent > 100:
+		return fmt.Errorf("crash-pod-pistol-percent and crash-pod-shotgun-percent must be between 0 and 100 (got %d and %d)", cfg.CrashPodPistolPercent, cfg.CrashPodShotgunPercent)
 	case cfg.ScumMax < 0 || cfg.ScumMax > 255:
 		// A patch's amount is published as one byte (Snapshot.Scum); 256
 		// would wrap to 0 and a full patch would vanish from the map.

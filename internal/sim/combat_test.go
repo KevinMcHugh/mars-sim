@@ -188,6 +188,7 @@ func TestCrashPodsArmTheirColonists(t *testing.T) {
 	cfg.StartAliens, cfg.StartCats, cfg.StartRats = 0, 0, 0
 	cfg.StartColonists = 4
 	cfg.CrashPodPistols, cfg.CrashPodShotguns = 1, 1
+	cfg.CrashPodPistolPercent, cfg.CrashPodShotgunPercent = 100, 100
 	w := newTestWorld(t, cfg)
 
 	for _, e := range w.entities {
