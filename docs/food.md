@@ -53,8 +53,10 @@ first. It tries, in order:
 5. **The safety net.** Only if `infinite-food` is on: the old `JobUse` at a
    nutrient pod, which makes gruel out of nothing.
 
-Steps 1–4 end in `JobEat`, with two stages: `eatFetch` walks to the depot at
-`Target`, `eatMeal` eats the meal in hand for the food need's `UseTicks`. A meal
+Steps 1–4 end in `JobEat`, with three stages: `eatFetch` walks to the depot at
+`Target`, `eatWalk` (only when a meeting hall has a free chair and hunger is not
+critical) carries the meal to a chair, and `eatMeal` eats the meal in hand for
+the food need's `UseTicks` (see [meeting-hall.md](./meeting-hall.md)). A meal
 of the colonist's own is never skipped for the pod, even if the pod is closer —
 `TestColonistsEatTheirOwnMealsBeforeGruel` checks every tick of a 4000-tick run
 that nobody with a meal of its own is queued at a pod.
@@ -191,7 +193,7 @@ is, so a shortage never raises the price that would draw more producers in.
 
 ### Interruptions
 
-In `eatMeal` the meal is in hand: out of the pockets and off the ledger both.
+In `eatMeal` (and `eatWalk`) the meal is in hand: out of the pockets and off the ledger both.
 If the job is cleared — an alien comes round the corner — `clearJob` puts it
 back in the colonist's pockets, so a meal is never lost to a fright. The
 starvation grace (`applyStarvation`) covers a colonist in `JobEat` the way it

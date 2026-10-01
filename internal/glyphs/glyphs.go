@@ -36,6 +36,7 @@ const (
 	Salt        = "\U0001F9C2" // 🧂 a salt deposit on the rock
 	Forge       = "\U0001F3ED" // 🏭 forge: iron ore in, steel ingots out
 	GunBench    = "\U0001F528" // 🔨 gun bench: steel in, assault rifles out
+	Chair       = "\U0001F4BA" // 💺 chair in a meeting hall
 
 	Colonist = "\U0001F477" // 👷 colonist of unknown age/gender (no profile)
 	Fleeing  = "\U0001F631" // 😱 colonist running from an alien
@@ -147,6 +148,7 @@ var All = []string{
 	Scum,
 	Forge,
 	GunBench,
+	Chair,
 	Colonist,
 	Fleeing,
 	Talking,
@@ -311,6 +313,8 @@ func ForTerrain(t sim.Terrain) string {
 		return Forge
 	case sim.GunBench:
 		return GunBench
+	case sim.Chair:
+		return Chair
 	default:
 		return Rock
 	}

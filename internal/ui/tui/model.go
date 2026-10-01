@@ -70,6 +70,7 @@ var buildMenuItems = []menuItem{
 	{"r", "storage container"},
 	{"h", "scumhouse"},
 	{"g", "foundry"},
+	{"m", "meeting hall"},
 }
 
 // filterMenuItems are the roster's toggleable filters. Unlike the spawn/build
@@ -445,6 +446,8 @@ func (m Model) submitMenuItem(i int) {
 			m.eng.Send(sim.OrderScumhouse{})
 		case "g":
 			m.eng.Send(sim.OrderFoundry{})
+		case "m":
+			m.eng.Send(sim.OrderMeetingHall{})
 		}
 	}
 }

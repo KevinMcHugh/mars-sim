@@ -17,7 +17,7 @@ func foodWorld(t *testing.T, meals int, infinite bool) *World {
 // ownedMeals is every meal e owns: in its pockets and on any ledger.
 func ownedMeals(w *World, e *Entity) int {
 	n := e.Inventory.Count(Meal)
-	if e.Job == JobEat && e.eat == eatMeal {
+	if e.Job == JobEat && (e.eat == eatMeal || e.eat == eatWalk) {
 		n++ // in hand
 	}
 	for _, c := range w.storageContainers {

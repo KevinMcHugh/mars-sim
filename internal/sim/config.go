@@ -384,6 +384,12 @@ type Config struct {
 	TalkQualityValence int `cfg:"talk-quality-valence" doc:"how strongly existing affinity biases conversation quality"`
 	TalkQualitySpread  int `cfg:"talk-quality-spread" doc:"random swing around a conversation's mean quality"`
 
+	// The meeting hall: a room of chairs the colony commissions, where
+	// colonists go to socialize and to eat. See docs/meeting-hall.md.
+	ColonistsPerChair int `cfg:"colonists-per-chair" sec:"Meeting hall" doc:"the colony commissions meeting-hall chairs, one for each this many colonists (0: no hall, and talk and meals stay wherever they happen)"`
+	HallRange         int `cfg:"hall-range" doc:"farthest a colonist walks to the meeting hall to socialize or eat, in tiles"`
+	HallTalkBonus     int `cfg:"hall-talk-bonus" doc:"conversation quality points added when both partners are in the meeting hall"`
+
 	// Affect. Charge, grip and valence each run in [-MoodMax, MoodMax].
 	// Conversation company/quality produce a temporary signed outcome which is
 	// converted to a vector. The three axes settle at three speeds: charge
@@ -682,6 +688,10 @@ func DefaultConfig() Config {
 		TalkTicks:        12,
 		TalkAffinityGain: 4,
 		AffinityMax:      100,
+
+		ColonistsPerChair: 4,
+		HallRange:         48,
+		HallTalkBonus:     15,
 
 		TalkQualityBias:    20,
 		TalkQualityValence: 50,

@@ -28,6 +28,10 @@ type OrderScumhouse struct{}
 // OrderFoundry asks the planner to queue one foundry: a forge and a gun bench.
 type OrderFoundry struct{}
 
+// OrderMeetingHall asks the planner to queue one meeting hall: a room of
+// chairs where colonists socialize and eat.
+type OrderMeetingHall struct{}
+
 // OrderFacilityRoom asks the planner to queue one life-support room.
 type OrderFacilityRoom struct{}
 
@@ -52,6 +56,7 @@ func (OrderTrashRoom) isCommand()    {}
 func (OrderStorageRoom) isCommand()  {}
 func (OrderScumhouse) isCommand()    {}
 func (OrderFoundry) isCommand()      {}
+func (OrderMeetingHall) isCommand()  {}
 
 // Engine drives the simulation. It owns the World and is the only goroutine that
 // touches it. Frontends interact only through Subscribe (to receive Snapshots)
@@ -419,6 +424,8 @@ func (e *Engine) apply(cmd Command) (rateChanged bool) {
 	case ShowFlowField:
 		e.flowShow, e.flowShown = c.Show, c.Field
 		e.requestPublish()
+	case OrderMeetingHall:
+		e.world.manualHalls++
 	}
 	return false
 }
