@@ -186,10 +186,14 @@ type worldGen struct {
 	cacheSize int
 
 	// Scratch, reused between plans.
-	mark    []bool // window bitmap for vein avoidance / cavern dilation
-	own     []bool // a vein's or cavern's own tiles, over its reach box
-	nbrs    []Point
-	nearBuf []*genCavern
+	mark []bool // window bitmap for vein avoidance / cavern dilation
+	own  []bool // a vein's or cavern's own tiles, over its reach box
+	// runPlaced and runAvoid are runPlan's bitmaps over a runWindow: the
+	// tiles a plan has placed, and (for salt) the scum it must step around.
+	runPlaced []bool
+	runAvoid  []bool
+	nbrs      []Point
+	nearBuf   []*genCavern
 }
 
 func newWorldGen(cfg Config) *worldGen {
@@ -552,30 +556,46 @@ func (g *worldGen) saltPlan(k chunkKey) []Point {
 		return v
 	}
 	var tiles []Point
-	if g.cfg.SaltPercent > 0 {
-		var scummed map[Point]bool
-		g.forNeighbours(k, 1, func(n chunkKey) {
-			for _, p := range g.scumPlan(n) {
-				if scummed == nil {
-					scummed = make(map[Point]bool)
+	if lo, hi, ok := g.chunkBounds(k); ok && g.cfg.SaltPercent > 0 {
+		// Gather the scum plans first: they share the scratch buffers this
+		// plan is about to use. Then mark the ones inside the window the salt
+		// runs can reach. A bitmap, not a set: building a map of the 2,000-odd
+		// scum tiles around every chunk nearly doubled whole-map generation.
+		var scum [][]Point
+		g.forNeighbours(k, 1, func(n chunkKey) { scum = append(scum, g.scumPlan(n)) })
+		wlo, ww, wh := runWindow(lo, hi)
+		g.runAvoid = resetBools(g.runAvoid, ww*wh)
+		for _, plan := range scum {
+			for _, p := range plan {
+				if x, y := p.X-wlo.X, p.Y-wlo.Y; x >= 0 && y >= 0 && x < ww && y < wh {
+					g.runAvoid[y*ww+x] = true
 				}
-				scummed[p] = true
 			}
-		})
-		tiles = g.runPlan(k, genStreamSalt, g.cfg.SaltPercent, scummed)
+		}
+		tiles = g.runPlan(k, genStreamSalt, g.cfg.SaltPercent, g.runAvoid)
 	}
 	g.salt.put(k, tiles)
 	return tiles
 }
 
+// runReach is how far a run's tiles lie from the chunk it starts in: a run
+// takes at most scumRunMax-1 steps before its last tile.
+const runReach = scumRunMax - 1
+
+// runWindow is the box every run of a chunk spanning lo..hi can reach: its
+// top-left corner, width and height.
+func runWindow(lo, hi Point) (wlo Point, ww, wh int) {
+	return Point{lo.X - runReach, lo.Y - runReach}, hi.X - lo.X + 1 + 2*runReach, hi.Y - lo.Y + 1 + 2*runReach
+}
+
 // runPlan places percent of chunk k's area as distinct tiles, in short
-// meandering runs of scumRunMin–scumRunMax steps, never on a tile in avoid.
-// Both cave scum and salt are laid down this way.
-func (g *worldGen) runPlan(k chunkKey, stream uint64, percent int, avoid map[Point]bool) []Point {
-	var tiles []Point
+// meandering runs of scumRunMin–scumRunMax steps, never on a tile marked in
+// avoid (a runWindow bitmap, or nil). Both cave scum and salt are laid down
+// this way.
+func (g *worldGen) runPlan(k chunkKey, stream uint64, percent int, avoid []bool) []Point {
 	lo, hi, ok := g.chunkBounds(k)
 	if !ok {
-		return tiles
+		return nil
 	}
 	// Budget distinct tiles, as the old whole-map pass did: a short walk
 	// often steps back onto itself, and counting steps instead came out
@@ -584,13 +604,27 @@ func (g *worldGen) runPlan(k chunkKey, stream uint64, percent int, avoid map[Poi
 	rng := g.featureRand(stream, int64(k.cx), int64(k.cy))
 	area := int64(hi.X-lo.X+1) * int64(hi.Y-lo.Y+1)
 	budget := stratified(rng, area*int64(percent), 100)
-	placed := map[Point]bool{}
+	if budget == 0 {
+		return nil
+	}
+	// Which tiles this plan has placed, over the window its runs can reach:
+	// a bitmap for the same reason as saltPlan's avoid.
+	wlo, ww, wh := runWindow(lo, hi)
+	g.runPlaced = resetBools(g.runPlaced, ww*wh)
+	placed := g.runPlaced
+	tiles := make([]Point, 0, budget)
 	for guard := 0; len(tiles) < budget && guard < 8*budget; guard++ {
 		p := Point{lo.X + rng.IntN(hi.X-lo.X+1), lo.Y + rng.IntN(hi.Y-lo.Y+1)}
 		for n := scumRunMin + rng.IntN(scumRunMax-scumRunMin+1); n > 0 && len(tiles) < budget; n-- {
-			if g.inMap(p) && !placed[p] && !avoid[p] {
-				placed[p] = true
-				tiles = append(tiles, p)
+			if g.inMap(p) {
+				x, y := p.X-wlo.X, p.Y-wlo.Y
+				if x < 0 || y < 0 || x >= ww || y >= wh {
+					panic("worldgen: a run walked out of its window")
+				}
+				if i := y*ww + x; !placed[i] && (avoid == nil || !avoid[i]) {
+					placed[i] = true
+					tiles = append(tiles, p)
+				}
 			}
 			d := veinNeighbors[rng.IntN(len(veinNeighbors))]
 			p = p.Add(d.X, d.Y)

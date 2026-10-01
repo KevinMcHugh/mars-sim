@@ -46,7 +46,8 @@ untagged too — a need's identity and its plumbing are not balance.
 
 `validateConfig` rejects settings that would break world generation or the
 renderer (too-small world, negative populations, rock composition percentages
-whose sum exceeds 100, an invalid rock-vein or cavern size range, out-of-range
+whose sum exceeds 100, scum and salt percentages whose sum exceeds 100 (the two
+never share a tile), an invalid rock-vein or cavern size range, out-of-range
 cavern percentages, a `worldgen-halo` below 1, sub-1 rates) with a
 message a player can act on, before the engine is built.
 

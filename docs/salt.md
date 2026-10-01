@@ -21,8 +21,13 @@ reach it (see below), so a player can see where it is.
 - `internal/wire/encoder.go`, `web/wire/decode.js`: the salt section.
 - `web/src/map/renderer.ts`, `palette.ts`; `internal/ui/tui/view.go`: drawing it.
 - `internal/sim/scumhouse.go`: `addScum` refuses a salt tile.
-- `internal/sim/salt_test.go`, `internal/wire/encoder_test.go`, `worldgen_chunks_test.go`
-  (`TestSaltNeverSharesATileWithScum`), `worldgen_drift_test.go`.
+- `main.go`: `validateConfig` keeps `scum-percent` + `salt-percent` at most 100.
+- `internal/sim/salt_test.go`: no regrowth, no overlap with scum, burial,
+  exactly the exposed salt published (after a dig and after a cavern breach).
+- `internal/sim/worldgen_chunks_test.go` (`TestSaltNeverSharesATileWithScum`),
+  `worldgen_drift_test.go`, `internal/wire/encoder_test.go`.
+- `internal/sim/bench_test.go`: `BenchmarkGenerateMap`, whole-map generation
+  with and without salt.
 
 ## How it works
 
@@ -47,10 +52,19 @@ tile, beside `clearScum`.
 
 ### Showing it
 
-Only salt the colony can reach is published. `exposedSalt` is kept in step from
-`TileChanges` exactly as `exposedScum` is, by the same rule (`scumExposed`): on
-discovered floor, or on rock beside it. `Snapshot.Salt` is that set, shared
-between frames until it changes (`publishedSalt`, `saltRev`).
+Only salt the colony can reach is published. `exposedSalt` follows the same rule
+as `exposedScum` (`scumExposed`): on discovered floor, or on rock beside it. It
+is kept in step from three places, the same three as scum's:
+
+- every `TileChanged` event (a dig, a build), through `refreshSaltExposure`;
+- `discoverCavernTile`, because breaking into a natural cavern reveals its
+  floor without a `TileChanged`, so this is the only thing that publishes salt
+  on a newly found cavern's floor and rim;
+- `applyChunk`, for a new chunk. In practice nothing there is exposed yet,
+  because discovered floor always has its neighbours generated first.
+
+`Snapshot.Salt` is that set, shared between frames until it changes
+(`publishedSalt`, `saltRev`).
 
 - **Wire:** a `salt` section of `x`, `y` pairs, sent whole when the map changes
   (wire version 4; see [wire-format.md](./wire-format.md)).
@@ -73,12 +87,29 @@ between frames until it changes (`publishedSalt`, `saltRev`).
   salt's, and shifted every existing world's scum. As it is, adding salt moves
   no scum, no vein and no cavern: the golden hashes at tick 0 differ only by
   the new `salt=` segment.
+- **But salt does change play from tick 1.** Because `addScum` refuses salt
+  tiles, a scum spawn or spread that lands on salt is lost, so scum regrows
+  slightly slower on 3% fewer tiles. That changed the golden run hashes of two
+  of the three cases. With `salt-percent` 0 every old hash, at tick 0 and after
+  the run, comes back exactly. The food-economy tests in `scumhouse_test.go`
+  still pass, but a scum retune should be measured with salt on.
 - **Avoid, don't overwrite.** The first design was to generate both
   independently and drop the salt tiles that landed on scum. That works, but it
   loses about 6% of salt (scum's density) and the 3% target comes out as 2.8%.
-  Steering the walk costs one set of scum tiles per chunk plan and hits the
-  target to two decimals (see the drift report in
+  Steering the walk hits the target to two decimals (see the drift report in
   [worldgen-chunks.md](./worldgen-chunks.md)).
+- **Bitmaps, not sets.** The first version of `saltPlan` gathered the 2,000-odd
+  scum tiles around each chunk into a `map[Point]bool`. That nearly doubled
+  whole-map generation. `BenchmarkGenerateMap` (1024×1024, every chunk in
+  raster order, on an M-series Mac) went from about 50 ms and 35 MB to 87 ms
+  and 88 MB. The avoid set is now a bitmap over the window a chunk's runs can
+  reach (`runWindow`, the chunk plus `runReach` on each side), reused between
+  plans like `growVeins`'s. `runPlan`'s own set of placed tiles became a
+  bitmap too, which speeds up scum as well. Now it is about 40 ms and 27 MB
+  without salt and 43 ms and 27.6 MB with it, below the cost before salt
+  existed. `BenchmarkChunkCold` and `BenchmarkChunkWarm` are unchanged from
+  before salt. Starting a game costs about 1.4 ms and 0.4 MB more, mostly the
+  `World.salt` set itself.
 - **Why neighbours' scum is enough.** A salt tile lies at most
   `scumRunMax - 1` outside its owner chunk, and any scum that could cover it
   started within as far again. Two such reaches fit inside one chunk, which a
@@ -96,8 +127,10 @@ between frames until it changes (`publishedSalt`, `saltRev`).
   item (exposure and the snapshot field are already done). Keep `clearSalt` the only
   thing that removes a deposit, or document why not.
 - Keep the two invariants in
-  `TestSaltNeverRegeneratesOrMeetsScum`: nothing adds salt after generation,
-  and no tile holds salt and scum.
+  `TestSaltNeverRegeneratesOrMeetsScum`: every deposit is one the pure
+  generator placed (nothing grows salt), and no tile holds salt and scum.
+- `scumPlan` must stay readable without salt: salt reads scum, never the other
+  way round, or the plans would depend on each other.
 - A new deposit that must also avoid scum can reuse `runPlan`. Give it its own
   stream constant and put it in the reach assertions.
 

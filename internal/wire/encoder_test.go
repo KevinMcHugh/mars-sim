@@ -434,8 +434,9 @@ func TestHelloNamesEverythingAFrameIndexes(t *testing.T) {
 	}
 }
 
-// Scum goes whole, in row order, on the first frame and whenever the engine
-// publishes a different scum map; a frame that shares the last map sends none.
+// Scum goes whole, in row order, on the first frame, whenever the engine
+// publishes a different scum map, and on a tiles reset; a frame that shares the
+// last map sends none.
 func TestEncodeSendsScumWhenItChanges(t *testing.T) {
 	snap := fixture(true)
 	e := NewEncoder()
@@ -451,15 +452,23 @@ func TestEncodeSendsScumWhenItChanges(t *testing.T) {
 		t.Errorf("unchanged scum was sent again: %+v", d.Scum)
 	}
 
+	// A tiles reset drops everything the page holds, so the same map goes
+	// again.
+	reset := same
+	reset.TileChanges = sim.TileChanges{Frame: 3, All: true}
+	if d := decode(t, e.Encode(&reset)); !d.HasScum || !slices.Equal(d.Scum, want) {
+		t.Errorf("scum after a tiles reset: %v %+v, want %+v", d.HasScum, d.Scum, want)
+	}
+
 	scraped := same
-	scraped.TileChanges = sim.TileChanges{Frame: 3}
+	scraped.TileChanges = sim.TileChanges{Frame: 4}
 	scraped.Scum = map[sim.Point]uint8{{X: 12, Y: 4}: 2}
 	if d := decode(t, e.Encode(&scraped)); !d.HasScum || !slices.Equal(d.Scum, []decodedScum{{X: 12, Y: 4, Amount: 2}}) {
 		t.Errorf("changed scum: %v %+v", d.HasScum, d.Scum)
 	}
 
 	gone := scraped
-	gone.TileChanges = sim.TileChanges{Frame: 4}
+	gone.TileChanges = sim.TileChanges{Frame: 5}
 	gone.Scum = map[sim.Point]uint8{}
 	if d := decode(t, e.Encode(&gone)); !d.HasScum || len(d.Scum) != 0 {
 		t.Errorf("all scum scraped: want an empty scum frame, got %v %+v", d.HasScum, d.Scum)
@@ -467,7 +476,7 @@ func TestEncodeSendsScumWhenItChanges(t *testing.T) {
 }
 
 // Salt goes whole, in row order, on the first frame and whenever the engine
-// publishes a different salt map, exactly as scum does.
+// publishes a different salt map or the tiles start over, exactly as scum does.
 func TestEncodeSendsSaltWhenItChanges(t *testing.T) {
 	snap := fixture(true)
 	e := NewEncoder()
@@ -483,15 +492,21 @@ func TestEncodeSendsSaltWhenItChanges(t *testing.T) {
 		t.Errorf("unchanged salt was sent again: %+v", d.Salt)
 	}
 
+	reset := same
+	reset.TileChanges = sim.TileChanges{Frame: 3, All: true}
+	if d := decode(t, e.Encode(&reset)); !d.HasSalt || !slices.Equal(d.Salt, want) {
+		t.Errorf("salt after a tiles reset: %v %+v, want %+v", d.HasSalt, d.Salt, want)
+	}
+
 	built := same
-	built.TileChanges = sim.TileChanges{Frame: 3}
+	built.TileChanges = sim.TileChanges{Frame: 4}
 	built.Salt = map[sim.Point]struct{}{{X: 1, Y: 9}: {}}
 	if d := decode(t, e.Encode(&built)); !d.HasSalt || !slices.Equal(d.Salt, []decodedSalt{{X: 1, Y: 9}}) {
 		t.Errorf("changed salt: %v %+v", d.HasSalt, d.Salt)
 	}
 
 	gone := built
-	gone.TileChanges = sim.TileChanges{Frame: 4}
+	gone.TileChanges = sim.TileChanges{Frame: 5}
 	gone.Salt = map[sim.Point]struct{}{}
 	if d := decode(t, e.Encode(&gone)); !d.HasSalt || len(d.Salt) != 0 {
 		t.Errorf("all salt built over: want an empty salt frame, got %v %+v", d.HasSalt, d.Salt)

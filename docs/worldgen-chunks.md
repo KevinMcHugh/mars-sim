@@ -4,8 +4,8 @@
 
 ## What it is
 
-World generation lays down ore veins, cave scum, hidden natural caverns and
-the passages between them one 64×64 **chunk** at a time. What a chunk holds is a pure
+World generation lays down ore veins, cave scum, salt, hidden natural caverns
+and the passages between them one 64×64 **chunk** at a time. What a chunk holds is a pure
 function of `(Config, cx, cy)`. It does not depend on which other chunks
 exist, or on the order anything was generated in. That property is what lets
 chunks be generated **lazily**: a new game generates the landing site's
@@ -23,8 +23,9 @@ under [Why it is this way](#why-it-is-this-way).
 ## Source
 
 - [`internal/sim/worldgen_chunks.go`](../internal/sim/worldgen_chunks.go):
-  `worldGen`, the plans (`veinPlan`, `scumPlan`, `cavernCandidates`,
-  `keptCaverns`, `passagePlan`), `chunk`, `featureRand`, `stratified` and `genCache`.
+  `worldGen`, the plans (`veinPlan`, `scumPlan`, `saltPlan`, `cavernCandidates`,
+  `keptCaverns`, `passagePlan`), `runPlan` (the short runs scum and salt share),
+  `chunk`, `featureRand`, `stratified` and `genCache`.
 - [`internal/sim/worldgen.go`](../internal/sim/worldgen.go): `generate`,
   `generateChunkAt` / `generateAround` / `generateChunk` (when chunks are
   generated), `applyChunk` (writing one into the tile grid), and
@@ -50,6 +51,9 @@ under [Why it is this way](#why-it-is-this-way).
   how far abundance drifts from its targets, as a report and as a gate.
 - [`internal/sim/worldgen_test.go`](../internal/sim/worldgen_test.go): the
   vein-connectivity sweep.
+- [`internal/sim/bench_test.go`](../internal/sim/bench_test.go):
+  `BenchmarkChunkCold` / `BenchmarkChunkWarm` (one chunk) and
+  `BenchmarkGenerateMap` (a whole 1024×1024 map, with and without salt).
 - [`internal/sim/golden_test.go`](../internal/sim/golden_test.go): pinned
   hashes of what fixed seeds produce (see [determinism.md](./determinism.md)).
 
@@ -171,8 +175,10 @@ first.
 
 `saltPlan` is `runPlan` again with its own stream and one difference: its walk
 skips every tile in the scum plans of the chunk and its eight neighbours. Scum
-is the fixed point, so adding salt moved no existing scum, vein or cavern. The
-full reasoning is in [salt.md](./salt.md).
+is the fixed point, so adding salt moved no existing scum, vein or cavern. Both
+keep their sets (placed tiles, scum to avoid) as bitmaps over the run window:
+the first version used maps and nearly doubled whole-map generation. The full
+reasoning and the numbers are in [salt.md](./salt.md).
 
 ### Caverns
 

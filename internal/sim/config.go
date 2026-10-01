@@ -16,15 +16,15 @@ type Config struct {
 	// docs/worldgen-chunks.md.
 	WorldgenHalo int `cfg:"worldgen-halo" doc:"chunks (64x64 tiles) generated ahead of what the colony has seen; at least 1"`
 	// Rock composition percentages. The remainder is ordinary rock.
-	IronRockPercent    int `cfg:"iron-rock-percent" doc:"percent of rock tiles bearing iron"`
-	IceRockPercent     int `cfg:"ice-rock-percent" doc:"percent of rock tiles bearing water ice"`
-	UraniumRockPercent int `cfg:"uranium-rock-percent" doc:"percent of rock tiles bearing uranium"`
-	ClayRockPercent    int `cfg:"clay-rock-percent" doc:"percent of rock tiles bearing clay"`
+	IronRockPercent    int `cfg:"iron-rock-percent" doc:"percent of the map's tiles bearing iron"`
+	IceRockPercent     int `cfg:"ice-rock-percent" doc:"percent of the map's tiles bearing water ice"`
+	UraniumRockPercent int `cfg:"uranium-rock-percent" doc:"percent of the map's tiles bearing uranium"`
+	ClayRockPercent    int `cfg:"clay-rock-percent" doc:"percent of the map's tiles bearing clay"`
 	RockVeinMin        int `cfg:"rock-vein-min" doc:"minimum tiles in a generated rock deposit vein"`
 	RockVeinMax        int `cfg:"rock-vein-max" doc:"maximum tiles in a generated rock deposit vein"`
 	// Salt rides on the rock like cave scum, never on a tile that carries
 	// scum, and never comes back once taken or built over. See docs/salt.md.
-	SaltPercent int `cfg:"salt-percent" doc:"percent of rock tiles carrying a deposit of salt"`
+	SaltPercent int `cfg:"salt-percent" doc:"percent of the map's tiles carrying a deposit of salt"`
 	// Natural caverns: pockets of open floor worldgen hollows out of the rock
 	// away from the landing site, hidden until the colony digs into one, and
 	// sometimes joined to a neighbor by a winding passage. See
@@ -101,14 +101,14 @@ type Config struct {
 	InfiniteFood bool `cfg:"infinite-food" doc:"nutrient pods make free meals out of nothing (the safety net)"`
 
 	// Food production. Cave scum is a biofilm on cave surfaces, the renewable
-	// base of the food chain: ScumPercent of rock tiles carry a patch of up to
-	// ScumMax units to start with. After that scum accretes (growScum): it
+	// base of the food chain: ScumPercent of the map's tiles carry a patch of
+	// up to ScumMax units to start with. After that scum accretes (growScum): it
 	// spawns anywhere at a low fixed chance and spreads from existing patches,
 	// up to that share of the map. A scumhouse turns scum and every other kind of
 	// biomatter into meals by the recipes in scumhouse.go. The colony makes
 	// food while it holds fewer than MealReserve meals per colonist. See
 	// docs/scumhouse.md.
-	ScumPercent       int `cfg:"scum-percent" sec:"Food production" doc:"percent of rock tiles carrying a patch of cave scum"`
+	ScumPercent       int `cfg:"scum-percent" sec:"Food production" doc:"percent of the map's tiles carrying a patch of cave scum"`
 	ScumMax           int `cfg:"scum-max" doc:"units of scum a full patch holds"`
 	ScumSpawnPPM      int `cfg:"scum-spawn-ppm" doc:"chance in a million, per tile visited, that scum appears on rock from nothing"`
 	ScumSpreadPercent int `cfg:"scum-spread-percent" doc:"percent chance a tile visited grows a unit if a tile in or beside it holds scum"`
