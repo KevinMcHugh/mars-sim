@@ -202,8 +202,10 @@ Inspect tab:
 - **What it shows.** `InspectPanel` subscribes to `entity:<id>` or
   `tile:<x>,<y>` (see [wire-format.md](./wire-format.md), "Topics"). A
   colonist gets the TUI roster inspector's sections: identity, status, health
-  and the three affect axes, body parts, needs, inventory, traits, family,
-  affinities, and every memory. Other creatures get status, health and body. A
+  and the three affect axes, body parts, needs, inventory, traits, skills
+  (each rank as a bar out of the skill's top rank, with its label; the
+  profession starred, and its title under the name), family, affinities, and
+  every memory. Other creatures get status, health and body. A
   tile gets its terrain, its fixture's owner and access, a container's contents
   and ledger, and who stands on it. Names (kin, acquaintances, an owner, a
   creature on a tile) are links that inspect them in turn; **Find** centers the

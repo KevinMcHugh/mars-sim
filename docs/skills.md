@@ -52,7 +52,10 @@ S1 to S3 are built, S4 in part, and S5 for kitchens.
 - [`internal/sim/snapshot.go`](../internal/sim/snapshot.go) —
   `EntityView.Skills`, `Profession`, `ProfessionLabel`;
   [`render_roster.go`](../internal/ui/tui/render_roster.go) — the SKILLS
-  section of a colonist's details.
+  section of a colonist's details;
+  [`internal/wire/inspect.go`](../internal/wire/inspect.go) (`SkillLevel`) and
+  [`InspectPanel.svelte`](../web/src/ui/InspectPanel.svelte) — the browser
+  inspector's Skills section.
 - [`internal/sim/skills_test.go`](../internal/sim/skills_test.go).
 
 - [`internal/sim/producer.go`](../internal/sim/producer.go) — best-rate
@@ -536,7 +539,7 @@ claim instead of trusting it.
   cooking's four, so by rank every colonist who mines a little would be a
   miner before it was a chef. The profession changes only when another skill
   stands at least level even a rank down (`updateProfession`), so a colonist
-  doesn't flip between trades at a threshold. It shows in the roster, and is
+  doesn't flip between trades at a threshold. It shows in the TUI roster and the browser inspector, and is
   the hook for the planned identity system ([economy.md](./economy.md)).
   Nothing in allocation reads it.
 - Reaching a rank with a new label ("Became a journeyman smith.") and taking
