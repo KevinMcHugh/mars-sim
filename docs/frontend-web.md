@@ -247,6 +247,15 @@ closed.
   seconds after they arrive, fading out; a click opens the Log tab, and it
   hides while that tab is open. Its fade timer stops once the newest line has
   faded, so a quiet colony runs no timer.
+  - **×** hides it, remembered in this browser (`ui.ticker`, saved to
+    `localStorage` as `mars-sim.ticker`, every access guarded so a blocked
+    storage just forgets). *Show new lines on the map* in the Log tab brings
+    it back.
+  - **On a phone** it floated over the bottom sheet's tab strip, covering the
+    tabs. So it is mounted twice, and CSS shows one: floating (App) on a wide
+    screen, docked inside the side panel just above the tabs (SidePanel) on
+    a phone. Docked, it shows the two newest lines, one line each, and hides
+    while a tab's sheet is open.
 
 **The list tabs** are the TUI's details tabs, each from its own topic:
 

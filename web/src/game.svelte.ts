@@ -10,6 +10,22 @@ import { SPEEDS, speedIndex } from './speed';
 /** How often frame-driven UI (clock, stats, speed) refreshes. */
 export const UI_HZ = 10;
 
+// Per-browser preferences, in localStorage. Storage can be missing or throw
+// (private windows, blocked site data), so every read and write is guarded and
+// a failure falls back to the default.
+const PREF_PREFIX = 'mars-sim.';
+function loadPref<T>(key: string, fallback: T): T {
+  try {
+    const v = localStorage.getItem(PREF_PREFIX + key);
+    return v === null ? fallback : (JSON.parse(v) as T);
+  } catch {
+    return fallback;
+  }
+}
+function savePref(key: string, value: unknown): void {
+  try { localStorage.setItem(PREF_PREFIX + key, JSON.stringify(value)); } catch { /* not remembered */ }
+}
+
 export const ui = $state({
   hello: null as Hello | null,
   tick: 0,
@@ -31,6 +47,8 @@ export const ui = $state({
   /** The roster's filters, kept while the tab is closed (the TUI's f). */
   rosterDead: false,
   rosterNonHuman: false,
+  /** Whether the log ticker shows over the map (LogTicker.svelte); remembered. */
+  ticker: loadPref('ticker', true),
   /** The Charts tab's view, kept while the tab is closed. */
   chartView: 'perf' as 'perf' | 'population' | 'activity',
 });
@@ -181,4 +199,10 @@ export function syncFrame(tick: number, paused: boolean, tps: number, stats: Rec
     pressed = 0;
     ui.speed = speedIndex(paused, tps);
   }
+}
+
+/** Show or hide the log ticker on the map, and remember it in this browser. */
+export function setTicker(on: boolean): void {
+  ui.ticker = on;
+  savePref('ticker', on);
 }
