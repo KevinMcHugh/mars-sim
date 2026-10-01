@@ -22,8 +22,9 @@ two runs differ while the random numbers are identical.
 
 - `internal/sim/sim_test.go` — `TestDeterministicRunAgreesEveryTick`, the
   lockstep regression test, and `worldFingerprint`.
-- `internal/sim/golden_test.go` — `TestGoldenWorldHash`, pinned hashes of
-  what fixed seeds produce.
+- `internal/sim/golden_test.go` — `TestGoldenWorldHash`, which checks what
+  fixed seeds produce against hashes pinned in
+  `internal/sim/testdata/golden-hashes.txt`.
 - `tools/determinism-check.sh` — runs the golden hashes natively, under amd64
   (Rosetta) and under js/wasm in Node.
 - `internal/sim/rooms.go` — `refreshSpatial` sorts the dirty-chunk list.
@@ -80,7 +81,7 @@ whole diagnosis anyway.
 The lockstep test compares two runs in one process, so it can never see a
 seed that plays out differently on another machine: both runs share the CPU,
 the compiler and the Go version. `TestGoldenWorldHash` compares against
-constants instead. Each case pins a hash of the generated world at tick 0 and
+pinned hashes instead. Each case pins a hash of the generated world at tick 0 and
 again some ticks later: every tile's terrain, composition and discovery; every
 entity's kind, position, HP, state and species, in ID order; refuse totals; and
 the simulation stream's PCG state. The RNG state is the catch-all: a draw
@@ -113,9 +114,21 @@ the set of generated chunks: which chunks exist is part of the world, and it
 must come out the same everywhere (see
 [worldgen-chunks.md](./worldgen-chunks.md#when-chunks-are-generated)).
 
-The golden constants change whenever a change is meant to alter what seeds
-produce. Update them in that change, and say so in the commit message. A
-golden mismatch in a change that did not mean to break seeds is the bug. The
+The pinned hashes change whenever a change is meant to alter what seeds
+produce, which is most gameplay changes: the RNG state alone moves with any
+new draw. Re-pin them in that change with
+
+    go test ./internal/sim -run TestGoldenWorldHash -update
+
+and say so in the commit message. `-update` rewrites
+`testdata/golden-hashes.txt` from this machine's run. A `-run` filter
+re-pins only the cases it selects and keeps the rest. The hashes used to be
+string constants in the test, copied in by hand on every seed break, which
+was tedious enough to make the test feel like a cost with no benefit. A
+golden mismatch in a change that did not mean to break seeds (a refactor, a
+speed-up) is the bug: do not re-pin it away. And re-pin on a machine whose
+results you trust, ideally followed by `tools/determinism-check.sh`, since
+`-update` writes whatever this platform produced. The
 `caves-300x150` case also insists that its run breaks into a cavern, so a
 re-pin cannot silently drop coverage of the breach flood. It checks
 `World.cavernBreaches` rather than `hiddenFloor`, because hidden floor can go
@@ -221,9 +234,13 @@ be pure.** Anything it writes is written in map order.
   enough, point `World.rng` at a recorder wrapping `w.rngSrc.sim` that
   captures a stack trace per draw and diff the traces: an identical RNG trace with divergent state proves
   the cause is ordering, not randomness, and narrows it to one call site.
-- **Changing what a seed produces on purpose**: re-pin `goldenCases` and run
-  `tools/determinism-check.sh` before committing, so the new constants are
+- **Changing what a seed produces on purpose**: re-pin with
+  `go test ./internal/sim -run TestGoldenWorldHash -update` and run
+  `tools/determinism-check.sh` before committing, so the new hashes are
   known to agree on every target.
+- **Adding or renaming a golden case**: edit `goldenCases`, then run
+  `-update` to pin it. Until it is pinned, the case fails with "no hash
+  pinned".
 - **What the fingerprint does not cover**: affect, memories, relationships, and
   colonist inventories. Add them if a bug lands there; they were left out because every
   divergence found so far surfaced in position or labelling first.

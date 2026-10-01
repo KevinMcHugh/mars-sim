@@ -500,7 +500,8 @@ landing site.
 - **A new writer of `World.tiles`** must call `generateChunkAt` first, or
   `applyChunk`'s panic will catch it the first time it runs ahead of the
   halo.
-- **Any change to plans changes every seed.** Re-pin `goldenCases`, run
+- **Any change to plans changes every seed.** Re-pin the golden hashes
+  (`go test ./internal/sim -run TestGoldenWorldHash -update`), run
   `tools/determinism-check.sh`, and rerun the drift report.
 
 ## Related
