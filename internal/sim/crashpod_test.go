@@ -299,3 +299,51 @@ func TestPodMealsSpreadAroundTheManifest(t *testing.T) {
 		}
 	}
 }
+
+// Each manifest gun is aboard a pod with its percent odds, rolled per
+// colonist: arrivals land unevenly armed, some with no gun at all. The roll is
+// a pure function of the seed, the colonist, and the gun.
+func TestPodGunsVaryByColonist(t *testing.T) {
+	w := propertyWorld(t)
+	w.cfg.CrashPodPistols, w.cfg.CrashPodPistolPercent = 1, 70
+	w.cfg.CrashPodShotguns, w.cfg.CrashPodShotgunPercent = 1, 20
+	pistols, shotguns, unarmed, both := 0, 0, 0, 0
+	const pods = 1000
+	for id := EntityID(1); id <= pods; id++ {
+		p, s := w.podGuns(id, Pistol), w.podGuns(id, Shotgun)
+		if p != w.podGuns(id, Pistol) || s != w.podGuns(id, Shotgun) {
+			t.Fatalf("colonist %d's pod guns changed between calls", id)
+		}
+		if p > 1 || s > 1 {
+			t.Fatalf("colonist %d's pod has %d pistols and %d shotguns, more than the manifest", id, p, s)
+		}
+		pistols += p
+		shotguns += s
+		if p+s == 0 {
+			unarmed++
+		}
+		if p == 1 && s == 1 {
+			both++
+		}
+	}
+	if pistols < 640 || pistols > 760 {
+		t.Errorf("%d of %d pods carried a pistol, want about 700", pistols, pods)
+	}
+	if shotguns < 160 || shotguns > 240 {
+		t.Errorf("%d of %d pods carried a shotgun, want about 200", shotguns, pods)
+	}
+	if unarmed < 190 || unarmed > 290 {
+		t.Errorf("%d of %d colonists landed unarmed, want about 240", unarmed, pods)
+	}
+	if both == 0 {
+		t.Error("no colonist landed with both guns: the two rolls aren't independent")
+	}
+
+	w.cfg.CrashPodPistols, w.cfg.CrashPodPistolPercent = 3, 100
+	w.cfg.CrashPodShotgunPercent = 0
+	for id := EntityID(1); id <= 20; id++ {
+		if p, s := w.podGuns(id, Pistol), w.podGuns(id, Shotgun); p != 3 || s != 0 {
+			t.Fatalf("at 100%% and 0%%, colonist %d's pod has %d pistols and %d shotguns, want 3 and 0", id, p, s)
+		}
+	}
+}

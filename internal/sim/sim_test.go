@@ -24,6 +24,8 @@ func testConfig() Config {
 	c.TraitChance = 0        // mechanics tests want baseline colonists; trait tests opt in
 	c.CavernNestPercent = 0  // tests that zero StartAliens expect no aliens; nest tests opt in
 	c.CrashPodMealSpread = 0 // mechanics tests count on every pod holding exactly crash-pod-meals
+	// ...and on every colonist landing with exactly one pistol and nothing else.
+	c.CrashPodShotguns, c.CrashPodPistolPercent = 0, 100
 	// Mechanics tests exercise the safety net and free construction (pods,
 	// emergency builds, facility queues); the game's defaults turn both off
 	// (economy phase E8). Scarcity tests start from DefaultConfig or turn

@@ -156,11 +156,15 @@ subtracting a flat `AlienDamage` from `prey.HP`.
 Weapons used to come from the colony ship: one pistol and one shotgun,
 handed to two of the settlers at worldgen (`equipColonyShip`, now removed).
 Every colonist now arrives in its own crash pod instead, carrying
-`crash-pod-pistols` pistols and `crash-pod-shotguns` shotguns — one pistol
-and no shotgun by default, so every settler lands armed, the way frontier
-settlers did. See [crash-pods.md](./crash-pods.md).
+the guns its manifest lists (`crash-pod-pistols`, `crash-pod-shotguns`),
+each one aboard with its own odds per colonist (`crash-pod-pistol-percent`,
+`crash-pod-shotgun-percent`). By default that's a 70% chance of a pistol and
+a 20% chance of a shotgun, so most settlers land armed but about a quarter
+land with nothing and flee until they find or buy a gun. See
+[crash-pods.md](./crash-pods.md).
 
-That was a real balance change, and it was measured. Over 20 seeds at the
+Arming everyone was a real balance change, and it was measured (before
+the per-colonist gun odds, with every colonist getting exactly one pistol). Over 20 seeds at the
 default settings, the old two-guns-for-six colony still had anyone alive at
 tick 3000 on 9 seeds; a colony where everyone lands with a pistol, on 15. A
 seed that rolls a species strong enough (seed 5's "tank") still wipes the

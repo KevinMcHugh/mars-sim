@@ -71,7 +71,9 @@ that neighbor's side hull is still whole. `arrive`:
 5. puts `crash-pod-meals` meals in the locker, give or take up to
    `crash-pod-meal-spread` (`podMeals`), credited to the colonist on its
    ledger;
-6. hands it `crash-pod-pistols` pistols and `crash-pod-shotguns` shotguns;
+6. hands it the guns aboard its pod (`podGuns`): each of the manifest's
+   `crash-pod-pistols` pistols and `crash-pod-shotguns` shotguns is aboard with
+   `crash-pod-pistol-percent` / `crash-pod-shotgun-percent` odds;
 7. records `podOrigin` on the colonist.
 
 The purse (`crash-pod-purse`) is minted by `spawn` itself, so it reaches every
@@ -83,11 +85,26 @@ colonist however it was created (see [money.md](./money.md)).
 | `crash-pod-meals` | 10 |
 | `crash-pod-meal-spread` | 0 |
 | `crash-pod-pistols` | 1 |
-| `crash-pod-shotguns` | 0 |
+| `crash-pod-shotguns` | 1 |
+| `crash-pod-pistol-percent` | 70 |
+| `crash-pod-shotgun-percent` | 20 |
 
 These replace the colony ship's `pistols`/`shotguns` settings, which issued two
 guns among the whole founding party. See [combat.md](./combat.md) for what
 arming everyone did to survival.
+
+**Gun odds.** Every colonist used to land with exactly the manifest's guns,
+so the whole colony was identically armed. Now each manifest gun is rolled on
+its own, per colonist: at the defaults about 70% land with a pistol, 20% with
+a shotgun, 14% with both, and about 24% (30% × 80%) with no gun at all. Those
+unarmed colonists flee rather than fight (see [combat.md](./combat.md)) until
+they pick a gun up or buy a rifle from the foundry. `podGuns` is, like
+`podMeals`, a pure function of the seed, the colonist's ID and the gun kind
+(salted per kind, so the pistol and shotgun rolls are independent), not a
+draw from a stream: it shifts no other draw and ignores arrival order. Setting
+a percent to 100 restores the old fixed manifest; the mechanics tests'
+`testConfig` does exactly that (one pistol, no shotgun) so they can count on
+every colonist being armed the same way.
 
 **Meal spread.** `podMeals` varies each pod's meals evenly within
 `crash-pod-meal-spread` of `crash-pod-meals`. It's a pure function of the
@@ -213,7 +230,8 @@ assumed every fixture was communal had to learn otherwise (see
 
 ## Extending it
 
-- **A new manifest item**: a `crash-pod-*` setting, and a line in `arrive` that
+- **A new manifest item**: a `crash-pod-*` setting (plus a `-percent` if it
+  should vary per colonist, like the guns), and a line in `arrive` that
   puts it in the locker (credited to the colonist) or the colonist's pockets.
 - **A bigger or different pod**: change `podWidth`/`podHeight`/`podFixtures`
   and the door offsets (`podDoor`, `podDoorway`, `podApproach`); `podHullAt`
