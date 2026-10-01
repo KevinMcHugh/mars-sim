@@ -50,7 +50,8 @@ which the page draws as a color), `kinds` (each creature kind's generic glyph,
 `glyphs.ForKind`, for counts), and the `gore` and `corpse` glyphs. Since
 version 3 it carries `goreMax` (`sim.MaxGore`) and `scumMax`
 (`Snapshot.ScumMax`, from `-scum-max`), so the page can shade a tile by how
-much is on it.
+much is on it. Version 4 adds the **salt** section (see below); the header's
+reserved word became the salt count.
 
 ### A frame
 
@@ -61,8 +62,8 @@ nothing).
 | Offset | Size | Field |
 | --- | --- | --- |
 | 0 | 4 | magic `MSFR` |
-| 4 | 2 | `Version` (3) |
-| 6 | 2 | flags: 1 paused, 2 fog of war, 4 **tiles reset**, 8 **refuse frame**, 16 **scum frame** |
+| 4 | 2 | `Version` (4) |
+| 6 | 2 | flags: 1 paused, 2 fog of war, 4 **tiles reset**, 8 **refuse frame**, 16 **scum frame**, 32 **salt frame** |
 | 8 | 8 | tick |
 | 16 | 8 | `TileChanges.Frame` |
 | 24 | 4 | ticks per second |
@@ -72,7 +73,7 @@ nothing).
 | 40 | 4 | R, refuse tiles |
 | 44 | 4 | pages owed (see below) |
 | 48 | 4 | C, scum tiles |
-| 52 | 4 | reserved, zero |
+| 52 | 4 | D, salt tiles |
 
 Then the sections, in order:
 
@@ -97,6 +98,12 @@ Then the sections, in order:
   `Snapshot.Scum` is a different map from the last one sent. The engine hands
   out the same map until scum is scraped or grows (`publishedScum`), so map
   identity is an exact, free change signal. It is also sent on a tiles reset.
+- **salt**: `int32 x × D`, `int32 y × D`, in row order. A deposit has no
+  amount, so there is nothing else to send. D is 0 unless the salt-frame flag
+  is set; then, like scum, it is the whole list of exposed deposits
+  (`Snapshot.Salt`, see [salt.md](./salt.md)). It is sent when `Snapshot.Salt`
+  is a different map from the last one sent (`publishedSalt` hands out the
+  same map until a deposit is exposed or built over), and on a tiles reset.
 
 ### Which pages go
 
@@ -177,7 +184,9 @@ Entities in a re-encode are from the newest snapshot, not newer ticks.
   in view on every death. The list is a few hundred entries in a long game.
   Scum follows the same pattern for the same reason. It is a longer list (every
   scummy patch of cave wall, about 850 in a 150,000-tick game), but it changes
-  only when a patch is scraped or grows (spawns or spreads).
+  only when a patch is scraped or grows (spawns or spreads). Salt follows
+  the same pattern again, and changes even less: it is only ever exposed by
+  digging or lost to a build, never grown.
 - **A per-frame page cap.** A first frame, a zoom-out or a fast pan can put
   hundreds of pages in view. Without a cap, one frame would be megabytes and
   the worker would stall building it; with it, the view fills in from the

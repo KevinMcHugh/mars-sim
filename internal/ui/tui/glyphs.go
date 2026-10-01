@@ -58,6 +58,7 @@ const (
 	glyphStorage      = glyphs.Storage
 	glyphScumhouse    = glyphs.Scumhouse
 	glyphScum         = glyphs.Scum
+	glyphSalt         = glyphs.Salt
 	glyphForge        = glyphs.Forge
 	glyphGunBench     = glyphs.GunBench
 	glyphColonist     = glyphs.Colonist
@@ -166,6 +167,7 @@ var glyphRegistry = map[string]glyph{
 	glyphStorage:     {glyphStorage, 2, "[]"},
 	glyphScumhouse:   {glyphScumhouse, 2, "Sh"},
 	glyphScum:        {glyphScum, 2, ",,"},
+	glyphSalt:        {glyphSalt, 2, "::"},
 	glyphForge:       {glyphForge, 2, "Fg"},
 	glyphGunBench:    {glyphGunBench, 2, "Gb"},
 

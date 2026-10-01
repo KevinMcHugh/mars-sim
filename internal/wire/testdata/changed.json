@@ -1,5 +1,5 @@
 {
-  "version": 3,
+  "version": 4,
   "paused": true,
   "fogOfWar": true,
   "tilesReset": false,
@@ -76,5 +76,7 @@
     }
   ],
   "scumFrame": false,
-  "scum": []
+  "scum": [],
+  "saltFrame": false,
+  "salt": []
 }

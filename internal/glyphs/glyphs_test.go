@@ -36,7 +36,7 @@ func TestAllIsASetOfEveryPickableGlyph(t *testing.T) {
 	for k := sim.Kind(0); k < 8; k++ {
 		picked = append(picked, ForKind(k))
 	}
-	picked = append(picked, Gore, Corpse, Scum, Mars)
+	picked = append(picked, Gore, Corpse, Scum, Salt, Mars)
 	for _, s := range picked {
 		if !Known(s) {
 			t.Errorf("%+q can be picked but is not in All", s)

@@ -687,6 +687,33 @@ func TestLedgerShowsInStorageAndMarket(t *testing.T) {
 	}
 }
 
+// A salt deposit shows on its tile, and a body on it still wins.
+func TestSaltIsDrawn(t *testing.T) {
+	restoreGlyphs(t, false)
+	snap := makeSnapshot()
+	tiles := make([]sim.Tile, snap.Width*snap.Height)
+	for i := range tiles {
+		tiles[i].Terrain = sim.Floor
+	}
+	tiles[3*snap.Width+3].Gore = 1
+	snap.Tiles = sim.NewTileGrid(snap.Width, snap.Height, tiles)
+	snap.Entities = nil
+	snap.Salt = map[sim.Point]struct{}{{X: 2, Y: 2}: {}}
+
+	var model tea.Model = New(nil, nil)
+	model, _ = model.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
+	model, _ = model.Update(snapshotMsg{snap: snap})
+	// The legend names salt too, so a deposit on the map is the second one.
+	if n := strings.Count(model.View(), glyphSalt); n != 2 {
+		t.Fatalf("salt drawn %d times with one deposit and the legend, want 2:\n%s", n, model.View())
+	}
+	snap.Salt = map[sim.Point]struct{}{{X: 3, Y: 3}: {}} // under gore
+	model, _ = model.Update(snapshotMsg{snap: snap})
+	if n := strings.Count(model.View(), glyphSalt); n != 1 {
+		t.Fatalf("salt drawn %d times with the deposit under gore, want only the legend's:\n%s", n, model.View())
+	}
+}
+
 // Scum shows on its tile, the scumhouse has its own glyph, and the storage tab
 // names the scumhouse's depot for what it is.
 func TestScumAndScumhouseAreDrawn(t *testing.T) {

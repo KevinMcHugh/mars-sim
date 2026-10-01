@@ -74,3 +74,48 @@ func TestBuildingBuriesSalt(t *testing.T) {
 		t.Fatalf("salt survived a wall built on %v", p)
 	}
 }
+
+// A snapshot carries only the salt the colony can reach: none of what lies
+// under rock nobody has opened, and every published deposit is one the world
+// holds. Digging to a deposit publishes it; building over it takes it back.
+func TestSnapshotCarriesOnlyExposedSalt(t *testing.T) {
+	cfg := testConfig()
+	cfg.SaltPercent = 20
+	w := newTestWorld(t, cfg)
+	snap := w.snapshot(false, 8)
+	if len(w.salt) == 0 || len(snap.Salt) == len(w.salt) {
+		t.Fatalf("snapshot has %d of %d deposits: want some, but not all", len(snap.Salt), len(w.salt))
+	}
+	for p := range snap.Salt {
+		if !w.hasSalt(p) || !w.scumExposed(p) {
+			t.Fatalf("snapshot salt at %v is not an exposed deposit", p)
+		}
+	}
+	// The same map is handed out until something changes.
+	if again := w.snapshot(false, 8); len(again.Salt) != len(snap.Salt) || w.saltRev != w.snapSaltRev {
+		t.Fatal("an unchanged world republished its salt")
+	}
+
+	// Expose a buried deposit by opening the floor beside it.
+	var buried Point
+	for p := range w.salt {
+		if _, ok := snap.Salt[p]; !ok && w.TerrainAt(p) == Rock {
+			buried = p
+			break
+		}
+	}
+	for _, d := range neighbors8 {
+		q := buried.Add(d.X, d.Y)
+		if w.InBounds(q) && w.TerrainAt(q) == Rock {
+			w.setTerrain(q, Floor, true)
+			break
+		}
+	}
+	if !w.snapshot(false, 8).SaltAt(buried) {
+		t.Skip("could not open a neighbour that exposes the deposit in this world")
+	}
+	w.setTerrain(buried, Wall, true)
+	if w.snapshot(false, 8).SaltAt(buried) {
+		t.Fatalf("a wall built on %v left its salt published", buried)
+	}
+}

@@ -8,17 +8,20 @@ Salt is a deposit on a rock tile, 3% of the map by default (`salt-percent`).
 It rides on the rock the way [cave scum](./scumhouse.md) does, shares a tile
 with scum never, and does not regenerate: world generation lays it down, and
 from then on it can only be lost. **Nothing uses it yet.** No colonist can
-gather it, no recipe needs it and no frontend draws it; this is the world-state
-substrate those will build on.
+gather it and no recipe needs it. Both frontends draw it where the colony can
+reach it (see below), so a player can see where it is.
 
 ## Source
 
 - `internal/sim/worldgen_chunks.go`: `saltPlan` (the plan), `runPlan` (the walk
   it shares with scum), `chunkContent.isSalt`.
 - `internal/sim/worldgen.go`: `applyChunk` writes a chunk's salt into `World.salt`.
-- `internal/sim/salt.go`: `hasSalt` and `clearSalt`.
+- `internal/sim/salt.go`: `hasSalt`, `clearSalt`, exposure (`refreshSaltExposure`).
+- `internal/sim/snapshot.go`: `Snapshot.Salt`, `publishedSalt`.
+- `internal/wire/encoder.go`, `web/wire/decode.js`: the salt section.
+- `web/src/map/renderer.ts`, `palette.ts`; `internal/ui/tui/view.go`: drawing it.
 - `internal/sim/scumhouse.go`: `addScum` refuses a salt tile.
-- `internal/sim/salt_test.go`, `worldgen_chunks_test.go`
+- `internal/sim/salt_test.go`, `internal/wire/encoder_test.go`, `worldgen_chunks_test.go`
   (`TestSaltNeverSharesATileWithScum`), `worldgen_drift_test.go`.
 
 ## How it works
@@ -42,7 +45,27 @@ It does not regenerate because nothing ever adds to `World.salt` after
 it is `clearSalt`, which `setTerrain` calls when a structure is built on the
 tile, beside `clearScum`.
 
+### Showing it
+
+Only salt the colony can reach is published. `exposedSalt` is kept in step from
+`TileChanges` exactly as `exposedScum` is, by the same rule (`scumExposed`): on
+discovered floor, or on rock beside it. `Snapshot.Salt` is that set, shared
+between frames until it changes (`publishedSalt`, `saltRev`).
+
+- **Wire:** a `salt` section of `x`, `y` pairs, sent whole when the map changes
+  (wire version 4; see [wire-format.md](./wire-format.md)).
+- **Browser:** a pale tint on the tile, drawn with scum and gore's quads
+  (see [frontend-web.md](./frontend-web.md)). The hover readout says `salt`.
+- **TUI:** 🧂 (`::` in the ASCII fallback), under refuse like scum, with a
+  legend row.
+
 ## Why it is this way
+
+- **Publish exposed salt, not all of it.** On a 10,000×10,000 map generation
+  holds millions of deposits. Sending them would be a frame the size of the
+  map, and it would tell the page what lies under rock nobody has opened. The
+  browser also filters by what is visible, but that is a second line, not the
+  first.
 
 - **Salt yields to scum, not the other way round.** Scum's plan reads nothing
   and the food economy is tuned to its density (see the warning in
@@ -69,9 +92,8 @@ tile, beside `clearScum`.
 
 ## Extending it
 
-- To let colonists gather salt, follow scum's path: an exposure set
-  (`exposedScum` and `refreshScumExposure` are the model, driven by
-  `TileChanged`), a snapshot field, a job and an item. Keep `clearSalt` the only
+- To let colonists gather salt, follow scum's path from here: a job and an
+  item (exposure and the snapshot field are already done). Keep `clearSalt` the only
   thing that removes a deposit, or document why not.
 - Keep the two invariants in
   `TestSaltNeverRegeneratesOrMeetsScum`: nothing adds salt after generation,

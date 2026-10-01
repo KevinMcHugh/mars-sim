@@ -76,6 +76,11 @@ export interface Frame {
     y: Int32Array;
     amount: Uint8Array;
   } | null;
+  salt: {
+    count: number;
+    x: Int32Array;
+    y: Int32Array;
+  } | null;
 }
 
 export function decodeFrame(buffer: ArrayBuffer): Frame;

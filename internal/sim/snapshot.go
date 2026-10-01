@@ -278,6 +278,27 @@ func (w *World) economyView() EconomyView {
 // ScumAt reports how much cave scum a colonist could scrape off p right now.
 func (s *Snapshot) ScumAt(p Point) int { return int(s.Scum[p]) }
 
+// SaltAt reports whether there is a salt deposit on p that the colony can reach.
+func (s *Snapshot) SaltAt(p Point) bool {
+	_, ok := s.Salt[p]
+	return ok
+}
+
+// publishedSalt returns an immutable copy of the exposed salt, reusing the
+// last one while it is still exact (saltRev). Salt changes only when a tile
+// is exposed or built over, so on most ticks this is the same map.
+func (w *World) publishedSalt() map[Point]struct{} {
+	if w.snapSalt != nil && w.snapSaltRev == w.saltRev {
+		return w.snapSalt
+	}
+	out := make(map[Point]struct{}, len(w.exposedSalt))
+	for p := range w.exposedSalt {
+		out[p] = struct{}{}
+	}
+	w.snapSalt, w.snapSaltRev = out, w.saltRev
+	return out
+}
+
 // publishedScum returns an immutable copy of the scum on every exposed patch,
 // reusing the last one published while it is still exact: nothing has written
 // to an exposed patch since (scumRev). Growth (growScum) bumps it too.
@@ -410,6 +431,10 @@ type Snapshot struct {
 	// computed fresh each frame because patches regrow lazily (see
 	// scumhouse.go). Read it with ScumAt.
 	Scum map[Point]uint8
+	// Salt is every deposit of salt a colonist could reach (the same
+	// exposure rule as scum). It is shared between frames until it changes,
+	// and never written after publication. Read it with SaltAt.
+	Salt map[Point]struct{}
 	// Fixtures is the ownership of every placed fixture (pods, toilets, beds,
 	// incinerators, storage), sorted by position. The slice is shared between
 	// frames until a fixture changes, and never written after publication.
@@ -597,6 +622,7 @@ func (w *World) snapshot(paused bool, tps int) *Snapshot {
 		Storages:             storages,
 		Fixtures:             w.publishedFixtures(),
 		Scum:                 w.publishedScum(),
+		Salt:                 w.publishedSalt(),
 		Graveyard:            append([]EntityView(nil), w.graveyard...),
 		Deceased:             w.publishedDeceasedColonists(),
 		AlienSpecies:         append([]AlienSpecies(nil), w.alienSpecies...),

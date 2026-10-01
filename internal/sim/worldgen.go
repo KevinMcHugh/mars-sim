@@ -219,6 +219,9 @@ func (w *World) applyChunk(cx, cy int) []Point {
 			if c.isScum(offset(x, y)) {
 				w.refreshScumExposure(Point{x, y})
 			}
+			if c.isSalt(offset(x, y)) {
+				w.refreshSaltExposure(Point{x, y})
+			}
 		}
 	}
 	return c.caverns

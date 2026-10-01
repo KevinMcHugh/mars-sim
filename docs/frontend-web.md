@@ -129,6 +129,10 @@ scum (the scum list) color the tile they are on:
 - **dark green** for scum;
 - **brown** for a tile with both.
 
+A **salt** deposit (the salt list) is a pale wash through the same quads. It is
+not filth and carries no amount, so it is one fixed tint (`SALT_TINT`). It
+never shares a tile with scum, and gore on a salt tile shows as gore.
+
 The more there is (gore out of `Hello.goreMax`, scum out of `Hello.scumMax`),
 the deeper the color. One unit reads plainly, and a full tile is nearly
 solid. The tint is a premultiplied full-tile quad per dirty tile, drawn between
@@ -150,9 +154,9 @@ scum-lined cave into a field of dots, where a wash of color reads as a place.
 tile that is not visible, or on a page not held, is filtered out before upload.
 Otherwise a dormant alien would give away the undiscovered cavern it sleeps in,
 and the TUI never draws an occupant on an unexplored tile
-([fog-of-war.md](./fog-of-war.md)). Refuse and scum arrive only when they
-change, but what is visible changes as the colony digs. So the renderer keeps
-the last lists and refilters them whenever a list or a page arrives.
+([fog-of-war.md](./fog-of-war.md)). Refuse, scum and salt arrive only when
+they change, but what is visible changes as the colony digs. So the renderer
+keeps the last lists and refilters them whenever a list or a page arrives.
 
 **Glyphs, zoomed in.** From 10 CSS pixels a tile (`GLYPH_ZOOM`) and up, the
 map draws the same emoji as the TUI:

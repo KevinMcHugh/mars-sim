@@ -305,8 +305,12 @@ func (m Model) renderMap() string {
 				drawn = tileGlyph(tile)
 				// Scum shows under refuse, like terrain: a body on a patch
 				// is still the thing to see there.
-				if tile.Corpses == 0 && tile.Gore == 0 && m.latest.ScumAt(p) > 0 {
-					drawn = fitGlyph(glyphScum)
+				if tile.Corpses == 0 && tile.Gore == 0 {
+					if m.latest.ScumAt(p) > 0 {
+						drawn = fitGlyph(glyphScum)
+					} else if m.latest.SaltAt(p) {
+						drawn = fitGlyph(glyphSalt) // never on a scum tile
+					}
 				}
 				if o, ok := occ[p]; ok {
 					drawn = o.glyph
@@ -423,7 +427,7 @@ func (m Model) drawSidebar(rows int) string {
 		{g(glyphUranium, "uranium"), g(glyphFloor, "open")},
 		{g(glyphScumhouse, "scumhouse"), g(glyphScum, "cave scum")},
 		{g(glyphForge, "forge"), g(glyphGunBench, "gun bench")},
-		{g(glyphHull, "pod hull"), {}},
+		{g(glyphHull, "pod hull"), g(glyphSalt, "salt")},
 	}
 	if m.latest.FogOfWar {
 		legendRows = append(legendRows, [2]entry{{fogCells(1), "unexplored"}, {}})
