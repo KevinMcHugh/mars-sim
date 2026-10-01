@@ -131,7 +131,9 @@ perfectly readable set, so accepting a per-terminal split buys nothing. This is
 the third time an exotic sequence has been reverted here — skin tone modifiers
 and ZWJ hair components went the same way (see the commit history around
 `97996ba` and `0649c55`). The ban is those reverts turned into a rule a test
-enforces, instead of knowledge that has to survive in someone's head.
+enforces, instead of knowledge that has to survive in someone's head. (The
+browser has no grid to shear and does draw these sequences, outside
+`glyphs.All`: see [colonist-looks.md](./colonist-looks.md).)
 
 **Why all-or-nothing on the ASCII fallback?** A half-emoji, half-ASCII map is
 harder to read than either. And a terminal that got one glyph's width wrong has

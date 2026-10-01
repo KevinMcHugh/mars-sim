@@ -57,13 +57,15 @@ type EntityTopic struct {
 	ID    uint64 `json:"id"`
 	Kind  string `json:"kind"`
 	Glyph string `json:"glyph"`
-	Name  string `json:"name"`
-	X     int    `json:"x"`
-	Y     int    `json:"y"`
-	State string `json:"state"`
-	Focus string `json:"focus"`
-	HP    int    `json:"hp"`
-	MaxHP int    `json:"maxHp"`
+	// Look is Glyph in the colonist's own skin and hair (see RosterRow.Look).
+	Look  glyphs.Look `json:"look,omitempty"`
+	Name  string      `json:"name"`
+	X     int         `json:"x"`
+	Y     int         `json:"y"`
+	State string      `json:"state"`
+	Focus string      `json:"focus"`
+	HP    int         `json:"hp"`
+	MaxHP int         `json:"maxHp"`
 	// Parts are the body parts it has (a zero-max part is one it lacks, and
 	// is left out). Colonists and aliens only.
 	Parts []PartHP `json:"parts"`
@@ -208,6 +210,7 @@ func entityTopic(s *sim.Snapshot, id sim.EntityID) EntityTopic {
 		ID:    uint64(e.ID),
 		Kind:  e.Kind.String(),
 		Glyph: glyphs.ForEntity(e),
+		Look:  glyphs.ForEntityLook(e),
 		Name:  entityName(e),
 		X:     e.Pos.X,
 		Y:     e.Pos.Y,
@@ -360,10 +363,11 @@ type LedgerItem struct {
 
 // Creature is one creature on a tile.
 type Creature struct {
-	ID    uint64 `json:"id"`
-	Glyph string `json:"glyph"`
-	Name  string `json:"name"`
-	State string `json:"state"`
+	ID    uint64      `json:"id"`
+	Glyph string      `json:"glyph"`
+	Look  glyphs.Look `json:"look,omitempty"`
+	Name  string      `json:"name"`
+	State string      `json:"state"`
 }
 
 func tileTopic(s *sim.Snapshot, p sim.Point) TileTopic {
@@ -399,7 +403,7 @@ func tileTopic(s *sim.Snapshot, p sim.Point) TileTopic {
 	}
 	for _, e := range s.Entities {
 		if e.Pos == p {
-			t.Creatures = append(t.Creatures, Creature{ID: uint64(e.ID), Glyph: glyphs.ForEntity(e), Name: entityName(e), State: e.State.String()})
+			t.Creatures = append(t.Creatures, Creature{ID: uint64(e.ID), Glyph: glyphs.ForEntity(e), Look: glyphs.ForEntityLook(e), Name: entityName(e), State: e.State.String()})
 		}
 	}
 	return t

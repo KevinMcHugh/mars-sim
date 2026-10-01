@@ -28,6 +28,8 @@ export interface EntityInfo {
   /** False once the creature is gone with no record left (a rat aged out of the graveyard). */
   found: boolean;
   id: number; kind: string; glyph: string; name: string;
+  /** The glyph in the colonist's own skin and hair: pick with pickGlyph. */
+  look?: string[];
   x: number; y: number; state: string; focus: string;
   hp: number; maxHp: number; parts: PartHP[];
   dead: boolean; diedTick?: number; cause?: string;
@@ -46,5 +48,5 @@ export interface TileInfo {
     contents: Stack[];
     ledger: { owner: string; item: string; count: number }[];
   };
-  creatures: { id: number; glyph: string; name: string; state: string }[];
+  creatures: { id: number; glyph: string; look?: string[]; name: string; state: string }[];
 }

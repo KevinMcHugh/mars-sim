@@ -423,8 +423,14 @@ func TestHelloNamesEverythingAFrameIndexes(t *testing.T) {
 	if h.GoreMax != sim.MaxGore || h.ScumMax != 3 {
 		t.Errorf("goreMax %d scumMax %d", h.GoreMax, h.ScumMax)
 	}
-	if len(glyphs.All) > 0xFFFF {
-		t.Error("glyph indexes no longer fit a frame's uint16")
+	if len(glyphs.All)+len(g.Looks) > 0xFFFF || len(g.Looks) != len(glyphs.Looks) {
+		t.Errorf("%d symbols and %d looks: glyph indexes no longer fit a frame's uint16", len(glyphs.All), len(g.Looks))
+	}
+	// A colonist at rest indexes past the symbols into its look.
+	p := &sim.Profile{Gender: sim.GenderWoman, Age: 40, SkinTone: sim.SkinDark, HairColor: sim.HairRed}
+	i := int(entityGlyph(sim.EntityView{Kind: sim.Colonist, Profile: p})) - len(g.Symbols)
+	if i < 0 || i >= len(g.Looks) || g.Looks[i][0] != "\U0001F469\U0001F3FF\u200D\U0001F9B0" {
+		t.Errorf("a dark-skinned red-haired woman draws as look %d", i)
 	}
 	if n := len(h.Enums.Compositions); n > tileCompositionMask+1 {
 		t.Errorf("%d rock compositions do not fit the tile flags' %d bits", n, 4)

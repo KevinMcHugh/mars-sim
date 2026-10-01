@@ -59,9 +59,16 @@ type HelloGlyphs struct {
 	Kinds  []int `json:"kinds"`
 	Gore   int   `json:"gore"`
 	Corpse int   `json:"corpse"`
+	// Looks are colonist figures in their own skin and hair (glyphs.Looks):
+	// a frame's glyph len(Symbols)+i is Looks[i]. Each is a candidate list,
+	// best first; the page draws the first its emoji font fuses into one
+	// glyph, and the last is always a plain symbol. See
+	// docs/colonist-looks.md.
+	Looks []glyphs.Look `json:"looks"`
 }
 
-// glyphIndex is each glyph's position in glyphs.All, the index frames carry.
+// glyphIndex is each glyph's position in glyphs.All, the index frames carry
+// (beside looks: see entityGlyph).
 var glyphIndex = func() map[string]uint16 {
 	m := make(map[string]uint16, len(glyphs.All))
 	for i, s := range glyphs.All {
@@ -69,6 +76,15 @@ var glyphIndex = func() map[string]uint16 {
 	}
 	return m
 }()
+
+// entityGlyph is the glyph index a frame carries for e: its look past the end
+// of glyphs.All when it has one, else its glyph in it.
+func entityGlyph(e sim.EntityView) uint16 {
+	if i, ok := glyphs.LookIndex(e); ok {
+		return uint16(i)
+	}
+	return glyphIndex[glyphs.ForEntity(e)]
+}
 
 func helloGlyphs() HelloGlyphs {
 	enums := sim.EnumNames()
@@ -79,6 +95,7 @@ func helloGlyphs() HelloGlyphs {
 		Kinds:   make([]int, len(enums.Kinds)),
 		Gore:    int(glyphIndex[glyphs.Gore]),
 		Corpse:  int(glyphIndex[glyphs.Corpse]),
+		Looks:   glyphs.Looks,
 	}
 	for k := range enums.Kinds {
 		h.Kinds[k] = int(glyphIndex[glyphs.ForKind(sim.Kind(k))])

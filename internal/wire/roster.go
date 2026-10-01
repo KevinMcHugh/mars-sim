@@ -27,7 +27,10 @@ const rosterEvery = 500 * time.Millisecond
 type RosterRow struct {
 	ID    uint64 `json:"id"`
 	Glyph string `json:"glyph"`
-	Name  string `json:"name"`
+	// Look is Glyph in the colonist's own skin and hair, when it has one
+	// (see HelloGlyphs.Looks).
+	Look glyphs.Look `json:"look,omitempty"`
+	Name string      `json:"name"`
 	// Info is the second line: "she/her · age 34" for a colonist, an alien's
 	// species label, or the kind.
 	Info string `json:"info"`
@@ -105,6 +108,7 @@ func rosterRow(e sim.EntityView) RosterRow {
 	// map's.
 	if e.Kind == sim.Colonist {
 		r.Glyph = glyphs.ForColonist(e.Profile)
+		r.Look = glyphs.ForColonistLook(e.Profile)
 	} else {
 		r.Glyph = glyphs.ForEntity(e)
 	}

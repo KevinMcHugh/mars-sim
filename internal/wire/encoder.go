@@ -6,7 +6,6 @@ import (
 	"reflect"
 	"slices"
 
-	"github.com/kevinmchugh/mars-sim/internal/glyphs"
 	"github.com/kevinmchugh/mars-sim/internal/sim"
 )
 
@@ -179,7 +178,7 @@ func (e *Encoder) Encode(snap *sim.Snapshot) []byte {
 	}
 
 	// Entities, as struct-of-arrays: ids, xs, ys, glyphs (uint16, an index
-	// into Hello.Glyphs.Symbols), then a byte each of kind, state and focus.
+	// into Hello.Glyphs.Symbols, or past its end into Looks), then a byte each of kind, state and focus.
 	for i := range snap.Entities {
 		le.PutUint32(b[at+4*i:], uint32(snap.Entities[i].ID))
 	}
@@ -193,7 +192,7 @@ func (e *Encoder) Encode(snap *sim.Snapshot) []byte {
 	}
 	at += 4 * n
 	for i := range snap.Entities {
-		le.PutUint16(b[at+2*i:], glyphIndex[glyphs.ForEntity(snap.Entities[i])])
+		le.PutUint16(b[at+2*i:], entityGlyph(snap.Entities[i]))
 	}
 	at += align4(2 * n)
 	for i := range snap.Entities {

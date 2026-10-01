@@ -51,7 +51,10 @@ which the page draws as a color), `kinds` (each creature kind's generic glyph,
 version 3 it carries `goreMax` (`sim.MaxGore`) and `scumMax`
 (`Snapshot.ScumMax`, from `-scum-max`), so the page can shade a tile by how
 much is on it. Version 4 adds the **salt** section (see below); the header's
-reserved word became the salt count.
+reserved word became the salt count. `glyphs.looks` (no version bump: the
+frame layout is unchanged) lists colonist looks, each a candidate list; a
+frame's glyph index past the end of `symbols` names one (see
+[colonist-looks.md](./colonist-looks.md)).
 
 ### A frame
 
@@ -83,7 +86,8 @@ Then the sections, in order:
   `uint8 state × N`, `uint8 focus × N`, padded to 4. The glyph is picked in Go
   by `glyphs.ForEntity`, from things the page never sees (a colonist's gender,
   age and traits, an alien's species), so the TUI and the browser always
-  agree.
+  agree — except that a resting colonist's index may point past `symbols`
+  into `looks`, the same figure in their own skin and hair.
 - **pages**: `int32 px × P`, `int32 py × P` (page coordinates, so tile
   `px*64`), then P × 4096 tiles of 2 bytes, row by row: **terrain**, then
   **flags** (rock composition in the low 4 bits, bit 4 *visible* = explored,

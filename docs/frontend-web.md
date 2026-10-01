@@ -159,7 +159,8 @@ they change, but what is visible changes as the colony digs. So the renderer
 keeps the last lists and refilters them whenever a list or a page arrives.
 
 **Glyphs, zoomed in.** From 10 CSS pixels a tile (`GLYPH_ZOOM`) and up, the
-map draws the same emoji as the TUI:
+map draws the same emoji as the TUI, except that colonists wear their own
+skin tone and hair ([colonist-looks.md](./colonist-looks.md)):
 
 - **The atlas.** `atlas.ts` draws every glyph in `Hello.glyphs.symbols` once,
   with the browser's emoji font, into 128-pixel cells of one canvas. It uploads
@@ -175,7 +176,8 @@ map draws the same emoji as the TUI:
   index comes in the frame, picked in Go by `glyphs.ForEntity`: 👨 👩 🧑 👴 by
   gender and age, 🧟 for a mutant, 😱 🔫 🧹 📦 by what it is doing, and each
   alien species' own emoji. So the choice is the TUI's exactly, from data the
-  page never gets.
+  page never gets — save that a resting colonist's index names their look
+  (👨🏿‍🦰 rather than 👨), which `withLooks` appended to `symbols`.
 
 Zoomed further out, a glyph would be a few pixels of mush, so the flat colors
 and dots stay.

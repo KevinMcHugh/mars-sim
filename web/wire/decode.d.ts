@@ -31,6 +31,14 @@ export interface Hello {
     kinds: number[];
     gore: number;
     corpse: number;
+    /**
+     * Colonist figures in their own skin and hair: a frame's glyph
+     * symbols.length + i is looks[i]. Each is a candidate list, best first,
+     * ending in a plain symbol (see src/emoji.ts, docs/colonist-looks.md).
+     * The page resolves them on arrival (withLooks in src/main.ts), after
+     * which symbols covers every index a frame carries.
+     */
+    looks: string[][];
   };
   /** The most gore / scum one tile holds, for shading by amount. */
   goreMax: number;
