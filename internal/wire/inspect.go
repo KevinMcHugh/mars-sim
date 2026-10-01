@@ -127,7 +127,7 @@ type Mood struct {
 }
 
 // DriveLevel is one drive's bar. Consequence is what reaching Max does
-// ("none", "death", "loneliness"; see sim.Consequence).
+// ("none", "death", "loneliness", "passing out"; see sim.Consequence).
 type DriveLevel struct {
 	Name        string `json:"name"`
 	Value       int    `json:"value"`

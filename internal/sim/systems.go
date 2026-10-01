@@ -121,6 +121,9 @@ func (w *World) colonistTurn(e *Entity) {
 		w.logEvent(LogDeath, fmt.Sprintf("%s starved to death.", e.displayName()))
 		return
 	}
+	if w.stayPassedOut(e) {
+		return
+	}
 
 	// Previously accumulated affect decays before this turn's observations, so a
 	// new event can influence arbitration immediately without decaying first.
@@ -725,7 +728,7 @@ func (w *World) tryStartTalk(e *Entity, forced bool) bool {
 // a partner, and social need sits permanently pinned at its ceiling in any
 // colony busy enough that nobody is ever fully need-free.
 func (w *World) availableToTalk(o *Entity) bool {
-	if o.Job != JobNone || o.State == Fleeing {
+	if o.Job != JobNone || o.State == Fleeing || o.passedOutUntil != 0 {
 		return false
 	}
 	if need, urgent := w.mostUrgentDrive(o); urgent && need != DriveSocial {

@@ -330,7 +330,7 @@ func DefaultCognitionConfig() CognitionConfig {
 		ActionSleep, ActionSatisfy, ActionMine, ActionClear, ActionConstruct,
 		ActionClean, ActionIncinerate, ActionMutate, ActionCook, ActionScrape,
 		ActionDeliver, ActionTrade, ActionBuy, ActionHaul, ActionLearn,
-		ActionFeel, ActionSocialize,
+		ActionFeel, ActionSocialize, ActionCollapse,
 	}
 	c.Perceptions = []PerceptionRule{
 		{ID: "direct-actor", Channel: ChannelDirect, Role: RoleActor, Cadence: CadenceInstant},
@@ -418,13 +418,16 @@ func DefaultCognitionConfig() CognitionConfig {
 	// other side of it: a real lift, which fades as it becomes routine.
 	feltLonely := reaction("felt-lonely", directMatch(ActionFeel, NounColonist, NounLoneliness, RoleActor), 30, MoodVector{-8, -6, -12}, MoodVector{-12, -10, -20})
 	socialized := reaction("socialized", directMatch(ActionSocialize, NounColonist, "", RoleActor), 20, MoodVector{5, 4, 5}, MoodVector{3, 2, 2})
+	// Passing out is losing control of your own body: grip takes the hit, and
+	// it is worse the more often it has happened.
+	passedOut := reaction("passed-out", directMatch(ActionCollapse, NounColonist, "", RoleActor), 40, MoodVector{-10, -25, -15}, MoodVector{-10, -35, -25})
 	boughtMeal := reaction("bought-meal", directMatch(ActionBuy, NounColonist, NounMeal, RoleActor), 12, MoodVector{2, 3, 0}, MoodVector{1, 0, 0})
 
 	for _, r := range []*ReactionSpec{
 		&finishedMining, &clearedRock, &finishedConstruction, &cleanedRefuse,
 		&incineratedRefuse, &ate, &usedToilet, &slept, &needSatisfied,
 		&ateGruel, &cooked, &scrapedScum, &fedScumhouse, &wentToMarket, &hauled,
-		&feltLonely, &socialized,
+		&feltLonely, &socialized, &passedOut,
 	} {
 		r.Memory.Collapse = map[RuleID]string{
 			"finished-mining":       "Finished mining.",
@@ -444,6 +447,7 @@ func DefaultCognitionConfig() CognitionConfig {
 			"hauled":                "Hauled goods for hire.",
 			"felt-lonely":           "Felt lonely.",
 			"socialized":            "Enjoyed some company.",
+			"passed-out":            "Passed out from exhaustion.",
 		}[r.ID]
 	}
 	workStimulus := func(r *ReactionSpec) {
@@ -465,7 +469,7 @@ func DefaultCognitionConfig() CognitionConfig {
 		needSatisfied, finishedMining, clearedRock, finishedConstruction,
 		cleanedRefuse, incineratedRefuse, mutated, witnessedMutation,
 		ateGruel, cooked, scrapedScum, fedScumhouse, wentToMarket, hauled,
-		boughtMeal, roseInTrade, feltLonely, socialized,
+		boughtMeal, roseInTrade, feltLonely, socialized, passedOut,
 	}
 	scaled := func(id RuleID, trait Trait, match PerceptPattern, impact, charge, grip, valence, wear int) TraitRule {
 		return TraitRule{ID: id, Trait: trait, Match: match, Impact: impact, Charge: charge, Grip: grip, Valence: valence, WearRate: wear}

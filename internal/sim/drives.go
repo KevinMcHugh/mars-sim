@@ -1,6 +1,9 @@
 package sim
 
-import "math"
+import (
+	"fmt"
+	"math"
+)
 
 // DriveKind enumerates a colonist's drives: pressures that accumulate on their
 // own and are discharged by acting on them. Every drive is the same shape — a
@@ -45,7 +48,8 @@ func (p DrivePhase) String() string {
 // outranks which, the grace periods, what a frontend paints red) keys off it.
 //
 // Death is a drain (HP, every tick at the ceiling); loneliness is an
-// experience (an occurrence the colonist feels and remembers). Soiling oneself
+// experience (an occurrence the colonist feels and remembers); passing out is
+// an event (it happens once and discharges the drive). Soiling oneself
 // for bladder is planned (docs/drives-redesign.md); until it lands bladder is
 // ConsequenceNone and simply sits at its ceiling.
 type Consequence uint8
@@ -61,6 +65,10 @@ const (
 	// are cognition.yaml rows — on reaching the ceiling, and again every
 	// ConsequenceEvery ticks while it stays there. Unmet social.
 	ConsequenceLoneliness
+	// ConsequencePassOut: the colonist collapses where it stands and lies
+	// unconscious for PassOutTicks, then comes to with the drive met. An
+	// event: it happens once and discharges the drive. Unmet sleep.
+	ConsequencePassOut
 
 	numConsequences // keep last: the count of consequences
 )
@@ -73,6 +81,8 @@ func (c Consequence) String() string {
 		return "death"
 	case ConsequenceLoneliness:
 		return "loneliness"
+	case ConsequencePassOut:
+		return "passing out"
 	default:
 		return "consequence"
 	}
@@ -108,9 +118,10 @@ func defaultDrives() [numDrives]DriveSpec {
 		},
 		DriveSleep: {
 			// Sleep builds slowly and, once sought, takes a long lie-down to
-			// clear. A colonist with no bunk waits rather than dying.
+			// clear. A colonist that gets no sleep at all passes out wherever
+			// it is, for longer than a night in a bunk (PassOutTicks).
 			Name: "sleep", Rise: 1, SeekAt: 700, CriticalAt: 900, Max: 1000,
-			Facility: Bed, UseTicks: 40, Consequence: ConsequenceNone,
+			Facility: Bed, UseTicks: 40, Consequence: ConsequencePassOut,
 		},
 	}
 }
@@ -291,8 +302,60 @@ func (w *World) applyDriveConsequences(e *Entity) {
 			if e.Kind == Colonist && w.consequenceDue(e, i, spec) {
 				w.emitDone(e, ActionFeel, NounLoneliness, "Felt lonely.")
 			}
+		case ConsequencePassOut:
+			if e.Kind == Colonist && e.passedOutUntil == 0 && !w.asleepInBed(e) {
+				w.passOut(e)
+			}
 		}
 	}
+}
+
+// passOut is ConsequencePassOut: the colonist drops whatever it was doing and
+// collapses where it stands. It stays down for PassOutTicks — no focus, no
+// job, no fleeing; an alien that finds it there finds it helpless — and
+// comes to in stayPassedOut with the sleep drive met.
+func (w *World) passOut(e *Entity) {
+	w.clearJob(e)
+	e.focus, e.focusSince = FocusIdle, w.tick
+	e.resting = false
+	e.clearPath()
+	e.passedOutUntil = w.tick + w.cfg.PassOutTicks
+	e.State = PassedOut
+	o := w.occurrence(e, ActionCollapse, nil, e.Pos, "Passed out from exhaustion.")
+	w.emitOccurrence(o)
+	w.logEvent(LogNote, fmt.Sprintf("%s passed out from exhaustion.", e.displayName()))
+	w.markMindDirty(e)
+}
+
+// asleepInBed reports whether e is already sleeping beside its bed. The drive
+// keeps rising until the sleep finishes, so one that arrived near the ceiling
+// reaches it in bed — where it is already doing what passing out would make
+// it do. On the way to bed is no exemption: you can collapse in the corridor.
+func (w *World) asleepInBed(e *Entity) bool {
+	return e.Job == JobUse && e.Drive == DriveSleep && e.useFacilitySet &&
+		e.Pos.Adjacent(e.useFacility) && w.TerrainAt(e.useFacility) == w.cfg.Drives[DriveSleep].Facility
+}
+
+// stayPassedOut runs an unconscious colonist's turn and reports whether it is
+// still down. The body goes on (affect decays, a sealed room is noticed,
+// uranium doses), but nothing is perceived or chosen. On the tick it comes to
+// the sleep drive resets and the colonist thinks again from scratch.
+func (w *World) stayPassedOut(e *Entity) bool {
+	if e.passedOutUntil == 0 {
+		return false
+	}
+	w.decayAffect(e)
+	w.updateDisconnected(e)
+	w.applyUraniumExposure(e)
+	if w.tick < e.passedOutUntil {
+		e.State = PassedOut
+		return true
+	}
+	e.passedOutUntil = 0
+	e.State = Idle
+	w.resetDrive(e, DriveSleep)
+	w.markMindDirty(e)
+	return true // the waking tick is spent coming to
 }
 
 // consequenceDue reports whether an experience consequence should fire now,

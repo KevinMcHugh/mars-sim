@@ -69,6 +69,7 @@ const (
 	Demolishing       // colonist breaking down a wall to escape a sealed room
 	Crafting          // colonist working a recipe at a workshop (the scumhouse)
 	Scraping          // colonist scraping cave scum off a surface
+	PassedOut         // colonist unconscious where it fell, its sleep drive maxed (see passOut)
 
 	numStates // keep last: the number of states
 )
@@ -113,6 +114,8 @@ func (s State) String() string {
 		return "crafting"
 	case Scraping:
 		return "scraping"
+	case PassedOut:
+		return "passed out"
 	default:
 		return "?"
 	}
@@ -367,6 +370,9 @@ type Entity struct {
 	// (loneliness) may fire again during its current stay at the ceiling; 0
 	// until it first fires. resetDrive clears it. See consequenceDue.
 	nextConsequence [numDrives]int
+	// passedOutUntil is the tick a colonist that passed out (the sleep drive's
+	// consequence) comes to; 0 while it is conscious. See passOut.
+	passedOutUntil int
 
 	// Personality (colonists only). Profile holds the name, attributes, and
 	// traits; driveRise, restTicks, and workScale are the trait-resolved effective

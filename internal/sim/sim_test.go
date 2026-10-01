@@ -416,7 +416,9 @@ func TestColonistUsesBed(t *testing.T) {
 	w.SetTerrain(stand, Floor)
 
 	c := w.spawn(Colonist, stand)
-	c.Drives[DriveSleep], c.driveSince[DriveSleep] = cfg.Drives[DriveSleep].Max, w.tick // dead on its feet
+	// Dead on its feet, but short of the ceiling, where it would pass out
+	// instead (TestSleepDeprivedColonistPassesOut).
+	c.Drives[DriveSleep], c.driveSince[DriveSleep] = cfg.Drives[DriveSleep].CriticalAt, w.tick
 	// Clear the other (staggered) needs so nothing fatal outranks sleep here.
 	c.Drives[DriveFood], c.driveSince[DriveFood] = 0, w.tick
 	c.Drives[DriveBladder], c.driveSince[DriveBladder] = 0, w.tick

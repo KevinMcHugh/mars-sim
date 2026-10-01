@@ -289,6 +289,7 @@ type Config struct {
 
 	// Drives. One DriveSpec per DriveKind, indexed by that kind.
 	Drives               [numDrives]DriveSpec `cfg:"drives" sec:"Drives"`
+	PassOutTicks         int                  `cfg:"pass-out-ticks" doc:"ticks a colonist lies unconscious where it fell once its sleep drive hits the ceiling"`
 	StarveDamage         int                  `cfg:"starve-damage" doc:"HP lost per tick while a drive whose consequence is death sits at its max"`
 	ColonistsPerFacility int                  `cfg:"per-facility" doc:"colonists served by each life-support facility"`
 
@@ -690,6 +691,7 @@ func DefaultConfig() Config {
 		IncineratorBuildTicks: 20,
 
 		StarveDamage:          1,
+		PassOutTicks:          60,
 		ColonistsPerFacility:  5,
 		Cognition:             DefaultCognitionConfig(),
 		RestTicks:             10,

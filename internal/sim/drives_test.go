@@ -332,3 +332,64 @@ func TestConversationWhileLonelySocializes(t *testing.T) {
 		t.Errorf("content partner socialized = %d, want 0", got)
 	}
 }
+
+// A sleep drive at its ceiling drops the colonist where it stands for
+// PassOutTicks; it then comes to with the drive met and the memory of it.
+func TestSleepDeprivedColonistPassesOut(t *testing.T) {
+	cfg := testConfig()
+	cfg.StartColonists, cfg.StartAliens = 0, 0
+	w := newTestWorld(t, cfg)
+	at := Point{w.Width / 2, w.Height / 2}
+	w.SetTerrain(at, Floor)
+	c := w.spawn(Colonist, at)
+	for n := DriveKind(0); n < numDrives; n++ {
+		c.Drives[n], c.driveSince[n] = 0, w.tick
+	}
+	c.Drives[DriveSleep] = cfg.Drives[DriveSleep].Max
+
+	w.step()
+	if c.State != PassedOut || c.passedOutUntil == 0 {
+		t.Fatalf("state = %v, want passed out", c.State)
+	}
+	if got := memoriesOf(c, "passed-out"); got != 1 {
+		t.Fatalf("passed-out memories = %d, want 1", got)
+	}
+	for i := 1; i < cfg.PassOutTicks; i++ {
+		w.step()
+		if c.State != PassedOut || c.Pos != at || c.Job != JobNone {
+			t.Fatalf("tick %d: state %v job %v at %v; want lying where it fell", i, c.State, c.Job, c.Pos)
+		}
+	}
+	w.step()
+	if c.passedOutUntil != 0 || c.State == PassedOut {
+		t.Fatalf("did not come to after %d ticks", cfg.PassOutTicks)
+	}
+	if lvl := w.driveLevel(c, DriveSleep); lvl > 1 {
+		t.Fatalf("sleep drive after passing out = %d, want met", lvl)
+	}
+	if got := memoriesOf(c, "passed-out"); got != 1 {
+		t.Fatalf("passed out again: %d memories", got)
+	}
+}
+
+// A colonist already asleep beside its bed when the drive reaches the ceiling
+// finishes its sleep there rather than passing out.
+func TestAsleepInBedDoesNotPassOut(t *testing.T) {
+	w := roomsTestWorld(20, 20)
+	bed, stand := Point{6, 5}, Point{5, 5}
+	carve(w, stand, stand, Floor)
+	w.SetTerrain(bed, Bed)
+	c := w.spawn(Colonist, stand)
+	c.Drives[DriveSleep], c.driveSince[DriveSleep] = w.cfg.Drives[DriveSleep].Max, w.tick
+	c.Job, c.Drive, c.useFacility, c.useFacilitySet = JobUse, DriveSleep, bed, true
+
+	w.applyDriveConsequences(c)
+	if c.passedOutUntil != 0 {
+		t.Fatal("passed out while asleep in bed")
+	}
+	c.Job = JobNone
+	w.applyDriveConsequences(c)
+	if c.passedOutUntil == 0 {
+		t.Fatal("did not pass out once out of bed")
+	}
+}

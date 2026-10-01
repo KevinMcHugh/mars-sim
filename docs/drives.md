@@ -35,7 +35,7 @@ indexed by the kind:
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | food | 2 | 650 | 1000 | 1000 | meals, then NutrientPod | 18 | 3 | **death** |
 | bladder | 3 | 600 | 900 | 1000 | Toilet | 10 | 0 | none (planned: soiling) |
-| sleep | 1 | 700 | 900 | 1000 | Bed | 40 | 0 | none |
+| sleep | 1 | 700 | 900 | 1000 | Bed | 40 | 0 | **passing out** (`pass-out-ticks`, 60) |
 | social | 2 | 500 | 850 | 1000 | conversation | — | — | **loneliness** (felt every 200 ticks) |
 
 Food is the one drive met by an item as well as a facility: a hungry colonist
@@ -136,9 +136,10 @@ drive sitting at `Max`, and dispatches on its `Consequence`:
 
 | Consequence | Effect | Drives |
 | --- | --- | --- |
-| `ConsequenceNone` | nothing beyond maximal focus pressure | bladder, sleep |
+| `ConsequenceNone` | nothing beyond maximal focus pressure | bladder |
 | `ConsequenceDeath` | `starve`: drain HP, healed on satisfaction | food |
 | `ConsequenceLoneliness` | the colonist *feels lonely*: an experience, repeated every `consequence-every` ticks | social |
+| `ConsequencePassOut` | `passOut`: the colonist collapses where it stands for `pass-out-ticks`, then comes to with the drive met | sleep |
 
 Death is a **drain**: it applies every tick at the ceiling and is undone by
 satisfying the drive. Loneliness is an **experience**: `consequenceDue` books
@@ -164,6 +165,29 @@ Measured over 6000 ticks of the default game on seeds 1–3: 2, 7 and 14
 felt-lonely occasions (tracking 293, 959 and 2420 colonist-ticks at the
 social ceiling), and about 70% of conversations counted as socialized, since
 most talks start because someone went looking for one.
+
+Passing out is an **event**: it happens once and discharges the drive. At
+the sleep ceiling `passOut` clears the colonist's job and focus, sets
+`passedOutUntil` and the `PassedOut` state, logs it, and emits a `collapse`
+occurrence whose `passed-out` reaction ("Passed out from exhaustion.") hits
+grip hardest, since this is losing control of your own body, and worse each
+time. For `PassOutTicks` (60, half again a night in a bunk) `stayPassedOut`
+runs the colonist's turn in place of everything else: affect still decays,
+a sealed room is still noticed, uranium still doses, but nothing is
+perceived or chosen. It does not flee, nobody can pull it into a
+conversation (`availableToTalk`), and an alien that finds it finds it
+helpless. Starvation still drains while it is down. On the tick it comes to,
+the sleep drive resets and it thinks again from scratch. `PassedOut` counts
+as sleeping on the Activity chart.
+
+One exemption: a colonist already asleep beside its bed (`asleepInBed`)
+does not pass out. The drive keeps rising until the sleep finishes, so one
+that got to bed near the ceiling reaches it in bed, where it is already
+doing what passing out would make it do. Being *on the way* to bed is no
+exemption; you can collapse in the corridor.
+
+Measured over 10000 ticks of the default game on seeds 1–5: 4, 0, 6, 3 and 5
+pass-outs per colony of 5–6.
 
 `DriveSpec.Fatal()` (and `DriveMeta.Fatal()` in the snapshot) is shorthand
 for `Consequence == ConsequenceDeath`. Arbitration still reasons in terms of
@@ -197,7 +221,7 @@ outranks any non-fatal one**. Without that rule, bladder (which rises faster and
 caps further past its threshold) would permanently outrank food and let colonists
 starve while relieving themselves.
 
-Sleep is deliberately non-fatal. A tired colonist seeks a reachable bunk and
+Sleep is deliberately non-fatal: its consequence is passing out, not death. A tired colonist seeks a reachable bunk and
 spends `UseTicks` (40 by default) sleeping beside it. Food and toilets are
 still planned before dormitories, so a bunk usually arrives later than the
 first facility room — but a colonist with no reachable bunk, no bunk task to
@@ -371,7 +395,7 @@ facilities at once.
   starving with a full bladder — the table alone (thresholds) was not enough.
 - **Grace periods** stop the frustrating startup deaths where hunger outraced the
   very first pod.
-- **Sleep being non-fatal** keeps the planner's priority (life support before
+- **Sleep being non-fatal** (passing out costs time and mood, not HP) keeps the planner's priority (life support before
   dormitories) meaningful: a tired colonist can wait for the next bunk instead
   of forcing dormitories to compete with life support at the moment life
   support is most needed. It no longer means *only* waiting, though — see the

@@ -500,6 +500,8 @@ func validateConfig(cfg sim.Config) error {
 		return fmt.Errorf("founding-grant and crash-pod-purse cannot be negative (got %d and %d)", cfg.FoundingGrant, cfg.CrashPodPurse)
 	case cfg.TicksPerSecond < 1:
 		return fmt.Errorf("tps must be at least 1 (got %d)", cfg.TicksPerSecond)
+	case cfg.PassOutTicks < 1:
+		return fmt.Errorf("pass-out-ticks must be at least 1 (got %d)", cfg.PassOutTicks)
 	case cfg.ColonistsPerFacility < 1:
 		return fmt.Errorf("per-facility must be at least 1 (got %d)", cfg.ColonistsPerFacility)
 	case cfg.MaxConcurrentProjects < 1:

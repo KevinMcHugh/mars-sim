@@ -63,6 +63,7 @@ const (
 	ActionLearn      ActionID = "learn"
 	ActionFeel       ActionID = "feel"
 	ActionSocialize  ActionID = "socialize"
+	ActionCollapse   ActionID = "collapse"
 )
 
 // ChannelID says how an observer learned about an occurrence. Direct is

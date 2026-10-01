@@ -2,8 +2,8 @@
 
 > Part of the [mars-sim documentation](./README.md).
 
-**Status: proposal.** Phase D0 (the rename and the `Consequence` enum) and
-D2 (loneliness) have shipped; everything else is a plan. [drives.md](./drives.md) describes
+**Status: proposal.** Phase D0 (the rename and the `Consequence` enum), D2
+(loneliness) and D2b (passing out) have shipped; everything else is a plan. [drives.md](./drives.md) describes
 what the code does today. Update this doc as phases land, and move what is
 built into drives.md.
 
@@ -28,22 +28,22 @@ something its surroundings do to it.
 | food | time | eating (meal, pod) | **death** (starvation) — *shipped* |
 | bladder | time | a toilet | **soiling oneself** → embarrassment |
 | social | time (trait-scaled) | conversation | **feeling lonely** — *shipped* |
-| sleep | time | a bed | none yet |
-| hygiene *(new)* | time, and dirty work | washing | open — see below |
+| sleep | time | a bed | **passing out** — *shipped*; later, hallucinations from long-term deprivation |
+| hygiene *(new)* | time, and dirty work | washing | **feeling filthy** first; others' reactions later |
 | comfort *(new)* | standing, working, hard surfaces | sitting, a good bed | open |
 | beauty *(new)* | ugly surroundings | pleasant surroundings | open |
 
 ## Source
 
-Shipped so far (D0, D2):
+Shipped so far (D0, D2, D2b):
 
 - [`internal/sim/drives.go`](../internal/sim/drives.go) — `DriveKind`,
   `DriveSpec`, `Consequence`, `applyDriveConsequences`, `starve`,
-  `consequenceDue`.
+  `consequenceDue`, `passOut`, `stayPassedOut`, `asleepInBed`.
 - [`internal/sim/systems.go`](../internal/sim/systems.go) — `finishTalk`'s
   `socialize` occurrence.
-- [`cognition.yaml`](../cognition.yaml) — the `felt-lonely` and `socialized`
-  reactions.
+- [`cognition.yaml`](../cognition.yaml) — the `felt-lonely`, `socialized`
+  and `passed-out` reactions.
 - Everything else is still planned; this section grows as phases land.
 
 ## How it works
@@ -58,7 +58,7 @@ that any drive can use:
 | --- | --- | --- | --- |
 | **Drain** | something is lost every tick; satisfying the drive gives it back | starvation: HP (`starvationDamage`) | no |
 | **Experience** | the colonist *feels* something, an occurrence with a mood hit and a memory, repeated on a cadence while it stays there | feeling lonely | no |
-| **Event** | something *happens*, once, and resets the drive | soiling oneself | yes |
+| **Event** | something *happens*, once, and resets the drive | passing out; soiling oneself | yes |
 
 `Consequence` stays an enum (design principle 1: switch on a name, not a
 number), but each constant maps onto one of these shapes, so adding the next
@@ -68,7 +68,9 @@ consequence of an existing shape is small:
 ConsequenceNone
 ConsequenceDeath      // drain: HP                        (shipped)
 ConsequenceLoneliness // experience: "felt lonely"        (shipped, D2)
+ConsequencePassOut    // event: collapse, then discharge  (shipped, D2b)
 ConsequenceSoiling    // event: discharge + occurrence    (D1)
+ConsequenceFilth      // experience: "felt filthy"        (D3)
 ```
 
 An experience and an event both go through the perception grammar, so what
@@ -144,12 +146,51 @@ not every drive has a facility or a focus. `DriveSpec` will grow a
 "discharged by" kind (facility, item, conversation, environment) instead of
 the `Facility: Rock` placeholder social uses today.
 
+### Passing out (sleep, D2b — shipped)
+
+At the sleep ceiling the colonist collapses where it stands and lies there
+for `pass-out-ticks` (60, half again a night in a bunk), then comes to with
+the drive met. It is an **event**: it happens once and discharges the drive.
+The `passed-out` reaction hits grip hardest (losing control of your own
+body) and is worse each time. While down, the colonist perceives nothing and
+chooses nothing: it cannot flee, and an alien that finds it finds it
+helpless. That is a death that comes from the story (principle 7), not a bug:
+the colonist went 300 ticks past wanting a bed. The one exemption is a
+colonist already asleep in its bed, whose drive can tick up to the ceiling
+before the sleep finishes. The details are in [drives.md](./drives.md).
+
+### Hallucinations (sleep, later)
+
+Long-term sleep deprivation should eventually cause hallucinations. That
+needs more redesign than any consequence above, for two reasons:
+
+- **"Long-term" is not a level.** A drive's level resets every time it is met,
+  and passing out meets it. Chronic deprivation needs a slower accumulator
+  that outlives one ceiling: a sleep debt that grows with each pass-out and
+  every short night, and decays only with real rest. That is either a second
+  drive fed by the first, or a per-drive history the spec can read.
+- **Perception only reports what happened.** Every percept today comes from a
+  real occurrence. A hallucination is a percept with no occurrence behind it,
+  seen by one colonist: an alien that isn't there, a voice. That means a new
+  source of percepts (an "imagined" channel) that reactions can match, and a
+  decision about which systems may act on it. Fleeing from a phantom alien is
+  the point; the combat system shooting at one is a bug.
+
 ### Hygiene (D3)
 
 Hygiene rises with time *plus* events: digging, cleaning gore, hauling
 corpses, soiling oneself. Event-driven rises are bumps to the stored base, so
-they also fit the lazy model. It is discharged at a new wash facility. Its
-consequence is open (see the questions below).
+they also fit the lazy model. It is discharged at a new wash facility.
+
+Its consequence comes in two steps:
+
+1. **D3: the colonist feels filthy.** An **experience**, the same shape as
+   loneliness: a `felt-filthy` occurrence at the ceiling, repeated every
+   `consequence-every` ticks, that makes the colonist feel worse.
+2. **Later: others react.** A filthy colonist is something *other* colonists
+   perceive: a sight perception rule on a persistent "filthy" state, with
+   reactions (Tidy colonists disgusted) and perhaps an affinity cost. That is
+   a social consequence, so it waits for its own phase.
 
 ### Which drive wins
 
@@ -190,9 +231,12 @@ drive furthest past its threshold still wins.
 | **D0** ✅ | Rename needs → drives everywhere (code, `drives.*` settings, `-drive-*` flags, TUI/web labels, wire API 8); `Consequence` enum replaces `Fatal`; `applyDriveConsequences` dispatches | none |
 | D1 | `ConsequenceSoiling`: discharge, puddle, `soil` occurrence, embarrassment reaction | bladder ceiling now resolves |
 | **D2** ✅ | `ConsequenceLoneliness` (an experience, repeated every `consequence-every` ticks) for social; `socialized` for conversations sought while lonely | lonely colonists feel worse; company sought lifts mood |
-| D3 | Hygiene drive, wash facility, event bumps | new drive and facility |
+| **D2b** ✅ | `ConsequencePassOut` for sleep: collapse for `pass-out-ticks`, `PassedOut` state, `passed-out` reaction | sleepless colonists drop where they stand |
+| D3 | Hygiene drive, wash facility, event bumps; `ConsequenceFilth` ("felt filthy") | new drive and facility |
+| D3b | Others perceive and react to a filthy colonist | social cost of filth |
 | D4 | Room scores; beauty and comfort with environmental rise | new drives |
 | D5 | Severity ordering replaces fatal/non-fatal; rename the remaining "need" vocabulary in `cognition.yaml` (`need_weight`, `fatal_bonus`, the `need` noun, `need-satisfied`) and the Scum Lab bench | arbitration generalizes |
+| D6 | Sleep debt and hallucinations (imagined percepts) | needs the perception redesign above |
 
 D5's renames are deferred on purpose: `cognition.yaml` and the Scum Lab
 share a file format with the browser tool, and renaming them alongside D0
@@ -200,13 +244,10 @@ would have doubled that diff for no behavior.
 
 ### Open questions
 
-- **Hygiene's consequence.** Illness (a drain on HP? a condition?), or purely
-  social — others react to a filthy colonist through perception?
 - **Comfort and beauty consequences.** Probably experiences (aching, dreary)
   or just affect pressure with no ceiling consequence at all. Is "no
   consequence, only pressure" acceptable for a drive?
-- **Do sleep's consequences exist?** Collapsing where you stand (an event) is
-  the natural one.
+- **Should being attacked wake a passed-out colonist?** Today nothing does.
 - **Is an experience enough for depression?** Revisit after play: if lonely
   colonists bounce back too fast, that is the case for a condition.
 - **Do rats and aliens get drives beyond food?** Today they share `DriveFood`

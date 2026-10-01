@@ -4,7 +4,7 @@ schema_version: 1
 # Stable content vocabulary used by editor dropdowns and rule validation.
 vocabulary:
   nouns: [colonist, alien, cat, rat, gore, meal, toilet, bed, need, rock, structure, refuse, gruel, scum, scumhouse, goods, skill, loneliness]
-  actions: [present, bite, attack, kill, crush, catch, wound, converse, eat, use, sleep, satisfy, mine, clear, construct, clean, incinerate, mutate, cook, scrape, deliver, trade, buy, haul, learn, feel, socialize]
+  actions: [present, bite, attack, kill, crush, catch, wound, converse, eat, use, sleep, satisfy, mine, clear, construct, clean, incinerate, mutate, cook, scrape, deliver, trade, buy, haul, learn, feel, socialize, collapse]
 
 attractors:
   driven    : { good: "driven"    , bad: "furious"   , charge:  70, grip:  60, radius: 46 }
@@ -267,6 +267,14 @@ reactions:
     match: { actor_noun: colonist, action: socialize, channel: direct, role: actor, phase: instant }
     memory: { record: true, collapse: "Enjoyed some company." }
     affect: { impact: 20, fresh: { charge: 5, grip: 4, valence: 5 }, worn: { charge: 3, grip: 2, valence: 2 } }
+    wear_policy: memory-occasions
+  # The sleep drive's consequence: at its ceiling a colonist collapses where it
+  # stands (pass-out-ticks). Losing control of your own body hits grip hardest,
+  # and worse each time.
+  - id: passed-out
+    match: { actor_noun: colonist, action: collapse, channel: direct, role: actor, phase: instant }
+    memory: { record: true, collapse: "Passed out from exhaustion." }
+    affect: { impact: 40, fresh: { charge: -10, grip: -25, valence: -15 }, worn: { charge: -10, grip: -35, valence: -25 } }
     wear_policy: memory-occasions
 
 # Trait rules compose in declaration order. Scales are percentages.

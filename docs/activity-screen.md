@@ -49,7 +49,8 @@ the share of colonist time.
 1. **State**, when it names the work: `Eating`, `Sleeping`, `Crafting`
    (cooking; the scumhouse is the only workshop), `Mining`, `Fighting`, and so
    on. Some States share a band: `Hauling` and `Storing` are both hauling;
-   `Cleaning` and `Scraping` are both cleaning; `Stomping` counts as fighting.
+   `Cleaning` and `Scraping` are both cleaning; `Stomping` counts as fighting;
+   `PassedOut` counts as sleeping.
 2. Otherwise (the colonist is `Moving` or `Idle`), the **job** it is walking
    for: `JobMine` is mining, `JobCraft` is cooking, `JobStore`/`JobSell`/
    `JobCarry` are hauling, and so on.
