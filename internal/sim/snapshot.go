@@ -464,6 +464,14 @@ type Snapshot struct {
 	// first; see population.go. Shared between snapshots, never written.
 	Population []PopulationSample
 
+	// FlowFields lists every shared flow field, in a stable order, for a
+	// frontend that offers to show one. FlowField is the one it asked for
+	// with ShowFlowField, or nil when none is shown. A FlowFieldView is
+	// shared between snapshots until the field changes, and never written
+	// after publication. See docs/flow-field-view.md.
+	FlowFields []FlowFieldRef
+	FlowField  *FlowFieldView
+
 	// FogOfWar says whether Tile.Explored is being maintained, so a frontend
 	// knows whether to hide the unexplored map. It is false on a hand-built
 	// Snapshot, which is what makes every tile of one read as explored (see

@@ -230,6 +230,7 @@ the colony grows):
 
 ## Related
 
+- [flow-field-view.md](./flow-field-view.md) — seeing a field on the map (`f`), and why showing one cannot change a run.
 - [spatial-index-and-performance.md](./spatial-index-and-performance.md) — chunks, the job board/frontier, and the performance story.
 - [entities-and-ai.md](./entities-and-ai.md) — the movement primitives that call this.
 - [construction.md](./construction.md) — room reachability and routing around build tiles.
