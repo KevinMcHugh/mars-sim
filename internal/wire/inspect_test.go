@@ -76,6 +76,18 @@ func TestInspectRealColony(t *testing.T) {
 	if c.Mood.Max != snap.MoodMax || c.AffinityMax != snap.AffinityMax || c.Height == "" || c.Pronouns == "" {
 		t.Errorf("colonist = %+v", c)
 	}
+	if len(c.Skills) != len(col.Skills) {
+		t.Errorf("skills = %+v, want %d", c.Skills, len(col.Skills))
+	}
+	for i, sk := range c.Skills {
+		want := col.Skills[i]
+		if sk.Name != want.Skill.String() || sk.Label != want.Label || sk.Rank != want.Rank || sk.MaxRank != want.MaxRank {
+			t.Errorf("skill %d = %+v, want %+v", i, sk, want)
+		}
+	}
+	if col.Profession != sim.SkillNone && (c.Profession != col.Profession.String() || c.ProfessionLabel != col.ProfessionLabel) {
+		t.Errorf("profession = %q %q, want %v %q", c.Profession, c.ProfessionLabel, col.Profession, col.ProfessionLabel)
+	}
 
 	lockers := 0
 	for _, st := range snap.Storages {

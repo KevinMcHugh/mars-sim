@@ -13,6 +13,10 @@ export interface Colonist {
   inventory: Stack[];
   slots: number;
   traits: { name: string; desc: string }[];
+  /** Skills it has a rank in, in skill order (docs/skills.md). */
+  skills: { name: string; label: string; rank: number; maxRank: number; practice: number }[];
+  /** The skill it's known for, and its title in it; absent until it has one. */
+  profession?: string; professionLabel?: string;
   family: { relation: string; id: number; name: string }[];
   affinities: { id: number; name: string; value: number }[];
   affinityMax: number;

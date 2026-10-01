@@ -97,14 +97,20 @@ type ColonistDetail struct {
 	Wallet      int64  `json:"wallet"`
 	// Mood is the three affect axes, each in [-MoodMax, MoodMax], and the
 	// label they resolve to.
-	Mood        Mood        `json:"mood"`
-	Needs       []NeedLevel `json:"needs"`
-	Inventory   []Stack     `json:"inventory"` // non-empty slots only
-	Slots       int         `json:"slots"`
-	Traits      []TraitInfo `json:"traits"`
-	Family      []Kin       `json:"family"`
-	Affinities  []Acquaint  `json:"affinities"`
-	AffinityMax int         `json:"affinityMax"`
+	Mood      Mood        `json:"mood"`
+	Needs     []NeedLevel `json:"needs"`
+	Inventory []Stack     `json:"inventory"` // non-empty slots only
+	Slots     int         `json:"slots"`
+	Traits    []TraitInfo `json:"traits"`
+	// Skills are those it has a rank in, in skill order; Profession is the
+	// one it's known for ("" for none yet) and ProfessionLabel its title in
+	// it, like "journeyman smith" (docs/skills.md).
+	Skills          []SkillLevel `json:"skills"`
+	Profession      string       `json:"profession,omitempty"`
+	ProfessionLabel string       `json:"professionLabel,omitempty"`
+	Family          []Kin        `json:"family"`
+	Affinities      []Acquaint   `json:"affinities"`
+	AffinityMax     int          `json:"affinityMax"`
 	// Memories are newest first.
 	Memories []MemoryLine `json:"memories"`
 }
@@ -137,6 +143,16 @@ type Stack struct {
 type TraitInfo struct {
 	Name string `json:"name"`
 	Desc string `json:"desc"`
+}
+
+// SkillLevel is one skill's rank, out of the skill's top rank, its label at
+// that rank, and the practice (base work ticks) behind it.
+type SkillLevel struct {
+	Name     string `json:"name"`
+	Label    string `json:"label"`
+	Rank     int    `json:"rank"`
+	MaxRank  int    `json:"maxRank"`
+	Practice uint32 `json:"practice"`
 }
 
 // Kin is a family tie; ID is the relative, for the page to inspect next.
@@ -235,6 +251,7 @@ func colonistDetail(s *sim.Snapshot, e sim.EntityView, p *sim.Profile) *Colonist
 		Inventory:   []Stack{},
 		Slots:       len(e.Inventory),
 		Traits:      make([]TraitInfo, 0, len(p.Traits)),
+		Skills:      make([]SkillLevel, 0, len(e.Skills)),
 		Family:      make([]Kin, 0, len(e.Relations)),
 		Affinities:  make([]Acquaint, 0, len(e.Affinities)),
 		AffinityMax: s.AffinityMax,
@@ -251,6 +268,12 @@ func colonistDetail(s *sim.Snapshot, e sim.EntityView, p *sim.Profile) *Colonist
 	}
 	for _, tr := range p.Traits {
 		c.Traits = append(c.Traits, TraitInfo{Name: tr.Name(), Desc: tr.Desc()})
+	}
+	for _, sk := range e.Skills {
+		c.Skills = append(c.Skills, SkillLevel{Name: sk.Skill.String(), Label: sk.Label, Rank: sk.Rank, MaxRank: sk.MaxRank, Practice: sk.Practice})
+	}
+	if e.Profession != sim.SkillNone {
+		c.Profession, c.ProfessionLabel = e.Profession.String(), e.ProfessionLabel
 	}
 	if len(e.Relations) > 0 || len(e.Affinities) > 0 {
 		names := colonistNames(s)

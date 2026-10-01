@@ -43,6 +43,7 @@
       {/if}
     </header>
     {#if c}
+      {#if c.professionLabel}<p class="profession">{c.professionLabel}</p>{/if}
       <p class="sub">{c.pronouns} · {c.orientation}</p>
       <p class="sub">age {c.age} · {c.height} ({c.heightCm} cm) · {c.weightKg} kg</p>
       <p class="sub">{c.skin} skin · {c.hair} hair · ${c.wallet.toLocaleString()}</p>
@@ -99,6 +100,21 @@
         <dl class="traits">
           {#each c.traits as t (t.name)}<dt>{t.name}</dt><dd>{t.desc}</dd>{/each}
         </dl>
+      {/if}
+
+      <h4>Skills</h4>
+      {#if c.skills.length === 0}
+        <p class="muted">untrained</p>
+      {:else}
+        <div class="bars">
+          {#each c.skills as sk (sk.name)}
+            <div class="skill" class:trade={sk.name === c.profession}>
+              <Bar label={(sk.name === c.profession ? '★ ' : '') + sk.name} value={sk.rank} max={sk.maxRank}
+                title={`${sk.practice.toLocaleString()} ticks of practice`} />
+              <span class="skill-label">{sk.label}</span>
+            </div>
+          {/each}
+        </div>
       {/if}
 
       <h4>Family</h4>
@@ -197,6 +213,9 @@
   dl { display: grid; grid-template-columns: max-content 1fr; gap: 3px 12px; margin: 0; }
   dt { color: var(--muted); }
   dd { margin: 0; }
+  .profession { color: #e9c46a; }
+  .skill-label { display: block; color: var(--muted); font-size: 12px; padding-left: 6.5em; margin-left: 8px; }
+  .skill.trade :global(.label) { color: #e9c46a; }
   .traits { grid-template-columns: 1fr; gap: 0; }
   .traits dt { color: #e9c46a; margin-top: 4px; }
   .traits dd { color: var(--muted); }
