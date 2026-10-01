@@ -149,6 +149,13 @@ type Model struct {
 	showDead     bool
 	showNonHuman bool
 
+	// flowOn turns on the map's flow-field overlay, showing flowRef. The
+	// engine publishes the field only once asked (sim.ShowFlowField), so
+	// the overlay draws nothing until a frame carrying it arrives. See
+	// render_flow.go.
+	flowOn  bool
+	flowRef sim.FlowFieldRef
+
 	quitting bool
 
 	// cache carries rendering work between frames; see renderCache.
@@ -488,6 +495,14 @@ func (m Model) filterPrompt() string {
 
 // handleMapKey handles keys specific to the map screen.
 func (m Model) handleMapKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "f":
+		m.cycleFlowField()
+		return m, nil
+	case "F":
+		m.hideFlowField()
+		return m, nil
+	}
 	if m.inspecting {
 		switch msg.String() {
 		case "esc", "i":

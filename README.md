@@ -52,6 +52,7 @@ Terminal controls:
 | `x`            | add another cat                 |
 | `m`            | add another rat               |
 | arrows / `hjkl`| pan the camera                  |
+| `f` / `F`      | cycle / hide the flow-field overlay |
 | `tab`          | toggle the colonist roster      |
 | `q` / `esc`    | quit                            |
 

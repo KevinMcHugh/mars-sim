@@ -7,7 +7,8 @@
 The messages the browser build's worker sends the page: a JSON **Hello** once
 per game, then a binary **frame** per published snapshot. A frame carries the
 tick, the `Stats`, every entity's position and kind, the tile pages in view that
-the page lacks, and gore and corpses when they changed. It is the frame tier of
+the page lacks, gore and corpses when they changed, and the shown flow field's
+distances in view when it or the view changed. It is the frame tier of
 the plan in [browser-frontend.md](./browser-frontend.md). Beside frames go
 **topics**: JSON for one open panel at a time (see Topics).
 
@@ -54,7 +55,11 @@ much is on it. Version 4 adds the **salt** section (see below); the header's
 reserved word became the salt count. `glyphs.looks` (no version bump: the
 frame layout is unchanged) lists colonist looks, each a candidate list; a
 frame's glyph index past the end of `symbols` names one (see
-[colonist-looks.md](./colonist-looks.md)).
+[colonist-looks.md](./colonist-looks.md)). Version 5 adds the **flow** section and
+four header words for it, and Hello's `flowFields`: the shared flow fields'
+names (`FlowFieldRef.Name`), in the engine's order, which the flow section's
+field index and the page's `flow` command both index. The fields are made with
+the world, so the list never changes during a game.
 
 ### A frame
 
@@ -65,8 +70,8 @@ nothing).
 | Offset | Size | Field |
 | --- | --- | --- |
 | 0 | 4 | magic `MSFR` |
-| 4 | 2 | `Version` (4) |
-| 6 | 2 | flags: 1 paused, 2 fog of war, 4 **tiles reset**, 8 **refuse frame**, 16 **scum frame**, 32 **salt frame** |
+| 4 | 2 | `Version` (5) |
+| 6 | 2 | flags: 1 paused, 2 fog of war, 4 **tiles reset**, 8 **refuse frame**, 16 **scum frame**, 32 **salt frame**, 64 **flow frame** |
 | 8 | 8 | tick |
 | 16 | 8 | `TileChanges.Frame` |
 | 24 | 4 | ticks per second |
@@ -77,6 +82,10 @@ nothing).
 | 44 | 4 | pages owed (see below) |
 | 48 | 4 | C, scum tiles |
 | 52 | 4 | D, salt tiles |
+| 56 | 4 | F, flow tiles |
+| 60 | 4 | flow field: an index into `Hello.flowFields`, or -1 for none (int32) |
+| 64 | 4 | the flow field's largest distance, over the whole map |
+| 68 | 4 | the flow field's goal tiles (distance 0), over the whole map |
 
 Then the sections, in order:
 
@@ -108,6 +117,19 @@ Then the sections, in order:
   (`Snapshot.Salt`, see [salt.md](./salt.md)). It is sent when `Snapshot.Salt`
   is a different map from the last one sent (`publishedSalt` hands out the
   same map until a deposit is exposed or built over), and on a tiles reset.
+- **flow**: `int32 x × F`, `int32 y × F`, `uint16 distance × F` (padded, and
+  saturating at 65535), in row order: every tile **in the view** (the
+  interest rectangle) that the shown flow field reaches. Unlike scum and
+  salt, only the view goes: a field covers the whole colony, and the page
+  only draws what is on screen. F is 0 and the header's flow words mean
+  nothing unless the flow-frame flag is set; then this is the whole list for
+  the view, and the page replaces its last one. A frame with the flag and
+  field -1 says no field is shown any more: clear the overlay. It is sent
+  when `Snapshot.FlowField` is a different view from the last one sent (the
+  engine hands out the same `FlowFieldView` until the field changes, and nil
+  until a page asks with the `flow` command), when the interest moved while
+  a field is shown, and on a tiles reset. See
+  [flow-field-view.md](./flow-field-view.md).
 
 ### Which pages go
 

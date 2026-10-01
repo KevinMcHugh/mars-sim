@@ -94,3 +94,23 @@ const premul = (h: string, a: number) => {
 export const JOB_QUEUED = premul('#ffe066', 0.5);
 export const JOB_BUILDING = premul('#ff9f1c', 0.6);
 export const JOB_DONE = premul('#5fd38d', 0.35);
+
+// The flow-field overlay (docs/flow-field-view.md): bright green on the goal
+// tiles, then eight bands from near (green) to far (dark red), the TUI's
+// xterm-256 ramp so the two frontends read the same.
+export const FLOW_GOAL_HEX = '#00ff00';
+export const FLOW_RAMP_HEX = ['#008700', '#5f8700', '#878700', '#af8700', '#af5f00', '#af0000', '#870000', '#5f0000'];
+const FLOW_ALPHA = 0.65;
+const FLOW_GOAL = premul(FLOW_GOAL_HEX, FLOW_ALPHA);
+const FLOW_RAMP = FLOW_RAMP_HEX.map((h) => premul(h, FLOW_ALPHA));
+
+/** The ramp band for distance d >= 1 on a field whose farthest tile is max. */
+export function flowBand(d: number, max: number): number {
+  if (max <= 1) return 0;
+  return Math.min(Math.floor(((d - 1) * FLOW_RAMP.length) / max), FLOW_RAMP.length - 1);
+}
+
+/** The premultiplied RGBA tint for a tile at distance d. */
+export function flowTint(d: number, max: number): Uint8Array {
+  return d === 0 ? FLOW_GOAL : FLOW_RAMP[flowBand(d, max)];
+}

@@ -256,6 +256,7 @@ func (m Model) renderMap() string {
 		glyph string
 		alien bool
 	}
+	flow := m.shownFlowField()
 	occ := make(map[sim.Point]occupant, len(m.latest.Entities))
 	for i := range m.latest.Entities {
 		e := &m.latest.Entities[i]
@@ -303,17 +304,21 @@ func (m Model) renderMap() string {
 				// like a bug besides.
 				tile := m.latest.TileAt(p)
 				drawn = tileGlyph(tile)
+				bare := tile.Terrain == sim.Floor && tile.Corpses == 0 && tile.Gore == 0
 				// Scum shows under refuse, like terrain: a body on a patch
 				// is still the thing to see there.
 				if tile.Corpses == 0 && tile.Gore == 0 {
 					if m.latest.ScumAt(p) > 0 {
-						drawn = fitGlyph(glyphScum)
+						drawn, bare = fitGlyph(glyphScum), false
 					} else if m.latest.SaltAt(p) {
-						drawn = fitGlyph(glyphSalt) // never on a scum tile
+						drawn, bare = fitGlyph(glyphSalt), false // never on a scum tile
 					}
 				}
 				if o, ok := occ[p]; ok {
-					drawn = o.glyph
+					drawn, bare = o.glyph, false
+				}
+				if flow != nil {
+					drawn = flowTile(flow, p, drawn, bare)
 				}
 			}
 			if atCursor {
@@ -397,6 +402,9 @@ func (m Model) renderMapSidebar() string {
 	if m.inspecting {
 		return m.renderCursorInspector()
 	}
+	if m.flowOn {
+		return m.renderFlowSidebar(m.shownFlowField())
+	}
 	return m.renderSidebar()
 }
 
@@ -456,10 +464,13 @@ func (m Model) drawSidebar(rows int) string {
 }
 
 func (m Model) renderFooter() string {
-	help := "space pause  +/- speed  s spawn  b build  i inspect  ←↑↓→/hjkl pan  tab details  q quit"
+	help := "space pause  +/- speed  s spawn  b build  i inspect  f flow fields  ←↑↓→/hjkl pan  tab details  q quit"
+	if m.flowOn {
+		help = "flow field: " + m.flowRef.Name() + "  f next  F off  |  " + help
+	}
 	if m.inspecting {
-		help = fmt.Sprintf("inspect (%d,%d) %s  ←↑↓→/hjkl move  enter open storage  i/esc close  tab details",
-			m.cursor.X, m.cursor.Y, m.terrainLabel(m.cursor))
+		help = fmt.Sprintf("inspect (%d,%d) %s%s  ←↑↓→/hjkl move  enter open storage  i/esc close  tab details",
+			m.cursor.X, m.cursor.Y, m.terrainLabel(m.cursor), m.flowCursorLabel())
 	}
 	if usingASCIIGlyphs() {
 		// The player should know why the colony looks like a roguelike: the

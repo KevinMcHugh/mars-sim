@@ -44,6 +44,9 @@ type flowField struct {
 	full      bool
 	touched   []Point
 	builtTick int // tick of the last build or repair (bounds them to once per tick)
+	// version counts builds and repairs, so a published copy of the field
+	// (see flowview.go) can tell whether it is still current.
+	version int
 
 	repairScratch // reusable buffers for repair
 }
@@ -203,6 +206,7 @@ func (f *flowField) ensureFresh() {
 	f.full = false
 	f.touched = f.touched[:0]
 	f.builtTick = f.w.tick
+	f.version++
 }
 
 // followField moves a colonist along the field toward the nearest goal. Any

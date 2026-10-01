@@ -285,6 +285,7 @@ the inspector shows its full build and a narrative description.
 | `s` | open the spawn menu — `↑↓`/`enter` to pick, or `c`/`a`/`x`/`m` for colonist/alien/cat/rat directly (`Spawn`) |
 | `b` | open the build menu — `↑↓`/`enter` to pick, or `f`/`d`/`t`/`r`/`h`/`g` for facility room/dormitory/trash room/storage container/scumhouse/foundry directly |
 | `i` (map only) | enter map inspection; arrows/`hjkl` move the cursor, `enter` opens a storage chest's details, and `i`/`esc` closes |
+| `f` / `F` (map only) | cycle the flow-field overlay through each shared field and back to off / turn it off (`ShowFlowField`); see [flow-field-view.md](./flow-field-view.md) |
 | `f` (roster only) | open the roster's filter menu — `↑↓`/`enter`/`space` to toggle the highlighted checkbox, or `d`/`n` for dead/non-human directly; no command sent, this only changes what the roster shows |
 | arrows or `hjkl` | pan the camera (map) / move selection (roster, job board, storage, market, lore) / scroll the log |
 | `shift+↑↓`, `pgup`/`pgdn` | scroll the roster inspector, or the log, a line / a screenful |
@@ -293,8 +294,9 @@ the inspector shows its full build and a narrative description.
 | `tab` | cycle map → roster → job board → storage → market → lore → population → activity → log → perf → map |
 | `q` / `esc` | quit (`esc` returns to the map from any details panel, or cancels an open menu) |
 
-`s` and `b` work from every screen; `f` only does anything on the roster
-screen (`handleRosterKey`), since filtering only means something there. Every
+`s` and `b` work from every screen. `f` means two things: on the map it
+cycles the flow-field overlay, and on the roster it opens the filter menu
+(`handleRosterKey`), since filtering only means something there. Every
 key that changes the simulation becomes a `Command`; the UI never touches the
 world directly — `f` is the one menu that *doesn't* send a `Command` at all,
 since it only changes what `Model` itself displays.

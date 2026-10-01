@@ -6,9 +6,9 @@
 // The views alias the buffer. Keep the buffer (or copy out) for as long as you
 // read them.
 
-export const VERSION = 4;
+export const VERSION = 5;
 
-const HEADER = 56;
+const HEADER = 72;
 export const PAGE_SIDE = 64;
 export const PAGE_TILES = PAGE_SIDE * PAGE_SIDE;
 export const TILE_BYTES = 2; // terrain, flags
@@ -22,6 +22,7 @@ const FLAG_RESET = 1 << 2;
 const FLAG_REFUSE = 1 << 3;
 const FLAG_SCUM = 1 << 4;
 const FLAG_SALT = 1 << 5;
+const FLAG_FLOW = 1 << 6;
 
 // Typed arrays read in the platform's byte order, and the wire is little
 // endian. Every browser that runs WASM is little endian; say so if not.
@@ -46,6 +47,7 @@ export function decodeFrame(buffer) {
   const nRefuse = dv.getUint32(40, true);
   const nScum = dv.getUint32(48, true);
   const nSalt = dv.getUint32(52, true);
+  const nFlow = dv.getUint32(56, true);
 
   let at = HEADER;
   const stats = new Int32Array(buffer, at, nStats);
@@ -113,6 +115,24 @@ export function decodeFrame(buffer) {
     };
   }
   at += 8 * nSalt;
+
+  let flow = null;
+  if (flags & FLAG_FLOW) {
+    flow = {
+      // Index into hello.flowFields, or -1: no field shown, clear the overlay.
+      field: dv.getInt32(60, true),
+      // The field's largest distance and goal count, over the whole map.
+      max: dv.getInt32(64, true),
+      goals: dv.getInt32(68, true),
+      // The tiles in view the field reaches, and their distances (saturating
+      // at 65535).
+      count: nFlow,
+      x: new Int32Array(buffer, at, nFlow),
+      y: new Int32Array(buffer, at + 4 * nFlow, nFlow),
+      dist: new Uint16Array(buffer, at + 8 * nFlow, nFlow),
+    };
+  }
+  at += 8 * nFlow + align4(2 * nFlow);
   if (at !== buffer.byteLength) {
     throw new Error(`wire: frame is ${buffer.byteLength} bytes, sections add up to ${at}`);
   }
@@ -137,6 +157,9 @@ export function decodeFrame(buffer) {
     scum,
     // Likewise the whole salt list (deposits on rock), or null.
     salt,
+    // The shown flow field's tiles in view when the field or the view
+    // changed, else null: keep the last one.
+    flow,
   };
 }
 

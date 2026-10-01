@@ -64,6 +64,15 @@ type Engine struct {
 	paused bool
 	perf   perfRecorder
 
+	// flowShown is the flow field a frontend asked to see (ShowFlowField),
+	// if flowShow is set. flowView is the last copy published, and
+	// flowVersion the field version it was copied at, so a field that has
+	// not changed is not copied again.
+	flowShow    bool
+	flowShown   FlowFieldRef
+	flowView    *FlowFieldView
+	flowVersion int
+
 	// lastPublish is when the last snapshot went out; see shouldPublish.
 	lastPublish time.Time
 
@@ -407,6 +416,9 @@ func (e *Engine) apply(cmd Command) (rateChanged bool) {
 		e.world.manualScumhouses++
 	case OrderFoundry:
 		e.world.manualFoundries++
+	case ShowFlowField:
+		e.flowShow, e.flowShown = c.Show, c.Field
+		e.requestPublish()
 	}
 	return false
 }
@@ -442,6 +454,13 @@ func (e *Engine) publish() *Snapshot {
 	e.lastPublish = time.Now()
 	snap := e.world.snapshot(e.paused, e.tps)
 	snap.Perf = e.perf.samples()
+	snap.FlowFields = e.world.flowFieldRefs()
+	if e.flowShow {
+		e.flowView, e.flowVersion = e.world.flowFieldView(e.flowShown, e.flowView, e.flowVersion)
+		snap.FlowField = e.flowView
+	} else {
+		e.flowView = nil // let the copy go; showing it again copies afresh
+	}
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	for _, ch := range e.subs {

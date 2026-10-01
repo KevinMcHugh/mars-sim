@@ -17,6 +17,10 @@
 // A salt deposit is a pale tint through the same quads; it never shares a tile
 // with scum, and gore on it wins.
 //
+// The flow-field overlay (docs/flow-field-view.md) is one more layer of tint
+// quads over the filth: every visible tile the shown field reaches, colored
+// by its distance to the field's nearest goal.
+//
 // Zoomed in (GLYPH_ZOOM and up), glyphs replace the flat colors: a facility's
 // emoji over a floor backdrop, and each entity's own emoji (picked in Go, see
 // internal/glyphs) from the atlas (atlas.ts). Zoomed out, a glyph would be a
@@ -258,6 +262,15 @@ export class MapRenderer {
   private hiPos: WebGLBuffer;
   private hiColor: WebGLBuffer;
   private hiCount = 0;
+  // The flow-field overlay: the last flow section (tiles in view), and its
+  // tint quads, filtered to visible tiles.
+  private flow: Frame['flow'] = null;
+  private flowVAO: WebGLVertexArrayObject;
+  private flowPos: WebGLBuffer;
+  private flowColor: WebGLBuffer;
+  private flowCount = 0;
+  /** Distance to the shown field's goal on each tinted tile, by tileKey, for the hover readout. */
+  readonly flowDist = new Map<number, number>();
   private dirty = true;
   private raf = 0;
 
@@ -313,17 +326,10 @@ export class MapRenderer {
     gl.vertexAttribDivisor(tColor, 1);
     this.hiPos = gl.createBuffer()!;
     this.hiColor = gl.createBuffer()!;
-    this.hiVAO = gl.createVertexArray()!;
-    gl.bindVertexArray(this.hiVAO);
-    corner(gl, this.tintProg, this.quad);
-    gl.bindBuffer(gl.ARRAY_BUFFER, this.hiPos);
-    gl.enableVertexAttribArray(tPos);
-    gl.vertexAttribIPointer(tPos, 2, gl.INT, 0, 0);
-    gl.vertexAttribDivisor(tPos, 1);
-    gl.bindBuffer(gl.ARRAY_BUFFER, this.hiColor);
-    gl.enableVertexAttribArray(tColor);
-    gl.vertexAttribPointer(tColor, 4, gl.UNSIGNED_BYTE, true, 0, 0);
-    gl.vertexAttribDivisor(tColor, 1);
+    this.hiVAO = this.tintLayerVAO(this.hiPos, this.hiColor);
+    this.flowPos = gl.createBuffer()!;
+    this.flowColor = gl.createBuffer()!;
+    this.flowVAO = this.tintLayerVAO(this.flowPos, this.flowColor);
     this.markVAO = gl.createVertexArray()!;
     gl.bindVertexArray(this.markVAO);
     corner(gl, this.markProg, this.quad);
@@ -344,11 +350,13 @@ export class MapRenderer {
     for (const c of this.chunks.values()) this.gl.deleteTexture(c.tex);
     this.chunks.clear();
     this.pages.clear();
-    this.entityCount = this.refuseCount = this.tintCount = this.hiCount = 0;
+    this.entityCount = this.refuseCount = this.tintCount = this.hiCount = this.flowCount = 0;
     this.refuse = null;
     this.scum = null;
     this.salt = null;
+    this.flow = null;
     this.filth.clear();
+    this.flowDist.clear();
     this.lastFrame = null;
 
     const gl = this.gl;
@@ -425,6 +433,9 @@ export class MapRenderer {
     if (f.scum) this.scum = f.scum;
     if (f.salt) this.salt = f.salt;
     if (f.refuse || f.scum || f.salt || f.pages.count > 0 || f.tilesReset) this.rebuildFilth();
+    // Field -1 is the worker saying the overlay is off.
+    if (f.flow) this.flow = f.flow.field >= 0 ? f.flow : null;
+    if (f.flow || f.pages.count > 0 || f.tilesReset) this.rebuildFlow();
     this.lastFrame = f;
     this.dirty = true;
   }
@@ -499,6 +510,49 @@ export class MapRenderer {
     gl.bufferData(gl.ARRAY_BUFFER, bglyph.subarray(0, b), gl.DYNAMIC_DRAW);
   }
 
+  /**
+   * Rebuild the flow overlay's tint quads from the last flow section, on the
+   * tiles the colony can see. Like filth, refiltered when pages arrive.
+   */
+  private rebuildFlow(): void {
+    const gl = this.gl;
+    this.flowDist.clear();
+    const fl = this.flow;
+    const n = fl?.count ?? 0;
+    const pos = new Int32Array(n * 2);
+    const color = new Uint8Array(n * 4);
+    let t = 0;
+    if (fl) for (let i = 0; i < n; i++) {
+      const x = fl.x[i], y = fl.y[i];
+      if (!this.visible(x, y)) continue;
+      pos[2 * t] = x; pos[2 * t + 1] = y;
+      color.set(palette.flowTint(fl.dist[i], fl.max), 4 * t);
+      this.flowDist.set(tileKey(x, y), fl.dist[i]);
+      t++;
+    }
+    this.flowCount = t;
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.flowPos);
+    gl.bufferData(gl.ARRAY_BUFFER, pos.subarray(0, 2 * t), gl.DYNAMIC_DRAW);
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.flowColor);
+    gl.bufferData(gl.ARRAY_BUFFER, color.subarray(0, 4 * t), gl.DYNAMIC_DRAW);
+  }
+
+  /** The shown flow field (index into Hello.flowFields), its farthest distance and goal count, or null. */
+  get flowShown(): { field: number; max: number; goals: number } | null {
+    const fl = this.flow;
+    return fl ? { field: fl.field, max: fl.max, goals: fl.goals } : null;
+  }
+
+  /**
+   * The shown field's distance at (x, y): a number of steps, null if the
+   * field does not reach that tile (or it is out of view or unseen), or
+   * undefined with no field shown.
+   */
+  flowAt(x: number, y: number): number | null | undefined {
+    if (!this.flow) return undefined;
+    return this.flowDist.get(tileKey(x, y)) ?? null;
+  }
+
   /** The filth on (x, y) if the colony can see it, for the hover readout. */
   filthAt(x: number, y: number): Filth | undefined {
     return this.filth.get(tileKey(x, y));
@@ -566,6 +620,25 @@ export class MapRenderer {
       this.chunks.set(key, c);
     }
     return c;
+  }
+
+  /** A vertex array for the tint program, reading tiles and colors from these buffers. */
+  private tintLayerVAO(posBuf: WebGLBuffer, colorBuf: WebGLBuffer): WebGLVertexArrayObject {
+    const gl = this.gl;
+    const vao = gl.createVertexArray()!;
+    gl.bindVertexArray(vao);
+    corner(gl, this.tintProg, this.quad);
+    const aPos = gl.getAttribLocation(this.tintProg, 'aPos');
+    gl.bindBuffer(gl.ARRAY_BUFFER, posBuf);
+    gl.enableVertexAttribArray(aPos);
+    gl.vertexAttribIPointer(aPos, 2, gl.INT, 0, 0);
+    gl.vertexAttribDivisor(aPos, 1);
+    const aColor = gl.getAttribLocation(this.tintProg, 'aColor');
+    gl.bindBuffer(gl.ARRAY_BUFFER, colorBuf);
+    gl.enableVertexAttribArray(aColor);
+    gl.vertexAttribPointer(aColor, 4, gl.UNSIGNED_BYTE, true, 0, 0);
+    gl.vertexAttribDivisor(aColor, 1);
+    return vao;
   }
 
   private spriteVAO(posBuf: WebGLBuffer, kindBuf: WebGLBuffer, glyphBuf: WebGLBuffer): WebGLVertexArrayObject {
@@ -663,6 +736,14 @@ export class MapRenderer {
       gl.uniform1f(this.u['f.uScale'], scale);
       gl.uniform2f(this.u['f.uView'], this.canvas.width, this.canvas.height);
       gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, this.tintCount);
+    }
+    if (this.flowCount > 0) {
+      gl.useProgram(this.tintProg);
+      gl.bindVertexArray(this.flowVAO);
+      gl.uniform2f(this.u['f.uCam'], cam.cx, cam.cy);
+      gl.uniform1f(this.u['f.uScale'], scale);
+      gl.uniform2f(this.u['f.uView'], this.canvas.width, this.canvas.height);
+      gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, this.flowCount);
     }
     if (this.hiCount > 0) {
       gl.useProgram(this.tintProg);
