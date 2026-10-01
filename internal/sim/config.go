@@ -22,6 +22,9 @@ type Config struct {
 	ClayRockPercent    int `cfg:"clay-rock-percent" doc:"percent of rock tiles bearing clay"`
 	RockVeinMin        int `cfg:"rock-vein-min" doc:"minimum tiles in a generated rock deposit vein"`
 	RockVeinMax        int `cfg:"rock-vein-max" doc:"maximum tiles in a generated rock deposit vein"`
+	// Salt rides on the rock like cave scum, never on a tile that carries
+	// scum, and never comes back once taken or built over. See docs/salt.md.
+	SaltPercent int `cfg:"salt-percent" doc:"percent of rock tiles carrying a deposit of salt"`
 	// Natural caverns: pockets of open floor worldgen hollows out of the rock
 	// away from the landing site, hidden until the colony digs into one, and
 	// sometimes joined to a neighbor by a winding passage. See
@@ -495,6 +498,7 @@ func DefaultConfig() Config {
 		ClayRockPercent:      5,
 		RockVeinMin:          8,
 		RockVeinMax:          24,
+		SaltPercent:          3,
 		CavernPercent:        4,
 		CavernMin:            15,
 		CavernMax:            60,

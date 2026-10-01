@@ -31,6 +31,7 @@ the RNG half of save/load.
 | `World.skillRNG` (arrival backgrounds) | `Seed ^ 0x3C6EF372FE94F82B` | whole game | yes |
 | worldgen veins, per chunk and level | `featureRand(0x243F6A8885A308D3 + level, cx, cy)` | one plan | no |
 | worldgen cave scum, per chunk | `featureRand(0x5CA1AB1E, cx, cy)` | one plan | no |
+| worldgen salt, per chunk | `featureRand(0x5A17D0C5, cx, cy)` | one plan | no |
 | worldgen caverns, per chunk | `featureRand(0x13198A2E03707344, cx, cy)` | one plan | no |
 | worldgen passages, per cavern pair | `featureRand(0xA4093822299F31D0, both caverns)` | one plan | no |
 | alien lore roster | `Seed ^ alienLoreSeed` | `newWorld` only | no |

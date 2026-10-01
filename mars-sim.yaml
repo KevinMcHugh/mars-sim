@@ -51,6 +51,9 @@
 ## maximum tiles in a generated rock deposit vein
 # rock-vein-max: 24
 
+## percent of rock tiles carrying a deposit of salt
+# salt-percent: 3
+
 ## percent of the map hollowed into natural caverns
 # cavern-percent: 4
 

@@ -1,6 +1,7 @@
 package sim
 
 import (
+	"math"
 	"math/rand/v2"
 	"testing"
 )
@@ -46,6 +47,8 @@ func TestChunkGenerationIsOrderIndependent(t *testing.T) {
 		forgetful.cands = newGenCache[chunkKey, []*genCavern](cacheSize)
 		forgetful.kept = newGenCache[chunkKey, []*genCavern](cacheSize)
 		forgetful.passages = newGenCache[chunkKey, [][]Point](cacheSize)
+		forgetful.scum = newGenCache[chunkKey, []Point](cacheSize)
+		forgetful.salt = newGenCache[chunkKey, []Point](cacheSize)
 		forgetful.nearest = newGenCache[caveID, nearestRef](cacheSize)
 
 		// Raster order, then a seeded shuffle, so a failure reproduces.
@@ -70,7 +73,7 @@ func TestChunkGenerationIsOrderIndependent(t *testing.T) {
 }
 
 func sameChunk(a, b *chunkContent) bool {
-	if a.comp != b.comp || a.floor != b.floor || len(a.caverns) != len(b.caverns) {
+	if a.comp != b.comp || a.floor != b.floor || a.scum != b.scum || a.salt != b.salt || len(a.caverns) != len(b.caverns) {
 		return false
 	}
 	for i := range a.caverns {
@@ -120,6 +123,11 @@ func TestChunkFeaturesStayWithinNeighbours(t *testing.T) {
 			for _, p := range g.scumPlan(k) {
 				if !within(k, p) || !g.inMap(p) {
 					t.Fatalf("chunk %v: scum tile %v is out of reach", k, p)
+				}
+			}
+			for _, p := range g.saltPlan(k) {
+				if !within(k, p) || !g.inMap(p) {
+					t.Fatalf("chunk %v: salt tile %v is out of reach", k, p)
 				}
 			}
 		}
@@ -182,5 +190,33 @@ func TestChunkApplyNeedsNoTileEvents(t *testing.T) {
 	}
 	if direct != events {
 		t.Fatalf("direct write and carveHidden disagree after %d ticks:\n direct %s\n events %s", gc.ticks, direct, events)
+	}
+}
+
+// Salt and scum never share a tile, however their runs cross chunk edges, and
+// salt still lands on its share: it steps around scum rather than giving up
+// tiles to it.
+func TestSaltNeverSharesATileWithScum(t *testing.T) {
+	for seed := int64(1); seed <= 12; seed++ {
+		cfg := chunkTestConfig(seed)
+		cfg.ScumPercent, cfg.SaltPercent = 40, 40 // crowded, so runs of both meet at every edge
+		g := newWorldGen(cfg)
+		var salt int
+		for cy := 0; cy < g.chunkRows(); cy++ {
+			for cx := 0; cx < g.chunkCols(); cx++ {
+				c := g.chunk(cx, cy)
+				for off := range genChunkArea {
+					if c.isSalt(off) && c.isScum(off) {
+						t.Fatalf("seed %d chunk (%d,%d): tile offset %d holds both salt and scum", seed, cx, cy, off)
+					}
+					if c.isSalt(off) {
+						salt++
+					}
+				}
+			}
+		}
+		if got := 100 * float64(salt) / float64(cfg.Width*cfg.Height); math.Abs(got-40) > 4 {
+			t.Errorf("seed %d: salt covers %.1f%% of the map, want about 40%%", seed, got)
+		}
 	}
 }

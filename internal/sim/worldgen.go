@@ -188,6 +188,9 @@ func (w *World) applyChunk(cx, cy int) []Point {
 				w.scum[Point{x, y}] = scumPatch{amount: w.cfg.ScumMax}
 				patches = append(patches, Point{x, y})
 			}
+			if c.isSalt(off) {
+				w.salt[Point{x, y}] = struct{}{}
+			}
 			if !c.isFloor(off) {
 				continue
 			}

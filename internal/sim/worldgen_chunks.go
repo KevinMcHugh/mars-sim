@@ -69,6 +69,10 @@ var (
 	_ = [1]struct{}{}[(2*cavernReach+cavernSpacing)/genChunkSize]
 	_ = [1]struct{}{}[(passageMaxSpan+passageSlack)/genChunkSize]
 	_ = [1]struct{}{}[scumRunMax/genChunkSize]
+	// A salt run avoids scum from the chunks around its owner. A scum tile
+	// that could touch a salt tile comes from a run starting within another
+	// scumRunMax of the salt run's own reach, which must stay one chunk.
+	_ = [1]struct{}{}[(2*scumRunMax)/genChunkSize]
 )
 
 // Stream identifiers, mixed into every feature's seed so the streams stay
@@ -78,6 +82,7 @@ const (
 	genStreamCavern  uint64 = 0x13198A2E03707344
 	genStreamPassage uint64 = 0xA4093822299F31D0
 	genStreamScum    uint64 = 0x5CA1AB1E
+	genStreamSalt    uint64 = 0x5A17D0C5
 )
 
 // veinLevels lists the compositions in priority order. A vein avoids every
@@ -147,6 +152,7 @@ type chunkContent struct {
 	comp  [genChunkArea]RockComposition
 	floor [genChunkArea / 64]uint64 // bit set: hidden cavern floor
 	scum  [genChunkArea / 64]uint64 // bit set: a full patch of cave scum
+	salt  [genChunkArea / 64]uint64 // bit set: a deposit of salt (never also scum)
 	// caverns are the centers of the natural caverns this chunk owns, for
 	// nest tracking.
 	caverns []Point
@@ -156,6 +162,8 @@ func (c *chunkContent) isFloor(off int) bool { return c.floor[off>>6]&(1<<(off&6
 func (c *chunkContent) setFloor(off int)     { c.floor[off>>6] |= 1 << (off & 63) }
 func (c *chunkContent) isScum(off int) bool  { return c.scum[off>>6]&(1<<(off&63)) != 0 }
 func (c *chunkContent) setScum(off int)      { c.scum[off>>6] |= 1 << (off & 63) }
+func (c *chunkContent) isSalt(off int) bool  { return c.salt[off>>6]&(1<<(off&63)) != 0 }
+func (c *chunkContent) setSalt(off int)      { c.salt[off>>6] |= 1 << (off & 63) }
 
 // worldGen generates chunks for one world. It holds only config and caches,
 // so a frontend can own a second one to preview chunks without touching the
@@ -172,6 +180,7 @@ type worldGen struct {
 	kept     genCache[chunkKey, []*genCavern]
 	passages genCache[chunkKey, [][]Point]
 	scum     genCache[chunkKey, []Point]
+	salt     genCache[chunkKey, []Point]
 	nearest  genCache[caveID, nearestRef]
 	// cacheSize is each plan cache's capacity (see newWorldGenLanding).
 	cacheSize int
@@ -224,6 +233,7 @@ func (g *worldGen) forget() {
 	g.kept = newGenCache[chunkKey, []*genCavern](g.cacheSize)
 	g.passages = newGenCache[chunkKey, [][]Point](g.cacheSize)
 	g.scum = newGenCache[chunkKey, []Point](g.cacheSize)
+	g.salt = newGenCache[chunkKey, []Point](g.cacheSize)
 	g.nearest = newGenCache[caveID, nearestRef](g.cacheSize * 8)
 }
 
@@ -311,6 +321,16 @@ func (g *worldGen) chunk(cx, cy int) *chunkContent {
 		for _, p := range g.scumPlan(n) {
 			if off, ok := in(p); ok {
 				out.setScum(off)
+			}
+		}
+	})
+
+	// Salt rides on the rock too, on tiles scum does not hold: its plan
+	// already steered around the scum, so no tile is ever both.
+	g.forNeighbours(k, 1, func(n chunkKey) {
+		for _, p := range g.saltPlan(n) {
+			if off, ok := in(p); ok {
+				out.setSalt(off)
 			}
 		}
 	})
@@ -510,29 +530,72 @@ func (g *worldGen) scumPlan(k chunkKey) []Point {
 		return v
 	}
 	var tiles []Point
-	lo, hi, ok := g.chunkBounds(k)
-	if ok && g.cfg.ScumPercent > 0 && g.cfg.ScumMax > 0 {
-		// Budget distinct tiles, as the old whole-map pass did: a short walk
-		// often steps back onto itself, and counting steps instead came out
-		// a fifth short. Runs keep going until the chunk's share is placed,
-		// with a guard in case its map area is tiny.
-		rng := g.featureRand(genStreamScum, int64(k.cx), int64(k.cy))
-		area := int64(hi.X-lo.X+1) * int64(hi.Y-lo.Y+1)
-		budget := stratified(rng, area*int64(g.cfg.ScumPercent), 100)
-		placed := map[Point]bool{}
-		for guard := 0; len(tiles) < budget && guard < 8*budget; guard++ {
-			p := Point{lo.X + rng.IntN(hi.X-lo.X+1), lo.Y + rng.IntN(hi.Y-lo.Y+1)}
-			for n := scumRunMin + rng.IntN(scumRunMax-scumRunMin+1); n > 0 && len(tiles) < budget; n-- {
-				if g.inMap(p) && !placed[p] {
-					placed[p] = true
-					tiles = append(tiles, p)
-				}
-				d := veinNeighbors[rng.IntN(len(veinNeighbors))]
-				p = p.Add(d.X, d.Y)
-			}
-		}
+	if g.cfg.ScumPercent > 0 && g.cfg.ScumMax > 0 {
+		tiles = g.runPlan(k, genStreamScum, g.cfg.ScumPercent, nil)
 	}
 	g.scum.put(k, tiles)
+	return tiles
+}
+
+// --- Salt -------------------------------------------------------------------
+
+// saltPlan returns the tiles of the salt runs that start in chunk k:
+// SaltPercent of its area, laid down like scum but never on a tile scum
+// holds. Scum is the fixed point (its plan reads nothing, and its abundance is
+// what the food economy is tuned to), so salt is the one that steps around it:
+// a run's walk skips a scum tile without placing there, and keeps going, so
+// the chunk still lands on its share of distinct tiles. The scum it avoids is
+// every scum plan of k's neighbours, which is all that can reach a salt tile
+// (see the reach assertions above). See docs/salt.md.
+func (g *worldGen) saltPlan(k chunkKey) []Point {
+	if v, ok := g.salt.get(k); ok {
+		return v
+	}
+	var tiles []Point
+	if g.cfg.SaltPercent > 0 {
+		var scummed map[Point]bool
+		g.forNeighbours(k, 1, func(n chunkKey) {
+			for _, p := range g.scumPlan(n) {
+				if scummed == nil {
+					scummed = make(map[Point]bool)
+				}
+				scummed[p] = true
+			}
+		})
+		tiles = g.runPlan(k, genStreamSalt, g.cfg.SaltPercent, scummed)
+	}
+	g.salt.put(k, tiles)
+	return tiles
+}
+
+// runPlan places percent of chunk k's area as distinct tiles, in short
+// meandering runs of scumRunMin–scumRunMax steps, never on a tile in avoid.
+// Both cave scum and salt are laid down this way.
+func (g *worldGen) runPlan(k chunkKey, stream uint64, percent int, avoid map[Point]bool) []Point {
+	var tiles []Point
+	lo, hi, ok := g.chunkBounds(k)
+	if !ok {
+		return tiles
+	}
+	// Budget distinct tiles, as the old whole-map pass did: a short walk
+	// often steps back onto itself, and counting steps instead came out
+	// a fifth short. Runs keep going until the chunk's share is placed,
+	// with a guard in case its map area is tiny.
+	rng := g.featureRand(stream, int64(k.cx), int64(k.cy))
+	area := int64(hi.X-lo.X+1) * int64(hi.Y-lo.Y+1)
+	budget := stratified(rng, area*int64(percent), 100)
+	placed := map[Point]bool{}
+	for guard := 0; len(tiles) < budget && guard < 8*budget; guard++ {
+		p := Point{lo.X + rng.IntN(hi.X-lo.X+1), lo.Y + rng.IntN(hi.Y-lo.Y+1)}
+		for n := scumRunMin + rng.IntN(scumRunMax-scumRunMin+1); n > 0 && len(tiles) < budget; n-- {
+			if g.inMap(p) && !placed[p] && !avoid[p] {
+				placed[p] = true
+				tiles = append(tiles, p)
+			}
+			d := veinNeighbors[rng.IntN(len(veinNeighbors))]
+			p = p.Add(d.X, d.Y)
+		}
+	}
 	return tiles
 }
 

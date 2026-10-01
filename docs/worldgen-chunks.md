@@ -64,6 +64,7 @@ Every feature is **owned** by the chunk its origin lies in, and has a bounded
 | --- | --- | --- |
 | Vein | chunk of its first tile | `veinReach` = 16 |
 | Cave scum run | chunk it starts in | `scumRunMax` - 1 = 7 |
+| Salt run | chunk it starts in | `scumRunMax` - 1 = 7 |
 | Cavern | chunk of its center | `cavernReach` = 20 |
 | Passage | chunk of the higher-ranked of its two caverns | `passageMaxSpan` + `passageSlack` = 44 |
 
@@ -87,6 +88,7 @@ depend on further plans. That makes the **planning horizon** four chunks out:
 
 - **Caverns:** chunk → `passagePlan` (radius 1) → `nearestCavern` (2) →
   `keptCaverns` (3) → `cavernCandidates` (4).
+- **Salt:** chunk → `saltPlan` (radius 1) → `scumPlan` (2).
 - **Veins:** each level reads the previous level's plans one chunk further out,
   so clay reaches iron plans three chunks out.
 
@@ -164,6 +166,13 @@ came out a fifth short. `applyChunk` adds each patch to `World.scum` at full
 strength and registers any that is already exposed. That is never the case
 in practice, because discovered floor always has its neighbours generated
 first.
+
+### Salt
+
+`saltPlan` is `runPlan` again with its own stream and one difference: its walk
+skips every tile in the scum plans of the chunk and its eight neighbours. Scum
+is the fixed point, so adding salt moved no existing scum, vein or cavern. The
+full reasoning is in [salt.md](./salt.md).
 
 ### Caverns
 
@@ -313,24 +322,28 @@ TestAbundanceDriftReport -v`):
 | 80x40 | 500 | clay | 5 | 4.97 | -0.5% | 0.49 | 3.66 | 6.31 |
 | 80x40 | 500 | cavern | 4 | 3.91 | -2.2% | 1.15 | 0.97 | 7.22 |
 | 80x40 | 500 | scum | 6 | 6.00 | -0.1% | 0.02 | 5.88 | 6.03 |
+| 80x40 | 500 | salt | 3 | 3.00 | +0.0% | 0.02 | 2.94 | 3.03 |
 | 256x256 | 500 | iron | 10 | 9.97 | -0.3% | 0.26 | 9.29 | 10.54 |
 | 256x256 | 500 | ice | 5 | 4.98 | -0.5% | 0.15 | 4.62 | 5.42 |
 | 256x256 | 500 | uranium | 1 | 1.01 | +1.3% | 0.10 | 0.73 | 1.26 |
 | 256x256 | 500 | clay | 5 | 4.98 | -0.4% | 0.14 | 4.60 | 5.39 |
 | 256x256 | 500 | cavern | 4 | 4.11 | +2.7% | 0.33 | 3.09 | 4.99 |
 | 256x256 | 500 | scum | 6 | 6.00 | -0.1% | 0.01 | 5.98 | 6.00 |
+| 256x256 | 500 | salt | 3 | 3.00 | -0.0% | 0.00 | 2.98 | 3.00 |
 | 1024x1024 | 100 | iron | 10 | 10.00 | -0.0% | 0.11 | 9.79 | 10.14 |
 | 1024x1024 | 100 | ice | 5 | 4.97 | -0.6% | 0.04 | 4.88 | 5.02 |
 | 1024x1024 | 100 | uranium | 1 | 1.00 | +0.1% | 0.04 | 0.95 | 1.07 |
 | 1024x1024 | 100 | clay | 5 | 4.95 | -0.9% | 0.03 | 4.89 | 4.99 |
 | 1024x1024 | 100 | cavern | 4 | 4.08 | +2.0% | 0.14 | 3.78 | 4.40 |
 | 1024x1024 | 100 | scum | 6 | 5.99 | -0.1% | 0.00 | 5.99 | 6.00 |
+| 1024x1024 | 100 | salt | 3 | 3.00 | -0.0% | 0.00 | 3.00 | 3.00 |
 | 4096x4096 | 10 | iron | 10 | 9.95 | -0.5% | 0.00 | 9.95 | 9.96 |
 | 4096x4096 | 10 | ice | 5 | 4.94 | -1.2% | 0.00 | 4.94 | 4.94 |
 | 4096x4096 | 10 | uranium | 1 | 0.97 | -3.0% | 0.00 | 0.97 | 0.97 |
 | 4096x4096 | 10 | clay | 5 | 4.94 | -1.2% | 0.00 | 4.94 | 4.94 |
 | 4096x4096 | 10 | cavern | 4 | 4.16 | +3.9% | 0.02 | 4.12 | 4.18 |
 | 4096x4096 | 10 | scum | 6 | 5.99 | -0.1% | 0.00 | 5.99 | 5.99 |
+| 4096x4096 | 10 | salt | 3 | 3.00 | -0.0% | 0.00 | 3.00 | 3.00 |
 
 Cavern floor now includes passages, which the old target did not count. The
 cavern's crowding drops and its passages roughly cancel at the default

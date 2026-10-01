@@ -293,8 +293,8 @@ func (w *World) addScum(p Point, room bool) {
 		}
 		return
 	}
-	if !room || w.TerrainAt(p) != Rock {
-		return
+	if !room || w.TerrainAt(p) != Rock || w.hasSalt(p) {
+		return // salt and scum never share a tile
 	}
 	w.setScum(p, 1)
 	w.refreshScumExposure(p)
