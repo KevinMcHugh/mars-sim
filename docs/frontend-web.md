@@ -12,7 +12,7 @@ readout. Around it is a Svelte chrome:
 - **A top bar:** the clock, a Pause / Normal / Fast / Faster / Max speed selector, and
   the TUI header's counts, as emoji (👷 👽 🐈 🐀, then each fixture's glyph).
 - **A side panel,** with the Inspect tab (click the map), the Roster, the
-  Log, Jobs, Storage, Market, Charts, the Lore tab and a new-game form.
+  Log, Jobs, Storage, Market, Dig, Charts, the Lore tab and a new-game form.
 - **A log ticker** over the map's bottom-left corner: the last few colony-log
   lines, fading after a few seconds.
 
@@ -32,7 +32,7 @@ The rest of the TUI's tabs are planned in
 - [`web/src/ui/`](../web/src/ui/App.svelte) — the Svelte chrome: `App`,
   `TopBar`, `SpeedControl`, `SidePanel`, `Bar` (a gauge), and one component
   per tab (`InspectPanel`, `RosterPanel`, `LogPanel`, `JobsPanel`,
-  `StoragePanel`, `MarketPanel` with `AccountDetail`, `ChartsPanel`,
+  `StoragePanel`, `MarketPanel` with `AccountDetail`, `DigPanel`, `ChartsPanel`,
   `LorePanel`, `NewGamePanel`), `LogTicker`, and `FlowControl` (the
   flow-field picker and legend, see [flow-field-view.md](./flow-field-view.md)).
   `format.ts` formats money.
@@ -287,6 +287,15 @@ closed.
   from its own `account:<key>` topic, so only the open one is built), and the
   books, prices, plans, work orders and recent trades. A depot or a planner is
   a link to the inspector.
+- **Dig** orders an area mined out (see [excavation.md](./excavation.md)).
+  **Mark an area** arms a tool: while it is armed a drag on the map draws a
+  rectangle instead of panning (`attachInput`'s `areaTool` and `area` hooks),
+  the rock the colony has seen in it is tinted with the same highlight the
+  Jobs tab uses, and the panel prices it from the market topic's `dig` terms.
+  **Order** sends the `dig` command. The tool is one-shot, and leaving the tab
+  clears it. The page counts rock itself from the tile pages it holds
+  (terrain 0, visible); the engine recounts, so the two can differ by tiles
+  already ordered.
 
 A link from any of these into the inspector remembers its tab
 (`ui.inspectFrom`), so the inspector offers **← Jobs**, **← Storage** or

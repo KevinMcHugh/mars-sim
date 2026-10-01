@@ -101,7 +101,7 @@
   {:else}
     <ul class="lines">
       {#each m.work as w, i (i)}
-        <li>{w.issuer}: {w.units} {w.kind === 'haul' ? 'units to haul' : `${w.kind} tasks`}, {money(w.held)} held</li>
+        <li>{w.issuer}: {w.units} {w.kind === 'haul' ? 'units to haul' : w.kind === 'dig' ? 'tiles to dig' : `${w.kind} tasks`}, {money(w.held)} held</li>
       {/each}
     </ul>
   {/if}

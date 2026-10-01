@@ -154,6 +154,10 @@ type EconomyView struct {
 	// WorkOrders is every open work order, oldest first (see
 	// docs/labor.md).
 	WorkOrders []WorkOrderView
+	// DigWage is what one tile of an excavation order pays, and DigMax the most
+	// tiles one order may cover (see docs/excavation.md).
+	DigWage Money
+	DigMax  int
 	// Silo is the colony's market depot, when it has one.
 	Silo    Point
 	HasSilo bool
@@ -226,6 +230,7 @@ func (w *World) economyView() EconomyView {
 		Trades:      append([]Trade(nil), w.trades...),
 	}
 	v.Silo, v.HasSilo = w.marketDepot()
+	v.DigWage, v.DigMax = w.wageFor(Floor), maxExcavationTiles
 	for _, o := range w.sortedWork(nil) {
 		v.WorkOrders = append(v.WorkOrders, WorkOrderView{ID: o.ID, Kind: o.Kind, Issuer: o.Issuer,
 			Pay: o.Pay, Units: o.Units, Pos: o.Pos})

@@ -49,6 +49,8 @@ export const ui = $state({
   rosterNonHuman: false,
   /** Whether the log ticker shows over the map (LogTicker.svelte); remembered. */
   ticker: loadPref('ticker', true),
+  /** The Dig tab's tool and the area marked with it (DigPanel.svelte). */
+  dig: { armed: false, rect: null, tiles: 0 } as DigState,
   /** The Charts tab's view, kept while the tab is closed. */
   chartView: 'perf' as 'perf' | 'population' | 'activity',
   /** The flow field asked for (an index into Hello.flowFields), or -1 for none. */
@@ -72,6 +74,17 @@ export function setFlowField(i: number): void {
 /** Step to the next flow field, and to none after the last (the TUI's f). */
 export function cycleFlowField(): void {
   setFlowField(ui.flowPick + 1);
+}
+
+/**
+ * The dig tool: while armed, a drag on the map marks an area instead of
+ * panning. `rect` is the marked area, in tiles and inclusive, and `tiles` how
+ * many of them are rock the colony has seen (what an order would pay to dig).
+ */
+export interface DigState {
+  armed: boolean;
+  rect: { x0: number; y0: number; x1: number; y1: number } | null;
+  tiles: number;
 }
 
 /** A creature by id, or a tile. */
@@ -154,6 +167,8 @@ export interface Controller {
   centerOn(x: number, y: number): void;
   /** ui.selected changed: move the map's marker. */
   selected(): void;
+  /** The dig tool's area changed (or was cleared): redraw its tint. */
+  digChanged(): void;
   /** Tint these tiles on the map (a job's), or none. */
   highlight(tiles: { x: number; y: number; color: Uint8Array }[] | null): void;
 }
@@ -181,6 +196,27 @@ export function subscribe(topic: string): () => void {
 export function newGame(settings: Settings): void { ctl?.newGame(settings); }
 export function centerOn(x: number, y: number): void { ctl?.centerOn(x, y); }
 export function highlight(tiles: { x: number; y: number; color: Uint8Array }[] | null): void { ctl?.highlight(tiles); }
+
+/** Arm or disarm the dig tool; disarming leaves the marked area alone. */
+export function armDig(on: boolean): void {
+  ui.dig.armed = on;
+}
+
+/** Forget the marked area, and put the tool down. */
+export function clearDig(): void {
+  ui.dig.armed = false;
+  ui.dig.rect = null;
+  ui.dig.tiles = 0;
+  ctl?.digChanged();
+}
+
+/** Order the marked area mined out, paid for by the colony. */
+export function orderDig(): void {
+  const r = ui.dig.rect;
+  if (!r) return;
+  ctl?.command({ type: 'dig', ...r });
+  clearDig();
+}
 
 export function togglePause(): void {
   ctl?.command({ type: 'pause' });

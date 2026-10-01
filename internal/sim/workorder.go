@@ -25,11 +25,15 @@ type WorkKind uint8
 const (
 	WorkBuild WorkKind = iota // raise one build task's tile
 	WorkHaul                  // move a unit of the issuer's goods from one depot to another
+	WorkDig                   // dig out one rock tile of an excavation order (see excavation.go)
 )
 
 func (k WorkKind) String() string {
-	if k == WorkBuild {
+	switch k {
+	case WorkBuild:
 		return "build"
+	case WorkDig:
+		return "dig"
 	}
 	return "haul"
 }
@@ -153,7 +157,7 @@ func (w *World) fundProject(p *project) bool {
 		return false
 	}
 	for _, t := range p.tasks {
-		t.order = w.postWork(WorkBuild, p.issuer, w.wageFor(t.terrain), 1, t.pos)
+		t.order = w.postWork(p.workKind, p.issuer, w.wageFor(t.terrain), 1, t.pos)
 	}
 	return true
 }

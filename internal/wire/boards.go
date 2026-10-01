@@ -145,6 +145,15 @@ type MarketTopic struct {
 	ChainDepth int         `json:"chainDepth"`
 	Work       []WorkLine  `json:"work"`
 	Trades     []TradeLine `json:"trades"` // newest first
+	// Dig is what the dig tool needs to price an excavation order before it
+	// is sent: the wage a tile pays and the most tiles one order may cover.
+	Dig DigTerms `json:"dig"`
+}
+
+// DigTerms are the terms of an excavation order (docs/excavation.md).
+type DigTerms struct {
+	Wage     int64 `json:"wage"`
+	MaxTiles int   `json:"maxTiles"`
 }
 
 // Account is one balance. Key is its account:<key> topic: "colony" or a
@@ -227,6 +236,7 @@ func marketTopic(s *sim.Snapshot) MarketTopic {
 		ChainDepth: econ.ChainDepth,
 		Work:       []WorkLine{},
 		Trades:     []TradeLine{},
+		Dig:        DigTerms{Wage: int64(econ.DigWage), MaxTiles: econ.DigMax},
 	}
 	var colonists []sim.EntityView
 	for _, e := range s.Entities {
