@@ -19,7 +19,7 @@ func constructionCost(t Terrain) []ItemStack {
 	switch t {
 	case Wall:
 		return []ItemStack{{RawRock, 1}}
-	case NutrientPod, Toilet, Bed:
+	case NutrientPod, Toilet, Bed, Chair:
 		return []ItemStack{{RawRock, 2}}
 	case Storage:
 		return []ItemStack{{RawRock, 2}, {IronOre, 1}}

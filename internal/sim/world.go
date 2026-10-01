@@ -123,6 +123,12 @@ const (
 	// docs/foundry.md.
 	Forge
 	GunBench
+	// Chair is a seat in a meeting hall. It is furniture, not a fixture with an
+	// owner: nobody uses it through the facility machinery, but colonists walk
+	// to the floor beside one to socialize and to eat, and a hall is nothing
+	// but its chairs and the room around them. Blocks movement. See
+	// docs/meeting-hall.md.
+	Chair
 
 	numTerrains // keep last: the number of terrain kinds
 )
@@ -153,6 +159,8 @@ func (t Terrain) String() string {
 		return "forge"
 	case GunBench:
 		return "gun bench"
+	case Chair:
+		return "chair"
 	default:
 		return "unknown"
 	}
@@ -694,6 +702,7 @@ type World struct {
 	storedMealsCache int
 	manualScumhouses int
 	manualFoundries  int
+	manualHalls      int
 	// podRingHint is the search ring the last crash pod landed on, so the
 	// next search starts near there instead of rescanning the packed middle.
 	// See findPodSite.
@@ -983,6 +992,8 @@ func newWorld(cfg Config, src *rand.PCG) *World {
 	// So do smiths and gunsmiths to the foundry's workshops.
 	w.trackFacility(Forge)
 	w.trackFacility(GunBench)
+	// Colonists walk to a meeting hall's chairs to socialize and to eat.
+	w.trackFacility(Chair)
 	w.communityMealsTick = -1
 	w.storedMealsTick = -1
 	w.hungryTick = -1

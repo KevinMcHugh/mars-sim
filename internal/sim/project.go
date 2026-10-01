@@ -486,6 +486,14 @@ func (w *World) planRooms() {
 		}
 		return
 	}
+	if w.manualHalls > 0 {
+		before := len(w.projects)
+		w.planRoom(hallRoom)
+		if len(w.projects) > before {
+			w.manualHalls--
+		}
+		return
+	}
 	// Without the safety net, food has to be made, and the scumhouse is the
 	// only place that makes it: it comes before every other room, as life
 	// support always has. Crash-pod meals buy the time to build it.
@@ -540,6 +548,14 @@ func (w *World) planRooms() {
 	// a second incinerator would only split the haulers.
 	if w.refuseTotal() > 0 && w.plannedFacilities(Incinerator) < 1 {
 		if w.planRoomFor(trashRoom, Community) {
+			return
+		}
+	}
+	// A meeting hall after everything above: company is not fatal, and its
+	// walls and chairs cost real rock. Unlike the foundry it is a headcount
+	// matter (see wantsHall), so it outranks it.
+	if w.wantsHall() {
+		if w.planRoomFor(hallRoom, Community) {
 			return
 		}
 	}

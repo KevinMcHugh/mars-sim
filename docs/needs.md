@@ -76,7 +76,10 @@ weighted focus arbitration. Pressure is 1 at `SeekAt`, reaches 75 at
 Critical and fatal bonuses preserve urgency without embedding another priority
 ladder in the job executors.
 
-Social need has no physical facility. Once urgent, it preempts ordinary work and
+Social need has no physical facility, but with a meeting hall built it has a
+place: the colonist walks to a chair and pairs with someone else in the hall (see
+[meeting-hall.md](./meeting-hall.md)); without one it looks within `talk-radius`
+wherever it stands. Once urgent, it preempts ordinary work and
 the colonist waits for a conversation partner; completing a conversation resets
 social need for both participants. Asocial colonists resolve its rise rate to
 zero, introverts rise more slowly, and extroverts rise faster.

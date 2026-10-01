@@ -20,6 +20,7 @@ type eatStage uint8
 const (
 	eatFetch eatStage = iota // walking to the depot at Target to take a meal out
 	eatMeal                  // eating the meal in hand
+	eatWalk                  // meal in hand, walking to a chair in the meeting hall at Target
 )
 
 // tryStartEating commits a hungry colonist to eating a real meal if it has, or
@@ -35,6 +36,9 @@ func (w *World) tryStartEating(e *Entity) bool {
 		w.clearJob(e)
 		e.Inventory.Remove(Meal, 1)
 		e.Job, e.eat, e.Progress = JobEat, eatMeal, 0
+		if seat, ok := w.mealSeat(e); ok {
+			e.eat, e.Target = eatWalk, seat
+		}
 		return true
 	}
 	depot, ok := w.nearestMealDepot(e)
@@ -142,10 +146,28 @@ func (w *World) jobEat(e *Entity) {
 			return
 		}
 		e.eat, e.Progress = eatMeal, 0
+		if seat, ok := w.mealSeat(e); ok {
+			// Take it to the hall: the colony eats together, and the depot's
+			// access tile is free the moment the meal is out of it.
+			e.eat, e.Target = eatWalk, seat
+			e.State = Moving
+			return
+		}
 		if !w.stepAside(e) {
 			w.wanderStep(e)
 		}
 		return
+	}
+	if e.eat == eatWalk {
+		if e.needPhase[NeedFood] < NeedCritical {
+			if arrived, ok := w.travelTo(e, e.Target); ok && !arrived {
+				e.State = Moving
+				return
+			}
+		}
+		// Seated, the way is blocked, or hunger turned critical on the walk:
+		// eat where it stands.
+		e.eat, e.Progress = eatMeal, 0
 	}
 	e.State = Eating
 	e.Progress++

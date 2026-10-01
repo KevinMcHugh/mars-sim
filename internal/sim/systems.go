@@ -311,6 +311,9 @@ func (w *World) runNeedFocus(e *Entity, need NeedKind) {
 			return
 		}
 		w.clearJob(e)
+		if w.socializeAtHall(e) {
+			return
+		}
 		if w.tryStartTalk(e, true) {
 			w.runJob(e)
 		} else {
@@ -620,7 +623,7 @@ func (w *World) clearJob(e *Entity) {
 		}
 		e.clean = cleanGather
 	case JobEat:
-		if e.eat == eatMeal {
+		if e.eat == eatMeal || e.eat == eatWalk {
 			e.Inventory.Add(Meal, 1) // the meal in hand goes back in the pocket
 		}
 		e.eat, e.eatKeep = eatFetch, false
@@ -809,7 +812,7 @@ func (w *World) jobTalk(e *Entity) {
 // docs/memories.md.
 func (w *World) finishTalk(a, b *Entity) {
 	existing := w.mutualAffinity(a.ID, b.ID)
-	quality := w.rollTalkQuality(existing)
+	quality := clampInt(w.rollTalkQuality(existing)+w.hallTalkBonus(a, b), -100, 100)
 	// Affinity is credited per direction rather than through addAffinity: the
 	// conversation itself moves both sides by the same step, but a trait-driven
 	// bonus is one-sided (a Mutant-Lover's warmth toward a mutant is not
@@ -1534,6 +1537,8 @@ func (w *World) noteBuild(kind Terrain) {
 		w.logEvent(LogBuildComplete, "The forge is lit.")
 	case GunBench:
 		w.logEvent(LogBuildComplete, "A gun bench is set up in the foundry.")
+	case Chair:
+		w.logEvent(LogBuildComplete, "A chair is set out in the meeting hall.")
 	}
 }
 
