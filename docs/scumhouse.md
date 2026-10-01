@@ -198,6 +198,12 @@ the job board keeps the mining frontier, so finding scum never walks the map.
 
 ### Food work
 
+> With a scum incubator standing, the colony's routine food work no longer
+> scrapes the rock: it harvests incubators, and wild scum is for seeding them
+> and for dire times (see [incubator.md](./incubator.md)). Read the scraping
+> steps below as what happens before the first incubator is built, or when
+> `wildScumAllowed`.
+
 **Food on its own account comes first.** When a meal sells for enough more
 than it costs a colonist to make (`foodPays`), `assignWorkJob` offers, right
 after construction and before the colony's food work, cooking the colonist's

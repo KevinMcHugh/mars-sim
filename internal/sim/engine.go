@@ -25,6 +25,9 @@ type Spawn struct{ Kind Kind }
 // OrderScumhouse asks the planner to queue one scumhouse room.
 type OrderScumhouse struct{}
 
+// OrderIncubator asks the planner to queue one scum incubator room.
+type OrderIncubator struct{}
+
 // OrderFoundry asks the planner to queue one foundry: a forge and a gun bench.
 type OrderFoundry struct{}
 
@@ -55,6 +58,7 @@ func (OrderDormitory) isCommand()    {}
 func (OrderTrashRoom) isCommand()    {}
 func (OrderStorageRoom) isCommand()  {}
 func (OrderScumhouse) isCommand()    {}
+func (OrderIncubator) isCommand()    {}
 func (OrderFoundry) isCommand()      {}
 func (OrderMeetingHall) isCommand()  {}
 
@@ -426,6 +430,8 @@ func (e *Engine) apply(cmd Command) (rateChanged bool) {
 		e.requestPublish()
 	case OrderMeetingHall:
 		e.world.manualHalls++
+	case OrderIncubator:
+		e.world.manualIncubators++
 	}
 	return false
 }

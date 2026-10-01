@@ -33,6 +33,7 @@ func (w *World) step() {
 	}
 	w.refreshSpatial() // fold in any digging/building from this tick
 	w.growScum()       // cave scum spawns and spreads
+	w.growIncubators() // incubators grow their scum on schedule
 	w.pruneProjects()
 	if w.tick >= w.nextPlanTick {
 		w.planRooms()
@@ -632,11 +633,14 @@ func (w *World) clearJob(e *Entity) {
 			delete(w.workshopClaims, e.Target)
 		}
 	case JobScrape:
-		if e.scrape == scrapeGather && w.scumClaims[e.Target] == e.ID {
+		if (e.scrape == scrapeGather || e.scrape == scrapeHarvest) && w.scumClaims[e.Target] == e.ID {
 			delete(w.scumClaims, e.Target)
 		}
+		if e.scrapeSeed && w.workshopClaims[e.seedAt] == e.ID {
+			delete(w.workshopClaims, e.seedAt)
+		}
 		e.scrape = scrapeGather
-		e.scrapeFor, e.scrapeQty, e.scrapeKeep = Owner{}, 0, false
+		e.scrapeFor, e.scrapeQty, e.scrapeKeep, e.scrapeSeed = Owner{}, 0, false, false
 	case JobCarry:
 		if w.haulClaims[e.carryWork] == e.ID {
 			delete(w.haulClaims, e.carryWork)
@@ -892,7 +896,20 @@ func (w *World) assignWorkJob(e *Entity) {
 	if w.tryAssignClean(e) {
 		return
 	}
+	// Scum comes from the incubators: harvest what they have grown, and keep
+	// them seeded. Only then the rock, and only in dire times
+	// (wildScumAllowed; see docs/incubator.md).
+	if w.tryAssignSeed(e) {
+		return
+	}
+	if w.foodWanted() && w.tryAssignHarvest(e) {
+		return
+	}
 	if w.foodWanted() && w.tryAssignScrape(e, false) {
+		return
+	}
+	// Scum it was left carrying: cook it for itself, not wasted in its pack.
+	if e.Inventory.Has(CaveScum) && w.tryAssignScrape(e, true) {
 		return
 	}
 	// Short of food with no scum to scrape: dig where it will expose some,
@@ -901,7 +918,7 @@ func (w *World) assignWorkJob(e *Entity) {
 	// the rest is in rock nobody has dug to; left to hungry foragers alone,
 	// a colony of twenty ran out all at once and lost most of itself (see
 	// tryProspect and docs/food.md).
-	if w.foodWanted() && w.prospectingForFood() && e.Inventory.CanAdd(RawRock, 1) && w.tryProspect(e, false) {
+	if w.foodWanted() && w.wildScumAllowed() && w.prospectingForFood() && e.Inventory.CanAdd(RawRock, 1) && w.tryProspect(e, false) {
 		return
 	}
 	// Surplus crash-pod meals go to market for someone hungrier to buy.
@@ -1539,6 +1556,8 @@ func (w *World) noteBuild(kind Terrain) {
 		w.logEvent(LogBuildComplete, "A gun bench is set up in the foundry.")
 	case Chair:
 		w.logEvent(LogBuildComplete, "A chair is set out in the meeting hall.")
+	case Incubator:
+		w.logEvent(LogBuildComplete, "A scum incubator hums to life.")
 	}
 }
 

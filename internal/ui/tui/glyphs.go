@@ -62,6 +62,7 @@ const (
 	glyphForge        = glyphs.Forge
 	glyphGunBench     = glyphs.GunBench
 	glyphChair        = glyphs.Chair
+	glyphIncubator    = glyphs.Incubator
 	glyphColonist     = glyphs.Colonist
 	glyphFleeing      = glyphs.Fleeing
 	glyphTalking      = glyphs.Talking
@@ -172,6 +173,7 @@ var glyphRegistry = map[string]glyph{
 	glyphForge:       {glyphForge, 2, "Fg"},
 	glyphGunBench:    {glyphGunBench, 2, "Gb"},
 	glyphChair:       {glyphChair, 2, "Ch"},
+	glyphIncubator:   {glyphIncubator, 2, "In"},
 
 	glyphColonist: {glyphColonist, 2, "@ "},
 	glyphFleeing:  {glyphFleeing, 2, "@!"},

@@ -129,6 +129,11 @@ const (
 	// but its chairs and the room around them. Blocks movement. See
 	// docs/meeting-hall.md.
 	Chair
+	// Incubator grows cave scum on a schedule from a seed colonists load into
+	// it: the colony's steady supply of scum, in place of scraping it off the
+	// rock. It is a depot, not a workshop (it works no recipe). See
+	// incubator.go and docs/incubator.md.
+	Incubator
 
 	numTerrains // keep last: the number of terrain kinds
 )
@@ -161,6 +166,8 @@ func (t Terrain) String() string {
 		return "gun bench"
 	case Chair:
 		return "chair"
+	case Incubator:
+		return "scum incubator"
 	default:
 		return "unknown"
 	}
@@ -701,6 +708,7 @@ type World struct {
 	storedMealsTick  int
 	storedMealsCache int
 	manualScumhouses int
+	manualIncubators int
 	manualFoundries  int
 	manualHalls      int
 	// podRingHint is the search ring the last crash pod landed on, so the
@@ -994,6 +1002,8 @@ func newWorld(cfg Config, src *rand.PCG) *World {
 	w.trackFacility(GunBench)
 	// Colonists walk to a meeting hall's chairs to socialize and to eat.
 	w.trackFacility(Chair)
+	// And scrapers and harvesters to the incubator.
+	w.trackFacility(Incubator)
 	w.communityMealsTick = -1
 	w.storedMealsTick = -1
 	w.hungryTick = -1

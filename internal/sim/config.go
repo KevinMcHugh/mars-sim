@@ -113,7 +113,19 @@ type Config struct {
 	ScumSpawnPPM      int `cfg:"scum-spawn-ppm" doc:"chance in a million, per tile visited, that scum appears on rock from nothing"`
 	ScumSpreadPercent int `cfg:"scum-spread-percent" doc:"percent chance a tile visited grows a unit if a tile in or beside it holds scum"`
 	ScrapeTicks       int `cfg:"scrape-ticks" doc:"ticks of work to scrape one unit of scum off a patch"`
-	MealReserve       int `cfg:"meal-reserve" doc:"the colony makes food while it holds fewer meals than this per colonist"`
+
+	// The scum incubator grows scum on a schedule from a seed colonists load
+	// into it, and the colony's food work draws on it instead of scraping the
+	// rock. Wild scraping is for seeding incubators and for dire times: no
+	// incubator built, or meals below ScumDireMeals per colonist with none
+	// ripe. IncubatorGrowTicks 0 turns incubators off. See docs/incubator.md.
+	IncubatorGrowTicks    int   `cfg:"incubator-grow-ticks" doc:"ticks between each unit of scum an incubator grows (0: no incubators)"`
+	IncubatorCapacity     int   `cfg:"incubator-capacity" doc:"units of scum an incubator holds before it stops growing"`
+	IncubatorSeed         int   `cfg:"incubator-seed" doc:"units of scum an incubator needs loaded to grow, and keeps back when harvested"`
+	ColonistsPerIncubator int   `cfg:"colonists-per-incubator" doc:"the colony plans another incubator for each this many colonists"`
+	ScumDireMeals         int   `cfg:"scum-dire-meals" doc:"meals per colonist below which the colony scrapes wild scum instead of waiting on its incubators"`
+	WageHarvest           int64 `cfg:"wage-harvest" doc:"what the colony pays a colonist for each load of scum it carries from an incubator to a scumhouse"`
+	MealReserve           int   `cfg:"meal-reserve" doc:"the colony makes food while it holds fewer meals than this per colonist"`
 	// Rations: a colonist at critical hunger who cannot afford a meal is
 	// given one of the colony's. See docs/food.md.
 	Rations bool `cfg:"rations" doc:"the colony gives a meal to a colonist at critical hunger who cannot afford one"`
@@ -543,9 +555,16 @@ func DefaultConfig() Config {
 		ScumSpawnPPM:      20,
 		ScumSpreadPercent: 40,
 		ScrapeTicks:       6,
-		MealReserve:       3,
-		Rations:           true,
-		ConstructionCosts: true,
+
+		IncubatorGrowTicks:    15,
+		IncubatorCapacity:     12,
+		IncubatorSeed:         2,
+		ColonistsPerIncubator: 4,
+		ScumDireMeals:         1,
+		WageHarvest:           1,
+		MealReserve:           3,
+		Rations:               true,
+		ConstructionCosts:     true,
 		// The charter's prices: a meal a few hours' pay, uranium dearest
 		// because it costs the miner a dose, raw rock not bought at all — there
 		// is always more, and buying it would drain the treasury on nothing.

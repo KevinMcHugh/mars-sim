@@ -341,7 +341,7 @@ func (w *World) tryAssignFoodWork(e *Entity, force bool) bool {
 	if !w.foodWanted() {
 		return false
 	}
-	return w.tryAssignCraft(e) || w.tryAssignScrape(e, false)
+	return w.tryAssignCraft(e) || w.tryAssignHarvest(e) || w.tryAssignSeed(e) || w.tryAssignScrape(e, false)
 }
 
 // nearestScumhouse finds the nearest reachable scumhouse e may use that
@@ -564,6 +564,9 @@ func (w *World) tryAssignScrape(e *Entity, keep bool) bool {
 	if !e.Inventory.CanAdd(CaveScum, w.scrapeLoad()) {
 		return false
 	}
+	if !keep && !w.wildScumAllowed() {
+		return false // the colony's scum comes from its incubators
+	}
 	patch, ok := w.nearestScum(e)
 	if !ok {
 		return false
@@ -635,8 +638,9 @@ func (w *World) nearestScum(e *Entity) (Point, bool) {
 type scrapeStage uint8
 
 const (
-	scrapeGather scrapeStage = iota // scraping the patch at Target
-	scrapeHaul                      // carrying the load to the scumhouse at Target
+	scrapeGather  scrapeStage = iota // scraping the patch at Target
+	scrapeHaul                       // carrying the load to the scumhouse (or incubator) at Target
+	scrapeHarvest                    // collecting what the incubator at Target has grown
 )
 
 // jobScrape runs one tick of scraping: work the patch a unit at a time until
@@ -644,6 +648,10 @@ const (
 func (w *World) jobScrape(e *Entity) {
 	if e.scrape == scrapeHaul {
 		w.jobDeliverBiomatter(e)
+		return
+	}
+	if e.scrape == scrapeHarvest {
+		w.jobHarvest(e)
 		return
 	}
 	load := w.scrapeLoad()
@@ -696,6 +704,12 @@ func (w *World) finishScraping(e *Entity) {
 	house, ok := w.nearestScumhouse(e, func(c *StorageContainer) bool {
 		return w.mayStockAt(e, c.Pos, CaveScum) && c.Inventory.CanAdd(CaveScum, e.Inventory.Count(CaveScum))
 	})
+	if e.scrapeSeed {
+		// Scraped to seed an incubator: it goes there, not to a stove.
+		house, ok = w.nearestWorkshop(e, Incubator, func(c *StorageContainer) bool {
+			return c.Inventory.CanAdd(CaveScum, e.Inventory.Count(CaveScum))
+		})
+	}
 	if p := w.plans[e.plan]; p != nil && p.kind == planGather {
 		house, ok = p.depot, true // to the scumhouse whose bid it is filling
 	}
@@ -712,7 +726,7 @@ func (w *World) finishScraping(e *Entity) {
 // and puts it in the depot.
 func (w *World) jobDeliverBiomatter(e *Entity) {
 	c := w.storageContainers[e.Target]
-	if c == nil || c.Terrain != Scumhouse || !c.Inventory.CanAddAll(biomatterStacks(e)...) {
+	if c == nil || (c.Terrain != Scumhouse && c.Terrain != Incubator) || !c.Inventory.CanAddAll(biomatterStacks(e)...) {
 		w.clearJob(e)
 		return
 	}
@@ -756,8 +770,18 @@ func (w *World) deliverBiomatter(e *Entity, c *StorageContainer) bool {
 	var mine []ItemStack
 	for _, s := range stacks {
 		for _, share := range e.unloadCargo(s.Kind) {
-			c.credit(share.Owner, s.Kind, share.N)
-			if share.Owner == me {
+			owner := share.Owner
+			if c.Terrain == Incubator {
+				// The colony buys what is loaded into an incubator outright,
+				// so the seed is its stock from the first unit, whether or
+				// not a bid was standing (see docs/incubator.md).
+				if owner == me {
+					w.transfer(Community, me, w.biomatterPrice(s.Kind)*Money(share.N))
+				}
+				owner = Community
+			}
+			c.credit(owner, s.Kind, share.N)
+			if owner == me {
 				mine = append(mine, ItemStack{s.Kind, share.N})
 			}
 		}
@@ -766,7 +790,11 @@ func (w *World) deliverBiomatter(e *Entity, c *StorageContainer) bool {
 	if !e.scrapeKeep {
 		w.sellBiomatter(e, c, mine)
 	}
-	w.emitDone(e, ActionDeliver, NounScumhouse, "Brought %s to the scumhouse.", stackPhrase(stacks))
+	if c.Terrain == Incubator {
+		w.emitDone(e, ActionDeliver, NounScumhouse, "Loaded %s into an incubator.", stackPhrase(stacks))
+	} else {
+		w.emitDone(e, ActionDeliver, NounScumhouse, "Brought %s to the scumhouse.", stackPhrase(stacks))
+	}
 	return true
 }
 
@@ -834,8 +862,8 @@ func (w *World) refreshBiomatterBids() {
 		}
 		for _, k := range biomatterKinds {
 			price := w.biomatterPrice(k)
-			if price <= 0 {
-				continue
+			if price <= 0 || (k == CaveScum && !w.wildScumAllowed()) {
+				continue // incubators feed the stoves: nobody scrapes for this bid
 			}
 			want := w.cfg.ScumhouseBidQty - w.openQty(Bid, k, p, Community)
 			if cap := w.cfg.ScumhouseStockCap; cap > 0 {
@@ -1205,7 +1233,7 @@ func (w *World) foodPays(e *Entity) bool {
 // 100-colonist colony, building its rooms spent it to $0 and the colony
 // stopped buying scum.
 func (w *World) tryAssignScrapeToSell(e *Entity) bool {
-	return w.foodPays(e) && w.tryAssignScrape(e, true)
+	return w.wildScumAllowed() && w.foodPays(e) && w.tryAssignScrape(e, true)
 }
 
 // offerOwnMeals offers the meals e has just cooked at p for sale where they

@@ -326,7 +326,7 @@ func (w *World) planWaitingAt(p Point, id EntityID) bool {
 // scumhouse, if it pays. With probe set it only reckons the plan, into probe.
 func (w *World) planGather(e *Entity, b *Order, probe *planOffer) bool {
 	c := w.storageContainers[b.Depot]
-	if c == nil || c.Terrain != Scumhouse || e.Inventory.Has(CaveScum) {
+	if c == nil || c.Terrain != Scumhouse || e.Inventory.Has(CaveScum) || !w.wildScumAllowed() {
 		return false
 	}
 	qty := min(b.Qty, w.scrapeLoad())
