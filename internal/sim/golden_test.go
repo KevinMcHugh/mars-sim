@@ -1,27 +1,33 @@
 package sim
 
 import (
+	"errors"
+	"flag"
 	"fmt"
+	"io/fs"
+	"os"
 	"slices"
+	"strings"
 	"testing"
 )
 
 // goldenCase pins what one seed produces: the generated world at tick 0 and
-// the whole simulation after a number of ticks. The hashes are constants, not
-// a comparison between two runs, so they catch what a lockstep test cannot:
+// the whole simulation after a number of ticks. The hashes are pinned in
+// testdata/golden-hashes.txt, not a comparison between two runs, so they catch what a lockstep test cannot:
 // the same seed producing a different world on a different machine
 // (tools/determinism-check.sh runs this test natively, under amd64 and under
 // js/wasm) or after a change nobody meant to be a seed break.
 //
 // When a change is *meant* to alter what seeds produce (a worldgen rewrite, a
-// new RNG draw on the simulation stream), update the constants in the same
-// change and say so in the commit message. See docs/determinism.md.
+// new RNG draw on the simulation stream), re-pin them in the same change with
+//
+//	go test ./internal/sim -run TestGoldenWorldHash -update
+//
+// and say so in the commit message. See docs/determinism.md.
 type goldenCase struct {
 	name  string
 	cfg   func() Config
 	ticks int
-	gen   string // goldenHash at tick 0
-	run   string // goldenHash after ticks
 	// breach requires the run to break into a natural cavern, so the case
 	// keeps covering the breach flood when a seed break re-pins it.
 	breach bool
@@ -48,8 +54,6 @@ var goldenCases = []goldenCase{
 		ticks:  1200,
 		breach: true,
 		grows:  true,
-		gen:    "tiles=6eba3d92a4e07cbb entities=f7ee7a1387568a13 rng=a78d6b0ac12b9e48 chunks=562663220ec91645/16 scum=694edd31ec9d434c/3893 salt=04dbe99fdb4ddc47/1954 n=53 gore=0 corpses=0",
-		run:    "tiles=8fa844e558bd2852 entities=9887e95798b14546 rng=2e22e6e0cdf7b3db chunks=693d999c36049d09/20 scum=d381cde74c0dc896/4937 salt=b61c93a1ac1a38af/2441 n=45 gore=0 corpses=0",
 	},
 	{
 		name: "default-80x40",
@@ -59,8 +63,6 @@ var goldenCases = []goldenCase{
 			return c
 		},
 		ticks: 400,
-		gen:   "tiles=fb413f93fa91bc92 entities=7aab2da63776690c rng=fee2103ce8a0059c chunks=4d22107f9dcb30cc/2 scum=af3afd423d126e36/182 salt=4a28046f7f756038/95 n=19 gore=0 corpses=0",
-		run:   "tiles=9269709159b49b9d entities=1f850bc1eab90b54 rng=f20c8fdc04db1dc6 chunks=4d22107f9dcb30cc/2 scum=e6c102b5cef67211/193 salt=4a28046f7f756038/95 n=11 gore=0 corpses=0",
 	},
 	{
 		// Bigger than one worldgen chunk in both directions, with enough cave
@@ -76,8 +78,6 @@ var goldenCases = []goldenCase{
 		},
 		ticks:  1700, // long enough to breach: the first is at about tick 1635
 		breach: true,
-		gen:    "tiles=e81568a6449387ae entities=851ce35d5a35cf74 rng=c60777d3a7dcdb4d chunks=0e4ca4c26f1b3a34/15 scum=d17b29c1b71c8ea6/2663 salt=bb21b3e4454b76e2/1341 n=53 gore=0 corpses=0",
-		run:    "tiles=ea593dd53692a48c entities=82e77fe4c4d27ad9 rng=898d7bc038b4864a chunks=0e4ca4c26f1b3a34/15 scum=107fea9c7481c3f9/2702 salt=a480c64662f96beb/1339 n=45 gore=0 corpses=0",
 	},
 }
 
@@ -153,20 +153,85 @@ func goldenHash(w *World) string {
 		tiles, ents, rng, chunks, len(w.genChunks), scum, len(patches), salt, len(deposits), len(w.entities), w.goreTotal, w.corpseTotal)
 }
 
+// goldenFile holds the pinned hashes, one "<case> gen|run <hash>" line each,
+// so a deliberate seed break is re-pinned with -update rather than by hand.
+const goldenFile = "testdata/golden-hashes.txt"
+
+var update = flag.Bool("update", false, "rewrite the pinned golden hashes in "+goldenFile)
+
+// readGoldenHashes returns the pinned hashes keyed by "<case> gen" and
+// "<case> run". A missing file reads as empty, so -update can create it.
+func readGoldenHashes(t *testing.T) map[string]string {
+	t.Helper()
+	b, err := os.ReadFile(goldenFile)
+	if errors.Is(err, fs.ErrNotExist) {
+		return map[string]string{}
+	}
+	if err != nil {
+		t.Fatal(err)
+	}
+	pinned := map[string]string{}
+	for _, line := range strings.Split(string(b), "\n") {
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		f := strings.SplitN(line, " ", 3)
+		if len(f) != 3 {
+			t.Fatalf("%s: malformed line %q", goldenFile, line)
+		}
+		pinned[f[0]+" "+f[1]] = f[2]
+	}
+	return pinned
+}
+
+// writeGoldenHashes writes the hashes in goldenCases order. Entries for cases
+// a -run filter skipped keep their old value; cases no longer in goldenCases
+// are dropped.
+func writeGoldenHashes(t *testing.T, pinned map[string]string) {
+	t.Helper()
+	var b strings.Builder
+	b.WriteString("# Pinned goldenHash values for goldenCases in golden_test.go: \"<case> gen|run <hash>\".\n")
+	b.WriteString("# Regenerate with: go test ./internal/sim -run TestGoldenWorldHash -update\n")
+	b.WriteString("# See docs/determinism.md.\n")
+	for _, gc := range goldenCases {
+		for _, phase := range []string{"gen", "run"} {
+			if h, ok := pinned[gc.name+" "+phase]; ok {
+				fmt.Fprintf(&b, "%s %s %s\n", gc.name, phase, h)
+			}
+		}
+	}
+	if err := os.WriteFile(goldenFile, []byte(b.String()), 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestGoldenWorldHash(t *testing.T) {
+	pinned := readGoldenHashes(t)
+	check := func(t *testing.T, key, when, got string) {
+		t.Helper()
+		if *update {
+			pinned[key] = got
+			return
+		}
+		want, ok := pinned[key]
+		if !ok {
+			t.Errorf("%s: no hash pinned in %s; run with -update to pin it", when, goldenFile)
+			return
+		}
+		if got != want {
+			t.Errorf("%s:\n got  %s\n want %s\nIf this change is meant to alter what seeds produce, re-pin with "+
+				"go test ./internal/sim -run TestGoldenWorldHash -update and say so in the commit message", when, got, want)
+		}
+	}
 	for _, gc := range goldenCases {
 		t.Run(gc.name, func(t *testing.T) {
 			w := NewEngine(gc.cfg()).world
 			chunks := len(w.genChunks)
-			if got := goldenHash(w); got != gc.gen {
-				t.Errorf("tick 0:\n got  %s\n want %s", got, gc.gen)
-			}
+			check(t, gc.name+" gen", "tick 0", goldenHash(w))
 			for i := 0; i < gc.ticks; i++ {
 				w.step()
 			}
-			if got := goldenHash(w); got != gc.run {
-				t.Errorf("tick %d:\n got  %s\n want %s", gc.ticks, got, gc.run)
-			}
+			check(t, gc.name+" run", fmt.Sprintf("tick %d", gc.ticks), goldenHash(w))
 			if gc.grows && len(w.genChunks) == chunks {
 				t.Errorf("no chunk was generated after tick 0 in %d ticks; pick a config that explores further", gc.ticks)
 			}
@@ -174,5 +239,8 @@ func TestGoldenWorldHash(t *testing.T) {
 				t.Errorf("no cavern was breached in %d ticks; pick a config that breaks into one", gc.ticks)
 			}
 		})
+	}
+	if *update {
+		writeGoldenHashes(t, pinned)
 	}
 }
