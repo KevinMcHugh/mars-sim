@@ -7,6 +7,8 @@
 // everywhere else (Apple, Segoe or Noto): the browser's equivalent of the
 // terminal drawing them.
 
+import { EMOJI_FONT } from '../emoji';
+
 export interface Atlas {
   texture: WebGLTexture;
   cols: number;
@@ -16,7 +18,7 @@ export interface Atlas {
 // Big enough to stay crisp at the top zoom on a 2x screen (64 CSS px a tile).
 const CELL = 128;
 const COLS = 16;
-const FONT = '"Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", "Twemoji Mozilla", sans-serif';
+const FONT = EMOJI_FONT;
 
 export function buildAtlas(gl: WebGL2RenderingContext, symbols: string[]): Atlas {
   const cols = COLS;

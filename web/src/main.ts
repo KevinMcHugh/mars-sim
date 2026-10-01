@@ -13,6 +13,7 @@ import { colonyLog, inspect, install, stepSpeed, subscribe, syncFrame, togglePau
 import { attachInput } from './map/input';
 import { MapRenderer } from './map/renderer';
 import type { TileRect } from './map/camera';
+import { pickGlyph } from './emoji';
 import { initialSettings } from './settings';
 import { SimClient } from './sim/client';
 import type { Settings } from './sim/client';
@@ -113,6 +114,17 @@ window.addEventListener('keydown', (e) => {
   e.preventDefault();
 });
 
+/**
+ * hello with each colonist look resolved to the candidate this browser's
+ * emoji font draws as one glyph and appended to symbols, so every glyph index
+ * a frame carries is a plain index into symbols: the map's atlas, the hover
+ * line and the top bar need know nothing about looks.
+ */
+function withLooks(h: Hello): Hello {
+  const symbols = [...h.glyphs.symbols, ...h.glyphs.looks.map((l) => pickGlyph(l))];
+  return { ...h, glyphs: { ...h.glyphs, symbols } };
+}
+
 async function newGame(settings: Settings): Promise<void> {
   status(`Generating a ${settings.width}×${settings.height} world…`);
   hello = null;
@@ -125,7 +137,7 @@ async function newGame(settings: Settings): Promise<void> {
   lastInterest = '';
   try {
     const started = await sim.start({ tps: 8, ...settings });
-    hello = started.hello;
+    hello = withLooks(started.hello);
     ui.hello = hello;
     debug.hello = hello;
     debug.genMs = started.genMs;

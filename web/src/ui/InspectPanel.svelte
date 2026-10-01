@@ -4,6 +4,7 @@
   // colonist view follows the TUI's roster inspector; the tile view its map
   // cursor's. Names of kin, acquaintances, owners and creatures on a tile
   // inspect them in turn.
+  import { pickGlyph } from '../emoji';
   import { centerOn, inspect, selectionTopic, setPanel, subscribe, topics, ui } from '../game.svelte';
   import Bar from './Bar.svelte';
   import type { EntityInfo, TileInfo } from './inspect';
@@ -37,7 +38,7 @@
     <p class="muted">Creature #{entity.id} is gone: it died and has left the records.</p>
   {:else}
     <header>
-      <h3><span class="glyph">{entity.glyph}</span> {entity.name}</h3>
+      <h3><span class="glyph">{pickGlyph(entity.look, entity.glyph)}</span> {entity.name}</h3>
       {#if !entity.dead}
         <button type="button" class="small" title="Center the map on it" onclick={() => centerOn(entity.x, entity.y)}>Find</button>
       {/if}
@@ -177,7 +178,7 @@
     <h4>Here</h4>
     <ul class="plain">
       {#each tile.creatures as cr (cr.id)}
-        <li><button type="button" class="link" onclick={() => inspect({ entity: cr.id }, ui.inspectFrom)}>{cr.glyph} {cr.name}</button> · {cr.state}</li>
+        <li><button type="button" class="link" onclick={() => inspect({ entity: cr.id }, ui.inspectFrom)}>{pickGlyph(cr.look, cr.glyph)} {cr.name}</button> · {cr.state}</li>
       {/each}
     </ul>
   {/if}

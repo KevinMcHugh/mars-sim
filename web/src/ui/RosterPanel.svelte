@@ -6,10 +6,11 @@
   // The list is virtualized: a long game has hundreds of dead colonists, and
   // the rows are rebuilt twice a second, so only the rows on screen (and a
   // few either side) are in the DOM.
+  import { pickGlyph } from '../emoji';
   import { inspect, subscribe, topics, ui } from '../game.svelte';
 
   interface Row {
-    id: number; glyph: string; name: string; info: string; state: string;
+    id: number; glyph: string; look?: string[]; name: string; info: string; state: string;
     kind: string; dead: boolean; hp: number; maxHp: number;
   }
 
@@ -59,7 +60,7 @@
       {#each visible as r, i (r.id)}
         <button type="button" class="row" class:on={r.id === selectedId} class:dead={r.dead}
           style="top: {(first + i) * ROW}px" onclick={() => inspect({ entity: r.id }, 'roster')}>
-          <span class="name"><span class="glyph">{r.glyph}</span> {r.name}</span>
+          <span class="name"><span class="glyph">{pickGlyph(r.look, r.glyph)}</span> {r.name}</span>
           {#if !r.dead && r.maxHp > 0 && r.hp < r.maxHp}
             <span class="hp" title="health">{r.hp}/{r.maxHp}</span>
           {/if}
