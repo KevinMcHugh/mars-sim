@@ -31,6 +31,10 @@ func TestGoldenFrames(t *testing.T) {
 	changed.Tick = 1300
 	changed.Paused = true
 	changed.TileChanges = sim.TileChanges{Frame: 2, Pages: []int{snap.Tiles.PageIndex(sim.Point{X: 70, Y: 10})}, Refuse: true}
+	// The toilet field, shown: three reached tiles, one of them a goal.
+	changed.FlowFields = []sim.FlowFieldRef{{Facility: sim.NutrientPod}, {Facility: sim.Toilet}, {Frontier: true}}
+	changed.FlowField = sim.NewFlowFieldView(sim.FlowFieldRef{Facility: sim.Toilet}, snap.Width, snap.Height,
+		map[sim.Point]int32{{X: 7, Y: 0}: 0, {X: 8, Y: 1}: 1, {X: 100, Y: 5}: 40})
 	second := bytes.Clone(e.Encode(&changed))
 
 	capped := NewEncoder()

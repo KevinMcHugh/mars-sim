@@ -11,7 +11,9 @@ export type Settings = Record<string, number | boolean | string>;
 export type Command =
   | { type: 'pause' }
   | { type: 'speed'; rate: number }
-  | { type: 'spawn'; kind: string };
+  | { type: 'spawn'; kind: string }
+  /** Show a flow field (an index into Hello.flowFields), or none (-1). */
+  | { type: 'flow'; field: number };
 
 export interface Started { hello: Hello; genMs: number; loadMs: number }
 
@@ -20,7 +22,7 @@ export interface Started { hello: Hello; genMs: number; loadMs: number }
  * A mismatch means mars-sim.wasm is from another build: usually a pull without
  * rerunning npm run wasm.
  */
-export const HOST_API = 7;
+export const HOST_API = 8;
 
 export class SimClient {
   private worker: Worker;

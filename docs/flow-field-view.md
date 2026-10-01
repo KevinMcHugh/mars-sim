@@ -4,14 +4,16 @@
 
 ## What it is
 
-A debugging overlay on the terminal map that shows one of the shared flow
-fields (see [pathfinding.md](./pathfinding.md)): every tile the field reached is
-tinted by its distance to the field's nearest goal, goal tiles are bright green,
-and bare floor has the distance written on it. `f` on the map cycles through the
-fields (one per tracked facility terrain — nutrient pods, toilets, beds,
-incinerators, storage, scumhouses, forges, gun benches — then the mining
-frontier) and back to off; `F` turns it off. It answers "why is everyone walking
-*there*?" without a debugger.
+A debugging overlay on the map, in both the terminal and the browser, that
+shows one of the shared flow fields (see [pathfinding.md](./pathfinding.md)):
+every tile the field reached is tinted by its distance to the field's nearest
+goal, from bright green on the goals through eight bands to dark red. `f`
+cycles through the fields (one per tracked facility terrain — nutrient pods,
+toilets, beds, incinerators, storage, scumhouses, forges, gun benches — then the
+mining frontier) and back to off; `F` turns it off. The TUI writes the distance
+on bare floor; the browser has a *Flow* picker in the top bar and puts the
+distance in the hover readout. It answers "why is everyone walking *there*?"
+without a debugger.
 
 ## Source
 
@@ -21,6 +23,13 @@ frontier) and back to off; `F` turns it off. It answers "why is everyone walking
 - `internal/sim/flowview_test.go` — the view matches the field cell for cell; publishing every field every tick keeps a run in lockstep with an unwatched one; the engine starts and stops publishing on command.
 - `internal/ui/tui/render_flow.go` — the colour ramp, cycling, the sidebar legend, and the inspect-cursor readout.
 - `internal/ui/tui/render_flow_test.go` — cycling, drawing, the stale-frame guard, and the footer distance.
+- `internal/wire/encoder.go` — the frame's flow section: the shown field's tiles in view (`flowTiles`, via `FlowFieldView.Range`), and when it is sent. `wire.go` names the fields in Hello.
+- `internal/wire/encoder_test.go` (`TestEncodeFlowField`) and the `changed` golden frame — the section's layout, its resend rules, and clearing.
+- `cmd/mars-sim-wasm/main.go` — the `flow` command (`{"type":"flow","field":i}`, -1 for off).
+- `web/wire/decode.js` — the flow section, as typed-array views.
+- `web/src/map/renderer.ts` — the overlay's tint quads (`rebuildFlow`), `flowAt` for the hover readout.
+- `web/src/map/palette.ts` — the ramp (`flowTint`, `flowBand`), the TUI's colors in hex.
+- `web/src/ui/FlowControl.svelte` — the top bar's picker and the legend; `game.svelte.ts` holds `flowPick` (asked for) and `flowShown` (drawn).
 
 ## How it works
 
@@ -51,11 +60,27 @@ the overlay is on, the sidebar's legend is replaced by the field's name, goal
 count, farthest distance, and the step range of each ramp band in use; with
 inspection open, the footer adds the cursor tile's distance.
 
+**The browser.** The engine runs in a worker, so the field reaches the page
+over the wire (see [wire-format.md](./wire-format.md)): Hello names the fields,
+the page asks for one with the `flow` command, and frames carry a **flow
+section** — the field's tiles inside the page's interest rectangle, with their
+distances, plus the field's index, goal count and farthest distance in the
+header. The encoder sends it only when the engine hands over a different
+`FlowFieldView` (the field changed, or was switched on or off) or the interest
+moved; otherwise the page keeps the last one. The renderer turns it into one
+more layer of instanced tint quads, over filth and under creatures, filtered to
+visible tiles and refiltered as pages arrive, exactly like filth. The legend
+(`FlowControl.svelte`) reads `ui.flowShown`, which `main.ts` takes from the
+renderer whenever a frame carries a flow section; the picker reads
+`ui.flowPick`, what was asked for.
+
 **Stale frames.** The command and the frames are asynchronous, so after `f` the
 next frame may still carry the previous field (or none). `shownFlowField` only
 returns the snapshot's view when it is the field the player last picked; until
 then the map is drawn plain and the sidebar says it is waiting for the engine,
-rather than labelling one field's distances with another's name.
+rather than labelling one field's distances with another's name. The browser
+gets the same guarantee differently: the flow section names its own field, and
+the legend is built from that, not from the picker.
 
 ## Why it is this way
 
@@ -77,15 +102,29 @@ rather than labelling one field's distances with another's name.
   field is already sparse and only copied when it changes, so the whole-field
   copy is cheap enough for something that is off by default.
 - **Engine-wide choice.** With several frontends subscribed, all see the field
-  the last one picked. Only the TUI shows fields today; a per-subscriber choice
-  can come when a second frontend wants it.
+  the last one picked. The browser has an engine of its own, so this only
+  matters for two TUIs on one engine, which nothing does yet.
+- **The browser gets only the view, unlike scum and salt.** Scum and salt are
+  short lists that change rarely; a field covers every walkable tile of the
+  colony and the frontier field changes on most ticks (every claim moves its
+  goals). Sending only the interest rectangle bounds the section by the
+  screen, and resending on a move is cheap because the interest only moves a
+  page at a time. `FlowFieldView.Range` skips pages the field never reached,
+  so a zoomed-out view of a huge map costs what the colony in it does.
+- **Flagged clearing, not an empty list.** An empty flow section is also what a
+  field with no tiles in view looks like, so "off" is field -1, not F = 0.
+- **The legend follows the frame, not the throttle.** Frame-driven UI
+  refreshes at `UI_HZ`; a flow section is rare and, on a paused game, may be the
+  only frame for a long time, so it updates the legend as it arrives (the
+  first version waited for the throttle and showed nothing until unpaused).
+- **No distances on the browser map.** Text in WebGL would mean a glyph atlas
+  for digits and one more instanced layer; the hover readout gives the exact
+  number, and the tint carries the shape.
 
 ## Extending it
 
-- **The browser frontend** needs the view on the wire: a new panel topic or
-  frame section carrying the visible pages of the field (see
-  [wire-format.md](./wire-format.md)) and a WebGL tint pass. `FlowFieldView`
-  already has the page layout the tile grid uses.
+- **Distances on the browser map** when zoomed in: a digits atlas and a
+  sprite layer reading `renderer.flowDist`.
 - **A new shared field** (a new facility, or something other than a facility)
   shows up automatically if it is in `World.fields` or handled by
   `flowFieldRefs` / `flowFieldFor`; add it to both if it lives elsewhere.
@@ -99,3 +138,5 @@ rather than labelling one field's distances with another's name.
 - [sparse-grids.md](./sparse-grids.md) — the paged grid the field and its view share.
 - [determinism.md](./determinism.md) — the lockstep test this feature leans on.
 - [frontend-tui.md](./frontend-tui.md) — the map, sidebar, and controls this extends.
+- [frontend-web.md](./frontend-web.md) — the browser map, top bar, and hover readout this extends.
+- [wire-format.md](./wire-format.md) — the flow section and Hello's `flowFields`.

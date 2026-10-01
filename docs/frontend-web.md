@@ -33,7 +33,9 @@ The rest of the TUI's tabs are planned in
   `TopBar`, `SpeedControl`, `SidePanel`, `Bar` (a gauge), and one component
   per tab (`InspectPanel`, `RosterPanel`, `LogPanel`, `JobsPanel`,
   `StoragePanel`, `MarketPanel` with `AccountDetail`, `ChartsPanel`,
-  `LorePanel`, `NewGamePanel`), and `LogTicker`. `format.ts` formats money.
+  `LorePanel`, `NewGamePanel`), `LogTicker`, and `FlowControl` (the
+  flow-field picker and legend, see [flow-field-view.md](./flow-field-view.md)).
+  `format.ts` formats money.
 - [`web/src/ui/charts/`](../web/src/ui/charts/Chart.svelte) — the Charts tab:
   `Chart` (one uPlot chart with a tooltip), `PerfCharts`,
   `PopulationCharts`, `ActivityChart`, `theme.ts` (colors and the activity
@@ -81,13 +83,18 @@ worker's async message handler, and the Lore panel sat on "Loading…". The
 worker now reports every failure to the page as well.
 
 **Keys:** space toggles pause; `+` and `-` step the speed selector (Pause,
-Normal, Fast, Faster, Max); arrows or WASD pan; `[` and `]` zoom; Escape closes the
-side panel. A click (or tap) on the map inspects what is there.
+Normal, Fast, Faster, Max); arrows or WASD pan; `[` and `]` zoom; `f` steps the
+flow-field overlay through each field and back to off, and `F` turns it off
+(the top bar's *Flow* picker does the same, see
+[flow-field-view.md](./flow-field-view.md)); Escape closes the side panel. A
+click (or tap) on the map inspects what is there.
 
 **The hover readout** names the tile under the pointer and who is on it. A
 colonist is named from the `names` topic, which `main.ts` subscribes to for
 the page's whole life: frames carry only ids. Other creatures read as
-"alien #7", as in the TUI.
+"alien #7", as in the TUI. With a flow field shown, it adds the tile's
+distance to the field's goal ("mining frontier: 4 steps"), or that a floor
+tile cannot reach one.
 
 **Hosting:** [`.github/workflows/pages.yml`](../.github/workflows/pages.yml)
 publishes it to GitHub Pages, at <https://kevinmchugh.github.io/mars-sim/>,

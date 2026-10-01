@@ -43,6 +43,8 @@ export interface Hello {
   /** The most gore / scum one tile holds, for shading by amount. */
   goreMax: number;
   scumMax: number;
+  /** The shared flow fields' names; the flow command and a frame's flow.field index this. */
+  flowFields: string[];
 }
 
 export interface Frame {
@@ -88,6 +90,16 @@ export interface Frame {
     count: number;
     x: Int32Array;
     y: Int32Array;
+  } | null;
+  flow: {
+    /** Index into Hello.flowFields, or -1 when no field is shown. */
+    field: number;
+    max: number;
+    goals: number;
+    count: number;
+    x: Int32Array;
+    y: Int32Array;
+    dist: Uint16Array;
   } | null;
 }
 

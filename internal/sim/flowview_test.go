@@ -1,6 +1,9 @@
 package sim
 
-import "testing"
+import (
+	"fmt"
+	"testing"
+)
 
 // A published view reads exactly what the field does, everywhere, and is
 // reused rather than copied again while the field has not changed.
@@ -97,5 +100,23 @@ func TestShowFlowFieldPublishes(t *testing.T) {
 	e.apply(ShowFlowField{})
 	if snap = e.publish(); snap.FlowField != nil {
 		t.Fatal("field still published after ShowFlowField{}")
+	}
+}
+
+// Range visits exactly the reached tiles inside the rectangle, in row order,
+// across page boundaries and clipped to the map.
+func TestFlowFieldViewRange(t *testing.T) {
+	dist := map[Point]int32{{1, 1}: 0, {63, 2}: 4, {64, 2}: 5, {130, 2}: 9, {70, 100}: 2}
+	v := NewFlowFieldView(FlowFieldRef{Frontier: true}, 150, 120, dist)
+	var got []Point
+	v.Range(-5, 0, 1000, 50, func(p Point, d int32) {
+		if dist[p] != d {
+			t.Errorf("%v: distance %d, want %d", p, d, dist[p])
+		}
+		got = append(got, p)
+	})
+	want := []Point{{1, 1}, {63, 2}, {64, 2}, {130, 2}} // (70,100) is below the rectangle
+	if fmt.Sprint(got) != fmt.Sprint(want) {
+		t.Fatalf("Range visited %v, want %v", got, want)
 	}
 }

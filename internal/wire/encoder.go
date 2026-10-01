@@ -13,7 +13,7 @@ import (
 // can view it as an Int32Array or Uint8Array in place. docs/wire-format.md is
 // the reference; this is the code.
 const (
-	headerLen = 56
+	headerLen = 72
 	pageTiles = sim.TilePageSide * sim.TilePageSide
 	// tileBytes is one tile on the wire: terrain, then flags.
 	tileBytes = 2
@@ -24,6 +24,7 @@ const (
 	flagRefuseFrame = 1 << 3 // the refuse section is the whole list; without it, keep the last one
 	flagScumFrame   = 1 << 4 // the scum section is the whole list; without it, keep the last one
 	flagSaltFrame   = 1 << 5 // the salt section is the whole list; without it, keep the last one
+	flagFlowFrame   = 1 << 6 // the flow section is the shown field in view; without it, keep the last one
 
 	// The tile flags byte: the rock composition in the low bits, and whether
 	// the tile may be drawn (explored, or the fog is off).
@@ -63,7 +64,15 @@ type Encoder struct {
 	// different map is the signal to send the list again.
 	lastScum uintptr
 	lastSalt uintptr // likewise for Snapshot.Salt
-	owed     int     // pages in view still to send after the last frame
+	// lastFlow is the Snapshot.FlowField last sent. The engine hands out the
+	// same view until the field changes (see sim.Engine.publish), so, like
+	// scum, a different pointer is the signal to send it again. flowMoved
+	// says the interest changed since then: the section only carries the
+	// tiles in view, so a new view needs them again.
+	lastFlow  *sim.FlowFieldView
+	flowMoved bool
+	flow      []flowTile
+	owed      int // pages in view still to send after the last frame
 
 	buf   []byte
 	tiles []sim.Tile
@@ -81,6 +90,7 @@ func NewEncoder() *Encoder {
 // any that change while out of view are sent again when they come back.
 func (e *Encoder) SetInterest(r Rect) {
 	e.interest, e.hasInterest = r, true
+	e.flowMoved = true
 }
 
 // Owed is how many pages in view the last frame left out for the MaxPages
@@ -144,6 +154,18 @@ func (e *Encoder) Encode(snap *sim.Snapshot) []byte {
 		e.lastSalt = id
 	}
 
+	flowField, flowMax, flowGoals := int32(-1), int32(0), int32(0)
+	e.flow = e.flow[:0]
+	if v := snap.FlowField; v != e.lastFlow || (v != nil && (e.flowMoved || flags&flagTilesReset != 0)) {
+		flags |= flagFlowFrame
+		e.lastFlow, e.flowMoved = v, false
+		if v != nil {
+			flowField = int32(slices.Index(snap.FlowFields, v.Field))
+			flowMax, flowGoals = v.Max, int32(v.Goals)
+			e.flow = e.flowTiles(v)
+		}
+	}
+
 	n := len(snap.Entities)
 	size := headerLen +
 		4*len(statFields) +
@@ -151,7 +173,8 @@ func (e *Encoder) Encode(snap *sim.Snapshot) []byte {
 		len(pages)*(4+4) + len(pages)*pageTiles*tileBytes +
 		len(refuse)*(4+4) + align4(len(refuse)*2) + align4(len(refuse)) +
 		len(scum)*(4+4) + align4(len(scum)) +
-		len(salt)*(4+4)
+		len(salt)*(4+4) +
+		len(e.flow)*(4+4) + align4(len(e.flow)*2)
 	e.buf = slices.Grow(e.buf[:0], size)[:size]
 	clear(e.buf)
 	b := e.buf
@@ -170,6 +193,10 @@ func (e *Encoder) Encode(snap *sim.Snapshot) []byte {
 	le.PutUint32(b[44:], uint32(e.owed))
 	le.PutUint32(b[48:], uint32(len(scum)))
 	le.PutUint32(b[52:], uint32(len(salt)))
+	le.PutUint32(b[56:], uint32(len(e.flow)))
+	le.PutUint32(b[60:], uint32(flowField))
+	le.PutUint32(b[64:], uint32(flowMax))
+	le.PutUint32(b[68:], uint32(flowGoals))
 	at := headerLen
 
 	for _, v := range statValues(snap.Stats) {
@@ -258,6 +285,18 @@ func (e *Encoder) Encode(snap *sim.Snapshot) []byte {
 		le.PutUint32(b[at+4*(s+i):], uint32(int32(p.Y)))
 	}
 	at += 8 * s
+
+	// Flow: xs, ys, distances (uint16, saturating).
+	fl := len(e.flow)
+	for i, t := range e.flow {
+		le.PutUint32(b[at+4*i:], uint32(int32(t.pos.X)))
+		le.PutUint32(b[at+4*(fl+i):], uint32(int32(t.pos.Y)))
+	}
+	at += 8 * fl
+	for i, t := range e.flow {
+		le.PutUint16(b[at+2*i:], t.dist)
+	}
+	at += align4(2 * fl)
 
 	if at != size {
 		panic("wire: frame size miscounted")
@@ -365,6 +404,26 @@ func saltTiles(m map[sim.Point]struct{}) []sim.Point {
 			return a.Y - b.Y
 		}
 		return a.X - b.X
+	})
+	return out
+}
+
+type flowTile struct {
+	pos  sim.Point
+	dist uint16
+}
+
+// flowTiles lists the tiles in view the field reaches, in row order, with
+// their distances. Only the view: a field covers the whole colony, and the
+// page draws only what is on screen (plus the interest's margin).
+func (e *Encoder) flowTiles(v *sim.FlowFieldView) []flowTile {
+	out := e.flow[:0]
+	if !e.hasInterest {
+		return out
+	}
+	r := e.interest
+	v.Range(r.X0, r.Y0, r.X1, r.Y1, func(p sim.Point, d int32) {
+		out = append(out, flowTile{p, uint16(min(d, math.MaxUint16))})
 	})
 	return out
 }

@@ -132,3 +132,30 @@ func NewFlowFieldView(field FlowFieldRef, width, height int, dist map[Point]int3
 	}
 	return v
 }
+
+// Range calls fn for every tile in [x0,x1)×[y0,y1) the field reaches, in row
+// order, with its distance. Stretches of the map the field never reached are
+// skipped a page at a time, so a view the size of a huge map costs what the
+// colony in it does, not its area.
+func (v *FlowFieldView) Range(x0, y0, x1, y1 int, fn func(p Point, dist int32)) {
+	if v == nil {
+		return
+	}
+	x0, y0 = max(x0, 0), max(y0, 0)
+	x1, y1 = min(x1, v.w), min(y1, v.h)
+	for y := y0; y < y1; y++ {
+		for x := x0; x < x1; {
+			page := v.dist.pageAt(x, y)
+			end := min(x1, (x|gridPageMask)+1) // the end of this page's row
+			if page == nil {
+				x = end
+				continue
+			}
+			for ; x < end; x++ {
+				if d := page[offset(x, y)]; d > 0 {
+					fn(Point{x, y}, d-1)
+				}
+			}
+		}
+	}
+}

@@ -5,11 +5,13 @@
   import TopBar from './TopBar.svelte';
   import SidePanel from './SidePanel.svelte';
   import LogTicker from './LogTicker.svelte';
+  import FlowControl from './FlowControl.svelte';
 </script>
 
 <TopBar />
 <SidePanel />
 <LogTicker />
+<FlowControl legend />
 
 {#if ui.hover}
   <div class="hud hover">{ui.hover}</div>

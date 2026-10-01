@@ -42,6 +42,13 @@ function asGolden(f) {
     salt: f.salt === null ? [] : Array.from({ length: f.salt.count }, (_, i) => ({
       x: f.salt.x[i], y: f.salt.y[i],
     })),
+    flowFrame: f.flow !== null,
+    flowField: f.flow === null ? -1 : f.flow.field,
+    flowMax: f.flow === null ? 0 : f.flow.max,
+    flowGoals: f.flow === null ? 0 : f.flow.goals,
+    flow: f.flow === null ? [] : Array.from({ length: f.flow.count }, (_, i) => ({
+      x: f.flow.x[i], y: f.flow.y[i], dist: f.flow.dist[i],
+    })),
   };
 }
 

@@ -60,7 +60,7 @@ way it is without re-deriving it from the source each time.
 | [property.md](./property.md) | Who owns what: fixture records with owners and access (communal/private), per-chest ledgers of whose goods are inside, and how private fixtures route. Economy phase E1. |
 | [mood-space.md](./mood-space.md) | What is still open after wear, trait rules, and baselines shipped — plus the rejected tag design. |
 | [memories.md](./memories.md) | Colonist memories and compositional events: notable experiences, sightings, affect vectors, stimuli, and snapshot exposure. |
-| [flow-field-view.md](./flow-field-view.md) | The map's flow-field overlay (`f`): opting a field into the snapshot with `ShowFlowField`, the sparse, version-cached copy, why freshening a field to show it keeps runs deterministic, and the TUI's colour ramp. |
+| [flow-field-view.md](./flow-field-view.md) | The map's flow-field overlay (`f`), in the TUI and the browser: opting a field into the snapshot with `ShowFlowField`, the sparse, version-cached copy, why freshening a field to show it keeps runs deterministic, the frame's view-limited flow section, and the shared colour ramp. |
 | [sparse-grids.md](./sparse-grids.md) | `pagedGrid[T]`: why the flow fields, A\* scratch, region labels and occupancy index allocate with the colony instead of the map, and the fast paths that made it free. |
 | [snapshot-tile-grid.md](./snapshot-tile-grid.md) | The terrain a frontend reads: an immutable, page-shared grid so publishing a frame costs what the tick touched, not the map's area, plus the opt-in live mode that skips the copy for a same-goroutine frontend. |
 | [fog-of-war.md](./fog-of-war.md) | What the colony has seen: the explored flag, how digging lifts the fog, and how the map draws the unknown. |

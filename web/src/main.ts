@@ -9,7 +9,7 @@
 import { mount } from 'svelte';
 import type { Frame, Hello } from '../wire/decode.js';
 import { namedStats, TILE_COMPOSITION_MASK, TILE_VISIBLE } from '../wire/decode.js';
-import { colonyLog, inspect, install, stepSpeed, subscribe, syncFrame, togglePause, topics, ui, UI_HZ } from './game.svelte';
+import { colonyLog, cycleFlowField, inspect, install, setFlowField, stepSpeed, subscribe, syncFrame, togglePause, topics, ui, UI_HZ } from './game.svelte';
 import { attachInput } from './map/input';
 import { MapRenderer } from './map/renderer';
 import type { TileRect } from './map/camera';
@@ -86,6 +86,10 @@ sim.onFrame = (f, bytes) => {
     centerOnColony(f);
     centered = true;
   }
+  // A flow section is rare (the field or the view changed) and may be the
+  // only frame for a while if paused, so the legend takes it at once rather
+  // than at the UI_HZ beat below.
+  if (f.flow) ui.flowShown = map.flowShown;
   // The chrome refreshes at UI_HZ, and at once when pause flips, so the
   // selector never lags a press.
   const now = performance.now();
@@ -109,6 +113,11 @@ window.addEventListener('keydown', (e) => {
     case ' ': togglePause(); break;
     case '+': case '=': stepSpeed(1); break;
     case '-': case '_': stepSpeed(-1); break;
+    // Not with a modifier: Ctrl/Cmd+F is the browser's Find.
+    case 'f': case 'F':
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+      if (e.key === 'f') cycleFlowField(); else setFlowField(-1);
+      break;
     default: return;
   }
   e.preventDefault();
@@ -130,6 +139,8 @@ async function newGame(settings: Settings): Promise<void> {
   hello = null;
   ui.hello = null;
   ui.selected = null;
+  ui.flowPick = -1; // a new engine shows no field
+  ui.flowShown = null;
   colonyLog.clear();
   map.setHighlight(null);
   map.setMark(null);
@@ -240,6 +251,12 @@ function showHover(sx: number, sy: number): void {
     if (filth?.scum) parts.push(`scum ${filth.scum}/${hello.scumMax}`);
     if (filth?.salt) parts.push('salt');
     if (filth?.corpses) parts.push(filth.corpses === 1 ? 'a body' : `${filth.corpses} bodies`);
+    const flow = map.flowAt(x, y);
+    const shown = ui.flowShown;
+    if (flow !== undefined && shown && (flow !== null || hello.enums.terrains[terrain] === 'floor')) {
+      const field = hello.flowFields[shown.field] ?? 'flow';
+      parts.push(flow === null ? `${field}: unreachable` : `${field}: ${flow} step${flow === 1 ? '' : 's'}`);
+    }
     if (last) {
       const e = last.entities;
       for (let i = 0; i < e.count; i++) {

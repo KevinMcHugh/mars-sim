@@ -137,7 +137,7 @@ func (m Model) renderFlowSidebar(v *sim.FlowFieldView) string {
 	case v == nil:
 		lines = append(lines, "", "waiting for the engine…")
 	case v.Goals == 0:
-		lines = append(lines, "", "no goal tiles: nothing", "to route to yet")
+		lines = append(lines, "", "no goal tiles: no one", "routes by this field", "(a facility's leads only", "to fixtures everyone", "may use)")
 	default:
 		lines = append(lines,
 			"",

@@ -40,8 +40,8 @@ import (
 // The page checks it at start, so a mars-sim.wasm left over from an older
 // build (npm run wasm not rerun after a pull) fails with a message saying so,
 // instead of a panel that silently never loads. 1 was everything before
-// subscribe/unsubscribe; 2 had no entity: or tile: topics; 3 no roster; 4 no log; 5 no jobs, storage, market or account:; 6 no perf or population.
-const hostAPI = 7
+// subscribe/unsubscribe; 2 had no entity: or tile: topics; 3 no roster; 4 no log; 5 no jobs, storage, market or account:; 6 no perf or population; 7 no flow command.
+const hostAPI = 8
 
 var (
 	eng *sim.Engine
@@ -221,9 +221,12 @@ type memoryResult struct {
 
 // command is a sim.Command as the page sends it.
 type command struct {
-	Type string `json:"type"` // pause | speed | spawn
+	Type string `json:"type"` // pause | speed | spawn | flow
 	Rate int    `json:"rate,omitempty"`
 	Kind string `json:"kind,omitempty"`
+	// Field is the flow field to show, an index into Hello.flowFields, or
+	// -1 for none.
+	Field *int `json:"field,omitempty"`
 }
 
 func parseCommand(s string) (sim.Command, error) {
@@ -243,6 +246,16 @@ func parseCommand(s string) (sim.Command, error) {
 			}
 		}
 		return nil, fmt.Errorf("unknown kind %q", c.Kind)
+	case "flow":
+		if c.Field == nil || *c.Field < 0 {
+			return sim.ShowFlowField{}, nil
+		}
+		// Hello.flowFields is the first snapshot's list, and the fields
+		// are fixed for a world's life, so the newest snapshot's agrees.
+		if last == nil || *c.Field >= len(last.FlowFields) {
+			return nil, fmt.Errorf("no flow field %d", *c.Field)
+		}
+		return sim.ShowFlowField{Show: true, Field: last.FlowFields[*c.Field]}, nil
 	}
 	return nil, fmt.Errorf("unknown command %q", c.Type)
 }

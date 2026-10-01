@@ -51,7 +51,28 @@ export const ui = $state({
   ticker: loadPref('ticker', true),
   /** The Charts tab's view, kept while the tab is closed. */
   chartView: 'perf' as 'perf' | 'population' | 'activity',
+  /** The flow field asked for (an index into Hello.flowFields), or -1 for none. */
+  flowPick: -1,
+  /**
+   * The flow field the map is drawing, as the worker last reported it, or
+   * null. It trails flowPick by a frame or two; the legend reads this one,
+   * so it never names a field the map is not showing.
+   */
+  flowShown: null as { field: number; max: number; goals: number } | null,
 });
+
+/** Show a flow field on the map (an index into Hello.flowFields), or none (-1). */
+export function setFlowField(i: number): void {
+  const n = ui.hello?.flowFields.length ?? 0;
+  if (i >= n) i = -1;
+  ui.flowPick = i;
+  ctl?.command({ type: 'flow', field: i });
+}
+
+/** Step to the next flow field, and to none after the last (the TUI's f). */
+export function cycleFlowField(): void {
+  setFlowField(ui.flowPick + 1);
+}
 
 /** A creature by id, or a tile. */
 export type Selection = { entity: number } | { tile: [number, number] };

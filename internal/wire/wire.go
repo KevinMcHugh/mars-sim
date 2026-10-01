@@ -25,7 +25,7 @@ import (
 // Version is the frame layout's version, carried in every frame header and in
 // Hello. Bump it on any change to the layout, and update the decoder
 // (web/wire/decode.js) and the golden files in the same change.
-const Version = 4
+const Version = 5
 
 // Hello is the once-per-game message.
 type Hello struct {
@@ -45,6 +45,9 @@ type Hello struct {
 	// page can shade a tile by how much is on it.
 	GoreMax int `json:"goreMax"`
 	ScumMax int `json:"scumMax"`
+	// FlowFields names the shared flow fields, in the engine's order: the
+	// flow section's field index, and the page's flow command, index this.
+	FlowFields []string `json:"flowFields"`
 }
 
 // HelloGlyphs is the map's emoji (internal/glyphs) as the page needs them: the
@@ -125,7 +128,17 @@ func NewHello(snap *sim.Snapshot) Hello {
 		Glyphs:   helloGlyphs(),
 		GoreMax:  sim.MaxGore,
 		ScumMax:  snap.ScumMax,
+
+		FlowFields: flowFieldNames(snap.FlowFields),
 	}
+}
+
+func flowFieldNames(refs []sim.FlowFieldRef) []string {
+	names := make([]string, len(refs))
+	for i, r := range refs {
+		names[i] = r.Name()
+	}
+	return names
 }
 
 // statFields are the int fields of sim.Stats, in declaration order: a new

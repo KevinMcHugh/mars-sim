@@ -31,6 +31,17 @@ type decoded struct {
 	Scum      []decodedScum  `json:"scum"`
 	HasSalt   bool           `json:"saltFrame"`
 	Salt      []decodedSalt  `json:"salt"`
+	HasFlow   bool           `json:"flowFrame"`
+	FlowField int32          `json:"flowField"`
+	FlowMax   int32          `json:"flowMax"`
+	FlowGoals int32          `json:"flowGoals"`
+	Flow      []decodedFlow  `json:"flow"`
+}
+
+type decodedFlow struct {
+	X    int32  `json:"x"`
+	Y    int32  `json:"y"`
+	Dist uint16 `json:"dist"`
 }
 
 type decodedSalt struct {
@@ -85,6 +96,10 @@ func decode(t *testing.T, b []byte) decoded {
 		HasRefuse: flags&flagRefuseFrame != 0,
 		HasScum:   flags&flagScumFrame != 0,
 		HasSalt:   flags&flagSaltFrame != 0,
+		HasFlow:   flags&flagFlowFrame != 0,
+		FlowField: int32(le.Uint32(b[60:])),
+		FlowMax:   int32(le.Uint32(b[64:])),
+		FlowGoals: int32(le.Uint32(b[68:])),
 		Tick:      le.Uint64(b[8:]),
 		TileFrame: le.Uint64(b[16:]),
 		TPS:       le.Uint32(b[24:]),
@@ -143,6 +158,14 @@ func decode(t *testing.T, b []byte) decoded {
 		d.Salt[i].Y = int32(le.Uint32(b[at+4*(nSalt+i):]))
 	}
 	at += 8 * nSalt
+	nFlow := int(le.Uint32(b[56:]))
+	d.Flow = make([]decodedFlow, nFlow)
+	for i := range d.Flow {
+		d.Flow[i].X = int32(le.Uint32(b[at+4*i:]))
+		d.Flow[i].Y = int32(le.Uint32(b[at+4*(nFlow+i):]))
+		d.Flow[i].Dist = le.Uint16(b[at+8*nFlow+2*i:])
+	}
+	at += 8*nFlow + align4(2*nFlow)
 	if at != len(b) {
 		t.Fatalf("frame is %d bytes, sections add up to %d", len(b), at)
 	}
@@ -516,5 +539,44 @@ func TestEncodeSendsSaltWhenItChanges(t *testing.T) {
 	gone.Salt = map[sim.Point]struct{}{}
 	if d := decode(t, e.Encode(&gone)); !d.HasSalt || len(d.Salt) != 0 {
 		t.Errorf("all salt built over: want an empty salt frame, got %v %+v", d.HasSalt, d.Salt)
+	}
+}
+
+// The flow section carries the shown field's tiles in view, and goes again
+// only when the field changes or the view moves; hiding the field sends an
+// empty section with no field, so the page clears its overlay.
+func TestEncodeFlowField(t *testing.T) {
+	snap := fixture(false)
+	e := NewEncoder()
+	e.SetInterest(Rect{0, 0, 64, 64})
+	if d := decode(t, e.Encode(snap)); d.HasFlow || len(d.Flow) != 0 {
+		t.Fatalf("no field shown, but a flow section was sent: %+v", d.Flow)
+	}
+
+	toilet := sim.FlowFieldRef{Facility: sim.Toilet}
+	snap.FlowFields = []sim.FlowFieldRef{{Facility: sim.NutrientPod}, toilet, {Frontier: true}}
+	snap.FlowField = sim.NewFlowFieldView(toilet, snap.Width, snap.Height,
+		map[sim.Point]int32{{X: 5, Y: 2}: 3, {X: 1, Y: 1}: 0, {X: 100, Y: 5}: 70000})
+	d := decode(t, e.Encode(snap))
+	want := []decodedFlow{{X: 1, Y: 1, Dist: 0}, {X: 5, Y: 2, Dist: 3}} // (100,5) is out of view
+	if !d.HasFlow || d.FlowField != 1 || d.FlowMax != 70000 || d.FlowGoals != 1 || !slices.Equal(d.Flow, want) {
+		t.Fatalf("flow frame = field %d max %d goals %d %+v, want field 1 max 70000 goals 1 %+v",
+			d.FlowField, d.FlowMax, d.FlowGoals, d.Flow, want)
+	}
+
+	snap.TileChanges = sim.TileChanges{Frame: 2}
+	if d := decode(t, e.Encode(snap)); d.HasFlow {
+		t.Fatal("unchanged field in an unchanged view was sent again")
+	}
+
+	e.SetInterest(Rect{64, 0, 150, 64})
+	d = decode(t, e.Encode(snap))
+	if !d.HasFlow || !slices.Equal(d.Flow, []decodedFlow{{X: 100, Y: 5, Dist: 65535}}) {
+		t.Fatalf("a moved view should resend its tiles, distances saturating: %+v", d.Flow)
+	}
+
+	snap.FlowField = nil
+	if d := decode(t, e.Encode(snap)); !d.HasFlow || d.FlowField != -1 || len(d.Flow) != 0 {
+		t.Fatalf("hiding the field should send an empty section with field -1: %+v", d)
 	}
 }

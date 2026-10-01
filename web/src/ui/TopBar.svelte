@@ -3,6 +3,7 @@
   // (creatures, fixtures, refuse, rooms, excavated). Refreshes at UI_HZ.
   import { ui } from '../game.svelte';
   import SpeedControl from './SpeedControl.svelte';
+  import FlowControl from './FlowControl.svelte';
 
   // Creatures: their generic glyph (glyphs.ForKind), as the TUI's header shows them.
   const creatures: [stat: string, kind: string][] = [
@@ -34,6 +35,7 @@
   <strong class="title">mars-sim</strong>
   <span class="readout">tick {ui.tick.toLocaleString()}</span>
   <SpeedControl />
+  <FlowControl />
   {#if ui.hello}
     <span class="counts">
       {#each creatures as [stat, kind] (stat)}

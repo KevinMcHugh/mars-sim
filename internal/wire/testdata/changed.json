@@ -1,5 +1,5 @@
 {
-  "version": 4,
+  "version": 5,
   "paused": true,
   "fogOfWar": true,
   "tilesReset": false,
@@ -78,5 +78,26 @@
   "scumFrame": false,
   "scum": [],
   "saltFrame": false,
-  "salt": []
+  "salt": [],
+  "flowFrame": true,
+  "flowField": 1,
+  "flowMax": 40,
+  "flowGoals": 1,
+  "flow": [
+    {
+      "x": 7,
+      "y": 0,
+      "dist": 0
+    },
+    {
+      "x": 8,
+      "y": 1,
+      "dist": 1
+    },
+    {
+      "x": 100,
+      "y": 5,
+      "dist": 40
+    }
+  ]
 }
