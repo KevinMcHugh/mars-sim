@@ -292,7 +292,7 @@ closed.
   rectangle instead of panning (`attachInput`'s `areaTool` and `area` hooks),
   the rock the colony has seen in it is tinted with the same highlight the
   Jobs tab uses, and the panel prices it from the market topic's `dig` terms.
-  **Order** sends the `dig` command. The tool is one-shot, and leaving the tab
+  **Order** sends the `dig` command; the open orders are listed below with a **Cancel** that sends `dig-cancel`. The tool is one-shot, and leaving the tab
   clears it. The page counts rock itself from the tile pages it holds
   (terrain 0, visible); the engine recounts, so the two can differ by tiles
   already ordered.

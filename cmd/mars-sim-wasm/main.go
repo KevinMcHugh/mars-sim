@@ -40,8 +40,8 @@ import (
 // The page checks it at start, so a mars-sim.wasm left over from an older
 // build (npm run wasm not rerun after a pull) fails with a message saying so,
 // instead of a panel that silently never loads. 1 was everything before
-// subscribe/unsubscribe; 2 had no entity: or tile: topics; 3 no roster; 4 no log; 5 no jobs, storage, market or account:; 6 no perf or population; 7 no flow command; 8 no dig command.
-const hostAPI = 9
+// subscribe/unsubscribe; 2 had no entity: or tile: topics; 3 no roster; 4 no log; 5 no jobs, storage, market or account:; 6 no perf or population; 7 no flow command; 8 no dig command; 9 no dig-cancel.
+const hostAPI = 10
 
 var (
 	eng *sim.Engine
@@ -228,6 +228,7 @@ type command struct {
 	// -1 for none.
 	Field *int `json:"field,omitempty"`
 	// dig: the rectangle, inclusive, in tiles.
+	ID int `json:"id,omitempty"` // dig-cancel: the excavation's project id
 	X0 int `json:"x0,omitempty"`
 	Y0 int `json:"y0,omitempty"`
 	X1 int `json:"x1,omitempty"`
@@ -244,6 +245,8 @@ func parseCommand(s string) (sim.Command, error) {
 		return sim.TogglePause{}, nil
 	case "speed":
 		return sim.SetTicksPerSecond{Rate: c.Rate}, nil
+	case "dig-cancel":
+		return sim.CancelExcavation{ID: c.ID}, nil
 	case "dig":
 		return sim.OrderExcavation{X0: c.X0, Y0: c.Y0, X1: c.X1, Y1: c.Y1}, nil
 	case "spawn":

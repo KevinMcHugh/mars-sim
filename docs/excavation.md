@@ -15,7 +15,8 @@ kind of job.
 ## Source
 
 - [`internal/sim/excavation.go`](../internal/sim/excavation.go) —
-  `OrderExcavation` (the command), `orderExcavation`, `maxExcavationTiles`.
+  `OrderExcavation` and `CancelExcavation` (the commands), `orderExcavation`,
+  `cancelExcavation`, `maxExcavationTiles`.
 - [`internal/sim/workorder.go`](../internal/sim/workorder.go) — `WorkDig`, and
   `fundProject` posting each task with its project's `workKind`.
 - [`internal/sim/project.go`](../internal/sim/project.go) — `project.workKind`;
@@ -24,7 +25,7 @@ kind of job.
   [`internal/wire/boards.go`](../internal/wire/boards.go) — `DigWage` and
   `DigMax`, carried to the page as the market topic's `dig`.
 - [`cmd/mars-sim-wasm/main.go`](../cmd/mars-sim-wasm/main.go) — the `dig`
-  command (`hostAPI` 8).
+  command (`hostAPI` 10, with `dig-cancel`).
 - [`web/src/ui/DigPanel.svelte`](../web/src/ui/DigPanel.svelte), `dragArea` and
   `showDig` in [`web/src/main.ts`](../web/src/main.ts), the `areaTool` hooks in
   [`web/src/map/input.ts`](../web/src/map/input.ts), and `ui.dig` in
@@ -76,11 +77,20 @@ is over `maxExcavationTiles`, or costs more than the treasury holds.
   before anyone held them. The page doesn't know which tiles are taken, so its
   count can be higher than what the engine buys.
 
+## Cancelling
+
+`CancelExcavation{ID}` names the excavation's project id, which the market
+topic lists in `digs` beside how many tiles are dug and what is still held.
+`cancelExcavation` releases any digger's claim on one of its tasks (so it is
+not paid for a task that is gone), closes every order still open, refunding the
+treasury, and drops the project. Rock not yet dug stays rock, and tiles already
+dug and paid for stay so. Only a project named `excavation` can be cancelled:
+rooms belong to the planner. The Dig tab lists open orders with a **Cancel**
+button, which is also how to recover the money held for an area walled off from
+every walkable tile.
+
 ## Known gaps
 
-- **No cancel.** An area walled off from every walkable tile stays open, and
-  its escrow stays held, until something digs the tiles around it. There is no
-  command to close an order and take the money back.
 - **Idle miners ignore the wage.** Frontier mining is not chosen by pay (see
   [work-market.md](./work-market.md)), so a miner who passes a marked tile may
   clear it without holding the task. The order's leftover escrow is refunded
@@ -90,9 +100,6 @@ is over `maxExcavationTiles`, or costs more than the treasury holds.
 
 ## Extending it
 
-- **Cancelling**: a command that closes a project's orders (`closeWork`) and
-  drops it, as `cancelWorkOf` does for a dead issuer, plus a row per excavation
-  with its id in the market topic.
 - **A colonist ordering a dig** from its own wallet: `issuer` is already a field,
   and `fundProject` pays from whoever it names.
 - **Other areas**: a `kind` on the command (clear refuse, say) would reuse the

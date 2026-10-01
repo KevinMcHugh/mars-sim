@@ -12,9 +12,9 @@ import "fmt"
 // fundProject is for a room: a treasury that cannot cover the whole area buys
 // none of it. See docs/excavation.md.
 
-// excavationName is the project an excavation order creates. The Jobs tab
+// ExcavationName is the project an excavation order creates. The Jobs tab
 // lists it by this name, and it is how a dig is told from a room.
-const excavationName = "excavation"
+const ExcavationName = "excavation"
 
 // maxExcavationTiles caps one order, so a stray drag across the whole map
 // cannot escrow the treasury in one go. The browser reads it from the market
@@ -27,6 +27,45 @@ const maxExcavationTiles = 400
 type OrderExcavation struct{ X0, Y0, X1, Y1 int }
 
 func (OrderExcavation) isCommand() {}
+
+// CancelExcavation closes an excavation order by its project ID: the orders
+// still open are closed and refunded to the treasury, and the rock not yet dug
+// is left as it is. What was already dug, and paid for, stays so.
+type CancelExcavation struct{ ID int }
+
+func (CancelExcavation) isCommand() {}
+
+// cancelExcavation drops the excavation project with this ID and refunds what
+// its open orders still hold, and reports whether there was one. Only an
+// excavation can be cancelled this way: a room is the planner's, not an order.
+func (w *World) cancelExcavation(id int) bool {
+	for i, p := range w.projects {
+		if p.id != id || p.name != ExcavationName {
+			continue
+		}
+		cleared, refunded := 0, Money(0)
+		for _, t := range p.tasks {
+			if t.owner != 0 {
+				// A digger on its way drops the job, so it is not paid
+				// for a task that no longer exists.
+				if e := w.entities[t.owner]; e != nil && e.task == t {
+					w.clearJob(e)
+				}
+			}
+			if t.order != nil && w.workOrders[t.order.ID] == t.order {
+				refunded += t.order.escrow
+				w.closeWork(t.order)
+			}
+			if w.taskDone(t) {
+				cleared++
+			}
+		}
+		w.projects = append(w.projects[:i], w.projects[i+1:]...)
+		w.logEvent(LogBuildStart, fmt.Sprintf("The colony cancels an excavation of %d tiles, %d already dug, and takes back %v.", len(p.tasks), cleared, refunded))
+		return true
+	}
+	return false
+}
 
 // orderExcavation marks out the rock the colony has seen inside the rectangle,
 // funded by the treasury, and reports whether it did. It logs why not.
@@ -66,7 +105,7 @@ func (w *World) orderExcavation(c OrderExcavation) bool {
 	}
 
 	w.nextProjectID++
-	p := &project{id: w.nextProjectID, name: excavationName, queuedTick: w.tick, tasks: tasks,
+	p := &project{id: w.nextProjectID, name: ExcavationName, queuedTick: w.tick, tasks: tasks,
 		issuer: Community, workKind: WorkDig}
 	for _, t := range tasks {
 		t.proj = p

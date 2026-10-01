@@ -44,7 +44,7 @@ func TestAnExcavationOrderIsPaidFromTheTreasuryAndDug(t *testing.T) {
 		t.Fatalf("order refused; log: %v", w.log.tail(1))
 	}
 	p := w.projects[len(w.projects)-1]
-	if p.name != excavationName || p.issuer != Community || len(p.tasks) != tiles {
+	if p.name != ExcavationName || p.issuer != Community || len(p.tasks) != tiles {
 		t.Fatalf("project %q issuer %v with %d tasks, want %d tiles", p.name, p.issuer, len(p.tasks), tiles)
 	}
 	cost := Money(tiles) * w.wageFor(Floor)
@@ -146,5 +146,56 @@ func TestAnExcavationOrderIsBounded(t *testing.T) {
 	}
 	if w.orderExcavation(OrderExcavation{X0: open.X, Y0: open.Y, X1: open.X, Y1: open.Y}) {
 		t.Fatal("an open floor tile was ordered dug")
+	}
+}
+
+// Cancelling an excavation refunds what its open orders hold, drops the
+// project, and leaves what was already dug and paid for alone.
+func TestCancellingAnExcavationRefundsTheTreasury(t *testing.T) {
+	cfg := testConfig()
+	cfg.StartAliens = 0
+	w := newTestWorld(t, cfg)
+	c := frontierRect(t, w)
+	before := w.treasury
+	if !w.orderExcavation(c) {
+		t.Fatal("order refused")
+	}
+	p := w.projects[len(w.projects)-1]
+	for i := 0; i < 300 && w.workEscrowed() == w.projectCost(p); i++ {
+		w.step() // until somebody has dug and been paid for a tile
+	}
+	paid := w.projectCost(p) - w.workEscrowed()
+	if !w.cancelExcavation(p.id) {
+		t.Fatal("cancel refused")
+	}
+	for _, q := range w.projects {
+		if q == p {
+			t.Fatal("the project is still open")
+		}
+	}
+	if w.workEscrowed() != 0 || w.treasury != before-paid {
+		t.Fatalf("escrow %v, treasury %v; want 0 and %v (paid out %v)", w.workEscrowed(), w.treasury, before-paid, paid)
+	}
+	assertMoneyConserved(t, w)
+	if w.cancelExcavation(p.id) {
+		t.Fatal("cancelled twice")
+	}
+	for i := 0; i < 200; i++ {
+		w.step() // nobody is left holding a task that is gone
+	}
+	assertMoneyConserved(t, w)
+}
+
+// Only an excavation is cancelled this way: a room is the planner's.
+func TestCancelLeavesRoomsAlone(t *testing.T) {
+	cfg := testConfig()
+	cfg.StartAliens = 0
+	w := newTestWorld(t, cfg)
+	w.planRooms()
+	if len(w.projects) == 0 {
+		t.Fatal("nothing planned")
+	}
+	if w.cancelExcavation(w.projects[0].id) {
+		t.Fatal("a room was cancelled as an excavation")
 	}
 }

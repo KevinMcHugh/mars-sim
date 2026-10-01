@@ -218,6 +218,11 @@ export function orderDig(): void {
   clearDig();
 }
 
+/** Cancel an open excavation order; what it still held goes back to the treasury. */
+export function cancelDig(id: number): void {
+  ctl?.command({ type: 'dig-cancel', id });
+}
+
 export function togglePause(): void {
   ctl?.command({ type: 'pause' });
   pressed = performance.now();

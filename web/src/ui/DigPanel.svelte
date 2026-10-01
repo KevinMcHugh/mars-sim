@@ -3,13 +3,14 @@
   // see what it would cost, and order it: the colony buys the digging from the
   // treasury as work orders on the order book (docs/excavation.md). The prices
   // and the open orders come from the market topic.
-  import { armDig, centerOn, clearDig, orderDig, subscribe, topics, ui } from '../game.svelte';
+  import { armDig, cancelDig, centerOn, clearDig, orderDig, subscribe, topics, ui } from '../game.svelte';
   import { money } from './format';
 
   interface Market {
     supply: { treasury: number };
     work: { issuer: string; kind: string; units: number; held: number }[];
     dig: { wage: number; maxTiles: number };
+    digs: { id: number; x0: number; y0: number; x1: number; y1: number; tiles: number; done: number; held: number }[];
   }
 
   $effect(() => subscribe('market'));
@@ -19,7 +20,6 @@
   const m = $derived(topics.data.market as Market | undefined);
   const r = $derived(ui.dig.rect);
   const cost = $derived(m ? ui.dig.tiles * m.dig.wage : 0);
-  const open = $derived(m?.work.filter((w) => w.kind === 'dig') ?? []);
 
   // Why the order cannot go, or null if it can.
   const blocked = $derived.by(() => {
@@ -68,15 +68,22 @@
 <h2>Open dig orders</h2>
 {#if !m}
   <p class="muted">Loading…</p>
-{:else if open.length === 0}
+{:else if m.digs.length === 0}
   <p class="muted">none open</p>
 {:else}
   <ul class="lines">
-    {#each open as w, i (i)}
-      <li>{w.issuer}: {w.units} tiles to dig, {money(w.held)} held</li>
+    {#each m.digs as d (d.id)}
+      <li>
+        <button type="button" class="link" onclick={() => centerOn((d.x0 + d.x1) >> 1, (d.y0 + d.y1) >> 1)}>
+          {d.x0},{d.y0} to {d.x1},{d.y1}
+        </button>
+        {d.done}/{d.tiles} dug, {money(d.held)} held
+        <button type="button" class="cancel" onclick={() => cancelDig(d.id)}
+          title="Close the order and return {money(d.held)} to the treasury">Cancel</button>
+      </li>
     {/each}
   </ul>
-  <p class="muted">The Jobs tab shows how far each excavation has got.</p>
+  <p class="muted">The Jobs tab shows who is digging. Cancelling keeps what is already dug and paid.</p>
 {/if}
 
 <style>
@@ -94,6 +101,7 @@
   dd { margin: 0; font-variant-numeric: tabular-nums; }
   ul { list-style: none; padding: 0; margin: 0 0 8px; }
   .lines li { line-height: 1.5; font-size: 13px; }
+  .cancel { margin-left: 6px; padding: 0 8px; font-size: 12px; }
   .link { border: none; background: none; padding: 0; color: #8fd0ff; cursor: pointer; font: inherit; }
   .link:hover { text-decoration: underline; }
 </style>
