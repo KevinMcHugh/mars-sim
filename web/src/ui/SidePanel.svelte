@@ -5,6 +5,7 @@
   // stops building data nobody is looking at. Which tab is open is ui.panel,
   // so a click on the map can open the inspector.
   import { setPanel, ui } from '../game.svelte';
+  import ChartsPanel from './ChartsPanel.svelte';
   import InspectPanel from './InspectPanel.svelte';
   import JobsPanel from './JobsPanel.svelte';
   import MarketPanel from './MarketPanel.svelte';
@@ -21,6 +22,7 @@
     { id: 'jobs', label: 'Jobs', component: JobsPanel },
     { id: 'storage', label: 'Storage', component: StoragePanel },
     { id: 'market', label: 'Market', component: MarketPanel },
+    { id: 'charts', label: 'Charts', component: ChartsPanel },
     { id: 'lore', label: 'Lore', component: LorePanel },
     { id: 'game', label: 'New game', component: NewGamePanel },
   ] as const;

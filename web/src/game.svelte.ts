@@ -31,6 +31,8 @@ export const ui = $state({
   /** The roster's filters, kept while the tab is closed (the TUI's f). */
   rosterDead: false,
   rosterNonHuman: false,
+  /** The Charts tab's view, kept while the tab is closed. */
+  chartView: 'perf' as 'perf' | 'population' | 'activity',
 });
 
 /** A creature by id, or a tile. */

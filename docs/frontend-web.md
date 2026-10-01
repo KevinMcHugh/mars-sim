@@ -12,7 +12,7 @@ readout. Around it is a Svelte chrome:
 - **A top bar:** the clock, a Pause / Normal / Fast / Faster / Max speed selector, and
   the TUI header's counts, as emoji (👷 👽 🐈 🐀, then each fixture's glyph).
 - **A side panel,** with the Inspect tab (click the map), the Roster, the
-  Log, Jobs, Storage, Market, the Lore tab and a new-game form.
+  Log, Jobs, Storage, Market, Charts, the Lore tab and a new-game form.
 - **A log ticker** over the map's bottom-left corner: the last few colony-log
   lines, fading after a few seconds.
 
@@ -32,8 +32,13 @@ The rest of the TUI's tabs are planned in
 - [`web/src/ui/`](../web/src/ui/App.svelte) — the Svelte chrome: `App`,
   `TopBar`, `SpeedControl`, `SidePanel`, `Bar` (a gauge), and one component
   per tab (`InspectPanel`, `RosterPanel`, `LogPanel`, `JobsPanel`,
-  `StoragePanel`, `MarketPanel` with `AccountDetail`, `LorePanel`,
-  `NewGamePanel`), and `LogTicker`. `format.ts` formats money. `logkinds.ts` colors the log's types. `inspect.ts` types the
+  `StoragePanel`, `MarketPanel` with `AccountDetail`, `ChartsPanel`,
+  `LorePanel`, `NewGamePanel`), and `LogTicker`. `format.ts` formats money.
+- [`web/src/ui/charts/`](../web/src/ui/charts/Chart.svelte) — the Charts tab:
+  `Chart` (one uPlot chart with a tooltip), `PerfCharts`,
+  `PopulationCharts`, `ActivityChart`, `theme.ts` (colors and the activity
+  bands), and `population.ts` (the activity arithmetic, tested by
+  `population.test.mjs`). `logkinds.ts` colors the log's types. `inspect.ts` types the
   inspector's payloads.
 - [`web/src/speed.ts`](../web/src/speed.ts) — the speed selector's steps.
 - [`web/src/settings.ts`](../web/src/settings.ts) — new-game settings from the
@@ -262,6 +267,39 @@ closed.
 A link from any of these into the inspector remembers its tab
 (`ui.inspectFrom`), so the inspector offers **← Jobs**, **← Storage** or
 **← Market**. Going back keeps the selection, so the row stays highlighted.
+
+**Charts** are the TUI's three chart screens in one tab, a view at a time,
+drawn with [uPlot](https://github.com/leeoniya/uPlot) on their own opaque
+surface:
+
+- **Perf** (the `perf` topic): ticks per second, averaged over the trailing
+  second as the TUI does, and milliseconds per tick, with a gap where the
+  game was paused, over the last five minutes. Two charts, never one with two
+  y-axes: the measures share only the clock.
+- **Population** (`population`): colonists, meals in storage, colony size and
+  fixtures over the whole game, four small charts, since their scales differ
+  by orders of magnitude.
+- **Activity** (`population` too): a stacked area of what colonists spend
+  their time on, as a share of colonist time or as average colonists. The
+  game is summed into at most 48 columns, as the TUI sums per plot column: a
+  sample covers as little as 50 ticks, and drawn one by one the stack was
+  noise. Each band is split into doing it and walking there, the walking part
+  hatched at 45° in the band's color rather than given a second hue.
+
+The colors are the dataviz reference palette's dark steps, checked with its
+validator against the charts' surface (`#1a1a19`). A chart gets at most eight
+categorical hues and the game has 13 activities, so related ones share a band
+(mining & building, hauling & cleaning, and escaping, fleeing and fighting
+as "danger"), with idle as a neutral gray lid. The hover tooltip and the
+table under the chart still name every activity, lately (the last tenth of
+the game) and over the whole game. Every chart has a hover tooltip.
+
+**uPlot loads on first use**, not with the page. It is only for this tab, and
+it builds an `Intl.NumberFormat` from `navigator.language` as it loads: a
+headless Chromium here reported `en-US@posix`, which `Intl` rejects, and the
+throw took the whole page down before the map started. Loaded lazily, a
+failure stays in the chart (which says so) and the bundle loses 50 KB.
+Automation should give the browser a real locale (`locale: 'en-US'`).
 
 **The top bar stops short of the panel column** (`--panel-reserve` is the
 panel's width): with eight tabs the tab strip wraps to two rows there, and it
