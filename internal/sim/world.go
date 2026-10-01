@@ -134,6 +134,10 @@ const (
 	// rock. It is a depot, not a workshop (it works no recipe). See
 	// incubator.go and docs/incubator.md.
 	Incubator
+	// Trough holds chicken feed: a keeper fills it, its chickens eat from
+	// it. A fixture with a depot, like a chest, that holds nothing but feed.
+	// It comes down in a chicken keeper's crash pod. See docs/chickens.md.
+	Trough
 
 	numTerrains // keep last: the number of terrain kinds
 )
@@ -168,6 +172,8 @@ func (t Terrain) String() string {
 		return "chair"
 	case Incubator:
 		return "scum incubator"
+	case Trough:
+		return "trough"
 	default:
 		return "unknown"
 	}

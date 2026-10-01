@@ -124,7 +124,7 @@ func activityOfPurpose(e *Entity) Activity {
 		return ActCleaning
 	case JobStore, JobSell, JobCarry:
 		return ActHauling
-	case JobCraft:
+	case JobCraft, JobTend:
 		return ActCooking
 	case JobDemolish:
 		return ActEscaping

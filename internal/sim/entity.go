@@ -20,6 +20,10 @@ const (
 	// scum, and nibbling from nutrient pods when there is nothing else.
 	// It has a hunger need and starves without food; cats eat it.
 	Rat
+	// Chicken is a colonist's bird, brought down in its crash pod. It grazes
+	// cave scum and eats feed from its keeper's trough, and starves without
+	// either. Cats and chickens ignore each other. See docs/chickens.md.
+	Chicken
 
 	numKinds // keep last: the number of entity kinds
 )
@@ -34,6 +38,8 @@ func (k Kind) String() string {
 		return "cat"
 	case Rat:
 		return "rat"
+	case Chicken:
+		return "chicken"
 	default:
 		return "unknown"
 	}
@@ -271,6 +277,7 @@ const (
 	JobScavenge         // (rats) eat the body, gore, or scum at Target where it lies
 	JobSell             // take surplus meals from the depot at Target to the silo and offer them
 	JobCarry            // carry its own goods to a buyer's depot and ask the price (see producer.go)
+	JobTend             // keep its chickens' trough in feed: scrape scum, mix feed at a scumhouse, fill the trough (see chickens.go)
 )
 
 // cleanStage is where a JobClean colonist is in the haul. The job is two legs
@@ -391,6 +398,14 @@ type Entity struct {
 	// See crashpod.go.
 	podOrigin Point
 	hasPod    bool
+	// keeper is the colonist a pet (a chicken or a cat) came down with, 0 for
+	// a stray. trough is where a chicken eats and where its keeper fills it,
+	// when hasTrough; a keeper has the same trough. tend is where a JobTend
+	// keeper is. See chickens.go.
+	keeper    EntityID
+	trough    Point
+	hasTrough bool
+	tend      tendStage
 	// eat is where a JobEat colonist is: fetching a meal, or eating one. See
 	// food.go.
 	eat eatStage
@@ -589,6 +604,10 @@ func newEntity(id EntityID, kind Kind, p Point, cfg Config) *Entity {
 		// Rats share the colonists' NeedFood but nibble constantly, so only their
 		// food need rises (fast); the others stay flat.
 		e.needRise[NeedFood] = cfg.RatHungerRise
+	case Chicken:
+		e.MaxHP = cfg.ChickenHP
+		// Like a rat, a chicken has only the food need.
+		e.needRise[NeedFood] = cfg.ChickenHungerRise
 	}
 	e.HP = e.MaxHP
 	if e.hasParts() {

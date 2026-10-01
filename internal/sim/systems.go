@@ -29,6 +29,8 @@ func (w *World) step() {
 			w.catTurn(e)
 		case Rat:
 			w.ratTurn(e)
+		case Chicken:
+			w.chickenTurn(e)
 		}
 	}
 	w.refreshSpatial() // fold in any digging/building from this tick
@@ -646,6 +648,8 @@ func (w *World) clearJob(e *Entity) {
 			delete(w.haulClaims, e.carryWork)
 		}
 		e.carry, e.carryFor, e.carryWork = carryFetch, Owner{}, 0
+	case JobTend:
+		w.releaseTend(e)
 	}
 	e.Job, e.Progress, e.partner, e.fieldDetour = JobNone, 0, 0, 0
 	e.useFacility, e.useFacilitySet, e.carrying = Point{}, false, false
@@ -685,6 +689,8 @@ func (w *World) runJob(e *Entity) {
 		w.jobSell(e)
 	case JobCarry:
 		w.jobCarry(e)
+	case JobTend:
+		w.jobTend(e)
 	default:
 		e.State = Idle
 		w.wanderStep(e)
@@ -863,6 +869,14 @@ func (w *World) assignWorkJob(e *Entity) {
 	// and food work, smiths and gunsmiths let their plans run out of time
 	// with the steel and the rifles still sitting in the foundry.
 	if w.tryDeliverPlan(e) {
+		return
+	}
+	// A keeper keeps its chickens' trough in feed before it takes on any
+	// construction: it is a few units of scum, only when the trough runs
+	// low, and the hens starve within a few hundred ticks of it running dry.
+	// Placed behind the colony's cleaning, keepers got to it too late, and
+	// most hens starved beside living keepers (see chickens.go).
+	if w.tryAssignTend(e) {
 		return
 	}
 	// Collaborate on planned construction (facility rooms, etc.): claim the

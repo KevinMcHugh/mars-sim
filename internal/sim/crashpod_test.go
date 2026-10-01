@@ -36,8 +36,9 @@ func assertOwnsPod(t *testing.T, w *World, e *Entity) {
 	if p := e.podOrigin.Add(podApproach.X, podApproach.Y); !w.Walkable(p) || !w.doorTiles[p] {
 		t.Fatalf("%s's pod approach %v is %v (reserved %v), want reserved floor", e.displayName(), p, w.TerrainAt(p), w.doorTiles[p])
 	}
-	if e.Inventory.Count(Pistol) != w.cfg.CrashPodPistols {
-		t.Fatalf("%s carries %d pistols, want %d", e.displayName(), e.Inventory.Count(Pistol), w.cfg.CrashPodPistols)
+	if w.podRareItem(e.ID) == rareGun && e.Inventory.Count(Pistol)+e.Inventory.Count(Shotgun) != 1 {
+		t.Fatalf("%s's rare item is a gun, but it carries %d pistols and %d shotguns", e.displayName(),
+			e.Inventory.Count(Pistol), e.Inventory.Count(Shotgun))
 	}
 }
 
@@ -300,50 +301,47 @@ func TestPodMealsSpreadAroundTheManifest(t *testing.T) {
 	}
 }
 
-// Each manifest gun is aboard a pod with its percent odds, rolled per
-// colonist: arrivals land unevenly armed, some with no gun at all. The roll is
-// a pure function of the seed, the colonist, and the gun.
-func TestPodGunsVaryByColonist(t *testing.T) {
+// Every colonist lands with exactly one rare item, picked by the weights, and
+// a gun is a shotgun crash-pod-shotgun-percent of the time. Both rolls are a
+// pure function of the seed and the colonist.
+func TestPodRareItemsFollowTheirWeights(t *testing.T) {
 	w := propertyWorld(t)
-	w.cfg.CrashPodPistols, w.cfg.CrashPodPistolPercent = 1, 70
-	w.cfg.CrashPodShotguns, w.cfg.CrashPodShotgunPercent = 1, 20
-	pistols, shotguns, unarmed, both := 0, 0, 0, 0
-	const pods = 1000
+	w.cfg.CrashPodGunWeight, w.cfg.CrashPodChickenWeight, w.cfg.CrashPodCatWeight = 50, 25, 25
+	w.cfg.CrashPodShotgunPercent = 25
+	var got [4]int
+	guns, shotguns := 0, 0
+	const pods = 2000
 	for id := EntityID(1); id <= pods; id++ {
-		p, s := w.podGuns(id, Pistol), w.podGuns(id, Shotgun)
-		if p != w.podGuns(id, Pistol) || s != w.podGuns(id, Shotgun) {
-			t.Fatalf("colonist %d's pod guns changed between calls", id)
+		r := w.podRareItem(id)
+		if r != w.podRareItem(id) || w.podGun(id) != w.podGun(id) {
+			t.Fatalf("colonist %d's rare item changed between calls", id)
 		}
-		if p > 1 || s > 1 {
-			t.Fatalf("colonist %d's pod has %d pistols and %d shotguns, more than the manifest", id, p, s)
-		}
-		pistols += p
-		shotguns += s
-		if p+s == 0 {
-			unarmed++
-		}
-		if p == 1 && s == 1 {
-			both++
+		got[r]++
+		if r == rareGun {
+			guns++
+			if w.podGun(id) == Shotgun {
+				shotguns++
+			}
 		}
 	}
-	if pistols < 640 || pistols > 760 {
-		t.Errorf("%d of %d pods carried a pistol, want about 700", pistols, pods)
+	if got[rareNone] != 0 {
+		t.Fatalf("%d colonists landed with no rare item", got[rareNone])
 	}
-	if shotguns < 160 || shotguns > 240 {
-		t.Errorf("%d of %d pods carried a shotgun, want about 200", shotguns, pods)
+	if got[rareGun] < 920 || got[rareGun] > 1080 {
+		t.Errorf("%d of %d pods carried a gun, want about 1000", got[rareGun], pods)
 	}
-	if unarmed < 190 || unarmed > 290 {
-		t.Errorf("%d of %d colonists landed unarmed, want about 240", unarmed, pods)
+	if got[rareChicken] < 430 || got[rareChicken] > 570 {
+		t.Errorf("%d of %d pods carried a chicken, want about 500", got[rareChicken], pods)
 	}
-	if both == 0 {
-		t.Error("no colonist landed with both guns: the two rolls aren't independent")
+	if got[rareCat] < 430 || got[rareCat] > 570 {
+		t.Errorf("%d of %d pods carried a cat, want about 500", got[rareCat], pods)
+	}
+	if shotguns < guns/4-60 || shotguns > guns/4+60 {
+		t.Errorf("%d of %d guns were shotguns, want about a quarter", shotguns, guns)
 	}
 
-	w.cfg.CrashPodPistols, w.cfg.CrashPodPistolPercent = 3, 100
-	w.cfg.CrashPodShotgunPercent = 0
-	for id := EntityID(1); id <= 20; id++ {
-		if p, s := w.podGuns(id, Pistol), w.podGuns(id, Shotgun); p != 3 || s != 0 {
-			t.Fatalf("at 100%% and 0%%, colonist %d's pod has %d pistols and %d shotguns, want 3 and 0", id, p, s)
-		}
+	w.cfg.CrashPodGunWeight, w.cfg.CrashPodChickenWeight, w.cfg.CrashPodCatWeight = 0, 0, 0
+	if r := w.podRareItem(1); r != rareNone {
+		t.Fatalf("with every weight zero, a colonist landed with rare item %d", r)
 	}
 }

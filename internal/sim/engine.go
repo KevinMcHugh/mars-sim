@@ -456,9 +456,9 @@ func (e *Engine) spawn(kind Kind) {
 		if p, ok := w.randomFloor(); ok {
 			w.spawn(Cat, p)
 		}
-	case Rat:
+	case Rat, Chicken:
 		if p, ok := w.randomFloor(); ok {
-			w.spawn(Rat, p)
+			w.spawn(kind, p) // a spawned chicken is a stray: no keeper, no trough
 		}
 	}
 }

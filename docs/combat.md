@@ -4,10 +4,9 @@
 
 ## What it is
 
-Colonists can now fight back against aliens. Every colonist lands with the
-weapons in its crash pod's manifest — a pistol each by default
-(`Config.CrashPodPistols`/`CrashPodShotguns`, see
-[crash-pods.md](./crash-pods.md)); a colonist
+Colonists can now fight back against aliens. Half the colony lands with a
+gun by default — a gun is one of the three rare items a crash pod carries
+(`crash-pod-gun-weight`, see [crash-pods.md](./crash-pods.md)); a colonist
 carrying one stands its ground and shoots an alien that gets close instead of
 only fleeing. Damage — from a bite or a gunshot — lands on one of six body
 parts rather than a shared HP pool, so a wound can be a survivable graze or an
@@ -156,11 +155,14 @@ subtracting a flat `AlienDamage` from `prey.HP`.
 Weapons used to come from the colony ship: one pistol and one shotgun,
 handed to two of the settlers at worldgen (`equipColonyShip`, now removed).
 Every colonist now arrives in its own crash pod instead, carrying
-the guns its manifest lists (`crash-pod-pistols`, `crash-pod-shotguns`),
-each one aboard with its own odds per colonist (`crash-pod-pistol-percent`,
-`crash-pod-shotgun-percent`). By default that's a 70% chance of a pistol and
-a 20% chance of a shotgun, so most settlers land armed but about a quarter
-land with nothing and flee until they find or buy a gun. See
+one rare item, and a gun is only one of the three: by default half the
+colonists land with a gun (`crash-pod-gun-weight` 50 against a chicken's and
+a cat's 25 each), a quarter of those guns shotguns
+(`crash-pod-shotgun-percent`), and the other half land unarmed with a
+chicken or a cat. Before that, each manifest gun was rolled on its own
+(`crash-pod-pistol-percent`, `crash-pod-shotgun-percent`): a 70% chance of a pistol and
+a 20% chance of a shotgun, so most settlers landed armed but about a quarter
+landed with nothing. An unarmed colonist flees until it finds or buys a gun. See
 [crash-pods.md](./crash-pods.md).
 
 Arming everyone was a real balance change, and it was measured (before

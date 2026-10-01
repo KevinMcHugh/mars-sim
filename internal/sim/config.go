@@ -68,7 +68,7 @@ type Config struct {
 	// Starting population.
 	StartColonists int `cfg:"colonists" sec:"Starting population" doc:"starting number of colonists"`
 	StartAliens    int `cfg:"aliens" doc:"starting number of aliens"`
-	StartCats      int `cfg:"cats" doc:"starting number of cats"`
+	StartCats      int `cfg:"cats" doc:"starting number of stray cats (colonists also bring cats: see crash-pod-cat-weight)"`
 	StartRats      int `cfg:"rats" doc:"starting number of rats"`
 
 	// GraveyardSize is how many recent deaths (any kind) are kept in the
@@ -235,13 +235,15 @@ type Config struct {
 	CrashPodPurse      int64 `cfg:"crash-pod-purse" sec:"Crash pods" doc:"dollars each colonist arrives with"`
 	CrashPodMeals      int   `cfg:"crash-pod-meals" doc:"meals stocked in each crash pod's locker, on average"`
 	CrashPodMealSpread int   `cfg:"crash-pod-meal-spread" doc:"each pod's meals vary by up to this many either side of crash-pod-meals"`
-	CrashPodPistols    int   `cfg:"crash-pod-pistols" doc:"pistols in each crash pod's manifest, at most"`
-	CrashPodShotguns   int   `cfg:"crash-pod-shotguns" doc:"shotguns in each crash pod's manifest, at most"`
-	// Each gun the manifest lists is actually aboard a given pod with these
-	// odds, rolled per colonist, so some colonists land better armed than
-	// others and some land with no gun at all. See docs/crash-pods.md.
-	CrashPodPistolPercent  int `cfg:"crash-pod-pistol-percent" doc:"percent chance each manifest pistol is aboard a given colonist's pod"`
-	CrashPodShotgunPercent int `cfg:"crash-pod-shotgun-percent" doc:"percent chance each manifest shotgun is aboard a given colonist's pod"`
+	// Every colonist lands with exactly one rare item: a gun, a chicken (with
+	// a trough), or a cat, picked per colonist by these relative weights. A
+	// gun is a shotgun crash-pod-shotgun-percent of the time, else a pistol.
+	// All three weights at 0 lands everyone with none. See
+	// docs/crash-pods.md and docs/chickens.md.
+	CrashPodGunWeight      int `cfg:"crash-pod-gun-weight" doc:"relative odds a colonist's one rare item is a gun"`
+	CrashPodChickenWeight  int `cfg:"crash-pod-chicken-weight" doc:"relative odds a colonist's one rare item is a chicken (with a trough in its pod)"`
+	CrashPodCatWeight      int `cfg:"crash-pod-cat-weight" doc:"relative odds a colonist's one rare item is a cat"`
+	CrashPodShotgunPercent int `cfg:"crash-pod-shotgun-percent" doc:"percent of the guns colonists land with that are shotguns rather than pistols"`
 
 	// Timing.
 	TicksPerSecond int `cfg:"tps" sec:"Timing" doc:"simulation ticks per second"`
@@ -488,6 +490,19 @@ type Config struct {
 	CatSlowness   int `cfg:"cat-slowness" doc:"cat acts once every N ticks (higher = slower)"`
 	CatPounceRest int `cfg:"cat-pounce-rest" doc:"cooldown ticks after a cat catches a rat"`
 
+	// Chicken stats. A chicken has only the food need: it eats feed from its
+	// keeper's trough, or grazes cave scum, and starves with neither. See
+	// chickens.go and docs/chickens.md.
+	ChickenHP          int `cfg:"chicken-hp" sec:"Chickens" doc:"chicken hit points"`
+	ChickenSlowness    int `cfg:"chicken-slowness" doc:"chicken acts once every N ticks (higher = slower)"`
+	ChickenHungerRise  int `cfg:"chicken-hunger-rise" doc:"food need a chicken gains per tick"`
+	ChickenGrazeRadius int `cfg:"chicken-graze-radius" doc:"how far a hungry chicken looks for cave scum to graze"`
+	ChickenRoam        int `cfg:"chicken-roam" doc:"a chicken with a trough wanders back toward it once farther than this many tiles"`
+	// A keeper refills its trough once it holds fewer than TroughLow units
+	// of feed, mixing enough to bring it to TroughFill.
+	TroughLow  int `cfg:"trough-low" doc:"a keeper refills its trough once it holds fewer than this many units of feed (0: keepers never tend)"`
+	TroughFill int `cfg:"trough-fill" doc:"units of feed a keeper fills its trough to"`
+
 	// Rat stats. Rats share the colonists' NeedFood but grow hungry far faster
 	// (they nibble constantly), and flee cats rather than aliens.
 	RatHP         int `cfg:"rat-hp" sec:"Rats" doc:"rat hit points"`
@@ -533,7 +548,7 @@ func DefaultConfig() Config {
 		Seed:                 time.Now().UnixNano(),
 		StartColonists:       6,
 		StartAliens:          3,
-		StartCats:            2,
+		StartCats:            0, // the colony's cats come down in its crash pods
 		StartRats:            8,
 		// Placeholders until the market gives money a use: a treasury worth a
 		// few dozen purses, so the colony can outspend any one settler.
@@ -638,12 +653,12 @@ func DefaultConfig() Config {
 		// off. Every settler lands armed, the way frontier settlers did.
 		CrashPodMeals:      10,
 		CrashPodMealSpread: 0,
-		CrashPodPistols:    1,
-		CrashPodShotguns:   1,
-		// About one colonist in four lands unarmed (30% × 80%), and one in
-		// five carries a shotgun.
-		CrashPodPistolPercent:  70,
-		CrashPodShotgunPercent: 20,
+		// Half the colony lands armed, a quarter with a chicken, a quarter
+		// with a cat; a quarter of the guns are shotguns.
+		CrashPodGunWeight:      50,
+		CrashPodChickenWeight:  25,
+		CrashPodCatWeight:      25,
+		CrashPodShotgunPercent: 25,
 		GraveyardSize:          50,
 		TicksPerSecond:         8,
 		LogSize:                64,
@@ -756,6 +771,14 @@ func DefaultConfig() Config {
 		CatHP:         12,
 		CatSlowness:   2,
 		CatPounceRest: 4,
+
+		ChickenHP:          4,
+		ChickenSlowness:    3,
+		ChickenHungerRise:  2, // a colonist's
+		ChickenGrazeRadius: 10,
+		ChickenRoam:        6,
+		TroughLow:          4,
+		TroughFill:         12,
 
 		RatHP:         4,
 		RatHungerRise: 8, // 4x the colonist food rise: rats eat very frequently

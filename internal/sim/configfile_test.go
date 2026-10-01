@@ -223,10 +223,10 @@ func TestOldSettingNamesStillMeanSomething(t *testing.T) {
 	if cfg.StartRats != 3 {
 		t.Fatalf("mice: 3 set rats to %d", cfg.StartRats)
 	}
-	for _, old := range []string{"pistols", "shotguns"} {
+	for _, old := range []string{"pistols", "shotguns", "crash-pod-pistols", "crash-pod-shotguns", "crash-pod-pistol-percent"} {
 		_, err := ApplyConfigFile(&cfg, []byte(old+": 2\n"), ConfigFileName)
-		if err == nil || !strings.Contains(err.Error(), "crash-pod-"+old) {
-			t.Fatalf("%s: error %v does not point to crash-pod-%s", old, err, old)
+		if err == nil || !strings.Contains(err.Error(), "crash-pod-gun-weight") {
+			t.Fatalf("%s: error %v does not point to crash-pod-gun-weight", old, err)
 		}
 	}
 }

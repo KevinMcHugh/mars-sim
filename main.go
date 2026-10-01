@@ -474,10 +474,8 @@ func validateConfig(cfg sim.Config) error {
 		return fmt.Errorf("cavern nest size range is invalid: min %d, max %d", cfg.CavernNestMin, cfg.CavernNestMax)
 	case cfg.StartColonists < 0 || cfg.StartAliens < 0 || cfg.StartCats < 0 || cfg.StartRats < 0:
 		return fmt.Errorf("population counts cannot be negative")
-	case cfg.CrashPodMeals < 0 || cfg.CrashPodPistols < 0 || cfg.CrashPodShotguns < 0:
-		return fmt.Errorf("crash pod manifest counts cannot be negative")
-	case cfg.CrashPodPistolPercent < 0 || cfg.CrashPodPistolPercent > 100 || cfg.CrashPodShotgunPercent < 0 || cfg.CrashPodShotgunPercent > 100:
-		return fmt.Errorf("crash-pod-pistol-percent and crash-pod-shotgun-percent must be between 0 and 100 (got %d and %d)", cfg.CrashPodPistolPercent, cfg.CrashPodShotgunPercent)
+	case cfg.CrashPodMeals < 0:
+		return fmt.Errorf("crash-pod-meals cannot be negative")
 	case cfg.ScumMax < 0 || cfg.ScumMax > 255:
 		// A patch's amount is published as one byte (Snapshot.Scum); 256
 		// would wrap to 0 and a full patch would vanish from the map.
@@ -515,6 +513,14 @@ func validateConfig(cfg sim.Config) error {
 		return fmt.Errorf("stuck-limit must be at least 1 (got %d)", cfg.StuckLimit)
 	case cfg.AlienSlowness < 1 || cfg.CatSlowness < 1:
 		return fmt.Errorf("alien-slowness and cat-slowness must be at least 1 (got %d and %d)", cfg.AlienSlowness, cfg.CatSlowness)
+	case cfg.ChickenSlowness < 1:
+		return fmt.Errorf("chicken-slowness must be at least 1 (got %d)", cfg.ChickenSlowness)
+	case cfg.CrashPodGunWeight < 0 || cfg.CrashPodChickenWeight < 0 || cfg.CrashPodCatWeight < 0:
+		return fmt.Errorf("crash-pod-gun-weight, crash-pod-chicken-weight and crash-pod-cat-weight must not be negative")
+	case cfg.CrashPodShotgunPercent < 0 || cfg.CrashPodShotgunPercent > 100:
+		return fmt.Errorf("crash-pod-shotgun-percent must be between 0 and 100 (got %d)", cfg.CrashPodShotgunPercent)
+	case cfg.TroughLow < 0 || cfg.TroughFill < cfg.TroughLow:
+		return fmt.Errorf("trough-low must not be negative, nor trough-fill below it (got %d and %d)", cfg.TroughLow, cfg.TroughFill)
 	case cfg.TraitChance < 0 || cfg.TraitChance > 100:
 		return fmt.Errorf("trait-chance must be between 0 and 100 (got %d)", cfg.TraitChance)
 	case cfg.UraniumExposureTicks < 1:

@@ -85,8 +85,8 @@
 ## starting number of aliens
 # aliens: 3
 
-## starting number of cats
-# cats: 2
+## starting number of stray cats (colonists also bring cats: see crash-pod-cat-weight)
+# cats: 0
 
 ## starting number of rats
 # rats: 8
@@ -295,17 +295,17 @@
 ## each pod's meals vary by up to this many either side of crash-pod-meals
 # crash-pod-meal-spread: 0
 
-## pistols in each crash pod's manifest, at most
-# crash-pod-pistols: 1
+## relative odds a colonist's one rare item is a gun
+# crash-pod-gun-weight: 50
 
-## shotguns in each crash pod's manifest, at most
-# crash-pod-shotguns: 1
+## relative odds a colonist's one rare item is a chicken (with a trough in its pod)
+# crash-pod-chicken-weight: 25
 
-## percent chance each manifest pistol is aboard a given colonist's pod
-# crash-pod-pistol-percent: 70
+## relative odds a colonist's one rare item is a cat
+# crash-pod-cat-weight: 25
 
-## percent chance each manifest shotgun is aboard a given colonist's pod
-# crash-pod-shotgun-percent: 20
+## percent of the guns colonists land with that are shotguns rather than pistols
+# crash-pod-shotgun-percent: 25
 
 # ── Timing ──────────────────────────────────────────────────────────────
 ## simulation ticks per second
@@ -814,6 +814,28 @@
 
 ## cooldown ticks after a cat catches a rat
 # cat-pounce-rest: 4
+
+# ── Chickens ────────────────────────────────────────────────────────────
+## chicken hit points
+# chicken-hp: 4
+
+## chicken acts once every N ticks (higher = slower)
+# chicken-slowness: 3
+
+## food need a chicken gains per tick
+# chicken-hunger-rise: 2
+
+## how far a hungry chicken looks for cave scum to graze
+# chicken-graze-radius: 10
+
+## a chicken with a trough wanders back toward it once farther than this many tiles
+# chicken-roam: 6
+
+## a keeper refills its trough once it holds fewer than this many units of feed (0: keepers never tend)
+# trough-low: 4
+
+## units of feed a keeper fills its trough to
+# trough-fill: 12
 
 # ── Rats ────────────────────────────────────────────────────────────────
 ## rat hit points

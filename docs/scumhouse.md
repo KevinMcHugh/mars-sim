@@ -100,6 +100,12 @@ outputs**; the workshop's owner does not.
 | press viscera | 2 viscera | 1 meal | 10 |
 | culture cave scum | 2 cave scum | 1 meal | 12 |
 
+Chicken feed (1 cave scum to 4 feed) is mixed at a scumhouse too, but it is
+deliberately **not** in this table: a cook works the first recipe it has
+inputs for, so listing it would let the colony's cooks turn its scum into
+feed. Only a chicken keeper mixes it, from scum in its own pockets, sharing
+the stove with the cook (see [chickens.md](./chickens.md)).
+
 A cook works the first recipe (in table order) it has inputs for — its own, or
 the colony's — at the nearest reachable scumhouse no other cook has claimed
 (`workshopClaims`: one cook per workshop). It checks the outputs will fit once

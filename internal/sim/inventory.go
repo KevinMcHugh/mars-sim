@@ -52,6 +52,9 @@ const (
 	// docs/foundry.md.
 	SteelIngot
 	AssaultRifle
+	// Feed is chicken feed, mixed from cave scum at a scumhouse and kept in
+	// a trough. Only chickens eat it. See docs/chickens.md.
+	Feed
 
 	numItemKinds // keep last: the number of item kinds
 )
@@ -88,6 +91,8 @@ func (k ItemKind) String() string {
 		return "steel ingot"
 	case AssaultRifle:
 		return "assault rifle"
+	case Feed:
+		return "chicken feed"
 	default:
 		return "empty"
 	}

@@ -39,6 +39,10 @@ type EntityView struct {
 	// see Entity.Species and World.alienSpeciesFor). Zero-valued for every
 	// other kind. See docs/lore.md.
 	AlienSpecies AlienSpecies
+	// Keeper is the colonist a pet (a chicken or a cat) came down with in its
+	// crash pod, 0 for a stray or anything that is not a pet. See
+	// docs/chickens.md.
+	Keeper EntityID
 
 	// Relations are the colonist's familial ties to other colonists, derived from
 	// the family tree; Affinities are its tracked warmth toward colonists it has
@@ -348,6 +352,7 @@ type Stats struct {
 	Aliens    int
 	Cats      int
 	Rats      int
+	Chickens  int
 	FloorDug  int // tiles of discovered Floor (excavation progress; undiscovered caverns excluded)
 	// ExploredTiles is how many tiles World.reveal has ever uncovered (see
 	// World.exploredCount). Only meaningful when FogOfWar is on -- with it
@@ -583,6 +588,8 @@ func (w *World) snapshot(paused bool, tps int) *Snapshot {
 			stats.Cats++
 		case Rat:
 			stats.Rats++
+		case Chicken:
+			stats.Chickens++
 		}
 	}
 
@@ -708,6 +715,7 @@ func (w *World) entityView(e *Entity, kinChildren map[kinID][]kinID, full bool) 
 		Profile:   e.Profile.clone(),
 		Inventory: e.Inventory,
 		Wallet:    e.wallet,
+		Keeper:    e.keeper,
 	}
 	if e.hasParts() {
 		ev.Parts = e.Parts

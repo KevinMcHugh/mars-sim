@@ -167,7 +167,7 @@ pod manifest:
 | Manifest item | Config key (proposed) | Notes |
 | --- | --- | --- |
 | Meals | `crash-pod-meals` | Finite food supply, the core of the scarcity. |
-| Weapon | `crash-pod-pistols` / `crash-pod-shotguns` | Replaces the colony ship's `pistols`/`shotguns` and `equipColonyShip`. |
+| Weapon | `crash-pod-gun-weight` / `crash-pod-shotgun-percent` | Replaces the colony ship's `pistols`/`shotguns` and `equipColonyShip`. Since shipped as one of three rare items (gun, chicken, cat); see [crash-pods.md](./crash-pods.md). |
 | Dollars | `crash-pod-purse` | Goes to the wallet, not the locker. |
 
 Stamping a prefab rather than unpacking fixtures one by one lets pods ship
