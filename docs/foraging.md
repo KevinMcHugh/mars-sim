@@ -9,6 +9,9 @@ It cooks what is already in a scumhouse, scrapes any exposed scum, and
 otherwise **prospects**: it digs into rock nobody has seen, because that is
 where the colony's uneaten scum is. The colony prospects too, before anyone
 is hungry, once it is short of meals and has scraped every exposed patch.
+With a scum incubator standing, the colony's prospecting waits for dire times
+(`wildScumAllowed`); a hungry colonist's own foraging never does (see
+[incubator.md](./incubator.md)).
 Foraging replaced a loop in which hungry colonists dropped their work, found
 no food, were handed the same work straight back, and starved without
 finishing it.

@@ -24,7 +24,7 @@ toilets) are the first — and currently only — project kind.
 The normal planner maintains life-support, bunk, and incinerator capacity
 automatically, but the TUI can queue explicit room orders: `b` opens a menu,
 then `f` requests one facility room, `d` one dormitory, `t` one trash room,
-`r` one storage room, `h` one scumhouse, `g` one foundry, and `m` one meeting hall. Each order just increments a counter
+`r` one storage room, `h` one scumhouse, `g` one foundry, `m` one meeting hall, and `i` one scum incubator. Each order just increments a counter
 (`manualFacilityRooms`/`manualDormitories`/`manualTrashRooms`/
 `manualStorageRooms`) recorded on the engine-owned world, so several can be
 queued at once; `planRooms` works
@@ -67,6 +67,7 @@ current recipes are:
 | scumhouse (kitchen) | a scumhouse, a gap, and its pantry chest, with an aisle | 1 scumhouse (the pantry is dropped on a site too small for both) | first of all with `infinite-food` off (the default); otherwise player-ordered (see [scumhouse.md](./scumhouse.md)) |
 | house | a bunk and a toilet | exactly 2 | commissioned by a colonist with `house-savings`, paid from its wallet (see [labor.md](./labor.md)) |
 | meeting hall | two to four chairs, with open floor in front | 2 chairs | after bunks and the incinerator, before the foundry; one chair per `colonists-per-chair` colonists, or player-ordered (`b` then `m`). See [meeting-hall.md](./meeting-hall.md) |
+| scum incubator | one or two incubators, with an aisle | 1–2 (narrow in a cramped cavern) | after the first scumhouse, up to one per `colonists-per-incubator` colonists, while pods do not feed anyone; or player-ordered (`b` then `i`). See [incubator.md](./incubator.md) |
 | foundry | a forge, a gap, and a gun bench, with an aisle | exactly 2 (narrow in a cramped cavern) | last of all, while `armory-rifles` > 0 and there's no forge or gun bench; or player-ordered (`b` then `g`). See [foundry.md](./foundry.md) |
 
 **Aisles.** A one-fixture room is one tile wide, so exactly one tile can reach
@@ -138,6 +139,7 @@ materials (`constructionCost`, `construction.go`):
 | forge | 4 clay |
 | gun bench | 2 raw rock, 2 iron ore |
 | chair | 2 raw rock |
+| scum incubator | 2 raw rock, 1 clay |
 
 Digging costs nothing: it is where material comes from. Whoever pays for the
 work pays for its materials first (`materialPayers`): the colony's stock for a

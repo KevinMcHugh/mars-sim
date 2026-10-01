@@ -29,6 +29,7 @@ const terrains: Record<string, string> = {
   forge: '#d9822b',
   'gun bench': '#9aa3ad',
   chair: '#c9a24a',
+  'scum incubator': '#5fd0a8',
 };
 
 const compositions: Record<string, string> = {

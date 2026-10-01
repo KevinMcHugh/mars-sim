@@ -478,6 +478,14 @@ func (w *World) planRooms() {
 		}
 		return
 	}
+	if w.manualIncubators > 0 {
+		before := len(w.projects)
+		w.planRoom(incubatorRoom)
+		if len(w.projects) > before {
+			w.manualIncubators--
+		}
+		return
+	}
 	if w.manualFoundries > 0 {
 		before := len(w.projects)
 		w.planRoom(foundryRoom)
@@ -516,6 +524,12 @@ func (w *World) planRooms() {
 			w.planRoomFor(scumhouseRoom, Nobody)
 			return
 		}
+	}
+	// The incubator feeds the scumhouse: a steady supply of scum that replaces
+	// scraping the rock. An ordinary public work, so it waits on the treasury,
+	// and until it stands the colony scrapes as before (wildScumAllowed).
+	if !w.podsFeed() && w.wantsIncubator() && w.planRoomFor(incubatorRoom, Community) {
+		return
 	}
 	desired := w.desiredFacilities(w.countKind(Colonist))
 	if (w.wantsFacility(NutrientPod) && w.plannedFacilities(NutrientPod) < desired) ||

@@ -80,7 +80,8 @@ func TestWithoutTheSafetyNetTheColonyStarvesOnSchedule(t *testing.T) {
 	cfg.StartAliens, cfg.StartCats, cfg.StartRats = 0, 0, 0
 	cfg.CrashPodMeals = meals
 	cfg.InfiniteFood = false
-	cfg.ScumPercent = 0 // nothing to make food from: no scum, and no creatures to die
+	cfg.ScumPercent = 0        // nothing to make food from: no scum, and no creatures to die
+	cfg.IncubatorGrowTicks = 0 // and no incubator to seed: this colony produces nothing
 	w := newTestWorld(t, cfg)
 	spec := w.cfg.Needs[NeedFood]
 	rise := spec.Rise

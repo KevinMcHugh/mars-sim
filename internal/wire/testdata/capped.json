@@ -30,7 +30,7 @@
       "id": 1,
       "x": 10,
       "y": 3,
-      "glyph": 18,
+      "glyph": 19,
       "kind": 0,
       "state": 2,
       "focus": 1
@@ -39,7 +39,7 @@
       "id": 2,
       "x": 70,
       "y": 20,
-      "glyph": 22,
+      "glyph": 23,
       "kind": 2,
       "state": 8,
       "focus": 0
@@ -48,7 +48,7 @@
       "id": 9,
       "x": 149,
       "y": 69,
-      "glyph": 37,
+      "glyph": 38,
       "kind": 1,
       "state": 6,
       "focus": 0

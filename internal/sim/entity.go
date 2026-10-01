@@ -411,7 +411,9 @@ type Entity struct {
 	// carry fields are a JobCarry colonist's errand. See producer.go.
 	scrapeFor  Owner
 	scrapeQty  int
-	scrapeKeep bool // scraping to cook for itself, not to sell
+	scrapeKeep bool  // scraping to cook for itself, not to sell
+	scrapeSeed bool  // scraping to seed an incubator, not to feed a scumhouse
+	seedAt     Point // the incubator a scrapeSeed colonist is loading
 
 	// foraging marks a job a hungry colonist with nothing to eat chose to
 	// find food (planForage): it is kept until it ends, never dropped and

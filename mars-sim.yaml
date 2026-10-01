@@ -126,6 +126,24 @@
 ## ticks of work to scrape one unit of scum off a patch
 # scrape-ticks: 6
 
+## ticks between each unit of scum an incubator grows (0: no incubators)
+# incubator-grow-ticks: 15
+
+## units of scum an incubator holds before it stops growing
+# incubator-capacity: 12
+
+## units of scum an incubator needs loaded to grow, and keeps back when harvested
+# incubator-seed: 2
+
+## the colony plans another incubator for each this many colonists
+# colonists-per-incubator: 4
+
+## meals per colonist below which the colony scrapes wild scum instead of waiting on its incubators
+# scum-dire-meals: 1
+
+## what the colony pays a colonist for each load of scum it carries from an incubator to a scumhouse
+# wage-harvest: 1
+
 ## the colony makes food while it holds fewer meals than this per colonist
 # meal-reserve: 3
 

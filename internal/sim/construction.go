@@ -31,6 +31,8 @@ func constructionCost(t Terrain) []ItemStack {
 		return []ItemStack{{Clay, 4}} // a clay furnace: nothing else
 	case GunBench:
 		return []ItemStack{{RawRock, 2}, {IronOre, 2}}
+	case Incubator:
+		return []ItemStack{{RawRock, 2}, {Clay, 1}}
 	default:
 		return nil
 	}

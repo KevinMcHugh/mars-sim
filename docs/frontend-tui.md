@@ -283,7 +283,7 @@ the inspector shows its full build and a narrative description.
 | `space` | pause / resume (`TogglePause`) |
 | `+` / `-` | faster / slower (`SetTicksPerSecond`, ±2) |
 | `s` | open the spawn menu — `↑↓`/`enter` to pick, or `c`/`a`/`x`/`m` for colonist/alien/cat/rat directly (`Spawn`) |
-| `b` | open the build menu — `↑↓`/`enter` to pick, or `f`/`d`/`t`/`r`/`h`/`g` for facility room/dormitory/trash room/storage container/scumhouse/foundry directly |
+| `b` | open the build menu — `↑↓`/`enter` to pick, or `f`/`d`/`t`/`r`/`h`/`g`/`i` for facility room/dormitory/trash room/storage container/scumhouse/foundry/scum incubator directly |
 | `i` (map only) | enter map inspection; arrows/`hjkl` move the cursor, `enter` opens a storage chest's details, and `i`/`esc` closes |
 | `f` / `F` (map only) | cycle the flow-field overlay through each shared field and back to off / turn it off (`ShowFlowField`); see [flow-field-view.md](./flow-field-view.md) |
 | `f` (roster only) | open the roster's filter menu — `↑↓`/`enter`/`space` to toggle the highlighted checkbox, or `d`/`n` for dead/non-human directly; no command sent, this only changes what the roster shows |
