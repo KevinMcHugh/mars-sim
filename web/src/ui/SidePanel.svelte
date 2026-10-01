@@ -5,11 +5,13 @@
   // stops building data nobody is looking at. Which tab is open is ui.panel,
   // so a click on the map can open the inspector.
   import { setPanel, ui } from '../game.svelte';
+  import ChartsPanel from './ChartsPanel.svelte';
   import InspectPanel from './InspectPanel.svelte';
   import JobsPanel from './JobsPanel.svelte';
   import MarketPanel from './MarketPanel.svelte';
   import StoragePanel from './StoragePanel.svelte';
   import LogPanel from './LogPanel.svelte';
+  import LogTicker from './LogTicker.svelte';
   import LorePanel from './LorePanel.svelte';
   import NewGamePanel from './NewGamePanel.svelte';
   import RosterPanel from './RosterPanel.svelte';
@@ -21,6 +23,7 @@
     { id: 'jobs', label: 'Jobs', component: JobsPanel },
     { id: 'storage', label: 'Storage', component: StoragePanel },
     { id: 'market', label: 'Market', component: MarketPanel },
+    { id: 'charts', label: 'Charts', component: ChartsPanel },
     { id: 'lore', label: 'Lore', component: LorePanel },
     { id: 'game', label: 'New game', component: NewGamePanel },
   ] as const;
@@ -40,6 +43,7 @@
 </script>
 
 <aside class="side" class:open={current !== undefined}>
+  <LogTicker docked />
   <nav class="tabs hud" aria-label="Panels">
     {#each tabs as t (t.id)}
       <button type="button" class:on={ui.panel === t.id} aria-pressed={ui.panel === t.id} onclick={() => toggle(t.id)}>{t.label}</button>

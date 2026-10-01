@@ -6,7 +6,7 @@
   // It follows the live tail while scrolled to the bottom. Scrolled back, it
   // stays put and counts what arrived meanwhile.
   import { tick } from 'svelte';
-  import { colonyLog, LOG_KEEP } from '../game.svelte';
+  import { colonyLog, LOG_KEEP, setTicker, ui } from '../game.svelte';
   import { logKindColor } from './logkinds';
 
   let kind = $state('');
@@ -53,6 +53,10 @@
     </select>
     <input class="search" type="search" placeholder="Search" bind:value={query} aria-label="Search the log" />
   </div>
+  <label class="ticker-opt">
+    <input type="checkbox" checked={ui.ticker} onchange={(e) => setTicker(e.currentTarget.checked)} />
+    Show new lines on the map
+  </label>
   <p class="count">
     {lines.length === colonyLog.lines.length ? lines.length : `${lines.length} of ${colonyLog.lines.length}`}
     {colonyLog.lines.length === 1 ? 'line' : 'lines'}{colonyLog.lines.length >= LOG_KEEP ? ` (the last ${LOG_KEEP})` : ''}
@@ -80,6 +84,8 @@
   .log { display: flex; flex-direction: column; height: 100%; min-height: 0; position: relative; }
   .controls { display: flex; gap: 8px; }
   .search { flex: 1; min-width: 6em; }
+  .ticker-opt { display: flex; align-items: center; gap: 6px; margin-top: 8px; font-size: 12px; color: var(--muted); cursor: pointer; }
+  .ticker-opt input { accent-color: var(--accent); padding: 0; }
   .count { color: var(--muted); margin: 8px 0 4px; font-size: 12px; }
   .live { color: #7fcf96; }
   .list { flex: 1; min-height: 120px; overflow-y: auto; margin: 0 -6px; }
