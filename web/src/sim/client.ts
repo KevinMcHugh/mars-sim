@@ -13,7 +13,11 @@ export type Command =
   | { type: 'speed'; rate: number }
   | { type: 'spawn'; kind: string }
   /** Show a flow field (an index into Hello.flowFields), or none (-1). */
-  | { type: 'flow'; field: number };
+  | { type: 'flow'; field: number }
+  /** Order the rectangle (tiles, inclusive) mined out, paid for by the colony. */
+  /** Cancel an excavation order by id, refunding what is unspent. */
+  | { type: 'dig-cancel'; id: number }
+  | { type: 'dig'; x0: number; y0: number; x1: number; y1: number };
 
 export interface Started { hello: Hello; genMs: number; loadMs: number }
 
@@ -22,7 +26,7 @@ export interface Started { hello: Hello; genMs: number; loadMs: number }
  * A mismatch means mars-sim.wasm is from another build: usually a pull without
  * rerunning npm run wasm.
  */
-export const HOST_API = 8;
+export const HOST_API = 10;
 
 export class SimClient {
   private worker: Worker;

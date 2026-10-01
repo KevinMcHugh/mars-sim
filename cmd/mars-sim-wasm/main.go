@@ -40,8 +40,8 @@ import (
 // The page checks it at start, so a mars-sim.wasm left over from an older
 // build (npm run wasm not rerun after a pull) fails with a message saying so,
 // instead of a panel that silently never loads. 1 was everything before
-// subscribe/unsubscribe; 2 had no entity: or tile: topics; 3 no roster; 4 no log; 5 no jobs, storage, market or account:; 6 no perf or population; 7 no flow command.
-const hostAPI = 8
+// subscribe/unsubscribe; 2 had no entity: or tile: topics; 3 no roster; 4 no log; 5 no jobs, storage, market or account:; 6 no perf or population; 7 no flow command; 8 no dig command; 9 no dig-cancel.
+const hostAPI = 10
 
 var (
 	eng *sim.Engine
@@ -221,12 +221,18 @@ type memoryResult struct {
 
 // command is a sim.Command as the page sends it.
 type command struct {
-	Type string `json:"type"` // pause | speed | spawn | flow
+	Type string `json:"type"` // pause | speed | spawn | flow | dig
 	Rate int    `json:"rate,omitempty"`
 	Kind string `json:"kind,omitempty"`
 	// Field is the flow field to show, an index into Hello.flowFields, or
 	// -1 for none.
 	Field *int `json:"field,omitempty"`
+	// dig: the rectangle, inclusive, in tiles.
+	ID int `json:"id,omitempty"` // dig-cancel: the excavation's project id
+	X0 int `json:"x0,omitempty"`
+	Y0 int `json:"y0,omitempty"`
+	X1 int `json:"x1,omitempty"`
+	Y1 int `json:"y1,omitempty"`
 }
 
 func parseCommand(s string) (sim.Command, error) {
@@ -239,6 +245,10 @@ func parseCommand(s string) (sim.Command, error) {
 		return sim.TogglePause{}, nil
 	case "speed":
 		return sim.SetTicksPerSecond{Rate: c.Rate}, nil
+	case "dig-cancel":
+		return sim.CancelExcavation{ID: c.ID}, nil
+	case "dig":
+		return sim.OrderExcavation{X0: c.X0, Y0: c.Y0, X1: c.X1, Y1: c.Y1}, nil
 	case "spawn":
 		for k := sim.Colonist; k <= sim.Rat; k++ {
 			if k.String() == c.Kind {

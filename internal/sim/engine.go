@@ -432,6 +432,12 @@ func (e *Engine) apply(cmd Command) (rateChanged bool) {
 		e.world.manualHalls++
 	case OrderIncubator:
 		e.world.manualIncubators++
+	case CancelExcavation:
+		e.world.cancelExcavation(c.ID)
+		e.requestPublish()
+	case OrderExcavation:
+		e.world.orderExcavation(c)
+		e.requestPublish() // the log line and the work order show at once
 	}
 	return false
 }

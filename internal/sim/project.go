@@ -35,6 +35,9 @@ type project struct {
 	// issuer pays for the work and owns what is built: the colony for public
 	// works, a colonist for a commission (see workorder.go).
 	issuer Owner
+	// workKind is the kind of work order each task is bought with: WorkBuild
+	// (the zero value) for a room, WorkDig for an excavation order.
+	workKind WorkKind
 }
 
 // taskDone reports whether a task's tile already holds its desired terrain —
@@ -247,7 +250,7 @@ func (w *World) pruneProjects() {
 					w.closeWork(t.order)
 				}
 			}
-			w.logEvent(LogBuildComplete, "A "+p.name+" is complete.")
+			w.logEvent(LogBuildComplete, capitalizeFirst(withArticle(p.name))+" is complete.")
 			continue
 		}
 		kept = append(kept, p)

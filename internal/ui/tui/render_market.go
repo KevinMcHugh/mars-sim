@@ -404,8 +404,11 @@ func (m Model) workLines() []string {
 	var out []string
 	for _, k := range order {
 		what := "build tasks"
-		if k.kind == sim.WorkHaul {
+		switch k.kind {
+		case sim.WorkHaul:
 			what = "units to haul"
+		case sim.WorkDig:
+			what = "tiles to dig"
 		}
 		out = append(out, fmt.Sprintf("%s: %d %s, %v held", m.ownerLabel(k.issuer), units[k], what, held[k]))
 	}

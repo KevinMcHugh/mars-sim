@@ -55,6 +55,7 @@ install({
   newGame: (s) => { void newGame(s); },
   centerOn: (x, y) => { cam.cx = x + 0.5; cam.cy = y + 0.5; viewChanged(); },
   selected: () => updateMark(),
+  digChanged: () => showDig(),
   highlight: (tiles) => map.setHighlight(tiles),
 });
 // Colonists' names for the hover readout; frames carry only ids. Held for
@@ -105,6 +106,8 @@ attachInput(canvas, cam, {
   hover: (x, y) => { hoverAt = [x, y]; showHover(x, y); },
   leave: () => { hoverAt = null; ui.hover = null; },
   click: (x, y) => select(x, y),
+  areaTool: () => ui.dig.armed && hello !== null,
+  area: (phase, x, y) => dragArea(phase, x, y),
 });
 window.addEventListener('resize', () => viewChanged());
 window.addEventListener('keydown', (e) => {
@@ -144,6 +147,8 @@ async function newGame(settings: Settings): Promise<void> {
   colonyLog.clear();
   map.setHighlight(null);
   map.setMark(null);
+  digFrom = null;
+  ui.dig = { armed: false, rect: null, tiles: 0 };
   centered = false;
   lastInterest = '';
   try {
@@ -210,6 +215,54 @@ function select(sx: number, sy: number): void {
   const at = sel && 'entity' in sel ? here.indexOf(sel.entity) : -1;
   inspect(at + 1 < here.length ? { entity: here[at + 1] } : { tile: [x, y] });
 }
+
+// The dig tool: where the drag began, in tiles, and the tint it puts on the map.
+let digFrom: [number, number] | null = null;
+const DIG_TINT = new Uint8Array([224, 112, 58, 110]);
+
+/** The tile under a pixel, clamped onto the map. */
+function tileUnder(sx: number, sy: number): [number, number] {
+  const [fx, fy] = cam.toTile(sx, sy);
+  return [
+    Math.max(0, Math.min(hello!.width - 1, Math.floor(fx))),
+    Math.max(0, Math.min(hello!.height - 1, Math.floor(fy))),
+  ];
+}
+
+function dragArea(phase: 'start' | 'move' | 'end' | 'cancel', sx: number, sy: number): void {
+  if (!hello) return;
+  if (phase === 'cancel') { digFrom = null; ui.dig.rect = null; ui.dig.tiles = 0; showDig(); return; }
+  const here = tileUnder(sx, sy);
+  if (phase === 'start') digFrom = here;
+  if (!digFrom) return;
+  ui.dig.rect = {
+    x0: Math.min(digFrom[0], here[0]), y0: Math.min(digFrom[1], here[1]),
+    x1: Math.max(digFrom[0], here[0]), y1: Math.max(digFrom[1], here[1]),
+  };
+  showDig();
+  if (phase === 'end') { digFrom = null; ui.dig.armed = false; } // one area per press of the tool
+}
+
+/** Count and tint the rock the colony has seen inside the marked area. */
+function showDig(): void {
+  const r = ui.dig.rect;
+  if (!r || !hello) { ui.dig.tiles = 0; map.setHighlight(null); return; }
+  const tiles: { x: number; y: number; color: Uint8Array }[] = [];
+  let n = 0;
+  for (let y = r.y0; y <= r.y1; y++) {
+    for (let x = r.x0; x <= r.x1; x++) {
+      const cell = map.tileAt(x, y);
+      // Terrain 0 is rock; the order only covers what the colony has seen.
+      if (!cell || cell[0] !== 0 || !(cell[1] & TILE_VISIBLE)) continue;
+      n++;
+      if (tiles.length < DIG_TINT_MAX) tiles.push({ x, y, color: DIG_TINT });
+    }
+  }
+  ui.dig.tiles = n;
+  map.setHighlight(tiles);
+}
+/** Tinting is for feedback; a huge drag counts its rock without drawing all of it. */
+const DIG_TINT_MAX = 4000;
 
 /** Put the map's marker on the selection: a tile, or where the creature is now. */
 function updateMark(): void {

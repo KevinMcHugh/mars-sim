@@ -10,6 +10,13 @@ export interface InputHooks {
   leave: () => void;
   /** A press and release without a drag or pinch between them. */
   click: (sx: number, sy: number) => void;
+  /**
+   * Whether a drag selects an area instead of panning (the Dig tab's tool).
+   * While it does, a press-drag-release reports through `area`, and a click is
+   * a one-tile area, not a click.
+   */
+  areaTool: () => boolean;
+  area: (phase: 'start' | 'move' | 'end' | 'cancel', sx: number, sy: number) => void;
 }
 
 /** How far (CSS pixels) a press may wander and still be a click, not a drag. */
@@ -21,6 +28,8 @@ export function attachInput(canvas: HTMLCanvasElement, cam: Camera, hooks: Input
   // The press that may yet be a click: where it went down. Cleared by a
   // second finger or by moving past CLICK_SLOP.
   let press: { id: number; x: number; y: number } | null = null;
+  // The pointer dragging out an area, while the area tool is armed.
+  let areaId: number | null = null;
 
   const local = (e: PointerEvent | WheelEvent) => {
     const r = canvas.getBoundingClientRect();
@@ -31,6 +40,12 @@ export function attachInput(canvas: HTMLCanvasElement, cam: Camera, hooks: Input
     canvas.setPointerCapture(e.pointerId);
     const [x, y] = local(e);
     pointers.set(e.pointerId, { x, y });
+    if (pointers.size === 1 && e.button === 0 && hooks.areaTool()) {
+      areaId = e.pointerId;
+      press = null;
+      hooks.area('start', x, y);
+      return;
+    }
     press = pointers.size === 1 && e.button === 0 ? { id: e.pointerId, x, y } : null;
     if (pointers.size === 2) pinchDist = spread(pointers);
   });
@@ -39,6 +54,12 @@ export function attachInput(canvas: HTMLCanvasElement, cam: Camera, hooks: Input
     const [x, y] = local(e);
     const p = pointers.get(e.pointerId);
     if (!p) { hooks.hover(x, y); return; }
+    if (areaId === e.pointerId) {
+      p.x = x; p.y = y;
+      hooks.area('move', x, y);
+      hooks.hover(x, y);
+      return;
+    }
     if (press && Math.hypot(x - press.x, y - press.y) > CLICK_SLOP) press = null;
     if (pointers.size === 1) {
       cam.panPixels(x - p.x, y - p.y);
@@ -62,13 +83,23 @@ export function attachInput(canvas: HTMLCanvasElement, cam: Camera, hooks: Input
   };
   canvas.addEventListener('pointerup', (e) => {
     up(e);
+    if (areaId === e.pointerId) {
+      areaId = null;
+      const [x, y] = local(e);
+      hooks.area('end', x, y);
+      return;
+    }
     if (press?.id === e.pointerId && pointers.size === 0) {
       const [x, y] = local(e);
       hooks.click(x, y);
     }
     press = null;
   });
-  canvas.addEventListener('pointercancel', (e) => { up(e); press = null; });
+  canvas.addEventListener('pointercancel', (e) => {
+    up(e);
+    press = null;
+    if (areaId === e.pointerId) { areaId = null; hooks.area('cancel', 0, 0); }
+  });
   canvas.addEventListener('pointerleave', () => { if (pointers.size === 0) hooks.leave(); });
 
   canvas.addEventListener('wheel', (e) => {

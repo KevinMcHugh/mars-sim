@@ -2,6 +2,7 @@ package wire
 
 import (
 	"cmp"
+	"math"
 	"slices"
 	"strconv"
 	"time"
@@ -145,6 +146,31 @@ type MarketTopic struct {
 	ChainDepth int         `json:"chainDepth"`
 	Work       []WorkLine  `json:"work"`
 	Trades     []TradeLine `json:"trades"` // newest first
+	// Dig is what the dig tool needs to price an excavation order before it
+	// is sent: the wage a tile pays and the most tiles one order may cover.
+	Dig DigTerms `json:"dig"`
+	// Digs are the excavation orders still open, oldest first.
+	Digs []Dig `json:"digs"`
+}
+
+// Dig is one open excavation order: its project id (what a cancel names), the
+// rectangle that bounds its tiles, how many are dug, and what its open work
+// orders hold.
+type Dig struct {
+	ID    int   `json:"id"`
+	X0    int   `json:"x0"`
+	Y0    int   `json:"y0"`
+	X1    int   `json:"x1"`
+	Y1    int   `json:"y1"`
+	Tiles int   `json:"tiles"`
+	Done  int   `json:"done"`
+	Held  int64 `json:"held"`
+}
+
+// DigTerms are the terms of an excavation order (docs/excavation.md).
+type DigTerms struct {
+	Wage     int64 `json:"wage"`
+	MaxTiles int   `json:"maxTiles"`
 }
 
 // Account is one balance. Key is its account:<key> topic: "colony" or a
@@ -227,6 +253,24 @@ func marketTopic(s *sim.Snapshot) MarketTopic {
 		ChainDepth: econ.ChainDepth,
 		Work:       []WorkLine{},
 		Trades:     []TradeLine{},
+		Dig:        DigTerms{Wage: int64(econ.DigWage), MaxTiles: econ.DigMax},
+		Digs:       []Dig{},
+	}
+	for _, p := range s.Projects {
+		if p.Name != sim.ExcavationName {
+			continue
+		}
+		d := Dig{ID: p.ID, X0: math.MaxInt, Y0: math.MaxInt, Tiles: len(p.Tasks), Done: p.TasksDone()}
+		for _, tk := range p.Tasks {
+			d.X0, d.Y0 = min(d.X0, tk.Pos.X), min(d.Y0, tk.Pos.Y)
+			d.X1, d.Y1 = max(d.X1, tk.Pos.X), max(d.Y1, tk.Pos.Y)
+		}
+		for _, o := range econ.WorkOrders {
+			if o.Kind == sim.WorkDig && o.Pos.X >= d.X0 && o.Pos.X <= d.X1 && o.Pos.Y >= d.Y0 && o.Pos.Y <= d.Y1 && digHas(p, o.Pos) {
+				d.Held += int64(o.Pay) * int64(o.Units)
+			}
+		}
+		t.Digs = append(t.Digs, d)
 	}
 	var colonists []sim.EntityView
 	for _, e := range s.Entities {
@@ -383,4 +427,14 @@ func accountTopic(s *sim.Snapshot, owner sim.Owner) AccountTopic {
 		}
 	}
 	return t
+}
+
+// digHas reports whether a project has a task on pos.
+func digHas(p sim.ProjectView, pos sim.Point) bool {
+	for _, tk := range p.Tasks {
+		if tk.Pos == pos {
+			return true
+		}
+	}
+	return false
 }
