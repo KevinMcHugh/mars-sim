@@ -22,7 +22,8 @@ func (w *World) step() {
 		switch e.Kind {
 		case Colonist:
 			w.colonistTurn(e)
-			w.tallyActivity(e) // the Activity tab's tally (read-only bookkeeping)
+			w.syncDriveActivity(e) // drives grow at the rate of what it is now doing
+			w.tallyActivity(e)     // the Activity tab's tally (read-only bookkeeping)
 		case Alien:
 			w.alienTurn(e)
 		case Cat:
@@ -52,25 +53,42 @@ func (w *World) step() {
 // needs are slow, so a coarse cadence keeps planning cheap.
 const planInterval = 16
 
-// entityTurnOrder returns the deterministic per-tick action order. Fatal need
+// entityTurnOrder returns the deterministic per-tick action order. Fatal drive
 // urgency is a scheduling concern as well as a job-selection concern: in a full
 // facility room, acting first gives a colonist first claim on access space that
 // another colonist vacated on the previous tick.
 func (w *World) entityTurnOrder() []EntityID {
 	ids := w.entityIDsSorted()
-	sort.SliceStable(ids, func(i, j int) bool {
-		a, b := w.entities[ids[i]], w.entities[ids[j]]
-		if a.Kind != b.Kind {
-			return a.Kind == Colonist
+	// Read each colonist's hunger once rather than in every comparison.
+	type turn struct {
+		id       EntityID
+		colonist bool
+		hunger   int
+	}
+	turns := make([]turn, len(ids))
+	for i, id := range ids {
+		e := w.entities[id]
+		turns[i] = turn{id: id, colonist: e.Kind == Colonist}
+		if turns[i].colonist {
+			turns[i].hunger = w.driveLevel(e, DriveFood)
 		}
-		if a.Kind == Colonist {
-			ah, bh := w.driveLevel(a, DriveFood), w.driveLevel(b, DriveFood)
-			if ah != bh {
-				return ah > bh
+	}
+	// Stable over ascending IDs, so ties keep ID order.
+	slices.SortStableFunc(turns, func(a, b turn) int {
+		switch {
+		case a.colonist != b.colonist:
+			if a.colonist {
+				return -1
 			}
+			return 1
+		case a.colonist && a.hunger != b.hunger:
+			return b.hunger - a.hunger
 		}
-		return a.ID < b.ID
+		return 0
 	})
+	for i, t := range turns {
+		ids[i] = t.id
+	}
 	return ids
 }
 
@@ -113,11 +131,9 @@ func (w *World) entityIDsNearSorted(center Point, radius int) []EntityID {
 // ---- Colonists ---------------------------------------------------------------
 
 func (w *World) colonistTurn(e *Entity) {
-	// Out of bed since last turn (finished, woken, or pulled away): its other
-	// needs start rising again.
-	if e.asleep && e.State != Sleeping {
-		w.wakeUp(e)
-	}
+	// Effects wear on whatever the colonist is doing, so their stages move on
+	// before anything else this turn reads a drive.
+	w.advanceEffects(e)
 	w.applyStarvation(e)
 	if !e.Alive() { // starved this tick
 		w.clearJob(e) // release any board claim before removal
@@ -138,7 +154,7 @@ func (w *World) colonistTurn(e *Entity) {
 
 	// A stable resting/sleeping colonist has no perception product to ingest when
 	// no creature or gore is nearby. The fast path still performs threat, fatal
-	// need, facility, and uranium checks before it can return.
+	// drive, facility, and uranium checks before it can return.
 	if !w.alwaysArbitrate && w.tryCognitionFastPath(e) {
 		return
 	}
@@ -179,11 +195,11 @@ func (w *World) runCognition(e *Entity) {
 }
 
 // syncCognitionDeadlines applies only transitions whose cached boundary has
-// arrived. Fatal needs are also read every tick as a safety belt, independently
+// arrived. Fatal drives are also read every tick as a safety belt, independently
 // of the cache. Stimulus expiry remains exact at ExpiresAt.
 func (w *World) syncCognitionDeadlines(e *Entity) {
 	for n := DriveKind(0); n < numDrives; n++ {
-		crossing := e.nextDrivePhaseTick[n]
+		crossing := e.drives[n].nextCrossing
 		if w.cfg.Drives[n].Fatal || crossing > 0 && w.tick >= crossing {
 			w.syncDrivePhase(e, n)
 		}
@@ -243,7 +259,7 @@ func (w *World) tryCognitionFastPath(e *Entity) bool {
 	}
 	// In-place sleep has no path, target search, or claim machinery to run. Its
 	// only changing score strengthens the incumbent; nextCognitionTick caps this
-	// path at every competing need boundary and the fallback deadline.
+	// path at every competing drive boundary and the fallback deadline.
 	w.sleepTick(e)
 	return true
 }
@@ -432,7 +448,7 @@ func (w *World) observeGore(e *Entity) {
 
 // stompNearbyRat lets a colonist with nothing pressing to do chase down and
 // crush a rat it notices. Stomping is an idle whim, not work: colonistTurn has
-// already ruled out threats, urgent needs, and available jobs before this runs.
+// already ruled out threats, urgent drives, and available jobs before this runs.
 // A stomp is instantly fatal to the tiny rat. Returns whether the colonist
 // spent its tick on the hunt (closing in or stomping).
 func (w *World) stompNearbyRat(e *Entity) bool {
@@ -476,13 +492,13 @@ func (w *World) idleWouldBlock(p Point) bool {
 }
 
 // onFacilityAccess reports whether p is next to a facility colonists walk to —
-// any need-satisfying structure, or the incinerator a hauler has to reach — so
+// any drive-satisfying structure, or the incinerator a hauler has to reach — so
 // an idle colonist standing there would block others from using it.
 //
 // Only communal fixtures count. A private bunk has one user, and treating it
 // like a shared one broke the colony the day crash pods landed: every tile
 // around every pod read as "in the way", so no idle colonist was ever
-// available to talk (availableToTalk), social need pinned at its ceiling, and
+// available to talk (availableToTalk), social drive pinned at its ceiling, and
 // the colony stopped working to wait for conversations that never came.
 func (w *World) onFacilityAccess(p Point) bool {
 	for _, d := range neighbors8 {
@@ -720,11 +736,11 @@ func (w *World) tryStartTalk(e *Entity, forced bool) bool {
 
 // availableToTalk reports whether a colonist is free to be pulled into a chat:
 // idle with no committed job, not fleeing or seeking a facility, and not parked
-// on a tile others need clear. A candidate whose own most urgent need is
+// on a tile others need clear. A candidate whose own most urgent drive is
 // social is still available — otherwise two colonists who both urgently need
 // company can never talk to each other, since each disqualifies the other as
-// a partner, and social need sits permanently pinned at its ceiling in any
-// colony busy enough that nobody is ever fully need-free.
+// a partner, and social drive sits permanently pinned at its ceiling in any
+// colony busy enough that nobody is ever fully drive-free.
 func (w *World) availableToTalk(o *Entity) bool {
 	if o.Job != JobNone || o.State == Fleeing {
 		return false
@@ -756,7 +772,7 @@ func (w *World) beginTalk(a, b *Entity) {
 
 // talkPartner returns the colonist e is in a conversation with, if both sides
 // still claim each other. A conversation is only real while it is mutual: one
-// side being pulled away (a fatal need, a threat, a torn-down claim) ends it for
+// side being pulled away (a fatal drive, a threat, a torn-down claim) ends it for
 // both, which is what stops a colonist chatting with someone who has wandered
 // off to eat.
 func (w *World) talkPartner(e *Entity) (*Entity, bool) {
@@ -965,7 +981,7 @@ func (w *World) assignWorkJob(e *Entity) {
 	// only take a job when unclaimed frontier remains.
 	if w.board.unclaimedCount() > 0 {
 		// Mining produces raw rock. Do not begin work that cannot yield its
-		// resource; construction and needs remain available to a full colonist.
+		// resource; construction and drives remain available to a full colonist.
 		if !e.Inventory.CanAdd(RawRock, 1) {
 			e.Job = JobNone
 			return
@@ -1120,7 +1136,7 @@ func (w *World) plannedFacilities(kind Terrain) int {
 	return w.countTerrain(kind) + w.board.inProgress(kind) + w.projectFacilityTasks(kind)
 }
 
-// desiredFacilities is how many of each need-satisfying structure (pods,
+// desiredFacilities is how many of each drive-satisfying structure (pods,
 // toilets, bunks) the colony wants for a given headcount (at least one).
 func (w *World) desiredFacilities(colonists int) int {
 	d := colonists / w.cfg.ColonistsPerFacility
@@ -1462,7 +1478,7 @@ func (w *World) jobUse(e *Entity) {
 	if e.fieldDetour > 0 {
 		e.fieldDetour--
 	}
-	// Route to the facility selected when the need became urgent. The shared field
+	// Route to the facility selected when the drive became urgent. The shared field
 	// is still the reachability gate, but routing to a concrete facility prevents
 	// every user from converging on its nearest seed.
 	arrived, ok := w.travelTo(e, e.useFacility)
@@ -1470,7 +1486,7 @@ func (w *World) jobUse(e *Entity) {
 		if !ok {
 			// A facility can become unreachable after a terrain change while the
 			// shared field still has another reachable goal. Fall back to that
-			// field rather than dropping the need and risking starvation.
+			// field rather than dropping the drive and risking starvation.
 			if w.followField(e, field) {
 				e.stuck = 0
 				e.State = Moving
@@ -1503,7 +1519,7 @@ func (w *World) jobUse(e *Entity) {
 	e.State = Moving
 }
 
-// jobUseCarrying finishes a portable need (see DriveSpec.GrabTicks) away from
+// jobUseCarrying finishes a portable drive (see DriveSpec.GrabTicks) away from
 // the facility. The colonist already grabbed it, so completion is guaranteed
 // — no travel, no facility reachability or crowding to worry about — freeing
 // the access tile it used to occupy for the rest of the process.
@@ -1515,7 +1531,7 @@ func (w *World) jobUseCarrying(e *Entity, spec DriveSpec) {
 	}
 }
 
-// finishUse applies a completed JobUse: resets the need, records a memory,
+// finishUse applies a completed JobUse: resets the drive, records a memory,
 // and clears the job. Shared by an in-place use and a carried-away one.
 func (w *World) finishUse(e *Entity, spec DriveSpec) {
 	if e.useFacilitySet {
@@ -1892,7 +1908,7 @@ func (w *World) preyName(prey *Entity) string {
 // ---- Cats --------------------------------------------------------------------
 
 // catTurn walks the cat toward the nearest rat and pounces when adjacent. Cats
-// have no needs; they simply hunt. Like everyone else they travel the floor
+// have no drives; they simply hunt. Like everyone else they travel the floor
 // with cached A* and give up on prey they cannot reach.
 func (w *World) catTurn(e *Entity) {
 	if e.Cooldown > 0 {
@@ -1939,7 +1955,7 @@ func (w *World) pounce(cat, prey *Entity) {
 // ---- Rats --------------------------------------------------------------------
 
 // ratTurn runs one rat tick: starve, flee cats, scavenge (or raid a pod) when
-// hungry, breed, otherwise scurry about. Rats reuse the colonists' food need
+// hungry, breed, otherwise scurry about. Rats reuse the colonists' food drive
 // but never build: they eat the same biomatter the scumhouse runs on, where it
 // lies, and fall back on pods only with nothing in reach. See scavenge.go.
 func (w *World) ratTurn(e *Entity) {
@@ -1969,7 +1985,7 @@ func (w *World) ratTurn(e *Entity) {
 	// Hungry? Scavenge the nearest body, gore, or scum in range — the same
 	// biomatter the scumhouse runs on (see scavenge.go) — and only with none
 	// in reach raid a nutrient pod. Rats care only about food, so we check it
-	// directly rather than scanning every need.
+	// directly rather than scanning every drive.
 	hungry := w.driveLevel(e, DriveFood) >= w.cfg.Drives[DriveFood].SeekAt
 	if hungry && e.Job == JobNone {
 		if target, ok := w.nearestScavenge(e); ok {

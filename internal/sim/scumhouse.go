@@ -530,7 +530,7 @@ func (w *World) jobCraft(e *Entity) {
 // labor the skills plan wants: scrapers bring scum, cooks cook, and the cook
 // gets better at it (see docs/skills.md).
 func (w *World) cooksOn(e *Entity, c *StorageContainer, r Recipe) bool {
-	if e.plan != 0 || e.drivePhase[DriveFood] >= DrivePressing || w.mealFetchesAt(c.Pos) > 0 {
+	if e.plan != 0 || e.drives[DriveFood].phase >= DrivePressing || w.mealFetchesAt(c.Pos) > 0 {
 		return false
 	}
 	switch e.craftFor {
@@ -1147,7 +1147,7 @@ func (w *World) cooksOwnSupper(e *Entity, r Recipe) bool {
 	if e.craftFor != ColonistOwner(e.ID) || !e.Inventory.CanAdd(Meal, 1) {
 		return false
 	}
-	if phase := e.drivePhase[DriveFood]; phase != DrivePressing && phase != DriveCritical {
+	if phase := e.drives[DriveFood].phase; phase != DrivePressing && phase != DriveCritical {
 		return false
 	}
 	for _, o := range r.Outputs {

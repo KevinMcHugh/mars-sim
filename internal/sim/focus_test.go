@@ -43,7 +43,7 @@ func TestFocusCommitmentRequiresEligibility(t *testing.T) {
 		t.Fatalf("satisfied eat candidate = %+v, want ineligible without commitment", candidates[FocusEat])
 	}
 
-	c.Drives[DriveFood] = w.cfg.Drives[DriveFood].SeekAt
+	w.setDrive(c, DriveFood, w.cfg.Drives[DriveFood].SeekAt)
 	w.focusCandidates(c, &candidates)
 	if !candidates[FocusEat].Eligible ||
 		candidates[FocusEat].Score.Commitment != w.cfg.FocusCurrentBonus {
@@ -86,8 +86,8 @@ func TestFocusTieOrderingIsDeterministic(t *testing.T) {
 
 func TestFatalPressingNeedSuppressesNonFatalNeeds(t *testing.T) {
 	w, c := focusTestColonist(t)
-	c.Drives[DriveFood] = w.cfg.Drives[DriveFood].SeekAt
-	c.Drives[DriveBladder] = w.cfg.Drives[DriveBladder].Max
+	w.setDrive(c, DriveFood, w.cfg.Drives[DriveFood].SeekAt)
+	w.setDrive(c, DriveBladder, w.cfg.Drives[DriveBladder].Max)
 	var candidates [numFocusKinds]FocusCandidate
 	w.focusCandidates(c, &candidates)
 	if !candidates[FocusEat].Eligible {
@@ -102,7 +102,7 @@ func TestCriticalFatalNeedBeatsWorkCommitment(t *testing.T) {
 	w, c := focusTestColonist(t)
 	c.focus = FocusWork
 	c.Job = JobMine
-	c.Drives[DriveFood], c.driveSince[DriveFood] = w.cfg.Drives[DriveFood].Max, w.tick
+	w.setDrive(c, DriveFood, w.cfg.Drives[DriveFood].Max)
 	var candidates [numFocusKinds]FocusCandidate
 	if got := w.chooseFocus(c, &candidates).Kind; got != FocusEat {
 		t.Fatalf("focus = %v, want critical food to preempt committed work", got)
@@ -111,7 +111,7 @@ func TestCriticalFatalNeedBeatsWorkCommitment(t *testing.T) {
 
 func TestVisibleThreatBeatsCriticalHunger(t *testing.T) {
 	w, c := focusTestColonist(t)
-	c.Drives[DriveFood] = w.cfg.Drives[DriveFood].Max
+	w.setDrive(c, DriveFood, w.cfg.Drives[DriveFood].Max)
 	w.spawn(Alien, c.Pos.Add(1, 0))
 	w.observeNearby(c)
 	var candidates [numFocusKinds]FocusCandidate
@@ -144,7 +144,7 @@ func TestFocusTransitionReleasesMineClaim(t *testing.T) {
 	w.board.claimMine(target, c.ID)
 	c.Job, c.Target, c.mineClaimed = JobMine, target, true
 	c.focus = FocusWork
-	c.Drives[DriveFood] = w.cfg.Drives[DriveFood].SeekAt
+	w.setDrive(c, DriveFood, w.cfg.Drives[DriveFood].SeekAt)
 
 	w.colonistTurn(c)
 	if w.board.isClaimed(target) {
@@ -169,7 +169,7 @@ func BenchmarkFocusCandidates(b *testing.B) {
 	cfg.Seed = 1
 	w := newWorld(cfg, nil)
 	c := newEntity(1, Colonist, Point{1, 1}, cfg)
-	c.Drives[DriveFood] = cfg.Drives[DriveFood].SeekAt
+	w.setDrive(c, DriveFood, cfg.Drives[DriveFood].SeekAt)
 	w.entities[c.ID] = c
 	var candidates [numFocusKinds]FocusCandidate
 	b.ReportAllocs()
@@ -195,9 +195,9 @@ func fleeCorridorBounces(t *testing.T, margin int) int {
 	w.spawn(Alien, Point{24, 6})
 	c := w.spawn(Colonist, Point{8, 6})
 	for n := DriveKind(0); n < numDrives; n++ {
-		c.Drives[n] = 0
+		w.setDrive(c, n, 0)
 	}
-	c.Drives[DriveBladder] = w.cfg.Drives[DriveBladder].SeekAt + 10
+	w.setDrive(c, DriveBladder, w.cfg.Drives[DriveBladder].SeekAt+10)
 	for n := DriveKind(0); n < numDrives; n++ {
 		w.syncDrivePhase(c, n)
 	}

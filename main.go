@@ -567,14 +567,22 @@ func validateConfig(cfg sim.Config) error {
 		switch {
 		case spec.Max < 1:
 			return fmt.Errorf("drive-%s-max must be at least 1 (got %d)", spec.Name, spec.Max)
-		case spec.Rise < 0:
-			return fmt.Errorf("drive-%s-rise cannot be negative (got %d)", spec.Name, spec.Rise)
+		case spec.Min > 0:
+			return fmt.Errorf("drive-%s-min cannot be above 0, the satisfied level (got %d)", spec.Name, spec.Min)
 		case spec.SeekAt < 0 || spec.SeekAt > spec.CriticalAt || spec.CriticalAt > spec.Max:
 			return fmt.Errorf("drive-%s thresholds must satisfy 0 <= seek-at <= critical-at <= max (got %d, %d, %d)",
 				spec.Name, spec.SeekAt, spec.CriticalAt, spec.Max)
 		case spec.UseTicks < 0 || spec.GrabTicks < 0:
 			return fmt.Errorf("drive-%s use and grab ticks cannot be negative (got %d and %d)", spec.Name, spec.UseTicks, spec.GrabTicks)
 		}
+		for a, pct := range spec.Activity {
+			if pct < 0 {
+				return fmt.Errorf("drive-%s-activity-%s cannot be negative (got %d)", spec.Name, sim.DriveActivityName(a), pct)
+			}
+		}
+	}
+	if err := cfg.CheckDrives(); err != nil {
+		return err
 	}
 	if cfg.FocusCurrentBonus < 0 || cfg.FocusSwitchMargin < 0 ||
 		cfg.FocusCriticalBonus < 0 || cfg.FocusFatalBonus < 0 {

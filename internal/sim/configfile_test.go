@@ -8,7 +8,7 @@ import (
 )
 
 // settingLine matches a commented-out setting in the template ("# width: 80",
-// "#     rise: 2") but not the prose above it ("## world width in tiles") or a
+// "#     rate: 2000") but not the prose above it ("## world width in tiles") or a
 // section rule.
 var settingLine = regexp.MustCompile(`^# (\s*[a-z][a-z0-9-]*:.*)$`)
 
@@ -86,7 +86,7 @@ seed: 99
 colonists: 12
 drives:
   food:
-    rise: 5
+    rate: 5
     fatal: false
 `)
 	set, err := ApplyConfigFile(&cfg, data, ConfigFileName)
@@ -99,13 +99,13 @@ drives:
 	if cfg.StartColonists != 12 {
 		t.Errorf("StartColonists = %d, want 12", cfg.StartColonists)
 	}
-	if cfg.Drives[DriveFood].Rise != 5 || cfg.Drives[DriveFood].Fatal {
-		t.Errorf("food need = %+v, want rise 5 and not fatal", cfg.Drives[DriveFood])
+	if cfg.Drives[DriveFood].Rate != 5 || cfg.Drives[DriveFood].Fatal {
+		t.Errorf("food need = %+v, want rate 5 and not fatal", cfg.Drives[DriveFood])
 	}
 	if cfg.Drives[DriveFood].SeekAt != DefaultConfig().Drives[DriveFood].SeekAt {
 		t.Error("an untouched field inside a need was overwritten")
 	}
-	want := []string{"seed", "colonists", "drives.food.rise", "drives.food.fatal"}
+	want := []string{"seed", "colonists", "drives.food.rate", "drives.food.fatal"}
 	if !reflect.DeepEqual(set, want) {
 		t.Errorf("set = %v, want %v", set, want)
 	}
@@ -175,7 +175,7 @@ func TestKnobsAreWellFormed(t *testing.T) {
 			t.Errorf("knob %q collides with the special seed setting", k.Name)
 		}
 	}
-	if !names["colonists"] || !names["drive-food-rise"] || !names["focus-work-base"] ||
+	if !names["colonists"] || !names["drive-food-rate"] || !names["focus-work-base"] ||
 		!names["mood-charge-decay-per-tick"] || !names["mood-grip-decay-per-tick"] ||
 		!names["mood-label-switch-margin"] {
 		t.Error("expected knobs are missing; did the cfg tags move?")
@@ -201,16 +201,16 @@ func TestFocusKnobsUseFocusNames(t *testing.T) {
 func TestKnobsPointAtTheConfig(t *testing.T) {
 	cfg := DefaultConfig()
 	for _, k := range Knobs(&cfg) {
-		if k.Key != "drives.food.rise" {
+		if k.Key != "drives.food.rate" {
 			continue
 		}
 		*(k.Ptr.(*int)) = 123
-		if cfg.Drives[DriveFood].Rise != 123 {
+		if cfg.Drives[DriveFood].Rate != 123 {
 			t.Fatal("writing through a knob did not reach the config")
 		}
 		return
 	}
-	t.Fatal("drives.food.rise knob not found")
+	t.Fatal("drives.food.rate knob not found")
 }
 
 // Settings files written before a rename still load: mice became rats. A

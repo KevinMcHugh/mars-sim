@@ -54,11 +54,13 @@ type-switches over those pointers to register flags; `ConfigTemplate` renders
 them as commented YAML; `ApplyConfigFile` looks them up by key. Add a field with
 a tag and all three surfaces get it.
 
-`Config.Needs` and `Config.Focuses` are arrays of specs, so their knobs nest:
-the file writes `needs.food.rise` and `focuses.work.base`, while flags flatten
-those to `-need-food-rise` and `-focus-work-base`. Element names come from the
+`Config.Drives` and `Config.Focuses` are arrays of specs, so their knobs nest:
+the file writes `drives.food.rate` and `focuses.work.base`, while flags flatten
+those to `-drive-food-rate` and `-focus-work-base`. Element names come from the
 corresponding enum's `String()` method, so both surfaces read the way a player
-would say them. Focus knobs are a runtime copy of `cognition.yaml`; a later
+would say them. An array of plain values inside a spec is one knob per element
+(`DriveSpec.Activity` gives `drives.food.activity.labor`), and its `doc` tag has
+a `%s` the element's name fills in. Focus knobs are a runtime copy of `cognition.yaml`; a later
 `SyncWithCognition` overwrites them. Tune arbitration there.
 
 ### Startup order
@@ -107,7 +109,7 @@ Old names still mean something (`RenamedSettings`, `RetiredSettings` in
   be regenerated, diffs show only what a player deliberately changed, and a
   default that moves in `config.go` still reaches anyone who never touched that
   line. The cost is that nested settings need their parent keys uncommented
-  too, which the file says at the top of the needs section.
+  too, which the file says at the top of the drives section.
 - **Unknown keys are fatal.** A typo in a committed settings file that silently
   does nothing is exactly the failure this file exists to prevent, and a game
   that quietly ignores your balance is worse than one that will not start.
@@ -143,4 +145,4 @@ Only `int`, `int64` and `bool` fields can be knobs. A new kind needs a case in
 
 - [configuration.md](./configuration.md) — the `Config` struct these settings fill in.
 - [cli.md](./cli.md) — the flags that sit on top of the file.
-- [needs.md](./needs.md) — the `NeedSpec` table that nests inside the file.
+- [drives.md](./drives.md) — the `DriveSpec` table that nests inside the file.

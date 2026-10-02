@@ -19,10 +19,10 @@ covers where the first meals come from.
   `tryStartEating`, `nearestMealDepot`, `jobEat`, `takeMeal`,
   `hungryWithoutFood`, `podsFeed`, `wantsFacility`; foraging
   (`planForage`, `tryProspect`, see [foraging.md](./foraging.md)).
-- [`internal/sim/systems.go`](../internal/sim/systems.go) — `runNeedFocus`
+- [`internal/sim/systems.go`](../internal/sim/systems.go) — `runDriveFocus`
   hands food to `runFoodFocus` first; `finishUse` records gruel; rats only eat
   at pods that feed.
-- [`internal/sim/needs.go`](../internal/sim/needs.go) — the starvation grace
+- [`internal/sim/drives.go`](../internal/sim/drives.go) — the starvation grace
   covers `JobEat`.
 - [`internal/sim/project.go`](../internal/sim/project.go) — `toiletRoom`,
   `facilityRoomRecipe`.
@@ -34,7 +34,7 @@ covers where the first meals come from.
 
 ### Who eats what
 
-When the food need is pressing, `runNeedFocus` gives `runFoodFocus` the turn
+When the food need is pressing, `runDriveFocus` gives `runFoodFocus` the turn
 first. It tries, in order:
 
 1. **A meal in the colonist's pockets**, usually its pocket meal (see *Pocket
@@ -228,7 +228,7 @@ covers one queued at a reachable pod.
 
 ## Related
 
-- [needs.md](./needs.md) — the food need, its thresholds, and starvation.
+- [drives.md](./drives.md) — the food need, its thresholds, and starvation.
 - [crash-pods.md](./crash-pods.md) — the meals a colonist lands with.
 - [property.md](./property.md) — ledgers, `debit`, and who may use what.
 - [construction.md](./construction.md) — the facility room, and what it holds

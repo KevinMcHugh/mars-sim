@@ -359,7 +359,7 @@ func TestGriefOutlastsGoodCircumstances(t *testing.T) {
 	w, c := focusTestColonist(t)
 	rememberTest(w, c, "witnessed-colonist-killed", "saw a killing")
 	for n := DriveKind(0); n < numDrives; n++ {
-		c.Drives[n], c.driveSince[n] = 0, w.tick
+		w.setDrive(c, n, 0)
 	}
 	c.HP = c.MaxHP
 	if c.affect.Valence >= 0 {
@@ -405,7 +405,7 @@ func TestGripOrdersFleeAndFight(t *testing.T) {
 
 func TestChargeOrdersSleepAndWork(t *testing.T) {
 	w, c := focusTestColonist(t)
-	c.Drives[DriveSleep], c.driveSince[DriveSleep] = w.cfg.Drives[DriveSleep].SeekAt, w.tick
+	w.setDrive(c, DriveSleep, w.cfg.Drives[DriveSleep].SeekAt)
 	var candidates [numFocusKinds]FocusCandidate
 	for _, charge := range []int{-w.cfg.MoodMax, w.cfg.MoodMax} {
 		c.affect.Charge = charge
@@ -597,10 +597,9 @@ func TestTraitBaselinesSpawnDecayAndReresolve(t *testing.T) {
 	if !spawned.affectSettled() || spawned.affect.Valence != 25 {
 		t.Fatalf("optimist settled at %+v, home %+v", spawned.affect, spawned.affectHome)
 	}
-	for n := range spawned.driveSince {
-		spawned.Drives[n], spawned.driveSince[n] = 0, w.tick
-		spawned.drivePhase[n] = DriveSatisfied
-		spawned.nextDrivePhaseTick[n] = 0
+	for n := DriveKind(0); n < numDrives; n++ {
+		setDriveRate(w, spawned, n, 0)
+		w.setDrive(spawned, n, 0)
 	}
 	if next := w.nextCognitionTick(spawned); next <= w.tick+1 {
 		t.Fatalf("settled off-origin affect defeats cognition cache: next=%d now=%d", next, w.tick)

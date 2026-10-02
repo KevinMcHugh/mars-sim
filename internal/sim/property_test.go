@@ -121,7 +121,7 @@ func TestColonistsSleepOnlyInBedsTheyMayUse(t *testing.T) {
 	guest := w.spawn(Colonist, Point{10, 12}) // nearer the private bed than the shared one
 	w.setFixtureOwner(mine, ColonistOwner(owner.ID), AccessPrivate)
 	for _, e := range []*Entity{owner, guest} {
-		e.Drives[DriveSleep] = sleepy
+		w.setDrive(e, DriveSleep, sleepy)
 		w.syncDrivePhase(e, DriveSleep)
 	}
 
@@ -155,7 +155,7 @@ func TestOwnerReachesItsOnlyPrivateBed(t *testing.T) {
 	w.refreshSpatial()
 	owner := w.spawn(Colonist, Point{6, 12})
 	w.setFixtureOwner(bed, ColonistOwner(owner.ID), AccessPrivate)
-	owner.Drives[DriveSleep] = w.cfg.Drives[DriveSleep].SeekAt + 50
+	w.setDrive(owner, DriveSleep, w.cfg.Drives[DriveSleep].SeekAt+50)
 	w.syncDrivePhase(owner, DriveSleep)
 
 	for i := 0; i < 300+w.cfg.Drives[DriveSleep].UseTicks; i++ {

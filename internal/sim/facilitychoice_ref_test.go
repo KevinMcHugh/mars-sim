@@ -189,7 +189,7 @@ func TestChooseFacilityMatchesReference(t *testing.T) {
 				if tc.hungry && tick%50 == 0 {
 					for _, e := range w.entities {
 						if e.Kind == Colonist {
-							e.Drives[DriveFood] = w.cfg.Drives[DriveFood].SeekAt
+							w.setDrive(e, DriveFood, w.cfg.Drives[DriveFood].SeekAt)
 						}
 					}
 				}

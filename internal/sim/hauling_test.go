@@ -18,19 +18,15 @@ func arbitrageWorld(t *testing.T, sells bool) (w *World, silo, far Point, cols [
 	return w, silo, far, cols
 }
 
-// stepFed steps w n times, keeping every colonist's needs at zero so a test
-// is about work, not survival, and checks the money audit on every tick.
-func stepFed(t *testing.T, w *World, n int, stop func() bool) {
+// stepAudited steps w n times, checking the money audit on every tick.
+// Colonists live normally, eating and sleeping as they need to. (This used to
+// claim to hold their needs at zero, but it zeroed the stored base and left
+// the timestamp, so they grew anyway; the long-run tests here depend on
+// colonists buying and eating meals.)
+func stepAudited(t *testing.T, w *World, n int, stop func() bool) {
 	t.Helper()
 	for i := 0; i < n && (stop == nil || !stop()); i++ {
 		w.step()
-		for _, e := range w.entities {
-			if e.Kind == Colonist {
-				for k := range e.Drives {
-					e.Drives[k] = 0
-				}
-			}
-		}
 		assertMoneyConserved(t, w)
 	}
 }
@@ -63,7 +59,7 @@ func TestArbitrageClosesAPriceGap(t *testing.T) {
 		t.Fatal("the buyer could not post its bid")
 	}
 	bought := func() bool { return w.storageContainers[far].held(buyer, IronOre) >= 8 }
-	stepFed(t, w, 3000, bought)
+	stepAudited(t, w, 3000, bought)
 	if !bought() {
 		t.Fatalf("the buyer holds %d iron at the far depot, want 8", w.storageContainers[far].held(buyer, IronOre))
 	}
@@ -85,7 +81,7 @@ func TestColonySellingPaysOverALongRun(t *testing.T) {
 	run := func(sells bool) Money {
 		w, _, far, cols := arbitrageWorld(t, sells)
 		w.post(Bid, IronOre, 8, 12, ColonistOwner(cols[0].ID), far, 0)
-		stepFed(t, w, 4000, nil)
+		stepAudited(t, w, 4000, nil)
 		return w.treasury
 	}
 	selling, buying := run(true), run(false)
@@ -106,7 +102,7 @@ func TestHaulersStockTheSilo(t *testing.T) {
 		before[e.ID] = e.wallet
 	}
 	stocked := func() bool { return w.storageContainers[silo].held(Community, Meal) >= 3 }
-	stepFed(t, w, 2000, stocked)
+	stepAudited(t, w, 2000, stocked)
 	if !stocked() {
 		t.Fatalf("the silo holds %d of the colony's meals, want 3", w.storageContainers[silo].held(Community, Meal))
 	}
@@ -173,7 +169,7 @@ func TestTheSiloIsNotOverstocked(t *testing.T) {
 		return w.storageContainers[silo].held(Community, Meal) + w.openQty(Ask, Meal, silo, Community)
 	}
 	most := 0
-	stepFed(t, w, 3000, func() bool {
+	stepAudited(t, w, 3000, func() bool {
 		most = max(most, atSilo())
 		return false
 	})

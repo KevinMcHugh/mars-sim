@@ -147,5 +147,5 @@ pins that this case is intentionally *not* rescued.
   the reachability primitives this feature reuses rather than duplicating.
 - [cascading_wsts_architecture.md](./cascading_wsts_architecture.md) — the
   focus arbitration system `FocusEscape` plugs into.
-- [needs.md](./needs.md) — the emergency-build fallback this feature
+- [drives.md](./drives.md) — the emergency-build fallback this feature
   complements rather than replaces.

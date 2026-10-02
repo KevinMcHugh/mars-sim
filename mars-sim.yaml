@@ -362,16 +362,19 @@
 
 # drives:
 #   food:
-##     level gained per tick
-#     rise: 2
+##     base growth per tick, in thousandths of a point
+#     rate: 1750
+
+##     floor the level never falls below
+#     min: 0
 
 ##     level at which the colonist drops work to satisfy it
 #     seek-at: 650
 
-##     level at which the need becomes critical
+##     level at which the drive becomes critical
 #     critical-at: 1000
 
-##     ceiling; a fatal need sitting here drains HP
+##     ceiling; a fatal drive sitting here drains HP
 #     max: 1000
 
 ##     ticks spent using the facility
@@ -383,17 +386,33 @@
 ##     ticks at the facility before carrying the rest away (0 = must be used in place)
 #     grab-ticks: 3
 
+#     activity:
+##       percent of the base rate in the asleep drive activity
+#       asleep: 10
+
+##       percent of the base rate in the idle drive activity
+#       idle: 75
+
+##       percent of the base rate in the working drive activity
+#       working: 100
+
+##       percent of the base rate in the labor drive activity
+#       labor: 140
+
 #   bladder:
-##     level gained per tick
-#     rise: 3
+##     base growth per tick, in thousandths of a point
+#     rate: 3000
+
+##     floor the level never falls below
+#     min: 0
 
 ##     level at which the colonist drops work to satisfy it
 #     seek-at: 600
 
-##     level at which the need becomes critical
+##     level at which the drive becomes critical
 #     critical-at: 900
 
-##     ceiling; a fatal need sitting here drains HP
+##     ceiling; a fatal drive sitting here drains HP
 #     max: 1000
 
 ##     ticks spent using the facility
@@ -405,17 +424,33 @@
 ##     ticks at the facility before carrying the rest away (0 = must be used in place)
 #     grab-ticks: 0
 
+#     activity:
+##       percent of the base rate in the asleep drive activity
+#       asleep: 10
+
+##       percent of the base rate in the idle drive activity
+#       idle: 100
+
+##       percent of the base rate in the working drive activity
+#       working: 100
+
+##       percent of the base rate in the labor drive activity
+#       labor: 100
+
 #   social:
-##     level gained per tick
-#     rise: 2
+##     base growth per tick, in thousandths of a point
+#     rate: 2000
+
+##     floor the level never falls below
+#     min: 0
 
 ##     level at which the colonist drops work to satisfy it
 #     seek-at: 500
 
-##     level at which the need becomes critical
+##     level at which the drive becomes critical
 #     critical-at: 850
 
-##     ceiling; a fatal need sitting here drains HP
+##     ceiling; a fatal drive sitting here drains HP
 #     max: 1000
 
 ##     ticks spent using the facility
@@ -427,17 +462,33 @@
 ##     ticks at the facility before carrying the rest away (0 = must be used in place)
 #     grab-ticks: 0
 
+#     activity:
+##       percent of the base rate in the asleep drive activity
+#       asleep: 0
+
+##       percent of the base rate in the idle drive activity
+#       idle: 100
+
+##       percent of the base rate in the working drive activity
+#       working: 100
+
+##       percent of the base rate in the labor drive activity
+#       labor: 100
+
 #   sleep:
-##     level gained per tick
-#     rise: 1
+##     base growth per tick, in thousandths of a point
+#     rate: 1000
+
+##     floor the level never falls below
+#     min: 0
 
 ##     level at which the colonist drops work to satisfy it
 #     seek-at: 720
 
-##     level at which the need becomes critical
+##     level at which the drive becomes critical
 #     critical-at: 900
 
-##     ceiling; a fatal need sitting here drains HP
+##     ceiling; a fatal drive sitting here drains HP
 #     max: 1000
 
 ##     ticks spent using the facility
@@ -449,7 +500,20 @@
 ##     ticks at the facility before carrying the rest away (0 = must be used in place)
 #     grab-ticks: 0
 
-## HP lost per tick while a fatal need sits at its max
+#     activity:
+##       percent of the base rate in the asleep drive activity
+#       asleep: 100
+
+##       percent of the base rate in the idle drive activity
+#       idle: 100
+
+##       percent of the base rate in the working drive activity
+#       working: 100
+
+##       percent of the base rate in the labor drive activity
+#       labor: 100
+
+## HP lost per tick while a fatal drive sits at its max
 # starve-damage: 1
 
 ## colonists served by each life-support facility
@@ -783,8 +847,8 @@
 ## how close a colonist must come before a Cautious species reacts and closes in
 # alien-cautious-radius: 3
 
-## food need a Friendly or Cautious alien gains per tick before it goes grazing on cave scum
-# alien-hunger-rise: 2
+## food drive a Friendly or Cautious alien gains per tick, in thousandths of a point, before it goes grazing on cave scum
+# alien-hunger-rate: 2000
 
 ## how far a hungry Friendly or Cautious alien looks for cave scum to eat
 # alien-graze-radius: 12
@@ -834,8 +898,8 @@
 ## chicken acts once every N ticks (higher = slower)
 # chicken-slowness: 3
 
-## food need a chicken gains per tick
-# chicken-hunger-rise: 2
+## food drive a chicken gains per tick, in thousandths of a point
+# chicken-hunger-rate: 2000
 
 ## how far a hungry chicken looks for cave scum to graze
 # chicken-graze-radius: 10
@@ -853,8 +917,8 @@
 ## rat hit points
 # rat-hp: 4
 
-## food need a rat gains per tick (rats eat frequently)
-# rat-hunger-rise: 8
+## food drive a rat gains per tick, in thousandths of a point (rats eat frequently)
+# rat-hunger-rate: 8000
 
 ## how far a hungry rat looks for bodies, gore, or scum to eat
 # rat-scavenge-radius: 12

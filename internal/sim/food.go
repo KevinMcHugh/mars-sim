@@ -78,7 +78,7 @@ func (w *World) tryPocketMeal(e *Entity) bool {
 	if at <= 0 || e.Kind != Colonist || e.ownCarried(Meal) > 0 || !e.Inventory.CanAdd(Meal, 1) {
 		return false
 	}
-	if e.drivePhase[DriveFood] >= DrivePressing || w.driveLevel(e, DriveFood) < at {
+	if e.drives[DriveFood].phase >= DrivePressing || w.driveLevel(e, DriveFood) < at {
 		return false // pressing hunger eats (runFoodFocus); before at, it has time
 	}
 	depot, ok := w.nearestMealDepot(e)
@@ -159,7 +159,7 @@ func (w *World) jobEat(e *Entity) {
 		return
 	}
 	if e.eat == eatWalk {
-		if e.drivePhase[DriveFood] < DriveCritical {
+		if e.drives[DriveFood].phase < DriveCritical {
 			if arrived, ok := w.travelTo(e, e.Target); ok && !arrived {
 				e.State = Moving
 				return
@@ -249,7 +249,7 @@ func (w *World) runFoodFocus(e *Entity) bool {
 // meal — starved a few tiles from shelves holding a hundred of the colony's
 // meals, scraping scum for a supper they would not live to cook.
 func (w *World) tryRation(e *Entity) bool {
-	if !w.cfg.Rations || e.drivePhase[DriveFood] != DriveCritical {
+	if !w.cfg.Rations || e.drives[DriveFood].phase != DriveCritical {
 		return false
 	}
 	room := w.roomOf(e.Pos)

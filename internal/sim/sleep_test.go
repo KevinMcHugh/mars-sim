@@ -27,15 +27,15 @@ func TestSleepTraitsMoveTheNightAnHour(t *testing.T) {
 }
 
 // sleepyColonistBesideBed is a colonist ready for bed, standing next to one,
-// with its food need part way up.
+// with its food drive part way up.
 func sleepyColonistBesideBed(t *testing.T) (*World, *Entity) {
 	t.Helper()
 	w := propertyWorld(t)
 	w.SetTerrain(Point{10, 10}, Bed)
 	w.refreshSpatial()
 	e := w.spawn(Colonist, Point{9, 10})
-	e.Drives[DriveSleep] = w.cfg.Drives[DriveSleep].SeekAt + 50
-	e.Drives[DriveFood] = 200
+	w.setDrive(e, DriveSleep, w.cfg.Drives[DriveSleep].SeekAt+50)
+	w.setDrive(e, DriveFood, 200)
 	w.syncDrivePhase(e, DriveSleep)
 	w.syncDrivePhase(e, DriveFood)
 	for i := 0; i < 50 && e.State != Sleeping; i++ {
@@ -92,7 +92,6 @@ func TestInterruptedNightIsBanked(t *testing.T) {
 	// back down, and the night carries on from what it had banked.
 	w.clearJob(e)
 	e.State = Idle
-	w.wakeUp(e)
 	w.step()
 	if e.sleepBanked < banked {
 		t.Fatalf("interruption lost the banked sleep: %d -> %d", banked, e.sleepBanked)
@@ -117,10 +116,10 @@ func TestFleeingWakesTheSleeper(t *testing.T) {
 	for i := 0; i < 3; i++ {
 		w.step()
 	}
-	if e.State == Sleeping || e.asleep {
+	if e.State == Sleeping {
 		t.Fatalf("still asleep with an alien beside the bed (state %v, focus %v)", e.State, e.focus)
 	}
-	if e.driveRise[DriveFood] == 0 {
+	if e.drives[DriveFood].rate == 0 {
 		t.Fatal("food still paused after waking")
 	}
 	if e.sleepBanked != banked {

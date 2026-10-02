@@ -218,7 +218,7 @@ func TestHungryColonistsBuyWhatOthersSell(t *testing.T) {
 		t.Fatalf("offered %d meals, want the 3 over meal-keep", w.openQty(Ask, Meal, silo, ColonistOwner(seller.ID)))
 	}
 
-	buyer.Drives[DriveFood] = w.cfg.Drives[DriveFood].SeekAt + 10
+	w.setDrive(buyer, DriveFood, w.cfg.Drives[DriveFood].SeekAt+10)
 	w.syncDrivePhase(buyer, DriveFood)
 	for i := 0; i < 200 && w.driveLevel(buyer, DriveFood) > 0; i++ {
 		w.runDriveFocus(buyer, DriveFood)

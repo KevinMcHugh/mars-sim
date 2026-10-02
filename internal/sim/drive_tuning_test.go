@@ -32,6 +32,7 @@ func TestDriveTuningReport(t *testing.T) {
 type tuningTally struct {
 	colonistTicks, meals, finished, interrupted, inBed, mining, starved int
 	ticksPerDay                                                         int
+	wokenBy                                                             [numFocusKinds]int
 }
 
 func (a *tuningTally) add(b tuningTally) {
@@ -43,13 +44,22 @@ func (a *tuningTally) add(b tuningTally) {
 	a.mining += b.mining
 	a.starved += b.starved
 	a.ticksPerDay = b.ticksPerDay
+	for i := range a.wokenBy {
+		a.wokenBy[i] += b.wokenBy[i]
+	}
 }
 
 func (a tuningTally) String() string {
 	days := float64(a.colonistTicks) / float64(max(a.ticksPerDay, 1))
 	pct := func(n int) float64 { return 100 * float64(n) / float64(max(a.colonistTicks, 1)) }
-	return fmt.Sprintf("colonist-days %.0f  meals/day %.2f  nights finished %d interrupted %d  in bed %.1f%%  mining %.1f%%  starved %d",
-		days, float64(a.meals)/max(days, 1), a.finished, a.interrupted, pct(a.inBed), pct(a.mining), a.starved)
+	woken := ""
+	for f, n := range a.wokenBy {
+		if n > 0 {
+			woken += fmt.Sprintf(" %s:%d", FocusKind(f), n)
+		}
+	}
+	return fmt.Sprintf("colonist-days %.0f  meals/day %.2f  nights finished %d interrupted %d (by%s)  in bed %.1f%%  mining %.1f%%  starved %d",
+		days, float64(a.meals)/max(days, 1), a.finished, a.interrupted, woken, pct(a.inBed), pct(a.mining), a.starved)
 }
 
 func runTuningGame(w *World, ticks int) tuningTally {
@@ -77,6 +87,7 @@ func runTuningGame(w *World, ticks int) tuningTally {
 			if prevSleeping[id] && !sleeping {
 				if e.sleepBanked > 0 {
 					tally.interrupted++
+					tally.wokenBy[e.focus]++
 				} else {
 					tally.finished++
 				}

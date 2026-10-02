@@ -20,7 +20,7 @@ meals happen in one place you can see on the map.
   `nearestChair`, `socializeAtHall`, `mealSeat`, `hallTalkBonus`.
 - [`internal/sim/food.go`](../internal/sim/food.go) — the `eatWalk` stage of
   `JobEat`.
-- [`internal/sim/systems.go`](../internal/sim/systems.go) — `runNeedFocus` tries
+- [`internal/sim/systems.go`](../internal/sim/systems.go) — `runDriveFocus` tries
   the hall before the old talk; `finishTalk` adds the hall bonus.
 - [`internal/sim/project.go`](../internal/sim/project.go) — where the planner
   commissions it, and the `OrderMeetingHall` order.
@@ -43,7 +43,7 @@ facility terrain (`facilityTiles`), and "in the hall" means within `hallReach`
 (2) tiles of one; "seated" means beside one. Nothing is stored that could go
 stale when a wall is torn down.
 
-**Socializing.** A colonist whose focus is social (`runNeedFocus`) calls
+**Socializing.** A colonist whose focus is social (`runDriveFocus`) calls
 `socializeAtHall` first:
 
 1. Not beside a chair: walk to the nearest reachable one within `hall-range`
@@ -102,6 +102,6 @@ of the walk), and a meal fetched to keep (`eatKeep`).
 
 ## Related
 
-- [needs.md](./needs.md) — the social need and how conversations meet it.
+- [drives.md](./drives.md) — the social need and how conversations meet it.
 - [food.md](./food.md) — the eating job the `eatWalk` stage extends.
 - [construction.md](./construction.md) — room recipes and the planner.

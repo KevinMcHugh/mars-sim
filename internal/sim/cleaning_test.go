@@ -231,8 +231,7 @@ func TestStarvationLeavesACorpse(t *testing.T) {
 	w.refreshSpatial()
 	victim := w.spawn(Colonist, spot)
 	victim.HP = 1
-	victim.Drives[DriveFood] = w.cfg.Drives[DriveFood].Max
-	victim.driveSince[DriveFood] = w.tick
+	w.setDrive(victim, DriveFood, w.cfg.Drives[DriveFood].Max)
 
 	w.colonistTurn(victim)
 

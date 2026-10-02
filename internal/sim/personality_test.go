@@ -93,7 +93,7 @@ func TestAcquiredTraitsAreNeverRolled(t *testing.T) {
 func TestTraitsScaleEffectiveParams(t *testing.T) {
 	w := personalityWorld(0)
 	base := w.spawn(Colonist, Point{1, 1})
-	baseRise, baseRest := base.driveRise[DriveFood], base.restTicks
+	baseRise, baseRest := base.drives[DriveFood].rate, base.restTicks
 
 	withTrait := func(tr Trait) *Entity {
 		e := w.spawn(Colonist, Point{2, 2})
@@ -102,11 +102,11 @@ func TestTraitsScaleEffectiveParams(t *testing.T) {
 		return e
 	}
 
-	if big := withTrait(TraitBigEater); big.driveRise[DriveFood] <= baseRise {
-		t.Fatalf("big eater food rise %d should exceed baseline %d", big.driveRise[DriveFood], baseRise)
+	if big := withTrait(TraitBigEater); big.drives[DriveFood].rate <= baseRise {
+		t.Fatalf("big eater food rise %d should exceed baseline %d", big.drives[DriveFood].rate, baseRise)
 	}
-	if light := withTrait(TraitLightEater); light.driveRise[DriveFood] >= baseRise {
-		t.Fatalf("light eater food rise %d should be below baseline %d", light.driveRise[DriveFood], baseRise)
+	if light := withTrait(TraitLightEater); light.drives[DriveFood].rate >= baseRise {
+		t.Fatalf("light eater food rise %d should be below baseline %d", light.drives[DriveFood].rate, baseRise)
 	}
 
 	ind, lazy := withTrait(TraitIndustrious), withTrait(TraitLazy)
@@ -124,7 +124,7 @@ func TestTraitsScaleEffectiveParams(t *testing.T) {
 func TestSocialTraitsScaleSocialNeed(t *testing.T) {
 	w := personalityWorld(0)
 	base := w.spawn(Colonist, Point{1, 1})
-	baseRise := base.driveRise[DriveSocial]
+	baseRise := base.drives[DriveSocial].rate
 
 	withTrait := func(tr Trait) *Entity {
 		e := w.spawn(Colonist, Point{2 + int(tr), 2})
@@ -134,18 +134,18 @@ func TestSocialTraitsScaleSocialNeed(t *testing.T) {
 	}
 
 	asocial := withTrait(TraitAsocial)
-	if asocial.driveRise[DriveSocial] != 0 {
-		t.Fatalf("asocial social rise: got %d want 0", asocial.driveRise[DriveSocial])
+	if asocial.drives[DriveSocial].rate != 0 {
+		t.Fatalf("asocial social rise: got %d want 0", asocial.drives[DriveSocial].rate)
 	}
 	introvert := withTrait(TraitIntrovert)
-	if introvert.driveRise[DriveSocial] >= baseRise {
+	if introvert.drives[DriveSocial].rate >= baseRise {
 		t.Fatalf("introvert social rise %d should be below baseline %d",
-			introvert.driveRise[DriveSocial], baseRise)
+			introvert.drives[DriveSocial].rate, baseRise)
 	}
 	extrovert := withTrait(TraitExtrovert)
-	if extrovert.driveRise[DriveSocial] <= baseRise {
+	if extrovert.drives[DriveSocial].rate <= baseRise {
 		t.Fatalf("extrovert social rise %d should exceed baseline %d",
-			extrovert.driveRise[DriveSocial], baseRise)
+			extrovert.drives[DriveSocial].rate, baseRise)
 	}
 }
 
@@ -181,7 +181,7 @@ func TestBigEaterHungersFaster(t *testing.T) {
 	w.resolveTraitEffects(big)
 
 	for _, e := range []*Entity{base, big} {
-		e.Drives[DriveFood], e.driveSince[DriveFood] = 0, 0
+		w.setDrive(e, DriveFood, 0)
 	}
 	w.tick = 100
 	if w.driveLevel(big, DriveFood) <= w.driveLevel(base, DriveFood) {

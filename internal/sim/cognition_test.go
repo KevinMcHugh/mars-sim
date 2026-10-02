@@ -16,8 +16,7 @@ func setUpCachedSleeper(t *testing.T, w *World, c *Entity) Point {
 	}
 	w.SetTerrain(c.Pos, Floor)
 	w.SetTerrain(bed, Bed)
-	c.Drives[DriveSleep] = w.cfg.Drives[DriveSleep].SeekAt
-	c.driveSince[DriveSleep] = w.tick
+	w.setDrive(c, DriveSleep, w.cfg.Drives[DriveSleep].SeekAt)
 	w.syncDrivePhase(c, DriveSleep)
 	c.focus, c.Job, c.Drive, c.State = FocusSleep, JobUse, DriveSleep, Sleeping
 	c.useFacility, c.useFacilitySet = bed, true
@@ -89,9 +88,8 @@ func TestSleepingFastPathHonorsFatalNeedDeadline(t *testing.T) {
 	w, c := focusTestColonist(t)
 	setUpCachedSleeper(t, w, c)
 	food := w.cfg.Drives[DriveFood]
-	c.Drives[DriveFood] = food.SeekAt - 1
-	c.driveSince[DriveFood] = w.tick
-	c.driveRise[DriveFood] = 1
+	w.setDrive(c, DriveFood, food.SeekAt-1)
+	setDriveRate(w, c, DriveFood, driveUnit)
 	w.syncDrivePhase(c, DriveFood)
 	c.mindDirty = false
 	c.nextThinkTick = w.nextCognitionTick(c)

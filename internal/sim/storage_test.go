@@ -135,7 +135,7 @@ func TestFullInventoryMotivatesStorageConstruction(t *testing.T) {
 		colonist.Inventory[i] = ItemStack{Kind: RawRock, Count: MaxStackSize}
 	}
 	// Satisfy fatal life-support planning so storage is the next automatic
-	// priority rather than being masked by the colony's more urgent need.
+	// priority rather than being masked by the colony's more urgent drive.
 	w.SetTerrain(Point{7, 7}, NutrientPod)
 	w.SetTerrain(Point{8, 7}, Toilet)
 

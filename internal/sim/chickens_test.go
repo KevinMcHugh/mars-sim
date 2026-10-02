@@ -72,8 +72,7 @@ func TestChickensEatFeedThenGrazeScum(t *testing.T) {
 	hen.trough, hen.hasTrough = trough, true
 
 	hungry := func() {
-		hen.Drives[DriveFood] = w.cfg.Drives[DriveFood].SeekAt + 10
-		hen.driveSince[DriveFood] = w.tick
+		w.setDrive(hen, DriveFood, w.cfg.Drives[DriveFood].SeekAt+10)
 	}
 	hungry()
 	for i := 0; i < 100 && c.Inventory.Count(Feed) == 2; i++ {

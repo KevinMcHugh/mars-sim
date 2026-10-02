@@ -170,7 +170,7 @@ func TestColonistSeeksFacilityViaField(t *testing.T) {
 	w.refreshSpatial()
 
 	col := w.spawn(Colonist, center)
-	col.Drives[DriveFood] = cfg.Drives[DriveFood].SeekAt // urgent now
+	w.setDrive(col, DriveFood, cfg.Drives[DriveFood].SeekAt) // urgent now
 
 	ate := false
 	for i := 0; i < 200; i++ {

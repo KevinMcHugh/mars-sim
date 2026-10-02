@@ -23,9 +23,9 @@ func TestNeedPhaseTransitionsAndPressure(t *testing.T) {
 		{spec.Max, DriveCritical, 100},
 	}
 	for _, tc := range cases {
-		c.Drives[n], c.driveSince[n] = tc.level, w.tick
+		w.setDrive(c, n, tc.level)
 		w.syncDrivePhase(c, n)
-		if got := c.drivePhase[n]; got != tc.phase {
+		if got := c.drives[n].phase; got != tc.phase {
 			t.Errorf("level %d phase = %v, want %v", tc.level, got, tc.phase)
 		}
 		if got := drivePressure(tc.level, spec); got != tc.pressure {
@@ -34,8 +34,8 @@ func TestNeedPhaseTransitionsAndPressure(t *testing.T) {
 	}
 
 	w.resetDrive(c, n)
-	if c.drivePhase[n] != DriveSatisfied {
-		t.Fatalf("phase after reset = %v, want satisfied", c.drivePhase[n])
+	if c.drives[n].phase != DriveSatisfied {
+		t.Fatalf("phase after reset = %v, want satisfied", c.drives[n].phase)
 	}
 }
 
@@ -44,36 +44,37 @@ func TestNeedPhaseTracksLazyElapsedTimeAndNextBoundary(t *testing.T) {
 	c := w.spawn(Colonist, Point{5, 5})
 	n := DriveBladder
 	spec := w.cfg.Drives[n]
-	c.Drives[n], c.driveSince[n] = 0, w.tick
+	w.setDrive(c, n, 0)
 
 	w.syncDrivePhase(c, n)
 	wantGrowing := w.tick + 1
-	if c.nextDrivePhaseTick[n] != wantGrowing {
-		t.Fatalf("next satisfied boundary = %d, want %d", c.nextDrivePhaseTick[n], wantGrowing)
+	if c.drives[n].nextCrossing != wantGrowing {
+		t.Fatalf("next satisfied boundary = %d, want %d", c.drives[n].nextCrossing, wantGrowing)
 	}
 	w.tick = wantGrowing
 	w.syncDrivePhase(c, n)
-	if c.drivePhase[n] != DriveGrowing {
-		t.Fatalf("phase after lazy rise = %v, want growing", c.drivePhase[n])
+	if c.drives[n].phase != DriveGrowing {
+		t.Fatalf("phase after lazy rise = %v, want growing", c.drives[n].phase)
 	}
-	wantPressing := w.tick + (spec.SeekAt-w.driveLevel(c, n)+c.driveRise[n]-1)/c.driveRise[n]
-	if c.nextDrivePhaseTick[n] != wantPressing {
-		t.Fatalf("next growing boundary = %d, want %d", c.nextDrivePhaseTick[n], wantPressing)
+	r := c.drives[n].rate
+	wantPressing := w.tick + (spec.SeekAt*driveUnit-w.driveFelt(c, n)+r-1)/r
+	if c.drives[n].nextCrossing != wantPressing {
+		t.Fatalf("next growing boundary = %d, want %d", c.drives[n].nextCrossing, wantPressing)
 	}
 	w.tick = wantPressing
 	w.syncDrivePhase(c, n)
-	if c.drivePhase[n] != DrivePressing {
-		t.Fatalf("phase at lazy seek crossing = %v, want pressing", c.drivePhase[n])
+	if c.drives[n].phase != DrivePressing {
+		t.Fatalf("phase at lazy seek crossing = %v, want pressing", c.drives[n].phase)
 	}
-	wantCritical := w.tick + (spec.CriticalAt-w.driveLevel(c, n)+c.driveRise[n]-1)/c.driveRise[n]
-	if c.nextDrivePhaseTick[n] != wantCritical {
-		t.Fatalf("next pressing boundary = %d, want %d", c.nextDrivePhaseTick[n], wantCritical)
+	wantCritical := w.tick + (spec.CriticalAt*driveUnit-w.driveFelt(c, n)+r-1)/r
+	if c.drives[n].nextCrossing != wantCritical {
+		t.Fatalf("next pressing boundary = %d, want %d", c.drives[n].nextCrossing, wantCritical)
 	}
 	w.tick = wantCritical
 	w.syncDrivePhase(c, n)
-	if c.drivePhase[n] != DriveCritical || c.nextDrivePhaseTick[n] != 0 {
+	if c.drives[n].phase != DriveCritical || c.drives[n].nextCrossing != 0 {
 		t.Fatalf("critical phase=%v boundary=%d, want critical and unscheduled",
-			c.drivePhase[n], c.nextDrivePhaseTick[n])
+			c.drives[n].phase, c.drives[n].nextCrossing)
 	}
 }
 
@@ -92,18 +93,18 @@ func TestZeroRiseSocialNeedNeverBecomesPressing(t *testing.T) {
 	w := roomsTestWorld(20, 20)
 	c := w.spawn(Colonist, Point{5, 5})
 	n := DriveSocial
-	c.Drives[n] = w.cfg.Drives[n].SeekAt - 1
-	c.driveSince[n], c.driveRise[n] = w.tick, 0 // resolved Asocial behavior
+	w.setDrive(c, n, w.cfg.Drives[n].SeekAt-1)
+	setDriveRate(w, c, n, 0) // resolved Asocial behavior
 	w.tick += 10_000
 	w.syncDrivePhase(c, n)
-	if c.drivePhase[n] != DriveGrowing || c.nextDrivePhaseTick[n] != 0 {
+	if c.drives[n].phase != DriveGrowing || c.drives[n].nextCrossing != 0 {
 		t.Fatalf("zero-rise social need phase=%v boundary=%d, want growing and unscheduled",
-			c.drivePhase[n], c.nextDrivePhaseTick[n])
+			c.drives[n].phase, c.drives[n].nextCrossing)
 	}
-	c.Drives[n] = 0
+	w.setDrive(c, n, 0)
 	w.syncDrivePhase(c, n)
-	if c.drivePhase[n] != DriveSatisfied {
-		t.Fatalf("zero-level social phase = %v, want satisfied", c.drivePhase[n])
+	if c.drives[n].phase != DriveSatisfied {
+		t.Fatalf("zero-level social phase = %v, want satisfied", c.drives[n].phase)
 	}
 }
 
@@ -114,10 +115,11 @@ func TestNeedLevelIsLazy(t *testing.T) {
 	c := w.spawn(Colonist, Point{5, 5})
 	spec := w.cfg.Drives[DriveFood]
 	// Spawn staggers starting levels; pin a known baseline for the lazy math.
-	c.Drives[DriveFood], c.driveSince[DriveFood] = 0, 0
+	w.tick = 0
+	w.setDrive(c, DriveFood, 0)
 
 	w.tick = 100
-	if got, want := w.driveLevel(c, DriveFood), spec.Rise*100; got != want {
+	if got, want := w.driveLevel(c, DriveFood), c.drives[DriveFood].rate*100/driveUnit; got != want {
 		t.Fatalf("level at tick 100: got %d want %d", got, want)
 	}
 
@@ -134,7 +136,7 @@ func TestNeedLevelIsLazy(t *testing.T) {
 		t.Fatalf("level right after reset: got %d want 0", got)
 	}
 	w.tick = 230
-	if got, want := w.driveLevel(c, DriveFood), spec.Rise*30; got != want {
+	if got, want := w.driveLevel(c, DriveFood), c.drives[DriveFood].rate*30/driveUnit; got != want {
 		t.Fatalf("level 30 ticks after reset: got %d want %d", got, want)
 	}
 }
@@ -170,7 +172,7 @@ func TestIdleColonistRests(t *testing.T) {
 	}
 }
 
-// Resting must not prevent a colonist from tending an urgent need: once hunger
+// Resting must not prevent a colonist from tending an urgent drive: once hunger
 // crosses its threshold, a resting colonist heads for the pod and eats.
 func TestRestingColonistStillEats(t *testing.T) {
 	cfg := testConfig()
@@ -187,7 +189,7 @@ func TestRestingColonistStillEats(t *testing.T) {
 	col.resting = true
 	col.wakeTick = 1 << 30 // pretend it intends to rest "forever"
 	// Make it hungry right now.
-	col.Drives[DriveFood] = cfg.Drives[DriveFood].SeekAt
+	w.setDrive(col, DriveFood, cfg.Drives[DriveFood].SeekAt)
 
 	ate := false
 	for i := 0; i < cfg.Drives[DriveFood].UseTicks+5; i++ {
@@ -202,7 +204,7 @@ func TestRestingColonistStillEats(t *testing.T) {
 	}
 }
 
-// A fatal need (food) must outrank a non-fatal one (bladder) that is more past
+// A fatal drive (food) must outrank a non-fatal one (bladder) that is more past
 // its threshold — otherwise bladder, which rises faster and caps further over,
 // permanently deferred food and starved the colonist.
 func TestFatalNeedOutranksNonFatal(t *testing.T) {
@@ -213,8 +215,8 @@ func TestFatalNeedOutranksNonFatal(t *testing.T) {
 		t.Skip("assumes food fatal, bladder not")
 	}
 	// Food barely urgent; bladder maxed (further over its threshold).
-	c.Drives[DriveFood], c.driveSince[DriveFood] = food.SeekAt+1, w.tick
-	c.Drives[DriveBladder], c.driveSince[DriveBladder] = bladder.Max, w.tick
+	w.setDrive(c, DriveFood, food.SeekAt+1)
+	w.setDrive(c, DriveBladder, bladder.Max)
 
 	need, urgent := w.mostUrgentDrive(c)
 	if !urgent || need != DriveFood {
@@ -226,7 +228,7 @@ func TestEatingRecoversOnlyStarvationDamage(t *testing.T) {
 	w := roomsTestWorld(20, 20)
 	c := w.spawn(Colonist, Point{5, 5})
 	c.HP -= 3 // an unrelated wound must remain after eating
-	c.Drives[DriveFood], c.driveSince[DriveFood] = w.cfg.Drives[DriveFood].Max, w.tick
+	w.setDrive(c, DriveFood, w.cfg.Drives[DriveFood].Max)
 
 	w.applyStarvation(c)
 	if got, want := c.HP, c.MaxHP-3-w.cfg.StarveDamage; got != want {
@@ -245,7 +247,7 @@ func TestEntityDoesNotStarveWhileSeekingReachableFood(t *testing.T) {
 	w.SetTerrain(pod, NutrientPod)
 	w.refreshSpatial()
 	c := w.spawn(Colonist, Point{5, 5})
-	c.Drives[DriveFood], c.driveSince[DriveFood] = w.cfg.Drives[DriveFood].Max, w.tick
+	w.setDrive(c, DriveFood, w.cfg.Drives[DriveFood].Max)
 	c.Job, c.Drive = JobUse, DriveFood
 
 	hp := c.HP
@@ -258,20 +260,20 @@ func TestEntityDoesNotStarveWhileSeekingReachableFood(t *testing.T) {
 func TestTicksPerDayFollowsSleep(t *testing.T) {
 	cfg := DefaultConfig()
 	sleep := cfg.Drives[DriveSleep]
-	want := (sleep.SeekAt+sleep.Rise-1)/sleep.Rise + sleep.UseTicks
+	want := (sleep.SeekAt*driveUnit+sleep.Rate-1)/sleep.Rate + sleep.UseTicks
 	if got := cfg.TicksPerDay(); got != want {
 		t.Fatalf("TicksPerDay = %d, want %d (awake to SeekAt, then a night in bed)", got, want)
 	}
 
 	// Retuning sleep retunes the day.
-	cfg.Drives[DriveSleep].Rise = 1
+	cfg.Drives[DriveSleep].Rate = driveUnit
 	cfg.Drives[DriveSleep].SeekAt = 300
 	cfg.Drives[DriveSleep].UseTicks = 20
 	if got := cfg.TicksPerDay(); got != 320 {
 		t.Fatalf("TicksPerDay = %d, want 320", got)
 	}
-	// A sleep need that never rises still gives a usable, positive day.
-	cfg.Drives[DriveSleep].Rise = 0
+	// A sleep drive that never rises still gives a usable, positive day.
+	cfg.Drives[DriveSleep].Rate = 0
 	if got := cfg.TicksPerDay(); got != cfg.Drives[DriveSleep].Max+20 {
 		t.Fatalf("TicksPerDay with zero rise = %d", got)
 	}

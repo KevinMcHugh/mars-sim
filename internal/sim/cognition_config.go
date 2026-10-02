@@ -310,7 +310,7 @@ func DefaultCognitionConfig() CognitionConfig {
 		FocusFight: {Name: "fight", Base: 15, DriveWeight: 0, ChargeWeight: 20, GripWeight: 40, DistanceWeight: 1},
 		// FocusEscape has no matching need, so its score is just Base: a
 		// sealed room is a structural fact, not a rising pressure. Base
-		// deliberately clears even a maxed-out fatal need. focusCandidates
+		// deliberately clears even a maxed-out fatal drive. focusCandidates
 		// excludes it while a threat is visible. See docs/escape.md.
 		FocusEscape: {Name: "escape", Base: 400, DriveWeight: 0, ChargeWeight: 0, GripWeight: 0, DistanceWeight: 0},
 	}
@@ -756,7 +756,7 @@ type yamlAttractor struct {
 
 type yamlFocus struct {
 	Base           *int `yaml:"base,omitempty"`
-	DriveWeight     *int `yaml:"drive_weight,omitempty"`
+	DriveWeight    *int `yaml:"drive_weight,omitempty"`
 	ChargeWeight   *int `yaml:"charge_weight,omitempty"`
 	GripWeight     *int `yaml:"grip_weight,omitempty"`
 	DistanceWeight *int `yaml:"distance_weight,omitempty"`

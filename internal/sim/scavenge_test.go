@@ -13,8 +13,7 @@ func noScum(w *World) {
 // hungryRat puts a rat at p with its hunger just past seeking.
 func hungryRat(w *World, p Point) *Entity {
 	r := w.spawn(Rat, p)
-	r.Drives[DriveFood] = w.cfg.Drives[DriveFood].SeekAt + 10
-	r.driveSince[DriveFood] = w.tick
+	w.setDrive(r, DriveFood, w.cfg.Drives[DriveFood].SeekAt+10)
 	return r
 }
 
@@ -65,8 +64,7 @@ func TestRatsEatGoreAndExposedScum(t *testing.T) {
 	if w.scavengeable(buried) || !w.scavengeable(face) {
 		t.Fatalf("scavengeable: buried %v, face %v", w.scavengeable(buried), w.scavengeable(face))
 	}
-	r.Drives[DriveFood] = w.cfg.Drives[DriveFood].SeekAt + 10
-	r.driveSince[DriveFood] = w.tick
+	w.setDrive(r, DriveFood, w.cfg.Drives[DriveFood].SeekAt+10)
 	r.Job = JobNone
 	for i := 0; i < 200 && w.scumAt(face) == w.cfg.ScumMax; i++ {
 		w.step()
@@ -108,8 +106,7 @@ func TestRatsLiveOnScumWithoutTheSafetyNet(t *testing.T) {
 func hungryAlien(w *World, p Point, temp AlienTemperament) *Entity {
 	w.alienSpecies[0].Temperament = temp
 	a := w.spawn(Alien, p)
-	a.Drives[DriveFood] = w.cfg.Drives[DriveFood].SeekAt + 10
-	a.driveSince[DriveFood] = w.tick
+	w.setDrive(a, DriveFood, w.cfg.Drives[DriveFood].SeekAt+10)
 	return a
 }
 

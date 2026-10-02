@@ -6,7 +6,7 @@ import "fmt"
 //
 // A chicken is one of the three rare items a colonist can land with (see
 // podRareItem): it steps out of its keeper's crash pod beside a trough. It has
-// one need, food, and two ways to meet it: feed from its trough, or cave scum
+// one drive, food, and two ways to meet it: feed from its trough, or cave scum
 // grazed off the rock the way a peaceful alien grazes it. With neither it
 // starves, like a rat. Cats and chickens ignore each other: a cat hunts only
 // rats (catTurn), and a chicken flees nothing.

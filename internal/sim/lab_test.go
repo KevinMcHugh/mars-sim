@@ -33,7 +33,7 @@ func labSituationFrom(w *World, e *Entity) LabSituation {
 	sit := LabSituation{
 		Charge: e.affect.Charge, Grip: e.affect.Grip, Valence: e.affect.Valence,
 		MoodLabel: e.affect.Label.String(),
-		Drives:     map[string]int{},
+		Drives:    map[string]int{},
 		Current:   e.focus.String(),
 		CanWork:   workJob(e.Job) || !e.resting || w.tick >= e.wakeTick,
 		Pod:       true, Toilet: true, Bed: true, Company: true,
@@ -56,8 +56,7 @@ func TestLabEvaluateMatchesChooseFocus(t *testing.T) {
 	w, c := focusTestColonist(t)
 	c.focus = FocusWork
 	c.Job = JobMine
-	c.Drives[DriveFood] = w.cfg.Drives[DriveFood].SeekAt
-	c.driveSince[DriveFood] = w.tick
+	w.setDrive(c, DriveFood, w.cfg.Drives[DriveFood].SeekAt)
 
 	var candidates [numFocusKinds]FocusCandidate
 	want := w.chooseFocus(c, &candidates)
@@ -83,8 +82,7 @@ func TestLabEvaluateMatchesChooseFocus(t *testing.T) {
 
 func TestLabBenchReachDropsEligibilityOnly(t *testing.T) {
 	w, c := focusTestColonist(t)
-	c.Drives[DriveFood] = w.cfg.Drives[DriveFood].SeekAt
-	c.driveSince[DriveFood] = w.tick
+	w.setDrive(c, DriveFood, w.cfg.Drives[DriveFood].SeekAt)
 	sit := labSituationFrom(w, c)
 	sit.Pod = false
 	sit.Current = FocusWork.String()

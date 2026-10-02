@@ -6,7 +6,7 @@
 
 Every colonist has a `Profile`: a name, attributes (age, gender, orientation,
 height, weight, skin tone, hair color), and any traits. Most attributes are
-flavor; **traits change how a colonist plays** by scaling need rates and work
+flavor; **traits change how a colonist plays** by changing drive rates and work
 behavior, and **height and weight are live state** once uranium is involved —
 mutation resizes a colonist and scales their body with them (see
 [mutation.md](./mutation.md)). All of it is *generated* from a dedicated RNG
@@ -15,7 +15,7 @@ stream so flavor never perturbs the simulation.
 ## Source
 
 - [`internal/sim/personality.go`](../internal/sim/personality.go) — `Profile`, `Trait`, `traitSpecs`, generation, trait resolution.
-- [`internal/sim/entity.go`](../internal/sim/entity.go) — the trait-resolved effective params (`needRise`, `restTicks`, `workScale`).
+- [`internal/sim/entity.go`](../internal/sim/entity.go) — the trait-resolved effective params (`driveTrait`, `restTicks`, `workScale`).
 - [`internal/sim/config.go`](../internal/sim/config.go) — `TraitChance`.
 - [`internal/sim/heredity.go`](../internal/sim/heredity.go) — the family pass that overwrites part of a generated profile.
 
@@ -89,9 +89,9 @@ per group, each taken with `TraitChance` probability:
 
 | Group | Traits | Effect |
 | --- | --- | --- |
-| appetite | Big Eater / Light Eater | food need rises 1.5x / 0.7x |
+| appetite | Big Eater / Light Eater | food drive grows at 150% / 70% |
 | work ethic | Industrious / Lazy | work 0.75x time + rest 0.5x, plus doubled finished-work affect vectors / work 1.4x + rest 2.0x |
-| social | Asocial / Introvert / Extrovert | no social need / social need 0.5x plus conversation fatigue / social need 1.5x; Extrovert also scales witnessed friend-loss |
+| social | Asocial / Introvert / Extrovert | social drive never grows / grows at 50% plus conversation fatigue / grows at 150%; Extrovert also scales witnessed friend-loss |
 | temperament | Tidy | 2.2x gore/death/mess appraisal and doubled grip relief from incineration |
 | mutant attitude | Mutant-Lover | extra affinity toward mutants and reflected mutation grip |
 | mutation | Mutant | *acquired in play only* — the marker for a colonist uranium has changed |
@@ -118,13 +118,17 @@ rollable in it is skipped **before** any number is drawn from the personality
 stream, so adding it left every existing seed's colonists byte-for-byte
 unchanged.
 
-Each trait is a `traitSpec` with multiplier effects (`needRiseScale`, `restScale`,
-`workScale`; 1.0 or unset means no change). Social traits additionally resolve
-social capacity and conversation-fatigue effects onto the entity. An Asocial
-colonist's social need rises at zero, so it never becomes an urgent reason to
-seek a conversation. An Introvert's need rises more slowly, but conversations
-past its per-window capacity worsen conversation outcome. An Extrovert's need rises faster, so it
-seeks social contact more often.
+Each trait is a `traitSpec`. Its drive effects are percent changes to each
+drive's growth rate (`driveRate`: +50 grows it at 150%, −100 stops it, 0 or
+unset means no change); its rest and work effects are multipliers
+(`restScale`, `workScale`; 1.0 or unset means no change). Social traits
+additionally resolve social capacity and conversation-fatigue effects onto the
+entity. An Asocial colonist's social drive never grows (−100), so it never
+becomes an urgent reason to seek a conversation. An Introvert's grows at half
+speed, but conversations past its per-window capacity worsen conversation
+outcome. An Extrovert's grows at 150%, so it seeks social contact more often.
+See [drives.md](./drives.md) for where trait rates sit among the other
+modifiers.
 
 ### Trait resolution: pay once, not per tick
 
@@ -132,13 +136,15 @@ The critical design point: **traits are resolved into per-colonist effective
 parameters at spawn**, not scanned on the hot path. `resolveTraitEffects` folds a
 colonist's traits into per-colonist fields on the `Entity`:
 
-- `needRise[i]` — per-need rise per tick (used directly by `needLevel`),
+- `driveTrait[i]` — the percent of each drive's rate the traits leave (100 =
+  unchanged), folded into its rate by `driveRate`; resolving traits refreshes
+  the drives so the new rates apply from that tick,
 - `restTicks` — idle rest duration,
 - `workScale` — a mine/build time multiplier (via `scaleTicks`).
 - `sleepTicks` — how long a night in bed lasts, moved by a clock hour per
   sleep trait.
-- social need rise and conversation-fatigue capacity/penalty, used by the
-  social-need and completed-conversation paths.
+- conversation-fatigue capacity/penalty, used by the completed-conversation
+  path.
 - `affectHome` — the charge/grip/valence point decay walks toward, summed
   from outlook traits and clamped to `MoodMax`.
 
@@ -150,7 +156,7 @@ mood.
 
 ### The exception: traits checked live, at event time
 
-Not every trait fits that mold. `TraitTidy` has no need-rise/rest/work/social
+Not every trait fits that mold. `TraitTidy` has no drive/rest/work/social
 effect to resolve — it transforms gore and incineration vectors through
 grammar-matched `trait_rules` in `cognition.yaml`, read when
 `Profile.HasTrait(TraitTidy)` is true (see [affect.md](./affect.md)). This
@@ -176,7 +182,7 @@ home resolved at spawn.
   reproducible and comparable — you can add names and body types without changing
   a single AI decision.
 - **Resolve-at-spawn** keeps traits off the hot path entirely: no per-tick trait
-  loop, no branching on trait membership in `needLevel` or the job executors.
+  loop, no branching on trait membership in `driveLevel` or the job executors.
 - **Mutually exclusive groups** model "you can't be both a big and a light eater"
   cleanly and make adding an axis a matter of adding a group.
 
@@ -185,7 +191,7 @@ home resolved at spawn.
 - **A new trait**: add a `Trait` constant before `numTraits` and a `traitSpec`
   entry with its group and effect multipliers. If it is a new axis, add a
   `traitGroup`. The systems read effects generically via `resolveTraitEffects`,
-  so nothing else changes. New needs and systems are expected to bring traits
+  so nothing else changes. New drives and systems are expected to bring traits
   that suit them.
 - **A trait gained during play**, not at spawn: mark its `traitSpec`
   `acquired: true` so `rollTraits` skips it, and hand it out with
@@ -203,7 +209,7 @@ home resolved at spawn.
 
 ## Related
 
-- [needs.md](./needs.md) — the need-rise rates traits scale.
+- [drives.md](./drives.md) — the drive growth rates traits change.
 - [entities-and-ai.md](./entities-and-ai.md) — how `workScale`/`restTicks` feed behavior.
 - [configuration.md](./configuration.md) — `TraitChance`.
 - [mutation.md](./mutation.md) — `TraitMutant` and `TraitMutantLover`, and how a trait is acquired in play.

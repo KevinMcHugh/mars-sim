@@ -8,17 +8,17 @@ type Kind uint8
 
 const (
 	// Colonist is a human worker: walks on Floor, mines Rock, builds structures,
-	// tends to its needs, and flees from aliens.
+	// tends to its drives, and flees from aliens.
 	Colonist Kind = iota
 	// Alien is a subterranean mutant that walks the floor to hunt and eat
 	// colonists. Most start dormant in hidden caverns (see docs/caverns.md).
 	Alien
 	// Cat is a surface predator that stalks the floor hunting rats. It has no
-	// needs of its own; it hunts by instinct.
+	// drives of its own; it hunts by instinct.
 	Cat
 	// Rat is a pest that scurries the floor, scavenging bodies, gore, and cave
 	// scum, and nibbling from nutrient pods when there is nothing else.
-	// It has a hunger need and starves without food; cats eat it.
+	// It has a hunger drive and starves without food; cats eat it.
 	Rat
 	// Chicken is a colonist's bird, brought down in its crash pod. It grazes
 	// cave scum and eats feed from its keeper's trough, and starves without
@@ -350,35 +350,38 @@ type Entity struct {
 	// colonists ever mutate. See mutation.go.
 	uraniumExposure int
 
-	// Drives are stored lazily: Drives[i] is the level as of tick driveSince[i], so
-	// the current level is Drives[i] + driveRise[i]*(now-driveSince[i]) (see
-	// driveLevel). Storing a base + timestamp instead of ticking every colonist
-	// every tick lets idle colonists rest without their needs drifting out of
-	// date. Used by colonists (all needs) and rats (food only).
-	Drives             [numDrives]int
-	driveSince         [numDrives]int
-	drivePhase         [numDrives]DrivePhase
-	nextDrivePhaseTick [numDrives]int
-	// starvationDamage tracks HP lost to each fatal need separately from wounds.
-	// Satisfying that need restores its own deprivation damage without healing
-	// unrelated injuries such as alien bites.
-	starvationDamage [numDrives]int
+	// drives holds each drive's lazy state: a true level as of a tick, the
+	// rate it grows at from there, and where it sits in the drive's bands (see
+	// drives.go). Storing a base + timestamp instead of ticking every colonist
+	// every tick lets idle colonists rest without their drives drifting out of
+	// date; the base is folded forward only when the rate changes. Used by
+	// colonists (all drives) and rats, chickens and aliens (food only).
+	drives [numDrives]driveState
+	// driveBase is each drive's base rate for this kind of entity, in
+	// thousandths of a point a tick, before any modifier. driveTrait is the
+	// percent its traits scale that by (100 = unchanged), and driveActivity
+	// the drive activity its rates were last composed for. effects are the
+	// drive effects running on it, and nextEffectTick the earliest tick one
+	// of them changes stage (0: none). See drive_activity.go and
+	// drive_effects.go.
+	driveBase      [numDrives]int
+	driveTrait     [numDrives]int
+	driveActivity  DriveActivity
+	effects        []activeEffect
+	nextEffectTick int
 
 	// Personality (colonists only). Profile holds the name, attributes, and
-	// traits; driveRise, restTicks, and workScale are the trait-resolved effective
+	// traits; driveTrait, restTicks, and workScale are the trait-resolved effective
 	// parameters the systems read, so the hot paths never re-scan traits. See
 	// personality.go.
 	Profile   *Profile
-	driveRise  [numDrives]int // per-need rise per tick (base scaled by traits)
-	restTicks int           // idle rest duration (base scaled by traits)
+	restTicks int // idle rest duration (base scaled by traits)
 	// sleepTicks is how long this colonist's night in bed lasts: the sleep
-	// need's UseTicks, give or take a clock hour per sleep trait. asleep is
-	// whether it is in bed now, with its other needs paused (wakeRise holds
-	// their rates until it gets up), and sleepBanked is the sleep already
-	// done tonight, kept when a night is interrupted. See docs/days.md.
+	// drive's UseTicks, give or take a clock hour per sleep trait. asleep is
+	// whether it is in bed now, and sleepBanked is the sleep already done
+	// tonight, kept when a night is interrupted. See docs/days.md.
 	sleepTicks  int
 	asleep      bool
-	wakeRise    [numDrives]int
 	sleepBanked int
 	workScale   float64 // mine/build time multiplier (1.0 = baseline)
 
@@ -513,12 +516,12 @@ type Entity struct {
 
 	// Current job and its parameters.
 	Job            JobKind
-	Target         Point    // tile the job operates on or travels to
-	BuildKind      Terrain  // JobBuild: terrain to construct
-	Drive           DriveKind // JobUse: which need this fulfills
+	Target         Point     // tile the job operates on or travels to
+	BuildKind      Terrain   // JobBuild: terrain to construct
+	Drive          DriveKind // JobUse: which drive this fulfills
 	useFacility    Point
 	useFacilitySet bool
-	// carrying reports whether a JobUse colonist has grabbed a portable need
+	// carrying reports whether a JobUse colonist has grabbed a portable drive
 	// (see DriveSpec.GrabTicks) and stepped away from the facility to finish it,
 	// rather than still occupying the facility's access tile.
 	carrying bool
@@ -598,26 +601,30 @@ func newEntity(id EntityID, kind Kind, p Point, cfg Config) *Entity {
 	case Colonist:
 		e.MaxHP = cfg.ColonistHP
 		for i := 0; i < int(numDrives); i++ {
-			e.driveRise[i] = cfg.Drives[i].Rise
+			e.driveBase[i] = cfg.Drives[i].Rate
 		}
+		e.driveActivity = DriveIdle
 		e.restTicks = cfg.RestTicks
 		e.sleepTicks = cfg.Drives[DriveSleep].UseTicks
 	case Alien:
 		e.MaxHP = cfg.AlienHP
-		// Only the food need rises: Friendly and Cautious species graze cave
+		// Only the food drive rises: Friendly and Cautious species graze cave
 		// scum when it presses (see alienGraze). Aliens never starve.
-		e.driveRise[DriveFood] = cfg.AlienHungerRise
+		e.driveBase[DriveFood] = cfg.AlienHungerRate
 	case Cat:
 		e.MaxHP = cfg.CatHP
 	case Rat:
 		e.MaxHP = cfg.RatHP
 		// Rats share the colonists' DriveFood but nibble constantly, so only their
-		// food need rises (fast); the others stay flat.
-		e.driveRise[DriveFood] = cfg.RatHungerRise
+		// food drive rises (fast); the others stay flat.
+		e.driveBase[DriveFood] = cfg.RatHungerRate
 	case Chicken:
 		e.MaxHP = cfg.ChickenHP
-		// Like a rat, a chicken has only the food need.
-		e.driveRise[DriveFood] = cfg.ChickenHungerRise
+		// Like a rat, a chicken has only the food drive.
+		e.driveBase[DriveFood] = cfg.ChickenHungerRate
+	}
+	for i := range e.driveTrait {
+		e.driveTrait[i] = 100
 	}
 	e.HP = e.MaxHP
 	if e.hasParts() {

@@ -165,7 +165,7 @@ func TestValidateNeedCriticalThreshold(t *testing.T) {
 func TestFlagsOverrideTheSettingsFile(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, sim.ConfigFileName)
-	settings := "colonists: 12\nrats: 3\ndrives:\n  food:\n    rise: 9\n"
+	settings := "colonists: 12\nrats: 3\ndrives:\n  food:\n    rate: 9\n"
 	if err := os.WriteFile(path, []byte(settings), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -174,22 +174,22 @@ func TestFlagsOverrideTheSettingsFile(t *testing.T) {
 	if err := loadConfigFile(&cfg, path, true); err != nil {
 		t.Fatalf("loadConfigFile: %v", err)
 	}
-	if cfg.StartColonists != 12 || cfg.StartRats != 3 || cfg.Drives[sim.DriveFood].Rise != 9 {
-		t.Fatalf("settings file not applied: %d colonists, %d rats, food rise %d",
-			cfg.StartColonists, cfg.StartRats, cfg.Drives[sim.DriveFood].Rise)
+	if cfg.StartColonists != 12 || cfg.StartRats != 3 || cfg.Drives[sim.DriveFood].Rate != 9 {
+		t.Fatalf("settings file not applied: %d colonists, %d rats, food rate %d",
+			cfg.StartColonists, cfg.StartRats, cfg.Drives[sim.DriveFood].Rate)
 	}
 
 	fs := flag.NewFlagSet("test", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
 	bindConfigFlags(fs, &cfg)
-	if err := fs.Parse([]string{"-colonists", "20", "-drive-food-rise", "1"}); err != nil {
+	if err := fs.Parse([]string{"-colonists", "20", "-drive-food-rate", "1"}); err != nil {
 		t.Fatalf("parsing flags: %v", err)
 	}
 	if cfg.StartColonists != 20 {
 		t.Errorf("colonists = %d, want the flag's 20", cfg.StartColonists)
 	}
-	if cfg.Drives[sim.DriveFood].Rise != 1 {
-		t.Errorf("food rise = %d, want the flag's 1", cfg.Drives[sim.DriveFood].Rise)
+	if cfg.Drives[sim.DriveFood].Rate != 1 {
+		t.Errorf("food rate = %d, want the flag's 1", cfg.Drives[sim.DriveFood].Rate)
 	}
 	if cfg.StartRats != 3 {
 		t.Errorf("rats = %d, want the file's 3 (no flag passed)", cfg.StartRats)

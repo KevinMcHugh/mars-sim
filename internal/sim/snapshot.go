@@ -20,7 +20,7 @@ type EntityView struct {
 	MaxHP     int
 	State     State
 	Focus     FocusKind
-	Drives     [numDrives]int
+	Drives    [numDrives]int
 	Profile   *Profile  // colonists only; a deep copy, safe to read
 	Inventory Inventory // colonists only; copied by value
 	// Wallet is the colonist's dollars (colonists only). On a Deceased record
@@ -345,8 +345,8 @@ func (s *Snapshot) FixtureAt(p Point) (FixtureView, bool) {
 	return FixtureView{}, false
 }
 
-// DriveMeta describes a need for display: its name, ceiling, and whether maxing
-// it out is fatal. Carried in the snapshot so frontends can render need bars
+// DriveMeta describes a drive for display: its name, ceiling, and whether maxing
+// it out is fatal. Carried in the snapshot so frontends can render drive bars
 // without reaching into Config.
 type DriveMeta struct {
 	Name  string
@@ -434,8 +434,8 @@ type Snapshot struct {
 	Deceased map[EntityID]EntityView
 	// Log is the retained colony log, oldest first. Kind is the type column;
 	// Text is the sentence. See log.go.
-	Log       []LogEntry
-	Stats     Stats
+	Log        []LogEntry
+	Stats      Stats
 	DrivesMeta [numDrives]DriveMeta
 
 	// Projects are the colony's queued construction work, for the job board.
@@ -648,7 +648,7 @@ func (w *World) snapshot(paused bool, tps int) *Snapshot {
 		Entities:             ents,
 		Log:                  w.log.tail(len(w.log.entries)),
 		Stats:                stats,
-		DrivesMeta:            drivesMeta,
+		DrivesMeta:           drivesMeta,
 		Projects:             projects,
 		PendingFacilityRooms: w.manualFacilityRooms,
 		PendingDormitories:   w.manualDormitories,
@@ -726,7 +726,7 @@ func (w *World) entityView(e *Entity, kinChildren map[kinID][]kinID, full bool) 
 		MaxHP:     e.MaxHP,
 		State:     e.State,
 		Focus:     e.focus,
-		Drives:     w.currentDrives(e),
+		Drives:    w.currentDrives(e),
 		Profile:   e.Profile.clone(),
 		Inventory: e.Inventory,
 		Wallet:    e.wallet,
@@ -755,7 +755,7 @@ func (w *World) entityView(e *Entity, kinChildren map[kinID][]kinID, full bool) 
 	return ev
 }
 
-// currentDrives returns a colonist's need levels as of now, computed lazily.
+// currentDrives returns a colonist's drive levels as of now, computed lazily.
 func (w *World) currentDrives(e *Entity) [numDrives]int {
 	var out [numDrives]int
 	for i := 0; i < int(numDrives); i++ {

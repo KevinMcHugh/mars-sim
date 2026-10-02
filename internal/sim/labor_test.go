@@ -140,9 +140,9 @@ func TestPaidToiletsChargeTheirUsers(t *testing.T) {
 	}
 	ownerStart, guestStart := owner.wallet, guest.wallet
 	for n := DriveKind(0); n < numDrives; n++ {
-		guest.Drives[n] = 0 // nothing but the bladder calls
+		w.setDrive(guest, n, 0) // nothing but the bladder calls
 	}
-	guest.Drives[DriveBladder] = w.cfg.Drives[DriveBladder].SeekAt + 10
+	w.setDrive(guest, DriveBladder, w.cfg.Drives[DriveBladder].SeekAt+10)
 	for n := DriveKind(0); n < numDrives; n++ {
 		w.syncDrivePhase(guest, n)
 	}

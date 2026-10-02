@@ -74,8 +74,22 @@ func collectKnobs(v reflect.Value, prefix []string, section string, out *[]Knob)
 			for n := 0; n < field.Len(); n++ {
 				// Copy the prefix per element: appending to path in a loop
 				// would hand every spec the same backing array.
-				elem := append(append([]string{}, path...), configArrayElementName(tag, n))
-				collectKnobs(field.Index(n), elem, section, out)
+				name := configArrayElementName(tag, n)
+				elem := append(append([]string{}, path...), name)
+				if field.Index(n).Kind() == reflect.Struct {
+					collectKnobs(field.Index(n), elem, section, out)
+				} else {
+					// An array of scalars is one knob per element, its doc
+					// naming the element (DriveSpec.Activity).
+					*out = append(*out, Knob{
+						Name:    knobFlagName(elem),
+						Key:     strings.Join(elem, "."),
+						Path:    elem,
+						Doc:     fmt.Sprintf(f.Tag.Get("doc"), name),
+						Section: section,
+						Ptr:     field.Index(n).Addr().Interface(),
+					})
+				}
 				section = "" // the section heading belongs to the first knob only
 			}
 			continue
@@ -99,6 +113,8 @@ func configArrayElementName(tag string, index int) string {
 		return DriveKind(index).String()
 	case "focuses":
 		return FocusKind(index).String()
+	case "activity":
+		return driveActivityNames[index]
 	default:
 		panic("unsupported config spec array: " + tag)
 	}

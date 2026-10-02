@@ -115,7 +115,7 @@ the first food pod, just looks broken. Our pattern is to *prevent what is cheap
 to prevent, and give a way out of whatever isn't*:
 
 - Grace periods at startup, and fatal needs outranking non-fatal ones
-  ([needs.md](./needs.md)).
+  ([drives.md](./drives.md)).
 - The emergency-build fallback ([construction.md](./construction.md)) and
   breaking out of sealed rooms ([escape.md](./escape.md)).
 
@@ -150,7 +150,7 @@ scale is part of the design from the start. It is not a pass we save for later.
   [snapshot-tile-grid.md](./snapshot-tile-grid.md)).
 - **Pay once, not per tick.** Traits resolve at spawn, needs are computed when
   read, and a resting colonist does no work at all
-  ([personality.md](./personality.md), [needs.md](./needs.md)).
+  ([personality.md](./personality.md), [drives.md](./drives.md)).
 - **Long runs have to stay bounded.** Per-colonist history is capped (the
   memory buffer holds 64 entries, and repeated events collapse into one), and
   dead colonists are archived so lookups by ID keep working

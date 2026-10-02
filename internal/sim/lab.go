@@ -47,7 +47,7 @@ type LabPerson struct {
 // LabFocus is the authored score of one focus, as the bench is editing it.
 type LabFocus struct {
 	Base           int `json:"base"`
-	DriveWeight     int `json:"driveWeight"`
+	DriveWeight    int `json:"driveWeight"`
 	ChargeWeight   int `json:"chargeWeight"`
 	GripWeight     int `json:"gripWeight"`
 	DistanceWeight int `json:"distanceWeight"`
@@ -92,7 +92,7 @@ type LabSituation struct {
 	Grip      int            `json:"grip"`
 	Valence   int            `json:"valence"`
 	MoodLabel string         `json:"moodLabel"`
-	Drives     map[string]int `json:"drives"`
+	Drives    map[string]int `json:"drives"`
 	Traits    []string       `json:"traits"`
 	Current   string         `json:"current"`
 	CanWork   bool           `json:"canWork"`
@@ -111,7 +111,7 @@ type LabCandidate struct {
 	Eligible   bool     `json:"eligible"`
 	Reasons    []string `json:"reasons"`
 	Base       int      `json:"base"`
-	Drive       int      `json:"drive"`
+	Drive      int      `json:"drive"`
 	Affect     int      `json:"affect"`
 	Stimulus   int      `json:"stimulus"`
 	Commitment int      `json:"commitment"`
