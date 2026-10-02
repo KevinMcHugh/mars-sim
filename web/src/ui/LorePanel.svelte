@@ -10,7 +10,7 @@
     heightMinCm: number; heightMaxCm: number; weightMinKg: number; weightMaxKg: number;
     eyes: number; limbs: number; arms: number; legs: number; tail: boolean;
     skin: string; color: string; pattern: string;
-    biteDamage: number; biteRest: number; slowness: number; description: string;
+    attacks: string; biteDamage: number; biteRest: number; slowness: number; description: string;
   }
   interface Lore {
     world: { width: number; height: number; fogOfWar: boolean; exploredTiles: number; chunksGenerated: number; chunks: number; seed: number };
@@ -67,8 +67,9 @@
         <dt>Skin</dt><dd>{sp.skin}</dd>
         <dt>Color</dt><dd>{sp.color}</dd>
         <dt>Pattern</dt><dd>{sp.pattern}</dd>
-        <dt>Bite damage</dt><dd>{sp.biteDamage}</dd>
-        <dt>Bite cooldown</dt><dd>{sp.biteRest} ticks</dd>
+        <dt>Attacks</dt><dd>{sp.attacks}</dd>
+        <dt>Attack damage</dt><dd>{sp.biteDamage}</dd>
+        <dt>Attack pace</dt><dd>{sp.biteRest} ticks</dd>
         <dt>Move pace</dt><dd>every {sp.slowness} ticks</dd>
       </dl>
       <h4>Field notes</h4>

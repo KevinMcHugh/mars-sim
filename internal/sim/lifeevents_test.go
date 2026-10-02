@@ -161,7 +161,7 @@ func TestBittenDropsMood(t *testing.T) {
 	victim.HP = 100
 	victim.Parts = [numBodyParts]int{100, 100, 100, 100, 100, 100}
 
-	w.bite(alien, victim)
+	w.strike(alien, victim)
 
 	if victim.affect.Charge <= 0 || victim.affect.Grip >= 0 {
 		t.Fatalf("affect after being bitten = %+v, want positive charge and negative grip", victim.affect)

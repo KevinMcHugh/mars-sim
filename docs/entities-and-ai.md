@@ -161,8 +161,8 @@ competes with fleeing or fighting. See [escape.md](./escape.md).
 
 Aliens are paced by a `Cooldown` (from `AlienSlowness`). Each active turn: find
 the nearest prey in the alien's own room (`nearestReachablePrey`: a colonist,
-a rat, or an alien of another species); if adjacent, `bite` (lands
-`AlienDamage` on a random body part — see [combat.md](./combat.md) — eating
+a rat, or an alien of another species); if adjacent, `strike` (one of its species' attack modes — bite, claws, tail,
+or strangle — lands `AlienDamage` on a random body part, or half of it on the head for a strangle — see [combat.md](./combat.md) — eating
 the prey if the wound is fatal, then rests `AlienBiteRest`); otherwise `travelTo` it over the floor with cached A\*,
 exactly as a cat or colonist would. That is a Hostile species; a Friendly one
 never hunts and a Cautious one only reacts inside `alien-cautious-radius` (see
