@@ -41,7 +41,7 @@ time-based seed each run"; any non-zero seed makes the run reproducible.
 
 Fields without a `cfg` tag are not tunable from outside the code. `Seed` is the
 notable one: the flag and the file both carry it as a special case where 0 means
-"roll a fresh time-based seed". `NeedSpec.Name` and `NeedSpec.Facility` are
+"roll a fresh time-based seed". `DriveSpec.Name` and `DriveSpec.Facility` are
 untagged too — a need's identity and its plumbing are not balance.
 
 `validateConfig` rejects settings that would break world generation or the
@@ -79,10 +79,10 @@ Adding a tunable is a two-step edit:
 2. Regenerate the settings file — `go run . -print-config > mars-sim.yaml` —
    and add a `validateConfig` case in `main.go` if bad values would crash.
 
-Need specs are configured as data here too: `Config.Needs` is a `[numNeeds]NeedSpec`
-indexed by `NeedKind`, and its tagged fields become nested settings
-(`needs.food.rise` in the file, `-need-food-rise` on the command line). See
-[needs.md](./needs.md).
+Drive specs are configured as data here too: `Config.Drives` is a `[numDrives]DriveSpec`
+indexed by `DriveKind`, and its tagged fields become nested settings
+(`drives.food.rise` in the file, `-drive-food-rise` on the command line). See
+[drives.md](./drives.md).
 
 Focus arbitration follows the same pattern at runtime: `Config.Focuses` is
 indexed by `FocusKind`. Those fields are a copy of `cognition.yaml`'s
@@ -103,6 +103,6 @@ rules, and trait appraisal are the other file — see
 - [config-file.md](./config-file.md) — the committed `mars-sim.yaml` layer and the tags behind it.
 - [compositional-perception-and-events.md](./compositional-perception-and-events.md) — `cognition.yaml`, which is not a `cfg` tag.
 - [architecture.md](./architecture.md) — how the config seeds the engine.
-- [needs.md](./needs.md) — the `NeedSpec` table inside `Config`.
+- [drives.md](./drives.md) — the `DriveSpec` table inside `Config`.
 - [entities-and-ai.md](./entities-and-ai.md) — the creature stats these fields tune.
 - [combat.md](./combat.md) — the weapon and starting-equipment stats these fields tune.

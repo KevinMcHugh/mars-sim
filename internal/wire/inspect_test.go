@@ -67,8 +67,8 @@ func TestInspectRealColony(t *testing.T) {
 	if !e.Found || e.Name != col.Profile.Name || e.Glyph == "" || e.X != col.Pos.X || e.Dead || c == nil {
 		t.Fatalf("entity = %+v", e)
 	}
-	if len(c.Needs) != len(col.Needs) || c.Needs[0].Name == "" || c.Needs[0].Max == 0 {
-		t.Errorf("needs = %+v", c.Needs)
+	if len(c.Drives) != len(col.Drives) || c.Drives[0].Name == "" || c.Drives[0].Max == 0 {
+		t.Errorf("drives = %+v", c.Drives)
 	}
 	if len(e.Parts) < 6 || e.Parts[0].Max == 0 {
 		t.Errorf("parts = %+v", e.Parts)

@@ -70,8 +70,8 @@ func (w *World) mealBidLimit(e *Entity) Money {
 	if base <= 0 {
 		return 0
 	}
-	spec := w.cfg.Needs[NeedFood]
-	level, top := w.needLevel(e, NeedFood), max(1, spec.Max)
+	spec := w.cfg.Drives[DriveFood]
+	level, top := w.driveLevel(e, DriveFood), max(1, spec.Max)
 	willing := int64(max(1, w.cfg.MealWillingness))
 	limit := Money(int64(base) * (100 + (willing-1)*100*int64(min(level, top))/int64(top)) / 100)
 	critical := level*10 >= top*9

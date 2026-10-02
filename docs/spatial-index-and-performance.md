@@ -134,7 +134,7 @@ whole grid every time.
 | 5000x5000 | 41 ms, 25 MB | 33 µs, 19 KB |
 | 7000x7000 | 79 ms, 49 MB | 34 µs, 28 KB |
 
-Lazy needs and the resting AI (see [needs.md](./needs.md)) matter here too: a
+Lazy needs and the resting AI (see [drives.md](./drives.md)) matter here too: a
 colonist's needs are computed on read, so an idle colonist rests instead of
 re-scanning the map every tick. Flow fields and HPA\* (see
 [pathfinding.md](./pathfinding.md)) carry the win into the thousands of agents.
@@ -153,5 +153,5 @@ re-scanning the map every tick. Flow fields and HPA\* (see
 - [architecture.md](./architecture.md) — the event bus and the ownership model.
 - [snapshot-tile-grid.md](./snapshot-tile-grid.md) — why publishing a frame no longer copies the map.
 - [pathfinding.md](./pathfinding.md) — chunks, regions/rooms, and flow fields.
-- [needs.md](./needs.md) — lazy needs and the resting AI.
+- [drives.md](./drives.md) — lazy needs and the resting AI.
 - [world.md](./world.md) — `SetTerrain` and the grid these indexes shadow.

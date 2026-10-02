@@ -22,7 +22,7 @@ covers where the first meals come from.
 - [`internal/sim/systems.go`](../internal/sim/systems.go) — `runNeedFocus`
   hands food to `runFoodFocus` first; `finishUse` records gruel; rats only eat
   at pods that feed.
-- [`internal/sim/needs.go`](../internal/sim/needs.go) — the starvation grace
+- [`internal/sim/drives.go`](../internal/sim/drives.go) — the starvation grace
   covers `JobEat`.
 - [`internal/sim/project.go`](../internal/sim/project.go) — `toiletRoom`,
   `facilityRoomRecipe`.
@@ -196,7 +196,7 @@ is, so a shortage never raises the price that would draw more producers in.
 In `eatMeal` (and `eatWalk`) the meal is in hand: out of the pockets and off the ledger both.
 If the job is cleared — an alien comes round the corner — `clearJob` puts it
 back in the colonist's pockets, so a meal is never lost to a fright. The
-starvation grace (`applyStarvation`) covers a colonist in `JobEat` the way it
+starvation grace (`applyDriveConsequences`) covers a colonist in `JobEat` the way it
 covers one queued at a reachable pod.
 
 ## Why it is this way
@@ -228,7 +228,7 @@ covers one queued at a reachable pod.
 
 ## Related
 
-- [needs.md](./needs.md) — the food need, its thresholds, and starvation.
+- [drives.md](./drives.md) — the food need, its thresholds, and starvation.
 - [crash-pods.md](./crash-pods.md) — the meals a colonist lands with.
 - [property.md](./property.md) — ledgers, `debit`, and who may use what.
 - [construction.md](./construction.md) — the facility room, and what it holds

@@ -170,17 +170,17 @@ func TestColonistSeeksFacilityViaField(t *testing.T) {
 	w.refreshSpatial()
 
 	col := w.spawn(Colonist, center)
-	col.Needs[NeedFood] = cfg.Needs[NeedFood].SeekAt // urgent now
+	col.Drives[DriveFood] = cfg.Drives[DriveFood].SeekAt // urgent now
 
 	ate := false
 	for i := 0; i < 200; i++ {
 		w.step()
-		if w.needLevel(col, NeedFood) == 0 {
+		if w.driveLevel(col, DriveFood) == 0 {
 			ate = true
 			break
 		}
 	}
 	if !ate {
-		t.Fatalf("colonist never reached/used the pod (food %d at %v)", w.needLevel(col, NeedFood), col.Pos)
+		t.Fatalf("colonist never reached/used the pod (food %d at %v)", w.driveLevel(col, DriveFood), col.Pos)
 	}
 }

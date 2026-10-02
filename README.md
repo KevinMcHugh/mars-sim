@@ -173,7 +173,7 @@ part in it:
 #### Needs
 
 Colonists accumulate **needs** over time, stored as a `Needs` array indexed by
-`NeedKind` (`internal/sim/needs.go`). Each need has a `NeedSpec` in `Config`
+`DriveKind` (`internal/sim/drives.go`). Each need has a `DriveSpec` in `Config`
 describing how fast it rises, when the colonist drops work to address it, which
 facility satisfies it, and whether maxing out is fatal:
 
@@ -190,8 +190,8 @@ stocked for its population (`ColonistsPerFacility`), and a hungry colonist with
 nowhere to eat will build a pod rather than starve (only *fatal* needs justify
 that lone emergency build; a non-fatal need like bladder waits for a real
 facility rather than having the whole colony storm into ad-hoc building at once).
-Adding a new need is meant to be a table edit: append a `NeedKind`, give it a
-`NeedSpec` and a facility.
+Adding a new need is meant to be a table edit: append a `DriveKind`, give it a
+`DriveSpec` and a facility.
 
 #### Personality
 

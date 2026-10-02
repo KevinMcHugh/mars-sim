@@ -17,8 +17,8 @@ func hallWorld(t *testing.T) *World {
 
 // calm zeroes every need of e except the ones the test is about.
 func calm(e *Entity) {
-	for k := range e.Needs {
-		e.Needs[k] = 0
+	for k := range e.Drives {
+		e.Drives[k] = 0
 	}
 }
 
@@ -31,13 +31,13 @@ func TestSocializersMeetInTheHall(t *testing.T) {
 	b := w.spawn(Colonist, Point{6, 14})
 	for _, e := range []*Entity{a, b} {
 		calm(e)
-		e.Needs[NeedSocial] = w.cfg.Needs[NeedSocial].SeekAt
+		e.Drives[DriveSocial] = w.cfg.Drives[DriveSocial].SeekAt
 	}
 	for i := 0; i < 400; i++ {
 		w.step()
 		for _, e := range []*Entity{a, b} {
 			calm(e)
-			e.Needs[NeedSocial] = max(e.Needs[NeedSocial], w.cfg.Needs[NeedSocial].SeekAt)
+			e.Drives[DriveSocial] = max(e.Drives[DriveSocial], w.cfg.Drives[DriveSocial].SeekAt)
 		}
 		if a.State == Talking && b.State == Talking {
 			if !w.inHall(a.Pos) || !w.inHall(b.Pos) {
@@ -55,23 +55,23 @@ func TestAColonistWaitsInTheHallForCompany(t *testing.T) {
 	w := hallWorld(t)
 	a := w.spawn(Colonist, Point{11, 8})
 	calm(a)
-	a.Needs[NeedSocial] = w.cfg.Needs[NeedSocial].SeekAt
+	a.Drives[DriveSocial] = w.cfg.Drives[DriveSocial].SeekAt
 	for i := 0; i < 60; i++ {
 		w.step()
 		calm(a)
-		a.Needs[NeedSocial] = max(a.Needs[NeedSocial], w.cfg.Needs[NeedSocial].SeekAt)
+		a.Drives[DriveSocial] = max(a.Drives[DriveSocial], w.cfg.Drives[DriveSocial].SeekAt)
 		if !w.inHall(a.Pos) {
 			t.Fatalf("tick %d: a waited at %v, outside the hall", w.tick, a.Pos)
 		}
 	}
 	b := w.spawn(Colonist, Point{18, 12})
 	calm(b)
-	b.Needs[NeedSocial] = w.cfg.Needs[NeedSocial].SeekAt
+	b.Drives[DriveSocial] = w.cfg.Drives[DriveSocial].SeekAt
 	for i := 0; i < 300; i++ {
 		w.step()
 		for _, e := range []*Entity{a, b} {
 			calm(e)
-			e.Needs[NeedSocial] = max(e.Needs[NeedSocial], w.cfg.Needs[NeedSocial].SeekAt)
+			e.Drives[DriveSocial] = max(e.Drives[DriveSocial], w.cfg.Drives[DriveSocial].SeekAt)
 		}
 		if a.State == Talking && b.State == Talking {
 			return
@@ -86,7 +86,7 @@ func TestMealsAreEatenInTheHall(t *testing.T) {
 	e := w.spawn(Colonist, Point{20, 14})
 	calm(e)
 	e.Inventory.Add(Meal, 1)
-	e.Needs[NeedFood] = w.cfg.Needs[NeedFood].SeekAt
+	e.Drives[DriveFood] = w.cfg.Drives[DriveFood].SeekAt
 	for i := 0; i < 200; i++ {
 		w.step()
 		if e.State == Eating {
@@ -105,7 +105,7 @@ func TestACriticallyHungryColonistEatsWhereItStands(t *testing.T) {
 	e := w.spawn(Colonist, Point{20, 14})
 	calm(e)
 	e.Inventory.Add(Meal, 1)
-	e.Needs[NeedFood] = w.cfg.Needs[NeedFood].CriticalAt
+	e.Drives[DriveFood] = w.cfg.Drives[DriveFood].CriticalAt
 	for i := 0; i < 30; i++ {
 		w.step()
 		if e.State == Eating {

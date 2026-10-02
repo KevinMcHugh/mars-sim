@@ -75,7 +75,7 @@ dispatch to the active panel's handler.
   name, attributes, HP, a compact per-body-part wound summary (`bodyPartLines`,
   which lists only the parts that entity actually has, so a mutant's grown
   limbs appear and nobody else shows empty ones — see
-  [mutation.md](./mutation.md)), needs, the
+  [mutation.md](./mutation.md)), drives, the
   eight-slot inventory, traits, family, affinities, and the colonist's whole
   remembered history — for a colonist, or a shorter identity/status/body-part
   view (`nonColonistDetailLines`) for anything else. It is taller than the

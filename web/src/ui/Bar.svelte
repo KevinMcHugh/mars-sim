@@ -7,7 +7,7 @@
     value: number;
     max: number;
     diverging?: boolean;
-    /** Red once full: a need that kills when it tops out. */
+    /** Red once full: a drive that kills when it tops out. */
     danger?: boolean;
     title?: string;
   }

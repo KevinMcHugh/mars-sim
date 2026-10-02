@@ -179,7 +179,7 @@ in reach, or not hungry, it wanders as before.
 
 - Reacting beats grazing: a hungry Cautious alien with a colonist in its
   radius goes for the colonist. Grazing is what it does when left alone.
-- Aliens **never starve**. `alienTurn` does not call `applyStarvation`, so a
+- Aliens **never starve**. `alienTurn` does not call `applyDriveConsequences`, so a
   grazer on a bare map is merely hungry. Starving aliens would quietly thin
   out the peaceful species on scum-poor seeds while Hostile ones (whose
   hunger is never read) lived forever — a balance change nobody asked for.

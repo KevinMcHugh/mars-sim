@@ -42,7 +42,7 @@ func TestColonistsEatTheirOwnMealsBeforeGruel(t *testing.T) {
 			if e.Kind != Colonist {
 				continue
 			}
-			if e.Job == JobUse && e.Need == NeedFood && ownedMeals(w, e) > 0 {
+			if e.Job == JobUse && e.Drive == DriveFood && ownedMeals(w, e) > 0 {
 				t.Fatalf("tick %d: %s went to the pod with %d meals of its own", w.tick, e.displayName(), ownedMeals(w, e))
 			}
 		}
@@ -83,7 +83,7 @@ func TestWithoutTheSafetyNetTheColonyStarvesOnSchedule(t *testing.T) {
 	cfg.ScumPercent = 0        // nothing to make food from: no scum, and no creatures to die
 	cfg.IncubatorGrowTicks = 0 // and no incubator to seed: this colony produces nothing
 	w := newTestWorld(t, cfg)
-	spec := w.cfg.Needs[NeedFood]
+	spec := w.cfg.Drives[DriveFood]
 	rise := spec.Rise
 	cycle := spec.SeekAt/rise + spec.UseTicks
 	dying := (spec.Max)/rise + w.cfg.ColonistHP/w.cfg.StarveDamage
@@ -103,7 +103,7 @@ func TestWithoutTheSafetyNetTheColonyStarvesOnSchedule(t *testing.T) {
 			lastDeath = w.tick
 		}
 		for _, id := range w.entityIDsSorted() {
-			if e := w.entities[id]; e.Kind == Colonist && e.Job == JobUse && e.Need == NeedFood {
+			if e := w.entities[id]; e.Kind == Colonist && e.Job == JobUse && e.Drive == DriveFood {
 				t.Fatalf("tick %d: %s is using a pod with infinite-food off", w.tick, e.displayName())
 			}
 		}
@@ -134,7 +134,7 @@ func TestInterruptedMealGoesBackInThePocket(t *testing.T) {
 		}
 	}
 	e.Inventory.Add(Meal, 1)
-	e.Needs[NeedFood] = w.cfg.Needs[NeedFood].SeekAt
+	e.Drives[DriveFood] = w.cfg.Drives[DriveFood].SeekAt
 	if !w.tryStartEating(e) || e.eat != eatMeal || e.Inventory.Count(Meal) != 0 {
 		t.Fatalf("did not start eating the carried meal: job %v stage %v meals %d", e.Job, e.eat, e.Inventory.Count(Meal))
 	}
@@ -194,7 +194,7 @@ func TestPressingHungerDropsWorkToCook(t *testing.T) {
 
 	// hungryWithoutFood only ever runs at pressing hunger: the eat focus
 	// isn't eligible before that.
-	e.needPhase[NeedFood] = NeedPressing
+	e.drivePhase[DriveFood] = DrivePressing
 	w.hungryWithoutFood(e)
 	if e.Job != JobCraft || e.craftFor != me {
 		t.Fatalf("pressing hunger kept job %v (for %v); want cooking its own scum", e.Job, e.craftFor)
@@ -221,7 +221,7 @@ func TestPressingHungerFinishesTheColonysCooking(t *testing.T) {
 		w.clearScum(p) // nothing on the walls: the colony's scum is the only food to make
 	}
 	e := w.spawn(Colonist, Point{10, 7})
-	e.needPhase[NeedFood] = NeedPressing
+	e.drivePhase[DriveFood] = DrivePressing
 
 	for i := 0; i < 200 && c.held(Community, CaveScum) > 0; i++ {
 		w.hungryWithoutFood(e)
@@ -251,11 +251,11 @@ func TestTheColonyRationsTheStarving(t *testing.T) {
 	me := ColonistOwner(e.ID)
 	w.transfer(me, Community, e.wallet) // broke
 
-	e.needPhase[NeedFood] = NeedPressing
+	e.drivePhase[DriveFood] = DrivePressing
 	if w.tryRation(e) {
 		t.Fatal("rationed a colonist whose hunger is only pressing")
 	}
-	e.needPhase[NeedFood] = NeedCritical
+	e.drivePhase[DriveFood] = DriveCritical
 	if !w.tryRation(e) {
 		t.Fatal("no ration for a broke colonist at critical hunger")
 	}
@@ -293,8 +293,8 @@ func TestAColonyCookWorksABatch(t *testing.T) {
 
 // setHunger puts e's food need at level as of now.
 func setHunger(w *World, e *Entity, level int) {
-	e.Needs[NeedFood], e.needSince[NeedFood] = level, w.tick
-	w.syncNeedPhase(e, NeedFood)
+	e.Drives[DriveFood], e.driveSince[DriveFood] = level, w.tick
+	w.syncDrivePhase(e, DriveFood)
 }
 
 // Before it's hungry enough to eat, a colonist with no meal on it fetches
@@ -326,7 +326,7 @@ func TestAColonistCarriesItsNextMeal(t *testing.T) {
 	if e.ownCarried(Meal) != 1 || c.held(me, Meal) != 1 {
 		t.Fatalf("after the fetch: %d carried, %d on the shelf; want 1 and 1", e.ownCarried(Meal), c.held(me, Meal))
 	}
-	if w.needLevel(e, NeedFood) == 0 {
+	if w.driveLevel(e, DriveFood) == 0 {
 		t.Fatal("fetching a pocket meal fed the colonist")
 	}
 	w.assignWorkJob(e)
@@ -334,7 +334,7 @@ func TestAColonistCarriesItsNextMeal(t *testing.T) {
 		t.Fatal("a colonist with a meal on it fetched another")
 	}
 
-	setHunger(w, e, w.cfg.Needs[NeedFood].SeekAt)
+	setHunger(w, e, w.cfg.Drives[DriveFood].SeekAt)
 	if !w.tryStartEating(e) || e.eat != eatMeal {
 		t.Fatalf("pressing hunger with a pocket meal: job %v stage %v, want eating at once", e.Job, e.eat)
 	}

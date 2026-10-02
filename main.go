@@ -500,6 +500,8 @@ func validateConfig(cfg sim.Config) error {
 		return fmt.Errorf("founding-grant and crash-pod-purse cannot be negative (got %d and %d)", cfg.FoundingGrant, cfg.CrashPodPurse)
 	case cfg.TicksPerSecond < 1:
 		return fmt.Errorf("tps must be at least 1 (got %d)", cfg.TicksPerSecond)
+	case cfg.PassOutTicks < 1:
+		return fmt.Errorf("pass-out-ticks must be at least 1 (got %d)", cfg.PassOutTicks)
 	case cfg.ColonistsPerFacility < 1:
 		return fmt.Errorf("per-facility must be at least 1 (got %d)", cfg.ColonistsPerFacility)
 	case cfg.MaxConcurrentProjects < 1:
@@ -560,20 +562,20 @@ func validateConfig(cfg sim.Config) error {
 	case cfg.RatLitterMin < 0 || cfg.RatLitterMax < cfg.RatLitterMin:
 		return fmt.Errorf("rat litter range is invalid: min %d, max %d", cfg.RatLitterMin, cfg.RatLitterMax)
 	}
-	// Need specs are only reachable from the settings file and the -need-*
-	// flags, but a bad one breaks the colonists quietly (a need that never
+	// Drive specs are only reachable from the settings file and the -drive-*
+	// flags, but a bad one breaks the colonists quietly (a drive that never
 	// fires, or a fatal one pinned at its ceiling), so check them here too.
-	for _, spec := range cfg.Needs {
+	for _, spec := range cfg.Drives {
 		switch {
 		case spec.Max < 1:
-			return fmt.Errorf("need-%s-max must be at least 1 (got %d)", spec.Name, spec.Max)
+			return fmt.Errorf("drive-%s-max must be at least 1 (got %d)", spec.Name, spec.Max)
 		case spec.Rise < 0:
-			return fmt.Errorf("need-%s-rise cannot be negative (got %d)", spec.Name, spec.Rise)
+			return fmt.Errorf("drive-%s-rise cannot be negative (got %d)", spec.Name, spec.Rise)
 		case spec.SeekAt < 0 || spec.SeekAt > spec.CriticalAt || spec.CriticalAt > spec.Max:
-			return fmt.Errorf("need-%s thresholds must satisfy 0 <= seek-at <= critical-at <= max (got %d, %d, %d)",
+			return fmt.Errorf("drive-%s thresholds must satisfy 0 <= seek-at <= critical-at <= max (got %d, %d, %d)",
 				spec.Name, spec.SeekAt, spec.CriticalAt, spec.Max)
 		case spec.UseTicks < 0 || spec.GrabTicks < 0:
-			return fmt.Errorf("need-%s use and grab ticks cannot be negative (got %d and %d)", spec.Name, spec.UseTicks, spec.GrabTicks)
+			return fmt.Errorf("drive-%s use and grab ticks cannot be negative (got %d and %d)", spec.Name, spec.UseTicks, spec.GrabTicks)
 		}
 	}
 	if cfg.FocusCurrentBonus < 0 || cfg.FocusSwitchMargin < 0 ||

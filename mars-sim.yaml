@@ -355,12 +355,12 @@
 ## ticks of work to build an incinerator
 # incinerator-ticks: 20
 
-# ── Needs ───────────────────────────────────────────────────────────────
+# ── Drives ──────────────────────────────────────────────────────────────
 
-# One spec per colonist need. These are nested, so uncommenting a value means
-# uncommenting the "needs:" and need-name lines above it as well.
+# One spec per colonist drive. These are nested, so uncommenting a value means
+# uncommenting the "drives:" and drive-name lines above it as well.
 
-# needs:
+# drives:
 #   food:
 ##     level gained per tick
 #     rise: 2
@@ -368,17 +368,17 @@
 ##     level at which the colonist drops work to satisfy it
 #     seek-at: 650
 
-##     level at which the need becomes critical
+##     level at which the drive becomes critical
 #     critical-at: 1000
 
-##     ceiling; a fatal need sitting here drains HP
+##     ceiling; the drive's consequence applies while it sits here
 #     max: 1000
 
 ##     ticks spent using the facility
 #     use-ticks: 18
 
-##     whether sitting at the ceiling damages the colonist
-#     fatal: true
+##     ticks between repeats of the drive's felt consequence while it stays at its ceiling (0: once until satisfied)
+#     consequence-every: 0
 
 ##     ticks at the facility before carrying the rest away (0 = must be used in place)
 #     grab-ticks: 3
@@ -390,17 +390,17 @@
 ##     level at which the colonist drops work to satisfy it
 #     seek-at: 600
 
-##     level at which the need becomes critical
+##     level at which the drive becomes critical
 #     critical-at: 900
 
-##     ceiling; a fatal need sitting here drains HP
+##     ceiling; the drive's consequence applies while it sits here
 #     max: 1000
 
 ##     ticks spent using the facility
 #     use-ticks: 10
 
-##     whether sitting at the ceiling damages the colonist
-#     fatal: false
+##     ticks between repeats of the drive's felt consequence while it stays at its ceiling (0: once until satisfied)
+#     consequence-every: 0
 
 ##     ticks at the facility before carrying the rest away (0 = must be used in place)
 #     grab-ticks: 0
@@ -412,17 +412,17 @@
 ##     level at which the colonist drops work to satisfy it
 #     seek-at: 500
 
-##     level at which the need becomes critical
+##     level at which the drive becomes critical
 #     critical-at: 850
 
-##     ceiling; a fatal need sitting here drains HP
+##     ceiling; the drive's consequence applies while it sits here
 #     max: 1000
 
 ##     ticks spent using the facility
 #     use-ticks: 0
 
-##     whether sitting at the ceiling damages the colonist
-#     fatal: false
+##     ticks between repeats of the drive's felt consequence while it stays at its ceiling (0: once until satisfied)
+#     consequence-every: 200
 
 ##     ticks at the facility before carrying the rest away (0 = must be used in place)
 #     grab-ticks: 0
@@ -434,22 +434,25 @@
 ##     level at which the colonist drops work to satisfy it
 #     seek-at: 700
 
-##     level at which the need becomes critical
+##     level at which the drive becomes critical
 #     critical-at: 900
 
-##     ceiling; a fatal need sitting here drains HP
+##     ceiling; the drive's consequence applies while it sits here
 #     max: 1000
 
 ##     ticks spent using the facility
 #     use-ticks: 40
 
-##     whether sitting at the ceiling damages the colonist
-#     fatal: false
+##     ticks between repeats of the drive's felt consequence while it stays at its ceiling (0: once until satisfied)
+#     consequence-every: 0
 
 ##     ticks at the facility before carrying the rest away (0 = must be used in place)
 #     grab-ticks: 0
 
-## HP lost per tick while a fatal need sits at its max
+## ticks a colonist lies unconscious where it fell once its sleep drive hits the ceiling
+# pass-out-ticks: 60
+
+## HP lost per tick while a drive whose consequence is death sits at its max
 # starve-damage: 1
 
 ## colonists served by each life-support facility

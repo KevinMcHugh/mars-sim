@@ -148,12 +148,12 @@ func TestValidateCaverns(t *testing.T) {
 }
 
 func TestValidateNeedCriticalThreshold(t *testing.T) {
-	for _, alter := range []func(*sim.NeedSpec){
-		func(spec *sim.NeedSpec) { spec.CriticalAt = spec.SeekAt - 1 },
-		func(spec *sim.NeedSpec) { spec.CriticalAt = spec.Max + 1 },
+	for _, alter := range []func(*sim.DriveSpec){
+		func(spec *sim.DriveSpec) { spec.CriticalAt = spec.SeekAt - 1 },
+		func(spec *sim.DriveSpec) { spec.CriticalAt = spec.Max + 1 },
 	} {
 		cfg := sim.DefaultConfig()
-		alter(&cfg.Needs[sim.NeedFood])
+		alter(&cfg.Drives[sim.DriveFood])
 		if err := validateConfig(cfg); err == nil || !strings.Contains(err.Error(), "critical-at") {
 			t.Fatalf("invalid critical threshold error = %v, want critical-at validation", err)
 		}
@@ -165,7 +165,7 @@ func TestValidateNeedCriticalThreshold(t *testing.T) {
 func TestFlagsOverrideTheSettingsFile(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, sim.ConfigFileName)
-	settings := "colonists: 12\nrats: 3\nneeds:\n  food:\n    rise: 9\n"
+	settings := "colonists: 12\nrats: 3\ndrives:\n  food:\n    rise: 9\n"
 	if err := os.WriteFile(path, []byte(settings), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -174,22 +174,22 @@ func TestFlagsOverrideTheSettingsFile(t *testing.T) {
 	if err := loadConfigFile(&cfg, path, true); err != nil {
 		t.Fatalf("loadConfigFile: %v", err)
 	}
-	if cfg.StartColonists != 12 || cfg.StartRats != 3 || cfg.Needs[sim.NeedFood].Rise != 9 {
+	if cfg.StartColonists != 12 || cfg.StartRats != 3 || cfg.Drives[sim.DriveFood].Rise != 9 {
 		t.Fatalf("settings file not applied: %d colonists, %d rats, food rise %d",
-			cfg.StartColonists, cfg.StartRats, cfg.Needs[sim.NeedFood].Rise)
+			cfg.StartColonists, cfg.StartRats, cfg.Drives[sim.DriveFood].Rise)
 	}
 
 	fs := flag.NewFlagSet("test", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
 	bindConfigFlags(fs, &cfg)
-	if err := fs.Parse([]string{"-colonists", "20", "-need-food-rise", "1"}); err != nil {
+	if err := fs.Parse([]string{"-colonists", "20", "-drive-food-rise", "1"}); err != nil {
 		t.Fatalf("parsing flags: %v", err)
 	}
 	if cfg.StartColonists != 20 {
 		t.Errorf("colonists = %d, want the flag's 20", cfg.StartColonists)
 	}
-	if cfg.Needs[sim.NeedFood].Rise != 1 {
-		t.Errorf("food rise = %d, want the flag's 1", cfg.Needs[sim.NeedFood].Rise)
+	if cfg.Drives[sim.DriveFood].Rise != 1 {
+		t.Errorf("food rise = %d, want the flag's 1", cfg.Drives[sim.DriveFood].Rise)
 	}
 	if cfg.StartRats != 3 {
 		t.Errorf("rats = %d, want the file's 3 (no flag passed)", cfg.StartRats)
@@ -251,7 +251,7 @@ func TestFlagNamesDoNotCollide(t *testing.T) {
 		fs.String(name, "", "application flag")
 	}
 	bindConfigFlags(fs, &cfg) // panics on a duplicate name
-	if fs.Lookup("colonists") == nil || fs.Lookup("need-food-seek-at") == nil {
+	if fs.Lookup("colonists") == nil || fs.Lookup("drive-food-seek-at") == nil {
 		t.Error("expected config flags were not registered")
 	}
 }

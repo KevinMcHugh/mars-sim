@@ -27,8 +27,8 @@ finishing it.
   `finishScraping`, where a forager keeps a part load.
 - [`internal/sim/systems.go`](../internal/sim/systems.go) — `assignWorkJob`
   prospects for the colony when it is short; `clearJob` clears `foraging`.
-- [`internal/sim/needs.go`](../internal/sim/needs.go) — `resetNeed` ends a
-  hunger's search; `applyStarvation` covers a colonist cooking its own supper.
+- [`internal/sim/drives.go`](../internal/sim/drives.go) — `resetDrive` ends a
+  hunger's search; `applyDriveConsequences` covers a colonist cooking its own supper.
 - [`internal/sim/entity.go`](../internal/sim/entity.go) — `foraging`,
   `forageNoted`, `forageRetry`.
 - [`internal/sim/forage_test.go`](../internal/sim/forage_test.go).
@@ -38,7 +38,7 @@ finishing it.
 ### When a colonist forages
 
 The eat focus is only eligible once hunger is **pressing** (650 of 1000; see
-[needs.md](./needs.md)). At that point `runFoodFocus` tries, every turn, to
+[drives.md](./drives.md)). At that point `runFoodFocus` tries, every turn, to
 eat a meal it has, fetch one of its own, buy one, or be rationed one (see
 [food.md](./food.md)). If none of those works, and the safety net is off,
 the turn goes to `hungryWithoutFood`.
@@ -121,7 +121,7 @@ hungry, which is what keeps a big colony fed (see below).
 
 ### The starvation grace
 
-`applyStarvation` doesn't drain HP from a colonist cooking its own supper
+`applyDriveConsequences` doesn't drain HP from a colonist cooking its own supper
 (`JobCraft` for itself, on a meal recipe). The scum is already in the
 scumhouse, the same way a colonist walking to its own meal (`JobEat`) is
 already covered. A forager who dug the scum out, scraped it and carried it
@@ -215,6 +215,6 @@ into the unknown carries that risk.
 - [food.md](./food.md) — what a hungry colonist eats, and in what order.
 - [scumhouse.md](./scumhouse.md) — scum, its growth, scraping and cooking.
 - [fog-of-war.md](./fog-of-war.md) — what counts as seen.
-- [needs.md](./needs.md) — hunger's phases and starvation.
+- [drives.md](./drives.md) — hunger's phases and starvation.
 - [cascading_wsts_architecture.md](./cascading_wsts_architecture.md) — the
   focus arbiter. Foraging runs inside the eat focus.

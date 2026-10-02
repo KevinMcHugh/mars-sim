@@ -1,153 +1,242 @@
-# Needs
+# Drives
 
 > Part of the [mars-sim documentation](./README.md).
 
 ## What it is
 
-Colonists accumulate **needs** (food, bladder, social contact, and sleep) over
-time and may switch focus to satisfy them. Each need independently projects its
+Colonists accumulate **drives** (food, bladder, social contact, and sleep) over
+time and may switch focus to satisfy them. Every drive has the same shape: an
+**accumulation rate**, **thresholds** (seek, critical, ceiling), and a
+**consequence** for reaching the ceiling. Each drive independently projects its
 lazy numeric level into a discrete phase. Rats reuse the food level. Levels stay
 lazy — a base plus a timestamp — so idle colonists do not need per-tick storage
 updates.
 
+These used to be called *needs*. They were renamed because not everything this
+system is going to model is a need: the plan (beauty, comfort, hygiene, and
+consequences like embarrassment) is in
+[drives-redesign.md](./drives-redesign.md). This doc describes what exists today.
+
 ## Source
 
-- [`internal/sim/needs.go`](../internal/sim/needs.go) — `NeedKind`, `NeedPhase`, `NeedSpec`, lazy level math, phase synchronization, pressure, and starvation.
-- [`internal/sim/config.go`](../internal/sim/config.go) — the `Needs` table and `StarveDamage`, `ColonistsPerFacility`.
-- [`internal/sim/entity.go`](../internal/sim/entity.go) — the per-entity need storage (`Needs`, `needSince`, `needRise`, `starvationDamage`, `carrying`).
+- [`internal/sim/drives.go`](../internal/sim/drives.go) — `DriveKind`, `DrivePhase`, `Consequence`, `DriveSpec`, lazy level math, phase synchronization, pressure, consequences (starvation, loneliness), and `mostUrgentDrive`.
+- [`internal/sim/config.go`](../internal/sim/config.go) — the `Drives` table and `StarveDamage`, `ColonistsPerFacility`.
+- [`internal/sim/entity.go`](../internal/sim/entity.go) — the per-entity drive storage (`Drives`, `driveSince`, `driveRise`, `starvationDamage`, `carrying`).
 - [`internal/sim/systems.go`](../internal/sim/systems.go) — `jobUse`, `jobUseCarrying`, `finishUse`, `availableToTalk`.
 
 ## How it works
 
-### The needs table
+### The drives table
 
-Each `NeedKind` (`NeedFood`, `NeedBladder`, `NeedSocial`, `NeedSleep`) has a `NeedSpec` in `Config.Needs`,
+Each `DriveKind` (`DriveFood`, `DriveBladder`, `DriveSocial`, `DriveSleep`) has a `DriveSpec` in `Config.Drives`,
 indexed by the kind:
 
-| Need | Rise/tick | SeekAt | CriticalAt | Max | Facility | UseTicks | GrabTicks | Fatal |
+| Drive | Rise/tick | SeekAt | CriticalAt | Max | Facility | UseTicks | GrabTicks | Consequence |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| food | 2 | 650 | 1000 | 1000 | meals, then NutrientPod | 18 | 3 | **yes** |
-| bladder | 3 | 600 | 900 | 1000 | Toilet | 10 | 0 | no |
-| sleep | 1 | 700 | 900 | 1000 | Bed | 40 | 0 | no |
-| social | 2 | 500 | 850 | 1000 | conversation | — | — | no |
+| food | 2 | 650 | 1000 | 1000 | meals, then NutrientPod | 18 | 3 | **death** |
+| bladder | 3 | 600 | 900 | 1000 | Toilet | 10 | 0 | none (planned: soiling) |
+| sleep | 1 | 700 | 900 | 1000 | Bed | 40 | 0 | **passing out** (`pass-out-ticks`, 60) |
+| social | 2 | 500 | 850 | 1000 | conversation | — | — | **loneliness** (felt every 200 ticks) |
 
-Food is the one need met by an item as well as a facility: a hungry colonist
+Food is the one drive met by an item as well as a facility: a hungry colonist
 eats a real `Meal` it owns (or the colony owns) before it walks to a nutrient
 pod, and with `infinite-food` off pods feed nobody at all. See
 [food.md](./food.md); everything below about facilities applies to food only
 when the safety net is what the colonist is using.
 
-Levels run `0..Max`; 0 means satisfied. `SeekAt` makes the need actionable,
-`CriticalAt` adds critical focus pressure, and a **fatal** need sitting at `Max`
-drains HP (`StarveDamage`). Configuration enforces
+Levels run `0..Max`; 0 means satisfied. `SeekAt` makes the drive actionable,
+`CriticalAt` adds critical focus pressure, and at `Max` the drive's
+**consequence** applies (see *Consequences* below). Configuration enforces
 `0 <= SeekAt <= CriticalAt <= Max`.
+
+The numeric fields are settings (`drives.food.rise` in `mars-sim.yaml`,
+`-drive-food-rise` on the command line). `Name`, `Facility` and `Consequence`
+are not: they are what the drive *is*, and code keys off them. That is why the
+old `needs.<name>.fatal` setting went away with the rename rather than becoming
+`drives.<name>.consequence` — making bladder fatal from a settings file was
+never a balance knob, it was a way to break the arbitration rules below. An
+old settings file with a `needs:` section now fails to load with
+`unknown setting "needs"`, which is the intended loud failure (see
+[config-file.md](./config-file.md)); rename the section to `drives:`.
 
 ### Lazy evaluation
 
-Needs are **not** ticked per colonist per tick. Instead `Entity.Needs[i]` is the
-level *as of* tick `needSince[i]`, and `needLevel` computes the current value on
+Drives are **not** ticked per colonist per tick. Instead `Entity.Drives[i]` is the
+level *as of* tick `driveSince[i]`, and `driveLevel` computes the current value on
 read:
 
 ```
-level = clamp(Needs[i] + needRise[i] * (now - needSince[i]), 0, Max)
+level = clamp(Drives[i] + driveRise[i] * (now - driveSince[i]), 0, Max)
 ```
 
-`needRise[i]` is the entity's own per-tick rate: trait-scaled for colonists (see
-[personality.md](./personality.md)) and much faster for rats. `syncNeedPhase`
+`driveRise[i]` is the entity's own per-tick rate: trait-scaled for colonists (see
+[personality.md](./personality.md)) and much faster for rats. `syncDrivePhase`
 reads this lazy level and updates only its discrete projection:
 
 | Phase | Level |
 | --- | --- |
-| `NeedSatisfied` | zero |
-| `NeedGrowing` | above zero but below `SeekAt` |
-| `NeedPressing` | `SeekAt` through just below `CriticalAt` |
-| `NeedCritical` | `CriticalAt` or above |
+| `DriveSatisfied` | zero |
+| `DriveGrowing` | above zero but below `SeekAt` |
+| `DrivePressing` | `SeekAt` through just below `CriticalAt` |
+| `DriveCritical` | `CriticalAt` or above |
 
-Each need also caches the next tick at which its current rise rate can cross a
-phase boundary. Zero-rise and already-critical needs schedule no crossing. This
+Each drive also caches the next tick at which its current rise rate can cross a
+phase boundary. Zero-rise and already-critical drives schedule no crossing. This
 cache does not change behavior yet; Phase 5 can use it to avoid needless focus
-arbitration without estimating when a lazy need changes. `resetNeed` sets the
+arbitration without estimating when a lazy drive changes. `resetDrive` sets the
 base back to 0 at the current tick and immediately synchronizes the phase and
 next boundary.
 
-Pressing and critical needs emit normalized pressure from 1 through 100 into
+Pressing and critical drives emit normalized pressure from 1 through 100 into
 weighted focus arbitration. Pressure is 1 at `SeekAt`, reaches 75 at
-`CriticalAt`, and reaches 100 at `Max`; satisfied and growing needs emit zero.
+`CriticalAt`, and reaches 100 at `Max`; satisfied and growing drives emit zero.
 Critical and fatal bonuses preserve urgency without embedding another priority
 ladder in the job executors.
 
-Social need has no physical facility, but with a meeting hall built it has a
+Social drive has no physical facility, but with a meeting hall built it has a
 place: the colonist walks to a chair and pairs with someone else in the hall (see
 [meeting-hall.md](./meeting-hall.md)); without one it looks within `talk-radius`
 wherever it stands. Once urgent, it preempts ordinary work and
 the colonist waits for a conversation partner; completing a conversation resets
-social need for both participants. Asocial colonists resolve its rise rate to
+social drive for both participants. Asocial colonists resolve its rise rate to
 zero, introverts rise more slowly, and extroverts rise faster.
 
-A conversation already under way **is** how the need gets met, so the urgent-social
+A conversation already under way **is** how the drive gets met, so the urgent-social
 branch checks `talkPartner` and lets a live talk run, exactly as `handlingNeed`
 does for `JobUse`/`JobBuild` further down the tick. Skipping that check was a
 livelock: a socially urgent colonist cleared its own job and called
 `tryStartTalk` every tick, `beginTalk` reset the shared `Progress` timer, and so
 a mutually urgent pair restarted the same conversation forever without ever
-reaching `TalkTicks`. Because an urgent social need preempts all ordinary work,
+reaching `TalkTicks`. Because an urgent social drive preempts all ordinary work,
 the colony then stopped digging and building permanently — measured on a default
 6-colonist game, 2000 ticks produced **0** completed conversations, 989 mid-talk
-partner switches, a mean social need of 919/1000, and 11 tiles excavated. With
+partner switches, a mean social drive of 919/1000, and 11 tiles excavated. With
 the live talk left alone: 38 conversations, 3 switches, mean social 337, and 675
 tiles. `TestMutuallyUrgentColonistsFinishConversation` and
 `TestColonyKeepsExcavatingOnceNeedsBite` pin both halves of that.
 
 `availableToTalk` gates who can be pulled into a chat as the *other* party: idle
 (`Job == JobNone`), not fleeing, not parked somewhere blocking a facility — and,
-importantly, not itself facing an urgent need **other than social**. A
-candidate whose own most urgent need is social still counts as available.
+importantly, not itself facing an urgent drive **other than social**. A
+candidate whose own most urgent drive is social still counts as available.
 Without that carve-out, two colonists who both urgently need company can never
 talk to each other — each disqualifies the other as a partner — and social
-need sits permanently pinned at its ceiling in any colony busy enough that
-nobody is ever fully need-free. That carve-out plus leaving live talks alone (above) is
-what actually unpins the need in a busy colony. One limitation remains, and it
+drive sits permanently pinned at its ceiling in any colony busy enough that
+nobody is ever fully drive-free. That carve-out plus leaving live talks alone (above) is
+what actually unpins the drive in a busy colony. One limitation remains, and it
 is a design one rather than a bug: a partner must be at `Job == JobNone`, so a
 colonist cannot chat *while* doing something else (mid-queue, mid-dig). Letting
 them would need bigger, riskier surgery to the job model than has been
 attempted.
 
+### Consequences
+
+`applyDriveConsequences` runs once per colonist (and rat) turn, finds every
+drive sitting at `Max`, and dispatches on its `Consequence`:
+
+| Consequence | Effect | Drives |
+| --- | --- | --- |
+| `ConsequenceNone` | nothing beyond maximal focus pressure | bladder |
+| `ConsequenceDeath` | `starve`: drain HP, healed on satisfaction | food |
+| `ConsequenceLoneliness` | the colonist *feels lonely*: an experience, repeated every `consequence-every` ticks | social |
+| `ConsequencePassOut` | `passOut`: the colonist collapses where it stands for `pass-out-ticks`, then comes to with the drive met | sleep |
+
+Death is a **drain**: it applies every tick at the ceiling and is undone by
+satisfying the drive. Loneliness is an **experience**: `consequenceDue` books
+it on the first tick at the ceiling and then every `ConsequenceEvery` ticks
+(`drives.social.consequence-every`, 200 by default; 0 means once per stay at
+the ceiling), and `resetDrive` clears the booking (`nextConsequence`). What
+the experience *does* is not in Go at all: it is a `feel loneliness`
+occurrence through the perception grammar, and the `felt-lonely` reaction in
+[`cognition.yaml`](../cognition.yaml) gives it its mood hit (charge, grip and
+valence down) and its memory ("Felt lonely."). Its worn reading is *worse*
+than its fresh one, so loneliness that keeps coming back hurts more, and
+eases again as those memories roll off the log. That is all "depression" is
+for now: no new colonist state, just an experience that compounds.
+
+The other half is in `finishTalk`: a colonist that comes to a conversation
+with its social drive at `SeekAt` or above also gets a `socialize`
+occurrence — the `socialized` reaction ("Enjoyed some company.", charge, grip
+and valence up) — on top of the conversation's own appraisal. A chat between
+two content colonists is just a chat; company you went looking for is a lift.
+It is read before `jobTalk` resets the drive.
+
+Measured over 10000 ticks of the default game on seeds 1–5: 13, 8, 12, 3
+and 17 felt-lonely occasions per colony, tracking 1302, 182, 1182, 452 and
+899 colonist-ticks at the social ceiling, and 86, 144, 77, 25 and 156
+socialized conversations. Most talks start because someone went looking for
+one, so most count. These move with anything that changes how often
+colonists talk (the meeting hall, conversation topics); re-measure rather
+than trust them.
+
+Passing out is an **event**: it happens once and discharges the drive. At
+the sleep ceiling `passOut` clears the colonist's job and focus, sets
+`passedOutUntil` and the `PassedOut` state, logs it, and emits a `collapse`
+occurrence whose `passed-out` reaction ("Passed out from exhaustion.") hits
+grip hardest, since this is losing control of your own body, and worse each
+time. For `PassOutTicks` (60, half again a night in a bunk) `stayPassedOut`
+runs the colonist's turn in place of everything else: affect still decays,
+a sealed room is still noticed, uranium still doses, but nothing is
+perceived or chosen. It does not flee, nobody can pull it into a
+conversation (`availableToTalk`), and an alien that finds it finds it
+helpless. Starvation still drains while it is down. On the tick it comes to,
+the sleep drive resets and it thinks again from scratch. `PassedOut` counts
+as sleeping on the Activity chart.
+
+One exemption: a colonist already asleep beside its bed (`asleepInBed`)
+does not pass out. The drive keeps rising until the sleep finishes, so one
+that got to bed near the ceiling reaches it in bed, where it is already
+doing what passing out would make it do. Being *on the way* to bed is no
+exemption; you can collapse in the corridor.
+
+Measured over 10000 ticks of the default game on seeds 1–5: 3, 0, 2, 1 and 1
+pass-outs per colony of 5–6.
+
+`DriveSpec.Fatal()` (and `DriveMeta.Fatal()` in the snapshot) is shorthand
+for `Consequence == ConsequenceDeath`. Arbitration still reasons in terms of
+"fatal vs not" (below); the redesign proposes replacing that with a severity
+ordering once there is more than one real consequence.
+
+Frontends get the consequence too: the TUI marks a fatal drive's bar with `!`,
+and the browser's entity topic sends `consequence: "death"` on each drive bar
+(wire API 8; API 7 sent `needs` with a `fatal` flag).
+
 ### Starvation and healing
 
-`applyStarvation` drains HP for any fatal need at `Max`, and tracks that damage
-separately per need in `starvationDamage`. Satisfying the need restores exactly
+`starve` (`ConsequenceDeath`) drains HP for a drive at `Max`, and tracks that
+damage separately per drive in `starvationDamage`. Satisfying the drive restores exactly
 that deprivation damage (up to `MaxHP`) — so eating heals hunger damage but not an
 unrelated alien bite. Three grace conditions prevent unfair deaths:
 
 1. A colonist already committed to a *reachable* facility (`JobUse`) is not
    drained mid-queue — it gets time to traverse the crowd and finish eating.
-2. A colonist that has already grabbed a portable need (see *Taking it to go*
+2. A colonist that has already grabbed a portable drive (see *Taking it to go*
    below) is never drained regardless of the facility's reachability or
    crowding — it is guaranteed to finish; it just isn't there anymore.
-3. While reachable life support is *under construction*, fatal-need drain is
+3. While reachable life support is *under construction*, fatal-drive drain is
    suspended. This matters most at startup, when staggered hunger can hit `Max`
    just before the first facility room finishes.
 
-### Which need wins
+### Which drive wins
 
-`mostUrgentNeed` returns the need furthest past its `SeekAt`, but a **fatal need
+`mostUrgentDrive` returns the drive furthest past its `SeekAt`, but a **fatal drive
 outranks any non-fatal one**. Without that rule, bladder (which rises faster and
 caps further past its threshold) would permanently outrank food and let colonists
 starve while relieving themselves.
 
-Sleep is deliberately non-fatal. A tired colonist seeks a reachable bunk and
+Sleep is deliberately non-fatal: its consequence is passing out, not death. A tired colonist seeks a reachable bunk and
 spends `UseTicks` (40 by default) sleeping beside it. Food and toilets are
 still planned before dormitories, so a bunk usually arrives later than the
 first facility room — but a colonist with no reachable bunk, no bunk task to
 help with, and no dormitory under construction anywhere reachable does not
-simply wait forever: like any other need (see *The emergency fallback* in
+simply wait forever: like any other drive (see *The emergency fallback* in
 [construction.md](./construction.md)), it builds one for itself. This keeps
 sleep a capacity and scheduling pressure in the common case, without letting a
 delayed dormitory turn into an indefinite "stuck waiting" loop.
 
-### Satisfying a need
+### Satisfying a drive
 
-When a need is urgent and a facility of the right kind that the colonist may
+When a drive is urgent and a facility of the right kind that the colonist may
 use is reachable (`facilityReachable`: a communal one via the shared field, or
 its own private one — see [property.md](./property.md)), the
 colonist normally takes a `JobUse` job. With fewer than two facilities of that
@@ -179,7 +268,7 @@ walkable distance and skips any that's **congested** — something actually
 occupying one of its reachable access tiles right now, or another colonist
 already committed to it (`Job == JobUse`, `useFacilitySet`, `useFacility` equal
 to it) — falling back to nearest-even-if-congested only when every reachable
-option is busy, so a need is never declared unreachable and left to starve
+option is busy, so a drive is never declared unreachable and left to starve
 merely because everything is momentarily full. Ties go to the lower
 `lessPoint`. The choice is retained on the colonist for the whole `JobUse` job
 (`e.useFacility`), so it never re-litigates and ping-pongs between queues as
@@ -189,7 +278,7 @@ counts change tick to tick.
 
 It used to be one BFS from the colonist over everything it could reach,
 followed by a scan of every facility. That flood covered the whole reachable
-map on every need decision, even when the pod was three tiles away. On a big
+map on every drive decision, even when the pod was three tiles away. On a big
 colony it was a third of a real CPU profile. The congestion check was
 expensive too: it scanned every entity once per access tile of every facility,
 so on a crowded colony (`BenchmarkNeedSeek`) it cost more than the BFS.
@@ -274,18 +363,18 @@ Two bugs here were serious enough to leave written down:
 
 ### Taking it to go
 
-`GrabTicks`, when positive and less than `UseTicks`, makes a need portable:
+`GrabTicks`, when positive and less than `UseTicks`, makes a drive portable:
 the colonist spends only `GrabTicks` at the facility, then carries it away and
 spends the rest of `UseTicks` finishing elsewhere (`jobUseCarrying`), freeing
 the facility's access tile immediately rather than occupying it for the whole
-`UseTicks`. Food is the only portable need by default (`GrabTicks: 3` against
+`UseTicks`. Food is the only portable drive by default (`GrabTicks: 3` against
 an 18-tick meal) — a colonist "sits there sucking down goop" for only 3 ticks,
 then steps aside (`stepAside`, falling back to `wanderStep`) and finishes
 eating out of everyone else's way. Bladder and sleep stay `GrabTicks: 0`
 (in-place only): there is nothing to carry away from a toilet or a bed.
 
 This is purely a throughput change — the total `UseTicks` a colonist spends
-satisfying the need is unchanged — but it turns a facility's *access-tile*
+satisfying the drive is unchanged — but it turns a facility's *access-tile*
 capacity from "one user every `UseTicks`" into "one user every `GrabTicks`,"
 which is the real bottleneck once a facility is shared by more than a couple
 of colonists: a single pod that could serve at most `UseTicks`⁻¹ colonists per
@@ -294,27 +383,27 @@ tick before now serves `GrabTicks`⁻¹.
 ### Staggered start
 
 At spawn, colonists get a **random** starting level in `[0, SeekAt)` for each
-need, so a fresh colony does not all get hungry on the same tick and stampede the
+drive, so a fresh colony does not all get hungry on the same tick and stampede the
 facilities at once.
 
 ## Why it is this way
 
 - **Lazy base+timestamp storage** is the key performance move: an idle colonist's
-  needs stay correct without any per-tick work, which is what lets the resting AI
-  skip the map scan entirely. `applyStarvation` and the snapshot both read levels
+  drives stay correct without any per-tick work, which is what lets the resting AI
+  skip the map scan entirely. `applyDriveConsequences` and the snapshot both read levels
   lazily, so they are correct even after a colonist has rested for many ticks.
-- **Per-need starvation damage** keeps healing intuitive and prevents food from
+- **Per-drive starvation damage** keeps healing intuitive and prevents food from
   accidentally patching combat wounds.
 - **Fatal-beats-non-fatal urgency** is a balance rule learned from colonists
   starving with a full bladder — the table alone (thresholds) was not enough.
 - **Grace periods** stop the frustrating startup deaths where hunger outraced the
   very first pod.
-- **Sleep being non-fatal** keeps the planner's priority (life support before
+- **Sleep being non-fatal** (passing out costs time and mood, not HP) keeps the planner's priority (life support before
   dormitories) meaningful: a tired colonist can wait for the next bunk instead
   of forcing dormitories to compete with life support at the moment life
   support is most needed. It no longer means *only* waiting, though — see the
   emergency fallback below.
-- **Portable needs** (food) separate "how long satisfying this need takes"
+- **Portable drives** (food) separate "how long satisfying this drive takes"
   from "how long it occupies the one tile everyone else queues behind." A
   facility's real capacity is its access tile, not its `UseTicks`, and a
   crowded colony hits that limit long before population catches up with
@@ -322,26 +411,40 @@ facilities at once.
 
 ## Extending it
 
-Adding a need is meant to be a **table edit**:
+Adding a drive whose consequence already exists is meant to be a **table edit**:
 
-1. Append a `NeedKind` before `numNeeds` and add its `String()` case.
-2. Add its `NeedSpec` to `Config.Needs` (rise, seek, critical, max, facility,
-   use ticks, fatal).
+1. Append a `DriveKind` before `numDrives` and add its `String()` case.
+2. Add its `DriveSpec` to `defaultDrives` (rise, seek, critical, max, facility,
+   use ticks, consequence).
 3. Give it a satisfying `Terrain` facility (a flow field is auto-allocated per
-   facility terrain in `newWorld`) and a display `State` in `useState`.
+   facility terrain in `newWorld`), a display `State` in `useState`, and a
+   focus in `focusForDrive` / `driveForFocus`.
 4. Regenerate the settings file (`go run . -print-config > mars-sim.yaml`): the
-   spec's tagged fields become `needs.<name>.*` settings and `-need-<name>-*`
+   spec's tagged fields become `drives.<name>.*` settings and `-drive-<name>-*`
    flags automatically, named from the `String()` case in step 1. See
    [config-file.md](./config-file.md).
 
-The systems iterate needs generically, so no behavior code needs to change. A new
-trait that scales the need slots in via `traitSpecs` (see
+Adding a **consequence** means a new `Consequence` constant, its `String()`
+case, and a branch in `applyDriveConsequences`. Keep each consequence in its
+own function the way `starve` is, so the grace rules for one do not leak into
+another. A consequence that is something the colonist *feels* should be an
+occurrence plus a reaction row, the way loneliness is, with its cadence from
+`consequenceDue`, rather than code that moves affect directly. The planned
+one (soiling) and the open questions are in
+[drives-redesign.md](./drives-redesign.md).
+
+A drive with no facility (like social), or one satisfied by the environment
+rather than an action (the planned beauty and comfort), does not fit step 3
+yet; that is exactly what the redesign is for.
+
+A new trait that scales the drive slots in via `traitSpecs` (see
 [personality.md](./personality.md)).
 
 ## Related
 
-- [entities-and-ai.md](./entities-and-ai.md) — how needs preempt work.
-- [personality.md](./personality.md) — traits that scale need rise rates.
-- [construction.md](./construction.md) — how the facilities that satisfy needs are built.
-- [configuration.md](./configuration.md) — where the needs table lives.
-- [config-file.md](./config-file.md) — tuning a need's spec from `mars-sim.yaml` or a flag.
+- [drives-redesign.md](./drives-redesign.md) — **proposal**: where drives are going (consequences, environmental drives).
+- [entities-and-ai.md](./entities-and-ai.md) — how drives preempt work.
+- [personality.md](./personality.md) — traits that scale drive rise rates.
+- [construction.md](./construction.md) — how the facilities that satisfy drives are built.
+- [configuration.md](./configuration.md) — where the drives table lives.
+- [config-file.md](./config-file.md) — tuning a drive's spec from `mars-sim.yaml` or a flag.

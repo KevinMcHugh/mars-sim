@@ -177,7 +177,7 @@ It never crosses a `buildTiles` tile a builder needs clear.
 A facility field also answers *which* facilities are nearest, not just how
 far: walking only downhill from a tile visits exactly the shortest routes to
 the facilities at its distance. `chooseFacility` relies on that instead of
-running its own BFS (see [needs.md](./needs.md)).
+running its own BFS (see [drives.md](./drives.md)).
 
 ### Two mining strategies
 

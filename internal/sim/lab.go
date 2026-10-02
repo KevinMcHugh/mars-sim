@@ -92,7 +92,7 @@ type LabSituation struct {
 	Grip      int            `json:"grip"`
 	Valence   int            `json:"valence"`
 	MoodLabel string         `json:"moodLabel"`
-	Needs     map[string]int `json:"needs"`
+	Drives    map[string]int `json:"needs"`
 	Traits    []string       `json:"traits"`
 	Current   string         `json:"current"`
 	CanWork   bool           `json:"canWork"`
@@ -155,8 +155,8 @@ type LabVerdict struct {
 // LabSettings is the shipped need table and the three personality/mood
 // constants the bench has to share with the sim. It does not build a world
 // or the cognition file.
-func LabSettings() (needs [numNeeds]NeedSpec, moodMax, moodMargin, traitChance int) {
-	return defaultNeeds(), defaultMoodMax, defaultMoodLabelSwitchMargin, defaultTraitChance
+func LabSettings() (needs [numDrives]DriveSpec, moodMax, moodMargin, traitChance int) {
+	return defaultDrives(), defaultMoodMax, defaultMoodLabelSwitchMargin, defaultTraitChance
 }
 
 // LabTraits returns the trait table. Ids are the kebab-case names the file uses.
@@ -176,12 +176,12 @@ func LabTraits() []LabTrait {
 }
 
 // LabNeeds returns the shipped need thresholds.
-func LabNeeds(needs [numNeeds]NeedSpec) []LabNeed {
-	out := make([]LabNeed, 0, numNeeds)
-	for n := NeedKind(0); n < numNeeds; n++ {
+func LabNeeds(needs [numDrives]DriveSpec) []LabNeed {
+	out := make([]LabNeed, 0, numDrives)
+	for n := DriveKind(0); n < numDrives; n++ {
 		spec := needs[n]
 		out = append(out, LabNeed{
-			ID: spec.Name, SeekAt: spec.SeekAt, CritAt: spec.CriticalAt, Max: spec.Max, Fatal: spec.Fatal,
+			ID: spec.Name, SeekAt: spec.SeekAt, CritAt: spec.CriticalAt, Max: spec.Max, Fatal: spec.Fatal(),
 		})
 	}
 	return out
@@ -210,7 +210,7 @@ func LabRoll(seed int64, traitChance int) LabPerson {
 
 // LabEvaluate scores the situation with the sim's focus function, then applies
 // the bench's facility gate and the sim's chooser.
-func LabEvaluate(needs [numNeeds]NeedSpec, moodMax, moodMargin int, cog LabCognition, sit LabSituation) (LabVerdict, error) {
+func LabEvaluate(needs [numDrives]DriveSpec, moodMax, moodMargin int, cog LabCognition, sit LabSituation) (LabVerdict, error) {
 	var focuses [numFocusKinds]FocusSpec
 	for name, spec := range cog.Focuses {
 		kind, err := ParseFocusKind(name)
@@ -227,11 +227,11 @@ func LabEvaluate(needs [numNeeds]NeedSpec, moodMax, moodMargin int, cog LabCogni
 	if err != nil {
 		return LabVerdict{}, err
 	}
-	var level [numNeeds]int
-	var phase [numNeeds]NeedPhase
-	phases := make(map[string]string, numNeeds)
-	for n := NeedKind(0); n < numNeeds; n++ {
-		level[n] = sit.Needs[n.String()]
+	var level [numDrives]int
+	var phase [numDrives]DrivePhase
+	phases := make(map[string]string, numDrives)
+	for n := DriveKind(0); n < numDrives; n++ {
+		level[n] = sit.Drives[n.String()]
 		phase[n] = phaseForLevel(level[n], needs[n])
 		phases[n.String()] = phase[n].String()
 	}
@@ -388,18 +388,18 @@ func explainFocus(f FocusKind, in focusInputs, reach labReach) []string {
 		return []string{"Sealed off from the colony, and nothing is hunting them."}
 	}
 
-	need, ok := needForFocus(f)
+	need, ok := driveForFocus(f)
 	if !ok {
 		return []string{"Available."}
 	}
 	var reasons []string
 	phase := in.phase[need]
-	hot := phase == NeedPressing || phase == NeedCritical
+	hot := phase == DrivePressing || phase == DriveCritical
 	if !hot {
 		reasons = append(reasons, notPressingLine(f, phase))
 	}
-	foodHot := in.needs[NeedFood].Fatal &&
-		(in.phase[NeedFood] == NeedPressing || in.phase[NeedFood] == NeedCritical)
+	foodHot := in.needs[DriveFood].Fatal() &&
+		(in.phase[DriveFood] == DrivePressing || in.phase[DriveFood] == DriveCritical)
 	if foodHot && f != FocusEat {
 		reasons = append(reasons, "Hunger is pressing, and it outranks this.")
 	}
@@ -412,8 +412,8 @@ func explainFocus(f FocusKind, in focusInputs, reach labReach) []string {
 	return reasons
 }
 
-func notPressingLine(f FocusKind, phase NeedPhase) string {
-	quiet := phase == NeedSatisfied || phase == NeedGrowing
+func notPressingLine(f FocusKind, phase DrivePhase) string {
+	quiet := phase == DriveSatisfied || phase == DriveGrowing
 	switch f {
 	case FocusEat:
 		if quiet {
@@ -440,9 +440,9 @@ func notPressingLine(f FocusKind, phase NeedPhase) string {
 	}
 }
 
-func pressingLine(f FocusKind, phase NeedPhase) string {
+func pressingLine(f FocusKind, phase DrivePhase) string {
 	word := "pressing"
-	if phase == NeedCritical {
+	if phase == DriveCritical {
 		word = "critical"
 	}
 	switch f {

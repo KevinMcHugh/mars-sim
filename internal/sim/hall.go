@@ -154,7 +154,7 @@ func (w *World) hallTalkBonus(a, b *Entity) int {
 // walk is time it may not have), with a hall to go to. A meal eaten for later
 // (eatKeep) never goes.
 func (w *World) mealSeat(e *Entity) (Point, bool) {
-	if e.Kind != Colonist || e.eatKeep || !w.hallOpen() || e.needPhase[NeedFood] >= NeedCritical {
+	if e.Kind != Colonist || e.eatKeep || !w.hallOpen() || e.drivePhase[DriveFood] >= DriveCritical {
 		return Point{}, false
 	}
 	return w.nearestChair(e)

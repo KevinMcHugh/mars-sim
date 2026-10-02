@@ -15,7 +15,7 @@ stream so flavor never perturbs the simulation.
 ## Source
 
 - [`internal/sim/personality.go`](../internal/sim/personality.go) — `Profile`, `Trait`, `traitSpecs`, generation, trait resolution.
-- [`internal/sim/entity.go`](../internal/sim/entity.go) — the trait-resolved effective params (`needRise`, `restTicks`, `workScale`).
+- [`internal/sim/entity.go`](../internal/sim/entity.go) — the trait-resolved effective params (`driveRise`, `restTicks`, `workScale`).
 - [`internal/sim/config.go`](../internal/sim/config.go) — `TraitChance`.
 - [`internal/sim/heredity.go`](../internal/sim/heredity.go) — the family pass that overwrites part of a generated profile.
 
@@ -131,7 +131,7 @@ The critical design point: **traits are resolved into per-colonist effective
 parameters at spawn**, not scanned on the hot path. `resolveTraitEffects` folds a
 colonist's traits into three fields on the `Entity`:
 
-- `needRise[i]` — per-need rise per tick (used directly by `needLevel`),
+- `driveRise[i]` — per-need rise per tick (used directly by `driveLevel`),
 - `restTicks` — idle rest duration,
 - `workScale` — a mine/build time multiplier (via `scaleTicks`).
 - social need rise and conversation-fatigue capacity/penalty, used by the
@@ -173,7 +173,7 @@ home resolved at spawn.
   reproducible and comparable — you can add names and body types without changing
   a single AI decision.
 - **Resolve-at-spawn** keeps traits off the hot path entirely: no per-tick trait
-  loop, no branching on trait membership in `needLevel` or the job executors.
+  loop, no branching on trait membership in `driveLevel` or the job executors.
 - **Mutually exclusive groups** model "you can't be both a big and a light eater"
   cleanly and make adding an axis a matter of adding a group.
 
@@ -200,7 +200,7 @@ home resolved at spawn.
 
 ## Related
 
-- [needs.md](./needs.md) — the need-rise rates traits scale.
+- [drives.md](./drives.md) — the need-rise rates traits scale.
 - [entities-and-ai.md](./entities-and-ai.md) — how `workScale`/`restTicks` feed behavior.
 - [configuration.md](./configuration.md) — `TraitChance`.
 - [mutation.md](./mutation.md) — `TraitMutant` and `TraitMutantLover`, and how a trait is acquired in play.
