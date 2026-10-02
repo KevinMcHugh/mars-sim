@@ -18,6 +18,7 @@ toilets) are the first — and currently only — project kind.
 
 - [`internal/sim/project.go`](../internal/sim/project.go) — `buildTask`, `project`, planning, room siting, task claiming.
 - [`internal/sim/roomframe.go`](../internal/sim/roomframe.go) — `roomFrame` (which way a room faces) and `siteKeepsColonyWhole`.
+- [`internal/sim/roomgrow.go`](../internal/sim/roomgrow.go) — `roomRecord` (every room the colony has marked out) and growing a dormitory or storage room by moving a wall (see [room-expansion.md](./room-expansion.md)).
 - [`internal/sim/passage.go`](../internal/sim/passage.go) — passages dug to whatever the colony gets cut off from (see [escape.md](./escape.md)).
 - [`internal/sim/systems.go`](../internal/sim/systems.go) — `jobBuild`, `assignTask`/`assignBuild`, the emergency-build fallback.
 
@@ -32,7 +33,11 @@ then `f` requests one facility room, `d` one dormitory, `t` one trash room,
 queued at once; `planRooms` works
 through them — one new project per call, life support before dormitories —
 whenever the colony is below its current concurrent-project cap and a suitable
-site exists (see *Planning cadence* below).
+site exists (see *Planning cadence* below). An ordered dormitory, storage
+room, kitchen, incubator or meeting hall, and the planner's own demand for any
+of them after the first kitchen, first goes into a room of that kind that can
+grow, and only marks out a new one when none can (see
+[room-expansion.md](./room-expansion.md)).
 
 ### Tasks, phases, projects
 
@@ -63,13 +68,13 @@ current recipes are:
 | Recipe | Contents | Minimum size | Planning priority |
 | --- | --- | --- | --- |
 | facility room | alternating nutrient pods and toilets (all toilets with `infinite-food` off, when pods feed nobody — see [food.md](./food.md)) | 2 facilities (1 when all toilets) | first, because food is fatal |
-| dormitory | beds/bunks | 1 bed | after the desired pods and toilets exist |
+| dormitory | beds/bunks | 1 bed | after the desired pods and toilets exist; grows by expansion (up to `room-max-facilities`) before a new one is built |
 | trash room | an incinerator | 1 incinerator (and at most 1, via `maxFac`) | last, and only once there is refuse to burn |
-| storage room | one storage container, with an aisle | exactly 1 container via `maxFac` | player-ordered only (and the planner's silo) |
-| scumhouse (kitchen) | a scumhouse, a gap, and its pantry chest, with an aisle | 1 scumhouse (the pantry is dropped on a site too small for both) | first of all with `infinite-food` off (the default); otherwise player-ordered (see [scumhouse.md](./scumhouse.md)) |
+| storage room | one storage container, with an aisle | exactly 1 container via `maxFac` | player-ordered, the planner's silo, or when a full colonist has nowhere to unload; grows by expansion, one container at a time, before a new one is built |
+| scumhouse (kitchen) | a scumhouse, a gap, and its pantry chest, with an aisle | 1 scumhouse (the pantry is dropped on a site too small for both) | first of all with `infinite-food` off (the default); otherwise player-ordered (see [scumhouse.md](./scumhouse.md)). After the first, grows by expansion a stove and pantry at a time before a new one is built |
 | house | a bunk and a toilet | exactly 2 | commissioned by a colonist with `house-savings`, paid from its wallet (see [labor.md](./labor.md)) |
-| meeting hall | two to four chairs, with open floor in front | 2 chairs | after bunks and the incinerator, before the foundry; one chair per `colonists-per-chair` colonists, or player-ordered (`b` then `m`). See [meeting-hall.md](./meeting-hall.md) |
-| scum incubator | one or two incubators, with an aisle | 1–2 (narrow in a cramped cavern) | after the first scumhouse, up to one per `colonists-per-incubator` colonists, while pods do not feed anyone; or player-ordered (`b` then `i`). See [incubator.md](./incubator.md) |
+| meeting hall | two to four chairs, with open floor in front (more by expansion) | 2 chairs | after bunks and the incinerator, before the foundry; one chair per `colonists-per-chair` colonists, or player-ordered (`b` then `m`). See [meeting-hall.md](./meeting-hall.md) |
+| scum incubator | one or two incubators, with an aisle (more by expansion) | 1–2 (narrow in a cramped cavern) | after the first scumhouse, up to one per `colonists-per-incubator` colonists, while pods do not feed anyone; or player-ordered (`b` then `i`). See [incubator.md](./incubator.md) |
 | foundry | a forge, a gap, and a gun bench, with an aisle | exactly 2 (narrow in a cramped cavern) | last of all, while `armory-rifles` > 0 and there's no forge or gun bench; or player-ordered (`b` then `g`). See [foundry.md](./foundry.md) |
 
 **Aisles.** A one-fixture room is one tile wide, so exactly one tile can reach
@@ -180,14 +185,28 @@ picked still wins a tie. Rooms used to face south only, so they could back
 only onto rock to their north: a cavern whose rock lay to the east, west or
 south had no site in it at all.
 
-**Backing.** `findRoomSite` / `roomSiteClear` pick a site whose back wall is backed by
-solid rock or another room's already-placed wall, and whose two side walls are
-each either freshly built (with an exterior lane kept clear beside it so every
-wall task stays reachable even after its neighbors go up) or an already-placed,
-unclaimed wall from a neighboring room — in which case the two rooms sit flush
-and literally **share that one tile** as a party wall: this room adds no wall
-task of its own there (`designateRoom` skips it), and needs no exterior lane
-on that side either, since there is no wall task to reach.
+**Backing.** `findRoomSite` / `roomSiteClear` pick a site whose back wall either
+stands in front of solid rock or **is** another room's already-placed wall, and
+whose two side walls are each either freshly built (with an exterior lane kept
+clear beside it so every wall task stays reachable even after its neighbors go
+up) or an already-placed, unclaimed wall from a neighboring room. Where a wall
+is already there, the two rooms sit flush and literally **share that one tile**
+as a party wall: this room adds no wall task of its own there (`designateRoom`
+skips it, on the back wall as on the sides), and needs no exterior lane on that
+side either, since there is no wall task to reach.
+
+**No double walls.** A new wall is never raised directly against an old one.
+Rooms used to count another room's wall *behind* their back wall as backing,
+and built their own back wall in front of it: two walls side by side, the
+double-thick wall that ran between so many abutting rooms. Now the back wall
+row itself must be the old wall (shared), and a back wall tile that is built
+new needs rock behind it, or, standing free, anything but a wall, standing or
+planned by another project (`siteRules.walls`). The back corners obey the same
+rule without needing rock: a corner raised in front of a neighbor's wall left a
+one-tile stub where three rooms met. Side walls and front walls already could
+not double, because the lane beside a side wall and the approach row in front
+must be walkable. Across three seeds at 30 colonists and 10,000 ticks, 2×2
+blocks of wall (the signature of a double wall) went from 44–62 to 0.
 
 Sharing a boundary this way — on the back wall or a side wall — matters once a
 cave's easy rock-backed edges are used up: rooms reuse floor and structure
@@ -436,6 +455,13 @@ The room design is the product of watching colonies starve around earlier ones:
   That guarantee only ever covered a room trapping itself while it went up —
   see *The doorway tile is reserved forever, not just guaranteed once* above
   for the later, cross-room version of the same failure and how it's closed.
+- **A shared back wall, not one built against the old.** Backing onto a
+  neighbor once meant building a second wall in front of its wall. That cost a
+  row of rock and a row of floor per room and is what made the colony's
+  rooms read as a maze of double-thick walls; the room now sits one tile
+  further back and uses the neighbor's wall. Moving the stricter back-wall
+  check after the interior loop (with a cheap backed-only pre-check first)
+  kept `BenchmarkFindRoomSiteNoFit` where it was.
 - **Rock-backed niches, or a shared wall with a neighbor, are preferred,**
   and mean the back wall's tasks are reached from the future facility row.
   They were once required, to keep a room from becoming a free-standing

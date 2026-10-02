@@ -47,6 +47,8 @@ type project struct {
 	// workKind is the kind of work order each task is bought with: WorkBuild
 	// (the zero value) for a room, WorkDig for an excavation order.
 	workKind WorkKind
+	// room is the room this project marks out or enlarges, if it is one.
+	room *roomRecord
 }
 
 // taskDone reports whether a task's tile already holds its desired terrain —
@@ -284,12 +286,13 @@ func (w *World) pruneProjects() {
 // so they naturally clear from the edge inward as each newly-opened tile makes
 // its neighbor reachable — no special ordering logic needed.
 const (
-	roomFacilities = 4  // facilities designated in a full room
-	roomFrontClear = 2  // interior rows between facilities and the front wall
-	roomApproach   = 1  // open row outside the doorway
-	roomDigPhase   = -1 // excavate any not-yet-floor interior tile, before walls
-	roomWallPhase  = 0
-	roomFitPhase   = 1
+	roomFacilities    = 4  // facilities designated in a full room
+	roomFrontClear    = 2  // interior rows between facilities and the front wall
+	roomApproach      = 1  // open row outside the doorway
+	roomDemolishPhase = -2 // tear down the side wall an expansion moves (see roomgrow.go)
+	roomDigPhase      = -1 // excavate any not-yet-floor interior tile, before walls
+	roomWallPhase     = 0
+	roomFitPhase      = 1
 )
 
 // roomRecipe describes a buildable room kind. The one wall-and-doorway shell is
@@ -319,7 +322,21 @@ type roomRecipe struct {
 	// colony's first sets it — a one-tile scumhouse whose cook never left
 	// its only access tile starved a colonist beside a meal of its own.
 	aisleRequired bool
-	planLog       string // logged when the room is marked out
+	// expands lets the colony grow the room, moving a side wall out, rather
+	// than mark out another when it wants more of its fixture (see
+	// roomgrow.go). It grows by whole cycles of kinds: a kitchen by a stove
+	// and its pantry together.
+	expands bool
+	planLog string // logged when the room is marked out
+}
+
+// fullBay is how many fixtures a new room of r holds when its site allows:
+// roomFacilities, unless the recipe caps itself with maxFac.
+func (r roomRecipe) fullBay() int {
+	if r.maxFac <= 0 || r.maxFac > roomFacilities {
+		return roomFacilities
+	}
+	return r.maxFac
 }
 
 // roomWidth is the interior width of a room of r with n facilities.
@@ -353,7 +370,7 @@ var (
 	}
 	// dormRoom is a bay of bunks. Even a single bunk is worth raising.
 	dormRoom = roomRecipe{
-		name: "dormitory", kinds: []Terrain{Bed}, minFac: 1,
+		name: "dormitory", kinds: []Terrain{Bed}, minFac: 1, expands: true,
 		planLog: "The colony marks out a new dormitory.",
 	}
 	// trashRoom houses the incinerator that refuse is hauled to and burned in.
@@ -371,7 +388,7 @@ var (
 	// one at a time: unlike need facilities, their useful capacity is already
 	// six full colonist inventories and demand is player-directed.
 	storageRoom = roomRecipe{
-		name: "storage room", kinds: []Terrain{Storage}, minFac: 1, maxFac: 1, aisle: true,
+		name: "storage room", kinds: []Terrain{Storage}, minFac: 1, maxFac: 1, aisle: true, expands: true,
 		planLog: "The colony marks out a new storage room.",
 	}
 	// scumhouseRoom is a kitchen laid out as an assembly line: the scumhouse
@@ -386,7 +403,7 @@ var (
 	// roomRecipe.aisle), as does a storage room, since the first is the
 	// colony's silo. See docs/scumhouse.md.
 	scumhouseRoom = roomRecipe{
-		name: "scumhouse", kinds: []Terrain{Scumhouse, Storage}, minFac: 1, maxFac: 2, aisle: true,
+		name: "scumhouse", kinds: []Terrain{Scumhouse, Storage}, minFac: 1, maxFac: 2, aisle: true, expands: true,
 		planLog: "The colony marks out a scumhouse.",
 	}
 )
@@ -444,7 +461,7 @@ func (w *World) planRooms() {
 		// flight. Permit one storage room beyond the normal concurrency cap to
 		// break that circular dependency; no other recipe gets this exception.
 		if w.colonyNeedsStorage() {
-			w.planRoom(storageRoom)
+			w.growOrPlan(storageRoom, 1)
 		}
 		return
 	}
@@ -467,9 +484,12 @@ func (w *World) planRooms() {
 		}
 		return
 	}
+	// An ordered room is a new room's worth of fixtures (fullBay), and goes
+	// into a room of its kind that can grow before a new one is marked out
+	// (see roomgrow.go).
 	if w.manualDormitories > 0 {
 		before := len(w.projects)
-		w.planRoom(dormRoom)
+		w.growOrPlan(dormRoom, dormRoom.fullBay())
 		if len(w.projects) > before {
 			w.manualDormitories--
 		}
@@ -485,7 +505,7 @@ func (w *World) planRooms() {
 	}
 	if w.manualStorageRooms > 0 {
 		before := len(w.projects)
-		w.planRoom(storageRoom)
+		w.growOrPlan(storageRoom, storageRoom.fullBay())
 		if len(w.projects) > before {
 			w.manualStorageRooms--
 		}
@@ -493,7 +513,7 @@ func (w *World) planRooms() {
 	}
 	if w.manualScumhouses > 0 {
 		before := len(w.projects)
-		w.planRoom(scumhouseRoom)
+		w.growOrPlan(scumhouseRoom, scumhouseRoom.fullBay())
 		if len(w.projects) > before {
 			w.manualScumhouses--
 		}
@@ -501,7 +521,7 @@ func (w *World) planRooms() {
 	}
 	if w.manualIncubators > 0 {
 		before := len(w.projects)
-		w.planRoom(incubatorRoom)
+		w.growOrPlan(incubatorRoom, incubatorRoom.fullBay())
 		if len(w.projects) > before {
 			w.manualIncubators--
 		}
@@ -517,7 +537,7 @@ func (w *World) planRooms() {
 	}
 	if w.manualHalls > 0 {
 		before := len(w.projects)
-		w.planRoom(hallRoom)
+		w.growOrPlan(hallRoom, hallRoom.fullBay())
 		if len(w.projects) > before {
 			w.manualHalls--
 		}
@@ -538,6 +558,11 @@ func (w *World) planRooms() {
 		first := w.plannedFacilities(Scumhouse) == 0
 		r := scumhouseRoom
 		r.aisleRequired = !first
+		// A later kitchen goes into one the colony already has, a stove and
+		// its pantry further along the bay, when one can grow.
+		if !first && w.expandRoom(r, r.fullBay()) {
+			return
+		}
 		if w.planRoomFor(r, Community) {
 			return
 		}
@@ -549,7 +574,8 @@ func (w *World) planRooms() {
 	// The incubator feeds the scumhouse: a steady supply of scum that replaces
 	// scraping the rock. An ordinary public work, so it waits on the treasury,
 	// and until it stands the colony scrapes as before (wildScumAllowed).
-	if !w.podsFeed() && w.wantsIncubator() && w.planRoomFor(incubatorRoom, Community) {
+	if !w.podsFeed() && w.wantsIncubator() &&
+		w.growOrPlan(incubatorRoom, w.desiredIncubators()-w.plannedFacilities(Incubator)) {
 		return
 	}
 	desired := w.desiredFacilities(w.countKind(Colonist))
@@ -562,7 +588,7 @@ func (w *World) planRooms() {
 	// phase consists of dig tasks. Storage therefore outranks non-fatal bunks:
 	// make somewhere to unload before asking the same workers to excavate more.
 	if w.colonyNeedsStorage() {
-		w.planRoom(storageRoom)
+		w.growOrPlan(storageRoom, 1)
 		return
 	}
 	// The colony trades at a communal chest, its silo (see market.go). Crash
@@ -572,8 +598,10 @@ func (w *World) planRooms() {
 		w.planRoom(storageRoom)
 		return
 	}
-	if w.plannedFacilities(Bed) < desired {
-		w.planRoom(dormRoom)
+	// More bunks go into a dormitory the colony already has, when one can
+	// grow (see roomgrow.go), before another is marked out.
+	if planned := w.plannedFacilities(Bed); planned < desired {
+		w.growOrPlan(dormRoom, desired-planned)
 		return
 	}
 	// Sanitation last, and only once there is actually a mess: an incinerator
@@ -589,8 +617,8 @@ func (w *World) planRooms() {
 	// A meeting hall after everything above: company is not fatal, and its
 	// walls and chairs cost real rock. Unlike the foundry it is a headcount
 	// matter (see wantsHall), so it outranks it.
-	if w.wantsHall() {
-		if w.planRoomFor(hallRoom, Community) {
+	if short := w.chairsShort(); short > 0 {
+		if w.growOrPlan(hallRoom, short) {
 			return
 		}
 	}
@@ -639,11 +667,7 @@ func (w *World) planRoomFor(r roomRecipe, issuer Owner) bool {
 // first, and reports whether it planned the room and whether find offered a
 // site at all (a site whose work issuer cannot pay for is sited, not planned).
 func (w *World) placeRoom(r roomRecipe, issuer Owner, find func(width int) (roomFrame, bool)) (planned, sited bool) {
-	largest := r.maxFac
-	if largest <= 0 || largest > roomFacilities {
-		largest = roomFacilities
-	}
-	for n := largest; n >= r.minFac; n-- {
+	for n := r.fullBay(); n >= r.minFac; n-- {
 		f, ok := find(r.roomWidth(n))
 		if !ok && r.aisle && !r.aisleRequired {
 			// A cramped cavern with no site wide enough for the aisle still
@@ -693,8 +717,11 @@ func (w *World) designateRoom(r roomRecipe, f roomFrame, n int, issuer Owner) bo
 	}
 	doorU := f.doorU()
 	for u := 0; u < f.width; u++ {
-		p.tasks = append(p.tasks,
-			&buildTask{pos: f.at(u, roomBackV), terrain: Wall, phase: roomWallPhase})
+		// A back wall tile that is already a wall is shared with the room
+		// behind (see roomSiteClear), like a party side wall.
+		if back := f.at(u, roomBackV); w.TerrainAt(back) != Wall {
+			p.tasks = append(p.tasks, &buildTask{pos: back, terrain: Wall, phase: roomWallPhase})
+		}
 		if u != doorU {
 			p.tasks = append(p.tasks,
 				&buildTask{pos: f.at(u, roomFrontV), terrain: Wall, phase: roomWallPhase})
@@ -719,6 +746,10 @@ func (w *World) designateRoom(r roomRecipe, f roomFrame, n int, issuer Owner) bo
 	// spot, sealing this room's only way out behind a wall its own doorway
 	// invariant never anticipated. See roomSiteClear.
 	w.doorTiles[f.doorStep()] = true
+	p.room = &roomRecord{recipe: r, f: f, n: n, issuer: issuer}
+	w.roomRecords = append(w.roomRecords, p.room)
+	w.indexRoomFloor(p.room, 0, f.width-1)
+	w.roomFloor[f.at(f.doorU(), roomFrontV)] = p.room
 	w.projects = append(w.projects, p)
 	if r.name == scumhouseRoom.name {
 		w.linkPantry(p)
@@ -768,9 +799,13 @@ func (w *World) findFreeStandingSite(width int) (roomFrame, bool) {
 type siteRules struct {
 	// allowRock lets the interior still be solid rock, dug out first.
 	allowRock bool
-	// unbacked drops the requirement for rock or a wall behind the back
-	// wall: the room may stand free on open floor.
+	// unbacked drops the requirement for rock behind the back wall: the room
+	// may stand free on open floor.
 	unbacked bool
+	// walls is every tile another project will raise a wall on. A new wall
+	// is never built against one, any more than against a standing wall
+	// (see roomSiteClear). findRoomSiteWith fills it; nil means none.
+	walls map[Point]bool
 }
 
 // roomSearchStartRadius is the first box half-width findRoomSiteWith
@@ -836,9 +871,13 @@ func compareSiteCandidates(a, b siteCandidate) int {
 // ties go to the row-major first anchor, then to roomFacings' order.
 func (w *World) findRoomSiteWith(width int, rules siteRules) (roomFrame, bool) {
 	designated := make(map[Point]bool)
+	rules.walls = make(map[Point]bool)
 	for _, p := range w.projects {
 		for _, t := range p.tasks {
 			designated[t.pos] = true
+			if t.terrain == Wall {
+				rules.walls[t.pos] = true
+			}
 		}
 	}
 	center := Point{w.Width / 2, w.Height / 2}
@@ -977,8 +1016,10 @@ func (w *World) lastUnwalkableInColumn(x, y0, y1 int) (int, bool) {
 // (where this room's own back/front walls and facilities go) must be clear
 // floor — or, when rules.allowRock is set, may also be still-solid rock, which
 // a dig task excavates before the wall phase starts (see designateRoom) — as
-// long as it is unclaimed by another project; unless rules.unbacked, the
-// placed rear wall is backed by solid rock or another room's wall; and each
+// long as it is unclaimed by another project; the back wall is either
+// another room's wall, shared outright, or built new against solid rock
+// (unless rules.unbacked) and never against a wall, standing or planned; and
+// each
 // side wall is either freshly built (with a connected exterior lane keeping it
 // reachable) or reused outright from an already-placed, unclaimed neighboring
 // wall — the two rooms then sit flush, sharing that one tile as a party wall
@@ -1003,9 +1044,12 @@ func (w *World) roomSiteClear(f roomFrame, designated map[Point]bool, rules site
 	if !w.InBounds(f.at(-2, roomBackV-1)) || !w.InBounds(f.at(f.width+1, roomFrontV+roomApproach)) {
 		return false
 	}
+	// A backed room's back wall stands on a wall or in front of rock: a
+	// terrain read or two that turns down most anchors on open floor before
+	// the loops below. The full back wall check comes after them.
 	if !rules.unbacked {
 		for u := 0; u < f.width; u++ {
-			if t := w.TerrainAt(f.at(u, roomBackV-1)); t != Rock && t != Wall {
+			if w.TerrainAt(f.at(u, roomBackV-1)) != Rock && w.TerrainAt(f.at(u, roomBackV)) != Wall {
 				return false
 			}
 		}
@@ -1014,6 +1058,9 @@ func (w *World) roomSiteClear(f roomFrame, designated map[Point]bool, rules site
 		for u := 0; u < f.width; u++ {
 			p := f.at(u, v)
 			t := w.TerrainAt(p)
+			if v == roomBackV && t == Wall {
+				continue // a shared back wall, checked below
+			}
 			if (t != Floor && !(rules.allowRock && t == Rock)) || designated[p] || w.doorTiles[p] {
 				return false
 			}
@@ -1041,6 +1088,29 @@ func (w *World) roomSiteClear(f roomFrame, designated map[Point]bool, rules site
 			if designated[p] || w.doorTiles[p] {
 				return false
 			}
+		}
+	}
+	// The back wall: each tile is shared outright from a wall already
+	// standing there, or built new in front of rock (anything but a wall,
+	// standing or planned, when the room stands free). A new wall raised
+	// against an old one is the double-thick wall rooms used to leave between
+	// them: the room should have sat one tile further back and used the old
+	// wall as its own. The back corners (the side walls' last tiles) need no
+	// rock behind them, but are no more raised against a wall than the rest.
+	// This runs after the loop above, whose side walls turn down nearly every
+	// anchor in solid rock more cheaply.
+	for u := -1; u <= f.width; u++ {
+		p := f.at(u, roomBackV)
+		if w.TerrainAt(p) == Wall {
+			if designated[p] {
+				return false
+			}
+			continue
+		}
+		corner := u < 0 || u == f.width
+		behind := f.at(u, roomBackV-1)
+		if t := w.TerrainAt(behind); t == Wall || rules.walls[behind] || (!corner && !rules.unbacked && t != Rock) {
+			return false
 		}
 	}
 	// Connect both exterior side lanes in front of the room, for whichever

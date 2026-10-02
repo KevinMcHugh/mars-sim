@@ -1099,8 +1099,10 @@ func TestLargeColonyDoesNotGridlockAtFacilities(t *testing.T) {
 }
 
 // A room site can back onto another room's already-placed wall instead of
-// requiring untouched rock, so rooms can sit flush against each other and
-// share that boundary once a cave's easy rock-backed edges are used up.
+// requiring untouched rock, so rooms can sit flush against each other once a
+// cave's easy rock-backed edges are used up. It shares that wall outright as
+// its own back wall, rather than raising a second wall in front of it: the
+// double-thick wall rooms used to leave between them.
 func TestRoomSiteCanBackOntoAnotherRoomsWall(t *testing.T) {
 	cfg := testConfig()
 	cfg.StartColonists, cfg.StartAliens = 0, 0
@@ -1116,37 +1118,44 @@ func TestRoomSiteCanBackOntoAnotherRoomsWall(t *testing.T) {
 	}
 
 	width := bayWidth(roomFacilities)
-	// Site everything near the map center — findRoomSite prefers the site
-	// nearest center — and carve only the exact footprint roomSiteClear
-	// requires (not a whole open row), so no other column could also qualify
-	// and mask a regression in the assertion below.
 	oy := w.Height / 2
 	ox := w.Width / 2
 	backY := oy - 1
 	frontY := roomFrontWallY(oy)
-	// Simulate an already-built neighboring room: a wall row with no rock
-	// anywhere behind it (backY-1 lands here).
-	for x := ox; x < ox+width; x++ {
-		w.SetTerrain(Point{x, backY - 1}, Wall)
+	// An already-built neighboring room's wall, corners and all, with no rock
+	// anywhere in front of it.
+	for x := ox - 1; x <= ox+width; x++ {
+		w.SetTerrain(Point{x, backY}, Wall)
 	}
-	// The new room's own footprint plus its side lanes.
-	for y := backY; y <= frontY; y++ {
+	// The new room's interior plus its side lanes, and the approach row.
+	for y := backY + 1; y <= frontY+roomApproach; y++ {
 		for x := ox - 2; x <= ox+width+1; x++ {
 			w.SetTerrain(Point{x, y}, Floor)
 		}
 	}
-	// The front approach lane.
-	for x := ox - 2; x <= ox+width+1; x++ {
-		w.SetTerrain(Point{x, frontY + roomApproach}, Floor)
-	}
 	w.refreshSpatial()
+
+	// One row further forward, the room would raise its own back wall
+	// against the neighbor's.
+	if doubled := (roomFrame{o: Point{ox, oy + 1}, width: width}); w.roomSiteClear(doubled, map[Point]bool{}, siteRules{}) ||
+		w.roomSiteClear(doubled, map[Point]bool{}, siteRules{unbacked: true}) {
+		t.Fatal("a site whose back wall stands against another room's wall was accepted")
+	}
 
 	site, ok := w.findRoomSite(width)
 	if !ok {
 		t.Fatal("expected a room site backed by an existing wall")
 	}
 	if want := (Point{ox, oy}); site.o != want || site.face != faceSouth {
-		t.Fatalf("site = %+v, want %v (backed by the wall at y=%d)", site, want, backY-1)
+		t.Fatalf("site = %+v, want %v (sharing the wall at y=%d)", site, want, backY)
+	}
+	if !w.designateRoom(dormRoom, site, roomFacilities, Community) {
+		t.Fatal("the room was not designated")
+	}
+	for _, tk := range w.projects[0].tasks {
+		if tk.pos.Y == backY {
+			t.Fatalf("a %v task at %v on the shared back wall", tk.terrain, tk.pos)
+		}
 	}
 }
 
@@ -1535,20 +1544,22 @@ func TestRoomSiteClearRejectsCoveringAnotherRoomsDoorway(t *testing.T) {
 		t.Fatalf("designateRoom did not reserve %v as room A's door tile", doorA)
 	}
 
-	// Room B sites entirely below and beside room A, backing onto room A's
-	// own front wall (a legitimate reuse, like sharing a party wall) — but
-	// its left side wall's column lands exactly on room A's door tile.
-	siteB := Point{doorA.X + 1, doorA.Y + 1}
+	// Room B stands free below room A, sharing room A's front wall as its
+	// own back wall (a legitimate reuse, like sharing a party wall) — but its
+	// facility row lands exactly on room A's door tile, and its back wall
+	// across room A's doorway.
+	siteB := Point{doorA.X - 1, doorA.Y}
 	widthB := bayWidth(2)
+	free := siteRules{unbacked: true}
 
 	delete(w.doorTiles, doorA)
-	if !w.roomSiteClear(roomFrame{o: siteB, width: widthB}, map[Point]bool{}, siteRules{}) {
+	if !w.roomSiteClear(roomFrame{o: siteB, width: widthB}, map[Point]bool{}, free) {
 		t.Fatal("test geometry does not actually reach room A's doorway tile; not exercising the fix")
 	}
 	w.doorTiles[doorA] = true
 
-	if w.roomSiteClear(roomFrame{o: siteB, width: widthB}, map[Point]bool{}, siteRules{}) {
-		t.Fatalf("room B's site was accepted even though its side wall would cover room A's doorway tile %v", doorA)
+	if w.roomSiteClear(roomFrame{o: siteB, width: widthB}, map[Point]bool{}, free) {
+		t.Fatalf("room B's site was accepted even though it would cover room A's doorway tile %v", doorA)
 	}
 }
 

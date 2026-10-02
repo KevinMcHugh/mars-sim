@@ -37,6 +37,7 @@ way it is without re-deriving it from the source each time.
 | [ages-and-family.md](./ages-and-family.md) | Colonist ages and the age invariants family ties have to satisfy. |
 | [heredity.md](./heredity.md) | What joining a family does to a colonist: a shared surname, inherited looks, and a warm start with relatives. |
 | [construction.md](./construction.md) | Construction projects and the facility-room design: rooms facing any way, standing free, never cutting the colony in two, and the deadlocks that shaped it. |
+| [room-expansion.md](./room-expansion.md) | Growing a dormitory, storage room, kitchen, incubator or meeting hall instead of building another: the room records, tearing down a side wall and raising one further out, the phases and the demolition wage, and why the wall comes down first. |
 | [escape.md](./escape.md) | What happens when part of the colony ends up cut off: a sealed-in colonist digs or breaks its way out, and a cut-off facility gets a passage dug to it. |
 | [sanitation.md](./sanitation.md) | Cleaning up gore and corpses, hauling refuse, the incinerator, and the trash room. |
 | [pathfinding.md](./pathfinding.md) | Rooms/regions, tile A\*, shared flow fields, and hierarchical (HPA\*) routing. |

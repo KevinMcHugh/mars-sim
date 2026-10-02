@@ -270,6 +270,9 @@
 ## what the colony pays to build one fixture (pod, toilet, bed, ...)
 # wage-fixture: 5
 
+## what the colony pays to tear down one wall tile to enlarge a room
+# wage-demolish: 3
+
 ## what the colony pays a cook each time it works a recipe on the colony's stock
 # wage-cook: 1
 
@@ -650,6 +653,12 @@
 
 ## rooms that can be under construction at once
 # max-concurrent-projects: 2
+
+## enlarge an existing dormitory, storage room, kitchen, incubator or meeting hall, moving a side wall out, before building a new one
+# room-expansion: true
+
+## most fixtures (bunks, containers, stoves and pantries, incubators, chairs) a room grows to by expansion
+# room-max-facilities: 8
 
 ## ticks a colonist's room must stay cut off from the colony before it breaks out on its own
 # escape-grace-ticks: 32

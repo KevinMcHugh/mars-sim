@@ -134,11 +134,21 @@ func (w *World) wageFor(t Terrain) Money {
 	}
 }
 
+// taskWage is what a task pays: wageFor its terrain, except that breaking a
+// wall down (a dig task that clears a wall) pays WageDemolish. A passage
+// breaks walls too, but nobody pays for one (see planPassage).
+func (w *World) taskWage(t *buildTask) Money {
+	if t.terrain == Floor && t.clears == Wall {
+		return Money(w.cfg.WageDemolish)
+	}
+	return w.wageFor(t.terrain)
+}
+
 // projectCost is what funding every task of p would cost.
 func (w *World) projectCost(p *project) Money {
 	var total Money
 	for _, t := range p.tasks {
-		total += w.wageFor(t.terrain)
+		total += w.taskWage(t)
 	}
 	return total
 }
@@ -157,7 +167,7 @@ func (w *World) fundProject(p *project) bool {
 		return false
 	}
 	for _, t := range p.tasks {
-		t.order = w.postWork(p.workKind, p.issuer, w.wageFor(t.terrain), 1, t.pos)
+		t.order = w.postWork(p.workKind, p.issuer, w.taskWage(t), 1, t.pos)
 	}
 	return true
 }

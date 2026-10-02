@@ -162,3 +162,29 @@ func TestRoomsStandFreeWhenNothingIsLeftToBackOnto(t *testing.T) {
 		}
 	}
 }
+
+// A room's back corners need no rock behind them, but are no more raised
+// against a wall than its back wall is: a corner tile built in front of a
+// neighbor's wall was the last of the double-thick walls, a one-tile stub
+// where three rooms met.
+func TestRoomCornerIsNotRaisedAgainstAWall(t *testing.T) {
+	w := rockSiteWorld(t)
+	f := roomFrame{o: Point{19, 11}, width: 3}
+	lo, hi := f.box(-2, roomBackV, f.width+1, roomFrontV+roomApproach)
+	carve(w, lo, hi, Floor)
+	w.refreshSpatial()
+	if !w.roomSiteClear(f, map[Point]bool{}, siteRules{}) {
+		t.Fatal("test setup: the site is not clear")
+	}
+	corner := f.at(-1, roomBackV-1)
+	w.SetTerrain(corner, Wall)
+	w.refreshSpatial()
+	if w.roomSiteClear(f, map[Point]bool{}, siteRules{}) {
+		t.Fatalf("accepted a back corner raised against the wall at %v", corner)
+	}
+	w.SetTerrain(corner, Rock)
+	if !w.roomSiteClear(f, map[Point]bool{}, siteRules{walls: map[Point]bool{}}) ||
+		w.roomSiteClear(f, map[Point]bool{}, siteRules{walls: map[Point]bool{corner: true}}) {
+		t.Fatal("a wall another project will raise behind the corner is not treated as one standing")
+	}
+}
