@@ -295,6 +295,18 @@
 ## communal toilets a ship carries, as a percent of its passengers (rounded up)
 # ship-toilet-percent: 25
 
+## relative odds a colony ship is a stick: its rooms in a row along one aisle
+# ship-stick-weight: 1
+
+## relative odds a colony ship is a hub and spoke: a concourse with a room down each spoke
+# ship-hub-weight: 1
+
+## relative odds a colony ship is a knobby cluster: rooms budding off a spine corridor
+# ship-cluster-weight: 1
+
+## hold the founders' ships aloft for the player to land one by one (the browser does)
+# place-ships: false
+
 ## dollars each colonist arrives with
 # crash-pod-purse: 100
 

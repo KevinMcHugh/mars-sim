@@ -6,22 +6,14 @@ import "fmt"
 //
 // Every colonist arrives aboard a colony ship: a hulled prefab of up to
 // ship-capacity settlers, stamped into the world where it lands. A ship is
-// three rooms in a row behind one metal hull — a bunkroom of communal bunks,
-// a latrine of communal toilets, and a hold with a private locker for every
-// passenger (and a private trough for every chicken keeper) — joined by a
-// two-wide aisle that runs the ship's length and out of a doorway at each
-// end. Worldgen, the spawn command, and the director's arrival occurrence
-// all go through land, so what a ship carries is decided in one place. See
-// docs/ships.md.
-//
-// A ship for six, with one chicken keeper:
-//
-//	H H H H H H H H H H H     H hull (metal wall)
-//	H B B H T H L L L ~ H     B bunk, T toilet, L locker, ~ trough
-//	. . . . . . . . . . .     the aisle: doorways at both ends and through
-//	. . . . . . . . . . .     every partition; passengers step out here
-//	H B . H T H L L L . H
-//	H H H H H H H H H H H
+// three rooms behind one metal hull — a bunkroom of communal bunks, a latrine
+// of communal toilets, and a hold with a private locker for every passenger
+// (and a private trough for every chicken keeper) — joined by a two-wide
+// aisle. It comes down as a stick, a hub and spoke, or a knobby cluster (see
+// ship_layout.go). Worldgen, the spawn command, and the director's arrival
+// occurrence all go through land, so what a ship carries is decided in one
+// place; in the browser the founders wait aloft until the player lands each
+// one (LandShip). See docs/ships.md.
 //
 // The ship replaced one crash pod per colonist. Pods each carried a private
 // bunk and toilet, so a colony of them never needed a dormitory, and they
@@ -30,11 +22,6 @@ import "fmt"
 // of them to sleep at once, so the colony has to build.
 
 const (
-	// shipHeight is every ship's footprint height: hull, fixture row, two
-	// aisle rows, fixture row, hull.
-	shipHeight = 6
-	// shipAisle is the top aisle row; shipAisle+1 is the other.
-	shipAisle = 2
 	// shipCrashSlack is how many rings beyond the first crash-through site
 	// the search keeps looking for a clear one. An open site a little farther
 	// out beats smashing a hole in the rock right by the colony, but not by
@@ -44,6 +31,9 @@ const (
 	// the map: stamping discovers the footprint, and revealAround reveals the
 	// ring around every tile it touches.
 	shipRevealReach = 2
+	// shipRingBacktrack is how many rings inside the last landing's the next
+	// search starts (see findShipSite).
+	shipRingBacktrack = 6
 )
 
 // Ship is one colony ship that has landed: where it is, its layout, and who
@@ -58,124 +48,6 @@ type Ship struct {
 	// came down with them, in the order they stepped out.
 	Colonists []EntityID
 	Pets      []EntityID
-}
-
-// shipFixture is one fixture in a ship's layout, as an offset from its
-// top-left. slot is the passenger it is private to, or -1 for a communal one.
-type shipFixture struct {
-	at      Point
-	terrain Terrain
-	slot    int
-}
-
-// shipLayout is a ship's floor plan, decided by how many it carries.
-type shipLayout struct {
-	width    int
-	fixtures []shipFixture
-	// floor is the interior aisle tiles in the order passengers, then pets,
-	// step out onto them.
-	floor []Point
-	// hull marks the footprint's hull tiles, row-major.
-	hull []bool
-	// doors are the approach tiles just outside the two end doorways,
-	// reserved like a room's.
-	doors []Point
-}
-
-func (l *shipLayout) hullAt(dx, dy int) bool { return l.hull[dy*l.width+dx] }
-
-// planShip lays out a ship for len(keepers) passengers, keepers[i] saying
-// whether passenger i keeps a chicken (and so has a trough in the hold).
-//
-// Rooms are filled column by column, top row then bottom, each a column
-// wider per two fixtures, so the ship grows along its length and every
-// fixture faces the aisle. A room that would hold nothing is left out.
-func (w *World) planShip(keepers []bool) shipLayout {
-	n := len(keepers)
-	type room struct {
-		count int
-		at    func(i int) (Terrain, int)
-	}
-	var troughs []int
-	for i, k := range keepers {
-		if k {
-			troughs = append(troughs, i)
-		}
-	}
-	communal := func(t Terrain) func(int) (Terrain, int) {
-		return func(int) (Terrain, int) { return t, -1 }
-	}
-	rooms := []room{
-		{shipShare(n, w.cfg.ShipBunkPercent), communal(Bed)},
-		{shipShare(n, w.cfg.ShipToiletPercent), communal(Toilet)},
-		{n + len(troughs), func(i int) (Terrain, int) {
-			if i < n {
-				return Storage, i
-			}
-			return Trough, troughs[i-n]
-		}},
-	}
-	l := shipLayout{}
-	var top, bottom []Point
-	var partitions []int
-	x := 1
-	for _, r := range rooms {
-		if r.count == 0 {
-			continue
-		}
-		if x > 1 {
-			partitions = append(partitions, x)
-			x++
-		}
-		cols := (r.count + 1) / 2
-		for i := 0; i < r.count; i++ {
-			row := 1
-			if i%2 == 1 {
-				row = shipHeight - 2
-			}
-			t, slot := r.at(i)
-			l.fixtures = append(l.fixtures, shipFixture{Point{x + i/2, row}, t, slot})
-		}
-		for c := 0; c < cols; c++ {
-			top = append(top, Point{x + c, shipAisle})
-			bottom = append(bottom, Point{x + c, shipAisle + 1})
-		}
-		x += cols
-	}
-	// Everyone aboard steps out onto a tile of their own: every passenger
-	// and a pet each at most. Bunks and toilets alone leave room for that,
-	// except in a few ships with many pets and few troughs; those get a
-	// little spare floor at the end of the hold.
-	for len(top)+len(partitions) < n {
-		top = append(top, Point{x, shipAisle})
-		bottom = append(bottom, Point{x, shipAisle + 1})
-		x++
-	}
-	l.width = x + 1
-	l.floor = append(top, bottom...)
-	for _, px := range partitions {
-		l.floor = append(l.floor, Point{px, shipAisle}, Point{px, shipAisle + 1})
-	}
-	l.hull = make([]bool, l.width*shipHeight)
-	aisle := func(dy int) bool { return dy == shipAisle || dy == shipAisle+1 }
-	for dy := 0; dy < shipHeight; dy++ {
-		for dx := 0; dx < l.width; dx++ {
-			edge := dy == 0 || dy == shipHeight-1 || ((dx == 0 || dx == l.width-1) && !aisle(dy))
-			l.hull[dy*l.width+dx] = edge
-		}
-	}
-	for _, px := range partitions {
-		for dy := 0; dy < shipHeight; dy++ {
-			if !aisle(dy) {
-				l.hull[dy*l.width+px] = true
-			}
-		}
-	}
-	l.doors = []Point{
-		{-1, shipAisle}, {-1, shipAisle + 1},
-		{l.width, shipAisle}, {l.width, shipAisle + 1},
-	}
-	return l
 }
 
 // shipShare is pct percent of n, rounded up, but at least one while pct is
@@ -229,30 +101,65 @@ func shipsNoun(n int) string {
 	return fmt.Sprintf("%d ships", n)
 }
 
-// land brings a ship of n settlers into the world and returns it, or nil if
-// no site could be found anywhere (a map with no room left at all). Every
-// way a colonist enters the game comes through here. announce logs the
-// landing; worldgen passes false so the opening log is not one line per
-// ship.
+// land brings a ship of n settlers into the world, wherever findShipSite
+// puts it, and returns it, or nil if no site could be found anywhere (a map
+// with no room left at all). Every way a colonist enters the game comes
+// through here or landAt. announce logs the landing; worldgen passes false so
+// the opening log is not one line per ship.
 func (w *World) land(n int, announce bool) *Ship {
 	if n <= 0 {
 		return nil
 	}
+	l := w.nextShipLayout(n)
+	o, crashed, ok := w.findShipSite(l)
+	if !ok && l.shape != shipStick {
+		// No room anywhere for this shape: a stick is the slimmest ship and
+		// fits where the others do not.
+		l = w.planStick(w.shipKeepers(w.nextID, n))
+		o, crashed, ok = w.findShipSite(l)
+	}
+	if !ok {
+		return nil
+	}
+	return w.landShip(n, l, o, crashed, announce)
+}
+
+// landAt brings a ship of n settlers down with its top-left at o, where a
+// player chose: nextShipLayout's ship, so the one a frontend was shown. It
+// returns nil if the site is not allowed (see shipSiteAllowed). The ship
+// crushes anything under it, as a moved ship does.
+func (w *World) landAt(n int, o Point, announce bool) *Ship {
+	if n <= 0 {
+		return nil
+	}
+	l := w.nextShipLayout(n)
+	if !w.shipSiteAllowed(nil, &l, o) {
+		return nil
+	}
+	crashed := false
+	l.forEachTile(func(d Point, _ bool) {
+		p := o.Add(d.X, d.Y)
+		crashed = crashed || w.TerrainAt(p) == Rock
+		if e := w.entityAt(p); e != nil {
+			w.remove(e.ID, "crushed by a landing ship")
+		}
+	})
+	return w.landShip(n, l, o, crashed, announce)
+}
+
+// landShip lands a ship of n laid out as l with its top-left at o: it stamps
+// the ship, steps the passengers and their pets out, and stocks the hold.
+func (w *World) landShip(n int, l shipLayout, o Point, crashed, announce bool) *Ship {
 	// The passengers take the next n IDs, in order (their pets come after),
 	// so who keeps a chicken — and needs a trough in the hold — is known
 	// before the ship is laid out.
 	first := w.nextID
-	keepers := make([]bool, n)
-	for i := range keepers {
-		keepers[i] = w.arrivalRareItem(first+EntityID(i)) == rareChicken
-	}
-	l := w.planShip(keepers)
-	o, crashed, ok := w.findShipSite(l)
-	if !ok {
-		return nil
-	}
 	s := &Ship{ID: len(w.ships) + 1, Origin: o, layout: l}
 	w.ships = append(w.ships, s)
+	// A ship a player put down beside a hidden cavern breaks into it. Its
+	// nest is rolled once everyone aboard is out, so its aliens neither take
+	// the passengers' IDs nor their tiles.
+	w.holdNests = true
 	w.stampShip(s)
 	for i := 0; i < n; i++ {
 		e := w.spawn(Colonist, o.Add(l.floor[i].X, l.floor[i].Y))
@@ -286,6 +193,11 @@ func (w *World) land(n int, announce bool) *Ship {
 			s.Pets = append(s.Pets, cat.ID)
 		}
 	}
+	w.holdNests = false
+	if len(w.nestCenters) > 0 {
+		w.rollNests(w.nestCenters)
+		w.nestCenters = w.nestCenters[:0]
+	}
 
 	if announce {
 		how := "lands"
@@ -296,9 +208,45 @@ func (w *World) land(n int, announce bool) *Ship {
 		if n > 1 {
 			who = fmt.Sprintf("%d settlers", n)
 		}
-		w.logEvent(LogArrival, fmt.Sprintf("A colony ship %s at (%d, %d): %s aboard.", how, o.X, o.Y, who))
+		w.logEvent(LogArrival, fmt.Sprintf("A %s colony ship %s at (%d, %d): %s aboard.", l.shape, how, o.X, o.Y, who))
 	}
 	return s
+}
+
+// LandShip lands the next ship still waiting aloft with its top-left at
+// (X, Y), before the game's first tick: with place-ships set (the browser
+// sets it), the founders' ships wait for the player to land them one after
+// another. Ship is the ship's ID, which must be the next to land, so a
+// command sent twice cannot land the one after it by mistake.
+type LandShip struct {
+	Ship int
+	X, Y int
+}
+
+func (LandShip) isCommand() {}
+
+// landAloft carries out a LandShip, reporting whether a ship landed.
+func (w *World) landAloft(c LandShip) bool {
+	if w.tick != 0 || len(w.aloft) == 0 || c.Ship != len(w.ships)+1 {
+		return false
+	}
+	if w.landAt(w.aloft[0], Point{c.X, c.Y}, true) == nil {
+		return false
+	}
+	w.aloft = w.aloft[1:]
+	w.refreshSpatial()
+	return true
+}
+
+// landRestAloft brings down any founders' ships the player left aloft when
+// the game started, wherever findShipSite puts them, so nobody is left in
+// orbit.
+func (w *World) landRestAloft() {
+	for len(w.aloft) > 0 {
+		w.land(w.aloft[0], true)
+		w.aloft = w.aloft[1:]
+	}
+	w.refreshSpatial()
 }
 
 // stampShip writes a ship's hull, floor, and fixtures at its origin. The
@@ -309,22 +257,20 @@ func (w *World) land(n int, announce bool) *Ship {
 // or later ship seals the passengers in (see designateRoom).
 func (w *World) stampShip(s *Ship) {
 	l, o := &s.layout, s.Origin
-	for dy := 0; dy < shipHeight; dy++ {
-		for dx := 0; dx < l.width; dx++ {
-			p := o.Add(dx, dy)
-			w.revealAround(p)
-			if l.hullAt(dx, dy) {
-				w.SetTerrain(p, Hull)
-			} else {
-				w.SetTerrain(p, Floor)
-			}
-		}
-	}
-	forEachShipMargin(o, l.width, func(p Point) {
-		if w.TerrainAt(p) == Rock {
+	l.forEachTile(func(d Point, hull bool) {
+		p := o.Add(d.X, d.Y)
+		w.revealAround(p)
+		if hull {
+			w.SetTerrain(p, Hull)
+		} else {
 			w.SetTerrain(p, Floor)
 		}
 	})
+	for _, d := range l.margin {
+		if p := o.Add(d.X, d.Y); w.TerrainAt(p) == Rock {
+			w.SetTerrain(p, Floor)
+		}
+	}
 	for _, d := range l.doors {
 		w.doorTiles[o.Add(d.X, d.Y)] = true
 	}
@@ -389,21 +335,39 @@ func (w *World) lockerOf(e *Entity) (Point, bool) {
 	return Point{}, false
 }
 
-// ShipView is a landed ship as a frontend sees it: its footprint and how many
-// came down in it.
+// ShipView is a ship as a frontend sees it: its footprint, its shape, and
+// how many came down in it. A ship still Aloft (see LandShip) has no
+// position; only the next one to land has a shape yet, because where the
+// ones before it land can change which IDs, and so which troughs, it gets.
 type ShipView struct {
 	ID            int
 	X, Y          int // the footprint's top-left
 	Width, Height int
-	Colonists     int
+	// Shape is the footprint row by row: '#' hull, '.' deck, ' ' not part
+	// of the ship. Shared with the layout, so read-only.
+	Shape     []string
+	ShapeName string
+	Colonists int
+	Aloft     bool
 }
 
-// shipViews lists the ships for a snapshot: a fresh copy, which is cheap —
-// a colony has one ship per ship-capacity settlers.
+// shipViews lists the ships for a snapshot, landed ones then any still
+// aloft: a fresh copy, which is cheap — a colony has one ship per
+// ship-capacity settlers.
 func (w *World) shipViews() []ShipView {
-	out := make([]ShipView, len(w.ships))
-	for i, s := range w.ships {
-		out[i] = ShipView{ID: s.ID, X: s.Origin.X, Y: s.Origin.Y, Width: s.layout.width, Height: shipHeight, Colonists: len(s.Colonists)}
+	out := make([]ShipView, 0, len(w.ships)+len(w.aloft))
+	for _, s := range w.ships {
+		l := &s.layout
+		out = append(out, ShipView{ID: s.ID, X: s.Origin.X, Y: s.Origin.Y, Width: l.width, Height: l.height,
+			Shape: l.rows, ShapeName: l.shape.String(), Colonists: len(s.Colonists)})
+	}
+	for i, n := range w.aloft {
+		v := ShipView{ID: len(w.ships) + 1 + i, Colonists: n, Aloft: true}
+		if i == 0 {
+			l := w.nextShipLayout(n)
+			v.Width, v.Height, v.Shape, v.ShapeName = l.width, l.height, l.rows, l.shape.String()
+		}
+		out = append(out, v)
 	}
 	return out
 }
@@ -437,8 +401,8 @@ func (w *World) moveShip(c MoveShip) bool {
 	if w.tick != 0 || s == nil {
 		return false
 	}
-	o, width := Point{c.X, c.Y}, s.layout.width
-	if !w.shipSiteAllowed(s, o) {
+	o := Point{c.X, c.Y}
+	if !w.shipSiteAllowed(s, &s.layout, o) {
 		return false
 	}
 	riders := make([]*Entity, 0, len(s.Colonists)+len(s.Pets))
@@ -454,21 +418,17 @@ func (w *World) moveShip(c MoveShip) bool {
 		w.removeFromChunkIndex(w.chunkIndexOf(e.Pos), e.ID)
 	}
 	old := s.Origin
-	for dy := 0; dy < shipHeight; dy++ {
-		for dx := 0; dx < width; dx++ {
-			w.SetTerrain(old.Add(dx, dy), Floor)
-		}
-	}
+	s.layout.forEachTile(func(d Point, _ bool) {
+		w.SetTerrain(old.Add(d.X, d.Y), Floor)
+	})
 	for _, d := range s.layout.doors {
 		delete(w.doorTiles, old.Add(d.X, d.Y))
 	}
-	for dy := 0; dy < shipHeight; dy++ {
-		for dx := 0; dx < width; dx++ {
-			if e := w.entityAt(o.Add(dx, dy)); e != nil && !aboard[e.ID] {
-				w.remove(e.ID, "crushed by a landing ship")
-			}
+	s.layout.forEachTile(func(d Point, _ bool) {
+		if e := w.entityAt(o.Add(d.X, d.Y)); e != nil && !aboard[e.ID] {
+			w.remove(e.ID, "crushed by a landing ship")
 		}
-	}
+	})
 	s.Origin = o
 	w.stampShip(s)
 	for i, e := range riders {
@@ -483,33 +443,48 @@ func (w *World) moveShip(c MoveShip) bool {
 	return true
 }
 
-// shipSiteAllowed reports whether ship s may be relanded with its top-left
-// at o: on the map with room for its crater, clear of every other ship and
-// the walkway round it (which holds that ship's doorways), and not on top of
-// anyone else's colonist.
-func (w *World) shipSiteAllowed(s *Ship, o Point) bool {
-	width := s.layout.width
-	if o.X < 1 || o.Y < 1 || o.X+width >= w.Width || o.Y+shipHeight >= w.Height {
+// shipSiteAllowed reports whether a ship laid out as l may come down with
+// its top-left at o: on the map with room for its crater, clear of every
+// other ship and the walkway round it (which holds that ship's doorways), and
+// not on top of anyone else's colonist. s is the ship being moved, which may
+// overlap where it is now; nil for one still aloft.
+func (w *World) shipSiteAllowed(s *Ship, l *shipLayout, o Point) bool {
+	if o.X < 1 || o.Y < 1 || o.X+l.width >= w.Width || o.Y+l.height >= w.Height {
 		return false
 	}
-	for _, other := range w.ships {
-		if other == s {
-			continue
+	ok := true
+	l.forEachTile(func(d Point, _ bool) {
+		if !ok {
+			return
 		}
-		oo := other.Origin.Add(-1, -1)
-		if o.X < oo.X+other.layout.width+2 && oo.X < o.X+width &&
-			o.Y < oo.Y+shipHeight+2 && oo.Y < o.Y+shipHeight {
-			return false
+		p := o.Add(d.X, d.Y)
+		for _, other := range w.ships {
+			if other != s && other.near(p) {
+				ok = false
+				return
+			}
 		}
+		if e := w.entityAt(p); e != nil && e.Kind == Colonist && (s == nil || e.ship != s.ID) {
+			ok = false
+		}
+	})
+	return ok
+}
+
+// near reports whether p is part of ship s or the one-tile walkway round it.
+func (s *Ship) near(p Point) bool {
+	dx, dy := p.X-s.Origin.X, p.Y-s.Origin.Y
+	if dx < -1 || dy < -1 || dx > s.layout.width || dy > s.layout.height {
+		return false
 	}
-	for dy := 0; dy < shipHeight; dy++ {
-		for dx := 0; dx < width; dx++ {
-			if e := w.entityAt(o.Add(dx, dy)); e != nil && e.Kind == Colonist && e.ship != s.ID {
-				return false
+	for y := dy - 1; y <= dy+1; y++ {
+		for x := dx - 1; x <= dx+1; x++ {
+			if s.layout.inShip(x, y) {
+				return true
 			}
 		}
 	}
-	return true
+	return false
 }
 
 // findShipSite picks where a ship with layout l comes down: the top-left of a
@@ -548,7 +523,7 @@ func (w *World) findShipSite(l shipLayout) (o Point, crashed, ok bool) {
 		}
 	}
 	crashAt, crashRing, crashRock := Point{}, -1, 0
-	for r := max(0, w.shipRingHint-shipHeight); r <= maxR; r++ {
+	for r := max(0, w.shipRingHint-shipRingBacktrack); r <= maxR; r++ {
 		if crashRing >= 0 && r > crashRing+shipCrashSlack {
 			break
 		}
@@ -557,7 +532,7 @@ func (w *World) findShipSite(l shipLayout) (o Point, crashed, ok bool) {
 			if p.Y < center.Y {
 				return false // the upper half is for rooms
 			}
-			rock, marginRock, valid := w.shipSiteRock(p, l.width, designated)
+			rock, marginRock, valid := w.shipSiteRock(p, &l, designated)
 			if !valid {
 				return false
 			}
@@ -644,30 +619,36 @@ func forEachRingPoint(c Point, r int, visit func(Point) bool) {
 // nobody has broken into (see caverns.md) is out of bounds for the
 // footprint: a ship landing "cleanly" there would open the cavern around
 // passengers with no way back to the colony. Nor does it count as a way out.
-func (w *World) shipSiteRock(o Point, width int, designated map[Point]bool) (rock, marginRock int, ok bool) {
-	if o.X < 1 || o.Y < 1 || o.X+width >= w.Width || o.Y+shipHeight >= w.Height {
+func (w *World) shipSiteRock(o Point, l *shipLayout, designated map[Point]bool) (rock, marginRock int, ok bool) {
+	if o.X < 1 || o.Y < 1 || o.X+l.width >= w.Width || o.Y+l.height >= w.Height {
 		return 0, 0, false // the margin must be on the map too
 	}
-	for dy := 0; dy < shipHeight; dy++ {
-		for dx := 0; dx < width; dx++ {
-			p := o.Add(dx, dy)
-			switch w.TerrainAt(p) {
-			case Rock:
-				rock++
-			case Floor:
-				if !w.discovered(p) || w.occupied(p) {
-					return 0, 0, false
-				}
-			default:
-				return 0, 0, false
-			}
-			if w.doorTiles[p] || designated[p] {
-				return 0, 0, false
-			}
+	ok = true
+	l.forEachTile(func(d Point, _ bool) {
+		if !ok {
+			return
 		}
+		p := o.Add(d.X, d.Y)
+		switch w.TerrainAt(p) {
+		case Rock:
+			rock++
+		case Floor:
+			if !w.discovered(p) || w.occupied(p) {
+				ok = false
+			}
+		default:
+			ok = false
+		}
+		if w.doorTiles[p] || designated[p] {
+			ok = false
+		}
+	})
+	if !ok {
+		return 0, 0, false
 	}
 	touchesFloor, blocked := false, false
-	forEachShipMargin(o, width, func(p Point) {
+	for _, d := range l.margin {
+		p := o.Add(d.X, d.Y)
 		switch t := w.TerrainAt(p); {
 		case t == Wall || t == Hull || isFixtureTerrain(t):
 			blocked = true
@@ -677,22 +658,24 @@ func (w *World) shipSiteRock(o Point, width int, designated map[Point]bool) (roc
 		case t == Floor && w.discovered(p):
 			touchesFloor = true
 		}
-	})
-	if blocked || !touchesFloor || w.hiddenFloorNear(o, width) {
+	}
+	if blocked || !touchesFloor || w.hiddenFloorNear(o, l) {
 		return 0, 0, false
 	}
 	return rock, marginRock, true
 }
 
 // hiddenFloorNear reports whether any undiscovered floor lies within
-// shipRevealReach of a footprint width tiles wide at o. Landing there would
-// break into a natural cavern nobody dug to — flooding it into view and
-// rolling its nests (see caverns.md) — so an arrival wave could wake aliens
-// with nobody digging: on a 120x70 map with 6 colonists, repeated crash-pod
-// arrivals breached a cavern in 29 of 30 seeds.
-func (w *World) hiddenFloorNear(o Point, width int) bool {
-	for y := o.Y - shipRevealReach; y < o.Y+shipHeight+shipRevealReach; y++ {
-		for x := o.X - shipRevealReach; x < o.X+width+shipRevealReach; x++ {
+// shipRevealReach of a footprint laid out as l at o. (It checks the
+// footprint's whole box, which for a hub or cluster takes in a little more
+// than the reveal reaches: erring on the side of not landing.) Landing there
+// would break into a natural cavern nobody dug to — flooding it into view
+// and rolling its nests (see caverns.md) — so an arrival wave could wake
+// aliens with nobody digging: on a 120x70 map with 6 colonists, repeated
+// crash-pod arrivals breached a cavern in 29 of 30 seeds.
+func (w *World) hiddenFloorNear(o Point, l *shipLayout) bool {
+	for y := o.Y - shipRevealReach; y < o.Y+l.height+shipRevealReach; y++ {
+		for x := o.X - shipRevealReach; x < o.X+l.width+shipRevealReach; x++ {
 			p := Point{x, y}
 			if w.InBounds(p) && w.TerrainAt(p) == Floor && !w.discovered(p) {
 				return true
@@ -702,42 +685,55 @@ func (w *World) hiddenFloorNear(o Point, width int) bool {
 	return false
 }
 
-// forEachShipMargin visits the one-tile ring around a ship width tiles wide
-// whose top-left is o.
-func forEachShipMargin(o Point, width int, visit func(Point)) {
-	for dy := -1; dy <= shipHeight; dy++ {
-		for dx := -1; dx <= width; dx++ {
-			if dx >= 0 && dx < width && dy >= 0 && dy < shipHeight {
-				continue
-			}
-			visit(o.Add(dx, dy))
-		}
-	}
-}
-
 // shipReach is how far past the landing cavern a ship's footprint and crater
 // can reach when it crashes through the rock at the cavern's rim: generate
 // looks that far out for open floor.
 func (w *World) shipReach() int {
 	keepers := make([]bool, max(1, w.cfg.ShipCapacity))
 	for i := range keepers {
-		keepers[i] = true // the widest ship: every passenger keeps a chicken
+		keepers[i] = true // the biggest ship: every passenger keeps a chicken
 	}
-	return w.planShip(keepers).width + shipHeight + shipCrashSlack
+	reach := 0
+	for _, shape := range enabledShipShapes(w.cfg) {
+		l := w.planShip(keepers, shape)
+		reach = max(reach, l.width+l.height)
+	}
+	return reach + shipCrashSlack
+}
+
+// enabledShipShapes is every shape a ship may come down as under cfg: those
+// with a positive weight, and always the stick, which any ship falls back
+// to when its own shape will not fit.
+func enabledShipShapes(cfg Config) []shipShape {
+	out := []shipShape{shipStick}
+	if cfg.ShipHubWeight > 0 {
+		out = append(out, shipHub)
+	}
+	if cfg.ShipClusterWeight > 0 {
+		out = append(out, shipCluster)
+	}
+	return out
 }
 
 // shipTilesPerColonist is the ground a full ship takes per passenger,
-// crater included, rounded up: what the landing cavern sets aside for each
-// settler's share of a ship (see caveRadii). A pure function of the config,
-// so worldgen's chunk generator can size the cavern's clearance from it too.
+// crater included, rounded up — of the roomiest shape that may land: what
+// the landing cavern sets aside for each settler's share of a ship (see
+// caveRadii). A pure function of the config, so worldgen's chunk generator
+// can size the cavern's clearance from it too.
 func shipTilesPerColonist(cfg Config) int {
 	n := max(1, cfg.ShipCapacity)
 	if cfg.StartColonists > 0 {
 		n = min(n, cfg.StartColonists)
 	}
 	w := &World{cfg: cfg}
-	l := w.planShip(make([]bool, n))
-	return ((l.width+2)*(shipHeight+2) + n - 1) / n
+	most := 0
+	for _, shape := range enabledShipShapes(cfg) {
+		l := w.planShip(make([]bool, n), shape)
+		tiles := len(l.margin)
+		l.forEachTile(func(Point, bool) { tiles++ })
+		most = max(most, (tiles+n-1)/n)
+	}
+	return most
 }
 
 // arrivalMealSalt separates arrivalMeals' hash from anything else derived

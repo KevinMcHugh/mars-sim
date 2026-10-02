@@ -1,9 +1,9 @@
 # Pinned goldenHash values for goldenCases in golden_test.go: "<case> gen|run <hash>".
 # Regenerate with: go test ./internal/sim -run TestGoldenWorldHash -update
 # See docs/determinism.md.
-lazy-1000x1010 gen tiles=7e3aacdf28dc38cf entities=a112974478bee9c6 rng=66398a25a4b1cd56 chunks=562663220ec91645/16 scum=17a0838a62331f14/3907 salt=c8000abc38d7cb0d/1967 n=68 gore=0 corpses=0
-lazy-1000x1010 run tiles=d995371acffb9659 entities=4f5406e42a70fbf7 rng=89a60791bf14d331 chunks=5fa2f24a6472f0ae/23 scum=007e9f66b339a2c9/5665 salt=089d7d7079e897f5/2831 n=63 gore=0 corpses=0
-default-80x40 gen tiles=e1933b4be0c03d7d entities=c51a038814f4c975 rng=f47beaaf0dd24a58 chunks=4d22107f9dcb30cc/2 scum=b53c353fc2a13b66/191 salt=50466824a7cdb1d6/94 n=18 gore=0 corpses=0
-default-80x40 run tiles=38c25e165ad30abe entities=d19da401514b7be2 rng=3993a691de3fdf5f chunks=4d22107f9dcb30cc/2 scum=70e38dfa61591e32/193 salt=50466824a7cdb1d6/94 n=23 gore=0 corpses=0
-caves-300x150 gen tiles=6a314b520e78c4dd entities=ed4ed9d83ade322d rng=d8ba248cc691937d chunks=0e4ca4c26f1b3a34/15 scum=ffba44e4bd1b4d86/2688 salt=b03f918c4c037c31/1349 n=71 gore=0 corpses=0
-caves-300x150 run tiles=3aac1f5d3e1d33ef entities=a277bf6b806e57f7 rng=a4cd8798cacc4145 chunks=0e4ca4c26f1b3a34/15 scum=ba026aa0078166f5/2709 salt=8aef214bbaef63a6/1345 n=63 gore=0 corpses=0
+lazy-1000x1010 gen tiles=9a8f483a75cc67d7 entities=503e1629283e06e9 rng=75ca2472e1971f50 chunks=562663220ec91645/16 scum=1ac7a648fc5af71d/3908 salt=6f33060a6b723e0c/1966 n=68 gore=0 corpses=0
+lazy-1000x1010 run tiles=e3c16812701562f6 entities=9db344857077c095 rng=8275be9b87ebcb3f chunks=257ef62c759de435/24 scum=8f3a2943d207a951/5945 salt=06647b356241bad7/2948 n=59 gore=0 corpses=0
+default-80x40 gen tiles=652b007817749584 entities=cc958c236c312e26 rng=54976373abdf4683 chunks=4d22107f9dcb30cc/2 scum=b53c353fc2a13b66/191 salt=d79588bf890730a5/95 n=18 gore=0 corpses=0
+default-80x40 run tiles=b5730486584713c8 entities=a45355d9ecba2935 rng=7dc8df6be315646c chunks=4d22107f9dcb30cc/2 scum=2d176c8b399cabb1/193 salt=d79588bf890730a5/95 n=25 gore=0 corpses=0
+caves-300x150 gen tiles=fa8ab7ae4d2ee194 entities=5182f74f9606f6c6 rng=d821f549cdb07804 chunks=0e4ca4c26f1b3a34/15 scum=911c0cd3d5316ea3/2678 salt=27b55b42453138e1/1347 n=71 gore=0 corpses=0
+caves-300x150 run tiles=8175b58614fa30f8 entities=f4f7eaf13a26a1d5 rng=7a762f79d15c5c2e chunks=0e4ca4c26f1b3a34/15 scum=650f7659d8116f6a/2713 salt=0e6a5c5efb532c31/1344 n=63 gore=0 corpses=0
