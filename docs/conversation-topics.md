@@ -104,8 +104,10 @@ nobody.
 - **Who knows what.** If lore gains per-colonist knowledge, filter in
   `chooseTopic` (the speaker's candidates) and spread it in `finishTalk` —
   conversations are the natural way for knowledge to travel.
-- Topics are not on the wire; frontends see them only through the memory
-  text. Expose a structured topic only once a frontend needs to filter on it.
+- Topics reach every frontend through the memory text, so the memories tab
+  (TUI) and inspect panel (browser) show them already. There is no
+  structured topic field on `Memory` or the wire; add one only once a
+  frontend needs to filter on topic kind or link to the subject.
 
 ## Related
 
