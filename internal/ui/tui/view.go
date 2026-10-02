@@ -201,6 +201,9 @@ func (m Model) renderHeader() string {
 	sub := statStyle.Render("Mars Colony")
 
 	state := fmt.Sprintf("tick %d  |  %d tps", s.Tick, s.TicksPerSecond)
+	if l := m.levelLabel(); l != "" {
+		state += "  |  " + l
+	}
 	if s.Paused {
 		state += "  |  " + pausedStyle.Render("PAUSED")
 	}
@@ -393,7 +396,7 @@ func joinColumns(left string, leftWidth int, right string, rightWidth int) strin
 
 func (m Model) renderSidebar() string {
 	_, rows := m.viewportTiles()
-	return m.cache.sidebar(rows, m.latest.Log, usingASCIIGlyphs(), m.latest.FogOfWar, m.logBase, func() string {
+	return m.cache.sidebar(rows, m.latest.Log, usingASCIIGlyphs(), m.latest.FogOfWar, m.levelLabel() != "", m.logBase, func() string {
 		return m.drawSidebar(rows)
 	})
 }
@@ -438,6 +441,9 @@ func (m Model) drawSidebar(rows int) string {
 		{g(glyphHull, "pod hull"), g(glyphSalt, "salt")},
 		{g(glyphChair, "chair"), g(glyphIncubator, "incubator")},
 	}
+	if m.levelLabel() != "" { // stairs only matter once there is a level to go to
+		legendRows = append(legendRows, [2]entry{g(glyphStairDown, "way down"), g(glyphStairUp, "way up")})
+	}
 	if m.latest.FogOfWar {
 		legendRows = append(legendRows, [2]entry{{fogCells(1), "unexplored"}, {}})
 	}
@@ -466,6 +472,9 @@ func (m Model) drawSidebar(rows int) string {
 
 func (m Model) renderFooter() string {
 	help := "space pause  +/- speed  s spawn  b build  i inspect  f flow fields  ←↑↓→/hjkl pan  tab details  q quit"
+	if m.levelLabel() != "" {
+		help = "</> level  " + help
+	}
 	if m.flowOn {
 		help = "flow field: " + m.flowRef.Name() + "  f next  F off  |  " + help
 	}

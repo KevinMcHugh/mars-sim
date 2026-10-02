@@ -73,13 +73,20 @@ func clonePage(page []tileCell) *tilePage {
 // publishes grids incrementally (see World.publishedTiles); this is for
 // frontends and tests that need to synthesize one. A tiles slice shorter than
 // width*height reads as Rock past its end rather than panicking on some later
-// lookup deep inside a render. The grid is of the landing level.
+// lookup deep inside a render. The grid is of the landing level; see
+// NewTileGridOn for another.
 func NewTileGrid(width, height int, tiles []Tile) *TileGrid {
+	return NewTileGridOn(LandingLevel, width, height, tiles)
+}
+
+// NewTileGridOn is NewTileGrid for level l, for a hand-built multi-level
+// Snapshot (LevelTiles).
+func NewTileGridOn(l Level, width, height int, tiles []Tile) *TileGrid {
 	cells := newPagedGrid[tileCell](width, height)
 	refuse := make(map[Point]refuseCell)
 	for i := 0; i < min(len(tiles), width*height); i++ {
 		t := tiles[i]
-		p := Point{i % width, i / width, LandingLevel}
+		p := Point{i % width, i / width, l}
 		if c := (tileCell{Terrain: t.Terrain, Composition: t.Composition, Explored: t.Explored}); c != (tileCell{}) {
 			cells.set(p.X, p.Y, c)
 		}
@@ -91,7 +98,7 @@ func NewTileGrid(width, height int, tiles []Tile) *TileGrid {
 			refuse[p] = refuseCell{Gore: t.Gore, Corpses: c}
 		}
 	}
-	g := &TileGrid{width: width, height: height, colShift: cells.colShift, level: LandingLevel, pages: make([]*tilePage, len(cells.pages)), refuse: refuse}
+	g := &TileGrid{width: width, height: height, colShift: cells.colShift, level: l, pages: make([]*tilePage, len(cells.pages)), refuse: refuse}
 	for pi, page := range cells.pages {
 		if page != nil {
 			g.pages[pi] = (*tilePage)(page)

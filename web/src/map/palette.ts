@@ -30,6 +30,9 @@ const terrains: Record<string, string> = {
   'gun bench': '#9aa3ad',
   chair: '#c9a24a',
   'scum incubator': '#5fd0a8',
+  // Under their arrow glyphs: the way down reads dark, the way up light.
+  'stair down': '#5a2a1e',
+  'stair up': '#f2b49e',
 };
 
 const compositions: Record<string, string> = {

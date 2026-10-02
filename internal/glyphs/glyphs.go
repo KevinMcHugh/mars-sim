@@ -38,6 +38,8 @@ const (
 	GunBench    = "\U0001F528" // 🔨 gun bench: steel in, assault rifles out
 	Chair       = "\U0001F4BA" // 💺 chair in a meeting hall
 	Incubator   = "\U0001FAD9" // 🫙 scum incubator: a seed of scum in, scum grown on a schedule
+	StairDown   = "\U0001F53D" // 🔽 the top of a stair: the way down to the next level
+	StairUp     = "\U0001F53C" // 🔼 the foot of a stair: the way back up
 
 	Colonist = "\U0001F477" // 👷 colonist of unknown age/gender (no profile)
 	Fleeing  = "\U0001F631" // 😱 colonist running from an alien
@@ -226,6 +228,10 @@ var All = []string{
 	Mars,
 	// Salt is last so it moved no existing glyph's index in the wire.
 	Salt,
+	// Appended, not inserted by kind: a glyph's index here is what a frame
+	// sends for it, so inserting one renumbers every glyph after it.
+	StairDown,
+	StairUp,
 }
 
 var known = func() map[string]bool {
@@ -319,6 +325,10 @@ func ForTerrain(t sim.Terrain) string {
 		return Chair
 	case sim.Incubator:
 		return Incubator
+	case sim.StairDown:
+		return StairDown
+	case sim.StairUp:
+		return StairUp
 	default:
 		return Rock
 	}
