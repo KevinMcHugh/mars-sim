@@ -71,7 +71,7 @@ func (w *World) refreshArmoryBids() {
 		want--
 	}
 	if want > 0 {
-		w.post(Bid, AssaultRifle, want, price, Community, silo, 0)
+		w.postStanding(Bid, AssaultRifle, want, price, silo)
 	}
 }
 

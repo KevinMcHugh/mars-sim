@@ -158,6 +158,9 @@ type EconomyView struct {
 	// tiles one order may cover (see docs/excavation.md).
 	DigWage Money
 	DigMax  int
+	// Suspended is every standing order a player has suspended, bids first,
+	// then in item order (see docs/colony-orders.md).
+	Suspended []SuspendedView
 	// Silo is the colony's market depot, when it has one.
 	Silo    Point
 	HasSilo bool
@@ -234,6 +237,7 @@ func (w *World) economyView() EconomyView {
 		Trades:      append([]Trade(nil), w.trades...),
 	}
 	v.Silo, v.HasSilo = w.marketDepot()
+	v.Suspended = w.suspendedOrders()
 	v.DigWage, v.DigMax = w.wageFor(Floor), maxExcavationTiles
 	for _, o := range w.sortedWork(nil) {
 		v.WorkOrders = append(v.WorkOrders, WorkOrderView{ID: o.ID, Kind: o.Kind, Issuer: o.Issuer,

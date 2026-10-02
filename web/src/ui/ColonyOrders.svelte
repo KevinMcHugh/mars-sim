@@ -1,17 +1,19 @@
 <script lang="ts">
   // The colony's order desk, in the Market tab: post a bid or an ask in the
   // colony's name at a communal depot, and reprice or withdraw the colony's
-  // open orders. The orders are ordinary ones on the book, escrowed from the
+  // open orders, or suspend a standing order (by side and item, colony-wide)
+  // so upkeep stops posting it. The orders are ordinary ones on the book, escrowed from the
   // treasury or the colony's stock (docs/colony-orders.md). The data is the
   // market topic's colony desk (internal/wire/boards.go); the outcome of a
   // command lands in the log.
-  import { cancelColonyOrder, centerOn, placeColonyOrder, repriceColonyOrder } from '../game.svelte';
+  import { cancelColonyOrder, centerOn, placeColonyOrder, repriceColonyOrder, resumeColonyOrders, suspendColonyOrders } from '../game.svelte';
   import { money } from './format';
 
   interface Desk {
     orders: { id: number; side: 'bid' | 'ask'; item: string; qty: number; price: number; x: number; y: number; posted: number; manual: boolean }[];
     depots: { x: number; y: number; label: string; silo: boolean; holdings: { item: string; count: number }[] }[];
     items: string[];
+    suspended: { side: 'bid' | 'ask'; item: string }[];
   }
 
   interface Props {
@@ -96,6 +98,8 @@
     if (editing != null && !desk.orders.some((o) => o.id === editing)) editing = null;
   });
 
+  const verb = (side: 'bid' | 'ask') => (side === 'bid' ? 'buying' : 'selling');
+
   const depotLabel = (x: number, y: number) => {
     const d = desk.depots.find((d) => d.x === x && d.y === y);
     return d ? (d.silo ? 'silo' : d.label) : 'depot';
@@ -155,12 +159,25 @@
   <p class="muted">The colony has no orders open.</p>
 {:else}
   <table>
-    <thead><tr><th></th><th>order</th><th class="num">price</th><th>depot</th><th></th></tr></thead>
+    <thead><tr><th></th><th>order</th><th class="num">price</th><th>depot</th></tr></thead>
     <tbody>
       {#each desk.orders as o (o.id)}
         <tr>
           <td><span class="tag" class:manual={o.manual} title={o.manual ? 'placed or repriced by you; the colony leaves it alone' : 'a standing order the colony keeps topped up: withdrawn, it is posted again'}>{o.manual ? 'yours' : 'auto'}</span></td>
-          <td>{o.side === 'bid' ? 'buy' : 'sell'} {o.qty} {o.item}</td>
+          <td>
+            {o.side === 'bid' ? 'buy' : 'sell'} {o.qty} {o.item}
+            <div class="acts">
+            {#if editing !== o.id}
+              <button type="button" onclick={() => startEdit(o)} title="Re-post at another price; it joins the back of the queue">Reprice</button>
+            {/if}
+            {#if !o.manual}
+              <button type="button" onclick={() => suspendColonyOrders(o.side, o.item)}
+                title="Stop {verb(o.side)} {o.item} everywhere: withdraw the colony's standing orders for it and post no more until resumed">Suspend</button>
+            {/if}
+            <button type="button" onclick={() => cancelColonyOrder(o.id)}
+              title={o.side === 'bid' ? `Withdraw, returning ${money(o.qty * o.price)} to the treasury` : `Withdraw, returning ${o.qty} ${o.item} to the colony's stock`}>Remove</button>
+            </div>
+          </td>
           <td class="num">
             {#if editing === o.id}
               <form class="reprice" onsubmit={(e) => { e.preventDefault(); reprice(o); }}>
@@ -173,18 +190,24 @@
             {/if}
           </td>
           <td><button type="button" class="link" onclick={() => centerOn(o.x, o.y)}>{depotLabel(o.x, o.y)}</button></td>
-          <td class="acts">
-            {#if editing !== o.id}
-              <button type="button" onclick={() => startEdit(o)} title="Re-post at another price; it joins the back of the queue">Reprice</button>
-            {/if}
-            <button type="button" onclick={() => cancelColonyOrder(o.id)}
-              title={o.side === 'bid' ? `Withdraw, returning ${money(o.qty * o.price)} to the treasury` : `Withdraw, returning ${o.qty} ${o.item} to the colony's stock`}>Remove</button>
-          </td>
         </tr>
       {/each}
     </tbody>
   </table>
-  <p class="muted">Repricing re-posts the order, so it joins the back of the queue at its new price. Standing orders (auto) are topped up again by the colony after you remove them.</p>
+  <p class="muted">Repricing re-posts the order, so it joins the back of the queue at its new price. Standing orders (auto) are topped up again by the colony after you remove them; suspend one to keep it off the book.</p>
+{/if}
+
+{#if desk.suspended.length > 0}
+  <h3>Suspended</h3>
+  <ul class="lines">
+    {#each desk.suspended as su (su.side + su.item)}
+      <li>
+        The colony has stopped {verb(su.side)} {su.item}.
+        <button type="button" class="resume" onclick={() => resumeColonyOrders(su.side, su.item)}
+          title="Let the colony post its standing orders for {su.item} again">Resume</button>
+      </li>
+    {/each}
+  </ul>
 {/if}
 
 <style>
@@ -203,12 +226,17 @@
   .go:disabled { background: transparent; color: inherit; }
   table { width: 100%; border-collapse: collapse; font-size: 12px; }
   th { text-align: left; color: var(--muted); font-weight: normal; padding: 2px 4px; }
-  td { padding: 2px 4px; border-top: 1px solid var(--line); vertical-align: middle; }
+  td { padding: 3px 4px; border-top: 1px solid var(--line); vertical-align: top; }
   .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
-  .acts { white-space: nowrap; text-align: right; }
-  .acts button, .reprice button { padding: 0 6px; font-size: 12px; }
+  td:first-child, td.num, td:last-child { width: 1%; white-space: nowrap; }
+  .acts { display: flex; flex-wrap: wrap; gap: 3px; margin: 2px 0; }
+  .acts button, .reprice button { padding: 0 5px; font-size: 11px; }
   .reprice { display: inline-flex; gap: 3px; }
   .reprice input { width: 5em; }
+  h3 { font-size: 12px; color: var(--muted); font-weight: normal; margin: 10px 0 4px; }
+  ul { list-style: none; padding: 0; margin: 0 0 8px; }
+  .lines li { line-height: 1.6; font-size: 13px; }
+  .resume { margin-left: 6px; padding: 0 8px; font-size: 12px; }
   .tag { font-size: 11px; color: var(--muted); border: 1px solid var(--line); border-radius: 4px; padding: 0 4px; }
   .tag.manual { color: #fff; border-color: var(--accent); background: rgba(224, 112, 58, 0.25); }
   .link { border: none; background: none; padding: 0; color: #8fd0ff; cursor: pointer; font: inherit; }

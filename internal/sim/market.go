@@ -437,7 +437,7 @@ func (w *World) refreshColonyBids() {
 			want = afford
 		}
 		if want > 0 {
-			w.post(Bid, k, want, price, Community, silo, 0)
+			w.postStanding(Bid, k, want, price, silo)
 		}
 	}
 }

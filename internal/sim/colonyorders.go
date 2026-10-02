@@ -10,8 +10,11 @@ import "fmt"
 // from the treasury or the colony's ledger line, matched at once, resting
 // until they fill — marked manual, so the colony's own upkeep leaves them
 // alone: it never withdraws a manual ask to haul or reprice its meals, and
-// never cancels one when the silo moves. They never expire. See
-// docs/colony-orders.md.
+// never cancels one when the silo moves. They never expire.
+//
+// A player can also suspend one of the colony's standing orders, by side and
+// item, colony-wide: its open standing orders are withdrawn and upkeep posts
+// no more until it is resumed. See docs/colony-orders.md.
 
 // PlaceColonyOrder posts an order in the colony's name: Qty units of Item at
 // Price each, at the communal depot at Depot. A bid is paid for from the
@@ -38,9 +41,26 @@ type RepriceColonyOrder struct {
 // for ore at the silo, its meal asks) is posted again by the next upkeep.
 type CancelColonyOrder struct{ ID OrderID }
 
-func (PlaceColonyOrder) isCommand()   {}
-func (RepriceColonyOrder) isCommand() {}
-func (CancelColonyOrder) isCommand()  {}
+// SuspendColonyOrders stops the colony's standing orders for one side and
+// item, everywhere: the open ones are withdrawn and upkeep posts no more until
+// ResumeColonyOrders. A player's own orders (manual) are left as they are.
+type SuspendColonyOrders struct {
+	Side Side
+	Item ItemKind
+}
+
+// ResumeColonyOrders lets upkeep post the colony's standing orders for one
+// side and item again, from its next round.
+type ResumeColonyOrders struct {
+	Side Side
+	Item ItemKind
+}
+
+func (PlaceColonyOrder) isCommand()    {}
+func (RepriceColonyOrder) isCommand()  {}
+func (CancelColonyOrder) isCommand()   {}
+func (SuspendColonyOrders) isCommand() {}
+func (ResumeColonyOrders) isCommand()  {}
 
 // maxColonyOrderQty caps one order, so a typo cannot escrow the treasury.
 const maxColonyOrderQty = 10000
@@ -161,6 +181,80 @@ func (w *World) cancelColonyOrder(id OrderID) bool {
 		o.Side, o.Qty, o.Item, o.Price, o.Depot.X, o.Depot.Y))
 	w.cancel(o)
 	return true
+}
+
+// postStanding posts one of the colony's standing orders, which upkeep keeps
+// topped up, unless a player has suspended that side and item. Every
+// standing order goes through here, so a suspension holds whichever upkeep
+// would have posted it.
+func (w *World) postStanding(side Side, item ItemKind, qty int, price Money, depot Point) {
+	if w.standingSuspended(side, item) {
+		return
+	}
+	w.post(side, item, qty, price, Community, depot, 0)
+}
+
+// standingSuspended reports whether a player has suspended the colony's
+// standing orders for side and item.
+func (w *World) standingSuspended(side Side, item ItemKind) bool {
+	return item < numItemKinds && w.suspended[side][item]
+}
+
+// suspendColonyOrders stops the colony's standing orders for a side and item
+// and withdraws the open ones, and reports whether it did.
+func (w *World) suspendColonyOrders(c SuspendColonyOrders) bool {
+	if !c.Item.Tradable() || c.Side > Ask || w.suspended[c.Side][c.Item] {
+		return false
+	}
+	w.suspended[c.Side][c.Item] = true
+	withdrawn := 0
+	for _, o := range w.sortedOrders(func(o *Order) bool {
+		return o.Actor == Community && !o.manual && o.Side == c.Side && o.Item == c.Item
+	}) {
+		withdrawn += o.Qty
+		w.cancel(o)
+	}
+	verb := "buying"
+	if c.Side == Ask {
+		verb = "selling"
+	}
+	w.logEvent(LogNote, fmt.Sprintf("The colony stops %s %s (%d units withdrawn from the book).", verb, c.Item, withdrawn))
+	return true
+}
+
+// resumeColonyOrders lets upkeep post the standing orders for a side and
+// item again, and reports whether they were suspended.
+func (w *World) resumeColonyOrders(c ResumeColonyOrders) bool {
+	if c.Item >= numItemKinds || c.Side > Ask || !w.suspended[c.Side][c.Item] {
+		return false
+	}
+	w.suspended[c.Side][c.Item] = false
+	verb := "buying"
+	if c.Side == Ask {
+		verb = "selling"
+	}
+	w.logEvent(LogNote, fmt.Sprintf("The colony resumes %s %s.", verb, c.Item))
+	return true
+}
+
+// suspendedOrders lists the suspended standing orders, bids first, then in
+// item order.
+func (w *World) suspendedOrders() []SuspendedView {
+	var out []SuspendedView
+	for _, side := range [...]Side{Bid, Ask} {
+		for k := ItemNone + 1; k < numItemKinds; k++ {
+			if w.suspended[side][k] {
+				out = append(out, SuspendedView{Side: side, Item: k})
+			}
+		}
+	}
+	return out
+}
+
+// SuspendedView is one suspended standing order: a side and an item.
+type SuspendedView struct {
+	Side Side
+	Item ItemKind
 }
 
 // filledNote says how much of an order traded as it was posted.

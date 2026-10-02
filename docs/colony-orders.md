@@ -6,7 +6,8 @@
 
 The player trading on the colony's behalf. From the browser's Market tab a
 player posts a bid or an ask in the colony's name at any communal depot,
-reprices one of the colony's open orders, or takes one off the book. They are
+reprices one of the colony's open orders, takes one off the book, or
+suspends one of the colony's standing orders so it stops coming back. They are
 ordinary orders on the [order book](./market.md), escrowed from the treasury
 or the colony's stock, so nothing about matching, settlement or the money
 audit changes.
@@ -14,21 +15,29 @@ audit changes.
 ## Source
 
 - [`internal/sim/colonyorders.go`](../internal/sim/colonyorders.go) — the
-  `PlaceColonyOrder`, `RepriceColonyOrder` and `CancelColonyOrder` commands,
-  their validation, `ItemKind.Tradable`, `TradableItems` and `ParseItemKind`.
+  `PlaceColonyOrder`, `RepriceColonyOrder`, `CancelColonyOrder`,
+  `SuspendColonyOrders` and `ResumeColonyOrders` commands, their validation,
+  `postStanding` (the gate every standing order goes through),
+  `ItemKind.Tradable`, `TradableItems` and `ParseItemKind`.
+- `World.suspended` in [`internal/sim/world.go`](../internal/sim/world.go), and
+  the standing-order upkeep that posts through `postStanding`:
+  `refreshColonyBids` (market.go), `refreshArmoryBids` (foundry.go),
+  `refreshColonyAsks` (hauling.go), the colony's scumhouse bids and
+  `offerColonyMeals` (scumhouse.go).
 - [`internal/sim/market.go`](../internal/sim/market.go) — `Order.manual`, and
   `retireOldSilo` skipping manual orders.
 - [`internal/sim/scumhouse.go`](../internal/sim/scumhouse.go) —
   `withdrawColonyAsks` skipping manual orders.
 - [`internal/sim/engine.go`](../internal/sim/engine.go) — `apply` routes the
   commands.
-- [`internal/sim/snapshot.go`](../internal/sim/snapshot.go) — `OrderView.Posted`
-  and `OrderView.Manual`.
+- [`internal/sim/snapshot.go`](../internal/sim/snapshot.go) — `OrderView.Posted`,
+  `OrderView.Manual`, and `EconomyView.Suspended`.
 - [`internal/wire/boards.go`](../internal/wire/boards.go) — the market topic's
   `colony` desk: the colony's orders, its communal depots with what it holds
-  at each, and the goods an order may name.
+  at each, the goods an order may name, and the suspended standing orders.
 - [`cmd/mars-sim-wasm/main.go`](../cmd/mars-sim-wasm/main.go) — the
-  `order-place`, `order-reprice` and `order-cancel` page commands (host API 11).
+  `order-place`, `order-reprice`, `order-cancel`, `order-suspend` and
+  `order-resume` page commands (host API 12).
 - [`web/src/ui/ColonyOrders.svelte`](../web/src/ui/ColonyOrders.svelte) — the
   order desk, in `MarketPanel`; the actions are in
   [`web/src/game.svelte.ts`](../web/src/game.svelte.ts).
@@ -62,6 +71,15 @@ colony's own.
 removed, but the colony's standing orders (its bids for ore at the silo, its
 meal asks, its biomatter and armory bids) are topped up again by the next
 market upkeep, ten ticks later. The desk tags those rows *auto* and says so.
+
+**Suspending** is how to keep a standing order off the book. An *auto* row
+has a **Suspend** button, which sends `SuspendColonyOrders` for its side and
+item: "stop buying iron ore". That sets `World.suspended[side][item]`,
+withdraws every open standing order for it (at every depot), and from then on
+`postStanding` posts nothing for it, whichever upkeep asks. The player's own
+orders for that good are left open, and the player can still place new ones.
+The desk lists what is suspended, each with **Resume** (`ResumeColonyOrders`),
+after which the next upkeep round posts the standing orders again.
 
 **What upkeep does with a manual order.** It leaves it alone:
 
@@ -100,16 +118,30 @@ the answer, since a command has no reply.
   to re-sort the book, true up the escrow and re-run matching against the
   other side, which is exactly what `cancel` then `post` already do. Losing
   time priority is the standard exchange rule for a price change.
-- **Removing a standing order does not stop it.** Suppressing the colony's
-  standing bids is a policy (stop buying ore), not an order. That belongs in a
-  setting such as `price-*` or `silo-bid-qty`, not in a one-off cancel.
+- **Removing a standing order does not stop it; suspending does.** Stopping
+  the colony's standing bids is a policy (stop buying ore), not an order, so
+  it is its own command rather than a sticky cancel. A cancel that also
+  suppressed re-posting would have needed to remember which order it was, and
+  the standing orders are re-posted under new IDs, split across fills.
+- **Suspended by side and item, colony-wide, not per depot.** The silo moves,
+  and the colony's bids for scum stand at every scumhouse. Keyed by depot, a
+  suspended iron bid would come back the moment the silo moved, and "stop
+  buying cave scum" would take one click per kitchen. What a player means is
+  the good.
+- **One gate, `postStanding`.** The standing orders are posted by five
+  different upkeep functions. Checking the suspension in each would leave the
+  next one added to forget it; routing them all through one call makes a new
+  standing order suspendable for free.
+- **An array, not a map.** `suspended` is `[2][numItemKinds]bool`, so listing
+  it never ranges over a map (see [determinism.md](./determinism.md)).
 
 ## Extending it
 
 - **The TUI**: the commands are frontend-neutral; a market-tab form would send
   the same three.
-- **A policy switch** (stop a standing order for good) would be a flag the
-  `refresh*` functions read, not a change here.
+- **A new standing order** must post through `postStanding`, not `post`, or
+  Suspend will not hold it.
+- **Saving a game** would need `World.suspended` saved with the orders.
 - **An expiry**: `PlaceColonyOrder` posts with ttl 0; a `TTL` field would pass
   straight through to `post`.
 - Keep `manual` checks in any new upkeep that withdraws or cancels colony

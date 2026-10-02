@@ -93,7 +93,9 @@ the reference price, as far as the treasury stretches.
 **A player's orders.** A player can post, reprice and remove the colony's
 orders from the browser (see [colony-orders.md](./colony-orders.md)). Those
 are marked `manual`, and the upkeep below never withdraws or retires one,
-though it counts them toward the quantities it tops up to.
+though it counts them toward the quantities it tops up to. Every standing
+order the colony posts goes through `postStanding`, which posts nothing for a
+side and item the player has suspended.
 
 **When the silo moves**, because a communal chest was built nearer the centre
 or the silo chest was claimed, `retireOldSilo` cancels the colony's orders at

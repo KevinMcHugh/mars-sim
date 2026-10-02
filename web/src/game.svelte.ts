@@ -238,6 +238,16 @@ export function cancelColonyOrder(id: number): void {
   ctl?.command({ type: 'order-cancel', id });
 }
 
+/** Stop the colony posting its standing orders for a side and item, and withdraw them. */
+export function suspendColonyOrders(side: 'bid' | 'ask', item: string): void {
+  ctl?.command({ type: 'order-suspend', side, item });
+}
+
+/** Let the colony post its standing orders for a side and item again. */
+export function resumeColonyOrders(side: 'bid' | 'ask', item: string): void {
+  ctl?.command({ type: 'order-resume', side, item });
+}
+
 export function togglePause(): void {
   ctl?.command({ type: 'pause' });
   pressed = performance.now();

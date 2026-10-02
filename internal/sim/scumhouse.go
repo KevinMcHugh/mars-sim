@@ -874,7 +874,7 @@ func (w *World) refreshBiomatterBids() {
 				want--
 			}
 			if want > 0 {
-				w.post(Bid, k, want, price, Community, p, 0)
+				w.postStanding(Bid, k, want, price, p)
 			}
 		}
 	}
@@ -1022,7 +1022,7 @@ func (w *World) offerColonyMeals(p Point) {
 		return
 	}
 	if spare := c.held(Community, Meal) - w.pendingHaul(Meal, p); spare > 0 {
-		w.post(Ask, Meal, spare, price, Community, p, 0)
+		w.postStanding(Ask, Meal, spare, price, p)
 	}
 }
 

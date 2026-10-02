@@ -165,6 +165,16 @@ type ColonyDesk struct {
 	Depots []Depot `json:"depots"`
 	// Items is every good an order may name, in item order.
 	Items []string `json:"items"`
+	// Suspended is every standing order a player has stopped, by side and
+	// item, bids first.
+	Suspended []Suspended `json:"suspended"`
+}
+
+// Suspended is a side and an item whose standing orders the colony has
+// stopped posting until a player resumes them.
+type Suspended struct {
+	Side string `json:"side"`
+	Item string `json:"item"`
 }
 
 // ColonyOrder is one of the colony's open orders. ID is what a reprice or a
@@ -471,7 +481,10 @@ func accountTopic(s *sim.Snapshot, owner sim.Owner) AccountTopic {
 
 func colonyDesk(s *sim.Snapshot) ColonyDesk {
 	econ := s.Economy
-	d := ColonyDesk{Orders: []ColonyOrder{}, Depots: []Depot{}, Items: []string{}}
+	d := ColonyDesk{Orders: []ColonyOrder{}, Depots: []Depot{}, Items: []string{}, Suspended: []Suspended{}}
+	for _, su := range econ.Suspended {
+		d.Suspended = append(d.Suspended, Suspended{Side: su.Side.String(), Item: su.Item.String()})
+	}
 	for _, o := range econ.Orders {
 		if o.Actor == sim.Community {
 			d.Orders = append(d.Orders, ColonyOrder{ID: uint64(o.ID), Side: o.Side.String(), Item: o.Item.String(),

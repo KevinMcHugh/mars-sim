@@ -40,8 +40,8 @@ import (
 // The page checks it at start, so a mars-sim.wasm left over from an older
 // build (npm run wasm not rerun after a pull) fails with a message saying so,
 // instead of a panel that silently never loads. 1 was everything before
-// subscribe/unsubscribe; 2 had no entity: or tile: topics; 3 no roster; 4 no log; 5 no jobs, storage, market or account:; 6 no perf or population; 7 no flow command; 8 no dig command; 9 no dig-cancel; 10 no order-place, order-reprice or order-cancel.
-const hostAPI = 11
+// subscribe/unsubscribe; 2 had no entity: or tile: topics; 3 no roster; 4 no log; 5 no jobs, storage, market or account:; 6 no perf or population; 7 no flow command; 8 no dig command; 9 no dig-cancel; 10 no order-place, order-reprice or order-cancel; 11 no order-suspend or order-resume.
+const hostAPI = 12
 
 var (
 	eng *sim.Engine
@@ -221,7 +221,7 @@ type memoryResult struct {
 
 // command is a sim.Command as the page sends it.
 type command struct {
-	Type string `json:"type"` // pause | speed | spawn | flow | dig | dig-cancel | order-place | order-reprice | order-cancel
+	Type string `json:"type"` // pause | speed | spawn | flow | dig | dig-cancel | order-place | order-reprice | order-cancel | order-suspend | order-resume
 	Rate int    `json:"rate,omitempty"`
 	Kind string `json:"kind,omitempty"`
 	// Field is the flow field to show, an index into Hello.flowFields, or
@@ -233,7 +233,8 @@ type command struct {
 	Y0 int `json:"y0,omitempty"`
 	X1 int `json:"x1,omitempty"`
 	Y1 int `json:"y1,omitempty"`
-	// order-place: the side ("bid" or "ask"), the item by name, the
+	// order-place, order-suspend and order-resume: the side ("bid" or
+	// "ask") and the item by name; order-place also the
 	// quantity, and the depot (x, y); order-place and order-reprice: the
 	// price.
 	Side  string `json:"side,omitempty"`
@@ -258,7 +259,7 @@ func parseCommand(s string) (sim.Command, error) {
 		return sim.CancelExcavation{ID: c.ID}, nil
 	case "dig":
 		return sim.OrderExcavation{X0: c.X0, Y0: c.Y0, X1: c.X1, Y1: c.Y1}, nil
-	case "order-place":
+	case "order-place", "order-suspend", "order-resume":
 		item, ok := sim.ParseItemKind(c.Item)
 		if !ok {
 			return nil, fmt.Errorf("unknown item %q", c.Item)
@@ -271,6 +272,12 @@ func parseCommand(s string) (sim.Command, error) {
 			side = sim.Ask
 		default:
 			return nil, fmt.Errorf("unknown side %q", c.Side)
+		}
+		switch c.Type {
+		case "order-suspend":
+			return sim.SuspendColonyOrders{Side: side, Item: item}, nil
+		case "order-resume":
+			return sim.ResumeColonyOrders{Side: side, Item: item}, nil
 		}
 		return sim.PlaceColonyOrder{Side: side, Item: item, Qty: c.Qty, Price: sim.Money(c.Price),
 			Depot: sim.Point{X: c.X, Y: c.Y}}, nil

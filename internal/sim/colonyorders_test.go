@@ -164,3 +164,48 @@ func TestParseItemKindRoundTrips(t *testing.T) {
 		t.Error("parsed an unknown item")
 	}
 }
+
+// Suspending the colony's iron bids withdraws them and keeps upkeep from
+// posting them again, leaving a player's own iron bid and every other good
+// alone; resuming lets upkeep post them at its next round.
+func TestASuspendedStandingOrderStaysOffTheBook(t *testing.T) {
+	w, silo, _ := marketWorld(t)
+	w.tick = marketInterval
+	w.runMarket()
+	if w.openQty(Bid, IronOre, silo, Community) == 0 {
+		t.Fatal("no standing iron bid to suspend")
+	}
+	if !w.placeColonyOrder(PlaceColonyOrder{Side: Bid, Item: IronOre, Qty: 2, Price: 5, Depot: silo}) {
+		t.Fatal("bid refused")
+	}
+	if !w.suspendColonyOrders(SuspendColonyOrders{Side: Bid, Item: IronOre}) {
+		t.Fatal("suspend refused")
+	}
+	for i := 0; i < 3; i++ {
+		w.tick += marketInterval
+		w.runMarket()
+	}
+	if got := w.openQty(Bid, IronOre, silo, Community); got != 2 {
+		t.Fatalf("%d iron bid for after suspending, want the player's 2", got)
+	}
+	if w.openQty(Bid, WaterIce, silo, Community) == 0 {
+		t.Fatal("suspending iron stopped the water-ice bids too")
+	}
+	if s := w.suspendedOrders(); len(s) != 1 || s[0] != (SuspendedView{Bid, IronOre}) {
+		t.Fatalf("suspended = %+v", s)
+	}
+	assertMoneyConserved(t, w)
+
+	if !w.resumeColonyOrders(ResumeColonyOrders{Side: Bid, Item: IronOre}) {
+		t.Fatal("resume refused")
+	}
+	w.tick += marketInterval
+	w.runMarket()
+	if got := w.openQty(Bid, IronOre, silo, Community); got != w.cfg.SiloBidQty {
+		t.Fatalf("%d iron bid for after resuming, want %d", got, w.cfg.SiloBidQty)
+	}
+	if len(w.suspendedOrders()) != 0 {
+		t.Fatal("still suspended")
+	}
+	assertMoneyConserved(t, w)
+}

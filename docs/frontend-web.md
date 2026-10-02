@@ -289,7 +289,8 @@ closed.
   a link to the inspector. Its **Colony orders** desk (`ColonyOrders`) posts a
   bid or an ask in the colony's name, and reprices or removes the colony's
   open orders, with the `order-place`, `order-reprice` and `order-cancel`
-  commands (see [colony-orders.md](./colony-orders.md)).
+  commands, and suspends or resumes a standing order with `order-suspend`
+  and `order-resume` (see [colony-orders.md](./colony-orders.md)).
 - **Dig** orders an area mined out (see [excavation.md](./excavation.md)).
   **Mark an area** arms a tool: while it is armed a drag on the map draws a
   rectangle instead of panning (`attachInput`'s `areaTool` and `area` hooks),

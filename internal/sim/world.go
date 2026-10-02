@@ -779,11 +779,15 @@ type World struct {
 	// The order book (see market.go): every open order by ID, the books by
 	// (item, depot), the most recent trades, and the cached location of the
 	// colony's silo (valid while marketDepotRev == fixtureRev+1).
-	orders        map[OrderID]*Order
-	workOrders    map[OrderID]*WorkOrder
-	books         map[bookKey]*book
-	trades        []Trade
-	nextOrderID   OrderID
+	orders      map[OrderID]*Order
+	workOrders  map[OrderID]*WorkOrder
+	books       map[bookKey]*book
+	trades      []Trade
+	nextOrderID OrderID
+	// suspended is which of the colony's standing orders a player has
+	// stopped, by side and item (see colonyorders.go). An array, not a map,
+	// so nothing about it depends on iteration order.
+	suspended     [2][numItemKinds]bool
 	marketDepotAt Point
 	// siloWas is the silo the market's upkeep last saw (siloSeen once there
 	// has been one), so it can retire the colony's orders at an old one.
