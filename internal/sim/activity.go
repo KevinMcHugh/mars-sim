@@ -82,7 +82,7 @@ func activityOfState(s State) (Activity, bool) {
 	switch s {
 	case Eating:
 		return ActEating, true
-	case Sleeping:
+	case Sleeping, PassedOut:
 		return ActSleeping, true
 	case Relieving:
 		return ActRelieving, true

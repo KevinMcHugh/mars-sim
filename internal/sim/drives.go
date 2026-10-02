@@ -80,29 +80,39 @@ func defaultDrives() [numDrives]DriveSpec {
 	d := [numDrives]DriveSpec{
 		DriveFood: {
 			Name: "food", Rate: 1750, SeekAt: 650, CriticalAt: 1000, Max: 1000,
-			Facility: NutrientPod, UseTicks: 18, Fatal: true,
+			Facility: NutrientPod, UseTicks: 18,
 			// A colonist grabs a portion in 3 ticks and eats it away from
 			// the pod, instead of occupying its one access tile for the
 			// full 18 — far more throughput per pod at the same cost.
 			GrabTicks: 3,
+			// Starvation: HP drains while hunger sits at its ceiling.
+			Consequences: []DriveConsequence{atCeiling(ConsequenceDeath)},
 		},
 		DriveBladder: {
 			Name: "bladder", Rate: 3000, SeekAt: 600, CriticalAt: 900, Max: 1000,
-			Facility: Toilet, UseTicks: 10, Fatal: false,
+			Facility: Toilet, UseTicks: 10,
+			// A colonist that never reaches a toilet wets itself.
+			Consequences: []DriveConsequence{atCeiling(ConsequenceSoiling)},
 		},
 		DriveSocial: {
 			Name: "social", Rate: 2000, SeekAt: 500, CriticalAt: 850, Max: 1000,
-			Facility: Rock, UseTicks: 0, Fatal: false,
+			Facility: Rock, UseTicks: 0,
+			// A colonist left without company feels lonely, and feels it
+			// again every 200 ticks (about four conversations' worth) it
+			// goes on.
+			Consequences:     []DriveConsequence{atCeiling(ConsequenceLoneliness)},
+			ConsequenceEvery: 200,
 		},
 		DriveSleep: {
 			// Sleep builds slowly and, once sought, takes a night to clear:
 			// 720 ticks awake and 360 in bed make a 1080-tick day, so a night
 			// is eight clock hours and an hour is 45 ticks (see days.md).
-			// Non-fatal like bladder: a colonist with no bunk waits rather
-			// than dying. Its rate is the same whatever the colonist is
-			// doing, because the colony calendar is derived from it.
+			// Its rate is the same whatever the colonist is doing, because
+			// the colony calendar is derived from it. A colonist that gets
+			// no sleep at all passes out wherever it is (PassOutTicks).
 			Name: "sleep", Rate: 1000, SeekAt: 720, CriticalAt: 900, Max: 1000,
-			Facility: Bed, UseTicks: 360, Fatal: false,
+			Facility: Bed, UseTicks: 360,
+			Consequences: []DriveConsequence{atCeiling(ConsequencePassOut)},
 		},
 	}
 	// Every drive grows at its full rate in every drive activity unless set
@@ -139,17 +149,18 @@ func activityPercents(asleep, idle, working, labor int) [numDriveActivities]int 
 // Facility are deliberately untagged: they are the drive's identity and its
 // plumbing, not balance, and changing them from a file would let a config
 // rename a drive out from under the code that looks it up. Consequences and
-// Ramps are untagged because the config file has no lists.
+// Ramps are untagged for the same reason: what a drive does is its identity
+// (the rest of the simulation keys off it), and the config file has no lists
+// anyway.
 type DriveSpec struct {
 	Name       string
 	Rate       int     `cfg:"rate" doc:"base growth per tick, in thousandths of a point"`
 	Min        int     `cfg:"min" doc:"floor the level never falls below"`
 	SeekAt     int     `cfg:"seek-at" doc:"level at which the colonist drops work to satisfy it"`
 	CriticalAt int     `cfg:"critical-at" doc:"level at which the drive becomes critical"`
-	Max        int     `cfg:"max" doc:"ceiling; a fatal drive sitting here drains HP"`
+	Max        int     `cfg:"max" doc:"ceiling; the drive's consequences there apply while it sits here"`
 	Facility   Terrain // structure that resets this drive to 0
 	UseTicks   int     `cfg:"use-ticks" doc:"ticks spent using the facility"`
-	Fatal      bool    `cfg:"fatal" doc:"whether sitting at the ceiling damages the colonist"`
 	// GrabTicks, if positive and less than UseTicks, makes this drive portable:
 	// a colonist spends only GrabTicks at the facility, then carries it away
 	// and spends the rest of UseTicks finishing elsewhere, freeing the
@@ -163,6 +174,10 @@ type DriveSpec struct {
 	// Consequences and Ramps declare what levels do (see drive_bands.go).
 	Consequences []DriveConsequence
 	Ramps        []DriveRamp
+	// ConsequenceEvery is how often an experience consequence (loneliness)
+	// recurs while the drive stays in its range. Zero means once per stay.
+	// Drains apply every tick and events once, regardless.
+	ConsequenceEvery int `cfg:"consequence-every" doc:"ticks between repeats of the drive's felt consequence while it stays in range (0: once until satisfied)"`
 }
 
 // TicksPerDay is how many ticks make one colony day, derived from the sleep
@@ -222,6 +237,10 @@ type driveState struct {
 	phase             DrivePhase
 	nextCrossing      int
 	hpDrained         int
+	// nextFeel is the first tick an experience consequence may be felt again
+	// during this stay in its band; 0 until it is first felt. Changing band
+	// or satisfying the drive clears it (see consequenceDue).
+	nextFeel int
 }
 
 // driveTrue is e's true level for drive d, in driveUnits: its base grown at
@@ -357,6 +376,7 @@ func (w *World) resetDrive(e *Entity, d DriveKind) {
 	if d == DriveFood {
 		e.forageNoted, e.forageRetry = false, 0 // fed: the next hunger is a new search
 	}
+	e.drives[d].nextFeel = 0
 	w.refreshDrive(e, d, 0)
 	if damage := e.drives[d].hpDrained; damage > 0 {
 		e.HP = min(e.MaxHP, e.HP+damage)
@@ -382,10 +402,10 @@ func (w *World) mostUrgentDrive(e *Entity) (DriveKind, bool) {
 			continue
 		}
 		better := !found ||
-			(spec.Fatal && !worstFatal) ||
-			(spec.Fatal == worstFatal && over > worstOver)
+			(spec.Fatal() && !worstFatal) ||
+			(spec.Fatal() == worstFatal && over > worstOver)
 		if better {
-			worst, worstOver, worstFatal, found = DriveKind(i), over, spec.Fatal, true
+			worst, worstOver, worstFatal, found = DriveKind(i), over, spec.Fatal(), true
 		}
 	}
 	return worst, found

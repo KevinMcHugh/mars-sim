@@ -78,9 +78,9 @@
     {#if c}
       <h4>Drives</h4>
       <div class="bars">
-        {#each c.drives as n (n.name)}
-          <Bar label={n.name + (n.fatal ? '!' : '')} value={n.value} max={n.max} danger={n.fatal}
-            title={n.fatal ? 'Fatal when full' : undefined} />
+        {#each c.drives as d (d.name)}
+          <Bar label={d.name + (d.consequence === 'death' ? '!' : '')} value={d.value} max={d.max}
+            danger={d.consequence === 'death'} title={d.consequence === 'none' ? undefined : `When full: ${d.consequence}`} />
         {/each}
       </div>
 

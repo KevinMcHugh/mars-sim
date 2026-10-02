@@ -371,7 +371,7 @@ func TestCoupledDriveRateFollowsSourceBand(t *testing.T) {
 	}
 }
 
-// fatal: true is an HP-drain consequence at the ceiling, worth StarveDamage.
+// Food's death consequence is an HP drain at the ceiling, worth StarveDamage.
 func TestFatalCompilesToHPDrainAtMax(t *testing.T) {
 	cfg := DefaultConfig()
 	table := &newWorld(cfg, newPCG(1)).driveTables[DriveFood]
@@ -386,10 +386,10 @@ func TestFatalCompilesToHPDrainAtMax(t *testing.T) {
 func TestCheckDrivesRejectsMalformedTables(t *testing.T) {
 	cases := map[string]func(*Config){
 		"consequence ends before it starts": func(c *Config) {
-			c.Drives[DriveFood].Consequences = []DriveConsequence{{From: 500, To: 400, Kind: ConsequenceHPDrain, Value: 1}}
+			c.Drives[DriveFood].Consequences = []DriveConsequence{{From: 500, To: 400, Kind: ConsequenceDeath, Value: 1}}
 		},
 		"ramp with no steps": func(c *Config) {
-			c.Drives[DriveFood].Ramps = []DriveRamp{{From: 500, To: 900, Kind: ConsequenceHPDrain}}
+			c.Drives[DriveFood].Ramps = []DriveRamp{{From: 500, To: 900, Kind: ConsequenceDeath}}
 		},
 		"effect stage with no length": func(c *Config) {
 			c.DriveEffects = []DriveEffectProfile{{Name: "x", Stages: []DriveEffectStage{{}}}}

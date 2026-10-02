@@ -92,8 +92,9 @@ rat or a configured non-alien sighting.
 
 Execution order and invariants:
 
-1. **Starvation check** — `applyStarvation`; if it just died, release its job
-   claims and remove it.
+1. **Drive consequences** — `applyDriveConsequences` (starvation, and passing out, soiling and loneliness); if it just died, release its job
+   claims and remove it. A colonist that has passed out (`stayPassedOut`)
+   spends the rest of its turn unconscious.
 1a. **Uranium dose** — `applyUraniumExposure` (right after the sighting pass,
    before anything below can return): a colonist beside a uranium deposit or
    carrying uranium ore accumulates exposure whatever else it is doing, and a

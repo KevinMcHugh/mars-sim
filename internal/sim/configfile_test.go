@@ -87,7 +87,7 @@ colonists: 12
 drives:
   food:
     rate: 5
-    fatal: false
+    grab-ticks: 0
 `)
 	set, err := ApplyConfigFile(&cfg, data, ConfigFileName)
 	if err != nil {
@@ -99,13 +99,13 @@ drives:
 	if cfg.StartColonists != 12 {
 		t.Errorf("StartColonists = %d, want 12", cfg.StartColonists)
 	}
-	if cfg.Drives[DriveFood].Rate != 5 || cfg.Drives[DriveFood].Fatal {
-		t.Errorf("food need = %+v, want rate 5 and not fatal", cfg.Drives[DriveFood])
+	if cfg.Drives[DriveFood].Rate != 5 || cfg.Drives[DriveFood].GrabTicks != 0 {
+		t.Errorf("food drive = %+v, want rate 5 and grab-ticks 0", cfg.Drives[DriveFood])
 	}
 	if cfg.Drives[DriveFood].SeekAt != DefaultConfig().Drives[DriveFood].SeekAt {
 		t.Error("an untouched field inside a need was overwritten")
 	}
-	want := []string{"seed", "colonists", "drives.food.rate", "drives.food.fatal"}
+	want := []string{"seed", "colonists", "drives.food.rate", "drives.food.grab-ticks"}
 	if !reflect.DeepEqual(set, want) {
 		t.Errorf("set = %v, want %v", set, want)
 	}
@@ -133,7 +133,7 @@ func TestApplyConfigFileErrors(t *testing.T) {
 		{"unknown nested key", "drives:\n  food:\n    risé: 3\n", `unknown setting "drives.food.risé"`},
 		{"unknown section", "creatures:\n  goat: 3\n", `unknown setting "creatures"`},
 		{"not a number", "colonists: many\n", "want a whole number"},
-		{"not a bool", "drives:\n  food:\n    fatal: 3\n", "want true or false"},
+		{"not a bool", "infinite-food: 3\n", "want true or false"},
 		{"duplicate", "colonists: 3\ncolonists: 4\n", "set twice"},
 		{"list at top level", "- colonists\n", "want a mapping"},
 		{"scalar where a spec belongs", "drives: 3\n", `unknown setting "drives"`},

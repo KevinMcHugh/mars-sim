@@ -275,7 +275,7 @@ func (m Model) detailLines(c sim.EntityView, inner, barW int) []string {
 	for i := range c.Drives {
 		meta := m.latest.DrivesMeta[i]
 		name := meta.Name
-		if meta.Fatal {
+		if meta.Fatal() {
 			name += "!"
 		}
 		b.WriteString(bar(name, c.Drives[i], meta.Max, barW) + "\n")

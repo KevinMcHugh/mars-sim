@@ -134,12 +134,15 @@ func (w *World) colonistTurn(e *Entity) {
 	// Effects wear on whatever the colonist is doing, so their stages move on
 	// before anything else this turn reads a drive.
 	w.advanceEffects(e)
-	w.applyStarvation(e)
+	w.applyDriveConsequences(e)
 	if !e.Alive() { // starved this tick
 		w.clearJob(e) // release any board claim before removal
 		w.addCorpse(e.Pos, ColonistCorpse)
 		w.remove(e.ID, "starved")
 		w.logEvent(LogDeath, fmt.Sprintf("%s starved to death.", e.displayName()))
+		return
+	}
+	if w.stayPassedOut(e) {
 		return
 	}
 
@@ -200,7 +203,7 @@ func (w *World) runCognition(e *Entity) {
 func (w *World) syncCognitionDeadlines(e *Entity) {
 	for n := DriveKind(0); n < numDrives; n++ {
 		crossing := e.drives[n].nextCrossing
-		if w.cfg.Drives[n].Fatal || crossing > 0 && w.tick >= crossing {
+		if w.cfg.Drives[n].Fatal() || crossing > 0 && w.tick >= crossing {
 			w.syncDrivePhase(e, n)
 		}
 	}
@@ -742,7 +745,7 @@ func (w *World) tryStartTalk(e *Entity, forced bool) bool {
 // a partner, and social drive sits permanently pinned at its ceiling in any
 // colony busy enough that nobody is ever fully drive-free.
 func (w *World) availableToTalk(o *Entity) bool {
-	if o.Job != JobNone || o.State == Fleeing {
+	if o.Job != JobNone || o.State == Fleeing || o.passedOutUntil != 0 {
 		return false
 	}
 	if need, urgent := w.mostUrgentDrive(o); urgent && need != DriveSocial {
@@ -865,6 +868,18 @@ func (w *World) finishTalk(a, b *Entity) {
 		{Observer: b.ID, Target: conversationMoodVector(outcome + w.noteConversation(b))},
 	}
 	w.emitOccurrence(o)
+	// Company sought while lonely is its own experience, on top of how the
+	// talk went: a colonist who came to it with its social drive at seek-at
+	// or above "socialized". Read before jobTalk resets the drive.
+	for _, e := range []*Entity{a, b} {
+		if w.driveLevel(e, DriveSocial) >= w.cfg.Drives[DriveSocial].SeekAt {
+			other := b
+			if e == b {
+				other = a
+			}
+			w.emitOccurrence(w.occurrence(e, ActionSocialize, nil, e.Pos, "Enjoyed %s's company.", other.displayName()))
+		}
+	}
 }
 
 // assignWorkJob picks something productive to do: help build a planned project
@@ -1959,7 +1974,7 @@ func (w *World) pounce(cat, prey *Entity) {
 // but never build: they eat the same biomatter the scumhouse runs on, where it
 // lies, and fall back on pods only with nothing in reach. See scavenge.go.
 func (w *World) ratTurn(e *Entity) {
-	w.applyStarvation(e)
+	w.applyDriveConsequences(e)
 	if !e.Alive() { // starved this tick
 		w.clearJob(e)
 		w.addCorpse(e.Pos, AnimalCorpse)

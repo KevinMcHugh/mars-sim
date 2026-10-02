@@ -9,9 +9,11 @@ sleep — that build up over time and that they act to satisfy. A drive is a
 score between a minimum and a maximum. How fast it grows is a base rate scaled
 by stacked modifiers: what the colonist is doing, its traits, the bands other
 drives sit in, and timed **effects** such as a substance. What a level does to
-the colonist is declared as **bands**: below `SeekAt` it is ignored, past it the
-colonist goes to satisfy it, and a fatal drive at its ceiling drains HP. Rats,
-chickens and aliens have the food drive only.
+the colonist is declared as **bands** of **consequences**: below `SeekAt` it is
+ignored, past it the colonist goes to satisfy it, and at the ceiling each drive
+does something of its own. A starving colonist loses HP, a full bladder wets
+the colonist where it stands, a colonist without company feels lonely, and one
+without sleep passes out. Rats, chickens and aliens have the food drive only.
 
 Drives are evaluated lazily, as needs always were: a level is a base plus the
 tick it was taken, folded forward only when something changes the rate. A
@@ -21,19 +23,22 @@ Drives replaced **needs** (`NeedKind`, `needs.*` settings, `-need-*` flags).
 Needs grew at one integer rate per tick, had their consequences hard-coded, and
 paused in bed through a special case in `sleep.go`. Drives keep everything that
 was true of needs — facilities, which drive wins, starvation and its graces —
-and that material is below.
+and that material is below. The consequence kinds (death, loneliness, passing
+out, soiling) and their reactions come from PR #98 (`ccr-837753c1-iji24e`),
+ported onto the band table.
 
 ## Source
 
 - [`internal/sim/drives.go`](../internal/sim/drives.go) — `DriveKind`, `DriveSpec`, the shipped `defaultDrives`, `driveState` and the lazy level (`driveTrue`, `driveFelt`, `driveLevel`), rate composition (`driveRate`), `refreshDrive`, `resetDrive`, pressure, `mostUrgentDrive`, and the colony calendar derived from the sleep drive.
 - [`internal/sim/drive_activity.go`](../internal/sim/drive_activity.go) — `DriveActivity` (asleep, idle, working, labor), the `activityDrives` table that files every player-facing `Activity` under one, `driveActivityOf`, and `syncDriveActivity`.
-- [`internal/sim/drive_bands.go`](../internal/sim/drive_bands.go) — `DriveConsequence`, `DriveRamp`, compiling a spec into a band table, `syncDriveBand`, `nextBandCrossing`, and `applyStarvation`.
+- [`internal/sim/drive_bands.go`](../internal/sim/drive_bands.go) — `Consequence`, `DriveConsequence`, `DriveRamp`, compiling a spec into a band table, `syncDriveBand`, `nextBandCrossing`, and `applyDriveConsequences` with each consequence's code (`starve`, `consequenceDue`, `passOut`/`stayPassedOut`, `wetSelf`, `usingFacility`).
 - [`internal/sim/drive_effects.go`](../internal/sim/drive_effects.go) — `DriveEffectProfile` and its stages, `applyEffect`, `advanceEffects`.
 - [`internal/sim/personality.go`](../internal/sim/personality.go) — the traits' `driveRate` percents, resolved into `Entity.driveTrait`.
 - [`internal/sim/sleep.go`](../internal/sim/sleep.go) — the night in bed and banked sleep (see [days.md](./days.md)).
-- [`internal/sim/systems.go`](../internal/sim/systems.go) — the turn hooks (`advanceEffects` first in `colonistTurn`, `syncDriveActivity` after it), `syncCognitionDeadlines`, `jobUse`, `finishUse`, `availableToTalk`.
-- [`internal/sim/config.go`](../internal/sim/config.go) — `Config.Drives`, `Config.DriveEffects`, `StarveDamage`, `ColonistsPerFacility`, and the rat, chicken and alien hunger rates.
-- [`internal/sim/drive_model_test.go`](../internal/sim/drive_model_test.go) — the model: lazy sums across rate changes, composition order, activity tables, caffeine, stacking, negative rates, ramps, couplings, validation. [`drives_test.go`](../internal/sim/drives_test.go) keeps the phase, pressure, urgency and calendar tests that predate drives.
+- [`internal/sim/systems.go`](../internal/sim/systems.go) — the turn hooks (`advanceEffects` and `applyDriveConsequences` first in `colonistTurn`, then `stayPassedOut`, and `syncDriveActivity` after the turn), `syncCognitionDeadlines`, `jobUse`, `finishUse`, `finishTalk`'s `socialize` occurrence, `availableToTalk`.
+- [`cognition.yaml`](../cognition.yaml) — how the consequences feel: the `felt-lonely`, `socialized`, `passed-out`, `soiled-self` and `witnessed-soiling` reactions, the `witness-soiling` perception rule, and the Tidy rules for soiling.
+- [`internal/sim/config.go`](../internal/sim/config.go) — `Config.Drives`, `Config.DriveEffects`, `StarveDamage`, `PassOutTicks`, `ColonistsPerFacility`, and the rat, chicken and alien hunger rates.
+- [`internal/sim/drive_model_test.go`](../internal/sim/drive_model_test.go) — the model: lazy sums across rate changes, composition order, activity tables, caffeine, stacking, negative rates, ramps, couplings, validation. [`drives_test.go`](../internal/sim/drives_test.go) keeps the phase, pressure, urgency and calendar tests that predate drives, and [`drive_consequences_test.go`](../internal/sim/drive_consequences_test.go) the consequences.
 - [`internal/sim/drive_tuning_test.go`](../internal/sim/drive_tuning_test.go) — `TestDriveTuningReport`, the harness the shipped numbers were tuned with (skipped unless `MARS_DRIVE_TUNING` is set).
 
 ## How it works
@@ -42,12 +47,12 @@ and that material is below.
 
 Each `DriveKind` has a `DriveSpec` in `Config.Drives`, indexed by the kind:
 
-| Drive | Rate (milli/tick) | SeekAt | CriticalAt | Max | Facility | UseTicks | GrabTicks | Fatal |
+| Drive | Rate (milli/tick) | SeekAt | CriticalAt | Max | Facility | UseTicks | GrabTicks | At the ceiling |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| food | 1750 | 650 | 1000 | 1000 | meals, then NutrientPod | 18 | 3 | **yes** |
-| bladder | 3000 | 600 | 900 | 1000 | Toilet | 10 | 0 | no |
-| sleep | 1000 | 720 | 900 | 1000 | Bed | 360 | 0 | no |
-| social | 2000 | 500 | 850 | 1000 | conversation | — | — | no |
+| food | 1750 | 650 | 1000 | 1000 | meals, then NutrientPod | 18 | 3 | **death** (starvation) |
+| bladder | 3000 | 600 | 900 | 1000 | Toilet | 10 | 0 | soiling |
+| sleep | 1000 | 720 | 900 | 1000 | Bed | 360 | 0 | passing out |
+| social | 2000 | 500 | 850 | 1000 | conversation | — | — | loneliness, every 200 ticks |
 
 Levels are whole points from `Min` (0) to `Max`; 0 means satisfied. Rates are in
 thousandths of a point per tick (`driveUnit = 1000`), so 1750 is 1.75 points a
@@ -184,14 +189,45 @@ each drive's table once, in `newWorld`, and `Config.CheckDrives` validates it
 for `main`.
 
 A `DriveConsequence` applies `Kind` with `Value` while the level is in `From..To`
-(inclusive):
+(inclusive). `DriveCeiling` as `From` or `To` stands for the drive's `Max`,
+wherever the settings put it; `atCeiling(kind)` is the consequence of reaching
+the ceiling and staying there, which is what each shipped drive declares.
 
-- `ConsequenceHPDrain` takes `Value` HP a tick. `fatal: true` compiles to one at
-  `[Max, Max]` worth `StarveDamage`, so the old knob still works.
-- `ConsequenceRate` changes `Target`'s rate by `Value` percent. This is how drives
-  affect one another: "while hunger is at 650 or more, sleep builds 30% faster"
-  is `{From: 650, To: 1000, Kind: ConsequenceRate, Target: DriveSleep, Value: 30}`
-  on the food drive. None ships yet.
+Consequences are a drive's **identity**, not balance: they live in
+`defaultDrives`, not the settings file, because the rest of the simulation keys
+off them. `DriveSpec.Fatal()` is "has a death consequence", and arbitration
+uses it (a drive that kills outranks one that does not); the inspect panel and
+the TUI paint a drive red from `CeilingConsequence()`. There used to be a
+`fatal` setting. It let a settings file make bladder fatal and silently rewrite
+those rules, so it is gone.
+
+Each `Consequence` has one of four **shapes**, and each shape is written once
+for any drive:
+
+| Kind | Shape | While in range | Discharges the drive? |
+| --- | --- | --- | --- |
+| `ConsequenceDeath` | drain | `Value` HP a tick (`StarveDamage` if 0), given back when the drive is satisfied | no |
+| `ConsequenceLoneliness` | experience | the colonist feels lonely: at once, then every `ConsequenceEvery` ticks | no |
+| `ConsequencePassOut` | event | the colonist collapses for `PassOutTicks` and comes to with the drive met | yes |
+| `ConsequenceSoiling` | event | the colonist wets itself where it stands | yes |
+| `ConsequenceRate` | rate change | `Target`'s rate changes by `Value` percent | no |
+
+`applyDriveConsequences` runs first in every colonist's turn (and every rat's
+and chicken's, for the drain). It skips a drive whose level is below the
+lowest band that does anything (`driveTable.actFrom`), finds the band
+otherwise, and dispatches what is in it. Only colonists feel, faint or blush.
+
+An **experience** and an **event** both go through the perception grammar, so
+what they feel like is rows in `cognition.yaml`, not Go: a mood hit, a
+memory, trait rules, and witnesses for free. The difference is that an event
+changes the world (the drive resets) and an experience only changes the
+colonist. An experience's cadence is booked in `driveState.nextFeel`; changing
+band or satisfying the drive clears it, so a new stay is felt at once.
+
+`ConsequenceRate` is how drives affect one another: "while hunger is at 650 or
+more, sleep builds 30% faster" is `{From: 650, To: DriveCeiling, Kind:
+ConsequenceRate, Target: DriveSleep, Value: 30}` on the food drive. None ships
+yet.
 
 A `DriveRamp` is the shorthand for a consequence that should change smoothly: it
 moves from `FromValue` at `From` to `ToValue` at `To` in `Steps` even steps, and
@@ -200,6 +236,43 @@ consequences. For example, "starting at 700 exhaustion movement slows, reaching
 60% slower at 950" would be five 12% steps, once movement speed has a
 consequence kind (see *Extending it*). Today a ramp can drive HP drain or a
 coupling.
+
+#### The shipped consequences
+
+- **Starvation (food).** HP drains while hunger is at the ceiling, with the
+  graces in *Starvation and healing* below.
+- **Loneliness (social).** At the ceiling the colonist feels lonely (a
+  `feel loneliness` occurrence, "Felt lonely.") at once and every
+  `drives.social.consequence-every` ticks (200) while it stays there. The
+  `felt-lonely` reaction's worn reading is worse than its fresh one, so
+  loneliness that keeps coming back hurts more and eases as the memories roll
+  off the bounded log. That compounding is the stand-in for depression; there
+  is no new colonist state. The cure is company: a colonist that came to a
+  conversation with its social drive at `SeekAt` or above also experiences
+  **socialized** ("Enjoyed some company."), on top of the conversation's own
+  appraisal.
+- **Passing out (sleep).** At the ceiling the colonist drops its job and focus
+  and lies unconscious in the `PassedOut` state for `pass-out-ticks` (60), then
+  comes to with the drive met. While down its affect decays and uranium and
+  sealed rooms still apply, but it perceives and chooses nothing: it cannot
+  flee, and nobody can pull it into a conversation. The `passed-out` reaction
+  hits grip hardest (losing control of your own body) and is worse each time.
+  `PassedOut` counts as sleeping on the Activity chart and in the asleep drive
+  activity.
+- **Soiling (bladder).** At the ceiling the colonist wets itself where it
+  stands: the drive resets and it carries on with what it was doing. The cost is
+  a `soil` occurrence: `soiled-self` is embarrassment ("Wet herself.", in the
+  colonist's own pronouns; "Had accidents." once collapsed), a flush of charge
+  with grip and valence taken away. Anyone within `gore-sight-radius` sees it
+  (`witnessed-soiling`, mildly unpleasant). Tidy colonists take both harder. It
+  can happen while passed out. The puddle it should leave is not built yet
+  (see *Roadmap*).
+
+Passing out and soiling exempt a colonist already using the drive's facility
+(`usingFacility`): asleep beside its bed or at the toilet. A drive keeps
+growing until the use finishes, so one that arrived near the ceiling reaches it
+there. Being on the way is no exemption: you can collapse in the corridor, or
+not make it.
 
 Each band also carries an urgency **phase**, read from its lowest level:
 
@@ -284,9 +357,9 @@ attempted.
 
 ### Starvation and healing
 
-`applyStarvation` drains HP for every drive whose current band carries a
-`ConsequenceHPDrain` (a fatal drive at `Max`), and tracks that damage
-separately per drive in `driveState.hpDrained`. Satisfying the drive restores exactly
+`starve` drains HP for every drive whose current band carries a
+`ConsequenceDeath` (food at `Max`), and tracks that damage separately per drive
+in `driveState.hpDrained`. Satisfying the drive restores exactly
 that deprivation damage (up to `MaxHP`) — so eating heals hunger damage but not an
 unrelated alien bite. Three grace conditions prevent unfair deaths:
 
@@ -306,7 +379,8 @@ outranks any non-fatal one**. Without that rule, bladder (which rises faster and
 caps further past its threshold) would permanently outrank food and let colonists
 starve while relieving themselves.
 
-Sleep is deliberately non-fatal. A tired colonist seeks a reachable bunk and
+Sleep is deliberately non-fatal: at its ceiling a colonist passes out rather
+than dying. A tired colonist seeks a reachable bunk and
 spends a night (`UseTicks`, 360 by default; see [days.md](./days.md)) sleeping beside it. Food and toilets are
 still planned before dormitories, so a bunk usually arrives later than the
 first facility room — but a colonist with no reachable bunk, no bunk task to
@@ -493,6 +567,18 @@ tick before now serves `GrabTicks`⁻¹.
 - **The sleep drive is activity-neutral.** The calendar is derived from the
   sleep drive's base rate ([days.md](./days.md)). Scaling it by activity would
   make a day a different length for every colonist.
+- **Consequence is identity, not a setting.** The old `fatal` knob let a
+  settings file make bladder fatal, which silently rewrote arbitration. Rates
+  and thresholds are balance; what a drive does is code (PR #98's argument).
+- **Shapes, not bespoke consequences.** A drain, an experience and an event
+  are each written once, so the next consequence of an existing shape is
+  small.
+- **Feelings are reactions, not code.** Loneliness could have nudged affect
+  directly. Going through an occurrence instead gives it wear, a memory, trait
+  rules and a row anyone can tune in `cognition.yaml` or Scum Lab.
+- **Events discharge.** Without that, a colonist with no reachable toilet sat
+  at the bladder ceiling with nothing happening, the biggest gap in the old
+  model.
 - **Fatal beats non-fatal.** The bands did not change arbitration. A fatal drive
   past its threshold still outranks a non-fatal one, a rule learned from
   colonists starving with a full bladder.
@@ -510,13 +596,14 @@ retuned against the old game with `TestDriveTuningReport`: six seeds × 10,800
 ticks of the default game, counting meals per colonist-day, finished and
 interrupted nights, time in bed and mining, and starvation deaths.
 
-| | needs (before) | drives, food 2000 / asleep 25% | drives as shipped |
-| --- | --- | --- | --- |
-| meals per colonist-day | 2.00 | 2.47 | 2.07 |
-| nights finished / interrupted | 225 / 6 | 239 / 71 | 263 / 21 |
-| in bed | 30.2% | 29.7% | 30.6% |
-| mining | 19.3% | 17.0% | 19.3% |
-| starved | 3 | 5 | 0 |
+| | needs (before) | drives, food 2000 / asleep 25% | drives, food 1750 / asleep 10% | + the consequences (shipped) |
+| --- | --- | --- | --- | --- |
+| meals per colonist-day | 2.00 | 2.47 | 2.07 | 2.09 |
+| nights finished / interrupted | 225 / 6 | 239 / 71 | 263 / 21 | 188 / 13 |
+| in bed | 30.2% | 29.7% | 30.6% | 27.0% |
+| mining | 19.3% | 17.0% | 19.3% | 19.0% |
+| starved | 3 | 5 | 0 | 1 |
+| passed out / soiled / felt lonely | — | — | — | 29 / 78 / 210 |
 
 The first try, keeping food's old rate and letting food and bladder grow at a
 quarter speed in bed, had colonists eating a quarter more and being pulled out
@@ -529,10 +616,48 @@ interruptions: the colonists it wakes went to bed already just short of
 break rather than a lost night, and hunger that never stops at night was the
 point.
 
+Adding the consequences changes seeds, so each column is its own set of
+games and the counts move with how long colonies survive (239 colonist-days
+in the last column against 294 in the one before). Pass-outs are not spread
+evenly: 15 of the 29 are one colony (seed 3), whose last two or three
+colonists stand idle in the socialize focus waiting for a partner who never
+comes, while a bed is in reach. Social pressure pinned at its ceiling keeps
+outranking sleep, so they never go to bed; passing out is what finally resets
+their sleep. That is an arbitration problem passing out exposes rather than
+causes (before it, they simply never slept), and it is still open.
+
 Mechanics tests do not use these numbers. `testConfig` sets every awake activity
 to 100%, pauses everything but sleep in bed, and keeps food at its old 2 a
 tick, because those tests were written against the old timings. The drive
 model's own tests opt back in.
+
+## Roadmap
+
+PR #98's redesign doc (`docs/drives-redesign.md` on `ccr-837753c1-iji24e`)
+planned more on top of these consequences. What is still open, and where it
+lands in this model:
+
+- **The puddle (D1b).** Soiling should leave refuse that the sanitation system
+  mops up. Refuse rides the binary wire format and both renderers, so a new kind
+  is a wire `Version` bump, both decoders, the golden frames, a TUI glyph and a
+  browser tint. Rats eat gore, so a puddle must not be "a kind of gore".
+- **Hygiene (D3).** A new drive that grows with time and with dirty work
+  (digging, cleaning gore, hauling corpses, soiling). The bumps are effect
+  `Instant`s, and its consequence is an experience ("felt filthy"); later,
+  others perceiving a filthy colonist.
+- **Beauty and comfort (D4).** Drives whose rate depends on where the colonist
+  is: a cached score per room, folded in by `refreshDrive` when the colonist
+  changes rooms or the room changes, exactly as activity is. A pleasant room
+  is a negative rate.
+- **Severity (D5).** With several consequences, "fatal or not" becomes an
+  ordering (death above event above experience above none) for
+  `mostUrgentDrive` and focus eligibility.
+- **Sleep debt and hallucinations (D6).** Long-term deprivation needs an
+  accumulator that outlives one ceiling, and percepts with no occurrence behind
+  them.
+- **Conditions.** Depression is only compounding loneliness today. A real
+  condition would outlast the memories and could slow work, and would need an
+  exit in the same change (withdrawal feeds loneliness).
 
 ## Extending it
 
@@ -547,10 +672,14 @@ model's own tests opt back in.
   setting at 100%. Then point rows of `activityDrives` at it.
 - **A new player-facing `Activity`** needs its row in `activityDrives`.
   `TestEveryActivityHasADriveActivity` fails until it has one.
-- **A new consequence** (movement speed, collapse) is a `ConsequenceKind`, its
-  consumer reading the band table (`driveTable` holds a per-band vector for each
-  kind, like `hpDrain`), and consequences or a ramp on the drive's spec. Keep
-  consumers reading the band, not the level, so they only change at crossings.
+- **A new consequence of an existing shape** (feeling filthy is an
+  experience, like loneliness) is a `Consequence` constant, its `String()`,
+  its case in `applyDriveConsequences`, a reaction in `cognition.yaml` and
+  `DefaultCognitionConfig`, and `atCeiling` (or a range) in the drive's spec.
+- **A new shape** (movement speed slowing as exhaustion builds) is a
+  `Consequence` whose value is read where it applies: `driveTable` holds a
+  per-band vector for it, like `hpDrain`, and the consumer reads the band, not
+  the level, so it only changes at crossings. A ramp gives it smooth steps.
 - **A substance or event** is a profile in `Config.DriveEffects`, started with
   `applyEffect`. To make it player-tunable, a profile would need the config file
   to grow lists; until then it is code.

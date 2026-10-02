@@ -65,6 +65,10 @@ rhythm goes to bed at 22:00 and gets up at 06:00. The day number turns over at
   shared `Progress` job timer, so leaving bed early keeps what was slept and the
   next lie-down finishes the night instead of restarting it. It resets to 0
   only when a night completes.
+- **No night at all.** A colonist whose sleep drive reaches its ceiling
+  passes out where it stands for `pass-out-ticks` (60) and comes to with the
+  drive met (see [drives.md](./drives.md)). That does not touch
+  `sleepBanked`.
 
 `Day` and `MinuteOfDay` are `int` fields of `sim.Stats`, so they reach the
 browser through the frame's stats section with no wire change (see

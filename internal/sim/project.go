@@ -107,7 +107,7 @@ func (w *World) claimNearestTask(from Point, id EntityID) (*buildTask, bool) {
 // unrelated project (say, digging a dormitory while starving) still marks the
 // colonist as "handling" its need via e.task != nil, but the starvation grace
 // period only covers reachable construction that actually provides the
-// needed facility (see applyStarvation, reachableFacilityConstruction) — so
+// needed facility (see starve, reachableFacilityConstruction) — so
 // an unrestricted claim can starve a colonist while it is technically busy.
 func (w *World) claimNearestTaskProviding(from Point, id EntityID, kind Terrain) (*buildTask, bool) {
 	var providing []*project

@@ -28,7 +28,7 @@ finishing it.
 - [`internal/sim/systems.go`](../internal/sim/systems.go) — `assignWorkJob`
   prospects for the colony when it is short; `clearJob` clears `foraging`.
 - [`internal/sim/drives.go`](../internal/sim/drives.go) — `resetDrive` ends a
-  hunger's search; `applyStarvation` covers a colonist cooking its own supper.
+  hunger's search; `starve` covers a colonist cooking its own supper.
 - [`internal/sim/entity.go`](../internal/sim/entity.go) — `foraging`,
   `forageNoted`, `forageRetry`.
 - [`internal/sim/forage_test.go`](../internal/sim/forage_test.go).
@@ -121,7 +121,7 @@ hungry, which is what keeps a big colony fed (see below).
 
 ### The starvation grace
 
-`applyStarvation` doesn't drain HP from a colonist cooking its own supper
+`starve` doesn't drain HP from a colonist cooking its own supper
 (`JobCraft` for itself, on a meal recipe). The scum is already in the
 scumhouse, the same way a colonist walking to its own meal (`JobEat`) is
 already covered. A forager who dug the scum out, scraped it and carried it

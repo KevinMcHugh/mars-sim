@@ -2,39 +2,116 @@ package sim
 
 import (
 	"fmt"
+	"math"
 	"slices"
 )
 
 // Drive consequences: what a drive's level does to the colonist. A drive's
 // range is cut into bands at every threshold that matters (SeekAt,
 // CriticalAt, and the edges of each consequence), and within a band every
-// effect is constant. That keeps drives lazy: nothing about a colonist changes
-// between crossings, and the next crossing is a tick that can be computed and
-// scheduled. A smooth effect (movement slowing as exhaustion builds) is a
-// ramp: a few small steps, expanded into bands when the config is compiled.
-// See docs/drives.md.
+// consequence is constant. That keeps drives lazy: nothing about a colonist
+// changes between crossings, and the next crossing is a tick that can be
+// computed and scheduled. A smooth effect (movement slowing as exhaustion
+// builds) is a ramp: a few small steps, expanded into bands when the config is
+// compiled. See docs/drives.md.
 
-// ConsequenceKind is what a consequence does while its drive is in range.
-type ConsequenceKind uint8
+// Consequence is what a drive does to a colonist while its level is in a
+// consequence's range. What a drive does is its identity, not a balance knob:
+// consequences are declared in defaultDrives, never in the settings file,
+// because the rest of the simulation keys off them (a drive with a death
+// consequence outranks one without; a frontend paints its bar red).
+//
+// They come in four shapes, and each is written once for any drive:
+//
+//   - a drain takes something every tick in range and gives it back when the
+//     drive is satisfied (death: HP);
+//   - an experience is something the colonist feels, an occurrence through the
+//     perception grammar, on reaching the range and again every
+//     DriveSpec.ConsequenceEvery ticks while it stays (loneliness);
+//   - an event happens once and discharges the drive (passing out, soiling);
+//   - a rate change scales another drive's growth while in range.
+type Consequence uint8
 
 const (
-	consequenceNone ConsequenceKind = iota
-	// ConsequenceHPDrain takes Value HP a tick (starvation). Satisfying the
-	// drive gives that HP back.
-	ConsequenceHPDrain
-	// ConsequenceRate changes Target's growth rate by Value percent: +30
-	// makes it grow at 130%, -50 at half. This is how drives affect one
-	// another (exhaustion building faster the hungrier a colonist is).
+	// ConsequenceNone: nothing happens beyond the drive's pressure.
+	ConsequenceNone Consequence = iota
+	// ConsequenceDeath (a drain): Value HP a tick, StarveDamage if Value is
+	// 0, given back when the drive is satisfied. Starvation.
+	ConsequenceDeath
+	// ConsequenceLoneliness (an experience): the colonist feels lonely, a
+	// "felt-lonely" occurrence whose mood hit and memory are cognition.yaml
+	// rows. Unmet social.
+	ConsequenceLoneliness
+	// ConsequencePassOut (an event): the colonist collapses where it stands
+	// and lies unconscious for PassOutTicks, then comes to with the drive
+	// met. Unmet sleep.
+	ConsequencePassOut
+	// ConsequenceSoiling (an event): the colonist wets itself where it
+	// stands. The drive resets, and a `soil` occurrence carries the
+	// embarrassment to the colonist and the sight of it to anyone close
+	// enough. Unmet bladder.
+	ConsequenceSoiling
+	// ConsequenceRate (a rate change): Target's growth rate changes by Value
+	// percent, +30 to 130%, -50 to half. How drives affect one another
+	// (exhaustion building faster the hungrier a colonist is).
 	ConsequenceRate
+
+	numConsequences // keep last
 )
+
+func (c Consequence) String() string {
+	switch c {
+	case ConsequenceNone:
+		return "none"
+	case ConsequenceDeath:
+		return "death"
+	case ConsequenceLoneliness:
+		return "loneliness"
+	case ConsequencePassOut:
+		return "passing out"
+	case ConsequenceSoiling:
+		return "soiling"
+	case ConsequenceRate:
+		return "rate"
+	default:
+		return "consequence"
+	}
+}
+
+// acts reports whether c does something to the colonist itself (as opposed to
+// changing another drive's rate), and so is dispatched each tick.
+func (c Consequence) acts() bool {
+	return c == ConsequenceDeath || c == ConsequenceLoneliness || c == ConsequencePassOut || c == ConsequenceSoiling
+}
 
 // DriveConsequence applies Kind with Value while its drive's level is in
 // From..To, inclusive.
 type DriveConsequence struct {
 	From, To int
-	Kind     ConsequenceKind
+	Kind     Consequence
 	Target   DriveKind // ConsequenceRate: the drive whose rate changes
 	Value    int
+}
+
+// DriveCeiling, as a consequence's From or To, stands for the drive's Max
+// wherever the settings put it, so a consequence of reaching the ceiling
+// follows a retuned ceiling.
+const DriveCeiling = -1
+
+// atCeiling is a consequence of reaching a drive's ceiling and staying there.
+func atCeiling(kind Consequence) DriveConsequence {
+	return DriveConsequence{From: DriveCeiling, To: DriveCeiling, Kind: kind}
+}
+
+// resolve replaces DriveCeiling with the drive's Max.
+func (c DriveConsequence) resolve(max int) DriveConsequence {
+	if c.From == DriveCeiling {
+		c.From = max
+	}
+	if c.To == DriveCeiling {
+		c.To = max
+	}
+	return c
 }
 
 // DriveRamp is a consequence whose Value moves from FromValue at level From to
@@ -44,7 +121,7 @@ type DriveRamp struct {
 	From, To           int
 	FromValue, ToValue int
 	Steps              int
-	Kind               ConsequenceKind
+	Kind               Consequence
 	Target             DriveKind
 }
 
@@ -68,6 +145,43 @@ func (r DriveRamp) expand(max int) []DriveConsequence {
 	return out
 }
 
+// Fatal reports whether the drive can kill: whether any of its consequences is
+// death. Arbitration leans on it: a drive that kills outranks one that does
+// not (see mostUrgentDrive and fillFocusCandidates).
+func (s DriveSpec) Fatal() bool {
+	for _, c := range s.Consequences {
+		if c.Kind == ConsequenceDeath {
+			return true
+		}
+	}
+	for _, r := range s.Ramps {
+		if r.Kind == ConsequenceDeath {
+			return true
+		}
+	}
+	return false
+}
+
+// CeilingConsequence is what the drive does at its ceiling, for a frontend to
+// show: its death consequence there if it has one, else the first other one
+// that acts there, else none.
+func (s DriveSpec) CeilingConsequence() Consequence {
+	found := ConsequenceNone
+	for _, c := range s.Consequences {
+		c = c.resolve(s.Max)
+		if !c.Kind.acts() || s.Max < c.From || s.Max > c.To {
+			continue
+		}
+		if c.Kind == ConsequenceDeath {
+			return c.Kind
+		}
+		if found == ConsequenceNone {
+			found = c.Kind
+		}
+	}
+	return found
+}
+
 // driveRateChange is one band's ConsequenceRate on another drive.
 type driveRateChange struct {
 	target DriveKind
@@ -82,9 +196,13 @@ type driveTable struct {
 	phase   []DrivePhase
 	hpDrain []int
 	rates   [][]driveRateChange
-	// drainFrom is the lowest level any band drains HP at, so the per-tick
-	// starvation check can skip a drive below it without finding its band.
-	drainFrom int
+	// acts lists the experience and event consequences in force in each
+	// band, in declaration order.
+	acts [][]Consequence
+	// actFrom is the lowest level any band drains HP or acts at, so the
+	// per-tick consequence check can skip a drive below it without finding
+	// its band.
+	actFrom int
 }
 
 // bandOf is the band a whole-point level falls in.
@@ -120,23 +238,29 @@ func (c *Config) CheckDrives() error {
 }
 
 func compileDrive(spec DriveSpec, starveDamage int) (driveTable, error) {
-	cons := slices.Clone(spec.Consequences)
+	cons := make([]DriveConsequence, 0, len(spec.Consequences))
+	for _, c := range spec.Consequences {
+		cons = append(cons, c.resolve(spec.Max))
+	}
 	for i, r := range spec.Ramps {
+		if r.From == DriveCeiling {
+			r.From = spec.Max
+		}
+		if r.To == DriveCeiling {
+			r.To = spec.Max
+		}
 		if r.Steps < 1 || r.To <= r.From {
 			return driveTable{}, fmt.Errorf("ramp %d: needs at least one step and From below To (got %d steps, %d..%d)",
 				i, r.Steps, r.From, r.To)
 		}
 		cons = append(cons, r.expand(spec.Max)...)
 	}
-	if spec.Fatal {
-		cons = append(cons, DriveConsequence{From: spec.Max, To: spec.Max, Kind: ConsequenceHPDrain, Value: starveDamage})
-	}
 	edges := []int{1, spec.SeekAt, spec.CriticalAt}
 	for i, c := range cons {
 		switch {
 		case c.To < c.From:
 			return driveTable{}, fmt.Errorf("consequence %d: To %d is below From %d", i, c.To, c.From)
-		case c.Kind != ConsequenceHPDrain && c.Kind != ConsequenceRate:
+		case c.Kind == ConsequenceNone || c.Kind >= numConsequences:
 			return driveTable{}, fmt.Errorf("consequence %d: unknown kind %d", i, c.Kind)
 		case c.Kind == ConsequenceRate && c.Target >= numDrives:
 			return driveTable{}, fmt.Errorf("consequence %d: unknown target drive %d", i, c.Target)
@@ -152,8 +276,9 @@ func compileDrive(spec DriveSpec, starveDamage int) (driveTable, error) {
 		phase:   make([]DrivePhase, len(edges)+1),
 		hpDrain: make([]int, len(edges)+1),
 		rates:   make([][]driveRateChange, len(edges)+1),
-		// Above any reachable level until a draining band says otherwise.
-		drainFrom: spec.Max + 1,
+		acts:    make([][]Consequence, len(edges)+1),
+		// Above any reachable level until a band that acts says otherwise.
+		actFrom: spec.Max + 1,
 	}
 	for b := range t.phase {
 		// Every level in a band behaves alike, so its lowest level stands
@@ -168,13 +293,21 @@ func compileDrive(spec DriveSpec, starveDamage int) (driveTable, error) {
 				continue
 			}
 			switch c.Kind {
-			case ConsequenceHPDrain:
-				t.hpDrain[b] += c.Value
-				if c.Value > 0 {
-					t.drainFrom = min(t.drainFrom, rep)
+			case ConsequenceDeath:
+				drain := c.Value
+				if drain == 0 {
+					drain = starveDamage
 				}
+				t.hpDrain[b] += drain
 			case ConsequenceRate:
 				t.rates[b] = append(t.rates[b], driveRateChange{target: c.Target, change: c.Value})
+			default:
+				if !slices.Contains(t.acts[b], c.Kind) {
+					t.acts[b] = append(t.acts[b], c.Kind)
+				}
+			}
+			if c.Kind.acts() {
+				t.actFrom = min(t.actFrom, rep)
 			}
 		}
 	}
@@ -193,6 +326,9 @@ func (w *World) syncDriveBand(e *Entity, d DriveKind) {
 	band := t.bandOf(floorDiv(felt, driveUnit))
 	old := s.band
 	s.band = band
+	if band != old {
+		s.nextFeel = 0 // a new band is a new stay: its experiences are felt at once
+	}
 	if phase := t.phase[band]; phase != s.phase {
 		s.phase = phase
 		w.markMindDirty(e)
@@ -259,59 +395,165 @@ func (w *World) syncDrivePhase(e *Entity, d DriveKind) {
 	w.syncDriveBand(e, d)
 }
 
-// applyStarvation drains HP for every drive whose band carries a drain. It
-// reads levels lazily, so it is correct even for a colonist that has been
-// resting for many ticks.
-func (w *World) applyStarvation(e *Entity) {
-	for i := 0; i < int(numDrives); i++ {
-		d := DriveKind(i)
+// applyDriveConsequences applies every drive's consequences for the band its
+// level is in now: drains every tick, experiences on their cadence, and
+// events. colonistTurn calls it first thing. It reads levels lazily, so it is
+// correct even for a colonist that has been resting for many ticks.
+func (w *World) applyDriveConsequences(e *Entity) {
+	for d := DriveKind(0); d < numDrives; d++ {
 		t := &w.driveTables[d]
-		if t.drainFrom > w.cfg.Drives[d].Max {
-			continue // nothing about this drive ever drains HP
+		if t.actFrom > w.cfg.Drives[d].Max {
+			continue // nothing about this drive ever acts
 		}
 		level := w.driveLevel(e, d)
-		if level < t.drainFrom {
+		if level < t.actFrom {
 			continue
 		}
-		drain := t.hpDrain[t.bandOf(level)]
-		if drain <= 0 {
-			continue
+		b := t.bandOf(level)
+		if drain := t.hpDrain[b]; drain > 0 {
+			w.starve(e, d, drain)
 		}
-		spec := w.cfg.Drives[d]
-		// A colonist already eating, or on its way to its own meal, is
-		// guaranteed food: jobEat ends the job if the meal turns out to be
-		// out of reach, and the grace with it.
-		if d == DriveFood && e.Job == JobEat {
-			continue
+		if e.Kind != Colonist {
+			continue // only colonists feel, faint or blush
 		}
-		// So is one cooking its own supper out of scum already in the
-		// scumhouse: a forager who dug it out, scraped it and carried it
-		// home died at the stove, a recipe short of the meal.
-		if d == DriveFood && e.Job == JobCraft && e.craftFor == ColonistOwner(e.ID) &&
-			recipeMakesMeals(recipes[e.recipe]) {
-			continue
-		}
-		if e.Job == JobUse && e.Drive == d {
-			// A colonist that has already grabbed a portable drive (see
-			// DriveSpec.GrabTicks) is guaranteed to finish regardless of the
-			// facility's reachability or crowding — it is no longer there.
-			if e.carrying {
-				continue
-			}
-			// Reaching food does not reset the drive until UseTicks elapse.
-			// Give an entity committed to a reachable source enough grace to
-			// traverse its queue and finish eating rather than dying mid-meal.
-			if w.facilityReachable(e, spec.Facility) {
-				continue
+		for _, c := range t.acts[b] {
+			switch c {
+			case ConsequenceLoneliness:
+				if w.consequenceDue(e, d) {
+					w.emitDone(e, ActionFeel, NounLoneliness, "Felt lonely.")
+				}
+			case ConsequencePassOut:
+				if e.passedOutUntil == 0 && !w.usingFacility(e, d) {
+					w.passOut(e, d)
+				}
+			case ConsequenceSoiling:
+				if !w.usingFacility(e, d) {
+					w.wetSelf(e, d)
+				}
 			}
 		}
-		// The same grace applies while reachable life support is under
-		// construction. This is especially important at startup, when staggered
-		// hunger can reach Max shortly before the first facility room completes.
-		if e.Kind == Colonist && w.reachableFacilityConstruction(e.Pos, spec.Facility) {
-			continue
-		}
-		e.HP -= drain
-		e.drives[d].hpDrained += drain
 	}
+}
+
+// consequenceDue reports whether an experience consequence of drive d should
+// fire now, and books the next one if so: at once on arriving in its band,
+// then every ConsequenceEvery ticks while the drive stays there (never again,
+// with 0). Leaving the band, or satisfying the drive, clears the booking.
+func (w *World) consequenceDue(e *Entity, d DriveKind) bool {
+	s := &e.drives[d]
+	if s.nextFeel != 0 && w.tick < s.nextFeel {
+		return false
+	}
+	if every := w.cfg.Drives[d].ConsequenceEvery; every > 0 {
+		s.nextFeel = w.tick + every
+	} else {
+		s.nextFeel = math.MaxInt
+	}
+	return true
+}
+
+// starve is ConsequenceDeath: it drains HP for drive d, unless the colonist is
+// already on its way to satisfying it, and books the damage against the drive
+// so satisfying it heals exactly that much (see resetDrive).
+func (w *World) starve(e *Entity, d DriveKind, drain int) {
+	spec := w.cfg.Drives[d]
+	// A colonist already eating, or on its way to its own meal, is
+	// guaranteed food: jobEat ends the job if the meal turns out to be
+	// out of reach, and the grace with it.
+	if d == DriveFood && e.Job == JobEat {
+		return
+	}
+	// So is one cooking its own supper out of scum already in the
+	// scumhouse: a forager who dug it out, scraped it and carried it
+	// home died at the stove, a recipe short of the meal.
+	if d == DriveFood && e.Job == JobCraft && e.craftFor == ColonistOwner(e.ID) &&
+		recipeMakesMeals(recipes[e.recipe]) {
+		return
+	}
+	if e.Job == JobUse && e.Drive == d {
+		// A colonist that has already grabbed a portable drive (see
+		// DriveSpec.GrabTicks) is guaranteed to finish regardless of the
+		// facility's reachability or crowding — it is no longer there.
+		if e.carrying {
+			return
+		}
+		// Reaching food does not reset the drive until UseTicks elapse.
+		// Give an entity committed to a reachable source enough grace to
+		// traverse its queue and finish eating rather than dying mid-meal.
+		if w.facilityReachable(e, spec.Facility) {
+			return
+		}
+	}
+	// The same grace applies while reachable life support is under
+	// construction. This is especially important at startup, when staggered
+	// hunger can reach Max shortly before the first facility room completes.
+	if e.Kind == Colonist && w.reachableFacilityConstruction(e.Pos, spec.Facility) {
+		return
+	}
+	e.HP -= drain
+	e.drives[d].hpDrained += drain
+}
+
+// usingFacility reports whether e is already at the facility that satisfies d,
+// using it: asleep beside its bed, or at the toilet. A drive keeps growing
+// until the use finishes, so one that arrived near its ceiling reaches it
+// there, where the colonist is already doing what the consequence would force.
+// On the way is no exemption: you can collapse in the corridor, or not make it.
+func (w *World) usingFacility(e *Entity, d DriveKind) bool {
+	return e.Job == JobUse && e.Drive == d && !e.carrying && e.useFacilitySet &&
+		e.Pos.Adjacent(e.useFacility) && w.TerrainAt(e.useFacility) == w.cfg.Drives[d].Facility
+}
+
+// passOut is ConsequencePassOut: the colonist drops whatever it was doing and
+// collapses where it stands. It stays down for PassOutTicks — no focus, no
+// job, no fleeing; an alien that finds it there finds it helpless — and comes
+// to in stayPassedOut with drive d met.
+func (w *World) passOut(e *Entity, d DriveKind) {
+	w.clearJob(e)
+	e.focus, e.focusSince = FocusIdle, w.tick
+	e.resting = false
+	e.clearPath()
+	e.passedOutUntil, e.passedOutDrive = w.tick+w.cfg.PassOutTicks, d
+	e.State = PassedOut
+	o := w.occurrence(e, ActionCollapse, nil, e.Pos, "Passed out from exhaustion.")
+	w.emitOccurrence(o)
+	w.logEvent(LogNote, fmt.Sprintf("%s passed out from exhaustion.", e.displayName()))
+	w.markMindDirty(e)
+}
+
+// stayPassedOut runs an unconscious colonist's turn and reports whether it is
+// still down. The body goes on (affect decays, a sealed room is noticed,
+// uranium doses), but nothing is perceived or chosen. On the tick it comes to,
+// the drive that put it down resets and the colonist thinks again from
+// scratch.
+func (w *World) stayPassedOut(e *Entity) bool {
+	if e.passedOutUntil == 0 {
+		return false
+	}
+	w.decayAffect(e)
+	w.updateDisconnected(e)
+	w.applyUraniumExposure(e)
+	if w.tick < e.passedOutUntil {
+		e.State = PassedOut
+		return true
+	}
+	e.passedOutUntil = 0
+	e.State = Idle
+	w.resetDrive(e, e.passedOutDrive)
+	w.markMindDirty(e)
+	return true // the waking tick is spent coming to
+}
+
+// wetSelf is ConsequenceSoiling: drive d (the bladder) empties where the
+// colonist stands. It discharges the drive and leaves the colonist doing
+// whatever it was doing; the cost is the embarrassment (soiled-self) and what
+// anyone close enough sees (witnessed-soiling), both cognition.yaml rows. It
+// can happen while passed out.
+func (w *World) wetSelf(e *Entity, d DriveKind) {
+	w.resetDrive(e, d)
+	o := w.occurrence(e, ActionSoil, nil, e.Pos, "")
+	o.ActorText = fmt.Sprintf("Wet %s.", e.reflexive())
+	o.WitnessText = fmt.Sprintf("Saw %s wet %s.", e.displayName(), e.reflexive())
+	w.emitOccurrence(o)
+	w.logEvent(LogNote, fmt.Sprintf("%s wet %s.", e.displayName(), e.reflexive()))
 }

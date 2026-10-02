@@ -126,12 +126,14 @@ type Mood struct {
 	Max     int    `json:"max"`
 }
 
-// DriveLevel is one drive's bar. Fatal drives kill at Max.
+// DriveLevel is one drive's bar. Consequence is what reaching Max does
+// ("none", "death", "loneliness", "passing out", "soiling"; see
+// sim.Consequence).
 type DriveLevel struct {
-	Name  string `json:"name"`
-	Value int    `json:"value"`
-	Max   int    `json:"max"`
-	Fatal bool   `json:"fatal"`
+	Name        string `json:"name"`
+	Value       int    `json:"value"`
+	Max         int    `json:"max"`
+	Consequence string `json:"consequence"`
 }
 
 // Stack is some number of one item, in a slot.
@@ -262,7 +264,7 @@ func colonistDetail(s *sim.Snapshot, e sim.EntityView, p *sim.Profile) *Colonist
 	}
 	for i, v := range e.Drives {
 		m := s.DrivesMeta[i]
-		c.Drives = append(c.Drives, DriveLevel{Name: m.Name, Value: v, Max: m.Max, Fatal: m.Fatal})
+		c.Drives = append(c.Drives, DriveLevel{Name: m.Name, Value: v, Max: m.Max, Consequence: m.Consequence.String()})
 	}
 	for i, st := range e.Inventory {
 		if st.Count > 0 {

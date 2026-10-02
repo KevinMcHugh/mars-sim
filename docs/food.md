@@ -196,7 +196,7 @@ is, so a shortage never raises the price that would draw more producers in.
 In `eatMeal` (and `eatWalk`) the meal is in hand: out of the pockets and off the ledger both.
 If the job is cleared — an alien comes round the corner — `clearJob` puts it
 back in the colonist's pockets, so a meal is never lost to a fright. The
-starvation grace (`applyStarvation`) covers a colonist in `JobEat` the way it
+starvation grace (`starve`) covers a colonist in `JobEat` the way it
 covers one queued at a reachable pod.
 
 ## Why it is this way

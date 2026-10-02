@@ -9,7 +9,8 @@ export interface Colonist {
   height: string; heightCm: number; weightKg: number; skin: string; hair: string;
   wallet: number;
   mood: { charge: number; grip: number; valence: number; label: string; max: number };
-  drives: { name: string; value: number; max: number; fatal: boolean }[];
+  /** consequence is what a full bar does: "none", "death", "loneliness", "passing out" or "soiling" (sim.Consequence). */
+  drives: { name: string; value: number; max: number; consequence: string }[];
   inventory: Stack[];
   slots: number;
   traits: { name: string; desc: string }[];

@@ -33,7 +33,7 @@ var feedRecipe = Recipe{
 // trough or graze scum; otherwise wander, drifting home to the trough when
 // it has strayed.
 func (w *World) chickenTurn(e *Entity) {
-	w.applyStarvation(e)
+	w.applyDriveConsequences(e)
 	if !e.Alive() {
 		w.clearJob(e)
 		w.addCorpse(e.Pos, AnimalCorpse)

@@ -345,14 +345,18 @@ func (s *Snapshot) FixtureAt(p Point) (FixtureView, bool) {
 	return FixtureView{}, false
 }
 
-// DriveMeta describes a drive for display: its name, ceiling, and whether maxing
-// it out is fatal. Carried in the snapshot so frontends can render drive bars
-// without reaching into Config.
+// DriveMeta describes a drive for display: its name, ceiling, and what reaching
+// the ceiling does (DriveSpec.CeilingConsequence). Carried in the snapshot so
+// frontends can render drive bars without reaching into Config.
 type DriveMeta struct {
-	Name  string
-	Max   int
-	Fatal bool
+	Name        string
+	Max         int
+	Consequence Consequence
 }
+
+// Fatal reports whether a drive at its ceiling kills: the bar a frontend paints
+// red.
+func (m DriveMeta) Fatal() bool { return m.Consequence == ConsequenceDeath }
 
 // Stats summarizes the world at a glance for the UI header.
 type Stats struct {
@@ -611,7 +615,7 @@ func (w *World) snapshot(paused bool, tps int) *Snapshot {
 	var drivesMeta [numDrives]DriveMeta
 	for i := 0; i < int(numDrives); i++ {
 		spec := w.cfg.Drives[i]
-		drivesMeta[i] = DriveMeta{Name: spec.Name, Max: spec.Max, Fatal: spec.Fatal}
+		drivesMeta[i] = DriveMeta{Name: spec.Name, Max: spec.Max, Consequence: spec.CeilingConsequence()}
 	}
 
 	projects := make([]ProjectView, 0, len(w.projects))

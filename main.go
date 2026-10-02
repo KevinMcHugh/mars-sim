@@ -557,6 +557,8 @@ func validateConfig(cfg sim.Config) error {
 		return fmt.Errorf("social-window-ticks must be at least 1 (got %d)", cfg.SocialWindowTicks)
 	case cfg.MoodChargeDecayPerTick < 0 || cfg.MoodGripDecayPerTick < 0 || cfg.MoodLabelSwitchMargin < 0:
 		return fmt.Errorf("affect decay and label switch margin cannot be negative")
+	case cfg.PassOutTicks < 1:
+		return fmt.Errorf("pass-out-ticks must be at least 1 (got %d)", cfg.PassOutTicks)
 	case cfg.RatLitterMin < 0 || cfg.RatLitterMax < cfg.RatLitterMin:
 		return fmt.Errorf("rat litter range is invalid: min %d, max %d", cfg.RatLitterMin, cfg.RatLitterMax)
 	}

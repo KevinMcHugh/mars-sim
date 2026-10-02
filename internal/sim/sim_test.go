@@ -57,6 +57,25 @@ func setDriveRate(w *World, e *Entity, d DriveKind, rate int) {
 	w.refreshDrive(e, d, 0)
 }
 
+// quietDrives empties every drive of e and stops it growing, for a test about
+// something other than drives. Zeroing a drive's stored base alone was never
+// enough: a level is the base plus its growth since it was taken, so a base
+// of zero with an old timestamp still reads at the ceiling, and since drives
+// have consequences there a "fed" colonist would wet itself, pass out and
+// feel lonely every tick. Freezing the rates once, rather than resetting the
+// levels every tick, also spares the colonist re-deciding what to do on
+// every tick (a reset schedules a phase crossing).
+func quietDrives(w *World, e *Entity) {
+	if e.driveBase != [numDrives]int{} {
+		freezeDrives(w, e)
+	}
+	for d := DriveKind(0); d < numDrives; d++ {
+		if w.driveTrue(e, d) != 0 {
+			w.setDrive(e, d, 0)
+		}
+	}
+}
+
 // freezeDrives stops every drive of e from growing.
 func freezeDrives(w *World, e *Entity) {
 	for d := DriveKind(0); d < numDrives; d++ {

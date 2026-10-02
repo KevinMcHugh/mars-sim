@@ -69,6 +69,7 @@ const (
 	Demolishing       // colonist breaking down a wall to escape a sealed room
 	Crafting          // colonist working a recipe at a workshop (the scumhouse)
 	Scraping          // colonist scraping cave scum off a surface
+	PassedOut         // colonist unconscious where it fell, a drive at its ceiling (see passOut)
 
 	numStates // keep last: the number of states
 )
@@ -89,6 +90,8 @@ func (s State) String() string {
 		return "relieving"
 	case Sleeping:
 		return "sleeping"
+	case PassedOut:
+		return "passed out"
 	case Talking:
 		return "talking"
 	case Fleeing:
@@ -369,6 +372,11 @@ type Entity struct {
 	driveActivity  DriveActivity
 	effects        []activeEffect
 	nextEffectTick int
+	// passedOutUntil is the tick a colonist that passed out (a drive's
+	// ConsequencePassOut) comes to, 0 while it is conscious; passedOutDrive
+	// is the drive that put it down, met when it comes to. See passOut.
+	passedOutUntil int
+	passedOutDrive DriveKind
 
 	// Personality (colonists only). Profile holds the name, attributes, and
 	// traits; driveTrait, restTicks, and workScale are the trait-resolved effective
@@ -674,6 +682,15 @@ func (e *Entity) possessive() string {
 		return "their"
 	}
 	return e.Profile.Gender.Possessive()
+}
+
+// reflexive is the colonist's reflexive pronoun ("herself") for memories and
+// log lines. Falls back to "themself" with no profile.
+func (e *Entity) reflexive() string {
+	if e.Profile == nil {
+		return "themself"
+	}
+	return e.Profile.Gender.Reflexive()
 }
 
 // clearPath discards any cached navigation route.

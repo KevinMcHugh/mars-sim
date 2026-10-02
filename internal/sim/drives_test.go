@@ -72,8 +72,17 @@ func TestNeedPhaseTracksLazyElapsedTimeAndNextBoundary(t *testing.T) {
 	}
 	w.tick = wantCritical
 	w.syncDrivePhase(c, n)
+	// The ceiling is a band of its own (bladder's consequence, soiling,
+	// applies there), so critical still schedules one crossing: reaching it.
+	wantCeiling := w.tick + (spec.Max*driveUnit-w.driveFelt(c, n)+r-1)/r
+	if c.drives[n].phase != DriveCritical || c.drives[n].nextCrossing != wantCeiling {
+		t.Fatalf("critical phase=%v boundary=%d, want critical and the ceiling at %d",
+			c.drives[n].phase, c.drives[n].nextCrossing, wantCeiling)
+	}
+	w.tick = wantCeiling
+	w.syncDrivePhase(c, n)
 	if c.drives[n].phase != DriveCritical || c.drives[n].nextCrossing != 0 {
-		t.Fatalf("critical phase=%v boundary=%d, want critical and unscheduled",
+		t.Fatalf("at the ceiling phase=%v boundary=%d, want critical and unscheduled",
 			c.drives[n].phase, c.drives[n].nextCrossing)
 	}
 }
@@ -211,7 +220,7 @@ func TestFatalNeedOutranksNonFatal(t *testing.T) {
 	w := roomsTestWorld(20, 20)
 	c := w.spawn(Colonist, Point{5, 5})
 	food, bladder := w.cfg.Drives[DriveFood], w.cfg.Drives[DriveBladder]
-	if !food.Fatal || bladder.Fatal {
+	if !food.Fatal() || bladder.Fatal() {
 		t.Skip("assumes food fatal, bladder not")
 	}
 	// Food barely urgent; bladder maxed (further over its threshold).
@@ -230,7 +239,7 @@ func TestEatingRecoversOnlyStarvationDamage(t *testing.T) {
 	c.HP -= 3 // an unrelated wound must remain after eating
 	w.setDrive(c, DriveFood, w.cfg.Drives[DriveFood].Max)
 
-	w.applyStarvation(c)
+	w.applyDriveConsequences(c)
 	if got, want := c.HP, c.MaxHP-3-w.cfg.StarveDamage; got != want {
 		t.Fatalf("starvation HP: got %d want %d", got, want)
 	}
@@ -251,7 +260,7 @@ func TestEntityDoesNotStarveWhileSeekingReachableFood(t *testing.T) {
 	c.Job, c.Drive = JobUse, DriveFood
 
 	hp := c.HP
-	w.applyStarvation(c)
+	w.applyDriveConsequences(c)
 	if c.HP != hp {
 		t.Fatalf("colonist seeking reachable food lost HP: %d -> %d", hp, c.HP)
 	}

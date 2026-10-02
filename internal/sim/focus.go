@@ -235,9 +235,9 @@ func (w *World) currentFocusEligible(e *Entity, threat *Entity) bool {
 		if phase != DrivePressing && phase != DriveCritical {
 			return false
 		}
-		if !w.cfg.Drives[need].Fatal {
+		if !w.cfg.Drives[need].Fatal() {
 			for n := DriveKind(0); n < numDrives; n++ {
-				if w.cfg.Drives[n].Fatal && (e.drives[n].phase == DrivePressing || e.drives[n].phase == DriveCritical) {
+				if w.cfg.Drives[n].Fatal() && (e.drives[n].phase == DrivePressing || e.drives[n].phase == DriveCritical) {
 					return false
 				}
 			}
@@ -358,7 +358,7 @@ func fillFocusCandidates(in focusInputs, out *[numFocusKinds]FocusCandidate) {
 		if phase == DriveCritical {
 			c.Score.Drive += in.criticalBonus
 		}
-		if spec.Fatal {
+		if spec.Fatal() {
 			c.Score.Drive += in.fatalBonus
 			fatalPressing = true
 		}
@@ -368,7 +368,7 @@ func fillFocusCandidates(in focusInputs, out *[numFocusKinds]FocusCandidate) {
 	// non-fatal drives. Threats remain eligible and can still dominate it.
 	if fatalPressing {
 		for n := DriveKind(0); n < numDrives; n++ {
-			if in.needs[n].Fatal {
+			if in.needs[n].Fatal() {
 				continue
 			}
 			out[focusForDrive(n)].Eligible = false

@@ -181,7 +181,7 @@ func LabDrives(needs [numDrives]DriveSpec) []LabDrive {
 	for n := DriveKind(0); n < numDrives; n++ {
 		spec := needs[n]
 		out = append(out, LabDrive{
-			ID: spec.Name, SeekAt: spec.SeekAt, CritAt: spec.CriticalAt, Max: spec.Max, Fatal: spec.Fatal,
+			ID: spec.Name, SeekAt: spec.SeekAt, CritAt: spec.CriticalAt, Max: spec.Max, Fatal: spec.Fatal(),
 		})
 	}
 	return out
@@ -398,7 +398,7 @@ func explainFocus(f FocusKind, in focusInputs, reach labReach) []string {
 	if !hot {
 		reasons = append(reasons, notPressingLine(f, phase))
 	}
-	foodHot := in.needs[DriveFood].Fatal &&
+	foodHot := in.needs[DriveFood].Fatal() &&
 		(in.phase[DriveFood] == DrivePressing || in.phase[DriveFood] == DriveCritical)
 	if foodHot && f != FocusEat {
 		reasons = append(reasons, "Hunger is pressing, and it outranks this.")

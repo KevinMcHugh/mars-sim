@@ -289,7 +289,8 @@ type Config struct {
 
 	// Drives. One DriveSpec per DriveKind, indexed by that kind.
 	Drives       [numDrives]DriveSpec `cfg:"drives" sec:"Drives"`
-	StarveDamage int                  `cfg:"starve-damage" doc:"HP lost per tick while a fatal drive sits at its max"`
+	StarveDamage int                  `cfg:"starve-damage" doc:"HP lost per tick while a drive's death consequence applies"`
+	PassOutTicks int                  `cfg:"pass-out-ticks" doc:"ticks a colonist lies unconscious where it fell once a drive's pass-out consequence applies"`
 	// DriveEffects are the effect profiles events can start on a colonist's
 	// drives (caffeine, water), indexed by DriveEffectKind. None ship yet;
 	// the config file has no lists, so they are set in code (drive_effects.go).
@@ -695,6 +696,7 @@ func DefaultConfig() Config {
 		IncineratorBuildTicks: 20,
 
 		StarveDamage:          1,
+		PassOutTicks:          60,
 		ColonistsPerFacility:  5,
 		Cognition:             DefaultCognitionConfig(),
 		RestTicks:             10,

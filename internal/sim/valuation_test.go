@@ -20,9 +20,7 @@ func producerWorld(t *testing.T, n int) (w *World, house, silo Point, cols []*En
 	w.refreshSpatial()
 	for i := 0; i < n; i++ {
 		e := w.spawn(Colonist, Point{10 + 2*i, 12})
-		for k := DriveKind(0); k < numDrives; k++ {
-			w.setDrive(e, k, 0)
-		}
+		quietDrives(w, e)
 		cols = append(cols, e)
 	}
 	return w, house, silo, cols
@@ -43,9 +41,7 @@ func TestAMealBidReachesTheCaveWall(t *testing.T) {
 		w.step()
 		for _, e := range w.entities {
 			if e.Kind == Colonist {
-				for k := DriveKind(0); k < numDrives; k++ {
-					w.setDrive(e, k, 0) // keep the test about work, not survival
-				}
+				quietDrives(w, e) // keep the test about work, not survival
 			}
 		}
 		depth = max(depth, w.chainDepth())
