@@ -11,6 +11,10 @@ risk and reward. Each level down holds richer deposits and bigger caverns, and
 it holds more and worse aliens. The colony chooses when to dig down, and every
 way down is also a way up for whatever lives there.
 
+Up is a direction too. Crash pods land on **level 1**. Level 0 above it is the
+Martian **surface**, which has its own challenges and is planned separately
+(Z6).
+
 This is a design and a build plan. Nothing here is built yet. When a phase
 ships, its content moves into a present-tense doc and the table links to it.
 
@@ -22,6 +26,7 @@ ships, its content moves into a present-tense doc and the table links to it.
 | Z3 — Holes | Proposed |
 | Z4 — Depth gating (challenge and reward) | Proposed |
 | Z5 — Browser frontend and wire format | Proposed |
+| Z6 — The surface (level 0) | Proposed; needs its own doc |
 
 ## Source
 
@@ -47,9 +52,15 @@ None yet. The code each phase changes:
 ### The model: stacked layers, not a 3D grid
 
 A level is a `Layer`: one full-size 2D grid plus every structure that only
-makes sense inside one grid. `World` holds `layers []*Layer`, index 0 being the
-surface level the colony lands on (it is already underground; "surface" only
-means "where the pods come down"). Deeper levels have higher indices. Every
+makes sense inside one grid. `World` holds `layers []*Layer`, indexed by level:
+
+| Level | What it is |
+| --- | --- |
+| 0 | **The surface.** Open Martian ground above the rock, with its own hazards (see "The surface" below). Nobody starts here. |
+| 1 | **The landing level.** Crash pods come down here, and it is today's whole map. |
+| 2+ | **The deeps.** Each level further down is richer and more dangerous. |
+
+A level nobody has broken into has a nil `Layer` and costs nothing. Every
 level has the same `Width × Height`, and a vertical link always joins **the
 same `(x, y)` on two levels**. That one rule keeps the link model trivial:
 a link is a column, not a pair of arbitrary points.
@@ -66,7 +77,12 @@ the one thing we do not need: free vertical movement anywhere.
 ### Positions: `Point` inside a layer, `Loc` across them
 
 ```go
-type Level int8          // 0 = landing level, grows downward
+type Level int8 // grows downward
+
+const (
+	SurfaceLevel Level = 0
+	LandingLevel Level = 1 // where pods land; today's map
+)
 
 type Loc struct {
 	Level Level
@@ -94,6 +110,13 @@ them: a keyed literal `Loc{Point: p}` silently means level 0, and so does a
 zero-valued `Loc` field used as "unset". Prefer constructors (`at(l, p)`) and
 an explicit `ok bool` the way `siloSeen` already does.
 
+Numbering the landing level 1 rather than 0 helps here. A forgotten level
+lands on the **surface**, not the colony's home level, so the mistake is not
+silently "right" for one-level games. In Z0, where every real place is on
+level 1, a debug assertion (and a test over a long run) can treat any level-0
+`Loc` as a bug. With landing at 0, the same bug would pass every test until
+the second level shipped.
+
 ### What moves into `Layer` and what stays on `World`
 
 | Into `Layer` (per level) | Stays on `World` (shared) |
@@ -107,7 +130,7 @@ an explicit `ok bool` the way `siloSeen` already does.
 | `chunkEntities` (spatial index) | `links` (the vertical link table, below) |
 | `regionOf`, `dirtyChunks` | relationships, memories, director, RNG streams |
 | `salt`, `exposedSalt`, `scum`, `exposedScum`, `scumPatches` | projects (they hold `Loc`s) |
-| `buildTiles`, `doorTiles`, `pods` (only level 0 has any) | |
+| `buildTiles`, `doorTiles`, `pods` (only level 1 has any) | |
 | worldgen state: `genDone`, `genSeen` | |
 
 Region IDs stay **globally unique** (one counter on `World`) so the region
@@ -196,9 +219,10 @@ behaviors that want it*:
   walled in, and [escape.md](./escape.md)'s cutoff detection already handles
   "my room is not the colony's main room".
 - **Raids.** Aliens on a deeper level can only reach the colony through a
-  two-way link. Aliens on a *shallower* level (rare, but caverns go up as
-  well as down once generated) can drop in through any hole. A hole dug in
-  the wrong place is a door that only opens inward.
+  two-way link. Anything on a *shallower* level can drop in through any hole,
+  and above the landing level is the surface. A hole dug in the wrong place
+  is a door that only opens inward. A hole up to the surface is also a
+  breach in the colony's shelter (see "The surface").
 
 A hole with a ladder fitted becomes a shaft. That is the upgrade path. A
 hole is what you get by digging straight down without building anything,
@@ -224,7 +248,7 @@ The existing two-tier structure does almost all of the work:
    is uniform-cost today. Z1's stairs need nothing more; Z2 adds an edge cost
    for shafts (`g += ShaftClimbTicks`) and switches the heuristic as in HPA\*.
 4. **Flow fields.** A field is a multi-source BFS from its goals, and a
-   colonist on level 2 who needs a toilet should be routed to one on level 0
+   colonist on level 3 who needs a toilet should be routed to one on level 1
    if that is the nearest. So fields **span levels**: `flowField.cells`
    becomes one `pagedGrid` per level, and BFS adds the link neighbor the same
    way A\* does. Two complications:
@@ -263,9 +287,14 @@ A tile directly below you might be a hundred steps away. The rule for Z1:
 Worldgen is already lazy and per chunk: a chunk is a pure function of
 `(Config, cx, cy)`, generated only when exploration reaches it
 ([worldgen-chunks.md](./worldgen-chunks.md)). A level just becomes part of the
-key: `chunkKey{level, cx, cy}`. `featureRand` mixes the level into the ids
-**only for `level > 0`**, so level 0 generates bit-for-bit what it does today
-and the golden hashes do not move.
+key: `chunkKey{level, cx, cy}`. `featureRand` mixes `level - LandingLevel`
+into the ids **only when it is nonzero**, so level 1 generates bit-for-bit what
+today's map does and the golden hashes do not move. Mixing the raw level in
+would reseed the landing level and change every seed's world.
+
+Levels 2 and down use today's generator (rock, veins, caverns, passages, scum,
+salt) with depth multipliers (Z4). The surface does not: it is open ground,
+not rock to dig through, and gets its own generator in Z6.
 
 A level is generated when something first breaks into it. Digging down for a
 stair, shaft or hole generates the halo around that column on the level below,
@@ -274,10 +303,39 @@ the existing breach (`revealAround`, the nest roll) fires on that level. That
 is the moment the next level announces what it holds.
 
 Planning horizons stay inside one level: a cavern plan on level 1 never reads
-level 0's plans. Cross-level features (a natural shaft through two levels, a
+level 1's plans. Cross-level features (a natural shaft through two levels, a
 sinkhole) are owned by the upper level's chunk and plant their lower end as a
 plan the lower level reads. It is the same "read plans, never generated
 chunks" rule, one level deeper.
+
+### The surface (level 0)
+
+The surface sits above the landing level and is not more of the same. It is
+open ground, with no rock ceiling to dig through. Its challenges are
+exposure, not monsters in the dark: cold, dust storms, and radiation (a
+natural fit for the uranium dose in [mutation.md](./mutation.md)). Its
+rewards are whatever the colony cannot get underground, such as sunlight,
+ice, or supply drops the [director](./director.md) lands there instead of
+inside the colony.
+
+What this proposal fixes about it, so the earlier phases do not paint it into
+a corner:
+
+- **It is a `Layer` like any other.** Navigation, links, rooms and the
+  frontend's level switching treat it the same way. Only its generator, its
+  terrain kinds and its hazards differ.
+- **Links go up as well as down.** Breaking out is digging a stair or shaft
+  **up** from level 1. The column rule still holds. What the top end opens
+  into is an airlock-like fixture, not a floor tile in a cave.
+- **Shelter is a property of the landing level.** Today everything on level
+  1 is implicitly sheltered. A hole to the surface, or an open stair with no
+  airlock, is what lets the surface's hazards in. That makes a hole dug up the
+  worst kind of hole.
+- **Generation is lazy here too.** Nothing on the surface is generated until
+  a link breaks through to it.
+
+Everything else (the hazards, what is worth going up for, whether colonists
+can work there unprotected) is for Z6's own doc.
 
 ### Determinism
 
@@ -303,7 +361,7 @@ touched, so a quiet level costs a page-table copy. Entities carry their level,
 and the frontend filters to the viewed level.
 
 - **TUI:** `<` and `>` change the viewed level. The status line shows
-  `Level 2 (−2)`. The map draws link tiles with their own glyphs (stairs, ladder,
+  `Level 2`, or `Surface` on level 0. The map draws link tiles with their own glyphs (stairs, ladder,
   void). The roster shows each colonist's level.
 - **Browser (Z5):** the view rectangle the page streams gains a level. Frame
   tile pages are keyed `(level, page)`. The entity section carries a level byte.
@@ -343,12 +401,13 @@ Build order and what each phase must prove:
   `go test ./...` passes with **unchanged golden hashes**, and benchmarks
   (`BenchmarkChunkCold`, the tick benchmarks) are within noise. The pointer
   hop through `w.layers[l]` is on the hottest read in the sim. Keep a
-  `w.surface *Layer` shortcut if it shows up.
-- **Z1 — stairs and a second level.** Config `levels` (default 1, so goldens
+  `w.home *Layer` shortcut (the landing level) if it shows up.
+- **Z1 — stairs and a second level.** The second level is level 2, below the
+  landing level. Config `levels` (deepest level, default 1, so goldens
   hold), level in the chunk key, `StairDown`/`StairUp` terrain, the stair
   project, cross-level region links, A\*/HPA\*/flow-field link neighbors,
   `travelEstimate`, and TUI level switching. Tests: a colonist on level 1
-  reaches a toilet on level 0, and the reverse. A stair walled off on one side
+  reaches a toilet on level 1, and the reverse. A stair walled off on one side
   splits the room. Determinism under lockstep with two levels. The colony
   digging down when `levels > 1` and the frontier is exhausted, or on a player
   order.
@@ -365,10 +424,13 @@ Build order and what each phase must prove:
   colony. This is the phase the feature exists for. Everything before it is
   plumbing.
 - **Z5 — browser.** Wire format, view level, and `web/` rendering.
+- **Z6 — the surface.** Level 0's own generator and hazards, and links dug
+  **up** from level 1 to break out onto it. Its own doc before it is built.
 
 Invariants every phase keeps:
 
-- Level 0 generation and the one-level game are unchanged (golden hashes).
+- Level 1 generation and the one-level game are unchanged (golden hashes).
+- Crash pods land on level 1 and nowhere else.
 - A vertical link is a column: both ends share `(x, y)`.
 - Rooms and `sameRoom` are symmetric: only two-way links are region links.
 - No map is ranged to decide anything: links, layers and dirty chunks are
@@ -376,17 +438,17 @@ Invariants every phase keeps:
 
 ### Open questions
 
-- **Bounded or unbounded depth?** A fixed `levels` is simpler for config,
-  generation and the UI. Unbounded depth needs gating to be a formula, not a
-  table. Proposal: fixed, default small (4–6), formula-driven multipliers so
-  raising the cap needs no new tables.
+- **Bounded or unbounded depth?** A fixed deepest level is simpler for
+  config, generation and the UI. Unbounded depth needs gating to be a
+  formula, not a table. Proposal: fixed, default small (4–6 levels below the
+  landing level), formula-driven multipliers so raising the cap needs no new
+  tables.
 - **Does digging down require building something?** Proposal: yes. Digging
   straight down makes a hole (a one-way drop), so the colony has to choose to
   spend the time on a stair or a shaft.
 - **Can aliens use stairs?** Proposal: yes. That is the challenge. Shafts by
   build (small and medium species climb, the biggest do not), holes for
   anything above.
-- **Pods.** Crash pods only ever land on level 0.
 
 ## Related
 
