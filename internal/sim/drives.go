@@ -107,11 +107,14 @@ func defaultDrives() [numDrives]DriveSpec {
 			// Sleep builds slowly and, once sought, takes a night to clear:
 			// 720 ticks awake and 360 in bed make a 1080-tick day, so a night
 			// is eight clock hours and an hour is 45 ticks (see days.md).
-			// Its rate is the same whatever the colonist is doing, because
-			// the colony calendar is derived from it. A colonist that gets
-			// no sleep at all passes out wherever it is (PassOutTicks).
+			// It builds at the same rate whatever the colonist is doing
+			// awake, and falls in bed (its asleep percent is negative): a
+			// night lasts until it reaches 0, so UseTicks is 0. A colonist
+			// that gets no sleep at all passes out where it stands, falls
+			// at half the bed's rate on the floor, and comes to once it is
+			// below CriticalAt.
 			Name: "sleep", Rate: 1000, SeekAt: 720, CriticalAt: 900, Max: 1000,
-			Facility: Bed, UseTicks: 360,
+			Facility: Bed, UseTicks: 0,
 			Consequences: []DriveConsequence{atCeiling(ConsequencePassOut)},
 		},
 	}
@@ -123,23 +126,31 @@ func defaultDrives() [numDrives]DriveSpec {
 		}
 	}
 	// Hunger never stops, but it is slowest asleep and fastest at hard labor.
-	d[DriveFood].Activity = activityPercents(10, 75, 100, 140)
+	d[DriveFood].Activity = activityPercents(10, 75, 100, 140, 10)
 	// Asleep, the other drives all but stop: a night is longer than food or
 	// bladder take to come due, and a colonist pulled out of bed by them
-	// never finishes one (see days.md).
-	d[DriveBladder].Activity[DriveAsleep.index()] = 10
-	d[DriveSocial].Activity[DriveAsleep.index()] = 0
+	// never finishes one (see days.md). Unconscious on the floor, the same.
+	for _, a := range []DriveActivity{DriveAsleep, DriveUnconscious} {
+		d[DriveFood].Activity[a.index()] = 10
+		d[DriveBladder].Activity[a.index()] = 10
+		d[DriveSocial].Activity[a.index()] = 0
+	}
+	// Sleep is what falls asleep: 720 points in 360 ticks (eight hours) in
+	// a bed, half that fast on the floor.
+	d[DriveSleep].Activity[DriveAsleep.index()] = -200
+	d[DriveSleep].Activity[DriveUnconscious.index()] = -100
 	return d
 }
 
 // activityPercents lists a drive's percents in DriveActivity order: asleep,
-// idle, working, labor.
-func activityPercents(asleep, idle, working, labor int) [numDriveActivities]int {
+// idle, working, labor, unconscious.
+func activityPercents(asleep, idle, working, labor, unconscious int) [numDriveActivities]int {
 	var p [numDriveActivities]int
 	p[DriveAsleep.index()] = asleep
 	p[DriveIdle.index()] = idle
 	p[DriveWorking.index()] = working
 	p[DriveLabor.index()] = labor
+	p[DriveUnconscious.index()] = unconscious
 	return p
 }
 
@@ -160,7 +171,7 @@ type DriveSpec struct {
 	CriticalAt int     `cfg:"critical-at" doc:"level at which the drive becomes critical"`
 	Max        int     `cfg:"max" doc:"ceiling; the drive's consequences there apply while it sits here"`
 	Facility   Terrain // structure that resets this drive to 0
-	UseTicks   int     `cfg:"use-ticks" doc:"ticks spent using the facility"`
+	UseTicks   int     `cfg:"use-ticks" doc:"ticks spent using the facility (0: until the drive falls to 0, as sleep does in bed)"`
 	// GrabTicks, if positive and less than UseTicks, makes this drive portable:
 	// a colonist spends only GrabTicks at the facility, then carries it away
 	// and spends the rest of UseTicks finishing elsewhere, freeing the
@@ -170,6 +181,7 @@ type DriveSpec struct {
 	GrabTicks int `cfg:"grab-ticks" doc:"ticks at the facility before carrying the rest away (0 = must be used in place)"`
 	// Activity is the percent of Rate this drive grows at in each drive
 	// activity (see drive_activity.go), indexed by DriveActivity.index().
+	// A negative percent makes the drive fall: sleep, asleep.
 	Activity [numDriveActivities]int `cfg:"activity" doc:"percent of the base rate in the %s drive activity"`
 	// Consequences and Ramps declare what levels do (see drive_bands.go).
 	Consequences []DriveConsequence
@@ -182,19 +194,31 @@ type DriveSpec struct {
 
 // TicksPerDay is how many ticks make one colony day, derived from the sleep
 // drive rather than tuned on its own: one waking stretch (an unslept colonist's
-// sleep drive rising from 0 to SeekAt at the base Rate) plus one night (the
-// bed's UseTicks). That is the rhythm a well-housed colonist actually lives
-// on, so "day 3" means "the colony has slept about twice". Deriving it keeps
-// the calendar honest when sleep is retuned; a separate knob would drift.
-// The walk to a bed and trait-scaled rates are deliberately ignored: a day has
-// to be one fixed length for the whole colony. Always at least 1.
+// sleep drive rising from 0 to SeekAt at the base Rate) plus one night
+// (NightTicks). That is the rhythm a well-housed colonist actually lives on,
+// so "day 3" means "the colony has slept about twice". Deriving it keeps the
+// calendar honest when sleep is retuned; a separate knob would drift. The walk
+// to a bed and trait-scaled rates are deliberately ignored: a day has to be
+// one fixed length for the whole colony. Always at least 1.
 func (c *Config) TicksPerDay() int {
 	spec := c.Drives[DriveSleep]
 	awake := spec.Max // a sleep drive that never rises: fall back to the ceiling
 	if spec.Rate > 0 {
 		awake = (spec.SeekAt*driveUnit + spec.Rate - 1) / spec.Rate
 	}
-	return max(awake+spec.UseTicks, 1)
+	return max(awake+c.NightTicks(), 1)
+}
+
+// NightTicks is how long a night in bed lasts at the base rates: the sleep
+// drive falling from SeekAt to 0 at its asleep rate. A sleep drive that does
+// not fall in bed has no such night, and the bed's UseTicks stands in.
+func (c *Config) NightTicks() int {
+	spec := c.Drives[DriveSleep]
+	fall := -spec.Rate * spec.Activity[DriveAsleep.index()] / 100
+	if fall <= 0 {
+		return spec.UseTicks
+	}
+	return (spec.SeekAt*driveUnit + fall - 1) / fall
 }
 
 // LandingHour is the clock time the colony lands at, tick 0. Colonists land
@@ -284,6 +308,11 @@ func (w *World) driveRate(e *Entity, d DriveKind) int {
 	}
 	if e.Kind == Colonist {
 		rate = rate * w.cfg.Drives[d].Activity[e.driveActivity.index()] / 100
+		// A colonist's night is its own length (sleep traits): sleep falls
+		// in bed fast enough to clear SeekAt in that many ticks.
+		if d == DriveSleep && e.driveActivity == DriveAsleep && e.sleepTicks > 0 {
+			rate = rate * w.cfg.NightTicks() / e.sleepTicks
+		}
 	}
 	rate = rate * e.driveTrait[d] / 100
 	for src := DriveKind(0); src < numDrives; src++ {

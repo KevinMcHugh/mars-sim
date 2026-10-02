@@ -12,35 +12,40 @@ ticks.
 
 Because the day is built from sleep, sleep is tuned to the day: a night in
 bed is **eight clock hours**, and the Short Sleeper and Long Sleeper traits
-move it an hour either way. Hours-long nights needed two new rules (other
-drives all but stop while asleep, and an interrupted night is banked), covered
-below.
+move it an hour either way. A night is the sleep drive falling: in bed it runs
+backwards until it reaches 0, and the night is over. Everything below follows
+from that.
 
 ## Source
 
-- [`internal/sim/drives.go`](../internal/sim/drives.go) — `Config.TicksPerDay`, `LandingHour`, `DayOf`, and `MinuteOfDay`; the sleep `DriveSpec`.
-- [`internal/sim/sleep.go`](../internal/sim/sleep.go) — `Config.TicksPerHour`, `sleepTick`, and the banked night.
+- [`internal/sim/drives.go`](../internal/sim/drives.go) — `Config.TicksPerDay`, `Config.NightTicks`, `LandingHour`, `DayOf`, and `MinuteOfDay`; the sleep `DriveSpec`; the sleep traits' night in `driveRate`.
+- [`internal/sim/sleep.go`](../internal/sim/sleep.go) — `Config.TicksPerHour`, and `sleepTick`, which ends the night when the drive reaches 0.
+- [`internal/sim/focus.go`](../internal/sim/focus.go) — `focusDrive`, which keeps a sleeper in bed until the night is over.
 - [`internal/sim/personality.go`](../internal/sim/personality.go) — the Short Sleeper / Long Sleeper traits (`sleepHours`), resolved into `Entity.sleepTicks`.
 - [`internal/sim/snapshot.go`](../internal/sim/snapshot.go) — `Stats.Day` and `Stats.MinuteOfDay`, filled in by `snapshot`.
 - [`internal/ui/tui/view.go`](../internal/ui/tui/view.go) — `renderHeader` shows `day N  HH:MM` on the title line.
 - [`web/src/ui/TopBar.svelte`](../web/src/ui/TopBar.svelte) — the web top bar's `day N HH:MM` readout.
 - [`internal/sim/drives_test.go`](../internal/sim/drives_test.go) — `TestTicksPerDayFollowsSleep`, `TestDayOfCountsLandingAsDayOne`, `TestMinuteOfDayStartsAtLandingHour`.
-- [`internal/sim/sleep_test.go`](../internal/sim/sleep_test.go) — trait night lengths, drives pausing in bed (under `testConfig`), banking, and waking to flee.
+- [`internal/sim/sleep_test.go`](../internal/sim/sleep_test.go) — trait night lengths, the night lasting until sleep is met, interrupted nights keeping what was slept, and waking to flee.
 - [`internal/ui/tui/render_test.go`](../internal/ui/tui/render_test.go) — `TestHeaderShowsDayAndTimeOfDay`.
 
 ## How it works
 
 ```
-TicksPerDay = ceil(sleep.SeekAt × 1000 / sleep.Rate) + sleep.UseTicks
+NightTicks  = ceil(sleep.SeekAt × 1000 / (sleep.Rate × −asleep% / 100))
+TicksPerDay = ceil(sleep.SeekAt × 1000 / sleep.Rate) + NightTicks
 offset      = TicksPerDay * LandingHour / 24       // landing is 06:00
 Day         = (tick + offset) / TicksPerDay + 1    // the landing is day 1
 MinuteOfDay = (tick + offset) % TicksPerDay * 1440 / TicksPerDay
 ```
 
-With the default sleep drive (rate 1000, one point a tick; seek-at 720;
-use-ticks 360) a day is **1080 ticks**. A colonist starts with no sleep drive, stays up until it reaches
-`SeekAt` (when they drop work to go to bed), then spends `UseTicks` in a bunk:
-that cycle is the day.
+With the default sleep drive (rate 1000, one point a tick; seek-at 720; asleep
+−200%, so it falls two points a tick in bed) a night is 360 ticks and a day is
+**1080 ticks**. A colonist starts with no sleep drive, stays up until it reaches
+`SeekAt` (when they drop work to go to bed), then sleeps it off: that cycle is
+the day. A sleep drive that does not fall in bed has no night of its own, and
+the bed's `use-ticks` stands in (it is 0 for sleep, meaning "until the drive is
+met").
 
 The clock stretches those ticks over 24 hours, so at defaults one clock hour
 (`TicksPerHour`) is exactly **45 ticks**, 720 waking ticks are 16 hours, and the
@@ -50,25 +55,40 @@ rhythm goes to bed at 22:00 and gets up at 06:00. The day number turns over at
 
 ### The night's sleep
 
-- **Length.** `Entity.sleepTicks` is the sleep drive's `UseTicks` plus
+- **Sleep falls in bed.** A colonist in bed (`State == Sleeping`) is in the
+  asleep drive activity, where each drive has its own percent
+  (`drives.<name>.activity.asleep`): sleep −200%, so it falls; food and
+  bladder 10%; social 0%. Getting into or out of bed is a change of drive
+  activity, which `syncDriveActivity` notices after the turn and refreshes the
+  rates for, so there is nothing to pair up and nothing to forget on an
+  unusual way out of bed. See [drives.md](./drives.md).
+- **A night lasts until the drive is met.** `sleepTick` ends the night (the
+  "Slept in a bed." memory, the bed's fee) on the tick the sleep drive reaches
+  0, not after a fixed number of ticks. A colonist that stayed up later sleeps
+  longer: going to bed at 900 is a 450-tick night.
+- **Staying in bed.** Below `SeekAt` the sleep drive no longer presses, so on
+  its own a sleeper would get up halfway through the night. `focusDrive` holds a
+  drive being satisfied in place at just short of critical while the colonist is
+  using the facility, so only a critical drive, a fatal one (hunger), or a
+  threat gets it up. Holding it at `SeekAt` was tried first: a sleeper then got
+  up for any drive that was barely pressing, and interrupted nights went from 13
+  to 71, 41 of them a mildly full bladder.
+- **Length by trait.** `Entity.sleepTicks` is `NightTicks` plus
   `sleepHours × TicksPerHour` from its traits: Short Sleeper is −1 (315 ticks,
   seven hours) and Long Sleeper +1 (405, nine). They share the `sleep` trait
-  group, so a colonist has at most one. The calendar still uses the base night.
-- **Other drives all but stop.** A colonist in bed (`State == Sleeping`) is in
-  the asleep drive activity, and each drive says how fast it grows there
-  (`drives.<name>.activity.asleep`): social 0%, food and bladder 10%, sleep
-  itself 100%. Getting into or out of bed is a change of drive activity, which
-  `syncDriveActivity` notices after the turn and refreshes the rates for, so
-  there is nothing to pair up and nothing to forget on an unusual way out of
-  bed. See [drives.md](./drives.md).
-- **Banked nights.** Sleep progress lives in `Entity.sleepBanked`, not the
-  shared `Progress` job timer, so leaving bed early keeps what was slept and the
-  next lie-down finishes the night instead of restarting it. It resets to 0
-  only when a night completes.
-- **No night at all.** A colonist whose sleep drive reaches its ceiling
-  passes out where it stands for `pass-out-ticks` (60) and comes to with the
-  drive met (see [drives.md](./drives.md)). That does not touch
-  `sleepBanked`.
+  group, so a colonist has at most one. `driveRate` scales the colonist's
+  asleep rate by `NightTicks / sleepTicks`, so clearing `SeekAt` takes its own
+  night. The calendar still uses the base night.
+- **Interrupted nights keep what was slept.** There is nothing to bank: the
+  drive has fallen as far as it has, and the colonist gets up that much less
+  tired. Still above `SeekAt`, it goes back to bed and finishes from there;
+  below it, it is rested enough to stay up, and the drive rises again from where
+  the night left it.
+- **No night at all.** A colonist whose sleep drive reaches its ceiling passes
+  out where it stands, into the unconscious drive activity, where sleep falls
+  at half the bed's rate (−100%). It comes to once the drive is below
+  `CriticalAt`, still tired, about 100 ticks later, and goes to find a bed. See
+  [drives.md](./drives.md).
 
 `Day` and `MinuteOfDay` are `int` fields of `sim.Stats`, so they reach the
 browser through the frame's stats section with no wire change (see
@@ -102,8 +122,9 @@ it there truncated that line, which `TestLogTabShowsTheFullEntryWrapped` caught.
   so the clock is a label, not a schedule.
 - **Sleep used to be 40 ticks.** That made a 740-tick day with a 1.3-hour
   night, which looked absurd on a clock. The fix was to make the night eight
-  hours (`use-ticks` 360) rather than to bend the clock; `seek-at` moved from
-  700 to 720 so the day is 1080 ticks and an hour a whole 45.
+  hours (then `use-ticks` 360, now an asleep rate of −200%) rather than to bend
+  the clock; `seek-at` moved from 700 to 720 so the day is 1080 ticks and an
+  hour a whole 45.
 - **Why other drives (almost) pause in bed.** Lengthening the night alone broke the
   colony. Food comes due every ~325 ticks awake, so hunger pulled almost
   every colonist out of bed before a 360-tick night finished, the night
@@ -119,14 +140,27 @@ it there truncated that line, which `TestLogTabShowsTheFullEntryWrapped` caught.
   about a quarter, which is the cost of colonists sleeping a third of the day.
   Drives made "slower" possible: rates are in thousandths, so food and bladder
   now grow at 10% in bed instead of stopping. That costs some nights, because a
-  colonist who goes to bed just short of hungry wakes to eat. Over the same six
-  seeds: 263 finished nights and 21 interrupted (13 by hunger, the rest by
-  aliens), against 225 and 6 with the full pause; time in bed is unchanged at
-  about 30%. Banking keeps each of those a short break. The tuning is in
-  [drives.md](./drives.md).
-- **Why banking.** A night is now long enough that something will
-  occasionally interrupt it (an alien, mostly). Restarting from zero turned
-  each interruption into a lost night; banking makes it a short break.
+  colonist who goes to bed just short of hungry wakes to eat (hunger is fatal,
+  so once it presses it outranks sleep). Over the same six seeds, with nights
+  that last until sleep is met: 234 finished nights and 49 interrupted (32 by
+  hunger, 11 by a critical bladder, the rest aliens), against 225 and 6 with the
+  full pause; time in bed 33%. An interrupted night is now cheap, because what
+  was slept is kept. The tuning is in [drives.md](./drives.md).
+- **Why the drive falls instead of a timer.** The night used to be a fixed
+  `use-ticks` counted in `sleepBanked`, while the sleep drive kept rising in
+  bed and only reset when the count was done. Three things went wrong once
+  drives had consequences:
+  - Everyone reached the ceiling in bed. A colonist that lay down at 720 hit
+    1000 after 280 ticks of a 360-tick night, and only an "already in bed"
+    exemption kept it from passing out there. One woken late in the night got
+    up already at the ceiling and collapsed in the corridor.
+  - Passing out (60 ticks, then a full reset) was a far cheaper night than a
+    bed (360 ticks).
+  - Passing out ignored the bank, so a half-slept night carried on after it.
+
+  With the drive falling, the level is the bank, a night is as long as the
+  colonist is tired, and passing out is the same thing on the floor at half the
+  rate, so how long it lasts comes out of the drive too.
 - **Zero rate.** If sleep is configured never to grow, the waking stretch falls
   back to `Max` ticks so `TicksPerDay` is still positive and `DayOf` never
   divides by zero.
@@ -141,7 +175,8 @@ it there truncated that line, which `TestLogTabShowsTheFullEntryWrapped` caught.
   the day number turns over; the tests in `drives_test.go` pin the 06:00 values.
 - Another sleep trait is a `traitSpec` with `sleepHours` in the `sleep` group.
   Anything else that should grow differently while a colonist sleeps is its
-  drive's `activity.asleep` percent.
+  drive's `activity.asleep` percent; a slower night (a worse bed) is a less
+  negative one for sleep.
 - Nothing in the simulation reads the clock. A day/night mechanic (lighting,
   shift schedules) would want `MinuteOfDay` from Go, not the stat.
 

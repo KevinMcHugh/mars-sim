@@ -19,6 +19,9 @@ const (
 	DriveIdle
 	DriveWorking
 	DriveLabor
+	// DriveUnconscious is a colonist that passed out (ConsequencePassOut):
+	// asleep on the floor, which rests it less than a bed does.
+	DriveUnconscious
 
 	driveActivityEnd // keep last
 )
@@ -28,7 +31,7 @@ const numDriveActivities = int(driveActivityEnd) - 1
 
 // driveActivityNames names each class for the config file and the docs,
 // indexed by DriveActivity.index().
-var driveActivityNames = [numDriveActivities]string{"asleep", "idle", "working", "labor"}
+var driveActivityNames = [numDriveActivities]string{"asleep", "idle", "working", "labor", "unconscious"}
 
 // index is a's slot in per-class arrays such as DriveSpec.Activity.
 func (a DriveActivity) index() int { return int(a) - 1 }
@@ -39,9 +42,6 @@ func (a DriveActivity) String() string {
 	}
 	return driveActivityNames[a.index()]
 }
-
-// DriveActivityName names the drive activity at index i of DriveSpec.Activity.
-func DriveActivityName(i int) string { return driveActivityNames[i] }
 
 // activityDrive is the drive activity of one Activity: Doing while the
 // colonist is visibly at it, Walking while it is on its way.
@@ -71,8 +71,12 @@ var activityDrives = [NumActivities]activityDrive{
 // driveActivityOf is the drive activity colonist e is in now. Doing applies
 // only while its State names the activity (asleep means in bed, not merely
 // wanting to be); walking there is Walking, and standing around waiting for
-// it (no bed free yet) is idle.
+// it (no bed free yet) is idle. Passed out is its own class: the Activity tab
+// counts it as sleeping, but the floor is not a bed.
 func driveActivityOf(e *Entity) DriveActivity {
+	if e.State == PassedOut {
+		return DriveUnconscious
+	}
 	if a, ok := activityOfState(e.State); ok {
 		return activityDrives[a].Doing
 	}

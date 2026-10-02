@@ -372,10 +372,10 @@ type Entity struct {
 	driveActivity  DriveActivity
 	effects        []activeEffect
 	nextEffectTick int
-	// passedOutUntil is the tick a colonist that passed out (a drive's
-	// ConsequencePassOut) comes to, 0 while it is conscious; passedOutDrive
-	// is the drive that put it down, met when it comes to. See passOut.
-	passedOutUntil int
+	// passedOut is whether the colonist is unconscious where it fell (a
+	// drive's ConsequencePassOut), and passedOutDrive the drive that put it
+	// down; it comes to once that drive falls below CriticalAt. See passOut.
+	passedOut      bool
 	passedOutDrive DriveKind
 
 	// Personality (colonists only). Profile holds the name, attributes, and
@@ -384,14 +384,12 @@ type Entity struct {
 	// personality.go.
 	Profile   *Profile
 	restTicks int // idle rest duration (base scaled by traits)
-	// sleepTicks is how long this colonist's night in bed lasts: the sleep
-	// drive's UseTicks, give or take a clock hour per sleep trait. asleep is
-	// whether it is in bed now, and sleepBanked is the sleep already done
-	// tonight, kept when a night is interrupted. See docs/days.md.
-	sleepTicks  int
-	asleep      bool
-	sleepBanked int
-	workScale   float64 // mine/build time multiplier (1.0 = baseline)
+	// sleepTicks is how long this colonist's night in bed lasts, from SeekAt:
+	// Config.NightTicks give or take a clock hour per sleep trait. The sleep
+	// drive falls in bed fast enough to fit it (see driveRate and
+	// docs/days.md).
+	sleepTicks int
+	workScale  float64 // mine/build time multiplier (1.0 = baseline)
 
 	// Skills (colonists only). practice is base work ticks of completed work
 	// per skill; ranks and labels are derived from it, never stored. yieldAcc
@@ -613,7 +611,7 @@ func newEntity(id EntityID, kind Kind, p Point, cfg Config) *Entity {
 		}
 		e.driveActivity = DriveIdle
 		e.restTicks = cfg.RestTicks
-		e.sleepTicks = cfg.Drives[DriveSleep].UseTicks
+		e.sleepTicks = cfg.NightTicks()
 	case Alien:
 		e.MaxHP = cfg.AlienHP
 		// Only the food drive rises: Friendly and Cautious species graze cave

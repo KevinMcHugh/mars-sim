@@ -112,8 +112,9 @@ func TestConversationWhileLonelySocializes(t *testing.T) {
 	}
 }
 
-// A sleep drive at its ceiling drops the colonist where it stands for
-// PassOutTicks; it then comes to with the drive met and the memory of it.
+// A sleep drive at its ceiling drops the colonist where it stands. It lies
+// there while the drive falls at the unconscious rate, and comes to, still
+// tired, once it is below critical-at, with the memory of it.
 func TestSleepDeprivedColonistPassesOut(t *testing.T) {
 	cfg := testConfig()
 	cfg.StartColonists, cfg.StartAliens = 0, 0
@@ -124,30 +125,48 @@ func TestSleepDeprivedColonistPassesOut(t *testing.T) {
 	for n := DriveKind(0); n < numDrives; n++ {
 		w.setDrive(c, n, 0)
 	}
-	w.setDrive(c, DriveSleep, cfg.Drives[DriveSleep].Max)
+	spec := cfg.Drives[DriveSleep]
+	w.setDrive(c, DriveSleep, spec.Max)
 
 	w.step()
-	if c.State != PassedOut || c.passedOutUntil == 0 {
+	if c.State != PassedOut || !c.passedOut {
 		t.Fatalf("state = %v, want passed out", c.State)
 	}
 	if got := memoriesOf(c, "passed-out"); got != 1 {
 		t.Fatalf("passed-out memories = %d, want 1", got)
 	}
-	for i := 1; i < cfg.PassOutTicks; i++ {
+	if c.drives[DriveSleep].rate >= 0 || c.driveActivity != DriveUnconscious {
+		t.Fatalf("sleep rate %d in drive activity %v: it should fall while unconscious", c.drives[DriveSleep].rate, c.driveActivity)
+	}
+	fall := -spec.Rate * spec.Activity[DriveUnconscious.index()] / 100
+	down := (spec.Max - spec.CriticalAt) * driveUnit / fall
+	for i := 1; i < down; i++ {
 		w.step()
 		if c.State != PassedOut || c.Pos != at || c.Job != JobNone {
 			t.Fatalf("tick %d: state %v job %v at %v; want lying where it fell", i, c.State, c.Job, c.Pos)
 		}
 	}
-	w.step()
-	if c.passedOutUntil != 0 || c.State == PassedOut {
-		t.Fatalf("did not come to after %d ticks", cfg.PassOutTicks)
+	for i := 0; i < 3 && c.passedOut; i++ {
+		w.step()
 	}
-	if lvl := w.driveLevel(c, DriveSleep); lvl > 1 {
-		t.Fatalf("sleep drive after passing out = %d, want met", lvl)
+	if c.passedOut || c.State == PassedOut {
+		t.Fatalf("still out after %d ticks with sleep at %d", down+3, w.driveLevel(c, DriveSleep))
+	}
+	if lvl := w.driveLevel(c, DriveSleep); lvl >= spec.CriticalAt || lvl < spec.SeekAt {
+		t.Fatalf("sleep drive on coming to = %d, want just below critical-at %d: still tired", lvl, spec.CriticalAt)
 	}
 	if got := memoriesOf(c, "passed-out"); got != 1 {
 		t.Fatalf("passed out again: %d memories", got)
+	}
+}
+
+// A drive whose consequence is passing out must fall while unconscious, or
+// the colonist would never come to.
+func TestPassOutNeedsAFallingDrive(t *testing.T) {
+	cfg := DefaultConfig()
+	cfg.Drives[DriveSleep].Activity[DriveUnconscious.index()] = 0
+	if err := cfg.CheckDrives(); err == nil {
+		t.Fatal("a pass-out drive that never falls was accepted")
 	}
 }
 
@@ -163,12 +182,12 @@ func TestAsleepInBedDoesNotPassOut(t *testing.T) {
 	c.Job, c.Drive, c.useFacility, c.useFacilitySet = JobUse, DriveSleep, bed, true
 
 	w.applyDriveConsequences(c)
-	if c.passedOutUntil != 0 {
+	if c.passedOut {
 		t.Fatal("passed out while asleep in bed")
 	}
 	c.Job = JobNone
 	w.applyDriveConsequences(c)
-	if c.passedOutUntil == 0 {
+	if !c.passedOut {
 		t.Fatal("did not pass out once out of bed")
 	}
 }

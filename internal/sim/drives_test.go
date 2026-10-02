@@ -269,22 +269,33 @@ func TestEntityDoesNotStarveWhileSeekingReachableFood(t *testing.T) {
 func TestTicksPerDayFollowsSleep(t *testing.T) {
 	cfg := DefaultConfig()
 	sleep := cfg.Drives[DriveSleep]
-	want := (sleep.SeekAt*driveUnit+sleep.Rate-1)/sleep.Rate + sleep.UseTicks
-	if got := cfg.TicksPerDay(); got != want {
+	awake := (sleep.SeekAt*driveUnit + sleep.Rate - 1) / sleep.Rate
+	if got, want := cfg.TicksPerDay(), awake+cfg.NightTicks(); got != want {
 		t.Fatalf("TicksPerDay = %d, want %d (awake to SeekAt, then a night in bed)", got, want)
 	}
+	if got := cfg.TicksPerDay(); got != 1080 {
+		t.Fatalf("TicksPerDay = %d, want 1080 at the shipped rates", got)
+	}
 
-	// Retuning sleep retunes the day.
+	// Retuning sleep retunes the day: falling three times as fast as it
+	// builds, 300 points take 100 ticks to sleep off.
 	cfg.Drives[DriveSleep].Rate = driveUnit
 	cfg.Drives[DriveSleep].SeekAt = 300
+	cfg.Drives[DriveSleep].Activity[DriveAsleep.index()] = -300
+	if got := cfg.TicksPerDay(); got != 400 {
+		t.Fatalf("TicksPerDay = %d, want 400", got)
+	}
+	// A sleep drive that does not fall in bed has no night of its own; the
+	// bed's use-ticks stands in.
+	cfg.Drives[DriveSleep].Activity[DriveAsleep.index()] = 0
 	cfg.Drives[DriveSleep].UseTicks = 20
 	if got := cfg.TicksPerDay(); got != 320 {
-		t.Fatalf("TicksPerDay = %d, want 320", got)
+		t.Fatalf("TicksPerDay with no fall in bed = %d, want 320", got)
 	}
-	// A sleep drive that never rises still gives a usable, positive day.
+	// One that never rises still gives a usable, positive day.
 	cfg.Drives[DriveSleep].Rate = 0
 	if got := cfg.TicksPerDay(); got != cfg.Drives[DriveSleep].Max+20 {
-		t.Fatalf("TicksPerDay with zero rise = %d", got)
+		t.Fatalf("TicksPerDay with zero rate = %d", got)
 	}
 }
 

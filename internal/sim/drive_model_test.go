@@ -154,8 +154,13 @@ func TestActivityScalesDriveGrowth(t *testing.T) {
 	if asleep[DriveSocial] != 0 {
 		t.Errorf("social grows %d a tick asleep, want 0", asleep[DriveSocial])
 	}
-	if asleep[DriveSleep] != mining[DriveSleep] {
-		t.Errorf("sleep rate asleep %d, mining %d: the calendar needs it activity-neutral", asleep[DriveSleep], mining[DriveSleep])
+	// Sleep is what falls asleep; awake it builds at one rate whatever the
+	// colonist does, because the calendar is derived from it.
+	if asleep[DriveSleep] >= 0 {
+		t.Errorf("sleep rate asleep %d, want it falling", asleep[DriveSleep])
+	}
+	if idle[DriveSleep] != mining[DriveSleep] {
+		t.Errorf("sleep rate idle %d, mining %d: the calendar needs it activity-neutral awake", idle[DriveSleep], mining[DriveSleep])
 	}
 }
 

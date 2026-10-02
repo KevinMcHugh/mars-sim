@@ -119,8 +119,8 @@ project cap, because full builders otherwise cannot excavate active projects.
 See [storage.md](./storage.md).
 
 Beds use the same facility machinery as pods and toilets: a colonist approaches
-an adjacent tile, spends the sleep need's `UseTicks` sleeping, and then resets
-the need. A bunk is not walkable and has no permanently assigned owner; capacity
+an adjacent tile and sleeps until the sleep drive has fallen to 0 (see
+[days.md](./days.md)). A bunk is not walkable and has no permanently assigned owner; capacity
 is represented by the number of `Bed` tiles, with the normal access and
 crowd-flow rules deciding who can use one next.
 

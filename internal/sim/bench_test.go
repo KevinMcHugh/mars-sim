@@ -116,7 +116,6 @@ func BenchmarkRestingColonistFastPath(b *testing.B) {
 
 func BenchmarkSleepingColonistFastPath(b *testing.B) {
 	w := benchWorldSized(64, 64, 1)
-	w.cfg.Drives[DriveSleep].UseTicks = int(^uint(0) >> 1)
 	e := w.entities[1]
 	if !prepareSleepingBenchmarkColonist(w, e) {
 		b.Fatal("no adjacent bed site")
@@ -131,7 +130,6 @@ func BenchmarkSleepingColonistFastPath(b *testing.B) {
 
 func BenchmarkStepSleeping500(b *testing.B) {
 	w := benchWorld(500)
-	w.cfg.Drives[DriveSleep].UseTicks = int(^uint(0) >> 1)
 	for _, e := range w.entities {
 		if e.Kind == Colonist && !prepareSleepingBenchmarkColonist(w, e) {
 			prepareRestingBenchmarkColonist(w, e)

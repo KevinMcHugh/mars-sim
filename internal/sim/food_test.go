@@ -93,7 +93,7 @@ func TestWithoutTheSafetyNetTheColonyStarvesOnSchedule(t *testing.T) {
 	earliest := (meals-1)*cycle + spec.UseTicks + dying
 	const travel = 60
 	latest := meals*(cycle+travel) + dying
-	latest += (latest/w.cfg.TicksPerDay() + 1) * w.cfg.Drives[DriveSleep].UseTicks
+	latest += (latest/w.cfg.TicksPerDay() + 1) * w.cfg.NightTicks()
 	n := w.countKind(Colonist)
 
 	firstDeath, lastDeath := -1, -1

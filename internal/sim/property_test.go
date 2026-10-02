@@ -158,7 +158,7 @@ func TestOwnerReachesItsOnlyPrivateBed(t *testing.T) {
 	w.setDrive(owner, DriveSleep, w.cfg.Drives[DriveSleep].SeekAt+50)
 	w.syncDrivePhase(owner, DriveSleep)
 
-	for i := 0; i < 300+w.cfg.Drives[DriveSleep].UseTicks; i++ {
+	for i := 0; i < 300+w.cfg.NightTicks(); i++ {
 		w.step()
 		if w.driveLevel(owner, DriveSleep) == 0 {
 			return

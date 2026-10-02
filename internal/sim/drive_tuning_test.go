@@ -97,7 +97,7 @@ func runTuningGame(w *World, ticks int) tuningTally {
 				tally.inBed++
 			}
 			if prevSleeping[id] && !sleeping {
-				if e.sleepBanked > 0 {
+				if w.driveLevel(e, DriveSleep) > 0 { // got up before the night was done
 					tally.interrupted++
 					tally.wokenBy[e.focus]++
 				} else {

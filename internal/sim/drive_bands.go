@@ -28,7 +28,8 @@ import (
 //   - an experience is something the colonist feels, an occurrence through the
 //     perception grammar, on reaching the range and again every
 //     DriveSpec.ConsequenceEvery ticks while it stays (loneliness);
-//   - an event happens once and discharges the drive (passing out, soiling);
+//   - an event happens once and ends the stay (soiling resets the drive; a
+//     colonist that passes out lies there until the drive has fallen);
 //   - a rate change scales another drive's growth while in range.
 type Consequence uint8
 
@@ -43,8 +44,8 @@ const (
 	// rows. Unmet social.
 	ConsequenceLoneliness
 	// ConsequencePassOut (an event): the colonist collapses where it stands
-	// and lies unconscious for PassOutTicks, then comes to with the drive
-	// met. Unmet sleep.
+	// and lies unconscious, the drive falling (it must, in the unconscious
+	// drive activity), until it is below CriticalAt. Unmet sleep.
 	ConsequencePassOut
 	// ConsequenceSoiling (an event): the colonist wets itself where it
 	// stands. The drive resets, and a `soil` occurrence carries the
@@ -266,6 +267,12 @@ func compileDrive(spec DriveSpec, starveDamage int) (driveTable, error) {
 			return driveTable{}, fmt.Errorf("consequence %d: unknown target drive %d", i, c.Target)
 		case c.Kind == ConsequenceRate && c.Value < -100:
 			return driveTable{}, fmt.Errorf("consequence %d: a rate cannot fall below zero (change %d%%)", i, c.Value)
+		case c.Kind == ConsequencePassOut && spec.Rate*spec.Activity[DriveUnconscious.index()] >= 0:
+			return driveTable{}, fmt.Errorf("consequence %d: a colonist that passes out comes to when the drive falls, "+
+				"so it must fall while unconscious (rate %d at %d%%)", i, spec.Rate, spec.Activity[DriveUnconscious.index()])
+		case c.Kind == ConsequencePassOut && c.From <= spec.CriticalAt:
+			return driveTable{}, fmt.Errorf("consequence %d: a colonist comes to below critical-at %d, "+
+				"so passing out has to start above it (from %d)", i, spec.CriticalAt, c.From)
 		}
 		edges = append(edges, c.From, c.To+1)
 	}
@@ -423,7 +430,7 @@ func (w *World) applyDriveConsequences(e *Entity) {
 					w.emitDone(e, ActionFeel, NounLoneliness, "Felt lonely.")
 				}
 			case ConsequencePassOut:
-				if e.passedOutUntil == 0 && !w.usingFacility(e, d) {
+				if !e.passedOut && !w.usingFacility(e, d) {
 					w.passOut(e, d)
 				}
 			case ConsequenceSoiling:
@@ -505,16 +512,21 @@ func (w *World) usingFacility(e *Entity, d DriveKind) bool {
 }
 
 // passOut is ConsequencePassOut: the colonist drops whatever it was doing and
-// collapses where it stands. It stays down for PassOutTicks — no focus, no
-// job, no fleeing; an alien that finds it there finds it helpless — and comes
-// to in stayPassedOut with drive d met.
+// collapses where it stands, into the unconscious drive activity, where drive
+// d falls (validated by compileDrive). It stays down — no focus, no job, no
+// fleeing; an alien that finds it there finds it helpless — until d is below
+// CriticalAt, so how long it lies there comes out of the drive's rates rather
+// than a timer. It comes to still tired, and goes to find a bed.
 func (w *World) passOut(e *Entity, d DriveKind) {
 	w.clearJob(e)
 	e.focus, e.focusSince = FocusIdle, w.tick
 	e.resting = false
 	e.clearPath()
-	e.passedOutUntil, e.passedOutDrive = w.tick+w.cfg.PassOutTicks, d
+	e.passedOut, e.passedOutDrive = true, d
 	e.State = PassedOut
+	// Its drives fall or slow from this tick, not from the end of the turn.
+	e.driveActivity = DriveUnconscious
+	w.refreshDrives(e)
 	o := w.occurrence(e, ActionCollapse, nil, e.Pos, "Passed out from exhaustion.")
 	w.emitOccurrence(o)
 	w.logEvent(LogNote, fmt.Sprintf("%s passed out from exhaustion.", e.displayName()))
@@ -523,23 +535,22 @@ func (w *World) passOut(e *Entity, d DriveKind) {
 
 // stayPassedOut runs an unconscious colonist's turn and reports whether it is
 // still down. The body goes on (affect decays, a sealed room is noticed,
-// uranium doses), but nothing is perceived or chosen. On the tick it comes to,
-// the drive that put it down resets and the colonist thinks again from
+// uranium doses), but nothing is perceived or chosen. On the tick the drive
+// that put it down falls below CriticalAt it comes to and thinks again from
 // scratch.
 func (w *World) stayPassedOut(e *Entity) bool {
-	if e.passedOutUntil == 0 {
+	if !e.passedOut {
 		return false
 	}
 	w.decayAffect(e)
 	w.updateDisconnected(e)
 	w.applyUraniumExposure(e)
-	if w.tick < e.passedOutUntil {
+	if w.driveLevel(e, e.passedOutDrive) >= w.cfg.Drives[e.passedOutDrive].CriticalAt {
 		e.State = PassedOut
 		return true
 	}
-	e.passedOutUntil = 0
+	e.passedOut = false
 	e.State = Idle
-	w.resetDrive(e, e.passedOutDrive)
 	w.markMindDirty(e)
 	return true // the waking tick is spent coming to
 }

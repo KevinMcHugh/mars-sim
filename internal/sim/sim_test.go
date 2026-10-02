@@ -36,15 +36,19 @@ func testConfig() Config {
 	// Mechanics tests were written against drives that grow at one rate
 	// awake and pause in bed (everything but sleep itself), with food at its
 	// old 2 a tick; activity-scaled growth has tests of its own
-	// (drives_test.go) that opt back in.
+	// (drive_model_test.go) that opt back in. Sleep keeps its shipped
+	// percents: it has to fall in bed and on the floor for a night or a
+	// pass-out to end.
 	c.Drives[DriveFood].Rate = 2000
 	for d := DriveKind(0); d < numDrives; d++ {
+		if d == DriveSleep {
+			continue
+		}
 		for a := range c.Drives[d].Activity {
 			c.Drives[d].Activity[a] = 100
 		}
-		if DriveKind(d) != DriveSleep {
-			c.Drives[d].Activity[DriveAsleep.index()] = 0
-		}
+		c.Drives[d].Activity[DriveAsleep.index()] = 0
+		c.Drives[d].Activity[DriveUnconscious.index()] = 0
 	}
 	return c
 }
@@ -463,12 +467,15 @@ func TestColonistUsesBed(t *testing.T) {
 	w.SetTerrain(stand, Floor)
 
 	c := w.spawn(Colonist, stand)
-	w.setDrive(c, DriveSleep, cfg.Drives[DriveSleep].Max) // dead on its feet
+	// Dead on its feet, but short of the ceiling, where it would pass out
+	// instead (TestSleepDeprivedColonistPassesOut).
+	w.setDrive(c, DriveSleep, cfg.Drives[DriveSleep].CriticalAt)
 	// Clear the other (staggered) needs so nothing fatal outranks sleep here.
 	w.setDrive(c, DriveFood, 0)
 	w.setDrive(c, DriveBladder, 0)
 
-	for i := 0; i < cfg.Drives[DriveSleep].UseTicks+10; i++ {
+	// A night from critical-at is longer than one from seek-at.
+	for i := 0; i < 2*cfg.NightTicks(); i++ {
 		w.step()
 	}
 	if w.driveLevel(c, DriveSleep) >= cfg.Drives[DriveSleep].SeekAt {

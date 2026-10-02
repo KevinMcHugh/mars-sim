@@ -486,7 +486,7 @@ func (w *World) resolveTraitEffects(e *Entity) {
 		}
 	}
 	e.driveTrait = drivePct
-	e.sleepTicks = atLeast1(w.cfg.Drives[DriveSleep].UseTicks + sleepHours*w.cfg.TicksPerHour())
+	e.sleepTicks = atLeast1(w.cfg.NightTicks() + sleepHours*w.cfg.TicksPerHour())
 	e.restTicks = atLeast1(int(math.Round(float64(w.cfg.RestTicks) * restMul)))
 	e.workScale = workMul
 	e.socialCapacity, e.socialPenalty = socialCapacity, socialPenalty

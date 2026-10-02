@@ -557,8 +557,6 @@ func validateConfig(cfg sim.Config) error {
 		return fmt.Errorf("social-window-ticks must be at least 1 (got %d)", cfg.SocialWindowTicks)
 	case cfg.MoodChargeDecayPerTick < 0 || cfg.MoodGripDecayPerTick < 0 || cfg.MoodLabelSwitchMargin < 0:
 		return fmt.Errorf("affect decay and label switch margin cannot be negative")
-	case cfg.PassOutTicks < 1:
-		return fmt.Errorf("pass-out-ticks must be at least 1 (got %d)", cfg.PassOutTicks)
 	case cfg.RatLitterMin < 0 || cfg.RatLitterMax < cfg.RatLitterMin:
 		return fmt.Errorf("rat litter range is invalid: min %d, max %d", cfg.RatLitterMin, cfg.RatLitterMax)
 	}
@@ -576,11 +574,6 @@ func validateConfig(cfg sim.Config) error {
 				spec.Name, spec.SeekAt, spec.CriticalAt, spec.Max)
 		case spec.UseTicks < 0 || spec.GrabTicks < 0:
 			return fmt.Errorf("drive-%s use and grab ticks cannot be negative (got %d and %d)", spec.Name, spec.UseTicks, spec.GrabTicks)
-		}
-		for a, pct := range spec.Activity {
-			if pct < 0 {
-				return fmt.Errorf("drive-%s-activity-%s cannot be negative (got %d)", spec.Name, sim.DriveActivityName(a), pct)
-			}
 		}
 	}
 	if err := cfg.CheckDrives(); err != nil {

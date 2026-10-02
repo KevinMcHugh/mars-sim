@@ -26,7 +26,7 @@ way it is without re-deriving it from the source each time.
 | [entities-and-ai.md](./entities-and-ai.md) | The entity model, the per-tick systems, turn order, movement primitives, and the colonist / alien / cat / rat behaviors. |
 | [combat.md](./combat.md) | Per-body-part HP, weapons (pistol/shotgun), the guns every settler lands with, and gore. |
 | [drives.md](./drives.md) | Colonist (and rat) drives: hunger, bladder, company, sleep. Growth as a base rate times stacked modifiers (drive activity, traits, other drives' bands, timed effects like caffeine), consequences as level bands with a ramp shorthand, true vs felt levels, lazy evaluation, starvation, facilities, and how to add a drive or a drive activity. |
-| [days.md](./days.md) | Colony days and time of day (derived from the sleep drive, shown in the top bar and TUI header), and the eight-hour night: sleep traits, drives all but stopped in bed, banked sleep. |
+| [days.md](./days.md) | Colony days and time of day (derived from the sleep drive, shown in the top bar and TUI header), and the eight-hour night: the sleep drive falling in bed until it is met, sleep traits, other drives all but stopped in bed, interrupted nights. |
 | [cascading_wsts_architecture.md](./cascading_wsts_architecture.md) | Implementation design for independent need/affect processes feeding a weighted, explainable focus transition system. |
 | [mutation.md](./mutation.md) | Uranium deposits, the exposure dose, mutant body parts, stature (two-foot to ten-foot colonists), and the Mutant / Mutant-Lover traits. |
 | [determinism.md](./determinism.md) | One seed, one simulation: how map iteration order breaks it, the lockstep regression test, and the three bugs that motivated both. |

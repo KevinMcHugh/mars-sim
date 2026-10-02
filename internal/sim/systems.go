@@ -745,7 +745,7 @@ func (w *World) tryStartTalk(e *Entity, forced bool) bool {
 // a partner, and social drive sits permanently pinned at its ceiling in any
 // colony busy enough that nobody is ever fully drive-free.
 func (w *World) availableToTalk(o *Entity) bool {
-	if o.Job != JobNone || o.State == Fleeing || o.passedOutUntil != 0 {
+	if o.Job != JobNone || o.State == Fleeing || o.passedOut {
 		return false
 	}
 	if need, urgent := w.mostUrgentDrive(o); urgent && need != DriveSocial {
@@ -1440,7 +1440,7 @@ func (w *World) jobUse(e *Entity) {
 			return
 		}
 		if e.Drive == DriveSleep {
-			w.sleepTick(e) // a night is banked across interruptions, not kept in Progress
+			w.sleepTick(e) // a night ends when the drive has fallen to 0, not after UseTicks
 			return
 		}
 		e.State = useState(e.Drive)

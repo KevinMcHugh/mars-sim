@@ -204,6 +204,27 @@ func (w *World) nextCognitionTick(e *Entity) int {
 	return next
 }
 
+// focusDrive is drive d's level and phase as arbitration sees them. A drive
+// being satisfied in place (asleep in bed) keeps its focus until the use is
+// over: while the colonist is using the facility it counts as pressing just
+// short of critical. Sleep falls in bed, and without this a sleeper's focus
+// stopped being eligible the moment it dropped below SeekAt, and it got up
+// with the night half done. Holding it at SeekAt was not enough: a sleeper
+// then got up for any drive that was barely pressing (41 of 71 interrupted
+// nights were a mildly full bladder). Just short of critical, only a
+// critical drive, a fatal one, or a threat wakes it. The hold lasts through 0
+// too, so the job, not arbitration, is what ends the night (finishUse: the
+// memory, the bed's fee).
+func (w *World) focusDrive(e *Entity, d DriveKind) (level int, phase DrivePhase) {
+	level, phase = w.driveLevel(e, d), e.drives[d].phase
+	if w.usingFacility(e, d) {
+		spec := &w.cfg.Drives[d]
+		level = max(level, spec.SeekAt, spec.CriticalAt-1)
+		phase = max(phase, DrivePressing)
+	}
+	return level, phase
+}
+
 // focusThreat is the alien a colonist's threat foci answer to. Anyone reacts
 // to an alien within FleeRadius. A colonist already fleeing also keeps
 // answering to one out to FleeRadius+FleeReleaseMargin — flee's hysteresis
@@ -231,7 +252,7 @@ func (w *World) currentFocusEligible(e *Entity, threat *Entity) bool {
 		return workJob(e.Job) || !e.resting || w.tick >= e.wakeTick
 	case FocusEat, FocusRelieve, FocusSocialize, FocusSleep:
 		need, _ := driveForFocus(e.focus)
-		phase := e.drives[need].phase
+		_, phase := w.focusDrive(e, need)
 		if phase != DrivePressing && phase != DriveCritical {
 			return false
 		}
@@ -292,9 +313,8 @@ func (w *World) focusCandidates(e *Entity, out *[numFocusKinds]FocusCandidate) {
 	var level [numDrives]int
 	var phase [numDrives]DrivePhase
 	for n := DriveKind(0); n < numDrives; n++ {
-		level[n] = w.driveLevel(e, n)
 		w.syncDrivePhase(e, n)
-		phase[n] = e.drives[n].phase
+		level[n], phase[n] = w.focusDrive(e, n)
 	}
 	threat, holdFlee := w.focusThreat(e)
 	hasThreat := threat != nil && !holdFlee
