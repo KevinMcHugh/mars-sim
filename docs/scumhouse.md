@@ -165,10 +165,37 @@ a tick. Draws are a hash of the seed, the tick and the draw index, not a
 stream, so growth moves no other RNG. `scumPatches` is every patch sorted by
 chunk, then row by row within the chunk (`cmpScumPatch`), the way `genChunks`
 is sorted: which patch a draw picks depends on which patches exist, never on
-the order they arrived in. A chunk's patches sit together, so `applyChunk`
-adds them in one insert; `setScum` and `clearScum` keep the list in step
-with the map one patch at a time. A test that puts scum down goes through
-`setScum` (or `noScum` to clear it), never the map directly.
+the order they arrived in. `applyChunk`, `setScum` and `clearScum` keep the
+list in step with the map. A test that puts scum down goes through
+`setScum` (or `noScum` to clear it), never the map directly, and one that
+changes `ScumMax` afterwards re-puts each patch with `putScum`.
+
+**Why `scumPatches` is a `patchList`, not a slice.** It started as one sorted
+`[]Point`. Every new patch then moved every patch after it, so a map with room
+for many new patches went quadratic:
+`BenchmarkStepSmallColonyOnHugeMap2500` took ~10 ms a tick and the 10000 one
+never finished, which hung `go test -bench .`. `patchList` (`scumlist.go`)
+keeps the same order in blocks of 512 to 1024, with a Fenwick tree over
+the block sizes. Adding or removing a patch moves one block, and finding the
+k-th patch is logarithmic. A first version kept a running count of the
+patches before each block. Growth inserts between draws, so it re-summed every
+later block on almost every draw. Don't go back to it.
+
+**Why most draws skip the lookups.** Once the map holds `scum-percent` of its
+tiles in patches, there's no room for new ones, and a unit can only go on a
+patch below `ScumMax` (`scumThin`). On a settled map nearly every patch is
+full, and each draw used to be two map lookups that changed nothing. That was
+about two thirds of the CPU on a 10,000×10,000 game. Now, with no room:
+
+- a draw is turned away unless its tile is thin. A per-page count
+  (`scumThinPages`) answers that with a slice read before the map is touched;
+- the loops stop as soon as `scumThin` is empty;
+- the patch list is frozen into a flat copy, so a draw is a plain index (the
+  list can't change mid-loop when no patch can start or end).
+
+Draws are hashes, not a stream, so skipping one changes nothing, and the
+golden hashes didn't move. Every change to an amount goes through `putScum`,
+which keeps `scumThin` in step.
 
 **Why not a fixed sample.** The first version visited a sample of tiles over
 the whole map, skipped the ones in chunks not yet generated, capped the

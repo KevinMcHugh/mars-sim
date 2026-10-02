@@ -690,8 +690,15 @@ type World struct {
 	exposedScum map[Point]struct{}
 	// scumPatches lists every patch in scum, sorted by cmpScumPatch, so
 	// growScum can draw a patch at random without the map's order deciding
-	// which (see setScum).
-	scumPatches []Point
+	// which (see setScum and patchList).
+	scumPatches patchList
+	// scumThin is every patch below ScumMax: once the map has no room for new
+	// patches, the only ones growth can still add a unit to (see growScum).
+	scumThin map[Point]struct{}
+	// scumThinPages counts scumThin's patches on each tile page (indexed by
+	// tiles.pageIndex; nil until the first), so most of growScum's draws are
+	// turned away by a slice read rather than a map lookup.
+	scumThinPages []int32
 	// scumRev advances on every change to scum or exposedScum that publishing
 	// can see. It lets publishing reuse the last published copy (snapScum,
 	// taken at snapScumRev); see publishedScum.
@@ -1021,6 +1028,7 @@ func newWorld(cfg Config, src *rand.PCG) *World {
 	w.storedMealsTick = -1
 	w.hungryTick = -1
 	w.scum = make(map[Point]scumPatch)
+	w.scumThin = make(map[Point]struct{})
 	w.salt = make(map[Point]struct{})
 	w.exposedSalt = make(map[Point]struct{})
 	w.exposedScum = make(map[Point]struct{})

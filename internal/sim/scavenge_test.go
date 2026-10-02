@@ -7,7 +7,9 @@ import "testing"
 func noScum(w *World) {
 	w.scum = map[Point]scumPatch{}
 	w.exposedScum = map[Point]struct{}{}
-	w.scumPatches = nil
+	w.scumPatches = patchList{}
+	w.scumThin = map[Point]struct{}{}
+	w.scumThinPages = nil
 }
 
 // hungryRat puts a rat at p with its hunger just past seeking.

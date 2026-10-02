@@ -205,9 +205,8 @@ func (w *World) applyChunk(cx, cy int) []Point {
 			w.dirtyChunks[w.chunkIndexOf(Point{x, y})] = struct{}{}
 		}
 	}
-	if len(patches) > 0 {
-		i, _ := slices.BinarySearchFunc(w.scumPatches, patches[0], cmpScumPatch)
-		w.scumPatches = slices.Insert(w.scumPatches, i, patches...)
+	for _, p := range patches {
+		w.scumPatches.insert(p)
 	}
 	w.markTilePageDirty(Point{x0, y0})
 	// Nothing next to an ungenerated chunk has been discovered (discovered
