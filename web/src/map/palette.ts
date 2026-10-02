@@ -30,6 +30,7 @@ const terrains: Record<string, string> = {
   'gun bench': '#9aa3ad',
   chair: '#c9a24a',
   'scum incubator': '#5fd0a8',
+  trough: '#8a6a3a',
 };
 
 const compositions: Record<string, string> = {
@@ -46,6 +47,7 @@ const kinds: Record<string, string> = {
   alien: '#e03cff',
   cat: '#ffcc33',
   rat: '#a89c92',
+  chicken: '#f4efe6',
 };
 
 /** Under a facility's glyph: the floor, a shade darker, so the room reads. */

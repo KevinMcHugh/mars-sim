@@ -6,7 +6,8 @@ import "fmt"
 //
 // Every colonist arrives in a crash pod: a small prefab stamped into the world
 // where it lands, holding the colonist's own bunk, toilet, and locker, all
-// private to it, plus a manifest of meals, a purse, and a gun. Worldgen, the
+// private to it, plus a manifest of meals, a purse, and one rare item: a gun,
+// a chicken (and its trough), or a cat. Worldgen, the
 // spawn command, and the director's arrival occurrence all go through arrive,
 // so what a pod carries is decided in one place. See docs/crash-pods.md.
 //
@@ -58,6 +59,20 @@ var (
 	podDoor     = Point{2, 2}
 	podDoorway  = Point{2, 3}
 	podApproach = Point{2, 4}
+)
+
+// podTrough is where a chicken keeper's pod has its trough, in front of the
+// bunk: every fixture is used from any of the eight tiles around it, so the
+// bunk is still reached from the door tile beside it. podPet is where a
+// chicken or a cat steps out, on the other side of the colonist.
+//
+//	H H H H H
+//	H B T L H
+//	H ~ @ c H     ~ trough (a keeper's pod only), c the pet
+//	H H . H H
+var (
+	podTrough = Point{1, 2}
+	podPet    = Point{3, 2}
 )
 
 // podHullAt reports whether offset (dx, dy) of the footprint is hull.
@@ -116,14 +131,28 @@ func (w *World) arrive(announce bool) *Entity {
 	if n := w.podMeals(e.ID); n > 0 && locker.Inventory.Add(Meal, n) {
 		locker.credit(me, Meal, n)
 	}
-	if n := w.podGuns(e.ID, Shotgun); n > 0 {
-		e.Inventory.Add(Shotgun, n)
-	}
-	if n := w.podGuns(e.ID, Pistol); n > 0 {
-		e.Inventory.Add(Pistol, n)
-	}
 	e.podOrigin, e.hasPod = o, true
 	w.rollBackground(e)
+	// The one rare item aboard: a gun, a chicken, or a cat.
+	switch w.podRareItem(e.ID) {
+	case rareGun:
+		e.Inventory.Add(w.podGun(e.ID), 1)
+	case rareChicken:
+		t := o.Add(podTrough.X, podTrough.Y)
+		w.SetTerrain(t, Trough)
+		w.setFixtureOwner(t, me, AccessPrivate)
+		e.trough, e.hasTrough = t, true
+		// The trough lands full, so the hen eats while its keeper settles in.
+		if n := w.cfg.TroughFill; n > 0 {
+			if c := w.storageContainers[t]; c.Inventory.Add(Feed, n) {
+				c.credit(me, Feed, n)
+			}
+		}
+		hen := w.spawn(Chicken, o.Add(podPet.X, podPet.Y))
+		hen.keeper, hen.trough, hen.hasTrough = e.ID, t, true
+	case rareCat:
+		w.spawn(Cat, o.Add(podPet.X, podPet.Y)).keeper = e.ID
+	}
 
 	if announce {
 		how := "lands"
@@ -401,36 +430,65 @@ func (w *World) podMeals(id EntityID) int {
 	return max(0, n+d)
 }
 
-// podGunSalt separates podGuns' hash from podMeals' and anything else derived
-// from the seed.
-const podGunSalt = 0xA24BAED4963EE407
+// rareItem is the one rare thing a colonist lands with.
+type rareItem uint8
 
-// podGuns is how many guns of kind k (Pistol or Shotgun) the pod of the
-// colonist with this ID carries: each of the manifest's crash-pod-pistols (or
-// crash-pod-shotguns) is aboard with crash-pod-pistol-percent (or
-// crash-pod-shotgun-percent) odds, rolled on its own. So colonists land
-// unevenly armed, and some land with nothing.
+const (
+	rareNone rareItem = iota // every weight is zero
+	rareGun
+	rareChicken
+	rareCat
+)
+
+// podRareSalt separates podRareItem's hash from podMeals' and anything else
+// derived from the seed; podGunSalt does the same for podGun.
+const (
+	podRareSalt = 0xA24BAED4963EE407
+	podGunSalt  = 0x4F1BBCDCBFA53E0B
+)
+
+// podRareItem is the one rare item aboard the pod of the colonist with this
+// ID: a gun, a chicken, or a cat, by the crash-pod-*-weight odds. Everyone
+// gets exactly one (unless every weight is zero), so the colony lands as a
+// mix of the armed, the chicken keepers, and the cat owners rather than as
+// identically equipped settlers.
 //
-// Like podMeals it is a pure function of the seed, the ID, and the gun, not a
-// draw from a stream: it shifts no other random draw and doesn't depend on
+// Like podMeals it is a pure function of the seed and the ID, not a draw
+// from a stream: it shifts no other random draw and doesn't depend on
 // arrival order.
-func (w *World) podGuns(id EntityID, k ItemKind) int {
-	n, pct := w.cfg.CrashPodPistols, w.cfg.CrashPodPistolPercent
-	if k == Shotgun {
-		n, pct = w.cfg.CrashPodShotguns, w.cfg.CrashPodShotgunPercent
+func (w *World) podRareItem(id EntityID) rareItem {
+	gun, hen, cat := max(0, w.cfg.CrashPodGunWeight), max(0, w.cfg.CrashPodChickenWeight), max(0, w.cfg.CrashPodCatWeight)
+	total := gun + hen + cat
+	if total == 0 {
+		return rareNone
 	}
-	if n <= 0 || pct <= 0 {
-		return 0
+	s := uint64(w.cfg.Seed) ^ uint64(id)*0x9E3779B97F4A7C15 ^ podRareSalt
+	r := int(splitmix64(&s) % uint64(total))
+	switch {
+	case r < gun:
+		return rareGun
+	case r < gun+hen:
+		return rareChicken
+	default:
+		return rareCat
+	}
+}
+
+// podGun is which gun a colonist whose rare item is a gun lands with: a
+// shotgun crash-pod-shotgun-percent of the time, else a pistol. A pure
+// function of the seed and the ID, on its own salt so it is independent of
+// podRareItem's roll.
+func (w *World) podGun(id EntityID) ItemKind {
+	pct := w.cfg.CrashPodShotgunPercent
+	if pct <= 0 {
+		return Pistol
 	}
 	if pct >= 100 {
-		return n
+		return Shotgun
 	}
-	s := uint64(w.cfg.Seed) ^ uint64(id)*0x9E3779B97F4A7C15 ^ uint64(k)*0xD1B54A32D192ED03 ^ podGunSalt
-	got := 0
-	for i := 0; i < n; i++ {
-		if splitmix64(&s)%100 < uint64(pct) {
-			got++
-		}
+	s := uint64(w.cfg.Seed) ^ uint64(id)*0x9E3779B97F4A7C15 ^ podGunSalt
+	if splitmix64(&s)%100 < uint64(pct) {
+		return Shotgun
 	}
-	return got
+	return Pistol
 }

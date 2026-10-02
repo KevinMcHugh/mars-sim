@@ -4,7 +4,7 @@
 
 ## What it is
 
-Every actor in the world — colonist, alien, cat, rat — is one `Entity` struct
+Every actor in the world — colonist, alien, cat, rat, chicken — is one `Entity` struct
 interpreted by its `Kind`. Each tick, `World.step()` runs a per-kind behavior
 function for every living entity. This doc covers the entity model, the tick and
 turn order, the movement primitives, and each creature's behavior.
@@ -26,7 +26,7 @@ fields can graduate into real components later as behavior multiplies. Colonists
 use the most fields (needs, personality, inventory, a job, a cached path); other
 kinds leave the irrelevant ones zero.
 
-The four kinds:
+The five kinds:
 
 | Kind | Moves on | Eats | Flees | Notes |
 | --- | --- | --- | --- | --- |
@@ -34,6 +34,7 @@ The four kinds:
 | **Alien** | Floor | colonists, rats, other species' aliens (Hostile); cave scum (Friendly, Cautious) | — | the antagonist; a Hostile species hunts the nearest prey it can reach |
 | **Cat** | Floor | rats | — | no needs; hunts by instinct |
 | **Rat** | Floor | (needs food) | cats (not aliens, which also eat them) | reuses the colonist food need; scavenges bodies, gore, and scum, else raids pods; never builds |
+| **Chicken** | Floor | feed from its keeper's trough, else cave scum | — | lands in a keeper's crash pod; cats ignore it; see [chickens.md](./chickens.md) |
 
 `State` (idle, moving, mining, building, eating, relieving, fleeing, hunting,
 feeding, fighting, cleaning, hauling, storing, demolishing) is a **display projection**
@@ -49,7 +50,7 @@ eating while its job is building.
 ### The tick: `step()`
 
 `World.step()` increments the tick, then for each entity in turn order runs
-`colonistTurn` / `alienTurn` / `catTurn` / `ratTurn`. The dead are removed the
+`colonistTurn` / `alienTurn` / `catTurn` / `ratTurn` / `chickenTurn`. The dead are removed the
 moment they are eaten or starve, so liveness is re-checked as the loop proceeds.
 After all entities act, `step` folds in the tick's terrain changes:
 `refreshSpatial` (regions/rooms), `pruneProjects`, `planFacilities` (on a
@@ -188,6 +189,12 @@ travel the floor with cached A\* and `pounce`
 when adjacent (a single pounce is fatal to a rat), then rest `CatPounceRest`. If
 a rat is walled off or the cat is wedged, it prowls (`wanderStep`) instead of
 freezing.
+
+Cats arrive as one of a colonist's three possible rare items (see
+[crash-pods.md](./crash-pods.md)): a cat steps out of its owner's pod with
+`keeper` set to the owner, which so far is only shown, never acted on. The
+`cats` setting adds strays at worldgen and is 0 by default. A cat hunts only
+rats: chickens are not prey, and a chicken does not flee a cat.
 
 ### Rat behavior (`ratTurn`)
 

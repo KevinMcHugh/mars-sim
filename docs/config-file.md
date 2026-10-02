@@ -93,10 +93,11 @@ Old names still mean something (`RenamedSettings`, `RetiredSettings` in
 
 - **Renamed** settings load under their new name: `mice` is `rats`.
 - **Retired** settings stop startup with what replaced them. `pistols` and
-  `shotguns` were the colony ship's armory; every colonist now lands with its
-  own (`crash-pod-pistols`, `crash-pod-shotguns`). The count is per colonist,
-  so reading the old colony-wide total as the new setting would arm everyone
-  many times over.
+  `shotguns` were the colony ship's armory; then every colonist landed with
+  its own (`crash-pod-pistols`, `crash-pod-shotguns`, each with a
+  `-percent`). Now a gun is one of three rare items a colonist may land with
+  (`crash-pod-gun-weight`, see [crash-pods.md](./crash-pods.md)), so none of
+  those counts means what it did, and all five point there.
 
 ## Why it is this way
 

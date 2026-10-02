@@ -360,12 +360,16 @@ var RenamedSettings = map[string]string{
 }
 
 // RetiredSettings are old setting names with no one-to-one replacement, and
-// what to use instead. The colony ship's armory became each crash pod's: a
-// per-colonist count, so reading the old colony-wide total as one would
-// silently arm everybody many times over.
+// what to use instead. The colony ship's armory became each crash pod's, and
+// then each pod's one rare item: a gun is now one of three things a colonist
+// may land with, so neither a colony-wide total nor a per-pod gun count means
+// what it used to.
 var RetiredSettings = map[string]string{
-	"pistols":  "every colonist now lands with its own; set crash-pod-pistols (per colonist) instead",
-	"shotguns": "every colonist now lands with its own; set crash-pod-shotguns (per colonist) instead",
+	"pistols":                  "every colonist now lands with one rare item; set crash-pod-gun-weight instead",
+	"shotguns":                 "every colonist now lands with one rare item; set crash-pod-gun-weight and crash-pod-shotgun-percent instead",
+	"crash-pod-pistols":        "every colonist now lands with one rare item; set crash-pod-gun-weight instead",
+	"crash-pod-shotguns":       "every colonist now lands with one rare item; set crash-pod-gun-weight and crash-pod-shotgun-percent instead",
+	"crash-pod-pistol-percent": "every colonist now lands with one rare item; set crash-pod-gun-weight instead",
 }
 
 func unknownKeyError(name string, node *yaml.Node, path string) error {

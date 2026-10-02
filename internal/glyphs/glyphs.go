@@ -38,6 +38,7 @@ const (
 	GunBench    = "\U0001F528" // 🔨 gun bench: steel in, assault rifles out
 	Chair       = "\U0001F4BA" // 💺 chair in a meeting hall
 	Incubator   = "\U0001FAD9" // 🫙 scum incubator: a seed of scum in, scum grown on a schedule
+	Trough      = "\U0001FAA3" // 🪣 trough: a keeper's chicken feed
 
 	Colonist = "\U0001F477" // 👷 colonist of unknown age/gender (no profile)
 	Fleeing  = "\U0001F631" // 😱 colonist running from an alien
@@ -45,6 +46,7 @@ const (
 	Alien    = "\U0001F47D" // 👽 subterranean mutant
 	Cat      = "\U0001F408" // 🐈 floor predator hunting rats
 	Rat      = "\U0001F400" // 🐀 rat: scavenges pods, scum, and the dead
+	Chicken  = "\U0001F414" // 🐔 chicken: grazes scum, eats feed from its trough
 	Stomp    = "\U0001F97E" // 🥾 colonist chasing down a rat to stomp it
 	Fighting = "\U0001F52B" // 🔫 armed colonist standing its ground against an alien
 	Gore     = "\U0001FA78" // 🩸 a violent death's residue on a tile
@@ -226,6 +228,9 @@ var All = []string{
 	Mars,
 	// Salt is last so it moved no existing glyph's index in the wire.
 	Salt,
+	// So are the chickens' glyphs, after it.
+	Chicken,
+	Trough,
 }
 
 var known = func() map[string]bool {
@@ -319,6 +324,8 @@ func ForTerrain(t sim.Terrain) string {
 		return Chair
 	case sim.Incubator:
 		return Incubator
+	case sim.Trough:
+		return Trough
 	default:
 		return Rock
 	}
@@ -384,6 +391,8 @@ func ForKind(k sim.Kind) string {
 		return Cat
 	case sim.Rat:
 		return Rat
+	case sim.Chicken:
+		return Chicken
 	default:
 		return Colonist
 	}
@@ -400,6 +409,8 @@ func ForEntity(e sim.EntityView) string {
 		return Cat
 	case sim.Rat:
 		return Rat
+	case sim.Chicken:
+		return Chicken
 	case sim.Colonist:
 		switch e.State {
 		case sim.Fleeing:

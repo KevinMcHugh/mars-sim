@@ -63,12 +63,14 @@ const (
 	glyphGunBench     = glyphs.GunBench
 	glyphChair        = glyphs.Chair
 	glyphIncubator    = glyphs.Incubator
+	glyphTrough       = glyphs.Trough
 	glyphColonist     = glyphs.Colonist
 	glyphFleeing      = glyphs.Fleeing
 	glyphTalking      = glyphs.Talking
 	glyphAlien        = glyphs.Alien
 	glyphCat          = glyphs.Cat
 	glyphRat          = glyphs.Rat
+	glyphChicken      = glyphs.Chicken
 	glyphStomp        = glyphs.Stomp
 	glyphFighting     = glyphs.Fighting
 	glyphGore         = glyphs.Gore
@@ -174,6 +176,7 @@ var glyphRegistry = map[string]glyph{
 	glyphGunBench:    {glyphGunBench, 2, "Gb"},
 	glyphChair:       {glyphChair, 2, "Ch"},
 	glyphIncubator:   {glyphIncubator, 2, "In"},
+	glyphTrough:      {glyphTrough, 2, "Tr"},
 
 	glyphColonist: {glyphColonist, 2, "@ "},
 	glyphFleeing:  {glyphFleeing, 2, "@!"},
@@ -181,6 +184,7 @@ var glyphRegistry = map[string]glyph{
 	glyphAlien:    {glyphAlien, 2, "A "},
 	glyphCat:      {glyphCat, 2, "f "},
 	glyphRat:      {glyphRat, 2, "r "},
+	glyphChicken:  {glyphChicken, 2, "c "},
 	glyphStomp:    {glyphStomp, 2, "@*"},
 	glyphFighting: {glyphFighting, 2, "@="},
 	glyphGore:     {glyphGore, 2, "~~"},

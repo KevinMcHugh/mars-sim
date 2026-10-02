@@ -296,8 +296,14 @@ func TestOldFlagNamesStillMeanSomething(t *testing.T) {
 	fs = flag.NewFlagSet("mars-sim", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
 	bindConfigFlags(fs, &cfg)
-	if err := fs.Parse([]string{"-pistols", "2"}); err == nil || !strings.Contains(err.Error(), "crash-pod-pistols") {
-		t.Fatalf("-pistols 2: error %v does not point to crash-pod-pistols", err)
+	if err := fs.Parse([]string{"-pistols", "2"}); err == nil || !strings.Contains(err.Error(), "crash-pod-gun-weight") {
+		t.Fatalf("-pistols 2: error %v does not point to crash-pod-gun-weight", err)
+	}
+	fs = flag.NewFlagSet("mars-sim", flag.ContinueOnError)
+	fs.SetOutput(io.Discard)
+	bindConfigFlags(fs, &cfg)
+	if err := fs.Parse([]string{"-crash-pod-pistols", "1"}); err == nil || !strings.Contains(err.Error(), "crash-pod-gun-weight") {
+		t.Fatalf("-crash-pod-pistols 1: error %v does not point to crash-pod-gun-weight", err)
 	}
 }
 

@@ -8,6 +8,7 @@
   // Creatures: their generic glyph (glyphs.ForKind), as the TUI's header shows them.
   const creatures: [stat: string, kind: string][] = [
     ['Colonists', 'colonist'], ['Aliens', 'alien'], ['Cats', 'cat'], ['Rats', 'rat'],
+    ['Chickens', 'chicken'],
   ];
   // Fixtures: their map glyph, looked up by terrain name through the Hello.
   const fixtures: [stat: string, terrain: string][] = [

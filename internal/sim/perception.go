@@ -120,7 +120,7 @@ func (w *World) factRef(e *Entity) FactRef {
 	switch e.Kind {
 	case Alien:
 		label = fmt.Sprintf("%s #%d", w.alienNounFor(e), e.ID)
-	case Cat, Rat:
+	case Cat, Rat, Chicken:
 		label = fmt.Sprintf("%s #%d", e.Kind, e.ID)
 	}
 	return FactRef{Noun: nounForKind(e.Kind), Entity: e.ID, Label: label}

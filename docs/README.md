@@ -59,6 +59,7 @@ way it is without re-deriving it from the source each time.
 | [foraging.md](./foraging.md) | What a hungry colonist with no food does: one plan seen through (the drop-work/re-take-work loop it replaced), scraping to keep, and prospecting into rock nobody has seen for the scum there. The colony prospects too, once it is short. |
 | [incubator.md](./incubator.md) | The scum incubator: seeded with wild scum, grows it on a schedule, harvested for the stoves; wild scraping is gated to dire times. |
 | [scumhouse.md](./scumhouse.md) | Food production: the scumhouse, data-driven recipes, cave scum (seeding, accretion, exposure), and food work. Economy phase E3. |
+| [chickens.md](./chickens.md) | Chickens: the one-rare-item crash pod (a gun, a chicken, or a cat), the keeper's trough, feed mixed from scum at a scumhouse, hens grazing scum when the trough is dry, why keepers tend before construction and share the stove, and why cats and chickens ignore each other. |
 | [foundry.md](./foundry.md) | The first non-food supply chain: iron ore to steel ingots at a forge, steel to assault rifles at a gun bench, the foundry room, the colony's armory bid, and the planner fixes a three-link chain needed. |
 | [property.md](./property.md) | Who owns what: fixture records with owners and access (communal/private), per-chest ledgers of whose goods are inside, and how private fixtures route. Economy phase E1. |
 | [mood-space.md](./mood-space.md) | What is still open after wear, trait rules, and baselines shipped — plus the rejected tag design. |

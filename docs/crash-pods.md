@@ -6,7 +6,8 @@
 
 Every colonist arrives in a crash pod: a small metal-hulled room stamped into
 the world where it lands, holding the colonist's own bunk, toilet, and locker, stocked
-with a manifest of meals, and the colonist steps out carrying a gun and a purse.
+with a manifest of meals, and the colonist steps out with a purse and one
+rare item: a gun, a chicken (with a trough in the pod), or a cat.
 It is the only way into the game — worldgen, the spawn command, and the
 director's `arrival` occurrence all come through one function, `arrive`. This is
 the first half of phase **E2** of the [economy plan](./economy.md); the meals it
@@ -71,10 +72,26 @@ that neighbor's side hull is still whole. `arrive`:
 5. puts `crash-pod-meals` meals in the locker, give or take up to
    `crash-pod-meal-spread` (`podMeals`), credited to the colonist on its
    ledger;
-6. hands it the guns aboard its pod (`podGuns`): each of the manifest's
-   `crash-pod-pistols` pistols and `crash-pod-shotguns` shotguns is aboard with
-   `crash-pod-pistol-percent` / `crash-pod-shotgun-percent` odds;
-7. records `podOrigin` on the colonist.
+6. records `podOrigin` on the colonist;
+7. hands it its one **rare item** (`podRareItem`): a gun in its pockets
+   (`podGun`: a shotgun `crash-pod-shotgun-percent` of the time, else a
+   pistol); or a chicken, which steps out beside it, and a **trough** stamped
+   in front of the bunk, private to the keeper and stocked with
+   `trough-fill` feed; or a cat, which steps out beside it. A pet records the
+   colonist as its `keeper`. See [chickens.md](./chickens.md).
+
+A keeper's pod, and where any pet steps out:
+
+```
+H H H H H
+H B T L H
+H ~ @ c H     ~ trough (a chicken keeper's pod only), c the chicken or cat
+H H . H H
+```
+
+Every fixture is used from any of the eight tiles round it, so the trough in
+front of the bunk costs nothing: the bunk is still reached from the door tile
+`@`, diagonally.
 
 The purse (`crash-pod-purse`) is minted by `spawn` itself, so it reaches every
 colonist however it was created (see [money.md](./money.md)).
@@ -84,27 +101,41 @@ colonist however it was created (see [money.md](./money.md)).
 | `crash-pod-purse` | 100 dollars |
 | `crash-pod-meals` | 10 |
 | `crash-pod-meal-spread` | 0 |
-| `crash-pod-pistols` | 1 |
-| `crash-pod-shotguns` | 1 |
-| `crash-pod-pistol-percent` | 70 |
-| `crash-pod-shotgun-percent` | 20 |
+| `crash-pod-gun-weight` | 50 |
+| `crash-pod-chicken-weight` | 25 |
+| `crash-pod-cat-weight` | 25 |
+| `crash-pod-shotgun-percent` | 25 |
 
-These replace the colony ship's `pistols`/`shotguns` settings, which issued two
-guns among the whole founding party. See [combat.md](./combat.md) for what
-arming everyone did to survival.
+**One rare item.** Every colonist lands with exactly one of a gun, a chicken,
+or a cat, picked by the three relative weights: at the defaults half land
+armed (three pistols to every shotgun), a quarter with a chicken, a quarter
+with a cat. The weights are relative, not percents, so `1/0/0` arms everyone
+and `0/0/0` lands everyone empty-handed. The mechanics tests' `testConfig`
+sets `1/0/0` and no shotguns, so they can count on every colonist carrying
+exactly one pistol and no pets on the map.
 
-**Gun odds.** Every colonist used to land with exactly the manifest's guns,
-so the whole colony was identically armed. Now each manifest gun is rolled on
-its own, per colonist: at the defaults about 70% land with a pistol, 20% with
-a shotgun, 14% with both, and about 24% (30% × 80%) with no gun at all. Those
-unarmed colonists flee rather than fight (see [combat.md](./combat.md)) until
-they pick a gun up or buy a rifle from the foundry. `podGuns` is, like
-`podMeals`, a pure function of the seed, the colonist's ID and the gun kind
-(salted per kind, so the pistol and shotgun rolls are independent), not a
-draw from a stream: it shifts no other draw and ignores arrival order. Setting
-a percent to 100 restores the old fixed manifest; the mechanics tests'
-`testConfig` does exactly that (one pistol, no shotgun) so they can count on
-every colonist being armed the same way.
+`podRareItem` and `podGun` are, like `podMeals`, pure functions of the seed and
+the colonist's ID (each on its own salt), not draws from a stream: they shift
+no other draw and ignore arrival order. Spawning a pet draws no randomness
+either, but it does take an entity ID, so every later ID moves.
+
+**What it replaced, and why.** The colony ship's `pistols`/`shotguns` issued
+two guns among the whole founding party. Then each pod carried a manifest of
+`crash-pod-pistols` and `crash-pod-shotguns`, each aboard with its own
+`-percent` odds: about 76% of colonists landed armed, 14% with both guns, and
+the colony was a crowd of near-identical gunmen. One rare item each makes the
+colonists differ in what they brought rather than how much, and gives the
+chicken and the cat a way into the game that is a colonist's own rather than
+something worldgen scatters. Those old settings are retired with a pointer
+here (`RetiredSettings`).
+
+Fewer guns is a balance change. 20 colonists on a 200×200 map, seeds 1–16,
+30,000 ticks, with the scum incubator: 1 colonist starved and 254 were alive
+at the end at the defaults, against 2 starved and 262 alive with no chickens
+(cats in their place). Before the incubator the same chickens cost colonists:
+33 starved against 10, because hens and their keepers drew on the same wild
+scum the colony scraped (see [chickens.md](./chickens.md)). See
+[combat.md](./combat.md) for what arming everyone did to survival.
 
 **Meal spread.** `podMeals` varies each pod's meals evenly within
 `crash-pod-meal-spread` of `crash-pod-meals`. It's a pure function of the
@@ -230,9 +261,10 @@ assumed every fixture was communal had to learn otherwise (see
 
 ## Extending it
 
-- **A new manifest item**: a `crash-pod-*` setting (plus a `-percent` if it
-  should vary per colonist, like the guns), and a line in `arrive` that
-  puts it in the locker (credited to the colonist) or the colonist's pockets.
+- **A new manifest item**: a `crash-pod-*` setting, and a line in `arrive`
+  that puts it in the locker (credited to the colonist) or the colonist's
+  pockets. A new **rare item** is a fourth weight, a `rare*` value, and a case
+  in `arrive`'s switch.
 - **A bigger or different pod**: change `podWidth`/`podHeight`/`podFixtures`
   and the door offsets (`podDoor`, `podDoorway`, `podApproach`); `podHullAt`
   derives the hull from them. Every fixture needs a floor tile inside the hull
@@ -244,6 +276,8 @@ assumed every fixture was communal had to learn otherwise (see
 ## Related
 
 - [food.md](./food.md) — eating the meals a pod brings.
+- [chickens.md](./chickens.md) — the chicken, its trough, and its keeper.
+- [combat.md](./combat.md) — what the guns do.
 - [property.md](./property.md) — private fixtures and ledgers.
 - [money.md](./money.md) — the purse.
 - [director.md](./director.md) — the `arrival` occurrence.
