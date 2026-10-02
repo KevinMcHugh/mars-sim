@@ -78,6 +78,26 @@ func TestBoardTopics(t *testing.T) {
 		t.Errorf("trades not newest first: %+v", m.Trades[0])
 	}
 
+	// The order desk lists exactly the colony's orders, and every depot is
+	// communal with the silo first.
+	colonyOrders := 0
+	for _, o := range snap.Economy.Orders {
+		if o.Actor == sim.Community {
+			colonyOrders++
+		}
+	}
+	if len(m.Colony.Orders) != colonyOrders || colonyOrders == 0 {
+		t.Errorf("%d colony orders on the desk, %d in the snapshot", len(m.Colony.Orders), colonyOrders)
+	}
+	if len(m.Colony.Depots) == 0 || !m.Colony.Depots[0].Silo || len(m.Colony.Items) == 0 {
+		t.Errorf("depots %+v, items %v", m.Colony.Depots, m.Colony.Items)
+	}
+	for _, d := range m.Colony.Depots {
+		if f, ok := snap.FixtureAt(sim.Point{X: d.X, Y: d.Y}); ok && f.Access != sim.AccessCommunal {
+			t.Errorf("depot %+v is not communal", d)
+		}
+	}
+
 	// Every account's page resolves, and a colonist's balance matches.
 	for _, a := range m.Accounts {
 		var acct AccountTopic

@@ -2,10 +2,13 @@
   // The Market tab: the money supply, every account (the treasury, then the
   // colonists richest first), and the market's books, prices, plans, work
   // orders and trades, from the market topic (internal/wire/boards.go). An
-  // account opens its own page in place, from account:<key>.
+  // account opens its own page in place, from account:<key>. The colony's
+  // order desk (ColonyOrders) places, reprices and withdraws its orders.
   import { inspect, subscribe, topics } from '../game.svelte';
   import AccountDetail from './AccountDetail.svelte';
+  import ColonyOrders from './ColonyOrders.svelte';
   import { money } from './format';
+  import type { ComponentProps } from 'svelte';
 
   interface Market {
     accounts: { key: string; label: string; balance: number }[];
@@ -16,6 +19,7 @@
     chainDepth: number;
     work: { issuer: string; kind: string; units: number; held: number }[];
     trades: { tick: number; seller: string; buyer: string; qty: number; item: string; price: number }[];
+    colony: ComponentProps<typeof ColonyOrders>['desk'];
   }
 
   $effect(() => subscribe('market'));
@@ -69,6 +73,8 @@
       </tbody>
     </table>
   {/if}
+
+  <ColonyOrders desk={m.colony} treasury={m.supply.treasury} prices={m.prices} books={m.books} />
 
   <h2>Prices</h2>
   {#if m.prices.length === 0}

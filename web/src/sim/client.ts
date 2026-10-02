@@ -17,7 +17,13 @@ export type Command =
   /** Order the rectangle (tiles, inclusive) mined out, paid for by the colony. */
   /** Cancel an excavation order by id, refunding what is unspent. */
   | { type: 'dig-cancel'; id: number }
-  | { type: 'dig'; x0: number; y0: number; x1: number; y1: number };
+  | { type: 'dig'; x0: number; y0: number; x1: number; y1: number }
+  /** Post an order in the colony's name at a communal depot (docs/colony-orders.md). */
+  | { type: 'order-place'; side: 'bid' | 'ask'; item: string; qty: number; price: number; x: number; y: number }
+  /** Move one of the colony's open orders to a new price. */
+  | { type: 'order-reprice'; id: number; price: number }
+  /** Take one of the colony's open orders off the book, returning its escrow. */
+  | { type: 'order-cancel'; id: number };
 
 export interface Started { hello: Hello; genMs: number; loadMs: number }
 
@@ -26,7 +32,7 @@ export interface Started { hello: Hello; genMs: number; loadMs: number }
  * A mismatch means mars-sim.wasm is from another build: usually a pull without
  * rerunning npm run wasm.
  */
-export const HOST_API = 10;
+export const HOST_API = 11;
 
 export class SimClient {
   private worker: Worker;

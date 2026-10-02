@@ -1027,10 +1027,11 @@ func (w *World) offerColonyMeals(p Point) {
 }
 
 // withdrawColonyAsks takes the colony's asks for item at p off the book,
-// returning the goods to its ledger line — so they can be hauled.
+// returning the goods to its ledger line — so they can be hauled. A player's
+// ask (manual) stays: those goods are on sale because the player said so.
 func (w *World) withdrawColonyAsks(item ItemKind, p Point) {
 	for _, o := range w.sortedOrders(func(o *Order) bool {
-		return o.Side == Ask && o.Item == item && o.Depot == p && o.Actor == Community
+		return o.Side == Ask && o.Item == item && o.Depot == p && o.Actor == Community && !o.manual
 	}) {
 		w.cancel(o)
 	}

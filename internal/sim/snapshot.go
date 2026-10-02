@@ -205,6 +205,10 @@ type OrderView struct {
 	Price Money
 	Actor Owner
 	Depot Point
+	// Posted is the tick it was posted, and Manual whether a player placed
+	// or repriced it for the colony (see docs/colony-orders.md).
+	Posted int
+	Manual bool
 }
 
 // BookView summarizes one (item, depot) book: the best price and depth on
@@ -237,7 +241,7 @@ func (w *World) economyView() EconomyView {
 	}
 	for _, o := range w.sortedOrders(nil) {
 		v.Orders = append(v.Orders, OrderView{ID: o.ID, Side: o.Side, Item: o.Item, Qty: o.Qty,
-			Price: o.Price, Actor: o.Actor, Depot: o.Depot})
+			Price: o.Price, Actor: o.Actor, Depot: o.Depot, Posted: o.Posted, Manual: o.manual})
 	}
 	for k, b := range w.books {
 		bv := BookView{Item: k.Item, Depot: k.Depot, Last: b.last, Volume: b.volume, Traded: b.traded}
