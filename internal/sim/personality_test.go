@@ -16,7 +16,7 @@ func personalityWorld(traitChance int) *World {
 func TestColonistProfilePopulated(t *testing.T) {
 	w := personalityWorld(30)
 	for i := 0; i < 200; i++ {
-		e := w.spawn(Colonist, Point{i % w.Width, 0})
+		e := w.spawn(Colonist, Point{i % w.Width, 0, LandingLevel})
 		p := e.Profile
 		if p == nil {
 			t.Fatal("colonist spawned without a profile")
@@ -42,7 +42,7 @@ func TestColonistProfilePopulated(t *testing.T) {
 // Aliens have no profile.
 func TestAlienHasNoProfile(t *testing.T) {
 	w := personalityWorld(30)
-	if e := w.spawn(Alien, Point{1, 1}); e.Profile != nil {
+	if e := w.spawn(Alien, Point{1, 1, LandingLevel}); e.Profile != nil {
 		t.Fatal("alien should not have a profile")
 	}
 }
@@ -53,7 +53,7 @@ func TestAlienHasNoProfile(t *testing.T) {
 func TestTraitChanceGatesTraits(t *testing.T) {
 	none := personalityWorld(0)
 	for i := 0; i < 50; i++ {
-		if e := none.spawn(Colonist, Point{i % none.Width, 0}); len(e.Profile.Traits) != 0 {
+		if e := none.spawn(Colonist, Point{i % none.Width, 0, LandingLevel}); len(e.Profile.Traits) != 0 {
 			t.Fatalf("TraitChance=0 should give no traits, got %v", e.Profile.Traits)
 		}
 	}
@@ -65,7 +65,7 @@ func TestTraitChanceGatesTraits(t *testing.T) {
 	}
 	all := personalityWorld(100)
 	for i := 0; i < 50; i++ {
-		e := all.spawn(Colonist, Point{i % all.Width, 0})
+		e := all.spawn(Colonist, Point{i % all.Width, 0, LandingLevel})
 		if len(e.Profile.Traits) != want {
 			t.Fatalf("TraitChance=100 should give one trait per rollable group (%d), got %v",
 				want, e.Profile.Traits)
@@ -79,7 +79,7 @@ func TestTraitChanceGatesTraits(t *testing.T) {
 func TestAcquiredTraitsAreNeverRolled(t *testing.T) {
 	w := personalityWorld(100)
 	for i := 0; i < 200; i++ {
-		e := w.spawn(Colonist, Point{i % w.Width, (i / w.Width) % w.Height})
+		e := w.spawn(Colonist, Point{i % w.Width, (i / w.Width) % w.Height, LandingLevel})
 		for _, tr := range e.Profile.Traits {
 			if traitSpecs[tr].acquired {
 				t.Fatalf("rolled acquired trait %v at spawn", tr)
@@ -92,11 +92,11 @@ func TestAcquiredTraitsAreNeverRolled(t *testing.T) {
 // work ethic scales work speed and rest.
 func TestTraitsScaleEffectiveParams(t *testing.T) {
 	w := personalityWorld(0)
-	base := w.spawn(Colonist, Point{1, 1})
+	base := w.spawn(Colonist, Point{1, 1, LandingLevel})
 	baseRise, baseRest := base.needRise[NeedFood], base.restTicks
 
 	withTrait := func(tr Trait) *Entity {
-		e := w.spawn(Colonist, Point{2, 2})
+		e := w.spawn(Colonist, Point{2, 2, LandingLevel})
 		e.Profile.Traits = []Trait{tr}
 		w.resolveTraitEffects(e)
 		return e
@@ -123,11 +123,11 @@ func TestTraitsScaleEffectiveParams(t *testing.T) {
 
 func TestSocialTraitsScaleSocialNeed(t *testing.T) {
 	w := personalityWorld(0)
-	base := w.spawn(Colonist, Point{1, 1})
+	base := w.spawn(Colonist, Point{1, 1, LandingLevel})
 	baseRise := base.needRise[NeedSocial]
 
 	withTrait := func(tr Trait) *Entity {
-		e := w.spawn(Colonist, Point{2 + int(tr), 2})
+		e := w.spawn(Colonist, Point{2 + int(tr), 2, LandingLevel})
 		e.Profile.Traits = []Trait{tr}
 		w.resolveTraitEffects(e)
 		return e
@@ -151,7 +151,7 @@ func TestSocialTraitsScaleSocialNeed(t *testing.T) {
 
 func TestIntrovertConversationFatigue(t *testing.T) {
 	w := personalityWorld(0)
-	e := w.spawn(Colonist, Point{1, 1})
+	e := w.spawn(Colonist, Point{1, 1, LandingLevel})
 	e.Profile.Traits = []Trait{TraitIntrovert}
 	w.resolveTraitEffects(e)
 	w.tick = 1
@@ -175,8 +175,8 @@ func TestIntrovertConversationFatigue(t *testing.T) {
 // A big eater's hunger outpaces a baseline colonist's over the same elapsed time.
 func TestBigEaterHungersFaster(t *testing.T) {
 	w := personalityWorld(0)
-	base := w.spawn(Colonist, Point{1, 1})
-	big := w.spawn(Colonist, Point{2, 2})
+	base := w.spawn(Colonist, Point{1, 1, LandingLevel})
+	big := w.spawn(Colonist, Point{2, 2, LandingLevel})
 	big.Profile.Traits = []Trait{TraitBigEater}
 	w.resolveTraitEffects(big)
 

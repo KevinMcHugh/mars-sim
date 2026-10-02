@@ -18,7 +18,7 @@ func TestArmedColonistKillsAlien(t *testing.T) {
 	cfg.AlienDamage = 0
 	w := newTestWorld(t, cfg)
 
-	center := Point{w.Width / 2, w.Height / 2}
+	center := Point{w.Width / 2, w.Height / 2, LandingLevel}
 	colonist := w.spawn(Colonist, center)
 	colonist.affect.Grip = cfg.MoodMax // composed enough to stand and fight
 	colonist.Inventory.Add(Shotgun, 1)
@@ -48,7 +48,7 @@ func TestArmedColonistFightsFromNeutralAffect(t *testing.T) {
 	cfg.StartColonists, cfg.StartAliens, cfg.StartCats, cfg.StartRats = 0, 0, 0, 0
 	w := newTestWorld(t, cfg)
 
-	center := Point{w.Width / 2, w.Height / 2}
+	center := Point{w.Width / 2, w.Height / 2, LandingLevel}
 	colonist := w.spawn(Colonist, center)
 	colonist.Inventory.Add(Shotgun, 1)
 	alien := w.spawn(Alien, center.Add(cfg.ShotgunRange+2, 0))
@@ -71,7 +71,7 @@ func TestUnarmedColonistStillFlees(t *testing.T) {
 	cfg.StartColonists, cfg.StartAliens, cfg.StartCats, cfg.StartRats = 0, 0, 0, 0
 	w := newTestWorld(t, cfg)
 
-	center := Point{w.Width / 2, w.Height / 2}
+	center := Point{w.Width / 2, w.Height / 2, LandingLevel}
 	colonist := w.spawn(Colonist, center)
 	alien := w.spawn(Alien, center.Add(3, 0))
 
@@ -88,7 +88,7 @@ func TestArmedColonistFightsInsteadOfFleeing(t *testing.T) {
 	cfg.StartColonists, cfg.StartAliens, cfg.StartCats, cfg.StartRats = 0, 0, 0, 0
 	w := newTestWorld(t, cfg)
 
-	center := Point{w.Width / 2, w.Height / 2}
+	center := Point{w.Width / 2, w.Height / 2, LandingLevel}
 	colonist := w.spawn(Colonist, center)
 	colonist.affect.Grip = cfg.MoodMax // high grip favors confrontation
 	colonist.Inventory.Add(Pistol, 1)
@@ -146,18 +146,18 @@ func TestViolentDeathsLeaveGore(t *testing.T) {
 	cfg := testConfig()
 	w := newTestWorld(t, cfg)
 
-	ratSpot := Point{5, 5}
+	ratSpot := Point{5, 5, LandingLevel}
 	w.SetTerrain(ratSpot, Floor)
-	colonist := w.spawn(Colonist, Point{4, 5})
+	colonist := w.spawn(Colonist, Point{4, 5, LandingLevel})
 	rat := w.spawn(Rat, ratSpot)
 	w.stomp(colonist, rat)
 	if w.goreAt(ratSpot) == 0 {
 		t.Error("stomping a rat should leave gore")
 	}
 
-	alienSpot := Point{10, 5}
+	alienSpot := Point{10, 5, LandingLevel}
 	w.SetTerrain(alienSpot, Floor)
-	victimSpot := Point{9, 5}
+	victimSpot := Point{9, 5, LandingLevel}
 	w.SetTerrain(victimSpot, Floor)
 	alien := w.spawn(Alien, alienSpot)
 	victim := w.spawn(Colonist, victimSpot)
@@ -168,9 +168,9 @@ func TestViolentDeathsLeaveGore(t *testing.T) {
 		t.Error("a fatal alien bite should leave gore")
 	}
 
-	gunSpot := Point{15, 5}
+	gunSpot := Point{15, 5, LandingLevel}
 	w.SetTerrain(gunSpot, Floor)
-	shooterSpot := Point{14, 5}
+	shooterSpot := Point{14, 5, LandingLevel}
 	w.SetTerrain(shooterSpot, Floor)
 	target := w.spawn(Alien, gunSpot)
 	target.HP = 1

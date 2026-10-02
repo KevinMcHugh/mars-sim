@@ -8,14 +8,14 @@ func TestSeeingAlienAffectsChargeAndGripMoreThanRat(t *testing.T) {
 	cfg.StartAliens = 0 // no caves on this map, so they would land in the colony
 	cfg.StartRats = 0   // one sighting each: worldgen's rats would crowd the second colonist's view
 	w := newTestWorld(t, cfg)
-	carve(w, Point{0, 0}, Point{1, 0}, Floor) // an alien on hidden rock would be dormant, unseen
+	carve(w, Point{0, 0, LandingLevel}, Point{1, 0, LandingLevel}, Floor) // an alien on hidden rock would be dormant, unseen
 
-	sawAlien := w.spawn(Colonist, Point{0, 0})
-	w.spawn(Alien, Point{1, 0})
+	sawAlien := w.spawn(Colonist, Point{0, 0, LandingLevel})
+	w.spawn(Alien, Point{1, 0, LandingLevel})
 	w.observeNearby(sawAlien)
 
-	sawRat := w.spawn(Colonist, Point{10, 10})
-	w.spawn(Rat, Point{11, 10})
+	sawRat := w.spawn(Colonist, Point{10, 10, LandingLevel})
+	w.spawn(Rat, Point{11, 10, LandingLevel})
 	w.observeNearby(sawRat)
 
 	if sawAlien.affect.Charge <= sawRat.affect.Charge {
@@ -32,8 +32,8 @@ func TestRepeatedAlienSightingDoesNotRepeatMoodHit(t *testing.T) {
 	cfg := testConfig()
 	w := newTestWorld(t, cfg)
 
-	colonist := w.spawn(Colonist, Point{0, 0})
-	w.spawn(Alien, Point{1, 0})
+	colonist := w.spawn(Colonist, Point{0, 0, LandingLevel})
+	w.spawn(Alien, Point{1, 0, LandingLevel})
 	w.observeNearby(colonist)
 	afterFirst := colonist.affect
 
@@ -50,9 +50,9 @@ func TestKillingAlienRaisesMoodMoreThanWitnessing(t *testing.T) {
 	cfg := testConfig()
 	w := newTestWorld(t, cfg)
 
-	killer := w.spawn(Colonist, Point{0, 0})
-	witness := w.spawn(Colonist, Point{1, 1})
-	alien := w.spawn(Alien, Point{1, 0})
+	killer := w.spawn(Colonist, Point{0, 0, LandingLevel})
+	witness := w.spawn(Colonist, Point{1, 1, LandingLevel})
+	alien := w.spawn(Alien, Point{1, 0, LandingLevel})
 	alien.HP = 1
 	alien.Parts = [numBodyParts]int{1, 1, 1, 1, 1, 1}
 
@@ -71,7 +71,7 @@ func TestSeeingGoreDropsMood(t *testing.T) {
 	cfg := testConfig()
 	w := newTestWorld(t, cfg)
 
-	colonist := w.spawn(Colonist, Point{5, 5})
+	colonist := w.spawn(Colonist, Point{5, 5, LandingLevel})
 	w.addGore(colonist.Pos)
 
 	w.observeGore(colonist)
@@ -86,9 +86,9 @@ func TestTidyTraitAmplifiesGoreMoodDrop(t *testing.T) {
 	cfg := testConfig()
 	w := newTestWorld(t, cfg)
 
-	tidy := w.spawn(Colonist, Point{5, 5})
+	tidy := w.spawn(Colonist, Point{5, 5, LandingLevel})
 	tidy.Profile = &Profile{Traits: []Trait{TraitTidy}}
-	plain := w.spawn(Colonist, Point{20, 20})
+	plain := w.spawn(Colonist, Point{20, 20, LandingLevel})
 	plain.Profile = &Profile{}
 
 	w.addGore(tidy.Pos)
@@ -108,7 +108,7 @@ func TestGoreSightIsEdgeTriggered(t *testing.T) {
 	cfg := testConfig()
 	w := newTestWorld(t, cfg)
 
-	colonist := w.spawn(Colonist, Point{5, 5})
+	colonist := w.spawn(Colonist, Point{5, 5, LandingLevel})
 	w.addGore(colonist.Pos)
 
 	w.observeGore(colonist)
@@ -137,7 +137,7 @@ func TestMemoryRecordsReactionRule(t *testing.T) {
 	cfg := testConfig()
 	w := newTestWorld(t, cfg)
 
-	colonist := w.spawn(Colonist, Point{0, 0})
+	colonist := w.spawn(Colonist, Point{0, 0, LandingLevel})
 	rememberTest(w, colonist, "ate", "Had a meal.")
 
 	last := colonist.Memories[len(colonist.Memories)-1]
@@ -154,8 +154,8 @@ func TestBittenDropsMood(t *testing.T) {
 	cfg := testConfig()
 	w := newTestWorld(t, cfg)
 
-	alien := w.spawn(Alien, Point{0, 0})
-	victim := w.spawn(Colonist, Point{1, 0})
+	alien := w.spawn(Alien, Point{0, 0, LandingLevel})
+	victim := w.spawn(Colonist, Point{1, 0, LandingLevel})
 	// Give every part (and the aggregate pool) plenty of HP so the bite is
 	// non-fatal regardless of which part rollHit lands on.
 	victim.HP = 100
@@ -176,9 +176,9 @@ func TestFinishingJobRaisesMoodMoreForIndustrious(t *testing.T) {
 	cfg := testConfig()
 	w := newTestWorld(t, cfg)
 
-	plain := w.spawn(Colonist, Point{0, 0})
+	plain := w.spawn(Colonist, Point{0, 0, LandingLevel})
 	plain.Profile = &Profile{}
-	industrious := w.spawn(Colonist, Point{5, 5})
+	industrious := w.spawn(Colonist, Point{5, 5, LandingLevel})
 	industrious.Profile = &Profile{Traits: []Trait{TraitIndustrious}}
 
 	rememberTest(w, plain, "finished-mining", "Finished mining at (1, 1).")
@@ -197,7 +197,7 @@ func TestAllJobCompletionKindsRaiseMood(t *testing.T) {
 	cfg := testConfig()
 	for _, id := range []RuleID{"finished-mining", "cleared-rock", "finished-construction", "cleaned-refuse", "incinerated-refuse"} {
 		w := newTestWorld(t, cfg)
-		c := w.spawn(Colonist, Point{0, 0})
+		c := w.spawn(Colonist, Point{0, 0, LandingLevel})
 		c.Profile = &Profile{}
 		rememberTest(w, c, id, "did a job")
 		if c.affect.Grip <= 0 {
@@ -212,8 +212,8 @@ func TestConversationRecordsMemoryAndMood(t *testing.T) {
 	cfg := testConfig()
 	w := newTestWorld(t, cfg)
 
-	a := w.spawn(Colonist, Point{0, 0})
-	b := w.spawn(Colonist, Point{1, 0})
+	a := w.spawn(Colonist, Point{0, 0, LandingLevel})
+	b := w.spawn(Colonist, Point{1, 0, LandingLevel})
 	// Max out their existing affinity so the roll's quality (which leans
 	// toward existing affinity's valence) is guaranteed positive, and with it
 	// the mood delta — this test is about the mechanism (one call records

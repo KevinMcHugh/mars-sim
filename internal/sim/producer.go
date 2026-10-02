@@ -191,7 +191,7 @@ func (w *World) tryAssignProduce(e *Entity) bool {
 		if b.Actor == me || w.orders[b.ID] != b || b.Qty <= 0 {
 			continue
 		}
-		if !w.canUseFixture(e, b.Depot.Point) || !w.taskReachable(b.Depot.Point, room) {
+		if !w.canUseFixture(e, b.Depot) || !w.taskReachable(b.Depot, room) {
 			continue
 		}
 		ask, src, cheaper := w.cheapestAskElsewhere(e, b)
@@ -257,7 +257,7 @@ func (w *World) tryDeliverPlan(e *Entity) bool {
 func (w *World) newPlan(e *Entity, kind planKind, b *Order, qty int) *plan {
 	w.nextPlanID++
 	p := &plan{id: w.nextPlanID, kind: kind, actor: e.ID, target: b.ID, item: b.Item,
-		qty: qty, price: b.Price, depot: b.Depot.Point, depth: b.depth + 1,
+		qty: qty, price: b.Price, depot: b.Depot, depth: b.depth + 1,
 		expires: w.tick + max(1, w.cfg.PlanTTL), started: w.tick}
 	w.plans[p.id] = p
 	e.plan = p.id
@@ -325,7 +325,7 @@ func (w *World) planWaitingAt(p Point, id EntityID) bool {
 // planGather takes on scraping scum on e's own account to sell into bid b at a
 // scumhouse, if it pays. With probe set it only reckons the plan, into probe.
 func (w *World) planGather(e *Entity, b *Order, probe *planOffer) bool {
-	c := w.home.storageContainers[b.Depot.Point]
+	c := w.lay(b.Depot).storageContainers[b.Depot]
 	if c == nil || c.Terrain != Scumhouse || e.Inventory.Has(CaveScum) || !w.wildScumAllowed() {
 		return false
 	}
@@ -340,7 +340,7 @@ func (w *World) planGather(e *Entity, b *Order, probe *planOffer) bool {
 	if !ok {
 		return false
 	}
-	ticks := qty*w.ownWorkTicks(e, SkillForaging, w.cfg.ScrapeTicks) + e.Pos.Chebyshev(patch) + patch.Chebyshev(b.Depot.Point)
+	ticks := qty*w.ownWorkTicks(e, SkillForaging, w.cfg.ScrapeTicks) + w.travelEstimate(e.Pos, patch) + w.travelEstimate(patch, b.Depot)
 	profit := b.Price*Money(qty) - w.laborCostFor(e, ticks)
 	if profit < Money(w.cfg.PlanMinProfit) {
 		return false
@@ -351,7 +351,7 @@ func (w *World) planGather(e *Entity, b *Order, probe *planOffer) bool {
 	}
 	p := w.newPlan(e, planGather, b, qty)
 	p.skill, p.expect = SkillForaging, profit
-	w.home.scumClaims[patch] = e.ID
+	w.lay(patch).scumClaims[patch] = e.ID
 	e.Job, e.Target, e.scrape, e.Progress = JobScrape, patch, scrapeGather, 0
 	e.scrapeFor, e.scrapeQty = ColonistOwner(e.ID), p.qty
 	return true
@@ -361,7 +361,7 @@ func (w *World) planGather(e *Entity, b *Order, probe *planOffer) bool {
 // bid it was for, and ends the plan.
 func (w *World) sellGathered(e *Entity, p *plan) {
 	me := ColonistOwner(e.ID)
-	if n := min(p.qty, w.home.storageContainers[p.depot].held(me, p.item)); n > 0 {
+	if n := min(p.qty, w.lay(p.depot).storageContainers[p.depot].held(me, p.item)); n > 0 {
 		w.post(Ask, p.item, n, p.price, me, p.depot, w.cfg.OrderTTL)
 		w.emitDone(e, ActionTrade, NounGoods, "Scraped %d %s to sell for %v each.", n, p.item, p.price)
 		w.notePlanEarned(e, p)
@@ -388,20 +388,20 @@ func (w *World) planCraft(e *Entity, b *Order, probe *planOffer) (started, plann
 			continue
 		}
 		usable := func(c *StorageContainer) bool {
-			id := w.home.workshopClaims[c.Pos]
+			id := w.lay(c.Pos).workshopClaims[c.Pos]
 			return c.Terrain == r.Facility && (id == 0 || id == e.ID) && !w.planWaitingAt(c.Pos, e.ID) && w.mayCookAt(e, c.Pos)
 		}
 		house, ok := w.nearestWorkshop(e, r.Facility, usable)
-		if own, mine := w.ownKitchen(e); mine && r.Facility == Scumhouse && usable(w.home.storageContainers[own]) {
+		if own, mine := w.ownKitchen(e); mine && r.Facility == Scumhouse && usable(w.lay(own).storageContainers[own]) {
 			house, ok = own, true // a chef cooks at its own kitchen
 		}
 		if !ok {
 			continue
 		}
-		c := w.home.storageContainers[house]
+		c := w.lay(house).storageContainers[house]
 		qty := min(out, b.Qty)
 		revenue := b.Price * Money(qty)
-		ticks := w.ownWorkTicks(e, r.Skill, r.Ticks) + e.Pos.Chebyshev(house) + house.Chebyshev(b.Depot.Point)
+		ticks := w.ownWorkTicks(e, r.Skill, r.Ticks) + w.travelEstimate(e.Pos, house) + w.travelEstimate(house, b.Depot)
 		spent := w.laborCostFor(e, ticks)
 		type buy struct {
 			ask *Order
@@ -504,7 +504,7 @@ func (w *World) advancePlan(e *Entity, p *plan) bool {
 		w.dropPlan(p) // the scrape was abandoned before it gathered anything
 		return false
 	case planCraft, planHaul:
-		c := w.home.storageContainers[p.workshop]
+		c := w.lay(p.workshop).storageContainers[p.workshop]
 		if c == nil {
 			w.dropPlan(p)
 			return false
@@ -516,7 +516,7 @@ func (w *World) advancePlan(e *Entity, p *plan) bool {
 		}
 		if p.crafted {
 			from := w.outputDepot(p.workshop) // a kitchen's pantry, or the depot itself
-			n := min(p.qty, w.home.storageContainers[from].held(me, p.item))
+			n := min(p.qty, w.lay(from).storageContainers[from].held(me, p.item))
 			if n <= 0 {
 				w.dropPlan(p)
 				return false
@@ -532,10 +532,10 @@ func (w *World) advancePlan(e *Entity, p *plan) bool {
 			return true
 		}
 		r := recipes[p.recipe]
-		if id := w.home.workshopClaims[p.workshop]; (id != 0 && id != e.ID) || !w.canCraft(c, r, me) {
+		if id := w.lay(p.workshop).workshopClaims[p.workshop]; (id != 0 && id != e.ID) || !w.canCraft(c, r, me) {
 			return false // waiting on inputs, or on the cook ahead of it
 		}
-		w.home.workshopClaims[p.workshop] = e.ID
+		w.lay(p.workshop).workshopClaims[p.workshop] = e.ID
 		e.Job, e.Target, e.Progress = JobCraft, p.workshop, 0
 		e.recipe, e.craftFor, e.craftRun = p.recipe, me, 0
 		return true
@@ -574,7 +574,7 @@ func (w *World) jobCarry(e *Entity) {
 		e.State = Hauling
 		return
 	}
-	c := w.home.storageContainers[e.Target]
+	c := w.lay(e.Target).storageContainers[e.Target]
 	owner := ColonistOwner(e.ID)
 	if e.carryFor.Kind != OwnerNone {
 		owner = e.carryFor // hauling someone else's goods for hire

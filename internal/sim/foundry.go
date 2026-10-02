@@ -46,9 +46,7 @@ func mined(k ItemKind) bool {
 // armoryStock is how many assault rifles the colony owns, in every depot.
 func (w *World) armoryStock() int {
 	n := 0
-	for _, c := range w.home.storageContainers {
-		n += c.held(Community, AssaultRifle)
-	}
+	w.eachContainer(func(c *StorageContainer) { n += c.held(Community, AssaultRifle) })
 	return n
 }
 
@@ -67,7 +65,7 @@ func (w *World) refreshArmoryBids() {
 	}
 	want := w.cfg.ArmoryRifles - w.armoryStock() - w.openQty(Bid, AssaultRifle, silo, Community)
 	want = min(want, int(w.treasury/price))
-	for want > 0 && !w.home.storageContainers[silo].Inventory.CanAdd(AssaultRifle, want) {
+	for want > 0 && !w.lay(silo).storageContainers[silo].Inventory.CanAdd(AssaultRifle, want) {
 		want--
 	}
 	if want > 0 {
@@ -121,23 +119,24 @@ func (w *World) ownStockFor(e *Entity, b *Order) (ownStock, bool) {
 		return ownStock{from: e.Pos, n: n, carried: true}, true
 	}
 	me := ColonistOwner(e.ID)
-	if c := w.home.storageContainers[b.Depot.Point]; c != nil {
+	if c := w.lay(b.Depot).storageContainers[b.Depot]; c != nil {
 		if n := c.held(me, b.Item); n > 0 {
-			return ownStock{from: b.Depot.Point, n: n}, true
+			return ownStock{from: b.Depot, n: n}, true
 		}
 	}
 	room := w.roomOf(e.Pos)
 	var best ownStock
 	bestDist, found := 1<<30, false
-	for p, c := range w.home.storageContainers {
+	w.eachContainer(func(c *StorageContainer) {
+		p := c.Pos
 		n := c.held(me, b.Item)
 		if n <= 0 || !w.canUseFixture(e, p) || !w.taskReachable(p, room) {
-			continue
+			return
 		}
-		if d := e.Pos.Chebyshev(p); !found || d < bestDist || (d == bestDist && lessPoint(p, best.from)) {
+		if d := w.travelEstimate(e.Pos, p); !found || d < bestDist || (d == bestDist && lessPoint(p, best.from)) {
 			best, bestDist, found = ownStock{from: p, n: n}, d, true
 		}
-	}
+	})
 	return best, found
 }
 
@@ -157,19 +156,19 @@ func (w *World) planSupply(e *Entity, b *Order, s ownStock, probe *planOffer) bo
 	if qty <= 0 {
 		return false
 	}
-	if w.homeLoc(s.from) == b.Depot && !s.carried {
+	if s.from == b.Depot && !s.carried {
 		// Already where the buyer is: sell it on the spot. No job comes of
 		// it, so e goes on looking for work.
-		if best, ok := w.bestBid(b.Item, b.Depot.Point); ok && best.Actor != ColonistOwner(e.ID) &&
+		if best, ok := w.bestBid(b.Item, b.Depot); ok && best.Actor != ColonistOwner(e.ID) &&
 			b.Price >= w.refPrice(b.Item)+Money(w.cfg.PlanMinProfit) {
-			_, filled := w.post(Ask, b.Item, qty, b.Price, ColonistOwner(e.ID), b.Depot.Point, w.cfg.OrderTTL)
+			_, filled := w.post(Ask, b.Item, qty, b.Price, ColonistOwner(e.ID), b.Depot, w.cfg.OrderTTL)
 			w.emitDone(e, ActionTrade, NounGoods, "Sold %d %s where it lay, for %v each.", filled, b.Item, b.Price)
 		}
 		return false
 	}
-	walk := e.Pos.Chebyshev(b.Depot.Point)
+	walk := w.travelEstimate(e.Pos, b.Depot)
 	if !s.carried {
-		walk = e.Pos.Chebyshev(s.from) + s.from.Chebyshev(b.Depot.Point)
+		walk = w.travelEstimate(e.Pos, s.from) + w.travelEstimate(s.from, b.Depot)
 	}
 	profit := Money(qty)*(b.Price-w.refPrice(b.Item)) - w.laborCostFor(e, walk)
 	if profit < Money(w.cfg.PlanMinProfit) {
@@ -184,8 +183,8 @@ func (w *World) planSupply(e *Entity, b *Order, s ownStock, probe *planOffer) bo
 	w.emitDone(e, ActionTrade, NounGoods, "Took %d of %s own %s to sell at (%d, %d) for %v.",
 		qty, e.possessive(), b.Item, b.Depot.X, b.Depot.Y, b.Price)
 	if s.carried {
-		p.workshop = b.Depot.Point
-		w.assignCarry(e, p, b.Depot.Point, carryDeliver, qty)
+		p.workshop = b.Depot
+		w.assignCarry(e, p, b.Depot, carryDeliver, qty)
 		return true
 	}
 	p.workshop = s.from

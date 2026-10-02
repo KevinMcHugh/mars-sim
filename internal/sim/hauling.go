@@ -40,13 +40,13 @@ func (w *World) cheapestAskElsewhere(e *Entity, b *Order) (*Order, Point, bool) 
 		if ask.Actor == me || ask.Actor == b.Actor || ask.Price >= b.Price {
 			continue
 		}
-		if best != nil && (ask.Price > best.Price || (ask.Price == best.Price && !lessPoint(key.Depot.Point, at))) {
+		if best != nil && (ask.Price > best.Price || (ask.Price == best.Price && !lessPoint(key.Depot, at))) {
 			continue
 		}
-		if !w.canUseFixture(e, key.Depot.Point) || !w.taskReachable(key.Depot.Point, room) {
+		if !w.canUseFixture(e, key.Depot) || !w.taskReachable(key.Depot, room) {
 			continue
 		}
-		best, at = ask, key.Depot.Point
+		best, at = ask, key.Depot
 	}
 	return best, at, best != nil
 }
@@ -62,7 +62,7 @@ func (w *World) planArbitrage(e *Entity, b, ask *Order, src Point, probe *planOf
 	if qty <= 0 || e.wallet < Money(qty)*ask.Price {
 		return false
 	}
-	walk := e.Pos.Chebyshev(src) + src.Chebyshev(b.Depot.Point)
+	walk := w.travelEstimate(e.Pos, src) + w.travelEstimate(src, b.Depot)
 	profit := Money(qty)*(b.Price-ask.Price) - w.laborCostFor(e, walk)
 	if profit < Money(w.cfg.PlanMinProfit) {
 		return false
@@ -102,7 +102,7 @@ func (w *World) tryAssignHaul(e *Entity) bool {
 		if id := w.haulClaims[o.ID]; id != 0 && id != e.ID {
 			continue
 		}
-		src := w.home.storageContainers[o.From]
+		src := w.lay(o.From).storageContainers[o.From]
 		if src == nil || !w.canUseFixture(e, o.From) || !w.canUseFixture(e, o.Pos) ||
 			!w.taskReachable(o.From, room) || !w.taskReachable(o.Pos, room) {
 			continue
@@ -165,7 +165,7 @@ func (w *World) refreshSiloStock() {
 	// ledger line, but still there: counting only the line re-ordered a haul
 	// every time the colony put the last one on sale, and a silo meant to keep
 	// 3 held 6.
-	want := w.cfg.SiloMealStock - w.home.storageContainers[silo].held(Community, Meal) -
+	want := w.cfg.SiloMealStock - w.lay(silo).storageContainers[silo].held(Community, Meal) -
 		w.openQty(Ask, Meal, silo, Community) - total
 	if want <= 0 {
 		return
@@ -180,10 +180,10 @@ func (w *World) refreshSiloStock() {
 		}
 	}
 	sort.SliceStable(houses, func(i, j int) bool {
-		return houses[i].Chebyshev(silo) < houses[j].Chebyshev(silo)
+		return w.travelEstimate(houses[i], silo) < w.travelEstimate(houses[j], silo)
 	})
 	for _, h := range houses {
-		c := w.home.storageContainers[h]
+		c := w.lay(h).storageContainers[h]
 		if c == nil || want <= 0 {
 			continue
 		}
@@ -217,7 +217,7 @@ func (w *World) refreshColonyAsks() {
 	if !ok || !w.cfg.ColonySells {
 		return
 	}
-	c := w.home.storageContainers[silo]
+	c := w.lay(silo).storageContainers[silo]
 	for _, k := range prospectingGoods {
 		if w.refPrice(k) <= 0 {
 			continue

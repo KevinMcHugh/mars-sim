@@ -141,7 +141,7 @@ func TestAliensEatColonists(t *testing.T) {
 		w.alienSpecies[i].Temperament = TemperamentHostile
 	}
 
-	center := Point{w.Width / 2, w.Height / 2}
+	center := Point{w.Width / 2, w.Height / 2, LandingLevel}
 	victim := w.spawn(Colonist, center)
 	// Surround with aliens so it cannot escape.
 	for _, d := range neighbors8 {
@@ -260,17 +260,17 @@ func worldFingerprint(w *World) map[string]string {
 	var tiles, regions, rooms uint64 = fnvSeed, fnvSeed, fnvSeed
 	for y := 0; y < w.Height; y++ {
 		for x := 0; x < w.Width; x++ {
-			tiles = fnvAdd(tiles, uint64(w.home.tiles.at(x, y).Terrain))
-			regions = fnvAdd(regions, uint64(w.home.regionOf.at(x, y)))
-			rooms = fnvAdd(rooms, uint64(w.roomOf(Point{x, y})))
+			tiles = fnvAdd(tiles, uint64(w.landing().tiles.at(x, y).Terrain))
+			regions = fnvAdd(regions, uint64(w.landing().regionOf.at(x, y)))
+			rooms = fnvAdd(rooms, uint64(w.roomOf(Point{x, y, LandingLevel})))
 		}
 	}
 	f["tiles"] = strconv.FormatUint(tiles, 16)
 	f["regions"] = strconv.FormatUint(regions, 16)
 	f["rooms"] = strconv.FormatUint(rooms, 16)
 
-	f["frontier"] = sortedPointOwners(w.home.board.frontier, w.home.board.claimed)
-	f["cleaning"] = sortedPointOwners(nil, w.home.board.cleaning)
+	f["frontier"] = sortedPointOwners(w.landing().board.frontier, w.landing().board.claimed)
+	f["cleaning"] = sortedPointOwners(nil, w.landing().board.cleaning)
 
 	// Who owns what: balances, every fixture's owner and access, and every
 	// ledger line. The economy's decisions (who pays, whose ore) must be as
@@ -355,7 +355,7 @@ func denseTiles(w *World) []tileCell {
 	out := make([]tileCell, 0, w.Width*w.Height)
 	for y := 0; y < w.Height; y++ {
 		for x := 0; x < w.Width; x++ {
-			out = append(out, w.home.tiles.at(x, y))
+			out = append(out, w.landing().tiles.at(x, y))
 		}
 	}
 	return out
@@ -363,7 +363,7 @@ func denseTiles(w *World) []tileCell {
 
 // cellAt returns the stored record at the in-bounds p, for tests that set up
 // composition directly.
-func cellAt(w *World, p Point) *tileCell { return w.home.tiles.ptr(p.X, p.Y) }
+func cellAt(w *World, p Point) *tileCell { return w.landing().tiles.ptr(p.X, p.Y) }
 
 func floorCount(w *World) int {
 	n := 0
@@ -382,7 +382,7 @@ func TestColonistUsesNutrientPod(t *testing.T) {
 	cfg.StartColonists, cfg.StartAliens = 0, 0
 	w := newTestWorld(t, cfg)
 
-	center := Point{w.Width / 2, w.Height / 2}
+	center := Point{w.Width / 2, w.Height / 2, LandingLevel}
 	stand := center.Add(1, 0)
 	w.SetTerrain(center, NutrientPod)
 	w.SetTerrain(stand, Floor)
@@ -408,7 +408,7 @@ func TestColonistUsesBed(t *testing.T) {
 	cfg.StartColonists, cfg.StartAliens = 0, 0
 	w := newTestWorld(t, cfg)
 
-	center := Point{w.Width / 2, w.Height / 2}
+	center := Point{w.Width / 2, w.Height / 2, LandingLevel}
 	stand := center.Add(1, 0)
 	w.SetTerrain(center, Bed)
 	w.SetTerrain(stand, Floor)
@@ -469,7 +469,7 @@ func TestUrgentColonistFinishesEmergencyBuild(t *testing.T) {
 	cfg := testConfig()
 	cfg.StartColonists, cfg.StartAliens = 0, 0
 	w := newTestWorld(t, cfg)
-	center := Point{w.Width / 2, w.Height / 2}
+	center := Point{w.Width / 2, w.Height / 2, LandingLevel}
 	c := w.spawn(Colonist, center)
 	c.Needs[NeedFood] = cfg.Needs[NeedFood].SeekAt
 	target, ok := w.findBuildSpot(c.Pos, 20)
@@ -498,7 +498,7 @@ func TestUrgentNonFatalNeedTriggersEmergencyBuild(t *testing.T) {
 	cfg := testConfig()
 	cfg.StartColonists, cfg.StartAliens = 0, 0
 	w := newTestWorld(t, cfg)
-	center := Point{w.Width / 2, w.Height / 2}
+	center := Point{w.Width / 2, w.Height / 2, LandingLevel}
 	c := w.spawn(Colonist, center)
 	c.Needs[NeedBladder], c.needSince[NeedBladder] = cfg.Needs[NeedBladder].SeekAt, w.tick
 	// Clear the other (staggered) needs so bladder is the one being addressed.
@@ -534,18 +534,18 @@ func TestUrgentColonistHelpsBuildWhenFacilityUndersupplied(t *testing.T) {
 	cfg.ColonistsPerFacility = 1 // three colonists want three toilets
 	w := newTestWorld(t, cfg)
 
-	center := Point{w.Width / 2, w.Height / 2}
+	center := Point{w.Width / 2, w.Height / 2, LandingLevel}
 	// A short open corridor: an existing, reachable toilet plus an unclaimed,
 	// reachable project — a wall task plus the toilet task that makes the
 	// project "provide" toilets (claimNearestTaskProviding only claims from a
 	// project that actually provides the needed facility, not just any
 	// reachable task — see its doc comment).
 	for dx := -2; dx <= 4; dx++ {
-		w.SetTerrain(Point{center.X + dx, center.Y}, Floor)
+		w.SetTerrain(Point{center.X + dx, center.Y, LandingLevel}, Floor)
 	}
-	w.SetTerrain(Point{center.X - 2, center.Y}, Toilet)
-	wallTaskPos := Point{center.X + 3, center.Y}
-	toiletTaskPos := Point{center.X + 4, center.Y}
+	w.SetTerrain(Point{center.X - 2, center.Y, LandingLevel}, Toilet)
+	wallTaskPos := Point{center.X + 3, center.Y, LandingLevel}
+	toiletTaskPos := Point{center.X + 4, center.Y, LandingLevel}
 	w.refreshSpatial()
 
 	w.projects = append(w.projects, &project{
@@ -587,7 +587,7 @@ func TestColonistEscapesSealedRoom(t *testing.T) {
 	cfg.StartColonists, cfg.StartAliens = 0, 0
 	w := newTestWorld(t, cfg)
 
-	center := Point{w.Width / 2, w.Height / 2}
+	center := Point{w.Width / 2, w.Height / 2, LandingLevel}
 	w.SetTerrain(center, Floor)
 	for _, d := range neighbors8 {
 		w.SetTerrain(center.Add(d.X, d.Y), Wall) // sealed pocket: no rock, only a wall
@@ -621,7 +621,7 @@ func TestColonistStarvesWhenSealedByRock(t *testing.T) {
 	// Away from the map center: generate always carves a starting cavern there
 	// (at least an 8x4 ellipse, even with zero starting colonists — see
 	// caveRadii), so a pocket placed there would sit in the open, not sealed.
-	pocket := Point{3, 3}
+	pocket := Point{3, 3, LandingLevel}
 	w.SetTerrain(pocket, Floor) // every neighbor left as default Rock
 	w.refreshSpatial()
 	if room := w.roomOf(pocket); room == w.mainRoom {
@@ -644,7 +644,7 @@ func TestRatEatsFromPod(t *testing.T) {
 	cfg.StartColonists, cfg.StartAliens, cfg.StartCats, cfg.StartRats = 0, 0, 0, 0
 	w := newTestWorld(t, cfg)
 
-	center := Point{w.Width / 2, w.Height / 2}
+	center := Point{w.Width / 2, w.Height / 2, LandingLevel}
 	stand := center.Add(1, 0)
 	w.SetTerrain(center, NutrientPod)
 	w.SetTerrain(stand, Floor)
@@ -670,7 +670,7 @@ func TestRatStarvesWithoutFood(t *testing.T) {
 	cfg.StartColonists, cfg.StartAliens, cfg.StartCats, cfg.StartRats = 0, 0, 0, 0
 	w := newTestWorld(t, cfg)
 
-	center := Point{w.Width / 2, w.Height / 2}
+	center := Point{w.Width / 2, w.Height / 2, LandingLevel}
 	w.SetTerrain(center, Floor)
 	for _, d := range neighbors8 {
 		w.SetTerrain(center.Add(d.X, d.Y), Wall) // sealed pocket: no pod within reach
@@ -693,7 +693,7 @@ func TestCatEatsRat(t *testing.T) {
 	cfg.CatSlowness = 1
 	w := newTestWorld(t, cfg)
 
-	center := Point{w.Width / 2, w.Height / 2}
+	center := Point{w.Width / 2, w.Height / 2, LandingLevel}
 	w.SetTerrain(center, Floor)
 	// Wall the rat in on every side but one, where the cat waits: the rat
 	// cannot flee, so the cat must catch it.
@@ -725,7 +725,7 @@ func TestIdleColonistStompsRat(t *testing.T) {
 	cfg.StartColonists, cfg.StartAliens, cfg.StartCats, cfg.StartRats = 0, 0, 0, 0
 	w := newTestWorld(t, cfg)
 
-	center := Point{w.Width / 2, w.Height / 2}
+	center := Point{w.Width / 2, w.Height / 2, LandingLevel}
 	// Wall a 3x3 pocket so no mineable rock borders its floor.
 	for y := -2; y <= 2; y++ {
 		for x := -2; x <= 2; x++ {
@@ -763,7 +763,7 @@ func TestRatsBreedAndGiveBirth(t *testing.T) {
 	cfg.RatMaturityTicks = 100
 	w := newTestWorld(t, cfg)
 
-	center := Point{w.Width / 2, w.Height / 2}
+	center := Point{w.Width / 2, w.Height / 2, LandingLevel}
 	for y := -2; y <= 2; y++ {
 		for x := -2; x <= 2; x++ {
 			w.SetTerrain(center.Add(x, y), Floor)
@@ -789,7 +789,7 @@ func TestSameSexRatsDoNotBreed(t *testing.T) {
 	cfg.RatGestationTicks = 4
 	w := newTestWorld(t, cfg)
 
-	center := Point{w.Width / 2, w.Height / 2}
+	center := Point{w.Width / 2, w.Height / 2, LandingLevel}
 	for y := -2; y <= 2; y++ {
 		for x := -2; x <= 2; x++ {
 			w.SetTerrain(center.Add(x, y), Floor)
@@ -832,7 +832,7 @@ func TestNearestMatchesBruteForce(t *testing.T) {
 
 	rng := newRand(3)
 	for i := 0; i < 300; i++ {
-		p := Point{rng.IntN(w.Width), rng.IntN(w.Height)}
+		p := Point{rng.IntN(w.Width), rng.IntN(w.Height), LandingLevel}
 		if w.occupied(p) {
 			continue
 		}
@@ -844,7 +844,7 @@ func TestNearestMatchesBruteForce(t *testing.T) {
 	}
 
 	for i := 0; i < 1000; i++ {
-		from := Point{rng.IntN(w.Width), rng.IntN(w.Height)}
+		from := Point{rng.IntN(w.Width), rng.IntN(w.Height), LandingLevel}
 		within := rng.IntN(200) + 1
 		for _, kind := range []Kind{Colonist, Alien} {
 			got, gok := w.nearestOfKind(from, kind, within)
@@ -943,16 +943,16 @@ func TestChooseFacilityPicksNearestAmongManyCandidates(t *testing.T) {
 
 	for y := 0; y < w.Height; y++ {
 		for x := 0; x < w.Width; x++ {
-			w.SetTerrain(Point{x, y}, Floor)
+			w.SetTerrain(Point{x, y, LandingLevel}, Floor)
 		}
 	}
-	near := Point{20, 17} // a few tiles from the colonist
-	far := Point{5, 5}    // sorts before `near` (smaller Y) but is much farther
+	near := Point{20, 17, LandingLevel} // a few tiles from the colonist
+	far := Point{5, 5, LandingLevel}    // sorts before `near` (smaller Y) but is much farther
 	w.SetTerrain(near, NutrientPod)
 	w.SetTerrain(far, NutrientPod)
 	w.refreshSpatial()
 
-	c := w.spawn(Colonist, Point{20, 20})
+	c := w.spawn(Colonist, Point{20, 20, LandingLevel})
 	for i := 0; i < 200; i++ {
 		if got := w.chooseFacility(c, NutrientPod); got != near {
 			t.Fatalf("call %d: chooseFacility = %v, want the nearer facility %v (got the farther %v)",
@@ -978,11 +978,11 @@ func TestChooseFacilityIgnoresUnrelatedBystander(t *testing.T) {
 
 	for y := 0; y < w.Height; y++ {
 		for x := 0; x < w.Width; x++ {
-			w.SetTerrain(Point{x, y}, Floor)
+			w.SetTerrain(Point{x, y, LandingLevel}, Floor)
 		}
 	}
-	fac := Point{20, 17} // near the colonist, with a bystander nearby
-	other := Point{5, 5} // far away, but the only "uncongested" option if fac is wrongly flagged
+	fac := Point{20, 17, LandingLevel} // near the colonist, with a bystander nearby
+	other := Point{5, 5, LandingLevel} // far away, but the only "uncongested" option if fac is wrongly flagged
 	w.SetTerrain(fac, NutrientPod)
 	w.SetTerrain(other, NutrientPod)
 	w.refreshSpatial()
@@ -992,7 +992,7 @@ func TestChooseFacilityIgnoresUnrelatedBystander(t *testing.T) {
 	// doing something else entirely (idle, no job) and not queued for it.
 	w.spawn(Colonist, fac.Add(2, 0))
 
-	c := w.spawn(Colonist, Point{20, 20})
+	c := w.spawn(Colonist, Point{20, 20, LandingLevel})
 	if got, want := w.chooseFacility(c, NutrientPod), fac; got != want {
 		t.Fatalf("chooseFacility = %v, want the near facility %v (a mere bystander should not count as congestion and send it to the far one, %v)",
 			got, want, other)
@@ -1041,7 +1041,7 @@ func TestRoomSiteCanBackOntoAnotherRoomsWall(t *testing.T) {
 	// rock-backed site elsewhere on the map could satisfy a loose assertion.
 	for y := 0; y < w.Height; y++ {
 		for x := 0; x < w.Width; x++ {
-			w.SetTerrain(Point{x, y}, Rock)
+			w.SetTerrain(Point{x, y, LandingLevel}, Rock)
 		}
 	}
 
@@ -1057,17 +1057,17 @@ func TestRoomSiteCanBackOntoAnotherRoomsWall(t *testing.T) {
 	// Simulate an already-built neighboring room: a wall row with no rock
 	// anywhere behind it (backY-1 lands here).
 	for x := ox; x < ox+width; x++ {
-		w.SetTerrain(Point{x, backY - 1}, Wall)
+		w.SetTerrain(Point{x, backY - 1, LandingLevel}, Wall)
 	}
 	// The new room's own footprint plus its side lanes.
 	for y := backY; y <= frontY; y++ {
 		for x := ox - 2; x <= ox+width+1; x++ {
-			w.SetTerrain(Point{x, y}, Floor)
+			w.SetTerrain(Point{x, y, LandingLevel}, Floor)
 		}
 	}
 	// The front approach lane.
 	for x := ox - 2; x <= ox+width+1; x++ {
-		w.SetTerrain(Point{x, frontY + roomApproach}, Floor)
+		w.SetTerrain(Point{x, frontY + roomApproach, LandingLevel}, Floor)
 	}
 	w.refreshSpatial()
 
@@ -1075,7 +1075,7 @@ func TestRoomSiteCanBackOntoAnotherRoomsWall(t *testing.T) {
 	if !ok {
 		t.Fatal("expected a room site backed by an existing wall")
 	}
-	if want := (Point{ox, oy}); site != want {
+	if want := (Point{ox, oy, LandingLevel}); site != want {
 		t.Fatalf("site = %v, want %v (backed by the wall at y=%d)", site, want, backY-1)
 	}
 }
@@ -1092,7 +1092,7 @@ func TestRoomSiteSharesSideWallWithNeighbor(t *testing.T) {
 	// possible room site is the one this test carves.
 	for y := 0; y < w.Height; y++ {
 		for x := 0; x < w.Width; x++ {
-			w.SetTerrain(Point{x, y}, Rock)
+			w.SetTerrain(Point{x, y, LandingLevel}, Rock)
 		}
 	}
 
@@ -1105,20 +1105,20 @@ func TestRoomSiteSharesSideWallWithNeighbor(t *testing.T) {
 	// An existing neighbor's wall column immediately to the left — this
 	// room's whole left side, shared outright.
 	for y := backY; y <= frontY; y++ {
-		w.SetTerrain(Point{ox - 1, y}, Wall)
+		w.SetTerrain(Point{ox - 1, y, LandingLevel}, Wall)
 	}
 	// This room's own interior, plus its fresh right side wall column and
 	// that side's exterior lane.
 	for y := backY; y <= frontY; y++ {
 		for x := ox; x <= ox+width+1; x++ { // interior, right wall, right lane
-			w.SetTerrain(Point{x, y}, Floor)
+			w.SetTerrain(Point{x, y, LandingLevel}, Floor)
 		}
 	}
 	// The front approach lane: only from the shared (left) wall's column
 	// rightward through the fresh (right) side's lane — nothing left of
 	// ox-1, proving the shared side needed no exterior lane of its own.
 	for x := ox - 1; x <= ox+width+1; x++ {
-		w.SetTerrain(Point{x, frontY + roomApproach}, Floor)
+		w.SetTerrain(Point{x, frontY + roomApproach, LandingLevel}, Floor)
 	}
 	w.refreshSpatial()
 
@@ -1126,19 +1126,19 @@ func TestRoomSiteSharesSideWallWithNeighbor(t *testing.T) {
 	if !ok {
 		t.Fatal("expected a room site sharing a neighbor's side wall")
 	}
-	if want := (Point{ox, oy}); site != want {
+	if want := (Point{ox, oy, LandingLevel}); site != want {
 		t.Fatalf("site = %v, want %v (sharing the wall at x=%d)", site, want, ox-1)
 	}
 
 	w.designateRoom(dormRoom, site, 2, Community) // bayWidth(2) == 3, matching the site carved above
 	for _, tk := range w.projects[0].tasks {
-		if tk.pos == (Point{ox - 1, backY}) || tk.pos == (Point{ox - 1, frontY}) {
+		if tk.pos == (Point{ox - 1, backY, LandingLevel}) || tk.pos == (Point{ox - 1, frontY, LandingLevel}) {
 			t.Fatalf("designateRoom added a redundant task %v on the shared wall", tk.pos)
 		}
 	}
 	sawRightWall := false
 	for _, tk := range w.projects[0].tasks {
-		if tk.pos == (Point{ox + width, backY}) {
+		if tk.pos == (Point{ox + width, backY, LandingLevel}) {
 			sawRightWall = true
 		}
 	}
@@ -1160,7 +1160,7 @@ func TestRoomSiteCanIncludeUnexcavatedRock(t *testing.T) {
 	// interior really does start as rock and nothing else offers a site.
 	for y := 0; y < w.Height; y++ {
 		for x := 0; x < w.Width; x++ {
-			w.SetTerrain(Point{x, y}, Rock)
+			w.SetTerrain(Point{x, y, LandingLevel}, Rock)
 		}
 	}
 
@@ -1172,13 +1172,13 @@ func TestRoomSiteCanIncludeUnexcavatedRock(t *testing.T) {
 	// Only the exterior — side walls, their lanes, and the front approach —
 	// is dug; the interior (ox..ox+width-1, backY..frontY) stays solid rock.
 	for y := backY; y <= frontY; y++ {
-		w.SetTerrain(Point{ox - 2, y}, Floor)
-		w.SetTerrain(Point{ox - 1, y}, Floor)
-		w.SetTerrain(Point{ox + width, y}, Floor)
-		w.SetTerrain(Point{ox + width + 1, y}, Floor)
+		w.SetTerrain(Point{ox - 2, y, LandingLevel}, Floor)
+		w.SetTerrain(Point{ox - 1, y, LandingLevel}, Floor)
+		w.SetTerrain(Point{ox + width, y, LandingLevel}, Floor)
+		w.SetTerrain(Point{ox + width + 1, y, LandingLevel}, Floor)
 	}
 	for x := ox - 2; x <= ox+width+1; x++ {
-		w.SetTerrain(Point{x, frontY + roomApproach}, Floor)
+		w.SetTerrain(Point{x, frontY + roomApproach, LandingLevel}, Floor)
 	}
 	w.refreshSpatial()
 
@@ -1186,7 +1186,7 @@ func TestRoomSiteCanIncludeUnexcavatedRock(t *testing.T) {
 	if !ok {
 		t.Fatal("expected a room site with an unexcavated interior")
 	}
-	if want := (Point{ox, oy}); site != want {
+	if want := (Point{ox, oy, LandingLevel}); site != want {
 		t.Fatalf("site = %v, want %v", site, want)
 	}
 
@@ -1220,7 +1220,7 @@ func TestFindRoomSitePrefersClearOverRockNearCenter(t *testing.T) {
 
 	for y := 0; y < w.Height; y++ {
 		for x := 0; x < w.Width; x++ {
-			w.SetTerrain(Point{x, y}, Rock)
+			w.SetTerrain(Point{x, y, LandingLevel}, Rock)
 		}
 	}
 
@@ -1232,24 +1232,24 @@ func TestFindRoomSitePrefersClearOverRockNearCenter(t *testing.T) {
 	// A rock-interior site sitting exactly at map center.
 	rockOx := w.Width / 2
 	for y := backY; y <= frontY; y++ {
-		w.SetTerrain(Point{rockOx - 2, y}, Floor)
-		w.SetTerrain(Point{rockOx - 1, y}, Floor)
-		w.SetTerrain(Point{rockOx + width, y}, Floor)
-		w.SetTerrain(Point{rockOx + width + 1, y}, Floor)
+		w.SetTerrain(Point{rockOx - 2, y, LandingLevel}, Floor)
+		w.SetTerrain(Point{rockOx - 1, y, LandingLevel}, Floor)
+		w.SetTerrain(Point{rockOx + width, y, LandingLevel}, Floor)
+		w.SetTerrain(Point{rockOx + width + 1, y, LandingLevel}, Floor)
 	}
 	for x := rockOx - 2; x <= rockOx+width+1; x++ {
-		w.SetTerrain(Point{x, frontY + roomApproach}, Floor)
+		w.SetTerrain(Point{x, frontY + roomApproach, LandingLevel}, Floor)
 	}
 
 	// A fully pre-cleared site well off to the side (farther from center).
 	clearOx := rockOx + 20
 	for y := backY; y <= frontY; y++ {
 		for x := clearOx - 2; x <= clearOx+width+1; x++ {
-			w.SetTerrain(Point{x, y}, Floor)
+			w.SetTerrain(Point{x, y, LandingLevel}, Floor)
 		}
 	}
 	for x := clearOx - 2; x <= clearOx+width+1; x++ {
-		w.SetTerrain(Point{x, frontY + roomApproach}, Floor)
+		w.SetTerrain(Point{x, frontY + roomApproach, LandingLevel}, Floor)
 	}
 	w.refreshSpatial()
 
@@ -1257,7 +1257,7 @@ func TestFindRoomSitePrefersClearOverRockNearCenter(t *testing.T) {
 	if !ok {
 		t.Fatal("expected a room site")
 	}
-	if want := (Point{clearOx, oy}); site != want {
+	if want := (Point{clearOx, oy, LandingLevel}); site != want {
 		t.Fatalf("site = %v, want the clear site %v (nearer, rock-interior one should lose despite proximity)", site, want)
 	}
 }
@@ -1285,7 +1285,7 @@ func TestColonistsExcavateAndBuildRoomFromRock(t *testing.T) {
 
 	for y := 0; y < w.Height; y++ {
 		for x := 0; x < w.Width; x++ {
-			w.SetTerrain(Point{x, y}, Rock)
+			w.SetTerrain(Point{x, y, LandingLevel}, Rock)
 		}
 	}
 
@@ -1295,13 +1295,13 @@ func TestColonistsExcavateAndBuildRoomFromRock(t *testing.T) {
 	backY := oy - 1
 	frontY := roomFrontWallY(oy)
 	for y := backY; y <= frontY; y++ {
-		w.SetTerrain(Point{ox - 2, y}, Floor)
-		w.SetTerrain(Point{ox - 1, y}, Floor)
-		w.SetTerrain(Point{ox + width, y}, Floor)
-		w.SetTerrain(Point{ox + width + 1, y}, Floor)
+		w.SetTerrain(Point{ox - 2, y, LandingLevel}, Floor)
+		w.SetTerrain(Point{ox - 1, y, LandingLevel}, Floor)
+		w.SetTerrain(Point{ox + width, y, LandingLevel}, Floor)
+		w.SetTerrain(Point{ox + width + 1, y, LandingLevel}, Floor)
 	}
 	for x := ox - 2; x <= ox+width+1; x++ {
-		w.SetTerrain(Point{x, frontY + roomApproach}, Floor)
+		w.SetTerrain(Point{x, frontY + roomApproach, LandingLevel}, Floor)
 	}
 	w.refreshSpatial()
 
@@ -1311,7 +1311,7 @@ func TestColonistsExcavateAndBuildRoomFromRock(t *testing.T) {
 	}
 	w.designateRoom(lifeSupportRoom, site, roomFacilities, Community)
 	for i := 0; i < roomFacilities; i++ {
-		w.spawn(Colonist, Point{ox - 2, backY + i%(frontY-backY+1)})
+		w.spawn(Colonist, Point{ox - 2, backY + i%(frontY-backY+1), LandingLevel})
 	}
 
 	done := false
@@ -1342,11 +1342,11 @@ func TestFacilityRoomHasCompleteWallsDoorAndBuildPhases(t *testing.T) {
 	oy := w.Height / 2
 	for y := oy - 1; y <= roomFrontWallY(oy)+roomApproach; y++ {
 		for x := 1; x < w.Width-1; x++ {
-			w.SetTerrain(Point{x, y}, Floor)
+			w.SetTerrain(Point{x, y, LandingLevel}, Floor)
 		}
 	}
 	for x := 2; x < w.Width-2; x++ {
-		w.SetTerrain(Point{x, oy - 2}, Rock)
+		w.SetTerrain(Point{x, oy - 2, LandingLevel}, Rock)
 	}
 	w.refreshSpatial()
 
@@ -1388,29 +1388,29 @@ func TestFacilityRoomHasCompleteWallsDoorAndBuildPhases(t *testing.T) {
 	width := bayWidth(roomFacilities)
 	backY := site.Y - 1
 	frontY := roomFrontWallY(site.Y)
-	door := Point{site.X + width/2, frontY}
+	door := Point{site.X + width/2, frontY, LandingLevel}
 	if walls[door] {
 		t.Fatalf("doorway %v was designated as a wall", door)
 	}
 	for y := backY; y <= frontY; y++ {
-		if !walls[Point{site.X - 1, y}] || !walls[Point{site.X + width, y}] {
+		if !walls[Point{site.X - 1, y, LandingLevel}] || !walls[Point{site.X + width, y, LandingLevel}] {
 			t.Fatalf("room is missing a side wall on row %d", y)
 		}
 	}
 	for x := site.X; x < site.X+width; x++ {
-		if p := (Point{x, backY}); !walls[p] {
+		if p := (Point{x, backY, LandingLevel}); !walls[p] {
 			t.Fatalf("room is missing back wall %v", p)
 		}
-		if p := (Point{x, frontY}); p != door && !walls[p] {
+		if p := (Point{x, frontY, LandingLevel}); p != door && !walls[p] {
 			t.Fatalf("room is missing front wall %v", p)
 		}
 	}
 
 	// A facility cannot be claimed while any phase-zero wall remains, and a wall
 	// already occupied when the project is designated must be left for later.
-	blockedWall := Point{site.X, backY}
+	blockedWall := Point{site.X, backY, LandingLevel}
 	w.spawn(Colonist, blockedWall)
-	if task, ok := w.claimNearestTask(Point{door.X, door.Y + 1}, 999); !ok ||
+	if task, ok := w.claimNearestTask(Point{door.X, door.Y + 1, LandingLevel}, 999); !ok ||
 		task.terrain != Wall || task.pos == blockedWall {
 		t.Fatalf("first claimed task = %#v, want a wall", task)
 	}
@@ -1419,7 +1419,7 @@ func TestFacilityRoomHasCompleteWallsDoorAndBuildPhases(t *testing.T) {
 // A room's doorway is only safe from being trapped if nothing can ever build
 // over the single exterior tile the door opens onto — including a later,
 // unrelated room. That tile carries no build task of its own (see
-// designateRoom), so without w.home.doorTiles it looks like ordinary, unclaimed
+// designateRoom), so without w.landing().doorTiles it looks like ordinary, unclaimed
 // floor to a new room's site check, and a room sited to reuse an existing
 // wall as backing can land its own side wall right on top of it.
 func TestRoomSiteClearRejectsCoveringAnotherRoomsDoorway(t *testing.T) {
@@ -1429,16 +1429,16 @@ func TestRoomSiteClearRejectsCoveringAnotherRoomsDoorway(t *testing.T) {
 
 	for y := 0; y < w.Height; y++ {
 		for x := 0; x < w.Width; x++ {
-			w.SetTerrain(Point{x, y}, Floor)
+			w.SetTerrain(Point{x, y, LandingLevel}, Floor)
 		}
 	}
 	// Solid rock to back room A's rear wall.
 	for x := 0; x < w.Width; x++ {
-		w.SetTerrain(Point{x, 4}, Rock)
+		w.SetTerrain(Point{x, 4, LandingLevel}, Rock)
 	}
 	w.refreshSpatial()
 
-	siteA := Point{5, 6}
+	siteA := Point{5, 6, LandingLevel}
 	widthA := bayWidth(roomFacilities)
 	if !w.roomSiteClear(siteA.X, siteA.Y, widthA, map[Point]bool{}, false) {
 		t.Fatal("room A's own site is not clear before it is designated")
@@ -1460,22 +1460,22 @@ func TestRoomSiteClearRejectsCoveringAnotherRoomsDoorway(t *testing.T) {
 	}
 
 	frontYA := roomFrontWallY(siteA.Y)
-	doorA := Point{siteA.X + widthA/2, frontYA + roomApproach}
-	if !w.home.doorTiles[doorA] {
+	doorA := Point{siteA.X + widthA/2, frontYA + roomApproach, LandingLevel}
+	if !w.landing().doorTiles[doorA] {
 		t.Fatalf("designateRoom did not reserve %v as room A's door tile", doorA)
 	}
 
 	// Room B sites entirely below and beside room A, backing onto room A's
 	// own front wall (a legitimate reuse, like sharing a party wall) — but
 	// its left side wall's column lands exactly on room A's door tile.
-	siteB := Point{doorA.X + 1, doorA.Y + 1}
+	siteB := Point{doorA.X + 1, doorA.Y + 1, LandingLevel}
 	widthB := bayWidth(2)
 
-	delete(w.home.doorTiles, doorA)
+	delete(w.landing().doorTiles, doorA)
 	if !w.roomSiteClear(siteB.X, siteB.Y, widthB, map[Point]bool{}, false) {
 		t.Fatal("test geometry does not actually reach room A's doorway tile; not exercising the fix")
 	}
-	w.home.doorTiles[doorA] = true
+	w.landing().doorTiles[doorA] = true
 
 	if w.roomSiteClear(siteB.X, siteB.Y, widthB, map[Point]bool{}, false) {
 		t.Fatalf("room B's site was accepted even though its side wall would cover room A's doorway tile %v", doorA)
@@ -1493,11 +1493,11 @@ func TestColonistsCollaborateOnProject(t *testing.T) {
 	oy := w.Height / 2
 	for y := oy - 1; y <= roomFrontWallY(oy)+roomApproach; y++ {
 		for x := 1; x < w.Width-1; x++ {
-			w.SetTerrain(Point{x, y}, Floor)
+			w.SetTerrain(Point{x, y, LandingLevel}, Floor)
 		}
 	}
 	for x := 2; x < w.Width-2; x++ {
-		w.SetTerrain(Point{x, oy - 2}, Rock)
+		w.SetTerrain(Point{x, oy - 2, LandingLevel}, Rock)
 	}
 	w.refreshSpatial()
 
@@ -1507,7 +1507,7 @@ func TestColonistsCollaborateOnProject(t *testing.T) {
 	}
 	w.designateRoom(lifeSupportRoom, site, roomFacilities, Community)
 	for i := 0; i < roomFacilities; i++ {
-		w.spawn(Colonist, Point{site.X + i, roomFrontWallY(oy) + roomApproach})
+		w.spawn(Colonist, Point{site.X + i, roomFrontWallY(oy) + roomApproach, LandingLevel})
 	}
 
 	maxConcurrent := 0
@@ -1554,8 +1554,8 @@ func TestFacilityLayoutDeterministic(t *testing.T) {
 		var facs []Point
 		for y := 0; y < w.Height; y++ {
 			for x := 0; x < w.Width; x++ {
-				if t := w.TerrainAt(Point{x, y}); t == NutrientPod || t == Toilet {
-					facs = append(facs, Point{x, y})
+				if t := w.TerrainAt(Point{x, y, LandingLevel}); t == NutrientPod || t == Toilet {
+					facs = append(facs, Point{x, y, LandingLevel})
 				}
 			}
 		}
@@ -1571,3 +1571,7 @@ func TestFacilityLayoutDeterministic(t *testing.T) {
 		}
 	}
 }
+
+// flatIndex is p's offset in a dense Width*Height slice of one level, the way
+// tests lay a level's tiles out to check the engine against (denseTiles).
+func (w *World) flatIndex(p Point) int { return p.Y*w.Width + p.X }

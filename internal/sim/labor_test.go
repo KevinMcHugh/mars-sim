@@ -104,9 +104,9 @@ func TestAColonistCommissionsAndPaysForAHouse(t *testing.T) {
 	for _, task := range house.tasks {
 		switch task.terrain {
 		case Bed:
-			bed = w.home.fixtures[task.pos]
+			bed = w.landing().fixtures[task.pos]
 		case Toilet:
-			toilet = w.home.fixtures[task.pos]
+			toilet = w.landing().fixtures[task.pos]
 		}
 	}
 	if bed == nil || toilet == nil {
@@ -126,12 +126,12 @@ func TestAColonistCommissionsAndPaysForAHouse(t *testing.T) {
 // cannot pay.
 func TestPaidToiletsChargeTheirUsers(t *testing.T) {
 	w := propertyWorld(t)
-	loo := Point{12, 10}
+	loo := Point{12, 10, LandingLevel}
 	w.SetTerrain(loo, Toilet)
 	w.refreshSpatial()
-	owner := w.spawn(Colonist, Point{6, 6})
-	guest := w.spawn(Colonist, Point{12, 12})
-	broke := w.spawn(Colonist, Point{14, 12})
+	owner := w.spawn(Colonist, Point{6, 6, LandingLevel})
+	guest := w.spawn(Colonist, Point{12, 12, LandingLevel})
+	broke := w.spawn(Colonist, Point{14, 12, LandingLevel})
 	broke.wallet = 0
 	w.setFixtureOwner(loo, ColonistOwner(owner.ID), AccessPaid)
 	w.setFixturePrice(loo, 3)
@@ -168,16 +168,16 @@ func TestTheColonyBuysBiomatterAtItsScumhouse(t *testing.T) {
 			t.Fatalf("colony bids for %d %s, want %d", got, k, w.cfg.ScumhouseBidQty)
 		}
 	}
-	s := w.spawn(Colonist, Point{12, 12})
+	s := w.spawn(Colonist, Point{12, 12, LandingLevel})
 	start, treasury := s.wallet, w.treasury+w.moneyEscrowed()
 	s.Inventory.Add(CaveScum, 3)
-	if !w.deliverBiomatter(s, w.home.storageContainers[house]) {
+	if !w.deliverBiomatter(s, w.landing().storageContainers[house]) {
 		t.Fatal("delivery refused")
 	}
 	if want := start + 3*Money(w.cfg.PriceCaveScum); s.wallet != want {
 		t.Fatalf("scraper has %v after selling 3 scum, want %v", s.wallet, want)
 	}
-	if got := w.home.storageContainers[house].held(Community, CaveScum); got != 3 {
+	if got := w.landing().storageContainers[house].held(Community, CaveScum); got != 3 {
 		t.Fatalf("colony owns %d scum at the scumhouse, want 3", got)
 	}
 	if w.treasury+w.moneyEscrowed() != treasury-3*Money(w.cfg.PriceCaveScum) {
@@ -250,24 +250,24 @@ func TestAColonyWithNoMoneyStillFeedsItself(t *testing.T) {
 // stove, a scum patch. Only starvation used to clear the job first.
 func TestDeathReleasesAJobsClaims(t *testing.T) {
 	w := propertyWorld(t)
-	house, patch := Point{10, 6}, Point{15, 6}
+	house, patch := Point{10, 6, LandingLevel}, Point{15, 6, LandingLevel}
 	w.SetTerrain(house, Scumhouse)
 	w.refreshSpatial()
-	cook := w.spawn(Colonist, Point{10, 7})
+	cook := w.spawn(Colonist, Point{10, 7, LandingLevel})
 	cook.Job, cook.Target = JobCraft, house
-	w.home.workshopClaims[house] = cook.ID
-	scraper := w.spawn(Colonist, Point{14, 7})
+	w.landing().workshopClaims[house] = cook.ID
+	scraper := w.spawn(Colonist, Point{14, 7, LandingLevel})
 	scraper.Job, scraper.Target, scraper.scrape = JobScrape, patch, scrapeGather
-	w.home.scumClaims[patch] = scraper.ID
-	hauler := w.spawn(Colonist, Point{12, 9})
+	w.landing().scumClaims[patch] = scraper.ID
+	hauler := w.spawn(Colonist, Point{12, 9, LandingLevel})
 	hauler.Job, hauler.carryWork = JobCarry, 77
 	w.haulClaims[77] = hauler.ID
 
 	for _, e := range []*Entity{cook, scraper, hauler} {
 		w.remove(e.ID, "bitten")
 	}
-	if len(w.home.workshopClaims) != 0 || len(w.home.scumClaims) != 0 || len(w.haulClaims) != 0 {
-		t.Fatalf("claims outlived their claimants: workshops %v, scum %v, hauls %v", w.home.workshopClaims, w.home.scumClaims, w.haulClaims)
+	if len(w.landing().workshopClaims) != 0 || len(w.landing().scumClaims) != 0 || len(w.haulClaims) != 0 {
+		t.Fatalf("claims outlived their claimants: workshops %v, scum %v, hauls %v", w.landing().workshopClaims, w.landing().scumClaims, w.haulClaims)
 	}
 }
 

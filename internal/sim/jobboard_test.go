@@ -10,7 +10,7 @@ func bruteFrontier(w *World) map[Point]bool {
 	want := make(map[Point]bool)
 	for y := 0; y < w.Height; y++ {
 		for x := 0; x < w.Width; x++ {
-			p := Point{x, y}
+			p := Point{x, y, LandingLevel}
 			if w.TerrainAt(p) == Rock && w.bordersFloor(p) {
 				want[p] = true
 			}
@@ -22,11 +22,11 @@ func bruteFrontier(w *World) map[Point]bool {
 func assertFrontierMatches(t *testing.T, w *World, when string) {
 	t.Helper()
 	want := bruteFrontier(w)
-	if len(w.home.board.frontier) != len(want) {
-		t.Fatalf("%s: frontier size %d, want %d", when, len(w.home.board.frontier), len(want))
+	if len(w.landing().board.frontier) != len(want) {
+		t.Fatalf("%s: frontier size %d, want %d", when, len(w.landing().board.frontier), len(want))
 	}
 	for p := range want {
-		if _, ok := w.home.board.frontier[p]; !ok {
+		if _, ok := w.landing().board.frontier[p]; !ok {
 			t.Fatalf("%s: frontier missing %v", when, p)
 		}
 	}
@@ -39,12 +39,12 @@ func TestFrontierMatchesBruteForce(t *testing.T) {
 	rng := newRand(11)
 
 	for i := 0; i < 1500; i++ {
-		w.SetTerrain(Point{rng.IntN(w.Width), rng.IntN(w.Height)}, Floor)
+		w.SetTerrain(Point{rng.IntN(w.Width), rng.IntN(w.Height), LandingLevel}, Floor)
 	}
 	assertFrontierMatches(t, w, "after carving")
 
 	for step := 0; step < 400; step++ {
-		p := Point{rng.IntN(w.Width), rng.IntN(w.Height)}
+		p := Point{rng.IntN(w.Width), rng.IntN(w.Height), LandingLevel}
 		switch rng.IntN(3) {
 		case 0:
 			w.SetTerrain(p, Floor)
@@ -61,13 +61,13 @@ func TestFrontierMatchesBruteForce(t *testing.T) {
 // unclaimed count reflects outstanding claims.
 func TestBoardClaimOwnership(t *testing.T) {
 	w := roomsTestWorld(40, 24)
-	carve(w, Point{5, 5}, Point{9, 7}, Floor)
+	carve(w, Point{5, 5, LandingLevel}, Point{9, 7, LandingLevel}, Floor)
 	w.refreshSpatial()
 
 	// Two distinct frontier rock tiles bordering the carved room.
 	var a, b Point
 	found := 0
-	for p := range w.home.board.frontier {
+	for p := range w.landing().board.frontier {
 		if found == 0 {
 			a, found = p, 1
 		} else {
@@ -79,26 +79,26 @@ func TestBoardClaimOwnership(t *testing.T) {
 		t.Fatalf("expected at least two frontier tiles, got %d", found)
 	}
 
-	base := w.home.board.unclaimedCount()
-	w.home.board.claimMine(a, 1)
-	w.home.board.claimMine(b, 2)
-	if got := w.home.board.unclaimedCount(); got != base-2 {
+	base := w.landing().board.unclaimedCount()
+	w.landing().board.claimMine(a, 1)
+	w.landing().board.claimMine(b, 2)
+	if got := w.landing().board.unclaimedCount(); got != base-2 {
 		t.Fatalf("unclaimed count after two claims: got %d want %d", got, base-2)
 	}
-	if !w.home.board.isClaimed(a) || !w.home.board.isClaimed(b) {
+	if !w.landing().board.isClaimed(a) || !w.landing().board.isClaimed(b) {
 		t.Fatal("claimed tiles should report claimed")
 	}
 
 	// A non-owner release is a no-op; the owner release frees it.
-	w.home.board.releaseMine(a, 2)
-	if !w.home.board.isClaimed(a) {
+	w.landing().board.releaseMine(a, 2)
+	if !w.landing().board.isClaimed(a) {
 		t.Fatal("non-owner release should not free the claim")
 	}
-	w.home.board.releaseMine(a, 1)
-	if w.home.board.isClaimed(a) {
+	w.landing().board.releaseMine(a, 1)
+	if w.landing().board.isClaimed(a) {
 		t.Fatal("owner release should free the claim")
 	}
-	if got := w.home.board.unclaimedCount(); got != base-1 {
+	if got := w.landing().board.unclaimedCount(); got != base-1 {
 		t.Fatalf("unclaimed count after one release: got %d want %d", got, base-1)
 	}
 }
@@ -107,15 +107,15 @@ func TestBoardClaimOwnership(t *testing.T) {
 // makes the field unreachable everywhere, so colonists know to stop mining.
 func TestFrontierFieldExcludesClaimed(t *testing.T) {
 	w := roomsTestWorld(40, 24)
-	carve(w, Point{5, 5}, Point{9, 7}, Floor)
+	carve(w, Point{5, 5, LandingLevel}, Point{9, 7, LandingLevel}, Floor)
 	w.refreshSpatial()
 
-	inside := Point{7, 6}
+	inside := Point{7, 6, LandingLevel}
 	if w.frontierField().at(inside) < 0 {
 		t.Fatal("frontier should be reachable before anything is claimed")
 	}
-	for p := range w.home.board.frontier {
-		w.home.board.claimMine(p, 1)
+	for p := range w.landing().board.frontier {
+		w.landing().board.claimMine(p, 1)
 	}
 	w.tick++ // fields rebuild at most once per tick; advance so the claim lands
 	if got := w.frontierField().at(inside); got >= 0 {

@@ -55,9 +55,9 @@ var podFixtures = [...]podFixture{
 // podDoor is where the colonist stands when it steps out; podDoorway is the gap
 // in the hull, and podApproach the tile outside it.
 var (
-	podDoor     = Point{2, 2}
-	podDoorway  = Point{2, 3}
-	podApproach = Point{2, 4}
+	podDoor     = gridStep{2, 2}
+	podDoorway  = gridStep{2, 3}
+	podApproach = gridStep{2, 4}
 )
 
 // podHullAt reports whether offset (dx, dy) of the footprint is hull.
@@ -78,7 +78,7 @@ func (w *World) arrive(announce bool) *Entity {
 	if !ok {
 		return nil
 	}
-	w.home.pods[o] = true
+	w.lay(o).pods[o] = true
 	// The impact clears whatever rock it lands on; the rock is simply gone. A
 	// side shared with a neighbor is already hull, so stamping it is a no-op.
 	for dy := 0; dy < podHeight; dy++ {
@@ -102,7 +102,7 @@ func (w *World) arrive(announce bool) *Entity {
 	approach := o.Add(podApproach.X, podApproach.Y)
 	// Like a room's, the tile outside the door is reserved for good, so no
 	// later room or pod seals the colonist in (see designateRoom).
-	w.home.doorTiles[approach] = true
+	w.lay(approach).doorTiles[approach] = true
 	for _, f := range podFixtures {
 		w.SetTerrain(o.Add(f.dx, f.dy), f.terrain)
 	}
@@ -112,7 +112,7 @@ func (w *World) arrive(announce bool) *Entity {
 	for _, f := range podFixtures {
 		w.setFixtureOwner(o.Add(f.dx, f.dy), me, AccessPrivate)
 	}
-	locker := w.home.storageContainers[o.Add(podFixtures[2].dx, podFixtures[2].dy)]
+	locker := w.containerAt(o.Add(podFixtures[2].dx, podFixtures[2].dy))
 	if n := w.podMeals(e.ID); n > 0 && locker.Inventory.Add(Meal, n) {
 		locker.credit(me, Meal, n)
 	}
@@ -146,7 +146,7 @@ func (w *World) arrive(announce bool) *Entity {
 // open floor. Ring order and the fixed scan within each ring make the choice
 // the same for a given world, and nothing here draws randomness.
 //
-// Pods fill the map from the middle out, so w.home.podRingHint remembers roughly
+// Pods fill the map from the middle out, so podRingHint remembers roughly
 // where the last one landed and the next search starts a few rings inside it
 // rather than re-checking the full, already-packed middle every time. That is
 // what keeps a 2000-colonist worldgen from rescanning the whole cavern per
@@ -165,7 +165,7 @@ func (w *World) findPodSite() (o Point, crashed, ok bool) {
 	// The fixture row starts one below the middle row, so the middle row
 	// itself stays walkable margin: in the smallest cavern (see minCaveRy) it
 	// is exactly the approach row of a room against the top rim.
-	center := Point{w.Width/2 - podWidth/2, w.Height/2 + 1}
+	center := Point{w.Width/2 - podWidth/2, w.Height/2 + 1, LandingLevel} // pods land on the landing level
 	maxR := max(w.Width, w.Height)
 	designated := make(map[Point]bool)
 	for _, pr := range w.projects {
@@ -174,7 +174,7 @@ func (w *World) findPodSite() (o Point, crashed, ok bool) {
 		}
 	}
 	crashAt, crashRing, crashRock := Point{}, -1, 0
-	for r := max(0, w.home.podRingHint-podWidth); r <= maxR; r++ {
+	for r := max(0, w.landing().podRingHint-podWidth); r <= maxR; r++ {
 		if crashRing >= 0 && r > crashRing+podCrashSlack {
 			break
 		}
@@ -197,12 +197,12 @@ func (w *World) findPodSite() (o Point, crashed, ok bool) {
 			return false
 		})
 		if found && clear {
-			w.home.podRingHint = r
+			w.landing().podRingHint = r
 			return o, false, true
 		}
 	}
 	if crashRing >= 0 {
-		w.home.podRingHint = crashRing
+		w.landing().podRingHint = crashRing
 		return crashAt, crashRock > 0, true
 	}
 	return Point{}, false, false
@@ -232,14 +232,14 @@ func forEachRingPoint(c Point, r int, visit func(Point) bool) {
 		y := c.Y + dy
 		if dy == r || dy == -r {
 			for x := c.X - 2*r; x <= c.X+2*r; x++ {
-				if visit(Point{x, y}) {
+				if visit(Point{x, y, c.Level}) {
 					return
 				}
 			}
 			continue
 		}
 		for _, x := range [4]int{c.X - 2*r, c.X - 2*r + 1, c.X + 2*r - 1, c.X + 2*r} {
-			if visit(Point{x, y}) {
+			if visit(Point{x, y, c.Level}) {
 				return
 			}
 		}
@@ -293,7 +293,7 @@ func (w *World) podSiteRock(o Point, designated map[Point]bool) (rock, marginRoc
 			default:
 				return 0, 0, false
 			}
-			if w.home.doorTiles[p] || designated[p] {
+			if w.lay(p).doorTiles[p] || designated[p] {
 				return 0, 0, false
 			}
 		}
@@ -330,7 +330,7 @@ const podRevealReach = 2
 func (w *World) hiddenFloorNear(o Point) bool {
 	for y := o.Y - podRevealReach; y < o.Y+podHeight+podRevealReach; y++ {
 		for x := o.X - podRevealReach; x < o.X+podWidth+podRevealReach; x++ {
-			p := Point{x, y}
+			p := Point{x, y, o.Level}
 			if w.InBounds(p) && w.TerrainAt(p) == Floor && !w.discovered(p) {
 				return true
 			}
@@ -363,11 +363,11 @@ func forEachPodMargin(o Point, shareL, shareR bool, visit func(Point)) {
 // escape (see nearestEscapeWall) is not a wall to share.
 func (w *World) podPartyWalls(o Point) (left, right bool) {
 	side := func(neighbor Point, x int) bool {
-		if !w.home.pods[neighbor] {
+		if !w.lay(neighbor).pods[neighbor] {
 			return false
 		}
 		for dy := 0; dy < podHeight; dy++ {
-			if w.TerrainAt(Point{x, o.Y + dy}) != Hull {
+			if w.TerrainAt(Point{x, o.Y + dy, o.Level}) != Hull {
 				return false
 			}
 		}

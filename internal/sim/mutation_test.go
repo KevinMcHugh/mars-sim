@@ -57,19 +57,19 @@ func TestWorldgenGrowsUraniumVeins(t *testing.T) {
 // unexcavated deposit — and under neither condition, is not.
 func TestUraniumExposureSources(t *testing.T) {
 	w := mutationWorld(t)
-	w.SetTerrain(Point{5, 5}, Floor)
-	e := w.spawn(Colonist, Point{5, 5})
+	w.SetTerrain(Point{5, 5, LandingLevel}, Floor)
+	e := w.spawn(Colonist, Point{5, 5, LandingLevel})
 
 	if w.uraniumExposed(e) {
 		t.Fatal("a colonist away from uranium should not be exposed")
 	}
 
-	cellAt(w, Point{6, 5}).Composition = UraniumBearingRock
+	cellAt(w, Point{6, 5, LandingLevel}).Composition = UraniumBearingRock
 	if !w.uraniumExposed(e) {
 		t.Fatal("a colonist beside a uranium deposit should be exposed")
 	}
 
-	cellAt(w, Point{6, 5}).Composition = OrdinaryRock
+	cellAt(w, Point{6, 5, LandingLevel}).Composition = OrdinaryRock
 	e.Inventory.Add(UraniumOre, 1)
 	if !w.uraniumExposed(e) {
 		t.Fatal("a colonist carrying uranium ore should be exposed")
@@ -81,8 +81,8 @@ func TestUraniumExposureSources(t *testing.T) {
 func TestUraniumExposureAccumulatesAndRolls(t *testing.T) {
 	w := mutationWorld(t)
 	w.cfg.MutationChance = 0 // isolate the counter from the mutation itself
-	w.SetTerrain(Point{5, 5}, Floor)
-	e := w.spawn(Colonist, Point{5, 5})
+	w.SetTerrain(Point{5, 5, LandingLevel}, Floor)
+	e := w.spawn(Colonist, Point{5, 5, LandingLevel})
 
 	for i := 0; i < 10; i++ {
 		w.applyUraniumExposure(e)
@@ -112,8 +112,8 @@ func TestMutationGrowsPartAndTrait(t *testing.T) {
 	w := mutationWorld(t)
 	w.cfg.MutationChance = 100
 	w.cfg.MutationStaturePercent = 0
-	w.SetTerrain(Point{5, 5}, Floor)
-	e := w.spawn(Colonist, Point{5, 5})
+	w.SetTerrain(Point{5, 5, LandingLevel}, Floor)
+	e := w.spawn(Colonist, Point{5, 5, LandingLevel})
 	e.Inventory.Add(UraniumOre, 1)
 	beforeHP, beforeMax := e.HP, e.MaxHP
 
@@ -159,8 +159,8 @@ func TestMutationGrowsPartAndTrait(t *testing.T) {
 // colonist that has them all simply stops growing new ones.
 func TestMutationStopsWhenEveryPartIsGrown(t *testing.T) {
 	w := mutationWorld(t)
-	w.SetTerrain(Point{5, 5}, Floor)
-	e := w.spawn(Colonist, Point{5, 5})
+	w.SetTerrain(Point{5, 5, LandingLevel}, Floor)
+	e := w.spawn(Colonist, Point{5, 5, LandingLevel})
 	for i := 0; i < len(mutantParts)+5; i++ {
 		w.mutate(e)
 	}
@@ -178,10 +178,10 @@ func TestMutationStopsWhenEveryPartIsGrown(t *testing.T) {
 // part becomes a target, an ungrown one never does.
 func TestRollHitOnlyLandsOnPartsTheTargetHas(t *testing.T) {
 	w := mutationWorld(t)
-	w.SetTerrain(Point{5, 5}, Floor)
-	plain := w.spawn(Colonist, Point{5, 5})
-	w.SetTerrain(Point{7, 5}, Floor)
-	mutant := w.spawn(Colonist, Point{7, 5})
+	w.SetTerrain(Point{5, 5, LandingLevel}, Floor)
+	plain := w.spawn(Colonist, Point{5, 5, LandingLevel})
+	w.SetTerrain(Point{7, 5, LandingLevel}, Floor)
+	mutant := w.spawn(Colonist, Point{7, 5, LandingLevel})
 	w.growPart(mutant, Tail)
 
 	for i := 0; i < 500; i++ {
@@ -208,10 +208,10 @@ func TestRollHitOnlyLandsOnPartsTheTargetHas(t *testing.T) {
 // the two directions.
 func TestMutantLoverGainsExtraAffinityTowardMutants(t *testing.T) {
 	w := mutationWorld(t)
-	w.SetTerrain(Point{5, 5}, Floor)
-	w.SetTerrain(Point{6, 5}, Floor)
-	lover := w.spawn(Colonist, Point{5, 5})
-	mutant := w.spawn(Colonist, Point{6, 5})
+	w.SetTerrain(Point{5, 5, LandingLevel}, Floor)
+	w.SetTerrain(Point{6, 5, LandingLevel}, Floor)
+	lover := w.spawn(Colonist, Point{5, 5, LandingLevel})
+	mutant := w.spawn(Colonist, Point{6, 5, LandingLevel})
 	w.giveTrait(lover, TraitMutantLover)
 	w.giveTrait(mutant, TraitMutant)
 
@@ -229,10 +229,10 @@ func TestMutantLoverGainsExtraAffinityTowardMutants(t *testing.T) {
 // equally: the bonus is the only thing that can make affinity asymmetric.
 func TestOrdinaryConversationStaysSymmetric(t *testing.T) {
 	w := mutationWorld(t)
-	w.SetTerrain(Point{5, 5}, Floor)
-	w.SetTerrain(Point{6, 5}, Floor)
-	a := w.spawn(Colonist, Point{5, 5})
-	b := w.spawn(Colonist, Point{6, 5})
+	w.SetTerrain(Point{5, 5, LandingLevel}, Floor)
+	w.SetTerrain(Point{6, 5, LandingLevel}, Floor)
+	a := w.spawn(Colonist, Point{5, 5, LandingLevel})
+	b := w.spawn(Colonist, Point{6, 5, LandingLevel})
 	w.giveTrait(a, TraitMutantLover) // a lover with no mutant to admire
 
 	w.finishTalk(a, b)
@@ -245,10 +245,10 @@ func TestOrdinaryConversationStaysSymmetric(t *testing.T) {
 // Mutation costs ordinary colonists grip; Mutant-Lovers reflect that axis.
 func TestMutationGripDependsOnMutantLoverTrait(t *testing.T) {
 	w := mutationWorld(t)
-	w.SetTerrain(Point{5, 5}, Floor)
-	w.SetTerrain(Point{6, 5}, Floor)
-	plain := w.spawn(Colonist, Point{5, 5})
-	lover := w.spawn(Colonist, Point{6, 5})
+	w.SetTerrain(Point{5, 5, LandingLevel}, Floor)
+	w.SetTerrain(Point{6, 5, LandingLevel}, Floor)
+	plain := w.spawn(Colonist, Point{5, 5, LandingLevel})
+	lover := w.spawn(Colonist, Point{6, 5, LandingLevel})
 	w.giveTrait(lover, TraitMutantLover)
 
 	w.mutate(plain)
@@ -348,8 +348,8 @@ func TestDefaultsKeepMutationRare(t *testing.T) {
 // so a taller colonist is genuinely a bigger one.
 func TestMutationResizesColonistAndBody(t *testing.T) {
 	w := mutationWorld(t)
-	w.SetTerrain(Point{5, 5}, Floor)
-	e := w.spawn(Colonist, Point{5, 5})
+	w.SetTerrain(Point{5, 5, LandingLevel}, Floor)
+	e := w.spawn(Colonist, Point{5, 5, LandingLevel})
 	e.Profile.HeightCM, e.Profile.WeightKG = 180, 80
 	e.Profile.BornHeightCM, e.Profile.BornWeightKG = 180, 80
 	beforeHP, beforeMax := e.HP, e.MaxHP
@@ -384,8 +384,8 @@ func TestMutationResizesColonistAndBody(t *testing.T) {
 // damaged one keeps roughly the same share of their body intact.
 func TestResizeKeepsWoundsProportional(t *testing.T) {
 	w := mutationWorld(t)
-	w.SetTerrain(Point{5, 5}, Floor)
-	e := w.spawn(Colonist, Point{5, 5})
+	w.SetTerrain(Point{5, 5, LandingLevel}, Floor)
+	e := w.spawn(Colonist, Point{5, 5, LandingLevel})
 	applyDamage(e, LeftArm, e.Parts[LeftArm]) // destroyed outright
 	applyDamage(e, Torso, e.Parts[Torso]/2)   // half gone
 	beforeShare := float64(e.Parts[Torso]) / float64(e.MaxParts[Torso])
@@ -407,8 +407,8 @@ func TestResizeKeepsWoundsProportional(t *testing.T) {
 // part they have, however small it gets.
 func TestShrinkingNeverRoundsAPartAway(t *testing.T) {
 	w := mutationWorld(t)
-	w.SetTerrain(Point{5, 5}, Floor)
-	e := w.spawn(Colonist, Point{5, 5})
+	w.SetTerrain(Point{5, 5, LandingLevel}, Floor)
+	e := w.spawn(Colonist, Point{5, 5, LandingLevel})
 	w.growPart(e, Tail)
 	w.setStature(e, w.cfg.StatureMinCM)
 
@@ -430,8 +430,8 @@ func TestShrinkingNeverRoundsAPartAway(t *testing.T) {
 // born with rather than ground down by rescaling a rounded integer.
 func TestWeightSurvivesRepeatedResizing(t *testing.T) {
 	w := mutationWorld(t)
-	w.SetTerrain(Point{5, 5}, Floor)
-	e := w.spawn(Colonist, Point{5, 5})
+	w.SetTerrain(Point{5, 5, LandingLevel}, Floor)
+	e := w.spawn(Colonist, Point{5, 5, LandingLevel})
 	height, weight := e.Profile.HeightCM, e.Profile.WeightKG
 
 	for i := 0; i < 50; i++ {
@@ -481,8 +481,8 @@ func TestStatureRollDirections(t *testing.T) {
 // the configured limits.
 func TestRepeatedMutationReachesBothExtremes(t *testing.T) {
 	w := mutationWorld(t)
-	w.SetTerrain(Point{5, 5}, Floor)
-	e := w.spawn(Colonist, Point{5, 5})
+	w.SetTerrain(Point{5, 5, LandingLevel}, Floor)
+	e := w.spawn(Colonist, Point{5, 5, LandingLevel})
 
 	var tallest, shortest = e.Profile.HeightCM, e.Profile.HeightCM
 	for i := 0; i < 2000; i++ {
@@ -512,8 +512,8 @@ func TestRepeatedMutationReachesBothExtremes(t *testing.T) {
 // resizing them, and it is still a memory-worthy event that costs them grip.
 func TestFullyGrownMutantStillResizes(t *testing.T) {
 	w := mutationWorld(t)
-	w.SetTerrain(Point{5, 5}, Floor)
-	e := w.spawn(Colonist, Point{5, 5})
+	w.SetTerrain(Point{5, 5, LandingLevel}, Floor)
+	e := w.spawn(Colonist, Point{5, 5, LandingLevel})
 	for _, part := range mutantParts {
 		w.growPart(e, part)
 	}
@@ -540,8 +540,8 @@ func TestFullyGrownMutantStillResizes(t *testing.T) {
 func TestStatureCanBeDisabled(t *testing.T) {
 	w := mutationWorld(t)
 	w.cfg.MutationStaturePercent = 0
-	w.SetTerrain(Point{5, 5}, Floor)
-	e := w.spawn(Colonist, Point{5, 5})
+	w.SetTerrain(Point{5, 5, LandingLevel}, Floor)
+	e := w.spawn(Colonist, Point{5, 5, LandingLevel})
 	height := e.Profile.HeightCM
 
 	for i := 0; i < len(mutantParts)+3; i++ {

@@ -5,9 +5,9 @@ import "testing"
 // noScum clears worldgen's cave scum, so a test's only food is what it puts
 // down itself.
 func noScum(w *World) {
-	w.home.scum = map[Point]scumPatch{}
-	w.home.exposedScum = map[Point]struct{}{}
-	w.home.scumPatches = nil
+	w.landing().scum = map[Point]scumPatch{}
+	w.landing().exposedScum = map[Point]struct{}{}
+	w.landing().scumPatches = nil
 }
 
 // hungryRat puts a rat at p with its hunger just past seeking.
@@ -23,11 +23,11 @@ func hungryRat(w *World, p Point) *Entity {
 func TestRatsEatTheDeadBeforeRaidingPods(t *testing.T) {
 	w := propertyWorld(t)
 	noScum(w)
-	w.SetTerrain(Point{9, 10}, NutrientPod)
+	w.SetTerrain(Point{9, 10, LandingLevel}, NutrientPod)
 	w.refreshSpatial()
-	body := Point{14, 10}
+	body := Point{14, 10, LandingLevel}
 	w.addCorpse(body, AlienCorpse)
-	r := hungryRat(w, Point{10, 10}) // right beside the pod
+	r := hungryRat(w, Point{10, 10, LandingLevel}) // right beside the pod
 	for i := 0; i < 100 && w.corpsesAt(body) > 0; i++ {
 		w.step()
 		if r.Job == JobUse {
@@ -46,9 +46,9 @@ func TestRatsEatTheDeadBeforeRaidingPods(t *testing.T) {
 func TestRatsEatGoreAndExposedScum(t *testing.T) {
 	w := propertyWorld(t)
 	noScum(w)
-	gore := Point{12, 10}
+	gore := Point{12, 10, LandingLevel}
 	w.addGore(gore)
-	r := hungryRat(w, Point{10, 10})
+	r := hungryRat(w, Point{10, 10, LandingLevel})
 	for i := 0; i < 100 && w.goreAt(gore) > 0; i++ {
 		w.step()
 	}
@@ -56,10 +56,10 @@ func TestRatsEatGoreAndExposedScum(t *testing.T) {
 		t.Fatal("the rat never ate the gore")
 	}
 
-	buried := Point{30, 30} // deep in rock: not exposed
+	buried := Point{30, 30, LandingLevel} // deep in rock: not exposed
 	w.setScum(buried, w.cfg.ScumMax)
 	w.refreshScumExposure(buried)
-	face := Point{5, 4} // rock on the edge of the open floor
+	face := Point{5, 4, LandingLevel} // rock on the edge of the open floor
 	w.setScum(face, w.cfg.ScumMax)
 	w.refreshScumExposure(face)
 	if w.scavengeable(buried) || !w.scavengeable(face) {
@@ -120,17 +120,17 @@ func TestPeacefulAliensGrazeScum(t *testing.T) {
 		t.Run(temp.String(), func(t *testing.T) {
 			w := propertyWorld(t)
 			noScum(w)
-			buried := Point{30, 30} // deep in rock: not exposed
+			buried := Point{30, 30, LandingLevel} // deep in rock: not exposed
 			w.setScum(buried, w.cfg.ScumMax)
 			w.refreshScumExposure(buried)
-			patch := Point{16, 10}
+			patch := Point{16, 10, LandingLevel}
 			w.setScum(patch, w.cfg.ScumMax)
 			w.refreshScumExposure(patch)
 			if w.grazeable(buried) || !w.grazeable(patch) {
 				t.Fatalf("grazeable: buried %v, patch %v", w.grazeable(buried), w.grazeable(patch))
 			}
 
-			a := hungryAlien(w, Point{8, 10}, temp)
+			a := hungryAlien(w, Point{8, 10, LandingLevel}, temp)
 			for i := 0; i < 100 && w.scumAt(patch) == w.cfg.ScumMax; i++ {
 				w.alienTurn(a)
 			}
@@ -160,10 +160,10 @@ func TestPeacefulAliensGrazeScum(t *testing.T) {
 func TestHostileAliensDoNotGraze(t *testing.T) {
 	w := propertyWorld(t)
 	noScum(w)
-	patch := Point{9, 10}
+	patch := Point{9, 10, LandingLevel}
 	w.setScum(patch, w.cfg.ScumMax)
 	w.refreshScumExposure(patch)
-	a := hungryAlien(w, Point{8, 10}, TemperamentHostile)
+	a := hungryAlien(w, Point{8, 10, LandingLevel}, TemperamentHostile)
 	for i := 0; i < 50; i++ {
 		w.alienTurn(a)
 	}
@@ -177,11 +177,11 @@ func TestHostileAliensDoNotGraze(t *testing.T) {
 func TestCautiousAlienReactsBeforeGrazing(t *testing.T) {
 	w := propertyWorld(t)
 	noScum(w)
-	patch := Point{9, 10}
+	patch := Point{9, 10, LandingLevel}
 	w.setScum(patch, w.cfg.ScumMax)
 	w.refreshScumExposure(patch)
-	a := hungryAlien(w, Point{8, 10}, TemperamentCautious)
-	c := w.spawn(Colonist, Point{8, 11})
+	a := hungryAlien(w, Point{8, 10, LandingLevel}, TemperamentCautious)
+	c := w.spawn(Colonist, Point{8, 11, LandingLevel})
 	w.alienTurn(a)
 	if a.Quarry != c.ID || w.scumAt(patch) != w.cfg.ScumMax {
 		t.Fatalf("quarry %d (want %d), scum %d: the alien grazed instead of reacting", a.Quarry, c.ID, w.scumAt(patch))

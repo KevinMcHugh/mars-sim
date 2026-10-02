@@ -10,7 +10,7 @@ import (
 // slice a snapshot has already published.
 func TestPopulationHistorySpansTheWholeGame(t *testing.T) {
 	w := propertyWorld(t)
-	w.spawn(Colonist, Point{8, 8})
+	w.spawn(Colonist, Point{8, 8, LandingLevel})
 	var published []PopulationSample
 	var frozen []PopulationSample
 	for tick := 1; tick <= 60000; tick++ {
@@ -47,9 +47,9 @@ func TestPopulationHistorySpansTheWholeGame(t *testing.T) {
 // Meals are counted wherever they are stored, and fixtures as they are placed.
 func TestPopulationSampleCountsMealsAndFixtures(t *testing.T) {
 	w := propertyWorld(t)
-	w.SetTerrain(Point{10, 10}, Storage)
-	w.SetTerrain(Point{12, 10}, Bed)
-	c := w.home.storageContainers[Point{10, 10}]
+	w.SetTerrain(Point{10, 10, LandingLevel}, Storage)
+	w.SetTerrain(Point{12, 10, LandingLevel}, Bed)
+	c := w.landing().storageContainers[Point{10, 10, LandingLevel}]
 	c.Inventory.Add(Meal, 7)
 	c.credit(Community, Meal, 7)
 	w.tick = popFirstEvery

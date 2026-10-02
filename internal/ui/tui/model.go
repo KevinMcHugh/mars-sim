@@ -166,7 +166,10 @@ type Model struct {
 
 // New builds a Model bound to an engine and its snapshot channel.
 func New(eng *sim.Engine, snaps <-chan *sim.Snapshot) Model {
-	return Model{eng: eng, snaps: snaps, cache: newRenderCache()}
+	// The camera's Level is the level the map shows; it starts where the
+	// pods land.
+	return Model{eng: eng, snaps: snaps, cache: newRenderCache(),
+		cam: sim.Point{Level: sim.LandingLevel}, cursor: sim.Point{Level: sim.LandingLevel}}
 }
 
 // Init starts listening for snapshots.
@@ -840,8 +843,9 @@ func (m *Model) centerCamera() {
 	}
 	cols, rows := m.viewportTiles()
 	m.cam = sim.Point{
-		X: m.latest.Width/2 - cols/2,
-		Y: m.latest.Height/2 - rows/2,
+		X:     m.latest.Width/2 - cols/2,
+		Y:     m.latest.Height/2 - rows/2,
+		Level: m.cam.Level,
 	}
 	m.clampCamera()
 }

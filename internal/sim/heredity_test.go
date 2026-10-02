@@ -19,7 +19,7 @@ func heredityWorld() *World {
 
 // colonistAged spawns a colonist of a given age at a free tile.
 func colonistAged(w *World, x, age int) *Entity {
-	e := w.spawn(Colonist, Point{x, 1})
+	e := w.spawn(Colonist, Point{x, 1, LandingLevel})
 	e.Profile.Age = age
 	return e
 }

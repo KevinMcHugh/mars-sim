@@ -39,7 +39,7 @@ func paramTopic(name string) (topic, bool) {
 		if !ok || errX != nil || errY != nil {
 			return topic{}, false
 		}
-		return topic{every: inspectEvery, build: func(s *sim.Snapshot) any { return tileTopic(s, sim.Point{X: x, Y: y}) }}, true
+		return topic{every: inspectEvery, build: func(s *sim.Snapshot) any { return tileTopic(s, sim.Point{X: x, Y: y, Level: sim.LandingLevel}) }}, true
 	case "roster":
 		return rosterParam(arg)
 	case "account":

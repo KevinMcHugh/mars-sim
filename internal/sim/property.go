@@ -72,21 +72,21 @@ func isWorkshop(t Terrain) bool {
 // the community and open to all; setFixtureOwner is how anything else changes
 // that.
 func (w *World) placeFixture(p Point, t Terrain) {
-	w.home.fixtures[p] = &Fixture{Pos: p, Terrain: t, Owner: Community, Access: AccessCommunal}
+	w.lay(p).fixtures[p] = &Fixture{Pos: p, Terrain: t, Owner: Community, Access: AccessCommunal}
 	w.fixtureRev++
 }
 
 // dropFixture forgets the fixture at p when its terrain is replaced.
 func (w *World) dropFixture(p Point) {
-	f := w.home.fixtures[p]
+	f := w.lay(p).fixtures[p]
 	if f == nil {
 		return
 	}
 	if f.Access != AccessCommunal {
-		w.home.restrictedFixtures[f.Terrain]--
+		w.lay(p).restrictedFixtures[f.Terrain]--
 	}
 	w.unindexFixture(f)
-	delete(w.home.fixtures, p)
+	delete(w.lay(p).fixtures, p)
 	w.fixtureRev++
 }
 
@@ -95,7 +95,7 @@ func (w *World) dropFixture(p Point) {
 // is communal changes which tiles the shared flow field for its terrain may
 // lead to, so that field is marked stale.
 func (w *World) setFixtureOwner(p Point, owner Owner, access Access) bool {
-	f := w.home.fixtures[p]
+	f := w.lay(p).fixtures[p]
 	if f == nil {
 		return false
 	}
@@ -105,9 +105,9 @@ func (w *World) setFixtureOwner(p Point, owner Owner, access Access) bool {
 	w.indexFixture(f)
 	if wasRestricted != restricted {
 		if restricted {
-			w.home.restrictedFixtures[f.Terrain]++
+			w.lay(p).restrictedFixtures[f.Terrain]++
 		} else {
-			w.home.restrictedFixtures[f.Terrain]--
+			w.lay(p).restrictedFixtures[f.Terrain]--
 		}
 		if field := w.fields[f.Terrain]; field != nil {
 			// The fixture's access tiles stop (or start) being goals of the
@@ -127,35 +127,37 @@ func (w *World) indexFixture(f *Fixture) {
 	if f.Access == AccessCommunal {
 		return
 	}
-	if w.home.ownedFixtures == nil {
-		w.home.ownedFixtures = make(map[Owner]map[Point]bool)
+	l := w.lay(f.Pos)
+	if l.ownedFixtures == nil {
+		l.ownedFixtures = make(map[Owner]map[Point]bool)
 	}
-	if w.home.ownedFixtures[f.Owner] == nil {
-		w.home.ownedFixtures[f.Owner] = make(map[Point]bool)
+	if l.ownedFixtures[f.Owner] == nil {
+		l.ownedFixtures[f.Owner] = make(map[Point]bool)
 	}
-	w.home.ownedFixtures[f.Owner][f.Pos] = true
+	l.ownedFixtures[f.Owner][f.Pos] = true
 	if f.Access == AccessPaid {
-		if w.home.paidFixtures[f.Terrain] == nil {
-			w.home.paidFixtures[f.Terrain] = make(map[Point]bool)
+		if l.paidFixtures[f.Terrain] == nil {
+			l.paidFixtures[f.Terrain] = make(map[Point]bool)
 		}
-		w.home.paidFixtures[f.Terrain][f.Pos] = true
+		l.paidFixtures[f.Terrain][f.Pos] = true
 	}
 }
 
 func (w *World) unindexFixture(f *Fixture) {
-	if own := w.home.ownedFixtures[f.Owner]; own != nil {
+	l := w.lay(f.Pos)
+	if own := l.ownedFixtures[f.Owner]; own != nil {
 		delete(own, f.Pos)
 		if len(own) == 0 {
-			delete(w.home.ownedFixtures, f.Owner)
+			delete(l.ownedFixtures, f.Owner)
 		}
 	}
-	delete(w.home.paidFixtures[f.Terrain], f.Pos)
+	delete(l.paidFixtures[f.Terrain], f.Pos)
 }
 
 // communalFixture reports whether anyone may use the tile at p. A tile with no
 // fixture record is not restricted by ownership, so it counts as communal.
 func (w *World) communalFixture(p Point) bool {
-	f := w.home.fixtures[p]
+	f := w.lay(p).fixtures[p]
 	return f == nil || f.Access == AccessCommunal
 }
 
@@ -163,7 +165,7 @@ func (w *World) communalFixture(p Point) bool {
 // communal one, only its owner a private one, and its owner or anyone who can
 // pay the price a paid one. Rats never own anything, or pay.
 func (w *World) canUseFixture(e *Entity, p Point) bool {
-	f := w.home.fixtures[p]
+	f := w.lay(p).fixtures[p]
 	if f == nil || f.Access == AccessCommunal {
 		return true
 	}
@@ -178,7 +180,7 @@ func (w *World) canUseFixture(e *Entity, p Point) bool {
 
 // setFixturePrice sets what a paid fixture charges per use.
 func (w *World) setFixturePrice(p Point, price Money) {
-	if f := w.home.fixtures[p]; f != nil && f.Price != price {
+	if f := w.lay(p).fixtures[p]; f != nil && f.Price != price {
 		f.Price = price
 		w.fixtureRev++
 	}
@@ -188,7 +190,7 @@ func (w *World) setFixturePrice(p Point, price Money) {
 // one that e does not own. A colonist who can no longer pay by the time it is
 // done has had its use anyway; nobody chases the debt (there is no debt yet).
 func (w *World) chargeForUse(e *Entity, p Point) {
-	f := w.home.fixtures[p]
+	f := w.lay(p).fixtures[p]
 	if f == nil || f.Access != AccessPaid || e.Kind != Colonist || f.Owner == ColonistOwner(e.ID) {
 		return
 	}
@@ -204,21 +206,26 @@ func (w *World) facilityReachable(e *Entity, kind Terrain) bool {
 	if field := w.facilityField(kind); field != nil && field.at(e.Pos) >= 0 {
 		return true
 	}
-	if w.home.restrictedFixtures[kind] == 0 {
+	if !w.anyRestricted(kind) {
 		return false
 	}
 	// Only the restricted ones e may use: its own, and anyone's paid ones.
 	// This used to walk every fixture of the kind, and with every bunk a
 	// private pod bunk that was every sleeper times every bunk, every tick.
 	room := w.roomOf(e.Pos)
-	for p := range w.home.ownedFixtures[ColonistOwner(e.ID)] {
-		if w.TerrainAt(p) == kind && w.taskReachable(p, room) {
-			return true
+	for _, l := range w.layers {
+		if l == nil {
+			continue
 		}
-	}
-	for p := range w.home.paidFixtures[kind] {
-		if w.canUseFixture(e, p) && w.taskReachable(p, room) {
-			return true
+		for p := range l.ownedFixtures[ColonistOwner(e.ID)] {
+			if w.TerrainAt(p) == kind && w.taskReachable(p, room) {
+				return true
+			}
+		}
+		for p := range l.paidFixtures[kind] {
+			if w.canUseFixture(e, p) && w.taskReachable(p, room) {
+				return true
+			}
 		}
 	}
 	return false
@@ -349,10 +356,12 @@ func (w *World) publishedFixtures() []FixtureView {
 	if w.snapFixtures != nil && w.snapFixtureRev == w.fixtureRev {
 		return w.snapFixtures
 	}
-	out := make([]FixtureView, 0, len(w.home.fixtures))
-	for _, f := range w.home.fixtures {
-		out = append(out, FixtureView{Pos: f.Pos, Terrain: f.Terrain, Owner: f.Owner, Access: f.Access, Price: f.Price})
-	}
+	out := make([]FixtureView, 0)
+	w.eachLayer(func(l *Layer) {
+		for _, f := range l.fixtures {
+			out = append(out, FixtureView{Pos: f.Pos, Terrain: f.Terrain, Owner: f.Owner, Access: f.Access, Price: f.Price})
+		}
+	})
 	sort.Slice(out, func(i, j int) bool { return lessPoint(out[i].Pos, out[j].Pos) })
 	w.snapFixtures, w.snapFixtureRev = out, w.fixtureRev
 	return out

@@ -103,15 +103,16 @@ func (w *World) nearestMealDepot(e *Entity) (Point, bool) {
 	for _, owner := range mealOwners(e) {
 		var best Point
 		bestDist, found := 1<<30, false
-		for p, c := range w.home.storageContainers {
+		w.eachContainer(func(c *StorageContainer) {
+			p := c.Pos
 			if c.held(owner, Meal) == 0 || !w.canUseFixture(e, p) || !w.taskReachable(p, room) {
-				continue
+				return
 			}
-			d := e.Pos.Chebyshev(p)
+			d := w.travelEstimate(e.Pos, p)
 			if !found || d < bestDist || (d == bestDist && lessPoint(p, best)) {
 				best, bestDist, found = p, d, true
 			}
-		}
+		})
 		if found {
 			return best, true
 		}
@@ -135,7 +136,7 @@ func (w *World) jobEat(e *Entity) {
 			e.State = Moving
 			return
 		}
-		c := w.home.storageContainers[e.Target]
+		c := w.lay(e.Target).storageContainers[e.Target]
 		if c == nil || !w.takeMeal(e, c) {
 			w.clearJob(e) // somebody got the last one first; think again
 			return
@@ -256,20 +257,20 @@ func (w *World) tryRation(e *Entity) bool {
 	var best Point
 	found := false
 	for _, p := range w.mealDepots() {
-		c := w.home.storageContainers[p]
+		c := w.lay(p).storageContainers[p]
 		if c.held(Community, Meal)+w.openQty(Ask, Meal, p, Community) == 0 ||
 			!w.canUseFixture(e, p) || !w.taskReachable(p, room) {
 			continue
 		}
-		if !found || e.Pos.Chebyshev(p) < e.Pos.Chebyshev(best) ||
-			(e.Pos.Chebyshev(p) == e.Pos.Chebyshev(best) && lessPoint(p, best)) {
+		if !found || w.travelEstimate(e.Pos, p) < w.travelEstimate(e.Pos, best) ||
+			(w.travelEstimate(e.Pos, p) == w.travelEstimate(e.Pos, best) && lessPoint(p, best)) {
 			best, found = p, true
 		}
 	}
 	if !found {
 		return false
 	}
-	c := w.home.storageContainers[best]
+	c := w.lay(best).storageContainers[best]
 	w.withdrawColonyAsks(Meal, best)
 	given := c.moveLine(Community, ColonistOwner(e.ID), Meal, 1)
 	w.offerColonyMeals(best) // the rest go back on sale
@@ -398,14 +399,16 @@ func (w *World) noteForaging(e *Entity) {
 func (w *World) foodCooking(e *Entity) bool {
 	room := w.roomOf(e.Pos)
 	coming := 0
-	for p, id := range w.home.workshopClaims {
-		cook := w.entities[id]
-		if cook == nil || cook.Job != JobCraft || cook.craftFor != Community || w.TerrainAt(p) != Scumhouse ||
-			!recipeMakesMeals(recipes[cook.recipe]) || !w.taskReachable(p, room) {
-			continue
+	w.eachLayer(func(l *Layer) {
+		for p, id := range l.workshopClaims {
+			cook := w.entities[id]
+			if cook == nil || cook.Job != JobCraft || cook.craftFor != Community || w.TerrainAt(p) != Scumhouse ||
+				!recipeMakesMeals(recipes[cook.recipe]) || !w.taskReachable(p, room) {
+				continue
+			}
+			coming += colonyMealsIn(l.storageContainers[p])
 		}
-		coming += colonyMealsIn(w.home.storageContainers[p])
-	}
+	})
 	return coming > 0 && coming >= w.hungryWithoutMeals()
 }
 
@@ -475,7 +478,7 @@ func (w *World) ownScumBanked(e *Entity) int {
 	if !ok {
 		return 0
 	}
-	return w.home.storageContainers[p].held(ColonistOwner(e.ID), CaveScum)
+	return w.lay(p).storageContainers[p].held(ColonistOwner(e.ID), CaveScum)
 }
 
 // tryForageScrape sends a forager to the nearest exposed patch to scrape and
@@ -490,7 +493,7 @@ func (w *World) tryForageScrape(e *Entity) bool {
 	if !ok {
 		return false
 	}
-	w.home.scumClaims[patch] = e.ID
+	w.lay(patch).scumClaims[patch] = e.ID
 	e.Job, e.Target, e.scrape, e.Progress = JobScrape, patch, scrapeGather, 0
 	e.scrapeKeep = true
 	return true
@@ -519,36 +522,38 @@ func (w *World) tryProspect(e *Entity, unload bool) bool {
 	var best Point
 	bestFresh, bestCost := 0, 0
 	found, packFull := false, false
-	for p := range w.home.board.frontier {
-		cost := dig + e.Pos.Chebyshev(p)
-		// Even all eight neighbours unseen couldn't beat the best so far:
-		// skip it before the neighbour walks. Only strictly worse rock is
-		// skipped, so the choice never depends on the order p comes in.
-		if found && len(neighbors8)*bestCost < bestFresh*cost {
-			continue
+	w.eachLayer(func(l *Layer) {
+		for p := range l.board.frontier {
+			cost := dig + w.travelEstimate(e.Pos, p)
+			// Even all eight neighbours unseen couldn't beat the best so far:
+			// skip it before the neighbour walks. Only strictly worse rock is
+			// skipped, so the choice never depends on the order p comes in.
+			if found && len(neighbors8)*bestCost < bestFresh*cost {
+				continue
+			}
+			if l.board.isClaimed(p) || !w.frontierReachable(p, room) {
+				continue
+			}
+			fresh := w.unexploredAround(p)
+			if fresh == 0 {
+				continue
+			}
+			if !e.Inventory.CanAddAll(miningYield(w.TileAt(p))...) {
+				packFull = true
+				continue
+			}
+			// fresh/cost > bestFresh/bestCost, without dividing.
+			better := !found || fresh*bestCost > bestFresh*cost ||
+				(fresh*bestCost == bestFresh*cost && lessPoint(p, best))
+			if better {
+				best, bestFresh, bestCost, found = p, fresh, cost, true
+			}
 		}
-		if w.home.board.isClaimed(p) || !w.frontierReachable(p, room) {
-			continue
-		}
-		fresh := w.unexploredAround(p)
-		if fresh == 0 {
-			continue
-		}
-		if !e.Inventory.CanAddAll(miningYield(w.TileAt(p))...) {
-			packFull = true
-			continue
-		}
-		// fresh/cost > bestFresh/bestCost, without dividing.
-		better := !found || fresh*bestCost > bestFresh*cost ||
-			(fresh*bestCost == bestFresh*cost && lessPoint(p, best))
-		if better {
-			best, bestFresh, bestCost, found = p, fresh, cost, true
-		}
-	}
+	})
 	if !found {
 		return unload && packFull && w.tryForageUnload(e)
 	}
-	w.home.board.claimMine(best, e.ID)
+	w.lay(best).board.claimMine(best, e.ID)
 	w.assignMineTarget(e, best)
 	return true
 }
@@ -558,9 +563,14 @@ func (w *World) tryProspect(e *Entity, unload bool) bool {
 // has to be dug out. It only asks whether one patch exists, so the order it
 // visits them in cannot matter.
 func (w *World) prospectingForFood() bool {
-	for p := range w.home.exposedScum {
-		if w.scumAt(p) > 0 && w.home.scumClaims[p] == 0 {
-			return false
+	for _, l := range w.layers {
+		if l == nil {
+			continue
+		}
+		for p := range l.exposedScum {
+			if w.scumAt(p) > 0 && l.scumClaims[p] == 0 {
+				return false
+			}
 		}
 	}
 	return true

@@ -192,8 +192,8 @@ func TestBiteUsesRolledSpeciesDamage(t *testing.T) {
 	cfg.StartColonists, cfg.StartAliens, cfg.StartCats, cfg.StartRats = 0, 0, 0, 0
 	w := newTestWorld(t, cfg)
 
-	alien := w.spawn(Alien, Point{0, 0})
-	victim := w.spawn(Colonist, Point{1, 0})
+	alien := w.spawn(Alien, Point{0, 0, LandingLevel})
+	victim := w.spawn(Colonist, Point{1, 0, LandingLevel})
 	victim.HP = 999
 	victim.Parts = [numBodyParts]int{999, 999, 999, 999, 999, 999}
 
@@ -217,7 +217,7 @@ func TestSpawnedAliensGetAValidSpecies(t *testing.T) {
 		t.Fatalf("world rolled %d species, want 5", got)
 	}
 	for i := 0; i < 100; i++ {
-		a := w.spawn(Alien, Point{i % w.Width, 0})
+		a := w.spawn(Alien, Point{i % w.Width, 0, LandingLevel})
 		if a.Species < 0 || a.Species >= len(w.alienSpecies) {
 			t.Fatalf("alien %d assigned out-of-range species %d (roster has %d)", a.ID, a.Species, len(w.alienSpecies))
 		}
@@ -233,8 +233,8 @@ func TestFriendlyAlienNeverInitiatesCombat(t *testing.T) {
 	w := newTestWorld(t, cfg)
 	w.alienSpecies[0].Temperament = TemperamentFriendly
 
-	alien := w.spawn(Alien, Point{5, 5})
-	victim := w.spawn(Colonist, Point{6, 5}) // already adjacent
+	alien := w.spawn(Alien, Point{5, 5, LandingLevel})
+	victim := w.spawn(Colonist, Point{6, 5, LandingLevel}) // already adjacent
 	startHP := victim.HP
 
 	for i := 0; i < 50; i++ {
@@ -256,11 +256,11 @@ func TestCautiousAlienOnlyReactsWithinRadius(t *testing.T) {
 	cfg.AlienCautiousRadius = 3
 	w := newTestWorld(t, cfg)
 	w.alienSpecies[0].Temperament = TemperamentCautious
-	carve(w, Point{2, 5}, Point{5 + cfg.AlienCautiousRadius + 5, 5}, Floor) // one room, so both are reachable
+	carve(w, Point{2, 5, LandingLevel}, Point{5 + cfg.AlienCautiousRadius + 5, 5, LandingLevel}, Floor) // one room, so both are reachable
 	w.refreshSpatial()
 
-	alien := w.spawn(Alien, Point{5, 5})
-	far := w.spawn(Colonist, Point{5 + cfg.AlienCautiousRadius + 5, 5})
+	alien := w.spawn(Alien, Point{5, 5, LandingLevel})
+	far := w.spawn(Colonist, Point{5 + cfg.AlienCautiousRadius + 5, 5, LandingLevel})
 
 	w.alienTurn(alien)
 	if alien.Quarry == far.ID {
@@ -268,8 +268,8 @@ func TestCautiousAlienOnlyReactsWithinRadius(t *testing.T) {
 			alien.Pos.Chebyshev(far.Pos), cfg.AlienCautiousRadius)
 	}
 
-	near := w.spawn(Colonist, Point{6, 5}) // adjacent, well within the radius
-	alien.Cooldown = 0                     // isolate this decision from the previous turn's pacing
+	near := w.spawn(Colonist, Point{6, 5, LandingLevel}) // adjacent, well within the radius
+	alien.Cooldown = 0                                   // isolate this decision from the previous turn's pacing
 	w.alienTurn(alien)
 	if alien.Quarry != near.ID {
 		t.Fatalf("cautious alien did not react to a colonist adjacent to it")
@@ -284,13 +284,13 @@ func TestHostileAlienHuntsAcrossTheMap(t *testing.T) {
 	cfg.StartColonists, cfg.StartAliens, cfg.StartCats, cfg.StartRats = 0, 0, 0, 0
 	w := newTestWorld(t, cfg)
 	w.alienSpecies[0].Temperament = TemperamentHostile
-	carve(w, Point{1, 1}, Point{w.Width - 2, 1}, Floor)
-	carve(w, Point{w.Width - 2, 1}, Point{w.Width - 2, w.Height - 2}, Floor)
+	carve(w, Point{1, 1, LandingLevel}, Point{w.Width - 2, 1, LandingLevel}, Floor)
+	carve(w, Point{w.Width - 2, 1, LandingLevel}, Point{w.Width - 2, w.Height - 2, LandingLevel}, Floor)
 	w.refreshSpatial()
 
-	alien := w.spawn(Alien, Point{1, 1})
-	sealed := w.spawn(Colonist, Point{w.Width / 2, w.Height / 2}) // still the landing cave, closer
-	prey := w.spawn(Colonist, Point{w.Width - 2, w.Height - 2})
+	alien := w.spawn(Alien, Point{1, 1, LandingLevel})
+	sealed := w.spawn(Colonist, Point{w.Width / 2, w.Height / 2, LandingLevel}) // still the landing cave, closer
+	prey := w.spawn(Colonist, Point{w.Width - 2, w.Height - 2, LandingLevel})
 
 	w.alienTurn(alien)
 	if alien.Quarry != prey.ID {
@@ -317,7 +317,7 @@ func TestSnapshotExposesAlienSpecies(t *testing.T) {
 	cfg := testConfig()
 	cfg.AlienSpeciesCount = 3
 	w := newTestWorld(t, cfg)
-	alien := w.spawn(Alien, Point{0, 0})
+	alien := w.spawn(Alien, Point{0, 0, LandingLevel})
 
 	snap := w.snapshot(false, 1)
 	if len(snap.AlienSpecies) != len(w.alienSpecies) {
@@ -380,8 +380,8 @@ func TestHostileAlienHuntsRatsAndOtherSpecies(t *testing.T) {
 			other.Temperament = TemperamentFriendly // never fights back
 			w.alienSpecies = append(w.alienSpecies, other)
 
-			hunter := w.spawnAs(Alien, Point{6, 10}, 0)
-			prey := w.spawnAs(preyKind, Point{16, 10}, 1)
+			hunter := w.spawnAs(Alien, Point{6, 10, LandingLevel}, 0)
+			prey := w.spawnAs(preyKind, Point{16, 10, LandingLevel}, 1)
 			for i := 0; i < 400 && w.entities[prey.ID] != nil; i++ {
 				w.alienTurn(hunter)
 				if hunter.Quarry != 0 && hunter.Quarry != prey.ID {
@@ -399,8 +399,8 @@ func TestHostileAlienHuntsRatsAndOtherSpecies(t *testing.T) {
 func TestHostileAlienSparesItsOwnSpecies(t *testing.T) {
 	w := propertyWorld(t)
 	w.alienSpecies[0].Temperament = TemperamentHostile
-	a := w.spawnAs(Alien, Point{6, 10}, 0)
-	b := w.spawnAs(Alien, Point{7, 10}, 0)
+	a := w.spawnAs(Alien, Point{6, 10, LandingLevel}, 0)
+	b := w.spawnAs(Alien, Point{7, 10, LandingLevel}, 0)
 	for i := 0; i < 50; i++ {
 		w.alienTurn(a)
 		w.alienTurn(b)

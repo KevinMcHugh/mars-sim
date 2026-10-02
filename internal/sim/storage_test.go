@@ -9,15 +9,15 @@ func storageBehaviorWorld(t *testing.T, withStorage bool) (*World, *Entity, Poin
 	w := newTestWorld(t, cfg)
 	for y := 5; y <= 15; y++ {
 		for x := 5; x <= 22; x++ {
-			w.SetTerrain(Point{x, y}, Floor)
+			w.SetTerrain(Point{x, y, LandingLevel}, Floor)
 		}
 	}
-	chest := Point{20, 10}
+	chest := Point{20, 10, LandingLevel}
 	if withStorage {
 		w.SetTerrain(chest, Storage)
 	}
 	w.refreshSpatial()
-	return w, w.spawn(Colonist, Point{10, 10}), chest
+	return w, w.spawn(Colonist, Point{10, 10, LandingLevel}), chest
 }
 
 func TestStorageInventoryHoldsSixColonistInventories(t *testing.T) {
@@ -46,11 +46,11 @@ func TestStorageTerrainOwnsSparseContainerState(t *testing.T) {
 	cfg.Width, cfg.Height = 12, 12
 	cfg.StartColonists = 0 // no crash pods: their lockers are storage too
 	w := newTestWorld(t, cfg)
-	p := Point{4, 5}
+	p := Point{4, 5, LandingLevel}
 
 	w.SetTerrain(p, Floor)
 	w.SetTerrain(p, Storage)
-	container := w.home.storageContainers[p]
+	container := w.landing().storageContainers[p]
 	if container == nil || container.Pos != p {
 		t.Fatalf("storage container at %v = %#v", p, container)
 	}
@@ -65,7 +65,7 @@ func TestStorageTerrainOwnsSparseContainerState(t *testing.T) {
 	}
 
 	w.SetTerrain(p, Floor)
-	if _, ok := w.home.storageContainers[p]; ok {
+	if _, ok := w.landing().storageContainers[p]; ok {
 		t.Fatal("container state survived removal of its storage terrain")
 	}
 }
@@ -114,7 +114,7 @@ func TestFullColonistSeeksStorageAndUnloadsMaterials(t *testing.T) {
 		t.Fatalf("full colonist job = %v at %v, want storage at %v",
 			colonist.Job, colonist.Target, chest)
 	}
-	for i := 0; i < 30 && w.home.storageContainers[chest].Inventory.Count(RawRock) == 0; i++ {
+	for i := 0; i < 30 && w.landing().storageContainers[chest].Inventory.Count(RawRock) == 0; i++ {
 		w.colonistTurn(colonist)
 	}
 
@@ -124,7 +124,7 @@ func TestFullColonistSeeksStorageAndUnloadsMaterials(t *testing.T) {
 	if got := colonist.Inventory.Count(Pistol); got != 1 {
 		t.Fatalf("storage removed equipped pistol: count = %d", got)
 	}
-	if got := w.home.storageContainers[chest].Inventory.Count(RawRock); got != 7*MaxStackSize {
+	if got := w.landing().storageContainers[chest].Inventory.Count(RawRock); got != 7*MaxStackSize {
 		t.Fatalf("stored raw rock = %d, want %d", got, 7*MaxStackSize)
 	}
 }
@@ -136,8 +136,8 @@ func TestFullInventoryMotivatesStorageConstruction(t *testing.T) {
 	}
 	// Satisfy fatal life-support planning so storage is the next automatic
 	// priority rather than being masked by the colony's more urgent need.
-	w.SetTerrain(Point{7, 7}, NutrientPod)
-	w.SetTerrain(Point{8, 7}, Toilet)
+	w.SetTerrain(Point{7, 7, LandingLevel}, NutrientPod)
+	w.SetTerrain(Point{8, 7, LandingLevel}, Toilet)
 
 	w.planRooms()
 	if len(w.projects) != 1 || w.projects[0].name != "storage room" {
@@ -159,7 +159,7 @@ func TestStorageCanBreakAFullInventoryProjectDeadlock(t *testing.T) {
 	// allowance. Its dig task cannot be completed by the full worker.
 	w.projects = []*project{{
 		id: 1, name: "dormitory",
-		tasks: []*buildTask{{pos: Point{2, 2}, terrain: Floor, phase: roomDigPhase}},
+		tasks: []*buildTask{{pos: Point{2, 2, LandingLevel}, terrain: Floor, phase: roomDigPhase}},
 	}}
 
 	w.planRooms()

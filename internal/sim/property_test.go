@@ -11,7 +11,7 @@ func propertyWorld(t *testing.T) *World {
 	w := newTestWorld(t, cfg)
 	for y := 5; y <= 15; y++ {
 		for x := 5; x <= 22; x++ {
-			w.SetTerrain(Point{x, y}, Floor)
+			w.SetTerrain(Point{x, y, LandingLevel}, Floor)
 		}
 	}
 	w.refreshSpatial()
@@ -23,20 +23,20 @@ func propertyWorld(t *testing.T) *World {
 // record goes when the terrain does.
 func TestFixturesTrackFixtureTerrain(t *testing.T) {
 	w := propertyWorld(t)
-	p := Point{8, 8}
+	p := Point{8, 8, LandingLevel}
 	for _, kind := range []Terrain{NutrientPod, Toilet, Bed, Incinerator, Storage} {
 		w.SetTerrain(p, kind)
-		f := w.home.fixtures[p]
+		f := w.landing().fixtures[p]
 		if f == nil || f.Terrain != kind || f.Owner != Community || f.Access != AccessCommunal {
 			t.Fatalf("%v: fixture = %+v, want a communal colony-owned record", kind, f)
 		}
 		w.SetTerrain(p, Floor)
-		if w.home.fixtures[p] != nil {
+		if w.landing().fixtures[p] != nil {
 			t.Fatalf("%v: fixture survived its terrain being replaced", kind)
 		}
 	}
 	w.SetTerrain(p, Wall)
-	if w.home.fixtures[p] != nil {
+	if w.landing().fixtures[p] != nil {
 		t.Fatal("a wall is not a fixture")
 	}
 }
@@ -45,8 +45,8 @@ func TestFixturesTrackFixtureTerrain(t *testing.T) {
 // in whether a fixture is communal reaches its shared field.
 func TestSetFixtureOwnerKeepsRestrictedCount(t *testing.T) {
 	w := propertyWorld(t)
-	a := w.spawn(Colonist, Point{6, 6})
-	p := Point{10, 10}
+	a := w.spawn(Colonist, Point{6, 6, LandingLevel})
+	p := Point{10, 10, LandingLevel}
 	w.SetTerrain(p, Bed)
 	w.refreshSpatial()
 	w.facilityField(Bed) // freshen
@@ -54,22 +54,22 @@ func TestSetFixtureOwnerKeepsRestrictedCount(t *testing.T) {
 	if !w.setFixtureOwner(p, ColonistOwner(a.ID), AccessPrivate) {
 		t.Fatal("setFixtureOwner found no fixture")
 	}
-	if w.home.restrictedFixtures[Bed] != 1 {
-		t.Fatalf("restricted=%d after making the bed private", w.home.restrictedFixtures[Bed])
+	if w.landing().restrictedFixtures[Bed] != 1 {
+		t.Fatalf("restricted=%d after making the bed private", w.landing().restrictedFixtures[Bed])
 	}
 	w.tick++ // fields refresh at most once a tick
-	if d := w.facilityField(Bed).at(Point{10, 11}); d == 0 {
+	if d := w.facilityField(Bed).at(Point{10, 11, LandingLevel}); d == 0 {
 		t.Fatal("the shared field still treats a private bed's access tile as a goal")
 	}
 	w.setFixtureOwner(p, ColonistOwner(a.ID), AccessPrivate) // no change
-	if w.home.restrictedFixtures[Bed] != 1 {
-		t.Fatalf("restricted=%d after a no-op change", w.home.restrictedFixtures[Bed])
+	if w.landing().restrictedFixtures[Bed] != 1 {
+		t.Fatalf("restricted=%d after a no-op change", w.landing().restrictedFixtures[Bed])
 	}
 	w.SetTerrain(p, Floor)
-	if w.home.restrictedFixtures[Bed] != 0 {
-		t.Fatalf("restricted=%d after the private bed was demolished", w.home.restrictedFixtures[Bed])
+	if w.landing().restrictedFixtures[Bed] != 0 {
+		t.Fatalf("restricted=%d after the private bed was demolished", w.landing().restrictedFixtures[Bed])
 	}
-	if w.setFixtureOwner(Point{12, 12}, Community, AccessCommunal) {
+	if w.setFixtureOwner(Point{12, 12, LandingLevel}, Community, AccessCommunal) {
 		t.Fatal("setFixtureOwner succeeded on a tile with no fixture")
 	}
 }
@@ -78,10 +78,10 @@ func TestSetFixtureOwnerKeepsRestrictedCount(t *testing.T) {
 // reachable to its owner alone.
 func TestPrivateFixtureIsReachableOnlyToItsOwner(t *testing.T) {
 	w := propertyWorld(t)
-	owner := w.spawn(Colonist, Point{6, 6})
-	other := w.spawn(Colonist, Point{20, 14})
-	rat := w.spawn(Rat, Point{21, 14})
-	pod := Point{12, 10}
+	owner := w.spawn(Colonist, Point{6, 6, LandingLevel})
+	other := w.spawn(Colonist, Point{20, 14, LandingLevel})
+	rat := w.spawn(Rat, Point{21, 14, LandingLevel})
+	pod := Point{12, 10, LandingLevel}
 	w.SetTerrain(pod, NutrientPod)
 	w.setFixtureOwner(pod, ColonistOwner(owner.ID), AccessPrivate)
 	w.refreshSpatial()
@@ -111,14 +111,14 @@ func TestPrivateFixtureIsReachableOnlyToItsOwner(t *testing.T) {
 func TestColonistsSleepOnlyInBedsTheyMayUse(t *testing.T) {
 	w := propertyWorld(t)
 	sleepy := w.cfg.Needs[NeedSleep].SeekAt + 50
-	mine := Point{9, 10}
-	shared := Point{20, 10}
+	mine := Point{9, 10, LandingLevel}
+	shared := Point{20, 10, LandingLevel}
 	w.SetTerrain(mine, Bed)
 	w.SetTerrain(shared, Bed)
 	w.refreshSpatial()
 
-	owner := w.spawn(Colonist, Point{7, 12})
-	guest := w.spawn(Colonist, Point{10, 12}) // nearer the private bed than the shared one
+	owner := w.spawn(Colonist, Point{7, 12, LandingLevel})
+	guest := w.spawn(Colonist, Point{10, 12, LandingLevel}) // nearer the private bed than the shared one
 	w.setFixtureOwner(mine, ColonistOwner(owner.ID), AccessPrivate)
 	for _, e := range []*Entity{owner, guest} {
 		e.Needs[NeedSleep] = sleepy
@@ -150,10 +150,10 @@ func TestColonistsSleepOnlyInBedsTheyMayUse(t *testing.T) {
 // it: the field shortcut for a single facility must not strand it.
 func TestOwnerReachesItsOnlyPrivateBed(t *testing.T) {
 	w := propertyWorld(t)
-	bed := Point{20, 10}
+	bed := Point{20, 10, LandingLevel}
 	w.SetTerrain(bed, Bed)
 	w.refreshSpatial()
-	owner := w.spawn(Colonist, Point{6, 12})
+	owner := w.spawn(Colonist, Point{6, 12, LandingLevel})
 	w.setFixtureOwner(bed, ColonistOwner(owner.ID), AccessPrivate)
 	owner.Needs[NeedSleep] = w.cfg.Needs[NeedSleep].SeekAt + 50
 	w.syncNeedPhase(owner, NeedSleep)
@@ -170,7 +170,7 @@ func TestOwnerReachesItsOnlyPrivateBed(t *testing.T) {
 // A private chest is not somewhere another colonist can unload.
 func TestChooseStorageSkipsOthersPrivateChest(t *testing.T) {
 	w, e, chest := storageBehaviorWorld(t, true)
-	other := w.spawn(Colonist, Point{12, 12})
+	other := w.spawn(Colonist, Point{12, 12, LandingLevel})
 	w.setFixtureOwner(chest, ColonistOwner(other.ID), AccessPrivate)
 	load := []ItemStack{{Kind: RawRock, Count: 1}}
 	if _, ok := w.chooseStorage(e, load); ok {
@@ -189,7 +189,7 @@ func TestStoringCreditsTheDepositor(t *testing.T) {
 	if !e.Inventory.Add(RawRock, rock) || !e.Inventory.Add(IronOre, 3) {
 		t.Fatal("test load did not fit")
 	}
-	container := w.home.storageContainers[chest]
+	container := w.landing().storageContainers[chest]
 	container.Inventory.Add(Clay, 2)
 	container.credit(Community, Clay, 2)
 
@@ -240,7 +240,7 @@ func TestLedgerBalancesThroughALongRun(t *testing.T) {
 	for i := 0; i < 5000; i++ {
 		w.step()
 		lines = 0
-		for p, c := range w.home.storageContainers {
+		for p, c := range w.landing().storageContainers {
 			if !c.ledgerBalanced() {
 				t.Fatalf("tick %d: chest %v ledger %+v does not match its contents", w.tick, p, c.Ledger)
 			}
@@ -261,11 +261,11 @@ func TestLedgerBalancesThroughALongRun(t *testing.T) {
 // reuse the previous frame's list when nothing changed.
 func TestSnapshotPublishesFixtures(t *testing.T) {
 	w := propertyWorld(t)
-	a := w.spawn(Colonist, Point{6, 6})
-	w.SetTerrain(Point{15, 9}, Toilet)
-	w.SetTerrain(Point{8, 12}, Bed)
-	w.SetTerrain(Point{9, 9}, NutrientPod)
-	w.setFixtureOwner(Point{8, 12}, ColonistOwner(a.ID), AccessPrivate)
+	a := w.spawn(Colonist, Point{6, 6, LandingLevel})
+	w.SetTerrain(Point{15, 9, LandingLevel}, Toilet)
+	w.SetTerrain(Point{8, 12, LandingLevel}, Bed)
+	w.SetTerrain(Point{9, 9, LandingLevel}, NutrientPod)
+	w.setFixtureOwner(Point{8, 12, LandingLevel}, ColonistOwner(a.ID), AccessPrivate)
 
 	first := w.snapshot(false, 10)
 	if len(first.Fixtures) != 3 {
@@ -276,10 +276,10 @@ func TestSnapshotPublishesFixtures(t *testing.T) {
 			t.Fatalf("fixtures not sorted: %+v", first.Fixtures)
 		}
 	}
-	if f, ok := first.FixtureAt(Point{8, 12}); !ok || f.Owner != ColonistOwner(a.ID) || f.Access != AccessPrivate {
+	if f, ok := first.FixtureAt(Point{8, 12, LandingLevel}); !ok || f.Owner != ColonistOwner(a.ID) || f.Access != AccessPrivate {
 		t.Fatalf("FixtureAt(8,12) = %+v %v", f, ok)
 	}
-	if _, ok := first.FixtureAt(Point{10, 10}); ok {
+	if _, ok := first.FixtureAt(Point{10, 10, LandingLevel}); ok {
 		t.Fatal("FixtureAt found a fixture on bare floor")
 	}
 
@@ -287,12 +287,12 @@ func TestSnapshotPublishesFixtures(t *testing.T) {
 	if &second.Fixtures[0] != &first.Fixtures[0] {
 		t.Fatal("an unchanged fixture list was rebuilt")
 	}
-	w.setFixtureOwner(Point{8, 12}, Community, AccessCommunal)
+	w.setFixtureOwner(Point{8, 12, LandingLevel}, Community, AccessCommunal)
 	third := w.snapshot(false, 10)
 	if &third.Fixtures[0] == &first.Fixtures[0] {
 		t.Fatal("a changed fixture list reused the published slice")
 	}
-	if f, _ := first.FixtureAt(Point{8, 12}); f.Access != AccessPrivate {
+	if f, _ := first.FixtureAt(Point{8, 12, LandingLevel}); f.Access != AccessPrivate {
 		t.Fatal("publishing a change rewrote an older frame")
 	}
 }
@@ -308,9 +308,9 @@ func TestTheOwnedFixtureIndexMatchesTheRecords(t *testing.T) {
 		w.step()
 	}
 	indexed := 0
-	for p, f := range w.home.fixtures {
-		inOwned := w.home.ownedFixtures[f.Owner][p]
-		inPaid := w.home.paidFixtures[f.Terrain][p]
+	for p, f := range w.landing().fixtures {
+		inOwned := w.landing().ownedFixtures[f.Owner][p]
+		inPaid := w.landing().paidFixtures[f.Terrain][p]
 		if inOwned != (f.Access != AccessCommunal) || inPaid != (f.Access == AccessPaid) {
 			t.Fatalf("fixture %v (%v, %v, owner %v) indexed owned=%v paid=%v", p, f.Terrain, f.Access, f.Owner, inOwned, inPaid)
 		}
@@ -332,7 +332,7 @@ func TestTheOwnedFixtureIndexMatchesTheRecords(t *testing.T) {
 				slow = true
 			}
 			room := w.roomOf(e.Pos)
-			for p := range w.home.facilityTiles[kind] {
+			for p := range w.landing().facilityTiles[kind] {
 				if !w.communalFixture(p) && w.canUseFixture(e, p) && w.taskReachable(p, room) {
 					slow = true
 				}

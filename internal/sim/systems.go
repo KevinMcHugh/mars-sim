@@ -95,9 +95,14 @@ func (w *World) entityIDsNearSorted(center Point, radius int) []EntityID {
 	cx1 := min(w.chunkCols-1, (center.X+radius)/chunkSize)
 	cy1 := min(w.chunkRows-1, (center.Y+radius)/chunkSize)
 	var ids []EntityID
+	// Only center's own level: nothing sees or reaches through a floor.
+	buckets := w.lay(center).chunkEntities
+	if buckets == nil {
+		return nil
+	}
 	for cy := cy0; cy <= cy1; cy++ {
 		for cx := cx0; cx <= cx1; cx++ {
-			for _, id := range w.home.chunkEntities[cy*w.chunkCols+cx] {
+			for _, id := range buckets[cy*w.chunkCols+cx] {
 				if e := w.entities[id]; e != nil && center.Chebyshev(e.Pos) <= radius {
 					ids = append(ids, id)
 				}
@@ -503,7 +508,7 @@ func (w *World) onFacilityAccess(p Point) bool {
 // onPendingBuild reports whether p is a not-yet-built task tile of some project,
 // which a builder must find clear to construct.
 func (w *World) onPendingBuild(p Point) bool {
-	return w.home.buildTiles[p]
+	return w.lay(p).buildTiles[p]
 }
 
 // assignMine / assignBuild set a colonist's job and update the board's
@@ -540,17 +545,22 @@ func (w *World) claimNearestMine(e *Entity) (Point, bool) {
 	var best Point
 	found := false
 	bestDist := 1 << 30
-	for p := range w.home.board.frontier {
-		if w.home.board.isClaimed(p) || !w.frontierReachable(p, room) ||
-			!e.Inventory.CanAddAll(miningYield(w.TileAt(p))...) {
+	for _, l := range w.layers {
+		if l == nil {
 			continue
 		}
-		if d := e.Pos.Chebyshev(p); !found || d < bestDist || (d == bestDist && lessPoint(p, best)) {
-			best, bestDist, found = p, d, true
+		for p := range l.board.frontier {
+			if l.board.isClaimed(p) || !w.frontierReachable(p, room) ||
+				!e.Inventory.CanAddAll(miningYield(w.TileAt(p))...) {
+				continue
+			}
+			if d := w.travelEstimate(e.Pos, p); !found || d < bestDist || (d == bestDist && lessPoint(p, best)) {
+				best, bestDist, found = p, d, true
+			}
 		}
 	}
 	if found {
-		w.home.board.claimMine(best, e.ID)
+		w.lay(best).board.claimMine(best, e.ID)
 	}
 	return best, found
 }
@@ -559,15 +569,25 @@ func (w *World) claimNearestMine(e *Entity) (Point, bool) {
 func (w *World) frontierReachable(rock Point, room RoomID) bool {
 	for _, d := range neighbors8 {
 		n := rock.Add(d.X, d.Y)
-		if w.Walkable(n) && w.roomOf(n) == room {
+		// Walkable and roomOf in one lookup: this runs for every frontier
+		// rock a miner weighs, eight times.
+		l := w.layerIn(n)
+		if l == nil || !l.tiles.at(n.X, n.Y).Terrain.Walkable() {
+			continue
+		}
+		if rid := l.regionOf.at(n.X, n.Y); rid != 0 && w.regions[rid].room == room {
 			return true
 		}
 	}
 	return false
 }
 
-// lessPoint gives a stable row-major ordering for deterministic tie-breaks.
+// lessPoint gives a stable ordering for deterministic tie-breaks: shallower
+// levels first, then row-major within a level.
 func lessPoint(a, b Point) bool {
+	if a.Level != b.Level {
+		return a.Level < b.Level
+	}
 	if a.Y != b.Y {
 		return a.Y < b.Y
 	}
@@ -579,9 +599,9 @@ func lessPoint(a, b Point) bool {
 func (w *World) claimAdjacentFrontier(e *Entity) (Point, bool) {
 	for _, d := range neighbors8 {
 		n := e.Pos.Add(d.X, d.Y)
-		if w.home.board.isFrontier(n) && !w.home.board.isClaimed(n) &&
+		if b := w.lay(n).board; b != nil && b.isFrontier(n) && !b.isClaimed(n) &&
 			e.Inventory.CanAddAll(miningYield(w.TileAt(n))...) {
-			w.home.board.claimMine(n, e.ID)
+			b.claimMine(n, e.ID)
 			return n, true
 		}
 	}
@@ -592,7 +612,7 @@ func (w *World) claimAdjacentFrontier(e *Entity) (Point, bool) {
 // facility fallback), tracked by the board's in-progress counter.
 func (w *World) assignBuild(e *Entity, kind Terrain, target Point) {
 	e.Job, e.BuildKind, e.Target, e.Progress = JobBuild, kind, target, 0
-	w.home.board.startBuild(kind)
+	w.lay(target).board.startBuild(kind)
 }
 
 // assignTask commits a colonist to a claimed construction-project task. The task
@@ -608,7 +628,7 @@ func (w *World) clearJob(e *Entity) {
 	switch e.Job {
 	case JobMine:
 		if e.mineClaimed {
-			w.home.board.releaseMine(e.Target, e.ID)
+			w.lay(e.Target).board.releaseMine(e.Target, e.ID)
 			e.mineClaimed = false
 		}
 	case JobBuild:
@@ -616,11 +636,11 @@ func (w *World) clearJob(e *Entity) {
 			e.task.owner = 0 // release the project task for someone else
 			e.task = nil
 		} else {
-			w.home.board.endBuild(e.BuildKind) // lone emergency build
+			w.lay(e.Target).board.endBuild(e.BuildKind) // lone emergency build
 		}
 	case JobClean:
 		if e.clean == cleanGather {
-			w.home.board.releaseClean(e.Target, e.ID) // reopen the mess for someone else
+			w.lay(e.Target).board.releaseClean(e.Target, e.ID) // reopen the mess for someone else
 		}
 		e.clean = cleanGather
 	case JobEat:
@@ -629,15 +649,15 @@ func (w *World) clearJob(e *Entity) {
 		}
 		e.eat, e.eatKeep = eatFetch, false
 	case JobCraft:
-		if w.home.workshopClaims[e.Target] == e.ID {
-			delete(w.home.workshopClaims, e.Target)
+		if w.lay(e.Target).workshopClaims[e.Target] == e.ID {
+			delete(w.lay(e.Target).workshopClaims, e.Target)
 		}
 	case JobScrape:
-		if (e.scrape == scrapeGather || e.scrape == scrapeHarvest) && w.home.scumClaims[e.Target] == e.ID {
-			delete(w.home.scumClaims, e.Target)
+		if (e.scrape == scrapeGather || e.scrape == scrapeHarvest) && w.lay(e.Target).scumClaims[e.Target] == e.ID {
+			delete(w.lay(e.Target).scumClaims, e.Target)
 		}
-		if e.scrapeSeed && w.home.workshopClaims[e.seedAt] == e.ID {
-			delete(w.home.workshopClaims, e.seedAt)
+		if e.scrapeSeed && w.lay(e.seedAt).workshopClaims[e.seedAt] == e.ID {
+			delete(w.lay(e.seedAt).workshopClaims, e.seedAt)
 		}
 		e.scrape = scrapeGather
 		e.scrapeFor, e.scrapeQty, e.scrapeKeep, e.scrapeSeed = Owner{}, 0, false, false
@@ -939,7 +959,7 @@ func (w *World) assignWorkJob(e *Entity) {
 	// Mining: big colonies/maps follow the shared frontier field (claim on
 	// arrival); small ones use cached A* to the nearest claimed tile. Either way
 	// only take a job when unclaimed frontier remains.
-	if w.home.board.unclaimedCount() > 0 {
+	if w.unclaimedFrontier() > 0 {
 		// Mining produces raw rock. Do not begin work that cannot yield its
 		// resource; construction and needs remain available to a full colonist.
 		if !e.Inventory.CanAdd(RawRock, 1) {
@@ -994,7 +1014,7 @@ func (w *World) tryAssignStore(e *Entity) bool {
 	// the next trip.
 	if sell := w.sellableStacks(e); len(sell) > 0 {
 		if silo, ok := w.marketDepot(); ok && w.canUseFixture(e, silo) &&
-			w.taskReachable(silo, w.roomOf(e.Pos)) && w.home.storageContainers[silo].Inventory.CanAddAll(sell...) {
+			w.taskReachable(silo, w.roomOf(e.Pos)) && w.lay(silo).storageContainers[silo].Inventory.CanAddAll(sell...) {
 			e.Job, e.Target, e.Progress = JobStore, silo, 0
 			return true
 		}
@@ -1028,21 +1048,22 @@ func (w *World) nearestStorage(e *Entity, stacks []ItemStack, withSilo bool) (Po
 	var best Point
 	bestDist := 1 << 30
 	found := false
-	for p, container := range w.home.storageContainers {
+	w.eachContainer(func(container *StorageContainer) {
+		p := container.Pos
 		if container.Terrain != Storage || (hasSilo && p == silo && !withSilo) || w.isPantry(p) || !w.canUseFixture(e, p) ||
 			!container.Inventory.CanAddAll(stacks...) || !w.taskReachable(p, room) {
-			continue
+			return
 		}
-		d := e.Pos.Chebyshev(p)
+		d := w.travelEstimate(e.Pos, p)
 		if !found || d < bestDist || (d == bestDist && lessPoint(p, best)) {
 			best, bestDist, found = p, d, true
 		}
-	}
+	})
 	return best, found
 }
 
 func (w *World) jobStore(e *Entity) {
-	container := w.home.storageContainers[e.Target]
+	container := w.lay(e.Target).storageContainers[e.Target]
 	stacks := e.Inventory.storableStacks()
 	silo, hasSilo := w.marketDepot()
 	atSilo := hasSilo && e.Target == silo
@@ -1093,7 +1114,7 @@ func (w *World) jobStore(e *Entity) {
 // instead of every idle colonist starting one at the same instant. The
 // in-progress count comes from the board's O(1) counter, not an entity scan.
 func (w *World) plannedFacilities(kind Terrain) int {
-	return w.countTerrain(kind) + w.home.board.inProgress(kind) + w.projectFacilityTasks(kind)
+	return w.countTerrain(kind) + w.buildsInProgress(kind) + w.projectFacilityTasks(kind)
 }
 
 // desiredFacilities is how many of each need-satisfying structure (pods,
@@ -1420,7 +1441,7 @@ func (w *World) jobUse(e *Entity) {
 	// beside the colony's only toilet. An uphill step therefore switches the
 	// colonist to concrete routing (A*, which does route around build tiles)
 	// for fieldDetourTicks.
-	if w.countTerrain(spec.Facility) < 2 && w.home.restrictedFixtures[spec.Facility] == 0 && e.fieldDetour == 0 {
+	if w.countTerrain(spec.Facility) < 2 && !w.anyRestricted(spec.Facility) && e.fieldDetour == 0 {
 		before := field.at(e.Pos)
 		if w.followField(e, field) {
 			if field.at(e.Pos) >= before {
@@ -1804,7 +1825,7 @@ func (w *World) alienGraze(e *Entity, sp AlienSpecies) bool {
 	if !ok {
 		return false
 	}
-	if e.Pos.Chebyshev(target) <= 1 {
+	if e.Pos.Within(target, 1) {
 		e.State = Eating
 		if w.takeScum(target) {
 			w.resetNeed(e, NeedFood)
@@ -2077,7 +2098,7 @@ func (w *World) wanderStep(e *Entity) {
 	if !w.Walkable(n) {
 		return
 	}
-	if e.Kind == Colonist && w.home.buildTiles[n] {
+	if e.Kind == Colonist && w.lay(n).buildTiles[n] {
 		return // colonists keep off tiles a builder needs clear
 	}
 	w.moveEntity(e, n)
@@ -2099,10 +2120,10 @@ func (w *World) stepAside(e *Entity) bool {
 		candidates = candidates[:0]
 		for ; head < levelEnd; head++ {
 			ci := q[head]
-			from := Point{ci % w.Width, ci / w.Width}
+			from := w.pointOf(ci)
 			for _, d := range neighbors8 {
 				p := from.Add(d.X, d.Y)
-				if !w.Walkable(p) || w.home.buildTiles[p] {
+				if !w.Walkable(p) || w.lay(p).buildTiles[p] {
 					continue
 				}
 				pi := w.index(p)
@@ -2190,7 +2211,7 @@ func (w *World) nearestReachablePrey(e *Entity) (*Entity, bool) {
 			if c == nil || c == e || !c.Alive() || (kind == Alien && c.Species == e.Species) || !w.sameRoom(e.Pos, c.Pos) {
 				continue
 			}
-			d := e.Pos.Chebyshev(c.Pos)
+			d := w.travelEstimate(e.Pos, c.Pos)
 			if best == nil || d < bestDist || (d == bestDist && c.ID < best.ID) {
 				best, bestDist = c, d
 			}
@@ -2215,7 +2236,7 @@ func (w *World) nearestOfKindAnywhere(from Point, kind Kind) (*Entity, bool) {
 		if e == nil || !e.Alive() {
 			continue
 		}
-		d := from.Chebyshev(e.Pos)
+		d := w.travelEstimate(from, e.Pos)
 		if best == nil || d < bestDist || (d == bestDist && e.ID < best.ID) {
 			best, bestDist = e, d
 		}
@@ -2231,6 +2252,12 @@ func (w *World) nearestMatch(from Point, within int, match func(*Entity) bool) (
 	bestDist := within + 1
 	fcx, fcy := from.X/chunkSize, from.Y/chunkSize
 	maxRing := w.chunkCols + w.chunkRows
+	// Only from's own level: the chunk index is per level, and a search by
+	// straight-line distance has no business reaching through a floor.
+	buckets := w.lay(from).chunkEntities
+	if buckets == nil {
+		return nil, false
+	}
 
 	// Expand in chunk rings around the query point. A chunk at ring r holds no
 	// cell closer than (r-1)*chunkSize+1, so once we have a candidate we can stop
@@ -2257,7 +2284,7 @@ func (w *World) nearestMatch(from Point, within int, match func(*Entity) bool) (
 				if !onRowEdge && cx != loCol && cx != hiCol {
 					continue // interior chunk, already covered by a smaller ring
 				}
-				for _, id := range w.home.chunkEntities[cy*w.chunkCols+cx] {
+				for _, id := range buckets[cy*w.chunkCols+cx] {
 					e := w.entities[id]
 					if e == nil || !e.Alive() || !match(e) {
 						continue

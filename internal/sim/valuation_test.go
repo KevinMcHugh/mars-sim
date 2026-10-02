@@ -10,16 +10,16 @@ func producerWorld(t *testing.T, n int) (w *World, house, silo Point, cols []*En
 	t.Helper()
 	w, house = scumhouseWorld(t, false)
 	w.cfg.MealReserve, w.cfg.ScumhouseBidQty = 0, 0
-	silo = Point{6, 6}
+	silo = Point{6, 6, LandingLevel}
 	w.SetTerrain(silo, Storage)
 	for y := 5; y <= 15; y++ {
-		p := Point{4, y}
+		p := Point{4, y, LandingLevel}
 		w.setScum(p, w.cfg.ScumMax)
 		w.refreshScumExposure(p)
 	}
 	w.refreshSpatial()
 	for i := 0; i < n; i++ {
-		e := w.spawn(Colonist, Point{10 + 2*i, 12})
+		e := w.spawn(Colonist, Point{10 + 2*i, 12, LandingLevel})
 		for k := range e.Needs {
 			e.Needs[k] = 0
 		}
@@ -64,7 +64,7 @@ func TestAMealBidReachesTheCaveWall(t *testing.T) {
 	if depth < 2 {
 		t.Fatalf("deepest plan was %d links below the meal bid, want 2", depth)
 	}
-	if got := w.home.storageContainers[silo].held(customer, Meal); got != 1 {
+	if got := w.landing().storageContainers[silo].held(customer, Meal); got != 1 {
 		t.Fatalf("the customer holds %d meals at the silo, want 1", got)
 	}
 }
@@ -137,7 +137,7 @@ func TestHungryBidRestsAsDemand(t *testing.T) {
 		t.Fatalf("the demand bid outlived demand-ttl: %d open", got)
 	}
 	w.tryBuyMeal(e) // queue again, then the colony cooks a meal
-	c := w.home.storageContainers[house]
+	c := w.landing().storageContainers[house]
 	c.Inventory.Add(Meal, 1)
 	c.credit(Community, Meal, 1)
 	w.offerColonyMeals(house)
@@ -162,7 +162,7 @@ func TestDerivedBidsDieWithTheirPlan(t *testing.T) {
 		t.Fatalf("plan %+v, want one derived bid", p)
 	}
 	derived := w.orders[p.derived[0]]
-	if derived == nil || derived.Item != CaveScum || derived.Depot != w.homeLoc(house) || derived.depth != 1 {
+	if derived == nil || derived.Item != CaveScum || derived.Depot != house || derived.depth != 1 {
 		t.Fatalf("derived bid %+v, want a depth-1 scum bid at the scumhouse", derived)
 	}
 	w.cancel(target)

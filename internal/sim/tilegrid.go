@@ -25,6 +25,10 @@ import "slices"
 type TileGrid struct {
 	width, height int
 	colShift      int // as pagedGrid.colShift
+	// level is the level this grid shows. At and TerrainAt read p's X and Y
+	// on this level whatever p.Level says, so a frontend that builds a Point
+	// without a level still reads the grid it asked for.
+	level Level
 	// pages is laid out like the world's pagedGrid page table, but holds
 	// array pointers rather than slice headers: the table is what every
 	// published frame copies, and 8 bytes an entry is a third of 24.
@@ -48,7 +52,15 @@ const TilePageSide = gridPageSide
 
 // PageOrigin returns the top-left tile of page pi (see TileChanges.Pages).
 func (g *TileGrid) PageOrigin(pi int) Point {
-	return Point{(pi & (1<<g.colShift - 1)) << gridPageBits, (pi >> g.colShift) << gridPageBits}
+	return Point{(pi & (1<<g.colShift - 1)) << gridPageBits, (pi >> g.colShift) << gridPageBits, g.level}
+}
+
+// Level reports which level the grid shows.
+func (g *TileGrid) Level() Level {
+	if g == nil {
+		return LandingLevel
+	}
+	return g.level
 }
 
 // clonePage copies one of the world's tile pages for publishing.
@@ -61,13 +73,13 @@ func clonePage(page []tileCell) *tilePage {
 // publishes grids incrementally (see World.publishedTiles); this is for
 // frontends and tests that need to synthesize one. A tiles slice shorter than
 // width*height reads as Rock past its end rather than panicking on some later
-// lookup deep inside a render.
+// lookup deep inside a render. The grid is of the landing level.
 func NewTileGrid(width, height int, tiles []Tile) *TileGrid {
 	cells := newPagedGrid[tileCell](width, height)
 	refuse := make(map[Point]refuseCell)
 	for i := 0; i < min(len(tiles), width*height); i++ {
 		t := tiles[i]
-		p := Point{i % width, i / width}
+		p := Point{i % width, i / width, LandingLevel}
 		if c := (tileCell{Terrain: t.Terrain, Composition: t.Composition, Explored: t.Explored}); c != (tileCell{}) {
 			cells.set(p.X, p.Y, c)
 		}
@@ -79,7 +91,7 @@ func NewTileGrid(width, height int, tiles []Tile) *TileGrid {
 			refuse[p] = refuseCell{Gore: t.Gore, Corpses: c}
 		}
 	}
-	g := &TileGrid{width: width, height: height, colShift: cells.colShift, pages: make([]*tilePage, len(cells.pages)), refuse: refuse}
+	g := &TileGrid{width: width, height: height, colShift: cells.colShift, level: LandingLevel, pages: make([]*tilePage, len(cells.pages)), refuse: refuse}
 	for pi, page := range cells.pages {
 		if page != nil {
 			g.pages[pi] = (*tilePage)(page)
@@ -98,6 +110,7 @@ func (g *TileGrid) At(p Point) Tile {
 	if g == nil || p.X < 0 || p.X >= g.width || p.Y < 0 || p.Y >= g.height {
 		return Tile{Terrain: Rock}
 	}
+	p.Level = g.level
 	c := g.cell(p)
 	r := g.refuse[p]
 	return Tile{
@@ -184,12 +197,13 @@ type TileChanges struct {
 // markTilePageDirty notes that the page holding p changed, so the next
 // published grid re-copies it. Called by every writer of the tile grid.
 func (w *World) markTilePageDirty(p Point) {
-	pi := w.home.tiles.pageIndex(p.X, p.Y)
-	if w.home.pageDirty[pi] {
+	l := w.lay(p)
+	pi := l.tiles.pageIndex(p.X, p.Y)
+	if l.pageDirty[pi] {
 		return
 	}
-	w.home.pageDirty[pi] = true
-	w.home.dirtyPages = append(w.home.dirtyPages, pi)
+	l.pageDirty[pi] = true
+	l.dirtyPages = append(l.dirtyPages, pi)
 }
 
 // SetTileSharing switches how later Snapshots publish terrain. Switching drops
@@ -199,7 +213,7 @@ func (w *World) SetTileSharing(mode TileSharing) {
 		return
 	}
 	w.tileSharing = mode
-	w.home.snapGrid = nil
+	w.eachLayer(func(l *Layer) { l.snapGrid = nil })
 }
 
 // publishedTiles returns the grid for the next Snapshot and what changed in it
@@ -207,47 +221,49 @@ func (w *World) SetTileSharing(mode TileSharing) {
 // changed since the last grid; a tick that changed no terrain — most ticks,
 // since digging a single rock takes several — reuses the previous grid
 // wholesale and costs nothing at all. In TilesLive mode it copies nothing.
-func (w *World) publishedTiles() (*TileGrid, TileChanges) {
-	w.snapFrame++
-	if w.home.snapGrid == nil {
-		pages := make([]*tilePage, len(w.home.tiles.pages))
-		for pi, page := range w.home.tiles.pages {
+//
+// It publishes one layer; the caller numbers the frame (snapFrame) once for
+// all of them.
+func (w *World) publishedTiles(l *Layer) (*TileGrid, TileChanges) {
+	if l.snapGrid == nil {
+		pages := make([]*tilePage, len(l.tiles.pages))
+		for pi, page := range l.tiles.pages {
 			if page != nil {
 				pages[pi] = w.publishPage(page)
 			}
 		}
-		w.clearDirtyPages()
-		w.home.snapGrid = &TileGrid{width: w.Width, height: w.Height, colShift: w.home.tiles.colShift, pages: pages}
-		w.home.snapGrid.refuse = w.publishedRefuse()
-		return w.home.snapGrid, TileChanges{Frame: w.snapFrame, All: true, Refuse: true}
+		w.clearDirtyPages(l)
+		l.snapGrid = &TileGrid{width: w.Width, height: w.Height, colShift: l.tiles.colShift, level: l.Level, pages: pages}
+		l.snapGrid.refuse = w.publishedRefuse(l)
+		return l.snapGrid, TileChanges{Frame: w.snapFrame, All: true, Refuse: true}
 	}
-	changes := TileChanges{Frame: w.snapFrame, Refuse: w.home.refuseRev != w.home.snapRefuseRev}
-	if len(w.home.dirtyPages) == 0 && !changes.Refuse {
-		return w.home.snapGrid, changes
+	changes := TileChanges{Frame: w.snapFrame, Refuse: l.refuseRev != l.snapRefuseRev}
+	if len(l.dirtyPages) == 0 && !changes.Refuse {
+		return l.snapGrid, changes
 	}
-	changes.Pages = slices.Clone(w.home.dirtyPages)
+	changes.Pages = slices.Clone(l.dirtyPages)
 	if w.tileSharing == TilesLive {
 		// Existing pages are the live ones already. A dirty page may be a
 		// chunk generated since the last frame, which the table does not
 		// point at yet; the world never reallocates a page, so pointing at it
 		// once is enough. Nothing is copied.
-		for _, pi := range w.home.dirtyPages {
-			w.home.snapGrid.pages[pi] = (*tilePage)(w.home.tiles.pages[pi])
+		for _, pi := range l.dirtyPages {
+			l.snapGrid.pages[pi] = (*tilePage)(l.tiles.pages[pi])
 		}
-		w.home.snapRefuseRev = w.home.refuseRev
-		w.clearDirtyPages()
-		return w.home.snapGrid, changes
+		l.snapRefuseRev = l.refuseRev
+		w.clearDirtyPages(l)
+		return l.snapGrid, changes
 	}
 	// Copy the page table (pointers only), then swap in fresh copies of the
 	// changed pages. Grids already published keep the old table, and with it
 	// the pre-change pages, so nothing a frontend holds is disturbed.
-	pages := slices.Clone(w.home.snapGrid.pages)
-	for _, pi := range w.home.dirtyPages {
-		pages[pi] = clonePage(w.home.tiles.pages[pi])
+	pages := slices.Clone(l.snapGrid.pages)
+	for _, pi := range l.dirtyPages {
+		pages[pi] = clonePage(l.tiles.pages[pi])
 	}
-	w.clearDirtyPages()
-	w.home.snapGrid = &TileGrid{width: w.Width, height: w.Height, colShift: w.home.tiles.colShift, pages: pages, refuse: w.publishedRefuse()}
-	return w.home.snapGrid, changes
+	w.clearDirtyPages(l)
+	l.snapGrid = &TileGrid{width: w.Width, height: w.Height, colShift: l.tiles.colShift, level: l.Level, pages: pages, refuse: w.publishedRefuse(l)}
+	return l.snapGrid, changes
 }
 
 // publishPage is how a world page enters a freshly built grid: a copy, or
@@ -263,25 +279,25 @@ func (w *World) publishPage(page []tileCell) *tilePage {
 // one already published when nothing has written to it since. Refuse changes
 // only when something dies or a cleaner hauls it away, so the copy is rare
 // even though the map is walked outright when it does happen.
-func (w *World) publishedRefuse() map[Point]refuseCell {
+func (w *World) publishedRefuse(l *Layer) map[Point]refuseCell {
 	if w.tileSharing == TilesLive {
-		w.home.snapRefuseRev = w.home.refuseRev
-		return w.home.refuse
+		l.snapRefuseRev = l.refuseRev
+		return l.refuse
 	}
-	if w.home.snapGrid != nil && w.home.snapGrid.refuse != nil && w.home.refuseRev == w.home.snapRefuseRev {
-		return w.home.snapGrid.refuse
+	if l.snapGrid != nil && l.snapGrid.refuse != nil && l.refuseRev == l.snapRefuseRev {
+		return l.snapGrid.refuse
 	}
-	out := make(map[Point]refuseCell, len(w.home.refuse))
-	for p, r := range w.home.refuse {
+	out := make(map[Point]refuseCell, len(l.refuse))
+	for p, r := range l.refuse {
 		out[p] = r
 	}
-	w.home.snapRefuseRev = w.home.refuseRev
+	l.snapRefuseRev = l.refuseRev
 	return out
 }
 
-func (w *World) clearDirtyPages() {
-	for _, pi := range w.home.dirtyPages {
-		w.home.pageDirty[pi] = false
+func (w *World) clearDirtyPages(l *Layer) {
+	for _, pi := range l.dirtyPages {
+		l.pageDirty[pi] = false
 	}
-	w.home.dirtyPages = w.home.dirtyPages[:0]
+	l.dirtyPages = l.dirtyPages[:0]
 }

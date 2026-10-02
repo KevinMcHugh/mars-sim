@@ -141,7 +141,7 @@ func (w *World) claimNearestTaskIn(from Point, id EntityID, projects []*project)
 			if builder := w.entities[id]; builder != nil && !w.canAffordBuild(builder, t.terrain, p.issuer) {
 				continue
 			}
-			if d := from.Chebyshev(t.pos); best == nil || d < bestDist ||
+			if d := w.travelEstimate(from, t.pos); best == nil || d < bestDist ||
 				(d == bestDist && lessPoint(t.pos, best.pos)) {
 				best, bestDist = t, d
 			}
@@ -210,9 +210,7 @@ func (w *World) reachableFacilityConstruction(from Point, kind Terrain) bool {
 // Future-phase tiles remain usable as construction access until their phase
 // begins. Kept as a set so movement can test a tile in O(1).
 func (w *World) rebuildBuildTiles() {
-	for p := range w.home.buildTiles {
-		delete(w.home.buildTiles, p)
-	}
+	w.eachLayer(func(l *Layer) { clear(l.buildTiles) })
 	for _, p := range w.projects {
 		phase, ok := w.activeProjectPhase(p)
 		if !ok {
@@ -220,7 +218,7 @@ func (w *World) rebuildBuildTiles() {
 		}
 		for _, t := range p.tasks {
 			if t.phase == phase && !w.taskDone(t) {
-				w.home.buildTiles[t.pos] = true
+				w.lay(t.pos).buildTiles[t.pos] = true
 			}
 		}
 	}
@@ -639,7 +637,7 @@ func (w *World) designateRoom(r roomRecipe, o Point, n int, issuer Owner) bool {
 	frontY := roomFrontWallY(o.Y)
 	for y := backY; y <= frontY; y++ {
 		for x := o.X; x < o.X+width; x++ {
-			if pos := (Point{x, y}); w.TerrainAt(pos) == Rock {
+			if pos := (Point{x, y, o.Level}); w.TerrainAt(pos) == Rock {
 				p.tasks = append(p.tasks, &buildTask{pos: pos, terrain: Floor, phase: roomDigPhase})
 			}
 		}
@@ -648,25 +646,25 @@ func (w *World) designateRoom(r roomRecipe, o Point, n int, issuer Owner) bool {
 		// A side tile that is already a wall is a party wall shared with a
 		// neighboring room (see roomSiteClear): this room needs no task of its
 		// own there.
-		if left := (Point{o.X - 1, y}); w.TerrainAt(left) != Wall {
+		if left := (Point{o.X - 1, y, o.Level}); w.TerrainAt(left) != Wall {
 			p.tasks = append(p.tasks, &buildTask{pos: left, terrain: Wall, phase: roomWallPhase})
 		}
-		if right := (Point{o.X + width, y}); w.TerrainAt(right) != Wall {
+		if right := (Point{o.X + width, y, o.Level}); w.TerrainAt(right) != Wall {
 			p.tasks = append(p.tasks, &buildTask{pos: right, terrain: Wall, phase: roomWallPhase})
 		}
 	}
 	doorX := o.X + width/2
 	for x := o.X; x < o.X+width; x++ {
 		p.tasks = append(p.tasks,
-			&buildTask{pos: Point{x, backY}, terrain: Wall, phase: roomWallPhase})
+			&buildTask{pos: Point{x, backY, o.Level}, terrain: Wall, phase: roomWallPhase})
 		if x != doorX {
 			p.tasks = append(p.tasks,
-				&buildTask{pos: Point{x, frontY}, terrain: Wall, phase: roomWallPhase})
+				&buildTask{pos: Point{x, frontY, o.Level}, terrain: Wall, phase: roomWallPhase})
 		}
 	}
 	for i, dx := 0, 0; i < n; i, dx = i+1, dx+2 {
 		p.tasks = append(p.tasks,
-			&buildTask{pos: Point{o.X + r.bayOffset() + dx, o.Y}, terrain: r.kinds[i%len(r.kinds)], phase: roomFitPhase})
+			&buildTask{pos: Point{o.X + r.bayOffset() + dx, o.Y, o.Level}, terrain: r.kinds[i%len(r.kinds)], phase: roomFitPhase})
 	}
 	for _, t := range p.tasks {
 		t.proj = p
@@ -682,7 +680,7 @@ func (w *World) designateRoom(r roomRecipe, o Point, n int, issuer Owner) bool {
 	// right on top of it once the colony has grown enough to prefer that
 	// spot, sealing this room's only way out behind a wall its own doorway
 	// invariant never anticipated. See roomSiteClear.
-	w.home.doorTiles[Point{doorX, frontY + roomApproach}] = true
+	w.lay(o).doorTiles[Point{doorX, frontY + roomApproach, o.Level}] = true
 	w.projects = append(w.projects, p)
 	if r.name == scumhouseRoom.name {
 		w.linkPantry(p)
@@ -731,15 +729,16 @@ const roomSearchMaxRadius = roomSearchStartRadius * 4
 // perimeter is ready yet for the next room) would double the search box all
 // the way out to the full map before giving up.
 func (w *World) carvedSearchRadius(center Point, width int) int {
-	if !w.home.carvedAny {
+	l := w.lay(center)
+	if !l.carvedAny {
 		return roomSearchMaxRadius
 	}
 	margin := width + 2
 	corners := [4]Point{
-		{w.home.carvedMin.X - margin, w.home.carvedMin.Y - margin},
-		{w.home.carvedMin.X - margin, w.home.carvedMax.Y + margin},
-		{w.home.carvedMax.X + margin, w.home.carvedMin.Y - margin},
-		{w.home.carvedMax.X + margin, w.home.carvedMax.Y + margin},
+		{l.carvedMin.X - margin, l.carvedMin.Y - margin, l.Level},
+		{l.carvedMin.X - margin, l.carvedMax.Y + margin, l.Level},
+		{l.carvedMax.X + margin, l.carvedMin.Y - margin, l.Level},
+		{l.carvedMax.X + margin, l.carvedMax.Y + margin, l.Level},
 	}
 	r := roomSearchStartRadius
 	for _, c := range corners {
@@ -748,6 +747,9 @@ func (w *World) carvedSearchRadius(center Point, width int) int {
 	return r
 }
 
+// findRoomSiteAllowingRock finds the nearest site for a room width wide.
+// Rooms are sited on the landing level: the colony builds where it lives, and
+// a deeper level is somewhere it digs, not settles (see docs/z-levels.md).
 func (w *World) findRoomSiteAllowingRock(width int, allowRock bool) (Point, bool) {
 	designated := make(map[Point]bool)
 	for _, p := range w.projects {
@@ -755,7 +757,7 @@ func (w *World) findRoomSiteAllowingRock(width int, allowRock bool) (Point, bool
 			designated[t.pos] = true
 		}
 	}
-	center := Point{w.Width / 2, w.Height / 2}
+	center := Point{w.Width / 2, w.Height / 2, LandingLevel}
 
 	// Valid domain, per the original bounds check: oy in [oyLo, oyHi), ox in
 	// [oxLo, oxHi).
@@ -787,9 +789,9 @@ func (w *World) findRoomSiteAllowingRock(width int, allowRock bool) (Point, bool
 				if !w.roomSiteClear(ox, oy, width, designated, allowRock) {
 					continue
 				}
-				rc := Point{ox + width/2, oy}
+				rc := Point{ox + width/2, oy, LandingLevel}
 				if d := center.Chebyshev(rc); d < bestDist {
-					best, bestDist, found = Point{ox, oy}, d, true
+					best, bestDist, found = Point{ox, oy, LandingLevel}, d, true
 				}
 			}
 		}
@@ -826,15 +828,15 @@ func (w *World) roomSiteClear(ox, oy, width int, designated map[Point]bool, allo
 	backY := oy - 1
 	frontY := roomFrontWallY(oy)
 	for x := ox; x < ox+width; x++ {
-		if t := w.TerrainAt(Point{x, backY - 1}); t != Rock && t != Wall {
+		if t := w.TerrainAt(Point{x, backY - 1, LandingLevel}); t != Rock && t != Wall {
 			return false
 		}
 	}
 	for y := backY; y <= frontY; y++ {
 		for x := ox; x < ox+width; x++ {
-			p := Point{x, y}
+			p := Point{x, y, LandingLevel}
 			t := w.TerrainAt(p)
-			if designated[p] || w.home.doorTiles[p] || (t != Floor && !(allowRock && t == Rock)) {
+			if designated[p] || w.lay(p).doorTiles[p] || (t != Floor && !(allowRock && t == Rock)) {
 				return false
 			}
 			if t == Floor && !w.discovered(p) {
@@ -846,13 +848,13 @@ func (w *World) roomSiteClear(ox, oy, width int, designated map[Point]bool, allo
 		// neighbors have been raised) or an unclaimed wall already placed by
 		// another room (shared outright: nothing more is needed on that side).
 		for _, side := range [2]struct{ wall, lane int }{{ox - 1, ox - 2}, {ox + width, ox + width + 1}} {
-			p := Point{side.wall, y}
-			if designated[p] || w.home.doorTiles[p] {
+			p := Point{side.wall, y, LandingLevel}
+			if designated[p] || w.lay(p).doorTiles[p] {
 				return false
 			}
 			switch w.TerrainAt(p) {
 			case Floor:
-				lane := Point{side.lane, y}
+				lane := Point{side.lane, y, LandingLevel}
 				if !w.discovered(p) || !w.Walkable(lane) || !w.discovered(lane) || designated[lane] {
 					return false
 				}
@@ -868,14 +870,14 @@ func (w *World) roomSiteClear(ox, oy, width int, designated map[Point]bool, allo
 	// own front row (ox-1..ox+width) is always required either way, so builders
 	// can reach the door and front wall tasks.
 	loX, hiX := ox-1, ox+width
-	if w.TerrainAt(Point{ox - 1, frontY}) != Wall {
+	if w.TerrainAt(Point{ox - 1, frontY, LandingLevel}) != Wall {
 		loX = ox - 2
 	}
-	if w.TerrainAt(Point{ox + width, frontY}) != Wall {
+	if w.TerrainAt(Point{ox + width, frontY, LandingLevel}) != Wall {
 		hiX = ox + width + 1
 	}
 	for x := loX; x <= hiX; x++ {
-		p := Point{x, frontY + roomApproach}
+		p := Point{x, frontY + roomApproach, LandingLevel}
 		if !w.Walkable(p) || !w.discovered(p) || designated[p] {
 			return false
 		}
@@ -930,7 +932,7 @@ func (w *World) kitchensBehind() bool {
 	}
 	waiting := 0
 	for _, p := range houses {
-		if c := w.home.storageContainers[p]; c != nil {
+		if c := w.lay(p).storageContainers[p]; c != nil {
 			for _, k := range biomatterKinds {
 				waiting += c.held(Community, k)
 			}

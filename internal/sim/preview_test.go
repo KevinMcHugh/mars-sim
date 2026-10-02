@@ -21,7 +21,7 @@ func TestPreviewMatchesGeneration(t *testing.T) {
 	var previewed []seen
 	for y := 0; y < w.Height; y += 5 {
 		for x := 0; x < w.Width; x += 3 {
-			p := Point{x, y}
+			p := Point{x, y, LandingLevel}
 			if snap.Tiles.hasPage(p) {
 				continue
 			}
@@ -31,9 +31,9 @@ func TestPreviewMatchesGeneration(t *testing.T) {
 	if len(previewed) == 0 {
 		t.Fatal("nothing was previewed: every chunk is already generated")
 	}
-	for cy := 0; cy < w.home.gen.chunkRows(); cy++ {
-		for cx := 0; cx < w.home.gen.chunkCols(); cx++ {
-			w.generateChunk(cx, cy)
+	for cy := 0; cy < w.landing().gen.chunkRows(); cy++ {
+		for cx := 0; cx < w.landing().gen.chunkCols(); cx++ {
+			w.generateChunk(w.landing(), cx, cy)
 		}
 	}
 	for _, s := range previewed {
@@ -51,7 +51,7 @@ func TestPreviewStaysBehindTheFog(t *testing.T) {
 	snap := NewEngine(cfg).world.snapshot(false, 8)
 	for y := 0; y < snap.Height; y += 11 {
 		for x := 0; x < snap.Width; x += 7 {
-			p := Point{x, y}
+			p := Point{x, y, LandingLevel}
 			if snap.Tiles.hasPage(p) {
 				continue
 			}
@@ -75,8 +75,8 @@ func TestPreviewNeverAffectsTheSimulation(t *testing.T) {
 				snap := w.snapshot(false, 8)
 				for y := 0; y < w.Height; y += 13 {
 					for x := 0; x < w.Width; x += 13 {
-						snap.TileAt(Point{x, y})
-						snap.TerrainAt(Point{x, y})
+						snap.TileAt(Point{x, y, LandingLevel})
+						snap.TerrainAt(Point{x, y, LandingLevel})
 					}
 				}
 			}
@@ -101,7 +101,7 @@ func TestPreviewIsSafeForConcurrentReaders(t *testing.T) {
 			defer wg.Done()
 			for y := r; y < snap.Height; y += 17 {
 				for x := 0; x < snap.Width; x += 19 {
-					snap.TileAt(Point{x, y})
+					snap.TileAt(Point{x, y, LandingLevel})
 				}
 			}
 		}(r)

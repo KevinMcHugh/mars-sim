@@ -38,7 +38,7 @@ func TestRanksAreExactAtThresholds(t *testing.T) {
 // title again is not.
 func TestPractiseRecordsNewTitles(t *testing.T) {
 	w := propertyWorld(t)
-	e := w.spawn(Colonist, Point{10, 7})
+	e := w.spawn(Colonist, Point{10, 7, LandingLevel})
 	w.practise(e, SkillCooking, 119)
 	if e.rank(SkillCooking) != 0 || len(e.Memories) != 0 {
 		t.Fatalf("119 ticks of cooking: rank %d, %d memories; want rank 0 and none", e.rank(SkillCooking), len(e.Memories))
@@ -62,7 +62,7 @@ func TestPractiseRecordsNewTitles(t *testing.T) {
 // higher even a rank down.
 func TestProfessionComparesStandingWithHysteresis(t *testing.T) {
 	w := propertyWorld(t)
-	e := w.spawn(Colonist, Point{10, 7})
+	e := w.spawn(Colonist, Point{10, 7, LandingLevel})
 	w.practise(e, SkillCooking, int(skillSpecs[SkillCooking].threshold(2))) // cook: 2 of 4
 	w.practise(e, SkillMining, int(skillSpecs[SkillMining].threshold(3)))   // 3 of 8
 	if e.profession != SkillCooking {
@@ -86,7 +86,7 @@ func TestProfessionComparesStandingWithHysteresis(t *testing.T) {
 // off it changes nothing.
 func TestSkillSpeedsUpWork(t *testing.T) {
 	w := propertyWorld(t)
-	e := w.spawn(Colonist, Point{10, 7})
+	e := w.spawn(Colonist, Point{10, 7, LandingLevel})
 	base := w.cfg.MineTicks
 	if got := w.workTicks(e, SkillMining, base); got != base {
 		t.Fatalf("untrained miner: %d ticks, want %d", got, base)
@@ -106,7 +106,7 @@ func TestSkillSpeedsUpWork(t *testing.T) {
 // in five runs, and none while the depot has no room.
 func TestYieldIsCountedNotRolled(t *testing.T) {
 	w := propertyWorld(t)
-	e := w.spawn(Colonist, Point{10, 7})
+	e := w.spawn(Colonist, Point{10, 7, LandingLevel})
 	w.setRank(e, SkillSmithing, -1)
 	room := func() bool { return true }
 	extra := 0
@@ -134,13 +134,13 @@ func TestYieldIsCountedNotRolled(t *testing.T) {
 func TestAMasterChefCooksMore(t *testing.T) {
 	w := propertyWorld(t)
 	w.cfg.InfiniteFood, w.cfg.MealReserve = false, 100
-	house := Point{10, 6}
+	house := Point{10, 6, LandingLevel}
 	w.SetTerrain(house, Scumhouse)
 	w.refreshSpatial()
-	c := w.home.storageContainers[house]
+	c := w.landing().storageContainers[house]
 	c.Inventory.Add(CaveScum, 20)
 	c.credit(Community, CaveScum, 20)
-	cook := w.spawn(Colonist, Point{10, 7})
+	cook := w.spawn(Colonist, Point{10, 7, LandingLevel})
 	w.setRank(cook, SkillCooking, -1)
 	before := cook.practice[SkillCooking]
 	if !w.tryAssignCraft(cook) {
@@ -149,7 +149,7 @@ func TestAMasterChefCooksMore(t *testing.T) {
 	for i := 0; i < 1000 && cook.Job == JobCraft; i++ {
 		w.jobCraft(cook)
 	}
-	out := w.home.storageContainers[w.outputDepot(house)]
+	out := w.landing().storageContainers[w.outputDepot(house)]
 	meals := out.held(Community, Meal) + w.openQty(Ask, Meal, out.Pos, Community)
 	// It cooks all 20 scum, 10 recipes of 2 scum for 1 meal; at 130% the
 	// accumulator passes 100 three times.
@@ -201,7 +201,7 @@ func TestBackgroundsDrawFromTheirOwnStream(t *testing.T) {
 // trade the colonist is known for.
 func TestSkillsReachTheSnapshot(t *testing.T) {
 	w := propertyWorld(t)
-	e := w.spawn(Colonist, Point{10, 7})
+	e := w.spawn(Colonist, Point{10, 7, LandingLevel})
 	w.setRank(e, SkillSmithing, 2)
 	w.updateProfession(e)
 	v := w.entityView(e, nil, false)

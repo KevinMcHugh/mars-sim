@@ -13,7 +13,7 @@ func forageWorld(t *testing.T) (*World, Point) {
 	w := propertyWorld(t)
 	w.cfg.InfiniteFood = false
 	w.cfg.ScumSpawnPPM, w.cfg.ScumSpreadPercent = 0, 0
-	house := Point{10, 6}
+	house := Point{10, 6, LandingLevel}
 	w.SetTerrain(house, Scumhouse)
 	w.refreshSpatial()
 	noScum(w)
@@ -34,8 +34,8 @@ func hungryColonist(w *World, p Point) *Entity {
 // first tick. Whatever it does now, it sees through: rock gets dug.
 func TestAHungryColonistFinishesWhatItStarts(t *testing.T) {
 	w, _ := forageWorld(t)
-	e := hungryColonist(w, Point{22, 10})
-	rock := w.home.terrainCounts[Rock]
+	e := hungryColonist(w, Point{22, 10, LandingLevel})
+	rock := w.landing().terrainCounts[Rock]
 	starts := 0
 	for i := 0; i < 60; i++ {
 		before := e.Job
@@ -44,7 +44,7 @@ func TestAHungryColonistFinishesWhatItStarts(t *testing.T) {
 			starts++
 		}
 	}
-	if dug := rock - w.home.terrainCounts[Rock]; dug == 0 {
+	if dug := rock - w.landing().terrainCounts[Rock]; dug == 0 {
 		t.Fatalf("60 hungry turns and no rock dug (%d jobs started): it is dropping and re-taking its work", starts)
 	}
 	if starts > 20 {
@@ -56,13 +56,13 @@ func TestAHungryColonistFinishesWhatItStarts(t *testing.T) {
 // once, not re-taken: the colonist forages instead.
 func TestAHungryColonistDropsUnrelatedWorkForGood(t *testing.T) {
 	w, _ := forageWorld(t)
-	e := hungryColonist(w, Point{12, 10})
-	w.SetTerrain(Point{15, 10}, Rock) // a pillar: nearest rock, nothing unseen round it
+	e := hungryColonist(w, Point{12, 10, LandingLevel})
+	w.SetTerrain(Point{15, 10, LandingLevel}, Rock) // a pillar: nearest rock, nothing unseen round it
 	w.refreshSpatial()
-	w.assignMineTarget(e, Point{15, 10})
-	w.home.board.claimMine(Point{15, 10}, e.ID)
+	w.assignMineTarget(e, Point{15, 10, LandingLevel})
+	w.landing().board.claimMine(Point{15, 10, LandingLevel}, e.ID)
 	w.hungryWithoutFood(e)
-	if e.Job != JobMine || !e.foraging || e.Target == (Point{15, 10}) {
+	if e.Job != JobMine || !e.foraging || e.Target == (Point{15, 10, LandingLevel}) {
 		t.Fatalf("job %v target %v foraging %v; want a forager's dig into unseen rock, not the pillar",
 			e.Job, e.Target, e.foraging)
 	}
@@ -77,14 +77,14 @@ func TestAForagerDigsOutItsSupper(t *testing.T) {
 	for y := 3; y <= 17; y++ {
 		for x := 3; x <= 24; x++ {
 			if x == 3 || x == 24 || y == 3 || y == 17 {
-				w.setScum(Point{x, y}, 3)
+				w.setScum(Point{x, y, LandingLevel}, 3)
 			}
 		}
 	}
-	if len(w.home.exposedScum) != 0 {
-		t.Fatalf("%d patches exposed before any digging", len(w.home.exposedScum))
+	if len(w.landing().exposedScum) != 0 {
+		t.Fatalf("%d patches exposed before any digging", len(w.landing().exposedScum))
 	}
-	e := hungryColonist(w, Point{14, 10})
+	e := hungryColonist(w, Point{14, 10, LandingLevel})
 	id := e.ID
 	fed := false
 	for i := 0; i < 400 && !fed; i++ {
@@ -105,7 +105,7 @@ func TestAForagerDigsOutItsSupper(t *testing.T) {
 	if !logged {
 		t.Fatal("fed without ever logging that it went foraging")
 	}
-	if dug := w.home.exploredCount; dug == 0 {
+	if dug := w.landing().exploredCount; dug == 0 {
 		t.Fatal("nothing explored")
 	}
 }
@@ -116,10 +116,10 @@ func TestAForagerDigsOutItsSupper(t *testing.T) {
 // wait at all.
 func TestAForagerWaitsForTheColonysCooking(t *testing.T) {
 	w, house := forageWorld(t)
-	c := w.home.storageContainers[house]
+	c := w.landing().storageContainers[house]
 	c.Inventory.Add(CaveScum, 2)
 	c.credit(Community, CaveScum, 2) // one meal's worth
-	cook := w.spawn(Colonist, Point{11, 7})
+	cook := w.spawn(Colonist, Point{11, 7, LandingLevel})
 	r, ok := scumMealRecipe()
 	if !ok {
 		t.Fatal("no scum recipe")
@@ -130,14 +130,14 @@ func TestAForagerWaitsForTheColonysCooking(t *testing.T) {
 		}
 	}
 	cook.Job, cook.Target, cook.craftFor = JobCraft, house, Community
-	w.home.workshopClaims[house] = cook.ID
-	e := hungryColonist(w, Point{14, 10})
+	w.landing().workshopClaims[house] = cook.ID
+	e := hungryColonist(w, Point{14, 10, LandingLevel})
 	e.focus = FocusEat
 	if w.planForage(e) {
 		t.Fatalf("went foraging (job %v) with a meal on the colony's stove for it", e.Job)
 	}
 
-	other := hungryColonist(w, Point{16, 10})
+	other := hungryColonist(w, Point{16, 10, LandingLevel})
 	other.focus = FocusEat
 	w.hungryTick = -1 // a new count this tick
 	if !w.planForage(e) || e.Job != JobMine {
@@ -157,10 +157,10 @@ func TestAForagerWaitsForTheColonysCooking(t *testing.T) {
 // everything in one trip.
 func TestAForagerEmptiesAFullPackFirst(t *testing.T) {
 	w, _ := forageWorld(t)
-	chest := Point{8, 12}
+	chest := Point{8, 12, LandingLevel}
 	w.SetTerrain(chest, Storage)
 	w.refreshSpatial()
-	e := hungryColonist(w, Point{14, 10})
+	e := hungryColonist(w, Point{14, 10, LandingLevel})
 	for e.Inventory.CanAdd(CaveScum, 1) {
 		e.Inventory.Add(RawRock, 64)
 	}
@@ -174,10 +174,10 @@ func TestAForagerEmptiesAFullPackFirst(t *testing.T) {
 // to spare, mining is ordinary mining again.
 func TestTheColonyProspectsWhenItsShort(t *testing.T) {
 	w, _ := forageWorld(t)
-	pillar := Point{15, 10}
+	pillar := Point{15, 10, LandingLevel}
 	w.SetTerrain(pillar, Rock)
 	w.refreshSpatial()
-	e := w.spawn(Colonist, Point{14, 10})
+	e := w.spawn(Colonist, Point{14, 10, LandingLevel})
 	setHunger(w, e, 0)
 
 	w.cfg.MealReserve = 3
@@ -201,9 +201,9 @@ func TestTheColonyProspectsWhenItsShort(t *testing.T) {
 // tick of walking and digging, and never rock with nothing unseen round it.
 func TestProspectingPrefersTheUnknown(t *testing.T) {
 	w, _ := forageWorld(t)
-	w.SetTerrain(Point{15, 10}, Rock) // pillar
+	w.SetTerrain(Point{15, 10, LandingLevel}, Rock) // pillar
 	w.refreshSpatial()
-	e := hungryColonist(w, Point{14, 10})
+	e := hungryColonist(w, Point{14, 10, LandingLevel})
 	if !w.tryProspect(e, false) {
 		t.Fatal("nothing to prospect")
 	}
@@ -212,7 +212,7 @@ func TestProspectingPrefersTheUnknown(t *testing.T) {
 	}
 	dig := w.workTicks(e, SkillMining, w.cfg.MineTicks)
 	got := w.unexploredAround(e.Target) * 1000 / (dig + e.Pos.Chebyshev(e.Target))
-	for p := range w.home.board.frontier {
+	for p := range w.landing().board.frontier {
 		if p == e.Target || !w.frontierReachable(p, w.roomOf(e.Pos)) {
 			continue
 		}

@@ -58,7 +58,7 @@ import "slices"
 func (w *World) chooseFacility(e *Entity, kind Terrain) Point {
 	w.facilityCommitted = nil // counted on demand, once per call
 	room := w.roomOf(e.Pos)
-	if room == 0 || w.home.restrictedFixtures[kind] > 0 {
+	if room == 0 || w.anyRestricted(kind) {
 		return w.facilityBySearch(e, kind, room)
 	}
 	nearest, free := w.facilityByField(e, kind, room)
@@ -144,18 +144,34 @@ func committedTo(e *Entity, fac Point) bool {
 // with a walkable access tile in e's room) is uncongested.
 func (w *World) anyFreeFacility(e *Entity, kind Terrain, room RoomID) bool {
 	inRoom := func(p Point) bool { return w.roomOf(p) == room }
-	for fac := range w.home.facilityTiles[kind] { // order-free: the result is a bool
-		if !w.canUseFixture(e, fac) {
+	for _, l := range w.layers {
+		if l == nil {
 			continue
 		}
-		reachable := false
-		for _, d := range neighbors8 {
-			if a := fac.Add(d.X, d.Y); w.Walkable(a) && inRoom(a) {
-				reachable = true
-				break
+		for fac := range l.facilityTiles[kind] { // order-free: the result is a bool
+			if !w.canUseFixture(e, fac) {
+				continue
+			}
+			reachable := false
+			for _, d := range neighbors8 {
+				if a := fac.Add(d.X, d.Y); w.Walkable(a) && inRoom(a) {
+					reachable = true
+					break
+				}
+			}
+			if reachable && !w.facilityCongested(e, fac, inRoom) {
+				return true
 			}
 		}
-		if reachable && !w.facilityCongested(e, fac, inRoom) {
+	}
+	return false
+}
+
+// anyRestricted reports whether any fixture of kind, on any level, is not
+// communal.
+func (w *World) anyRestricted(kind Terrain) bool {
+	for _, l := range w.layers {
+		if l != nil && l.restrictedFixtures[kind] > 0 {
 			return true
 		}
 	}
@@ -176,9 +192,10 @@ func (w *World) facilityByField(e *Entity, kind Terrain, room RoomID) (fac Point
 	w.facilityGen++
 	gen := w.facilityGen
 	cells := &w.facilityCells
-	cells.set(e.Pos.X, e.Pos.Y, flowCell{gen: gen})
+	cells.set(e.Pos, flowCell{gen: gen})
 	queue := append(w.facilityQueue[:0], e.Pos)
 	nearest := w.facilityFound[:0]
+	stairs := w.hasStairs()
 	// A tile at field distance d > 0 lies on a shortest route to a nearest
 	// facility exactly when the route continues through a neighbor at d-1.
 	// Following only those steps visits the union of all shortest routes
@@ -197,17 +214,24 @@ func (w *World) facilityByField(e *Entity, kind Terrain, room RoomID) (fac Point
 			}
 			continue
 		}
-		for _, n := range neighbors8 {
-			q := p.Add(n.X, n.Y)
+		step := func(q Point) {
 			if !w.Walkable(q) || f.at(q) != d-1 {
-				continue
+				return
 			}
-			c := cells.ptr(q.X, q.Y)
+			c := cells.ptr(q)
 			if c.gen == gen {
-				continue
+				return
 			}
 			c.gen = gen
 			queue = append(queue, q)
+		}
+		for _, n := range neighbors8 {
+			step(p.Add(n.X, n.Y))
+		}
+		if stairs {
+			if q, ok := w.linkFrom(p); ok {
+				step(q)
+			}
 		}
 	}
 	w.facilityQueue = queue
@@ -262,16 +286,17 @@ func (w *World) facilityBySearch(e *Entity, kind Terrain, room RoomID) Point {
 	w.facilityGen++
 	gen := w.facilityGen
 	cells := &w.facilityCells
-	stamped := func(p Point) bool { return cells.at(p.X, p.Y).gen == gen }
+	stamped := func(p Point) bool { return cells.at(p).gen == gen }
 	reachable := func(p Point) bool { return w.roomOf(p) == room }
 	exhaustive := room == 0
 	if exhaustive {
 		reachable = stamped
 	}
 
-	cells.set(e.Pos.X, e.Pos.Y, flowCell{gen: gen})
+	cells.set(e.Pos, flowCell{gen: gen})
 	queue := append(w.facilityQueue[:0], e.Pos)
 	found := w.facilityFound[:0]
+	stairs := w.hasStairs()
 	// A facility's distance is that of its nearest reached access tile, and
 	// an access tile is a walkable tile beside it. The BFS reads every
 	// neighbor's terrain anyway, so it spots a facility while expanding the
@@ -294,15 +319,17 @@ func (w *World) facilityBySearch(e *Entity, kind Terrain, room RoomID) Point {
 		}
 		p := queue[head]
 		isAccess := head > 0 || startWalkable
-		page := cells.interiorPage(p.X, p.Y)
+		grid := cells.grid(p.Level)
+		layer := w.lay(p)
+		page := grid.interiorPage(p.X, p.Y)
 		for _, d := range neighbors8 {
 			n := p.Add(d.X, d.Y)
 			if !w.InBounds(n) {
 				continue
 			}
-			t := w.home.tiles.at(n.X, n.Y).Terrain
+			t := layer.tiles.at(n.X, n.Y).Terrain
 			if t == kind && isAccess {
-				if c := cells.ptr(n.X, n.Y); c.gen != gen {
+				if c := grid.ptr(n.X, n.Y); c.gen != gen {
 					c.gen = gen
 					if w.canUseFixture(e, n) { // never someone else's private fixture
 						found = append(found, foundFacility{fac: n, dist: pd})
@@ -315,7 +342,7 @@ func (w *World) facilityBySearch(e *Entity, kind Terrain, room RoomID) Point {
 			}
 			np := page
 			if np == nil {
-				np = cells.pageAtAlloc(n.X, n.Y)
+				np = grid.pageAtAlloc(n.X, n.Y)
 			}
 			c := &np[offset(n.X, n.Y)]
 			if c.gen == gen {
@@ -323,6 +350,16 @@ func (w *World) facilityBySearch(e *Entity, kind Terrain, room RoomID) Point {
 			}
 			c.gen = gen
 			queue = append(queue, n)
+		}
+		// The far end of a stair is one more step: walkable, never a
+		// facility.
+		if stairs {
+			if n, ok := w.linkFrom(p); ok {
+				if c := cells.ptr(n); c.gen != gen {
+					c.gen = gen
+					queue = append(queue, n)
+				}
+			}
 		}
 	}
 	w.facilityQueue, w.facilityFound = queue, found

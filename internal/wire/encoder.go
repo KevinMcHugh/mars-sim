@@ -70,6 +70,7 @@ type Encoder struct {
 	// says the interest changed since then: the section only carries the
 	// tiles in view, so a new view needs them again.
 	lastFlow  *sim.FlowFieldView
+	ents      []sim.EntityView // landingEntities' buffer
 	flowMoved bool
 	flow      []flowTile
 	owed      int // pages in view still to send after the last frame
@@ -166,7 +167,10 @@ func (e *Encoder) Encode(snap *sim.Snapshot) []byte {
 		}
 	}
 
-	n := len(snap.Entities)
+	// The page shows the landing level (see docs/z-levels.md, phase Z5), so
+	// an entity anywhere else is not drawn.
+	ents := e.landingEntities(snap.Entities)
+	n := len(ents)
 	size := headerLen +
 		4*len(statFields) +
 		n*(4+4+4) + align4(n*2) + align4(n*3) +
@@ -206,24 +210,24 @@ func (e *Encoder) Encode(snap *sim.Snapshot) []byte {
 
 	// Entities, as struct-of-arrays: ids, xs, ys, glyphs (uint16, an index
 	// into Hello.Glyphs.Symbols, or past its end into Looks), then a byte each of kind, state and focus.
-	for i := range snap.Entities {
-		le.PutUint32(b[at+4*i:], uint32(snap.Entities[i].ID))
+	for i := range ents {
+		le.PutUint32(b[at+4*i:], uint32(ents[i].ID))
 	}
 	at += 4 * n
-	for i := range snap.Entities {
-		le.PutUint32(b[at+4*i:], uint32(int32(snap.Entities[i].Pos.X)))
+	for i := range ents {
+		le.PutUint32(b[at+4*i:], uint32(int32(ents[i].Pos.X)))
 	}
 	at += 4 * n
-	for i := range snap.Entities {
-		le.PutUint32(b[at+4*i:], uint32(int32(snap.Entities[i].Pos.Y)))
+	for i := range ents {
+		le.PutUint32(b[at+4*i:], uint32(int32(ents[i].Pos.Y)))
 	}
 	at += 4 * n
-	for i := range snap.Entities {
-		le.PutUint16(b[at+2*i:], entityGlyph(snap.Entities[i]))
+	for i := range ents {
+		le.PutUint16(b[at+2*i:], entityGlyph(ents[i]))
 	}
 	at += align4(2 * n)
-	for i := range snap.Entities {
-		ev := &snap.Entities[i]
+	for i := range ents {
+		ev := &ents[i]
 		b[at+i] = byte(ev.Kind)
 		b[at+n+i] = byte(ev.State)
 		b[at+2*n+i] = byte(ev.Focus)
@@ -325,7 +329,7 @@ func (e *Encoder) pagesToSend(snap *sim.Snapshot) []pageRef {
 	cx, cy := (x0+x1)/2/side, (y0+y1)/2/side
 	for py := y0 / side; py <= (y1-1)/side; py++ {
 		for px := x0 / side; px <= (x1-1)/side; px++ {
-			origin := sim.Point{X: px * side, Y: py * side}
+			origin := sim.Point{X: px * side, Y: py * side, Level: sim.LandingLevel}
 			pi := snap.Tiles.PageIndex(origin)
 			if e.held[pi] {
 				continue
@@ -372,6 +376,30 @@ func clampInt32(v int) int32 {
 	return int32(max(min(v, math.MaxInt32), math.MinInt32))
 }
 
+// landingEntities is ents without those on any level but the landing level,
+// reusing a buffer, or ents itself when every one is there (always, until
+// the colony digs down).
+func (e *Encoder) landingEntities(ents []sim.EntityView) []sim.EntityView {
+	all := true
+	for i := range ents {
+		if ents[i].Pos.Level != sim.LandingLevel {
+			all = false
+			break
+		}
+	}
+	if all {
+		return ents
+	}
+	out := e.ents[:0]
+	for i := range ents {
+		if ents[i].Pos.Level == sim.LandingLevel {
+			out = append(out, ents[i])
+		}
+	}
+	e.ents = out
+	return out
+}
+
 type scumTile struct {
 	pos    sim.Point
 	amount uint8
@@ -382,7 +410,9 @@ type scumTile struct {
 func scumTiles(m map[sim.Point]uint8) []scumTile {
 	out := make([]scumTile, 0, len(m))
 	for p, n := range m {
-		out = append(out, scumTile{p, n})
+		if p.Level == sim.LandingLevel { // the page shows the landing level
+			out = append(out, scumTile{p, n})
+		}
 	}
 	slices.SortFunc(out, func(a, b scumTile) int {
 		if a.pos.Y != b.pos.Y {
@@ -397,7 +427,9 @@ func scumTiles(m map[sim.Point]uint8) []scumTile {
 func saltTiles(m map[sim.Point]struct{}) []sim.Point {
 	out := make([]sim.Point, 0, len(m))
 	for p := range m {
-		out = append(out, p)
+		if p.Level == sim.LandingLevel { // the page shows the landing level
+			out = append(out, p)
+		}
 	}
 	slices.SortFunc(out, func(a, b sim.Point) int {
 		if a.Y != b.Y {
@@ -422,7 +454,7 @@ func (e *Encoder) flowTiles(v *sim.FlowFieldView) []flowTile {
 		return out
 	}
 	r := e.interest
-	v.Range(r.X0, r.Y0, r.X1, r.Y1, func(p sim.Point, d int32) {
+	v.Range(sim.LandingLevel, r.X0, r.Y0, r.X1, r.Y1, func(p sim.Point, d int32) {
 		out = append(out, flowTile{p, uint16(min(d, math.MaxUint16))})
 	})
 	return out

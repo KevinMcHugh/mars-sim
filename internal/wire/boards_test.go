@@ -102,8 +102,8 @@ func TestAccountHoldings(t *testing.T) {
 	me := sim.ColonistOwner(1)
 	snap.Entities[0].Profile = &sim.Profile{Name: "Uma Xu"}
 	snap.Storages = []sim.StorageView{
-		{Pos: sim.Point{X: 1, Y: 1}, Ledger: []sim.LedgerLine{{Owner: me, Item: sim.Meal, Count: 2}, {Owner: sim.Community, Item: sim.Meal, Count: 5}}},
-		{Pos: sim.Point{X: 2, Y: 1}, Ledger: []sim.LedgerLine{{Owner: me, Item: sim.Meal, Count: 3}, {Owner: me, Item: sim.RawRock, Count: 1}}},
+		{Pos: sim.Point{X: 1, Y: 1, Level: sim.LandingLevel}, Ledger: []sim.LedgerLine{{Owner: me, Item: sim.Meal, Count: 2}, {Owner: sim.Community, Item: sim.Meal, Count: 5}}},
+		{Pos: sim.Point{X: 2, Y: 1, Level: sim.LandingLevel}, Ledger: []sim.LedgerLine{{Owner: me, Item: sim.Meal, Count: 3}, {Owner: me, Item: sim.RawRock, Count: 1}}},
 	}
 	var a AccountTopic
 	due(t, snap, "account:1", &a)

@@ -47,7 +47,7 @@ type Order struct {
 	Qty     int   // still unfilled
 	Price   Money // per unit, the limit
 	Actor   Owner
-	Depot   Loc
+	Depot   Point
 	Posted  int
 	Expires int // tick; 0 never
 
@@ -68,7 +68,7 @@ func (o *Order) owner() Owner { return Owner{Kind: ownerOrder, ID: EntityID(o.ID
 // bookKey names one book: an item at a depot.
 type bookKey struct {
 	Item  ItemKind
-	Depot Loc
+	Depot Point
 }
 
 // book is the open orders for one item at one depot, each side kept sorted
@@ -120,13 +120,13 @@ func crosses(incoming, resting *Order) bool {
 // it does not hold at that depot. ttl is how many ticks the rest of the order
 // lives; 0 means it never expires.
 func (w *World) post(side Side, item ItemKind, qty int, price Money, actor Owner, depot Point, ttl int) (*Order, int) {
-	c := w.home.storageContainers[depot]
+	c := w.lay(depot).storageContainers[depot]
 	if c == nil || qty <= 0 || price < 0 || item == ItemNone {
 		return nil, 0
 	}
 	w.nextOrderID++
 	o := &Order{ID: w.nextOrderID, Side: side, Item: item, Qty: qty, Price: price,
-		Actor: actor, Depot: w.homeLoc(depot), Posted: w.tick}
+		Actor: actor, Depot: depot, Posted: w.tick}
 	if ttl > 0 {
 		o.Expires = w.tick + ttl
 	}
@@ -144,7 +144,7 @@ func (w *World) post(side Side, item ItemKind, qty int, price Money, actor Owner
 		}
 	}
 
-	key := bookKey{item, w.homeLoc(depot)}
+	key := bookKey{item, depot}
 	b := w.books[key]
 	if b == nil {
 		b = &book{}
@@ -202,7 +202,7 @@ func (w *World) settle(b *book, c *StorageContainer, bid, ask *Order, n int, pri
 	b.last, b.traded = price, true
 	b.volume += n
 	w.recordPrice(ask.Item, price)
-	w.trades = append(w.trades, Trade{Tick: w.tick, Item: ask.Item, Depot: ask.Depot.Point, Qty: n,
+	w.trades = append(w.trades, Trade{Tick: w.tick, Item: ask.Item, Depot: ask.Depot, Qty: n,
 		Price: price, Buyer: bid.Actor, Seller: ask.Actor})
 	if over := len(w.trades) - maxTrades; over > 0 {
 		w.trades = w.trades[over:]
@@ -221,7 +221,7 @@ func (w *World) closeOrder(o *Order) {
 			o.escrow = 0
 		}
 	case Ask:
-		if c := w.home.storageContainers[o.Depot.Point]; c != nil && o.Qty > 0 {
+		if c := w.lay(o.Depot).storageContainers[o.Depot]; c != nil && o.Qty > 0 {
 			c.moveLine(o.owner(), o.Actor, o.Item, o.Qty)
 		}
 	}
@@ -286,14 +286,14 @@ func (w *World) moneyEscrowed() Money {
 
 // bestAsk and bestBid return the head of a book's side, if any.
 func (w *World) bestAsk(item ItemKind, depot Point) (*Order, bool) {
-	if b := w.books[bookKey{item, w.homeLoc(depot)}]; b != nil && len(b.asks) > 0 {
+	if b := w.books[bookKey{item, depot}]; b != nil && len(b.asks) > 0 {
 		return b.asks[0], true
 	}
 	return nil, false
 }
 
 func (w *World) bestBid(item ItemKind, depot Point) (*Order, bool) {
-	if b := w.books[bookKey{item, w.homeLoc(depot)}]; b != nil && len(b.bids) > 0 {
+	if b := w.books[bookKey{item, depot}]; b != nil && len(b.bids) > 0 {
 		return b.bids[0], true
 	}
 	return nil, false
@@ -301,7 +301,7 @@ func (w *World) bestBid(item ItemKind, depot Point) (*Order, bool) {
 
 // openQty is how many units actor has open on one side of one book.
 func (w *World) openQty(side Side, item ItemKind, depot Point, actor Owner) int {
-	b := w.books[bookKey{item, w.homeLoc(depot)}]
+	b := w.books[bookKey{item, depot}]
 	if b == nil {
 		return 0
 	}
@@ -327,10 +327,11 @@ func (w *World) marketDepot() (Point, bool) {
 	if w.marketDepotRev == w.fixtureRev+1 {
 		return w.marketDepotAt, w.marketDepotOK
 	}
-	center := Point{w.Width / 2, w.Height / 2}
+	// The silo is the landing level's: the colony's market is where it lives.
+	center := Point{w.Width / 2, w.Height / 2, LandingLevel}
 	var best Point
 	bestDist, found := 1<<30, false
-	for p, c := range w.home.storageContainers {
+	for p, c := range w.landing().storageContainers {
 		if c.Terrain != Storage || !w.communalFixture(p) || w.isPantry(p) {
 			continue // a pantry is a kitchen's, for meals: not the silo
 		}
@@ -403,7 +404,7 @@ func (w *World) retireOldSilo() {
 	if !had || (ok && silo == old) {
 		return
 	}
-	for _, o := range w.sortedOrders(func(o *Order) bool { return o.Actor == Community && o.Depot == w.homeLoc(old) }) {
+	for _, o := range w.sortedOrders(func(o *Order) bool { return o.Actor == Community && o.Depot == old }) {
 		w.cancel(o)
 	}
 	for _, o := range w.sortedWork(func(o *WorkOrder) bool {
@@ -454,7 +455,7 @@ func (w *World) sellableStacks(e *Entity) []ItemStack {
 // at once against any bid (the colony's, for ore); the rest rests for
 // order-ttl ticks.
 func (w *World) sellAtMarket(e *Entity, p Point, kinds []ItemKind) {
-	c := w.home.storageContainers[p]
+	c := w.lay(p).storageContainers[p]
 	if c == nil {
 		return
 	}
@@ -497,14 +498,14 @@ func (w *World) tryBuyMeal(e *Entity) bool {
 			continue
 		}
 		if best == nil || ask.Price < best.Price || (ask.Price == best.Price &&
-			(e.Pos.Chebyshev(p) < e.Pos.Chebyshev(best.Depot.Point) ||
-				(e.Pos.Chebyshev(p) == e.Pos.Chebyshev(best.Depot.Point) && lessPoint(p, best.Depot.Point)))) {
+			(w.travelEstimate(e.Pos, p) < w.travelEstimate(e.Pos, best.Depot) ||
+				(w.travelEstimate(e.Pos, p) == w.travelEstimate(e.Pos, best.Depot) && lessPoint(p, best.Depot)))) {
 			best = ask
 		}
 	}
 	if best != nil {
 		price, at := best.Price, best.Depot
-		o, filled := w.post(Bid, Meal, 1, price, me, at.Point, 0)
+		o, filled := w.post(Bid, Meal, 1, price, me, at, 0)
 		if o != nil && o.Qty > 0 {
 			w.cancel(o) // buy now or not at all
 		}
@@ -544,11 +545,11 @@ const (
 // every depot but the silo (meals already there are for sale or bought).
 func (w *World) surplusMeals(e *Entity, silo Point) int {
 	n := e.ownCarried(Meal)
-	for p, c := range w.home.storageContainers {
-		if p != silo {
+	w.eachContainer(func(c *StorageContainer) {
+		if c.Pos != silo {
 			n += c.held(ColonistOwner(e.ID), Meal)
 		}
-	}
+	})
 	return n - max(w.cfg.MealKeep, w.pocketMeals()) // never the pocket meal
 }
 
@@ -571,14 +572,15 @@ func (w *World) tryAssignSellMeals(e *Entity) bool {
 	me := ColonistOwner(e.ID)
 	var best Point
 	bestDist, found := 1<<30, false
-	for p, c := range w.home.storageContainers {
+	w.eachContainer(func(c *StorageContainer) {
+		p := c.Pos
 		if p == silo || c.held(me, Meal) == 0 || !w.canUseFixture(e, p) || !w.taskReachable(p, room) {
-			continue
+			return
 		}
-		if d := e.Pos.Chebyshev(p); !found || d < bestDist || (d == bestDist && lessPoint(p, best)) {
+		if d := w.travelEstimate(e.Pos, p); !found || d < bestDist || (d == bestDist && lessPoint(p, best)) {
 			best, bestDist, found = p, d, true
 		}
-	}
+	})
 	if !found {
 		return false
 	}
@@ -602,7 +604,7 @@ func (w *World) jobSell(e *Entity) {
 		e.State = Hauling
 		return
 	}
-	c := w.home.storageContainers[e.Target]
+	c := w.lay(e.Target).storageContainers[e.Target]
 	me := ColonistOwner(e.ID)
 	if c == nil {
 		w.clearJob(e)

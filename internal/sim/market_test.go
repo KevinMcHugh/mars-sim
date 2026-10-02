@@ -9,11 +9,11 @@ import (
 func marketWorld(t *testing.T) (w *World, silo Point, cs [3]*Entity) {
 	t.Helper()
 	w = propertyWorld(t)
-	silo = Point{12, 6}
+	silo = Point{12, 6, LandingLevel}
 	w.SetTerrain(silo, Storage)
 	w.refreshSpatial()
 	for i := range cs {
-		cs[i] = w.spawn(Colonist, Point{8 + 2*i, 10})
+		cs[i] = w.spawn(Colonist, Point{8 + 2*i, 10, LandingLevel})
 		cs[i].wallet = 100
 		w.moneyIssued += 100 - Money(w.cfg.CrashPodPurse)
 	}
@@ -22,7 +22,7 @@ func marketWorld(t *testing.T) (w *World, silo Point, cs [3]*Entity) {
 
 // stock puts n of kind into the depot at p, on owner's line.
 func stock(w *World, p Point, owner Owner, kind ItemKind, n int) {
-	c := w.home.storageContainers[p]
+	c := w.landing().storageContainers[p]
 	c.Inventory.Add(kind, n)
 	c.credit(owner, kind, n)
 }
@@ -54,7 +54,7 @@ func TestMatchingIsPriceThenTimeAtTheRestingPrice(t *testing.T) {
 	if w.orders[older.ID] != nil || w.orders[newer.ID] == nil || w.orders[newer.ID].Qty != 1 {
 		t.Fatal("the book did not fill the older ask first")
 	}
-	if w.home.storageContainers[silo].held(buyer, IronOre) != 3 {
+	if w.landing().storageContainers[silo].held(buyer, IronOre) != 3 {
 		t.Fatal("the buyer did not get its ore")
 	}
 	assertMoneyConserved(t, w)
@@ -75,7 +75,7 @@ func TestNothingIsSoldTwice(t *testing.T) {
 	if cs[2].wallet != 95 || w.moneyEscrowed() != 5 {
 		t.Fatalf("the resting bid holds %v; wallet %v", w.moneyEscrowed(), cs[2].wallet)
 	}
-	if !w.home.storageContainers[silo].ledgerBalanced() {
+	if !w.landing().storageContainers[silo].ledgerBalanced() {
 		t.Fatal("ledger unbalanced")
 	}
 	assertMoneyConserved(t, w)
@@ -95,7 +95,7 @@ func TestEscrowIsFundedAndReturned(t *testing.T) {
 	stock(w, silo, me, IronOre, 4)
 	ask, _ := w.post(Ask, IronOre, 4, 3, me, silo, 10)
 	bid, _ := w.post(Bid, Clay, 10, 2, me, silo, 0)
-	c := w.home.storageContainers[silo]
+	c := w.landing().storageContainers[silo]
 	if c.held(me, IronOre) != 0 || cs[0].wallet != 80 {
 		t.Fatalf("escrow not taken: ore %d, wallet %v", c.held(me, IronOre), cs[0].wallet)
 	}
@@ -146,7 +146,7 @@ func TestRandomTradingIsDeterministicAndConserved(t *testing.T) {
 			if i%7 == 0 {
 				w.expireOrders()
 			}
-			if !w.home.storageContainers[silo].ledgerBalanced() {
+			if !w.landing().storageContainers[silo].ledgerBalanced() {
 				t.Fatalf("step %d: ledger unbalanced", i)
 			}
 			assertMoneyConserved(t, w)
@@ -187,7 +187,7 @@ func TestProspectorsArePaidByTheColony(t *testing.T) {
 	if miner.wallet != 100+10*price {
 		t.Fatalf("miner has %v, want $%d more for 10 iron ore", miner.wallet, 10*price)
 	}
-	if w.home.storageContainers[silo].held(Community, IronOre) != 10 {
+	if w.landing().storageContainers[silo].held(Community, IronOre) != 10 {
 		t.Fatal("the colony does not own the ore it bought")
 	}
 	if w.moneyEscrowed()+w.treasury != treasury-10*price {
@@ -201,10 +201,10 @@ func TestProspectorsArePaidByTheColony(t *testing.T) {
 func TestHungryColonistsBuyWhatOthersSell(t *testing.T) {
 	w, silo, cs := marketWorld(t)
 	seller, buyer := cs[0], cs[1]
-	locker := Point{8, 14}
+	locker := Point{8, 14, LandingLevel}
 	w.SetTerrain(locker, Storage)
 	w.setFixtureOwner(locker, ColonistOwner(seller.ID), AccessPrivate)
-	w.SetTerrain(Point{20, 12}, NutrientPod) // the safety net, which should go unused
+	w.SetTerrain(Point{20, 12, LandingLevel}, NutrientPod) // the safety net, which should go unused
 	w.refreshSpatial()
 	stock(w, locker, ColonistOwner(seller.ID), Meal, w.cfg.MealKeep+3)
 
@@ -244,7 +244,7 @@ func TestTheColonyRetiresItsOrdersWhenTheSiloMoves(t *testing.T) {
 		t.Fatal("no standing bids at the first silo")
 	}
 	escrow := w.moneyEscrowed()
-	nearer := Point{w.Width / 2, w.Height / 2}
+	nearer := Point{w.Width / 2, w.Height / 2, LandingLevel}
 	w.SetTerrain(nearer, Storage)
 	w.refreshSpatial()
 	if s, _ := w.marketDepot(); s != nearer {
@@ -252,7 +252,7 @@ func TestTheColonyRetiresItsOrdersWhenTheSiloMoves(t *testing.T) {
 	}
 	w.tick += marketInterval
 	w.runMarket()
-	for _, o := range w.sortedOrders(func(o *Order) bool { return o.Actor == Community && o.Depot == w.homeLoc(silo) }) {
+	for _, o := range w.sortedOrders(func(o *Order) bool { return o.Actor == Community && o.Depot == silo }) {
 		t.Errorf("order %d (%v %v) still open at the old silo", o.ID, o.Side, o.Item)
 	}
 	if got := w.moneyEscrowed(); got > escrow {

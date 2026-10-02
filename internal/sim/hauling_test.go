@@ -9,10 +9,10 @@ func arbitrageWorld(t *testing.T, sells bool) (w *World, silo, far Point, cols [
 	t.Helper()
 	w, _, silo, cols = producerWorld(t, 3)
 	w.cfg.ColonySells, w.cfg.ColonyStockReserve = sells, 0
-	far = Point{5, 15}
+	far = Point{5, 15, LandingLevel}
 	w.SetTerrain(far, Storage)
 	w.refreshSpatial()
-	c := w.home.storageContainers[silo]
+	c := w.landing().storageContainers[silo]
 	c.Inventory.Add(IronOre, 12)
 	c.credit(Community, IronOre, 12)
 	return w, silo, far, cols
@@ -62,10 +62,10 @@ func TestArbitrageClosesAPriceGap(t *testing.T) {
 	if o, _ := w.post(Bid, IronOre, 8, 12, buyer, far, 0); o == nil {
 		t.Fatal("the buyer could not post its bid")
 	}
-	bought := func() bool { return w.home.storageContainers[far].held(buyer, IronOre) >= 8 }
+	bought := func() bool { return w.landing().storageContainers[far].held(buyer, IronOre) >= 8 }
 	stepFed(t, w, 3000, bought)
 	if !bought() {
-		t.Fatalf("the buyer holds %d iron at the far depot, want 8", w.home.storageContainers[far].held(buyer, IronOre))
+		t.Fatalf("the buyer holds %d iron at the far depot, want 8", w.landing().storageContainers[far].held(buyer, IronOre))
 	}
 	if b, ok := w.bestBid(IronOre, far); ok && b.Price >= 12 {
 		t.Fatalf("a bid at %v is still open at the far depot: the gap never closed", b.Price)
@@ -98,17 +98,17 @@ func TestColonySellingPaysOverALongRun(t *testing.T) {
 func TestHaulersStockTheSilo(t *testing.T) {
 	w, house, silo, cols := producerWorld(t, 2)
 	w.cfg.SiloMealStock = 3
-	c := w.home.storageContainers[house]
+	c := w.landing().storageContainers[house]
 	c.Inventory.Add(Meal, 5)
 	c.credit(Community, Meal, 5)
 	before := map[EntityID]Money{}
 	for _, e := range cols {
 		before[e.ID] = e.wallet
 	}
-	stocked := func() bool { return w.home.storageContainers[silo].held(Community, Meal) >= 3 }
+	stocked := func() bool { return w.landing().storageContainers[silo].held(Community, Meal) >= 3 }
 	stepFed(t, w, 2000, stocked)
 	if !stocked() {
-		t.Fatalf("the silo holds %d of the colony's meals, want 3", w.home.storageContainers[silo].held(Community, Meal))
+		t.Fatalf("the silo holds %d of the colony's meals, want 3", w.landing().storageContainers[silo].held(Community, Meal))
 	}
 	if got := c.held(Community, Meal) + w.openQty(Ask, Meal, house, Community); got != 2 {
 		t.Fatalf("the scumhouse holds %d of the colony's meals, want the 2 not needed", got)
@@ -132,7 +132,7 @@ func TestHaulersStockTheSilo(t *testing.T) {
 func TestPublicWorksUseTheColonysStock(t *testing.T) {
 	w, silo, _, cols := arbitrageWorld(t, true)
 	w.cfg.ConstructionCosts = true
-	c := w.home.storageContainers[silo]
+	c := w.landing().storageContainers[silo]
 	c.Inventory.Add(RawRock, 2)
 	c.credit(Community, RawRock, 2)
 	e := cols[0]
@@ -142,7 +142,7 @@ func TestPublicWorksUseTheColonysStock(t *testing.T) {
 	if !w.canAffordBuild(e, Storage, Community) {
 		t.Fatal("a builder could not afford a public chest from the colony's stock")
 	}
-	e.task = &buildTask{pos: Point{12, 12}, terrain: Storage, proj: &project{issuer: Community}}
+	e.task = &buildTask{pos: Point{12, 12, LandingLevel}, terrain: Storage, proj: &project{issuer: Community}}
 	e.Job, e.BuildKind = JobBuild, Storage
 	for i := 0; i < 200; i++ {
 		if ready, ok := w.gatherBuildMaterials(e); ready || !ok {
@@ -166,11 +166,11 @@ func TestPublicWorksUseTheColonysStock(t *testing.T) {
 func TestTheSiloIsNotOverstocked(t *testing.T) {
 	w, house, silo, _ := producerWorld(t, 2)
 	w.cfg.SiloMealStock = 3
-	c := w.home.storageContainers[house]
+	c := w.landing().storageContainers[house]
 	c.Inventory.Add(Meal, 12)
 	c.credit(Community, Meal, 12)
 	atSilo := func() int {
-		return w.home.storageContainers[silo].held(Community, Meal) + w.openQty(Ask, Meal, silo, Community)
+		return w.landing().storageContainers[silo].held(Community, Meal) + w.openQty(Ask, Meal, silo, Community)
 	}
 	most := 0
 	stepFed(t, w, 3000, func() bool {

@@ -28,22 +28,22 @@ type pfCell struct {
 // One per World; used only on the engine goroutine.
 type pathfinder struct {
 	w     *World
-	cells pagedGrid[pfCell]
+	cells layered[pfCell]
 	gen   int32
 	open  pfHeap
 
 	// corridorSeen marks cells inside the current HPA* corridor (== corridorGen),
 	// painted once per search so the per-neighbor membership test is an O(1) array
 	// read instead of a map lookup.
-	corridorSeen pagedGrid[int32]
+	corridorSeen layered[int32]
 	corridorGen  int32
 }
 
 func newPathfinder(w *World) *pathfinder {
 	return &pathfinder{
 		w:            w,
-		cells:        newPagedGrid[pfCell](w.Width, w.Height),
-		corridorSeen: newPagedGrid[int32](w.Width, w.Height),
+		cells:        newLayered[pfCell](w.Width, w.Height),
+		corridorSeen: newLayered[int32](w.Width, w.Height),
 	}
 }
 
@@ -63,11 +63,11 @@ func (pf *pathfinder) paintCorridor(corridor map[RegionID]bool) {
 		// A chunk sits inside one page of each grid, so both lookups hoist out
 		// of the sweep. Painting a corridor stamps every tile of every chunk it
 		// crosses, which made this the single hottest paged read in the search.
-		regions := w.home.regionOf.pageAt(x0, y0)
+		regions := w.layers[reg.level].regionOf.pageAt(x0, y0)
 		if regions == nil {
 			continue // no region in this chunk, so none of it is rid
 		}
-		seen := pf.corridorSeen.pageAtAlloc(x0, y0)
+		seen := pf.corridorSeen.grid(reg.level).pageAtAlloc(x0, y0)
 		for y := y0; y < y1; y++ {
 			for x := x0; x < x1; x++ {
 				if o := offset(x, y); regions[o] == rid {
@@ -90,23 +90,49 @@ func (pf *pathfinder) toAdjacent(start, target Point, useCorridor bool) ([]Point
 	}
 	pf.gen++
 	si := w.index(start)
-	pf.cells.set(start.X, start.Y, pfCell{gen: pf.gen, g: 0, from: -1})
+	pf.cells.set(start, pfCell{gen: pf.gen, g: 0, from: -1})
 	pf.open.reset()
 	pf.open.push(pfNode{si, hAdjacent(start, target)})
+	stairs := w.hasStairs()
+	// The level the search is on, and its grids, looked up again only when a
+	// stair takes the search to another: nearly every search stays on one.
+	level := start.Level
+	cells := pf.cells.grid(level)
+	var corridor *pagedGrid[int32]
+	if useCorridor {
+		corridor = pf.corridorSeen.grid(level)
+	}
+	layer := w.lay(start)
+	cellsPerLevel := w.Width * w.Height
+	base := int(level) * cellsPerLevel // index of (0, 0) on level
 
 	for pf.open.len() > 0 {
 		ci := pf.open.pop().cell
-		cp := Point{ci % w.Width, ci / w.Width}
+		var cp Point
+		if r := ci - base; r >= 0 && r < cellsPerLevel {
+			y := r / w.Width // one division for the common, same-level case
+			cp = Point{r - y*w.Width, y, level}
+		} else {
+			cp = w.pointOf(ci)
+		}
 		// Occupied tiles remain valid transit cells, but not destinations. The
 		// start is the one exception: the caller already stands there.
-		if cp.Chebyshev(target) == 1 && (ci == si || !w.occupied(cp)) {
+		if cp.Adjacent(target) && (ci == si || !w.occupied(cp)) {
 			return pf.reconstruct(si, ci), true
 		}
-		cg := pf.cells.at(cp.X, cp.Y).g
+		if cp.Level != level {
+			level, layer, cells = cp.Level, w.lay(cp), pf.cells.grid(cp.Level)
+			base = int(level) * cellsPerLevel
+			if useCorridor {
+				corridor = pf.corridorSeen.grid(level)
+			}
+		}
+		cg := cells.at(cp.X, cp.Y).g
+		ng := cg + 1
 		// Off a page edge all eight neighbours' tiles share this node's page:
 		// one lookup instead of eight. Tiles past the map's edge in the last
 		// page are never written, so they read as Rock without a bounds test.
-		tiles := w.home.tiles.interiorPage(cp.X, cp.Y)
+		tiles := layer.tiles.interiorPage(cp.X, cp.Y)
 		for _, d := range neighbors8 {
 			np := cp.Add(d.X, d.Y)
 			if tiles != nil {
@@ -116,15 +142,26 @@ func (pf *pathfinder) toAdjacent(start, target Point, useCorridor bool) ([]Point
 			} else if !w.Walkable(np) {
 				continue
 			}
-			if useCorridor && pf.corridorSeen.at(np.X, np.Y) != pf.corridorGen {
+			if useCorridor && corridor.at(np.X, np.Y) != pf.corridorGen {
 				continue // outside the abstract route
 			}
-			ng := cg + 1
-			c := pf.cells.ptr(np.X, np.Y)
+			c := cells.ptr(np.X, np.Y)
 			if c.gen != pf.gen || ng < c.g {
-				ni := w.index(np)
 				c.gen, c.g, c.from = pf.gen, ng, int32(ci)
-				pf.open.push(pfNode{ni, int(ng) + hAdjacent(np, target)})
+				// Same level: the index is a fixed offset from this node's.
+				pf.open.push(pfNode{ci + d.Y*w.Width + d.X, int(ng) + hAdjacent(np, target)})
+			}
+		}
+		// A stair is one more neighbour: its other end, one level away.
+		if stairs {
+			if np, ok := w.linkFrom(cp); ok {
+				if !useCorridor || pf.corridorSeen.at(np) == pf.corridorGen {
+					c := pf.cells.ptr(np)
+					if c.gen != pf.gen || ng < c.g {
+						c.gen, c.g, c.from = pf.gen, ng, int32(ci)
+						pf.open.push(pfNode{w.index(np), int(ng) + hAdjacent(np, target)})
+					}
+				}
 			}
 		}
 	}
@@ -137,9 +174,9 @@ func (pf *pathfinder) reconstruct(start, goal int) []Point {
 	w := pf.w
 	var rev []Point
 	for ci := goal; ci != start; {
-		p := Point{ci % w.Width, ci / w.Width}
+		p := w.pointOf(ci)
 		rev = append(rev, p)
-		ci = int(pf.cells.at(p.X, p.Y).from)
+		ci = int(pf.cells.at(p).from)
 	}
 	for i, j := 0, len(rev)-1; i < j; i, j = i+1, j-1 {
 		rev[i], rev[j] = rev[j], rev[i]
@@ -148,13 +185,15 @@ func (pf *pathfinder) reconstruct(start, goal int) []Point {
 }
 
 // hAdjacent is an admissible heuristic: the moves needed to reach the ring of
-// tiles adjacent to target (Chebyshev distance minus the last step).
+// tiles adjacent to target (Chebyshev distance minus the last step). Across
+// levels Chebyshev counts one step per level, and a stair is exactly one step
+// that moves nobody sideways, so it stays a lower bound.
 func hAdjacent(p, target Point) int {
-	d := p.Chebyshev(target) - 1
-	if d < 0 {
-		return 0
+	d := max(abs(p.X-target.X), abs(p.Y-target.Y)) - 1
+	if p.Level != target.Level {
+		d += abs(int(p.Level) - int(target.Level))
 	}
-	return d
+	return max(d, 0)
 }
 
 // pfNode is an open-set entry: a cell and its f = g + h score.
@@ -242,8 +281,8 @@ func (w *World) pathToAdjacent(from, target Point) ([]Point, bool) {
 
 	// Short or same-region trips: a flat tile search already explores little, so
 	// skip the abstract routing overhead.
-	startRegion := w.home.regionOf.at(from.X, from.Y)
-	goalRegion := w.home.regionOf.at(goalCell.X, goalCell.Y)
+	startRegion := w.lay(from).regionOf.at(from.X, from.Y)
+	goalRegion := w.lay(goalCell).regionOf.at(goalCell.X, goalCell.Y)
 	if startRegion == goalRegion || from.Chebyshev(target) <= 2*chunkSize {
 		return w.pf.toAdjacent(from, target, false)
 	}

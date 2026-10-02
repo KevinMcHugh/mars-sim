@@ -18,7 +18,7 @@ func TestEntityIDsNearSortedMatchesAFullScan(t *testing.T) {
 		if tick%20 != 0 {
 			continue
 		}
-		for _, center := range []Point{{0, 0}, {w.Width - 1, w.Height - 1}, {w.Width / 2, w.Height / 2}, {17, 31}} {
+		for _, center := range []Point{{0, 0, LandingLevel}, {w.Width - 1, w.Height - 1, LandingLevel}, {w.Width / 2, w.Height / 2, LandingLevel}, {17, 31, LandingLevel}} {
 			for _, radius := range []int{0, 1, 5, 16, 40} {
 				var want []EntityID
 				for _, id := range w.entityIDsSorted() {

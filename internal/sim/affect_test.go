@@ -573,7 +573,7 @@ func TestNerveTraitsScaleWearRate(t *testing.T) {
 
 func TestTraitBaselinesSpawnDecayAndReresolve(t *testing.T) {
 	w, _ := focusTestColonist(t)
-	spawned := w.spawn(Colonist, Point{20, 20})
+	spawned := w.spawn(Colonist, Point{20, 20, LandingLevel})
 	if spawned.affect.Charge != spawned.affectHome.Charge ||
 		spawned.affect.Grip != spawned.affectHome.Grip ||
 		spawned.affect.Valence != spawned.affectHome.Valence {

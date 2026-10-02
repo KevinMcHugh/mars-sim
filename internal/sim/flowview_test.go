@@ -28,7 +28,7 @@ func TestFlowFieldViewMatchesField(t *testing.T) {
 		var maxD int32
 		for y := 0; y < w.Height; y++ {
 			for x := 0; x < w.Width; x++ {
-				p := Point{x, y}
+				p := Point{x, y, LandingLevel}
 				want := f.at(p)
 				if got := v.At(p); got != want {
 					t.Fatalf("%s at %v: view %d, field %d", r.Name(), p, got, want)
@@ -106,16 +106,16 @@ func TestShowFlowFieldPublishes(t *testing.T) {
 // Range visits exactly the reached tiles inside the rectangle, in row order,
 // across page boundaries and clipped to the map.
 func TestFlowFieldViewRange(t *testing.T) {
-	dist := map[Point]int32{{1, 1}: 0, {63, 2}: 4, {64, 2}: 5, {130, 2}: 9, {70, 100}: 2}
+	dist := map[Point]int32{{1, 1, LandingLevel}: 0, {63, 2, LandingLevel}: 4, {64, 2, LandingLevel}: 5, {130, 2, LandingLevel}: 9, {70, 100, LandingLevel}: 2}
 	v := NewFlowFieldView(FlowFieldRef{Frontier: true}, 150, 120, dist)
 	var got []Point
-	v.Range(-5, 0, 1000, 50, func(p Point, d int32) {
+	v.Range(LandingLevel, -5, 0, 1000, 50, func(p Point, d int32) {
 		if dist[p] != d {
 			t.Errorf("%v: distance %d, want %d", p, d, dist[p])
 		}
 		got = append(got, p)
 	})
-	want := []Point{{1, 1}, {63, 2}, {64, 2}, {130, 2}} // (70,100) is below the rectangle
+	want := []Point{{1, 1, LandingLevel}, {63, 2, LandingLevel}, {64, 2, LandingLevel}, {130, 2, LandingLevel}} // (70,100) is below the rectangle
 	if fmt.Sprint(got) != fmt.Sprint(want) {
 		t.Fatalf("Range visited %v, want %v", got, want)
 	}

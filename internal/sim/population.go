@@ -49,14 +49,12 @@ func (w *World) samplePopulation() {
 	s := PopulationSample{
 		Tick:       w.tick,
 		Colonists:  w.countKind(Colonist),
-		ColonySize: w.home.terrainCounts[Floor] - w.home.hiddenFloor,
-		Fixtures:   len(w.home.fixtures),
+		ColonySize: w.countTerrain(Floor) - w.hiddenFloor(),
 		Activity:   w.actTally,
 		Walking:    w.walkTally,
 	}
-	for _, c := range w.home.storageContainers {
-		s.Meals += c.Inventory.Count(Meal)
-	}
+	w.eachLayer(func(l *Layer) { s.Fixtures += len(l.fixtures) })
+	w.eachContainer(func(c *StorageContainer) { s.Meals += c.Inventory.Count(Meal) })
 	h := w.popHist
 	if len(h) >= popHistory {
 		// Halve: keep the samples still on the doubled interval.

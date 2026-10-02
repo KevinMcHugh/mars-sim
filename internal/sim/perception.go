@@ -554,6 +554,9 @@ func (w *World) goreWithin(origin Point, radius int) (Point, bool) {
 // hasLineOfSight uses an integer Bresenham walk. The destination may itself be
 // blocking; only intervening Rock and Wall tiles occlude sight.
 func (w *World) hasLineOfSight(from, to Point) bool {
+	if from.Level != to.Level {
+		return false // nothing sees through a floor
+	}
 	x0, y0, x1, y1 := from.X, from.Y, to.X, to.Y
 	dx, dy := absInt(x1-x0), absInt(y1-y0)
 	sx, sy := -1, -1
@@ -577,7 +580,7 @@ func (w *World) hasLineOfSight(from, to Point) bool {
 		if x0 == x1 && y0 == y1 {
 			return true
 		}
-		switch w.TerrainAt(Point{x0, y0}) {
+		switch w.TerrainAt(Point{x0, y0, from.Level}) {
 		case Rock, Wall:
 			return false
 		}

@@ -36,7 +36,7 @@ func abundanceTargets(cfg Config) abundance {
 // landing-site carving) and returns its percentages. The landing exclusion box
 // still applies, as it does in a real world.
 func measureAbundance(cfg Config) abundance {
-	g := newWorldGen(cfg)
+	g := newWorldGen(cfg, LandingLevel)
 	g.withCacheSize(2 * g.chunkCols() * (2*genHorizon + 1))
 	var counts [len(veinLevels) + 3]int
 	for cy := 0; cy < g.chunkRows(); cy++ {

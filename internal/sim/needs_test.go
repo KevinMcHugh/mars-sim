@@ -6,7 +6,7 @@ import "testing"
 // actionable pressure.
 func TestNeedPhaseTransitionsAndPressure(t *testing.T) {
 	w := roomsTestWorld(20, 20)
-	c := w.spawn(Colonist, Point{5, 5})
+	c := w.spawn(Colonist, Point{5, 5, LandingLevel})
 	n := NeedBladder
 	spec := w.cfg.Needs[n]
 
@@ -41,7 +41,7 @@ func TestNeedPhaseTransitionsAndPressure(t *testing.T) {
 
 func TestNeedPhaseTracksLazyElapsedTimeAndNextBoundary(t *testing.T) {
 	w := roomsTestWorld(20, 20)
-	c := w.spawn(Colonist, Point{5, 5})
+	c := w.spawn(Colonist, Point{5, 5, LandingLevel})
 	n := NeedBladder
 	spec := w.cfg.Needs[n]
 	c.Needs[n], c.needSince[n] = 0, w.tick
@@ -90,7 +90,7 @@ func TestNeedPressureDegenerateThresholds(t *testing.T) {
 
 func TestZeroRiseSocialNeedNeverBecomesPressing(t *testing.T) {
 	w := roomsTestWorld(20, 20)
-	c := w.spawn(Colonist, Point{5, 5})
+	c := w.spawn(Colonist, Point{5, 5, LandingLevel})
 	n := NeedSocial
 	c.Needs[n] = w.cfg.Needs[n].SeekAt - 1
 	c.needSince[n], c.needRise[n] = w.tick, 0 // resolved Asocial behavior
@@ -111,7 +111,7 @@ func TestZeroRiseSocialNeedNeverBecomesPressing(t *testing.T) {
 // reset to zero when satisfied.
 func TestNeedLevelIsLazy(t *testing.T) {
 	w := roomsTestWorld(20, 20)
-	c := w.spawn(Colonist, Point{5, 5})
+	c := w.spawn(Colonist, Point{5, 5, LandingLevel})
 	spec := w.cfg.Needs[NeedFood]
 	// Spawn staggers starting levels; pin a known baseline for the lazy math.
 	c.Needs[NeedFood], c.needSince[NeedFood] = 0, 0
@@ -145,7 +145,7 @@ func TestNeedLevelIsLazy(t *testing.T) {
 // is occupied), so the colonist must idle.
 func TestIdleColonistRests(t *testing.T) {
 	w := roomsTestWorld(40, 24)
-	c := Point{20, 12}
+	c := Point{20, 12, LandingLevel}
 	w.SetTerrain(c, Floor)
 	for _, d := range neighbors8 {
 		w.SetTerrain(c.Add(d.X, d.Y), Wall)
@@ -177,7 +177,7 @@ func TestRestingColonistStillEats(t *testing.T) {
 	cfg.StartColonists, cfg.StartAliens = 0, 0
 	w := newTestWorld(t, cfg)
 
-	center := Point{w.Width / 2, w.Height / 2}
+	center := Point{w.Width / 2, w.Height / 2, LandingLevel}
 	stand := center.Add(1, 0)
 	w.SetTerrain(center, NutrientPod)
 	w.SetTerrain(stand, Floor)
@@ -207,7 +207,7 @@ func TestRestingColonistStillEats(t *testing.T) {
 // permanently deferred food and starved the colonist.
 func TestFatalNeedOutranksNonFatal(t *testing.T) {
 	w := roomsTestWorld(20, 20)
-	c := w.spawn(Colonist, Point{5, 5})
+	c := w.spawn(Colonist, Point{5, 5, LandingLevel})
 	food, bladder := w.cfg.Needs[NeedFood], w.cfg.Needs[NeedBladder]
 	if !food.Fatal || bladder.Fatal {
 		t.Skip("assumes food fatal, bladder not")
@@ -224,7 +224,7 @@ func TestFatalNeedOutranksNonFatal(t *testing.T) {
 
 func TestEatingRecoversOnlyStarvationDamage(t *testing.T) {
 	w := roomsTestWorld(20, 20)
-	c := w.spawn(Colonist, Point{5, 5})
+	c := w.spawn(Colonist, Point{5, 5, LandingLevel})
 	c.HP -= 3 // an unrelated wound must remain after eating
 	c.Needs[NeedFood], c.needSince[NeedFood] = w.cfg.Needs[NeedFood].Max, w.tick
 
@@ -240,11 +240,11 @@ func TestEatingRecoversOnlyStarvationDamage(t *testing.T) {
 
 func TestEntityDoesNotStarveWhileSeekingReachableFood(t *testing.T) {
 	w := roomsTestWorld(20, 20)
-	pod := Point{10, 5}
-	carve(w, Point{5, 5}, Point{9, 5}, Floor)
+	pod := Point{10, 5, LandingLevel}
+	carve(w, Point{5, 5, LandingLevel}, Point{9, 5, LandingLevel}, Floor)
 	w.SetTerrain(pod, NutrientPod)
 	w.refreshSpatial()
-	c := w.spawn(Colonist, Point{5, 5})
+	c := w.spawn(Colonist, Point{5, 5, LandingLevel})
 	c.Needs[NeedFood], c.needSince[NeedFood] = w.cfg.Needs[NeedFood].Max, w.tick
 	c.Job, c.Need = JobUse, NeedFood
 

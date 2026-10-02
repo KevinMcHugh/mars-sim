@@ -1,11 +1,9 @@
 package sim
 
-import "fmt"
-
 // Level is how deep a layer of the world sits. Level 0 is the surface, the
 // landing level below it is where crash pods come down (today's whole map),
 // and deeper levels count up from there. See docs/z-levels.md.
-type Level int8
+type Level int
 
 const (
 	// SurfaceLevel is the open ground above the rock. Nothing is there yet.
@@ -15,43 +13,13 @@ const (
 	LandingLevel Level = 1
 )
 
-// Loc names a tile on a particular level: the identity of a place the colony
-// as a whole can refer to (an order book depot, say). Grid code that works
-// inside one level keeps taking a bare Point and the Layer it belongs to.
-//
-// The zero Loc is on the surface, not the landing level, so a Loc built
-// without a level is wrong in a way tests can see rather than silently right
-// while there is only one level. Build one with at.
-type Loc struct {
-	Level Level
-	Point
-}
-
-// at returns the Loc of p on level l.
-func at(l Level, p Point) Loc { return Loc{Level: l, Point: p} }
-
-func (l Loc) String() string { return fmt.Sprintf("%d:(%d,%d)", l.Level, l.X, l.Y) }
-
-// Loc is where e stands: its position and the level it is on.
-func (e *Entity) Loc() Loc { return at(e.Level, e.Pos) }
-
-// lessLoc orders Locs by level, then row-major within a level: the
-// deterministic tie-break lessPoint gives inside one level, extended across
-// them.
-func lessLoc(a, b Loc) bool {
-	if a.Level != b.Level {
-		return a.Level < b.Level
-	}
-	return lessPoint(a.Point, b.Point)
-}
-
 // Layer is the state of one level of the world: its tiles and everything
 // indexed by a tile on it. Anything that only makes sense inside one grid
 // lives here; what spans levels (entities, the economy, flow fields, the
 // region graph, scratch buffers) stays on World.
 //
 // There is one layer so far, World.home, the landing level. Every
-// "w.home." in the code is a place that assumes there is only one level:
+// "w.todoLayer()." in the code is a place that assumes there is only one level:
 // when a second level arrives, removing home turns each of them into a
 // compile error to be decided. See docs/z-levels.md.
 type Layer struct {
@@ -228,8 +196,8 @@ type Layer struct {
 }
 
 // newLayer allocates an all-Rock layer of the given size.
-func newLayer(level Level, width, height int) Layer {
-	l := Layer{
+func newLayer(level Level, width, height int) *Layer {
+	l := &Layer{
 		Level:             level,
 		tiles:             newPagedGrid[tileCell](width, height),
 		refuse:            make(map[Point]refuseCell),
@@ -249,17 +217,13 @@ func newLayer(level Level, width, height int) Layer {
 		exposedScum:       make(map[Point]struct{}),
 		scumClaims:        make(map[Point]EntityID),
 		workshopClaims:    make(map[Point]EntityID),
+		unfoundCaverns:    make(map[Point]struct{}),
 	}
 	l.terrainCounts[Rock] = width * height // every tile starts as Rock
 	l.pageDirty = make([]bool, len(l.tiles.pages))
 	l.chunkEntities = make([][]EntityID, ceilDiv(width, chunkSize)*ceilDiv(height, chunkSize))
 	return l
 }
-
-// homeLoc is p on the landing level. It marks, like every w.home, a place
-// that assumes there is only one level: the edge where a bare Point from
-// grid code becomes a Loc.
-func (w *World) homeLoc(p Point) Loc { return at(w.home.Level, p) }
 
 // layer returns the layer at level l, or nil when the colony has never
 // broken into it (always, so far, for anything but the landing level).
@@ -268,4 +232,99 @@ func (w *World) layer(l Level) *Layer {
 		return nil
 	}
 	return w.layers[l]
+}
+
+// landing is the landing level's layer: where crash pods land and, so far,
+// where the colony builds. Code that calls it is landing-level by design
+// (pod sites, the construction planner, the colony's silo), not by accident.
+func (w *World) landing() *Layer { return w.layers[LandingLevel] }
+
+// lay is the layer p is on. For a level that does not exist (an unset target
+// such as Point{-1, -1}, which is on the surface) it returns noLayer, an empty
+// layer whose maps read as empty, so a lookup there finds nothing, as it
+// always did for a tile nothing was on. Writing to it is a bug: its maps are
+// nil and panic, and its counts are shared. Callers that write check InBounds
+// first.
+func (w *World) lay(p Point) *Layer {
+	if l := p.Level; l >= 0 && int(l) < len(w.layers) {
+		if layer := w.layers[l]; layer != nil {
+			return layer
+		}
+	}
+	return &noLayer
+}
+
+// noLayer is what lay returns for a level that does not exist. See lay.
+var noLayer Layer
+
+// layerIn returns the layer holding p, or nil when p is off the map or on a
+// level that does not exist: InBounds and lay in one check, for the tile
+// reads every search makes on every step.
+func (w *World) layerIn(p Point) *Layer {
+	if uint(p.X) >= uint(w.Width) || uint(p.Y) >= uint(w.Height) || uint(p.Level) >= uint(len(w.layers)) {
+		return nil
+	}
+	return w.layers[p.Level]
+}
+
+// levelExists reports whether the colony has broken into level l, so it has
+// a layer.
+func (w *World) levelExists(l Level) bool {
+	return l >= 0 && int(l) < len(w.layers) && w.layers[l] != nil
+}
+
+// eachLayer calls fn for every layer that exists, shallowest first: the
+// fixed order every loop over levels must use, so map-free iteration stays
+// deterministic.
+func (w *World) eachLayer(fn func(*Layer)) {
+	for _, l := range w.layers {
+		if l != nil {
+			fn(l)
+		}
+	}
+}
+
+// containerAt is the storage container at p, or nil.
+func (w *World) containerAt(p Point) *StorageContainer { return w.lay(p).storageContainers[p] }
+
+// eachContainer calls fn for every storage container on every level, levels
+// in order and each level's in map order: callers must not let the order
+// decide anything (they sum).
+func (w *World) eachContainer(fn func(*StorageContainer)) {
+	for _, l := range w.layers {
+		if l != nil {
+			for _, c := range l.storageContainers {
+				fn(c)
+			}
+		}
+	}
+}
+
+// eachFacility calls fn for every tile of the tracked facility terrain kind,
+// on every level, levels in order and each level's in map order: callers
+// break ties themselves (by lessPoint) or only ask whether any exists.
+func (w *World) eachFacility(kind Terrain, fn func(Point)) {
+	for _, l := range w.layers {
+		if l != nil {
+			for p := range l.facilityTiles[kind] {
+				fn(p)
+			}
+		}
+	}
+}
+
+// unclaimedFrontier is how much mineable rock nobody has claimed, on every
+// level.
+func (w *World) unclaimedFrontier() int {
+	n := 0
+	w.eachLayer(func(l *Layer) { n += l.board.unclaimedCount() })
+	return n
+}
+
+// buildsInProgress is how many lone builds of kind are under way, on every
+// level.
+func (w *World) buildsInProgress(kind Terrain) int {
+	n := 0
+	w.eachLayer(func(l *Layer) { n += l.board.inProgress(kind) })
+	return n
 }

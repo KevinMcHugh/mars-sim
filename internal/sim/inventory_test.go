@@ -35,7 +35,7 @@ func TestMiningAwardsRawRock(t *testing.T) {
 	cfg.MineTicks = 1
 	w := newTestWorld(t, cfg)
 
-	pos := Point{w.Width / 2, w.Height / 2}
+	pos := Point{w.Width / 2, w.Height / 2, LandingLevel}
 	w.SetTerrain(pos, Floor)
 	target := pos.Add(1, 0)
 	w.SetTerrain(target, Rock)
@@ -58,7 +58,7 @@ func TestFullInventoryPreventsMiningResourceLoss(t *testing.T) {
 	cfg.MineTicks = 1
 	w := newTestWorld(t, cfg)
 
-	pos := Point{w.Width / 2, w.Height / 2}
+	pos := Point{w.Width / 2, w.Height / 2, LandingLevel}
 	w.SetTerrain(pos, Floor)
 	target := pos.Add(1, 0)
 	w.SetTerrain(target, Rock)
@@ -92,7 +92,7 @@ func TestMiningAwardsRockCompositionMaterial(t *testing.T) {
 			cfg.MineTicks = 1
 			w := newTestWorld(t, cfg)
 
-			pos := Point{w.Width / 2, w.Height / 2}
+			pos := Point{w.Width / 2, w.Height / 2, LandingLevel}
 			w.SetTerrain(pos, Floor)
 			target := pos.Add(1, 0)
 			w.SetTerrain(target, Rock)
@@ -118,7 +118,7 @@ func TestCompositionYieldIsAtomicWhenInventoryCannotFitExtra(t *testing.T) {
 	cfg.MineTicks = 1
 	w := newTestWorld(t, cfg)
 
-	pos := Point{w.Width / 2, w.Height / 2}
+	pos := Point{w.Width / 2, w.Height / 2, LandingLevel}
 	w.SetTerrain(pos, Floor)
 	target := pos.Add(1, 0)
 	w.SetTerrain(target, Rock)

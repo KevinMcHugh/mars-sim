@@ -28,7 +28,7 @@ func TestWorldgenRevealsTheCavernAndItsRim(t *testing.T) {
 	dark, litRock := 0, 0
 	for y := 0; y < w.Height; y++ {
 		for x := 0; x < w.Width; x++ {
-			p := Point{x, y}
+			p := Point{x, y, LandingLevel}
 			want := nearCarved(w, p)
 			if got := w.Explored(p); got != want {
 				t.Fatalf("explored(%v) = %v, want %v (terrain %v)", p, got, want, w.TerrainAt(p))
@@ -58,7 +58,7 @@ func TestExploredTilesCountMatchesTheExploredSet(t *testing.T) {
 	want := 0
 	for y := 0; y < w.Height; y++ {
 		for x := 0; x < w.Width; x++ {
-			if w.Explored(Point{x, y}) {
+			if w.Explored(Point{x, y, LandingLevel}) {
 				want++
 			}
 		}
@@ -72,12 +72,12 @@ func TestExploredTilesCountMatchesTheExploredSet(t *testing.T) {
 	// first time — see World.reveal).
 	before := w.snapshot(false, 8).Stats.ExploredTiles
 	var target Point
-	for p := range w.home.board.frontier {
+	for p := range w.landing().board.frontier {
 		target = p
 		break
 	}
 	newlyRevealed := 0
-	for _, d := range append([]Point{{0, 0}}, neighbors8[:]...) {
+	for _, d := range append([]gridStep{{0, 0}}, neighbors8[:]...) {
 		if q := target.Add(d.X, d.Y); w.InBounds(q) && !w.Explored(q) {
 			newlyRevealed++
 		}
@@ -111,7 +111,7 @@ func TestDiggingLiftsTheFogAheadOfIt(t *testing.T) {
 	// frontier tile on a map bigger than the cavern.
 	var target Point
 	var hidden []Point
-	for p := range w.home.board.frontier {
+	for p := range w.landing().board.frontier {
 		for _, d := range neighbors8 {
 			if q := p.Add(d.X, d.Y); w.InBounds(q) && !w.Explored(q) {
 				hidden = append(hidden, q)
@@ -152,7 +152,7 @@ func TestRevealsReachThePublishedSnapshot(t *testing.T) {
 
 	var target, hidden Point
 	found := false
-	for p := range w.home.board.frontier {
+	for p := range w.landing().board.frontier {
 		for _, d := range neighbors8 {
 			if q := p.Add(d.X, d.Y); w.InBounds(q) && !w.Explored(q) {
 				target, hidden, found = p, q, true
@@ -200,13 +200,13 @@ func TestFogOfWarOffHidesNothing(t *testing.T) {
 	}
 	for y := 0; y < w.Height; y++ {
 		for x := 0; x < w.Width; x++ {
-			p := Point{x, y}
+			p := Point{x, y, LandingLevel}
 			if !w.Explored(p) || !snap.ExploredAt(p) {
 				t.Fatalf("tile %v reads as unexplored with fog of war off", p)
 			}
 		}
 	}
-	if snap.ExploredAt(Point{-1, 0}) || snap.ExploredAt(Point{w.Width, 0}) {
+	if snap.ExploredAt(Point{-1, 0, LandingLevel}) || snap.ExploredAt(Point{w.Width, 0, LandingLevel}) {
 		t.Error("out-of-bounds tiles read as explored")
 	}
 }
@@ -220,7 +220,7 @@ func TestExplorationOnlyGrows(t *testing.T) {
 	seen := map[Point]bool{}
 	for y := 0; y < w.Height; y++ {
 		for x := 0; x < w.Width; x++ {
-			if p := (Point{x, y}); w.Explored(p) {
+			if p := (Point{x, y, LandingLevel}); w.Explored(p) {
 				seen[p] = true
 			}
 		}
@@ -231,7 +231,7 @@ func TestExplorationOnlyGrows(t *testing.T) {
 	}
 	// Wall off the cavern's rim for good measure: a build is a terrain change
 	// that makes a tile less walkable, not more.
-	for p := range w.home.board.frontier {
+	for p := range w.landing().board.frontier {
 		w.SetTerrain(p, Wall)
 		break
 	}

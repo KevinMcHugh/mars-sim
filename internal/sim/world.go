@@ -134,6 +134,13 @@ const (
 	// rock. It is a depot, not a workshop (it works no recipe). See
 	// incubator.go and docs/incubator.md.
 	Incubator
+	// StairDown and StairUp are the two ends of a stair: StairDown on the
+	// upper level, StairUp on the level below, at the same (x, y). Both are
+	// walkable, and a mover on one end can step to the other as a single move.
+	// A stair is a link only while both ends are in place; see linkFrom and
+	// docs/z-levels.md.
+	StairDown
+	StairUp
 
 	numTerrains // keep last: the number of terrain kinds
 )
@@ -168,6 +175,10 @@ func (t Terrain) String() string {
 		return "chair"
 	case Incubator:
 		return "scum incubator"
+	case StairDown:
+		return "stair down"
+	case StairUp:
+		return "stair up"
 	default:
 		return "unknown"
 	}
@@ -176,7 +187,7 @@ func (t Terrain) String() string {
 // Walkable reports whether a creature can stand on this terrain. Everyone,
 // aliens included, keeps to walkable floor.
 func (t Terrain) Walkable() bool {
-	return t == Floor
+	return t == Floor || t == StairDown || t == StairUp
 }
 
 // RockComposition identifies the useful material embedded in a rock tile.
@@ -313,8 +324,12 @@ func (r refuseCell) total() int {
 // tile returns the assembled view of the in-bounds tile at p, with any refuse
 // on it.
 func (w *World) tile(p Point) Tile {
-	c := w.home.tiles.at(p.X, p.Y)
-	r := w.home.refuse[p]
+	l := w.lay(p)
+	c := l.tiles.at(p.X, p.Y)
+	var r refuseCell
+	if len(l.refuse) > 0 { // usually empty: skip hashing p for nothing
+		r = l.refuse[p]
+	}
 	return Tile{
 		Terrain:     c.Terrain,
 		Composition: c.Composition,
@@ -353,13 +368,13 @@ func (w *World) addGore(p Point) {
 	if !w.InBounds(p) {
 		return
 	}
-	r := w.home.refuse[p]
+	r := w.lay(p).refuse[p]
 	if r.Gore >= maxGore {
 		return
 	}
 	r.Gore++
 	w.setRefuse(p, r)
-	w.home.goreTotal++
+	w.lay(p).goreTotal++
 }
 
 // addCorpse leaves a body of the given kind (ColonistCorpse, AlienCorpse or
@@ -374,13 +389,13 @@ func (w *World) addCorpse(p Point, kind ItemKind) {
 	if !w.InBounds(p) || i < 0 {
 		return
 	}
-	r := w.home.refuse[p]
+	r := w.lay(p).refuse[p]
 	if r.Corpses[i] >= maxCorpses {
 		return
 	}
 	r.Corpses[i]++
 	w.setRefuse(p, r)
-	w.home.corpseTotal++
+	w.lay(p).corpseTotal++
 }
 
 // refuseAt reports how many units of refuse — gore stains plus bodies — lie on
@@ -390,19 +405,19 @@ func (w *World) refuseAt(p Point) int {
 	if !w.InBounds(p) {
 		return 0
 	}
-	r := w.home.refuse[p]
+	r := w.lay(p).refuse[p]
 	return int(r.Gore) + r.total()
 }
 
 // goreAt and corpsesAt report one tile's refuse by kind, for the sight checks
 // and the gather loop that only care whether there is any.
-func (w *World) goreAt(p Point) int    { return int(w.home.refuse[p].Gore) }
-func (w *World) corpsesAt(p Point) int { return w.home.refuse[p].total() }
+func (w *World) goreAt(p Point) int    { return int(w.lay(p).refuse[p].Gore) }
+func (w *World) corpsesAt(p Point) int { return w.lay(p).refuse[p].total() }
 
 // corpsesOfAt reports how many bodies of one kind lie on p.
 func (w *World) corpsesOfAt(p Point, kind ItemKind) int {
 	if i := corpseIndex(kind); i >= 0 {
-		return int(w.home.refuse[p].Corpses[i])
+		return int(w.lay(p).refuse[p].Corpses[i])
 	}
 	return 0
 }
@@ -410,7 +425,11 @@ func (w *World) corpsesOfAt(p Point, kind ItemKind) int {
 // refuseTotal is the whole map's outstanding refuse, maintained incrementally
 // by the add/take helpers so the planner never rescans the grid to decide
 // whether the colony needs somewhere to burn things.
-func (w *World) refuseTotal() int { return w.home.goreTotal + w.home.corpseTotal }
+func (w *World) refuseTotal() int {
+	n := 0
+	w.eachLayer(func(l *Layer) { n += l.goreTotal + l.corpseTotal })
+	return n
+}
 
 // takeGore removes one gore stain from p, returning whether there was one.
 // Paired with takeCorpse, it is the only way refuse leaves a tile: a colonist
@@ -419,13 +438,13 @@ func (w *World) takeGore(p Point) bool {
 	if !w.InBounds(p) {
 		return false
 	}
-	r := w.home.refuse[p]
+	r := w.lay(p).refuse[p]
 	if r.Gore == 0 {
 		return false
 	}
 	r.Gore--
 	w.setRefuse(p, r)
-	w.home.goreTotal--
+	w.lay(p).goreTotal--
 	return true
 }
 
@@ -433,23 +452,23 @@ func (w *World) takeGore(p Point) bool {
 // is clean again. Keeping the index to dirty tiles only is the whole point of
 // it being sparse: a colony that cleans up after itself gives the memory back.
 func (w *World) setRefuse(p Point, r refuseCell) {
-	w.home.refuseRev++
+	w.lay(p).refuseRev++
 	if r == (refuseCell{}) {
-		delete(w.home.refuse, p)
+		delete(w.lay(p).refuse, p)
 		return
 	}
-	w.home.refuse[p] = r
+	w.lay(p).refuse[p] = r
 }
 
 // clearRefuse discards everything lying on a tile, keeping the running totals
 // in step. Callers mark the page dirty themselves.
 func (w *World) clearRefuse(p Point) {
-	r := w.home.refuse[p]
+	r := w.lay(p).refuse[p]
 	if r == (refuseCell{}) {
 		return
 	}
-	w.home.goreTotal -= int(r.Gore)
-	w.home.corpseTotal -= r.total()
+	w.lay(p).goreTotal -= int(r.Gore)
+	w.lay(p).corpseTotal -= r.total()
 	w.setRefuse(p, refuseCell{})
 }
 
@@ -460,13 +479,13 @@ func (w *World) takeCorpse(p Point, kind ItemKind) bool {
 	if !w.InBounds(p) || i < 0 {
 		return false
 	}
-	r := w.home.refuse[p]
+	r := w.lay(p).refuse[p]
 	if r.Corpses[i] == 0 {
 		return false
 	}
 	r.Corpses[i]--
 	w.setRefuse(p, r)
-	w.home.corpseTotal--
+	w.lay(p).corpseTotal--
 	return true
 }
 
@@ -476,13 +495,12 @@ func (w *World) takeCorpse(p Point, kind ItemKind) bool {
 type World struct {
 	Width, Height int
 
-	// home is the landing level, the only layer so far; layers indexes every
-	// layer by Level, nil for a level the colony has never broken into. home
-	// is a value rather than a pointer so the hottest reads in the
-	// simulation (w.home.tiles, w.home.occ) cost no extra indirection. See
-	// layer.go and docs/z-levels.md.
-	home   Layer
+	// layers indexes every layer by Level, nil for a level the colony has
+	// never broken into. See layer.go and docs/layers.md.
 	layers []*Layer
+	// stairs holds the upper end (the StairDown) of every stair, on every
+	// level, sorted by lessPoint. See stairs.go.
+	stairs []Point
 
 	// snapFrame counts publishes so far (TileChanges.Frame); tileSharing is
 	// how the published grid relates to the live one (see tilegrid.go).
@@ -508,7 +526,7 @@ type World struct {
 	// calls via a generation stamp instead of reallocating (and zeroing) a
 	// Width*Height slice every time a colonist needs a facility. See
 	// flowField.gen for the same trick.
-	facilityCells pagedGrid[flowCell]
+	facilityCells layered[flowCell]
 	facilityGen   int32
 	facilityQueue []Point
 	facilityFound []foundFacility
@@ -523,7 +541,7 @@ type World struct {
 	// for something that lives entirely inside one followField call on the
 	// engine goroutine — a third of all flow-field memory for scratch no two
 	// fields could ever want at the same time.
-	transitSeen pagedGrid[int32]
+	transitSeen layered[int32]
 	transitGen  int32
 	transitQ    []int32
 
@@ -751,6 +769,9 @@ type World struct {
 	nestRNG *rand.Rand
 	// nestCenters is revealAround's scratch: cavern centers found this flood.
 	nestCenters []Point
+	// lazyGen is set once generate has run: every layer gets a chunk
+	// generator (see initGen), rather than starting as plain rock.
+	lazyGen bool
 	// cavernBreaches counts the floods revealAround has run: how many times
 	// the colony has broken into a cave system it did not know about.
 	cavernBreaches int
@@ -788,9 +809,8 @@ func newWorld(cfg Config, src *rand.PCG) *World {
 		cfg:               cfg,
 		cognition:         cfg.Cognition,
 	}
-	w.home = newLayer(LandingLevel, cfg.Width, cfg.Height)
 	w.layers = make([]*Layer, LandingLevel+1)
-	w.layers[LandingLevel] = &w.home
+	w.layers[LandingLevel] = newLayer(LandingLevel, cfg.Width, cfg.Height)
 	w.rngSrc.sim = src
 	if src != nil {
 		w.rng = rand.New(src)
@@ -807,8 +827,8 @@ func newWorld(cfg Config, src *rand.PCG) *World {
 		w.kindEntities[k] = make(map[EntityID]struct{})
 	}
 
-	w.facilityCells = newPagedGrid[flowCell](cfg.Width, cfg.Height)
-	w.transitSeen = newPagedGrid[int32](cfg.Width, cfg.Height)
+	w.facilityCells = newLayered[flowCell](cfg.Width, cfg.Height)
+	w.transitSeen = newLayered[int32](cfg.Width, cfg.Height)
 
 	w.chunkCols = ceilDiv(cfg.Width, chunkSize)
 	w.chunkRows = ceilDiv(cfg.Height, chunkSize)
@@ -819,10 +839,10 @@ func newWorld(cfg Config, src *rand.PCG) *World {
 	w.discoveredRooms = make(map[RoomID]int)
 	w.nextRegion = 1
 
-	w.home.board = newJobBoard(w)
+	w.landing().board = newJobBoard(w)
 	w.subscribe(func(e WorldEvent) {
 		if tc, ok := e.(TileChanged); ok {
-			w.home.board.onTileChanged(tc)
+			w.lay(tc.Pos).board.onTileChanged(tc)
 		}
 	})
 	w.pf = newPathfinder(w)
@@ -858,21 +878,24 @@ func newWorld(cfg Config, src *rand.PCG) *World {
 		}
 	})
 	w.frontier = newFlowField(w, func(add func(Point)) {
-		// Goals: walkable neighbors of every unclaimed frontier rock tile.
-		for p := range w.home.board.frontier {
-			if _, taken := w.home.board.claimed[p]; taken {
-				continue
+		// Goals: walkable neighbors of every unclaimed frontier rock tile,
+		// on every level.
+		w.eachLayer(func(l *Layer) {
+			for p := range l.board.frontier {
+				if _, taken := l.board.claimed[p]; taken {
+					continue
+				}
+				for _, d := range neighbors8 {
+					add(p.Add(d.X, d.Y))
+				}
 			}
-			for _, d := range neighbors8 {
-				add(p.Add(d.X, d.Y))
-			}
-		}
+		})
 	}, func(p Point) bool {
 		if !w.Walkable(p) {
 			return false
 		}
 		for _, d := range neighbors8 {
-			if w.home.board.isUnclaimedFrontier(p.Add(d.X, d.Y)) {
+			if w.lay(p).board.isUnclaimedFrontier(p.Add(d.X, d.Y)) {
 				return true
 			}
 		}
@@ -904,28 +927,22 @@ func (w *World) trackFacility(kind Terrain) {
 	if w.fields[kind] != nil {
 		return
 	}
-	w.home.facilityTiles[kind] = make(map[Point]struct{})
+	w.eachLayer(func(l *Layer) { l.facilityTiles[kind] = make(map[Point]struct{}) })
 	w.fields[kind] = newFlowField(w, facilitySeed(w, kind), facilityGoal(w, kind))
-}
-
-// index converts a coordinate to a slice offset. Callers must ensure the point
-// is in bounds.
-func (w *World) index(p Point) int {
-	return p.Y*w.Width + p.X
 }
 
 // InBounds reports whether p lies inside the world grid.
 func (w *World) InBounds(p Point) bool {
-	return p.X >= 0 && p.X < w.Width && p.Y >= 0 && p.Y < w.Height
+	return w.layerIn(p) != nil
 }
 
 // TerrainAt returns the terrain at p, or Rock for out-of-bounds cells so the
 // edge of the world reads as solid.
 func (w *World) TerrainAt(p Point) Terrain {
-	if !w.InBounds(p) {
-		return Rock
+	if l := w.layerIn(p); l != nil {
+		return l.tiles.at(p.X, p.Y).Terrain
 	}
-	return w.home.tiles.at(p.X, p.Y).Terrain
+	return Rock
 }
 
 // TileAt returns the tile at p. Out-of-bounds cells behave as ordinary rock.
@@ -952,10 +969,10 @@ func (w *World) carveHidden(p Point) {
 		return
 	}
 	w.generateChunkAt(p)
-	if w.home.tiles.at(p.X, p.Y).Explored || w.TerrainAt(p) != Rock {
+	if w.lay(p).tiles.at(p.X, p.Y).Explored || w.TerrainAt(p) != Rock {
 		return
 	}
-	w.home.hiddenFloor++
+	w.lay(p).hiddenFloor++
 	w.setTerrain(p, Floor, false)
 }
 
@@ -964,7 +981,7 @@ func (w *World) setTerrain(p Point, t Terrain, discover bool) {
 		return
 	}
 	w.generateChunkAt(p)
-	old := w.home.tiles.at(p.X, p.Y).Terrain
+	old := w.lay(p).tiles.at(p.X, p.Y).Terrain
 	if old == t {
 		return
 	}
@@ -978,19 +995,20 @@ func (w *World) setTerrain(p Point, t Terrain, discover bool) {
 		// "undiscovered cavern floor". See docs/fog-of-war.md.
 		w.revealAround(p)
 	}
-	w.home.terrainCounts[old]--
-	w.home.terrainCounts[t]++
-	if w.home.facilityTiles[old] != nil {
-		delete(w.home.facilityTiles[old], p)
+	w.lay(p).terrainCounts[old]--
+	w.lay(p).terrainCounts[t]++
+	w.trackStair(p, old, t)
+	if w.lay(p).facilityTiles[old] != nil {
+		delete(w.lay(p).facilityTiles[old], p)
 	}
-	if w.home.facilityTiles[t] != nil {
-		w.home.facilityTiles[t][p] = struct{}{}
+	if w.lay(p).facilityTiles[t] != nil {
+		w.lay(p).facilityTiles[t][p] = struct{}{}
 	}
 	if hasDepot(old) {
-		delete(w.home.storageContainers, p)
+		delete(w.lay(p).storageContainers, p)
 	}
 	if hasDepot(t) {
-		w.home.storageContainers[p] = &StorageContainer{Pos: p, Terrain: t}
+		w.lay(p).storageContainers[p] = &StorageContainer{Pos: p, Terrain: t}
 	}
 	if isFixtureTerrain(old) {
 		w.dropFixture(p)
@@ -1012,21 +1030,21 @@ func (w *World) setTerrain(p Point, t Terrain, discover bool) {
 		w.clearScum(p) // a structure seals the biofilm under it for good
 		w.clearSalt(p) // and buries the salt
 	}
-	w.home.tiles.ptr(p.X, p.Y).Terrain = t
+	w.lay(p).tiles.ptr(p.X, p.Y).Terrain = t
 	w.markTilePageDirty(p)
-	w.home.dirtyChunks[w.chunkIndexOf(p)] = struct{}{}
+	w.lay(p).dirtyChunks[w.chunkIndexOf(p)] = struct{}{}
 	w.emit(TileChanged{Pos: p, Old: old, New: t})
 }
 
 // growCarvedBox extends the carved bounding box (see carvedMin) to cover p.
 func (w *World) growCarvedBox(p Point) {
-	if !w.home.carvedAny {
-		w.home.carvedAny = true
-		w.home.carvedMin, w.home.carvedMax = p, p
+	if !w.lay(p).carvedAny {
+		w.lay(p).carvedAny = true
+		w.lay(p).carvedMin, w.lay(p).carvedMax = p, p
 		return
 	}
-	w.home.carvedMin.X, w.home.carvedMax.X = min(w.home.carvedMin.X, p.X), max(w.home.carvedMax.X, p.X)
-	w.home.carvedMin.Y, w.home.carvedMax.Y = min(w.home.carvedMin.Y, p.Y), max(w.home.carvedMax.Y, p.Y)
+	w.lay(p).carvedMin.X, w.lay(p).carvedMax.X = min(w.lay(p).carvedMin.X, p.X), max(w.lay(p).carvedMax.X, p.X)
+	w.lay(p).carvedMin.Y, w.lay(p).carvedMax.Y = min(w.lay(p).carvedMin.Y, p.Y), max(w.lay(p).carvedMax.Y, p.Y)
 }
 
 // revealAround marks p and its eight neighbors explored, lifting the fog over
@@ -1049,7 +1067,7 @@ func (w *World) revealAround(p Point) {
 		found++
 		w.discoverCavernTile(q)
 		w.revealRing(q)
-		if _, ok := w.home.unfoundCaverns[q]; ok {
+		if _, ok := w.lay(q).unfoundCaverns[q]; ok {
 			w.nestCenters = append(w.nestCenters, q)
 		}
 	}
@@ -1080,24 +1098,24 @@ func (w *World) reveal(p Point) {
 		return
 	}
 	w.generateChunkAt(p)
-	c := w.home.tiles.ptr(p.X, p.Y)
+	c := w.lay(p).tiles.ptr(p.X, p.Y)
 	if c.Explored {
 		return
 	}
 	c.Explored = true
-	w.home.exploredCount++
+	w.lay(p).exploredCount++
 	w.markTilePageDirty(p)
 	if c.Terrain != Rock {
-		w.home.hiddenFloor--
+		w.lay(p).hiddenFloor--
 		w.caveStack = append(w.caveStack, p)
 	}
 	// The first tile seen in a chunk moves the generated frontier out
 	// around it. This is the only thing that generates chunks during play,
 	// and exploration is simulation state, so which chunks exist at any
 	// tick is the same on every machine.
-	if w.home.gen != nil {
-		if pi := w.home.tiles.pageIndex(p.X, p.Y); !w.home.genSeen[pi] {
-			w.home.genSeen[pi] = true
+	if w.lay(p).gen != nil {
+		if pi := w.lay(p).tiles.pageIndex(p.X, p.Y); !w.lay(p).genSeen[pi] {
+			w.lay(p).genSeen[pi] = true
 			w.generateAround(p)
 		}
 	}
@@ -1111,11 +1129,11 @@ func (w *World) discoverCavernTile(p Point) {
 	w.growCarvedBox(p)
 	w.refreshScumExposure(p) // the cavern's rim is reachable scum now
 	w.refreshSaltExposure(p) // and salt
-	w.home.dirtyChunks[w.chunkIndexOf(p)] = struct{}{}
-	if w.home.board != nil {
-		w.home.board.refreshFrontierCell(p)
+	w.lay(p).dirtyChunks[w.chunkIndexOf(p)] = struct{}{}
+	if w.lay(p).board != nil {
+		w.lay(p).board.refreshFrontierCell(p)
 		for _, d := range neighbors8 {
-			w.home.board.refreshFrontierCell(p.Add(d.X, d.Y))
+			w.lay(p).board.refreshFrontierCell(p.Add(d.X, d.Y))
 		}
 	}
 	if w.frontier != nil {
@@ -1127,7 +1145,8 @@ func (w *World) discoverCavernTile(p Point) {
 // fog of war is shown. Colony-facing systems use it to ignore the floor of
 // natural caverns nobody has broken into yet.
 func (w *World) discovered(p Point) bool {
-	return w.InBounds(p) && w.home.tiles.at(p.X, p.Y).Explored
+	l := w.layerIn(p)
+	return l != nil && l.tiles.at(p.X, p.Y).Explored
 }
 
 // Explored reports whether the colony has seen p, as a frontend should show it:
@@ -1140,19 +1159,21 @@ func (w *World) Explored(p Point) bool {
 	if !w.cfg.FogOfWar {
 		return true
 	}
-	return w.home.tiles.at(p.X, p.Y).Explored
+	return w.lay(p).tiles.at(p.X, p.Y).Explored
 }
 
 // Walkable reports whether a colonist can stand at p.
 func (w *World) Walkable(p Point) bool {
-	return w.InBounds(p) && w.home.tiles.at(p.X, p.Y).Terrain.Walkable()
+	l := w.layerIn(p)
+	return l != nil && l.tiles.at(p.X, p.Y).Terrain.Walkable()
 }
 
 // ---- Occupancy ---------------------------------------------------------------
 
 // occupied reports whether any entity stands on p.
 func (w *World) occupied(p Point) bool {
-	return w.InBounds(p) && w.home.occ.at(p.X, p.Y) != 0
+	l := w.layerIn(p)
+	return l != nil && l.occ.at(p.X, p.Y) != 0
 }
 
 // occupiedByOther reports whether an entity other than self stands on p.
@@ -1160,17 +1181,18 @@ func (w *World) occupiedByOther(p Point, self EntityID) bool {
 	if !w.InBounds(p) {
 		return false
 	}
-	id := w.home.occ.at(p.X, p.Y)
+	id := w.lay(p).occ.at(p.X, p.Y)
 	return id != 0 && id != self
 }
 
 // entityAt returns the entity standing on p, or nil when p is out of bounds or
 // empty.
 func (w *World) entityAt(p Point) *Entity {
-	if !w.InBounds(p) {
+	l := w.layerIn(p)
+	if l == nil {
 		return nil
 	}
-	return w.entities[w.home.occ.at(p.X, p.Y)]
+	return w.entities[l.occ.at(p.X, p.Y)]
 }
 
 // moveEntity relocates an entity, updating the occupancy index. Callers must
@@ -1180,11 +1202,14 @@ func (w *World) moveEntity(e *Entity, to Point) {
 		return
 	}
 	from := e.Pos
-	w.home.occ.set(from.X, from.Y, 0)
-	w.home.occ.set(to.X, to.Y, e.ID)
-	if oc, nc := w.chunkIndexOf(from), w.chunkIndexOf(to); oc != nc {
-		w.removeFromChunkIndex(oc, e.ID)
-		w.home.chunkEntities[nc] = append(w.home.chunkEntities[nc], e.ID)
+	fl, tl := w.lay(from), w.lay(to)
+	fl.occ.set(from.X, from.Y, 0)
+	tl.occ.set(to.X, to.Y, e.ID)
+	// Changing level (a stair) always changes chunk index too: the index is
+	// per layer.
+	if oc, nc := w.chunkIndexOf(from), w.chunkIndexOf(to); oc != nc || fl != tl {
+		w.removeFromChunkIndex(fl, oc, e.ID)
+		tl.chunkEntities[nc] = append(tl.chunkEntities[nc], e.ID)
 	}
 	e.Pos = to
 }
@@ -1239,11 +1264,11 @@ func (w *World) spawnAs(kind Kind, p Point, species int) *Entity {
 	}
 	w.nextID++
 	w.entities[e.ID] = e
-	w.home.occ.set(p.X, p.Y, e.ID)
+	w.lay(p).occ.set(p.X, p.Y, e.ID)
 	w.kindCounts[kind]++
 	w.kindEntities[kind][e.ID] = struct{}{}
 	ci := w.chunkIndexOf(p)
-	w.home.chunkEntities[ci] = append(w.home.chunkEntities[ci], e.ID)
+	w.lay(p).chunkEntities[ci] = append(w.lay(p).chunkEntities[ci], e.ID)
 	if kind == Colonist {
 		// Every colonist arrives with a purse. Minted only now, once the
 		// colonist is registered, because mint pays into a living wallet.
@@ -1294,10 +1319,10 @@ func (w *World) remove(id EntityID, cause string) {
 		// cook killed mid-recipe locked its scumhouse.
 		w.clearJob(e)
 	}
-	w.home.occ.set(e.Pos.X, e.Pos.Y, 0)
+	w.lay(e.Pos).occ.set(e.Pos.X, e.Pos.Y, 0)
 	w.kindCounts[e.Kind]--
 	delete(w.kindEntities[e.Kind], id)
-	w.removeFromChunkIndex(w.chunkIndexOf(e.Pos), id)
+	w.removeFromChunkIndex(w.lay(e.Pos), w.chunkIndexOf(e.Pos), id)
 	// The kin node (if any) is left as-is: its entity field keeps pointing at
 	// id so surviving relatives' family trees still name this colonist and
 	// so descendants stay connected through them. relativesOf resolves
@@ -1315,5 +1340,11 @@ func (w *World) countKind(kind Kind) int {
 
 // countTerrain returns how many tiles currently hold the given terrain.
 func (w *World) countTerrain(t Terrain) int {
-	return w.home.terrainCounts[t]
+	n := 0
+	for _, l := range w.layers {
+		if l != nil {
+			n += l.terrainCounts[t]
+		}
+	}
+	return n
 }

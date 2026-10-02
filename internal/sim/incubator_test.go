@@ -6,7 +6,7 @@ import "testing"
 func incubatorWorld(t *testing.T) (w *World, house, inc Point) {
 	t.Helper()
 	w, house = scumhouseWorld(t, false)
-	inc = Point{14, 6}
+	inc = Point{14, 6, LandingLevel}
 	w.SetTerrain(inc, Incubator)
 	w.refreshSpatial()
 	return w, house, inc
@@ -14,7 +14,7 @@ func incubatorWorld(t *testing.T) (w *World, house, inc Point) {
 
 // seed puts n units of the colony's scum in the incubator at p.
 func seedIncubator(w *World, p Point, n int) {
-	c := w.home.storageContainers[p]
+	c := w.landing().storageContainers[p]
 	c.Inventory.AddAll(ItemStack{CaveScum, n})
 	c.credit(Community, CaveScum, n)
 }
@@ -24,7 +24,7 @@ func seedIncubator(w *World, p Point, n int) {
 func TestAnIncubatorGrowsScumOnSchedule(t *testing.T) {
 	w, _, inc := incubatorWorld(t)
 	w.cfg.IncubatorGrowTicks, w.cfg.IncubatorCapacity, w.cfg.IncubatorSeed = 10, 6, 2
-	c := w.home.storageContainers[inc]
+	c := w.landing().storageContainers[inc]
 
 	for i := 0; i < 100; i++ {
 		w.step()
@@ -56,8 +56,8 @@ func TestAnIncubatorGrowsScumOnSchedule(t *testing.T) {
 func TestColonistsSeedAnIncubatorAndTheColonyBuysTheSeed(t *testing.T) {
 	w, _, inc := incubatorWorld(t)
 	w.cfg.IncubatorSeed = 2
-	putScum(w, Point{8, 8}, 3)
-	e := w.spawn(Colonist, Point{10, 8})
+	putScum(w, Point{8, 8, LandingLevel}, 3)
+	e := w.spawn(Colonist, Point{10, 8, LandingLevel})
 	purse := w.balance(ColonistOwner(e.ID))
 	treasury := w.treasury
 
@@ -67,7 +67,7 @@ func TestColonistsSeedAnIncubatorAndTheColonyBuysTheSeed(t *testing.T) {
 	for i := 0; i < 400 && e.Job != JobNone; i++ {
 		w.step()
 	}
-	c := w.home.storageContainers[inc]
+	c := w.landing().storageContainers[inc]
 	if got := c.held(Community, CaveScum); got < 2 {
 		t.Fatalf("the colony holds %d scum in the incubator, want at least its seed (ledger %+v)", got, c.Ledger)
 	}
@@ -86,7 +86,7 @@ func TestHarvestersCarryRipeScumToTheScumhouse(t *testing.T) {
 	w, house, inc := incubatorWorld(t)
 	w.cfg.IncubatorSeed = 2
 	seedIncubator(w, inc, 6)
-	e := w.spawn(Colonist, Point{10, 8})
+	e := w.spawn(Colonist, Point{10, 8, LandingLevel})
 	purse := w.balance(ColonistOwner(e.ID))
 
 	if !w.tryAssignHarvest(e) {
@@ -95,7 +95,7 @@ func TestHarvestersCarryRipeScumToTheScumhouse(t *testing.T) {
 	for i := 0; i < 400 && e.Job != JobNone; i++ {
 		w.step()
 	}
-	ic, hc := w.home.storageContainers[inc], w.home.storageContainers[house]
+	ic, hc := w.landing().storageContainers[inc], w.landing().storageContainers[house]
 	if got := ic.held(Community, CaveScum); got != 2 {
 		t.Fatalf("the incubator holds %d, want its seed of 2 kept back", got)
 	}
@@ -116,25 +116,25 @@ func TestHarvestersCarryRipeScumToTheScumhouse(t *testing.T) {
 // Wild scum: allowed until an incubator stands, then only in dire times.
 func TestWildScumIsForDireTimesOnceIncubatorsStand(t *testing.T) {
 	w, house := scumhouseWorld(t, false)
-	w.spawn(Colonist, Point{10, 8})
+	w.spawn(Colonist, Point{10, 8, LandingLevel})
 	if !w.wildScumAllowed() {
 		t.Fatal("with no incubator, the colony has nothing but the rock to feed from")
 	}
 
-	inc := Point{14, 6}
+	inc := Point{14, 6, LandingLevel}
 	w.SetTerrain(inc, Incubator)
 	w.refreshSpatial()
 	w.cfg.ScumDireMeals = 1
-	w.home.storageContainers[house].Inventory.AddAll(ItemStack{Meal, 5})
-	w.home.storageContainers[house].credit(Community, Meal, 5)
+	w.landing().storageContainers[house].Inventory.AddAll(ItemStack{Meal, 5})
+	w.landing().storageContainers[house].credit(Community, Meal, 5)
 	w.storedMealsTick = -1
 	if w.wildScumAllowed() {
 		t.Fatal("stores are fine and an incubator stands, but wild scum is allowed")
 	}
 
-	w.home.storageContainers[house].Inventory.Remove(Meal, 5)
-	w.home.storageContainers[house].debit(Community, Meal, 0)
-	w.home.storageContainers[house].Ledger = nil
+	w.landing().storageContainers[house].Inventory.Remove(Meal, 5)
+	w.landing().storageContainers[house].debit(Community, Meal, 0)
+	w.landing().storageContainers[house].Ledger = nil
 	w.storedMealsTick = -1
 	if !w.wildScumAllowed() {
 		t.Fatal("the shelves are bare and nothing is ripe: that is dire, and wild scum should be allowed")
@@ -149,11 +149,11 @@ func TestWildScumIsForDireTimesOnceIncubatorsStand(t *testing.T) {
 // hungry colonist's own foraging still does.
 func TestRoutineScrapingWaitsOnTheIncubator(t *testing.T) {
 	w, house, _ := incubatorWorld(t)
-	putScum(w, Point{8, 8}, 3)
-	w.home.storageContainers[house].Inventory.AddAll(ItemStack{Meal, 30})
-	w.home.storageContainers[house].credit(Community, Meal, 30)
+	putScum(w, Point{8, 8, LandingLevel}, 3)
+	w.landing().storageContainers[house].Inventory.AddAll(ItemStack{Meal, 30})
+	w.landing().storageContainers[house].credit(Community, Meal, 30)
 	w.storedMealsTick = -1
-	e := w.spawn(Colonist, Point{9, 8})
+	e := w.spawn(Colonist, Point{9, 8, LandingLevel})
 
 	if w.tryAssignScrape(e, false) {
 		t.Fatal("the colony scraped wild scum for its stoves with an incubator standing and stores full")
@@ -190,5 +190,5 @@ func TestTheColonyBuildsIncubatorsAndFeedsFromThem(t *testing.T) {
 func putScum(w *World, p Point, n int) {
 	noScum(w)
 	w.setScum(p, n)
-	w.home.exposedScum[p] = struct{}{}
+	w.landing().exposedScum[p] = struct{}{}
 }

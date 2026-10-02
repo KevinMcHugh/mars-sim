@@ -10,7 +10,7 @@ func focusTestColonist(t *testing.T) (*World, *Entity) {
 	cfg := testConfig()
 	cfg.StartColonists, cfg.StartAliens, cfg.StartCats, cfg.StartRats = 0, 0, 0, 0
 	w := newTestWorld(t, cfg)
-	c := w.spawn(Colonist, Point{w.Width / 2, w.Height / 2})
+	c := w.spawn(Colonist, Point{w.Width / 2, w.Height / 2, LandingLevel})
 	return w, c
 }
 
@@ -141,13 +141,13 @@ func TestFocusTransitionReleasesMineClaim(t *testing.T) {
 	w, c := focusTestColonist(t)
 	target := c.Pos.Add(1, 0)
 	w.SetTerrain(target, Rock)
-	w.home.board.claimMine(target, c.ID)
+	w.landing().board.claimMine(target, c.ID)
 	c.Job, c.Target, c.mineClaimed = JobMine, target, true
 	c.focus = FocusWork
 	c.Needs[NeedFood] = w.cfg.Needs[NeedFood].SeekAt
 
 	w.colonistTurn(c)
-	if w.home.board.isClaimed(target) {
+	if w.landing().board.isClaimed(target) {
 		t.Fatal("mine claim survived focus transition")
 	}
 	if c.focus != FocusEat {
@@ -168,7 +168,7 @@ func BenchmarkFocusCandidates(b *testing.B) {
 	cfg := DefaultConfig()
 	cfg.Seed = 1
 	w := newWorld(cfg, nil)
-	c := newEntity(1, Colonist, Point{1, 1}, cfg)
+	c := newEntity(1, Colonist, Point{1, 1, LandingLevel}, cfg)
 	c.Needs[NeedFood] = cfg.Needs[NeedFood].SeekAt
 	w.entities[c.ID] = c
 	var candidates [numFocusKinds]FocusCandidate
@@ -189,11 +189,11 @@ func fleeCorridorBounces(t *testing.T, margin int) int {
 	t.Helper()
 	w := roomsTestWorld(48, 12)
 	w.cfg.FleeReleaseMargin = margin
-	carve(w, Point{2, 6}, Point{40, 6}, Floor)
-	w.SetTerrain(Point{41, 6}, Toilet)
+	carve(w, Point{2, 6, LandingLevel}, Point{40, 6, LandingLevel}, Floor)
+	w.SetTerrain(Point{41, 6, LandingLevel}, Toilet)
 	w.refreshSpatial()
-	w.spawn(Alien, Point{24, 6})
-	c := w.spawn(Colonist, Point{8, 6})
+	w.spawn(Alien, Point{24, 6, LandingLevel})
+	c := w.spawn(Colonist, Point{8, 6, LandingLevel})
 	for n := NeedKind(0); n < numNeeds; n++ {
 		c.Needs[n] = 0
 	}

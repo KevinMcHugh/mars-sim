@@ -22,7 +22,7 @@ func benchWorldSized(width, height, colonists int) *World {
 	const border = 20
 	for y := border; y < w.Height-border; y++ {
 		for x := border; x < w.Width-border; x++ {
-			w.SetTerrain(Point{x, y}, Floor)
+			w.SetTerrain(Point{x, y, LandingLevel}, Floor)
 		}
 	}
 	floors := w.freeFloorTiles()
@@ -173,7 +173,7 @@ func BenchmarkStepMixed500(b *testing.B) {
 func BenchmarkRoomRefresh(b *testing.B) {
 	w := benchWorld(0) // 160x160 with a large carved chamber, no colonists
 	w.refreshSpatial()
-	p := Point{w.Width / 2, w.Height / 2}
+	p := Point{w.Width / 2, w.Height / 2, LandingLevel}
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -191,8 +191,8 @@ func BenchmarkRoomRefresh(b *testing.B) {
 func BenchmarkPathfind(b *testing.B) {
 	w := benchWorld(0) // 160x160 with a large carved chamber
 	w.refreshSpatial()
-	from := Point{w.Width / 2, w.Height / 2}
-	target := Point{20, 20} // rock at the chamber's rock border
+	from := Point{w.Width / 2, w.Height / 2, LandingLevel}
+	target := Point{20, 20, LandingLevel} // rock at the chamber's rock border
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -208,8 +208,8 @@ func BenchmarkNeedSeek(b *testing.B) {
 	// Scatter pods and toilets across the carved chamber as shared destinations.
 	for gy := 30; gy < 130; gy += 25 {
 		for gx := 30; gx < 130; gx += 25 {
-			w.SetTerrain(Point{gx, gy}, NutrientPod)
-			w.SetTerrain(Point{gx + 2, gy}, Toilet)
+			w.SetTerrain(Point{gx, gy, LandingLevel}, NutrientPod)
+			w.SetTerrain(Point{gx + 2, gy, LandingLevel}, Toilet)
 		}
 	}
 	w.refreshSpatial()
@@ -250,14 +250,14 @@ func benchWorldSmallColony(mapSize, chamber, colonists int) *World {
 	cx, cy := mapSize/2, mapSize/2
 	for y := cy - chamber/2; y < cy+chamber/2; y++ {
 		for x := cx - chamber/2; x < cx+chamber/2; x++ {
-			w.SetTerrain(Point{x, y}, Floor)
+			w.SetTerrain(Point{x, y, LandingLevel}, Floor)
 		}
 	}
 	for gy := cy - chamber/2 + 5; gy < cy+chamber/2; gy += 20 {
 		for gx := cx - chamber/2 + 5; gx < cx+chamber/2; gx += 20 {
-			w.SetTerrain(Point{gx, gy}, NutrientPod)
-			w.SetTerrain(Point{gx + 2, gy}, Toilet)
-			w.SetTerrain(Point{gx + 4, gy}, Bed)
+			w.SetTerrain(Point{gx, gy, LandingLevel}, NutrientPod)
+			w.SetTerrain(Point{gx + 2, gy, LandingLevel}, Toilet)
+			w.SetTerrain(Point{gx + 4, gy, LandingLevel}, Bed)
 		}
 	}
 	floors := w.freeFloorTiles()
@@ -346,7 +346,7 @@ func benchmarkFirstPublish(b *testing.B, mode TileSharing) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		b.StopTimer()
-		w.home.snapGrid = nil // force a first frame
+		w.landing().snapGrid = nil // force a first frame
 		runtime.GC()
 		runtime.ReadMemStats(&ms)
 		before := int64(ms.HeapAlloc)
@@ -422,7 +422,7 @@ func BenchmarkChunkCold(b *testing.B) {
 	cfg.Seed = 7
 	cfg.Width, cfg.Height = 2048, 2048
 	for i := 0; i < b.N; i++ {
-		newWorldGen(cfg).chunk(16, 16)
+		newWorldGen(cfg, LandingLevel).chunk(16, 16)
 	}
 }
 
@@ -430,7 +430,7 @@ func BenchmarkChunkWarm(b *testing.B) {
 	cfg := DefaultConfig()
 	cfg.Seed = 7
 	cfg.Width, cfg.Height = 2048, 2048
-	g := newWorldGen(cfg)
+	g := newWorldGen(cfg, LandingLevel)
 	g.chunk(16, 16)
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -450,7 +450,7 @@ func BenchmarkGenerateMap(b *testing.B) {
 			cfg.SaltPercent = salt
 			b.ReportAllocs()
 			for i := 0; i < b.N; i++ {
-				g := newWorldGen(cfg)
+				g := newWorldGen(cfg, LandingLevel)
 				g.withCacheSize(2 * g.chunkCols() * (2*genHorizon + 1))
 				for cy := 0; cy < g.chunkRows(); cy++ {
 					for cx := 0; cx < g.chunkCols(); cx++ {

@@ -12,12 +12,12 @@ func assertOwnsPod(t *testing.T, w *World, e *Entity) {
 	me := ColonistOwner(e.ID)
 	for _, f := range podFixtures {
 		p := e.podOrigin.Add(f.dx, f.dy)
-		fx := w.home.fixtures[p]
+		fx := w.landing().fixtures[p]
 		if w.TerrainAt(p) != f.terrain || fx == nil || fx.Owner != me || fx.Access != AccessPrivate {
 			t.Fatalf("%s's pod %v at %v: terrain %v fixture %+v", e.displayName(), f.terrain, p, w.TerrainAt(p), fx)
 		}
 	}
-	locker := w.home.storageContainers[e.podOrigin.Add(podFixtures[2].dx, podFixtures[2].dy)]
+	locker := w.landing().storageContainers[e.podOrigin.Add(podFixtures[2].dx, podFixtures[2].dy)]
 	// A meal it has taken out to carry (a pocket meal) is still the manifest's.
 	if got := locker.held(me, Meal) + e.ownCarried(Meal); got != w.cfg.CrashPodMeals {
 		t.Fatalf("%s's locker and pockets hold %d meals of its own, want %d", e.displayName(), got, w.cfg.CrashPodMeals)
@@ -33,8 +33,8 @@ func assertOwnsPod(t *testing.T, w *World, e *Entity) {
 			}
 		}
 	}
-	if p := e.podOrigin.Add(podApproach.X, podApproach.Y); !w.Walkable(p) || !w.home.doorTiles[p] {
-		t.Fatalf("%s's pod approach %v is %v (reserved %v), want reserved floor", e.displayName(), p, w.TerrainAt(p), w.home.doorTiles[p])
+	if p := e.podOrigin.Add(podApproach.X, podApproach.Y); !w.Walkable(p) || !w.landing().doorTiles[p] {
+		t.Fatalf("%s's pod approach %v is %v (reserved %v), want reserved floor", e.displayName(), p, w.TerrainAt(p), w.landing().doorTiles[p])
 	}
 	if e.Inventory.Count(Pistol) != w.cfg.CrashPodPistols {
 		t.Fatalf("%s carries %d pistols, want %d", e.displayName(), e.Inventory.Count(Pistol), w.cfg.CrashPodPistols)
@@ -103,11 +103,11 @@ func TestPodCrashesThroughRockWhenTheCavernIsFull(t *testing.T) {
 	// floor with a clear margin, so every landing has to crash.
 	for y := 0; y < w.Height; y++ {
 		for x := 0; x < w.Width; x++ {
-			w.SetTerrain(Point{x, y}, Rock)
+			w.SetTerrain(Point{x, y, LandingLevel}, Rock)
 		}
 	}
 	for x := 5; x < 25; x++ {
-		w.SetTerrain(Point{x, 12}, Floor)
+		w.SetTerrain(Point{x, 12, LandingLevel}, Floor)
 	}
 	w.refreshSpatial()
 
@@ -129,7 +129,7 @@ func TestPodCrashesThroughRockWhenTheCavernIsFull(t *testing.T) {
 	})
 	assertOwnsPod(t, w, e)
 	w.refreshSpatial()
-	if w.roomOf(e.Pos) != w.roomOf(Point{6, 12}) {
+	if w.roomOf(e.Pos) != w.roomOf(Point{6, 12, LandingLevel}) {
 		t.Fatal("the crashed pod does not open onto the strip")
 	}
 	if !loggedContaining(w, "smashes down through the rock") {
@@ -172,17 +172,17 @@ func TestPodsNeverLandInAnUndiscoveredCavern(t *testing.T) {
 	w := newTestWorld(t, cfg)
 	for y := 0; y < w.Height; y++ {
 		for x := 0; x < w.Width; x++ {
-			w.SetTerrain(Point{x, y}, Rock)
+			w.SetTerrain(Point{x, y, LandingLevel}, Rock)
 		}
 	}
 	for y := 15; y <= 26; y++ {
 		for x := 20; x <= 40; x++ {
-			cellAt(w, Point{x, y}).Explored = false
-			w.carveHidden(Point{x, y})
+			cellAt(w, Point{x, y, LandingLevel}).Explored = false
+			w.carveHidden(Point{x, y, LandingLevel})
 		}
 	}
 	for y := 10; y < 29; y++ {
-		w.SetTerrain(Point{5, y}, Floor)
+		w.SetTerrain(Point{5, y, LandingLevel}, Floor)
 	}
 	w.refreshSpatial()
 
@@ -191,7 +191,7 @@ func TestPodsNeverLandInAnUndiscoveredCavern(t *testing.T) {
 		t.Fatal("no site found")
 	}
 	w.refreshSpatial()
-	if w.roomOf(e.Pos) != w.roomOf(Point{5, 20}) {
+	if w.roomOf(e.Pos) != w.roomOf(Point{5, 20, LandingLevel}) {
 		t.Fatalf("the pod at %v landed cut off from the colony's corridor", e.podOrigin)
 	}
 }
@@ -213,7 +213,7 @@ func TestPodsInARowSharePartyWalls(t *testing.T) {
 		if w.roomOf(e.Pos) != w.mainRoom {
 			t.Fatalf("%s is shut in its pod at %v", e.displayName(), e.podOrigin)
 		}
-		if right := e.podOrigin.Add(podWidth-1, 0); w.home.pods[right] {
+		if right := e.podOrigin.Add(podWidth-1, 0); w.landing().pods[right] {
 			shared++
 			for dy := 0; dy < podHeight; dy++ {
 				if p := right.Add(0, dy); w.TerrainAt(p) != Hull {
@@ -237,13 +237,13 @@ func TestPodsNeverRevealAHiddenCavern(t *testing.T) {
 	w := newTestWorld(t, cfg)
 	for y := 0; y < w.Height; y++ {
 		for x := 0; x < w.Width; x++ {
-			w.SetTerrain(Point{x, y}, Rock)
+			w.SetTerrain(Point{x, y, LandingLevel}, Rock)
 		}
 	}
 	var cavern []Point
 	for y := 5; y <= 25; y++ {
 		for x := 30; x <= 45; x++ {
-			p := Point{x, y}
+			p := Point{x, y, LandingLevel}
 			cellAt(w, p).Explored = false
 			w.carveHidden(p)
 			cavern = append(cavern, p)
@@ -251,7 +251,7 @@ func TestPodsNeverRevealAHiddenCavern(t *testing.T) {
 	}
 	// The colony's corridor runs right alongside the cavern wall.
 	for y := 3; y < 28; y++ {
-		w.SetTerrain(Point{27, y}, Floor)
+		w.SetTerrain(Point{27, y, LandingLevel}, Floor)
 	}
 	w.refreshSpatial()
 	for i := 0; i < 6; i++ {

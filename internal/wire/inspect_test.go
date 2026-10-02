@@ -132,7 +132,7 @@ func TestNamesTopic(t *testing.T) {
 // The fog hides a tile's contents, creatures included.
 func TestInspectUnexploredTile(t *testing.T) {
 	snap := fixture(true)
-	snap.Entities[0].Pos = sim.Point{X: 7, Y: 0} // explored floor in the fixture
+	snap.Entities[0].Pos = sim.Point{X: 7, Y: 0, Level: sim.LandingLevel} // explored floor in the fixture
 	var tile TileTopic
 	due(t, snap, "tile:149,69", &tile) // the fixture's alien, on unexplored rock
 	if tile.Explored || tile.Terrain != "" || len(tile.Creatures) != 0 {

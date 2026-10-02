@@ -6,7 +6,7 @@ import "testing"
 // stoves were all in use.
 func crowdStoves(w *World, by *Entity) {
 	for _, p := range w.scumhousesSorted() {
-		w.home.workshopClaims[p] = by.ID
+		w.landing().workshopClaims[p] = by.ID
 	}
 }
 
@@ -51,14 +51,14 @@ func TestAChefBuysAKitchenWhenTheStovesAreCrowded(t *testing.T) {
 	if chef.wallet != before-w.projectCost(kitchen) {
 		t.Fatalf("wallet %v, want %v less the kitchen's %v", chef.wallet, before, w.projectCost(kitchen))
 	}
-	delete(w.home.workshopClaims, shared)
+	delete(w.landing().workshopClaims, shared)
 	for i := 0; i < 6000 && len(w.projects) > 0 && w.projects[0] == kitchen; i++ {
 		w.step()
 	}
 	if !chef.hasKitchen || w.TerrainAt(chef.kitchen) != Scumhouse {
 		t.Fatal("the chef's kitchen was never finished")
 	}
-	f := w.home.fixtures[chef.kitchen]
+	f := w.landing().fixtures[chef.kitchen]
 	if f.Owner != ColonistOwner(chef.ID) || f.Access != AccessCommunal {
 		t.Fatalf("kitchen fixture: %+v", f)
 	}
@@ -72,7 +72,7 @@ func TestAChefBuysAKitchenWhenTheStovesAreCrowded(t *testing.T) {
 func ownKitchenWorld(t *testing.T) (w *World, house Point, chef *Entity) {
 	t.Helper()
 	w, house = scumhouseWorld(t, false)
-	chef = w.spawn(Colonist, Point{19, 7})
+	chef = w.spawn(Colonist, Point{19, 7, LandingLevel})
 	w.setFixtureOwner(house, ColonistOwner(chef.ID), AccessCommunal)
 	chef.kitchen, chef.hasKitchen, chef.kitchenCommissioned = house, true, true
 	return w, house, chef
@@ -82,8 +82,8 @@ func ownKitchenWorld(t *testing.T) (w *World, house Point, chef *Entity) {
 // buys biomatter there, nor counts it among its own when planning kitchens.
 func TestOnlyTheOwnerCooksInAChefsKitchen(t *testing.T) {
 	w, house, chef := ownKitchenWorld(t)
-	other := w.spawn(Colonist, Point{12, 10})
-	c := w.home.storageContainers[house]
+	other := w.spawn(Colonist, Point{12, 10, LandingLevel})
+	c := w.landing().storageContainers[house]
 	for _, e := range []*Entity{chef, other} {
 		c.Inventory.Add(CaveScum, 2)
 		c.credit(ColonistOwner(e.ID), CaveScum, 2)
@@ -113,7 +113,7 @@ func TestOnlyTheOwnerCooksInAChefsKitchen(t *testing.T) {
 // nor sold.
 func TestAChefBuysScumForItsKitchen(t *testing.T) {
 	w, house, chef := ownKitchenWorld(t)
-	scraper := w.spawn(Colonist, Point{12, 10})
+	scraper := w.spawn(Colonist, Point{12, 10, LandingLevel})
 	if w.mayStockAt(scraper, house, CaveScum) {
 		t.Fatal("scum may be left in a chef's kitchen with nobody bidding for it")
 	}

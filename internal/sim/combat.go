@@ -94,7 +94,7 @@ func (w *World) fightAlien(e, alien *Entity, weapon ItemKind) {
 	e.State = Fighting
 	spec := weaponStats(weapon, w.cfg)
 
-	if e.Pos.Chebyshev(alien.Pos) > spec.rng {
+	if !e.Pos.Within(alien.Pos, spec.rng) {
 		// Out of range: close the distance. If the alien cannot be reached on
 		// foot (walled off, or the colonist wedged), just hold position and
 		// wait — better to stand ground than wander into the open.

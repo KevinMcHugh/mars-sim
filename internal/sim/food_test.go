@@ -20,7 +20,7 @@ func ownedMeals(w *World, e *Entity) int {
 	if e.Job == JobEat && (e.eat == eatMeal || e.eat == eatWalk) {
 		n++ // in hand
 	}
-	for _, c := range w.home.storageContainers {
+	for _, c := range w.landing().storageContainers {
 		n += c.held(ColonistOwner(e.ID), Meal)
 	}
 	return n
@@ -149,8 +149,8 @@ func TestInterruptedMealGoesBackInThePocket(t *testing.T) {
 // colony's either — those are for sale (see TestCookingTurnsTheColonysScumIntoItsMeals).
 func TestColonistsEatOnlyMealsTheyMayTake(t *testing.T) {
 	w, e, chest := storageBehaviorWorld(t, true)
-	other := w.spawn(Colonist, Point{12, 12})
-	c := w.home.storageContainers[chest]
+	other := w.spawn(Colonist, Point{12, 12, LandingLevel})
+	c := w.landing().storageContainers[chest]
 	c.Inventory.Add(Meal, 2)
 	c.credit(ColonistOwner(other.ID), Meal, 2)
 	if _, ok := w.nearestMealDepot(e); ok {
@@ -181,16 +181,16 @@ func TestColonistsEatOnlyMealsTheyMayTake(t *testing.T) {
 func TestPressingHungerDropsWorkToCook(t *testing.T) {
 	w := propertyWorld(t)
 	w.cfg.InfiniteFood = false
-	house := Point{10, 6}
+	house := Point{10, 6, LandingLevel}
 	w.SetTerrain(house, Scumhouse)
-	w.SetTerrain(Point{20, 12}, Rock)
+	w.SetTerrain(Point{20, 12, LandingLevel}, Rock)
 	w.refreshSpatial()
-	e := w.spawn(Colonist, Point{10, 7})
+	e := w.spawn(Colonist, Point{10, 7, LandingLevel})
 	me := ColonistOwner(e.ID)
-	c := w.home.storageContainers[house]
+	c := w.landing().storageContainers[house]
 	c.Inventory.Add(CaveScum, 2)
 	c.credit(me, CaveScum, 2)
-	w.assignMineTarget(e, Point{20, 12})
+	w.assignMineTarget(e, Point{20, 12, LandingLevel})
 
 	// hungryWithoutFood only ever runs at pressing hunger: the eat focus
 	// isn't eligible before that.
@@ -211,16 +211,16 @@ func TestPressingHungerDropsWorkToCook(t *testing.T) {
 func TestPressingHungerFinishesTheColonysCooking(t *testing.T) {
 	w := propertyWorld(t)
 	w.cfg.InfiniteFood, w.cfg.MealReserve = false, 100
-	house := Point{10, 6}
+	house := Point{10, 6, LandingLevel}
 	w.SetTerrain(house, Scumhouse)
 	w.refreshSpatial()
-	c := w.home.storageContainers[house]
+	c := w.landing().storageContainers[house]
 	c.Inventory.Add(CaveScum, 2)
 	c.credit(Community, CaveScum, 2)
-	for p := range w.home.scum {
+	for p := range w.landing().scum {
 		w.clearScum(p) // nothing on the walls: the colony's scum is the only food to make
 	}
-	e := w.spawn(Colonist, Point{10, 7})
+	e := w.spawn(Colonist, Point{10, 7, LandingLevel})
 	e.needPhase[NeedFood] = NeedPressing
 
 	for i := 0; i < 200 && c.held(Community, CaveScum) > 0; i++ {
@@ -240,14 +240,14 @@ func TestPressingHungerFinishesTheColonysCooking(t *testing.T) {
 func TestTheColonyRationsTheStarving(t *testing.T) {
 	w := propertyWorld(t)
 	w.cfg.InfiniteFood = false
-	shelf := Point{10, 6}
+	shelf := Point{10, 6, LandingLevel}
 	w.SetTerrain(shelf, Storage)
 	w.refreshSpatial()
-	c := w.home.storageContainers[shelf]
+	c := w.landing().storageContainers[shelf]
 	c.Inventory.Add(Meal, 3)
 	c.credit(Community, Meal, 3)
 	w.offerColonyMeals(shelf) // on sale, in escrow
-	e := w.spawn(Colonist, Point{12, 8})
+	e := w.spawn(Colonist, Point{12, 8, LandingLevel})
 	me := ColonistOwner(e.ID)
 	w.transfer(me, Community, e.wallet) // broke
 
@@ -273,13 +273,13 @@ func TestTheColonyRationsTheStarving(t *testing.T) {
 func TestAColonyCookWorksABatch(t *testing.T) {
 	w := propertyWorld(t)
 	w.cfg.InfiniteFood, w.cfg.MealReserve = false, 100
-	house := Point{10, 6}
+	house := Point{10, 6, LandingLevel}
 	w.SetTerrain(house, Scumhouse)
 	w.refreshSpatial()
-	c := w.home.storageContainers[house]
+	c := w.landing().storageContainers[house]
 	c.Inventory.Add(CaveScum, 20)
 	c.credit(Community, CaveScum, 20)
-	cook := w.spawn(Colonist, Point{10, 7})
+	cook := w.spawn(Colonist, Point{10, 7, LandingLevel})
 	if !w.tryAssignCraft(cook) || cook.craftFor != Community {
 		t.Fatal("no colony cooking job")
 	}
@@ -302,12 +302,12 @@ func setHunger(w *World, e *Entity, level int) {
 func TestAColonistCarriesItsNextMeal(t *testing.T) {
 	w := propertyWorld(t)
 	w.cfg.InfiniteFood = false
-	shelf := Point{16, 10}
+	shelf := Point{16, 10, LandingLevel}
 	w.SetTerrain(shelf, Storage)
 	w.refreshSpatial()
-	e := w.spawn(Colonist, Point{8, 8})
+	e := w.spawn(Colonist, Point{8, 8, LandingLevel})
 	me := ColonistOwner(e.ID)
-	c := w.home.storageContainers[shelf]
+	c := w.landing().storageContainers[shelf]
 	c.Inventory.Add(Meal, 2)
 	c.credit(me, Meal, 2)
 
@@ -345,14 +345,14 @@ func TestAColonistCarriesItsNextMeal(t *testing.T) {
 func TestAPocketMealIsNeverBought(t *testing.T) {
 	w := propertyWorld(t)
 	w.cfg.InfiniteFood = false
-	shelf := Point{16, 10}
+	shelf := Point{16, 10, LandingLevel}
 	w.SetTerrain(shelf, Storage)
 	w.refreshSpatial()
-	c := w.home.storageContainers[shelf]
+	c := w.landing().storageContainers[shelf]
 	c.Inventory.Add(Meal, 1)
 	c.credit(Community, Meal, 1)
 	w.offerColonyMeals(shelf)
-	e := w.spawn(Colonist, Point{8, 8})
+	e := w.spawn(Colonist, Point{8, 8, LandingLevel})
 	me := ColonistOwner(e.ID)
 	setHunger(w, e, w.cfg.PocketMealAt)
 	if w.tryPocketMeal(e) || c.held(me, Meal) != 0 || w.hasOpenMealBid(me) {
@@ -364,9 +364,9 @@ func TestAPocketMealIsNeverBought(t *testing.T) {
 func TestSellingSurplusKeepsThePocketMeal(t *testing.T) {
 	w := propertyWorld(t)
 	w.cfg.MealKeep = 0
-	w.SetTerrain(Point{14, 10}, Storage)
+	w.SetTerrain(Point{14, 10, LandingLevel}, Storage)
 	w.refreshSpatial()
-	e := w.spawn(Colonist, Point{8, 8})
+	e := w.spawn(Colonist, Point{8, 8, LandingLevel})
 	e.Inventory.Add(Meal, 1)
 	silo, ok := w.marketDepot()
 	if !ok {

@@ -16,7 +16,7 @@ func (w *World) chooseFacilityReference(e *Entity, kind Terrain) Point {
 	// ever stamped. See pagedgrid.go.
 	w.facilityGen++
 	gen := w.facilityGen
-	cells := &w.facilityCells
+	cells := w.facilityCells.grid(LandingLevel)
 	reached := func(p Point) (int32, bool) {
 		c := cells.at(p.X, p.Y)
 		return c.dist, c.gen == gen
@@ -56,7 +56,7 @@ func (w *World) chooseFacilityReference(e *Entity, kind Terrain) Point {
 
 	// Facilities of this kind are few even on a huge map, so iterate the
 	// tracked set (see World.facilityTiles) instead of scanning every tile.
-	facilities := w.home.facilityTiles[kind]
+	facilities := w.landing().facilityTiles[kind]
 
 	best, bestDist := Point{}, int32(^uint32(0)>>1)
 	for fac := range facilities {
@@ -114,7 +114,7 @@ func (w *World) chooseFacilityReference(e *Entity, kind Terrain) Point {
 		// best made a farther facility score as an exact tie (its own accesses
 		// never beat bestDist, so d stayed there) and then win the lessPoint
 		// tie-break. Which facility that hit depended on the iteration order of
-		// w.home.facilityTiles -- a map -- so the same seed sent a colonist to a
+		// w.landing().facilityTiles -- a map -- so the same seed sent a colonist to a
 		// different sink on different runs.
 		d := int32(^uint32(0) >> 1)
 		for _, n := range neighbors8 {
@@ -198,7 +198,7 @@ func TestChooseFacilityMatchesReference(t *testing.T) {
 					continue
 				}
 				for kind, f := range w.fields {
-					if f == nil || len(w.home.facilityTiles[kind]) == 0 {
+					if f == nil || len(w.landing().facilityTiles[kind]) == 0 {
 						continue
 					}
 					f.builtTick = -2 // bring it up to date with this tick's last changes
@@ -216,7 +216,7 @@ func TestChooseFacilityMatchesReference(t *testing.T) {
 						}
 						compared++
 						room := w.roomOf(e.Pos)
-						if room == 0 || w.home.restrictedFixtures[kind] > 0 {
+						if room == 0 || w.landing().restrictedFixtures[kind] > 0 {
 							searched++ // chooseFacility goes straight to the search
 							continue
 						}

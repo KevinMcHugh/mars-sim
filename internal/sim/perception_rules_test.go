@@ -26,9 +26,9 @@ reactions:
 	}
 	cfg.SyncWithCognition()
 	w := newTestWorld(t, cfg)
-	actor := w.spawn(Colonist, Point{5, 5})
-	near := w.spawn(Colonist, Point{9, 5})
-	far := w.spawn(Colonist, Point{20, 20})
+	actor := w.spawn(Colonist, Point{5, 5, LandingLevel})
+	near := w.spawn(Colonist, Point{9, 5, LandingLevel})
+	far := w.spawn(Colonist, Point{20, 20, LandingLevel})
 
 	o := w.occurrence(actor, "play", nil, actor.Pos, "")
 	o.Object = FactRef{Noun: "toy", Label: "a toy"}
@@ -60,16 +60,16 @@ perceptions:
 	}
 	cfg.SyncWithCognition()
 	w := newTestWorld(t, cfg)
-	observer := w.spawn(Colonist, Point{2, 2})
-	w.spawn(Alien, Point{4, 2})
-	w.SetTerrain(Point{3, 2}, Wall)
+	observer := w.spawn(Colonist, Point{2, 2, LandingLevel})
+	w.spawn(Alien, Point{4, 2, LandingLevel})
+	w.SetTerrain(Point{3, 2, LandingLevel}, Wall)
 
 	w.observeNearby(observer)
 	if len(observer.Memories) != 0 {
 		t.Fatalf("wall did not occlude alien: %+v", observer.Memories)
 	}
 
-	w.SetTerrain(Point{3, 2}, Floor)
+	w.SetTerrain(Point{3, 2, LandingLevel}, Floor)
 	w.observeNearby(observer)
 	if got := lastMemory(observer); got == "" {
 		t.Fatal("clearing line of sight did not create enter percept")
@@ -90,12 +90,12 @@ reactions:
 	}
 	cfg.SyncWithCognition()
 	w := newTestWorld(t, cfg)
-	carve(w, Point{2, 2}, Point{3, 2}, Floor)
-	observer := w.spawn(Colonist, Point{2, 2})
-	alien := w.spawn(Alien, Point{3, 2})
+	carve(w, Point{2, 2, LandingLevel}, Point{3, 2, LandingLevel}, Floor)
+	observer := w.spawn(Colonist, Point{2, 2, LandingLevel})
+	alien := w.spawn(Alien, Point{3, 2, LandingLevel})
 
 	w.observeNearby(observer)
-	alien.Pos = Point{20, 20}
+	alien.Pos = Point{20, 20, LandingLevel}
 	w.observeNearby(observer)
 
 	if got := observer.Memories[len(observer.Memories)-1].Rule; got != "lost-sight-alien" {
@@ -133,9 +133,9 @@ func TestTraitRulesMatchPerceptGrammar(t *testing.T) {
 func TestFatalBiteComputesFriendRelationBeforeRemoval(t *testing.T) {
 	cfg := testConfig()
 	w := newTestWorld(t, cfg)
-	alien := w.spawn(Alien, Point{5, 5})
-	victim := w.spawn(Colonist, Point{6, 5})
-	witness := w.spawn(Colonist, Point{6, 6})
+	alien := w.spawn(Alien, Point{5, 5, LandingLevel})
+	victim := w.spawn(Colonist, Point{6, 5, LandingLevel})
+	witness := w.spawn(Colonist, Point{6, 6, LandingLevel})
 	witness.Profile = &Profile{Traits: []Trait{TraitExtrovert}}
 	w.addAffinity(witness.ID, victim.ID, cfg.MoodFriendAffinity+5)
 	victim.HP = 1
@@ -160,9 +160,9 @@ func TestPersistentPerceptionUsesDeterministicEntityOrder(t *testing.T) {
 	cfg := testConfig()
 	cfg.StartColonists, cfg.StartAliens, cfg.StartCats, cfg.StartRats = 0, 0, 0, 0
 	w := newTestWorld(t, cfg)
-	observer := w.spawn(Colonist, Point{10, 10})
-	first := w.spawn(Rat, Point{12, 10})
-	second := w.spawn(Rat, Point{8, 10})
+	observer := w.spawn(Colonist, Point{10, 10, LandingLevel})
+	first := w.spawn(Rat, Point{12, 10, LandingLevel})
+	second := w.spawn(Rat, Point{8, 10, LandingLevel})
 
 	w.observeNearby(observer)
 
@@ -193,8 +193,8 @@ reactions:
 	}
 	cfg.SyncWithCognition()
 	w := newTestWorld(t, cfg)
-	observer := w.spawn(Colonist, Point{5, 5})
-	w.spawn(Cat, Point{6, 5})
+	observer := w.spawn(Colonist, Point{5, 5, LandingLevel})
+	w.spawn(Cat, Point{6, 5, LandingLevel})
 	observer.focus, observer.Job = FocusIdle, JobNone
 	observer.resting, observer.wakeTick = true, w.tick+100
 	observer.mindDirty, observer.nextThinkTick = false, w.tick+100
@@ -221,7 +221,7 @@ perceptions:
 	}
 	cfg.SyncWithCognition()
 	w := newTestWorld(t, cfg)
-	observer := w.spawn(Colonist, Point{5, 5})
+	observer := w.spawn(Colonist, Point{5, 5, LandingLevel})
 	observer.focus, observer.Job = FocusIdle, JobNone
 	observer.resting, observer.wakeTick = true, w.tick+100
 	observer.mindDirty, observer.nextThinkTick = false, w.tick+100
@@ -244,7 +244,7 @@ perceptions:
 	}
 	cfg.SyncWithCognition()
 	w := newTestWorld(t, cfg)
-	observer := w.spawn(Colonist, Point{5, 5})
+	observer := w.spawn(Colonist, Point{5, 5, LandingLevel})
 	observer.focus, observer.Job = FocusIdle, JobNone
 	observer.resting, observer.wakeTick = true, w.tick+100
 	observer.mindDirty, observer.nextThinkTick = false, w.tick+100
@@ -257,7 +257,7 @@ perceptions:
 func TestOccurrenceLabelsAliensWithSpeciesNoun(t *testing.T) {
 	cfg := testConfig()
 	w := newTestWorld(t, cfg)
-	alien := w.spawn(Alien, Point{5, 5})
+	alien := w.spawn(Alien, Point{5, 5, LandingLevel})
 	o := w.occurrence(alien, ActionPresent, nil, alien.Pos, "")
 	if o.Actor != w.factRef(alien) {
 		t.Fatalf("occurrence actor = %+v, want %+v", o.Actor, w.factRef(alien))

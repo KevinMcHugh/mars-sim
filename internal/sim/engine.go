@@ -438,7 +438,7 @@ func (e *Engine) apply(cmd Command) (rateChanged bool) {
 
 func (e *Engine) spawn(kind Kind) {
 	w := e.world
-	center := Point{w.Width / 2, w.Height / 2}
+	center := Point{w.Width / 2, w.Height / 2, LandingLevel}
 	switch kind {
 	case Colonist:
 		w.arrive(true) // every colonist comes in a crash pod
