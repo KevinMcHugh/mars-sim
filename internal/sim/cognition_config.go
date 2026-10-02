@@ -330,7 +330,7 @@ func DefaultCognitionConfig() CognitionConfig {
 		ActionSleep, ActionSatisfy, ActionMine, ActionClear, ActionConstruct,
 		ActionClean, ActionIncinerate, ActionMutate, ActionCook, ActionScrape,
 		ActionDeliver, ActionTrade, ActionBuy, ActionHaul, ActionLearn,
-		ActionFeel, ActionSocialize, ActionCollapse,
+		ActionFeel, ActionSocialize, ActionCollapse, ActionSoil,
 	}
 	c.Perceptions = []PerceptionRule{
 		{ID: "direct-actor", Channel: ChannelDirect, Role: RoleActor, Cadence: CadenceInstant},
@@ -344,6 +344,7 @@ func DefaultCognitionConfig() CognitionConfig {
 		{ID: "witness-cat-catch", Match: OccurrencePattern{ActorNoun: NounCat, Action: ActionCatch, ObjectNoun: NounRat}, Channel: ChannelSight, Role: RoleWitness, Radius: RadiusStomp, Cadence: CadenceInstant},
 		{ID: "witness-alien-killed", Match: OccurrencePattern{ActorNoun: NounColonist, Action: ActionKill, ObjectNoun: NounAlien}, Channel: ChannelSight, Role: RoleWitness, Radius: RadiusFlee, Cadence: CadenceInstant},
 		{ID: "witness-gunfight", Match: OccurrencePattern{ActorNoun: NounColonist, Action: ActionWound, ObjectNoun: NounAlien}, Channel: ChannelSight, Role: RoleWitness, Radius: RadiusFlee, Cadence: CadenceInstant},
+		{ID: "witness-soiling", Match: OccurrencePattern{ActorNoun: NounColonist, Action: ActionSoil}, Channel: ChannelSight, Role: RoleWitness, Radius: RadiusGoreSight, Cadence: CadenceInstant},
 		{ID: "witness-mutation", Match: OccurrencePattern{ActorNoun: NounColonist, Action: ActionMutate}, Channel: ChannelSight, Role: RoleWitness, Radius: RadiusFlee, Cadence: CadenceInstant},
 	}
 
@@ -421,13 +422,18 @@ func DefaultCognitionConfig() CognitionConfig {
 	// Passing out is losing control of your own body: grip takes the hit, and
 	// it is worse the more often it has happened.
 	passedOut := reaction("passed-out", directMatch(ActionCollapse, NounColonist, "", RoleActor), 40, MoodVector{-10, -25, -15}, MoodVector{-10, -35, -25})
+	// Wetting yourself (the bladder drive's consequence) is embarrassment: a
+	// hot flush of charge, and grip and valence taken away; worse each time.
+	// Seeing it happen, close enough to notice, is mildly unpleasant.
+	soiledSelf := reaction("soiled-self", directMatch(ActionSoil, NounColonist, "", RoleActor), 45, MoodVector{10, -30, -20}, MoodVector{6, -40, -30})
+	witnessedSoiling := reaction("witnessed-soiling", sightMatch(ActionSoil, NounColonist, "", PhaseInstant), 10, MoodVector{0, -2, -3}, MoodVector{0, -1, -1})
 	boughtMeal := reaction("bought-meal", directMatch(ActionBuy, NounColonist, NounMeal, RoleActor), 12, MoodVector{2, 3, 0}, MoodVector{1, 0, 0})
 
 	for _, r := range []*ReactionSpec{
 		&finishedMining, &clearedRock, &finishedConstruction, &cleanedRefuse,
 		&incineratedRefuse, &ate, &usedToilet, &slept, &needSatisfied,
 		&ateGruel, &cooked, &scrapedScum, &fedScumhouse, &wentToMarket, &hauled,
-		&feltLonely, &socialized, &passedOut,
+		&feltLonely, &socialized, &passedOut, &soiledSelf,
 	} {
 		r.Memory.Collapse = map[RuleID]string{
 			"finished-mining":       "Finished mining.",
@@ -448,6 +454,7 @@ func DefaultCognitionConfig() CognitionConfig {
 			"felt-lonely":           "Felt lonely.",
 			"socialized":            "Enjoyed some company.",
 			"passed-out":            "Passed out from exhaustion.",
+			"soiled-self":           "Wet themself.",
 		}[r.ID]
 	}
 	workStimulus := func(r *ReactionSpec) {
@@ -470,6 +477,7 @@ func DefaultCognitionConfig() CognitionConfig {
 		cleanedRefuse, incineratedRefuse, mutated, witnessedMutation,
 		ateGruel, cooked, scrapedScum, fedScumhouse, wentToMarket, hauled,
 		boughtMeal, roseInTrade, feltLonely, socialized, passedOut,
+		soiledSelf, witnessedSoiling,
 	}
 	scaled := func(id RuleID, trait Trait, match PerceptPattern, impact, charge, grip, valence, wear int) TraitRule {
 		return TraitRule{ID: id, Trait: trait, Match: match, Impact: impact, Charge: charge, Grip: grip, Valence: valence, WearRate: wear}
@@ -480,6 +488,8 @@ func DefaultCognitionConfig() CognitionConfig {
 		scaled("tidy-witnessed-rat-crushed", TraitTidy, witnessedRat.Match, 100, 220, 220, 220, 100),
 		scaled("tidy-cleaned-refuse", TraitTidy, cleanedRefuse.Match, 100, 220, 220, 220, 100),
 		scaled("tidy-incinerated-refuse", TraitTidy, incineratedRefuse.Match, 100, 100, 200, 100, 100),
+		scaled("tidy-soiled-self", TraitTidy, soiledSelf.Match, 100, 100, 200, 200, 100),
+		scaled("tidy-witnessed-soiling", TraitTidy, witnessedSoiling.Match, 100, 220, 220, 220, 100),
 		scaled("industrious-mining", TraitIndustrious, finishedMining.Match, 100, 200, 200, 200, 100),
 		scaled("industrious-clearing", TraitIndustrious, clearedRock.Match, 100, 200, 200, 200, 100),
 		scaled("industrious-construction", TraitIndustrious, finishedConstruction.Match, 100, 200, 200, 200, 100),

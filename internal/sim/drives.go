@@ -49,9 +49,8 @@ func (p DrivePhase) String() string {
 //
 // Death is a drain (HP, every tick at the ceiling); loneliness is an
 // experience (an occurrence the colonist feels and remembers); passing out is
-// an event (it happens once and discharges the drive). Soiling oneself
-// for bladder is planned (docs/drives-redesign.md); until it lands bladder is
-// ConsequenceNone and simply sits at its ceiling.
+// an event (it happens once and discharges the drive), and so is soiling
+// oneself. See docs/drives.md.
 type Consequence uint8
 
 const (
@@ -69,6 +68,11 @@ const (
 	// unconscious for PassOutTicks, then comes to with the drive met. An
 	// event: it happens once and discharges the drive. Unmet sleep.
 	ConsequencePassOut
+	// ConsequenceSoiling: the colonist wets itself where it stands. An event:
+	// the drive resets, and a `soil` occurrence carries the embarrassment to
+	// the colonist and the disgust to anyone close enough to see. Unmet
+	// bladder.
+	ConsequenceSoiling
 
 	numConsequences // keep last: the count of consequences
 )
@@ -83,6 +87,8 @@ func (c Consequence) String() string {
 		return "loneliness"
 	case ConsequencePassOut:
 		return "passing out"
+	case ConsequenceSoiling:
+		return "soiling"
 	default:
 		return "consequence"
 	}
@@ -105,9 +111,9 @@ func defaultDrives() [numDrives]DriveSpec {
 			GrabTicks: 3,
 		},
 		DriveBladder: {
-			// Planned consequence: soiling oneself (docs/drives-redesign.md).
+			// A colonist that never reaches a toilet wets itself.
 			Name: "bladder", Rise: 3, SeekAt: 600, CriticalAt: 900, Max: 1000,
-			Facility: Toilet, UseTicks: 10, Consequence: ConsequenceNone,
+			Facility: Toilet, UseTicks: 10, Consequence: ConsequenceSoiling,
 		},
 		DriveSocial: {
 			// A colonist left without company feels lonely, and feels it again
@@ -303,8 +309,12 @@ func (w *World) applyDriveConsequences(e *Entity) {
 				w.emitDone(e, ActionFeel, NounLoneliness, "Felt lonely.")
 			}
 		case ConsequencePassOut:
-			if e.Kind == Colonist && e.passedOutUntil == 0 && !w.asleepInBed(e) {
+			if e.Kind == Colonist && e.passedOutUntil == 0 && !w.usingFacility(e, DriveSleep) {
 				w.passOut(e)
+			}
+		case ConsequenceSoiling:
+			if e.Kind == Colonist && !w.usingFacility(e, DriveBladder) {
+				w.wetSelf(e)
 			}
 		}
 	}
@@ -327,13 +337,28 @@ func (w *World) passOut(e *Entity) {
 	w.markMindDirty(e)
 }
 
-// asleepInBed reports whether e is already sleeping beside its bed. The drive
-// keeps rising until the sleep finishes, so one that arrived near the ceiling
-// reaches it in bed — where it is already doing what passing out would make
-// it do. On the way to bed is no exemption: you can collapse in the corridor.
-func (w *World) asleepInBed(e *Entity) bool {
-	return e.Job == JobUse && e.Drive == DriveSleep && e.useFacilitySet &&
-		e.Pos.Adjacent(e.useFacility) && w.TerrainAt(e.useFacility) == w.cfg.Drives[DriveSleep].Facility
+// usingFacility reports whether e is already at the facility that satisfies d,
+// using it: asleep beside its bed, or at the toilet. A drive keeps rising until
+// the use finishes, so one that arrived near the ceiling reaches it there —
+// where the colonist is already doing what the consequence would force. On
+// the way is no exemption: you can collapse in the corridor, or not make it.
+func (w *World) usingFacility(e *Entity, d DriveKind) bool {
+	return e.Job == JobUse && e.Drive == d && !e.carrying && e.useFacilitySet &&
+		e.Pos.Adjacent(e.useFacility) && w.TerrainAt(e.useFacility) == w.cfg.Drives[d].Facility
+}
+
+// wetSelf is ConsequenceSoiling: the bladder empties where the colonist
+// stands. It discharges the drive and leaves the colonist doing whatever it
+// was doing — the cost is the embarrassment (soiled-self) and what anyone
+// close enough sees (witnessed-soiling), both cognition.yaml rows. It can
+// happen while passed out.
+func (w *World) wetSelf(e *Entity) {
+	w.resetDrive(e, DriveBladder)
+	o := w.occurrence(e, ActionSoil, nil, e.Pos, "")
+	o.ActorText = "Wet themself."
+	o.WitnessText = fmt.Sprintf("Saw %s wet themself.", e.displayName())
+	w.emitOccurrence(o)
+	w.logEvent(LogNote, fmt.Sprintf("%s wet themself.", e.displayName()))
 }
 
 // stayPassedOut runs an unconscious colonist's turn and reports whether it is

@@ -34,7 +34,7 @@ indexed by the kind:
 | Drive | Rise/tick | SeekAt | CriticalAt | Max | Facility | UseTicks | GrabTicks | Consequence |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | food | 2 | 650 | 1000 | 1000 | meals, then NutrientPod | 18 | 3 | **death** |
-| bladder | 3 | 600 | 900 | 1000 | Toilet | 10 | 0 | none (planned: soiling) |
+| bladder | 3 | 600 | 900 | 1000 | Toilet | 10 | 0 | **soiling** (wets itself; embarrassment) |
 | sleep | 1 | 700 | 900 | 1000 | Bed | 40 | 0 | **passing out** (`pass-out-ticks`, 60) |
 | social | 2 | 500 | 850 | 1000 | conversation | — | — | **loneliness** (felt every 200 ticks) |
 
@@ -136,10 +136,11 @@ drive sitting at `Max`, and dispatches on its `Consequence`:
 
 | Consequence | Effect | Drives |
 | --- | --- | --- |
-| `ConsequenceNone` | nothing beyond maximal focus pressure | bladder |
+| `ConsequenceNone` | nothing beyond maximal focus pressure | — (none today) |
 | `ConsequenceDeath` | `starve`: drain HP, healed on satisfaction | food |
 | `ConsequenceLoneliness` | the colonist *feels lonely*: an experience, repeated every `consequence-every` ticks | social |
 | `ConsequencePassOut` | `passOut`: the colonist collapses where it stands for `pass-out-ticks`, then comes to with the drive met | sleep |
+| `ConsequenceSoiling` | `wetSelf`: the colonist wets itself where it stands; the drive resets and the embarrassment is felt and seen | bladder |
 
 Death is a **drain**: it applies every tick at the ceiling and is undone by
 satisfying the drive. Loneliness is an **experience**: `consequenceDue` books
@@ -183,14 +184,37 @@ helpless. Starvation still drains while it is down. On the tick it comes to,
 the sleep drive resets and it thinks again from scratch. `PassedOut` counts
 as sleeping on the Activity chart.
 
-One exemption: a colonist already asleep beside its bed (`asleepInBed`)
-does not pass out. The drive keeps rising until the sleep finishes, so one
-that got to bed near the ceiling reaches it in bed, where it is already
-doing what passing out would make it do. Being *on the way* to bed is no
-exemption; you can collapse in the corridor.
+One exemption: a colonist already asleep beside its bed
+(`usingFacility`) does not pass out. The drive keeps rising until the sleep
+finishes, so one that got to bed near the ceiling reaches it in bed, where
+it is already doing what passing out would make it do. Being *on the way*
+to bed is no exemption; you can collapse in the corridor.
 
-Measured over 10000 ticks of the default game on seeds 1–5: 3, 0, 2, 1 and 1
-pass-outs per colony of 5–6.
+Soiling is the other **event**. At the bladder ceiling `wetSelf` resets the
+drive and emits a `soil` occurrence, and logs it. The colonist keeps doing
+whatever it was doing; the cost is all in [`cognition.yaml`](../cognition.yaml):
+
+- **`soiled-self`** (the colonist, "Wet themself."): embarrassment, which is
+  a reaction and not a new affect axis. A flush of charge with grip and
+  valence taken away, worse each time. A Tidy colonist takes it twice as
+  hard (`tidy-soiled-self`).
+- **`witnessed-soiling`** (anyone within `gore-sight-radius`, through the
+  `witness-soiling` perception rule, "Saw … wet themself."): mildly
+  unpleasant, and a lot more so for a Tidy witness
+  (`tidy-witnessed-soiling`). There is no "cruel" trait yet to be amused;
+  when there is, it is a trait rule with negative scales, the way
+  Mutant-Lover inverts a mutation.
+
+The same `usingFacility` exemption applies: a colonist already at the toilet
+when the bladder tops out is using it. It can happen while passed out.
+
+No puddle yet: a visible stain is refuse, and refuse rides the binary wire
+format and both renderers, so it is its own step (D1b in
+[drives-redesign.md](./drives-redesign.md)).
+
+Measured over 10000 ticks of the default game on seeds 1–5: 0, 0, 1, 2 and 0
+pass-outs, and 6, 5, 6, 5 and 8 soilings (4, 0, 2, 6 and 5 of them seen) per
+colony of 5–6.
 
 `DriveSpec.Fatal()` (and `DriveMeta.Fatal()` in the snapshot) is shorthand
 for `Consequence == ConsequenceDeath`. Arbitration still reasons in terms of

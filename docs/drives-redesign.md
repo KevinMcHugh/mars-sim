@@ -2,8 +2,9 @@
 
 > Part of the [mars-sim documentation](./README.md).
 
-**Status: proposal.** Phase D0 (the rename and the `Consequence` enum), D2
-(loneliness) and D2b (passing out) have shipped; everything else is a plan. [drives.md](./drives.md) describes
+**Status: proposal.** Phase D0 (the rename and the `Consequence` enum), D1a
+(soiling), D2 (loneliness) and D2b (passing out) have shipped; everything
+else is a plan. [drives.md](./drives.md) describes
 what the code does today. Update this doc as phases land, and move what is
 built into drives.md.
 
@@ -35,15 +36,16 @@ something its surroundings do to it.
 
 ## Source
 
-Shipped so far (D0, D2, D2b):
+Shipped so far (D0, D1a, D2, D2b):
 
 - [`internal/sim/drives.go`](../internal/sim/drives.go) — `DriveKind`,
   `DriveSpec`, `Consequence`, `applyDriveConsequences`, `starve`,
-  `consequenceDue`, `passOut`, `stayPassedOut`, `asleepInBed`.
+  `consequenceDue`, `passOut`, `stayPassedOut`, `wetSelf`, `usingFacility`.
 - [`internal/sim/systems.go`](../internal/sim/systems.go) — `finishTalk`'s
   `socialize` occurrence.
-- [`cognition.yaml`](../cognition.yaml) — the `felt-lonely`, `socialized`
-  and `passed-out` reactions.
+- [`cognition.yaml`](../cognition.yaml) — the `felt-lonely`, `socialized`,
+  `passed-out`, `soiled-self` and `witnessed-soiling` reactions, the
+  `witness-soiling` perception rule, and the Tidy rules for soiling.
 - Everything else is still planned; this section grows as phases land.
 
 ## How it works
@@ -69,7 +71,7 @@ ConsequenceNone
 ConsequenceDeath      // drain: HP                        (shipped)
 ConsequenceLoneliness // experience: "felt lonely"        (shipped, D2)
 ConsequencePassOut    // event: collapse, then discharge  (shipped, D2b)
-ConsequenceSoiling    // event: discharge + occurrence    (D1)
+ConsequenceSoiling    // event: discharge + occurrence    (shipped, D1a)
 ConsequenceFilth      // experience: "felt filthy"        (D3)
 ```
 
@@ -78,28 +80,34 @@ they *feel* like is `cognition.yaml`, not Go. The difference is that an event
 changes the world (the drive resets, a puddle appears) and an experience only
 changes the colonist.
 
-### Soiling (bladder, D1)
+### Soiling (bladder, D1a shipped; D1b the puddle)
 
 At the ceiling, the colonist wets itself where it stands:
 
-1. The bladder drive resets to 0 (the event discharges it — a colonist is
-   never stuck at a bladder ceiling, which today it can be indefinitely).
-2. A puddle of refuse goes on the tile, which the existing sanitation system
-   already knows how to clean ([sanitation.md](./sanitation.md)).
-3. An occurrence goes through the perception grammar
-   ([compositional-perception-and-events.md](./compositional-perception-and-events.md)):
-   `actor: colonist, action: soil, object: self`. The actor's reaction is
-   **embarrassment** (grip down, valence down) and a memory ("Wet themself.").
-   Witnesses get their own reaction rows — that is where a trait like Tidy
-   can be disgusted and a cruel one amused — and a relationship nudge if we
-   want one. All of that is `cognition.yaml` rows, not code.
-4. Later, once hygiene exists, it spikes the hygiene drive.
+1. **Shipped (D1a).** The bladder drive resets to 0: the event discharges
+   it, so a colonist is never stuck at a bladder ceiling again.
+2. **Shipped (D1a).** A `soil` occurrence goes through the perception
+   grammar. The colonist's reaction is embarrassment (`soiled-self`, a
+   flush of charge, grip and valence down, "Wet themself."); anyone within
+   `gore-sight-radius` gets `witnessed-soiling`. Tidy colonists take both
+   harder. All of that is `cognition.yaml` rows; the only new code is
+   `wetSelf` and the `ConsequenceSoiling` branch.
+3. **D1b.** A puddle on the tile that the sanitation system cleans
+   ([sanitation.md](./sanitation.md)). This turned out not to be a small
+   step, which is why it was split off: refuse today is gore and bodies,
+   and it reaches frontends through its own section of the binary frame,
+   so a new kind of refuse is a wire `Version` bump, both decoders, the
+   golden frames, a TUI glyph and a browser tint, plus a cleaning path for
+   refuse that is mopped up rather than carried to the incinerator. Rats
+   eat gore (`scavenge.go`), so making a puddle "a kind of gore" would have
+   been wrong as well as ugly.
+4. **Later, with hygiene.** Soiling spikes the hygiene drive.
 
-This is deliberately built from existing mechanics (principle 10): refuse,
-perception rules, reactions, memories. The only new code is the event branch
-in `applyDriveConsequences`.
+What D1a left out on purpose: a relationship cost for witnesses, and
+amusement. There is no cruel trait to be amused; when there is, it is a
+trait rule with negative scales, the way Mutant-Lover inverts a mutation.
 
-Embarrassment should *not* be a new affect axis. It is a reaction whose target
+Embarrassment is *not* a new affect axis. It is a reaction whose target
 lands in the low-grip, low-valence part of the plane; whether it reads as a
 label in the UI is an attractor question in `cognition.yaml`.
 
@@ -229,7 +237,8 @@ drive furthest past its threshold still wins.
 | Phase | What | Gameplay change |
 | --- | --- | --- |
 | **D0** ✅ | Rename needs → drives everywhere (code, `drives.*` settings, `-drive-*` flags, TUI/web labels, wire API 8); `Consequence` enum replaces `Fatal`; `applyDriveConsequences` dispatches | none |
-| D1 | `ConsequenceSoiling`: discharge, puddle, `soil` occurrence, embarrassment reaction | bladder ceiling now resolves |
+| **D1a** ✅ | `ConsequenceSoiling`: discharge, `soil` occurrence, embarrassment and witness reactions | bladder ceiling now resolves |
+| D1b | The puddle: a mopped-up kind of refuse, on the wire and in both renderers | colonists clean up after it |
 | **D2** ✅ | `ConsequenceLoneliness` (an experience, repeated every `consequence-every` ticks) for social; `socialized` for conversations sought while lonely | lonely colonists feel worse; company sought lifts mood |
 | **D2b** ✅ | `ConsequencePassOut` for sleep: collapse for `pass-out-ticks`, `PassedOut` state, `passed-out` reaction | sleepless colonists drop where they stand |
 | D3 | Hygiene drive, wash facility, event bumps; `ConsequenceFilth` ("felt filthy") | new drive and facility |
@@ -255,7 +264,7 @@ would have doubled that diff for no behavior.
 
 ## Extending it
 
-Until D1 lands, follow "Extending it" in [drives.md](./drives.md). After each
+Follow "Extending it" in [drives.md](./drives.md). After each
 phase, the invariants to keep:
 
 - Levels stay lazy. Anything that changes a rise rate re-bases first.

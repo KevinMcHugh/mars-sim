@@ -394,6 +394,68 @@ func TestAsleepInBedDoesNotPassOut(t *testing.T) {
 	}
 }
 
+// A bladder at its ceiling empties where the colonist stands: the drive resets
+// and the colonist remembers the embarrassment. Anyone close enough sees it,
+// and a Tidy witness minds more.
+func TestFullBladderWetsSelfAndIsSeen(t *testing.T) {
+	w := roomsTestWorld(30, 20)
+	carve(w, Point{5, 5}, Point{20, 5}, Floor)
+	c := w.spawn(Colonist, Point{5, 5})
+	near := w.spawn(Colonist, Point{6, 5})
+	tidy := w.spawn(Colonist, Point{7, 5})
+	near.Profile.Traits, tidy.Profile.Traits = nil, []Trait{TraitTidy}
+	far := w.spawn(Colonist, Point{5 + w.cfg.GoreSightRadius + 5, 5})
+	spec := w.cfg.Drives[DriveBladder]
+	if spec.Consequence != ConsequenceSoiling {
+		t.Skip("assumes bladder's consequence is soiling")
+	}
+	c.Drives[DriveBladder], c.driveSince[DriveBladder] = spec.Max, w.tick
+	grip := c.affect.Grip
+
+	w.applyDriveConsequences(c)
+	if lvl := w.driveLevel(c, DriveBladder); lvl != 0 {
+		t.Fatalf("bladder after wetting self = %d, want 0", lvl)
+	}
+	if got := memoriesOf(c, "soiled-self"); got != 1 {
+		t.Fatalf("soiled-self memories = %d, want 1", got)
+	}
+	if c.affect.Grip >= grip {
+		t.Fatalf("embarrassment did not lower grip: %d -> %d", grip, c.affect.Grip)
+	}
+	if memoriesOf(near, "witnessed-soiling") != 1 || memoriesOf(tidy, "witnessed-soiling") != 1 {
+		t.Fatalf("nearby colonists did not see it: %d, %d",
+			memoriesOf(near, "witnessed-soiling"), memoriesOf(tidy, "witnessed-soiling"))
+	}
+	if memoriesOf(far, "witnessed-soiling") != 0 {
+		t.Fatal("a colonist out of sight saw it")
+	}
+	if tidy.affect.Valence >= near.affect.Valence {
+		t.Fatalf("Tidy witness valence %d not below plain witness %d", tidy.affect.Valence, near.affect.Valence)
+	}
+
+	// Once is once: the drive is met, so nothing more until it fills again.
+	w.applyDriveConsequences(c)
+	if got := memoriesOf(c, "soiled-self"); got != 1 {
+		t.Fatalf("wet self again with an empty bladder: %d", got)
+	}
+}
+
+// A colonist already at the toilet when the bladder tops out is using it.
+func TestAtToiletDoesNotWetSelf(t *testing.T) {
+	w := roomsTestWorld(20, 20)
+	toilet, stand := Point{6, 5}, Point{5, 5}
+	carve(w, stand, stand, Floor)
+	w.SetTerrain(toilet, Toilet)
+	c := w.spawn(Colonist, stand)
+	c.Drives[DriveBladder], c.driveSince[DriveBladder] = w.cfg.Drives[DriveBladder].Max, w.tick
+	c.Job, c.Drive, c.useFacility, c.useFacilitySet = JobUse, DriveBladder, toilet, true
+
+	w.applyDriveConsequences(c)
+	if got := memoriesOf(c, "soiled-self"); got != 0 {
+		t.Fatal("wet self while at the toilet")
+	}
+}
+
 // quietDrives empties every drive of e as of now, for a test about something
 // other than drives. Zeroing Drives alone is not enough: a level is the base
 // plus its rise since driveSince, so a base of zero with an old driveSince
