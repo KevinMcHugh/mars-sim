@@ -13,6 +13,9 @@ import (
 // The dead are removed the moment they are eaten or starve, so we re-check
 // liveness as we go.
 func (w *World) step() {
+	if len(w.aloft) > 0 {
+		w.landRestAloft() // nobody is left in orbit once the game starts
+	}
 	w.tick++
 	for _, id := range w.entityTurnOrder() {
 		e := w.entities[id]
