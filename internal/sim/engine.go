@@ -460,6 +460,10 @@ func (e *Engine) apply(cmd Command) (rateChanged bool) {
 		if e.world.moveShip(c) {
 			e.requestPublish()
 		}
+	case LandShip:
+		if e.world.landAloft(c) {
+			e.requestPublish()
+		}
 	}
 	return false
 }

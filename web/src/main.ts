@@ -9,7 +9,7 @@
 import { mount } from 'svelte';
 import type { Frame, Hello } from '../wire/decode.js';
 import { namedStats, TILE_COMPOSITION_MASK, TILE_VISIBLE } from '../wire/decode.js';
-import { armShip, colonyLog, cycleFlowField, inspect, install, moveShip, setFlowField, setPanel, shipSiteAt, shipSiteFree, stepSpeed, subscribe, syncFrame, togglePause, topics, ui, UI_HZ } from './game.svelte';
+import { armShip, colonyLog, cycleFlowField, inspect, install, landAloft, moveShip, setFlowField, setPanel, shipSiteAt, shipSiteFree, shipTiles, stepSpeed, subscribe, syncFrame, togglePause, topics, ui, UI_HZ } from './game.svelte';
 import type { ShipLine, ShipsTopic } from './game.svelte';
 import { attachInput } from './map/input';
 import { MapRenderer } from './map/renderer';
@@ -160,11 +160,15 @@ async function newGame(settings: Settings): Promise<void> {
   digFrom = null;
   ui.dig = { armed: false, rect: null, tiles: 0 };
   ui.shipTool = null;
-  centered = false;
+  ui.shipSent = null;
+  // The founders start aloft, so there is nobody to center on: the camera
+  // stays on the map's middle, over the landing cavern.
+  centered = true;
   lastInterest = '';
   try {
-    // Paused, so the ships can be placed before anyone moves (docs/ships.md).
-    const started = await sim.start({ tps: 8, 'start-paused': true, ...settings });
+    // Paused, with the founders' ships aloft, so the player lands each one
+    // before anyone moves (docs/ships.md).
+    const started = await sim.start({ tps: 8, 'start-paused': true, 'place-ships': true, ...settings });
     hello = withLooks(started.hello);
     ui.hello = hello;
     debug.hello = hello;
@@ -291,30 +295,35 @@ function heldShip(): { ships: ShipLine[]; ship: ShipLine } | null {
   return t && ship ? { ships: t.ships, ship } : null;
 }
 
-/** Tint where the held ship is now, and where it would land under the pointer. */
+/** Tint where the held ship is now (unless it is still aloft), and where it would land under the pointer. */
 function showShipPreview(): void {
   const held = heldShip();
   if (!held || !hello) { map.setHighlight(null); return; }
   const { ships, ship } = held;
   const tiles: { x: number; y: number; color: Uint8Array }[] = [];
-  const rect = (o: { x: number; y: number }, color: Uint8Array) => {
-    for (let y = o.y; y < o.y + ship.h; y++) for (let x = o.x; x < o.x + ship.w; x++) tiles.push({ x, y, color });
+  const paint = (o: { x: number; y: number }, color: Uint8Array) => {
+    for (const p of shipTiles(ship, o)) tiles.push({ ...p, color });
   };
-  rect(ship, SHIP_FROM);
+  if (!ship.aloft) paint(ship, SHIP_FROM);
   if (shipAt) {
     const o = shipSiteAt(ship, shipAt[0], shipAt[1], hello.width, hello.height);
-    rect(o, shipSiteFree(ships, ship, o) ? SHIP_OK : SHIP_BAD);
+    paint(o, shipSiteFree(ships, ship, o) ? SHIP_OK : SHIP_BAD);
   }
   map.setHighlight(tiles);
 }
 
-/** Land the held ship centered on tile (x, y), if it may land there, and put the tool down. */
+/**
+ * Land the held ship centered on tile (x, y), if it may land there, and put
+ * the tool down: down from orbit if it is still aloft, else moved. The Ships
+ * tab then hands the player the next ship aloft.
+ */
 function landShip(x: number, y: number): void {
   const held = heldShip();
   if (!held || !hello) { armShip(null); return; }
   const o = shipSiteAt(held.ship, x, y, hello.width, hello.height);
   if (!shipSiteFree(held.ships, held.ship, o)) return; // keep holding it: pick another spot
-  moveShip(held.ship.id, o.x, o.y);
+  if (held.ship.aloft) landAloft(held.ship.id, o.x, o.y);
+  else moveShip(held.ship.id, o.x, o.y);
   shipAt = null;
   armShip(null);
 }

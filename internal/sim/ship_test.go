@@ -1,7 +1,9 @@
 package sim
 
 import (
+	"fmt"
 	"slices"
+	"strings"
 	"testing"
 )
 
@@ -9,7 +11,7 @@ import (
 // hull.
 func shipInterior(s *Ship, p Point) bool {
 	dx, dy := p.X-s.Origin.X, p.Y-s.Origin.Y
-	if dx < 0 || dy < 0 || dx >= s.layout.width || dy >= shipHeight {
+	if dx < 0 || dy < 0 || dx >= s.layout.width || dy >= s.layout.height {
 		return false
 	}
 	return !s.layout.hullAt(dx, dy)
@@ -21,10 +23,10 @@ func shipInterior(s *Ship, p Point) bool {
 func assertShipIntact(t *testing.T, w *World, s *Ship) {
 	t.Helper()
 	l := &s.layout
-	for dy := 0; dy < shipHeight; dy++ {
+	for dy := 0; dy < l.height; dy++ {
 		for dx := 0; dx < l.width; dx++ {
 			p := s.Origin.Add(dx, dy)
-			if (w.TerrainAt(p) == Hull) != l.hullAt(dx, dy) {
+			if l.inShip(dx, dy) && (w.TerrainAt(p) == Hull) != l.hullAt(dx, dy) {
 				t.Fatalf("ship %d at %v: %v where the hull should be %v", s.ID, p, w.TerrainAt(p), l.hullAt(dx, dy))
 			}
 		}
@@ -104,49 +106,131 @@ func TestEveryArrivalComesInAShip(t *testing.T) {
 	}
 }
 
-// A ship's layout: bunks and toilets by their percents, a locker per
-// passenger and a trough per keeper, every fixture beside the aisle, and
-// room in the aisle for everyone (pets included) to step out.
+// A ship's layout, in every shape: bunks and toilets by their percents, a
+// locker per passenger and a trough per keeper, every fixture facing open
+// deck, room for everyone (pets included) to step out, and every bit of
+// deck reachable from outside through a doorway.
 func TestShipLayout(t *testing.T) {
 	w := propertyWorld(t)
 	w.cfg.ShipBunkPercent, w.cfg.ShipToiletPercent = 50, 25
-	for n := 1; n <= 20; n++ {
-		for _, hens := range []bool{false, true} {
-			keepers := make([]bool, n)
-			k := 0
-			for i := range keepers {
-				if hens && i%3 == 0 {
-					keepers[i] = true
-					k++
+	for shape := shipStick; shape < numShipShapes; shape++ {
+		for n := 1; n <= 20; n++ {
+			for _, hens := range []bool{false, true} {
+				keepers := make([]bool, n)
+				k := 0
+				for i := range keepers {
+					if hens && i%3 == 0 {
+						keepers[i] = true
+						k++
+					}
 				}
-			}
-			l := w.planShip(keepers)
-			count := map[Terrain]int{}
-			for _, f := range l.fixtures {
-				count[f.terrain]++
-				if l.hullAt(f.at.X, f.at.Y) {
-					t.Fatalf("%d aboard: a %v on the hull at %v", n, f.terrain, f.at)
+				l := w.planShip(keepers, shape)
+				if l.shape != shape {
+					t.Fatalf("%v for %d came out a %v", shape, n, l.shape)
 				}
-				if dy := f.at.Y; dy != shipAisle-1 && dy != shipAisle+2 {
-					t.Fatalf("%d aboard: a %v off the fixture rows at %v", n, f.terrain, f.at)
+				assertLayoutSound(t, fmt.Sprintf("%v for %d with %d keepers", shape, n, k), &l)
+				count := map[Terrain]int{}
+				for _, f := range l.fixtures {
+					count[f.terrain]++
 				}
-			}
-			if count[Bed] != (n+1)/2 || count[Toilet] != (n+3)/4 || count[Storage] != n || count[Trough] != k {
-				t.Fatalf("%d aboard with %d keepers: %v", n, k, count)
-			}
-			if len(l.floor) < n+n {
-				t.Fatalf("%d aboard: only %d aisle tiles to step out on", n, len(l.floor))
-			}
-			for _, p := range l.floor {
-				if l.hullAt(p.X, p.Y) || (p.Y != shipAisle && p.Y != shipAisle+1) {
-					t.Fatalf("%d aboard: step-out tile %v is not aisle", n, p)
+				if count[Bed] != (n+1)/2 || count[Toilet] != (n+3)/4 || count[Storage] != n || count[Trough] != k {
+					t.Fatalf("%v for %d with %d keepers: %v", shape, n, k, count)
+				}
+				if len(l.floor) < n+n {
+					t.Fatalf("%v for %d: only %d aisle tiles to step out on", shape, n, len(l.floor))
 				}
 			}
 		}
 	}
-	// A full ship is one compact block, not a row of cubicles.
-	if l := w.planShip(make([]bool, 20)); l.width > 25 {
-		t.Fatalf("a ship for 20 is %d wide", l.width)
+	// A full stick is one compact block, not a row of cubicles.
+	if l := w.planShip(make([]bool, 20), shipStick); l.width > 25 || l.height != 6 {
+		t.Fatalf("a stick for 20 is %dx%d", l.width, l.height)
+	}
+}
+
+// assertLayoutSound checks a layout's geometry: fixtures on deck, each
+// beside open deck; step-out tiles distinct open deck; and every open deck
+// tile reachable from the doors' approaches, so nobody is shut in.
+func assertLayoutSound(t *testing.T, what string, l *shipLayout) {
+	t.Helper()
+	fixture := map[Point]bool{}
+	for _, f := range l.fixtures {
+		if l.cellAt(f.at.X, f.at.Y) != shipDeck || fixture[f.at] {
+			t.Fatalf("%s: a %v at %v is not on a deck tile of its own", what, f.terrain, f.at)
+		}
+		fixture[f.at] = true
+	}
+	open := func(p Point) bool { return l.cellAt(p.X, p.Y) == shipDeck && !fixture[p] }
+	for _, f := range l.fixtures {
+		faces := false
+		for _, d := range veinNeighbors {
+			faces = faces || open(f.at.Add(d.X, d.Y))
+		}
+		if !faces {
+			t.Fatalf("%s: the %v at %v faces no open deck", what, f.terrain, f.at)
+		}
+	}
+	seen := map[Point]bool{}
+	for _, p := range l.floor {
+		if !open(p) || seen[p] {
+			t.Fatalf("%s: step-out tile %v is not open deck of its own", what, p)
+		}
+		seen[p] = true
+	}
+	if len(l.doors) < 2 {
+		t.Fatalf("%s: %d door approaches, want at least two ways out", what, len(l.doors))
+	}
+	reached := map[Point]bool{}
+	queue := []Point{}
+	for _, d := range l.doors {
+		if l.inShip(d.X, d.Y) {
+			t.Fatalf("%s: door approach %v is inside the ship", what, d)
+		}
+		queue = append(queue, d)
+	}
+	for len(queue) > 0 {
+		p := queue[0]
+		queue = queue[1:]
+		for _, d := range veinNeighbors {
+			q := p.Add(d.X, d.Y)
+			if open(q) && !reached[q] {
+				reached[q] = true
+				queue = append(queue, q)
+			}
+		}
+	}
+	for dy := 0; dy < l.height; dy++ {
+		for dx := 0; dx < l.width; dx++ {
+			if p := (Point{dx, dy}); open(p) && !reached[p] {
+				t.Fatalf("%s: open deck at %v cannot be reached from outside:\n%s", what, p, strings.Join(l.rows, "\n"))
+			}
+		}
+	}
+}
+
+// Every shape comes down, at its weight's odds; a shape weighted 0 never
+// does.
+func TestShipShapesFollowTheirWeights(t *testing.T) {
+	w := propertyWorld(t)
+	w.cfg.ShipStickWeight, w.cfg.ShipHubWeight, w.cfg.ShipClusterWeight = 1, 1, 1
+	seen := map[shipShape]int{}
+	for id := EntityID(1); id <= 3000; id++ {
+		seen[w.shipShapeFor(id)]++
+	}
+	for shape := shipStick; shape < numShipShapes; shape++ {
+		if seen[shape] < 800 || seen[shape] > 1200 {
+			t.Errorf("equal weights: %v came up %d times of 3000", shape, seen[shape])
+		}
+	}
+	w.cfg.ShipStickWeight, w.cfg.ShipHubWeight, w.cfg.ShipClusterWeight = 0, 0, 1
+	for id := EntityID(1); id <= 100; id++ {
+		if got := w.shipShapeFor(id); got != shipCluster {
+			t.Fatalf("only clusters weighted, got a %v", got)
+		}
+	}
+	w.cfg.ShipClusterWeight = 0
+	if got := w.shipShapeFor(1); got != shipStick {
+		t.Fatalf("no weights: got a %v, want a stick", got)
 	}
 }
 
@@ -175,10 +259,21 @@ func TestShipLoads(t *testing.T) {
 // small landing cavern and stall all construction — and every passenger
 // must be able to walk out of its ship to the rest of the colony.
 func TestShipsLeaveRoomForTheFirstRooms(t *testing.T) {
-	for _, n := range []int{1, 3, 6, 10, 16, 20, 40} {
+	for _, weights := range [][3]int{{1, 0, 0}, {0, 1, 0}, {0, 0, 1}, {1, 1, 1}} {
+		for _, n := range []int{1, 3, 6, 10, 16, 20, 40} {
+			t.Run(fmt.Sprintf("%v/%d", weights, n), func(t *testing.T) {
+				assertShipsLeaveRoom(t, n, weights)
+			})
+		}
+	}
+}
+
+func assertShipsLeaveRoom(t *testing.T, n int, weights [3]int) {
+	{
 		cfg := testConfig()
 		cfg.StartColonists = n
 		cfg.StartAliens, cfg.StartCats, cfg.StartRats = 0, 0, 0
+		cfg.ShipStickWeight, cfg.ShipHubWeight, cfg.ShipClusterWeight = weights[0], weights[1], weights[2]
 		if n > 6 {
 			cfg.Width, cfg.Height = 80, 50
 		}
@@ -224,18 +319,16 @@ func TestShipCrashesThroughRockWhenTheCavernIsFull(t *testing.T) {
 	if s == nil {
 		t.Fatal("no site found")
 	}
-	for dy := 0; dy < shipHeight; dy++ {
-		for dx := 0; dx < s.layout.width; dx++ {
-			if w.TerrainAt(s.Origin.Add(dx, dy)) == Rock {
-				t.Fatalf("rock left inside the ship's footprint at %v", s.Origin.Add(dx, dy))
-			}
-		}
-	}
-	forEachShipMargin(s.Origin, s.layout.width, func(p Point) {
-		if w.TerrainAt(p) == Rock {
-			t.Fatalf("rock left in the crater around the ship at %v", p)
+	s.layout.forEachTile(func(d Point, _ bool) {
+		if w.TerrainAt(s.Origin.Add(d.X, d.Y)) == Rock {
+			t.Fatalf("rock left inside the ship's footprint at %v", s.Origin.Add(d.X, d.Y))
 		}
 	})
+	for _, d := range s.layout.margin {
+		if p := s.Origin.Add(d.X, d.Y); w.TerrainAt(p) == Rock {
+			t.Fatalf("rock left in the crater around the ship at %v", p)
+		}
+	}
 	assertShipIntact(t, w, s)
 	w.refreshSpatial()
 	for _, id := range s.Colonists {
@@ -365,7 +458,7 @@ func TestMoveShipBeforeTheFirstTick(t *testing.T) {
 	if w.moveShip(MoveShip{Ship: a.ID, X: b.Origin.X + 2, Y: b.Origin.Y}) {
 		t.Fatal("a ship landed on top of another")
 	}
-	if w.moveShip(MoveShip{Ship: a.ID, X: b.Origin.X, Y: b.Origin.Y - shipHeight}) {
+	if w.moveShip(MoveShip{Ship: a.ID, X: b.Origin.X, Y: b.Origin.Y - a.layout.height}) {
 		t.Fatal("a ship landed on the walkway round another")
 	}
 	if !w.moveShip(MoveShip{Ship: a.ID, X: dest.X, Y: dest.Y}) {
@@ -385,13 +478,11 @@ func TestMoveShipBeforeTheFirstTick(t *testing.T) {
 			t.Fatalf("%s did not come with its ship: at %v", e.displayName(), e.Pos)
 		}
 	}
-	for dy := 0; dy < shipHeight; dy++ {
-		for dx := 0; dx < a.layout.width; dx++ {
-			if p := old.Add(dx, dy); !shipInterior(b, p) && w.TerrainAt(p) != Floor && !(p.X >= dest.X && p.X < dest.X+a.layout.width && p.Y >= dest.Y && p.Y < dest.Y+shipHeight) {
-				t.Fatalf("the old site still has %v at %v", w.TerrainAt(p), p)
-			}
+	a.layout.forEachTile(func(d Point, _ bool) {
+		if p := old.Add(d.X, d.Y); !shipInterior(b, p) && w.TerrainAt(p) != Floor && !(p.X >= dest.X && p.X < dest.X+a.layout.width && p.Y >= dest.Y && p.Y < dest.Y+a.layout.height) {
+			t.Fatalf("the old site still has %v at %v", w.TerrainAt(p), p)
 		}
-	}
+	})
 	w.step()
 	if w.moveShip(MoveShip{Ship: a.ID, X: old.X, Y: old.Y}) {
 		t.Fatal("a ship moved after the game started")
@@ -473,5 +564,108 @@ func TestArrivalRareItemsFollowTheirWeights(t *testing.T) {
 	w.cfg.CrashPodGunWeight, w.cfg.CrashPodChickenWeight, w.cfg.CrashPodCatWeight = 0, 0, 0
 	if r := w.arrivalRareItem(1); r != rareNone {
 		t.Fatalf("with every weight zero, a colonist landed with rare item %d", r)
+	}
+}
+
+// With place-ships set the founders wait aloft: nobody is on the map until
+// the player lands each ship in turn, where they choose, and the frontend is
+// shown the next ship's shape before it lands. Whatever is still aloft when
+// the game starts lands by itself.
+func TestFoundersWaitAloftToBeLandedOneByOne(t *testing.T) {
+	cfg := testConfig()
+	cfg.Width, cfg.Height = 120, 60
+	cfg.StartColonists, cfg.StartAliens, cfg.StartCats, cfg.StartRats = 50, 0, 0, 0
+	cfg.CrashPodGunWeight, cfg.CrashPodChickenWeight, cfg.CrashPodCatWeight = 1, 1, 1
+	cfg.ShipStickWeight, cfg.ShipHubWeight, cfg.ShipClusterWeight = 1, 1, 1
+	cfg.PlaceShips = true
+	w := newTestWorld(t, cfg)
+	if w.countKind(Colonist) != 0 || len(w.ships) != 0 || !slices.Equal(w.aloft, []int{17, 17, 16}) {
+		t.Fatalf("worldgen landed %d colonists in %d ships, %v aloft; want everyone aloft", w.countKind(Colonist), len(w.ships), w.aloft)
+	}
+	views := w.shipViews()
+	if len(views) != 3 || !views[0].Aloft || views[0].Shape == nil || views[1].Shape != nil {
+		t.Fatalf("aloft views: %+v", views)
+	}
+	next := views[0]
+	if w.landAloft(LandShip{Ship: 2, X: 10, Y: 5}) {
+		t.Fatal("ship 2 landed before ship 1")
+	}
+	if !w.landAloft(LandShip{Ship: 1, X: 10, Y: 5}) {
+		t.Fatal("ship 1 would not land in open rock")
+	}
+	s := w.ships[0]
+	if s.Origin != (Point{10, 5}) || s.layout.width != next.Width || !slices.Equal(s.layout.rows, next.Shape) {
+		t.Fatalf("ship 1 landed at %v as\n%s\nnot as shown:\n%s", s.Origin, strings.Join(s.layout.rows, "\n"), strings.Join(next.Shape, "\n"))
+	}
+	assertShipIntact(t, w, s)
+	if w.landAloft(LandShip{Ship: 1, X: 60, Y: 40}) {
+		t.Fatal("ship 1 landed twice")
+	}
+	if w.landAloft(LandShip{Ship: 2, X: 10 + s.layout.width - 2, Y: 5}) {
+		t.Fatal("ship 2 landed on ship 1")
+	}
+	if !w.landAloft(LandShip{Ship: 2, X: 60, Y: 40}) {
+		t.Fatal("ship 2 would not land")
+	}
+	assertShipIntact(t, w, w.ships[1])
+	w.step() // the third is still aloft: it comes down by itself
+	if len(w.aloft) != 0 || len(w.ships) != 3 || w.countKind(Colonist) != 50 {
+		t.Fatalf("after the first tick: %d ships, %v aloft, %d colonists", len(w.ships), w.aloft, w.countKind(Colonist))
+	}
+	for _, s := range w.ships {
+		for _, id := range s.Colonists {
+			if w.entities[id].ship != s.ID {
+				t.Fatalf("colonist %d is not aboard ship %d", id, s.ID)
+			}
+		}
+	}
+	if w.landAloft(LandShip{Ship: 4, X: 10, Y: 30}) {
+		t.Fatal("a ship landed after the game started")
+	}
+}
+
+// A ship the player lands beside a hidden cavern breaks into it, and the
+// cavern's nest is rolled only once the passengers are out: its aliens never
+// take the passengers' IDs (which would break the ship's manifest) or their
+// tiles.
+func TestPlayerLandingBreaksIntoACavernAfterThePassengersAreOut(t *testing.T) {
+	cfg := testConfig()
+	cfg.Width, cfg.Height = 80, 50
+	cfg.StartColonists, cfg.StartAliens, cfg.StartCats, cfg.StartRats = 6, 0, 0, 0
+	cfg.CavernNestPercent = 100
+	cfg.PlaceShips = true
+	w := newTestWorld(t, cfg)
+	if len(w.alienSpecies) == 0 {
+		t.Skip("no alien species to nest")
+	}
+	center := Point{40, 8}
+	for y := 4; y <= 12; y++ {
+		for x := 34; x <= 46; x++ {
+			p := Point{x, y}
+			w.SetTerrain(p, Rock)
+			cellAt(w, p).Explored = false
+			w.carveHidden(p)
+		}
+	}
+	w.unfoundCaverns[center] = struct{}{}
+	aliens, first := w.countKind(Alien), w.nextID
+	if !w.landAloft(LandShip{Ship: 1, X: 26, Y: 6}) { // its hold end juts into the cavern
+		t.Fatal("the ship would not land")
+	}
+	s := w.ships[0]
+	assertShipIntact(t, w, s)
+	if !w.discovered(center) {
+		t.Fatal("the landing did not break into the cavern")
+	}
+	if w.countKind(Alien) == aliens {
+		t.Fatal("the breach rolled no nest")
+	}
+	if s.Colonists[0] != first {
+		t.Fatalf("the first passenger is %d, want %d", s.Colonists[0], first)
+	}
+	for _, id := range w.entityIDsSorted() {
+		if e := w.entities[id]; e.Kind == Alien && id >= first && id <= s.Colonists[len(s.Colonists)-1] {
+			t.Fatalf("an alien took ID %d, among the passengers'", id)
+		}
 	}
 }

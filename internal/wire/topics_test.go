@@ -2,6 +2,7 @@ package wire
 
 import (
 	"encoding/json"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -67,7 +68,7 @@ func TestLoreTopic(t *testing.T) {
 	snap := fixture(true)
 	snap.Stats.ExploredTiles, snap.Stats.ChunksGenerated, snap.Stats.Chunks = 500, 6, 6
 	snap.AlienSpecies = []sim.AlienSpecies{
-		{Singular: "grub", Plural: "grubs", Emoji: glyphs.Beetle, Limbs: 6, Arms: 2, Temperament: sim.TemperamentHostile},
+		{Singular: "grub", Plural: "grubs", ScientificName: "Hexapus ferox", Emoji: glyphs.Beetle, Limbs: 6, Arms: 2, Temperament: sim.TemperamentHostile},
 		{Singular: "xeno", Plural: "xenos", Emoji: "\U0001F921"}, // not a listed glyph
 	}
 	snap.Corporations = []sim.Corporation{{Name: "MarsCorp", Code: "M", HQ: "Phobos", Founded: 2090}}
@@ -88,7 +89,7 @@ func TestLoreTopic(t *testing.T) {
 		t.Fatalf("species = %+v", lore.Species)
 	}
 	g := lore.Species[0]
-	if g.Glyph != glyphs.Beetle || g.Legs != 4 || g.Temperament != sim.TemperamentHostile.String() || g.Description == "" || g.Label == "" {
+	if g.Glyph != glyphs.Beetle || g.Legs != 4 || g.Temperament != sim.TemperamentHostile.String() || g.Description == "" || g.Label == "" || g.ScientificName != "Hexapus ferox" {
 		t.Errorf("grub = %+v", g)
 	}
 	if lore.Species[1].Glyph != glyphs.Alien {
@@ -102,12 +103,16 @@ func TestLoreTopic(t *testing.T) {
 	}
 }
 
-// The ships topic lists every ship's footprint, and says they may be moved
-// only before the first tick.
+// The ships topic lists every ship's footprint and shape, and those still
+// aloft, and says they may be placed only before the first tick.
 func TestShipsTopic(t *testing.T) {
 	snap := fixture(true)
 	snap.Tick = 0
-	snap.Ships = []sim.ShipView{{ID: 1, X: 10, Y: 20, Width: 25, Height: 6, Colonists: 20}}
+	shape := []string{"###", "...", "###"}
+	snap.Ships = []sim.ShipView{
+		{ID: 1, X: 10, Y: 20, Width: 3, Height: 3, Shape: shape, ShapeName: "stick", Colonists: 20},
+		{ID: 2, Colonists: 5, Aloft: true},
+	}
 	tp := NewTopics()
 	if err := tp.Subscribe("ships"); err != nil {
 		t.Fatal(err)
@@ -116,8 +121,11 @@ func TestShipsTopic(t *testing.T) {
 	if err := json.Unmarshal(tp.Due(snap, time.Unix(0, 0))["ships"], &ships); err != nil {
 		t.Fatal(err)
 	}
-	want := ShipLine{ID: 1, X: 10, Y: 20, W: 25, H: 6, Colonists: 20}
-	if !ships.Placing || len(ships.Ships) != 1 || ships.Ships[0] != want {
+	want := []ShipLine{
+		{ID: 1, X: 10, Y: 20, W: 3, H: 3, Shape: shape, Kind: "stick", Colonists: 20},
+		{ID: 2, Colonists: 5, Aloft: true},
+	}
+	if !ships.Placing || !reflect.DeepEqual(ships.Ships, want) {
 		t.Fatalf("ships = %+v", ships)
 	}
 	snap.Tick = 1

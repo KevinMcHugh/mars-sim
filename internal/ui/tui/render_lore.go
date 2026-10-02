@@ -10,6 +10,9 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
+// scientificNameStyle sets a species' binomial in italics under its title.
+var scientificNameStyle = lipgloss.NewStyle().Italic(true)
+
 // loreListWidth is the list panel's total footprint in cells, border
 // included: enough for the world-facts block and a species' short roster
 // label ("Xeno · hostile") without wrapping.
@@ -129,7 +132,13 @@ func (m Model) renderLoreDetail(sp sim.AlienSpecies, rows, width int) string {
 
 	var b strings.Builder
 	b.WriteString(titleStyle.Render(sp.RosterLabel()))
-	b.WriteString("\n\n")
+	b.WriteByte('\n')
+	if sp.ScientificName != "" {
+		// Binomials are written in italics.
+		b.WriteString(scientificNameStyle.Render(cells.Truncate(sp.ScientificName, inner)))
+		b.WriteByte('\n')
+	}
+	b.WriteByte('\n')
 
 	stat := func(label, val string) {
 		b.WriteString(cells.Truncate(fmt.Sprintf("%-14s %s", label, val), inner))
@@ -147,8 +156,9 @@ func (m Model) renderLoreDetail(sp sim.AlienSpecies, rows, width int) string {
 	stat("Skin:", sp.Skin.String())
 	stat("Color:", sp.Color)
 	stat("Pattern:", sp.Pattern.String())
-	stat("Bite damage:", fmt.Sprintf("%d", sp.BiteDamage))
-	stat("Bite cooldown:", fmt.Sprintf("%d ticks", sp.BiteRest))
+	stat("Attacks:", sp.AttacksLabel())
+	stat("Attack damage:", fmt.Sprintf("%d", sp.BiteDamage))
+	stat("Attack pace:", fmt.Sprintf("%d ticks", sp.BiteRest))
 	stat("Move pace:", fmt.Sprintf("every %d ticks", sp.Slowness))
 
 	b.WriteString("\n")

@@ -300,17 +300,23 @@ closed.
   clears it. The page counts rock itself from the tile pages it holds
   (terrain 0, visible); the engine recounts, so the two can differ by tiles
   already ordered.
-- **Ships** places the colony ships (see [ships.md](./ships.md)). A new game
-  starts paused (the page sends `start-paused: true` with its settings) with
-  this tab open. **Move** picks a ship up; while it is held, the pointer
-  shows where it would land (green, or red where it would touch another
-  ship or the walkway round one, the check `shipSiteFree` mirrors from the
-  engine), and a click lands it there with the `ship-move` command (host API
-  13). A drag still pans. **Land and start** puts the tool down and runs the
-  game at Normal; after the first tick the ships stay put and the tab only
-  lists them. The `ships` topic is rebuilt on every advance, not on an
-  interval: placing happens paused, where the only advance is the one the
-  move itself causes.
+- **Ships** lands the colony ships (see [ships.md](./ships.md)). A new game
+  starts paused with the founders' ships aloft (the page sends
+  `start-paused: true` and `place-ships: true` with its settings) and this
+  tab open. The tab hands the player the next ship aloft and draws its shape
+  from the topic's `shape` rows; the pointer shows where it would land, tile
+  for tile (green, or red where any tile would touch another ship or the
+  walkway round one, the check `shipSiteFree` mirrors from the engine), and a
+  click lands it there with the `ship-land` command (host API 14). The tab
+  then hands over the next one; `ui.shipSent` keeps it from picking the ship
+  just sent down up again while the topic catches up, and a **Land** button
+  re-arms it if the engine refused. Once every ship is down, **Move** picks
+  a landed one up and a click relands it with `ship-move` (host API 13). A
+  drag still pans. **Start** is disabled while any ship is aloft; it puts
+  the tool down and runs the game at Normal. After the first tick the ships
+  stay put and the tab only lists them. The `ships` topic is rebuilt on
+  every advance, not on an interval: placing happens paused, where the only
+  advance is the one a land or move itself causes.
 
 A link from any of these into the inspector remembers its tab
 (`ui.inspectFrom`), so the inspector offers **← Jobs**, **← Storage** or

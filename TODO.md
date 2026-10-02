@@ -1,6 +1,4 @@
 Things to build/fix as we think of them:
-* aliens should have different attack types
-* aliens should have scientific names (eg pseudoursus ares)
 * eventually, colonists should pick nicknames for novel alien species
   * meaning, at lore time, we decide how many martian species humanity has already met, and novel ones get named by the colony
 * loregen for guns. manufacturers, clip size, etc.

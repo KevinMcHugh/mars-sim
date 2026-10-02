@@ -17,11 +17,12 @@ func loreSnapshot() *sim.Snapshot {
 	snap.Stats.ChunksGenerated, snap.Stats.Chunks = 3, 40
 	snap.AlienSpecies = []sim.AlienSpecies{
 		{
-			Singular: "xeno", Plural: "xenos",
+			Singular: "xeno", Plural: "xenos", ScientificName: "Lepidosaurus ferox",
 			HeightMinCM: 180, HeightMaxCM: 220, WeightMinKG: 70, WeightMaxKG: 95,
 			Eyes: 4, Limbs: 6, Arms: 2, Tail: true,
 			Skin: sim.SkinScaly, Color: "green",
 			Temperament: sim.TemperamentHostile,
+			AttackModes: sim.AttackSetOf(sim.AttackBite, sim.AttackTail),
 			BiteDamage:  12, BiteRest: 2, Slowness: 1,
 		},
 		{
@@ -63,8 +64,10 @@ func TestLoreTabShowsWorldFactsAndFirstSpecies(t *testing.T) {
 		"Seed: 12345",
 		"ALIEN SPECIES (2)",
 		"Xeno · hostile",
+		"Lepidosaurus ferox",
 		"Height:        180-220 cm",
-		"Bite damage:   12",
+		"Attacks:       bite, tail",
+		"Attack damage: 12",
 		"FIELD NOTES",
 	} {
 		if !strings.Contains(out, want) {

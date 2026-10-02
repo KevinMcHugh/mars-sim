@@ -240,6 +240,16 @@ type Config struct {
 	ShipCapacity      int `cfg:"ship-capacity" sec:"Arrivals" doc:"most settlers one colony ship carries; a larger wave comes down in several"`
 	ShipBunkPercent   int `cfg:"ship-bunk-percent" doc:"communal bunks a ship carries, as a percent of its passengers (rounded up)"`
 	ShipToiletPercent int `cfg:"ship-toilet-percent" doc:"communal toilets a ship carries, as a percent of its passengers (rounded up)"`
+	// A ship comes down as a stick (its rooms in a row), a hub and spoke, or
+	// a knobby cluster, picked per ship by these relative weights. All three
+	// at 0 is all sticks. See docs/ships.md.
+	ShipStickWeight   int `cfg:"ship-stick-weight" doc:"relative odds a colony ship is a stick: its rooms in a row along one aisle"`
+	ShipHubWeight     int `cfg:"ship-hub-weight" doc:"relative odds a colony ship is a hub and spoke: a concourse with a room down each spoke"`
+	ShipClusterWeight int `cfg:"ship-cluster-weight" doc:"relative odds a colony ship is a knobby cluster: rooms budding off a spine corridor"`
+	// PlaceShips leaves the founders' ships aloft at worldgen for a frontend
+	// to land one by one with LandShip before the first tick. The browser
+	// sets it; anything still aloft when the game starts lands by itself.
+	PlaceShips bool `cfg:"place-ships" doc:"hold the founders' ships aloft for the player to land one by one (the browser does)"`
 
 	CrashPodPurse      int64 `cfg:"crash-pod-purse" doc:"dollars each colonist arrives with"`
 	CrashPodMeals      int   `cfg:"crash-pod-meals" doc:"meals stocked in each colonist's locker, on average"`
@@ -695,9 +705,14 @@ func DefaultConfig() Config {
 		// off. Every settler lands armed, the way frontier settlers did.
 		// A ship of 20 sleeps 10 and has 5 toilets: enough to get by, not
 		// enough to keep the colony from building. See docs/ships.md.
-		ShipCapacity:       20,
-		ShipBunkPercent:    50,
-		ShipToiletPercent:  25,
+		ShipCapacity:      20,
+		ShipBunkPercent:   50,
+		ShipToiletPercent: 25,
+		// Every shape equally likely: the colony's landing site looks
+		// different from game to game.
+		ShipStickWeight:    1,
+		ShipHubWeight:      1,
+		ShipClusterWeight:  1,
 		CrashPodMeals:      10,
 		CrashPodMealSpread: 0,
 		// Half the colony lands armed, a quarter with a chicken, a quarter

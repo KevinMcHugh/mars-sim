@@ -13,6 +13,9 @@ import (
 // The dead are removed the moment they are eaten or starve, so we re-check
 // liveness as we go.
 func (w *World) step() {
+	if len(w.aloft) > 0 {
+		w.landRestAloft() // nobody is left in orbit once the game starts
+	}
 	w.tick++
 	for _, id := range w.entityTurnOrder() {
 		e := w.entities[id]
@@ -1837,7 +1840,7 @@ func (w *World) alienTurn(e *Entity) {
 	e.Quarry = prey.ID
 
 	if e.Pos.Adjacent(prey.Pos) {
-		w.bite(e, prey)
+		w.strike(e, prey)
 		e.Cooldown = sp.BiteRest
 		return
 	}
@@ -1879,31 +1882,77 @@ func (w *World) alienGraze(e *Entity, sp AlienSpecies) bool {
 	return true
 }
 
-// bite deals damage to a random body part of the alien's prey and eats it if
-// the wound is fatal (a vital part destroyed, or HP exhausted). A rat has no
-// parts to hit, so a bite just takes its HP. The prey remembers the attack,
-// and any other colonist close enough to have noticed the alien
-// (observeNearby's own sighting radius) remembers watching it happen. A
-// fatal bite leaves gore behind; the prey is eaten, so there is no body.
-func (w *World) bite(alien, prey *Entity) {
-	part := w.rollHit(prey)
-	fatal := applyDamage(prey, part, w.alienSpeciesFor(alien).BiteDamage)
+// strike attacks the alien's prey with one of its species' attack modes
+// (see AttackMode), picked uniformly on the simulation stream when it has
+// more than one -- the mode decides where the blow lands and how hard, so it
+// is gameplay, not flavor. A bite, claw rake, or tail lash lands on a random
+// body part at full damage; strangling goes for the throat (the head, when
+// the prey has one) at half damage, a slower but surer kill. A rat has no
+// parts to hit, so it just loses HP. The prey remembers the attack, and any
+// other colonist close enough to have noticed the alien (observeNearby's own
+// sighting radius) remembers watching it happen. A fatal strike leaves gore
+// behind; the prey is eaten, so there is no body.
+func (w *World) strike(alien, prey *Entity) {
+	sp := w.alienSpeciesFor(alien)
+	modes := sp.Attacks()
+	mode := modes[0]
+	if len(modes) > 1 {
+		mode = modes[w.rng.IntN(len(modes))]
+	}
+	var part BodyPart
+	dmg := sp.BiteDamage
+	if mode == AttackStrangle && prey.hasPart(Head) {
+		part = Head
+		dmg = (dmg + 1) / 2 // a zero baseline stays zero (see speciesDamage)
+	} else {
+		part = w.rollHit(prey)
+	}
+	fatal := applyDamage(prey, part, dmg)
 	noun := w.alienNounFor(alien)
 	name := w.preyName(prey)
+	verb := strikeVerbs[mode]
 	if fatal {
 		alien.State = Feeding
 		o := w.occurrence(alien, ActionKill, prey, prey.Pos, "")
-		o.WitnessText = fmt.Sprintf("Watched %s kill %s.", noun, name)
+		o.WitnessText = fmt.Sprintf("Watched %s %s %s to death.", noun, verb.base, name)
 		w.addGore(prey.Pos)
 		w.emitOccurrence(o)
-		w.remove(prey.ID, fmt.Sprintf("devoured by %s", noun))
-		w.logEvent(LogDeath, fmt.Sprintf("%s devours %s.", capitalizeFirst(noun), name))
+		w.remove(prey.ID, fmt.Sprintf("%s to death by %s", verb.past, noun))
+		w.logEvent(LogDeath, fmt.Sprintf("%s %s %s to death and devours the remains.",
+			capitalizeFirst(noun), verb.third, name))
 	} else {
 		alien.State = Hunting
 		o := w.occurrence(alien, ActionBite, prey, prey.Pos, "")
-		o.TargetText = fmt.Sprintf("Bitten in the %s by %s!", part, noun)
-		o.WitnessText = fmt.Sprintf("Watched %s attack %s.", noun, name)
+		o.TargetText = strikeTargetText(mode, part, noun)
+		o.WitnessText = fmt.Sprintf("Watched %s %s %s.", noun, verb.hit, name)
 		w.emitOccurrence(o)
+	}
+}
+
+// strikeVerb is one attack mode's verbs in the forms narration needs: a
+// non-fatal blow ("watched a grelk *lash* Ana") and a kill ("watched a grelk
+// *batter* Ana to death", "a grelk *batters* Ana to death", "*battered* to
+// death by a grelk").
+type strikeVerb struct{ hit, base, third, past string }
+
+var strikeVerbs = [...]strikeVerb{
+	AttackBite:     {"bite", "maul", "mauls", "mauled"},
+	AttackClaw:     {"claw", "claw", "claws", "clawed"},
+	AttackTail:     {"lash", "batter", "batters", "battered"},
+	AttackStrangle: {"throttle", "strangle", "strangles", "strangled"},
+}
+
+// strikeTargetText is what the victim of a non-fatal strike remembers.
+func strikeTargetText(mode AttackMode, part BodyPart, noun string) string {
+	switch mode {
+	case AttackClaw:
+		return fmt.Sprintf("Clawed across the %s by %s!", part, noun)
+	case AttackTail:
+		return fmt.Sprintf("Lashed across the %s by %s's tail!", part, noun)
+	case AttackStrangle:
+		return fmt.Sprintf("Half-strangled by %s!", noun)
+	default:
+		return fmt.Sprintf("Bitten in the %s by %s!", part, noun)
 	}
 }
 

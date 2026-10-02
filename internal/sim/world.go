@@ -738,7 +738,11 @@ type World struct {
 	shipRingHint int
 	// ships is every colony ship that has landed, in landing order: ships[i]
 	// has ID i+1. See ship.go.
-	ships              []*Ship
+	ships []*Ship
+	// aloft is the founders' ships still waiting to land, as their loads,
+	// in landing order: with place-ships set, worldgen leaves them here for
+	// the player to land one by one (see LandShip).
+	aloft              []int
 	restrictedFixtures [numTerrains]int
 	// ownedFixtures indexes the restricted fixtures by owner, and
 	// paidFixtures the pay-per-use ones by terrain, so facilityReachable
@@ -912,6 +916,10 @@ type World struct {
 	nestRNG        *rand.Rand
 	// nestCenters is revealAround's scratch: cavern centers found this flood.
 	nestCenters []Point
+	// holdNests defers revealAround's nest rolls while a ship lands, so a
+	// cavern its stamping breaks into rolls its nest only once everyone
+	// aboard has stepped out (see landShip).
+	holdNests bool
 	// gen generates chunks: their ore veins and hidden caverns. See
 	// worldgen_chunks.go. nil for a world built without generate (tests),
 	// where every tile simply starts as Rock.
@@ -1258,9 +1266,12 @@ func (w *World) revealAround(p Point) {
 		w.cavernBreaches++
 		w.logEvent(LogCavern, fmt.Sprintf("The colony breaks through into a natural cavern (%d tiles of open floor).", found))
 		// Nests are rolled only now, once the whole system is revealed, so
-		// their aliens land on discovered floor, awake.
-		w.rollNests(w.nestCenters)
-		w.nestCenters = w.nestCenters[:0]
+		// their aliens land on discovered floor, awake -- or, under a landing
+		// ship, once its passengers are out (see landShip).
+		if !w.holdNests {
+			w.rollNests(w.nestCenters)
+			w.nestCenters = w.nestCenters[:0]
+		}
 	}
 }
 

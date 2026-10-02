@@ -48,7 +48,13 @@ func generate(w *World) {
 	// Every colonist arrives aboard a colony ship, the ships landing from the
 	// middle of the cavern outward and smashing through the rock around it
 	// once the open floor runs out. See ship.go.
-	_, ships := w.arriveWave(w.cfg.StartColonists, false)
+	// With place-ships set they wait aloft instead, for the player to land.
+	ships := 0
+	if w.cfg.PlaceShips {
+		w.aloft = shipLoads(w.cfg.StartColonists, w.cfg.ShipCapacity)
+	} else {
+		_, ships = w.arriveWave(w.cfg.StartColonists, false)
+	}
 
 	// Place rats and cats by drawing from one shuffled list of open floor
 	// tiles, so every placement is a uniform draw without replacement rather
@@ -94,7 +100,11 @@ func generate(w *World) {
 		}
 	}
 
-	w.logEvent(LogArrival, fmt.Sprintf("%d settlers come down on the Martian crust in %s. Something below stirs.", w.countKind(Colonist), shipsNoun(ships)))
+	if len(w.aloft) > 0 {
+		w.logEvent(LogArrival, fmt.Sprintf("%d settlers circle Mars in %s, waiting to land. Something below stirs.", w.cfg.StartColonists, shipsNoun(len(w.aloft))))
+	} else {
+		w.logEvent(LogArrival, fmt.Sprintf("%d settlers come down on the Martian crust in %s. Something below stirs.", w.countKind(Colonist), shipsNoun(ships)))
+	}
 	w.refreshSpatial()
 }
 

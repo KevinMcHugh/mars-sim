@@ -6,11 +6,11 @@
 
   interface Species {
     // label is the TUI's roster label, emoji included ("🦗 Bug · hostile").
-    label: string; glyph: string; singular: string; plural: string; temperament: string;
+    label: string; glyph: string; singular: string; plural: string; scientificName: string; temperament: string;
     heightMinCm: number; heightMaxCm: number; weightMinKg: number; weightMaxKg: number;
     eyes: number; limbs: number; arms: number; legs: number; tail: boolean;
     skin: string; color: string; pattern: string;
-    biteDamage: number; biteRest: number; slowness: number; description: string;
+    attacks: string; biteDamage: number; biteRest: number; slowness: number; description: string;
   }
   interface Lore {
     world: { width: number; height: number; fogOfWar: boolean; exploredTiles: number; chunksGenerated: number; chunks: number; seed: number };
@@ -58,6 +58,7 @@
     </ul>
     {#if sp}
       <h3>{sp.label}</h3>
+      {#if sp.scientificName}<p class="binomial">{sp.scientificName}</p>{/if}
       <dl>
         <dt>Height</dt><dd>{sp.heightMinCm}–{sp.heightMaxCm} cm</dd>
         <dt>Weight</dt><dd>{sp.weightMinKg}–{sp.weightMaxKg} kg</dd>
@@ -67,8 +68,9 @@
         <dt>Skin</dt><dd>{sp.skin}</dd>
         <dt>Color</dt><dd>{sp.color}</dd>
         <dt>Pattern</dt><dd>{sp.pattern}</dd>
-        <dt>Bite damage</dt><dd>{sp.biteDamage}</dd>
-        <dt>Bite cooldown</dt><dd>{sp.biteRest} ticks</dd>
+        <dt>Attacks</dt><dd>{sp.attacks}</dd>
+        <dt>Attack damage</dt><dd>{sp.biteDamage}</dd>
+        <dt>Attack pace</dt><dd>{sp.biteRest} ticks</dd>
         <dt>Move pace</dt><dd>every {sp.slowness} ticks</dd>
       </dl>
       <h4>Field notes</h4>
@@ -97,6 +99,8 @@
   h2 { font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin: 4px 0 8px; }
   h2 + dl { margin-top: 0; }
   h3 { font-size: 15px; margin: 14px 0 8px; }
+  h3:has(+ .binomial) { margin-bottom: 2px; }
+  .binomial { font-style: italic; color: var(--muted); margin: 0 0 8px; }
   h4 { font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin: 12px 0 4px; }
   dl { display: grid; grid-template-columns: max-content 1fr; gap: 3px 12px; margin: 0 0 16px; }
   dt { color: var(--muted); }
