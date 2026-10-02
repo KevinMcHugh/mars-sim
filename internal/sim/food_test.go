@@ -72,7 +72,8 @@ func TestColonistsEatTheirOwnMealsBeforeGruel(t *testing.T) {
 // takes UseTicks = 18 to eat. From there, hunger climbs from 0 to Max in 500
 // ticks and then drains HP at StarveDamage a tick. So with m meals nobody can
 // die before (m-1)·(325+18) + 18 + 500 + HP ticks, and everyone should be dead
-// by m·(325+18+travel) + 500 + HP, allowing some walking.
+// by m·(325+18+travel) + 500 + HP, allowing some walking — plus a night in
+// bed for each day that takes, since hunger is paused while asleep.
 func TestWithoutTheSafetyNetTheColonyStarvesOnSchedule(t *testing.T) {
 	const meals = 3
 	cfg := testConfig()
@@ -90,6 +91,7 @@ func TestWithoutTheSafetyNetTheColonyStarvesOnSchedule(t *testing.T) {
 	earliest := (meals-1)*cycle + spec.UseTicks + dying
 	const travel = 60
 	latest := meals*(cycle+travel) + dying
+	latest += (latest/w.cfg.TicksPerDay() + 1) * w.cfg.Needs[NeedSleep].UseTicks
 	n := w.countKind(Colonist)
 
 	firstDeath, lastDeath := -1, -1

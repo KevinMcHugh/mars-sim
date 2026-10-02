@@ -57,11 +57,13 @@ func defaultNeeds() [numNeeds]NeedSpec {
 			Facility: Rock, UseTicks: 0, Fatal: false,
 		},
 		NeedSleep: {
-			// Sleep builds slowly and, once sought, takes a long lie-down to
-			// clear. Non-fatal like bladder: a colonist with no bunk waits
-			// rather than dying.
-			Name: "sleep", Rise: 1, SeekAt: 700, CriticalAt: 900, Max: 1000,
-			Facility: Bed, UseTicks: 40, Fatal: false,
+			// Sleep builds slowly and, once sought, takes a night to clear:
+			// 720 ticks awake and 360 in bed make a 1080-tick day, so a night
+			// is eight clock hours and an hour is 45 ticks (see days.md).
+			// Non-fatal like bladder: a colonist with no bunk waits rather
+			// than dying.
+			Name: "sleep", Rise: 1, SeekAt: 720, CriticalAt: 900, Max: 1000,
+			Facility: Bed, UseTicks: 360, Fatal: false,
 		},
 	}
 }

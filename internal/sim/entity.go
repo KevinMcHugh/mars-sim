@@ -371,7 +371,16 @@ type Entity struct {
 	Profile   *Profile
 	needRise  [numNeeds]int // per-need rise per tick (base scaled by traits)
 	restTicks int           // idle rest duration (base scaled by traits)
-	workScale float64       // mine/build time multiplier (1.0 = baseline)
+	// sleepTicks is how long this colonist's night in bed lasts: the sleep
+	// need's UseTicks, give or take a clock hour per sleep trait. asleep is
+	// whether it is in bed now, with its other needs paused (wakeRise holds
+	// their rates until it gets up), and sleepBanked is the sleep already
+	// done tonight, kept when a night is interrupted. See docs/days.md.
+	sleepTicks  int
+	asleep      bool
+	wakeRise    [numNeeds]int
+	sleepBanked int
+	workScale   float64 // mine/build time multiplier (1.0 = baseline)
 
 	// Skills (colonists only). practice is base work ticks of completed work
 	// per skill; ranks and labels are derived from it, never stored. yieldAcc
@@ -592,6 +601,7 @@ func newEntity(id EntityID, kind Kind, p Point, cfg Config) *Entity {
 			e.needRise[i] = cfg.Needs[i].Rise
 		}
 		e.restTicks = cfg.RestTicks
+		e.sleepTicks = cfg.Needs[NeedSleep].UseTicks
 	case Alien:
 		e.MaxHP = cfg.AlienHP
 		// Only the food need rises: Friendly and Cautious species graze cave

@@ -194,6 +194,8 @@ const (
 	TraitCowardly
 	TraitOptimist
 	TraitPessimist
+	TraitShortSleeper
+	TraitLongSleeper
 
 	numTraits // keep last
 )
@@ -223,6 +225,7 @@ const (
 	groupMutantAttitude
 	groupNerve
 	groupOutlook
+	groupSleep
 
 	numTraitGroups // keep last
 )
@@ -240,6 +243,7 @@ type traitSpec struct {
 	acquired bool
 
 	needRiseScale  [numNeeds]float64 // per-need multiplier on how fast it rises
+	sleepHours     int               // clock hours added to (or taken from) a night's sleep
 	restScale      float64           // multiplier on idle rest duration
 	workScale      float64           // multiplier on mine/build time (lower = faster)
 	socialNoNeed   bool
@@ -314,6 +318,14 @@ var traitSpecs = [numTraits]traitSpec{
 	TraitPessimist: {
 		Name: "Pessimist", Desc: "Settles back into expecting the worst.",
 		group: groupOutlook, affectHome: MoodVector{Grip: -8, Valence: -25},
+	},
+	TraitShortSleeper: {
+		Name: "Short Sleeper", Desc: "Up and about after seven hours in bed.",
+		group: groupSleep, sleepHours: -1,
+	},
+	TraitLongSleeper: {
+		Name: "Long Sleeper", Desc: "Needs nine hours in bed to get through the day.",
+		group: groupSleep, sleepHours: 1,
 	},
 }
 
@@ -442,9 +454,11 @@ func (w *World) resolveTraitEffects(e *Entity) {
 	restMul, workMul, socialMul := 1.0, 1.0, 1.0
 	socialNoNeed := false
 	socialCapacity, socialPenalty := 1<<30, 0
+	sleepHours := 0
 	home := traitAffectHome(e.Profile.Traits)
 	for _, tr := range e.Profile.Traits {
 		s := traitSpecs[tr]
+		sleepHours += s.sleepHours
 		for i := 0; i < int(numNeeds); i++ {
 			if s.needRiseScale[i] > 0 {
 				riseMul[i] *= s.needRiseScale[i]
@@ -477,6 +491,10 @@ func (w *World) resolveTraitEffects(e *Entity) {
 		}
 		e.needRise[i] = atLeast1(int(math.Round(float64(w.cfg.Needs[i].Rise) * scale)))
 	}
+	if e.asleep {
+		w.pauseNeedsWhileAsleep(e) // re-resolved mid-night (mutation): keep the pause
+	}
+	e.sleepTicks = atLeast1(w.cfg.Needs[NeedSleep].UseTicks + sleepHours*w.cfg.TicksPerHour())
 	e.restTicks = atLeast1(int(math.Round(float64(w.cfg.RestTicks) * restMul)))
 	e.workScale = workMul
 	e.socialCapacity, e.socialPenalty = socialCapacity, socialPenalty
