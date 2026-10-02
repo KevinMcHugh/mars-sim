@@ -31,7 +31,7 @@ the same internal stack operations; additions are all-or-nothing.
 
 The `Storage` terrain is solid and used from an adjacent floor tile, like other
 facilities. Building one creates a `StorageContainer` in
-`World.storageContainers`; replacing that terrain removes its state. Containers
+`Layer.storageContainers`; replacing that terrain removes its state. Containers
 are sparse rather than embedded in `Tile`, because adding 48 stacks to every
 rock tile would make large maps prohibitively expensive.
 

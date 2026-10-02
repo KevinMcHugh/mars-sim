@@ -316,6 +316,10 @@ type Entity struct {
 	ID   EntityID
 	Kind Kind
 	Pos  Point
+	// Level is the layer Pos is on. Only moveEntity changes Pos, so the two
+	// cannot drift apart; Loc() gives them as one value. Always LandingLevel
+	// so far. See docs/z-levels.md.
+	Level Level
 
 	HP    int
 	MaxHP int
@@ -560,7 +564,7 @@ type Entity struct {
 // baseline effective parameters here; assignPersonality later scales them by any
 // traits it rolls.
 func newEntity(id EntityID, kind Kind, p Point, cfg Config) *Entity {
-	e := &Entity{ID: id, Kind: kind, Pos: p, State: Idle, workScale: 1, focus: FocusIdle}
+	e := &Entity{ID: id, Kind: kind, Pos: p, Level: LandingLevel, State: Idle, workScale: 1, focus: FocusIdle}
 	if kind == Colonist {
 		e.mindDirty = true
 	}

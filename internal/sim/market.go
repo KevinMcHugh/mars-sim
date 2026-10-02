@@ -47,7 +47,7 @@ type Order struct {
 	Qty     int   // still unfilled
 	Price   Money // per unit, the limit
 	Actor   Owner
-	Depot   Point
+	Depot   Loc
 	Posted  int
 	Expires int // tick; 0 never
 
@@ -68,7 +68,7 @@ func (o *Order) owner() Owner { return Owner{Kind: ownerOrder, ID: EntityID(o.ID
 // bookKey names one book: an item at a depot.
 type bookKey struct {
 	Item  ItemKind
-	Depot Point
+	Depot Loc
 }
 
 // book is the open orders for one item at one depot, each side kept sorted
@@ -126,7 +126,7 @@ func (w *World) post(side Side, item ItemKind, qty int, price Money, actor Owner
 	}
 	w.nextOrderID++
 	o := &Order{ID: w.nextOrderID, Side: side, Item: item, Qty: qty, Price: price,
-		Actor: actor, Depot: depot, Posted: w.tick}
+		Actor: actor, Depot: w.homeLoc(depot), Posted: w.tick}
 	if ttl > 0 {
 		o.Expires = w.tick + ttl
 	}
@@ -144,7 +144,7 @@ func (w *World) post(side Side, item ItemKind, qty int, price Money, actor Owner
 		}
 	}
 
-	key := bookKey{item, depot}
+	key := bookKey{item, w.homeLoc(depot)}
 	b := w.books[key]
 	if b == nil {
 		b = &book{}
@@ -202,7 +202,7 @@ func (w *World) settle(b *book, c *StorageContainer, bid, ask *Order, n int, pri
 	b.last, b.traded = price, true
 	b.volume += n
 	w.recordPrice(ask.Item, price)
-	w.trades = append(w.trades, Trade{Tick: w.tick, Item: ask.Item, Depot: ask.Depot, Qty: n,
+	w.trades = append(w.trades, Trade{Tick: w.tick, Item: ask.Item, Depot: ask.Depot.Point, Qty: n,
 		Price: price, Buyer: bid.Actor, Seller: ask.Actor})
 	if over := len(w.trades) - maxTrades; over > 0 {
 		w.trades = w.trades[over:]
@@ -221,7 +221,7 @@ func (w *World) closeOrder(o *Order) {
 			o.escrow = 0
 		}
 	case Ask:
-		if c := w.home.storageContainers[o.Depot]; c != nil && o.Qty > 0 {
+		if c := w.home.storageContainers[o.Depot.Point]; c != nil && o.Qty > 0 {
 			c.moveLine(o.owner(), o.Actor, o.Item, o.Qty)
 		}
 	}
@@ -286,14 +286,14 @@ func (w *World) moneyEscrowed() Money {
 
 // bestAsk and bestBid return the head of a book's side, if any.
 func (w *World) bestAsk(item ItemKind, depot Point) (*Order, bool) {
-	if b := w.books[bookKey{item, depot}]; b != nil && len(b.asks) > 0 {
+	if b := w.books[bookKey{item, w.homeLoc(depot)}]; b != nil && len(b.asks) > 0 {
 		return b.asks[0], true
 	}
 	return nil, false
 }
 
 func (w *World) bestBid(item ItemKind, depot Point) (*Order, bool) {
-	if b := w.books[bookKey{item, depot}]; b != nil && len(b.bids) > 0 {
+	if b := w.books[bookKey{item, w.homeLoc(depot)}]; b != nil && len(b.bids) > 0 {
 		return b.bids[0], true
 	}
 	return nil, false
@@ -301,7 +301,7 @@ func (w *World) bestBid(item ItemKind, depot Point) (*Order, bool) {
 
 // openQty is how many units actor has open on one side of one book.
 func (w *World) openQty(side Side, item ItemKind, depot Point, actor Owner) int {
-	b := w.books[bookKey{item, depot}]
+	b := w.books[bookKey{item, w.homeLoc(depot)}]
 	if b == nil {
 		return 0
 	}
@@ -403,7 +403,7 @@ func (w *World) retireOldSilo() {
 	if !had || (ok && silo == old) {
 		return
 	}
-	for _, o := range w.sortedOrders(func(o *Order) bool { return o.Actor == Community && o.Depot == old }) {
+	for _, o := range w.sortedOrders(func(o *Order) bool { return o.Actor == Community && o.Depot == w.homeLoc(old) }) {
 		w.cancel(o)
 	}
 	for _, o := range w.sortedWork(func(o *WorkOrder) bool {
@@ -497,14 +497,14 @@ func (w *World) tryBuyMeal(e *Entity) bool {
 			continue
 		}
 		if best == nil || ask.Price < best.Price || (ask.Price == best.Price &&
-			(e.Pos.Chebyshev(p) < e.Pos.Chebyshev(best.Depot) ||
-				(e.Pos.Chebyshev(p) == e.Pos.Chebyshev(best.Depot) && lessPoint(p, best.Depot)))) {
+			(e.Pos.Chebyshev(p) < e.Pos.Chebyshev(best.Depot.Point) ||
+				(e.Pos.Chebyshev(p) == e.Pos.Chebyshev(best.Depot.Point) && lessPoint(p, best.Depot.Point)))) {
 			best = ask
 		}
 	}
 	if best != nil {
 		price, at := best.Price, best.Depot
-		o, filled := w.post(Bid, Meal, 1, price, me, at, 0)
+		o, filled := w.post(Bid, Meal, 1, price, me, at.Point, 0)
 		if o != nil && o.Qty > 0 {
 			w.cancel(o) // buy now or not at all
 		}

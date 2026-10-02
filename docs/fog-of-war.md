@@ -38,7 +38,7 @@ of the tile grid, and the funnel every derived system hangs off (see
 ```go
 w.revealAround(p)   // p and its eight neighbors are no longer unknown
 ...
-w.tiles.ptr(p.X, p.Y).Terrain = t
+w.home.tiles.ptr(p.X, p.Y).Terrain = t
 ```
 
 (The reveal comes *before* the write, so the changed tile is revealed as
@@ -99,7 +99,7 @@ flag whatever the fog setting.
 
 ### Counting it
 
-`World.exploredCount` tracks how many tiles have ever been revealed,
+`Layer.exploredCount` tracks how many tiles have ever been revealed,
 incremented the one time each tile's `Explored` flips in `reveal` — the
 same "maintained incrementally, never rescan the grid" pattern
 `terrainCounts` already uses for excavation progress (see

@@ -252,7 +252,7 @@ func TestTheColonyRetiresItsOrdersWhenTheSiloMoves(t *testing.T) {
 	}
 	w.tick += marketInterval
 	w.runMarket()
-	for _, o := range w.sortedOrders(func(o *Order) bool { return o.Actor == Community && o.Depot == silo }) {
+	for _, o := range w.sortedOrders(func(o *Order) bool { return o.Actor == Community && o.Depot == w.homeLoc(silo) }) {
 		t.Errorf("order %d (%v %v) still open at the old silo", o.ID, o.Side, o.Item)
 	}
 	if got := w.moneyEscrowed(); got > escrow {

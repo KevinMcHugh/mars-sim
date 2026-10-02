@@ -166,7 +166,7 @@ in short meandering runs of `scumRunMin`–`scumRunMax` steps
 and ignores caverns and ore, just as the old whole-map `growScum` did (it ran
 before anything was carved). Counting distinct tiles matters: the first
 version counted steps, and because short walks step back on themselves, it
-came out a fifth short. `applyChunk` adds each patch to `World.scum` at full
+came out a fifth short. `applyChunk` adds each patch to `Layer.scum` at full
 strength and registers any that is already exposed. That is never the case
 in practice, because discovered floor always has its neighbours generated
 first.
@@ -215,7 +215,7 @@ chunk is.** Three hooks keep it:
   never generates anything. It is a backstop, so that no write can ever reach
   a chunk before its content.
 - The first time `reveal` marks a tile in a chunk as explored
-  (`World.genSeen`), it calls `generateAround`, which generates every chunk
+  (`Layer.genSeen`), it calls `generateAround`, which generates every chunk
   within the halo.
 - `generate` does nothing special. Carving the landing site goes through
   `SetTerrain`, which generates the chunks under it and reveals its rim, and
@@ -303,7 +303,7 @@ out of `Stats.Chunks`), so a player can watch the world grow.
 
 ### Writing a chunk into the world
 
-`applyChunk` writes composition and hidden floor straight into `World.tiles`.
+`applyChunk` writes composition and hidden floor straight into `Layer.tiles`.
 It does not go through `SetTerrain` or `carveHidden`, so no `TileChanged`
 fires, and it keeps `terrainCounts`, `hiddenFloor`, the dirty published pages
 and the dirty region chunks in step itself. Nothing colony-facing can see
@@ -497,7 +497,7 @@ landing site.
   scan) must either stay within generated chunks (`forGeneratedTiles`,
   `randomTile`) or accept that ungenerated chunks read as Rock. Never make it
   generate: that is a trigger outside exploration.
-- **A new writer of `World.tiles`** must call `generateChunkAt` first, or
+- **A new writer of `Layer.tiles`** must call `generateChunkAt` first, or
   `applyChunk`'s panic will catch it the first time it runs ahead of the
   halo.
 - **Any change to plans changes every seed.** Re-pin the golden hashes

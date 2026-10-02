@@ -15,12 +15,13 @@ Up is a direction too. Crash pods land on **level 1**. Level 0 above it is the
 Martian **surface**, which has its own challenges and is planned separately
 (Z6).
 
-This is a design and a build plan. Nothing here is built yet. When a phase
+This is a design and a build plan. Z0 is built (see [layers.md](./layers.md)),
+and the rest is not. When a phase
 ships, its content moves into a present-tense doc and the table links to it.
 
 | Phase | Status |
 | --- | --- |
-| Z0 — `Layer` split, one level | Proposed |
+| Z0 — `Layer` split, one level | **Shipped** — [layers.md](./layers.md) |
 | Z1 — Stairs and a second level | Proposed |
 | Z2 — Shafts | Proposed |
 | Z3 — Holes | Proposed |
@@ -30,11 +31,12 @@ ships, its content moves into a present-tense doc and the table links to it.
 
 ## Source
 
-None yet. The code each phase changes:
+Z0 is in [`internal/sim/layer.go`](../internal/sim/layer.go); see
+[layers.md](./layers.md). The code the remaining phases change:
 
-- [`internal/sim/world.go`](../internal/sim/world.go): `World`, which is
-  already commented as "the mutable game state for a single underground level".
-  Phase Z0 is where it stops being one.
+- [`internal/sim/world.go`](../internal/sim/world.go) and
+  [`layer.go`](../internal/sim/layer.go): `World`, `Layer`, and every
+  `w.home` (each one an assumption that there is a single level).
 - [`internal/sim/geom.go`](../internal/sim/geom.go): `Point`, `neighbors8`.
 - [`internal/sim/rooms.go`](../internal/sim/rooms.go),
   [`path.go`](../internal/sim/path.go), [`hpa.go`](../internal/sim/hpa.go),
@@ -95,15 +97,21 @@ features) keeps taking a `Point` **and a `*Layer`**: within a level nothing
 changes. Anything that names a place the colony as a whole can refer to takes a
 `Loc`:
 
-- `Entity.Pos` becomes a `Loc` (embedding `Point` keeps `e.Pos.X` compiling).
-- The order book's `bookKey.Depot`, `marketDepotAt`, `siloWas`, fixtures,
-  storage containers, `pantryOf`, claims (`scumClaims`, `workshopClaims`,
-  `haulClaims` targets) and projects.
-- Cached routes (`Entity.path`) and job targets.
+- An entity's place: `Entity.Level` beside `Pos` (shipped in Z0; `e.Loc()`
+  gives both).
+- The order book's depots: `bookKey.Depot` and `Order.Depot` (shipped in Z0).
+- Still to come: `marketDepotAt`, `siloWas`, `haulClaims` targets, projects,
+  cached routes (`Entity.path`) and job targets.
 
-The split is the point of Z0: once it compiles, **the type system has found
-every place that crosses levels**. A function that still takes a bare `Point`
-can only ever mean "on the layer I was handed".
+Fixtures, storage containers, `pantryOf` and the scum and workshop claims live
+on a `Layer` keyed by `Point`, so they need no level of their own.
+
+How Z0 finds every place that crosses levels: per-level state lives only on a
+`Layer`, and the only layer is `w.home`. **Removing `home` makes every
+single-level assumption a compile error.** The first plan was to make
+`Entity.Pos` a `Loc` and let the type system find them through that. It was
+dropped because it meant ~375 mechanical `.Point`s that hide the real question
+("which layer?") instead of asking it. See [layers.md](./layers.md).
 
 Two traps to grep for after the change, because the compiler will not flag
 them: a keyed literal `Loc{Point: p}` silently means level 0, and so does a
@@ -113,11 +121,13 @@ an explicit `ok bool` the way `siloSeen` already does.
 Numbering the landing level 1 rather than 0 helps here. A forgotten level
 lands on the **surface**, not the colony's home level, so the mistake is not
 silently "right" for one-level games. In Z0, where every real place is on
-level 1, a debug assertion (and a test over a long run) can treat any level-0
-`Loc` as a bug. With landing at 0, the same bug would pass every test until
+level 1, a test over a long run (`TestNothingIsOnTheSurface`) treats any
+level-0 `Loc` as a bug. With landing at 0, the same bug would pass every test until
 the second level shipped.
 
 ### What moves into `Layer` and what stays on `World`
+
+As built in Z0 (see [layers.md](./layers.md)):
 
 | Into `Layer` (per level) | Stays on `World` (shared) |
 | --- | --- |
@@ -130,8 +140,10 @@ the second level shipped.
 | `chunkEntities` (spatial index) | `links` (the vertical link table, below) |
 | `regionOf`, `dirtyChunks` | relationships, memories, director, RNG streams |
 | `salt`, `exposedSalt`, `scum`, `exposedScum`, `scumPatches` | projects (they hold `Loc`s) |
-| `buildTiles`, `doorTiles`, `pods` (only level 1 has any) | |
-| worldgen state: `genDone`, `genSeen` | |
+| `buildTiles`, `doorTiles`, `pods`, `podRingHint` (only level 1 has any) | the published-copy revisions (`saltRev`, `scumRev`, `fixtureRev`) |
+| `fixtures` and their indexes, `storageContainers`, `pantryOf`/`pantryHouse` | the market's silo cache (`marketDepotAt`, `siloWas`) |
+| `scumClaims`, `workshopClaims`, the job `board` (frontier and claims) | |
+| worldgen: `gen`, `genDone`, `genSeen`, `genChunks`, `preview`, `unfoundCaverns` | |
 
 Region IDs stay **globally unique** (one counter on `World`) so the region
 graph, and with it rooms, can span levels without renumbering anything. That is
@@ -396,14 +408,15 @@ and the frontend filters to the viewed level.
 
 Build order and what each phase must prove:
 
-- **Z0 — `Layer` split, one level.** Add `Loc`, move the per-level fields into
-  `Layer`, and change `Entity.Pos`, depots, fixtures and claims to `Loc`.
-  `go test ./...` passes with **unchanged golden hashes**, and benchmarks
-  (`BenchmarkChunkCold`, the tick benchmarks) are within noise. The pointer
-  hop through `w.layers[l]` is on the hottest read in the sim. Keep a
-  `w.home *Layer` shortcut (the landing level) if it shows up.
-- **Z1 — stairs and a second level.** The second level is level 2, below the
-  landing level. Config `levels` (deepest level, default 1, so goldens
+- **Z0 — `Layer` split, one level. Shipped**: see [layers.md](./layers.md).
+  The per-level fields are on `Layer`, the landing level is `w.home` (a value
+  field, so the hot reads cost no extra indirection), entities carry a
+  `Level`, and the order book's depots are `Loc`s. Golden hashes are
+  unchanged.
+- **Z1 — stairs and a second level.** Starts by removing `w.home` and
+  working through the compile errors, plus the shared state
+  [layers.md](./layers.md) lists that the compiler will not flag. The second
+  level is level 2, below the landing level. Config `levels` (deepest level, default 1, so goldens
   hold), level in the chunk key, `StairDown`/`StairUp` terrain, the stair
   project, cross-level region links, A\*/HPA\*/flow-field link neighbors,
   `travelEstimate`, and TUI level switching. Tests: a colonist on level 1

@@ -74,7 +74,7 @@ long. A 500x500 colony would touch one or two per row it spans — ~750 pages fo
 
 ### What is left, and why
 
-`World.tiles` stayed dense the longest. Composition is ore, and worldgen
+`World.tiles` stayed dense the longest (it is `Layer.tiles` now). Composition is ore, and worldgen
 threads veins through 21% of the map, so every *generated* page has something
 in it. There was no sparsity to exploit, only width to cut, which is what the
 `tileCell` split did (see below). That left ~590 MB: 3 bytes of
@@ -174,7 +174,7 @@ Separately, `Tile` was 24 bytes for what is really three:
 
 - `Gore` and `Corpses` were word-sized `int`s, which padded the struct. They
   describe the few hundred tiles anything has ever died on, so they moved to
-  `World.refuse`, a sparse `map[Point]refuseCell` — the same treatment
+  `Layer.refuse`, a sparse `map[Point]refuseCell` — the same treatment
   `storageContainers` already had. `refuseCell` is a `uint8` and a `uint16`.
 - What is left is stored as `tileCell`: terrain, composition, explored. Three
   bytes.

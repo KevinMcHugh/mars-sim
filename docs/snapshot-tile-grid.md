@@ -22,7 +22,7 @@ than to how big the map *is*.
 
 ## How it works
 
-`World.tiles` is a `pagedGrid[tileCell]`: 64×64 square pages, the same as
+`Layer.tiles` is a `pagedGrid[tileCell]`: 64×64 square pages, the same as
 every other per-tile grid (see [sparse-grids.md](./sparse-grids.md)), and one
 page per worldgen chunk (see [worldgen-chunks.md](./worldgen-chunks.md)). The
 published grid mirrors that page table exactly:
@@ -31,8 +31,8 @@ published grid mirrors that page table exactly:
 | --- | --- |
 | `TileGrid.pages` | `[]*tilePage`, laid out like the world's page table; each entry a copy of one world page, or nil where the world has never written one (reads as unexplored Rock) |
 | `TileGrid.refuse` | the published copy of the sparse gore/corpse index, shared between frames until it changes |
-| `World.snapGrid` | the grid handed to the most recent `Snapshot` |
-| `World.pageDirty` / `dirtyPages` | pages whose tiles changed since the last publish |
+| `Layer.snapGrid` | the grid handed to the most recent `Snapshot` |
+| `Layer.pageDirty` / `dirtyPages` | pages whose tiles changed since the last publish |
 | `Snapshot.TileChanges` | those pages (and whether refuse changed), handed to the frontend |
 
 `SetTerrain` — the only writer of a tile's terrain — calls `markTilePageDirty`,
@@ -81,7 +81,7 @@ runs in the same thread as the engine (see the browser frontend proposal,
 
 `Engine.ShareLiveTiles()` (or `World.SetTileSharing(TilesLive)`) switches the
 world to `TilesLive`. `publishedTiles` then builds one grid whose page entries
-point at the world's own pages and whose `refuse` is `World.refuse` itself, and
+point at the world's own pages and whose `refuse` is `Layer.refuse` itself, and
 hands that same grid out on every frame. When a chunk is generated later, its
 page arrives dirty and publishing points the grid's empty slot at it; pages are
 never reallocated, so that is the only upkeep. Nothing is copied; the dirty list
@@ -155,7 +155,7 @@ tick, while the world's own large arrays stay mostly untouched zero pages.
 
 Approaches that were considered and dropped:
 
-- **Page the live `World.tiles` too.** First rejected: the simulation reads
+- **Page the live `Layer.tiles` too.** First rejected: the simulation reads
   terrain far more often than it publishes, and every read would pay a shift
   and an indirect load to save a copy that only happens once per frame. Then
   adopted, because lazy world generation needs a tile grid that costs nothing
@@ -199,7 +199,7 @@ change dirtied a strip per row instead of one square.
   because a byte here is 95 MB on a 10000x10000 map and then 95 MB again in
   these pages. If the new field is only true of *some* tiles — refuse was the
   worked example, at two of the original 24 bytes for something true of a few
-  hundred — it belongs in a sparse index instead, like `World.refuse` or
+  hundred — it belongs in a sparse index instead, like `Layer.refuse` or
   `storageContainers`. See [sparse-grids.md](./sparse-grids.md).
 - **A new mutator of `tiles`** must call `markTilePageDirty`, or frontends will
   render stale terrain. `SetTerrain` is the only writer of a tile's *terrain* and
@@ -207,7 +207,7 @@ change dirtied a strip per row instead of one square.
   (fog of war — see [fog-of-war.md](./fog-of-war.md)) writes the explored flag
   and dirties the page without an event, since nothing derived from terrain
   reads that flag.
-- **A new sparse index** published alongside the pages follows `World.refuse`:
+- **A new sparse index** published alongside the pages follows `Layer.refuse`:
   bump a revision on every write, and hand the previous frame's copy back when
   the revision has not moved (`publishedRefuse`). That is what lets refuse reach
   frontends without dirtying a whole page every time something dies.

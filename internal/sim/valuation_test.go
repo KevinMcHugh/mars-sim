@@ -162,7 +162,7 @@ func TestDerivedBidsDieWithTheirPlan(t *testing.T) {
 		t.Fatalf("plan %+v, want one derived bid", p)
 	}
 	derived := w.orders[p.derived[0]]
-	if derived == nil || derived.Item != CaveScum || derived.Depot != house || derived.depth != 1 {
+	if derived == nil || derived.Item != CaveScum || derived.Depot != w.homeLoc(house) || derived.depth != 1 {
 		t.Fatalf("derived bid %+v, want a depth-1 scum bid at the scumhouse", derived)
 	}
 	w.cancel(target)

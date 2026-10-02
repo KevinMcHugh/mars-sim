@@ -44,7 +44,7 @@ things rather than on them, by the kind of thing:
 
 | Thing | Where its owner is recorded |
 | --- | --- |
-| A placed fixture | `World.fixtures[pos]`: owner plus `Access` |
+| A placed fixture | `Layer.fixtures[pos]`: owner plus `Access` |
 | Goods in a storage container | the container's `Ledger`: one line per (owner, item) |
 | Goods a colonist is carrying, weapons included | nowhere: **what you carry is yours** |
 

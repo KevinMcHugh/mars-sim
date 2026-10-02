@@ -143,7 +143,7 @@ wanders.
 ### Alien nests
 
 `generate` keeps nothing about nests except each cavern's center, in
-`World.unfoundCaverns` (`trackCavernsForNests`). When `revealAround` floods a
+`Layer.unfoundCaverns` (`trackCavernsForNests`). When `revealAround` floods a
 breach, it notes every center it discovers. Once the whole system is revealed,
 `rollNests` gives each of those caverns its single `CavernNestPercent` roll, in
 discovery order. On a hit, `spawnNest` places `CavernNestMin`–`CavernNestMax`

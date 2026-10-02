@@ -232,10 +232,10 @@ func (w *World) economyView() EconomyView {
 	}
 	for _, o := range w.sortedOrders(nil) {
 		v.Orders = append(v.Orders, OrderView{ID: o.ID, Side: o.Side, Item: o.Item, Qty: o.Qty,
-			Price: o.Price, Actor: o.Actor, Depot: o.Depot})
+			Price: o.Price, Actor: o.Actor, Depot: o.Depot.Point})
 	}
 	for k, b := range w.books {
-		bv := BookView{Item: k.Item, Depot: k.Depot, Last: b.last, Volume: b.volume, Traded: b.traded}
+		bv := BookView{Item: k.Item, Depot: k.Depot.Point, Last: b.last, Volume: b.volume, Traded: b.traded}
 		for _, o := range b.bids {
 			bv.BidQty += o.Qty
 		}

@@ -206,7 +206,7 @@ while its own wall or facility row landed squarely on that older room's one
 exit tile, sealing it shut behind a wall its own doorway was supposed to make
 impossible.
 
-`w.doorTiles` closes this: `designateRoom` reserves each room's door-exterior
+`w.home.doorTiles` closes this: `designateRoom` reserves each room's door-exterior
 tile the moment the room is designated, permanently (rooms are never
 demolished or un-designated, so entries are only ever added), and
 `roomSiteClear` rejects any candidate site whose own interior or side-wall

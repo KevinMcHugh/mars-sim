@@ -40,13 +40,13 @@ func (w *World) cheapestAskElsewhere(e *Entity, b *Order) (*Order, Point, bool) 
 		if ask.Actor == me || ask.Actor == b.Actor || ask.Price >= b.Price {
 			continue
 		}
-		if best != nil && (ask.Price > best.Price || (ask.Price == best.Price && !lessPoint(key.Depot, at))) {
+		if best != nil && (ask.Price > best.Price || (ask.Price == best.Price && !lessPoint(key.Depot.Point, at))) {
 			continue
 		}
-		if !w.canUseFixture(e, key.Depot) || !w.taskReachable(key.Depot, room) {
+		if !w.canUseFixture(e, key.Depot.Point) || !w.taskReachable(key.Depot.Point, room) {
 			continue
 		}
-		best, at = ask, key.Depot
+		best, at = ask, key.Depot.Point
 	}
 	return best, at, best != nil
 }
@@ -62,7 +62,7 @@ func (w *World) planArbitrage(e *Entity, b, ask *Order, src Point, probe *planOf
 	if qty <= 0 || e.wallet < Money(qty)*ask.Price {
 		return false
 	}
-	walk := e.Pos.Chebyshev(src) + src.Chebyshev(b.Depot)
+	walk := e.Pos.Chebyshev(src) + src.Chebyshev(b.Depot.Point)
 	profit := Money(qty)*(b.Price-ask.Price) - w.laborCostFor(e, walk)
 	if profit < Money(w.cfg.PlanMinProfit) {
 		return false

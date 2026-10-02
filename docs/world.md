@@ -55,7 +55,7 @@ of: `Gore` (a violent death's stains, see [combat.md](./combat.md)) and
 digging one out does not.
 
 Those two are **not stored per tile**. They describe the few hundred tiles
-anything has ever died on, so they live in `World.refuse`, a sparse
+anything has ever died on, so they live in `Layer.refuse`, a sparse
 `map[Point]refuseCell` — the same treatment placed storage containers get.
 `Tile` is an assembled view: `World.tile` and `TileGrid.At` put it together
 from the stored record plus the refuse index, so every reader still just sees a

@@ -56,7 +56,7 @@ colony's own rooms do, so a row of them is one block of cabins:
 ```
 
 `podPartyWalls` decides it: a side is shared when a pod landed exactly one
-hull-width over in the same row (`World.pods` records every pod's origin) and
+hull-width over in the same row (`Layer.pods` records every pod's origin) and
 that neighbor's side hull is still whole. `arrive`:
 
 1. finds a site (below) and stamps the hull, clearing any rock inside it — the

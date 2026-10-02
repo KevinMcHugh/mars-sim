@@ -24,7 +24,7 @@ performance results they produced.
 
 ### Occupancy index
 
-`World.occ` holds the `EntityID` standing on a tile (0 = empty; IDs start at 1).
+`Layer.occ` holds the `EntityID` standing on a tile (0 = empty; IDs start at 1).
 It makes "who is here?" an O(1) lookup instead of an O(entities) scan, and it is
 the mechanism that enforces **one entity per tile**. `moveEntity`, `spawn`, and
 `remove` keep it in step.

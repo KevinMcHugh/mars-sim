@@ -191,7 +191,7 @@ func (w *World) tryAssignProduce(e *Entity) bool {
 		if b.Actor == me || w.orders[b.ID] != b || b.Qty <= 0 {
 			continue
 		}
-		if !w.canUseFixture(e, b.Depot) || !w.taskReachable(b.Depot, room) {
+		if !w.canUseFixture(e, b.Depot.Point) || !w.taskReachable(b.Depot.Point, room) {
 			continue
 		}
 		ask, src, cheaper := w.cheapestAskElsewhere(e, b)
@@ -257,7 +257,7 @@ func (w *World) tryDeliverPlan(e *Entity) bool {
 func (w *World) newPlan(e *Entity, kind planKind, b *Order, qty int) *plan {
 	w.nextPlanID++
 	p := &plan{id: w.nextPlanID, kind: kind, actor: e.ID, target: b.ID, item: b.Item,
-		qty: qty, price: b.Price, depot: b.Depot, depth: b.depth + 1,
+		qty: qty, price: b.Price, depot: b.Depot.Point, depth: b.depth + 1,
 		expires: w.tick + max(1, w.cfg.PlanTTL), started: w.tick}
 	w.plans[p.id] = p
 	e.plan = p.id
@@ -325,7 +325,7 @@ func (w *World) planWaitingAt(p Point, id EntityID) bool {
 // planGather takes on scraping scum on e's own account to sell into bid b at a
 // scumhouse, if it pays. With probe set it only reckons the plan, into probe.
 func (w *World) planGather(e *Entity, b *Order, probe *planOffer) bool {
-	c := w.home.storageContainers[b.Depot]
+	c := w.home.storageContainers[b.Depot.Point]
 	if c == nil || c.Terrain != Scumhouse || e.Inventory.Has(CaveScum) || !w.wildScumAllowed() {
 		return false
 	}
@@ -340,7 +340,7 @@ func (w *World) planGather(e *Entity, b *Order, probe *planOffer) bool {
 	if !ok {
 		return false
 	}
-	ticks := qty*w.ownWorkTicks(e, SkillForaging, w.cfg.ScrapeTicks) + e.Pos.Chebyshev(patch) + patch.Chebyshev(b.Depot)
+	ticks := qty*w.ownWorkTicks(e, SkillForaging, w.cfg.ScrapeTicks) + e.Pos.Chebyshev(patch) + patch.Chebyshev(b.Depot.Point)
 	profit := b.Price*Money(qty) - w.laborCostFor(e, ticks)
 	if profit < Money(w.cfg.PlanMinProfit) {
 		return false
@@ -401,7 +401,7 @@ func (w *World) planCraft(e *Entity, b *Order, probe *planOffer) (started, plann
 		c := w.home.storageContainers[house]
 		qty := min(out, b.Qty)
 		revenue := b.Price * Money(qty)
-		ticks := w.ownWorkTicks(e, r.Skill, r.Ticks) + e.Pos.Chebyshev(house) + house.Chebyshev(b.Depot)
+		ticks := w.ownWorkTicks(e, r.Skill, r.Ticks) + e.Pos.Chebyshev(house) + house.Chebyshev(b.Depot.Point)
 		spent := w.laborCostFor(e, ticks)
 		type buy struct {
 			ask *Order

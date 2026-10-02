@@ -1030,7 +1030,7 @@ func (w *World) offerColonyMeals(p Point) {
 // returning the goods to its ledger line — so they can be hauled.
 func (w *World) withdrawColonyAsks(item ItemKind, p Point) {
 	for _, o := range w.sortedOrders(func(o *Order) bool {
-		return o.Side == Ask && o.Item == item && o.Depot == p && o.Actor == Community
+		return o.Side == Ask && o.Item == item && o.Depot == w.homeLoc(p) && o.Actor == Community
 	}) {
 		w.cancel(o)
 	}

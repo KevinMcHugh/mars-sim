@@ -135,7 +135,7 @@ to one exactly the way an eater finds a nutrient pod, `chooseFacility` and all.
   the moment an incinerator is reachable.
 - **Corpses are tile state, not entities.** [combat.md](./combat.md) predicted a
   real corpse would look "more like a new, non-acting `Kind`". It cannot be: the
-  occupancy index (`World.occ`) allows one entity per tile, so a corpse-entity
+  occupancy index (`Layer.occ`) allows one entity per tile, so a corpse-entity
   would wall off the tile where anything died, break predator targeting, and add
   a kind to every dispatch switch — all to model something that never takes a
   turn. `Tile.Corpses` mirrors `Tile.Gore`, which already worked.

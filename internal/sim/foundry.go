@@ -121,9 +121,9 @@ func (w *World) ownStockFor(e *Entity, b *Order) (ownStock, bool) {
 		return ownStock{from: e.Pos, n: n, carried: true}, true
 	}
 	me := ColonistOwner(e.ID)
-	if c := w.home.storageContainers[b.Depot]; c != nil {
+	if c := w.home.storageContainers[b.Depot.Point]; c != nil {
 		if n := c.held(me, b.Item); n > 0 {
-			return ownStock{from: b.Depot, n: n}, true
+			return ownStock{from: b.Depot.Point, n: n}, true
 		}
 	}
 	room := w.roomOf(e.Pos)
@@ -157,19 +157,19 @@ func (w *World) planSupply(e *Entity, b *Order, s ownStock, probe *planOffer) bo
 	if qty <= 0 {
 		return false
 	}
-	if s.from == b.Depot && !s.carried {
+	if w.homeLoc(s.from) == b.Depot && !s.carried {
 		// Already where the buyer is: sell it on the spot. No job comes of
 		// it, so e goes on looking for work.
-		if best, ok := w.bestBid(b.Item, b.Depot); ok && best.Actor != ColonistOwner(e.ID) &&
+		if best, ok := w.bestBid(b.Item, b.Depot.Point); ok && best.Actor != ColonistOwner(e.ID) &&
 			b.Price >= w.refPrice(b.Item)+Money(w.cfg.PlanMinProfit) {
-			_, filled := w.post(Ask, b.Item, qty, b.Price, ColonistOwner(e.ID), b.Depot, w.cfg.OrderTTL)
+			_, filled := w.post(Ask, b.Item, qty, b.Price, ColonistOwner(e.ID), b.Depot.Point, w.cfg.OrderTTL)
 			w.emitDone(e, ActionTrade, NounGoods, "Sold %d %s where it lay, for %v each.", filled, b.Item, b.Price)
 		}
 		return false
 	}
-	walk := e.Pos.Chebyshev(b.Depot)
+	walk := e.Pos.Chebyshev(b.Depot.Point)
 	if !s.carried {
-		walk = e.Pos.Chebyshev(s.from) + s.from.Chebyshev(b.Depot)
+		walk = e.Pos.Chebyshev(s.from) + s.from.Chebyshev(b.Depot.Point)
 	}
 	profit := Money(qty)*(b.Price-w.refPrice(b.Item)) - w.laborCostFor(e, walk)
 	if profit < Money(w.cfg.PlanMinProfit) {
@@ -184,8 +184,8 @@ func (w *World) planSupply(e *Entity, b *Order, s ownStock, probe *planOffer) bo
 	w.emitDone(e, ActionTrade, NounGoods, "Took %d of %s own %s to sell at (%d, %d) for %v.",
 		qty, e.possessive(), b.Item, b.Depot.X, b.Depot.Y, b.Price)
 	if s.carried {
-		p.workshop = b.Depot
-		w.assignCarry(e, p, b.Depot, carryDeliver, qty)
+		p.workshop = b.Depot.Point
+		w.assignCarry(e, p, b.Depot.Point, carryDeliver, qty)
 		return true
 	}
 	p.workshop = s.from

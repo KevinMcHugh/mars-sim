@@ -32,6 +32,9 @@ func at(l Level, p Point) Loc { return Loc{Level: l, Point: p} }
 
 func (l Loc) String() string { return fmt.Sprintf("%d:(%d,%d)", l.Level, l.X, l.Y) }
 
+// Loc is where e stands: its position and the level it is on.
+func (e *Entity) Loc() Loc { return at(e.Level, e.Pos) }
+
 // lessLoc orders Locs by level, then row-major within a level: the
 // deterministic tie-break lessPoint gives inside one level, extended across
 // them.
@@ -252,6 +255,11 @@ func newLayer(level Level, width, height int) Layer {
 	l.chunkEntities = make([][]EntityID, ceilDiv(width, chunkSize)*ceilDiv(height, chunkSize))
 	return l
 }
+
+// homeLoc is p on the landing level. It marks, like every w.home, a place
+// that assumes there is only one level: the edge where a bare Point from
+// grid code becomes a Loc.
+func (w *World) homeLoc(p Point) Loc { return at(w.home.Level, p) }
 
 // layer returns the layer at level l, or nil when the colony has never
 // broken into it (always, so far, for anything but the landing level).
