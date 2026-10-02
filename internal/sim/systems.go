@@ -819,7 +819,8 @@ func (w *World) jobTalk(e *Entity) {
 // social-fatigue penalty (noteConversation), which must still be called exactly
 // once because it advances the rolling window. Per-observer appraisal targets
 // travel on the compositional occurrence into the shared ingestion funnel. See
-// docs/memories.md.
+// docs/memories.md. Each conversation also has a topic, which decides what the
+// two remember talking about; see docs/conversation-topics.md.
 func (w *World) finishTalk(a, b *Entity) {
 	existing := w.mutualAffinity(a.ID, b.ID)
 	quality := clampInt(w.rollTalkQuality(existing)+w.hallTalkBonus(a, b), -100, 100)
@@ -831,9 +832,17 @@ func (w *World) finishTalk(a, b *Entity) {
 	w.bumpAffinity(a.ID, b.ID, step+w.mutantAffinityBonus(a, b))
 	w.bumpAffinity(b.ID, a.ID, step+w.mutantAffinityBonus(b, a))
 	outcome := w.talkMoodDelta(quality, existing)
+	// One of the two raises a topic; gossip about a third colonist carries
+	// the speaker's opinion to the listener (see topics.go).
+	topic := w.chooseTopic(a, b)
+	listener := a
+	if topic.Speaker == a.ID {
+		listener = b
+	}
+	w.applyGossip(topic, listener, quality)
 	o := w.occurrence(a, ActionConverse, b, a.Pos, "")
-	o.ActorText = fmt.Sprintf("Had a conversation with %s.", b.displayName())
-	o.TargetText = fmt.Sprintf("Had a conversation with %s.", a.displayName())
+	o.ActorText = w.conversationText(a, b, topic)
+	o.TargetText = w.conversationText(b, a, topic)
 	o.Appraisals = []ObserverAppraisal{
 		{Observer: a.ID, Target: conversationMoodVector(outcome + w.noteConversation(a))},
 		{Observer: b.ID, Target: conversationMoodVector(outcome + w.noteConversation(b))},

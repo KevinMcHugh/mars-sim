@@ -526,6 +526,11 @@ word-wrapped to the panel width.
   instead of `fireAlienSwarm`'s current one-name-for-the-whole-spawn
   simplification, if `AlienSpeciesCount` > 1 swarms turn out to be common
   enough in play to be worth the extra bookkeeping.
+- **Lore colonists can talk about.** `LoreItem` (see
+  [conversation-topics.md](./conversation-topics.md)) is the interface any
+  lore implements to become a conversation topic; species are wrapped as
+  `speciesLore` and listed by `World.loreItems`. History and whatever comes
+  next should implement it and append there.
 - **Organizations, corporations, other colonies.** The pattern here — roll
   something once per seed (or per count), off its own RNG stream, store it
   on `World`, expose a copy through `Snapshot` — is meant to be the template

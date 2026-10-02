@@ -866,8 +866,9 @@ type World struct {
 	prng            *rand.Rand // personality generation, separate so flavor never perturbs the sim
 	agePRNG         *rand.Rand // age generation, isolated so adding age does not shift personality
 	skillRNG        *rand.Rand // arrival backgrounds (skills.go): they change behavior, so not prng, and not rng so they shift no other draw
-	// rngSrc holds the PCG sources behind rng, prng, agePRNG, nestRNG and
-	// skillRNG, so
+	topicRNG        *rand.Rand // conversation topics (topics.go): gossip moves affinity, so not prng, and not rng so they shift no other draw
+	// rngSrc holds the PCG sources behind rng, prng, agePRNG, nestRNG,
+	// skillRNG and topicRNG, so
 	// their state can be saved. See rng.go.
 	rngSrc rngSources
 	log    *eventLog
@@ -961,6 +962,8 @@ func newWorld(cfg Config, src *rand.PCG) *World {
 	w.agePRNG = rand.New(w.rngSrc.age)
 	w.rngSrc.skill = newPCG(cfg.Seed ^ 0x3C6EF372FE94F82B)
 	w.skillRNG = rand.New(w.rngSrc.skill)
+	w.rngSrc.topic = newPCG(cfg.Seed ^ conversationTopicSeed)
+	w.topicRNG = rand.New(w.rngSrc.topic)
 	w.alienSpecies = rollAlienSpeciesRoster(newRand(cfg.Seed^alienLoreSeed), cfg)
 	w.terrainCounts[Rock] = n // every tile starts as Rock
 

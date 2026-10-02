@@ -398,6 +398,18 @@ type Config struct {
 	TalkQualityValence int `cfg:"talk-quality-valence" doc:"how strongly existing affinity biases conversation quality"`
 	TalkQualitySpread  int `cfg:"talk-quality-spread" doc:"random swing around a conversation's mean quality"`
 
+	// Conversation topics. Whoever raises the topic picks what kind of thing
+	// to talk about by these weights, among the kinds it has something to
+	// say about: one of its own memories, another colonist it has feelings
+	// about, or a piece of lore (today, an alien species). Talking about a
+	// colonist is gossip: the listener's affinity toward the subject moves
+	// TalkGossipPercent of the way toward the speaker's, when the chat went
+	// well. See topics.go and docs/conversation-topics.md.
+	TalkTopicMemoryWeight   int `cfg:"talk-topic-memory-weight" doc:"relative weight of talking about one of the speaker's memories (0 never)"`
+	TalkTopicColonistWeight int `cfg:"talk-topic-colonist-weight" doc:"relative weight of talking about another colonist (0 never)"`
+	TalkTopicLoreWeight     int `cfg:"talk-topic-lore-weight" doc:"relative weight of talking about lore, such as an alien species (0 never)"`
+	TalkGossipPercent       int `cfg:"talk-gossip-percent" doc:"percent of the gap a good chat about a colonist closes between the listener's affinity toward them and the speaker's"`
+
 	// The meeting hall: a room of chairs the colony commissions, where
 	// colonists go to socialize and to eat. See docs/meeting-hall.md.
 	ColonistsPerChair int `cfg:"colonists-per-chair" sec:"Meeting hall" doc:"the colony commissions meeting-hall chairs, one for each this many colonists (0: no hall, and talk and meals stay wherever they happen)"`
@@ -730,6 +742,11 @@ func DefaultConfig() Config {
 		TalkQualityBias:    20,
 		TalkQualityValence: 50,
 		TalkQualitySpread:  50,
+
+		TalkTopicMemoryWeight:   3,
+		TalkTopicColonistWeight: 3,
+		TalkTopicLoreWeight:     2,
+		TalkGossipPercent:       10,
 
 		MoodMax:                   defaultMoodMax,
 		ConversationCompanyWeight: 6,

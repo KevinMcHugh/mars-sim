@@ -112,6 +112,10 @@ as an `ObserverAppraisal` on the shared occurrence and emits once. The
 conversation reaction uses wear policy `none`, so the funnel applies the
 contextual target without habituation on top of social fatigue.
 
+The memory text itself depends on the conversation's topic — a retold
+memory, gossip about another colonist, or lore — chosen by `chooseTopic`; see
+[conversation-topics.md](./conversation-topics.md).
+
 The affinity credit is per direction rather than one symmetric `addAffinity`
 because a trait-driven bonus can be one-sided — a Mutant-Lover's warmth toward
 a mutant is not returned in kind (see [mutation.md](./mutation.md)). The

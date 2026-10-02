@@ -33,6 +33,10 @@ names:
     plural: xenos
     emoji: ["👽"]
 
+  - name: grelk
+    plural: grelks
+    emoji: ["👽", "👾"]
+
   - name: gremlin
     plural: gremlins
     emoji: ["👾", "😈"]
