@@ -1328,8 +1328,14 @@ func (w *World) jobBuild(e *Entity) {
 			return
 		}
 		w.SetTerrain(e.Target, Floor)
-		w.logEvent(LogEscape, fmt.Sprintf("Colonist #%d breaks through a %s at (%d, %d) to reach a cut-off part of the colony.",
-			e.ID, prereq, e.Target.X, e.Target.Y))
+		if p := e.task.proj; p != nil && p.room != nil {
+			// Moving a room's side wall out (see roomgrow.go).
+			w.logEvent(LogBuildStart, fmt.Sprintf("Colonist #%d tears down a wall at (%d, %d) to enlarge the %s.",
+				e.ID, e.Target.X, e.Target.Y, p.room.recipe.name))
+		} else {
+			w.logEvent(LogEscape, fmt.Sprintf("Colonist #%d breaks through a %s at (%d, %d) to reach a cut-off part of the colony.",
+				e.ID, prereq, e.Target.X, e.Target.Y))
+		}
 		w.payWork(e.task.order, e)
 		w.clearJob(e)
 		return

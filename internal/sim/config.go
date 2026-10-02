@@ -219,10 +219,13 @@ type Config struct {
 	// room it cannot fund is not planned. It pays WageCook each time a cook
 	// works a recipe on the colony's stock. A colonist with HouseSavings
 	// dollars commissions its own house (0 disables), whose toilet charges
-	// others ToiletFee a use. See docs/labor.md.
+	// others ToiletFee a use. WageDemolish pays for tearing a room's wall down
+	// to enlarge it: dearer than raising one, since the rock is not salvaged
+	// (see docs/room-expansion.md). See docs/labor.md.
 	WageDig        int64 `cfg:"wage-dig" sec:"Labor" doc:"what the colony pays to dig out one tile of a room"`
 	WageWall       int64 `cfg:"wage-wall" doc:"what the colony pays to raise one wall"`
 	WageFixture    int64 `cfg:"wage-fixture" doc:"what the colony pays to build one fixture (pod, toilet, bed, ...)"`
+	WageDemolish   int64 `cfg:"wage-demolish" doc:"what the colony pays to tear down one wall tile to enlarge a room"`
 	WageCook       int64 `cfg:"wage-cook" doc:"what the colony pays a cook each time it works a recipe on the colony's stock"`
 	HouseSavings   int64 `cfg:"house-savings" doc:"a colonist with this much money commissions its own house (0 disables)"`
 	KitchenRank    int   `cfg:"kitchen-rank" doc:"cooking rank at which a colonist buys a kitchen of its own when the shared stoves are crowded (3: a chef; 0 disables)"`
@@ -319,6 +322,13 @@ type Config struct {
 	// larger colony's facility supply keep pace with growth; see
 	// construction.md.
 	MaxConcurrentProjects int `cfg:"max-concurrent-projects" doc:"rooms that can be under construction at once"`
+	// RoomExpansion has the colony grow a dormitory or storage room it already
+	// has, tearing down one side wall and raising a new one further out,
+	// before it marks out a new room for more bunks or another container.
+	// RoomMaxFacilities is as long as expansion lets a room grow. See
+	// docs/room-expansion.md.
+	RoomExpansion     bool `cfg:"room-expansion" doc:"enlarge an existing dormitory or storage room, moving a side wall out, before building a new one"`
+	RoomMaxFacilities int  `cfg:"room-max-facilities" doc:"most bunks or containers a room grows to by expansion"`
 
 	// EscapeGraceTicks is how long a colonist's room must stay cut off from the
 	// colony's main connected network (see rooms.go's mainRoom) before it gives
@@ -657,6 +667,7 @@ func DefaultConfig() Config {
 		WageDig:           2,
 		WageWall:          2,
 		WageFixture:       5,
+		WageDemolish:      3,
 		WageCook:          1,
 		HouseSavings:      300,
 		KitchenRank:       3,
@@ -698,6 +709,8 @@ func DefaultConfig() Config {
 		RestTicks:             10,
 		StuckLimit:            8,
 		MaxConcurrentProjects: 2,
+		RoomExpansion:         true,
+		RoomMaxFacilities:     8,
 		EscapeGraceTicks:      32,
 		TraitChance:           defaultTraitChance,
 		FamilyChance:          35,

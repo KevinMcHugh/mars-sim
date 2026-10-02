@@ -51,8 +51,10 @@ issued`.
 ### Public works
 
 When the planner designates a room, `fundProject` posts one `WorkBuild` order
-per task at `wageFor` its terrain — `wage-dig` for a tile of rock, `wage-wall`
-for a wall, `wage-fixture` for a fixture — all paid by the project's `issuer`.
+per task at `taskWage` — `wage-dig` for a tile of rock, `wage-wall` for a
+wall, `wage-fixture` for a fixture, `wage-demolish` for a wall torn down to
+enlarge a room (see [room-expansion.md](./room-expansion.md)) — all paid by
+the project's `issuer`.
 It is **all or nothing**, and it happens before anything about the room is made
 permanent (its reserved door tile, its project ID): an issuer that cannot pay
 for the whole room gets nothing marked out, and `planRoomFor` reports it. So:
@@ -107,6 +109,7 @@ now buys biomatter outright with standing bids (see
 | Setting | Default |
 | --- | --- |
 | `wage-dig` / `wage-wall` / `wage-fixture` | 2 / 2 / 5 |
+| `wage-demolish` | 3 per wall tile torn down |
 | `wage-cook` | 1 per recipe |
 | `house-savings` | 300 (0 disables commissions) |
 | `toilet-fee` | 2 (0 makes a house's toilet private) |

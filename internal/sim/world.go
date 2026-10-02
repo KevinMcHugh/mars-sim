@@ -651,6 +651,10 @@ type World struct {
 	projects      []*project
 	nextProjectID int
 	nextPlanTick  int
+	// roomRecords is every room the colony has marked out, in the order it
+	// did, with its current extent: what room expansion grows (see
+	// roomgrow.go). Rooms are never demolished, so it only grows.
+	roomRecords []*roomRecord
 	// Manual room orders wait here until the current project finishes and a
 	// suitable site is available. Keeping them in the world preserves the
 	// engine's single-owner rule for simulation state.
