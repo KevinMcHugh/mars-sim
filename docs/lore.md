@@ -24,7 +24,8 @@ than a hardcoded list.
   `rollAlienSpeciesRoster`, `speciesDamage`, `scaledByTemperament`, and the
   `World.alienSpeciesFor`/`alienNounFor`/`alienPluralFor` helpers.
 - [`internal/sim/alien_names.go`](../internal/sim/alien_names.go) —
-  `AlienNameEntry` (including its `Emoji` candidates),
+  `AlienNameEntry` (including its `Emoji` candidates), name groups
+  (`rawAlienNameEntry`, `AlienNameForm`), `distinctAlienName`,
   `nameCondition`/`intCondition` (the boolean condition tree),
   `pickAlienName`, `LoadAlienNames`, `defaultAlienNames` (the `//go:embed`ded
   built-in pool).
@@ -258,12 +259,47 @@ large/huge` — so "titan" can mean "huge either way" (`any: [{height: huge},
 {weight: huge}]`) without a raw centimetre or kilogram number in the
 condition.
 
-`pickAlienName(rng, sp, names)` collects every entry whose condition matches
+`pickAlienName(rng, sp, names, used)` collects every entry whose condition matches
 the just-rolled species and draws one at random — overlapping conditions
 (several names fit the same species) are normal, not an error, which is why
 `alien-names.yaml`'s conditions are allowed to be loose and to overlap
 freely. `rollAlienSpecies` calls it *last*, after every other trait is
 rolled, since the name depends on the build, not the other way around.
+
+### Name groups
+
+Synonyms tend to share a condition — `reptile`, `reppy` and `rept` are all
+just "scaly" — and writing each out with its own copy of the `when` and the
+emoji list meant three places to edit for one idea. A **name group** lists
+several names under one condition:
+
+```yaml
+- group:
+    - reptile                         # plural defaults to "reptiles"
+    - { name: reppy, plural: reppies }
+    - rept
+  emoji: ["🦎", "🐍", "🐢", "🐊", "🐉"]
+  when:
+    skin: scaly
+```
+
+`LoadAlienNames` expands a group in place, in file order, into one
+`AlienNameEntry` per name, each with the group's `when` and `emoji`; nothing
+after loading ever sees a group. It also fills in each entry's default plural.
+An entry sets `name` or `group`, never both, and a group's plurals go on its
+names, not on the group. `TestLoadAlienNamesExpandsGroups` pins the expansion.
+
+### No repeated names
+
+No two species in one roster share a name. `rollAlienSpeciesRoster` keeps a
+`used` set of the lower-cased singulars it has handed out, and `pickAlienName`
+drops any matching entry whose name is in it. Only when *every* matching name
+is taken does it fall back to the full matching set, and then
+`distinctAlienName` qualifies the result: first with the species'
+`ColorPhrase()` ("green-striped grelk"), then with a number ("green-striped
+grelk 2") until it is free. The built-in pool has four unconditional names, so
+the fallback only shows up with an `alien-species-count` well past what a
+world normally rolls, or a small `-alien-names` file.
 
 The pool itself is `internal/sim/alien-names.yaml`, embedded into the binary
 via `//go:embed` and parsed once as `defaultAlienNames()` — so the game
@@ -455,6 +491,23 @@ word-wrapped to the panel width.
   comparisons on counts) with no parser at all — just `yaml.Unmarshal` into
   Go structs — at the cost of being slightly more verbose to hand-author
   than an inline expression would be.
+- **A group is shorthand, so each name in it weighs the same as a
+  standalone entry.** The other reading — draw a group first, then a name in
+  it — would make three synonyms count as one candidate, so folding
+  `reptile`/`reppy`/`rept` into a group would have quietly made scaly
+  species less likely to get a scaly name. Expanding at load keeps a group a
+  pure editing convenience: the built-in pool after the change is
+  byte-for-byte the pool before it, so no seed rolls a different roster.
+  If a group should ever count as one candidate, that wants an explicit
+  `weight`, not a change to what `group` means.
+- **Uniqueness filters the draw rather than re-rolling.** Dropping taken
+  names from the candidate list before the draw costs exactly the same RNG
+  draws as before, and a roster whose names never collide rolls exactly what
+  it did before uniqueness existed. Re-rolling until the name was new would
+  have burned an unbounded number of lore-stream draws and shifted every
+  later species. Qualifying by color on exhaustion, rather than allowing the
+  repeat, keeps the narration unambiguous ("killed a green grelk") — two
+  species with one name was the bug.
 - **Height/weight as bucketed tiers for naming, not raw centimetres/
   kilograms in the condition.** The ask asked for "a height and weight enum
   for naming as well" specifically, not a numeric threshold — `tiny` through

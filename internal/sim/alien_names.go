@@ -21,7 +21,9 @@ import (
 // tree over the species' build. pickAlienName collects every entry whose
 // condition matches the rolled species and draws one at random, so
 // overlapping conditions (a name that fits several kinds of species) are
-// normal, not an error.
+// normal, not an error. A `group` entry lists several names under one
+// condition (repts, reptoids, scalies, lizards), and no two species in a
+// roster get the same name.
 
 // AlienNameFileName is the file mars-sim looks for in the working directory,
 // alongside mars-sim.yaml and director.yaml. It is optional: a run with no
@@ -179,24 +181,66 @@ func (c nameCondition) matches(sp AlienSpecies) bool {
 // defaultAlienNames() (its first entry is unconditional), but a
 // user-supplied -alien-names file could in principle define nothing
 // unconditional, and a species still needs a name either way.
-func pickAlienName(rng *rand.Rand, sp AlienSpecies, names []AlienNameEntry) (singular, plural, emoji string) {
-	var candidates []AlienNameEntry
+//
+// used holds the names (lower-cased singulars) earlier species in the same
+// roster already took; nil means none. A name in it is not a candidate, so
+// two species never share a name while the pool still has a fitting one to
+// give. When every matching name is taken, the draw falls back to the full
+// matching set and qualifies the result with the species' color
+// ("green-striped grelk"), then with a number, until it is unused. The
+// caller records the returned singular in used. See docs/lore.md.
+func pickAlienName(rng *rand.Rand, sp AlienSpecies, names []AlienNameEntry, used map[string]bool) (singular, plural, emoji string) {
+	var matching, fresh []AlienNameEntry
 	for _, e := range names {
-		if e.When.matches(sp) {
-			candidates = append(candidates, e)
+		if !e.When.matches(sp) {
+			continue
+		}
+		matching = append(matching, e)
+		if !used[strings.ToLower(e.Singular)] {
+			fresh = append(fresh, e)
 		}
 	}
+	candidates := fresh
 	if len(candidates) == 0 {
-		return "alien", "aliens", ""
+		candidates = matching
 	}
-	e := candidates[rng.IntN(len(candidates))]
-	if len(e.Emoji) > 0 {
-		emoji = e.Emoji[rng.IntN(len(e.Emoji))]
+	if len(candidates) == 0 {
+		singular, plural = "alien", "aliens"
+	} else {
+		e := candidates[rng.IntN(len(candidates))]
+		if len(e.Emoji) > 0 {
+			emoji = e.Emoji[rng.IntN(len(e.Emoji))]
+		}
+		singular, plural = e.Singular, e.Plural
+		if plural == "" {
+			plural = singular + "s"
+		}
 	}
-	if e.Plural == "" {
-		return e.Singular, e.Singular + "s", emoji
+	singular, plural = distinctAlienName(sp, singular, plural, used)
+	return singular, plural, emoji
+}
+
+// distinctAlienName returns singular/plural unchanged if the name is not in
+// used, else the first of "<color> <name>", "<color> <name> 2", "<color>
+// <name> 3", ... that is free. The color qualifier is tried first because it
+// reads like something colonists would actually say to tell two kinds of
+// grelk apart; the number is only the guarantee that the loop ends.
+func distinctAlienName(sp AlienSpecies, singular, plural string, used map[string]bool) (string, string) {
+	if !used[strings.ToLower(singular)] {
+		return singular, plural
 	}
-	return e.Singular, e.Plural, emoji
+	if c := sp.ColorPhrase(); c != "" {
+		singular, plural = c+" "+singular, c+" "+plural
+		if !used[strings.ToLower(singular)] {
+			return singular, plural
+		}
+	}
+	for n := 2; ; n++ {
+		s := fmt.Sprintf("%s %d", singular, n)
+		if !used[strings.ToLower(s)] {
+			return s, fmt.Sprintf("%s %d", plural, n)
+		}
+	}
 }
 
 //go:embed alien-names.yaml
@@ -220,22 +264,80 @@ func defaultAlienNames() []AlienNameEntry {
 
 // rawAlienNames is alien-names.yaml's top-level shape.
 type rawAlienNames struct {
-	Names []AlienNameEntry `yaml:"names"`
+	Names []rawAlienNameEntry `yaml:"names"`
+}
+
+// rawAlienNameEntry is one entry as written in the file: either a single
+// name (the AlienNameEntry fields) or a name group -- several names sharing
+// one `when` and one emoji list -- under `group`. LoadAlienNames expands a
+// group into one AlienNameEntry per name, so nothing past loading ever sees
+// a group.
+type rawAlienNameEntry struct {
+	AlienNameEntry `yaml:",inline"`
+	Group          []AlienNameForm `yaml:"group,omitempty"`
+}
+
+// AlienNameForm is one name in a group: a singular and an optional plural.
+// In YAML it is either a mapping ({name: scaly, plural: scalies}) or, when
+// the plural is just the name plus "s", a bare string (rept).
+type AlienNameForm struct {
+	Singular string `yaml:"name"`
+	Plural   string `yaml:"plural"`
+}
+
+// UnmarshalYAML accepts a bare string as shorthand for {name: <string>}.
+func (f *AlienNameForm) UnmarshalYAML(n *yaml.Node) error {
+	if n.Kind == yaml.ScalarNode {
+		f.Singular = n.Value
+		return nil
+	}
+	type plain AlienNameForm
+	return n.Decode((*plain)(f))
 }
 
 // LoadAlienNames parses an alien-names.yaml document into a name pool. name
-// is used in error messages. Every entry needs a non-empty `name`; `plural`
-// falls back to `name` + "s" when omitted (pickAlienName applies the same
-// fallback, so this only matters for validating the file itself).
+// is used in error messages. Every entry needs either a non-empty `name` or
+// a non-empty `group` (not both), and every name in a group needs a `name`;
+// `plural` is filled in as `name` + "s" when omitted (pickAlienName applies
+// the same fallback for entries built in code). Groups are expanded in
+// place, in file order, into one entry per name -- exactly the pool the file
+// would make if each name were written out with its own copy of the group's
+// `when` and `emoji` -- so a group is shorthand, not a different weighting.
 func LoadAlienNames(data []byte, name string) ([]AlienNameEntry, error) {
 	var raw rawAlienNames
 	if err := yaml.Unmarshal(data, &raw); err != nil {
 		return nil, fmt.Errorf("%s: %w", name, err)
 	}
+	var out []AlienNameEntry
 	for i, e := range raw.Names {
-		if strings.TrimSpace(e.Singular) == "" {
-			return nil, fmt.Errorf("%s: entry %d: name is required", name, i)
+		hasName := strings.TrimSpace(e.Singular) != ""
+		switch {
+		case hasName && len(e.Group) > 0:
+			return nil, fmt.Errorf("%s: entry %d: set name or group, not both", name, i)
+		case hasName:
+			out = append(out, withDefaultPlural(e.AlienNameEntry))
+		case len(e.Group) > 0:
+			if e.Plural != "" {
+				return nil, fmt.Errorf("%s: entry %d: plural belongs on each name in the group", name, i)
+			}
+			for j, f := range e.Group {
+				if strings.TrimSpace(f.Singular) == "" {
+					return nil, fmt.Errorf("%s: entry %d: group name %d: name is required", name, i, j)
+				}
+				entry := e.AlienNameEntry
+				entry.Singular, entry.Plural = f.Singular, f.Plural
+				out = append(out, withDefaultPlural(entry))
+			}
+		default:
+			return nil, fmt.Errorf("%s: entry %d: name (or group) is required", name, i)
 		}
 	}
-	return raw.Names, nil
+	return out, nil
+}
+
+func withDefaultPlural(e AlienNameEntry) AlienNameEntry {
+	if e.Plural == "" {
+		e.Plural = e.Singular + "s"
+	}
+	return e
 }

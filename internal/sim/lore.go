@@ -293,8 +293,9 @@ func sizeTier(v, small, average, large, huge int) AlienSizeTier {
 // rollAlienSpecies generates one alien species from rng, scaling its derived
 // combat stats from cfg's alien baselines and drawing its name from names
 // (the entries whose condition matches what was just rolled -- see
-// alien_names.go).
-func rollAlienSpecies(rng *rand.Rand, cfg Config, names []AlienNameEntry) AlienSpecies {
+// alien_names.go), skipping any name in used: the names earlier species in
+// the same roster already took (nil for none).
+func rollAlienSpecies(rng *rand.Rand, cfg Config, names []AlienNameEntry, used map[string]bool) AlienSpecies {
 	sp := AlienSpecies{
 		Eyes:        1 + rng.IntN(6), // 1..6
 		Limbs:       2 + rng.IntN(7), // 2..8
@@ -319,7 +320,7 @@ func rollAlienSpecies(rng *rand.Rand, cfg Config, names []AlienNameEntry) AlienS
 	sp.WeightMinKG = max(1, int(float64(sp.HeightMinCM)*density))
 	sp.WeightMaxKG = max(sp.WeightMinKG+1, int(float64(sp.HeightMaxCM)*density))
 
-	sp.Singular, sp.Plural, sp.Emoji = pickAlienName(rng, sp, names)
+	sp.Singular, sp.Plural, sp.Emoji = pickAlienName(rng, sp, names, used)
 
 	sp.BiteDamage = speciesDamage(sp, cfg)
 	sp.BiteRest = scaledByTemperament(cfg.AlienBiteRest, sp.Temperament)
@@ -339,8 +340,10 @@ func rollAlienSpeciesRoster(rng *rand.Rand, cfg Config) []AlienSpecies {
 		names = defaultAlienNames()
 	}
 	roster := make([]AlienSpecies, count)
+	used := make(map[string]bool, count) // names taken so far: no two species share one
 	for i := range roster {
-		roster[i] = rollAlienSpecies(rng, cfg, names)
+		roster[i] = rollAlienSpecies(rng, cfg, names, used)
+		used[strings.ToLower(roster[i].Singular)] = true
 	}
 	return roster
 }
