@@ -297,7 +297,9 @@ func BenchmarkStepSmallColonyOnHugeMap10000(b *testing.B) {
 // failing to find a site forced the box search to double all the way out to
 // the full map before giving up — the "every 16 ticks" pause.
 func BenchmarkFindRoomSiteNoFit(b *testing.B) {
-	w := benchWorldSmallColony(10000, 12, 0) // chamber too small for any room this wide
+	// A chamber too small for a room this wide facing any way: with its lanes
+	// it spans 11 tiles, along the bay or, turned, down it.
+	w := benchWorldSmallColony(10000, 10, 0)
 	width := bayWidth(roomFacilities)
 	if _, ok := w.findRoomSite(width); ok {
 		b.Fatal("expected no site to fit; benchmark no longer exercises the no-fit path")

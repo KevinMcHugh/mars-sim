@@ -389,7 +389,7 @@ func forEachPodMargin(o Point, shareL, shareR bool, visit func(Point)) {
 // podPartyWalls reports whether a pod with top-left o would share its left or
 // right side with a neighboring pod in the same row: one landed exactly one
 // hull-width over, whose side hull is still whole. A side broken down to
-// escape (see nearestEscapeWall) is not a wall to share.
+// escape (see escapeTarget) is not a wall to share.
 func (w *World) podPartyWalls(o Point) (left, right bool) {
 	side := func(neighbor Point, x int) bool {
 		if !w.pods[neighbor] {

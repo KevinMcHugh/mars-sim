@@ -16,7 +16,9 @@ toilets) are the first — and currently only — project kind.
 
 ## Source
 
-- [`internal/sim/project.go`](../internal/sim/project.go) — `buildTask`, `project`, planning, room geometry, task claiming.
+- [`internal/sim/project.go`](../internal/sim/project.go) — `buildTask`, `project`, planning, room siting, task claiming.
+- [`internal/sim/roomframe.go`](../internal/sim/roomframe.go) — `roomFrame` (which way a room faces) and `siteKeepsColonyWhole`.
+- [`internal/sim/passage.go`](../internal/sim/passage.go) — passages dug to whatever the colony gets cut off from (see [escape.md](./escape.md)).
 - [`internal/sim/systems.go`](../internal/sim/systems.go) — `jobBuild`, `assignTask`/`assignBuild`, the emergency-build fallback.
 
 ## How it works
@@ -156,7 +158,7 @@ the same rooms by tick 5000 as colonies without it.
 ### Facility-room geometry
 
 A room is a row of facilities inside a complete placed-wall perimeter with a
-one-tile front doorway. `designateRoom` lays out, into two phases:
+one-tile doorway in its front wall. `designateRoom` lays out, into two phases:
 
 - **Phase 0 (walls)**: the full rectangle of `Wall` tiles — back, sides, and front
   — except the centered front doorway.
@@ -164,15 +166,26 @@ one-tile front doorway. `designateRoom` lays out, into two phases:
   alternating so every room serves both needs) one tile inside the back wall,
   spaced one tile apart.
 
-`findRoomSite` / `roomSiteClear` pick a site whose rear wall is backed by
+**Facing.** The doorway can be on any side. A `roomFrame` (`roomframe.go`)
+lays the room out in its own coordinates, `u` along the bay and `v` from the
+back wall to the front, and turns them onto the map for one of four facings.
+`designateRoom` and `roomSiteClear` speak only in frame coordinates, so the
+shell is the same whichever way it faces. `findRoomSiteWith` tries every
+facing at every anchor (the middle tile of the facility row) and takes the
+anchor nearest the map center. Ties go to the row-major first anchor, then to
+south, north, east, west, so a site the old south-only planner would have
+picked still wins a tie. Rooms used to face south only, so they could back
+only onto rock to their north: a cavern whose rock lay to the east, west or
+south had no site in it at all.
+
+**Backing.** `findRoomSite` / `roomSiteClear` pick a site whose back wall is backed by
 solid rock or another room's already-placed wall, and whose two side walls are
 each either freshly built (with an exterior lane kept clear beside it so every
 wall task stays reachable even after its neighbors go up) or an already-placed,
 unclaimed wall from a neighboring room — in which case the two rooms sit flush
 and literally **share that one tile** as a party wall: this room adds no wall
 task of its own there (`designateRoom` skips it), and needs no exterior lane
-on that side either, since there is no wall task to reach. Sites nearest the
-map center are preferred.
+on that side either, since there is no wall task to reach.
 
 Sharing a boundary this way — on the back wall or a side wall — matters once a
 cave's easy rock-backed edges are used up: rooms reuse floor and structure
@@ -187,6 +200,87 @@ sitting slightly closer to map center measurably delayed food in testing (a
 colonist starved because life support landed somewhere slower to finish than
 it needed to be; see `findRoomSitePrefersClearOverRockNearCenter` for the
 regression test).
+
+**Standing free.** Backing is a preference, not a requirement. When no backed
+site of any bay size exists, `planRoomFor` tries `findFreeStandingSite`: the
+same search with `siteRules{unbacked: true}`, which ignores whatever lies
+behind the back wall. Backed sites at every size come first, since a room
+tucked against the rock costs nobody a way round it. Every recipe may stand
+free. The colony mines for rock as well as for room space, so a small cavern
+can be mined bare, and then no room can back onto anything and digging can
+never make a backed site again. The meeting hall, planned after everything
+else and wider than most rooms, hit this first: in a 40×24 test map mined bare
+by tick 3000 it was wanted for the rest of the run and never planned (see
+[meeting-hall.md](./meeting-hall.md)).
+
+**Not cutting the colony in two.** No site is accepted, backed or not, unless
+`siteKeepsColonyWhole` passes. It treats the footprint, from side wall to
+side wall and back wall to front wall, as solid: once the room stands, its
+inside is reached only through the doorway, a dead end. The open, discovered
+tiles bordering the footprint are where every route through it enters and
+leaves. So if every two of them that are in the same room (pathfinding sense)
+now can still reach each other around the footprint, every route through can
+go round instead. Tiles other projects will build on count as solid too, so
+two plans can't close a gap that each would have left open alone. A wall that
+is already there (a party wall) is solid before and after, so the tiles past
+it are not border tiles. The flood fill stays within `splitCheckMargin` (12)
+of the footprint, so a site whose only way round is a longer detour is
+refused. That errs toward turning a site down, never toward a split.
+
+A backed room's lanes and approach row already make a way round it, so the
+check mostly bites on free-standing rooms and on a room that would fill the
+gap between two others with party walls on both sides
+(`TestRoomSiteRefusesToSplitTheColony`). It costs a flood fill of about a
+thousand tiles, so `findRoomSiteWith` gathers the sites that pass
+`roomSiteClear` first and runs it on them in order of distance, stopping at
+the first that passes. Prevention can still be beaten (a lone emergency build,
+a pod landing, three rooms around a shared middle), so there is a correction
+too: [escape.md](./escape.md).
+
+**Search cost.** Four facings and two more passes for free-standing sites made
+a search that found nothing about five times dearer (1.7 ms to 9–10 ms in
+`BenchmarkFindRoomSiteNoFit`). `findRoomSiteWith` now scans anchors only
+within `width+2` of the carved box (`carvedMin`/`carvedMax`): every site's side
+walls are already Floor or Wall, and its anchor is never further than that
+from one, whichever way it faces. That skips nothing that could pass and
+brought the same search to 0.4 ms, faster than before facings.
+
+That box bound only helps while the colony is compact. On seed
+`1790918757088000000` (10000x10000, 200 colonists), main hit a stretch from
+about tick 12,500 to 19,500 where it averaged 4.45 ms/tick natively, against
+about 0.5 ms elsewhere. That held the browser build under 100 ticks a second.
+The colony had spread until the search box was about 300 tiles across. With no
+projects in flight, `planRooms` wanted a meeting hall and a foundry, neither
+fitted anywhere, and every `planInterval` it repeated a failed search of the
+whole box for each, once per width tried. A planning pass cost about 70 ms.
+
+Nearly every anchor in such a box is solid rock, and rock passes
+`roomSiteClear`'s back-row test and, with `allowRock`, its interior. Each rock
+anchor was rejected only at its side walls, after a row of map lookups, and
+four times over, once per facing. So `appendRoomSites` scans each facing along
+its approach row instead: south- and north-facing rooms row by row, east- and
+west-facing ones column by column. Every site needs walkable ground the whole
+way along that row (lane to lane). When a tile in it is not walkable, the scan
+jumps past every anchor whose row covers that tile. `roomSiteClear` also reads
+terrain before the `designated` and `doorTiles` map lookups. All of these
+checks are pure, and the candidates are sorted on an explicit
+(distance, row-major anchor, facing) key, which is the order the stable sort
+used to keep. So the result is unchanged.
+
+| Search | Before | After |
+| --- | --- | --- |
+| `BenchmarkFindRoomSiteNoFit` | 391 µs | 15 µs |
+| That seed at tick 13,000, all four passes, width 7 | 53 ms | 26 ms |
+| Same, width 9 | 113 ms | 24 ms |
+| Same, width 31 | 312 ms | 10 ms |
+
+Most of what is left at widths 7 and 9 is real candidates on open floor, which
+sites that are found have to check anyway.
+
+The planner still repeats a search that keeps failing, every `planInterval`.
+Skipping it would mean backing off, or remembering a failure until the terrain
+near the colony changes. Either would change when rooms are planned, and so
+the golden hashes. That is a separate decision from making the scan cheap.
 
 Facilities stay spaced one tile apart because a colonist using a facility stands
 on its neighbor tiles — two adjacent facilities would mean one could never be
@@ -332,9 +426,17 @@ The room design is the product of watching colonies starve around earlier ones:
   That guarantee only ever covered a room trapping itself while it went up —
   see *The doorway tile is reserved forever, not just guaranteed once* above
   for the later, cross-room version of the same failure and how it's closed.
-- **Rock-backed niches, or a shared wall with a neighbor,** keep a room from
-  becoming a free-standing obstacle that splits an open route, and mean the
-  back wall's tasks are reached from the future facility row.
+- **Rock-backed niches, or a shared wall with a neighbor, are preferred,**
+  and mean the back wall's tasks are reached from the future facility row.
+  They were once required, to keep a room from becoming a free-standing
+  obstacle that splits an open route. That made a mined-out cavern unable to
+  site anything, so the requirement became a preference, and splitting is now
+  checked directly (`siteKeepsColonyWhole`) for every site.
+- **A connectivity check rather than a ring of floor.** The first fix for
+  free-standing rooms (the hall only) required open floor all round the room
+  and refused party walls. That forbade sites that split nothing, and it did
+  not cover two plans closing a gap together. Checking that the border tiles
+  stay connected is both looser and safer.
 - **Reachability-gated claiming and the tightly-guarded emergency build** keep
   the colony from either mobbing one site or letting a disconnected colonist die
   next to an unreachable project.

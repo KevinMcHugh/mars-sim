@@ -324,7 +324,7 @@
 ## ticks of work to raise one wall
 # build-ticks: 8
 
-## ticks of work to break down one wall tile when escaping a sealed room
+## ticks of work to break down one wall or hull tile, escaping a sealed room or opening a passage
 # demolish-ticks: 16
 
 ## ticks of work to build a pod or toilet

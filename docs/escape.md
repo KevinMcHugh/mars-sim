@@ -1,21 +1,32 @@
-# Escaping a sealed room
+# Escaping a sealed room, and passages
 
 > Part of the [mars-sim documentation](./README.md).
 
 ## What it is
 
-A detect-and-correct backstop for a colonist whose room ends up cut off from
-the rest of the colony — however that happened. A colonist whose room stays
-disconnected from the colony's main network for `EscapeGraceTicks` straight
-breaks the nearest wall back down to Floor and rejoins it, rather than sitting
-sealed in indefinitely.
+A detect-and-correct backstop for whatever ends up cut off from the rest of
+the colony, however that happened. Room siting avoids cutting the colony in
+two (see [construction.md](./construction.md)), but prevention can be beaten,
+so there are two corrections:
+
+- **Escape.** A colonist whose room stays disconnected from the colony's main
+  network for `EscapeGraceTicks` straight makes its own way out. It takes the
+  cheapest route to the main network, digging rock and breaking down walls or
+  hull, whichever costs less work, and goes round a structure through the
+  rock where that is cheaper.
+- **Passages.** A facility cut off with nobody beside it, which no escape will
+  ever reach, gets a passage: a planner project along the cheapest route from
+  the colony to it, dug and broken through from the colony's side.
 
 ## Source
 
 - [`internal/sim/rooms.go`](../internal/sim/rooms.go) — `mainRoom`, the
   discovered room with the most floor tiles, recomputed by `relabelRooms`.
 - [`internal/sim/systems.go`](../internal/sim/systems.go) —
-  `updateDisconnected`, `assignDemolish`, `nearestEscapeWall`, `jobDemolish`.
+  `updateDisconnected`, `assignDemolish`, `jobDemolish`, and `jobBuild`'s
+  breaking down of a wall for a passage.
+- [`internal/sim/passage.go`](../internal/sim/passage.go) — `passageRoute`
+  (the cheapest way through), `escapeTarget`, `fixtureCutOff`, `planPassage`.
 - [`internal/sim/focus.go`](../internal/sim/focus.go) — `FocusEscape`
   eligibility and scoring.
 - [`internal/sim/entity.go`](../internal/sim/entity.go) — `JobDemolish`,
@@ -23,7 +34,9 @@ sealed in indefinitely.
 - [`internal/sim/rooms_test.go`](../internal/sim/rooms_test.go) —
   `TestMainRoomTracksLargestRoom`, `TestUpdateDisconnectedTracksCutoffRoom`.
 - [`internal/sim/sim_test.go`](../internal/sim/sim_test.go) —
-  `TestColonistEscapesSealedRoom`, `TestColonistStarvesWhenSealedByRock`.
+  `TestColonistEscapesSealedRoom`, `TestColonistDigsOutWhenSealedByRock`.
+- [`internal/sim/passage_test.go`](../internal/sim/passage_test.go) — which
+  way an escape goes, and `TestColonyDigsAPassageToACutOffFacility`.
 
 ## How it works
 
@@ -57,19 +70,40 @@ for exactly what it needs to clear. `chooseFocus`'s normal switch-margin
 hysteresis governs how readily an already-escaping colonist keeps at it, same
 as any other focus.
 
-**Execution.** `assignDemolish` calls `nearestEscapeWall`, which walks
-outward from the colonist through its own (cut-off) room's floor — bounded to
-that room, not the whole map, since a sealed pocket is by definition small —
-and returns the first `Wall` tile it touches. `jobDemolish` then mirrors
-`jobMine`: travel to a tile adjacent to the target, spend `DemolishTicks`
-(scaled by `workScale`, like every other work tick count), then
-`SetTerrain(target, Floor)`. `refreshSpatial` folds that into the region graph
-at the end of the same tick, and `updateDisconnected` notices the room is
-whole again on the next. If no `Wall` borders the room at all — a natural cave
-separation with only rock between the colonist and everything else — there is
-nothing to demolish, and `runFocus` falls back to idle behavior for that tick
-rather than looping on a target that can't exist. `TestColonistStarvesWhenSealedByRock`
-pins that this case is intentionally *not* rescued.
+**The cheapest way through.** `passageRoute` is a Dijkstra search from a set
+of tiles to any open tile in a goal room, costed in ticks of work: 1 to step
+onto open floor, `1 + mine-ticks` (7) to dig out rock, `1 + demolish-ticks`
+(17) to break down a wall or hull. Facilities, chairs and anything else are
+never broken through, and neither are tiles another project will build on.
+With the defaults a single wall tile with rock beside it is dug round rather
+than broken (one rock tile is 7, the wall 17), while a wall with three rock
+tiles' depth round it is broken. The search settles at most
+`passageSearchLimit` (16384) tiles and gives up past that. Ties break on
+row-major position, so the route is the same every run.
+
+**Execution.** `assignDemolish` calls `escapeTarget`, which runs
+`passageRoute` from the colonist to `mainRoom` and takes the first tile on
+the route that is not open floor. That tile borders the colonist's pocket, so
+it can reach it. `jobDemolish` then travels next to it and clears it to Floor:
+a wall or hull over `DemolishTicks`, rock over `MineTicks`, keeping whatever of
+the rock's yield fits in its pockets (both scaled by `workScale`). Each cleared
+tile widens the pocket, and the next think assigns the next tile, until
+`updateDisconnected` sees the colonist in the main room again. If no route
+exists within the search limit, `runFocus` falls back to idle behavior for
+that tick rather than looping on a target that can't exist.
+
+**Passages.** `planPassage` runs first in every `planRooms` pass, ahead of
+the concurrency cap. It looks for a fixture (`w.fixtures`: pods, toilets,
+beds, chests, workshops) none of whose neighbors is open floor in `mainRoom`
+(`fixtureCutOff`), taking the row-major first. It runs `passageRoute` from the
+fixture's neighbors to `mainRoom` and makes a `passage` project: every rock tile
+on the route to dig and every wall or hull tile to break down, in one phase.
+A dig task records what it clears (`buildTask.clears`, Rock by default), so
+`taskDone`, `taskWorkable` and `jobBuild` treat breaking a wall down as one
+more kind of dig. Builders claim the tiles from the colony's side inward, as
+each cleared tile brings the next within reach, exactly as a room's interior
+is dug. A passage is unpaid (issuer `Nobody`), like the colony's first
+scumhouse, and there is one at a time.
 
 ## Why it is this way
 
@@ -110,21 +144,37 @@ pins that this case is intentionally *not* rescued.
   mutually exclusive by eligibility sidesteps the ordering problem entirely,
   and reflects the actual priority: nothing about a sealed room is more urgent
   than an immediate predator.
-- **Bounded BFS instead of a global wall scan.** `nearestEscapeWall` walks
-  only the colonist's own cut-off room, which is small by construction (that's
-  what "cut off" means) — a colony-wide scan for one trapped colonist would
-  cost far more than the pocket it's confined to ever could.
-- **Only walls, never rock.** A colonist that ended up in a naturally
-  separate cavern (never reachable, not sealed by anything the colony built)
-  has nothing to demolish — `JobMine` already exists for rock, and folding
-  rock-clearing into escape as well would blur "trapped by construction" into
-  "hasn't explored yet," which is a different, pre-existing problem this
-  feature doesn't try to solve.
+- **A bounded search instead of a global scan.** The first escape walked only
+  the colonist's own cut-off room to the nearest wall, since a pocket is small
+  by construction. Digging out means searching through rock beyond it, toward
+  a main room that may be some way off, so the search is costed and capped
+  (`passageSearchLimit`) instead: a way out longer than that is no rescue.
+- **Rock as well as walls.** Escapes used to break only walls. A colonist
+  sealed in by rock was meant to be a separate, pre-existing problem
+  ("hasn't explored yet"), and `TestColonistStarvesWhenSealedByRock` pinned
+  that it starved. But a colonist cut off by a structure with rock on either
+  side is often better off digging round it than through it, and once rooms
+  could stand free on open floor that was the common case. Escapes now cost
+  rock and walls against each other, and that test became
+  `TestColonistDigsOutWhenSealedByRock`.
+- **Rubble is left behind on an escape.** A miner with full pockets stops
+  digging; a colonist digging its way out does not, so whatever of the rock
+  does not fit is lost. It is the one place rock leaves the economy.
+- **A passage is a project, not a focus.** Nobody is beside a sealed-off
+  facility to notice, so the colony has to. Making it a project reuses the
+  claiming, reachability and build-tile machinery, and lets any number of
+  builders work it. It is unpaid because what is walled off is already built
+  and counted as capacity: nothing the planner builds would replace it, and
+  an empty treasury must not leave it walled off.
+- **One passage at a time, ahead of every room.** A passage is usually a tile
+  or two. Running before the concurrency cap means a colony at its cap still
+  reopens what it lost; one at a time keeps a bad patch from flooding the
+  project list.
 
 ## Extending it
 
 - **Doors, when they exist,** would give a trapped colonist (and the player)
-  a cheaper, faster fix than demolition — `roomFrontWallY`'s doorway could
+  a cheaper, faster fix than demolition — a room's doorway could
   become a real placeable entity rather than a permanently-omitted wall tile,
   and `jobDemolish`'s target selection would prefer one if reachable. Until
   then, breaking a wall down is deliberately the more expensive path (see

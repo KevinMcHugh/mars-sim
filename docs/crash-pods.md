@@ -41,7 +41,8 @@ H H . H H     the doorway
 A 3×2 interior inside a one-tile **hull**: five wide, four tall. `Hull` is its
 own terrain so the map can show a pod as salvaged metal (⬜ in the TUI) rather
 than the colony's masonry (🧱), but it behaves like a `Wall`: it blocks
-movement, and a sealed-in colonist may break it down (`nearestEscapeWall`).
+movement, and a sealed-in colonist may break it down (`escapeTarget`; see
+[escape.md](./escape.md)).
 Nothing builds it; it only arrives.
 
 Pods that land side by side share their side hull as a **party wall**, as the
@@ -172,10 +173,12 @@ rock announces that it "smashes down through the rock".
 
 Five rules shape where pods end up, and each was learned the hard way:
 
-- **Lower half only.** Candidates above the middle row are skipped. Rooms are
-  only ever sited against rock *above* them (see `roomSiteClear` in
-  [construction.md](./construction.md)), so the top of the cavern is where the
-  colony's first rooms go. The first version grew a square of pods out from the
+- **Lower half only.** Candidates above the middle row are skipped, so the top
+  of the cavern is kept for the colony's first rooms. Rooms were once sited
+  only against rock *above* them; they may now face any way and stand free
+  (see `roomSiteClear` in [construction.md](./construction.md)), but a room
+  backed by rock is still preferred, and the top rim is the open stretch of
+  rock pods never take. The first version grew a square of pods out from the
   middle and filled that top rim; small colonies then had no site for even a
   two-facility room and never built anything.
 - **Stretched rings, middle rows first.** A ring holds the points whose
