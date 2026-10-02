@@ -147,21 +147,25 @@ room's project.
   in a rock niche never is.
 - **Records, not rediscovery.** Inferring rooms from terrain (find a wall
   rectangle with a bay of bunks) would be fragile around party walls and
-  crash pods. Recording them at designation is one slice append and keeps
+  ships' hulls. Recording them at designation is one slice append and keeps
   everything deterministic (records are iterated in order, never as a map).
 - **Whole cycles of the bay.** Growing a room means its new end repeats its
   old one. A kitchen grows a stove and its pantry together, so every stove
   keeps a pantry of its own (see [scumhouse.md](./scumhouse.md)).
 - **Kitchens, incubators and halls too.** The first version grew only
   dormitories and storage rooms. On a 30-colonist colony (seed
-  1790962337151000000, 10000×10000) the colony never wanted either: crash pods
-  bring bunks and lockers. What it did want was ten kitchens, four incubator
-  rooms and three halls, each a new room. Back-wall sharing (see
-  [construction.md](./construction.md)) made both side walls of a room good
-  backing, so they went up as triptychs: a room with a kitchen backed onto each
-  side wall, facing away. With those three kinds growing too, the same run at
-  tick 10,000 had 11 rooms instead of 20: two kitchens of four stoves each, one
-  incubator room of six, two full halls.
+  1790962337151000000, 10000×10000) the colony never wanted either, since every
+  settler then landed in a crash pod with its own bunk and locker. What it did
+  want was ten kitchens, four incubator rooms and three halls, each a new room.
+  Back-wall sharing (see [construction.md](./construction.md)) made both side
+  walls of a room good backing, so they went up as triptychs: a room with a
+  kitchen backed onto each side wall, facing away. With those three kinds
+  growing too, and since colonists arrive by ship (see [ships.md](./ships.md)),
+  the same run at tick 10,000 has 11 rooms with expansion and 22 without: 5
+  kitchen rooms against 11 for the same 22 stoves and pantries, 2 incubator
+  rooms against 4 for the same 8 incubators, and one hall of 8 chairs against
+  three of 10 chairs between them. All 30 colonists are alive either way. It
+  still builds no dormitory: its 17 bunks are well over the 6 it wants.
 - **It does not cost food.** Over 48 seeds (20 colonists, 200×200, 30,000
   ticks), as many colonists survived with expansion as without (789 and 788).
   More starved with it (19 against 8), but only in runs with aliens, where any
@@ -175,11 +179,11 @@ room's project.
   reachable from the start, so requiring them would only refuse sites, mostly
   the rock niches where growing is most useful.
 - **Player orders expand too.** The colony rarely wants a dormitory on its own:
-  each crash pod brings a bunk, and `desiredFacilities` is a headcount ratio
-  well below one per colonist. Most dormitories and storage rooms come from the
-  player's `d` and `r` orders, so those had to grow rooms for the feature to
-  matter. The orders have no placement control anyway: the planner has always
-  chosen the site.
+  its ships sleep half their passengers, and `desiredFacilities` wants only one
+  bunk per `per-facility` (5) colonists. Many dormitories and storage rooms
+  come from the player's `d` and `r` orders, so those had to grow rooms for the
+  feature to matter. The orders have no placement control anyway: the planner
+  has always chosen the site.
 
 ## Extending it
 
