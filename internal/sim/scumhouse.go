@@ -3,7 +3,6 @@ package sim
 import (
 	"cmp"
 	"fmt"
-	"slices"
 	"sort"
 )
 
@@ -72,7 +71,7 @@ func (w *World) takeScum(p Point) bool {
 		w.clearScum(p)
 		return true
 	}
-	w.scum[p] = scumPatch{amount: n - 1}
+	w.putScum(p, n-1)
 	w.scumRev++
 	return true
 }
@@ -81,10 +80,9 @@ func (w *World) takeScum(p Point) bool {
 func (w *World) clearScum(p Point) {
 	if _, ok := w.scum[p]; ok {
 		delete(w.scum, p)
+		w.markThin(p, false)
 		delete(w.exposedScum, p)
-		if i, found := slices.BinarySearchFunc(w.scumPatches, p, cmpScumPatch); found {
-			w.scumPatches = slices.Delete(w.scumPatches, i, i+1)
-		}
+		w.scumPatches.remove(p)
 		w.scumRev++
 	}
 }
@@ -94,15 +92,47 @@ func (w *World) clearScum(p Point) {
 // agree.
 func (w *World) setScum(p Point, amount int) {
 	if _, ok := w.scum[p]; !ok {
-		i, _ := slices.BinarySearchFunc(w.scumPatches, p, cmpScumPatch)
-		w.scumPatches = slices.Insert(w.scumPatches, i, p)
+		w.scumPatches.insert(p)
 	}
+	w.putScum(p, amount)
+}
+
+// putScum sets the amount on p's patch, keeping scumThin in step. Every
+// change to an amount goes through here (applyChunk's patches start full).
+func (w *World) putScum(p Point, amount int) {
 	w.scum[p] = scumPatch{amount: amount}
+	w.markThin(p, amount < w.cfg.ScumMax)
+}
+
+// markThin lists p in scumThin, or takes it off, keeping the page counts.
+func (w *World) markThin(p Point, thin bool) {
+	if _, was := w.scumThin[p]; was == thin {
+		return
+	}
+	if w.scumThinPages == nil {
+		w.scumThinPages = make([]int32, len(w.tiles.pages))
+	}
+	pi := w.tiles.pageIndex(p.X, p.Y)
+	if thin {
+		w.scumThin[p] = struct{}{}
+		w.scumThinPages[pi]++
+	} else {
+		delete(w.scumThin, p)
+		w.scumThinPages[pi]--
+	}
+}
+
+// thinScumAt reports whether p holds a patch below ScumMax.
+func (w *World) thinScumAt(p Point) bool {
+	if len(w.scumThin) == 0 || !w.InBounds(p) || w.scumThinPages[w.tiles.pageIndex(p.X, p.Y)] == 0 {
+		return false
+	}
+	_, thin := w.scumThin[p]
+	return thin
 }
 
 // cmpScumPatch orders patches by chunk, the way genChunks is ordered, then
-// row by row within the chunk, so a newly generated chunk's patches sit
-// together in scumPatches and go in with one insert.
+// row by row within the chunk.
 func cmpScumPatch(a, b Point) int {
 	ka := chunkKey{int32(a.X >> genChunkBits), int32(a.Y >> genChunkBits)}
 	kb := chunkKey{int32(b.X >> genChunkBits), int32(b.Y >> genChunkBits)}
@@ -199,6 +229,13 @@ const scumTrialDivisor = 16
 // stream of its own; scumPatches is sorted, so which patch a draw picks
 // depends only on which patches exist.
 //
+// With no room for new patches, a unit can only go on a patch below ScumMax
+// (scumThin), so a draw that lands anywhere else is skipped without the
+// lookups, and with none below ScumMax the draws are skipped outright. The
+// draws are hashes, not a stream, so skipping them changes nothing. On a
+// settled map nearly every patch is full and nearly every draw used to be
+// two map lookups that did nothing; that was most of growScum's cost.
+//
 // The first version sampled tiles over the whole map, skipped the ones in
 // chunks not yet generated, and capped the samples at 4,096 a tick with the
 // chances scaled up to make the difference good. Spread's 40% passed 100% on
@@ -224,18 +261,30 @@ func (w *World) growScum() {
 	room := len(w.scum) < min(w.Width*w.Height, span)*w.cfg.ScumPercent/100
 	h := uint64(w.cfg.Seed)*0x9E3779B97F4A7C15 ^ uint64(w.tick)*0xD1B54A32D192ED03
 	hs := h ^ 0x5CA1AB1E // spawns draw apart from spreads
+	// lands reports whether a unit drawn for p could change anything.
+	lands := func(p Point) bool { return room || w.thinScumAt(p) }
 	for i := range scumDraws(span, w.cfg.ScumSpawnPPM, hs) {
+		if !room && len(w.scumThin) == 0 {
+			break
+		}
 		r := hs + uint64(i+1)*2*0x9E3779B97F4A7C15
-		if p, ok := w.scumDrawTile(splitmix64(&r)); ok {
+		if p, ok := w.scumDrawTile(splitmix64(&r)); ok && lands(p) {
 			w.addScum(p, room)
 		}
 	}
-	for i := range scumDraws(len(w.scumPatches), w.cfg.ScumSpreadPercent*10000, h) {
+	spreads := scumDraws(w.scumPatches.len(), w.cfg.ScumSpreadPercent*10000, h)
+	if !room && len(w.scumThin) > 0 && spreads > 0 {
+		w.scumPatches.freeze() // no patch starts or ends below: the list holds still
+	}
+	for i := range spreads {
+		if !room && len(w.scumThin) == 0 {
+			break
+		}
 		r := h + uint64(i+1)*2*0x9E3779B97F4A7C15 // two draws each, so no two share one
 		a, b := splitmix64(&r), splitmix64(&r)
-		from := w.scumPatches[a%uint64(len(w.scumPatches))]
+		from := w.scumPatches.at(int(a % uint64(w.scumPatches.len())))
 		d := neighbors9[b%9]
-		if p := from.Add(d.X, d.Y); w.generatedTile(p) {
+		if p := from.Add(d.X, d.Y); lands(p) && w.generatedTile(p) {
 			w.addScum(p, room)
 		}
 	}
@@ -287,7 +336,7 @@ func (w *World) addScum(p Point, room bool) {
 		if s.amount >= w.cfg.ScumMax {
 			return
 		}
-		w.scum[p] = scumPatch{amount: s.amount + 1}
+		w.putScum(p, s.amount+1)
 		if _, exposed := w.exposedScum[p]; exposed {
 			w.scumRev++
 		}
