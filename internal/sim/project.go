@@ -748,6 +748,8 @@ func (w *World) designateRoom(r roomRecipe, f roomFrame, n int, issuer Owner) bo
 	w.doorTiles[f.doorStep()] = true
 	p.room = &roomRecord{recipe: r, f: f, n: n, issuer: issuer}
 	w.roomRecords = append(w.roomRecords, p.room)
+	w.indexRoomFloor(p.room, 0, f.width-1)
+	w.roomFloor[f.at(f.doorU(), roomFrontV)] = p.room
 	w.projects = append(w.projects, p)
 	if r.name == scumhouseRoom.name {
 		w.linkPantry(p)

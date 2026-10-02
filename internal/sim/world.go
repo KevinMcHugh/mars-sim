@@ -655,6 +655,10 @@ type World struct {
 	// did, with its current extent: what room expansion grows (see
 	// roomgrow.go). Rooms are never demolished, so it only grows.
 	roomRecords []*roomRecord
+	// roomFloor maps every floor tile inside a recorded room (its inside and
+	// its doorway) to that room, so an expansion can ask whose a tile is
+	// without scanning every room. No two rooms share a floor tile.
+	roomFloor map[Point]*roomRecord
 	// Manual room orders wait here until the current project finishes and a
 	// suitable site is available. Keeping them in the world preserves the
 	// engine's single-owner rule for simulation state.
@@ -948,6 +952,7 @@ func newWorld(cfg Config, src *rand.PCG) *World {
 		colonistNames:     make(map[string]EntityID),
 		buildTiles:        make(map[Point]bool),
 		doorTiles:         make(map[Point]bool),
+		roomFloor:         make(map[Point]*roomRecord),
 		storageContainers: make(map[Point]*StorageContainer),
 		fixtures:          make(map[Point]*Fixture),
 		orders:            make(map[OrderID]*Order),

@@ -255,7 +255,9 @@ func TestExpansionStaysOutOfOtherRooms(t *testing.T) {
 	// A finished neighbor whose left wall is x 23: floor at x 22 is its lane,
 	// and an expansion by one would put its new wall there, against it.
 	// Further out, a record covering x 23..27 makes x 24.. off limits too.
-	w.roomRecords = append(w.roomRecords, &roomRecord{recipe: dormRoom, f: roomFrame{o: Point{24, 10}, width: 3}, n: 2})
+	other := &roomRecord{recipe: dormRoom, f: roomFrame{o: Point{24, 10}, width: 3}, n: 2}
+	w.roomRecords = append(w.roomRecords, other)
+	w.indexRoomFloor(other, 0, other.f.width-1)
 	carve(w, Point{22, 9}, Point{27, 13}, Floor)
 	w.refreshSpatial()
 	none := map[Point]bool{}

@@ -19,6 +19,7 @@ wall down has its own wage.
 - [`internal/sim/hall.go`](../internal/sim/hall.go) — `chairsShort`, the hall's shortfall in chairs.
 - [`internal/sim/workorder.go`](../internal/sim/workorder.go) — `taskWage`: a wall torn down pays `wage-demolish`.
 - [`internal/sim/systems.go`](../internal/sim/systems.go) — `jobBuild`'s demolition branch, shared with passages.
+- [`internal/sim/bench_test.go`](../internal/sim/bench_test.go) — `BenchmarkExpandNoFit`, the worst case for a search that finds nothing.
 - [`internal/sim/roomgrow_test.go`](../internal/sim/roomgrow_test.go) — growing right and left, a storage room's aisle, a kitchen's stove-and-pantry pair, no double walls, staying out of other rooms, the planner's preference and orders for every kind, and colonists building one.
 
 ## How it works
@@ -184,6 +185,42 @@ room's project.
   come from the player's `d` and `r` orders, so those had to grow rooms for the
   feature to matter. The orders have no placement control anyway: the planner
   has always chosen the site.
+
+## Performance
+
+Measured on an M1 Pro against `main` at the merge of colony ships (#114, #115).
+
+**Per tick: no consistent change.** The step benchmarks (`Step500`,
+`Step2000`, `StepMixed500`, `StepBigMap`, `StepSmallColonyOnHugeMap10000`)
+are within noise of `main` (benchstat, 6 runs each, interleaved). Real runs
+(30 colonists, 10000×10000, 10,000 ticks) vary by seed in both directions:
+on the motivating seed 1790962337151000000 the branch is about 4% slower
+(0.168 against 0.162 ms/tick, steady over repeated runs), and on seeds 7, 11,
+23 and 42 it is +3%, +4%, −1% and −4%. Room planning is under 2% of a run on
+either branch (about 30 ms of 10,000 ticks, 20 ms of it expansion, mostly
+`siteKeepsColonyWhole`). The per-seed differences sit in colonist decisions
+(threat checks, facility choice): the colony's rooms differ, so its history
+differs.
+
+`BenchmarkStepBigColonyOnHugeMap` showed −37%, but that is an artifact: it
+steps one world b.N times, so each side was measured at a different stage of
+its colony. Over a fixed 300 ticks both take 3.70 ms/tick.
+
+**Site search: +3%.** `BenchmarkFindRoomSiteNoFit` went from 19.4 to 20.0 µs,
+the stricter back-wall check in `roomSiteClear` (see
+[construction.md](./construction.md), *No double walls*). Running that check
+after the interior loop, with a cheap backed-only pre-check first, is what
+keeps it that small; checked first, it cost 36%.
+
+**A search that finds nothing: linear in rooms.** `inOtherRoom` first tested
+every recorded room for each floor tile in a strip, so when no room could grow
+the search was quadratic: 24 µs with 50 rooms, 273 µs with 200, 4.0 ms with
+800 storage rooms packed wall to wall, where every strip runs into a
+neighbor's aisle. Planning repeats a failed search every `planInterval` (16)
+ticks, so a big colony wanting storage it could not place would have paid
+about 250 µs a tick for it. `w.roomFloor` indexes each room's floor tiles (its
+inside and its doorway, which no two rooms share) instead, and the same
+search is 10, 43 and 175 µs (`BenchmarkExpandNoFit`, 800 rooms).
 
 ## Extending it
 

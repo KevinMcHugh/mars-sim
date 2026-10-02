@@ -24,12 +24,6 @@ type roomRecord struct {
 	issuer Owner
 }
 
-// contains reports whether p lies in the room, walls included.
-func (r *roomRecord) contains(p Point) bool {
-	lo, hi := r.f.box(-1, roomBackV, r.f.width, roomFrontV)
-	return p.X >= lo.X && p.X <= hi.X && p.Y >= lo.Y && p.Y <= hi.Y
-}
-
 // stripU is the frame column of an expansion's column j, counted outward from
 // the side wall it moves (j = 0) to the new side wall (j = 2k): to the right
 // of the room (past u = width) or to its left (past u = -1).
@@ -180,16 +174,28 @@ func (w *World) expansionClear(rec *roomRecord, k int, right bool, designated, w
 	return true
 }
 
-// inOtherRoom reports whether p lies in a room the colony has marked out
-// other than rec. A finished room's floor is ordinary discovered floor, so
-// without this an expansion could take in a neighbor's aisle.
+// inOtherRoom reports whether the floor tile p lies in a room the colony has
+// marked out other than rec. A finished room's floor is ordinary discovered
+// floor, so without this an expansion could take in a neighbor's aisle.
+//
+// It reads w.roomFloor rather than testing every room: the scan made a
+// search that found nothing quadratic in the number of rooms, 4 ms with 800
+// storage rooms packed wall to wall (BenchmarkExpandNoFit). The index holds
+// only floor tiles, a room's inside and its doorway, which no two rooms
+// share, so a lookup gives the same answer as the scan for any floor tile.
 func (w *World) inOtherRoom(p Point, rec *roomRecord) bool {
-	for _, o := range w.roomRecords {
-		if o != rec && o.contains(p) {
-			return true
+	o := w.roomFloor[p]
+	return o != nil && o != rec
+}
+
+// indexRoomFloor records the inside of rec's frame columns u0..u1 (rows 0 to
+// just before the front wall) in w.roomFloor.
+func (w *World) indexRoomFloor(rec *roomRecord, u0, u1 int) {
+	for u := u0; u <= u1; u++ {
+		for v := 0; v < roomFrontV; v++ {
+			w.roomFloor[rec.f.at(u, v)] = rec
 		}
 	}
-	return false
 }
 
 // designateExpansion marks out rec's growth by k fixtures on one side, paid
@@ -243,6 +249,13 @@ func (w *World) designateExpansion(rec *roomRecord, k int, right bool) bool {
 	w.projects = append(w.projects, p)
 	if r.name == scumhouseRoom.name {
 		w.linkPantry(p) // the new stove's pantry, as designateRoom links a new kitchen's
+	}
+	// The new inside, from where the old wall stood to the new wall, in the
+	// frame as it was before growing.
+	if right {
+		w.indexRoomFloor(rec, rec.f.width, rec.f.width+out-1)
+	} else {
+		w.indexRoomFloor(rec, -out, -1)
 	}
 	rec.f = rec.grown(k, right)
 	rec.n += k
