@@ -57,11 +57,13 @@ func defaultNeeds() [numNeeds]NeedSpec {
 			Facility: Rock, UseTicks: 0, Fatal: false,
 		},
 		NeedSleep: {
-			// Sleep builds slowly and, once sought, takes a long lie-down to
-			// clear. Non-fatal like bladder: a colonist with no bunk waits
-			// rather than dying.
-			Name: "sleep", Rise: 1, SeekAt: 700, CriticalAt: 900, Max: 1000,
-			Facility: Bed, UseTicks: 40, Fatal: false,
+			// Sleep builds slowly and, once sought, takes a night to clear:
+			// 720 ticks awake and 360 in bed make a 1080-tick day, so a night
+			// is eight clock hours and an hour is 45 ticks (see days.md).
+			// Non-fatal like bladder: a colonist with no bunk waits rather
+			// than dying.
+			Name: "sleep", Rise: 1, SeekAt: 720, CriticalAt: 900, Max: 1000,
+			Facility: Bed, UseTicks: 360, Fatal: false,
 		},
 	}
 }
@@ -112,6 +114,48 @@ type NeedSpec struct {
 	// occupying it for the whole UseTicks. Zero means the need can only be
 	// satisfied in place (bladder, sleep — there is nothing to take away).
 	GrabTicks int `cfg:"grab-ticks" doc:"ticks at the facility before carrying the rest away (0 = must be used in place)"`
+}
+
+// TicksPerDay is how many ticks make one colony day, derived from the sleep
+// need rather than tuned on its own: one waking stretch (an unslept colonist's
+// sleep need rising from 0 to SeekAt at the base Rise) plus one night (the
+// bed's UseTicks). That is the rhythm a well-housed colonist actually lives
+// on, so "day 3" means "the colony has slept about twice". Deriving it keeps
+// the calendar honest when sleep is retuned; a separate knob would drift.
+// The walk to a bed and trait-scaled rise rates are deliberately ignored: a
+// day has to be one fixed length for the whole colony. Always at least 1.
+func (c *Config) TicksPerDay() int {
+	spec := c.Needs[NeedSleep]
+	awake := spec.Max // a sleep need that never rises: fall back to the ceiling
+	if spec.Rise > 0 {
+		awake = (spec.SeekAt + spec.Rise - 1) / spec.Rise
+	}
+	return max(awake+spec.UseTicks, 1)
+}
+
+// LandingHour is the clock time the colony lands at, tick 0. Colonists land
+// with no sleep need, so landing is the start of their waking stretch: the
+// morning. The day number turns over at midnight, not at landing, so a clock
+// reading of 23:59 and the next 00:00 are on consecutive days.
+const LandingHour = 6
+
+// landingOffset is how far into its day, in ticks, the landing falls.
+func landingOffset(ticksPerDay int) int {
+	return ticksPerDay * LandingHour / 24
+}
+
+// DayOf is the colony day tick falls on. The landing (tick 0) is day 1.
+func DayOf(tick, ticksPerDay int) int {
+	ticksPerDay = max(ticksPerDay, 1)
+	return (tick+landingOffset(ticksPerDay))/ticksPerDay + 1
+}
+
+// MinuteOfDay is the clock time tick falls on, in minutes since midnight
+// (0..1439): the day's TicksPerDay ticks stretched over 24 hours, with the
+// landing at LandingHour.
+func MinuteOfDay(tick, ticksPerDay int) int {
+	ticksPerDay = max(ticksPerDay, 1)
+	return (tick + landingOffset(ticksPerDay)) % ticksPerDay * (24 * 60) / ticksPerDay
 }
 
 // needLevel returns an entity's current level for one need, computed lazily

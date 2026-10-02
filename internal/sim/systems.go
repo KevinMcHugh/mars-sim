@@ -113,6 +113,11 @@ func (w *World) entityIDsNearSorted(center Point, radius int) []EntityID {
 // ---- Colonists ---------------------------------------------------------------
 
 func (w *World) colonistTurn(e *Entity) {
+	// Out of bed since last turn (finished, woken, or pulled away): its other
+	// needs start rising again.
+	if e.asleep && e.State != Sleeping {
+		w.wakeUp(e)
+	}
 	w.applyStarvation(e)
 	if !e.Alive() { // starved this tick
 		w.clearJob(e) // release any board claim before removal
@@ -239,11 +244,7 @@ func (w *World) tryCognitionFastPath(e *Entity) bool {
 	// In-place sleep has no path, target search, or claim machinery to run. Its
 	// only changing score strengthens the incumbent; nextCognitionTick caps this
 	// path at every competing need boundary and the fallback deadline.
-	e.State = Sleeping
-	e.Progress++
-	if e.Progress >= w.cfg.Needs[NeedSleep].UseTicks {
-		w.finishUse(e, w.cfg.Needs[NeedSleep])
-	}
+	w.sleepTick(e)
 	return true
 }
 
@@ -1405,6 +1406,10 @@ func (w *World) jobUse(e *Entity) {
 		fac := e.useFacility
 		if w.TerrainAt(fac) != spec.Facility {
 			w.clearJob(e)
+			return
+		}
+		if e.Need == NeedSleep {
+			w.sleepTick(e) // a night is banked across interruptions, not kept in Progress
 			return
 		}
 		e.State = useState(e.Need)

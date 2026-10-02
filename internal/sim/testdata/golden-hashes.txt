@@ -2,8 +2,8 @@
 # Regenerate with: go test ./internal/sim -run TestGoldenWorldHash -update
 # See docs/determinism.md.
 lazy-1000x1010 gen tiles=f910bb84b868e882 entities=3ad4fd7863b567ca rng=e5bc74e629cc92ed chunks=562663220ec91645/16 scum=694edd31ec9d434c/3893 salt=04dbe99fdb4ddc47/1954 n=67 gore=0 corpses=0
-lazy-1000x1010 run tiles=f561dd078273ee07 entities=753c3409b1c15217 rng=b0e7cd9feea4b0bb chunks=693d999c36049d09/20 scum=f8da5ac8316b6a65/4931 salt=38b59b04f33019c6/2446 n=59 gore=0 corpses=0
+lazy-1000x1010 run tiles=045e2ae8ea7a921c entities=bc90e18e81cc5c74 rng=572cd96f63d87d9f chunks=693d999c36049d09/20 scum=31c011549d51268c/4965 salt=b61c93a1ac1a38af/2441 n=59 gore=0 corpses=0
 default-80x40 gen tiles=a50af9b3a232c583 entities=97aea6dbdcf71586 rng=fee2103ce8a0059c chunks=4d22107f9dcb30cc/2 scum=af3afd423d126e36/182 salt=4a28046f7f756038/95 n=19 gore=0 corpses=0
-default-80x40 run tiles=e86b2d2b9372d738 entities=d5263587dc85d0b5 rng=d9930679da0a8fec chunks=4d22107f9dcb30cc/2 scum=f790c203977c7713/193 salt=4a28046f7f756038/95 n=11 gore=0 corpses=3
+default-80x40 run tiles=a3f0bf39e5bca3df entities=2515cd1a921faca3 rng=c54b0192dce2ab7f chunks=4d22107f9dcb30cc/2 scum=e6c102b5cef67211/193 salt=4a28046f7f756038/95 n=11 gore=0 corpses=3
 caves-300x150 gen tiles=64d9545882f643ae entities=a2c147d8527d6d27 rng=a05def3921fb4b74 chunks=0e4ca4c26f1b3a34/15 scum=5f99ec3111b3590b/2661 salt=bb21b3e4454b76e2/1341 n=71 gore=0 corpses=0
-caves-300x150 run tiles=fcbace039ef3af93 entities=cefb910007cdc5e7 rng=073f7d7f96195f1b chunks=0e4ca4c26f1b3a34/15 scum=79edc204a662d25b/2709 salt=3b9b36069e648f28/1336 n=63 gore=0 corpses=0
+caves-300x150 run tiles=e2f5bcf3e7bd05ad entities=3a24ce7481450a9d rng=001563c2e6b9c36b chunks=0e4ca4c26f1b3a34/15 scum=bbd792df6c525a69/2724 salt=3b9b36069e648f28/1336 n=63 gore=0 corpses=0

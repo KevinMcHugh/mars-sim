@@ -809,3 +809,16 @@ func TestMarketTabShowsPricesAcrossDepotsAndPlans(t *testing.T) {
 		}
 	}
 }
+
+// The header's title line shows the colony day and a zero-padded clock.
+func TestHeaderShowsDayAndTimeOfDay(t *testing.T) {
+	snap := makeSnapshot()
+	snap.Stats.Day, snap.Stats.MinuteOfDay = 3, 7*60+5
+	var model tea.Model = New(nil, nil)
+	model, _ = model.Update(tea.WindowSizeMsg{Width: 120, Height: 24})
+	model, _ = model.Update(snapshotMsg{snap: snap})
+	first := strings.SplitN(model.View(), "\n", 2)[0]
+	if !strings.Contains(first, "day 3  07:05") {
+		t.Errorf("header title line = %q, want the day and clock", first)
+	}
+}

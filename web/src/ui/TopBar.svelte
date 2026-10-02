@@ -1,5 +1,5 @@
 <script lang="ts">
-  // The top bar: the clock, the speed selector, and the TUI header's counts
+  // The top bar: the clock (the colony day and time, then the raw tick), the speed selector, and the TUI header's counts
   // (creatures, fixtures, refuse, rooms, excavated). Refreshes at UI_HZ.
   import { ui } from '../game.svelte';
   import SpeedControl from './SpeedControl.svelte';
@@ -29,12 +29,18 @@
     const g = h.glyphs.terrain[h.enums.terrains.indexOf(name)] ?? -1;
     return g >= 0 ? h.glyphs.symbols[g] : '';
   }
+  // The clock time, from Stats.MinuteOfDay (minutes since midnight).
+  function clock(minute: number): string {
+    const pad = (n: number) => String(n).padStart(2, '0');
+    return `${pad(Math.floor(minute / 60))}:${pad(minute % 60)}`;
+  }
   const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
 </script>
 
 <header class="hud top">
   <strong class="title">mars-sim</strong>
-  <span class="readout">tick {ui.tick.toLocaleString()}</span>
+  <span class="readout" title="days since landing, and the time of day: one day is one waking stretch plus a night's sleep, and the colony landed at 06:00 (docs/days.md)">day {(ui.stats.Day ?? 1).toLocaleString()} {clock(ui.stats.MinuteOfDay ?? 0)}</span>
+  <span class="readout tick">tick {ui.tick.toLocaleString()}</span>
   <SpeedControl />
   <FlowControl />
   {#if ui.hello}
@@ -66,7 +72,8 @@
     max-width: calc(100vw - var(--panel-reserve) - 30px);
   }
   .title { letter-spacing: 0.02em; }
-  .readout { font-variant-numeric: tabular-nums; color: var(--muted); min-width: 10ch; }
+  .readout { font-variant-numeric: tabular-nums; }
+  .readout.tick { color: var(--muted); min-width: 10ch; }
   .counts { display: flex; gap: 12px; flex-wrap: wrap; font-variant-numeric: tabular-nums; }
 
   /* A phone: the panel's tabs move to the bottom sheet, so the bar can span the top. */

@@ -158,7 +158,7 @@ func TestOwnerReachesItsOnlyPrivateBed(t *testing.T) {
 	owner.Needs[NeedSleep] = w.cfg.Needs[NeedSleep].SeekAt + 50
 	w.syncNeedPhase(owner, NeedSleep)
 
-	for i := 0; i < 300; i++ {
+	for i := 0; i < 300+w.cfg.Needs[NeedSleep].UseTicks; i++ {
 		w.step()
 		if w.needLevel(owner, NeedSleep) == 0 {
 			return

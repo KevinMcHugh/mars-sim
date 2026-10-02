@@ -382,6 +382,11 @@ type Stats struct {
 	// built without generation.
 	ChunksGenerated int
 	Chunks          int
+	// Day is the colony day since landing (day 1 is the landing day), at
+	// Config.TicksPerDay ticks a day, and MinuteOfDay is the clock time in
+	// minutes since midnight (0..1439). See docs/days.md.
+	Day         int
+	MinuteOfDay int
 }
 
 // Snapshot is an immutable, self-contained picture of the world at one tick.
@@ -581,6 +586,8 @@ func (w *World) snapshot(paused bool, tps int) *Snapshot {
 		Refuse:            w.refuseTotal(),
 		ChunksGenerated:   len(w.genChunks),
 	}
+	tpd := w.cfg.TicksPerDay()
+	stats.Day, stats.MinuteOfDay = DayOf(w.tick, tpd), MinuteOfDay(w.tick, tpd)
 	if w.gen != nil {
 		stats.Chunks = w.gen.chunkCols() * w.gen.chunkRows()
 	}

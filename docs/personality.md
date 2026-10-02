@@ -97,6 +97,7 @@ per group, each taken with `TraitChance` probability:
 | mutation | Mutant | *acquired in play only* — the marker for a colonist uranium has changed |
 | nerve | Resilient / Cowardly | wear rate 40 / 180; Cowardly also 1.5× threat impact |
 | outlook | Optimist / Pessimist | affect home `{grip: 8, valence: 25}` / `{grip: -8, valence: -25}` |
+| sleep | Short Sleeper / Long Sleeper | a night in bed one clock hour shorter / longer (`sleepHours`; see [days.md](./days.md)) |
 
 `temperament` is a group of one today — unlike the others, Tidy isn't paired
 with a mutually-exclusive opposite yet (a "Slob", numbed to gore, would be
@@ -104,7 +105,7 @@ the natural one to add). It still needed its own group rather than joining
 an existing one: it isn't mutually exclusive with anything already there — a
 colonist can be both an Extrovert and Tidy. `mutant attitude` is the same
 shape, waiting on its own opposite (a purist who recoils from mutants).
-`nerve` and `outlook` were appended after the existing groups so every
+`nerve`, `outlook` and `sleep` were appended after the existing groups so every
 pre-existing group roll keeps its order; the extra draws intentionally
 change later personality outcomes for a given seed.
 
@@ -129,11 +130,13 @@ seeks social contact more often.
 
 The critical design point: **traits are resolved into per-colonist effective
 parameters at spawn**, not scanned on the hot path. `resolveTraitEffects` folds a
-colonist's traits into three fields on the `Entity`:
+colonist's traits into per-colonist fields on the `Entity`:
 
 - `needRise[i]` — per-need rise per tick (used directly by `needLevel`),
 - `restTicks` — idle rest duration,
 - `workScale` — a mine/build time multiplier (via `scaleTicks`).
+- `sleepTicks` — how long a night in bed lasts, moved by a clock hour per
+  sleep trait.
 - social need rise and conversation-fatigue capacity/penalty, used by the
   social-need and completed-conversation paths.
 - `affectHome` — the charge/grip/valence point decay walks toward, summed

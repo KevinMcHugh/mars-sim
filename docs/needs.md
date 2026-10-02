@@ -28,8 +28,12 @@ indexed by the kind:
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | food | 2 | 650 | 1000 | 1000 | meals, then NutrientPod | 18 | 3 | **yes** |
 | bladder | 3 | 600 | 900 | 1000 | Toilet | 10 | 0 | no |
-| sleep | 1 | 700 | 900 | 1000 | Bed | 40 | 0 | no |
+| sleep | 1 | 720 | 900 | 1000 | Bed | 360 | 0 | no |
 | social | 2 | 500 | 850 | 1000 | conversation | — | — | no |
+
+The sleep need also sets the length of a colony day, and a night in bed is
+eight clock hours of it: while a colonist sleeps its other needs are paused,
+and an interrupted night is banked rather than lost. See [days.md](./days.md).
 
 Food is the one need met by an item as well as a facility: a hungry colonist
 eats a real `Meal` it owns (or the colony owns) before it walks to a nutrient

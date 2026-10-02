@@ -432,7 +432,7 @@
 #     rise: 1
 
 ##     level at which the colonist drops work to satisfy it
-#     seek-at: 700
+#     seek-at: 720
 
 ##     level at which the need becomes critical
 #     critical-at: 900
@@ -441,7 +441,7 @@
 #     max: 1000
 
 ##     ticks spent using the facility
-#     use-ticks: 40
+#     use-ticks: 360
 
 ##     whether sitting at the ceiling damages the colonist
 #     fatal: false

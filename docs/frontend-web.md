@@ -9,7 +9,7 @@ on the page that draws its frames. Right now that is a map in flat colors when
 zoomed out and in the TUI's emoji when zoomed in, with pan, zoom and a hover
 readout. Around it is a Svelte chrome:
 
-- **A top bar:** the clock, a Pause / Normal / Fast / Faster / Max speed selector, and
+- **A top bar:** the clock (colony day and time of day, see [days.md](./days.md), then tick), a Pause / Normal / Fast / Faster / Max speed selector, and
   the TUI header's counts, as emoji (👷 👽 🐈 🐀, then each fixture's glyph).
 - **A side panel,** with the Inspect tab (click the map), the Roster, the
   Log, Jobs, Storage, Market, Dig, Charts, the Lore tab and a new-game form.
