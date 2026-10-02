@@ -413,13 +413,13 @@ type Config struct {
 	// Conversation topics. Whoever raises the topic picks what kind of thing
 	// to talk about by these weights, among the kinds it has something to
 	// say about: one of its own memories, another colonist it has feelings
-	// about, or a piece of lore (today, an alien species). Talking about a
+	// about, or a piece of lore (an alien species or a corporation). Talking about a
 	// colonist is gossip: the listener's affinity toward the subject moves
 	// TalkGossipPercent of the way toward the speaker's, when the chat went
 	// well. See topics.go and docs/conversation-topics.md.
 	TalkTopicMemoryWeight   int `cfg:"talk-topic-memory-weight" doc:"relative weight of talking about one of the speaker's memories (0 never)"`
 	TalkTopicColonistWeight int `cfg:"talk-topic-colonist-weight" doc:"relative weight of talking about another colonist (0 never)"`
-	TalkTopicLoreWeight     int `cfg:"talk-topic-lore-weight" doc:"relative weight of talking about lore, such as an alien species (0 never)"`
+	TalkTopicLoreWeight     int `cfg:"talk-topic-lore-weight" doc:"relative weight of talking about lore, such as an alien species or a corporation (0 never)"`
 	TalkGossipPercent       int `cfg:"talk-gossip-percent" doc:"percent of the gap a good chat about a colonist closes between the listener's affinity toward them and the speaker's"`
 
 	// The meeting hall: a room of chairs the colony commissions, where
@@ -512,6 +512,9 @@ type Config struct {
 	// kind gets a make and model from one of them. Flavor only. See
 	// arms_makers.go and docs/arms-makers.md.
 	CorporationCount int `cfg:"corporation-count" doc:"companies this seed's lore rolls; each gun kind is made by one of them"`
+	// CorporationEmployeePercent is the chance an arriving colonist used to
+	// work for one of them: backstory flavor only.
+	CorporationEmployeePercent int `cfg:"corporation-employee-percent" doc:"percent of arriving colonists who used to work for one of the lore's corporations (flavor only)"`
 
 	// Cat stats. Cats have no needs; they hunt rats on the floor by instinct.
 	CatHP         int `cfg:"cat-hp" sec:"Cats" doc:"cat hit points"`
@@ -806,7 +809,8 @@ func DefaultConfig() Config {
 		RifleRange:      5,
 		RifleFireRest:   1,
 
-		CorporationCount: 4,
+		CorporationCount:           4,
+		CorporationEmployeePercent: 60,
 
 		CatHP:         12,
 		CatSlowness:   2,

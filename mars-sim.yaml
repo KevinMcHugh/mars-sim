@@ -713,7 +713,7 @@
 ## relative weight of talking about another colonist (0 never)
 # talk-topic-colonist-weight: 3
 
-## relative weight of talking about lore, such as an alien species (0 never)
+## relative weight of talking about lore, such as an alien species or a corporation (0 never)
 # talk-topic-lore-weight: 2
 
 ## percent of the gap a good chat about a colonist closes between the listener's affinity toward them and the speaker's
@@ -831,6 +831,9 @@
 
 ## companies this seed's lore rolls; each gun kind is made by one of them
 # corporation-count: 4
+
+## percent of arriving colonists who used to work for one of the lore's corporations (flavor only)
+# corporation-employee-percent: 60
 
 # ── Cats ────────────────────────────────────────────────────────────────
 ## cat hit points

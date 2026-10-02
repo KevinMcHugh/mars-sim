@@ -262,6 +262,7 @@ func (w *World) land(n int, announce bool) *Ship {
 		e.ship = s.ID
 		s.Colonists = append(s.Colonists, e.ID)
 		w.rollBackground(e)
+		w.rollEmployer(e)
 	}
 	w.furnishShip(s)
 	// The one rare item each passenger brought: a gun, a chicken, or a cat.

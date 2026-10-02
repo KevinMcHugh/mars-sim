@@ -600,8 +600,9 @@ word-wrapped to the panel width.
   `speciesLore` and listed by `World.loreItems`. History and whatever comes
   next should implement it and append there.
 - **Organizations, corporations, other colonies.** Corporations have
-  started: [arms-makers.md](./arms-makers.md) rolls a roster of companies
-  and gives every gun a make and model, following this pattern. The pattern here — roll
+  started: [arms-makers.md](./arms-makers.md) rolls a roster of companies,
+  gives every gun a make and model, makes them conversation lore, and gives
+  colonists former employers, following this pattern. The pattern here — roll
   something once per seed (or per count), off its own RNG stream, store it
   on `World`, expose a copy through `Snapshot` — is meant to be the template
   the next piece of lore follows, not a one-off special case for aliens.

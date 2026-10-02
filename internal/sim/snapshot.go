@@ -66,6 +66,9 @@ type EntityView struct {
 	Skills          []SkillView
 	Profession      SkillKind
 	ProfessionLabel string
+	// Backstory is a colonist's one-line past, "Worked as a drill operator
+	// for MarsCorp." ("" for none). Flavor only; see docs/arms-makers.md.
+	Backstory string
 
 	// Dead, DiedTick, and Cause are set only on a Snapshot.Graveyard or
 	// Snapshot.Deceased entry: it died at DiedTick (from Cause, a short
@@ -758,6 +761,7 @@ func (w *World) entityView(e *Entity, kinChildren map[kinID][]kinID, full bool) 
 		ev.Memories = append([]Memory(nil), e.Memories...)
 		ev.Skills = e.skillViews()
 		ev.Profession, ev.ProfessionLabel = e.profession, e.professionLabel()
+		ev.Backstory = w.backstory(e)
 		if full {
 			ev.Relations = append([]Relation(nil), w.cachedRelations(e, kinChildren)...)
 			ev.Affinities = w.affinitiesOf(e.ID)

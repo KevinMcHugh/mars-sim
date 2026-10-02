@@ -92,6 +92,7 @@ func TestRosterShowsColonistDetail(t *testing.T) {
 		Traits: []sim.Trait{sim.TraitBigEater},
 	}
 	snap.Entities[0].Inventory[0] = sim.ItemStack{Kind: sim.RawRock, Count: 12}
+	snap.Entities[0].Backstory = "Worked as a janitor for MarsCorp."
 	snap.NeedsMeta[0] = sim.NeedMeta{Name: "food", Max: 1000, Fatal: true}
 
 	var m tea.Model = New(nil, nil)
@@ -100,6 +101,9 @@ func TestRosterShowsColonistDetail(t *testing.T) {
 	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyTab})
 
 	out := m.View()
+	if !strings.Contains(out, "Worked as a janitor for MarsCorp.") {
+		t.Error("roster should show the colonist's backstory")
+	}
 	if !strings.Contains(out, "Zoe Vargas") {
 		t.Error("roster should show the colonist's name")
 	}

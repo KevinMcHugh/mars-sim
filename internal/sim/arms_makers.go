@@ -226,3 +226,67 @@ func (w *World) weaponPhrase(kind ItemKind) string {
 	}
 	return "a " + noun
 }
+
+// ---- Backstory: who a colonist worked for -----------------------------------
+//
+// An arriving colonist has a chance (Config.CorporationEmployeePercent) of a
+// former employer from the world's corporations, and a job there that suits
+// the skill it arrived known for. Flavor only: it is shown in the inspector and
+// colors a conversation about that corporation, and nothing reads it to decide
+// anything. It is a pure function of the seed and the colonist's ID (the way
+// arrivalRareItem is), so it spends no draw on any stream and needs no saved
+// state. Colonists born in the colony never had a job back home.
+
+// employerSalt separates rollEmployer's hash from every other seed-and-ID hash.
+const employerSalt = 0x7C1E5A3D94B8F261
+
+// employerRoles is the job a colonist held, by the skill it arrived known for
+// (SkillNone: no particular skill).
+var employerRoles = [numSkills][]string{
+	SkillNone: {
+		"an accounts clerk", "a security guard", "a shipping clerk", "a junior sales rep",
+		"a janitor", "a middle manager", "an intern", "a compliance officer",
+	},
+	SkillMining:       {"a drill operator", "a survey geologist", "a blasting tech"},
+	SkillForaging:     {"a hydroponics tech", "a field botanist", "a sample collector"},
+	SkillCooking:      {"a galley cook", "a canteen manager", "a food-safety inspector"},
+	SkillConstruction: {"a habitat rigger", "a site foreman", "a pressure-seal welder"},
+	SkillSmithing:     {"a line machinist", "a test-range armorer", "a metallurgist"},
+}
+
+// rollEmployer gives an arriving colonist its former employer, or none. Call
+// after rollBackground, so the job can match its profession.
+func (w *World) rollEmployer(e *Entity) {
+	pct := w.cfg.CorporationEmployeePercent
+	if e.Kind != Colonist || pct <= 0 || len(w.corporations) == 0 {
+		return
+	}
+	s := uint64(w.cfg.Seed) ^ uint64(e.ID)*0x9E3779B97F4A7C15 ^ employerSalt
+	if splitmix64(&s)%100 >= uint64(pct) {
+		return
+	}
+	e.employer = 1 + int(splitmix64(&s)%uint64(len(w.corporations)))
+	roles := employerRoles[SkillNone]
+	if e.profession > SkillNone && e.profession < numSkills && len(employerRoles[e.profession]) > 0 {
+		roles = employerRoles[e.profession]
+	}
+	e.employerRole = roles[splitmix64(&s)%uint64(len(roles))]
+}
+
+// employerOf is the corporation e used to work for, if any.
+func (w *World) employerOf(e *Entity) (Corporation, bool) {
+	if e == nil || e.employer < 1 || e.employer > len(w.corporations) {
+		return Corporation{}, false
+	}
+	return w.corporations[e.employer-1], true
+}
+
+// backstory is e's one-line past, "Worked as a drill operator for MarsCorp.",
+// or "" for a colonist with none.
+func (w *World) backstory(e *Entity) string {
+	c, ok := w.employerOf(e)
+	if !ok {
+		return ""
+	}
+	return fmt.Sprintf("Worked as %s for %s.", e.employerRole, c.Name)
+}

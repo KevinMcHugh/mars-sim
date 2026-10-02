@@ -109,3 +109,58 @@ func TestArmsLoreSample(t *testing.T) {
 		}
 	}
 }
+
+// Arriving colonists get a former employer at about the configured rate, with
+// a job, and the same seed gives the same backstories; none at 0%.
+func TestRollEmployer(t *testing.T) {
+	cfg := DefaultConfig()
+	w := newWorld(cfg, newPCG(1))
+	with := 0
+	for id := EntityID(1); id <= 1000; id++ {
+		e := &Entity{ID: id, Kind: Colonist}
+		w.rollEmployer(e)
+		again := &Entity{ID: id, Kind: Colonist}
+		w.rollEmployer(again)
+		if e.employer != again.employer || e.employerRole != again.employerRole {
+			t.Fatalf("colonist %d rolled two backstories", id)
+		}
+		if e.employer == 0 {
+			if w.backstory(e) != "" {
+				t.Fatalf("colonist %d has no employer but a backstory %q", id, w.backstory(e))
+			}
+			continue
+		}
+		with++
+		if e.employer > len(w.corporations) || e.employerRole == "" {
+			t.Fatalf("colonist %d: bad employer %d %q", id, e.employer, e.employerRole)
+		}
+		if bs := w.backstory(e); !strings.Contains(bs, w.corporations[e.employer-1].Name) {
+			t.Fatalf("backstory %q does not name the employer", bs)
+		}
+	}
+	if pct := with / 10; pct < cfg.CorporationEmployeePercent-6 || pct > cfg.CorporationEmployeePercent+6 {
+		t.Fatalf("%d%% have an employer, want about %d%%", pct, cfg.CorporationEmployeePercent)
+	}
+
+	w.cfg.CorporationEmployeePercent = 0
+	e := &Entity{ID: 7, Kind: Colonist}
+	w.rollEmployer(e)
+	if e.employer != 0 {
+		t.Fatal("0% still rolled an employer")
+	}
+}
+
+// A smith's old job is a smithing job.
+func TestEmployerRoleSuitsProfession(t *testing.T) {
+	w := newWorld(DefaultConfig(), newPCG(1))
+	w.cfg.CorporationEmployeePercent = 100
+	e := &Entity{ID: 3, Kind: Colonist, profession: SkillSmithing}
+	w.rollEmployer(e)
+	found := false
+	for _, r := range employerRoles[SkillSmithing] {
+		found = found || r == e.employerRole
+	}
+	if !found {
+		t.Fatalf("smith's old job %q is not a smithing job", e.employerRole)
+	}
+}
