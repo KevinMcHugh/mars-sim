@@ -26,6 +26,7 @@ const (
 	WorkBuild WorkKind = iota // raise one build task's tile
 	WorkHaul                  // move a unit of the issuer's goods from one depot to another
 	WorkDig                   // dig out one rock tile of an excavation order (see excavation.go)
+	WorkClear                 // clear one structure tile of a clearing order (see zones.go)
 )
 
 func (k WorkKind) String() string {
@@ -34,6 +35,8 @@ func (k WorkKind) String() string {
 		return "build"
 	case WorkDig:
 		return "dig"
+	case WorkClear:
+		return "clear"
 	}
 	return "haul"
 }
@@ -134,11 +137,20 @@ func (w *World) wageFor(t Terrain) Money {
 	}
 }
 
+// taskWage is what one task pays: clearing a structure tile at wage-clear,
+// anything else at wageFor its terrain.
+func (w *World) taskWage(t *buildTask) Money {
+	if t.demolish {
+		return Money(w.cfg.WageClear)
+	}
+	return w.wageFor(t.terrain)
+}
+
 // projectCost is what funding every task of p would cost.
 func (w *World) projectCost(p *project) Money {
 	var total Money
 	for _, t := range p.tasks {
-		total += w.wageFor(t.terrain)
+		total += w.taskWage(t)
 	}
 	return total
 }
@@ -157,7 +169,7 @@ func (w *World) fundProject(p *project) bool {
 		return false
 	}
 	for _, t := range p.tasks {
-		t.order = w.postWork(p.workKind, p.issuer, w.wageFor(t.terrain), 1, t.pos)
+		t.order = w.postWork(p.workKind, p.issuer, w.taskWage(t), 1, t.pos)
 	}
 	return true
 }
@@ -170,6 +182,7 @@ func (w *World) cancelWorkOf(issuer Owner) {
 		w.closeWork(o)
 	}
 	kept := w.projects[:0]
+	var dropped []*structure
 	for _, p := range w.projects {
 		if p.issuer == issuer && issuer != Community {
 			for _, t := range p.tasks {
@@ -179,11 +192,19 @@ func (w *World) cancelWorkOf(issuer Owner) {
 					}
 				}
 			}
+			if p.structure != nil {
+				dropped = append(dropped, p.structure)
+			}
 			continue
 		}
 		kept = append(kept, p)
 	}
 	w.projects = kept
+	// A house nobody started is no structure at all.
+	for _, s := range dropped {
+		w.maybeRetire(s)
+	}
+	w.structureRev++
 }
 
 // ---- Commissions ------------------------------------------------------------------
@@ -193,7 +214,7 @@ func (w *World) cancelWorkOf(issuer Owner) {
 // which is how renting out a spare toilet becomes a business.
 var houseRoom = roomRecipe{
 	name: "house", kinds: []Terrain{Bed, Toilet}, minFac: 2, maxFac: 2,
-	planLog: "A colonist commissions a house.",
+	planLog: "A colonist commissions a house.", structure: StructHouse,
 }
 
 // fixtureAccess is how a commissioned room's fixtures are opened to others:

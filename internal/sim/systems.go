@@ -358,7 +358,7 @@ func (w *World) runNeedFocus(e *Entity, need NeedKind) {
 	case hasTask:
 		w.assignTask(e, task)
 	case !w.reachableFacilityConstruction(e.Pos, spec.Facility):
-		if spot, ok := w.findBuildSpot(e.Pos, 20); ok && w.canAffordBuild(e, spec.Facility, Owner{}) {
+		if spot, ok := w.findBuildSpot(e.Pos, 20, spec.Facility); ok && w.canAffordBuild(e, spec.Facility, Owner{}) {
 			w.assignBuild(e, spec.Facility, spot)
 		}
 	default:
@@ -1286,6 +1286,10 @@ func (w *World) jobDemolish(e *Entity) {
 }
 
 func (w *World) jobBuild(e *Entity) {
+	if e.task != nil && e.task.demolish {
+		w.jobClear(e) // a clearing order's tile (see structures.go)
+		return
+	}
 	// A dig task (BuildKind Floor) works rock down to floor; every other kind
 	// builds atop existing floor. Anything else at the target — already
 	// finished, or changed to something unexpected — ends the job.
@@ -1373,6 +1377,8 @@ func (w *World) jobBuild(e *Entity) {
 			}
 		}
 		w.payWork(t.order, e)
+	} else {
+		w.registerLone(e.Target, e.BuildKind) // an emergency build: a structure of its own
 	}
 	w.noteBuild(e.BuildKind)
 	o := w.occurrence(e, ActionConstruct, nil, e.Target, "Finished construction of %s at (%d, %d).",
@@ -1710,13 +1716,15 @@ func (w *World) makeWayAt(e *Entity, target Point) bool {
 
 // findBuildSpot returns the nearest open Floor tile that sits against Rock or
 // Wall — an edge where new structure extends the colony rather than plugging a
-// walkway at random. The colonist's own tile is excluded.
-func (w *World) findBuildSpot(from Point, radius int) (Point, bool) {
+// walkway at random — on ground zoned for a lone fixture of kind (see
+// zoneAllows). The colonist's own tile is excluded.
+func (w *World) findBuildSpot(from Point, radius int, kind Terrain) (Point, bool) {
 	var best Point
 	found := false
+	zone := looseStructure(kind).Zone()
 	w.forEachInRadius(from, radius, func(p Point) bool {
 		if p.Equal(from) || w.TerrainAt(p) != Floor || w.occupied(p) ||
-			w.onPendingBuild(p) || !w.bordersSolid(p) {
+			w.onPendingBuild(p) || !w.bordersSolid(p) || (zone != NoZone && !w.zoneAllows(p, zone)) {
 			return false
 		}
 		best, found = p, true

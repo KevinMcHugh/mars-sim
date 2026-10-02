@@ -237,6 +237,16 @@ assumed every fixture was communal had to learn otherwise (see
   colony builds no dormitories and few toilets until the population outgrows
   its pods.
 
+### The ground round pods is residence
+
+Each pod is a structure (`registerPod`, see [zoning.md](./zoning.md)) and holds
+its footprint and margin as residence for as long as it stands: painting skips
+those tiles, and a pod never lands on ground zoned for anything else
+(`podZoneOK`). Pods can be cleared with the Zones tab's clear tool. The locker's
+goods move to the nearest chest that will take them (or are lost, logged, when
+none will), and once the last tile is down the pod's hold, reserved approach,
+and the colonist's `hasPod` go with it.
+
 ## Why it is this way
 
 - **A stamped prefab, not unpacked fixtures.** Carrying a bunk as an item and

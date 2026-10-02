@@ -33,6 +33,9 @@ func testConfig() Config {
 	// (economy phase E8). Scarcity tests start from DefaultConfig or turn
 	// them back off themselves.
 	c.InfiniteFood, c.ConstructionCosts = true, false
+	// They also count on the colony siting its own rooms: nothing in them
+	// draws a zone. Zoning tests turn it off (see zones_test.go).
+	c.ZoningAuto = true
 	return c
 }
 
@@ -218,6 +221,7 @@ func TestDeterministicRunUnderScarcity(t *testing.T) {
 		cfg.Seed, cfg.TraitChance = 7, 0
 		cfg.Width, cfg.Height = 250, 150
 		cfg.StartColonists = 40
+		cfg.ZoningAuto = true
 		return newTestWorld(t, cfg)
 	}
 	a, b := mk(), mk()
@@ -474,7 +478,7 @@ func TestUrgentColonistFinishesEmergencyBuild(t *testing.T) {
 	center := Point{w.Width / 2, w.Height / 2}
 	c := w.spawn(Colonist, center)
 	c.Needs[NeedFood] = cfg.Needs[NeedFood].SeekAt
-	target, ok := w.findBuildSpot(c.Pos, 20)
+	target, ok := w.findBuildSpot(c.Pos, 20, NutrientPod)
 	if !ok {
 		t.Fatal("no emergency build spot")
 	}
@@ -1019,6 +1023,7 @@ func TestLargeColonyDoesNotGridlockAtFacilities(t *testing.T) {
 	// this test for a reason that has nothing to do with facilities.
 	cfg.StartColonists, cfg.StartAliens, cfg.CavernNestPercent = 20, 0, 0
 	cfg.Width, cfg.Height = 200, 200
+	cfg.ZoningAuto = true
 	w := NewEngine(cfg).world
 
 	for i := 0; i < 10000; i++ {

@@ -207,8 +207,9 @@ exit tile, sealing it shut behind a wall its own doorway was supposed to make
 impossible.
 
 `w.doorTiles` closes this: `designateRoom` reserves each room's door-exterior
-tile the moment the room is designated, permanently (rooms are never
-demolished or un-designated, so entries are only ever added), and
+tile the moment the room is designated, and keeps it for as long as the room
+stands: only clearing the room away entirely releases it (see
+[zoning.md](./zoning.md)), and
 `roomSiteClear` rejects any candidate site whose own interior or side-wall
 footprint would cover one. See `TestRoomSiteClearRejectsCoveringAnotherRoomsDoorway`.
 
@@ -309,6 +310,17 @@ does not suppress a stranded colonist's self-rescue, and a colonist that can
 already help build one elsewhere in its room joins that instead of starting a
 redundant one of its own.
 
+### Zoning decides the ground
+
+Where a room may go is also zoning's call. Every recipe names a `structure`
+type, each type belongs to a zone kind, and `planRoomFor` first looks for a site
+whose whole footprint is zoned for it (where the back wall may stand against
+open floor too), then, only with `zoning-auto` on, for one on unzoned ground,
+which it then zones. With manual zoning, the game's default, a room no zone has a
+site for waits. The planning order above is unchanged. The concurrency cap
+counts rooms only (`roomProjects`): a player's excavation or clearing order no
+longer takes a room's slot. See [zoning.md](./zoning.md).
+
 ## Why it is this way
 
 The room design is the product of watching colonies starve around earlier ones:
@@ -376,7 +388,8 @@ level itself.
 
 ## Extending it
 
-- **A new room recipe** is a `roomRecipe` plus a demand check in `planRooms`.
+- **A new room recipe** is a `roomRecipe` (naming its `structure` type, which
+  says what zone it is built in) plus a demand check in `planRooms`.
   Reuse the wall shell and make the recipe's facility spacing/access rules
   explicit.
 - **A new project kind** (storage, workshops, ...) is a new **task generator** over

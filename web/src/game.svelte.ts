@@ -51,6 +51,8 @@ export const ui = $state({
   ticker: loadPref('ticker', true),
   /** The Dig tab's tool and the area marked with it (DigPanel.svelte). */
   dig: { armed: false, rect: null, tiles: 0 } as DigState,
+  /** The Zones tab's tool, the area marked with it, and what applying it would do (ZonesPanel.svelte). */
+  zone: { armed: false, tool: 'residence', rect: null, preview: null } as ZoneState,
   /** The Charts tab's view, kept while the tab is closed. */
   chartView: 'perf' as 'perf' | 'population' | 'activity',
   /** The flow field asked for (an index into Hello.flowFields), or -1 for none. */
@@ -85,6 +87,38 @@ export interface DigState {
   armed: boolean;
   rect: { x0: number; y0: number; x1: number; y1: number } | null;
   tiles: number;
+}
+
+/** An area on the map, in tiles, inclusive. */
+export interface Rect { x0: number; y0: number; x1: number; y1: number }
+
+/**
+ * The zone tool (docs/zoning.md): a zone kind's name to paint it, 'none' to
+ * remove zoning, or 'clear' to order the structures in the area cleared.
+ * While armed, a drag on the map marks `rect`; `preview` is the page's
+ * estimate of what applying it would do (main.ts, showZone).
+ */
+export interface ZoneState {
+  armed: boolean;
+  tool: string;
+  rect: Rect | null;
+  preview: ZonePreview | null;
+}
+
+/** What a zone paint or a clearing would do, as far as the page can tell. */
+export interface ZonePreview {
+  /** Tiles whose zone changes (paint), or built tiles to clear (clear). */
+  tiles: number;
+  /** Tiles a crash pod holds as residence, which a paint skips. */
+  locked: number;
+  /** Seen rock a paint would have dug out. */
+  dig: number;
+  /** Structures a paint leaves outside a zone of their kind, so clears. */
+  evicted: { id: number; type: string; built: number }[];
+  /** Built tiles cleared: the evicted structures', or the clear tool's. */
+  clear: number;
+  /** Rooms still going up that the clear tool would call off. */
+  rising: number;
 }
 
 /** A creature by id, or a tile. */
@@ -169,6 +203,8 @@ export interface Controller {
   selected(): void;
   /** The dig tool's area changed (or was cleared): redraw its tint. */
   digChanged(): void;
+  /** The zone tool, its area, or what it would cover changed: re-estimate and redraw. */
+  zoneChanged(): void;
   /** Tint these tiles on the map (a job's), or none. */
   highlight(tiles: { x: number; y: number; color: Uint8Array }[] | null): void;
 }
@@ -200,6 +236,40 @@ export function highlight(tiles: { x: number; y: number; color: Uint8Array }[] |
 /** Arm or disarm the dig tool; disarming leaves the marked area alone. */
 export function armDig(on: boolean): void {
   ui.dig.armed = on;
+  if (on) ui.zone.armed = false; // one area tool at a time
+}
+
+/** Pick the zone tool (a zone kind, 'none' or 'clear') and arm it, or disarm it. */
+export function armZone(tool: string, on: boolean): void {
+  ui.zone.tool = tool;
+  ui.zone.armed = on;
+  if (on) ui.dig.armed = false;
+  ctl?.zoneChanged();
+}
+
+/** Forget the zone tool's area, and put the tool down. */
+export function clearZoneTool(): void {
+  ui.zone.armed = false;
+  ui.zone.rect = null;
+  ui.zone.preview = null;
+  ctl?.zoneChanged();
+}
+
+/** Re-estimate the zone tool's preview (its topics changed). */
+export function zoneChanged(): void { ctl?.zoneChanged(); }
+
+/** Apply the zone tool to its area: paint the zone, unzone it, or order it cleared. */
+export function applyZone(): void {
+  const r = ui.zone.rect;
+  if (!r) return;
+  if (ui.zone.tool === 'clear') ctl?.command({ type: 'clear', ...r });
+  else ctl?.command({ type: 'zone', kind: ui.zone.tool, ...r });
+  clearZoneTool();
+}
+
+/** Cancel an open clearing order; what it still held goes back to the treasury. */
+export function cancelClear(id: number): void {
+  ctl?.command({ type: 'clear-cancel', id });
 }
 
 /** Forget the marked area, and put the tool down. */

@@ -23,6 +23,9 @@ type buildTask struct {
 	// neither: it is unpaid, and its fixture stays the colony's.
 	order *WorkOrder
 	proj  *project
+	// demolish marks a clearing task: take the structure on pos down to
+	// floor (terrain is Floor). See zones.go.
+	demolish bool
 }
 
 // project is a planned structure: the colony builds all its tasks, then it is
@@ -36,8 +39,11 @@ type project struct {
 	// works, a colonist for a commission (see workorder.go).
 	issuer Owner
 	// workKind is the kind of work order each task is bought with: WorkBuild
-	// (the zero value) for a room, WorkDig for an excavation order.
+	// (the zero value) for a room, WorkDig for an excavation order, WorkClear
+	// for a clearing order.
 	workKind WorkKind
+	// structure is the structure a room project raises (see structures.go).
+	structure *structure
 }
 
 // taskDone reports whether a task's tile already holds its desired terrain —
@@ -47,6 +53,9 @@ type project struct {
 // dig task must count as done too, or it can never be satisfied again and
 // permanently blocks the project's phase from advancing.
 func (w *World) taskDone(t *buildTask) bool {
+	if t.demolish {
+		return !isBuilt(w.TerrainAt(t.pos))
+	}
 	if t.terrain == Floor {
 		return w.TerrainAt(t.pos) != Rock
 	}
@@ -59,6 +68,9 @@ func (w *World) taskDone(t *buildTask) bool {
 func (w *World) taskWorkable(t *buildTask) bool {
 	if w.taskDone(t) {
 		return false
+	}
+	if t.demolish {
+		return true // still built, or it would be done
 	}
 	if t.terrain == Floor {
 		return w.TerrainAt(t.pos) == Rock
@@ -251,6 +263,7 @@ func (w *World) pruneProjects() {
 				}
 			}
 			w.logEvent(LogBuildComplete, capitalizeFirst(withArticle(p.name))+" is complete.")
+			w.structureRev++ // its structure, if it raised one, has stopped rising
 			continue
 		}
 		kept = append(kept, p)
@@ -310,6 +323,9 @@ type roomRecipe struct {
 	// its only access tile starved a colonist beside a meal of its own.
 	aisleRequired bool
 	planLog       string // logged when the room is marked out
+	// structure is what the room is (structures.go), and so which zone it
+	// is built in.
+	structure StructureType
 }
 
 // roomWidth is the interior width of a room of r with n facilities.
@@ -333,18 +349,18 @@ var (
 	// food and bladder needs; a partial room must still serve both.
 	lifeSupportRoom = roomRecipe{
 		name: "facility room", kinds: []Terrain{NutrientPod, Toilet}, minFac: 2,
-		planLog: "The colony marks out a new facility room.",
+		planLog: "The colony marks out a new facility room.", structure: StructFacilityRoom,
 	}
 	// toiletRoom is the facility room with the safety net off: a nutrient pod
 	// feeds nobody then (see podsFeed), so the bay is all toilets.
 	toiletRoom = roomRecipe{
 		name: "facility room", kinds: []Terrain{Toilet}, minFac: 1,
-		planLog: "The colony marks out a new facility room.",
+		planLog: "The colony marks out a new facility room.", structure: StructFacilityRoom,
 	}
 	// dormRoom is a bay of bunks. Even a single bunk is worth raising.
 	dormRoom = roomRecipe{
 		name: "dormitory", kinds: []Terrain{Bed}, minFac: 1,
-		planLog: "The colony marks out a new dormitory.",
+		planLog: "The colony marks out a new dormitory.", structure: StructDormitory,
 	}
 	// trashRoom houses the incinerator that refuse is hauled to and burned in.
 	// One machine is a working trash room, so its minimum is one — and the
@@ -355,14 +371,14 @@ var (
 	// wherever someone happened to die.
 	trashRoom = roomRecipe{
 		name: "trash room", kinds: []Terrain{Incinerator}, minFac: 1, maxFac: 1,
-		planLog: "The colony marks out a new trash room.",
+		planLog: "The colony marks out a new trash room.", structure: StructTrashRoom,
 	}
 	// storageRoom encloses one large trunk. Containers are deliberately placed
 	// one at a time: unlike need facilities, their useful capacity is already
 	// six full colonist inventories and demand is player-directed.
 	storageRoom = roomRecipe{
 		name: "storage room", kinds: []Terrain{Storage}, minFac: 1, maxFac: 1, aisle: true,
-		planLog: "The colony marks out a new storage room.",
+		planLog: "The colony marks out a new storage room.", structure: StructStorageRoom,
 	}
 	// scumhouseRoom is a kitchen laid out as an assembly line: the scumhouse
 	// (the stove, whose depot holds the inputs) and, two tiles along, a
@@ -377,7 +393,7 @@ var (
 	// colony's silo. See docs/scumhouse.md.
 	scumhouseRoom = roomRecipe{
 		name: "scumhouse", kinds: []Terrain{Scumhouse, Storage}, minFac: 1, maxFac: 2, aisle: true,
-		planLog: "The colony marks out a scumhouse.",
+		planLog: "The colony marks out a scumhouse.", structure: StructKitchen,
 	}
 )
 
@@ -407,6 +423,19 @@ func (w *World) maxConcurrentProjects() int {
 	return min(n, ceiling)
 }
 
+// roomProjects counts the rooms under way: the projects the concurrency cap
+// is about. A player's excavation or clearing order is not a room, and a big
+// zone dug out of the rock must not hold up every room behind it.
+func (w *World) roomProjects() int {
+	n := 0
+	for _, p := range w.projects {
+		if p.workKind == WorkBuild {
+			n++
+		}
+	}
+	return n
+}
+
 // planRooms keeps enough of each need's facility planned or built for the
 // population, marking out at most one new room per call. Called on a cadence
 // from step.
@@ -421,7 +450,7 @@ func (w *World) maxConcurrentProjects() int {
 // life support at all is a siting problem (see roomSiteClear's wall-sharing)
 // to fix there, not a priority order to bend here.
 func (w *World) planRooms() {
-	if len(w.projects) >= w.maxConcurrentProjects() {
+	if w.roomProjects() >= w.maxConcurrentProjects() {
 		// A full inventory can halt the dig phase of every project already in
 		// flight. Permit one storage room beyond the normal concurrency cap to
 		// break that circular dependency; no other recipe gets this exception.
@@ -438,7 +467,7 @@ func (w *World) planRooms() {
 		w.commissionHouses()
 		w.commissionKitchens()
 	}
-	if len(w.projects) >= w.maxConcurrentProjects() {
+	if w.roomProjects() >= w.maxConcurrentProjects() {
 		return
 	}
 	if w.manualFacilityRooms > 0 {
@@ -604,31 +633,61 @@ func (w *World) planRoom(r roomRecipe) {
 // planRoomFor plans a room paid for, and owned, by issuer, reporting whether
 // it did. A room whose site is found but whose work issuer cannot pay for is
 // not planned: that is how an empty treasury halts public works.
+//
+// Where it may go is zoning's call (zones.go): first inside a zone of the
+// room's kind; then, with zoning-auto only, on any ground not zoned for
+// something else. With manual zoning a room no zone has a site for waits,
+// and the Zones tab says so.
 func (w *World) planRoomFor(r roomRecipe, issuer Owner) bool {
+	zone := r.structure.Zone()
+	if zone == NoZone {
+		ok, _ := w.planRoomWith(r, issuer, siteRule{})
+		return ok
+	}
+	// With zoning-auto and nothing the player zoned or cleared, every zoned
+	// tile is already built on: searching inside zones would be a second
+	// site search per room that can find nothing.
+	if w.zoneTiles[zone] > 0 && (!w.cfg.ZoningAuto || w.playerZoned) {
+		if ok, sited := w.planRoomWith(r, issuer, siteRule{zone: zone, inZone: true}); sited {
+			return ok
+		}
+	}
+	if w.cfg.ZoningAuto {
+		ok, _ := w.planRoomWith(r, issuer, siteRule{zone: zone})
+		return ok
+	}
+	w.noteZoneWait(r.structure)
+	return false
+}
+
+// planRoomWith plans a room under one site rule. sited reports whether a site
+// was found at all; ok whether the room was then marked out (its issuer could
+// pay for it).
+func (w *World) planRoomWith(r roomRecipe, issuer Owner, rule siteRule) (ok, sited bool) {
 	largest := r.maxFac
 	if largest <= 0 || largest > roomFacilities {
 		largest = roomFacilities
 	}
 	for n := largest; n >= r.minFac; n-- {
-		o, ok := w.findRoomSite(r.roomWidth(n))
+		o, ok := w.findRoomSiteRule(r.roomWidth(n), rule)
 		if !ok && r.aisle && !r.aisleRequired {
 			// A cramped cavern with no site wide enough for the aisle still
 			// gets the room, narrow: a scumhouse one tile can reach beats
 			// none at all.
 			narrow := r
 			narrow.aisle = false
-			if o, ok = w.findRoomSite(narrow.roomWidth(n)); ok {
-				return w.designateRoom(narrow, o, n, issuer)
+			if o, ok = w.findRoomSiteRule(narrow.roomWidth(n), rule); ok {
+				return w.designateRoom(narrow, o, n, issuer), true
 			}
 		}
 		if !ok {
 			continue // no site this wide; try a smaller room
 		}
-		return w.designateRoom(r, o, n, issuer)
+		return w.designateRoom(r, o, n, issuer), true
 	}
 	// No site large enough for even this recipe's minimum yet; colonists dig
 	// on and planning retries later.
-	return false
+	return false, false
 }
 
 // designateRoom adds a phased room project from a recipe. Any interior tile
@@ -685,8 +744,10 @@ func (w *World) designateRoom(r roomRecipe, o Point, n int, issuer Owner) bool {
 	// right on top of it once the colony has grown enough to prefer that
 	// spot, sealing this room's only way out behind a wall its own doorway
 	// invariant never anticipated. See roomSiteClear.
-	w.doorTiles[Point{doorX, frontY + roomApproach}] = true
+	door := Point{doorX, frontY + roomApproach}
+	w.doorTiles[door] = true
 	w.projects = append(w.projects, p)
+	w.registerRoom(r, p, o, width, door)
 	if r.name == scumhouseRoom.name {
 		w.linkPantry(p)
 	}
@@ -709,10 +770,15 @@ func (w *World) designateRoom(r roomRecipe, o Point, n int, issuer Owner) bool {
 // slower to complete than it needed to be merely because that spot happened
 // to be a little closer to center; that measurably delayed food in testing.
 func (w *World) findRoomSite(width int) (Point, bool) {
-	if site, ok := w.findRoomSiteAllowingRock(width, false); ok {
+	return w.findRoomSiteRule(width, siteRule{})
+}
+
+// findRoomSiteRule is findRoomSite under a zoning rule (see siteRule).
+func (w *World) findRoomSiteRule(width int, rule siteRule) (Point, bool) {
+	if site, ok := w.findRoomSiteAllowingRock(width, false, rule); ok {
 		return site, true
 	}
-	return w.findRoomSiteAllowingRock(width, true)
+	return w.findRoomSiteAllowingRock(width, true, rule)
 }
 
 // roomSearchStartRadius is the first box half-width findRoomSiteAllowingRock
@@ -751,7 +817,7 @@ func (w *World) carvedSearchRadius(center Point, width int) int {
 	return r
 }
 
-func (w *World) findRoomSiteAllowingRock(width int, allowRock bool) (Point, bool) {
+func (w *World) findRoomSiteAllowingRock(width int, allowRock bool, rule siteRule) (Point, bool) {
 	designated := make(map[Point]bool)
 	for _, p := range w.projects {
 		for _, t := range p.tasks {
@@ -787,7 +853,7 @@ func (w *World) findRoomSiteAllowingRock(width int, allowRock bool) (Point, bool
 		bestDist := 1 << 30
 		for oy := boxOyLo; oy < boxOyHi; oy++ {
 			for ox := boxOxLo; ox < boxOxHi; ox++ {
-				if !w.roomSiteClear(ox, oy, width, designated, allowRock) {
+				if !w.roomSiteClearRule(ox, oy, width, designated, allowRock, rule) {
 					continue
 				}
 				rc := Point{ox + width/2, oy}
@@ -826,10 +892,27 @@ func (w *World) findRoomSiteAllowingRock(width int, allowRock bool) (Point, bool
 // very spot an older room's door faces — could build a wall or facility
 // straight over that tile and seal the older room shut.
 func (w *World) roomSiteClear(ox, oy, width int, designated map[Point]bool, allowRock bool) bool {
+	return w.roomSiteClearRule(ox, oy, width, designated, allowRock, siteRule{})
+}
+
+// roomSiteClearRule is roomSiteClear under a zoning rule: every tile the room
+// would build on must be ground the rule allows (zoneRoomTiles), and inside a
+// zone the back wall may stand against open floor as well as rock or a wall.
+func (w *World) roomSiteClearRule(ox, oy, width int, designated map[Point]bool, allowRock bool, rule siteRule) bool {
 	backY := oy - 1
 	frontY := roomFrontWallY(oy)
+	// Inside a zone, the first interior tile turns most candidates away
+	// before anything else is looked at. The whole footprint is checked
+	// last, after the terrain checks that turn away most of the rest.
+	if rule.inZone && !rule.allows(w, Point{ox, oy}) {
+		return false
+	}
 	for x := ox; x < ox+width; x++ {
-		if t := w.TerrainAt(Point{x, backY - 1}); t != Rock && t != Wall {
+		t := w.TerrainAt(Point{x, backY - 1})
+		if rule.inZone && t == Floor {
+			continue // a zone in open ground: the room stands free
+		}
+		if t != Rock && t != Wall && !(rule.inZone && t == Hull) {
 			return false
 		}
 	}
@@ -883,7 +966,7 @@ func (w *World) roomSiteClear(ox, oy, width int, designated map[Point]bool, allo
 			return false
 		}
 	}
-	return true
+	return rule.zone == NoZone || w.roomZoned(Point{ox, oy}, width, rule)
 }
 
 // desiredScumhouses is how many scumhouses the colony wants with scarcity on:

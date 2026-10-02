@@ -121,6 +121,7 @@ func (w *World) arrive(announce bool) *Entity {
 	for _, f := range podFixtures {
 		w.SetTerrain(o.Add(f.dx, f.dy), f.terrain)
 	}
+	pod := w.registerPod(o, shareL, shareR)
 
 	e := w.spawn(Colonist, o.Add(podDoor.X, podDoor.Y))
 	me := ColonistOwner(e.ID)
@@ -140,6 +141,8 @@ func (w *World) arrive(announce bool) *Entity {
 	case rareChicken:
 		t := o.Add(podTrough.X, podTrough.Y)
 		w.SetTerrain(t, Trough)
+		pod.tiles = sortedPoints(append(pod.tiles, t))
+		w.structureAt[t] = append(w.structureAt[t], pod.id)
 		w.setFixtureOwner(t, me, AccessPrivate)
 		e.trough, e.hasTrough = t, true
 		// The trough lands full, so the hen eats while its keeper settles in.
@@ -322,13 +325,16 @@ func (w *World) podSiteRock(o Point, designated map[Point]bool) (rock, marginRoc
 			default:
 				return 0, 0, false
 			}
-			if w.doorTiles[p] || designated[p] {
+			if w.doorTiles[p] || designated[p] || !podZoneOK(w, p) {
 				return 0, 0, false
 			}
 		}
 	}
 	touchesFloor, blocked := false, false
 	forEachPodMargin(o, shareL, shareR, func(p Point) {
+		if !podZoneOK(w, p) {
+			blocked = true
+		}
 		switch t := w.TerrainAt(p); {
 		case t == Wall || t == Hull || isFixtureTerrain(t):
 			blocked = true
@@ -343,6 +349,14 @@ func (w *World) podSiteRock(o Point, designated map[Point]bool) (rock, marginRoc
 		return 0, 0, false
 	}
 	return rock, marginRock, true
+}
+
+// podZoneOK reports whether a pod may hold p as residence: it is unzoned, or
+// residence already. A pod never lands on ground zoned for something else,
+// which its landing would take over (see registerPod).
+func podZoneOK(w *World, p Point) bool {
+	z := w.zoneAt(p)
+	return z == NoZone || z == ZoneResidence
 }
 
 // podRevealReach is how far past its footprint a landing pod reveals the map:

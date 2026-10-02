@@ -453,6 +453,15 @@ func (e *Engine) apply(cmd Command) (rateChanged bool) {
 	case OrderExcavation:
 		e.world.orderExcavation(c)
 		e.requestPublish() // the log line and the work order show at once
+	case PaintZone:
+		e.world.paintZone(c)
+		e.requestPublish()
+	case ClearArea:
+		e.world.clearArea(c)
+		e.requestPublish()
+	case CancelClear:
+		e.world.cancelClearing(c.ID)
+		e.requestPublish()
 	}
 	return false
 }

@@ -563,8 +563,8 @@ type World struct {
 	facilityTiles [numTerrains]map[Point]struct{}
 
 	// carvedAny/carvedMin/carvedMax track the bounding box of every tile that
-	// has ever been changed away from Rock. Terrain only ever moves Rock ->
-	// Floor -> Wall/facility in play, never back, so this box only grows; it
+	// has ever been changed away from Rock. Nothing turns back into Rock in
+	// play (a cleared structure becomes Floor), so this box only grows; it
 	// is used to cap how far findRoomSiteAllowingRock's search radius needs to
 	// grow before it can conclude no site exists, without scanning the whole
 	// map. See roomSiteClear: a valid site's side walls must already be
@@ -751,9 +751,36 @@ type World struct {
 	// doorway ever designated, forever — even after the room finishes or a
 	// later room's wall would otherwise cover it. roomSiteClear checks it
 	// alongside a candidate site's own requirements so a new room can never
-	// wall over an existing room's sole way out. Rooms are never demolished
-	// or un-designated, so entries are only ever added. See designateRoom.
+	// wall over an existing room's sole way out. An entry goes only when its
+	// room or pod is cleared away entirely (maybeRetire, structures.go). See
+	// designateRoom.
 	doorTiles map[Point]bool
+
+	// Zoning (zones.go): every tile's zone kind and crash-pod holds, how
+	// many tiles each kind covers, and a revision publishing reads (snapZones
+	// is the copy taken at snapZoneRev). zoneWaits is when the colony last
+	// wanted each structure type and found no zone with room for it.
+	zones       pagedGrid[zoneCell]
+	zoneTiles   [numZoneKinds]int
+	zoneRev     uint64
+	snapZoneRev uint64
+	snapZones   []ZoneRun
+	zoneWaits   [numStructureTypes]int
+	// playerZoned is set once the player has painted a zone or cleared an
+	// area. Until then, with zoning-auto, every zoned tile is under a room
+	// the colony built or a crash pod, so planRoomFor skips the search
+	// inside zones that could find nothing (see planRoomFor).
+	playerZoned bool
+	// structures is every standing or rising structure by id, and
+	// structureAt the ids standing on each built tile (two for a party
+	// wall). structureRev moves on any change publishing would show. See
+	// structures.go.
+	structures       map[int]*structure
+	structureAt      map[Point][]int
+	nextStructureID  int
+	structureRev     uint64
+	snapStructureRev uint64
+	snapStructures   []StructureView
 
 	// directorQueue is cfg.Schedules resolved to concrete (tick, occurrence)
 	// firings, sorted ascending; directorNext is how far runDirector has
@@ -937,6 +964,8 @@ func newWorld(cfg Config, src *rand.PCG) *World {
 		colonistNames:     make(map[string]EntityID),
 		buildTiles:        make(map[Point]bool),
 		doorTiles:         make(map[Point]bool),
+		structures:        make(map[int]*structure),
+		structureAt:       make(map[Point][]int),
 		pods:              make(map[Point]bool),
 		storageContainers: make(map[Point]*StorageContainer),
 		fixtures:          make(map[Point]*Fixture),
@@ -988,6 +1017,8 @@ func newWorld(cfg Config, src *rand.PCG) *World {
 	w.chunkEntities = make([][]EntityID, w.chunkCols*w.chunkRows)
 
 	w.regionOf = newPagedGrid[RegionID](cfg.Width, cfg.Height)
+	w.zones = newPagedGrid[zoneCell](cfg.Width, cfg.Height)
+	w.zoneTiles[NoZone] = n
 	w.regions = make(map[RegionID]*region)
 	w.staleRooms = make(map[RoomID]struct{})
 	w.rooms = make(map[RoomID]int)
@@ -1196,6 +1227,9 @@ func (w *World) setTerrain(p Point, t Terrain, discover bool) {
 		w.clearSalt(p) // and buries the salt
 	}
 	w.tiles.ptr(p.X, p.Y).Terrain = t
+	if _, ok := w.structureAt[p]; ok {
+		w.structureRev++ // a structure's tile went up or came down
+	}
 	w.markTilePageDirty(p)
 	w.dirtyChunks[w.chunkIndexOf(p)] = struct{}{}
 	w.emit(TileChanged{Pos: p, Old: old, New: t})

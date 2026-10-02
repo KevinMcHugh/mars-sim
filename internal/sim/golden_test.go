@@ -44,6 +44,7 @@ var goldenCases = []goldenCase{
 		name: "lazy-1000x1010",
 		cfg: func() Config {
 			c := DefaultConfig()
+			c.ZoningAuto = true // the colony builds as it always has
 			c.Seed = 5
 			c.Width, c.Height = 1000, 1010
 			c.StartColonists = 40
@@ -59,6 +60,7 @@ var goldenCases = []goldenCase{
 		name: "default-80x40",
 		cfg: func() Config {
 			c := DefaultConfig()
+			c.ZoningAuto = true // the colony builds as it always has
 			c.Seed = 7
 			return c
 		},
@@ -70,6 +72,7 @@ var goldenCases = []goldenCase{
 		name: "caves-300x150",
 		cfg: func() Config {
 			c := DefaultConfig()
+			c.ZoningAuto = true // the colony builds as it always has
 			c.Seed = 2
 			c.Width, c.Height = 300, 150
 			c.StartColonists = 40

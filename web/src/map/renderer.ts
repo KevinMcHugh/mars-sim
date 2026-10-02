@@ -17,6 +17,10 @@
 // A salt deposit is a pale tint through the same quads; it never shares a tile
 // with scum, and gore on it wins.
 //
+// Zones (docs/zoning.md) are the lowest tint layer, straight over the
+// terrain: a faint wash of each zone's colour on every zoned tile, under the
+// filth, so a stain still shows inside a zone.
+//
 // The flow-field overlay (docs/flow-field-view.md) is one more layer of tint
 // quads over the filth: every visible tile the shown field reaches, colored
 // by its distance to the field's nearest goal.
@@ -257,6 +261,11 @@ export class MapRenderer {
   private markProg: WebGLProgram;
   private markVAO: WebGLVertexArrayObject;
   private mark: [number, number] | null = null;
+  // Zoned tiles: tint quads like filth's, under it (setZones).
+  private zoneVAO: WebGLVertexArrayObject;
+  private zonePos: WebGLBuffer;
+  private zoneColor: WebGLBuffer;
+  private zoneCount = 0;
   // Highlighted tiles (a job's): tint quads like filth's, in their own buffers.
   private hiVAO: WebGLVertexArrayObject;
   private hiPos: WebGLBuffer;
@@ -324,6 +333,9 @@ export class MapRenderer {
     gl.enableVertexAttribArray(tColor);
     gl.vertexAttribPointer(tColor, 4, gl.UNSIGNED_BYTE, true, 0, 0);
     gl.vertexAttribDivisor(tColor, 1);
+    this.zonePos = gl.createBuffer()!;
+    this.zoneColor = gl.createBuffer()!;
+    this.zoneVAO = this.tintLayerVAO(this.zonePos, this.zoneColor);
     this.hiPos = gl.createBuffer()!;
     this.hiColor = gl.createBuffer()!;
     this.hiVAO = this.tintLayerVAO(this.hiPos, this.hiColor);
@@ -350,7 +362,7 @@ export class MapRenderer {
     for (const c of this.chunks.values()) this.gl.deleteTexture(c.tex);
     this.chunks.clear();
     this.pages.clear();
-    this.entityCount = this.refuseCount = this.tintCount = this.hiCount = this.flowCount = 0;
+    this.entityCount = this.refuseCount = this.tintCount = this.hiCount = this.flowCount = this.zoneCount = 0;
     this.refuse = null;
     this.scum = null;
     this.salt = null;
@@ -590,6 +602,34 @@ export class MapRenderer {
     this.dirty = true;
   }
 
+  /**
+   * Tint the zoned tiles: runs of [y, x0, x1, kind, locked] (the zones
+   * topic), each kind in colors[kind], a premultiplied RGBA. Zones are the
+   * player's own marks, so they show on fogged ground too.
+   */
+  setZones(runs: number[][], colors: Uint8Array[]): void {
+    let n = 0;
+    for (const r of runs) if (colors[r[3]]) n += r[2] - r[1] + 1;
+    const pos = new Int32Array(n * 2);
+    const color = new Uint8Array(n * 4);
+    let i = 0;
+    for (const [y, x0, x1, kind] of runs) {
+      const c = colors[kind];
+      if (!c) continue;
+      for (let x = x0; x <= x1; x++, i++) {
+        pos[2 * i] = x; pos[2 * i + 1] = y;
+        color.set(c, 4 * i);
+      }
+    }
+    const gl = this.gl;
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.zonePos);
+    gl.bufferData(gl.ARRAY_BUFFER, pos, gl.DYNAMIC_DRAW);
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.zoneColor);
+    gl.bufferData(gl.ARRAY_BUFFER, color, gl.DYNAMIC_DRAW);
+    this.zoneCount = n;
+    this.dirty = true;
+  }
+
   /** Mark one tile (the inspector's selection), or none. */
   setMark(at: [number, number] | null): void {
     const m = this.mark;
@@ -729,6 +769,14 @@ export class MapRenderer {
     // Filth tints the tiles under everything that stands on them.
     gl.enable(gl.BLEND);
     gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA); // tints and the atlas are premultiplied
+    if (this.zoneCount > 0) {
+      gl.useProgram(this.tintProg);
+      gl.bindVertexArray(this.zoneVAO);
+      gl.uniform2f(this.u['f.uCam'], cam.cx, cam.cy);
+      gl.uniform1f(this.u['f.uScale'], scale);
+      gl.uniform2f(this.u['f.uView'], this.canvas.width, this.canvas.height);
+      gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, this.zoneCount);
+    }
     if (this.tintCount > 0) {
       gl.useProgram(this.tintProg);
       gl.bindVertexArray(this.tintVAO);

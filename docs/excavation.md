@@ -89,6 +89,16 @@ rooms belong to the planner. The Dig tab lists open orders with a **Cancel**
 button, which is also how to recover the money held for an area walled off from
 every walkable tile.
 
+## Zones over rock
+
+Painting a zone over rock the colony has seen digs it out the same way
+(`startExcavation`, shared with `orderExcavation`): an ordinary `excavation`
+project that shows on the Dig tab and cancels like any other. A zone's dig is
+not capped at `maxExcavationTiles`, because the Zones tab prices the whole paint
+before it is sent. `cancelExcavation` is now `cancelOrdered`, which clearing
+orders share. An open excavation no longer holds up the room planner: its
+concurrency cap counts rooms only. See [zoning.md](./zoning.md).
+
 ## Known gaps
 
 - **Idle miners ignore the wage.** Frontier mining is not chosen by pay (see
@@ -112,3 +122,5 @@ every walkable tile.
 - [construction.md](./construction.md) — projects and the room planner.
 - [frontend-web.md](./frontend-web.md) — the Dig tab and the map's input.
 - [fog-of-war.md](./fog-of-war.md) — why only seen rock counts.
+- [zoning.md](./zoning.md) — zones over rock, which post excavations, and the
+  clearing orders that share the cancel.

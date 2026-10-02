@@ -12,10 +12,13 @@
   // A number input binds a number, or null when empty: empty lets the engine pick.
   let seed: number | null = $state(init.seed === undefined ? null : Number(init.seed));
   let fog = $state(init['fog-of-war'] !== false);
+  // Off (the default): the player draws zones and colonists build only in
+  // them. On: the colony zones and builds by itself (docs/zoning.md).
+  let autoZoning = $state(init['zoning-auto'] === true);
 
   function start(e: SubmitEvent) {
     e.preventDefault();
-    const s: Settings = { width, height, colonists, 'fog-of-war': fog };
+    const s: Settings = { width, height, colonists, 'fog-of-war': fog, 'zoning-auto': autoZoning };
     if (seed !== null && Number.isFinite(seed)) s.seed = seed;
     newGame(s);
   }
@@ -27,6 +30,7 @@
   <label>Colonists <input type="number" min="1" bind:value={colonists} /></label>
   <label>Seed <input type="number" placeholder="random" bind:value={seed} /></label>
   <label class="check"><input type="checkbox" bind:checked={fog} /> Fog of war</label>
+  <label class="check"><input type="checkbox" bind:checked={autoZoning} /> Colonists zone for themselves</label>
   <button type="submit">Start</button>
 </form>
 

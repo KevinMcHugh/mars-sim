@@ -208,6 +208,7 @@ func TestTheTreasuryOutlastsALongRun(t *testing.T) {
 	}
 	cfg := DefaultConfig()
 	cfg.Seed, cfg.StartColonists, cfg.Width, cfg.Height = 9, 20, 200, 200
+	cfg.ZoningAuto = true
 	w := NewEngine(cfg).world
 	for i := 0; i < 30000; i++ {
 		w.step()

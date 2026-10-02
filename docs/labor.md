@@ -36,8 +36,10 @@ and a toilet it rents out by the use. This is phase **E5** of the
 
 ### Work orders
 
-Three kinds exist: `WorkBuild` (a build task's tile), `WorkDig` (one rock tile
-of a player's excavation order; see [excavation.md](./excavation.md)) and
+Four kinds exist: `WorkBuild` (a build task's tile), `WorkDig` (one rock tile
+of a player's excavation order; see [excavation.md](./excavation.md)),
+`WorkClear` (one structure tile of a clearing order, at `wage-clear`; see
+[zoning.md](./zoning.md)) and
 `WorkHaul` (a unit of the issuer's goods from one depot to another; see
 [hauling.md](./hauling.md)).
 `postWork(kind, issuer, pay, units, pos)` moves `pay × units` from the issuer
@@ -107,6 +109,7 @@ now buys biomatter outright with standing bids (see
 | Setting | Default |
 | --- | --- |
 | `wage-dig` / `wage-wall` / `wage-fixture` | 2 / 2 / 5 |
+| `wage-clear` | 2 |
 | `wage-cook` | 1 per recipe |
 | `house-savings` | 300 (0 disables commissions) |
 | `toilet-fee` | 2 (0 makes a house's toilet private) |

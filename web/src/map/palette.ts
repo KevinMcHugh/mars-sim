@@ -118,3 +118,16 @@ export function flowBand(d: number, max: number): number {
 export function flowTint(d: number, max: number): Uint8Array {
   return d === 0 ? FLOW_GOAL : FLOW_RAMP[flowBand(d, max)];
 }
+
+// Zones (docs/zoning.md). Each kind's colour comes from Go (the zones topic),
+// so a new kind needs no change here. On the map a zone is a faint wash; the
+// zone tool's preview of what it is about to paint is a stronger one, and a
+// structure the paint would have cleared is marked red.
+export const ZONE_ALPHA = 0.36;
+export const ZONE_PREVIEW_ALPHA = 0.55;
+/** The premultiplied RGBA tint for a zone colour ("#rrggbb") at alpha a. */
+export const zoneTint = (color: string, a: number) => premul(color, a);
+/** The preview of unzoning: the ground goes grey-black. */
+export const UNZONE_PREVIEW = premul('#1b1b1b', 0.5);
+/** A structure the paint or the clear tool will take down. */
+export const CLEAR_PREVIEW = premul('#ff3b30', 0.6);
