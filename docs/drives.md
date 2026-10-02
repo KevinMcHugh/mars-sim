@@ -161,10 +161,13 @@ and valence up) — on top of the conversation's own appraisal. A chat between
 two content colonists is just a chat; company you went looking for is a lift.
 It is read before `jobTalk` resets the drive.
 
-Measured over 6000 ticks of the default game on seeds 1–3: 2, 7 and 14
-felt-lonely occasions (tracking 293, 959 and 2420 colonist-ticks at the
-social ceiling), and about 70% of conversations counted as socialized, since
-most talks start because someone went looking for one.
+Measured over 10000 ticks of the default game on seeds 1–5: 13, 8, 12, 3
+and 17 felt-lonely occasions per colony, tracking 1302, 182, 1182, 452 and
+899 colonist-ticks at the social ceiling, and 86, 144, 77, 25 and 156
+socialized conversations. Most talks start because someone went looking for
+one, so most count. These move with anything that changes how often
+colonists talk (the meeting hall, conversation topics); re-measure rather
+than trust them.
 
 Passing out is an **event**: it happens once and discharges the drive. At
 the sleep ceiling `passOut` clears the colonist's job and focus, sets
@@ -186,7 +189,7 @@ that got to bed near the ceiling reaches it in bed, where it is already
 doing what passing out would make it do. Being *on the way* to bed is no
 exemption; you can collapse in the corridor.
 
-Measured over 10000 ticks of the default game on seeds 1–5: 4, 0, 6, 3 and 5
+Measured over 10000 ticks of the default game on seeds 1–5: 3, 0, 2, 1 and 1
 pass-outs per colony of 5–6.
 
 `DriveSpec.Fatal()` (and `DriveMeta.Fatal()` in the snapshot) is shorthand
