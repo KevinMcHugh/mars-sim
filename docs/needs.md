@@ -31,6 +31,8 @@ indexed by the kind:
 | sleep | 1 | 700 | 900 | 1000 | Bed | 40 | 0 | no |
 | social | 2 | 500 | 850 | 1000 | conversation | — | — | no |
 
+The sleep need also sets the length of a colony day; see [days.md](./days.md).
+
 Food is the one need met by an item as well as a facility: a hungry colonist
 eats a real `Meal` it owns (or the colony owns) before it walks to a nutrient
 pod, and with `infinite-food` off pods feed nobody at all. See

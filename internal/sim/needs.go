@@ -114,6 +114,29 @@ type NeedSpec struct {
 	GrabTicks int `cfg:"grab-ticks" doc:"ticks at the facility before carrying the rest away (0 = must be used in place)"`
 }
 
+// TicksPerDay is how many ticks make one colony day, derived from the sleep
+// need rather than tuned on its own: one waking stretch (an unslept colonist's
+// sleep need rising from 0 to SeekAt at the base Rise) plus one night (the
+// bed's UseTicks). That is the rhythm a well-housed colonist actually lives
+// on, so "day 3" means "the colony has slept about twice". Deriving it keeps
+// the calendar honest when sleep is retuned; a separate knob would drift.
+// The walk to a bed and trait-scaled rise rates are deliberately ignored: a
+// day has to be one fixed length for the whole colony. Always at least 1.
+func (c *Config) TicksPerDay() int {
+	spec := c.Needs[NeedSleep]
+	awake := spec.Max // a sleep need that never rises: fall back to the ceiling
+	if spec.Rise > 0 {
+		awake = (spec.SeekAt + spec.Rise - 1) / spec.Rise
+	}
+	return max(awake+spec.UseTicks, 1)
+}
+
+// DayOf is the colony day tick falls on, counting the landing (tick 0) as
+// day 1.
+func DayOf(tick, ticksPerDay int) int {
+	return tick/max(ticksPerDay, 1) + 1
+}
+
 // needLevel returns an entity's current level for one need, computed lazily
 // from its stored base and the elapsed ticks, clamped to [0, Max]. Rats share
 // the food need with colonists but hunger at their own faster rate.

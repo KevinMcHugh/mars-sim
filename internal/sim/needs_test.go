@@ -254,3 +254,36 @@ func TestEntityDoesNotStarveWhileSeekingReachableFood(t *testing.T) {
 		t.Fatalf("colonist seeking reachable food lost HP: %d -> %d", hp, c.HP)
 	}
 }
+
+func TestTicksPerDayFollowsSleep(t *testing.T) {
+	cfg := DefaultConfig()
+	sleep := cfg.Needs[NeedSleep]
+	want := (sleep.SeekAt+sleep.Rise-1)/sleep.Rise + sleep.UseTicks
+	if got := cfg.TicksPerDay(); got != want {
+		t.Fatalf("TicksPerDay = %d, want %d (awake to SeekAt, then a night in bed)", got, want)
+	}
+
+	// Retuning sleep retunes the day.
+	cfg.Needs[NeedSleep].Rise = 1
+	cfg.Needs[NeedSleep].SeekAt = 300
+	cfg.Needs[NeedSleep].UseTicks = 20
+	if got := cfg.TicksPerDay(); got != 320 {
+		t.Fatalf("TicksPerDay = %d, want 320", got)
+	}
+	// A sleep need that never rises still gives a usable, positive day.
+	cfg.Needs[NeedSleep].Rise = 0
+	if got := cfg.TicksPerDay(); got != cfg.Needs[NeedSleep].Max+20 {
+		t.Fatalf("TicksPerDay with zero rise = %d", got)
+	}
+}
+
+func TestDayOfCountsLandingAsDayOne(t *testing.T) {
+	for _, c := range []struct{ tick, day int }{{0, 1}, {739, 1}, {740, 2}, {7400, 11}} {
+		if got := DayOf(c.tick, 740); got != c.day {
+			t.Errorf("DayOf(%d, 740) = %d, want %d", c.tick, got, c.day)
+		}
+	}
+	if got := DayOf(5, 0); got != 6 {
+		t.Errorf("DayOf with a zero day length = %d, want 6", got)
+	}
+}

@@ -200,7 +200,7 @@ func (m Model) renderHeader() string {
 	title := titleStyle.Render(fitGlyph(glyphMars) + "MARS-SIM")
 	sub := statStyle.Render("Mars Colony")
 
-	state := fmt.Sprintf("tick %d  |  %d tps", s.Tick, s.TicksPerSecond)
+	state := fmt.Sprintf("day %d  |  tick %d  |  %d tps", s.Stats.Day, s.Tick, s.TicksPerSecond)
 	if s.Paused {
 		state += "  |  " + pausedStyle.Render("PAUSED")
 	}

@@ -382,6 +382,9 @@ type Stats struct {
 	// built without generation.
 	ChunksGenerated int
 	Chunks          int
+	// Day is the colony day since landing (day 1 is the landing day), at
+	// Config.TicksPerDay ticks a day. See docs/days.md.
+	Day int
 }
 
 // Snapshot is an immutable, self-contained picture of the world at one tick.
@@ -569,6 +572,7 @@ func (w *World) snapshot(paused bool, tps int) *Snapshot {
 	// counting them by walking the grid would put the map's whole area back on
 	// every tick, which is exactly what the shared grid above avoids.
 	stats := Stats{
+		Day:           DayOf(w.tick, w.cfg.TicksPerDay()),
 		Rooms:         len(w.discoveredRooms),
 		FloorDug:      w.terrainCounts[Floor] - w.hiddenFloor,
 		ExploredTiles: w.exploredTilesStat(),
