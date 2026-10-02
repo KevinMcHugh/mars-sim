@@ -18,6 +18,12 @@ export type Command =
   /** Cancel an excavation order by id, refunding what is unspent. */
   | { type: 'dig-cancel'; id: number }
   | { type: 'dig'; x0: number; y0: number; x1: number; y1: number }
+  /** Zone the rectangle as a kind by name ('none' unzones it); the work it implies is paid by the colony (docs/zoning.md). */
+  | { type: 'zone'; kind: string; x0: number; y0: number; x1: number; y1: number }
+  /** Order every structure in the rectangle cleared, paid by the colony. */
+  | { type: 'clear'; x0: number; y0: number; x1: number; y1: number }
+  /** Cancel a clearing order by id, refunding what is unspent. */
+  | { type: 'clear-cancel'; id: number }
   /** Reland a ship with its top-left at (x, y); only before the first tick (docs/ships.md). */
   | { type: 'ship-move'; id: number; x: number; y: number }
   /** Land the next ship still aloft with its top-left at (x, y); only before the first tick. */
@@ -39,7 +45,7 @@ export interface Started { hello: Hello; genMs: number; loadMs: number }
  * A mismatch means mars-sim.wasm is from another build: usually a pull without
  * rerunning npm run wasm.
  */
-export const HOST_API = 14;
+export const HOST_API = 15;
 
 export class SimClient {
   private worker: Worker;

@@ -229,6 +229,7 @@ func TestAColonyWithNoMoneyStillFeedsItself(t *testing.T) {
 		cfg.Seed, cfg.TraitChance = seed, 0
 		cfg.Width, cfg.Height = 40, 24
 		cfg.StartAliens, cfg.FoundingGrant, cfg.CavernNestPercent = 0, 0, 0 // about food, not aliens
+		cfg.ZoningAuto = true                                               // nobody draws zones here
 		w := newTestWorld(t, cfg)
 		for i := 0; i < 8000; i++ {
 			w.step()
@@ -314,6 +315,7 @@ func TestAHouseWaitsForTheFirstScumhouse(t *testing.T) {
 	cfg := DefaultConfig()
 	cfg.Seed, cfg.StartAliens, cfg.CavernNestPercent = 42, 0, 0
 	cfg.Width, cfg.Height = 80, 50
+	cfg.ZoningAuto = true
 	w := newTestWorld(t, cfg)
 	rich := w.entities[w.entityIDsSorted()[0]]
 	w.transfer(Community, ColonistOwner(rich.ID), Money(cfg.HouseSavings))

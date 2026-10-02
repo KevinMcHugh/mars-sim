@@ -38,6 +38,8 @@ var topicTable = map[string]topic{
 	"storage":    {every: boardEvery, build: func(s *sim.Snapshot) any { return storageTopic(s) }},
 	"market":     {every: boardEvery, build: func(s *sim.Snapshot) any { return marketTopic(s) }},
 	"roster":     {every: rosterEvery, build: func(s *sim.Snapshot) any { return rosterTopic(s, false, false) }},
+	"zones":      {every: boardEvery, build: func(s *sim.Snapshot) any { return zonesTopic(s) }},
+	"zoning":     {every: boardEvery, build: func(s *sim.Snapshot) any { return zoningTopic(s) }},
 	// Every advance, not on an interval: placing happens paused, when the
 	// only advance is the one a move command causes, and the page must see
 	// that move. A handful of ships is nothing to rebuild.

@@ -110,6 +110,12 @@
 ## nutrient pods make free meals out of nothing (the safety net)
 # infinite-food: false
 
+## colonists choose where to build and zone it themselves; off, they build only inside zones the player draws (the browser's Zones tab)
+## Set here because the terminal and headless runs have no way to draw a
+## zone: with it off, their colonies would never build. The browser game
+## does not read this file and starts with it off. See docs/zoning.md.
+zoning-auto: true
+
 # ── Food production ─────────────────────────────────────────────────────
 ## percent of the map's tiles carrying a patch of cave scum
 # scum-percent: 6
@@ -270,7 +276,7 @@
 ## what the colony pays to build one fixture (pod, toilet, bed, ...)
 # wage-fixture: 5
 
-## what the colony pays to tear down one wall tile to enlarge a room
+## what the colony pays to tear down one structure tile: a wall moved to enlarge a room, or anything a clearing order takes down
 # wage-demolish: 3
 
 ## what the colony pays a cook each time it works a recipe on the colony's stock

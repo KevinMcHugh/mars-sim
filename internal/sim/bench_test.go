@@ -15,6 +15,7 @@ func benchWorld(colonists int) *World {
 
 func benchWorldSized(width, height, colonists int) *World {
 	cfg := DefaultConfig()
+	cfg.ZoningAuto = true // a colony that builds, as before zoning
 	cfg.Seed = 1
 	cfg.Width, cfg.Height = width, height
 	w := newWorld(cfg, newPCG(1))
@@ -243,6 +244,7 @@ func BenchmarkStepBigMap(b *testing.B) {
 // per-tick or per-need-seek path would blow up on.
 func benchWorldSmallColony(mapSize, chamber, colonists int) *World {
 	cfg := DefaultConfig()
+	cfg.ZoningAuto = true // a colony that builds, as before zoning
 	cfg.Seed = 1
 	cfg.Width, cfg.Height = mapSize, mapSize
 	w := newWorld(cfg, newPCG(1))
@@ -394,6 +396,7 @@ func BenchmarkStepBigColonyOnHugeMap(b *testing.B) {
 // numbers these produced before and after chunked, lazy generation.
 func benchmarkStartup(b *testing.B, size int) {
 	cfg := DefaultConfig()
+	cfg.ZoningAuto = true // a colony that builds, as before zoning
 	cfg.Seed = 7
 	cfg.Width, cfg.Height = size, size
 	var ms runtime.MemStats
@@ -421,6 +424,7 @@ func BenchmarkStartup10000(b *testing.B) { benchmarkStartup(b, 10000) }
 // digging outward.
 func BenchmarkChunkCold(b *testing.B) {
 	cfg := DefaultConfig()
+	cfg.ZoningAuto = true // a colony that builds, as before zoning
 	cfg.Seed = 7
 	cfg.Width, cfg.Height = 2048, 2048
 	for i := 0; i < b.N; i++ {
@@ -430,6 +434,7 @@ func BenchmarkChunkCold(b *testing.B) {
 
 func BenchmarkChunkWarm(b *testing.B) {
 	cfg := DefaultConfig()
+	cfg.ZoningAuto = true // a colony that builds, as before zoning
 	cfg.Seed = 7
 	cfg.Width, cfg.Height = 2048, 2048
 	g := newWorldGen(cfg)
@@ -447,6 +452,7 @@ func BenchmarkGenerateMap(b *testing.B) {
 	for _, salt := range []int{0, 3} {
 		b.Run(fmt.Sprintf("salt=%d", salt), func(b *testing.B) {
 			cfg := DefaultConfig()
+			cfg.ZoningAuto = true // a colony that builds, as before zoning
 			cfg.Seed = 7
 			cfg.Width, cfg.Height = 1024, 1024
 			cfg.SaltPercent = salt

@@ -11,6 +11,7 @@
   import JobsPanel from './JobsPanel.svelte';
   import MarketPanel from './MarketPanel.svelte';
   import StoragePanel from './StoragePanel.svelte';
+  import ZonesPanel from './ZonesPanel.svelte';
   import LogPanel from './LogPanel.svelte';
   import LogTicker from './LogTicker.svelte';
   import LorePanel from './LorePanel.svelte';
@@ -25,6 +26,7 @@
     { id: 'jobs', label: 'Jobs', component: JobsPanel },
     { id: 'storage', label: 'Storage', component: StoragePanel },
     { id: 'market', label: 'Market', component: MarketPanel },
+    { id: 'zones', label: 'Zones', component: ZonesPanel },
     { id: 'dig', label: 'Dig', component: DigPanel },
     { id: 'charts', label: 'Charts', component: ChartsPanel },
     { id: 'lore', label: 'Lore', component: LorePanel },

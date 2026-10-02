@@ -361,7 +361,7 @@ func (w *World) runNeedFocus(e *Entity, need NeedKind) {
 	case hasTask:
 		w.assignTask(e, task)
 	case !w.reachableFacilityConstruction(e.Pos, spec.Facility):
-		if spot, ok := w.findBuildSpot(e.Pos, 20); ok && w.canAffordBuild(e, spec.Facility, Owner{}) {
+		if spot, ok := w.findBuildSpot(e.Pos, 20, spec.Facility); ok && w.canAffordBuild(e, spec.Facility, Owner{}) {
 			w.assignBuild(e, spec.Facility, spot)
 		}
 	default:
@@ -1342,18 +1342,27 @@ func (w *World) jobBuild(e *Entity) {
 	e.stuck = 0
 	e.State = Building
 	e.Progress++
-	if prereq == Wall || prereq == Hull {
-		// Breaking a structure down for a passage: the work of an escape's
-		// demolition, and nothing to carry away.
+	if isBuilt(prereq) {
+		// Breaking a structure down: for a passage, the work of an escape's
+		// demolition, and nothing to carry away; to move a room's wall out;
+		// or for a clearing order (see zones.go). demolish empties a depot
+		// first and keeps the structure registry true.
 		if e.Progress < scaleTicks(w.cfg.DemolishTicks, e.workScale) {
 			return
 		}
-		w.SetTerrain(e.Target, Floor)
-		if p := e.task.proj; p != nil && p.room != nil {
+		switch p := e.task.proj; {
+		case p != nil && p.name == ClearingName:
+			w.clearTile(e.Target)
+			o := w.occurrence(e, ActionClear, nil, e.Target, "Cleared away a %s at (%d, %d).", prereq, e.Target.X, e.Target.Y)
+			o.Object = FactRef{Noun: NounStructure, Label: prereq.String()}
+			w.emitOccurrence(o)
+		case p != nil && p.room != nil:
 			// Moving a room's side wall out (see roomgrow.go).
+			w.demolish(e.Target)
 			w.logEvent(LogBuildStart, fmt.Sprintf("Colonist #%d tears down a wall at (%d, %d) to enlarge the %s.",
 				e.ID, e.Target.X, e.Target.Y, p.room.recipe.name))
-		} else {
+		default:
+			w.demolish(e.Target)
 			w.logEvent(LogEscape, fmt.Sprintf("Colonist #%d breaks through a %s at (%d, %d) to reach a cut-off part of the colony.",
 				e.ID, prereq, e.Target.X, e.Target.Y))
 		}
@@ -1406,6 +1415,8 @@ func (w *World) jobBuild(e *Entity) {
 			}
 		}
 		w.payWork(t.order, e)
+	} else {
+		w.registerLone(e.Target, e.BuildKind) // an emergency build: a structure of its own
 	}
 	w.noteBuild(e.BuildKind)
 	o := w.occurrence(e, ActionConstruct, nil, e.Target, "Finished construction of %s at (%d, %d).",
@@ -1743,14 +1754,17 @@ func (w *World) makeWayAt(e *Entity, target Point) bool {
 
 // findBuildSpot returns the nearest open Floor tile that sits against Rock or
 // Wall — an edge where new structure extends the colony rather than plugging a
-// walkway at random. The colonist's own tile is excluded, and so is every tile
-// an unfinished project task designates, in any phase (see onPlannedTask).
-func (w *World) findBuildSpot(from Point, radius int) (Point, bool) {
+// walkway at random — on ground zoned for a lone fixture of kind (see
+// zoneAllows). The colonist's own tile is excluded, and so is every tile an
+// unfinished project task designates, in any phase (see onPlannedTask).
+func (w *World) findBuildSpot(from Point, radius int, kind Terrain) (Point, bool) {
 	var best Point
 	found := false
+	zone := looseStructure(kind).Zone()
 	w.forEachInRadius(from, radius, func(p Point) bool {
 		if p.Equal(from) || w.TerrainAt(p) != Floor || w.occupied(p) ||
-			w.onPendingBuild(p) || !w.bordersSolid(p) || w.onPlannedTask(p) {
+			w.onPendingBuild(p) || !w.bordersSolid(p) || w.onPlannedTask(p) ||
+			(zone != NoZone && !w.zoneAllows(p, zone)) {
 			return false
 		}
 		best, found = p, true

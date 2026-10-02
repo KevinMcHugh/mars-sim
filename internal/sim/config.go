@@ -99,6 +99,14 @@ type Config struct {
 	// colony eats only what it landed with and what it produces. On is for
 	// tests and balancing. See docs/food.md.
 	InfiniteFood bool `cfg:"infinite-food" doc:"nutrient pods make free meals out of nothing (the safety net)"`
+	// ZoningAuto is who decides where the colony builds. Off (the game's
+	// default), the player draws zones and colonists build a structure only
+	// inside a zone of its kind; with no such zone they build nothing. On,
+	// the colony sites its rooms itself, as it always did, and zones each one
+	// as it marks it out. The terminal and headless runs have no way to draw
+	// a zone, so the committed mars-sim.yaml turns this on. See
+	// docs/zoning.md.
+	ZoningAuto bool `cfg:"zoning-auto" doc:"colonists choose where to build and zone it themselves; off, they build only inside zones the player draws (the browser's Zones tab)"`
 
 	// Food production. Cave scum is a biofilm on cave surfaces, the renewable
 	// base of the food chain: ScumPercent of the map's tiles carry a patch of
@@ -225,7 +233,7 @@ type Config struct {
 	WageDig        int64 `cfg:"wage-dig" sec:"Labor" doc:"what the colony pays to dig out one tile of a room"`
 	WageWall       int64 `cfg:"wage-wall" doc:"what the colony pays to raise one wall"`
 	WageFixture    int64 `cfg:"wage-fixture" doc:"what the colony pays to build one fixture (pod, toilet, bed, ...)"`
-	WageDemolish   int64 `cfg:"wage-demolish" doc:"what the colony pays to tear down one wall tile to enlarge a room"`
+	WageDemolish   int64 `cfg:"wage-demolish" doc:"what the colony pays to tear down one structure tile: a wall moved to enlarge a room, or anything a clearing order takes down"`
 	WageCook       int64 `cfg:"wage-cook" doc:"what the colony pays a cook each time it works a recipe on the colony's stock"`
 	HouseSavings   int64 `cfg:"house-savings" doc:"a colonist with this much money commissions its own house (0 disables)"`
 	KitchenRank    int   `cfg:"kitchen-rank" doc:"cooking rank at which a colonist buys a kitchen of its own when the shared stoves are crowded (3: a chef; 0 disables)"`

@@ -12,7 +12,9 @@ readout. Around it is a Svelte chrome:
 - **A top bar:** the clock (colony day and time of day, see [days.md](./days.md), then tick), a Pause / Normal / Fast / Faster / Max speed selector, and
   the TUI header's counts, as emoji (👷 👽 🐈 🐀, then each fixture's glyph).
 - **A side panel,** with the Inspect tab (click the map), the Roster, the
-  Log, Jobs, Storage, Market, Dig, Charts, the Lore tab, Ships and a new-game form.
+  Log, Jobs, Storage, Market, Zones, Dig, Charts, the Lore tab, Ships and a
+  new-game form (which can also start a colony that zones for itself:
+  `zoning-auto`).
 - **A log ticker** over the map's bottom-left corner: the last few colony-log
   lines, fading after a few seconds.
 
@@ -32,7 +34,7 @@ The rest of the TUI's tabs are planned in
 - [`web/src/ui/`](../web/src/ui/App.svelte) — the Svelte chrome: `App`,
   `TopBar`, `SpeedControl`, `SidePanel`, `Bar` (a gauge), and one component
   per tab (`InspectPanel`, `RosterPanel`, `LogPanel`, `JobsPanel`,
-  `StoragePanel`, `MarketPanel` with `AccountDetail` and `ColonyOrders`, `DigPanel`, `ChartsPanel`, `ShipsPanel`,
+  `StoragePanel`, `MarketPanel` with `AccountDetail` and `ColonyOrders`, `ZonesPanel`, `DigPanel`, `ChartsPanel`, `ShipsPanel`,
   `LorePanel`, `NewGamePanel`), `LogTicker`, and `FlowControl` (the
   flow-field picker and legend, see [flow-field-view.md](./flow-field-view.md)).
   `format.ts` formats money.
@@ -69,7 +71,7 @@ The rest of the TUI's tabs are planned in
 **Running it:** from `web/`, run `npm install` once, then `npm run dev`, which
 rebuilds the WASM first (`predev`), then serves the game on
 <http://localhost:5173/> and the spike on `/spike/`. The URL takes new-game
-settings: `?width=2000&height=2000&seed=7&fog-of-war=false`. `npm run build`
+settings: `?width=2000&height=2000&seed=7&fog-of-war=false&zoning-auto=true`. `npm run build`
 writes a static site to `web/dist/`. `npm run check` type-checks and `npm test`
 runs the wire decoder's tests. All of these need Go on the path. After a Go
 change with the dev server already running, run `npm run wasm` and reload.
@@ -291,6 +293,18 @@ closed.
   open orders, with the `order-place`, `order-reprice` and `order-cancel`
   commands, and suspends or resumes a standing order with `order-suspend`
   and `order-resume` (see [colony-orders.md](./colony-orders.md)).
+- **Zones** paints zones, removes them, and orders an area's structures
+  cleared (see [zoning.md](./zoning.md)). One button per zone kind (from the
+  `zones` topic, swatch and all), **Remove zone** and **Clear area** arm the
+  same area tool the Dig tab uses. `showZone` estimates the outcome from the
+  `zones` and `zoning` topics and the tile pages: tiles changed, colony ships'
+  ground skipped, rock to dig, and the structures a paint would leave in the
+  wrong zone, tinted red with a warning of the extra clearing order. The
+  button sends `zone` or `clear`. Below are what the colony is waiting on a
+  zone for, the tiles each kind covers and what it holds, and open clearing
+  orders with **Cancel** (`clear-cancel`). The map's zone wash is drawn
+  whatever tab is open: the page holds the `zones` topic for its life and
+  `setZones` draws it as the lowest tint layer, under filth.
 - **Dig** orders an area mined out (see [excavation.md](./excavation.md)).
   **Mark an area** arms a tool: while it is armed a drag on the map draws a
   rectangle instead of panning (`attachInput`'s `areaTool` and `area` hooks),

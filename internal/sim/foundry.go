@@ -17,7 +17,7 @@ package sim
 // a smith and a gunsmith rarely want the same tile at once.
 var foundryRoom = roomRecipe{
 	name: "foundry", kinds: []Terrain{Forge, GunBench}, minFac: 2, maxFac: 2, aisle: true,
-	planLog: "The colony marks out a foundry.",
+	planLog: "The colony marks out a foundry.", structure: StructFoundry,
 }
 
 // wantsFoundry reports whether the colony wants a foundry it has not planned:

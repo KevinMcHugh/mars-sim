@@ -303,6 +303,21 @@ The TUI and headless runs never set `place-ships`, so their founders land
 where `findShipSite` puts them. Director arrivals during play land the same
 way in the browser too: placing is for the founders, before the clock runs.
 
+### The ground round a ship is residence
+
+Each landed ship is a structure (`registerShip`, see [zoning.md](./zoning.md))
+and holds its shape and the walkway round it as residence for as long as it
+stands: painting a zone skips those tiles. `findShipSite` never lands a ship on
+ground zoned for anything else (`shipZoneOK`), since the landing would take it
+over; a ship the player lands by hand obliterates whatever is there, zones
+included. `moveShip` unregisters the ship before it lifts and registers it again
+where it comes down, so its hold moves with it and its old ground goes back to
+unzoned. A ship can be cleared with the
+Zones tab's clear tool. Its lockers' goods move to the nearest chest that will
+take them, still their owners' (or are lost, and logged, when none will), and
+once the last tile is down its hold and door steps go with it. The `Ship` record
+stays: its passengers still came down in it.
+
 ### The manifest
 
 | Setting | Default |
@@ -463,3 +478,4 @@ worse under pods. Measured with 100 colonists on a 300×150 map, seeds 1–4,
 - [world.md](./world.md): worldgen and the landing cavern.
 - [frontend-web.md](./frontend-web.md): the Ships tab.
 - [economy.md](./economy.md): the plan this is part of.
+- [zoning.md](./zoning.md): why the ground round a ship is always residence.

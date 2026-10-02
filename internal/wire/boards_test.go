@@ -15,6 +15,7 @@ func colony(t *testing.T, n int) *sim.Snapshot {
 	cfg.Seed = 7
 	cfg.Width, cfg.Height = 200, 200
 	cfg.TicksPerSecond = 1_000_000
+	cfg.ZoningAuto = true // a colony that builds its silo without anyone drawing zones
 	eng := sim.NewEngine(cfg)
 	var snap *sim.Snapshot
 	for deadline := time.Now().Add(time.Minute); snap == nil || snap.Tick < n; {

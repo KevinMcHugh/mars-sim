@@ -472,6 +472,17 @@ type Snapshot struct {
 	// incinerators, storage), sorted by position. The slice is shared between
 	// frames until a fixture changes, and never written after publication.
 	Fixtures []FixtureView
+	// Zoning (see docs/zoning.md). Zones is every zoned tile as row runs,
+	// sorted by row then column; Structures every standing or rising
+	// structure, by id. Both are shared between frames until they change,
+	// and never written after publication. ZoneWaiting lists the structure
+	// types the colony wants and no zone has room for. ZoningAuto is the
+	// zoning-auto setting; ClearWage what clearing one tile pays.
+	Zones       []ZoneRun
+	Structures  []StructureView
+	ZoneWaiting []StructureType
+	ZoningAuto  bool
+	ClearWage   Money
 
 	// AlienSpecies is this world's roster of rolled alien species -- each
 	// one's build, colloquial name, and temperament. Every Alien in Entities
@@ -673,6 +684,11 @@ func (w *World) snapshot(paused bool, tps int) *Snapshot {
 		PendingIncubators:    w.manualIncubators,
 		Storages:             storages,
 		Fixtures:             w.publishedFixtures(),
+		Zones:                w.publishedZones(),
+		Structures:           w.publishedStructures(),
+		ZoneWaiting:          w.zoneWaiting(),
+		ZoningAuto:           w.cfg.ZoningAuto,
+		ClearWage:            Money(w.cfg.WageDemolish),
 		Scum:                 w.publishedScum(),
 		Salt:                 w.publishedSalt(),
 		Graveyard:            append([]EntityView(nil), w.graveyard...),

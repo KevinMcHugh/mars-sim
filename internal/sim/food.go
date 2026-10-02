@@ -638,7 +638,7 @@ func (w *World) tryEmergencyScumhouse(e *Entity) bool {
 	if w.reachableFacilityConstruction(e.Pos, Scumhouse) {
 		return false // someone is already raising one within reach
 	}
-	if spot, ok := w.findBuildSpot(e.Pos, 20); ok && w.canAffordBuild(e, Scumhouse, Owner{}) {
+	if spot, ok := w.findBuildSpot(e.Pos, 20, Scumhouse); ok && w.canAffordBuild(e, Scumhouse, Owner{}) {
 		w.assignBuild(e, Scumhouse, spot)
 		return true
 	}

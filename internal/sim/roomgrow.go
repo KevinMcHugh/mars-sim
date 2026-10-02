@@ -22,6 +22,9 @@ type roomRecord struct {
 	f      roomFrame // the room's current extent
 	n      int       // fixtures in its bay
 	issuer Owner
+	// structure is the room in the structure registry (structures.go),
+	// which an expansion grows too.
+	structure *structure
 }
 
 // stripU is the frame column of an expansion's column j, counted outward from
@@ -123,11 +126,17 @@ func (w *World) expansionClear(rec *roomRecord, k int, right bool, designated, w
 	if !w.InBounds(f.at(rec.stripU(out+1, right), roomBackV-1)) || !w.InBounds(f.at(rec.stripU(out+1, right), roomFrontV+1)) {
 		return false
 	}
+	zone := rec.recipe.structure.Zone()
 	for j := 0; j <= out; j++ {
 		u := rec.stripU(j, right)
 		for v := roomBackV; v <= roomFrontV; v++ {
 			p := f.at(u, v)
 			t := w.TerrainAt(p)
+			// A room grows only onto ground zoned for it, as it was sited
+			// (zoneAllows; a wall it would share is the neighbour's).
+			if j > 0 && zone != NoZone && t != Wall && !w.zoneAllows(p, zone) {
+				return false
+			}
 			if j == 0 {
 				if t != Wall || designated[p] {
 					return false
@@ -250,6 +259,18 @@ func (w *World) designateExpansion(rec *roomRecord, k int, right bool) bool {
 	if r.name == scumhouseRoom.name {
 		w.linkPantry(p) // the new stove's pantry, as designateRoom links a new kitchen's
 	}
+	// The room's structure takes in the strip too: its new walls and
+	// fixtures, and the ground that now has to lie in its zone.
+	var strip []Point
+	for j := 1; j <= out; j++ {
+		for v := roomBackV; v <= roomFrontV; v++ {
+			if pos := f.at(rec.stripU(j, right), v); w.TerrainAt(pos) != Wall {
+				strip = append(strip, pos)
+			}
+		}
+	}
+	p.structure = rec.structure
+	w.growStructure(rec.structure, p, strip)
 	// The new inside, from where the old wall stood to the new wall, in the
 	// frame as it was before growing.
 	if right {

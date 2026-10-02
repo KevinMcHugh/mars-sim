@@ -48,6 +48,9 @@ type Ship struct {
 	// came down with them, in the order they stepped out.
 	Colonists []EntityID
 	Pets      []EntityID
+	// structure is the ship in the structure registry (structures.go),
+	// which holds its ground as residence; nil once it has been cleared.
+	structure *structure
 }
 
 // shipShare is pct percent of n, rounded up, but at least one while pct is
@@ -172,6 +175,7 @@ func (w *World) landShip(n int, l shipLayout, o Point, crashed, announce bool) *
 		w.rollEmployer(e)
 	}
 	w.furnishShip(s)
+	w.registerShip(s)
 	// The one rare item each passenger brought: a gun, a chicken, or a cat.
 	next := n
 	for _, id := range s.Colonists {
@@ -418,6 +422,7 @@ func (w *World) moveShip(c MoveShip) bool {
 		w.removeFromChunkIndex(w.chunkIndexOf(e.Pos), e.ID)
 	}
 	old := s.Origin
+	w.unregisterShip(s)
 	s.layout.forEachTile(func(d Point, _ bool) {
 		w.SetTerrain(old.Add(d.X, d.Y), Floor)
 	})
@@ -439,6 +444,7 @@ func (w *World) moveShip(c MoveShip) bool {
 		w.chunkEntities[ci] = append(w.chunkEntities[ci], e.ID)
 	}
 	w.furnishShip(s)
+	w.registerShip(s)
 	w.refreshSpatial()
 	return true
 }
@@ -639,7 +645,7 @@ func (w *World) shipSiteRock(o Point, l *shipLayout, designated map[Point]bool) 
 		default:
 			ok = false
 		}
-		if w.doorTiles[p] || designated[p] {
+		if w.doorTiles[p] || designated[p] || !shipZoneOK(w, p) {
 			ok = false
 		}
 	})
@@ -649,6 +655,9 @@ func (w *World) shipSiteRock(o Point, l *shipLayout, designated map[Point]bool) 
 	touchesFloor, blocked := false, false
 	for _, d := range l.margin {
 		p := o.Add(d.X, d.Y)
+		if !shipZoneOK(w, p) {
+			blocked = true
+		}
 		switch t := w.TerrainAt(p); {
 		case t == Wall || t == Hull || isFixtureTerrain(t):
 			blocked = true
@@ -663,6 +672,15 @@ func (w *World) shipSiteRock(o Point, l *shipLayout, designated map[Point]bool) 
 		return 0, 0, false
 	}
 	return rock, marginRock, true
+}
+
+// shipZoneOK reports whether a ship may hold p as residence: it is unzoned,
+// or residence already. A ship never lands on ground zoned for something
+// else, which its landing would take over (see registerShip). A ship the
+// player puts down by hand obliterates whatever is there, zones included.
+func shipZoneOK(w *World, p Point) bool {
+	z := w.zoneAt(p)
+	return z == NoZone || z == ZoneResidence
 }
 
 // hiddenFloorNear reports whether any undiscovered floor lies within
