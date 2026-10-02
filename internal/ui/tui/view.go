@@ -199,8 +199,12 @@ func (m Model) renderHeader() string {
 	s := m.latest
 	title := titleStyle.Render(fitGlyph(glyphMars) + "MARS-SIM")
 	sub := statStyle.Render("Mars Colony")
+	// The colony calendar sits on the title line, which has room to spare;
+	// the counts line below is already near a 120-column terminal's width.
+	clock := titleStyle.Render(fmt.Sprintf("day %d  %02d:%02d",
+		s.Stats.Day, s.Stats.MinuteOfDay/60, s.Stats.MinuteOfDay%60))
 
-	state := fmt.Sprintf("day %d  |  tick %d  |  %d tps", s.Stats.Day, s.Tick, s.TicksPerSecond)
+	state := fmt.Sprintf("tick %d  |  %d tps", s.Tick, s.TicksPerSecond)
 	if s.Paused {
 		state += "  |  " + pausedStyle.Render("PAUSED")
 	}
@@ -220,7 +224,7 @@ func (m Model) renderHeader() string {
 		fmt.Sprintf("excavated %d", s.Stats.FloorDug),
 	}, "  "))
 
-	line1 := lipgloss.JoinHorizontal(lipgloss.Left, title, "  ", sub)
+	line1 := lipgloss.JoinHorizontal(lipgloss.Left, title, "  ", sub, "   ", clock)
 	line2 := lipgloss.JoinHorizontal(lipgloss.Left, statStyle.Render(state), "   ", counts)
 	return strings.Join([]string{
 		cells.Truncate(line1, m.termW),

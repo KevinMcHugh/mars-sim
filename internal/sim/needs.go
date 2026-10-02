@@ -131,10 +131,29 @@ func (c *Config) TicksPerDay() int {
 	return max(awake+spec.UseTicks, 1)
 }
 
-// DayOf is the colony day tick falls on, counting the landing (tick 0) as
-// day 1.
+// LandingHour is the clock time the colony lands at, tick 0. Colonists land
+// with no sleep need, so landing is the start of their waking stretch: the
+// morning. The day number turns over at midnight, not at landing, so a clock
+// reading of 23:59 and the next 00:00 are on consecutive days.
+const LandingHour = 6
+
+// landingOffset is how far into its day, in ticks, the landing falls.
+func landingOffset(ticksPerDay int) int {
+	return ticksPerDay * LandingHour / 24
+}
+
+// DayOf is the colony day tick falls on. The landing (tick 0) is day 1.
 func DayOf(tick, ticksPerDay int) int {
-	return tick/max(ticksPerDay, 1) + 1
+	ticksPerDay = max(ticksPerDay, 1)
+	return (tick+landingOffset(ticksPerDay))/ticksPerDay + 1
+}
+
+// MinuteOfDay is the clock time tick falls on, in minutes since midnight
+// (0..1439): the day's TicksPerDay ticks stretched over 24 hours, with the
+// landing at LandingHour.
+func MinuteOfDay(tick, ticksPerDay int) int {
+	ticksPerDay = max(ticksPerDay, 1)
+	return (tick + landingOffset(ticksPerDay)) % ticksPerDay * (24 * 60) / ticksPerDay
 }
 
 // needLevel returns an entity's current level for one need, computed lazily

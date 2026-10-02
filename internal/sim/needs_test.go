@@ -278,12 +278,31 @@ func TestTicksPerDayFollowsSleep(t *testing.T) {
 }
 
 func TestDayOfCountsLandingAsDayOne(t *testing.T) {
-	for _, c := range []struct{ tick, day int }{{0, 1}, {739, 1}, {740, 2}, {7400, 11}} {
+	// 740 ticks a day, landing at 06:00: a quarter day, 185 ticks, in. The
+	// day turns over at midnight, 555 ticks after landing.
+	for _, c := range []struct{ tick, day int }{{0, 1}, {554, 1}, {555, 2}, {1294, 2}, {1295, 3}} {
 		if got := DayOf(c.tick, 740); got != c.day {
 			t.Errorf("DayOf(%d, 740) = %d, want %d", c.tick, got, c.day)
 		}
 	}
 	if got := DayOf(5, 0); got != 6 {
 		t.Errorf("DayOf with a zero day length = %d, want 6", got)
+	}
+}
+
+func TestMinuteOfDayStartsAtLandingHour(t *testing.T) {
+	for _, c := range []struct{ tick, minute int }{
+		{0, LandingHour * 60}, // landing
+		{370, 18 * 60},        // half a day later
+		{554, 1438},           // just before midnight
+		{555, 0},              // midnight, the next day
+		{740, LandingHour * 60},
+	} {
+		if got := MinuteOfDay(c.tick, 740); got != c.minute {
+			t.Errorf("MinuteOfDay(%d, 740) = %d, want %d", c.tick, got, c.minute)
+		}
+	}
+	if got := MinuteOfDay(5, 0); got != 0 {
+		t.Errorf("MinuteOfDay with a zero day length = %d, want 0", got)
 	}
 }

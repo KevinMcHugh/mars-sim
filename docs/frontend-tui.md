@@ -64,7 +64,7 @@ dispatch to the active panel's handler.
   a legend and the tail of the event log. Log lines are word-wrapped to the
   panel rather than cut with an ellipsis — a cut line reads as a finished
   sentence — and each event keeps one stripe so a wrap stays visually one
-  entry (see The colony log). The header shows the colony day (see [days.md](./days.md)), tick, speed, pause
+  entry (see The colony log). The header shows the colony day and time of day on its title line (see [days.md](./days.md)), then tick, speed, pause
   state, and `Stats` counts, including built dormitory beds, incinerators, and
   refuse still on the floor.
 - **Roster** (`renderRoster`): a scrolling, ID-sorted entity list — living
