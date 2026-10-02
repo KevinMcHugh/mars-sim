@@ -37,10 +37,11 @@ the RNG half of save/load.
 | worldgen passages, per cavern pair | `featureRand(0xA4093822299F31D0, both caverns)` | one plan | no |
 | alien lore roster | `Seed ^ alienLoreSeed` | `newWorld` only | no |
 | arms-maker lore (corporations, gun models) | `Seed ^ armsLoreSeed` | `newWorld` only | no |
+| alien scientific names | `Seed ^ alienTaxonomySeed` | `newWorld` only | no |
 
 Why the streams are split is covered per stream in
 [personality.md](./personality.md), [caverns.md](./caverns.md),
-[lore.md](./lore.md), [skills.md](./skills.md) and
+[lore.md](./lore.md), [alien-taxonomy.md](./alien-taxonomy.md), [skills.md](./skills.md) and
 [conversation-topics.md](./conversation-topics.md).
 
 **Seeding.** `newPCG(seed)` feeds the int64 through splitmix64 twice to fill

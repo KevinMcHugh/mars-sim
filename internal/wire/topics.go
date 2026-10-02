@@ -197,28 +197,30 @@ type LoreWorld struct {
 
 // LoreSpecies is one rolled alien species. See docs/lore.md.
 type LoreSpecies struct {
-	Label       string `json:"label"` // the roster label, "Xeno · hostile"
-	Glyph       string `json:"glyph"` // what the map draws it as (glyphs.ForAlien)
-	Singular    string `json:"singular"`
-	Plural      string `json:"plural"`
-	Temperament string `json:"temperament"`
-	HeightMinCM int    `json:"heightMinCm"`
-	HeightMaxCM int    `json:"heightMaxCm"`
-	WeightMinKG int    `json:"weightMinKg"`
-	WeightMaxKG int    `json:"weightMaxKg"`
-	Eyes        int    `json:"eyes"`
-	Limbs       int    `json:"limbs"`
-	Arms        int    `json:"arms"`
-	Legs        int    `json:"legs"`
-	Tail        bool   `json:"tail"`
-	Skin        string `json:"skin"`
-	Color       string `json:"color"`
-	Pattern     string `json:"pattern"`
-	Attacks     string `json:"attacks"` // "bite, claws, tail"
-	BiteDamage  int    `json:"biteDamage"`
-	BiteRest    int    `json:"biteRest"` // ticks between bites
-	Slowness    int    `json:"slowness"` // ticks per step
-	Description string `json:"description"`
+	Label    string `json:"label"` // the roster label, "Xeno · hostile"
+	Glyph    string `json:"glyph"` // what the map draws it as (glyphs.ForAlien)
+	Singular string `json:"singular"`
+	Plural   string `json:"plural"`
+	// ScientificName is the species' binomial, "Pseudursus ares".
+	ScientificName string `json:"scientificName"`
+	Temperament    string `json:"temperament"`
+	HeightMinCM    int    `json:"heightMinCm"`
+	HeightMaxCM    int    `json:"heightMaxCm"`
+	WeightMinKG    int    `json:"weightMinKg"`
+	WeightMaxKG    int    `json:"weightMaxKg"`
+	Eyes           int    `json:"eyes"`
+	Limbs          int    `json:"limbs"`
+	Arms           int    `json:"arms"`
+	Legs           int    `json:"legs"`
+	Tail           bool   `json:"tail"`
+	Skin           string `json:"skin"`
+	Color          string `json:"color"`
+	Pattern        string `json:"pattern"`
+	Attacks        string `json:"attacks"` // "bite, claws, tail"
+	BiteDamage     int    `json:"biteDamage"`
+	BiteRest       int    `json:"biteRest"` // ticks between bites
+	Slowness       int    `json:"slowness"` // ticks per step
+	Description    string `json:"description"`
 }
 
 func loreTopic(s *sim.Snapshot) any {
@@ -246,28 +248,29 @@ func loreTopic(s *sim.Snapshot) any {
 	}
 	for _, sp := range s.AlienSpecies {
 		t.Species = append(t.Species, LoreSpecies{
-			Label:       sp.RosterLabel(),
-			Glyph:       glyphs.ForAlien(sp),
-			Singular:    sp.Singular,
-			Plural:      sp.Plural,
-			Temperament: sp.Temperament.String(),
-			HeightMinCM: sp.HeightMinCM,
-			HeightMaxCM: sp.HeightMaxCM,
-			WeightMinKG: sp.WeightMinKG,
-			WeightMaxKG: sp.WeightMaxKG,
-			Eyes:        sp.Eyes,
-			Limbs:       sp.Limbs,
-			Arms:        sp.Arms,
-			Legs:        sp.Legs(),
-			Tail:        sp.Tail,
-			Skin:        sp.Skin.String(),
-			Color:       sp.Color,
-			Pattern:     sp.Pattern.String(),
-			Attacks:     sp.AttacksLabel(),
-			BiteDamage:  sp.BiteDamage,
-			BiteRest:    sp.BiteRest,
-			Slowness:    sp.Slowness,
-			Description: sp.Description(),
+			Label:          sp.RosterLabel(),
+			Glyph:          glyphs.ForAlien(sp),
+			Singular:       sp.Singular,
+			Plural:         sp.Plural,
+			ScientificName: sp.ScientificName,
+			Temperament:    sp.Temperament.String(),
+			HeightMinCM:    sp.HeightMinCM,
+			HeightMaxCM:    sp.HeightMaxCM,
+			WeightMinKG:    sp.WeightMinKG,
+			WeightMaxKG:    sp.WeightMaxKG,
+			Eyes:           sp.Eyes,
+			Limbs:          sp.Limbs,
+			Arms:           sp.Arms,
+			Legs:           sp.Legs(),
+			Tail:           sp.Tail,
+			Skin:           sp.Skin.String(),
+			Color:          sp.Color,
+			Pattern:        sp.Pattern.String(),
+			Attacks:        sp.AttacksLabel(),
+			BiteDamage:     sp.BiteDamage,
+			BiteRest:       sp.BiteRest,
+			Slowness:       sp.Slowness,
+			Description:    sp.Description(),
 		})
 	}
 	return t

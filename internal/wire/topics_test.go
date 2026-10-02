@@ -67,7 +67,7 @@ func TestLoreTopic(t *testing.T) {
 	snap := fixture(true)
 	snap.Stats.ExploredTiles, snap.Stats.ChunksGenerated, snap.Stats.Chunks = 500, 6, 6
 	snap.AlienSpecies = []sim.AlienSpecies{
-		{Singular: "grub", Plural: "grubs", Emoji: glyphs.Beetle, Limbs: 6, Arms: 2, Temperament: sim.TemperamentHostile},
+		{Singular: "grub", Plural: "grubs", ScientificName: "Hexapus ferox", Emoji: glyphs.Beetle, Limbs: 6, Arms: 2, Temperament: sim.TemperamentHostile},
 		{Singular: "xeno", Plural: "xenos", Emoji: "\U0001F921"}, // not a listed glyph
 	}
 	snap.Corporations = []sim.Corporation{{Name: "MarsCorp", Code: "M", HQ: "Phobos", Founded: 2090}}
@@ -88,7 +88,7 @@ func TestLoreTopic(t *testing.T) {
 		t.Fatalf("species = %+v", lore.Species)
 	}
 	g := lore.Species[0]
-	if g.Glyph != glyphs.Beetle || g.Legs != 4 || g.Temperament != sim.TemperamentHostile.String() || g.Description == "" || g.Label == "" {
+	if g.Glyph != glyphs.Beetle || g.Legs != 4 || g.Temperament != sim.TemperamentHostile.String() || g.Description == "" || g.Label == "" || g.ScientificName != "Hexapus ferox" {
 		t.Errorf("grub = %+v", g)
 	}
 	if lore.Species[1].Glyph != glyphs.Alien {
