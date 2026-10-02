@@ -13,7 +13,7 @@ import "fmt"
 // ship_layout.go). Worldgen, the spawn command, and the director's arrival
 // occurrence all go through land, so what a ship carries is decided in one
 // place; in the browser the founders wait aloft until the player lands each
-// one (LandShip). See docs/ships.md.
+// one (LandShip), and they come down when the game starts. See docs/ships.md.
 //
 // The ship replaced one crash pod per colonist. Pods each carried a private
 // bunk and toilet, so a colony of them never needed a dormitory, and they
@@ -159,6 +159,7 @@ func (w *World) landShip(n int, l shipLayout, o Point, crashed, announce bool) *
 	// A ship a player put down beside a hidden cavern breaks into it. Its
 	// nest is rolled once everyone aboard is out, so its aliens neither take
 	// the passengers' IDs nor their tiles.
+	held := w.holdNests
 	w.holdNests = true
 	w.stampShip(s)
 	for i := 0; i < n; i++ {
@@ -193,10 +194,8 @@ func (w *World) landShip(n int, l shipLayout, o Point, crashed, announce bool) *
 			s.Pets = append(s.Pets, cat.ID)
 		}
 	}
-	w.holdNests = false
-	if len(w.nestCenters) > 0 {
-		w.rollNests(w.nestCenters)
-		w.nestCenters = w.nestCenters[:0]
+	if !held {
+		w.releaseNests()
 	}
 
 	if announce {
@@ -213,11 +212,21 @@ func (w *World) landShip(n int, l shipLayout, o Point, crashed, announce bool) *
 	return s
 }
 
-// LandShip lands the next ship still waiting aloft with its top-left at
-// (X, Y), before the game's first tick: with place-ships set (the browser
-// sets it), the founders' ships wait for the player to land them one after
-// another. Ship is the ship's ID, which must be the next to land, so a
-// command sent twice cannot land the one after it by mistake.
+// releaseNests ends holdNests and rolls the nests it held back.
+func (w *World) releaseNests() {
+	w.holdNests = false
+	if len(w.nestCenters) > 0 {
+		w.rollNests(w.nestCenters)
+		w.nestCenters = w.nestCenters[:0]
+	}
+}
+
+// LandShip plans where a founders' ship still waiting aloft comes down: its
+// top-left at (X, Y). With place-ships set (the browser sets it) the player
+// places every founders' ship before the game's first tick, and may place one
+// again to change their mind. Placing is only a plan: nothing is stamped, so
+// no ground is revealed, until the game starts and landRestAloft brings them
+// all down where they were placed. Ship is the ship's ID.
 type LandShip struct {
 	Ship int
 	X, Y int
@@ -225,27 +234,81 @@ type LandShip struct {
 
 func (LandShip) isCommand() {}
 
-// landAloft carries out a LandShip, reporting whether a ship landed.
+// aloftShip is a founders' ship waiting aloft: its load, and where the
+// player has placed it, if they have.
+type aloftShip struct {
+	n      int
+	at     Point
+	placed bool
+}
+
+// landAloft carries out a LandShip, reporting whether the ship was placed.
 func (w *World) landAloft(c LandShip) bool {
-	if w.tick != 0 || len(w.aloft) == 0 || c.Ship != len(w.ships)+1 {
+	i := c.Ship - len(w.ships) - 1
+	if w.tick != 0 || i < 0 || i >= len(w.aloft) {
 		return false
 	}
-	if w.landAt(w.aloft[0], Point{c.X, c.Y}, true) == nil {
+	layouts := w.aloftLayouts()
+	o := Point{c.X, c.Y}
+	if !w.shipSiteAllowed(nil, &layouts[i], o) {
 		return false
 	}
-	w.aloft = w.aloft[1:]
-	w.refreshSpatial()
+	// Clear of every other placed ship and the walkway round it, as it must
+	// be of a landed one.
+	ok := true
+	layouts[i].forEachTile(func(d Point, _ bool) {
+		p := o.Add(d.X, d.Y)
+		for j, a := range w.aloft {
+			if ok && j != i && a.placed && layoutNear(&layouts[j], a.at, p) {
+				ok = false
+			}
+		}
+	})
+	if !ok {
+		return false
+	}
+	w.aloft[i].at, w.aloft[i].placed = o, true
 	return true
 }
 
-// landRestAloft brings down any founders' ships the player left aloft when
-// the game started, wherever findShipSite puts them, so nobody is left in
-// orbit.
-func (w *World) landRestAloft() {
-	for len(w.aloft) > 0 {
-		w.land(w.aloft[0], true)
-		w.aloft = w.aloft[1:]
+// aloftLayouts is the layout of every ship aloft, in landing order. Each
+// ship's passengers take the next IDs after the last one's passengers and
+// pets, and nests are held until they are all down (see landRestAloft), so
+// these are exactly the ships that land.
+func (w *World) aloftLayouts() []shipLayout {
+	out := make([]shipLayout, len(w.aloft))
+	first := w.nextID
+	for i, a := range w.aloft {
+		out[i] = w.shipLayoutFor(first, a.n)
+		pets := 0
+		for k := range a.n {
+			if r := w.arrivalRareItem(first + EntityID(k)); r == rareChicken || r == rareCat {
+				pets++
+			}
+		}
+		first += EntityID(a.n + pets)
 	}
+	return out
+}
+
+// landRestAloft brings down the founders' ships when the game starts: each
+// where the player placed it, and any they did not place wherever
+// findShipSite puts it, so nobody is left in orbit. Nests a landing breaks
+// into are rolled once every ship is down, so the IDs, and so the shapes,
+// match what aloftLayouts showed.
+func (w *World) landRestAloft() {
+	w.holdNests = true
+	for _, a := range w.aloft {
+		var s *Ship
+		if a.placed {
+			s = w.landAt(a.n, a.at, true)
+		}
+		if s == nil {
+			w.land(a.n, true)
+		}
+	}
+	w.aloft = nil
+	w.releaseNests()
 	w.refreshSpatial()
 }
 
@@ -348,7 +411,10 @@ type ShipView struct {
 	Shape     []string
 	ShapeName string
 	Colonists int
-	Aloft     bool
+	// Aloft is a founders' ship not down yet; Placed one the player has
+	// placed (at X, Y), which lands there when the game starts.
+	Aloft  bool
+	Placed bool
 }
 
 // shipViews lists the ships for a snapshot, landed ones then any still
@@ -361,13 +427,10 @@ func (w *World) shipViews() []ShipView {
 		out = append(out, ShipView{ID: s.ID, X: s.Origin.X, Y: s.Origin.Y, Width: l.width, Height: l.height,
 			Shape: l.rows, ShapeName: l.shape.String(), Colonists: len(s.Colonists)})
 	}
-	for i, n := range w.aloft {
-		v := ShipView{ID: len(w.ships) + 1 + i, Colonists: n, Aloft: true}
-		if i == 0 {
-			l := w.nextShipLayout(n)
-			v.Width, v.Height, v.Shape, v.ShapeName = l.width, l.height, l.rows, l.shape.String()
-		}
-		out = append(out, v)
+	for i, l := range w.aloftLayouts() {
+		a := w.aloft[i]
+		out = append(out, ShipView{ID: len(w.ships) + 1 + i, X: a.at.X, Y: a.at.Y, Width: l.width, Height: l.height,
+			Shape: l.rows, ShapeName: l.shape.String(), Colonists: a.n, Aloft: true, Placed: a.placed})
 	}
 	return out
 }
@@ -472,14 +535,18 @@ func (w *World) shipSiteAllowed(s *Ship, l *shipLayout, o Point) bool {
 }
 
 // near reports whether p is part of ship s or the one-tile walkway round it.
-func (s *Ship) near(p Point) bool {
-	dx, dy := p.X-s.Origin.X, p.Y-s.Origin.Y
-	if dx < -1 || dy < -1 || dx > s.layout.width || dy > s.layout.height {
+func (s *Ship) near(p Point) bool { return layoutNear(&s.layout, s.Origin, p) }
+
+// layoutNear reports whether p is part of a ship laid out as l with its
+// top-left at o, or the one-tile walkway round it.
+func layoutNear(l *shipLayout, o, p Point) bool {
+	dx, dy := p.X-o.X, p.Y-o.Y
+	if dx < -1 || dy < -1 || dx > l.width || dy > l.height {
 		return false
 	}
 	for y := dy - 1; y <= dy+1; y++ {
 		for x := dx - 1; x <= dx+1; x++ {
-			if s.layout.inShip(x, y) {
+			if l.inShip(x, y) {
 				return true
 			}
 		}

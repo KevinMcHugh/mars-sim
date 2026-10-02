@@ -112,6 +112,7 @@ func TestShipsTopic(t *testing.T) {
 	snap.Ships = []sim.ShipView{
 		{ID: 1, X: 10, Y: 20, Width: 3, Height: 3, Shape: shape, ShapeName: "stick", Colonists: 20},
 		{ID: 2, Colonists: 5, Aloft: true},
+		{ID: 3, X: 40, Y: 20, Width: 3, Height: 3, Shape: shape, ShapeName: "stick", Colonists: 5, Aloft: true, Placed: true},
 	}
 	tp := NewTopics()
 	if err := tp.Subscribe("ships"); err != nil {
@@ -124,6 +125,7 @@ func TestShipsTopic(t *testing.T) {
 	want := []ShipLine{
 		{ID: 1, X: 10, Y: 20, W: 3, H: 3, Shape: shape, Kind: "stick", Colonists: 20},
 		{ID: 2, Colonists: 5, Aloft: true},
+		{ID: 3, X: 40, Y: 20, W: 3, H: 3, Shape: shape, Kind: "stick", Colonists: 5, Aloft: true, Placed: true},
 	}
 	if !ships.Placing || !reflect.DeepEqual(ships.Ships, want) {
 		t.Fatalf("ships = %+v", ships)

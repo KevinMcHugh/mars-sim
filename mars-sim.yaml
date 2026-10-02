@@ -304,7 +304,7 @@
 ## relative odds a colony ship is a knobby cluster: rooms budding off a spine corridor
 # ship-cluster-weight: 1
 
-## hold the founders' ships aloft for the player to land one by one (the browser does)
+## hold the founders' ships aloft for the player to place before the game starts (the browser does)
 # place-ships: false
 
 ## dollars each colonist arrives with

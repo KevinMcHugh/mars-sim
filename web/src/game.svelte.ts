@@ -53,7 +53,7 @@ export const ui = $state({
   dig: { armed: false, rect: null, tiles: 0 } as DigState,
   /** The Ships tab's tool: the ship a click on the map relands, or null (ShipsPanel.svelte). */
   shipTool: null as number | null,
-  /** The aloft ship last sent down: the Ships tab does not pick it up again while the topic catches up. */
+  /** The aloft ship last placed: the Ships tab does not pick it up again while the topic catches up. */
   shipSent: null as number | null,
   /** The Charts tab's view, kept while the tab is closed. */
   chartView: 'perf' as 'perf' | 'population' | 'activity',
@@ -98,8 +98,8 @@ export interface ShipsTopic {
 }
 /**
  * One ship: its footprint's top-left, size and shape, and how many came down
- * in it. One still aloft has no position yet, and only the next to land has a
- * size and shape.
+ * in it. One still aloft has a position only once the player has placed it;
+ * it lands there when the game starts.
  */
 export interface ShipLine {
   id: number; x: number; y: number; w: number; h: number;
@@ -108,13 +108,15 @@ export interface ShipLine {
   /** stick, hub-and-spoke, or cluster. */
   kind?: string;
   colonists: number;
-  /** Still in orbit, waiting for the player to land it. */
+  /** Still in orbit: nothing is stamped on the map until the game starts. */
   aloft?: boolean;
+  /** Aloft, and placed by the player at (x, y): an overlay, not yet landed. */
+  placed?: boolean;
 }
 
-/** The next ship waiting to land, if any: they land in order (docs/ships.md). */
+/** The next ship waiting to be placed, if any: they are handed out in order (docs/ships.md). */
 export function nextAloft(t: ShipsTopic): ShipLine | undefined {
-  return t.ships.find((s) => s.aloft);
+  return t.ships.find((s) => s.aloft && !s.placed);
 }
 
 /** Whether (dx, dy) of ship s's footprint is part of the ship rather than the ground it leaves be. */
@@ -124,10 +126,14 @@ function onShip(s: ShipLine, dx: number, dy: number): boolean {
   return row === undefined || row[dx] !== ' ';
 }
 
-/** Every tile of ship s were its top-left at o. */
-export function shipTiles(s: ShipLine, o: { x: number; y: number }): { x: number; y: number }[] {
-  const out: { x: number; y: number }[] = [];
-  for (let dy = 0; dy < s.h; dy++) for (let dx = 0; dx < s.w; dx++) if (onShip(s, dx, dy)) out.push({ x: o.x + dx, y: o.y + dy });
+/** Every tile of ship s were its top-left at o, and whether it is hull rather than deck. */
+export function shipTiles(s: ShipLine, o: { x: number; y: number }): { x: number; y: number; hull: boolean }[] {
+  const out: { x: number; y: number; hull: boolean }[] = [];
+  for (let dy = 0; dy < s.h; dy++) {
+    for (let dx = 0; dx < s.w; dx++) {
+      if (onShip(s, dx, dy)) out.push({ x: o.x + dx, y: o.y + dy, hull: s.shape?.[dy]?.[dx] === '#' });
+    }
+  }
   return out;
 }
 
@@ -143,14 +149,14 @@ export function shipSiteAt(s: ShipLine, x: number, y: number, width: number, hei
 }
 
 /**
- * Whether ship s may land with its top-left at o: none of its tiles on
- * another landed ship or the one-tile walkway round it, as the engine's
- * shipSiteAllowed checks. (The engine also refuses to land on another ship's
- * colonist, which this cannot see; it never stands outside its own ship
- * before the first tick.)
+ * Whether ship s may be placed with its top-left at o: none of its tiles on
+ * another landed or placed ship or the one-tile walkway round it, as the
+ * engine's landAloft checks. (The engine also refuses to land on another
+ * ship's colonist, which this cannot see; it never stands outside its own
+ * ship before the first tick.)
  */
 export function shipSiteFree(ships: ShipLine[], s: ShipLine, o: { x: number; y: number }): boolean {
-  const others = ships.filter((t) => t.id !== s.id && !t.aloft);
+  const others = ships.filter((t) => t.id !== s.id && (!t.aloft || t.placed));
   const near = (t: ShipLine, x: number, y: number) => {
     for (let ny = y - 1; ny <= y + 1; ny++) for (let nx = x - 1; nx <= x + 1; nx++) if (onShip(t, nx - t.x, ny - t.y)) return true;
     return false;
@@ -169,7 +175,10 @@ export function moveShip(id: number, x: number, y: number): void {
   ctl?.command({ type: 'ship-move', id, x, y });
 }
 
-/** Land the next ship waiting aloft with its top-left at (x, y), before the first tick. */
+/**
+ * Place a ship waiting aloft with its top-left at (x, y), before the first
+ * tick. It lands there when the game starts; until then it is only drawn.
+ */
 export function landAloft(id: number, x: number, y: number): void {
   ui.shipSent = id;
   ctl?.command({ type: 'ship-land', id, x, y });

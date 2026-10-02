@@ -508,8 +508,11 @@ func (w *World) shipKeepers(first EntityID, n int) []bool {
 // nextShipLayout is the layout of a ship of n landing now: its passengers
 // take the next n IDs, and their shape is shipShapeFor the first. A shape
 // too big for the map, crater and all, comes down as a stick.
-func (w *World) nextShipLayout(n int) shipLayout {
-	first := w.nextID
+func (w *World) nextShipLayout(n int) shipLayout { return w.shipLayoutFor(w.nextID, n) }
+
+// shipLayoutFor is the layout of a ship of n whose passengers take the IDs
+// from first on.
+func (w *World) shipLayoutFor(first EntityID, n int) shipLayout {
 	keepers := w.shipKeepers(first, n)
 	l := w.planShip(keepers, w.shipShapeFor(first))
 	if l.shape != shipStick && (l.width+2 > w.Width || l.height+2 > w.Height) {

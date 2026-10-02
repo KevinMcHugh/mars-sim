@@ -48,10 +48,12 @@ func generate(w *World) {
 	// Every colonist arrives aboard a colony ship, the ships landing from the
 	// middle of the cavern outward and smashing through the rock around it
 	// once the open floor runs out. See ship.go.
-	// With place-ships set they wait aloft instead, for the player to land.
+	// With place-ships set they wait aloft instead, for the player to place.
 	ships := 0
 	if w.cfg.PlaceShips {
-		w.aloft = shipLoads(w.cfg.StartColonists, w.cfg.ShipCapacity)
+		for _, n := range shipLoads(w.cfg.StartColonists, w.cfg.ShipCapacity) {
+			w.aloft = append(w.aloft, aloftShip{n: n})
+		}
 	} else {
 		_, ships = w.arriveWave(w.cfg.StartColonists, false)
 	}

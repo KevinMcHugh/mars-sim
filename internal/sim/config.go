@@ -244,9 +244,9 @@ type Config struct {
 	ShipHubWeight     int `cfg:"ship-hub-weight" doc:"relative odds a colony ship is a hub and spoke: a concourse with a room down each spoke"`
 	ShipClusterWeight int `cfg:"ship-cluster-weight" doc:"relative odds a colony ship is a knobby cluster: rooms budding off a spine corridor"`
 	// PlaceShips leaves the founders' ships aloft at worldgen for a frontend
-	// to land one by one with LandShip before the first tick. The browser
-	// sets it; anything still aloft when the game starts lands by itself.
-	PlaceShips bool `cfg:"place-ships" doc:"hold the founders' ships aloft for the player to land one by one (the browser does)"`
+	// to place with LandShip before the first tick. They all come down when
+	// the game starts: where placed, or wherever findShipSite puts the rest.
+	PlaceShips bool `cfg:"place-ships" doc:"hold the founders' ships aloft for the player to place before the game starts (the browser does)"`
 
 	CrashPodPurse      int64 `cfg:"crash-pod-purse" doc:"dollars each colonist arrives with"`
 	CrashPodMeals      int   `cfg:"crash-pod-meals" doc:"meals stocked in each colonist's locker, on average"`

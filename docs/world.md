@@ -137,7 +137,7 @@ derived systems go stale (and the map the player sees never grows).
 3. Lands the colonists in colony ships of up to `ship-capacity` (`arriveWave`),
    in the lower half of the cavern, crashing through the rock once the open
    floor runs out. With `place-ships` (the browser) it lands nobody and leaves
-   the ships aloft for the player to land.
+   the ships aloft for the player to place; they land when the game starts.
 4. Places aliens with `alienSpawnSite`: on hidden cavern floor, where they lie
    dormant until the colony digs in, or, with no cave room, on colony floor far
    from the landing site. See [caverns.md](./caverns.md#aliens-in-the-caves).

@@ -45,7 +45,7 @@ var topicTable = map[string]topic{
 }
 
 // ShipsTopic is the Ships tab: every colony ship's footprint, and whether
-// they may still be landed and moved (only before the first tick; see
+// they may still be placed and moved (only before the first tick; see
 // sim.LandShip and sim.MoveShip).
 type ShipsTopic struct {
 	Placing bool       `json:"placing"`
@@ -53,8 +53,8 @@ type ShipsTopic struct {
 }
 
 // ShipLine is one ship: its id, its footprint's top-left, size, and shape,
-// and how many came down in it. A ship still aloft has no position, and only
-// the next one to land has a size and shape yet.
+// and how many came down in it. A ship still aloft has a position only once
+// the player has placed it (Placed); it lands there when the game starts.
 type ShipLine struct {
 	ID int `json:"id"`
 	X  int `json:"x"`
@@ -67,13 +67,14 @@ type ShipLine struct {
 	Kind      string   `json:"kind,omitempty"`
 	Colonists int      `json:"colonists"`
 	Aloft     bool     `json:"aloft,omitempty"`
+	Placed    bool     `json:"placed,omitempty"`
 }
 
 func shipsTopic(s *sim.Snapshot) ShipsTopic {
 	t := ShipsTopic{Placing: s.Tick == 0, Ships: make([]ShipLine, 0, len(s.Ships))}
 	for _, sh := range s.Ships {
 		t.Ships = append(t.Ships, ShipLine{ID: sh.ID, X: sh.X, Y: sh.Y, W: sh.Width, H: sh.Height,
-			Shape: sh.Shape, Kind: sh.ShapeName, Colonists: sh.Colonists, Aloft: sh.Aloft})
+			Shape: sh.Shape, Kind: sh.ShapeName, Colonists: sh.Colonists, Aloft: sh.Aloft, Placed: sh.Placed})
 	}
 	return t
 }

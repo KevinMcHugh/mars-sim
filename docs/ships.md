@@ -20,9 +20,10 @@ meals in its locker, and one rare item: a gun, a chicken, or a cat.
 Ships are the only way into the game. Worldgen, the spawn command, and the
 director's `arrival` occurrence all go through `land` (by way of `arriveWave`
 for a crowd). In the browser, a new game starts paused with the founders'
-ships still **aloft**: the player lands them one after another, each where they
-click, before the first tick. The TUI and headless runs land them
-automatically. This is the first half of phase **E2** of the
+ships still **aloft**: the player places them one after another, each where
+they click, and they all land where placed when the game starts. Placing is
+only a plan drawn over the map: it reveals no ground. The TUI and headless runs
+land them automatically. This is the first half of phase **E2** of the
 [economy plan](./economy.md). The meals in the lockers are what
 [food.md](./food.md) is about.
 
@@ -37,7 +38,7 @@ why.
   three planners (`planStick`, `planHub`, `planCluster`), `shipShapeFor`, and
   `nextShipLayout`.
 - [`internal/sim/ship.go`](../internal/sim/ship.go): `Ship`, `arriveWave`,
-  `land` / `landAt` / `landShip`, `LandShip` / `landAloft`, `stampShip`,
+  `land` / `landAt` / `landShip`, `LandShip` / `landAloft` / `aloftLayouts` / `landRestAloft`, `stampShip`,
   `furnishShip`, `findShipSite`, `shipSiteRock`, `shipSiteAllowed`,
   `MoveShip` / `moveShip`, and the manifest's pure functions
   (`arrivalMeals`, `arrivalRareItem`, `arrivalGun`).
@@ -191,7 +192,9 @@ If stamping breaks into a hidden cavern (only a player's landing can; see
 below), its nest roll waits until everyone aboard is out: `landShip` sets
 `holdNests`, and `revealAround` keeps the cavern centers it finds instead of
 rolling them. A nest spawned mid-landing would take the IDs the passengers
-were promised, and `land` would panic. `TestPlayerLandingBreaksIntoACavernAfterThePassengersAreOut`
+were promised, and `land` would panic. When the founders come down together
+(`landRestAloft`), the hold spans every ship, so a breach under the first
+cannot move the second's IDs, and with them the shape the player placed. `TestPlayerLandingBreaksIntoACavernAfterThePassengersAreOut`
 pins it.
 
 The spawn command lands a ship of one (a stick of one is seven tiles wide:
@@ -244,7 +247,7 @@ middle. `TestShipsLeaveRoomForTheFirstRooms` checks that a room can be sited
 the moment 1, 3, 6, 10, 16, 20, or 40 settlers land, for each shape alone and
 for the mix, and that every passenger can walk out to the main room.
 
-### Landing the founders by hand (browser)
+### Placing the founders by hand (browser)
 
 The browser sets `place-ships: true` and `start-paused: true` when it starts
 a game, and opens the **Ships** tab. With `place-ships`, `generate` lands
@@ -254,28 +257,36 @@ to land". The tab is fed by the `ships` topic (see
 [wire-format.md](./wire-format.md)) and is described in
 [frontend-web.md](./frontend-web.md).
 
-The ships land **in order, one at a time**. The tab hands the player the next
-ship aloft, shows its shape, and tints where it would land under the pointer;
-a click sends `LandShip{Ship, X, Y}`. `landAloft` accepts it only at tick 0,
-only for the next ship aloft (so a click sent twice cannot land the ship
-after it), and only on a site `shipSiteAllowed` passes; it then calls
-`landAt`, which crushes anything under the shape ("crushed by a landing
-ship") and lands the ship there. The tab then hands over the next ship.
-**Start** stays disabled until all of them are down.
+**Placing is a plan, not a landing.** The tab hands the player the ships in
+order, shows each one's shape, and tints where it would go under the pointer;
+a click sends `LandShip{Ship, X, Y}`. `landAloft` only records the site on the
+`aloftShip` (`at`, `placed`): nothing is stamped, so no ground is revealed,
+no cavern is broken into, and nothing is crushed. It accepts any ship still
+aloft, at tick 0, on a site `shipSiteAllowed` passes that is also clear of
+every other *placed* ship and the walkway round it. Placing a ship again
+just replaces its site, so a double click is harmless. The browser draws the
+placed ships as an overlay (hull and deck tints) over whatever the map
+shows there, fog included. **Start** stays disabled until every ship is
+placed.
 
-Only the **next** ship's shape is known. A ship's plan depends on which IDs
-its passengers take (the troughs, and the shape's hash), and a landing that
-breaks into a cavern can spawn a nest and move the next free ID on. So the
-`ships` topic carries the next ship's shape, worked out fresh from the world
-by `nextShipLayout` (the same call `landAt` makes), and only a count for the
-ones behind it.
+When the game starts, `step` calls `landRestAloft` before the first tick: it
+lands each ship in order with `landAt` at its placed site (which crushes
+anything under the shape, "crushed by a landing ship"), and any ship that was
+never placed, or whose site no longer passes, with `land` wherever
+`findShipSite` puts it. Only now is the ground stamped and revealed.
 
-If the game starts with ships still aloft (a frontend that sets
-`place-ships` and starts without landing them), `step` lands them all with
-`land` before the first tick, so nobody is left in orbit.
+Every ship's shape is known up front. A ship's plan depends only on which IDs
+its passengers take (the troughs, and the shape's hash). The passengers take
+consecutive IDs and their pets the next ones, both pure functions of the seed
+and the ID (`arrivalRareItem`), and `landRestAloft` holds nest rolls until
+every ship is down, so `aloftLayouts` can walk the IDs forward from
+`World.nextID` and lay out every ship before any lands. The `ships` topic
+carries all of them. `TestFoundersArePlacedAloftAndLandWhenTheGameStarts`
+pins that each lands exactly as shown, and that placing explores nothing.
 
-Once every ship is down, **Move** picks a landed one up again.
-`MoveShip{Ship, X, Y}` relands it with its top-left at (X, Y); the engine
+**Moving a landed ship.** `MoveShip{Ship, X, Y}` relands a ship already on
+the map (only the TUI and headless runs have one at tick 0; the browser
+re-places aloft ships with `LandShip` instead). It relands it with its top-left at (X, Y); the engine
 accepts it only at tick 0. `moveShip`:
 
 1. Checks the site (`shipSiteAllowed`): on the map with room for the crater,
@@ -410,12 +421,20 @@ worse under pods. Measured with 100 colonists on a 300×150 map, seeds 1–4,
   ships. That left the player tidying up a layout the game had chosen. With
   `place-ships`, nothing is on the map until the player puts it there, and
   the TUI, headless runs, the director, and the tests still share `land`.
-  Landing one at a time, in order, is also what makes the preview honest:
-  each ship's plan is fixed only once the ships before it are down.
-- **Why `LandShip` names the ship.** A click lands "the next ship", and the
-  topic that says which ship is next lags a command by one publish. Naming
-  it makes a double click a no-op instead of landing the following ship on
-  the same spot.
+- **Placing reveals nothing; the ships land at Start.** The first version of
+  hand placing landed each ship the moment it was clicked, and let a landed
+  one be moved. Since stamping a ship reveals the ground round it (and floods
+  any cavern it breaks into), and revealing never goes back, the player could
+  click a ship all over the map to scout the rock before committing. Placing
+  is now a plan the browser draws as an overlay, and the ground under it
+  stays unexplored until Start. The price was knowing every ship's shape
+  before any lands: landing one at a time had made each shape honest only
+  once the ships before it were down. Holding nests across the whole wave
+  makes the IDs, and so the shapes, predictable instead.
+- **Why `LandShip` names the ship.** The tab hands out "the next ship", and
+  the topic that says which ship is next lags a command by one publish.
+  Naming it makes a double click re-place the same ship instead of placing
+  the following one on the same spot.
 - **A stamped prefab, not unpacked fixtures.** Carrying a bunk as an item and
   placing it would need a placed ↔ carried conversion that touches
   construction, pathing, and the tile grid. Stamping avoids that.

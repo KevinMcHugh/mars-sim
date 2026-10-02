@@ -117,7 +117,7 @@ func NewEngine(cfg Config) *Engine {
 		cmds:  make(chan Command, 32),
 		tps:   cfg.TicksPerSecond,
 		// The browser starts paused so the player can place the ships
-		// before anyone moves (see MoveShip).
+		// before anyone moves (see LandShip).
 		paused: cfg.StartPaused,
 	}
 }

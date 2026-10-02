@@ -12,6 +12,7 @@ import { namedStats, TILE_COMPOSITION_MASK, TILE_VISIBLE } from '../wire/decode.
 import { armShip, colonyLog, cycleFlowField, inspect, install, landAloft, moveShip, setFlowField, setPanel, shipSiteAt, shipSiteFree, shipTiles, stepSpeed, subscribe, syncFrame, togglePause, topics, ui, UI_HZ } from './game.svelte';
 import type { ShipLine, ShipsTopic } from './game.svelte';
 import { attachInput } from './map/input';
+import { SHIP_PLAN_DECK, SHIP_PLAN_HULL } from './map/palette';
 import { MapRenderer } from './map/renderer';
 import type { TileRect } from './map/camera';
 import { pickGlyph } from './emoji';
@@ -73,11 +74,15 @@ sim.onTopics = (t) => {
     // The log is a stream of deltas, kept in colonyLog, not a payload to hold.
     if (name === 'log') colonyLog.apply(payload as Parameters<typeof colonyLog.apply>[0]);
     else topics.set(name, payload);
+    // The placed ships are an overlay, redrawn as the plan changes.
+    if (name === 'ships' && (payload as ShipsTopic).placing) showShipPreview();
   }
 };
 sim.onFrame = (f, bytes) => {
   if (!hello) return;
   last = f;
+  // The game started: the ships are on the map now, so the overlay goes.
+  if (shipOverlay && f.tick > 0) { shipOverlay = false; map.setHighlight(null); }
   map.applyFrame(f);
   updateMark();
   debug.frames++;
@@ -284,6 +289,8 @@ const DIG_TINT_MAX = 4000;
 
 // The ship tool: the tile the pointer is over, and the preview's tints.
 let shipAt: [number, number] | null = null;
+/** Whether the placed ships' overlay is on the map, for the first tick to clear. */
+let shipOverlay = false;
 const SHIP_OK = new Uint8Array([90, 200, 120, 120]);
 const SHIP_BAD = new Uint8Array([230, 70, 60, 120]);
 const SHIP_FROM = new Uint8Array([120, 160, 255, 70]);
@@ -295,27 +302,37 @@ function heldShip(): { ships: ShipLine[]; ship: ShipLine } | null {
   return t && ship ? { ships: t.ships, ship } : null;
 }
 
-/** Tint where the held ship is now (unless it is still aloft), and where it would land under the pointer. */
+/**
+ * Draw the ships placed so far as an overlay (they are not on the map until
+ * the game starts, so the ground under them stays unexplored), the held one's
+ * current spot, and where it would go under the pointer.
+ */
 function showShipPreview(): void {
-  const held = heldShip();
-  if (!held || !hello) { map.setHighlight(null); return; }
-  const { ships, ship } = held;
+  const t = topics.data.ships as ShipsTopic | undefined;
+  if (!t?.placing || !hello) { shipOverlay = false; map.setHighlight(null); return; }
   const tiles: { x: number; y: number; color: Uint8Array }[] = [];
-  const paint = (o: { x: number; y: number }, color: Uint8Array) => {
-    for (const p of shipTiles(ship, o)) tiles.push({ ...p, color });
+  const paint = (s: ShipLine, o: { x: number; y: number }, hull: Uint8Array, deck: Uint8Array) => {
+    for (const p of shipTiles(s, o)) tiles.push({ x: p.x, y: p.y, color: p.hull ? hull : deck });
   };
-  if (!ship.aloft) paint(ship, SHIP_FROM);
-  if (shipAt) {
-    const o = shipSiteAt(ship, shipAt[0], shipAt[1], hello.width, hello.height);
-    paint(o, shipSiteFree(ships, ship, o) ? SHIP_OK : SHIP_BAD);
+  for (const s of t.ships) if (s.aloft && s.placed && s.id !== ui.shipTool) paint(s, s, SHIP_PLAN_HULL, SHIP_PLAN_DECK);
+  const held = heldShip();
+  if (held) {
+    const { ships, ship } = held;
+    if (ship.placed || !ship.aloft) paint(ship, ship, SHIP_FROM, SHIP_FROM);
+    if (shipAt) {
+      const o = shipSiteAt(ship, shipAt[0], shipAt[1], hello.width, hello.height);
+      const c = shipSiteFree(ships, ship, o) ? SHIP_OK : SHIP_BAD;
+      paint(ship, o, c, c);
+    }
   }
-  map.setHighlight(tiles);
+  shipOverlay = tiles.length > 0;
+  map.setHighlight(shipOverlay ? tiles : null);
 }
 
 /**
- * Land the held ship centered on tile (x, y), if it may land there, and put
- * the tool down: down from orbit if it is still aloft, else moved. The Ships
- * tab then hands the player the next ship aloft.
+ * Put the held ship centered on tile (x, y), if it may go there, and put the
+ * tool down: placed if it is still aloft (it lands when the game starts),
+ * else moved. The Ships tab then hands the player the next ship to place.
  */
 function landShip(x: number, y: number): void {
   const held = heldShip();

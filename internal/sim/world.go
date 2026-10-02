@@ -731,10 +731,10 @@ type World struct {
 	// ships is every colony ship that has landed, in landing order: ships[i]
 	// has ID i+1. See ship.go.
 	ships []*Ship
-	// aloft is the founders' ships still waiting to land, as their loads,
-	// in landing order: with place-ships set, worldgen leaves them here for
-	// the player to land one by one (see LandShip).
-	aloft              []int
+	// aloft is the founders' ships still waiting to land, in landing order:
+	// with place-ships set, worldgen leaves them here for the player to place
+	// (see LandShip), and they all come down when the game starts.
+	aloft              []aloftShip
 	restrictedFixtures [numTerrains]int
 	// ownedFixtures indexes the restricted fixtures by owner, and
 	// paidFixtures the pay-per-use ones by terrain, so facilityReachable

@@ -568,10 +568,11 @@ func TestArrivalRareItemsFollowTheirWeights(t *testing.T) {
 }
 
 // With place-ships set the founders wait aloft: nobody is on the map until
-// the player lands each ship in turn, where they choose, and the frontend is
-// shown the next ship's shape before it lands. Whatever is still aloft when
-// the game starts lands by itself.
-func TestFoundersWaitAloftToBeLandedOneByOne(t *testing.T) {
+// the game starts. The player places the ships, each where they choose, and
+// may place one again; placing stamps nothing and reveals nothing. When the
+// game starts every ship comes down where it was placed, exactly as shown,
+// and any left unplaced lands by itself.
+func TestFoundersArePlacedAloftAndLandWhenTheGameStarts(t *testing.T) {
 	cfg := testConfig()
 	cfg.Width, cfg.Height = 120, 60
 	cfg.StartColonists, cfg.StartAliens, cfg.StartCats, cfg.StartRats = 50, 0, 0, 0
@@ -579,40 +580,53 @@ func TestFoundersWaitAloftToBeLandedOneByOne(t *testing.T) {
 	cfg.ShipStickWeight, cfg.ShipHubWeight, cfg.ShipClusterWeight = 1, 1, 1
 	cfg.PlaceShips = true
 	w := newTestWorld(t, cfg)
-	if w.countKind(Colonist) != 0 || len(w.ships) != 0 || !slices.Equal(w.aloft, []int{17, 17, 16}) {
+	if w.countKind(Colonist) != 0 || len(w.ships) != 0 || len(w.aloft) != 3 {
 		t.Fatalf("worldgen landed %d colonists in %d ships, %v aloft; want everyone aloft", w.countKind(Colonist), len(w.ships), w.aloft)
 	}
 	views := w.shipViews()
-	if len(views) != 3 || !views[0].Aloft || views[0].Shape == nil || views[1].Shape != nil {
-		t.Fatalf("aloft views: %+v", views)
+	for _, v := range views {
+		if !v.Aloft || v.Placed || v.Shape == nil {
+			t.Fatalf("aloft views: %+v", views)
+		}
 	}
-	next := views[0]
-	if w.landAloft(LandShip{Ship: 2, X: 10, Y: 5}) {
-		t.Fatal("ship 2 landed before ship 1")
+	explored := w.exploredCount
+	if !w.landAloft(LandShip{Ship: 2, X: 60, Y: 40}) {
+		t.Fatal("ship 2 could not be placed first")
 	}
 	if !w.landAloft(LandShip{Ship: 1, X: 10, Y: 5}) {
-		t.Fatal("ship 1 would not land in open rock")
+		t.Fatal("ship 1 could not be placed in open rock")
 	}
-	s := w.ships[0]
-	if s.Origin != (Point{10, 5}) || s.layout.width != next.Width || !slices.Equal(s.layout.rows, next.Shape) {
-		t.Fatalf("ship 1 landed at %v as\n%s\nnot as shown:\n%s", s.Origin, strings.Join(s.layout.rows, "\n"), strings.Join(next.Shape, "\n"))
+	if !w.landAloft(LandShip{Ship: 1, X: 12, Y: 5}) {
+		t.Fatal("ship 1 could not be placed again")
 	}
-	assertShipIntact(t, w, s)
-	if w.landAloft(LandShip{Ship: 1, X: 60, Y: 40}) {
-		t.Fatal("ship 1 landed twice")
+	if w.landAloft(LandShip{Ship: 3, X: 12 + views[0].Width - 2, Y: 5}) {
+		t.Fatal("ship 3 was placed on ship 1")
 	}
-	if w.landAloft(LandShip{Ship: 2, X: 10 + s.layout.width - 2, Y: 5}) {
-		t.Fatal("ship 2 landed on ship 1")
+	if w.landAloft(LandShip{Ship: 4, X: 10, Y: 30}) {
+		t.Fatal("a fourth ship was placed")
 	}
-	if !w.landAloft(LandShip{Ship: 2, X: 60, Y: 40}) {
-		t.Fatal("ship 2 would not land")
+	if w.exploredCount != explored || len(w.ships) != 0 || w.countKind(Colonist) != 0 {
+		t.Fatalf("placing landed %d ships and explored %d tiles", len(w.ships), w.exploredCount-explored)
 	}
-	assertShipIntact(t, w, w.ships[1])
-	w.step() // the third is still aloft: it comes down by itself
+	if v := w.shipViews()[0]; !v.Placed || v.X != 12 || v.Y != 5 {
+		t.Fatalf("ship 1 view after placing: %+v", v)
+	}
+
+	w.step() // the third was never placed: it comes down by itself
 	if len(w.aloft) != 0 || len(w.ships) != 3 || w.countKind(Colonist) != 50 {
 		t.Fatalf("after the first tick: %d ships, %v aloft, %d colonists", len(w.ships), w.aloft, w.countKind(Colonist))
 	}
+	for i, want := range []Point{{12, 5}, {60, 40}} {
+		s := w.ships[i]
+		if s.Origin != want || !slices.Equal(s.layout.rows, views[i].Shape) {
+			t.Fatalf("ship %d landed at %v as\n%s\nnot as shown at %v:\n%s", s.ID, s.Origin, strings.Join(s.layout.rows, "\n"), want, strings.Join(views[i].Shape, "\n"))
+		}
+	}
+	if !slices.Equal(w.ships[2].layout.rows, views[2].Shape) {
+		t.Fatal("ship 3 did not land as shown")
+	}
 	for _, s := range w.ships {
+		assertShipIntact(t, w, s)
 		for _, id := range s.Colonists {
 			if w.entities[id].ship != s.ID {
 				t.Fatalf("colonist %d is not aboard ship %d", id, s.ID)
@@ -620,14 +634,14 @@ func TestFoundersWaitAloftToBeLandedOneByOne(t *testing.T) {
 		}
 	}
 	if w.landAloft(LandShip{Ship: 4, X: 10, Y: 30}) {
-		t.Fatal("a ship landed after the game started")
+		t.Fatal("a ship was placed after the game started")
 	}
 }
 
-// A ship the player lands beside a hidden cavern breaks into it, and the
-// cavern's nest is rolled only once the passengers are out: its aliens never
-// take the passengers' IDs (which would break the ship's manifest) or their
-// tiles.
+// A ship the player places beside a hidden cavern breaks into it when the
+// game starts, and the cavern's nest is rolled only once every ship's
+// passengers are out: its aliens never take the passengers' IDs (which would
+// break the manifests, and the shapes the player was shown) or their tiles.
 func TestPlayerLandingBreaksIntoACavernAfterThePassengersAreOut(t *testing.T) {
 	cfg := testConfig()
 	cfg.Width, cfg.Height = 80, 50
@@ -650,8 +664,12 @@ func TestPlayerLandingBreaksIntoACavernAfterThePassengersAreOut(t *testing.T) {
 	w.unfoundCaverns[center] = struct{}{}
 	aliens, first := w.countKind(Alien), w.nextID
 	if !w.landAloft(LandShip{Ship: 1, X: 26, Y: 6}) { // its hold end juts into the cavern
-		t.Fatal("the ship would not land")
+		t.Fatal("the ship could not be placed")
 	}
+	if w.discovered(center) {
+		t.Fatal("placing the ship broke into the cavern before the game started")
+	}
+	w.landRestAloft()
 	s := w.ships[0]
 	assertShipIntact(t, w, s)
 	if !w.discovered(center) {

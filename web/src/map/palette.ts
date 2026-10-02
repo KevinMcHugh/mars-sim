@@ -99,6 +99,12 @@ export const JOB_QUEUED = premul('#ffe066', 0.5);
 export const JOB_BUILDING = premul('#ff9f1c', 0.6);
 export const JOB_DONE = premul('#5fd38d', 0.35);
 
+// A colony ship the player has placed but that has not landed (the Ships
+// tab's overlay): solid enough to read as the ship, drawn over the fog without
+// revealing what is under it (docs/ships.md).
+export const SHIP_PLAN_HULL = premul('#9aa7b4', 0.9);
+export const SHIP_PLAN_DECK = premul('#d9d2c2', 0.7);
+
 // The flow-field overlay (docs/flow-field-view.md): bright green on the goal
 // tiles, then eight bands from near (green) to far (dark red), the TUI's
 // xterm-256 ramp so the two frontends read the same.

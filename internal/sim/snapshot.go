@@ -406,8 +406,8 @@ type Snapshot struct {
 	Tick int
 	// Ships is every colony ship that has landed, in landing order, then any
 	// still aloft (see LandShip). Before the first tick (Tick 0) a frontend
-	// may land the next aloft one with LandShip and move landed ones with
-	// MoveShip.
+	// may place aloft ones with LandShip (they come down when the game
+	// starts) and move landed ones with MoveShip.
 	Ships  []ShipView
 	Width  int
 	Height int

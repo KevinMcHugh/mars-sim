@@ -300,23 +300,29 @@ closed.
   clears it. The page counts rock itself from the tile pages it holds
   (terrain 0, visible); the engine recounts, so the two can differ by tiles
   already ordered.
-- **Ships** lands the colony ships (see [ships.md](./ships.md)). A new game
+- **Ships** places the colony ships (see [ships.md](./ships.md)). A new game
   starts paused with the founders' ships aloft (the page sends
   `start-paused: true` and `place-ships: true` with its settings) and this
-  tab open. The tab hands the player the next ship aloft and draws its shape
-  from the topic's `shape` rows; the pointer shows where it would land, tile
-  for tile (green, or red where any tile would touch another ship or the
-  walkway round one, the check `shipSiteFree` mirrors from the engine), and a
-  click lands it there with the `ship-land` command (host API 14). The tab
-  then hands over the next one; `ui.shipSent` keeps it from picking the ship
-  just sent down up again while the topic catches up, and a **Land** button
-  re-arms it if the engine refused. Once every ship is down, **Move** picks
-  a landed one up and a click relands it with `ship-move` (host API 13). A
-  drag still pans. **Start** is disabled while any ship is aloft; it puts
-  the tool down and runs the game at Normal. After the first tick the ships
-  stay put and the tab only lists them. The `ships` topic is rebuilt on
-  every advance, not on an interval: placing happens paused, where the only
-  advance is the one a land or move itself causes.
+  tab open. The tab hands the player the next unplaced ship and draws its
+  shape from the topic's `shape` rows; the pointer shows where it would go,
+  tile for tile (green, or red where any tile would touch another landed or
+  placed ship or the walkway round one, the check `shipSiteFree` mirrors from
+  the engine), and a click places it there with the `ship-land` command (host
+  API 15; 14 landed the ship at once). Placing lands nothing: `showShipPreview`
+  draws every placed ship as a hull/deck overlay (`SHIP_PLAN_HULL`,
+  `SHIP_PLAN_DECK`) on the highlight layer, over the fog, and redraws it on
+  each `ships` topic while placing; the first frame past tick 0 clears it,
+  since the ships are on the map by then. The tab then hands over the next
+  one; `ui.shipSent` keeps it from picking the ship just placed up again
+  while the topic catches up, and a **Place** button re-arms it if the
+  engine refused. Once every ship is placed, **Move** picks one up and a
+  click places it again with `ship-land`. A drag still pans. **Start** is
+  disabled while any ship is unplaced; it puts the tool down and runs the
+  game at Normal, and the engine lands every ship where it was placed before
+  the first tick. After that the ships stay put and the tab only lists
+  them. The `ships` topic is rebuilt on every advance, not on an interval:
+  placing happens paused, where the only advance is the one a placement
+  itself causes.
 
 A link from any of these into the inspector remembers its tab
 (`ui.inspectFrom`), so the inspector offers **← Jobs**, **← Storage** or
