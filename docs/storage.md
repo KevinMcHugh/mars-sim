@@ -82,8 +82,8 @@ meals, with a ledger — but it is not a chest: general materials are only ever
 unloaded into `Storage` containers. The storage tab lists it as "scumhouse".
 See [scumhouse.md](./scumhouse.md).
 
-Every crash pod brings a **locker**: an ordinary storage container, private to
-its settler (see [crash-pods.md](./crash-pods.md)). Its owner unloads into it
+Every settler lands with a **locker** in its ship's hold: an ordinary storage
+container, private to it (see [ships.md](./ships.md)). Its owner unloads into it
 like any chest, and nobody else can. So the colony only builds a shared storage
 room once a blocked colonist has no reachable chest — its own locker included —
 with room for its load. The storage tab labels lockers by owner.

@@ -92,3 +92,27 @@ func TestLoreTopic(t *testing.T) {
 		t.Errorf("an unlisted emoji reached the page: %q", lore.Species[1].Glyph)
 	}
 }
+
+// The ships topic lists every ship's footprint, and says they may be moved
+// only before the first tick.
+func TestShipsTopic(t *testing.T) {
+	snap := fixture(true)
+	snap.Tick = 0
+	snap.Ships = []sim.ShipView{{ID: 1, X: 10, Y: 20, Width: 25, Height: 6, Colonists: 20}}
+	tp := NewTopics()
+	if err := tp.Subscribe("ships"); err != nil {
+		t.Fatal(err)
+	}
+	var ships ShipsTopic
+	if err := json.Unmarshal(tp.Due(snap, time.Unix(0, 0))["ships"], &ships); err != nil {
+		t.Fatal(err)
+	}
+	want := ShipLine{ID: 1, X: 10, Y: 20, W: 25, H: 6, Colonists: 20}
+	if !ships.Placing || len(ships.Ships) != 1 || ships.Ships[0] != want {
+		t.Fatalf("ships = %+v", ships)
+	}
+	snap.Tick = 1
+	if shipsTopic(snap).Placing {
+		t.Fatal("ships may still be placed after the first tick")
+	}
+}

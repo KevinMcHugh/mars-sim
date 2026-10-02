@@ -34,7 +34,7 @@ The five kinds:
 | **Alien** | Floor | colonists, rats, other species' aliens (Hostile); cave scum (Friendly, Cautious) | — | the antagonist; a Hostile species hunts the nearest prey it can reach |
 | **Cat** | Floor | rats | — | no needs; hunts by instinct |
 | **Rat** | Floor | (needs food) | cats (not aliens, which also eat them) | reuses the colonist food need; scavenges bodies, gore, and scum, else raids pods; never builds |
-| **Chicken** | Floor | feed from its keeper's trough, else cave scum | — | lands in a keeper's crash pod; cats ignore it; see [chickens.md](./chickens.md) |
+| **Chicken** | Floor | feed from its keeper's trough, else cave scum | — | lands in a keeper's ship; cats ignore it; see [chickens.md](./chickens.md) |
 
 `State` (idle, moving, mining, building, eating, relieving, fleeing, hunting,
 feeding, fighting, cleaning, hauling, storing, demolishing) is a **display projection**
@@ -191,7 +191,7 @@ a rat is walled off or the cat is wedged, it prowls (`wanderStep`) instead of
 freezing.
 
 Cats arrive as one of a colonist's three possible rare items (see
-[crash-pods.md](./crash-pods.md)): a cat steps out of its owner's pod with
+[ships.md](./ships.md)): a cat steps out of its owner's ship with
 `keeper` set to the owner, which so far is only shown, never acted on. The
 `cats` setting adds strays at worldgen and is 0 by default. A cat hunts only
 rats: chickens are not prey, and a chicken does not flee a cat.

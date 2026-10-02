@@ -20,7 +20,7 @@ const (
 	// scum, and nibbling from nutrient pods when there is nothing else.
 	// It has a hunger need and starves without food; cats eat it.
 	Rat
-	// Chicken is a colonist's bird, brought down in its crash pod. It grazes
+	// Chicken is a colonist's bird, brought down in its ship. It grazes
 	// cave scum and eats feed from its keeper's trough, and starves without
 	// either. Cats and chickens ignore each other. See docs/chickens.md.
 	Chicken
@@ -402,11 +402,9 @@ type Entity struct {
 	// wallet is the colonist's dollars (colonists only). Only transfer and mint
 	// change it; see money.go and docs/money.md.
 	wallet Money
-	// podOrigin is the top-left of the crash pod this colonist arrived in,
-	// when hasPod; colonists placed directly by tests or older code have none.
-	// See crashpod.go.
-	podOrigin Point
-	hasPod    bool
+	// ship is the ID of the colony ship this colonist came down in, 0 for
+	// none (colonists placed directly by tests). See ship.go.
+	ship int
 	// keeper is the colonist a pet (a chicken or a cat) came down with, 0 for
 	// a stray. trough is where a chicken eats and where its keeper fills it,
 	// when hasTrough; a keeper has the same trough. tend is where a JobTend

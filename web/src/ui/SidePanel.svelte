@@ -16,6 +16,7 @@
   import LorePanel from './LorePanel.svelte';
   import NewGamePanel from './NewGamePanel.svelte';
   import RosterPanel from './RosterPanel.svelte';
+  import ShipsPanel from './ShipsPanel.svelte';
 
   const tabs = [
     { id: 'inspect', label: 'Inspect', component: InspectPanel },
@@ -27,6 +28,7 @@
     { id: 'dig', label: 'Dig', component: DigPanel },
     { id: 'charts', label: 'Charts', component: ChartsPanel },
     { id: 'lore', label: 'Lore', component: LorePanel },
+    { id: 'ships', label: 'Ships', component: ShipsPanel },
     { id: 'game', label: 'New game', component: NewGamePanel },
   ] as const;
 

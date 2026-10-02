@@ -12,7 +12,7 @@ readout. Around it is a Svelte chrome:
 - **A top bar:** the clock (colony day and time of day, see [days.md](./days.md), then tick), a Pause / Normal / Fast / Faster / Max speed selector, and
   the TUI header's counts, as emoji (👷 👽 🐈 🐀, then each fixture's glyph).
 - **A side panel,** with the Inspect tab (click the map), the Roster, the
-  Log, Jobs, Storage, Market, Dig, Charts, the Lore tab and a new-game form.
+  Log, Jobs, Storage, Market, Dig, Charts, the Lore tab, Ships and a new-game form.
 - **A log ticker** over the map's bottom-left corner: the last few colony-log
   lines, fading after a few seconds.
 
@@ -32,7 +32,7 @@ The rest of the TUI's tabs are planned in
 - [`web/src/ui/`](../web/src/ui/App.svelte) — the Svelte chrome: `App`,
   `TopBar`, `SpeedControl`, `SidePanel`, `Bar` (a gauge), and one component
   per tab (`InspectPanel`, `RosterPanel`, `LogPanel`, `JobsPanel`,
-  `StoragePanel`, `MarketPanel` with `AccountDetail` and `ColonyOrders`, `DigPanel`, `ChartsPanel`,
+  `StoragePanel`, `MarketPanel` with `AccountDetail` and `ColonyOrders`, `DigPanel`, `ChartsPanel`, `ShipsPanel`,
   `LorePanel`, `NewGamePanel`), `LogTicker`, and `FlowControl` (the
   flow-field picker and legend, see [flow-field-view.md](./flow-field-view.md)).
   `format.ts` formats money.
@@ -300,6 +300,17 @@ closed.
   clears it. The page counts rock itself from the tile pages it holds
   (terrain 0, visible); the engine recounts, so the two can differ by tiles
   already ordered.
+- **Ships** places the colony ships (see [ships.md](./ships.md)). A new game
+  starts paused (the page sends `start-paused: true` with its settings) with
+  this tab open. **Move** picks a ship up; while it is held, the pointer
+  shows where it would land (green, or red where it would touch another
+  ship or the walkway round one, the check `shipSiteFree` mirrors from the
+  engine), and a click lands it there with the `ship-move` command (host API
+  13). A drag still pans. **Land and start** puts the tool down and runs the
+  game at Normal; after the first tick the ships stay put and the tab only
+  lists them. The `ships` topic is rebuilt on every advance, not on an
+  interval: placing happens paused, where the only advance is the one the
+  move itself causes.
 
 A link from any of these into the inspector remembers its tab
 (`ui.inspectFrom`), so the inspector offers **← Jobs**, **← Storage** or

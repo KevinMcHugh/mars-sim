@@ -112,9 +112,9 @@ const (
 	// inputs and its meals sit in a storage container on its tile, with a
 	// ledger like any chest. See scumhouse.go and docs/scumhouse.md.
 	Scumhouse
-	// Hull is the metal wall of a crash pod. It behaves like a Wall — it blocks
+	// Hull is the metal wall of a colony ship. It behaves like a Wall — it blocks
 	// movement, bounds a room, and can be broken down to escape one — but it is
-	// salvaged spacecraft, not something the colony builds. See docs/crash-pods.md.
+	// salvaged spacecraft, not something the colony builds. See docs/ships.md.
 	Hull
 	// Forge smelts iron ore into steel ingots, and GunBench machines steel
 	// into assault rifles. Both are workshops with a depot, like the
@@ -136,7 +136,7 @@ const (
 	Incubator
 	// Trough holds chicken feed: a keeper fills it, its chickens eat from
 	// it. A fixture with a depot, like a chest, that holds nothing but feed.
-	// It comes down in a chicken keeper's crash pod. See docs/chickens.md.
+	// It comes down in a chicken keeper's ship. See docs/chickens.md.
 	Trough
 
 	numTerrains // keep last: the number of terrain kinds
@@ -724,13 +724,13 @@ type World struct {
 	manualIncubators int
 	manualFoundries  int
 	manualHalls      int
-	// podRingHint is the search ring the last crash pod landed on, so the
+	// shipRingHint is the search ring the last colony ship landed on, so the
 	// next search starts near there instead of rescanning the packed middle.
-	// See findPodSite.
-	podRingHint int
-	// pods holds the top-left of every crash pod that has landed, so a new pod
-	// can tell a neighbor's side hull it may share. Lookups only; never ranged.
-	pods               map[Point]bool
+	// See findShipSite.
+	shipRingHint int
+	// ships is every colony ship that has landed, in landing order: ships[i]
+	// has ID i+1. See ship.go.
+	ships              []*Ship
 	restrictedFixtures [numTerrains]int
 	// ownedFixtures indexes the restricted fixtures by owner, and
 	// paidFixtures the pay-per-use ones by terrain, so facilityReachable
@@ -937,7 +937,6 @@ func newWorld(cfg Config, src *rand.PCG) *World {
 		colonistNames:     make(map[string]EntityID),
 		buildTiles:        make(map[Point]bool),
 		doorTiles:         make(map[Point]bool),
-		pods:              make(map[Point]bool),
 		storageContainers: make(map[Point]*StorageContainer),
 		fixtures:          make(map[Point]*Fixture),
 		orders:            make(map[OrderID]*Order),

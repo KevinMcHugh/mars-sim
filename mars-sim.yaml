@@ -285,20 +285,29 @@
 ## what a house's toilet charges anyone but its owner per use (0: private)
 # toilet-fee: 2
 
-# ── Crash pods ──────────────────────────────────────────────────────────
+# ── Arrivals ────────────────────────────────────────────────────────────
+## most settlers one colony ship carries; a larger wave comes down in several
+# ship-capacity: 20
+
+## communal bunks a ship carries, as a percent of its passengers (rounded up)
+# ship-bunk-percent: 50
+
+## communal toilets a ship carries, as a percent of its passengers (rounded up)
+# ship-toilet-percent: 25
+
 ## dollars each colonist arrives with
 # crash-pod-purse: 100
 
-## meals stocked in each crash pod's locker, on average
+## meals stocked in each colonist's locker, on average
 # crash-pod-meals: 10
 
-## each pod's meals vary by up to this many either side of crash-pod-meals
+## each locker's meals vary by up to this many either side of crash-pod-meals
 # crash-pod-meal-spread: 0
 
 ## relative odds a colonist's one rare item is a gun
 # crash-pod-gun-weight: 50
 
-## relative odds a colonist's one rare item is a chicken (with a trough in its pod)
+## relative odds a colonist's one rare item is a chicken (with a trough in its ship's hold)
 # crash-pod-chicken-weight: 25
 
 ## relative odds a colonist's one rare item is a cat
@@ -310,6 +319,9 @@
 # ── Timing ──────────────────────────────────────────────────────────────
 ## simulation ticks per second
 # tps: 8
+
+## start the game paused (the browser does, so the ships can be placed)
+# start-paused: false
 
 ## number of recent events retained
 # log-size: 64
