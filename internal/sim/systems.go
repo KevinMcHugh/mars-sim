@@ -252,7 +252,7 @@ func (w *World) tryCognitionFastPath(e *Entity) bool {
 
 func (w *World) runFocus(e *Entity, selected FocusCandidate) {
 	switch selected.Kind {
-	case FocusEat, FocusRelieve, FocusSocialize, FocusSleep:
+	case FocusEat, FocusRelieve, FocusSocialize, FocusSleep, FocusWash:
 		need, _ := driveForFocus(selected.Kind)
 		w.runNeedFocus(e, need)
 	case FocusFlee:
@@ -1168,6 +1168,7 @@ func (w *World) jobMine(e *Entity) {
 				}
 				w.SetTerrain(e.Target, Floor) // TileChanged drops it from the frontier
 				w.practise(e, SkillMining, w.cfg.MineTicks)
+				w.addGrime(e, w.cfg.GrimeMine)
 				o := w.occurrence(e, ActionMine, nil, e.Target,
 					"Finished mining at (%d, %d).", e.Target.X, e.Target.Y)
 				o.Object = FactRef{Noun: NounRock, Label: "rock"}
@@ -1357,6 +1358,7 @@ func (w *World) jobBuild(e *Entity) {
 		}
 		w.SetTerrain(e.Target, Floor)
 		w.practise(e, SkillMining, w.buildTicks(Floor))
+		w.addGrime(e, w.cfg.GrimeMine)
 		o := w.occurrence(e, ActionClear, nil, e.Target,
 			"Cleared rock for a room at (%d, %d).", e.Target.X, e.Target.Y)
 		o.Object = FactRef{Noun: NounRock, Label: "rock"}
@@ -1546,6 +1548,8 @@ func (w *World) finishUse(e *Entity, spec DriveSpec) {
 		o := w.occurrence(e, ActionSleep, nil, e.Pos, "Slept in a bed.")
 		o.Object = FactRef{Noun: NounBed, Label: "bed"}
 		w.emitOccurrence(o)
+	case DriveHygiene:
+		w.emitDone(e, ActionWash, NounShower, "Washed up.")
 	default:
 		o := w.occurrence(e, ActionSatisfy, nil, e.Pos, "Satisfied %s.", spec.Name)
 		o.Object = FactRef{Noun: NounNeed, Label: spec.Name}

@@ -62,6 +62,7 @@ current recipes are:
 | --- | --- | --- | --- |
 | facility room | alternating nutrient pods and toilets (all toilets with `infinite-food` off, when pods feed nobody — see [food.md](./food.md)) | 2 facilities (1 when all toilets) | first, because food is fatal |
 | dormitory | beds/bunks | 1 bed | after the desired pods and toilets exist |
+| washroom | showers | 1 shower | after bunks and the trash room; one per `per-facility` colonists, like pods, toilets and bunks (see [drives.md](./drives.md)) |
 | trash room | an incinerator | 1 incinerator (and at most 1, via `maxFac`) | last, and only once there is refuse to burn |
 | storage room | one storage container, with an aisle | exactly 1 container via `maxFac` | player-ordered only (and the planner's silo) |
 | scumhouse (kitchen) | a scumhouse, a gap, and its pantry chest, with an aisle | 1 scumhouse (the pantry is dropped on a site too small for both) | first of all with `infinite-food` off (the default); otherwise player-ordered (see [scumhouse.md](./scumhouse.md)) |

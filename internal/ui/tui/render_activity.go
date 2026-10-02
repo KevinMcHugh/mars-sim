@@ -35,6 +35,7 @@ var activityBands = []activityBand{
 	{sim.ActSleeping, "61", "60"},
 	{sim.ActEating, "208", "130"},
 	{sim.ActRelieving, "94", "58"},
+	{sim.ActWashing, "117", "67"},
 	{sim.ActSocializing, "213", "133"},
 	{sim.ActCooking, "226", "142"},
 	{sim.ActMining, "248", "243"},

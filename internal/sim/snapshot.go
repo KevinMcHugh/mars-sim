@@ -374,6 +374,7 @@ type Stats struct {
 	Pods          int // nutrient pods built
 	Toilets       int // toilets built
 	Beds          int // dormitory bunks built
+	Showers       int // washroom showers built
 	// Incinerators built, and Refuse still on the floor (gore stains plus
 	// bodies) waiting to be hauled to one. See docs/sanitation.md.
 	Incinerators      int
@@ -579,6 +580,7 @@ func (w *World) snapshot(paused bool, tps int) *Snapshot {
 		Pods:          w.terrainCounts[NutrientPod],
 		Toilets:       w.terrainCounts[Toilet],
 		Beds:          w.terrainCounts[Bed],
+		Showers:       w.terrainCounts[Shower],
 
 		Incinerators:      w.terrainCounts[Incinerator],
 		StorageContainers: w.terrainCounts[Storage],

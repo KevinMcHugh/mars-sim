@@ -138,6 +138,10 @@ const (
 	// it. A fixture with a depot, like a chest, that holds nothing but feed.
 	// It comes down in a chicken keeper's crash pod. See docs/chickens.md.
 	Trough
+	// Shower washes a colonist clean: it satisfies the hygiene drive, used
+	// from an adjacent tile like a toilet. The planner builds them in a
+	// washroom. See docs/drives.md.
+	Shower
 
 	numTerrains // keep last: the number of terrain kinds
 )
@@ -174,6 +178,8 @@ func (t Terrain) String() string {
 		return "scum incubator"
 	case Trough:
 		return "trough"
+	case Shower:
+		return "shower"
 	default:
 		return "unknown"
 	}

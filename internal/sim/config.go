@@ -288,10 +288,15 @@ type Config struct {
 	IncineratorBuildTicks int `cfg:"incinerator-ticks" doc:"ticks of work to build an incinerator"`
 
 	// Drives. One DriveSpec per DriveKind, indexed by that kind.
-	Drives               [numDrives]DriveSpec `cfg:"drives" sec:"Drives"`
-	PassOutTicks         int                  `cfg:"pass-out-ticks" doc:"ticks a colonist lies unconscious where it fell once its sleep drive hits the ceiling"`
-	StarveDamage         int                  `cfg:"starve-damage" doc:"HP lost per tick while a drive whose consequence is death sits at its max"`
-	ColonistsPerFacility int                  `cfg:"per-facility" doc:"colonists served by each life-support facility"`
+	Drives [numDrives]DriveSpec `cfg:"drives" sec:"Drives"`
+	// Grime: how much a dirty job adds to the hygiene drive, on top of its
+	// steady rise. See docs/drives.md.
+	GrimeMine            int `cfg:"grime-mine" doc:"hygiene drive a colonist gains for each rock tile it digs out"`
+	GrimeClean           int `cfg:"grime-clean" doc:"hygiene drive a colonist gains for each load of gore or bodies it cleans up"`
+	GrimeSoil            int `cfg:"grime-soil" doc:"hygiene drive a colonist gains when it wets itself"`
+	PassOutTicks         int `cfg:"pass-out-ticks" doc:"ticks a colonist lies unconscious where it fell once its sleep drive hits the ceiling"`
+	StarveDamage         int `cfg:"starve-damage" doc:"HP lost per tick while a drive whose consequence is death sits at its max"`
+	ColonistsPerFacility int `cfg:"per-facility" doc:"colonists served by each life-support facility"`
 
 	// Focus arbitration. Runtime copy of cognition.yaml's focuses/arbitration,
 	// written once at load by SyncWithCognition. Tune those tables there, not
@@ -692,6 +697,9 @@ func DefaultConfig() Config {
 
 		StarveDamage:          1,
 		PassOutTicks:          60,
+		GrimeMine:             6,
+		GrimeClean:            40,
+		GrimeSoil:             300,
 		ColonistsPerFacility:  5,
 		Cognition:             DefaultCognitionConfig(),
 		RestTicks:             10,

@@ -3,8 +3,8 @@
 > Part of the [mars-sim documentation](./README.md).
 
 **Status: proposal.** Phase D0 (the rename and the `Consequence` enum), D1a
-(soiling), D2 (loneliness) and D2b (passing out) have shipped; everything
-else is a plan. [drives.md](./drives.md) describes
+(soiling), D2 (loneliness), D2b (passing out) and D3 (hygiene) have shipped;
+everything else is a plan. [drives.md](./drives.md) describes
 what the code does today. Update this doc as phases land, and move what is
 built into drives.md.
 
@@ -30,22 +30,25 @@ something its surroundings do to it.
 | bladder | time | a toilet | **soiling oneself** → embarrassment |
 | social | time (trait-scaled) | conversation | **feeling lonely** — *shipped* |
 | sleep | time | a bed | **passing out** — *shipped*; later, hallucinations from long-term deprivation |
-| hygiene *(new)* | time, and dirty work | washing | **feeling filthy** first; others' reactions later |
+| hygiene | time, and dirty work (grime) | a shower | **feeling filthy** — *shipped*; others' reactions later |
 | comfort *(new)* | standing, working, hard surfaces | sitting, a good bed | open |
 | beauty *(new)* | ugly surroundings | pleasant surroundings | open |
 
 ## Source
 
-Shipped so far (D0, D1a, D2, D2b):
+Shipped so far (D0, D1a, D2, D2b, D3):
 
 - [`internal/sim/drives.go`](../internal/sim/drives.go) — `DriveKind`,
   `DriveSpec`, `Consequence`, `applyDriveConsequences`, `starve`,
-  `consequenceDue`, `passOut`, `stayPassedOut`, `wetSelf`, `usingFacility`.
+  `consequenceDue`, `feel`, `addGrime`, `passOut`, `stayPassedOut`, `wetSelf`, `usingFacility`.
 - [`internal/sim/systems.go`](../internal/sim/systems.go) — `finishTalk`'s
   `socialize` occurrence.
 - [`cognition.yaml`](../cognition.yaml) — the `felt-lonely`, `socialized`,
   `passed-out`, `soiled-self` and `witnessed-soiling` reactions, the
-  `witness-soiling` perception rule, and the Tidy rules for soiling.
+  `witness-soiling` perception rule, the `washed` and `felt-filthy`
+  reactions, the `wash` focus, and the Tidy rules for soiling and filth.
+- The `Shower` terrain and the planner's washroom
+  ([`internal/sim/project.go`](../internal/sim/project.go)).
 - Everything else is still planned; this section grows as phases land.
 
 ## How it works
@@ -72,7 +75,7 @@ ConsequenceDeath      // drain: HP                        (shipped)
 ConsequenceLoneliness // experience: "felt lonely"        (shipped, D2)
 ConsequencePassOut    // event: collapse, then discharge  (shipped, D2b)
 ConsequenceSoiling    // event: discharge + occurrence    (shipped, D1a)
-ConsequenceFilth      // experience: "felt filthy"        (D3)
+ConsequenceFilth      // experience: "felt filthy"        (shipped, D3)
 ```
 
 An experience and an event both go through the perception grammar, so what
@@ -185,21 +188,27 @@ needs more redesign than any consequence above, for two reasons:
   decision about which systems may act on it. Fleeing from a phantom alien is
   the point; the combat system shooting at one is a bug.
 
-### Hygiene (D3)
+### Hygiene (D3 — shipped; D3b others' reactions)
 
-Hygiene rises with time *plus* events: digging, cleaning gore, hauling
-corpses, soiling oneself. Event-driven rises are bumps to the stored base, so
-they also fit the lazy model. It is discharged at a new wash facility.
+Hygiene rises with time *plus* grime: digging, cleaning up gore and bodies,
+and wetting oneself each add to it (`grime-mine`, `grime-clean`,
+`grime-soil`). A grime bump re-bases the stored level, so it fits the lazy
+model. It is discharged at a **shower**, which the planner builds in a
+washroom after bunks and the trash room.
 
 Its consequence comes in two steps:
 
-1. **D3: the colonist feels filthy.** An **experience**, the same shape as
-   loneliness: a `felt-filthy` occurrence at the ceiling, repeated every
-   `consequence-every` ticks, that makes the colonist feel worse.
-2. **Later: others react.** A filthy colonist is something *other* colonists
+1. **D3 (shipped): the colonist feels filthy.** An **experience**, the same
+   shape as loneliness: a `felt-filthy` occurrence at the ceiling, repeated
+   every `consequence-every` ticks (250), that makes the colonist feel worse.
+2. **D3b: others react.** A filthy colonist is something *other* colonists
    perceive: a sight perception rule on a persistent "filthy" state, with
    reactions (Tidy colonists disgusted) and perhaps an affinity cost. That is
    a social consequence, so it waits for its own phase.
+
+What D3 left out: no trait scales hygiene's rise. Tidy colonists already feel filth twice as
+hard; making them also *notice* it sooner would be a rise or seek-at trait
+scale, the way Introvert scales the social drive.
 
 ### Which drive wins
 
@@ -242,7 +251,7 @@ drive furthest past its threshold still wins.
 | D1b | The puddle: a mopped-up kind of refuse, on the wire and in both renderers | colonists clean up after it |
 | **D2** ✅ | `ConsequenceLoneliness` (an experience, repeated every `consequence-every` ticks) for social; `socialized` for conversations sought while lonely | lonely colonists feel worse; company sought lifts mood |
 | **D2b** ✅ | `ConsequencePassOut` for sleep: collapse for `pass-out-ticks`, `PassedOut` state, `passed-out` reaction | sleepless colonists drop where they stand |
-| D3 | Hygiene drive, wash facility, event bumps; `ConsequenceFilth` ("felt filthy") | new drive and facility |
+| **D3** ✅ | Hygiene drive, shower and washroom, grime bumps; `ConsequenceFilth` ("felt filthy") | new drive and facility |
 | D3b | Others perceive and react to a filthy colonist | social cost of filth |
 | D4 | Room scores; beauty and comfort with environmental rise | new drives |
 | D5 | Severity ordering replaces fatal/non-fatal; rename the remaining "need" vocabulary in `cognition.yaml` (`need_weight`, `fatal_bonus`, the `need` noun, `need-satisfied`) and the Scum Lab bench | arbitration generalizes |

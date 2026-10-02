@@ -346,6 +346,12 @@ var (
 		name: "dormitory", kinds: []Terrain{Bed}, minFac: 1,
 		planLog: "The colony marks out a new dormitory.",
 	}
+	// washRoom is a bay of showers, for the hygiene drive. Like a dormitory,
+	// one shower is worth raising.
+	washRoom = roomRecipe{
+		name: "washroom", kinds: []Terrain{Shower}, minFac: 1,
+		planLog: "The colony marks out a new washroom.",
+	}
 	// trashRoom houses the incinerator that refuse is hauled to and burned in.
 	// One machine is a working trash room, so its minimum is one — and the
 	// planner only ever wants a single one (see planRooms), because an
@@ -567,6 +573,12 @@ func (w *World) planRooms() {
 		if w.planRoomFor(trashRoom, Community) {
 			return
 		}
+	}
+	// Showers after bunks and the trash room: going unwashed makes a colonist
+	// miserable, not unconscious, and an incinerator is only ever one room.
+	if w.plannedFacilities(Shower) < desired {
+		w.planRoom(washRoom)
+		return
 	}
 	// A meeting hall after everything above: company is not fatal, and its
 	// walls and chairs cost real rock. Unlike the foundry it is a headcount

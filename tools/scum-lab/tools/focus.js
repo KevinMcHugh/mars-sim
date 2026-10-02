@@ -31,6 +31,7 @@ const FOCI = [
   { id: "flee", title: "Run" },
   { id: "fight", title: "Fight" },
   { id: "escape", title: "Dig out" },
+  { id: "wash", title: "Wash" },
 ];
 
 const NEEDS = [
@@ -38,12 +39,14 @@ const NEEDS = [
   { id: "bladder", title: "Bladder", hint: "This is the one that wants a toilet." },
   { id: "social", title: "Company", hint: "Someone free to talk, not a building." },
   { id: "sleep", title: "Sleep", hint: "A bed, once they're tired enough." },
+  { id: "hygiene", title: "Hygiene", hint: "A shower; dirty work makes it jump." },
 ];
 
 const AROUND = [
   { id: "pod", title: "Nutrient pod nearby", blocks: "Eat" },
   { id: "toilet", title: "Toilet nearby", blocks: "Use the toilet" },
   { id: "bed", title: "Bed nearby", blocks: "Sleep" },
+  { id: "shower", title: "Shower nearby", blocks: "Wash" },
   { id: "company", title: "Someone nearby to talk to", blocks: "Find someone" },
   { id: "canWork", title: "Awake, or already on a job", blocks: "Work" },
   { id: "sealed", title: "Sealed off from the colony", blocks: "Dig out" },
@@ -71,12 +74,13 @@ function fresh(seed) {
     grip: 0,
     valence: 0,
     moodLabel: "",
-    needs: { food: 200, bladder: 150, social: 100, sleep: 250 },
+    needs: { food: 200, bladder: 150, social: 100, sleep: 250, hygiene: 200 },
     currentFocus: "work",
     around: {
       pod: true,
       toilet: true,
       bed: true,
+      shower: true,
       company: true,
       canWork: true,
       alien: false,

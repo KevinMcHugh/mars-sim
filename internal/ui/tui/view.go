@@ -213,6 +213,7 @@ func (m Model) renderHeader() string {
 		fmt.Sprintf("%s %d", fitGlyph(glyphPod), s.Stats.Pods),
 		fmt.Sprintf("%s %d", fitGlyph(glyphToilet), s.Stats.Toilets),
 		fmt.Sprintf("%s %d", fitGlyph(glyphBed), s.Stats.Beds),
+		fmt.Sprintf("%s %d", fitGlyph(glyphShower), s.Stats.Showers),
 		fmt.Sprintf("%s %d", fitGlyph(glyphIncinerator), s.Stats.Incinerators),
 		fmt.Sprintf("%s %d", fitGlyph(glyphStorage), s.Stats.StorageContainers),
 		fmt.Sprintf("%s %d", fitGlyph(glyphGore), s.Stats.Refuse),
@@ -439,6 +440,7 @@ func (m Model) drawSidebar(rows int) string {
 		{g(glyphHull, "pod hull"), g(glyphSalt, "salt")},
 		{g(glyphChair, "chair"), g(glyphIncubator, "incubator")},
 		{g(glyphChicken, "chicken"), g(glyphTrough, "trough")},
+		{g(glyphShower, "shower"), {}},
 	}
 	if m.latest.FogOfWar {
 		legendRows = append(legendRows, [2]entry{{fogCells(1), "unexplored"}, {}})

@@ -487,3 +487,87 @@ func TestWetSelfUsesPronouns(t *testing.T) {
 		}
 	}
 }
+
+// Dirty work raises the hygiene drive on top of its steady rise.
+func TestDirtyWorkAddsGrime(t *testing.T) {
+	w := roomsTestWorld(20, 20)
+	c := w.spawn(Colonist, Point{5, 5})
+	c.Drives[DriveHygiene], c.driveSince[DriveHygiene] = 100, w.tick
+	w.addGrime(c, w.cfg.GrimeMine)
+	if got, want := w.driveLevel(c, DriveHygiene), 100+w.cfg.GrimeMine; got != want {
+		t.Fatalf("hygiene after a dig = %d, want %d", got, want)
+	}
+	before := w.driveLevel(c, DriveHygiene)
+	c.Drives[DriveBladder], c.driveSince[DriveBladder] = w.cfg.Drives[DriveBladder].Max, w.tick
+	w.applyDriveConsequences(c)
+	if got, want := w.driveLevel(c, DriveHygiene), min(before+w.cfg.GrimeSoil, w.cfg.Drives[DriveHygiene].Max); got != want {
+		t.Fatalf("hygiene after wetting self = %d, want %d", got, want)
+	}
+	w.addGrime(c, 10*w.cfg.Drives[DriveHygiene].Max)
+	if got := w.driveLevel(c, DriveHygiene); got != w.cfg.Drives[DriveHygiene].Max {
+		t.Fatalf("grime pushed hygiene past its ceiling: %d", got)
+	}
+}
+
+// A hygiene drive at its ceiling is felt as filth, like loneliness.
+func TestFilthIsFeltAtTheCeiling(t *testing.T) {
+	w := roomsTestWorld(20, 20)
+	c := w.spawn(Colonist, Point{5, 5})
+	spec := w.cfg.Drives[DriveHygiene]
+	c.Drives[DriveHygiene], c.driveSince[DriveHygiene] = spec.Max, w.tick
+	valence := c.affect.Valence
+	w.applyDriveConsequences(c)
+	if got := memoriesOf(c, "felt-filthy"); got != 1 {
+		t.Fatalf("felt-filthy at the ceiling = %d, want 1", got)
+	}
+	if c.affect.Valence >= valence {
+		t.Fatalf("filth did not lower valence: %d -> %d", valence, c.affect.Valence)
+	}
+}
+
+// A dirty colonist walks to a shower, washes, and is clean.
+func TestColonistWashesAtAShower(t *testing.T) {
+	cfg := testConfig()
+	cfg.StartColonists, cfg.StartAliens = 0, 0
+	w := newTestWorld(t, cfg)
+	center := Point{w.Width / 2, w.Height / 2}
+	stand := center.Add(1, 0)
+	w.SetTerrain(center, Shower)
+	w.SetTerrain(stand, Floor)
+	w.refreshSpatial()
+	c := w.spawn(Colonist, stand)
+	w.quietDrives(c)
+	c.Drives[DriveHygiene] = cfg.Drives[DriveHygiene].CriticalAt
+
+	for i := 0; i < cfg.Drives[DriveHygiene].UseTicks+10 && memoriesOf(c, "washed") == 0; i++ {
+		w.step()
+	}
+	if memoriesOf(c, "washed") != 1 {
+		t.Fatal("the colonist never washed")
+	}
+	if lvl := w.driveLevel(c, DriveHygiene); lvl >= cfg.Drives[DriveHygiene].SeekAt {
+		t.Fatalf("hygiene after washing = %d", lvl)
+	}
+}
+
+// With life support, bunks and a silo in place, the colony marks out a
+// washroom for the hygiene drive.
+func TestColonyPlansAWashroom(t *testing.T) {
+	cfg := testConfig()
+	cfg.StartAliens, cfg.StartCats, cfg.StartRats = 0, 0, 0
+	w := newTestWorld(t, cfg)
+	center := Point{w.Width / 2, w.Height / 2}
+	desired := w.desiredFacilities(w.countKind(Colonist))
+	for i, kind := range []Terrain{NutrientPod, Toilet, Bed} {
+		for n := 0; n < desired; n++ {
+			w.SetTerrain(center.Add(-3+i, -3-n), kind)
+		}
+	}
+	w.SetTerrain(center.Add(1, -3), Storage)
+	w.refreshSpatial()
+
+	w.planRooms()
+	if !named(w.projects, washRoom.name) {
+		t.Fatalf("no washroom planned; projects = %v", projectNames(w.projects))
+	}
+}

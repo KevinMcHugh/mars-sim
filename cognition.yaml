@@ -3,8 +3,8 @@ schema_version: 1
 
 # Stable content vocabulary used by editor dropdowns and rule validation.
 vocabulary:
-  nouns: [colonist, alien, cat, rat, gore, meal, toilet, bed, need, rock, structure, refuse, gruel, scum, scumhouse, goods, skill, loneliness]
-  actions: [present, bite, attack, kill, crush, catch, wound, converse, eat, use, sleep, satisfy, mine, clear, construct, clean, incinerate, mutate, cook, scrape, deliver, trade, buy, haul, learn, feel, socialize, collapse, soil]
+  nouns: [colonist, alien, cat, rat, gore, meal, toilet, bed, need, rock, structure, refuse, gruel, scum, scumhouse, goods, skill, loneliness, shower, filth]
+  actions: [present, bite, attack, kill, crush, catch, wound, converse, eat, use, sleep, satisfy, mine, clear, construct, clean, incinerate, mutate, cook, scrape, deliver, trade, buy, haul, learn, feel, socialize, collapse, soil, wash]
 
 attractors:
   driven    : { good: "driven"    , bad: "furious"   , charge:  70, grip:  60, radius: 46 }
@@ -27,6 +27,7 @@ focuses:
   flee      : { base:   0, need_weight:   0, charge_weight:  20, grip_weight: -40, distance_weight: 1 }
   fight     : { base:  15, need_weight:   0, charge_weight:  20, grip_weight:  40, distance_weight: 1 }
   escape    : { base: 400, need_weight:   0, charge_weight:   0, grip_weight:   0, distance_weight: 0 }
+  wash      : { base:  40, need_weight: 100, charge_weight:   0, grip_weight:   5, distance_weight: 1 }
 
 arbitration:
   current_bonus: 25
@@ -287,6 +288,19 @@ reactions:
     memory: { record: true, collapse: "Had accidents." }
     affect: { impact: 45, fresh: { charge: 10, grip: -30, valence: -20 }, worn: { charge: 6, grip: -40, valence: -30 } }
     wear_policy: memory-occasions
+  # The hygiene drive met at a shower: a small pleasure, routine soon enough.
+  - id: washed
+    match: { actor_noun: colonist, action: wash, object_noun: shower, channel: direct, role: actor, phase: instant }
+    memory: { record: true, collapse: "Washed up." }
+    affect: { impact: 12, fresh: { charge: 3, grip: 4, valence: 2 }, worn: { charge: 1, grip: 1, valence: 0 } }
+    wear_policy: memory-occasions
+  # The hygiene drive's consequence: at its ceiling a colonist feels filthy,
+  # again every consequence-every ticks while it stays there, worse each time.
+  - id: felt-filthy
+    match: { actor_noun: colonist, action: feel, object_noun: filth, channel: direct, role: actor, phase: instant }
+    memory: { record: true, collapse: "Felt filthy." }
+    affect: { impact: 25, fresh: { charge: -4, grip: -6, valence: -8 }, worn: { charge: -6, grip: -10, valence: -14 } }
+    wear_policy: memory-occasions
   # Seeing it happen, close enough to notice (gore-sight-radius).
   - id: witnessed-soiling
     match: { actor_noun: colonist, action: soil, channel: sight, role: witness, phase: instant }
@@ -324,6 +338,10 @@ trait_rules:
     trait: tidy
     match: { actor_noun: colonist, action: soil, channel: sight, role: witness, phase: instant }
     scales: { impact: 100, charge: 220, grip: 220, valence: 220, wear_rate: 100 }
+  - id: tidy-felt-filthy
+    trait: tidy
+    match: { actor_noun: colonist, action: feel, object_noun: filth, channel: direct, role: actor, phase: instant }
+    scales: { impact: 100, charge: 100, grip: 200, valence: 200, wear_rate: 100 }
   - id: industrious-mining
     trait: industrious
     match: { actor_noun: colonist, action: mine, object_noun: rock, channel: direct, role: actor, phase: instant }

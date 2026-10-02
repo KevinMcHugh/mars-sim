@@ -20,6 +20,7 @@ const (
 	FocusFlee
 	FocusFight
 	FocusEscape
+	FocusWash
 
 	numFocusKinds
 )
@@ -44,6 +45,8 @@ func (f FocusKind) String() string {
 		return "fight"
 	case FocusEscape:
 		return "escape"
+	case FocusWash:
+		return "wash"
 	default:
 		return "focus"
 	}
@@ -116,6 +119,8 @@ func focusForDrive(n DriveKind) FocusKind {
 		return FocusSocialize
 	case DriveSleep:
 		return FocusSleep
+	case DriveHygiene:
+		return FocusWash
 	default:
 		return FocusIdle
 	}
@@ -131,6 +136,8 @@ func driveForFocus(f FocusKind) (DriveKind, bool) {
 		return DriveSocial, true
 	case FocusSleep:
 		return DriveSleep, true
+	case FocusWash:
+		return DriveHygiene, true
 	default:
 		return 0, false
 	}
@@ -229,7 +236,7 @@ func (w *World) currentFocusEligible(e *Entity, threat *Entity) bool {
 		return true
 	case FocusWork:
 		return workJob(e.Job) || !e.resting || w.tick >= e.wakeTick
-	case FocusEat, FocusRelieve, FocusSocialize, FocusSleep:
+	case FocusEat, FocusRelieve, FocusSocialize, FocusSleep, FocusWash:
 		need, _ := driveForFocus(e.focus)
 		phase := e.drivePhase[need]
 		if phase != DrivePressing && phase != DriveCritical {

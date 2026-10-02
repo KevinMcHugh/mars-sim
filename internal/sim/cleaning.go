@@ -240,6 +240,7 @@ func (w *World) gatherRefuse(e *Entity, p Point, burn bool) {
 	if corpses+viscera == 0 {
 		return
 	}
+	w.addGrime(e, w.cfg.GrimeClean)
 	o := w.occurrence(e, ActionClean, nil, p, "Cleaned up %s at (%d, %d).",
 		refusePhrase(corpses, viscera), p.X, p.Y)
 	o.Object = FactRef{Noun: NounRefuse, Label: "refuse"}

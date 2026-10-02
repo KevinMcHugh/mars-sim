@@ -73,6 +73,11 @@ const (
 	// the colonist and the disgust to anyone close enough to see. Unmet
 	// bladder.
 	ConsequenceSoiling
+	// ConsequenceFilth: the colonist feels filthy, an experience like
+	// loneliness, repeated every ConsequenceEvery ticks it stays at the
+	// ceiling. Unmet hygiene. What others make of a filthy colonist is a later
+	// phase (docs/drives-redesign.md).
+	ConsequenceFilth
 
 	numConsequences // keep last: the count of consequences
 )
@@ -89,6 +94,8 @@ func (c Consequence) String() string {
 		return "passing out"
 	case ConsequenceSoiling:
 		return "soiling"
+	case ConsequenceFilth:
+		return "filth"
 	default:
 		return "consequence"
 	}
@@ -129,6 +136,13 @@ func defaultDrives() [numDrives]DriveSpec {
 			Name: "sleep", Rise: 1, SeekAt: 700, CriticalAt: 900, Max: 1000,
 			Facility: Bed, UseTicks: 40, Consequence: ConsequencePassOut,
 		},
+		DriveHygiene: {
+			// Hygiene builds slowly with time, and in jumps with dirty work
+			// (grime-* settings). A shower washes it off.
+			Name: "hygiene", Rise: 1, SeekAt: 750, CriticalAt: 950, Max: 1000,
+			Facility: Shower, UseTicks: 15,
+			Consequence: ConsequenceFilth, ConsequenceEvery: 250,
+		},
 	}
 }
 
@@ -137,6 +151,7 @@ const (
 	DriveBladder
 	DriveSocial
 	DriveSleep
+	DriveHygiene
 
 	numDrives // keep last: the count of drives
 )
@@ -151,6 +166,8 @@ func (n DriveKind) String() string {
 		return "social"
 	case DriveSleep:
 		return "sleep"
+	case DriveHygiene:
+		return "hygiene"
 	default:
 		return "drive"
 	}
@@ -302,11 +319,11 @@ func (w *World) applyDriveConsequences(e *Entity) {
 		switch spec.Consequence {
 		case ConsequenceDeath:
 			w.starve(e, i, spec)
-		case ConsequenceLoneliness:
+		case ConsequenceLoneliness, ConsequenceFilth:
 			// Only colonists feel anything; a rat's social drive never rises,
 			// but nothing here should depend on that.
 			if e.Kind == Colonist && w.consequenceDue(e, i, spec) {
-				w.emitDone(e, ActionFeel, NounLoneliness, "Felt lonely.")
+				w.feel(e, spec.Consequence)
 			}
 		case ConsequencePassOut:
 			if e.Kind == Colonist && e.passedOutUntil == 0 && !w.usingFacility(e, DriveSleep) {
@@ -354,6 +371,7 @@ func (w *World) usingFacility(e *Entity, d DriveKind) bool {
 // happen while passed out.
 func (w *World) wetSelf(e *Entity) {
 	w.resetDrive(e, DriveBladder)
+	w.addGrime(e, w.cfg.GrimeSoil)
 	o := w.occurrence(e, ActionSoil, nil, e.Pos, "")
 	o.ActorText = fmt.Sprintf("Wet %s.", e.reflexive())
 	o.WitnessText = fmt.Sprintf("Saw %s wet %s.", e.displayName(), e.reflexive())
@@ -381,6 +399,29 @@ func (w *World) stayPassedOut(e *Entity) bool {
 	w.resetDrive(e, DriveSleep)
 	w.markMindDirty(e)
 	return true // the waking tick is spent coming to
+}
+
+// feel emits an experience consequence: an occurrence the colonist feels,
+// whose mood and memory are cognition.yaml's (felt-lonely, felt-filthy).
+func (w *World) feel(e *Entity, c Consequence) {
+	switch c {
+	case ConsequenceLoneliness:
+		w.emitDone(e, ActionFeel, NounLoneliness, "Felt lonely.")
+	case ConsequenceFilth:
+		w.emitDone(e, ActionFeel, NounFilth, "Felt filthy.")
+	}
+}
+
+// addGrime raises e's hygiene drive by n for a dirty job (the grime-*
+// settings), on top of its steady rise. A bump re-bases the lazy level: the
+// current level plus n becomes the base as of now.
+func (w *World) addGrime(e *Entity, n int) {
+	if n <= 0 || e.Kind != Colonist {
+		return
+	}
+	level := min(w.driveLevel(e, DriveHygiene)+n, w.cfg.Drives[DriveHygiene].Max)
+	e.Drives[DriveHygiene], e.driveSince[DriveHygiene] = level, w.tick
+	w.syncDrivePhase(e, DriveHygiene)
 }
 
 // consequenceDue reports whether an experience consequence should fire now,
@@ -476,6 +517,8 @@ func useState(n DriveKind) State {
 		return Relieving
 	case DriveSleep:
 		return Sleeping
+	case DriveHygiene:
+		return Washing
 	default:
 		return Idle
 	}

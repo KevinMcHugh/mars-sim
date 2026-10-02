@@ -39,6 +39,7 @@ const (
 	Chair       = "\U0001F4BA" // 💺 chair in a meeting hall
 	Incubator   = "\U0001FAD9" // 🫙 scum incubator: a seed of scum in, scum grown on a schedule
 	Trough      = "\U0001FAA3" // 🪣 trough: a keeper's chicken feed
+	Shower      = "\U0001F6BF" // 🚿 shower (hygiene)
 
 	Colonist = "\U0001F477" // 👷 colonist of unknown age/gender (no profile)
 	Fleeing  = "\U0001F631" // 😱 colonist running from an alien
@@ -231,6 +232,8 @@ var All = []string{
 	// So are the chickens' glyphs, after it.
 	Chicken,
 	Trough,
+	// And the washroom's, after those.
+	Shower,
 }
 
 var known = func() map[string]bool {
@@ -326,6 +329,8 @@ func ForTerrain(t sim.Terrain) string {
 		return Incubator
 	case sim.Trough:
 		return Trough
+	case sim.Shower:
+		return Shower
 	default:
 		return Rock
 	}

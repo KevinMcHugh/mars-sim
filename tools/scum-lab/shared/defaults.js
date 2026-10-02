@@ -23,7 +23,8 @@ const DEFAULT_CONFIG = {
     sleep:     { base: 40, need_weight: 100, charge_weight: -30, grip_weight: 0,   distance_weight: 1 },
     flee:      { base: 0,  need_weight: 0,   charge_weight: 20,  grip_weight: -40, distance_weight: 1 },
     fight:     { base: 15, need_weight: 0,   charge_weight: 20,  grip_weight: 40,  distance_weight: 1 },
-    escape:    { base: 400, need_weight: 0,   charge_weight: 0,   grip_weight: 0,   distance_weight: 0 }
+    escape:    { base: 400, need_weight: 0,   charge_weight: 0,   grip_weight: 0,   distance_weight: 0 },
+    wash:      { base: 40, need_weight: 100, charge_weight: 0,   grip_weight: 5,   distance_weight: 1 }
   },
   arbitration: {
     current_bonus: 25,
@@ -79,7 +80,7 @@ const DEFAULT_VOCABULARY = {
   traits: ["big-eater", "light-eater", "industrious", "lazy", "asocial", "introvert", "extrovert", "tidy", "mutant", "mutant-lover", "resilient", "cowardly", "optimist", "pessimist"],
   object_relations: ["friend"],
   wear_policies: ["memory-occasions", "none"],
-  focuses: ["idle", "work", "eat", "relieve", "socialize", "sleep", "flee", "fight", "escape"]
+  focuses: ["idle", "work", "eat", "relieve", "socialize", "sleep", "flee", "fight", "escape", "wash"]
 };
 
 const DEFAULT_MATCHES = {

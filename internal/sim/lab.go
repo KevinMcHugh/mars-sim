@@ -99,6 +99,7 @@ type LabSituation struct {
 	Pod       bool           `json:"pod"`
 	Toilet    bool           `json:"toilet"`
 	Bed       bool           `json:"bed"`
+	Shower    bool           `json:"shower"`
 	Company   bool           `json:"company"`
 	Alien     bool           `json:"alien"`
 	Armed     bool           `json:"armed"`
@@ -287,7 +288,7 @@ func LabEvaluate(needs [numDrives]DriveSpec, moodMax, moodMargin int, cog LabCog
 	}
 	var candidates [numFocusKinds]FocusCandidate
 	fillFocusCandidates(in, &candidates)
-	reach := labReach{pod: sit.Pod, toilet: sit.Toilet, bed: sit.Bed, company: sit.Company}
+	reach := labReach{pod: sit.Pod, toilet: sit.Toilet, bed: sit.Bed, shower: sit.Shower, company: sit.Company}
 	applyBenchReach(&candidates, current, reach)
 	winner := selectFocus(&candidates, current, cog.Arbitration.SwitchMargin)
 	lead, leadOK := leadingFocus(&candidates, current)
@@ -322,7 +323,7 @@ func LabEvaluate(needs [numDrives]DriveSpec, moodMax, moodMargin int, cog LabCog
 }
 
 type labReach struct {
-	pod, toilet, bed, company bool
+	pod, toilet, bed, shower, company bool
 }
 
 func (r labReach) allows(f FocusKind) bool {
@@ -333,6 +334,8 @@ func (r labReach) allows(f FocusKind) bool {
 		return r.toilet
 	case FocusSleep:
 		return r.bed
+	case FocusWash:
+		return r.shower
 	case FocusSocialize:
 		return r.company
 	default:
@@ -430,6 +433,11 @@ func notPressingLine(f FocusKind, phase DrivePhase) string {
 			return "They aren't tired enough to sleep."
 		}
 		return "Sleep isn't pressing."
+	case FocusWash:
+		if quiet {
+			return "They aren't dirty enough to wash."
+		}
+		return "Hygiene isn't pressing."
 	case FocusSocialize:
 		if quiet {
 			return "They don't need company yet."
@@ -452,6 +460,8 @@ func pressingLine(f FocusKind, phase DrivePhase) string {
 		return "Their bladder is " + word + ", and a toilet is in reach."
 	case FocusSleep:
 		return "Sleep is " + word + ", and a bed is in reach."
+	case FocusWash:
+		return "Hygiene is " + word + ", and a shower is in reach."
 	case FocusSocialize:
 		return "They want company, and someone is nearby."
 	default:
@@ -467,6 +477,8 @@ func reachMissing(f FocusKind) string {
 		return "No toilet nearby."
 	case FocusSleep:
 		return "No bed nearby."
+	case FocusWash:
+		return "No shower nearby."
 	case FocusSocialize:
 		return "Nobody nearby to talk to."
 	default:

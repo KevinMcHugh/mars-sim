@@ -12,7 +12,7 @@
   ];
   // Fixtures: their map glyph, looked up by terrain name through the Hello.
   const fixtures: [stat: string, terrain: string][] = [
-    ['Pods', 'nutrient pod'], ['Toilets', 'toilet'], ['Beds', 'bed'],
+    ['Pods', 'nutrient pod'], ['Toilets', 'toilet'], ['Beds', 'bed'], ['Showers', 'shower'],
     ['Incinerators', 'incinerator'], ['StorageContainers', 'storage container'],
   ];
 

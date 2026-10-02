@@ -29,6 +29,7 @@ const (
 	ActFighting             // firing on an alien, stomping a rat
 	ActFleeing              // running from an alien
 	ActEscaping             // breaking out of a sealed room
+	ActWashing              // under a shower, or heading to one
 
 	NumActivities
 )
@@ -61,6 +62,8 @@ func (a Activity) String() string {
 		return "fleeing"
 	case ActEscaping:
 		return "escaping"
+	case ActWashing:
+		return "washing"
 	default:
 		return "?"
 	}
@@ -84,6 +87,8 @@ func activityOfState(s State) (Activity, bool) {
 		return ActEating, true
 	case Sleeping, PassedOut:
 		return ActSleeping, true
+	case Washing:
+		return ActWashing, true
 	case Relieving:
 		return ActRelieving, true
 	case Talking:
@@ -135,6 +140,8 @@ func activityOfPurpose(e *Entity) Activity {
 		return ActEating
 	case FocusSleep:
 		return ActSleeping
+	case FocusWash:
+		return ActWashing
 	case FocusRelieve:
 		return ActRelieving
 	case FocusSocialize:

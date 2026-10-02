@@ -18,7 +18,7 @@ func TestDefaultCognitionRulesCompileAndCoverShippedContent(t *testing.T) {
 			t.Errorf("attractor %d mismatch: got %+v, want %+v", i, got, a)
 		}
 	}
-	if got, want := len(def.Reactions), 38; got != want {
+	if got, want := len(def.Reactions), 40; got != want {
 		t.Fatalf("reaction count = %d, want %d migrated reactions", got, want)
 	}
 	for _, id := range []RuleID{
@@ -31,7 +31,7 @@ func TestDefaultCognitionRulesCompileAndCoverShippedContent(t *testing.T) {
 		"finished-construction", "cleaned-refuse", "incinerated-refuse",
 		"mutated", "witnessed-mutation", "ate-gruel", "cooked", "scraped-scum",
 		"fed-scumhouse", "went-to-market", "hauled", "bought-meal",
-		"rose-in-trade", "felt-lonely", "socialized", "passed-out", "soiled-self", "witnessed-soiling",
+		"rose-in-trade", "felt-lonely", "socialized", "passed-out", "soiled-self", "witnessed-soiling", "washed", "felt-filthy",
 	} {
 		if _, ok := def.reaction(id); !ok {
 			t.Errorf("missing shipped reaction %q", id)
@@ -82,6 +82,8 @@ func TestDefaultReactionFreshWornParity(t *testing.T) {
 		"passed-out":                  {{-10, -25, -15}, {-10, -35, -25}},
 		"soiled-self":                 {{10, -30, -20}, {6, -40, -30}},
 		"witnessed-soiling":           {{0, -2, -3}, {0, -1, -1}},
+		"washed":                      {{3, 4, 2}, {1, 1, 0}},
+		"felt-filthy":                 {{-4, -6, -8}, {-6, -10, -14}},
 	}
 	cfg := DefaultCognitionConfig()
 	for id, vectors := range want {

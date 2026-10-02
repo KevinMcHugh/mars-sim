@@ -4,7 +4,7 @@
 
 ## What it is
 
-Colonists accumulate **drives** (food, bladder, social contact, and sleep) over
+Colonists accumulate **drives** (food, bladder, social contact, sleep and hygiene) over
 time and may switch focus to satisfy them. Every drive has the same shape: an
 **accumulation rate**, **thresholds** (seek, critical, ceiling), and a
 **consequence** for reaching the ceiling. Each drive independently projects its
@@ -13,13 +13,13 @@ lazy — a base plus a timestamp — so idle colonists do not need per-tick stor
 updates.
 
 These used to be called *needs*. They were renamed because not everything this
-system is going to model is a need: the plan (beauty, comfort, hygiene, and
-consequences like embarrassment) is in
+system is going to model is a need: the plan (beauty and comfort, what others
+make of a filthy colonist, hallucinations) is in
 [drives-redesign.md](./drives-redesign.md). This doc describes what exists today.
 
 ## Source
 
-- [`internal/sim/drives.go`](../internal/sim/drives.go) — `DriveKind`, `DrivePhase`, `Consequence`, `DriveSpec`, lazy level math, phase synchronization, pressure, consequences (starvation, loneliness), and `mostUrgentDrive`.
+- [`internal/sim/drives.go`](../internal/sim/drives.go) — `DriveKind`, `DrivePhase`, `Consequence`, `DriveSpec`, lazy level math, phase synchronization, pressure, consequences (starvation, loneliness, passing out, soiling, filth), grime (`addGrime`), and `mostUrgentDrive`.
 - [`internal/sim/config.go`](../internal/sim/config.go) — the `Drives` table and `StarveDamage`, `ColonistsPerFacility`.
 - [`internal/sim/entity.go`](../internal/sim/entity.go) — the per-entity drive storage (`Drives`, `driveSince`, `driveRise`, `starvationDamage`, `carrying`).
 - [`internal/sim/systems.go`](../internal/sim/systems.go) — `jobUse`, `jobUseCarrying`, `finishUse`, `availableToTalk`.
@@ -37,6 +37,7 @@ indexed by the kind:
 | bladder | 3 | 600 | 900 | 1000 | Toilet | 10 | 0 | **soiling** (wets itself; embarrassment) |
 | sleep | 1 | 700 | 900 | 1000 | Bed | 40 | 0 | **passing out** (`pass-out-ticks`, 60) |
 | social | 2 | 500 | 850 | 1000 | conversation | — | — | **loneliness** (felt every 200 ticks) |
+| hygiene | 1, plus grime | 750 | 950 | 1000 | Shower | 15 | 0 | **filth** (felt every 250 ticks) |
 
 Food is the one drive met by an item as well as a facility: a hungry colonist
 eats a real `Meal` it owns (or the colony owns) before it walks to a nutrient
@@ -141,6 +142,7 @@ drive sitting at `Max`, and dispatches on its `Consequence`:
 | `ConsequenceLoneliness` | the colonist *feels lonely*: an experience, repeated every `consequence-every` ticks | social |
 | `ConsequencePassOut` | `passOut`: the colonist collapses where it stands for `pass-out-ticks`, then comes to with the drive met | sleep |
 | `ConsequenceSoiling` | `wetSelf`: the colonist wets itself where it stands; the drive resets and the embarrassment is felt and seen | bladder |
+| `ConsequenceFilth` | the colonist *feels filthy*: an experience like loneliness, repeated every `consequence-every` ticks | hygiene |
 
 Death is a **drain**: it applies every tick at the ceiling and is undone by
 satisfying the drive. Loneliness is an **experience**: `consequenceDue` books
@@ -386,6 +388,45 @@ Two bugs here were serious enough to leave written down:
   calls `chooseFacility` many times over an unchanged world specifically
   because the bug only shows up under some map-iteration orders, not all of
   them.
+
+### Hygiene
+
+Hygiene is the first drive that rises from more than time. Its steady rise is
+1 a tick, and dirty work adds **grime** on top: `addGrime` re-bases the lazy
+level (the current level plus the grime becomes the base as of now, the same
+move `resetDrive` makes), so the level stays exact without per-tick work.
+
+| Setting | Default | Added when |
+| --- | --- | --- |
+| `grime-mine` | 6 | a colonist digs out a rock tile, for mining or clearing a room |
+| `grime-clean` | 40 | it scrubs up a load of gore or bodies (`gatherRefuse`) |
+| `grime-soil` | 300 | it wets itself (`wetSelf`) |
+
+A colonist digging all day therefore wants a wash roughly twice as often as
+one that is not.
+
+It is discharged at a **shower** (`Shower`), a new fixture used from an
+adjacent tile like a toilet, through the ordinary facility machinery: a
+`wash` focus (`FocusWash`, a `cognition.yaml` row like the other drive
+foci), `JobUse`, the `Washing` state, and a `washed` reaction ("Washed up.",
+a small lift that fades as it becomes routine) when it is done. The planner
+builds showers in a **washroom** (see [construction.md](./construction.md)),
+after bunks and the trash room, one per `per-facility` colonists like the
+other drive facilities. Like any drive, a colonist with no shower and none
+planned builds one itself (the emergency fallback).
+
+At the ceiling the colonist **feels filthy**: `ConsequenceFilth`, the same
+experience shape as loneliness (`feel`, `consequenceDue`), with a
+`felt-filthy` reaction that is worse when it keeps coming back and twice as
+bad for a Tidy colonist. What *others* make of a filthy colonist is a later
+phase ([drives-redesign.md](./drives-redesign.md)).
+
+Adding the drive draws one more random starting level per colonist at spawn
+(the staggered start below), so it shifted every seed from tick 0. Measured
+over 10000 ticks of the default game on seeds 1–8, against the same seeds
+without hygiene: the same 30 survivors and 2 starvations in total, one
+washroom of one shower per colony, 32–90 washes, 4–26 felt-filthy occasions,
+and 2–8% of colonist time spent at critical hygiene.
 
 ### Taking it to go
 

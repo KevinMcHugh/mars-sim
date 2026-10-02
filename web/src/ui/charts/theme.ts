@@ -28,13 +28,13 @@ export const IDLE = '#5a5955';
 /**
  * The activity chart's bands, bottom to top, as the TUI stacks them: needs
  * at the floor, work in the middle, danger above it, idle as the lid. The
- * game has 13 activities and a chart gets at most 8 hues, so related ones
+ * game has 14 activities and a chart gets at most 8 hues, so related ones
  * share a band; the tooltip and the legend still name each one.
  */
 export const ACTIVITY_GROUPS: { label: string; color: string; activities: string[] }[] = [
   { label: 'sleeping', color: SERIES[0], activities: ['sleeping'] },
   { label: 'eating', color: SERIES[1], activities: ['eating'] },
-  { label: 'relieving', color: SERIES[2], activities: ['relieving'] },
+  { label: 'relieving & washing', color: SERIES[2], activities: ['relieving', 'washing'] },
   { label: 'socializing', color: SERIES[3], activities: ['socializing'] },
   { label: 'cooking', color: SERIES[4], activities: ['cooking'] },
   { label: 'mining & building', color: SERIES[5], activities: ['mining', 'building'] },

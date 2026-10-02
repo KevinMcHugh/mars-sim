@@ -70,6 +70,7 @@ const (
 	Crafting          // colonist working a recipe at a workshop (the scumhouse)
 	Scraping          // colonist scraping cave scum off a surface
 	PassedOut         // colonist unconscious where it fell, its sleep drive maxed (see passOut)
+	Washing           // colonist under a shower (the hygiene drive)
 
 	numStates // keep last: the number of states
 )
@@ -116,6 +117,8 @@ func (s State) String() string {
 		return "scraping"
 	case PassedOut:
 		return "passed out"
+	case Washing:
+		return "washing"
 	default:
 		return "?"
 	}

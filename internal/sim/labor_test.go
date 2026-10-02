@@ -231,7 +231,12 @@ func TestAColonyWithNoMoneyStillFeedsItself(t *testing.T) {
 		w := newTestWorld(t, cfg)
 		for i := 0; i < 8000; i++ {
 			w.step()
+			// A colonist may still buy a room from its own purse (a chef's
+			// kitchen); what the colony itself marks out is the point.
 			for _, p := range w.projects {
+				if p.issuer.Kind == OwnerColonist {
+					continue
+				}
 				if p.name != scumhouseRoom.name || p.issuer != Nobody {
 					t.Fatalf("seed %d tick %d: planned %q for %v with no money", seed, w.tick, p.name, p.issuer)
 				}

@@ -50,7 +50,9 @@ the share of colonist time.
    (cooking; the scumhouse is the only workshop), `Mining`, `Fighting`, and so
    on. Some States share a band: `Hauling` and `Storing` are both hauling;
    `Cleaning` and `Scraping` are both cleaning; `Stomping` counts as fighting;
-   `PassedOut` counts as sleeping.
+   `PassedOut` counts as sleeping. `Washing` is its own activity; the
+   browser's chart, which has eight hues, shares a band between relieving
+   and washing.
 2. Otherwise (the colonist is `Moving` or `Idle`), the **job** it is walking
    for: `JobMine` is mining, `JobCraft` is cooking, `JobStore`/`JobSell`/
    `JobCarry` are hauling, and so on.

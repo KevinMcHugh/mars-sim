@@ -222,6 +222,8 @@ func ParseFocusKind(s string) (FocusKind, error) {
 		return FocusFight, nil
 	case "escape":
 		return FocusEscape, nil
+	case "wash":
+		return FocusWash, nil
 	default:
 		return 0, fmt.Errorf("unknown focus kind %q", s)
 	}
@@ -313,6 +315,7 @@ func DefaultCognitionConfig() CognitionConfig {
 		// deliberately clears even a maxed-out fatal need. focusCandidates
 		// excludes it while a threat is visible. See docs/escape.md.
 		FocusEscape: {Name: "escape", Base: 400, NeedWeight: 0, ChargeWeight: 0, GripWeight: 0, DistanceWeight: 0},
+		FocusWash:   {Name: "wash", Base: 40, NeedWeight: 100, ChargeWeight: 0, GripWeight: 5, DistanceWeight: 1},
 	}
 	c.Arbitration = ArbitrationConfig{
 		CurrentBonus: 25, SwitchMargin: 10, CriticalBonus: 100,
@@ -322,7 +325,7 @@ func DefaultCognitionConfig() CognitionConfig {
 	c.Nouns = []NounID{
 		NounColonist, NounAlien, NounCat, NounRat, NounGore, NounMeal,
 		NounToilet, NounBed, NounNeed, NounRock, NounStructure, NounRefuse,
-		NounGruel, NounScum, NounScumhouse, NounGoods, NounSkill, NounLoneliness,
+		NounGruel, NounScum, NounScumhouse, NounGoods, NounSkill, NounLoneliness, NounShower, NounFilth,
 	}
 	c.Actions = []ActionID{
 		ActionPresent, ActionBite, ActionAttack, ActionKill, ActionCrush,
@@ -330,7 +333,7 @@ func DefaultCognitionConfig() CognitionConfig {
 		ActionSleep, ActionSatisfy, ActionMine, ActionClear, ActionConstruct,
 		ActionClean, ActionIncinerate, ActionMutate, ActionCook, ActionScrape,
 		ActionDeliver, ActionTrade, ActionBuy, ActionHaul, ActionLearn,
-		ActionFeel, ActionSocialize, ActionCollapse, ActionSoil,
+		ActionFeel, ActionSocialize, ActionCollapse, ActionSoil, ActionWash,
 	}
 	c.Perceptions = []PerceptionRule{
 		{ID: "direct-actor", Channel: ChannelDirect, Role: RoleActor, Cadence: CadenceInstant},
@@ -427,13 +430,19 @@ func DefaultCognitionConfig() CognitionConfig {
 	// Seeing it happen, close enough to notice, is mildly unpleasant.
 	soiledSelf := reaction("soiled-self", directMatch(ActionSoil, NounColonist, "", RoleActor), 45, MoodVector{10, -30, -20}, MoodVector{6, -40, -30})
 	witnessedSoiling := reaction("witnessed-soiling", sightMatch(ActionSoil, NounColonist, "", PhaseInstant), 10, MoodVector{0, -2, -3}, MoodVector{0, -1, -1})
+	// A wash is a small, clean pleasure, like a meal: it fades as it becomes
+	// routine.
+	washed := reaction("washed", directMatch(ActionWash, NounColonist, NounShower, RoleActor), 12, MoodVector{3, 4, 2}, MoodVector{1, 1, 0})
+	// Hygiene at its ceiling: feeling filthy, like loneliness an experience
+	// that comes back while it lasts and hurts more each time.
+	feltFilthy := reaction("felt-filthy", directMatch(ActionFeel, NounColonist, NounFilth, RoleActor), 25, MoodVector{-4, -6, -8}, MoodVector{-6, -10, -14})
 	boughtMeal := reaction("bought-meal", directMatch(ActionBuy, NounColonist, NounMeal, RoleActor), 12, MoodVector{2, 3, 0}, MoodVector{1, 0, 0})
 
 	for _, r := range []*ReactionSpec{
 		&finishedMining, &clearedRock, &finishedConstruction, &cleanedRefuse,
 		&incineratedRefuse, &ate, &usedToilet, &slept, &needSatisfied,
 		&ateGruel, &cooked, &scrapedScum, &fedScumhouse, &wentToMarket, &hauled,
-		&feltLonely, &socialized, &passedOut, &soiledSelf,
+		&feltLonely, &socialized, &passedOut, &soiledSelf, &washed, &feltFilthy,
 	} {
 		r.Memory.Collapse = map[RuleID]string{
 			"finished-mining":       "Finished mining.",
@@ -455,6 +464,8 @@ func DefaultCognitionConfig() CognitionConfig {
 			"socialized":            "Enjoyed some company.",
 			"passed-out":            "Passed out from exhaustion.",
 			"soiled-self":           "Had accidents.",
+			"washed":                "Washed up.",
+			"felt-filthy":           "Felt filthy.",
 		}[r.ID]
 	}
 	workStimulus := func(r *ReactionSpec) {
@@ -477,7 +488,7 @@ func DefaultCognitionConfig() CognitionConfig {
 		cleanedRefuse, incineratedRefuse, mutated, witnessedMutation,
 		ateGruel, cooked, scrapedScum, fedScumhouse, wentToMarket, hauled,
 		boughtMeal, roseInTrade, feltLonely, socialized, passedOut,
-		soiledSelf, witnessedSoiling,
+		soiledSelf, witnessedSoiling, washed, feltFilthy,
 	}
 	scaled := func(id RuleID, trait Trait, match PerceptPattern, impact, charge, grip, valence, wear int) TraitRule {
 		return TraitRule{ID: id, Trait: trait, Match: match, Impact: impact, Charge: charge, Grip: grip, Valence: valence, WearRate: wear}
@@ -490,6 +501,7 @@ func DefaultCognitionConfig() CognitionConfig {
 		scaled("tidy-incinerated-refuse", TraitTidy, incineratedRefuse.Match, 100, 100, 200, 100, 100),
 		scaled("tidy-soiled-self", TraitTidy, soiledSelf.Match, 100, 100, 200, 200, 100),
 		scaled("tidy-witnessed-soiling", TraitTidy, witnessedSoiling.Match, 100, 220, 220, 220, 100),
+		scaled("tidy-felt-filthy", TraitTidy, feltFilthy.Match, 100, 100, 200, 200, 100),
 		scaled("industrious-mining", TraitIndustrious, finishedMining.Match, 100, 200, 200, 200, 100),
 		scaled("industrious-clearing", TraitIndustrious, clearedRock.Match, 100, 200, 200, 200, 100),
 		scaled("industrious-construction", TraitIndustrious, finishedConstruction.Match, 100, 200, 200, 200, 100),

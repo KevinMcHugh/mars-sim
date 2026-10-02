@@ -537,7 +537,7 @@ func TestRosterDetailScrolls(t *testing.T) {
 	if strings.Contains(out, "Remembered thing") {
 		t.Fatal("memories should start below the fold, or this test proves nothing")
 	}
-	if !strings.Contains(out, "1-23 of 62") {
+	if !strings.Contains(out, "1-23 of 63") {
 		t.Errorf("an overflowing inspector should say how much content there is:\n%s", out)
 	}
 
@@ -558,13 +558,13 @@ func TestRosterDetailScrolls(t *testing.T) {
 	if strings.Contains(out, "STATUS") {
 		t.Error("scrolled to the bottom, the identity block should be off the panel")
 	}
-	if !strings.Contains(out, "40-62 of 62") {
+	if !strings.Contains(out, "41-63 of 63") {
 		t.Errorf("the bottom of the content should be the last line shown:\n%s", out)
 	}
 
 	// One line back up, then reselecting a colonist returns to the top.
 	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyShiftUp})
-	if out = m.View(); !strings.Contains(out, "39-61 of 62") {
+	if out = m.View(); !strings.Contains(out, "40-62 of 63") {
 		t.Errorf("shift+up should move the window one line:\n%s", out)
 	}
 	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyDown})

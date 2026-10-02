@@ -254,7 +254,7 @@ func TestColonyPlansATrashRoomForItsRefuse(t *testing.T) {
 	// Satisfy every other demand so sanitation is what planRooms has left.
 	center := Point{w.Width / 2, w.Height / 2}
 	desired := w.desiredFacilities(w.countKind(Colonist))
-	for i, kind := range []Terrain{NutrientPod, Toilet, Bed} {
+	for i, kind := range []Terrain{NutrientPod, Toilet, Bed, Shower} {
 		for n := 0; n < desired; n++ {
 			w.SetTerrain(center.Add(-3+i, -3-n), kind)
 		}

@@ -48,7 +48,7 @@ type Fixture struct {
 // not used, so nobody needs to own one yet.
 func isFixtureTerrain(t Terrain) bool {
 	switch t {
-	case NutrientPod, Toilet, Bed, Incinerator, Storage, Scumhouse, Forge, GunBench, Incubator, Trough:
+	case NutrientPod, Toilet, Bed, Incinerator, Storage, Scumhouse, Forge, GunBench, Incubator, Trough, Shower:
 		return true
 	default:
 		return false
