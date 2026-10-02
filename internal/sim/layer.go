@@ -11,6 +11,8 @@ const (
 	// LandingLevel is where crash pods land, and the only level that exists
 	// so far.
 	LandingLevel Level = 1
+	// MaxLevel is the deepest Config.DeepestLevel may ask for.
+	MaxLevel = 16
 )
 
 // Layer is the state of one level of the world: its tiles and everything

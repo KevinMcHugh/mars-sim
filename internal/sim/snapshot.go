@@ -438,7 +438,9 @@ type Snapshot struct {
 	PendingFoundries     int
 	PendingHalls         int
 	PendingIncubators    int
-	Storages             []StorageView
+	// PendingStairs counts stairs ordered but not yet marked out.
+	PendingStairs int
+	Storages      []StorageView
 	// Scum is how much cave scum is on every exposed patch that has any,
 	// computed fresh each frame because patches regrow lazily (see
 	// scumhouse.go). Read it with ScumAt.
@@ -695,6 +697,7 @@ func (w *World) snapshot(paused bool, tps int) *Snapshot {
 		PendingFoundries:     w.manualFoundries,
 		PendingHalls:         w.manualHalls,
 		PendingIncubators:    w.manualIncubators,
+		PendingStairs:        w.manualStairs,
 		Storages:             storages,
 		Fixtures:             w.publishedFixtures(),
 		Scum:                 w.publishedScum(),

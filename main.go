@@ -20,6 +20,7 @@ import (
 	"flag"
 	"fmt"
 	"io/fs"
+	"math"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -462,6 +463,12 @@ func validateConfig(cfg sim.Config) error {
 		return fmt.Errorf("rock vein range is invalid: min %d, max %d", cfg.RockVeinMin, cfg.RockVeinMax)
 	case cfg.WorldgenHalo < 1:
 		return fmt.Errorf("worldgen-halo must be at least 1 (got %d): the ground next to anything the colony has seen has to exist", cfg.WorldgenHalo)
+	case cfg.DeepestLevel < int(sim.LandingLevel) || cfg.DeepestLevel > sim.MaxLevel:
+		return fmt.Errorf("deepest-level must be between %d (the landing level) and %d (got %d)", sim.LandingLevel, sim.MaxLevel, cfg.DeepestLevel)
+	case (cfg.DeepestLevel+1)*cfg.Width*cfg.Height > math.MaxInt32:
+		return fmt.Errorf("a %dx%d map cannot go %d levels deep: every tile on every level needs a 32-bit index; dig shallower or use a smaller map", cfg.Width, cfg.Height, cfg.DeepestLevel)
+	case cfg.StairTicks < 1:
+		return fmt.Errorf("stair-ticks must be at least 1 (got %d)", cfg.StairTicks)
 	case cfg.CavernPercent < 0 || cfg.CavernPercent > 100:
 		return fmt.Errorf("cavern-percent must be between 0 and 100 (got %d)", cfg.CavernPercent)
 	case cfg.CavernMin < 1 || cfg.CavernMax < cfg.CavernMin:

@@ -602,6 +602,9 @@ type World struct {
 	manualDormitories   int
 	manualTrashRooms    int
 	manualStorageRooms  int
+	// manualStairs counts stairs the player has ordered dug and the planner
+	// has not yet marked out (see planStairs).
+	manualStairs int
 
 	// saltRev advances when exposedSalt changes; snapSalt is the copy last
 	// published, taken at snapSaltRev. See publishedSalt.

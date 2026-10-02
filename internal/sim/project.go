@@ -57,6 +57,9 @@ func (w *World) taskWorkable(t *buildTask) bool {
 	if w.taskDone(t) {
 		return false
 	}
+	if t.terrain == StairDown {
+		return w.canDigStairAt(t.pos)
+	}
 	if t.terrain == Floor {
 		return w.TerrainAt(t.pos) == Rock
 	}

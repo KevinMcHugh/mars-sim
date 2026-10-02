@@ -62,11 +62,16 @@ func TestFlowFieldRepairMatchesRebuild(t *testing.T) {
 func sameAsRebuild(w *World, f *flowField) error {
 	fresh := newFlowField(w, f.seed, f.goal)
 	fresh.rebuild()
-	for y := 0; y < w.Height; y++ {
-		for x := 0; x < w.Width; x++ {
-			p := Point{x, y, LandingLevel}
-			if got, want := f.at(p), fresh.at(p); got != want {
-				return fmt.Errorf("%v: repaired distance %d, rebuilt %d", p, got, want)
+	for _, l := range w.layers {
+		if l == nil {
+			continue
+		}
+		for y := 0; y < w.Height; y++ {
+			for x := 0; x < w.Width; x++ {
+				p := Point{x, y, l.Level}
+				if got, want := f.at(p), fresh.at(p); got != want {
+					return fmt.Errorf("%v: repaired distance %d, rebuilt %d", p, got, want)
+				}
 			}
 		}
 	}

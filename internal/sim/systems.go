@@ -37,6 +37,7 @@ func (w *World) step() {
 	w.pruneProjects()
 	if w.tick >= w.nextPlanTick {
 		w.planRooms()
+		w.planStairs()
 		w.nextPlanTick = w.tick + planInterval
 	}
 	w.runMarket()         // expire stale orders; top up the colony's standing bids
@@ -103,7 +104,7 @@ func (w *World) entityIDsNearSorted(center Point, radius int) []EntityID {
 	for cy := cy0; cy <= cy1; cy++ {
 		for cx := cx0; cx <= cx1; cx++ {
 			for _, id := range buckets[cy*w.chunkCols+cx] {
-				if e := w.entities[id]; e != nil && center.Chebyshev(e.Pos) <= radius {
+				if e := w.entities[id]; e != nil && center.Within(e.Pos, radius) {
 					ids = append(ids, id)
 				}
 			}
@@ -1350,6 +1351,10 @@ func (w *World) jobBuild(e *Entity) {
 		w.clearJob(e)
 		return
 	}
+	if e.BuildKind == StairDown {
+		w.finishStair(e)
+		return
+	}
 	if !w.payForBuild(e) {
 		w.clearJob(e) // the materials went somewhere; fetch them again later
 		return
@@ -1541,7 +1546,7 @@ func (w *World) finishUse(e *Entity, spec NeedSpec) {
 // buildSkill is the skill a build task practises: digging a room's floor is
 // mining; raising anything is construction.
 func buildSkill(kind Terrain) SkillKind {
-	if kind == Floor {
+	if kind == Floor || kind == StairDown { // a stair is dug, not built
 		return SkillMining
 	}
 	return SkillConstruction
@@ -1555,6 +1560,8 @@ func (w *World) buildTicks(kind Terrain) int {
 		return w.cfg.MineTicks
 	case Incinerator: // a machine, not a fixture: more work than a bunk or a latrine
 		return w.cfg.IncineratorBuildTicks
+	case StairDown:
+		return w.cfg.StairTicks
 	default:
 		return w.cfg.FacilityBuildTicks
 	}
@@ -2167,7 +2174,7 @@ func (w *World) colonistsWithin(pos Point, radius int, exclude EntityID) []*Enti
 		if e.Kind != Colonist || !e.Alive() {
 			continue
 		}
-		if pos.Chebyshev(e.Pos) <= radius {
+		if pos.Within(e.Pos, radius) { // never through a floor
 			witnesses = append(witnesses, e)
 		}
 	}
