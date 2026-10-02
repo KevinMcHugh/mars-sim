@@ -194,12 +194,14 @@ Soiling is the other **event**. At the bladder ceiling `wetSelf` resets the
 drive and emits a `soil` occurrence, and logs it. The colonist keeps doing
 whatever it was doing; the cost is all in [`cognition.yaml`](../cognition.yaml):
 
-- **`soiled-self`** (the colonist, "Wet themself."): embarrassment, which is
+- **`soiled-self`** (the colonist, "Wet himself." / "herself." /
+  "themself.", from its gender's `Reflexive`; a run of them collapses to
+  "Had accidents.", since a collapse text is fixed): embarrassment, which is
   a reaction and not a new affect axis. A flush of charge with grip and
   valence taken away, worse each time. A Tidy colonist takes it twice as
   hard (`tidy-soiled-self`).
 - **`witnessed-soiling`** (anyone within `gore-sight-radius`, through the
-  `witness-soiling` perception rule, "Saw … wet themself."): mildly
+  `witness-soiling` perception rule, "Saw Ada wet herself."): mildly
   unpleasant, and a lot more so for a Tidy witness
   (`tidy-witnessed-soiling`). There is no "cruel" trait yet to be amused;
   when there is, it is a trait rule with negative scales, the way

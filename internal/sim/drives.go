@@ -355,10 +355,10 @@ func (w *World) usingFacility(e *Entity, d DriveKind) bool {
 func (w *World) wetSelf(e *Entity) {
 	w.resetDrive(e, DriveBladder)
 	o := w.occurrence(e, ActionSoil, nil, e.Pos, "")
-	o.ActorText = "Wet themself."
-	o.WitnessText = fmt.Sprintf("Saw %s wet themself.", e.displayName())
+	o.ActorText = fmt.Sprintf("Wet %s.", e.reflexive())
+	o.WitnessText = fmt.Sprintf("Saw %s wet %s.", e.displayName(), e.reflexive())
 	w.emitOccurrence(o)
-	w.logEvent(LogNote, fmt.Sprintf("%s wet themself.", e.displayName()))
+	w.logEvent(LogNote, fmt.Sprintf("%s wet %s.", e.displayName(), e.reflexive()))
 }
 
 // stayPassedOut runs an unconscious colonist's turn and reports whether it is

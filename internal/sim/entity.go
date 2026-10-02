@@ -669,6 +669,15 @@ func (e *Entity) possessive() string {
 	return e.Profile.Gender.Possessive()
 }
 
+// reflexive is the colonist's reflexive pronoun ("herself") for memories and
+// log lines. Falls back to "themself" with no profile.
+func (e *Entity) reflexive() string {
+	if e.Profile == nil {
+		return "themself"
+	}
+	return e.Profile.Gender.Reflexive()
+}
+
 // clearPath discards any cached navigation route.
 func (e *Entity) clearPath() {
 	e.path = e.path[:0]

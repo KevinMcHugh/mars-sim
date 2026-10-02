@@ -454,7 +454,7 @@ func DefaultCognitionConfig() CognitionConfig {
 			"felt-lonely":           "Felt lonely.",
 			"socialized":            "Enjoyed some company.",
 			"passed-out":            "Passed out from exhaustion.",
-			"soiled-self":           "Wet themself.",
+			"soiled-self":           "Had accidents.",
 		}[r.ID]
 	}
 	workStimulus := func(r *ReactionSpec) {

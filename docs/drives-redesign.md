@@ -88,7 +88,8 @@ At the ceiling, the colonist wets itself where it stands:
    it, so a colonist is never stuck at a bladder ceiling again.
 2. **Shipped (D1a).** A `soil` occurrence goes through the perception
    grammar. The colonist's reaction is embarrassment (`soiled-self`, a
-   flush of charge, grip and valence down, "Wet themself."); anyone within
+   flush of charge, grip and valence down, "Wet herself." in the colonist's own
+   pronouns); anyone within
    `gore-sight-radius` gets `witnessed-soiling`. Tidy colonists take both
    harder. All of that is `cognition.yaml` rows; the only new code is
    `wetSelf` and the `ConsequenceSoiling` branch.

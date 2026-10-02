@@ -87,6 +87,19 @@ func (g Gender) Possessive() string {
 	}
 }
 
+// Reflexive returns the reflexive pronoun ("himself", "herself", "themself")
+// for memories and log lines about a colonist.
+func (g Gender) Reflexive() string {
+	switch g {
+	case GenderMan:
+		return "himself"
+	case GenderWoman:
+		return "herself"
+	default:
+		return "themself"
+	}
+}
+
 // Orientation is a colonist's sexual orientation.
 type Orientation uint8
 

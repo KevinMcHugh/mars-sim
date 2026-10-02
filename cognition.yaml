@@ -284,7 +284,7 @@ reactions:
   # of charge, grip and valence taken away, and worse each time.
   - id: soiled-self
     match: { actor_noun: colonist, action: soil, channel: direct, role: actor, phase: instant }
-    memory: { record: true, collapse: "Wet themself." }
+    memory: { record: true, collapse: "Had accidents." }
     affect: { impact: 45, fresh: { charge: 10, grip: -30, valence: -20 }, worn: { charge: 6, grip: -40, valence: -30 } }
     wear_policy: memory-occasions
   # Seeing it happen, close enough to notice (gore-sight-radius).

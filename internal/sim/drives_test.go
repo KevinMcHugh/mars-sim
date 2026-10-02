@@ -466,3 +466,24 @@ func (w *World) quietDrives(e *Entity) {
 		e.Drives[k], e.driveSince[k] = 0, w.tick
 	}
 }
+
+// Soiling's memories and log line use the colonist's own pronouns.
+func TestWetSelfUsesPronouns(t *testing.T) {
+	for _, tc := range []struct {
+		g    Gender
+		want string
+	}{{GenderMan, "himself"}, {GenderWoman, "herself"}, {GenderNonbinary, "themself"}} {
+		w := roomsTestWorld(20, 20)
+		carve(w, Point{5, 5}, Point{6, 5}, Floor)
+		c := w.spawn(Colonist, Point{5, 5})
+		seer := w.spawn(Colonist, Point{6, 5})
+		c.Profile.Gender = tc.g
+		w.wetSelf(c)
+		if got, want := c.Memories[len(c.Memories)-1].Text, "Wet "+tc.want+"."; got != want {
+			t.Errorf("%v: memory %q, want %q", tc.g, got, want)
+		}
+		if got, want := seer.Memories[len(seer.Memories)-1].Text, "Saw "+c.displayName()+" wet "+tc.want+"."; got != want {
+			t.Errorf("%v: witness memory %q, want %q", tc.g, got, want)
+		}
+	}
+}
