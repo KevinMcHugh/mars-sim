@@ -221,7 +221,8 @@ func TestACommissionDiesWithItsCommissioner(t *testing.T) {
 // Under scarcity (the game's defaults), a colony founded with no money still
 // feeds itself: it cannot pay for any room, but it marks out its first
 // scumhouse as unpaid community work — life support does not wait on money —
-// and nothing else.
+// and nothing else. A colonist can still spend its own crash-pod money: a
+// chef with savings may buy a kitchen of its own.
 func TestAColonyWithNoMoneyStillFeedsItself(t *testing.T) {
 	for _, seed := range []int64{42, 1, 3} {
 		cfg := DefaultConfig()
@@ -232,6 +233,9 @@ func TestAColonyWithNoMoneyStillFeedsItself(t *testing.T) {
 		for i := 0; i < 8000; i++ {
 			w.step()
 			for _, p := range w.projects {
+				if p.issuer.Kind == OwnerColonist {
+					continue // paid from its own wallet, not the treasury
+				}
 				if p.name != scumhouseRoom.name || p.issuer != Nobody {
 					t.Fatalf("seed %d tick %d: planned %q for %v with no money", seed, w.tick, p.name, p.issuer)
 				}

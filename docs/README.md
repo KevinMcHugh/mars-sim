@@ -34,8 +34,8 @@ way it is without re-deriving it from the source each time.
 | [rng-streams.md](./rng-streams.md) | Every seed-derived `math/rand/v2` PCG stream, how they are seeded, and how their state is saved and restored for save/load. |
 | [ages-and-family.md](./ages-and-family.md) | Colonist ages and the age invariants family ties have to satisfy. |
 | [heredity.md](./heredity.md) | What joining a family does to a colonist: a shared surname, inherited looks, and a warm start with relatives. |
-| [construction.md](./construction.md) | Construction projects and the facility-room design, including the deadlocks that shaped it. |
-| [escape.md](./escape.md) | What a colonist does when its room ends up sealed off from the colony: detecting the cutoff and breaking back out. |
+| [construction.md](./construction.md) | Construction projects and the facility-room design: rooms facing any way, standing free, never cutting the colony in two, and the deadlocks that shaped it. |
+| [escape.md](./escape.md) | What happens when part of the colony ends up cut off: a sealed-in colonist digs or breaks its way out, and a cut-off facility gets a passage dug to it. |
 | [sanitation.md](./sanitation.md) | Cleaning up gore and corpses, hauling refuse, the incinerator, and the trash room. |
 | [pathfinding.md](./pathfinding.md) | Rooms/regions, tile A\*, shared flow fields, and hierarchical (HPA\*) routing. |
 | [spatial-index-and-performance.md](./spatial-index-and-performance.md) | The occupancy index, incremental counts, chunk index, the job board, and the performance story. |

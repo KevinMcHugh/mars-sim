@@ -284,9 +284,9 @@ func (w *World) runFocus(e *Entity, selected FocusCandidate) {
 		w.runJob(e)
 	case FocusEscape:
 		if e.Job != JobDemolish && !w.assignDemolish(e) {
-			// Nothing reachable to break through (the pocket is bounded by rock,
-			// not a built wall) — fall back rather than spinning on this focus
-			// every tick with nothing to execute.
+			// No way out within reach of the search (see passageRoute) — fall
+			// back rather than spinning on this focus every tick with nothing
+			// to execute.
 			w.finishFocus(e)
 			w.runIdleFocus(e)
 			return
@@ -1214,61 +1214,50 @@ func (w *World) updateDisconnected(e *Entity) {
 	}
 }
 
-// assignDemolish commits a colonist to breaking down the nearest reachable
-// wall bounding its own (cut-off) room. Reports whether one was found.
+// assignDemolish commits a colonist to the first tile on its cheapest way out
+// of its own (cut-off) room to the colony's main room: rock to dig through or
+// a wall or hull to break down, whichever route costs less work (see
+// escapeTarget). Reports whether there is one.
 func (w *World) assignDemolish(e *Entity) bool {
-	wall, ok := w.nearestEscapeWall(e.Pos)
+	target, ok := w.escapeTarget(e.Pos)
 	if !ok {
 		return false
 	}
-	e.Job, e.Target, e.Progress = JobDemolish, wall, 0
+	e.Job, e.Target, e.Progress = JobDemolish, target, 0
 	return true
 }
 
-// nearestEscapeWall finds the closest Wall tile bounding from's own room, by
-// walking distance within that room rather than a global scan: a sealed
-// pocket is by definition small, so this stays cheap exactly where it matters
-// (a colony-wide scan for one trapped colonist would not). Returns false if
-// the room is bounded entirely by solid rock rather than any built wall — a
-// natural cavern separation JobDemolish cannot do anything about.
-func (w *World) nearestEscapeWall(from Point) (Point, bool) {
-	room := w.roomOf(from)
-	if room == 0 {
-		return Point{}, false
-	}
-	seen := map[Point]bool{from: true}
-	queue := []Point{from}
-	for len(queue) > 0 {
-		p := queue[0]
-		queue = queue[1:]
-		for _, d := range neighbors8 {
-			n := p.Add(d.X, d.Y)
-			if !w.InBounds(n) || seen[n] {
-				continue
-			}
-			seen[n] = true
-			if t := w.TerrainAt(n); t == Wall || t == Hull {
-				return n, true
-			}
-			if w.Walkable(n) && w.roomOf(n) == room {
-				queue = append(queue, n)
-			}
-		}
-	}
-	return Point{}, false
-}
-
-// jobDemolish walks to the wall claimed by assignDemolish and breaks it down
-// over DemolishTicks, converting it back to Floor — mirroring jobMine's dig,
-// but reversing a wall instead of clearing rock. Reconnecting is implicit:
-// refreshSpatial folds the new Floor tile in at the end of this tick, and
-// updateDisconnected notices the room is whole again on the next.
+// jobDemolish walks to the tile claimed by assignDemolish and clears it to
+// Floor: a wall or hull broken down over DemolishTicks, or rock dug out over
+// MineTicks, the way a miner would. Reconnecting is implicit: refreshSpatial
+// folds the new Floor tile in at the end of this tick, and updateDisconnected
+// notices the room is whole again on the next — or, on a longer way out, the
+// next think assigns the next tile.
 func (w *World) jobDemolish(e *Entity) {
-	if t := w.TerrainAt(e.Target); t != Wall && t != Hull {
-		w.clearJob(e) // reconnected some other way, or someone else broke it first
+	t := w.TerrainAt(e.Target)
+	if t != Wall && t != Hull && t != Rock {
+		w.clearJob(e) // reconnected some other way, or someone else cleared it first
 		return
 	}
 	if e.Pos.Adjacent(e.Target) {
+		if t == Rock {
+			e.State = Mining
+			e.Progress++
+			if e.Progress < w.workTicks(e, SkillMining, w.cfg.MineTicks) {
+				return
+			}
+			// Whatever of the rock fits is kept. The rest is left as rubble:
+			// unlike a miner, a colonist digging its way out does not stop
+			// because its pockets are full.
+			for _, s := range miningYield(w.TileAt(e.Target)) {
+				e.Inventory.Add(s.Kind, s.Count)
+			}
+			w.SetTerrain(e.Target, Floor)
+			w.practise(e, SkillMining, w.cfg.MineTicks)
+			w.logEvent(LogEscape, fmt.Sprintf("Colonist #%d digs through rock to escape a sealed pocket.", e.ID))
+			w.clearJob(e)
+			return
+		}
 		e.State = Demolishing
 		e.Progress++
 		if e.Progress >= scaleTicks(w.cfg.DemolishTicks, e.workScale) {
@@ -1286,12 +1275,16 @@ func (w *World) jobDemolish(e *Entity) {
 }
 
 func (w *World) jobBuild(e *Entity) {
-	// A dig task (BuildKind Floor) works rock down to floor; every other kind
+	// A dig task (BuildKind Floor) works rock down to floor, or breaks a wall
+	// or hull down to it for a passage (buildTask.clears); every other kind
 	// builds atop existing floor. Anything else at the target — already
 	// finished, or changed to something unexpected — ends the job.
 	prereq := Floor
 	if e.BuildKind == Floor {
 		prereq = Rock
+		if e.task != nil {
+			prereq = e.task.clears
+		}
 	}
 	if w.TerrainAt(e.Target) != prereq {
 		w.clearJob(e)
@@ -1328,6 +1321,19 @@ func (w *World) jobBuild(e *Entity) {
 	e.stuck = 0
 	e.State = Building
 	e.Progress++
+	if prereq == Wall || prereq == Hull {
+		// Breaking a structure down for a passage: the work of an escape's
+		// demolition, and nothing to carry away.
+		if e.Progress < scaleTicks(w.cfg.DemolishTicks, e.workScale) {
+			return
+		}
+		w.SetTerrain(e.Target, Floor)
+		w.logEvent(LogEscape, fmt.Sprintf("Colonist #%d breaks through a %s at (%d, %d) to reach a cut-off part of the colony.",
+			e.ID, prereq, e.Target.X, e.Target.Y))
+		w.payWork(e.task.order, e)
+		w.clearJob(e)
+		return
+	}
 	if e.Progress < w.workTicks(e, buildSkill(e.BuildKind), w.buildTicks(e.BuildKind)) {
 		return
 	}

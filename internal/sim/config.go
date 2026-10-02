@@ -253,11 +253,14 @@ type Config struct {
 	ColonistHP int `cfg:"colonist-hp" sec:"Colonists" doc:"colonist hit points"`
 	MineTicks  int `cfg:"mine-ticks" doc:"ticks of work to excavate one rock tile"`
 	BuildTicks int `cfg:"build-ticks" doc:"ticks of work to raise one wall"`
-	// DemolishTicks is how long breaking a wall down takes for a colonist
-	// escaping a sealed room (see FocusEscape, docs/escape.md). Costlier than
-	// raising one (BuildTicks): breaking out should be a last resort, not a
-	// cheaper substitute for a door once those exist.
-	DemolishTicks      int `cfg:"demolish-ticks" doc:"ticks of work to break down one wall tile when escaping a sealed room"`
+	// DemolishTicks is how long breaking a wall or hull tile down takes, for
+	// a colonist escaping a sealed room or a builder opening a passage (see
+	// FocusEscape, planPassage, docs/escape.md). Costlier than raising one
+	// (BuildTicks): breaking out should be a last resort, not a cheaper
+	// substitute for a door once those exist. Against MineTicks it also
+	// decides whether a way out goes round a structure through the rock or
+	// through its wall.
+	DemolishTicks      int `cfg:"demolish-ticks" doc:"ticks of work to break down one wall or hull tile, escaping a sealed room or opening a passage"`
 	FacilityBuildTicks int `cfg:"facility-ticks" doc:"ticks of work to build a pod or toilet"`
 	FleeRadius         int `cfg:"flee-radius" doc:"colonist flees when an alien is within this many tiles"`
 	// FleeReleaseMargin is flee's hysteresis band: a colonist already fleeing

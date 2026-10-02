@@ -565,7 +565,7 @@ type World struct {
 	// carvedAny/carvedMin/carvedMax track the bounding box of every tile that
 	// has ever been changed away from Rock. Terrain only ever moves Rock ->
 	// Floor -> Wall/facility in play, never back, so this box only grows; it
-	// is used to cap how far findRoomSiteAllowingRock's search radius needs to
+	// is used to cap how far findRoomSiteWith's search radius needs to
 	// grow before it can conclude no site exists, without scanning the whole
 	// map. See roomSiteClear: a valid site's side walls must already be
 	// Floor or Wall, so no valid site can lie outside this box.

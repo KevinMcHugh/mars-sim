@@ -612,10 +612,9 @@ func TestColonistEscapesSealedRoom(t *testing.T) {
 }
 
 // A colonist sealed in by solid rock, with no built wall anywhere to break
-// down, has no recourse: JobDemolish only ever targets Wall. This still
-// starves, unchanged from before FocusEscape existed, and pins that natural
-// caverns aren't somehow now escapable too.
-func TestColonistStarvesWhenSealedByRock(t *testing.T) {
+// down, digs its own way out to the colony (escapeTarget). Before escapes
+// could dig, this colonist starved.
+func TestColonistDigsOutWhenSealedByRock(t *testing.T) {
 	cfg := testConfig()
 	cfg.StartColonists, cfg.StartAliens = 0, 0
 	w := newTestWorld(t, cfg)
@@ -631,11 +630,14 @@ func TestColonistStarvesWhenSealedByRock(t *testing.T) {
 	}
 
 	c := w.spawn(Colonist, pocket)
-	for i := 0; i < 1500 && w.entities[c.ID] != nil; i++ {
+	for i := 0; i < 1500 && w.entities[c.ID] != nil && w.roomOf(c.Pos) != w.mainRoom; i++ {
 		w.step()
 	}
-	if w.entities[c.ID] != nil {
-		t.Fatalf("colonist sealed in by rock survived with HP %d, food %d", c.HP, c.Needs[NeedFood])
+	if w.entities[c.ID] == nil {
+		t.Fatal("colonist sealed in by rock starved instead of digging out")
+	}
+	if room := w.roomOf(c.Pos); room != w.mainRoom {
+		t.Fatalf("colonist never dug through to the main room (in room %d, want %d)", room, w.mainRoom)
 	}
 }
 
@@ -1077,8 +1079,8 @@ func TestRoomSiteCanBackOntoAnotherRoomsWall(t *testing.T) {
 	if !ok {
 		t.Fatal("expected a room site backed by an existing wall")
 	}
-	if want := (Point{ox, oy}); site != want {
-		t.Fatalf("site = %v, want %v (backed by the wall at y=%d)", site, want, backY-1)
+	if want := (Point{ox, oy}); site.o != want || site.face != faceSouth {
+		t.Fatalf("site = %+v, want %v (backed by the wall at y=%d)", site, want, backY-1)
 	}
 }
 
@@ -1128,8 +1130,8 @@ func TestRoomSiteSharesSideWallWithNeighbor(t *testing.T) {
 	if !ok {
 		t.Fatal("expected a room site sharing a neighbor's side wall")
 	}
-	if want := (Point{ox, oy}); site != want {
-		t.Fatalf("site = %v, want %v (sharing the wall at x=%d)", site, want, ox-1)
+	if want := (Point{ox, oy}); site.o != want || site.face != faceSouth {
+		t.Fatalf("site = %+v, want %v (sharing the wall at x=%d)", site, want, ox-1)
 	}
 
 	w.designateRoom(dormRoom, site, 2, Community) // bayWidth(2) == 3, matching the site carved above
@@ -1188,8 +1190,8 @@ func TestRoomSiteCanIncludeUnexcavatedRock(t *testing.T) {
 	if !ok {
 		t.Fatal("expected a room site with an unexcavated interior")
 	}
-	if want := (Point{ox, oy}); site != want {
-		t.Fatalf("site = %v, want %v", site, want)
+	if want := (Point{ox, oy}); site.o != want || site.face != faceSouth {
+		t.Fatalf("site = %+v, want %v", site, want)
 	}
 
 	w.designateRoom(lifeSupportRoom, site, roomFacilities, Community)
@@ -1259,8 +1261,8 @@ func TestFindRoomSitePrefersClearOverRockNearCenter(t *testing.T) {
 	if !ok {
 		t.Fatal("expected a room site")
 	}
-	if want := (Point{clearOx, oy}); site != want {
-		t.Fatalf("site = %v, want the clear site %v (nearer, rock-interior one should lose despite proximity)", site, want)
+	if want := (Point{clearOx, oy}); site.o != want || site.face != faceSouth {
+		t.Fatalf("site = %+v, want the clear site %v (nearer, rock-interior one should lose despite proximity)", site, want)
 	}
 }
 
@@ -1388,18 +1390,18 @@ func TestFacilityRoomHasCompleteWallsDoorAndBuildPhases(t *testing.T) {
 		}
 	}
 	width := bayWidth(roomFacilities)
-	backY := site.Y - 1
-	frontY := roomFrontWallY(site.Y)
-	door := Point{site.X + width/2, frontY}
+	backY := site.o.Y - 1
+	frontY := roomFrontWallY(site.o.Y)
+	door := Point{site.o.X + width/2, frontY}
 	if walls[door] {
 		t.Fatalf("doorway %v was designated as a wall", door)
 	}
 	for y := backY; y <= frontY; y++ {
-		if !walls[Point{site.X - 1, y}] || !walls[Point{site.X + width, y}] {
+		if !walls[Point{site.o.X - 1, y}] || !walls[Point{site.o.X + width, y}] {
 			t.Fatalf("room is missing a side wall on row %d", y)
 		}
 	}
-	for x := site.X; x < site.X+width; x++ {
+	for x := site.o.X; x < site.o.X+width; x++ {
 		if p := (Point{x, backY}); !walls[p] {
 			t.Fatalf("room is missing back wall %v", p)
 		}
@@ -1410,7 +1412,7 @@ func TestFacilityRoomHasCompleteWallsDoorAndBuildPhases(t *testing.T) {
 
 	// A facility cannot be claimed while any phase-zero wall remains, and a wall
 	// already occupied when the project is designated must be left for later.
-	blockedWall := Point{site.X, backY}
+	blockedWall := Point{site.o.X, backY}
 	w.spawn(Colonist, blockedWall)
 	if task, ok := w.claimNearestTask(Point{door.X, door.Y + 1}, 999); !ok ||
 		task.terrain != Wall || task.pos == blockedWall {
@@ -1442,10 +1444,10 @@ func TestRoomSiteClearRejectsCoveringAnotherRoomsDoorway(t *testing.T) {
 
 	siteA := Point{5, 6}
 	widthA := bayWidth(roomFacilities)
-	if !w.roomSiteClear(siteA.X, siteA.Y, widthA, map[Point]bool{}, false) {
+	if !w.roomSiteClear(roomFrame{o: siteA, width: widthA}, map[Point]bool{}, siteRules{}) {
 		t.Fatal("room A's own site is not clear before it is designated")
 	}
-	w.designateRoom(lifeSupportRoom, siteA, roomFacilities, Community)
+	w.designateRoom(lifeSupportRoom, roomFrame{o: siteA}, roomFacilities, Community)
 
 	// Finish room A instantly by building every task in place, then prune
 	// its project — a completed room's tiles must no longer sit in the
@@ -1474,12 +1476,12 @@ func TestRoomSiteClearRejectsCoveringAnotherRoomsDoorway(t *testing.T) {
 	widthB := bayWidth(2)
 
 	delete(w.doorTiles, doorA)
-	if !w.roomSiteClear(siteB.X, siteB.Y, widthB, map[Point]bool{}, false) {
+	if !w.roomSiteClear(roomFrame{o: siteB, width: widthB}, map[Point]bool{}, siteRules{}) {
 		t.Fatal("test geometry does not actually reach room A's doorway tile; not exercising the fix")
 	}
 	w.doorTiles[doorA] = true
 
-	if w.roomSiteClear(siteB.X, siteB.Y, widthB, map[Point]bool{}, false) {
+	if w.roomSiteClear(roomFrame{o: siteB, width: widthB}, map[Point]bool{}, siteRules{}) {
 		t.Fatalf("room B's site was accepted even though its side wall would cover room A's doorway tile %v", doorA)
 	}
 }
@@ -1509,7 +1511,7 @@ func TestColonistsCollaborateOnProject(t *testing.T) {
 	}
 	w.designateRoom(lifeSupportRoom, site, roomFacilities, Community)
 	for i := 0; i < roomFacilities; i++ {
-		w.spawn(Colonist, Point{site.X + i, roomFrontWallY(oy) + roomApproach})
+		w.spawn(Colonist, Point{site.o.X + i, roomFrontWallY(oy) + roomApproach})
 	}
 
 	maxConcurrent := 0
