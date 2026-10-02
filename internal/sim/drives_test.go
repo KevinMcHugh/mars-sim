@@ -571,3 +571,20 @@ func TestColonyPlansAWashroom(t *testing.T) {
 		t.Fatalf("no washroom planned; projects = %v", projectNames(w.projects))
 	}
 }
+
+// A Tidy colonist's hygiene drive rises faster: it wants a wash sooner.
+func TestTidyFeelsGrimySooner(t *testing.T) {
+	w := roomsTestWorld(20, 20)
+	plain := w.spawn(Colonist, Point{5, 5})
+	tidy := w.spawn(Colonist, Point{6, 5})
+	plain.Profile.Traits, tidy.Profile.Traits = nil, []Trait{TraitTidy}
+	w.resolveTraitEffects(plain)
+	w.resolveTraitEffects(tidy)
+	if tidy.driveRise[DriveHygiene] <= plain.driveRise[DriveHygiene] {
+		t.Fatalf("Tidy hygiene rise %d, plain %d: want Tidy faster",
+			tidy.driveRise[DriveHygiene], plain.driveRise[DriveHygiene])
+	}
+	if tidy.driveRise[DriveFood] != plain.driveRise[DriveFood] {
+		t.Fatal("Tidy changed a drive other than hygiene")
+	}
+}

@@ -403,7 +403,10 @@ move `resetDrive` makes), so the level stays exact without per-tick work.
 | `grime-soil` | 300 | it wets itself (`wetSelf`) |
 
 A colonist digging all day therefore wants a wash roughly twice as often as
-one that is not.
+one that is not. A Tidy colonist's steady rise is 1.5x (its trait's
+`needRiseScale`; rises are whole numbers, so at the default rise of 1 that
+rounds to 2 a tick), so it wants one sooner still. Grime itself is the same
+for everyone.
 
 It is discharged at a **shower** (`Shower`), a new fixture used from an
 adjacent tile like a toilet, through the ordinary facility machinery: a

@@ -54,12 +54,16 @@ func TestLazyChunksMatchThePureGenerator(t *testing.T) {
 		}
 	}
 	check("tick 0")
+	// The run has to generate a chunk for the second check to mean anything.
+	// How soon the colony digs into a new one depends on everything it does
+	// (a change to drives moved it past the golden run's length), so run on,
+	// up to three times as long, until it has.
 	before := len(w.genChunks)
-	for i := 0; i < ticks; i++ {
+	for i := 0; i < 3*ticks && (i < ticks || len(w.genChunks) == before); i++ {
 		w.step()
 	}
 	if len(w.genChunks) == before {
-		t.Fatal("no chunk was generated during the run")
+		t.Fatalf("no chunk was generated in %d ticks", 3*ticks)
 	}
 	check("after the run")
 }

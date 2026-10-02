@@ -294,10 +294,13 @@ var traitSpecs = [numTraits]traitSpec{
 		group: groupSocial, socialScale: 1.5, socialCapacity: 6,
 	},
 	TraitTidy: {
-		Name: "Tidy", Desc: "Squeamish about mess; the sight of gore hits morale harder.",
+		Name: "Tidy", Desc: "Squeamish about mess; gore hits morale harder, and they feel grimy sooner.",
 		group: groupTemperament,
-		// No need-rise/rest/work/social effect — Tidy's only effect is the extra
-		// gore appraisal declared by the tidy-gore cognition modifier.
+		// The hygiene drive rises half again as fast, so a Tidy colonist wants
+		// a wash sooner. Everything else Tidy does is in cognition.yaml's
+		// tidy-* trait rules: gore, death, cleaning, soiling and filth hit
+		// harder.
+		needRiseScale: [numDrives]float64{DriveHygiene: 1.5},
 	},
 	TraitMutant: {
 		Name: "Mutant", Desc: "Uranium rewrote them; they carry parts nobody is born with.",

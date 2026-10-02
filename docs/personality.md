@@ -92,7 +92,7 @@ per group, each taken with `TraitChance` probability:
 | appetite | Big Eater / Light Eater | food need rises 1.5x / 0.7x |
 | work ethic | Industrious / Lazy | work 0.75x time + rest 0.5x, plus doubled finished-work affect vectors / work 1.4x + rest 2.0x |
 | social | Asocial / Introvert / Extrovert | no social need / social need 0.5x plus conversation fatigue / social need 1.5x; Extrovert also scales witnessed friend-loss |
-| temperament | Tidy | 2.2x gore/death/mess appraisal and doubled grip relief from incineration |
+| temperament | Tidy | hygiene drive rises 1.5x; 2.2x gore/death/mess appraisal, doubled grip relief from incineration, and soiling and filth hit twice as hard |
 | mutant attitude | Mutant-Lover | extra affinity toward mutants and reflected mutation grip |
 | mutation | Mutant | *acquired in play only* — the marker for a colonist uranium has changed |
 | nerve | Resilient / Cowardly | wear rate 40 / 180; Cowardly also 1.5× threat impact |
@@ -147,8 +147,9 @@ mood.
 
 ### The exception: traits checked live, at event time
 
-Not every trait fits that mold. `TraitTidy` has no need-rise/rest/work/social
-effect to resolve — it transforms gore and incineration vectors through
+Not every trait fits that mold. Apart from a hygiene rise scale resolved
+like Big Eater's, `TraitTidy` has no rest/work/social effect to resolve — it
+transforms gore and incineration vectors through
 grammar-matched `trait_rules` in `cognition.yaml`, read when
 `Profile.HasTrait(TraitTidy)` is true (see [affect.md](./affect.md)). This
 doesn't violate "pay once, not per tick": that principle is about the hot

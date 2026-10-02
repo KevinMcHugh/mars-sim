@@ -206,9 +206,8 @@ Its consequence comes in two steps:
    reactions (Tidy colonists disgusted) and perhaps an affinity cost. That is
    a social consequence, so it waits for its own phase.
 
-What D3 left out: no trait scales hygiene's rise. Tidy colonists already feel filth twice as
-hard; making them also *notice* it sooner would be a rise or seek-at trait
-scale, the way Introvert scales the social drive.
+Tidy colonists' hygiene rises 1.5x, so they want a wash sooner, on top of
+feeling soiling and filth twice as hard.
 
 ### Which drive wins
 
