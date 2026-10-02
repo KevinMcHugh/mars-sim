@@ -36,7 +36,7 @@ func generate(w *World) {
 	// Carve an oval starting cavern large enough to hold the colonists with room
 	// to move and a rock frontier to mine. Natural caverns keep
 	// cavernLandingClearance tiles of rock from its bounding box.
-	rx, ry := caveRadii(w.Width, w.Height, w.cfg.StartColonists)
+	rx, ry := caveRadii(w.Width, w.Height, w.cfg.StartColonists, shipTilesPerColonist(w.cfg))
 	for y := -ry; y <= ry; y++ {
 		for x := -rx; x <= rx; x++ {
 			if x*x*ry*ry+y*y*rx*rx <= rx*rx*ry*ry {
@@ -45,23 +45,19 @@ func generate(w *World) {
 		}
 	}
 
-	// Every colonist arrives in a crash pod, landing from the middle of the
-	// cavern outward and smashing through the rock around it once the open
-	// floor runs out. See crashpod.go.
-	for i := 0; i < w.cfg.StartColonists; i++ {
-		if w.arrive(false) == nil {
-			break
-		}
-	}
+	// Every colonist arrives aboard a colony ship, the ships landing from the
+	// middle of the cavern outward and smashing through the rock around it
+	// once the open floor runs out. See ship.go.
+	_, ships := w.arriveWave(w.cfg.StartColonists, false)
 
 	// Place rats and cats by drawing from one shuffled list of open floor
 	// tiles, so every placement is a uniform draw without replacement rather
-	// than rejection sampling, which could give up. Crash pods can only have
-	// added floor next to the cavern, so the cavern's box plus a pod's reach
+	// than rejection sampling, which could give up. Ships can only have
+	// added floor next to the cavern, so the cavern's box plus a ship's reach
 	// covers every candidate — not the whole map, which on a huge map would
 	// dwarf everything else generate() does for the sake of placing a handful
 	// of critters.
-	reach := podWidth + podHeight + podCrashSlack
+	reach := w.shipReach()
 	floors := w.freeFloorTilesIn(center.Add(-rx-reach, -ry-reach), center.Add(rx+reach, ry+reach))
 	w.rng.Shuffle(len(floors), func(i, j int) { floors[i], floors[j] = floors[j], floors[i] })
 	next := 0
@@ -98,7 +94,7 @@ func generate(w *World) {
 		}
 	}
 
-	w.logEvent(LogArrival, fmt.Sprintf("%d crash pods come down on the Martian crust. Something below stirs.", w.countKind(Colonist)))
+	w.logEvent(LogArrival, fmt.Sprintf("%d settlers come down on the Martian crust in %s. Something below stirs.", w.countKind(Colonist), shipsNoun(ships)))
 	w.refreshSpatial()
 }
 
@@ -238,18 +234,19 @@ const minCaveRy = 6
 // caveRadii returns the ellipse radii for a starting cavern big enough to hold n
 // colonists with breathing room, clamped to something sane and to the world
 // bounds. It keeps a 2:1 width:height shape to match the map.
-func caveRadii(width, height, n int) (rx, ry int) {
-	// Ten tiles of elbow room per settler, plus the ground its crash pod
-	// takes up with the margin it keeps from its neighbors (see podSiteRock).
-	// Without the pods' share the pods filled the landing cavern on their own
-	// and the colony had nowhere clear left to site its first rooms.
-	const tilesPerColonist = 10 + (podWidth+1)*(podHeight+1)
+func caveRadii(width, height, n, shipShare int) (rx, ry int) {
+	// Ten tiles of elbow room per settler, plus its share of the ground its
+	// ship takes up with the crater round it (shipTilesPerColonist). Without
+	// that share the crash pods ships replaced filled the landing cavern on
+	// their own and the colony had nowhere clear left to site its first
+	// rooms.
+	tilesPerColonist := 10 + shipShare
 	// area = pi * rx * ry, with rx = 2*ry  =>  ry = sqrt(area / (2*pi)).
 	area := float64(n * tilesPerColonist)
 	ry = int(math.Ceil(math.Sqrt(area / (2 * math.Pi))))
 	// Tall enough for a room against the top rim (rock above, five rows of
-	// room and one of approach — see roomSiteClear) with a row of crash pods
-	// still below it. At the old floor of 4 a small colony's nine-row cavern
+	// room and one of approach — see roomSiteClear) with a ship still below
+	// it. At the old floor of 4 a small colony's nine-row cavern
 	// could hold one or the other, and its first pod left it nowhere to build.
 	if ry < minCaveRy {
 		ry = minCaveRy

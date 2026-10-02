@@ -545,7 +545,7 @@ func (w *World) planRooms() {
 	}
 	// Without the safety net, food has to be made, and the scumhouse is the
 	// only place that makes it: it comes before every other room, as life
-	// support always has. Crash-pod meals buy the time to build it.
+	// support always has. The meals in the lockers buy the time to build it.
 	if !w.podsFeed() && w.plannedColonyKitchens() < w.desiredScumhouses() {
 		// Life support does not wait on money: a colony that cannot fund its
 		// first scumhouse still marks it out, as unpaid community work, the

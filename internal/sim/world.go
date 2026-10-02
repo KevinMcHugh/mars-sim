@@ -112,9 +112,9 @@ const (
 	// inputs and its meals sit in a storage container on its tile, with a
 	// ledger like any chest. See scumhouse.go and docs/scumhouse.md.
 	Scumhouse
-	// Hull is the metal wall of a crash pod. It behaves like a Wall — it blocks
+	// Hull is the metal wall of a colony ship. It behaves like a Wall — it blocks
 	// movement, bounds a room, and can be broken down to escape one — but it is
-	// salvaged spacecraft, not something the colony builds. See docs/crash-pods.md.
+	// salvaged spacecraft, not something the colony builds. See docs/ships.md.
 	Hull
 	// Forge smelts iron ore into steel ingots, and GunBench machines steel
 	// into assault rifles. Both are workshops with a depot, like the
@@ -136,7 +136,7 @@ const (
 	Incubator
 	// Trough holds chicken feed: a keeper fills it, its chickens eat from
 	// it. A fixture with a depot, like a chest, that holds nothing but feed.
-	// It comes down in a chicken keeper's crash pod. See docs/chickens.md.
+	// It comes down in a chicken keeper's ship. See docs/chickens.md.
 	Trough
 
 	numTerrains // keep last: the number of terrain kinds
@@ -728,13 +728,13 @@ type World struct {
 	manualIncubators int
 	manualFoundries  int
 	manualHalls      int
-	// podRingHint is the search ring the last crash pod landed on, so the
+	// shipRingHint is the search ring the last colony ship landed on, so the
 	// next search starts near there instead of rescanning the packed middle.
-	// See findPodSite.
-	podRingHint int
-	// pods holds the top-left of every crash pod that has landed, so a new pod
-	// can tell a neighbor's side hull it may share. Lookups only; never ranged.
-	pods               map[Point]bool
+	// See findShipSite.
+	shipRingHint int
+	// ships is every colony ship that has landed, in landing order: ships[i]
+	// has ID i+1. See ship.go.
+	ships              []*Ship
 	restrictedFixtures [numTerrains]int
 	// ownedFixtures indexes the restricted fixtures by owner, and
 	// paidFixtures the pay-per-use ones by terrain, so facilityReachable
@@ -893,6 +893,13 @@ type World struct {
 	// nor prng). See lore.go.
 	alienSpecies []AlienSpecies
 
+	// corporations is this world's roster of companies back home, and
+	// gunModels the make and model every gun kind carries (one per
+	// weaponKinds entry). Rolled once in newWorld off their own stream; pure
+	// flavor. See arms_makers.go and docs/arms-makers.md.
+	corporations []Corporation
+	gunModels    []GunModel
+
 	// unfoundCaverns holds the center of every natural cavern not yet
 	// discovered; a breach that reveals one rolls for its alien nest on
 	// nestRNG, a seed-derived stream of its own. See rollNests and
@@ -941,7 +948,6 @@ func newWorld(cfg Config, src *rand.PCG) *World {
 		colonistNames:     make(map[string]EntityID),
 		buildTiles:        make(map[Point]bool),
 		doorTiles:         make(map[Point]bool),
-		pods:              make(map[Point]bool),
 		storageContainers: make(map[Point]*StorageContainer),
 		fixtures:          make(map[Point]*Fixture),
 		orders:            make(map[OrderID]*Order),
@@ -976,6 +982,9 @@ func newWorld(cfg Config, src *rand.PCG) *World {
 	w.rngSrc.topic = newPCG(cfg.Seed ^ conversationTopicSeed)
 	w.topicRNG = rand.New(w.rngSrc.topic)
 	w.alienSpecies = rollAlienSpeciesRoster(newRand(cfg.Seed^alienLoreSeed), cfg)
+	armsRNG := newRand(cfg.Seed ^ armsLoreSeed)
+	w.corporations = rollCorporationRoster(armsRNG, cfg)
+	w.gunModels = rollGunModels(armsRNG, w.corporations)
 	w.terrainCounts[Rock] = n // every tile starts as Rock
 
 	for k := Kind(0); k < numKinds; k++ {
@@ -1441,7 +1450,7 @@ func (w *World) spawnAs(kind Kind, p Point, species int) *Entity {
 
 // remove deletes an entity from the world, clears its occupancy, and — every
 // call here is a death — freezes it into the graveyard with cause as a short
-// player-facing phrase ("starved", "shot by Zoe Vargas with a shotgun"). See
+// player-facing phrase ("starved", "shot by Zoe Vargas with a MarsCorp M-117 shotgun"). See
 // docs/combat.md.
 func (w *World) remove(id EntityID, cause string) {
 	e := w.entities[id]

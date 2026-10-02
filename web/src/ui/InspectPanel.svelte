@@ -48,6 +48,7 @@
       <p class="sub">{c.pronouns} · {c.orientation}</p>
       <p class="sub">age {c.age} · {c.height} ({c.heightCm} cm) · {c.weightKg} kg</p>
       <p class="sub">{c.skin} skin · {c.hair} hair · ${c.wallet.toLocaleString()}</p>
+      {#if c.backstory}<p class="sub">{c.backstory}</p>{/if}
     {:else}
       <p class="sub">{[entity.kind, `(${entity.x}, ${entity.y})`, entity.species].filter(Boolean).join(' · ')}</p>
     {/if}

@@ -78,7 +78,6 @@ func (m Model) renderLoreList(rows, width int) string {
 	if len(s.AlienSpecies) == 0 {
 		b.WriteString("\n")
 		b.WriteString(cells.Truncate("None rolled.", inner))
-		return sidebarStyle.Width(width - borderCells).Height(rows - borderCells).MaxHeight(rows).Render(b.String())
 	}
 
 	sel := clamp(m.loreSelected, 0, len(s.AlienSpecies)-1)
@@ -95,7 +94,31 @@ func (m Model) renderLoreList(rows, width int) string {
 			b.WriteString(cells.Truncate(line, inner))
 		}
 	}
+	m.writeArmsLore(&b, inner)
 	return sidebarStyle.Width(width - borderCells).Height(rows - borderCells).MaxHeight(rows).Render(b.String())
+}
+
+// writeArmsLore lists the make and model of every gun the colony can hold and
+// the corporations behind them, below the species (so a short terminal clips
+// these, not the selectable list). See docs/arms-makers.md.
+func (m Model) writeArmsLore(b *strings.Builder, inner int) {
+	s := m.latest
+	if len(s.GunModels) > 0 {
+		b.WriteString("\n\n")
+		b.WriteString(labelStyle.Render("GUNS"))
+		for _, g := range s.GunModels {
+			b.WriteByte('\n')
+			b.WriteString(cells.Truncate(fmt.Sprintf("%s: %s", g.Kind, g.Name()), inner))
+		}
+	}
+	if len(s.Corporations) > 0 {
+		b.WriteString("\n\n")
+		b.WriteString(labelStyle.Render(fmt.Sprintf("CORPORATIONS (%d)", len(s.Corporations))))
+		for _, c := range s.Corporations {
+			b.WriteByte('\n')
+			b.WriteString(cells.Truncate(fmt.Sprintf("• %s · %s, %d", c.Name, c.HQ, c.Founded), inner))
+		}
+	}
 }
 
 // renderLoreDetail lists everything known about one rolled species: its

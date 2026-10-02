@@ -232,25 +232,34 @@ type Config struct {
 	KitchenSavings int64 `cfg:"kitchen-savings" doc:"money a chef needs to commission its own kitchen: the room (about $50) and scum to cook in it"`
 	ToiletFee      int64 `cfg:"toilet-fee" doc:"what a house's toilet charges anyone but its owner per use (0: private)"`
 
-	// Crash pods. Every colonist arrives in one — at worldgen, from the spawn
-	// command, or from a director arrival — carrying its own bunk, toilet, and
-	// locker, and this manifest. See crashpod.go and docs/crash-pods.md.
-	CrashPodPurse      int64 `cfg:"crash-pod-purse" sec:"Crash pods" doc:"dollars each colonist arrives with"`
-	CrashPodMeals      int   `cfg:"crash-pod-meals" doc:"meals stocked in each crash pod's locker, on average"`
-	CrashPodMealSpread int   `cfg:"crash-pod-meal-spread" doc:"each pod's meals vary by up to this many either side of crash-pod-meals"`
+	// Arrivals. Every colonist arrives aboard a colony ship — at worldgen,
+	// from the spawn command, or from a director arrival — with a locker of
+	// its own, communal bunks and toilets shared with its shipmates, and this
+	// manifest. The crash-pod-* names are from the one-pod-per-colonist
+	// arrivals ships replaced. See ship.go and docs/ships.md.
+	ShipCapacity      int `cfg:"ship-capacity" sec:"Arrivals" doc:"most settlers one colony ship carries; a larger wave comes down in several"`
+	ShipBunkPercent   int `cfg:"ship-bunk-percent" doc:"communal bunks a ship carries, as a percent of its passengers (rounded up)"`
+	ShipToiletPercent int `cfg:"ship-toilet-percent" doc:"communal toilets a ship carries, as a percent of its passengers (rounded up)"`
+
+	CrashPodPurse      int64 `cfg:"crash-pod-purse" doc:"dollars each colonist arrives with"`
+	CrashPodMeals      int   `cfg:"crash-pod-meals" doc:"meals stocked in each colonist's locker, on average"`
+	CrashPodMealSpread int   `cfg:"crash-pod-meal-spread" doc:"each locker's meals vary by up to this many either side of crash-pod-meals"`
 	// Every colonist lands with exactly one rare item: a gun, a chicken (with
 	// a trough), or a cat, picked per colonist by these relative weights. A
 	// gun is a shotgun crash-pod-shotgun-percent of the time, else a pistol.
 	// All three weights at 0 lands everyone with none. See
-	// docs/crash-pods.md and docs/chickens.md.
+	// docs/ships.md and docs/chickens.md.
 	CrashPodGunWeight      int `cfg:"crash-pod-gun-weight" doc:"relative odds a colonist's one rare item is a gun"`
-	CrashPodChickenWeight  int `cfg:"crash-pod-chicken-weight" doc:"relative odds a colonist's one rare item is a chicken (with a trough in its pod)"`
+	CrashPodChickenWeight  int `cfg:"crash-pod-chicken-weight" doc:"relative odds a colonist's one rare item is a chicken (with a trough in its ship's hold)"`
 	CrashPodCatWeight      int `cfg:"crash-pod-cat-weight" doc:"relative odds a colonist's one rare item is a cat"`
 	CrashPodShotgunPercent int `cfg:"crash-pod-shotgun-percent" doc:"percent of the guns colonists land with that are shotguns rather than pistols"`
 
 	// Timing.
 	TicksPerSecond int `cfg:"tps" sec:"Timing" doc:"simulation ticks per second"`
-	LogSize        int `cfg:"log-size" doc:"number of recent events retained"`
+	// StartPaused starts the engine paused. The browser sets it, so the
+	// player can move the ships before the first tick (see MoveShip).
+	StartPaused bool `cfg:"start-paused" doc:"start the game paused (the browser does, so the ships can be placed)"`
+	LogSize     int  `cfg:"log-size" doc:"number of recent events retained"`
 
 	// Colonist stats.
 	ColonistHP int `cfg:"colonist-hp" sec:"Colonists" doc:"colonist hit points"`
@@ -414,13 +423,13 @@ type Config struct {
 	// Conversation topics. Whoever raises the topic picks what kind of thing
 	// to talk about by these weights, among the kinds it has something to
 	// say about: one of its own memories, another colonist it has feelings
-	// about, or a piece of lore (today, an alien species). Talking about a
+	// about, or a piece of lore (an alien species or a corporation). Talking about a
 	// colonist is gossip: the listener's affinity toward the subject moves
 	// TalkGossipPercent of the way toward the speaker's, when the chat went
 	// well. See topics.go and docs/conversation-topics.md.
 	TalkTopicMemoryWeight   int `cfg:"talk-topic-memory-weight" doc:"relative weight of talking about one of the speaker's memories (0 never)"`
 	TalkTopicColonistWeight int `cfg:"talk-topic-colonist-weight" doc:"relative weight of talking about another colonist (0 never)"`
-	TalkTopicLoreWeight     int `cfg:"talk-topic-lore-weight" doc:"relative weight of talking about lore, such as an alien species (0 never)"`
+	TalkTopicLoreWeight     int `cfg:"talk-topic-lore-weight" doc:"relative weight of talking about lore, such as an alien species or a corporation (0 never)"`
 	TalkGossipPercent       int `cfg:"talk-gossip-percent" doc:"percent of the gap a good chat about a colonist closes between the listener's affinity toward them and the speaker's"`
 
 	// The meeting hall: a room of chairs the colony commissions, where
@@ -509,6 +518,13 @@ type Config struct {
 	RifleDamage     int `cfg:"rifle-damage" doc:"HP removed per assault rifle burst"`
 	RifleRange      int `cfg:"rifle-range" doc:"max tiles an assault rifle can fire from"`
 	RifleFireRest   int `cfg:"rifle-fire-rest" doc:"cooldown ticks between assault rifle bursts"`
+	// CorporationCount is how many companies this seed's lore rolls; every gun
+	// kind gets a make and model from one of them. Flavor only. See
+	// arms_makers.go and docs/arms-makers.md.
+	CorporationCount int `cfg:"corporation-count" doc:"companies this seed's lore rolls; each gun kind is made by one of them"`
+	// CorporationEmployeePercent is the chance an arriving colonist used to
+	// work for one of them: backstory flavor only.
+	CorporationEmployeePercent int `cfg:"corporation-employee-percent" doc:"percent of arriving colonists who used to work for one of the lore's corporations (flavor only)"`
 
 	// Cat stats. Cats have no needs; they hunt rats on the floor by instinct.
 	CatHP         int `cfg:"cat-hp" sec:"Cats" doc:"cat hit points"`
@@ -677,6 +693,11 @@ func DefaultConfig() Config {
 		// ten carry a colonist a few thousand ticks: long enough to settle in,
 		// short enough that food production matters once the safety net is
 		// off. Every settler lands armed, the way frontier settlers did.
+		// A ship of 20 sleeps 10 and has 5 toilets: enough to get by, not
+		// enough to keep the colony from building. See docs/ships.md.
+		ShipCapacity:       20,
+		ShipBunkPercent:    50,
+		ShipToiletPercent:  25,
 		CrashPodMeals:      10,
 		CrashPodMealSpread: 0,
 		// Half the colony lands armed, a quarter with a chicken, a quarter
@@ -800,6 +821,9 @@ func DefaultConfig() Config {
 		RifleDamage:     15,
 		RifleRange:      5,
 		RifleFireRest:   1,
+
+		CorporationCount:           4,
+		CorporationEmployeePercent: 60,
 
 		CatHP:         12,
 		CatSlowness:   2,

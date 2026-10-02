@@ -9,7 +9,8 @@
 import { mount } from 'svelte';
 import type { Frame, Hello } from '../wire/decode.js';
 import { namedStats, TILE_COMPOSITION_MASK, TILE_VISIBLE } from '../wire/decode.js';
-import { colonyLog, cycleFlowField, inspect, install, setFlowField, stepSpeed, subscribe, syncFrame, togglePause, topics, ui, UI_HZ } from './game.svelte';
+import { armShip, colonyLog, cycleFlowField, inspect, install, moveShip, setFlowField, setPanel, shipSiteAt, shipSiteFree, stepSpeed, subscribe, syncFrame, togglePause, topics, ui, UI_HZ } from './game.svelte';
+import type { ShipLine, ShipsTopic } from './game.svelte';
 import { attachInput } from './map/input';
 import { MapRenderer } from './map/renderer';
 import type { TileRect } from './map/camera';
@@ -56,6 +57,7 @@ install({
   centerOn: (x, y) => { cam.cx = x + 0.5; cam.cy = y + 0.5; viewChanged(); },
   selected: () => updateMark(),
   digChanged: () => showDig(),
+  shipToolChanged: () => showShipPreview(),
   highlight: (tiles) => map.setHighlight(tiles),
 });
 // Colonists' names for the hover readout; frames carry only ids. Held for
@@ -103,7 +105,15 @@ sim.onFrame = (f, bytes) => {
 
 attachInput(canvas, cam, {
   changed: () => { viewChanged(); },
-  hover: (x, y) => { hoverAt = [x, y]; showHover(x, y); },
+  hover: (x, y) => {
+    hoverAt = [x, y];
+    showHover(x, y);
+    if (ui.shipTool !== null && hello) {
+      const [fx, fy] = cam.toTile(x, y);
+      shipAt = [Math.floor(fx), Math.floor(fy)];
+      showShipPreview();
+    }
+  },
   leave: () => { hoverAt = null; ui.hover = null; },
   click: (x, y) => select(x, y),
   areaTool: () => ui.dig.armed && hello !== null,
@@ -149,10 +159,12 @@ async function newGame(settings: Settings): Promise<void> {
   map.setMark(null);
   digFrom = null;
   ui.dig = { armed: false, rect: null, tiles: 0 };
+  ui.shipTool = null;
   centered = false;
   lastInterest = '';
   try {
-    const started = await sim.start({ tps: 8, ...settings });
+    // Paused, so the ships can be placed before anyone moves (docs/ships.md).
+    const started = await sim.start({ tps: 8, 'start-paused': true, ...settings });
     hello = withLooks(started.hello);
     ui.hello = hello;
     debug.hello = hello;
@@ -162,6 +174,7 @@ async function newGame(settings: Settings): Promise<void> {
     cam.cy = hello.height / 2;
     viewChanged();
     status(null);
+    setPanel('ships'); // the game starts with placing the ships
   } catch (e) {
     status(String((e as Error).message), true);
   }
@@ -205,6 +218,7 @@ function select(sx: number, sy: number): void {
   const [fx, fy] = cam.toTile(sx, sy);
   const x = Math.floor(fx), y = Math.floor(fy);
   if (x < 0 || y < 0 || x >= hello.width || y >= hello.height) return;
+  if (ui.shipTool !== null) { landShip(x, y); return; }
   const here: number[] = [];
   if (last && map.visible(x, y)) {
     const e = last.entities;
@@ -263,6 +277,47 @@ function showDig(): void {
 }
 /** Tinting is for feedback; a huge drag counts its rock without drawing all of it. */
 const DIG_TINT_MAX = 4000;
+
+// The ship tool: the tile the pointer is over, and the preview's tints.
+let shipAt: [number, number] | null = null;
+const SHIP_OK = new Uint8Array([90, 200, 120, 120]);
+const SHIP_BAD = new Uint8Array([230, 70, 60, 120]);
+const SHIP_FROM = new Uint8Array([120, 160, 255, 70]);
+
+/** The ship the tool holds, and the ships topic it was picked from. */
+function heldShip(): { ships: ShipLine[]; ship: ShipLine } | null {
+  const t = topics.data.ships as ShipsTopic | undefined;
+  const ship = t?.placing ? t.ships.find((s) => s.id === ui.shipTool) : undefined;
+  return t && ship ? { ships: t.ships, ship } : null;
+}
+
+/** Tint where the held ship is now, and where it would land under the pointer. */
+function showShipPreview(): void {
+  const held = heldShip();
+  if (!held || !hello) { map.setHighlight(null); return; }
+  const { ships, ship } = held;
+  const tiles: { x: number; y: number; color: Uint8Array }[] = [];
+  const rect = (o: { x: number; y: number }, color: Uint8Array) => {
+    for (let y = o.y; y < o.y + ship.h; y++) for (let x = o.x; x < o.x + ship.w; x++) tiles.push({ x, y, color });
+  };
+  rect(ship, SHIP_FROM);
+  if (shipAt) {
+    const o = shipSiteAt(ship, shipAt[0], shipAt[1], hello.width, hello.height);
+    rect(o, shipSiteFree(ships, ship, o) ? SHIP_OK : SHIP_BAD);
+  }
+  map.setHighlight(tiles);
+}
+
+/** Land the held ship centered on tile (x, y), if it may land there, and put the tool down. */
+function landShip(x: number, y: number): void {
+  const held = heldShip();
+  if (!held || !hello) { armShip(null); return; }
+  const o = shipSiteAt(held.ship, x, y, hello.width, hello.height);
+  if (!shipSiteFree(held.ships, held.ship, o)) return; // keep holding it: pick another spot
+  moveShip(held.ship.id, o.x, o.y);
+  shipAt = null;
+  armShip(null);
+}
 
 /** Put the map's marker on the selection: a tile, or where the creature is now. */
 function updateMark(): void {

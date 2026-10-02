@@ -67,7 +67,7 @@ for the whole room gets nothing marked out, and `planRoomFor` reports it. So:
   (`TestAColonyWithNoMoneyStillFeedsItself`);
 - **survival does not stop**: a colonist whose need has no facility it can
   reach still builds one for itself, unpaid, exactly as before (the emergency
-  build in `runNeedFocus`), and crash pods bring everyone a bunk and a toilet.
+  build in `runNeedFocus`), and the ships land with communal bunks and toilets.
   `TestAnEmptyTreasuryHaltsPublicWorksNotSurvival` runs a colony with no
   founding grant for 5000 ticks: no room is ever planned, nobody starves, and
   somebody builds themselves a nutrient pod.

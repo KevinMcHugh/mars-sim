@@ -353,7 +353,7 @@ func (w *World) addScum(p Point, room bool) {
 
 // communityMeals is how many meals the colony owns across every depot. It is
 // memoized for the tick: every work-seeking colonist asks, and a depot per
-// settler (crash-pod lockers) makes the walk cost a colony's size.
+// settler (ship lockers) makes the walk cost a colony's size.
 func (w *World) communityMeals() int {
 	if w.communityMealsTick == w.tick {
 		return w.communityMealsCache

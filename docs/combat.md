@@ -5,8 +5,8 @@
 ## What it is
 
 Colonists can now fight back against aliens. Half the colony lands with a
-gun by default — a gun is one of the three rare items a crash pod carries
-(`crash-pod-gun-weight`, see [crash-pods.md](./crash-pods.md)); a colonist
+gun by default — a gun is one of the three rare items a settler may bring
+(`crash-pod-gun-weight`, see [ships.md](./ships.md)); a colonist
 carrying one stands its ground and shoots an alien that gets close instead of
 only fleeing. Damage — from a bite or a gunshot — lands on one of six body
 parts rather than a shared HP pool, so a wound can be a survivable graze or an
@@ -154,7 +154,7 @@ subtracting a flat `AlienDamage` from `prey.HP`.
 
 Weapons used to come from the colony ship: one pistol and one shotgun,
 handed to two of the settlers at worldgen (`equipColonyShip`, now removed).
-Every colonist now arrives in its own crash pod instead, carrying
+Every colonist now arrives (in a crash pod at first, now a colony ship) carrying
 one rare item, and a gun is only one of the three: by default half the
 colonists land with a gun (`crash-pod-gun-weight` 50 against a chicken's and
 a cat's 25 each), a quarter of those guns shotguns
@@ -163,7 +163,7 @@ chicken or a cat. Before that, each manifest gun was rolled on its own
 (`crash-pod-pistol-percent`, `crash-pod-shotgun-percent`): a 70% chance of a pistol and
 a 20% chance of a shotgun, so most settlers landed armed but about a quarter
 landed with nothing. An unarmed colonist flees until it finds or buys a gun. See
-[crash-pods.md](./crash-pods.md).
+[ships.md](./ships.md).
 
 Arming everyone was a real balance change, and it was measured (before
 the per-colonist gun odds, with every colonist getting exactly one pistol). Over 20 seeds at the
@@ -216,7 +216,7 @@ that was that, with only a log line as evidence. `remove` now takes a
 set. `cause` is a short player-facing phrase built at the call site, where
 the context (who did it, with what) is available — `"starved"`,
 `"crushed by Zoe Vargas"`, `"devoured by an alien"`, `"caught by a cat"`,
-`"shot by Zoe Vargas with a shotgun"`. Every one of the six places an entity
+`"shot by Zoe Vargas with a MarsCorp M-117 shotgun"`. Every one of the six places an entity
 dies (colonist/rat starvation, `stomp`, fatal `bite`, `pounce`, fatal
 `shoot`) is a call to `remove`, so this one funnel is the whole feature.
 

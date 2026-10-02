@@ -110,14 +110,16 @@ room the same way from its own wallet (a house) and owns its fixtures. See
 
 The planner also builds a storage room when the colony has **no communal
 chest** at all: that chest is its silo, where the market happens (see
-[market.md](./market.md)), and with a locker in every crash pod nothing else
+[market.md](./market.md)), and with a locker for every settler nothing else
 would ever call for one.
 
-Capacity counts private fixtures too: each settler's crash pod brings its own
-bunk and toilet (see [crash-pods.md](./crash-pods.md)), and `plannedFacilities`
-counts them, so a young colony builds no dormitories and few toilets until its
-population outgrows its pods. Nutrient pods are never in a crash pod, so the
-first facility room still goes up for the safety net.
+Capacity counts every bunk and toilet, private or communal, the ships' included
+(see [ships.md](./ships.md)). A ship sleeps half its passengers and has a
+toilet for every four, so a young colony is short of both from the start and
+builds dormitories and toilet rooms early. (When every settler had a crash pod
+with its own bunk and toilet, a colony built neither until its population
+outgrew its pods.) No ship carries a nutrient pod, so the first facility room
+still goes up for the safety net.
 
 Storage rooms are player-placeable and also demand-planned when a full
 colonist has no reachable chest that can accept its complete material load.

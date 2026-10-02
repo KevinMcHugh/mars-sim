@@ -198,7 +198,7 @@ type worldGen struct {
 
 func newWorldGen(cfg Config) *worldGen {
 	center := Point{cfg.Width / 2, cfg.Height / 2}
-	rx, ry := caveRadii(cfg.Width, cfg.Height, cfg.StartColonists)
+	rx, ry := caveRadii(cfg.Width, cfg.Height, cfg.StartColonists, shipTilesPerColonist(cfg))
 	lo := center.Add(-rx-cavernLandingClearance, -ry-cavernLandingClearance)
 	hi := center.Add(rx+cavernLandingClearance, ry+cavernLandingClearance)
 	return newWorldGenLanding(cfg, lo, hi)

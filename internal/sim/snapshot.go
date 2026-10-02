@@ -40,7 +40,7 @@ type EntityView struct {
 	// other kind. See docs/lore.md.
 	AlienSpecies AlienSpecies
 	// Keeper is the colonist a pet (a chicken or a cat) came down with in its
-	// crash pod, 0 for a stray or anything that is not a pet. See
+	// ship, 0 for a stray or anything that is not a pet. See
 	// docs/chickens.md.
 	Keeper EntityID
 
@@ -66,10 +66,13 @@ type EntityView struct {
 	Skills          []SkillView
 	Profession      SkillKind
 	ProfessionLabel string
+	// Backstory is a colonist's one-line past, "Worked as a drill operator
+	// for MarsCorp." ("" for none). Flavor only; see docs/arms-makers.md.
+	Backstory string
 
 	// Dead, DiedTick, and Cause are set only on a Snapshot.Graveyard or
 	// Snapshot.Deceased entry: it died at DiedTick (from Cause, a short
-	// player-facing phrase like "shot by Zoe Vargas with a shotgun"), and
+	// player-facing phrase like "shot by Zoe Vargas with a MarsCorp M-117 shotgun"), and
 	// every other field is frozen from that moment — Pos is where it died,
 	// not where anything is now.
 	Dead     bool
@@ -400,7 +403,10 @@ type Stats struct {
 // Tiles aliases the live map, and the frame's terrain is only good on the
 // engine's goroutine until the next tick. Everything else stays a copy.
 type Snapshot struct {
-	Tick   int
+	Tick int
+	// Ships is every colony ship that has landed, in landing order. Before
+	// the first tick (Tick 0) a frontend may move them with MoveShip.
+	Ships  []ShipView
 	Width  int
 	Height int
 	// Seed is this run's world seed -- the one fact that, together with the
@@ -470,6 +476,11 @@ type Snapshot struct {
 	// carries a copy of the one it belongs to on its own EntityView.AlienSpecies;
 	// this is the full roster, for a codex-style listing. See docs/lore.md.
 	AlienSpecies []AlienSpecies
+	// Corporations is this world's roster of companies, and GunModels the make
+	// and model each gun kind carries (Maker indexes Corporations). Flavor
+	// only. See docs/arms-makers.md.
+	Corporations []Corporation
+	GunModels    []GunModel
 
 	// Economy is the money supply; each colonist's own balance is on its
 	// EntityView.Wallet.
@@ -665,11 +676,14 @@ func (w *World) snapshot(paused bool, tps int) *Snapshot {
 		Graveyard:            append([]EntityView(nil), w.graveyard...),
 		Deceased:             w.publishedDeceasedColonists(),
 		AlienSpecies:         append([]AlienSpecies(nil), w.alienSpecies...),
+		Corporations:         append([]Corporation(nil), w.corporations...),
+		GunModels:            append([]GunModel(nil), w.gunModels...),
 		Population:           w.popHist,
 		Economy:              w.economyView(),
 		AffinityMax:          w.cfg.AffinityMax,
 		MoodMax:              w.cfg.MoodMax,
 		ScumMax:              w.cfg.ScumMax,
+		Ships:                w.shipViews(),
 		Paused:               paused,
 		TicksPerSecond:       tps,
 		FogOfWar:             w.cfg.FogOfWar,
@@ -747,6 +761,7 @@ func (w *World) entityView(e *Entity, kinChildren map[kinID][]kinID, full bool) 
 		ev.Memories = append([]Memory(nil), e.Memories...)
 		ev.Skills = e.skillViews()
 		ev.Profession, ev.ProfessionLabel = e.profession, e.professionLabel()
+		ev.Backstory = w.backstory(e)
 		if full {
 			ev.Relations = append([]Relation(nil), w.cachedRelations(e, kinChildren)...)
 			ev.Affinities = w.affinitiesOf(e.ID)

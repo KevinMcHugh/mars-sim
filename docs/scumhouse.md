@@ -52,8 +52,8 @@ The planner builds one in a walled room, a **kitchen** (`scumhouseRoom`, see
 [construction.md](./construction.md)):
 
 - with `infinite-food` off (the default), **first**, before any other room —
-  food is fatal, and it is the only place food comes from; crash-pod meals buy
-  the time. If the treasury can't fund it, it is marked out anyway as unpaid
+  food is fatal, and it is the only place food comes from; the meals in the lockers
+  buy the time. If the treasury can't fund it, it is marked out anyway as unpaid
   community work;
 - otherwise only when ordered (`b` then `h` in the TUI, `OrderScumhouse`).
 
@@ -264,7 +264,7 @@ colonists' own account doesn't wait for it.
 
 `foodWanted` is true while the colony has a scumhouse and owns fewer than
 `meal-reserve` meals per colonist (`communityMeals`, memoized per tick —
-crash-pod lockers make one depot per settler, and every work-seeking colonist
+ship lockers make one depot per settler, and every work-seeking colonist
 asks). While it is, `assignWorkJob` offers, after construction and food on
 a colonist's own account:
 
@@ -420,7 +420,7 @@ Later ones are ordinary public works that need an aisle
   Treating chests and scumhouses as facility access tiles, where nobody idles
   (`onFacilityAccess`), looked like the obvious fix and made things far worse:
   161 starved across the sweep instead of 2. `stepAside` and the chat-partner
-  search avoid those tiles too, and every crash-pod row has a locker chest, so
+  search avoid those tiles too, and every crash-pod row had a locker chest, so
   idle colonists ran out of places to stand.
 
 With 40 colonists, a colony that kept one scumhouse lost 16 to 22 people to

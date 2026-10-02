@@ -164,7 +164,7 @@ func TestNewGameOnHugeMapGeneratesOnlyTheLandingSite(t *testing.T) {
 	// this map they span a rectangle of chunks (the ellipse reaches its
 	// bounding box at the ends of both axes), so exactly the chunks within
 	// WorldgenHalo of that rectangle are generated.
-	rx, ry := caveRadii(cfg.Width, cfg.Height, cfg.StartColonists)
+	rx, ry := caveRadii(cfg.Width, cfg.Height, cfg.StartColonists, shipTilesPerColonist(cfg))
 	c := Point{cfg.Width / 2, cfg.Height / 2}
 	h := cfg.WorldgenHalo
 	x0, x1 := (c.X-rx-1)>>genChunkBits-h, (c.X+rx+1)>>genChunkBits+h
