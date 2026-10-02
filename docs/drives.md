@@ -35,7 +35,8 @@ ported onto the band table.
 - [`internal/sim/drive_effects.go`](../internal/sim/drive_effects.go) — `DriveEffectProfile` and its stages, `applyEffect`, `advanceEffects`.
 - [`internal/sim/personality.go`](../internal/sim/personality.go) — the traits' `driveRate` percents, resolved into `Entity.driveTrait`.
 - [`internal/sim/sleep.go`](../internal/sim/sleep.go) — the night in bed, which ends when the sleep drive has fallen to 0 (see [days.md](./days.md)).
-- [`internal/sim/systems.go`](../internal/sim/systems.go) — the turn hooks (`advanceEffects` and `applyDriveConsequences` first in `colonistTurn`, then `stayPassedOut`, and `syncDriveActivity` after the turn), `syncCognitionDeadlines`, `jobUse`, `finishUse`, `finishTalk`'s `socialize` occurrence, `availableToTalk`.
+- [`internal/sim/systems.go`](../internal/sim/systems.go) — the turn hooks (`advanceEffects` and `applyDriveConsequences` first in `colonistTurn`, then `stayPassedOut`, and `syncDriveActivity` after the turn), `syncCognitionDeadlines`, `jobUse`, `finishUse`, `finishTalk`'s `socialize` occurrence, `availableToTalk`, and `companyInReach`/`headedForHall`, which decide whether socialize has anyone to find.
+- [`internal/sim/focus.go`](../internal/sim/focus.go) — `focusDrive`'s hold that keeps a sleeper in bed, and the `noCompany` gate that makes socialize ineligible when nobody could answer it.
 - [`cognition.yaml`](../cognition.yaml) — how the consequences feel: the `felt-lonely`, `socialized`, `passed-out`, `soiled-self` and `witnessed-soiling` reactions, the `witness-soiling` perception rule, and the Tidy rules for soiling.
 - [`internal/sim/config.go`](../internal/sim/config.go) — `Config.Drives`, `Config.DriveEffects`, `StarveDamage`, `ColonistsPerFacility`, and the rat, chicken and alien hunger rates.
 - [`internal/sim/drive_model_test.go`](../internal/sim/drive_model_test.go) — the model: lazy sums across rate changes, composition order, activity tables, caffeine, stacking, negative rates, ramps, couplings, validation. [`drives_test.go`](../internal/sim/drives_test.go) keeps the phase, pressure, urgency and calendar tests that predate drives, and [`drive_consequences_test.go`](../internal/sim/drive_consequences_test.go) the consequences.
@@ -334,9 +335,9 @@ the right rates.
 Social drive has no physical facility, but with a meeting hall built it has a
 place: the colonist walks to a chair and pairs with someone else in the hall (see
 [meeting-hall.md](./meeting-hall.md)); without one it looks within `talk-radius`
-wherever it stands. Once urgent, it preempts ordinary work and
-the colonist waits for a conversation partner; completing a conversation resets
-social drive for both participants. Asocial colonists' social drive never
+wherever it stands. Once urgent, it preempts ordinary work, but only while
+someone could answer it (see *Socialize steps aside* below); completing a
+conversation resets social drive for both participants. Asocial colonists' social drive never
 grows (a -100% trait rate), introverts' grows at half speed, and extroverts'
 at 150%.
 
@@ -367,6 +368,57 @@ is a design one rather than a bug: a partner must be at `Job == JobNone`, so a
 colonist cannot chat *while* doing something else (mid-queue, mid-dig). Letting
 them would need bigger, riskier surgery to the job model than has been
 attempted.
+
+#### Socialize steps aside
+
+Social is the one drive a colonist cannot meet alone, so its focus is only
+eligible while `companyInReach` says someone could answer it. That means a talk
+already under way, or someone `availableToTalk` within `talk-radius` (whom the
+forced `tryStartTalk` would take on the spot), or, when the colonist can get a
+seat in a hall, someone free in the hall or headed there (`headedForHall`).
+Anywhere else the drive keeps its pressure but socialize leaves the candidate
+list, so sleep, the other drives, or work win. It comes back the moment
+someone could answer, since a pressing drive re-arbitrates every tick.
+`currentFocusEligible` applies the same check, so a colonist already
+socializing drops it the tick its last prospect goes.
+
+Before this, a colonist with social at its ceiling and nobody to find stood
+idle in the socialize focus. The pinned pressure (100, plus the critical bonus
+and the incumbent's commitment) outranked even a critical sleep drive, so it
+waited with a bed in reach until it passed out, came to still tired, and did it
+again about 100 ticks later. That was 24 of the 29 pass-outs in the tuning
+report, and over 24 seeds 173 pass-outs fell to 6. The same wait was behind
+most soilings: a critical bladder lost to it too. The lab bench already
+modeled this as "Nobody nearby to talk to" (`labReach.company`); the sim had
+not.
+
+`headedForHall` exists for one deadlock the plain check would create. Two
+lonely colonists out of each other's talk-radius, neither yet socializing,
+would each see nobody coming and neither would go first. So a colonist counts
+as headed for the hall if it is already socializing (in transit, so not
+`availableToTalk`, which would fail it for crossing a build tile), or idle with
+a pressing social drive, or at work with a critical one. Work needs critical
+because only then is socialize sure to pull it off the job: the critical bonus
+alone clears work's commitment and the switch margin. Counting a colonist who
+would not actually come brings back the wait this gate exists to end. The cost
+is that two colonists at work whose social is only pressing keep working until
+one goes critical (about 175 ticks at the base rate), which is "work can win"
+working as intended.
+
+The hold that keeps a sleeper in bed (`focusDrive`) is untouched. But a lonely
+colonist now goes to bed lonely, and social is critical there, so when someone
+turns up to talk to, socialize (critical) outranks the held sleep and the
+sleeper gets up. That is new: 17 of the 53 interrupted nights in the report.
+It is intended: a lonely colonist is lying awake, not sleeping soundly, and
+waking only for a critical drive is the hold's documented rule anyway.
+
+**Known problem: colonists read each other's minds.** `companyInReach` and
+`headedForHall` decide one colonist's behavior from another's internal state:
+whether its social drive is pressing or critical, and what its focus is.
+Nothing in the world would let a colonist know that. It works as a stand-in, but
+the end state is a socialization system where a colonist acts only on what it
+could perceive (someone sitting in the hall, someone who invited it, someone
+walking over) and not on another colonist's needs.
 
 ### Starvation and healing
 
@@ -612,14 +664,14 @@ retuned against the old game with `TestDriveTuningReport`: six seeds × 10,800
 ticks of the default game, counting meals per colonist-day, finished and
 interrupted nights, time in bed and mining, and starvation deaths.
 
-| | needs (before) | drives, food 2000 / asleep 25% | drives, food 1750 / asleep 10% | + the consequences | + sleep falls in bed (shipped) |
-| --- | --- | --- | --- | --- | --- |
-| meals per colonist-day | 2.00 | 2.47 | 2.07 | 2.09 | 1.98 |
-| nights finished / interrupted | 225 / 6 | 239 / 71 | 263 / 21 | 188 / 13 | 234 / 49 |
-| in bed | 30.2% | 29.7% | 30.6% | 27.0% | 33.4% |
-| mining | 19.3% | 17.0% | 19.3% | 19.0% | 18.5% |
-| starved | 3 | 5 | 0 | 1 | 2 |
-| passed out / soiled / felt lonely | — | — | — | 29 / 78 / 210 | 29 / 71 / 189 |
+| | needs (before) | drives, food 2000 / asleep 25% | drives, food 1750 / asleep 10% | + the consequences | + sleep falls in bed | + socialize steps aside (shipped) |
+| --- | --- | --- | --- | --- | --- | --- |
+| meals per colonist-day | 2.00 | 2.47 | 2.07 | 2.09 | 1.98 | 2.09 |
+| nights finished / interrupted | 225 / 6 | 239 / 71 | 263 / 21 | 188 / 13 | 234 / 49 | 212 / 53 |
+| in bed | 30.2% | 29.7% | 30.6% | 27.0% | 33.4% | 33.2% |
+| mining | 19.3% | 17.0% | 19.3% | 19.0% | 18.5% | 21.1% |
+| starved | 3 | 5 | 0 | 1 | 2 | 1 |
+| passed out / soiled / felt lonely | — | — | — | 29 / 78 / 210 | 29 / 71 / 189 | 4 / 19 / 163 |
 
 The first try, keeping food's old rate and letting food and bladder grow at a
 quarter speed in bed, had colonists eating a quarter more and being pulled out
@@ -633,18 +685,31 @@ the point, and an interrupted night keeps what was slept.
 
 Each change changes seeds, so each column is its own set of games, and the
 counts move with how long colonies survive (239 colonist-days with the
-consequences, 303 now). With sleep falling in bed (the last column), "finished"
+consequences, 303 with sleep falling in bed, 264 now). With sleep falling in bed (the last column), "finished"
 means the drive reached 0 and "interrupted" means the colonist got up before it
 did; 32 of the 49 are hunger (it is fatal, so once it presses it outranks
 sleep), 11 a critical bladder. Holding sleepers only at `SeekAt` first gave 71,
 41 of them a bladder that was barely pressing, which is why the hold is just
-short of critical. Before sleep fell, pass-outs were not spread evenly: 15 of
-29 were one colony (seed 3), whose last two or three
-colonists stand idle in the socialize focus waiting for a partner who never
-comes, while a bed is in reach. Social pressure pinned at its ceiling keeps
-outranking sleep, so they never go to bed; passing out is what finally resets
-their sleep. That is an arbitration problem passing out exposes rather than
-causes (before it, they simply never slept), and it is still open.
+short of critical.
+
+Sleep falling in bed left pass-outs where they were (29), and 24 of them were
+the same thing: a colonist idle in the socialize focus, social pinned at its
+ceiling, waiting for a partner who never came while a bed was in reach. It came
+to still tired and did it again about 100 ticks later. (Before sleep fell,
+15 of 29 were one colony, seed 3.) That was an arbitration problem that passing
+out exposed rather than caused, and *Socialize steps aside* above fixes it. The
+last column shows pass-outs 29 → 4 and soilings 71 → 19 (a critical bladder
+lost to the same wait). The four left are all one colony (seed 5) under alien
+siege, colonists fleeing past their beds. Over 24 seeds, pass-outs fell from
+173 to 6, and every one left, like every starvation, happened while fleeing an
+alien. The new interruptions (17, "socialize") are lonely sleepers getting up
+when company turns up; see that section.
+
+Over those 24 seeds, alien sieges also wiped out 8 colonies against 5 before
+(86 colonists alive at the end against 98). Every extra death was a colonist
+fleeing an alien, none asleep, socializing or passed out. That is accepted, not
+a regression: colonists who used to stand idle now work (mining 18.5% → 21.1%),
+and a colony that digs more breaks into more caves and meets more aliens.
 
 Mechanics tests do not use these numbers. `testConfig` sets every awake activity
 to 100%, pauses everything but sleep in bed, and keeps food at its old 2 a

@@ -754,6 +754,74 @@ func (w *World) availableToTalk(o *Entity) bool {
 	return !w.idleWouldBlock(o.Pos)
 }
 
+// companyInReach reports whether e's socialize focus has anyone to find, which
+// is the reach that makes the focus eligible (social is the one drive a
+// colonist cannot meet alone). It mirrors what runDriveFocus can actually do:
+// a talk already under way; someone free within talk-radius, whom the forced
+// tryStartTalk would take; or, with a hall e can get a seat in, someone free in
+// the hall or headed there (headedForHall).
+//
+// Without it a socializer with nobody to find stood idle with the drive
+// pinned at its ceiling, outranking sleep with a bed in reach, until it passed
+// out, came to still tired, and did it again. That was most of the default
+// game's pass-outs (docs/drives.md, "Tuning the activity percents").
+//
+// The result is an "any match", so walking w.entities in map order is safe.
+func (w *World) companyInReach(e *Entity) bool {
+	if _, ok := w.talkPartner(e); ok {
+		return true
+	}
+	if _, ok := w.nearestMatch(e.Pos, w.cfg.TalkRadius, func(o *Entity) bool {
+		return o.Kind == Colonist && o.ID != e.ID && w.availableToTalk(o)
+	}); ok {
+		return true
+	}
+	if e.Kind != Colonist || !w.hallOpen() {
+		return false
+	}
+	if !w.inHall(e.Pos) {
+		if _, ok := w.nearestChair(e); !ok {
+			return false
+		}
+	}
+	for _, o := range w.entities {
+		if o.Kind != Colonist || o.ID == e.ID || !o.Alive() || o.passedOut {
+			continue
+		}
+		if w.inHall(o.Pos) && w.availableToTalk(o) || w.headedForHall(o) {
+			return true
+		}
+	}
+	return false
+}
+
+// headedForHall reports whether o is, or is about to be, on its way to the
+// hall for company: already socializing and not in a talk, or lonely and free
+// to go (the caller filters out the passed-out). The second half breaks a
+// stalemate the first cannot: two lonely colonists who each see the other not
+// yet socializing would each wait for the other to go first, and neither ever
+// would. Idle, a pressing drive is enough, since socialize beats idling as
+// soon as it presses. At work it has to be critical: only then is socialize's
+// score sure to pull o off the job (the critical bonus alone clears work's
+// commitment and the switch margin), and a partner who would not come is the
+// very wait this gate exists to end.
+func (w *World) headedForHall(o *Entity) bool {
+	phase := o.drives[DriveSocial].phase
+	switch o.focus {
+	case FocusSocialize:
+		// Not availableToTalk: that asks whether o may be pulled into a chat
+		// where it stands, and a socializer crossing a pending build tile on its
+		// way would read as no one coming.
+		return o.Job == JobNone && o.State != Fleeing
+	case FocusIdle:
+		return (phase == DrivePressing || phase == DriveCritical) && o.State != Fleeing
+	case FocusWork:
+		return phase == DriveCritical
+	default:
+		return false
+	}
+}
+
 // beginTalk commits two colonists to a mutual conversation.
 func (w *World) beginTalk(a, b *Entity) {
 	a.resting, b.resting = false, false
