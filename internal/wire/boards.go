@@ -151,6 +151,55 @@ type MarketTopic struct {
 	Dig DigTerms `json:"dig"`
 	// Digs are the excavation orders still open, oldest first.
 	Digs []Dig `json:"digs"`
+	// Colony is what the order desk needs to place, reprice and withdraw
+	// the colony's orders (docs/colony-orders.md).
+	Colony ColonyDesk `json:"colony"`
+}
+
+// ColonyDesk is the colony's side of the book: its open orders, the depots
+// it may trade at, and the goods it may name.
+type ColonyDesk struct {
+	// Orders is every open order in the colony's name, oldest first.
+	Orders []ColonyOrder `json:"orders"`
+	// Depots is every communal container, the silo first, then by position.
+	Depots []Depot `json:"depots"`
+	// Items is every good an order may name, in item order.
+	Items []string `json:"items"`
+	// Suspended is every standing order a player has stopped, by side and
+	// item, bids first.
+	Suspended []Suspended `json:"suspended"`
+}
+
+// Suspended is a side and an item whose standing orders the colony has
+// stopped posting until a player resumes them.
+type Suspended struct {
+	Side string `json:"side"`
+	Item string `json:"item"`
+}
+
+// ColonyOrder is one of the colony's open orders. ID is what a reprice or a
+// cancel names. Manual is set for one a player placed or repriced; the
+// colony's own standing orders are topped up again if withdrawn.
+type ColonyOrder struct {
+	ID     uint64 `json:"id"`
+	Side   string `json:"side"`
+	Item   string `json:"item"`
+	Qty    int    `json:"qty"`
+	Price  int64  `json:"price"`
+	X      int    `json:"x"`
+	Y      int    `json:"y"`
+	Posted int    `json:"posted"`
+	Manual bool   `json:"manual"`
+}
+
+// Depot is a communal container the colony may trade at, and what the colony
+// holds there (on its own ledger line, so free to offer).
+type Depot struct {
+	X        int       `json:"x"`
+	Y        int       `json:"y"`
+	Label    string    `json:"label"`
+	Silo     bool      `json:"silo"`
+	Holdings []Holding `json:"holdings"`
 }
 
 // Dig is one open excavation order: its project id (what a cancel names), the
@@ -255,6 +304,7 @@ func marketTopic(s *sim.Snapshot) MarketTopic {
 		Trades:     []TradeLine{},
 		Dig:        DigTerms{Wage: int64(econ.DigWage), MaxTiles: econ.DigMax},
 		Digs:       []Dig{},
+		Colony:     colonyDesk(s),
 	}
 	for _, p := range s.Projects {
 		if p.Name != sim.ExcavationName {
@@ -427,6 +477,49 @@ func accountTopic(s *sim.Snapshot, owner sim.Owner) AccountTopic {
 		}
 	}
 	return t
+}
+
+func colonyDesk(s *sim.Snapshot) ColonyDesk {
+	econ := s.Economy
+	d := ColonyDesk{Orders: []ColonyOrder{}, Depots: []Depot{}, Items: []string{}, Suspended: []Suspended{}}
+	for _, su := range econ.Suspended {
+		d.Suspended = append(d.Suspended, Suspended{Side: su.Side.String(), Item: su.Item.String()})
+	}
+	for _, o := range econ.Orders {
+		if o.Actor == sim.Community {
+			d.Orders = append(d.Orders, ColonyOrder{ID: uint64(o.ID), Side: o.Side.String(), Item: o.Item.String(),
+				Qty: o.Qty, Price: int64(o.Price), X: o.Depot.X, Y: o.Depot.Y, Posted: o.Posted, Manual: o.Manual})
+		}
+	}
+	for _, st := range s.Storages {
+		if f, ok := s.FixtureAt(st.Pos); ok && f.Access != sim.AccessCommunal {
+			continue
+		}
+		dp := Depot{X: st.Pos.X, Y: st.Pos.Y, Label: storageLabel(s, st), Silo: econ.HasSilo && st.Pos == econ.Silo,
+			Holdings: []Holding{}}
+		for _, l := range st.Ledger { // sorted by owner then item
+			if l.Owner == sim.Community && l.Count > 0 {
+				dp.Holdings = append(dp.Holdings, Holding{Item: l.Item.String(), Count: l.Count})
+			}
+		}
+		d.Depots = append(d.Depots, dp)
+	}
+	slices.SortStableFunc(d.Depots, func(a, b Depot) int {
+		if a.Silo != b.Silo {
+			if a.Silo {
+				return -1
+			}
+			return 1
+		}
+		if c := cmp.Compare(a.Y, b.Y); c != 0 {
+			return c
+		}
+		return cmp.Compare(a.X, b.X)
+	})
+	for _, k := range sim.TradableItems() {
+		d.Items = append(d.Items, k.String())
+	}
+	return d
 }
 
 // digHas reports whether a project has a task on pos.

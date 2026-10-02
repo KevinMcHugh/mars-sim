@@ -35,6 +35,8 @@ them (see [valuation.md](./valuation.md)).
 - [`internal/ui/tui/render_market.go`](../internal/ui/tui/render_market.go) —
   books, trades, and open orders on the market tab.
 - [`internal/sim/market_test.go`](../internal/sim/market_test.go).
+- [`internal/sim/colonyorders.go`](../internal/sim/colonyorders.go) — the
+  player's orders for the colony (see [colony-orders.md](./colony-orders.md)).
 
 ## How it works
 
@@ -87,6 +89,13 @@ planner builds one when there is no silo (after life support, before bunks).
 Every `marketInterval` ticks, `runMarket` expires stale orders and has the
 colony top up a standing bid of `silo-bid-qty` units for each ore it buys, at
 the reference price, as far as the treasury stretches.
+
+**A player's orders.** A player can post, reprice and remove the colony's
+orders from the browser (see [colony-orders.md](./colony-orders.md)). Those
+are marked `manual`, and the upkeep below never withdraws or retires one,
+though it counts them toward the quantities it tops up to. Every standing
+order the colony posts goes through `postStanding`, which posts nothing for a
+side and item the player has suspended.
 
 **When the silo moves**, because a communal chest was built nearer the centre
 or the silo chest was claimed, `retireOldSilo` cancels the colony's orders at
@@ -164,6 +173,7 @@ spent about 1500 of its 5000.
 
 - [economy.md](./economy.md) — the plan this is phase E4 of.
 - [money.md](./money.md) — accounts, `transfer`, and the audit escrow joins.
+- [colony-orders.md](./colony-orders.md) — the player trading for the colony.
 - [property.md](./property.md) — ledgers, and `moveLine`.
 - [food.md](./food.md) — where buying a meal sits in eating.
 - [storage.md](./storage.md) — where miners unload.

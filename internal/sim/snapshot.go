@@ -162,6 +162,9 @@ type EconomyView struct {
 	// tiles one order may cover (see docs/excavation.md).
 	DigWage Money
 	DigMax  int
+	// Suspended is every standing order a player has suspended, bids first,
+	// then in item order (see docs/colony-orders.md).
+	Suspended []SuspendedView
 	// Silo is the colony's market depot, when it has one.
 	Silo    Point
 	HasSilo bool
@@ -209,6 +212,10 @@ type OrderView struct {
 	Price Money
 	Actor Owner
 	Depot Point
+	// Posted is the tick it was posted, and Manual whether a player placed
+	// or repriced it for the colony (see docs/colony-orders.md).
+	Posted int
+	Manual bool
 }
 
 // BookView summarizes one (item, depot) book: the best price and depth on
@@ -234,6 +241,7 @@ func (w *World) economyView() EconomyView {
 		Trades:      append([]Trade(nil), w.trades...),
 	}
 	v.Silo, v.HasSilo = w.marketDepot()
+	v.Suspended = w.suspendedOrders()
 	v.DigWage, v.DigMax = w.wageFor(Floor), maxExcavationTiles
 	for _, o := range w.sortedWork(nil) {
 		v.WorkOrders = append(v.WorkOrders, WorkOrderView{ID: o.ID, Kind: o.Kind, Issuer: o.Issuer,
@@ -241,7 +249,7 @@ func (w *World) economyView() EconomyView {
 	}
 	for _, o := range w.sortedOrders(nil) {
 		v.Orders = append(v.Orders, OrderView{ID: o.ID, Side: o.Side, Item: o.Item, Qty: o.Qty,
-			Price: o.Price, Actor: o.Actor, Depot: o.Depot})
+			Price: o.Price, Actor: o.Actor, Depot: o.Depot, Posted: o.Posted, Manual: o.manual})
 	}
 	for k, b := range w.books {
 		bv := BookView{Item: k.Item, Depot: k.Depot, Last: b.last, Volume: b.volume, Traded: b.traded}

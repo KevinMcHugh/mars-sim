@@ -223,6 +223,31 @@ export function cancelDig(id: number): void {
   ctl?.command({ type: 'dig-cancel', id });
 }
 
+/** Post an order in the colony's name; the outcome lands in the log. */
+export function placeColonyOrder(o: { side: 'bid' | 'ask'; item: string; qty: number; price: number; x: number; y: number }): void {
+  ctl?.command({ type: 'order-place', ...o });
+}
+
+/** Re-post one of the colony's open orders at a new price. */
+export function repriceColonyOrder(id: number, price: number): void {
+  ctl?.command({ type: 'order-reprice', id, price });
+}
+
+/** Take one of the colony's open orders off the book. */
+export function cancelColonyOrder(id: number): void {
+  ctl?.command({ type: 'order-cancel', id });
+}
+
+/** Stop the colony posting its standing orders for a side and item, and withdraw them. */
+export function suspendColonyOrders(side: 'bid' | 'ask', item: string): void {
+  ctl?.command({ type: 'order-suspend', side, item });
+}
+
+/** Let the colony post its standing orders for a side and item again. */
+export function resumeColonyOrders(side: 'bid' | 'ask', item: string): void {
+  ctl?.command({ type: 'order-resume', side, item });
+}
+
 export function togglePause(): void {
   ctl?.command({ type: 'pause' });
   pressed = performance.now();

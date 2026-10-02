@@ -32,7 +32,7 @@ The rest of the TUI's tabs are planned in
 - [`web/src/ui/`](../web/src/ui/App.svelte) — the Svelte chrome: `App`,
   `TopBar`, `SpeedControl`, `SidePanel`, `Bar` (a gauge), and one component
   per tab (`InspectPanel`, `RosterPanel`, `LogPanel`, `JobsPanel`,
-  `StoragePanel`, `MarketPanel` with `AccountDetail`, `DigPanel`, `ChartsPanel`,
+  `StoragePanel`, `MarketPanel` with `AccountDetail` and `ColonyOrders`, `DigPanel`, `ChartsPanel`,
   `LorePanel`, `NewGamePanel`), `LogTicker`, and `FlowControl` (the
   flow-field picker and legend, see [flow-field-view.md](./flow-field-view.md)).
   `format.ts` formats money.
@@ -286,7 +286,11 @@ closed.
 - **Market** shows the money supply, the accounts (an account opens in place,
   from its own `account:<key>` topic, so only the open one is built), and the
   books, prices, plans, work orders and recent trades. A depot or a planner is
-  a link to the inspector.
+  a link to the inspector. Its **Colony orders** desk (`ColonyOrders`) posts a
+  bid or an ask in the colony's name, and reprices or removes the colony's
+  open orders, with the `order-place`, `order-reprice` and `order-cancel`
+  commands, and suspends or resumes a standing order with `order-suspend`
+  and `order-resume` (see [colony-orders.md](./colony-orders.md)).
 - **Dig** orders an area mined out (see [excavation.md](./excavation.md)).
   **Mark an area** arms a tool: while it is armed a drag on the map draws a
   rectangle instead of panning (`attachInput`'s `areaTool` and `area` hooks),

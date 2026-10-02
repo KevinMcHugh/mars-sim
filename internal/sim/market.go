@@ -59,6 +59,10 @@ type Order struct {
 	// See producer.go.
 	plan  planID
 	depth int
+	// manual marks an order a player placed or repriced for the colony
+	// (colonyorders.go). The colony's upkeep never withdraws or retires
+	// one; it still counts toward the quantities upkeep tops up to.
+	manual bool
 }
 
 // owner is the order itself as a ledger or money holder: where its escrow
@@ -395,7 +399,8 @@ func (w *World) runMarket() {
 // orders never expire, so without this their escrow was stranded for good:
 // one chest built at the centre doubled the money in escrow and left 64 iron
 // bids open at the old silo. Unclaimed haul orders bound for it close too; a
-// haul already under way finishes where it was going.
+// haul already under way finishes where it was going. A player's order there
+// (manual) stays: the player can see it and take it off the book.
 func (w *World) retireOldSilo() {
 	silo, ok := w.marketDepot()
 	old, had := w.siloWas, w.siloSeen
@@ -403,7 +408,7 @@ func (w *World) retireOldSilo() {
 	if !had || (ok && silo == old) {
 		return
 	}
-	for _, o := range w.sortedOrders(func(o *Order) bool { return o.Actor == Community && o.Depot == old }) {
+	for _, o := range w.sortedOrders(func(o *Order) bool { return o.Actor == Community && o.Depot == old && !o.manual }) {
 		w.cancel(o)
 	}
 	for _, o := range w.sortedWork(func(o *WorkOrder) bool {
@@ -432,7 +437,7 @@ func (w *World) refreshColonyBids() {
 			want = afford
 		}
 		if want > 0 {
-			w.post(Bid, k, want, price, Community, silo, 0)
+			w.postStanding(Bid, k, want, price, silo)
 		}
 	}
 }

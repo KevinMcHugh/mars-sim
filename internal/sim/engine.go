@@ -435,6 +435,21 @@ func (e *Engine) apply(cmd Command) (rateChanged bool) {
 	case CancelExcavation:
 		e.world.cancelExcavation(c.ID)
 		e.requestPublish()
+	case PlaceColonyOrder:
+		e.world.placeColonyOrder(c)
+		e.requestPublish()
+	case RepriceColonyOrder:
+		e.world.repriceColonyOrder(c)
+		e.requestPublish()
+	case CancelColonyOrder:
+		e.world.cancelColonyOrder(c.ID)
+		e.requestPublish()
+	case SuspendColonyOrders:
+		e.world.suspendColonyOrders(c)
+		e.requestPublish()
+	case ResumeColonyOrders:
+		e.world.resumeColonyOrders(c)
+		e.requestPublish()
 	case OrderExcavation:
 		e.world.orderExcavation(c)
 		e.requestPublish() // the log line and the work order show at once

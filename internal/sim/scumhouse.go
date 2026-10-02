@@ -874,7 +874,7 @@ func (w *World) refreshBiomatterBids() {
 				want--
 			}
 			if want > 0 {
-				w.post(Bid, k, want, price, Community, p, 0)
+				w.postStanding(Bid, k, want, price, p)
 			}
 		}
 	}
@@ -1022,15 +1022,16 @@ func (w *World) offerColonyMeals(p Point) {
 		return
 	}
 	if spare := c.held(Community, Meal) - w.pendingHaul(Meal, p); spare > 0 {
-		w.post(Ask, Meal, spare, price, Community, p, 0)
+		w.postStanding(Ask, Meal, spare, price, p)
 	}
 }
 
 // withdrawColonyAsks takes the colony's asks for item at p off the book,
-// returning the goods to its ledger line — so they can be hauled.
+// returning the goods to its ledger line — so they can be hauled. A player's
+// ask (manual) stays: those goods are on sale because the player said so.
 func (w *World) withdrawColonyAsks(item ItemKind, p Point) {
 	for _, o := range w.sortedOrders(func(o *Order) bool {
-		return o.Side == Ask && o.Item == item && o.Depot == p && o.Actor == Community
+		return o.Side == Ask && o.Item == item && o.Depot == p && o.Actor == Community && !o.manual
 	}) {
 		w.cancel(o)
 	}

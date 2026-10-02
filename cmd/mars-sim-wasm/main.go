@@ -40,8 +40,8 @@ import (
 // The page checks it at start, so a mars-sim.wasm left over from an older
 // build (npm run wasm not rerun after a pull) fails with a message saying so,
 // instead of a panel that silently never loads. 1 was everything before
-// subscribe/unsubscribe; 2 had no entity: or tile: topics; 3 no roster; 4 no log; 5 no jobs, storage, market or account:; 6 no perf or population; 7 no flow command; 8 no dig command; 9 no dig-cancel.
-const hostAPI = 10
+// subscribe/unsubscribe; 2 had no entity: or tile: topics; 3 no roster; 4 no log; 5 no jobs, storage, market or account:; 6 no perf or population; 7 no flow command; 8 no dig command; 9 no dig-cancel; 10 no order-place, order-reprice or order-cancel; 11 no order-suspend or order-resume.
+const hostAPI = 12
 
 var (
 	eng *sim.Engine
@@ -221,18 +221,28 @@ type memoryResult struct {
 
 // command is a sim.Command as the page sends it.
 type command struct {
-	Type string `json:"type"` // pause | speed | spawn | flow | dig
+	Type string `json:"type"` // pause | speed | spawn | flow | dig | dig-cancel | order-place | order-reprice | order-cancel | order-suspend | order-resume
 	Rate int    `json:"rate,omitempty"`
 	Kind string `json:"kind,omitempty"`
 	// Field is the flow field to show, an index into Hello.flowFields, or
 	// -1 for none.
 	Field *int `json:"field,omitempty"`
 	// dig: the rectangle, inclusive, in tiles.
-	ID int `json:"id,omitempty"` // dig-cancel: the excavation's project id
+	ID int `json:"id,omitempty"` // dig-cancel: the excavation's project id; order-*: the order's id
 	X0 int `json:"x0,omitempty"`
 	Y0 int `json:"y0,omitempty"`
 	X1 int `json:"x1,omitempty"`
 	Y1 int `json:"y1,omitempty"`
+	// order-place, order-suspend and order-resume: the side ("bid" or
+	// "ask") and the item by name; order-place also the
+	// quantity, and the depot (x, y); order-place and order-reprice: the
+	// price.
+	Side  string `json:"side,omitempty"`
+	Item  string `json:"item,omitempty"`
+	Qty   int    `json:"qty,omitempty"`
+	Price int64  `json:"price,omitempty"`
+	X     int    `json:"x,omitempty"`
+	Y     int    `json:"y,omitempty"`
 }
 
 func parseCommand(s string) (sim.Command, error) {
@@ -249,6 +259,32 @@ func parseCommand(s string) (sim.Command, error) {
 		return sim.CancelExcavation{ID: c.ID}, nil
 	case "dig":
 		return sim.OrderExcavation{X0: c.X0, Y0: c.Y0, X1: c.X1, Y1: c.Y1}, nil
+	case "order-place", "order-suspend", "order-resume":
+		item, ok := sim.ParseItemKind(c.Item)
+		if !ok {
+			return nil, fmt.Errorf("unknown item %q", c.Item)
+		}
+		var side sim.Side
+		switch c.Side {
+		case "bid":
+			side = sim.Bid
+		case "ask":
+			side = sim.Ask
+		default:
+			return nil, fmt.Errorf("unknown side %q", c.Side)
+		}
+		switch c.Type {
+		case "order-suspend":
+			return sim.SuspendColonyOrders{Side: side, Item: item}, nil
+		case "order-resume":
+			return sim.ResumeColonyOrders{Side: side, Item: item}, nil
+		}
+		return sim.PlaceColonyOrder{Side: side, Item: item, Qty: c.Qty, Price: sim.Money(c.Price),
+			Depot: sim.Point{X: c.X, Y: c.Y}}, nil
+	case "order-reprice":
+		return sim.RepriceColonyOrder{ID: sim.OrderID(c.ID), Price: sim.Money(c.Price)}, nil
+	case "order-cancel":
+		return sim.CancelColonyOrder{ID: sim.OrderID(c.ID)}, nil
 	case "spawn":
 		for k := sim.Colonist; k <= sim.Rat; k++ {
 			if k.String() == c.Kind {

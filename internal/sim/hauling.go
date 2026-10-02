@@ -223,7 +223,7 @@ func (w *World) refreshColonyAsks() {
 			continue
 		}
 		if spare := c.held(Community, k) - w.cfg.ColonyStockReserve; spare > 0 {
-			w.post(Ask, k, spare, w.colonyAskPrice(k), Community, silo, 0)
+			w.postStanding(Ask, k, spare, w.colonyAskPrice(k), silo)
 		}
 	}
 }
