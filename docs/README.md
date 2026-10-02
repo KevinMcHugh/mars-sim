@@ -26,6 +26,7 @@ way it is without re-deriving it from the source each time.
 | [entities-and-ai.md](./entities-and-ai.md) | The entity model, the per-tick systems, turn order, movement primitives, and the colonist / alien / cat / rat behaviors. |
 | [combat.md](./combat.md) | Per-body-part HP, weapons (pistol/shotgun), the guns every settler lands with, and gore. |
 | [needs.md](./needs.md) | Colonist (and rat) needs: hunger, bladder, lazy evaluation, starvation, and how to add a need. |
+| [drives.md](./drives.md) | **Proposal.** Reworking needs into drives: a growth rate made of a base plus stacked modifiers (activity class, traits, timed effects such as caffeine, other drives), consequences as level bands with a ramp shorthand, true vs felt levels, and pluggable drive activities, all still lazily evaluated. |
 | [days.md](./days.md) | Colony days and time of day (derived from the sleep need, shown in the top bar and TUI header), and the eight-hour night: sleep traits, needs paused in bed, banked sleep. |
 | [cascading_wsts_architecture.md](./cascading_wsts_architecture.md) | Implementation design for independent need/affect processes feeding a weighted, explainable focus transition system. |
 | [mutation.md](./mutation.md) | Uranium deposits, the exposure dose, mutant body parts, stature (two-foot to ten-foot colonists), and the Mutant / Mutant-Lover traits. |
