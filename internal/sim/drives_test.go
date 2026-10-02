@@ -393,3 +393,14 @@ func TestAsleepInBedDoesNotPassOut(t *testing.T) {
 		t.Fatal("did not pass out once out of bed")
 	}
 }
+
+// quietDrives empties every drive of e as of now, for a test about something
+// other than drives. Zeroing Drives alone is not enough: a level is the base
+// plus its rise since driveSince, so a base of zero with an old driveSince
+// still reads at the ceiling — and since drives have consequences there, a
+// "fed" colonist would wet itself, pass out and feel lonely every tick.
+func (w *World) quietDrives(e *Entity) {
+	for k := range e.Drives {
+		e.Drives[k], e.driveSince[k] = 0, w.tick
+	}
+}

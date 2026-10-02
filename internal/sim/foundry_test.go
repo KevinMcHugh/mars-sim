@@ -37,9 +37,7 @@ func runFoundry(t *testing.T, w *World, limit int) (depth int) {
 		w.step()
 		for _, e := range w.entities {
 			if e.Kind == Colonist {
-				for k := range e.Drives {
-					e.Drives[k] = 0
-				}
+				w.quietDrives(e)
 			}
 		}
 		depth = max(depth, w.chainDepth())
@@ -101,9 +99,7 @@ func TestOwnOreFillsTheForge(t *testing.T) {
 	}
 	for i := 0; i < 400 && w.orders[bid.ID] != nil; i++ {
 		w.step()
-		for k := range miner.Drives {
-			miner.Drives[k] = 0
-		}
+		w.quietDrives(miner)
 	}
 	if got := w.storageContainers[forge].held(smith, IronOre); got != 2 {
 		t.Fatalf("the smith holds %d ore at the forge, want 2", got)
