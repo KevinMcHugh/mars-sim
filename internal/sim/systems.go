@@ -503,10 +503,28 @@ func (w *World) onFacilityAccess(p Point) bool {
 	return false
 }
 
-// onPendingBuild reports whether p is a not-yet-built task tile of some project,
-// which a builder must find clear to construct.
+// onPendingBuild reports whether p is a not-yet-built task tile in some
+// project's active phase, which a builder must find clear to construct.
 func (w *World) onPendingBuild(p Point) bool {
 	return w.buildTiles[p]
+}
+
+// onPlannedTask reports whether p is the tile of any unfinished project task,
+// in any phase. buildTiles (onPendingBuild) only holds the active phase, so a
+// room's later-phase tiles — a fit-phase bunk tile is still plain Floor while
+// the walls go up — look free to it. A lone build on one of those leaves its
+// task forever unworkable (taskWorkable wants Floor), so the project never
+// completes and holds a concurrent-project slot for good. Scans every task, so
+// call it after the cheap checks; the emergency fallback is its only caller.
+func (w *World) onPlannedTask(p Point) bool {
+	for _, proj := range w.projects {
+		for _, t := range proj.tasks {
+			if t.pos.Equal(p) && !w.taskDone(t) {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // assignMine / assignBuild set a colonist's job and update the board's
@@ -1722,13 +1740,14 @@ func (w *World) makeWayAt(e *Entity, target Point) bool {
 
 // findBuildSpot returns the nearest open Floor tile that sits against Rock or
 // Wall — an edge where new structure extends the colony rather than plugging a
-// walkway at random. The colonist's own tile is excluded.
+// walkway at random. The colonist's own tile is excluded, and so is every tile
+// an unfinished project task designates, in any phase (see onPlannedTask).
 func (w *World) findBuildSpot(from Point, radius int) (Point, bool) {
 	var best Point
 	found := false
 	w.forEachInRadius(from, radius, func(p Point) bool {
 		if p.Equal(from) || w.TerrainAt(p) != Floor || w.occupied(p) ||
-			w.onPendingBuild(p) || !w.bordersSolid(p) {
+			w.onPendingBuild(p) || !w.bordersSolid(p) || w.onPlannedTask(p) {
 			return false
 		}
 		best, found = p, true
