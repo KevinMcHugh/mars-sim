@@ -409,3 +409,49 @@ func TestHostileAlienSparesItsOwnSpecies(t *testing.T) {
 		t.Fatalf("same-species aliens fought: quarries %d/%d, HP %d/%d", a.Quarry, b.Quarry, a.HP, b.HP)
 	}
 }
+
+// Description reads as a field-guide entry whose framing follows the
+// species' temperament, with sizes in metric and imperial.
+func TestDescriptionByTemperament(t *testing.T) {
+	cases := []struct {
+		sp   AlienSpecies
+		want string
+	}{
+		{
+			AlienSpecies{Plural: "ets", HeightMinCM: 191, HeightMaxCM: 299, WeightMinKG: 35, WeightMaxKG: 54,
+				Eyes: 4, Limbs: 5, Arms: 1, Skin: SkinChitinous, Color: "red", Temperament: TemperamentFriendly},
+			`Ets stand 1.9-3 m (6'3"-9'10") tall, weighing 35-54 kg (77-119 lb). They have 4 eyes, 1 arm, and 4 legs. They are covered in red chitin and interact well with humans.`,
+		},
+		{
+			AlienSpecies{Plural: "purples", HeightMinCM: 183, HeightMaxCM: 361, WeightMinKG: 43, WeightMaxKG: 85,
+				Eyes: 3, Limbs: 4, Arms: 3, Skin: SkinSlimy, Color: "purple", Temperament: TemperamentCautious},
+			`Purples stand 1.8-3.6 m (6'0"-11'10") tall, weighing 43-85 kg (95-187 lb). They are skittish around humans; approach with caution. They can be recognized by their slimy purple skin, 3 eyes, 3 arms, and 1 leg.`,
+		},
+		{
+			AlienSpecies{Plural: "xenos", HeightMinCM: 149, HeightMaxCM: 261, WeightMinKG: 103, WeightMaxKG: 181,
+				Eyes: 5, Limbs: 6, Arms: 3, Skin: SkinBony, Color: "red", Temperament: TemperamentHostile},
+			`The feared Xenos stand 1.5-2.6 m (4'11"-8'7") tall, weighing 103-181 kg (227-399 lb). They hunt humans with 5 eyes and 3 fearsome arms, and crawl on 3 legs. Their bony red skin blends into the Martian rock.`,
+		},
+		{
+			AlienSpecies{Plural: "worms", HeightMinCM: 40, HeightMaxCM: 60, WeightMinKG: 3, WeightMaxKG: 5,
+				Eyes: 1, Limbs: 2, Arms: 2, Tail: true, Skin: SkinScaly, Color: "blue", Pattern: PatternStriped,
+				Temperament: TemperamentHostile},
+			`The feared Worms stand 0.4-0.6 m (1'4"-2'0") tall, weighing 3-5 kg (7-11 lb). They hunt humans with 1 eye, 2 fearsome arms, and a lashing tail, and slither along without legs. Their blue-striped scales stand out against the Martian rock.`,
+		},
+	}
+	for _, c := range cases {
+		if got := c.sp.Description(); got != c.want {
+			t.Errorf("Description() =\n  %s\nwant\n  %s", got, c.want)
+		}
+	}
+}
+
+// A part a species has none of is left out of its description entirely.
+func TestDescriptionOmitsMissingParts(t *testing.T) {
+	sp := AlienSpecies{Plural: "blobs", HeightMinCM: 50, HeightMaxCM: 70, WeightMinKG: 10, WeightMaxKG: 12,
+		Eyes: 2, Limbs: 3, Arms: 0, Skin: SkinSlimy, Color: "green", Temperament: TemperamentFriendly}
+	want := `Blobs stand 0.5-0.7 m (1'8"-2'4") tall, weighing 10-12 kg (22-26 lb). They have 2 eyes and 3 legs. They are covered in slimy green skin and interact well with humans.`
+	if got := sp.Description(); got != want {
+		t.Errorf("Description() =\n  %s\nwant\n  %s", got, want)
+	}
+}
