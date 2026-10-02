@@ -351,8 +351,9 @@ and a hostile one is "the feared ...", hunting with its eyes and "fearsome
 arms" while its hide blends into (red/orange/yellow/gray) or stands out
 against the Martian rock. The phrasing is deliberately a pure function of
 the species — no RNG draw — so rewording it can never shift a seed. The
-helpers handle the awkward rolls the old one-line template got wrong ("no
-arms" instead of "0 arms", a legless hostile that "slithers" rather than
+helpers handle the awkward rolls the old one-line template got wrong (a
+part the species has none of is simply not mentioned rather than read as "0
+arms", a legless hostile that "slithers" rather than
 "crawls on 0 legs", verb agreement for plural hides like scales).
 `RosterLabel()` is the short form
 (`"Xeno · hostile"`). Both are used in two places: the roster's alien entry

@@ -445,3 +445,13 @@ func TestDescriptionByTemperament(t *testing.T) {
 		}
 	}
 }
+
+// A part a species has none of is left out of its description entirely.
+func TestDescriptionOmitsMissingParts(t *testing.T) {
+	sp := AlienSpecies{Plural: "blobs", HeightMinCM: 50, HeightMaxCM: 70, WeightMinKG: 10, WeightMaxKG: 12,
+		Eyes: 2, Limbs: 3, Arms: 0, Skin: SkinSlimy, Color: "green", Temperament: TemperamentFriendly}
+	want := `Blobs stand 0.5-0.7 m (1'8"-2'4") tall, weighing 10-12 kg (22-26 lb). They have 2 eyes and 3 legs. They are covered in slimy green skin and interact well with humans.`
+	if got := sp.Description(); got != want {
+		t.Errorf("Description() =\n  %s\nwant\n  %s", got, want)
+	}
+}

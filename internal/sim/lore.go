@@ -473,12 +473,15 @@ func metres(cm int) string {
 }
 
 // bodyParts lists eyes, arms, legs, and (if present) the tail as count
-// phrases, for a species description's anatomy sentence.
+// phrases, for a species description's anatomy sentence. A part the species
+// has none of is left out rather than read as "0 arms" or "no arms".
 func (sp AlienSpecies) bodyParts() []string {
-	parts := []string{
-		pluralize(sp.Eyes, "eye", "eyes"),
-		countOrNo(sp.Arms, "arm", "arms"),
-		countOrNo(sp.Legs(), "leg", "legs"),
+	parts := []string{pluralize(sp.Eyes, "eye", "eyes")}
+	if sp.Arms > 0 {
+		parts = append(parts, pluralize(sp.Arms, "arm", "arms"))
+	}
+	if legs := sp.Legs(); legs > 0 {
+		parts = append(parts, pluralize(legs, "leg", "legs"))
 	}
 	if sp.Tail {
 		parts = append(parts, "a tail")
@@ -533,15 +536,6 @@ func blendsWithMars(color string) bool {
 		return true
 	}
 	return false
-}
-
-// countOrNo is pluralize, except a zero count reads "no arms" rather than
-// "0 arms".
-func countOrNo(n int, singular, plural string) string {
-	if n == 0 {
-		return "no " + plural
-	}
-	return pluralize(n, singular, plural)
 }
 
 // joinList renders phrases as an English list with an Oxford comma: "a",
