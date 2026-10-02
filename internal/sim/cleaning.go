@@ -77,7 +77,7 @@ func (w *World) tryAssignClean(e *Entity) bool {
 	if !ok {
 		return false
 	}
-	w.board.claimClean(mess, e.ID)
+	w.home.board.claimClean(mess, e.ID)
 	e.Job, e.Target, e.clean, e.Progress = JobClean, mess, cleanGather, 0
 	return true
 }
@@ -116,12 +116,12 @@ func (w *World) nearestRefuse(from Point, radius int, burn bool) (Point, bool) {
 	}
 	var best Point
 	found := false
-	if gatherable(from) && !w.board.isCleanClaimed(from) {
+	if gatherable(from) && !w.home.board.isCleanClaimed(from) {
 		return from, true // standing in it
 	}
 	w.forEachInRadius(from, radius, func(p Point) bool {
 		if !gatherable(p) || !w.Walkable(p) || w.roomOf(p) != room ||
-			w.board.isCleanClaimed(p) {
+			w.home.board.isCleanClaimed(p) {
 			return false
 		}
 		best, found = p, true
@@ -211,7 +211,7 @@ func (w *World) jobCleanGather(e *Entity) {
 		w.clearJob(e)
 		return
 	}
-	w.board.releaseClean(e.Target, e.ID) // the tile is clean; stop holding it
+	w.home.board.releaseClean(e.Target, e.ID) // the tile is clean; stop holding it
 	e.Target, e.clean, e.Progress = dest, cleanHaul, 0
 }
 
@@ -275,7 +275,7 @@ func (w *World) jobCleanHaul(e *Entity) {
 		return
 	}
 	if w.TerrainAt(e.Target) == Scumhouse {
-		c := w.storageContainers[e.Target]
+		c := w.home.storageContainers[e.Target]
 		if c == nil || !w.deliverBiomatter(e, c) {
 			e.Target = Point{-1, -1} // full after all: pick again next tick
 			return

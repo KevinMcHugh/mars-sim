@@ -12,12 +12,12 @@ func assertOwnsPod(t *testing.T, w *World, e *Entity) {
 	me := ColonistOwner(e.ID)
 	for _, f := range podFixtures {
 		p := e.podOrigin.Add(f.dx, f.dy)
-		fx := w.fixtures[p]
+		fx := w.home.fixtures[p]
 		if w.TerrainAt(p) != f.terrain || fx == nil || fx.Owner != me || fx.Access != AccessPrivate {
 			t.Fatalf("%s's pod %v at %v: terrain %v fixture %+v", e.displayName(), f.terrain, p, w.TerrainAt(p), fx)
 		}
 	}
-	locker := w.storageContainers[e.podOrigin.Add(podFixtures[2].dx, podFixtures[2].dy)]
+	locker := w.home.storageContainers[e.podOrigin.Add(podFixtures[2].dx, podFixtures[2].dy)]
 	// A meal it has taken out to carry (a pocket meal) is still the manifest's.
 	if got := locker.held(me, Meal) + e.ownCarried(Meal); got != w.cfg.CrashPodMeals {
 		t.Fatalf("%s's locker and pockets hold %d meals of its own, want %d", e.displayName(), got, w.cfg.CrashPodMeals)
@@ -33,8 +33,8 @@ func assertOwnsPod(t *testing.T, w *World, e *Entity) {
 			}
 		}
 	}
-	if p := e.podOrigin.Add(podApproach.X, podApproach.Y); !w.Walkable(p) || !w.doorTiles[p] {
-		t.Fatalf("%s's pod approach %v is %v (reserved %v), want reserved floor", e.displayName(), p, w.TerrainAt(p), w.doorTiles[p])
+	if p := e.podOrigin.Add(podApproach.X, podApproach.Y); !w.Walkable(p) || !w.home.doorTiles[p] {
+		t.Fatalf("%s's pod approach %v is %v (reserved %v), want reserved floor", e.displayName(), p, w.TerrainAt(p), w.home.doorTiles[p])
 	}
 	if e.Inventory.Count(Pistol) != w.cfg.CrashPodPistols {
 		t.Fatalf("%s carries %d pistols, want %d", e.displayName(), e.Inventory.Count(Pistol), w.cfg.CrashPodPistols)
@@ -213,7 +213,7 @@ func TestPodsInARowSharePartyWalls(t *testing.T) {
 		if w.roomOf(e.Pos) != w.mainRoom {
 			t.Fatalf("%s is shut in its pod at %v", e.displayName(), e.podOrigin)
 		}
-		if right := e.podOrigin.Add(podWidth-1, 0); w.pods[right] {
+		if right := e.podOrigin.Add(podWidth-1, 0); w.home.pods[right] {
 			shared++
 			for dy := 0; dy < podHeight; dy++ {
 				if p := right.Add(0, dy); w.TerrainAt(p) != Hull {

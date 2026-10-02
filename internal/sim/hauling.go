@@ -102,7 +102,7 @@ func (w *World) tryAssignHaul(e *Entity) bool {
 		if id := w.haulClaims[o.ID]; id != 0 && id != e.ID {
 			continue
 		}
-		src := w.storageContainers[o.From]
+		src := w.home.storageContainers[o.From]
 		if src == nil || !w.canUseFixture(e, o.From) || !w.canUseFixture(e, o.Pos) ||
 			!w.taskReachable(o.From, room) || !w.taskReachable(o.Pos, room) {
 			continue
@@ -165,7 +165,7 @@ func (w *World) refreshSiloStock() {
 	// ledger line, but still there: counting only the line re-ordered a haul
 	// every time the colony put the last one on sale, and a silo meant to keep
 	// 3 held 6.
-	want := w.cfg.SiloMealStock - w.storageContainers[silo].held(Community, Meal) -
+	want := w.cfg.SiloMealStock - w.home.storageContainers[silo].held(Community, Meal) -
 		w.openQty(Ask, Meal, silo, Community) - total
 	if want <= 0 {
 		return
@@ -183,7 +183,7 @@ func (w *World) refreshSiloStock() {
 		return houses[i].Chebyshev(silo) < houses[j].Chebyshev(silo)
 	})
 	for _, h := range houses {
-		c := w.storageContainers[h]
+		c := w.home.storageContainers[h]
 		if c == nil || want <= 0 {
 			continue
 		}
@@ -217,7 +217,7 @@ func (w *World) refreshColonyAsks() {
 	if !ok || !w.cfg.ColonySells {
 		return
 	}
-	c := w.storageContainers[silo]
+	c := w.home.storageContainers[silo]
 	for _, k := range prospectingGoods {
 		if w.refPrice(k) <= 0 {
 			continue

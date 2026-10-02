@@ -59,7 +59,7 @@ func TestPublishedTilesShareUnchangedPages(t *testing.T) {
 		t.Fatal("publishing after a terrain change reused the stale grid")
 	}
 
-	changed := w.tiles.pageIndex(p.X, p.Y)
+	changed := w.home.tiles.pageIndex(p.X, p.Y)
 	shared, written := 0, 0
 	for pi := range third.pages {
 		switch {
@@ -248,8 +248,8 @@ func TestPublishedRefuseClearedByConstruction(t *testing.T) {
 	if w.refuseTotal() != 0 {
 		t.Errorf("refuseTotal = %d after clearing the only dirty tile, want 0", w.refuseTotal())
 	}
-	if len(w.refuse) != 0 {
-		t.Errorf("refuse index kept %d entries for a clean map; setRefuse should drop them", len(w.refuse))
+	if len(w.home.refuse) != 0 {
+		t.Errorf("refuse index kept %d entries for a clean map; setRefuse should drop them", len(w.home.refuse))
 	}
 }
 
@@ -272,7 +272,7 @@ func TestTileChangesReportDirtyPages(t *testing.T) {
 		w.snapshot(false, 8)
 		w.SetTerrain(p.Add(1, 0), Floor)
 		c := w.snapshot(false, 8).TileChanges
-		if want := w.tiles.pageIndex(p.X, p.Y); c.All || len(c.Pages) != 1 || c.Pages[0] != want {
+		if want := w.home.tiles.pageIndex(p.X, p.Y); c.All || len(c.Pages) != 1 || c.Pages[0] != want {
 			t.Errorf("mode %d: after one edit changes = %+v, want page %d", mode, c, want)
 		}
 		w.setRefuse(p, refuseCell{Gore: 1})
@@ -292,7 +292,7 @@ func TestLiveTilesAliasTheWorld(t *testing.T) {
 	snap := w.snapshot(false, 8)
 	assertAliased := func(g *TileGrid) {
 		t.Helper()
-		for pi, page := range w.tiles.pages {
+		for pi, page := range w.home.tiles.pages {
 			var want *tilePage
 			if page != nil {
 				want = (*tilePage)(page)
@@ -324,7 +324,7 @@ func TestLiveTilesPickUpNewChunks(t *testing.T) {
 	snap := w.snapshot(false, 8)
 
 	far := Point{190, 190}
-	pi := w.tiles.pageIndex(far.X, far.Y)
+	pi := w.home.tiles.pageIndex(far.X, far.Y)
 	if snap.Tiles.pages[pi] != nil {
 		t.Fatal("test needs a page that is not generated yet")
 	}
@@ -333,7 +333,7 @@ func TestLiveTilesPickUpNewChunks(t *testing.T) {
 	if !slices.Contains(next.TileChanges.Pages, pi) {
 		t.Errorf("changes %+v do not include the new page %d", next.TileChanges, pi)
 	}
-	if next.Tiles.pages[pi] != (*tilePage)(w.tiles.pages[pi]) {
+	if next.Tiles.pages[pi] != (*tilePage)(w.home.tiles.pages[pi]) {
 		t.Error("the new page was copied or missed, want it aliased")
 	}
 	if got := next.Tiles.TerrainAt(far); got != Floor {

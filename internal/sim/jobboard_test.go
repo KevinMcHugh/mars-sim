@@ -22,11 +22,11 @@ func bruteFrontier(w *World) map[Point]bool {
 func assertFrontierMatches(t *testing.T, w *World, when string) {
 	t.Helper()
 	want := bruteFrontier(w)
-	if len(w.board.frontier) != len(want) {
-		t.Fatalf("%s: frontier size %d, want %d", when, len(w.board.frontier), len(want))
+	if len(w.home.board.frontier) != len(want) {
+		t.Fatalf("%s: frontier size %d, want %d", when, len(w.home.board.frontier), len(want))
 	}
 	for p := range want {
-		if _, ok := w.board.frontier[p]; !ok {
+		if _, ok := w.home.board.frontier[p]; !ok {
 			t.Fatalf("%s: frontier missing %v", when, p)
 		}
 	}
@@ -67,7 +67,7 @@ func TestBoardClaimOwnership(t *testing.T) {
 	// Two distinct frontier rock tiles bordering the carved room.
 	var a, b Point
 	found := 0
-	for p := range w.board.frontier {
+	for p := range w.home.board.frontier {
 		if found == 0 {
 			a, found = p, 1
 		} else {
@@ -79,26 +79,26 @@ func TestBoardClaimOwnership(t *testing.T) {
 		t.Fatalf("expected at least two frontier tiles, got %d", found)
 	}
 
-	base := w.board.unclaimedCount()
-	w.board.claimMine(a, 1)
-	w.board.claimMine(b, 2)
-	if got := w.board.unclaimedCount(); got != base-2 {
+	base := w.home.board.unclaimedCount()
+	w.home.board.claimMine(a, 1)
+	w.home.board.claimMine(b, 2)
+	if got := w.home.board.unclaimedCount(); got != base-2 {
 		t.Fatalf("unclaimed count after two claims: got %d want %d", got, base-2)
 	}
-	if !w.board.isClaimed(a) || !w.board.isClaimed(b) {
+	if !w.home.board.isClaimed(a) || !w.home.board.isClaimed(b) {
 		t.Fatal("claimed tiles should report claimed")
 	}
 
 	// A non-owner release is a no-op; the owner release frees it.
-	w.board.releaseMine(a, 2)
-	if !w.board.isClaimed(a) {
+	w.home.board.releaseMine(a, 2)
+	if !w.home.board.isClaimed(a) {
 		t.Fatal("non-owner release should not free the claim")
 	}
-	w.board.releaseMine(a, 1)
-	if w.board.isClaimed(a) {
+	w.home.board.releaseMine(a, 1)
+	if w.home.board.isClaimed(a) {
 		t.Fatal("owner release should free the claim")
 	}
-	if got := w.board.unclaimedCount(); got != base-1 {
+	if got := w.home.board.unclaimedCount(); got != base-1 {
 		t.Fatalf("unclaimed count after one release: got %d want %d", got, base-1)
 	}
 }
@@ -114,8 +114,8 @@ func TestFrontierFieldExcludesClaimed(t *testing.T) {
 	if w.frontierField().at(inside) < 0 {
 		t.Fatal("frontier should be reachable before anything is claimed")
 	}
-	for p := range w.board.frontier {
-		w.board.claimMine(p, 1)
+	for p := range w.home.board.frontier {
+		w.home.board.claimMine(p, 1)
 	}
 	w.tick++ // fields rebuild at most once per tick; advance so the claim lands
 	if got := w.frontierField().at(inside); got >= 0 {

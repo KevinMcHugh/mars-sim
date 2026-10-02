@@ -26,17 +26,17 @@ func TestFixturesTrackFixtureTerrain(t *testing.T) {
 	p := Point{8, 8}
 	for _, kind := range []Terrain{NutrientPod, Toilet, Bed, Incinerator, Storage} {
 		w.SetTerrain(p, kind)
-		f := w.fixtures[p]
+		f := w.home.fixtures[p]
 		if f == nil || f.Terrain != kind || f.Owner != Community || f.Access != AccessCommunal {
 			t.Fatalf("%v: fixture = %+v, want a communal colony-owned record", kind, f)
 		}
 		w.SetTerrain(p, Floor)
-		if w.fixtures[p] != nil {
+		if w.home.fixtures[p] != nil {
 			t.Fatalf("%v: fixture survived its terrain being replaced", kind)
 		}
 	}
 	w.SetTerrain(p, Wall)
-	if w.fixtures[p] != nil {
+	if w.home.fixtures[p] != nil {
 		t.Fatal("a wall is not a fixture")
 	}
 }
@@ -54,20 +54,20 @@ func TestSetFixtureOwnerKeepsRestrictedCount(t *testing.T) {
 	if !w.setFixtureOwner(p, ColonistOwner(a.ID), AccessPrivate) {
 		t.Fatal("setFixtureOwner found no fixture")
 	}
-	if w.restrictedFixtures[Bed] != 1 {
-		t.Fatalf("restricted=%d after making the bed private", w.restrictedFixtures[Bed])
+	if w.home.restrictedFixtures[Bed] != 1 {
+		t.Fatalf("restricted=%d after making the bed private", w.home.restrictedFixtures[Bed])
 	}
 	w.tick++ // fields refresh at most once a tick
 	if d := w.facilityField(Bed).at(Point{10, 11}); d == 0 {
 		t.Fatal("the shared field still treats a private bed's access tile as a goal")
 	}
 	w.setFixtureOwner(p, ColonistOwner(a.ID), AccessPrivate) // no change
-	if w.restrictedFixtures[Bed] != 1 {
-		t.Fatalf("restricted=%d after a no-op change", w.restrictedFixtures[Bed])
+	if w.home.restrictedFixtures[Bed] != 1 {
+		t.Fatalf("restricted=%d after a no-op change", w.home.restrictedFixtures[Bed])
 	}
 	w.SetTerrain(p, Floor)
-	if w.restrictedFixtures[Bed] != 0 {
-		t.Fatalf("restricted=%d after the private bed was demolished", w.restrictedFixtures[Bed])
+	if w.home.restrictedFixtures[Bed] != 0 {
+		t.Fatalf("restricted=%d after the private bed was demolished", w.home.restrictedFixtures[Bed])
 	}
 	if w.setFixtureOwner(Point{12, 12}, Community, AccessCommunal) {
 		t.Fatal("setFixtureOwner succeeded on a tile with no fixture")
@@ -189,7 +189,7 @@ func TestStoringCreditsTheDepositor(t *testing.T) {
 	if !e.Inventory.Add(RawRock, rock) || !e.Inventory.Add(IronOre, 3) {
 		t.Fatal("test load did not fit")
 	}
-	container := w.storageContainers[chest]
+	container := w.home.storageContainers[chest]
 	container.Inventory.Add(Clay, 2)
 	container.credit(Community, Clay, 2)
 
@@ -240,7 +240,7 @@ func TestLedgerBalancesThroughALongRun(t *testing.T) {
 	for i := 0; i < 5000; i++ {
 		w.step()
 		lines = 0
-		for p, c := range w.storageContainers {
+		for p, c := range w.home.storageContainers {
 			if !c.ledgerBalanced() {
 				t.Fatalf("tick %d: chest %v ledger %+v does not match its contents", w.tick, p, c.Ledger)
 			}
@@ -308,9 +308,9 @@ func TestTheOwnedFixtureIndexMatchesTheRecords(t *testing.T) {
 		w.step()
 	}
 	indexed := 0
-	for p, f := range w.fixtures {
-		inOwned := w.ownedFixtures[f.Owner][p]
-		inPaid := w.paidFixtures[f.Terrain][p]
+	for p, f := range w.home.fixtures {
+		inOwned := w.home.ownedFixtures[f.Owner][p]
+		inPaid := w.home.paidFixtures[f.Terrain][p]
 		if inOwned != (f.Access != AccessCommunal) || inPaid != (f.Access == AccessPaid) {
 			t.Fatalf("fixture %v (%v, %v, owner %v) indexed owned=%v paid=%v", p, f.Terrain, f.Access, f.Owner, inOwned, inPaid)
 		}
@@ -332,7 +332,7 @@ func TestTheOwnedFixtureIndexMatchesTheRecords(t *testing.T) {
 				slow = true
 			}
 			room := w.roomOf(e.Pos)
-			for p := range w.facilityTiles[kind] {
+			for p := range w.home.facilityTiles[kind] {
 				if !w.communalFixture(p) && w.canUseFixture(e, p) && w.taskReachable(p, room) {
 					slow = true
 				}

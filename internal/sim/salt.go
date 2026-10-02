@@ -11,18 +11,18 @@ package sim
 
 // hasSalt reports whether p carries a salt deposit.
 func (w *World) hasSalt(p Point) bool {
-	_, ok := w.salt[p]
+	_, ok := w.home.salt[p]
 	return ok
 }
 
 // clearSalt destroys the deposit on p: something was built over it.
 func (w *World) clearSalt(p Point) {
-	if _, ok := w.salt[p]; !ok {
+	if _, ok := w.home.salt[p]; !ok {
 		return
 	}
-	delete(w.salt, p)
-	if _, exposed := w.exposedSalt[p]; exposed {
-		delete(w.exposedSalt, p)
+	delete(w.home.salt, p)
+	if _, exposed := w.home.exposedSalt[p]; exposed {
+		delete(w.home.exposedSalt, p)
 		w.saltRev++
 	}
 }
@@ -35,16 +35,16 @@ func (w *World) clearSalt(p Point) {
 // reach a frame.
 func (w *World) refreshSaltExposure(p Point) {
 	check := func(q Point) {
-		if _, ok := w.salt[q]; !ok {
+		if _, ok := w.home.salt[q]; !ok {
 			return
 		}
-		_, was := w.exposedSalt[q]
+		_, was := w.home.exposedSalt[q]
 		if now := w.scumExposed(q); now == was {
 			return
 		} else if now {
-			w.exposedSalt[q] = struct{}{}
+			w.home.exposedSalt[q] = struct{}{}
 		} else {
-			delete(w.exposedSalt, q)
+			delete(w.home.exposedSalt, q)
 		}
 		w.saltRev++
 	}

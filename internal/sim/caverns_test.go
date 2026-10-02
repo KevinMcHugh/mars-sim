@@ -50,8 +50,8 @@ func TestCavernsGenerateHidden(t *testing.T) {
 	if len(hidden) == 0 {
 		t.Fatal("no natural caverns generated")
 	}
-	if w.hiddenFloor != len(hidden) {
-		t.Fatalf("hiddenFloor = %d, but %d unexplored floor tiles exist", w.hiddenFloor, len(hidden))
+	if w.home.hiddenFloor != len(hidden) {
+		t.Fatalf("hiddenFloor = %d, but %d unexplored floor tiles exist", w.home.hiddenFloor, len(hidden))
 	}
 	// Cavern abundance is an expected value per chunk (see
 	// TestAbundanceDriftWithinTolerance), so a map this small only has to
@@ -76,7 +76,7 @@ func TestCavernsGenerateHidden(t *testing.T) {
 			}
 		}
 		for _, d := range neighbors8 {
-			if q := h.Add(d.X, d.Y); w.board.isFrontier(q) {
+			if q := h.Add(d.X, d.Y); w.home.board.isFrontier(q) {
 				t.Fatalf("rock %v beside undiscovered cavern %v is mining frontier", q, h)
 			}
 		}
@@ -100,8 +100,8 @@ func TestCavernPercentZeroGeneratesNone(t *testing.T) {
 	cfg := cavernTestConfig()
 	cfg.CavernPercent = 0
 	w := newTestWorld(t, cfg)
-	if w.hiddenFloor != 0 || len(hiddenFloorTiles(w)) != 0 {
-		t.Fatalf("CavernPercent 0 still generated %d hidden floor tiles", w.hiddenFloor)
+	if w.home.hiddenFloor != 0 || len(hiddenFloorTiles(w)) != 0 {
+		t.Fatalf("CavernPercent 0 still generated %d hidden floor tiles", w.home.hiddenFloor)
 	}
 }
 
@@ -124,12 +124,12 @@ func TestBreachingACavernRevealsItsWholeSystem(t *testing.T) {
 		t.Fatalf("hidden tile %v has no rock beside it to dig through", h)
 	}
 	cave := floorComponent(w, h)
-	before := w.hiddenFloor
+	before := w.home.hiddenFloor
 
 	w.SetTerrain(breach, Floor)
 	w.refreshSpatial()
 
-	if got, want := w.hiddenFloor, before-len(cave); got != want {
+	if got, want := w.home.hiddenFloor, before-len(cave); got != want {
 		t.Fatalf("hiddenFloor = %d after the breach, want %d (%d - the %d-tile system)", got, want, before, len(cave))
 	}
 	frontier := 0
@@ -146,7 +146,7 @@ func TestBreachingACavernRevealsItsWholeSystem(t *testing.T) {
 				t.Fatalf("rim tile %v of the breached cavern still unexplored", q)
 			}
 			if w.TerrainAt(q) == Rock {
-				if !w.board.isFrontier(q) {
+				if !w.home.board.isFrontier(q) {
 					t.Fatalf("cavern wall %v is not mining frontier after the breach", q)
 				}
 				frontier++
@@ -179,12 +179,12 @@ func cavernsOnly(t *testing.T, passagePercent int) (*World, []*genCavern) {
 	w := newWorld(cfg, newPCG(1))
 	c := Point{w.Width / 2, w.Height / 2}
 	r := cavernLandingClearance
-	w.gen = newWorldGenLanding(cfg, c.Add(-r, -r), c.Add(r, r))
+	w.home.gen = newWorldGenLanding(cfg, c.Add(-r, -r), c.Add(r, r))
 	var caves []*genCavern
-	for cy := 0; cy < w.gen.chunkRows(); cy++ {
-		for cx := 0; cx < w.gen.chunkCols(); cx++ {
+	for cy := 0; cy < w.home.gen.chunkRows(); cy++ {
+		for cx := 0; cx < w.home.gen.chunkCols(); cx++ {
 			w.applyChunk(cx, cy)
-			caves = append(caves, w.gen.keptCaverns(chunkKey{int32(cx), int32(cy)})...)
+			caves = append(caves, w.home.gen.keptCaverns(chunkKey{int32(cx), int32(cy)})...)
 		}
 	}
 	w.refreshSpatial()
@@ -266,8 +266,8 @@ func TestRoomLabelsWithCaverns(t *testing.T) {
 		}
 		w.refreshSpatial()
 		checkRoomLabels(t, w)
-		if got := len(hiddenFloorTiles(w)); got != w.hiddenFloor {
-			t.Fatalf("edit %d at %v: hiddenFloor %d, but %d unexplored floor tiles", step, p, w.hiddenFloor, got)
+		if got := len(hiddenFloorTiles(w)); got != w.home.hiddenFloor {
+			t.Fatalf("edit %d at %v: hiddenFloor %d, but %d unexplored floor tiles", step, p, w.home.hiddenFloor, got)
 		}
 	}
 }
@@ -309,13 +309,13 @@ func TestAlienNestsSpawnWhenBreached(t *testing.T) {
 	if n := w.countKind(Alien); n != 0 {
 		t.Fatalf("%d aliens exist before any cave was found", n)
 	}
-	if len(w.unfoundCaverns) == 0 {
+	if len(w.home.unfoundCaverns) == 0 {
 		t.Fatal("no caverns tracked for nests")
 	}
 
 	cave := breachBeside(t, w, hiddenFloorTiles(w)[0])
 	for _, p := range cave {
-		if _, ok := w.unfoundCaverns[p]; ok {
+		if _, ok := w.home.unfoundCaverns[p]; ok {
 			t.Fatalf("cavern center %v still unfound after the breach", p)
 		}
 	}

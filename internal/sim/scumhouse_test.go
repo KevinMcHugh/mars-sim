@@ -71,7 +71,7 @@ func TestCleanersFeedTheScumhouseAndBurnOnlyTheDead(t *testing.T) {
 	for i := 0; i < 200 && cleaner.Job == JobClean; i++ {
 		w.jobClean(cleaner)
 	}
-	c := w.storageContainers[house]
+	c := w.home.storageContainers[house]
 	if c.held(Community, AlienCorpse) != 1 || c.held(Community, Viscera) != 1 {
 		t.Fatalf("scumhouse ledger = %+v, want the colony's alien carcass and viscera", c.Ledger)
 	}
@@ -110,7 +110,7 @@ func TestWithoutAnIncineratorColonistsBodiesStay(t *testing.T) {
 			w.jobClean(cleaner)
 		}
 	}
-	if w.storageContainers[house].held(Community, AnimalCorpse) != 1 {
+	if w.home.storageContainers[house].held(Community, AnimalCorpse) != 1 {
 		t.Fatal("the animal carcass never reached the scumhouse")
 	}
 	if w.corpsesOfAt(Point{10, 10}, ColonistCorpse) != 1 || cleaner.Inventory.Has(ColonistCorpse) {
@@ -122,7 +122,7 @@ func TestWithoutAnIncineratorColonistsBodiesStay(t *testing.T) {
 // The meals are not free: the scumhouse sells them, and a colonist buys one.
 func TestCookingTurnsTheColonysScumIntoItsMeals(t *testing.T) {
 	w, house := scumhouseWorld(t, false)
-	c := w.storageContainers[house]
+	c := w.home.storageContainers[house]
 	c.Inventory.Add(CaveScum, 2)
 	c.credit(Community, CaveScum, 2)
 	cook := w.spawn(Colonist, Point{12, 10})
@@ -178,7 +178,7 @@ func TestScumScrapedBareIsGone(t *testing.T) {
 	if w.takeScum(p) {
 		t.Fatal("scraped an empty patch")
 	}
-	if _, ok := w.scum[p]; ok {
+	if _, ok := w.home.scum[p]; ok {
 		t.Fatal("a bare patch is still on the map")
 	}
 	w.setScum(p, 1)
@@ -224,7 +224,7 @@ func TestScumSpawnsAndSpreads(t *testing.T) {
 		w.growScum()
 		w.tick++
 	}
-	for p := range w.scum {
+	for p := range w.home.scum {
 		if p == seed {
 			continue
 		}
@@ -243,12 +243,12 @@ func TestScumSpawnsAndSpreads(t *testing.T) {
 	}
 	cfg.ScumSpawnPPM, cfg.ScumSpreadPercent = 0, 0
 	w2 := newTestWorld(t, cfg)
-	before := len(w2.scum)
+	before := len(w2.home.scum)
 	for i := 0; i < 400; i++ {
 		w2.growScum()
 		w2.tick++
 	}
-	if len(w2.scum) != before {
+	if len(w2.home.scum) != before {
 		t.Fatal("scum grew with both rates at zero")
 	}
 }
@@ -272,7 +272,7 @@ func TestScumSpawnsAtItsRateOnAnyMap(t *testing.T) {
 		w := newTestWorld(t, cfg)
 		noScum(w)
 		rock := 0
-		for _, k := range w.genChunks {
+		for _, k := range w.home.genChunks {
 			for off := 0; off < genChunkArea; off++ {
 				p := Point{int(k.cx)<<genChunkBits + off%genChunkSize, int(k.cy)<<genChunkBits + off/genChunkSize}
 				if w.InBounds(p) && w.TerrainAt(p) == Rock {
@@ -287,9 +287,9 @@ func TestScumSpawnsAtItsRateOnAnyMap(t *testing.T) {
 		// Each rock tile rolls ticks/16 visits at 1%; a second spawn on a
 		// tile thickens its patch rather than making another.
 		want := float64(rock) * (1 - math.Exp(-ticks/float64(scumTrialDivisor)*0.01))
-		if got := float64(len(w.scum)); math.Abs(got-want) > want*0.05 {
+		if got := float64(len(w.home.scum)); math.Abs(got-want) > want*0.05 {
 			t.Errorf("%dx%d map, %d chunks: %.0f patches spawned in %d ticks, want about %.0f",
-				size, size, len(w.genChunks), got, ticks, want)
+				size, size, len(w.home.genChunks), got, ticks, want)
 		}
 		assertScumPatchesListed(t, w)
 	}
@@ -310,10 +310,10 @@ func TestScumSpreadsAtItsRateOnAnyMap(t *testing.T) {
 		w.cfg.ScumMax = 1 << 30
 		w.cfg.ScumSpawnPPM, w.cfg.ScumSpreadPercent = 0, 40
 		before, landing := 0, 0
-		for p, s := range w.scum {
+		for p, s := range w.home.scum {
 			before += s.amount
 			for _, d := range neighbors9 {
-				if _, ok := w.scum[p.Add(d.X, d.Y)]; ok {
+				if _, ok := w.home.scum[p.Add(d.X, d.Y)]; ok {
 					landing++
 				}
 			}
@@ -323,13 +323,13 @@ func TestScumSpreadsAtItsRateOnAnyMap(t *testing.T) {
 			w.tick++
 		}
 		after := 0
-		for _, s := range w.scum {
+		for _, s := range w.home.scum {
 			after += s.amount
 		}
 		want := float64(landing) / 9 * 0.40 / scumTrialDivisor * ticks
 		if got := float64(after - before); math.Abs(got-want) > want*0.05 {
 			t.Errorf("%dx%d map, %d patches: spread added %.0f units in %d ticks, want about %.0f",
-				size, size, len(w.scum), got, ticks, want)
+				size, size, len(w.home.scum), got, ticks, want)
 		}
 	}
 }
@@ -338,14 +338,14 @@ func TestScumSpreadsAtItsRateOnAnyMap(t *testing.T) {
 // on the map, in cmpScumPatch order: growScum draws from it.
 func assertScumPatchesListed(t *testing.T, w *World) {
 	t.Helper()
-	if len(w.scumPatches) != len(w.scum) {
-		t.Fatalf("scumPatches lists %d patches, the map holds %d", len(w.scumPatches), len(w.scum))
+	if len(w.home.scumPatches) != len(w.home.scum) {
+		t.Fatalf("scumPatches lists %d patches, the map holds %d", len(w.home.scumPatches), len(w.home.scum))
 	}
-	if !slices.IsSortedFunc(w.scumPatches, cmpScumPatch) {
+	if !slices.IsSortedFunc(w.home.scumPatches, cmpScumPatch) {
 		t.Fatal("scumPatches is out of order")
 	}
-	for _, p := range w.scumPatches {
-		if _, ok := w.scum[p]; !ok {
+	for _, p := range w.home.scumPatches {
+		if _, ok := w.home.scum[p]; !ok {
 			t.Fatalf("scumPatches lists %v, which has no patch", p)
 		}
 	}
@@ -357,14 +357,14 @@ func TestExposedScumIndexStaysInStep(t *testing.T) {
 	cfg := testConfig()
 	cfg.Width, cfg.Height = 60, 36
 	w := newTestWorld(t, cfg)
-	if len(w.scum) == 0 {
+	if len(w.home.scum) == 0 {
 		t.Fatal("worldgen seeded no scum")
 	}
 	for i := 0; i < 1500; i++ {
 		w.step()
 	}
-	for p := range w.scum {
-		_, indexed := w.exposedScum[p]
+	for p := range w.home.scum {
+		_, indexed := w.home.exposedScum[p]
 		if indexed != w.scumExposed(p) {
 			t.Fatalf("patch %v: indexed %v, exposed %v", p, indexed, w.scumExposed(p))
 		}
@@ -389,7 +389,7 @@ func TestScrapersBringScumInForTheColony(t *testing.T) {
 	for i := 0; i < 400 && s.Job == JobScrape; i++ {
 		w.jobScrape(s)
 	}
-	if got := w.storageContainers[house].held(Community, CaveScum); got != w.cfg.ScumMax {
+	if got := w.home.storageContainers[house].held(Community, CaveScum); got != w.cfg.ScumMax {
 		t.Fatalf("scumhouse holds %d of the colony's scum, want %d", got, w.cfg.ScumMax)
 	}
 	if s.Inventory.Has(CaveScum) || s.foreignCargo(CaveScum) != 0 {
@@ -416,7 +416,7 @@ func TestAHungryScraperKeepsItsScum(t *testing.T) {
 		w.jobScrape(s)
 	}
 	me := ColonistOwner(s.ID)
-	if got := w.storageContainers[house].held(me, CaveScum); got != w.cfg.ScumMax {
+	if got := w.home.storageContainers[house].held(me, CaveScum); got != w.cfg.ScumMax {
 		t.Fatalf("the scraper owns %d scum at the scumhouse, want %d", got, w.cfg.ScumMax)
 	}
 	if !w.tryAssignFoodWork(s, true) || s.Job != JobCraft || s.craftFor != me {
@@ -469,7 +469,7 @@ func TestConstructionCostsAreSpentFromTheBuildersStock(t *testing.T) {
 	chest := Point{8, 12}
 	w.SetTerrain(chest, Storage)
 	w.refreshSpatial()
-	c := w.storageContainers[chest]
+	c := w.home.storageContainers[chest]
 	c.Inventory.Add(RawRock, 1)
 	c.credit(ColonistOwner(b.ID), RawRock, 1)
 	task, ok := w.claimNearestTask(b.Pos, b.ID)
@@ -538,14 +538,14 @@ func TestHiddenCavernScumIsNotExposedUntilFound(t *testing.T) {
 	cellAt(w, rim).Explored = false
 	w.setScum(rim, w.cfg.ScumMax)
 	w.refreshScumExposure(rim)
-	if _, ok := w.exposedScum[rim]; ok {
+	if _, ok := w.home.exposedScum[rim]; ok {
 		t.Fatal("scum on a hidden cavern's rim is exposed before anyone found the cavern")
 	}
 	w.SetTerrain(Point{7, 5}, Floor) // breaks into the cavern, away from the rim tile
 	if !w.discovered(Point{6, 3}) {
 		t.Fatal("digging beside the cavern did not discover it")
 	}
-	if _, ok := w.exposedScum[rim]; !ok {
+	if _, ok := w.home.exposedScum[rim]; !ok {
 		t.Fatal("scum on a found cavern's rim is not exposed")
 	}
 }
@@ -566,7 +566,7 @@ func TestPublishedScumIsNeverStale(t *testing.T) {
 			reused++
 		}
 		want := map[Point]uint8{}
-		for p := range w.exposedScum {
+		for p := range w.home.exposedScum {
 			if n := w.scumAt(p); n > 0 {
 				want[p] = uint8(n)
 			}
@@ -612,7 +612,7 @@ func TestScumhouseRoomHasALinkedPantry(t *testing.T) {
 	if pantry != house.Add(2, 0) {
 		t.Fatalf("pantry at %v, want two tiles along from the scumhouse at %v", pantry, house)
 	}
-	if w.pantryOf[house] != pantry {
+	if w.home.pantryOf[house] != pantry {
 		t.Fatal("the planner did not link the pantry to its scumhouse")
 	}
 	// Wide or narrow, the tile between the stove and the pantry is floor, so
@@ -634,14 +634,14 @@ func TestTheCookDoesNotBlockThePantry(t *testing.T) {
 	house, pantry := Point{10, 6}, Point{12, 6}
 	w.SetTerrain(house, Scumhouse)
 	w.SetTerrain(pantry, Storage)
-	w.pantryOf[house], w.pantryHouse[pantry] = pantry, house
+	w.home.pantryOf[house], w.home.pantryHouse[pantry] = pantry, house
 	// Walls either side of the stove, as in a narrow room: its one open
 	// access tile below it is where the cook will stand.
 	w.SetTerrain(Point{9, 6}, Wall)
 	w.SetTerrain(Point{9, 7}, Wall)
 	w.SetTerrain(Point{11, 7}, Wall)
 	w.refreshSpatial()
-	c := w.storageContainers[house]
+	c := w.home.storageContainers[house]
 	c.Inventory.Add(CaveScum, 2)
 	c.credit(Community, CaveScum, 2)
 
@@ -652,7 +652,7 @@ func TestTheCookDoesNotBlockThePantry(t *testing.T) {
 	for i := 0; i < 200 && cook.Job == JobCraft; i++ {
 		w.jobCraft(cook)
 	}
-	if got := w.storageContainers[pantry].held(Community, Meal) + w.openQty(Ask, Meal, pantry, Community); got != 1 {
+	if got := w.home.storageContainers[pantry].held(Community, Meal) + w.openQty(Ask, Meal, pantry, Community); got != 1 {
 		t.Fatalf("the pantry holds %d of the colony's meals, want the 1 just cooked", got)
 	}
 	if c.Inventory.Count(Meal) != 0 {
@@ -664,7 +664,7 @@ func TestTheCookDoesNotBlockThePantry(t *testing.T) {
 	}
 	buyer := w.spawn(Colonist, Point{16, 10})
 	buyer.Needs[NeedFood] = w.cfg.Needs[NeedFood].Max
-	if !w.tryBuyMeal(buyer) || w.storageContainers[pantry].held(ColonistOwner(buyer.ID), Meal) != 1 {
+	if !w.tryBuyMeal(buyer) || w.home.storageContainers[pantry].held(ColonistOwner(buyer.ID), Meal) != 1 {
 		t.Fatal("a hungry colonist could not buy the meal at the pantry")
 	}
 	assertMoneyConserved(t, w)

@@ -49,12 +49,12 @@ func (w *World) samplePopulation() {
 	s := PopulationSample{
 		Tick:       w.tick,
 		Colonists:  w.countKind(Colonist),
-		ColonySize: w.terrainCounts[Floor] - w.hiddenFloor,
-		Fixtures:   len(w.fixtures),
+		ColonySize: w.home.terrainCounts[Floor] - w.home.hiddenFloor,
+		Fixtures:   len(w.home.fixtures),
 		Activity:   w.actTally,
 		Walking:    w.walkTally,
 	}
-	for _, c := range w.storageContainers {
+	for _, c := range w.home.storageContainers {
 		s.Meals += c.Inventory.Count(Meal)
 	}
 	h := w.popHist

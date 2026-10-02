@@ -346,7 +346,7 @@ func benchmarkFirstPublish(b *testing.B, mode TileSharing) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		b.StopTimer()
-		w.snapGrid = nil // force a first frame
+		w.home.snapGrid = nil // force a first frame
 		runtime.GC()
 		runtime.ReadMemStats(&ms)
 		before := int64(ms.HeapAlloc)

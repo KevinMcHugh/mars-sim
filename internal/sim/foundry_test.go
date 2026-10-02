@@ -63,7 +63,7 @@ func TestARifleBidReachesTheSilo(t *testing.T) {
 	if depth < 3 {
 		t.Fatalf("deepest plan was %d links below the rifle bid, want 3", depth)
 	}
-	if got := w.storageContainers[silo].held(Community, AssaultRifle); got != 1 {
+	if got := w.home.storageContainers[silo].held(Community, AssaultRifle); got != 1 {
 		t.Fatalf("the colony holds %d rifles at the silo, want 1", got)
 	}
 	traded := map[ItemKind]Point{}
@@ -105,10 +105,10 @@ func TestOwnOreFillsTheForge(t *testing.T) {
 			miner.Needs[k] = 0
 		}
 	}
-	if got := w.storageContainers[forge].held(smith, IronOre); got != 2 {
+	if got := w.home.storageContainers[forge].held(smith, IronOre); got != 2 {
 		t.Fatalf("the smith holds %d ore at the forge, want 2", got)
 	}
-	if got := w.storageContainers[chest].held(ColonistOwner(miner.ID), IronOre); got != 3 {
+	if got := w.home.storageContainers[chest].held(ColonistOwner(miner.ID), IronOre); got != 3 {
 		t.Fatalf("the miner kept %d ore in its chest, want 3", got)
 	}
 

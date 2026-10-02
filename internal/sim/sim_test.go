@@ -260,8 +260,8 @@ func worldFingerprint(w *World) map[string]string {
 	var tiles, regions, rooms uint64 = fnvSeed, fnvSeed, fnvSeed
 	for y := 0; y < w.Height; y++ {
 		for x := 0; x < w.Width; x++ {
-			tiles = fnvAdd(tiles, uint64(w.tiles.at(x, y).Terrain))
-			regions = fnvAdd(regions, uint64(w.regionOf.at(x, y)))
+			tiles = fnvAdd(tiles, uint64(w.home.tiles.at(x, y).Terrain))
+			regions = fnvAdd(regions, uint64(w.home.regionOf.at(x, y)))
 			rooms = fnvAdd(rooms, uint64(w.roomOf(Point{x, y})))
 		}
 	}
@@ -269,8 +269,8 @@ func worldFingerprint(w *World) map[string]string {
 	f["regions"] = strconv.FormatUint(regions, 16)
 	f["rooms"] = strconv.FormatUint(rooms, 16)
 
-	f["frontier"] = sortedPointOwners(w.board.frontier, w.board.claimed)
-	f["cleaning"] = sortedPointOwners(nil, w.board.cleaning)
+	f["frontier"] = sortedPointOwners(w.home.board.frontier, w.home.board.claimed)
+	f["cleaning"] = sortedPointOwners(nil, w.home.board.cleaning)
 
 	// Who owns what: balances, every fixture's owner and access, and every
 	// ledger line. The economy's decisions (who pays, whose ore) must be as
@@ -355,7 +355,7 @@ func denseTiles(w *World) []tileCell {
 	out := make([]tileCell, 0, w.Width*w.Height)
 	for y := 0; y < w.Height; y++ {
 		for x := 0; x < w.Width; x++ {
-			out = append(out, w.tiles.at(x, y))
+			out = append(out, w.home.tiles.at(x, y))
 		}
 	}
 	return out
@@ -363,7 +363,7 @@ func denseTiles(w *World) []tileCell {
 
 // cellAt returns the stored record at the in-bounds p, for tests that set up
 // composition directly.
-func cellAt(w *World, p Point) *tileCell { return w.tiles.ptr(p.X, p.Y) }
+func cellAt(w *World, p Point) *tileCell { return w.home.tiles.ptr(p.X, p.Y) }
 
 func floorCount(w *World) int {
 	n := 0
@@ -1419,7 +1419,7 @@ func TestFacilityRoomHasCompleteWallsDoorAndBuildPhases(t *testing.T) {
 // A room's doorway is only safe from being trapped if nothing can ever build
 // over the single exterior tile the door opens onto — including a later,
 // unrelated room. That tile carries no build task of its own (see
-// designateRoom), so without w.doorTiles it looks like ordinary, unclaimed
+// designateRoom), so without w.home.doorTiles it looks like ordinary, unclaimed
 // floor to a new room's site check, and a room sited to reuse an existing
 // wall as backing can land its own side wall right on top of it.
 func TestRoomSiteClearRejectsCoveringAnotherRoomsDoorway(t *testing.T) {
@@ -1461,7 +1461,7 @@ func TestRoomSiteClearRejectsCoveringAnotherRoomsDoorway(t *testing.T) {
 
 	frontYA := roomFrontWallY(siteA.Y)
 	doorA := Point{siteA.X + widthA/2, frontYA + roomApproach}
-	if !w.doorTiles[doorA] {
+	if !w.home.doorTiles[doorA] {
 		t.Fatalf("designateRoom did not reserve %v as room A's door tile", doorA)
 	}
 
@@ -1471,11 +1471,11 @@ func TestRoomSiteClearRejectsCoveringAnotherRoomsDoorway(t *testing.T) {
 	siteB := Point{doorA.X + 1, doorA.Y + 1}
 	widthB := bayWidth(2)
 
-	delete(w.doorTiles, doorA)
+	delete(w.home.doorTiles, doorA)
 	if !w.roomSiteClear(siteB.X, siteB.Y, widthB, map[Point]bool{}, false) {
 		t.Fatal("test geometry does not actually reach room A's doorway tile; not exercising the fix")
 	}
-	w.doorTiles[doorA] = true
+	w.home.doorTiles[doorA] = true
 
 	if w.roomSiteClear(siteB.X, siteB.Y, widthB, map[Point]bool{}, false) {
 		t.Fatalf("room B's site was accepted even though its side wall would cover room A's doorway tile %v", doorA)

@@ -291,8 +291,8 @@ func (w *World) publishedSalt() map[Point]struct{} {
 	if w.snapSalt != nil && w.snapSaltRev == w.saltRev {
 		return w.snapSalt
 	}
-	out := make(map[Point]struct{}, len(w.exposedSalt))
-	for p := range w.exposedSalt {
+	out := make(map[Point]struct{}, len(w.home.exposedSalt))
+	for p := range w.home.exposedSalt {
 		out[p] = struct{}{}
 	}
 	w.snapSalt, w.snapSaltRev = out, w.saltRev
@@ -309,8 +309,8 @@ func (w *World) publishedScum() map[Point]uint8 {
 	if w.snapScum != nil && w.snapScumRev == w.scumRev {
 		return w.snapScum
 	}
-	out := make(map[Point]uint8, len(w.exposedScum))
-	for p := range w.exposedScum {
+	out := make(map[Point]uint8, len(w.home.exposedScum))
+	for p := range w.home.exposedScum {
 		if n := w.scumAt(p); n > 0 {
 			out[p] = uint8(min(n, math.MaxUint8)) // scum-max is validated to fit; never wrap
 		}
@@ -552,19 +552,19 @@ func (w *World) snapshot(paused bool, tps int) *Snapshot {
 	// every tick, which is exactly what the shared grid above avoids.
 	stats := Stats{
 		Rooms:         len(w.discoveredRooms),
-		FloorDug:      w.terrainCounts[Floor] - w.hiddenFloor,
+		FloorDug:      w.home.terrainCounts[Floor] - w.home.hiddenFloor,
 		ExploredTiles: w.exploredTilesStat(),
-		Pods:          w.terrainCounts[NutrientPod],
-		Toilets:       w.terrainCounts[Toilet],
-		Beds:          w.terrainCounts[Bed],
+		Pods:          w.home.terrainCounts[NutrientPod],
+		Toilets:       w.home.terrainCounts[Toilet],
+		Beds:          w.home.terrainCounts[Bed],
 
-		Incinerators:      w.terrainCounts[Incinerator],
-		StorageContainers: w.terrainCounts[Storage],
+		Incinerators:      w.home.terrainCounts[Incinerator],
+		StorageContainers: w.home.terrainCounts[Storage],
 		Refuse:            w.refuseTotal(),
-		ChunksGenerated:   len(w.genChunks),
+		ChunksGenerated:   len(w.home.genChunks),
 	}
-	if w.gen != nil {
-		stats.Chunks = w.gen.chunkCols() * w.gen.chunkRows()
+	if w.home.gen != nil {
+		stats.Chunks = w.home.gen.chunkCols() * w.home.gen.chunkRows()
 	}
 	for _, e := range w.entities {
 		ev := w.entityView(e, kinChildren, true)
@@ -646,15 +646,15 @@ func (w *World) snapshot(paused bool, tps int) *Snapshot {
 		Paused:               paused,
 		TicksPerSecond:       tps,
 		FogOfWar:             w.cfg.FogOfWar,
-		preview:              w.preview,
+		preview:              w.home.preview,
 	}
 }
 
 // snapshotStorages copies every storage container, ledger included, sorted by
 // position so the list never depends on map iteration order.
 func (w *World) snapshotStorages() []StorageView {
-	storages := make([]StorageView, 0, len(w.storageContainers))
-	for _, container := range w.storageContainers {
+	storages := make([]StorageView, 0, len(w.home.storageContainers))
+	for _, container := range w.home.storageContainers {
 		storages = append(storages, StorageView{
 			Pos:       container.Pos,
 			Terrain:   container.Terrain,
@@ -743,5 +743,5 @@ func (w *World) exploredTilesStat() int {
 	if !w.cfg.FogOfWar {
 		return 0
 	}
-	return w.exploredCount
+	return w.home.exploredCount
 }

@@ -96,8 +96,8 @@ func TestHPADeterministic(t *testing.T) {
 // regions.
 func TestAbstractCorridorConnects(t *testing.T) {
 	w := detourWorld(96)
-	sr := w.regionOf.at(5, 20)
-	gr := w.regionOf.at(90, 20)
+	sr := w.home.regionOf.at(5, 20)
+	gr := w.home.regionOf.at(90, 20)
 	if sr == 0 || gr == 0 || sr == gr {
 		t.Fatalf("expected two distinct regions, got %d and %d", sr, gr)
 	}

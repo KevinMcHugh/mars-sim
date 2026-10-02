@@ -137,7 +137,7 @@ func TestAMasterChefCooksMore(t *testing.T) {
 	house := Point{10, 6}
 	w.SetTerrain(house, Scumhouse)
 	w.refreshSpatial()
-	c := w.storageContainers[house]
+	c := w.home.storageContainers[house]
 	c.Inventory.Add(CaveScum, 20)
 	c.credit(Community, CaveScum, 20)
 	cook := w.spawn(Colonist, Point{10, 7})
@@ -149,7 +149,7 @@ func TestAMasterChefCooksMore(t *testing.T) {
 	for i := 0; i < 1000 && cook.Job == JobCraft; i++ {
 		w.jobCraft(cook)
 	}
-	out := w.storageContainers[w.outputDepot(house)]
+	out := w.home.storageContainers[w.outputDepot(house)]
 	meals := out.held(Community, Meal) + w.openQty(Ask, Meal, out.Pos, Community)
 	// It cooks all 20 scum, 10 recipes of 2 scum for 1 meal; at 130% the
 	// accumulator passes 100 three times.

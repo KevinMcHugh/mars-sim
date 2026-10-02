@@ -72,7 +72,7 @@ func TestExploredTilesCountMatchesTheExploredSet(t *testing.T) {
 	// first time — see World.reveal).
 	before := w.snapshot(false, 8).Stats.ExploredTiles
 	var target Point
-	for p := range w.board.frontier {
+	for p := range w.home.board.frontier {
 		target = p
 		break
 	}
@@ -111,7 +111,7 @@ func TestDiggingLiftsTheFogAheadOfIt(t *testing.T) {
 	// frontier tile on a map bigger than the cavern.
 	var target Point
 	var hidden []Point
-	for p := range w.board.frontier {
+	for p := range w.home.board.frontier {
 		for _, d := range neighbors8 {
 			if q := p.Add(d.X, d.Y); w.InBounds(q) && !w.Explored(q) {
 				hidden = append(hidden, q)
@@ -152,7 +152,7 @@ func TestRevealsReachThePublishedSnapshot(t *testing.T) {
 
 	var target, hidden Point
 	found := false
-	for p := range w.board.frontier {
+	for p := range w.home.board.frontier {
 		for _, d := range neighbors8 {
 			if q := p.Add(d.X, d.Y); w.InBounds(q) && !w.Explored(q) {
 				target, hidden, found = p, q, true
@@ -231,7 +231,7 @@ func TestExplorationOnlyGrows(t *testing.T) {
 	}
 	// Wall off the cavern's rim for good measure: a build is a terrain change
 	// that makes a tile less walkable, not more.
-	for p := range w.board.frontier {
+	for p := range w.home.board.frontier {
 		w.SetTerrain(p, Wall)
 		break
 	}

@@ -35,7 +35,7 @@ func hungryColonist(w *World, p Point) *Entity {
 func TestAHungryColonistFinishesWhatItStarts(t *testing.T) {
 	w, _ := forageWorld(t)
 	e := hungryColonist(w, Point{22, 10})
-	rock := w.terrainCounts[Rock]
+	rock := w.home.terrainCounts[Rock]
 	starts := 0
 	for i := 0; i < 60; i++ {
 		before := e.Job
@@ -44,7 +44,7 @@ func TestAHungryColonistFinishesWhatItStarts(t *testing.T) {
 			starts++
 		}
 	}
-	if dug := rock - w.terrainCounts[Rock]; dug == 0 {
+	if dug := rock - w.home.terrainCounts[Rock]; dug == 0 {
 		t.Fatalf("60 hungry turns and no rock dug (%d jobs started): it is dropping and re-taking its work", starts)
 	}
 	if starts > 20 {
@@ -60,7 +60,7 @@ func TestAHungryColonistDropsUnrelatedWorkForGood(t *testing.T) {
 	w.SetTerrain(Point{15, 10}, Rock) // a pillar: nearest rock, nothing unseen round it
 	w.refreshSpatial()
 	w.assignMineTarget(e, Point{15, 10})
-	w.board.claimMine(Point{15, 10}, e.ID)
+	w.home.board.claimMine(Point{15, 10}, e.ID)
 	w.hungryWithoutFood(e)
 	if e.Job != JobMine || !e.foraging || e.Target == (Point{15, 10}) {
 		t.Fatalf("job %v target %v foraging %v; want a forager's dig into unseen rock, not the pillar",
@@ -81,8 +81,8 @@ func TestAForagerDigsOutItsSupper(t *testing.T) {
 			}
 		}
 	}
-	if len(w.exposedScum) != 0 {
-		t.Fatalf("%d patches exposed before any digging", len(w.exposedScum))
+	if len(w.home.exposedScum) != 0 {
+		t.Fatalf("%d patches exposed before any digging", len(w.home.exposedScum))
 	}
 	e := hungryColonist(w, Point{14, 10})
 	id := e.ID
@@ -105,7 +105,7 @@ func TestAForagerDigsOutItsSupper(t *testing.T) {
 	if !logged {
 		t.Fatal("fed without ever logging that it went foraging")
 	}
-	if dug := w.exploredCount; dug == 0 {
+	if dug := w.home.exploredCount; dug == 0 {
 		t.Fatal("nothing explored")
 	}
 }
@@ -116,7 +116,7 @@ func TestAForagerDigsOutItsSupper(t *testing.T) {
 // wait at all.
 func TestAForagerWaitsForTheColonysCooking(t *testing.T) {
 	w, house := forageWorld(t)
-	c := w.storageContainers[house]
+	c := w.home.storageContainers[house]
 	c.Inventory.Add(CaveScum, 2)
 	c.credit(Community, CaveScum, 2) // one meal's worth
 	cook := w.spawn(Colonist, Point{11, 7})
@@ -130,7 +130,7 @@ func TestAForagerWaitsForTheColonysCooking(t *testing.T) {
 		}
 	}
 	cook.Job, cook.Target, cook.craftFor = JobCraft, house, Community
-	w.workshopClaims[house] = cook.ID
+	w.home.workshopClaims[house] = cook.ID
 	e := hungryColonist(w, Point{14, 10})
 	e.focus = FocusEat
 	if w.planForage(e) {
@@ -212,7 +212,7 @@ func TestProspectingPrefersTheUnknown(t *testing.T) {
 	}
 	dig := w.workTicks(e, SkillMining, w.cfg.MineTicks)
 	got := w.unexploredAround(e.Target) * 1000 / (dig + e.Pos.Chebyshev(e.Target))
-	for p := range w.board.frontier {
+	for p := range w.home.board.frontier {
 		if p == e.Target || !w.frontierReachable(p, w.roomOf(e.Pos)) {
 			continue
 		}

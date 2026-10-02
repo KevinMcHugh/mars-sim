@@ -31,8 +31,8 @@ func TestPreviewMatchesGeneration(t *testing.T) {
 	if len(previewed) == 0 {
 		t.Fatal("nothing was previewed: every chunk is already generated")
 	}
-	for cy := 0; cy < w.gen.chunkRows(); cy++ {
-		for cx := 0; cx < w.gen.chunkCols(); cx++ {
+	for cy := 0; cy < w.home.gen.chunkRows(); cy++ {
+		for cx := 0; cx < w.home.gen.chunkCols(); cx++ {
 			w.generateChunk(cx, cy)
 		}
 	}

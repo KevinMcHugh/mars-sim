@@ -98,14 +98,14 @@ func TestPagedGridsStaySparse(t *testing.T) {
 	// The colony is a 60x60 chamber plus whatever it has dug, well inside a
 	// 4x4 block of 64x64 pages. Aliens roam through rock and drag the
 	// occupancy index wider than the rest, so it gets more room.
-	full := len(w.regionOf.pages)
+	full := len(w.home.regionOf.pages)
 	for _, c := range []struct {
 		name  string
 		pages int
 		max   int
 	}{
-		{"regionOf", w.regionOf.pagesAllocated(), 16},
-		{"occ", w.occ.pagesAllocated(), 128},
+		{"regionOf", w.home.regionOf.pagesAllocated(), 16},
+		{"occ", w.home.occ.pagesAllocated(), 128},
 		{"facilityCells", w.facilityCells.pagesAllocated(), 16},
 		{"transitSeen", w.transitSeen.pagesAllocated(), 16},
 		{"pathfinder cells", w.pf.cells.pagesAllocated(), 16},

@@ -5,9 +5,9 @@ import "testing"
 // noScum clears worldgen's cave scum, so a test's only food is what it puts
 // down itself.
 func noScum(w *World) {
-	w.scum = map[Point]scumPatch{}
-	w.exposedScum = map[Point]struct{}{}
-	w.scumPatches = nil
+	w.home.scum = map[Point]scumPatch{}
+	w.home.exposedScum = map[Point]struct{}{}
+	w.home.scumPatches = nil
 }
 
 // hungryRat puts a rat at p with its hunger just past seeking.

@@ -63,7 +63,7 @@ func (pf *pathfinder) paintCorridor(corridor map[RegionID]bool) {
 		// A chunk sits inside one page of each grid, so both lookups hoist out
 		// of the sweep. Painting a corridor stamps every tile of every chunk it
 		// crosses, which made this the single hottest paged read in the search.
-		regions := w.regionOf.pageAt(x0, y0)
+		regions := w.home.regionOf.pageAt(x0, y0)
 		if regions == nil {
 			continue // no region in this chunk, so none of it is rid
 		}
@@ -106,7 +106,7 @@ func (pf *pathfinder) toAdjacent(start, target Point, useCorridor bool) ([]Point
 		// Off a page edge all eight neighbours' tiles share this node's page:
 		// one lookup instead of eight. Tiles past the map's edge in the last
 		// page are never written, so they read as Rock without a bounds test.
-		tiles := w.tiles.interiorPage(cp.X, cp.Y)
+		tiles := w.home.tiles.interiorPage(cp.X, cp.Y)
 		for _, d := range neighbors8 {
 			np := cp.Add(d.X, d.Y)
 			if tiles != nil {
@@ -242,8 +242,8 @@ func (w *World) pathToAdjacent(from, target Point) ([]Point, bool) {
 
 	// Short or same-region trips: a flat tile search already explores little, so
 	// skip the abstract routing overhead.
-	startRegion := w.regionOf.at(from.X, from.Y)
-	goalRegion := w.regionOf.at(goalCell.X, goalCell.Y)
+	startRegion := w.home.regionOf.at(from.X, from.Y)
+	goalRegion := w.home.regionOf.at(goalCell.X, goalCell.Y)
 	if startRegion == goalRegion || from.Chebyshev(target) <= 2*chunkSize {
 		return w.pf.toAdjacent(from, target, false)
 	}

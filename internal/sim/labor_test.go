@@ -104,9 +104,9 @@ func TestAColonistCommissionsAndPaysForAHouse(t *testing.T) {
 	for _, task := range house.tasks {
 		switch task.terrain {
 		case Bed:
-			bed = w.fixtures[task.pos]
+			bed = w.home.fixtures[task.pos]
 		case Toilet:
-			toilet = w.fixtures[task.pos]
+			toilet = w.home.fixtures[task.pos]
 		}
 	}
 	if bed == nil || toilet == nil {
@@ -171,13 +171,13 @@ func TestTheColonyBuysBiomatterAtItsScumhouse(t *testing.T) {
 	s := w.spawn(Colonist, Point{12, 12})
 	start, treasury := s.wallet, w.treasury+w.moneyEscrowed()
 	s.Inventory.Add(CaveScum, 3)
-	if !w.deliverBiomatter(s, w.storageContainers[house]) {
+	if !w.deliverBiomatter(s, w.home.storageContainers[house]) {
 		t.Fatal("delivery refused")
 	}
 	if want := start + 3*Money(w.cfg.PriceCaveScum); s.wallet != want {
 		t.Fatalf("scraper has %v after selling 3 scum, want %v", s.wallet, want)
 	}
-	if got := w.storageContainers[house].held(Community, CaveScum); got != 3 {
+	if got := w.home.storageContainers[house].held(Community, CaveScum); got != 3 {
 		t.Fatalf("colony owns %d scum at the scumhouse, want 3", got)
 	}
 	if w.treasury+w.moneyEscrowed() != treasury-3*Money(w.cfg.PriceCaveScum) {
@@ -255,10 +255,10 @@ func TestDeathReleasesAJobsClaims(t *testing.T) {
 	w.refreshSpatial()
 	cook := w.spawn(Colonist, Point{10, 7})
 	cook.Job, cook.Target = JobCraft, house
-	w.workshopClaims[house] = cook.ID
+	w.home.workshopClaims[house] = cook.ID
 	scraper := w.spawn(Colonist, Point{14, 7})
 	scraper.Job, scraper.Target, scraper.scrape = JobScrape, patch, scrapeGather
-	w.scumClaims[patch] = scraper.ID
+	w.home.scumClaims[patch] = scraper.ID
 	hauler := w.spawn(Colonist, Point{12, 9})
 	hauler.Job, hauler.carryWork = JobCarry, 77
 	w.haulClaims[77] = hauler.ID
@@ -266,8 +266,8 @@ func TestDeathReleasesAJobsClaims(t *testing.T) {
 	for _, e := range []*Entity{cook, scraper, hauler} {
 		w.remove(e.ID, "bitten")
 	}
-	if len(w.workshopClaims) != 0 || len(w.scumClaims) != 0 || len(w.haulClaims) != 0 {
-		t.Fatalf("claims outlived their claimants: workshops %v, scum %v, hauls %v", w.workshopClaims, w.scumClaims, w.haulClaims)
+	if len(w.home.workshopClaims) != 0 || len(w.home.scumClaims) != 0 || len(w.haulClaims) != 0 {
+		t.Fatalf("claims outlived their claimants: workshops %v, scum %v, hauls %v", w.home.workshopClaims, w.home.scumClaims, w.haulClaims)
 	}
 }
 

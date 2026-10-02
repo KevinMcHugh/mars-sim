@@ -58,7 +58,7 @@ import "slices"
 func (w *World) chooseFacility(e *Entity, kind Terrain) Point {
 	w.facilityCommitted = nil // counted on demand, once per call
 	room := w.roomOf(e.Pos)
-	if room == 0 || w.restrictedFixtures[kind] > 0 {
+	if room == 0 || w.home.restrictedFixtures[kind] > 0 {
 		return w.facilityBySearch(e, kind, room)
 	}
 	nearest, free := w.facilityByField(e, kind, room)
@@ -144,7 +144,7 @@ func committedTo(e *Entity, fac Point) bool {
 // with a walkable access tile in e's room) is uncongested.
 func (w *World) anyFreeFacility(e *Entity, kind Terrain, room RoomID) bool {
 	inRoom := func(p Point) bool { return w.roomOf(p) == room }
-	for fac := range w.facilityTiles[kind] { // order-free: the result is a bool
+	for fac := range w.home.facilityTiles[kind] { // order-free: the result is a bool
 		if !w.canUseFixture(e, fac) {
 			continue
 		}
@@ -300,7 +300,7 @@ func (w *World) facilityBySearch(e *Entity, kind Terrain, room RoomID) Point {
 			if !w.InBounds(n) {
 				continue
 			}
-			t := w.tiles.at(n.X, n.Y).Terrain
+			t := w.home.tiles.at(n.X, n.Y).Terrain
 			if t == kind && isAccess {
 				if c := cells.ptr(n.X, n.Y); c.gen != gen {
 					c.gen = gen

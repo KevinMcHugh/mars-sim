@@ -259,7 +259,7 @@ func checkRoomLabels(t *testing.T, w *World) {
 			if got := w.roomOf(p); got != room {
 				t.Fatalf("tile %v is in room %d, but its component started in room %d", p, got, room)
 			}
-			minRegion = min(minRegion, w.regionOf.at(p.X, p.Y))
+			minRegion = min(minRegion, w.home.regionOf.at(p.X, p.Y))
 			for _, d := range neighbors8 {
 				q := p.Add(d.X, d.Y)
 				if w.InBounds(q) && tiles[w.index(q)].Terrain == Floor && !seen[w.index(q)] {

@@ -6,7 +6,7 @@ import "testing"
 // stoves were all in use.
 func crowdStoves(w *World, by *Entity) {
 	for _, p := range w.scumhousesSorted() {
-		w.workshopClaims[p] = by.ID
+		w.home.workshopClaims[p] = by.ID
 	}
 }
 
@@ -51,14 +51,14 @@ func TestAChefBuysAKitchenWhenTheStovesAreCrowded(t *testing.T) {
 	if chef.wallet != before-w.projectCost(kitchen) {
 		t.Fatalf("wallet %v, want %v less the kitchen's %v", chef.wallet, before, w.projectCost(kitchen))
 	}
-	delete(w.workshopClaims, shared)
+	delete(w.home.workshopClaims, shared)
 	for i := 0; i < 6000 && len(w.projects) > 0 && w.projects[0] == kitchen; i++ {
 		w.step()
 	}
 	if !chef.hasKitchen || w.TerrainAt(chef.kitchen) != Scumhouse {
 		t.Fatal("the chef's kitchen was never finished")
 	}
-	f := w.fixtures[chef.kitchen]
+	f := w.home.fixtures[chef.kitchen]
 	if f.Owner != ColonistOwner(chef.ID) || f.Access != AccessCommunal {
 		t.Fatalf("kitchen fixture: %+v", f)
 	}
@@ -83,7 +83,7 @@ func ownKitchenWorld(t *testing.T) (w *World, house Point, chef *Entity) {
 func TestOnlyTheOwnerCooksInAChefsKitchen(t *testing.T) {
 	w, house, chef := ownKitchenWorld(t)
 	other := w.spawn(Colonist, Point{12, 10})
-	c := w.storageContainers[house]
+	c := w.home.storageContainers[house]
 	for _, e := range []*Entity{chef, other} {
 		c.Inventory.Add(CaveScum, 2)
 		c.credit(ColonistOwner(e.ID), CaveScum, 2)

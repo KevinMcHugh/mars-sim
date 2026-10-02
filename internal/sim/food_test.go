@@ -20,7 +20,7 @@ func ownedMeals(w *World, e *Entity) int {
 	if e.Job == JobEat && (e.eat == eatMeal || e.eat == eatWalk) {
 		n++ // in hand
 	}
-	for _, c := range w.storageContainers {
+	for _, c := range w.home.storageContainers {
 		n += c.held(ColonistOwner(e.ID), Meal)
 	}
 	return n
@@ -150,7 +150,7 @@ func TestInterruptedMealGoesBackInThePocket(t *testing.T) {
 func TestColonistsEatOnlyMealsTheyMayTake(t *testing.T) {
 	w, e, chest := storageBehaviorWorld(t, true)
 	other := w.spawn(Colonist, Point{12, 12})
-	c := w.storageContainers[chest]
+	c := w.home.storageContainers[chest]
 	c.Inventory.Add(Meal, 2)
 	c.credit(ColonistOwner(other.ID), Meal, 2)
 	if _, ok := w.nearestMealDepot(e); ok {
@@ -187,7 +187,7 @@ func TestPressingHungerDropsWorkToCook(t *testing.T) {
 	w.refreshSpatial()
 	e := w.spawn(Colonist, Point{10, 7})
 	me := ColonistOwner(e.ID)
-	c := w.storageContainers[house]
+	c := w.home.storageContainers[house]
 	c.Inventory.Add(CaveScum, 2)
 	c.credit(me, CaveScum, 2)
 	w.assignMineTarget(e, Point{20, 12})
@@ -214,10 +214,10 @@ func TestPressingHungerFinishesTheColonysCooking(t *testing.T) {
 	house := Point{10, 6}
 	w.SetTerrain(house, Scumhouse)
 	w.refreshSpatial()
-	c := w.storageContainers[house]
+	c := w.home.storageContainers[house]
 	c.Inventory.Add(CaveScum, 2)
 	c.credit(Community, CaveScum, 2)
-	for p := range w.scum {
+	for p := range w.home.scum {
 		w.clearScum(p) // nothing on the walls: the colony's scum is the only food to make
 	}
 	e := w.spawn(Colonist, Point{10, 7})
@@ -243,7 +243,7 @@ func TestTheColonyRationsTheStarving(t *testing.T) {
 	shelf := Point{10, 6}
 	w.SetTerrain(shelf, Storage)
 	w.refreshSpatial()
-	c := w.storageContainers[shelf]
+	c := w.home.storageContainers[shelf]
 	c.Inventory.Add(Meal, 3)
 	c.credit(Community, Meal, 3)
 	w.offerColonyMeals(shelf) // on sale, in escrow
@@ -276,7 +276,7 @@ func TestAColonyCookWorksABatch(t *testing.T) {
 	house := Point{10, 6}
 	w.SetTerrain(house, Scumhouse)
 	w.refreshSpatial()
-	c := w.storageContainers[house]
+	c := w.home.storageContainers[house]
 	c.Inventory.Add(CaveScum, 20)
 	c.credit(Community, CaveScum, 20)
 	cook := w.spawn(Colonist, Point{10, 7})
@@ -307,7 +307,7 @@ func TestAColonistCarriesItsNextMeal(t *testing.T) {
 	w.refreshSpatial()
 	e := w.spawn(Colonist, Point{8, 8})
 	me := ColonistOwner(e.ID)
-	c := w.storageContainers[shelf]
+	c := w.home.storageContainers[shelf]
 	c.Inventory.Add(Meal, 2)
 	c.credit(me, Meal, 2)
 
@@ -348,7 +348,7 @@ func TestAPocketMealIsNeverBought(t *testing.T) {
 	shelf := Point{16, 10}
 	w.SetTerrain(shelf, Storage)
 	w.refreshSpatial()
-	c := w.storageContainers[shelf]
+	c := w.home.storageContainers[shelf]
 	c.Inventory.Add(Meal, 1)
 	c.credit(Community, Meal, 1)
 	w.offerColonyMeals(shelf)

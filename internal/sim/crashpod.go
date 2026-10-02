@@ -78,7 +78,7 @@ func (w *World) arrive(announce bool) *Entity {
 	if !ok {
 		return nil
 	}
-	w.pods[o] = true
+	w.home.pods[o] = true
 	// The impact clears whatever rock it lands on; the rock is simply gone. A
 	// side shared with a neighbor is already hull, so stamping it is a no-op.
 	for dy := 0; dy < podHeight; dy++ {
@@ -102,7 +102,7 @@ func (w *World) arrive(announce bool) *Entity {
 	approach := o.Add(podApproach.X, podApproach.Y)
 	// Like a room's, the tile outside the door is reserved for good, so no
 	// later room or pod seals the colonist in (see designateRoom).
-	w.doorTiles[approach] = true
+	w.home.doorTiles[approach] = true
 	for _, f := range podFixtures {
 		w.SetTerrain(o.Add(f.dx, f.dy), f.terrain)
 	}
@@ -112,7 +112,7 @@ func (w *World) arrive(announce bool) *Entity {
 	for _, f := range podFixtures {
 		w.setFixtureOwner(o.Add(f.dx, f.dy), me, AccessPrivate)
 	}
-	locker := w.storageContainers[o.Add(podFixtures[2].dx, podFixtures[2].dy)]
+	locker := w.home.storageContainers[o.Add(podFixtures[2].dx, podFixtures[2].dy)]
 	if n := w.podMeals(e.ID); n > 0 && locker.Inventory.Add(Meal, n) {
 		locker.credit(me, Meal, n)
 	}
@@ -146,7 +146,7 @@ func (w *World) arrive(announce bool) *Entity {
 // open floor. Ring order and the fixed scan within each ring make the choice
 // the same for a given world, and nothing here draws randomness.
 //
-// Pods fill the map from the middle out, so w.podRingHint remembers roughly
+// Pods fill the map from the middle out, so w.home.podRingHint remembers roughly
 // where the last one landed and the next search starts a few rings inside it
 // rather than re-checking the full, already-packed middle every time. That is
 // what keeps a 2000-colonist worldgen from rescanning the whole cavern per
@@ -174,7 +174,7 @@ func (w *World) findPodSite() (o Point, crashed, ok bool) {
 		}
 	}
 	crashAt, crashRing, crashRock := Point{}, -1, 0
-	for r := max(0, w.podRingHint-podWidth); r <= maxR; r++ {
+	for r := max(0, w.home.podRingHint-podWidth); r <= maxR; r++ {
 		if crashRing >= 0 && r > crashRing+podCrashSlack {
 			break
 		}
@@ -197,12 +197,12 @@ func (w *World) findPodSite() (o Point, crashed, ok bool) {
 			return false
 		})
 		if found && clear {
-			w.podRingHint = r
+			w.home.podRingHint = r
 			return o, false, true
 		}
 	}
 	if crashRing >= 0 {
-		w.podRingHint = crashRing
+		w.home.podRingHint = crashRing
 		return crashAt, crashRock > 0, true
 	}
 	return Point{}, false, false
@@ -293,7 +293,7 @@ func (w *World) podSiteRock(o Point, designated map[Point]bool) (rock, marginRoc
 			default:
 				return 0, 0, false
 			}
-			if w.doorTiles[p] || designated[p] {
+			if w.home.doorTiles[p] || designated[p] {
 				return 0, 0, false
 			}
 		}
@@ -363,7 +363,7 @@ func forEachPodMargin(o Point, shareL, shareR bool, visit func(Point)) {
 // escape (see nearestEscapeWall) is not a wall to share.
 func (w *World) podPartyWalls(o Point) (left, right bool) {
 	side := func(neighbor Point, x int) bool {
-		if !w.pods[neighbor] {
+		if !w.home.pods[neighbor] {
 			return false
 		}
 		for dy := 0; dy < podHeight; dy++ {

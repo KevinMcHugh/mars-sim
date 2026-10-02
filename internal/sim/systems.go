@@ -97,7 +97,7 @@ func (w *World) entityIDsNearSorted(center Point, radius int) []EntityID {
 	var ids []EntityID
 	for cy := cy0; cy <= cy1; cy++ {
 		for cx := cx0; cx <= cx1; cx++ {
-			for _, id := range w.chunkEntities[cy*w.chunkCols+cx] {
+			for _, id := range w.home.chunkEntities[cy*w.chunkCols+cx] {
 				if e := w.entities[id]; e != nil && center.Chebyshev(e.Pos) <= radius {
 					ids = append(ids, id)
 				}
@@ -503,7 +503,7 @@ func (w *World) onFacilityAccess(p Point) bool {
 // onPendingBuild reports whether p is a not-yet-built task tile of some project,
 // which a builder must find clear to construct.
 func (w *World) onPendingBuild(p Point) bool {
-	return w.buildTiles[p]
+	return w.home.buildTiles[p]
 }
 
 // assignMine / assignBuild set a colonist's job and update the board's
@@ -540,8 +540,8 @@ func (w *World) claimNearestMine(e *Entity) (Point, bool) {
 	var best Point
 	found := false
 	bestDist := 1 << 30
-	for p := range w.board.frontier {
-		if w.board.isClaimed(p) || !w.frontierReachable(p, room) ||
+	for p := range w.home.board.frontier {
+		if w.home.board.isClaimed(p) || !w.frontierReachable(p, room) ||
 			!e.Inventory.CanAddAll(miningYield(w.TileAt(p))...) {
 			continue
 		}
@@ -550,7 +550,7 @@ func (w *World) claimNearestMine(e *Entity) (Point, bool) {
 		}
 	}
 	if found {
-		w.board.claimMine(best, e.ID)
+		w.home.board.claimMine(best, e.ID)
 	}
 	return best, found
 }
@@ -579,9 +579,9 @@ func lessPoint(a, b Point) bool {
 func (w *World) claimAdjacentFrontier(e *Entity) (Point, bool) {
 	for _, d := range neighbors8 {
 		n := e.Pos.Add(d.X, d.Y)
-		if w.board.isFrontier(n) && !w.board.isClaimed(n) &&
+		if w.home.board.isFrontier(n) && !w.home.board.isClaimed(n) &&
 			e.Inventory.CanAddAll(miningYield(w.TileAt(n))...) {
-			w.board.claimMine(n, e.ID)
+			w.home.board.claimMine(n, e.ID)
 			return n, true
 		}
 	}
@@ -592,7 +592,7 @@ func (w *World) claimAdjacentFrontier(e *Entity) (Point, bool) {
 // facility fallback), tracked by the board's in-progress counter.
 func (w *World) assignBuild(e *Entity, kind Terrain, target Point) {
 	e.Job, e.BuildKind, e.Target, e.Progress = JobBuild, kind, target, 0
-	w.board.startBuild(kind)
+	w.home.board.startBuild(kind)
 }
 
 // assignTask commits a colonist to a claimed construction-project task. The task
@@ -608,7 +608,7 @@ func (w *World) clearJob(e *Entity) {
 	switch e.Job {
 	case JobMine:
 		if e.mineClaimed {
-			w.board.releaseMine(e.Target, e.ID)
+			w.home.board.releaseMine(e.Target, e.ID)
 			e.mineClaimed = false
 		}
 	case JobBuild:
@@ -616,11 +616,11 @@ func (w *World) clearJob(e *Entity) {
 			e.task.owner = 0 // release the project task for someone else
 			e.task = nil
 		} else {
-			w.board.endBuild(e.BuildKind) // lone emergency build
+			w.home.board.endBuild(e.BuildKind) // lone emergency build
 		}
 	case JobClean:
 		if e.clean == cleanGather {
-			w.board.releaseClean(e.Target, e.ID) // reopen the mess for someone else
+			w.home.board.releaseClean(e.Target, e.ID) // reopen the mess for someone else
 		}
 		e.clean = cleanGather
 	case JobEat:
@@ -629,15 +629,15 @@ func (w *World) clearJob(e *Entity) {
 		}
 		e.eat, e.eatKeep = eatFetch, false
 	case JobCraft:
-		if w.workshopClaims[e.Target] == e.ID {
-			delete(w.workshopClaims, e.Target)
+		if w.home.workshopClaims[e.Target] == e.ID {
+			delete(w.home.workshopClaims, e.Target)
 		}
 	case JobScrape:
-		if (e.scrape == scrapeGather || e.scrape == scrapeHarvest) && w.scumClaims[e.Target] == e.ID {
-			delete(w.scumClaims, e.Target)
+		if (e.scrape == scrapeGather || e.scrape == scrapeHarvest) && w.home.scumClaims[e.Target] == e.ID {
+			delete(w.home.scumClaims, e.Target)
 		}
-		if e.scrapeSeed && w.workshopClaims[e.seedAt] == e.ID {
-			delete(w.workshopClaims, e.seedAt)
+		if e.scrapeSeed && w.home.workshopClaims[e.seedAt] == e.ID {
+			delete(w.home.workshopClaims, e.seedAt)
 		}
 		e.scrape = scrapeGather
 		e.scrapeFor, e.scrapeQty, e.scrapeKeep, e.scrapeSeed = Owner{}, 0, false, false
@@ -939,7 +939,7 @@ func (w *World) assignWorkJob(e *Entity) {
 	// Mining: big colonies/maps follow the shared frontier field (claim on
 	// arrival); small ones use cached A* to the nearest claimed tile. Either way
 	// only take a job when unclaimed frontier remains.
-	if w.board.unclaimedCount() > 0 {
+	if w.home.board.unclaimedCount() > 0 {
 		// Mining produces raw rock. Do not begin work that cannot yield its
 		// resource; construction and needs remain available to a full colonist.
 		if !e.Inventory.CanAdd(RawRock, 1) {
@@ -994,7 +994,7 @@ func (w *World) tryAssignStore(e *Entity) bool {
 	// the next trip.
 	if sell := w.sellableStacks(e); len(sell) > 0 {
 		if silo, ok := w.marketDepot(); ok && w.canUseFixture(e, silo) &&
-			w.taskReachable(silo, w.roomOf(e.Pos)) && w.storageContainers[silo].Inventory.CanAddAll(sell...) {
+			w.taskReachable(silo, w.roomOf(e.Pos)) && w.home.storageContainers[silo].Inventory.CanAddAll(sell...) {
 			e.Job, e.Target, e.Progress = JobStore, silo, 0
 			return true
 		}
@@ -1028,7 +1028,7 @@ func (w *World) nearestStorage(e *Entity, stacks []ItemStack, withSilo bool) (Po
 	var best Point
 	bestDist := 1 << 30
 	found := false
-	for p, container := range w.storageContainers {
+	for p, container := range w.home.storageContainers {
 		if container.Terrain != Storage || (hasSilo && p == silo && !withSilo) || w.isPantry(p) || !w.canUseFixture(e, p) ||
 			!container.Inventory.CanAddAll(stacks...) || !w.taskReachable(p, room) {
 			continue
@@ -1042,7 +1042,7 @@ func (w *World) nearestStorage(e *Entity, stacks []ItemStack, withSilo bool) (Po
 }
 
 func (w *World) jobStore(e *Entity) {
-	container := w.storageContainers[e.Target]
+	container := w.home.storageContainers[e.Target]
 	stacks := e.Inventory.storableStacks()
 	silo, hasSilo := w.marketDepot()
 	atSilo := hasSilo && e.Target == silo
@@ -1093,7 +1093,7 @@ func (w *World) jobStore(e *Entity) {
 // instead of every idle colonist starting one at the same instant. The
 // in-progress count comes from the board's O(1) counter, not an entity scan.
 func (w *World) plannedFacilities(kind Terrain) int {
-	return w.countTerrain(kind) + w.board.inProgress(kind) + w.projectFacilityTasks(kind)
+	return w.countTerrain(kind) + w.home.board.inProgress(kind) + w.projectFacilityTasks(kind)
 }
 
 // desiredFacilities is how many of each need-satisfying structure (pods,
@@ -1420,7 +1420,7 @@ func (w *World) jobUse(e *Entity) {
 	// beside the colony's only toilet. An uphill step therefore switches the
 	// colonist to concrete routing (A*, which does route around build tiles)
 	// for fieldDetourTicks.
-	if w.countTerrain(spec.Facility) < 2 && w.restrictedFixtures[spec.Facility] == 0 && e.fieldDetour == 0 {
+	if w.countTerrain(spec.Facility) < 2 && w.home.restrictedFixtures[spec.Facility] == 0 && e.fieldDetour == 0 {
 		before := field.at(e.Pos)
 		if w.followField(e, field) {
 			if field.at(e.Pos) >= before {
@@ -2077,7 +2077,7 @@ func (w *World) wanderStep(e *Entity) {
 	if !w.Walkable(n) {
 		return
 	}
-	if e.Kind == Colonist && w.buildTiles[n] {
+	if e.Kind == Colonist && w.home.buildTiles[n] {
 		return // colonists keep off tiles a builder needs clear
 	}
 	w.moveEntity(e, n)
@@ -2102,7 +2102,7 @@ func (w *World) stepAside(e *Entity) bool {
 			from := Point{ci % w.Width, ci / w.Width}
 			for _, d := range neighbors8 {
 				p := from.Add(d.X, d.Y)
-				if !w.Walkable(p) || w.buildTiles[p] {
+				if !w.Walkable(p) || w.home.buildTiles[p] {
 					continue
 				}
 				pi := w.index(p)
@@ -2257,7 +2257,7 @@ func (w *World) nearestMatch(from Point, within int, match func(*Entity) bool) (
 				if !onRowEdge && cx != loCol && cx != hiCol {
 					continue // interior chunk, already covered by a smaller ring
 				}
-				for _, id := range w.chunkEntities[cy*w.chunkCols+cx] {
+				for _, id := range w.home.chunkEntities[cy*w.chunkCols+cx] {
 					e := w.entities[id]
 					if e == nil || !e.Alive() || !match(e) {
 						continue

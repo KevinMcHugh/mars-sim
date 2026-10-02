@@ -120,7 +120,7 @@ func crosses(incoming, resting *Order) bool {
 // it does not hold at that depot. ttl is how many ticks the rest of the order
 // lives; 0 means it never expires.
 func (w *World) post(side Side, item ItemKind, qty int, price Money, actor Owner, depot Point, ttl int) (*Order, int) {
-	c := w.storageContainers[depot]
+	c := w.home.storageContainers[depot]
 	if c == nil || qty <= 0 || price < 0 || item == ItemNone {
 		return nil, 0
 	}
@@ -221,7 +221,7 @@ func (w *World) closeOrder(o *Order) {
 			o.escrow = 0
 		}
 	case Ask:
-		if c := w.storageContainers[o.Depot]; c != nil && o.Qty > 0 {
+		if c := w.home.storageContainers[o.Depot]; c != nil && o.Qty > 0 {
 			c.moveLine(o.owner(), o.Actor, o.Item, o.Qty)
 		}
 	}
@@ -330,7 +330,7 @@ func (w *World) marketDepot() (Point, bool) {
 	center := Point{w.Width / 2, w.Height / 2}
 	var best Point
 	bestDist, found := 1<<30, false
-	for p, c := range w.storageContainers {
+	for p, c := range w.home.storageContainers {
 		if c.Terrain != Storage || !w.communalFixture(p) || w.isPantry(p) {
 			continue // a pantry is a kitchen's, for meals: not the silo
 		}
@@ -454,7 +454,7 @@ func (w *World) sellableStacks(e *Entity) []ItemStack {
 // at once against any bid (the colony's, for ore); the rest rests for
 // order-ttl ticks.
 func (w *World) sellAtMarket(e *Entity, p Point, kinds []ItemKind) {
-	c := w.storageContainers[p]
+	c := w.home.storageContainers[p]
 	if c == nil {
 		return
 	}
@@ -544,7 +544,7 @@ const (
 // every depot but the silo (meals already there are for sale or bought).
 func (w *World) surplusMeals(e *Entity, silo Point) int {
 	n := e.ownCarried(Meal)
-	for p, c := range w.storageContainers {
+	for p, c := range w.home.storageContainers {
 		if p != silo {
 			n += c.held(ColonistOwner(e.ID), Meal)
 		}
@@ -571,7 +571,7 @@ func (w *World) tryAssignSellMeals(e *Entity) bool {
 	me := ColonistOwner(e.ID)
 	var best Point
 	bestDist, found := 1<<30, false
-	for p, c := range w.storageContainers {
+	for p, c := range w.home.storageContainers {
 		if p == silo || c.held(me, Meal) == 0 || !w.canUseFixture(e, p) || !w.taskReachable(p, room) {
 			continue
 		}
@@ -602,7 +602,7 @@ func (w *World) jobSell(e *Entity) {
 		e.State = Hauling
 		return
 	}
-	c := w.storageContainers[e.Target]
+	c := w.home.storageContainers[e.Target]
 	me := ColonistOwner(e.ID)
 	if c == nil {
 		w.clearJob(e)

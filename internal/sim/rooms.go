@@ -40,11 +40,11 @@ type region struct {
 // changed since the last call. It is invoked after world generation and at the
 // end of every tick; it is a no-op when nothing changed.
 func (w *World) refreshSpatial() {
-	if len(w.dirtyChunks) == 0 {
+	if len(w.home.dirtyChunks) == 0 {
 		return
 	}
-	dirty := make([]int, 0, len(w.dirtyChunks))
-	for ci := range w.dirtyChunks {
+	dirty := make([]int, 0, len(w.home.dirtyChunks))
+	for ci := range w.home.dirtyChunks {
 		dirty = append(dirty, ci)
 	}
 	// Chunk order decides the order regions are created in, and a region's ID
@@ -63,8 +63,8 @@ func (w *World) refreshSpatial() {
 	for _, ci := range dirty {
 		w.linkChunkRegions(ci)
 	}
-	for ci := range w.dirtyChunks {
-		delete(w.dirtyChunks, ci)
+	for ci := range w.home.dirtyChunks {
+		delete(w.home.dirtyChunks, ci)
 	}
 	w.relabelRooms()
 }
@@ -77,7 +77,7 @@ func (w *World) recomputeChunkRegions(ci int) {
 	// Drop old regions in this chunk and unlink them from their neighbors. The
 	// chunk lies inside a single page of regionOf (see pagedGrid.pageAt), so
 	// every access in this function hoists to one lookup.
-	regions := w.regionOf.pageAt(x0, y0)
+	regions := w.home.regionOf.pageAt(x0, y0)
 	old := make(map[RegionID]struct{})
 	if regions != nil {
 		for y := y0; y < y1; y++ {
@@ -110,7 +110,7 @@ func (w *World) recomputeChunkRegions(ci int) {
 	// Flood-fill new regions, staying within the chunk bounds. A region
 	// chunk lies inside one tile page, so the page is looked up once; a
 	// chunk nothing was ever written to is all Rock and has no regions.
-	tiles := w.tiles.pageAt(x0, y0)
+	tiles := w.home.tiles.pageAt(x0, y0)
 	if tiles == nil {
 		return
 	}
@@ -120,7 +120,7 @@ func (w *World) recomputeChunkRegions(ci int) {
 				continue
 			}
 			if regions == nil {
-				regions = w.regionOf.pageAtAlloc(x0, y0)
+				regions = w.home.regionOf.pageAtAlloc(x0, y0)
 			}
 			if regions[offset(x, y)] != 0 {
 				continue
@@ -160,7 +160,7 @@ func (w *World) recomputeChunkRegions(ci int) {
 // that touch are already the same region, so only cross-region touches matter.)
 func (w *World) linkChunkRegions(ci int) {
 	x0, y0, x1, y1 := w.chunkBounds(ci)
-	regions := w.regionOf.pageAt(x0, y0)
+	regions := w.home.regionOf.pageAt(x0, y0)
 	if regions == nil {
 		return // nothing in this chunk is floor, so there is nothing to link
 	}
@@ -175,7 +175,7 @@ func (w *World) linkChunkRegions(ci int) {
 				if !w.InBounds(q) {
 					continue
 				}
-				nid := w.regionOf.at(q.X, q.Y)
+				nid := w.home.regionOf.at(q.X, q.Y)
 				if nid == 0 || nid == rid {
 					continue
 				}
@@ -292,7 +292,7 @@ func (w *World) roomOf(p Point) RoomID {
 	if !w.InBounds(p) {
 		return 0
 	}
-	rid := w.regionOf.at(p.X, p.Y)
+	rid := w.home.regionOf.at(p.X, p.Y)
 	if rid == 0 {
 		return 0
 	}

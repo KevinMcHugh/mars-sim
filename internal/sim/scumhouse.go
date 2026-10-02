@@ -57,7 +57,7 @@ type scumPatch struct {
 
 // scumAt is how much scum is on p now.
 func (w *World) scumAt(p Point) int {
-	return min(w.scum[p].amount, w.cfg.ScumMax)
+	return min(w.home.scum[p].amount, w.cfg.ScumMax)
 }
 
 // takeScum scrapes one unit off p, reporting whether there was any. A patch
@@ -72,18 +72,18 @@ func (w *World) takeScum(p Point) bool {
 		w.clearScum(p)
 		return true
 	}
-	w.scum[p] = scumPatch{amount: n - 1}
+	w.home.scum[p] = scumPatch{amount: n - 1}
 	w.scumRev++
 	return true
 }
 
 // clearScum destroys the patch on p: something was built over it.
 func (w *World) clearScum(p Point) {
-	if _, ok := w.scum[p]; ok {
-		delete(w.scum, p)
-		delete(w.exposedScum, p)
-		if i, found := slices.BinarySearchFunc(w.scumPatches, p, cmpScumPatch); found {
-			w.scumPatches = slices.Delete(w.scumPatches, i, i+1)
+	if _, ok := w.home.scum[p]; ok {
+		delete(w.home.scum, p)
+		delete(w.home.exposedScum, p)
+		if i, found := slices.BinarySearchFunc(w.home.scumPatches, p, cmpScumPatch); found {
+			w.home.scumPatches = slices.Delete(w.home.scumPatches, i, i+1)
 		}
 		w.scumRev++
 	}
@@ -93,11 +93,11 @@ func (w *World) clearScum(p Point) {
 // new. Every patch goes on the map through here or applyChunk, so the two
 // agree.
 func (w *World) setScum(p Point, amount int) {
-	if _, ok := w.scum[p]; !ok {
-		i, _ := slices.BinarySearchFunc(w.scumPatches, p, cmpScumPatch)
-		w.scumPatches = slices.Insert(w.scumPatches, i, p)
+	if _, ok := w.home.scum[p]; !ok {
+		i, _ := slices.BinarySearchFunc(w.home.scumPatches, p, cmpScumPatch)
+		w.home.scumPatches = slices.Insert(w.home.scumPatches, i, p)
 	}
-	w.scum[p] = scumPatch{amount: amount}
+	w.home.scum[p] = scumPatch{amount: amount}
 }
 
 // cmpScumPatch orders patches by chunk, the way genChunks is ordered, then
@@ -142,16 +142,16 @@ func (w *World) scumExposed(p Point) bool {
 // the way the job board refreshes the mining frontier.
 func (w *World) refreshScumExposure(p Point) {
 	check := func(q Point) {
-		if _, ok := w.scum[q]; !ok {
+		if _, ok := w.home.scum[q]; !ok {
 			return
 		}
-		_, was := w.exposedScum[q]
+		_, was := w.home.exposedScum[q]
 		if now := w.scumExposed(q); now == was {
 			return
 		} else if now {
-			w.exposedScum[q] = struct{}{}
+			w.home.exposedScum[q] = struct{}{}
 		} else {
-			delete(w.exposedScum, q)
+			delete(w.home.exposedScum, q)
 		}
 		w.scumRev++
 	}
@@ -215,13 +215,13 @@ func (w *World) growScum() {
 	// map's edge in an edge chunk is a miss and every real tile gets the same
 	// rate. A world built without generate (tests) is all generated.
 	span := w.Width * w.Height
-	if w.gen != nil {
-		span = len(w.genChunks) * genChunkArea
+	if w.home.gen != nil {
+		span = len(w.home.genChunks) * genChunkArea
 	}
 	if span == 0 {
 		return
 	}
-	room := len(w.scum) < min(w.Width*w.Height, span)*w.cfg.ScumPercent/100
+	room := len(w.home.scum) < min(w.Width*w.Height, span)*w.cfg.ScumPercent/100
 	h := uint64(w.cfg.Seed)*0x9E3779B97F4A7C15 ^ uint64(w.tick)*0xD1B54A32D192ED03
 	hs := h ^ 0x5CA1AB1E // spawns draw apart from spreads
 	for i := range scumDraws(span, w.cfg.ScumSpawnPPM, hs) {
@@ -230,10 +230,10 @@ func (w *World) growScum() {
 			w.addScum(p, room)
 		}
 	}
-	for i := range scumDraws(len(w.scumPatches), w.cfg.ScumSpreadPercent*10000, h) {
+	for i := range scumDraws(len(w.home.scumPatches), w.cfg.ScumSpreadPercent*10000, h) {
 		r := h + uint64(i+1)*2*0x9E3779B97F4A7C15 // two draws each, so no two share one
 		a, b := splitmix64(&r), splitmix64(&r)
-		from := w.scumPatches[a%uint64(len(w.scumPatches))]
+		from := w.home.scumPatches[a%uint64(len(w.home.scumPatches))]
 		d := neighbors9[b%9]
 		if p := from.Add(d.X, d.Y); w.generatedTile(p) {
 			w.addScum(p, room)
@@ -262,10 +262,10 @@ func scumDraws(n, ppm int, h uint64) int {
 // whole map, for a world built without generate), reporting false for a tile
 // past the map's edge in a partial edge chunk.
 func (w *World) scumDrawTile(a uint64) (Point, bool) {
-	if w.gen == nil {
+	if w.home.gen == nil {
 		return Point{int(a % uint64(w.Width)), int((a >> 32) % uint64(w.Height))}, true
 	}
-	k := w.genChunks[a%uint64(len(w.genChunks))]
+	k := w.home.genChunks[a%uint64(len(w.home.genChunks))]
 	off := int((a >> 32) % genChunkArea)
 	p := Point{int(k.cx)<<genChunkBits + (off & (genChunkSize - 1)), int(k.cy)<<genChunkBits + (off >> genChunkBits)}
 	return p, w.InBounds(p)
@@ -274,7 +274,7 @@ func (w *World) scumDrawTile(a uint64) (Point, bool) {
 // generatedTile reports whether p is on the map in a generated chunk (every
 // tile, for a world built without generate).
 func (w *World) generatedTile(p Point) bool {
-	return w.InBounds(p) && (w.gen == nil || w.genDone[w.tiles.pageIndex(p.X, p.Y)])
+	return w.InBounds(p) && (w.home.gen == nil || w.home.genDone[w.home.tiles.pageIndex(p.X, p.Y)])
 }
 
 // neighbors9 is a tile and its eight neighbours.
@@ -283,12 +283,12 @@ var neighbors9 = [9]Point{{0, 0}, {1, 0}, {-1, 0}, {0, 1}, {0, -1}, {1, 1}, {1, 
 // addScum adds a unit to p: thickening a patch already there, or, when room
 // allows, starting one on rock.
 func (w *World) addScum(p Point, room bool) {
-	if s, ok := w.scum[p]; ok {
+	if s, ok := w.home.scum[p]; ok {
 		if s.amount >= w.cfg.ScumMax {
 			return
 		}
-		w.scum[p] = scumPatch{amount: s.amount + 1}
-		if _, exposed := w.exposedScum[p]; exposed {
+		w.home.scum[p] = scumPatch{amount: s.amount + 1}
+		if _, exposed := w.home.exposedScum[p]; exposed {
 			w.scumRev++
 		}
 		return
@@ -310,7 +310,7 @@ func (w *World) communityMeals() int {
 		return w.communityMealsCache
 	}
 	n := 0
-	for _, c := range w.storageContainers {
+	for _, c := range w.home.storageContainers {
 		n += c.held(Community, Meal)
 	}
 	for _, o := range w.orders {
@@ -356,8 +356,8 @@ func (w *World) nearestWorkshop(e *Entity, kind Terrain, ok func(*StorageContain
 	room := w.roomOf(e.Pos)
 	var best Point
 	bestDist, found := 1<<30, false
-	for p := range w.facilityTiles[kind] {
-		c := w.storageContainers[p]
+	for p := range w.home.facilityTiles[kind] {
+		c := w.home.storageContainers[p]
 		if c == nil || !w.canUseFixture(e, p) || !w.taskReachable(p, room) || (ok != nil && !ok(c)) {
 			continue
 		}
@@ -380,7 +380,7 @@ func (w *World) canCraft(c *StorageContainer, r Recipe, owner Owner) bool {
 		}
 	}
 	if out := w.outputDepot(c.Pos); out != c.Pos {
-		return w.storageContainers[out].Inventory.CanAddAll(r.Outputs...)
+		return w.home.storageContainers[out].Inventory.CanAddAll(r.Outputs...)
 	}
 	after := c.Inventory
 	for _, in := range r.Inputs {
@@ -404,7 +404,7 @@ func (w *World) tryAssignCraftFor(e *Entity, owners []Owner) bool {
 	// inside it handed the cook whichever candidate happened to be checked
 	// last — harmless with one scumhouse, a determinism bug with several.
 	p, ok := w.nearestScumhouse(e, func(c *StorageContainer) bool {
-		if id := w.workshopClaims[c.Pos]; id != 0 && id != e.ID {
+		if id := w.home.workshopClaims[c.Pos]; id != 0 && id != e.ID {
 			return false // one cook per workshop
 		}
 		if !w.mayCookAt(e, c.Pos) {
@@ -419,8 +419,8 @@ func (w *World) tryAssignCraftFor(e *Entity, owners []Owner) bool {
 	if !ok {
 		return false
 	}
-	recipe, owner, _ := w.craftableRecipe(w.storageContainers[p], owners)
-	w.workshopClaims[p] = e.ID
+	recipe, owner, _ := w.craftableRecipe(w.home.storageContainers[p], owners)
+	w.home.workshopClaims[p] = e.ID
 	e.Job, e.Target, e.Progress = JobCraft, p, 0
 	e.recipe, e.craftFor, e.craftRun = recipe, owner, 0
 	return true
@@ -444,7 +444,7 @@ func (w *World) craftableRecipe(c *StorageContainer, owners []Owner) (int, Owner
 
 // jobCraft walks to the claimed workshop and works its recipe.
 func (w *World) jobCraft(e *Entity) {
-	c := w.storageContainers[e.Target]
+	c := w.home.storageContainers[e.Target]
 	r := recipes[e.recipe]
 	if c == nil || !w.canCraft(c, r, e.craftFor) {
 		w.clearJob(e) // somebody used the inputs, or the workshop is gone
@@ -469,7 +469,7 @@ func (w *World) jobCraft(e *Entity) {
 	}
 	// Down the line: the output goes straight into the pantry, if the
 	// kitchen has one, or back into the stove's own depot if not.
-	out := w.storageContainers[w.outputDepot(e.Target)]
+	out := w.home.storageContainers[w.outputDepot(e.Target)]
 	outputs := r.Outputs
 	if len(outputs) > 0 && w.skillEffect(e, r.Skill).YieldPct > 100 {
 		// A skilled worker's yield: now and then one unit more of the
@@ -571,7 +571,7 @@ func (w *World) tryAssignScrape(e *Entity, keep bool) bool {
 	if !ok {
 		return false
 	}
-	w.scumClaims[patch] = e.ID
+	w.home.scumClaims[patch] = e.ID
 	e.Job, e.Target, e.scrape, e.Progress = JobScrape, patch, scrapeGather, 0
 	e.scrapeKeep = keep
 	return true
@@ -598,7 +598,7 @@ func (w *World) scrapeDestination(e *Entity, keep bool) (Point, bool) {
 		return ok && bid.Actor != me
 	})
 	if own, mine := w.ownKitchen(e); mine && keep {
-		if c := w.storageContainers[own]; c.Inventory.CanAdd(CaveScum, load) {
+		if c := w.home.storageContainers[own]; c.Inventory.CanAdd(CaveScum, load) {
 			house, ok = own, true // a chef's scum goes to its own kitchen
 		}
 	}
@@ -612,8 +612,8 @@ func (w *World) nearestScum(e *Entity) (Point, bool) {
 	room := w.roomOf(e.Pos)
 	var best Point
 	bestDist, found := 1<<30, false
-	for p := range w.exposedScum {
-		if id := w.scumClaims[p]; id != 0 && id != e.ID {
+	for p := range w.home.exposedScum {
+		if id := w.home.scumClaims[p]; id != 0 && id != e.ID {
 			continue
 		}
 		if w.scumAt(p) == 0 {
@@ -690,7 +690,7 @@ func (w *World) jobScrape(e *Entity) {
 // finishScraping ends the gather leg: hand the load to the haul leg, or end
 // the job if there is nothing to haul or nowhere to take it.
 func (w *World) finishScraping(e *Entity) {
-	delete(w.scumClaims, e.Target)
+	delete(w.home.scumClaims, e.Target)
 	if !e.Inventory.Has(CaveScum) {
 		w.clearJob(e)
 		return
@@ -725,7 +725,7 @@ func (w *World) finishScraping(e *Entity) {
 // jobDeliverBiomatter carries a load of biomatter to the scumhouse at Target
 // and puts it in the depot.
 func (w *World) jobDeliverBiomatter(e *Entity) {
-	c := w.storageContainers[e.Target]
+	c := w.home.storageContainers[e.Target]
 	if c == nil || (c.Terrain != Scumhouse && c.Terrain != Incubator) || !c.Inventory.CanAddAll(biomatterStacks(e)...) {
 		w.clearJob(e)
 		return
@@ -842,8 +842,8 @@ var biomatterKinds = [...]ItemKind{CaveScum, Viscera, AnimalCorpse, AlienCorpse}
 
 // scumhousesSorted lists every scumhouse by position.
 func (w *World) scumhousesSorted() []Point {
-	out := make([]Point, 0, len(w.facilityTiles[Scumhouse]))
-	for p := range w.facilityTiles[Scumhouse] {
+	out := make([]Point, 0, len(w.home.facilityTiles[Scumhouse]))
+	for p := range w.home.facilityTiles[Scumhouse] {
 		out = append(out, p)
 	}
 	sort.Slice(out, func(i, j int) bool { return lessPoint(out[i], out[j]) })
@@ -856,7 +856,7 @@ func (w *World) scumhousesSorted() []Point {
 // what it would buy.
 func (w *World) refreshBiomatterBids() {
 	for _, p := range w.colonyKitchens() {
-		c := w.storageContainers[p]
+		c := w.home.storageContainers[p]
 		if c == nil {
 			continue
 		}
@@ -917,7 +917,7 @@ func (w *World) refreshChefBids() {
 		if !ok {
 			continue
 		}
-		c := w.storageContainers[p]
+		c := w.home.storageContainers[p]
 		me := ColonistOwner(e.ID)
 		want := w.cfg.ScumhouseBidQty - w.openQty(Bid, k, p, me)
 		if cap := w.cfg.ScumhouseStockCap; cap > 0 {
@@ -1016,7 +1016,7 @@ func (w *World) colonyMealPrice() Money {
 // order is about to take, at colonyMealPrice. Resting bids there — hungry
 // colonists queued for a meal — fill at once.
 func (w *World) offerColonyMeals(p Point) {
-	c := w.storageContainers[p]
+	c := w.home.storageContainers[p]
 	price := w.colonyMealPrice()
 	if c == nil || price <= 0 {
 		return
@@ -1094,15 +1094,15 @@ func (w *World) linkPantry(p *project) {
 		}
 	}
 	if hasHouse && hasPantry {
-		w.pantryOf[house] = pantry
-		w.pantryHouse[pantry] = house
+		w.home.pantryOf[house] = pantry
+		w.home.pantryHouse[pantry] = house
 	}
 }
 
 // pantryFor is the built pantry of the scumhouse at house, if it has one.
 func (w *World) pantryFor(house Point) (Point, bool) {
-	p, ok := w.pantryOf[house]
-	if !ok || w.TerrainAt(p) != Storage || w.storageContainers[p] == nil {
+	p, ok := w.home.pantryOf[house]
+	if !ok || w.TerrainAt(p) != Storage || w.home.storageContainers[p] == nil {
 		return Point{}, false
 	}
 	return p, true
@@ -1111,7 +1111,7 @@ func (w *World) pantryFor(house Point) (Point, bool) {
 // isPantry reports whether the chest at p is some kitchen's pantry. A pantry
 // is for meals: it is not the silo, and nobody unloads ore into it.
 func (w *World) isPantry(p Point) bool {
-	_, ok := w.pantryHouse[p]
+	_, ok := w.home.pantryHouse[p]
 	return ok && w.TerrainAt(p) == Storage
 }
 
@@ -1242,7 +1242,7 @@ func (w *World) tryAssignScrapeToSell(e *Entity) bool {
 // so a meal on offer there sells to the next of them at once, without a walk
 // to the silo.
 func (w *World) offerOwnMeals(e *Entity, p Point) {
-	c := w.storageContainers[p]
+	c := w.home.storageContainers[p]
 	silo, _ := w.marketDepot()
 	if c == nil || p == silo {
 		return
@@ -1260,7 +1260,7 @@ func (w *World) storedMeals() int {
 		return w.storedMealsCache
 	}
 	n := 0
-	for _, c := range w.storageContainers {
+	for _, c := range w.home.storageContainers {
 		n += c.Inventory.Count(Meal)
 	}
 	w.storedMealsTick, w.storedMealsCache = w.tick, n
@@ -1271,7 +1271,7 @@ func (w *World) storedMeals() int {
 // kitchen is only its owner's to cook at, while anyone may bring scum to it
 // or fetch meals from its pantry. Once its owner is dead, it's anyone's.
 func (w *World) mayCookAt(e *Entity, p Point) bool {
-	f := w.fixtures[p]
+	f := w.home.fixtures[p]
 	if f == nil || f.Owner.Kind != OwnerColonist || f.Owner.ID == e.ID {
 		return true
 	}
@@ -1295,7 +1295,7 @@ func (w *World) mayStockAt(e *Entity, p Point, item ItemKind) bool {
 // privateKitchen reports whether the scumhouse at p belongs to a living
 // colonist: the colony neither cooks nor buys biomatter there.
 func (w *World) privateKitchen(p Point) bool {
-	f := w.fixtures[p]
+	f := w.home.fixtures[p]
 	if f == nil || f.Owner.Kind != OwnerColonist {
 		return false
 	}
@@ -1324,7 +1324,7 @@ func (w *World) kitchensCrowded() bool {
 	}
 	busy := 0
 	for _, p := range houses {
-		if w.workshopClaims[p] != 0 {
+		if w.home.workshopClaims[p] != 0 {
 			busy++
 		}
 	}
@@ -1333,7 +1333,7 @@ func (w *World) kitchensCrowded() bool {
 
 // ownKitchen is e's own kitchen, if it has one it can reach.
 func (w *World) ownKitchen(e *Entity) (Point, bool) {
-	if !e.hasKitchen || w.TerrainAt(e.kitchen) != Scumhouse || w.storageContainers[e.kitchen] == nil {
+	if !e.hasKitchen || w.TerrainAt(e.kitchen) != Scumhouse || w.home.storageContainers[e.kitchen] == nil {
 		return Point{}, false
 	}
 	return e.kitchen, w.taskReachable(e.kitchen, w.roomOf(e.Pos))
@@ -1346,6 +1346,6 @@ func (w *World) ownKitchenStocked(e *Entity) bool {
 	if !ok {
 		return false
 	}
-	_, _, ok = w.craftableRecipe(w.storageContainers[p], []Owner{ColonistOwner(e.ID)})
+	_, _, ok = w.craftableRecipe(w.home.storageContainers[p], []Owner{ColonistOwner(e.ID)})
 	return ok
 }

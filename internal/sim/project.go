@@ -210,8 +210,8 @@ func (w *World) reachableFacilityConstruction(from Point, kind Terrain) bool {
 // Future-phase tiles remain usable as construction access until their phase
 // begins. Kept as a set so movement can test a tile in O(1).
 func (w *World) rebuildBuildTiles() {
-	for p := range w.buildTiles {
-		delete(w.buildTiles, p)
+	for p := range w.home.buildTiles {
+		delete(w.home.buildTiles, p)
 	}
 	for _, p := range w.projects {
 		phase, ok := w.activeProjectPhase(p)
@@ -220,7 +220,7 @@ func (w *World) rebuildBuildTiles() {
 		}
 		for _, t := range p.tasks {
 			if t.phase == phase && !w.taskDone(t) {
-				w.buildTiles[t.pos] = true
+				w.home.buildTiles[t.pos] = true
 			}
 		}
 	}
@@ -682,7 +682,7 @@ func (w *World) designateRoom(r roomRecipe, o Point, n int, issuer Owner) bool {
 	// right on top of it once the colony has grown enough to prefer that
 	// spot, sealing this room's only way out behind a wall its own doorway
 	// invariant never anticipated. See roomSiteClear.
-	w.doorTiles[Point{doorX, frontY + roomApproach}] = true
+	w.home.doorTiles[Point{doorX, frontY + roomApproach}] = true
 	w.projects = append(w.projects, p)
 	if r.name == scumhouseRoom.name {
 		w.linkPantry(p)
@@ -731,15 +731,15 @@ const roomSearchMaxRadius = roomSearchStartRadius * 4
 // perimeter is ready yet for the next room) would double the search box all
 // the way out to the full map before giving up.
 func (w *World) carvedSearchRadius(center Point, width int) int {
-	if !w.carvedAny {
+	if !w.home.carvedAny {
 		return roomSearchMaxRadius
 	}
 	margin := width + 2
 	corners := [4]Point{
-		{w.carvedMin.X - margin, w.carvedMin.Y - margin},
-		{w.carvedMin.X - margin, w.carvedMax.Y + margin},
-		{w.carvedMax.X + margin, w.carvedMin.Y - margin},
-		{w.carvedMax.X + margin, w.carvedMax.Y + margin},
+		{w.home.carvedMin.X - margin, w.home.carvedMin.Y - margin},
+		{w.home.carvedMin.X - margin, w.home.carvedMax.Y + margin},
+		{w.home.carvedMax.X + margin, w.home.carvedMin.Y - margin},
+		{w.home.carvedMax.X + margin, w.home.carvedMax.Y + margin},
 	}
 	r := roomSearchStartRadius
 	for _, c := range corners {
@@ -834,7 +834,7 @@ func (w *World) roomSiteClear(ox, oy, width int, designated map[Point]bool, allo
 		for x := ox; x < ox+width; x++ {
 			p := Point{x, y}
 			t := w.TerrainAt(p)
-			if designated[p] || w.doorTiles[p] || (t != Floor && !(allowRock && t == Rock)) {
+			if designated[p] || w.home.doorTiles[p] || (t != Floor && !(allowRock && t == Rock)) {
 				return false
 			}
 			if t == Floor && !w.discovered(p) {
@@ -847,7 +847,7 @@ func (w *World) roomSiteClear(ox, oy, width int, designated map[Point]bool, allo
 		// another room (shared outright: nothing more is needed on that side).
 		for _, side := range [2]struct{ wall, lane int }{{ox - 1, ox - 2}, {ox + width, ox + width + 1}} {
 			p := Point{side.wall, y}
-			if designated[p] || w.doorTiles[p] {
+			if designated[p] || w.home.doorTiles[p] {
 				return false
 			}
 			switch w.TerrainAt(p) {
@@ -930,7 +930,7 @@ func (w *World) kitchensBehind() bool {
 	}
 	waiting := 0
 	for _, p := range houses {
-		if c := w.storageContainers[p]; c != nil {
+		if c := w.home.storageContainers[p]; c != nil {
 			for _, k := range biomatterKinds {
 				waiting += c.held(Community, k)
 			}

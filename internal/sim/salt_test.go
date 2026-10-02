@@ -9,8 +9,8 @@ import (
 // sortedSalt lists the world's deposits in row order, so a test that picks
 // one picks the same one every run (map order would not).
 func sortedSalt(w *World) []Point {
-	out := make([]Point, 0, len(w.salt))
-	for p := range w.salt {
+	out := make([]Point, 0, len(w.home.salt))
+	for p := range w.home.salt {
 		out = append(out, p)
 	}
 	slices.SortFunc(out, func(a, b Point) int {
@@ -44,7 +44,7 @@ func TestSaltNeverRegeneratesOrMeetsScum(t *testing.T) {
 	cfg.ScumSpawnPPM, cfg.ScumSpreadPercent = 20000, 90 // grow scum hard
 	cfg.ScumPercent = 40
 	w := newTestWorld(t, cfg)
-	if len(w.salt) == 0 {
+	if len(w.home.salt) == 0 {
 		t.Fatal("no salt was generated at 20%")
 	}
 	fresh := newWorldGen(cfg)
@@ -58,12 +58,12 @@ func TestSaltNeverRegeneratesOrMeetsScum(t *testing.T) {
 			if !generated(p) {
 				t.Fatalf("tick %d: salt on %v that generation never placed", w.tick, p)
 			}
-			if _, scum := w.scum[p]; scum {
+			if _, scum := w.home.scum[p]; scum {
 				t.Fatalf("tick %d: %v holds both salt and scum", w.tick, p)
 			}
 		}
 	}
-	if len(w.scum) == 0 {
+	if len(w.home.scum) == 0 {
 		t.Fatal("scum never grew, so the test proved nothing")
 	}
 }
@@ -74,7 +74,7 @@ func TestScumWillNotStartOnSalt(t *testing.T) {
 	noScum(w)
 	p := firstSaltOnRock(t, w)
 	w.addScum(p, true)
-	if _, ok := w.scum[p]; ok {
+	if _, ok := w.home.scum[p]; ok {
 		t.Fatalf("scum started on the salt at %v", p)
 	}
 }
@@ -152,8 +152,8 @@ func TestSnapshotCarriesExactlyExposedSalt(t *testing.T) {
 	}
 	snap := w.snapshot(false, 8)
 	exact("tick 0", snap)
-	if len(snap.Salt) == 0 || len(snap.Salt) == len(w.salt) {
-		t.Fatalf("snapshot has %d of %d deposits: want some, but not all", len(snap.Salt), len(w.salt))
+	if len(snap.Salt) == 0 || len(snap.Salt) == len(w.home.salt) {
+		t.Fatalf("snapshot has %d of %d deposits: want some, but not all", len(snap.Salt), len(w.home.salt))
 	}
 
 	// An unchanged world hands out the very same map, which is what the wire
@@ -165,7 +165,7 @@ func TestSnapshotCarriesExactlyExposedSalt(t *testing.T) {
 	// Put a deposit behind the frontier, where nobody can reach it yet.
 	dig, buried := openFrontier(t, w)
 	w.clearScum(buried)
-	w.salt[buried] = struct{}{}
+	w.home.salt[buried] = struct{}{}
 	if w.snapshot(false, 8).SaltAt(buried) {
 		t.Fatalf("salt at %v is published before anything opens it", buried)
 	}
@@ -222,7 +222,7 @@ func TestBreachingACavernPublishesItsSalt(t *testing.T) {
 	}
 	for _, p := range []Point{floor, rim} {
 		w.clearScum(p)
-		w.salt[p] = struct{}{}
+		w.home.salt[p] = struct{}{}
 		if w.snapshot(false, 8).SaltAt(p) {
 			t.Fatalf("salt at %v in an unfound cavern is published", p)
 		}

@@ -147,7 +147,7 @@ func (f *flowField) repair() bool {
 		c := f.cellPtr(i)
 		c.gen, c.dist = f.gen, d
 		f.forNeighbours(i, func(n int32) {
-			if !w.tiles.at(int(n)%w.Width, int(n)/w.Width).Terrain.Walkable() {
+			if !w.home.tiles.at(int(n)%w.Width, int(n)/w.Width).Terrain.Walkable() {
 				return
 			}
 			if nd, ok := f.dist(n); !ok || nd > d+1 {

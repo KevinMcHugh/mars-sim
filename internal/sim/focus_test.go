@@ -141,13 +141,13 @@ func TestFocusTransitionReleasesMineClaim(t *testing.T) {
 	w, c := focusTestColonist(t)
 	target := c.Pos.Add(1, 0)
 	w.SetTerrain(target, Rock)
-	w.board.claimMine(target, c.ID)
+	w.home.board.claimMine(target, c.ID)
 	c.Job, c.Target, c.mineClaimed = JobMine, target, true
 	c.focus = FocusWork
 	c.Needs[NeedFood] = w.cfg.Needs[NeedFood].SeekAt
 
 	w.colonistTurn(c)
-	if w.board.isClaimed(target) {
+	if w.home.board.isClaimed(target) {
 		t.Fatal("mine claim survived focus transition")
 	}
 	if c.focus != FocusEat {

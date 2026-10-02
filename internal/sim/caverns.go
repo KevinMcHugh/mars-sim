@@ -47,7 +47,7 @@ const nestRadius = 4
 func (w *World) trackCavernsForNests() {
 	w.rngSrc.nest = newPCG(w.cfg.Seed ^ 0x0452821E638D0137)
 	w.nestRNG = rand.New(w.rngSrc.nest)
-	w.unfoundCaverns = make(map[Point]struct{})
+	w.home.unfoundCaverns = make(map[Point]struct{})
 }
 
 // rollNests gives each cavern whose center a breach just discovered its one
@@ -56,7 +56,7 @@ func (w *World) trackCavernsForNests() {
 // never holds (or generates) thousands of aliens nobody has met.
 func (w *World) rollNests(centers []Point) {
 	for _, c := range centers {
-		delete(w.unfoundCaverns, c)
+		delete(w.home.unfoundCaverns, c)
 		if w.nestRNG == nil || len(w.alienSpecies) == 0 {
 			continue
 		}

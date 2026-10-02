@@ -79,7 +79,7 @@ func (w *World) materialSource(e *Entity, missing []ItemStack, payers []Owner) (
 	for _, payer := range payers {
 		var best Point
 		bestDist, found := 1<<30, false
-		for p, c := range w.storageContainers {
+		for p, c := range w.home.storageContainers {
 			if c.Terrain != Storage || !w.canUseFixture(e, p) || !w.taskReachable(p, room) {
 				continue
 			}
@@ -152,7 +152,7 @@ func (w *World) gatherBuildMaterials(e *Entity) (ready, ok bool) {
 		e.State = Moving
 		return false, true
 	}
-	c := w.storageContainers[src]
+	c := w.home.storageContainers[src]
 	for _, m := range missing {
 		if !c.debit(payer, m.Kind, m.Count) {
 			return false, false

@@ -46,7 +46,7 @@ func mined(k ItemKind) bool {
 // armoryStock is how many assault rifles the colony owns, in every depot.
 func (w *World) armoryStock() int {
 	n := 0
-	for _, c := range w.storageContainers {
+	for _, c := range w.home.storageContainers {
 		n += c.held(Community, AssaultRifle)
 	}
 	return n
@@ -67,7 +67,7 @@ func (w *World) refreshArmoryBids() {
 	}
 	want := w.cfg.ArmoryRifles - w.armoryStock() - w.openQty(Bid, AssaultRifle, silo, Community)
 	want = min(want, int(w.treasury/price))
-	for want > 0 && !w.storageContainers[silo].Inventory.CanAdd(AssaultRifle, want) {
+	for want > 0 && !w.home.storageContainers[silo].Inventory.CanAdd(AssaultRifle, want) {
 		want--
 	}
 	if want > 0 {
@@ -121,7 +121,7 @@ func (w *World) ownStockFor(e *Entity, b *Order) (ownStock, bool) {
 		return ownStock{from: e.Pos, n: n, carried: true}, true
 	}
 	me := ColonistOwner(e.ID)
-	if c := w.storageContainers[b.Depot]; c != nil {
+	if c := w.home.storageContainers[b.Depot]; c != nil {
 		if n := c.held(me, b.Item); n > 0 {
 			return ownStock{from: b.Depot, n: n}, true
 		}
@@ -129,7 +129,7 @@ func (w *World) ownStockFor(e *Entity, b *Order) (ownStock, bool) {
 	room := w.roomOf(e.Pos)
 	var best ownStock
 	bestDist, found := 1<<30, false
-	for p, c := range w.storageContainers {
+	for p, c := range w.home.storageContainers {
 		n := c.held(me, b.Item)
 		if n <= 0 || !w.canUseFixture(e, p) || !w.taskReachable(p, room) {
 			continue

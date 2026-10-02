@@ -16,11 +16,11 @@ func (w *World) chunkIndexOf(p Point) int {
 // removeFromChunkIndex removes an entity id from a chunk bucket by swap-delete
 // (order within a bucket does not matter; queries tie-break on ID).
 func (w *World) removeFromChunkIndex(ci int, id EntityID) {
-	b := w.chunkEntities[ci]
+	b := w.home.chunkEntities[ci]
 	for i, x := range b {
 		if x == id {
 			b[i] = b[len(b)-1]
-			w.chunkEntities[ci] = b[:len(b)-1]
+			w.home.chunkEntities[ci] = b[:len(b)-1]
 			return
 		}
 	}

@@ -22,7 +22,7 @@ func marketWorld(t *testing.T) (w *World, silo Point, cs [3]*Entity) {
 
 // stock puts n of kind into the depot at p, on owner's line.
 func stock(w *World, p Point, owner Owner, kind ItemKind, n int) {
-	c := w.storageContainers[p]
+	c := w.home.storageContainers[p]
 	c.Inventory.Add(kind, n)
 	c.credit(owner, kind, n)
 }
@@ -54,7 +54,7 @@ func TestMatchingIsPriceThenTimeAtTheRestingPrice(t *testing.T) {
 	if w.orders[older.ID] != nil || w.orders[newer.ID] == nil || w.orders[newer.ID].Qty != 1 {
 		t.Fatal("the book did not fill the older ask first")
 	}
-	if w.storageContainers[silo].held(buyer, IronOre) != 3 {
+	if w.home.storageContainers[silo].held(buyer, IronOre) != 3 {
 		t.Fatal("the buyer did not get its ore")
 	}
 	assertMoneyConserved(t, w)
@@ -75,7 +75,7 @@ func TestNothingIsSoldTwice(t *testing.T) {
 	if cs[2].wallet != 95 || w.moneyEscrowed() != 5 {
 		t.Fatalf("the resting bid holds %v; wallet %v", w.moneyEscrowed(), cs[2].wallet)
 	}
-	if !w.storageContainers[silo].ledgerBalanced() {
+	if !w.home.storageContainers[silo].ledgerBalanced() {
 		t.Fatal("ledger unbalanced")
 	}
 	assertMoneyConserved(t, w)
@@ -95,7 +95,7 @@ func TestEscrowIsFundedAndReturned(t *testing.T) {
 	stock(w, silo, me, IronOre, 4)
 	ask, _ := w.post(Ask, IronOre, 4, 3, me, silo, 10)
 	bid, _ := w.post(Bid, Clay, 10, 2, me, silo, 0)
-	c := w.storageContainers[silo]
+	c := w.home.storageContainers[silo]
 	if c.held(me, IronOre) != 0 || cs[0].wallet != 80 {
 		t.Fatalf("escrow not taken: ore %d, wallet %v", c.held(me, IronOre), cs[0].wallet)
 	}
@@ -146,7 +146,7 @@ func TestRandomTradingIsDeterministicAndConserved(t *testing.T) {
 			if i%7 == 0 {
 				w.expireOrders()
 			}
-			if !w.storageContainers[silo].ledgerBalanced() {
+			if !w.home.storageContainers[silo].ledgerBalanced() {
 				t.Fatalf("step %d: ledger unbalanced", i)
 			}
 			assertMoneyConserved(t, w)
@@ -187,7 +187,7 @@ func TestProspectorsArePaidByTheColony(t *testing.T) {
 	if miner.wallet != 100+10*price {
 		t.Fatalf("miner has %v, want $%d more for 10 iron ore", miner.wallet, 10*price)
 	}
-	if w.storageContainers[silo].held(Community, IronOre) != 10 {
+	if w.home.storageContainers[silo].held(Community, IronOre) != 10 {
 		t.Fatal("the colony does not own the ore it bought")
 	}
 	if w.moneyEscrowed()+w.treasury != treasury-10*price {

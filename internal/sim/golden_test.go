@@ -117,8 +117,8 @@ func goldenHash(w *World) string {
 	}
 	// Scum patches, in a fixed order: they are generated content too, and a
 	// map, so their order must not leak into the hash.
-	patches := make([]Point, 0, len(w.scum))
-	for p := range w.scum {
+	patches := make([]Point, 0, len(w.home.scum))
+	for p := range w.home.scum {
 		patches = append(patches, p)
 	}
 	slices.SortFunc(patches, func(a, b Point) int {
@@ -131,8 +131,8 @@ func goldenHash(w *World) string {
 	for _, p := range patches {
 		scum = fnvAdd(fnvAdd(fnvAdd(scum, uint64(p.X)), uint64(p.Y)), uint64(w.scumAt(p)))
 	}
-	deposits := make([]Point, 0, len(w.salt))
-	for p := range w.salt {
+	deposits := make([]Point, 0, len(w.home.salt))
+	for p := range w.home.salt {
 		deposits = append(deposits, p)
 	}
 	slices.SortFunc(deposits, func(a, b Point) int {
@@ -146,11 +146,11 @@ func goldenHash(w *World) string {
 		salt = fnvAdd(fnvAdd(salt, uint64(p.X)), uint64(p.Y))
 	}
 	chunks := fnvSeed
-	for _, k := range w.genChunks {
+	for _, k := range w.home.genChunks {
 		chunks = fnvAdd(fnvAdd(chunks, uint64(k.cx)), uint64(k.cy))
 	}
 	return fmt.Sprintf("tiles=%016x entities=%016x rng=%016x chunks=%016x/%d scum=%016x/%d salt=%016x/%d n=%d gore=%d corpses=%d",
-		tiles, ents, rng, chunks, len(w.genChunks), scum, len(patches), salt, len(deposits), len(w.entities), w.goreTotal, w.corpseTotal)
+		tiles, ents, rng, chunks, len(w.home.genChunks), scum, len(patches), salt, len(deposits), len(w.entities), w.home.goreTotal, w.home.corpseTotal)
 }
 
 // goldenFile holds the pinned hashes, one "<case> gen|run <hash>" line each,
@@ -226,13 +226,13 @@ func TestGoldenWorldHash(t *testing.T) {
 	for _, gc := range goldenCases {
 		t.Run(gc.name, func(t *testing.T) {
 			w := NewEngine(gc.cfg()).world
-			chunks := len(w.genChunks)
+			chunks := len(w.home.genChunks)
 			check(t, gc.name+" gen", "tick 0", goldenHash(w))
 			for i := 0; i < gc.ticks; i++ {
 				w.step()
 			}
 			check(t, gc.name+" run", fmt.Sprintf("tick %d", gc.ticks), goldenHash(w))
-			if gc.grows && len(w.genChunks) == chunks {
+			if gc.grows && len(w.home.genChunks) == chunks {
 				t.Errorf("no chunk was generated after tick 0 in %d ticks; pick a config that explores further", gc.ticks)
 			}
 			if gc.breach && w.cavernBreaches == 0 {

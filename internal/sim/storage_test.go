@@ -50,7 +50,7 @@ func TestStorageTerrainOwnsSparseContainerState(t *testing.T) {
 
 	w.SetTerrain(p, Floor)
 	w.SetTerrain(p, Storage)
-	container := w.storageContainers[p]
+	container := w.home.storageContainers[p]
 	if container == nil || container.Pos != p {
 		t.Fatalf("storage container at %v = %#v", p, container)
 	}
@@ -65,7 +65,7 @@ func TestStorageTerrainOwnsSparseContainerState(t *testing.T) {
 	}
 
 	w.SetTerrain(p, Floor)
-	if _, ok := w.storageContainers[p]; ok {
+	if _, ok := w.home.storageContainers[p]; ok {
 		t.Fatal("container state survived removal of its storage terrain")
 	}
 }
@@ -114,7 +114,7 @@ func TestFullColonistSeeksStorageAndUnloadsMaterials(t *testing.T) {
 		t.Fatalf("full colonist job = %v at %v, want storage at %v",
 			colonist.Job, colonist.Target, chest)
 	}
-	for i := 0; i < 30 && w.storageContainers[chest].Inventory.Count(RawRock) == 0; i++ {
+	for i := 0; i < 30 && w.home.storageContainers[chest].Inventory.Count(RawRock) == 0; i++ {
 		w.colonistTurn(colonist)
 	}
 
@@ -124,7 +124,7 @@ func TestFullColonistSeeksStorageAndUnloadsMaterials(t *testing.T) {
 	if got := colonist.Inventory.Count(Pistol); got != 1 {
 		t.Fatalf("storage removed equipped pistol: count = %d", got)
 	}
-	if got := w.storageContainers[chest].Inventory.Count(RawRock); got != 7*MaxStackSize {
+	if got := w.home.storageContainers[chest].Inventory.Count(RawRock); got != 7*MaxStackSize {
 		t.Fatalf("stored raw rock = %d, want %d", got, 7*MaxStackSize)
 	}
 }

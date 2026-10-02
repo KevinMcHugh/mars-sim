@@ -143,7 +143,7 @@ func (f *flowField) rebuild() {
 		// eight terrain reads. This node is walkable, so its page exists.
 		var tiles []tileCell
 		if page != nil {
-			tiles = w.tiles.pageAt(cx, cy)
+			tiles = w.home.tiles.pageAt(cx, cy)
 		}
 		for _, d := range neighbors8 {
 			nx, ny := cx+d.X, cy+d.Y
@@ -158,7 +158,7 @@ func (f *flowField) rebuild() {
 				// not exist yet. Walkability has to be tested before asking for
 				// it: rock never enters a field, and allocating for one would
 				// give every field a border of pages around the reachable area.
-				if !w.tiles.at(nx, ny).Terrain.Walkable() {
+				if !w.home.tiles.at(nx, ny).Terrain.Walkable() {
 					continue
 				}
 				cells = f.cells.pageAtAlloc(nx, ny)
@@ -179,7 +179,7 @@ func (f *flowField) rebuild() {
 				if tiles != nil {
 					t = tiles[o].Terrain
 				} else {
-					t = w.tiles.at(nx, ny).Terrain
+					t = w.home.tiles.at(nx, ny).Terrain
 				}
 				if !t.Walkable() {
 					continue
@@ -248,7 +248,7 @@ func (w *World) followField(e *Entity, f *flowField) bool {
 			from := Point{ci % w.Width, ci / w.Width}
 			for _, d := range neighbors8 {
 				p := from.Add(d.X, d.Y)
-				if !w.Walkable(p) || w.buildTiles[p] {
+				if !w.Walkable(p) || w.home.buildTiles[p] {
 					continue // never cross a tile a builder needs clear
 				}
 				nd := f.at(p)
@@ -344,7 +344,7 @@ func facilityGoal(w *World, kind Terrain) func(Point) bool {
 		if !w.Walkable(p) {
 			return false
 		}
-		restricted := w.restrictedFixtures[kind] > 0
+		restricted := w.home.restrictedFixtures[kind] > 0
 		for _, d := range neighbors8 {
 			fc := p.Add(d.X, d.Y)
 			if w.TerrainAt(fc) == kind && (!restricted || w.communalFixture(fc)) {
@@ -356,13 +356,13 @@ func facilityGoal(w *World, kind Terrain) func(Point) bool {
 }
 
 // facilitySeed builds the goal-seeding closure for a facility field: the walkable
-// neighbors of every tile of the given terrain. Iterates w.facilityTiles[kind]
+// neighbors of every tile of the given terrain. Iterates w.home.facilityTiles[kind]
 // (maintained incrementally by SetTerrain) rather than scanning the whole grid,
 // so cost tracks the number of facilities, not the map's area.
 func facilitySeed(w *World, kind Terrain) func(add func(Point)) {
 	return func(add func(Point)) {
-		restricted := w.restrictedFixtures[kind] > 0
-		for fc := range w.facilityTiles[kind] {
+		restricted := w.home.restrictedFixtures[kind] > 0
+		for fc := range w.home.facilityTiles[kind] {
 			// The shared field is everyone's route, so it only leads to
 			// fixtures everyone may use. A colonist headed for its own
 			// private one routes there directly; see facilityReachable.

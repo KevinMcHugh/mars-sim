@@ -64,7 +64,7 @@ func TestAMealBidReachesTheCaveWall(t *testing.T) {
 	if depth < 2 {
 		t.Fatalf("deepest plan was %d links below the meal bid, want 2", depth)
 	}
-	if got := w.storageContainers[silo].held(customer, Meal); got != 1 {
+	if got := w.home.storageContainers[silo].held(customer, Meal); got != 1 {
 		t.Fatalf("the customer holds %d meals at the silo, want 1", got)
 	}
 }
@@ -137,7 +137,7 @@ func TestHungryBidRestsAsDemand(t *testing.T) {
 		t.Fatalf("the demand bid outlived demand-ttl: %d open", got)
 	}
 	w.tryBuyMeal(e) // queue again, then the colony cooks a meal
-	c := w.storageContainers[house]
+	c := w.home.storageContainers[house]
 	c.Inventory.Add(Meal, 1)
 	c.credit(Community, Meal, 1)
 	w.offerColonyMeals(house)
