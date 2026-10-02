@@ -294,3 +294,99 @@ func TestExperienceBelowTheCeiling(t *testing.T) {
 		t.Fatalf("felt-lonely after leaving and re-entering the band = %d, want 2", got)
 	}
 }
+
+// A colonist starved for company, with nobody it could talk to, goes to bed
+// rather than standing in the socialize focus until it passes out. Its only
+// companion here is asleep, so unavailable. Before socialize stepped aside
+// (companyInReach), social pinned at its ceiling outranked sleep, the
+// colonist waited for a partner who never came, and it passed out with a bed
+// in reach: most of the default game's pass-outs were exactly this.
+func TestLonelyColonistWithNobodyToTalkToGoesToBed(t *testing.T) {
+	w, lonely, sleeper := lonelyBedroom(t, Point{4, 7})
+	sleeper.Job, sleeper.Drive = JobUse, DriveSleep
+	sleeper.useFacility, sleeper.useFacilitySet = Point{3, 7}, true
+	sleeper.focus = FocusSleep
+	w.setDrive(sleeper, DriveSleep, w.cfg.Drives[DriveSleep].Max-50)
+
+	for i := 0; i < 40 && !w.usingFacility(lonely, DriveSleep); i++ {
+		w.step()
+		if lonely.passedOut {
+			t.Fatalf("passed out on tick %d in the %s focus", i, lonely.focus)
+		}
+	}
+	if !w.usingFacility(lonely, DriveSleep) {
+		t.Fatalf("not in bed after 40 ticks: focus %s, state %v, social %d, sleep %d",
+			lonely.focus, lonely.State, w.driveLevel(lonely, DriveSocial), w.driveLevel(lonely, DriveSleep))
+	}
+	if !w.usingFacility(sleeper, DriveSleep) {
+		t.Fatal("the sleeper was pulled out of bed")
+	}
+}
+
+// The other half: with someone free to talk to in reach, the same colonist
+// still puts company first. Stepping aside is for when nobody could answer.
+func TestLonelyColonistWithSomeoneToTalkToSocializes(t *testing.T) {
+	w, lonely, other := lonelyBedroom(t, Point{6, 4})
+	if !w.availableToTalk(other) {
+		t.Fatal("setup: the other colonist should be free to talk")
+	}
+	w.step()
+	if lonely.focus != FocusSocialize || lonely.Job != JobTalk || lonely.partner != other.ID {
+		t.Fatalf("focus %s, job %v, partner #%d: want a talk with #%d",
+			lonely.focus, lonely.Job, lonely.partner, other.ID)
+	}
+}
+
+// lonelyBedroom is one room with two beds and two colonists, the second at
+// otherAt, two tiles from the first and well within talk-radius. The first is
+// already standing in the socialize focus with social at its ceiling and
+// sleep pressing. The second has every drive empty.
+func lonelyBedroom(t *testing.T, otherAt Point) (w *World, lonely, other *Entity) {
+	t.Helper()
+	w = roomsTestWorld(20, 12)
+	carve(w, Point{2, 2}, Point{15, 8}, Floor)
+	w.SetTerrain(Point{12, 3}, Bed)
+	w.SetTerrain(Point{3, 7}, Bed)
+	w.refreshSpatial()
+	lonely = w.spawn(Colonist, Point{4, 5})
+	other = w.spawn(Colonist, otherAt)
+	for _, e := range []*Entity{lonely, other} {
+		for d := DriveKind(0); d < numDrives; d++ {
+			w.setDrive(e, d, 0)
+		}
+	}
+	social, sleep := w.cfg.Drives[DriveSocial], w.cfg.Drives[DriveSleep]
+	w.setDrive(lonely, DriveSocial, social.Max)
+	w.setDrive(lonely, DriveSleep, sleep.SeekAt+100)
+	lonely.focus = FocusSocialize
+	if !w.facilityReachable(lonely, Bed) {
+		t.Fatal("setup: the bed should be in reach")
+	}
+	return w, lonely, other
+}
+
+// With a hall, company out of talk-radius still counts if it is headed there:
+// another colonist already socializing, or one at work whose own social drive
+// is critical, who will be. Without the second, two lonely colonists at work
+// would each wait for the other to go first and neither ever would.
+func TestHallCompanyIncludesLonelyWorkers(t *testing.T) {
+	w, lonely, other := lonelyBedroom(t, Point{14, 3})
+	w.SetTerrain(Point{14, 8}, Chair)
+	w.refreshSpatial()
+	if !w.hallOpen() || lonely.Pos.Chebyshev(other.Pos) <= w.cfg.TalkRadius {
+		t.Fatal("setup: want an open hall and the other colonist out of talk-radius")
+	}
+	other.focus, other.Job = FocusWork, JobMine
+	if w.companyInReach(lonely) {
+		t.Fatal("a content colonist at work counted as company")
+	}
+	w.setDrive(other, DriveSocial, w.cfg.Drives[DriveSocial].Max)
+	w.syncDrivePhase(other, DriveSocial)
+	if !w.companyInReach(lonely) {
+		t.Fatal("a lonely colonist at work did not count as headed for the hall")
+	}
+	other.focus = FocusSleep
+	if w.companyInReach(lonely) {
+		t.Fatal("a lonely colonist asleep counted as headed for the hall")
+	}
+}

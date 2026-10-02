@@ -256,6 +256,9 @@ func (w *World) currentFocusEligible(e *Entity, threat *Entity) bool {
 		if phase != DrivePressing && phase != DriveCritical {
 			return false
 		}
+		if need == DriveSocial && !w.companyInReach(e) {
+			return false
+		}
 		if !w.cfg.Drives[need].Fatal() {
 			for n := DriveKind(0); n < numDrives; n++ {
 				if w.cfg.Drives[n].Fatal() && (e.drives[n].phase == DrivePressing || e.drives[n].phase == DriveCritical) {
@@ -303,6 +306,7 @@ type focusInputs struct {
 	threatID                                EntityID
 	armed                                   bool
 	escape                                  bool
+	noCompany                               bool // socialize has nobody to find (companyInReach)
 	currentBonus, criticalBonus, fatalBonus int
 }
 
@@ -318,6 +322,8 @@ func (w *World) focusCandidates(e *Entity, out *[numFocusKinds]FocusCandidate) {
 	}
 	threat, holdFlee := w.focusThreat(e)
 	hasThreat := threat != nil && !holdFlee
+	social := phase[DriveSocial]
+	noCompany := (social == DrivePressing || social == DriveCritical) && !w.companyInReach(e)
 	var threatID EntityID
 	if threat != nil {
 		threatID = threat.ID
@@ -338,6 +344,7 @@ func (w *World) focusCandidates(e *Entity, out *[numFocusKinds]FocusCandidate) {
 		threatID:      threatID,
 		armed:         bestWeapon(e.Inventory) != ItemNone,
 		escape:        !hasThreat && e.disconnectedTicks >= w.cfg.EscapeGraceTicks,
+		noCompany:     noCompany,
 		currentBonus:  w.cfg.FocusCurrentBonus,
 		criticalBonus: w.cfg.FocusCriticalBonus,
 		fatalBonus:    w.cfg.FocusFatalBonus,
@@ -382,6 +389,15 @@ func fillFocusCandidates(in focusInputs, out *[numFocusKinds]FocusCandidate) {
 			c.Score.Drive += in.fatalBonus
 			fatalPressing = true
 		}
+	}
+
+	// Social is the one drive a colonist cannot meet alone. With nobody to
+	// find, socialize would stand idle with the drive pinned at its ceiling,
+	// outranking sleep with a bed in reach until the colonist passed out (most
+	// pass-outs in the default game were this). It steps aside so sleep or
+	// work can win, and comes back the moment someone could answer it.
+	if in.noCompany {
+		out[FocusSocialize].Eligible = false
 	}
 
 	// Preserve the existing hard invariant that a pressing fatal drive outranks

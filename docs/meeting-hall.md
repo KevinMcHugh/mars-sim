@@ -50,7 +50,12 @@ stale when a wall is torn down.
    (default 48) that has fewer than `chairShare` (2) colonists beside it.
 2. Seated: pair with the nearest available colonist *who is also in the hall*,
    and chat there. With no one, wait (State `Idle`, focus still social) so the
-   next arrival finds them.
+   next arrival finds them — but only while someone is headed there. Socialize
+   is only eligible while `companyInReach` finds someone who could answer:
+   free in the hall, or `headedForHall` (already socializing, idle with a
+   pressing social drive, or at work with a critical one). With nobody coming
+   the colonist leaves the hall for sleep or work rather than waiting there
+   until it passed out. See [drives.md](./drives.md), *Socialize steps aside*.
 3. Anything that fails (no chair free, out of range, route blocked) falls back
    to the old behavior, so a hall that is full or far never leaves anyone
    stranded.

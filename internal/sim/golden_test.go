@@ -51,11 +51,12 @@ var goldenCases = []goldenCase{
 			c.WorldgenHalo = 1
 			return c
 		},
-		// 2400, not 1200: with a night lasting until the sleep drive is met
-		// (docs/days.md), this colony first reaches new ground at tick 1259,
-		// and the scum-free copy TestLazyChunksMatchThePureGenerator plays
-		// only at tick 2254.
-		ticks:  2400,
+		// 3000, not 1200: with a night lasting until the sleep drive is met
+		// (docs/days.md), and since lonely colonists stopped standing idle
+		// waiting for company (companyInReach), this colony first reaches new
+		// ground at tick 2675, in a breach's flood. The scum-free copy
+		// TestLazyChunksMatchThePureGenerator plays gets there at tick 963.
+		ticks:  3000,
 		breach: true,
 		grows:  true,
 	},
