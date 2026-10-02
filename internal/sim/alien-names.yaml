@@ -8,7 +8,10 @@
 # Each entry is a candidate name with an optional "when" condition over the
 # rolled species' build. A name with no condition always applies. When more
 # than one name's condition matches a rolled species, one is picked at random
-# among them -- overlapping conditions are expected, not an error.
+# among them -- overlapping conditions are expected, not an error. A
+# "group" entry lists several names under one condition; it expands to one
+# entry per name. No two species in a world's roster share a name: a name an
+# earlier species took is skipped (see docs/lore.md).
 #
 # emoji is an optional list of candidate glyphs for that name: a species that
 # lands on this entry also draws one of these at random, independently of
@@ -105,32 +108,18 @@ names:
         - limbs: { eq: 0 }
         - skin: scaly
 
-  - name: reptile
-    plural: reptiles
+  # A name group: several names sharing one condition and one emoji list.
+  # It is shorthand for writing each name out as its own entry, so each name
+  # in it is as likely to be drawn as any standalone entry.
+  - group:
+      - reptile
+      - { name: reppy, plural: reppies }
+      - rept
     emoji: ["🦎", "🐍", "🐢", "🐊", "🐉"]
     when:
       skin: scaly
 
-  - name: reppy
-    plural: reppies
-    emoji: ["🦎", "🐍", "🐢", "🐊", "🐉"]
-    when:
-      skin: scaly
-
-  - name: rept
-    plural: repts
-    emoji: ["🦎", "🐍", "🐢", "🐊", "🐉"]
-    when:
-      skin: scaly
-
-  - name: furball
-    plural: furballs
-    emoji: ["🐹", "🐭", "🐰", "🐇"]
-    when:
-      skin: furry
-
-  - name: fuzzball
-    plural: fuzzballs
+  - group: [furball, fuzzball]
     emoji: ["🐹", "🐭", "🐰", "🐇"]
     when:
       skin: furry

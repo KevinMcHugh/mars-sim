@@ -45,7 +45,7 @@ func TestRollAlienSpeciesInvariants(t *testing.T) {
 	cfg := DefaultConfig()
 	names := defaultAlienNames()
 	for seed := int64(0); seed < 500; seed++ {
-		sp := rollAlienSpecies(newRand(seed), cfg, names)
+		sp := rollAlienSpecies(newRand(seed), cfg, names, nil)
 		if sp.Singular == "" || sp.Plural == "" {
 			t.Fatalf("seed %d: empty species name: %+v", seed, sp)
 		}
@@ -102,7 +102,7 @@ func TestRollAlienSpeciesVariesAcrossSeeds(t *testing.T) {
 	names := defaultAlienNames()
 	seen := map[AlienSpecies]bool{}
 	for seed := int64(0); seed < 100; seed++ {
-		seen[rollAlienSpecies(newRand(seed), cfg, names)] = true
+		seen[rollAlienSpecies(newRand(seed), cfg, names, nil)] = true
 	}
 	if len(seen) < 20 {
 		t.Fatalf("only %d distinct species across 100 seeds, want plenty of variety", len(seen))
@@ -135,7 +135,7 @@ func TestSpeciesDamageZeroBaselinePassesThrough(t *testing.T) {
 	cfg.AlienDamage = 0
 	names := defaultAlienNames()
 	for seed := int64(0); seed < 50; seed++ {
-		sp := rollAlienSpecies(newRand(seed), cfg, names)
+		sp := rollAlienSpecies(newRand(seed), cfg, names, nil)
 		if sp.BiteDamage != 0 {
 			t.Fatalf("seed %d: bite damage = %d with AlienDamage 0, want 0", seed, sp.BiteDamage)
 		}

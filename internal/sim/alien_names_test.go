@@ -1,6 +1,8 @@
 package sim
 
 import (
+	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -187,12 +189,12 @@ func TestPickAlienNameFallsBackWhenNothingMatches(t *testing.T) {
 	entries := []AlienNameEntry{
 		{Singular: "gremlin", Plural: "gremlins", When: nameCondition{Temperament: "friendly"}},
 	}
-	singular, plural, emoji := pickAlienName(rng, sp, entries)
+	singular, plural, emoji := pickAlienName(rng, sp, entries, nil)
 	if singular != "alien" || plural != "aliens" || emoji != "" {
 		t.Fatalf("no-match fallback = %q/%q/%q, want alien/aliens/\"\"", singular, plural, emoji)
 	}
 
-	singular, plural, emoji = pickAlienName(rng, sp, nil)
+	singular, plural, emoji = pickAlienName(rng, sp, nil, nil)
 	if singular != "alien" || plural != "aliens" || emoji != "" {
 		t.Fatalf("empty-pool fallback = %q/%q/%q, want alien/aliens/\"\"", singular, plural, emoji)
 	}
@@ -202,7 +204,7 @@ func TestPickAlienNameFallsBackWhenNothingMatches(t *testing.T) {
 func TestPickAlienNamePluralDefaultsToSingularPlusS(t *testing.T) {
 	rng := newRand(1)
 	entries := []AlienNameEntry{{Singular: "blorp"}}
-	singular, plural, _ := pickAlienName(rng, AlienSpecies{}, entries)
+	singular, plural, _ := pickAlienName(rng, AlienSpecies{}, entries, nil)
 	if singular != "blorp" || plural != "blorps" {
 		t.Fatalf("got %q/%q, want blorp/blorps", singular, plural)
 	}
@@ -214,7 +216,7 @@ func TestPickAlienNameDrawsEmojiFromTheWinningEntry(t *testing.T) {
 	rng := newRand(1)
 	entries := []AlienNameEntry{{Singular: "gremlin", Plural: "gremlins", Emoji: []string{"🦎", "🐍"}}}
 	for i := 0; i < 20; i++ {
-		_, _, emoji := pickAlienName(rng, AlienSpecies{}, entries)
+		_, _, emoji := pickAlienName(rng, AlienSpecies{}, entries, nil)
 		if emoji != "🦎" && emoji != "🐍" {
 			t.Fatalf("emoji = %q, want one of the entry's own candidates", emoji)
 		}
@@ -225,7 +227,7 @@ func TestPickAlienNameDrawsEmojiFromTheWinningEntry(t *testing.T) {
 func TestPickAlienNameEmojiEmptyWhenEntryListsNone(t *testing.T) {
 	rng := newRand(1)
 	entries := []AlienNameEntry{{Singular: "alien", Plural: "aliens"}}
-	_, _, emoji := pickAlienName(rng, AlienSpecies{}, entries)
+	_, _, emoji := pickAlienName(rng, AlienSpecies{}, entries, nil)
 	if emoji != "" {
 		t.Fatalf("emoji = %q, want \"\" for an entry with no emoji list", emoji)
 	}
@@ -260,7 +262,7 @@ func TestDefaultAlienNamesAlwaysNamesAnySpecies(t *testing.T) {
 		{Limbs: 6, Arms: 2, Skin: SkinSmooth, Temperament: TemperamentFriendly}, // centaur-ish
 		{Limbs: 2, Arms: 2, Skin: SkinFurry, Temperament: TemperamentCautious, Color: "pale"},
 	} {
-		singular, plural, _ := pickAlienName(rng, sp, names)
+		singular, plural, _ := pickAlienName(rng, sp, names, nil)
 		if singular == "" || plural == "" {
 			t.Fatalf("species %+v got an empty name", sp)
 		}
@@ -306,5 +308,96 @@ names:
 `)
 	if _, err := LoadAlienNames(doc, "test"); err == nil {
 		t.Fatal("LoadAlienNames accepted an entry with no name")
+	}
+}
+
+// A group expands, in file order, into one entry per name, each carrying the
+// group's own condition and emoji; a bare string is a name whose plural is
+// the name plus "s".
+func TestLoadAlienNamesExpandsGroups(t *testing.T) {
+	doc := []byte(`
+names:
+  - name: alien
+  - group:
+      - rept
+      - { name: scaly, plural: scalies }
+    emoji: ["🦎"]
+    when:
+      skin: scaly
+  - name: xeno
+`)
+	entries, err := LoadAlienNames(doc, "test")
+	if err != nil {
+		t.Fatalf("LoadAlienNames: %v", err)
+	}
+	var got []string
+	for _, e := range entries {
+		got = append(got, e.Singular+"/"+e.Plural)
+	}
+	if want := []string{"alien/aliens", "rept/repts", "scaly/scalies", "xeno/xenos"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("expanded names = %v, want %v", got, want)
+	}
+	for _, e := range entries[1:3] {
+		if !reflect.DeepEqual(e.Emoji, []string{"🦎"}) || e.When.Skin != "scaly" {
+			t.Fatalf("group member %q lost the group's emoji/condition: %+v", e.Singular, e)
+		}
+	}
+}
+
+func TestLoadAlienNamesRejectsMalformedGroups(t *testing.T) {
+	for name, doc := range map[string]string{
+		"name and group": "names:\n  - name: a\n    group: [b]\n",
+		"group plural":   "names:\n  - group: [b]\n    plural: bs\n",
+		"empty member":   "names:\n  - group: [{plural: xs}]\n",
+	} {
+		if _, err := LoadAlienNames([]byte(doc), "test"); err == nil {
+			t.Errorf("%s: LoadAlienNames accepted it", name)
+		}
+	}
+}
+
+// pickAlienName never hands out a name in used while a matching name is free.
+func TestPickAlienNameSkipsUsedNames(t *testing.T) {
+	entries := []AlienNameEntry{{Singular: "grelk"}, {Singular: "xeno"}}
+	used := map[string]bool{"grelk": true}
+	for seed := int64(0); seed < 50; seed++ {
+		if s, p, _ := pickAlienName(newRand(seed), AlienSpecies{}, entries, used); s != "xeno" || p != "xenos" {
+			t.Fatalf("seed %d: got %q/%q, want xeno/xenos", seed, s, p)
+		}
+	}
+}
+
+// With every matching name taken, the name is qualified by color, then by a
+// number, rather than repeated.
+func TestPickAlienNameQualifiesWhenEveryNameIsTaken(t *testing.T) {
+	entries := []AlienNameEntry{{Singular: "grelk"}}
+	sp := AlienSpecies{Color: "green", Pattern: PatternStriped}
+	used := map[string]bool{"grelk": true}
+	s, p, _ := pickAlienName(newRand(1), sp, entries, used)
+	if s != "green-striped grelk" || p != "green-striped grelks" {
+		t.Fatalf("got %q/%q, want green-striped grelk/grelks", s, p)
+	}
+	used[s] = true
+	s, p, _ = pickAlienName(newRand(1), sp, entries, used)
+	if s != "green-striped grelk 2" || p != "green-striped grelks 2" {
+		t.Fatalf("got %q/%q, want the numbered form", s, p)
+	}
+}
+
+// No two species in a rolled roster share a name, even when the roster is
+// bigger than the pool has names for.
+func TestAlienRosterNamesAreDistinct(t *testing.T) {
+	cfg := DefaultConfig()
+	for _, count := range []int{8, 80} {
+		cfg.AlienSpeciesCount = count
+		roster := rollAlienSpeciesRoster(newRand(7), cfg)
+		seen := map[string]bool{}
+		for _, sp := range roster {
+			key := strings.ToLower(sp.Singular)
+			if seen[key] {
+				t.Fatalf("count %d: name %q repeated", count, sp.Singular)
+			}
+			seen[key] = true
+		}
 	}
 }
