@@ -110,9 +110,12 @@ type ColonistDetail struct {
 	Skills          []SkillLevel `json:"skills"`
 	Profession      string       `json:"profession,omitempty"`
 	ProfessionLabel string       `json:"professionLabel,omitempty"`
-	Family          []Kin        `json:"family"`
-	Affinities      []Acquaint   `json:"affinities"`
-	AffinityMax     int          `json:"affinityMax"`
+	// Backstory is its one-line past, "Worked as a drill operator for
+	// MarsCorp." ("" for none). Flavor only (docs/arms-makers.md).
+	Backstory   string     `json:"backstory,omitempty"`
+	Family      []Kin      `json:"family"`
+	Affinities  []Acquaint `json:"affinities"`
+	AffinityMax int        `json:"affinityMax"`
 	// Memories are newest first.
 	Memories []MemoryLine `json:"memories"`
 }
@@ -278,6 +281,7 @@ func colonistDetail(s *sim.Snapshot, e sim.EntityView, p *sim.Profile) *Colonist
 	if e.Profession != sim.SkillNone {
 		c.Profession, c.ProfessionLabel = e.Profession.String(), e.ProfessionLabel
 	}
+	c.Backstory = e.Backstory
 	if len(e.Relations) > 0 || len(e.Affinities) > 0 {
 		names := colonistNames(s)
 		for _, r := range e.Relations {

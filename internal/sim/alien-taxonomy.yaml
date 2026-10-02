@@ -1,0 +1,179 @@
+# The word parts alien scientific names are built from (see
+# docs/alien-taxonomy.md). Compiled into the binary (internal/sim/
+# alien_taxonomy.go's go:embed) as defaultTaxonomy().
+#
+# A scientific name is a binomial, "Genus epithet": Pseudursus ares.
+#
+#   genus   = prefix + root      pseudo + ursus      -> Pseudursus
+#   epithet = one epithet         ares
+#
+# Each part is drawn at random from the entries whose "when" condition matches
+# the rolled species. "when" is the same condition tree alien-names.yaml uses
+# (all / any / not, temperament, skin, color, pattern, height, weight, tail,
+# legs, arms, limbs, eyes); an entry with no "when" fits every species.
+#
+# Prefixes are Greek or Latin combining forms (the "Erythro-" in
+# Erythrosaurus). Roots are the noun a genus ends in (the "-saurus"). When a
+# prefix ending in a vowel meets a root starting with one, the prefix's vowel
+# is dropped, as in real names: erythro + ops -> Erythrops.
+#
+# mimic: true on a root marks an Earth animal the species merely resembles
+# (a bear, a lizard). mimic: true on a prefix ("pseudo", false) means that
+# prefix is only ever put in front of a mimic root.
+#
+# Epithets are chosen to be invariable: genitives ("martis", of Mars), nouns
+# in apposition ("ares", "gigas"), and Latin adjectives whose nominative is
+# the same in every gender ("ferox", "velox", "versicolor", "latens"). Latin
+# adjectives must agree in gender with their genus (rubrus/rubra/rubrum), and
+# an epithet that never changes form never has to. Keep it that way when
+# adding one. Forms are lowercase ASCII letters only.
+
+prefixes:
+  # Mars itself (areology is the geology of Mars). Fits anything, so a genus
+  # can always be built.
+  - form: areo
+
+  # Pseudo-, "false": only before an Earth animal the species resembles.
+  - { form: pseudo, mimic: true }
+
+  # Color.
+  - { form: erythro,  when: { color: red } }
+  - { form: cirrho,   when: { color: orange } }    # tawny
+  - { form: xantho,   when: { color: yellow } }
+  - { form: chloro,   when: { color: green } }
+  - { form: cyano,    when: { color: blue } }
+  - { form: porphyro, when: { color: purple } }
+  - { form: polio,    when: { color: gray } }
+  - { form: melano,   when: { color: black } }
+  - { form: leuco,    when: { color: white } }
+  - { form: ochro,    when: { color: pale } }
+  - { form: irido,    when: { color: iridescent } }
+
+  # Pattern.
+  - { form: rhabdo, when: { pattern: striped } }   # Rhabdomys, the striped mouse
+  - { form: sticto, when: { pattern: spotted } }
+
+  # Hide.
+  - { form: leio,    when: { skin: smooth } }
+  - { form: lepido,  when: { skin: scaly } }
+  - { form: dasy,    when: { skin: furry } }       # Dasyurus, "hairy tail"
+  - { form: hoplo,   when: { skin: armored } }
+  - { form: osteo,   when: { skin: bony } }
+  - { form: ostraco, when: { skin: chitinous } }   # shelled
+  - { form: myxo,    when: { skin: slimy } }
+
+  # Size.
+  - form: mega
+    when: { any: [{ height: huge }, { weight: huge }] }
+  - form: giganto
+    when: { any: [{ height: huge }, { weight: huge }] }
+  - form: macro
+    when: { any: [{ height: large }, { weight: large }] }
+  - form: micro
+    when: { any: [{ height: small }, { height: tiny }] }
+  - form: nano
+    when: { height: tiny }
+
+  # Temperament.
+  - { form: deino,  when: { temperament: hostile } }   # terrible
+  - { form: phobo,  when: { temperament: hostile } }   # fear
+  - { form: crypto, when: { temperament: cautious } }  # hidden
+  - { form: hemero, when: { temperament: friendly } }  # tame
+
+roots:
+  # Generic: fit anything, so a genus can always be built.
+  - form: therium   # beast
+  - form: morphus   # shape
+  - form: zoon      # animal
+
+  # Earth animals it resembles.
+  - form: ursus     # bear
+    mimic: true
+    when: { all: [{ skin: furry }, { any: [{ weight: large }, { weight: huge }] }] }
+  - form: cyon      # dog
+    mimic: true
+    when: { all: [{ skin: furry }, { legs: { eq: 4 } }] }
+  - form: mys       # mouse
+    mimic: true
+    when: { all: [{ skin: furry }, { any: [{ weight: tiny }, { weight: small }] }] }
+  - { form: saurus,     mimic: true, when: { skin: scaly } }        # lizard
+  - { form: ophis,      mimic: true, when: { legs: { eq: 0 } } }    # snake
+  - { form: chelys,     mimic: true, when: { skin: armored } }      # turtle
+  - { form: carcinus,   mimic: true, when: { skin: chitinous } }    # crab
+  - form: scarabaeus  # beetle
+    mimic: true
+    when: { all: [{ legs: { eq: 6 } }, { any: [{ skin: chitinous }, { skin: armored }] }] }
+  - { form: limax,      mimic: true, when: { skin: slimy } }        # slug
+  - { form: batrachus,  mimic: true, when: { skin: smooth } }       # frog
+  - { form: teuthis,    mimic: true, when: { arms: { gte: 6 } } }   # squid
+  - { form: scolopendra, mimic: true, when: { legs: { gte: 7 } } }  # centipede
+
+  # Anatomy.
+  - { form: cephalus, when: { skin: bony } }        # head
+  - { form: urus,     when: { tail: true } }        # tail: Lepidurus
+  - { form: cheirus,  when: { arms: { gte: 2 } } }  # hand: Pseudocheirus
+  - { form: cyclops, when: { eyes: { eq: 1 } } }
+  - { form: triops,  when: { eyes: { eq: 3 } } }
+  - { form: tetrops, when: { eyes: { eq: 4 } } }
+  - { form: pentops, when: { eyes: { eq: 5 } } }
+  - { form: hexops,  when: { eyes: { eq: 6 } } }
+  - { form: monopus, when: { legs: { eq: 1 } } }    # -pus, foot
+  - { form: dipus,   when: { legs: { eq: 2 } } }
+  - { form: tripus,  when: { legs: { eq: 3 } } }
+  - { form: tetrapus, when: { legs: { eq: 4 } } }
+  - { form: pentapus, when: { legs: { eq: 5 } } }
+  - { form: hexapus, when: { legs: { eq: 6 } } }
+  - { form: heptapus, when: { legs: { eq: 7 } } }
+  - { form: octopus, when: { legs: { eq: 8 } } }
+
+  # Temperament.
+  - { form: odon,    when: { temperament: hostile } }   # tooth
+  - { form: gnathus, when: { temperament: hostile } }   # jaw
+  - { form: lestes,  when: { temperament: hostile } }   # robber
+  - { form: raptor,  when: { temperament: hostile } }   # seizer
+
+  # Size.
+  - form: titan
+    when: { any: [{ height: huge }, { weight: huge }] }
+
+epithets:
+  # Mars and its places, as genitives ("of ..."): fit anything.
+  - form: martis     # of Mars
+  - form: ares       # Mars, in apposition
+  - form: olympi     # of Olympus Mons
+  - form: elysii     # of Elysium
+  - form: arcadiae   # of Arcadia Planitia
+  - form: utopiae    # of Utopia Planitia
+  - form: amazonis   # of Amazonis Planitia
+  - form: cydoniae   # of Cydonia
+  - form: cavernicola  # cave-dweller
+  - form: saxicola     # rock-dweller
+  - form: troglodytes  # cave-goer
+
+  # Temperament.
+  - { form: ferox,   when: { temperament: hostile } }   # fierce
+  - { form: atrox,   when: { temperament: hostile } }   # savage
+  - { form: rapax,   when: { temperament: hostile } }   # grasping
+  - { form: vorax,   when: { temperament: hostile } }   # devouring
+  - { form: phobos,  when: { temperament: hostile } }   # fear (the moon)
+  - { form: deimos,  when: { temperament: hostile } }   # dread (the other moon)
+  - { form: fallax,  when: { temperament: cautious } }  # deceptive
+  - { form: fugax,   when: { temperament: cautious } }  # fleeing
+  - { form: latens,  when: { temperament: cautious } }  # hiding
+  - { form: vigilans, when: { temperament: cautious } } # watchful
+  - { form: placens, when: { temperament: friendly } }  # pleasing
+  - { form: clemens, when: { temperament: friendly } }  # gentle
+  - { form: comes,   when: { temperament: friendly } }  # companion
+
+  # Build.
+  - form: gigas      # giant
+    when: { any: [{ height: huge }, { weight: huge }] }
+  - { form: pumilio, when: { height: tiny } }            # dwarf
+  - { form: velox,   when: { temperament: hostile } }    # swift
+  - { form: bipes,   when: { legs: { eq: 2 } } }         # two-footed
+  - { form: multipes, when: { legs: { gte: 6 } } }       # many-footed
+  - { form: longimanus, when: { arms: { gte: 2 } } }     # long-handed
+  - { form: longicauda, when: { tail: true } }           # long-tailed
+  - { form: versicolor, when: { color: iridescent } }    # changing color
+  - { form: bicolor, when: { not: { pattern: solid } } } # two-colored
+  - { form: concolor, when: { pattern: solid } }         # one color all over

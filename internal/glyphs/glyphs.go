@@ -25,7 +25,7 @@ const (
 	ClayRock    = "\U0001F7E7" // 🟧 clay-bearing rock
 	Floor       = "  "         // open, walkable space
 	Wall        = "\U0001F9F1" // 🧱 built wall
-	Hull        = "\U00002B1C" // ⬜ crash pod hull: metal, not masonry
+	Hull        = "\U00002B1C" // ⬜ colony ship hull: metal, not masonry
 	Pod         = "\U0001F96B" // 🥫 nutrient pod (food)
 	Toilet      = "\U0001F6BD" // 🚽 toilet (bladder)
 	Bed         = "\U0001F6CC" // 🛌 dormitory bunk (sleep)

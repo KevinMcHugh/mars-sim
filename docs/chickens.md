@@ -5,8 +5,8 @@
 ## What it is
 
 Every colonist lands with exactly one **rare item**: a gun, a chicken, or a
-cat (see [crash-pods.md](./crash-pods.md)). A **chicken** (🐔) steps out of its
-keeper's crash pod beside a **trough** (🪣) of **feed**. It eats feed from the
+cat (see [ships.md](./ships.md)). A **chicken** (🐔) steps out of its
+keeper's ship, which has a **trough** (🪣) of **feed** for it in the hold. It eats feed from the
 trough, or grazes cave scum off the rock when the trough is dry, and starves
 with neither. Its keeper keeps the trough full: it scrapes scum, mixes it into
 feed at a scumhouse, and tips the feed into the trough. Cats and chickens
@@ -127,7 +127,7 @@ so a keeper whose job was cut short doesn't carry feed around for good.
 
 ## Related
 
-- [crash-pods.md](./crash-pods.md) — the rare item and the pod layout.
+- [ships.md](./ships.md) — the rare item and the ship's layout.
 - [entities-and-ai.md](./entities-and-ai.md) — the creature roster and turns.
 - [scumhouse.md](./scumhouse.md) — scum, scraping, and the stove.
 - [incubator.md](./incubator.md) — why wild scum stopped running out.

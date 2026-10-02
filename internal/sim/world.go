@@ -112,9 +112,9 @@ const (
 	// inputs and its meals sit in a storage container on its tile, with a
 	// ledger like any chest. See scumhouse.go and docs/scumhouse.md.
 	Scumhouse
-	// Hull is the metal wall of a crash pod. It behaves like a Wall — it blocks
+	// Hull is the metal wall of a colony ship. It behaves like a Wall — it blocks
 	// movement, bounds a room, and can be broken down to escape one — but it is
-	// salvaged spacecraft, not something the colony builds. See docs/crash-pods.md.
+	// salvaged spacecraft, not something the colony builds. See docs/ships.md.
 	Hull
 	// Forge smelts iron ore into steel ingots, and GunBench machines steel
 	// into assault rifles. Both are workshops with a depot, like the
@@ -136,7 +136,7 @@ const (
 	Incubator
 	// Trough holds chicken feed: a keeper fills it, its chickens eat from
 	// it. A fixture with a depot, like a chest, that holds nothing but feed.
-	// It comes down in a chicken keeper's crash pod. See docs/chickens.md.
+	// It comes down in a chicken keeper's ship. See docs/chickens.md.
 	Trough
 
 	numTerrains // keep last: the number of terrain kinds
@@ -565,7 +565,7 @@ type World struct {
 	// carvedAny/carvedMin/carvedMax track the bounding box of every tile that
 	// has ever been changed away from Rock. Nothing turns back into Rock in
 	// play (a cleared structure becomes Floor), so this box only grows; it
-	// is used to cap how far findRoomSiteAllowingRock's search radius needs to
+	// is used to cap how far findRoomSiteWith's search radius needs to
 	// grow before it can conclude no site exists, without scanning the whole
 	// map. See roomSiteClear: a valid site's side walls must already be
 	// Floor or Wall, so no valid site can lie outside this box.
@@ -651,6 +651,14 @@ type World struct {
 	projects      []*project
 	nextProjectID int
 	nextPlanTick  int
+	// roomRecords is every room the colony has marked out, in the order it
+	// did, with its current extent: what room expansion grows (see
+	// roomgrow.go). Rooms are never demolished, so it only grows.
+	roomRecords []*roomRecord
+	// roomFloor maps every floor tile inside a recorded room (its inside and
+	// its doorway) to that room, so an expansion can ask whose a tile is
+	// without scanning every room. No two rooms share a floor tile.
+	roomFloor map[Point]*roomRecord
 	// Manual room orders wait here until the current project finishes and a
 	// suitable site is available. Keeping them in the world preserves the
 	// engine's single-owner rule for simulation state.
@@ -724,13 +732,17 @@ type World struct {
 	manualIncubators int
 	manualFoundries  int
 	manualHalls      int
-	// podRingHint is the search ring the last crash pod landed on, so the
+	// shipRingHint is the search ring the last colony ship landed on, so the
 	// next search starts near there instead of rescanning the packed middle.
-	// See findPodSite.
-	podRingHint int
-	// pods holds the top-left of every crash pod that has landed, so a new pod
-	// can tell a neighbor's side hull it may share. Lookups only; never ranged.
-	pods               map[Point]bool
+	// See findShipSite.
+	shipRingHint int
+	// ships is every colony ship that has landed, in landing order: ships[i]
+	// has ID i+1. See ship.go.
+	ships []*Ship
+	// aloft is the founders' ships still waiting to land, as their loads,
+	// in landing order: with place-ships set, worldgen leaves them here for
+	// the player to land one by one (see LandShip).
+	aloft              []int
 	restrictedFixtures [numTerrains]int
 	// ownedFixtures indexes the restricted fixtures by owner, and
 	// paidFixtures the pay-per-use ones by terrain, so facilityReachable
@@ -916,6 +928,13 @@ type World struct {
 	// nor prng). See lore.go.
 	alienSpecies []AlienSpecies
 
+	// corporations is this world's roster of companies back home, and
+	// gunModels the make and model every gun kind carries (one per
+	// weaponKinds entry). Rolled once in newWorld off their own stream; pure
+	// flavor. See arms_makers.go and docs/arms-makers.md.
+	corporations []Corporation
+	gunModels    []GunModel
+
 	// unfoundCaverns holds the center of every natural cavern not yet
 	// discovered; a breach that reveals one rolls for its alien nest on
 	// nestRNG, a seed-derived stream of its own. See rollNests and
@@ -924,6 +943,10 @@ type World struct {
 	nestRNG        *rand.Rand
 	// nestCenters is revealAround's scratch: cavern centers found this flood.
 	nestCenters []Point
+	// holdNests defers revealAround's nest rolls while a ship lands, so a
+	// cavern its stamping breaks into rolls its nest only once everyone
+	// aboard has stepped out (see landShip).
+	holdNests bool
 	// gen generates chunks: their ore veins and hidden caverns. See
 	// worldgen_chunks.go. nil for a world built without generate (tests),
 	// where every tile simply starts as Rock.
@@ -964,9 +987,9 @@ func newWorld(cfg Config, src *rand.PCG) *World {
 		colonistNames:     make(map[string]EntityID),
 		buildTiles:        make(map[Point]bool),
 		doorTiles:         make(map[Point]bool),
+		roomFloor:         make(map[Point]*roomRecord),
 		structures:        make(map[int]*structure),
 		structureAt:       make(map[Point][]int),
-		pods:              make(map[Point]bool),
 		storageContainers: make(map[Point]*StorageContainer),
 		fixtures:          make(map[Point]*Fixture),
 		orders:            make(map[OrderID]*Order),
@@ -1001,6 +1024,9 @@ func newWorld(cfg Config, src *rand.PCG) *World {
 	w.rngSrc.topic = newPCG(cfg.Seed ^ conversationTopicSeed)
 	w.topicRNG = rand.New(w.rngSrc.topic)
 	w.alienSpecies = rollAlienSpeciesRoster(newRand(cfg.Seed^alienLoreSeed), cfg)
+	armsRNG := newRand(cfg.Seed ^ armsLoreSeed)
+	w.corporations = rollCorporationRoster(armsRNG, cfg)
+	w.gunModels = rollGunModels(armsRNG, w.corporations)
 	w.terrainCounts[Rock] = n // every tile starts as Rock
 
 	for k := Kind(0); k < numKinds; k++ {
@@ -1274,9 +1300,12 @@ func (w *World) revealAround(p Point) {
 		w.cavernBreaches++
 		w.logEvent(LogCavern, fmt.Sprintf("The colony breaks through into a natural cavern (%d tiles of open floor).", found))
 		// Nests are rolled only now, once the whole system is revealed, so
-		// their aliens land on discovered floor, awake.
-		w.rollNests(w.nestCenters)
-		w.nestCenters = w.nestCenters[:0]
+		// their aliens land on discovered floor, awake -- or, under a landing
+		// ship, once its passengers are out (see landShip).
+		if !w.holdNests {
+			w.rollNests(w.nestCenters)
+			w.nestCenters = w.nestCenters[:0]
+		}
 	}
 }
 
@@ -1471,7 +1500,7 @@ func (w *World) spawnAs(kind Kind, p Point, species int) *Entity {
 
 // remove deletes an entity from the world, clears its occupancy, and — every
 // call here is a death — freezes it into the graveyard with cause as a short
-// player-facing phrase ("starved", "shot by Zoe Vargas with a shotgun"). See
+// player-facing phrase ("starved", "shot by Zoe Vargas with a MarsCorp M-117 shotgun"). See
 // docs/combat.md.
 func (w *World) remove(id EntityID, cause string) {
 	e := w.entities[id]

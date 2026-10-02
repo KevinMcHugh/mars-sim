@@ -17,7 +17,7 @@
     digWage: number;
     types: { name: string; zone: string }[];
     tiles: Record<string, number>;
-    structures: { id: number; type: string; pod: boolean }[];
+    structures: { id: number; type: string; ship: boolean }[];
     clears: { id: number; x0: number; y0: number; x1: number; y1: number; tiles: number; done: number; held: number }[];
     waiting: { name: string; zone: string }[];
   }
@@ -47,7 +47,7 @@
     if (!z || !r || !pv) return null;
     if (tool === 'clear' && pv.tiles === 0 && pv.rising === 0) return 'Nothing the colony has seen is built here.';
     if (tool !== 'clear' && pv.tiles === 0 && pv.dig === 0) {
-      return pv.locked > 0 ? 'This ground is held as residence by the crash pods on it.' : `This area is already ${tool === 'none' ? 'unzoned' : `zoned ${tool}`}.`;
+      return pv.locked > 0 ? 'This ground is held as residence by the colony ship on it.' : `This area is already ${tool === 'none' ? 'unzoned' : `zoned ${tool}`}.`;
     }
     if (cost > z.treasury) return `The treasury (${money(z.treasury)}) cannot pay for the work.`;
     return null;
@@ -110,7 +110,7 @@
     <dt>Price</dt><dd>{money(cost)}</dd>
     <dt>Treasury</dt><dd>{money(z.treasury)}</dd>
   </dl>
-  {#if pv.locked > 0}<p class="muted">{pv.locked} tiles round crash pods stay residence.</p>{/if}
+  {#if pv.locked > 0}<p class="muted">{pv.locked} tiles round colony ships stay residence.</p>{/if}
   {#if pv.evicted.length > 0}
     <p class="warn">
       {evictedSummary} in this area will have to be cleared: an additional paid work order of up to

@@ -249,6 +249,10 @@ func TestStarvationLeavesACorpse(t *testing.T) {
 func TestColonyPlansATrashRoomForItsRefuse(t *testing.T) {
 	cfg := testConfig()
 	cfg.StartAliens, cfg.StartCats, cfg.StartRats = 0, 0, 0
+	// No meeting hall and no foundry: both are wanted from the start, and
+	// either would take the one build slot the first planning pass offers
+	// before there is any refuse.
+	cfg.ColonistsPerChair, cfg.ArmoryRifles = 0, 0
 	w := newTestWorld(t, cfg)
 
 	// Satisfy every other demand so sanitation is what planRooms has left.

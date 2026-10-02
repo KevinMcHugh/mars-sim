@@ -44,6 +44,10 @@ demand and may exceed the normal concurrent-project cap by one: otherwise full
 builders can deadlock every active project's excavation phase while the project
 cap prevents the one structure that would unblock them.
 
+Either way, an ordered or demanded storage room first goes into an existing
+storage room that can grow: its side wall is moved out and one more container
+fitted where the wall stood (see [room-expansion.md](./room-expansion.md)).
+
 During work selection, a blocked colonist seeks the nearest reachable chest that
 can accept its complete material load. If none exists but a storage project is
 active, it claims that project's reachable work instead of unrelated
@@ -82,8 +86,8 @@ meals, with a ledger — but it is not a chest: general materials are only ever
 unloaded into `Storage` containers. The storage tab lists it as "scumhouse".
 See [scumhouse.md](./scumhouse.md).
 
-Every crash pod brings a **locker**: an ordinary storage container, private to
-its settler (see [crash-pods.md](./crash-pods.md)). Its owner unloads into it
+Every settler lands with a **locker** in its ship's hold: an ordinary storage
+container, private to it (see [ships.md](./ships.md)). Its owner unloads into it
 like any chest, and nobody else can. So the colony only builds a shared storage
 room once a blocked colonist has no reachable chest — its own locker included —
 with room for its load. The storage tab labels lockers by owner.

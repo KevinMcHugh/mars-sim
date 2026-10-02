@@ -5,8 +5,8 @@
 ## What it is
 
 Colonists can now fight back against aliens. Half the colony lands with a
-gun by default — a gun is one of the three rare items a crash pod carries
-(`crash-pod-gun-weight`, see [crash-pods.md](./crash-pods.md)); a colonist
+gun by default — a gun is one of the three rare items a settler may bring
+(`crash-pod-gun-weight`, see [ships.md](./ships.md)); a colonist
 carrying one stands its ground and shoots an alien that gets close instead of
 only fleeing. Damage — from a bite or a gunshot — lands on one of six body
 parts rather than a shared HP pool, so a wound can be a survivable graze or an
@@ -30,7 +30,7 @@ now leaves.
 - [`internal/sim/inventory.go`](../internal/sim/inventory.go) — the `Pistol`/
   `Shotgun` item kinds and `bestWeapon`.
 - [`internal/sim/systems.go`](../internal/sim/systems.go) — `colonistTurn`'s
-  survival branch (fight vs. flee), `bite` (now body-part aware), `stomp`
+  survival branch (fight vs. flee), `strike` (body-part aware; the alien's species-rolled attack mode — see [lore.md](./lore.md#attack-modes-how-a-species-fights)), `stomp`
   (now leaves gore).
 - [`internal/sim/world.go`](../internal/sim/world.go) — `Tile.Gore`,
   `World.addGore`, `World.addCorpse`, `World.remove` (the graveyard funnel),
@@ -106,7 +106,8 @@ stay deterministic for a given seed (see `AGENTS.md`).
 zero) *and* from the entity's aggregate `HP` (also floored at zero, and still
 what starvation drains — see [needs.md](./needs.md)), then returns whether
 the hit was fatal by `Entity.Alive()`'s rule. Every damage source funnels
-through it: `bite` and `shoot` both call `rollHit` then `applyDamage`.
+through it: `strike` and `shoot` both call `rollHit` then `applyDamage`
+(except a strangling `strike`, which aims for the head without a roll).
 
 ### Weapons
 
@@ -147,14 +148,14 @@ mechanism separately from that balance question).
 
 `shoot` fires one shot: `rollHit`, `applyDamage`, and either gore + `remove`
 + log/memories on a kill, or a "shot the alien in the X" memory and a
-generic log line otherwise. `bite` was reworked the same way instead of
+generic log line otherwise. The alien's attack (then `bite`, now `strike`) was reworked the same way instead of
 subtracting a flat `AlienDamage` from `prey.HP`.
 
 ### Starting weapons
 
 Weapons used to come from the colony ship: one pistol and one shotgun,
 handed to two of the settlers at worldgen (`equipColonyShip`, now removed).
-Every colonist now arrives in its own crash pod instead, carrying
+Every colonist now arrives (in a crash pod at first, now a colony ship) carrying
 one rare item, and a gun is only one of the three: by default half the
 colonists land with a gun (`crash-pod-gun-weight` 50 against a chicken's and
 a cat's 25 each), a quarter of those guns shotguns
@@ -163,7 +164,7 @@ chicken or a cat. Before that, each manifest gun was rolled on its own
 (`crash-pod-pistol-percent`, `crash-pod-shotgun-percent`): a 70% chance of a pistol and
 a 20% chance of a shotgun, so most settlers landed armed but about a quarter
 landed with nothing. An unarmed colonist flees until it finds or buys a gun. See
-[crash-pods.md](./crash-pods.md).
+[ships.md](./ships.md).
 
 Arming everyone was a real balance change, and it was measured (before
 the per-colonist gun odds, with every colonist getting exactly one pistol). Over 20 seeds at the
@@ -189,12 +190,12 @@ it is half of what the cleaning job exists to remove.
 `World.addGore(p)` bumps it, capped at `maxGore` (3; the cap just
 stops the counter climbing forever, since the renderer today draws one
 splatter glyph for any `Gore > 0` regardless of count — see Extending it).
-Three call sites splatter: a fatal `bite`, a killing `shoot`, and every
+Three call sites splatter: a fatal `strike`, a killing `shoot`, and every
 `stomp` (a rat is always fatal to crush, so it always leaves a mark). A
 cat's `pounce` does not — the user's ask was specifically "stomping a rat
 should leave a mess," and a cat catching its natural prey reads as predation
 rather than the same kind of violence. The same call sites decide whether a
-*body* is left too (`addCorpse`): `shoot` and `stomp` leave one, while `bite`
+*body* is left too (`addCorpse`): `shoot` and `stomp` leave one, while `strike`
 and `pounce` — where the remains are eaten — leave only the stains.
 
 `tileGlyph` (`glyphs.go`) draws the gore glyph in place of bare terrain when
@@ -215,9 +216,9 @@ that was that, with only a log line as evidence. `remove` now takes a
 `snapshot()` uses for living entities) with `Dead`, `DiedTick`, and `Cause`
 set. `cause` is a short player-facing phrase built at the call site, where
 the context (who did it, with what) is available — `"starved"`,
-`"crushed by Zoe Vargas"`, `"devoured by an alien"`, `"caught by a cat"`,
-`"shot by Zoe Vargas with a shotgun"`. Every one of the six places an entity
-dies (colonist/rat starvation, `stomp`, fatal `bite`, `pounce`, fatal
+`"crushed by Zoe Vargas"`, `"strangled to death by a grelk"`, `"caught by a cat"`,
+`"shot by Zoe Vargas with a MarsCorp M-117 shotgun"`. Every one of the six places an entity
+dies (colonist/rat starvation, `stomp`, fatal `strike`, `pounce`, fatal
 `shoot`) is a call to `remove`, so this one funnel is the whole feature.
 
 The graveyard is capped at `Config.GraveyardSize` (default 50; 0 disables
@@ -371,5 +372,5 @@ cap.
   bite/stomp/pounce/shoot and gore sightings feed.
 - [frontend-tui.md](./frontend-tui.md) — the fighting glyph, the gore glyph,
   and the roster's dead/non-human filter and wound line.
-- [lore.md](./lore.md) — the rolled alien species `bite`/`shoot` now read for
+- [lore.md](./lore.md) — the rolled alien species `strike`/`shoot` now read for
   damage, pace, and the name they narrate with instead of "alien."

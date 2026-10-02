@@ -299,7 +299,9 @@ func BenchmarkStepSmallColonyOnHugeMap10000(b *testing.B) {
 // failing to find a site forced the box search to double all the way out to
 // the full map before giving up — the "every 16 ticks" pause.
 func BenchmarkFindRoomSiteNoFit(b *testing.B) {
-	w := benchWorldSmallColony(10000, 12, 0) // chamber too small for any room this wide
+	// A chamber too small for a room this wide facing any way: with its lanes
+	// it spans 11 tiles, along the bay or, turned, down it.
+	w := benchWorldSmallColony(10000, 10, 0)
 	width := bayWidth(roomFacilities)
 	if _, ok := w.findRoomSite(width); ok {
 		b.Fatal("expected no site to fit; benchmark no longer exercises the no-fit path")
@@ -465,5 +467,63 @@ func BenchmarkGenerateMap(b *testing.B) {
 				}
 			}
 		})
+	}
+}
+
+// packedStorageRooms is a rock map with rows of finished storage rooms, each
+// sharing its side walls with its neighbors and the rows' ends blocked, so
+// no room can grow. The tile past each moved wall is a neighbor's aisle:
+// floor, which only inOtherRoom turns down. That made it the worst case for
+// the per-room scan inOtherRoom used to be (see docs/room-expansion.md).
+func packedStorageRooms(b *testing.B, rooms int) *World {
+	cfg := DefaultConfig()
+	cfg.Seed = 1
+	cfg.FoundingGrant = 1_000_000
+	cfg.Width, cfg.Height = 1200, 1200
+	w := newWorld(cfg, newPCG(1))
+	width := storageRoom.roomWidth(1) // 3 wide, an aisle either side of the container
+	perRow := 100
+	for i := 0; i < rooms; i++ {
+		row, col := i/perRow, i%perRow
+		o := Point{20 + col*(width+1), 20 + row*8}
+		carve(w, Point{o.X - 2, o.Y + roomBackV}, Point{o.X + width + 1, o.Y + roomFrontV + roomApproach}, Floor)
+	}
+	w.refreshSpatial()
+	for i := 0; i < rooms; i++ {
+		row, col := i/perRow, i%perRow
+		o := Point{20 + col*(width+1), 20 + row*8}
+		f := roomFrame{o: o, width: width}
+		if !w.designateRoom(storageRoom, f, 1, Community) {
+			b.Fatalf("room %d not designated", i)
+		}
+		raise(w, w.projects[len(w.projects)-1])
+	}
+	w.pruneProjects()
+	// Block the outer end of each row, so the end rooms can't grow either.
+	for row := 0; row*perRow < rooms; row++ {
+		last := min(rooms-1, row*perRow+perRow-1) - row*perRow
+		y := 20 + row*8
+		left, right := Point{20 - 2, y}, Point{20 + last*(width+1) + width + 1, y}
+		carve(w, Point{left.X, y + roomBackV}, Point{left.X, y + roomFrontV}, Hull)
+		carve(w, Point{right.X, y + roomBackV}, Point{right.X, y + roomFrontV}, Hull)
+	}
+	w.refreshSpatial()
+	return w
+}
+
+// BenchmarkExpandNoFit is planRooms asking a big colony for storage none of
+// its rooms can take: every room of the kind is tried and turned down. It
+// was 4 ms with inOtherRoom scanning every room, and is about 0.2 ms with
+// w.roomFloor.
+func BenchmarkExpandNoFit(b *testing.B) {
+	rooms := 800
+	w := packedStorageRooms(b, rooms)
+	if w.expandRoom(storageRoom, 1) {
+		b.Fatal("a storage room grew; the benchmark no longer measures the no-fit case")
+	}
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		w.expandRoom(storageRoom, 1)
 	}
 }

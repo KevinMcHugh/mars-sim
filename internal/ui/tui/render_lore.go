@@ -10,6 +10,9 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
+// scientificNameStyle sets a species' binomial in italics under its title.
+var scientificNameStyle = lipgloss.NewStyle().Italic(true)
+
 // loreListWidth is the list panel's total footprint in cells, border
 // included: enough for the world-facts block and a species' short roster
 // label ("Xeno · hostile") without wrapping.
@@ -78,7 +81,6 @@ func (m Model) renderLoreList(rows, width int) string {
 	if len(s.AlienSpecies) == 0 {
 		b.WriteString("\n")
 		b.WriteString(cells.Truncate("None rolled.", inner))
-		return sidebarStyle.Width(width - borderCells).Height(rows - borderCells).MaxHeight(rows).Render(b.String())
 	}
 
 	sel := clamp(m.loreSelected, 0, len(s.AlienSpecies)-1)
@@ -95,7 +97,31 @@ func (m Model) renderLoreList(rows, width int) string {
 			b.WriteString(cells.Truncate(line, inner))
 		}
 	}
+	m.writeArmsLore(&b, inner)
 	return sidebarStyle.Width(width - borderCells).Height(rows - borderCells).MaxHeight(rows).Render(b.String())
+}
+
+// writeArmsLore lists the make and model of every gun the colony can hold and
+// the corporations behind them, below the species (so a short terminal clips
+// these, not the selectable list). See docs/arms-makers.md.
+func (m Model) writeArmsLore(b *strings.Builder, inner int) {
+	s := m.latest
+	if len(s.GunModels) > 0 {
+		b.WriteString("\n\n")
+		b.WriteString(labelStyle.Render("GUNS"))
+		for _, g := range s.GunModels {
+			b.WriteByte('\n')
+			b.WriteString(cells.Truncate(fmt.Sprintf("%s: %s", g.Kind, g.Name()), inner))
+		}
+	}
+	if len(s.Corporations) > 0 {
+		b.WriteString("\n\n")
+		b.WriteString(labelStyle.Render(fmt.Sprintf("CORPORATIONS (%d)", len(s.Corporations))))
+		for _, c := range s.Corporations {
+			b.WriteByte('\n')
+			b.WriteString(cells.Truncate(fmt.Sprintf("• %s · %s, %d", c.Name, c.HQ, c.Founded), inner))
+		}
+	}
 }
 
 // renderLoreDetail lists everything known about one rolled species: its
@@ -106,7 +132,13 @@ func (m Model) renderLoreDetail(sp sim.AlienSpecies, rows, width int) string {
 
 	var b strings.Builder
 	b.WriteString(titleStyle.Render(sp.RosterLabel()))
-	b.WriteString("\n\n")
+	b.WriteByte('\n')
+	if sp.ScientificName != "" {
+		// Binomials are written in italics.
+		b.WriteString(scientificNameStyle.Render(cells.Truncate(sp.ScientificName, inner)))
+		b.WriteByte('\n')
+	}
+	b.WriteByte('\n')
 
 	stat := func(label, val string) {
 		b.WriteString(cells.Truncate(fmt.Sprintf("%-14s %s", label, val), inner))
@@ -124,8 +156,9 @@ func (m Model) renderLoreDetail(sp sim.AlienSpecies, rows, width int) string {
 	stat("Skin:", sp.Skin.String())
 	stat("Color:", sp.Color)
 	stat("Pattern:", sp.Pattern.String())
-	stat("Bite damage:", fmt.Sprintf("%d", sp.BiteDamage))
-	stat("Bite cooldown:", fmt.Sprintf("%d ticks", sp.BiteRest))
+	stat("Attacks:", sp.AttacksLabel())
+	stat("Attack damage:", fmt.Sprintf("%d", sp.BiteDamage))
+	stat("Attack pace:", fmt.Sprintf("%d ticks", sp.BiteRest))
 	stat("Move pace:", fmt.Sprintf("every %d ticks", sp.Slowness))
 
 	b.WriteString("\n")

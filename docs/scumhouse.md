@@ -52,8 +52,8 @@ The planner builds one in a walled room, a **kitchen** (`scumhouseRoom`, see
 [construction.md](./construction.md)):
 
 - with `infinite-food` off (the default), **first**, before any other room —
-  food is fatal, and it is the only place food comes from; crash-pod meals buy
-  the time. If the treasury can't fund it, it is marked out anyway as unpaid
+  food is fatal, and it is the only place food comes from; the meals in the lockers
+  buy the time. If the treasury can't fund it, it is marked out anyway as unpaid
   community work;
 - otherwise only when ordered (`b` then `h` in the TUI, `OrderScumhouse`).
 
@@ -264,7 +264,7 @@ colonists' own account doesn't wait for it.
 
 `foodWanted` is true while the colony has a scumhouse and owns fewer than
 `meal-reserve` meals per colonist (`communityMeals`, memoized per tick —
-crash-pod lockers make one depot per settler, and every work-seeking colonist
+ship lockers make one depot per settler, and every work-seeking colonist
 asks). While it is, `assignWorkJob` offers, after construction and food on
 a colonist's own account:
 
@@ -362,6 +362,14 @@ chef's own kitchen isn't counted: the colony can't cook or buy scum there
 kitchen per ten colonists is a guess at what a colony needs; kitchens that
 are behind are a measurement of it.
 
+Every kitchen after the first goes into one the colony already has when it
+can: a stove where the side wall stood and its pantry two tiles on, linked
+like a new kitchen's, with the wall moved out past them (see
+[room-expansion.md](./room-expansion.md)). A kitchen grows only by whole
+stove-and-pantry pairs, so every stove keeps a pantry of its own. The first
+kitchen is always a room of its own: it is life support, and may be built
+unpaid.
+
 Together with cooks staying at the stove and giving way only to someone at
 the door (both below), this is what ended most big-colony die-offs: 100
 colonists on a 300×150 map, seeds 1–8, 30,000 ticks, starved 46 of 800
@@ -412,7 +420,7 @@ Later ones are ordinary public works that need an aisle
   Treating chests and scumhouses as facility access tiles, where nobody idles
   (`onFacilityAccess`), looked like the obvious fix and made things far worse:
   161 starved across the sweep instead of 2. `stepAside` and the chat-partner
-  search avoid those tiles too, and every crash-pod row has a locker chest, so
+  search avoid those tiles too, and every crash-pod row had a locker chest, so
   idle colonists ran out of places to stand.
 
 With 40 colonists, a colony that kept one scumhouse lost 16 to 22 people to

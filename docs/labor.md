@@ -38,7 +38,7 @@ and a toilet it rents out by the use. This is phase **E5** of the
 
 Four kinds exist: `WorkBuild` (a build task's tile), `WorkDig` (one rock tile
 of a player's excavation order; see [excavation.md](./excavation.md)),
-`WorkClear` (one structure tile of a clearing order, at `wage-clear`; see
+`WorkClear` (one structure tile of a clearing order, at `wage-demolish`; see
 [zoning.md](./zoning.md)) and
 `WorkHaul` (a unit of the issuer's goods from one depot to another; see
 [hauling.md](./hauling.md)).
@@ -53,8 +53,10 @@ issued`.
 ### Public works
 
 When the planner designates a room, `fundProject` posts one `WorkBuild` order
-per task at `wageFor` its terrain — `wage-dig` for a tile of rock, `wage-wall`
-for a wall, `wage-fixture` for a fixture — all paid by the project's `issuer`.
+per task at `taskWage` — `wage-dig` for a tile of rock, `wage-wall` for a
+wall, `wage-fixture` for a fixture, `wage-demolish` for a wall torn down to
+enlarge a room (see [room-expansion.md](./room-expansion.md)) — all paid by
+the project's `issuer`.
 It is **all or nothing**, and it happens before anything about the room is made
 permanent (its reserved door tile, its project ID): an issuer that cannot pay
 for the whole room gets nothing marked out, and `planRoomFor` reports it. So:
@@ -67,7 +69,7 @@ for the whole room gets nothing marked out, and `planRoomFor` reports it. So:
   (`TestAColonyWithNoMoneyStillFeedsItself`);
 - **survival does not stop**: a colonist whose need has no facility it can
   reach still builds one for itself, unpaid, exactly as before (the emergency
-  build in `runNeedFocus`), and crash pods bring everyone a bunk and a toilet.
+  build in `runNeedFocus`), and the ships land with communal bunks and toilets.
   `TestAnEmptyTreasuryHaltsPublicWorksNotSurvival` runs a colony with no
   founding grant for 5000 ticks: no room is ever planned, nobody starves, and
   somebody builds themselves a nutrient pod.
@@ -109,7 +111,7 @@ now buys biomatter outright with standing bids (see
 | Setting | Default |
 | --- | --- |
 | `wage-dig` / `wage-wall` / `wage-fixture` | 2 / 2 / 5 |
-| `wage-clear` | 2 |
+| `wage-demolish` | 3 per structure tile torn down: a wall moved to enlarge a room, or anything a clearing order takes |
 | `wage-cook` | 1 per recipe |
 | `house-savings` | 300 (0 disables commissions) |
 | `toilet-fee` | 2 (0 makes a house's toilet private) |

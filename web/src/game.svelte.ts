@@ -53,6 +53,10 @@ export const ui = $state({
   dig: { armed: false, rect: null, tiles: 0 } as DigState,
   /** The Zones tab's tool, the area marked with it, and what applying it would do (ZonesPanel.svelte). */
   zone: { armed: false, tool: 'residence', rect: null, preview: null } as ZoneState,
+  /** The Ships tab's tool: the ship a click on the map relands, or null (ShipsPanel.svelte). */
+  shipTool: null as number | null,
+  /** The aloft ship last sent down: the Ships tab does not pick it up again while the topic catches up. */
+  shipSent: null as number | null,
   /** The Charts tab's view, kept while the tab is closed. */
   chartView: 'perf' as 'perf' | 'population' | 'activity',
   /** The flow field asked for (an index into Hello.flowFields), or -1 for none. */
@@ -109,7 +113,7 @@ export interface ZoneState {
 export interface ZonePreview {
   /** Tiles whose zone changes (paint), or built tiles to clear (clear). */
   tiles: number;
-  /** Tiles a crash pod holds as residence, which a paint skips. */
+  /** Tiles a colony ship holds as residence, which a paint skips. */
   locked: number;
   /** Seen rock a paint would have dug out. */
   dig: number;
@@ -119,6 +123,90 @@ export interface ZonePreview {
   clear: number;
   /** Rooms still going up that the clear tool would call off. */
   rising: number;
+}
+
+/** The ships topic (internal/wire/topics.go): every ship, and whether they may still land or move. */
+export interface ShipsTopic {
+  placing: boolean;
+  ships: ShipLine[];
+}
+/**
+ * One ship: its footprint's top-left, size and shape, and how many came down
+ * in it. One still aloft has no position yet, and only the next to land has a
+ * size and shape.
+ */
+export interface ShipLine {
+  id: number; x: number; y: number; w: number; h: number;
+  /** The footprint row by row: '#' hull, '.' deck, ' ' not part of the ship. */
+  shape?: string[];
+  /** stick, hub-and-spoke, or cluster. */
+  kind?: string;
+  colonists: number;
+  /** Still in orbit, waiting for the player to land it. */
+  aloft?: boolean;
+}
+
+/** The next ship waiting to land, if any: they land in order (docs/ships.md). */
+export function nextAloft(t: ShipsTopic): ShipLine | undefined {
+  return t.ships.find((s) => s.aloft);
+}
+
+/** Whether (dx, dy) of ship s's footprint is part of the ship rather than the ground it leaves be. */
+function onShip(s: ShipLine, dx: number, dy: number): boolean {
+  if (dx < 0 || dy < 0 || dx >= s.w || dy >= s.h) return false;
+  const row = s.shape?.[dy];
+  return row === undefined || row[dx] !== ' ';
+}
+
+/** Every tile of ship s were its top-left at o. */
+export function shipTiles(s: ShipLine, o: { x: number; y: number }): { x: number; y: number }[] {
+  const out: { x: number; y: number }[] = [];
+  for (let dy = 0; dy < s.h; dy++) for (let dx = 0; dx < s.w; dx++) if (onShip(s, dx, dy)) out.push({ x: o.x + dx, y: o.y + dy });
+  return out;
+}
+
+/**
+ * Where ship s would land if centered on tile (x, y): its top-left, kept on
+ * the map with room for the crater round it.
+ */
+export function shipSiteAt(s: ShipLine, x: number, y: number, width: number, height: number): { x: number; y: number } {
+  return {
+    x: Math.max(1, Math.min(width - s.w - 1, x - (s.w >> 1))),
+    y: Math.max(1, Math.min(height - s.h - 1, y - (s.h >> 1))),
+  };
+}
+
+/**
+ * Whether ship s may land with its top-left at o: none of its tiles on
+ * another landed ship or the one-tile walkway round it, as the engine's
+ * shipSiteAllowed checks. (The engine also refuses to land on another ship's
+ * colonist, which this cannot see; it never stands outside its own ship
+ * before the first tick.)
+ */
+export function shipSiteFree(ships: ShipLine[], s: ShipLine, o: { x: number; y: number }): boolean {
+  const others = ships.filter((t) => t.id !== s.id && !t.aloft);
+  const near = (t: ShipLine, x: number, y: number) => {
+    for (let ny = y - 1; ny <= y + 1; ny++) for (let nx = x - 1; nx <= x + 1; nx++) if (onShip(t, nx - t.x, ny - t.y)) return true;
+    return false;
+  };
+  return shipTiles(s, o).every((p) => others.every((t) => !near(t, p.x, p.y)));
+}
+
+/** Pick a ship up: the next click on the map lands it there. null puts the tool down. */
+export function armShip(id: number | null): void {
+  ui.shipTool = id;
+  ctl?.shipToolChanged();
+}
+
+/** Reland a ship with its top-left at (x, y), before the first tick. */
+export function moveShip(id: number, x: number, y: number): void {
+  ctl?.command({ type: 'ship-move', id, x, y });
+}
+
+/** Land the next ship waiting aloft with its top-left at (x, y), before the first tick. */
+export function landAloft(id: number, x: number, y: number): void {
+  ui.shipSent = id;
+  ctl?.command({ type: 'ship-land', id, x, y });
 }
 
 /** A creature by id, or a tile. */
@@ -205,6 +293,8 @@ export interface Controller {
   digChanged(): void;
   /** The zone tool, its area, or what it would cover changed: re-estimate and redraw. */
   zoneChanged(): void;
+  /** The ship tool was picked up or put down: redraw (or clear) its preview. */
+  shipToolChanged(): void;
   /** Tint these tiles on the map (a job's), or none. */
   highlight(tiles: { x: number; y: number; color: Uint8Array }[] | null): void;
 }

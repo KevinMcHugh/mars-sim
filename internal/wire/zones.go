@@ -18,7 +18,7 @@ type ZonesTopic struct {
 	// Kinds is every zone kind by its value: Kinds[0] is "none", and a run's
 	// Kind indexes this list.
 	Kinds []ZoneKind `json:"kinds"`
-	// Runs are [y, x0, x1, kind, locked] (locked 1: a crash pod's ground),
+	// Runs are [y, x0, x1, kind, locked] (locked 1: a colony ship's ground),
 	// sorted by row then column.
 	Runs [][5]int `json:"runs"`
 }
@@ -90,7 +90,7 @@ type Structure struct {
 	X1     int    `json:"x1"`
 	Y1     int    `json:"y1"`
 	Built  int    `json:"built"`
-	Pod    bool   `json:"pod"`
+	Ship   bool   `json:"ship"`
 	Rising bool   `json:"rising"`
 }
 
@@ -118,7 +118,7 @@ func zoningTopic(s *sim.Snapshot) ZoningTopic {
 	}
 	for _, v := range s.Structures {
 		t.Structures = append(t.Structures, Structure{ID: v.ID, Type: v.Type.String(), Zone: int(v.Type.Zone()),
-			X0: v.X0, Y0: v.Y0, X1: v.X1, Y1: v.Y1, Built: v.Built, Pod: v.Pod, Rising: v.Rising})
+			X0: v.X0, Y0: v.Y0, X1: v.X1, Y1: v.Y1, Built: v.Built, Ship: v.Ship, Rising: v.Rising})
 	}
 	for _, st := range s.ZoneWaiting {
 		t.Waiting = append(t.Waiting, StructureType{Name: st.String(), Zone: st.Zone().String()})

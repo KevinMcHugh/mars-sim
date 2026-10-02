@@ -12,19 +12,22 @@ build, a name colonists reach for instead of "alien," and a temperament that
 decides whether it fights at all. A Friendly species never starts a fight, a
 Cautious one only reacts once a colonist gets close, and a Hostile one hunts
 the colony the way every alien always did. Every individual `Alien` belongs
-to one rolled species, and its bite hits harder or softer depending on how
-big that species rolled. What a species can be *named* is itself
+to one rolled species, which fights the way its body allows — biting,
+raking with claws, thrashing a tail, or strangling — and hits harder or
+softer depending on how big it rolled. What a species can be *named* is itself
 configurable data — a condition-gated pool of names, edited in YAML — rather
-than a hardcoded list.
+than a hardcoded list. Each species also gets a scientific name
+(*Pseudursus ares*), covered in [alien-taxonomy.md](./alien-taxonomy.md).
 
 ## Source
 
 - [`internal/sim/lore.go`](../internal/sim/lore.go) — `AlienSpecies`,
-  `AlienTemperament`, `AlienSkin`, `AlienSizeTier`, `rollAlienSpecies`,
+  `AlienTemperament`, `AlienSkin`, `AttackMode`/`AttackSet`/`rollAttackModes`, `AlienSizeTier`, `rollAlienSpecies`,
   `rollAlienSpeciesRoster`, `speciesDamage`, `scaledByTemperament`, and the
   `World.alienSpeciesFor`/`alienNounFor`/`alienPluralFor` helpers.
 - [`internal/sim/alien_names.go`](../internal/sim/alien_names.go) —
-  `AlienNameEntry` (including its `Emoji` candidates),
+  `AlienNameEntry` (including its `Emoji` candidates), name groups
+  (`rawAlienNameEntry`, `AlienNameForm`), `distinctAlienName`,
   `nameCondition`/`intCondition` (the boolean condition tree),
   `pickAlienName`, `LoadAlienNames`, `defaultAlienNames` (the `//go:embed`ded
   built-in pool).
@@ -78,8 +81,9 @@ than a hardcoded list.
 `AlienSpecies` (`lore.go`) holds a build (height/weight ranges, eye count,
 limb count split into arms vs. legs via `Arms`/`Legs()`, tail or not, `Skin`,
 `Color`, `Pattern`), a colloquial name (`Singular`/`Plural`, picked from a condition
-pool — see below), a `Temperament`, and three precomputed combat stats:
-`BiteDamage`, `BiteRest`, `Slowness`.
+pool — see below), a `Temperament`, a set of `AttackModes`, and three precomputed combat stats:
+`BiteDamage`, `BiteRest`, `Slowness` (named for the bite, but they are the
+baseline damage and pace of every attack mode).
 
 `Config.AlienSpeciesCount` (default 1) says how many species a world rolls;
 `rollAlienSpeciesRoster` rolls that many (clamped to at least 1) into
@@ -158,7 +162,7 @@ eat itself on the first tick. With the default `alien-species-count: 1`,
 then, a Hostile species hunts colonists and rats; alien-on-alien fights need
 a roster of two or more. The victim does not fight back — a bitten Cautious
 alien still reacts only to colonists, and a Friendly one never fights —
-which keeps this change to the hunter's side. `bite` handles any prey
+which keeps this change to the hunter's side. `strike` handles any prey
 (`rollHit` falls back to the torso for a rat, which has no parts, drawing no
 RNG), names it with `preyName`, and eats it on a kill: gore, no body, as
 for a colonist. The colonists' perception rules match on a colonist victim,
@@ -194,6 +198,54 @@ in reach, or not hungry, it wanders as before.
 
 `rollTemperament` makes Friendly rare (10%) and Cautious/Hostile common and
 roughly even (45% each) — the "ET to Xenomorph" spread the ask described.
+
+### Attack modes: how a species fights
+
+`AttackMode` is one of four: **bite**, **claws** (scratching), **tail**
+(thrashing), **strangle**. Each species rolls a set of them
+(`rollAttackModes`, stored as the `AttackSet` bitmask `AlienSpecies.AttackModes`),
+and the set has to make sense for the body (`canUse`):
+
+| Mode | Needs | What it does |
+| --- | --- | --- |
+| bite | nothing — every species has a mouth | full damage to a random part |
+| claws | at least one arm | full damage to a random part |
+| tail | a tail | full damage to a random part |
+| strangle | at least two arms (a grip) | half damage, always to the head |
+
+Each allowed mode is kept on a coin flip, so two clawed, tailed species can
+still fight differently; if every flip misses, the species bites. A tail-less
+species never thrashes, an armless one never claws or strangles.
+
+At each blow, `strike` (`systems.go`) picks one of the species' modes
+uniformly — on the **simulation** stream (`w.rng`), because the mode decides
+where the blow lands and how hard, so it is gameplay, not flavor. A species
+with a single mode draws nothing extra. Strangling skips `rollHit` and goes
+for the head (a rat, with no parts, falls back to `rollHit`'s torso): half
+damage against a small vital part, a slower but surer kill than a bite that
+might land on a limb. Everything else uses `rollHit` and full damage as the
+old bite did.
+
+Narration follows the mode, from `strikeVerbs`/`strikeTargetText`: the victim
+remembers "Bitten in the arm by a grelk!", "Clawed across the torso by …",
+"Lashed across the leg by a grelk's tail!", or "Half-strangled by …";
+a witness "watched a grelk bite/claw/lash/throttle Ana"; a kill reads "A
+grelk strangles Ana to death and devours the remains." and the graveyard
+cause "strangled to death by a grelk". `Description()` says how the species
+fights ("They kill by biting and raking with their claws." for a hostile
+species, "Get too close and they lash out by …" for a cautious one; a
+friendly one never fights, so its entry does not mention it), and the lore
+tab (TUI and web) lists the modes on an `Attacks:` stat line.
+
+The occurrence a non-fatal strike emits is still `ActionBite`, whatever the
+mode. The perception and affect rules (`cognition_config.go`) key on that
+action to mean "an alien hurt a colonist"; splitting it per mode would mean
+duplicating every rule for no change in how anyone feels. If colonists ever
+should react differently to being strangled than bitten, add actions then.
+
+`rollAttackModes` runs after the name pick, so each species' build and name
+are unchanged from before the feature; the extra lore-stream draws only shift
+later species in a multi-species roster.
 
 ### Damage scales with size, not with temperament
 
@@ -258,12 +310,47 @@ large/huge` — so "titan" can mean "huge either way" (`any: [{height: huge},
 {weight: huge}]`) without a raw centimetre or kilogram number in the
 condition.
 
-`pickAlienName(rng, sp, names)` collects every entry whose condition matches
+`pickAlienName(rng, sp, names, used)` collects every entry whose condition matches
 the just-rolled species and draws one at random — overlapping conditions
 (several names fit the same species) are normal, not an error, which is why
 `alien-names.yaml`'s conditions are allowed to be loose and to overlap
 freely. `rollAlienSpecies` calls it *last*, after every other trait is
 rolled, since the name depends on the build, not the other way around.
+
+### Name groups
+
+Synonyms tend to share a condition — `reptile`, `reppy` and `rept` are all
+just "scaly" — and writing each out with its own copy of the `when` and the
+emoji list meant three places to edit for one idea. A **name group** lists
+several names under one condition:
+
+```yaml
+- group:
+    - reptile                         # plural defaults to "reptiles"
+    - { name: reppy, plural: reppies }
+    - rept
+  emoji: ["🦎", "🐍", "🐢", "🐊", "🐉"]
+  when:
+    skin: scaly
+```
+
+`LoadAlienNames` expands a group in place, in file order, into one
+`AlienNameEntry` per name, each with the group's `when` and `emoji`; nothing
+after loading ever sees a group. It also fills in each entry's default plural.
+An entry sets `name` or `group`, never both, and a group's plurals go on its
+names, not on the group. `TestLoadAlienNamesExpandsGroups` pins the expansion.
+
+### No repeated names
+
+No two species in one roster share a name. `rollAlienSpeciesRoster` keeps a
+`used` set of the lower-cased singulars it has handed out, and `pickAlienName`
+drops any matching entry whose name is in it. Only when *every* matching name
+is taken does it fall back to the full matching set, and then
+`distinctAlienName` qualifies the result: first with the species'
+`ColorPhrase()` ("green-striped grelk"), then with a number ("green-striped
+grelk 2") until it is free. The built-in pool has four unconditional names, so
+the fallback only shows up with an `alien-species-count` well past what a
+world normally rolls, or a small `-alien-names` file.
 
 The pool itself is `internal/sim/alien-names.yaml`, embedded into the binary
 via `//go:embed` and parsed once as `defaultAlienNames()` — so the game
@@ -330,7 +417,9 @@ build instead of silently rendering as 👽 on the map.
 `World.alienNounFor(e)` (`withArticle(w.alienSpeciesFor(e).Singular)`,
 reusing `mutation.go`'s article helper) and `alienPluralFor(e)` are what
 combat and the roster read instead of the literal word "alien" — "Killed a
-gremlin with a shotgun!" instead of "Killed an alien with a shotgun!" Both
+gremlin with a shotgun!" instead of "Killed an alien with a shotgun!" (the gun
+itself is named after its rolled make and model too — see
+[arms-makers.md](./arms-makers.md)). Both
 take the specific alien entity involved, not a single world-wide value, so a
 world with more than one species narrates each encounter with the right
 one. The director's alien-swarm log line is the one place that still picks
@@ -372,7 +461,8 @@ been explored (`Stats.ExploredTiles`, kept incrementally the same way
 worldgen chunks exist so far (`Stats.ChunksGenerated` of `Stats.Chunks`, see
 [worldgen-chunks.md](./worldgen-chunks.md)) — above a
 selectable list of `Snapshot.AlienSpecies`, each shown by `RosterLabel()`.
-The detail panel lists the selected species' full build as explicit stat
+The detail panel shows the selected species' scientific name in italics
+under its title, then lists its full build as explicit stat
 lines (height/weight range, eyes, limb split, tail, skin, color, bite
 damage/pace, plus the color pattern) followed by `Description()`'s narrative paragraph,
 word-wrapped to the panel width.
@@ -455,6 +545,23 @@ word-wrapped to the panel width.
   comparisons on counts) with no parser at all — just `yaml.Unmarshal` into
   Go structs — at the cost of being slightly more verbose to hand-author
   than an inline expression would be.
+- **A group is shorthand, so each name in it weighs the same as a
+  standalone entry.** The other reading — draw a group first, then a name in
+  it — would make three synonyms count as one candidate, so folding
+  `reptile`/`reppy`/`rept` into a group would have quietly made scaly
+  species less likely to get a scaly name. Expanding at load keeps a group a
+  pure editing convenience: the built-in pool after the change is
+  byte-for-byte the pool before it, so no seed rolls a different roster.
+  If a group should ever count as one candidate, that wants an explicit
+  `weight`, not a change to what `group` means.
+- **Uniqueness filters the draw rather than re-rolling.** Dropping taken
+  names from the candidate list before the draw costs exactly the same RNG
+  draws as before, and a roster whose names never collide rolls exactly what
+  it did before uniqueness existed. Re-rolling until the name was new would
+  have burned an unbounded number of lore-stream draws and shifted every
+  later species. Qualifying by color on exhaustion, rather than allowing the
+  repeat, keeps the narration unambiguous ("killed a green grelk") — two
+  species with one name was the bug.
 - **Height/weight as bucketed tiers for naming, not raw centimetres/
   kilograms in the condition.** The ask asked for "a height and weight enum
   for naming as well" specifically, not a numeric threshold — `tiny` through
@@ -490,6 +597,12 @@ word-wrapped to the panel width.
 
 ## Extending it
 
+- **More attack modes.** Add an `AttackMode` at the end of `attackModes`
+  (inserting mid-list shifts lore draws), a `canUse` gate, an `attackPhrase`
+  phrase, a `strikeVerbs` entry, a `strikeTargetText` case, and whatever
+  mechanics `strike` gives it (a stomp for heavy many-legged species, a
+  sting for a tailed chitinous one). Modes could also gate names
+  (`nameCondition` has no attack leaf yet).
 - **Per-individual variation.** Every alien of a given species is still
   stat-for-stat identical to every other of that species. Giving each
   `Entity` its own height/weight rolled from its species' range (the way
@@ -544,13 +657,18 @@ word-wrapped to the panel width.
   lore implements to become a conversation topic; species are wrapped as
   `speciesLore` and listed by `World.loreItems`. History and whatever comes
   next should implement it and append there.
-- **Organizations, corporations, other colonies.** The pattern here — roll
+- **Organizations, corporations, other colonies.** Corporations have
+  started: [arms-makers.md](./arms-makers.md) rolls a roster of companies,
+  gives every gun a make and model, makes them conversation lore, and gives
+  colonists former employers, following this pattern. The pattern here — roll
   something once per seed (or per count), off its own RNG stream, store it
   on `World`, expose a copy through `Snapshot` — is meant to be the template
   the next piece of lore follows, not a one-off special case for aliens.
 
 ## Related
 
+- [alien-taxonomy.md](./alien-taxonomy.md): the scientific name each
+  species gets on top of its common name.
 - [world.md](./world.md) — the worldgen pipeline (`generate`) lore's alien
   placement still uses, and the `Rock`/composition generation whose
   dedicated-RNG-stream pattern this reuses.

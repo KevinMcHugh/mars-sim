@@ -102,8 +102,8 @@ dispatch to the active panel's handler.
   [worldgen-chunks.md](./worldgen-chunks.md)), and the seed
   (`Snapshot.Seed`). Arrow navigation selects one of `Snapshot.AlienSpecies`
   — every kind of alien this seed rolled — and the detail pane lists its full
-  build (height/weight range, eyes, limb split, tail, skin, color, bite
-  damage/pace) as scannable stat lines, plus `AlienSpecies.Description()`'s
+  build (height/weight range, eyes, limb split, tail, skin, color, attack
+  modes, attack damage/pace) as scannable stat lines, plus `AlienSpecies.Description()`'s
   narrative paragraph, word-wrapped (`wrapWords`) to the panel width. See
   [lore.md](./lore.md).
 - **Population** (`renderPopulation`): four braille line charts of the
@@ -262,7 +262,7 @@ and `enter` jumps directly to that container in the storage details panel.
 `tab` cycles **map → roster → jobs → storage → market → lore → population → activity → log → perf → map**.
 Roster, jobs, storage, market, lore, population, activity, log, and perf are collectively the details panels. In storage,
 `up`/`down` or `j`/`k` selects a container from the position-sorted snapshot
-list — a shared chest, or someone's crash-pod locker, labelled by owner — and
+list — a shared chest, or someone's ship locker, labelled by owner — and
 the inspector shows its occupied slots, total capacity, and whose the contents
 are. In market
 (`render_market.go`), the same keys select an account — the colony's treasury

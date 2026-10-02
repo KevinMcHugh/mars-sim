@@ -40,8 +40,8 @@ import (
 // The page checks it at start, so a mars-sim.wasm left over from an older
 // build (npm run wasm not rerun after a pull) fails with a message saying so,
 // instead of a panel that silently never loads. 1 was everything before
-// subscribe/unsubscribe; 2 had no entity: or tile: topics; 3 no roster; 4 no log; 5 no jobs, storage, market or account:; 6 no perf or population; 7 no flow command; 8 no dig command; 9 no dig-cancel; 10 no order-place, order-reprice or order-cancel; 11 no order-suspend or order-resume; 12 no zone, clear or clear-cancel.
-const hostAPI = 13
+// subscribe/unsubscribe; 2 had no entity: or tile: topics; 3 no roster; 4 no log; 5 no jobs, storage, market or account:; 6 no perf or population; 7 no flow command; 8 no dig command; 9 no dig-cancel; 10 no order-place, order-reprice or order-cancel; 11 no order-suspend or order-resume; 12 no ship-move; 13 no ship-land; 14 no zone, clear or clear-cancel.
+const hostAPI = 15
 
 var (
 	eng *sim.Engine
@@ -221,7 +221,7 @@ type memoryResult struct {
 
 // command is a sim.Command as the page sends it.
 type command struct {
-	Type string `json:"type"` // pause | speed | spawn | flow | dig | dig-cancel | zone | clear | clear-cancel | order-place | order-reprice | order-cancel | order-suspend | order-resume
+	Type string `json:"type"` // pause | speed | spawn | flow | dig | dig-cancel | zone | clear | clear-cancel | ship-move | ship-land | order-place | order-reprice | order-cancel | order-suspend | order-resume
 	Rate int    `json:"rate,omitempty"`
 	// Kind is what to spawn, or for zone the zone kind by name ("none"
 	// unzones).
@@ -230,7 +230,7 @@ type command struct {
 	// -1 for none.
 	Field *int `json:"field,omitempty"`
 	// dig, zone and clear: the rectangle, inclusive, in tiles.
-	ID int `json:"id,omitempty"` // dig-cancel, clear-cancel: the project id; order-*: the order's id
+	ID int `json:"id,omitempty"` // dig-cancel, clear-cancel: the project id; order-*: the order's id; ship-move, ship-land: the ship's
 	X0 int `json:"x0,omitempty"`
 	Y0 int `json:"y0,omitempty"`
 	X1 int `json:"x1,omitempty"`
@@ -238,7 +238,7 @@ type command struct {
 	// order-place, order-suspend and order-resume: the side ("bid" or
 	// "ask") and the item by name; order-place also the
 	// quantity, and the depot (x, y); order-place and order-reprice: the
-	// price.
+	// price. ship-move, ship-land: the ship's (new) top-left (x, y).
 	Side  string `json:"side,omitempty"`
 	Item  string `json:"item,omitempty"`
 	Qty   int    `json:"qty,omitempty"`
@@ -259,6 +259,10 @@ func parseCommand(s string) (sim.Command, error) {
 		return sim.SetTicksPerSecond{Rate: c.Rate}, nil
 	case "dig-cancel":
 		return sim.CancelExcavation{ID: c.ID}, nil
+	case "ship-move":
+		return sim.MoveShip{Ship: c.ID, X: c.X, Y: c.Y}, nil
+	case "ship-land":
+		return sim.LandShip{Ship: c.ID, X: c.X, Y: c.Y}, nil
 	case "dig":
 		return sim.OrderExcavation{X0: c.X0, Y0: c.Y0, X1: c.X1, Y1: c.Y1}, nil
 	case "zone":

@@ -276,8 +276,8 @@ zoning-auto: true
 ## what the colony pays to build one fixture (pod, toilet, bed, ...)
 # wage-fixture: 5
 
-## what the colony pays to clear one tile of a structure (a wall, a pod's hull, a fixture)
-# wage-clear: 2
+## what the colony pays to tear down one structure tile: a wall moved to enlarge a room, or anything a clearing order takes down
+# wage-demolish: 3
 
 ## what the colony pays a cook each time it works a recipe on the colony's stock
 # wage-cook: 1
@@ -294,20 +294,41 @@ zoning-auto: true
 ## what a house's toilet charges anyone but its owner per use (0: private)
 # toilet-fee: 2
 
-# ── Crash pods ──────────────────────────────────────────────────────────
+# ── Arrivals ────────────────────────────────────────────────────────────
+## most settlers one colony ship carries; a larger wave comes down in several
+# ship-capacity: 20
+
+## communal bunks a ship carries, as a percent of its passengers (rounded up)
+# ship-bunk-percent: 50
+
+## communal toilets a ship carries, as a percent of its passengers (rounded up)
+# ship-toilet-percent: 25
+
+## relative odds a colony ship is a stick: its rooms in a row along one aisle
+# ship-stick-weight: 1
+
+## relative odds a colony ship is a hub and spoke: a concourse with a room down each spoke
+# ship-hub-weight: 1
+
+## relative odds a colony ship is a knobby cluster: rooms budding off a spine corridor
+# ship-cluster-weight: 1
+
+## hold the founders' ships aloft for the player to land one by one (the browser does)
+# place-ships: false
+
 ## dollars each colonist arrives with
 # crash-pod-purse: 100
 
-## meals stocked in each crash pod's locker, on average
+## meals stocked in each colonist's locker, on average
 # crash-pod-meals: 10
 
-## each pod's meals vary by up to this many either side of crash-pod-meals
+## each locker's meals vary by up to this many either side of crash-pod-meals
 # crash-pod-meal-spread: 0
 
 ## relative odds a colonist's one rare item is a gun
 # crash-pod-gun-weight: 50
 
-## relative odds a colonist's one rare item is a chicken (with a trough in its pod)
+## relative odds a colonist's one rare item is a chicken (with a trough in its ship's hold)
 # crash-pod-chicken-weight: 25
 
 ## relative odds a colonist's one rare item is a cat
@@ -319,6 +340,9 @@ zoning-auto: true
 # ── Timing ──────────────────────────────────────────────────────────────
 ## simulation ticks per second
 # tps: 8
+
+## start the game paused (the browser does, so the ships can be placed)
+# start-paused: false
 
 ## number of recent events retained
 # log-size: 64
@@ -333,7 +357,7 @@ zoning-auto: true
 ## ticks of work to raise one wall
 # build-ticks: 8
 
-## ticks of work to break down one wall tile when escaping a sealed room
+## ticks of work to break down one wall or hull tile, escaping a sealed room or opening a passage
 # demolish-ticks: 16
 
 ## ticks of work to build a pod or toilet
@@ -636,6 +660,12 @@ zoning-auto: true
 ## rooms that can be under construction at once
 # max-concurrent-projects: 2
 
+## enlarge an existing dormitory, storage room, kitchen, incubator or meeting hall, moving a side wall out, before building a new one
+# room-expansion: true
+
+## most fixtures (bunks, containers, stoves and pantries, incubators, chairs) a room grows to by expansion
+# room-max-facilities: 8
+
 ## ticks a colonist's room must stay cut off from the colony before it breaks out on its own
 # escape-grace-ticks: 32
 
@@ -710,7 +740,7 @@ zoning-auto: true
 ## relative weight of talking about another colonist (0 never)
 # talk-topic-colonist-weight: 3
 
-## relative weight of talking about lore, such as an alien species (0 never)
+## relative weight of talking about lore, such as an alien species or a corporation (0 never)
 # talk-topic-lore-weight: 2
 
 ## percent of the gap a good chat about a colonist closes between the listener's affinity toward them and the speaker's
@@ -825,6 +855,12 @@ zoning-auto: true
 
 ## cooldown ticks between assault rifle bursts
 # rifle-fire-rest: 1
+
+## companies this seed's lore rolls; each gun kind is made by one of them
+# corporation-count: 4
+
+## percent of arriving colonists who used to work for one of the lore's corporations (flavor only)
+# corporation-employee-percent: 60
 
 # ── Cats ────────────────────────────────────────────────────────────────
 ## cat hit points

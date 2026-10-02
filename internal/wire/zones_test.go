@@ -8,7 +8,7 @@ import (
 )
 
 // The zone overlay and the Zones tab carry what the engine zoned: the
-// crash pods' residence, a painted zone, and the structure table.
+// colony ships' residence, a painted zone, and the structure table.
 func TestZoneTopics(t *testing.T) {
 	cfg := sim.DefaultConfig()
 	cfg.Seed, cfg.Width, cfg.Height, cfg.StartColonists = 7, 80, 50, 3
@@ -46,7 +46,7 @@ func TestZoneTopics(t *testing.T) {
 		}
 	}
 	if locked == 0 {
-		t.Error("no crash pod ground in the overlay")
+		t.Error("no ship ground in the overlay")
 	}
 
 	var z ZoningTopic
@@ -57,16 +57,16 @@ func TestZoneTopics(t *testing.T) {
 	if z.Tiles["production"] != production || production == 0 {
 		t.Errorf("production tiles %d, overlay %d", z.Tiles["production"], production)
 	}
-	pods := 0
+	ships := 0
 	for _, s := range z.Structures {
-		if s.Pod {
-			pods++
-			if s.Type != "crash pod" || s.Zone != int(sim.ZoneResidence) || s.Built == 0 {
-				t.Errorf("pod = %+v", s)
+		if s.Ship {
+			ships++
+			if s.Type != "colony ship" || s.Zone != int(sim.ZoneResidence) || s.Built == 0 {
+				t.Errorf("ship = %+v", s)
 			}
 		}
 	}
-	if pods != cfg.StartColonists {
-		t.Errorf("%d pods listed, want %d", pods, cfg.StartColonists)
+	if ships != len(snap.Ships) || ships == 0 {
+		t.Errorf("%d ships listed, the snapshot has %d", ships, len(snap.Ships))
 	}
 }

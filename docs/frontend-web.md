@@ -12,8 +12,9 @@ readout. Around it is a Svelte chrome:
 - **A top bar:** the clock (colony day and time of day, see [days.md](./days.md), then tick), a Pause / Normal / Fast / Faster / Max speed selector, and
   the TUI header's counts, as emoji (👷 👽 🐈 🐀, then each fixture's glyph).
 - **A side panel,** with the Inspect tab (click the map), the Roster, the
-  Log, Jobs, Storage, Market, Zones, Dig, Charts, the Lore tab and a new-game form
-  (which can also start a colony that zones for itself: `zoning-auto`).
+  Log, Jobs, Storage, Market, Zones, Dig, Charts, the Lore tab, Ships and a
+  new-game form (which can also start a colony that zones for itself:
+  `zoning-auto`).
 - **A log ticker** over the map's bottom-left corner: the last few colony-log
   lines, fading after a few seconds.
 
@@ -33,7 +34,7 @@ The rest of the TUI's tabs are planned in
 - [`web/src/ui/`](../web/src/ui/App.svelte) — the Svelte chrome: `App`,
   `TopBar`, `SpeedControl`, `SidePanel`, `Bar` (a gauge), and one component
   per tab (`InspectPanel`, `RosterPanel`, `LogPanel`, `JobsPanel`,
-  `StoragePanel`, `MarketPanel` with `AccountDetail` and `ColonyOrders`, `ZonesPanel`, `DigPanel`, `ChartsPanel`,
+  `StoragePanel`, `MarketPanel` with `AccountDetail` and `ColonyOrders`, `ZonesPanel`, `DigPanel`, `ChartsPanel`, `ShipsPanel`,
   `LorePanel`, `NewGamePanel`), `LogTicker`, and `FlowControl` (the
   flow-field picker and legend, see [flow-field-view.md](./flow-field-view.md)).
   `format.ts` formats money.
@@ -296,7 +297,7 @@ closed.
   cleared (see [zoning.md](./zoning.md)). One button per zone kind (from the
   `zones` topic, swatch and all), **Remove zone** and **Clear area** arm the
   same area tool the Dig tab uses. `showZone` estimates the outcome from the
-  `zones` and `zoning` topics and the tile pages: tiles changed, crash pods'
+  `zones` and `zoning` topics and the tile pages: tiles changed, colony ships'
   ground skipped, rock to dig, and the structures a paint would leave in the
   wrong zone, tinted red with a warning of the extra clearing order. The
   button sends `zone` or `clear`. Below are what the colony is waiting on a
@@ -313,6 +314,23 @@ closed.
   clears it. The page counts rock itself from the tile pages it holds
   (terrain 0, visible); the engine recounts, so the two can differ by tiles
   already ordered.
+- **Ships** lands the colony ships (see [ships.md](./ships.md)). A new game
+  starts paused with the founders' ships aloft (the page sends
+  `start-paused: true` and `place-ships: true` with its settings) and this
+  tab open. The tab hands the player the next ship aloft and draws its shape
+  from the topic's `shape` rows; the pointer shows where it would land, tile
+  for tile (green, or red where any tile would touch another ship or the
+  walkway round one, the check `shipSiteFree` mirrors from the engine), and a
+  click lands it there with the `ship-land` command (host API 14). The tab
+  then hands over the next one; `ui.shipSent` keeps it from picking the ship
+  just sent down up again while the topic catches up, and a **Land** button
+  re-arms it if the engine refused. Once every ship is down, **Move** picks
+  a landed one up and a click relands it with `ship-move` (host API 13). A
+  drag still pans. **Start** is disabled while any ship is aloft; it puts
+  the tool down and runs the game at Normal. After the first tick the ships
+  stay put and the tab only lists them. The `ships` topic is rebuilt on
+  every advance, not on an interval: placing happens paused, where the only
+  advance is the one a land or move itself causes.
 
 A link from any of these into the inspector remembers its tab
 (`ui.inspectFrom`), so the inspector offers **← Jobs**, **← Storage** or

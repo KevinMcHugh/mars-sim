@@ -218,13 +218,15 @@ the colony grows):
 ### Structures coming down
 
 Terrain mostly only opens up through digging, but a clearing order
-([zoning.md](./zoning.md)) and an escape ([escape.md](./escape.md)) turn a wall back into
-floor. `SetTerrain` touches the flow fields and dirties the region graph as for
-any change, so the shared fields route through the gap on their next read. A
-colonist's own cached A\* route is only replanned when it is blocked, so
-`demolish` also drops every cached route longer than a straight walk to its end
-(`forgetDetours`). Without that, a colonist already on its way would finish the
-long way round a wall that is gone.
+([zoning.md](./zoning.md)), a passage and an escape ([escape.md](./escape.md)),
+and a growing room ([room-expansion.md](./room-expansion.md)) turn structures
+back into floor. `SetTerrain` touches the flow fields and dirties the region
+graph as for any change, so the shared fields route through the gap on their
+next read. A colonist's own cached A\* route is only replanned when it is
+blocked, so a clearing order's tile also drops every cached route longer than a
+straight walk to its end (`clearTile`, `forgetDetours`). Without that, a
+colonist already on its way would finish the long way round a wall that is
+gone. The others leave routes alone, as they always have.
 
 ## Extending it
 

@@ -137,11 +137,14 @@ func (w *World) wageFor(t Terrain) Money {
 	}
 }
 
-// taskWage is what one task pays: clearing a structure tile at wage-clear,
-// anything else at wageFor its terrain.
+// taskWage is what a task pays: wageFor its terrain, except that breaking a
+// structure down (a dig task that clears a wall, a hull or a fixture) pays
+// WageDemolish: a room's wall moved to enlarge it, or a clearing order's tile
+// (see zones.go). A passage breaks walls too, but nobody pays for one (see
+// planPassage).
 func (w *World) taskWage(t *buildTask) Money {
-	if t.demolish {
-		return Money(w.cfg.WageClear)
+	if t.terrain == Floor && isBuilt(t.clears) {
+		return Money(w.cfg.WageDemolish)
 	}
 	return w.wageFor(t.terrain)
 }

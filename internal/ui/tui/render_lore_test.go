@@ -17,11 +17,12 @@ func loreSnapshot() *sim.Snapshot {
 	snap.Stats.ChunksGenerated, snap.Stats.Chunks = 3, 40
 	snap.AlienSpecies = []sim.AlienSpecies{
 		{
-			Singular: "xeno", Plural: "xenos",
+			Singular: "xeno", Plural: "xenos", ScientificName: "Lepidosaurus ferox",
 			HeightMinCM: 180, HeightMaxCM: 220, WeightMinKG: 70, WeightMaxKG: 95,
 			Eyes: 4, Limbs: 6, Arms: 2, Tail: true,
 			Skin: sim.SkinScaly, Color: "green",
 			Temperament: sim.TemperamentHostile,
+			AttackModes: sim.AttackSetOf(sim.AttackBite, sim.AttackTail),
 			BiteDamage:  12, BiteRest: 2, Slowness: 1,
 		},
 		{
@@ -63,8 +64,10 @@ func TestLoreTabShowsWorldFactsAndFirstSpecies(t *testing.T) {
 		"Seed: 12345",
 		"ALIEN SPECIES (2)",
 		"Xeno · hostile",
+		"Lepidosaurus ferox",
 		"Height:        180-220 cm",
-		"Bite damage:   12",
+		"Attacks:       bite, tail",
+		"Attack damage: 12",
 		"FIELD NOTES",
 	} {
 		if !strings.Contains(out, want) {
@@ -145,5 +148,20 @@ func TestWrapWordsBreaksOnlyAtSpaces(t *testing.T) {
 func TestWrapWordsEmptyInput(t *testing.T) {
 	if got := wrapWords("", 10); got != nil {
 		t.Fatalf("wrapWords(\"\", 10) = %v, want nil", got)
+	}
+}
+
+// TestLoreTabListsGunsAndCorporations checks the arms lore (see
+// docs/arms-makers.md) shows under the species list.
+func TestLoreTabListsGunsAndCorporations(t *testing.T) {
+	snap := loreSnapshot()
+	snap.Corporations = []sim.Corporation{{Name: "Ares Arms", Code: "AA", HQ: "Luna", Founded: 2077}}
+	snap.GunModels = []sim.GunModel{{Kind: sim.Pistol, Brand: "Ares Arms", Model: "AA-9"}}
+
+	out := toLore(t, snap).View()
+	for _, want := range []string{"GUNS", "pistol: Ares Arms AA-9", "CORPORATIONS (1)", "Ares Arms · Luna, 2077"} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("lore tab missing %q:\n%s", want, out)
+		}
 	}
 }

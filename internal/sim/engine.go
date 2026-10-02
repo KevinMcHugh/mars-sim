@@ -116,6 +116,9 @@ func NewEngine(cfg Config) *Engine {
 		world: w,
 		cmds:  make(chan Command, 32),
 		tps:   cfg.TicksPerSecond,
+		// The browser starts paused so the player can place the ships
+		// before anyone moves (see MoveShip).
+		paused: cfg.StartPaused,
 	}
 }
 
@@ -462,6 +465,14 @@ func (e *Engine) apply(cmd Command) (rateChanged bool) {
 	case CancelClear:
 		e.world.cancelClearing(c.ID)
 		e.requestPublish()
+	case MoveShip:
+		if e.world.moveShip(c) {
+			e.requestPublish()
+		}
+	case LandShip:
+		if e.world.landAloft(c) {
+			e.requestPublish()
+		}
 	}
 	return false
 }
@@ -471,7 +482,7 @@ func (e *Engine) spawn(kind Kind) {
 	center := Point{w.Width / 2, w.Height / 2}
 	switch kind {
 	case Colonist:
-		w.arrive(true) // every colonist comes in a crash pod
+		w.land(1, true) // every colonist comes in a ship
 	case Alien:
 		if p, ok := w.alienSpawnSite(center, 8); ok {
 			w.spawn(Alien, p)

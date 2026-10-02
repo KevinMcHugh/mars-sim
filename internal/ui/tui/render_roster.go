@@ -255,7 +255,11 @@ func (m Model) detailLines(c sim.EntityView, inner, barW int) []string {
 	// about a person you want to take in at a glance, not convert in your head.
 	b.WriteString(statStyle.Render(fmt.Sprintf("age %d"+divider+"%s (%d cm)"+divider+"%d kg",
 		p.Age, sim.FormatHeight(p.HeightCM), p.HeightCM, p.WeightKG)) + "\n")
-	b.WriteString(statStyle.Render(fmt.Sprintf("%s skin"+divider+"%s hair", p.SkinTone, p.HairColor)) + "\n\n")
+	b.WriteString(statStyle.Render(fmt.Sprintf("%s skin"+divider+"%s hair", p.SkinTone, p.HairColor)) + "\n")
+	if c.Backstory != "" { // flavor: who it worked for back home (docs/arms-makers.md)
+		b.WriteString(statStyle.Render(c.Backstory) + "\n")
+	}
+	b.WriteString("\n")
 
 	status := c.State.String()
 	if c.Dead {

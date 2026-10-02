@@ -13,6 +13,9 @@ import (
 // The dead are removed the moment they are eaten or starve, so we re-check
 // liveness as we go.
 func (w *World) step() {
+	if len(w.aloft) > 0 {
+		w.landRestAloft() // nobody is left in orbit once the game starts
+	}
 	w.tick++
 	for _, id := range w.entityTurnOrder() {
 		e := w.entities[id]
@@ -284,9 +287,9 @@ func (w *World) runFocus(e *Entity, selected FocusCandidate) {
 		w.runJob(e)
 	case FocusEscape:
 		if e.Job != JobDemolish && !w.assignDemolish(e) {
-			// Nothing reachable to break through (the pocket is bounded by rock,
-			// not a built wall) — fall back rather than spinning on this focus
-			// every tick with nothing to execute.
+			// No way out within reach of the search (see passageRoute) — fall
+			// back rather than spinning on this focus every tick with nothing
+			// to execute.
 			w.finishFocus(e)
 			w.runIdleFocus(e)
 			return
@@ -503,10 +506,28 @@ func (w *World) onFacilityAccess(p Point) bool {
 	return false
 }
 
-// onPendingBuild reports whether p is a not-yet-built task tile of some project,
-// which a builder must find clear to construct.
+// onPendingBuild reports whether p is a not-yet-built task tile in some
+// project's active phase, which a builder must find clear to construct.
 func (w *World) onPendingBuild(p Point) bool {
 	return w.buildTiles[p]
+}
+
+// onPlannedTask reports whether p is the tile of any unfinished project task,
+// in any phase. buildTiles (onPendingBuild) only holds the active phase, so a
+// room's later-phase tiles — a fit-phase bunk tile is still plain Floor while
+// the walls go up — look free to it. A lone build on one of those leaves its
+// task forever unworkable (taskWorkable wants Floor), so the project never
+// completes and holds a concurrent-project slot for good. Scans every task, so
+// call it after the cheap checks; the emergency fallback is its only caller.
+func (w *World) onPlannedTask(p Point) bool {
+	for _, proj := range w.projects {
+		for _, t := range proj.tasks {
+			if t.pos.Equal(p) && !w.taskDone(t) {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // assignMine / assignBuild set a colonist's job and update the board's
@@ -945,7 +966,7 @@ func (w *World) assignWorkJob(e *Entity) {
 	if w.foodWanted() && w.wildScumAllowed() && w.prospectingForFood() && e.Inventory.CanAdd(RawRock, 1) && w.tryProspect(e, false) {
 		return
 	}
-	// Surplus crash-pod meals go to market for someone hungrier to buy.
+	// Surplus locker meals go to market for someone hungrier to buy.
 	if w.tryAssignSellMeals(e) {
 		return
 	}
@@ -1214,61 +1235,50 @@ func (w *World) updateDisconnected(e *Entity) {
 	}
 }
 
-// assignDemolish commits a colonist to breaking down the nearest reachable
-// wall bounding its own (cut-off) room. Reports whether one was found.
+// assignDemolish commits a colonist to the first tile on its cheapest way out
+// of its own (cut-off) room to the colony's main room: rock to dig through or
+// a wall or hull to break down, whichever route costs less work (see
+// escapeTarget). Reports whether there is one.
 func (w *World) assignDemolish(e *Entity) bool {
-	wall, ok := w.nearestEscapeWall(e.Pos)
+	target, ok := w.escapeTarget(e.Pos)
 	if !ok {
 		return false
 	}
-	e.Job, e.Target, e.Progress = JobDemolish, wall, 0
+	e.Job, e.Target, e.Progress = JobDemolish, target, 0
 	return true
 }
 
-// nearestEscapeWall finds the closest Wall tile bounding from's own room, by
-// walking distance within that room rather than a global scan: a sealed
-// pocket is by definition small, so this stays cheap exactly where it matters
-// (a colony-wide scan for one trapped colonist would not). Returns false if
-// the room is bounded entirely by solid rock rather than any built wall — a
-// natural cavern separation JobDemolish cannot do anything about.
-func (w *World) nearestEscapeWall(from Point) (Point, bool) {
-	room := w.roomOf(from)
-	if room == 0 {
-		return Point{}, false
-	}
-	seen := map[Point]bool{from: true}
-	queue := []Point{from}
-	for len(queue) > 0 {
-		p := queue[0]
-		queue = queue[1:]
-		for _, d := range neighbors8 {
-			n := p.Add(d.X, d.Y)
-			if !w.InBounds(n) || seen[n] {
-				continue
-			}
-			seen[n] = true
-			if t := w.TerrainAt(n); t == Wall || t == Hull {
-				return n, true
-			}
-			if w.Walkable(n) && w.roomOf(n) == room {
-				queue = append(queue, n)
-			}
-		}
-	}
-	return Point{}, false
-}
-
-// jobDemolish walks to the wall claimed by assignDemolish and breaks it down
-// over DemolishTicks, converting it back to Floor — mirroring jobMine's dig,
-// but reversing a wall instead of clearing rock. Reconnecting is implicit:
-// refreshSpatial folds the new Floor tile in at the end of this tick, and
-// updateDisconnected notices the room is whole again on the next.
+// jobDemolish walks to the tile claimed by assignDemolish and clears it to
+// Floor: a wall or hull broken down over DemolishTicks, or rock dug out over
+// MineTicks, the way a miner would. Reconnecting is implicit: refreshSpatial
+// folds the new Floor tile in at the end of this tick, and updateDisconnected
+// notices the room is whole again on the next — or, on a longer way out, the
+// next think assigns the next tile.
 func (w *World) jobDemolish(e *Entity) {
-	if t := w.TerrainAt(e.Target); t != Wall && t != Hull {
-		w.clearJob(e) // reconnected some other way, or someone else broke it first
+	t := w.TerrainAt(e.Target)
+	if t != Wall && t != Hull && t != Rock {
+		w.clearJob(e) // reconnected some other way, or someone else cleared it first
 		return
 	}
 	if e.Pos.Adjacent(e.Target) {
+		if t == Rock {
+			e.State = Mining
+			e.Progress++
+			if e.Progress < w.workTicks(e, SkillMining, w.cfg.MineTicks) {
+				return
+			}
+			// Whatever of the rock fits is kept. The rest is left as rubble:
+			// unlike a miner, a colonist digging its way out does not stop
+			// because its pockets are full.
+			for _, s := range miningYield(w.TileAt(e.Target)) {
+				e.Inventory.Add(s.Kind, s.Count)
+			}
+			w.SetTerrain(e.Target, Floor)
+			w.practise(e, SkillMining, w.cfg.MineTicks)
+			w.logEvent(LogEscape, fmt.Sprintf("Colonist #%d digs through rock to escape a sealed pocket.", e.ID))
+			w.clearJob(e)
+			return
+		}
 		e.State = Demolishing
 		e.Progress++
 		if e.Progress >= scaleTicks(w.cfg.DemolishTicks, e.workScale) {
@@ -1286,16 +1296,16 @@ func (w *World) jobDemolish(e *Entity) {
 }
 
 func (w *World) jobBuild(e *Entity) {
-	if e.task != nil && e.task.demolish {
-		w.jobClear(e) // a clearing order's tile (see structures.go)
-		return
-	}
-	// A dig task (BuildKind Floor) works rock down to floor; every other kind
+	// A dig task (BuildKind Floor) works rock down to floor, or breaks a wall
+	// or hull down to it for a passage (buildTask.clears); every other kind
 	// builds atop existing floor. Anything else at the target — already
 	// finished, or changed to something unexpected — ends the job.
 	prereq := Floor
 	if e.BuildKind == Floor {
 		prereq = Rock
+		if e.task != nil {
+			prereq = e.task.clears
+		}
 	}
 	if w.TerrainAt(e.Target) != prereq {
 		w.clearJob(e)
@@ -1332,6 +1342,34 @@ func (w *World) jobBuild(e *Entity) {
 	e.stuck = 0
 	e.State = Building
 	e.Progress++
+	if isBuilt(prereq) {
+		// Breaking a structure down: for a passage, the work of an escape's
+		// demolition, and nothing to carry away; to move a room's wall out;
+		// or for a clearing order (see zones.go). demolish empties a depot
+		// first and keeps the structure registry true.
+		if e.Progress < scaleTicks(w.cfg.DemolishTicks, e.workScale) {
+			return
+		}
+		switch p := e.task.proj; {
+		case p != nil && p.name == ClearingName:
+			w.clearTile(e.Target)
+			o := w.occurrence(e, ActionClear, nil, e.Target, "Cleared away a %s at (%d, %d).", prereq, e.Target.X, e.Target.Y)
+			o.Object = FactRef{Noun: NounStructure, Label: prereq.String()}
+			w.emitOccurrence(o)
+		case p != nil && p.room != nil:
+			// Moving a room's side wall out (see roomgrow.go).
+			w.demolish(e.Target)
+			w.logEvent(LogBuildStart, fmt.Sprintf("Colonist #%d tears down a wall at (%d, %d) to enlarge the %s.",
+				e.ID, e.Target.X, e.Target.Y, p.room.recipe.name))
+		default:
+			w.demolish(e.Target)
+			w.logEvent(LogEscape, fmt.Sprintf("Colonist #%d breaks through a %s at (%d, %d) to reach a cut-off part of the colony.",
+				e.ID, prereq, e.Target.X, e.Target.Y))
+		}
+		w.payWork(e.task.order, e)
+		w.clearJob(e)
+		return
+	}
 	if e.Progress < w.workTicks(e, buildSkill(e.BuildKind), w.buildTicks(e.BuildKind)) {
 		return
 	}
@@ -1717,14 +1755,16 @@ func (w *World) makeWayAt(e *Entity, target Point) bool {
 // findBuildSpot returns the nearest open Floor tile that sits against Rock or
 // Wall — an edge where new structure extends the colony rather than plugging a
 // walkway at random — on ground zoned for a lone fixture of kind (see
-// zoneAllows). The colonist's own tile is excluded.
+// zoneAllows). The colonist's own tile is excluded, and so is every tile an
+// unfinished project task designates, in any phase (see onPlannedTask).
 func (w *World) findBuildSpot(from Point, radius int, kind Terrain) (Point, bool) {
 	var best Point
 	found := false
 	zone := looseStructure(kind).Zone()
 	w.forEachInRadius(from, radius, func(p Point) bool {
 		if p.Equal(from) || w.TerrainAt(p) != Floor || w.occupied(p) ||
-			w.onPendingBuild(p) || !w.bordersSolid(p) || (zone != NoZone && !w.zoneAllows(p, zone)) {
+			w.onPendingBuild(p) || !w.bordersSolid(p) || w.onPlannedTask(p) ||
+			(zone != NoZone && !w.zoneAllows(p, zone)) {
 			return false
 		}
 		best, found = p, true
@@ -1814,7 +1854,7 @@ func (w *World) alienTurn(e *Entity) {
 	e.Quarry = prey.ID
 
 	if e.Pos.Adjacent(prey.Pos) {
-		w.bite(e, prey)
+		w.strike(e, prey)
 		e.Cooldown = sp.BiteRest
 		return
 	}
@@ -1856,31 +1896,77 @@ func (w *World) alienGraze(e *Entity, sp AlienSpecies) bool {
 	return true
 }
 
-// bite deals damage to a random body part of the alien's prey and eats it if
-// the wound is fatal (a vital part destroyed, or HP exhausted). A rat has no
-// parts to hit, so a bite just takes its HP. The prey remembers the attack,
-// and any other colonist close enough to have noticed the alien
-// (observeNearby's own sighting radius) remembers watching it happen. A
-// fatal bite leaves gore behind; the prey is eaten, so there is no body.
-func (w *World) bite(alien, prey *Entity) {
-	part := w.rollHit(prey)
-	fatal := applyDamage(prey, part, w.alienSpeciesFor(alien).BiteDamage)
+// strike attacks the alien's prey with one of its species' attack modes
+// (see AttackMode), picked uniformly on the simulation stream when it has
+// more than one -- the mode decides where the blow lands and how hard, so it
+// is gameplay, not flavor. A bite, claw rake, or tail lash lands on a random
+// body part at full damage; strangling goes for the throat (the head, when
+// the prey has one) at half damage, a slower but surer kill. A rat has no
+// parts to hit, so it just loses HP. The prey remembers the attack, and any
+// other colonist close enough to have noticed the alien (observeNearby's own
+// sighting radius) remembers watching it happen. A fatal strike leaves gore
+// behind; the prey is eaten, so there is no body.
+func (w *World) strike(alien, prey *Entity) {
+	sp := w.alienSpeciesFor(alien)
+	modes := sp.Attacks()
+	mode := modes[0]
+	if len(modes) > 1 {
+		mode = modes[w.rng.IntN(len(modes))]
+	}
+	var part BodyPart
+	dmg := sp.BiteDamage
+	if mode == AttackStrangle && prey.hasPart(Head) {
+		part = Head
+		dmg = (dmg + 1) / 2 // a zero baseline stays zero (see speciesDamage)
+	} else {
+		part = w.rollHit(prey)
+	}
+	fatal := applyDamage(prey, part, dmg)
 	noun := w.alienNounFor(alien)
 	name := w.preyName(prey)
+	verb := strikeVerbs[mode]
 	if fatal {
 		alien.State = Feeding
 		o := w.occurrence(alien, ActionKill, prey, prey.Pos, "")
-		o.WitnessText = fmt.Sprintf("Watched %s kill %s.", noun, name)
+		o.WitnessText = fmt.Sprintf("Watched %s %s %s to death.", noun, verb.base, name)
 		w.addGore(prey.Pos)
 		w.emitOccurrence(o)
-		w.remove(prey.ID, fmt.Sprintf("devoured by %s", noun))
-		w.logEvent(LogDeath, fmt.Sprintf("%s devours %s.", capitalizeFirst(noun), name))
+		w.remove(prey.ID, fmt.Sprintf("%s to death by %s", verb.past, noun))
+		w.logEvent(LogDeath, fmt.Sprintf("%s %s %s to death and devours the remains.",
+			capitalizeFirst(noun), verb.third, name))
 	} else {
 		alien.State = Hunting
 		o := w.occurrence(alien, ActionBite, prey, prey.Pos, "")
-		o.TargetText = fmt.Sprintf("Bitten in the %s by %s!", part, noun)
-		o.WitnessText = fmt.Sprintf("Watched %s attack %s.", noun, name)
+		o.TargetText = strikeTargetText(mode, part, noun)
+		o.WitnessText = fmt.Sprintf("Watched %s %s %s.", noun, verb.hit, name)
 		w.emitOccurrence(o)
+	}
+}
+
+// strikeVerb is one attack mode's verbs in the forms narration needs: a
+// non-fatal blow ("watched a grelk *lash* Ana") and a kill ("watched a grelk
+// *batter* Ana to death", "a grelk *batters* Ana to death", "*battered* to
+// death by a grelk").
+type strikeVerb struct{ hit, base, third, past string }
+
+var strikeVerbs = [...]strikeVerb{
+	AttackBite:     {"bite", "maul", "mauls", "mauled"},
+	AttackClaw:     {"claw", "claw", "claws", "clawed"},
+	AttackTail:     {"lash", "batter", "batters", "battered"},
+	AttackStrangle: {"throttle", "strangle", "strangles", "strangled"},
+}
+
+// strikeTargetText is what the victim of a non-fatal strike remembers.
+func strikeTargetText(mode AttackMode, part BodyPart, noun string) string {
+	switch mode {
+	case AttackClaw:
+		return fmt.Sprintf("Clawed across the %s by %s!", part, noun)
+	case AttackTail:
+		return fmt.Sprintf("Lashed across the %s by %s's tail!", part, noun)
+	case AttackStrangle:
+		return fmt.Sprintf("Half-strangled by %s!", noun)
+	default:
+		return fmt.Sprintf("Bitten in the %s by %s!", part, noun)
 	}
 }
 

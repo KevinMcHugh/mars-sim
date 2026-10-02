@@ -7,7 +7,7 @@
 Colonists carry items in a fixed set of slots, each holding one homogeneous stack.
 Mining produces `RawRock` and may also produce `IronOre`, `WaterIce`,
 `UraniumOre`, or `Clay`, depending on the excavated tile's rock composition. Colonists may also carry `Pistol` or
-`Shotgun` weapons from their crash pod's manifest; see
+`Shotgun` weapons, one of the rare items a settler lands with; see
 [combat.md](./combat.md). Cleaning up after the colony's dead fills slots too,
 with the `Viscera`/`Corpse` refuse a cleaner carries to the incinerator; see
 [sanitation.md](./sanitation.md).
@@ -45,9 +45,9 @@ limited inventory can never make one part of a deposit disappear.
 a mutation-causing dose every tick — see [mutation.md](./mutation.md). The dose
 ends after a full colonist unloads its ore into storage.
 
-Weapons are the other producer, though a one-time one: a colonist's crash pod
-(`arrive`, `crashpod.go`) hands it its manifest's `Pistol`s and `Shotgun`s
-once, as it lands. `Meal`s arrive the same way but go into the pod's locker
+Weapons are the other producer, though a one-time one: a colonist's ship
+(`land`, `ship.go`) hands it its rare item's `Pistol` or `Shotgun`
+once, as it lands. `Meal`s arrive the same way but go into its locker
 rather than the colonist's pockets; a colonist carries one only as its next
 meal (a pocket meal), while eating it, or if eating was interrupted (see
 [food.md](./food.md)). There is no equip/unequip step — `bestWeapon` (`inventory.go`) just

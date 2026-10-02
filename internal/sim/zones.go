@@ -26,8 +26,8 @@ import (
 //
 // A paint whose work the treasury cannot cover changes nothing.
 //
-// The ground around crash pods is always residence: each pod holds its
-// footprint and a tile of margin as residence for as long as it stands
+// The ground around colony ships is always residence: each ship holds its
+// shape and the walkway round it as residence for as long as it stands
 // (zoneCell.locks), and painting skips those tiles.
 //
 // With zoning-auto on, the colony sites rooms itself, as it always did:
@@ -97,7 +97,7 @@ func ParseZoneKind(s string) (ZoneKind, bool) {
 	return NoZone, false
 }
 
-// zoneCell is one tile's zoning: its kind, and how many standing crash pods
+// zoneCell is one tile's zoning: its kind, and how many standing colony ships
 // hold it as residence (painting skips a held tile).
 type zoneCell struct {
 	kind  ZoneKind
@@ -112,7 +112,7 @@ func (w *World) zoneAt(p Point) ZoneKind {
 	return w.zones.at(p.X, p.Y).kind
 }
 
-// zoneLocked reports whether a crash pod holds p as residence.
+// zoneLocked reports whether a colony ship holds p as residence.
 func (w *World) zoneLocked(p Point) bool {
 	return w.InBounds(p) && w.zones.at(p.X, p.Y).locks > 0
 }
@@ -133,7 +133,7 @@ func (w *World) setZone(p Point, k ZoneKind) {
 	w.zoneRev++
 }
 
-// lockZone holds p as residence for a crash pod (unlock releases one hold).
+// lockZone holds p as residence for a colony ship (unlock releases one hold).
 func (w *World) lockZone(p Point) {
 	if !w.InBounds(p) {
 		return
@@ -166,7 +166,7 @@ func (w *World) zoneAllows(p Point, k ZoneKind) bool {
 
 // PaintZone zones the rectangle with corners (X0, Y0) and (X1, Y1),
 // inclusive, in either order, as Kind; NoZone removes zoning instead. Tiles
-// a crash pod holds are skipped. Rock the colony has seen inside a new zone
+// a colony ship holds are skipped. Rock the colony has seen inside a new zone
 // is dug out, and any structure the paint leaves outside a zone of its kind
 // is cleared, both paid from the treasury; when it cannot pay for all of it
 // the paint changes nothing. The outcome is logged.
@@ -182,7 +182,7 @@ func (PaintZone) isCommand() {}
 type zonePaint struct {
 	kind    ZoneKind
 	tiles   []Point      // tiles whose zone changes, row-major
-	locked  int          // tiles in the rectangle a crash pod holds
+	locked  int          // tiles in the rectangle a colony ship holds
 	evicted []*structure // structures left outside a zone of their kind, by id
 	clear   []Point      // their built tiles to clear, row-major
 	dig     []Point      // seen, unmarked rock to dig out, row-major
@@ -190,7 +190,7 @@ type zonePaint struct {
 
 // cost is what the paint's work would escrow.
 func (z *zonePaint) cost(w *World) Money {
-	return Money(len(z.dig))*w.wageFor(Floor) + Money(len(z.clear))*Money(w.cfg.WageClear)
+	return Money(len(z.dig))*w.wageFor(Floor) + Money(len(z.clear))*Money(w.cfg.WageDemolish)
 }
 
 // clampRect orders a rectangle's corners and clips it to the map.
@@ -249,7 +249,7 @@ func (w *World) paintZone(c PaintZone) bool {
 	z := w.planZonePaint(c)
 	if len(z.tiles) == 0 && len(z.dig) == 0 {
 		if z.locked > 0 {
-			w.logEvent(LogBuildStart, "That ground is held as residence by the crash pods on it.")
+			w.logEvent(LogBuildStart, "That ground is held as residence by the colony ship on it.")
 		} else {
 			w.logEvent(LogBuildStart, fmt.Sprintf("That area is already zoned %s.", c.Kind))
 		}
@@ -291,7 +291,7 @@ func (w *World) paintZone(c PaintZone) bool {
 		msg += ": " + strings.Join(notes, "; ")
 	}
 	if z.locked > 0 {
-		msg += fmt.Sprintf(" (%d tiles around crash pods stay residence)", z.locked)
+		msg += fmt.Sprintf(" (%d tiles around colony ships stay residence)", z.locked)
 	}
 	w.logEvent(LogBuildStart, msg+".")
 	return true
@@ -371,7 +371,7 @@ func (w *World) markedTiles() map[Point]bool {
 const ClearingName = "clearing"
 
 // ClearArea orders every structure tile the colony has seen in the rectangle
-// cleared back to floor: walls, crash pods' hulls, fixtures. It is a paid
+// cleared back to floor: walls, ships' hulls, fixtures. It is a paid
 // work order, all or nothing, and any room still going up in the area is
 // called off. Nothing about zoning changes. The outcome is logged.
 type ClearArea struct{ X0, Y0, X1, Y1 int }
@@ -418,7 +418,7 @@ func (w *World) clearArea(c ClearArea) bool {
 		w.logEvent(LogBuildStart, "There is nothing built the colony has seen in that area to clear.")
 		return false
 	}
-	if cost := Money(len(tiles)) * Money(w.cfg.WageClear); w.balance(Community) < cost {
+	if cost := Money(len(tiles)) * Money(w.cfg.WageDemolish); w.balance(Community) < cost {
 		w.logEvent(LogBuildStart, fmt.Sprintf("The treasury cannot pay %v to clear %d tiles.", cost, len(tiles)))
 		return false
 	}
@@ -467,7 +467,9 @@ func (w *World) startClearing(tiles []Point) *project {
 	p := &project{id: w.nextProjectID, name: ClearingName, queuedTick: w.tick,
 		issuer: Community, workKind: WorkClear}
 	for _, pos := range tiles {
-		p.tasks = append(p.tasks, &buildTask{pos: pos, terrain: Floor, demolish: true, proj: p})
+		// A dig task that clears whatever stands there (see taskDone): the
+		// same task a room's moved wall or a passage is.
+		p.tasks = append(p.tasks, &buildTask{pos: pos, terrain: Floor, clears: w.TerrainAt(pos), proj: p})
 	}
 	if !w.fundProject(p) {
 		w.nextProjectID--
@@ -516,55 +518,57 @@ func (w *World) tilesToClear(going []*structure) []Point {
 
 // ---- Siting in zones ---------------------------------------------------------------
 
-// siteRule says where a room may go. inZone requires every tile it builds on
-// to be zoned zone, and lets its back wall stand against open floor (a zone
-// the player drew in the middle of a cavern has no rock to back onto);
-// without it the room keeps to the old rule — backed by rock or a wall — and
-// may also use unzoned ground. A zero siteRule is unrestricted, as before
-// zoning.
-type siteRule struct {
-	zone   ZoneKind
+// siteZone says which ground a room may be built on. inZone requires every
+// tile of its footprint to be zoned kind; without it the room may also use
+// unzoned ground (zoning-auto's second search). The zero siteZone is
+// anywhere, as before zoning. Whether the room needs rock behind it is the
+// site search's business, not zoning's: inside a zone drawn on open floor,
+// the free-standing search (findFreeStandingSiteIn) is the one that finds
+// it a site.
+type siteZone struct {
+	kind   ZoneKind
 	inZone bool
 }
 
-// allows reports whether a room's tile p may be built on under r.
-func (r siteRule) allows(w *World, p Point) bool {
-	if r.zone == NoZone {
+// allows reports whether a room's tile p may be built on under z.
+func (z siteZone) allows(w *World, p Point) bool {
+	if z.kind == NoZone {
 		return true
 	}
-	z := w.zoneAt(p)
-	return z == r.zone || (!r.inZone && z == NoZone)
+	k := w.zoneAt(p)
+	return k == z.kind || (!z.inZone && k == NoZone)
 }
 
-// zoneRoomTiles calls visit for every tile of a room at origin o, width
-// interior tiles wide, that has to lie in its zone: the interior and the
-// walls, less a side wall it borrows from a neighbour (that one is the
-// neighbour's).
-func (w *World) zoneRoomTiles(o Point, width int, visit func(Point)) {
-	backY, frontY := o.Y-1, roomFrontWallY(o.Y)
-	for y := backY; y <= frontY; y++ {
-		for x := o.X - 1; x <= o.X+width; x++ {
-			p := Point{x, y}
-			if (x == o.X-1 || x == o.X+width) && w.TerrainAt(p) == Wall {
-				continue
+// borrowedWall reports whether frame tile (u, v) of a room is a wall it
+// borrows from a neighbour rather than builds: a side or back wall tile
+// already standing (see roomSiteClear). That tile is the neighbour's, and
+// lies in the neighbour's zone.
+func (w *World) borrowedWall(f roomFrame, u, v int) bool {
+	if u != -1 && u != f.width && v != roomBackV {
+		return false
+	}
+	return w.TerrainAt(f.at(u, v)) == Wall
+}
+
+// zoneRoomTiles calls visit for every tile of a room in frame f that has to
+// lie in its zone: the inside and the walls, less a wall it borrows.
+func (w *World) zoneRoomTiles(f roomFrame, visit func(Point)) {
+	for v := roomBackV; v <= roomFrontV; v++ {
+		for u := -1; u <= f.width; u++ {
+			if !w.borrowedWall(f, u, v) {
+				visit(f.at(u, v))
 			}
-			visit(p)
 		}
 	}
 }
 
-// roomZoned reports whether every tile zoneRoomTiles walks for a room at o
-// is ground rule allows. It is zoneRoomTiles without the callback: siting
-// asks it for every candidate, and a closure there allocated on each one.
-func (w *World) roomZoned(o Point, width int, rule siteRule) bool {
-	backY, frontY := o.Y-1, roomFrontWallY(o.Y)
-	for y := backY; y <= frontY; y++ {
-		for x := o.X - 1; x <= o.X+width; x++ {
-			p := Point{x, y}
-			if (x == o.X-1 || x == o.X+width) && w.TerrainAt(p) == Wall {
-				continue // a party wall: the neighbour's
-			}
-			if !rule.allows(w, p) {
+// roomZoned reports whether every tile zoneRoomTiles walks for f is ground z
+// allows. It is zoneRoomTiles without the callback: siting asks it for every
+// candidate, and a closure there allocated on each one.
+func (w *World) roomZoned(f roomFrame, z siteZone) bool {
+	for v := roomBackV; v <= roomFrontV; v++ {
+		for u := -1; u <= f.width; u++ {
+			if !w.borrowedWall(f, u, v) && !z.allows(w, f.at(u, v)) {
 				return false
 			}
 		}
@@ -599,7 +603,7 @@ func (w *World) zoneWaiting() []StructureType {
 // ---- Publishing ----------------------------------------------------------------------
 
 // ZoneRun is one horizontal run of a zone kind, for frontends: tiles X0..X1
-// of row Y. Locked runs are crash pods' residence.
+// of row Y. Locked runs are colony ships' residence.
 type ZoneRun struct {
 	Y, X0, X1 int
 	Kind      ZoneKind

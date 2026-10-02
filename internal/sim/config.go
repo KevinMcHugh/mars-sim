@@ -227,46 +227,70 @@ type Config struct {
 	// room it cannot fund is not planned. It pays WageCook each time a cook
 	// works a recipe on the colony's stock. A colonist with HouseSavings
 	// dollars commissions its own house (0 disables), whose toilet charges
-	// others ToiletFee a use. See docs/labor.md.
+	// others ToiletFee a use. WageDemolish pays for tearing a room's wall down
+	// to enlarge it: dearer than raising one, since the rock is not salvaged
+	// (see docs/room-expansion.md). See docs/labor.md.
 	WageDig        int64 `cfg:"wage-dig" sec:"Labor" doc:"what the colony pays to dig out one tile of a room"`
 	WageWall       int64 `cfg:"wage-wall" doc:"what the colony pays to raise one wall"`
 	WageFixture    int64 `cfg:"wage-fixture" doc:"what the colony pays to build one fixture (pod, toilet, bed, ...)"`
-	WageClear      int64 `cfg:"wage-clear" doc:"what the colony pays to clear one tile of a structure (a wall, a pod's hull, a fixture)"`
+	WageDemolish   int64 `cfg:"wage-demolish" doc:"what the colony pays to tear down one structure tile: a wall moved to enlarge a room, or anything a clearing order takes down"`
 	WageCook       int64 `cfg:"wage-cook" doc:"what the colony pays a cook each time it works a recipe on the colony's stock"`
 	HouseSavings   int64 `cfg:"house-savings" doc:"a colonist with this much money commissions its own house (0 disables)"`
 	KitchenRank    int   `cfg:"kitchen-rank" doc:"cooking rank at which a colonist buys a kitchen of its own when the shared stoves are crowded (3: a chef; 0 disables)"`
 	KitchenSavings int64 `cfg:"kitchen-savings" doc:"money a chef needs to commission its own kitchen: the room (about $50) and scum to cook in it"`
 	ToiletFee      int64 `cfg:"toilet-fee" doc:"what a house's toilet charges anyone but its owner per use (0: private)"`
 
-	// Crash pods. Every colonist arrives in one — at worldgen, from the spawn
-	// command, or from a director arrival — carrying its own bunk, toilet, and
-	// locker, and this manifest. See crashpod.go and docs/crash-pods.md.
-	CrashPodPurse      int64 `cfg:"crash-pod-purse" sec:"Crash pods" doc:"dollars each colonist arrives with"`
-	CrashPodMeals      int   `cfg:"crash-pod-meals" doc:"meals stocked in each crash pod's locker, on average"`
-	CrashPodMealSpread int   `cfg:"crash-pod-meal-spread" doc:"each pod's meals vary by up to this many either side of crash-pod-meals"`
+	// Arrivals. Every colonist arrives aboard a colony ship — at worldgen,
+	// from the spawn command, or from a director arrival — with a locker of
+	// its own, communal bunks and toilets shared with its shipmates, and this
+	// manifest. The crash-pod-* names are from the one-pod-per-colonist
+	// arrivals ships replaced. See ship.go and docs/ships.md.
+	ShipCapacity      int `cfg:"ship-capacity" sec:"Arrivals" doc:"most settlers one colony ship carries; a larger wave comes down in several"`
+	ShipBunkPercent   int `cfg:"ship-bunk-percent" doc:"communal bunks a ship carries, as a percent of its passengers (rounded up)"`
+	ShipToiletPercent int `cfg:"ship-toilet-percent" doc:"communal toilets a ship carries, as a percent of its passengers (rounded up)"`
+	// A ship comes down as a stick (its rooms in a row), a hub and spoke, or
+	// a knobby cluster, picked per ship by these relative weights. All three
+	// at 0 is all sticks. See docs/ships.md.
+	ShipStickWeight   int `cfg:"ship-stick-weight" doc:"relative odds a colony ship is a stick: its rooms in a row along one aisle"`
+	ShipHubWeight     int `cfg:"ship-hub-weight" doc:"relative odds a colony ship is a hub and spoke: a concourse with a room down each spoke"`
+	ShipClusterWeight int `cfg:"ship-cluster-weight" doc:"relative odds a colony ship is a knobby cluster: rooms budding off a spine corridor"`
+	// PlaceShips leaves the founders' ships aloft at worldgen for a frontend
+	// to land one by one with LandShip before the first tick. The browser
+	// sets it; anything still aloft when the game starts lands by itself.
+	PlaceShips bool `cfg:"place-ships" doc:"hold the founders' ships aloft for the player to land one by one (the browser does)"`
+
+	CrashPodPurse      int64 `cfg:"crash-pod-purse" doc:"dollars each colonist arrives with"`
+	CrashPodMeals      int   `cfg:"crash-pod-meals" doc:"meals stocked in each colonist's locker, on average"`
+	CrashPodMealSpread int   `cfg:"crash-pod-meal-spread" doc:"each locker's meals vary by up to this many either side of crash-pod-meals"`
 	// Every colonist lands with exactly one rare item: a gun, a chicken (with
 	// a trough), or a cat, picked per colonist by these relative weights. A
 	// gun is a shotgun crash-pod-shotgun-percent of the time, else a pistol.
 	// All three weights at 0 lands everyone with none. See
-	// docs/crash-pods.md and docs/chickens.md.
+	// docs/ships.md and docs/chickens.md.
 	CrashPodGunWeight      int `cfg:"crash-pod-gun-weight" doc:"relative odds a colonist's one rare item is a gun"`
-	CrashPodChickenWeight  int `cfg:"crash-pod-chicken-weight" doc:"relative odds a colonist's one rare item is a chicken (with a trough in its pod)"`
+	CrashPodChickenWeight  int `cfg:"crash-pod-chicken-weight" doc:"relative odds a colonist's one rare item is a chicken (with a trough in its ship's hold)"`
 	CrashPodCatWeight      int `cfg:"crash-pod-cat-weight" doc:"relative odds a colonist's one rare item is a cat"`
 	CrashPodShotgunPercent int `cfg:"crash-pod-shotgun-percent" doc:"percent of the guns colonists land with that are shotguns rather than pistols"`
 
 	// Timing.
 	TicksPerSecond int `cfg:"tps" sec:"Timing" doc:"simulation ticks per second"`
-	LogSize        int `cfg:"log-size" doc:"number of recent events retained"`
+	// StartPaused starts the engine paused. The browser sets it, so the
+	// player can move the ships before the first tick (see MoveShip).
+	StartPaused bool `cfg:"start-paused" doc:"start the game paused (the browser does, so the ships can be placed)"`
+	LogSize     int  `cfg:"log-size" doc:"number of recent events retained"`
 
 	// Colonist stats.
 	ColonistHP int `cfg:"colonist-hp" sec:"Colonists" doc:"colonist hit points"`
 	MineTicks  int `cfg:"mine-ticks" doc:"ticks of work to excavate one rock tile"`
 	BuildTicks int `cfg:"build-ticks" doc:"ticks of work to raise one wall"`
-	// DemolishTicks is how long breaking a wall down takes for a colonist
-	// escaping a sealed room (see FocusEscape, docs/escape.md). Costlier than
-	// raising one (BuildTicks): breaking out should be a last resort, not a
-	// cheaper substitute for a door once those exist.
-	DemolishTicks      int `cfg:"demolish-ticks" doc:"ticks of work to break down one wall tile when escaping a sealed room"`
+	// DemolishTicks is how long breaking a wall or hull tile down takes, for
+	// a colonist escaping a sealed room or a builder opening a passage (see
+	// FocusEscape, planPassage, docs/escape.md). Costlier than raising one
+	// (BuildTicks): breaking out should be a last resort, not a cheaper
+	// substitute for a door once those exist. Against MineTicks it also
+	// decides whether a way out goes round a structure through the rock or
+	// through its wall.
+	DemolishTicks      int `cfg:"demolish-ticks" doc:"ticks of work to break down one wall or hull tile, escaping a sealed room or opening a passage"`
 	FacilityBuildTicks int `cfg:"facility-ticks" doc:"ticks of work to build a pod or toilet"`
 	FleeRadius         int `cfg:"flee-radius" doc:"colonist flees when an alien is within this many tiles"`
 	// FleeReleaseMargin is flee's hysteresis band: a colonist already fleeing
@@ -325,6 +349,13 @@ type Config struct {
 	// larger colony's facility supply keep pace with growth; see
 	// construction.md.
 	MaxConcurrentProjects int `cfg:"max-concurrent-projects" doc:"rooms that can be under construction at once"`
+	// RoomExpansion has the colony grow a room it already has (a dormitory,
+	// storage room, kitchen, incubator or meeting hall), tearing down one
+	// side wall and raising a new one further out, before it marks out a new
+	// room for more of the same fixtures. RoomMaxFacilities is as long as
+	// expansion lets a room grow. See docs/room-expansion.md.
+	RoomExpansion     bool `cfg:"room-expansion" doc:"enlarge an existing dormitory, storage room, kitchen, incubator or meeting hall, moving a side wall out, before building a new one"`
+	RoomMaxFacilities int  `cfg:"room-max-facilities" doc:"most fixtures (bunks, containers, stoves and pantries, incubators, chairs) a room grows to by expansion"`
 
 	// EscapeGraceTicks is how long a colonist's room must stay cut off from the
 	// colony's main connected network (see rooms.go's mainRoom) before it gives
@@ -410,13 +441,13 @@ type Config struct {
 	// Conversation topics. Whoever raises the topic picks what kind of thing
 	// to talk about by these weights, among the kinds it has something to
 	// say about: one of its own memories, another colonist it has feelings
-	// about, or a piece of lore (today, an alien species). Talking about a
+	// about, or a piece of lore (an alien species or a corporation). Talking about a
 	// colonist is gossip: the listener's affinity toward the subject moves
 	// TalkGossipPercent of the way toward the speaker's, when the chat went
 	// well. See topics.go and docs/conversation-topics.md.
 	TalkTopicMemoryWeight   int `cfg:"talk-topic-memory-weight" doc:"relative weight of talking about one of the speaker's memories (0 never)"`
 	TalkTopicColonistWeight int `cfg:"talk-topic-colonist-weight" doc:"relative weight of talking about another colonist (0 never)"`
-	TalkTopicLoreWeight     int `cfg:"talk-topic-lore-weight" doc:"relative weight of talking about lore, such as an alien species (0 never)"`
+	TalkTopicLoreWeight     int `cfg:"talk-topic-lore-weight" doc:"relative weight of talking about lore, such as an alien species or a corporation (0 never)"`
 	TalkGossipPercent       int `cfg:"talk-gossip-percent" doc:"percent of the gap a good chat about a colonist closes between the listener's affinity toward them and the speaker's"`
 
 	// The meeting hall: a room of chairs the colony commissions, where
@@ -505,6 +536,13 @@ type Config struct {
 	RifleDamage     int `cfg:"rifle-damage" doc:"HP removed per assault rifle burst"`
 	RifleRange      int `cfg:"rifle-range" doc:"max tiles an assault rifle can fire from"`
 	RifleFireRest   int `cfg:"rifle-fire-rest" doc:"cooldown ticks between assault rifle bursts"`
+	// CorporationCount is how many companies this seed's lore rolls; every gun
+	// kind gets a make and model from one of them. Flavor only. See
+	// arms_makers.go and docs/arms-makers.md.
+	CorporationCount int `cfg:"corporation-count" doc:"companies this seed's lore rolls; each gun kind is made by one of them"`
+	// CorporationEmployeePercent is the chance an arriving colonist used to
+	// work for one of them: backstory flavor only.
+	CorporationEmployeePercent int `cfg:"corporation-employee-percent" doc:"percent of arriving colonists who used to work for one of the lore's corporations (flavor only)"`
 
 	// Cat stats. Cats have no needs; they hunt rats on the floor by instinct.
 	CatHP         int `cfg:"cat-hp" sec:"Cats" doc:"cat hit points"`
@@ -663,7 +701,7 @@ func DefaultConfig() Config {
 		WageDig:           2,
 		WageWall:          2,
 		WageFixture:       5,
-		WageClear:         2,
+		WageDemolish:      3,
 		WageCook:          1,
 		HouseSavings:      300,
 		KitchenRank:       3,
@@ -673,6 +711,16 @@ func DefaultConfig() Config {
 		// ten carry a colonist a few thousand ticks: long enough to settle in,
 		// short enough that food production matters once the safety net is
 		// off. Every settler lands armed, the way frontier settlers did.
+		// A ship of 20 sleeps 10 and has 5 toilets: enough to get by, not
+		// enough to keep the colony from building. See docs/ships.md.
+		ShipCapacity:      20,
+		ShipBunkPercent:   50,
+		ShipToiletPercent: 25,
+		// Every shape equally likely: the colony's landing site looks
+		// different from game to game.
+		ShipStickWeight:    1,
+		ShipHubWeight:      1,
+		ShipClusterWeight:  1,
 		CrashPodMeals:      10,
 		CrashPodMealSpread: 0,
 		// Half the colony lands armed, a quarter with a chicken, a quarter
@@ -705,6 +753,8 @@ func DefaultConfig() Config {
 		RestTicks:             10,
 		StuckLimit:            8,
 		MaxConcurrentProjects: 2,
+		RoomExpansion:         true,
+		RoomMaxFacilities:     8,
 		EscapeGraceTicks:      32,
 		TraitChance:           defaultTraitChance,
 		FamilyChance:          35,
@@ -794,6 +844,9 @@ func DefaultConfig() Config {
 		RifleDamage:     15,
 		RifleRange:      5,
 		RifleFireRest:   1,
+
+		CorporationCount:           4,
+		CorporationEmployeePercent: 60,
 
 		CatHP:         12,
 		CatSlowness:   2,

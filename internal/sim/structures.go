@@ -8,7 +8,7 @@ import (
 // ---- Structure types -------------------------------------------------------------
 //
 // A structure is something put up as one piece: a room the colony (or a
-// colonist) built, with its walls and fixtures, a crash pod, or a lone
+// colonist) built, with its walls and fixtures, a colony ship, or a lone
 // fixture raised in an emergency. Its type says what it is for, and its type
 // is what zoning reads: each type belongs to one zone kind, and with manual
 // zoning a structure is only built, and may only stand, inside a zone of that
@@ -16,7 +16,7 @@ import (
 //
 // The type, not the terrain, carries the tag, because a room mixes fixtures: a
 // kitchen's pantry is a storage chest, but it stands in production with its
-// stove, and a crash pod's locker is a chest in a home.
+// stove, and a ship's lockers are chests in a home.
 
 // StructureType is what a structure is for.
 type StructureType uint8
@@ -27,7 +27,7 @@ const (
 	StructDormitory
 	StructHouse
 	StructMeetingHall
-	StructCrashPod
+	StructShip
 	StructStorageRoom
 	StructKitchen
 	StructIncubatorRoom
@@ -52,7 +52,7 @@ var structureSpecs = [numStructureTypes]structureSpec{
 	StructDormitory:     {name: "dormitory", zone: ZoneResidence},
 	StructHouse:         {name: "house", zone: ZoneResidence},
 	StructMeetingHall:   {name: "meeting hall", zone: ZoneResidence},
-	StructCrashPod:      {name: "crash pod", zone: ZoneResidence},
+	StructShip:          {name: "colony ship", zone: ZoneResidence},
 	StructStorageRoom:   {name: "storage room", zone: ZoneStorage},
 	StructKitchen:       {name: "scumhouse", zone: ZoneProduction},
 	StructIncubatorRoom: {name: "scum incubator", zone: ZoneProduction},
@@ -123,16 +123,17 @@ type structure struct {
 	// footprint, less a party wall it borrowed. x0..y1 bound it.
 	area           []Point
 	x0, y0, x1, y1 int
-	// door is the reserved tile outside its doorway (see doorTiles),
+	// doors are the reserved tiles outside its doorways (see doorTiles),
 	// released when the structure goes.
-	door    Point
-	hasDoor bool
-	// building is the project raising it, while it rises.
+	doors []Point
+	// building is the project raising it, while it rises; room is the
+	// room's record (roomgrow.go), which goes with it.
 	building *project
-	// pod is a crash pod's origin; lock the ground it holds as residence.
-	pod   Point
-	isPod bool
-	lock  []Point
+	room     *roomRecord
+	// ship is a colony ship's, and lock the ground it holds as residence:
+	// its shape and the walkway round it.
+	ship *Ship
+	lock []Point
 }
 
 // registerStructure records a structure and indexes its tiles.
@@ -176,65 +177,116 @@ func (w *World) sortedStructures() []*structure {
 	return out
 }
 
-// registerRoom records the room a project raises. Its tiles are every wall
-// and fixture task plus a side wall it borrows; its area is the footprint
-// zoneRoomTiles walks. With zoning-auto the colony zones that area for the
-// room, where it is not zoned already.
-func (w *World) registerRoom(r roomRecipe, p *project, o Point, width int, door Point) *structure {
+// registerRoom records the room a project raises, in frame f. Its tiles are
+// every wall and fixture task plus any wall it borrows; its area is the
+// footprint zoneRoomTiles walks. With zoning-auto the colony zones that area
+// for the room, where it is not zoned already.
+func (w *World) registerRoom(r roomRecipe, p *project, f roomFrame) *structure {
 	var tiles, area []Point
 	for _, t := range p.tasks {
 		if t.terrain != Floor {
 			tiles = append(tiles, t.pos)
 		}
 	}
-	backY, frontY := o.Y-1, roomFrontWallY(o.Y)
-	for y := backY; y <= frontY; y++ {
-		for _, x := range [2]int{o.X - 1, o.X + width} {
-			if q := (Point{x, y}); w.TerrainAt(q) == Wall {
-				tiles = append(tiles, q)
+	for v := roomBackV; v <= roomFrontV; v++ {
+		for u := -1; u <= f.width; u++ {
+			if w.borrowedWall(f, u, v) {
+				tiles = append(tiles, f.at(u, v))
 			}
 		}
 	}
-	w.zoneRoomTiles(o, width, func(q Point) { area = append(area, q) })
+	w.zoneRoomTiles(f, func(q Point) { area = append(area, q) })
 	s := w.registerStructure(r.structure, tiles, area)
-	s.door, s.hasDoor, s.building = door, true, p
+	s.doors, s.building, s.room = []Point{f.doorStep()}, p, p.room
 	p.structure = s
-	if w.cfg.ZoningAuto {
-		for _, q := range area {
-			if w.zoneAt(q) == NoZone && !w.zoneLocked(q) {
-				w.setZone(q, r.structure.Zone())
-			}
-		}
+	if p.room != nil {
+		p.room.structure = s
 	}
+	w.autoZone(area, r.structure.Zone())
 	return s
 }
 
-// registerPod records a crash pod that has just landed at o, and holds its
-// footprint and margin as residence for as long as it stands.
-func (w *World) registerPod(o Point, shareL, shareR bool) *structure {
-	var tiles, area, lock []Point
-	for dy := 0; dy < podHeight; dy++ {
-		for dx := 0; dx < podWidth; dx++ {
-			p := o.Add(dx, dy)
-			lock = append(lock, p)
-			if (dx == 0 && shareL) || (dx == podWidth-1 && shareR) {
-				tiles = append(tiles, p) // the neighbour's hull, shared
-				continue
-			}
-			area = append(area, p)
-			if isBuilt(w.TerrainAt(p)) {
-				tiles = append(tiles, p)
-			}
+// autoZone zones the unzoned, unheld tiles of area as k, with zoning-auto:
+// the colony zoning what it builds.
+func (w *World) autoZone(area []Point, k ZoneKind) {
+	if !w.cfg.ZoningAuto {
+		return
+	}
+	for _, q := range area {
+		if w.zoneAt(q) == NoZone && !w.zoneLocked(q) {
+			w.setZone(q, k)
 		}
 	}
-	forEachPodMargin(o, shareL, shareR, func(p Point) { lock = append(lock, p) })
-	s := w.registerStructure(StructCrashPod, tiles, area)
-	s.door, s.hasDoor = o.Add(podApproach.X, podApproach.Y), true
-	s.pod, s.isPod, s.lock = o, true, lock
+}
+
+// growStructure adds an expansion's tiles to its room's structure: the walls
+// and fixtures p raises, and the strip it takes in (see designateExpansion).
+func (w *World) growStructure(s *structure, p *project, strip []Point) {
+	if s == nil {
+		return
+	}
+	for _, t := range p.tasks {
+		if t.terrain != Floor {
+			s.tiles = append(s.tiles, t.pos)
+			w.structureAt[t.pos] = append(w.structureAt[t.pos], s.id)
+		}
+	}
+	s.tiles = sortedPoints(s.tiles)
+	s.area = append(s.area, strip...)
+	for _, q := range strip {
+		s.x0, s.y0 = min(s.x0, q.X), min(s.y0, q.Y)
+		s.x1, s.y1 = max(s.x1, q.X), max(s.y1, q.Y)
+	}
+	s.building = p
+	w.autoZone(strip, s.typ.Zone())
+	w.structureRev++
+}
+
+// registerShip records a colony ship that has just come down, and holds its
+// shape and the walkway round it as residence for as long as it stands.
+func (w *World) registerShip(sh *Ship) *structure {
+	var tiles, area, lock []Point
+	o := sh.Origin
+	sh.layout.forEachTile(func(d Point, _ bool) {
+		p := o.Add(d.X, d.Y)
+		area = append(area, p)
+		lock = append(lock, p)
+		if isBuilt(w.TerrainAt(p)) {
+			tiles = append(tiles, p)
+		}
+	})
+	for _, d := range sh.layout.margin {
+		lock = append(lock, o.Add(d.X, d.Y))
+	}
+	s := w.registerStructure(StructShip, tiles, area)
+	for _, d := range sh.layout.doors {
+		s.doors = append(s.doors, o.Add(d.X, d.Y))
+	}
+	s.ship, s.lock = sh, lock
+	sh.structure = s
 	for _, p := range lock {
 		w.lockZone(p)
 	}
 	return s
+}
+
+// unregisterShip forgets a ship's structure without touching its tiles, for
+// a ship lifted to land elsewhere (moveShip), which registers again where it
+// comes down. The ground it held goes back to unzoned, unless another ship
+// still holds it: it was residence only because the ship stood there, and a
+// player trying sites before the first tick should not leave a trail of
+// residence behind.
+func (w *World) unregisterShip(sh *Ship) {
+	s := sh.structure
+	if s == nil || w.structures[s.id] != s {
+		return
+	}
+	w.forget(s)
+	for _, p := range s.lock {
+		if !w.zoneLocked(p) {
+			w.setZone(p, NoZone)
+		}
+	}
 }
 
 // registerLone records a lone fixture raised outside any room, and zones it
@@ -267,7 +319,7 @@ func (w *World) condemn(s *structure) {
 }
 
 // maybeRetire forgets a structure once nothing of it stands and nothing is
-// raising it: it releases its door, and a pod its residence hold.
+// raising it.
 func (w *World) maybeRetire(s *structure) {
 	if w.structures[s.id] != s {
 		return
@@ -280,21 +332,36 @@ func (w *World) maybeRetire(s *structure) {
 			return
 		}
 	}
+	w.forget(s)
+}
+
+// forget drops a structure from the registry and lets go of what it held:
+// its doorways, a ship's residence hold, and a room's record, so the room
+// planner no longer tries to grow a room that is gone (see roomgrow.go).
+func (w *World) forget(s *structure) {
 	delete(w.structures, s.id)
 	for _, p := range s.tiles {
 		w.unindexStructureTile(p, s.id)
 	}
-	if s.hasDoor && w.doorTiles[s.door] {
-		delete(w.doorTiles, s.door)
+	for _, d := range s.doors {
+		delete(w.doorTiles, d)
 	}
-	if s.isPod {
-		delete(w.pods, s.pod)
-		for _, p := range s.lock {
-			w.unlockZone(p)
+	for _, p := range s.lock {
+		w.unlockZone(p)
+	}
+	if s.ship != nil && s.ship.structure == s {
+		s.ship.structure = nil
+	}
+	if rec := s.room; rec != nil {
+		for i, r := range w.roomRecords {
+			if r == rec {
+				w.roomRecords = append(w.roomRecords[:i], w.roomRecords[i+1:]...)
+				break
+			}
 		}
-		for _, e := range w.entities {
-			if e.hasPod && e.podOrigin == s.pod {
-				e.hasPod = false
+		for p, r := range w.roomFloor {
+			if r == rec {
+				delete(w.roomFloor, p) // deleting while ranging is safe, and order decides nothing
 			}
 		}
 	}
@@ -341,14 +408,15 @@ func (w *World) cancelProject(p *project) {
 
 // ---- Tearing down ---------------------------------------------------------------------
 
-// demolish clears one built tile back to floor. A depot's goods go to the
-// nearest chest that will take them first, still their owners'; a crash
-// pod's trough and a chef's kitchen are let go by whoever kept them. A
-// structure is forgotten once its last tile is down.
+// demolish clears one built tile back to floor: a clearing order's tile, a
+// wall a growing room moves, or one a passage breaks through. A depot's
+// goods go to the nearest chest that will take them first, still their
+// owners'; a ship's trough and a chef's kitchen are let go by whoever kept
+// them. A structure is forgotten once its last tile is down.
 //
 // SetTerrain does the rest, as it does for every change: the flow fields and
-// the region graph hear of the new floor this tick, so nobody keeps routing
-// round a wall that has gone.
+// the region graph hear of the new floor this tick. A clearing order also
+// drops colonists' detours (clearTile).
 func (w *World) demolish(p Point) {
 	t := w.TerrainAt(p)
 	if !isBuilt(t) {
@@ -357,9 +425,14 @@ func (w *World) demolish(p Point) {
 	if hasDepot(t) {
 		w.emptyDepot(p)
 	}
-	w.letGoFixture(p)
+	// Only a fixture is anything's by position. A wall must not unhook
+	// anything: a growing kitchen's next stove is planned, and linked to its
+	// pantry, on the very tile of the wall it tears down (see
+	// designateExpansion), and letting go there dropped that link.
+	if isFixtureTerrain(t) {
+		w.letGoFixture(p)
+	}
 	w.SetTerrain(p, Floor)
-	w.forgetDetours()
 	ids := append([]int(nil), w.structureAt[p]...)
 	sort.Ints(ids)
 	for _, id := range ids {
@@ -368,6 +441,15 @@ func (w *World) demolish(p Point) {
 		}
 	}
 	w.structureRev++
+}
+
+// clearTile takes down a clearing order's tile: demolish, and then, since
+// the player cleared it to open the way, colonists already walking round it
+// plan again (forgetDetours). Passages and growing rooms leave routes be, as
+// they always have.
+func (w *World) clearTile(p Point) {
+	w.demolish(p)
+	w.forgetDetours()
 }
 
 // forgetDetours drops every cached route that is longer than a straight
@@ -491,40 +573,6 @@ func (w *World) nearestChestFor(from Point, owner Owner, kind ItemKind) *Storage
 	return best
 }
 
-// jobClear works a clearing task: walk beside the structure tile and take it
-// down over demolish-ticks, then be paid. Someone else clearing it first
-// ends the job.
-func (w *World) jobClear(e *Entity) {
-	if !isBuilt(w.TerrainAt(e.Target)) {
-		w.clearJob(e)
-		return
-	}
-	arrived, ok := w.travelTo(e, e.Target)
-	if !ok {
-		w.clearJob(e)
-		return
-	}
-	if !arrived {
-		e.State = Moving
-		return
-	}
-	e.State = Building
-	e.Progress++
-	if e.Progress < w.workTicks(e, SkillConstruction, w.cfg.DemolishTicks) {
-		return
-	}
-	what := w.TerrainAt(e.Target)
-	w.demolish(e.Target)
-	w.practise(e, SkillConstruction, w.cfg.DemolishTicks)
-	if t := e.task; t != nil {
-		w.payWork(t.order, e)
-	}
-	o := w.occurrence(e, ActionClear, nil, e.Target, "Cleared away a %s at (%d, %d).", what, e.Target.X, e.Target.Y)
-	o.Object = FactRef{Noun: NounStructure, Label: what.String()}
-	w.emitOccurrence(o)
-	w.clearJob(e)
-}
-
 // ---- Publishing -------------------------------------------------------------------------
 
 // StructureView is a read-only copy of one structure, for the Zones tab: what
@@ -534,7 +582,7 @@ type StructureView struct {
 	Type           StructureType
 	X0, Y0, X1, Y1 int
 	Built          int  // tiles standing
-	Pod            bool // a crash pod (its ground is held as residence)
+	Ship           bool // a colony ship (its ground is held as residence)
 	Rising         bool // still going up
 }
 
@@ -548,7 +596,7 @@ func (w *World) publishedStructures() []StructureView {
 	}
 	out := make([]StructureView, 0, len(w.structures))
 	for _, s := range w.sortedStructures() {
-		v := StructureView{ID: s.id, Type: s.typ, X0: s.x0, Y0: s.y0, X1: s.x1, Y1: s.y1, Pod: s.isPod,
+		v := StructureView{ID: s.id, Type: s.typ, X0: s.x0, Y0: s.y0, X1: s.x1, Y1: s.y1, Ship: s.ship != nil,
 			Rising: s.building != nil && w.hasProject(s.building)}
 		for _, p := range s.tiles {
 			if isBuilt(w.TerrainAt(p)) {

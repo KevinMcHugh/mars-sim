@@ -41,7 +41,7 @@ func buildAll(w *World, p *project) {
 // clearAll takes down every tile of a clearing project at once.
 func clearAll(w *World, p *project) {
 	for _, t := range p.tasks {
-		w.demolish(t.pos)
+		w.clearTile(t.pos)
 		if t.order != nil && w.workOrders[t.order.ID] == t.order {
 			w.closeWork(t.order)
 		}
@@ -150,8 +150,8 @@ func TestRezoningUnderAStructureOrdersItCleared(t *testing.T) {
 			built++
 		}
 	}
-	if built == 0 || !w.doorTiles[s.door] {
-		t.Fatalf("%d tiles built, door reserved %v", built, w.doorTiles[s.door])
+	if built == 0 || !w.doorTiles[s.doors[0]] {
+		t.Fatalf("%d tiles built, door reserved %v", built, w.doorTiles[s.doors[0]])
 	}
 
 	before := w.treasury
@@ -163,7 +163,7 @@ func TestRezoningUnderAStructureOrdersItCleared(t *testing.T) {
 	if len(clearing.tasks) != built {
 		t.Fatalf("clearing %d tiles, want the dormitory's %d", len(clearing.tasks), built)
 	}
-	if cost := Money(built) * Money(w.cfg.WageClear); w.treasury != before-cost {
+	if cost := Money(built) * Money(w.cfg.WageDemolish); w.treasury != before-cost {
 		t.Fatalf("treasury %v, was %v, clearing costs %v", w.treasury, before, cost)
 	}
 	if !loggedContaining(w, "dormitory") {
@@ -173,7 +173,7 @@ func TestRezoningUnderAStructureOrdersItCleared(t *testing.T) {
 	if w.structures[s.id] != nil {
 		t.Error("the dormitory is still registered after it was cleared")
 	}
-	if w.doorTiles[s.door] {
+	if w.doorTiles[s.doors[0]] {
 		t.Error("the cleared dormitory's doorway is still reserved")
 	}
 	assertMoneyConserved(t, w)
@@ -250,73 +250,71 @@ func TestAZoneOverRockOrdersItDugOut(t *testing.T) {
 	}
 }
 
-// The ground round crash pods is residence, held for as long as the pod
-// stands: painting skips it. Clearing the pod lets it go.
-func TestCrashPodsHoldTheirGroundAsResidence(t *testing.T) {
+// The ground round a colony ship is residence, held for as long as the ship
+// stands: painting skips it. Clearing the ship lets it go, and its lockers'
+// goods move to a chest, still their owners'.
+func TestShipsHoldTheirGroundAsResidence(t *testing.T) {
 	cfg := testConfig()
 	cfg.ZoningAuto = false
 	cfg.StartColonists, cfg.StartAliens = 2, 0
+	cfg.ShipCapacity = 1 // two ships, side by side
 	w := newTestWorld(t, cfg)
-	if len(w.pods) != 2 {
-		t.Fatalf("%d pods landed", len(w.pods))
+	if len(w.ships) != 2 {
+		t.Fatalf("%d ships landed", len(w.ships))
 	}
-	var pod *structure
-	for _, s := range w.sortedStructures() {
-		if s.isPod {
-			pod = s
-			break
-		}
+	ship := w.ships[0].structure
+	if ship == nil || ship.typ != StructShip {
+		t.Fatalf("the first ship's structure = %+v", ship)
 	}
-	for _, p := range pod.lock {
+	for _, p := range ship.lock {
 		if w.zoneAt(p) != ZoneResidence || !w.zoneLocked(p) {
-			t.Fatalf("%v round a pod is %v, locked %v", p, w.zoneAt(p), w.zoneLocked(p))
+			t.Fatalf("%v round a ship is %v, locked %v", p, w.zoneAt(p), w.zoneLocked(p))
 		}
 	}
 	w.paintZone(PaintZone{Kind: ZoneStorage, X0: 0, Y0: 0, X1: w.Width - 1, Y1: w.Height - 1})
-	for _, p := range pod.lock {
+	for _, p := range ship.lock {
 		if w.zoneAt(p) != ZoneResidence {
-			t.Fatalf("painting storage took %v from a pod", p)
+			t.Fatalf("painting storage took %v from a ship", p)
 		}
 	}
 	if !loggedContaining(w, "stay residence") {
-		t.Error("the log does not say the pods' ground was kept")
+		t.Error("the log does not say the ships' ground was kept")
 	}
 
 	// A communal chest elsewhere takes the locker's meals.
 	chest := Point{1, 1}
 	w.SetTerrain(chest, Storage)
-	var owner *Entity
-	for _, e := range w.entities {
-		if e.hasPod && e.podOrigin == pod.pod {
-			owner = e
-		}
+	owner := w.entities[w.ships[0].Colonists[0]]
+	locker, ok := w.lockerOf(owner)
+	if !ok {
+		t.Fatal("the passenger has no locker")
 	}
-	meals := w.storageContainers[pod.pod.Add(podFixtures[2].dx, podFixtures[2].dy)].held(ColonistOwner(owner.ID), Meal)
+	meals := w.storageContainers[locker].held(ColonistOwner(owner.ID), Meal)
 	if meals == 0 {
 		t.Fatal("the locker landed empty")
 	}
-	if !w.clearArea(ClearArea{X0: pod.x0, Y0: pod.y0, X1: pod.x1, Y1: pod.y1}) {
-		t.Fatalf("clearing the pod refused: %v", w.log.tail(1))
+	if !w.clearArea(ClearArea{X0: ship.x0, Y0: ship.y0, X1: ship.x1, Y1: ship.y1}) {
+		t.Fatalf("clearing the ship refused: %v", w.log.tail(1))
 	}
 	clearAll(w, lastProject(t, w, ClearingName))
-	if w.structures[pod.id] != nil || w.pods[pod.pod] {
-		t.Fatal("the cleared pod is still registered")
+	if w.structures[ship.id] != nil || w.ships[0].structure != nil {
+		t.Fatal("the cleared ship is still registered")
 	}
-	if owner.hasPod {
-		t.Error("the colonist still has a pod")
-	}
-	// Ground the other pod holds too (their margins meet) stays held.
-	other := map[Point]bool{}
-	for _, s := range w.sortedStructures() {
-		if s.isPod {
-			for _, p := range s.lock {
-				other[p] = true
-			}
+	for _, d := range ship.doors {
+		if w.doorTiles[d] {
+			t.Fatalf("the cleared ship's door step %v is still reserved", d)
 		}
 	}
-	for _, p := range pod.lock {
+	// Ground the other ship holds too (their walkways meet) stays held.
+	other := map[Point]bool{}
+	if s := w.ships[1].structure; s != nil {
+		for _, p := range s.lock {
+			other[p] = true
+		}
+	}
+	for _, p := range ship.lock {
 		if w.zoneLocked(p) != other[p] {
-			t.Fatalf("%v held %v after the pod went; the other pod holds it: %v", p, w.zoneLocked(p), other[p])
+			t.Fatalf("%v held %v after the ship went; the other ship holds it: %v", p, w.zoneLocked(p), other[p])
 		}
 	}
 	if got := w.storageContainers[chest].held(ColonistOwner(owner.ID), Meal); got != meals {
@@ -324,6 +322,40 @@ func TestCrashPodsHoldTheirGroundAsResidence(t *testing.T) {
 	}
 	if !w.storageContainers[chest].ledgerBalanced() {
 		t.Error("the chest's ledger does not balance")
+	}
+}
+
+// A ship moved before the first tick takes its residence hold with it.
+func TestAMovedShipTakesItsGroundWithIt(t *testing.T) {
+	cfg := testConfig()
+	cfg.ZoningAuto = false
+	cfg.StartColonists, cfg.StartAliens = 1, 0
+	cfg.Width, cfg.Height = 80, 40
+	w := newTestWorld(t, cfg)
+	sh := w.ships[0]
+	before := sh.structure
+	o := sh.Origin
+	if !w.moveShip(MoveShip{Ship: sh.ID, X: o.X + 12, Y: o.Y}) {
+		t.Skip("no room to move the ship")
+	}
+	if w.structures[before.id] != nil {
+		t.Error("the ship's old structure is still registered")
+	}
+	for _, p := range before.lock {
+		if sh.near(p) {
+			continue // under the ship where it landed again
+		}
+		if w.zoneLocked(p) || w.zoneAt(p) != NoZone {
+			t.Fatalf("%v at the old site is still %v, held %v", p, w.zoneAt(p), w.zoneLocked(p))
+		}
+	}
+	if sh.structure == nil || sh.structure == before {
+		t.Fatal("the moved ship was not registered again")
+	}
+	for _, p := range sh.structure.lock {
+		if !w.zoneLocked(p) || w.zoneAt(p) != ZoneResidence {
+			t.Fatalf("%v at the new site is not held as residence", p)
+		}
 	}
 }
 
@@ -387,7 +419,7 @@ func TestClearingAWallReroutesColonists(t *testing.T) {
 	walker.path, walker.pathAt, walker.pathGoal = route, 0, toilet
 
 	w.tick++
-	w.demolish(Point{20, 5})
+	w.clearTile(Point{20, 5})
 	w.refreshSpatial()
 	f.ensureFresh()
 	if short := f.at(at); short <= 0 || short >= long {
@@ -551,7 +583,7 @@ func TestAZonedColonyBuildsInItsZones(t *testing.T) {
 	}
 	var built []string
 	for _, s := range w.sortedStructures() {
-		if !s.isPod {
+		if s.ship == nil {
 			built = append(built, s.typ.String())
 		}
 	}

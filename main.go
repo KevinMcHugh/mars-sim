@@ -476,6 +476,10 @@ func validateConfig(cfg sim.Config) error {
 		return fmt.Errorf("population counts cannot be negative")
 	case cfg.CrashPodMeals < 0:
 		return fmt.Errorf("crash-pod-meals cannot be negative")
+	case cfg.ShipCapacity < 1:
+		return fmt.Errorf("ship-capacity must be at least 1 (got %d)", cfg.ShipCapacity)
+	case cfg.ShipBunkPercent < 0 || cfg.ShipToiletPercent < 0:
+		return fmt.Errorf("ship-bunk-percent and ship-toilet-percent cannot be negative (got %d and %d)", cfg.ShipBunkPercent, cfg.ShipToiletPercent)
 	case cfg.ScumMax < 0 || cfg.ScumMax > 255:
 		// A patch's amount is published as one byte (Snapshot.Scum); 256
 		// would wrap to 0 and a full patch would vanish from the map.

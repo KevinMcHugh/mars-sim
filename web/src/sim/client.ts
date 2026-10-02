@@ -24,6 +24,10 @@ export type Command =
   | { type: 'clear'; x0: number; y0: number; x1: number; y1: number }
   /** Cancel a clearing order by id, refunding what is unspent. */
   | { type: 'clear-cancel'; id: number }
+  /** Reland a ship with its top-left at (x, y); only before the first tick (docs/ships.md). */
+  | { type: 'ship-move'; id: number; x: number; y: number }
+  /** Land the next ship still aloft with its top-left at (x, y); only before the first tick. */
+  | { type: 'ship-land'; id: number; x: number; y: number }
   /** Post an order in the colony's name at a communal depot (docs/colony-orders.md). */
   | { type: 'order-place'; side: 'bid' | 'ask'; item: string; qty: number; price: number; x: number; y: number }
   /** Move one of the colony's open orders to a new price. */
@@ -41,7 +45,7 @@ export interface Started { hello: Hello; genMs: number; loadMs: number }
  * A mismatch means mars-sim.wasm is from another build: usually a pull without
  * rerunning npm run wasm.
  */
-export const HOST_API = 13;
+export const HOST_API = 15;
 
 export class SimClient {
   private worker: Worker;

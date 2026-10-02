@@ -10,7 +10,7 @@ free gruel only when it has none. That fallback is the **safety net**
 (`infinite-food`), **off by default** since economy phase E8: pods feed
 nobody, and the colony lives on what it landed with and what it makes. The
 safety net stays a setting, for tests and balancing. This is the second half of phase
-**E2** of the [economy plan](./economy.md); [crash-pods.md](./crash-pods.md)
+**E2** of the [economy plan](./economy.md); [ships.md](./ships.md)
 covers where the first meals come from.
 
 ## Source
@@ -39,7 +39,7 @@ first. It tries, in order:
 
 1. **A meal in the colonist's pockets**, usually its pocket meal (see *Pocket
    meals*). Eat it where it stands.
-2. **A meal of its own in a depot it can reach** — its crash pod's locker, to
+2. **A meal of its own in a depot it can reach** — its locker aboard ship, to
    begin with. Walk there, take one out (`debit`), step aside, eat it.
 3. **A meal bought.** The cheapest on offer at the silo or a scumhouse it can
    reach, up to its `mealBidLimit` (see [valuation.md](./valuation.md)). The
@@ -229,7 +229,7 @@ covers one queued at a reachable pod.
 ## Related
 
 - [needs.md](./needs.md) — the food need, its thresholds, and starvation.
-- [crash-pods.md](./crash-pods.md) — the meals a colonist lands with.
+- [ships.md](./ships.md) — the meals a colonist lands with.
 - [property.md](./property.md) — ledgers, `debit`, and who may use what.
 - [construction.md](./construction.md) — the facility room, and what it holds
   with the safety net off.

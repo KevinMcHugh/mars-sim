@@ -163,7 +163,7 @@ func TestViolentDeathsLeaveGore(t *testing.T) {
 	victim := w.spawn(Colonist, victimSpot)
 	victim.HP = 1
 	victim.Parts = [numBodyParts]int{1, 1, 1, 1, 1, 1}
-	w.bite(alien, victim)
+	w.strike(alien, victim)
 	if w.goreAt(victimSpot) == 0 {
 		t.Error("a fatal alien bite should leave gore")
 	}

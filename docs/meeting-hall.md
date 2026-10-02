@@ -34,9 +34,16 @@ wall, two to four chairs, with two rows of open floor in front. A chair costs
 2 raw rock, like a bunk. The planner commissions it as public work, paid from
 the treasury, after everything fatal and after bunks and the incinerator, and
 before the foundry. Demand is a headcount: one chair per `colonists-per-chair`
-(default 4), never fewer than two, so a growing colony adds halls. The player
-can order one too (`b`, `m` in the TUI; `OrderMeetingHall`). Setting
+(default 4), never fewer than two, so a growing colony adds chairs: to a hall
+it already has, moving its side wall out, before it builds another (see
+[room-expansion.md](./room-expansion.md)). The player can order one too (`b`,
+`m` in the TUI; `OrderMeetingHall`), which grows a hall the same way. Setting
 `colonists-per-chair` to 0 turns the whole feature off.
+
+**Siting.** The hall is sited like every room (see
+[construction.md](./construction.md)): its doorway may face any way, a site
+backed by rock or another room's wall is preferred, and when none exists it
+stands free on open floor, so long as it doesn't cut the colony in two.
 
 **There is no hall record.** A hall *is* its chairs: `Chair` is a tracked
 facility terrain (`facilityTiles`), and "in the hall" means within `hallReach`
@@ -86,6 +93,16 @@ of the walk), and a meal fetched to keep (`eatKeep`).
 - **Critical hunger skips the hall.** Hunger runs about 175 ticks from pressing
   to critical and about 40 more to death, so a 48-tile walk with a meal in hand
   is affordable at pressing and fatal at critical.
+- **Why rooms may stand free: the hall found it.** The colony mines for rock
+  as well as for space, and the hall is planned after everything else, often
+  late. In the 40×24 test map (`TestColonyBuildsMeetingHall`) colonists had
+  mined every rock tile by about tick 3000. With nothing left to back onto, no
+  backed site could exist and digging could never make one, so the hall was
+  wanted and never planned. Whether a hall got sited in time was chaotic:
+  changing only food's drive rate (1600, 1750 failed; 1700, 1800–2100 passed)
+  decided it. Excavating a site would not have helped, because there was no
+  rock left to excavate. Every room may now stand free when no backed site
+  exists (`TestRoomsStandFreeWhenNothingIsLeftToBackOnto`).
 - **Fewer talking ticks, fewer wasted ones.** In the same run total talking
   fell (2587 → 2087) because walking to the hall takes time, while the colonists
   stuck waiting with no partner dropped by more than half. If talking should

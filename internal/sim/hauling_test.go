@@ -80,10 +80,13 @@ func TestArbitrageClosesAPriceGap(t *testing.T) {
 }
 
 // The E7 gate, second half: over a long run, a colony that sells what it
-// bought ends with more money than one that only buys.
+// bought ends with more money than one that only buys. The armory is off: a
+// foundry, sited in one run and not the other, buys rifles worth far more than
+// the difference selling makes, and that is not what this measures.
 func TestColonySellingPaysOverALongRun(t *testing.T) {
 	run := func(sells bool) Money {
 		w, _, far, cols := arbitrageWorld(t, sells)
+		w.cfg.ArmoryRifles = 0
 		w.post(Bid, IronOre, 8, 12, ColonistOwner(cols[0].ID), far, 0)
 		stepFed(t, w, 4000, nil)
 		return w.treasury
