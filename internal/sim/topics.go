@@ -55,26 +55,30 @@ func (k TopicKind) String() string {
 	}
 }
 
-// LoreKind is which family of lore a LoreItem belongs to. Species is the only
-// one today; history (and organizations, other colonies, ...) are expected to
-// join it as further kinds.
+// LoreKind is which family of lore a LoreItem belongs to: alien species and
+// corporations today; history (other colonies, ...) are expected to join them
+// as further kinds.
 type LoreKind uint8
 
 const (
 	LoreSpecies LoreKind = iota
+	LoreCorporation
 )
 
 func (k LoreKind) String() string {
 	switch k {
 	case LoreSpecies:
 		return "species"
+	case LoreCorporation:
+		return "corporation"
 	default:
 		return "unknown"
 	}
 }
 
 // LoreItem is one thing colonists can talk about that describes the world
-// rather than the colony: today an alien species, later a piece of history.
+// rather than the colony: an alien species or a corporation, later a piece of
+// history.
 // A new kind of lore joins conversation by implementing this and being
 // returned from World.loreItems; nothing in the conversation code needs to
 // know what it is.
@@ -99,15 +103,29 @@ func (s speciesLore) LoreKind() LoreKind  { return LoreSpecies }
 func (s speciesLore) LoreID() string      { return fmt.Sprintf("species:%d", s.index) }
 func (s speciesLore) TopicPhrase() string { return "the " + s.species.Plural }
 
+// corporationLore is a corporation seen as lore: the roster index makes its
+// ID. See docs/arms-makers.md.
+type corporationLore struct {
+	index int
+	corp  Corporation
+}
+
+func (c corporationLore) LoreKind() LoreKind  { return LoreCorporation }
+func (c corporationLore) LoreID() string      { return fmt.Sprintf("corporation:%d", c.index) }
+func (c corporationLore) TopicPhrase() string { return c.corp.Name }
+
 // loreItems is every piece of lore colonists can talk about, in a stable order
 // (topic draws index into it). Each lore source appends its own items here.
 // Every species is talkable whether or not the colony has met one yet: the
 // colonists arrive knowing the survey, and there is no per-colonist knowledge
 // of lore to gate on (see docs/conversation-topics.md).
 func (w *World) loreItems() []LoreItem {
-	items := make([]LoreItem, 0, len(w.alienSpecies))
+	items := make([]LoreItem, 0, len(w.alienSpecies)+len(w.corporations))
 	for i, sp := range w.alienSpecies {
 		items = append(items, speciesLore{index: i, species: sp})
+	}
+	for i, c := range w.corporations {
+		items = append(items, corporationLore{index: i, corp: c})
 	}
 	return items
 }
@@ -249,6 +267,15 @@ func (w *World) conversationText(e, other *Entity, t ConversationTopic) string {
 			return fmt.Sprintf("%s about %s.", base, subject.displayName())
 		}
 	case TopicLore:
+		// A colonist talking about its old employer says so (flavor only).
+		if c, ok := t.Lore.(corporationLore); ok {
+			if speaker := w.entities[t.Speaker]; speaker != nil && speaker.employer == c.index+1 {
+				if speaker == e {
+					return fmt.Sprintf("%s about %s, my old employer.", base, c.corp.Name)
+				}
+				return fmt.Sprintf("%s about %s, %s's old employer.", base, c.corp.Name, speaker.displayName())
+			}
+		}
 		return fmt.Sprintf("%s about %s.", base, t.Lore.TopicPhrase())
 	}
 	return base + "."

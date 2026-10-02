@@ -147,3 +147,18 @@ func TestWrapWordsEmptyInput(t *testing.T) {
 		t.Fatalf("wrapWords(\"\", 10) = %v, want nil", got)
 	}
 }
+
+// TestLoreTabListsGunsAndCorporations checks the arms lore (see
+// docs/arms-makers.md) shows under the species list.
+func TestLoreTabListsGunsAndCorporations(t *testing.T) {
+	snap := loreSnapshot()
+	snap.Corporations = []sim.Corporation{{Name: "Ares Arms", Code: "AA", HQ: "Luna", Founded: 2077}}
+	snap.GunModels = []sim.GunModel{{Kind: sim.Pistol, Brand: "Ares Arms", Model: "AA-9"}}
+
+	out := toLore(t, snap).View()
+	for _, want := range []string{"GUNS", "pistol: Ares Arms AA-9", "CORPORATIONS (1)", "Ares Arms · Luna, 2077"} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("lore tab missing %q:\n%s", want, out)
+		}
+	}
+}

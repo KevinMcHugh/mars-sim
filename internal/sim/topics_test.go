@@ -18,6 +18,7 @@ func topicConfig(memory, colonist, lore int) Config {
 // participants remember the same subject.
 func TestConversationAboutLoreNamesSpecies(t *testing.T) {
 	w := newTestWorld(t, topicConfig(0, 0, 1))
+	w.corporations = nil // species only: corporations are lore too
 	a := w.spawn(Colonist, Point{0, 0})
 	b := w.spawn(Colonist, Point{1, 0})
 
@@ -32,24 +33,52 @@ func TestConversationAboutLoreNamesSpecies(t *testing.T) {
 	}
 }
 
-// Every rolled species is lore, each with a distinct ID.
-func TestLoreItemsCoverEverySpecies(t *testing.T) {
+// Every rolled species and corporation is lore, species first, each with a
+// distinct ID.
+func TestLoreItemsCoverEverySpeciesAndCorporation(t *testing.T) {
 	cfg := testConfig()
 	cfg.AlienSpeciesCount = 3
+	cfg.CorporationCount = 2
 	w := newTestWorld(t, cfg)
 	items := w.loreItems()
-	if len(items) != 3 {
-		t.Fatalf("got %d lore items, want 3", len(items))
+	if len(items) != 5 {
+		t.Fatalf("got %d lore items, want 5", len(items))
 	}
 	seen := map[string]bool{}
 	for i, it := range items {
-		if it.LoreKind() != LoreSpecies {
-			t.Errorf("item %d kind = %v, want species", i, it.LoreKind())
+		want := LoreSpecies
+		if i >= 3 {
+			want = LoreCorporation
+		}
+		if it.LoreKind() != want {
+			t.Errorf("item %d kind = %v, want %v", i, it.LoreKind(), want)
 		}
 		if seen[it.LoreID()] {
 			t.Errorf("duplicate lore ID %q", it.LoreID())
 		}
 		seen[it.LoreID()] = true
+	}
+}
+
+// A corporation is talked about by name, and a colonist who used to work there
+// says so; the listener remembers whose old employer it was.
+func TestConversationAboutCorporationNamesOldEmployer(t *testing.T) {
+	w := newTestWorld(t, topicConfig(0, 0, 1))
+	w.alienSpecies = nil // corporations only
+	w.corporations = w.corporations[:1]
+	a := w.spawn(Colonist, Point{0, 0})
+	b := w.spawn(Colonist, Point{1, 0})
+	a.employer, a.employerRole = 1, "a janitor"
+	b.employer, b.employerRole = 1, "an intern"
+	name := w.corporations[0].Name
+
+	w.finishTalk(a, b)
+
+	for _, e := range []*Entity{a, b} {
+		got := e.Memories[len(e.Memories)-1].Text
+		if !strings.Contains(got, "about "+name+", ") || !strings.Contains(got, "old employer") {
+			t.Errorf("memory = %q, want it to call %s an old employer", got, name)
+		}
 	}
 }
 

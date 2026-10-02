@@ -111,7 +111,8 @@ and 10), and lands each with `land`:
    the approaches reserved; the fixtures placed. Bunks and toilets come out
    communal, because that is what `SetTerrain` makes every fixture.
 4. Spawn the passengers on the aisle (`layout.floor`, top row first), set
-   `Entity.ship`, and roll each one's background.
+   `Entity.ship`, and roll each one's background (skills, then a flavor-only
+   former employer — see [arms-makers.md](./arms-makers.md)).
 5. `furnishShip`: make each locker and trough private to its passenger
    (`setFixtureOwner`, see [property.md](./property.md)), stock each locker
    with `arrivalMeals` meals credited on its ledger, and fill each trough with

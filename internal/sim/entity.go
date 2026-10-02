@@ -405,6 +405,11 @@ type Entity struct {
 	// ship is the ID of the colony ship this colonist came down in, 0 for
 	// none (colonists placed directly by tests). See ship.go.
 	ship int
+	// employer is 1 + the index of the corporation this colonist worked for
+	// before it came (0: none), and employerRole the job it held there.
+	// Flavor only; see rollEmployer in arms_makers.go.
+	employer     int
+	employerRole string
 	// keeper is the colonist a pet (a chicken or a cat) came down with, 0 for
 	// a stray. trough is where a chicken eats and where its keeper fills it,
 	// when hasTrough; a keeper has the same trough. tend is where a JobTend

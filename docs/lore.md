@@ -366,7 +366,9 @@ build instead of silently rendering as 👽 on the map.
 `World.alienNounFor(e)` (`withArticle(w.alienSpeciesFor(e).Singular)`,
 reusing `mutation.go`'s article helper) and `alienPluralFor(e)` are what
 combat and the roster read instead of the literal word "alien" — "Killed a
-gremlin with a shotgun!" instead of "Killed an alien with a shotgun!" Both
+gremlin with a shotgun!" instead of "Killed an alien with a shotgun!" (the gun
+itself is named after its rolled make and model too — see
+[arms-makers.md](./arms-makers.md)). Both
 take the specific alien entity involved, not a single world-wide value, so a
 world with more than one species narrates each encounter with the right
 one. The director's alien-swarm log line is the one place that still picks
@@ -597,7 +599,10 @@ word-wrapped to the panel width.
   lore implements to become a conversation topic; species are wrapped as
   `speciesLore` and listed by `World.loreItems`. History and whatever comes
   next should implement it and append there.
-- **Organizations, corporations, other colonies.** The pattern here — roll
+- **Organizations, corporations, other colonies.** Corporations have
+  started: [arms-makers.md](./arms-makers.md) rolls a roster of companies,
+  gives every gun a make and model, makes them conversation lore, and gives
+  colonists former employers, following this pattern. The pattern here — roll
   something once per seed (or per count), off its own RNG stream, store it
   on `World`, expose a copy through `Snapshot` — is meant to be the template
   the next piece of lore follows, not a one-off special case for aliens.

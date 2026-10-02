@@ -66,10 +66,13 @@ type EntityView struct {
 	Skills          []SkillView
 	Profession      SkillKind
 	ProfessionLabel string
+	// Backstory is a colonist's one-line past, "Worked as a drill operator
+	// for MarsCorp." ("" for none). Flavor only; see docs/arms-makers.md.
+	Backstory string
 
 	// Dead, DiedTick, and Cause are set only on a Snapshot.Graveyard or
 	// Snapshot.Deceased entry: it died at DiedTick (from Cause, a short
-	// player-facing phrase like "shot by Zoe Vargas with a shotgun"), and
+	// player-facing phrase like "shot by Zoe Vargas with a MarsCorp M-117 shotgun"), and
 	// every other field is frozen from that moment — Pos is where it died,
 	// not where anything is now.
 	Dead     bool
@@ -473,6 +476,11 @@ type Snapshot struct {
 	// carries a copy of the one it belongs to on its own EntityView.AlienSpecies;
 	// this is the full roster, for a codex-style listing. See docs/lore.md.
 	AlienSpecies []AlienSpecies
+	// Corporations is this world's roster of companies, and GunModels the make
+	// and model each gun kind carries (Maker indexes Corporations). Flavor
+	// only. See docs/arms-makers.md.
+	Corporations []Corporation
+	GunModels    []GunModel
 
 	// Economy is the money supply; each colonist's own balance is on its
 	// EntityView.Wallet.
@@ -668,6 +676,8 @@ func (w *World) snapshot(paused bool, tps int) *Snapshot {
 		Graveyard:            append([]EntityView(nil), w.graveyard...),
 		Deceased:             w.publishedDeceasedColonists(),
 		AlienSpecies:         append([]AlienSpecies(nil), w.alienSpecies...),
+		Corporations:         append([]Corporation(nil), w.corporations...),
+		GunModels:            append([]GunModel(nil), w.gunModels...),
 		Population:           w.popHist,
 		Economy:              w.economyView(),
 		AffinityMax:          w.cfg.AffinityMax,
@@ -751,6 +761,7 @@ func (w *World) entityView(e *Entity, kinChildren map[kinID][]kinID, full bool) 
 		ev.Memories = append([]Memory(nil), e.Memories...)
 		ev.Skills = e.skillViews()
 		ev.Profession, ev.ProfessionLabel = e.profession, e.professionLabel()
+		ev.Backstory = w.backstory(e)
 		if full {
 			ev.Relations = append([]Relation(nil), w.cachedRelations(e, kinChildren)...)
 			ev.Affinities = w.affinitiesOf(e.ID)

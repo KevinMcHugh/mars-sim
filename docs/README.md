@@ -23,6 +23,7 @@ way it is without re-deriving it from the source each time.
 | [salt.md](./salt.md) | Salt deposits: 3% of the map, laid down on rock by worldgen, never on a scum tile, never regenerating. World state only so far; nothing gathers or draws it. |
 | [caverns.md](./caverns.md) | Natural caverns and the passages between them: generated hidden, ignored by the colony until a dig breaks in, then revealed all at once. Breaking in can turn up an alien nest. |
 | [lore.md](./lore.md) | The world beyond the colony: the alien species roster each seed rolls (build, a name unique in the roster drawn from condition-gated names and name groups, temperament — friendly/cautious/hostile), how damage and pace scale from it, the peaceful species' scum grazing, and what the hostile ones hunt. |
+| [arms-makers.md](./arms-makers.md) | Lore corporations: the companies each seed rolls, the make and model ("MarsCorp M-117") every gun kind carries, corporations as conversation lore, and colonists' flavor-only former employers. |
 | [entities-and-ai.md](./entities-and-ai.md) | The entity model, the per-tick systems, turn order, movement primitives, and the colonist / alien / cat / rat behaviors. |
 | [combat.md](./combat.md) | Per-body-part HP, weapons (pistol/shotgun), the guns every settler lands with, and gore. |
 | [needs.md](./needs.md) | Colonist (and rat) needs: hunger, bladder, lazy evaluation, starvation, and how to add a need. |
