@@ -72,8 +72,8 @@ func TestChickensEatFeedThenGrazeScum(t *testing.T) {
 	hen.trough, hen.hasTrough = trough, true
 
 	hungry := func() {
-		hen.Needs[NeedFood] = w.cfg.Needs[NeedFood].SeekAt + 10
-		hen.needSince[NeedFood] = w.tick
+		hen.Drives[DriveFood] = w.cfg.Drives[DriveFood].SeekAt + 10
+		hen.driveSince[DriveFood] = w.tick
 	}
 	hungry()
 	for i := 0; i < 100 && c.Inventory.Count(Feed) == 2; i++ {
@@ -82,7 +82,7 @@ func TestChickensEatFeedThenGrazeScum(t *testing.T) {
 	if c.Inventory.Count(Feed) != 1 || !c.ledgerBalanced() {
 		t.Fatalf("the hen left %d of 2 feed in the trough", c.Inventory.Count(Feed))
 	}
-	if w.needLevel(hen, NeedFood) >= w.cfg.Needs[NeedFood].SeekAt {
+	if w.driveLevel(hen, DriveFood) >= w.cfg.Drives[DriveFood].SeekAt {
 		t.Fatal("eating feed did not sate the hen")
 	}
 

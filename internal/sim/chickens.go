@@ -46,7 +46,7 @@ func (w *World) chickenTurn(e *Entity) {
 		return
 	}
 	e.Cooldown = w.cfg.ChickenSlowness - 1
-	if w.needLevel(e, NeedFood) >= w.cfg.Needs[NeedFood].SeekAt {
+	if w.driveLevel(e, DriveFood) >= w.cfg.Drives[DriveFood].SeekAt {
 		if w.chickenFeed(e) || w.chickenGraze(e) {
 			return
 		}
@@ -75,7 +75,7 @@ func (w *World) chickenFeed(e *Entity) bool {
 	if e.Pos.Adjacent(e.trough) {
 		if takeFeed(c) {
 			e.State = Feeding
-			w.resetNeed(e, NeedFood)
+			w.resetDrive(e, DriveFood)
 		}
 		return true
 	}
@@ -112,7 +112,7 @@ func (w *World) chickenGraze(e *Entity) bool {
 	if e.Pos.Chebyshev(target) <= 1 {
 		if w.takeScum(target) {
 			e.State = Feeding
-			w.resetNeed(e, NeedFood)
+			w.resetDrive(e, DriveFood)
 		}
 		return true
 	}

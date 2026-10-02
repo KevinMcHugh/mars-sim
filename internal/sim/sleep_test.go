@@ -5,7 +5,7 @@ import "testing"
 // Sleep traits move a night by one clock hour either way.
 func TestSleepTraitsMoveTheNightAnHour(t *testing.T) {
 	w := propertyWorld(t)
-	night, hour := w.cfg.Needs[NeedSleep].UseTicks, w.cfg.TicksPerHour()
+	night, hour := w.cfg.Drives[DriveSleep].UseTicks, w.cfg.TicksPerHour()
 	if want := w.cfg.TicksPerDay() / 3; night != want {
 		t.Errorf("default night = %d ticks, want a third of the %d-tick day (eight hours)", night, w.cfg.TicksPerDay())
 	}
@@ -34,10 +34,10 @@ func sleepyColonistBesideBed(t *testing.T) (*World, *Entity) {
 	w.SetTerrain(Point{10, 10}, Bed)
 	w.refreshSpatial()
 	e := w.spawn(Colonist, Point{9, 10})
-	e.Needs[NeedSleep] = w.cfg.Needs[NeedSleep].SeekAt + 50
-	e.Needs[NeedFood] = 200
-	w.syncNeedPhase(e, NeedSleep)
-	w.syncNeedPhase(e, NeedFood)
+	e.Drives[DriveSleep] = w.cfg.Drives[DriveSleep].SeekAt + 50
+	e.Drives[DriveFood] = 200
+	w.syncDrivePhase(e, DriveSleep)
+	w.syncDrivePhase(e, DriveFood)
 	for i := 0; i < 50 && e.State != Sleeping; i++ {
 		w.step()
 	}
@@ -52,27 +52,27 @@ func sleepyColonistBesideBed(t *testing.T) (*World, *Entity) {
 // start again once it is up.
 func TestOtherNeedsPauseWhileAsleep(t *testing.T) {
 	w, e := sleepyColonistBesideBed(t)
-	food := w.needLevel(e, NeedFood)
+	food := w.driveLevel(e, DriveFood)
 	for i := 0; i < e.sleepTicks/2; i++ {
 		w.step()
 	}
 	if e.State != Sleeping {
 		t.Fatalf("woke mid-night (state %v)", e.State)
 	}
-	if got := w.needLevel(e, NeedFood); got != food {
+	if got := w.driveLevel(e, DriveFood); got != food {
 		t.Fatalf("food rose while asleep: %d -> %d", food, got)
 	}
 	for i := 0; i < e.sleepTicks && e.State == Sleeping; i++ {
 		w.step()
 	}
-	if e.State == Sleeping || w.needLevel(e, NeedSleep) > 5 {
-		t.Fatalf("night did not finish (state %v, sleep %d)", e.State, w.needLevel(e, NeedSleep))
+	if e.State == Sleeping || w.driveLevel(e, DriveSleep) > 5 {
+		t.Fatalf("night did not finish (state %v, sleep %d)", e.State, w.driveLevel(e, DriveSleep))
 	}
-	awake := w.needLevel(e, NeedFood)
+	awake := w.driveLevel(e, DriveFood)
 	for i := 0; i < 20; i++ {
 		w.step()
 	}
-	if got := w.needLevel(e, NeedFood); got <= awake {
+	if got := w.driveLevel(e, DriveFood); got <= awake {
 		t.Fatalf("food did not rise again after waking: %d -> %d", awake, got)
 	}
 }
@@ -100,8 +100,8 @@ func TestInterruptedNightIsBanked(t *testing.T) {
 	for i := 0; i < e.sleepTicks && e.sleepBanked != 0; i++ {
 		w.step()
 	}
-	if e.sleepBanked != 0 || w.needLevel(e, NeedSleep) > e.sleepTicks-banked+50 {
-		t.Fatalf("night not finished from the bank: banked %d, sleep %d", e.sleepBanked, w.needLevel(e, NeedSleep))
+	if e.sleepBanked != 0 || w.driveLevel(e, DriveSleep) > e.sleepTicks-banked+50 {
+		t.Fatalf("night not finished from the bank: banked %d, sleep %d", e.sleepBanked, w.driveLevel(e, DriveSleep))
 	}
 }
 
@@ -120,7 +120,7 @@ func TestFleeingWakesTheSleeper(t *testing.T) {
 	if e.State == Sleeping || e.asleep {
 		t.Fatalf("still asleep with an alien beside the bed (state %v, focus %v)", e.State, e.focus)
 	}
-	if e.needRise[NeedFood] == 0 {
+	if e.driveRise[DriveFood] == 0 {
 		t.Fatal("food still paused after waking")
 	}
 	if e.sleepBanked != banked {

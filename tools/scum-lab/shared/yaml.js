@@ -30,7 +30,7 @@ export function dumpYAML(cfg) {
   }
   out += `\nfocuses:\n`;
   for (const [key, focus] of Object.entries(cfg.focuses)) {
-    out += `  ${key.padEnd(10)}: { base: ${focus.base}, need_weight: ${focus.need_weight}, charge_weight: ${focus.charge_weight}, grip_weight: ${focus.grip_weight}, distance_weight: ${focus.distance_weight} }\n`;
+    out += `  ${key.padEnd(10)}: { base: ${focus.base}, drive_weight: ${focus.drive_weight}, charge_weight: ${focus.charge_weight}, grip_weight: ${focus.grip_weight}, distance_weight: ${focus.distance_weight} }\n`;
   }
   out += `\narbitration:\n`;
   out += `  current_bonus: ${cfg.arbitration.current_bonus}\n`;

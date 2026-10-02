@@ -293,13 +293,13 @@ func DefaultCognitionConfig() CognitionConfig {
 		}
 	}
 	c.Focuses = [numFocusKinds]FocusSpec{
-		FocusIdle:      {Name: "idle", Base: 0, NeedWeight: 0, ChargeWeight: -10, GripWeight: 0, DistanceWeight: 0},
-		FocusWork:      {Name: "work", Base: 25, NeedWeight: 0, ChargeWeight: 20, GripWeight: 10, DistanceWeight: 1},
-		FocusEat:       {Name: "eat", Base: 40, NeedWeight: 100, ChargeWeight: 0, GripWeight: 5, DistanceWeight: 1},
-		FocusRelieve:   {Name: "relieve", Base: 40, NeedWeight: 100, ChargeWeight: 0, GripWeight: 0, DistanceWeight: 1},
-		FocusSocialize: {Name: "socialize", Base: 40, NeedWeight: 100, ChargeWeight: 10, GripWeight: 5, DistanceWeight: 1},
-		FocusSleep:     {Name: "sleep", Base: 40, NeedWeight: 100, ChargeWeight: -30, GripWeight: 0, DistanceWeight: 1},
-		FocusFlee:      {Name: "flee", Base: 0, NeedWeight: 0, ChargeWeight: 20, GripWeight: -40, DistanceWeight: 1},
+		FocusIdle:      {Name: "idle", Base: 0, DriveWeight: 0, ChargeWeight: -10, GripWeight: 0, DistanceWeight: 0},
+		FocusWork:      {Name: "work", Base: 25, DriveWeight: 0, ChargeWeight: 20, GripWeight: 10, DistanceWeight: 1},
+		FocusEat:       {Name: "eat", Base: 40, DriveWeight: 100, ChargeWeight: 0, GripWeight: 5, DistanceWeight: 1},
+		FocusRelieve:   {Name: "relieve", Base: 40, DriveWeight: 100, ChargeWeight: 0, GripWeight: 0, DistanceWeight: 1},
+		FocusSocialize: {Name: "socialize", Base: 40, DriveWeight: 100, ChargeWeight: 10, GripWeight: 5, DistanceWeight: 1},
+		FocusSleep:     {Name: "sleep", Base: 40, DriveWeight: 100, ChargeWeight: -30, GripWeight: 0, DistanceWeight: 1},
+		FocusFlee:      {Name: "flee", Base: 0, DriveWeight: 0, ChargeWeight: 20, GripWeight: -40, DistanceWeight: 1},
 		// FocusFight carries a positive base so an armed colonist's default
 		// posture is to stand and fight: the one-time grip hit from merely
 		// *seeing* an alien (the saw-alien reaction, -10 grip) must not by
@@ -307,12 +307,12 @@ func DefaultCognitionConfig() CognitionConfig {
 		// sight and the switch hysteresis then locks them into fleeing even as
 		// grip decays. Genuinely frightening events still carry enough grip
 		// penalty to tip an armed colonist toward flight. See docs/combat.md.
-		FocusFight: {Name: "fight", Base: 15, NeedWeight: 0, ChargeWeight: 20, GripWeight: 40, DistanceWeight: 1},
+		FocusFight: {Name: "fight", Base: 15, DriveWeight: 0, ChargeWeight: 20, GripWeight: 40, DistanceWeight: 1},
 		// FocusEscape has no matching need, so its score is just Base: a
 		// sealed room is a structural fact, not a rising pressure. Base
 		// deliberately clears even a maxed-out fatal need. focusCandidates
 		// excludes it while a threat is visible. See docs/escape.md.
-		FocusEscape: {Name: "escape", Base: 400, NeedWeight: 0, ChargeWeight: 0, GripWeight: 0, DistanceWeight: 0},
+		FocusEscape: {Name: "escape", Base: 400, DriveWeight: 0, ChargeWeight: 0, GripWeight: 0, DistanceWeight: 0},
 	}
 	c.Arbitration = ArbitrationConfig{
 		CurrentBonus: 25, SwitchMargin: 10, CriticalBonus: 100,
@@ -756,7 +756,7 @@ type yamlAttractor struct {
 
 type yamlFocus struct {
 	Base           *int `yaml:"base,omitempty"`
-	NeedWeight     *int `yaml:"need_weight,omitempty"`
+	DriveWeight     *int `yaml:"drive_weight,omitempty"`
 	ChargeWeight   *int `yaml:"charge_weight,omitempty"`
 	GripWeight     *int `yaml:"grip_weight,omitempty"`
 	DistanceWeight *int `yaml:"distance_weight,omitempty"`
@@ -942,8 +942,8 @@ func applyCognitionYAML(cfg *CognitionConfig, data []byte) error {
 		if y.Base != nil {
 			f.Base = *y.Base
 		}
-		if y.NeedWeight != nil {
-			f.NeedWeight = *y.NeedWeight
+		if y.DriveWeight != nil {
+			f.DriveWeight = *y.DriveWeight
 		}
 		if y.ChargeWeight != nil {
 			f.ChargeWeight = *y.ChargeWeight
@@ -1299,8 +1299,8 @@ vocabulary:
 	}
 	b.WriteString("\nfocuses:\n")
 	for i, f := range def.Focuses {
-		fmt.Fprintf(&b, "  %-10s: { base: %3d, need_weight: %3d, charge_weight: %3d, grip_weight: %3d, distance_weight: %d }\n",
-			FocusKind(i).String(), f.Base, f.NeedWeight, f.ChargeWeight, f.GripWeight, f.DistanceWeight)
+		fmt.Fprintf(&b, "  %-10s: { base: %3d, drive_weight: %3d, charge_weight: %3d, grip_weight: %3d, distance_weight: %d }\n",
+			FocusKind(i).String(), f.Base, f.DriveWeight, f.ChargeWeight, f.GripWeight, f.DistanceWeight)
 	}
 	fmt.Fprintf(&b, `
 arbitration:

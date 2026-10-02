@@ -355,12 +355,12 @@
 ## ticks of work to build an incinerator
 # incinerator-ticks: 20
 
-# ── Needs ───────────────────────────────────────────────────────────────
+# ── Drives ──────────────────────────────────────────────────────────────
 
-# One spec per colonist need. These are nested, so uncommenting a value means
-# uncommenting the "needs:" and need-name lines above it as well.
+# One spec per colonist drive. These are nested, so uncommenting a value means
+# uncommenting the "drives:" and drive-name lines above it as well.
 
-# needs:
+# drives:
 #   food:
 ##     level gained per tick
 #     rise: 2
@@ -462,8 +462,8 @@
 ##     baseline score before state contributions
 #     base: 0
 
-##     matching need pressure contribution
-#     need-weight: 0
+##     matching drive pressure contribution
+#     drive-weight: 0
 
 ##     signed response to affect charge
 #     charge-weight: -10
@@ -478,8 +478,8 @@
 ##     baseline score before state contributions
 #     base: 25
 
-##     matching need pressure contribution
-#     need-weight: 0
+##     matching drive pressure contribution
+#     drive-weight: 0
 
 ##     signed response to affect charge
 #     charge-weight: 20
@@ -494,8 +494,8 @@
 ##     baseline score before state contributions
 #     base: 40
 
-##     matching need pressure contribution
-#     need-weight: 100
+##     matching drive pressure contribution
+#     drive-weight: 100
 
 ##     signed response to affect charge
 #     charge-weight: 0
@@ -510,8 +510,8 @@
 ##     baseline score before state contributions
 #     base: 40
 
-##     matching need pressure contribution
-#     need-weight: 100
+##     matching drive pressure contribution
+#     drive-weight: 100
 
 ##     signed response to affect charge
 #     charge-weight: 0
@@ -526,8 +526,8 @@
 ##     baseline score before state contributions
 #     base: 40
 
-##     matching need pressure contribution
-#     need-weight: 100
+##     matching drive pressure contribution
+#     drive-weight: 100
 
 ##     signed response to affect charge
 #     charge-weight: 10
@@ -542,8 +542,8 @@
 ##     baseline score before state contributions
 #     base: 40
 
-##     matching need pressure contribution
-#     need-weight: 100
+##     matching drive pressure contribution
+#     drive-weight: 100
 
 ##     signed response to affect charge
 #     charge-weight: -30
@@ -558,8 +558,8 @@
 ##     baseline score before state contributions
 #     base: 0
 
-##     matching need pressure contribution
-#     need-weight: 0
+##     matching drive pressure contribution
+#     drive-weight: 0
 
 ##     signed response to affect charge
 #     charge-weight: 20
@@ -574,8 +574,8 @@
 ##     baseline score before state contributions
 #     base: 15
 
-##     matching need pressure contribution
-#     need-weight: 0
+##     matching drive pressure contribution
+#     drive-weight: 0
 
 ##     signed response to affect charge
 #     charge-weight: 20
@@ -590,8 +590,8 @@
 ##     baseline score before state contributions
 #     base: 400
 
-##     matching need pressure contribution
-#     need-weight: 0
+##     matching drive pressure contribution
+#     drive-weight: 0
 
 ##     signed response to affect charge
 #     charge-weight: 0

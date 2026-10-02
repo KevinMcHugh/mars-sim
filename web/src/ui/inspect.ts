@@ -9,7 +9,7 @@ export interface Colonist {
   height: string; heightCm: number; weightKg: number; skin: string; hair: string;
   wallet: number;
   mood: { charge: number; grip: number; valence: number; label: string; max: number };
-  needs: { name: string; value: number; max: number; fatal: boolean }[];
+  drives: { name: string; value: number; max: number; fatal: boolean }[];
   inventory: Stack[];
   slots: number;
   traits: { name: string; desc: string }[];

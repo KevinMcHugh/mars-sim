@@ -99,7 +99,7 @@ const (
 	// Incinerator burns refuse — viscera scrubbed off the floor and the bodies
 	// of the dead — hauled to it by a cleaning colonist. It is a machine, not a
 	// need facility: nothing seeks it out to satisfy a drive, so it has no
-	// NeedSpec; it is the disposal end of the sanitation loop and the reason a
+	// DriveSpec; it is the disposal end of the sanitation loop and the reason a
 	// trash room gets built at all. Used from an adjacent tile; blocks movement
 	// like any other structure. See docs/sanitation.md.
 	Incinerator
@@ -996,8 +996,8 @@ func newWorld(cfg Config, src *rand.PCG) *World {
 	})
 	w.pf = newPathfinder(w)
 
-	for i := 0; i < int(numNeeds); i++ {
-		if f := cfg.Needs[i].Facility; f != Rock && w.fields[f] == nil {
+	for i := 0; i < int(numDrives); i++ {
+		if f := cfg.Drives[i].Facility; f != Rock && w.fields[f] == nil {
 			w.trackFacility(f)
 		}
 	}
@@ -1385,13 +1385,13 @@ func (w *World) spawn(kind Kind, p Point) *Entity {
 // (see spawnNest).
 func (w *World) spawnAs(kind Kind, p Point, species int) *Entity {
 	e := newEntity(w.nextID, kind, p, w.cfg)
-	for i := range e.needSince {
-		e.needSince[i] = w.tick // needs start rising from now
+	for i := range e.driveSince {
+		e.driveSince[i] = w.tick // needs start rising from now
 		// Stagger starting need levels so a freshly settled colony does not all
 		// get hungry on the same tick and stampede the facilities at once.
 		if kind == Colonist {
-			if seek := w.cfg.Needs[i].SeekAt; seek > 0 {
-				e.Needs[i] = w.rng.IntN(seek)
+			if seek := w.cfg.Drives[i].SeekAt; seek > 0 {
+				e.Drives[i] = w.rng.IntN(seek)
 			}
 		}
 	}
@@ -1402,8 +1402,8 @@ func (w *World) spawnAs(kind Kind, p Point, species int) *Entity {
 		}
 		// Personality resolves the effective rise rates, so initialize phases and
 		// their next-boundary ticks only after that resolution is complete.
-		for n := NeedKind(0); n < numNeeds; n++ {
-			w.syncNeedPhase(e, n)
+		for n := DriveKind(0); n < numDrives; n++ {
+			w.syncDrivePhase(e, n)
 		}
 	}
 	if kind == Rat {

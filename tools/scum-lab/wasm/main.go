@@ -19,10 +19,10 @@ func main() {
 	api.Set("catalog", js.FuncOf(func(js.Value, []js.Value) any {
 		return mustJSON(struct {
 			Traits []sim.LabTrait `json:"traits"`
-			Needs  []sim.LabNeed  `json:"needs"`
+			Drives  []sim.LabDrive  `json:"drives"`
 		}{
 			Traits: sim.LabTraits(),
-			Needs:  sim.LabNeeds(needs),
+			Drives:  sim.LabDrives(needs),
 		})
 	}))
 	api.Set("roll", js.FuncOf(func(_ js.Value, args []js.Value) any {

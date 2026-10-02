@@ -78,7 +78,7 @@ func (w *World) tryPocketMeal(e *Entity) bool {
 	if at <= 0 || e.Kind != Colonist || e.ownCarried(Meal) > 0 || !e.Inventory.CanAdd(Meal, 1) {
 		return false
 	}
-	if e.needPhase[NeedFood] >= NeedPressing || w.needLevel(e, NeedFood) < at {
+	if e.drivePhase[DriveFood] >= DrivePressing || w.driveLevel(e, DriveFood) < at {
 		return false // pressing hunger eats (runFoodFocus); before at, it has time
 	}
 	depot, ok := w.nearestMealDepot(e)
@@ -124,7 +124,7 @@ func (w *World) nearestMealDepot(e *Entity) (Point, bool) {
 // the meal out steps aside first, like a pod's grab-and-go, so a shared depot's
 // access tile is free for the next person while this one eats.
 func (w *World) jobEat(e *Entity) {
-	spec := w.cfg.Needs[NeedFood]
+	spec := w.cfg.Drives[DriveFood]
 	if e.eat == eatFetch {
 		arrived, ok := w.travelTo(e, e.Target)
 		if !ok {
@@ -159,7 +159,7 @@ func (w *World) jobEat(e *Entity) {
 		return
 	}
 	if e.eat == eatWalk {
-		if e.needPhase[NeedFood] < NeedCritical {
+		if e.drivePhase[DriveFood] < DriveCritical {
 			if arrived, ok := w.travelTo(e, e.Target); ok && !arrived {
 				e.State = Moving
 				return
@@ -175,7 +175,7 @@ func (w *World) jobEat(e *Entity) {
 		// Eaten: out of hand before clearJob, which would otherwise pocket it
 		// again as an interrupted meal — and so feed the colony forever.
 		e.eat = eatFetch
-		w.resetNeed(e, NeedFood)
+		w.resetDrive(e, DriveFood)
 		w.cancelMealBids(ColonistOwner(e.ID)) // fed: stop queuing for another
 		w.emitDone(e, ActionEat, NounMeal, "Had a meal.")
 		w.clearJob(e)
@@ -215,7 +215,7 @@ func (w *World) runFoodFocus(e *Entity) bool {
 		w.runJob(e)
 		return true
 	}
-	if e.Job == JobUse && e.Need == NeedFood && w.podsFeed() {
+	if e.Job == JobUse && e.Drive == DriveFood && w.podsFeed() {
 		return false // already queued at the safety net; let it finish
 	}
 	if w.tryStartEating(e) {
@@ -249,7 +249,7 @@ func (w *World) runFoodFocus(e *Entity) bool {
 // meal — starved a few tiles from shelves holding a hundred of the colony's
 // meals, scraping scum for a supper they would not live to cook.
 func (w *World) tryRation(e *Entity) bool {
-	if !w.cfg.Rations || e.needPhase[NeedFood] != NeedCritical {
+	if !w.cfg.Rations || e.drivePhase[DriveFood] != DriveCritical {
 		return false
 	}
 	room := w.roomOf(e.Pos)

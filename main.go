@@ -560,20 +560,20 @@ func validateConfig(cfg sim.Config) error {
 	case cfg.RatLitterMin < 0 || cfg.RatLitterMax < cfg.RatLitterMin:
 		return fmt.Errorf("rat litter range is invalid: min %d, max %d", cfg.RatLitterMin, cfg.RatLitterMax)
 	}
-	// Need specs are only reachable from the settings file and the -need-*
+	// Drive specs are only reachable from the settings file and the -drive-*
 	// flags, but a bad one breaks the colonists quietly (a need that never
 	// fires, or a fatal one pinned at its ceiling), so check them here too.
-	for _, spec := range cfg.Needs {
+	for _, spec := range cfg.Drives {
 		switch {
 		case spec.Max < 1:
-			return fmt.Errorf("need-%s-max must be at least 1 (got %d)", spec.Name, spec.Max)
+			return fmt.Errorf("drive-%s-max must be at least 1 (got %d)", spec.Name, spec.Max)
 		case spec.Rise < 0:
-			return fmt.Errorf("need-%s-rise cannot be negative (got %d)", spec.Name, spec.Rise)
+			return fmt.Errorf("drive-%s-rise cannot be negative (got %d)", spec.Name, spec.Rise)
 		case spec.SeekAt < 0 || spec.SeekAt > spec.CriticalAt || spec.CriticalAt > spec.Max:
-			return fmt.Errorf("need-%s thresholds must satisfy 0 <= seek-at <= critical-at <= max (got %d, %d, %d)",
+			return fmt.Errorf("drive-%s thresholds must satisfy 0 <= seek-at <= critical-at <= max (got %d, %d, %d)",
 				spec.Name, spec.SeekAt, spec.CriticalAt, spec.Max)
 		case spec.UseTicks < 0 || spec.GrabTicks < 0:
-			return fmt.Errorf("need-%s use and grab ticks cannot be negative (got %d and %d)", spec.Name, spec.UseTicks, spec.GrabTicks)
+			return fmt.Errorf("drive-%s use and grab ticks cannot be negative (got %d and %d)", spec.Name, spec.UseTicks, spec.GrabTicks)
 		}
 	}
 	if cfg.FocusCurrentBonus < 0 || cfg.FocusSwitchMargin < 0 ||
@@ -584,8 +584,8 @@ func validateConfig(cfg sim.Config) error {
 		switch {
 		case spec.Name == "":
 			return fmt.Errorf("focus name cannot be empty")
-		case spec.NeedWeight < 0:
-			return fmt.Errorf("focus-%s-need-weight cannot be negative (got %d)", spec.Name, spec.NeedWeight)
+		case spec.DriveWeight < 0:
+			return fmt.Errorf("focus-%s-drive-weight cannot be negative (got %d)", spec.Name, spec.DriveWeight)
 		case spec.DistanceWeight < 0:
 			return fmt.Errorf("focus-%s-distance-weight cannot be negative (got %d)", spec.Name, spec.DistanceWeight)
 		}

@@ -242,7 +242,7 @@ type traitSpec struct {
 	// such a group cannot shift any other personality roll for a given seed).
 	acquired bool
 
-	needRiseScale  [numNeeds]float64 // per-need multiplier on how fast it rises
+	driveRiseScale  [numDrives]float64 // per-need multiplier on how fast it rises
 	sleepHours     int               // clock hours added to (or taken from) a night's sleep
 	restScale      float64           // multiplier on idle rest duration
 	workScale      float64           // multiplier on mine/build time (lower = faster)
@@ -258,11 +258,11 @@ type traitSpec struct {
 var traitSpecs = [numTraits]traitSpec{
 	TraitBigEater: {
 		Name: "Big Eater", Desc: "Burns through rations and hungers faster.",
-		group: groupAppetite, needRiseScale: [numNeeds]float64{NeedFood: 1.5},
+		group: groupAppetite, driveRiseScale: [numDrives]float64{DriveFood: 1.5},
 	},
 	TraitLightEater: {
 		Name: "Light Eater", Desc: "Makes rations last and hungers slower.",
-		group: groupAppetite, needRiseScale: [numNeeds]float64{NeedFood: 0.7},
+		group: groupAppetite, driveRiseScale: [numDrives]float64{DriveFood: 0.7},
 	},
 	TraitIndustrious: {
 		Name: "Industrious", Desc: "Works quickly and rests little.",
@@ -277,11 +277,11 @@ var traitSpecs = [numTraits]traitSpec{
 		group: groupSocial, socialNoNeed: true,
 	},
 	TraitIntrovert: {
-		Name: "Introvert", Desc: "Needs less socializing, but too much conversation wears on morale.",
+		Name: "Introvert", Desc: "Drives less socializing, but too much conversation wears on morale.",
 		group: groupSocial, socialScale: 0.5, socialCapacity: 2, socialPenalty: 5,
 	},
 	TraitExtrovert: {
-		Name: "Extrovert", Desc: "Needs frequent social interaction to feel fulfilled.",
+		Name: "Extrovert", Desc: "Drives frequent social interaction to feel fulfilled.",
 		group: groupSocial, socialScale: 1.5, socialCapacity: 6,
 	},
 	TraitTidy: {
@@ -324,7 +324,7 @@ var traitSpecs = [numTraits]traitSpec{
 		group: groupSleep, sleepHours: -1,
 	},
 	TraitLongSleeper: {
-		Name: "Long Sleeper", Desc: "Needs nine hours in bed to get through the day.",
+		Name: "Long Sleeper", Desc: "Drives nine hours in bed to get through the day.",
 		group: groupSleep, sleepHours: 1,
 	},
 }
@@ -447,7 +447,7 @@ func rollAge(r *rand.Rand) int {
 // resolveTraitEffects recomputes a colonist's effective parameters from its
 // traits, starting from the config baselines set in newEntity.
 func (w *World) resolveTraitEffects(e *Entity) {
-	riseMul := [numNeeds]float64{}
+	riseMul := [numDrives]float64{}
 	for i := range riseMul {
 		riseMul[i] = 1
 	}
@@ -459,9 +459,9 @@ func (w *World) resolveTraitEffects(e *Entity) {
 	for _, tr := range e.Profile.Traits {
 		s := traitSpecs[tr]
 		sleepHours += s.sleepHours
-		for i := 0; i < int(numNeeds); i++ {
-			if s.needRiseScale[i] > 0 {
-				riseMul[i] *= s.needRiseScale[i]
+		for i := 0; i < int(numDrives); i++ {
+			if s.driveRiseScale[i] > 0 {
+				riseMul[i] *= s.driveRiseScale[i]
 			}
 		}
 		if s.restScale > 0 {
@@ -480,21 +480,21 @@ func (w *World) resolveTraitEffects(e *Entity) {
 			socialPenalty = s.socialPenalty
 		}
 	}
-	for i := 0; i < int(numNeeds); i++ {
-		if NeedKind(i) == NeedSocial && socialNoNeed {
-			e.needRise[i] = 0
+	for i := 0; i < int(numDrives); i++ {
+		if DriveKind(i) == DriveSocial && socialNoNeed {
+			e.driveRise[i] = 0
 			continue
 		}
 		scale := riseMul[i]
-		if NeedKind(i) == NeedSocial {
+		if DriveKind(i) == DriveSocial {
 			scale *= socialMul
 		}
-		e.needRise[i] = atLeast1(int(math.Round(float64(w.cfg.Needs[i].Rise) * scale)))
+		e.driveRise[i] = atLeast1(int(math.Round(float64(w.cfg.Drives[i].Rise) * scale)))
 	}
 	if e.asleep {
-		w.pauseNeedsWhileAsleep(e) // re-resolved mid-night (mutation): keep the pause
+		w.pauseDrivesWhileAsleep(e) // re-resolved mid-night (mutation): keep the pause
 	}
-	e.sleepTicks = atLeast1(w.cfg.Needs[NeedSleep].UseTicks + sleepHours*w.cfg.TicksPerHour())
+	e.sleepTicks = atLeast1(w.cfg.Drives[DriveSleep].UseTicks + sleepHours*w.cfg.TicksPerHour())
 	e.restTicks = atLeast1(int(math.Round(float64(w.cfg.RestTicks) * restMul)))
 	e.workScale = workMul
 	e.socialCapacity, e.socialPenalty = socialCapacity, socialPenalty

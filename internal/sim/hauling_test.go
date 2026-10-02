@@ -26,8 +26,8 @@ func stepFed(t *testing.T, w *World, n int, stop func() bool) {
 		w.step()
 		for _, e := range w.entities {
 			if e.Kind == Colonist {
-				for k := range e.Needs {
-					e.Needs[k] = 0
+				for k := range e.Drives {
+					e.Drives[k] = 0
 				}
 			}
 		}

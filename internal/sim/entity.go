@@ -266,7 +266,7 @@ const (
 	JobNone     JobKind = iota
 	JobMine             // excavate the Rock tile at Target
 	JobBuild            // construct BuildKind on the Floor tile at Target
-	JobUse              // walk to the facility at Target and satisfy Need
+	JobUse              // walk to the facility at Target and satisfy Drive
 	JobTalk             // walk to partner and chat, raising the pair's affinity
 	JobClean            // scrub refuse off Target, then haul it to an incinerator
 	JobStore            // unload general materials into the storage at Target
@@ -350,26 +350,26 @@ type Entity struct {
 	// colonists ever mutate. See mutation.go.
 	uraniumExposure int
 
-	// Needs are stored lazily: Needs[i] is the level as of tick needSince[i], so
-	// the current level is Needs[i] + needRise[i]*(now-needSince[i]) (see
-	// needLevel). Storing a base + timestamp instead of ticking every colonist
+	// Drives are stored lazily: Drives[i] is the level as of tick driveSince[i], so
+	// the current level is Drives[i] + driveRise[i]*(now-driveSince[i]) (see
+	// driveLevel). Storing a base + timestamp instead of ticking every colonist
 	// every tick lets idle colonists rest without their needs drifting out of
 	// date. Used by colonists (all needs) and rats (food only).
-	Needs             [numNeeds]int
-	needSince         [numNeeds]int
-	needPhase         [numNeeds]NeedPhase
-	nextNeedPhaseTick [numNeeds]int
+	Drives             [numDrives]int
+	driveSince         [numDrives]int
+	drivePhase         [numDrives]DrivePhase
+	nextDrivePhaseTick [numDrives]int
 	// starvationDamage tracks HP lost to each fatal need separately from wounds.
 	// Satisfying that need restores its own deprivation damage without healing
 	// unrelated injuries such as alien bites.
-	starvationDamage [numNeeds]int
+	starvationDamage [numDrives]int
 
 	// Personality (colonists only). Profile holds the name, attributes, and
-	// traits; needRise, restTicks, and workScale are the trait-resolved effective
+	// traits; driveRise, restTicks, and workScale are the trait-resolved effective
 	// parameters the systems read, so the hot paths never re-scan traits. See
 	// personality.go.
 	Profile   *Profile
-	needRise  [numNeeds]int // per-need rise per tick (base scaled by traits)
+	driveRise  [numDrives]int // per-need rise per tick (base scaled by traits)
 	restTicks int           // idle rest duration (base scaled by traits)
 	// sleepTicks is how long this colonist's night in bed lasts: the sleep
 	// need's UseTicks, give or take a clock hour per sleep trait. asleep is
@@ -378,7 +378,7 @@ type Entity struct {
 	// done tonight, kept when a night is interrupted. See docs/days.md.
 	sleepTicks  int
 	asleep      bool
-	wakeRise    [numNeeds]int
+	wakeRise    [numDrives]int
 	sleepBanked int
 	workScale   float64 // mine/build time multiplier (1.0 = baseline)
 
@@ -515,11 +515,11 @@ type Entity struct {
 	Job            JobKind
 	Target         Point    // tile the job operates on or travels to
 	BuildKind      Terrain  // JobBuild: terrain to construct
-	Need           NeedKind // JobUse: which need this fulfills
+	Drive           DriveKind // JobUse: which need this fulfills
 	useFacility    Point
 	useFacilitySet bool
 	// carrying reports whether a JobUse colonist has grabbed a portable need
-	// (see NeedSpec.GrabTicks) and stepped away from the facility to finish it,
+	// (see DriveSpec.GrabTicks) and stepped away from the facility to finish it,
 	// rather than still occupying the facility's access tile.
 	carrying bool
 	partner  EntityID // JobTalk: the colonist being talked with; 0 if none
@@ -597,27 +597,27 @@ func newEntity(id EntityID, kind Kind, p Point, cfg Config) *Entity {
 	switch kind {
 	case Colonist:
 		e.MaxHP = cfg.ColonistHP
-		for i := 0; i < int(numNeeds); i++ {
-			e.needRise[i] = cfg.Needs[i].Rise
+		for i := 0; i < int(numDrives); i++ {
+			e.driveRise[i] = cfg.Drives[i].Rise
 		}
 		e.restTicks = cfg.RestTicks
-		e.sleepTicks = cfg.Needs[NeedSleep].UseTicks
+		e.sleepTicks = cfg.Drives[DriveSleep].UseTicks
 	case Alien:
 		e.MaxHP = cfg.AlienHP
 		// Only the food need rises: Friendly and Cautious species graze cave
 		// scum when it presses (see alienGraze). Aliens never starve.
-		e.needRise[NeedFood] = cfg.AlienHungerRise
+		e.driveRise[DriveFood] = cfg.AlienHungerRise
 	case Cat:
 		e.MaxHP = cfg.CatHP
 	case Rat:
 		e.MaxHP = cfg.RatHP
-		// Rats share the colonists' NeedFood but nibble constantly, so only their
+		// Rats share the colonists' DriveFood but nibble constantly, so only their
 		// food need rises (fast); the others stay flat.
-		e.needRise[NeedFood] = cfg.RatHungerRise
+		e.driveRise[DriveFood] = cfg.RatHungerRise
 	case Chicken:
 		e.MaxHP = cfg.ChickenHP
 		// Like a rat, a chicken has only the food need.
-		e.needRise[NeedFood] = cfg.ChickenHungerRise
+		e.driveRise[DriveFood] = cfg.ChickenHungerRise
 	}
 	e.HP = e.MaxHP
 	if e.hasParts() {

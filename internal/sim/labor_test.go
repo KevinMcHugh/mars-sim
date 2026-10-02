@@ -139,17 +139,17 @@ func TestPaidToiletsChargeTheirUsers(t *testing.T) {
 		t.Fatal("wrong access to the paid toilet")
 	}
 	ownerStart, guestStart := owner.wallet, guest.wallet
-	for n := NeedKind(0); n < numNeeds; n++ {
-		guest.Needs[n] = 0 // nothing but the bladder calls
+	for n := DriveKind(0); n < numDrives; n++ {
+		guest.Drives[n] = 0 // nothing but the bladder calls
 	}
-	guest.Needs[NeedBladder] = w.cfg.Needs[NeedBladder].SeekAt + 10
-	for n := NeedKind(0); n < numNeeds; n++ {
-		w.syncNeedPhase(guest, n)
+	guest.Drives[DriveBladder] = w.cfg.Drives[DriveBladder].SeekAt + 10
+	for n := DriveKind(0); n < numDrives; n++ {
+		w.syncDrivePhase(guest, n)
 	}
-	for i := 0; i < 100 && w.needLevel(guest, NeedBladder) > 0; i++ {
+	for i := 0; i < 100 && w.driveLevel(guest, DriveBladder) > 0; i++ {
 		w.step()
 	}
-	if w.needLevel(guest, NeedBladder) != 0 {
+	if w.driveLevel(guest, DriveBladder) != 0 {
 		t.Fatal("the guest never used the toilet")
 	}
 	if guest.wallet != guestStart-3 || owner.wallet != ownerStart+3 {

@@ -21,7 +21,7 @@ const ConfigFileName = "mars-sim.yaml"
 const SeedKey = "seed"
 
 // A Knob is one tunable, discovered by reflection from the `cfg` struct tags on
-// Config (and on the NeedSpec entries inside it). One knob description drives
+// Config (and on the DriveSpec entries inside it). One knob description drives
 // three surfaces that used to be maintained by hand and drift apart: the
 // command-line flag, the key in the config file, and the commented template
 // that documents both.
@@ -30,10 +30,10 @@ const SeedKey = "seed"
 // Knobs, so a caller can hand it straight to flag.IntVar.
 type Knob struct {
 	// Name is the flag name and, for a top-level knob, also the file key.
-	// Nested knobs flatten their path with dashes, so the need spec that the
-	// file writes as needs.food.rise is -need-food-rise on the command line.
+	// Nested knobs flatten their path with dashes, so the drive spec that the
+	// file writes as drives.food.rise is -drive-food-rise on the command line.
 	Name string
-	// Key is the dotted path in the config file: "colonists", "needs.food.rise".
+	// Key is the dotted path in the config file: "colonists", "drives.food.rise".
 	Key string
 	// Path is Key split into its segments.
 	Path []string
@@ -95,8 +95,8 @@ func collectKnobs(v reflect.Value, prefix []string, section string, out *[]Knob)
 
 func configArrayElementName(tag string, index int) string {
 	switch tag {
-	case "needs":
-		return NeedKind(index).String()
+	case "drives":
+		return DriveKind(index).String()
 	case "focuses":
 		return FocusKind(index).String()
 	default:
@@ -106,13 +106,13 @@ func configArrayElementName(tag string, index int) string {
 
 // knobFlagName flattens a config-file path into a command-line flag name.
 // Top-level knobs keep their key verbatim (-colonists); nested ones read as a
-// phrase (-need-food-rise), which is why the prefix is singular.
+// phrase (-drive-food-rise), which is why the prefix is singular.
 func knobFlagName(path []string) string {
 	if len(path) == 1 {
 		return path[0]
 	}
-	if path[0] == "needs" {
-		return "need-" + strings.Join(path[1:], "-")
+	if path[0] == "drives" {
+		return "drive-" + strings.Join(path[1:], "-")
 	}
 	if path[0] == "focuses" {
 		return "focus-" + strings.Join(path[1:], "-")
@@ -160,14 +160,14 @@ func ConfigTemplate() []byte {
 	for _, k := range Knobs(&def) {
 		if k.Section != "" {
 			fmt.Fprintf(&b, "\n%s\n", sectionHeading(k.Section))
-			if k.Path[0] == "needs" {
-				b.WriteString(needsPreamble)
+			if k.Path[0] == "drives" {
+				b.WriteString(drivesPreamble)
 			}
 			prev = nil
 		}
-		// Emit any parent keys this knob needs ("needs:", "  food:") that the
+		// Emit any parent keys this knob needs ("drives:", "  food:") that the
 		// previous knob did not already open, with one blank line before the
-		// shallowest of them so each need reads as its own block.
+		// shallowest of them so each drive reads as its own block.
 		parents := k.Path[:len(k.Path)-1]
 		opened := false
 		for d := range parents {
@@ -195,11 +195,11 @@ func ConfigTemplate() []byte {
 	return bytes.ReplaceAll(b.Bytes(), []byte("\n\n\n"), []byte("\n\n"))
 }
 
-// needsPreamble warns about the one sharp edge of an all-commented file: a
+// drivesPreamble warns about the one sharp edge of an all-commented file: a
 // nested value needs its parents uncommented too.
-const needsPreamble = `
-# One spec per colonist need. These are nested, so uncommenting a value means
-# uncommenting the "needs:" and need-name lines above it as well.
+const drivesPreamble = `
+# One spec per colonist drive. These are nested, so uncommenting a value means
+# uncommenting the "drives:" and drive-name lines above it as well.
 `
 
 func sectionHeading(name string) string {
@@ -343,7 +343,7 @@ func assign(k Knob, node *yaml.Node) error {
 }
 
 // isKnobPrefix reports whether any knob lives under this path, which is what
-// makes a nested mapping ("needs:", "needs.food:") legal.
+// makes a nested mapping ("drives:", "drives.food:") legal.
 func isKnobPrefix(index map[string]Knob, path string) bool {
 	for key := range index {
 		if strings.HasPrefix(key, path+".") {

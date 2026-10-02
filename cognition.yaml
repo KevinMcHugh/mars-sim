@@ -18,15 +18,15 @@ attractors:
   steady    : { good: "steady"    , bad: "flat"      , charge:   0, grip:   0, radius: 28 }
 
 focuses:
-  idle      : { base:   0, need_weight:   0, charge_weight: -10, grip_weight:   0, distance_weight: 0 }
-  work      : { base:  25, need_weight:   0, charge_weight:  20, grip_weight:  10, distance_weight: 1 }
-  eat       : { base:  40, need_weight: 100, charge_weight:   0, grip_weight:   5, distance_weight: 1 }
-  relieve   : { base:  40, need_weight: 100, charge_weight:   0, grip_weight:   0, distance_weight: 1 }
-  socialize : { base:  40, need_weight: 100, charge_weight:  10, grip_weight:   5, distance_weight: 1 }
-  sleep     : { base:  40, need_weight: 100, charge_weight: -30, grip_weight:   0, distance_weight: 1 }
-  flee      : { base:   0, need_weight:   0, charge_weight:  20, grip_weight: -40, distance_weight: 1 }
-  fight     : { base:  15, need_weight:   0, charge_weight:  20, grip_weight:  40, distance_weight: 1 }
-  escape    : { base: 400, need_weight:   0, charge_weight:   0, grip_weight:   0, distance_weight: 0 }
+  idle      : { base:   0, drive_weight:   0, charge_weight: -10, grip_weight:   0, distance_weight: 0 }
+  work      : { base:  25, drive_weight:   0, charge_weight:  20, grip_weight:  10, distance_weight: 1 }
+  eat       : { base:  40, drive_weight: 100, charge_weight:   0, grip_weight:   5, distance_weight: 1 }
+  relieve   : { base:  40, drive_weight: 100, charge_weight:   0, grip_weight:   0, distance_weight: 1 }
+  socialize : { base:  40, drive_weight: 100, charge_weight:  10, grip_weight:   5, distance_weight: 1 }
+  sleep     : { base:  40, drive_weight: 100, charge_weight: -30, grip_weight:   0, distance_weight: 1 }
+  flee      : { base:   0, drive_weight:   0, charge_weight:  20, grip_weight: -40, distance_weight: 1 }
+  fight     : { base:  15, drive_weight:   0, charge_weight:  20, grip_weight:  40, distance_weight: 1 }
+  escape    : { base: 400, drive_weight:   0, charge_weight:   0, grip_weight:   0, distance_weight: 0 }
 
 arbitration:
   current_bonus: 25

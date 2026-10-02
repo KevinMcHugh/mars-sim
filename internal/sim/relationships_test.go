@@ -360,8 +360,8 @@ func TestTalkingRaisesAffinity(t *testing.T) {
 	b := w.spawn(Colonist, Point{cx + 1, cy})
 	// Keep their needs quiet so nothing preempts the chat.
 	for _, e := range []*Entity{a, b} {
-		for i := 0; i < int(numNeeds); i++ {
-			e.Needs[i], e.needSince[i] = 0, 0
+		for i := 0; i < int(numDrives); i++ {
+			e.Drives[i], e.driveSince[i] = 0, 0
 		}
 	}
 
@@ -390,7 +390,7 @@ func TestSocialNeedPreemptsWork(t *testing.T) {
 	cfg.StartColonists, cfg.StartAliens, cfg.StartCats, cfg.StartRats = 0, 0, 0, 0
 	cfg.TalkChance = 0
 	// DefaultConfig's seed is time-based, and traits are rolled off it: an
-	// Asocial colonist has needRise 0 for social, so it never becomes urgent and
+	// Asocial colonist has driveRise 0 for social, so it never becomes urgent and
 	// this test used to fail a run in six.
 	cfg.Seed, cfg.TraitChance = 11, 0
 	w := newWorld(cfg, newPCG(11))
@@ -402,11 +402,11 @@ func TestSocialNeedPreemptsWork(t *testing.T) {
 	a := w.spawn(Colonist, center)
 	b := w.spawn(Colonist, center.Add(1, 0))
 	for _, e := range []*Entity{a, b} {
-		for i := 0; i < int(numNeeds); i++ {
-			e.Needs[i], e.needSince[i] = 0, w.tick
+		for i := 0; i < int(numDrives); i++ {
+			e.Drives[i], e.driveSince[i] = 0, w.tick
 		}
 	}
-	a.Needs[NeedSocial] = cfg.Needs[NeedSocial].SeekAt
+	a.Drives[DriveSocial] = cfg.Drives[DriveSocial].SeekAt
 	w.step()
 
 	if a.Job != JobTalk || a.partner != b.ID {
@@ -434,12 +434,12 @@ func TestMutuallyUrgentColonistsFinishConversation(t *testing.T) {
 
 	a := w.spawn(Colonist, center)
 	b := w.spawn(Colonist, center.Add(1, 0))
-	seekAt := cfg.Needs[NeedSocial].SeekAt
+	seekAt := cfg.Drives[DriveSocial].SeekAt
 	for _, e := range []*Entity{a, b} {
-		for i := 0; i < int(numNeeds); i++ {
-			e.Needs[i], e.needSince[i] = 0, w.tick
+		for i := 0; i < int(numDrives); i++ {
+			e.Drives[i], e.driveSince[i] = 0, w.tick
 		}
-		e.Needs[NeedSocial] = seekAt // both urgent, both preempted into talking
+		e.Drives[DriveSocial] = seekAt // both urgent, both preempted into talking
 	}
 
 	for i := 0; i < cfg.TalkTicks*3; i++ {
@@ -447,7 +447,7 @@ func TestMutuallyUrgentColonistsFinishConversation(t *testing.T) {
 	}
 
 	for _, e := range []*Entity{a, b} {
-		if got := w.currentNeeds(e)[NeedSocial]; got >= seekAt {
+		if got := w.currentDrives(e)[DriveSocial]; got >= seekAt {
 			t.Errorf("#%d still socially urgent after %d ticks: %d (urgent at %d) — the conversation never completed",
 				e.ID, cfg.TalkTicks*3, got, seekAt)
 		}

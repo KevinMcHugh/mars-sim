@@ -26,7 +26,7 @@ func (w *World) sleepTick(e *Entity) {
 	if e.sleepBanked >= e.sleepTicks {
 		e.sleepBanked = 0
 		w.wakeUp(e)
-		w.finishUse(e, w.cfg.Needs[NeedSleep])
+		w.finishUse(e, w.cfg.Drives[DriveSleep])
 	}
 }
 
@@ -35,10 +35,10 @@ func (w *World) fallAsleep(e *Entity) {
 	if e.asleep {
 		return
 	}
-	w.rebaseWakingNeeds(e)
+	w.rebaseWakingDrives(e)
 	e.asleep = true
-	w.pauseNeedsWhileAsleep(e)
-	w.syncWakingNeedPhases(e)
+	w.pauseDrivesWhileAsleep(e)
+	w.syncWakingDrivePhases(e)
 }
 
 // wakeUp resumes e's other needs from where they were paused. colonistTurn
@@ -47,40 +47,40 @@ func (w *World) wakeUp(e *Entity) {
 	if !e.asleep {
 		return
 	}
-	w.rebaseWakingNeeds(e)
+	w.rebaseWakingDrives(e)
 	e.asleep = false
-	for n := NeedKind(0); n < numNeeds; n++ {
-		if n != NeedSleep {
-			e.needRise[n] = e.wakeRise[n]
+	for n := DriveKind(0); n < numDrives; n++ {
+		if n != DriveSleep {
+			e.driveRise[n] = e.wakeRise[n]
 		}
 	}
-	w.syncWakingNeedPhases(e)
+	w.syncWakingDrivePhases(e)
 }
 
-// pauseNeedsWhileAsleep stops every need but sleep from rising, keeping the
+// pauseDrivesWhileAsleep stops every need but sleep from rising, keeping the
 // rates to restore on waking. The levels must already be rebased to now.
-func (w *World) pauseNeedsWhileAsleep(e *Entity) {
-	for n := NeedKind(0); n < numNeeds; n++ {
-		if n != NeedSleep {
-			e.wakeRise[n], e.needRise[n] = e.needRise[n], 0
+func (w *World) pauseDrivesWhileAsleep(e *Entity) {
+	for n := DriveKind(0); n < numDrives; n++ {
+		if n != DriveSleep {
+			e.wakeRise[n], e.driveRise[n] = e.driveRise[n], 0
 		}
 	}
 }
 
-// rebaseWakingNeeds folds the rise so far into each non-sleep need's base, so
+// rebaseWakingDrives folds the rise so far into each non-sleep need's base, so
 // a change of rate applies only from now on.
-func (w *World) rebaseWakingNeeds(e *Entity) {
-	for n := NeedKind(0); n < numNeeds; n++ {
-		if n != NeedSleep {
-			e.Needs[n], e.needSince[n] = w.needLevel(e, n), w.tick
+func (w *World) rebaseWakingDrives(e *Entity) {
+	for n := DriveKind(0); n < numDrives; n++ {
+		if n != DriveSleep {
+			e.Drives[n], e.driveSince[n] = w.driveLevel(e, n), w.tick
 		}
 	}
 }
 
-func (w *World) syncWakingNeedPhases(e *Entity) {
-	for n := NeedKind(0); n < numNeeds; n++ {
-		if n != NeedSleep {
-			w.syncNeedPhase(e, n)
+func (w *World) syncWakingDrivePhases(e *Entity) {
+	for n := DriveKind(0); n < numDrives; n++ {
+		if n != DriveSleep {
+			w.syncDrivePhase(e, n)
 		}
 	}
 }
