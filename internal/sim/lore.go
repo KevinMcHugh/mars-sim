@@ -350,6 +350,13 @@ type AlienSpecies struct {
 	Singular string
 	Plural   string
 
+	// ScientificName is the species' binomial, "Genus epithet" -- for
+	// example "Pseudursus ares" -- built from Greek and Latin word parts
+	// that fit its build (see alien_taxonomy.go). Already capitalized the
+	// way a binomial is written: genus capitalized, epithet lowercase.
+	// Empty for a hand-built species that never went through the roster.
+	ScientificName string
+
 	// Emoji is a candidate glyph drawn alongside the name, from the same
 	// alien-names.yaml entry's own emoji list (see alien_names.go). Empty
 	// when the winning entry listed none. This package treats it as opaque
@@ -464,7 +471,10 @@ func rollAlienSpecies(rng *rand.Rand, cfg Config, names []AlienNameEntry, used m
 }
 
 // rollAlienSpeciesRoster rolls Config.AlienSpeciesCount species (at least
-// one, even if misconfigured to less) for a world.
+// one, even if misconfigured to less) for a world, then gives each a
+// scientific name. The names come from their own stream, seeded from
+// cfg.Seed, so drawing them never shifts what rng rolls for the species
+// themselves (see alien_taxonomy.go).
 func rollAlienSpeciesRoster(rng *rand.Rand, cfg Config) []AlienSpecies {
 	count := cfg.AlienSpeciesCount
 	if count < 1 {
@@ -479,6 +489,13 @@ func rollAlienSpeciesRoster(rng *rand.Rand, cfg Config) []AlienSpecies {
 	for i := range roster {
 		roster[i] = rollAlienSpecies(rng, cfg, names, used)
 		used[strings.ToLower(roster[i].Singular)] = true
+	}
+	taxa := defaultTaxonomy()
+	taxRNG := newRand(cfg.Seed ^ alienTaxonomySeed)
+	binomials := make(map[string]bool, count) // no two species share a scientific name either
+	for i := range roster {
+		roster[i].ScientificName = scientificName(taxRNG, roster[i], taxa, binomials)
+		binomials[strings.ToLower(roster[i].ScientificName)] = true
 	}
 	return roster
 }

@@ -16,7 +16,8 @@ to one rolled species, which fights the way its body allows — biting,
 raking with claws, thrashing a tail, or strangling — and hits harder or
 softer depending on how big it rolled. What a species can be *named* is itself
 configurable data — a condition-gated pool of names, edited in YAML — rather
-than a hardcoded list.
+than a hardcoded list. Each species also gets a scientific name
+(*Pseudursus ares*), covered in [alien-taxonomy.md](./alien-taxonomy.md).
 
 ## Source
 
@@ -460,7 +461,8 @@ been explored (`Stats.ExploredTiles`, kept incrementally the same way
 worldgen chunks exist so far (`Stats.ChunksGenerated` of `Stats.Chunks`, see
 [worldgen-chunks.md](./worldgen-chunks.md)) — above a
 selectable list of `Snapshot.AlienSpecies`, each shown by `RosterLabel()`.
-The detail panel lists the selected species' full build as explicit stat
+The detail panel shows the selected species' scientific name in italics
+under its title, then lists its full build as explicit stat
 lines (height/weight range, eyes, limb split, tail, skin, color, bite
 damage/pace, plus the color pattern) followed by `Description()`'s narrative paragraph,
 word-wrapped to the panel width.
@@ -665,6 +667,8 @@ word-wrapped to the panel width.
 
 ## Related
 
+- [alien-taxonomy.md](./alien-taxonomy.md): the scientific name each
+  species gets on top of its common name.
 - [world.md](./world.md) — the worldgen pipeline (`generate`) lore's alien
   placement still uses, and the `Rock`/composition generation whose
   dedicated-RNG-stream pattern this reuses.
