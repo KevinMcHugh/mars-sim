@@ -522,6 +522,69 @@ func TestUrgentNonFatalNeedTriggersEmergencyBuild(t *testing.T) {
 	}
 }
 
+// The emergency fallback must never build on a tile a project has planned, in
+// any phase. A room's fit-phase bunk tile is still plain Floor while its walls
+// go up, so it looked like a free edge; a lone toilet raised there left the
+// bunk task forever unworkable and the room never finished, holding its
+// concurrent-project slot for good.
+func TestEmergencyBuildSkipsPlannedTaskTiles(t *testing.T) {
+	setup := func(t *testing.T, pocketEnd int) (*World, *Entity, Point) {
+		t.Helper()
+		w := rockSiteWorld(t)
+		// A one-row pocket in solid rock: the colonist stands at its west
+		// end, the bunk tile is right beside it, and any further tiles are
+		// the only other edges in reach.
+		carve(w, Point{10, 10}, Point{pocketEnd, 10}, Floor)
+		bunk := Point{11, 10}
+		// The room is still in its wall phase (a wall task out in the rock,
+		// unreachable, keeps that phase from finishing), so the bunk tile is
+		// not in buildTiles and onPendingBuild alone does not cover it.
+		w.projects = append(w.projects, &project{
+			id: 1, name: "test dormitory",
+			tasks: []*buildTask{
+				{pos: Point{30, 20}, terrain: Wall, phase: roomWallPhase},
+				{pos: bunk, terrain: Bed, phase: roomFitPhase},
+			},
+		})
+		w.rebuildBuildTiles()
+		w.refreshSpatial()
+		if w.onPendingBuild(bunk) {
+			t.Fatal("setup: bunk tile is in the active phase; the test would not cover later phases")
+		}
+		c := w.spawn(Colonist, Point{10, 10})
+		c.Needs[NeedBladder], c.needSince[NeedBladder] = w.cfg.Needs[NeedBladder].SeekAt, w.tick
+		c.Needs[NeedFood], c.needSince[NeedFood] = 0, w.tick
+		c.Needs[NeedSleep], c.needSince[NeedSleep] = 0, w.tick
+		return w, c, bunk
+	}
+
+	t.Run("only spot is planned", func(t *testing.T) {
+		w, c, bunk := setup(t, 11)
+		if spot, ok := w.findBuildSpot(c.Pos, 20); ok {
+			t.Fatalf("findBuildSpot picked %v; the only floor edge is the planned bunk tile %v", spot, bunk)
+		}
+		w.tick++
+		w.colonistTurn(c)
+		if c.Job == JobBuild && c.Target.Equal(bunk) {
+			t.Fatalf("colonist started a lone %v on the planned bunk tile", c.BuildKind)
+		}
+		if got := w.TerrainAt(bunk); got != Floor {
+			t.Fatalf("bunk tile became %v", got)
+		}
+	})
+
+	t.Run("builds past it", func(t *testing.T) {
+		w, c, bunk := setup(t, 12)
+		w.tick++
+		w.colonistTurn(c)
+		want := Point{12, 10}
+		if c.Job != JobBuild || c.BuildKind != Toilet || !c.Target.Equal(want) {
+			t.Fatalf("expected an emergency toilet at %v (past bunk %v), got job=%v kind=%v target=%v",
+				want, bunk, c.Job, c.BuildKind, c.Target)
+		}
+	})
+}
+
 // Once a facility of a kind already exists, an urgent colonist must not just
 // blindly queue at it forever: if the colony still wants more of that
 // facility than it has, and there is a reachable task to help with, it helps

@@ -403,6 +403,14 @@ does not suppress a stranded colonist's self-rescue, and a colonist that can
 already help build one elsewhere in its room joins that instead of starting a
 redundant one of its own.
 
+`findBuildSpot` also never picks a tile that an unfinished project task
+designates, **in any phase** (`onPlannedTask`). `buildTiles` (`onPendingBuild`)
+only holds the active phase, and a room's fit-phase facility tiles are still
+plain Floor while its walls go up, so they looked like free edges. A lone
+facility raised on one left that task forever unworkable (`taskWorkable` wants
+Floor): the room never completed and held a concurrent-project slot for good.
+`tryEmergencyScumhouse` shares `findBuildSpot`, so it gets the same rule.
+
 ## Why it is this way
 
 The room design is the product of watching colonies starve around earlier ones:
