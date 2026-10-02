@@ -695,6 +695,18 @@
 ## random swing around a conversation's mean quality
 # talk-quality-spread: 50
 
+## relative weight of talking about one of the speaker's memories (0 never)
+# talk-topic-memory-weight: 3
+
+## relative weight of talking about another colonist (0 never)
+# talk-topic-colonist-weight: 3
+
+## relative weight of talking about lore, such as an alien species (0 never)
+# talk-topic-lore-weight: 2
+
+## percent of the gap a good chat about a colonist closes between the listener's affinity toward them and the speaker's
+# talk-gossip-percent: 10
+
 # ── Meeting hall ────────────────────────────────────────────────────────
 ## the colony commissions meeting-hall chairs, one for each this many colonists (0: no hall, and talk and meals stay wherever they happen)
 # colonists-per-chair: 4

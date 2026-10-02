@@ -17,13 +17,13 @@ func TestRNGStateRoundTrips(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for name, b := range map[string][]byte{"sim": st.Sim, "personality": st.Personality, "age": st.Age, "nest": st.Nest, "skill": st.Skill} {
+	for name, b := range map[string][]byte{"sim": st.Sim, "personality": st.Personality, "age": st.Age, "nest": st.Nest, "skill": st.Skill, "topic": st.Topic} {
 		if b == nil {
 			t.Fatalf("%s stream was not saved", name)
 		}
 	}
 
-	streams := []*rand.Rand{w.rng, w.prng, w.agePRNG, w.nestRNG, w.skillRNG}
+	streams := []*rand.Rand{w.rng, w.prng, w.agePRNG, w.nestRNG, w.skillRNG, w.topicRNG}
 	draw := func() []uint64 {
 		var out []uint64
 		for _, r := range streams {
@@ -50,7 +50,7 @@ func TestRNGStateRoundTrips(t *testing.T) {
 func TestRNGStreamsAreDistinct(t *testing.T) {
 	w := newTestWorld(t, testConfig())
 	seen := map[uint64]string{}
-	for name, r := range map[string]*rand.Rand{"sim": w.rng, "personality": w.prng, "age": w.agePRNG, "nest": w.nestRNG, "skill": w.skillRNG} {
+	for name, r := range map[string]*rand.Rand{"sim": w.rng, "personality": w.prng, "age": w.agePRNG, "nest": w.nestRNG, "skill": w.skillRNG, "topic": w.topicRNG} {
 		v := r.Uint64()
 		if other, ok := seen[v]; ok {
 			t.Fatalf("%s and %s streams produced the same first draw", name, other)
