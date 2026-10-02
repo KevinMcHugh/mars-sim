@@ -83,7 +83,7 @@ func TestLoreTabNavigatesSpeciesSelection(t *testing.T) {
 	if !strings.Contains(out, "Gremlin · cautious") {
 		t.Fatalf("down did not select the second species:\n%s", out)
 	}
-	if strings.Contains(out, "FIELD NOTES\nGremlins stand 180") {
+	if strings.Contains(out, "FIELD NOTES\nGremlins stand 1.8") {
 		t.Fatal("detail panel still shows the first species' build")
 	}
 }

@@ -341,8 +341,20 @@ species-by-species breakdown. `Kind.String()` (`entity.go`) and the generic
 creature-sighting line in `observeNearby` (`systems.go`) still say "alien"
 deliberately — see Extending it.
 
-`AlienSpecies.Description()` renders a full narrative paragraph (build,
-skin, color, temperament); `RosterLabel()` is the short form
+`AlienSpecies.Description()` renders a short field-guide entry, written to
+read like a wiki article rather than a stat block (the lore tab already lists
+the raw numbers right above it). Sizes are metric with imperial in
+parentheses (`1.9-3 m (6'3"-9'10")`, `35-54 kg (77-119 lb)`), and the
+framing follows `Temperament`: a friendly species "interacts well with
+humans", a cautious one is "skittish around humans; approach with caution",
+and a hostile one is "the feared ...", hunting with its eyes and "fearsome
+arms" while its hide blends into (red/orange/yellow/gray) or stands out
+against the Martian rock. The phrasing is deliberately a pure function of
+the species — no RNG draw — so rewording it can never shift a seed. The
+helpers handle the awkward rolls the old one-line template got wrong ("no
+arms" instead of "0 arms", a legless hostile that "slithers" rather than
+"crawls on 0 legs", verb agreement for plural hides like scales).
+`RosterLabel()` is the short form
 (`"Xeno · hostile"`). Both are used in two places: the roster's alien entry
 (`RosterLabel()`, in place of a colonist's pronouns/age line) and the lore
 tab (both — see below).

@@ -403,16 +403,159 @@ func (sp AlienSpecies) RosterLabel() string {
 	return sp.Emoji + " " + label
 }
 
-// Description is a full narrative summary of the species, for logs or a
-// future lore/codex display -- everything a colonist could plausibly have
-// worked out about the local wildlife by looking at one.
+// Description is a short field-guide entry for the species, for logs and the
+// lore tab -- everything a colonist could plausibly have worked out about the
+// local wildlife by looking at one. It reads like a wiki entry rather than a
+// stat block (the lore tab already lists the raw numbers above it), and its
+// framing follows Temperament: a friendly species is introduced as good
+// company, a cautious one as something to approach carefully, a hostile one
+// as a predator. Sizes are given in metric with imperial in parentheses.
+// The wording is a pure function of the species -- no RNG -- so it never
+// touches determinism.
 func (sp AlienSpecies) Description() string {
-	return fmt.Sprintf(
-		"%s stand %d-%d cm and weigh %d-%d kg, with %s, %s and %s, %s skin, %s, %s. Temperament: %s.",
-		capitalizeFirst(sp.Plural), sp.HeightMinCM, sp.HeightMaxCM, sp.WeightMinKG, sp.WeightMaxKG,
-		pluralize(sp.Eyes, "eye", "eyes"), pluralize(sp.Arms, "arm", "arms"), pluralize(sp.Legs(), "leg", "legs"),
-		sp.Skin, sp.ColorPhrase(), tailPhrase(sp.Tail), sp.Temperament.String(),
-	)
+	size := fmt.Sprintf("stand %s tall, weighing %s", sp.heightRangePhrase(), sp.weightRangePhrase())
+	name := capitalizeFirst(sp.Plural)
+	covering, coveringPlural := sp.coveringPhrase()
+	switch sp.Temperament {
+	case TemperamentFriendly:
+		return fmt.Sprintf("%s %s. They have %s. They are covered in %s and interact well with humans.",
+			name, size, joinList(sp.bodyParts()), covering)
+	case TemperamentHostile:
+		weapons := []string{pluralize(sp.Eyes, "eye", "eyes")}
+		if sp.Arms > 0 {
+			weapons = append(weapons, pluralize(sp.Arms, "fearsome arm", "fearsome arms"))
+		}
+		if sp.Tail {
+			weapons = append(weapons, "a lashing tail")
+		}
+		blend := "stands out against"
+		if blendsWithMars(sp.Color) {
+			blend = "blends into"
+		}
+		if coveringPlural {
+			blend = strings.Replace(blend, "stands", "stand", 1)
+			blend = strings.Replace(blend, "blends", "blend", 1)
+		}
+		sep := " and " // "with 5 eyes and crawl", not "with 5 eyes, and crawl"
+		if len(weapons) > 1 {
+			sep = ", and "
+		}
+		return fmt.Sprintf("The feared %s %s. They hunt humans with %s%s%s. Their %s %s the Martian rock.",
+			name, size, joinList(weapons), sep, sp.gaitPhrase(), covering, blend)
+	default: // TemperamentCautious
+		return fmt.Sprintf("%s %s. They are skittish around humans; approach with caution. They can be recognized by their %s, %s.",
+			name, size, covering, joinList(sp.bodyParts()))
+	}
+}
+
+// heightRangePhrase renders the height range as metres with feet and inches
+// in parentheses: "1.9-3 m (6'3\"-9'10\")".
+func (sp AlienSpecies) heightRangePhrase() string {
+	return fmt.Sprintf("%s-%s m (%s-%s)", metres(sp.HeightMinCM), metres(sp.HeightMaxCM),
+		FormatHeight(sp.HeightMinCM), FormatHeight(sp.HeightMaxCM))
+}
+
+// weightRangePhrase renders the weight range as kilograms with pounds in
+// parentheses: "35-54 kg (77-119 lb)".
+func (sp AlienSpecies) weightRangePhrase() string {
+	return fmt.Sprintf("%d-%d kg (%d-%d lb)", sp.WeightMinKG, sp.WeightMaxKG,
+		scaleRound(sp.WeightMinKG, 22046, 10000), scaleRound(sp.WeightMaxKG, 22046, 10000))
+}
+
+// metres renders centimetres as metres to one decimal place, dropping a
+// trailing ".0" so 299 cm reads "3" rather than "3.0".
+func metres(cm int) string {
+	tenths := scaleRound(cm, 1, 10)
+	if tenths%10 == 0 {
+		return fmt.Sprintf("%d", tenths/10)
+	}
+	return fmt.Sprintf("%d.%d", tenths/10, tenths%10)
+}
+
+// bodyParts lists eyes, arms, legs, and (if present) the tail as count
+// phrases, for a species description's anatomy sentence.
+func (sp AlienSpecies) bodyParts() []string {
+	parts := []string{
+		pluralize(sp.Eyes, "eye", "eyes"),
+		countOrNo(sp.Arms, "arm", "arms"),
+		countOrNo(sp.Legs(), "leg", "legs"),
+	}
+	if sp.Tail {
+		parts = append(parts, "a tail")
+	}
+	return parts
+}
+
+// gaitPhrase is how a hostile species gets around, picked from its leg count
+// so a legless one slithers rather than "crawls on 0 legs".
+func (sp AlienSpecies) gaitPhrase() string {
+	switch legs := sp.Legs(); legs {
+	case 0:
+		return "slither along without legs"
+	case 1:
+		return "hop on 1 leg"
+	case 2:
+		return "stride on 2 legs"
+	default:
+		return fmt.Sprintf("crawl on %d legs", legs)
+	}
+}
+
+// coveringPhrase names what the species' hide is made of, with its color
+// (and pattern) worked in -- "red chitin", "slimy purple skin", "green-
+// striped scales" -- and reports whether that noun is plural, so a sentence
+// built around it can agree its verb ("scales blend", "skin blends").
+func (sp AlienSpecies) coveringPhrase() (string, bool) {
+	c := sp.ColorPhrase()
+	switch sp.Skin {
+	case SkinScaly:
+		return c + " scales", true
+	case SkinFurry:
+		return c + " fur", false
+	case SkinArmored:
+		return c + " armor plates", true
+	case SkinBony:
+		return "bony " + c + " skin", false
+	case SkinChitinous:
+		return c + " chitin", false
+	case SkinSlimy:
+		return "slimy " + c + " skin", false
+	default: // SkinSmooth
+		return "smooth " + c + " skin", false
+	}
+}
+
+// blendsWithMars reports whether a hide color is camouflage against Martian
+// regolith and basalt, for a hostile species' description.
+func blendsWithMars(color string) bool {
+	switch color {
+	case "red", "orange", "yellow", "gray":
+		return true
+	}
+	return false
+}
+
+// countOrNo is pluralize, except a zero count reads "no arms" rather than
+// "0 arms".
+func countOrNo(n int, singular, plural string) string {
+	if n == 0 {
+		return "no " + plural
+	}
+	return pluralize(n, singular, plural)
+}
+
+// joinList renders phrases as an English list with an Oxford comma: "a",
+// "a and b", "a, b, and c".
+func joinList(items []string) string {
+	switch len(items) {
+	case 0:
+		return ""
+	case 1:
+		return items[0]
+	case 2:
+		return items[0] + " and " + items[1]
+	}
+	return strings.Join(items[:len(items)-1], ", ") + ", and " + items[len(items)-1]
 }
 
 // ColorPhrase is Color with its Pattern folded in: "green" for a solid
@@ -422,13 +565,6 @@ func (sp AlienSpecies) ColorPhrase() string {
 		return sp.Color
 	}
 	return sp.Color + "-" + sp.Pattern.String()
-}
-
-func tailPhrase(hasTail bool) string {
-	if hasTail {
-		return "a tail"
-	}
-	return "no tail"
 }
 
 // pluralize renders "n word" with the right singular/plural noun.
