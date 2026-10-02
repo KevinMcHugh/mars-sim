@@ -829,6 +829,9 @@
 ## cooldown ticks between assault rifle bursts
 # rifle-fire-rest: 1
 
+## companies this seed's lore rolls; each gun kind is made by one of them
+# corporation-count: 4
+
 # ── Cats ────────────────────────────────────────────────────────────────
 ## cat hit points
 # cat-hp: 12

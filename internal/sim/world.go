@@ -889,6 +889,13 @@ type World struct {
 	// nor prng). See lore.go.
 	alienSpecies []AlienSpecies
 
+	// corporations is this world's roster of companies back home, and
+	// gunModels the make and model every gun kind carries (one per
+	// weaponKinds entry). Rolled once in newWorld off their own stream; pure
+	// flavor. See arms_makers.go and docs/arms-makers.md.
+	corporations []Corporation
+	gunModels    []GunModel
+
 	// unfoundCaverns holds the center of every natural cavern not yet
 	// discovered; a breach that reveals one rolls for its alien nest on
 	// nestRNG, a seed-derived stream of its own. See rollNests and
@@ -971,6 +978,9 @@ func newWorld(cfg Config, src *rand.PCG) *World {
 	w.rngSrc.topic = newPCG(cfg.Seed ^ conversationTopicSeed)
 	w.topicRNG = rand.New(w.rngSrc.topic)
 	w.alienSpecies = rollAlienSpeciesRoster(newRand(cfg.Seed^alienLoreSeed), cfg)
+	armsRNG := newRand(cfg.Seed ^ armsLoreSeed)
+	w.corporations = rollCorporationRoster(armsRNG, cfg)
+	w.gunModels = rollGunModels(armsRNG, w.corporations)
 	w.terrainCounts[Rock] = n // every tile starts as Rock
 
 	for k := Kind(0); k < numKinds; k++ {
@@ -1436,7 +1446,7 @@ func (w *World) spawnAs(kind Kind, p Point, species int) *Entity {
 
 // remove deletes an entity from the world, clears its occupancy, and — every
 // call here is a death — freezes it into the graveyard with cause as a short
-// player-facing phrase ("starved", "shot by Zoe Vargas with a shotgun"). See
+// player-facing phrase ("starved", "shot by Zoe Vargas with a MarsCorp M-117 shotgun"). See
 // docs/combat.md.
 func (w *World) remove(id EntityID, cause string) {
 	e := w.entities[id]

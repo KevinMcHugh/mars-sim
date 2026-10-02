@@ -161,8 +161,26 @@ func (t *Topics) Due(snap *sim.Snapshot, now time.Time) map[string]json.RawMessa
 // LoreTopic is the Lore panel: facts about the world, and every rolled alien
 // species, as the TUI's lore tab shows them (internal/ui/tui/render_lore.go).
 type LoreTopic struct {
-	World   LoreWorld     `json:"world"`
-	Species []LoreSpecies `json:"species"`
+	World        LoreWorld         `json:"world"`
+	Species      []LoreSpecies     `json:"species"`
+	Guns         []LoreGun         `json:"guns"`
+	Corporations []LoreCorporation `json:"corporations"`
+}
+
+// LoreGun is the make and model one kind of gun carries. See
+// docs/arms-makers.md.
+type LoreGun struct {
+	Kind  string `json:"kind"`  // "pistol"
+	Maker string `json:"maker"` // "MarsCorp"
+	Model string `json:"model"` // "M-117"
+}
+
+// LoreCorporation is one rolled company. Description names the guns it makes.
+type LoreCorporation struct {
+	Name        string `json:"name"`
+	HQ          string `json:"hq"`
+	Founded     int    `json:"founded"`
+	Description string `json:"description"`
 }
 
 // LoreWorld is the world's size, how much of it the colony has explored and
@@ -213,7 +231,17 @@ func loreTopic(s *sim.Snapshot) any {
 			Chunks:          s.Stats.Chunks,
 			Seed:            s.Seed,
 		},
-		Species: make([]LoreSpecies, 0, len(s.AlienSpecies)),
+		Species:      make([]LoreSpecies, 0, len(s.AlienSpecies)),
+		Guns:         make([]LoreGun, 0, len(s.GunModels)),
+		Corporations: make([]LoreCorporation, 0, len(s.Corporations)),
+	}
+	for _, g := range s.GunModels {
+		t.Guns = append(t.Guns, LoreGun{Kind: g.Kind.String(), Maker: g.Brand, Model: g.Model})
+	}
+	for i, c := range s.Corporations {
+		t.Corporations = append(t.Corporations, LoreCorporation{
+			Name: c.Name, HQ: c.HQ, Founded: c.Founded, Description: c.Description(i, s.GunModels),
+		})
 	}
 	for _, sp := range s.AlienSpecies {
 		t.Species = append(t.Species, LoreSpecies{

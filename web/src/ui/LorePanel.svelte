@@ -1,5 +1,6 @@
 <script lang="ts">
-  // The Lore tab: world facts and the rolled alien species, from the "lore"
+  // The Lore tab: world facts, the rolled alien species, and the arms makers
+  // behind the colony's guns (docs/arms-makers.md), from the "lore"
   // topic (internal/wire/topics.go), as the TUI's lore tab shows them.
   import { subscribe, topics } from '../game.svelte';
 
@@ -14,6 +15,8 @@
   interface Lore {
     world: { width: number; height: number; fogOfWar: boolean; exploredTiles: number; chunksGenerated: number; chunks: number; seed: number };
     species: Species[];
+    guns: { kind: string; maker: string; model: string }[];
+    corporations: { name: string; hq: string; founded: number; description: string }[];
   }
 
   $effect(() => subscribe('lore'));
@@ -72,6 +75,22 @@
       <p>{sp.description}</p>
     {/if}
   {/if}
+
+  {#if lore.guns?.length}
+    <h2 class="section">Guns</h2>
+    <dl>
+      {#each lore.guns as g (g.kind)}
+        <dt>{g.kind}</dt><dd>{g.maker} {g.model}</dd>
+      {/each}
+    </dl>
+  {/if}
+
+  {#if lore.corporations?.length}
+    <h2 class="section">Corporations ({lore.corporations.length})</h2>
+    {#each lore.corporations as c (c.name)}
+      <p class="corp">{c.description}</p>
+    {/each}
+  {/if}
 {/if}
 
 <style>
@@ -86,5 +105,7 @@
   .list button { width: 100%; text-align: left; border-color: transparent; background: transparent; }
   .list button.on { background: rgba(255, 255, 255, 0.1); border-color: var(--line); }
   p { margin: 0; line-height: 1.5; }
+  h2.section { margin-top: 18px; }
+  .corp + .corp { margin-top: 8px; }
   .muted { color: var(--muted); }
 </style>

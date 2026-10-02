@@ -216,7 +216,7 @@ that was that, with only a log line as evidence. `remove` now takes a
 set. `cause` is a short player-facing phrase built at the call site, where
 the context (who did it, with what) is available — `"starved"`,
 `"crushed by Zoe Vargas"`, `"devoured by an alien"`, `"caught by a cat"`,
-`"shot by Zoe Vargas with a shotgun"`. Every one of the six places an entity
+`"shot by Zoe Vargas with a MarsCorp M-117 shotgun"`. Every one of the six places an entity
 dies (colonist/rat starvation, `stomp`, fatal `bite`, `pounce`, fatal
 `shoot`) is a call to `remove`, so this one funnel is the whole feature.
 

@@ -508,6 +508,10 @@ type Config struct {
 	RifleDamage     int `cfg:"rifle-damage" doc:"HP removed per assault rifle burst"`
 	RifleRange      int `cfg:"rifle-range" doc:"max tiles an assault rifle can fire from"`
 	RifleFireRest   int `cfg:"rifle-fire-rest" doc:"cooldown ticks between assault rifle bursts"`
+	// CorporationCount is how many companies this seed's lore rolls; every gun
+	// kind gets a make and model from one of them. Flavor only. See
+	// arms_makers.go and docs/arms-makers.md.
+	CorporationCount int `cfg:"corporation-count" doc:"companies this seed's lore rolls; each gun kind is made by one of them"`
 
 	// Cat stats. Cats have no needs; they hunt rats on the floor by instinct.
 	CatHP         int `cfg:"cat-hp" sec:"Cats" doc:"cat hit points"`
@@ -801,6 +805,8 @@ func DefaultConfig() Config {
 		RifleDamage:     15,
 		RifleRange:      5,
 		RifleFireRest:   1,
+
+		CorporationCount: 4,
 
 		CatHP:         12,
 		CatSlowness:   2,

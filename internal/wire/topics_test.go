@@ -2,6 +2,7 @@ package wire
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 	"time"
 
@@ -69,6 +70,8 @@ func TestLoreTopic(t *testing.T) {
 		{Singular: "grub", Plural: "grubs", Emoji: glyphs.Beetle, Limbs: 6, Arms: 2, Temperament: sim.TemperamentHostile},
 		{Singular: "xeno", Plural: "xenos", Emoji: "\U0001F921"}, // not a listed glyph
 	}
+	snap.Corporations = []sim.Corporation{{Name: "MarsCorp", Code: "M", HQ: "Phobos", Founded: 2090}}
+	snap.GunModels = []sim.GunModel{{Kind: sim.Shotgun, Maker: 0, Brand: "MarsCorp", Model: "M-117"}}
 	tp := NewTopics()
 	if err := tp.Subscribe("lore"); err != nil {
 		t.Fatal(err)
@@ -90,6 +93,12 @@ func TestLoreTopic(t *testing.T) {
 	}
 	if lore.Species[1].Glyph != glyphs.Alien {
 		t.Errorf("an unlisted emoji reached the page: %q", lore.Species[1].Glyph)
+	}
+	if want := (LoreGun{Kind: "shotgun", Maker: "MarsCorp", Model: "M-117"}); len(lore.Guns) != 1 || lore.Guns[0] != want {
+		t.Errorf("guns = %+v, want [%+v]", lore.Guns, want)
+	}
+	if len(lore.Corporations) != 1 || lore.Corporations[0].Name != "MarsCorp" || !strings.Contains(lore.Corporations[0].Description, "M-117 shotgun") {
+		t.Errorf("corporations = %+v", lore.Corporations)
 	}
 }
 

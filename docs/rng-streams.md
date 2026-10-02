@@ -36,6 +36,7 @@ the RNG half of save/load.
 | worldgen caverns, per chunk | `featureRand(0x13198A2E03707344, cx, cy)` | one plan | no |
 | worldgen passages, per cavern pair | `featureRand(0xA4093822299F31D0, both caverns)` | one plan | no |
 | alien lore roster | `Seed ^ alienLoreSeed` | `newWorld` only | no |
+| arms-maker lore (corporations, gun models) | `Seed ^ armsLoreSeed` | `newWorld` only | no |
 
 Why the streams are split is covered per stream in
 [personality.md](./personality.md), [caverns.md](./caverns.md),
