@@ -91,6 +91,80 @@ func TestRollAlienSpeciesInvariants(t *testing.T) {
 		if sp.BiteRest < 1 || sp.Slowness < 1 {
 			t.Fatalf("seed %d: bite rest %d / slowness %d, want >= 1", seed, sp.BiteRest, sp.Slowness)
 		}
+		if sp.AttackModes == 0 {
+			t.Fatalf("seed %d: species rolled no attack modes", seed)
+		}
+		for _, m := range sp.Attacks() {
+			if !sp.canUse(m) {
+				t.Fatalf("seed %d: species (arms %d, tail %v) rolled attack %v its anatomy forbids",
+					seed, sp.Arms, sp.Tail, m)
+			}
+		}
+	}
+}
+
+// Across many seeds every attack mode shows up somewhere, so no mode is
+// accidentally unreachable through the anatomy gates.
+func TestRollAttackModesReachesEveryMode(t *testing.T) {
+	cfg := DefaultConfig()
+	names := defaultAlienNames()
+	var seen AttackSet
+	for seed := int64(0); seed < 200; seed++ {
+		seen |= rollAlienSpecies(newRand(seed), cfg, names, nil).AttackModes
+	}
+	for _, m := range attackModes {
+		if !seen.Has(m) {
+			t.Errorf("attack mode %v never rolled across 200 seeds", m)
+		}
+	}
+}
+
+// A tail-less, armless species can only bite, whatever the coin flips say.
+func TestRollAttackModesRespectsAnatomy(t *testing.T) {
+	sp := AlienSpecies{Limbs: 4, Arms: 0, Tail: false}
+	for seed := int64(0); seed < 50; seed++ {
+		if got := rollAttackModes(newRand(seed), sp); got != AttackSetOf(AttackBite) {
+			t.Fatalf("seed %d: armless, tailless species rolled %v, want bite only", seed, got)
+		}
+	}
+}
+
+// Strangling goes for the throat at half damage, and draws no hit roll.
+func TestStrangleHitsTheHeadAtHalfDamage(t *testing.T) {
+	cfg := testConfig()
+	cfg.StartColonists, cfg.StartAliens, cfg.StartCats, cfg.StartRats = 0, 0, 0, 0
+	w := newTestWorld(t, cfg)
+
+	alien := w.spawn(Alien, Point{0, 0})
+	sp := &w.alienSpecies[alien.Species]
+	sp.AttackModes = AttackSetOf(AttackStrangle)
+	sp.BiteDamage = 6
+	victim := w.spawn(Colonist, Point{1, 0})
+	victim.HP = 999
+	victim.Parts = [numBodyParts]int{999, 999, 999, 999, 999, 999}
+
+	w.strike(alien, victim)
+
+	if victim.Parts[Head] != 996 || victim.HP != 996 {
+		t.Fatalf("after strangle: head %d, HP %d, want both 996 (3 damage to the head)", victim.Parts[Head], victim.HP)
+	}
+	if got, want := lastMemory(victim), "Half-strangled by "+w.alienNounFor(alien)+"!"; got != want {
+		t.Fatalf("victim memory = %q, want %q", got, want)
+	}
+}
+
+// Each mode narrates its own blow.
+func TestStrikeTargetTextByMode(t *testing.T) {
+	cases := map[AttackMode]string{
+		AttackBite:     "Bitten in the torso by a grelk!",
+		AttackClaw:     "Clawed across the torso by a grelk!",
+		AttackTail:     "Lashed across the torso by a grelk's tail!",
+		AttackStrangle: "Half-strangled by a grelk!",
+	}
+	for mode, want := range cases {
+		if got := strikeTargetText(mode, Torso, "a grelk"); got != want {
+			t.Errorf("%v: %q, want %q", mode, got, want)
+		}
 	}
 }
 
@@ -193,11 +267,12 @@ func TestBiteUsesRolledSpeciesDamage(t *testing.T) {
 	w := newTestWorld(t, cfg)
 
 	alien := w.spawn(Alien, Point{0, 0})
+	w.alienSpecies[alien.Species].AttackModes = AttackSetOf(AttackBite) // strangling halves it
 	victim := w.spawn(Colonist, Point{1, 0})
 	victim.HP = 999
 	victim.Parts = [numBodyParts]int{999, 999, 999, 999, 999, 999}
 
-	w.bite(alien, victim)
+	w.strike(alien, victim)
 
 	dmg := w.alienSpeciesFor(alien).BiteDamage
 	if got, want := victim.HP, 999-dmg; got != want {
@@ -424,19 +499,21 @@ func TestDescriptionByTemperament(t *testing.T) {
 		},
 		{
 			AlienSpecies{Plural: "purples", HeightMinCM: 183, HeightMaxCM: 361, WeightMinKG: 43, WeightMaxKG: 85,
-				Eyes: 3, Limbs: 4, Arms: 3, Skin: SkinSlimy, Color: "purple", Temperament: TemperamentCautious},
-			`Purples stand 1.8-3.6 m (6'0"-11'10") tall, weighing 43-85 kg (95-187 lb). They are skittish around humans; approach with caution. They can be recognized by their slimy purple skin, 3 eyes, 3 arms, and 1 leg.`,
+				Eyes: 3, Limbs: 4, Arms: 3, Skin: SkinSlimy, Color: "purple", Temperament: TemperamentCautious,
+				AttackModes: AttackSetOf(AttackStrangle)},
+			`Purples stand 1.8-3.6 m (6'0"-11'10") tall, weighing 43-85 kg (95-187 lb). They are skittish around humans; approach with caution. They can be recognized by their slimy purple skin, 3 eyes, 3 arms, and 1 leg. Get too close and they lash out by strangling with their arms.`,
 		},
 		{
 			AlienSpecies{Plural: "xenos", HeightMinCM: 149, HeightMaxCM: 261, WeightMinKG: 103, WeightMaxKG: 181,
-				Eyes: 5, Limbs: 6, Arms: 3, Skin: SkinBony, Color: "red", Temperament: TemperamentHostile},
-			`The feared Xenos stand 1.5-2.6 m (4'11"-8'7") tall, weighing 103-181 kg (227-399 lb). They hunt humans with 5 eyes and 3 fearsome arms, and crawl on 3 legs. Their bony red skin blends into the Martian rock.`,
+				Eyes: 5, Limbs: 6, Arms: 3, Skin: SkinBony, Color: "red", Temperament: TemperamentHostile,
+				AttackModes: AttackSetOf(AttackClaw, AttackBite)},
+			`The feared Xenos stand 1.5-2.6 m (4'11"-8'7") tall, weighing 103-181 kg (227-399 lb). They hunt humans with 5 eyes and 3 fearsome arms, and crawl on 3 legs. They kill by biting and raking with their claws. Their bony red skin blends into the Martian rock.`,
 		},
 		{
 			AlienSpecies{Plural: "worms", HeightMinCM: 40, HeightMaxCM: 60, WeightMinKG: 3, WeightMaxKG: 5,
 				Eyes: 1, Limbs: 2, Arms: 2, Tail: true, Skin: SkinScaly, Color: "blue", Pattern: PatternStriped,
-				Temperament: TemperamentHostile},
-			`The feared Worms stand 0.4-0.6 m (1'4"-2'0") tall, weighing 3-5 kg (7-11 lb). They hunt humans with 1 eye, 2 fearsome arms, and a lashing tail, and slither along without legs. Their blue-striped scales stand out against the Martian rock.`,
+				Temperament: TemperamentHostile, AttackModes: AttackSetOf(AttackBite, AttackTail, AttackStrangle)},
+			`The feared Worms stand 0.4-0.6 m (1'4"-2'0") tall, weighing 3-5 kg (7-11 lb). They hunt humans with 1 eye and 2 fearsome arms, and slither along without legs. They kill by biting, thrashing their tails, and strangling with their arms. Their blue-striped scales stand out against the Martian rock.`,
 		},
 	}
 	for _, c := range cases {

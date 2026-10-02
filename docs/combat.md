@@ -30,7 +30,7 @@ now leaves.
 - [`internal/sim/inventory.go`](../internal/sim/inventory.go) — the `Pistol`/
   `Shotgun` item kinds and `bestWeapon`.
 - [`internal/sim/systems.go`](../internal/sim/systems.go) — `colonistTurn`'s
-  survival branch (fight vs. flee), `bite` (now body-part aware), `stomp`
+  survival branch (fight vs. flee), `strike` (body-part aware; the alien's species-rolled attack mode — see [lore.md](./lore.md#attack-modes-how-a-species-fights)), `stomp`
   (now leaves gore).
 - [`internal/sim/world.go`](../internal/sim/world.go) — `Tile.Gore`,
   `World.addGore`, `World.addCorpse`, `World.remove` (the graveyard funnel),
@@ -106,7 +106,8 @@ stay deterministic for a given seed (see `AGENTS.md`).
 zero) *and* from the entity's aggregate `HP` (also floored at zero, and still
 what starvation drains — see [needs.md](./needs.md)), then returns whether
 the hit was fatal by `Entity.Alive()`'s rule. Every damage source funnels
-through it: `bite` and `shoot` both call `rollHit` then `applyDamage`.
+through it: `strike` and `shoot` both call `rollHit` then `applyDamage`
+(except a strangling `strike`, which aims for the head without a roll).
 
 ### Weapons
 
@@ -147,7 +148,7 @@ mechanism separately from that balance question).
 
 `shoot` fires one shot: `rollHit`, `applyDamage`, and either gore + `remove`
 + log/memories on a kill, or a "shot the alien in the X" memory and a
-generic log line otherwise. `bite` was reworked the same way instead of
+generic log line otherwise. The alien's attack (then `bite`, now `strike`) was reworked the same way instead of
 subtracting a flat `AlienDamage` from `prey.HP`.
 
 ### Starting weapons
@@ -189,12 +190,12 @@ it is half of what the cleaning job exists to remove.
 `World.addGore(p)` bumps it, capped at `maxGore` (3; the cap just
 stops the counter climbing forever, since the renderer today draws one
 splatter glyph for any `Gore > 0` regardless of count — see Extending it).
-Three call sites splatter: a fatal `bite`, a killing `shoot`, and every
+Three call sites splatter: a fatal `strike`, a killing `shoot`, and every
 `stomp` (a rat is always fatal to crush, so it always leaves a mark). A
 cat's `pounce` does not — the user's ask was specifically "stomping a rat
 should leave a mess," and a cat catching its natural prey reads as predation
 rather than the same kind of violence. The same call sites decide whether a
-*body* is left too (`addCorpse`): `shoot` and `stomp` leave one, while `bite`
+*body* is left too (`addCorpse`): `shoot` and `stomp` leave one, while `strike`
 and `pounce` — where the remains are eaten — leave only the stains.
 
 `tileGlyph` (`glyphs.go`) draws the gore glyph in place of bare terrain when
@@ -215,9 +216,9 @@ that was that, with only a log line as evidence. `remove` now takes a
 `snapshot()` uses for living entities) with `Dead`, `DiedTick`, and `Cause`
 set. `cause` is a short player-facing phrase built at the call site, where
 the context (who did it, with what) is available — `"starved"`,
-`"crushed by Zoe Vargas"`, `"devoured by an alien"`, `"caught by a cat"`,
+`"crushed by Zoe Vargas"`, `"strangled to death by a grelk"`, `"caught by a cat"`,
 `"shot by Zoe Vargas with a MarsCorp M-117 shotgun"`. Every one of the six places an entity
-dies (colonist/rat starvation, `stomp`, fatal `bite`, `pounce`, fatal
+dies (colonist/rat starvation, `stomp`, fatal `strike`, `pounce`, fatal
 `shoot`) is a call to `remove`, so this one funnel is the whole feature.
 
 The graveyard is capped at `Config.GraveyardSize` (default 50; 0 disables
@@ -371,5 +372,5 @@ cap.
   bite/stomp/pounce/shoot and gore sightings feed.
 - [frontend-tui.md](./frontend-tui.md) — the fighting glyph, the gore glyph,
   and the roster's dead/non-human filter and wound line.
-- [lore.md](./lore.md) — the rolled alien species `bite`/`shoot` now read for
+- [lore.md](./lore.md) — the rolled alien species `strike`/`shoot` now read for
   damage, pace, and the name they narrate with instead of "alien."

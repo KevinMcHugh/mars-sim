@@ -214,6 +214,7 @@ type LoreSpecies struct {
 	Skin        string `json:"skin"`
 	Color       string `json:"color"`
 	Pattern     string `json:"pattern"`
+	Attacks     string `json:"attacks"` // "bite, claws, tail"
 	BiteDamage  int    `json:"biteDamage"`
 	BiteRest    int    `json:"biteRest"` // ticks between bites
 	Slowness    int    `json:"slowness"` // ticks per step
@@ -262,6 +263,7 @@ func loreTopic(s *sim.Snapshot) any {
 			Skin:        sp.Skin.String(),
 			Color:       sp.Color,
 			Pattern:     sp.Pattern.String(),
+			Attacks:     sp.AttacksLabel(),
 			BiteDamage:  sp.BiteDamage,
 			BiteRest:    sp.BiteRest,
 			Slowness:    sp.Slowness,

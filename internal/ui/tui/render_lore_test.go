@@ -22,6 +22,7 @@ func loreSnapshot() *sim.Snapshot {
 			Eyes: 4, Limbs: 6, Arms: 2, Tail: true,
 			Skin: sim.SkinScaly, Color: "green",
 			Temperament: sim.TemperamentHostile,
+			AttackModes: sim.AttackSetOf(sim.AttackBite, sim.AttackTail),
 			BiteDamage:  12, BiteRest: 2, Slowness: 1,
 		},
 		{
@@ -64,7 +65,8 @@ func TestLoreTabShowsWorldFactsAndFirstSpecies(t *testing.T) {
 		"ALIEN SPECIES (2)",
 		"Xeno · hostile",
 		"Height:        180-220 cm",
-		"Bite damage:   12",
+		"Attacks:       bite, tail",
+		"Attack damage: 12",
 		"FIELD NOTES",
 	} {
 		if !strings.Contains(out, want) {

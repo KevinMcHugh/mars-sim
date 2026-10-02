@@ -135,6 +135,134 @@ func (s AlienSkin) String() string {
 	}
 }
 
+// AttackMode is one way a species can hurt its prey. Which modes a species
+// has is rolled once, gated by its anatomy (see rollAttackModes): only a
+// species with a tail can thrash one, only one with arms has claws, and
+// strangling needs at least two arms to get a grip. Every species has a
+// mouth, so biting is always available.
+type AttackMode uint8
+
+const (
+	AttackBite AttackMode = iota
+	AttackClaw
+	AttackTail
+	AttackStrangle
+)
+
+// attackModes is every mode in roll order. rollAttackModes walks it, so
+// reordering it (or inserting into the middle) shifts lore-stream draws.
+var attackModes = [...]AttackMode{AttackBite, AttackClaw, AttackTail, AttackStrangle}
+
+func (m AttackMode) String() string {
+	switch m {
+	case AttackBite:
+		return "bite"
+	case AttackClaw:
+		return "claws"
+	case AttackTail:
+		return "tail"
+	case AttackStrangle:
+		return "strangle"
+	default:
+		return "unknown"
+	}
+}
+
+// canUse reports whether a species' build allows an attack mode at all.
+func (sp AlienSpecies) canUse(m AttackMode) bool {
+	switch m {
+	case AttackClaw:
+		return sp.Arms > 0
+	case AttackTail:
+		return sp.Tail
+	case AttackStrangle:
+		return sp.Arms >= 2
+	default: // AttackBite: every species has a mouth
+		return true
+	}
+}
+
+// AttackSet is a set of AttackModes, one bit each. A bitmask rather than a
+// slice so AlienSpecies stays a comparable value that a Snapshot copies
+// without sharing a backing array.
+type AttackSet uint8
+
+// AttackSetOf builds a set from modes.
+func AttackSetOf(modes ...AttackMode) AttackSet {
+	var s AttackSet
+	for _, m := range modes {
+		s |= 1 << m
+	}
+	return s
+}
+
+// Has reports whether m is in the set.
+func (s AttackSet) Has(m AttackMode) bool { return s&(1<<m) != 0 }
+
+// rollAttackModes picks which of the modes its anatomy allows a species
+// actually fights with: each allowed mode is kept on a coin flip, so two
+// clawed, tailed species need not fight alike. A species that keeps nothing
+// bites -- every species has at least one way to attack.
+func rollAttackModes(rng *rand.Rand, sp AlienSpecies) AttackSet {
+	var set AttackSet
+	for _, m := range attackModes {
+		if sp.canUse(m) && rng.IntN(2) == 0 {
+			set |= AttackSetOf(m)
+		}
+	}
+	if set == 0 {
+		set = AttackSetOf(AttackBite)
+	}
+	return set
+}
+
+// Attacks is the species' attack modes in attackModes order, never empty: a
+// species built by hand (tests, mostly) with no AttackModes bites, the same
+// fallback rollAttackModes uses.
+func (sp AlienSpecies) Attacks() []AttackMode {
+	var modes []AttackMode
+	for _, m := range attackModes {
+		if sp.AttackModes.Has(m) {
+			modes = append(modes, m)
+		}
+	}
+	if len(modes) == 0 {
+		return []AttackMode{AttackBite}
+	}
+	return modes
+}
+
+// AttacksLabel lists the species' attack modes for a stat line: "bite,
+// claws, tail".
+func (sp AlienSpecies) AttacksLabel() string {
+	modes := sp.Attacks()
+	names := make([]string, len(modes))
+	for i, m := range modes {
+		names[i] = m.String()
+	}
+	return strings.Join(names, ", ")
+}
+
+// attackPhrase is how a description says a species fights: "biting,
+// raking with their claws, and thrashing their tails".
+func (sp AlienSpecies) attackPhrase() string {
+	modes := sp.Attacks()
+	phrases := make([]string, len(modes))
+	for i, m := range modes {
+		switch m {
+		case AttackClaw:
+			phrases[i] = "raking with their claws"
+		case AttackTail:
+			phrases[i] = "thrashing their tails"
+		case AttackStrangle:
+			phrases[i] = "strangling with their arms"
+		default:
+			phrases[i] = "biting"
+		}
+	}
+	return joinList(phrases)
+}
+
 // alienColors is the palette a species' Color is drawn from -- both flavor
 // and a naming condition (see alien_names.go's `color` field, and the
 // per-color entries in alien-names.yaml).
@@ -250,6 +378,10 @@ type AlienSpecies struct {
 	// AlienTemperament and alienTurn in systems.go.
 	Temperament AlienTemperament
 
+	// AttackModes is how it hurts prey -- see rollAttackModes. Read it
+	// through Attacks(), which never returns empty.
+	AttackModes AttackSet
+
 	// BiteDamage, BiteRest, and Slowness are precomputed once at roll time
 	// from Config's alien baselines (AlienDamage/AlienBiteRest/
 	// AlienSlowness) so combat never recomputes them per hit or per turn.
@@ -321,6 +453,9 @@ func rollAlienSpecies(rng *rand.Rand, cfg Config, names []AlienNameEntry, used m
 	sp.WeightMaxKG = max(sp.WeightMinKG+1, int(float64(sp.HeightMaxCM)*density))
 
 	sp.Singular, sp.Plural, sp.Emoji = pickAlienName(rng, sp, names, used)
+	// After the name, so adding attack modes left this species' own build
+	// and name exactly as before; only later species' draws shift.
+	sp.AttackModes = rollAttackModes(rng, sp)
 
 	sp.BiteDamage = speciesDamage(sp, cfg)
 	sp.BiteRest = scaledByTemperament(cfg.AlienBiteRest, sp.Temperament)
@@ -428,9 +563,6 @@ func (sp AlienSpecies) Description() string {
 		if sp.Arms > 0 {
 			weapons = append(weapons, pluralize(sp.Arms, "fearsome arm", "fearsome arms"))
 		}
-		if sp.Tail {
-			weapons = append(weapons, "a lashing tail")
-		}
 		blend := "stands out against"
 		if blendsWithMars(sp.Color) {
 			blend = "blends into"
@@ -443,11 +575,11 @@ func (sp AlienSpecies) Description() string {
 		if len(weapons) > 1 {
 			sep = ", and "
 		}
-		return fmt.Sprintf("The feared %s %s. They hunt humans with %s%s%s. Their %s %s the Martian rock.",
-			name, size, joinList(weapons), sep, sp.gaitPhrase(), covering, blend)
+		return fmt.Sprintf("The feared %s %s. They hunt humans with %s%s%s. They kill by %s. Their %s %s the Martian rock.",
+			name, size, joinList(weapons), sep, sp.gaitPhrase(), sp.attackPhrase(), covering, blend)
 	default: // TemperamentCautious
-		return fmt.Sprintf("%s %s. They are skittish around humans; approach with caution. They can be recognized by their %s, %s.",
-			name, size, covering, joinList(sp.bodyParts()))
+		return fmt.Sprintf("%s %s. They are skittish around humans; approach with caution. They can be recognized by their %s, %s. Get too close and they lash out by %s.",
+			name, size, covering, joinList(sp.bodyParts()), sp.attackPhrase())
 	}
 }
 
