@@ -17,7 +17,7 @@ import "sort"
 // harvester and a loader are never fighting for the one access tile. Nothing
 // in it is life support on its own, so a cramped cavern gets the narrow room.
 var incubatorRoom = roomRecipe{
-	name: "incubator", kinds: []Terrain{Incubator}, minFac: 1, maxFac: 2, aisle: true,
+	name: "incubator", kinds: []Terrain{Incubator}, minFac: 1, maxFac: 2, aisle: true, expands: true,
 	planLog: "The colony marks out a scum incubator.",
 }
 

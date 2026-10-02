@@ -93,6 +93,9 @@ cramped. The planner wants `ceil(colonists / colonists-per-incubator)` of them
 while pods do not feed anyone (`!podsFeed`). It is an ordinary public work: if
 the treasury can't fund it the planner moves on, and the colony scrapes as it
 always did until one stands. With `infinite-food` on it is player-ordered only.
+Either way, more incubators go into an incubator room the colony already has,
+moving its side wall out, before a new room is marked out (see
+[room-expansion.md](./room-expansion.md)).
 
 ## Why it is this way
 

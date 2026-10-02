@@ -2,21 +2,27 @@ package sim
 
 import "testing"
 
-// builtDorm is rockSiteWorld with a finished, south-facing dormitory of n
-// bunks in a rock niche at o, its lanes and approach row carved out, and its
-// project pruned, as a colony would have left it.
+// builtDorm is builtRoom for a dormitory.
 func builtDorm(t *testing.T, o Point, n int) (*World, *roomRecord) {
 	t.Helper()
+	return builtRoom(t, dormRoom, o, n)
+}
+
+// builtRoom is rockSiteWorld with a finished, south-facing room of r with n
+// fixtures in a rock niche at o, its lanes and approach row carved out, and
+// its project pruned, as a colony would have left it.
+func builtRoom(t *testing.T, r roomRecipe, o Point, n int) (*World, *roomRecord) {
+	t.Helper()
 	w := rockSiteWorld(t)
-	width := dormRoom.roomWidth(n)
+	width := r.roomWidth(n)
 	carve(w, Point{o.X - 2, o.Y + roomBackV}, Point{o.X + width + 1, o.Y + roomFrontV + roomApproach}, Floor)
 	w.refreshSpatial()
 	f := roomFrame{o: o, width: width}
 	if !w.roomSiteClear(f, map[Point]bool{}, siteRules{}) {
-		t.Fatal("test setup: the dormitory's site is not clear")
+		t.Fatalf("test setup: the %s's site is not clear", r.name)
 	}
-	if !w.designateRoom(dormRoom, f, n, Community) {
-		t.Fatal("test setup: the dormitory was not designated")
+	if !w.designateRoom(r, f, n, Community) {
+		t.Fatalf("test setup: the %s was not designated", r.name)
 	}
 	raise(w, w.projects[0])
 	w.pruneProjects()
@@ -146,6 +152,64 @@ func TestStorageRoomGrowsIntoItsOldWall(t *testing.T) {
 	}
 	if rec.n != 2 || !roomSealed(w, rec) {
 		t.Fatalf("record n=%d, sealed=%v; want 2 containers behind whole walls", rec.n, roomSealed(w, rec))
+	}
+}
+
+// A kitchen grows by a whole kitchen: a stove where its old wall stood and,
+// two tiles on, a pantry linked to it, as a new kitchen's would be. It never
+// grows by a stove alone, and a narrow kitchen of one stove does not grow.
+func TestKitchenGrowsByAStoveAndItsPantry(t *testing.T) {
+	o := Point{18, 10}
+	w, rec := builtRoom(t, scumhouseRoom, o, 2) // aisle, stove, gap, pantry, aisle: x 18..22
+	if w.expandRoom(scumhouseRoom, 1) {
+		t.Fatal("a kitchen grew by a stove without its pantry")
+	}
+	if !w.expandRoom(scumhouseRoom, scumhouseRoom.fullBay()) {
+		t.Fatal("the kitchen did not grow")
+	}
+	raise(w, w.projects[0])
+	house, pantry := Point{23, 10}, Point{25, 10}
+	if w.TerrainAt(house) != Scumhouse || w.TerrainAt(pantry) != Storage {
+		t.Fatalf("want a stove at %v and a pantry at %v", house, pantry)
+	}
+	if got, ok := w.pantryFor(house); !ok || got != pantry {
+		t.Fatalf("the new stove's pantry is %v (%v), want %v", got, ok, pantry)
+	}
+	if rec.n != 4 || !roomSealed(w, rec) {
+		t.Fatalf("record n=%d, sealed=%v; want 4 fixtures behind whole walls", rec.n, roomSealed(w, rec))
+	}
+
+	narrow := scumhouseRoom
+	narrow.aisle = false
+	w, _ = builtRoom(t, narrow, o, 1)
+	if w.expandRoom(scumhouseRoom, scumhouseRoom.fullBay()) {
+		t.Fatal("a one-stove kitchen grew; its new end would pair a pantry with the old stove's neighbor")
+	}
+}
+
+// An ordered kitchen, incubator or meeting hall goes into one the colony
+// already has, a new room's worth of fixtures at a time, as an ordered
+// dormitory does.
+func TestOrdersGrowEveryKindOfExpandingRoom(t *testing.T) {
+	for _, tc := range []struct {
+		r     roomRecipe
+		n     int
+		order func(w *World) *int
+	}{
+		{scumhouseRoom, 2, func(w *World) *int { return &w.manualScumhouses }},
+		{incubatorRoom, 2, func(w *World) *int { return &w.manualIncubators }},
+		{hallRoom, 2, func(w *World) *int { return &w.manualHalls }},
+		{storageRoom, 1, func(w *World) *int { return &w.manualStorageRooms }},
+	} {
+		w, rec := builtRoom(t, tc.r, Point{14, 10}, tc.n)
+		*tc.order(w) = 1
+		w.planRooms()
+		if len(w.projects) != 1 || w.projects[0].room != rec {
+			t.Fatalf("%s: the order did not grow the %s the colony has", tc.r.name, tc.r.name)
+		}
+		if want := tc.n + tc.r.fullBay(); rec.n != want {
+			t.Fatalf("%s: grew to %d fixtures, want %d", tc.r.name, rec.n, want)
+		}
 	}
 }
 

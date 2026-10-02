@@ -4,8 +4,9 @@
 
 ## What it is
 
-When the colony wants more bunks or another storage container, it first tries
-to **grow a room it already has**: it tears down one of the room's side walls,
+When the colony wants more of a room's fixtures (bunks, storage containers,
+kitchens, incubators, meeting-hall chairs), it first tries to **grow a room it
+already has**: it tears down one of the room's side walls,
 raises a new one further out, and fits the new fixtures in the space between.
 Only when no room of that kind can grow does it mark out a new one. The colony
 commissions the work like any public work, from the treasury, and tearing a
@@ -14,19 +15,27 @@ wall down has its own wage.
 ## Source
 
 - [`internal/sim/roomgrow.go`](../internal/sim/roomgrow.go) — `roomRecord`, `growOrPlan`, `expandRoom`, `expansionClear`, `designateExpansion`.
-- [`internal/sim/project.go`](../internal/sim/project.go) — `roomRecipe.expands`, `roomDemolishPhase`, where `designateRoom` records each room, and the `planRooms` call sites.
+- [`internal/sim/project.go`](../internal/sim/project.go) — `roomRecipe.expands` and `fullBay`, `roomDemolishPhase`, where `designateRoom` records each room, and the `planRooms` call sites.
+- [`internal/sim/hall.go`](../internal/sim/hall.go) — `chairsShort`, the hall's shortfall in chairs.
 - [`internal/sim/workorder.go`](../internal/sim/workorder.go) — `taskWage`: a wall torn down pays `wage-demolish`.
 - [`internal/sim/systems.go`](../internal/sim/systems.go) — `jobBuild`'s demolition branch, shared with passages.
-- [`internal/sim/roomgrow_test.go`](../internal/sim/roomgrow_test.go) — growing right and left, a storage room's aisle, no double walls, staying out of other rooms, the planner's preference, and colonists building one.
+- [`internal/sim/roomgrow_test.go`](../internal/sim/roomgrow_test.go) — growing right and left, a storage room's aisle, a kitchen's stove-and-pantry pair, no double walls, staying out of other rooms, the planner's preference and orders for every kind, and colonists building one.
 
 ## How it works
 
 ### Which rooms grow
 
-A recipe with `expands` set grows: the **dormitory** and the **storage room**.
-Both are a bay of one kind of fixture, so the new end of the room is the same
-as the old one. Life-support rooms alternate pods and toilets, kitchens pair a
-stove with a pantry, and so on; those do not expand.
+A recipe with `expands` set grows: the **dormitory**, **storage room**,
+**kitchen** (scumhouse), **incubator** and **meeting hall**. A room grows by
+whole cycles of its recipe's `kinds`, so the new end of the bay repeats the
+old. For every one but the kitchen that is one fixture at a time. A kitchen's
+bay is a stove and its pantry, so it grows a pair at a time: the stove where
+the old side wall stood, its pantry two tiles on, linked by `linkPantry` as a
+new kitchen's are. A kitchen whose bay is not whole pairs (a narrow one-stove
+kitchen from a cramped cavern) does not grow, since its next fixture would be a
+pantry for nobody. Life-support rooms (pods and toilets), the trash room and
+the foundry do not expand: the colony wants one incinerator and one foundry,
+and a facility room's alternation is its own demand.
 
 Expansion is tried before a new room (`growOrPlan`) wherever the colony wants
 more of those fixtures:
@@ -35,11 +44,15 @@ more of those fixtures:
 | --- | --- |
 | The planner short of bunks (`plannedFacilities(Bed) < desired`) | the shortfall |
 | A colonist with a full inventory and nowhere to unload (`colonyNeedsStorage`), including the over-cap exception | 1 container |
-| A player's dormitory order (`b` then `d`) | a full room's worth, `roomFacilities` (4) |
-| A player's storage order (`b` then `r`) | 1 container |
+| The planner short of kitchens, after the first (`plannedColonyKitchens() < desiredScumhouses()`) | one kitchen: a stove and pantry |
+| The planner short of incubators (`wantsIncubator`) | the shortfall |
+| The planner short of chairs (`chairsShort`) | the shortfall |
+| A player's order for any of these rooms (`b` then `d`, `r`, `h`, `i`, `m`) | a new room's worth, `fullBay` (4 bunks or chairs, 1 container, 1 kitchen, 2 incubators) |
 
-The colony's first storage room (its silo, when there is no market depot) is
-always a new room: there is nothing to grow yet.
+Two rooms are always new: the colony's first storage room (its silo, when
+there is no market depot) and its first kitchen, which is life support and may
+be built unpaid when the treasury can't fund it. Either way there is nothing
+to grow yet.
 
 ### Rooms are recorded
 
@@ -136,9 +149,27 @@ room's project.
   rectangle with a bay of bunks) would be fragile around party walls and
   crash pods. Recording them at designation is one slice append and keeps
   everything deterministic (records are iterated in order, never as a map).
-- **Only one-fixture bays.** Growing a room means its new end repeats its old
-  one. A life-support room's alternation and a kitchen's stove-and-pantry pair
-  don't extend cleanly, so they are left out, not approximated.
+- **Whole cycles of the bay.** Growing a room means its new end repeats its
+  old one. A kitchen grows a stove and its pantry together, so every stove
+  keeps a pantry of its own (see [scumhouse.md](./scumhouse.md)).
+- **Kitchens, incubators and halls too.** The first version grew only
+  dormitories and storage rooms. On a 30-colonist colony (seed
+  1790962337151000000, 10000×10000) the colony never wanted either: crash pods
+  bring bunks and lockers. What it did want was ten kitchens, four incubator
+  rooms and three halls, each a new room. Back-wall sharing (see
+  [construction.md](./construction.md)) made both side walls of a room good
+  backing, so they went up as triptychs: a room with a kitchen backed onto each
+  side wall, facing away. With those three kinds growing too, the same run at
+  tick 10,000 had 11 rooms instead of 20: two kitchens of four stoves each, one
+  incubator room of six, two full halls.
+- **It does not cost food.** Over 48 seeds (20 colonists, 200×200, 30,000
+  ticks), as many colonists survived with expansion as without (789 and 788).
+  More starved with it (19 against 8), but only in runs with aliens, where any
+  change to the rooms reshuffles who is eaten and who starves: one run with
+  expansion off lost all 20 colonists to a grelk swarm and so counted none
+  starved, where with expansion on 11 lived and 5 starved. With aliens off,
+  neither starved any of its 960 colonists. `TestTheTreasuryOutlastsALongRun`
+  now runs without aliens for that reason.
 - **No lanes or approach required.** A new room needs those so its outer wall
   tasks can be reached before its interior exists. An expansion's interior is
   reachable from the start, so requiring them would only refuse sites, mostly
@@ -152,9 +183,11 @@ room's project.
 
 ## Extending it
 
-- **Another expandable recipe** needs only `expands: true`, provided its bay is
-  one fixture kind (or `kinds` cycles cleanly from `n`, which
-  `designateExpansion` continues from).
+- **Another expandable recipe** needs only `expands: true`, provided its bay
+  repeats in whole cycles of `kinds` (`designateExpansion` continues the cycle
+  from `n`). If its fixtures are linked to each other, as a kitchen's stove and
+  pantry are, link the new ones in `designateExpansion` as it does
+  `linkPantry`.
 - **Growing deeper rather than wider** (more rows in front of the bay) would
   move the front wall and its doorway, so `w.doorTiles` would need an entry
   removed, and nothing removes entries today. Keep that invariant in mind.

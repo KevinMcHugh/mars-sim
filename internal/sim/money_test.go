@@ -202,12 +202,17 @@ func TestTheWealthLevyTaxesOnlyTheExcess(t *testing.T) {
 // A 20-colonist colony used to drain its treasury by tick 20000: the colony
 // only paid out, so it stopped buying biomatter and most of the colony
 // starved. The wealth levy is money's way back.
+//
+// There are no aliens: on this seed they ate nine colonists, and whoever
+// starved during the raids changed with anything that moved a room, which is
+// not what this measures.
 func TestTheTreasuryOutlastsALongRun(t *testing.T) {
 	if testing.Short() {
 		t.Skip("long run")
 	}
 	cfg := DefaultConfig()
 	cfg.Seed, cfg.StartColonists, cfg.Width, cfg.Height = 9, 20, 200, 200
+	cfg.StartAliens, cfg.CavernNestPercent = 0, 0
 	w := NewEngine(cfg).world
 	for i := 0; i < 30000; i++ {
 		w.step()

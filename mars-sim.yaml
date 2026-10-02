@@ -630,10 +630,10 @@
 ## rooms that can be under construction at once
 # max-concurrent-projects: 2
 
-## enlarge an existing dormitory or storage room, moving a side wall out, before building a new one
+## enlarge an existing dormitory, storage room, kitchen, incubator or meeting hall, moving a side wall out, before building a new one
 # room-expansion: true
 
-## most bunks or containers a room grows to by expansion
+## most fixtures (bunks, containers, stoves and pantries, incubators, chairs) a room grows to by expansion
 # room-max-facilities: 8
 
 ## ticks a colonist's room must stay cut off from the colony before it breaks out on its own

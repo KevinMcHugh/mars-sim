@@ -322,13 +322,13 @@ type Config struct {
 	// larger colony's facility supply keep pace with growth; see
 	// construction.md.
 	MaxConcurrentProjects int `cfg:"max-concurrent-projects" doc:"rooms that can be under construction at once"`
-	// RoomExpansion has the colony grow a dormitory or storage room it already
-	// has, tearing down one side wall and raising a new one further out,
-	// before it marks out a new room for more bunks or another container.
-	// RoomMaxFacilities is as long as expansion lets a room grow. See
-	// docs/room-expansion.md.
-	RoomExpansion     bool `cfg:"room-expansion" doc:"enlarge an existing dormitory or storage room, moving a side wall out, before building a new one"`
-	RoomMaxFacilities int  `cfg:"room-max-facilities" doc:"most bunks or containers a room grows to by expansion"`
+	// RoomExpansion has the colony grow a room it already has (a dormitory,
+	// storage room, kitchen, incubator or meeting hall), tearing down one
+	// side wall and raising a new one further out, before it marks out a new
+	// room for more of the same fixtures. RoomMaxFacilities is as long as
+	// expansion lets a room grow. See docs/room-expansion.md.
+	RoomExpansion     bool `cfg:"room-expansion" doc:"enlarge an existing dormitory, storage room, kitchen, incubator or meeting hall, moving a side wall out, before building a new one"`
+	RoomMaxFacilities int  `cfg:"room-max-facilities" doc:"most fixtures (bunks, containers, stoves and pantries, incubators, chairs) a room grows to by expansion"`
 
 	// EscapeGraceTicks is how long a colonist's room must stay cut off from the
 	// colony's main connected network (see rooms.go's mainRoom) before it gives

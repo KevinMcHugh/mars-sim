@@ -17,7 +17,7 @@ package sim
 // Two chairs is the smallest hall worth the walls; four fill the usual bay.
 // The planner asks for chairs, not rooms: see wantsHall.
 var hallRoom = roomRecipe{
-	name: "meeting hall", kinds: []Terrain{Chair}, minFac: 2, maxFac: roomFacilities,
+	name: "meeting hall", kinds: []Terrain{Chair}, minFac: 2, maxFac: roomFacilities, expands: true,
 	planLog: "The colony commissions a meeting hall.",
 }
 
@@ -36,14 +36,17 @@ const (
 // wantsHall reports whether the colony wants chairs it has not planned: one
 // for each colonists-per-chair colonists, and never fewer than a hall's
 // minimum.
-func (w *World) wantsHall() bool {
+func (w *World) wantsHall() bool { return w.chairsShort() > 0 }
+
+// chairsShort is how many more chairs the colony wants than it has planned.
+func (w *World) chairsShort() int {
 	per := w.cfg.ColonistsPerChair
 	n := w.countKind(Colonist)
 	if per <= 0 || n < 2 {
-		return false
+		return 0
 	}
 	want := max((n+per-1)/per, hallRoom.minFac)
-	return w.plannedFacilities(Chair) < want
+	return max(0, want-w.plannedFacilities(Chair))
 }
 
 // hallOpen reports whether there is a hall to go to: the feature is on and a

@@ -324,9 +324,19 @@ type roomRecipe struct {
 	aisleRequired bool
 	// expands lets the colony grow the room, moving a side wall out, rather
 	// than mark out another when it wants more of its fixture (see
-	// roomgrow.go). Only a bay of one kind of fixture expands.
+	// roomgrow.go). It grows by whole cycles of kinds: a kitchen by a stove
+	// and its pantry together.
 	expands bool
 	planLog string // logged when the room is marked out
+}
+
+// fullBay is how many fixtures a new room of r holds when its site allows:
+// roomFacilities, unless the recipe caps itself with maxFac.
+func (r roomRecipe) fullBay() int {
+	if r.maxFac <= 0 || r.maxFac > roomFacilities {
+		return roomFacilities
+	}
+	return r.maxFac
 }
 
 // roomWidth is the interior width of a room of r with n facilities.
@@ -393,7 +403,7 @@ var (
 	// roomRecipe.aisle), as does a storage room, since the first is the
 	// colony's silo. See docs/scumhouse.md.
 	scumhouseRoom = roomRecipe{
-		name: "scumhouse", kinds: []Terrain{Scumhouse, Storage}, minFac: 1, maxFac: 2, aisle: true,
+		name: "scumhouse", kinds: []Terrain{Scumhouse, Storage}, minFac: 1, maxFac: 2, aisle: true, expands: true,
 		planLog: "The colony marks out a scumhouse.",
 	}
 )
@@ -474,12 +484,12 @@ func (w *World) planRooms() {
 		}
 		return
 	}
-	// An ordered dormitory is a full room's worth of bunks, and an ordered
-	// storage room one more container: either goes into a room of its kind
-	// that can grow before a new one is marked out (see roomgrow.go).
+	// An ordered room is a new room's worth of fixtures (fullBay), and goes
+	// into a room of its kind that can grow before a new one is marked out
+	// (see roomgrow.go).
 	if w.manualDormitories > 0 {
 		before := len(w.projects)
-		w.growOrPlan(dormRoom, roomFacilities)
+		w.growOrPlan(dormRoom, dormRoom.fullBay())
 		if len(w.projects) > before {
 			w.manualDormitories--
 		}
@@ -495,7 +505,7 @@ func (w *World) planRooms() {
 	}
 	if w.manualStorageRooms > 0 {
 		before := len(w.projects)
-		w.growOrPlan(storageRoom, 1)
+		w.growOrPlan(storageRoom, storageRoom.fullBay())
 		if len(w.projects) > before {
 			w.manualStorageRooms--
 		}
@@ -503,7 +513,7 @@ func (w *World) planRooms() {
 	}
 	if w.manualScumhouses > 0 {
 		before := len(w.projects)
-		w.planRoom(scumhouseRoom)
+		w.growOrPlan(scumhouseRoom, scumhouseRoom.fullBay())
 		if len(w.projects) > before {
 			w.manualScumhouses--
 		}
@@ -511,7 +521,7 @@ func (w *World) planRooms() {
 	}
 	if w.manualIncubators > 0 {
 		before := len(w.projects)
-		w.planRoom(incubatorRoom)
+		w.growOrPlan(incubatorRoom, incubatorRoom.fullBay())
 		if len(w.projects) > before {
 			w.manualIncubators--
 		}
@@ -527,7 +537,7 @@ func (w *World) planRooms() {
 	}
 	if w.manualHalls > 0 {
 		before := len(w.projects)
-		w.planRoom(hallRoom)
+		w.growOrPlan(hallRoom, hallRoom.fullBay())
 		if len(w.projects) > before {
 			w.manualHalls--
 		}
@@ -548,6 +558,11 @@ func (w *World) planRooms() {
 		first := w.plannedFacilities(Scumhouse) == 0
 		r := scumhouseRoom
 		r.aisleRequired = !first
+		// A later kitchen goes into one the colony already has, a stove and
+		// its pantry further along the bay, when one can grow.
+		if !first && w.expandRoom(r, r.fullBay()) {
+			return
+		}
 		if w.planRoomFor(r, Community) {
 			return
 		}
@@ -559,7 +574,8 @@ func (w *World) planRooms() {
 	// The incubator feeds the scumhouse: a steady supply of scum that replaces
 	// scraping the rock. An ordinary public work, so it waits on the treasury,
 	// and until it stands the colony scrapes as before (wildScumAllowed).
-	if !w.podsFeed() && w.wantsIncubator() && w.planRoomFor(incubatorRoom, Community) {
+	if !w.podsFeed() && w.wantsIncubator() &&
+		w.growOrPlan(incubatorRoom, w.desiredIncubators()-w.plannedFacilities(Incubator)) {
 		return
 	}
 	desired := w.desiredFacilities(w.countKind(Colonist))
@@ -601,8 +617,8 @@ func (w *World) planRooms() {
 	// A meeting hall after everything above: company is not fatal, and its
 	// walls and chairs cost real rock. Unlike the foundry it is a headcount
 	// matter (see wantsHall), so it outranks it.
-	if w.wantsHall() {
-		if w.planRoomFor(hallRoom, Community) {
+	if short := w.chairsShort(); short > 0 {
+		if w.growOrPlan(hallRoom, short) {
 			return
 		}
 	}
@@ -651,11 +667,7 @@ func (w *World) planRoomFor(r roomRecipe, issuer Owner) bool {
 // first, and reports whether it planned the room and whether find offered a
 // site at all (a site whose work issuer cannot pay for is sited, not planned).
 func (w *World) placeRoom(r roomRecipe, issuer Owner, find func(width int) (roomFrame, bool)) (planned, sited bool) {
-	largest := r.maxFac
-	if largest <= 0 || largest > roomFacilities {
-		largest = roomFacilities
-	}
-	for n := largest; n >= r.minFac; n-- {
+	for n := r.fullBay(); n >= r.minFac; n-- {
 		f, ok := find(r.roomWidth(n))
 		if !ok && r.aisle && !r.aisleRequired {
 			// A cramped cavern with no site wide enough for the aisle still

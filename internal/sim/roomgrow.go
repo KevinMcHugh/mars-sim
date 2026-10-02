@@ -52,12 +52,13 @@ func (r *roomRecord) grown(k int, right bool) roomFrame {
 }
 
 // growOrPlan has the colony enlarge one of its rooms of r by up to want
-// fixtures, and marks out a new room only when none can grow.
-func (w *World) growOrPlan(r roomRecipe, want int) {
+// fixtures, and marks out a new room only when none can grow. It reports
+// whether it did either.
+func (w *World) growOrPlan(r roomRecipe, want int) bool {
 	if w.expandRoom(r, want) {
-		return
+		return true
 	}
-	w.planRoom(r)
+	return w.planRoomFor(r, Community)
 }
 
 // expandRoom enlarges the colony's oldest room of r that can take more
@@ -66,8 +67,9 @@ func (w *World) growOrPlan(r roomRecipe, want int) {
 // side has room: right first, then left. It reports whether it did.
 //
 // Only the colony's own rooms grow, one expansion at a time each, and only a
-// recipe that expands: a bay of one kind of fixture, so the new end of it is
-// the same as the old.
+// recipe that expands. A room grows by whole cycles of its recipe's kinds, so
+// the new end of the bay repeats the old: a kitchen by a stove and its pantry
+// together, never a stove alone, and only a kitchen whose bay is whole pairs.
 func (w *World) expandRoom(r roomRecipe, want int) bool {
 	limit := w.cfg.RoomMaxFacilities
 	if !w.cfg.RoomExpansion || !r.expands || want < 1 {
@@ -87,11 +89,12 @@ func (w *World) expandRoom(r roomRecipe, want int) bool {
 			}
 		}
 	}
+	step := len(r.kinds)
 	for _, rec := range w.roomRecords {
-		if rec.recipe.name != r.name || rec.issuer != Community || busy[rec] || rec.n >= limit {
+		if rec.recipe.name != r.name || rec.issuer != Community || busy[rec] || rec.n >= limit || rec.n%step != 0 {
 			continue
 		}
-		for k := min(want, roomFacilities, limit-rec.n); k >= 1; k-- {
+		for k := min(want, roomFacilities, limit-rec.n) / step * step; k >= step; k -= step {
 			for _, right := range [2]bool{true, false} {
 				if !w.expansionClear(rec, k, right, designated, walls) ||
 					!w.siteKeepsColonyWhole(rec.grown(k, right), designated) {
@@ -238,6 +241,9 @@ func (w *World) designateExpansion(rec *roomRecord, k int, right bool) bool {
 	}
 	w.nextProjectID++
 	w.projects = append(w.projects, p)
+	if r.name == scumhouseRoom.name {
+		w.linkPantry(p) // the new stove's pantry, as designateRoom links a new kitchen's
+	}
 	rec.f = rec.grown(k, right)
 	rec.n += k
 	w.logEvent(LogBuildStart, fmt.Sprintf("The colony moves a wall out to enlarge a %s.", r.name))
