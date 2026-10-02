@@ -38,7 +38,7 @@ of the tile grid, and the funnel every derived system hangs off (see
 ```go
 w.revealAround(p)   // p and its eight neighbors are no longer unknown
 ...
-w.home.tiles.ptr(p.X, p.Y).Terrain = t
+w.lay(p).tiles.ptr(p.X, p.Y).Terrain = t
 ```
 
 (The reveal comes *before* the write, so the changed tile is revealed as

@@ -15,14 +15,15 @@ Up is a direction too. Crash pods land on **level 1**. Level 0 above it is the
 Martian **surface**, which has its own challenges and is planned separately
 (Z6).
 
-This is a design and a build plan. Z0 is built (see [layers.md](./layers.md)),
-and the rest is not. When a phase
+This is a design and a build plan. Z0 and Z1 are built (see
+[layers.md](./layers.md) and [stairs.md](./stairs.md)), and the rest is not.
+Where the build departed from this plan, the plan below says so. When a phase
 ships, its content moves into a present-tense doc and the table links to it.
 
 | Phase | Status |
 | --- | --- |
 | Z0 — `Layer` split, one level | **Shipped** — [layers.md](./layers.md) |
-| Z1 — Stairs and a second level | Proposed |
+| Z1 — Stairs and a second level | **Shipped** — [stairs.md](./stairs.md) |
 | Z2 — Shafts | Proposed |
 | Z3 — Holes | Proposed |
 | Z4 — Depth gating (challenge and reward) | Proposed |
@@ -31,12 +32,15 @@ ships, its content moves into a present-tense doc and the table links to it.
 
 ## Source
 
-Z0 is in [`internal/sim/layer.go`](../internal/sim/layer.go); see
-[layers.md](./layers.md). The code the remaining phases change:
+Z0 and Z1 are in [`layer.go`](../internal/sim/layer.go),
+[`layered.go`](../internal/sim/layered.go) and
+[`stairs.go`](../internal/sim/stairs.go); see [layers.md](./layers.md) and
+[stairs.md](./stairs.md). The code the remaining phases change:
 
-- [`internal/sim/world.go`](../internal/sim/world.go) and
-  [`layer.go`](../internal/sim/layer.go): `World`, `Layer`, and every
-  `w.home` (each one an assumption that there is a single level).
+- [`internal/sim/layer.go`](../internal/sim/layer.go): every `w.landing()`,
+  each one a decision that something happens only on the landing level.
+- [`internal/sim/layered.go`](../internal/sim/layered.go): `linkFrom`, the
+  one definition of what connects two levels.
 - [`internal/sim/geom.go`](../internal/sim/geom.go): `Point`, `neighbors8`.
 - [`internal/sim/rooms.go`](../internal/sim/rooms.go),
   [`path.go`](../internal/sim/path.go), [`hpa.go`](../internal/sim/hpa.go),
@@ -76,58 +80,45 @@ Rejected: adding `Z` to `Point` and making every search 26- or 10-connected.
 That changes every system at once and makes long searches slower. It also buys
 the one thing we do not need: free vertical movement anywhere.
 
-### Positions: `Point` inside a layer, `Loc` across them
+### Positions: every `Point` names its level
+
+As built (Z1; see [layers.md](./layers.md)):
 
 ```go
-type Level int8 // grows downward
+type Level int // grows downward
 
 const (
 	SurfaceLevel Level = 0
 	LandingLevel Level = 1 // where pods land; today's map
 )
 
-type Loc struct {
+type Point struct {
+	X, Y  int
 	Level Level
-	Point
 }
 ```
 
-Grid code (tiles, regions inside a chunk, flood fills, room sites, worldgen
-features) keeps taking a `Point` **and a `*Layer`**: within a level nothing
-changes. Anything that names a place the colony as a whole can refer to takes a
-`Loc`:
+Every position (an entity's, a target, a route step, a depot, a map key)
+carries its level. `Add` stays on a level; `Adjacent` and `Within` never
+reach across one; `lessPoint` sorts by level first.
 
-- An entity's place: `Entity.Level` beside `Pos` (shipped in Z0; `e.Loc()`
-  gives both).
-- The order book's depots: `bookKey.Depot` and `Order.Depot` (shipped in Z0).
-- Still to come: `marketDepotAt`, `siloWas`, `haulClaims` targets, projects,
-  cached routes (`Entity.path`) and job targets.
+**Departure from the plan.** This section first proposed `Point` for grid code
+and a separate `Loc` (a level and a point) for places that cross levels, and
+Z0 shipped that way. Z1 found nearly everything crosses levels: targets,
+routes, depots, claims. Converting each between two position types was
+hundreds of edits that asked nothing; giving `Point` its level made every one
+of them carry it, and made every positional literal a compile error until it
+said which level it meant. `Loc` was folded into `Point`.
 
-Fixtures, storage containers, `pantryOf` and the scum and workshop claims live
-on a `Layer` keyed by `Point`, so they need no level of their own.
-
-How Z0 finds every place that crosses levels: per-level state lives only on a
-`Layer`, and the only layer is `w.home`. **Removing `home` makes every
-single-level assumption a compile error.** The first plan was to make
-`Entity.Pos` a `Loc` and let the type system find them through that. It was
-dropped because it meant ~375 mechanical `.Point`s that hide the real question
-("which layer?") instead of asking it. See [layers.md](./layers.md).
-
-Two traps to grep for after the change, because the compiler will not flag
-them: a keyed literal `Loc{Point: p}` silently means level 0, and so does a
-zero-valued `Loc` field used as "unset". Prefer constructors (`at(l, p)`) and
-an explicit `ok bool` the way `siloSeen` already does.
-
-Numbering the landing level 1 rather than 0 helps here. A forgotten level
-lands on the **surface**, not the colony's home level, so the mistake is not
-silently "right" for one-level games. In Z0, where every real place is on
-level 1, a test over a long run (`TestNothingIsOnTheSurface`) treats any
-level-0 `Loc` as a bug. With landing at 0, the same bug would pass every test until
-the second level shipped.
+Numbering the landing level 1 rather than 0 still does what it was for. A
+keyed literal that forgets the level lands on the **surface**, where nothing
+exists, so the mistake reads as nothing at all rather than silently as the
+landing level. `TestNothingIsOnTheSurface` checks a long run for any place on
+level 0.
 
 ### What moves into `Layer` and what stays on `World`
 
-As built in Z0 (see [layers.md](./layers.md)):
+As built in Z0 and Z1 (see [layers.md](./layers.md)):
 
 | Into `Layer` (per level) | Stays on `World` (shared) |
 | --- | --- |
@@ -137,9 +128,9 @@ As built in Z0 (see [layers.md](./layers.md)):
 | `refuse`, `goreTotal`, `corpseTotal` | `rooms`, `discoveredRooms`, `mainRoom` |
 | `facilityTiles` | flow fields (`fields`, `frontier`): they span levels |
 | `carvedAny/Min/Max` | `pf` and every scratch buffer (single-threaded; reuse) |
-| `chunkEntities` (spatial index) | `links` (the vertical link table, below) |
+| `chunkEntities` (spatial index) | `stairs`, the sorted list of stair tops (Z1) |
 | `regionOf`, `dirtyChunks` | relationships, memories, director, RNG streams |
-| `salt`, `exposedSalt`, `scum`, `exposedScum`, `scumPatches` | projects (they hold `Loc`s) |
+| `salt`, `exposedSalt`, `scum`, `exposedScum`, `scumPatches` | projects (their tasks' points carry levels) |
 | `buildTiles`, `doorTiles`, `pods`, `podRingHint` (only level 1 has any) | the published-copy revisions (`saltRev`, `scumRev`, `fixtureRev`) |
 | `fixtures` and their indexes, `storageContainers`, `pantryOf`/`pantryHouse` | the market's silo cache (`marketDepotAt`, `siloWas`) |
 | `scumClaims`, `workshopClaims`, the job `board` (frontier and claims) | |
@@ -168,9 +159,12 @@ type vlink struct {
 }
 ```
 
-The link table is a `map[Loc]*vlink` indexed at **both** ends, plus a sorted
-slice for deterministic iteration (see [determinism.md](./determinism.md): the
-map is for lookups only, never ranged). Each end is a terrain on its level:
+**As built for stairs (Z1)** there is no link table: `linkFrom` reads a link
+from the two terrains (see [stairs.md](./stairs.md)), and `w.stairs` lists the
+stair tops in sorted order. A shaft spanning several levels may need a table
+(Z2); if so, a map keyed by `Point` at **both** ends plus a sorted slice for
+deterministic iteration (see [determinism.md](./determinism.md): the map is
+for lookups only, never ranged). Each end is a terrain on its level:
 
 | Kind | Upper tile | Lower tile | Who can use it | Cost |
 | --- | --- | --- | --- | --- |
@@ -287,10 +281,10 @@ A tile directly below you might be a hundred steps away. The rule for Z1:
   one layer's `chunkEntities`. A caller that wants "anywhere" asks the shared
   flow field, or the job board, which already answer in walking distance.
 - **Cost estimates across levels** (hauling, the producer, the market's
-  depot choice) use a `travelEstimate(a, b Loc)`. It is Chebyshev on the same
-  level. Across levels, it routes via the nearest link column:
-  `Chebyshev(a, link) + linkCost + Chebyshev(link, b)`. It is still cheap, and
-  good enough to price a trip.
+  depot choice, every "nearest" choice) use `travelEstimate(a, b)`. It is
+  Chebyshev on the same level. Across levels it takes the cheapest chain of
+  straight lines through the stairs that exist, level by level. Shipped in
+  Z1; see [stairs.md](./stairs.md).
 - **Perception** ([compositional-perception-and-events.md](./compositional-perception-and-events.md))
   is same-level only. Seeing up or down a shaft or hole is a later refinement.
 
@@ -298,11 +292,13 @@ A tile directly below you might be a hundred steps away. The rule for Z1:
 
 Worldgen is already lazy and per chunk: a chunk is a pure function of
 `(Config, cx, cy)`, generated only when exploration reaches it
-([worldgen-chunks.md](./worldgen-chunks.md)). A level just becomes part of the
-key: `chunkKey{level, cx, cy}`. `featureRand` mixes `level - LandingLevel`
-into the ids **only when it is nonzero**, so level 1 generates bit-for-bit what
-today's map does and the golden hashes do not move. Mixing the raw level in
-would reseed the landing level and change every seed's world.
+([worldgen-chunks.md](./worldgen-chunks.md)). As built, each layer has its own
+generator and generated-chunk list, so the chunk key did not need a level;
+the generator's `level` does the work. `featureRand` mixes `level -
+LandingLevel` into every stream **only when it is nonzero**, so level 1
+generates bit-for-bit what today's map does and the golden hashes did not
+move. Mixing the raw level in would reseed the landing level and change every
+seed's world. Scum growth follows the same rule.
 
 Levels 2 and down use today's generator (rock, veins, caverns, passages, scum,
 salt) with depth multipliers (Z4). The surface does not: it is open ground,
@@ -354,16 +350,16 @@ can work there unprotected) is for Z6's own doc.
 Everything [determinism.md](./determinism.md) asks still applies, with the
 level as the leading key:
 
-- `lessPoint` gets a `lessLoc` sibling: level, then Y, then X.
-- `refreshSpatial` walks dirty chunks sorted by `(level, chunk)`. Region IDs
-  come from one global counter, so the order across levels matters as much as
-  within one.
-- The link table is ranged only through its sorted slice.
-- Any new per-level loop (publishing, upkeep, growth) runs levels in index
-  order.
+- `lessPoint` orders by level, then Y, then X.
+- `refreshSpatial` walks dirty chunks level by level, in chunk order within
+  each. Region IDs come from one global counter, so the order across levels
+  matters as much as within one.
+- `w.stairs` is kept sorted; every loop over levels (`eachLayer`) runs in
+  level order.
 
-The golden test is the safety net for Z0: with one level, **every hash stays
-the same**. A Z0 change that moves one is a bug, not a re-pin.
+The golden test was the safety net for Z0 and Z1: with one level, **every
+hash stayed the same** through both. `TestStairRunsAreDeterministic` covers a
+run that digs down.
 
 ### Frontends
 
@@ -372,9 +368,10 @@ frontend picks which to draw. Publishing already costs only the pages a tick
 touched, so a quiet level costs a page-table copy. Entities carry their level,
 and the frontend filters to the viewed level.
 
-- **TUI:** `<` and `>` change the viewed level. The status line shows
-  `Level 2`, or `Surface` on level 0. The map draws link tiles with their own glyphs (stairs, ladder,
-  void). The roster shows each colonist's level.
+- **TUI (shipped in Z1):** `<` and `>` change the viewed level. Once there
+  is more than one level, the header shows `landing level` or `level N` and
+  the legend shows the stair glyphs (🔽/🔼). Not done: the roster does not
+  yet show each colonist's level.
 - **Browser (Z5):** the view rectangle the page streams gains a level. Frame
   tile pages are keyed `(level, page)`. The entity section carries a level byte.
   The golden frames both decoders test against are re-pinned once, in Z5.
@@ -399,8 +396,8 @@ and the frontend filters to the viewed level.
   just another entry in `region.links`, and the room relabeling, HPA\* and
   `sameRoom` work unchanged across levels. Per-level counters would need a
   `(level, id)` everywhere a region is named.
-- **Z0 is a pure refactor.** Splitting `World` and introducing `Loc` touches
-  hundreds of lines. Doing it with exactly one level, under unchanged golden
+- **Z0 is a pure refactor.** Splitting `World` and giving positions a level
+  touches hundreds of lines. Doing it with exactly one level, under unchanged golden
   hashes, separates "did the refactor break anything?" from "do levels work?".
   Mixing them would make every failure ambiguous.
 
@@ -409,21 +406,16 @@ and the frontend filters to the viewed level.
 Build order and what each phase must prove:
 
 - **Z0 — `Layer` split, one level. Shipped**: see [layers.md](./layers.md).
-  The per-level fields are on `Layer`, the landing level is `w.home` (a value
-  field, so the hot reads cost no extra indirection), entities carry a
-  `Level`, and the order book's depots are `Loc`s. Golden hashes are
-  unchanged.
-- **Z1 — stairs and a second level.** Starts by removing `w.home` and
-  working through the compile errors, plus the shared state
-  [layers.md](./layers.md) lists that the compiler will not flag. The second
-  level is level 2, below the landing level. Config `levels` (deepest level, default 1, so goldens
-  hold), level in the chunk key, `StairDown`/`StairUp` terrain, the stair
-  project, cross-level region links, A\*/HPA\*/flow-field link neighbors,
-  `travelEstimate`, and TUI level switching. Tests: a colonist on level 1
-  reaches a toilet on level 1, and the reverse. A stair walled off on one side
-  splits the room. Determinism under lockstep with two levels. The colony
-  digging down when `levels > 1` and the frontier is exhausted, or on a player
-  order.
+  The per-level fields moved onto `Layer`, under unchanged golden hashes. Its
+  `Loc` and `w.home` were stepping stones that Z1 replaced.
+- **Z1 — stairs and a second level. Shipped**: see [stairs.md](./stairs.md).
+  `Point` carries its level; `w.home` is gone and every per-level access names
+  its layer; `deepest-level` (default 1) and `stair-ticks` in `Config`; stair
+  terrain and the stair project, planned on a player order or when the
+  frontier runs out; rooms, A\*, HPA\*, flow fields (and their repair) and
+  the facility searches cross stairs; `travelEstimate`; per-level worldgen;
+  `<`/`>` in the terminal. Golden hashes and golden frames unchanged. One-level
+  games pay about 6% (see [layers.md](./layers.md)).
 - **Z2 — shafts.** Multi-level columns, `Climbing`, carry limits, weighted
   edges (Dial's bucket queue in fields, edge costs in A\*), and alien access
   by build.

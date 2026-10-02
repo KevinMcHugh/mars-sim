@@ -33,6 +33,12 @@
 ## chunks (64x64 tiles) generated ahead of what the colony has seen; at least 1
 # worldgen-halo: 2
 
+## deepest level the colony may dig stairs down to; 1 is the landing level, so 1 means no digging down
+# deepest-level: 1
+
+## ticks of work to dig a stair down to the next level
+# stair-ticks: 60
+
 ## percent of the map's tiles bearing iron
 # iron-rock-percent: 10
 

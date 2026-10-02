@@ -52,6 +52,12 @@ each tick (`rebuildBuildTiles`). Colonists **route around** these tiles and neve
 idle on them, so a facility mobbed by its own neighbors can still be raised —
 otherwise a builder could never reach the tile.
 
+Not every project is a room. A **stair down** is a one-task project on an open
+floor tile, planned by `planStairs` rather than the room planner and dug as
+mining work; its completion makes the level below (see
+[stairs.md](./stairs.md)). Rooms themselves are sited on the landing level
+only.
+
 ### Room recipes and dormitories
 
 All rooms share the same wall-and-doorway shell. A `roomRecipe` supplies the
@@ -206,7 +212,7 @@ while its own wall or facility row landed squarely on that older room's one
 exit tile, sealing it shut behind a wall its own doorway was supposed to make
 impossible.
 
-`w.home.doorTiles` closes this: `designateRoom` reserves each room's door-exterior
+`Layer.doorTiles` closes this: `designateRoom` reserves each room's door-exterior
 tile the moment the room is designated, permanently (rooms are never
 demolished or un-designated, so entries are only ever added), and
 `roomSiteClear` rejects any candidate site whose own interior or side-wall

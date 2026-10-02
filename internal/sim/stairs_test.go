@@ -366,7 +366,7 @@ func TestMinerWorksTheLevelBelow(t *testing.T) {
 		}
 	}
 	w.clearJob(miner)
-	w.layer(LandingLevel + 1).board.claimMine(rock, miner.ID)
+	w.layer(LandingLevel+1).board.claimMine(rock, miner.ID)
 	w.assignMineTarget(miner, rock)
 	reachedBelow := false
 	runUntil(t, w, 2000, "mining below", func() bool {

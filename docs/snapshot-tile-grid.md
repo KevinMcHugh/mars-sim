@@ -118,8 +118,13 @@ Page identity cannot tell a live consumer what changed (live pages never move),
 which is why `TileChanges` exists rather than asking consumers to compare page
 pointers.
 
-Frontends read through `Snapshot.TerrainAt(p)` / `TileAt(p)` (or `Tiles.At(p)`);
-all return `Rock` out of bounds so a camera can walk off the edge of the world.
+Every level has its own grid, published the same way, page by page:
+`Snapshot.LevelTiles` holds them by level, and `Snapshot.Tiles` is the landing
+level's, the one the browser's wire encoder forwards (`TileChanges` describes
+it). Frontends read through `Snapshot.TerrainAt(p)` / `TileAt(p)`, which pick
+the grid of the level `p` is on (see [layers.md](./layers.md)), or through a
+grid's own `At(p)`; all return `Rock` out of bounds so a camera can walk off
+the edge of the world.
 A page that is nil because its chunk has not been generated reads as
 unexplored Rock through `Tiles`. With fog off, `Snapshot.TileAt`/`TerrainAt`
 read it from a preview instead (see

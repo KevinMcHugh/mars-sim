@@ -104,6 +104,14 @@ shift rather than an `IMUL`. The slack is empty slice headers — 965 KB instead
 of 592 KB on a 10000x10000 map — against a multiply on the hottest read in the
 simulation.
 
+### Per level
+
+A search that can cross a stair keeps one of these per level, in a
+`layered[T]` (see [layers.md](./layers.md)): each level's `pagedGrid` is
+allocated on its first write, so a level a search never reaches costs nothing,
+and a search that stays on one level holds that level's grid and uses the
+fast paths below exactly as before.
+
 ### The fast paths
 
 Naively, paging cost **+27% on the tick** and **+83% on pathfinding**. Most of

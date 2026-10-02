@@ -25,13 +25,18 @@ get there?" in O(1) and bounds long searches.
 
 Walkable tiles are grouped in two levels so updates stay cheap:
 
-- A **region** is a connected component of `Floor` cells **within one chunk**
-  (chunks are 16x16; see
+- A **region** is a connected component of walkable cells (floor and both
+  ends of a stair) **within one chunk of one level** (chunks are 16x16; see
   [spatial-index-and-performance.md](./spatial-index-and-performance.md)).
 - A **room** is a connected component of the **region graph** — regions are linked
-  when their floor cells touch across a chunk border. A room's ID is the smallest
-  `RegionID` it contains, so it does not depend on the order the component is
-  walked.
+  when their cells touch across a chunk border, or when they hold the two ends
+  of a stair, so a room can span levels (see [stairs.md](./stairs.md)). A
+  room's ID is the smallest `RegionID` it contains, so it does not depend on
+  the order the component is walked.
+
+Every search below (A\*, HPA\*, the flow fields and their repair) treats a
+stair as one more neighbour, and keeps its per-tile scratch in a `layered[T]`
+(a paged grid per level; see [layers.md](./layers.md)).
 
 When a tile changes, `SetTerrain` marks its chunk dirty; `refreshSpatial`
 (end of each tick) re-floods only the dirty chunks' regions, re-links across

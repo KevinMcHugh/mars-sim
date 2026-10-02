@@ -24,10 +24,13 @@ out in the surrounding rock and cats/rats on the floor.
 ### Terrain and tiles
 
 `Terrain` is an enum: `Rock`, `Floor`, `Wall`, `NutrientPod`, `Toilet`, `Bed`,
-`Incinerator`, `Storage`, `Scumhouse`, `Hull`. `Hull` is a crash pod's metal
+`Incinerator`, `Storage`, `Scumhouse`, `Hull`, `Forge`, `GunBench`, `Chair`,
+`Incubator`, `StairDown`, `StairUp`. The two stair terrains are the ends of a
+stair between two levels (see [stairs.md](./stairs.md)). `Hull` is a crash pod's metal
 wall: it behaves like `Wall` but only ever arrives with a pod (see
 [crash-pods.md](./crash-pods.md)). Only
-`Floor` is `Walkable()`, and every creature, aliens included, stays on floor. Beds are dormitory bunks used from an
+`Floor` and the two stair ends are `Walkable()`, and every creature, aliens
+included, stays on them. Beds are dormitory bunks used from an
 adjacent floor tile; the incinerator is the machine refuse is burned in, used the
 same way (see [sanitation.md](./sanitation.md)). Storage is a blocking trunk used
 from beside it; its large contents live in sparse world state rather than
@@ -83,8 +86,9 @@ reads as solid.
 
 ### Coordinates
 
-`Point` is an integer grid coordinate; origin is top-left, X grows east, Y grows
-south. Movement is 8-directional, so distances everywhere use **Chebyshev**
+`Point` is an integer grid coordinate on one level; origin is top-left, X grows
+east, Y grows south, and `Level` grows downward (1 is the landing level; see
+[layers.md](./layers.md)). Movement is 8-directional, so distances everywhere use **Chebyshev**
 (king-move) distance, and `neighbors8` is the canonical 8-step table. `stepToward`
 gives the single greedy step that most reduces Chebyshev distance (used for
 simple movement).
