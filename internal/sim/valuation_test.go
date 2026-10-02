@@ -20,9 +20,7 @@ func producerWorld(t *testing.T, n int) (w *World, house, silo Point, cols []*En
 	w.refreshSpatial()
 	for i := 0; i < n; i++ {
 		e := w.spawn(Colonist, Point{10 + 2*i, 12})
-		for k := range e.Needs {
-			e.Needs[k] = 0
-		}
+		quietDrives(w, e)
 		cols = append(cols, e)
 	}
 	return w, house, silo, cols
@@ -43,9 +41,7 @@ func TestAMealBidReachesTheCaveWall(t *testing.T) {
 		w.step()
 		for _, e := range w.entities {
 			if e.Kind == Colonist {
-				for k := range e.Needs {
-					e.Needs[k] = 0 // keep the test about work, not survival
-				}
+				quietDrives(w, e) // keep the test about work, not survival
 			}
 		}
 		depth = max(depth, w.chainDepth())
@@ -93,12 +89,12 @@ func TestPricesRememberTrades(t *testing.T) {
 func TestHungerRaisesTheMealBid(t *testing.T) {
 	w, _, _, cols := producerWorld(t, 1)
 	e := cols[0]
-	max := w.cfg.Needs[NeedFood].Max
-	e.Needs[NeedFood] = 0
+	max := w.cfg.Drives[DriveFood].Max
+	w.setDrive(e, DriveFood, 0)
 	fed := w.mealBidLimit(e)
-	e.Needs[NeedFood] = max / 2
+	w.setDrive(e, DriveFood, max/2)
 	peckish := w.mealBidLimit(e)
-	e.Needs[NeedFood] = max
+	w.setDrive(e, DriveFood, max)
 	starving := w.mealBidLimit(e)
 	if !(fed < peckish && peckish < starving) {
 		t.Fatalf("bid limits fed %v, peckish %v, starving %v: want strictly rising", fed, peckish, starving)
@@ -110,7 +106,7 @@ func TestHungerRaisesTheMealBid(t *testing.T) {
 	if got := w.mealBidLimit(e); got != 4 {
 		t.Fatalf("a starving colonist with $4 bids %v", got)
 	}
-	e.Needs[NeedFood] = max / 2
+	w.setDrive(e, DriveFood, max/2)
 	if got := w.mealBidLimit(e); got != 2 {
 		t.Fatalf("a peckish colonist with $4 bids %v, want half its money", got)
 	}
@@ -122,7 +118,7 @@ func TestHungerRaisesTheMealBid(t *testing.T) {
 func TestHungryBidRestsAsDemand(t *testing.T) {
 	w, house, _, cols := producerWorld(t, 1)
 	e := cols[0]
-	e.Needs[NeedFood] = w.cfg.Needs[NeedFood].Max
+	w.setDrive(e, DriveFood, w.cfg.Drives[DriveFood].Max)
 	me := ColonistOwner(e.ID)
 	if w.tryBuyMeal(e) {
 		t.Fatal("bought a meal nobody sells")

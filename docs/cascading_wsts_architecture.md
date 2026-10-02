@@ -23,7 +23,7 @@ The implementation should introduce or update:
 - `internal/sim/focus.go` — focus kinds, candidates, scoring, arbitration, and
   transitions.
 - `internal/sim/focus_test.go` — component-level scoring and transition tests.
-- `internal/sim/needs.go` — per-need phases and pressure emission, while keeping
+- `internal/sim/drives.go` — per-drive phases and pressure emission, while keeping
   lazy level calculation.
 - `internal/sim/affect.go` — charge/grip state, event vectors, decay, appraisal,
   mood labels, and active stimuli.
@@ -40,7 +40,7 @@ The implementation should introduce or update:
 
 Existing references:
 
-- [`needs.md`](./needs.md) — current lazy need levels and urgency rules.
+- [`drives.md`](./drives.md) — current lazy drive levels and urgency rules.
 - [`personality.md`](./personality.md) — trait resolution and personality RNG.
 - [`memories.md`](./memories.md) — life events, memories, and the one-funnel
   invariant.
@@ -260,7 +260,7 @@ Map needs to focus:
 
 | Need | Focus |
 | --- | --- |
-| `NeedFood` | `FocusEat` |
+| `DriveFood` | `FocusEat` |
 | `NeedBladder` | `FocusRelieve` |
 | `NeedSocial` | `FocusSocialize` |
 | `NeedSleep` | `FocusSleep` |
@@ -1139,7 +1139,7 @@ invariants for no architectural benefit.
 
 ### Add a need
 
-Follow [`needs.md`](./needs.md), add `CriticalAt`, map it to a focus, and test
+Follow [`drives.md`](./drives.md), add `CriticalAt`, map it to a focus, and test
 all phase boundaries. If several needs can motivate the same focus, sum or take
 the maximum in one documented helper; do not silently depend on iteration
 order.
@@ -1178,7 +1178,7 @@ Before implementing a milestone:
 
 ## Related
 
-- [needs.md](./needs.md) — lazy levels, starvation, and facilities.
+- [drives.md](./drives.md) — lazy levels, starvation, and facilities.
 - [personality.md](./personality.md) — traits and resolved effective parameters.
 - [memories.md](./memories.md) — life events and the one-funnel invariant.
 - [entities-and-ai.md](./entities-and-ai.md) — jobs, turn order, and movement.

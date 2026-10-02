@@ -18,19 +18,18 @@ func arbitrageWorld(t *testing.T, sells bool) (w *World, silo, far Point, cols [
 	return w, silo, far, cols
 }
 
-// stepFed steps w n times, keeping every colonist's needs at zero so a test
-// is about work, not survival, and checks the money audit on every tick.
+// stepFed steps w n times, keeping every colonist's drives quiet (see
+// quietDrives) so a test is about work, not survival, and checks the money
+// audit on every tick.
 func stepFed(t *testing.T, w *World, n int, stop func() bool) {
 	t.Helper()
 	for i := 0; i < n && (stop == nil || !stop()); i++ {
-		w.step()
-		for _, e := range w.entities {
-			if e.Kind == Colonist {
-				for k := range e.Needs {
-					e.Needs[k] = 0
-				}
+		for _, id := range w.entityIDsSorted() {
+			if e := w.entities[id]; e.Kind == Colonist {
+				quietDrives(w, e)
 			}
 		}
+		w.step()
 		assertMoneyConserved(t, w)
 	}
 }
@@ -80,17 +79,36 @@ func TestArbitrageClosesAPriceGap(t *testing.T) {
 }
 
 // The E7 gate, second half: over a long run, a colony that sells what it
-// bought ends with more money than one that only buys.
+// bought comes out ahead on its trading of one that only buys.
+//
+// This compares what the colony made and spent on the book, not its balance.
+// Comparing treasuries stopped meaning that once colonists did paid work: a
+// selling colony with more to spend funds a dearer room and a rifle bid, and
+// money spent on rooms reads as money lost. That stayed hidden while stepFed
+// left every drive pinned at its ceiling (it zeroed the base but not the
+// timestamp), so nobody took paid work.
 func TestColonySellingPaysOverALongRun(t *testing.T) {
 	run := func(sells bool) Money {
 		w, _, far, cols := arbitrageWorld(t, sells)
 		w.post(Bid, IronOre, 8, 12, ColonistOwner(cols[0].ID), far, 0)
 		stepFed(t, w, 4000, nil)
-		return w.treasury
+		if len(w.trades) >= maxTrades {
+			t.Fatalf("%d trades: the log may have dropped some", len(w.trades))
+		}
+		var net Money
+		for _, tr := range w.trades {
+			if tr.Seller == Community {
+				net += tr.Price * Money(tr.Qty)
+			}
+			if tr.Buyer == Community {
+				net -= tr.Price * Money(tr.Qty)
+			}
+		}
+		return net
 	}
 	selling, buying := run(true), run(false)
 	if selling <= buying {
-		t.Fatalf("treasury %v selling vs %v only buying: selling should pay", selling, buying)
+		t.Fatalf("colony trading nets %v selling vs %v only buying: selling should pay", selling, buying)
 	}
 }
 

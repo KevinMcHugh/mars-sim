@@ -110,7 +110,7 @@ func TestPrivateFixtureIsReachableOnlyToItsOwner(t *testing.T) {
 // one is right beside it.
 func TestColonistsSleepOnlyInBedsTheyMayUse(t *testing.T) {
 	w := propertyWorld(t)
-	sleepy := w.cfg.Needs[NeedSleep].SeekAt + 50
+	sleepy := w.cfg.Drives[DriveSleep].SeekAt + 50
 	mine := Point{9, 10}
 	shared := Point{20, 10}
 	w.SetTerrain(mine, Bed)
@@ -121,8 +121,8 @@ func TestColonistsSleepOnlyInBedsTheyMayUse(t *testing.T) {
 	guest := w.spawn(Colonist, Point{10, 12}) // nearer the private bed than the shared one
 	w.setFixtureOwner(mine, ColonistOwner(owner.ID), AccessPrivate)
 	for _, e := range []*Entity{owner, guest} {
-		e.Needs[NeedSleep] = sleepy
-		w.syncNeedPhase(e, NeedSleep)
+		w.setDrive(e, DriveSleep, sleepy)
+		w.syncDrivePhase(e, DriveSleep)
 	}
 
 	if got := w.chooseFacility(guest, Bed); got != shared {
@@ -138,8 +138,8 @@ func TestColonistsSleepOnlyInBedsTheyMayUse(t *testing.T) {
 		if guest.Job == JobUse && guest.useFacilitySet && guest.useFacility == mine {
 			t.Fatalf("tick %d: guest is using the owner's private bed", w.tick)
 		}
-		ownerSlept = ownerSlept || w.needLevel(owner, NeedSleep) < sleepy/2
-		guestSlept = guestSlept || w.needLevel(guest, NeedSleep) < sleepy/2
+		ownerSlept = ownerSlept || w.driveLevel(owner, DriveSleep) < sleepy/2
+		guestSlept = guestSlept || w.driveLevel(guest, DriveSleep) < sleepy/2
 	}
 	if !ownerSlept || !guestSlept {
 		t.Fatalf("owner slept=%v guest slept=%v", ownerSlept, guestSlept)
@@ -155,16 +155,16 @@ func TestOwnerReachesItsOnlyPrivateBed(t *testing.T) {
 	w.refreshSpatial()
 	owner := w.spawn(Colonist, Point{6, 12})
 	w.setFixtureOwner(bed, ColonistOwner(owner.ID), AccessPrivate)
-	owner.Needs[NeedSleep] = w.cfg.Needs[NeedSleep].SeekAt + 50
-	w.syncNeedPhase(owner, NeedSleep)
+	w.setDrive(owner, DriveSleep, w.cfg.Drives[DriveSleep].SeekAt+50)
+	w.syncDrivePhase(owner, DriveSleep)
 
-	for i := 0; i < 300+w.cfg.Needs[NeedSleep].UseTicks; i++ {
+	for i := 0; i < 300+w.cfg.NightTicks(); i++ {
 		w.step()
-		if w.needLevel(owner, NeedSleep) == 0 {
+		if w.driveLevel(owner, DriveSleep) == 0 {
 			return
 		}
 	}
-	t.Fatalf("owner never slept in its own bed (sleep %d, at %v)", w.needLevel(owner, NeedSleep), owner.Pos)
+	t.Fatalf("owner never slept in its own bed (sleep %d, at %v)", w.driveLevel(owner, DriveSleep), owner.Pos)
 }
 
 // A private chest is not somewhere another colonist can unload.

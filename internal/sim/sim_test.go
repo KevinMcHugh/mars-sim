@@ -33,7 +33,58 @@ func testConfig() Config {
 	// (economy phase E8). Scarcity tests start from DefaultConfig or turn
 	// them back off themselves.
 	c.InfiniteFood, c.ConstructionCosts = true, false
+	// Mechanics tests were written against drives that grow at one rate
+	// awake and pause in bed (everything but sleep itself), with food at its
+	// old 2 a tick; activity-scaled growth has tests of its own
+	// (drive_model_test.go) that opt back in. Sleep keeps its shipped
+	// percents: it has to fall in bed and on the floor for a night or a
+	// pass-out to end.
+	c.Drives[DriveFood].Rate = 2000
+	for d := DriveKind(0); d < numDrives; d++ {
+		if d == DriveSleep {
+			continue
+		}
+		for a := range c.Drives[d].Activity {
+			c.Drives[d].Activity[a] = 100
+		}
+		c.Drives[d].Activity[DriveAsleep.index()] = 0
+		c.Drives[d].Activity[DriveUnconscious.index()] = 0
+	}
 	return c
+}
+
+// setDriveRate makes drive d grow at rate thousandths of a point a tick, as
+// its base rate with no trait scaling. Under testConfig's neutral activity
+// percents that is the rate it grows at awake.
+func setDriveRate(w *World, e *Entity, d DriveKind, rate int) {
+	e.driveBase[d], e.driveTrait[d] = rate, 100
+	w.refreshDrive(e, d, 0)
+}
+
+// quietDrives empties every drive of e and stops it growing, for a test about
+// something other than drives. Zeroing a drive's stored base alone was never
+// enough: a level is the base plus its growth since it was taken, so a base
+// of zero with an old timestamp still reads at the ceiling, and since drives
+// have consequences there a "fed" colonist would wet itself, pass out and
+// feel lonely every tick. Freezing the rates once, rather than resetting the
+// levels every tick, also spares the colonist re-deciding what to do on
+// every tick (a reset schedules a phase crossing).
+func quietDrives(w *World, e *Entity) {
+	if e.driveBase != [numDrives]int{} {
+		freezeDrives(w, e)
+	}
+	for d := DriveKind(0); d < numDrives; d++ {
+		if w.driveTrue(e, d) != 0 {
+			w.setDrive(e, d, 0)
+		}
+	}
+}
+
+// freezeDrives stops every drive of e from growing.
+func freezeDrives(w *World, e *Entity) {
+	for d := DriveKind(0); d < numDrives; d++ {
+		setDriveRate(w, e, d, 0)
+	}
 }
 
 // The starting world should contain the configured population and an open
@@ -390,20 +441,20 @@ func TestColonistUsesNutrientPod(t *testing.T) {
 	w.SetTerrain(stand, Floor)
 
 	c := w.spawn(Colonist, stand)
-	c.Needs[NeedFood] = cfg.Needs[NeedFood].Max // ravenous
+	w.setDrive(c, DriveFood, cfg.Drives[DriveFood].Max) // ravenous
 
-	for i := 0; i < cfg.Needs[NeedFood].UseTicks+10; i++ {
+	for i := 0; i < cfg.Drives[DriveFood].UseTicks+10; i++ {
 		w.step()
 	}
 	if w.entities[c.ID] == nil {
 		t.Fatal("colonist starved next to a working nutrient pod")
 	}
-	if c.Needs[NeedFood] >= cfg.Needs[NeedFood].SeekAt {
-		t.Fatalf("food need not satisfied: %d", c.Needs[NeedFood])
+	if w.driveLevel(c, DriveFood) >= cfg.Drives[DriveFood].SeekAt {
+		t.Fatalf("food need not satisfied: %d", w.driveLevel(c, DriveFood))
 	}
 }
 
-// A tired colonist standing by a bed should sleep and reset its sleep need
+// A tired colonist standing by a bed should sleep and reset its sleep drive
 // instead of staying exhausted, reusing the same JobUse machinery as the pod.
 func TestColonistUsesBed(t *testing.T) {
 	cfg := testConfig()
@@ -416,16 +467,19 @@ func TestColonistUsesBed(t *testing.T) {
 	w.SetTerrain(stand, Floor)
 
 	c := w.spawn(Colonist, stand)
-	c.Needs[NeedSleep], c.needSince[NeedSleep] = cfg.Needs[NeedSleep].Max, w.tick // dead on its feet
+	// Dead on its feet, but short of the ceiling, where it would pass out
+	// instead (TestSleepDeprivedColonistPassesOut).
+	w.setDrive(c, DriveSleep, cfg.Drives[DriveSleep].CriticalAt)
 	// Clear the other (staggered) needs so nothing fatal outranks sleep here.
-	c.Needs[NeedFood], c.needSince[NeedFood] = 0, w.tick
-	c.Needs[NeedBladder], c.needSince[NeedBladder] = 0, w.tick
+	w.setDrive(c, DriveFood, 0)
+	w.setDrive(c, DriveBladder, 0)
 
-	for i := 0; i < cfg.Needs[NeedSleep].UseTicks+10; i++ {
+	// A night from critical-at is longer than one from seek-at.
+	for i := 0; i < 2*cfg.NightTicks(); i++ {
 		w.step()
 	}
-	if c.Needs[NeedSleep] >= cfg.Needs[NeedSleep].SeekAt {
-		t.Fatalf("sleep need not satisfied: %d", c.Needs[NeedSleep])
+	if w.driveLevel(c, DriveSleep) >= cfg.Drives[DriveSleep].SeekAt {
+		t.Fatalf("sleep need not satisfied: %d", w.driveLevel(c, DriveSleep))
 	}
 }
 
@@ -473,7 +527,7 @@ func TestUrgentColonistFinishesEmergencyBuild(t *testing.T) {
 	w := newTestWorld(t, cfg)
 	center := Point{w.Width / 2, w.Height / 2}
 	c := w.spawn(Colonist, center)
-	c.Needs[NeedFood] = cfg.Needs[NeedFood].SeekAt
+	w.setDrive(c, DriveFood, cfg.Drives[DriveFood].SeekAt)
 	target, ok := w.findBuildSpot(c.Pos, 20)
 	if !ok {
 		t.Fatal("no emergency build spot")
@@ -489,7 +543,7 @@ func TestUrgentColonistFinishesEmergencyBuild(t *testing.T) {
 	}
 }
 
-// A non-fatal need (bladder, here) must trigger the same self-rescue as a
+// A non-fatal drive (bladder, here) must trigger the same self-rescue as a
 // fatal one: with no reachable toilet, no project task to help with, and none
 // under construction, a colonist stuck on its own builds one rather than
 // waiting indefinitely — the "stuck in a need loop" complaint a
@@ -502,10 +556,10 @@ func TestUrgentNonFatalNeedTriggersEmergencyBuild(t *testing.T) {
 	w := newTestWorld(t, cfg)
 	center := Point{w.Width / 2, w.Height / 2}
 	c := w.spawn(Colonist, center)
-	c.Needs[NeedBladder], c.needSince[NeedBladder] = cfg.Needs[NeedBladder].SeekAt, w.tick
+	w.setDrive(c, DriveBladder, cfg.Drives[DriveBladder].SeekAt)
 	// Clear the other (staggered) needs so bladder is the one being addressed.
-	c.Needs[NeedFood], c.needSince[NeedFood] = 0, w.tick
-	c.Needs[NeedSleep], c.needSince[NeedSleep] = 0, w.tick
+	w.setDrive(c, DriveFood, 0)
+	w.setDrive(c, DriveSleep, 0)
 
 	w.tick++
 	w.colonistTurn(c)
@@ -563,9 +617,9 @@ func TestUrgentColonistHelpsBuildWhenFacilityUndersupplied(t *testing.T) {
 	// existing toilet plus the project's own (still unbuilt) toilet task.
 	w.spawn(Colonist, center)
 	w.spawn(Colonist, center)
-	c.Needs[NeedBladder], c.needSince[NeedBladder] = cfg.Needs[NeedBladder].SeekAt, w.tick
-	c.Needs[NeedFood], c.needSince[NeedFood] = 0, w.tick
-	c.Needs[NeedSleep], c.needSince[NeedSleep] = 0, w.tick
+	w.setDrive(c, DriveBladder, cfg.Drives[DriveBladder].SeekAt)
+	w.setDrive(c, DriveFood, 0)
+	w.setDrive(c, DriveSleep, 0)
 
 	w.tick++
 	w.colonistTurn(c)
@@ -635,7 +689,7 @@ func TestColonistStarvesWhenSealedByRock(t *testing.T) {
 		w.step()
 	}
 	if w.entities[c.ID] != nil {
-		t.Fatalf("colonist sealed in by rock survived with HP %d, food %d", c.HP, c.Needs[NeedFood])
+		t.Fatalf("colonist sealed in by rock survived with HP %d, food %d", c.HP, w.driveLevel(c, DriveFood))
 	}
 }
 
@@ -652,21 +706,21 @@ func TestRatEatsFromPod(t *testing.T) {
 	w.SetTerrain(stand, Floor)
 
 	m := w.spawn(Rat, stand)
-	m.Needs[NeedFood] = cfg.Needs[NeedFood].SeekAt // hungry enough to seek
+	w.setDrive(m, DriveFood, cfg.Drives[DriveFood].SeekAt) // hungry enough to seek
 
-	for i := 0; i < cfg.Needs[NeedFood].UseTicks+20; i++ {
+	for i := 0; i < cfg.Drives[DriveFood].UseTicks+20; i++ {
 		w.step()
 	}
 	if w.entities[m.ID] == nil {
 		t.Fatal("rat starved next to a working nutrient pod")
 	}
-	if w.needLevel(m, NeedFood) >= cfg.Needs[NeedFood].SeekAt {
-		t.Fatalf("rat food need not satisfied: %d", w.needLevel(m, NeedFood))
+	if w.driveLevel(m, DriveFood) >= cfg.Drives[DriveFood].SeekAt {
+		t.Fatalf("rat food need not satisfied: %d", w.driveLevel(m, DriveFood))
 	}
 }
 
 // A rat with no reachable food must eventually starve, exercising the fatal
-// food need for rats.
+// food drive for rats.
 func TestRatStarvesWithoutFood(t *testing.T) {
 	cfg := testConfig()
 	cfg.StartColonists, cfg.StartAliens, cfg.StartCats, cfg.StartRats = 0, 0, 0, 0
@@ -683,7 +737,7 @@ func TestRatStarvesWithoutFood(t *testing.T) {
 		w.step()
 	}
 	if w.entities[m.ID] != nil {
-		t.Fatalf("walled-in rat survived with HP %d, food %d", m.HP, w.needLevel(m, NeedFood))
+		t.Fatalf("walled-in rat survived with HP %d, food %d", m.HP, w.driveLevel(m, DriveFood))
 	}
 }
 
@@ -719,7 +773,7 @@ func TestCatEatsRat(t *testing.T) {
 	}
 }
 
-// A colonist with nothing pressing to do — no threat, no urgent need, no work —
+// A colonist with nothing pressing to do — no threat, no urgent drive, no work —
 // should crush a rat it sees. Sealing a small floor pocket leaves the colonist
 // idle (no rock to mine, no reachable construction), so it stomps the pest.
 func TestIdleColonistStompsRat(t *testing.T) {
@@ -743,8 +797,8 @@ func TestIdleColonistStompsRat(t *testing.T) {
 	m := w.spawn(Rat, center.Add(1, 0))
 	c := w.spawn(Colonist, center)
 	// Fully satisfied, so no need preempts the stomp.
-	c.Needs[NeedFood], c.Needs[NeedBladder] = 0, 0
-	c.needSince[NeedFood], c.needSince[NeedBladder] = w.tick, w.tick
+	w.setDrive(c, DriveFood, 0)
+	w.setDrive(c, DriveBladder, 0)
 
 	for i := 0; i < 10 && w.entities[m.ID] != nil; i++ {
 		w.step()
@@ -905,7 +959,7 @@ func TestAllRequestedColonistsSpawn(t *testing.T) {
 }
 
 // Regression: a colony left alone must feed itself over a long run, across seeds.
-// This has repeatedly regressed as new behavior landed — a non-fatal need
+// This has repeatedly regressed as new behavior landed — a non-fatal drive
 // starving the fatal one, a synchronized-hunger stampede deadlocking the
 // facilities, walls fragmenting the colony away from food, and (once facility
 // rooms arrived) builders trapped or crowds blocking construction. A crowd of 20
@@ -1270,7 +1324,7 @@ func TestFindRoomSitePrefersClearOverRockNearCenter(t *testing.T) {
 func TestColonistsExcavateAndBuildRoomFromRock(t *testing.T) {
 	cfg := testConfig()
 	// testConfig's default seed (42) hits a known pre-existing liveness gap
-	// with this test's 4-colonist room: a colonist with an urgent social need
+	// with this test's 4-colonist room: a colonist with an urgent social drive
 	// but no free chat partner idles indefinitely rather than picking up
 	// available construction work (colonistTurn's "wait for a partner instead
 	// of falling through to work" branch), and a small population can spend

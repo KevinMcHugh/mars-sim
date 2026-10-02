@@ -13,8 +13,7 @@ func noScum(w *World) {
 // hungryRat puts a rat at p with its hunger just past seeking.
 func hungryRat(w *World, p Point) *Entity {
 	r := w.spawn(Rat, p)
-	r.Needs[NeedFood] = w.cfg.Needs[NeedFood].SeekAt + 10
-	r.needSince[NeedFood] = w.tick
+	w.setDrive(r, DriveFood, w.cfg.Drives[DriveFood].SeekAt+10)
 	return r
 }
 
@@ -37,8 +36,8 @@ func TestRatsEatTheDeadBeforeRaidingPods(t *testing.T) {
 	if w.corpsesAt(body) != 0 {
 		t.Fatal("the rat never ate the carcass")
 	}
-	if w.needLevel(r, NeedFood) >= w.cfg.Needs[NeedFood].SeekAt {
-		t.Fatalf("the rat is still hungry (%d) after eating", w.needLevel(r, NeedFood))
+	if w.driveLevel(r, DriveFood) >= w.cfg.Drives[DriveFood].SeekAt {
+		t.Fatalf("the rat is still hungry (%d) after eating", w.driveLevel(r, DriveFood))
 	}
 }
 
@@ -65,8 +64,7 @@ func TestRatsEatGoreAndExposedScum(t *testing.T) {
 	if w.scavengeable(buried) || !w.scavengeable(face) {
 		t.Fatalf("scavengeable: buried %v, face %v", w.scavengeable(buried), w.scavengeable(face))
 	}
-	r.Needs[NeedFood] = w.cfg.Needs[NeedFood].SeekAt + 10
-	r.needSince[NeedFood] = w.tick
+	w.setDrive(r, DriveFood, w.cfg.Drives[DriveFood].SeekAt+10)
 	r.Job = JobNone
 	for i := 0; i < 200 && w.scumAt(face) == w.cfg.ScumMax; i++ {
 		w.step()
@@ -108,8 +106,7 @@ func TestRatsLiveOnScumWithoutTheSafetyNet(t *testing.T) {
 func hungryAlien(w *World, p Point, temp AlienTemperament) *Entity {
 	w.alienSpecies[0].Temperament = temp
 	a := w.spawn(Alien, p)
-	a.Needs[NeedFood] = w.cfg.Needs[NeedFood].SeekAt + 10
-	a.needSince[NeedFood] = w.tick
+	w.setDrive(a, DriveFood, w.cfg.Drives[DriveFood].SeekAt+10)
 	return a
 }
 
@@ -137,8 +134,8 @@ func TestPeacefulAliensGrazeScum(t *testing.T) {
 			if w.scumAt(patch) == w.cfg.ScumMax {
 				t.Fatal("the hungry alien never grazed the scum")
 			}
-			if w.needLevel(a, NeedFood) >= w.cfg.Needs[NeedFood].SeekAt {
-				t.Fatalf("the alien is still hungry (%d) after grazing", w.needLevel(a, NeedFood))
+			if w.driveLevel(a, DriveFood) >= w.cfg.Drives[DriveFood].SeekAt {
+				t.Fatalf("the alien is still hungry (%d) after grazing", w.driveLevel(a, DriveFood))
 			}
 			if w.scumAt(buried) != w.cfg.ScumMax {
 				t.Fatal("scum sealed in rock was grazed")

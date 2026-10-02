@@ -52,7 +52,7 @@ than a hardcoded list.
 - [`internal/sim/entity.go`](../internal/sim/entity.go) — `Entity.Species`,
   the index into `World.alienSpecies` an individual alien was assigned.
 - [`internal/sim/config.go`](../internal/sim/config.go) — `AlienSpeciesCount`,
-  `AlienCautiousRadius`, `AlienHungerRise`, `AlienGrazeRadius`, `AlienNames`, and `AlienDamage`/`AlienBiteRest`/
+  `AlienCautiousRadius`, `AlienHungerRate`, `AlienGrazeRadius`, `AlienNames`, and `AlienDamage`/`AlienBiteRest`/
   `AlienSlowness`/`AlienReferenceWeightKG` (now baselines a species scales).
 - [`internal/sim/combat.go`](../internal/sim/combat.go),
   [`internal/sim/systems.go`](../internal/sim/systems.go) — `alienTurn`'s
@@ -168,8 +168,8 @@ so watching an alien eat a rat or another alien moves nobody's mood.
 
 A Hostile alien eats what it kills. Friendly and Cautious ones, which do not hunt,
 **graze cave scum** instead (`alienGraze`, `systems.go`). Every alien has a
-food need rising at `alien-hunger-rise` per tick (set in `newEntity`; the
-other needs stay flat, as for rats). Once it passes the food need's
+food drive growing at `alien-hunger-rate` thousandths of a point a tick (set
+in `newEntity`; the other drives stay flat, as for rats). Once it passes the food drive's
 `seek-at`, a Friendly alien — or a Cautious one with no colonist inside its
 radius — looks for the nearest exposed scum patch within `alien-graze-radius`
 that it can reach (`nearestEdible` with `grazeable`, `scavenge.go`: floor in
@@ -179,7 +179,7 @@ in reach, or not hungry, it wanders as before.
 
 - Reacting beats grazing: a hungry Cautious alien with a colonist in its
   radius goes for the colonist. Grazing is what it does when left alone.
-- Aliens **never starve**. `alienTurn` does not call `applyStarvation`, so a
+- Aliens **never starve**. `alienTurn` does not call `applyDriveConsequences`, so a
   grazer on a bare map is merely hungry. Starving aliens would quietly thin
   out the peaceful species on scum-poor seeds while Hostile ones (whose
   hunger is never read) lived forever — a balance change nobody asked for.

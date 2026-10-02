@@ -99,11 +99,11 @@ type ColonistDetail struct {
 	Wallet      int64  `json:"wallet"`
 	// Mood is the three affect axes, each in [-MoodMax, MoodMax], and the
 	// label they resolve to.
-	Mood      Mood        `json:"mood"`
-	Needs     []NeedLevel `json:"needs"`
-	Inventory []Stack     `json:"inventory"` // non-empty slots only
-	Slots     int         `json:"slots"`
-	Traits    []TraitInfo `json:"traits"`
+	Mood      Mood         `json:"mood"`
+	Drives    []DriveLevel `json:"drives"`
+	Inventory []Stack      `json:"inventory"` // non-empty slots only
+	Slots     int          `json:"slots"`
+	Traits    []TraitInfo  `json:"traits"`
 	// Skills are those it has a rank in, in skill order; Profession is the
 	// one it's known for ("" for none yet) and ProfessionLabel its title in
 	// it, like "journeyman smith" (docs/skills.md).
@@ -126,12 +126,14 @@ type Mood struct {
 	Max     int    `json:"max"`
 }
 
-// NeedLevel is one need's bar. Fatal needs kill at Max.
-type NeedLevel struct {
-	Name  string `json:"name"`
-	Value int    `json:"value"`
-	Max   int    `json:"max"`
-	Fatal bool   `json:"fatal"`
+// DriveLevel is one drive's bar. Consequence is what reaching Max does
+// ("none", "death", "loneliness", "passing out", "soiling"; see
+// sim.Consequence).
+type DriveLevel struct {
+	Name        string `json:"name"`
+	Value       int    `json:"value"`
+	Max         int    `json:"max"`
+	Consequence string `json:"consequence"`
 }
 
 // Stack is some number of one item, in a slot.
@@ -250,7 +252,7 @@ func colonistDetail(s *sim.Snapshot, e sim.EntityView, p *sim.Profile) *Colonist
 		Hair:        p.HairColor.String(),
 		Wallet:      int64(e.Wallet),
 		Mood:        Mood{Charge: e.Charge, Grip: e.Grip, Valence: e.Valence, Label: e.MoodLabel, Max: s.MoodMax},
-		Needs:       make([]NeedLevel, 0, len(e.Needs)),
+		Drives:      make([]DriveLevel, 0, len(e.Drives)),
 		Inventory:   []Stack{},
 		Slots:       len(e.Inventory),
 		Traits:      make([]TraitInfo, 0, len(p.Traits)),
@@ -260,9 +262,9 @@ func colonistDetail(s *sim.Snapshot, e sim.EntityView, p *sim.Profile) *Colonist
 		AffinityMax: s.AffinityMax,
 		Memories:    make([]MemoryLine, 0, len(e.Memories)),
 	}
-	for i, v := range e.Needs {
-		m := s.NeedsMeta[i]
-		c.Needs = append(c.Needs, NeedLevel{Name: m.Name, Value: v, Max: m.Max, Fatal: m.Fatal})
+	for i, v := range e.Drives {
+		m := s.DrivesMeta[i]
+		c.Drives = append(c.Drives, DriveLevel{Name: m.Name, Value: v, Max: m.Max, Consequence: m.Consequence.String()})
 	}
 	for i, st := range e.Inventory {
 		if st.Count > 0 {

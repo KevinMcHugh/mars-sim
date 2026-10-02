@@ -334,7 +334,7 @@ func baseBodyHP(e *Entity) int {
 }
 
 // giveTrait adds a trait a colonist acquired in play and re-resolves the
-// effective parameters traits feed (need rise, rest, work speed), so an
+// effective parameters traits feed (drive rates, rest, work speed), so an
 // acquired trait behaves exactly like one rolled at spawn. Adding a trait a
 // colonist already has is a no-op.
 func (w *World) giveTrait(e *Entity, t Trait) {

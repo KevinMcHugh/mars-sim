@@ -91,15 +91,15 @@ const (
 	// NutrientPod dispenses food; a colonist stands beside it to eat. Blocks
 	// movement like a wall.
 	NutrientPod
-	// Toilet relieves the bladder need; used from an adjacent tile.
+	// Toilet relieves the bladder drive; used from an adjacent tile.
 	Toilet
-	// Bed satisfies the sleep need; a colonist sleeps in the bunk from an
+	// Bed satisfies the sleep drive; a colonist sleeps in the bunk from an
 	// adjacent tile, the same way it uses any other facility. Blocks movement.
 	Bed
 	// Incinerator burns refuse — viscera scrubbed off the floor and the bodies
 	// of the dead — hauled to it by a cleaning colonist. It is a machine, not a
-	// need facility: nothing seeks it out to satisfy a drive, so it has no
-	// NeedSpec; it is the disposal end of the sanitation loop and the reason a
+	// drive facility: nothing seeks it out to satisfy a drive, so it has no
+	// DriveSpec; it is the disposal end of the sanitation loop and the reason a
 	// trash room gets built at all. Used from an adjacent tile; blocks movement
 	// like any other structure. See docs/sanitation.md.
 	Incinerator
@@ -873,6 +873,8 @@ type World struct {
 	rngSrc rngSources
 	log    *eventLog
 	cfg    Config
+	// driveTables are the drives' compiled bands (drive_bands.go).
+	driveTables [numDrives]driveTable
 
 	// alienSpecies is this world's roster of rolled alien species -- each
 	// one's build, colloquial name, temperament, and the combat stats (bite
@@ -920,7 +922,12 @@ func newWorld(cfg Config, src *rand.PCG) *World {
 		cfg.Cognition = DefaultCognitionConfig()
 	}
 	cfg.SyncWithCognition()
+	driveTables, err := compileDrives(&cfg)
+	if err != nil {
+		panic("invalid drive config: " + err.Error()) // main validates before a game starts
+	}
 	w := &World{
+		driveTables:       driveTables,
 		Width:             cfg.Width,
 		Height:            cfg.Height,
 		tiles:             newPagedGrid[tileCell](cfg.Width, cfg.Height),
@@ -996,19 +1003,19 @@ func newWorld(cfg Config, src *rand.PCG) *World {
 	})
 	w.pf = newPathfinder(w)
 
-	for i := 0; i < int(numNeeds); i++ {
-		if f := cfg.Needs[i].Facility; f != Rock && w.fields[f] == nil {
+	for i := 0; i < int(numDrives); i++ {
+		if f := cfg.Drives[i].Facility; f != Rock && w.fields[f] == nil {
 			w.trackFacility(f)
 		}
 	}
-	// The incinerator backs no need, so the loop above never reaches it, but a
+	// The incinerator backs no drive, so the loop above never reaches it, but a
 	// hauler still has to find and route to one — it needs the same tracked
 	// tile set and shared field as any facility. See docs/sanitation.md.
 	w.trackFacility(Incinerator)
 	// Storage does not satisfy a biological need, but full colonists still seek
 	// it through the same position index and pathing machinery.
 	w.trackFacility(Storage)
-	// The scumhouse backs no need either, but haulers and cooks route to it.
+	// The scumhouse backs no drive either, but haulers and cooks route to it.
 	w.trackFacility(Scumhouse)
 	// So do smiths and gunsmiths to the foundry's workshops.
 	w.trackFacility(Forge)
@@ -1385,13 +1392,13 @@ func (w *World) spawn(kind Kind, p Point) *Entity {
 // (see spawnNest).
 func (w *World) spawnAs(kind Kind, p Point, species int) *Entity {
 	e := newEntity(w.nextID, kind, p, w.cfg)
-	for i := range e.needSince {
-		e.needSince[i] = w.tick // needs start rising from now
-		// Stagger starting need levels so a freshly settled colony does not all
-		// get hungry on the same tick and stampede the facilities at once.
-		if kind == Colonist {
-			if seek := w.cfg.Needs[i].SeekAt; seek > 0 {
-				e.Needs[i] = w.rng.IntN(seek)
+	// Stagger starting drive levels so a freshly settled colony does not all
+	// get hungry on the same tick and stampede the facilities at once.
+	var levels [numDrives]int
+	if kind == Colonist {
+		for i := range levels {
+			if seek := w.cfg.Drives[i].SeekAt; seek > 0 {
+				levels[i] = w.rng.IntN(seek)
 			}
 		}
 	}
@@ -1400,12 +1407,10 @@ func (w *World) spawnAs(kind Kind, p Point, species int) *Entity {
 		if w.assignKin(e) {    // family tree node + any tie to an existing colonist
 			w.inheritFamily(e) // the surname, looks, and warmth that come with it
 		}
-		// Personality resolves the effective rise rates, so initialize phases and
-		// their next-boundary ticks only after that resolution is complete.
-		for n := NeedKind(0); n < numNeeds; n++ {
-			w.syncNeedPhase(e, n)
-		}
 	}
+	// Personality resolves the trait-scaled rates, so drives start only after
+	// it: their rates, bands and next crossings are all read from it.
+	w.initDrives(e, levels)
 	if kind == Rat {
 		e.sex = w.rollRatSex() // decides which rats can carry a litter
 	}

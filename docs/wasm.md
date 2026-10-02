@@ -44,7 +44,7 @@ Importing `internal/sim` from the browser runs that package's initializer and ev
 
 `newWorld` is not in the module. The module is still several megabytes, mostly the Go runtime plus yaml's init plus `encoding/json`.
 
-The small build is a new package, `internal/mind`, that holds the focus and personality functions and the types they need. It must not import the YAML loader and must not mention `*World`. `internal/sim` imports it; world methods stay wrappers. The wasm `main` imports only `internal/mind`. Moving the types (`FocusKind`, `NeedSpec`, `Trait`, the roll tables) is the work. A second copy of `fillFocusCandidates` or `rollProfile` in JavaScript or in the wasm package is the failure mode.
+The small build is a new package, `internal/mind`, that holds the focus and personality functions and the types they need. It must not import the YAML loader and must not mention `*World`. `internal/sim` imports it; world methods stay wrappers. The wasm `main` imports only `internal/mind`. Moving the types (`FocusKind`, `DriveSpec`, `Trait`, the roll tables) is the work. A second copy of `fillFocusCandidates` or `rollProfile` in JavaScript or in the wasm package is the failure mode.
 
 `LabEvaluate` takes the editor's JSON, not `ApplyCognitionYAML`, on purpose. The loader overlays a document on the shipped defaults. The bench has to score the file on screen, including a deleted rule.
 

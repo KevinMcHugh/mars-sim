@@ -32,6 +32,9 @@ const (
 	NounScumhouse NounID = "scumhouse"
 	NounGoods     NounID = "goods"
 	NounSkill     NounID = "skill"
+	// NounLoneliness is what a colonist whose social drive sits at its
+	// ceiling feels (ConsequenceLoneliness).
+	NounLoneliness NounID = "loneliness"
 )
 
 const (
@@ -60,6 +63,10 @@ const (
 	ActionBuy        ActionID = "buy"
 	ActionHaul       ActionID = "haul"
 	ActionLearn      ActionID = "learn"
+	ActionFeel       ActionID = "feel"
+	ActionSocialize  ActionID = "socialize"
+	ActionCollapse   ActionID = "collapse"
+	ActionSoil       ActionID = "soil"
 )
 
 // ChannelID says how an observer learned about an occurrence. Direct is
