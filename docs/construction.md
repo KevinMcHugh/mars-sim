@@ -245,6 +245,43 @@ walls are already Floor or Wall, and its anchor is never further than that
 from one, whichever way it faces. That skips nothing that could pass and
 brought the same search to 0.4 ms, faster than before facings.
 
+That box bound only helps while the colony is compact. On seed
+`1790918757088000000` (10000x10000, 200 colonists), main hit a stretch from
+about tick 12,500 to 19,500 where it averaged 4.45 ms/tick natively, against
+about 0.5 ms elsewhere. That held the browser build under 100 ticks a second.
+The colony had spread until the search box was about 300 tiles across. With no
+projects in flight, `planRooms` wanted a meeting hall and a foundry, neither
+fitted anywhere, and every `planInterval` it repeated a failed search of the
+whole box for each, once per width tried. A planning pass cost about 70 ms.
+
+Nearly every anchor in such a box is solid rock, and rock passes
+`roomSiteClear`'s back-row test and, with `allowRock`, its interior. Each rock
+anchor was rejected only at its side walls, after a row of map lookups, and
+four times over, once per facing. So `appendRoomSites` scans each facing along
+its approach row instead: south- and north-facing rooms row by row, east- and
+west-facing ones column by column. Every site needs walkable ground the whole
+way along that row (lane to lane). When a tile in it is not walkable, the scan
+jumps past every anchor whose row covers that tile. `roomSiteClear` also reads
+terrain before the `designated` and `doorTiles` map lookups. All of these
+checks are pure, and the candidates are sorted on an explicit
+(distance, row-major anchor, facing) key, which is the order the stable sort
+used to keep. So the result is unchanged.
+
+| Search | Before | After |
+| --- | --- | --- |
+| `BenchmarkFindRoomSiteNoFit` | 391 µs | 15 µs |
+| That seed at tick 13,000, all four passes, width 7 | 53 ms | 26 ms |
+| Same, width 9 | 113 ms | 24 ms |
+| Same, width 31 | 312 ms | 10 ms |
+
+Most of what is left at widths 7 and 9 is real candidates on open floor, which
+sites that are found have to check anyway.
+
+The planner still repeats a search that keeps failing, every `planInterval`.
+Skipping it would mean backing off, or remembering a failure until the terrain
+near the colony changes. Either would change when rooms are planned, and so
+the golden hashes. That is a separate decision from making the scan cheap.
+
 Facilities stay spaced one tile apart because a colonist using a facility stands
 on its neighbor tiles — two adjacent facilities would mean one could never be
 built or used.

@@ -1,6 +1,9 @@
 package sim
 
-import "slices"
+import (
+	"cmp"
+	"slices"
+)
 
 // Construction projects are how the colony builds structures it plans as a group
 // rather than one colonist at a time. A project is a set of tile designations
@@ -807,10 +810,24 @@ func (w *World) carvedSearchRadius(center Point, width int) int {
 }
 
 // siteCandidate is a site that passed roomSiteClear, with its distance from
-// the map center.
+// the map center and its facing's place in roomFacings (rank), for breaking
+// ties.
 type siteCandidate struct {
 	f    roomFrame
 	dist int
+	rank int
+}
+
+// compareSiteCandidates orders sites nearest the map center first, then by
+// row-major anchor, then by roomFacings' order.
+func compareSiteCandidates(a, b siteCandidate) int {
+	aa, ba := a.f.anchor(), b.f.anchor()
+	return cmp.Or(
+		cmp.Compare(a.dist, b.dist),
+		cmp.Compare(aa.Y, ba.Y),
+		cmp.Compare(aa.X, ba.X),
+		cmp.Compare(a.rank, b.rank),
+	)
 }
 
 // findRoomSiteWith returns the site nearest the map center that rules allow
@@ -860,20 +877,10 @@ func (w *World) findRoomSiteWith(width int, rules siteRules) (roomFrame, bool) {
 		}
 
 		cands = cands[:0]
-		for y := ay0; y <= ay1; y++ {
-			for x := ax0; x <= ax1; x++ {
-				anchor := Point{x, y}
-				for _, face := range roomFacings {
-					f := frameAt(anchor, face, width)
-					if w.roomSiteClear(f, designated, rules) {
-						cands = append(cands, siteCandidate{f, center.Chebyshev(anchor)})
-					}
-				}
-			}
+		for rank, face := range roomFacings {
+			cands = w.appendRoomSites(cands, face, rank, width, Point{ax0, ay0}, Point{ax1, ay1}, center, designated, rules)
 		}
-		// Stable, so equal distances keep the scan order: row-major anchor,
-		// then facing.
-		slices.SortStableFunc(cands, func(a, b siteCandidate) int { return a.dist - b.dist })
+		slices.SortFunc(cands, compareSiteCandidates)
 		for _, c := range cands {
 			if w.siteKeepsColonyWhole(c.f, designated) {
 				return c.f, true
@@ -885,6 +892,85 @@ func (w *World) findRoomSiteWith(width int, rules siteRules) (roomFrame, bool) {
 			return roomFrame{}, false // no site can exist any further out
 		}
 	}
+}
+
+// appendRoomSites appends every site facing face, with its anchor in the box
+// lo..hi, that passes roomSiteClear.
+//
+// Every site needs walkable ground the whole way along its approach row, the
+// row outside its front wall from lane to lane (u -1..width; see
+// roomSiteClear's last loop). So the scan runs along that row: south- and
+// north-facing rooms row by row, east- and west-facing ones column by column.
+// A tile in it that is not walkable rules out every anchor whose row covers
+// it, so the scan jumps past them all instead of testing each. Nothing it
+// skips could have passed, so the sites found are the same.
+//
+// Nearly all of a search box is solid rock, which passes roomSiteClear's first
+// tests, so this is what keeps a search that finds nothing cheap. See
+// docs/construction.md, "Search cost".
+func (w *World) appendRoomSites(cands []siteCandidate, face roomFacing, rank, width int, lo, hi, center Point, designated map[Point]bool, rules siteRules) []siteCandidate {
+	half := width / 2
+	ahead := roomFrontV + roomApproach // how far in front of the anchor the approach row lies
+	try := func(anchor Point) {
+		if f := frameAt(anchor, face, width); w.roomSiteClear(f, designated, rules) {
+			cands = append(cands, siteCandidate{f, center.Chebyshev(anchor), rank})
+		}
+	}
+	switch face {
+	case faceEast, faceWest:
+		for x := lo.X; x <= hi.X; x++ {
+			ax := x + ahead
+			if face == faceWest {
+				ax = x - ahead
+			}
+			for y := lo.Y; y <= hi.Y; y++ {
+				// The approach column spans y-half-1..y-half+width.
+				if b, ok := w.lastUnwalkableInColumn(ax, y-half-1, y-half+width); ok {
+					y = b + half + 1 // the loop's y++ lands on the first anchor clear of b
+					continue
+				}
+				try(Point{x, y})
+			}
+		}
+	default:
+		for y := lo.Y; y <= hi.Y; y++ {
+			ay := y + ahead
+			if face == faceNorth {
+				ay = y - ahead
+			}
+			for x := lo.X; x <= hi.X; x++ {
+				// The approach row spans x-half-1..x-half+width.
+				if b, ok := w.lastUnwalkableInRow(ay, x-half-1, x-half+width); ok {
+					x = b + half + 1 // the loop's x++ lands on the first anchor clear of b
+					continue
+				}
+				try(Point{x, y})
+			}
+		}
+	}
+	return cands
+}
+
+// lastUnwalkableInRow returns the greatest x in [x0, x1] where (x, y) is not
+// walkable, if there is one: the blocker that rules out the most anchors (see
+// appendRoomSites).
+func (w *World) lastUnwalkableInRow(y, x0, x1 int) (int, bool) {
+	for x := x1; x >= x0; x-- {
+		if !w.Walkable(Point{x, y}) {
+			return x, true
+		}
+	}
+	return 0, false
+}
+
+// lastUnwalkableInColumn is lastUnwalkableInRow down column x.
+func (w *World) lastUnwalkableInColumn(x, y0, y1 int) (int, bool) {
+	for y := y1; y >= y0; y-- {
+		if !w.Walkable(Point{x, y}) {
+			return y, true
+		}
+	}
+	return 0, false
 }
 
 // roomSiteClear reports whether a room in frame f is buildable. The interior
@@ -910,6 +996,9 @@ func (w *World) findRoomSiteWith(width int, rules siteRules) (roomFrame, bool) {
 //
 // This is the cheap, local half of siting. Whether the room would cut the
 // colony in two is siteKeepsColonyWhole's question.
+//
+// Terrain reads come before the designated and doorTiles lookups, which hash
+// a Point each. The checks are all pure, so their order changes only the cost.
 func (w *World) roomSiteClear(f roomFrame, designated map[Point]bool, rules siteRules) bool {
 	if !w.InBounds(f.at(-2, roomBackV-1)) || !w.InBounds(f.at(f.width+1, roomFrontV+roomApproach)) {
 		return false
@@ -925,7 +1014,7 @@ func (w *World) roomSiteClear(f roomFrame, designated map[Point]bool, rules site
 		for u := 0; u < f.width; u++ {
 			p := f.at(u, v)
 			t := w.TerrainAt(p)
-			if designated[p] || w.doorTiles[p] || (t != Floor && !(rules.allowRock && t == Rock)) {
+			if (t != Floor && !(rules.allowRock && t == Rock)) || designated[p] || w.doorTiles[p] {
 				return false
 			}
 			if t == Floor && !w.discovered(p) {
@@ -938,9 +1027,6 @@ func (w *World) roomSiteClear(f roomFrame, designated map[Point]bool, rules site
 		// another room (shared outright: nothing more is needed on that side).
 		for _, side := range [2]struct{ wall, lane int }{{-1, -2}, {f.width, f.width + 1}} {
 			p := f.at(side.wall, v)
-			if designated[p] || w.doorTiles[p] {
-				return false
-			}
 			switch w.TerrainAt(p) {
 			case Floor:
 				lane := f.at(side.lane, v)
@@ -950,6 +1036,9 @@ func (w *World) roomSiteClear(f roomFrame, designated map[Point]bool, rules site
 			case Wall:
 				// Shared party wall: this room needs nothing beyond it.
 			default:
+				return false
+			}
+			if designated[p] || w.doorTiles[p] {
 				return false
 			}
 		}

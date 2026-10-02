@@ -134,6 +134,12 @@ whole grid every time.
 | 5000x5000 | 41 ms, 25 MB | 33 µs, 19 KB |
 | 7000x7000 | 79 ms, 49 MB | 34 µs, 28 KB |
 
+Room siting is the planner's scan rather than a colonist's. A colony that wants
+a room that fits nowhere repeats a failed search of the whole carved box every
+16 ticks. Rejecting rock anchors along their approach row first took a failed
+search on a spread-out 10k colony from 312 ms to 10 ms, with identical results
+(see construction.md's *Search cost*).
+
 Lazy needs and the resting AI (see [needs.md](./needs.md)) matter here too: a
 colonist's needs are computed on read, so an idle colonist rests instead of
 re-scanning the map every tick. Flow fields and HPA\* (see
