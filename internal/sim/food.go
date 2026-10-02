@@ -5,7 +5,7 @@ import "fmt"
 // ---- Food ---------------------------------------------------------------------
 //
 // Food is an item now. A hungry colonist eats, in order: a meal it is carrying,
-// a meal of its own in a depot it can reach (its crash pod's locker, to begin
+// a meal of its own in a depot it can reach (its locker aboard ship, to begin
 // with), a meal it buys — the colony's scumhouse sells what it cooks — and
 // only then the safety net: a nutrient pod, which makes gruel out of nothing
 // while infinite-food is on and serves nothing when it is off. The first

@@ -25,7 +25,7 @@ else here is still unbuilt.
 | --- | --- |
 | E0 — Money | **Shipped** — [money.md](./money.md) |
 | E1 — Property | **Shipped** — [property.md](./property.md) |
-| E2 — Crash pods and meals | **Shipped** — [crash-pods.md](./crash-pods.md), [food.md](./food.md) |
+| E2 — Crash pods and meals | **Shipped** — [ships.md](./ships.md) (pods since replaced by colony ships), [food.md](./food.md) |
 | E3 — Recipes and slurry | **Shipped** — [scumhouse.md](./scumhouse.md); construction costs in [construction.md](./construction.md) |
 | E4 — Order book | **Shipped** — [market.md](./market.md) |
 | E5 — Labor orders | **Shipped** — [labor.md](./labor.md) |
@@ -167,7 +167,7 @@ pod manifest:
 | Manifest item | Config key (proposed) | Notes |
 | --- | --- | --- |
 | Meals | `crash-pod-meals` | Finite food supply, the core of the scarcity. |
-| Weapon | `crash-pod-gun-weight` / `crash-pod-shotgun-percent` | Replaces the colony ship's `pistols`/`shotguns` and `equipColonyShip`. Since shipped as one of three rare items (gun, chicken, cat); see [crash-pods.md](./crash-pods.md). |
+| Weapon | `crash-pod-gun-weight` / `crash-pod-shotgun-percent` | Replaces the colony ship's `pistols`/`shotguns` and `equipColonyShip`. Since shipped as one of three rare items (gun, chicken, cat); see [ships.md](./ships.md). |
 | Dollars | `crash-pod-purse` | Goes to the wallet, not the locker. |
 
 Stamping a prefab rather than unpacking fixtures one by one lets pods ship
@@ -540,12 +540,12 @@ first; the safety net made the least attractive option.
 with meals doesn't use the safety net; `infinite-food: false` with no production
 starves the colony on the timeline the manifest predicts (a deliberate
 test of the scarcity itself).
-Shipped; see [crash-pods.md](./crash-pods.md) and [food.md](./food.md). All
+Shipped; see [ships.md](./ships.md) (crash pods have since been replaced by colony ships) and [food.md](./food.md). All
 three gates are tests. What differs from the sketch above:
 
 - The pod first shipped as an open five-by-two footprint; it is now a walled
   shell after all (a metal hull round a 3×2 interior, see
-  [crash-pods.md](./crash-pods.md)), because the open one did not read as
+  [ships.md](./ships.md)), because the open one did not read as
   anybody's room. It lands only in the **lower half** of the map. Rooms site against rock above them,
   and pods that spread into the top of the cavern left small colonies unable
   to build anything. The landing cavern is sized for its pods for the same

@@ -963,7 +963,7 @@ func (w *World) assignWorkJob(e *Entity) {
 	if w.foodWanted() && w.wildScumAllowed() && w.prospectingForFood() && e.Inventory.CanAdd(RawRock, 1) && w.tryProspect(e, false) {
 		return
 	}
-	// Surplus crash-pod meals go to market for someone hungrier to buy.
+	// Surplus locker meals go to market for someone hungrier to buy.
 	if w.tryAssignSellMeals(e) {
 		return
 	}

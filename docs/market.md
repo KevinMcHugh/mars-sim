@@ -81,9 +81,9 @@ wallet freezes, so a bid's escrow goes back to the wallet and freezes with it.
 ### The silo
 
 `marketDepot` is where the colony trades: its **communal** chest nearest the map
-centre (a crash-pod locker is private, so it never counts). It is cached on
+centre (a settler's locker is private, so it never counts). It is cached on
 `fixtureRev`, because a colony with a locker per settler has a container per
-settler. Crash pods mean nothing else ever calls for a shared chest, so the
+settler. Lockers for everyone mean nothing else ever calls for a shared chest, so the
 planner builds one when there is no silo (after life support, before bunks).
 
 Every `marketInterval` ticks, `runMarket` expires stale orders and has the

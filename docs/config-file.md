@@ -96,7 +96,7 @@ Old names still mean something (`RenamedSettings`, `RetiredSettings` in
   `shotguns` were the colony ship's armory; then every colonist landed with
   its own (`crash-pod-pistols`, `crash-pod-shotguns`, each with a
   `-percent`). Now a gun is one of three rare items a colonist may land with
-  (`crash-pod-gun-weight`, see [crash-pods.md](./crash-pods.md)), so none of
+  (`crash-pod-gun-weight`, see [ships.md](./ships.md)), so none of
   those counts means what it did, and all five point there.
 
 ## Why it is this way

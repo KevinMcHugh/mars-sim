@@ -40,7 +40,7 @@ type EntityView struct {
 	// other kind. See docs/lore.md.
 	AlienSpecies AlienSpecies
 	// Keeper is the colonist a pet (a chicken or a cat) came down with in its
-	// crash pod, 0 for a stray or anything that is not a pet. See
+	// ship, 0 for a stray or anything that is not a pet. See
 	// docs/chickens.md.
 	Keeper EntityID
 
@@ -400,7 +400,10 @@ type Stats struct {
 // Tiles aliases the live map, and the frame's terrain is only good on the
 // engine's goroutine until the next tick. Everything else stays a copy.
 type Snapshot struct {
-	Tick   int
+	Tick int
+	// Ships is every colony ship that has landed, in landing order. Before
+	// the first tick (Tick 0) a frontend may move them with MoveShip.
+	Ships  []ShipView
 	Width  int
 	Height int
 	// Seed is this run's world seed -- the one fact that, together with the
@@ -670,6 +673,7 @@ func (w *World) snapshot(paused bool, tps int) *Snapshot {
 		AffinityMax:          w.cfg.AffinityMax,
 		MoodMax:              w.cfg.MoodMax,
 		ScumMax:              w.cfg.ScumMax,
+		Ships:                w.shipViews(),
 		Paused:               paused,
 		TicksPerSecond:       tps,
 		FogOfWar:             w.cfg.FogOfWar,

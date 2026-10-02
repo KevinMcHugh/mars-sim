@@ -38,6 +38,36 @@ var topicTable = map[string]topic{
 	"storage":    {every: boardEvery, build: func(s *sim.Snapshot) any { return storageTopic(s) }},
 	"market":     {every: boardEvery, build: func(s *sim.Snapshot) any { return marketTopic(s) }},
 	"roster":     {every: rosterEvery, build: func(s *sim.Snapshot) any { return rosterTopic(s, false, false) }},
+	// Every advance, not on an interval: placing happens paused, when the
+	// only advance is the one a move command causes, and the page must see
+	// that move. A handful of ships is nothing to rebuild.
+	"ships": {every: 0, build: func(s *sim.Snapshot) any { return shipsTopic(s) }},
+}
+
+// ShipsTopic is the Ships tab: every colony ship's footprint, and whether
+// they may still be moved (only before the first tick; see sim.MoveShip).
+type ShipsTopic struct {
+	Placing bool       `json:"placing"`
+	Ships   []ShipLine `json:"ships"`
+}
+
+// ShipLine is one ship: its id, its footprint's top-left and size, and how
+// many came down in it.
+type ShipLine struct {
+	ID        int `json:"id"`
+	X         int `json:"x"`
+	Y         int `json:"y"`
+	W         int `json:"w"`
+	H         int `json:"h"`
+	Colonists int `json:"colonists"`
+}
+
+func shipsTopic(s *sim.Snapshot) ShipsTopic {
+	t := ShipsTopic{Placing: s.Tick == 0, Ships: make([]ShipLine, 0, len(s.Ships))}
+	for _, sh := range s.Ships {
+		t.Ships = append(t.Ships, ShipLine{ID: sh.ID, X: sh.X, Y: sh.Y, W: sh.Width, H: sh.Height, Colonists: sh.Colonists})
+	}
+	return t
 }
 
 // namesTopic is every living colonist's name by id, for the map's hover

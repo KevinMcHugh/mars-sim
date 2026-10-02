@@ -96,4 +96,4 @@ Perf screen's fractional ones.
 
 - [perf-screen.md](./perf-screen.md) — the chart this screen reuses.
 - [frontend-tui.md](./frontend-tui.md) — tabs and screens.
-- [food.md](./food.md), [crash-pods.md](./crash-pods.md) — where the meals and fixtures come from.
+- [food.md](./food.md), [ships.md](./ships.md) — where the meals and fixtures come from.

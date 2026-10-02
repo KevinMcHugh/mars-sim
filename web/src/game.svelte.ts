@@ -51,6 +51,8 @@ export const ui = $state({
   ticker: loadPref('ticker', true),
   /** The Dig tab's tool and the area marked with it (DigPanel.svelte). */
   dig: { armed: false, rect: null, tiles: 0 } as DigState,
+  /** The Ships tab's tool: the ship a click on the map relands, or null (ShipsPanel.svelte). */
+  shipTool: null as number | null,
   /** The Charts tab's view, kept while the tab is closed. */
   chartView: 'perf' as 'perf' | 'population' | 'activity',
   /** The flow field asked for (an index into Hello.flowFields), or -1 for none. */
@@ -85,6 +87,47 @@ export interface DigState {
   armed: boolean;
   rect: { x0: number; y0: number; x1: number; y1: number } | null;
   tiles: number;
+}
+
+/** The ships topic (internal/wire/topics.go): every ship, and whether they may still move. */
+export interface ShipsTopic {
+  placing: boolean;
+  ships: ShipLine[];
+}
+/** One ship: its footprint's top-left and size, and how many came down in it. */
+export interface ShipLine { id: number; x: number; y: number; w: number; h: number; colonists: number }
+
+/**
+ * Where ship s would land if centered on tile (x, y): its top-left, kept on
+ * the map with room for the crater round it.
+ */
+export function shipSiteAt(s: ShipLine, x: number, y: number, width: number, height: number): { x: number; y: number } {
+  return {
+    x: Math.max(1, Math.min(width - s.w - 1, x - (s.w >> 1))),
+    y: Math.max(1, Math.min(height - s.h - 1, y - (s.h >> 1))),
+  };
+}
+
+/**
+ * Whether ship s may land with its top-left at o: clear of every other ship
+ * and the walkway round it, as the engine's shipSiteAllowed checks. (The
+ * engine also refuses to land on another ship's colonist, which this cannot
+ * see; it never stands outside its own ship before the first tick.)
+ */
+export function shipSiteFree(ships: ShipLine[], s: ShipLine, o: { x: number; y: number }): boolean {
+  return ships.every((t) => t.id === s.id ||
+    o.x >= t.x + t.w + 1 || t.x - 1 >= o.x + s.w || o.y >= t.y + t.h + 1 || t.y - 1 >= o.y + s.h);
+}
+
+/** Pick a ship up: the next click on the map lands it there. null puts the tool down. */
+export function armShip(id: number | null): void {
+  ui.shipTool = id;
+  ctl?.shipToolChanged();
+}
+
+/** Reland a ship with its top-left at (x, y), before the first tick. */
+export function moveShip(id: number, x: number, y: number): void {
+  ctl?.command({ type: 'ship-move', id, x, y });
 }
 
 /** A creature by id, or a tile. */
@@ -169,6 +212,8 @@ export interface Controller {
   selected(): void;
   /** The dig tool's area changed (or was cleared): redraw its tint. */
   digChanged(): void;
+  /** The ship tool was picked up or put down: redraw (or clear) its preview. */
+  shipToolChanged(): void;
   /** Tint these tiles on the map (a job's), or none. */
   highlight(tiles: { x: number; y: number; color: Uint8Array }[] | null): void;
 }

@@ -229,25 +229,34 @@ type Config struct {
 	KitchenSavings int64 `cfg:"kitchen-savings" doc:"money a chef needs to commission its own kitchen: the room (about $50) and scum to cook in it"`
 	ToiletFee      int64 `cfg:"toilet-fee" doc:"what a house's toilet charges anyone but its owner per use (0: private)"`
 
-	// Crash pods. Every colonist arrives in one — at worldgen, from the spawn
-	// command, or from a director arrival — carrying its own bunk, toilet, and
-	// locker, and this manifest. See crashpod.go and docs/crash-pods.md.
-	CrashPodPurse      int64 `cfg:"crash-pod-purse" sec:"Crash pods" doc:"dollars each colonist arrives with"`
-	CrashPodMeals      int   `cfg:"crash-pod-meals" doc:"meals stocked in each crash pod's locker, on average"`
-	CrashPodMealSpread int   `cfg:"crash-pod-meal-spread" doc:"each pod's meals vary by up to this many either side of crash-pod-meals"`
+	// Arrivals. Every colonist arrives aboard a colony ship — at worldgen,
+	// from the spawn command, or from a director arrival — with a locker of
+	// its own, communal bunks and toilets shared with its shipmates, and this
+	// manifest. The crash-pod-* names are from the one-pod-per-colonist
+	// arrivals ships replaced. See ship.go and docs/ships.md.
+	ShipCapacity      int `cfg:"ship-capacity" sec:"Arrivals" doc:"most settlers one colony ship carries; a larger wave comes down in several"`
+	ShipBunkPercent   int `cfg:"ship-bunk-percent" doc:"communal bunks a ship carries, as a percent of its passengers (rounded up)"`
+	ShipToiletPercent int `cfg:"ship-toilet-percent" doc:"communal toilets a ship carries, as a percent of its passengers (rounded up)"`
+
+	CrashPodPurse      int64 `cfg:"crash-pod-purse" doc:"dollars each colonist arrives with"`
+	CrashPodMeals      int   `cfg:"crash-pod-meals" doc:"meals stocked in each colonist's locker, on average"`
+	CrashPodMealSpread int   `cfg:"crash-pod-meal-spread" doc:"each locker's meals vary by up to this many either side of crash-pod-meals"`
 	// Every colonist lands with exactly one rare item: a gun, a chicken (with
 	// a trough), or a cat, picked per colonist by these relative weights. A
 	// gun is a shotgun crash-pod-shotgun-percent of the time, else a pistol.
 	// All three weights at 0 lands everyone with none. See
-	// docs/crash-pods.md and docs/chickens.md.
+	// docs/ships.md and docs/chickens.md.
 	CrashPodGunWeight      int `cfg:"crash-pod-gun-weight" doc:"relative odds a colonist's one rare item is a gun"`
-	CrashPodChickenWeight  int `cfg:"crash-pod-chicken-weight" doc:"relative odds a colonist's one rare item is a chicken (with a trough in its pod)"`
+	CrashPodChickenWeight  int `cfg:"crash-pod-chicken-weight" doc:"relative odds a colonist's one rare item is a chicken (with a trough in its ship's hold)"`
 	CrashPodCatWeight      int `cfg:"crash-pod-cat-weight" doc:"relative odds a colonist's one rare item is a cat"`
 	CrashPodShotgunPercent int `cfg:"crash-pod-shotgun-percent" doc:"percent of the guns colonists land with that are shotguns rather than pistols"`
 
 	// Timing.
 	TicksPerSecond int `cfg:"tps" sec:"Timing" doc:"simulation ticks per second"`
-	LogSize        int `cfg:"log-size" doc:"number of recent events retained"`
+	// StartPaused starts the engine paused. The browser sets it, so the
+	// player can move the ships before the first tick (see MoveShip).
+	StartPaused bool `cfg:"start-paused" doc:"start the game paused (the browser does, so the ships can be placed)"`
+	LogSize     int  `cfg:"log-size" doc:"number of recent events retained"`
 
 	// Colonist stats.
 	ColonistHP int `cfg:"colonist-hp" sec:"Colonists" doc:"colonist hit points"`
@@ -666,6 +675,11 @@ func DefaultConfig() Config {
 		// ten carry a colonist a few thousand ticks: long enough to settle in,
 		// short enough that food production matters once the safety net is
 		// off. Every settler lands armed, the way frontier settlers did.
+		// A ship of 20 sleeps 10 and has 5 toilets: enough to get by, not
+		// enough to keep the colony from building. See docs/ships.md.
+		ShipCapacity:       20,
+		ShipBunkPercent:    50,
+		ShipToiletPercent:  25,
 		CrashPodMeals:      10,
 		CrashPodMealSpread: 0,
 		// Half the colony lands armed, a quarter with a chicken, a quarter
