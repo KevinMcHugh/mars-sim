@@ -23,8 +23,9 @@ marks out a new one:
    and the narrow fallback is for the colony's first room of a kind only.
 
 The colony commissions all of it like any public work, from the treasury, and
-tearing a wall down has its own wage. Fixtures can also be moved: see
-*Moving fixtures* below.
+tearing a wall down has its own wage. Fixtures can also be moved: with
+nothing else to build, the colony empties a small room into a bigger one of
+its zone nearby and clears the empty shell away.
 
 ## Source
 
@@ -37,6 +38,9 @@ tearing a wall down has its own wage. Fixtures can also be moved: see
   new room's layout), `recipeUnits`, `facilityUnits`, `designateRoom`
   (`newRoomRecord`), and `planRooms`, which asks `placeFixtures` for
   everything.
+- [`internal/sim/fixturemove.go`](../internal/sim/fixturemove.go): moving a
+  fixture (`relocateFixture`, `designateMove`) and consolidating rooms
+  (`consolidateRooms`, `roomUnits`, `clearShell`).
 - [`internal/sim/roomframe.go`](../internal/sim/roomframe.go):
   `footprintKeepsColonyWhole`, the split check for any rectangle.
 - [`internal/sim/structures.go`](../internal/sim/structures.go):
@@ -48,8 +52,12 @@ tearing a wall down has its own wage. Fixtures can also be moved: see
   facing opposite ways, growing through a doorway, a kitchen's pair, staying
   out of other rooms, the planner using what it has, and colonists building
   a merger.
+- [`internal/sim/fixturemove_test.go`](../internal/sim/fixturemove_test.go):
+  what a relocated fixture carries, colonists moving a chest, and a small room
+  emptied and cleared away.
 - [`internal/sim/bench_test.go`](../internal/sim/bench_test.go):
-  `BenchmarkExpandNoFit`, the search that finds nothing.
+  `BenchmarkExpandNoFit` and `BenchmarkTidyNoFit`, searches that find
+  nothing.
 
 ## How it works
 
@@ -164,7 +172,40 @@ with `tidyRooms`, which joins rooms even when they gain no fixture.
 
 ### Moving fixtures
 
-*(Phase 3 of issue #128; see below for when it lands.)*
+A fixture moves in two phases of one project (`designateMove`). First it goes
+up in its new place (`roomFitPhase`), costing no materials
+(`buildTask.moved`, `taskBuildCost`), since the old one is not salvaged.
+Then the old place comes down (`roomMovePhase`, a teardown with `moveTo`
+set, paid `wage-demolish`), and as it does `relocateFixture` hands everything
+that was the old fixture's to the new one:
+
+- its depot (`storageContainers`), re-keyed, so a chest's goods and whose they
+  are, a workshop's stock and an incubator's growing scum go with it. The
+  market there is closed first (`closeDepotMarket`, split out of
+  `emptyDepot`): resting orders are cancelled and upkeep posts the standing
+  ones again;
+- its owner and who may use it (`setFixtureOwner`);
+- a stove's pantry link, either end;
+- a cook's or scraper's claim, a keeper's trough, a chef's kitchen.
+
+Then `demolish` finds nothing left to empty or let go. The new fixture goes
+up first, so the colony is never a fixture short while one moves, and a move
+whose new place was cleared in the meantime just comes down the usual way.
+
+**Consolidation.** `tidyRooms`, the planner's last call, ends with
+`consolidateRooms`, which does one thing at a time:
+
+- **An empty room is cleared away** (`clearShell`): a clearing order for its
+  walls, a wall it shares with a room that stays excepted (`tilesToClear`).
+  Its record goes with its last wall (`forget`).
+- **A small room is emptied.** A room of `consolidateMost` (2) fixtures or
+  fewer moves all of them into a room of its zone with more, whose first
+  doorway is within `consolidateReach` (24) of its own, if that room has
+  floor for every one. A stove and its pantry move as a pair
+  (`roomUnits`). The emptied room is cleared on a later pass.
+
+Both use `project.from`, which marks the room being emptied busy (nothing is
+fitted into it) without counting as a room going up.
 
 ## Why it is this way
 
@@ -206,6 +247,14 @@ with `tidyRooms`, which joins rooms even when they gain no fixture.
   of a room's inside per candidate is cheap at room sizes, and a room that is
   already at `room-max-facilities` is turned down by counting its fixtures,
   before any layout is built.
+- **Move by building first.** Tearing the old fixture down first would leave
+  its goods with nowhere to go but the nearest chest, which is how
+  `emptyDepot` still empties a fixture that is cleared away. Building the new
+  one first lets the depot itself move, its ledger and an incubator's growth
+  included, and keeps the colony's capacity whole throughout.
+- **Consolidate only into a bigger room.** Two rooms of one fixture each
+  would each be the other's candidate, and with many of them the search laid
+  out every pair within reach on every idle planning pass.
 - **Partial placement.** A fit-out places what fits and the planner comes
   back for the rest. Holding out for a room with space for the whole demand
   is what marked out new rooms beside old ones with floor to spare.
@@ -229,7 +278,11 @@ fix (PR #130) on the same `main`:
 | alive / starved | 480 / 0 | 480 / 0 |
 | ms per tick | 0.151 | 0.158 |
 
-Mergers: none. What the colony now marks out new is, per seed, its first room
+Mergers, moves and clearings: none without aliens. With aliens on (36 seeds),
+a few: 1 merger, 2 moves and 1 empty room cleared away, where attacks had
+left rooms half empty. Survival with aliens swung both ways seed by seed, as
+it always has (614 alive and 10 starved, against 597 and 6). What the colony
+now marks out new is, per seed, its first room
 of each kind (the first kitchen, the hall, the silo, the first incubators)
 and a kitchen once every production room holds `room-max-facilities`
 fixtures. Over 6 seeds, 51 of 83 new rooms were colonists' houses, which are
@@ -238,8 +291,14 @@ incubators, and the forge and gun bench together, in two rows along their
 walls.
 
 `BenchmarkExpandNoFit` (800 full storage rooms wall to wall, merging off)
-is 0.10 ms, as before. Counting a room's fixtures before laying it out is
+is 0.11 ms, as before. Counting a room's fixtures before laying it out is
 what keeps it there: building every room's layout first cost 3.9 ms.
+`BenchmarkTidyNoFit` (the same world, the planner's idle pass) is 0.59 ms:
+`mergePairs` sweeps the rooms sorted by their west edge instead of trying
+every pair (5.8 ms), and consolidation looks only from small rooms to bigger
+ones. Bucketing rooms into a grid was tried first and was slower in a packed
+colony: every bucket held hundreds of rooms, and building neighbour lists cost
+more than it saved.
 
 ### History
 

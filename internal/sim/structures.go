@@ -526,6 +526,27 @@ func (w *World) forgetDetours() {
 	}
 }
 
+// closeDepotMarket closes the market at the depot at p: orders resting there
+// are cancelled (an ask's goods go back on its seller's line there, a bid's
+// money back to its bidder), its books dropped, and haul work to or from it
+// closed. Upkeep posts the standing orders again wherever the goods are next.
+func (w *World) closeDepotMarket(p Point) {
+	for _, o := range w.sortedOrders(func(o *Order) bool { return o.Depot == p }) {
+		w.cancel(o)
+	}
+	for k := range w.books {
+		if k.Depot == p {
+			delete(w.books, k)
+		}
+	}
+	for _, o := range w.sortedWork(func(o *WorkOrder) bool {
+		return o.Kind == WorkHaul && (o.Pos == p || o.From == p)
+	}) {
+		delete(w.haulClaims, o.ID)
+		w.closeWork(o)
+	}
+}
+
 // letGoFixture unhooks what refers to the fixture at p by position: a
 // keeper's and its hens' trough, a chef's kitchen, a cook's claim, a
 // kitchen's pantry link.
@@ -561,20 +582,7 @@ func (w *World) emptyDepot(p Point) {
 	if c == nil {
 		return
 	}
-	for _, o := range w.sortedOrders(func(o *Order) bool { return o.Depot == p }) {
-		w.cancel(o)
-	}
-	for k := range w.books {
-		if k.Depot == p {
-			delete(w.books, k)
-		}
-	}
-	for _, o := range w.sortedWork(func(o *WorkOrder) bool {
-		return o.Kind == WorkHaul && (o.Pos == p || o.From == p)
-	}) {
-		delete(w.haulClaims, o.ID)
-		w.closeWork(o)
-	}
+	w.closeDepotMarket(p)
 	moved, lost := 0, 0
 	for _, l := range append([]LedgerLine(nil), c.Ledger...) {
 		left := l.Count

@@ -610,6 +610,9 @@ func (w *World) roomPlanState() roomPlanState {
 		if p.room != nil {
 			st.busy[p.room] = true
 		}
+		if p.from != nil {
+			st.busy[p.from] = true
+		}
 		for _, t := range p.tasks {
 			st.designated[t.pos] = true
 			switch {
@@ -727,6 +730,39 @@ func mergeBox(a, b *roomRecord) (lo, hi Point, ok bool) {
 	return lo, hi, area(lo, hi)-aa-ab-between <= max(aa, ab)
 }
 
+// mergePairs lists the pairs of recs that stand close enough to join
+// (mergeBox's gap and overlap), oldest room first and then its partner, the
+// order mergeRooms tries them in. It sweeps the rooms sorted by their west
+// edge, so it looks at a room's near neighbours only: comparing every pair
+// was 5.8 ms a planning pass with 800 rooms (BenchmarkTidyNoFit).
+func mergePairs(recs []*roomRecord) [][2]int {
+	order := make([]int, len(recs))
+	for i := range order {
+		order[i] = i
+	}
+	slices.SortStableFunc(order, func(a, b int) int { return recs[a].lo.X - recs[b].lo.X })
+	var pairs [][2]int
+	for k, i := range order {
+		a := recs[i]
+		for _, j := range order[k+1:] {
+			b := recs[j]
+			if b.lo.X > a.hi.X+maxMergeLane+3 {
+				break
+			}
+			if _, _, ok := mergeBox(a, b); ok {
+				pairs = append(pairs, [2]int{min(i, j), max(i, j)})
+			}
+		}
+	}
+	slices.SortFunc(pairs, func(p, q [2]int) int {
+		if p[0] != q[0] {
+			return p[0] - q[0]
+		}
+		return p[1] - q[1]
+	})
+	return pairs
+}
+
 // mergeRooms joins two rooms of recs into one, fitting at least least of us
 // into the joined room, and reports whether it did. Pairs go oldest room
 // first, and the older lives on.
@@ -736,30 +772,27 @@ func (w *World) mergeRooms(recs []*roomRecord, us []fixtureUnit, least int, st r
 	for i, rec := range recs {
 		counts[i] = w.roomFixtures(rec, st)
 	}
-	for i, a := range recs {
-		for j, b := range recs[i+1:] {
-			if counts[i]+counts[i+1+j] > limit {
-				continue
-			}
-			lo, hi, ok := mergeBox(a, b)
-			if !ok {
-				continue
-			}
-			sh := roomShape{recs: []*roomRecord{a, b}, lo: lo, hi: hi}
-			plan, _, ok := w.shapeWork(sh, st)
-			if !ok {
-				continue
-			}
-			l := w.layoutFor(lo, hi, plan.doors, st)
-			pl := l.place(us, w.cfg.RoomMaxFacilities)
-			if len(pl) < least || !w.shapeKeepsColonyWhole(sh, st) {
-				continue
-			}
-			before := w.roomTitle(a)
-			if w.designateShape(sh, plan, pl, before+" merger") {
-				w.logEvent(LogBuildStart, fmt.Sprintf("The colony takes down the walls between two rooms to make one larger %s.", w.roomTitle(a)))
-				return true
-			}
+	for _, pr := range mergePairs(recs) {
+		i, j := pr[0], pr[1]
+		a, b := recs[i], recs[j]
+		if counts[i]+counts[j] > limit {
+			continue
+		}
+		lo, hi, _ := mergeBox(a, b)
+		sh := roomShape{recs: []*roomRecord{a, b}, lo: lo, hi: hi}
+		plan, _, ok := w.shapeWork(sh, st)
+		if !ok {
+			continue
+		}
+		l := w.layoutFor(lo, hi, plan.doors, st)
+		pl := l.place(us, w.cfg.RoomMaxFacilities)
+		if len(pl) < least || !w.shapeKeepsColonyWhole(sh, st) {
+			continue
+		}
+		before := w.roomTitle(a)
+		if w.designateShape(sh, plan, pl, before+" merger") {
+			w.logEvent(LogBuildStart, fmt.Sprintf("The colony takes down the walls between two rooms to make one larger %s.", w.roomTitle(a)))
+			return true
 		}
 	}
 	return false
@@ -948,7 +981,7 @@ func (w *World) tidyRooms() bool {
 			return true
 		}
 	}
-	return false
+	return w.consolidateRooms(st)
 }
 
 // absorbStructure folds o into s: o's tiles, area and doorways become s's,

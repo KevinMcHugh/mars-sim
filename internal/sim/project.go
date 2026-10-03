@@ -29,6 +29,12 @@ type buildTask struct {
 	// whatever stands on the tile (a wall, a hull, any fixture) for a
 	// clearing order (see zones.go).
 	clears Terrain
+	// moved marks a fixture built as the new place of one being moved (see
+	// fixturemove.go): it costs no materials, since the old one is not
+	// salvaged. moveTo is set on the old one's teardown: where it went, so
+	// its goods, owner and links follow it there.
+	moved  bool
+	moveTo *Point
 	// order is the work order paying for this task, and proj the project it
 	// belongs to (see workorder.go). A task built by hand in a test has
 	// neither: it is unpaid, and its fixture stays the colony's.
@@ -50,8 +56,12 @@ type project struct {
 	// (the zero value) for a room, WorkDig for an excavation order, WorkClear
 	// for a clearing order.
 	workKind WorkKind
-	// room is the room this project marks out or enlarges, if it is one.
+	// room is the room this project marks out, reshapes or fits out, if it
+	// is one. from is a room it empties: the one a move takes fixtures out
+	// of, or a shell being cleared away. Both are busy while it runs; only
+	// room counts as a room going up (roomGoingUp).
 	room *roomRecord
+	from *roomRecord
 	// structure is the structure a room project raises or enlarges (see
 	// structures.go).
 	structure *structure
@@ -159,7 +169,7 @@ func (w *World) claimNearestTaskIn(from Point, id EntityID, projects []*project)
 			}
 			// A colonist never claims what it could not pay for; it mines
 			// instead, and the rock is what it builds with next time.
-			if builder := w.entities[id]; builder != nil && !w.canAffordBuild(builder, t.terrain, p.issuer) {
+			if builder := w.entities[id]; builder != nil && !t.moved && !w.canAffordBuild(builder, t.terrain, p.issuer) {
 				continue
 			}
 			if d := from.Chebyshev(t.pos); best == nil || d < bestDist ||
@@ -300,6 +310,7 @@ const (
 	roomDigPhase      = -1 // excavate any not-yet-floor interior tile, before walls
 	roomWallPhase     = 0
 	roomFitPhase      = 1
+	roomMovePhase     = 2 // tear down a moved fixture's old place, once its new one stands
 )
 
 // roomRecipe describes a buildable room kind. The one wall-and-doorway shell is

@@ -535,3 +535,20 @@ func BenchmarkExpandNoFit(b *testing.B) {
 		w.improveRooms(us)
 	}
 }
+
+// BenchmarkTidyNoFit is the planner's last call, with nothing else to build,
+// in a big colony with nothing to join, empty or clear: 800 full storage
+// rooms wall to wall, each pair too full to join and none bigger than its
+// neighbour to empty into (see consolidateRooms).
+func BenchmarkTidyNoFit(b *testing.B) {
+	w := packedStorageRooms(b, 800)
+	w.cfg.RoomMerge = true
+	if w.tidyRooms() {
+		b.Fatal("tidying found work; the benchmark no longer measures the no-fit case")
+	}
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		w.tidyRooms()
+	}
+}

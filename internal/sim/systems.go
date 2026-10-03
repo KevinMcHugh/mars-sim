@@ -1356,6 +1356,13 @@ func (w *World) jobBuild(e *Entity) {
 			o := w.occurrence(e, ActionClear, nil, e.Target, "Cleared away a %s at (%d, %d).", prereq, e.Target.X, e.Target.Y)
 			o.Object = FactRef{Noun: NounStructure, Label: prereq.String()}
 			w.emitOccurrence(o)
+		case e.task.moveTo != nil:
+			// A fixture moving out (see fixturemove.go): what it holds and
+			// whose it is go to its new place before the old comes down.
+			w.relocateFixture(e.Target, *e.task.moveTo)
+			w.demolish(e.Target)
+			w.logEvent(LogBuildStart, fmt.Sprintf("Colonist #%d moves a %s from (%d, %d) to (%d, %d).",
+				e.ID, prereq, e.Target.X, e.Target.Y, e.task.moveTo.X, e.task.moveTo.Y))
 		case p != nil && p.room != nil:
 			// A wall coming down as a room grows or joins another (see roomplan.go).
 			w.demolish(e.Target)
