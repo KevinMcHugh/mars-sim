@@ -341,6 +341,31 @@ zoning-auto: true
 ## percent of the guns colonists land with that are shotguns rather than pistols
 # crash-pod-shotgun-percent: 25
 
+# ── Recruiting ──────────────────────────────────────────────────────────
+## dollars the treasury pays the recruiter for each set of candidates
+# recruiter-fee: 500
+
+## candidates in each set the recruiter presents (0 disables recruiting)
+# recruit-candidates: 5
+
+## dollars the treasury pays for each candidate hired: passage and starting supplies
+# recruit-cost: 100
+
+## meals each recruit arrives with, in its pockets
+# recruit-meals: 3
+
+## average dollars a candidate brings with it, before clamping to the min and max
+# recruit-savings-mean: 100
+
+## about 95% of candidates' savings fall within this many dollars of the mean, while it is well under the mean; wider gives a long tail of rare rich candidates (0: everyone brings the mean)
+# recruit-savings-spread: 50
+
+## fewest dollars a candidate brings (never below 0: no candidate arrives in debt)
+# recruit-savings-min: 0
+
+## most dollars a candidate brings
+# recruit-savings-max: 10000
+
 # ── Timing ──────────────────────────────────────────────────────────────
 ## simulation ticks per second
 # tps: 8

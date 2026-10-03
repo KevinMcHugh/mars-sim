@@ -280,6 +280,24 @@ type Config struct {
 	CrashPodCatWeight      int `cfg:"crash-pod-cat-weight" doc:"relative odds a colonist's one rare item is a cat"`
 	CrashPodShotgunPercent int `cfg:"crash-pod-shotgun-percent" doc:"percent of the guns colonists land with that are shotguns rather than pistols"`
 
+	// Recruiting. The player pays an off-world recruiter from the treasury
+	// for a set of candidates, then pays each one's passage to hire it; both
+	// leave the colony's money supply. A recruit arrives with its savings
+	// (minted into its wallet, like a purse) and recruit-meals meals in its
+	// pockets. Savings are log-normal: recruit-savings-spread is the
+	// half-width of the band about 95% of candidates fall in around the mean
+	// while it is well under the mean, and a wider spread leaves most
+	// candidates poor and a rare few rich. See recruit.go and
+	// docs/recruiting.md.
+	RecruiterFee         int64 `cfg:"recruiter-fee" sec:"Recruiting" doc:"dollars the treasury pays the recruiter for each set of candidates"`
+	RecruitCandidates    int   `cfg:"recruit-candidates" doc:"candidates in each set the recruiter presents (0 disables recruiting)"`
+	RecruitCost          int64 `cfg:"recruit-cost" doc:"dollars the treasury pays for each candidate hired: passage and starting supplies"`
+	RecruitMeals         int   `cfg:"recruit-meals" doc:"meals each recruit arrives with, in its pockets"`
+	RecruitSavingsMean   int64 `cfg:"recruit-savings-mean" doc:"average dollars a candidate brings with it, before clamping to the min and max"`
+	RecruitSavingsSpread int64 `cfg:"recruit-savings-spread" doc:"about 95% of candidates' savings fall within this many dollars of the mean, while it is well under the mean; wider gives a long tail of rare rich candidates (0: everyone brings the mean)"`
+	RecruitSavingsMin    int64 `cfg:"recruit-savings-min" doc:"fewest dollars a candidate brings (never below 0: no candidate arrives in debt)"`
+	RecruitSavingsMax    int64 `cfg:"recruit-savings-max" doc:"most dollars a candidate brings"`
+
 	// Timing.
 	TicksPerSecond int `cfg:"tps" sec:"Timing" doc:"simulation ticks per second"`
 	// StartPaused starts the engine paused. The browser sets it, so the
@@ -742,18 +760,27 @@ func DefaultConfig() Config {
 		CrashPodChickenWeight:  25,
 		CrashPodCatWeight:      25,
 		CrashPodShotgunPercent: 25,
-		GraveyardSize:          50,
-		TicksPerSecond:         8,
-		LogSize:                64,
-		ColonistHP:             40,
-		MineTicks:              6,
-		BuildTicks:             8,
-		DemolishTicks:          16,
-		FacilityBuildTicks:     12,
-		FleeRadius:             5,
-		FleeReleaseMargin:      3,
-		ColonistStompRadius:    4,
-		GoreSightRadius:        3,
+
+		RecruiterFee:         500,
+		RecruitCandidates:    5,
+		RecruitCost:          100,
+		RecruitMeals:         3,
+		RecruitSavingsMean:   100,
+		RecruitSavingsSpread: 50,
+		RecruitSavingsMin:    0,
+		RecruitSavingsMax:    10000,
+		GraveyardSize:        50,
+		TicksPerSecond:       8,
+		LogSize:              64,
+		ColonistHP:           40,
+		MineTicks:            6,
+		BuildTicks:           8,
+		DemolishTicks:        16,
+		FacilityBuildTicks:   12,
+		FleeRadius:           5,
+		FleeReleaseMargin:    3,
+		ColonistStompRadius:  4,
+		GoreSightRadius:      3,
 
 		CleanRadius:           10,
 		CleanTicks:            6,

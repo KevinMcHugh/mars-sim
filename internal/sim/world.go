@@ -743,7 +743,13 @@ type World struct {
 	// aloft is the founders' ships still waiting to land, as their loads,
 	// in landing order: with place-ships set, worldgen leaves them here for
 	// the player to land one by one (see LandShip).
-	aloft              []int
+	aloft []int
+	// recruits is the recruiter's set on offer (nil for none), recruitSets
+	// how many sets have been rolled, and recruitsHired how many recruits
+	// have arrived. See recruit.go.
+	recruits           *recruitOffer
+	recruitSets        int
+	recruitsHired      int
 	restrictedFixtures [numTerrains]int
 	// ownedFixtures indexes the restricted fixtures by owner, and
 	// paidFixtures the pay-per-use ones by terrain, so facilityReachable
@@ -828,6 +834,11 @@ type World struct {
 	// tryRation).
 	rationsGiven int
 	moneyFrozen  Money
+	// moneyExported is every dollar paid off-world (export): the recruiter's
+	// fees and recruits' passage. It left the supply, so the audit adds it
+	// back: treasury + living wallets + moneyFrozen + escrow + moneyExported
+	// == moneyIssued.
+	moneyExported Money
 
 	// The order book (see market.go): every open order by ID, the books by
 	// (item, depot), the most recent trades, and the cached location of the
@@ -914,8 +925,9 @@ type World struct {
 	agePRNG         *rand.Rand // age generation, isolated so adding age does not shift personality
 	skillRNG        *rand.Rand // arrival backgrounds (skills.go): they change behavior, so not prng, and not rng so they shift no other draw
 	topicRNG        *rand.Rand // conversation topics (topics.go): gossip moves affinity, so not prng, and not rng so they shift no other draw
+	recruitRNG      *rand.Rand // the recruiter's candidates and where recruits arrive (recruit.go): player-driven, so rolling a set shifts no other stream
 	// rngSrc holds the PCG sources behind rng, prng, agePRNG, nestRNG,
-	// skillRNG and topicRNG, so
+	// skillRNG, topicRNG and recruitRNG, so
 	// their state can be saved. See rng.go.
 	rngSrc rngSources
 	log    *eventLog
@@ -1024,6 +1036,8 @@ func newWorld(cfg Config, src *rand.PCG) *World {
 	w.skillRNG = rand.New(w.rngSrc.skill)
 	w.rngSrc.topic = newPCG(cfg.Seed ^ conversationTopicSeed)
 	w.topicRNG = rand.New(w.rngSrc.topic)
+	w.rngSrc.recruit = newPCG(cfg.Seed ^ recruitSeed)
+	w.recruitRNG = rand.New(w.rngSrc.recruit)
 	w.alienSpecies = rollAlienSpeciesRoster(newRand(cfg.Seed^alienLoreSeed), cfg)
 	armsRNG := newRand(cfg.Seed ^ armsLoreSeed)
 	w.corporations = rollCorporationRoster(armsRNG, cfg)
@@ -1456,6 +1470,14 @@ func (w *World) spawn(kind Kind, p Point) *Entity {
 // an alien nest, whose members share one species rolled on the nest stream
 // (see spawnNest).
 func (w *World) spawnAs(kind Kind, p Point, species int) *Entity {
+	return w.spawnWith(kind, p, species, nil)
+}
+
+// spawnWith is spawnAs for a colonist the recruiter already rolled (rec, nil
+// for everyone else): it arrives as the person its card showed, with no
+// family in the colony, and brings its savings instead of a purse. See
+// recruit.go.
+func (w *World) spawnWith(kind Kind, p Point, species int, rec *recruitCandidate) *Entity {
 	e := newEntity(w.nextID, kind, p, w.cfg)
 	for i := range e.needSince {
 		e.needSince[i] = w.tick // needs start rising from now
@@ -1467,11 +1489,18 @@ func (w *World) spawnAs(kind Kind, p Point, species int) *Entity {
 			}
 		}
 	}
-	if kind == Colonist {
+	if kind == Colonist && rec != nil {
+		// A recruit is a stranger from off-world: its own tree node, no tie.
+		e.Profile = rec.profile
+		w.settlePersonality(e)
+		e.kin = w.newKin(e.ID)
+	} else if kind == Colonist {
 		w.assignPersonality(e) // name, attributes, traits + their effective params
 		if w.assignKin(e) {    // family tree node + any tie to an existing colonist
 			w.inheritFamily(e) // the surname, looks, and warmth that come with it
 		}
+	}
+	if kind == Colonist {
 		// Personality resolves the effective rise rates, so initialize phases and
 		// their next-boundary ticks only after that resolution is complete.
 		for n := NeedKind(0); n < numNeeds; n++ {
@@ -1492,9 +1521,14 @@ func (w *World) spawnAs(kind Kind, p Point, species int) *Entity {
 	ci := w.chunkIndexOf(p)
 	w.chunkEntities[ci] = append(w.chunkEntities[ci], e.ID)
 	if kind == Colonist {
-		// Every colonist arrives with a purse. Minted only now, once the
-		// colonist is registered, because mint pays into a living wallet.
-		w.mint(ColonistOwner(e.ID), Money(w.cfg.CrashPodPurse))
+		// Every colonist arrives with a purse, or a recruit with its
+		// savings. Minted only now, once the colonist is registered,
+		// because mint pays into a living wallet.
+		purse := Money(w.cfg.CrashPodPurse)
+		if rec != nil {
+			purse = rec.savings
+		}
+		w.mint(ColonistOwner(e.ID), purse)
 	}
 	return e
 }

@@ -3,6 +3,7 @@ package sim
 import (
 	"fmt"
 	"math"
+	"math/rand/v2"
 	"slices"
 )
 
@@ -266,10 +267,17 @@ var backgroundWeights = [numSkills]int{
 // draw on every seed. Practice is set to the rank's threshold, so a background
 // is ordinary practice from then on.
 func (w *World) rollBackground(e *Entity) {
-	if !w.cfg.Skills || w.skillRNG == nil || e.Kind != Colonist {
+	w.rollBackgroundFrom(w.skillRNG, e)
+}
+
+// rollBackgroundFrom is rollBackground drawing from r: a recruiter's
+// candidate rolls its background on the recruit stream, before it exists
+// (see recruit.go).
+func (w *World) rollBackgroundFrom(r *rand.Rand, e *Entity) {
+	if !w.cfg.Skills || r == nil || e.Kind != Colonist {
 		return
 	}
-	n := w.skillRNG.IntN(100)
+	n := r.IntN(100)
 	roll := backgroundRolls[len(backgroundRolls)-1]
 	for _, r := range backgroundRolls {
 		if n < r.Chance {
@@ -278,23 +286,23 @@ func (w *World) rollBackground(e *Entity) {
 		}
 		n -= r.Chance
 	}
-	first := w.rollSkill(SkillNone)
+	first := rollSkill(r, SkillNone)
 	w.setRank(e, first, roll.Rank)
 	if roll.Second > 0 {
-		w.setRank(e, w.rollSkill(first), roll.Second)
+		w.setRank(e, rollSkill(r, first), roll.Second)
 	}
 	w.updateProfession(e)
 }
 
 // rollSkill picks a skill by backgroundWeights, never skip.
-func (w *World) rollSkill(skip SkillKind) SkillKind {
+func rollSkill(r *rand.Rand, skip SkillKind) SkillKind {
 	total := 0
 	for k := SkillKind(1); k < numSkills; k++ {
 		if k != skip {
 			total += backgroundWeights[k]
 		}
 	}
-	n := w.skillRNG.IntN(total)
+	n := r.IntN(total)
 	for k := SkillKind(1); k < numSkills; k++ {
 		if k == skip {
 			continue

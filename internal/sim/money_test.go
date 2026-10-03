@@ -137,9 +137,9 @@ func TestMoneyIsConserved(t *testing.T) {
 
 func assertMoneyConserved(t *testing.T, w *World) {
 	t.Helper()
-	if got := w.moneyInCirculation() + w.moneyFrozen + w.moneyEscrowed(); got != w.moneyIssued {
-		t.Fatalf("tick %d: circulating %v + frozen %v + escrowed %v = %v, issued %v",
-			w.tick, w.moneyInCirculation(), w.moneyFrozen, w.moneyEscrowed(), got, w.moneyIssued)
+	if got := w.moneyInCirculation() + w.moneyFrozen + w.moneyEscrowed() + w.moneyExported; got != w.moneyIssued {
+		t.Fatalf("tick %d: circulating %v + frozen %v + escrowed %v + exported %v = %v, issued %v",
+			w.tick, w.moneyInCirculation(), w.moneyFrozen, w.moneyEscrowed(), w.moneyExported, got, w.moneyIssued)
 	}
 	for _, o := range w.orders {
 		if o.Side == Bid && o.escrow != Money(o.Qty)*o.Price {

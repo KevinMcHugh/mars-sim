@@ -101,6 +101,24 @@ func (w *World) mint(to Owner, amount Money) bool {
 	return true
 }
 
+// export pays amount out of an account to someone off-world (the recruiter,
+// a recruit's passage), and reports whether it did. It is mint's mirror: the
+// money leaves the colony's supply, so it is counted in moneyExported to keep
+// the supply auditable. Like transfer it refuses a negative amount, an owner
+// with no account, and anything that would take the account below zero.
+func (w *World) export(from Owner, amount Money) bool {
+	if amount < 0 {
+		return false
+	}
+	src := w.account(from)
+	if src == nil || *src < amount {
+		return false
+	}
+	*src -= amount
+	w.moneyExported += amount
+	return true
+}
+
 // levyWealthTax collects the wealth levy: every tax-interval ticks each living
 // colonist pays wealth-tax percent of its money above tax-floor (at least a
 // dollar, if it holds any excess) to the treasury. It is money's way back:
@@ -140,8 +158,9 @@ func (w *World) freezeWallet(e *Entity) {
 }
 
 // moneyInCirculation is every spendable dollar: the treasury plus every living
-// colonist's wallet. With no taxes and no sinks, it plus moneyFrozen plus the
-// money held by open bids (moneyEscrowed) always equals moneyIssued;
+// colonist's wallet. It plus moneyFrozen, the money held by open bids
+// (moneyEscrowed) and the money paid off-world (moneyExported) always equals
+// moneyIssued;
 // TestMoneyIsConserved holds the colony to that.
 func (w *World) moneyInCirculation() Money {
 	total := w.treasury

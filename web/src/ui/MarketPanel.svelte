@@ -13,7 +13,7 @@
 
   interface Market {
     accounts: { key: string; label: string; balance: number }[];
-    supply: { treasury: number; circulating: number; escrowed: number; frozen: number; issued: number; starved: number };
+    supply: { treasury: number; circulating: number; escrowed: number; frozen: number; exported: number; issued: number; starved: number };
     books: { item: string; x: number; y: number; bestBid: number; bidQty: number; bestAsk: number; askQty: number; traded: boolean; last: number; volume: number }[];
     prices: { item: string; value: number; traded: boolean }[];
     plans: { actor: { id: number; name: string }; summary: string; waiting: boolean }[];
@@ -39,6 +39,9 @@
       <dt>Circulating</dt><dd>{money(m.supply.circulating)}</dd>
       <dt>In escrow</dt><dd>{money(m.supply.escrowed)} <span class="muted">held by open bids</span></dd>
       <dt>Frozen</dt><dd>{money(m.supply.frozen)} <span class="muted">held by the dead</span></dd>
+      {#if m.supply.exported > 0}
+        <dt>Off-world</dt><dd>{money(m.supply.exported)} <span class="muted">paid to recruit</span></dd>
+      {/if}
       <dt>Issued</dt><dd>{money(m.supply.issued)}</dd>
       {#if m.supply.starved > 0}<dt>Starved</dt><dd>{m.supply.starved}</dd>{/if}
     </dl>

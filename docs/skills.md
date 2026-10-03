@@ -344,6 +344,11 @@ seed. It gets its own saved stream (`skillRNG`, per
 checks that a world generated with backgrounds is otherwise identical to one
 without.
 
+A colonist hired from off-world is the exception: its background is rolled
+with the rest of its card, by `rollBackgroundFrom` on the recruit stream, so
+the card can show it before anyone arrives (see
+[recruiting.md](./recruiting.md)).
+
 ### Opportunity cost in the producer planner (S3)
 
 Three parts, in `producer.go` and `valuation.go`.
