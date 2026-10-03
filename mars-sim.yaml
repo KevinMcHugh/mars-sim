@@ -664,13 +664,13 @@ zoning-auto: true
 ## rooms that can be under construction at once
 # max-concurrent-projects: 2
 
-## enlarge an existing dormitory, storage room, kitchen, incubator or meeting hall, moving a side wall out, before building a new one
+## put fixtures into the colony's rooms of their zone, fitting out free floor or growing a room through any wall, before building a new one
 # room-expansion: true
 
-## most fixtures (bunks, containers, stoves and pantries, incubators, chairs) a room grows to by expansion
+## most fixtures (of any kind: bunks, chests, stoves, incubators, chairs) one room holds
 # room-max-facilities: 8
 
-## join two rooms of the same kind standing side by side into one, tearing down the wall between them: when more of their fixtures are wanted, or when there is nothing else to build
+## join two rooms of the same zone standing side by side, back to back or facing each other into one, tearing down the walls between them: when more fixtures are wanted, or when there is nothing else to build
 # room-merge: true
 
 ## ticks a colonist's room must stay cut off from the colony before it breaks out on its own

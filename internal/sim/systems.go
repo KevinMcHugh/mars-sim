@@ -1356,11 +1356,18 @@ func (w *World) jobBuild(e *Entity) {
 			o := w.occurrence(e, ActionClear, nil, e.Target, "Cleared away a %s at (%d, %d).", prereq, e.Target.X, e.Target.Y)
 			o.Object = FactRef{Noun: NounStructure, Label: prereq.String()}
 			w.emitOccurrence(o)
+		case e.task.moveTo != nil:
+			// A fixture moving out (see fixturemove.go): what it holds and
+			// whose it is go to its new place before the old comes down.
+			w.relocateFixture(e.Target, *e.task.moveTo)
+			w.demolish(e.Target)
+			w.logEvent(LogBuildStart, fmt.Sprintf("Colonist #%d moves a %s from (%d, %d) to (%d, %d).",
+				e.ID, prereq, e.Target.X, e.Target.Y, e.task.moveTo.X, e.task.moveTo.Y))
 		case p != nil && p.room != nil:
-			// Moving a room's side wall out (see roomgrow.go).
+			// A wall coming down as a room grows or joins another (see roomplan.go).
 			w.demolish(e.Target)
 			w.logEvent(LogBuildStart, fmt.Sprintf("Colonist #%d tears down a wall at (%d, %d) to enlarge the %s.",
-				e.ID, e.Target.X, e.Target.Y, p.room.recipe.name))
+				e.ID, e.Target.X, e.Target.Y, w.roomTitle(p.room)))
 		default:
 			w.demolish(e.Target)
 			w.logEvent(LogEscape, fmt.Sprintf("Colonist #%d breaks through a %s at (%d, %d) to reach a cut-off part of the colony.",
@@ -1760,7 +1767,7 @@ func (w *World) makeWayAt(e *Entity, target Point) bool {
 func (w *World) findBuildSpot(from Point, radius int, kind Terrain) (Point, bool) {
 	var best Point
 	found := false
-	zone := looseStructure(kind).Zone()
+	zone := FixtureZone(kind)
 	w.forEachInRadius(from, radius, func(p Point) bool {
 		if p.Equal(from) || w.TerrainAt(p) != Floor || w.occupied(p) ||
 			w.onPendingBuild(p) || !w.bordersSolid(p) || w.onPlannedTask(p) ||

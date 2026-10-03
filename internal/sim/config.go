@@ -357,19 +357,17 @@ type Config struct {
 	// larger colony's facility supply keep pace with growth; see
 	// construction.md.
 	MaxConcurrentProjects int `cfg:"max-concurrent-projects" doc:"rooms that can be under construction at once"`
-	// RoomExpansion has the colony grow a room it already has (a dormitory,
-	// storage room, kitchen, incubator or meeting hall), tearing down one
-	// side wall and raising a new one further out, before it marks out a new
-	// room for more of the same fixtures. RoomMaxFacilities is as long as
-	// expansion lets a room grow. See docs/room-expansion.md.
-	RoomExpansion     bool `cfg:"room-expansion" doc:"enlarge an existing dormitory, storage room, kitchen, incubator or meeting hall, moving a side wall out, before building a new one"`
-	RoomMaxFacilities int  `cfg:"room-max-facilities" doc:"most fixtures (bunks, containers, stoves and pantries, incubators, chairs) a room grows to by expansion"`
-	// RoomMerge has the colony join two of its rooms of one kind that stand
-	// side by side, tearing down the wall (or walls) between them, rather
-	// than leave each in the other's way: first when it wants more of their
-	// fixtures, and otherwise when it has nothing else to build. See
-	// docs/room-expansion.md.
-	RoomMerge bool `cfg:"room-merge" doc:"join two rooms of the same kind standing side by side into one, tearing down the wall between them: when more of their fixtures are wanted, or when there is nothing else to build"`
+	// RoomExpansion has the colony put fixtures into the rooms it already
+	// has before it marks out a new one: into free floor in a room of their
+	// zone (a fit-out), or by growing a room through any of its walls.
+	// RoomMaxFacilities is the most fixtures, of any kind, a room holds.
+	// RoomMerge has it join two rooms of one zone that stand side by side,
+	// back to back or facing each other, tearing down the walls between
+	// them: first when it wants more fixtures, and otherwise when it has
+	// nothing else to build. See docs/room-expansion.md.
+	RoomExpansion     bool `cfg:"room-expansion" doc:"put fixtures into the colony's rooms of their zone, fitting out free floor or growing a room through any wall, before building a new one"`
+	RoomMaxFacilities int  `cfg:"room-max-facilities" doc:"most fixtures (of any kind: bunks, chests, stoves, incubators, chairs) one room holds"`
+	RoomMerge         bool `cfg:"room-merge" doc:"join two rooms of the same zone standing side by side, back to back or facing each other into one, tearing down the walls between them: when more fixtures are wanted, or when there is nothing else to build"`
 
 	// EscapeGraceTicks is how long a colonist's room must stay cut off from the
 	// colony's main connected network (see rooms.go's mainRoom) before it gives

@@ -36,6 +36,7 @@
   const pv = $derived(ui.zone.preview);
   const tool = $derived(ui.zone.tool);
   const color = (name: string) => zones?.kinds.find((k) => k.name === name)?.color ?? 'transparent';
+  // The fixtures a zone holds. A chest also stands beside a stove (its pantry) or in a ship.
   const holds = (zone: string) => (z?.types ?? []).filter((t) => t.zone === zone).map((t) => t.name).join(', ');
 
   const digCost = $derived(z && pv ? pv.dig * z.digWage : 0);
@@ -71,7 +72,7 @@
 {#if z?.auto}
   <p class="muted">The colony is zoning for itself (zoning-auto): it builds where it chooses and zones each room as it marks it out, using your zones first.</p>
 {:else}
-  <p class="muted">Colonists build only inside a zone of the structure's kind. Zoning is free; digging out rock in a new zone, and clearing a structure left in the wrong zone, are paid work.</p>
+  <p class="muted">Colonists build only inside a zone of the right kind: a room goes where its fixtures belong, and fixtures of one zone may share a room (a stove and an incubator are both production). Zoning is free; digging out rock in a new zone, and clearing a structure left in the wrong zone, are paid work.</p>
 {/if}
 
 <div class="tools">

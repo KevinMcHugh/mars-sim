@@ -56,7 +56,10 @@ depot (`outputDepot`).
 ### Building it
 
 `foundryRoom` is the forge and the gun bench a tile apart, with an aisle
-(five tiles wide), falling back to a narrow room in a cramped cavern. The
+(five tiles wide), falling back to a narrow room in a cramped cavern. Both
+are production, so the pair goes into a production room the colony already
+has (a kitchen with floor to spare) before a foundry is marked out (see
+[room-expansion.md](./room-expansion.md)). The
 planner wants one while `armory-rifles` is above 0 and it has no forge or no
 gun bench planned or built (`wantsFoundry`). It comes **last** in
 `planRooms`, after beds and the trash room: nothing about rifles keeps anyone

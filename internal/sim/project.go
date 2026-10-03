@@ -29,6 +29,12 @@ type buildTask struct {
 	// whatever stands on the tile (a wall, a hull, any fixture) for a
 	// clearing order (see zones.go).
 	clears Terrain
+	// moved marks a fixture built as the new place of one being moved (see
+	// fixturemove.go): it costs no materials, since the old one is not
+	// salvaged. moveTo is set on the old one's teardown: where it went, so
+	// its goods, owner and links follow it there.
+	moved  bool
+	moveTo *Point
 	// order is the work order paying for this task, and proj the project it
 	// belongs to (see workorder.go). A task built by hand in a test has
 	// neither: it is unpaid, and its fixture stays the colony's.
@@ -50,8 +56,12 @@ type project struct {
 	// (the zero value) for a room, WorkDig for an excavation order, WorkClear
 	// for a clearing order.
 	workKind WorkKind
-	// room is the room this project marks out or enlarges, if it is one.
+	// room is the room this project marks out, reshapes or fits out, if it
+	// is one. from is a room it empties: the one a move takes fixtures out
+	// of, or a shell being cleared away. Both are busy while it runs; only
+	// room counts as a room going up (roomGoingUp).
 	room *roomRecord
+	from *roomRecord
 	// structure is the structure a room project raises or enlarges (see
 	// structures.go).
 	structure *structure
@@ -159,7 +169,7 @@ func (w *World) claimNearestTaskIn(from Point, id EntityID, projects []*project)
 			}
 			// A colonist never claims what it could not pay for; it mines
 			// instead, and the rock is what it builds with next time.
-			if builder := w.entities[id]; builder != nil && !w.canAffordBuild(builder, t.terrain, p.issuer) {
+			if builder := w.entities[id]; builder != nil && !t.moved && !w.canAffordBuild(builder, t.terrain, p.issuer) {
 				continue
 			}
 			if d := from.Chebyshev(t.pos); best == nil || d < bestDist ||
@@ -296,10 +306,11 @@ const (
 	roomFacilities    = 4  // facilities designated in a full room
 	roomFrontClear    = 2  // interior rows between facilities and the front wall
 	roomApproach      = 1  // open row outside the doorway
-	roomDemolishPhase = -2 // tear down the side wall an expansion moves (see roomgrow.go)
+	roomDemolishPhase = -2 // tear down the side wall a reshape takes down (see roomplan.go)
 	roomDigPhase      = -1 // excavate any not-yet-floor interior tile, before walls
 	roomWallPhase     = 0
 	roomFitPhase      = 1
+	roomMovePhase     = 2 // tear down a moved fixture's old place, once its new one stands
 )
 
 // roomRecipe describes a buildable room kind. The one wall-and-doorway shell is
@@ -329,16 +340,15 @@ type roomRecipe struct {
 	// colony's first sets it — a one-tile scumhouse whose cook never left
 	// its only access tile starved a colonist beside a meal of its own.
 	aisleRequired bool
-	// expands lets the colony grow the room, moving a side wall out, rather
-	// than mark out another when it wants more of its fixture (see
-	// roomgrow.go). It grows by whole cycles of kinds: a kitchen by a stove
-	// and its pantry together.
-	expands bool
+	// paired places the recipe's kinds together, two tiles apart, wherever
+	// the planner puts them into a room it has (roomplan.go): a stove and its
+	// pantry, a forge and its gun bench.
+	paired  bool
 	planLog string // logged when the room is marked out
-	// structure is what the room is (structures.go), and so which zone it
-	// is built in.
-	structure StructureType
 }
+
+// zone is the zone a room of r is built in: its fixtures' (see kindsZone).
+func (r roomRecipe) zone() ZoneKind { return kindsZone(r.kinds) }
 
 // fullBay is how many fixtures a new room of r holds when its site allows:
 // roomFacilities, unless the recipe caps itself with maxFac.
@@ -370,18 +380,18 @@ var (
 	// food and bladder needs; a partial room must still serve both.
 	lifeSupportRoom = roomRecipe{
 		name: "facility room", kinds: []Terrain{NutrientPod, Toilet}, minFac: 2,
-		planLog: "The colony marks out a new facility room.", structure: StructFacilityRoom,
+		planLog: "The colony marks out a new facility room.",
 	}
 	// toiletRoom is the facility room with the safety net off: a nutrient pod
 	// feeds nobody then (see podsFeed), so the bay is all toilets.
 	toiletRoom = roomRecipe{
 		name: "facility room", kinds: []Terrain{Toilet}, minFac: 1,
-		planLog: "The colony marks out a new facility room.", structure: StructFacilityRoom,
+		planLog: "The colony marks out a new facility room.",
 	}
 	// dormRoom is a bay of bunks. Even a single bunk is worth raising.
 	dormRoom = roomRecipe{
-		name: "dormitory", kinds: []Terrain{Bed}, minFac: 1, expands: true,
-		planLog: "The colony marks out a new dormitory.", structure: StructDormitory,
+		name: "dormitory", kinds: []Terrain{Bed}, minFac: 1,
+		planLog: "The colony marks out a new dormitory.",
 	}
 	// trashRoom houses the incinerator that refuse is hauled to and burned in.
 	// One machine is a working trash room, so its minimum is one — and the
@@ -392,14 +402,14 @@ var (
 	// wherever someone happened to die.
 	trashRoom = roomRecipe{
 		name: "trash room", kinds: []Terrain{Incinerator}, minFac: 1, maxFac: 1,
-		planLog: "The colony marks out a new trash room.", structure: StructTrashRoom,
+		planLog: "The colony marks out a new trash room.",
 	}
 	// storageRoom encloses one large trunk. Containers are deliberately placed
 	// one at a time: unlike need facilities, their useful capacity is already
 	// six full colonist inventories and demand is player-directed.
 	storageRoom = roomRecipe{
-		name: "storage room", kinds: []Terrain{Storage}, minFac: 1, maxFac: 1, aisle: true, expands: true,
-		planLog: "The colony marks out a new storage room.", structure: StructStorageRoom,
+		name: "storage room", kinds: []Terrain{Storage}, minFac: 1, maxFac: 1, aisle: true,
+		planLog: "The colony marks out a new storage room.",
 	}
 	// scumhouseRoom is a kitchen laid out as an assembly line: the scumhouse
 	// (the stove, whose depot holds the inputs) and, two tiles along, a
@@ -413,8 +423,8 @@ var (
 	// roomRecipe.aisle), as does a storage room, since the first is the
 	// colony's silo. See docs/scumhouse.md.
 	scumhouseRoom = roomRecipe{
-		name: "scumhouse", kinds: []Terrain{Scumhouse, Storage}, minFac: 1, maxFac: 2, aisle: true, expands: true,
-		planLog: "The colony marks out a scumhouse.", structure: StructKitchen,
+		name: "scumhouse", kinds: []Terrain{Scumhouse, Storage}, minFac: 1, maxFac: 2, aisle: true, paired: true,
+		planLog: "The colony marks out a scumhouse.",
 	}
 )
 
@@ -486,7 +496,7 @@ func (w *World) planRooms() {
 		// flight. Permit one storage room beyond the normal concurrency cap to
 		// break that circular dependency; no other recipe gets this exception.
 		if w.colonyNeedsStorage() {
-			w.growOrPlan(storageRoom, 1)
+			w.placeFixtures(storageRoom, units(1, Storage), false)
 		}
 		return
 	}
@@ -501,70 +511,30 @@ func (w *World) planRooms() {
 	if w.roomProjects() >= w.maxConcurrentProjects() {
 		return
 	}
-	if w.manualFacilityRooms > 0 {
-		before := len(w.projects)
-		w.planRoom(w.facilityRoomRecipe())
-		if len(w.projects) > before {
-			w.manualFacilityRooms--
+	// An ordered room is a new room's worth of its fixtures (recipeUnits),
+	// and goes into the rooms the colony has (fitted, joined or grown, see
+	// roomplan.go) before a new one is marked out. The player asked for it, so
+	// it does not wait on a room going up.
+	for _, o := range [...]struct {
+		n *int
+		r roomRecipe
+	}{
+		{&w.manualFacilityRooms, w.facilityRoomRecipe()},
+		{&w.manualDormitories, dormRoom},
+		{&w.manualTrashRooms, trashRoom},
+		{&w.manualStorageRooms, storageRoom},
+		{&w.manualScumhouses, scumhouseRoom},
+		{&w.manualIncubators, incubatorRoom},
+		{&w.manualFoundries, foundryRoom},
+		{&w.manualHalls, hallRoom},
+	} {
+		if *o.n <= 0 {
+			continue
 		}
-		return
-	}
-	// An ordered room is a new room's worth of fixtures (fullBay), and goes
-	// into a room of its kind that can grow before a new one is marked out
-	// (see roomgrow.go).
-	if w.manualDormitories > 0 {
 		before := len(w.projects)
-		w.growOrPlan(dormRoom, dormRoom.fullBay())
+		w.placeFixtures(o.r, recipeUnits(o.r, o.r.fullBay()), false)
 		if len(w.projects) > before {
-			w.manualDormitories--
-		}
-		return
-	}
-	if w.manualTrashRooms > 0 {
-		before := len(w.projects)
-		w.planRoom(trashRoom)
-		if len(w.projects) > before {
-			w.manualTrashRooms--
-		}
-		return
-	}
-	if w.manualStorageRooms > 0 {
-		before := len(w.projects)
-		w.growOrPlan(storageRoom, storageRoom.fullBay())
-		if len(w.projects) > before {
-			w.manualStorageRooms--
-		}
-		return
-	}
-	if w.manualScumhouses > 0 {
-		before := len(w.projects)
-		w.growOrPlan(scumhouseRoom, scumhouseRoom.fullBay())
-		if len(w.projects) > before {
-			w.manualScumhouses--
-		}
-		return
-	}
-	if w.manualIncubators > 0 {
-		before := len(w.projects)
-		w.growOrPlan(incubatorRoom, incubatorRoom.fullBay())
-		if len(w.projects) > before {
-			w.manualIncubators--
-		}
-		return
-	}
-	if w.manualFoundries > 0 {
-		before := len(w.projects)
-		w.planRoom(foundryRoom)
-		if len(w.projects) > before {
-			w.manualFoundries--
-		}
-		return
-	}
-	if w.manualHalls > 0 {
-		before := len(w.projects)
-		w.growOrPlan(hallRoom, hallRoom.fullBay())
-		if len(w.projects) > before {
-			w.manualHalls--
+			*o.n--
 		}
 		return
 	}
@@ -580,21 +550,16 @@ func (w *World) planRooms() {
 		// everything else: later ones are ordinary public works, which wait
 		// on the treasury like any other room and let the planner move on
 		// when they cannot be placed or paid for.
-		first := w.plannedFacilities(Scumhouse) == 0
-		r := scumhouseRoom
-		r.aisleRequired = !first
-		// A later kitchen goes into one the colony already has, a stove and
-		// its pantry further along the bay, when one can grow; while one is
-		// going up, the planner waits for it to stand and grow (see
-		// growOrPlan).
-		if !first && w.expandRoom(r, r.fullBay()) {
+		if w.plannedFacilities(Scumhouse) == 0 {
+			if !w.planRoomFor(scumhouseRoom, Community) {
+				w.planRoomFor(scumhouseRoom, Nobody)
+			}
 			return
 		}
-		if (first || !w.roomGoingUp(r)) && w.planRoomFor(r, Community) {
-			return
-		}
-		if first {
-			w.planRoomFor(scumhouseRoom, Nobody)
+		// A later stove and its pantry go into a production room the colony
+		// has, while one is going up the planner waits for it (see
+		// placeFixtures), and only then does a new kitchen need an aisle.
+		if w.placeFixtures(scumhouseRoom, recipeUnits(scumhouseRoom, 2), true) {
 			return
 		}
 	}
@@ -602,33 +567,36 @@ func (w *World) planRooms() {
 	// scraping the rock. An ordinary public work, so it waits on the treasury,
 	// and until it stands the colony scrapes as before (wildScumAllowed).
 	if !w.podsFeed() && w.wantsIncubator() &&
-		w.growOrPlan(incubatorRoom, w.desiredIncubators()-w.plannedFacilities(Incubator)) {
+		w.placeFixtures(incubatorRoom, units(w.desiredIncubators()-w.plannedFacilities(Incubator), Incubator), true) {
 		return
 	}
 	desired := w.desiredFacilities(w.countKind(Colonist))
-	if (w.wantsFacility(NutrientPod) && w.plannedFacilities(NutrientPod) < desired) ||
-		w.plannedFacilities(Toilet) < desired {
-		w.planRoom(w.facilityRoomRecipe())
+	pods := 0
+	if w.wantsFacility(NutrientPod) {
+		pods = max(0, desired-w.plannedFacilities(NutrientPod))
+	}
+	if toilets := max(0, desired-w.plannedFacilities(Toilet)); pods+toilets > 0 {
+		w.placeFixtures(w.facilityRoomRecipe(), facilityUnits(pods, toilets), false)
 		return
 	}
 	// A full inventory stops mining and can also deadlock a room whose active
 	// phase consists of dig tasks. Storage therefore outranks non-fatal bunks:
 	// make somewhere to unload before asking the same workers to excavate more.
 	if w.colonyNeedsStorage() {
-		w.growOrPlan(storageRoom, 1)
+		w.placeFixtures(storageRoom, units(1, Storage), false)
 		return
 	}
 	// The colony trades at a communal chest, its silo (see market.go). Crash
 	// pods bring every settler a locker, so nothing else ever calls for a
 	// shared one: without this, a colony would never have a market at all.
 	if _, ok := w.marketDepot(); !ok && w.projectFacilityTasks(Storage) == 0 {
-		w.planRoom(storageRoom)
+		w.placeFixtures(storageRoom, units(1, Storage), false)
 		return
 	}
-	// More bunks go into a dormitory the colony already has, when one can
-	// grow (see roomgrow.go), before another is marked out.
+	// More bunks go into the residence rooms the colony has, when they can
+	// take them, before another is marked out.
 	if planned := w.plannedFacilities(Bed); planned < desired {
-		w.growOrPlan(dormRoom, desired-planned)
+		w.placeFixtures(dormRoom, units(desired-planned, Bed), true)
 		return
 	}
 	// Sanitation last, and only once there is actually a mess: an incinerator
@@ -637,7 +605,7 @@ func (w *World) planRooms() {
 	// refuse is not proportional to its headcount the way its appetite is, and
 	// a second incinerator would only split the haulers.
 	if w.refuseTotal() > 0 && w.plannedFacilities(Incinerator) < 1 {
-		if w.planRoomFor(trashRoom, Community) {
+		if w.placeFixtures(trashRoom, units(1, Incinerator), true) {
 			return
 		}
 	}
@@ -645,7 +613,7 @@ func (w *World) planRooms() {
 	// walls and chairs cost real rock. Unlike the foundry it is a headcount
 	// matter (see wantsHall), so it outranks it.
 	if short := w.chairsShort(); short > 0 {
-		if w.growOrPlan(hallRoom, short) {
+		if w.placeFixtures(hallRoom, units(short, Chair), true) {
 			return
 		}
 	}
@@ -653,15 +621,46 @@ func (w *World) planRooms() {
 	// everything above does. One is enough; its demand is the armory's, not
 	// a headcount (see foundry.go).
 	if w.wantsFoundry() {
-		before := len(w.projects)
-		w.planRoom(foundryRoom)
-		if len(w.projects) > before {
+		if w.placeFixtures(foundryRoom, recipeUnits(foundryRoom, 2), true) {
 			return
 		}
 	}
 	// With nothing else to build, join rooms that stand side by side (see
-	// roommerge.go).
+	// roomplan.go).
 	w.tidyRooms()
+}
+
+// recipeUnits is n of r's fixtures as the planner places them: pairs for a
+// recipe whose fixtures go together (a stove and its pantry, a forge and its
+// gun bench), otherwise one at a time, cycling the recipe's kinds.
+func recipeUnits(r roomRecipe, n int) []fixtureUnit {
+	if r.paired {
+		out := make([]fixtureUnit, max(1, n/len(r.kinds)))
+		for i := range out {
+			out[i] = fixtureUnit(r.kinds)
+		}
+		return out
+	}
+	out := make([]fixtureUnit, n)
+	for i := range out {
+		out[i] = fixtureUnit{r.kinds[i%len(r.kinds)]}
+	}
+	return out
+}
+
+// facilityUnits is pods and toilets, alternating while both are short, as a
+// facility room lays them out.
+func facilityUnits(pods, toilets int) []fixtureUnit {
+	var out []fixtureUnit
+	for pods > 0 || toilets > 0 {
+		if pods > 0 {
+			out, pods = append(out, fixtureUnit{NutrientPod}), pods-1
+		}
+		if toilets > 0 {
+			out, toilets = append(out, fixtureUnit{Toilet}), toilets-1
+		}
+	}
+	return out
 }
 
 // facilityRoomRecipe is the life-support room the colony builds: pods and
@@ -695,7 +694,7 @@ func (w *World) planRoom(r roomRecipe) {
 // something else. With manual zoning a room no zone has a site for waits, and
 // the Zones tab says so.
 func (w *World) planRoomFor(r roomRecipe, issuer Owner) bool {
-	zone := r.structure.Zone()
+	zone := r.zone()
 	if zone == NoZone {
 		planned, _ := w.planRoomUnder(r, issuer, siteZone{})
 		return planned
@@ -712,7 +711,7 @@ func (w *World) planRoomFor(r roomRecipe, issuer Owner) bool {
 		planned, _ := w.planRoomUnder(r, issuer, siteZone{kind: zone})
 		return planned
 	}
-	w.noteZoneWait(r.structure)
+	w.noteZoneWait(r.kinds[0])
 	return false
 }
 
@@ -816,10 +815,7 @@ func (w *World) designateRoom(r roomRecipe, f roomFrame, n int, issuer Owner) bo
 	// spot, sealing this room's only way out behind a wall its own doorway
 	// invariant never anticipated. See roomSiteClear.
 	w.doorTiles[f.doorStep()] = true
-	p.room = &roomRecord{recipe: r, f: f, n: n, issuer: issuer}
-	w.roomRecords = append(w.roomRecords, p.room)
-	w.indexRoomFloor(p.room, 0, f.width-1)
-	w.roomFloor[f.at(f.doorU(), roomFrontV)] = p.room
+	p.room = w.newRoomRecord(f, r.zone(), issuer)
 	w.projects = append(w.projects, p)
 	w.registerRoom(r, p, f)
 	if r.name == scumhouseRoom.name {

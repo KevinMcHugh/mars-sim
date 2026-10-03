@@ -1,14 +1,15 @@
-# Zoning and structure types
+# Zoning and fixture zones
 
 > Part of the [mars-sim documentation](./README.md).
 
 ## What it is
 
 The player decides where the colony builds. A **zone** marks ground for one use
-(residence, storage, or production), and every **structure type** (a dormitory, a
-silo, a scumhouse, a colony ship) is tagged with the zone it belongs in. With manual
-zoning, the game's default, colonists build a structure only inside a zone of its
-kind, and build nothing they have no zone for. The player paints zones as
+(residence, storage, or production), and every **fixture** (a bunk, a chest, a
+stove, an incubator) is tagged with the zone it belongs in; a structure belongs
+where its fixtures do. With manual zoning, the game's default, colonists build a
+structure only inside a zone of its kind, and build nothing they have no zone
+for. The player paints zones as
 rectangles on the map, can remove them, and can order any area's structures
 cleared. Painting is free. The work it implies is bought from the treasury: rock
 inside a new zone is dug out, and a structure left outside a zone of its kind is
@@ -24,17 +25,19 @@ did, and zones each one as it marks it out.
   room may use), the waiting list, and `publishedZones` (row runs for
   frontends).
 - [`internal/sim/structures.go`](../internal/sim/structures.go):
-  `StructureType` and `structureSpecs` (the tag table), the structure
+  `fixtureZones` (the tag table), `fixtureZone` (a chest by its role),
+  `kindsZone`, `structureName` (what a room is called, from its fixtures), the structure
   registry (`registerRoom`, `growStructure`, `registerShip` /
   `unregisterShip`, `registerLone`, `maybeRetire`, `forget`),
   `cancelProject`, and tearing down: `demolish`, `clearTile`, `emptyDepot`,
   `forgetDetours`.
-- [`internal/sim/project.go`](../internal/sim/project.go): `roomRecipe.structure`,
+- [`internal/sim/project.go`](../internal/sim/project.go): `roomRecipe.zone`,
   `planRoomFor` / `planRoomUnder` (zone first, then free ground with
   zoning-auto), `siteRules.zone`, `roomProjects`, and clearing tasks (a dig
   task whose `clears` is whatever stands on the tile).
-- [`internal/sim/roomgrow.go`](../internal/sim/roomgrow.go): a room grows only
-  onto ground zoned for it (`expansionClear`), and its structure grows with it.
+- [`internal/sim/roomplan.go`](../internal/sim/roomplan.go): a room grows or
+  joins another only onto ground zoned for it (`shapeWork`), and its structure
+  grows with it.
 - [`internal/sim/ship.go`](../internal/sim/ship.go): `registerShip` on
   landing and on a move, and `shipZoneOK` (a ship never lands by itself on
   another kind's zone).
@@ -68,21 +71,34 @@ kind that touch make one zone of any shape, an L for example. Nothing groups
 tiles into numbered "zones": what matters to a room is that every tile it builds
 on is zoned for its kind. `PaintZone{Kind: NoZone}` unzones.
 
-### Structure types carry the tags
+### Fixtures carry the tags
 
-| Zone | Structure types |
+| Zone | Fixtures |
 | --- | --- |
-| residence (green) | facility room (nutrient pods and toilets), dormitory, house, meeting hall, colony ship |
-| storage (blue) | storage room (silos) |
-| production (gray) | scumhouse (kitchen), scum incubator, trash room (incinerator), foundry |
+| residence (green) | nutrient pod, toilet, bunk, chair, trough; a chest in a colony ship (a locker) |
+| storage (blue) | chest |
+| production (gray) | scumhouse (stove), scum incubator, incinerator, forge, gun bench; a stove's pantry |
 
-Every `roomRecipe` names its `structure`, and so does every way a structure
-appears: a colony ship (`registerShip`), and a lone emergency fixture
-(`registerLone`, typed by `looseStructure`). The tag belongs to the structure
-type, not to the terrain, because rooms mix fixtures: a kitchen's pantry is a
-`Storage` chest, but it stands in production with its stove.
+A structure's zone is its fixtures': a room laid out from a recipe takes the
+zone of its first fixture that is not a chest (`kindsZone`), a lone emergency
+fixture its own (`fixtureZone`), and a colony ship is residence. So any
+fixtures of one zone may share a room: a stove and an incubator, a bunk and a
+toilet. A chest is the one fixture whose zone depends on what it is for. Beside
+a stove, linked as its pantry, it is production; in a ship it is a locker, and
+residence; anywhere else it is storage.
 
-The structure registry (`World.structures`) records each structure: its type,
+**Why fixtures, not rooms.** The tag used to belong to the structure type: a
+"kitchen", an "incubator room", a "dormitory", each its own type with its own
+zone. That kept a stove out of an incubator room although both are
+production, and it was half of why a colony walled itself into stacks of
+one-fixture rooms (issue #128; see [room-expansion.md](./room-expansion.md)).
+What the zone is for is the work done there, and that is the fixtures'. A room
+is still named for what stands in it (`structureName`): one kind keeps the old
+name ("dormitory", "scum incubator"; pods with toilets a "facility room", a
+forge with its gun bench a "foundry"), a colonist's home is a "house", and a
+room that mixes kinds is a "production room" or "residence room".
+
+The structure registry (`World.structures`) records each structure: its zone,
 the tiles it builds on (`tiles`, including a party wall it borrows), the
 footprint that has to lie in its zone (`area`, less a borrowed party wall), its
 reserved door tiles, its `roomRecord` (see [room-expansion.md](./room-expansion.md)),
@@ -105,13 +121,14 @@ under a `siteZone`, which `roomSiteClear` checks last (`roomZoned`):
    (`playerZoned`), step 1 is skipped in auto mode: every zoned tile is under a
    room or a ship, so it could find nothing.
 
-A room that grows (see [room-expansion.md](./room-expansion.md)) takes in ground
-only if it is zoned for the room (`expansionClear`, by `zoneAllows`), and
+A room that grows or joins another (see [room-expansion.md](./room-expansion.md))
+takes in ground only if it is zoned for the room (`shapeWork`, by `zoneAllows`), and
 `growStructure` adds the strip to the room's structure, zoning it in auto mode.
 
 With manual zoning a room that finds no site in step 1 waits, and
 `noteZoneWait` records that the colony wanted it. The Zones tab lists it ("the
-colony wants a scumhouse: no production zone has room for one"). Planning order
+colony wants a scumhouse: no production zone has room for one"), by the kind of
+fixture it wanted (`noteZoneWait`). Planning order
 is unchanged, so a manual colony with no production zone holds everything
 behind its first scumhouse, exactly as it holds everything behind life support
 today.
@@ -240,8 +257,11 @@ hashes moved.
   "is this one zone?" a graph problem. A tile grid makes the non-overlap rule
   impossible to break, a replacement just a paint, and an L-shaped zone free.
   Nothing needed zone identity: siting asks per tile.
-- **Tags on structure types, not terrain.** Per-terrain tags put a kitchen's
-  pantry chest in storage and evicted it from its own kitchen.
+- **Tags on fixtures, with a chest by its role.** The first version tagged
+  structure types, because plain per-terrain tags put a kitchen's pantry chest
+  in storage and evicted it from its own kitchen. Tagging fixtures works once
+  a chest's zone follows its role (`fixtureZone`): a pantry goes with its
+  stove, a locker with its ship.
 - **Whole structures are evicted.** Clearing only the tiles a paint covered
   leaves a room with a wall missing, which the planner cannot finish and the
   colony cannot use.
@@ -268,16 +288,16 @@ hashes moved.
 
 ## Extending it
 
-- **Move a structure type to another zone** ("scumhouses are storage"): change
-  its `zone` in `structureSpecs`. Rooms already standing in the old zone stay
-  until somebody repaints their ground.
+- **Move a fixture to another zone** ("incinerators are storage"): change its
+  entry in `fixtureZones`. Rooms already standing in the old zone stay until
+  somebody repaints their ground.
 - **A new zone kind**: a constant before `numZoneKinds` and a row in
   `zoneSpecs` (name and colour). The wire, the overlay and the tab's tools all
   read the table; nothing else changes.
-- **A new structure type**: a constant and a row in `structureSpecs`, and the
-  recipe (or arrival) that builds it naming it in `structure`.
-  `TestEveryStructureTypeHasAZone` fails until it has a zone.
-- **Invariants**: a structure's `area` lies in a zone of its type, in manual
+- **A new fixture**: an entry in `fixtureZones`, and in `roomNames` for what
+  a room of it is called. `TestEveryFixtureHasAZone` lists the fixtures and
+  fails until it has a zone.
+- **Invariants**: a structure's `area` lies in a zone of its kind, in manual
   mode and in auto mode alike; nothing may iterate `structures`, `structureAt`
   or the zone grid in map order to decide anything (use `sortedStructures`); a
   paint is all or nothing.
@@ -290,7 +310,7 @@ hashes moved.
 - [excavation.md](./excavation.md): the dig orders a zone over rock posts, and
   the area tool the Zones tab shares.
 - [ships.md](./ships.md): the ships whose ground is always residence.
-- [room-expansion.md](./room-expansion.md): rooms that grow, only into their zone.
+- [room-expansion.md](./room-expansion.md): rooms that take fixtures, join and grow, only into their zone.
 - [labor.md](./labor.md): work orders, which clearing and digging are.
 - [pathfinding.md](./pathfinding.md): the flow fields and routes a cleared wall
   opens.

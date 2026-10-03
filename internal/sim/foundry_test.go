@@ -10,6 +10,10 @@ func foundryWorld(t *testing.T, n int, ore int) (w *World, silo, forge, bench Po
 	t.Helper()
 	w = propertyWorld(t)
 	w.cfg.MealReserve, w.cfg.ScumhouseBidQty = 0, 0
+	// Nor does it fit its facility room out: with floor to spare it takes a
+	// bunk and chairs (see roomplan.go), and colonists sleeping and talking
+	// in them is not the work this measures.
+	w.cfg.RoomExpansion, w.cfg.RoomMerge = false, false
 	silo, forge, bench = Point{6, 6}, Point{16, 6}, Point{18, 6}
 	w.SetTerrain(silo, Storage)
 	w.SetTerrain(forge, Forge)

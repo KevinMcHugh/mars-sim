@@ -122,6 +122,13 @@ const splitCheckMargin = 12
 // room out on open floor could fill a corridor wall to wall.
 func (w *World) siteKeepsColonyWhole(f roomFrame, designated map[Point]bool) bool {
 	lo, hi := f.box(-1, roomBackV, f.width, roomFrontV)
+	return w.footprintKeepsColonyWhole(lo, hi, designated)
+}
+
+// footprintKeepsColonyWhole is siteKeepsColonyWhole for any footprint, lo to
+// hi inclusive, walls included: a room grown or joined (roomplan.go) is not a
+// frame's shape.
+func (w *World) footprintKeepsColonyWhole(lo, hi Point, designated map[Point]bool) bool {
 	inFoot := func(p Point) bool { return p.X >= lo.X && p.X <= hi.X && p.Y >= lo.Y && p.Y <= hi.Y }
 	blo := Point{max(0, lo.X-splitCheckMargin), max(0, lo.Y-splitCheckMargin)}
 	bhi := Point{min(w.Width-1, hi.X+splitCheckMargin), min(w.Height-1, hi.Y+splitCheckMargin)}

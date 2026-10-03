@@ -481,8 +481,11 @@ func packedStorageRooms(b *testing.B, rooms int) *World {
 	cfg.FoundingGrant = 1_000_000
 	cfg.Width, cfg.Height = 1200, 1200
 	// Packed wall to wall, every pair of neighbours could be joined (see
-	// roommerge.go); this measures a search for growth that finds none.
+	// roomplan.go), and every room has floor for a second chest; this
+	// measures a search that finds nothing, so merging is off and every room
+	// is full.
 	cfg.RoomMerge = false
+	cfg.RoomMaxFacilities = 1
 	w := newWorld(cfg, newPCG(1))
 	width := storageRoom.roomWidth(1) // 3 wide, an aisle either side of the container
 	perRow := 100
@@ -515,18 +518,37 @@ func packedStorageRooms(b *testing.B, rooms int) *World {
 }
 
 // BenchmarkExpandNoFit is planRooms asking a big colony for storage none of
-// its rooms can take: every room of the kind is tried and turned down. It
-// was 4 ms with inOtherRoom scanning every room, and is about 0.2 ms with
-// w.roomFloor.
+// its rooms can take: every room of the zone is tried for a fit-out and for
+// growth and turned down. It was 4 ms with inOtherRoom scanning every room,
+// and about 0.2 ms with w.roomFloor, before rooms grew any way and took
+// fixtures anywhere (roomplan.go).
 func BenchmarkExpandNoFit(b *testing.B) {
 	rooms := 800
 	w := packedStorageRooms(b, rooms)
-	if w.expandRoom(storageRoom, 1) {
-		b.Fatal("a storage room grew; the benchmark no longer measures the no-fit case")
+	us := units(1, Storage)
+	if w.improveRooms(us) {
+		b.Fatal("a storage room took a chest; the benchmark no longer measures the no-fit case")
 	}
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		w.expandRoom(storageRoom, 1)
+		w.improveRooms(us)
+	}
+}
+
+// BenchmarkTidyNoFit is the planner's last call, with nothing else to build,
+// in a big colony with nothing to join, empty or clear: 800 full storage
+// rooms wall to wall, each pair too full to join and none bigger than its
+// neighbour to empty into (see consolidateRooms).
+func BenchmarkTidyNoFit(b *testing.B) {
+	w := packedStorageRooms(b, 800)
+	w.cfg.RoomMerge = true
+	if w.tidyRooms() {
+		b.Fatal("tidying found work; the benchmark no longer measures the no-fit case")
+	}
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		w.tidyRooms()
 	}
 }

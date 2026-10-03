@@ -1,7 +1,6 @@
 package sim
 
 import (
-	"strings"
 	"testing"
 )
 
@@ -72,8 +71,8 @@ func TestManualZoningBuildsOnlyInsideAZoneOfTheRightKind(t *testing.T) {
 	if len(w.projects) != 0 {
 		t.Fatalf("planned %v with no zones drawn", projectNames(w.projects))
 	}
-	if got := w.zoneWaiting(); len(got) != 1 || got[0] != StructDormitory {
-		t.Fatalf("waiting on %v, want the dormitory", got)
+	if got := w.zoneWaiting(); len(got) != 1 || got[0] != Bed {
+		t.Fatalf("waiting on %v, want bunks", got)
 	}
 
 	// A storage zone is no place for a dormitory.
@@ -95,7 +94,7 @@ func TestManualZoningBuildsOnlyInsideAZoneOfTheRightKind(t *testing.T) {
 			t.Errorf("dormitory task at %v is zoned %v", task.pos, z)
 		}
 	}
-	if s := p.structure; s == nil || s.typ != StructDormitory {
+	if s := p.structure; s == nil || s.zone != ZoneResidence || w.structureName(s) != "dormitory" {
 		t.Fatalf("dormitory project's structure = %+v", s)
 	}
 	if w.manualDormitories != 0 {
@@ -263,7 +262,7 @@ func TestShipsHoldTheirGroundAsResidence(t *testing.T) {
 		t.Fatalf("%d ships landed", len(w.ships))
 	}
 	ship := w.ships[0].structure
-	if ship == nil || ship.typ != StructShip {
+	if ship == nil || ship.ship == nil || ship.zone != ZoneResidence || w.structureName(ship) != "colony ship" {
 		t.Fatalf("the first ship's structure = %+v", ship)
 	}
 	for _, p := range ship.lock {
@@ -584,14 +583,14 @@ func TestAZonedColonyBuildsInItsZones(t *testing.T) {
 	var built []string
 	for _, s := range w.sortedStructures() {
 		if s.ship == nil {
-			built = append(built, s.typ.String())
+			built = append(built, w.structureName(s))
 		}
 	}
 	t.Logf("tick %d: %d starved; built %v; waiting on %v", w.tick, w.starved, built, w.zoneWaiting())
 	for _, s := range w.sortedStructures() {
 		for _, p := range s.area {
-			if z := w.zoneAt(p); z != s.typ.Zone() {
-				t.Fatalf("%s %d stands on %v zoned %v", s.typ, s.id, p, z)
+			if z := w.zoneAt(p); z != s.zone {
+				t.Fatalf("%s %d stands on %v zoned %v", w.structureName(s), s.id, p, z)
 			}
 		}
 	}
@@ -620,26 +619,45 @@ func TestZoningIsDeterministic(t *testing.T) {
 	}
 }
 
-// Every structure type names a zone kind that exists, and every room recipe
-// a structure type.
-func TestEveryStructureTypeHasAZone(t *testing.T) {
-	for _, st := range StructureTypes() {
-		if z := st.Zone(); z == NoZone || z >= numZoneKinds {
-			t.Errorf("%s belongs in zone %v", st, z)
-		}
-		if strings.TrimSpace(st.String()) == "" {
-			t.Errorf("structure type %d has no name", st)
+// Every fixture kind names a zone kind that exists, every room recipe takes
+// its zone from its fixtures, and a chest's zone follows its role.
+func TestEveryFixtureHasAZone(t *testing.T) {
+	for _, k := range FixtureKinds() {
+		if z := FixtureZone(k); z == NoZone || z >= numZoneKinds {
+			t.Errorf("%s belongs in zone %v", k, z)
 		}
 	}
-	for _, r := range []roomRecipe{lifeSupportRoom, toiletRoom, dormRoom, trashRoom, storageRoom, scumhouseRoom,
-		incubatorRoom, foundryRoom, hallRoom, houseRoom} {
-		if r.structure == StructNone {
-			t.Errorf("recipe %q has no structure type", r.name)
+	for _, k := range []Terrain{NutrientPod, Toilet, Bed, Incinerator, Storage, Scumhouse, Forge, GunBench, Chair, Incubator, Trough} {
+		if FixtureZone(k) == NoZone {
+			t.Errorf("fixture %s has no zone", k)
+		}
+	}
+	for _, tc := range []struct {
+		r    roomRecipe
+		want ZoneKind
+	}{
+		{lifeSupportRoom, ZoneResidence}, {toiletRoom, ZoneResidence}, {dormRoom, ZoneResidence},
+		{hallRoom, ZoneResidence}, {houseRoom, ZoneResidence}, {storageRoom, ZoneStorage},
+		{scumhouseRoom, ZoneProduction}, {incubatorRoom, ZoneProduction}, {trashRoom, ZoneProduction},
+		{foundryRoom, ZoneProduction},
+	} {
+		if got := tc.r.zone(); got != tc.want {
+			t.Errorf("recipe %q is zoned %v, want %v", tc.r.name, got, tc.want)
 		}
 	}
 	for _, k := range ZoneKinds() {
 		if got, ok := ParseZoneKind(k.String()); !ok || got != k || k.Color() == "" {
 			t.Errorf("zone kind %v does not round-trip or has no colour", k)
 		}
+	}
+
+	w := newTestWorld(t, testConfig())
+	stove, pantry, chest := Point{3, 3}, Point{5, 3}, Point{9, 9}
+	w.pantryOf[stove], w.pantryHouse[pantry] = pantry, stove
+	if z := w.fixtureZone(pantry, Storage); z != ZoneProduction {
+		t.Errorf("a stove's pantry is %v, want production", z)
+	}
+	if z := w.fixtureZone(chest, Storage); z != ZoneStorage {
+		t.Errorf("a chest on its own is %v, want storage", z)
 	}
 }

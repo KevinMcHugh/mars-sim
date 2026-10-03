@@ -475,12 +475,12 @@ type Snapshot struct {
 	// Zoning (see docs/zoning.md). Zones is every zoned tile as row runs,
 	// sorted by row then column; Structures every standing or rising
 	// structure, by id. Both are shared between frames until they change,
-	// and never written after publication. ZoneWaiting lists the structure
-	// types the colony wants and no zone has room for. ZoningAuto is the
+	// and never written after publication. ZoneWaiting lists the fixture
+	// kinds the colony wants and no zone has room for. ZoningAuto is the
 	// zoning-auto setting; ClearWage what clearing one tile pays.
 	Zones       []ZoneRun
 	Structures  []StructureView
-	ZoneWaiting []StructureType
+	ZoneWaiting []Terrain
 	ZoningAuto  bool
 	ClearWage   Money
 

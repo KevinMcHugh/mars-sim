@@ -652,11 +652,12 @@ type World struct {
 	nextProjectID int
 	nextPlanTick  int
 	// roomRecords is every room the colony has marked out, in the order it
-	// did, with its current extent: what room expansion grows (see
-	// roomgrow.go). Rooms are never demolished, so it only grows.
+	// did, with its current extent: what fit-outs fill, mergers join and
+	// expansions grow (see roomplan.go). A room leaves it when it is
+	// cleared away or joined to an older one.
 	roomRecords []*roomRecord
 	// roomFloor maps every floor tile inside a recorded room (its inside and
-	// its doorway) to that room, so an expansion can ask whose a tile is
+	// its doorways) to that room, so a reshape can ask whose a tile is
 	// without scanning every room. No two rooms share a floor tile.
 	roomFloor map[Point]*roomRecord
 	// Manual room orders wait here until the current project finishes and a
@@ -771,13 +772,13 @@ type World struct {
 	// Zoning (zones.go): every tile's zone kind and crash-pod holds, how
 	// many tiles each kind covers, and a revision publishing reads (snapZones
 	// is the copy taken at snapZoneRev). zoneWaits is when the colony last
-	// wanted each structure type and found no zone with room for it.
+	// wanted each kind of fixture and found no zone with room for it.
 	zones       pagedGrid[zoneCell]
 	zoneTiles   [numZoneKinds]int
 	zoneRev     uint64
 	snapZoneRev uint64
 	snapZones   []ZoneRun
-	zoneWaits   [numStructureTypes]int
+	zoneWaits   [numTerrains]int
 	// playerZoned is set once the player has painted a zone or cleared an
 	// area. Until then, with zoning-auto, every zoned tile is under a room
 	// the colony built or a crash pod, so planRoomFor skips the search

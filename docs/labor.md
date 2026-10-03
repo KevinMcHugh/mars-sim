@@ -55,7 +55,7 @@ issued`.
 When the planner designates a room, `fundProject` posts one `WorkBuild` order
 per task at `taskWage` — `wage-dig` for a tile of rock, `wage-wall` for a
 wall, `wage-fixture` for a fixture, `wage-demolish` for a wall torn down to
-enlarge a room (see [room-expansion.md](./room-expansion.md)) — all paid by
+enlarge or join a room (see [room-expansion.md](./room-expansion.md)) — all paid by
 the project's `issuer`.
 It is **all or nothing**, and it happens before anything about the room is made
 permanent (its reserved door tile, its project ID): an issuer that cannot pay
