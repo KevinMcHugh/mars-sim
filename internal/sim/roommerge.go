@@ -163,7 +163,7 @@ func (w *World) mergerClear(m roomMerger, st roomPlanState) bool {
 			}
 		}
 	}
-	zone := m.l.recipe.structure.Zone()
+	zone := m.l.recipe.zone()
 	u0, u1 := m.laneU()
 	for u := u0; u <= u1; u++ {
 		for v := roomBackV; v <= roomFrontV; v++ {

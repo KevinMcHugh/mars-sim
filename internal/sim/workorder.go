@@ -217,7 +217,7 @@ func (w *World) cancelWorkOf(issuer Owner) {
 // which is how renting out a spare toilet becomes a business.
 var houseRoom = roomRecipe{
 	name: "house", kinds: []Terrain{Bed, Toilet}, minFac: 2, maxFac: 2,
-	planLog: "A colonist commissions a house.", structure: StructHouse,
+	planLog: "A colonist commissions a house.",
 }
 
 // fixtureAccess is how a commissioned room's fixtures are opened to others:

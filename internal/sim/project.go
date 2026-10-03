@@ -335,10 +335,10 @@ type roomRecipe struct {
 	// and its pantry together.
 	expands bool
 	planLog string // logged when the room is marked out
-	// structure is what the room is (structures.go), and so which zone it
-	// is built in.
-	structure StructureType
 }
+
+// zone is the zone a room of r is built in: its fixtures' (see kindsZone).
+func (r roomRecipe) zone() ZoneKind { return kindsZone(r.kinds) }
 
 // fullBay is how many fixtures a new room of r holds when its site allows:
 // roomFacilities, unless the recipe caps itself with maxFac.
@@ -370,18 +370,18 @@ var (
 	// food and bladder needs; a partial room must still serve both.
 	lifeSupportRoom = roomRecipe{
 		name: "facility room", kinds: []Terrain{NutrientPod, Toilet}, minFac: 2,
-		planLog: "The colony marks out a new facility room.", structure: StructFacilityRoom,
+		planLog: "The colony marks out a new facility room.",
 	}
 	// toiletRoom is the facility room with the safety net off: a nutrient pod
 	// feeds nobody then (see podsFeed), so the bay is all toilets.
 	toiletRoom = roomRecipe{
 		name: "facility room", kinds: []Terrain{Toilet}, minFac: 1,
-		planLog: "The colony marks out a new facility room.", structure: StructFacilityRoom,
+		planLog: "The colony marks out a new facility room.",
 	}
 	// dormRoom is a bay of bunks. Even a single bunk is worth raising.
 	dormRoom = roomRecipe{
 		name: "dormitory", kinds: []Terrain{Bed}, minFac: 1, expands: true,
-		planLog: "The colony marks out a new dormitory.", structure: StructDormitory,
+		planLog: "The colony marks out a new dormitory.",
 	}
 	// trashRoom houses the incinerator that refuse is hauled to and burned in.
 	// One machine is a working trash room, so its minimum is one — and the
@@ -392,14 +392,14 @@ var (
 	// wherever someone happened to die.
 	trashRoom = roomRecipe{
 		name: "trash room", kinds: []Terrain{Incinerator}, minFac: 1, maxFac: 1,
-		planLog: "The colony marks out a new trash room.", structure: StructTrashRoom,
+		planLog: "The colony marks out a new trash room.",
 	}
 	// storageRoom encloses one large trunk. Containers are deliberately placed
 	// one at a time: unlike need facilities, their useful capacity is already
 	// six full colonist inventories and demand is player-directed.
 	storageRoom = roomRecipe{
 		name: "storage room", kinds: []Terrain{Storage}, minFac: 1, maxFac: 1, aisle: true, expands: true,
-		planLog: "The colony marks out a new storage room.", structure: StructStorageRoom,
+		planLog: "The colony marks out a new storage room.",
 	}
 	// scumhouseRoom is a kitchen laid out as an assembly line: the scumhouse
 	// (the stove, whose depot holds the inputs) and, two tiles along, a
@@ -414,7 +414,7 @@ var (
 	// colony's silo. See docs/scumhouse.md.
 	scumhouseRoom = roomRecipe{
 		name: "scumhouse", kinds: []Terrain{Scumhouse, Storage}, minFac: 1, maxFac: 2, aisle: true, expands: true,
-		planLog: "The colony marks out a scumhouse.", structure: StructKitchen,
+		planLog: "The colony marks out a scumhouse.",
 	}
 )
 
@@ -695,7 +695,7 @@ func (w *World) planRoom(r roomRecipe) {
 // something else. With manual zoning a room no zone has a site for waits, and
 // the Zones tab says so.
 func (w *World) planRoomFor(r roomRecipe, issuer Owner) bool {
-	zone := r.structure.Zone()
+	zone := r.zone()
 	if zone == NoZone {
 		planned, _ := w.planRoomUnder(r, issuer, siteZone{})
 		return planned
@@ -712,7 +712,7 @@ func (w *World) planRoomFor(r roomRecipe, issuer Owner) bool {
 		planned, _ := w.planRoomUnder(r, issuer, siteZone{kind: zone})
 		return planned
 	}
-	w.noteZoneWait(r.structure)
+	w.noteZoneWait(r.kinds[0])
 	return false
 }
 

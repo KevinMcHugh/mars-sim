@@ -6,115 +6,170 @@ import (
 	"sort"
 )
 
-// ---- Structure types -------------------------------------------------------------
+// ---- Fixture zones ---------------------------------------------------------------
 //
 // A structure is something put up as one piece: a room the colony (or a
 // colonist) built, with its walls and fixtures, a colony ship, or a lone
-// fixture raised in an emergency. Its type says what it is for, and its type
-// is what zoning reads: each type belongs to one zone kind, and with manual
-// zoning a structure is only built, and may only stand, inside a zone of that
-// kind. See zones.go and docs/zoning.md.
+// fixture raised in an emergency. What it is for, and so which zone it may
+// stand in, comes from its fixtures: a stove and an incubator are both
+// production, so a room of either, or of both, is built in a production zone
+// (see zones.go and docs/zoning.md). Rooms used to carry the tag themselves
+// ("a kitchen", "an incubator room"), which kept a stove and an incubator out
+// of each other's rooms for no reason the colony could see.
 //
-// The type, not the terrain, carries the tag, because a room mixes fixtures: a
-// kitchen's pantry is a storage chest, but it stands in production with its
-// stove, and a ship's lockers are chests in a home.
+// A chest is the one fixture whose zone depends on what it is for: a pantry
+// (a stove's, see linkPantry) is production, a locker in a colony ship is
+// residence, and any other chest is storage.
 
-// StructureType is what a structure is for.
-type StructureType uint8
-
-const (
-	StructNone StructureType = iota
-	StructFacilityRoom
-	StructDormitory
-	StructHouse
-	StructMeetingHall
-	StructShip
-	StructStorageRoom
-	StructKitchen
-	StructIncubatorRoom
-	StructTrashRoom
-	StructFoundry
-
-	numStructureTypes // keep last
-)
-
-// structureSpec is a structure type's name and the zone it belongs in.
-type structureSpec struct {
-	name string
-	zone ZoneKind
+// fixtureZones tags every fixture terrain with the zone it is built in, a
+// chest by its usual role (storage). Moving a fixture to another zone
+// ("incinerators are storage") is one edit here.
+var fixtureZones = [numTerrains]ZoneKind{
+	NutrientPod: ZoneResidence,
+	Toilet:      ZoneResidence,
+	Bed:         ZoneResidence,
+	Chair:       ZoneResidence,
+	Trough:      ZoneResidence,
+	Storage:     ZoneStorage,
+	Scumhouse:   ZoneProduction,
+	Incubator:   ZoneProduction,
+	Incinerator: ZoneProduction,
+	Forge:       ZoneProduction,
+	GunBench:    ZoneProduction,
 }
 
-// structureSpecs tags every structure type with its zone. Moving a type to
-// another zone ("scumhouses are storage") is one edit here; a new type is a
-// row here and the recipe or arrival that builds it naming it.
-var structureSpecs = [numStructureTypes]structureSpec{
-	StructNone:          {name: "structure"},
-	StructFacilityRoom:  {name: "facility room", zone: ZoneResidence},
-	StructDormitory:     {name: "dormitory", zone: ZoneResidence},
-	StructHouse:         {name: "house", zone: ZoneResidence},
-	StructMeetingHall:   {name: "meeting hall", zone: ZoneResidence},
-	StructShip:          {name: "colony ship", zone: ZoneResidence},
-	StructStorageRoom:   {name: "storage room", zone: ZoneStorage},
-	StructKitchen:       {name: "scumhouse", zone: ZoneProduction},
-	StructIncubatorRoom: {name: "scum incubator", zone: ZoneProduction},
-	StructTrashRoom:     {name: "trash room", zone: ZoneProduction},
-	StructFoundry:       {name: "foundry", zone: ZoneProduction},
-}
-
-func (t StructureType) String() string {
-	if t < numStructureTypes {
-		return structureSpecs[t].name
-	}
-	return "unknown"
-}
-
-// Zone is the zone kind a structure of this type belongs in.
-func (t StructureType) Zone() ZoneKind {
-	if t < numStructureTypes {
-		return structureSpecs[t].zone
+// FixtureZone is the zone a fixture of terrain t is built in, a chest taken
+// as storage; NoZone for a terrain that is no fixture.
+func FixtureZone(t Terrain) ZoneKind {
+	if t < numTerrains {
+		return fixtureZones[t]
 	}
 	return NoZone
 }
 
-// StructureTypes lists every structure type, in order (StructNone excluded).
-func StructureTypes() []StructureType {
-	out := make([]StructureType, 0, numStructureTypes-1)
-	for t := StructNone + 1; t < numStructureTypes; t++ {
-		out = append(out, t)
+// FixtureKinds lists every terrain with a zone, in terrain order.
+func FixtureKinds() []Terrain {
+	var out []Terrain
+	for t := Terrain(0); t < numTerrains; t++ {
+		if fixtureZones[t] != NoZone {
+			out = append(out, t)
+		}
 	}
 	return out
 }
 
-// looseStructure is the type of a lone fixture raised outside any room (the
-// emergency build): the room it would otherwise have stood in.
-func looseStructure(t Terrain) StructureType {
-	switch t {
-	case NutrientPod, Toilet:
-		return StructFacilityRoom
-	case Bed:
-		return StructDormitory
-	case Storage:
-		return StructStorageRoom
-	case Scumhouse:
-		return StructKitchen
-	case Incubator:
-		return StructIncubatorRoom
-	case Incinerator:
-		return StructTrashRoom
-	case Forge, GunBench:
-		return StructFoundry
-	case Chair:
-		return StructMeetingHall
+// fixtureZone is the zone of the fixture t at p, a chest by its role: a
+// pantry is production, a locker in a colony ship residence.
+func (w *World) fixtureZone(p Point, t Terrain) ZoneKind {
+	if t != Storage {
+		return FixtureZone(t)
 	}
-	return StructNone
+	if _, ok := w.pantryHouse[p]; ok {
+		return ZoneProduction
+	}
+	for _, id := range w.structureAt[p] {
+		if s := w.structures[id]; s != nil && s.ship != nil {
+			return ZoneResidence
+		}
+	}
+	return ZoneStorage
+}
+
+// kindsZone is the zone of a room laid out with kinds: the first kind that is
+// not a chest decides it, since a chest beside a stove is its pantry, and a
+// room of chests alone is storage.
+func kindsZone(kinds []Terrain) ZoneKind {
+	for _, k := range kinds {
+		if k != Storage {
+			return FixtureZone(k)
+		}
+	}
+	return ZoneStorage
+}
+
+// roomNames names a room holding one kind of fixture (and perhaps chests
+// beside it, a stove's pantries), as rooms were named when the room carried
+// the tag.
+var roomNames = map[Terrain]string{
+	NutrientPod: "facility room",
+	Toilet:      "facility room",
+	Bed:         "dormitory",
+	Chair:       "meeting hall",
+	Storage:     "storage room",
+	Scumhouse:   "scumhouse",
+	Incubator:   "scum incubator",
+	Incinerator: "trash room",
+	Forge:       "foundry",
+	GunBench:    "foundry",
+}
+
+// structureName is what a structure is called: a colony ship, a lone
+// fixture by its own name, or a room by what stands in it. A room of one
+// kind of fixture keeps the name rooms always had ("dormitory", "scum
+// incubator"; pods with toilets are still a facility room, a forge with its
+// gun bench a foundry); a colonist's home is a house; a room that mixes
+// kinds is named for its zone ("production room"). A room with nothing in
+// it yet is named for what its project is raising.
+func (w *World) structureName(s *structure) string {
+	switch {
+	case s.ship != nil:
+		return "colony ship"
+	case s.room == nil:
+		for _, p := range s.tiles {
+			if t := w.TerrainAt(p); FixtureZone(t) != NoZone {
+				return t.String()
+			}
+		}
+		return "structure"
+	case s.room.issuer.Kind == OwnerColonist && s.zone == ZoneResidence:
+		return "house"
+	}
+	names := map[string]bool{}
+	var name string
+	for _, p := range s.tiles {
+		t := w.TerrainAt(p)
+		if s.building != nil {
+			if k := plannedKind(s.building, p); k != Floor {
+				t = k
+			}
+		}
+		n, ok := roomNames[t]
+		if !ok || (t == Storage && s.zone != ZoneStorage) {
+			continue // a pantry beside its stove does not rename a kitchen
+		}
+		if !names[n] {
+			names[n] = true
+			name = n
+		}
+	}
+	switch len(names) {
+	case 0:
+		return s.zone.String() + " room"
+	case 1:
+		return name
+	}
+	return s.zone.String() + " room"
+}
+
+// plannedKind is the fixture p's project will raise at p, or Floor.
+func plannedKind(p *project, at Point) Terrain {
+	for _, t := range p.tasks {
+		if t.pos == at && FixtureZone(t.terrain) != NoZone {
+			return t.terrain
+		}
+	}
+	return Floor
 }
 
 // ---- The registry -------------------------------------------------------------------
 
 // structure is one standing (or rising) structure.
 type structure struct {
-	id  int
-	typ StructureType
+	id int
+	// zone is the zone kind it belongs in, from its fixtures (see
+	// fixtureZone): with manual zoning it may stand only inside a zone of
+	// that kind.
+	zone ZoneKind
 	// tiles is every tile it builds on, sorted: walls, hull, fixtures —
 	// including a party wall it borrowed from a neighbour, so clearing the
 	// neighbour leaves that wall up. A room still going up lists its
@@ -138,9 +193,9 @@ type structure struct {
 }
 
 // registerStructure records a structure and indexes its tiles.
-func (w *World) registerStructure(typ StructureType, tiles, area []Point) *structure {
+func (w *World) registerStructure(zone ZoneKind, tiles, area []Point) *structure {
 	w.nextStructureID++
-	s := &structure{id: w.nextStructureID, typ: typ, tiles: sortedPoints(tiles), area: area}
+	s := &structure{id: w.nextStructureID, zone: zone, tiles: sortedPoints(tiles), area: area}
 	bound := area
 	if len(bound) == 0 {
 		bound = s.tiles
@@ -197,13 +252,13 @@ func (w *World) registerRoom(r roomRecipe, p *project, f roomFrame) *structure {
 		}
 	}
 	w.zoneRoomTiles(f, func(q Point) { area = append(area, q) })
-	s := w.registerStructure(r.structure, tiles, area)
+	s := w.registerStructure(r.zone(), tiles, area)
 	s.doors, s.building, s.room = []Point{f.doorStep()}, p, p.room
 	p.structure = s
 	if p.room != nil {
 		p.room.structure = s
 	}
-	w.autoZone(area, r.structure.Zone())
+	w.autoZone(area, s.zone)
 	return s
 }
 
@@ -241,7 +296,7 @@ func (w *World) growStructure(s *structure, p *project, strip []Point) {
 		s.x1, s.y1 = max(s.x1, q.X), max(s.y1, q.Y)
 	}
 	s.building = p
-	w.autoZone(strip, s.typ.Zone())
+	w.autoZone(strip, s.zone)
 	w.structureRev++
 }
 
@@ -261,7 +316,7 @@ func (w *World) registerShip(sh *Ship) *structure {
 	for _, d := range sh.layout.margin {
 		lock = append(lock, o.Add(d.X, d.Y))
 	}
-	s := w.registerStructure(StructShip, tiles, area)
+	s := w.registerStructure(ZoneResidence, tiles, area)
 	for _, d := range sh.layout.doors {
 		s.doors = append(s.doors, o.Add(d.X, d.Y))
 	}
@@ -295,10 +350,9 @@ func (w *World) unregisterShip(sh *Ship) {
 // registerLone records a lone fixture raised outside any room, and zones it
 // with zoning-auto.
 func (w *World) registerLone(p Point, t Terrain) {
-	typ := looseStructure(t)
-	w.registerStructure(typ, []Point{p}, []Point{p})
+	s := w.registerStructure(w.fixtureZone(p, t), []Point{p}, []Point{p})
 	if w.cfg.ZoningAuto && w.zoneAt(p) == NoZone && !w.zoneLocked(p) {
-		w.setZone(p, typ.Zone())
+		w.setZone(p, s.zone)
 	}
 }
 
@@ -579,10 +633,12 @@ func (w *World) nearestChestFor(from Point, owner Owner, kind ItemKind) *Storage
 // ---- Publishing -------------------------------------------------------------------------
 
 // StructureView is a read-only copy of one structure, for the Zones tab: what
-// it is, where it stands, and how much of it is built.
+// it is called (structureName), the zone it belongs in, where it stands, and
+// how much of it is built.
 type StructureView struct {
 	ID             int
-	Type           StructureType
+	Name           string
+	Zone           ZoneKind
 	X0, Y0, X1, Y1 int
 	Built          int  // tiles standing
 	Ship           bool // a colony ship (its ground is held as residence)
@@ -599,7 +655,7 @@ func (w *World) publishedStructures() []StructureView {
 	}
 	out := make([]StructureView, 0, len(w.structures))
 	for _, s := range w.sortedStructures() {
-		v := StructureView{ID: s.id, Type: s.typ, X0: s.x0, Y0: s.y0, X1: s.x1, Y1: s.y1, Ship: s.ship != nil,
+		v := StructureView{ID: s.id, Name: w.structureName(s), Zone: s.zone, X0: s.x0, Y0: s.y0, X1: s.x1, Y1: s.y1, Ship: s.ship != nil,
 			Rising: s.building != nil && w.hasProject(s.building)}
 		for _, p := range s.tiles {
 			if isBuilt(w.TerrainAt(p)) {

@@ -228,7 +228,7 @@ func (w *World) planZonePaint(c PaintZone) *zonePaint {
 			continue
 		}
 		for _, p := range s.area {
-			if changed[p] && c.Kind != s.typ.Zone() {
+			if changed[p] && c.Kind != s.zone {
 				z.evicted = append(z.evicted, s)
 				break
 			}
@@ -257,7 +257,7 @@ func (w *World) paintZone(c PaintZone) bool {
 	}
 	if cost := z.cost(w); cost > 0 && w.balance(Community) < cost {
 		w.logEvent(LogBuildStart, fmt.Sprintf("The treasury cannot pay %v for the work that zoning would take (%s).",
-			cost, z.workPhrase()))
+			cost, z.workPhrase(w)))
 		return false
 	}
 	w.playerZoned = true
@@ -271,7 +271,7 @@ func (w *World) paintZone(c PaintZone) bool {
 	if len(z.clear) > 0 {
 		if p := w.startClearing(z.clear); p != nil {
 			notes = append(notes, fmt.Sprintf("%d tiles of %s to clear, %v escrowed",
-				len(z.clear), structureList(z.evicted), w.projectCost(p)))
+				len(z.clear), w.structureList(z.evicted), w.projectCost(p)))
 		}
 	}
 	if len(z.dig) > 0 {
@@ -298,30 +298,35 @@ func (w *World) paintZone(c PaintZone) bool {
 }
 
 // workPhrase describes a paint's work for a refusal.
-func (z *zonePaint) workPhrase() string {
+func (z *zonePaint) workPhrase(w *World) string {
 	var parts []string
 	if n := len(z.dig); n > 0 {
 		parts = append(parts, fmt.Sprintf("%d tiles of rock to dig", n))
 	}
 	if n := len(z.clear); n > 0 {
-		parts = append(parts, fmt.Sprintf("%d tiles of %s to clear", n, structureList(z.evicted)))
+		parts = append(parts, fmt.Sprintf("%d tiles of %s to clear", n, w.structureList(z.evicted)))
 	}
 	return strings.Join(parts, ", ")
 }
 
-// structureList names structures for the log: "a dormitory and 2 storage rooms".
-func structureList(ss []*structure) string {
-	var counts [numStructureTypes]int
+// structureList names structures for the log: "a dormitory and 2 storage
+// rooms", in the order their names first come up.
+func (w *World) structureList(ss []*structure) string {
+	counts := map[string]int{}
+	var names []string
 	for _, s := range ss {
-		counts[s.typ]++
+		n := w.structureName(s)
+		if counts[n] == 0 {
+			names = append(names, n)
+		}
+		counts[n]++
 	}
 	var parts []string
-	for t := StructureType(0); t < numStructureTypes; t++ {
-		switch n := counts[t]; {
-		case n == 1:
-			parts = append(parts, withArticle(t.String()))
-		case n > 1:
-			parts = append(parts, fmt.Sprintf("%d %ss", n, t))
+	for _, n := range names {
+		if counts[n] == 1 {
+			parts = append(parts, withArticle(n))
+		} else {
+			parts = append(parts, fmt.Sprintf("%d %s", counts[n], pluralNoun(n)))
 		}
 	}
 	switch len(parts) {
@@ -331,6 +336,14 @@ func structureList(ss []*structure) string {
 		return parts[0]
 	}
 	return strings.Join(parts[:len(parts)-1], ", ") + " and " + parts[len(parts)-1]
+}
+
+// pluralNoun is a structure or fixture name's plural: "dormitories", "bunks".
+func pluralNoun(n string) string {
+	if strings.HasSuffix(n, "y") && !strings.HasSuffix(n, "ey") {
+		return n[:len(n)-1] + "ies"
+	}
+	return n + "s"
 }
 
 // unmarkedRock is the rock in a rectangle that an excavation could take: seen
@@ -576,23 +589,23 @@ func (w *World) roomZoned(f roomFrame, z siteZone) bool {
 	return true
 }
 
-// noteZoneWait records that the colony wanted a structure of t and no zone
-// had a site for it, for the Zones tab.
-func (w *World) noteZoneWait(t StructureType) {
+// noteZoneWait records that the colony wanted a fixture of kind and no zone
+// had room for it, for the Zones tab.
+func (w *World) noteZoneWait(kind Terrain) {
 	if !w.cfg.ZoningAuto {
-		w.zoneWaits[t] = w.tick + 1 // 0 means never
+		w.zoneWaits[kind] = w.tick + 1 // 0 means never
 	}
 }
 
-// zoneWaitTicks is how long a structure the colony could not site stays on
-// the Zones tab's waiting list after it last asked.
+// zoneWaitTicks is how long a fixture the colony could not site stays on the
+// Zones tab's waiting list after it last asked.
 const zoneWaitTicks = 256
 
-// zoneWaiting lists the structure types the colony has wanted recently and
-// found no zone with room for, in type order.
-func (w *World) zoneWaiting() []StructureType {
-	var out []StructureType
-	for t := StructureType(0); t < numStructureTypes; t++ {
+// zoneWaiting lists the fixture kinds the colony has wanted recently and
+// found no zone with room for, in terrain order.
+func (w *World) zoneWaiting() []Terrain {
+	var out []Terrain
+	for t := Terrain(0); t < numTerrains; t++ {
 		if at := w.zoneWaits[t]; at > 0 && w.tick+1-at <= zoneWaitTicks {
 			out = append(out, t)
 		}

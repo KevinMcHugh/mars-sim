@@ -771,13 +771,13 @@ type World struct {
 	// Zoning (zones.go): every tile's zone kind and crash-pod holds, how
 	// many tiles each kind covers, and a revision publishing reads (snapZones
 	// is the copy taken at snapZoneRev). zoneWaits is when the colony last
-	// wanted each structure type and found no zone with room for it.
+	// wanted each kind of fixture and found no zone with room for it.
 	zones       pagedGrid[zoneCell]
 	zoneTiles   [numZoneKinds]int
 	zoneRev     uint64
 	snapZoneRev uint64
 	snapZones   []ZoneRun
-	zoneWaits   [numStructureTypes]int
+	zoneWaits   [numTerrains]int
 	// playerZoned is set once the player has painted a zone or cleared an
 	// area. Until then, with zoning-auto, every zoned tile is under a room
 	// the colony built or a crash pod, so planRoomFor skips the search

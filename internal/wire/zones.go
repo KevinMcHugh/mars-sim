@@ -58,8 +58,9 @@ type ZoningTopic struct {
 	Treasury  int64 `json:"treasury"`
 	ClearWage int64 `json:"clearWage"`
 	DigWage   int64 `json:"digWage"`
-	// Types is the structure-type table: what each type is, and which zone
-	// it is built in.
+	// Types is the fixture table: each kind of fixture, and which zone it is
+	// built in (a chest as storage; a pantry or a ship's locker goes with its
+	// room). A room's zone is its fixtures'.
 	Types []StructureType `json:"types"`
 	// Tiles is how many tiles each kind covers, by kind name.
 	Tiles map[string]int `json:"tiles"`
@@ -67,12 +68,13 @@ type ZoningTopic struct {
 	Structures []Structure `json:"structures"`
 	// Clears are the clearing orders still open, oldest first.
 	Clears []Dig `json:"clears"`
-	// Waiting names the structure types the colony wants and no zone has
-	// room for (manual zoning only).
+	// Waiting names the fixture kinds the colony wants and no zone has room
+	// for (manual zoning only).
 	Waiting []StructureType `json:"waiting"`
 }
 
-// StructureType is a structure type and the zone kind it belongs in.
+// StructureType is a kind of fixture and the zone kind it is built in. (The
+// name is older than fixture-level zoning: rooms used to carry the tag.)
 type StructureType struct {
 	Name string `json:"name"`
 	Zone string `json:"zone"`
@@ -107,8 +109,8 @@ func zoningTopic(s *sim.Snapshot) ZoningTopic {
 		Clears:     []Dig{},
 		Waiting:    []StructureType{},
 	}
-	for _, st := range sim.StructureTypes() {
-		t.Types = append(t.Types, StructureType{Name: st.String(), Zone: st.Zone().String()})
+	for _, k := range sim.FixtureKinds() {
+		t.Types = append(t.Types, StructureType{Name: k.String(), Zone: sim.FixtureZone(k).String()})
 	}
 	for _, k := range sim.ZoneKinds() {
 		t.Tiles[k.String()] = 0
@@ -117,11 +119,11 @@ func zoningTopic(s *sim.Snapshot) ZoningTopic {
 		t.Tiles[r.Kind.String()] += r.X1 - r.X0 + 1
 	}
 	for _, v := range s.Structures {
-		t.Structures = append(t.Structures, Structure{ID: v.ID, Type: v.Type.String(), Zone: int(v.Type.Zone()),
+		t.Structures = append(t.Structures, Structure{ID: v.ID, Type: v.Name, Zone: int(v.Zone),
 			X0: v.X0, Y0: v.Y0, X1: v.X1, Y1: v.Y1, Built: v.Built, Ship: v.Ship, Rising: v.Rising})
 	}
-	for _, st := range s.ZoneWaiting {
-		t.Waiting = append(t.Waiting, StructureType{Name: st.String(), Zone: st.Zone().String()})
+	for _, k := range s.ZoneWaiting {
+		t.Waiting = append(t.Waiting, StructureType{Name: k.String(), Zone: sim.FixtureZone(k).String()})
 	}
 	for _, p := range s.Projects {
 		if p.Name != sim.ClearingName {

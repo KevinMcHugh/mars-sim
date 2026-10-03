@@ -18,7 +18,7 @@ package sim
 // The planner asks for chairs, not rooms: see wantsHall.
 var hallRoom = roomRecipe{
 	name: "meeting hall", kinds: []Terrain{Chair}, minFac: 2, maxFac: roomFacilities, expands: true,
-	planLog: "The colony commissions a meeting hall.", structure: StructMeetingHall,
+	planLog: "The colony commissions a meeting hall.",
 }
 
 const (

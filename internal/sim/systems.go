@@ -1760,7 +1760,7 @@ func (w *World) makeWayAt(e *Entity, target Point) bool {
 func (w *World) findBuildSpot(from Point, radius int, kind Terrain) (Point, bool) {
 	var best Point
 	found := false
-	zone := looseStructure(kind).Zone()
+	zone := FixtureZone(kind)
 	w.forEachInRadius(from, radius, func(p Point) bool {
 		if p.Equal(from) || w.TerrainAt(p) != Floor || w.occupied(p) ||
 			w.onPendingBuild(p) || !w.bordersSolid(p) || w.onPlannedTask(p) ||

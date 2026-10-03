@@ -189,7 +189,7 @@ func (w *World) expansionClear(rec *roomRecord, k int, right bool, designated, w
 	if !w.InBounds(f.at(rec.stripU(out+1, right), roomBackV-1)) || !w.InBounds(f.at(rec.stripU(out+1, right), roomFrontV+1)) {
 		return false
 	}
-	zone := rec.recipe.structure.Zone()
+	zone := rec.recipe.zone()
 	for j := 0; j <= out; j++ {
 		u := rec.stripU(j, right)
 		for v := roomBackV; v <= roomFrontV; v++ {
