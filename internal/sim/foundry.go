@@ -16,7 +16,7 @@ package sim
 // Nothing in it is life support, so it may go up narrow in a cramped cavern:
 // a smith and a gunsmith rarely want the same tile at once.
 var foundryRoom = roomRecipe{
-	name: "foundry", kinds: []Terrain{Forge, GunBench}, minFac: 2, maxFac: 2, aisle: true,
+	name: "foundry", kinds: []Terrain{Forge, GunBench}, minFac: 2, maxFac: 2, aisle: true, paired: true,
 	planLog: "The colony marks out a foundry.",
 }
 

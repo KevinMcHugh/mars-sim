@@ -18,7 +18,7 @@ toilets) are the first — and currently only — project kind.
 
 - [`internal/sim/project.go`](../internal/sim/project.go) — `buildTask`, `project`, planning, room siting, task claiming.
 - [`internal/sim/roomframe.go`](../internal/sim/roomframe.go) — `roomFrame` (which way a room faces) and `siteKeepsColonyWhole`.
-- [`internal/sim/roomgrow.go`](../internal/sim/roomgrow.go) — `roomRecord` (every room the colony has marked out) and growing a dormitory or storage room by moving a wall (see [room-expansion.md](./room-expansion.md)).
+- [`internal/sim/roomplan.go`](../internal/sim/roomplan.go) — `roomRecord` (every room the colony has marked out), and putting fixtures into the rooms it has: fit-outs, mergers and growth (see [room-expansion.md](./room-expansion.md)).
 - [`internal/sim/passage.go`](../internal/sim/passage.go) — passages dug to whatever the colony gets cut off from (see [escape.md](./escape.md)).
 - [`internal/sim/systems.go`](../internal/sim/systems.go) — `jobBuild`, `assignTask`/`assignBuild`, the emergency-build fallback.
 
@@ -33,12 +33,14 @@ then `f` requests one facility room, `d` one dormitory, `t` one trash room,
 queued at once; `planRooms` works
 through them — one new project per call, life support before dormitories —
 whenever the colony is below its current concurrent-project cap and a suitable
-site exists (see *Planning cadence* below). An ordered dormitory, storage
-room, kitchen, incubator or meeting hall, and the planner's own demand for any
-of them after the first kitchen, first goes into a room of that kind that can
-grow or two side by side that can be joined, and only marks out a new one
-when none can and none is going up (see
-[room-expansion.md](./room-expansion.md)).
+site exists (see *Planning cadence* below). Every order, and every demand of
+the planner's but the colony's first kitchen, is a number of fixtures, and
+goes into the rooms the colony has first: free floor in a room of the
+fixtures' zone, two rooms joined, or a room grown. It marks out a new room
+from a recipe only when none of those places anything, and not while a room
+of the zone is going up (see [room-expansion.md](./room-expansion.md)). A
+recipe is now only a new room's layout: once marked out, a room is a
+rectangle with doorways, and fixtures of its zone of any kind can join it.
 
 ### Tasks, phases, projects
 
@@ -69,13 +71,13 @@ current recipes are:
 | Recipe | Contents | Minimum size | Planning priority |
 | --- | --- | --- | --- |
 | facility room | alternating nutrient pods and toilets (all toilets with `infinite-food` off, when pods feed nobody — see [food.md](./food.md)) | 2 facilities (1 when all toilets) | first, because food is fatal |
-| dormitory | beds/bunks | 1 bed | after the desired pods and toilets exist; grows by expansion (up to `room-max-facilities`) before a new one is built |
+| dormitory | beds/bunks | 1 bed | after the desired pods and toilets exist, when no residence room can take the bunks |
 | trash room | an incinerator | 1 incinerator (and at most 1, via `maxFac`) | last, and only once there is refuse to burn |
-| storage room | one storage container, with an aisle | exactly 1 container via `maxFac` | player-ordered, the planner's silo, or when a full colonist has nowhere to unload; grows by expansion, one container at a time, before a new one is built |
-| scumhouse (kitchen) | a scumhouse, a gap, and its pantry chest, with an aisle | 1 scumhouse (the pantry is dropped on a site too small for both) | first of all with `infinite-food` off (the default); otherwise player-ordered (see [scumhouse.md](./scumhouse.md)). After the first, grows by expansion a stove and pantry at a time before a new one is built |
+| storage room | one storage container, with an aisle | exactly 1 container via `maxFac` | player-ordered, the planner's silo, or when a full colonist has nowhere to unload, when no storage room can take the chest |
+| scumhouse (kitchen) | a scumhouse, a gap, and its pantry chest, with an aisle | 1 scumhouse (the pantry is dropped on a site too small for both) | first of all with `infinite-food` off (the default); otherwise player-ordered (see [scumhouse.md](./scumhouse.md)). After the first, a stove and pantry go into a production room the colony has when one can take them |
 | house | a bunk and a toilet | exactly 2 | commissioned by a colonist with `house-savings`, paid from its wallet (see [labor.md](./labor.md)) |
-| meeting hall | two to four chairs, with open floor in front (more by expansion) | 2 chairs | after bunks and the incinerator, before the foundry; one chair per `colonists-per-chair` colonists, or player-ordered (`b` then `m`). See [meeting-hall.md](./meeting-hall.md) |
-| scum incubator | one or two incubators, with an aisle (more by expansion) | 1–2 (narrow in a cramped cavern, the colony's first only) | after the first scumhouse, up to one per `colonists-per-incubator` colonists, while pods do not feed anyone; or player-ordered (`b` then `i`). See [incubator.md](./incubator.md) |
+| meeting hall | two to four chairs, with open floor in front | 2 chairs | after bunks and the incinerator, before the foundry; one chair per `colonists-per-chair` colonists, or player-ordered (`b` then `m`). See [meeting-hall.md](./meeting-hall.md) |
+| scum incubator | one or two incubators, with an aisle | 1–2 (narrow in a cramped cavern, the colony's first only) | after the first scumhouse, up to one per `colonists-per-incubator` colonists, while pods do not feed anyone; or player-ordered (`b` then `i`). See [incubator.md](./incubator.md) |
 | foundry | a forge, a gap, and a gun bench, with an aisle | exactly 2 (narrow in a cramped cavern) | last of all, while `armory-rifles` > 0 and there's no forge or gun bench; or player-ordered (`b` then `g`). See [foundry.md](./foundry.md) |
 
 **Aisles.** A one-fixture room is one tile wide, so exactly one tile can reach
@@ -446,9 +448,9 @@ type, each type belongs to a zone kind, and `planRoomFor` first looks for a site
 whose whole footprint is zoned for it (backed, then free-standing: a zone drawn
 on open floor has nothing to back onto), then, only with `zoning-auto` on, for
 one on ground not zoned for anything else, which it then zones. With manual
-zoning, the game's default, a room no zone has a site for waits. A room grows
-(see [room-expansion.md](./room-expansion.md)) only onto ground zoned for it,
-too. The planning order above is unchanged. The concurrency cap does not count
+zoning, the game's default, a room no zone has a site for waits. A room grows or
+joins another (see [room-expansion.md](./room-expansion.md)) only onto ground
+zoned for it, too. The planning order above is unchanged. The concurrency cap does not count
 a player's excavation or clearing order (`roomProjects`): a big zone dug out of
 the rock must not hold up every room behind it. See [zoning.md](./zoning.md).
 

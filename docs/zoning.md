@@ -35,8 +35,9 @@ did, and zones each one as it marks it out.
   `planRoomFor` / `planRoomUnder` (zone first, then free ground with
   zoning-auto), `siteRules.zone`, `roomProjects`, and clearing tasks (a dig
   task whose `clears` is whatever stands on the tile).
-- [`internal/sim/roomgrow.go`](../internal/sim/roomgrow.go): a room grows only
-  onto ground zoned for it (`expansionClear`), and its structure grows with it.
+- [`internal/sim/roomplan.go`](../internal/sim/roomplan.go): a room grows or
+  joins another only onto ground zoned for it (`shapeWork`), and its structure
+  grows with it.
 - [`internal/sim/ship.go`](../internal/sim/ship.go): `registerShip` on
   landing and on a move, and `shipZoneOK` (a ship never lands by itself on
   another kind's zone).
@@ -120,8 +121,8 @@ under a `siteZone`, which `roomSiteClear` checks last (`roomZoned`):
    (`playerZoned`), step 1 is skipped in auto mode: every zoned tile is under a
    room or a ship, so it could find nothing.
 
-A room that grows (see [room-expansion.md](./room-expansion.md)) takes in ground
-only if it is zoned for the room (`expansionClear`, by `zoneAllows`), and
+A room that grows or joins another (see [room-expansion.md](./room-expansion.md))
+takes in ground only if it is zoned for the room (`shapeWork`, by `zoneAllows`), and
 `growStructure` adds the strip to the room's structure, zoning it in auto mode.
 
 With manual zoning a room that finds no site in step 1 waits, and
@@ -309,7 +310,7 @@ hashes moved.
 - [excavation.md](./excavation.md): the dig orders a zone over rock posts, and
   the area tool the Zones tab shares.
 - [ships.md](./ships.md): the ships whose ground is always residence.
-- [room-expansion.md](./room-expansion.md): rooms that grow, only into their zone.
+- [room-expansion.md](./room-expansion.md): rooms that take fixtures, join and grow, only into their zone.
 - [labor.md](./labor.md): work orders, which clearing and digging are.
 - [pathfinding.md](./pathfinding.md): the flow fields and routes a cleared wall
   opens.

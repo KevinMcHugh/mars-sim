@@ -362,13 +362,12 @@ chef's own kitchen isn't counted: the colony can't cook or buy scum there
 kitchen per ten colonists is a guess at what a colony needs; kitchens that
 are behind are a measurement of it.
 
-Every kitchen after the first goes into one the colony already has when it
-can: a stove where the side wall stood and its pantry two tiles on, linked
-like a new kitchen's, with the wall moved out past them (see
-[room-expansion.md](./room-expansion.md)). A kitchen grows only by whole
-stove-and-pantry pairs, so every stove keeps a pantry of its own. The first
-kitchen is always a room of its own: it is life support, and may be built
-unpaid.
+Every kitchen after the first goes into a production room the colony already
+has when it can: a stove and its pantry two tiles apart in a line, linked
+like a new kitchen's, fitted into free floor or by joining two rooms or
+growing one (see [room-expansion.md](./room-expansion.md)). Stoves are placed
+with their pantries, so every stove keeps one of its own. The first kitchen
+is always a room of its own: it is life support, and may be built unpaid.
 
 Together with cooks staying at the stove and giving way only to someone at
 the door (both below), this is what ended most big-colony die-offs: 100

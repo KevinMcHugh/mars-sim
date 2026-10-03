@@ -44,9 +44,9 @@ demand and may exceed the normal concurrent-project cap by one: otherwise full
 builders can deadlock every active project's excavation phase while the project
 cap prevents the one structure that would unblock them.
 
-Either way, an ordered or demanded storage room first goes into an existing
-storage room that can grow: its side wall is moved out and one more container
-fitted where the wall stood (see [room-expansion.md](./room-expansion.md)).
+Either way, an ordered or demanded chest first goes into a storage room the
+colony already has: fitted into free floor, or by joining two rooms or
+growing one (see [room-expansion.md](./room-expansion.md)).
 
 During work selection, a blocked colonist seeks the nearest reachable chest that
 can accept its complete material load. If none exists but a storage project is

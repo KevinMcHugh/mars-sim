@@ -1357,10 +1357,10 @@ func (w *World) jobBuild(e *Entity) {
 			o.Object = FactRef{Noun: NounStructure, Label: prereq.String()}
 			w.emitOccurrence(o)
 		case p != nil && p.room != nil:
-			// Moving a room's side wall out (see roomgrow.go).
+			// A wall coming down as a room grows or joins another (see roomplan.go).
 			w.demolish(e.Target)
 			w.logEvent(LogBuildStart, fmt.Sprintf("Colonist #%d tears down a wall at (%d, %d) to enlarge the %s.",
-				e.ID, e.Target.X, e.Target.Y, p.room.recipe.name))
+				e.ID, e.Target.X, e.Target.Y, w.roomTitle(p.room)))
 		default:
 			w.demolish(e.Target)
 			w.logEvent(LogEscape, fmt.Sprintf("Colonist #%d breaks through a %s at (%d, %d) to reach a cut-off part of the colony.",

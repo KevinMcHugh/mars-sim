@@ -17,7 +17,7 @@ package sim
 // Two chairs is the smallest hall worth the walls; four fill the usual bay.
 // The planner asks for chairs, not rooms: see wantsHall.
 var hallRoom = roomRecipe{
-	name: "meeting hall", kinds: []Terrain{Chair}, minFac: 2, maxFac: roomFacilities, expands: true,
+	name: "meeting hall", kinds: []Terrain{Chair}, minFac: 2, maxFac: roomFacilities,
 	planLog: "The colony commissions a meeting hall.",
 }
 

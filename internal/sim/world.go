@@ -652,11 +652,12 @@ type World struct {
 	nextProjectID int
 	nextPlanTick  int
 	// roomRecords is every room the colony has marked out, in the order it
-	// did, with its current extent: what room expansion grows (see
-	// roomgrow.go). Rooms are never demolished, so it only grows.
+	// did, with its current extent: what fit-outs fill, mergers join and
+	// expansions grow (see roomplan.go). A room leaves it when it is
+	// cleared away or joined to an older one.
 	roomRecords []*roomRecord
 	// roomFloor maps every floor tile inside a recorded room (its inside and
-	// its doorway) to that room, so an expansion can ask whose a tile is
+	// its doorways) to that room, so a reshape can ask whose a tile is
 	// without scanning every room. No two rooms share a floor tile.
 	roomFloor map[Point]*roomRecord
 	// Manual room orders wait here until the current project finishes and a

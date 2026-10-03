@@ -183,7 +183,7 @@ type structure struct {
 	// released when the structure goes.
 	doors []Point
 	// building is the project raising it, while it rises; room is the
-	// room's record (roomgrow.go), which goes with it.
+	// room's record (roomplan.go), which goes with it.
 	building *project
 	room     *roomRecord
 	// ship is a colony ship's, and lock the ground it holds as residence:
@@ -394,7 +394,7 @@ func (w *World) maybeRetire(s *structure) {
 
 // forget drops a structure from the registry and lets go of what it held:
 // its doorways, a ship's residence hold, and a room's record, so the room
-// planner no longer tries to grow a room that is gone (see roomgrow.go).
+// planner no longer tries to grow a room that is gone (see roomplan.go).
 func (w *World) forget(s *structure) {
 	delete(w.structures, s.id)
 	for _, p := range s.tiles {

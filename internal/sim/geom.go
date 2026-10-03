@@ -25,6 +25,11 @@ func (p Point) Chebyshev(o Point) int {
 	return max(dx, dy)
 }
 
+// Manhattan returns the taxicab distance between two points.
+func (p Point) Manhattan(o Point) int {
+	return abs(p.X-o.X) + abs(p.Y-o.Y)
+}
+
 // Adjacent reports whether o is within one 8-directional step of p (and not p
 // itself).
 func (p Point) Adjacent(o Point) bool {
@@ -38,6 +43,9 @@ var neighbors8 = [8]Point{
 	{-1, 0}, {1, 0},
 	{-1, 1}, {0, 1}, {1, 1},
 }
+
+// neighbors4 lists the four orthogonal steps around a cell.
+var neighbors4 = [4]Point{{0, -1}, {-1, 0}, {1, 0}, {0, 1}}
 
 func abs(x int) int {
 	if x < 0 {

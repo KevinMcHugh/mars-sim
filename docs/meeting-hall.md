@@ -34,10 +34,12 @@ wall, two to four chairs, with two rows of open floor in front. A chair costs
 2 raw rock, like a bunk. The planner commissions it as public work, paid from
 the treasury, after everything fatal and after bunks and the incinerator, and
 before the foundry. Demand is a headcount: one chair per `colonists-per-chair`
-(default 4), never fewer than two, so a growing colony adds chairs: to a hall
-it already has, moving its side wall out, before it builds another (see
-[room-expansion.md](./room-expansion.md)). The player can order one too (`b`,
-`m` in the TUI; `OrderMeetingHall`), which grows a hall the same way. Setting
+(default 4), never fewer than two, so a growing colony adds chairs: to the
+residence rooms it already has (a hall, but a dormitory with floor to spare
+will do, since a hall is only its chairs), fitted in or by growing a room,
+before it builds another (see [room-expansion.md](./room-expansion.md)). The
+player can order one too (`b`, `m` in the TUI; `OrderMeetingHall`), which
+places its chairs the same way. Setting
 `colonists-per-chair` to 0 turns the whole feature off.
 
 **Siting.** The hall is sited like every room (see
