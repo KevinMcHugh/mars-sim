@@ -5,6 +5,7 @@
 
 import type { Hello } from '../wire/decode.js';
 import type { Command, Settings } from './sim/client';
+import { reuse } from './reuse';
 import { SPEEDS, speedIndex } from './speed';
 
 /** How often frame-driven UI (clock, stats, speed) refreshes. */
@@ -328,7 +329,7 @@ export function placeFloat(id: string, at: Partial<Omit<FloatWin, 'id'>>, save =
 class TopicData {
   data: Record<string, unknown> = $state.raw({});
   set(name: string, payload: unknown): void {
-    this.data = { ...this.data, [name]: payload };
+    this.data = { ...this.data, [name]: reuse(this.data[name], payload) };
   }
   drop(name: string): void {
     const { [name]: _, ...rest } = this.data;

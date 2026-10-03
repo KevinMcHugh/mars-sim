@@ -331,6 +331,21 @@ ticker's), until they are opened again.
 - **Storage** lists every container with a fill bar and what it holds most
   of. A row opens its tile in the inspector, which already shows contents and
   ledger, rather than a second copy of that view.
+- **Topic payloads share their unchanged parts.** A topic is resent whole
+  whenever anything in it changes, so each send used to make every row of
+  every list a new object, and a keyed `{#each}` re-rendered all of them.
+  `TopicData.set` runs the new payload through `reuse` (`src/reuse.ts`,
+  tested by `reuse.test.mjs`): any part deep-equal to the last payload's
+  (same key, or same index in an array) becomes the old object, so Svelte
+  skips those rows. Anything that reads a topic must treat it as immutable,
+  as it already had to. `money()` keeps one `Intl.NumberFormat`:
+  `toLocaleString()` rebuilt the locale data on every call. Measured on a
+  Market of about 450 colony orders (6,700 elements) at Max speed, the tab
+  cost the page's main thread 5.7% before, 4.2% with the formatter alone,
+  2.3% with `reuse` alone, and 2.1% with both. What is left is mostly layout
+  after the rows that really change (recent trades shift down on each trade;
+  accounts re-sort by balance): Svelte already wrote only changed text, so
+  `reuse` saves script, not DOM writes.
 - **Market** shows the money supply, the accounts (an account opens in place,
   from its own `account:<key>` topic, so only the open one is built), and the
   books, prices, plans, work orders and recent trades. A depot or a planner is
