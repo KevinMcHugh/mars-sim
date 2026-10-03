@@ -86,34 +86,44 @@ martis 2"), the same way `distinctAlienName` numbers a common name.
   name can't do that; see lore.md's "Uniqueness filters the draw rather
   than re-rolling".) The stream is used only in `newWorld`, like the lore
   stream, so it needs no save state.
-- **Epithets that never change form.** In Latin, an adjective epithet has
-  to agree in gender with its genus: *Ursus ruber* but *Teuthis rubra* and
-  *Zoon rubrum*. Getting that right means tracking the gender of every root,
-  and the gender a compound takes isn't always obvious. Instead, every
-  built-in epithet is one whose form doesn't depend on gender:
+- **Every root has a gender, and adjective epithets agree with it.** In
+  Latin an adjective epithet must agree in gender with its genus: *Pithecus
+  hirsutus* but *Medusa hirsuta* and *Zoon hirsutum*. A genus takes the
+  gender of the noun it ends in, not of its prefix, so the gender lives on
+  the **root** (`gender: m|f|n`, which `loadTaxonomy` requires on every
+  root), and an adjective epithet lists its masculine as `form` plus
+  `feminine` and `neuter` (both or neither, again enforced).
+  `scientificName` picks the form that matches the drawn root through
+  `taxonEntry.agreeing`. Genders follow zoological convention, which isn't
+  always the classical one: compounds in *-ops*, *-pus* and *-odon* are
+  masculine (*Triops*, *Octopus*, *Mastodon*), *-ornis* is masculine
+  (*Dinornis robustus*), *-pteryx* feminine (*Archaeopteryx lithographica*),
+  *-therium*, *-zoon*, *-phasma*, *-dendron* neuter.
+
+  The first version had no genders at all and used only invariable
+  epithets, which still make up most of the list and need nothing extra:
   - genitives: *martis* "of Mars", *utopiae*
-  - nouns in apposition: *ares*, *gigas*, *comes*, *cavernicola*
-  - third-declension adjectives whose nominative is the same in every
-    gender: *ferox*, *velox*, *fallax*, *latens*, *versicolor*, *multipes*,
-    and the present participles *tremens* (gelatinous), *horrens* (hairy),
-    *volans* (winged)
+  - nouns in apposition: *ares*, *gigas*, *comes*, *cavernicola*, *lapis*,
+    *arbor*
+  - third-declension adjectives and present participles whose nominative
+    is the same in every gender: *ferox*, *velox*, *latens*, *versicolor*,
+    *multipes*, *tremens*, *horrens*, *volans*
 
-  That ruled out the obvious hide words: *lapideus* "stony", *hirsutus*
-  "hairy", *alatus* "winged" and *pennatus* "feathered" all decline by
-  gender, so the rocky, woody and feathered hides use *lapis* and *arbor*
-  (in apposition) and *plumipes* "feather-footed" instead. *volans* is kept
-  even though no species flies yet: it names what the wings look like they
-  are for, as *Draco volans* does for a lizard that only glides.
-
-  Real taxonomists rely on the same forms all the time. Keep to them when
-  you add an epithet, or add gender tracking first.
+  The declining ones are the adjectives that were worth the machinery:
+  *hirsutus*, *villosus*, *lapideus*, *lignosus*, *muscosus*, *plumosus*,
+  *alatus*, *ruber*, *niger*, *albus*. When adding one, give all three
+  forms, and check irregular ones (*ruber/rubra/rubrum*, not *rubrus*).
+  When adding a root, look up its gender rather than guessing from the
+  ending: *Medusa* is feminine, but *-cephalus* is masculine and
+  *-phasma* neuter.
 - **Data, not a Go switch,** for the same reasons as the colloquial name
   pool (see [lore.md](./lore.md)): adding a word part is a YAML edit, and
   the condition language is one contributors already know.
 - **Roots are allowed to repeat a prefix's trait.** *Lepidosaurus* is
   "scaly lizard", which is redundant, but real names are often like that.
   Filtering it out would make scaly species rarer to name. The same goes
-  for *Pteropteryx* ("wing-wing") on a winged species.
+  for *Pteropteryx* ("wing-wing") on a winged species, or *Ptilornis
+  plumosus*.
 - **Embedded only, no `-alien-taxonomy` flag yet.** The common-name pool
   needed a runtime override because players wanted to edit it. Nobody has
   asked to edit the word parts, so the override was left out. Plumbing one
@@ -130,8 +140,6 @@ martis 2"), the same way `distinctAlienName` numbers a common name.
   (*smithi*, *garciae*). That means naming the species when the colony first
   meets it, rather than at worldgen, which ties into the "fuller codex"
   idea in lore.md.
-- **Gendered epithets** (*ruber/rubra/rubrum*) would need a `gender` on
-  each root and three forms on each adjective.
 - **Higher ranks** (a family *-idae* shared by species with the same root)
   could group a multi-species roster in the lore tab.
 
