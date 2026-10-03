@@ -18,7 +18,8 @@ performance results they produced.
 - [`internal/sim/events.go`](../internal/sim/events.go) — the bus these systems react to.
 - [`internal/sim/tilegrid.go`](../internal/sim/tilegrid.go) — the page-shared grid published in each `Snapshot`.
 - [`internal/sim/rooms.go`](../internal/sim/rooms.go), [`flowfield.go`](../internal/sim/flowfield.go), [`path.go`](../internal/sim/path.go) — covered in [pathfinding.md](./pathfinding.md).
-- [`internal/sim/bench_test.go`](../internal/sim/bench_test.go) — `BenchmarkStep`.
+- [`internal/sim/bench_test.go`](../internal/sim/bench_test.go) — `BenchmarkStep`, `BenchmarkClaimNearestMine`.
+- [`internal/sim/systems.go`](../internal/sim/systems.go) — `claimNearestMine`, `nearestMatch` (the chunk-ring searches).
 
 ## How it works
 
@@ -66,6 +67,29 @@ re-evaluated for frontier membership. Claims are **owner-keyed** and made on
 arrival, keeping two colonists off one rock and making release safe. The board
 also keeps O(1) counts of builds in progress per terrain (`startBuild`/`endBuild`/
 `inProgress`), which is how `plannedFacilities` avoids scanning colonists.
+
+The frontier is kept twice: as a set (`frontier`, for membership) and bucketed
+by chunk (`frontierByChunk`, swap-delete like the entity buckets).
+`claimNearestMine` — how a miner in a small colony picks its rock, and so the
+job every idle colonist there falls back to when nothing else needs doing —
+searches the
+buckets in chunk rings around the colonist, the same way `nearestMatch` searches
+entities, and stops once the next ring cannot hold a tile as close as the best so
+far. It checks a tile's distance first and only pays for the claim, reachability
+(`frontierReachable`, eight `roomOf` lookups) and carry (`CanAddAll`, which
+allocates) checks on a tile that would beat the best. (distance, row-major) is a
+total order, so it returns exactly the tile a scan of the whole frontier would —
+`TestClaimNearestMineMatchesFullScan` checks that against the old scan on real
+runs. It used to be that scan: every call walked the whole frontier map and ran
+all three checks on every tile. When the room-expansion work cut the number of
+construction tasks, idle colonists fell back to mining more often and that scan
+grew to over a quarter of a 20-colonist run (issue #136).
+
+The ring search still visits every chunk when nothing qualifies (a full pack, a
+room with no frontier of its own). That is no worse than the old scan, and
+rarer than the hit it optimizes for. `tryProspect` still walks the whole
+frontier: it ranks rock by unexplored neighbours per step, not by distance, so a
+distance bound does not prune it the same way.
 
 Claiming or releasing a frontier tile, or a tile joining or leaving the
 frontier, touches the frontier flow field there, so other miners route around a
@@ -125,6 +149,22 @@ Per-colonist full-entity sorts in `observeNearby`, replaced by
 | `BenchmarkStepMixed500` | 23.0 | 9.0 |
 | `BenchmarkStepSmallColonyOnHugeMap10000` | 1.49 | 1.21 |
 
+The frontier ring search in `claimNearestMine` (issue #136; same seed, same
+simulation, before → after). The step benchmarks evolve one world for `b.N`
+ticks, so they are only comparable at a fixed tick count: these ran with
+`-benchtime=300x`. Left to pick `b.N`, the faster code runs more ticks, averages
+over a later and quieter stretch of the game, and reports a meaningless 99%.
+
+| Benchmark | before | after |
+| --- | --- | --- |
+| `BenchmarkClaimNearestMine` (one call, ~1,600-tile frontier) | 153 µs, 2,244 allocs | 0.53 µs, 3 allocs |
+| `BenchmarkStep500` (ms/tick) | 3.16 | 2.38 |
+| `BenchmarkStepMixed500` (ms/tick) | 2.23 | 1.67 |
+| Seed 16, 20 colonists, 200x200, 20,000 ticks (ms/tick) | 0.111 | 0.077 |
+
+Big-colony benchmarks (`BenchmarkStepBigMap`, `BenchmarkStepBigColonyOnHugeMap`)
+do not move: those colonies mine by the frontier flow field and never call it.
+
 Map size is the other axis, and it used to be the one that bit: with the colony
 held fixed, a fresh 6-colonist game published one frame per tick and paid for the
 whole grid every time.
@@ -152,7 +192,9 @@ re-scanning the map every tick. Flow fields and HPA\* (see
   `spawn` / `remove` / the relevant job transition.
 - **A new derived system**: subscribe to the event bus in `newWorld` and maintain
   your own incremental state from events (the job board is the model to copy).
-- **Measure it**: `go test ./internal/sim/ -run '^$' -bench BenchmarkStep -benchmem`.
+- **Measure it**: `go test ./internal/sim/ -run '^$' -bench BenchmarkStep -benchmem -benchtime=300x`.
+  Pin the tick count (`-benchtime=Nx`) when comparing two builds: the step
+  benchmarks evolve their world, so a different `b.N` measures a different game.
 
 ## Related
 

@@ -12,8 +12,13 @@ package sim
 type jobBoard struct {
 	w        *World
 	frontier map[Point]struct{} // all mineable rock (rock bordering floor)
-	claimed  map[Point]EntityID // frontier tiles currently being mined, by owner
-	building [numTerrains]int   // builds in progress, by terrain kind
+	// frontierByChunk buckets the same tiles by spatial chunk (chunkIndexOf),
+	// so claimNearestMine can search outward in chunk rings instead of
+	// scanning the whole frontier. Bucket order is arbitrary (swap-delete);
+	// the search tie-breaks by position, so it never depends on it.
+	frontierByChunk [][]Point
+	claimed         map[Point]EntityID // frontier tiles currently being mined, by owner
+	building        [numTerrains]int   // builds in progress, by terrain kind
 	// cleaning holds refuse tiles a colonist is on its way to scrub, by owner.
 	// Refuse is not maintained as a set the way the mining frontier is (it is
 	// rare and scattered, and cleaners search a small radius), so this tracks
@@ -24,10 +29,11 @@ type jobBoard struct {
 
 func newJobBoard(w *World) *jobBoard {
 	return &jobBoard{
-		w:        w,
-		frontier: make(map[Point]struct{}),
-		claimed:  make(map[Point]EntityID),
-		cleaning: make(map[Point]EntityID),
+		w:               w,
+		frontier:        make(map[Point]struct{}),
+		frontierByChunk: make([][]Point, w.chunkCols*w.chunkRows),
+		claimed:         make(map[Point]EntityID),
+		cleaning:        make(map[Point]EntityID),
 	}
 }
 
@@ -47,6 +53,8 @@ func (b *jobBoard) refreshFrontierCell(p Point) {
 	if w.InBounds(p) && w.TerrainAt(p) == Rock && w.bordersFloor(p) {
 		if !was {
 			b.frontier[p] = struct{}{}
+			ci := w.chunkIndexOf(p)
+			b.frontierByChunk[ci] = append(b.frontierByChunk[ci], p)
 			b.touchFrontierField(p)
 		}
 		return
@@ -54,10 +62,26 @@ func (b *jobBoard) refreshFrontierCell(p Point) {
 	// No longer mineable (mined out, walled off, or out of bounds): drop it and
 	// release any claim so the miner's job resolves next tick.
 	_, claimed := b.claimed[p]
+	if was {
+		b.removeFromChunk(p)
+	}
 	if was || claimed {
 		delete(b.frontier, p)
 		delete(b.claimed, p)
 		b.touchFrontierField(p)
+	}
+}
+
+// removeFromChunk drops a frontier tile from its chunk bucket by swap-delete.
+func (b *jobBoard) removeFromChunk(p Point) {
+	ci := b.w.chunkIndexOf(p)
+	bucket := b.frontierByChunk[ci]
+	for i, q := range bucket {
+		if q == p {
+			bucket[i] = bucket[len(bucket)-1]
+			b.frontierByChunk[ci] = bucket[:len(bucket)-1]
+			return
+		}
 	}
 }
 
