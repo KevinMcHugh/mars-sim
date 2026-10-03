@@ -16,7 +16,6 @@ import { MapRenderer } from './map/renderer';
 import type { TileRect } from './map/camera';
 import { pickGlyph } from './emoji';
 import * as palette from './map/palette';
-import { initialSettings } from './settings';
 import { SimClient } from './sim/client';
 import type { Settings } from './sim/client';
 import App from './ui/App.svelte';
@@ -507,4 +506,9 @@ function showHover(sx: number, sy: number): void {
   ui.hover = parts.join(' · ');
 }
 
-void newGame(initialSettings());
+// A cold load starts no game: it opens the New game tab, filled from the URL
+// over the defaults, so the player sees what they are starting (and how many
+// ships it will be) before the world is generated. Start goes straight on to
+// landing the ships.
+status(null);
+setPanel('game');

@@ -21,7 +21,9 @@ Ships are the only way into the game. Worldgen, the spawn command, and the
 director's `arrival` occurrence all go through `land` (by way of `arriveWave`
 for a crowd). In the browser, a new game starts paused with the founders'
 ships still **aloft**: the player lands them one after another, each where they
-click, before the first tick. The TUI and headless runs land them
+click, before the first tick. The new-game form says how many ships the
+colonist count makes before the world is generated ("3 ships of 14 or 13",
+from the same split as `shipLoads` below). The TUI and headless runs land them
 automatically. This is the first half of phase **E2** of the
 [economy plan](./economy.md). The meals in the lockers are what
 [food.md](./food.md) is about.
