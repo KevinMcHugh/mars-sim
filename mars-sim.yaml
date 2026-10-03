@@ -250,10 +250,11 @@ zoning-auto: true
 ## what the colony pays for an assault rifle at its silo
 # price-assault-rifle: 60
 
-# ── Hauling ─────────────────────────────────────────────────────────────
+# ── Colony standing orders ──────────────────────────────────────────────
 ## the colony posts no standing orders but its bids for building materials (rock, iron ore, clay)
 # standing-orders-build-only: true
 
+# ── Hauling ─────────────────────────────────────────────────────────────
 ## the colony sells the goods it bought, beyond its reserve, at its silo
 # colony-sells: true
 
