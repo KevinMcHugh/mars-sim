@@ -39,6 +39,9 @@ func testConfig() Config {
 	// They also count on the colony siting its own rooms: nothing in them
 	// draws a zone. Zoning tests turn it off (see zones_test.go).
 	c.ZoningAuto = true
+	// ...and on the colony posting all its standing orders, where the game
+	// posts only its building-material bids.
+	c.StandingOrdersBuildOnly = false
 	return c
 }
 

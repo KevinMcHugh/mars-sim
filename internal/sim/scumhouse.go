@@ -903,7 +903,13 @@ func (w *World) scumhousesSorted() []Point {
 // scumhouse topped up to scumhouse-bid-qty units per kind, at biomatterPrice,
 // as far as the treasury stretches — and only while the depot has room for
 // what it would buy.
+//
+// Once incubators feed the stoves the colony stops bidding for scum, outside
+// dire times, and withdraws the standing bids it had: gather plans scrape for
+// any open bid, so a bid left standing would keep colonists at the rock on
+// the colony's behalf. A player's own scum bid (manual) stays.
 func (w *World) refreshBiomatterBids() {
+	wild := w.wildScumAllowed()
 	for _, p := range w.colonyKitchens() {
 		c := w.storageContainers[p]
 		if c == nil {
@@ -911,8 +917,12 @@ func (w *World) refreshBiomatterBids() {
 		}
 		for _, k := range biomatterKinds {
 			price := w.biomatterPrice(k)
-			if price <= 0 || (k == CaveScum && !w.wildScumAllowed()) {
-				continue // incubators feed the stoves: nobody scrapes for this bid
+			if k == CaveScum && !wild {
+				w.withdrawColonyBids(k, p)
+				continue // incubators feed the stoves
+			}
+			if price <= 0 {
+				continue
 			}
 			want := w.cfg.ScumhouseBidQty - w.openQty(Bid, k, p, Community)
 			if cap := w.cfg.ScumhouseStockCap; cap > 0 {
@@ -1072,6 +1082,16 @@ func (w *World) offerColonyMeals(p Point) {
 	}
 	if spare := c.held(Community, Meal) - w.pendingHaul(Meal, p); spare > 0 {
 		w.postStanding(Ask, Meal, spare, price, p)
+	}
+}
+
+// withdrawColonyBids takes the colony's standing bids for item at p off the
+// book, returning their escrow to the treasury. A player's bid (manual) stays.
+func (w *World) withdrawColonyBids(item ItemKind, p Point) {
+	for _, o := range w.sortedOrders(func(o *Order) bool {
+		return o.Side == Bid && o.Item == item && o.Depot == p && o.Actor == Community && !o.manual
+	}) {
+		w.cancel(o)
 	}
 }
 
