@@ -11,10 +11,13 @@ readout. Around it is a Svelte chrome:
 
 - **A top bar:** the clock (colony day and time of day, see [days.md](./days.md), then tick), a Pause / Normal / Fast / Faster / Max speed selector, and
   the TUI header's counts, as emoji (👷 👽 🐈 🐀, then each fixture's glyph).
-- **A side panel,** with the Inspect tab (click the map), the Roster, the
-  Log, Jobs, Storage, Market, Zones, Dig, Charts, the Lore tab, Ships and a
-  new-game form (which can also start a colony that zones for itself:
-  `zoning-auto`).
+- **A side panel,** whose tab strip has two labelled rows. **View** holds the
+  tabs that show the colony: the Inspect tab (click the map), the Roster, the
+  Log, Jobs, Storage, Market, Charts and the Lore tab. **Act** holds the tabs
+  whose job is to change it: Zones, Dig, Ships and a new-game form (which can
+  also start a colony that zones for itself: `zoning-auto`). Market stays
+  under View although it hosts the colony's orders: it is mostly prices, and
+  splitting one tab across both rows would make the line meaningless.
 - **A log ticker** over the map's bottom-left corner: the last few colony-log
   lines, fading after a few seconds.
 
@@ -465,7 +468,9 @@ nothing.
 - **A new tab**: a component in `web/src/ui/` that calls `subscribe('<topic>')`
   in an `$effect` and reads `topics.data.<topic>`, plus a topic in
   `internal/wire/topics.go` (see [wire-format.md](./wire-format.md)), and an
-  entry in `SidePanel.svelte`'s `tabs`. It never touches the renderer's state.
+  entry in one of `SidePanel.svelte`'s `groups` (View if it only shows,
+  Act if it arms a map tool or sends a command). It never touches the
+  renderer's state.
 
 ## Related
 
