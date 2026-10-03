@@ -79,7 +79,7 @@ than a hardcoded list. Each species also gets a scientific name
 ### A roster of species, not one per world
 
 `AlienSpecies` (`lore.go`) holds a build (height/weight ranges, eye count,
-limb count split into arms vs. legs via `Arms`/`Legs()`, tail or not, `Skin`,
+limb count split into arms vs. legs via `Arms`/`Legs()`, tail or not, wings or not, `Skin`,
 `Color`, `Pattern`), a colloquial name (`Singular`/`Plural`, picked from a condition
 pool — see below), a `Temperament`, a set of `AttackModes`, and three precomputed combat stats:
 `BiteDamage`, `BiteRest`, `Slowness` (named for the bite, but they are the
@@ -95,8 +95,16 @@ is how every other system reads the species a specific alien belongs to.
 
 ### Hide and pattern
 
-`Skin` is one of seven hides — `smooth`, `scaly`, `furry`, `armored`,
-`bony`, `chitinous`, `slimy` — drawn uniformly. `Pattern` says how `Color`
+`Skin` is one of thirteen hides — `smooth`, `scaly`, `furry`, `armored`,
+`bony`, `chitinous`, `slimy`, `rocky`, `woody`, `mossy`, `gelatinous`,
+`hairy`, `feathered` — drawn uniformly. Each has its own `coveringPhrase`
+("craggy gray stone", "red bark", "quivering pale jelly", "shaggy black
+hair"); `feathered` is the second plural one after `scaly`, so a hostile
+species' "feathers stand out" agrees its verb. `hairy` and `furry` are
+deliberately both kept: fur is a dense pelt (bear, mouse), hair is long and
+shaggy (yeti, mammoth), and the names and taxonomy treat them differently.
+The six later hides were appended to the end of the enum and of
+`alienSkins`, so every older hide keeps its numeric value. `Pattern` says how `Color`
 is laid over that hide: `striped` and `spotted` are 5% each and `solid` is
 the rest (`rollPattern`), so a patterned species is a genuine find rather
 than a coin flip. `Color` itself is drawn uniformly from `alienColors`,
@@ -107,6 +115,22 @@ color-times-pattern string; `ColorPhrase()` folds the two back together
 ("green-striped") for `Description()`. Both hide and pattern are plain
 naming-condition leaves (`skin:`, `pattern:`) and carry no gameplay effect
 today — they are flavor, like `Color`.
+
+### Wings
+
+`Wings` is a bool, rolled at a flat `alienWingsPercent` (20%) right after
+`Pattern` and before the name, so both name pools can ask for it (`wings:`
+is a naming-condition leaf alongside `tail:`). It is independent of hide on
+purpose: a winged species can be a scaly *dragon*, a furry *bat*, a rocky
+*gargoyle*, or a chitinous *moth*, and a feathered species without wings is
+a *dodo* — tying wings to feathers would have lost every one of those.
+
+Wings are **anatomy only**. No species flies: movement, pathing and combat
+ignore the flag, and there is no wing attack mode. The description lists
+"a pair of wings" with the other body parts, and a hostile species'
+gait says it moves "with their wings folded" so the field notes never
+promise flight the sim does not do. Flight (crossing rock or chasms, a
+different `Slowness`) is the obvious follow-up; see *Extending it*.
 
 Adding a hide or pattern shifts every later draw off the lore stream for a
 given seed (the roll is uniform over the slice), so the same seed rolls a
@@ -293,7 +317,7 @@ type nameCondition struct {
 	Not *nameCondition
 
 	Temperament, Skin, Color, Pattern, Height, Weight string
-	Tail                                     *bool
+	Tail, Wings                              *bool
 	Legs, Arms, Limbs, Eyes                  *intCondition // {eq,gt,gte,lt,lte}
 }
 ```
@@ -408,6 +432,18 @@ VS16, exactly the width-ambiguous shape the registry exists to keep off the
 grid. The same rule pruned the older entries: 🐻‍❄️ (a ZWJ sequence),
 ⚫️/🕷️/♟️ (VS16) were dropped or swapped for single-code-point stand-ins
 (⚫ 🌑 🦇), and every remaining emoji in the built-in pool is registered.
+
+The rocky/woody/mossy/gelatinous/hairy/feathered hides and wings added their
+own names and glyphs the same way: *rockling*/*pebble*/*golem*/*gargoyle*
+(🪨 🗿), *stump*/*barkback*/*twig*/*treant* (🪵 🌳), *mossback*/*shambler*/
+*bog thing* (🌿 🌱), *jelly*/*jiggler*/*ooze*/*jellyfish* (🍮), *shag*/
+*mophead*/*yeti*/*mammoth* (🦍 🦣), *birdie*/*plume*/*dodo*/*chook*/*harpy*/
+*angel* (🐦 🦜 🦉 🦤 🦅 👼), and for wings *flapper*/*bat*/*dragon*/*moth*/
+*skeeter*/*griffin* (🪰 🦟 plus the existing 🦇 🦋 🐉). The obvious
+jellyfish glyph 🪼 is Unicode 15, newer than most terminals' width tables,
+so *jellyfish* borrows 🦑/🐙 and the gelatinous group uses 🍮 instead. The
+new glyphs were appended to the end of `glyphs.All` so no existing glyph's
+wire index moved.
 `TestCuratedAlienEmojiAreAllRegistered` reads `internal/sim/alien-names.yaml`
 itself, so adding a name whose emoji isn't in `glyphRegistry` fails the
 build instead of silently rendering as 👽 on the map.
@@ -463,7 +499,7 @@ worldgen chunks exist so far (`Stats.ChunksGenerated` of `Stats.Chunks`, see
 selectable list of `Snapshot.AlienSpecies`, each shown by `RosterLabel()`.
 The detail panel shows the selected species' scientific name in italics
 under its title, then lists its full build as explicit stat
-lines (height/weight range, eyes, limb split, tail, skin, color, bite
+lines (height/weight range, eyes, limb split, tail, wings, skin, color, bite
 damage/pace, plus the color pattern) followed by `Description()`'s narrative paragraph,
 word-wrapped to the panel width.
 
@@ -603,6 +639,10 @@ word-wrapped to the panel width.
   mechanics `strike` gives it (a stomp for heavy many-legged species, a
   sting for a tailed chitinous one). Modes could also gate names
   (`nameCondition` has no attack leaf yet).
+- **Flight.** `Wings` is rolled and described but does nothing. Letting a
+  winged species cross open floor faster, ignore rubble, or swoop (a wing
+  buffet `AttackMode`, gated by `canUse` on `Wings`) would make it matter;
+  keep the wording in `gaitPhrase` honest when it does.
 - **Per-individual variation.** Every alien of a given species is still
   stat-for-stat identical to every other of that species. Giving each
   `Entity` its own height/weight rolled from its species' range (the way
@@ -627,7 +667,7 @@ word-wrapped to the panel width.
 - **More names, more conditions.** `internal/sim/alien-names.yaml` (or a
   file passed via `-alien-names`) is the whole pool; add an entry with
   whatever `all`/`any`/`not` condition fits. `nameCondition` covers
-  temperament, skin, color, height/weight tier, tail, and counts on
+  temperament, skin, color, height/weight tier, tail, wings, and counts on
   legs/arms/limbs/eyes today — a new leaf field is a small, mechanical
   addition (a struct field, a case in `matches`) if a new trait ever needs
   to gate a name.

@@ -46,7 +46,7 @@ noun the genus ends in, such as `-saurus` lizard, `-hexapus` six-footed, `-odon`
 tooth, `-therium` beast) and **epithets** (`ferox` fierce, `martis` of Mars,
 `gigas` giant). Each entry has a `when` that uses the same `nameCondition`
 tree as [alien-names.yaml](./lore.md#naming-a-condition-gated-pool-not-a-flat-table)
-(temperament, skin, color, pattern, height/weight tier, tail, and counts of
+(temperament, skin, color, pattern, height/weight tier, tail, wings, and counts of
 legs, arms, limbs and eyes). `scientificName` draws in this order:
 
 1. A **root**, from those whose condition the species meets.
@@ -94,7 +94,16 @@ martis 2"), the same way `distinctAlienName` numbers a common name.
   - genitives: *martis* "of Mars", *utopiae*
   - nouns in apposition: *ares*, *gigas*, *comes*, *cavernicola*
   - third-declension adjectives whose nominative is the same in every
-    gender: *ferox*, *velox*, *fallax*, *latens*, *versicolor*, *multipes*
+    gender: *ferox*, *velox*, *fallax*, *latens*, *versicolor*, *multipes*,
+    and the present participles *tremens* (gelatinous), *horrens* (hairy),
+    *volans* (winged)
+
+  That ruled out the obvious hide words: *lapideus* "stony", *hirsutus*
+  "hairy", *alatus* "winged" and *pennatus* "feathered" all decline by
+  gender, so the rocky, woody and feathered hides use *lapis* and *arbor*
+  (in apposition) and *plumipes* "feather-footed" instead. *volans* is kept
+  even though no species flies yet: it names what the wings look like they
+  are for, as *Draco volans* does for a lizard that only glides.
 
   Real taxonomists rely on the same forms all the time. Keep to them when
   you add an epithet, or add gender tracking first.
@@ -103,7 +112,8 @@ martis 2"), the same way `distinctAlienName` numbers a common name.
   the condition language is one contributors already know.
 - **Roots are allowed to repeat a prefix's trait.** *Lepidosaurus* is
   "scaly lizard", which is redundant, but real names are often like that.
-  Filtering it out would make scaly species rarer to name.
+  Filtering it out would make scaly species rarer to name. The same goes
+  for *Pteropteryx* ("wing-wing") on a winged species.
 - **Embedded only, no `-alien-taxonomy` flag yet.** The common-name pool
   needed a runtime override because players wanted to edit it. Nobody has
   asked to edit the word parts, so the override was left out. Plumbing one

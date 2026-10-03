@@ -10,7 +10,7 @@
 # Each part is drawn at random from the entries whose "when" condition matches
 # the rolled species. "when" is the same condition tree alien-names.yaml uses
 # (all / any / not, temperament, skin, color, pattern, height, weight, tail,
-# legs, arms, limbs, eyes); an entry with no "when" fits every species.
+# wings, legs, arms, limbs, eyes); an entry with no "when" fits every species.
 #
 # Prefixes are Greek or Latin combining forms (the "Erythro-" in
 # Erythrosaurus). Roots are the noun a genus ends in (the "-saurus"). When a
@@ -61,6 +61,19 @@ prefixes:
   - { form: osteo,   when: { skin: bony } }
   - { form: ostraco, when: { skin: chitinous } }   # shelled
   - { form: myxo,    when: { skin: slimy } }
+  - { form: litho,   when: { skin: rocky } }       # stone
+  - { form: petro,   when: { skin: rocky } }       # rock
+  - { form: xylo,    when: { skin: woody } }       # wood
+  - { form: dendro,  when: { skin: woody } }       # tree
+  - { form: bryo,    when: { skin: mossy } }       # moss: Bryozoa
+  - { form: hyalo,   when: { skin: gelatinous } }  # glassy, see-through
+  - { form: colla,   when: { skin: gelatinous } }  # glue: collagen
+  - { form: tricho,  when: { skin: hairy } }       # hair
+  - { form: lasio,   when: { skin: hairy } }       # shaggy: Lasiurus, the hairy bat
+  - { form: ptilo,   when: { skin: feathered } }   # feather: Ptilonorhynchus
+
+  # Wings.
+  - { form: ptero, when: { wings: true } }         # Pterodactylus
 
   # Size.
   - form: mega
@@ -104,12 +117,30 @@ roots:
     mimic: true
     when: { all: [{ legs: { eq: 6 } }, { any: [{ skin: chitinous }, { skin: armored }] }] }
   - { form: limax,      mimic: true, when: { skin: slimy } }        # slug
+  - { form: phasma,     mimic: true, when: { skin: woody } }        # stick insect
+  - { form: bradypus,   mimic: true, when: { skin: mossy } }        # sloth: algae grows in its fur
+  - { form: medusa,     mimic: true, when: { skin: gelatinous } }   # jellyfish
+  - { form: pithecus,   mimic: true, when: { skin: hairy } }        # ape
+  - form: mammuthus   # mammoth
+    mimic: true
+    when: { all: [{ skin: hairy }, { weight: huge }] }
+  - { form: ornis,      mimic: true, when: { skin: feathered } }    # bird
+  - form: struthio    # ostrich
+    mimic: true
+    when: { all: [{ skin: feathered }, { wings: false }, { legs: { eq: 2 } }] }
+  - form: nycteris    # bat
+    mimic: true
+    when: { all: [{ wings: true }, { any: [{ skin: furry }, { skin: hairy }, { skin: smooth }] }] }
+  - { form: draco,      mimic: true, when: { all: [{ wings: true }, { skin: scaly }] } }  # dragon; also the gliding lizard
   - { form: batrachus,  mimic: true, when: { skin: smooth } }       # frog
   - { form: teuthis,    mimic: true, when: { arms: { gte: 6 } } }   # squid
   - { form: scolopendra, mimic: true, when: { legs: { gte: 7 } } }  # centipede
 
   # Anatomy.
   - { form: cephalus, when: { skin: bony } }        # head
+  - { form: lithus,   when: { skin: rocky } }       # stone: Coccolithus
+  - { form: dendron,  when: { skin: woody } }       # tree
+  - { form: pteryx,   when: { wings: true } }       # wing: Archaeopteryx
   - { form: urus,     when: { tail: true } }        # tail: Lepidurus
   - { form: cheirus,  when: { arms: { gte: 2 } } }  # hand: Pseudocheirus
   - { form: cyclops, when: { eyes: { eq: 1 } } }
@@ -177,3 +208,12 @@ epithets:
   - { form: versicolor, when: { color: iridescent } }    # changing color
   - { form: bicolor, when: { not: { pattern: solid } } } # two-colored
   - { form: concolor, when: { pattern: solid } }         # one color all over
+
+  # Hide.
+  - { form: lapis,      when: { skin: rocky } }          # stone, in apposition
+  - { form: arbor,      when: { skin: woody } }          # tree, in apposition
+  - { form: muscicola,  when: { skin: mossy } }          # moss-dweller
+  - { form: tremens,    when: { skin: gelatinous } }     # trembling
+  - { form: horrens,    when: { skin: hairy } }          # bristling
+  - { form: plumipes,   when: { skin: feathered } }      # feather-footed
+  - { form: volans,     when: { wings: true } }          # flying (Draco volans), though nothing flies yet

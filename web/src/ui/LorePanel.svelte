@@ -8,7 +8,7 @@
     // label is the TUI's roster label, emoji included ("🦗 Bug · hostile").
     label: string; glyph: string; singular: string; plural: string; scientificName: string; temperament: string;
     heightMinCm: number; heightMaxCm: number; weightMinKg: number; weightMaxKg: number;
-    eyes: number; limbs: number; arms: number; legs: number; tail: boolean;
+    eyes: number; limbs: number; arms: number; legs: number; tail: boolean; wings: boolean;
     skin: string; color: string; pattern: string;
     attacks: string; biteDamage: number; biteRest: number; slowness: number; description: string;
   }
@@ -65,6 +65,7 @@
         <dt>Eyes</dt><dd>{sp.eyes}</dd>
         <dt>Limbs</dt><dd>{sp.limbs} ({sp.arms} arms, {sp.legs} legs)</dd>
         <dt>Tail</dt><dd>{sp.tail ? 'yes' : 'no'}</dd>
+        <dt>Wings</dt><dd>{sp.wings ? 'yes' : 'no'}</dd>
         <dt>Skin</dt><dd>{sp.skin}</dd>
         <dt>Color</dt><dd>{sp.color}</dd>
         <dt>Pattern</dt><dd>{sp.pattern}</dd>

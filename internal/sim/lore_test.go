@@ -1,6 +1,8 @@
 package sim
 
 import (
+	"slices"
+	"strings"
 	"testing"
 )
 
@@ -72,9 +74,7 @@ func TestRollAlienSpeciesInvariants(t *testing.T) {
 		default:
 			t.Fatalf("seed %d: unknown temperament %v", seed, sp.Temperament)
 		}
-		switch sp.Skin {
-		case SkinSmooth, SkinScaly, SkinFurry, SkinArmored, SkinBony, SkinChitinous, SkinSlimy:
-		default:
+		if !slices.Contains(alienSkins[:], sp.Skin) || sp.Skin.String() == "unknown" {
 			t.Fatalf("seed %d: unknown skin %v", seed, sp.Skin)
 		}
 		switch sp.Pattern {
@@ -530,5 +530,75 @@ func TestDescriptionOmitsMissingParts(t *testing.T) {
 	want := `Blobs stand 0.5-0.7 m (1'8"-2'4") tall, weighing 10-12 kg (22-26 lb). They have 2 eyes and 3 legs. They are covered in slimy green skin and interact well with humans.`
 	if got := sp.Description(); got != want {
 		t.Errorf("Description() =\n  %s\nwant\n  %s", got, want)
+	}
+}
+
+// Wings are anatomy: every framing of the description mentions them, and the
+// hostile one says they stay folded, since nothing flies yet.
+func TestDescriptionMentionsWings(t *testing.T) {
+	base := AlienSpecies{Plural: "gargoyles", HeightMinCM: 150, HeightMaxCM: 200, WeightMinKG: 80, WeightMaxKG: 120,
+		Eyes: 2, Limbs: 4, Arms: 2, Wings: true, Skin: SkinRocky, Color: "gray"}
+
+	friendly := base
+	friendly.Temperament = TemperamentFriendly
+	want := `Gargoyles stand 1.5-2 m (4'11"-6'7") tall, weighing 80-120 kg (176-265 lb). They have 2 eyes, 2 arms, 2 legs, and a pair of wings. They are covered in craggy gray stone and interact well with humans.`
+	if got := friendly.Description(); got != want {
+		t.Errorf("friendly Description() =\n  %s\nwant\n  %s", got, want)
+	}
+
+	cautious := base
+	cautious.Temperament = TemperamentCautious
+	if got := cautious.Description(); !strings.Contains(got, "craggy gray stone, 2 eyes, 2 arms, 2 legs, and a pair of wings.") {
+		t.Errorf("cautious Description() does not list the wings: %s", got)
+	}
+
+	hostile := base
+	hostile.Temperament = TemperamentHostile
+	if got := hostile.Description(); !strings.Contains(got, "and stride on 2 legs with their wings folded.") ||
+		!strings.Contains(got, "Their craggy gray stone blends into the Martian rock.") {
+		t.Errorf("hostile Description() = %s", got)
+	}
+}
+
+// Every hide has its own covering phrase (only smooth uses the fallback), and
+// a plural one (feathers) agrees its verb.
+func TestCoveringPhraseForEveryHide(t *testing.T) {
+	smooth, _ := AlienSpecies{Skin: SkinSmooth, Color: "red"}.coveringPhrase()
+	seen := map[string]AlienSkin{}
+	for _, skin := range alienSkins {
+		got, _ := AlienSpecies{Skin: skin, Color: "red"}.coveringPhrase()
+		if skin != SkinSmooth && got == smooth {
+			t.Errorf("%v falls back to the smooth phrase %q", skin, got)
+		}
+		if prev, ok := seen[got]; ok {
+			t.Errorf("%v and %v share the covering phrase %q", prev, skin, got)
+		}
+		seen[got] = skin
+	}
+	sp := AlienSpecies{Plural: "harpies", HeightMinCM: 100, HeightMaxCM: 140, WeightMinKG: 20, WeightMaxKG: 30,
+		Eyes: 2, Limbs: 2, Arms: 0, Wings: true, Skin: SkinFeathered, Color: "black", Temperament: TemperamentHostile}
+	if got := sp.Description(); !strings.HasSuffix(got, "Their black feathers stand out against the Martian rock.") {
+		t.Errorf("feathered Description() does not agree its verb: %s", got)
+	}
+}
+
+// Over many seeds the roll produces winged and wingless species, and every
+// hide, so no new option is unreachable.
+func TestRollReachesEveryHideAndWings(t *testing.T) {
+	cfg := DefaultConfig()
+	skins := map[AlienSkin]bool{}
+	wings := map[bool]bool{}
+	for seed := int64(0); seed < 500; seed++ {
+		sp := rollAlienSpecies(newRand(seed), cfg, defaultAlienNames(), nil)
+		skins[sp.Skin] = true
+		wings[sp.Wings] = true
+	}
+	for _, skin := range alienSkins {
+		if !skins[skin] {
+			t.Errorf("no seed rolled a %v species", skin)
+		}
+	}
+	if !wings[true] || !wings[false] {
+		t.Errorf("wings rolled %v over 500 seeds, want both", wings)
 	}
 }

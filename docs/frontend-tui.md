@@ -102,7 +102,7 @@ dispatch to the active panel's handler.
   [worldgen-chunks.md](./worldgen-chunks.md)), and the seed
   (`Snapshot.Seed`). Arrow navigation selects one of `Snapshot.AlienSpecies`
   — every kind of alien this seed rolled — and the detail pane lists its full
-  build (height/weight range, eyes, limb split, tail, skin, color, attack
+  build (height/weight range, eyes, limb split, tail, wings, skin, color, attack
   modes, attack damage/pace) as scannable stat lines, plus `AlienSpecies.Description()`'s
   narrative paragraph, word-wrapped (`wrapWords`) to the panel width. See
   [lore.md](./lore.md).
