@@ -69,7 +69,6 @@
   }
 </script>
 
-<h2>Zones</h2>
 {#if z?.auto}
   <p class="muted">The colony is zoning for itself (zoning-auto): it builds where it chooses and zones each room as it marks it out, using your zones first.</p>
 {:else}

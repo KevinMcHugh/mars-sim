@@ -235,7 +235,9 @@ more than which framework you pick is **where the framework stops**:
 - A panel reads a topic store that updates at most about 10 times a second. Use
   `$state.raw` and replace the whole value, rather than deep `$state`: deep
   proxies over thousands of rows cost a lot, and the data is immutable anyway,
-  just like a `Snapshot`.
+  just like a `Snapshot`. A replaced value keeps the parts that did not
+  change (`reuse`, see [frontend-web.md](./frontend-web.md)), so a keyed list
+  re-renders only the rows that did.
 - Long lists (the roster, graveyard, job tasks, memories) are virtualized.
 - A closed panel unsubscribes, and the worker stops encoding its topic.
 

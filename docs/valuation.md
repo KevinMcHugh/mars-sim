@@ -86,7 +86,12 @@ what it has recently earned, if more. See [skills.md](./skills.md), S3.
 - **Gather** (a bid for scum at a scumhouse): scrape the nearest patch on its
   own account (`scrapeFor`), deliver to that scumhouse in its own name, and
   ask the bid's price, which fills at once. Labor is the scraping plus both
-  walks.
+  walks. Each plan carries one load (`scum-max`), so a bid for more is
+  filled a load at a time, by whoever delivers first. It goes on with
+  incubators standing (see [incubator.md](./incubator.md)). It answers only
+  bids at a scumhouse: a bid for scum at the silo or any other chest gets
+  no gather plan, and the only thing that fills it is a colonist carrying scum
+  over from a cheaper ask somewhere else.
 - **Craft** (a bid for a recipe's output): cook at the nearest usable
   workshop, then carry the output to the bid's depot (`JobCarry`) and ask the
   bid's price. Each input is costed as follows:
