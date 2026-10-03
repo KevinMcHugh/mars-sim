@@ -15,9 +15,13 @@ readout. Around it is a Svelte chrome:
   tabs that show the colony: the Inspect tab (click the map), the Roster, the
   Log, Jobs, Storage, Market, Charts and the Lore tab. **Act** holds the tabs
   whose job is to change it: Zones, Dig, Ships and a new-game form (which can
-  also start a colony that zones for itself: `zoning-auto`). Market stays
+  also start a colony that zones for itself: `zoning-auto`). A cold load
+  opens on that form (see "The new-game form" below). Market stays
   under View although it hosts the colony's orders: it is mostly prices, and
   splitting one tab across both rows would make the line meaningless.
+  Any tab can be **popped out** (⧉ in its title row) into a window over the
+  map, to watch it beside the docked tab: see
+  [floating-panels.md](./floating-panels.md).
 - **A log ticker** over the map's bottom-left corner: the last few colony-log
   lines, fading after a few seconds.
 
@@ -35,7 +39,9 @@ The rest of the TUI's tabs are planned in
   meets Svelte: the UI state (`ui`), topic payloads (`topics`), and the
   actions panels take (`subscribe`, `setSpeed`, `newGame`).
 - [`web/src/ui/`](../web/src/ui/App.svelte) — the Svelte chrome: `App`,
-  `TopBar`, `SpeedControl`, `SidePanel`, `Bar` (a gauge), and one component
+  `TopBar`, `SpeedControl`, `SidePanel`, `FloatingPanels` and `PanelHead`
+  (popped-out tabs, see [floating-panels.md](./floating-panels.md)), `tabs.ts`
+  (the tab list both share), `Bar` (a gauge), and one component
   per tab (`InspectPanel`, `RosterPanel`, `LogPanel`, `JobsPanel`,
   `StoragePanel`, `MarketPanel` with `AccountDetail` and `ColonyOrders`, `ZonesPanel`, `DigPanel`, `ChartsPanel`, `ShipsPanel`,
   `LorePanel`, `NewGamePanel`), `Section` (a foldable heading), `LogTicker`, and `FlowControl` (the
@@ -49,7 +55,8 @@ The rest of the TUI's tabs are planned in
   inspector's payloads.
 - [`web/src/speed.ts`](../web/src/speed.ts) — the speed selector's steps.
 - [`web/src/settings.ts`](../web/src/settings.ts) — new-game settings from the
-  URL.
+  URL, and `shipLoads` for the form's ship count (tested by
+  `settings.test.mjs`).
 - [`web/src/map/atlas.ts`](../web/src/map/atlas.ts) — the emoji atlas.
 - [`internal/glyphs/glyphs.go`](../internal/glyphs/glyphs.go) — which emoji a
   terrain or entity draws as; shared with the TUI.
@@ -73,11 +80,26 @@ The rest of the TUI's tabs are planned in
 
 **Running it:** from `web/`, run `npm install` once, then `npm run dev`, which
 rebuilds the WASM first (`predev`), then serves the game on
-<http://localhost:5173/> and the spike on `/spike/`. The URL takes new-game
-settings: `?width=2000&height=2000&seed=7&fog-of-war=false&zoning-auto=true`. `npm run build`
+<http://localhost:5173/> and the spike on `/spike/`. The URL fills the
+new-game form: `?width=2000&height=2000&seed=7&fog-of-war=false&zoning-auto=true`. `npm run build`
 writes a static site to `web/dist/`. `npm run check` type-checks and `npm test`
-runs the wire decoder's tests. All of these need Go on the path. After a Go
+runs the wire decoder's, the activity chart's and the ship count's tests. All of these need Go on the path. After a Go
 change with the dev server already running, run `npm run wasm` and reload.
+
+**The new-game form.** A cold load starts no game: it opens the **New
+game** tab, filled from the URL over the defaults (10000×10000, 6
+colonists, fog of war on, no seed, so the engine picks one), and **Start**
+goes straight to the Ships tab. The page used to generate a 10000×10000
+world on load, so the first thing a player saw was a game they had not
+chosen, and changing it meant generating a second world. Under the colonist
+count the form says how many ships that is to land ("2 ships of 15"):
+`shipLoads` in `settings.ts` mirrors the engine's `shipLoads`
+(`internal/sim/ship.go`) with `SHIP_CAPACITY`, the default `ship-capacity`,
+which the page never overrides. `settings.test.mjs` reads `DefaultConfig`
+from `config.go` and fails if the two drift. The worker records
+subscriptions made before a game (`names`, `log`, `zones` are subscribed at
+load) but does not advance until `start` succeeds: an advance with no engine
+is an error (`advance before start`).
 
 **A stale WASM says so.** The WASM's exports carry a version (`hostAPI` in
 `cmd/mars-sim-wasm/main.go`, `HOST_API` in `web/src/sim/client.ts`, bumped
@@ -229,7 +251,8 @@ Inspect tab:
   small shader). It is at least 14 CSS pixels across, so it still rings a dot
   zoomed out. It hides while the creature is under fog, as the creature does.
 - **Closing the Inspect tab** (or switching tabs) drops the selection and the
-  marker, and unmounting the panel unsubscribes its topic.
+  marker, and unmounting the panel unsubscribes its topic. A popped-out
+  inspector keeps it while its window is open, whatever the side panel shows.
 
 **The roster** lists the colony from the `roster` topic, by ID, three lines a
 row as in the TUI: name, pronouns and age (or an alien's species), and what it
@@ -260,9 +283,22 @@ closed.
   sentence, wrapped, never cut: the TUI found a cut sentence reads as a
   finished one. It follows the tail while scrolled to the bottom; scrolled
   back, it stays put and offers "↓ N new". A type menu and a search filter
-  it. Lines use `content-visibility: auto` rather than a virtual list:
-  wrapped lines have no fixed height, and the browser skips laying out the
-  ones off screen.
+  it. Wrapped lines have no fixed height, so it is not a virtual list like
+  the roster's. Two things keep it cheap instead:
+  - **A window by count.** Only the newest 200 matching lines are in the DOM
+    while it follows the tail; scrolling near the top adds 200 older ones
+    above, and the window's first line is then held by `seq`, so lines
+    arriving below never slide what is being read. Back at the bottom it
+    drops to 200 again. With all 2000 lines in the DOM, the tab cost the
+    page's main thread about 3% (measured at Max speed, four sends a
+    second); windowed, about 0.5%.
+  - **`content-visibility: auto`** on each line, so the browser skips laying
+    out the ones off screen. It needs scroll anchoring left on: as an
+    off-screen line's real height replaces its estimate, anchoring is what
+    keeps the text in view from jumping. Adding older lines adjusts
+    `scrollTop` by hand only where the browser did not (Safari has no
+    anchoring); turning anchoring off to do it by hand everywhere made the
+    view drift.
 - **The ticker** (`LogTicker.svelte`) shows the last four lines for 12
   seconds after they arrive, fading out; a click opens the Log tab, and it
   hides while that tab is open. Its fade timer stops once the newest line has
@@ -312,6 +348,21 @@ ticker's), until they are opened again.
 - **Storage** lists every container with a fill bar and what it holds most
   of. A row opens its tile in the inspector, which already shows contents and
   ledger, rather than a second copy of that view.
+- **Topic payloads share their unchanged parts.** A topic is resent whole
+  whenever anything in it changes, so each send used to make every row of
+  every list a new object, and a keyed `{#each}` re-rendered all of them.
+  `TopicData.set` runs the new payload through `reuse` (`src/reuse.ts`,
+  tested by `reuse.test.mjs`): any part deep-equal to the last payload's
+  (same key, or same index in an array) becomes the old object, so Svelte
+  skips those rows. Anything that reads a topic must treat it as immutable,
+  as it already had to. `money()` keeps one `Intl.NumberFormat`:
+  `toLocaleString()` rebuilt the locale data on every call. Measured on a
+  Market of about 450 colony orders (6,700 elements) at Max speed, the tab
+  cost the page's main thread 5.7% before, 4.2% with the formatter alone,
+  2.3% with `reuse` alone, and 2.1% with both. What is left is mostly layout
+  after the rows that really change (recent trades shift down on each trade;
+  accounts re-sort by balance): Svelte already wrote only changed text, so
+  `reuse` saves script, not DOM writes.
 - **Market** shows the money supply, the accounts (an account opens in place,
   from its own `account:<key>` topic, so only the open one is built), and the
   books, prices, plans, work orders and recent trades. A depot or a planner is

@@ -9,7 +9,7 @@
   // Two are mounted: a floating one (App.svelte) for wide screens, and a
   // docked one inside the side panel (SidePanel.svelte) for phones, where it
   // sits just above the tab strip instead of on top of it. CSS shows one.
-  import { colonyLog, setPanel, setTicker, ui } from '../game.svelte';
+  import { colonyLog, isFloating, setPanel, setTicker, ui } from '../game.svelte';
 
   let { docked = false }: { docked?: boolean } = $props();
   import { logKindColor } from './logkinds';
@@ -33,7 +33,7 @@
 
   const shown = $derived(
     // Docked (a phone), an open tab's sheet covers the map: nothing to add.
-    ui.panel === 'log' || !ui.ticker || (docked && ui.panel !== null) ? [] : colonyLog.lines.slice(-TICKER_LINES).filter((l) => now - l.at < TICKER_MS),
+    ui.panel === 'log' || isFloating('log') || !ui.ticker || (docked && ui.panel !== null) ? [] : colonyLog.lines.slice(-TICKER_LINES).filter((l) => now - l.at < TICKER_MS),
   );
 </script>
 

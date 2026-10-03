@@ -73,10 +73,19 @@ code.
 | An incubator stands, stores below `scum-dire-meals` a colonist, nothing ripe, no scum waiting at a stove | allowed: dire |
 
 It gates scraping for the colony's stoves (`tryAssignScrape` when not keeping),
-scraping to sell on a colonist's own account, planner gather plans, prospecting
-for food, and the colony's standing scum bid at its scumhouses. It does **not**
-gate seeding, and never a hungry colonist foraging for itself
-(`planForage`, `scrapeKeep`): that colonist is already dire.
+scraping to sell on a colonist's own account, prospecting for food, and the
+colony's standing scum bid at its scumhouses. While it is off,
+`refreshBiomatterBids` also withdraws the colony's open standing scum bids,
+so their escrow returns to the treasury.
+
+It does **not** gate:
+- seeding;
+- a hungry colonist foraging for itself (`planForage`, `scrapeKeep`): that
+  colonist is already dire;
+- planner gather plans (`planGather`). Scraping for somebody's bid goes on
+  whatever the incubators do, so a player's order for scum at a scumhouse
+  (see [colony-orders.md](./colony-orders.md)) and a chef's bid at its own
+  kitchen are still filled.
 
 Stores means every meal in every depot (`storedMeals`), not the colony's own:
 at landing the colony owns no meals while colonists' lockers hold ten each, and
@@ -114,6 +123,22 @@ marked out, and no new one is marked out while one is still going up (see
   into), and harvesters refuse anyone whose pack has scum. Six colonists each
   holding a few units starved beside two full incubators. Carried scum now goes
   to a stove, kept.
+- **The colony stops asking; colonists can still answer.** The gate first
+  covered gather plans too, so with an incubator standing nobody would
+  scrape for any bid. A player's order for 25 scum then sat unfilled, with
+  nothing to say why. What the incubator replaces is the colony's own demand
+  for wild scum, so the gate is on that demand: its standing bid is withdrawn
+  and not reposted, and a bid anyone else posts is answered. Withdrawing
+  matters, because the colony's standing orders never expire, and an old bid
+  left open would have kept colonists scraping for it. (Under
+  `standing-orders-build-only`, the default, the colony posts no scum bid in
+  the first place.) Chefs' bids (`refreshChefBids`) and cooks' derived bids
+  aren't gated either, so wild scum reaches chefs' kitchens and the meal
+  chain from a hungry colonist's bid down to the rock works again. Over
+  20,000 ticks on seeds 1–8 with the defaults, scum went from never trading
+  to trading on 6 seeds (23–281 units). On 4 of them its price rose to
+  $21–34, which is cooks paying their whole margin to fill hungry colonists'
+  meal bids. Starvation was unchanged (5 deaths before and after).
 - **Dire needs a measure of "nothing is coming".** Short stores alone would
   fire constantly while a kitchen catches up, so dire also needs nothing ripe
   and nothing waiting at a stove.

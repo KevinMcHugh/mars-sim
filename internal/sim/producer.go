@@ -324,9 +324,14 @@ func (w *World) planWaitingAt(p Point, id EntityID) bool {
 
 // planGather takes on scraping scum on e's own account to sell into bid b at a
 // scumhouse, if it pays. With probe set it only reckons the plan, into probe.
+//
+// It is not held back by the incubators (wildScumAllowed): a bid is somebody
+// asking for wild scum and paying for it. What the incubators stop is the
+// colony asking (refreshBiomatterBids), so a player's order or a chef's bid
+// still gets scraped for.
 func (w *World) planGather(e *Entity, b *Order, probe *planOffer) bool {
 	c := w.storageContainers[b.Depot]
-	if c == nil || c.Terrain != Scumhouse || e.Inventory.Has(CaveScum) || !w.wildScumAllowed() {
+	if c == nil || c.Terrain != Scumhouse || e.Inventory.Has(CaveScum) {
 		return false
 	}
 	qty := min(b.Qty, w.scrapeLoad())
