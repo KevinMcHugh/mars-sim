@@ -34,10 +34,33 @@ const alienTaxonomySeed = 0x6C62272E07BB0142
 // taxonEntry is one word part and the condition a species must meet to use
 // it. Mimic on a root marks an Earth animal the species resembles; on a
 // prefix it means the prefix ("pseudo") only goes in front of a mimic root.
+//
+// Gender is a root's grammatical gender, "m", "f" or "n": a genus takes the
+// gender of the noun it ends in, so Pithecus is masculine, Medusa feminine
+// and Zoon neuter whatever prefix comes first. An epithet that is a Latin
+// adjective agreeing with it lists its other two forms in Feminine and
+// Neuter (Form is the masculine): hirsutus, hirsuta, hirsutum. An
+// invariable epithet (ferox, martis) leaves both empty.
 type taxonEntry struct {
-	Form  string        `yaml:"form"`
-	Mimic bool          `yaml:"mimic,omitempty"`
-	When  nameCondition `yaml:"when"`
+	Form     string        `yaml:"form"`
+	Mimic    bool          `yaml:"mimic,omitempty"`
+	Gender   string        `yaml:"gender,omitempty"`
+	Feminine string        `yaml:"feminine,omitempty"`
+	Neuter   string        `yaml:"neuter,omitempty"`
+	When     nameCondition `yaml:"when"`
+}
+
+// agreeing is the epithet's form for a genus of the given gender. An
+// invariable epithet, or an unknown gender (a hand-built test taxonomy that
+// never set one), gets Form.
+func (e taxonEntry) agreeing(gender string) string {
+	switch {
+	case gender == "f" && e.Feminine != "":
+		return e.Feminine
+	case gender == "n" && e.Neuter != "":
+		return e.Neuter
+	}
+	return e.Form
 }
 
 // alienTaxonomy is alien-taxonomy.yaml: the word parts a scientific name is
@@ -64,7 +87,9 @@ func defaultTaxonomy() alienTaxonomy {
 // loadTaxonomy parses and checks an alien-taxonomy.yaml document. Every form
 // must be lowercase ASCII letters (they are glued together and capitalized
 // as-is), and each list needs at least one unconditional entry so that a
-// name can always be built, whatever the species rolled.
+// name can always be built, whatever the species rolled. Every root needs a
+// gender, so an epithet that declines always knows which form to take, and
+// an epithet that declines gives both of its other forms.
 func loadTaxonomy(data []byte, name string) (alienTaxonomy, error) {
 	var tx alienTaxonomy
 	if err := yaml.Unmarshal(data, &tx); err != nil {
@@ -81,6 +106,13 @@ func loadTaxonomy(data []byte, name string) (alienTaxonomy, error) {
 			}
 			if e.When.isZero() && !e.Mimic {
 				unconditional = true
+			}
+			if list.key == "roots" && e.Gender != "m" && e.Gender != "f" && e.Gender != "n" {
+				return tx, fmt.Errorf("%s: root %q needs gender m, f or n", name, e.Form)
+			}
+			if list.key == "epithets" && (e.Feminine != "" || e.Neuter != "") &&
+				(!isLowerASCIIWord(e.Feminine) || !isLowerASCIIWord(e.Neuter)) {
+				return tx, fmt.Errorf("%s: epithet %q must give both feminine and neuter forms, lowercase a-z", name, e.Form)
 			}
 		}
 		if !unconditional {
@@ -120,7 +152,7 @@ func scientificName(rng *rand.Rand, sp AlienSpecies, tx alienTaxonomy, used map[
 			}
 		}
 		genus := joinTaxa(pickTaxon(rng, prefixes).Form, root.Form)
-		name = capitalizeFirst(genus) + " " + pickTaxon(rng, epithets).Form
+		name = capitalizeFirst(genus) + " " + pickTaxon(rng, epithets).agreeing(root.Gender)
 		if !used[strings.ToLower(name)] {
 			return name
 		}

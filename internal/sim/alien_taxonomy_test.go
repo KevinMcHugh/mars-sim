@@ -16,10 +16,13 @@ func TestEmbeddedTaxonomyLoads(t *testing.T) {
 
 func TestLoadTaxonomyRejectsBadFiles(t *testing.T) {
 	for name, doc := range map[string]string{
-		"uppercase form":     "prefixes: [{form: Areo}]\nroots: [{form: zoon}]\nepithets: [{form: martis}]",
-		"no unconditional":   "prefixes: [{form: areo, when: {skin: scaly}}]\nroots: [{form: zoon}]\nepithets: [{form: martis}]",
-		"only a mimic":       "prefixes: [{form: pseudo, mimic: true}]\nroots: [{form: zoon}]\nepithets: [{form: martis}]",
-		"empty epithet list": "prefixes: [{form: areo}]\nroots: [{form: zoon}]",
+		"uppercase form":       "prefixes: [{form: Areo}]\nroots: [{form: zoon, gender: n}]\nepithets: [{form: martis}]",
+		"no unconditional":     "prefixes: [{form: areo, when: {skin: scaly}}]\nroots: [{form: zoon, gender: n}]\nepithets: [{form: martis}]",
+		"only a mimic":         "prefixes: [{form: pseudo, mimic: true}]\nroots: [{form: zoon, gender: n}]\nepithets: [{form: martis}]",
+		"empty epithet list":   "prefixes: [{form: areo}]\nroots: [{form: zoon, gender: n}]",
+		"root with no gender":  "prefixes: [{form: areo}]\nroots: [{form: zoon}]\nepithets: [{form: martis}]",
+		"root with bad gender": "prefixes: [{form: areo}]\nroots: [{form: zoon, gender: x}]\nepithets: [{form: martis}]",
+		"half a declension":    "prefixes: [{form: areo}]\nroots: [{form: zoon, gender: n}]\nepithets: [{form: martis}, {form: hirsutus, feminine: hirsuta}]",
 	} {
 		if _, err := loadTaxonomy([]byte(doc), name); err == nil {
 			t.Errorf("%s: loadTaxonomy accepted it", name)
@@ -117,5 +120,56 @@ func TestScientificNameNumbersOnExhaustion(t *testing.T) {
 	used := map[string]bool{"areozoon martis": true}
 	if got := scientificName(newRand(1), AlienSpecies{}, tx, used); got != "Areozoon martis 2" {
 		t.Fatalf("scientificName = %q, want %q", got, "Areozoon martis 2")
+	}
+}
+
+// An epithet that declines agrees with the gender of the root the genus ends
+// in, whatever the prefix: Pithecus hirsutus, Medusa hirsuta, Zoon hirsutum.
+func TestScientificNameEpithetAgreesWithGenus(t *testing.T) {
+	hirsutus := taxonEntry{Form: "hirsutus", Feminine: "hirsuta", Neuter: "hirsutum"}
+	for _, c := range []struct {
+		root taxonEntry
+		want string
+	}{
+		{taxonEntry{Form: "pithecus", Gender: "m"}, "Areopithecus hirsutus"},
+		{taxonEntry{Form: "medusa", Gender: "f"}, "Areomedusa hirsuta"},
+		{taxonEntry{Form: "zoon", Gender: "n"}, "Areozoon hirsutum"},
+	} {
+		tx := alienTaxonomy{
+			Prefixes: []taxonEntry{{Form: "areo"}},
+			Roots:    []taxonEntry{c.root},
+			Epithets: []taxonEntry{hirsutus},
+		}
+		if got := scientificName(newRand(1), AlienSpecies{}, tx, nil); got != c.want {
+			t.Errorf("scientificName = %q, want %q", got, c.want)
+		}
+	}
+}
+
+// Every declining epithet in the built-in file, paired with every root,
+// yields the form for that root's gender, and an invariable one never
+// changes.
+func TestEmbeddedEpithetsDecline(t *testing.T) {
+	tx := defaultTaxonomy()
+	declining := 0
+	for _, e := range tx.Epithets {
+		if e.Feminine == "" {
+			for _, g := range []string{"m", "f", "n"} {
+				if got := e.agreeing(g); got != e.Form {
+					t.Errorf("invariable %q became %q for gender %s", e.Form, got, g)
+				}
+			}
+			continue
+		}
+		declining++
+		for _, r := range tx.Roots {
+			want := map[string]string{"m": e.Form, "f": e.Feminine, "n": e.Neuter}[r.Gender]
+			if got := e.agreeing(r.Gender); got != want {
+				t.Errorf("%s + %s = %q, want %q", r.Form, e.Form, got, want)
+			}
+		}
+	}
+	if declining == 0 {
+		t.Fatal("no declining epithets in the embedded taxonomy")
 	}
 }
