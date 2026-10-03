@@ -1,15 +1,17 @@
 <script lang="ts">
-  // The page's chrome around the map: the top bar, the side panel, the hover
-  // readout and the status line. The map itself is a canvas main.ts draws.
+  // The page's chrome around the map: the top bar, the side panel and the
+  // tabs popped out of it, the hover readout and the status line. The map itself is a canvas main.ts draws.
   import { ui } from '../game.svelte';
   import TopBar from './TopBar.svelte';
   import SidePanel from './SidePanel.svelte';
+  import FloatingPanels from './FloatingPanels.svelte';
   import LogTicker from './LogTicker.svelte';
   import FlowControl from './FlowControl.svelte';
 </script>
 
 <TopBar />
 <SidePanel />
+<FloatingPanels />
 <LogTicker />
 <FlowControl legend />
 

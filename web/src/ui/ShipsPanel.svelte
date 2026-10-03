@@ -25,7 +25,6 @@
   function hold(id: number) { armShip(ui.shipTool === id ? null : id); }
 </script>
 
-<h2>Ships</h2>
 {#if !t}
   <p class="muted">Loading…</p>
 {:else}
@@ -77,7 +76,6 @@
 {/if}
 
 <style>
-  h2 { font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin: 4px 0 6px; }
   p { margin: 0 0 8px; }
   .muted { color: var(--muted); }
   ul { list-style: none; padding: 0; margin: 0 0 8px; }

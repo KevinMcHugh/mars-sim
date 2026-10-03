@@ -9,7 +9,7 @@
     "dev": "vite",
     "build": "sh build-wasm.sh && svelte-check --fail-on-warnings && vite build",
     "check": "svelte-check --fail-on-warnings",
-    "test": "node --test wire/decode.test.mjs src/ui/charts/population.test.mjs src/settings.test.mjs",
+    "test": "node --test wire/decode.test.mjs src/ui/charts/population.test.mjs src/settings.test.mjs src/reuse.test.mjs",
     "preview": "vite preview"
   },
   "devDependencies": {

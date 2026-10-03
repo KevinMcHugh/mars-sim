@@ -5,6 +5,12 @@
   //
   // It follows the live tail while scrolled to the bottom. Scrolled back, it
   // stays put and counts what arrived meanwhile.
+  //
+  // Only a window of the lines is in the DOM: the newest STEP while live, and
+  // STEP more each time the reader scrolls near the top. Lines wrap, so they
+  // have no fixed height to virtualize by (the roster's way); a window by
+  // count keeps the page from diffing and laying out all LOG_KEEP lines four
+  // times a second.
   import { tick } from 'svelte';
   import { colonyLog, LOG_KEEP, setTicker, ui } from '../game.svelte';
   import { logKindColor } from './logkinds';
@@ -16,6 +22,29 @@
     const q = query.trim().toLowerCase();
     return colonyLog.lines.filter((l) => (!kind || l.kind === kind) && (!q || l.text.toLowerCase().includes(q)));
   });
+
+  /** Lines added to the window at a time. */
+  const STEP = 200;
+  /** How near the top (px) a scroll loads older lines. */
+  const NEAR_TOP = 300;
+
+  // The window's first line, by seq, while scrolled back: frozen there so
+  // lines arriving below do not slide what is being read. Null follows the
+  // tail.
+  let from = $state<number | null>(null);
+  const start = $derived.by(() => {
+    if (from === null) return Math.max(0, lines.length - STEP);
+    const f = from;
+    let lo = 0;
+    let hi = lines.length;
+    while (lo < hi) {
+      const mid = (lo + hi) >> 1;
+      if (lines[mid].seq < f) lo = mid + 1;
+      else hi = mid;
+    }
+    return lo;
+  });
+  const shown = $derived(lines.slice(start));
 
   let list: HTMLDivElement | undefined = $state();
   let live = $state(true);
@@ -29,10 +58,33 @@
   function onScroll(): void {
     if (!list) return;
     const bottom = atBottom(list);
-    if (live && !bottom) leftAt = lines.at(-1)?.seq ?? -1;
+    if (live && !bottom) {
+      leftAt = lines.at(-1)?.seq ?? -1;
+      from = lines[start]?.seq ?? null;
+    }
     live = bottom;
+    if (bottom) from = null;
+    else if (list.scrollTop < NEAR_TOP && start > 0) void older();
+  }
+  /**
+   * Add STEP older lines above the window, keeping what is on screen where it
+   * is. A browser with scroll anchoring (Chrome, Firefox) has already moved
+   * scrollTop by the time we look; one without (Safari) has not, so we do.
+   * Anchoring must stay on either way: lines skip layout off screen
+   * (content-visibility), and it is what holds the place as their real
+   * heights replace the estimates.
+   */
+  async function older(): Promise<void> {
+    const el = list;
+    if (!el) return;
+    const h = el.scrollHeight;
+    const top = el.scrollTop;
+    from = lines[Math.max(0, start - STEP)].seq;
+    await tick();
+    if (el.scrollTop === top) el.scrollTop = top + el.scrollHeight - h;
   }
   async function toBottom(): Promise<void> {
+    from = null;
     await tick();
     if (list) list.scrollTop = list.scrollHeight;
     live = true;
@@ -67,7 +119,7 @@
     {#if lines.length === 0}
       <p class="muted">{colonyLog.lines.length === 0 ? 'Nothing logged yet.' : 'Nothing matches.'}</p>
     {/if}
-    {#each lines as l (l.seq)}
+    {#each shown as l (l.seq)}
       <div class="line" class:odd={l.seq % 2 === 1}>
         <span class="kind" style="color: {logKindColor(l.kind)}">{l.kind}</span>
         <span class="tick">t{l.tick}</span>
