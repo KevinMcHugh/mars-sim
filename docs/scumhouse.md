@@ -235,7 +235,8 @@ the job board keeps the mining frontier, so finding scum never walks the map.
 > scrapes the rock: it harvests incubators, and wild scum is for seeding them
 > and for dire times (see [incubator.md](./incubator.md)). Read the scraping
 > steps below as what happens before the first incubator is built, or when
-> `wildScumAllowed`.
+> `wildScumAllowed`. Scraping to fill someone else's bid (a player's order, a
+> chef's bid) goes on regardless.
 
 **Food on its own account comes first.** When a meal sells for enough more
 than it costs a colonist to make (`foodPays`), `assignWorkJob` offers, right
