@@ -128,10 +128,15 @@ moving its side wall out, before a new room is marked out (see
   for wild scum, so the gate is on that demand: its standing bid is withdrawn
   and not reposted, and a bid anyone else posts is answered. Withdrawing
   matters, because the colony's standing orders never expire, and an old bid
-  left open would have kept colonists scraping for it. Chefs' bids
-  (`refreshChefBids`) aren't gated either, so wild scum does reach chefs'
-  kitchens. Over 20,000 ticks on seeds 1–8, that raised scum trades on two
-  seeds (61→326, 76→202) and starved no one extra (5 deaths before, 3 after).
+  left open would have kept colonists scraping for it. (Under
+  `standing-orders-build-only`, the default, the colony posts no scum bid in
+  the first place.) Chefs' bids (`refreshChefBids`) and cooks' derived bids
+  aren't gated either, so wild scum reaches chefs' kitchens and the meal
+  chain from a hungry colonist's bid down to the rock works again. Over
+  20,000 ticks on seeds 1–8 with the defaults, scum went from never trading
+  to trading on 6 seeds (23–281 units). On 4 of them its price rose to
+  $21–34, which is cooks paying their whole margin to fill hungry colonists'
+  meal bids. Starvation was unchanged (5 deaths before and after).
 - **Dire needs a measure of "nothing is coming".** Short stores alone would
   fire constantly while a kitchen catches up, so dire also needs nothing ripe
   and nothing waiting at a stove.
