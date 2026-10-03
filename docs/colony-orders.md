@@ -59,6 +59,20 @@ Then it is `post`ed with no expiry and marked `manual`. It matches at once like
 any order, so a bid at or over the best ask buys straight away; the log line
 says how much filled.
 
+A bid fills a delivery at a time; the goods don't have to arrive at once.
+Colonists aren't assigned to it. Any number of them can plan to fill it, and
+the first to deliver is paid (see [valuation.md](./valuation.md)). What
+answers it depends on the good and the depot. A bid for **cave scum** gets
+scraped for only at a scumhouse (one load, `scum-max`, per trip, with or
+without incubators). At the silo, nobody scrapes for it.
+
+A **meal** bid at the silo doesn't make the colony more food just by being
+there. The colony sells its own meals at the silo, and the book doesn't stop
+it buying from itself, so a bid at or over that price trades with the
+colony's own ask. Meals bought from colonists only move between depots,
+which leaves `storedMeals` the same. Only a cook's craft plan to fill the bid
+makes new meals.
+
 **Repricing** is a cancel and a re-post at the new price: the escrow comes
 back, then goes out again. The order gets a new ID, so it joins the back of
 the queue at its price, and it may trade at once if the new price crosses. A
