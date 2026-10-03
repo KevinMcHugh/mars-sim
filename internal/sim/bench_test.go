@@ -480,6 +480,9 @@ func packedStorageRooms(b *testing.B, rooms int) *World {
 	cfg.Seed = 1
 	cfg.FoundingGrant = 1_000_000
 	cfg.Width, cfg.Height = 1200, 1200
+	// Packed wall to wall, every pair of neighbours could be joined (see
+	// roommerge.go); this measures a search for growth that finds none.
+	cfg.RoomMerge = false
 	w := newWorld(cfg, newPCG(1))
 	width := storageRoom.roomWidth(1) // 3 wide, an aisle either side of the container
 	perRow := 100
