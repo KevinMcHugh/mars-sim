@@ -60,6 +60,13 @@ func TestBoardTopics(t *testing.T) {
 		if r.Label == "" || r.Slots == 0 || r.Used > r.Slots || (r.Used > 0) != (r.Top != "") {
 			t.Errorf("container = %+v", r)
 		}
+		sum := 0
+		for _, h := range r.Contents {
+			sum += h.Count
+		}
+		if sum != r.Items || r.Ledger == nil {
+			t.Errorf("container contents = %+v, ledger = %+v, items %d", r.Contents, r.Ledger, r.Items)
+		}
 	}
 
 	var m MarketTopic
@@ -114,6 +121,36 @@ func TestBoardTopics(t *testing.T) {
 	}
 	if err := NewTopics().Subscribe("account:treasury"); err == nil {
 		t.Error("a malformed account subscribed")
+	}
+}
+
+// A container's row totals its stacks by item, in item order, and carries
+// its ledger for the storage tab's searches.
+func TestStorageRowContents(t *testing.T) {
+	snap := fixture(true)
+	me := sim.ColonistOwner(1)
+	snap.Entities[0].Profile = &sim.Profile{Name: "Uma Xu"}
+	var inv sim.StorageInventory
+	inv[0] = sim.ItemStack{Kind: sim.Meal, Count: 4}
+	inv[1] = sim.ItemStack{Kind: sim.RawRock, Count: 2}
+	inv[3] = sim.ItemStack{Kind: sim.Meal, Count: 3}
+	snap.Storages = []sim.StorageView{{Pos: sim.Point{X: 1, Y: 1}, Inventory: inv,
+		Ledger: []sim.LedgerLine{{Owner: me, Item: sim.Meal, Count: 7}, {Owner: sim.Community, Item: sim.RawRock, Count: 2}}}}
+	var rows []StorageRow
+	due(t, snap, "storage", &rows)
+	if len(rows) != 1 {
+		t.Fatalf("rows = %+v", rows)
+	}
+	r := rows[0]
+	want := []Holding{{Item: sim.RawRock.String(), Count: 2}, {Item: sim.Meal.String(), Count: 7}}
+	if sim.RawRock > sim.Meal {
+		want[0], want[1] = want[1], want[0]
+	}
+	if fmt.Sprint(r.Contents) != fmt.Sprint(want) || r.Top != sim.Meal.String()+" ×7" {
+		t.Errorf("contents = %+v, top %q", r.Contents, r.Top)
+	}
+	if len(r.Ledger) != 2 || r.Ledger[0].Owner != "Uma Xu" || r.Ledger[1].Owner != "the colony" {
+		t.Errorf("ledger = %+v", r.Ledger)
 	}
 }
 

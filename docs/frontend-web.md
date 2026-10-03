@@ -313,7 +313,7 @@ closed.
     a phone. Docked, it shows the two newest lines, one line each, and hides
     while a tab's sheet is open.
 
-**Foldable sections.** The Inspect, Market and Lore tabs are long lists of
+**Foldable sections.** The Inspect, Market, Storage and Lore tabs are long lists of
 headed parts (Skills, Affinities, Books, Alien species…), and most of the
 time you only read a few of them. Each heading is a `Section`
 (`ui/Section.svelte`): a click folds it shut (▸) or opens it (▾). Folded
@@ -345,9 +345,20 @@ ticker's), until they are opened again.
   tint's shader with its own buffers, so it works at every zoom). The
   highlight goes when the project closes, finishes, or the tab unmounts.
   **Find** centers the map on the tiles still to build.
-- **Storage** lists every container with a fill bar and what it holds most
-  of. A row opens its tile in the inspector, which already shows contents and
-  ledger, rather than a second copy of that view.
+- **Storage** has three foldable parts. **Pool** sums every container:
+  slots and items used, and each item's colony-wide total, most first (a
+  click on an item searches for it). **Search** takes an item and an owner,
+  each a case-insensitive substring with the names in storage suggested,
+  and lists the containers that match, most first, with what matched. An
+  item alone reads the containers' contents, so it finds stock nobody owns;
+  any owner term reads the ledgers instead, since only a ledger says whose a
+  stack is ("Uma" also finds what is "for sale by Uma"). **Containers**, at
+  the bottom, lists every container with a fill bar and what it holds most
+  of. Any container row opens its tile in the inspector, which already
+  shows contents and ledger, rather than a second copy of that view. The
+  arithmetic is `ui/storage.ts` (tested by `storage.test.mjs`); the search
+  terms live at module scope in `StoragePanel`, so a row opened in the
+  inspector comes back (**← Storage**) to the same results.
 - **Topic payloads share their unchanged parts.** A topic is resent whole
   whenever anything in it changes, so each send used to make every row of
   every list a new object, and a keyed `{#each}` re-rendered all of them.
