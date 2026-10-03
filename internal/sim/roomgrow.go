@@ -51,17 +51,87 @@ func (r *roomRecord) grown(k int, right bool) roomFrame {
 // growOrPlan has the colony enlarge one of its rooms of r by up to want
 // fixtures, and marks out a new room only when none can grow. It reports
 // whether it did either.
+//
+// Two rules keep it from scattering small rooms. A room of r that is still
+// going up (or growing) is waited for rather than joined by another: once it
+// stands it can grow, and a second room planned beside it only gets in its
+// way. And a later room of r with an aisle waits for a site wide enough for
+// one, as later kitchens always have (aisleRequired): the narrow fallback is
+// for a colony's first, and a narrow room squeezed into the gap between two
+// others can never grow. Storage is exempt from both: a full inventory can
+// stall every project in flight, the storage room going up included, and a
+// storage room anywhere is what breaks that.
 func (w *World) growOrPlan(r roomRecipe, want int) bool {
 	if w.expandRoom(r, want) {
 		return true
 	}
+	if r.name != storageRoom.name {
+		if w.roomGoingUp(r) {
+			return false
+		}
+		r.aisleRequired = r.aisleRequired || (r.aisle && w.hasRoom(r))
+	}
 	return w.planRoomFor(r, Community)
 }
 
-// expandRoom enlarges the colony's oldest room of r that can take more
-// fixtures, by as many of want as fit (at most a full room's worth,
-// roomFacilities, at a time, and never past RoomMaxFacilities), on whichever
-// side has room: right first, then left. It reports whether it did.
+// hasRoom reports whether the colony has marked out a room of r, anyone's.
+func (w *World) hasRoom(r roomRecipe) bool {
+	for _, rec := range w.roomRecords {
+		if rec.recipe.name == r.name {
+			return true
+		}
+	}
+	return false
+}
+
+// roomGoingUp reports whether one of the colony's rooms of r is being built
+// or enlarged and could grow once it stands: the planner waits for it rather
+// than marking out another room of r beside it (see growOrPlan).
+func (w *World) roomGoingUp(r roomRecipe) bool {
+	if !w.cfg.RoomExpansion || !r.expands {
+		return false
+	}
+	for _, p := range w.projects {
+		if rec := p.room; rec != nil && rec.recipe.name == r.name && rec.issuer == Community && rec.n < w.cfg.RoomMaxFacilities {
+			return true
+		}
+	}
+	return false
+}
+
+// roomPlanState is what the room planner reads of the projects in flight:
+// the rooms they are building or enlarging, every tile they will change, and
+// the walls they will raise.
+type roomPlanState struct {
+	busy       map[*roomRecord]bool
+	designated map[Point]bool
+	walls      map[Point]bool
+}
+
+func (w *World) roomPlanState() roomPlanState {
+	st := roomPlanState{busy: make(map[*roomRecord]bool), designated: make(map[Point]bool), walls: make(map[Point]bool)}
+	for _, p := range w.projects {
+		if p.room != nil {
+			st.busy[p.room] = true
+		}
+		for _, t := range p.tasks {
+			st.designated[t.pos] = true
+			if t.terrain == Wall {
+				st.walls[t.pos] = true
+			}
+		}
+	}
+	return st
+}
+
+// expandRoom enlarges one of the colony's rooms of r by as many of want
+// fixtures as fit, and reports whether it did. Joining two rooms of r that
+// stand side by side comes first (see roommerge.go): it fits fixtures where
+// a wall stood and puts two rooms that block each other's growth into one.
+// Then growing: the oldest room that can take more, by as many of want as
+// fit (at most a full room's worth, roomFacilities, at a time, and never
+// past RoomMaxFacilities), on whichever side has room: right first, then
+// left.
 //
 // Only the colony's own rooms grow, one expansion at a time each, and only a
 // recipe that expands. A room grows by whole cycles of its recipe's kinds, so
@@ -69,32 +139,25 @@ func (w *World) growOrPlan(r roomRecipe, want int) bool {
 // together, never a stove alone, and only a kitchen whose bay is whole pairs.
 func (w *World) expandRoom(r roomRecipe, want int) bool {
 	limit := w.cfg.RoomMaxFacilities
-	if !w.cfg.RoomExpansion || !r.expands || want < 1 {
+	if !r.expands || want < 1 {
 		return false
 	}
-	busy := make(map[*roomRecord]bool)
-	designated := make(map[Point]bool)
-	walls := make(map[Point]bool)
-	for _, p := range w.projects {
-		if p.room != nil {
-			busy[p.room] = true
-		}
-		for _, t := range p.tasks {
-			designated[t.pos] = true
-			if t.terrain == Wall {
-				walls[t.pos] = true
-			}
-		}
+	st := w.roomPlanState()
+	if w.cfg.RoomMerge && w.mergeRooms(r, want, 1, st) {
+		return true
+	}
+	if !w.cfg.RoomExpansion {
+		return false
 	}
 	step := len(r.kinds)
 	for _, rec := range w.roomRecords {
-		if rec.recipe.name != r.name || rec.issuer != Community || busy[rec] || rec.n >= limit || rec.n%step != 0 {
+		if rec.recipe.name != r.name || rec.issuer != Community || st.busy[rec] || rec.n >= limit || rec.n%step != 0 {
 			continue
 		}
 		for k := min(want, roomFacilities, limit-rec.n) / step * step; k >= step; k -= step {
 			for _, right := range [2]bool{true, false} {
-				if !w.expansionClear(rec, k, right, designated, walls) ||
-					!w.siteKeepsColonyWhole(rec.grown(k, right), designated) {
+				if !w.expansionClear(rec, k, right, st.designated, st.walls) ||
+					!w.siteKeepsColonyWhole(rec.grown(k, right), st.designated) {
 					continue
 				}
 				if w.designateExpansion(rec, k, right) {

@@ -1,4 +1,4 @@
-# Room expansion
+# Room expansion and merging
 
 > Part of the [mars-sim documentation](./README.md).
 
@@ -8,19 +8,23 @@ When the colony wants more of a room's fixtures (bunks, storage containers,
 kitchens, incubators, meeting-hall chairs), it first tries to **grow a room it
 already has**: it tears down one of the room's side walls,
 raises a new one further out, and fits the new fixtures in the space between.
-Only when no room of that kind can grow does it mark out a new one. The colony
-commissions the work like any public work, from the treasury, and tearing a
-wall down has its own wage.
+Two rooms of the same kind standing side by side are **joined** instead:
+the wall between them comes down and new fixtures go where it stood. Only
+when no room of that kind can grow or join does it mark out a new one, and
+not while one is still going up. The colony commissions the work like any
+public work, from the treasury, and tearing a wall down has its own wage.
 
 ## Source
 
-- [`internal/sim/roomgrow.go`](../internal/sim/roomgrow.go) — `roomRecord`, `growOrPlan`, `expandRoom`, `expansionClear`, `designateExpansion`.
+- [`internal/sim/roomgrow.go`](../internal/sim/roomgrow.go) — `roomRecord`, `growOrPlan` (and its `roomGoingUp` wait), `roomPlanState`, `expandRoom`, `expansionClear`, `designateExpansion`.
+- [`internal/sim/roommerge.go`](../internal/sim/roommerge.go) — joining two rooms: `besideRoom`, `mergeRooms`, `mergerClear`, `designateMerger`, `absorbStructure`, and `tidyRooms`.
 - [`internal/sim/project.go`](../internal/sim/project.go) — `roomRecipe.expands` and `fullBay`, `roomDemolishPhase`, where `designateRoom` records each room, and the `planRooms` call sites.
 - [`internal/sim/hall.go`](../internal/sim/hall.go) — `chairsShort`, the hall's shortfall in chairs.
 - [`internal/sim/workorder.go`](../internal/sim/workorder.go) — `taskWage`: a wall torn down pays `wage-demolish`.
 - [`internal/sim/systems.go`](../internal/sim/systems.go) — `jobBuild`'s demolition branch, shared with passages.
 - [`internal/sim/bench_test.go`](../internal/sim/bench_test.go) — `BenchmarkExpandNoFit`, the worst case for a search that finds nothing.
 - [`internal/sim/roomgrow_test.go`](../internal/sim/roomgrow_test.go) — growing right and left, a storage room's aisle, a kitchen's stove-and-pantry pair, no double walls, staying out of other rooms, the planner's preference and orders for every kind, and colonists building one.
+- [`internal/sim/roommerge_test.go`](../internal/sim/roommerge_test.go) — joining flush rooms and rooms across a lane, a kitchen's pair, what does not line up, tidying, colonists building a merger, and the planner waiting for a room going up.
 
 ## How it works
 
@@ -55,14 +59,37 @@ there is no market depot) and its first kitchen, which is life support and may
 be built unpaid when the treasury can't fund it. Either way there is nothing
 to grow yet.
 
+### Not scattering small rooms
+
+Expansion only helps if there is a room that can grow. Two rules in
+`growOrPlan` (and the later-kitchen branch of `planRooms`) keep the colony
+from marking out rooms that never will:
+
+- **Wait for a room going up.** While one of the colony's rooms of a kind is
+  being built or enlarged (`roomGoingUp`), the planner marks out no other room
+  of that kind. Once it stands, it grows. Before this, a colony short of three
+  incubators marked out one room, then another the next planning cycle
+  because the first was busy, then a third.
+- **The narrow fallback is for a colony's first.** A recipe with an aisle
+  (kitchen, incubator) may fall back to a narrow room in a cramped cavern
+  (see [construction.md](./construction.md), *Aisles*), but only for the
+  colony's first room of that kind. Later ones set `aisleRequired` and wait
+  for a site wide enough, as later kitchens already did. A chef's commissioned
+  kitchen always does.
+
+Storage is exempt from both. A full inventory can stall the dig phase of every
+project in flight, the storage room going up included, and a storage room
+anywhere is what breaks that (see [construction.md](./construction.md)).
+
 ### Rooms are recorded
 
 `designateRoom` appends a `roomRecord` to `w.roomRecords`: the recipe the room
 was actually built from (a narrow fallback's has no aisle), its `roomFrame`,
 its fixture count `n`, and its issuer. Before this, a room was forgotten as
 soon as its project was pruned, and nothing could be asked of it afterwards. A
-record's frame is the room's **current** extent: an expansion widens it, and
-growing left moves its origin. The doorway does not move, so the record does
+record's frame is the room's **current** extent: an expansion widens it,
+growing left moves its origin, and a merger stretches it over both rooms (so
+a joined room has two doorways). The doorway does not move, so the record does
 not recompute it from the frame (`doorU` is only meaningful when a room is
 first laid out); `w.doorTiles` keeps the door step reserved as before.
 
@@ -138,6 +165,52 @@ Builders tear the wall down with the same `jobBuild` branch passages use
 "tears down a wall ... to enlarge the dormitory" when the task belongs to a
 room's project.
 
+### Joining two rooms
+
+`expandRoom` first tries `mergeRooms`: two of the colony's rooms of the kind,
+standing side by side, become one. `besideRoom` accepts a pair that faces the
+same way with their back walls in one row, and at most `maxMergeLane` (3)
+columns of ground between their side walls. `d` counts that distance: 0 is one
+wall the two share, 1 two walls back to back, more leaves a lane.
+
+```
+before (two dorms, a lane)   after (joined, d = 2)
+#####.#####                  ###########
+#B.B#.#B.B#                  #B.B.B.B.B#
+#...#.#...#                  #.........#
+#...#.#...#                  #.........#
+##.##.##.##                  ##.#####.##
+```
+
+Both walls' inside rows are torn down (their back and front tiles stay, as
+part of the joined room's walls), the lane is dug and walled at the back and
+front, and fixtures go between the two bays at the bay spacing, two past the
+left room's last fixture to two short of the right room's first
+(`fixtureU`), in whole cycles of the recipe's kinds. Two aisled storage rooms
+sharing a wall gain a container on the wall's tile; two narrow dormitories
+sharing a wall gain nothing, since their bunks flank it.
+
+`mergerClear` holds the lane to an expansion strip's rules: open discovered
+floor or rock, in no third room, on no doorway step, zoned for the room, no
+project's, and no new wall raised against an old one. The joined frame must
+pass `siteKeepsColonyWhole`, which matters here: the lane may be a route.
+
+Both rooms must be the colony's, idle, whole cycles of the kinds, no more
+than `room-max-facilities` together, and built alike, both with an aisle or
+both narrow. A room's two ends are laid out from the recipe's `bayOffset`, and
+a joined room whose ends disagreed would put its next fixture against the old
+one.
+
+The older record survives as the joined room; the other is dropped, its floor
+re-indexed and its structure folded into the survivor's (`absorbStructure`),
+so a party wall the two shared is listed once. Both doorways stay, and stay
+reserved. The project is "dormitory merger" and so on, with an expansion's
+phases.
+
+When the colony wants fixtures, a merger has to fit at least one. With nothing
+else to build, `planRooms` ends with `tidyRooms`, which joins rooms that fit
+none. `room-merge` (on by default) turns both off.
+
 ## Why it is this way
 
 - **Demolition first.** The old wall comes down before anything else, so the
@@ -179,6 +252,26 @@ room's project.
   tasks can be reached before its interior exists. An expansion's interior is
   reachable from the start, so requiring them would only refuse sites, mostly
   the rock niches where growing is most useful.
+- **The honeycomb.** A colony would wall itself into a stack of one-tile-wide
+  rooms: incubators and kitchens, each one fixture behind its own doorway,
+  side walls shared in a column. Over 12 seeds (20 colonists, 200×200,
+  20,000 ticks), the moments a new expanding room was marked out showed why.
+  The room that could have grown was still going up, or the new room was
+  narrow and squeezed between two walls, where it could never grow either.
+  Waiting and keeping the narrow fallback for the first took those seeds from
+  21 narrow kitchens and incubators to none, 22 one-wide rooms to 11 (the
+  trash rooms, one-wide by design) and 145 rooms to 131, with the same
+  fixtures. With aliens off, over 24 seeds: 38 narrow kitchens and incubators
+  to none, 333 rooms to 259, and 480 colonists alive with none starved,
+  either way.
+- **Mergers rarely fire, and that is fine.** Once rooms stop being planned
+  beside a busy one, two rooms of a kind facing the same way, side by side,
+  almost never happen: no merger in those 12 seeds, nor in 40-colonist runs to
+  30,000 ticks. The same-kind neighbors that do occur are kitchens back to
+  back across a shared back wall, or facing opposite ways, and a joined room
+  of those would not be one bay along one back wall, which is all a
+  `roomRecord` can describe. Mergers are for the pairs that do line up: a
+  player ordering rooms, a ship's rooms, rooms planned before a rule changed.
 - **Player orders expand too.** The colony rarely wants a dormitory on its own:
   its ships sleep half their passengers, and `desiredFacilities` wants only one
   bunk per `per-facility` (5) colonists. Many dormitories and storage rooms
@@ -232,6 +325,12 @@ search is 10, 43 and 175 µs (`BenchmarkExpandNoFit`, 800 rooms).
 - **Growing deeper rather than wider** (more rows in front of the bay) would
   move the front wall and its doorway, so `w.doorTiles` would need an entry
   removed, and nothing removes entries today. Keep that invariant in mind.
+- **Joining rooms that face each other or stand back to back** would need a
+  record that is not one bay: two fixture rows, or a doorway in the back wall.
+  Expansion and merging both read a room as one bay with a doorway in front,
+  so that is a record change first.
+- **Joining an aisled room to a narrow one** needs per-end bay offsets on the
+  record, in place of the recipe's one `bayOffset`.
 - **Commissioned rooms** (houses, chefs' kitchens) are skipped by the issuer
   check. Letting a colonist grow its own house would mean `expandRoom` taking
   an issuer, and fixtures inheriting ownership as in `jobBuild`.
@@ -241,4 +340,5 @@ search is 10, 43 and 175 µs (`BenchmarkExpandNoFit`, 800 rooms).
 - [construction.md](./construction.md) — room shells, siting, sharing walls, and the double-wall rule expansion shares.
 - [labor.md](./labor.md) — work orders, the treasury, and `wage-demolish`.
 - [escape.md](./escape.md) — passages, the other place walls get torn down.
+- [incubator.md](./incubator.md), [scumhouse.md](./scumhouse.md) — the rooms whose narrow fallback is now the first one's alone.
 - [storage.md](./storage.md) — what a storage room's containers hold.

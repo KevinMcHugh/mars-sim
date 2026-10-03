@@ -584,11 +584,13 @@ func (w *World) planRooms() {
 		r := scumhouseRoom
 		r.aisleRequired = !first
 		// A later kitchen goes into one the colony already has, a stove and
-		// its pantry further along the bay, when one can grow.
+		// its pantry further along the bay, when one can grow; while one is
+		// going up, the planner waits for it to stand and grow (see
+		// growOrPlan).
 		if !first && w.expandRoom(r, r.fullBay()) {
 			return
 		}
-		if w.planRoomFor(r, Community) {
+		if (first || !w.roomGoingUp(r)) && w.planRoomFor(r, Community) {
 			return
 		}
 		if first {
@@ -651,8 +653,15 @@ func (w *World) planRooms() {
 	// everything above does. One is enough; its demand is the armory's, not
 	// a headcount (see foundry.go).
 	if w.wantsFoundry() {
+		before := len(w.projects)
 		w.planRoom(foundryRoom)
+		if len(w.projects) > before {
+			return
+		}
 	}
+	// With nothing else to build, join rooms that stand side by side (see
+	// roommerge.go).
+	w.tidyRooms()
 }
 
 // facilityRoomRecipe is the life-support room the colony builds: pods and

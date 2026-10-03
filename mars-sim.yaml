@@ -670,6 +670,9 @@ zoning-auto: true
 ## most fixtures (bunks, containers, stoves and pantries, incubators, chairs) a room grows to by expansion
 # room-max-facilities: 8
 
+## join two rooms of the same kind standing side by side into one, tearing down the wall between them: when more of their fixtures are wanted, or when there is nothing else to build
+# room-merge: true
+
 ## ticks a colonist's room must stay cut off from the colony before it breaks out on its own
 # escape-grace-ticks: 32
 
