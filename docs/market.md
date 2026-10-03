@@ -88,7 +88,10 @@ planner builds one when there is no silo (after life support, before bunks).
 
 Every `marketInterval` ticks, `runMarket` expires stale orders and has the
 colony top up a standing bid of `silo-bid-qty` units for each ore it buys, at
-the reference price, as far as the treasury stretches.
+the reference price, as far as the treasury stretches. By default only the
+bids for rock, iron ore and clay are posted; the colony posts none of its
+other standing orders (`standing-orders-build-only`, see
+[colony-orders.md](./colony-orders.md)).
 
 **A player's orders.** A player can post, reprice and remove the colony's
 orders from the browser (see [colony-orders.md](./colony-orders.md)). Those
