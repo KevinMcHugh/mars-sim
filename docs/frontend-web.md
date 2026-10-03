@@ -38,7 +38,7 @@ The rest of the TUI's tabs are planned in
   `TopBar`, `SpeedControl`, `SidePanel`, `Bar` (a gauge), and one component
   per tab (`InspectPanel`, `RosterPanel`, `LogPanel`, `JobsPanel`,
   `StoragePanel`, `MarketPanel` with `AccountDetail` and `ColonyOrders`, `ZonesPanel`, `DigPanel`, `ChartsPanel`, `ShipsPanel`,
-  `LorePanel`, `NewGamePanel`), `LogTicker`, and `FlowControl` (the
+  `LorePanel`, `NewGamePanel`), `Section` (a foldable heading), `LogTicker`, and `FlowControl` (the
   flow-field picker and legend, see [flow-field-view.md](./flow-field-view.md)).
   `format.ts` formats money.
 - [`web/src/ui/charts/`](../web/src/ui/charts/Chart.svelte) — the Charts tab:
@@ -276,6 +276,30 @@ closed.
     screen, docked inside the side panel just above the tabs (SidePanel) on
     a phone. Docked, it shows the two newest lines, one line each, and hides
     while a tab's sheet is open.
+
+**Foldable sections.** The Inspect, Market and Lore tabs are long lists of
+headed parts (Skills, Affinities, Books, Alien species…), and most of the
+time you only read a few of them. Each heading is a `Section`
+(`ui/Section.svelte`): a click folds it shut (▸) or opens it (▾). Folded
+sections are remembered in this browser (`ui.collapsed`, saved by
+`toggleSection` to `localStorage` as `mars-sim.collapsed`, guarded like the
+ticker's), until they are opened again.
+
+- **Keyed by section, not by subject.** Ids are `<tab>.<section>`
+  (`inspect.skills`, `market.books`), so folding Skills on one colonist
+  folds it on every colonist and across reloads and new games. A
+  per-colonist fold would be forgotten the moment you clicked someone else,
+  which is exactly when you want it to stick.
+- **A folded section is not rendered**, not just hidden, so a folded
+  Memories or Books costs nothing while the topic keeps updating. Its title
+  still carries any count (`Memories (12)`), so folded still tells you
+  something.
+- The heading lives inside `Section`, so its style does too: the panels'
+  own `h2`/`h4` rules are scoped and would not reach it. A new foldable
+  part is `<Section id="tab.part" title="…">…</Section>` (`tag="h2"` for a
+  tab's top-level parts).
+- Not folded: forms and tool tabs (Zones, Dig, Ships, Colony orders), where
+  hiding a part would hide a control.
 
 **The list tabs** are the TUI's details tabs, each from its own topic:
 

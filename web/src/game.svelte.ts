@@ -49,6 +49,8 @@ export const ui = $state({
   rosterNonHuman: false,
   /** Whether the log ticker shows over the map (LogTicker.svelte); remembered. */
   ticker: loadPref('ticker', true),
+  /** The tab sections folded shut, by Section id (Section.svelte); remembered. */
+  collapsed: loadPref('collapsed', {} as Record<string, boolean>),
   /** The Dig tab's tool and the area marked with it (DigPanel.svelte). */
   dig: { armed: false, rect: null, tiles: 0 } as DigState,
   /** The Zones tab's tool, the area marked with it, and what applying it would do (ZonesPanel.svelte). */
@@ -452,4 +454,11 @@ export function syncFrame(tick: number, paused: boolean, tps: number, stats: Rec
 export function setTicker(on: boolean): void {
   ui.ticker = on;
   savePref('ticker', on);
+}
+
+/** Fold a tab section (Section.svelte) shut or open it, and remember it in this browser. */
+export function toggleSection(id: string): void {
+  if (ui.collapsed[id]) delete ui.collapsed[id];
+  else ui.collapsed[id] = true;
+  savePref('collapsed', $state.snapshot(ui.collapsed));
 }
