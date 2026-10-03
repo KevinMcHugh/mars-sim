@@ -18,6 +18,9 @@ readout. Around it is a Svelte chrome:
   also start a colony that zones for itself: `zoning-auto`). Market stays
   under View although it hosts the colony's orders: it is mostly prices, and
   splitting one tab across both rows would make the line meaningless.
+  Any tab can be **popped out** (⧉ in its title row) into a window over the
+  map, to watch it beside the docked tab: see
+  [floating-panels.md](./floating-panels.md).
 - **A log ticker** over the map's bottom-left corner: the last few colony-log
   lines, fading after a few seconds.
 
@@ -35,7 +38,9 @@ The rest of the TUI's tabs are planned in
   meets Svelte: the UI state (`ui`), topic payloads (`topics`), and the
   actions panels take (`subscribe`, `setSpeed`, `newGame`).
 - [`web/src/ui/`](../web/src/ui/App.svelte) — the Svelte chrome: `App`,
-  `TopBar`, `SpeedControl`, `SidePanel`, `Bar` (a gauge), and one component
+  `TopBar`, `SpeedControl`, `SidePanel`, `FloatingPanels` and `PanelHead`
+  (popped-out tabs, see [floating-panels.md](./floating-panels.md)), `tabs.ts`
+  (the tab list both share), `Bar` (a gauge), and one component
   per tab (`InspectPanel`, `RosterPanel`, `LogPanel`, `JobsPanel`,
   `StoragePanel`, `MarketPanel` with `AccountDetail` and `ColonyOrders`, `ZonesPanel`, `DigPanel`, `ChartsPanel`, `ShipsPanel`,
   `LorePanel`, `NewGamePanel`), `Section` (a foldable heading), `LogTicker`, and `FlowControl` (the
@@ -229,7 +234,8 @@ Inspect tab:
   small shader). It is at least 14 CSS pixels across, so it still rings a dot
   zoomed out. It hides while the creature is under fog, as the creature does.
 - **Closing the Inspect tab** (or switching tabs) drops the selection and the
-  marker, and unmounting the panel unsubscribes its topic.
+  marker, and unmounting the panel unsubscribes its topic. A popped-out
+  inspector keeps it while its window is open, whatever the side panel shows.
 
 **The roster** lists the colony from the `roster` topic, by ID, three lines a
 row as in the TUI: name, pronouns and age (or an alien's species), and what it

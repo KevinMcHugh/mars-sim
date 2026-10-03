@@ -31,7 +31,6 @@
   });
 </script>
 
-<h2>Dig</h2>
 <p class="muted">
   Order an area mined out. The colony pays for it from the treasury: every tile of rock it has seen
   becomes a work order, paid to whoever digs it, who keeps the ore.

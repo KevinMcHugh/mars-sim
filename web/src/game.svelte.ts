@@ -40,6 +40,12 @@ export const ui = $state({
   statusError: false,
   /** The open side-panel tab (SidePanel.svelte), or null. */
   panel: null as string | null,
+  /**
+   * The tabs popped out of the side panel into windows over the map
+   * (FloatingPanels.svelte), back to front; remembered. A tab is docked or
+   * floating, never both.
+   */
+  floats: loadPref('floats', [] as FloatWin[]),
   /** What the Inspect tab shows, and the map marks. */
   selected: null as Selection | null,
   /** The tab a selection was made from, for the inspector's way back. */
@@ -219,25 +225,98 @@ export function selectionTopic(s: Selection): string {
   return 'entity' in s ? `entity:${s.entity}` : `tile:${s.tile[0]},${s.tile[1]}`;
 }
 
-/** Inspect something: select it and open the Inspect tab. */
+/** Inspect something: select it and open the Inspect tab (or raise its window). */
 export function inspect(s: Selection, from: string | null = null): void {
   ui.selected = s;
   ui.inspectFrom = from;
-  ui.panel = 'inspect';
+  if (isFloating('inspect')) raiseFloat('inspect');
+  else ui.panel = 'inspect';
   ctl?.selected();
 }
 
 /**
- * Open a side-panel tab, or close the panel (null). Leaving the inspector
- * drops the selection, so the map's marker goes with it, except for the tab
- * the selection came from (and the roster), which highlight its row.
+ * Open a side-panel tab, or close the panel (null). A tab that is popped out
+ * is raised instead, and the docked tab stays.
  */
 export function setPanel(id: string | null): void {
-  if (id !== 'inspect' && id !== 'roster' && id !== ui.inspectFrom && ui.selected) {
-    ui.selected = null;
-    ctl?.selected();
-  }
+  if (id !== null && isFloating(id)) raiseFloat(id);
+  else ui.panel = id;
+  dropHiddenSelection();
+}
+
+/**
+ * Leaving the inspector drops the selection, so the map's marker goes with
+ * it, except while the tab the selection came from (or the roster) is open,
+ * which highlights its row. "Open" is docked or floating. A docked null
+ * matches an inspectFrom of null: closing the panel after a click on the map
+ * keeps the marker.
+ */
+function dropHiddenSelection(): void {
+  if (!ui.selected) return;
+  const keeps = (id: string | null) => id === 'inspect' || id === 'roster' || id === ui.inspectFrom;
+  if (keeps(ui.panel) || ui.floats.some((f) => keeps(f.id))) return;
+  ui.selected = null;
+  ctl?.selected();
+}
+
+/** A tab popped out into a window over the map: where it is, in CSS pixels. */
+export interface FloatWin { id: string; x: number; y: number; w: number; h: number }
+
+export function isFloating(id: string): boolean {
+  return ui.floats.some((f) => f.id === id);
+}
+
+function saveFloats(): void {
+  savePref('floats', $state.snapshot(ui.floats));
+}
+
+/**
+ * Pop a tab out of the side panel into a window over the map. A new window
+ * opens left of the side panel, in the first of a cascade of slots that no
+ * window still sits in exactly, so a pop-out never lands squarely on another.
+ */
+export function popOut(id: string): void {
+  if (isFloating(id)) return raiseFloat(id);
+  const w = 380;
+  const h = Math.max(240, Math.min(560, window.innerHeight - 140));
+  const slot = (k: number) => ({ x: Math.max(10, window.innerWidth - 2 * w - 40 - 28 * k), y: 90 + 28 * k });
+  let k = 0;
+  while (ui.floats.some((f) => f.x === slot(k).x && f.y === slot(k).y)) k++;
+  ui.floats.push({ id, ...slot(k), w, h });
+  if (ui.panel === id) ui.panel = null;
+  saveFloats();
+}
+
+/** Put a floating tab back in the side panel, as its open tab. */
+export function dock(id: string): void {
+  ui.floats = ui.floats.filter((f) => f.id !== id);
   ui.panel = id;
+  dropHiddenSelection();
+  saveFloats();
+}
+
+/** Close a floating tab's window. */
+export function closeFloat(id: string): void {
+  ui.floats = ui.floats.filter((f) => f.id !== id);
+  dropHiddenSelection();
+  saveFloats();
+}
+
+/** Bring a floating tab's window to the front. */
+export function raiseFloat(id: string): void {
+  const i = ui.floats.findIndex((f) => f.id === id);
+  if (i < 0 || i === ui.floats.length - 1) return;
+  const [f] = ui.floats.splice(i, 1);
+  ui.floats.push(f);
+  saveFloats();
+}
+
+/** Move or resize a floating tab's window; `save` remembers it (at the end of a drag). */
+export function placeFloat(id: string, at: Partial<Omit<FloatWin, 'id'>>, save = false): void {
+  const f = ui.floats.find((w) => w.id === id);
+  if (!f) return;
+  Object.assign(f, at);
+  if (save) saveFloats();
 }
 
 /**
