@@ -59,12 +59,13 @@ type nameCondition struct {
 	Not *nameCondition  `yaml:"not,omitempty"`
 
 	Temperament string `yaml:"temperament,omitempty"` // friendly | cautious | hostile
-	Skin        string `yaml:"skin,omitempty"`        // smooth | scaly | furry | armored | bony | chitinous | slimy
+	Skin        string `yaml:"skin,omitempty"`        // smooth | scaly | furry | armored | bony | chitinous | slimy | rocky | woody | mossy | gelatinous | hairy | feathered
 	Color       string `yaml:"color,omitempty"`
 	Pattern     string `yaml:"pattern,omitempty"` // solid | striped | spotted
 	Height      string `yaml:"height,omitempty"`  // tiny | small | average | large | huge
 	Weight      string `yaml:"weight,omitempty"`  // tiny | small | average | large | huge
 	Tail        *bool  `yaml:"tail,omitempty"`
+	Wings       *bool  `yaml:"wings,omitempty"`
 
 	Legs  *intCondition `yaml:"legs,omitempty"`
 	Arms  *intCondition `yaml:"arms,omitempty"`
@@ -88,7 +89,7 @@ type intCondition struct {
 func (c nameCondition) isZero() bool {
 	return len(c.All) == 0 && len(c.Any) == 0 && c.Not == nil &&
 		c.Temperament == "" && c.Skin == "" && c.Color == "" && c.Pattern == "" && c.Height == "" && c.Weight == "" &&
-		c.Tail == nil && c.Legs == nil && c.Arms == nil && c.Limbs == nil && c.Eyes == nil
+		c.Tail == nil && c.Wings == nil && c.Legs == nil && c.Arms == nil && c.Limbs == nil && c.Eyes == nil
 }
 
 func (c intCondition) matches(v int) bool {
@@ -154,6 +155,9 @@ func (c nameCondition) matches(sp AlienSpecies) bool {
 		return false
 	}
 	if c.Tail != nil && *c.Tail != sp.Tail {
+		return false
+	}
+	if c.Wings != nil && *c.Wings != sp.Wings {
 		return false
 	}
 	if c.Legs != nil && !c.Legs.matches(sp.Limbs-sp.Arms) {

@@ -223,6 +223,7 @@ type LoreSpecies struct {
 	Arms           int    `json:"arms"`
 	Legs           int    `json:"legs"`
 	Tail           bool   `json:"tail"`
+	Wings          bool   `json:"wings"`
 	Skin           string `json:"skin"`
 	Color          string `json:"color"`
 	Pattern        string `json:"pattern"`
@@ -273,6 +274,7 @@ func loreTopic(s *sim.Snapshot) any {
 			Arms:           sp.Arms,
 			Legs:           sp.Legs(),
 			Tail:           sp.Tail,
+			Wings:          sp.Wings,
 			Skin:           sp.Skin.String(),
 			Color:          sp.Color,
 			Pattern:        sp.Pattern.String(),

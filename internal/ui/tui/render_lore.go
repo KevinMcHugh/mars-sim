@@ -153,6 +153,11 @@ func (m Model) renderLoreDetail(sp sim.AlienSpecies, rows, width int) string {
 		tail = "yes"
 	}
 	stat("Tail:", tail)
+	wings := "no"
+	if sp.Wings {
+		wings = "yes"
+	}
+	stat("Wings:", wings)
 	stat("Skin:", sp.Skin.String())
 	stat("Color:", sp.Color)
 	stat("Pattern:", sp.Pattern.String())

@@ -108,10 +108,17 @@ const (
 	SkinBony
 	SkinChitinous
 	SkinSlimy
+	SkinRocky
+	SkinWoody
+	SkinMossy
+	SkinGelatinous
+	SkinHairy
+	SkinFeathered
 )
 
 var alienSkins = [...]AlienSkin{
 	SkinSmooth, SkinScaly, SkinFurry, SkinArmored, SkinBony, SkinChitinous, SkinSlimy,
+	SkinRocky, SkinWoody, SkinMossy, SkinGelatinous, SkinHairy, SkinFeathered,
 }
 
 func (s AlienSkin) String() string {
@@ -130,6 +137,18 @@ func (s AlienSkin) String() string {
 		return "chitinous"
 	case SkinSlimy:
 		return "slimy"
+	case SkinRocky:
+		return "rocky"
+	case SkinWoody:
+		return "woody"
+	case SkinMossy:
+		return "mossy"
+	case SkinGelatinous:
+		return "gelatinous"
+	case SkinHairy:
+		return "hairy"
+	case SkinFeathered:
+		return "feathered"
 	default:
 		return "unknown"
 	}
@@ -375,7 +394,11 @@ type AlienSpecies struct {
 	Limbs int // how many limbs it walks/grasps with, arms and legs together
 	Arms  int // of Limbs, how many are prehensile arms rather than legs
 
-	Tail  bool
+	Tail bool
+	// Wings is a pair of wings. Anatomy only for now: no species flies, so
+	// wings change its description and what it can be named, not how it
+	// moves or fights (see docs/lore.md).
+	Wings bool
 	Skin  AlienSkin
 	Color string // one of alienColors
 	// Pattern is how Color is laid out: solid, striped, or spotted.
@@ -429,6 +452,12 @@ func sizeTier(v, small, average, large, huge int) AlienSizeTier {
 	}
 }
 
+// alienWingsPercent is the chance a species is winged, independent of
+// everything else it rolls: a feathered species is not more likely to have
+// wings, and a winged one may be any hide (a scaly dragon, a leathery bat, a
+// stone gargoyle).
+const alienWingsPercent = 20
+
 // rollAlienSpecies generates one alien species from rng, scaling its derived
 // combat stats from cfg's alien baselines and drawing its name from names
 // (the entries whose condition matches what was just rolled -- see
@@ -446,6 +475,8 @@ func rollAlienSpecies(rng *rand.Rand, cfg Config, names []AlienNameEntry, used m
 	// "all legs" (Arms == 0) and "all arms" (Arms == Limbs) are valid rolls.
 	sp.Tail = rng.IntN(2) == 0
 	sp.Pattern = rollPattern(rng)
+	// Before the name, so a name (and a scientific name) can ask for wings.
+	sp.Wings = rng.IntN(100) < alienWingsPercent
 
 	baseHeight := 45 + rng.IntN(330) // a 45cm gremlin up to a ~375cm brute
 	spread := 10 + rng.IntN(baseHeight/3+10)
@@ -624,7 +655,7 @@ func metres(cm int) string {
 	return fmt.Sprintf("%d.%d", tenths/10, tenths%10)
 }
 
-// bodyParts lists eyes, arms, legs, and (if present) the tail as count
+// bodyParts lists eyes, arms, legs, and (if present) the tail and wings as count
 // phrases, for a species description's anatomy sentence. A part the species
 // has none of is left out rather than read as "0 arms" or "no arms".
 func (sp AlienSpecies) bodyParts() []string {
@@ -638,22 +669,32 @@ func (sp AlienSpecies) bodyParts() []string {
 	if sp.Tail {
 		parts = append(parts, "a tail")
 	}
+	if sp.Wings {
+		parts = append(parts, "a pair of wings")
+	}
 	return parts
 }
 
 // gaitPhrase is how a hostile species gets around, picked from its leg count
-// so a legless one slithers rather than "crawls on 0 legs".
+// so a legless one slithers rather than "crawls on 0 legs". A winged one
+// keeps its wings folded: nothing flies (yet), and the description should
+// not promise that it does.
 func (sp AlienSpecies) gaitPhrase() string {
+	var gait string
 	switch legs := sp.Legs(); legs {
 	case 0:
-		return "slither along without legs"
+		gait = "slither along without legs"
 	case 1:
-		return "hop on 1 leg"
+		gait = "hop on 1 leg"
 	case 2:
-		return "stride on 2 legs"
+		gait = "stride on 2 legs"
 	default:
-		return fmt.Sprintf("crawl on %d legs", legs)
+		gait = fmt.Sprintf("crawl on %d legs", legs)
 	}
+	if sp.Wings {
+		gait += " with their wings folded"
+	}
+	return gait
 }
 
 // coveringPhrase names what the species' hide is made of, with its color
@@ -675,6 +716,18 @@ func (sp AlienSpecies) coveringPhrase() (string, bool) {
 		return c + " chitin", false
 	case SkinSlimy:
 		return "slimy " + c + " skin", false
+	case SkinRocky:
+		return "craggy " + c + " stone", false
+	case SkinWoody:
+		return c + " bark", false
+	case SkinMossy:
+		return c + " moss", false
+	case SkinGelatinous:
+		return "quivering " + c + " jelly", false
+	case SkinHairy:
+		return "shaggy " + c + " hair", false
+	case SkinFeathered:
+		return c + " feathers", true
 	default: // SkinSmooth
 		return "smooth " + c + " skin", false
 	}

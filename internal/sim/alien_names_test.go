@@ -401,3 +401,23 @@ func TestAlienRosterNamesAreDistinct(t *testing.T) {
 		}
 	}
 }
+
+// A wings condition checks the species' Wings flag, and composes with skin:
+// "gargoyle" is rocky *and* winged, "dodo" is feathered and wingless.
+func TestNameConditionWings(t *testing.T) {
+	yes, no := true, false
+	gargoyle := nameCondition{All: []nameCondition{{Skin: "rocky"}, {Wings: &yes}}}
+	if !gargoyle.matches(AlienSpecies{Skin: SkinRocky, Wings: true}) {
+		t.Fatal("gargoyle condition did not match a winged rocky species")
+	}
+	if gargoyle.matches(AlienSpecies{Skin: SkinRocky}) {
+		t.Fatal("gargoyle condition matched a wingless species")
+	}
+	dodo := nameCondition{All: []nameCondition{{Skin: "feathered"}, {Wings: &no}}}
+	if !dodo.matches(AlienSpecies{Skin: SkinFeathered}) || dodo.matches(AlienSpecies{Skin: SkinFeathered, Wings: true}) {
+		t.Fatal("dodo condition did not track Wings")
+	}
+	if (nameCondition{Wings: &yes}).isZero() {
+		t.Fatal("a wings-only condition reads as unconditional")
+	}
+}
