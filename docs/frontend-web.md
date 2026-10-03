@@ -266,9 +266,22 @@ closed.
   sentence, wrapped, never cut: the TUI found a cut sentence reads as a
   finished one. It follows the tail while scrolled to the bottom; scrolled
   back, it stays put and offers "↓ N new". A type menu and a search filter
-  it. Lines use `content-visibility: auto` rather than a virtual list:
-  wrapped lines have no fixed height, and the browser skips laying out the
-  ones off screen.
+  it. Wrapped lines have no fixed height, so it is not a virtual list like
+  the roster's. Two things keep it cheap instead:
+  - **A window by count.** Only the newest 200 matching lines are in the DOM
+    while it follows the tail; scrolling near the top adds 200 older ones
+    above, and the window's first line is then held by `seq`, so lines
+    arriving below never slide what is being read. Back at the bottom it
+    drops to 200 again. With all 2000 lines in the DOM, the tab cost the
+    page's main thread about 3% (measured at Max speed, four sends a
+    second); windowed, about 0.5%.
+  - **`content-visibility: auto`** on each line, so the browser skips laying
+    out the ones off screen. It needs scroll anchoring left on: as an
+    off-screen line's real height replaces its estimate, anchoring is what
+    keeps the text in view from jumping. Adding older lines adjusts
+    `scrollTop` by hand only where the browser did not (Safari has no
+    anchoring); turning anchoring off to do it by hand everywhere made the
+    view drift.
 - **The ticker** (`LogTicker.svelte`) shows the last four lines for 12
   seconds after they arrive, fading out; a click opens the Log tab, and it
   hides while that tab is open. Its fade timer stops once the newest line has
