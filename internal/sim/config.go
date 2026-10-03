@@ -216,13 +216,12 @@ type Config struct {
 	// (kept for public works), at ColonyMarkup percent over the reference
 	// price. It keeps SiloMealStock of its meals at the silo, paying HaulPay
 	// a unit to have them hauled in from its scumhouses. See docs/hauling.md.
-	// StandingOrdersBuildOnly starts the colony with every standing order
-	// suspended except its silo bids for building materials (buildGoods). The
-	// rest (ore resales, meal asks, biomatter, water, uranium and rifle bids)
-	// mostly rested unfilled and buried the book; feeding the colony is the
-	// player's call, made by resuming one or posting an order on the Market
-	// tab. See docs/colony-orders.md.
-	StandingOrdersBuildOnly bool `cfg:"standing-orders-build-only" sec:"Hauling" doc:"the colony starts with every standing order suspended except its bids for building materials (rock, iron ore, clay)"`
+	// StandingOrdersBuildOnly has the colony post no standing orders but its
+	// silo bids for building materials (buildGoods). The rest (ore resales,
+	// meal asks, biomatter, water, uranium and rifle bids) mostly rested
+	// unfilled and buried the book; feeding the colony is the player's call,
+	// made with an order on the Market tab. See docs/colony-orders.md.
+	StandingOrdersBuildOnly bool `cfg:"standing-orders-build-only" sec:"Hauling" doc:"the colony posts no standing orders but its bids for building materials (rock, iron ore, clay)"`
 
 	ColonySells        bool  `cfg:"colony-sells" doc:"the colony sells the goods it bought, beyond its reserve, at its silo"`
 	ColonyMarkup       int   `cfg:"colony-markup" doc:"percent over the reference price the colony asks for what it sells"`

@@ -210,34 +210,33 @@ func TestASuspendedStandingOrderStaysOffTheBook(t *testing.T) {
 	assertMoneyConserved(t, w)
 }
 
-// Under standing-orders-build-only the colony starts with only its silo bids
-// for building materials live; everything else is suspended, so it shows on
-// the desk with Resume, and upkeep posts none of it.
-func TestBuildOnlyStartsWithJustTheBuildingBids(t *testing.T) {
+// Under standing-orders-build-only the colony posts only its silo bids for
+// building materials: nothing else is on the book, and nothing is suspended.
+func TestBuildOnlyPostsJustTheBuildingBids(t *testing.T) {
 	cfg := testConfig()
 	cfg.StandingOrdersBuildOnly = true
 	w := newTestWorld(t, cfg)
-	for _, s := range standingOrders() {
-		want := s.Side != Bid || (s.Item != RawRock && s.Item != IronOre && s.Item != Clay)
-		if w.standingSuspended(s.Side, s.Item) != want {
-			t.Errorf("%v %v suspended = %v, want %v", s.Side, s.Item, !want, want)
-		}
+	if !w.standingAllowed(Bid, IronOre) || w.standingAllowed(Ask, IronOre) ||
+		w.standingAllowed(Ask, Meal) || w.standingAllowed(Bid, CaveScum) || w.standingAllowed(Bid, WaterIce) {
+		t.Fatal("standingAllowed lets the wrong orders through")
 	}
-	if got := len(w.suspendedOrders()); got != len(standingOrders())-len(buildGoods) {
-		t.Errorf("%d suspended, want %d", got, len(standingOrders())-len(buildGoods))
-	}
-	for range 400 {
+	building := 0
+	for range 2000 {
 		w.step()
-	}
-	for _, o := range w.orders {
-		if o.Actor != Community || o.manual {
-			continue
+		for _, o := range w.orders {
+			if o.Actor != Community || o.manual {
+				continue
+			}
+			if !w.standingAllowed(o.Side, o.Item) {
+				t.Fatalf("tick %d: standing %v of %v posted", w.tick, o.Side, o.Item)
+			}
+			building++
 		}
-		if o.Side != Bid || (o.Item != RawRock && o.Item != IronOre && o.Item != Clay) {
-			t.Errorf("standing %v of %v posted while suspended", o.Side, o.Item)
-		}
 	}
-	if !w.resumeColonyOrders(ResumeColonyOrders{Side: Ask, Item: Meal}) {
-		t.Error("the meal ask could not be resumed")
+	if building == 0 {
+		t.Error("the colony never bid for building materials")
+	}
+	if s := w.suspendedOrders(); len(s) != 0 {
+		t.Errorf("suspended = %v, want none", s)
 	}
 }

@@ -9,8 +9,8 @@ economy with a chain deeper than meal ← scum. A **forge** smelts iron ore into
 **steel ingots**, and a **gun bench** machines steel into **assault rifles**.
 The planner builds the two together in a **foundry** room. Nobody runs the
 foundry. The colony keeps a standing bid for rifles at its silo (the
-**armory**; it starts suspended under `standing-orders-build-only`, so the
-player resumes it from the Market tab — see
+**armory**; not under `standing-orders-build-only`, the default, where the
+player bids for rifles from the Market tab — see
 [colony-orders.md](./colony-orders.md)), and the [producer planner](./valuation.md) carries that demand
 three links down to the ore vein, one ordinary bid at a time.
 
