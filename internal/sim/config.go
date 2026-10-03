@@ -216,7 +216,15 @@ type Config struct {
 	// (kept for public works), at ColonyMarkup percent over the reference
 	// price. It keeps SiloMealStock of its meals at the silo, paying HaulPay
 	// a unit to have them hauled in from its scumhouses. See docs/hauling.md.
-	ColonySells        bool  `cfg:"colony-sells" sec:"Hauling" doc:"the colony sells the goods it bought, beyond its reserve, at its silo"`
+	// StandingOrdersBuildOnly starts the colony with every standing order
+	// suspended except its silo bids for building materials (buildGoods). The
+	// rest (ore resales, meal asks, biomatter, water, uranium and rifle bids)
+	// mostly rested unfilled and buried the book; feeding the colony is the
+	// player's call, made by resuming one or posting an order on the Market
+	// tab. See docs/colony-orders.md.
+	StandingOrdersBuildOnly bool `cfg:"standing-orders-build-only" sec:"Hauling" doc:"the colony starts with every standing order suspended except its bids for building materials (rock, iron ore, clay)"`
+
+	ColonySells        bool  `cfg:"colony-sells" doc:"the colony sells the goods it bought, beyond its reserve, at its silo"`
 	ColonyMarkup       int   `cfg:"colony-markup" doc:"percent over the reference price the colony asks for what it sells"`
 	ColonyStockReserve int   `cfg:"colony-stock-reserve" doc:"units of each good the colony keeps back from sale for public works"`
 	SiloMealStock      int   `cfg:"silo-meal-stock" doc:"meals the colony keeps at its silo, hauled in for hire from its scumhouses"`
@@ -664,19 +672,20 @@ func DefaultConfig() Config {
 		// The colony sells at half again what it pays: enough over cost that
 		// its resales refill the treasury, not so much that a colonist would
 		// rather dig the ore itself every time. See docs/hauling.md.
-		ColonySells:          true,
-		ColonyMarkup:         50,
-		ColonyStockReserve:   8,
-		SiloMealStock:        6,
-		HaulPay:              1,
-		Skills:               true,
-		SkillPracticePercent: 100,
-		LaborPrice:           2,
-		PlanMinProfit:        1,
-		PlanCandidates:       4,
-		PlanTTL:              1500,
-		RateMemory:           4000,
-		DemandTTL:            300,
+		ColonySells:             true,
+		StandingOrdersBuildOnly: true,
+		ColonyMarkup:            50,
+		ColonyStockReserve:      8,
+		SiloMealStock:           6,
+		HaulPay:                 1,
+		Skills:                  true,
+		SkillPracticePercent:    100,
+		LaborPrice:              2,
+		PlanMinProfit:           1,
+		PlanCandidates:          4,
+		PlanTTL:                 1500,
+		RateMemory:              4000,
+		DemandTTL:               300,
 		// Priced by the meals they make (see recipes): two scum or two
 		// viscera to a $5 meal, so the colony roughly breaks even after the
 		// cook's wage; an alien carcass makes four.

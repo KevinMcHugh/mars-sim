@@ -209,3 +209,35 @@ func TestASuspendedStandingOrderStaysOffTheBook(t *testing.T) {
 	}
 	assertMoneyConserved(t, w)
 }
+
+// Under standing-orders-build-only the colony starts with only its silo bids
+// for building materials live; everything else is suspended, so it shows on
+// the desk with Resume, and upkeep posts none of it.
+func TestBuildOnlyStartsWithJustTheBuildingBids(t *testing.T) {
+	cfg := testConfig()
+	cfg.StandingOrdersBuildOnly = true
+	w := newTestWorld(t, cfg)
+	for _, s := range standingOrders() {
+		want := s.Side != Bid || (s.Item != RawRock && s.Item != IronOre && s.Item != Clay)
+		if w.standingSuspended(s.Side, s.Item) != want {
+			t.Errorf("%v %v suspended = %v, want %v", s.Side, s.Item, !want, want)
+		}
+	}
+	if got := len(w.suspendedOrders()); got != len(standingOrders())-len(buildGoods) {
+		t.Errorf("%d suspended, want %d", got, len(standingOrders())-len(buildGoods))
+	}
+	for range 400 {
+		w.step()
+	}
+	for _, o := range w.orders {
+		if o.Actor != Community || o.manual {
+			continue
+		}
+		if o.Side != Bid || (o.Item != RawRock && o.Item != IronOre && o.Item != Clay) {
+			t.Errorf("standing %v of %v posted while suspended", o.Side, o.Item)
+		}
+	}
+	if !w.resumeColonyOrders(ResumeColonyOrders{Side: Ask, Item: Meal}) {
+		t.Error("the meal ask could not be resumed")
+	}
+}

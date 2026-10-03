@@ -251,6 +251,9 @@ zoning-auto: true
 # price-assault-rifle: 60
 
 # ── Hauling ─────────────────────────────────────────────────────────────
+## the colony starts with every standing order suspended except its bids for building materials (rock, iron ore, clay)
+# standing-orders-build-only: true
+
 ## the colony sells the goods it bought, beyond its reserve, at its silo
 # colony-sells: true
 

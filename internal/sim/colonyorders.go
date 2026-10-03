@@ -194,6 +194,38 @@ func (w *World) postStanding(side Side, item ItemKind, qty int, price Money, dep
 	w.post(side, item, qty, price, Community, depot, 0)
 }
 
+// buildGoods are the goods rooms are built from (see constructionCost): the one
+// standing order the colony keeps from the start under
+// standing-orders-build-only is its silo bid for these.
+var buildGoods = [...]ItemKind{RawRock, IronOre, Clay}
+
+// standingOrders is every side and item some upkeep posts a standing order
+// for. A new standing order belongs here, so standing-orders-build-only
+// starts it suspended.
+func standingOrders() []SuspendedView {
+	var out []SuspendedView
+	for _, k := range prospectingGoods {
+		out = append(out, SuspendedView{Bid, k}, SuspendedView{Ask, k})
+	}
+	for _, k := range biomatterKinds {
+		out = append(out, SuspendedView{Bid, k})
+	}
+	return append(out, SuspendedView{Bid, AssaultRifle}, SuspendedView{Ask, Meal})
+}
+
+// suspendNonBuildStanding suspends every standing order but the bids for
+// building materials, as a new world starts under standing-orders-build-only.
+// Nothing is on the book yet, so nothing is withdrawn or logged.
+func (w *World) suspendNonBuildStanding() {
+	for _, s := range standingOrders() {
+		keep := false
+		for _, k := range buildGoods {
+			keep = keep || (s.Side == Bid && s.Item == k)
+		}
+		w.suspended[s.Side][s.Item] = !keep
+	}
+}
+
 // standingSuspended reports whether a player has suspended the colony's
 // standing orders for side and item.
 func (w *World) standingSuspended(side Side, item ItemKind) bool {

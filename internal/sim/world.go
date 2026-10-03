@@ -1134,6 +1134,9 @@ func newWorld(cfg Config, src *rand.PCG) *World {
 	})
 	w.directorQueue = resolveSchedules(cfg.Schedules, w.rng)
 	w.mint(Community, Money(cfg.FoundingGrant))
+	if cfg.StandingOrdersBuildOnly {
+		w.suspendNonBuildStanding()
+	}
 	return w
 }
 

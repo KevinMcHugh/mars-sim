@@ -113,6 +113,7 @@ there".
 
 | Setting | Default |
 | --- | --- |
+| `standing-orders-build-only` | true: the resale asks and the meal asks start suspended (see [colony-orders.md](./colony-orders.md)) |
 | `colony-sells` | true |
 | `colony-markup` | 50 (%) |
 | `colony-stock-reserve` | 8 |
