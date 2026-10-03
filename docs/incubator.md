@@ -87,14 +87,16 @@ itself rather than carrying it forever.
 
 ### Building it
 
-`incubatorRoom` is one or two incubators with an aisle, narrow if the cavern is
-cramped. The planner wants `ceil(colonists / colonists-per-incubator)` of them
+`incubatorRoom` is one or two incubators with an aisle. The colony's first
+may be narrow if the cavern is cramped; later ones wait for a site with an
+aisle. The planner wants `ceil(colonists / colonists-per-incubator)` of them
 (`desiredIncubators`, 4 a head by default), right after the first scumhouse,
 while pods do not feed anyone (`!podsFeed`). It is an ordinary public work: if
 the treasury can't fund it the planner moves on, and the colony scrapes as it
 always did until one stands. With `infinite-food` on it is player-ordered only.
 Either way, more incubators go into an incubator room the colony already has,
-moving its side wall out, before a new room is marked out (see
+moving its side wall out or joining it to one beside it, before a new room is
+marked out, and no new one is marked out while one is still going up (see
 [room-expansion.md](./room-expansion.md)).
 
 ## Why it is this way

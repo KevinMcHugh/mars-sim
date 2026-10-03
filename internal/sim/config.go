@@ -356,6 +356,12 @@ type Config struct {
 	// expansion lets a room grow. See docs/room-expansion.md.
 	RoomExpansion     bool `cfg:"room-expansion" doc:"enlarge an existing dormitory, storage room, kitchen, incubator or meeting hall, moving a side wall out, before building a new one"`
 	RoomMaxFacilities int  `cfg:"room-max-facilities" doc:"most fixtures (bunks, containers, stoves and pantries, incubators, chairs) a room grows to by expansion"`
+	// RoomMerge has the colony join two of its rooms of one kind that stand
+	// side by side, tearing down the wall (or walls) between them, rather
+	// than leave each in the other's way: first when it wants more of their
+	// fixtures, and otherwise when it has nothing else to build. See
+	// docs/room-expansion.md.
+	RoomMerge bool `cfg:"room-merge" doc:"join two rooms of the same kind standing side by side into one, tearing down the wall between them: when more of their fixtures are wanted, or when there is nothing else to build"`
 
 	// EscapeGraceTicks is how long a colonist's room must stay cut off from the
 	// colony's main connected network (see rooms.go's mainRoom) before it gives
@@ -755,6 +761,7 @@ func DefaultConfig() Config {
 		MaxConcurrentProjects: 2,
 		RoomExpansion:         true,
 		RoomMaxFacilities:     8,
+		RoomMerge:             true,
 		EscapeGraceTicks:      32,
 		TraitChance:           defaultTraitChance,
 		FamilyChance:          35,

@@ -2,6 +2,7 @@ package sim
 
 import (
 	"fmt"
+	"slices"
 	"sort"
 )
 
@@ -226,7 +227,9 @@ func (w *World) growStructure(s *structure, p *project, strip []Point) {
 		return
 	}
 	for _, t := range p.tasks {
-		if t.terrain != Floor {
+		// A fixture can go up on a wall it already lists: a storage room's
+		// next container stands where its old side wall did.
+		if t.terrain != Floor && !slices.Contains(w.structureAt[t.pos], s.id) {
 			s.tiles = append(s.tiles, t.pos)
 			w.structureAt[t.pos] = append(w.structureAt[t.pos], s.id)
 		}

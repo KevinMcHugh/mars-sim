@@ -261,7 +261,12 @@ func (w *World) commissionKitchens() {
 		if e.Kind != Colonist || !e.Alive() || e.kitchenCommissioned || e.rank(SkillCooking) < rank || e.wallet < Money(w.cfg.KitchenSavings) {
 			continue
 		}
-		if w.planRoomFor(scumhouseRoom, ColonistOwner(e.ID)) {
+		// A chef's kitchen waits for a site with an aisle, as the colony's
+		// later kitchens do: a cook works it for long stretches, and the
+		// narrow fallback is for a colony's first.
+		r := scumhouseRoom
+		r.aisleRequired = true
+		if w.planRoomFor(r, ColonistOwner(e.ID)) {
 			e.kitchenCommissioned = true
 			w.logEvent(LogBuildStart, fmt.Sprintf("%s, %s, commissions a kitchen of %s own.", e.displayName(), withArticle(e.skillLabel(SkillCooking)), e.possessive()))
 		}

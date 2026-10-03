@@ -379,7 +379,8 @@ Six-colonist colonies, seeds 1–32, were unchanged (2 starved).
 Only the first is life support: it may be built unpaid
 and in a narrow room, and it holds up every other room until it's planned.
 Later ones are ordinary public works that need an aisle
-(`roomRecipe.aisleRequired`). A few rules keep kitchens usable:
+(`roomRecipe.aisleRequired`), as does a chef's own (see
+[skills.md](./skills.md)). A few rules keep kitchens usable:
 
 - **Scrape to sell only into a bid.** Scraping for money needs a buyer at the
   scumhouse (`tryAssignScrape`). Scraping to feed yourself doesn't.
