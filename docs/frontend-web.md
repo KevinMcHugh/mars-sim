@@ -83,7 +83,7 @@ rebuilds the WASM first (`predev`), then serves the game on
 <http://localhost:5173/> and the spike on `/spike/`. The URL fills the
 new-game form: `?width=2000&height=2000&seed=7&fog-of-war=false&zoning-auto=true`. `npm run build`
 writes a static site to `web/dist/`. `npm run check` type-checks and `npm test`
-runs the wire decoder's, the activity chart's and the ship count's tests. All of these need Go on the path. After a Go
+runs the wire decoder's, the activity chart's, the ship count's and the shared number and time formats' tests. All of these need Go on the path. After a Go
 change with the dev server already running, run `npm run wasm` and reload.
 
 **The new-game form.** A cold load starts no game: it opens the **New
@@ -366,7 +366,10 @@ ticker's), until they are opened again.
 - **Market** shows the money supply, the accounts (an account opens in place,
   from its own `account:<key>` topic, so only the open one is built), and the
   books, prices, plans, work orders and recent trades. A depot or a planner is
-  a link to the inspector. Its **Colony orders** desk (`ColonyOrders`) posts a
+  a link to the inspector. A book opens in place to list its orders, and any
+  open order (in a book, an account, or the colony's desk) opens its detail,
+  each from its own topic (`book:`, `order:`; see
+  [order-detail.md](./order-detail.md)). Its **Colony orders** desk (`ColonyOrders`) posts a
   bid or an ask in the colony's name, and reprices or removes the colony's
   open orders, with the `order-place`, `order-reprice` and `order-cancel`
   commands, and suspends or resumes a standing order with `order-suspend`

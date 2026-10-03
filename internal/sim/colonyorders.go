@@ -164,6 +164,7 @@ func (w *World) repriceColonyOrder(c RepriceColonyOrder) bool {
 		return false
 	}
 	n.manual = true
+	n.inherit(o)
 	w.logEvent(LogNote, fmt.Sprintf("The colony reprices its %s of %d %s at (%d, %d) from %v to %v%s.",
 		side, qty, item, depot.X, depot.Y, was, c.Price, filledNote(filled, qty)))
 	return true

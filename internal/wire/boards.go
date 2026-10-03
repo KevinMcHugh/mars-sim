@@ -396,8 +396,9 @@ type Holding struct {
 	Count int    `json:"count"`
 }
 
-// OrderRow is one open order.
+// OrderRow is one open order. ID is its order:<id> topic.
 type OrderRow struct {
+	ID    uint64 `json:"id"`
 	Side  string `json:"side"`
 	Qty   int    `json:"qty"`
 	Item  string `json:"item"`
@@ -461,7 +462,7 @@ func accountTopic(s *sim.Snapshot, owner sim.Owner) AccountTopic {
 	}
 	for _, o := range s.Economy.Orders {
 		if o.Actor == owner {
-			t.Orders = append(t.Orders, OrderRow{Side: o.Side.String(), Qty: o.Qty, Item: o.Item.String(),
+			t.Orders = append(t.Orders, OrderRow{ID: uint64(o.ID), Side: o.Side.String(), Qty: o.Qty, Item: o.Item.String(),
 				Price: int64(o.Price), X: o.Depot.X, Y: o.Depot.Y})
 		}
 	}

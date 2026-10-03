@@ -180,13 +180,16 @@ of the payloads due, by name:
 | `zones` | 500 ms | The map's zone overlay (`ZonesTopic`, see [zoning.md](./zoning.md)): `kinds`, every zone kind by value (`none` first) with its `#rrggbb` colour, and `runs`, every zoned tile as `[y, x0, x1, kind, locked]` row runs sorted by row then column (`locked` 1 on a colony ship's ground). The page holds it for its life; it changes only when something is zoned. |
 | `zoning` | 500 ms | The Zones tab (`ZoningTopic`): `auto` (zoning-auto), the treasury and the clear and dig wages, `types` (each structure type and the zone it belongs in), `tiles` per kind, every `structure` (id, type, zone kind value, bounds, tiles built, `ship`, `rising`), open `clears` (as the market topic's `digs`), and `waiting`, the structure types the colony wants and no zone has room for. |
 | `ships` | every advance | The Ships tab (`ShipsTopic`): `placing` (true until the first tick, while ships may be landed and moved), and each ship's id, footprint top-left and size (`x`, `y`, `w`, `h`), its `shape` (rows of `#` hull, `.` deck, space for outside the ship) and `kind` (stick, hub-and-spoke, cluster), how many came down in it, and `aloft` for one still waiting to land. Aloft ships come last, in landing order; only the first has a size and shape. See [ships.md](./ships.md). |
-| `account:<key>` | 500 ms | One account's page (`AccountTopic`), `colony` or a colonist's id: balance, share of circulating money, holdings summed across every storage ledger, fixtures owned, open orders, and a colonist's plans. `found: false` once the colonist is gone. |
+| `account:<key>` | 500 ms | One account's page (`AccountTopic`), `colony` or a colonist's id: balance, share of circulating money, holdings summed across every storage ledger, fixtures owned, open orders (each with its `id`), and a colonist's plans. `found: false` once the colonist is gone. |
+| `book:<x>,<y>:<item>` | 500 ms | One book's open orders (`BookTopic`), at the depot at x,y for the item by name: its depot's label, then `bids` dearest first and `asks` cheapest first (then oldest), each with its id, owner (label and account key), open qty, price and units filled. See [order-detail.md](./order-detail.md). |
+| `order:<id>` | 500 ms | One open order (`OrderTopic`): side, item, owner (label and account key), `manual`, price, posted `qty`, `filled`, `open`, `total` at the limit, a bid's `escrow`, the depot, `posted` tick with `postedDay` and `postedMinute`, `openMinutes` and `expiresMinutes` in colony minutes, and `fills`, one per counterparty (key, label, qty, total), with `paid` their sum. `found: false` once it leaves the book. See [order-detail.md](./order-detail.md). |
 | `entity:<id>` | 250 ms | One creature (`EntityTopic`): name, glyph, position, state, focus, health, body parts, and death if dead; an alien's species; a colonist's profile, wallet, affect, needs, inventory, traits, skills (rank, top rank, label, practice) and profession, family, affinities and memories (newest first). Looked up among the living, then `Deceased`, then `Graveyard`; `found: false` once it is in none of them. |
 | `tile:<x>,<y>` | 250 ms | One tile (`TileTopic`): terrain (a rock's composition), glyph, the fixture's owner and access, a container's contents and ledger, and the creatures on it. Under fog, only `explored: false`. |
 
-The inspector's two topics take a parameter, so they are not in `topicTable`:
-`paramTopic` (`internal/wire/inspect.go`) parses them on subscribe, and a
-malformed one (`entity:x`, `tile:3`) fails like an unknown name. Each
+The topics with a parameter (the inspector's two, and `roster:`, `account:`,
+`book:` and `order:`) are not in `topicTable`: `paramTopic`
+(`internal/wire/inspect.go`) parses them on subscribe, and a malformed one
+(`entity:x`, `tile:3`, `book:5,5`) fails like an unknown name. Each
 selection is its own topic, so the dedupe and the interval work per creature
 with no extra state. Filth is not in the tile topic: the page already has it
 from the frames.

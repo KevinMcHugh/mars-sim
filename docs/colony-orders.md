@@ -80,7 +80,9 @@ the queue at its price, and it may trade at once if the new price crosses. A
 bid is checked first against the treasury *plus* what the order already
 holds, so a reprice that cannot be paid for leaves the order as it was rather
 than cancelling it. The re-posted order is manual, even if it was one of the
-colony's own.
+colony's own. It keeps the old order's opening tick and its fills (`inherit`),
+so its detail still reads as the same order (see
+[order-detail.md](./order-detail.md)).
 
 **Removing** cancels the order and returns its escrow. Any colony order can be
 removed, but the colony's standing orders (its bids for ore at the silo, its
