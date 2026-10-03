@@ -15,7 +15,8 @@ readout. Around it is a Svelte chrome:
   tabs that show the colony: the Inspect tab (click the map), the Roster, the
   Log, Jobs, Storage, Market, Charts and the Lore tab. **Act** holds the tabs
   whose job is to change it: Zones, Dig, Ships and a new-game form (which can
-  also start a colony that zones for itself: `zoning-auto`). Market stays
+  also start a colony that zones for itself: `zoning-auto`). A cold load
+  opens on that form (see "The new-game form" below). Market stays
   under View although it hosts the colony's orders: it is mostly prices, and
   splitting one tab across both rows would make the line meaningless.
   Any tab can be **popped out** (⧉ in its title row) into a window over the
@@ -54,7 +55,8 @@ The rest of the TUI's tabs are planned in
   inspector's payloads.
 - [`web/src/speed.ts`](../web/src/speed.ts) — the speed selector's steps.
 - [`web/src/settings.ts`](../web/src/settings.ts) — new-game settings from the
-  URL.
+  URL, and `shipLoads` for the form's ship count (tested by
+  `settings.test.mjs`).
 - [`web/src/map/atlas.ts`](../web/src/map/atlas.ts) — the emoji atlas.
 - [`internal/glyphs/glyphs.go`](../internal/glyphs/glyphs.go) — which emoji a
   terrain or entity draws as; shared with the TUI.
@@ -78,11 +80,26 @@ The rest of the TUI's tabs are planned in
 
 **Running it:** from `web/`, run `npm install` once, then `npm run dev`, which
 rebuilds the WASM first (`predev`), then serves the game on
-<http://localhost:5173/> and the spike on `/spike/`. The URL takes new-game
-settings: `?width=2000&height=2000&seed=7&fog-of-war=false&zoning-auto=true`. `npm run build`
+<http://localhost:5173/> and the spike on `/spike/`. The URL fills the
+new-game form: `?width=2000&height=2000&seed=7&fog-of-war=false&zoning-auto=true`. `npm run build`
 writes a static site to `web/dist/`. `npm run check` type-checks and `npm test`
-runs the wire decoder's tests. All of these need Go on the path. After a Go
+runs the wire decoder's, the activity chart's and the ship count's tests. All of these need Go on the path. After a Go
 change with the dev server already running, run `npm run wasm` and reload.
+
+**The new-game form.** A cold load starts no game: it opens the **New
+game** tab, filled from the URL over the defaults (10000×10000, 6
+colonists, fog of war on, no seed, so the engine picks one), and **Start**
+goes straight to the Ships tab. The page used to generate a 10000×10000
+world on load, so the first thing a player saw was a game they had not
+chosen, and changing it meant generating a second world. Under the colonist
+count the form says how many ships that is to land ("2 ships of 15"):
+`shipLoads` in `settings.ts` mirrors the engine's `shipLoads`
+(`internal/sim/ship.go`) with `SHIP_CAPACITY`, the default `ship-capacity`,
+which the page never overrides. `settings.test.mjs` reads `DefaultConfig`
+from `config.go` and fails if the two drift. The worker records
+subscriptions made before a game (`names`, `log`, `zones` are subscribed at
+load) but does not advance until `start` succeeds: an advance with no engine
+is an error (`advance before start`).
 
 **A stale WASM says so.** The WASM's exports carry a version (`hostAPI` in
 `cmd/mars-sim-wasm/main.go`, `HOST_API` in `web/src/sim/client.ts`, bumped
