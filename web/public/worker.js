@@ -18,12 +18,17 @@ let budgetMs = 8;
 let timer = null;      // pending setTimeout, when the next tick is in the future
 let queued = false;    // a MessageChannel ping is in flight
 let slices = 0;
+// Whether a game has started. The page opens on the New game form, so topics
+// are subscribed long before there is an engine to advance: until then a
+// subscription is only recorded, and nothing runs.
+let started = false;
 
 const ping = new MessageChannel();
 ping.port1.onmessage = () => { queued = false; slice(); };
 
 function schedule(waitMs) {
   if (timer !== null) { clearTimeout(timer); timer = null; }
+  if (!started) return; // no game yet: start schedules the first slice
   if (waitMs < 0) return; // paused: only a command resumes
   if (waitMs === 0) {
     if (!queued) { queued = true; ping.port2.postMessage(0); }
@@ -83,7 +88,7 @@ async function handle(msg) {
       const api = marssim.api ?? 1;
       const r = JSON.parse(marssim.start(JSON.stringify(msg.settings)));
       postMessage({ type: 'started', result: r, loadMs, api });
-      if (!r.error) schedule(0);
+      if (!r.error) { started = true; schedule(0); }
       break;
     }
     case 'command': {
