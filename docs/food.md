@@ -185,6 +185,10 @@ More stock makes it worse, not better (seeds 1–3, 30,000 ticks, starved of
 | `meal-reserve` 6 | 132 |
 | `crash-pod-meals` 20 | 172 |
 
+(These figures predate `standing-orders-build-only`, under which the
+colony posts no scum bids or meal asks; see
+[colony-orders.md](./colony-orders.md).)
+
 Two things hold production back. The colony's standing bids for scum are
 funded from the treasury, which building rooms for 100 colonists drains to $0
 by about tick 4,000, while colonists still eating their pod meals buy nothing.

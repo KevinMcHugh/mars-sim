@@ -23,7 +23,8 @@ audit changes.
   the standing-order upkeep that posts through `postStanding`:
   `refreshColonyBids` (market.go), `refreshArmoryBids` (foundry.go),
   `refreshColonyAsks` (hauling.go), the colony's scumhouse bids and
-  `offerColonyMeals` (scumhouse.go).
+  `offerColonyMeals` (scumhouse.go). `standingAllowed` is the
+  `standing-orders-build-only` filter in the same gate.
 - [`internal/sim/market.go`](../internal/sim/market.go) — `Order.manual`, and
   `retireOldSilo` skipping manual orders.
 - [`internal/sim/scumhouse.go`](../internal/sim/scumhouse.go) —
@@ -81,6 +82,22 @@ orders for that good are left open, and the player can still place new ones.
 The desk lists what is suspended, each with **Resume** (`ResumeColonyOrders`),
 after which the next upkeep round posts the standing orders again.
 
+**What the colony starts with.** With `standing-orders-build-only` (on by
+default), the only standing orders the colony posts are its silo bids for
+the goods rooms are built from (`buildGoods`: rock, iron ore, clay).
+`postStanding` asks `standingAllowed` first and posts nothing else: no ore
+resale asks, no water or uranium bids, no biomatter bids at the kitchens, no
+rifle bid, no meal asks. They are not suspended and do not appear on the
+desk; they are simply never created. The building bids can still be
+suspended like any standing order.
+
+Food is then the colonists' own business: a hungry colonist bids for a meal
+and buys from whoever sells one (a chef, a neighbour), and `tryRation` still
+hands a colonist at critical hunger one of the colony's meals. Whether the
+colony sells its meals, or buys scum to cook more, is the player's call: a
+food subsidy is a manual order on the desk (an ask for the colony's meals,
+a bid for scum at a kitchen) at a chosen price and quantity.
+
 **What upkeep does with a manual order.** It leaves it alone:
 
 - `withdrawColonyAsks`, which pulls the colony's meal asks off the book to
@@ -128,6 +145,19 @@ the answer, since a command has no reply.
   suspended iron bid would come back the moment the silo moved, and "stop
   buying cave scum" would take one click per kitchen. What a player means is
   the good.
+- **Only the building bids by default.** Measured over 20,000 ticks on six
+  seeds of the default game, the colony's ore resale asks filled 0 to 4 units
+  while 100 to 220 sat on the book, and the carcass and viscera bids barely
+  filled; together they buried the book. The ore bids for rock, iron and clay
+  are what rooms are built from, so they stay. Survival without the rest was
+  about the same (24 colonists alive across eight seeds against 26), with
+  the colony's open orders down from roughly 45–105 to 0–13.
+- **Not created, rather than created suspended.** A first cut started them
+  suspended, which put thirteen rows on the desk's Suspended list before the
+  player had done anything. Filtered in `postStanding`, they never exist. The
+  upkeep that posts them is kept behind the setting rather than deleted, so
+  it stays tested (`testConfig` turns the setting off) and a scenario can
+  turn it back on.
 - **One gate, `postStanding`.** The standing orders are posted by five
   different upkeep functions. Checking the suspension in each would leave the
   next one added to forget it; routing them all through one call makes a new
@@ -140,7 +170,8 @@ the answer, since a command has no reply.
 - **The TUI**: the commands are frontend-neutral; a market-tab form would send
   the same three.
 - **A new standing order** must post through `postStanding`, not `post`, or
-  Suspend will not hold it.
+  Suspend will not hold it, and `standing-orders-build-only` will not keep it
+  off the book.
 - **Saving a game** would need `World.suspended` saved with the orders.
 - **An expiry**: `PlaceColonyOrder` posts with ttl 0; a `TTL` field would pass
   straight through to `post`.
