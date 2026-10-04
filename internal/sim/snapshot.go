@@ -144,14 +144,16 @@ func (p ProjectView) Assignees() []EntityID {
 }
 
 // EconomyView is the colony's money supply at a glance, for the market tab.
-// Issued always equals Circulating + Frozen; a frontend can show the three
-// side by side without re-deriving any of them. See docs/money.md.
+// Issued always equals Circulating + Frozen + Escrowed + Exported; a frontend
+// can show them side by side without re-deriving any of them. See
+// docs/money.md.
 type EconomyView struct {
 	Treasury    Money // the community's balance
 	Circulating Money // treasury plus every living colonist's wallet
 	Frozen      Money // locked in dead colonists' wallets
 	Escrowed    Money // held by open bids until they fill or are cancelled
-	Issued      Money // every dollar ever minted: Circulating + Frozen + Escrowed
+	Exported    Money // paid off-world: the recruiter's fees and recruits' passage
+	Issued      Money // every dollar ever minted: Circulating + Frozen + Escrowed + Exported
 
 	// The order book (see docs/market.md): every open order oldest first,
 	// every book that has ever had an order by depot then item, and the
@@ -250,6 +252,7 @@ func (w *World) economyView() EconomyView {
 		Circulating: w.moneyInCirculation(),
 		Frozen:      w.moneyFrozen,
 		Escrowed:    w.moneyEscrowed(),
+		Exported:    w.moneyExported,
 		Issued:      w.moneyIssued,
 		Trades:      append([]Trade(nil), w.trades...),
 	}
@@ -513,6 +516,9 @@ type Snapshot struct {
 	// Economy is the money supply; each colonist's own balance is on its
 	// EntityView.Wallet.
 	Economy EconomyView
+	// Recruiting is the recruiter's terms and the set on offer (see
+	// docs/recruiting.md).
+	Recruiting RecruitingView
 
 	AffinityMax    int // affinity display bars run [-AffinityMax, AffinityMax]
 	MoodMax        int // charge and grip each run in [-MoodMax, MoodMax]
@@ -714,6 +720,7 @@ func (w *World) snapshot(paused bool, tps int) *Snapshot {
 		GunModels:            append([]GunModel(nil), w.gunModels...),
 		Population:           w.popHist,
 		Economy:              w.economyView(),
+		Recruiting:           w.recruitingView(),
 		AffinityMax:          w.cfg.AffinityMax,
 		MoodMax:              w.cfg.MoodMax,
 		ScumMax:              w.cfg.ScumMax,

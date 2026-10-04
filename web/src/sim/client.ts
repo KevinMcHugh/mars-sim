@@ -36,7 +36,11 @@ export type Command =
   | { type: 'order-cancel'; id: number }
   /** Stop the colony's standing orders for a side and item, everywhere, until resumed. */
   | { type: 'order-suspend'; side: 'bid' | 'ask'; item: string }
-  | { type: 'order-resume'; side: 'bid' | 'ask'; item: string };
+  | { type: 'order-resume'; side: 'bid' | 'ask'; item: string }
+  /** Pay the recruiter for a new set of candidates (docs/recruiting.md). */
+  | { type: 'recruit-roll' }
+  /** Hire the candidates at picks from set id; no picks turns the set away. */
+  | { type: 'recruit-hire'; id: number; picks: number[] };
 
 /** A save file's header (sim.SaveInfo; docs/save-load.md). */
 export interface SaveInfo { format: number; commit: string; layout: string; seed: number; tick: number; width: number; height: number; tps: number; paused: boolean }
@@ -52,7 +56,7 @@ export interface Started {
  * A mismatch means mars-sim.wasm is from another build: usually a pull without
  * rerunning npm run wasm.
  */
-export const HOST_API = 16;
+export const HOST_API = 17;
 
 export class SimClient {
   private worker: Worker;

@@ -496,6 +496,17 @@ export function resumeColonyOrders(side: 'bid' | 'ask', item: string): void {
   ctl?.command({ type: 'order-resume', side, item });
 }
 
+/** Pay the recruiter for a new set of candidates; the outcome lands in the log. */
+export function rollRecruits(): void {
+  ctl?.command({ type: 'recruit-roll' });
+}
+
+/** Hire the picked candidates from set id, or turn the set away with none. */
+export function hireRecruits(id: number, picks: readonly number[]): void {
+  // A copy: a panel's picks are a $state proxy, which postMessage cannot clone.
+  ctl?.command({ type: 'recruit-hire', id, picks: [...picks] });
+}
+
 export function togglePause(): void {
   ctl?.command({ type: 'pause' });
   pressed = performance.now();

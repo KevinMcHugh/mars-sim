@@ -17,10 +17,14 @@ is enough to get by on, and not enough to stop the colony building
 dormitories and toilet rooms of its own. Each settler steps out with a purse,
 meals in its locker, and one rare item: a gun, a chicken, or a cat.
 
-Ships are the only way into the game. Worldgen, the spawn command, and the
-director's `arrival` occurrence all go through `land` (by way of `arriveWave`
-for a crowd). In the browser, a new game starts paused with the founders'
-ships still **aloft**: the player lands them one after another, each where they
+Ships are how every founder and every arrival the game sends comes in.
+Worldgen, the spawn command, and the director's `arrival` occurrence all go
+through `land` (by way of `arriveWave` for a crowd). The one exception is a
+colonist the player hires from off-world, who appears beside a ship without
+one of its own (see [recruiting.md](./recruiting.md)).
+
+In the browser, a new game starts paused with the founders' ships still
+**aloft**: the player lands them one after another, each where they
 click, before the first tick. The new-game form says how many ships the
 colonist count makes before the world is generated ("3 ships of 14 or 13",
 from the same split as `shipLoads` below). The TUI and headless runs land them
@@ -481,3 +485,5 @@ worse under pods. Measured with 100 colonists on a 300×150 map, seeds 1–4,
 - [frontend-web.md](./frontend-web.md): the Ships tab.
 - [economy.md](./economy.md): the plan this is part of.
 - [zoning.md](./zoning.md): why the ground round a ship is always residence.
+- [recruiting.md](./recruiting.md): colonists hired from off-world, who
+  arrive beside a ship rather than in one.

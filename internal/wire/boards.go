@@ -252,6 +252,7 @@ type MoneySupply struct {
 	Circulating int64 `json:"circulating"`
 	Escrowed    int64 `json:"escrowed"`
 	Frozen      int64 `json:"frozen"`
+	Exported    int64 `json:"exported"` // paid off-world: recruiting (docs/recruiting.md)
 	Issued      int64 `json:"issued"`
 	Starved     int   `json:"starved"`
 }
@@ -311,7 +312,7 @@ func marketTopic(s *sim.Snapshot) MarketTopic {
 	t := MarketTopic{
 		Accounts: []Account{{Key: "colony", Label: "The colony (treasury)", Balance: int64(econ.Treasury)}},
 		Supply: MoneySupply{Treasury: int64(econ.Treasury), Circulating: int64(econ.Circulating),
-			Escrowed: int64(econ.Escrowed), Frozen: int64(econ.Frozen), Issued: int64(econ.Issued), Starved: econ.Starved},
+			Escrowed: int64(econ.Escrowed), Frozen: int64(econ.Frozen), Exported: int64(econ.Exported), Issued: int64(econ.Issued), Starved: econ.Starved},
 		Books:      []Book{},
 		Prices:     make([]Price, 0, len(econ.Prices)),
 		Plans:      make([]PlanLine, 0, len(econ.Plans)),

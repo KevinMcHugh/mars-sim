@@ -473,6 +473,12 @@ func (e *Engine) apply(cmd Command) (rateChanged bool) {
 		if e.world.landAloft(c) {
 			e.requestPublish()
 		}
+	case RollRecruits:
+		e.world.rollRecruits()
+		e.requestPublish()
+	case HireRecruits:
+		e.world.hireRecruits(c)
+		e.requestPublish()
 	case SaveGame:
 		err := e.Save(c.To)
 		if c.Done != nil {

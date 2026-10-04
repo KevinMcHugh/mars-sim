@@ -14,7 +14,8 @@ readout. Around it is a Svelte chrome:
 - **A side panel,** whose tab strip has two labelled rows. **View** holds the
   tabs that show the colony: the Inspect tab (click the map), the Roster, the
   Log, Jobs, Storage, Market, Charts and the Lore tab. **Act** holds the tabs
-  whose job is to change it: Zones, Dig, Ships and the Game tab. That tab
+  whose job is to change it: Zones, Dig, Ships, Recruit and the
+  Game tab. That tab
   holds a new-game form, which can also start a colony that zones for itself
   (`zoning-auto`), and **Save game** / **Load game…** (Ctrl/⌘+S saves too;
   see [save-load.md](./save-load.md)). A cold load opens on that tab (see
@@ -46,7 +47,7 @@ The rest of the TUI's tabs are planned in
   (the tab list both share), `Bar` (a gauge), and one component
   per tab (`InspectPanel`, `RosterPanel`, `LogPanel`, `JobsPanel`,
   `StoragePanel`, `MarketPanel` with `AccountDetail` and `ColonyOrders`, `ZonesPanel`, `DigPanel`, `ChartsPanel`, `ShipsPanel`,
-  `LorePanel`, `NewGamePanel`), `Section` (a foldable heading), `LogTicker`, and `FlowControl` (the
+  `RecruitPanel`, `LorePanel`, `NewGamePanel`), `Section` (a foldable heading), `LogTicker`, and `FlowControl` (the
   flow-field picker and legend, see [flow-field-view.md](./flow-field-view.md)).
   `format.ts` formats money.
 - [`web/src/ui/charts/`](../web/src/ui/charts/Chart.svelte) — the Charts tab:
@@ -425,6 +426,14 @@ ticker's), until they are opened again.
   stay put and the tab only lists them. The `ships` topic is rebuilt on
   every advance, not on an interval: placing happens paused, where the only
   advance is the one a land or move itself causes.
+
+- **Recruit** hires colonists from off-world (see
+  [recruiting.md](./recruiting.md)): **Call the recruiter** sends
+  `recruit-roll`, the set comes back as cards from the `recruit` topic, and
+  **Hire** sends `recruit-hire` with the set's id and the ticked indices
+  (host API 17). **New set** rolls again; **Turn away** hires nobody. The
+  cards fill as many columns as the panel is wide, so popping the tab out
+  shows a whole set side by side.
 
 A link from any of these into the inspector remembers its tab
 (`ui.inspectFrom`), so the inspector offers **← Jobs**, **← Storage** or

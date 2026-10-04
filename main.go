@@ -555,6 +555,12 @@ func validateConfig(cfg sim.Config) error {
 		return fmt.Errorf("population counts cannot be negative")
 	case cfg.CrashPodMeals < 0:
 		return fmt.Errorf("crash-pod-meals cannot be negative")
+	case cfg.RecruiterFee < 0 || cfg.RecruitCost < 0 || cfg.RecruitCandidates < 0 || cfg.RecruitMeals < 0:
+		return fmt.Errorf("recruiter-fee, recruit-cost, recruit-candidates and recruit-meals cannot be negative")
+	case cfg.RecruitSavingsMean < 0 || cfg.RecruitSavingsSpread < 0 || cfg.RecruitSavingsMin < 0:
+		return fmt.Errorf("recruit-savings-mean, -spread and -min cannot be negative: no candidate arrives in debt")
+	case cfg.RecruitSavingsMax < cfg.RecruitSavingsMin:
+		return fmt.Errorf("recruit-savings-max (%d) is below recruit-savings-min (%d)", cfg.RecruitSavingsMax, cfg.RecruitSavingsMin)
 	case cfg.ShipCapacity < 1:
 		return fmt.Errorf("ship-capacity must be at least 1 (got %d)", cfg.ShipCapacity)
 	case cfg.ShipBunkPercent < 0 || cfg.ShipToiletPercent < 0:

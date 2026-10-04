@@ -409,6 +409,14 @@ func (w *World) assignPersonality(e *Entity) {
 	// uniquifyName is the only step that needs the colony. The draws themselves
 	// are rollProfile, which the lab's WASM build calls without a world.
 	e.Profile = rollProfile(w.prng, w.agePRNG, w.cfg.TraitChance)
+	w.settlePersonality(e)
+}
+
+// settlePersonality makes e's profile its own in the colony: a name nobody
+// else goes by, its traits' effective parameters, and its mood starting at
+// home. assignPersonality calls it on a fresh roll; a recruit, rolled by the
+// recruiter, on the profile its card showed.
+func (w *World) settlePersonality(e *Entity) {
 	w.uniquifyName(e)
 
 	w.resolveTraitEffects(e)

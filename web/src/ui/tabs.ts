@@ -9,6 +9,7 @@ import LogPanel from './LogPanel.svelte';
 import LorePanel from './LorePanel.svelte';
 import MarketPanel from './MarketPanel.svelte';
 import NewGamePanel from './NewGamePanel.svelte';
+import RecruitPanel from './RecruitPanel.svelte';
 import RosterPanel from './RosterPanel.svelte';
 import ShipsPanel from './ShipsPanel.svelte';
 import StoragePanel from './StoragePanel.svelte';
@@ -37,6 +38,7 @@ export const groups: { id: string; label: string; tabs: Tab[] }[] = [
       { id: 'zones', label: 'Zones', component: ZonesPanel },
       { id: 'dig', label: 'Dig', component: DigPanel },
       { id: 'ships', label: 'Ships', component: ShipsPanel },
+      { id: 'recruit', label: 'Recruit', component: RecruitPanel },
       { id: 'game', label: 'Game', component: NewGamePanel },
     ],
   },
