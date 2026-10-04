@@ -555,7 +555,16 @@ func (w *World) useFrontierMining() bool {
 }
 
 // claimNearestMine claims the nearest unclaimed frontier rock whose complete
-// yield the colonist can carry and which is reachable from their room.
+// yield the colonist can carry and which is reachable from their room. Ties
+// break toward the row-major-first tile.
+//
+// It searches the board's per-chunk frontier buckets in chunk rings around the
+// colonist, like nearestMatch, and stops once the next ring cannot hold a tile
+// as close as the best so far. Within that, a tile's distance is checked before
+// the claim, reachability and carry checks, and only a tile that would beat
+// the best pays for them. (distance, row-major) is a total order, so the tile
+// chosen is the one a scan of the whole frontier would choose, whatever order
+// the buckets hold their tiles in.
 func (w *World) claimNearestMine(e *Entity) (Point, bool) {
 	room := w.roomOf(e.Pos)
 	if room == 0 {
@@ -563,14 +572,35 @@ func (w *World) claimNearestMine(e *Entity) (Point, bool) {
 	}
 	var best Point
 	found := false
-	bestDist := 1 << 30
-	for p := range w.board.frontier {
-		if w.board.isClaimed(p) || !w.frontierReachable(p, room) ||
-			!e.Inventory.CanAddAll(miningYield(w.TileAt(p))...) {
-			continue
+	bestDist := 0
+	fcx, fcy := e.Pos.X/chunkSize, e.Pos.Y/chunkSize
+	maxRing := max(w.chunkCols, w.chunkRows)
+	for r := 0; r <= maxRing; r++ {
+		// A chunk in ring r holds no tile closer than (r-1)*chunkSize+1. Stop
+		// only when that is strictly farther than the best, since an equally
+		// near tile can still win the row-major tie-break.
+		if found && r >= 1 && (r-1)*chunkSize+1 > bestDist {
+			break
 		}
-		if d := e.Pos.Chebyshev(p); !found || d < bestDist || (d == bestDist && lessPoint(p, best)) {
-			best, bestDist, found = p, d, true
+		loRow, hiRow, loCol, hiCol := fcy-r, fcy+r, fcx-r, fcx+r
+		for cy := max(loRow, 0); cy <= min(hiRow, w.chunkRows-1); cy++ {
+			onRowEdge := cy == loRow || cy == hiRow
+			for cx := max(loCol, 0); cx <= min(hiCol, w.chunkCols-1); cx++ {
+				if !onRowEdge && cx != loCol && cx != hiCol {
+					continue // interior chunk, already covered by a smaller ring
+				}
+				for _, p := range w.board.frontierByChunk[cy*w.chunkCols+cx] {
+					d := e.Pos.Chebyshev(p)
+					if found && (d > bestDist || (d == bestDist && !lessPoint(p, best))) {
+						continue
+					}
+					if w.board.isClaimed(p) || !w.frontierReachable(p, room) ||
+						!e.Inventory.CanAddAll(miningYield(w.TileAt(p))...) {
+						continue
+					}
+					best, bestDist, found = p, d, true
+				}
+			}
 		}
 	}
 	if found {

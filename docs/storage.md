@@ -70,6 +70,10 @@ The TUI exposes contents in two places:
   `up`/`down` or `j`/`k` selects among containers, and the right panel shows the
   selected chest's occupied slots, item count, and capacity.
 
+The browser's Storage tab adds a colony-wide pool of every item and a search
+by item and by owner over the containers and their ledgers; see
+[frontend-web.md](./frontend-web.md).
+
 A blocked colonist takes what sells (goods with a reference price) to the
 colony's **silo** — its communal chest nearest the map centre — and offers it
 there; the colony's standing bids buy the ore (see [market.md](./market.md)).
