@@ -14,9 +14,11 @@ readout. Around it is a Svelte chrome:
 - **A side panel,** whose tab strip has two labelled rows. **View** holds the
   tabs that show the colony: the Inspect tab (click the map), the Roster, the
   Log, Jobs, Storage, Market, Charts and the Lore tab. **Act** holds the tabs
-  whose job is to change it: Zones, Dig, Ships and a new-game form (which can
-  also start a colony that zones for itself: `zoning-auto`). A cold load
-  opens on that form (see "The new-game form" below). Market stays
+  whose job is to change it: Zones, Dig, Ships and the Game tab. That tab
+  holds a new-game form, which can also start a colony that zones for itself
+  (`zoning-auto`), and **Save game** / **Load game…** (Ctrl/⌘+S saves too;
+  see [save-load.md](./save-load.md)). A cold load opens on that tab (see
+  "The new-game form" below). Market stays
   under View although it hosts the colony's orders: it is mostly prices, and
   splitting one tab across both rows would make the line meaningless.
   Any tab can be **popped out** (⧉ in its title row) into a window over the
@@ -86,8 +88,8 @@ writes a static site to `web/dist/`. `npm run check` type-checks and `npm test`
 runs the wire decoder's, the activity chart's, the ship count's, the Storage tab's and the shared number and time formats' tests. All of these need Go on the path. After a Go
 change with the dev server already running, run `npm run wasm` and reload.
 
-**The new-game form.** A cold load starts no game: it opens the **New
-game** tab, filled from the URL over the defaults (10000×10000, 6
+**The new-game form.** A cold load starts no game: it opens the **Game**
+tab, filled from the URL over the defaults (10000×10000, 6
 colonists, fog of war on, no seed, so the engine picks one), and **Start**
 goes straight to the Ships tab. The page used to generate a 10000×10000
 world on load, so the first thing a player saw was a game they had not

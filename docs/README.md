@@ -34,6 +34,7 @@ way it is without re-deriving it from the source each time.
 | [determinism.md](./determinism.md) | One seed, one simulation: how map iteration order breaks it, the lockstep regression test, and the three bugs that motivated both. |
 | [personality.md](./personality.md) | Names, attributes, traits, and the separate RNG stream that keeps flavor out of the simulation. |
 | [rng-streams.md](./rng-streams.md) | Every seed-derived `math/rand/v2` PCG stream, how they are seeded, and how their state is saved and restored for save/load. |
+| [save-load.md](./save-load.md) | Save files: the whole World (caches and RNG streams included) through a reflection codec that keeps shared objects shared, the commit and layout hash in the header, why saves don't load across layout changes, the test that a loaded game plays on byte-for-byte, and saving and loading from the CLI, the TUI and the browser. |
 | [ages-and-family.md](./ages-and-family.md) | Colonist ages and the age invariants family ties have to satisfy. |
 | [heredity.md](./heredity.md) | What joining a family does to a colonist: a shared surname, inherited looks, and a warm start with relatives. |
 | [construction.md](./construction.md) | Construction projects and the facility-room design: rooms facing any way, standing free, never cutting the colony in two, and the deadlocks that shaped it. |

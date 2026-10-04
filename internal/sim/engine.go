@@ -473,6 +473,11 @@ func (e *Engine) apply(cmd Command) (rateChanged bool) {
 		if e.world.landAloft(c) {
 			e.requestPublish()
 		}
+	case SaveGame:
+		err := e.Save(c.To)
+		if c.Done != nil {
+			c.Done <- err
+		}
 	}
 	return false
 }

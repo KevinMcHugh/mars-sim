@@ -367,6 +367,10 @@ export interface Controller {
   subscribe(topic: string): void;
   unsubscribe(topic: string): void;
   newGame(settings: Settings): void;
+  /** Replace the game with a save file's. */
+  loadGame(file: File): void;
+  /** Download the running game as a save file. */
+  saveGame(): void;
   /** Center the map on a tile. */
   centerOn(x: number, y: number): void;
   /** ui.selected changed: move the map's marker. */
@@ -402,6 +406,8 @@ export function subscribe(topic: string): () => void {
 }
 
 export function newGame(settings: Settings): void { ctl?.newGame(settings); }
+export function loadGame(file: File): void { ctl?.loadGame(file); }
+export function saveGame(): void { ctl?.saveGame(); }
 export function centerOn(x: number, y: number): void { ctl?.centerOn(x, y); }
 export function highlight(tiles: { x: number; y: number; color: Uint8Array }[] | null): void { ctl?.highlight(tiles); }
 
