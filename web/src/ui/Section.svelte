@@ -20,7 +20,7 @@
 
 <svelte:element this={tag} class="section-head">
   <button type="button" aria-expanded={open} onclick={() => toggleSection(id)}>
-    <span class="caret" aria-hidden="true">{open ? '▾' : '▸'}</span>{title}{#if note}<span class="note"> {note}</span>{/if}
+    <span class="caret" aria-hidden="true">{open ? '▾' : '▸'}</span>{title}{#if note}<span class="note">{note}</span>{/if}
   </button>
 </svelte:element>
 {#if open}{@render children()}{/if}
@@ -34,5 +34,5 @@
   }
   button:hover { color: var(--fg); }
   .caret { display: inline-block; width: 1.1em; }
-  .note { text-transform: none; letter-spacing: 0; }
+  .note { text-transform: none; letter-spacing: 0; margin-left: 0.35em; }
 </style>
