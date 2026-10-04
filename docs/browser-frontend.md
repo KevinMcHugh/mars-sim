@@ -12,7 +12,7 @@ snapshots, the frontend sends commands. The difference is that a
 `postMessage` boundary now sits between the two, where a Go channel used to be.
 
 Most of it is still a proposal. What is built: the engine-side prerequisites
-(the steppable loop, live tiles, chunked worldgen, saveable RNG) and a
+(the steppable loop, live tiles, chunked worldgen, save and load) and a
 **spike**, a headless worker plus a measurement page, whose results are in
 [The spike](#the-spike-what-a-real-browser-measured) below. The wire, the map
 and the Svelte UI are not started. The numbers here come from runs against
@@ -364,10 +364,21 @@ chunk nobody has changed can be regenerated from the seed instead of saved.
 
 ### 6. Save and load
 
-Saves are the one feature here the engine can't support today. The RNG half
-is done: every stream is a `math/rand/v2` PCG whose state `World.saveRNG` /
-`loadRNG` round-trip (see [rng-streams.md](./rng-streams.md)). That move was
-the one-time break for shared seeds. What remains:
+**Done, apart from autosave and saves kept in the browser;** see
+[save-load.md](./save-load.md). The page saves by downloading a `.marssave`
+file and loads one through a file picker. It differs from the sketch below in
+three ways:
+
+- **Derived state is saved too, not rebuilt.** Saving every cache removes the
+  rebuild-order risk described below, rather than guarding against it.
+- **No chunk diff.** Every per-tile grid is already paged, so a save holds only
+  the pages the colony has generated (0.8 MB for a 2048×2048 game at tick
+  3,000), with no regeneration on load.
+- **A layout hash, not a worldgen version.** A save loads only into a build
+  whose World has the same shape, and the header names the commit that wrote
+  it.
+
+The sketch, as planned:
 
 - **There is no serializer.** The authoritative state needs one: tiles,
   entities (profiles, affect, memories, inventory), relationships, projects,

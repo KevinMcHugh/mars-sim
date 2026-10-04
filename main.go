@@ -94,6 +94,8 @@ func main() {
 		econSeeds            string
 		printCognitionConfig bool
 		printCognitionVocab  bool
+		loadPath             string
+		savePath             string
 	)
 	flag.DurationVar(&duration, "duration", 0, "auto-exit after this long (0 = run until quit); handy for smoke tests")
 	flag.BoolVar(&headless, "headless", false, "run without the TUI, printing periodic stats")
@@ -110,6 +112,8 @@ func main() {
 	flag.IntVar(&econTrace, "econ-trace", 0, "run this many ticks as fast as possible and print an economy trace (CSV) instead of playing")
 	flag.IntVar(&econEvery, "econ-every", 100, "ticks between rows of an -econ-trace")
 	flag.StringVar(&econSeeds, "econ-seeds", "", "comma-separated seeds to trace one after another (default: -seed)")
+	flag.StringVar(&loadPath, "load", "", "play on from this save file instead of generating a world; the save's own settings replace the settings file and flags")
+	flag.StringVar(&savePath, "save", "", "write a save file here when the run ends (quit, -duration, or Ctrl+C); in the TUI, ctrl+s also saves at any time")
 
 	// Simulation config flags, each defaulting to the value the settings file
 	// left in place.
@@ -168,7 +172,23 @@ func main() {
 		return
 	}
 
-	eng := sim.NewEngine(cfg)
+	var eng *sim.Engine
+	if loadPath != "" {
+		var info sim.SaveInfo
+		eng, info, err = loadGame(loadPath)
+		if err != nil {
+			stopProfile()
+			fmt.Fprintln(os.Stderr, "mars-sim:", err)
+			os.Exit(2)
+		}
+		cfg = eng.Config()
+		if headless && info.Paused {
+			// Nothing in headless mode could resume a game saved paused.
+			eng.Send(sim.TogglePause{})
+		}
+	} else {
+		eng = sim.NewEngine(cfg)
+	}
 
 	// Subscribe before starting the engine so the very first frame is not missed.
 	snaps := eng.Subscribe()
@@ -179,21 +199,80 @@ func main() {
 	// quits on its own.)
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
-	go eng.Run(ctx)
+	runDone := make(chan struct{})
+	go func() {
+		eng.Run(ctx)
+		close(runDone)
+	}()
+	// finish stops the engine and, with -save, writes the game as it stands.
+	// Once Run has returned nothing else touches the world, so the save can
+	// run here rather than as a command.
+	finish := func() error {
+		cancel()
+		<-runDone
+		if savePath == "" {
+			return nil
+		}
+		return saveGame(eng, savePath)
+	}
 
 	if headless {
 		runHeadless(ctx, snaps, cfg, duration)
+		if err := finish(); err != nil {
+			fmt.Fprintln(os.Stderr, "mars-sim:", err)
+			stopProfile()
+			os.Exit(1)
+		}
 		return
 	}
 
 	setUpGlyphs(glyphs)
 
-	if err := runTUI(eng, snaps, duration); err != nil {
-		cancel()
+	err = runTUI(eng, snaps, duration)
+	if saveErr := finish(); err == nil {
+		err = saveErr
+	}
+	if err != nil {
 		stopProfile() // os.Exit skips deferred calls
 		fmt.Fprintln(os.Stderr, "mars-sim:", err)
 		os.Exit(1)
 	}
+}
+
+// loadGame reads a save file into an engine, saying on stderr which build
+// wrote it when that is not this one.
+func loadGame(path string) (*sim.Engine, sim.SaveInfo, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, sim.SaveInfo{}, fmt.Errorf("loading a save: %w", err)
+	}
+	defer f.Close()
+	eng, info, err := sim.LoadEngine(f)
+	if err != nil {
+		return nil, info, fmt.Errorf("loading %s: %w", path, err)
+	}
+	if info.Commit != sim.BuildCommit() {
+		fmt.Fprintf(os.Stderr, "mars-sim: %s was saved by commit %s; this is %s\n", path, info.Commit, sim.BuildCommit())
+	}
+	return eng, info, nil
+}
+
+// saveGame writes eng's game to path. The engine must not be running.
+func saveGame(eng *sim.Engine, path string) error {
+	f, err := os.Create(path)
+	if err != nil {
+		return fmt.Errorf("saving: %w", err)
+	}
+	if err := eng.Save(f); err != nil {
+		f.Close()
+		os.Remove(path)
+		return fmt.Errorf("saving: %w", err)
+	}
+	if err := f.Close(); err != nil {
+		return fmt.Errorf("saving: %w", err)
+	}
+	fmt.Fprintf(os.Stderr, "mars-sim: saved to %s\n", path)
+	return nil
 }
 
 // startCPUProfile begins writing a CPU profile to path, or does nothing if

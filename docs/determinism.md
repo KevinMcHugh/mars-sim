@@ -76,6 +76,15 @@ The grid layers are FNV-hashed rather than rendered; at one entry per tile per
 tick, formatting them dominated the test's runtime, and the field name is the
 whole diagnosis anyway.
 
+### Save and load
+
+A loaded game must play on exactly as the saved one would have.
+`TestSaveLoadPlaysOnIdentically` checks this the same way as the lockstep test
+above. It saves and loads a world, steps the original and the copy together,
+and compares their whole encoded state, not just a fingerprint. When they
+part, it reports the same fingerprint fields. See
+[save-load.md](./save-load.md).
+
 ### Golden hashes and other machines
 
 The lockstep test compares two runs in one process, so it can never see a

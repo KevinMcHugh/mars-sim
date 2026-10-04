@@ -471,7 +471,7 @@ func (m Model) drawSidebar(rows int) string {
 }
 
 func (m Model) renderFooter() string {
-	help := "space pause  +/- speed  s spawn  b build  i inspect  f flow fields  ←↑↓→/hjkl pan  tab details  q quit"
+	help := "space pause  +/- speed  s spawn  b build  i inspect  f flow fields  ←↑↓→/hjkl pan  tab details  ^s save  q quit"
 	if m.flowOn {
 		help = "flow field: " + m.flowRef.Name() + "  f next  F off  |  " + help
 	}
@@ -483,6 +483,9 @@ func (m Model) renderFooter() string {
 		// The player should know why the colony looks like a roguelike: the
 		// terminal, not the game, chose this.
 		help = "ASCII glyphs (terminal emoji widths disagreed)  |  " + help
+	}
+	if m.saveNote != "" {
+		help = m.saveNote + "  |  " + help
 	}
 	return m.footerLine(help)
 }

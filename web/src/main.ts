@@ -17,7 +17,7 @@ import type { TileRect } from './map/camera';
 import { pickGlyph } from './emoji';
 import * as palette from './map/palette';
 import { SimClient } from './sim/client';
-import type { Settings } from './sim/client';
+import type { SaveInfo, Settings, Started } from './sim/client';
 import App from './ui/App.svelte';
 
 function status(text: string | null, error = false): void {
@@ -54,6 +54,8 @@ install({
   subscribe: (t) => sim.subscribe(t),
   unsubscribe: (t) => sim.unsubscribe(t),
   newGame: (s) => { void newGame(s); },
+  loadGame: (f) => { void loadGame(f); },
+  saveGame: () => { void saveGame(); },
   centerOn: (x, y) => { cam.cx = x + 0.5; cam.cy = y + 0.5; viewChanged(); },
   selected: () => updateMark(),
   digChanged: () => showDig(),
@@ -134,6 +136,11 @@ window.addEventListener('keydown', (e) => {
     case ' ': togglePause(); break;
     case '+': case '=': stepSpeed(1); break;
     case '-': case '_': stepSpeed(-1); break;
+    // Ctrl/Cmd+S saves the game rather than the page.
+    case 's': case 'S':
+      if (!(e.ctrlKey || e.metaKey) || e.altKey) return;
+      void saveGame();
+      break;
     // Not with a modifier: Ctrl/Cmd+F is the browser's Find.
     case 'f': case 'F':
       if (e.ctrlKey || e.metaKey || e.altKey) return;
@@ -157,6 +164,80 @@ function withLooks(h: Hello): Hello {
 
 async function newGame(settings: Settings): Promise<void> {
   status(`Generating a ${settings.width}×${settings.height} world…`);
+  resetGame();
+  // The founders start aloft, so there is nobody to center on: the camera
+  // stays on the map's middle, over the landing cavern.
+  centered = true;
+  try {
+    // Paused, with the founders' ships aloft, so the player lands each one
+    // before anyone moves (docs/ships.md).
+    began(await sim.start({ tps: 8, 'start-paused': true, 'place-ships': true, ...settings }));
+    status(null);
+    setPanel('ships'); // the game starts with placing the ships
+  } catch (e) {
+    status(String((e as Error).message), true);
+  }
+}
+
+/**
+ * Replace the game with a save file's (docs/save-load.md). The game plays on
+ * exactly as it would have, paused or running as it was saved. A file that
+ * does not load leaves the current game running, and says why.
+ */
+async function loadGame(file: File): Promise<void> {
+  status(`Loading ${file.name}…`);
+  const bytes = await file.arrayBuffer();
+  let started: Started;
+  try {
+    started = await sim.load(bytes);
+  } catch (e) {
+    const msg = `${file.name} did not load: ${(e as Error).message}`;
+    // With a game still running, the message can go after a while.
+    if (hello) flash(msg, true); else status(msg, true);
+    return;
+  }
+  resetGame();
+  centered = false; // center on the colony once its first frame is in
+  began(started);
+  const s = started.save!;
+  const other = s.commit !== started.commit ? ` (saved by commit ${s.commit.slice(0, 12)}; this is ${started.commit?.slice(0, 12)})` : '';
+  flash(`Loaded ${file.name}: tick ${s.tick}${other}`);
+}
+
+/** Download the running game as a save file. */
+async function saveGame(): Promise<void> {
+  if (!hello) return;
+  try {
+    const bytes = await sim.save();
+    const info = saveHeader(bytes);
+    const name = `mars-sim-${hello.seed}-t${info?.tick ?? debug.tick}.marssave`;
+    const url = URL.createObjectURL(new Blob([bytes], { type: 'application/octet-stream' }));
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = name;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 10_000);
+    flash(`Saved ${name}`);
+  } catch (e) {
+    status(`Save failed: ${(e as Error).message}`, true);
+  }
+}
+
+/** A save file's header: its second line is JSON (internal/sim/save.go). */
+function saveHeader(bytes: ArrayBuffer): SaveInfo | null {
+  const head = new TextDecoder().decode(new Uint8Array(bytes, 0, Math.min(bytes.byteLength, 4096)));
+  const line = head.split('\n')[1];
+  try { return line ? JSON.parse(line) as SaveInfo : null; } catch { return null; }
+}
+
+/** Show a status line for a few seconds, unless something replaces it first. */
+function flash(text: string, error = false): void {
+  status(text, error);
+  setTimeout(() => { if (ui.status === text) status(null); }, 5000);
+}
+
+/** Forget everything the page holds about the last game. */
+function resetGame(): void {
   hello = null;
   ui.hello = null;
   ui.selected = null;
@@ -171,27 +252,19 @@ async function newGame(settings: Settings): Promise<void> {
   ui.zone = { armed: false, tool: ui.zone.tool, rect: null, preview: null };
   ui.shipTool = null;
   ui.shipSent = null;
-  // The founders start aloft, so there is nobody to center on: the camera
-  // stays on the map's middle, over the landing cavern.
-  centered = true;
   lastInterest = '';
-  try {
-    // Paused, with the founders' ships aloft, so the player lands each one
-    // before anyone moves (docs/ships.md).
-    const started = await sim.start({ tps: 8, 'start-paused': true, 'place-ships': true, ...settings });
-    hello = withLooks(started.hello);
-    ui.hello = hello;
-    debug.hello = hello;
-    debug.genMs = started.genMs;
-    map.reset(hello);
-    cam.cx = hello.width / 2;
-    cam.cy = hello.height / 2;
-    viewChanged();
-    status(null);
-    setPanel('ships'); // the game starts with placing the ships
-  } catch (e) {
-    status(String((e as Error).message), true);
-  }
+}
+
+/** Show the game the worker just started (or loaded). */
+function began(started: Started): void {
+  hello = withLooks(started.hello);
+  ui.hello = hello;
+  debug.hello = hello;
+  debug.genMs = started.genMs;
+  map.reset(hello);
+  cam.cx = hello.width / 2;
+  cam.cy = hello.height / 2;
+  viewChanged();
 }
 
 /** The camera moved: redraw, and tell the worker what is on screen. */

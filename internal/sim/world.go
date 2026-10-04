@@ -493,11 +493,16 @@ type World struct {
 	// set to TilesLive the grid aliases tiles instead and nothing is copied;
 	// the dirty list is then only reported, in Snapshot.TileChanges. See
 	// tilegrid.go.
-	snapGrid    *TileGrid
-	snapFrame   uint64 // publishes so far; TileChanges.Frame
-	tileSharing TileSharing
-	pageDirty   []bool // pageDirty[pi]: page pi changed since the last publish
-	dirtyPages  []int  // the same pages, in mark order, for cheap iteration
+	//
+	// Neither the grid nor the sharing mode is saved (see save.go): under
+	// TilesLive the grid's pages alias tiles' own, which the save codec
+	// cannot keep, and the mode belongs to whichever host loads the game. A
+	// loaded world publishes its first grid afresh, with All set.
+	snapGrid    *TileGrid   `save:"-"`
+	snapFrame   uint64      // publishes so far; TileChanges.Frame
+	tileSharing TileSharing `save:"-"`
+	pageDirty   []bool      // pageDirty[pi]: page pi changed since the last publish
+	dirtyPages  []int       // the same pages, in mark order, for cheap iteration
 
 	// occ is the occupancy index: occ holds the EntityID standing on a tile, or
 	// 0 for empty (IDs start at 1). It turns "who is here?" from an
@@ -637,7 +642,9 @@ type World struct {
 
 	// Reactive plumbing: systems subscribe to world events; the job board is the
 	// first consumer, tracking the mineable frontier from TileChanged events.
-	subscribers []func(WorldEvent)
+	// Not saved: closures over the world, which newWorld registers again
+	// on the world a save is loaded into.
+	subscribers []func(WorldEvent) `save:"-"`
 	board       *jobBoard
 	pf          *pathfinder
 
@@ -960,8 +967,10 @@ type World struct {
 	genDone, genSeen []bool
 	genChunks        []chunkKey
 	// preview is handed to Snapshots so a frontend with the fog off can see
-	// ungenerated chunks. The World never reads it.
-	preview *ChunkPreview
+	// ungenerated chunks. The World never reads it. Not saved: frontends
+	// read it from their own goroutines, and it is only a cache; afterLoad
+	// builds a fresh one.
+	preview *ChunkPreview `save:"-"`
 	// cavernBreaches counts the floods revealAround has run: how many times
 	// the colony has broken into a cave system it did not know about.
 	cavernBreaches int
@@ -1098,27 +1107,7 @@ func newWorld(cfg Config, src *rand.PCG) *World {
 			w.refreshSaltExposure(tc.Pos)
 		}
 	})
-	w.frontier = newFlowField(w, func(add func(Point)) {
-		// Goals: walkable neighbors of every unclaimed frontier rock tile.
-		for p := range w.board.frontier {
-			if _, taken := w.board.claimed[p]; taken {
-				continue
-			}
-			for _, d := range neighbors8 {
-				add(p.Add(d.X, d.Y))
-			}
-		}
-	}, func(p Point) bool {
-		if !w.Walkable(p) {
-			return false
-		}
-		for _, d := range neighbors8 {
-			if w.board.isUnclaimedFrontier(p.Add(d.X, d.Y)) {
-				return true
-			}
-		}
-		return false
-	})
+	w.frontier = newFlowField(w, frontierSeed(w), frontierGoal(w))
 	w.subscribe(func(e WorldEvent) {
 		if tc, ok := e.(TileChanged); ok {
 			// The tile's walkability may have changed, and for a facility
@@ -1136,6 +1125,36 @@ func newWorld(cfg Config, src *rand.PCG) *World {
 	w.directorQueue = resolveSchedules(cfg.Schedules, w.rng)
 	w.mint(Community, Money(cfg.FoundingGrant))
 	return w
+}
+
+// frontierSeed and frontierGoal are the frontier field's seed and goal: the
+// walkable neighbors of every unclaimed frontier rock tile. Functions rather
+// than literals in newWorld so a loaded world can rebind them (see afterLoad).
+func frontierSeed(w *World) func(add func(Point)) {
+	return func(add func(Point)) {
+		for p := range w.board.frontier {
+			if _, taken := w.board.claimed[p]; taken {
+				continue
+			}
+			for _, d := range neighbors8 {
+				add(p.Add(d.X, d.Y))
+			}
+		}
+	}
+}
+
+func frontierGoal(w *World) func(Point) bool {
+	return func(p Point) bool {
+		if !w.Walkable(p) {
+			return false
+		}
+		for _, d := range neighbors8 {
+			if w.board.isUnclaimedFrontier(p.Add(d.X, d.Y)) {
+				return true
+			}
+		}
+		return false
+	}
 }
 
 // trackFacility gives a terrain kind the tile set and shared flow field that

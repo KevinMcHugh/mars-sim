@@ -37,7 +37,7 @@ export const groups: { id: string; label: string; tabs: Tab[] }[] = [
       { id: 'zones', label: 'Zones', component: ZonesPanel },
       { id: 'dig', label: 'Dig', component: DigPanel },
       { id: 'ships', label: 'Ships', component: ShipsPanel },
-      { id: 'game', label: 'New game', component: NewGamePanel },
+      { id: 'game', label: 'Game', component: NewGamePanel },
     ],
   },
 ];
