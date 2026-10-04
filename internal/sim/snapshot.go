@@ -2,6 +2,7 @@ package sim
 
 import (
 	"math"
+	"slices"
 	"sort"
 )
 
@@ -217,10 +218,19 @@ type OrderView struct {
 	Price Money
 	Actor Owner
 	Depot Point
-	// Posted is the tick it was posted, and Manual whether a player placed
-	// or repriced it for the colony (see docs/colony-orders.md).
+	// Posted is the tick it was posted (a reprice keeps the original's),
+	// and Manual whether a player placed or repriced it for the colony (see
+	// docs/colony-orders.md).
 	Posted int
 	Manual bool
+	// Expires is the tick it expires, 0 never. Escrow is the money a bid
+	// still holds (an ask's escrow is its Qty in goods). Filled and Fills
+	// are what it has traded so far, and with whom (see Fill and
+	// docs/order-detail.md); Fills is a copy.
+	Expires int
+	Escrow  Money
+	Filled  int
+	Fills   []Fill
 }
 
 // BookView summarizes one (item, depot) book: the best price and depth on
@@ -255,7 +265,8 @@ func (w *World) economyView() EconomyView {
 	}
 	for _, o := range w.sortedOrders(nil) {
 		v.Orders = append(v.Orders, OrderView{ID: o.ID, Side: o.Side, Item: o.Item, Qty: o.Qty,
-			Price: o.Price, Actor: o.Actor, Depot: o.Depot, Posted: o.Posted, Manual: o.manual})
+			Price: o.Price, Actor: o.Actor, Depot: o.Depot, Posted: o.Posted, Manual: o.manual,
+			Expires: o.Expires, Escrow: o.escrow, Filled: o.Filled, Fills: slices.Clone(o.Fills)})
 	}
 	for k, b := range w.books {
 		bv := BookView{Item: k.Item, Depot: k.Depot, Last: b.last, Volume: b.volume, Traded: b.traded}
@@ -407,6 +418,10 @@ type Stats struct {
 // engine's goroutine until the next tick. Everything else stays a copy.
 type Snapshot struct {
 	Tick int
+	// TicksPerDay is Config.TicksPerDay, for a frontend turning some other
+	// tick (an order's Posted) into a day and a clock time with DayOf and
+	// MinuteOfDay. See docs/days.md.
+	TicksPerDay int
 	// Ships is every colony ship that has landed, in landing order, then any
 	// still aloft (see LandShip). Before the first tick (Tick 0) a frontend
 	// may land the next aloft one with LandShip and move landed ones with
@@ -670,6 +685,7 @@ func (w *World) snapshot(paused bool, tps int) *Snapshot {
 
 	return &Snapshot{
 		Tick:                 w.tick,
+		TicksPerDay:          tpd,
 		Width:                w.Width,
 		Height:               w.Height,
 		Seed:                 w.cfg.Seed,

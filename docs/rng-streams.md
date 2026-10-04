@@ -8,7 +8,7 @@ Every random draw in the sim comes from a `math/rand/v2` PCG generator derived
 from `Config.Seed`. There are several separate streams, so one system's draws
 never shift another's. The seven that live past world generation keep their
 PCG source next to them, which lets their state be saved and restored. That is
-the RNG half of save/load.
+the RNG half of save/load ([save-load.md](./save-load.md)).
 
 ## Source
 
@@ -53,8 +53,15 @@ of the XOR constants above, therefore start from unrelated states.
 source. So `World.rngSrc` keeps the `*rand.PCG` behind each saved stream.
 `saveRNG` returns each source's `MarshalBinary` bytes in an `rngState`.
 `loadRNG` unmarshals them back into the same sources, and that rewinds the
-`*rand.Rand` wrappers too. The save file will embed `rngState`. The worldgen-only
-streams are used up before tick 0, so a load never needs them.
+`*rand.Rand` wrappers too. The worldgen-only streams are used up before tick 0,
+so a load never needs them.
+
+A save file does not go through `rngState`. The save codec
+([save-load.md](./save-load.md)) writes the whole World, and the PCGs go with it:
+`rngSrc.sim` and the source inside `w.rng` are one object, written once and
+loaded as one, so drawing from a loaded `w.rng` still moves `rngSrc.sim`
+(`TestSaveKeepsRNGSourcesShared`). `saveRNG` / `loadRNG` remain as the
+per-stream round trip `TestRNGStateRoundTrips` checks.
 
 `newWorld` takes the simulation stream's `*rand.PCG` (not a `*rand.Rand`), so
 the world always owns the source it would need to save. Tests that never draw
@@ -108,6 +115,5 @@ from `w.rng` pass `nil`.
 
 - [personality.md](./personality.md): why flavor draws stay off `World.rng`.
 - [determinism.md](./determinism.md): the other half of the invariant (map
-  order), and the lockstep test a save/load test will copy.
-- [browser-frontend.md](./browser-frontend.md): the save/load design this
-  unblocks.
+  order), and the lockstep test.
+- [save-load.md](./save-load.md): the save files that carry these streams.

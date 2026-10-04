@@ -238,6 +238,36 @@ func BenchmarkStepBigMap(b *testing.B) {
 	}
 }
 
+// BenchmarkClaimNearestMine measures one idle colonist's search for the
+// nearest claimable rock on a big frontier: a 200x200 map whose 160x160 carved
+// chamber is studded with rock pillars, so ~1,600 frontier tiles, with 200
+// colonists asking in turn (each claim is released, so every query sees the
+// same board). claimNearestMine used to scan the whole frontier per call; the
+// chunk-ring search stops a ring past the nearest hit.
+func BenchmarkClaimNearestMine(b *testing.B) {
+	w := benchWorldSized(200, 200, 0)
+	for y := 22; y < w.Height-20; y += 4 {
+		for x := 22; x < w.Width-20; x += 4 {
+			w.SetTerrain(Point{x, y}, Rock)
+		}
+	}
+	floors := w.freeFloorTiles()
+	w.rng.Shuffle(len(floors), func(i, j int) { floors[i], floors[j] = floors[j], floors[i] })
+	var miners []*Entity
+	for i := 0; i < 200; i++ {
+		miners = append(miners, w.spawn(Colonist, floors[i]))
+	}
+	w.refreshSpatial()
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		e := miners[i%len(miners)]
+		if p, ok := w.claimNearestMine(e); ok {
+			w.board.releaseMine(p, e.ID)
+		}
+	}
+}
+
 // benchWorldSmallColony builds a huge map with only a small carved-out colony
 // near the center, mirroring a fresh game on a big map: most of the grid is
 // still untouched Rock. This is the regime a full Width*Height scan in a

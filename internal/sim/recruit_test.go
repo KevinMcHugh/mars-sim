@@ -264,3 +264,37 @@ func TestRecruitsWaitForTheFounders(t *testing.T) {
 		t.Fatal("the desk says ready while the founders are aloft")
 	}
 }
+
+// A set on offer survives a save: the loaded game shows the same cards, hires
+// the same people, and its next set is the one the saved game would have
+// rolled. moneyExported comes back too, so the books still balance.
+func TestRecruitingSurvivesASave(t *testing.T) {
+	w := recruitWorld(t)
+	w.rollRecruits()
+	got := saveAndLoad(t, w)
+	if got.moneyExported != w.moneyExported || got.recruitSets != w.recruitSets {
+		t.Fatalf("loaded exported %v sets %d, saved %v %d", got.moneyExported, got.recruitSets, w.moneyExported, w.recruitSets)
+	}
+	va, vb := w.recruitingView(), got.recruitingView()
+	if vb.Offer != va.Offer || len(vb.Candidates) != len(va.Candidates) {
+		t.Fatalf("loaded offer %d with %d cards, saved %d with %d", vb.Offer, len(vb.Candidates), va.Offer, len(va.Candidates))
+	}
+	for i := range va.Candidates {
+		if va.Candidates[i].Profile.Name != vb.Candidates[i].Profile.Name || va.Candidates[i].Savings != vb.Candidates[i].Savings {
+			t.Fatalf("card %d: saved %s, loaded %s", i, va.Candidates[i].Profile.Name, vb.Candidates[i].Profile.Name)
+		}
+	}
+	for _, x := range []*World{w, got} {
+		if !x.hireRecruits(HireRecruits{Offer: 1, Picks: []int{2}}) {
+			t.Fatalf("hire refused; log: %v", x.log.tail(1))
+		}
+		assertMoneyConserved(t, x)
+		x.rollRecruits()
+	}
+	if a, b := w.entities[w.nextID-1], got.entities[got.nextID-1]; a.Profile.Name != b.Profile.Name || a.Pos != b.Pos {
+		t.Fatalf("the hire differs after loading: %s at %v vs %s at %v", a.Profile.Name, a.Pos, b.Profile.Name, b.Pos)
+	}
+	if a, b := w.recruitingView().Candidates[0], got.recruitingView().Candidates[0]; a.Profile.Name != b.Profile.Name {
+		t.Fatalf("the next set differs after loading: %s vs %s", a.Profile.Name, b.Profile.Name)
+	}
+}

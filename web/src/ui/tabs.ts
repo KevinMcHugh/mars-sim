@@ -39,7 +39,7 @@ export const groups: { id: string; label: string; tabs: Tab[] }[] = [
       { id: 'dig', label: 'Dig', component: DigPanel },
       { id: 'ships', label: 'Ships', component: ShipsPanel },
       { id: 'recruit', label: 'Recruit', component: RecruitPanel },
-      { id: 'game', label: 'New game', component: NewGamePanel },
+      { id: 'game', label: 'Game', component: NewGamePanel },
     ],
   },
 ];

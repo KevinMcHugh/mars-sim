@@ -91,6 +91,23 @@ async function handle(msg) {
       if (!r.error) { started = true; schedule(0); }
       break;
     }
+    case 'load': {
+      // Like start, from a save file's bytes; a file that fails to load
+      // leaves the running game (if any) as it was.
+      const api = marssim.api ?? 1;
+      const r = api >= 16 ? JSON.parse(marssim.load(new Uint8Array(msg.buffer))) : { error: 'this build cannot load saves' };
+      postMessage({ type: 'started', result: r, loadMs, api });
+      if (!r.error) { started = true; schedule(0); }
+      break;
+    }
+    case 'save': {
+      // Between slices, so the world is at rest (docs/save-load.md).
+      const r = marssim.save();
+      if (typeof r === 'string') { postMessage({ type: 'saved', error: JSON.parse(r).error }); break; }
+      const buffer = r.buffer;
+      postMessage({ type: 'saved', buffer }, [buffer]);
+      break;
+    }
     case 'command': {
       const r = JSON.parse(marssim.send(JSON.stringify(msg.command)));
       if (r.error) postMessage({ type: 'error', error: r.error });

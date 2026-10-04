@@ -4,6 +4,7 @@
   import { ui } from '../game.svelte';
   import SpeedControl from './SpeedControl.svelte';
   import FlowControl from './FlowControl.svelte';
+  import { clock } from './format';
 
   // Creatures: their generic glyph (glyphs.ForKind), as the TUI's header shows them.
   const creatures: [stat: string, kind: string][] = [
@@ -28,11 +29,6 @@
     if (!h) return '';
     const g = h.glyphs.terrain[h.enums.terrains.indexOf(name)] ?? -1;
     return g >= 0 ? h.glyphs.symbols[g] : '';
-  }
-  // The clock time, from Stats.MinuteOfDay (minutes since midnight).
-  function clock(minute: number): string {
-    const pad = (n: number) => String(n).padStart(2, '0');
-    return `${pad(Math.floor(minute / 60))}:${pad(minute % 60)}`;
   }
   const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
 </script>

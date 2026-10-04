@@ -479,6 +479,11 @@ func (e *Engine) apply(cmd Command) (rateChanged bool) {
 	case HireRecruits:
 		e.world.hireRecruits(c)
 		e.requestPublish()
+	case SaveGame:
+		err := e.Save(c.To)
+		if c.Done != nil {
+			c.Done <- err
+		}
 	}
 	return false
 }

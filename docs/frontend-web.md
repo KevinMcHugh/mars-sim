@@ -14,9 +14,12 @@ readout. Around it is a Svelte chrome:
 - **A side panel,** whose tab strip has two labelled rows. **View** holds the
   tabs that show the colony: the Inspect tab (click the map), the Roster, the
   Log, Jobs, Storage, Market, Charts and the Lore tab. **Act** holds the tabs
-  whose job is to change it: Zones, Dig, Ships, Recruit and a new-game form (which can
-  also start a colony that zones for itself: `zoning-auto`). A cold load
-  opens on that form (see "The new-game form" below). Market stays
+  whose job is to change it: Zones, Dig, Ships, Recruit and the
+  Game tab. That tab
+  holds a new-game form, which can also start a colony that zones for itself
+  (`zoning-auto`), and **Save game** / **Load game…** (Ctrl/⌘+S saves too;
+  see [save-load.md](./save-load.md)). A cold load opens on that tab (see
+  "The new-game form" below). Market stays
   under View although it hosts the colony's orders: it is mostly prices, and
   splitting one tab across both rows would make the line meaningless.
   Any tab can be **popped out** (⧉ in its title row) into a window over the
@@ -83,11 +86,11 @@ rebuilds the WASM first (`predev`), then serves the game on
 <http://localhost:5173/> and the spike on `/spike/`. The URL fills the
 new-game form: `?width=2000&height=2000&seed=7&fog-of-war=false&zoning-auto=true`. `npm run build`
 writes a static site to `web/dist/`. `npm run check` type-checks and `npm test`
-runs the wire decoder's, the activity chart's and the ship count's tests. All of these need Go on the path. After a Go
+runs the wire decoder's, the activity chart's, the ship count's, the Storage tab's and the shared number and time formats' tests. All of these need Go on the path. After a Go
 change with the dev server already running, run `npm run wasm` and reload.
 
-**The new-game form.** A cold load starts no game: it opens the **New
-game** tab, filled from the URL over the defaults (10000×10000, 6
+**The new-game form.** A cold load starts no game: it opens the **Game**
+tab, filled from the URL over the defaults (10000×10000, 6
 colonists, fog of war on, no seed, so the engine picks one), and **Start**
 goes straight to the Ships tab. The page used to generate a 10000×10000
 world on load, so the first thing a player saw was a game they had not
@@ -313,7 +316,7 @@ closed.
     a phone. Docked, it shows the two newest lines, one line each, and hides
     while a tab's sheet is open.
 
-**Foldable sections.** The Inspect, Market and Lore tabs are long lists of
+**Foldable sections.** The Inspect, Market, Storage and Lore tabs are long lists of
 headed parts (Skills, Affinities, Books, Alien species…), and most of the
 time you only read a few of them. Each heading is a `Section`
 (`ui/Section.svelte`): a click folds it shut (▸) or opens it (▾). Folded
@@ -345,9 +348,20 @@ ticker's), until they are opened again.
   tint's shader with its own buffers, so it works at every zoom). The
   highlight goes when the project closes, finishes, or the tab unmounts.
   **Find** centers the map on the tiles still to build.
-- **Storage** lists every container with a fill bar and what it holds most
-  of. A row opens its tile in the inspector, which already shows contents and
-  ledger, rather than a second copy of that view.
+- **Storage** has three foldable parts. **Pool** sums every container:
+  slots and items used, and each item's colony-wide total, most first (a
+  click on an item searches for it). **Search** takes an item and an owner,
+  each a case-insensitive substring with the names in storage suggested,
+  and lists the containers that match, most first, with what matched. An
+  item alone reads the containers' contents, so it finds stock nobody owns;
+  any owner term reads the ledgers instead, since only a ledger says whose a
+  stack is ("Uma" also finds what is "for sale by Uma"). **Containers**, at
+  the bottom, lists every container with a fill bar and what it holds most
+  of. Any container row opens its tile in the inspector, which already
+  shows contents and ledger, rather than a second copy of that view. The
+  arithmetic is `ui/storage.ts` (tested by `storage.test.mjs`); the search
+  terms live at module scope in `StoragePanel`, so a row opened in the
+  inspector comes back (**← Storage**) to the same results.
 - **Topic payloads share their unchanged parts.** A topic is resent whole
   whenever anything in it changes, so each send used to make every row of
   every list a new object, and a keyed `{#each}` re-rendered all of them.
@@ -366,7 +380,10 @@ ticker's), until they are opened again.
 - **Market** shows the money supply, the accounts (an account opens in place,
   from its own `account:<key>` topic, so only the open one is built), and the
   books, prices, plans, work orders and recent trades. A depot or a planner is
-  a link to the inspector. Its **Colony orders** desk (`ColonyOrders`) posts a
+  a link to the inspector. A book opens in place to list its orders, and any
+  open order (in a book, an account, or the colony's desk) opens its detail,
+  each from its own topic (`book:`, `order:`; see
+  [order-detail.md](./order-detail.md)). Its **Colony orders** desk (`ColonyOrders`) posts a
   bid or an ask in the colony's name, and reprices or removes the colony's
   open orders, with the `order-place`, `order-reprice` and `order-cancel`
   commands, and suspends or resumes a standing order with `order-suspend`
@@ -414,7 +431,7 @@ ticker's), until they are opened again.
   [recruiting.md](./recruiting.md)): **Call the recruiter** sends
   `recruit-roll`, the set comes back as cards from the `recruit` topic, and
   **Hire** sends `recruit-hire` with the set's id and the ticked indices
-  (host API 16). **New set** rolls again; **Turn away** hires nobody. The
+  (host API 17). **New set** rolls again; **Turn away** hires nobody. The
   cards fill as many columns as the panel is wide, so popping the tab out
   shows a whole set side by side.
 

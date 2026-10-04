@@ -42,19 +42,27 @@ export type Command =
   /** Hire the candidates at picks from set id; no picks turns the set away. */
   | { type: 'recruit-hire'; id: number; picks: number[] };
 
-export interface Started { hello: Hello; genMs: number; loadMs: number }
+/** A save file's header (sim.SaveInfo; docs/save-load.md). */
+export interface SaveInfo { format: number; commit: string; layout: string; seed: number; tick: number; width: number; height: number; tps: number; paused: boolean }
+
+export interface Started {
+  hello: Hello; genMs: number; loadMs: number;
+  /** For a loaded game: the file's header, and the commit of this build. */
+  save?: SaveInfo; commit?: string;
+}
 
 /**
  * The WASM exports this page expects (hostAPI in cmd/mars-sim-wasm/main.go).
  * A mismatch means mars-sim.wasm is from another build: usually a pull without
  * rerunning npm run wasm.
  */
-export const HOST_API = 16;
+export const HOST_API = 17;
 
 export class SimClient {
   private worker: Worker;
   private pending: ((s: Started) => void) | null = null;
   private failed: ((e: Error) => void) | null = null;
+  private saving: { resolve: (b: ArrayBuffer) => void; reject: (e: Error) => void }[] = [];
   onFrame: (f: Frame, bytes: number) => void = () => {};
   /** Panel topics that changed, by name (see internal/wire/topics.go). */
   onTopics: (topics: Record<string, unknown>) => void = () => {};
@@ -71,6 +79,24 @@ export class SimClient {
       this.pending = resolve;
       this.failed = reject;
       this.worker.postMessage({ type: 'start', settings, budgetMs });
+    });
+  }
+
+  /** Replace the game with a save file's (docs/save-load.md). */
+  load(file: ArrayBuffer, budgetMs = 8): Promise<Started> {
+    return new Promise((resolve, reject) => {
+      this.pending = resolve;
+      this.failed = reject;
+      this.worker.postMessage({ type: 'budget', budgetMs });
+      this.worker.postMessage({ type: 'load', buffer: file }, [file]);
+    });
+  }
+
+  /** The running game as a save file. */
+  save(): Promise<ArrayBuffer> {
+    return new Promise((resolve, reject) => {
+      this.saving.push({ resolve, reject });
+      this.worker.postMessage({ type: 'save' });
     });
   }
 
@@ -100,10 +126,18 @@ export class SimClient {
         } else if (msg.result.error) {
           this.failed?.(new Error(msg.result.error));
         } else {
-          this.pending?.({ hello: msg.result.hello, genMs: msg.result.genMs, loadMs: msg.loadMs });
+          const r = msg.result;
+          this.pending?.({ hello: r.hello, genMs: r.genMs, loadMs: msg.loadMs, save: r.save, commit: r.commit });
         }
         this.pending = this.failed = null;
         break;
+      case 'saved': {
+        // The worker answers saves in the order they were asked.
+        const p = this.saving.shift();
+        if (msg.error) p?.reject(new Error(msg.error));
+        else p?.resolve(msg.buffer);
+        break;
+      }
       case 'frame':
         try {
           this.onFrame(decodeFrame(msg.buffer), msg.buffer.byteLength);

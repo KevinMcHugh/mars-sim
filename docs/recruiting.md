@@ -37,7 +37,7 @@ than it cost.
 - [`internal/wire/recruit.go`](../internal/wire/recruit.go): the `recruit`
   topic.
 - [`cmd/mars-sim-wasm/main.go`](../cmd/mars-sim-wasm/main.go): the
-  `recruit-roll` and `recruit-hire` page commands (host API 16).
+  `recruit-roll` and `recruit-hire` page commands (host API 17).
 - [`web/src/ui/RecruitPanel.svelte`](../web/src/ui/RecruitPanel.svelte): the
   Recruit tab; `rollRecruits` and `hireRecruits` in
   [`web/src/game.svelte.ts`](../web/src/game.svelte.ts).
@@ -207,8 +207,12 @@ answer.
   on in `arriveRecruit`.
 - **Another off-world purchase** (a supply drop, a machine): pay with
   `export`, never by writing the treasury, or the money audit breaks.
-- **Saving a game** needs `World.recruits`, `recruitSets`, `recruitsHired`
-  and `moneyExported` saved with the rest.
+- **Saving a game** needs nothing extra: the save codec walks the whole
+  `World`, so the set on offer, the counters, `moneyExported` and the
+  recruit stream are saved with the rest (see [save-load.md](./save-load.md)).
+  `TestRecruitingSurvivesASave` checks that a loaded game hires the same
+  people and rolls the same next set. A new field on `recruitCandidate` is
+  saved too, as long as the codec can encode it (no funcs).
 
 ## Related
 
@@ -220,3 +224,4 @@ answer.
 - [frontend-web.md](./frontend-web.md): the Recruit tab.
 - [wire-format.md](./wire-format.md): the `recruit` topic.
 - [colonist-looks.md](./colonist-looks.md): the emoji on each card.
+- [save-load.md](./save-load.md): how the offer and the stream are saved.

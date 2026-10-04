@@ -5,9 +5,11 @@
   // so upkeep stops posting it. The orders are ordinary ones on the book, escrowed from the
   // treasury or the colony's stock (docs/colony-orders.md). The data is the
   // market topic's colony desk (internal/wire/boards.go); the outcome of a
-  // command lands in the log.
+  // command lands in the log. An order opens its detail (OrderDetail) on a
+  // click.
   import { cancelColonyOrder, centerOn, placeColonyOrder, repriceColonyOrder, resumeColonyOrders, suspendColonyOrders } from '../game.svelte';
   import { money } from './format';
+  import OrderDetail from './OrderDetail.svelte';
 
   interface Desk {
     orders: { id: number; side: 'bid' | 'ask'; item: string; qty: number; price: number; x: number; y: number; posted: number; manual: boolean }[];
@@ -92,10 +94,14 @@
     editing = null;
   }
 
-  // The row being edited leaves the book (filled, or repriced elsewhere):
-  // stop editing it.
+  // The order whose detail is open under its row (OrderDetail).
+  let detail: number | null = $state(null);
+
+  // The row being edited or detailed leaves the book (filled, or repriced,
+  // which re-posts it under a new id): stop editing or showing it.
   $effect(() => {
     if (editing != null && !desk.orders.some((o) => o.id === editing)) editing = null;
+    if (detail != null && !desk.orders.some((o) => o.id === detail)) detail = null;
   });
 
   const verb = (side: 'bid' | 'ask') => (side === 'bid' ? 'buying' : 'selling');
@@ -165,7 +171,8 @@
         <tr>
           <td><span class="tag" class:manual={o.manual} title={o.manual ? 'placed or repriced by you; the colony leaves it alone' : 'a standing order the colony keeps topped up: withdrawn, it is posted again'}>{o.manual ? 'yours' : 'auto'}</span></td>
           <td>
-            {o.side === 'bid' ? 'buy' : 'sell'} {o.qty} {o.item}
+            <button type="button" class="link" aria-expanded={o.id === detail} title="Show this order's detail"
+              onclick={() => (detail = detail === o.id ? null : o.id)}>{o.side === 'bid' ? 'buy' : 'sell'} {o.qty} {o.item}</button>
             <div class="acts">
             {#if editing !== o.id}
               <button type="button" onclick={() => startEdit(o)} title="Re-post at another price; it joins the back of the queue">Reprice</button>
@@ -191,6 +198,9 @@
           </td>
           <td><button type="button" class="link" onclick={() => centerOn(o.x, o.y)}>{depotLabel(o.x, o.y)}</button></td>
         </tr>
+        {#if o.id === detail}
+          <tr class="detail"><td colspan="4"><OrderDetail id={o.id} /></td></tr>
+        {/if}
       {/each}
     </tbody>
   </table>
@@ -241,4 +251,5 @@
   .tag.manual { color: #fff; border-color: var(--accent); background: rgba(224, 112, 58, 0.25); }
   .link { border: none; background: none; padding: 0; color: #8fd0ff; cursor: pointer; font: inherit; }
   .link:hover { text-decoration: underline; }
+  tr.detail td { border-top: none; padding: 0 4px; white-space: normal; width: auto; }
 </style>
