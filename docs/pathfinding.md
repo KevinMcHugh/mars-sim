@@ -186,6 +186,8 @@ the colony grows):
 
 - **Small colonies/maps**: each miner claims a specific nearest rock up front
   (`claimNearestMine`) and A\*s to it — cheaper when few miners share the sweep.
+  The claim searches the frontier in chunk rings rather than scanning all of
+  it (see [spatial-index-and-performance.md](./spatial-index-and-performance.md)).
 - **Big colonies/maps** (`FrontierFieldMinColonists` / `FrontierFieldMinArea`):
   miners follow the shared frontier flow field to the digging edge and claim a
   rock **on arrival** — one BFS serves everyone. A 300x300 map with 3000 colonists
