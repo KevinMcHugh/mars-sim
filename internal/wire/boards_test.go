@@ -114,6 +114,24 @@ func TestBoardTopics(t *testing.T) {
 			t.Errorf("account %s = %+v, listed as %+v", a.Key, acct, a)
 		}
 	}
+	// Every open order's page resolves, and its book lists it.
+	for _, so := range snap.Economy.Orders {
+		var o OrderTopic
+		due(t, snap, fmt.Sprintf("order:%d", so.ID), &o)
+		if !o.Found || o.Open != so.Qty || o.Qty != o.Open+o.Filled || o.Item != so.Item.String() {
+			t.Errorf("order %d = %+v, snapshot has %+v", so.ID, o, so)
+		}
+		var b BookTopic
+		due(t, snap, fmt.Sprintf("book:%d,%d:%s", so.Depot.X, so.Depot.Y, so.Item), &b)
+		listed := false
+		for _, r := range append(b.Bids, b.Asks...) {
+			listed = listed || r.ID == uint64(so.ID)
+		}
+		if !listed {
+			t.Errorf("order %d is missing from its book %+v", so.ID, b)
+		}
+	}
+
 	var gone AccountTopic
 	due(t, snap, fmt.Sprintf("account:%d", 1<<40), &gone)
 	if gone.Found {

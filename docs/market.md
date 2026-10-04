@@ -52,7 +52,9 @@ then oldest first.
 the opposite side, they trade the smaller quantity **at the resting order's
 price**. Whatever is left rests; `ttl` (or never) decides when it expires.
 Trades are recorded (`w.trades`, the last 64) and set the book's last price and
-volume.
+volume. Each order also records its own fills, `Filled` units and one `Fill`
+line per counterparty, for the Market tab's order detail; nothing in the
+simulation reads them (see [order-detail.md](./order-detail.md)).
 
 ### Escrow
 

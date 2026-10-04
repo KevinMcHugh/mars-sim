@@ -3,9 +3,12 @@
   // colonists richest first), and the market's books, prices, plans, work
   // orders and trades, from the market topic (internal/wire/boards.go). An
   // account opens its own page in place, from account:<key>. The colony's
-  // order desk (ColonyOrders) places, reprices and withdraws its orders.
+  // order desk (ColonyOrders) places, reprices and withdraws its orders. A
+  // book opens in place to list its orders (BookOrders), and any order opens
+  // its detail (OrderDetail, docs/order-detail.md).
   import { inspect, subscribe, topics } from '../game.svelte';
   import AccountDetail from './AccountDetail.svelte';
+  import BookOrders from './BookOrders.svelte';
   import Section from './Section.svelte';
   import ColonyOrders from './ColonyOrders.svelte';
   import { money } from './format';
@@ -26,6 +29,9 @@
   $effect(() => subscribe('market'));
   const m = $derived(topics.data.market as Market | undefined);
   let openKey: string | null = $state(null);
+  // The book opened in place to list its orders, by bookKey.
+  let openBook: string | null = $state(null);
+  const bookKey = (b: { item: string; x: number; y: number }) => `${b.x},${b.y}:${b.item}`;
 
   const side = (price: number, qty: number) => (qty === 0 ? '—' : `${money(price)}×${qty}`);
 </script>
@@ -64,14 +70,20 @@
       <table>
         <thead><tr><th>item</th><th>depot</th><th>bid</th><th>ask</th><th>last</th></tr></thead>
         <tbody>
-          {#each m.books as b (b.item + b.x + ',' + b.y)}
-            <tr>
-              <td>{b.item}</td>
+          {#each m.books as b (bookKey(b))}
+            <tr class:on={bookKey(b) === openBook}>
+              <td>
+                <button type="button" class="link" aria-expanded={bookKey(b) === openBook} title="Show the open orders in this book"
+                  onclick={() => (openBook = openBook === bookKey(b) ? null : bookKey(b))}>{bookKey(b) === openBook ? '▾' : '▸'} {b.item}</button>
+              </td>
               <td><button type="button" class="link" onclick={() => inspect({ tile: [b.x, b.y] }, 'market')}>{b.x},{b.y}</button></td>
               <td class="num">{side(b.bestBid, b.bidQty)}</td>
               <td class="num">{side(b.bestAsk, b.askQty)}</td>
               <td class="num" title={b.traded ? `${b.volume} traded` : 'never traded'}>{b.traded ? money(b.last) : '—'}</td>
             </tr>
+            {#if bookKey(b) === openBook}
+              <tr class="open"><td colspan="5"><BookOrders item={b.item} x={b.x} y={b.y} /></td></tr>
+            {/if}
           {/each}
         </tbody>
       </table>
@@ -149,6 +161,8 @@
   th { text-align: left; color: var(--muted); font-weight: normal; padding: 2px 4px; }
   td { padding: 2px 4px; border-top: 1px solid var(--line); }
   td.num { text-align: right; }
+  tr.on td { background: rgba(255, 255, 255, 0.04); }
+  tr.open td { border-top: none; padding: 0; }
   .lines li { line-height: 1.5; font-size: 13px; }
   .link { border: none; background: none; padding: 0; color: #8fd0ff; cursor: pointer; font: inherit; }
   .link:hover { text-decoration: underline; }
