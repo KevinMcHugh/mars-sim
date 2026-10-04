@@ -47,6 +47,11 @@ func paramTopic(name string) (topic, bool) {
 		return bookParam(arg)
 	case "order":
 		return orderParam(arg)
+	case "series":
+		if arg == "" {
+			return topic{}, false
+		}
+		return topic{every: chartEvery, build: func(s *sim.Snapshot) any { return seriesTopic(s, arg) }}, true
 	}
 	return topic{}, false
 }

@@ -95,5 +95,6 @@ Perf screen's fractional ones.
 ## Related
 
 - [perf-screen.md](./perf-screen.md) — the chart this screen reuses.
+- [charts.md](./charts.md) — the general-purpose metrics history the browser's Custom charts read, which borrows this halving.
 - [frontend-tui.md](./frontend-tui.md) — tabs and screens.
 - [food.md](./food.md), [ships.md](./ships.md) — where the meals and fixtures come from.

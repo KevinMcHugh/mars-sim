@@ -122,6 +122,12 @@ at least a dollar if it holds any excess, nothing otherwise.
 It is all-or-nothing and reports whether it happened. Paying yourself is a
 no-op that still requires the funds.
 
+It also keeps the running totals the chart system reads (see
+[charts.md](./charts.md)): `moneyMoved` and `payments`, the dollars and the
+number of payments that changed hands. A transfer into escrow, or escrow
+going back to its own poster (`payer`), is not a payment, so a bid that fills
+under its limit counts its price once and its refund not at all.
+
 ### Seeing it
 
 `Snapshot.Economy` carries the treasury, circulating, frozen, escrowed,

@@ -52,9 +52,12 @@ The rest of the TUI's tabs are planned in
   `format.ts` formats money.
 - [`web/src/ui/charts/`](../web/src/ui/charts/Chart.svelte) — the Charts tab:
   `Chart` (one uPlot chart with a tooltip), `PerfCharts`,
-  `PopulationCharts`, `ActivityChart`, `theme.ts` (colors and the activity
-  bands), and `population.ts` (the activity arithmetic, tested by
-  `population.test.mjs`). `logkinds.ts` colors the log's types. `inspect.ts` types the
+  `PopulationCharts`, `ActivityChart`, `CustomCharts` with `CustomChart`,
+  `SeriesPicker` and `Subscribe` (the chart builder, see
+  [charts.md](./charts.md)), `theme.ts` (colors and the activity
+  bands), `population.ts` (the activity arithmetic, tested by
+  `population.test.mjs`) and `builder.ts` (the chart builder's arithmetic,
+  tested by `builder.test.mjs`). `logkinds.ts` colors the log's types. `inspect.ts` types the
   inspector's payloads.
 - [`web/src/speed.ts`](../web/src/speed.ts) — the speed selector's steps.
 - [`web/src/settings.ts`](../web/src/settings.ts) — new-game settings from the
@@ -440,8 +443,8 @@ A link from any of these into the inspector remembers its tab
 **← Market**. Going back keeps the selection, so the row stays highlighted.
 
 **Charts** are the TUI's three chart screens in one tab, a view at a time,
-drawn with [uPlot](https://github.com/leeoniya/uPlot) on their own opaque
-surface:
+plus the player's own charts, drawn with
+[uPlot](https://github.com/leeoniya/uPlot) on their own opaque surface:
 
 - **Perf** (the `perf` topic): ticks per second, averaged over the trailing
   second as the TUI does, and milliseconds per tick, with a gap where the
@@ -456,6 +459,10 @@ surface:
   sample covers as little as 50 ticks, and drawn one by one the stack was
   noise. Each band is split into doing it and walking there, the walking part
   hatched at 45° in the band's color rather than given a second hue.
+- **Custom** (`metrics`, and a `series:<key>` per series shown): charts the
+  player builds from anything the sim measures, readings or bucketed per
+  hour, half-day, day or week, kept in this browser. See
+  [charts.md](./charts.md).
 
 The colors are the dataviz reference palette's dark steps, checked with its
 validator against the charts' surface (`#1a1a19`). A chart gets at most eight

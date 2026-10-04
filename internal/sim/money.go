@@ -82,7 +82,29 @@ func (w *World) transfer(from, to Owner, amount Money) bool {
 	}
 	*src -= amount // src and dst may be the same account; the net is zero
 	*dst += amount
+	if amount > 0 && to.Kind != ownerOrder && to.Kind != ownerWork && w.payer(from) != to {
+		// Money changed hands: not into escrow, and not escrow coming home.
+		w.moneyMoved += amount
+		w.payments++
+	}
 	return true
+}
+
+// payer is whose money an account holds: an order's or a work order's
+// escrow is its poster's, and anyone else's is their own. Escrow paid back
+// to its payer is a refund, not a payment.
+func (w *World) payer(o Owner) Owner {
+	switch o.Kind {
+	case ownerOrder:
+		if ord := w.orders[OrderID(o.ID)]; ord != nil {
+			return ord.Actor
+		}
+	case ownerWork:
+		if wo := w.workOrders[OrderID(o.ID)]; wo != nil {
+			return wo.Issuer
+		}
+	}
+	return o
 }
 
 // mint creates money in an account. Only the founding grant and a new

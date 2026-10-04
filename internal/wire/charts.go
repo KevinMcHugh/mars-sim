@@ -90,3 +90,92 @@ func populationTopic(s *sim.Snapshot) PopulationTopic {
 	}
 	return t
 }
+
+// ---- the chart builder ------------------------------------------------------
+//
+// Everything the sim measures (sim.MetricsView; docs/charts.md) goes out in
+// two tiers, so a chart costs what it plots, not what could be plotted: the
+// "metrics" topic is the catalog the picker lists (every metric and every
+// series, no readings), and "series:<key>" is one series' readings. The
+// catalog changes only when a series starts or ends, so after its first send
+// it is rarely sent again; a colony of hundreds has hundreds of wallets, and
+// only the ones on a chart are ever sent.
+
+// MetricsTopic is the catalog: what can be charted.
+type MetricsTopic struct {
+	Metrics []MetricLine `json:"metrics"`
+	Series  []SeriesLine `json:"series"`
+}
+
+// MetricLine is one metric (sim.MetricDef).
+type MetricLine struct {
+	Key   string `json:"key"`
+	Label string `json:"label"`
+	Group string `json:"group"`
+	Doc   string `json:"doc"`
+	Kind  string `json:"kind"` // "level" or "total" (a running total since the landing)
+	Unit  string `json:"unit"` // "count" or "dollars"
+	Per   string `json:"per"`  // "colony", "item" or "account"
+}
+
+// SeriesLine is one series the picker can offer: Metric indexes Metrics.
+type SeriesLine struct {
+	Key     string `json:"key"`
+	Metric  int    `json:"metric"`
+	Subject string `json:"subject,omitempty"`
+	Ended   bool   `json:"ended,omitempty"`
+}
+
+func metricsTopic(s *sim.Snapshot) MetricsTopic {
+	defs := sim.MetricDefs()
+	t := MetricsTopic{Metrics: make([]MetricLine, len(defs))}
+	for i, d := range defs {
+		t.Metrics[i] = MetricLine{Key: d.Key, Label: d.Label, Group: d.Group, Doc: d.Doc,
+			Kind: d.Kind.String(), Unit: d.Unit.String(), Per: d.Per.String()}
+	}
+	if s.Metrics == nil {
+		t.Series = []SeriesLine{}
+		return t
+	}
+	t.Series = make([]SeriesLine, 0, len(s.Metrics.Series))
+	for _, x := range s.Metrics.Series {
+		if len(x.Values) > 0 {
+			t.Series = append(t.Series, SeriesLine{Key: x.Key, Metric: x.Metric, Subject: x.Subject, Ended: x.Ended})
+		}
+	}
+	return t
+}
+
+// SeriesTopic is one series' readings, oldest first, with the tick and the
+// clock hour of each (hours since the landing day's midnight: day
+// hour/24+1). Every is the hours between samples, which a frontend's
+// buckets cannot be finer than. Found is false for a key the sim has no
+// readings for (yet): a saved chart from another game, or a good nobody has
+// traded.
+type SeriesTopic struct {
+	Key    string  `json:"key"`
+	Found  bool    `json:"found"`
+	Every  int     `json:"every"`
+	Tick   []int   `json:"tick"`
+	Hour   []int   `json:"hour"`
+	Values []int64 `json:"values"`
+}
+
+func seriesTopic(s *sim.Snapshot, key string) SeriesTopic {
+	t := SeriesTopic{Key: key, Tick: []int{}, Hour: []int{}, Values: []int64{}}
+	m := s.Metrics
+	if m == nil {
+		return t
+	}
+	t.Every = m.Every
+	for _, x := range m.Series {
+		if x.Key != key || len(x.Values) == 0 {
+			continue
+		}
+		end := x.Start + len(x.Values)
+		t.Found, t.Values = true, x.Values
+		t.Tick, t.Hour = m.Ticks[x.Start:end], m.Hours[x.Start:end]
+		break
+	}
+	return t
+}
