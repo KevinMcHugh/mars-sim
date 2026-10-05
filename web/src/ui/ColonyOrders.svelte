@@ -29,18 +29,24 @@
 
   // ---- placing -------------------------------------------------------------
 
-  let side: 'bid' | 'ask' = $state('bid');
+  let side = $state<'bid' | 'ask'>('bid');
   let item = $state('');
   let qty: number | null = $state(1);
   // Empty means "the item's market value", shown as the placeholder.
   let priceIn: number | null = $state(null);
   let depotKey = $state('');
 
-  const depot = $derived(desk.depots.find((d) => `${d.x},${d.y}` === depotKey) ?? desk.depots[0]);
-  const chosenItem = $derived(item || desk.items[0] || '');
+  const held = (d: Desk['depots'][number] | undefined, it: string) => d?.holdings.find((h) => h.item === it)?.count ?? 0;
+  // Selling, offer only what there is to sell: the depots where the colony
+  // holds something, and the items it holds at the chosen one. Buying, any
+  // depot and any item will do.
+  const depots = $derived(side === 'ask' ? desk.depots.filter((d) => d.holdings.some((h) => h.count > 0)) : desk.depots);
+  const depot = $derived(depots.find((d) => `${d.x},${d.y}` === depotKey) ?? depots[0]);
+  const items = $derived(side === 'ask' ? desk.items.filter((it) => held(depot, it) > 0) : desk.items);
+  // A choice the filter hides (switching side or depot) falls back to the first.
+  const chosenItem = $derived(items.includes(item) ? item : (items[0] ?? ''));
   const value = $derived(prices.find((p) => p.item === chosenItem)?.value ?? 0);
   const price = $derived(priceIn != null && !Number.isNaN(priceIn) ? priceIn : value);
-  const held = (d: Desk['depots'][number] | undefined, it: string) => d?.holdings.find((h) => h.item === it)?.count ?? 0;
   const heldHere = $derived(held(depot, chosenItem));
   const book = $derived(depot && books.find((b) => b.item === chosenItem && b.x === depot.x && b.y === depot.y));
   const n = $derived(qty ?? 0);
@@ -48,7 +54,7 @@
   // Why the order cannot go, or null if it can. The engine checks all of it
   // again; this only saves a round trip to the log.
   const blocked = $derived.by(() => {
-    if (!depot) return 'The colony has no communal depot to trade at yet.';
+    if (!depot) return side === 'ask' && desk.depots.length > 0 ? 'The colony holds nothing at any depot to sell.' : 'The colony has no communal depot to trade at yet.';
     if (!chosenItem) return 'Pick an item.';
     if (!Number.isInteger(n) || n < 1) return 'The quantity must be a whole number, at least 1.';
     if (!Number.isInteger(price) || price < 1) return 'The price must be a whole number of dollars, at least $1.';
@@ -123,15 +129,15 @@
   <label>
     <span>Item</span>
     <select value={chosenItem} onchange={(e) => (item = e.currentTarget.value)}>
-      {#each desk.items as it (it)}
+      {#each items as it (it)}
         <option value={it}>{it}{side === 'ask' ? ` (${held(depot, it)} held)` : ''}</option>
       {/each}
     </select>
   </label>
   <label>
     <span>Depot</span>
-    <select value={depot ? `${depot.x},${depot.y}` : ''} onchange={(e) => (depotKey = e.currentTarget.value)} disabled={desk.depots.length === 0}>
-      {#each desk.depots as d (d.x + ',' + d.y)}
+    <select value={depot ? `${depot.x},${depot.y}` : ''} onchange={(e) => (depotKey = e.currentTarget.value)} disabled={depots.length === 0}>
+      {#each depots as d (d.x + ',' + d.y)}
         <option value={`${d.x},${d.y}`}>{d.silo ? 'silo' : d.label} at {d.x},{d.y}</option>
       {/each}
     </select>

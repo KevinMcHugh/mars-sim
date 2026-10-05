@@ -129,7 +129,11 @@ good at the same depot as part of that quantity.
 **The desk** (`ColonyOrders.svelte`) reads the market topic's `colony` field.
 It defaults to the silo, prefills the price with the item's market value,
 shows the book at that depot, what the bid escrows or what the colony holds
-there, and warns when the order will trade at once. It checks what the engine
+there, and warns when the order will trade at once. On the sell side it lists
+only the depots where the colony holds something and, at the chosen depot, only
+the items it holds there: an ask for stock the colony lacks is always refused,
+so the full lists (a dozen items at "0 held") were just noise to scroll past.
+A choice the filter hides falls back to the first one left. It checks what the engine
 checks, to grey out the button; the engine checks again, and its log line is
 the answer, since a command has no reply.
 
