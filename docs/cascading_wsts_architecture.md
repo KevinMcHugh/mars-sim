@@ -2,6 +2,12 @@
 
 > Part of the [mars-sim documentation](./README.md).
 
+> **Historical design.** This is the plan the weighted-focus system was built
+> from, written when colonists had *needs*. Needs have since become drives
+> (`NeedKind` → `DriveKind`, `NeedSpec` → `DriveSpec`, `needLevel` →
+> `driveLevel`, `need_weight` → `drive_weight`); the code names below are the
+> ones of that time. [drives.md](./drives.md) describes the system as it is.
+
 ## What it is
 
 This is the implementation design for replacing the colonist AI's fixed

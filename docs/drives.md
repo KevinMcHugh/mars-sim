@@ -20,17 +20,16 @@ tick it was taken, folded forward only when something changes the rate. A
 colonist whose rate holds costs nothing per tick.
 
 Drives replaced **needs** (`NeedKind`, `needs.*` settings, `-need-*` flags).
-Needs grew at one integer rate per tick, had their consequences hard-coded, and
-paused in bed through a special case in `sleep.go`. Drives keep everything that
-was true of needs — facilities, which drive wins, starvation and its graces —
-and that material is below. The consequence kinds (death, loneliness, passing
-out, soiling) and their reactions come from PR #98 (`ccr-837753c1-iji24e`),
-ported onto the band table.
+Needs grew at one integer rate per tick, had their consequences hard-coded
+(only starvation did anything at a ceiling), and paused in bed through a
+special case in `sleep.go`. Drives keep everything that was true of needs —
+facilities, which drive wins, starvation and its graces — and that material is
+below.
 
 ## Source
 
 - [`internal/sim/drives.go`](../internal/sim/drives.go) — `DriveKind`, `DriveSpec`, the shipped `defaultDrives`, `driveState` and the lazy level (`driveTrue`, `driveFelt`, `driveLevel`), rate composition (`driveRate`), `refreshDrive`, `resetDrive`, pressure, `mostUrgentDrive`, and the colony calendar derived from the sleep drive.
-- [`internal/sim/drive_activity.go`](../internal/sim/drive_activity.go) — `DriveActivity` (asleep, idle, working, labor), the `activityDrives` table that files every player-facing `Activity` under one, `driveActivityOf`, and `syncDriveActivity`.
+- [`internal/sim/drive_activity.go`](../internal/sim/drive_activity.go) — `DriveActivity` (asleep, idle, working, labor, unconscious), the `activityDrives` table that files every player-facing `Activity` under one, `driveActivityOf`, and `syncDriveActivity`.
 - [`internal/sim/drive_bands.go`](../internal/sim/drive_bands.go) — `Consequence`, `DriveConsequence`, `DriveRamp`, compiling a spec into a band table, `syncDriveBand`, `nextBandCrossing`, and `applyDriveConsequences` with each consequence's code (`starve`, `consequenceDue`, `passOut`/`stayPassedOut`, `wetSelf`, `usingFacility`).
 - [`internal/sim/drive_effects.go`](../internal/sim/drive_effects.go) — `DriveEffectProfile` and its stages, `applyEffect`, `advanceEffects`.
 - [`internal/sim/personality.go`](../internal/sim/personality.go) — the traits' `driveRate` percents, resolved into `Entity.driveTrait`.
@@ -386,8 +385,8 @@ Before this, a colonist with social at its ceiling and nobody to find stood
 idle in the socialize focus. The pinned pressure (100, plus the critical bonus
 and the incumbent's commitment) outranked even a critical sleep drive, so it
 waited with a bed in reach until it passed out, came to still tired, and did it
-again about 100 ticks later. That was 24 of the 29 pass-outs in the tuning
-report, and over 24 seeds 173 pass-outs fell to 6. The same wait was behind
+again about 100 ticks later. When this gate was added, that was 24 of the 29
+pass-outs in the tuning report; over 24 seeds, pass-outs fell from 173 to 6. The same wait was behind
 most soilings: a critical bladder lost to it too. The lab bench already
 modeled this as "Nobody nearby to talk to" (`labReach.company`); the sim had
 not.
@@ -408,7 +407,8 @@ working as intended.
 The hold that keeps a sleeper in bed (`focusDrive`) is untouched. But a lonely
 colonist now goes to bed lonely, and social is critical there, so when someone
 turns up to talk to, socialize (critical) outranks the held sleep and the
-sleeper gets up. That is new: 17 of the 53 interrupted nights in the report.
+sleeper gets up. When the gate was added, that was about a third of all
+interrupted nights.
 It is intended: a lonely colonist is lying awake, not sleeping soundly, and
 waking only for a critical drive is the hold's documented rule anyway.
 
@@ -634,7 +634,7 @@ tick before now serves `GrabTicks`⁻¹.
   make a day a different length for every colonist.
 - **Consequence is identity, not a setting.** The old `fatal` knob let a
   settings file make bladder fatal, which silently rewrote arbitration. Rates
-  and thresholds are balance; what a drive does is code (PR #98's argument).
+  and thresholds are balance; what a drive does is code.
 - **Shapes, not bespoke consequences.** A drain, an experience and an event
   are each written once, so the next consequence of an existing shape is
   small.
@@ -645,8 +645,8 @@ tick before now serves `GrabTicks`⁻¹.
   reachable toilet sat at the bladder ceiling with nothing happening, the
   biggest gap in the old model. Soiling resets the drive; passing out does not
   reset it but makes it fall, so a colonist that passes out wakes still tired
-  rather than rested (PR #98's version reset it after 60 ticks, which made
-  collapsing a cheaper night than a bed).
+  rather than rested. A first version reset it after a 60-tick timer, which
+  made collapsing a far cheaper night than a bed (see [days.md](./days.md)).
 - **Fatal beats non-fatal.** The bands did not change arbitration. A fatal drive
   past its threshold still outranks a non-fatal one, a rule learned from
   colonists starving with a full bladder.
@@ -657,92 +657,105 @@ tick before now serves `GrabTicks`⁻¹.
 - **Portable drives** (food) separate how long satisfying a drive takes from how
   long it occupies the one tile everyone else queues behind.
 
-### Tuning the activity percents
+### Tuning
 
-Turning on activity-scaled hunger changed how much colonists eat. It was
-retuned against the old game with `TestDriveTuningReport`: six seeds × 10,800
+The shipped numbers were tuned with `TestDriveTuningReport`: six seeds × 10,800
 ticks of the default game, counting meals per colonist-day, finished and
-interrupted nights, time in bed and mining, and starvation deaths.
+interrupted nights, time in bed and mining, starvation, and how often each
+ceiling consequence fires. Rerun it after any change to rates, percents,
+thresholds or arbitration:
 
-| | needs (before) | drives, food 2000 / asleep 25% | drives, food 1750 / asleep 10% | + the consequences | + sleep falls in bed | + socialize steps aside (shipped) |
-| --- | --- | --- | --- | --- | --- | --- |
-| meals per colonist-day | 2.00 | 2.47 | 2.07 | 2.09 | 1.98 | 2.09 |
-| nights finished / interrupted | 225 / 6 | 239 / 71 | 263 / 21 | 188 / 13 | 234 / 49 | 212 / 53 |
-| in bed | 30.2% | 29.7% | 30.6% | 27.0% | 33.4% | 33.2% |
-| mining | 19.3% | 17.0% | 19.3% | 19.0% | 18.5% | 21.1% |
-| starved | 3 | 5 | 0 | 1 | 2 | 1 |
-| passed out / soiled / felt lonely | — | — | — | 29 / 78 / 210 | 29 / 71 / 189 | 4 / 19 / 163 |
+```
+MARS_DRIVE_TUNING=1 go test ./internal/sim -run TestDriveTuningReport -v
+```
 
-The first try, keeping food's old rate and letting food and bladder grow at a
-quarter speed in bed, had colonists eating a quarter more and being pulled out
-of bed eleven times as often. That is the failure the old pause was written
-for. Food's base rate came down to 1750 and both asleep percents to 10%. Of the
-21 interrupted nights, 13 are hunger and the rest are aliens (flee and fight),
-as before. Dropping food's asleep rate further, to 5%, still left 11 hunger
-interruptions: the colonists it wakes went to bed already just short of
-`SeekAt`, so any growth at all wakes them. Hunger that never stops at night was
-the point, and an interrupted night keeps what was slept.
+Against the same game with needs (`main` just before drives merged, measured
+with an equivalent harness):
 
-Each change changes seeds, so each column is its own set of games, and the
-counts move with how long colonies survive (239 colonist-days with the
-consequences, 303 with sleep falling in bed, 264 now). With sleep falling in bed (the last column), "finished"
-means the drive reached 0 and "interrupted" means the colonist got up before it
-did; 32 of the 49 are hunger (it is fatal, so once it presses it outranks
-sleep), 11 a critical bladder. Holding sleepers only at `SeekAt` first gave 71,
-41 of them a bladder that was barely pressing, which is why the hold is just
-short of critical.
+| | needs | drives |
+| --- | --- | --- |
+| colonist-days lived | 163 | 144 |
+| meals per colonist-day | 1.94 | 2.06 |
+| time in bed | 26.1% | 31.2% (eight hours is 33%) |
+| time with sleep at its ceiling | 22.2% | — (passing out ends it) |
+| mining | 22.5% | 38.0% |
+| starved | 28 | 28 |
+| nights finished / interrupted | — | 109 / 30 |
+| passed out / soiled / felt lonely | — | 3 / 28 / 158 |
 
-Sleep falling in bed left pass-outs where they were (29), and 24 of them were
-the same thing: a colonist idle in the socialize focus, social pinned at its
-ceiling, waiting for a partner who never came while a bed was in reach. It came
-to still tired and did it again about 100 ticks later. (Before sleep fell,
-15 of 29 were one colony, seed 3.) That was an arbitration problem that passing
-out exposed rather than caused, and *Socialize steps aside* above fixes it. The
-last column shows pass-outs 29 → 4 and soilings 71 → 19 (a critical bladder
-lost to the same wait). The four left are all one colony (seed 5) under alien
-siege, colonists fleeing past their beds. Over 24 seeds, pass-outs fell from
-173 to 6, and every one left, like every starvation, happened while fleeing an
-alien. The new interruptions (17, "socialize") are lonely sleepers getting up
-when company turns up; see that section.
+Hunger comes out about where it was, and the colonies starve about as often:
+that game was short of food either way. Sleep is where needs were quietly
+wrong. With no consequence at the ceiling, colonists on needs spent over a
+fifth of their time with sleep pinned at 1000, a quarter of that standing in
+the socialize focus. Under drives that state cannot last: they sleep, and
+colonists who used to stand waiting work instead, which is most of the jump in
+mining. Interrupted nights are mostly hunger (fatal, so it outranks sleep once
+it presses) and lonely sleepers getting up when company turns up.
 
-Over those 24 seeds, alien sieges also wiped out 8 colonies against 5 before
-(86 colonists alive at the end against 98). Every extra death was a colonist
-fleeing an alien, none asleep, socializing or passed out. That is accepted, not
-a regression: colonists who used to stand idle now work (mining 18.5% → 21.1%),
-and a colony that digs more breaks into more caves and meets more aliens.
+#### What tuning taught
 
-Mechanics tests do not use these numbers. `testConfig` sets every awake activity
-to 100%, pauses everything but sleep in bed, and keeps food at its old 2 a
-tick, because those tests were written against the old timings. The drive
-model's own tests opt back in.
+These were measured during development, on the game as it was before ships,
+recruiting and zoning, so the counts are older than the table above. The
+lessons are what matters.
+
+- **Hunger in bed has to be slow, not stopped.** With food at its old rate and
+  food and bladder growing at 25% in bed, colonists ate a quarter more (2.47
+  meals per colonist-day against 2.00) and got out of bed eleven times as often
+  (71 interrupted nights against 6). That is the failure the old pause was
+  written for. Food's base rate came down to 1750 and both asleep percents to
+  10%: 2.07 meals, 21 interrupted nights. Dropping food to 5% in bed changed
+  almost nothing (11 hunger wake-ups against 13), because the colonists it wakes
+  went to bed just short of `SeekAt`, so any growth at all wakes them.
+- **A sleeper has to be held near critical.** Once sleep falls in bed, it stops
+  pressing below `SeekAt`, and a sleeper got up halfway through its night.
+  Holding it at `SeekAt` let a barely pressing bladder end 41 of 71 interrupted
+  nights. Holding it just short of critical leaves only critical drives, fatal
+  ones and threats.
+- **Socialize has to step aside.** With consequences in, 24 of 29 pass-outs
+  were one pattern: a colonist idle in the socialize focus, social pinned at
+  its ceiling, nobody to talk to, a bed in reach. *Socialize steps aside* above
+  fixed it; over 24 seeds pass-outs fell from 173 to 6, and soilings fell by
+  about three quarters (a critical bladder lost to the same wait).
+- **More work means more aliens.** With colonists working instead of standing
+  idle, colonies dig more, break into more caves and meet more aliens. Over 24
+  seeds, alien sieges wiped out 8 colonies against 5 before the socialize
+  change. Every extra death was a colonist fleeing an alien, none asleep,
+  socializing or passed out. That is accepted, not a regression.
+
+Mechanics tests do not use the shipped numbers. `testConfig` sets every awake
+activity to 100%, pauses every drive but sleep in bed and on the floor, and
+keeps food at its old 2 a tick, because those tests were written against the
+old timings. Sleep keeps its shipped percents there: it has to fall in bed for
+a night to end. The drive model's own tests opt back in.
 
 ## Roadmap
 
-PR #98's redesign doc (`docs/drives-redesign.md` on `ccr-837753c1-iji24e`)
-planned more on top of these consequences. What is still open, and where it
-lands in this model:
+What the consequences were designed to grow into, and where each lands in this
+model:
 
-- **The puddle (D1b).** Soiling should leave refuse that the sanitation system
-  mops up. Refuse rides the binary wire format and both renderers, so a new kind
-  is a wire `Version` bump, both decoders, the golden frames, a TUI glyph and a
+- **The puddle.** Soiling should leave refuse that the sanitation system mops
+  up. Refuse rides the binary wire format and both renderers, so a new kind is
+  a wire `Version` bump, both decoders, the golden frames, a TUI glyph and a
   browser tint. Rats eat gore, so a puddle must not be "a kind of gore".
-- **Hygiene (D3).** A new drive that grows with time and with dirty work
-  (digging, cleaning gore, hauling corpses, soiling). The bumps are effect
-  `Instant`s, and its consequence is an experience ("felt filthy"); later,
-  others perceiving a filthy colonist.
-- **Beauty and comfort (D4).** Drives whose rate depends on where the colonist
-  is: a cached score per room, folded in by `refreshDrive` when the colonist
-  changes rooms or the room changes, exactly as activity is. A pleasant room
-  is a negative rate.
-- **Severity (D5).** With several consequences, "fatal or not" becomes an
-  ordering (death above event above experience above none) for
-  `mostUrgentDrive` and focus eligibility.
-- **Sleep debt and hallucinations (D6).** Long-term deprivation needs an
-  accumulator that outlives one ceiling, and percepts with no occurrence behind
-  them.
+- **Hygiene.** A new drive that grows with time and with dirty work (digging,
+  cleaning gore, hauling corpses, soiling). The bumps are effect `Instant`s, and
+  its consequence is an experience ("felt filthy"); later, others perceiving a
+  filthy colonist.
+- **Beauty and comfort.** Drives whose rate depends on where the colonist is: a
+  cached score per room, folded in by `refreshDrive` when the colonist changes
+  rooms or the room changes, exactly as activity is. A pleasant room is a
+  negative rate.
+- **Severity.** With several consequences, "fatal or not" becomes an ordering
+  (death above event above experience above none) for `mostUrgentDrive` and
+  focus eligibility.
+- **Sleep debt and hallucinations.** Long-term deprivation needs an accumulator
+  that outlives one ceiling, and percepts with no occurrence behind them.
 - **Conditions.** Depression is only compounding loneliness today. A real
   condition would outlast the memories and could slow work, and would need an
   exit in the same change (withdrawal feeds loneliness).
+- **Perception-based socializing.** `companyInReach` and `headedForHall` read
+  other colonists' drives and focus (see *Socialize steps aside*). The end state
+  is a colonist acting only on what it could perceive.
 
 ## Extending it
 

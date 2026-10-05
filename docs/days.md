@@ -141,11 +141,11 @@ it there truncated that line, which `TestLogTabShowsTheFullEntryWrapped` caught.
   Drives made "slower" possible: rates are in thousandths, so food and bladder
   now grow at 10% in bed instead of stopping. That costs some nights, because a
   colonist who goes to bed just short of hungry wakes to eat (hunger is fatal,
-  so once it presses it outranks sleep). Over the same six seeds, with nights
-  that last until sleep is met: 234 finished nights and 49 interrupted (32 by
-  hunger, 11 by a critical bladder, the rest aliens), against 225 and 6 with the
-  full pause; time in bed 33%. An interrupted night is now cheap, because what
-  was slept is kept. The tuning is in [drives.md](./drives.md).
+  so once it presses it outranks sleep). When it was measured, on the same six
+  seeds, that was 49 interrupted nights against 234 finished (32 of them
+  hunger), where the full pause had 6 against 225; time in bed stayed at about
+  a third. An interrupted night is now cheap, because what was slept is kept.
+  The tuning and its current numbers are in [drives.md](./drives.md).
 - **Why the drive falls instead of a timer.** The night used to be a fixed
   `use-ticks` counted in `sleepBanked`, while the sleep drive kept rising in
   bed and only reset when the count was done. Three things went wrong once
