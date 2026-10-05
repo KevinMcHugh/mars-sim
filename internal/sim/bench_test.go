@@ -582,3 +582,27 @@ func BenchmarkTidyNoFit(b *testing.B) {
 		w.tidyRooms()
 	}
 }
+
+// BenchmarkSampleMetrics2000 measures one hourly metrics sample (see
+// metrics.go) in a colony of 2000, which has a balance series per wallet:
+// the cost the chart system adds, once every clock hour (45 ticks at
+// defaults). The ticks between samples cost two divisions.
+func BenchmarkSampleMetrics2000(b *testing.B) {
+	w := benchWorld(2000)
+	tpd := w.cfg.TicksPerDay()
+	next := func() {
+		for w.tick++; clockHour(w.tick, tpd) == clockHour(w.tick-1, tpd); w.tick++ {
+		}
+	}
+	for range metricHistory / 2 { // a history part-full, as in a running game
+		next()
+		w.sampleMetrics()
+	}
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		next()
+		w.sampleMetrics()
+		w.metricsView()
+	}
+}

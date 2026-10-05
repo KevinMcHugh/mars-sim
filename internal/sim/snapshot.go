@@ -533,6 +533,10 @@ type Snapshot struct {
 	// Population is the colony's vital signs over the whole game, oldest
 	// first; see population.go. Shared between snapshots, never written.
 	Population []PopulationSample
+	// Metrics is everything the chart system can plot, sampled hourly on
+	// the colony clock over the whole game; see metrics.go and
+	// docs/charts.md. Shared between snapshots, never written.
+	Metrics *MetricsView
 
 	// FlowFields lists every shared flow field, in a stable order, for a
 	// frontend that offers to show one. FlowField is the one it asked for
@@ -719,6 +723,7 @@ func (w *World) snapshot(paused bool, tps int) *Snapshot {
 		Corporations:         append([]Corporation(nil), w.corporations...),
 		GunModels:            append([]GunModel(nil), w.gunModels...),
 		Population:           w.popHist,
+		Metrics:              w.metricsView(),
 		Economy:              w.economyView(),
 		Recruiting:           w.recruitingView(),
 		AffinityMax:          w.cfg.AffinityMax,

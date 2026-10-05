@@ -886,6 +886,19 @@ type World struct {
 	// walkTally the part of them spent walking there (see activity.go).
 	actTally  [NumActivities]int
 	walkTally [NumActivities]int
+	// metrics is the chart system's history, sampled hourly on the colony
+	// clock (see metrics.go). The running totals below feed its Total
+	// metrics: each is bumped where the thing happens and read once an hour.
+	// moneyMoved and payments count money paid from one party to another
+	// (see transfer); posted counts orders placed per side and item, and
+	// tradedUnits and tradedValue what filled, per item. Item-indexed
+	// totals also keep the all-goods sum at ItemNone.
+	metrics     metricStore
+	moneyMoved  Money
+	payments    int
+	posted      [2][numItemKinds]int64
+	tradedUnits [numItemKinds]int64
+	tradedValue [numItemKinds]int64
 	// mealFetches counts, per depot, the colonists on their way to take a
 	// meal out of it this tick (memoized; see mealFetchesAt).
 	mealFetches   map[Point]int

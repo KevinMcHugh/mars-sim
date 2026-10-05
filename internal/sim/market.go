@@ -197,6 +197,8 @@ func (w *World) post(side Side, item ItemKind, qty int, price Money, actor Owner
 		}
 	}
 
+	w.posted[side][item]++
+	w.posted[side][ItemNone]++
 	key := bookKey{item, depot}
 	b := w.books[key]
 	if b == nil {
@@ -256,6 +258,10 @@ func (w *World) settle(b *book, c *StorageContainer, bid, ask *Order, n int, pri
 	}
 	b.last, b.traded = price, true
 	b.volume += n
+	w.tradedUnits[ask.Item] += int64(n)
+	w.tradedUnits[ItemNone] += int64(n)
+	w.tradedValue[ask.Item] += int64(n) * int64(price)
+	w.tradedValue[ItemNone] += int64(n) * int64(price)
 	w.recordPrice(ask.Item, price)
 	w.trades = append(w.trades, Trade{Tick: w.tick, Item: ask.Item, Depot: ask.Depot, Qty: n,
 		Price: price, Buyer: bid.Actor, Seller: ask.Actor})
