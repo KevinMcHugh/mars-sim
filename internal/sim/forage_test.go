@@ -24,7 +24,7 @@ func forageWorld(t *testing.T) (*World, Point) {
 func hungryColonist(w *World, p Point) *Entity {
 	e := w.spawn(Colonist, p)
 	w.transfer(ColonistOwner(e.ID), Community, e.wallet)
-	setHunger(w, e, w.cfg.Needs[NeedFood].SeekAt)
+	setHunger(w, e, w.cfg.Drives[DriveFood].SeekAt)
 	return e
 }
 
@@ -93,10 +93,10 @@ func TestAForagerDigsOutItsSupper(t *testing.T) {
 		if e == nil {
 			t.Fatalf("starved at tick %d", w.tick)
 		}
-		fed = w.needLevel(e, NeedFood) < w.cfg.Needs[NeedFood].SeekAt/2
+		fed = w.driveLevel(e, DriveFood) < w.cfg.Drives[DriveFood].SeekAt/2
 	}
 	if !fed {
-		t.Fatalf("not fed after 400 ticks: job %v, hunger %d, carrying %d scum", e.Job, w.needLevel(e, NeedFood), e.ownCarried(CaveScum))
+		t.Fatalf("not fed after 400 ticks: job %v, hunger %d, carrying %d scum", e.Job, w.driveLevel(e, DriveFood), e.ownCarried(CaveScum))
 	}
 	logged := false
 	for _, l := range w.log.entries {

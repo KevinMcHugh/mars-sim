@@ -6,7 +6,7 @@ import "fmt"
 //
 // Refuse is the mess a colony leaves behind: gore splattered by a violent death
 // (Tile.Gore) and the bodies of the dead (Tile.Corpses). A colonist with no
-// urgent need scrubs it up, carries it to an incinerator, and burns it. That is
+// urgent drive scrubs it up, carries it to an incinerator, and burns it. That is
 // one job, JobClean, run in two stages (see cleanStage): gather, then haul.
 //
 // The loop only turns when there is somewhere to put the refuse, which is the

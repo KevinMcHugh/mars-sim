@@ -134,8 +134,8 @@ project cap, because full builders otherwise cannot excavate active projects.
 See [storage.md](./storage.md).
 
 Beds use the same facility machinery as pods and toilets: a colonist approaches
-an adjacent tile, spends the sleep need's `UseTicks` sleeping, and then resets
-the need. A bunk is not walkable and has no permanently assigned owner; capacity
+an adjacent tile and sleeps until the sleep drive has fallen to 0 (see
+[days.md](./days.md)). A bunk is not walkable and has no permanently assigned owner; capacity
 is represented by the number of `Bed` tiles, with the normal access and
 crowd-flow rules deciding who can use one next.
 
@@ -407,7 +407,7 @@ unrestricted `claimNearestTask` — it only claims from a project that actually
 provides the needed facility kind somewhere in its task list (any task in
 that project counts, not just the facility tile itself: helping dig or wall a
 life-support room still counts as helping provide its pods and toilets).
-This matters because the starvation grace period (see [needs.md](./needs.md))
+This matters because the starvation grace period (see [drives.md](./drives.md))
 only covers reachable construction that provides the specific facility a
 colonist needs; claiming just any reachable task — digging an unrelated
 dormitory while starving, say — still marks the colonist as "handling" its
@@ -551,6 +551,6 @@ level itself.
 
 - [entities-and-ai.md](./entities-and-ai.md) — the build job and need-driven building.
 - [pathfinding.md](./pathfinding.md) — room reachability and routing around build tiles.
-- [needs.md](./needs.md) — why facilities exist and how many the colony wants.
+- [drives.md](./drives.md) — why facilities exist and how many the colony wants.
 - [spatial-index-and-performance.md](./spatial-index-and-performance.md) — the job board's in-progress counters.
 - [escape.md](./escape.md) — what a colonist does when it ends up sealed off anyway.

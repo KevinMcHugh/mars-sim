@@ -16,10 +16,9 @@ func setUpCachedSleeper(t *testing.T, w *World, c *Entity) Point {
 	}
 	w.SetTerrain(c.Pos, Floor)
 	w.SetTerrain(bed, Bed)
-	c.Needs[NeedSleep] = w.cfg.Needs[NeedSleep].SeekAt
-	c.needSince[NeedSleep] = w.tick
-	w.syncNeedPhase(c, NeedSleep)
-	c.focus, c.Job, c.Need, c.State = FocusSleep, JobUse, NeedSleep, Sleeping
+	w.setDrive(c, DriveSleep, w.cfg.Drives[DriveSleep].SeekAt)
+	w.syncDrivePhase(c, DriveSleep)
+	c.focus, c.Job, c.Drive, c.State = FocusSleep, JobUse, DriveSleep, Sleeping
 	c.useFacility, c.useFacilitySet = bed, true
 	c.resting = false
 	c.mindDirty = false
@@ -41,12 +40,12 @@ func assertBehaviorEqual(t *testing.T, cached, full *World, tick int) {
 		a, b := cached.entities[id], full.entities[id]
 		if a.Pos != b.Pos || a.HP != b.HP || a.State != b.State || a.focus != b.focus ||
 			a.Job != b.Job || a.Target != b.Target || a.BuildKind != b.BuildKind ||
-			a.Need != b.Need || a.Progress != b.Progress || a.Inventory != b.Inventory ||
+			a.Drive != b.Drive || a.Progress != b.Progress || a.Inventory != b.Inventory ||
 			a.affect != b.affect || !reflect.DeepEqual(a.Memories, b.Memories) {
 			t.Fatalf("entity %d behavior diverged at tick %d:\n cached=%+v\n full=%+v", id, tick, a, b)
 		}
-		for n := NeedKind(0); n < numNeeds; n++ {
-			if al, bl := cached.needLevel(a, n), full.needLevel(b, n); al != bl {
+		for n := DriveKind(0); n < numDrives; n++ {
+			if al, bl := cached.driveLevel(a, n), full.driveLevel(b, n); al != bl {
 				t.Fatalf("entity %d need %s diverged at tick %d: %d != %d", id, n, tick, al, bl)
 			}
 		}
@@ -88,11 +87,10 @@ func TestSleepingFastPathInterruptedByThreat(t *testing.T) {
 func TestSleepingFastPathHonorsFatalNeedDeadline(t *testing.T) {
 	w, c := focusTestColonist(t)
 	setUpCachedSleeper(t, w, c)
-	food := w.cfg.Needs[NeedFood]
-	c.Needs[NeedFood] = food.SeekAt - 1
-	c.needSince[NeedFood] = w.tick
-	c.needRise[NeedFood] = 1
-	w.syncNeedPhase(c, NeedFood)
+	food := w.cfg.Drives[DriveFood]
+	w.setDrive(c, DriveFood, food.SeekAt-1)
+	setDriveRate(w, c, DriveFood, driveUnit)
+	w.syncDrivePhase(c, DriveFood)
 	c.mindDirty = false
 	c.nextThinkTick = w.nextCognitionTick(c)
 	hp := c.HP
@@ -128,17 +126,17 @@ func TestCachedRestSnapshotKeepsLazyNeedsCurrent(t *testing.T) {
 	w, c := focusTestColonist(t)
 	c.focus, c.Job, c.State = FocusIdle, JobNone, Idle
 	c.resting, c.wakeTick = true, w.tick+100
-	for n := NeedKind(0); n < numNeeds; n++ {
-		w.syncNeedPhase(c, n)
+	for n := DriveKind(0); n < numDrives; n++ {
+		w.syncDrivePhase(c, n)
 	}
 	c.mindDirty = false
 	c.nextThinkTick = w.nextCognitionTick(c)
-	before := w.entityView(c, nil, true).Needs[NeedFood]
+	before := w.entityView(c, nil, true).Drives[DriveFood]
 
 	w.step()
 	view := w.entityView(c, nil, true)
-	if view.Needs[NeedFood] <= before {
-		t.Fatalf("cached snapshot food = %d, want greater than %d", view.Needs[NeedFood], before)
+	if view.Drives[DriveFood] <= before {
+		t.Fatalf("cached snapshot food = %d, want greater than %d", view.Drives[DriveFood], before)
 	}
 	if view.State != Idle || view.Focus != FocusIdle {
 		t.Fatalf("cached snapshot state/focus = %v/%v", view.State, view.Focus)

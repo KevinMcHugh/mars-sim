@@ -370,7 +370,7 @@ input[type="range"] {
 .legend { display: flex; flex-wrap: wrap; gap: 12px; color: var(--dim); font-size: 12px; margin-bottom: 10px; }
 .seg { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 4px; vertical-align: -1px; }
 .seg.base { background: #8d5b46; }
-.seg.need { background: #e7a25a; }
+.seg.drive { background: #e7a25a; }
 .seg.affect { background: #d9784f; }
 .seg.stimulus { background: #f0cf96; }
 .seg.stay { background: #c4a484; }

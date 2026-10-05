@@ -23,23 +23,23 @@ Rather than a strict entity-component system, mars-sim uses a single `Entity`
 struct whose fields the systems interpret according to `Kind`. This is a
 deliberate scaffold choice: it keeps the code readable while systems are few, and
 fields can graduate into real components later as behavior multiplies. Colonists
-use the most fields (needs, personality, inventory, a job, a cached path); other
+use the most fields (drives, personality, inventory, a job, a cached path); other
 kinds leave the irrelevant ones zero.
 
 The five kinds:
 
 | Kind | Moves on | Eats | Flees | Notes |
 | --- | --- | --- | --- | --- |
-| **Colonist** | Floor | (needs food) | aliens | mines, builds, tends needs; has personality + inventory |
+| **Colonist** | Floor | (food drive) | aliens | mines, builds, tends drives; has personality + inventory |
 | **Alien** | Floor | colonists, rats, other species' aliens (Hostile); cave scum (Friendly, Cautious) | — | the antagonist; a Hostile species hunts the nearest prey it can reach |
-| **Cat** | Floor | rats | — | no needs; hunts by instinct |
-| **Rat** | Floor | (needs food) | cats (not aliens, which also eat them) | reuses the colonist food need; scavenges bodies, gore, and scum, else raids pods; never builds |
+| **Cat** | Floor | rats | — | no drives; hunts by instinct |
+| **Rat** | Floor | (food drive) | cats (not aliens, which also eat them) | reuses the colonist food drive; scavenges bodies, gore, and scum, else raids pods; never builds |
 | **Chicken** | Floor | feed from its keeper's trough, else cave scum | — | lands in a keeper's ship; cats ignore it; see [chickens.md](./chickens.md) |
 
 `State` (idle, moving, mining, building, eating, relieving, fleeing, hunting,
 feeding, fighting, cleaning, hauling, storing, demolishing) is a **display projection**
 derived from behavior each tick and surfaced in the UI. A colonist's
-`FocusKind` is its weighted, persistent goal (work, a particular need, fight,
+`FocusKind` is its weighted, persistent goal (work, a particular drive, fight,
 flee, or idle), while `JobKind` is the concrete execution step beneath that
 goal. A hungry colonist building a nutrient pod therefore remains focused on
 eating while its job is building.
@@ -70,7 +70,7 @@ ordered, so runs stay deterministic.
 
 Each turn first applies starvation, observations, and uranium exposure. Focus
 arbitration generates a fixed set of cheap candidates and scores each from
-configured base, need pressure, visible stimuli, commitment, and distance
+configured base, drive pressure, visible stimuli, commitment, and distance
 contributions. The current eligible focus receives a commitment bonus, and a
 challenger must beat it by the configured switch margin. Ties are deterministic.
 Candidate scoring never claims a target or runs A*; only the winning focus
@@ -84,7 +84,7 @@ reconsiders every tick, rather than relying on an unsafe estimated horizon. The
 selected job executor continues every tick even when arbitration is skipped.
 Resting idle colonists and in-place sleepers additionally bypass the full
 observation/executor machinery when no nearby threat, rat, or gore exists,
-while retaining per-tick starvation, uranium, fatal-need, and facility
+while retaining per-tick starvation, uranium, fatal-drive, and facility
 checks. A custom persistent perception wakes them only when it sets
 `interrupt_rest`. Threat presence is still alien-only: `seesThreat` and
 `nearestAlien` answer the same question, so fight/flee cannot target a
@@ -92,25 +92,26 @@ rat or a configured non-alien sighting.
 
 Execution order and invariants:
 
-1. **Starvation check** — `applyStarvation`; if it just died, release its job
-   claims and remove it.
+1. **Drive consequences** — `applyDriveConsequences` (starvation, and passing out, soiling and loneliness); if it just died, release its job
+   claims and remove it. A colonist that has passed out (`stayPassedOut`)
+   spends the rest of its turn unconscious.
 1a. **Uranium dose** — `applyUraniumExposure` (right after the sighting pass,
    before anything below can return): a colonist beside a uranium deposit or
    carrying uranium ore accumulates exposure whatever else it is doing, and a
    full dose rolls for a mutation. See [mutation.md](./mutation.md).
 2. **Weighted focus arbitration** — visible aliens enable flee and, when armed,
-   fight; pressing needs enable their matching focus; valid work and idle
+   fight; pressing drives enable their matching focus; valid work and idle
    provide the ordinary alternatives. A visible alien's starting stimulus
    weight dominates even critical hunger. A colonist already fleeing keeps
    flee eligible until the alien is past `FleeRadius+FleeReleaseMargin`
    (`focusThreat`), so it doesn't flicker flee/relieve at the radius edge.
    Fight still needs the alien inside `FleeRadius`. See
    [cascading_wsts_architecture.md](./cascading_wsts_architecture.md#flee-hysteresis).
-3. **Need-focus execution** — a selected need focus may interrupt the current task,
-   unless the task already serves that need: a live conversation (social) or a
+3. **Drive-focus execution** — a selected drive focus may interrupt the current task,
+   unless the task already serves that drive: a live conversation (social) or a
    matching `JobUse`/`JobBuild` runs on rather than restarting. If a facility of
    the right kind is reachable, switch to `JobUse` and follow its flow field. Otherwise help with **reachable** facility construction; only
-   a *fatal* need with no reachable life-support under construction justifies a
+   a *fatal* drive with no reachable life-support under construction justifies a
    lone emergency build. If all reachable project tasks are claimed, wait (step
    aside if idling would block) rather than wandering off and losing your place.
 4. **Continue the focus's current job** if one is set (`runJob`).
@@ -120,7 +121,7 @@ Execution order and invariants:
    Otherwise claim the nearest reachable construction task, clean up refuse,
    or mine the frontier. See [storage.md](./storage.md) and
    [sanitation.md](./sanitation.md).
-6. **Rest** — if there was no work and no pressing need, an idle colonist rests
+6. **Rest** — if there was no work and no pressing drive, an idle colonist rests
    (skips arbitration, observation with no nearby event, and the work search)
    until `wakeTick`, so an established colony with nothing to do stops rescanning
    the entity set and map every tick. A colonist never rests where it
@@ -139,7 +140,7 @@ Work jobs:
   `buildTicks` (scaled by the colonist's `workScale` trait). Yields to whoever is
   standing on the build tile for a few ticks before giving up.
 - **`jobUse`** — follow the facility flow field, stand adjacent, use it for
-  `UseTicks`, then reset the need. This covers eating, relieving, and sleeping;
+  `UseTicks`, then reset the drive. This covers eating, relieving, and sleeping;
   sleep is non-fatal, so no bunk means waiting rather than emergency building.
 - **`jobClean`** — scrub gore and bodies off a tile (`cleanGather`), then carry
   the load to an incinerator and burn it (`cleanHaul`). Only offered when an
@@ -150,7 +151,7 @@ Work jobs:
   transfer atomically. Weapons remain equipped and refuse remains on its
   incinerator route. See [storage.md](./storage.md).
 
-`FocusEscape`/`jobDemolish` sit outside the need/work/threat groupings above: a
+`FocusEscape`/`jobDemolish` sit outside the drive/work/threat groupings above: a
 colonist whose room has been cut off from the colony's main network for long
 enough breaks the nearest wall back down to Floor, regardless of what else it
 was doing — a detect-and-correct backstop for a room sealed shut by
@@ -184,7 +185,7 @@ colonists, until a dig breaks in. See [caverns.md](./caverns.md#aliens-in-the-ca
 
 ### Cat behavior (`catTurn`)
 
-Cats have no needs — they hunt rats by instinct, paced by `CatSlowness`. They
+Cats have no drives — they hunt rats by instinct, paced by `CatSlowness`. They
 travel the floor with cached A\* and `pounce`
 when adjacent (a single pounce is fatal to a rat), then rest `CatPounceRest`. If
 a rat is walled off or the cat is wedged, it prowls (`wanderStep`) instead of
@@ -198,7 +199,7 @@ rats: chickens are not prey, and a chicken does not flee a cat.
 
 ### Rat behavior (`ratTurn`)
 
-Rats reuse the colonists' `NeedFood`, but hunger far faster (`RatHungerRise`)
+Rats reuse the colonists' `DriveFood`, but hunger far faster (`RatHungerRate`)
 and **never build**. They eat what the scumhouse eats: a hungry rat
 (`nearestScavenge`, `scavenge.go`) heads for the nearest tile within
 `rat-scavenge-radius` holding a body (any body, a colonist's included), gore,
@@ -259,7 +260,7 @@ so it is safe to call per entity per tick.
 - **A new creature**: add a `Kind` before `numKinds`, give it stats in `Config`,
   a spawn case in `Engine.spawn` and `worldgen`, a `String()` and glyph, and a
   `<kind>Turn` in `systems.go` dispatched from `step`. Reuse `nearestOfKind`,
-  the movement primitives, and (if it has drives) the needs machinery.
+  the movement primitives, and (if it has drives) the drive machinery.
 - **A new job**: add a `JobKind`, an `assign*`/`clearJob` pair that keeps the job
   board's bookkeeping exact, a `job*` executor, and a case in `runJob`.
 - **A new display state**: add a `State`, set it in the relevant turn, and map it
@@ -269,7 +270,7 @@ so it is safe to call per entity per tick.
 
 - [combat.md](./combat.md) — body-part HP, weapons, and how an armed colonist's
   survival priority differs from an unarmed one's.
-- [needs.md](./needs.md) — the drives that preempt colonist and rat work.
+- [drives.md](./drives.md) — the drives that preempt colonist and rat work.
 - [personality.md](./personality.md) — trait-scaled colonist parameters.
 - [construction.md](./construction.md) — how build jobs become rooms.
 - [escape.md](./escape.md) — breaking out of a room cut off from the colony.

@@ -93,7 +93,7 @@ func TestRosterShowsColonistDetail(t *testing.T) {
 	}
 	snap.Entities[0].Inventory[0] = sim.ItemStack{Kind: sim.RawRock, Count: 12}
 	snap.Entities[0].Backstory = "Worked as a janitor for MarsCorp."
-	snap.NeedsMeta[0] = sim.NeedMeta{Name: "food", Max: 1000, Fatal: true}
+	snap.DrivesMeta[0] = sim.DriveMeta{Name: "food", Max: 1000, Consequence: sim.ConsequenceDeath}
 
 	var m tea.Model = New(nil, nil)
 	m, _ = m.Update(tea.WindowSizeMsg{Width: 100, Height: 30})

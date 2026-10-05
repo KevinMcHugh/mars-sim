@@ -360,8 +360,8 @@ func TestTalkingRaisesAffinity(t *testing.T) {
 	b := w.spawn(Colonist, Point{cx + 1, cy})
 	// Keep their needs quiet so nothing preempts the chat.
 	for _, e := range []*Entity{a, b} {
-		for i := 0; i < int(numNeeds); i++ {
-			e.Needs[i], e.needSince[i] = 0, 0
+		for i := 0; i < int(numDrives); i++ {
+			w.setDrive(e, DriveKind(i), 0)
 		}
 	}
 
@@ -383,14 +383,14 @@ func TestTalkingRaisesAffinity(t *testing.T) {
 	}
 }
 
-// An urgent social need preempts ordinary work and forces a colonist to seek a
+// An urgent social drive preempts ordinary work and forces a colonist to seek a
 // conversation even when opportunistic talking is disabled.
 func TestSocialNeedPreemptsWork(t *testing.T) {
 	cfg := DefaultConfig()
 	cfg.StartColonists, cfg.StartAliens, cfg.StartCats, cfg.StartRats = 0, 0, 0, 0
 	cfg.TalkChance = 0
 	// DefaultConfig's seed is time-based, and traits are rolled off it: an
-	// Asocial colonist has needRise 0 for social, so it never becomes urgent and
+	// Asocial colonist has driveRise 0 for social, so it never becomes urgent and
 	// this test used to fail a run in six.
 	cfg.Seed, cfg.TraitChance = 11, 0
 	w := newWorld(cfg, newPCG(11))
@@ -402,11 +402,11 @@ func TestSocialNeedPreemptsWork(t *testing.T) {
 	a := w.spawn(Colonist, center)
 	b := w.spawn(Colonist, center.Add(1, 0))
 	for _, e := range []*Entity{a, b} {
-		for i := 0; i < int(numNeeds); i++ {
-			e.Needs[i], e.needSince[i] = 0, w.tick
+		for i := 0; i < int(numDrives); i++ {
+			w.setDrive(e, DriveKind(i), 0)
 		}
 	}
-	a.Needs[NeedSocial] = cfg.Needs[NeedSocial].SeekAt
+	w.setDrive(a, DriveSocial, cfg.Drives[DriveSocial].SeekAt)
 	w.step()
 
 	if a.Job != JobTalk || a.partner != b.ID {
@@ -419,12 +419,12 @@ func TestSocialNeedPreemptsWork(t *testing.T) {
 // colonist's job and begin a fresh talk every tick, and beginTalk resets the
 // shared timer — so a mutually urgent pair restarted the same conversation
 // forever, never reached TalkTicks, and never had the need satisfied. Since an
-// urgent social need preempts all ordinary work, the whole colony then stopped
+// urgent social drive preempts all ordinary work, the whole colony then stopped
 // mining and building for good.
 func TestMutuallyUrgentColonistsFinishConversation(t *testing.T) {
 	cfg := DefaultConfig()
 	cfg.StartColonists, cfg.StartAliens, cfg.StartCats, cfg.StartRats = 0, 0, 0, 0
-	cfg.TalkChance = 0                // only the urgent need may start this chat
+	cfg.TalkChance = 0                // only the urgent drive may start this chat
 	cfg.Seed, cfg.TraitChance = 11, 0 // no Asocial roll: see TestSocialNeedPreemptsWork
 	w := newWorld(cfg, newPCG(11))
 	center := Point{w.Width / 2, w.Height / 2}
@@ -434,12 +434,12 @@ func TestMutuallyUrgentColonistsFinishConversation(t *testing.T) {
 
 	a := w.spawn(Colonist, center)
 	b := w.spawn(Colonist, center.Add(1, 0))
-	seekAt := cfg.Needs[NeedSocial].SeekAt
+	seekAt := cfg.Drives[DriveSocial].SeekAt
 	for _, e := range []*Entity{a, b} {
-		for i := 0; i < int(numNeeds); i++ {
-			e.Needs[i], e.needSince[i] = 0, w.tick
+		for i := 0; i < int(numDrives); i++ {
+			w.setDrive(e, DriveKind(i), 0)
 		}
-		e.Needs[NeedSocial] = seekAt // both urgent, both preempted into talking
+		w.setDrive(e, DriveSocial, seekAt) // both urgent, both preempted into talking
 	}
 
 	for i := 0; i < cfg.TalkTicks*3; i++ {
@@ -447,7 +447,7 @@ func TestMutuallyUrgentColonistsFinishConversation(t *testing.T) {
 	}
 
 	for _, e := range []*Entity{a, b} {
-		if got := w.currentNeeds(e)[NeedSocial]; got >= seekAt {
+		if got := w.currentDrives(e)[DriveSocial]; got >= seekAt {
 			t.Errorf("#%d still socially urgent after %d ticks: %d (urgent at %d) — the conversation never completed",
 				e.ID, cfg.TalkTicks*3, got, seekAt)
 		}

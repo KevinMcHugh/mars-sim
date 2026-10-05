@@ -43,7 +43,7 @@ function cognitionPayload(config, bench) {
   for (const [id, focus] of Object.entries(config.focuses || {})) {
     focuses[id] = {
       base: focus.base ?? 0,
-      needWeight: focus.need_weight ?? 0,
+      driveWeight: focus.drive_weight ?? 0,
       chargeWeight: focus.charge_weight ?? 0,
       gripWeight: focus.grip_weight ?? 0,
       distanceWeight: focus.distance_weight ?? 0,
@@ -80,7 +80,7 @@ function situationPayload(bench) {
     grip: bench.grip,
     valence: bench.valence,
     moodLabel: bench.moodLabel || "",
-    needs: bench.needs,
+    drives: bench.drives,
     traits: bench.person?.traits || [],
     current: bench.currentFocus,
     canWork: !!bench.around?.canWork,

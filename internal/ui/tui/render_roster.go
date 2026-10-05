@@ -223,7 +223,7 @@ func detailMetrics(width int) (inner, barW int) {
 }
 
 // renderColonistDetail draws the inspector for one colonist: identity,
-// attributes, health, needs, traits, family, affinities, and memories. The
+// attributes, health, drives, traits, family, affinities, and memories. The
 // content routinely runs longer than the panel is tall, so it is windowed to
 // the player's scroll position (see scrollDetail) rather than simply clipped.
 func (m Model) renderColonistDetail(c sim.EntityView, rows, width int) string {
@@ -275,14 +275,14 @@ func (m Model) detailLines(c sim.EntityView, inner, barW int) []string {
 	// not a gauge — the health bar above already gives the big picture.
 	b.WriteString(labelStyle.Render("BODY") + "  " + cells.Truncate(strings.Join(bodyPartLines(c), "  "), inner-8) + "\n\n")
 
-	b.WriteString(labelStyle.Render("NEEDS") + "\n")
-	for i := range c.Needs {
-		meta := m.latest.NeedsMeta[i]
+	b.WriteString(labelStyle.Render("DRIVES") + "\n")
+	for i := range c.Drives {
+		meta := m.latest.DrivesMeta[i]
 		name := meta.Name
-		if meta.Fatal {
+		if meta.Fatal() {
 			name += "!"
 		}
-		b.WriteString(bar(name, c.Needs[i], meta.Max, barW) + "\n")
+		b.WriteString(bar(name, c.Drives[i], meta.Max, barW) + "\n")
 	}
 
 	b.WriteString("\n" + labelStyle.Render("INVENTORY") + "\n")
@@ -440,7 +440,7 @@ func scrollStatusLine(first, last, total, inner int) string {
 
 // nonColonistDetailLines builds the inspector for an entity with no Profile:
 // an alien, cat, rat, or any dead entry lacking one. It has none of a
-// colonist's needs/traits/family — just identity, status, and a body-part
+// colonist's drives/traits/family — just identity, status, and a body-part
 // breakdown for the kinds that track one (Colonist and Alien; see
 // docs/combat.md).
 func (m Model) nonColonistDetailLines(c sim.EntityView, inner, barW int) []string {

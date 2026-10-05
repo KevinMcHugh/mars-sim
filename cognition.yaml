@@ -3,8 +3,8 @@ schema_version: 1
 
 # Stable content vocabulary used by editor dropdowns and rule validation.
 vocabulary:
-  nouns: [colonist, alien, cat, rat, gore, meal, toilet, bed, need, rock, structure, refuse, gruel, scum, scumhouse, goods, skill]
-  actions: [present, bite, attack, kill, crush, catch, wound, converse, eat, use, sleep, satisfy, mine, clear, construct, clean, incinerate, mutate, cook, scrape, deliver, trade, buy, haul, learn]
+  nouns: [colonist, alien, cat, rat, gore, meal, toilet, bed, need, rock, structure, refuse, gruel, scum, scumhouse, goods, skill, loneliness]
+  actions: [present, bite, attack, kill, crush, catch, wound, converse, eat, use, sleep, satisfy, mine, clear, construct, clean, incinerate, mutate, cook, scrape, deliver, trade, buy, haul, learn, feel, socialize, collapse, soil]
 
 attractors:
   driven    : { good: "driven"    , bad: "furious"   , charge:  70, grip:  60, radius: 46 }
@@ -18,15 +18,15 @@ attractors:
   steady    : { good: "steady"    , bad: "flat"      , charge:   0, grip:   0, radius: 28 }
 
 focuses:
-  idle      : { base:   0, need_weight:   0, charge_weight: -10, grip_weight:   0, distance_weight: 0 }
-  work      : { base:  25, need_weight:   0, charge_weight:  20, grip_weight:  10, distance_weight: 1 }
-  eat       : { base:  40, need_weight: 100, charge_weight:   0, grip_weight:   5, distance_weight: 1 }
-  relieve   : { base:  40, need_weight: 100, charge_weight:   0, grip_weight:   0, distance_weight: 1 }
-  socialize : { base:  40, need_weight: 100, charge_weight:  10, grip_weight:   5, distance_weight: 1 }
-  sleep     : { base:  40, need_weight: 100, charge_weight: -30, grip_weight:   0, distance_weight: 1 }
-  flee      : { base:   0, need_weight:   0, charge_weight:  20, grip_weight: -40, distance_weight: 1 }
-  fight     : { base:  15, need_weight:   0, charge_weight:  20, grip_weight:  40, distance_weight: 1 }
-  escape    : { base: 400, need_weight:   0, charge_weight:   0, grip_weight:   0, distance_weight: 0 }
+  idle      : { base:   0, drive_weight:   0, charge_weight: -10, grip_weight:   0, distance_weight: 0 }
+  work      : { base:  25, drive_weight:   0, charge_weight:  20, grip_weight:  10, distance_weight: 1 }
+  eat       : { base:  40, drive_weight: 100, charge_weight:   0, grip_weight:   5, distance_weight: 1 }
+  relieve   : { base:  40, drive_weight: 100, charge_weight:   0, grip_weight:   0, distance_weight: 1 }
+  socialize : { base:  40, drive_weight: 100, charge_weight:  10, grip_weight:   5, distance_weight: 1 }
+  sleep     : { base:  40, drive_weight: 100, charge_weight: -30, grip_weight:   0, distance_weight: 1 }
+  flee      : { base:   0, drive_weight:   0, charge_weight:  20, grip_weight: -40, distance_weight: 1 }
+  fight     : { base:  15, drive_weight:   0, charge_weight:  20, grip_weight:  40, distance_weight: 1 }
+  escape    : { base: 400, drive_weight:   0, charge_weight:   0, grip_weight:   0, distance_weight: 0 }
 
 arbitration:
   current_bonus: 25
@@ -72,6 +72,9 @@ perceptions:
   - id: witness-gunfight
     match: { actor_noun: colonist, action: wound, object_noun: alien }
     sense: { channel: sight, role: witness, radius: flee-radius, cadence: instant }
+  - id: witness-soiling
+    match: { actor_noun: colonist, action: soil }
+    sense: { channel: sight, role: witness, radius: gore-sight-radius, cadence: instant }
   - id: witness-mutation
     match: { actor_noun: colonist, action: mutate }
     sense: { channel: sight, role: witness, radius: flee-radius, cadence: instant }
@@ -253,6 +256,43 @@ reactions:
     memory: { record: true }
     affect: { impact: 20, fresh: { charge: 2, grip: 8, valence: 6 }, worn: { charge: 1, grip: 4, valence: 3 } }
     wear_policy: memory-occasions
+  # The social drive's consequence: a colonist whose social drive sits at its
+  # ceiling feels lonely, again every consequence-every ticks while it stays
+  # there. Worn is worse than fresh: loneliness that keeps coming back hurts more.
+  - id: felt-lonely
+    match: { actor_noun: colonist, action: feel, object_noun: loneliness, channel: direct, role: actor, phase: instant }
+    memory: { record: true, collapse: "Felt lonely." }
+    affect: { impact: 30, fresh: { charge: -8, grip: -6, valence: -12 }, worn: { charge: -12, grip: -10, valence: -20 } }
+    wear_policy: memory-occasions
+  # A conversation a colonist went into with its social drive at seek-at or
+  # above: company it needed, on top of the conversation's own appraisal.
+  - id: socialized
+    match: { actor_noun: colonist, action: socialize, channel: direct, role: actor, phase: instant }
+    memory: { record: true, collapse: "Enjoyed some company." }
+    affect: { impact: 20, fresh: { charge: 5, grip: 4, valence: 5 }, worn: { charge: 3, grip: 2, valence: 2 } }
+    wear_policy: memory-occasions
+  # The sleep drive's consequence: at its ceiling a colonist collapses where it
+  # stands (pass-out-ticks). Losing control of your own body hits grip hardest,
+  # and worse each time.
+  - id: passed-out
+    match: { actor_noun: colonist, action: collapse, channel: direct, role: actor, phase: instant }
+    memory: { record: true, collapse: "Passed out from exhaustion." }
+    affect: { impact: 40, fresh: { charge: -10, grip: -25, valence: -15 }, worn: { charge: -10, grip: -35, valence: -25 } }
+    wear_policy: memory-occasions
+  # The bladder drive's consequence: a colonist at its ceiling wets itself
+  # where it stands. Embarrassment is a reaction, not a new axis: a hot flush
+  # of charge, grip and valence taken away, and worse each time.
+  - id: soiled-self
+    match: { actor_noun: colonist, action: soil, channel: direct, role: actor, phase: instant }
+    memory: { record: true, collapse: "Had accidents." }
+    affect: { impact: 45, fresh: { charge: 10, grip: -30, valence: -20 }, worn: { charge: 6, grip: -40, valence: -30 } }
+    wear_policy: memory-occasions
+  # Seeing it happen, close enough to notice (gore-sight-radius).
+  - id: witnessed-soiling
+    match: { actor_noun: colonist, action: soil, channel: sight, role: witness, phase: instant }
+    memory: { record: true }
+    affect: { impact: 10, fresh: { charge: 0, grip: -2, valence: -3 }, worn: { charge: 0, grip: -1, valence: -1 } }
+    wear_policy: memory-occasions
 
 # Trait rules compose in declaration order. Scales are percentages.
 trait_rules:
@@ -276,6 +316,14 @@ trait_rules:
     trait: tidy
     match: { actor_noun: colonist, action: incinerate, object_noun: refuse, channel: direct, role: actor, phase: instant }
     scales: { impact: 100, charge: 100, grip: 200, valence: 100, wear_rate: 100 }
+  - id: tidy-soiled-self
+    trait: tidy
+    match: { actor_noun: colonist, action: soil, channel: direct, role: actor, phase: instant }
+    scales: { impact: 100, charge: 100, grip: 200, valence: 200, wear_rate: 100 }
+  - id: tidy-witnessed-soiling
+    trait: tidy
+    match: { actor_noun: colonist, action: soil, channel: sight, role: witness, phase: instant }
+    scales: { impact: 100, charge: 220, grip: 220, valence: 220, wear_rate: 100 }
   - id: industrious-mining
     trait: industrious
     match: { actor_noun: colonist, action: mine, object_noun: rock, channel: direct, role: actor, phase: instant }

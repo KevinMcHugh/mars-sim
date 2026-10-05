@@ -1,15 +1,12 @@
 package sim
 
-// A night's sleep. Sleep is the one need whose satisfaction takes hours of
-// clock time (see docs/days.md), which brings two rules the other needs do
-// not have:
-//
-//   - While a colonist is in bed its other needs are paused. A night is about
-//     eight clock hours, longer than food or bladder take to come due, so
-//     without the pause hunger got colonists out of bed before any night
-//     finished.
-//   - A night that is interrupted is banked, not lost: sleepBanked carries
-//     over, and the next lie-down picks up where it left off.
+// A night's sleep. Sleep is the one drive whose satisfaction takes hours of
+// clock time (see docs/days.md). None of it is special-cased here: a colonist
+// in bed is in the asleep drive activity, where its sleep drive falls (a
+// negative percent) and its other drives all but stop (DriveSpec.Activity).
+// The night is over when the sleep drive reaches 0. A night that is
+// interrupted is simply a drive that has fallen part of the way: the colonist
+// gets up that much less tired, and the next lie-down starts from there.
 
 // TicksPerHour is one clock hour, in ticks: TicksPerDay over 24. Sleep
 // traits move a night by this much.
@@ -17,70 +14,11 @@ func (c *Config) TicksPerHour() int {
 	return max(c.TicksPerDay()/24, 1)
 }
 
-// sleepTick spends one tick of e's night in bed, and finishes the night once
-// it has slept its sleepTicks.
+// sleepTick spends one tick of e's night in bed, and ends the night once the
+// sleep drive has fallen to 0.
 func (w *World) sleepTick(e *Entity) {
-	w.fallAsleep(e)
 	e.State = Sleeping
-	e.sleepBanked++
-	if e.sleepBanked >= e.sleepTicks {
-		e.sleepBanked = 0
-		w.wakeUp(e)
-		w.finishUse(e, w.cfg.Needs[NeedSleep])
-	}
-}
-
-// fallAsleep pauses e's other needs at their current levels.
-func (w *World) fallAsleep(e *Entity) {
-	if e.asleep {
-		return
-	}
-	w.rebaseWakingNeeds(e)
-	e.asleep = true
-	w.pauseNeedsWhileAsleep(e)
-	w.syncWakingNeedPhases(e)
-}
-
-// wakeUp resumes e's other needs from where they were paused. colonistTurn
-// calls it for a colonist that has left its bed for any reason.
-func (w *World) wakeUp(e *Entity) {
-	if !e.asleep {
-		return
-	}
-	w.rebaseWakingNeeds(e)
-	e.asleep = false
-	for n := NeedKind(0); n < numNeeds; n++ {
-		if n != NeedSleep {
-			e.needRise[n] = e.wakeRise[n]
-		}
-	}
-	w.syncWakingNeedPhases(e)
-}
-
-// pauseNeedsWhileAsleep stops every need but sleep from rising, keeping the
-// rates to restore on waking. The levels must already be rebased to now.
-func (w *World) pauseNeedsWhileAsleep(e *Entity) {
-	for n := NeedKind(0); n < numNeeds; n++ {
-		if n != NeedSleep {
-			e.wakeRise[n], e.needRise[n] = e.needRise[n], 0
-		}
-	}
-}
-
-// rebaseWakingNeeds folds the rise so far into each non-sleep need's base, so
-// a change of rate applies only from now on.
-func (w *World) rebaseWakingNeeds(e *Entity) {
-	for n := NeedKind(0); n < numNeeds; n++ {
-		if n != NeedSleep {
-			e.Needs[n], e.needSince[n] = w.needLevel(e, n), w.tick
-		}
-	}
-}
-
-func (w *World) syncWakingNeedPhases(e *Entity) {
-	for n := NeedKind(0); n < numNeeds; n++ {
-		if n != NeedSleep {
-			w.syncNeedPhase(e, n)
-		}
+	if w.driveLevel(e, DriveSleep) == 0 {
+		w.finishUse(e, w.cfg.Drives[DriveSleep])
 	}
 }

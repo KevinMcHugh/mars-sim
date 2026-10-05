@@ -219,17 +219,17 @@ func TestHungryColonistsBuyWhatOthersSell(t *testing.T) {
 		t.Fatalf("offered %d meals, want the 3 over meal-keep", w.openQty(Ask, Meal, silo, ColonistOwner(seller.ID)))
 	}
 
-	buyer.Needs[NeedFood] = w.cfg.Needs[NeedFood].SeekAt + 10
-	w.syncNeedPhase(buyer, NeedFood)
-	for i := 0; i < 200 && w.needLevel(buyer, NeedFood) > 0; i++ {
-		w.runNeedFocus(buyer, NeedFood)
+	w.setDrive(buyer, DriveFood, w.cfg.Drives[DriveFood].SeekAt+10)
+	w.syncDrivePhase(buyer, DriveFood)
+	for i := 0; i < 200 && w.driveLevel(buyer, DriveFood) > 0; i++ {
+		w.runDriveFocus(buyer, DriveFood)
 		if buyer.Job == JobUse {
 			t.Fatal("the buyer went for gruel with meals on sale")
 		}
 	}
-	if w.needLevel(buyer, NeedFood) != 0 || buyer.wallet != 100-Money(w.cfg.PriceMeal) ||
+	if w.driveLevel(buyer, DriveFood) != 0 || buyer.wallet != 100-Money(w.cfg.PriceMeal) ||
 		seller.wallet != 100+Money(w.cfg.PriceMeal) {
-		t.Fatalf("hunger %d, buyer %v, seller %v", w.needLevel(buyer, NeedFood), buyer.wallet, seller.wallet)
+		t.Fatalf("hunger %d, buyer %v, seller %v", w.driveLevel(buyer, DriveFood), buyer.wallet, seller.wallet)
 	}
 	assertMoneyConserved(t, w)
 }

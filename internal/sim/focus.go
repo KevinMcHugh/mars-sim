@@ -6,7 +6,7 @@ import (
 )
 
 // FocusKind is the goal a colonist is currently pursuing. Jobs remain the
-// execution layer: a need focus may execute either JobUse or JobBuild, while an
+// execution layer: a drive focus may execute either JobUse or JobBuild, while an
 // idle focus may execute an opportunistic conversation.
 type FocusKind uint8
 
@@ -54,7 +54,7 @@ func (f FocusKind) String() string {
 type FocusSpec struct {
 	Name           string
 	Base           int `cfg:"base" doc:"baseline score before state contributions"`
-	NeedWeight     int `cfg:"need-weight" doc:"matching need pressure contribution"`
+	DriveWeight    int `cfg:"drive-weight" doc:"matching drive pressure contribution"`
 	ChargeWeight   int `cfg:"charge-weight" doc:"signed response to affect charge"`
 	GripWeight     int `cfg:"grip-weight" doc:"signed response to affect grip"`
 	DistanceWeight int `cfg:"distance-weight" doc:"penalty per cheap distance unit"`
@@ -63,7 +63,7 @@ type FocusSpec struct {
 // FocusScore retains the explanation for one candidate's final score.
 type FocusScore struct {
 	Base        int
-	Need        int
+	Drive       int
 	Affect      int
 	Stimulus    int
 	Personality int
@@ -72,7 +72,7 @@ type FocusScore struct {
 }
 
 func (s FocusScore) Total() int {
-	return s.Base + s.Need + s.Affect + s.Stimulus +
+	return s.Base + s.Drive + s.Affect + s.Stimulus +
 		s.Personality + s.Commitment + s.Distance
 }
 
@@ -80,7 +80,7 @@ func (s FocusScore) Total() int {
 // Exact target search and claiming remain in the selected focus's executor.
 type FocusCandidate struct {
 	Kind     FocusKind
-	Need     NeedKind
+	Drive    DriveKind
 	Threat   EntityID
 	Eligible bool
 	Score    FocusScore
@@ -90,7 +90,7 @@ type FocusCandidate struct {
 // score explanations. It is never called by normal simulation arbitration.
 func (c FocusCandidate) String() string {
 	return fmt.Sprintf("%s eligible=%t base=%d need=%d affect=%d stimulus=%d personality=%d commitment=%d distance=%d total=%d",
-		c.Kind, c.Eligible, c.Score.Base, c.Score.Need, c.Score.Affect,
+		c.Kind, c.Eligible, c.Score.Base, c.Score.Drive, c.Score.Affect,
 		c.Score.Stimulus, c.Score.Personality, c.Score.Commitment,
 		c.Score.Distance, c.Score.Total())
 }
@@ -106,31 +106,31 @@ func formatFocusCandidates(candidates *[numFocusKinds]FocusCandidate) string {
 	return b.String()
 }
 
-func focusForNeed(n NeedKind) FocusKind {
+func focusForDrive(n DriveKind) FocusKind {
 	switch n {
-	case NeedFood:
+	case DriveFood:
 		return FocusEat
-	case NeedBladder:
+	case DriveBladder:
 		return FocusRelieve
-	case NeedSocial:
+	case DriveSocial:
 		return FocusSocialize
-	case NeedSleep:
+	case DriveSleep:
 		return FocusSleep
 	default:
 		return FocusIdle
 	}
 }
 
-func needForFocus(f FocusKind) (NeedKind, bool) {
+func driveForFocus(f FocusKind) (DriveKind, bool) {
 	switch f {
 	case FocusEat:
-		return NeedFood, true
+		return DriveFood, true
 	case FocusRelieve:
-		return NeedBladder, true
+		return DriveBladder, true
 	case FocusSocialize:
-		return NeedSocial, true
+		return DriveSocial, true
 	case FocusSleep:
-		return NeedSleep, true
+		return DriveSleep, true
 	default:
 		return 0, false
 	}
@@ -171,7 +171,7 @@ func (w *World) markMindDirty(e *Entity) {
 
 // nextCognitionTick returns the first tick on which an internal score or
 // eligibility fact can change, capped by a bounded defensive reconsideration.
-// Pressing need pressure and non-neutral affect drift every tick, so those
+// Pressing drive pressure and non-neutral affect drift every tick, so those
 // states deliberately do not get a multi-tick horizon here; widening that
 // bound belongs to the separately gated validity-horizon step.
 func (w *World) nextCognitionTick(e *Entity) int {
@@ -187,21 +187,42 @@ func (w *World) nextCognitionTick(e *Entity) int {
 	if !e.affectSettled() {
 		return w.tick + 1
 	}
-	sleepProgressOnly := e.focus == FocusSleep && e.Job == JobUse && e.Need == NeedSleep &&
+	sleepProgressOnly := e.focus == FocusSleep && e.Job == JobUse && e.Drive == DriveSleep &&
 		!e.carrying && e.useFacilitySet && e.Pos.Adjacent(e.useFacility) &&
-		w.TerrainAt(e.useFacility) == w.cfg.Needs[NeedSleep].Facility
-	for n := NeedKind(0); n < numNeeds; n++ {
-		level := w.needLevel(e, n)
-		phase := e.needPhase[n]
-		if (phase == NeedPressing || phase == NeedCritical) && level < w.cfg.Needs[n].Max &&
-			!(sleepProgressOnly && n == NeedSleep) {
+		w.TerrainAt(e.useFacility) == w.cfg.Drives[DriveSleep].Facility
+	for n := DriveKind(0); n < numDrives; n++ {
+		level := w.driveLevel(e, n)
+		phase := e.drives[n].phase
+		if (phase == DrivePressing || phase == DriveCritical) && level < w.cfg.Drives[n].Max &&
+			!(sleepProgressOnly && n == DriveSleep) {
 			return w.tick + 1
 		}
-		if crossing := e.nextNeedPhaseTick[n]; crossing > w.tick && crossing < next {
+		if crossing := e.drives[n].nextCrossing; crossing > w.tick && crossing < next {
 			next = crossing
 		}
 	}
 	return next
+}
+
+// focusDrive is drive d's level and phase as arbitration sees them. A drive
+// being satisfied in place (asleep in bed) keeps its focus until the use is
+// over: while the colonist is using the facility it counts as pressing just
+// short of critical. Sleep falls in bed, and without this a sleeper's focus
+// stopped being eligible the moment it dropped below SeekAt, and it got up
+// with the night half done. Holding it at SeekAt was not enough: a sleeper
+// then got up for any drive that was barely pressing (41 of 71 interrupted
+// nights were a mildly full bladder). Just short of critical, only a
+// critical drive, a fatal one, or a threat wakes it. The hold lasts through 0
+// too, so the job, not arbitration, is what ends the night (finishUse: the
+// memory, the bed's fee).
+func (w *World) focusDrive(e *Entity, d DriveKind) (level int, phase DrivePhase) {
+	level, phase = w.driveLevel(e, d), e.drives[d].phase
+	if w.usingFacility(e, d) {
+		spec := &w.cfg.Drives[d]
+		level = max(level, spec.SeekAt, spec.CriticalAt-1)
+		phase = max(phase, DrivePressing)
+	}
+	return level, phase
 }
 
 // focusThreat is the alien a colonist's threat foci answer to. Anyone reacts
@@ -230,14 +251,17 @@ func (w *World) currentFocusEligible(e *Entity, threat *Entity) bool {
 	case FocusWork:
 		return workJob(e.Job) || !e.resting || w.tick >= e.wakeTick
 	case FocusEat, FocusRelieve, FocusSocialize, FocusSleep:
-		need, _ := needForFocus(e.focus)
-		phase := e.needPhase[need]
-		if phase != NeedPressing && phase != NeedCritical {
+		need, _ := driveForFocus(e.focus)
+		_, phase := w.focusDrive(e, need)
+		if phase != DrivePressing && phase != DriveCritical {
 			return false
 		}
-		if !w.cfg.Needs[need].Fatal {
-			for n := NeedKind(0); n < numNeeds; n++ {
-				if w.cfg.Needs[n].Fatal && (e.needPhase[n] == NeedPressing || e.needPhase[n] == NeedCritical) {
+		if need == DriveSocial && !w.companyInReach(e) {
+			return false
+		}
+		if !w.cfg.Drives[need].Fatal() {
+			for n := DriveKind(0); n < numDrives; n++ {
+				if w.cfg.Drives[n].Fatal() && (e.drives[n].phase == DrivePressing || e.drives[n].phase == DriveCritical) {
 					return false
 				}
 			}
@@ -256,8 +280,8 @@ func (w *World) currentFocusEligible(e *Entity, threat *Entity) bool {
 
 func cachedFocusCandidate(e *Entity, threat *Entity) FocusCandidate {
 	selected := FocusCandidate{Kind: e.focus, Eligible: true}
-	if need, ok := needForFocus(e.focus); ok {
-		selected.Need = need
+	if need, ok := driveForFocus(e.focus); ok {
+		selected.Drive = need
 	}
 	if threat != nil && (e.focus == FocusFlee || e.focus == FocusFight) {
 		selected.Threat = threat.ID
@@ -270,9 +294,9 @@ func cachedFocusCandidate(e *Entity, threat *Entity) FocusCandidate {
 // has its own copy of the score.
 type focusInputs struct {
 	focuses                                 [numFocusKinds]FocusSpec
-	needs                                   [numNeeds]NeedSpec
-	level                                   [numNeeds]int
-	phase                                   [numNeeds]NeedPhase
+	needs                                   [numDrives]DriveSpec
+	level                                   [numDrives]int
+	phase                                   [numDrives]DrivePhase
 	charge, grip, moodMax                   int
 	stimulus                                [numFocusKinds]int
 	current                                 FocusKind
@@ -282,29 +306,31 @@ type focusInputs struct {
 	threatID                                EntityID
 	armed                                   bool
 	escape                                  bool
+	noCompany                               bool // socialize has nobody to find (companyInReach)
 	currentBonus, criticalBonus, fatalBonus int
 }
 
 // focusCandidates fills caller-owned storage so normal arbitration allocates
-// nothing. Shared facts (the visible threat and each lazy need level) are read
+// nothing. Shared facts (the visible threat and each lazy drive level) are read
 // once per call.
 func (w *World) focusCandidates(e *Entity, out *[numFocusKinds]FocusCandidate) {
-	var level [numNeeds]int
-	var phase [numNeeds]NeedPhase
-	for n := NeedKind(0); n < numNeeds; n++ {
-		level[n] = w.needLevel(e, n)
-		w.syncNeedPhaseAtLevel(e, n, level[n])
-		phase[n] = e.needPhase[n]
+	var level [numDrives]int
+	var phase [numDrives]DrivePhase
+	for n := DriveKind(0); n < numDrives; n++ {
+		w.syncDrivePhase(e, n)
+		level[n], phase[n] = w.focusDrive(e, n)
 	}
 	threat, holdFlee := w.focusThreat(e)
 	hasThreat := threat != nil && !holdFlee
+	social := phase[DriveSocial]
+	noCompany := (social == DrivePressing || social == DriveCritical) && !w.companyInReach(e)
 	var threatID EntityID
 	if threat != nil {
 		threatID = threat.ID
 	}
 	fillFocusCandidates(focusInputs{
 		focuses:       w.cfg.Focuses,
-		needs:         w.cfg.Needs,
+		needs:         w.cfg.Drives,
 		level:         level,
 		phase:         phase,
 		charge:        e.affect.Charge,
@@ -318,6 +344,7 @@ func (w *World) focusCandidates(e *Entity, out *[numFocusKinds]FocusCandidate) {
 		threatID:      threatID,
 		armed:         bestWeapon(e.Inventory) != ItemNone,
 		escape:        !hasThreat && e.disconnectedTicks >= w.cfg.EscapeGraceTicks,
+		noCompany:     noCompany,
 		currentBonus:  w.cfg.FocusCurrentBonus,
 		criticalBonus: w.cfg.FocusCriticalBonus,
 		fatalBonus:    w.cfg.FocusFatalBonus,
@@ -343,35 +370,44 @@ func fillFocusCandidates(in focusInputs, out *[numFocusKinds]FocusCandidate) {
 	}
 
 	fatalPressing := false
-	for n := NeedKind(0); n < numNeeds; n++ {
+	for n := DriveKind(0); n < numDrives; n++ {
 		spec := in.needs[n]
 		phase := in.phase[n]
-		if phase != NeedPressing && phase != NeedCritical {
+		if phase != DrivePressing && phase != DriveCritical {
 			continue
 		}
-		pressure := needPressure(in.level[n], spec)
-		f := focusForNeed(n)
+		pressure := drivePressure(in.level[n], spec)
+		f := focusForDrive(n)
 		c := &out[f]
-		c.Need = n
+		c.Drive = n
 		c.Eligible = true
-		c.Score.Need = pressure * in.focuses[f].NeedWeight / 100
-		if phase == NeedCritical {
-			c.Score.Need += in.criticalBonus
+		c.Score.Drive = pressure * in.focuses[f].DriveWeight / 100
+		if phase == DriveCritical {
+			c.Score.Drive += in.criticalBonus
 		}
-		if spec.Fatal {
-			c.Score.Need += in.fatalBonus
+		if spec.Fatal() {
+			c.Score.Drive += in.fatalBonus
 			fatalPressing = true
 		}
 	}
 
-	// Preserve the existing hard invariant that a pressing fatal need outranks
-	// non-fatal needs. Threats remain eligible and can still dominate it.
+	// Social is the one drive a colonist cannot meet alone. With nobody to
+	// find, socialize would stand idle with the drive pinned at its ceiling,
+	// outranking sleep with a bed in reach until the colonist passed out (most
+	// pass-outs in the default game were this). It steps aside so sleep or
+	// work can win, and comes back the moment someone could answer it.
+	if in.noCompany {
+		out[FocusSocialize].Eligible = false
+	}
+
+	// Preserve the existing hard invariant that a pressing fatal drive outranks
+	// non-fatal drives. Threats remain eligible and can still dominate it.
 	if fatalPressing {
-		for n := NeedKind(0); n < numNeeds; n++ {
-			if in.needs[n].Fatal {
+		for n := DriveKind(0); n < numDrives; n++ {
+			if in.needs[n].Fatal() {
 				continue
 			}
-			out[focusForNeed(n)].Eligible = false
+			out[focusForDrive(n)].Eligible = false
 		}
 	}
 
@@ -398,9 +434,9 @@ func fillFocusCandidates(in focusInputs, out *[numFocusKinds]FocusCandidate) {
 
 	// A room cut off from the colony's main network for EscapeGraceTicks
 	// straight is worth breaking out of on its own, ahead of even a fatal
-	// need: reachability, not local coping, is what actually stayed broken,
+	// drive: reachability, not local coping, is what actually stayed broken,
 	// and the nearest wall is very often the same one sealing off the very
-	// facility that need is failing to reach. An immediate predator is the one
+	// facility that drive is failing to reach. An immediate predator is the one
 	// thing that still outranks it — self-preservation never waits on a wall.
 	// See updateDisconnected and rooms.go's mainRoom.
 	out[FocusEscape].Eligible = in.escape

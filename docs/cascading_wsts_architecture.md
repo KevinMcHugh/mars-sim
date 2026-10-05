@@ -2,6 +2,12 @@
 
 > Part of the [mars-sim documentation](./README.md).
 
+> **Historical design.** This is the plan the weighted-focus system was built
+> from, written when colonists had *needs*. Needs have since become drives
+> (`NeedKind` → `DriveKind`, `NeedSpec` → `DriveSpec`, `needLevel` →
+> `driveLevel`, `need_weight` → `drive_weight`); the code names below are the
+> ones of that time. [drives.md](./drives.md) describes the system as it is.
+
 ## What it is
 
 This is the implementation design for replacing the colonist AI's fixed
@@ -23,7 +29,7 @@ The implementation should introduce or update:
 - `internal/sim/focus.go` — focus kinds, candidates, scoring, arbitration, and
   transitions.
 - `internal/sim/focus_test.go` — component-level scoring and transition tests.
-- `internal/sim/needs.go` — per-need phases and pressure emission, while keeping
+- `internal/sim/drives.go` — per-drive phases and pressure emission, while keeping
   lazy level calculation.
 - `internal/sim/affect.go` — charge/grip state, event vectors, decay, appraisal,
   mood labels, and active stimuli.
@@ -40,7 +46,7 @@ The implementation should introduce or update:
 
 Existing references:
 
-- [`needs.md`](./needs.md) — current lazy need levels and urgency rules.
+- [`drives.md`](./drives.md) — current lazy drive levels and urgency rules.
 - [`personality.md`](./personality.md) — trait resolution and personality RNG.
 - [`memories.md`](./memories.md) — life events, memories, and the one-funnel
   invariant.
@@ -260,7 +266,7 @@ Map needs to focus:
 
 | Need | Focus |
 | --- | --- |
-| `NeedFood` | `FocusEat` |
+| `DriveFood` | `FocusEat` |
 | `NeedBladder` | `FocusRelieve` |
 | `NeedSocial` | `FocusSocialize` |
 | `NeedSleep` | `FocusSleep` |
@@ -687,8 +693,9 @@ Candidate generation must enforce:
   or, for a colonist already fleeing, within `FleeRadius+FleeReleaseMargin`
   (the release band; see [Flee hysteresis](#flee-hysteresis)).
 - Need focuses require a pressing or critical need.
-- `FocusSocialize` may remain eligible while waiting for a partner; the
-  executor must not restart a live conversation.
+- `FocusSocialize` may remain eligible while waiting for a partner, but only
+  while someone could answer it (`companyInReach`; see drives.md, *Socialize
+  steps aside*). The executor must not restart a live conversation.
 - `FocusWork` may continue a valid work job. When entering work without a job,
   use existing assignment logic.
 - `FocusIdle` is always eligible.
@@ -1139,7 +1146,7 @@ invariants for no architectural benefit.
 
 ### Add a need
 
-Follow [`needs.md`](./needs.md), add `CriticalAt`, map it to a focus, and test
+Follow [`drives.md`](./drives.md), add `CriticalAt`, map it to a focus, and test
 all phase boundaries. If several needs can motivate the same focus, sum or take
 the maximum in one documented helper; do not silently depend on iteration
 order.
@@ -1178,7 +1185,7 @@ Before implementing a milestone:
 
 ## Related
 
-- [needs.md](./needs.md) — lazy levels, starvation, and facilities.
+- [drives.md](./drives.md) — lazy levels, starvation, and facilities.
 - [personality.md](./personality.md) — traits and resolved effective parameters.
 - [memories.md](./memories.md) — life events and the one-funnel invariant.
 - [entities-and-ai.md](./entities-and-ai.md) — jobs, turn order, and movement.

@@ -254,7 +254,7 @@ func (m Model) renderMap() string {
 
 	// Index entities by position for O(1) lookup while drawing; aliens win ties.
 	// The index holds each occupant's glyph rather than its EntityView: a view
-	// carries the profile, inventory, needs, relations and memories, and
+	// carries the profile, inventory, drives, relations and memories, and
 	// copying all of that into a map every frame was most of the map's
 	// garbage, for the one field drawn from it.
 	type occupant struct {

@@ -46,8 +46,9 @@ import (
 // The page checks it at start, so a mars-sim.wasm left over from an older
 // build (npm run wasm not rerun after a pull) fails with a message saying so,
 // instead of a panel that silently never loads. 1 was everything before
-// subscribe/unsubscribe; 2 had no entity: or tile: topics; 3 no roster; 4 no log; 5 no jobs, storage, market or account:; 6 no perf or population; 7 no flow command; 8 no dig command; 9 no dig-cancel; 10 no order-place, order-reprice or order-cancel; 11 no order-suspend or order-resume; 12 no ship-move; 13 no ship-land; 14 no zone, clear or clear-cancel; 15 no save or load; 16 no recruit-roll or recruit-hire.
-const hostAPI = 17
+// subscribe/unsubscribe; 2 had no entity: or tile: topics; 3 no roster; 4 no log; 5 no jobs, storage, market or account:; 6 no perf or population; 7 no flow command; 8 no dig command; 9 no dig-cancel; 10 no order-place, order-reprice or order-cancel; 11 no order-suspend or order-resume; 12 no ship-move; 13 no ship-land; 14 no zone, clear or clear-cancel; 15 no save or load; 16 no recruit-roll or recruit-hire; 17 called the entity
+// panel's drives "needs", with a fatal flag where 18 has a consequence.
+const hostAPI = 18
 
 var (
 	eng *sim.Engine

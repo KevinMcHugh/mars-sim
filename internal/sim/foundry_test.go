@@ -22,9 +22,7 @@ func foundryWorld(t *testing.T, n int, ore int) (w *World, silo, forge, bench Po
 	stock(w, silo, Community, IronOre, ore)
 	for i := 0; i < n; i++ {
 		e := w.spawn(Colonist, Point{10 + 2*i, 12})
-		for k := range e.Needs {
-			e.Needs[k] = 0
-		}
+		quietDrives(w, e)
 		e.wallet = 100
 		w.moneyIssued += 100 - Money(w.cfg.CrashPodPurse)
 		cols = append(cols, e)
@@ -41,9 +39,7 @@ func runFoundry(t *testing.T, w *World, limit int) (depth int) {
 		w.step()
 		for _, e := range w.entities {
 			if e.Kind == Colonist {
-				for k := range e.Needs {
-					e.Needs[k] = 0
-				}
+				quietDrives(w, e)
 			}
 		}
 		depth = max(depth, w.chainDepth())
@@ -105,9 +101,7 @@ func TestOwnOreFillsTheForge(t *testing.T) {
 	}
 	for i := 0; i < 400 && w.orders[bid.ID] != nil; i++ {
 		w.step()
-		for k := range miner.Needs {
-			miner.Needs[k] = 0
-		}
+		quietDrives(w, miner)
 	}
 	if got := w.storageContainers[forge].held(smith, IronOre); got != 2 {
 		t.Fatalf("the smith holds %d ore at the forge, want 2", got)

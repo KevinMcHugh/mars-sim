@@ -20,7 +20,7 @@ meals happen in one place you can see on the map.
   `nearestChair`, `socializeAtHall`, `mealSeat`, `hallTalkBonus`.
 - [`internal/sim/food.go`](../internal/sim/food.go) — the `eatWalk` stage of
   `JobEat`.
-- [`internal/sim/systems.go`](../internal/sim/systems.go) — `runNeedFocus` tries
+- [`internal/sim/systems.go`](../internal/sim/systems.go) — `runDriveFocus` tries
   the hall before the old talk; `finishTalk` adds the hall bonus.
 - [`internal/sim/project.go`](../internal/sim/project.go) — where the planner
   commissions it, and the `OrderMeetingHall` order.
@@ -52,14 +52,19 @@ facility terrain (`facilityTiles`), and "in the hall" means within `hallReach`
 (2) tiles of one; "seated" means beside one. Nothing is stored that could go
 stale when a wall is torn down.
 
-**Socializing.** A colonist whose focus is social (`runNeedFocus`) calls
+**Socializing.** A colonist whose focus is social (`runDriveFocus`) calls
 `socializeAtHall` first:
 
 1. Not beside a chair: walk to the nearest reachable one within `hall-range`
    (default 48) that has fewer than `chairShare` (2) colonists beside it.
 2. Seated: pair with the nearest available colonist *who is also in the hall*,
    and chat there. With no one, wait (State `Idle`, focus still social) so the
-   next arrival finds them.
+   next arrival finds them — but only while someone is headed there. Socialize
+   is only eligible while `companyInReach` finds someone who could answer:
+   free in the hall, or `headedForHall` (already socializing, idle with a
+   pressing social drive, or at work with a critical one). With nobody coming
+   the colonist leaves the hall for sleep or work rather than waiting there
+   until it passed out. See [drives.md](./drives.md), *Socialize steps aside*.
 3. Anything that fails (no chair free, out of range, route blocked) falls back
    to the old behavior, so a hall that is full or far never leaves anyone
    stranded.
@@ -121,6 +126,6 @@ of the walk), and a meal fetched to keep (`eatKeep`).
 
 ## Related
 
-- [needs.md](./needs.md) — the social need and how conversations meet it.
+- [drives.md](./drives.md) — the social need and how conversations meet it.
 - [food.md](./food.md) — the eating job the `eatWalk` stage extends.
 - [construction.md](./construction.md) — room recipes and the planner.

@@ -33,7 +33,7 @@ const FOCI = [
   { id: "escape", title: "Dig out" },
 ];
 
-const NEEDS = [
+const DRIVES = [
   { id: "food", title: "Hunger", hint: "A nutrient pod is how this gets answered." },
   { id: "bladder", title: "Bladder", hint: "This is the one that wants a toilet." },
   { id: "social", title: "Company", hint: "Someone free to talk, not a building." },
@@ -71,7 +71,7 @@ function fresh(seed) {
     grip: 0,
     valence: 0,
     moodLabel: "",
-    needs: { food: 200, bladder: 150, social: 100, sleep: 250 },
+    drives: { food: 200, bladder: 150, social: 100, sleep: 250 },
     currentFocus: "work",
     around: {
       pod: true,
@@ -107,7 +107,7 @@ function groups() {
 export const focusTool = {
   id: "focus",
   title: "Focus Tester",
-  summary: "A colonist, their mood, their needs, and whether any of it is enough to change their mind.",
+  summary: "A colonist, their mood, their drives, and whether any of it is enough to change their mind.",
   mount(host) {
     if (!bench) bench = fresh(nextSeed);
     const ac = new AbortController();
@@ -121,12 +121,12 @@ export const focusTool = {
 function reroll(host, seed) {
   nextSeed = seed;
   const kept = {
-    needs: { ...bench.needs },
+    drives: { ...bench.drives },
     currentFocus: bench.currentFocus,
     around: { ...bench.around, alien: false },
   };
   bench = fresh(seed);
-  bench.needs = kept.needs;
+  bench.drives = kept.drives;
   bench.currentFocus = kept.currentFocus;
   bench.around = kept.around;
   bench.stimuli = [];
@@ -159,11 +159,11 @@ function render() {
         ${traitRows(kind.list)}
       </div>`).join("");
 
-  const needBlocks = NEEDS.map(need => `
+  const driveBlocks = DRIVES.map(drive => `
     <label class="slider-row">
-      <span class="slider-name">${need.title}<small>${need.hint}</small></span>
-      <input type="range" min="0" max="1000" value="${bench.needs[need.id]}" data-need="${need.id}">
-      <span class="slider-read"><b data-need-value="${need.id}"></b><i data-need-phase="${need.id}" class="pill"></i></span>
+      <span class="slider-name">${drive.title}<small>${drive.hint}</small></span>
+      <input type="range" min="0" max="1000" value="${bench.drives[drive.id]}" data-drive="${drive.id}">
+      <span class="slider-read"><b data-drive-value="${drive.id}"></b><i data-drive-phase="${drive.id}" class="pill"></i></span>
     </label>`).join("");
 
   const focusChips = FOCI.map(focus => `
@@ -209,7 +209,7 @@ function render() {
       <p class="step">03 · What their body wants</p>
       <h2>Needs</h2>
       <p class="lede">Fine and building don't make them get up. Pressing and critical do.</p>
-      ${needBlocks}
+      ${driveBlocks}
     </section>
 
     <section class="tile">
@@ -256,7 +256,7 @@ function render() {
       <p class="lede" data-verdict-sub></p>
       <div class="legend">
         <span><i class="seg base"></i> baseline</span>
-        <span><i class="seg need"></i> need</span>
+        <span><i class="seg drive"></i> drive</span>
         <span><i class="seg affect"></i> mood</span>
         <span><i class="seg stimulus"></i> stimulus</span>
         <span><i class="seg stay"></i> staying put</span>
@@ -331,9 +331,9 @@ function wire(host, signal) {
       paint(host);
       return;
     }
-    const need = event.target.dataset.need;
-    if (need) {
-      bench.needs[need] = Number(event.target.value);
+    const drive = event.target.dataset.drive;
+    if (drive) {
+      bench.drives[drive] = Number(event.target.value);
       paint(host);
       return;
     }
@@ -388,10 +388,10 @@ function paint(host) {
   for (const id of ["charge", "grip", "valence"]) {
     host.querySelector(`[data-axis-value="${id}"]`).textContent = signed(bench[id]);
   }
-  for (const need of NEEDS) {
-    const phase = result.phases[need.id];
-    host.querySelector(`[data-need-value="${need.id}"]`).textContent = String(bench.needs[need.id]);
-    const pill = host.querySelector(`[data-need-phase="${need.id}"]`);
+  for (const drive of DRIVES) {
+    const phase = result.phases[drive.id];
+    host.querySelector(`[data-drive-value="${drive.id}"]`).textContent = String(bench.drives[drive.id]);
+    const pill = host.querySelector(`[data-drive-phase="${drive.id}"]`);
     pill.textContent = PHASE_WORD[phase];
     pill.className = `pill phase-${phase}`;
   }
@@ -486,7 +486,7 @@ function paintVerdict(host, result) {
 
   const diagnostic = host.querySelector("#diagnostic");
   diagnostic.replaceChildren();
-  const span = (candidate) => Math.max(0, candidate.base) + Math.max(0, candidate.need) + Math.max(0, candidate.affect) + Math.max(0, candidate.stimulus) + Math.max(0, candidate.commitment);
+  const span = (candidate) => Math.max(0, candidate.base) + Math.max(0, candidate.drive) + Math.max(0, candidate.affect) + Math.max(0, candidate.stimulus) + Math.max(0, candidate.commitment);
   // Scale to the race, so a gated focus with a huge base (dig out) doesn't
   // flatten the bars you can actually compare. That overflow is marked.
   const racing = result.candidates.filter(candidate => candidate.eligible);
@@ -512,7 +512,7 @@ function paintVerdict(host, result) {
     track.className = "bar";
     if (!candidate.eligible && span(candidate) > max) track.classList.add("overflow");
     let used = 0;
-    for (const [kind, value] of [["base", candidate.base], ["need", candidate.need], ["affect", candidate.affect], ["stimulus", candidate.stimulus], ["stay", candidate.commitment]]) {
+    for (const [kind, value] of [["base", candidate.base], ["drive", candidate.drive], ["affect", candidate.affect], ["stimulus", candidate.stimulus], ["stay", candidate.commitment]]) {
       if (value <= 0 || used >= 100) continue;
       const seg = document.createElement("i");
       seg.className = `seg ${kind}`;
@@ -525,7 +525,7 @@ function paintVerdict(host, result) {
     bits.className = "weights";
     const parts = [
       `baseline ${signed(candidate.base)}`,
-      `need ${signed(candidate.need)}`,
+      `drive ${signed(candidate.drive)}`,
       `mood ${signed(candidate.affect)}`,
       `stimulus ${signed(candidate.stimulus)}`,
       `staying ${signed(candidate.commitment)}`,

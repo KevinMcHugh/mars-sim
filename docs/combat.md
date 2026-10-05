@@ -104,7 +104,7 @@ stay deterministic for a given seed (see `AGENTS.md`).
 
 `applyDamage(target, part, dmg)` subtracts `dmg` from that part (floored at
 zero) *and* from the entity's aggregate `HP` (also floored at zero, and still
-what starvation drains — see [needs.md](./needs.md)), then returns whether
+what starvation drains — see [drives.md](./drives.md)), then returns whether
 the hit was fatal by `Entity.Alive()`'s rule. Every damage source funnels
 through it: `strike` and `shoot` both call `rollHit` then `applyDamage`
 (except a strangling `strike`, which aims for the head without a roll).
@@ -367,7 +367,7 @@ cap.
 - [inventory.md](./inventory.md) — the item-stack machinery weapons reuse.
 - [configuration.md](./configuration.md) — how weapon/equipment tunables
   become CLI flags.
-- [needs.md](./needs.md) — starvation, the other thing that drains HP.
+- [drives.md](./drives.md) — starvation, the other thing that drains HP.
 - [memories.md](./memories.md) — the life events and affect vectors that
   bite/stomp/pounce/shoot and gore sightings feed.
 - [frontend-tui.md](./frontend-tui.md) — the fighting glyph, the gore glyph,

@@ -328,7 +328,7 @@ type Config struct {
 	FleeReleaseMargin int `cfg:"flee-release-margin" doc:"a fleeing colonist keeps fleeing until no alien is within flee-radius plus this many tiles"`
 	// StompRadius is how far an idle colonist notices a rat and gives chase to
 	// crush it. Stomping is an idle whim: only colonists with nothing pressing
-	// (no threat, no urgent need, no work) hunt pests.
+	// (no threat, no urgent drive, no work) hunt pests.
 	ColonistStompRadius int `cfg:"stomp-radius" doc:"an idle colonist chases and crushes a rat within this many tiles"`
 	// GoreSightRadius is how far a colonist notices gore on the ground (see
 	// the visible-gore perception rule in cognition.yaml). Smaller than
@@ -336,7 +336,7 @@ type Config struct {
 	// a moving alien does.
 	GoreSightRadius int `cfg:"gore-sight-radius" doc:"a colonist notices gore on the ground within this many tiles"`
 
-	// Sanitation. A colonist with no urgent need cleans up refuse — gore and
+	// Sanitation. A colonist with no urgent drive cleans up refuse — gore and
 	// corpses — and hauls it to an incinerator to burn. CleanRadius is how far
 	// it looks for a mess (larger than GoreSightRadius, which is about noticing
 	// one, not going to find it); a Tidy colonist searches twice as far. See
@@ -346,10 +346,14 @@ type Config struct {
 	IncinerateTicks       int `cfg:"incinerate-ticks" doc:"ticks spent feeding a load of refuse into an incinerator"`
 	IncineratorBuildTicks int `cfg:"incinerator-ticks" doc:"ticks of work to build an incinerator"`
 
-	// Needs. One NeedSpec per NeedKind, indexed by that kind.
-	Needs                [numNeeds]NeedSpec `cfg:"needs" sec:"Needs"`
-	StarveDamage         int                `cfg:"starve-damage" doc:"HP lost per tick while a fatal need sits at its max"`
-	ColonistsPerFacility int                `cfg:"per-facility" doc:"colonists served by each life-support facility"`
+	// Drives. One DriveSpec per DriveKind, indexed by that kind.
+	Drives       [numDrives]DriveSpec `cfg:"drives" sec:"Drives"`
+	StarveDamage int                  `cfg:"starve-damage" doc:"HP lost per tick while a drive's death consequence applies"`
+	// DriveEffects are the effect profiles events can start on a colonist's
+	// drives (caffeine, water), indexed by DriveEffectKind. None ship yet;
+	// the config file has no lists, so they are set in code (drive_effects.go).
+	DriveEffects         []DriveEffectProfile
+	ColonistsPerFacility int `cfg:"per-facility" doc:"colonists served by each life-support facility"`
 
 	// Focus arbitration. Runtime copy of cognition.yaml's focuses/arbitration,
 	// written once at load by SyncWithCognition. Tune those tables there, not
@@ -537,11 +541,12 @@ type Config struct {
 	AlienSlowness          int `cfg:"alien-slowness" doc:"baseline: alien acts once every N ticks (higher = slower), before a species' temperament scales it"`
 	AlienReferenceWeightKG int `cfg:"alien-reference-weight-kg" doc:"specimen weight in kg at which a species deals exactly alien-damage"`
 	AlienCautiousRadius    int `cfg:"alien-cautious-radius" doc:"how close a colonist must come before a Cautious species reacts and closes in"`
-	// AlienHungerRise is the food need an alien gains per tick. Only Friendly
-	// and Cautious species act on it: once it passes the food need's seek-at
+	// AlienHungerRate is the food drive an alien gains per tick, in thousandths
+	// of a point. Only Friendly
+	// and Cautious species act on it: once it passes the food drive's seek-at
 	// they graze exposed cave scum within AlienGrazeRadius (Hostile ones eat
 	// colonists instead). Aliens never starve. See alienGraze.
-	AlienHungerRise  int `cfg:"alien-hunger-rise" doc:"food need a Friendly or Cautious alien gains per tick before it goes grazing on cave scum"`
+	AlienHungerRate  int `cfg:"alien-hunger-rate" doc:"food drive a Friendly or Cautious alien gains per tick, in thousandths of a point, before it goes grazing on cave scum"`
 	AlienGrazeRadius int `cfg:"alien-graze-radius" doc:"how far a hungry Friendly or Cautious alien looks for cave scum to eat"`
 
 	// AlienNames configures the pool of names ("xenos," "critters," ...) a
@@ -574,17 +579,17 @@ type Config struct {
 	// work for one of them: backstory flavor only.
 	CorporationEmployeePercent int `cfg:"corporation-employee-percent" doc:"percent of arriving colonists who used to work for one of the lore's corporations (flavor only)"`
 
-	// Cat stats. Cats have no needs; they hunt rats on the floor by instinct.
+	// Cat stats. Cats have no drives; they hunt rats on the floor by instinct.
 	CatHP         int `cfg:"cat-hp" sec:"Cats" doc:"cat hit points"`
 	CatSlowness   int `cfg:"cat-slowness" doc:"cat acts once every N ticks (higher = slower)"`
 	CatPounceRest int `cfg:"cat-pounce-rest" doc:"cooldown ticks after a cat catches a rat"`
 
-	// Chicken stats. A chicken has only the food need: it eats feed from its
+	// Chicken stats. A chicken has only the food drive: it eats feed from its
 	// keeper's trough, or grazes cave scum, and starves with neither. See
 	// chickens.go and docs/chickens.md.
 	ChickenHP          int `cfg:"chicken-hp" sec:"Chickens" doc:"chicken hit points"`
 	ChickenSlowness    int `cfg:"chicken-slowness" doc:"chicken acts once every N ticks (higher = slower)"`
-	ChickenHungerRise  int `cfg:"chicken-hunger-rise" doc:"food need a chicken gains per tick"`
+	ChickenHungerRate  int `cfg:"chicken-hunger-rate" doc:"food drive a chicken gains per tick, in thousandths of a point"`
 	ChickenGrazeRadius int `cfg:"chicken-graze-radius" doc:"how far a hungry chicken looks for cave scum to graze"`
 	ChickenRoam        int `cfg:"chicken-roam" doc:"a chicken with a trough wanders back toward it once farther than this many tiles"`
 	// A keeper refills its trough once it holds fewer than TroughLow units
@@ -592,10 +597,10 @@ type Config struct {
 	TroughLow  int `cfg:"trough-low" doc:"a keeper refills its trough once it holds fewer than this many units of feed (0: keepers never tend)"`
 	TroughFill int `cfg:"trough-fill" doc:"units of feed a keeper fills its trough to"`
 
-	// Rat stats. Rats share the colonists' NeedFood but grow hungry far faster
+	// Rat stats. Rats share the colonists' DriveFood but grow hungry far faster
 	// (they nibble constantly), and flee cats rather than aliens.
 	RatHP         int `cfg:"rat-hp" sec:"Rats" doc:"rat hit points"`
-	RatHungerRise int `cfg:"rat-hunger-rise" doc:"food need a rat gains per tick (rats eat frequently)"`
+	RatHungerRate int `cfg:"rat-hunger-rate" doc:"food drive a rat gains per tick, in thousandths of a point (rats eat frequently)"`
 	// RatScavengeRadius is how far a hungry rat looks for a body, gore, or
 	// cave scum to eat before it settles for raiding a nutrient pod. See
 	// scavenge.go.
@@ -865,7 +870,7 @@ func DefaultConfig() Config {
 
 		FrontierFieldMinColonists: 800,
 		FrontierFieldMinArea:      90000, // ~300x300 and up
-		Needs:                     defaultNeeds(),
+		Drives:                    defaultDrives(),
 		AlienSpeciesCount:         1,
 		AlienHP:                   30,
 		AlienDamage:               6,
@@ -873,7 +878,7 @@ func DefaultConfig() Config {
 		AlienSlowness:             2,
 		AlienReferenceWeightKG:    80,
 		AlienCautiousRadius:       3,
-		AlienHungerRise:           2, // the colonist food rise: a grazer eats about as often as a colonist
+		AlienHungerRate:           2000, // two points a tick: a grazer eats about as often as a colonist
 		AlienGrazeRadius:          12,
 
 		PistolDamage:    10,
@@ -895,14 +900,14 @@ func DefaultConfig() Config {
 
 		ChickenHP:          4,
 		ChickenSlowness:    3,
-		ChickenHungerRise:  2, // a colonist's
+		ChickenHungerRate:  2000, // two points a tick, about a colonist's
 		ChickenGrazeRadius: 10,
 		ChickenRoam:        6,
 		TroughLow:          4,
 		TroughFill:         12,
 
 		RatHP:         4,
-		RatHungerRise: 8, // 4x the colonist food rise: rats eat very frequently
+		RatHungerRate: 8000, // eight points a tick: rats eat very frequently
 		// Farther than a colonist cleans (clean-radius): a rat finds the dead
 		// before the colony does.
 		RatScavengeRadius: 12,

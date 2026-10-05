@@ -232,9 +232,7 @@ func TestAPlayersScumOrderIsScrapedForWithAnIncubatorStanding(t *testing.T) {
 		w.step()
 		for _, e := range w.entities {
 			if e.Kind == Colonist {
-				for k := range e.Needs {
-					e.Needs[k] = 0 // keep the test about work, not survival
-				}
+				quietDrives(w, e) // keep the test about work, not survival
 			}
 		}
 	}

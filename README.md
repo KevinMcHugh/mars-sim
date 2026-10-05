@@ -64,7 +64,7 @@ Terminal controls:
 | `q` / `esc`    | quit                            |
 
 The **roster** (`tab`) lists every colonist; `↑`/`↓` select one to inspect its
-name, attributes, health, mood, needs, eight-slot inventory, traits, family,
+name, attributes, health, mood, drives, eight-slot inventory, traits, family,
 affinities, and everything it remembers. The inspector is taller than the
 panel, so `shift+↑`/`shift+↓` scroll it a line and `pgup`/`pgdn` a screenful —
 the bottom row says where in the colonist you are. `esc` returns to the map;
@@ -148,15 +148,15 @@ mutable state:
     bearing deposit),
     build the colony's life-support as coordinated projects (see *Construction
     projects*), clean up after the colony's dead (see *Sanitation*), tend to
-    their needs, and flee when an alien gets close. Each colonist has eight
+    their drives, and flee when an alien gets close. Each colonist has eight
     inventory slots, each holding a homogeneous stack of up to 64 items.
   - **Aliens** walk the floor like everyone else, hunting the nearest colonist
     they can reach, and eat it. Most start dormant in hidden caves, and
     breaking into a cave can turn up a whole nest.
   - **Cats** stalk the floor hunting rats, pouncing when adjacent (a single
-    pounce is fatal). They have no needs; they hunt by instinct.
+    pounce is fatal). They have no drives; they hunt by instinct.
   - **Rats** are pests that scurry the floor and nibble the colony's nutrient
-    pods, sharing the colonists' food need but hungering far faster. They flee
+    pods, sharing the colonists' food drive but hungering far faster. They flee
     cats, and the colony keeps them in check (see *Wildlife*).
 
 #### Wildlife
@@ -165,9 +165,9 @@ Cats and rats form a small ecosystem on the cavern floor, and the colonists take
 part in it:
 
 - **Colonists stomp rats.** A colonist with nothing pressing to do — no alien to
-  flee, no urgent need, and no reachable work — will chase down a rat it notices
+  flee, no urgent drive, and no reachable work — will chase down a rat it notices
   (within `ColonistStompRadius`) and crush it. A stomp is instantly fatal. Pest
-  control is strictly an idle whim: a threat, an urgent need, or any available
+  control is strictly an idle whim: a threat, an urgent drive, or any available
   job always wins, so stomping never pulls a colonist off real work.
 - **Rats breed.** Two adjacent rats of opposite sex with nothing pressing to do
   mate; the female then carries a litter for `RatGestationTicks` before giving
@@ -177,28 +177,34 @@ part in it:
   explode every tick. Cats, colonists' boots, and starvation without reachable
   food all push back the other way.
 
-#### Needs
+#### Drives
 
-Colonists accumulate **needs** over time, stored as a `Needs` array indexed by
-`NeedKind` (`internal/sim/needs.go`). Each need has a `NeedSpec` in `Config`
-describing how fast it rises, when the colonist drops work to address it, which
-facility satisfies it, and whether maxing out is fatal:
+Colonists accumulate **drives** over time (`DriveKind`, `internal/sim/drives.go`).
+Each drive has a `DriveSpec` in `Config` describing how fast it grows, when the
+colonist drops work to address it, which facility satisfies it, and whether
+maxing out is fatal:
 
-| Need    | Facility          | Fatal?                 |
+| Drive   | Facility          | Fatal?                 |
 | ------- | ----------------- | ---------------------- |
 | food    | 🍽️ nutrient pod   | yes — starvation drains HP |
 | bladder | 🚽 toilet         | no (nags only, for now)    |
 | sleep   | 🛏️ dormitory bunk | no — a tired colonist waits for a free bunk |
+| social  | 💬 conversation   | no |
 
-When a need crosses its threshold the colonist walks to the nearest matching
-facility and uses it, resetting the need. Facilities are ordinary buildable
+A drive grows faster or slower with what the colonist is doing: hunger barely
+moves in bed and climbs fastest during hard labor. Traits (Big Eater, Asocial),
+timed effects, and other drives can change those rates too, and what a level
+does is declared as bands of consequences (see [docs/drives.md](docs/drives.md)).
+
+When a drive crosses its threshold the colonist walks to the nearest matching
+facility and uses it, resetting the drive. Facilities are ordinary buildable
 structures (no material inventory yet). The colony keeps enough life-support
 stocked for its population (`ColonistsPerFacility`), and a hungry colonist with
-nowhere to eat will build a pod rather than starve (only *fatal* needs justify
-that lone emergency build; a non-fatal need like bladder waits for a real
+nowhere to eat will build a pod rather than starve (only *fatal* drives justify
+that lone emergency build; a non-fatal drive like bladder waits for a real
 facility rather than having the whole colony storm into ad-hoc building at once).
-Adding a new need is meant to be a table edit: append a `NeedKind`, give it a
-`NeedSpec` and a facility.
+Adding a new drive is meant to be a table edit: append a `DriveKind`, give it a
+`DriveSpec` and a facility.
 
 #### Personality
 
@@ -209,13 +215,13 @@ but traits change how a colonist plays:
 
 | Trait        | Effect                                    |
 | ------------ | ----------------------------------------- |
-| Big Eater    | hungers faster (food need rises quicker)  |
+| Big Eater    | hungers faster (food drive grows quicker) |
 | Light Eater  | hungers slower                            |
 | Industrious  | works faster and rests less               |
 | Lazy         | works slower and rests more               |
-| Asocial      | never develops a social need              |
-| Introvert    | social need rises slowly; too much talking lowers mood |
-| Extrovert    | social need rises quickly                 |
+| Asocial      | never develops a social drive             |
+| Introvert    | social drive grows slowly; too much talking lowers mood |
+| Extrovert    | social drive grows quickly                |
 | Tidy         | the sight of gore hits morale harder      |
 | Mutant-Lover | warms to mutants far faster than to anyone else |
 | Mutant       | *not rolled at spawn* — what uranium does to a colonist |
@@ -223,9 +229,9 @@ but traits change how a colonist plays:
 Traits are drawn from mutually exclusive groups (appetite, work ethic, social); a
 colonist gets at most one per group, each with `TraitChance` probability
 (`-trait-chance`, default 30; 0 disables traits). At spawn a colonist's traits
-resolve into per-colonist effective parameters (need rise rates, rest duration,
+resolve into per-colonist effective parameters (drive growth rates, rest duration,
 work speed) that the hot paths read directly, so traits never cost a per-tick
-trait scan. Adding a trait is a table edit in `traitSpecs`; new needs and systems
+trait scan. Adding a trait is a table edit in `traitSpecs`; new drives and systems
 will bring traits that suit them.
 
 Personality is generated from a **separate RNG stream** so adding flavor never
@@ -260,14 +266,14 @@ Colonists are related and get to know each other (`internal/sim/relationships.go
   strangers, scaled by how close the tie is (`-family-affinity`, default 55% of
   `-affinity-max`; `-family-affinity-spread` keeps cousins from all being
   equally close). See [docs/heredity.md](./docs/heredity.md).
-- **Talking.** Colonists have a non-fatal **social need** that rises over time.
-  Before looking for ordinary work, a colonist whose social need reaches its
+- **Talking.** Colonists have a non-fatal **social drive** that grows over time.
+  Before looking for ordinary work, a colonist whose social drive reaches its
   threshold seeks a nearby free colonist and must complete a conversation (the
-  new **Talking** activity) to satisfy it. Needs and fleeing preempt a chat, and
+  new **Talking** activity) to satisfy it. Other drives and fleeing preempt a chat, and
   colonists never hold one on a facility's access tile or a pending build tile.
   Colonists may also talk opportunistically while idle; `-talk-chance` (default
   25%) controls that behavior, but does not suppress conversations required by
-  an urgent social need.
+  an urgent social drive.
 - **Affinity.** Each pair of colonists has an **affinity** in
   `[-AffinityMax, AffinityMax]` (warmth to dislike). Talking is mostly a
   diminishing-returns positive-feedback loop: a conversation's quality leans
@@ -373,7 +379,7 @@ and route around pending build tiles — lives in
 Rooms come in three recipes over that shared shell (`roomRecipe`), differing
 only in what they line up along the back and how few facilities still make a
 room worth building: a **facility room** alternates 🍽️ pods and 🚽 toilets for
-the food and bladder needs, a **dormitory** is a bay of 🛏️ bunks for sleep, and
+the food and bladder drives, a **dormitory** is a bay of 🛏️ bunks for sleep, and
 a **trash room** holds the 🔥 incinerator that refuse is burned in (see
 *Sanitation*). The colony plans life support before bunks (food is fatal; a
 missing bed only makes a colonist wait) and both before a trash room, and adding
@@ -424,9 +430,9 @@ In place now:
   frontier is tracked incrementally from tile events, so colonists claim the
   nearest reachable mine job instead of scanning the map, and in-progress builds
   are counted in O(1).
-- Lazy needs and resting AI: needs are stored as a base level plus a timestamp
+- Lazy drives and resting AI: drives are stored as a base level plus a timestamp
   and computed on read, so a colonist stays on its task until the task finishes
-  or a need crosses its threshold (whichever comes first), and an idle colonist
+  or a drive crosses its threshold (whichever comes first), and an idle colonist
   with no available work rests instead of re-scanning the map every tick.
 - A* pathfinding with cached routes: colonists navigate the floor grid with A*
   (8-connected, room-gated for O(1) reachability) and follow the computed route
@@ -452,7 +458,7 @@ Cumulative effect of the reactive work, on a 2000-colonist stress tick:
 | Baseline (naive scans)        | ~42000  |
 | + occupancy index & counts    | ~144    |
 | + chunk index, rooms, board   | ~43     |
-| + lazy needs & resting AI     | ~13     |
+| + lazy drives & resting AI    | ~13     |
 
 - Hierarchical A* (HPA*): long point-to-point trips first route over the region
   graph (region.links) to get a corridor of regions, then run the tile A*

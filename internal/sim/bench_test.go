@@ -70,7 +70,7 @@ func BenchmarkStepIdle500(b *testing.B) {
 }
 
 func prepareRestingBenchmarkColonist(w *World, e *Entity) {
-	e.needRise = [numNeeds]int{}
+	freezeDrives(w, e)
 	e.focus, e.Job, e.State = FocusIdle, JobNone, Idle
 	e.resting = true
 	e.wakeTick = int(^uint(0) >> 1)
@@ -92,10 +92,10 @@ func prepareSleepingBenchmarkColonist(w *World, e *Entity) bool {
 		return false
 	}
 	w.SetTerrain(bed, Bed)
-	e.needRise = [numNeeds]int{}
-	e.Needs[NeedSleep] = w.cfg.Needs[NeedSleep].SeekAt
-	e.needPhase[NeedSleep] = NeedPressing
-	e.focus, e.Job, e.Need, e.State = FocusSleep, JobUse, NeedSleep, Sleeping
+	freezeDrives(w, e)
+	w.setDrive(e, DriveSleep, w.cfg.Drives[DriveSleep].SeekAt)
+	e.drives[DriveSleep].phase = DrivePressing
+	e.focus, e.Job, e.Drive, e.State = FocusSleep, JobUse, DriveSleep, Sleeping
 	e.useFacility, e.useFacilitySet = bed, true
 	e.resting = false
 	e.mindDirty = false
@@ -117,7 +117,6 @@ func BenchmarkRestingColonistFastPath(b *testing.B) {
 
 func BenchmarkSleepingColonistFastPath(b *testing.B) {
 	w := benchWorldSized(64, 64, 1)
-	w.cfg.Needs[NeedSleep].UseTicks = int(^uint(0) >> 1)
 	e := w.entities[1]
 	if !prepareSleepingBenchmarkColonist(w, e) {
 		b.Fatal("no adjacent bed site")
@@ -132,7 +131,6 @@ func BenchmarkSleepingColonistFastPath(b *testing.B) {
 
 func BenchmarkStepSleeping500(b *testing.B) {
 	w := benchWorld(500)
-	w.cfg.Needs[NeedSleep].UseTicks = int(^uint(0) >> 1)
 	for _, e := range w.entities {
 		if e.Kind == Colonist && !prepareSleepingBenchmarkColonist(w, e) {
 			prepareRestingBenchmarkColonist(w, e)
@@ -217,7 +215,7 @@ func BenchmarkNeedSeek(b *testing.B) {
 	// Make everyone hungry so they all seek a pod at once.
 	for _, e := range w.entities {
 		if e.Kind == Colonist {
-			e.Needs[NeedFood] = w.cfg.Needs[NeedFood].SeekAt
+			w.setDrive(e, DriveFood, w.cfg.Drives[DriveFood].SeekAt)
 		}
 	}
 	b.ReportAllocs()

@@ -56,7 +56,7 @@ export interface Started {
  * A mismatch means mars-sim.wasm is from another build: usually a pull without
  * rerunning npm run wasm.
  */
-export const HOST_API = 17;
+export const HOST_API = 18;
 
 export class SimClient {
   private worker: Worker;

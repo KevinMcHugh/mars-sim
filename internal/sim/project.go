@@ -131,11 +131,11 @@ func (w *World) claimNearestTask(from Point, id EntityID) (*buildTask, bool) {
 // claimNearestTaskProviding is claimNearestTask restricted to projects that
 // provide a facility of the given kind (i.e. some task in them targets that
 // terrain). Use this — never the unrestricted claimNearestTask — when a
-// colonist is responding to a specific urgent need: claiming a task from an
+// colonist is responding to a specific urgent drive: claiming a task from an
 // unrelated project (say, digging a dormitory while starving) still marks the
 // colonist as "handling" its need via e.task != nil, but the starvation grace
 // period only covers reachable construction that actually provides the
-// needed facility (see applyStarvation, reachableFacilityConstruction) — so
+// needed facility (see starve, reachableFacilityConstruction) — so
 // an unrestricted claim can starve a colonist while it is technically busy.
 func (w *World) claimNearestTaskProviding(from Point, id EntityID, kind Terrain) (*buildTask, bool) {
 	var providing []*project
@@ -377,7 +377,7 @@ func (r roomRecipe) bayOffset() int {
 
 var (
 	// lifeSupportRoom alternates pods and toilets so one room serves both the
-	// food and bladder needs; a partial room must still serve both.
+	// food and bladder drives; a partial room must still serve both.
 	lifeSupportRoom = roomRecipe{
 		name: "facility room", kinds: []Terrain{NutrientPod, Toilet}, minFac: 2,
 		planLog: "The colony marks out a new facility room.",

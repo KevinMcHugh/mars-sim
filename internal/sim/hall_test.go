@@ -16,9 +16,9 @@ func hallWorld(t *testing.T) *World {
 }
 
 // calm zeroes every need of e except the ones the test is about.
-func calm(e *Entity) {
-	for k := range e.Needs {
-		e.Needs[k] = 0
+func calm(w *World, e *Entity) {
+	for k := DriveKind(0); k < numDrives; k++ {
+		w.setDrive(e, k, 0)
 	}
 }
 
@@ -30,14 +30,14 @@ func TestSocializersMeetInTheHall(t *testing.T) {
 	a := w.spawn(Colonist, Point{20, 14})
 	b := w.spawn(Colonist, Point{6, 14})
 	for _, e := range []*Entity{a, b} {
-		calm(e)
-		e.Needs[NeedSocial] = w.cfg.Needs[NeedSocial].SeekAt
+		calm(w, e)
+		w.setDrive(e, DriveSocial, w.cfg.Drives[DriveSocial].SeekAt)
 	}
 	for i := 0; i < 400; i++ {
 		w.step()
 		for _, e := range []*Entity{a, b} {
-			calm(e)
-			e.Needs[NeedSocial] = max(e.Needs[NeedSocial], w.cfg.Needs[NeedSocial].SeekAt)
+			calm(w, e)
+			w.setDrive(e, DriveSocial, max(w.driveLevel(e, DriveSocial), w.cfg.Drives[DriveSocial].SeekAt))
 		}
 		if a.State == Talking && b.State == Talking {
 			if !w.inHall(a.Pos) || !w.inHall(b.Pos) {
@@ -49,31 +49,43 @@ func TestSocializersMeetInTheHall(t *testing.T) {
 	t.Fatal("the two socializers never held a conversation")
 }
 
-// A lone colonist in the hall waits for company rather than wandering off,
-// and a colonist arriving finds it there.
+// A colonist waits in the hall for company that is on its way, and the two
+// meet there. Alone, with nobody in the colony to come, it does not wait at
+// all: socialize steps aside (companyInReach), where it used to stand there
+// with the drive pinned until it passed out. The second colonist's arrival
+// pins both drives at critical: there is building to do here, and two
+// colonists at work count each other as headed for the hall only once their
+// need is critical (headedForHall).
 func TestAColonistWaitsInTheHallForCompany(t *testing.T) {
 	w := hallWorld(t)
 	a := w.spawn(Colonist, Point{11, 8})
-	calm(a)
-	a.Needs[NeedSocial] = w.cfg.Needs[NeedSocial].SeekAt
-	for i := 0; i < 60; i++ {
+	pin := func(level int, es ...*Entity) {
+		for _, e := range es {
+			calm(w, e)
+			w.setDrive(e, DriveSocial, max(w.driveLevel(e, DriveSocial), level))
+		}
+	}
+	social := w.cfg.Drives[DriveSocial]
+	pin(social.SeekAt, a)
+	for i := 0; i < 10; i++ {
 		w.step()
-		calm(a)
-		a.Needs[NeedSocial] = max(a.Needs[NeedSocial], w.cfg.Needs[NeedSocial].SeekAt)
-		if !w.inHall(a.Pos) {
-			t.Fatalf("tick %d: a waited at %v, outside the hall", w.tick, a.Pos)
+		pin(social.SeekAt, a)
+		if a.focus == FocusSocialize {
+			t.Fatalf("tick %d: waiting for company with nobody in the colony to come", w.tick)
 		}
 	}
 	b := w.spawn(Colonist, Point{18, 12})
-	calm(b)
-	b.Needs[NeedSocial] = w.cfg.Needs[NeedSocial].SeekAt
+	pin(social.CriticalAt, a, b)
 	for i := 0; i < 300; i++ {
 		w.step()
-		for _, e := range []*Entity{a, b} {
-			calm(e)
-			e.Needs[NeedSocial] = max(e.Needs[NeedSocial], w.cfg.Needs[NeedSocial].SeekAt)
+		pin(social.CriticalAt, a, b)
+		if a.focus == FocusSocialize && a.State == Idle && !w.inHall(a.Pos) {
+			t.Fatalf("tick %d: a waited at %v, outside the hall", w.tick, a.Pos)
 		}
 		if a.State == Talking && b.State == Talking {
+			if !w.inHall(a.Pos) || !w.inHall(b.Pos) {
+				t.Fatalf("tick %d: talking at %v and %v, outside the hall", w.tick, a.Pos, b.Pos)
+			}
 			return
 		}
 	}
@@ -84,9 +96,9 @@ func TestAColonistWaitsInTheHallForCompany(t *testing.T) {
 func TestMealsAreEatenInTheHall(t *testing.T) {
 	w := hallWorld(t)
 	e := w.spawn(Colonist, Point{20, 14})
-	calm(e)
+	calm(w, e)
 	e.Inventory.Add(Meal, 1)
-	e.Needs[NeedFood] = w.cfg.Needs[NeedFood].SeekAt
+	w.setDrive(e, DriveFood, w.cfg.Drives[DriveFood].SeekAt)
 	for i := 0; i < 200; i++ {
 		w.step()
 		if e.State == Eating {
@@ -103,9 +115,9 @@ func TestMealsAreEatenInTheHall(t *testing.T) {
 func TestACriticallyHungryColonistEatsWhereItStands(t *testing.T) {
 	w := hallWorld(t)
 	e := w.spawn(Colonist, Point{20, 14})
-	calm(e)
+	calm(w, e)
 	e.Inventory.Add(Meal, 1)
-	e.Needs[NeedFood] = w.cfg.Needs[NeedFood].CriticalAt
+	w.setDrive(e, DriveFood, w.cfg.Drives[DriveFood].CriticalAt)
 	for i := 0; i < 30; i++ {
 		w.step()
 		if e.State == Eating {

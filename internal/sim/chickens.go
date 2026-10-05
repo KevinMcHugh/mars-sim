@@ -6,7 +6,7 @@ import "fmt"
 //
 // A chicken is one of the three rare items a colonist can land with (see
 // arrivalRareItem): it steps out of its keeper's ship, with a trough in the hold. It has
-// one need, food, and two ways to meet it: feed from its trough, or cave scum
+// one drive, food, and two ways to meet it: feed from its trough, or cave scum
 // grazed off the rock the way a peaceful alien grazes it. With neither it
 // starves, like a rat. Cats and chickens ignore each other: a cat hunts only
 // rats (catTurn), and a chicken flees nothing.
@@ -33,7 +33,7 @@ var feedRecipe = Recipe{
 // trough or graze scum; otherwise wander, drifting home to the trough when
 // it has strayed.
 func (w *World) chickenTurn(e *Entity) {
-	w.applyStarvation(e)
+	w.applyDriveConsequences(e)
 	if !e.Alive() {
 		w.clearJob(e)
 		w.addCorpse(e.Pos, AnimalCorpse)
@@ -46,7 +46,7 @@ func (w *World) chickenTurn(e *Entity) {
 		return
 	}
 	e.Cooldown = w.cfg.ChickenSlowness - 1
-	if w.needLevel(e, NeedFood) >= w.cfg.Needs[NeedFood].SeekAt {
+	if w.driveLevel(e, DriveFood) >= w.cfg.Drives[DriveFood].SeekAt {
 		if w.chickenFeed(e) || w.chickenGraze(e) {
 			return
 		}
@@ -75,7 +75,7 @@ func (w *World) chickenFeed(e *Entity) bool {
 	if e.Pos.Adjacent(e.trough) {
 		if takeFeed(c) {
 			e.State = Feeding
-			w.resetNeed(e, NeedFood)
+			w.resetDrive(e, DriveFood)
 		}
 		return true
 	}
@@ -112,7 +112,7 @@ func (w *World) chickenGraze(e *Entity) bool {
 	if e.Pos.Chebyshev(target) <= 1 {
 		if w.takeScum(target) {
 			e.State = Feeding
-			w.resetNeed(e, NeedFood)
+			w.resetDrive(e, DriveFood)
 		}
 		return true
 	}

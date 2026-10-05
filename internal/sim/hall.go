@@ -2,9 +2,9 @@ package sim
 
 // ---- The meeting hall -------------------------------------------------------------
 //
-// Colonists used to "socialize" wherever they happened to be: a social need
+// Colonists used to "socialize" wherever they happened to be: a social drive
 // that crossed its threshold made them look for anyone idle within talk-radius,
-// and if nobody was, they stood there, need pinned, with nothing on the map to
+// and if nobody was, they stood there, drive pinned, with nothing on the map to
 // show whether they were chatting or only hoping to. The colony now
 // commissions a meeting hall, a walled room of chairs (hallRoom), and the hall
 // is where company is. A colonist who wants to socialize walks to a chair and
@@ -157,7 +157,7 @@ func (w *World) hallTalkBonus(a, b *Entity) int {
 // walk is time it may not have), with a hall to go to. A meal eaten for later
 // (eatKeep) never goes.
 func (w *World) mealSeat(e *Entity) (Point, bool) {
-	if e.Kind != Colonist || e.eatKeep || !w.hallOpen() || e.needPhase[NeedFood] >= NeedCritical {
+	if e.Kind != Colonist || e.eatKeep || !w.hallOpen() || e.drives[DriveFood].phase >= DriveCritical {
 		return Point{}, false
 	}
 	return w.nearestChair(e)
