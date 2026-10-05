@@ -255,6 +255,10 @@ offers its meals beyond `meal-keep` for sale where they're made
 (`offerOwnMeals`), at `mealSellPrice`: hungry colonists' bids queue at the
 pantry, so the next of them buys it at once.
 
+`mealSellPrice` is a meal's market value since price discovery
+([pricing.md](./pricing.md)); it was the charter's $5, so a meal trading at
+$100 brought no new cooks. The measurements below are from then.
+
 At the charter's $5 this pays only for colonists near a scumhouse. In a
 6-colonist colony it never does, and seeds 1–48 play exactly as they would
 without it. In a 100-colonist colony on a 300×150 map (seeds 1–4, 30,000

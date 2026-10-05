@@ -66,6 +66,12 @@ func (w *World) laborCost(ticks int) Money {
 // is critical, and then everything it has: a dollar matters more to someone
 // who has few of them, until nothing matters more than eating.
 func (w *World) mealBidLimit(e *Entity) Money {
+	return w.mealBidLimitWith(e, e.wallet)
+}
+
+// mealBidLimitWith is mealBidLimit for a colonist with money to spend: its
+// wallet, plus what a bid it is raising already holds in escrow.
+func (w *World) mealBidLimitWith(e *Entity, money Money) Money {
 	base := w.valueOf(Meal)
 	if base <= 0 {
 		return 0
@@ -74,11 +80,29 @@ func (w *World) mealBidLimit(e *Entity) Money {
 	level, top := w.driveLevel(e, DriveFood), max(1, spec.Max)
 	willing := int64(max(1, w.cfg.MealWillingness))
 	limit := Money(int64(base) * (100 + (willing-1)*100*int64(min(level, top))/int64(top)) / 100)
-	critical := level*10 >= top*9
-	if !critical {
-		limit = min(limit, e.wallet/2)
+	if w.cfg.BidRaiseTicks > 0 {
+		// With bids that start low and rise (pricing.go), what a colonist will
+		// pay is its own: up to half its money as hunger grows, whatever the
+		// last meal sold for. Anchored on the last price alone, a glut that
+		// sold meals at $1 capped every bid at $3 for good, no cook could
+		// profit, and nobody made meals again.
+		own := Money(int64(money) * int64(min(level, top)) / int64(2*top))
+		if w.foodCritical(e) {
+			own = money // nothing matters more than eating
+		}
+		limit = max(limit, own)
 	}
-	return min(limit, e.wallet)
+	if !w.foodCritical(e) {
+		limit = min(limit, money/2)
+	}
+	return min(limit, money)
+}
+
+// foodCritical reports whether e's hunger is critical (90% of the drive's
+// top): the point at which it spends everything it has on a meal.
+func (w *World) foodCritical(e *Entity) bool {
+	spec := w.cfg.Drives[DriveFood]
+	return w.driveLevel(e, DriveFood)*10 >= max(1, spec.Max)*9
 }
 
 // ---- What a colonist's time is worth -------------------------------------------------
