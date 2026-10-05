@@ -42,12 +42,13 @@ and is remembered in that browser.
 
 A `MetricDef` row says what a metric is (key, label, group, a line of doc for
 the picker), its unit (count or dollars), what it is read for (`PerColony`,
-`PerItem` with "all goods" as subject 0, or `PerAccount`: the treasury and
-each living colonist), and how to read it. There are two kinds of reading:
+`PerItem` with "all goods" as subject 0, `PerAccount`: the treasury and
+each living colonist, `PerFixture`: each kind of fixture, or
+`PerSkillRank`: each rank of each skill), and how to read it. There are two kinds of reading:
 
 | Kind | Meaning | Examples |
 | --- | --- | --- |
-| `Level` | a value at the sample's moment | colonists, balance, price, open bids, units in storage |
+| `Level` | a value at the sample's moment | colonists, balance, price, open bids, units in storage, scumhouses standing, colonists who are chefs |
 | `Total` | a running total since the landing | money changed hands, payments, bids posted, units traded, trade value, deaths |
 
 A Total's amount over any span is the difference between the readings at its
@@ -77,9 +78,11 @@ bar names days.
 
 For each metric and subject the sample reads `(value, ok)`:
 
-- A subject with no series yet gets one at its first reading. A per-item
-  series waits for a non-zero reading, so goods nobody has touched add
-  nothing to the picker. A price waits for the good's first trade.
+- A subject with no series yet gets one at its first reading. A per-item,
+  per-fixture or per-rank series waits for a non-zero reading
+  (`waitsForReading`), so goods nobody has touched, fixtures never built and
+  ranks nobody has reached add nothing to the picker. A price waits for the
+  good's first trade.
 - A series whose subject stops reading (`ok` false, or a colonist no longer
   living) **ends**. It keeps its history and is listed as "gone".
 
@@ -148,6 +151,25 @@ Dollars and counts each get an axis, so a price and a bid count can share a
 chart. The chart rebuilds only when its shape changes (series, units,
 bucket). A new reading is a `setData`.
 
+### Fixtures by kind and colonists by skill rank
+
+`fixture-kind` reads `terrainCounts` for each kind in `metricFixtures`:
+every fixture kind (`isFixtureTerrain`) plus the meeting hall's chairs,
+which are furniture and so not in the colony-wide `fixtures` count. Its
+series are keyed by the terrain's name, `fixture-kind/scumhouse`,
+`fixture-kind/scum-incubator`.
+
+`skill-rank` counts living colonists at exactly one rank of one skill, and
+`skill-rank-up` at that rank or higher ("a chef or better"). A subject packs
+the skill and the rank (`skillRankSubject`); keys read
+`skill-rank/cooking-3`, and the picker shows "cooking 3: chef". Rank 0 is
+"untrained"; `skill-rank-up` has no rank-0 series, since that is every
+colonist. Keys use the rank number, not the title: a title can cover several
+ranks (mining's "digger" is ranks 2 and 3), and a rank number survives a
+title being renamed. `newMetricCtx` counts every colonist's ranks once per
+sample, in the same walk that lists accounts. The counts are exact per rank
+so both metrics, and any other cut of them, read from one table.
+
 ## Why it is this way
 
 - **One table, everything else follows.** "Any new thing countable and
@@ -205,9 +227,15 @@ samples.
 - **A new Total:** add a counter field on `World`, bump it where the thing
   happens (with the all-goods sum at `ItemNone` for a per-item one), and add a
   row reading it. Never decrement a Total: the page reads differences.
+- **A new fixture kind:** add it to `metricFixtures`
+  (`TestMetricSubjectsCoverFixturesAndRanks` fails until you do).
+- **A new skill or rank:** nothing to do, unless a skill outgrows
+  `maxSkillRanks` (the same test says so).
 - **A new family of subjects** (per species, per workshop): a `MetricPer`
-  value, its subject list in `sampleMetrics`, and its key and label in
-  `metricSubjectKey` and `metricSubjectLabel`. Keys are saved in players'
+  value, its subject list in `sampleMetrics`, its key and label in
+  `metricSubjectKey` and `metricSubjectLabel`, whether it waits for a
+  non-zero reading (`waitsForReading`), and its noun in `SUBJECT_NOUN`
+  (`builder.ts`) for the picker. Keys are saved in players'
   charts, so keep them stable (items use their name, not their enum value).
 - **Keys are an interface.** Renaming a metric's `Key` silently empties every
   saved chart that used it.
