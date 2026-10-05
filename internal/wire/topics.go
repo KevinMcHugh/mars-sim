@@ -134,6 +134,17 @@ func (t *Topics) Restart() {
 	}
 }
 
+// Refresh makes every topic due at the next Due, whatever its interval, and
+// still sends only those that changed. A command calls for it: the panel
+// that sent it should show what it did. Paused, nothing else publishes, so
+// a second order placed within the market topic's interval was applied but
+// never shown until the game ran again.
+func (t *Topics) Refresh() {
+	for _, st := range t.subs {
+		st.built = time.Time{}
+	}
+}
+
 // Unsubscribe stops sending name. Unsubscribing from something not
 // subscribed is a no-op.
 func (t *Topics) Unsubscribe(name string) { delete(t.subs, name) }

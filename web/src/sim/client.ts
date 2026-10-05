@@ -37,6 +37,10 @@ export type Command =
   /** Stop the colony's standing orders for a side and item, everywhere, until resumed. */
   | { type: 'order-suspend'; side: 'bid' | 'ask'; item: string }
   | { type: 'order-resume'; side: 'bid' | 'ask'; item: string }
+  /** Set (or replace) the colony's colony-wide order for a side and item: no depot; upkeep places it. */
+  | { type: 'order-wide-set'; side: 'bid' | 'ask'; item: string; qty: number; price: number }
+  /** Drop the colony's colony-wide order for a side and item, taking its orders off the book. */
+  | { type: 'order-wide-clear'; side: 'bid' | 'ask'; item: string }
   /** Pay the recruiter for a new set of candidates (docs/recruiting.md). */
   | { type: 'recruit-roll' }
   /** Hire the candidates at picks from set id; no picks turns the set away. */
@@ -56,7 +60,7 @@ export interface Started {
  * A mismatch means mars-sim.wasm is from another build: usually a pull without
  * rerunning npm run wasm.
  */
-export const HOST_API = 18;
+export const HOST_API = 19;
 
 export class SimClient {
   private worker: Worker;

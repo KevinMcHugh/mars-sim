@@ -133,3 +133,25 @@ func TestShipsTopic(t *testing.T) {
 		t.Fatal("ships may still be placed after the first tick")
 	}
 }
+
+// Refresh makes a topic due inside its interval, so a command's effect shows
+// at once even while paused, and still sends nothing unchanged.
+func TestRefreshSendsAChangeInsideTheInterval(t *testing.T) {
+	snap := fixture(true)
+	tp := NewTopics()
+	t0 := time.Unix(1000, 0)
+	if err := tp.Subscribe("lore"); err != nil {
+		t.Fatal(err)
+	}
+	tp.Due(snap, t0)
+	changed := *snap
+	changed.Seed = 99
+	tp.Refresh()
+	if got := tp.Due(&changed, t0.Add(10*time.Millisecond)); got["lore"] == nil {
+		t.Fatalf("a refreshed change inside the interval was not sent: %v", got)
+	}
+	tp.Refresh()
+	if got := tp.Due(&changed, t0.Add(20*time.Millisecond)); got != nil {
+		t.Fatalf("refreshed but unchanged, got %v", got)
+	}
+}

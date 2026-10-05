@@ -7,7 +7,10 @@
 The player trading on the colony's behalf. From the browser's Market tab a
 player posts a bid or an ask in the colony's name at any communal depot,
 reprices one of the colony's open orders, takes one off the book, or
-suspends one of the colony's standing orders so it stops coming back. They are
+suspends one of the colony's standing orders so it stops coming back. Or the
+player sets a **colony-wide order**, a standing order with no depot ("buy 100
+meals at $10", "sell meals at $5"), and the colony keeps it on the book
+wherever the good changes hands. They are
 ordinary orders on the [order book](./market.md), escrowed from the treasury
 or the colony's stock, so nothing about matching, settlement or the money
 audit changes.
@@ -19,26 +22,36 @@ audit changes.
   `SuspendColonyOrders` and `ResumeColonyOrders` commands, their validation,
   `postStanding` (the gate every standing order goes through),
   `ItemKind.Tradable`, `TradableItems` and `ParseItemKind`.
+- [`internal/sim/colonywide.go`](../internal/sim/colonywide.go) — colony-wide
+  orders: the `SetColonyWideOrder` and `ClearColonyWideOrder` commands,
+  `World.wide`, their upkeep (`refreshWideOrders`, called from `runMarket`),
+  where a bid stands (`wideBidDepots`), and `WideOrderView`; tests in
+  [`colonywide_test.go`](../internal/sim/colonywide_test.go).
 - `World.suspended` in [`internal/sim/world.go`](../internal/sim/world.go), and
   the standing-order upkeep that posts through `postStanding`:
   `refreshColonyBids` (market.go), `refreshArmoryBids` (foundry.go),
   `refreshColonyAsks` (hauling.go), the colony's scumhouse bids and
   `offerColonyMeals` (scumhouse.go). `standingAllowed` is the
   `standing-orders-build-only` filter in the same gate.
-- [`internal/sim/market.go`](../internal/sim/market.go) — `Order.manual`, and
-  `retireOldSilo` skipping manual orders.
+- [`internal/sim/market.go`](../internal/sim/market.go) — `Order.manual` and
+  `Order.wide`, `retireOldSilo` skipping manual orders, and `post` passing
+  over the colony's own orders.
 - [`internal/sim/scumhouse.go`](../internal/sim/scumhouse.go) —
   `withdrawColonyAsks` skipping manual orders.
 - [`internal/sim/engine.go`](../internal/sim/engine.go) — `apply` routes the
   commands.
 - [`internal/sim/snapshot.go`](../internal/sim/snapshot.go) — `OrderView.Posted`,
-  `OrderView.Manual`, and `EconomyView.Suspended`.
+  `OrderView.Manual`, `OrderView.Wide`, `EconomyView.Suspended` and
+  `EconomyView.Wide`.
 - [`internal/wire/boards.go`](../internal/wire/boards.go) — the market topic's
   `colony` desk: the colony's orders, its communal depots with what it holds
-  at each, the goods an order may name, and the suspended standing orders.
+  at each, the goods an order may name, the suspended standing orders, and
+  the colony-wide orders.
 - [`cmd/mars-sim-wasm/main.go`](../cmd/mars-sim-wasm/main.go) — the
   `order-place`, `order-reprice`, `order-cancel`, `order-suspend` and
-  `order-resume` page commands (host API 12).
+  `order-resume` page commands (host API 12), and `order-wide-set` and
+  `order-wide-clear` (host API 19). A command makes every topic due at once
+  (`Topics.Refresh`), so the desk shows its effect even paused.
 - [`web/src/ui/ColonyOrders.svelte`](../web/src/ui/ColonyOrders.svelte) — the
   order desk, in `MarketPanel`; the actions are in
   [`web/src/game.svelte.ts`](../web/src/game.svelte.ts).
@@ -71,8 +84,8 @@ A **meal** bid at the silo doesn't make the colony more food just by being
 there. Meals bought from colonists only move between depots, which leaves
 `storedMeals` the same. Only a cook's craft plan to fill the bid makes new
 meals. With `standing-orders-build-only` off, the colony also sells its own
-meals at the silo, and the book doesn't stop it buying from itself, so a bid
-at or over that price trades with the colony's own ask.
+meals at the silo, but a bid of the colony's passes over its own ask (see
+*The colony never trades with itself*), so it buys only from colonists.
 
 **Repricing** is a cancel and a re-post at the new price: the escrow comes
 back, then goes out again. The order gets a new ID, so it joins the back of
@@ -113,6 +126,65 @@ hands a colonist at critical hunger one of the colony's meals. Whether the
 colony sells its meals, or buys scum to cook more, is the player's call: a
 food subsidy is a manual order on the desk (an ask for the colony's meals,
 a bid for scum at a kitchen) at a chosen price and quantity.
+
+**Colony-wide orders.** `SetColonyWideOrder` names a side, an item, a
+quantity and a price, and no depot; there is at most one per side and item,
+and setting it again replaces it. It is checked like a placed order (a
+tradable item, 1 to 10,000 units, at least $1) but not for cover: it is a
+standing order, so it bids as the treasury allows and sells as stock comes
+in. The market's upkeep, every `marketInterval` ticks (and once at once when
+it is set), turns it into ordinary orders, marked `wide`:
+
+- **A bid** keeps `Qty` units bid for in all, topped back up as it fills, split
+  evenly across where the good is delivered (`wideBidDepots`): every colony
+  kitchen's pantry for meals (where cooks' meals come out, and where a cook's
+  plan carries meals for a bid), every colony kitchen's stove for biomatter
+  (the only bids a gather plan scrapes for), and the silo for anything else.
+  It posts as far as the treasury stretches.
+- **An ask** keeps up to `Qty` units on offer in all, of whatever the colony
+  holds, at every communal depot holding some (not an incubator's scum: that
+  is its seed and its crop, and it is offered once harvested to a kitchen).
+
+Upkeep moves a bid when the kitchens change, and re-posts at a new price.
+`ClearColonyWideOrder` takes its orders off the book and returns the escrow.
+
+While it is set, it **replaces the colony's own standing order** for that side
+and item: setting it cancels those, and `postStanding` posts none. Its orders
+are not `manual`, so the colony's other upkeep may withdraw its asks, to haul
+meals or to ration one to a starving colonist, and the next round re-posts
+them. Suspending leaves them alone, and so does the upkeep that withdraws the
+colony's scum bids once incubators feed the stoves: the player asked for
+them. The desk lists them under **Colony-wide**, summarized, not in the order
+table: a meal bid is one order per kitchen. The desk's depot list starts with
+**anywhere (colony-wide)**, the default.
+
+**The colony never trades with itself.** `post` passes over a resting order
+of the colony's when the incoming one is the colony's too, to the next one in
+the book. "Buy meals at $10, sell at $5" puts both at the same pantry, and
+without that the colony's ask only ever sold to its own bid. A colonist's
+orders still may trade with each other: a hungry cook whose meals are all on
+offer buys one back that way, and passing over its own starved more of them
+(seed 2, 100 colonists, 30,000 ticks: 55 against 37).
+
+**What it does for food.** On a 300×150 map with 100 colonists (seeds 1 and 2,
+standing orders build-only), the colony's kitchens stop at `meal-reserve` meals
+a colonist and sell none, so the meals sit on the shelf and leave only as
+rations; 41 and 37 starved by tick 30,000. Set at tick 12,000:
+
+| Order | Starved after tick 12,000 (seeds 1, 2) |
+| --- | --- |
+| None | 25, 26 |
+| Sell meals at $5 | 12, 8 |
+| Buy 100 meals at $10, sell at $5 | 8, 15 |
+
+**Why a one-off sale doesn't do the same.** Offering every meal the colony
+holds at $1, once, made it worse (56 and 40 starved against 41 and 37). The
+shelf sold out once, and then the colony's new meals were on no order. And
+the $1 trades pulled the meal's remembered price down to $1. A hungry
+colonist bids from that price (`mealBidLimit`), so bids fell to $1–$3. No
+private cook asks that little, and no cook can buy two scum for that, so
+private cooking stopped too. Colonists with $100 and more starved. A
+standing ask keeps selling what the colony cooks.
 
 **What upkeep does with a manual order.** It leaves it alone:
 
@@ -187,6 +259,22 @@ the answer, since a command has no reply.
 - **An array, not a map.** `suspended` is `[2][numItemKinds]bool`, so listing
   it never ranges over a map (see [determinism.md](./determinism.md)).
 
+- **Colony-wide orders are standing orders, not one-off ones.** "Buy 100 meals"
+  means keep 100 bid for, the way the colony's own ore bids keep
+  `silo-bid-qty`, not buy 100 and stop. A player with a food policy wants it
+  to hold; a one-off order is still there, at a depot.
+- **The sim picks the depots.** Where a good changes hands is a fact of the
+  game (cooks deliver to pantries, scrapers to stoves, miners to the silo),
+  and the kitchens are built and moved while the order stands. A player
+  choosing depots would have to choose again every time.
+- **One per side and item, in an array.** It mirrors `suspended`: a player
+  means a policy for the good, and `[2][numItemKinds]` never ranges over a
+  map (see [determinism.md](./determinism.md)).
+- **Its own flag, not `manual`.** A manual order is the player's to move;
+  upkeep never touches it. A colony-wide order's orders are upkeep's to move,
+  so they need upkeep to see them, and the rations and hauling that withdraw
+  the colony's asks need to be able to free their meals.
+
 ## Extending it
 
 - **The TUI**: the commands are frontend-neutral; a market-tab form would send
@@ -194,7 +282,15 @@ the answer, since a command has no reply.
 - **A new standing order** must post through `postStanding`, not `post`, or
   Suspend will not hold it, and `standing-orders-build-only` will not keep it
   off the book.
-- **Saving a game** would need `World.suspended` saved with the orders.
+- **Saving a game** saves `World.suspended` and `World.wide` with the rest
+  of the World (see [save-load.md](./save-load.md)).
+- **A colony-wide order that stops**: a target to hold ("keep 50 meals in
+  stock") rather than a quantity on the book would be a different
+  `refreshWide`. Keep it on the `wide` flag so the rest still holds.
+- **Rations and a player's ask.** `tryRation` frees the colony's meals from
+  its asks with `withdrawColonyAsks`, which skips manual asks, so a depot
+  whose meals are all on a player's one-off ask rations nobody. A
+  colony-wide ask doesn't have the problem.
 - **An expiry**: `PlaceColonyOrder` posts with ttl 0; a `TTL` field would pass
   straight through to `post`.
 - Keep `manual` checks in any new upkeep that withdraws or cancels colony
