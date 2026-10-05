@@ -15,6 +15,7 @@ func benchWorld(colonists int) *World {
 
 func benchWorldSized(width, height, colonists int) *World {
 	cfg := DefaultConfig()
+	cfg.ZoningAuto = true // a colony that builds, as before zoning
 	cfg.Seed = 1
 	cfg.Width, cfg.Height = width, height
 	w := newWorld(cfg, newPCG(1))
@@ -235,12 +236,43 @@ func BenchmarkStepBigMap(b *testing.B) {
 	}
 }
 
+// BenchmarkClaimNearestMine measures one idle colonist's search for the
+// nearest claimable rock on a big frontier: a 200x200 map whose 160x160 carved
+// chamber is studded with rock pillars, so ~1,600 frontier tiles, with 200
+// colonists asking in turn (each claim is released, so every query sees the
+// same board). claimNearestMine used to scan the whole frontier per call; the
+// chunk-ring search stops a ring past the nearest hit.
+func BenchmarkClaimNearestMine(b *testing.B) {
+	w := benchWorldSized(200, 200, 0)
+	for y := 22; y < w.Height-20; y += 4 {
+		for x := 22; x < w.Width-20; x += 4 {
+			w.SetTerrain(Point{x, y}, Rock)
+		}
+	}
+	floors := w.freeFloorTiles()
+	w.rng.Shuffle(len(floors), func(i, j int) { floors[i], floors[j] = floors[j], floors[i] })
+	var miners []*Entity
+	for i := 0; i < 200; i++ {
+		miners = append(miners, w.spawn(Colonist, floors[i]))
+	}
+	w.refreshSpatial()
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		e := miners[i%len(miners)]
+		if p, ok := w.claimNearestMine(e); ok {
+			w.board.releaseMine(p, e.ID)
+		}
+	}
+}
+
 // benchWorldSmallColony builds a huge map with only a small carved-out colony
 // near the center, mirroring a fresh game on a big map: most of the grid is
 // still untouched Rock. This is the regime a full Width*Height scan in a
 // per-tick or per-need-seek path would blow up on.
 func benchWorldSmallColony(mapSize, chamber, colonists int) *World {
 	cfg := DefaultConfig()
+	cfg.ZoningAuto = true // a colony that builds, as before zoning
 	cfg.Seed = 1
 	cfg.Width, cfg.Height = mapSize, mapSize
 	w := newWorld(cfg, newPCG(1))
@@ -295,7 +327,9 @@ func BenchmarkStepSmallColonyOnHugeMap10000(b *testing.B) {
 // failing to find a site forced the box search to double all the way out to
 // the full map before giving up — the "every 16 ticks" pause.
 func BenchmarkFindRoomSiteNoFit(b *testing.B) {
-	w := benchWorldSmallColony(10000, 12, 0) // chamber too small for any room this wide
+	// A chamber too small for a room this wide facing any way: with its lanes
+	// it spans 11 tiles, along the bay or, turned, down it.
+	w := benchWorldSmallColony(10000, 10, 0)
 	width := bayWidth(roomFacilities)
 	if _, ok := w.findRoomSite(width); ok {
 		b.Fatal("expected no site to fit; benchmark no longer exercises the no-fit path")
@@ -390,6 +424,7 @@ func BenchmarkStepBigColonyOnHugeMap(b *testing.B) {
 // numbers these produced before and after chunked, lazy generation.
 func benchmarkStartup(b *testing.B, size int) {
 	cfg := DefaultConfig()
+	cfg.ZoningAuto = true // a colony that builds, as before zoning
 	cfg.Seed = 7
 	cfg.Width, cfg.Height = size, size
 	var ms runtime.MemStats
@@ -417,6 +452,7 @@ func BenchmarkStartup10000(b *testing.B) { benchmarkStartup(b, 10000) }
 // digging outward.
 func BenchmarkChunkCold(b *testing.B) {
 	cfg := DefaultConfig()
+	cfg.ZoningAuto = true // a colony that builds, as before zoning
 	cfg.Seed = 7
 	cfg.Width, cfg.Height = 2048, 2048
 	for i := 0; i < b.N; i++ {
@@ -426,6 +462,7 @@ func BenchmarkChunkCold(b *testing.B) {
 
 func BenchmarkChunkWarm(b *testing.B) {
 	cfg := DefaultConfig()
+	cfg.ZoningAuto = true // a colony that builds, as before zoning
 	cfg.Seed = 7
 	cfg.Width, cfg.Height = 2048, 2048
 	g := newWorldGen(cfg)
@@ -443,6 +480,7 @@ func BenchmarkGenerateMap(b *testing.B) {
 	for _, salt := range []int{0, 3} {
 		b.Run(fmt.Sprintf("salt=%d", salt), func(b *testing.B) {
 			cfg := DefaultConfig()
+			cfg.ZoningAuto = true // a colony that builds, as before zoning
 			cfg.Seed = 7
 			cfg.Width, cfg.Height = 1024, 1024
 			cfg.SaltPercent = salt
@@ -457,5 +495,88 @@ func BenchmarkGenerateMap(b *testing.B) {
 				}
 			}
 		})
+	}
+}
+
+// packedStorageRooms is a rock map with rows of finished storage rooms, each
+// sharing its side walls with its neighbors and the rows' ends blocked, so
+// no room can grow. The tile past each moved wall is a neighbor's aisle:
+// floor, which only inOtherRoom turns down. That made it the worst case for
+// the per-room scan inOtherRoom used to be (see docs/room-expansion.md).
+func packedStorageRooms(b *testing.B, rooms int) *World {
+	cfg := DefaultConfig()
+	cfg.Seed = 1
+	cfg.FoundingGrant = 1_000_000
+	cfg.Width, cfg.Height = 1200, 1200
+	// Packed wall to wall, every pair of neighbours could be joined (see
+	// roomplan.go), and every room has floor for a second chest; this
+	// measures a search that finds nothing, so merging is off and every room
+	// is full.
+	cfg.RoomMerge = false
+	cfg.RoomMaxFacilities = 1
+	w := newWorld(cfg, newPCG(1))
+	width := storageRoom.roomWidth(1) // 3 wide, an aisle either side of the container
+	perRow := 100
+	for i := 0; i < rooms; i++ {
+		row, col := i/perRow, i%perRow
+		o := Point{20 + col*(width+1), 20 + row*8}
+		carve(w, Point{o.X - 2, o.Y + roomBackV}, Point{o.X + width + 1, o.Y + roomFrontV + roomApproach}, Floor)
+	}
+	w.refreshSpatial()
+	for i := 0; i < rooms; i++ {
+		row, col := i/perRow, i%perRow
+		o := Point{20 + col*(width+1), 20 + row*8}
+		f := roomFrame{o: o, width: width}
+		if !w.designateRoom(storageRoom, f, 1, Community) {
+			b.Fatalf("room %d not designated", i)
+		}
+		raise(w, w.projects[len(w.projects)-1])
+	}
+	w.pruneProjects()
+	// Block the outer end of each row, so the end rooms can't grow either.
+	for row := 0; row*perRow < rooms; row++ {
+		last := min(rooms-1, row*perRow+perRow-1) - row*perRow
+		y := 20 + row*8
+		left, right := Point{20 - 2, y}, Point{20 + last*(width+1) + width + 1, y}
+		carve(w, Point{left.X, y + roomBackV}, Point{left.X, y + roomFrontV}, Hull)
+		carve(w, Point{right.X, y + roomBackV}, Point{right.X, y + roomFrontV}, Hull)
+	}
+	w.refreshSpatial()
+	return w
+}
+
+// BenchmarkExpandNoFit is planRooms asking a big colony for storage none of
+// its rooms can take: every room of the zone is tried for a fit-out and for
+// growth and turned down. It was 4 ms with inOtherRoom scanning every room,
+// and about 0.2 ms with w.roomFloor, before rooms grew any way and took
+// fixtures anywhere (roomplan.go).
+func BenchmarkExpandNoFit(b *testing.B) {
+	rooms := 800
+	w := packedStorageRooms(b, rooms)
+	us := units(1, Storage)
+	if w.improveRooms(us) {
+		b.Fatal("a storage room took a chest; the benchmark no longer measures the no-fit case")
+	}
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		w.improveRooms(us)
+	}
+}
+
+// BenchmarkTidyNoFit is the planner's last call, with nothing else to build,
+// in a big colony with nothing to join, empty or clear: 800 full storage
+// rooms wall to wall, each pair too full to join and none bigger than its
+// neighbour to empty into (see consolidateRooms).
+func BenchmarkTidyNoFit(b *testing.B) {
+	w := packedStorageRooms(b, 800)
+	w.cfg.RoomMerge = true
+	if w.tidyRooms() {
+		b.Fatal("tidying found work; the benchmark no longer measures the no-fit case")
+	}
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		w.tidyRooms()
 	}
 }

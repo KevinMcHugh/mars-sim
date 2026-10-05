@@ -9,8 +9,8 @@ container) has an ownership record saying whose it is and who may use it, and
 every storage container keeps a **ledger** of whose goods are inside it. This is
 phase **E1** of the [economy plan](./economy.md). It changes nothing about how
 the colony plays today — everything the colony builds is owned by the community
-and open to all — but it is the ground the crash pods (a colonist's own bunk
-and locker), the order book, and paid fixtures stand on.
+and open to all — but it is the ground the colony ships (a colonist's own
+locker), the order book, and paid fixtures stand on.
 
 ## Source
 
@@ -76,7 +76,7 @@ pockets paid for its own emergency build.
 die: placing a fixture terrain calls `placeFixture`, which records it as owned
 by the community and `AccessCommunal`; replacing one calls `dropFixture`.
 Anything that wants a different owner calls `setFixtureOwner(pos, owner,
-access)` afterwards: crash pods (see [crash-pods.md](./crash-pods.md)) and
+access)` afterwards: colony ships, for their lockers and troughs (see [ships.md](./ships.md)), and
 commissioned rooms (see [labor.md](./labor.md)) do.
 
 `Access` is `AccessCommunal` (anyone), `AccessPrivate` (the owner only), or

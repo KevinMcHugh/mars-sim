@@ -143,7 +143,7 @@ func TestFatalBiteComputesFriendRelationBeforeRemoval(t *testing.T) {
 		victim.Parts[part] = 1
 	}
 
-	w.bite(alien, victim)
+	w.strike(alien, victim)
 
 	if w.entities[victim.ID] != nil {
 		t.Fatal("fatal bite did not remove victim")

@@ -52,7 +52,9 @@ then oldest first.
 the opposite side, they trade the smaller quantity **at the resting order's
 price**. Whatever is left rests; `ttl` (or never) decides when it expires.
 Trades are recorded (`w.trades`, the last 64) and set the book's last price and
-volume.
+volume. Each order also records its own fills, `Filled` units and one `Fill`
+line per counterparty, for the Market tab's order detail; nothing in the
+simulation reads them (see [order-detail.md](./order-detail.md)).
 
 ### Escrow
 
@@ -81,14 +83,17 @@ wallet freezes, so a bid's escrow goes back to the wallet and freezes with it.
 ### The silo
 
 `marketDepot` is where the colony trades: its **communal** chest nearest the map
-centre (a crash-pod locker is private, so it never counts). It is cached on
+centre (a settler's locker is private, so it never counts). It is cached on
 `fixtureRev`, because a colony with a locker per settler has a container per
-settler. Crash pods mean nothing else ever calls for a shared chest, so the
+settler. Lockers for everyone mean nothing else ever calls for a shared chest, so the
 planner builds one when there is no silo (after life support, before bunks).
 
 Every `marketInterval` ticks, `runMarket` expires stale orders and has the
 colony top up a standing bid of `silo-bid-qty` units for each ore it buys, at
-the reference price, as far as the treasury stretches.
+the reference price, as far as the treasury stretches. By default only the
+bids for rock, iron ore and clay are posted; the colony posts none of its
+other standing orders (`standing-orders-build-only`, see
+[colony-orders.md](./colony-orders.md)).
 
 **A player's orders.** A player can post, reprice and remove the colony's
 orders from the browser (see [colony-orders.md](./colony-orders.md)). Those

@@ -16,7 +16,10 @@ toilets) are the first — and currently only — project kind.
 
 ## Source
 
-- [`internal/sim/project.go`](../internal/sim/project.go) — `buildTask`, `project`, planning, room geometry, task claiming.
+- [`internal/sim/project.go`](../internal/sim/project.go) — `buildTask`, `project`, planning, room siting, task claiming.
+- [`internal/sim/roomframe.go`](../internal/sim/roomframe.go) — `roomFrame` (which way a room faces) and `siteKeepsColonyWhole`.
+- [`internal/sim/roomplan.go`](../internal/sim/roomplan.go) — `roomRecord` (every room the colony has marked out), and putting fixtures into the rooms it has: fit-outs, mergers and growth (see [room-expansion.md](./room-expansion.md)).
+- [`internal/sim/passage.go`](../internal/sim/passage.go) — passages dug to whatever the colony gets cut off from (see [escape.md](./escape.md)).
 - [`internal/sim/systems.go`](../internal/sim/systems.go) — `jobBuild`, `assignTask`/`assignBuild`, the emergency-build fallback.
 
 ## How it works
@@ -30,7 +33,14 @@ then `f` requests one facility room, `d` one dormitory, `t` one trash room,
 queued at once; `planRooms` works
 through them — one new project per call, life support before dormitories —
 whenever the colony is below its current concurrent-project cap and a suitable
-site exists (see *Planning cadence* below).
+site exists (see *Planning cadence* below). Every order, and every demand of
+the planner's but the colony's first kitchen, is a number of fixtures, and
+goes into the rooms the colony has first: free floor in a room of the
+fixtures' zone, two rooms joined, or a room grown. It marks out a new room
+from a recipe only when none of those places anything, and not while a room
+of the zone is going up (see [room-expansion.md](./room-expansion.md)). A
+recipe is now only a new room's layout: once marked out, a room is a
+rectangle with doorways, and fixtures of its zone of any kind can join it.
 
 ### Tasks, phases, projects
 
@@ -61,13 +71,13 @@ current recipes are:
 | Recipe | Contents | Minimum size | Planning priority |
 | --- | --- | --- | --- |
 | facility room | alternating nutrient pods and toilets (all toilets with `infinite-food` off, when pods feed nobody — see [food.md](./food.md)) | 2 facilities (1 when all toilets) | first, because food is fatal |
-| dormitory | beds/bunks | 1 bed | after the desired pods and toilets exist |
+| dormitory | beds/bunks | 1 bed | after the desired pods and toilets exist, when no residence room can take the bunks |
 | trash room | an incinerator | 1 incinerator (and at most 1, via `maxFac`) | last, and only once there is refuse to burn |
-| storage room | one storage container, with an aisle | exactly 1 container via `maxFac` | player-ordered only (and the planner's silo) |
-| scumhouse (kitchen) | a scumhouse, a gap, and its pantry chest, with an aisle | 1 scumhouse (the pantry is dropped on a site too small for both) | first of all with `infinite-food` off (the default); otherwise player-ordered (see [scumhouse.md](./scumhouse.md)) |
+| storage room | one storage container, with an aisle | exactly 1 container via `maxFac` | player-ordered, the planner's silo, or when a full colonist has nowhere to unload, when no storage room can take the chest |
+| scumhouse (kitchen) | a scumhouse, a gap, and its pantry chest, with an aisle | 1 scumhouse (the pantry is dropped on a site too small for both) | first of all with `infinite-food` off (the default); otherwise player-ordered (see [scumhouse.md](./scumhouse.md)). After the first, a stove and pantry go into a production room the colony has when one can take them |
 | house | a bunk and a toilet | exactly 2 | commissioned by a colonist with `house-savings`, paid from its wallet (see [labor.md](./labor.md)) |
 | meeting hall | two to four chairs, with open floor in front | 2 chairs | after bunks and the incinerator, before the foundry; one chair per `colonists-per-chair` colonists, or player-ordered (`b` then `m`). See [meeting-hall.md](./meeting-hall.md) |
-| scum incubator | one or two incubators, with an aisle | 1–2 (narrow in a cramped cavern) | after the first scumhouse, up to one per `colonists-per-incubator` colonists, while pods do not feed anyone; or player-ordered (`b` then `i`). See [incubator.md](./incubator.md) |
+| scum incubator | one or two incubators, with an aisle | 1–2 (narrow in a cramped cavern, the colony's first only) | after the first scumhouse, up to one per `colonists-per-incubator` colonists, while pods do not feed anyone; or player-ordered (`b` then `i`). See [incubator.md](./incubator.md) |
 | foundry | a forge, a gap, and a gun bench, with an aisle | exactly 2 (narrow in a cramped cavern) | last of all, while `armory-rifles` > 0 and there's no forge or gun bench; or player-ordered (`b` then `g`). See [foundry.md](./foundry.md) |
 
 **Aisles.** A one-fixture room is one tile wide, so exactly one tile can reach
@@ -83,7 +93,10 @@ site that wide, `planRoomFor` falls back to the narrow room: a scumhouse one
 tile can reach beats none. That fallback is for the colony's first scumhouse
 only. Later ones set `aisleRequired` and wait for a wide site: a colony's
 fourth scumhouse, built narrow, starved a colonist whose meal was inside it
-while a cook held the only access tile.
+while a cook held the only access tile. Later incubator rooms and chefs'
+kitchens wait too: a narrow room squeezed between two others can never grow,
+and the colony walled itself into stacks of them (see
+[room-expansion.md](./room-expansion.md), *Not scattering small rooms*).
 
 `planRooms` checks each recipe's planned-or-built capacity, plans at most one
 new room per call (see *Planning cadence*), and always chooses a life-support
@@ -103,14 +116,16 @@ room the same way from its own wallet (a house) and owns its fixtures. See
 
 The planner also builds a storage room when the colony has **no communal
 chest** at all: that chest is its silo, where the market happens (see
-[market.md](./market.md)), and with a locker in every crash pod nothing else
+[market.md](./market.md)), and with a locker for every settler nothing else
 would ever call for one.
 
-Capacity counts private fixtures too: each settler's crash pod brings its own
-bunk and toilet (see [crash-pods.md](./crash-pods.md)), and `plannedFacilities`
-counts them, so a young colony builds no dormitories and few toilets until its
-population outgrows its pods. Nutrient pods are never in a crash pod, so the
-first facility room still goes up for the safety net.
+Capacity counts every bunk and toilet, private or communal, the ships' included
+(see [ships.md](./ships.md)). A ship sleeps half its passengers and has a
+toilet for every four, so a young colony is short of both from the start and
+builds dormitories and toilet rooms early. (When every settler had a crash pod
+with its own bunk and toilet, a colony built neither until its population
+outgrew its pods.) No ship carries a nutrient pod, so the first facility room
+still goes up for the safety net.
 
 Storage rooms are player-placeable and also demand-planned when a full
 colonist has no reachable chest that can accept its complete material load.
@@ -156,7 +171,7 @@ the same rooms by tick 5000 as colonies without it.
 ### Facility-room geometry
 
 A room is a row of facilities inside a complete placed-wall perimeter with a
-one-tile front doorway. `designateRoom` lays out, into two phases:
+one-tile doorway in its front wall. `designateRoom` lays out, into two phases:
 
 - **Phase 0 (walls)**: the full rectangle of `Wall` tiles — back, sides, and front
   — except the centered front doorway.
@@ -164,15 +179,40 @@ one-tile front doorway. `designateRoom` lays out, into two phases:
   alternating so every room serves both needs) one tile inside the back wall,
   spaced one tile apart.
 
-`findRoomSite` / `roomSiteClear` pick a site whose rear wall is backed by
-solid rock or another room's already-placed wall, and whose two side walls are
-each either freshly built (with an exterior lane kept clear beside it so every
-wall task stays reachable even after its neighbors go up) or an already-placed,
-unclaimed wall from a neighboring room — in which case the two rooms sit flush
-and literally **share that one tile** as a party wall: this room adds no wall
-task of its own there (`designateRoom` skips it), and needs no exterior lane
-on that side either, since there is no wall task to reach. Sites nearest the
-map center are preferred.
+**Facing.** The doorway can be on any side. A `roomFrame` (`roomframe.go`)
+lays the room out in its own coordinates, `u` along the bay and `v` from the
+back wall to the front, and turns them onto the map for one of four facings.
+`designateRoom` and `roomSiteClear` speak only in frame coordinates, so the
+shell is the same whichever way it faces. `findRoomSiteWith` tries every
+facing at every anchor (the middle tile of the facility row) and takes the
+anchor nearest the map center. Ties go to the row-major first anchor, then to
+south, north, east, west, so a site the old south-only planner would have
+picked still wins a tie. Rooms used to face south only, so they could back
+only onto rock to their north: a cavern whose rock lay to the east, west or
+south had no site in it at all.
+
+**Backing.** `findRoomSite` / `roomSiteClear` pick a site whose back wall either
+stands in front of solid rock or **is** another room's already-placed wall, and
+whose two side walls are each either freshly built (with an exterior lane kept
+clear beside it so every wall task stays reachable even after its neighbors go
+up) or an already-placed, unclaimed wall from a neighboring room. Where a wall
+is already there, the two rooms sit flush and literally **share that one tile**
+as a party wall: this room adds no wall task of its own there (`designateRoom`
+skips it, on the back wall as on the sides), and needs no exterior lane on that
+side either, since there is no wall task to reach.
+
+**No double walls.** A new wall is never raised directly against an old one.
+Rooms used to count another room's wall *behind* their back wall as backing,
+and built their own back wall in front of it: two walls side by side, the
+double-thick wall that ran between so many abutting rooms. Now the back wall
+row itself must be the old wall (shared), and a back wall tile that is built
+new needs rock behind it, or, standing free, anything but a wall, standing or
+planned by another project (`siteRules.walls`). The back corners obey the same
+rule without needing rock: a corner raised in front of a neighbor's wall left a
+one-tile stub where three rooms met. Side walls and front walls already could
+not double, because the lane beside a side wall and the approach row in front
+must be walkable. Across three seeds at 30 colonists and 10,000 ticks, 2×2
+blocks of wall (the signature of a double wall) went from 44–62 to 0.
 
 Sharing a boundary this way — on the back wall or a side wall — matters once a
 cave's easy rock-backed edges are used up: rooms reuse floor and structure
@@ -187,6 +227,87 @@ sitting slightly closer to map center measurably delayed food in testing (a
 colonist starved because life support landed somewhere slower to finish than
 it needed to be; see `findRoomSitePrefersClearOverRockNearCenter` for the
 regression test).
+
+**Standing free.** Backing is a preference, not a requirement. When no backed
+site of any bay size exists, `planRoomFor` tries `findFreeStandingSite`: the
+same search with `siteRules{unbacked: true}`, which ignores whatever lies
+behind the back wall. Backed sites at every size come first, since a room
+tucked against the rock costs nobody a way round it. Every recipe may stand
+free. The colony mines for rock as well as for room space, so a small cavern
+can be mined bare, and then no room can back onto anything and digging can
+never make a backed site again. The meeting hall, planned after everything
+else and wider than most rooms, hit this first: in a 40×24 test map mined bare
+by tick 3000 it was wanted for the rest of the run and never planned (see
+[meeting-hall.md](./meeting-hall.md)).
+
+**Not cutting the colony in two.** No site is accepted, backed or not, unless
+`siteKeepsColonyWhole` passes. It treats the footprint, from side wall to
+side wall and back wall to front wall, as solid: once the room stands, its
+inside is reached only through the doorway, a dead end. The open, discovered
+tiles bordering the footprint are where every route through it enters and
+leaves. So if every two of them that are in the same room (pathfinding sense)
+now can still reach each other around the footprint, every route through can
+go round instead. Tiles other projects will build on count as solid too, so
+two plans can't close a gap that each would have left open alone. A wall that
+is already there (a party wall) is solid before and after, so the tiles past
+it are not border tiles. The flood fill stays within `splitCheckMargin` (12)
+of the footprint, so a site whose only way round is a longer detour is
+refused. That errs toward turning a site down, never toward a split.
+
+A backed room's lanes and approach row already make a way round it, so the
+check mostly bites on free-standing rooms and on a room that would fill the
+gap between two others with party walls on both sides
+(`TestRoomSiteRefusesToSplitTheColony`). It costs a flood fill of about a
+thousand tiles, so `findRoomSiteWith` gathers the sites that pass
+`roomSiteClear` first and runs it on them in order of distance, stopping at
+the first that passes. Prevention can still be beaten (a lone emergency build,
+a pod landing, three rooms around a shared middle), so there is a correction
+too: [escape.md](./escape.md).
+
+**Search cost.** Four facings and two more passes for free-standing sites made
+a search that found nothing about five times dearer (1.7 ms to 9–10 ms in
+`BenchmarkFindRoomSiteNoFit`). `findRoomSiteWith` now scans anchors only
+within `width+2` of the carved box (`carvedMin`/`carvedMax`): every site's side
+walls are already Floor or Wall, and its anchor is never further than that
+from one, whichever way it faces. That skips nothing that could pass and
+brought the same search to 0.4 ms, faster than before facings.
+
+That box bound only helps while the colony is compact. On seed
+`1790918757088000000` (10000x10000, 200 colonists), main hit a stretch from
+about tick 12,500 to 19,500 where it averaged 4.45 ms/tick natively, against
+about 0.5 ms elsewhere. That held the browser build under 100 ticks a second.
+The colony had spread until the search box was about 300 tiles across. With no
+projects in flight, `planRooms` wanted a meeting hall and a foundry, neither
+fitted anywhere, and every `planInterval` it repeated a failed search of the
+whole box for each, once per width tried. A planning pass cost about 70 ms.
+
+Nearly every anchor in such a box is solid rock, and rock passes
+`roomSiteClear`'s back-row test and, with `allowRock`, its interior. Each rock
+anchor was rejected only at its side walls, after a row of map lookups, and
+four times over, once per facing. So `appendRoomSites` scans each facing along
+its approach row instead: south- and north-facing rooms row by row, east- and
+west-facing ones column by column. Every site needs walkable ground the whole
+way along that row (lane to lane). When a tile in it is not walkable, the scan
+jumps past every anchor whose row covers that tile. `roomSiteClear` also reads
+terrain before the `designated` and `doorTiles` map lookups. All of these
+checks are pure, and the candidates are sorted on an explicit
+(distance, row-major anchor, facing) key, which is the order the stable sort
+used to keep. So the result is unchanged.
+
+| Search | Before | After |
+| --- | --- | --- |
+| `BenchmarkFindRoomSiteNoFit` | 391 µs | 15 µs |
+| That seed at tick 13,000, all four passes, width 7 | 53 ms | 26 ms |
+| Same, width 9 | 113 ms | 24 ms |
+| Same, width 31 | 312 ms | 10 ms |
+
+Most of what is left at widths 7 and 9 is real candidates on open floor, which
+sites that are found have to check anyway.
+
+The planner still repeats a search that keeps failing, every `planInterval`.
+Skipping it would mean backing off, or remembering a failure until the terrain
+near the colony changes. Either would change when rooms are planned, and so
+the golden hashes. That is a separate decision from making the scan cheap.
 
 Facilities stay spaced one tile apart because a colonist using a facility stands
 on its neighbor tiles — two adjacent facilities would mean one could never be
@@ -207,8 +328,9 @@ exit tile, sealing it shut behind a wall its own doorway was supposed to make
 impossible.
 
 `w.doorTiles` closes this: `designateRoom` reserves each room's door-exterior
-tile the moment the room is designated, permanently (rooms are never
-demolished or un-designated, so entries are only ever added), and
+tile the moment the room is designated, and keeps it for as long as the room
+stands: only clearing the room away entirely releases it (see
+[zoning.md](./zoning.md)), and
 `roomSiteClear` rejects any candidate site whose own interior or side-wall
 footprint would cover one. See `TestRoomSiteClearRejectsCoveringAnotherRoomsDoorway`.
 
@@ -309,6 +431,29 @@ does not suppress a stranded colonist's self-rescue, and a colonist that can
 already help build one elsewhere in its room joins that instead of starting a
 redundant one of its own.
 
+`findBuildSpot` also never picks a tile that an unfinished project task
+designates, **in any phase** (`onPlannedTask`). `buildTiles` (`onPendingBuild`)
+only holds the active phase, and a room's fit-phase facility tiles are still
+plain Floor while its walls go up, so they looked like free edges. A lone
+facility raised on one left that task forever unworkable (`taskWorkable` wants
+Floor): the room never completed and held a concurrent-project slot for good.
+`tryEmergencyScumhouse` shares `findBuildSpot`, so it gets the same rule. It
+also keeps to ground zoned for the fixture (`zoneAllows`, see
+[zoning.md](./zoning.md)).
+
+### Zoning decides the ground
+
+Where a room may go is also zoning's call. Every recipe names a `structure`
+type, each type belongs to a zone kind, and `planRoomFor` first looks for a site
+whose whole footprint is zoned for it (backed, then free-standing: a zone drawn
+on open floor has nothing to back onto), then, only with `zoning-auto` on, for
+one on ground not zoned for anything else, which it then zones. With manual
+zoning, the game's default, a room no zone has a site for waits. A room grows or
+joins another (see [room-expansion.md](./room-expansion.md)) only onto ground
+zoned for it, too. The planning order above is unchanged. The concurrency cap does not count
+a player's excavation or clearing order (`roomProjects`): a big zone dug out of
+the rock must not hold up every room behind it. See [zoning.md](./zoning.md).
+
 ## Why it is this way
 
 The room design is the product of watching colonies starve around earlier ones:
@@ -332,9 +477,24 @@ The room design is the product of watching colonies starve around earlier ones:
   That guarantee only ever covered a room trapping itself while it went up —
   see *The doorway tile is reserved forever, not just guaranteed once* above
   for the later, cross-room version of the same failure and how it's closed.
-- **Rock-backed niches, or a shared wall with a neighbor,** keep a room from
-  becoming a free-standing obstacle that splits an open route, and mean the
-  back wall's tasks are reached from the future facility row.
+- **A shared back wall, not one built against the old.** Backing onto a
+  neighbor once meant building a second wall in front of its wall. That cost a
+  row of rock and a row of floor per room and is what made the colony's
+  rooms read as a maze of double-thick walls; the room now sits one tile
+  further back and uses the neighbor's wall. Moving the stricter back-wall
+  check after the interior loop (with a cheap backed-only pre-check first)
+  kept `BenchmarkFindRoomSiteNoFit` where it was.
+- **Rock-backed niches, or a shared wall with a neighbor, are preferred,**
+  and mean the back wall's tasks are reached from the future facility row.
+  They were once required, to keep a room from becoming a free-standing
+  obstacle that splits an open route. That made a mined-out cavern unable to
+  site anything, so the requirement became a preference, and splitting is now
+  checked directly (`siteKeepsColonyWhole`) for every site.
+- **A connectivity check rather than a ring of floor.** The first fix for
+  free-standing rooms (the hall only) required open floor all round the room
+  and refused party walls. That forbade sites that split nothing, and it did
+  not cover two plans closing a gap together. Checking that the border tiles
+  stay connected is both looser and safer.
 - **Reachability-gated claiming and the tightly-guarded emergency build** keep
   the colony from either mobbing one site or letting a disconnected colonist die
   next to an unreachable project.
@@ -376,7 +536,8 @@ level itself.
 
 ## Extending it
 
-- **A new room recipe** is a `roomRecipe` plus a demand check in `planRooms`.
+- **A new room recipe** is a `roomRecipe` (naming its `structure` type, which
+  says what zone it is built in) plus a demand check in `planRooms`.
   Reuse the wall shell and make the recipe's facility spacing/access rules
   explicit.
 - **A new project kind** (storage, workshops, ...) is a new **task generator** over

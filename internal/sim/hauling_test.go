@@ -79,17 +79,18 @@ func TestArbitrageClosesAPriceGap(t *testing.T) {
 }
 
 // The E7 gate, second half: over a long run, a colony that sells what it
-// bought comes out ahead on its trading of one that only buys.
+// bought comes out ahead on its trading of one that only buys. The armory is
+// off: a foundry, sited in one run and not the other, buys rifles worth far
+// more than the difference selling makes, and that is not what this measures.
 //
 // This compares what the colony made and spent on the book, not its balance.
 // Comparing treasuries stopped meaning that once colonists did paid work: a
-// selling colony with more to spend funds a dearer room and a rifle bid, and
-// money spent on rooms reads as money lost. That stayed hidden while stepFed
-// left every drive pinned at its ceiling (it zeroed the base but not the
-// timestamp), so nobody took paid work.
+// selling colony with more to spend funds a dearer room, and money spent on
+// rooms reads as money lost.
 func TestColonySellingPaysOverALongRun(t *testing.T) {
 	run := func(sells bool) Money {
 		w, _, far, cols := arbitrageWorld(t, sells)
+		w.cfg.ArmoryRifles = 0
 		w.post(Bid, IronOre, 8, 12, ColonistOwner(cols[0].ID), far, 0)
 		stepFed(t, w, 4000, nil)
 		if len(w.trades) >= maxTrades {

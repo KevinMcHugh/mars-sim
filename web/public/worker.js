@@ -18,12 +18,17 @@ let budgetMs = 8;
 let timer = null;      // pending setTimeout, when the next tick is in the future
 let queued = false;    // a MessageChannel ping is in flight
 let slices = 0;
+// Whether a game has started. The page opens on the New game form, so topics
+// are subscribed long before there is an engine to advance: until then a
+// subscription is only recorded, and nothing runs.
+let started = false;
 
 const ping = new MessageChannel();
 ping.port1.onmessage = () => { queued = false; slice(); };
 
 function schedule(waitMs) {
   if (timer !== null) { clearTimeout(timer); timer = null; }
+  if (!started) return; // no game yet: start schedules the first slice
   if (waitMs < 0) return; // paused: only a command resumes
   if (waitMs === 0) {
     if (!queued) { queued = true; ping.port2.postMessage(0); }
@@ -83,7 +88,24 @@ async function handle(msg) {
       const api = marssim.api ?? 1;
       const r = JSON.parse(marssim.start(JSON.stringify(msg.settings)));
       postMessage({ type: 'started', result: r, loadMs, api });
-      if (!r.error) schedule(0);
+      if (!r.error) { started = true; schedule(0); }
+      break;
+    }
+    case 'load': {
+      // Like start, from a save file's bytes; a file that fails to load
+      // leaves the running game (if any) as it was.
+      const api = marssim.api ?? 1;
+      const r = api >= 16 ? JSON.parse(marssim.load(new Uint8Array(msg.buffer))) : { error: 'this build cannot load saves' };
+      postMessage({ type: 'started', result: r, loadMs, api });
+      if (!r.error) { started = true; schedule(0); }
+      break;
+    }
+    case 'save': {
+      // Between slices, so the world is at rest (docs/save-load.md).
+      const r = marssim.save();
+      if (typeof r === 'string') { postMessage({ type: 'saved', error: JSON.parse(r).error }); break; }
+      const buffer = r.buffer;
+      postMessage({ type: 'saved', buffer }, [buffer]);
       break;
     }
     case 'command': {

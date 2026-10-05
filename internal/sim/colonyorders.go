@@ -164,6 +164,7 @@ func (w *World) repriceColonyOrder(c RepriceColonyOrder) bool {
 		return false
 	}
 	n.manual = true
+	n.inherit(o)
 	w.logEvent(LogNote, fmt.Sprintf("The colony reprices its %s of %d %s at (%d, %d) from %v to %v%s.",
 		side, qty, item, depot.X, depot.Y, was, c.Price, filledNote(filled, qty)))
 	return true
@@ -186,12 +187,35 @@ func (w *World) cancelColonyOrder(id OrderID) bool {
 // postStanding posts one of the colony's standing orders, which upkeep keeps
 // topped up, unless a player has suspended that side and item. Every
 // standing order goes through here, so a suspension holds whichever upkeep
-// would have posted it.
+// would have posted it, and so does standing-orders-build-only.
 func (w *World) postStanding(side Side, item ItemKind, qty int, price Money, depot Point) {
-	if w.standingSuspended(side, item) {
+	if !w.standingAllowed(side, item) || w.standingSuspended(side, item) {
 		return
 	}
 	w.post(side, item, qty, price, Community, depot, 0)
+}
+
+// buildGoods are the goods rooms are built from (see constructionCost). Under
+// standing-orders-build-only, the colony's silo bids for these are the only
+// standing orders it posts.
+var buildGoods = [...]ItemKind{RawRock, IronOre, Clay}
+
+// standingAllowed reports whether the colony posts a standing order for side
+// and item at all: under standing-orders-build-only, only its bids for
+// building materials.
+func (w *World) standingAllowed(side Side, item ItemKind) bool {
+	if !w.cfg.StandingOrdersBuildOnly {
+		return true
+	}
+	if side != Bid {
+		return false
+	}
+	for _, k := range buildGoods {
+		if k == item {
+			return true
+		}
+	}
+	return false
 }
 
 // standingSuspended reports whether a player has suspended the colony's

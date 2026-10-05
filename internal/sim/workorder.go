@@ -26,6 +26,7 @@ const (
 	WorkBuild WorkKind = iota // raise one build task's tile
 	WorkHaul                  // move a unit of the issuer's goods from one depot to another
 	WorkDig                   // dig out one rock tile of an excavation order (see excavation.go)
+	WorkClear                 // clear one structure tile of a clearing order (see zones.go)
 )
 
 func (k WorkKind) String() string {
@@ -34,6 +35,8 @@ func (k WorkKind) String() string {
 		return "build"
 	case WorkDig:
 		return "dig"
+	case WorkClear:
+		return "clear"
 	}
 	return "haul"
 }
@@ -134,11 +137,23 @@ func (w *World) wageFor(t Terrain) Money {
 	}
 }
 
+// taskWage is what a task pays: wageFor its terrain, except that breaking a
+// structure down (a dig task that clears a wall, a hull or a fixture) pays
+// WageDemolish: a room's wall moved to enlarge it, or a clearing order's tile
+// (see zones.go). A passage breaks walls too, but nobody pays for one (see
+// planPassage).
+func (w *World) taskWage(t *buildTask) Money {
+	if t.terrain == Floor && isBuilt(t.clears) {
+		return Money(w.cfg.WageDemolish)
+	}
+	return w.wageFor(t.terrain)
+}
+
 // projectCost is what funding every task of p would cost.
 func (w *World) projectCost(p *project) Money {
 	var total Money
 	for _, t := range p.tasks {
-		total += w.wageFor(t.terrain)
+		total += w.taskWage(t)
 	}
 	return total
 }
@@ -157,7 +172,7 @@ func (w *World) fundProject(p *project) bool {
 		return false
 	}
 	for _, t := range p.tasks {
-		t.order = w.postWork(p.workKind, p.issuer, w.wageFor(t.terrain), 1, t.pos)
+		t.order = w.postWork(p.workKind, p.issuer, w.taskWage(t), 1, t.pos)
 	}
 	return true
 }
@@ -170,6 +185,7 @@ func (w *World) cancelWorkOf(issuer Owner) {
 		w.closeWork(o)
 	}
 	kept := w.projects[:0]
+	var dropped []*structure
 	for _, p := range w.projects {
 		if p.issuer == issuer && issuer != Community {
 			for _, t := range p.tasks {
@@ -179,11 +195,19 @@ func (w *World) cancelWorkOf(issuer Owner) {
 					}
 				}
 			}
+			if p.structure != nil {
+				dropped = append(dropped, p.structure)
+			}
 			continue
 		}
 		kept = append(kept, p)
 	}
 	w.projects = kept
+	// A house nobody started is no structure at all.
+	for _, s := range dropped {
+		w.maybeRetire(s)
+	}
+	w.structureRev++
 }
 
 // ---- Commissions ------------------------------------------------------------------
@@ -237,7 +261,12 @@ func (w *World) commissionKitchens() {
 		if e.Kind != Colonist || !e.Alive() || e.kitchenCommissioned || e.rank(SkillCooking) < rank || e.wallet < Money(w.cfg.KitchenSavings) {
 			continue
 		}
-		if w.planRoomFor(scumhouseRoom, ColonistOwner(e.ID)) {
+		// A chef's kitchen waits for a site with an aisle, as the colony's
+		// later kitchens do: a cook works it for long stretches, and the
+		// narrow fallback is for a colony's first.
+		r := scumhouseRoom
+		r.aisleRequired = true
+		if w.planRoomFor(r, ColonistOwner(e.ID)) {
 			e.kitchenCommissioned = true
 			w.logEvent(LogBuildStart, fmt.Sprintf("%s, %s, commissions a kitchen of %s own.", e.displayName(), withArticle(e.skillLabel(SkillCooking)), e.possessive()))
 		}

@@ -44,6 +44,10 @@ demand and may exceed the normal concurrent-project cap by one: otherwise full
 builders can deadlock every active project's excavation phase while the project
 cap prevents the one structure that would unblock them.
 
+Either way, an ordered or demanded chest first goes into a storage room the
+colony already has: fitted into free floor, or by joining two rooms or
+growing one (see [room-expansion.md](./room-expansion.md)).
+
 During work selection, a blocked colonist seeks the nearest reachable chest that
 can accept its complete material load. If none exists but a storage project is
 active, it claims that project's reachable work instead of unrelated
@@ -66,6 +70,10 @@ The TUI exposes contents in two places:
   `up`/`down` or `j`/`k` selects among containers, and the right panel shows the
   selected chest's occupied slots, item count, and capacity.
 
+The browser's Storage tab adds a colony-wide pool of every item and a search
+by item and by owner over the containers and their ledgers; see
+[frontend-web.md](./frontend-web.md).
+
 A blocked colonist takes what sells (goods with a reference price) to the
 colony's **silo** — its communal chest nearest the map centre — and offers it
 there; the colony's standing bids buy the ore (see [market.md](./market.md)).
@@ -82,8 +90,8 @@ meals, with a ledger — but it is not a chest: general materials are only ever
 unloaded into `Storage` containers. The storage tab lists it as "scumhouse".
 See [scumhouse.md](./scumhouse.md).
 
-Every crash pod brings a **locker**: an ordinary storage container, private to
-its settler (see [crash-pods.md](./crash-pods.md)). Its owner unloads into it
+Every settler lands with a **locker** in its ship's hold: an ordinary storage
+container, private to it (see [ships.md](./ships.md)). Its owner unloads into it
 like any chest, and nobody else can. So the colony only builds a shared storage
 room once a blocked colonist has no reachable chest — its own locker included —
 with room for its load. The storage tab labels lockers by owner.

@@ -186,6 +186,8 @@ the colony grows):
 
 - **Small colonies/maps**: each miner claims a specific nearest rock up front
   (`claimNearestMine`) and A\*s to it — cheaper when few miners share the sweep.
+  The claim searches the frontier in chunk rings rather than scanning all of
+  it (see [spatial-index-and-performance.md](./spatial-index-and-performance.md)).
 - **Big colonies/maps** (`FrontierFieldMinColonists` / `FrontierFieldMinArea`):
   miners follow the shared frontier flow field to the digging edge and claim a
   rock **on arrival** — one BFS serves everyone. A 300x300 map with 3000 colonists
@@ -214,6 +216,19 @@ the colony grows):
   map size and obstacle density.
 - **The uphill escape step** and **transit-through-crowds** were both learned from
   full-room gridlock and starvation.
+
+### Structures coming down
+
+Terrain mostly only opens up through digging, but a clearing order
+([zoning.md](./zoning.md)), a passage and an escape ([escape.md](./escape.md)),
+and a growing room ([room-expansion.md](./room-expansion.md)) turn structures
+back into floor. `SetTerrain` touches the flow fields and dirties the region
+graph as for any change, so the shared fields route through the gap on their
+next read. A colonist's own cached A\* route is only replanned when it is
+blocked, so a clearing order's tile also drops every cached route longer than a
+straight walk to its end (`clearTile`, `forgetDetours`). Without that, a
+colonist already on its way would finish the long way round a wall that is
+gone. The others leave routes alone, as they always have.
 
 ## Extending it
 

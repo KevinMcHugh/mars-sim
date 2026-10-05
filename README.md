@@ -23,7 +23,13 @@ colonist/alien stats, build times, ...), each defaulting to the value in
 go run . -h
 go run . -colonists 20 -aliens 5 -width 120 -height 60
 go run . -headless -duration 10s -seed 42   # reproducible, no TUI
+go run . -load mars-sim-42-20261003-101500.marssave   # pick up a saved game
 ```
+
+Games save to a file (`ctrl+s` in the terminal, the Game tab or Ctrl/⌘+S in the
+browser) and load back exactly as they were, RNG included, so a save plays on
+just as the original would have. A save only loads into a build whose world has
+the same shape; see [docs/save-load.md](docs/save-load.md).
 
 For settings you want to keep rather than retype, [`mars-sim.yaml`](mars-sim.yaml)
 is a committed file that sits between the compiled defaults and the flags. It
@@ -54,6 +60,7 @@ Terminal controls:
 | arrows / `hjkl`| pan the camera                  |
 | `f` / `F`      | cycle / hide the flow-field overlay |
 | `tab`          | toggle the colonist roster      |
+| `ctrl+s`       | save the game to a file         |
 | `q` / `esc`    | quit                            |
 
 The **roster** (`tab`) lists every colonist; `↑`/`↓` select one to inspect its

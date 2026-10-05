@@ -9,6 +9,16 @@
 # conditions (a name that fits several kinds of species) are expected, not an
 # error. An entry with no `when` always applies.
 #
+# A name group lists several names under one `when` (and one emoji list) --
+# handy for a family of synonyms like repts, reptoids, scalies, lizards. It
+# expands to one entry per name, so each name in it is exactly as likely as a
+# standalone entry would be. Write a name as a bare string when its plural is
+# just the name plus "s", or as {name: ..., plural: ...} otherwise.
+#
+# No two species in one world share a name: once a species takes a name, later
+# species skip it. If every name that fits a species is taken, it reuses one
+# with its color in front ("green grelk").
+#
 # Copy this file to alien-names.yaml (or run with -alien-names
 # alien-names.yaml.example) to try it. Nothing loads it automatically under
 # this name -- the game's built-in pool (compiled in from
@@ -16,12 +26,14 @@
 #
 # Condition fields:
 #   temperament: friendly | cautious | hostile
-#   skin:        smooth | scaly | furry | armored | bony | chitinous | slimy
+#   skin:        smooth | scaly | furry | armored | bony | chitinous | slimy |
+#                rocky | woody | mossy | gelatinous | hairy | feathered
 #   color:       red | orange | yellow | green | blue | purple | gray | black | white | pale | iridescent
 #   pattern:     solid | striped | spotted   (how the color is laid out)
 #   height:      tiny | small | average | large | huge   (bucketed from the rolled range)
 #   weight:      tiny | small | average | large | huge   (bucketed from the rolled range)
 #   tail:        true | false
+#   wings:       true | false
 #   legs / arms / limbs / eyes:  {eq: N} | {gt: N} | {gte: N} | {lt: N} | {lte: N}
 #
 # Combine with "all" (every sub-condition must match), "any" (at least one
@@ -53,6 +65,16 @@ names:
       all:
         - legs: { eq: 6 }
         - skin: armored
+
+  # A name group: four names for anything scaly.
+  - group:
+      - rept
+      - reptoid
+      - { name: scaly, plural: scalies }
+      - lizard
+    emoji: ["🦎", "🐍"]
+    when:
+      skin: scaly
 
   # "any": either a passive temperament reads as this name.
   - name: critter

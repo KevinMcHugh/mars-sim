@@ -1,0 +1,245 @@
+# The word parts alien scientific names are built from (see
+# docs/alien-taxonomy.md). Compiled into the binary (internal/sim/
+# alien_taxonomy.go's go:embed) as defaultTaxonomy().
+#
+# A scientific name is a binomial, "Genus epithet": Pseudursus ares.
+#
+#   genus   = prefix + root      pseudo + ursus      -> Pseudursus
+#   epithet = one epithet         ares
+#
+# Each part is drawn at random from the entries whose "when" condition matches
+# the rolled species. "when" is the same condition tree alien-names.yaml uses
+# (all / any / not, temperament, skin, color, pattern, height, weight, tail,
+# wings, legs, arms, limbs, eyes); an entry with no "when" fits every species.
+#
+# Prefixes are Greek or Latin combining forms (the "Erythro-" in
+# Erythrosaurus). Roots are the noun a genus ends in (the "-saurus"). When a
+# prefix ending in a vowel meets a root starting with one, the prefix's vowel
+# is dropped, as in real names: erythro + ops -> Erythrops.
+#
+# mimic: true on a root marks an Earth animal the species merely resembles
+# (a bear, a lizard). mimic: true on a prefix ("pseudo", false) means that
+# prefix is only ever put in front of a mimic root.
+#
+# Every root has a gender (m, f or n), and a genus takes the gender of the
+# root it ends in: Pithecus is masculine, Medusa feminine, Zoon neuter. Most
+# epithets are invariable -- genitives ("martis", of Mars), nouns in
+# apposition ("ares", "gigas"), and Latin adjectives whose nominative is the
+# same in every gender ("ferox", "velox", "latens") -- and need nothing more.
+# An adjective that does decline gives its masculine as form and its other
+# two forms as feminine and neuter, and the name agrees with its genus:
+# Pithecus hirsutus, Medusa hirsuta, Zoon hirsutum. Forms are lowercase
+# ASCII letters only.
+
+prefixes:
+  # Mars itself (areology is the geology of Mars). Fits anything, so a genus
+  # can always be built.
+  - form: areo
+
+  # Pseudo-, "false": only before an Earth animal the species resembles.
+  - { form: pseudo, mimic: true }
+
+  # Color.
+  - { form: erythro,  when: { color: red } }
+  - { form: cirrho,   when: { color: orange } }    # tawny
+  - { form: xantho,   when: { color: yellow } }
+  - { form: chloro,   when: { color: green } }
+  - { form: cyano,    when: { color: blue } }
+  - { form: porphyro, when: { color: purple } }
+  - { form: polio,    when: { color: gray } }
+  - { form: melano,   when: { color: black } }
+  - { form: leuco,    when: { color: white } }
+  - { form: ochro,    when: { color: pale } }
+  - { form: irido,    when: { color: iridescent } }
+
+  # Pattern.
+  - { form: rhabdo, when: { pattern: striped } }   # Rhabdomys, the striped mouse
+  - { form: sticto, when: { pattern: spotted } }
+
+  # Hide.
+  - { form: leio,    when: { skin: smooth } }
+  - { form: lepido,  when: { skin: scaly } }
+  - { form: dasy,    when: { skin: furry } }       # Dasyurus, "hairy tail"
+  - { form: hoplo,   when: { skin: armored } }
+  - { form: osteo,   when: { skin: bony } }
+  - { form: ostraco, when: { skin: chitinous } }   # shelled
+  - { form: myxo,    when: { skin: slimy } }
+  - { form: litho,   when: { skin: rocky } }       # stone
+  - { form: petro,   when: { skin: rocky } }       # rock
+  - { form: xylo,    when: { skin: woody } }       # wood
+  - { form: dendro,  when: { skin: woody } }       # tree
+  - { form: bryo,    when: { skin: mossy } }       # moss: Bryozoa
+  - { form: hyalo,   when: { skin: gelatinous } }  # glassy, see-through
+  - { form: colla,   when: { skin: gelatinous } }  # glue: collagen
+  - { form: tricho,  when: { skin: hairy } }       # hair
+  - { form: lasio,   when: { skin: hairy } }       # shaggy: Lasiurus, the hairy bat
+  - { form: ptilo,   when: { skin: feathered } }   # feather: Ptilonorhynchus
+
+  # Wings.
+  - { form: ptero, when: { wings: true } }         # Pterodactylus
+
+  # Size.
+  - form: mega
+    when: { any: [{ height: huge }, { weight: huge }] }
+  - form: giganto
+    when: { any: [{ height: huge }, { weight: huge }] }
+  - form: macro
+    when: { any: [{ height: large }, { weight: large }] }
+  - form: micro
+    when: { any: [{ height: small }, { height: tiny }] }
+  - form: nano
+    when: { height: tiny }
+
+  # Temperament.
+  - { form: deino,  when: { temperament: hostile } }   # terrible
+  - { form: phobo,  when: { temperament: hostile } }   # fear
+  - { form: crypto, when: { temperament: cautious } }  # hidden
+  - { form: hemero, when: { temperament: friendly } }  # tame
+
+roots:
+  # Generic: fit anything, so a genus can always be built.
+  - form: therium   # beast
+    gender: n
+  - form: morphus   # shape
+    gender: m
+  - form: zoon      # animal
+    gender: n
+
+  # Earth animals it resembles.
+  - form: ursus     # bear
+    gender: m
+    mimic: true
+    when: { all: [{ skin: furry }, { any: [{ weight: large }, { weight: huge }] }] }
+  - form: cyon      # dog
+    gender: m
+    mimic: true
+    when: { all: [{ skin: furry }, { legs: { eq: 4 } }] }
+  - form: mys       # mouse
+    gender: m
+    mimic: true
+    when: { all: [{ skin: furry }, { any: [{ weight: tiny }, { weight: small }] }] }
+  - { form: saurus,      gender: m, mimic: true, when: { skin: scaly } }        # lizard
+  - { form: ophis,       gender: m, mimic: true, when: { legs: { eq: 0 } } }    # snake
+  - { form: chelys,      gender: f, mimic: true, when: { skin: armored } }      # turtle
+  - { form: carcinus,    gender: m, mimic: true, when: { skin: chitinous } }    # crab
+  - form: scarabaeus  # beetle
+    gender: m
+    mimic: true
+    when: { all: [{ legs: { eq: 6 } }, { any: [{ skin: chitinous }, { skin: armored }] }] }
+  - { form: limax,       gender: m, mimic: true, when: { skin: slimy } }        # slug
+  - { form: phasma,      gender: n, mimic: true, when: { skin: woody } }        # stick insect
+  - { form: bradypus,    gender: m, mimic: true, when: { skin: mossy } }        # sloth: algae grows in its fur
+  - { form: medusa,      gender: f, mimic: true, when: { skin: gelatinous } }   # jellyfish
+  - { form: pithecus,    gender: m, mimic: true, when: { skin: hairy } }        # ape
+  - form: mammuthus   # mammoth
+    gender: m
+    mimic: true
+    when: { all: [{ skin: hairy }, { weight: huge }] }
+  - { form: ornis,       gender: m, mimic: true, when: { skin: feathered } }    # bird
+  - form: struthio    # ostrich
+    gender: m
+    mimic: true
+    when: { all: [{ skin: feathered }, { wings: false }, { legs: { eq: 2 } }] }
+  - form: nycteris    # bat
+    gender: f
+    mimic: true
+    when: { all: [{ wings: true }, { any: [{ skin: furry }, { skin: hairy }, { skin: smooth }] }] }
+  - { form: draco,       gender: m, mimic: true, when: { all: [{ wings: true }, { skin: scaly }] } }  # dragon; also the gliding lizard
+  - { form: batrachus,   gender: m, mimic: true, when: { skin: smooth } }       # frog
+  - { form: teuthis,     gender: f, mimic: true, when: { arms: { gte: 6 } } }   # squid
+  - { form: scolopendra, gender: f, mimic: true, when: { legs: { gte: 7 } } }  # centipede
+
+  # Anatomy.
+  - { form: cephalus,    gender: m, when: { skin: bony } }        # head
+  - { form: lithus,      gender: m, when: { skin: rocky } }       # stone: Coccolithus
+  - { form: dendron,     gender: n, when: { skin: woody } }       # tree
+  - { form: pteryx,      gender: f, when: { wings: true } }       # wing: Archaeopteryx
+  - { form: urus,        gender: m, when: { tail: true } }        # tail: Lepidurus
+  - { form: cheirus,     gender: m, when: { arms: { gte: 2 } } }  # hand: Pseudocheirus
+  - { form: cyclops,     gender: m, when: { eyes: { eq: 1 } } }
+  - { form: triops,      gender: m, when: { eyes: { eq: 3 } } }
+  - { form: tetrops,     gender: m, when: { eyes: { eq: 4 } } }
+  - { form: pentops,     gender: m, when: { eyes: { eq: 5 } } }
+  - { form: hexops,      gender: m, when: { eyes: { eq: 6 } } }
+  - { form: monopus,     gender: m, when: { legs: { eq: 1 } } }    # -pus, foot
+  - { form: dipus,       gender: m, when: { legs: { eq: 2 } } }
+  - { form: tripus,      gender: m, when: { legs: { eq: 3 } } }
+  - { form: tetrapus,    gender: m, when: { legs: { eq: 4 } } }
+  - { form: pentapus,    gender: m, when: { legs: { eq: 5 } } }
+  - { form: hexapus,     gender: m, when: { legs: { eq: 6 } } }
+  - { form: heptapus,    gender: m, when: { legs: { eq: 7 } } }
+  - { form: octopus,     gender: m, when: { legs: { eq: 8 } } }
+
+  # Temperament.
+  - { form: odon,        gender: m, when: { temperament: hostile } }   # tooth
+  - { form: gnathus,     gender: m, when: { temperament: hostile } }   # jaw
+  - { form: lestes,      gender: m, when: { temperament: hostile } }   # robber
+  - { form: raptor,      gender: m, when: { temperament: hostile } }   # seizer
+
+  # Size.
+  - form: titan
+    gender: m
+    when: { any: [{ height: huge }, { weight: huge }] }
+
+epithets:
+  # Mars and its places, as genitives ("of ..."): fit anything.
+  - form: martis     # of Mars
+  - form: ares       # Mars, in apposition
+  - form: olympi     # of Olympus Mons
+  - form: elysii     # of Elysium
+  - form: arcadiae   # of Arcadia Planitia
+  - form: utopiae    # of Utopia Planitia
+  - form: amazonis   # of Amazonis Planitia
+  - form: cydoniae   # of Cydonia
+  - form: cavernicola  # cave-dweller
+  - form: saxicola     # rock-dweller
+  - form: troglodytes  # cave-goer
+
+  # Temperament.
+  - { form: ferox,   when: { temperament: hostile } }   # fierce
+  - { form: atrox,   when: { temperament: hostile } }   # savage
+  - { form: rapax,   when: { temperament: hostile } }   # grasping
+  - { form: vorax,   when: { temperament: hostile } }   # devouring
+  - { form: phobos,  when: { temperament: hostile } }   # fear (the moon)
+  - { form: deimos,  when: { temperament: hostile } }   # dread (the other moon)
+  - { form: fallax,  when: { temperament: cautious } }  # deceptive
+  - { form: fugax,   when: { temperament: cautious } }  # fleeing
+  - { form: latens,  when: { temperament: cautious } }  # hiding
+  - { form: vigilans, when: { temperament: cautious } } # watchful
+  - { form: placens, when: { temperament: friendly } }  # pleasing
+  - { form: clemens, when: { temperament: friendly } }  # gentle
+  - { form: comes,   when: { temperament: friendly } }  # companion
+
+  # Build.
+  - form: gigas      # giant
+    when: { any: [{ height: huge }, { weight: huge }] }
+  - { form: pumilio, when: { height: tiny } }            # dwarf
+  - { form: velox,   when: { temperament: hostile } }    # swift
+  - { form: bipes,   when: { legs: { eq: 2 } } }         # two-footed
+  - { form: multipes, when: { legs: { gte: 6 } } }       # many-footed
+  - { form: longimanus, when: { arms: { gte: 2 } } }     # long-handed
+  - { form: longicauda, when: { tail: true } }           # long-tailed
+  - { form: versicolor, when: { color: iridescent } }    # changing color
+  - { form: bicolor, when: { not: { pattern: solid } } } # two-colored
+  - { form: concolor, when: { pattern: solid } }         # one color all over
+
+  # Hide.
+  - { form: lapis,      when: { skin: rocky } }          # stone, in apposition
+  - { form: arbor,      when: { skin: woody } }          # tree, in apposition
+  - { form: muscicola,  when: { skin: mossy } }          # moss-dweller
+  - { form: tremens,    when: { skin: gelatinous } }     # trembling
+  - { form: horrens,    when: { skin: hairy } }          # bristling
+  - { form: plumipes,   when: { skin: feathered } }      # feather-footed
+  - { form: volans,     when: { wings: true } }          # flying (Draco volans), though nothing flies yet
+
+  # Adjectives that agree with the genus's gender.
+  - { form: hirsutus,  feminine: hirsuta,  neuter: hirsutum,  when: { skin: hairy } }      # hairy
+  - { form: villosus,  feminine: villosa,  neuter: villosum,  when: { skin: hairy } }      # shaggy
+  - { form: lapideus,  feminine: lapidea,  neuter: lapideum,  when: { skin: rocky } }      # stony
+  - { form: lignosus,  feminine: lignosa,  neuter: lignosum,  when: { skin: woody } }      # woody
+  - { form: muscosus,  feminine: muscosa,  neuter: muscosum,  when: { skin: mossy } }      # mossy
+  - { form: plumosus,  feminine: plumosa,  neuter: plumosum,  when: { skin: feathered } }  # feathery
+  - { form: alatus,    feminine: alata,    neuter: alatum,    when: { wings: true } }      # winged
+  - { form: ruber,     feminine: rubra,    neuter: rubrum,    when: { color: red } }       # red
+  - { form: niger,     feminine: nigra,    neuter: nigrum,    when: { color: black } }     # black
+  - { form: albus,     feminine: alba,     neuter: album,     when: { color: white } }     # white

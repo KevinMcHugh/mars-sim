@@ -36,7 +36,7 @@ const (
 	Viscera
 	ColonistCorpse
 	// Meal is one portion of food: eating one resets hunger the way a pod
-	// used to. Colonists land with a supply in their crash pod's locker. See
+	// used to. Colonists land with a supply in their locker aboard ship. See
 	// food.go and docs/food.md.
 	Meal
 	// AlienCorpse and AnimalCorpse are the bodies of aliens and of rats and
@@ -195,7 +195,7 @@ type StorageInventory [StorageInventorySlotCount]ItemStack
 type StorageContainer struct {
 	Pos Point
 	// Terrain is what kind of fixture holds this depot: a Storage chest (or a
-	// crash pod's locker, which is one), or a Scumhouse's input and output
+	// ship locker, which is one), or a Scumhouse's input and output
 	// store. General materials are only ever unloaded into chests.
 	Terrain   Terrain
 	Inventory StorageInventory

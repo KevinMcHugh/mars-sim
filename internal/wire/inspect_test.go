@@ -88,6 +88,9 @@ func TestInspectRealColony(t *testing.T) {
 	if col.Profession != sim.SkillNone && (c.Profession != col.Profession.String() || c.ProfessionLabel != col.ProfessionLabel) {
 		t.Errorf("profession = %q %q, want %v %q", c.Profession, c.ProfessionLabel, col.Profession, col.ProfessionLabel)
 	}
+	if c.Backstory != col.Backstory {
+		t.Errorf("backstory = %q, want %q", c.Backstory, col.Backstory)
+	}
 
 	lockers := 0
 	for _, st := range snap.Storages {

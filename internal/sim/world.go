@@ -112,9 +112,9 @@ const (
 	// inputs and its meals sit in a storage container on its tile, with a
 	// ledger like any chest. See scumhouse.go and docs/scumhouse.md.
 	Scumhouse
-	// Hull is the metal wall of a crash pod. It behaves like a Wall — it blocks
+	// Hull is the metal wall of a colony ship. It behaves like a Wall — it blocks
 	// movement, bounds a room, and can be broken down to escape one — but it is
-	// salvaged spacecraft, not something the colony builds. See docs/crash-pods.md.
+	// salvaged spacecraft, not something the colony builds. See docs/ships.md.
 	Hull
 	// Forge smelts iron ore into steel ingots, and GunBench machines steel
 	// into assault rifles. Both are workshops with a depot, like the
@@ -136,7 +136,7 @@ const (
 	Incubator
 	// Trough holds chicken feed: a keeper fills it, its chickens eat from
 	// it. A fixture with a depot, like a chest, that holds nothing but feed.
-	// It comes down in a chicken keeper's crash pod. See docs/chickens.md.
+	// It comes down in a chicken keeper's ship. See docs/chickens.md.
 	Trough
 
 	numTerrains // keep last: the number of terrain kinds
@@ -493,11 +493,16 @@ type World struct {
 	// set to TilesLive the grid aliases tiles instead and nothing is copied;
 	// the dirty list is then only reported, in Snapshot.TileChanges. See
 	// tilegrid.go.
-	snapGrid    *TileGrid
-	snapFrame   uint64 // publishes so far; TileChanges.Frame
-	tileSharing TileSharing
-	pageDirty   []bool // pageDirty[pi]: page pi changed since the last publish
-	dirtyPages  []int  // the same pages, in mark order, for cheap iteration
+	//
+	// Neither the grid nor the sharing mode is saved (see save.go): under
+	// TilesLive the grid's pages alias tiles' own, which the save codec
+	// cannot keep, and the mode belongs to whichever host loads the game. A
+	// loaded world publishes its first grid afresh, with All set.
+	snapGrid    *TileGrid   `save:"-"`
+	snapFrame   uint64      // publishes so far; TileChanges.Frame
+	tileSharing TileSharing `save:"-"`
+	pageDirty   []bool      // pageDirty[pi]: page pi changed since the last publish
+	dirtyPages  []int       // the same pages, in mark order, for cheap iteration
 
 	// occ is the occupancy index: occ holds the EntityID standing on a tile, or
 	// 0 for empty (IDs start at 1). It turns "who is here?" from an
@@ -563,9 +568,9 @@ type World struct {
 	facilityTiles [numTerrains]map[Point]struct{}
 
 	// carvedAny/carvedMin/carvedMax track the bounding box of every tile that
-	// has ever been changed away from Rock. Terrain only ever moves Rock ->
-	// Floor -> Wall/facility in play, never back, so this box only grows; it
-	// is used to cap how far findRoomSiteAllowingRock's search radius needs to
+	// has ever been changed away from Rock. Nothing turns back into Rock in
+	// play (a cleared structure becomes Floor), so this box only grows; it
+	// is used to cap how far findRoomSiteWith's search radius needs to
 	// grow before it can conclude no site exists, without scanning the whole
 	// map. See roomSiteClear: a valid site's side walls must already be
 	// Floor or Wall, so no valid site can lie outside this box.
@@ -637,7 +642,9 @@ type World struct {
 
 	// Reactive plumbing: systems subscribe to world events; the job board is the
 	// first consumer, tracking the mineable frontier from TileChanged events.
-	subscribers []func(WorldEvent)
+	// Not saved: closures over the world, which newWorld registers again
+	// on the world a save is loaded into.
+	subscribers []func(WorldEvent) `save:"-"`
 	board       *jobBoard
 	pf          *pathfinder
 
@@ -651,6 +658,15 @@ type World struct {
 	projects      []*project
 	nextProjectID int
 	nextPlanTick  int
+	// roomRecords is every room the colony has marked out, in the order it
+	// did, with its current extent: what fit-outs fill, mergers join and
+	// expansions grow (see roomplan.go). A room leaves it when it is
+	// cleared away or joined to an older one.
+	roomRecords []*roomRecord
+	// roomFloor maps every floor tile inside a recorded room (its inside and
+	// its doorways) to that room, so a reshape can ask whose a tile is
+	// without scanning every room. No two rooms share a floor tile.
+	roomFloor map[Point]*roomRecord
 	// Manual room orders wait here until the current project finishes and a
 	// suitable site is available. Keeping them in the world preserves the
 	// engine's single-owner rule for simulation state.
@@ -690,8 +706,15 @@ type World struct {
 	exposedScum map[Point]struct{}
 	// scumPatches lists every patch in scum, sorted by cmpScumPatch, so
 	// growScum can draw a patch at random without the map's order deciding
-	// which (see setScum).
-	scumPatches []Point
+	// which (see setScum and patchList).
+	scumPatches patchList
+	// scumThin is every patch below ScumMax: once the map has no room for new
+	// patches, the only ones growth can still add a unit to (see growScum).
+	scumThin map[Point]struct{}
+	// scumThinPages counts scumThin's patches on each tile page (indexed by
+	// tiles.pageIndex; nil until the first), so most of growScum's draws are
+	// turned away by a slice read rather than a map lookup.
+	scumThinPages []int32
 	// scumRev advances on every change to scum or exposedScum that publishing
 	// can see. It lets publishing reuse the last published copy (snapScum,
 	// taken at snapScumRev); see publishedScum.
@@ -717,13 +740,23 @@ type World struct {
 	manualIncubators int
 	manualFoundries  int
 	manualHalls      int
-	// podRingHint is the search ring the last crash pod landed on, so the
+	// shipRingHint is the search ring the last colony ship landed on, so the
 	// next search starts near there instead of rescanning the packed middle.
-	// See findPodSite.
-	podRingHint int
-	// pods holds the top-left of every crash pod that has landed, so a new pod
-	// can tell a neighbor's side hull it may share. Lookups only; never ranged.
-	pods               map[Point]bool
+	// See findShipSite.
+	shipRingHint int
+	// ships is every colony ship that has landed, in landing order: ships[i]
+	// has ID i+1. See ship.go.
+	ships []*Ship
+	// aloft is the founders' ships still waiting to land, as their loads,
+	// in landing order: with place-ships set, worldgen leaves them here for
+	// the player to land one by one (see LandShip).
+	aloft []int
+	// recruits is the recruiter's set on offer (nil for none), recruitSets
+	// how many sets have been rolled, and recruitsHired how many recruits
+	// have arrived. See recruit.go.
+	recruits           *recruitOffer
+	recruitSets        int
+	recruitsHired      int
 	restrictedFixtures [numTerrains]int
 	// ownedFixtures indexes the restricted fixtures by owner, and
 	// paidFixtures the pay-per-use ones by terrain, so facilityReachable
@@ -744,9 +777,36 @@ type World struct {
 	// doorway ever designated, forever — even after the room finishes or a
 	// later room's wall would otherwise cover it. roomSiteClear checks it
 	// alongside a candidate site's own requirements so a new room can never
-	// wall over an existing room's sole way out. Rooms are never demolished
-	// or un-designated, so entries are only ever added. See designateRoom.
+	// wall over an existing room's sole way out. An entry goes only when its
+	// room or pod is cleared away entirely (maybeRetire, structures.go). See
+	// designateRoom.
 	doorTiles map[Point]bool
+
+	// Zoning (zones.go): every tile's zone kind and crash-pod holds, how
+	// many tiles each kind covers, and a revision publishing reads (snapZones
+	// is the copy taken at snapZoneRev). zoneWaits is when the colony last
+	// wanted each kind of fixture and found no zone with room for it.
+	zones       pagedGrid[zoneCell]
+	zoneTiles   [numZoneKinds]int
+	zoneRev     uint64
+	snapZoneRev uint64
+	snapZones   []ZoneRun
+	zoneWaits   [numTerrains]int
+	// playerZoned is set once the player has painted a zone or cleared an
+	// area. Until then, with zoning-auto, every zoned tile is under a room
+	// the colony built or a crash pod, so planRoomFor skips the search
+	// inside zones that could find nothing (see planRoomFor).
+	playerZoned bool
+	// structures is every standing or rising structure by id, and
+	// structureAt the ids standing on each built tile (two for a party
+	// wall). structureRev moves on any change publishing would show. See
+	// structures.go.
+	structures       map[int]*structure
+	structureAt      map[Point][]int
+	nextStructureID  int
+	structureRev     uint64
+	snapStructureRev uint64
+	snapStructures   []StructureView
 
 	// directorQueue is cfg.Schedules resolved to concrete (tick, occurrence)
 	// firings, sorted ascending; directorNext is how far runDirector has
@@ -781,6 +841,11 @@ type World struct {
 	// tryRation).
 	rationsGiven int
 	moneyFrozen  Money
+	// moneyExported is every dollar paid off-world (export): the recruiter's
+	// fees and recruits' passage. It left the supply, so the audit adds it
+	// back: treasury + living wallets + moneyFrozen + escrow + moneyExported
+	// == moneyIssued.
+	moneyExported Money
 
 	// The order book (see market.go): every open order by ID, the books by
 	// (item, depot), the most recent trades, and the cached location of the
@@ -867,8 +932,9 @@ type World struct {
 	agePRNG         *rand.Rand // age generation, isolated so adding age does not shift personality
 	skillRNG        *rand.Rand // arrival backgrounds (skills.go): they change behavior, so not prng, and not rng so they shift no other draw
 	topicRNG        *rand.Rand // conversation topics (topics.go): gossip moves affinity, so not prng, and not rng so they shift no other draw
+	recruitRNG      *rand.Rand // the recruiter's candidates and where recruits arrive (recruit.go): player-driven, so rolling a set shifts no other stream
 	// rngSrc holds the PCG sources behind rng, prng, agePRNG, nestRNG,
-	// skillRNG and topicRNG, so
+	// skillRNG, topicRNG and recruitRNG, so
 	// their state can be saved. See rng.go.
 	rngSrc rngSources
 	log    *eventLog
@@ -884,6 +950,13 @@ type World struct {
 	// nor prng). See lore.go.
 	alienSpecies []AlienSpecies
 
+	// corporations is this world's roster of companies back home, and
+	// gunModels the make and model every gun kind carries (one per
+	// weaponKinds entry). Rolled once in newWorld off their own stream; pure
+	// flavor. See arms_makers.go and docs/arms-makers.md.
+	corporations []Corporation
+	gunModels    []GunModel
+
 	// unfoundCaverns holds the center of every natural cavern not yet
 	// discovered; a breach that reveals one rolls for its alien nest on
 	// nestRNG, a seed-derived stream of its own. See rollNests and
@@ -892,6 +965,10 @@ type World struct {
 	nestRNG        *rand.Rand
 	// nestCenters is revealAround's scratch: cavern centers found this flood.
 	nestCenters []Point
+	// holdNests defers revealAround's nest rolls while a ship lands, so a
+	// cavern its stamping breaks into rolls its nest only once everyone
+	// aboard has stepped out (see landShip).
+	holdNests bool
 	// gen generates chunks: their ore veins and hidden caverns. See
 	// worldgen_chunks.go. nil for a world built without generate (tests),
 	// where every tile simply starts as Rock.
@@ -904,8 +981,10 @@ type World struct {
 	genDone, genSeen []bool
 	genChunks        []chunkKey
 	// preview is handed to Snapshots so a frontend with the fog off can see
-	// ungenerated chunks. The World never reads it.
-	preview *ChunkPreview
+	// ungenerated chunks. The World never reads it. Not saved: frontends
+	// read it from their own goroutines, and it is only a cache; afterLoad
+	// builds a fresh one.
+	preview *ChunkPreview `save:"-"`
 	// cavernBreaches counts the floods revealAround has run: how many times
 	// the colony has broken into a cave system it did not know about.
 	cavernBreaches int
@@ -937,7 +1016,9 @@ func newWorld(cfg Config, src *rand.PCG) *World {
 		colonistNames:     make(map[string]EntityID),
 		buildTiles:        make(map[Point]bool),
 		doorTiles:         make(map[Point]bool),
-		pods:              make(map[Point]bool),
+		roomFloor:         make(map[Point]*roomRecord),
+		structures:        make(map[int]*structure),
+		structureAt:       make(map[Point][]int),
 		storageContainers: make(map[Point]*StorageContainer),
 		fixtures:          make(map[Point]*Fixture),
 		orders:            make(map[OrderID]*Order),
@@ -971,7 +1052,12 @@ func newWorld(cfg Config, src *rand.PCG) *World {
 	w.skillRNG = rand.New(w.rngSrc.skill)
 	w.rngSrc.topic = newPCG(cfg.Seed ^ conversationTopicSeed)
 	w.topicRNG = rand.New(w.rngSrc.topic)
+	w.rngSrc.recruit = newPCG(cfg.Seed ^ recruitSeed)
+	w.recruitRNG = rand.New(w.rngSrc.recruit)
 	w.alienSpecies = rollAlienSpeciesRoster(newRand(cfg.Seed^alienLoreSeed), cfg)
+	armsRNG := newRand(cfg.Seed ^ armsLoreSeed)
+	w.corporations = rollCorporationRoster(armsRNG, cfg)
+	w.gunModels = rollGunModels(armsRNG, w.corporations)
 	w.terrainCounts[Rock] = n // every tile starts as Rock
 
 	for k := Kind(0); k < numKinds; k++ {
@@ -988,6 +1074,8 @@ func newWorld(cfg Config, src *rand.PCG) *World {
 	w.chunkEntities = make([][]EntityID, w.chunkCols*w.chunkRows)
 
 	w.regionOf = newPagedGrid[RegionID](cfg.Width, cfg.Height)
+	w.zones = newPagedGrid[zoneCell](cfg.Width, cfg.Height)
+	w.zoneTiles[NoZone] = n
 	w.regions = make(map[RegionID]*region)
 	w.staleRooms = make(map[RoomID]struct{})
 	w.rooms = make(map[RoomID]int)
@@ -1028,6 +1116,7 @@ func newWorld(cfg Config, src *rand.PCG) *World {
 	w.storedMealsTick = -1
 	w.hungryTick = -1
 	w.scum = make(map[Point]scumPatch)
+	w.scumThin = make(map[Point]struct{})
 	w.salt = make(map[Point]struct{})
 	w.exposedSalt = make(map[Point]struct{})
 	w.exposedScum = make(map[Point]struct{})
@@ -1039,27 +1128,7 @@ func newWorld(cfg Config, src *rand.PCG) *World {
 			w.refreshSaltExposure(tc.Pos)
 		}
 	})
-	w.frontier = newFlowField(w, func(add func(Point)) {
-		// Goals: walkable neighbors of every unclaimed frontier rock tile.
-		for p := range w.board.frontier {
-			if _, taken := w.board.claimed[p]; taken {
-				continue
-			}
-			for _, d := range neighbors8 {
-				add(p.Add(d.X, d.Y))
-			}
-		}
-	}, func(p Point) bool {
-		if !w.Walkable(p) {
-			return false
-		}
-		for _, d := range neighbors8 {
-			if w.board.isUnclaimedFrontier(p.Add(d.X, d.Y)) {
-				return true
-			}
-		}
-		return false
-	})
+	w.frontier = newFlowField(w, frontierSeed(w), frontierGoal(w))
 	w.subscribe(func(e WorldEvent) {
 		if tc, ok := e.(TileChanged); ok {
 			// The tile's walkability may have changed, and for a facility
@@ -1077,6 +1146,36 @@ func newWorld(cfg Config, src *rand.PCG) *World {
 	w.directorQueue = resolveSchedules(cfg.Schedules, w.rng)
 	w.mint(Community, Money(cfg.FoundingGrant))
 	return w
+}
+
+// frontierSeed and frontierGoal are the frontier field's seed and goal: the
+// walkable neighbors of every unclaimed frontier rock tile. Functions rather
+// than literals in newWorld so a loaded world can rebind them (see afterLoad).
+func frontierSeed(w *World) func(add func(Point)) {
+	return func(add func(Point)) {
+		for p := range w.board.frontier {
+			if _, taken := w.board.claimed[p]; taken {
+				continue
+			}
+			for _, d := range neighbors8 {
+				add(p.Add(d.X, d.Y))
+			}
+		}
+	}
+}
+
+func frontierGoal(w *World) func(Point) bool {
+	return func(p Point) bool {
+		if !w.Walkable(p) {
+			return false
+		}
+		for _, d := range neighbors8 {
+			if w.board.isUnclaimedFrontier(p.Add(d.X, d.Y)) {
+				return true
+			}
+		}
+		return false
+	}
 }
 
 // trackFacility gives a terrain kind the tile set and shared flow field that
@@ -1195,6 +1294,9 @@ func (w *World) setTerrain(p Point, t Terrain, discover bool) {
 		w.clearSalt(p) // and buries the salt
 	}
 	w.tiles.ptr(p.X, p.Y).Terrain = t
+	if _, ok := w.structureAt[p]; ok {
+		w.structureRev++ // a structure's tile went up or came down
+	}
 	w.markTilePageDirty(p)
 	w.dirtyChunks[w.chunkIndexOf(p)] = struct{}{}
 	w.emit(TileChanged{Pos: p, Old: old, New: t})
@@ -1239,9 +1341,12 @@ func (w *World) revealAround(p Point) {
 		w.cavernBreaches++
 		w.logEvent(LogCavern, fmt.Sprintf("The colony breaks through into a natural cavern (%d tiles of open floor).", found))
 		// Nests are rolled only now, once the whole system is revealed, so
-		// their aliens land on discovered floor, awake.
-		w.rollNests(w.nestCenters)
-		w.nestCenters = w.nestCenters[:0]
+		// their aliens land on discovered floor, awake -- or, under a landing
+		// ship, once its passengers are out (see landShip).
+		if !w.holdNests {
+			w.rollNests(w.nestCenters)
+			w.nestCenters = w.nestCenters[:0]
+		}
 	}
 }
 
@@ -1391,6 +1496,14 @@ func (w *World) spawn(kind Kind, p Point) *Entity {
 // an alien nest, whose members share one species rolled on the nest stream
 // (see spawnNest).
 func (w *World) spawnAs(kind Kind, p Point, species int) *Entity {
+	return w.spawnWith(kind, p, species, nil)
+}
+
+// spawnWith is spawnAs for a colonist the recruiter already rolled (rec, nil
+// for everyone else): it arrives as the person its card showed, with no
+// family in the colony, and brings its savings instead of a purse. See
+// recruit.go.
+func (w *World) spawnWith(kind Kind, p Point, species int, rec *recruitCandidate) *Entity {
 	e := newEntity(w.nextID, kind, p, w.cfg)
 	// Stagger starting drive levels so a freshly settled colony does not all
 	// get hungry on the same tick and stampede the facilities at once.
@@ -1402,7 +1515,12 @@ func (w *World) spawnAs(kind Kind, p Point, species int) *Entity {
 			}
 		}
 	}
-	if kind == Colonist {
+	if kind == Colonist && rec != nil {
+		// A recruit is a stranger from off-world: its own tree node, no tie.
+		e.Profile = rec.profile
+		w.settlePersonality(e)
+		e.kin = w.newKin(e.ID)
+	} else if kind == Colonist {
 		w.assignPersonality(e) // name, attributes, traits + their effective params
 		if w.assignKin(e) {    // family tree node + any tie to an existing colonist
 			w.inheritFamily(e) // the surname, looks, and warmth that come with it
@@ -1425,16 +1543,21 @@ func (w *World) spawnAs(kind Kind, p Point, species int) *Entity {
 	ci := w.chunkIndexOf(p)
 	w.chunkEntities[ci] = append(w.chunkEntities[ci], e.ID)
 	if kind == Colonist {
-		// Every colonist arrives with a purse. Minted only now, once the
-		// colonist is registered, because mint pays into a living wallet.
-		w.mint(ColonistOwner(e.ID), Money(w.cfg.CrashPodPurse))
+		// Every colonist arrives with a purse, or a recruit with its
+		// savings. Minted only now, once the colonist is registered,
+		// because mint pays into a living wallet.
+		purse := Money(w.cfg.CrashPodPurse)
+		if rec != nil {
+			purse = rec.savings
+		}
+		w.mint(ColonistOwner(e.ID), purse)
 	}
 	return e
 }
 
 // remove deletes an entity from the world, clears its occupancy, and — every
 // call here is a death — freezes it into the graveyard with cause as a short
-// player-facing phrase ("starved", "shot by Zoe Vargas with a shotgun"). See
+// player-facing phrase ("starved", "shot by Zoe Vargas with a MarsCorp M-117 shotgun"). See
 // docs/combat.md.
 func (w *World) remove(id EntityID, cause string) {
 	e := w.entities[id]

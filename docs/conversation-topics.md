@@ -6,8 +6,8 @@
 
 Every finished conversation is now *about* something. One of the two
 colonists raises a topic it actually has: one of its own memories, another
-colonist it has feelings about, or a piece of lore about the world (today an
-alien species). Both remember what they talked about, and talking about a
+colonist it has feelings about, or a piece of lore about the world (an
+alien species or a corporation). Both remember what they talked about, and talking about a
 third colonist is gossip: a good chat carries the speaker's opinion of that
 colonist over to the listener.
 
@@ -15,7 +15,7 @@ colonist over to the listener.
 
 - [`internal/sim/topics.go`](../internal/sim/topics.go) — `TopicKind`,
   `ConversationTopic`, the `LoreItem` interface and `LoreKind`,
-  `speciesLore`, `World.loreItems`, `chooseTopic`, `recountableMemories`,
+  `speciesLore`, `corporationLore`, `World.loreItems`, `chooseTopic`, `recountableMemories`,
   `gossipSubjects`, `applyGossip`, `conversationText`.
 - [`internal/sim/systems.go`](../internal/sim/systems.go) — `finishTalk`,
   which chooses the topic, applies gossip, and writes the memory text.
@@ -39,7 +39,7 @@ colonist over to the listener.
    | --- | --- | --- |
    | `TopicMemory` | the speaker's memories, minus its other conversations | `talk-topic-memory-weight` (3) |
    | `TopicColonist` | living colonists, not the two talking, the speaker has a nonzero affinity toward, in ID order | `talk-topic-colonist-weight` (3) |
-   | `TopicLore` | `World.loreItems()` — every alien species | `talk-topic-lore-weight` (2) |
+   | `TopicLore` | `World.loreItems()` — every alien species, then every corporation | `talk-topic-lore-weight` (2) |
 
 3. **Draw.** A kind is drawn by weight among the kinds with at least one
    candidate, then one candidate uniformly. If every enabled kind is empty
@@ -53,6 +53,13 @@ The topic shapes both participants' memory text:
 | memory | `Had a conversation with Bo, recalling: "Had a meal."` | `Had a conversation with Ada, who recalled: "Had a meal."` |
 | colonist | `Had a conversation with Bo about Cy.` | same, with the other name |
 | lore | `Had a conversation with Bo about the grelks.` | same, with the other name |
+| lore, speaker's old employer | `Had a conversation with Bo about MarsCorp, my old employer.` | `Had a conversation with Ada about MarsCorp, Ada's old employer.` |
+
+A corporation the speaker used to work for (see
+[arms-makers.md](./arms-makers.md#backstory-a-former-employer)) is called its
+old employer in both memories. That is text only: the draw is the same
+uniform pick over `loreItems`, so a colonist is no likelier to bring up its
+old employer than any other company.
 
 **Gossip.** For a colonist topic, `applyGossip` moves the listener's affinity
 toward the subject `talk-gossip-percent` (10%) of the way to the speaker's —
@@ -113,6 +120,8 @@ nobody.
 
 - [memories.md](./memories.md) — the conversation occurrence and memory
   funnel the topic text rides on.
-- [lore.md](./lore.md) — the alien species that are today's only lore.
+- [lore.md](./lore.md) — the alien species lore.
+- [arms-makers.md](./arms-makers.md) — corporations, the other lore, and
+  colonists' former employers.
 - [rng-streams.md](./rng-streams.md) — the topic stream.
 - [meeting-hall.md](./meeting-hall.md) — where most conversations happen.

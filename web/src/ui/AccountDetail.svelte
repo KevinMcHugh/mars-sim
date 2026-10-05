@@ -1,22 +1,25 @@
 <script lang="ts">
   // One market account's page, opened in place in the Market tab: balance,
   // share of the money, holdings in storage, fixtures, open orders and plans,
-  // from the account:<key> topic (internal/wire/boards.go).
+  // from the account:<key> topic (internal/wire/boards.go). An open order
+  // opens its detail (OrderDetail) on a click.
   import { inspect, subscribe, topics } from '../game.svelte';
   import { money } from './format';
+  import OrderDetail from './OrderDetail.svelte';
 
   let { key }: { key: string } = $props();
 
   interface Account {
     found: boolean; label: string; balance: number; sharePct: number;
     holdings: { item: string; count: number }[]; fixtures: number;
-    orders: { side: string; qty: number; item: string; price: number; x: number; y: number }[];
+    orders: { id: number; side: string; qty: number; item: string; price: number; x: number; y: number }[];
     plans: string[];
   }
 
   const topic = $derived(`account:${key}`);
   $effect(() => subscribe(topic));
   const a = $derived(topics.data[topic] as Account | undefined);
+  let openId: number | null = $state(null);
 </script>
 
 <div class="detail">
@@ -35,7 +38,14 @@
     {#if a.orders.length > 0}
       <h3>Open orders</h3>
       <ul>
-        {#each a.orders as o, i (i)}<li>{o.side} {o.qty} {o.item} @ {money(o.price)} <span class="muted">({o.x},{o.y})</span></li>{/each}
+        {#each a.orders as o (o.id)}
+          <li>
+            <button type="button" class="link" aria-expanded={o.id === openId} title="Show this order's detail"
+              onclick={() => (openId = openId === o.id ? null : o.id)}>{o.side} {o.qty} {o.item} @ {money(o.price)}</button>
+            <span class="muted">({o.x},{o.y})</span>
+            {#if o.id === openId}<OrderDetail id={o.id} />{/if}
+          </li>
+        {/each}
       </ul>
     {/if}
     {#if a.plans.length > 0}

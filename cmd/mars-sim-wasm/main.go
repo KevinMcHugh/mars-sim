@@ -18,6 +18,11 @@
 //	subscribe(topic)       start sending a panel's topic ("lore")
 //	unsubscribe(topic)     stop sending it
 //	send(command)          queue a command (JSON), applied at the next advance
+//	save()                 the game as a save file (Uint8Array), or JSON
+//	                       {error} (see docs/save-load.md)
+//	load(bytes)            replace the game with a save file's; returns what
+//	                       start does, plus {save, commit}: the file's header
+//	                       and this build's commit
 //	memory()               the Go heap, as JSON
 //
 // The JS side owns the loop (web/public/worker.js): it calls advance, posts the
@@ -25,6 +30,7 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"runtime"
@@ -40,9 +46,9 @@ import (
 // The page checks it at start, so a mars-sim.wasm left over from an older
 // build (npm run wasm not rerun after a pull) fails with a message saying so,
 // instead of a panel that silently never loads. 1 was everything before
-// subscribe/unsubscribe; 2 had no entity: or tile: topics; 3 no roster; 4 no log; 5 no jobs, storage, market or account:; 6 no perf or population; 7 no flow command; 8 no dig command; 9 no dig-cancel; 10 no order-place, order-reprice or order-cancel; 11 no order-suspend or order-resume; 12 called the
-// entity panel's drives "needs", with a fatal flag where 13 has a consequence.
-const hostAPI = 13
+// subscribe/unsubscribe; 2 had no entity: or tile: topics; 3 no roster; 4 no log; 5 no jobs, storage, market or account:; 6 no perf or population; 7 no flow command; 8 no dig command; 9 no dig-cancel; 10 no order-place, order-reprice or order-cancel; 11 no order-suspend or order-resume; 12 no ship-move; 13 no ship-land; 14 no zone, clear or clear-cancel; 15 no save or load; 16 no recruit-roll or recruit-hire; 17 called the
+// entity panel's drives "needs", with a fatal flag where 18 has a consequence.
+const hostAPI = 18
 
 var (
 	eng *sim.Engine
@@ -113,6 +119,28 @@ func main() {
 		eng.Send(cmd)
 		return toJSON(struct{}{})
 	}))
+	api.Set("save", js.FuncOf(func(js.Value, []js.Value) any {
+		if eng == nil {
+			return toJSON(errorResult("save before start"))
+		}
+		// Between advance calls, on the engine's own goroutine: the world
+		// is at rest.
+		b, err := eng.SaveBytes()
+		if err != nil {
+			return toJSON(errorResult(err.Error()))
+		}
+		u8 := js.Global().Get("Uint8Array").New(len(b))
+		js.CopyBytesToJS(u8, b)
+		return u8
+	}))
+	api.Set("load", js.FuncOf(func(_ js.Value, args []js.Value) any {
+		if len(args) < 1 || args[0].Type() != js.TypeObject {
+			return toJSON(startResult{Error: "load needs the save file's bytes"})
+		}
+		b := make([]byte, args[0].Get("length").Int())
+		js.CopyBytesToGo(b, args[0])
+		return toJSON(load(b))
+	}))
 	api.Set("memory", js.FuncOf(func(js.Value, []js.Value) any {
 		var m runtime.MemStats
 		runtime.ReadMemStats(&m)
@@ -127,6 +155,9 @@ type startResult struct {
 	Set   []string    `json:"set,omitempty"`
 	GenMs float64     `json:"genMs"`
 	Hello *wire.Hello `json:"hello,omitempty"`
+	// Save is the loaded file's header, and Commit this build's, for load.
+	Save   *sim.SaveInfo `json:"save,omitempty"`
+	Commit string        `json:"commit,omitempty"`
 }
 
 // start builds a new engine from the default config plus the settings the page
@@ -140,11 +171,32 @@ func start(settings string) startResult {
 	}
 	cfg.SyncWithCognition()
 	t0 := time.Now()
-	eng = sim.NewEngine(cfg)
+	r := begin(sim.NewEngine(cfg))
+	r.Set, r.GenMs = set, ms(time.Since(t0))
+	return r
+}
+
+// load replaces the game with a save file's. A file that does not load
+// leaves the current game running.
+func load(b []byte) startResult {
+	t0 := time.Now()
+	e, info, err := sim.LoadEngine(bytes.NewReader(b))
+	if err != nil {
+		return startResult{Error: err.Error()}
+	}
+	r := begin(e)
+	r.GenMs = ms(time.Since(t0))
+	r.Save, r.Commit = &info, sim.BuildCommit()
+	return r
+}
+
+// begin makes e the running engine, with a fresh encoder, and takes its first
+// frame for the Hello.
+func begin(e *sim.Engine) startResult {
+	eng = e
 	// The encoder reads frames on this goroutine, between ticks, so the
 	// copy-on-write tile grid would buy nothing. See docs/snapshot-tile-grid.md.
 	eng.ShareLiveTiles()
-	genMs := ms(time.Since(t0))
 	enc = wire.NewEncoder()
 	topics.Restart()
 	last, interestMoved = nil, false
@@ -153,7 +205,7 @@ func start(settings string) startResult {
 	snap, _ := eng.Advance(0)
 	last = snap
 	hello := wire.NewHello(snap)
-	return startResult{Set: set, GenMs: genMs, Hello: &hello}
+	return startResult{Hello: &hello}
 }
 
 // advance steps the engine and returns {wait, frame, perf} for the worker. A
@@ -222,14 +274,16 @@ type memoryResult struct {
 
 // command is a sim.Command as the page sends it.
 type command struct {
-	Type string `json:"type"` // pause | speed | spawn | flow | dig | dig-cancel | order-place | order-reprice | order-cancel | order-suspend | order-resume
+	Type string `json:"type"` // pause | speed | spawn | flow | dig | dig-cancel | zone | clear | clear-cancel | ship-move | ship-land | order-place | order-reprice | order-cancel | order-suspend | order-resume | recruit-roll | recruit-hire
 	Rate int    `json:"rate,omitempty"`
+	// Kind is what to spawn, or for zone the zone kind by name ("none"
+	// unzones).
 	Kind string `json:"kind,omitempty"`
 	// Field is the flow field to show, an index into Hello.flowFields, or
 	// -1 for none.
 	Field *int `json:"field,omitempty"`
-	// dig: the rectangle, inclusive, in tiles.
-	ID int `json:"id,omitempty"` // dig-cancel: the excavation's project id; order-*: the order's id
+	// dig, zone and clear: the rectangle, inclusive, in tiles.
+	ID int `json:"id,omitempty"` // dig-cancel, clear-cancel: the project id; order-*: the order's id; ship-move, ship-land: the ship's; recruit-hire: the set on offer
 	X0 int `json:"x0,omitempty"`
 	Y0 int `json:"y0,omitempty"`
 	X1 int `json:"x1,omitempty"`
@@ -237,13 +291,16 @@ type command struct {
 	// order-place, order-suspend and order-resume: the side ("bid" or
 	// "ask") and the item by name; order-place also the
 	// quantity, and the depot (x, y); order-place and order-reprice: the
-	// price.
+	// price. ship-move, ship-land: the ship's (new) top-left (x, y).
 	Side  string `json:"side,omitempty"`
 	Item  string `json:"item,omitempty"`
 	Qty   int    `json:"qty,omitempty"`
 	Price int64  `json:"price,omitempty"`
 	X     int    `json:"x,omitempty"`
 	Y     int    `json:"y,omitempty"`
+	// recruit-hire: the candidates to hire, by index into the set; none
+	// turns the set away.
+	Picks []int `json:"picks,omitempty"`
 }
 
 func parseCommand(s string) (sim.Command, error) {
@@ -258,8 +315,26 @@ func parseCommand(s string) (sim.Command, error) {
 		return sim.SetTicksPerSecond{Rate: c.Rate}, nil
 	case "dig-cancel":
 		return sim.CancelExcavation{ID: c.ID}, nil
+	case "ship-move":
+		return sim.MoveShip{Ship: c.ID, X: c.X, Y: c.Y}, nil
+	case "ship-land":
+		return sim.LandShip{Ship: c.ID, X: c.X, Y: c.Y}, nil
+	case "recruit-roll":
+		return sim.RollRecruits{}, nil
+	case "recruit-hire":
+		return sim.HireRecruits{Offer: c.ID, Picks: c.Picks}, nil
 	case "dig":
 		return sim.OrderExcavation{X0: c.X0, Y0: c.Y0, X1: c.X1, Y1: c.Y1}, nil
+	case "zone":
+		k, ok := sim.ParseZoneKind(c.Kind)
+		if !ok {
+			return nil, fmt.Errorf("unknown zone kind %q", c.Kind)
+		}
+		return sim.PaintZone{Kind: k, X0: c.X0, Y0: c.Y0, X1: c.X1, Y1: c.Y1}, nil
+	case "clear":
+		return sim.ClearArea{X0: c.X0, Y0: c.Y0, X1: c.X1, Y1: c.Y1}, nil
+	case "clear-cancel":
+		return sim.CancelClear{ID: c.ID}, nil
 	case "order-place", "order-suspend", "order-resume":
 		item, ok := sim.ParseItemKind(c.Item)
 		if !ok {
