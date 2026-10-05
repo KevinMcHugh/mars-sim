@@ -68,6 +68,8 @@ export const ui = $state({
   shipSent: null as number | null,
   /** The Charts tab's view, kept while the tab is closed. */
   chartView: 'perf' as 'perf' | 'population' | 'activity',
+  /** The Population view's tracked series (trackedSeries' key), kept while the tab is closed. */
+  popTrack: 'fixtures',
   /** The flow field asked for (an index into Hello.flowFields), or -1 for none. */
   flowPick: -1,
   /**

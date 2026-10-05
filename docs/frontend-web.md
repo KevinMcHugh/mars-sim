@@ -448,8 +448,11 @@ surface:
   game was paused, over the last five minutes. Two charts, never one with two
   y-axes: the measures share only the clock.
 - **Population** (`population`): colonists, meals in storage, colony size and
-  fixtures over the whole game, four small charts, since their scales differ
-  by orders of magnitude.
+  a tracked series over the whole game, four small charts, since their scales
+  differ by orders of magnitude. The fourth chart's title is a picker: all
+  fixtures, one kind of fixture, or the colonists at a skill title or better
+  (`trackedSeries` in `population.ts`, the same list the TUI steps through;
+  the pick is kept in `ui.popTrack`).
 - **Activity** (`population` too): a stacked area of what colonists spend
   their time on, as a share of colonist time or as average colonists. The
   game is summed into at most 48 columns, as the TUI sums per plot column: a

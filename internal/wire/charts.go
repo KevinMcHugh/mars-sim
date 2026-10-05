@@ -64,6 +64,23 @@ type PopulationTopic struct {
 	Activities []string `json:"activities"`
 	Activity   [][]int  `json:"activity"`
 	Walking    [][]int  `json:"walking"`
+	// FixtureKinds names each kind of fixture tracked (sim.TrackedFixtures),
+	// indexing FixtureCounts: FixtureCounts[f][i] is how many stood at
+	// sample i.
+	FixtureKinds  []string `json:"fixtureKinds"`
+	FixtureCounts [][]int  `json:"fixtureCounts"`
+	// Skills is every skill's colonists by rank.
+	Skills []SkillRanks `json:"skills"`
+}
+
+// SkillRanks is one skill's colonists by rank over the game: Ranks[r][i] is
+// how many living colonists stood at exactly rank r at sample i. Labels has
+// one title per rank, "" (untrained) first; a title may cover more than one
+// rank.
+type SkillRanks struct {
+	Skill  string   `json:"skill"`
+	Labels []string `json:"labels"`
+	Ranks  [][]int  `json:"ranks"`
 }
 
 func populationTopic(s *sim.Snapshot) PopulationTopic {
@@ -79,6 +96,26 @@ func populationTopic(s *sim.Snapshot) PopulationTopic {
 		t.Activities[a] = a.String()
 		t.Activity[a] = make([]int, n)
 		t.Walking[a] = make([]int, n)
+	}
+	t.FixtureKinds = make([]string, len(sim.TrackedFixtures))
+	t.FixtureCounts = make([][]int, len(sim.TrackedFixtures))
+	for f, kind := range sim.TrackedFixtures {
+		t.FixtureKinds[f] = kind.String()
+		t.FixtureCounts[f] = make([]int, n)
+		for i, p := range s.Population {
+			t.FixtureCounts[f][i] = p.FixtureKinds[kind]
+		}
+	}
+	for _, k := range sim.Skills() {
+		sr := SkillRanks{Skill: k.String(), Labels: sim.SkillRankLabels(k)}
+		sr.Ranks = make([][]int, len(sr.Labels))
+		for r := range sr.Ranks {
+			sr.Ranks[r] = make([]int, n)
+			for i, p := range s.Population {
+				sr.Ranks[r][i] = p.SkillRanks[k][r]
+			}
+		}
+		t.Skills = append(t.Skills, sr)
 	}
 	for i, p := range s.Population {
 		t.Tick[i], t.Colonists[i], t.Meals[i], t.ColonySize[i], t.Fixtures[i] =

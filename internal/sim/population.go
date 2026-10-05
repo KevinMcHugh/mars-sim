@@ -1,5 +1,7 @@
 package sim
 
+import "slices"
+
 // ---- Population history ----------------------------------------------------------
 //
 // The colony's vital signs over the whole game, for the Population tab: how
@@ -21,6 +23,14 @@ type PopulationSample struct {
 	Meals      int // meals in any depot, whoever owns them and whether or not they are on offer
 	ColonySize int // floor tiles the colony has dug or discovered
 	Fixtures   int // placed fixtures: bunks, toilets, pods, lockers, workshops...
+	// FixtureKinds counts the placed tiles of each kind TrackedFixtures
+	// names, indexed by Terrain: FixtureKinds[Scumhouse] is the scumhouses
+	// standing. Every other entry stays zero.
+	FixtureKinds [numTerrains]int
+	// SkillRanks counts living colonists by their rank in each skill:
+	// SkillRanks[SkillCooking][2] is how many are exactly rank 2 ("cook").
+	// Rank 0 is the untrained. See SkillRankLabels for each skill's ranks.
+	SkillRanks [numSkills][maxSkillRanks]int
 	// Activity counts colonist-ticks spent on each Activity since the
 	// previous sample (or the start of the game): divided by the ticks
 	// between the two samples, it is the average number of colonists doing
@@ -57,6 +67,18 @@ func (w *World) samplePopulation() {
 	for _, c := range w.storageContainers {
 		s.Meals += c.Inventory.Count(Meal)
 	}
+	for _, t := range TrackedFixtures {
+		s.FixtureKinds[t] = w.terrainCounts[t]
+	}
+	// Counting is order-free, so walking the entity map is deterministic.
+	for _, e := range w.entities {
+		if e.Kind != Colonist {
+			continue
+		}
+		for k := SkillKind(1); k < numSkills; k++ {
+			s.SkillRanks[k][e.rank(k)]++
+		}
+	}
 	h := w.popHist
 	if len(h) >= popHistory {
 		// Halve: keep the samples still on the doubled interval.
@@ -89,6 +111,38 @@ func (w *World) samplePopulation() {
 	// Published snapshots share the history, so it is never written in place:
 	// a full-capacity slice makes append copy, as with the perf history.
 	w.popHist = append(h[:len(h):len(h)], s)
+}
+
+// TrackedFixtures is every kind of placed structure the history counts in
+// PopulationSample.FixtureKinds, in the order a frontend lists them: the
+// fixtures (isFixtureTerrain) and the meeting hall's chairs, which are
+// furniture rather than fixtures, so not in PopulationSample.Fixtures.
+var TrackedFixtures = []Terrain{
+	Bed, Toilet, NutrientPod, Storage, Scumhouse, Incubator, Trough,
+	Forge, GunBench, Incinerator, Chair,
+}
+
+// maxSkillRanks bounds every skill's ranks, untrained included: the length
+// of the longest skillSpec.Labels (mining's).
+const maxSkillRanks = 9
+
+// Skills is every skill a colonist can rank in, in SkillKind order.
+func Skills() []SkillKind {
+	out := make([]SkillKind, 0, numSkills-1)
+	for k := SkillKind(1); k < numSkills; k++ {
+		out = append(out, k)
+	}
+	return out
+}
+
+// SkillRankLabels is k's title at each rank, rank 0 ("", untrained) first,
+// indexing PopulationSample.SkillRanks[k]. A label may cover more than one
+// rank.
+func SkillRankLabels(k SkillKind) []string {
+	if k == SkillNone || k >= numSkills {
+		return nil
+	}
+	return slices.Clone(skillSpecs[k].Labels)
 }
 
 // addTally adds tally from into to.
