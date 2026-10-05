@@ -50,7 +50,8 @@ then oldest first.
 
 `post` places an order and **matches it at once**: while it crosses the head of
 the opposite side, they trade the smaller quantity **at the resting order's
-price**. Whatever is left rests; `ttl` (or never) decides when it expires.
+price**. The colony's orders pass over the colony's own, so it never trades
+with itself (see [colony-orders.md](./colony-orders.md)); a colonist's may. Whatever is left rests; `ttl` (or never) decides when it expires.
 Trades are recorded (`w.trades`, the last 64) and set the book's last price and
 volume. Each order also records its own fills, `Filled` units and one `Fill`
 line per counterparty, for the Market tab's order detail; nothing in the

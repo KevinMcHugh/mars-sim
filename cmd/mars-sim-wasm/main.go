@@ -47,8 +47,9 @@ import (
 // build (npm run wasm not rerun after a pull) fails with a message saying so,
 // instead of a panel that silently never loads. 1 was everything before
 // subscribe/unsubscribe; 2 had no entity: or tile: topics; 3 no roster; 4 no log; 5 no jobs, storage, market or account:; 6 no perf or population; 7 no flow command; 8 no dig command; 9 no dig-cancel; 10 no order-place, order-reprice or order-cancel; 11 no order-suspend or order-resume; 12 no ship-move; 13 no ship-land; 14 no zone, clear or clear-cancel; 15 no save or load; 16 no recruit-roll or recruit-hire; 17 called the entity
-// panel's drives "needs", with a fatal flag where 18 has a consequence.
-const hostAPI = 18
+// panel's drives "needs", with a fatal flag where 18 has a consequence; 18 had
+// no order-wide-set or order-wide-clear.
+const hostAPI = 19
 
 var (
 	eng *sim.Engine
@@ -117,6 +118,7 @@ func main() {
 			return toJSON(errorResult(err.Error()))
 		}
 		eng.Send(cmd)
+		topics.Refresh() // the next advance shows what the command did
 		return toJSON(struct{}{})
 	}))
 	api.Set("save", js.FuncOf(func(js.Value, []js.Value) any {
@@ -274,7 +276,7 @@ type memoryResult struct {
 
 // command is a sim.Command as the page sends it.
 type command struct {
-	Type string `json:"type"` // pause | speed | spawn | flow | dig | dig-cancel | zone | clear | clear-cancel | ship-move | ship-land | order-place | order-reprice | order-cancel | order-suspend | order-resume | recruit-roll | recruit-hire
+	Type string `json:"type"` // pause | speed | spawn | flow | dig | dig-cancel | zone | clear | clear-cancel | ship-move | ship-land | order-place | order-reprice | order-cancel | order-suspend | order-resume | order-wide-set | order-wide-clear | recruit-roll | recruit-hire
 	Rate int    `json:"rate,omitempty"`
 	// Kind is what to spawn, or for zone the zone kind by name ("none"
 	// unzones).
@@ -288,10 +290,10 @@ type command struct {
 	Y0 int `json:"y0,omitempty"`
 	X1 int `json:"x1,omitempty"`
 	Y1 int `json:"y1,omitempty"`
-	// order-place, order-suspend and order-resume: the side ("bid" or
-	// "ask") and the item by name; order-place also the
-	// quantity, and the depot (x, y); order-place and order-reprice: the
-	// price. ship-move, ship-land: the ship's (new) top-left (x, y).
+	// order-place, order-suspend, order-resume and order-wide-*: the side
+	// ("bid" or "ask") and the item by name; order-place and
+	// order-wide-set also the quantity, and order-place the depot (x, y);
+	// order-place, order-wide-set and order-reprice: the price. ship-move, ship-land: the ship's (new) top-left (x, y).
 	Side  string `json:"side,omitempty"`
 	Item  string `json:"item,omitempty"`
 	Qty   int    `json:"qty,omitempty"`
@@ -335,7 +337,7 @@ func parseCommand(s string) (sim.Command, error) {
 		return sim.ClearArea{X0: c.X0, Y0: c.Y0, X1: c.X1, Y1: c.Y1}, nil
 	case "clear-cancel":
 		return sim.CancelClear{ID: c.ID}, nil
-	case "order-place", "order-suspend", "order-resume":
+	case "order-place", "order-suspend", "order-resume", "order-wide-set", "order-wide-clear":
 		item, ok := sim.ParseItemKind(c.Item)
 		if !ok {
 			return nil, fmt.Errorf("unknown item %q", c.Item)
@@ -354,6 +356,10 @@ func parseCommand(s string) (sim.Command, error) {
 			return sim.SuspendColonyOrders{Side: side, Item: item}, nil
 		case "order-resume":
 			return sim.ResumeColonyOrders{Side: side, Item: item}, nil
+		case "order-wide-set":
+			return sim.SetColonyWideOrder{Side: side, Item: item, Qty: c.Qty, Price: sim.Money(c.Price)}, nil
+		case "order-wide-clear":
+			return sim.ClearColonyWideOrder{Side: side, Item: item}, nil
 		}
 		return sim.PlaceColonyOrder{Side: side, Item: item, Qty: c.Qty, Price: sim.Money(c.Price),
 			Depot: sim.Point{X: c.X, Y: c.Y}}, nil

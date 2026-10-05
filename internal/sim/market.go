@@ -72,6 +72,10 @@ type Order struct {
 	// (colonyorders.go). The colony's upkeep never withdraws or retires
 	// one; it still counts toward the quantities upkeep tops up to.
 	manual bool
+	// wide marks an order a colony-wide order placed (colonywide.go): its
+	// upkeep tops it up, moves it and reprices it, and the colony's other
+	// upkeep leaves its bids alone.
+	wide bool
 }
 
 // owner is the order itself as a ledger or money holder: where its escrow
@@ -206,15 +210,25 @@ func (w *World) post(side Side, item ItemKind, qty int, price Money, actor Owner
 		w.books[key] = b
 	}
 	filled := 0
-	for o.Qty > 0 {
-		opposite := &b.asks
-		if side == Ask {
-			opposite = &b.bids
-		}
-		if len(*opposite) == 0 || !crosses(o, (*opposite)[0]) {
+	opposite := &b.asks
+	if side == Ask {
+		opposite = &b.bids
+	}
+	// The colony's orders never trade with each other: one passes over the
+	// colony's own to the next. Buying meals at $10 and selling them at $5 at
+	// one pantry, the colony would otherwise only ever trade with itself.
+	// A colonist's still may: a hungry cook whose meals are all on offer buys
+	// one back that way, and passing over it starved more of them (seed 2,
+	// 100 colonists: 55 against 37).
+	for i := 0; o.Qty > 0 && i < len(*opposite); {
+		resting := (*opposite)[i]
+		if !crosses(o, resting) {
 			break
 		}
-		resting := (*opposite)[0]
+		if actor == Community && resting.Actor == Community {
+			i++
+			continue
+		}
 		n := min(o.Qty, resting.Qty)
 		if side == Bid {
 			w.settle(b, c, o, resting, n, resting.Price)
@@ -223,7 +237,7 @@ func (w *World) post(side Side, item ItemKind, qty int, price Money, actor Owner
 		}
 		filled += n
 		if resting.Qty == 0 {
-			*opposite = (*opposite)[1:]
+			*opposite = append((*opposite)[:i], (*opposite)[i+1:]...)
 			w.closeOrder(resting)
 		}
 	}
@@ -441,6 +455,7 @@ func (w *World) runMarket() {
 	w.expireOrders()
 	w.prunePlans()
 	w.retireOldSilo()
+	w.refreshWideOrders()
 	w.refreshColonyBids()
 	w.refreshColonyAsks()
 	w.refreshBiomatterBids()

@@ -453,6 +453,12 @@ func (e *Engine) apply(cmd Command) (rateChanged bool) {
 	case ResumeColonyOrders:
 		e.world.resumeColonyOrders(c)
 		e.requestPublish()
+	case SetColonyWideOrder:
+		e.world.setColonyWideOrder(c)
+		e.requestPublish()
+	case ClearColonyWideOrder:
+		e.world.clearColonyWideOrder(c)
+		e.requestPublish()
 	case OrderExcavation:
 		e.world.orderExcavation(c)
 		e.requestPublish() // the log line and the work order show at once

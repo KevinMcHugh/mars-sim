@@ -389,8 +389,10 @@ ticker's), until they are opened again.
   [order-detail.md](./order-detail.md)). Its **Colony orders** desk (`ColonyOrders`) posts a
   bid or an ask in the colony's name, and reprices or removes the colony's
   open orders, with the `order-place`, `order-reprice` and `order-cancel`
-  commands, and suspends or resumes a standing order with `order-suspend`
-  and `order-resume` (see [colony-orders.md](./colony-orders.md)).
+  commands, suspends or resumes a standing order with `order-suspend`
+  and `order-resume`, and sets or stops a colony-wide order (no depot) with
+  `order-wide-set` and `order-wide-clear` (host API 19; see
+  [colony-orders.md](./colony-orders.md)).
 - **Zones** paints zones, removes them, and orders an area's structures
   cleared (see [zoning.md](./zoning.md)). One button per zone kind (from the
   `zones` topic, swatch and all), **Remove zone** and **Clear area** arm the

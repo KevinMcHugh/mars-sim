@@ -2,20 +2,22 @@
   // The colony's order desk, in the Market tab: post a bid or an ask in the
   // colony's name at a communal depot, and reprice or withdraw the colony's
   // open orders, or suspend a standing order (by side and item, colony-wide)
-  // so upkeep stops posting it. The orders are ordinary ones on the book, escrowed from the
+  // so upkeep stops posting it. A colony-wide order names no depot: upkeep
+  // places it where the good changes hands and keeps it topped up. The orders are ordinary ones on the book, escrowed from the
   // treasury or the colony's stock (docs/colony-orders.md). The data is the
   // market topic's colony desk (internal/wire/boards.go); the outcome of a
   // command lands in the log. An order opens its detail (OrderDetail) on a
   // click.
-  import { cancelColonyOrder, centerOn, placeColonyOrder, repriceColonyOrder, resumeColonyOrders, suspendColonyOrders } from '../game.svelte';
+  import { cancelColonyOrder, centerOn, clearColonyWideOrder, placeColonyOrder, repriceColonyOrder, resumeColonyOrders, setColonyWideOrder, suspendColonyOrders } from '../game.svelte';
   import { money } from './format';
   import OrderDetail from './OrderDetail.svelte';
 
   interface Desk {
-    orders: { id: number; side: 'bid' | 'ask'; item: string; qty: number; price: number; x: number; y: number; posted: number; manual: boolean }[];
+    orders: { id: number; side: 'bid' | 'ask'; item: string; qty: number; price: number; x: number; y: number; posted: number; manual: boolean; wide: boolean }[];
     depots: { x: number; y: number; label: string; silo: boolean; holdings: { item: string; count: number }[] }[];
     items: string[];
     suspended: { side: 'bid' | 'ask'; item: string }[];
+    wide: { side: 'bid' | 'ask'; item: string; qty: number; price: number; open: number; depots: number }[];
   }
 
   interface Props {
@@ -35,15 +37,22 @@
   // Filled in with the item's market value whenever the side or item changes
   // (below); empty still means the market value.
   let priceIn: number | null = $state(null);
-  let depotKey = $state('');
+  // 'wide' is no depot: a colony-wide order, which upkeep places. It is the
+  // first choice and the default; a depot is for a one-off order.
+  const WIDE = 'wide';
+  let depotKey = $state(WIDE);
+  const wide = $derived(depotKey === WIDE);
 
   const held = (d: Desk['depots'][number] | undefined, it: string) => d?.holdings.find((h) => h.item === it)?.count ?? 0;
   // Selling, offer only what there is to sell: the depots where the colony
   // holds something, and the items it holds at the chosen one. Buying, any
   // depot and any item will do.
+  // Colony-wide, any item will do: it sells what the colony holds as it comes in.
   const depots = $derived(side === 'ask' ? desk.depots.filter((d) => d.holdings.some((h) => h.count > 0)) : desk.depots);
-  const depot = $derived(depots.find((d) => `${d.x},${d.y}` === depotKey) ?? depots[0]);
-  const items = $derived(side === 'ask' ? desk.items.filter((it) => held(depot, it) > 0) : desk.items);
+  const depot = $derived(wide ? undefined : (depots.find((d) => `${d.x},${d.y}` === depotKey) ?? depots[0]));
+  const items = $derived(side === 'ask' && !wide ? desk.items.filter((it) => held(depot, it) > 0) : desk.items);
+  const heldAll = (it: string) => desk.depots.reduce((n, d) => n + held(d, it), 0);
+  const existing = $derived(desk.wide.find((o) => o.side === side && o.item === chosenItem));
   // A choice the filter hides (switching side or depot) falls back to the first.
   const chosenItem = $derived(items.includes(item) ? item : (items[0] ?? ''));
   const value = $derived(prices.find((p) => p.item === chosenItem)?.value ?? 0);
@@ -65,6 +74,12 @@
   // Why the order cannot go, or null if it can. The engine checks all of it
   // again; this only saves a round trip to the log.
   const blocked = $derived.by(() => {
+    if (wide) {
+      if (!chosenItem) return 'Pick an item.';
+      if (!Number.isInteger(n) || n < 1 || n > 10000) return 'The quantity must be a whole number, 1 to 10,000.';
+      if (!Number.isInteger(price) || price < 1) return 'The price must be a whole number of dollars, at least $1.';
+      return null;
+    }
     if (!depot) return side === 'ask' && desk.depots.length > 0 ? 'The colony holds nothing at any depot to sell.' : 'The colony has no communal depot to trade at yet.';
     if (!chosenItem) return 'Pick an item.';
     if (!Number.isInteger(n) || n < 1) return 'The quantity must be a whole number, at least 1.';
@@ -81,7 +96,12 @@
   });
 
   function place() {
-    if (blocked || !depot) return;
+    if (blocked) return;
+    if (wide) {
+      setColonyWideOrder({ side, item: chosenItem, qty: n, price });
+      return;
+    }
+    if (!depot) return;
     placeColonyOrder({ side, item: chosenItem, qty: n, price, x: depot.x, y: depot.y });
     priceIn = value > 0 ? value : null;
   }
@@ -123,6 +143,20 @@
 
   const verb = (side: 'bid' | 'ask') => (side === 'bid' ? 'buying' : 'selling');
 
+  // The orders the table lists: a colony-wide order's are summarized under
+  // Colony-wide instead (one per kitchen would bury the rest).
+  const listed = $derived(desk.orders.filter((o) => !o.wide));
+
+  // Load a colony-wide order into the form to change it.
+  function change(o: Desk['wide'][number]) {
+    side = o.side;
+    item = o.item;
+    depotKey = WIDE;
+    qty = o.qty;
+    pricedFor = `${o.side}|${o.item}|${value > 0}`;
+    priceIn = o.price;
+  }
+
   const depotLabel = (x: number, y: number) => {
     const d = desk.depots.find((d) => d.x === x && d.y === y);
     return d ? (d.silo ? 'silo' : d.label) : 'depot';
@@ -130,7 +164,7 @@
 </script>
 
 <h2>Colony orders</h2>
-<p class="muted">Trade in the colony's name. A bid is paid from the treasury, an ask from what the colony holds at the depot.</p>
+<p class="muted">Trade in the colony's name. A bid is paid from the treasury, an ask from what the colony holds. <em>Anywhere</em> is a standing order the colony keeps on the book where the good changes hands; a depot places one order there.</p>
 
 <form class="place" onsubmit={(e) => { e.preventDefault(); place(); }}>
   <div class="sides" role="group" aria-label="Side">
@@ -141,13 +175,14 @@
     <span>Item</span>
     <select value={chosenItem} onchange={(e) => (item = e.currentTarget.value)}>
       {#each items as it (it)}
-        <option value={it}>{it}{side === 'ask' ? ` (${held(depot, it)} held)` : ''}</option>
+        <option value={it}>{it}{side === 'ask' ? ` (${wide ? heldAll(it) : held(depot, it)} held)` : ''}</option>
       {/each}
     </select>
   </label>
   <label>
     <span>Depot</span>
-    <select value={depot ? `${depot.x},${depot.y}` : ''} onchange={(e) => (depotKey = e.currentTarget.value)} disabled={depots.length === 0}>
+    <select value={wide ? WIDE : depot ? `${depot.x},${depot.y}` : ''} onchange={(e) => (depotKey = e.currentTarget.value)}>
+      <option value={WIDE}>anywhere (colony-wide)</option>
       {#each depots as d (d.x + ',' + d.y)}
         <option value={`${d.x},${d.y}`}>{d.silo ? 'silo' : d.label} at {d.x},{d.y}</option>
       {/each}
@@ -162,6 +197,14 @@
     <input type="number" min="1" step="1" placeholder={value > 0 ? `${value} (market value)` : ''} bind:value={priceIn} />
   </label>
   <p class="terms">
+    {#if wide}
+      {#if side === 'bid'}
+        Keeps {n} {chosenItem} bid for at {money(price)}, at the kitchens for food and the silo for the rest, topped up as they fill, as far as the treasury ({money(treasury)}) stretches.
+      {:else}
+        Keeps up to {n} of the colony's {chosenItem} on offer at {money(price)}, wherever it holds them ({heldAll(chosenItem)} now), as they come in.
+      {/if}
+      {#if existing}<span class="warn">Replaces the colony-wide order to {side === 'bid' ? 'buy' : 'sell'} {existing.qty} at {money(existing.price)}.</span>{/if}
+    {:else}
     {#if book && (book.bidQty > 0 || book.askQty > 0)}
       <span class="muted">Book here: bid {book.bidQty ? `${money(book.bestBid)}×${book.bidQty}` : '—'}, ask {book.askQty ? `${money(book.bestAsk)}×${book.askQty}` : '—'}.</span>
     {/if}
@@ -171,20 +214,36 @@
       The colony holds {heldHere} here.
     {/if}
     {#if crosses && !blocked}<span class="warn">It will trade at once against the book.</span>{/if}
+    {/if}
   </p>
   {#if blocked}<p class="warn">{blocked}</p>{/if}
   <button type="submit" class="go" disabled={blocked !== null}>
-    {side === 'bid' ? 'Bid' : 'Offer'} {n} {chosenItem} at {money(price)}
+    {side === 'bid' ? 'Bid' : 'Offer'} {n} {chosenItem} at {money(price)}{wide ? ', colony-wide' : ''}
   </button>
 </form>
 
-{#if desk.orders.length === 0}
+{#if desk.wide.length > 0}
+  <h3>Colony-wide</h3>
+  <ul class="lines">
+    {#each desk.wide as o (o.side + o.item)}
+      <li>
+        {o.side === 'bid' ? 'Buying' : 'Selling'} {o.item} at {money(o.price)}, up to {o.qty}:
+        <span class="muted">{#if o.open > 0}{o.open} {o.side === 'bid' ? 'bid for' : 'on offer'} at {o.depots} depot{o.depots === 1 ? '' : 's'}.{:else if o.side === 'bid'}none on the book yet: it bids once there is a kitchen or a silo, and money in the treasury.{:else}none on offer: the colony holds none yet.{/if}</span>
+        <button type="button" class="resume" onclick={() => change(o)} title="Load it into the form above to change it">Change</button>
+        <button type="button" class="resume" onclick={() => clearColonyWideOrder(o.side, o.item)}
+          title="Stop {verb(o.side)} {o.item} colony-wide and take its orders off the book">Stop</button>
+      </li>
+    {/each}
+  </ul>
+{/if}
+
+{#if listed.length === 0}
   <p class="muted">The colony has no orders open.</p>
 {:else}
   <table>
     <thead><tr><th></th><th>order</th><th class="num">price</th><th>depot</th></tr></thead>
     <tbody>
-      {#each desk.orders as o (o.id)}
+      {#each listed as o (o.id)}
         <tr>
           <td><span class="tag" class:manual={o.manual} title={o.manual ? 'placed or repriced by you; the colony leaves it alone' : 'a standing order the colony keeps topped up: withdrawn, it is posted again'}>{o.manual ? 'yours' : 'auto'}</span></td>
           <td>

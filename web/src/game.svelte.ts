@@ -504,6 +504,16 @@ export function resumeColonyOrders(side: 'bid' | 'ask', item: string): void {
   ctl?.command({ type: 'order-resume', side, item });
 }
 
+/** Set the colony's colony-wide order for a side and item, replacing any it had. */
+export function setColonyWideOrder(o: { side: 'bid' | 'ask'; item: string; qty: number; price: number }): void {
+  ctl?.command({ type: 'order-wide-set', ...o });
+}
+
+/** Drop the colony's colony-wide order for a side and item. */
+export function clearColonyWideOrder(side: 'bid' | 'ask', item: string): void {
+  ctl?.command({ type: 'order-wide-clear', side, item });
+}
+
 /** Pay the recruiter for a new set of candidates; the outcome lands in the log. */
 export function rollRecruits(): void {
   ctl?.command({ type: 'recruit-roll' });

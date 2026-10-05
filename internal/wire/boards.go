@@ -184,6 +184,20 @@ type ColonyDesk struct {
 	// Suspended is every standing order a player has stopped, by side and
 	// item, bids first.
 	Suspended []Suspended `json:"suspended"`
+	// Wide is every colony-wide order, bids first, then in item order.
+	Wide []WideOrder `json:"wide"`
+}
+
+// WideOrder is a colony-wide order: a standing order by side and item, with
+// no depot, that the colony keeps on the book where the good changes hands.
+// Open is how many units its orders have open now, at Depots depots.
+type WideOrder struct {
+	Side   string `json:"side"`
+	Item   string `json:"item"`
+	Qty    int    `json:"qty"`
+	Price  int64  `json:"price"`
+	Open   int    `json:"open"`
+	Depots int    `json:"depots"`
 }
 
 // Suspended is a side and an item whose standing orders the colony has
@@ -206,6 +220,8 @@ type ColonyOrder struct {
 	Y      int    `json:"y"`
 	Posted int    `json:"posted"`
 	Manual bool   `json:"manual"`
+	// Wide is set for an order a colony-wide order placed.
+	Wide bool `json:"wide"`
 }
 
 // Depot is a communal container the colony may trade at, and what the colony
@@ -499,14 +515,19 @@ func accountTopic(s *sim.Snapshot, owner sim.Owner) AccountTopic {
 
 func colonyDesk(s *sim.Snapshot) ColonyDesk {
 	econ := s.Economy
-	d := ColonyDesk{Orders: []ColonyOrder{}, Depots: []Depot{}, Items: []string{}, Suspended: []Suspended{}}
+	d := ColonyDesk{Orders: []ColonyOrder{}, Depots: []Depot{}, Items: []string{}, Suspended: []Suspended{},
+		Wide: []WideOrder{}}
 	for _, su := range econ.Suspended {
 		d.Suspended = append(d.Suspended, Suspended{Side: su.Side.String(), Item: su.Item.String()})
+	}
+	for _, wo := range econ.Wide {
+		d.Wide = append(d.Wide, WideOrder{Side: wo.Side.String(), Item: wo.Item.String(), Qty: wo.Qty,
+			Price: int64(wo.Price), Open: wo.Open, Depots: wo.Depots})
 	}
 	for _, o := range econ.Orders {
 		if o.Actor == sim.Community {
 			d.Orders = append(d.Orders, ColonyOrder{ID: uint64(o.ID), Side: o.Side.String(), Item: o.Item.String(),
-				Qty: o.Qty, Price: int64(o.Price), X: o.Depot.X, Y: o.Depot.Y, Posted: o.Posted, Manual: o.Manual})
+				Qty: o.Qty, Price: int64(o.Price), X: o.Depot.X, Y: o.Depot.Y, Posted: o.Posted, Manual: o.Manual, Wide: o.Wide})
 		}
 	}
 	for _, st := range s.Storages {

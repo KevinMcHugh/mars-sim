@@ -189,7 +189,7 @@ func (w *World) cancelColonyOrder(id OrderID) bool {
 // standing order goes through here, so a suspension holds whichever upkeep
 // would have posted it, and so does standing-orders-build-only.
 func (w *World) postStanding(side Side, item ItemKind, qty int, price Money, depot Point) {
-	if !w.standingAllowed(side, item) || w.standingSuspended(side, item) {
+	if !w.standingAllowed(side, item) || w.standingSuspended(side, item) || w.wideSet(side, item) {
 		return
 	}
 	w.post(side, item, qty, price, Community, depot, 0)
@@ -233,7 +233,7 @@ func (w *World) suspendColonyOrders(c SuspendColonyOrders) bool {
 	w.suspended[c.Side][c.Item] = true
 	withdrawn := 0
 	for _, o := range w.sortedOrders(func(o *Order) bool {
-		return o.Actor == Community && !o.manual && o.Side == c.Side && o.Item == c.Item
+		return o.Actor == Community && !o.manual && !o.wide && o.Side == c.Side && o.Item == c.Item
 	}) {
 		withdrawn += o.Qty
 		w.cancel(o)

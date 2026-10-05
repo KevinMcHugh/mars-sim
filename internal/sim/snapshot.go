@@ -171,6 +171,9 @@ type EconomyView struct {
 	// Suspended is every standing order a player has suspended, bids first,
 	// then in item order (see docs/colony-orders.md).
 	Suspended []SuspendedView
+	// Wide is every colony-wide order a player has set, bids first, then in
+	// item order (see docs/colony-orders.md).
+	Wide []WideOrderView
 	// Silo is the colony's market depot, when it has one.
 	Silo    Point
 	HasSilo bool
@@ -223,6 +226,8 @@ type OrderView struct {
 	// docs/colony-orders.md).
 	Posted int
 	Manual bool
+	// Wide is set for an order a colony-wide order placed.
+	Wide bool
 	// Expires is the tick it expires, 0 never. Escrow is the money a bid
 	// still holds (an ask's escrow is its Qty in goods). Filled and Fills
 	// are what it has traded so far, and with whom (see Fill and
@@ -258,6 +263,7 @@ func (w *World) economyView() EconomyView {
 	}
 	v.Silo, v.HasSilo = w.marketDepot()
 	v.Suspended = w.suspendedOrders()
+	v.Wide = w.wideOrders()
 	v.DigWage, v.DigMax = w.wageFor(Floor), maxExcavationTiles
 	for _, o := range w.sortedWork(nil) {
 		v.WorkOrders = append(v.WorkOrders, WorkOrderView{ID: o.ID, Kind: o.Kind, Issuer: o.Issuer,
@@ -265,7 +271,7 @@ func (w *World) economyView() EconomyView {
 	}
 	for _, o := range w.sortedOrders(nil) {
 		v.Orders = append(v.Orders, OrderView{ID: o.ID, Side: o.Side, Item: o.Item, Qty: o.Qty,
-			Price: o.Price, Actor: o.Actor, Depot: o.Depot, Posted: o.Posted, Manual: o.manual,
+			Price: o.Price, Actor: o.Actor, Depot: o.Depot, Posted: o.Posted, Manual: o.manual, Wide: o.wide,
 			Expires: o.Expires, Escrow: o.escrow, Filled: o.Filled, Fills: slices.Clone(o.Fills)})
 	}
 	for k, b := range w.books {

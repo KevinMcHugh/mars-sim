@@ -1086,10 +1086,11 @@ func (w *World) offerColonyMeals(p Point) {
 }
 
 // withdrawColonyBids takes the colony's standing bids for item at p off the
-// book, returning their escrow to the treasury. A player's bid (manual) stays.
+// book, returning their escrow to the treasury. A player's bid (manual, or a
+// colony-wide order's) stays.
 func (w *World) withdrawColonyBids(item ItemKind, p Point) {
 	for _, o := range w.sortedOrders(func(o *Order) bool {
-		return o.Side == Bid && o.Item == item && o.Depot == p && o.Actor == Community && !o.manual
+		return o.Side == Bid && o.Item == item && o.Depot == p && o.Actor == Community && !o.manual && !o.wide
 	}) {
 		w.cancel(o)
 	}
