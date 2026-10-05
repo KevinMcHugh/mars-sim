@@ -34,6 +34,7 @@ var topicTable = map[string]topic{
 	"names":      {every: time.Second, build: namesTopic},
 	"perf":       {every: chartEvery, build: func(s *sim.Snapshot) any { return perfTopic(s) }},
 	"population": {every: chartEvery, build: func(s *sim.Snapshot) any { return populationTopic(s) }},
+	"metrics":    {every: chartEvery, build: func(s *sim.Snapshot) any { return metricsTopic(s) }},
 	"jobs":       {every: boardEvery, build: func(s *sim.Snapshot) any { return jobsTopic(s) }},
 	"storage":    {every: boardEvery, build: func(s *sim.Snapshot) any { return storageTopic(s) }},
 	"market":     {every: boardEvery, build: func(s *sim.Snapshot) any { return marketTopic(s) }},

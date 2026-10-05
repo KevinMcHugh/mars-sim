@@ -6,6 +6,7 @@
 import type { Hello } from '../wire/decode.js';
 import type { Command, Settings } from './sim/client';
 import { reuse } from './reuse';
+import { parseCharts, STARTER_CHARTS } from './ui/charts/builder';
 import { SPEEDS, speedIndex } from './speed';
 
 /** How often frame-driven UI (clock, stats, speed) refreshes. */
@@ -67,7 +68,9 @@ export const ui = $state({
   /** The aloft ship last sent down: the Ships tab does not pick it up again while the topic catches up. */
   shipSent: null as number | null,
   /** The Charts tab's view, kept while the tab is closed. */
-  chartView: 'perf' as 'perf' | 'population' | 'activity',
+  chartView: 'perf' as 'perf' | 'population' | 'activity' | 'custom',
+  /** The charts the player has made in the Custom view, remembered in this browser (saveCharts). */
+  charts: parseCharts(loadPref('charts', null)) ?? structuredClone(STARTER_CHARTS),
   /** The flow field asked for (an index into Hello.flowFields), or -1 for none. */
   flowPick: -1,
   /**
@@ -265,6 +268,11 @@ export interface FloatWin { id: string; x: number; y: number; w: number; h: numb
 
 export function isFloating(id: string): boolean {
   return ui.floats.some((f) => f.id === id);
+}
+
+/** Remember the Custom view's charts (ui.charts) in this browser. */
+export function saveCharts(): void {
+  savePref('charts', $state.snapshot(ui.charts));
 }
 
 function saveFloats(): void {

@@ -49,6 +49,7 @@ func (w *World) step() {
 	w.rebuildBuildTiles() // reflect this tick's completions and any new project
 	w.runDirector()       // fire any scripted occurrence whose tick has arrived
 	w.samplePopulation()  // the Population tab's history (read-only bookkeeping)
+	w.sampleMetrics()     // the chart system's history (read-only bookkeeping)
 }
 
 // planInterval is how often the colony re-plans construction, in ticks. Facility
