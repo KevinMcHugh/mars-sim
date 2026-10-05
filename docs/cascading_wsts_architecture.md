@@ -687,8 +687,9 @@ Candidate generation must enforce:
   or, for a colonist already fleeing, within `FleeRadius+FleeReleaseMargin`
   (the release band; see [Flee hysteresis](#flee-hysteresis)).
 - Need focuses require a pressing or critical need.
-- `FocusSocialize` may remain eligible while waiting for a partner; the
-  executor must not restart a live conversation.
+- `FocusSocialize` may remain eligible while waiting for a partner, but only
+  while someone could answer it (`companyInReach`; see drives.md, *Socialize
+  steps aside*). The executor must not restart a live conversation.
 - `FocusWork` may continue a valid work job. When entering work without a job,
   use existing assignment logic.
 - `FocusIdle` is always eligible.
