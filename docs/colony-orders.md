@@ -127,7 +127,9 @@ that tops a standing bid up to `silo-bid-qty` sees a manual bid for the same
 good at the same depot as part of that quantity.
 
 **The desk** (`ColonyOrders.svelte`) reads the market topic's `colony` field.
-It defaults to the silo, prefills the price with the item's market value,
+It defaults to the silo, prefills the price with the item's market value (in the field itself, not a
+placeholder, and again on each change of side or item, but not when the value
+merely moves under a price the player typed),
 shows the book at that depot, what the bid escrows or what the colony holds
 there, and warns when the order will trade at once. On the sell side it lists
 only the depots where the colony holds something and, at the chosen depot, only

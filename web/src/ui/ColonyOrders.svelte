@@ -32,7 +32,8 @@
   let side = $state<'bid' | 'ask'>('bid');
   let item = $state('');
   let qty: number | null = $state(1);
-  // Empty means "the item's market value", shown as the placeholder.
+  // Filled in with the item's market value whenever the side or item changes
+  // (below); empty still means the market value.
   let priceIn: number | null = $state(null);
   let depotKey = $state('');
 
@@ -47,6 +48,16 @@
   const chosenItem = $derived(items.includes(item) ? item : (items[0] ?? ''));
   const value = $derived(prices.find((p) => p.item === chosenItem)?.value ?? 0);
   const price = $derived(priceIn != null && !Number.isNaN(priceIn) ? priceIn : value);
+  // Prefill the price, so the field shows the number the order will go at. Only
+  // a new side or item (or the value arriving at all) refills it: the market
+  // value moving under a price the player typed leaves that price alone.
+  let pricedFor = '';
+  $effect(() => {
+    const key = `${side}|${chosenItem}|${value > 0}`;
+    if (key === pricedFor) return;
+    pricedFor = key;
+    priceIn = value > 0 ? value : null;
+  });
   const heldHere = $derived(held(depot, chosenItem));
   const book = $derived(depot && books.find((b) => b.item === chosenItem && b.x === depot.x && b.y === depot.y));
   const n = $derived(qty ?? 0);
@@ -72,7 +83,7 @@
   function place() {
     if (blocked || !depot) return;
     placeColonyOrder({ side, item: chosenItem, qty: n, price, x: depot.x, y: depot.y });
-    priceIn = null;
+    priceIn = value > 0 ? value : null;
   }
 
   // ---- repricing -----------------------------------------------------------
