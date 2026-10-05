@@ -2,7 +2,7 @@
   // Picks a series to add to a chart: a metric, then (for a metric read per
   // good or per account) its subject. A colony of hundreds has hundreds of
   // wallets, so subjects can be filtered by name.
-  import type { Catalog } from './builder';
+  import { SUBJECT_NOUN, type Catalog } from './builder';
 
   let { cat, taken, onpick, oncancel }: {
     cat: Catalog;
@@ -38,7 +38,7 @@
     {#each groups as g (g)}
       <optgroup label={g}>
         {#each cat.metrics as x, i (x.key)}
-          {#if x.group === g}<option value={i}>{x.label}{x.per === 'item' ? ' (by good)' : x.per === 'account' ? ' (by account)' : ''}</option>{/if}
+          {#if x.group === g}<option value={i}>{x.label}{x.per === 'colony' ? '' : ` (by ${SUBJECT_NOUN[x.per]})`}</option>{/if}
         {/each}
       </optgroup>
     {/each}
@@ -48,11 +48,11 @@
     {#if m.per !== 'colony'}
       {#if m.per === 'account'}<input type="search" placeholder="Filter by name" aria-label="Filter accounts" bind:value={filter} />{/if}
       {#if subjects.length}
-        <select aria-label={m.per === 'item' ? 'Good' : 'Account'} bind:value={subject} size={Math.min(6, Math.max(2, subjects.length))}>
+        <select aria-label={SUBJECT_NOUN[m.per]} bind:value={subject} size={Math.min(6, Math.max(2, subjects.length))}>
           {#each subjects as s (s.key)}<option value={s.key}>{s.subject}{s.ended ? ' (gone)' : ''}</option>{/each}
         </select>
       {:else}
-        <p class="doc">{filter ? 'No match.' : 'Nothing measured yet: a good appears once it has been traded or stored.'}</p>
+        <p class="doc">{filter ? 'No match.' : m.per === 'fixture' ? 'Nothing measured yet: a kind appears once one is built.' : m.per === 'skill-rank' ? 'Nothing measured yet: a rank appears once a colonist holds it.' : 'Nothing measured yet: a good appears once it has been traded or stored.'}</p>
       {/if}
     {:else if !subjects.length}
       <p class="doc">Already on this chart, or no reading yet: the first sample comes at the top of the hour.</p>

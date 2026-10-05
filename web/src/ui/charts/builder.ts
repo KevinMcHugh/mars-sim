@@ -12,8 +12,13 @@ export interface MetricLine {
   /** A level is a reading; a total is a running total since the landing. */
   kind: 'level' | 'total';
   unit: 'count' | 'dollars';
-  per: 'colony' | 'item' | 'account';
+  per: 'colony' | 'item' | 'account' | 'fixture' | 'skill-rank';
 }
+
+/** What a metric's subjects are, for the picker: "good" for a per-item metric. */
+export const SUBJECT_NOUN: Record<MetricLine['per'], string> = {
+  colony: '', item: 'good', account: 'account', fixture: 'kind', 'skill-rank': 'rank',
+};
 
 /** One series the picker can offer (SeriesLine): a metric for one subject. */
 export interface SeriesLine { key: string; metric: number; subject?: string; ended?: boolean }

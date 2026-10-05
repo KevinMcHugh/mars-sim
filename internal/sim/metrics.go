@@ -1,6 +1,7 @@
 package sim
 
 import (
+	"fmt"
 	"slices"
 	"strconv"
 	"strings"
@@ -67,14 +68,17 @@ func (u MetricUnit) String() string {
 }
 
 // MetricPer is the set of subjects a metric is read for: once for the
-// colony, once per item kind (plus all goods together), or once per account
-// (the treasury and each living colonist).
+// colony, once per item kind (plus all goods together), once per account
+// (the treasury and each living colonist), once per kind of fixture
+// (metricFixtures), or once per rank of each skill (metricSkillRanks).
 type MetricPer uint8
 
 const (
 	PerColony MetricPer = iota
 	PerItem
 	PerAccount
+	PerFixture
+	PerSkillRank
 )
 
 func (p MetricPer) String() string {
@@ -83,6 +87,10 @@ func (p MetricPer) String() string {
 		return "item"
 	case PerAccount:
 		return "account"
+	case PerFixture:
+		return "fixture"
+	case PerSkillRank:
+		return "skill-rank"
 	default:
 		return "colony"
 	}
@@ -122,9 +130,30 @@ var metricDefs = []MetricDef{
 		read: func(c *metricCtx, _ int64) (int64, bool) { return int64(len(c.w.deceasedColonists)), true }},
 	{Key: "starved", Label: "Starved", Group: "Colony", Kind: Total, Doc: "colonists who starved to death",
 		read: func(c *metricCtx, _ int64) (int64, bool) { return int64(c.w.starved), true }},
+	{Key: "fixture-kind", Label: "Fixtures of a kind", Group: "Colony", Per: PerFixture,
+		Doc:  "placed fixtures of one kind: scumhouses, scum incubators, beds…",
+		read: func(c *metricCtx, t int64) (int64, bool) { return int64(c.w.terrainCounts[t]), true }},
 	{Key: "stock", Label: "In storage", Group: "Colony", Per: PerItem,
 		Doc:  "units in any depot (chests, lockers, scumhouses, the silo), whoever owns them",
 		read: func(c *metricCtx, k int64) (int64, bool) { return c.stock[k], true }},
+
+	// Skills
+	{Key: "skill-rank", Label: "Colonists at a skill rank", Group: "Skills", Per: PerSkillRank,
+		Doc:  "living colonists at exactly one rank of a skill (rank 0: untrained)",
+		read: func(c *metricCtx, sr int64) (int64, bool) { k, r := skillRankOf(sr); return c.ranks[k][r], true }},
+	{Key: "skill-rank-up", Label: "Colonists at a skill rank or better", Group: "Skills", Per: PerSkillRank,
+		Doc: "living colonists at one rank of a skill or higher: a chef or better",
+		read: func(c *metricCtx, sr int64) (int64, bool) {
+			k, r := skillRankOf(sr)
+			if r == 0 {
+				return 0, false // every colonist: the Colonists metric
+			}
+			n := int64(0)
+			for _, x := range c.ranks[k][r:] {
+				n += x
+			}
+			return n, true
+		}},
 
 	// Money
 	{Key: "balance", Label: "Balance", Group: "Money", Unit: UnitDollars, Per: PerAccount,
@@ -199,6 +228,8 @@ type metricCtx struct {
 	accounts  []int64 // 0 (the treasury), then living colonists by ID
 	stock     [numItemKinds]int64
 	open      [2][numItemKinds]int64 // open orders per side
+	// ranks counts living colonists by their rank in each skill.
+	ranks [numSkills][maxSkillRanks]int64
 }
 
 // newMetricCtx fills the store's scratch context for this sample. It is
@@ -210,6 +241,9 @@ func (w *World) newMetricCtx() *metricCtx {
 		if e.Kind == Colonist {
 			c.colonists++
 			c.accounts = append(c.accounts, int64(id))
+			for k := SkillKind(1); k < numSkills; k++ {
+				c.ranks[k][e.rank(k)]++
+			}
 		}
 	}
 	slices.Sort(c.accounts)
@@ -239,6 +273,39 @@ var (
 		return ks
 	}()
 )
+
+// metricFixtures is every kind of placed structure counted per kind, in the
+// order the picker lists them: each fixture kind (isFixtureTerrain) and the
+// meeting hall's chairs, which are furniture, so not in the "fixtures" count.
+var metricFixtures = func() []int64 {
+	var out []int64
+	for _, t := range []Terrain{Bed, Toilet, NutrientPod, Storage, Scumhouse, Incubator, Trough,
+		Forge, GunBench, Incinerator, Chair} {
+		out = append(out, int64(t))
+	}
+	return out
+}()
+
+// maxSkillRanks bounds every skill's ranks, untrained included: the length
+// of the longest skillSpec.Labels (mining's).
+const maxSkillRanks = 9
+
+// metricSkillRanks is every rank of every skill as a subject (skillRankSubject),
+// in skill then rank order.
+var metricSkillRanks = func() []int64 {
+	var out []int64
+	for k := SkillKind(1); k < numSkills; k++ {
+		for r := range skillSpecs[k].Labels {
+			out = append(out, skillRankSubject(k, r))
+		}
+	}
+	return out
+}()
+
+// skillRankSubject packs a skill and a rank into one subject, and
+// skillRankOf unpacks it.
+func skillRankSubject(k SkillKind, r int) int64 { return int64(k)<<8 | int64(r) }
+func skillRankOf(sr int64) (SkillKind, int)     { return SkillKind(sr >> 8), int(sr & 0xff) }
 
 // metricHistory is the most samples kept before the resolution halves, as
 // with the Population history: the chart always spans the whole game.
@@ -322,15 +389,21 @@ func (w *World) sampleMetrics() {
 			subjects = metricItems[:]
 		case PerAccount:
 			subjects = c.accounts
+		case PerFixture:
+			subjects = metricFixtures
+		case PerSkillRank:
+			subjects = metricSkillRanks
 		}
 		for _, subj := range subjects {
 			v, ok := def.read(c, subj)
 			key := metricKey{uint16(d), subj}
 			i, have := m.index[key]
 			if !have {
-				// A per-item series waits for its first non-zero reading, so
-				// goods nobody has touched add nothing to the picker.
-				if !ok || (v == 0 && def.Per == PerItem && subj != int64(ItemNone)) {
+				// A per-item, per-fixture or per-rank series waits for its
+				// first non-zero reading, so goods nobody has touched,
+				// fixtures never built and ranks nobody has reached add
+				// nothing to the picker.
+				if !ok || (v == 0 && waitsForReading(def.Per, subj)) {
 					continue
 				}
 				i = int32(len(m.series))
@@ -355,6 +428,19 @@ func (w *World) sampleMetrics() {
 		}
 	}
 	m.view = nil
+}
+
+// waitsForReading reports whether a subject's series starts only at its
+// first non-zero reading. All goods together starts at once, like a colony
+// metric.
+func waitsForReading(per MetricPer, subj int64) bool {
+	switch per {
+	case PerItem:
+		return subj != int64(ItemNone)
+	case PerFixture, PerSkillRank:
+		return true
+	}
+	return false
 }
 
 // nextMetricEvery is the interval after every: doubling, except that 4
@@ -425,6 +511,11 @@ func (w *World) metricSubjectKey(per MetricPer, subj int64) string {
 			return "treasury"
 		}
 		return "c" + strconv.FormatInt(subj, 10)
+	case PerFixture:
+		return strings.ReplaceAll(Terrain(subj).String(), " ", "-")
+	case PerSkillRank:
+		k, r := skillRankOf(subj)
+		return k.String() + "-" + strconv.Itoa(r)
 	}
 	return ""
 }
@@ -444,6 +535,15 @@ func (w *World) metricSubjectLabel(per MetricPer, subj int64) string {
 		if e := w.entities[EntityID(subj)]; e != nil {
 			return e.displayName()
 		}
+	case PerFixture:
+		return Terrain(subj).String()
+	case PerSkillRank:
+		k, r := skillRankOf(subj)
+		title := skillSpecs[k].Labels[r]
+		if r == 0 {
+			title = "untrained"
+		}
+		return fmt.Sprintf("%s %d: %s", k, r, title)
 	}
 	return ""
 }

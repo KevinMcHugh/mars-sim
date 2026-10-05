@@ -155,3 +155,73 @@ func TestMoneyMovedCountsPaymentsNotEscrow(t *testing.T) {
 		t.Fatalf("a direct payment: moved $%d in %d payments, want $16 in 2", w.moneyMoved, w.payments)
 	}
 }
+
+// Fixtures are counted per kind and colonists per rank of each skill, each
+// series starting once it has something to count.
+func TestFixtureAndSkillRankMetrics(t *testing.T) {
+	w := propertyWorld(t)
+	tpd := w.cfg.TicksPerDay()
+	sample := func() *MetricsView {
+		t.Helper()
+		for w.tick++; clockHour(w.tick, tpd) == clockHour(w.tick-1, tpd); w.tick++ {
+		}
+		w.sampleMetrics()
+		return w.metricsView()
+	}
+	last := func(v *MetricsView, key string) int64 {
+		t.Helper()
+		s := series(v, key)
+		if s == nil {
+			t.Fatalf("no series %q", key)
+		}
+		return s.Values[len(s.Values)-1]
+	}
+	a, b := w.spawn(Colonist, Point{8, 8}), w.spawn(Colonist, Point{8, 9})
+	a.practice, b.practice = [numSkills]uint32{}, [numSkills]uint32{}
+	w.SetTerrain(Point{10, 10}, Scumhouse)
+	v := sample()
+	if n := last(v, "fixture-kind/scumhouse"); n != 1 {
+		t.Fatalf("%d scumhouses, want 1", n)
+	}
+	if series(v, "fixture-kind/scum-incubator") != nil || series(v, "skill-rank/cooking-3") != nil {
+		t.Fatal("a fixture never built or a rank nobody holds already has a series")
+	}
+	if s := series(v, "skill-rank/cooking-0"); s == nil || s.Values[0] != 2 || s.Subject != "cooking 0: untrained" {
+		t.Fatalf("untrained cooks %+v, want both colonists", s)
+	}
+
+	w.SetTerrain(Point{12, 10}, Scumhouse)
+	w.SetTerrain(Point{14, 10}, Incubator)
+	w.setRank(a, SkillCooking, 2)
+	w.setRank(b, SkillCooking, 3)
+	v = sample()
+	for key, want := range map[string]int64{
+		"fixture-kind/scumhouse": 2, "fixture-kind/scum-incubator": 1,
+		"skill-rank/cooking-0": 0, "skill-rank/cooking-2": 1, "skill-rank/cooking-3": 1,
+		"skill-rank-up/cooking-2": 2, "skill-rank-up/cooking-3": 1, "skill-rank/smithing-0": 2,
+	} {
+		if n := last(v, key); n != want {
+			t.Errorf("%s = %d, want %d", key, n, want)
+		}
+	}
+	if s := series(v, "skill-rank/cooking-3"); s.Subject != "cooking 3: chef" {
+		t.Errorf("subject %q, want \"cooking 3: chef\"", s.Subject)
+	}
+	if series(v, "skill-rank-up/cooking-0") != nil {
+		t.Error("rank 0 or better is every colonist, and has no series")
+	}
+}
+
+// Every skill's ranks fit the counts, and every fixture kind is counted.
+func TestMetricSubjectsCoverFixturesAndRanks(t *testing.T) {
+	for k := SkillKind(1); k < numSkills; k++ {
+		if n := len(skillSpecs[k].Labels); n > maxSkillRanks {
+			t.Errorf("%s has %d ranks; maxSkillRanks is %d", k, n, maxSkillRanks)
+		}
+	}
+	for f := Terrain(0); f < numTerrains; f++ {
+		if isFixtureTerrain(f) && !slices.Contains(metricFixtures, int64(f)) {
+			t.Errorf("fixture %s is not in metricFixtures", f)
+		}
+	}
+}
