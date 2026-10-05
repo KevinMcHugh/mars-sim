@@ -2,14 +2,12 @@
   // Population: the colony's vital signs over the whole game, four small
   // charts on the simulation clock, from the population topic, as the TUI's
   // Population screen draws them (docs/population-screen.md). Four charts,
-  // not four lines on one: their scales differ by orders of magnitude. The
-  // fourth tracks a series picked from a list: all fixtures, one kind of
-  // fixture, or the colonists at a skill title or better.
+  // not four lines on one: their scales differ by orders of magnitude.
   import type uPlot from 'uplot';
-  import { topics, ui } from '../../game.svelte';
+  import { topics } from '../../game.svelte';
   import Chart, { type Tip } from './Chart.svelte';
   import { axis, SERIES } from './theme';
-  import { trackedSeries, type Population } from './population';
+  import type { Population } from './population';
 
   const pop = $derived(topics.data.population as Population | undefined);
 
@@ -17,12 +15,8 @@
     { key: 'colonists', title: 'Colonists', color: SERIES[0] },
     { key: 'meals', title: 'Meals in storage', color: SERIES[1] },
     { key: 'colonySize', title: 'Colony size (floor tiles)', color: SERIES[2] },
+    { key: 'fixtures', title: 'Fixtures', color: SERIES[3] },
   ] as const;
-
-  const tracked = $derived(pop ? trackedSeries(pop) : []);
-  const pick = $derived(tracked.find((t) => t.key === ui.popTrack) ?? tracked[0]);
-  const groups = $derived([...new Set(tracked.map((t) => t.group))]);
-  const trackColor = SERIES[3];
 
   const x = $derived(pop ? Float64Array.from(pop.tick) : new Float64Array());
 
@@ -37,15 +31,10 @@
     legend: { show: false },
   });
   const allOpts = charts.map((c) => opts(c.color, c.title));
-  const trackOpts = opts(trackColor, 'Tracked');
 
   const tip = (c: (typeof charts)[number]) => (i: number): Tip | null => pop ? {
     title: `tick ${pop.tick[i].toLocaleString()}`,
     rows: [{ color: c.color, label: c.title, value: pop[c.key][i].toLocaleString() }],
-  } : null;
-  const trackTip = (i: number): Tip | null => pop && pick ? {
-    title: `tick ${pop.tick[i].toLocaleString()}`,
-    rows: [{ color: trackColor, label: pick.title, value: pick.values[i].toLocaleString() }],
   } : null;
 
   function range(v: number[]): string {
@@ -66,27 +55,11 @@
     <p class="stats">{range(pop[c.key])}</p>
     <Chart opts={allOpts[i]} data={[x, Float64Array.from(pop[c.key])]} height={130} tip={tip(c)} label="{c.title} over the game" />
   {/each}
-  {#if pick}
-    <h3>
-      <select aria-label="Tracked series" value={pick.key} onchange={(e) => (ui.popTrack = e.currentTarget.value)}>
-        {#each groups as g (g)}
-          <optgroup label={g}>
-            {#each tracked.filter((t) => t.group === g) as t (t.key)}
-              <option value={t.key}>{t.title}</option>
-            {/each}
-          </optgroup>
-        {/each}
-      </select>
-    </h3>
-    <p class="stats">{range(pick.values)}</p>
-    <Chart opts={trackOpts} data={[x, Float64Array.from(pick.values)]} height={130} tip={trackTip} label="{pick.title} over the game" />
-  {/if}
 {/if}
 
 <style>
   h3 { font-size: 13px; margin: 12px 0 2px; color: #ffffff; }
   h3:first-child { margin-top: 0; }
-  h3 select { font-size: 13px; font-weight: 600; }
   .stats { margin: 0 0 2px; font-size: 12px; color: #c3c2b7; font-variant-numeric: tabular-nums; }
   .muted { color: var(--muted); }
 </style>

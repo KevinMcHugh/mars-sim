@@ -14,57 +14,7 @@ export interface Population {
   activity: number[][];
   /** walking[a][i]: the part of activity[a][i] spent walking there. */
   walking: number[][];
-  /** Fixture kinds tracked, indexing fixtureCounts. */
-  fixtureKinds: string[];
-  /** fixtureCounts[f][i]: how many of kind f stood at sample i. */
-  fixtureCounts: number[][];
-  /** Every skill's colonists by rank. */
-  skills: SkillRanks[];
 }
-
-/** One skill's colonists by rank: ranks[r][i] stood at exactly rank r at sample i. */
-export interface SkillRanks {
-  skill: string;
-  /** One title per rank, '' (untrained) first; a title may cover several ranks. */
-  labels: string[];
-  ranks: number[][];
-}
-
-/** A series the Population view's tracked chart can show. */
-export interface Tracked { key: string; title: string; group: string; values: number[] }
-
-/**
- * Every series the tracked chart can show, as the TUI's Population tab steps
- * through them: all fixtures, each kind of fixture, then for each skill the
- * colonists at each title or better ("chef or better" counts chefs and master
- * chefs). A title covering several ranks is one series, from its lowest rank.
- */
-export function trackedSeries(p: Population): Tracked[] {
-  const out: Tracked[] = [{ key: 'fixtures', title: 'Fixtures', group: 'Fixtures', values: p.fixtures }];
-  p.fixtureKinds.forEach((kind, f) => {
-    out.push({ key: `fixture:${kind}`, title: cap(kind), group: 'Fixtures', values: p.fixtureCounts[f] });
-  });
-  for (const s of p.skills) {
-    for (let r = 1; r < s.labels.length; r++) {
-      if (s.labels[r] === s.labels[r - 1]) continue;
-      const top = r === s.labels.length - 1;
-      const values = p.tick.map((_, i) => {
-        let n = 0;
-        for (let q = r; q < s.ranks.length; q++) n += s.ranks[q][i];
-        return n;
-      });
-      out.push({
-        key: `skill:${s.skill}:${r}`,
-        title: `Colonists: ${s.labels[r]}${top ? '' : ' or better'}`,
-        group: `Skill: ${s.skill}`,
-        values,
-      });
-    }
-  }
-  return out;
-}
-
-function cap(s: string): string { return s.charAt(0).toUpperCase() + s.slice(1); }
 
 /** One sample's tally per activity, and the ticks it covers. */
 export interface Slice { own: number[]; walk: number[]; ticks: number; total: number }

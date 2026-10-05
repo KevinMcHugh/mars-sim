@@ -7,8 +7,6 @@ import (
 
 	"github.com/kevinmchugh/mars-sim/internal/sim"
 	"github.com/kevinmchugh/mars-sim/internal/ui/tui/cells"
-
-	tea "github.com/charmbracelet/bubbletea"
 )
 
 // populationSnapshot is makeSnapshot with a population history: colonists
@@ -75,54 +73,5 @@ func TestStretchSpansTheWholeHistory(t *testing.T) {
 	long := stretch(populationSnapshot(1000).Population, 40, v)
 	if long[0] != 50 || long[39] < 48000 {
 		t.Fatalf("thinned: first %v last %v, want 50 and near 50000", long[0], long[39])
-	}
-}
-
-// [ and ] step the fourth chart through the tracked series: a kind of
-// fixture, and the colonists at a skill level or better.
-func TestPopulationTabTracksFixtureKindsAndSkillLevels(t *testing.T) {
-	m := New(nil, nil)
-	m.termW, m.termH = 80, 30
-	m.latest = populationSnapshot(200)
-	for i := range m.latest.Population {
-		s := &m.latest.Population[i]
-		s.FixtureKinds[sim.Scumhouse] = 1 + i/100
-		s.SkillRanks[sim.SkillCooking] = [len(s.SkillRanks[0])]int{3, 2, 1, 1, 1}
-	}
-	m.mode = modePopulation
-	find := func(title string) {
-		t.Helper()
-		for range trackedSeries {
-			if strings.Contains(m.View(), title) {
-				return
-			}
-			next, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("]")})
-			m = next.(Model)
-		}
-		t.Fatalf("no tracked series %q", title)
-	}
-	check := func(want string) {
-		t.Helper()
-		out := m.View()
-		if !strings.Contains(out, want) {
-			t.Fatalf("tracked chart missing %q:\n%s", want, out)
-		}
-		for i, line := range strings.Split(out, "\n") {
-			if w := cells.Width(line); w > m.termW {
-				t.Fatalf("line %d is %d cells wide on a %d-cell terminal", i, w, m.termW)
-			}
-		}
-	}
-	find("SCUMHOUSE")
-	check("now 2")
-	find("CHEF OR BETTER")
-	check("now 2") // a chef and a master chef
-	find("MASTER CHEF")
-	check("now 1")
-	// Stepping back past the first series wraps to the last.
-	m.popTrack = 0
-	next, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("[")})
-	if m = next.(Model); m.popTrack != len(trackedSeries)-1 {
-		t.Fatalf("[ from the first series went to %d, want %d", m.popTrack, len(trackedSeries)-1)
 	}
 }

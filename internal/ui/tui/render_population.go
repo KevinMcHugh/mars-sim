@@ -6,15 +6,13 @@ import (
 
 	"github.com/kevinmchugh/mars-sim/internal/sim"
 
-	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 )
 
 // The Population screen: four braille line charts of the colony's vital signs
-// over the whole game — colonists, meals in storage, colony size, and a
-// tracked series (fixtures, one kind of fixture, or the colonists at a skill
-// level) — from Snapshot.Population, drawn with the Perf screen's chart
-// (perfChart) on the simulation clock. See docs/population-screen.md.
+// over the whole game — colonists, meals in storage, colony size, fixtures —
+// from Snapshot.Population, drawn with the Perf screen's chart (perfChart) on
+// the simulation clock. See docs/population-screen.md.
 
 var (
 	popColonistStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("45"))
@@ -30,65 +28,16 @@ type popSeries struct {
 	value func(sim.PopulationSample) int
 }
 
-// popCharts are the three fixed charts; the fourth is trackedSeries[popTrack].
-var popCharts = [3]popSeries{
+var popCharts = [4]popSeries{
 	{"COLONISTS", popColonistStyle, func(s sim.PopulationSample) int { return s.Colonists }},
 	{"MEALS IN STORAGE", popMealStyle, func(s sim.PopulationSample) int { return s.Meals }},
 	{"COLONY SIZE (floor tiles)", popSizeStyle, func(s sim.PopulationSample) int { return s.ColonySize }},
-}
-
-// trackedSeries is every series the fourth chart can track, in the order
-// [ and ] step through them: all fixtures, then each kind of fixture, then
-// for each skill the colonists at each title or better ("cook or better"
-// counts cooks, chefs and master chefs). Each is titled by what it counts:
-// "SCUMHOUSE", "CHEF OR BETTER", "MASTER CHEF". A title covering several ranks is
-// one series, from its lowest rank.
-var trackedSeries = func() []popSeries {
-	out := []popSeries{{"FIXTURES", popFixtureStyle, func(s sim.PopulationSample) int { return s.Fixtures }}}
-	for _, f := range sim.TrackedFixtures {
-		out = append(out, popSeries{strings.ToUpper(f.String()), popFixtureStyle,
-			func(s sim.PopulationSample) int { return s.FixtureKinds[f] }})
-	}
-	for _, k := range sim.Skills() {
-		labels := sim.SkillRankLabels(k)
-		for r := 1; r < len(labels); r++ {
-			if labels[r] == labels[r-1] {
-				continue
-			}
-			// Titles are unique across skills, so a title alone names the
-			// skill, and a short one leaves the chart room for its stats.
-			title := strings.ToUpper(labels[r]) + " OR BETTER"
-			if r == len(labels)-1 {
-				title = strings.ToUpper(labels[r])
-			}
-			out = append(out, popSeries{title, popColonistStyle, func(s sim.PopulationSample) int {
-				n := 0
-				for _, c := range s.SkillRanks[k][r:] {
-					n += c
-				}
-				return n
-			}})
-		}
-	}
-	return out
-}()
-
-// handlePopulationKey steps the tracked chart through trackedSeries.
-func (m Model) handlePopulationKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	switch msg.String() {
-	case "esc":
-		m.mode = modeMap
-	case "]", "right", "l":
-		m.popTrack = wrapCursor(m.popTrack+1, len(trackedSeries))
-	case "[", "left", "h":
-		m.popTrack = wrapCursor(m.popTrack-1, len(trackedSeries))
-	}
-	return m, nil
+	{"FIXTURES", popFixtureStyle, func(s sim.PopulationSample) int { return s.Fixtures }},
 }
 
 func (m Model) renderPopulation() string {
 	header := m.renderHeader()
-	footer := m.footerLine("POPULATION  [/] track fixtures/skills  +/- speed  space pause  tab/esc map  s spawn  b build  q quit")
+	footer := m.footerLine("POPULATION  +/- speed  space pause  tab/esc map  s spawn  b build  q quit")
 	rows := m.rosterRows()
 	samples := m.latest.Population
 
@@ -97,12 +46,11 @@ func (m Model) renderPopulation() string {
 	rightW := m.termW - leftW
 	topH := rows / 2
 	bottomH := rows - topH
-	chart := func(s popSeries, width, height int) string {
-		return popChart(s, samples, width).render(width, height)
+	chart := func(i, width, height int) string {
+		return popChart(popCharts[i], samples, width).render(width, height)
 	}
-	tracked := trackedSeries[clamp(m.popTrack, 0, len(trackedSeries)-1)]
-	top := lipgloss.JoinHorizontal(lipgloss.Top, chart(popCharts[0], leftW, topH), chart(popCharts[1], rightW, topH))
-	bottom := lipgloss.JoinHorizontal(lipgloss.Top, chart(popCharts[2], leftW, bottomH), chart(tracked, rightW, bottomH))
+	top := lipgloss.JoinHorizontal(lipgloss.Top, chart(0, leftW, topH), chart(1, rightW, topH))
+	bottom := lipgloss.JoinHorizontal(lipgloss.Top, chart(2, leftW, bottomH), chart(3, rightW, bottomH))
 	return strings.Join([]string{header, top, bottom, footer}, "\n")
 }
 

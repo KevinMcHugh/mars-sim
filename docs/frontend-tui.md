@@ -107,9 +107,8 @@ dispatch to the active panel's handler.
   narrative paragraph, word-wrapped (`wrapWords`) to the panel width. See
   [lore.md](./lore.md).
 - **Population** (`renderPopulation`): four braille line charts of the
-  colony over the whole game — colonists, meals in storage, colony size, and
-  a tracked series (all fixtures, one kind of fixture, or the colonists at a
-  skill title or better, stepped with `[`/`]`) — from `Snapshot.Population`. See
+  colony over the whole game — colonists, meals in storage, colony size,
+  fixtures — from `Snapshot.Population`. See
   [population-screen.md](./population-screen.md).
 - **Activity** (`renderActivity`): a stacked area chart of what the colonists
   spend their time doing over the whole game (sleeping, eating, cooking,
@@ -291,7 +290,6 @@ the inspector shows its full build and a narrative description.
 | arrows or `hjkl` | pan the camera (map) / move selection (roster, job board, storage, market, lore) / scroll the log |
 | `shift+↑↓`, `pgup`/`pgdn` | scroll the roster inspector, or the log, a line / a screenful |
 | `home` / `end` (log) | jump to the oldest retained event / back to the live tail |
-| `[` / `]` (population only) | step the fourth chart through the tracked series: all fixtures, each kind of fixture, the colonists at each skill title or better (`←`/`→` and `h`/`l` too) |
 | `c` (activity only) | switch the activity chart between shares of colonist time and average colonists |
 | `ctrl+s` | save the game to `mars-sim-<seed>-<time>.marssave` in the working directory (`SaveGame`); the footer says where it went. See [save-load.md](./save-load.md) |
 | `tab` | cycle map → roster → job board → storage → market → lore → population → activity → log → perf → map |

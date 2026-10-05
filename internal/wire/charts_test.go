@@ -42,28 +42,4 @@ func TestChartTopics(t *testing.T) {
 			t.Errorf("activity %s mismatched", a)
 		}
 	}
-	if len(pop.FixtureKinds) != len(sim.TrackedFixtures) || len(pop.FixtureCounts) != len(pop.FixtureKinds) {
-		t.Fatalf("%d fixture kinds, %d series", len(pop.FixtureKinds), len(pop.FixtureCounts))
-	}
-	for f, kind := range sim.TrackedFixtures {
-		if pop.FixtureKinds[f] != kind.String() || pop.FixtureCounts[f][n-1] != last.FixtureKinds[kind] {
-			t.Errorf("fixture kind %s mismatched", kind)
-		}
-	}
-	if len(pop.Skills) != len(sim.Skills()) {
-		t.Fatalf("%d skills, want %d", len(pop.Skills), len(sim.Skills()))
-	}
-	for j, k := range sim.Skills() {
-		sr := pop.Skills[j]
-		total := 0
-		for r := range sr.Ranks {
-			if sr.Ranks[r][n-1] != last.SkillRanks[k][r] {
-				t.Errorf("%s rank %d mismatched", k, r)
-			}
-			total += sr.Ranks[r][n-1]
-		}
-		if sr.Skill != k.String() || len(sr.Labels) != len(sr.Ranks) || total != last.Colonists {
-			t.Errorf("%s: %d labels, %d ranks, %d colonists of %d", sr.Skill, len(sr.Labels), len(sr.Ranks), total, last.Colonists)
-		}
-	}
 }

@@ -113,10 +113,6 @@ type Model struct {
 	// activityCounts switches the Activity tab from shares of colonist time
 	// to average colonists per activity.
 	activityCounts bool
-	// popTrack is which of trackedSeries the Population tab's fourth chart
-	// shows: all fixtures, one kind of fixture, or the colonists at a skill
-	// level or better.
-	popTrack int
 
 	// logScrolled is set once the log tab has moved off the live tail.
 	// logAnchor is the entry the viewport starts on, and logAnchorRow is
@@ -338,9 +334,7 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.handleLogKey(msg)
 	case modeActivity:
 		return m.handleActivityKey(msg)
-	case modePopulation:
-		return m.handlePopulationKey(msg)
-	case modePerf:
+	case modePerf, modePopulation:
 		if msg.String() == "esc" {
 			m.mode = modeMap
 		}
