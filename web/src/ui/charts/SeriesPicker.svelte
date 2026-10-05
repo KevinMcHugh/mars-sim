@@ -2,7 +2,7 @@
   // Picks a series to add to a chart: a metric, then (for a metric read per
   // good or per account) its subject. A colony of hundreds has hundreds of
   // wallets, so subjects can be filtered by name.
-  import { SUBJECT_NOUN, type Catalog } from './builder';
+  import { pickerOrder, SUBJECT_NOUN, type Catalog } from './builder';
 
   let { cat, taken, onpick, oncancel }: {
     cat: Catalog;
@@ -21,9 +21,9 @@
   const subjects = $derived.by(() => {
     if (metric < 0) return [];
     const f = filter.trim().toLowerCase();
-    return cat.series
+    return pickerOrder(cat.metrics[metric].per, cat.series
       .filter((s) => s.metric === metric && !taken.includes(s.key))
-      .filter((s) => !f || (s.subject ?? '').toLowerCase().includes(f));
+      .filter((s) => !f || (s.subject ?? '').toLowerCase().includes(f)));
   });
   // A colony metric has one series: pick it as soon as the metric is chosen.
   $effect(() => {

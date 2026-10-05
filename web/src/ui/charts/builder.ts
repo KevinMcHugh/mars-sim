@@ -20,6 +20,18 @@ export const SUBJECT_NOUN: Record<MetricLine['per'], string> = {
   colony: '', item: 'good', account: 'account', fixture: 'kind', 'skill-rank': 'rank',
 };
 
+/**
+ * Orders a metric's series for the picker. The catalog lists them in the
+ * order they started, which for ranks is the order colonists happened to
+ * reach them. Fixture kinds go alphabetically, and skill ranks by skill and
+ * then by rank as a number ("cooking 0: untrained", "cooking 2: cook", …,
+ * "mining 0: untrained"). Goods and accounts keep the catalog's order.
+ */
+export function pickerOrder(per: MetricLine['per'], series: SeriesLine[]): SeriesLine[] {
+  if (per !== 'fixture' && per !== 'skill-rank') return series;
+  return [...series].sort((a, b) => (a.subject ?? '').localeCompare(b.subject ?? '', 'en', { numeric: true }));
+}
+
 /** One series the picker can offer (SeriesLine): a metric for one subject. */
 export interface SeriesLine { key: string; metric: number; subject?: string; ended?: boolean }
 

@@ -167,7 +167,11 @@ the skill and the rank (`skillRankSubject`); keys read
 colonist. Keys use the rank number, not the title: a title can cover several
 ranks (mining's "digger" is ranks 2 and 3), and a rank number survives a
 title being renamed. `newMetricCtx` counts every colonist's ranks once per
-sample, in the same walk that lists accounts. The counts are exact per rank
+sample, in the same walk that lists accounts. The picker sorts these subjects
+(`pickerOrder` in `builder.ts`): fixture kinds alphabetically, ranks by
+skill and then by rank as a number. The catalog itself lists series in the
+order they started, which for ranks is whenever a colonist first reached
+one, and read as a jumble with gaps. The counts are exact per rank
 so both metrics, and any other cut of them, read from one table.
 
 ## Why it is this way

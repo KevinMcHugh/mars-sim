@@ -2,7 +2,7 @@
 // module itself: Node strips the types on import.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { bucketLabel, columns, effectiveBucket, hourLabel, parseCharts, seriesName } from './builder.ts';
+import { bucketLabel, columns, effectiveBucket, hourLabel, parseCharts, pickerOrder, seriesName } from './builder.ts';
 
 /** @type {import('./builder.ts').Catalog} */
 const cat = {
@@ -86,4 +86,18 @@ test('saved charts are checked, not trusted', () => {
     { id: 'a', title: 'ok', series: ['price/meal'], bucket: 12 },
     { id: 'b', title: 'odd bucket', series: [], bucket: 0 },
   ]);
+});
+
+test('the picker sorts ranks by skill, then by rank as a number', () => {
+  const s = (subject) => ({ key: subject, metric: 0, subject });
+  const started = ['smithing 2: journeyman smith', 'cooking 0: untrained', 'mining 10: x', 'cooking 1: kitchen hand',
+    'mining 3: digger', 'construction 1: laborer', 'cooking 2: cook'].map(s);
+  assert.deepEqual(pickerOrder('skill-rank', started).map((x) => x.subject), [
+    'construction 1: laborer', 'cooking 0: untrained', 'cooking 1: kitchen hand', 'cooking 2: cook',
+    'mining 3: digger', 'mining 10: x', 'smithing 2: journeyman smith',
+  ]);
+  assert.deepEqual(pickerOrder('fixture', ['scumhouse', 'bed', 'forge'].map(s)).map((x) => x.subject), ['bed', 'forge', 'scumhouse']);
+  // Goods keep the catalog's order.
+  const goods = ['meal', 'iron ore'].map(s);
+  assert.equal(pickerOrder('item', goods), goods);
 });
