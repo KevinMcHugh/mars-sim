@@ -38,8 +38,11 @@ Startup follows this order:
     `Config`, overwriting any mirrored `mars-sim.yaml` or `-focus-*` values.
 5. Apply a non-zero `-seed` override.
 6. Validate dimensions, populations, rates, and other safety constraints.
-7. Create and subscribe to the engine before starting `Engine.Run`.
+7. Create the engine (or, with `-load`, read it from a save file) and
+   subscribe to it before starting `Engine.Run`.
 8. Run either the TUI or the headless snapshot consumer.
+9. With `-save`, once the run ends and `Run` has returned, write the game to a
+   file.
 
 ### Application flags
 
@@ -53,6 +56,8 @@ These flags control how the process runs rather than the simulated world:
 | `-config <path>` | Read this settings file instead of `mars-sim.yaml` in the working directory. A file named here that does not exist is an error; `-config ""` reads no file at all. |
 | `-director <path>` | Read this director schedule file instead of `director.yaml` in the working directory. A file named here that does not exist is an error; `-director ""` runs with no scheduled occurrences. See [director.md](./director.md). |
 | `-cognition <path>` | Read this cognition balance file instead of `cognition.yaml` in the working directory. A file named here that does not exist is an error; `-cognition ""` uses the compiled defaults. See [compositional-perception-and-events.md](./compositional-perception-and-events.md). |
+| `-load <path>` | Play on from a save file instead of generating a world. The save carries its own settings, so it ignores the settings file and the simulation flags. A save written by a build with a different world layout is refused, and the error names both commits. See [save-load.md](./save-load.md). |
+| `-save <path>` | Write a save file when the run ends: quitting the TUI, `-duration` running out, or Ctrl+C. In the TUI, `ctrl+s` also saves at any time. |
 | `-cpuprofile <path>` | Write a CPU profile of the whole run (world generation included) to this file. See [Profiling](#profiling). |
 | `-print-config` | Write a commented settings file with every setting at its default to stdout, then exit. Redirect it to `mars-sim.yaml` to regenerate the committed file. |
 | `-print-cognition-config` | Write a cognition settings file with every setting at its default to stdout, then exit. Redirect it to `cognition.yaml` after re-applying any authored comments. |
@@ -73,6 +78,10 @@ go run .
 
 # Reproducible ten-second smoke test with no terminal UI.
 go run . -headless -duration 10s -seed 42
+
+# Play for a minute headless, keep the game, and pick it up later in the TUI.
+go run . -headless -duration 1m -seed 42 -save colony.marssave
+go run . -load colony.marssave
 
 # Run a larger colony and tune the simulation speed.
 go run . -colonists 20 -aliens 5 -cats 4 -rats 20 -tps 12

@@ -83,7 +83,7 @@ hand it to `emitOccurrence`, which fans out direct and witness percepts:
 w.emitOccurrence(Occurrence{
     Actor: w.factRef(alien), Action: ActionBite, Object: w.factRef(prey),
     Location: prey.Pos,
-    TargetText: fmt.Sprintf("Bitten in the %s by %s!", part, w.alienNounFor(alien)),
+    TargetText: strikeTargetText(mode, part, noun), // "Bitten in the arm by a grelk!"
 })
 ```
 

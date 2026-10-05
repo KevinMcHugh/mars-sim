@@ -110,6 +110,12 @@
 ## nutrient pods make free meals out of nothing (the safety net)
 # infinite-food: false
 
+## colonists choose where to build and zone it themselves; off, they build only inside zones the player draws (the browser's Zones tab)
+## Set here because the terminal and headless runs have no way to draw a
+## zone: with it off, their colonies would never build. The browser game
+## does not read this file and starts with it off. See docs/zoning.md.
+zoning-auto: true
+
 # ── Food production ─────────────────────────────────────────────────────
 ## percent of the map's tiles carrying a patch of cave scum
 # scum-percent: 6
@@ -244,6 +250,10 @@
 ## what the colony pays for an assault rifle at its silo
 # price-assault-rifle: 60
 
+# ── Colony standing orders ──────────────────────────────────────────────
+## the colony posts no standing orders but its bids for building materials (rock, iron ore, clay)
+# standing-orders-build-only: true
+
 # ── Hauling ─────────────────────────────────────────────────────────────
 ## the colony sells the goods it bought, beyond its reserve, at its silo
 # colony-sells: true
@@ -270,6 +280,9 @@
 ## what the colony pays to build one fixture (pod, toilet, bed, ...)
 # wage-fixture: 5
 
+## what the colony pays to tear down one structure tile: a wall moved to enlarge a room, or anything a clearing order takes down
+# wage-demolish: 3
+
 ## what the colony pays a cook each time it works a recipe on the colony's stock
 # wage-cook: 1
 
@@ -285,20 +298,41 @@
 ## what a house's toilet charges anyone but its owner per use (0: private)
 # toilet-fee: 2
 
-# ── Crash pods ──────────────────────────────────────────────────────────
+# ── Arrivals ────────────────────────────────────────────────────────────
+## most settlers one colony ship carries; a larger wave comes down in several
+# ship-capacity: 20
+
+## communal bunks a ship carries, as a percent of its passengers (rounded up)
+# ship-bunk-percent: 50
+
+## communal toilets a ship carries, as a percent of its passengers (rounded up)
+# ship-toilet-percent: 25
+
+## relative odds a colony ship is a stick: its rooms in a row along one aisle
+# ship-stick-weight: 1
+
+## relative odds a colony ship is a hub and spoke: a concourse with a room down each spoke
+# ship-hub-weight: 1
+
+## relative odds a colony ship is a knobby cluster: rooms budding off a spine corridor
+# ship-cluster-weight: 1
+
+## hold the founders' ships aloft for the player to land one by one (the browser does)
+# place-ships: false
+
 ## dollars each colonist arrives with
 # crash-pod-purse: 100
 
-## meals stocked in each crash pod's locker, on average
+## meals stocked in each colonist's locker, on average
 # crash-pod-meals: 10
 
-## each pod's meals vary by up to this many either side of crash-pod-meals
+## each locker's meals vary by up to this many either side of crash-pod-meals
 # crash-pod-meal-spread: 0
 
 ## relative odds a colonist's one rare item is a gun
 # crash-pod-gun-weight: 50
 
-## relative odds a colonist's one rare item is a chicken (with a trough in its pod)
+## relative odds a colonist's one rare item is a chicken (with a trough in its ship's hold)
 # crash-pod-chicken-weight: 25
 
 ## relative odds a colonist's one rare item is a cat
@@ -307,9 +341,37 @@
 ## percent of the guns colonists land with that are shotguns rather than pistols
 # crash-pod-shotgun-percent: 25
 
+# ── Recruiting ──────────────────────────────────────────────────────────
+## dollars the treasury pays the recruiter for each set of candidates
+# recruiter-fee: 500
+
+## candidates in each set the recruiter presents (0 disables recruiting)
+# recruit-candidates: 5
+
+## dollars the treasury pays for each candidate hired: passage and starting supplies
+# recruit-cost: 100
+
+## meals each recruit arrives with, in its pockets
+# recruit-meals: 3
+
+## average dollars a candidate brings with it, before clamping to the min and max
+# recruit-savings-mean: 100
+
+## about 95% of candidates' savings fall within this many dollars of the mean, while it is well under the mean; wider gives a long tail of rare rich candidates (0: everyone brings the mean)
+# recruit-savings-spread: 50
+
+## fewest dollars a candidate brings (never below 0: no candidate arrives in debt)
+# recruit-savings-min: 0
+
+## most dollars a candidate brings
+# recruit-savings-max: 10000
+
 # ── Timing ──────────────────────────────────────────────────────────────
 ## simulation ticks per second
 # tps: 8
+
+## start the game paused (the browser does, so the ships can be placed)
+# start-paused: false
 
 ## number of recent events retained
 # log-size: 64
@@ -324,7 +386,7 @@
 ## ticks of work to raise one wall
 # build-ticks: 8
 
-## ticks of work to break down one wall tile when escaping a sealed room
+## ticks of work to break down one wall or hull tile, escaping a sealed room or opening a passage
 # demolish-ticks: 16
 
 ## ticks of work to build a pod or toilet
@@ -703,6 +765,15 @@
 ## rooms that can be under construction at once
 # max-concurrent-projects: 2
 
+## put fixtures into the colony's rooms of their zone, fitting out free floor or growing a room through any wall, before building a new one
+# room-expansion: true
+
+## most fixtures (of any kind: bunks, chests, stoves, incubators, chairs) one room holds
+# room-max-facilities: 8
+
+## join two rooms of the same zone standing side by side, back to back or facing each other into one, tearing down the walls between them: when more fixtures are wanted, or when there is nothing else to build
+# room-merge: true
+
 ## ticks a colonist's room must stay cut off from the colony before it breaks out on its own
 # escape-grace-ticks: 32
 
@@ -777,7 +848,7 @@
 ## relative weight of talking about another colonist (0 never)
 # talk-topic-colonist-weight: 3
 
-## relative weight of talking about lore, such as an alien species (0 never)
+## relative weight of talking about lore, such as an alien species or a corporation (0 never)
 # talk-topic-lore-weight: 2
 
 ## percent of the gap a good chat about a colonist closes between the listener's affinity toward them and the speaker's
@@ -892,6 +963,12 @@
 
 ## cooldown ticks between assault rifle bursts
 # rifle-fire-rest: 1
+
+## companies this seed's lore rolls; each gun kind is made by one of them
+# corporation-count: 4
+
+## percent of arriving colonists who used to work for one of the lore's corporations (flavor only)
+# corporation-employee-percent: 60
 
 # ── Cats ────────────────────────────────────────────────────────────────
 ## cat hit points

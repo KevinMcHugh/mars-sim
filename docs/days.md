@@ -168,9 +168,12 @@ it there truncated that line, which `TestLogTabShowsTheFullEntryWrapped` caught.
 ## Extending it
 
 - Showing days elsewhere (log lines, memories, the roster's "dead (tick N)"):
-  call `DayOf(tick, cfg.TicksPerDay())` in Go, or carry the day length to the
-  page if it needs to convert arbitrary ticks. Only the current day is on the
-  wire today.
+  call `DayOf(tick, cfg.TicksPerDay())` in Go. `Snapshot.TicksPerDay` carries
+  the day length for code that has only a snapshot (the wire): the
+  `order:<id>` topic turns an order's posted tick into a day and clock this
+  way, and sends durations in colony minutes so the page never needs the day
+  length (see [order-detail.md](./order-detail.md)). The frame's stats still
+  carry only the current day.
 - Moving the landing time is `LandingHour`. It shifts both the clock and when
   the day number turns over; the tests in `drives_test.go` pin the 06:00 values.
 - Another sleep trait is a `traitSpec` with `sleepHours` in the `sleep` group.

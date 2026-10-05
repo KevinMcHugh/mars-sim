@@ -11,6 +11,11 @@ line of documentation above it — so the file as generated changes nothing. You
 uncomment a line to change it, and commit the result so everyone (and CI, and
 your next session) plays the same colony.
 
+One line ships uncommented: `zoning-auto: true`. The terminal and headless runs
+have no way to draw a zone, and with manual zoning (the compiled default, which
+the browser game starts from) their colonies would never build. See
+[zoning.md](./zoning.md). Re-apply it when you regenerate the file.
+
 Settings apply in three layers, each overriding the one before it:
 
 ```
@@ -98,7 +103,7 @@ Old names still mean something (`RenamedSettings`, `RetiredSettings` in
   `shotguns` were the colony ship's armory; then every colonist landed with
   its own (`crash-pod-pistols`, `crash-pod-shotguns`, each with a
   `-percent`). Now a gun is one of three rare items a colonist may land with
-  (`crash-pod-gun-weight`, see [crash-pods.md](./crash-pods.md)), so none of
+  (`crash-pod-gun-weight`, see [ships.md](./ships.md)), so none of
   those counts means what it did, and all five point there.
 
 ## Why it is this way

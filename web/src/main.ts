@@ -9,14 +9,15 @@
 import { mount } from 'svelte';
 import type { Frame, Hello } from '../wire/decode.js';
 import { namedStats, TILE_COMPOSITION_MASK, TILE_VISIBLE } from '../wire/decode.js';
-import { colonyLog, cycleFlowField, inspect, install, setFlowField, stepSpeed, subscribe, syncFrame, togglePause, topics, ui, UI_HZ } from './game.svelte';
+import { armShip, colonyLog, cycleFlowField, inspect, install, landAloft, moveShip, setFlowField, setPanel, shipSiteAt, shipSiteFree, shipTiles, stepSpeed, subscribe, syncFrame, togglePause, topics, ui, UI_HZ } from './game.svelte';
+import type { ShipLine, ShipsTopic, ZonePreview } from './game.svelte';
 import { attachInput } from './map/input';
 import { MapRenderer } from './map/renderer';
 import type { TileRect } from './map/camera';
 import { pickGlyph } from './emoji';
-import { initialSettings } from './settings';
+import * as palette from './map/palette';
 import { SimClient } from './sim/client';
-import type { Settings } from './sim/client';
+import type { SaveInfo, Settings, Started } from './sim/client';
 import App from './ui/App.svelte';
 
 function status(text: string | null, error = false): void {
@@ -53,9 +54,13 @@ install({
   subscribe: (t) => sim.subscribe(t),
   unsubscribe: (t) => sim.unsubscribe(t),
   newGame: (s) => { void newGame(s); },
+  loadGame: (f) => { void loadGame(f); },
+  saveGame: () => { void saveGame(); },
   centerOn: (x, y) => { cam.cx = x + 0.5; cam.cy = y + 0.5; viewChanged(); },
   selected: () => updateMark(),
   digChanged: () => showDig(),
+  zoneChanged: () => showZone(),
+  shipToolChanged: () => showShipPreview(),
   highlight: (tiles) => map.setHighlight(tiles),
 });
 // Colonists' names for the hover readout; frames carry only ids. Held for
@@ -64,6 +69,9 @@ subscribe('names');
 // The colony log, for the Log tab and the map's ticker: held for the page's
 // life, like names.
 subscribe('log');
+// The zones, for the map's overlay (docs/zoning.md): held for the page's life
+// too. It is sent only when someone zones something.
+subscribe('zones');
 
 sim.onError = (m) => status(m, true);
 sim.onTopics = (t) => {
@@ -71,6 +79,10 @@ sim.onTopics = (t) => {
     // The log is a stream of deltas, kept in colonyLog, not a payload to hold.
     if (name === 'log') colonyLog.apply(payload as Parameters<typeof colonyLog.apply>[0]);
     else topics.set(name, payload);
+    // The zone tool's estimate reads the zones too, but only while an area
+    // is marked: otherwise it would clear the highlight another tool (the
+    // Ships tab's landing preview) is using.
+    if (name === 'zones') { showZones(); if (ui.zone.rect) showZone(); }
   }
 };
 sim.onFrame = (f, bytes) => {
@@ -103,10 +115,18 @@ sim.onFrame = (f, bytes) => {
 
 attachInput(canvas, cam, {
   changed: () => { viewChanged(); },
-  hover: (x, y) => { hoverAt = [x, y]; showHover(x, y); },
+  hover: (x, y) => {
+    hoverAt = [x, y];
+    showHover(x, y);
+    if (ui.shipTool !== null && hello) {
+      const [fx, fy] = cam.toTile(x, y);
+      shipAt = [Math.floor(fx), Math.floor(fy)];
+      showShipPreview();
+    }
+  },
   leave: () => { hoverAt = null; ui.hover = null; },
   click: (x, y) => select(x, y),
-  areaTool: () => ui.dig.armed && hello !== null,
+  areaTool: () => (ui.dig.armed || ui.zone.armed) && hello !== null,
   area: (phase, x, y) => dragArea(phase, x, y),
 });
 window.addEventListener('resize', () => viewChanged());
@@ -116,6 +136,11 @@ window.addEventListener('keydown', (e) => {
     case ' ': togglePause(); break;
     case '+': case '=': stepSpeed(1); break;
     case '-': case '_': stepSpeed(-1); break;
+    // Ctrl/Cmd+S saves the game rather than the page.
+    case 's': case 'S':
+      if (!(e.ctrlKey || e.metaKey) || e.altKey) return;
+      void saveGame();
+      break;
     // Not with a modifier: Ctrl/Cmd+F is the browser's Find.
     case 'f': case 'F':
       if (e.ctrlKey || e.metaKey || e.altKey) return;
@@ -139,6 +164,80 @@ function withLooks(h: Hello): Hello {
 
 async function newGame(settings: Settings): Promise<void> {
   status(`Generating a ${settings.width}×${settings.height} world…`);
+  resetGame();
+  // The founders start aloft, so there is nobody to center on: the camera
+  // stays on the map's middle, over the landing cavern.
+  centered = true;
+  try {
+    // Paused, with the founders' ships aloft, so the player lands each one
+    // before anyone moves (docs/ships.md).
+    began(await sim.start({ tps: 8, 'start-paused': true, 'place-ships': true, ...settings }));
+    status(null);
+    setPanel('ships'); // the game starts with placing the ships
+  } catch (e) {
+    status(String((e as Error).message), true);
+  }
+}
+
+/**
+ * Replace the game with a save file's (docs/save-load.md). The game plays on
+ * exactly as it would have, paused or running as it was saved. A file that
+ * does not load leaves the current game running, and says why.
+ */
+async function loadGame(file: File): Promise<void> {
+  status(`Loading ${file.name}…`);
+  const bytes = await file.arrayBuffer();
+  let started: Started;
+  try {
+    started = await sim.load(bytes);
+  } catch (e) {
+    const msg = `${file.name} did not load: ${(e as Error).message}`;
+    // With a game still running, the message can go after a while.
+    if (hello) flash(msg, true); else status(msg, true);
+    return;
+  }
+  resetGame();
+  centered = false; // center on the colony once its first frame is in
+  began(started);
+  const s = started.save!;
+  const other = s.commit !== started.commit ? ` (saved by commit ${s.commit.slice(0, 12)}; this is ${started.commit?.slice(0, 12)})` : '';
+  flash(`Loaded ${file.name}: tick ${s.tick}${other}`);
+}
+
+/** Download the running game as a save file. */
+async function saveGame(): Promise<void> {
+  if (!hello) return;
+  try {
+    const bytes = await sim.save();
+    const info = saveHeader(bytes);
+    const name = `mars-sim-${hello.seed}-t${info?.tick ?? debug.tick}.marssave`;
+    const url = URL.createObjectURL(new Blob([bytes], { type: 'application/octet-stream' }));
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = name;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 10_000);
+    flash(`Saved ${name}`);
+  } catch (e) {
+    status(`Save failed: ${(e as Error).message}`, true);
+  }
+}
+
+/** A save file's header: its second line is JSON (internal/sim/save.go). */
+function saveHeader(bytes: ArrayBuffer): SaveInfo | null {
+  const head = new TextDecoder().decode(new Uint8Array(bytes, 0, Math.min(bytes.byteLength, 4096)));
+  const line = head.split('\n')[1];
+  try { return line ? JSON.parse(line) as SaveInfo : null; } catch { return null; }
+}
+
+/** Show a status line for a few seconds, unless something replaces it first. */
+function flash(text: string, error = false): void {
+  status(text, error);
+  setTimeout(() => { if (ui.status === text) status(null); }, 5000);
+}
+
+/** Forget everything the page holds about the last game. */
+function resetGame(): void {
   hello = null;
   ui.hello = null;
   ui.selected = null;
@@ -147,24 +246,25 @@ async function newGame(settings: Settings): Promise<void> {
   colonyLog.clear();
   map.setHighlight(null);
   map.setMark(null);
+  map.setZones([], []);
   digFrom = null;
   ui.dig = { armed: false, rect: null, tiles: 0 };
-  centered = false;
+  ui.zone = { armed: false, tool: ui.zone.tool, rect: null, preview: null };
+  ui.shipTool = null;
+  ui.shipSent = null;
   lastInterest = '';
-  try {
-    const started = await sim.start({ tps: 8, ...settings });
-    hello = withLooks(started.hello);
-    ui.hello = hello;
-    debug.hello = hello;
-    debug.genMs = started.genMs;
-    map.reset(hello);
-    cam.cx = hello.width / 2;
-    cam.cy = hello.height / 2;
-    viewChanged();
-    status(null);
-  } catch (e) {
-    status(String((e as Error).message), true);
-  }
+}
+
+/** Show the game the worker just started (or loaded). */
+function began(started: Started): void {
+  hello = withLooks(started.hello);
+  ui.hello = hello;
+  debug.hello = hello;
+  debug.genMs = started.genMs;
+  map.reset(hello);
+  cam.cx = hello.width / 2;
+  cam.cy = hello.height / 2;
+  viewChanged();
 }
 
 /** The camera moved: redraw, and tell the worker what is on screen. */
@@ -205,6 +305,7 @@ function select(sx: number, sy: number): void {
   const [fx, fy] = cam.toTile(sx, sy);
   const x = Math.floor(fx), y = Math.floor(fy);
   if (x < 0 || y < 0 || x >= hello.width || y >= hello.height) return;
+  if (ui.shipTool !== null) { landShip(x, y); return; }
   const here: number[] = [];
   if (last && map.visible(x, y)) {
     const e = last.entities;
@@ -229,18 +330,127 @@ function tileUnder(sx: number, sy: number): [number, number] {
   ];
 }
 
+// Which tool the drag in progress marks for: the dig tool's or the zone tool's.
+let dragFor: 'dig' | 'zone' = 'dig';
+
 function dragArea(phase: 'start' | 'move' | 'end' | 'cancel', sx: number, sy: number): void {
   if (!hello) return;
-  if (phase === 'cancel') { digFrom = null; ui.dig.rect = null; ui.dig.tiles = 0; showDig(); return; }
+  if (phase === 'cancel') {
+    digFrom = null;
+    if (dragFor === 'dig') { ui.dig.rect = null; ui.dig.tiles = 0; showDig(); }
+    else { ui.zone.rect = null; showZone(); }
+    return;
+  }
   const here = tileUnder(sx, sy);
-  if (phase === 'start') digFrom = here;
+  if (phase === 'start') { digFrom = here; dragFor = ui.zone.armed ? 'zone' : 'dig'; }
   if (!digFrom) return;
-  ui.dig.rect = {
+  const rect = {
     x0: Math.min(digFrom[0], here[0]), y0: Math.min(digFrom[1], here[1]),
     x1: Math.max(digFrom[0], here[0]), y1: Math.max(digFrom[1], here[1]),
   };
-  showDig();
-  if (phase === 'end') { digFrom = null; ui.dig.armed = false; } // one area per press of the tool
+  if (dragFor === 'dig') { ui.dig.rect = rect; showDig(); }
+  else { ui.zone.rect = rect; showZone(); }
+  if (phase === 'end') { // one area per press of the tool
+    digFrom = null;
+    if (dragFor === 'dig') ui.dig.armed = false; else ui.zone.armed = false;
+  }
+}
+
+/** The zones topic (internal/wire/zones.go). */
+interface ZonesTopic { kinds: { name: string; color: string }[]; runs: number[][] }
+/** The zoning topic's structures, as the preview reads them. */
+interface ZoningTopic {
+  structures: { id: number; type: string; zone: number; x0: number; y0: number; x1: number; y1: number; built: number; ship: boolean; rising: boolean }[];
+}
+
+/** Draw the zones topic on the map. */
+function showZones(): void {
+  const z = topics.data.zones as ZonesTopic | undefined;
+  if (!z) { map.setZones([], []); return; }
+  map.setZones(z.runs, z.kinds.map((k) => (k.color ? palette.zoneTint(k.color, palette.ZONE_ALPHA) : undefined!)));
+}
+
+/** A previewed area this large is estimated but not tinted tile by tile. */
+const ZONE_PREVIEW_MAX = 250_000;
+
+/**
+ * Estimate what the zone tool would do to its area, as the engine would
+ * (internal/sim/zones.go), from the zones and zoning topics and the tile pages
+ * the page holds, and tint it. It is an estimate: the page cannot see which
+ * tiles another order has already marked, or which walls two rooms share.
+ */
+function showZone(): void {
+  const r = ui.zone.rect;
+  if (!r || !hello) {
+    ui.zone.preview = null;
+    if (!ui.dig.rect && ui.shipTool === null) map.setHighlight(null);
+    return;
+  }
+  const zones = topics.data.zones as ZonesTopic | undefined;
+  const zoning = topics.data.zoning as ZoningTopic | undefined;
+  const tool = ui.zone.tool;
+  const kind = tool === 'clear' ? -1 : Math.max(0, zones?.kinds.findIndex((k) => k.name === tool) ?? 0);
+  const floor = hello.enums.terrains.indexOf('floor');
+  const w = r.x1 - r.x0 + 1, h = r.y1 - r.y0 + 1;
+  const big = w * h > ZONE_PREVIEW_MAX;
+  // Each tile's zone and hold, within the area.
+  const zoneOf = big ? null : new Int16Array(w * h);
+  const held = big ? null : new Uint8Array(w * h);
+  if (zoneOf && held && zones) {
+    for (const [y, x0, x1, k, locked] of zones.runs) {
+      if (y < r.y0 || y > r.y1 || x1 < r.x0 || x0 > r.x1) continue;
+      for (let x = Math.max(x0, r.x0); x <= Math.min(x1, r.x1); x++) {
+        zoneOf[(y - r.y0) * w + (x - r.x0)] = k;
+        held[(y - r.y0) * w + (x - r.x0)] = locked;
+      }
+    }
+  }
+  const p: ZonePreview = { tiles: 0, locked: 0, dig: 0, evicted: [], clear: 0, rising: 0 };
+  const tint: { x: number; y: number; color: Uint8Array }[] = [];
+  const paint = kind <= 0 ? palette.UNZONE_PREVIEW
+    : palette.zoneTint(zones!.kinds[kind].color, palette.ZONE_PREVIEW_ALPHA);
+  const changed = (x: number, y: number) => {
+    if (!zoneOf || !held) return true;
+    const i = (y - r.y0) * w + (x - r.x0);
+    return !held[i] && zoneOf[i] !== kind;
+  };
+  for (let y = r.y0; y <= r.y1 && !big; y++) {
+    for (let x = r.x0; x <= r.x1; x++) {
+      const cell = map.tileAt(x, y);
+      const seen = cell !== null && (cell[1] & TILE_VISIBLE) !== 0;
+      if (kind < 0) {
+        if (seen && cell![0] !== 0 && cell![0] !== floor) {
+          p.tiles++;
+          tint.push({ x, y, color: palette.CLEAR_PREVIEW });
+        }
+        continue;
+      }
+      if (held![(y - r.y0) * w + (x - r.x0)]) { p.locked++; continue; }
+      if (changed(x, y)) { p.tiles++; tint.push({ x, y, color: paint }); }
+      if (kind > 0 && seen && cell![0] === 0) p.dig++;
+    }
+  }
+  for (const s of zoning?.structures ?? []) {
+    if (s.x1 < r.x0 || s.x0 > r.x1 || s.y1 < r.y0 || s.y0 > r.y1) continue;
+    if (kind < 0) { if (s.rising) p.rising++; continue; }
+    if (s.zone === kind) continue;
+    let hit = false;
+    for (let y = Math.max(s.y0, r.y0); y <= Math.min(s.y1, r.y1) && !hit; y++) {
+      for (let x = Math.max(s.x0, r.x0); x <= Math.min(s.x1, r.x1) && !hit; x++) hit = changed(x, y);
+    }
+    if (!hit) continue;
+    p.evicted.push({ id: s.id, type: s.type, built: s.built });
+    p.clear += s.built;
+    for (let y = s.y0; y <= s.y1 && tint.length < DIG_TINT_MAX; y++) {
+      for (let x = s.x0; x <= s.x1; x++) {
+        const cell = map.tileAt(x, y);
+        if (cell && cell[0] !== 0 && cell[0] !== floor) tint.push({ x, y, color: palette.CLEAR_PREVIEW });
+      }
+    }
+  }
+  if (kind < 0) p.clear = p.tiles;
+  ui.zone.preview = p;
+  map.setHighlight(tint.length > DIG_TINT_MAX ? tint.slice(0, DIG_TINT_MAX) : tint);
 }
 
 /** Count and tint the rock the colony has seen inside the marked area. */
@@ -263,6 +473,52 @@ function showDig(): void {
 }
 /** Tinting is for feedback; a huge drag counts its rock without drawing all of it. */
 const DIG_TINT_MAX = 4000;
+
+// The ship tool: the tile the pointer is over, and the preview's tints.
+let shipAt: [number, number] | null = null;
+const SHIP_OK = new Uint8Array([90, 200, 120, 120]);
+const SHIP_BAD = new Uint8Array([230, 70, 60, 120]);
+const SHIP_FROM = new Uint8Array([120, 160, 255, 70]);
+
+/** The ship the tool holds, and the ships topic it was picked from. */
+function heldShip(): { ships: ShipLine[]; ship: ShipLine } | null {
+  const t = topics.data.ships as ShipsTopic | undefined;
+  const ship = t?.placing ? t.ships.find((s) => s.id === ui.shipTool) : undefined;
+  return t && ship ? { ships: t.ships, ship } : null;
+}
+
+/** Tint where the held ship is now (unless it is still aloft), and where it would land under the pointer. */
+function showShipPreview(): void {
+  const held = heldShip();
+  if (!held || !hello) { map.setHighlight(null); return; }
+  const { ships, ship } = held;
+  const tiles: { x: number; y: number; color: Uint8Array }[] = [];
+  const paint = (o: { x: number; y: number }, color: Uint8Array) => {
+    for (const p of shipTiles(ship, o)) tiles.push({ ...p, color });
+  };
+  if (!ship.aloft) paint(ship, SHIP_FROM);
+  if (shipAt) {
+    const o = shipSiteAt(ship, shipAt[0], shipAt[1], hello.width, hello.height);
+    paint(o, shipSiteFree(ships, ship, o) ? SHIP_OK : SHIP_BAD);
+  }
+  map.setHighlight(tiles);
+}
+
+/**
+ * Land the held ship centered on tile (x, y), if it may land there, and put
+ * the tool down: down from orbit if it is still aloft, else moved. The Ships
+ * tab then hands the player the next ship aloft.
+ */
+function landShip(x: number, y: number): void {
+  const held = heldShip();
+  if (!held || !hello) { armShip(null); return; }
+  const o = shipSiteAt(held.ship, x, y, hello.width, hello.height);
+  if (!shipSiteFree(held.ships, held.ship, o)) return; // keep holding it: pick another spot
+  if (held.ship.aloft) landAloft(held.ship.id, o.x, o.y);
+  else moveShip(held.ship.id, o.x, o.y);
+  shipAt = null;
+  armShip(null);
+}
 
 /** Put the map's marker on the selection: a tile, or where the creature is now. */
 function updateMark(): void {
@@ -323,4 +579,9 @@ function showHover(sx: number, sy: number): void {
   ui.hover = parts.join(' · ');
 }
 
-void newGame(initialSettings());
+// A cold load starts no game: it opens the New game tab, filled from the URL
+// over the defaults, so the player sees what they are starting (and how many
+// ships it will be) before the world is generated. Start goes straight on to
+// landing the ships.
+status(null);
+setPanel('game');

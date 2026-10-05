@@ -1,6 +1,9 @@
 package sim
 
-import "sort"
+import (
+	"slices"
+	"sort"
+)
 
 // ---- The order book -------------------------------------------------------------
 //
@@ -50,6 +53,12 @@ type Order struct {
 	Depot   Point
 	Posted  int
 	Expires int // tick; 0 never
+	// Filled is how many units have traded so far, and Fills who they
+	// traded with, one line per counterparty in the order they first
+	// traded. They are for display (an order's detail page): nothing
+	// decides anything by them. See docs/order-detail.md.
+	Filled int
+	Fills  []Fill
 
 	// escrow is the money a bid is holding, Qty × Price at rest. An ask's
 	// escrow is goods, on the order's own ledger line at the depot.
@@ -93,6 +102,46 @@ type Trade struct {
 	Price  Money
 	Buyer  Owner
 	Seller Owner
+}
+
+// Fill is what one order has traded with one counterparty: how many units,
+// for how many dollars in all.
+type Fill struct {
+	With  Owner
+	Qty   int
+	Total Money
+}
+
+// recordFill notes n units traded with counterparty at price. An order's
+// fills are bounded by its counterparties, not its trades: a standing bid
+// filled one unit at a time by the same prospector stays one line.
+func (o *Order) recordFill(with Owner, n int, price Money) {
+	o.Filled += n
+	o.addFill(Fill{With: with, Qty: n, Total: Money(n) * price})
+}
+
+// addFill merges f into the counterparty's line, or starts one.
+func (o *Order) addFill(f Fill) {
+	for i := range o.Fills {
+		if o.Fills[i].With == f.With {
+			o.Fills[i].Qty += f.Qty
+			o.Fills[i].Total += f.Total
+			return
+		}
+	}
+	o.Fills = append(o.Fills, f)
+}
+
+// inherit carries prev's history onto o, the order that re-posts it (a
+// reprice cancels and posts again): when it opened, and what it had
+// filled, ahead of anything o filled on posting. Posted is display-only, so
+// this changes no matching; time priority is the new ID's.
+func (o *Order) inherit(prev *Order) {
+	fresh := o.Fills
+	o.Posted, o.Filled, o.Fills = prev.Posted, o.Filled+prev.Filled, slices.Clone(prev.Fills)
+	for _, f := range fresh {
+		o.addFill(f)
+	}
 }
 
 // maxTrades is how many recent trades the world keeps for display.
@@ -148,6 +197,8 @@ func (w *World) post(side Side, item ItemKind, qty int, price Money, actor Owner
 		}
 	}
 
+	w.posted[side][item]++
+	w.posted[side][ItemNone]++
 	key := bookKey{item, depot}
 	b := w.books[key]
 	if b == nil {
@@ -200,11 +251,17 @@ func (w *World) settle(b *book, c *StorageContainer, bid, ask *Order, n int, pri
 	w.transfer(bid.owner(), ask.Actor, Money(n)*price)
 	bid.Qty -= n
 	ask.Qty -= n
+	bid.recordFill(ask.Actor, n, price)
+	ask.recordFill(bid.Actor, n, price)
 	if over := w.balance(bid.owner()) - Money(bid.Qty)*bid.Price; over > 0 {
 		w.transfer(bid.owner(), bid.Actor, over)
 	}
 	b.last, b.traded = price, true
 	b.volume += n
+	w.tradedUnits[ask.Item] += int64(n)
+	w.tradedUnits[ItemNone] += int64(n)
+	w.tradedValue[ask.Item] += int64(n) * int64(price)
+	w.tradedValue[ItemNone] += int64(n) * int64(price)
 	w.recordPrice(ask.Item, price)
 	w.trades = append(w.trades, Trade{Tick: w.tick, Item: ask.Item, Depot: ask.Depot, Qty: n,
 		Price: price, Buyer: bid.Actor, Seller: ask.Actor})

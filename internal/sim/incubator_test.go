@@ -192,3 +192,54 @@ func putScum(w *World, p Point, n int) {
 	w.setScum(p, n)
 	w.exposedScum[p] = struct{}{}
 }
+
+// Once incubators stand the colony stops bidding for wild scum and withdraws
+// the bids it had, but a player's order for scum still gets scraped for: the
+// incubators stop the colony asking, not colonists answering.
+func TestAPlayersScumOrderIsScrapedForWithAnIncubatorStanding(t *testing.T) {
+	w, house, inc := incubatorWorld(t)
+	seedIncubator(w, inc, w.incubatorSeed()) // seeded, so nobody is sent to seed it
+	putScum(w, Point{18, 8}, 3)
+	w.storageContainers[house].Inventory.AddAll(ItemStack{Meal, 30})
+	w.storageContainers[house].credit(Community, Meal, 30)
+	w.storedMealsTick = -1
+	if w.wildScumAllowed() {
+		t.Fatal("stores are full and an incubator stands, so this test proves nothing")
+	}
+
+	standing, _ := w.post(Bid, CaveScum, 5, 2, Community, house, 0)
+	w.refreshBiomatterBids()
+	if w.orders[standing.ID] != nil {
+		t.Fatal("the colony kept its standing scum bid with an incubator feeding the stoves")
+	}
+
+	if !w.placeColonyOrder(PlaceColonyOrder{Side: Bid, Item: CaveScum, Qty: 25, Price: 3, Depot: house}) {
+		t.Fatal("the player's scum order was refused")
+	}
+	var mine *Order
+	for _, o := range w.orders {
+		if o.Side == Bid && o.Item == CaveScum && o.manual {
+			mine = o
+		}
+	}
+	w.refreshBiomatterBids()
+	if mine == nil || w.orders[mine.ID] == nil {
+		t.Fatal("the colony's upkeep withdrew the player's scum order")
+	}
+
+	w.spawn(Colonist, Point{17, 8})
+	for i := 0; i < 2000 && mine.Qty == 25; i++ {
+		w.step()
+		for _, e := range w.entities {
+			if e.Kind == Colonist {
+				quietDrives(w, e) // keep the test about work, not survival
+			}
+		}
+	}
+	if mine.Qty == 25 {
+		t.Fatal("nobody scraped for the player's scum order")
+	}
+	if w.wildScumAllowed() {
+		t.Fatal("times turned dire, so this test no longer shows the order beating the incubator gate")
+	}
+}

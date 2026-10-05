@@ -9,7 +9,9 @@ economy with a chain deeper than meal ← scum. A **forge** smelts iron ore into
 **steel ingots**, and a **gun bench** machines steel into **assault rifles**.
 The planner builds the two together in a **foundry** room. Nobody runs the
 foundry. The colony keeps a standing bid for rifles at its silo (the
-**armory**), and the [producer planner](./valuation.md) carries that demand
+**armory**; not under `standing-orders-build-only`, the default, where the
+player bids for rifles from the Market tab — see
+[colony-orders.md](./colony-orders.md)), and the [producer planner](./valuation.md) carries that demand
 three links down to the ore vein, one ordinary bid at a time.
 
 ## Source
@@ -54,7 +56,10 @@ depot (`outputDepot`).
 ### Building it
 
 `foundryRoom` is the forge and the gun bench a tile apart, with an aisle
-(five tiles wide), falling back to a narrow room in a cramped cavern. The
+(five tiles wide), falling back to a narrow room in a cramped cavern. Both
+are production, so the pair goes into a production room the colony already
+has (a kitchen with floor to spare) before a foundry is marked out (see
+[room-expansion.md](./room-expansion.md)). The
 planner wants one while `armory-rifles` is above 0 and it has no forge or no
 gun bench planned or built (`wantsFoundry`). It comes **last** in
 `planRooms`, after beds and the trash room: nothing about rifles keeps anyone

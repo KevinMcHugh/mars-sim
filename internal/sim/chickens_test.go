@@ -1,6 +1,9 @@
 package sim
 
-import "testing"
+import (
+	"slices"
+	"testing"
+)
 
 // petWorld lands colonists whose one rare item is always the given one.
 func petWorld(t *testing.T, gun, hen, cat, colonists int) *World {
@@ -11,8 +14,9 @@ func petWorld(t *testing.T, gun, hen, cat, colonists int) *World {
 	return newTestWorld(t, cfg)
 }
 
-// A chicken keeper's pod has a stocked trough of its own, and its hen steps
-// out beside it; a cat owner's cat steps out the same way. Neither lands with
+// A chicken keeper has a stocked trough of its own in its ship's hold, and
+// its hen steps out into the ship beside it; a cat owner's cat steps out the
+// same way. Neither lands with
 // a gun: everyone gets exactly one rare item.
 func TestPetsLandInTheirKeepersPods(t *testing.T) {
 	w := petWorld(t, 0, 1, 0, 3)
@@ -23,11 +27,11 @@ func TestPetsLandInTheirKeepersPods(t *testing.T) {
 		if bestWeapon(e.Inventory) != ItemNone {
 			t.Fatalf("%s keeps chickens and also carries a gun", e.displayName())
 		}
-		trough := e.podOrigin.Add(podTrough.X, podTrough.Y)
 		c, ok := w.troughOf(e)
-		if !ok || e.trough != trough {
-			t.Fatalf("%s has no trough at %v", e.displayName(), trough)
+		if !ok || !e.hasTrough || w.TerrainAt(e.trough) != Trough {
+			t.Fatalf("%s has no trough", e.displayName())
 		}
+		trough := e.trough
 		if f := w.fixtures[trough]; f == nil || f.Owner != ColonistOwner(e.ID) || f.Access != AccessPrivate {
 			t.Fatalf("%s's trough is not its own: %+v", e.displayName(), f)
 		}
@@ -49,8 +53,11 @@ func TestPetsLandInTheirKeepersPods(t *testing.T) {
 	for id := range w.kindEntities[Cat] {
 		cat := w.entities[id]
 		owner := w.entities[cat.keeper]
-		if owner == nil || owner.Kind != Colonist || cat.Pos != owner.podOrigin.Add(podPet.X, podPet.Y) {
-			t.Fatalf("cat #%d at %v did not step out of its owner's pod", cat.ID, cat.Pos)
+		if owner == nil || owner.Kind != Colonist {
+			t.Fatalf("cat #%d has no colonist keeper", cat.ID)
+		}
+		if s := w.shipByID(owner.ship); s == nil || !slices.Contains(s.Pets, cat.ID) || !shipInterior(s, cat.Pos) {
+			t.Fatalf("cat #%d at %v did not step out of its owner's ship", cat.ID, cat.Pos)
 		}
 		if owner.hasTrough {
 			t.Fatalf("a cat owner landed with a trough")

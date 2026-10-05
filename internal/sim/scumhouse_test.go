@@ -308,6 +308,9 @@ func TestScumSpreadsAtItsRateOnAnyMap(t *testing.T) {
 		w := newTestWorld(t, cfg)
 		w.cfg.ScumPercent = 0 // no room: spread only thickens
 		w.cfg.ScumMax = 1 << 30
+		for p, s := range w.scum {
+			w.putScum(p, s.amount) // every patch is below the new cap: scumThin follows it
+		}
 		w.cfg.ScumSpawnPPM, w.cfg.ScumSpreadPercent = 0, 40
 		before, landing := 0, 0
 		for p, s := range w.scum {
@@ -335,18 +338,40 @@ func TestScumSpreadsAtItsRateOnAnyMap(t *testing.T) {
 }
 
 // assertScumPatchesListed checks that scumPatches lists exactly the patches
-// on the map, in cmpScumPatch order: growScum draws from it.
+// on the map, in cmpScumPatch order, and scumThin exactly the ones below
+// ScumMax: growScum draws from both.
 func assertScumPatchesListed(t *testing.T, w *World) {
 	t.Helper()
-	if len(w.scumPatches) != len(w.scum) {
-		t.Fatalf("scumPatches lists %d patches, the map holds %d", len(w.scumPatches), len(w.scum))
+	listed := w.scumPatches.appendTo(nil)
+	if len(listed) != len(w.scum) || w.scumPatches.len() != len(w.scum) {
+		t.Fatalf("scumPatches lists %d patches (len %d), the map holds %d", len(listed), w.scumPatches.len(), len(w.scum))
 	}
-	if !slices.IsSortedFunc(w.scumPatches, cmpScumPatch) {
+	if !slices.IsSortedFunc(listed, cmpScumPatch) {
 		t.Fatal("scumPatches is out of order")
 	}
-	for _, p := range w.scumPatches {
+	for k, p := range listed {
 		if _, ok := w.scum[p]; !ok {
 			t.Fatalf("scumPatches lists %v, which has no patch", p)
+		}
+		if got := w.scumPatches.at(k); got != p {
+			t.Fatalf("scumPatches.at(%d) = %v, want %v", k, got, p)
+		}
+	}
+	for p, s := range w.scum {
+		if _, thin := w.scumThin[p]; thin != (s.amount < w.cfg.ScumMax) {
+			t.Fatalf("patch %v holds %d of %d, but scumThin says thin=%v", p, s.amount, w.cfg.ScumMax, thin)
+		}
+	}
+	if len(w.scumThin) > len(w.scum) {
+		t.Fatalf("scumThin lists %d patches, the map holds %d", len(w.scumThin), len(w.scum))
+	}
+	pages := map[int]int32{}
+	for p := range w.scumThin {
+		pages[w.tiles.pageIndex(p.X, p.Y)]++
+	}
+	for i, n := range w.scumThinPages {
+		if n != pages[i] {
+			t.Fatalf("page %d counts %d thin patches, holds %d", i, n, pages[i])
 		}
 	}
 }

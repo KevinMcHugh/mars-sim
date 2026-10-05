@@ -48,9 +48,10 @@ import "slices"
 // cannot see a colonist's own bunk — which may well be nearer than the nearest
 // communal one. While any fixture of a kind is restricted, then, the field
 // tiers are skipped and the bounded search runs, skipping what the colonist
-// may not use. With crash pods that is every bunk and toilet choice; the
-// search stops at the first usable free facility, usually the colonist's own
-// a few tiles away, so it stays cheap.
+// may not use. With a private bunk or toilet anywhere (a house's, or the
+// crash pods' that ships replaced) that is every bunk and toilet choice; the
+// search stops at the first usable free facility, usually a few tiles away,
+// so it stays cheap.
 
 // chooseFacility assigns a concrete facility to a drive. The assignment is
 // retained on the entity for the whole use job, so a user never ping-pongs

@@ -2,6 +2,7 @@ package sim
 
 import (
 	"math"
+	"slices"
 	"sort"
 )
 
@@ -40,7 +41,7 @@ type EntityView struct {
 	// other kind. See docs/lore.md.
 	AlienSpecies AlienSpecies
 	// Keeper is the colonist a pet (a chicken or a cat) came down with in its
-	// crash pod, 0 for a stray or anything that is not a pet. See
+	// ship, 0 for a stray or anything that is not a pet. See
 	// docs/chickens.md.
 	Keeper EntityID
 
@@ -66,10 +67,13 @@ type EntityView struct {
 	Skills          []SkillView
 	Profession      SkillKind
 	ProfessionLabel string
+	// Backstory is a colonist's one-line past, "Worked as a drill operator
+	// for MarsCorp." ("" for none). Flavor only; see docs/arms-makers.md.
+	Backstory string
 
 	// Dead, DiedTick, and Cause are set only on a Snapshot.Graveyard or
 	// Snapshot.Deceased entry: it died at DiedTick (from Cause, a short
-	// player-facing phrase like "shot by Zoe Vargas with a shotgun"), and
+	// player-facing phrase like "shot by Zoe Vargas with a MarsCorp M-117 shotgun"), and
 	// every other field is frozen from that moment — Pos is where it died,
 	// not where anything is now.
 	Dead     bool
@@ -140,14 +144,16 @@ func (p ProjectView) Assignees() []EntityID {
 }
 
 // EconomyView is the colony's money supply at a glance, for the market tab.
-// Issued always equals Circulating + Frozen; a frontend can show the three
-// side by side without re-deriving any of them. See docs/money.md.
+// Issued always equals Circulating + Frozen + Escrowed + Exported; a frontend
+// can show them side by side without re-deriving any of them. See
+// docs/money.md.
 type EconomyView struct {
 	Treasury    Money // the community's balance
 	Circulating Money // treasury plus every living colonist's wallet
 	Frozen      Money // locked in dead colonists' wallets
 	Escrowed    Money // held by open bids until they fill or are cancelled
-	Issued      Money // every dollar ever minted: Circulating + Frozen + Escrowed
+	Exported    Money // paid off-world: the recruiter's fees and recruits' passage
+	Issued      Money // every dollar ever minted: Circulating + Frozen + Escrowed + Exported
 
 	// The order book (see docs/market.md): every open order oldest first,
 	// every book that has ever had an order by depot then item, and the
@@ -212,10 +218,19 @@ type OrderView struct {
 	Price Money
 	Actor Owner
 	Depot Point
-	// Posted is the tick it was posted, and Manual whether a player placed
-	// or repriced it for the colony (see docs/colony-orders.md).
+	// Posted is the tick it was posted (a reprice keeps the original's),
+	// and Manual whether a player placed or repriced it for the colony (see
+	// docs/colony-orders.md).
 	Posted int
 	Manual bool
+	// Expires is the tick it expires, 0 never. Escrow is the money a bid
+	// still holds (an ask's escrow is its Qty in goods). Filled and Fills
+	// are what it has traded so far, and with whom (see Fill and
+	// docs/order-detail.md); Fills is a copy.
+	Expires int
+	Escrow  Money
+	Filled  int
+	Fills   []Fill
 }
 
 // BookView summarizes one (item, depot) book: the best price and depth on
@@ -237,6 +252,7 @@ func (w *World) economyView() EconomyView {
 		Circulating: w.moneyInCirculation(),
 		Frozen:      w.moneyFrozen,
 		Escrowed:    w.moneyEscrowed(),
+		Exported:    w.moneyExported,
 		Issued:      w.moneyIssued,
 		Trades:      append([]Trade(nil), w.trades...),
 	}
@@ -249,7 +265,8 @@ func (w *World) economyView() EconomyView {
 	}
 	for _, o := range w.sortedOrders(nil) {
 		v.Orders = append(v.Orders, OrderView{ID: o.ID, Side: o.Side, Item: o.Item, Qty: o.Qty,
-			Price: o.Price, Actor: o.Actor, Depot: o.Depot, Posted: o.Posted, Manual: o.manual})
+			Price: o.Price, Actor: o.Actor, Depot: o.Depot, Posted: o.Posted, Manual: o.manual,
+			Expires: o.Expires, Escrow: o.escrow, Filled: o.Filled, Fills: slices.Clone(o.Fills)})
 	}
 	for k, b := range w.books {
 		bv := BookView{Item: k.Item, Depot: k.Depot, Last: b.last, Volume: b.volume, Traded: b.traded}
@@ -404,7 +421,16 @@ type Stats struct {
 // Tiles aliases the live map, and the frame's terrain is only good on the
 // engine's goroutine until the next tick. Everything else stays a copy.
 type Snapshot struct {
-	Tick   int
+	Tick int
+	// TicksPerDay is Config.TicksPerDay, for a frontend turning some other
+	// tick (an order's Posted) into a day and a clock time with DayOf and
+	// MinuteOfDay. See docs/days.md.
+	TicksPerDay int
+	// Ships is every colony ship that has landed, in landing order, then any
+	// still aloft (see LandShip). Before the first tick (Tick 0) a frontend
+	// may land the next aloft one with LandShip and move landed ones with
+	// MoveShip.
+	Ships  []ShipView
 	Width  int
 	Height int
 	// Seed is this run's world seed -- the one fact that, together with the
@@ -468,16 +494,35 @@ type Snapshot struct {
 	// incinerators, storage), sorted by position. The slice is shared between
 	// frames until a fixture changes, and never written after publication.
 	Fixtures []FixtureView
+	// Zoning (see docs/zoning.md). Zones is every zoned tile as row runs,
+	// sorted by row then column; Structures every standing or rising
+	// structure, by id. Both are shared between frames until they change,
+	// and never written after publication. ZoneWaiting lists the fixture
+	// kinds the colony wants and no zone has room for. ZoningAuto is the
+	// zoning-auto setting; ClearWage what clearing one tile pays.
+	Zones       []ZoneRun
+	Structures  []StructureView
+	ZoneWaiting []Terrain
+	ZoningAuto  bool
+	ClearWage   Money
 
 	// AlienSpecies is this world's roster of rolled alien species -- each
 	// one's build, colloquial name, and temperament. Every Alien in Entities
 	// carries a copy of the one it belongs to on its own EntityView.AlienSpecies;
 	// this is the full roster, for a codex-style listing. See docs/lore.md.
 	AlienSpecies []AlienSpecies
+	// Corporations is this world's roster of companies, and GunModels the make
+	// and model each gun kind carries (Maker indexes Corporations). Flavor
+	// only. See docs/arms-makers.md.
+	Corporations []Corporation
+	GunModels    []GunModel
 
 	// Economy is the money supply; each colonist's own balance is on its
 	// EntityView.Wallet.
 	Economy EconomyView
+	// Recruiting is the recruiter's terms and the set on offer (see
+	// docs/recruiting.md).
+	Recruiting RecruitingView
 
 	AffinityMax    int // affinity display bars run [-AffinityMax, AffinityMax]
 	MoodMax        int // charge and grip each run in [-MoodMax, MoodMax]
@@ -492,6 +537,10 @@ type Snapshot struct {
 	// Population is the colony's vital signs over the whole game, oldest
 	// first; see population.go. Shared between snapshots, never written.
 	Population []PopulationSample
+	// Metrics is everything the chart system can plot, sampled hourly on
+	// the colony clock over the whole game; see metrics.go and
+	// docs/charts.md. Shared between snapshots, never written.
+	Metrics *MetricsView
 
 	// FlowFields lists every shared flow field, in a stable order, for a
 	// frontend that offers to show one. FlowField is the one it asked for
@@ -644,6 +693,7 @@ func (w *World) snapshot(paused bool, tps int) *Snapshot {
 
 	return &Snapshot{
 		Tick:                 w.tick,
+		TicksPerDay:          tpd,
 		Width:                w.Width,
 		Height:               w.Height,
 		Seed:                 w.cfg.Seed,
@@ -664,16 +714,26 @@ func (w *World) snapshot(paused bool, tps int) *Snapshot {
 		PendingIncubators:    w.manualIncubators,
 		Storages:             storages,
 		Fixtures:             w.publishedFixtures(),
+		Zones:                w.publishedZones(),
+		Structures:           w.publishedStructures(),
+		ZoneWaiting:          w.zoneWaiting(),
+		ZoningAuto:           w.cfg.ZoningAuto,
+		ClearWage:            Money(w.cfg.WageDemolish),
 		Scum:                 w.publishedScum(),
 		Salt:                 w.publishedSalt(),
 		Graveyard:            append([]EntityView(nil), w.graveyard...),
 		Deceased:             w.publishedDeceasedColonists(),
 		AlienSpecies:         append([]AlienSpecies(nil), w.alienSpecies...),
+		Corporations:         append([]Corporation(nil), w.corporations...),
+		GunModels:            append([]GunModel(nil), w.gunModels...),
 		Population:           w.popHist,
+		Metrics:              w.metricsView(),
 		Economy:              w.economyView(),
+		Recruiting:           w.recruitingView(),
 		AffinityMax:          w.cfg.AffinityMax,
 		MoodMax:              w.cfg.MoodMax,
 		ScumMax:              w.cfg.ScumMax,
+		Ships:                w.shipViews(),
 		Paused:               paused,
 		TicksPerSecond:       tps,
 		FogOfWar:             w.cfg.FogOfWar,
@@ -751,6 +811,7 @@ func (w *World) entityView(e *Entity, kinChildren map[kinID][]kinID, full bool) 
 		ev.Memories = append([]Memory(nil), e.Memories...)
 		ev.Skills = e.skillViews()
 		ev.Profession, ev.ProfessionLabel = e.profession, e.professionLabel()
+		ev.Backstory = w.backstory(e)
 		if full {
 			ev.Relations = append([]Relation(nil), w.cachedRelations(e, kinChildren)...)
 			ev.Affinities = w.affinitiesOf(e.ID)

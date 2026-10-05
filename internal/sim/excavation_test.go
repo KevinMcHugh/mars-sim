@@ -161,10 +161,23 @@ func TestCancellingAnExcavationRefundsTheTreasury(t *testing.T) {
 		t.Fatal("order refused")
 	}
 	p := w.projects[len(w.projects)-1]
-	for i := 0; i < 300 && w.workEscrowed() == w.projectCost(p); i++ {
+	// Only this project's escrow: the planner may mark out a room meanwhile,
+	// since an excavation does not take a room's place (roomProjects).
+	held := func() Money {
+		var m Money
+		for _, task := range p.tasks {
+			if o := task.order; o != nil && w.workOrders[o.ID] == o {
+				m += o.escrow
+			}
+		}
+		return m
+	}
+	for i := 0; i < 300 && held() == w.projectCost(p); i++ {
 		w.step() // until somebody has dug and been paid for a tile
 	}
-	paid := w.projectCost(p) - w.workEscrowed()
+	paid := w.projectCost(p) - held()
+	others := w.workEscrowed() - held()
+	treasury := w.treasury
 	if !w.cancelExcavation(p.id) {
 		t.Fatal("cancel refused")
 	}
@@ -173,8 +186,9 @@ func TestCancellingAnExcavationRefundsTheTreasury(t *testing.T) {
 			t.Fatal("the project is still open")
 		}
 	}
-	if w.workEscrowed() != 0 || w.treasury != before-paid {
-		t.Fatalf("escrow %v, treasury %v; want 0 and %v (paid out %v)", w.workEscrowed(), w.treasury, before-paid, paid)
+	if w.workEscrowed() != others || w.treasury != treasury+w.projectCost(p)-paid {
+		t.Fatalf("escrow %v (others hold %v), treasury %v; want %v (paid out %v, ordered at %v)",
+			w.workEscrowed(), others, w.treasury, treasury+w.projectCost(p)-paid, paid, before)
 	}
 	assertMoneyConserved(t, w)
 	if w.cancelExcavation(p.id) {

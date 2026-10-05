@@ -5,9 +5,11 @@
   // so upkeep stops posting it. The orders are ordinary ones on the book, escrowed from the
   // treasury or the colony's stock (docs/colony-orders.md). The data is the
   // market topic's colony desk (internal/wire/boards.go); the outcome of a
-  // command lands in the log.
+  // command lands in the log. An order opens its detail (OrderDetail) on a
+  // click.
   import { cancelColonyOrder, centerOn, placeColonyOrder, repriceColonyOrder, resumeColonyOrders, suspendColonyOrders } from '../game.svelte';
   import { money } from './format';
+  import OrderDetail from './OrderDetail.svelte';
 
   interface Desk {
     orders: { id: number; side: 'bid' | 'ask'; item: string; qty: number; price: number; x: number; y: number; posted: number; manual: boolean }[];
@@ -27,18 +29,35 @@
 
   // ---- placing -------------------------------------------------------------
 
-  let side: 'bid' | 'ask' = $state('bid');
+  let side = $state<'bid' | 'ask'>('bid');
   let item = $state('');
   let qty: number | null = $state(1);
-  // Empty means "the item's market value", shown as the placeholder.
+  // Filled in with the item's market value whenever the side or item changes
+  // (below); empty still means the market value.
   let priceIn: number | null = $state(null);
   let depotKey = $state('');
 
-  const depot = $derived(desk.depots.find((d) => `${d.x},${d.y}` === depotKey) ?? desk.depots[0]);
-  const chosenItem = $derived(item || desk.items[0] || '');
+  const held = (d: Desk['depots'][number] | undefined, it: string) => d?.holdings.find((h) => h.item === it)?.count ?? 0;
+  // Selling, offer only what there is to sell: the depots where the colony
+  // holds something, and the items it holds at the chosen one. Buying, any
+  // depot and any item will do.
+  const depots = $derived(side === 'ask' ? desk.depots.filter((d) => d.holdings.some((h) => h.count > 0)) : desk.depots);
+  const depot = $derived(depots.find((d) => `${d.x},${d.y}` === depotKey) ?? depots[0]);
+  const items = $derived(side === 'ask' ? desk.items.filter((it) => held(depot, it) > 0) : desk.items);
+  // A choice the filter hides (switching side or depot) falls back to the first.
+  const chosenItem = $derived(items.includes(item) ? item : (items[0] ?? ''));
   const value = $derived(prices.find((p) => p.item === chosenItem)?.value ?? 0);
   const price = $derived(priceIn != null && !Number.isNaN(priceIn) ? priceIn : value);
-  const held = (d: Desk['depots'][number] | undefined, it: string) => d?.holdings.find((h) => h.item === it)?.count ?? 0;
+  // Prefill the price, so the field shows the number the order will go at. Only
+  // a new side or item (or the value arriving at all) refills it: the market
+  // value moving under a price the player typed leaves that price alone.
+  let pricedFor = '';
+  $effect(() => {
+    const key = `${side}|${chosenItem}|${value > 0}`;
+    if (key === pricedFor) return;
+    pricedFor = key;
+    priceIn = value > 0 ? value : null;
+  });
   const heldHere = $derived(held(depot, chosenItem));
   const book = $derived(depot && books.find((b) => b.item === chosenItem && b.x === depot.x && b.y === depot.y));
   const n = $derived(qty ?? 0);
@@ -46,7 +65,7 @@
   // Why the order cannot go, or null if it can. The engine checks all of it
   // again; this only saves a round trip to the log.
   const blocked = $derived.by(() => {
-    if (!depot) return 'The colony has no communal depot to trade at yet.';
+    if (!depot) return side === 'ask' && desk.depots.length > 0 ? 'The colony holds nothing at any depot to sell.' : 'The colony has no communal depot to trade at yet.';
     if (!chosenItem) return 'Pick an item.';
     if (!Number.isInteger(n) || n < 1) return 'The quantity must be a whole number, at least 1.';
     if (!Number.isInteger(price) || price < 1) return 'The price must be a whole number of dollars, at least $1.';
@@ -64,7 +83,7 @@
   function place() {
     if (blocked || !depot) return;
     placeColonyOrder({ side, item: chosenItem, qty: n, price, x: depot.x, y: depot.y });
-    priceIn = null;
+    priceIn = value > 0 ? value : null;
   }
 
   // ---- repricing -----------------------------------------------------------
@@ -92,10 +111,14 @@
     editing = null;
   }
 
-  // The row being edited leaves the book (filled, or repriced elsewhere):
-  // stop editing it.
+  // The order whose detail is open under its row (OrderDetail).
+  let detail: number | null = $state(null);
+
+  // The row being edited or detailed leaves the book (filled, or repriced,
+  // which re-posts it under a new id): stop editing or showing it.
   $effect(() => {
     if (editing != null && !desk.orders.some((o) => o.id === editing)) editing = null;
+    if (detail != null && !desk.orders.some((o) => o.id === detail)) detail = null;
   });
 
   const verb = (side: 'bid' | 'ask') => (side === 'bid' ? 'buying' : 'selling');
@@ -117,15 +140,15 @@
   <label>
     <span>Item</span>
     <select value={chosenItem} onchange={(e) => (item = e.currentTarget.value)}>
-      {#each desk.items as it (it)}
+      {#each items as it (it)}
         <option value={it}>{it}{side === 'ask' ? ` (${held(depot, it)} held)` : ''}</option>
       {/each}
     </select>
   </label>
   <label>
     <span>Depot</span>
-    <select value={depot ? `${depot.x},${depot.y}` : ''} onchange={(e) => (depotKey = e.currentTarget.value)} disabled={desk.depots.length === 0}>
-      {#each desk.depots as d (d.x + ',' + d.y)}
+    <select value={depot ? `${depot.x},${depot.y}` : ''} onchange={(e) => (depotKey = e.currentTarget.value)} disabled={depots.length === 0}>
+      {#each depots as d (d.x + ',' + d.y)}
         <option value={`${d.x},${d.y}`}>{d.silo ? 'silo' : d.label} at {d.x},{d.y}</option>
       {/each}
     </select>
@@ -165,7 +188,8 @@
         <tr>
           <td><span class="tag" class:manual={o.manual} title={o.manual ? 'placed or repriced by you; the colony leaves it alone' : 'a standing order the colony keeps topped up: withdrawn, it is posted again'}>{o.manual ? 'yours' : 'auto'}</span></td>
           <td>
-            {o.side === 'bid' ? 'buy' : 'sell'} {o.qty} {o.item}
+            <button type="button" class="link" aria-expanded={o.id === detail} title="Show this order's detail"
+              onclick={() => (detail = detail === o.id ? null : o.id)}>{o.side === 'bid' ? 'buy' : 'sell'} {o.qty} {o.item}</button>
             <div class="acts">
             {#if editing !== o.id}
               <button type="button" onclick={() => startEdit(o)} title="Re-post at another price; it joins the back of the queue">Reprice</button>
@@ -191,6 +215,9 @@
           </td>
           <td><button type="button" class="link" onclick={() => centerOn(o.x, o.y)}>{depotLabel(o.x, o.y)}</button></td>
         </tr>
+        {#if o.id === detail}
+          <tr class="detail"><td colspan="4"><OrderDetail id={o.id} /></td></tr>
+        {/if}
       {/each}
     </tbody>
   </table>
@@ -241,4 +268,5 @@
   .tag.manual { color: #fff; border-color: var(--accent); background: rgba(224, 112, 58, 0.25); }
   .link { border: none; background: none; padding: 0; color: #8fd0ff; cursor: pointer; font: inherit; }
   .link:hover { text-decoration: underline; }
+  tr.detail td { border-top: none; padding: 0 4px; white-space: normal; width: auto; }
 </style>

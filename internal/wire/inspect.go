@@ -19,7 +19,8 @@ import (
 // health bar moves while you watch, and one creature is cheap to build.
 const inspectEvery = 250 * time.Millisecond
 
-// paramTopic resolves "entity:<id>" and "tile:<x>,<y>".
+// paramTopic resolves "entity:<id>" and "tile:<x>,<y>", and the other
+// topics that take a parameter: roster:, account:, book: and order:.
 func paramTopic(name string) (topic, bool) {
 	kind, arg, ok := strings.Cut(name, ":")
 	if !ok {
@@ -33,17 +34,24 @@ func paramTopic(name string) (topic, bool) {
 		}
 		return topic{every: inspectEvery, build: func(s *sim.Snapshot) any { return entityTopic(s, sim.EntityID(id)) }}, true
 	case "tile":
-		xs, ys, ok := strings.Cut(arg, ",")
-		x, errX := strconv.Atoi(xs)
-		y, errY := strconv.Atoi(ys)
-		if !ok || errX != nil || errY != nil {
+		p, ok := parsePoint(arg)
+		if !ok {
 			return topic{}, false
 		}
-		return topic{every: inspectEvery, build: func(s *sim.Snapshot) any { return tileTopic(s, sim.Point{X: x, Y: y}) }}, true
+		return topic{every: inspectEvery, build: func(s *sim.Snapshot) any { return tileTopic(s, p) }}, true
 	case "roster":
 		return rosterParam(arg)
 	case "account":
 		return accountParam(arg)
+	case "book":
+		return bookParam(arg)
+	case "order":
+		return orderParam(arg)
+	case "series":
+		if arg == "" {
+			return topic{}, false
+		}
+		return topic{every: chartEvery, build: func(s *sim.Snapshot) any { return seriesTopic(s, arg) }}, true
 	}
 	return topic{}, false
 }
@@ -110,9 +118,12 @@ type ColonistDetail struct {
 	Skills          []SkillLevel `json:"skills"`
 	Profession      string       `json:"profession,omitempty"`
 	ProfessionLabel string       `json:"professionLabel,omitempty"`
-	Family          []Kin        `json:"family"`
-	Affinities      []Acquaint   `json:"affinities"`
-	AffinityMax     int          `json:"affinityMax"`
+	// Backstory is its one-line past, "Worked as a drill operator for
+	// MarsCorp." ("" for none). Flavor only (docs/arms-makers.md).
+	Backstory   string     `json:"backstory,omitempty"`
+	Family      []Kin      `json:"family"`
+	Affinities  []Acquaint `json:"affinities"`
+	AffinityMax int        `json:"affinityMax"`
 	// Memories are newest first.
 	Memories []MemoryLine `json:"memories"`
 }
@@ -280,6 +291,7 @@ func colonistDetail(s *sim.Snapshot, e sim.EntityView, p *sim.Profile) *Colonist
 	if e.Profession != sim.SkillNone {
 		c.Profession, c.ProfessionLabel = e.Profession.String(), e.ProfessionLabel
 	}
+	c.Backstory = e.Backstory
 	if len(e.Relations) > 0 || len(e.Affinities) > 0 {
 		names := colonistNames(s)
 		for _, r := range e.Relations {

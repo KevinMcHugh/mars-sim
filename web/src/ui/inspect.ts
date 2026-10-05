@@ -18,6 +18,8 @@ export interface Colonist {
   skills: { name: string; label: string; rank: number; maxRank: number; practice: number }[];
   /** The skill it's known for, and its title in it; absent until it has one. */
   profession?: string; professionLabel?: string;
+  /** Who it worked for back home, "Worked as a drill operator for MarsCorp."; flavor only. */
+  backstory?: string;
   family: { relation: string; id: number; name: string }[];
   affinities: { id: number; name: string; value: number }[];
   affinityMax: number;

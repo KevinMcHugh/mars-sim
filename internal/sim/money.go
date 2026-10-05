@@ -82,7 +82,29 @@ func (w *World) transfer(from, to Owner, amount Money) bool {
 	}
 	*src -= amount // src and dst may be the same account; the net is zero
 	*dst += amount
+	if amount > 0 && to.Kind != ownerOrder && to.Kind != ownerWork && w.payer(from) != to {
+		// Money changed hands: not into escrow, and not escrow coming home.
+		w.moneyMoved += amount
+		w.payments++
+	}
 	return true
+}
+
+// payer is whose money an account holds: an order's or a work order's
+// escrow is its poster's, and anyone else's is their own. Escrow paid back
+// to its payer is a refund, not a payment.
+func (w *World) payer(o Owner) Owner {
+	switch o.Kind {
+	case ownerOrder:
+		if ord := w.orders[OrderID(o.ID)]; ord != nil {
+			return ord.Actor
+		}
+	case ownerWork:
+		if wo := w.workOrders[OrderID(o.ID)]; wo != nil {
+			return wo.Issuer
+		}
+	}
+	return o
 }
 
 // mint creates money in an account. Only the founding grant and a new
@@ -98,6 +120,24 @@ func (w *World) mint(to Owner, amount Money) bool {
 	}
 	*dst += amount
 	w.moneyIssued += amount
+	return true
+}
+
+// export pays amount out of an account to someone off-world (the recruiter,
+// a recruit's passage), and reports whether it did. It is mint's mirror: the
+// money leaves the colony's supply, so it is counted in moneyExported to keep
+// the supply auditable. Like transfer it refuses a negative amount, an owner
+// with no account, and anything that would take the account below zero.
+func (w *World) export(from Owner, amount Money) bool {
+	if amount < 0 {
+		return false
+	}
+	src := w.account(from)
+	if src == nil || *src < amount {
+		return false
+	}
+	*src -= amount
+	w.moneyExported += amount
 	return true
 }
 
@@ -140,8 +180,9 @@ func (w *World) freezeWallet(e *Entity) {
 }
 
 // moneyInCirculation is every spendable dollar: the treasury plus every living
-// colonist's wallet. With no taxes and no sinks, it plus moneyFrozen plus the
-// money held by open bids (moneyEscrowed) always equals moneyIssued;
+// colonist's wallet. It plus moneyFrozen, the money held by open bids
+// (moneyEscrowed) and the money paid off-world (moneyExported) always equals
+// moneyIssued;
 // TestMoneyIsConserved holds the colony to that.
 func (w *World) moneyInCirculation() Money {
 	total := w.treasury

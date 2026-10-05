@@ -7,7 +7,9 @@ import "testing"
 func noScum(w *World) {
 	w.scum = map[Point]scumPatch{}
 	w.exposedScum = map[Point]struct{}{}
-	w.scumPatches = nil
+	w.scumPatches = patchList{}
+	w.scumThin = map[Point]struct{}{}
+	w.scumThinPages = nil
 }
 
 // hungryRat puts a rat at p with its hunger just past seeking.
@@ -79,20 +81,25 @@ func TestRatsEatGoreAndExposedScum(t *testing.T) {
 
 // With the safety net off, rats live on biomatter where they used to starve at
 // once. Food is scarce — colonists scrape the same patches — so what is
-// compared is how long the rats last in total, not whether they make it.
+// compared is how long the rats last in total, not whether they make it, over
+// three seeds: on one, anything that moves the colonists (a room built
+// somewhere else) moves the rats' luck with it.
 func TestRatsLiveOnScumWithoutTheSafetyNet(t *testing.T) {
 	ratTicks := func(scum int) int {
-		cfg := testConfig()
-		cfg.Width, cfg.Height = 60, 36
-		cfg.StartAliens, cfg.StartCats = 0, 0
-		cfg.StartRats = 6
-		cfg.InfiniteFood = false
-		cfg.ScumPercent = scum
-		w := newTestWorld(t, cfg)
 		total := 0
-		for i := 0; i < 600; i++ {
-			w.step()
-			total += w.countKind(Rat)
+		for _, seed := range []int64{1, 2, 3} {
+			cfg := testConfig()
+			cfg.Seed = seed
+			cfg.Width, cfg.Height = 60, 36
+			cfg.StartAliens, cfg.StartCats = 0, 0
+			cfg.StartRats = 6
+			cfg.InfiniteFood = false
+			cfg.ScumPercent = scum
+			w := newTestWorld(t, cfg)
+			for i := 0; i < 600; i++ {
+				w.step()
+				total += w.countKind(Rat)
+			}
 		}
 		return total
 	}

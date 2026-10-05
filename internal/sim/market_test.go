@@ -1,6 +1,7 @@
 package sim
 
 import (
+	"slices"
 	"testing"
 )
 
@@ -280,6 +281,74 @@ func TestEatingWithdrawsAQueuedMealBid(t *testing.T) {
 	}
 	if w.hasOpenMealBid(me) {
 		t.Fatal("the queued meal bid outlived the meal")
+	}
+	assertMoneyConserved(t, w)
+}
+
+// An order remembers what it has filled and with whom: one line per
+// counterparty however many trades, on both sides, and the open quantity
+// plus the filled one is what it was posted for.
+func TestAnOrderRecordsItsFills(t *testing.T) {
+	w, silo, cs := marketWorld(t)
+	a, b, buyer := ColonistOwner(cs[0].ID), ColonistOwner(cs[1].ID), ColonistOwner(cs[2].ID)
+	stock(w, silo, a, IronOre, 5)
+	stock(w, silo, b, IronOre, 5)
+	bid, _ := w.post(Bid, IronOre, 6, 5, buyer, silo, 0)
+	askA, _ := w.post(Ask, IronOre, 2, 4, a, silo, 0) // two trades at $5 with a
+	w.post(Ask, IronOre, 1, 3, b, silo, 0)
+	w.post(Ask, IronOre, 1, 5, a, silo, 0)
+
+	if bid.Qty != 2 || bid.Filled != 4 {
+		t.Fatalf("bid open %d, filled %d; want 2 and 4", bid.Qty, bid.Filled)
+	}
+	want := []Fill{{With: a, Qty: 3, Total: 15}, {With: b, Qty: 1, Total: 5}}
+	if !slices.Equal(bid.Fills, want) {
+		t.Fatalf("bid fills = %+v, want %+v", bid.Fills, want)
+	}
+	if askA.Filled != 2 || !slices.Equal(askA.Fills, []Fill{{With: buyer, Qty: 2, Total: 10}}) {
+		t.Fatalf("ask filled %d with %+v", askA.Filled, askA.Fills)
+	}
+
+	// The snapshot's copy is the order's history, and owns its slice.
+	var view OrderView
+	for _, o := range w.economyView().Orders {
+		if o.ID == bid.ID {
+			view = o
+		}
+	}
+	if view.Filled != 4 || view.Escrow != 10 || !slices.Equal(view.Fills, want) {
+		t.Fatalf("view = %+v", view)
+	}
+	view.Fills[0].Qty = 99
+	if bid.Fills[0].Qty != 3 {
+		t.Fatal("the view's fills alias the order's")
+	}
+}
+
+// Repricing re-posts the order, but it keeps the original's history: when it
+// opened and what it had filled, with what it fills on re-posting merged in.
+func TestARepricedOrderKeepsItsHistory(t *testing.T) {
+	w, silo, cs := marketWorld(t)
+	seller := ColonistOwner(cs[0].ID)
+	stock(w, silo, seller, Meal, 3)
+	w.tick = 100
+	if !w.placeColonyOrder(PlaceColonyOrder{Side: Bid, Item: Meal, Qty: 5, Price: 4, Depot: silo}) {
+		t.Fatal("bid refused")
+	}
+	w.post(Ask, Meal, 1, 4, seller, silo, 0) // fills one at $4
+	w.post(Ask, Meal, 2, 6, seller, silo, 0) // rests above the bid
+
+	w.tick = 200
+	old := w.sortedOrders(func(o *Order) bool { return o.Actor == Community && o.Item == Meal })[0]
+	if !w.repriceColonyOrder(RepriceColonyOrder{ID: old.ID, Price: 6}) {
+		t.Fatal("reprice refused")
+	}
+	n := w.sortedOrders(func(o *Order) bool { return o.Actor == Community && o.Item == Meal })[0]
+	if n.ID == old.ID || n.Posted != 100 {
+		t.Fatalf("re-posted order %d posted at %d; want a new id opened at tick 100", n.ID, n.Posted)
+	}
+	if n.Qty != 2 || n.Filled != 3 || !slices.Equal(n.Fills, []Fill{{With: seller, Qty: 3, Total: 4 + 2*6}}) {
+		t.Fatalf("open %d, filled %d, fills %+v", n.Qty, n.Filled, n.Fills)
 	}
 	assertMoneyConserved(t, w)
 }
