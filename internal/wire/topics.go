@@ -30,7 +30,10 @@ type topic struct {
 // topicTable is every topic a page can subscribe to by a fixed name. Topics
 // with a parameter ("entity:12") are resolved by paramTopic.
 var topicTable = map[string]topic{
-	"lore":       {every: time.Second, build: loreTopic},
+	"lore": {every: time.Second, build: loreTopic},
+	// The settings never change within a game; a new game or a load
+	// restarts every topic, which sends them again at once.
+	"config":     {every: time.Minute, build: configTopic},
 	"names":      {every: time.Second, build: namesTopic},
 	"perf":       {every: chartEvery, build: func(s *sim.Snapshot) any { return perfTopic(s) }},
 	"population": {every: chartEvery, build: func(s *sim.Snapshot) any { return populationTopic(s) }},

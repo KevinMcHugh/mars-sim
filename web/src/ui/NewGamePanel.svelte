@@ -4,8 +4,10 @@
   // opens this tab rather than starting a game, so the player sees the
   // settings first and the defaults are one click from landing the ships.
   // Below it, saving the running game to a file and loading one back
-  // (docs/save-load.md).
+  // (docs/save-load.md). Last, every setting the running game uses
+  // (GameSettings, docs/game-settings.md).
   import { loadGame, newGame, saveGame, ui } from '../game.svelte';
+  import GameSettings from './GameSettings.svelte';
   import { describeShips, initialSettings, shipLoads } from '../settings';
   import type { Settings } from '../sim/client';
 
@@ -59,6 +61,10 @@
     <button type="button" onclick={() => picker.click()}>Load game…</button>
   </div>
   <input type="file" accept=".marssave" bind:this={picker} onchange={picked} hidden />
+</section>
+
+<section aria-label="Settings">
+  <GameSettings />
 </section>
 
 <style>
