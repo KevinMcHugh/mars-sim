@@ -1258,7 +1258,7 @@ func (w *World) mealSellPrice() Money {
 	if w.cfg.MealSellAtMarket {
 		// What meals fetch, unless the colony's scarcity price is higher.
 		if v := w.valueOf(Meal); p <= ref || v >= p {
-			return max(1, v)
+			return max(v, w.mealInputCost()) // never below what its scum costs
 		}
 	}
 	if p > ref {

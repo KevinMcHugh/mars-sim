@@ -157,3 +157,26 @@ func TestAHungryColonistTakesItsScumOffSale(t *testing.T) {
 		t.Fatalf("%d of its scum still on sale", got)
 	}
 }
+
+// A meal's unsold ask comes down no further than what its scum costs, and a
+// cook never asks less than that for one.
+func TestAMealAskStopsAtTheCostOfItsScum(t *testing.T) {
+	w, house, _, cols := producerWorld(t, 1)
+	me := ColonistOwner(cols[0].ID)
+	w.cfg.AskDecayTicks, w.cfg.AskDecayPercent = 100, 10
+	w.recordPrice(CaveScum, 6) // two scum to a meal: $12
+	w.recordPrice(Meal, 3)
+	if got := w.mealSellPrice(); got != 12 {
+		t.Fatalf("with a meal at $3 and its scum at $12, a cook asks $%v, want $12", got)
+	}
+	stock(w, house, me, Meal, 1)
+	w.post(Ask, Meal, 1, 30, me, house, 0)
+	for i := 0; i < 40; i++ {
+		w.tick += 100
+		w.decayAsks()
+	}
+	os := w.sortedOrders(func(o *Order) bool { return o.Actor == me })
+	if len(os) != 1 || os[0].Price != 12 {
+		t.Fatalf("a long-unsold meal ask: %+v, want it held at $12", os)
+	}
+}

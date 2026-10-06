@@ -164,7 +164,8 @@ type Config struct {
 	PocketMealAt    int   `cfg:"pocket-meal-at" doc:"food need at which a colonist with no meal on it fetches one of its own to carry, before it's hungry enough to eat (0: never)"`
 
 	// Price discovery (docs/pricing.md). A colonist's unsold food ask comes
-	// down AskDecayPercent every AskDecayTicks, to $1; with RelistIdle,
+	// down AskDecayPercent every AskDecayTicks, to $1 (a meal, to what its
+	// scum costs); with RelistIdle,
 	// colonists offer idle food they own at the kitchens and the silo at its
 	// value. A hungry colonist's waiting meal bid starts at BidStartPercent
 	// of a meal's value and rises BidRaisePercent of its limit every
@@ -172,7 +173,7 @@ type Config struct {
 	// money (all of it at critical), whatever the last meal sold for. With MealSellAtMarket, colonists sell meals, and judge
 	// whether cooking pays, at a meal's market value, not price-meal.
 	AskDecayTicks    int  `cfg:"ask-decay-ticks" doc:"ticks a colonist's unsold ask for food (meals, scum, other biomatter) waits before it comes down in price (0: asks never move)"`
-	AskDecayPercent  int  `cfg:"ask-decay-percent" doc:"percent a colonist's unsold food ask comes down each time, at least $1, never below $1"`
+	AskDecayPercent  int  `cfg:"ask-decay-percent" doc:"percent a colonist's unsold food ask comes down each time, at least $1, never below $1, or for a meal below what its scum costs"`
 	RelistIdle       bool `cfg:"relist-idle" doc:"colonists offer idle food they own at the kitchens and the silo for sale at its market value: meals beyond meal-keep, scum beyond one recipe's worth"`
 	BidStartPercent  int  `cfg:"bid-start-percent" doc:"a hungry colonist's waiting bid for a meal starts at this percent of a meal's value, or its limit if lower"`
 	BidRaiseTicks    int  `cfg:"bid-raise-ticks" doc:"ticks a hungry colonist's waiting meal bid goes unfilled before it raises it toward its limit (0: it bids its limit at once)"`

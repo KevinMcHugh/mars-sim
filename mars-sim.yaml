@@ -199,7 +199,7 @@ zoning-auto: true
 ## ticks a colonist's unsold ask for food (meals, scum, other biomatter) waits before it comes down in price (0: asks never move)
 # ask-decay-ticks: 150
 
-## percent a colonist's unsold food ask comes down each time, at least $1, never below $1
+## percent a colonist's unsold food ask comes down each time, at least $1, never below $1, or for a meal below what its scum costs
 # ask-decay-percent: 10
 
 ## colonists offer idle food they own at the kitchens and the silo for sale at its market value: meals beyond meal-keep, scum beyond one recipe's worth

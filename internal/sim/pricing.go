@@ -66,7 +66,8 @@ func (w *World) repost(o *Order, price Money) *Order {
 }
 
 // decayAsks lowers every colonist's food ask that has waited ask-decay-ticks
-// at its price by ask-decay-percent, at least a dollar, to no less than $1.
+// at its price by ask-decay-percent, at least a dollar, to no less than its
+// floor (askFloor).
 // The colony's asks keep their price: the player or the charter set it.
 func (w *World) decayAsks() {
 	every, pct := w.cfg.AskDecayTicks, int64(w.cfg.AskDecayPercent)
@@ -75,11 +76,46 @@ func (w *World) decayAsks() {
 	}
 	for _, o := range w.sortedOrders(func(o *Order) bool {
 		return o.Side == Ask && o.Actor.Kind == OwnerColonist && isFood(o.Item) &&
-			o.Price > 1 && w.tick-o.priced >= every
+			o.Price > w.askFloor(o.Item) && w.tick-o.priced >= every
 	}) {
 		cut := max(1, Money(int64(o.Price)*pct/100))
-		w.repost(o, max(1, o.Price-cut))
+		w.repost(o, max(w.askFloor(o.Item), o.Price-cut))
 	}
+}
+
+// askFloor is the least a colonist asks for item: for a meal, what its scum
+// costs (mealInputCost), so a cook never sells a meal for less than its
+// inputs would fetch; for anything else, $1.
+//
+// Without it, decay took meals to $1 in the glut after landing, when
+// colonists sell their spare locker meals and nobody is hungry yet. The first
+// $1 fills set a meal's value, cooks asked that, and cooking stopped paying
+// just as the colony needed it to start (docs/pricing.md).
+func (w *World) askFloor(item ItemKind) Money {
+	if item == Meal {
+		return w.mealInputCost()
+	}
+	return 1
+}
+
+// mealInputCost is what the scum for one meal is worth now: the scum recipe's
+// inputs at their value, per meal it makes, at least $1.
+func (w *World) mealInputCost() Money {
+	r, ok := scumMealRecipe()
+	if !ok {
+		return 1
+	}
+	meals := 0
+	for _, o := range r.Outputs {
+		if o.Kind == Meal {
+			meals += o.Count
+		}
+	}
+	var cost Money
+	for _, in := range r.Inputs {
+		cost += Money(in.Count) * w.valueOf(in.Kind)
+	}
+	return max(1, cost/Money(max(1, meals)))
 }
 
 // mealBidStart is where e's waiting bid for a meal starts: bid-start-percent
@@ -169,7 +205,7 @@ func (w *World) relistIdleFood() {
 			} else {
 				n -= biomatterKeep
 			}
-			price := w.valueOf(l.Item)
+			price := max(w.valueOf(l.Item), w.askFloor(l.Item))
 			if n <= 0 || price <= 0 {
 				continue
 			}
