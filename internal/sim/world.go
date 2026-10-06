@@ -861,7 +861,10 @@ type World struct {
 	suspended [2][numItemKinds]bool
 	// wide is the colony-wide orders a player has set, by side and item
 	// (see colonywide.go); Qty 0 is none.
-	wide          [2][numItemKinds]wideOrder
+	wide [2][numItemKinds]wideOrder
+	// pricesFreed latches once prices float: the colony's kitchens are
+	// running (pricesFree, pricing.go).
+	pricesFreed   bool
 	marketDepotAt Point
 	// siloWas is the silo the market's upkeep last saw (siloSeen once there
 	// has been one), so it can retire the colony's orders at an old one.

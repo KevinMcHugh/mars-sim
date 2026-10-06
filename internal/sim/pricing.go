@@ -27,11 +27,37 @@ const relistInterval = 100
 
 // movePrices is price discovery's share of the market's upkeep.
 func (w *World) movePrices() {
-	w.decayAsks()
 	w.raiseMealBids()
+	if !w.pricesFree() {
+		return // nothing sold off cheap before the kitchens run (pricesFree)
+	}
+	w.decayAsks()
 	if w.tick%relistInterval == 0 {
 		w.relistIdleFood()
 	}
+}
+
+// pricesFree reports whether prices float yet: once the colony has held
+// free-prices-at meals per colonist, its kitchens are running, and from then
+// on for good. Until then trades leave the remembered prices where they are
+// (recordPrice), asks don't come down, and idle food isn't offered. Waiting
+// bids still rise: a hungry colonist still pays what it takes.
+//
+// Floating from landing, the market sold the colonists' spare landing meals
+// at the floor before the colony's kitchens had cooked anything. When the
+// shelves emptied, the first few meals filled bids that had climbed to $40
+// and more, a meal's value went from $4 to $62 in 250 ticks, and cooking for
+// oneself suddenly paid for 95 colonists of 100 at once (foodPays). They left
+// the colony's kitchens and incubators idle to scrape wild scum, and
+// colonists with money starved with nothing on offer (docs/pricing.md).
+func (w *World) pricesFree() bool {
+	if w.pricesFreed || w.cfg.FreePricesAt <= 0 {
+		return true
+	}
+	if n := w.countKind(Colonist); n > 0 && w.communityMeals() >= w.cfg.FreePricesAt*n {
+		w.pricesFreed = true
+	}
+	return w.pricesFreed
 }
 
 // isFood reports whether k is a meal or what one is cooked from: the goods

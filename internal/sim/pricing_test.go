@@ -180,3 +180,38 @@ func TestAMealAskStopsAtTheCostOfItsScum(t *testing.T) {
 		t.Fatalf("a long-unsold meal ask: %+v, want it held at $12", os)
 	}
 }
+
+// Until the colony has held free-prices-at meals a colonist, trades don't move
+// the remembered prices and unsold asks don't come down; once it has, they
+// do, for good.
+func TestPricesHoldUntilTheKitchensRun(t *testing.T) {
+	w, house, _, cols := producerWorld(t, 2)
+	me := ColonistOwner(cols[0].ID)
+	w.cfg.FreePricesAt, w.cfg.AskDecayTicks, w.cfg.AskDecayPercent = 1, 100, 10
+	w.recordPrice(Meal, 40)
+	if got := w.valueOf(Meal); got != w.refPrice(Meal) {
+		t.Fatalf("a trade before the kitchens run moved a meal to $%v", got)
+	}
+	stock(w, house, me, Meal, 1)
+	w.post(Ask, Meal, 1, 30, me, house, 0)
+	w.tick += 1000
+	w.movePrices()
+	if os := w.sortedOrders(func(o *Order) bool { return o.Actor == me }); len(os) != 1 || os[0].Price != 30 {
+		t.Fatalf("an ask came down before the kitchens run: %+v", os)
+	}
+	stock(w, house, Community, Meal, 2) // a meal for each colonist
+	w.storedMealsTick, w.communityMealsTick = -1, -1
+	w.movePrices()
+	if os := w.sortedOrders(func(o *Order) bool { return o.Actor == me }); len(os) != 1 || os[0].Price >= 30 {
+		t.Fatalf("once the kitchens run the ask should come down: %+v", os)
+	}
+	w.recordPrice(Meal, 40)
+	if got := w.valueOf(Meal); got != 40 {
+		t.Fatalf("once prices are free a trade at $40 leaves a meal at $%v", got)
+	}
+	w.storageContainers[house].debit(Community, Meal, 2)
+	w.communityMealsTick = -1
+	if !w.pricesFree() {
+		t.Fatal("prices froze again when the colony's stock fell")
+	}
+}

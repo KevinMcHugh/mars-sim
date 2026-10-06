@@ -214,6 +214,9 @@ zoning-auto: true
 ## how much a hungry colonist raises its waiting meal bid each time, as a percent of its limit (what its hunger and money will pay), at least $1
 # bid-raise-percent: 20
 
+## prices float only once the colony has held this many meals per colonist, its kitchens running; until then trades don't move them, and unsold asks don't come down (0: they float from landing)
+# free-prices-at: 1
+
 ## colonists price the meals they sell, and judge whether cooking pays, at a meal's market value (off: at price-meal)
 # meal-sell-at-market: true
 

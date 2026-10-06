@@ -72,6 +72,14 @@ hunger the bid goes in, or jumps, straight to the limit. A plan serving a bid
 follows it when it is re-posted (`repost` re-targets `plan.target`), or
 `prunePlans` would drop a cook waiting on scum.
 
+**Until the kitchens run.** Prices are held until the colony has held
+`free-prices-at` meals per colonist (`pricesFree`, a latch: once free, free
+for good). Until then a trade doesn't move the remembered price
+(`recordPrice`), so meals stay at the charter's $5 and so does what a cook
+sells at. Asks don't come down, and idle food isn't offered. Waiting bids
+still rise: a hungry colonist still pays what it takes, and a cook still gets
+it.
+
 **Cooks.** With `meal-sell-at-market`, `mealSellPrice` is a meal's value
 (`valueOf`), unless the colony's scarcity price (`meal-price-max`) is higher,
 and never below what its scum costs (`mealInputCost`).
@@ -87,6 +95,7 @@ uses it to decide whether cooking for oneself pays.
 | `bid-raise-ticks` | 50 (0: bid the limit at once, the old way) |
 | `bid-raise-percent` | 20 |
 | `meal-sell-at-market` | true |
+| `free-prices-at` | 1 meal per colonist (0: prices float from landing) |
 
 ### What it does
 
@@ -120,7 +129,34 @@ where it grows), nobody passes out, and the market's effect shows:
 | b | 0, 0, 2, 3 (5) | $106–269 | $57–97 |
 | c | 1, 0, 9, 2 (12) | $86–130 | $34–54 |
 | b + c | 0, 0, 7, 0 (7) | $195–278 | $47–83 |
-| a + b + c, floored at the scum's cost (the default) | 3, 0, 6, 8 (17) | $5, $5, $218, $5 | $1–8 |
+| a + b + c, floored at the scum's cost, from landing | 3, 0, 6, 8 (17) | $5, $5, $218, $5 | $1–8 |
+
+On twelve seeds (1–12), sleep off, starved:
+
+| | Seeds 1–12 | Total |
+| --- | --- | --- |
+| None | 1, 0, 13, 3, 0, 6, 24, 0, 0, 0, 1, 0 | 48 |
+| a | 1, 0, 3, 3, 0, 1, 27, 1, 0, 0, 2, 1 | 39 |
+| a + b | 3, 0, 3, 5, 0, 5, 10, 0, 0, 0, 0, 0 | 26 |
+| a + c | 1, 0, 3, 1, 1, 1, 14, 1, 0, 0, 0, 1 | 23 |
+| b + c | 0, 0, 7, 0, 0, 3, 17, 0, 0, 2, 1, 0 | 30 |
+| a + b + c, floating from landing | 3, 0, 6, 8, 0, 2, 20, 1, 0, 3, 10, 3 | 56 |
+| a + b + c, held until the kitchens run (the default) | 3, 0, 4, 5, 0, 5, 4, 0, 0, 7, 0, 0 | 28 |
+
+Floating from landing, the three together did worse than any two of them.
+On seed 11, all ten deaths came in 500 ticks (3,880 to 4,389), colonists with
+$88 to $201 and nothing on offer. Falling asks had sold the spare landing
+meals at the floor about a thousand ticks sooner than without them, so the
+shelves were bare before the colony's kitchens had cooked anything. Bids rose
+with nothing to fill them (b); the first meals cooked filled them at $40 and
+up, and a meal's value went from $4 to $62 in 250 ticks. Cooks priced at that
+(c), and cooking for oneself suddenly paid for 95 colonists of 100 at once.
+Food on its own account comes before the colony's food work, so they left
+its kitchens and incubators idle (nobody cooked for the colony until tick
+4,500) and went to scrape wild scum. With b + c alone the landing meals
+lasted to tick ~4,750, a meal stayed at $5, and the colony's kitchens were
+already cooking when the shelves emptied. Holding prices until then removes
+the spike.
 
 Prices now move both ways. Where meals stay dear, scum doesn't follow them up
 any more: the old price tied scum to the meal's (a cook's bid for scum offers
@@ -141,6 +177,11 @@ colony goes from its landing meals to cooked ones.
   47 traded in 30,000 ticks), with 48 and 52 starved. A ceiling tied to the
   last price can only ratchet one way. Before, that was up; with decay, it
   was down.
+- **Hold prices until the kitchens run, rather than reorder the work.**
+  Putting the colony's food work ahead of food on one's own account while the
+  colony is short, so the spike couldn't empty its kitchens, starved more,
+  not fewer (79 against 56 on seeds 1–12). Colonists' own scum went uncooked
+  instead. Holding the price stops the spike at its source.
 - **A meal's floor is its scum's cost.** Floored at $1, asks fell to $1 in
   the glut after landing, and the first $1 fills set a meal's value. Cooks
   asked that, cooking stopped paying just as the colony needed it to start,

@@ -24,6 +24,9 @@ type priceMemory struct {
 
 // recordPrice folds a fill at price into item's remembered price.
 func (w *World) recordPrice(item ItemKind, price Money) {
+	if !w.pricesFree() {
+		return // held at the charter's prices until the kitchens run
+	}
 	m := &w.prices[item]
 	p := int64(price) * 1000
 	if !m.traded {

@@ -178,6 +178,7 @@ type Config struct {
 	BidStartPercent  int  `cfg:"bid-start-percent" doc:"a hungry colonist's waiting bid for a meal starts at this percent of a meal's value, or its limit if lower"`
 	BidRaiseTicks    int  `cfg:"bid-raise-ticks" doc:"ticks a hungry colonist's waiting meal bid goes unfilled before it raises it toward its limit (0: it bids its limit at once)"`
 	BidRaisePercent  int  `cfg:"bid-raise-percent" doc:"how much a hungry colonist raises its waiting meal bid each time, as a percent of its limit (what its hunger and money will pay), at least $1"`
+	FreePricesAt     int  `cfg:"free-prices-at" doc:"prices float only once the colony has held this many meals per colonist, its kitchens running; until then trades don't move them, and unsold asks don't come down (0: they float from landing)"`
 	MealSellAtMarket bool `cfg:"meal-sell-at-market" doc:"colonists price the meals they sell, and judge whether cooking pays, at a meal's market value (off: at price-meal)"`
 
 	// Skills. A colonist is credited SkillPracticePercent percent of the base
@@ -711,6 +712,7 @@ func DefaultConfig() Config {
 		BidRaiseTicks:    50,
 		BidRaisePercent:  20,
 		MealSellAtMarket: true,
+		FreePricesAt:     1,
 		MealPriceMax:     100,
 		PocketMealAt:     300,
 		// Wages sized so a typical room costs the colony about a hundred
