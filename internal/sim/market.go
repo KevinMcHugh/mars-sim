@@ -76,6 +76,12 @@ type Order struct {
 	// upkeep tops it up, moves it and reprices it, and the colony's other
 	// upkeep leaves its bids alone.
 	wide bool
+	// priced is the tick it was posted at its price: a reprice re-posts, so
+	// it is the last price change, which inherit leaves alone (Posted is the
+	// first). hunger marks a hungry colonist's waiting bid for a meal, which
+	// it raises while it goes unfilled. See pricing.go.
+	priced int
+	hunger bool
 }
 
 // owner is the order itself as a ledger or money holder: where its escrow
@@ -183,7 +189,7 @@ func (w *World) post(side Side, item ItemKind, qty int, price Money, actor Owner
 	}
 	w.nextOrderID++
 	o := &Order{ID: w.nextOrderID, Side: side, Item: item, Qty: qty, Price: price,
-		Actor: actor, Depot: depot, Posted: w.tick}
+		Actor: actor, Depot: depot, Posted: w.tick, priced: w.tick}
 	if ttl > 0 {
 		o.Expires = w.tick + ttl
 	}
@@ -455,6 +461,7 @@ func (w *World) runMarket() {
 	w.expireOrders()
 	w.prunePlans()
 	w.retireOldSilo()
+	w.movePrices()
 	w.refreshWideOrders()
 	w.refreshColonyBids()
 	w.refreshColonyAsks()
@@ -602,7 +609,9 @@ func (w *World) tryBuyMeal(e *Entity) bool {
 		queue, ok = silo, true
 	}
 	if ok {
-		w.post(Bid, Meal, 1, limit, me, queue, w.cfg.DemandTTL)
+		if o, _ := w.post(Bid, Meal, 1, w.mealBidStart(e, limit), me, queue, w.cfg.DemandTTL); o != nil {
+			o.hunger = true
+		}
 	}
 	return false
 }

@@ -85,9 +85,12 @@ func TestPricesRememberTrades(t *testing.T) {
 	}
 }
 
-// A hungrier colonist bids more for a meal, and never more than it has.
+// A hungrier colonist bids more for a meal, and never more than it has. With
+// bids that don't move (bid-raise-ticks 0), its ceiling is a multiple of the
+// meal's value.
 func TestHungerRaisesTheMealBid(t *testing.T) {
 	w, _, _, cols := producerWorld(t, 1)
+	w.cfg.BidRaiseTicks = 0
 	e := cols[0]
 	max := w.cfg.Drives[DriveFood].Max
 	w.setDrive(e, DriveFood, 0)
@@ -109,6 +112,25 @@ func TestHungerRaisesTheMealBid(t *testing.T) {
 	w.setDrive(e, DriveFood, max/2)
 	if got := w.mealBidLimit(e); got != 2 {
 		t.Fatalf("a peckish colonist with $4 bids %v, want half its money", got)
+	}
+}
+
+// With bids that start low and rise, what a colonist will pay is its own: up
+// to half its money as hunger grows, however cheap the last meal was. Only
+// the value-based ceiling would cap a $1 market's bids at $3 for good.
+func TestAHungryColonistsLimitIsItsOwn(t *testing.T) {
+	w, _, _, cols := producerWorld(t, 1)
+	e := cols[0]
+	e.wallet = 100
+	w.recordPrice(Meal, 1)
+	top := w.cfg.Drives[DriveFood].Max
+	w.setDrive(e, DriveFood, top*8/10)
+	if got := w.mealBidLimit(e); got != 40 {
+		t.Fatalf("at 80%% hunger with $100 and meals at $1, the limit is %v, want $40", got)
+	}
+	w.setDrive(e, DriveFood, top)
+	if got := w.mealBidLimit(e); got != 100 {
+		t.Fatalf("at critical hunger the limit is %v, want all $100", got)
 	}
 }
 

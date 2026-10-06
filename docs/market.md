@@ -123,11 +123,14 @@ the centre doubled the money in escrow and left 64 iron bids open.
 - **Colonists sell surplus meals.** One holding more than `meal-keep` of its
   own meals outside the silo takes the rest there (`JobSell`: out of its
   locker, into its pockets, onto the silo's ledger in its own name) and asks
-  the reference price.
+  `mealSellPrice`: a meal's market value (see [pricing.md](./pricing.md)).
+  An unsold food ask comes down in steps, and idle food colonists own at the
+  kitchens and the silo is offered again.
 - **Hungry colonists buy.** One with no meal of its own or the colony's in
   reach buys the cheapest meal at the silo, a scumhouse, or a kitchen's pantry, at up to its
-  `mealBidLimit` (hunger times the meal's value, capped by its money), before
-  it eats gruel. If nothing fills, the bid queues for `demand-ttl` ticks at the
+  `mealBidLimit` (what its hunger and money will pay), before
+  it eats gruel. If nothing fills, the bid queues, starting low and rising
+  ([pricing.md](./pricing.md)), for `demand-ttl` ticks at the
   nearest kitchen's pantry (see [scumhouse.md](./scumhouse.md)), as demand the kitchen fills next and the producer planner
   can answer (see [valuation.md](./valuation.md)).
 

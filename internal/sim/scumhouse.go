@@ -385,6 +385,8 @@ func (w *World) foodWanted() bool {
 // sell, so a colonist with no money can still feed itself.
 func (w *World) tryAssignFoodWork(e *Entity, force bool) bool {
 	if force {
+		// Its own scum on sale is locked in escrow: take it back to cook.
+		w.withdrawOwnAsks(ColonistOwner(e.ID), isBiomatter)
 		return w.tryAssignCraftFor(e, []Owner{ColonistOwner(e.ID)}) || w.tryAssignScrape(e, true)
 	}
 	if !w.foodWanted() {
@@ -1244,11 +1246,21 @@ func withoutOneMeal(outputs []ItemStack) []ItemStack {
 	return out
 }
 
-// mealSellPrice is what a colonist asks for a meal it sells: a dollar under
-// the colony's price when scarcity has raised it, so a colonist's meal sells
-// first, and the charter's price otherwise.
+// mealSellPrice is what a colonist asks for a meal it sells, and what
+// foodPays reckons a meal earns. With meal-sell-at-market it is what meals
+// fetch, a meal's value (valueOf), unless the colony's scarcity price is
+// higher. Otherwise it is a dollar under the colony's price when scarcity has
+// raised it, so a colonist's meal sells first, and the charter's price
+// otherwise. At the charter's $5, cooking never paid while meals traded at
+// $100, so a high price brought no new cooks (see docs/pricing.md).
 func (w *World) mealSellPrice() Money {
 	p, ref := w.colonyMealPrice(), w.refPrice(Meal)
+	if w.cfg.MealSellAtMarket {
+		// What meals fetch, unless the colony's scarcity price is higher.
+		if v := w.valueOf(Meal); p <= ref || v >= p {
+			return max(v, w.mealInputCost()) // never below what its scum costs
+		}
+	}
 	if p > ref {
 		return p - 1
 	}

@@ -49,12 +49,17 @@ fill sets it outright.
 ### A hungry colonist's bid
 
 `mealBidLimit` starts at a meal's value and rises linearly with hunger, to
-`meal-willingness` times the value when starving. Until hunger is critical
-(90%), a colonist spends at most half its money on one meal, then everything it
-has. A dollar matters more to someone who has few.
+`meal-willingness` times the value when starving. With bids that rise
+(`bid-raise-ticks`, the default), it is the larger of that and up to half the
+colonist's money as hunger grows, so a cheap last price can't cap it (see
+[pricing.md](./pricing.md)). Until hunger is critical (90%), a colonist spends
+at most half its money on one meal, then everything it has. A dollar matters
+more to someone who has few.
 
 `tryBuyMeal` (see [food.md](./food.md) for when it runs) buys at once if an ask
 is within the limit. If nothing fills, the bid **rests** for `demand-ttl`
+ticks, starting below a meal's value and rising toward the limit
+([pricing.md](./pricing.md)),
 ticks, one per colonist, as standing demand, at the nearest scumhouse's
 pantry, where its meals come out (else the scumhouse itself, else the silo). That makes it a queue: the colony offers each meal the moment it is
 cooked, and a waiting bid takes it at once. A later fill leaves the meal where

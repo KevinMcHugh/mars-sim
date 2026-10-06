@@ -196,6 +196,30 @@ zoning-auto: true
 ## food need at which a colonist with no meal on it fetches one of its own to carry, before it's hungry enough to eat (0: never)
 # pocket-meal-at: 300
 
+## ticks a colonist's unsold ask for food (meals, scum, other biomatter) waits before it comes down in price (0: asks never move)
+# ask-decay-ticks: 150
+
+## percent a colonist's unsold food ask comes down each time, at least $1, never below $1, or for a meal below what its scum costs
+# ask-decay-percent: 10
+
+## colonists offer idle food they own at the kitchens and the silo for sale at its market value: meals beyond meal-keep, scum beyond one recipe's worth
+# relist-idle: true
+
+## a hungry colonist's waiting bid for a meal starts at this percent of a meal's value, or its limit if lower
+# bid-start-percent: 80
+
+## ticks a hungry colonist's waiting meal bid goes unfilled before it raises it toward its limit (0: it bids its limit at once)
+# bid-raise-ticks: 50
+
+## how much a hungry colonist raises its waiting meal bid each time, as a percent of its limit (what its hunger and money will pay), at least $1
+# bid-raise-percent: 20
+
+## prices float only once the colony has held this many meals per colonist, its kitchens running; until then trades don't move them, and unsold asks don't come down (0: they float from landing)
+# free-prices-at: 1
+
+## colonists price the meals they sell, and judge whether cooking pays, at a meal's market value (off: at price-meal)
+# meal-sell-at-market: true
+
 # ── Skills ──────────────────────────────────────────────────────────────
 ## colonists arrive with skills, and skilled work is faster and yields more (off: no backgrounds, no effects)
 # skills: true
