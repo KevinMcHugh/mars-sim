@@ -24,7 +24,7 @@ each form of a life is its own species value with its own behavior ladder.
 - [`internal/sim/components.go`](../internal/sim/components.go) — `LifeStage`, the component an alien of a multi-form species carries.
 - [`internal/sim/species.go`](../internal/sim/species.go) — `newAlienSpeciesTable`: one species per form, each with its ladder.
 - [`internal/sim/lore.go`](../internal/sim/lore.go) — the `Anatomy`, `Forms` and `FormCount` fields on `AlienSpecies`, the two extra passes in `rollAlienSpeciesRoster`, and the sentences `Description` adds.
-- [`internal/sim/config.go`](../internal/sim/config.go) — `alien-one-form-weight` … `alien-four-form-weight`, `alien-caste-percent`, `alien-stage-ticks`; and for broods `alien-lay-ticks`, `alien-brood-cap`, `alien-brood-radius`, `alien-species-cap`.
+- [`internal/sim/config.go`](../internal/sim/config.go) — `alien-one-form-weight` … `alien-four-form-weight`, `alien-caste-percent`, `alien-stage-ticks`; and for broods `alien-lay-ticks`, `alien-brood-cap`, `alien-brood-radius`, `alien-species-cap`, `alien-nest-roam`.
 - [`internal/sim/alien_lifecycle_test.go`](../internal/sim/alien_lifecycle_test.go) — the rules below, as tests.
 
 ## How it works
@@ -134,6 +134,18 @@ use the layer's turn):
    joey." when it is live young. A brood in an undiscovered cave is laid
    unlogged, as growth is, so a nest found late can be a big one.
 
+**A laying caste keeps to her nest.** A queen, betty, jill or matriarch
+remembers where she was spawned as one, or where she grew into one
+(`LifeStage.nest`). Her ladder is her temperament's with a `stayNear` rung
+right after dormancy: beyond `alien-nest-roam` (4) tiles of her nest she
+walks home before anything else, and within it she does what her
+temperament does, so a Hostile queen still strikes what comes close but is
+tethered to her brood. The roam is under the brood radius (6), so what she
+lays near home counts toward her nest's cap. The plain adult of a line
+without castes roams like any adult: if it kept to a nest too, such a
+species could never spread past where it started. `stayNear` is the
+chicken's rung: the trough and the nest are two anchors for one behavior.
+
 The lore tab's life paragraph ends with who breeds and how: "Only the
 queens lay eggs.", "Adults bear young."
 
@@ -194,9 +206,6 @@ queens lay eggs.", "Adults bear young."
 - **Breeding for single-form species.** They do not breed; giving them a
   laying form would need a first form to lay (a hatchling the size of the
   adult reads wrong), or a separate rule.
-- **A queen that stays home.** A queen runs her species' temperament ladder
-  like any adult and wanders; a `stayNear` rung for her nest (like the
-  chicken's trough) would keep broods together.
 - **Eggs as targets.** Colonists could smash eggs and casings (a work order,
   or a fight target that does not trigger flight).
 - **Stage words in names.** `alien-names.yaml` conditions could gain

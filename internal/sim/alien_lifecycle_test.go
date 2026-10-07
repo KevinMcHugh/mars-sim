@@ -1,6 +1,7 @@
 package sim
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 )
@@ -337,6 +338,7 @@ func layerWorld(t *testing.T, stages int, castes bool) (*World, *Entity) {
 	}
 	e := w.spawn(Alien, at)
 	e.life.form, e.life.growAt = layer, 0
+	e.life.nest, e.life.hasNest = at, true // as spawning one as a layer would
 	w.resizeAlien(e, 100)
 	setAlienTemperament(w, 0, TemperamentFriendly) // it should lay, not hunt the test
 	return w, e
@@ -450,4 +452,87 @@ func TestStepLaysWhenDue(t *testing.T) {
 	if w.kindCounts[Alien] != before+1 {
 		t.Fatalf("aliens %d after a due brood, want %d", w.kindCounts[Alien], before+1)
 	}
+}
+
+// A laying caste's ladder heads home first (after dormancy) and then does
+// what its temperament does; the plain adult of a line without castes, and
+// every non-laying caste, keep their temperament's ladder unchanged.
+func TestOnlyLayingCastesKeepToTheNest(t *testing.T) {
+	for _, castes := range []bool{false, true} {
+		cfg := lifecycleConfig(2, castes)
+		for seed := int64(1); seed <= 10; seed++ {
+			cfg.Seed = seed
+			w := newTestWorld(t, cfg)
+			sp := w.alienSpecies[0]
+			adult := fmt.Sprint(ladderTypes(temperamentLadder(sp, cfg)))
+			for i, f := range sp.LifeForms() {
+				if f.Stage != sp.stageCount()-1 {
+					continue
+				}
+				got := ladderTypes(w.alienKinds[0][i].ladder)
+				if f.Lays && f.Name != "" {
+					if len(got) < 2 || got[0] != "sim.dormant" || got[1] != "sim.stayNear" ||
+						fmt.Sprint(append([]string{"sim.dormant"}, got[2:]...)) != adult {
+						t.Errorf("seed %d %s ladder %v; want dormant, stayNear, then %v", seed, f.Name, got, adult)
+					}
+				} else if fmt.Sprint(got) != adult {
+					t.Errorf("seed %d %q ladder %v; want the temperament's %v", seed, f.Name, got, adult)
+				}
+			}
+		}
+	}
+}
+
+func ladderTypes(l []behavior) []string {
+	var out []string
+	for _, b := range l {
+		out = append(out, fmt.Sprintf("%T", b))
+	}
+	return out
+}
+
+// A queen keeps to her nest: one that has strayed walks back to within
+// alien-nest-roam of it, and her nest is where she was spawned.
+func TestQueenWalksHome(t *testing.T) {
+	w, queen := layerWorld(t, 2, true)
+	if !queen.life.hasNest || queen.life.nest != queen.Pos {
+		t.Fatalf("nest %v (set %v), want her spawn point %v", queen.life.nest, queen.life.hasNest, queen.Pos)
+	}
+	nest := queen.Pos
+	queen.life.layAt = 0 // no broods in the way
+	away := nest.Add(-8, 0)
+	carve(w, away, nest, Floor)
+	w.refreshSpatial()
+	w.reveal(away)
+	w.moveEntity(queen, away)
+	for i := 0; i < 200 && queen.Pos.Chebyshev(nest) > w.cfg.AlienNestRoam; i++ {
+		w.animalTurn(queen)
+	}
+	if d := queen.Pos.Chebyshev(nest); d > w.cfg.AlienNestRoam {
+		t.Fatalf("queen still %d tiles from her nest, want within %d", d, w.cfg.AlienNestRoam)
+	}
+}
+
+// A queen that grows into her caste makes her nest where she came of age.
+func TestQueenNestsWhereSheGrewUp(t *testing.T) {
+	cfg := lifecycleConfig(2, true)
+	for seed := int64(1); seed <= 30; seed++ {
+		cfg.Seed = seed
+		w := newTestWorld(t, cfg)
+		at := Point{w.Width / 2, w.Height / 2}
+		w.reveal(at)
+		e := w.spawn(Alien, at)
+		e.life.form, e.life.growAt, e.life.hasNest = 0, w.tick, false
+		w.resizeAlien(e, 100)
+		w.growUp(e)
+		f, _ := w.formOf(e)
+		if !f.Lays {
+			continue // grew into another caste this time; try another seed
+		}
+		if !e.life.hasNest || e.life.nest != e.Pos {
+			t.Fatalf("a %s that came of age at %v has nest %v (set %v)", f.Name, e.Pos, e.life.nest, e.life.hasNest)
+		}
+		return
+	}
+	t.Fatal("no seed grew a young form into the laying caste")
 }

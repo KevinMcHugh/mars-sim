@@ -583,6 +583,7 @@ type Config struct {
 	AlienBroodCap    int `cfg:"alien-brood-cap" doc:"a laying alien does not lay while this many of its species live within alien-brood-radius of it"`
 	AlienBroodRadius int `cfg:"alien-brood-radius" doc:"how far a laying alien counts its own kind when deciding whether its nest is full"`
 	AlienSpeciesCap  int `cfg:"alien-species-cap" doc:"no alien of a species lays while this many of that species are alive anywhere"`
+	AlienNestRoam    int `cfg:"alien-nest-roam" doc:"how far a laying caste (queen, betty, jill, matriarch) strays from her nest before she heads home"`
 
 	// AlienNames configures the pool of names ("xenos," "critters," ...) a
 	// rolled species can be given, each gated by a condition over its build
@@ -933,6 +934,7 @@ func DefaultConfig() Config {
 		AlienBroodCap:             8,
 		AlienBroodRadius:          6,
 		AlienSpeciesCap:           16, // at 30 a hostile brood could overrun a 20-colonist colony (docs/alien-lifecycles.md)
+		AlienNestRoam:             4,
 
 		PistolDamage:    10,
 		PistolRange:     3,
