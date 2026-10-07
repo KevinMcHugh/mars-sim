@@ -46,8 +46,12 @@ noun the genus ends in, such as `-saurus` lizard, `-hexapus` six-footed, `-odon`
 tooth, `-therium` beast) and **epithets** (`ferox` fierce, `martis` of Mars,
 `gigas` giant). Each entry has a `when` that uses the same `nameCondition`
 tree as [alien-names.yaml](./lore.md#naming-a-condition-gated-pool-not-a-flat-table)
-(temperament, skin, color, pattern, height/weight tier, tail, wings, and counts of
-legs, arms, limbs and eyes). `scientificName` draws in this order:
+(temperament, skin, color, pattern, height/weight tier, tail, wings, counts of
+legs, arms, limbs and eyes, and the graded features and apex roll of
+[alien-lifecycles.md](./alien-lifecycles.md)). Scientific names are built
+after anatomy, so a horned species can be a *Ceratoceras cornutum*, a
+stinger a *Kentrodon aculeatus*, an apex species a *Thanatoraptor
+horridus*. `scientificName` draws in this order:
 
 1. A **root**, from those whose condition the species meets.
 2. A **prefix**, from those that match. A prefix marked `mimic: true`

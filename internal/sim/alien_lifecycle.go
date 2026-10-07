@@ -391,6 +391,7 @@ func (w *World) beginLife(e *Entity) {
 		// Part of the way to its next brood, so a nest's layers do not all
 		// lay on the same tick.
 		e.life.layAt = w.tick + 1 + w.rng.IntN(max(1, w.cfg.AlienLayTicks))
+		e.life.nest, e.life.hasNest = e.Pos, true
 	}
 	w.resizeAlien(e, 100)
 }
@@ -428,6 +429,7 @@ func (w *World) growUp(e *Entity) {
 	}
 	if sp.Forms[e.life.form].Lays {
 		e.life.layAt = w.tick + max(1, w.cfg.AlienLayTicks)
+		e.life.nest, e.life.hasNest = e.Pos, true // where it came of age
 	}
 	w.resizeAlien(e, oldPct)
 	e.clearPath()

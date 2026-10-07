@@ -211,19 +211,35 @@ type breed struct{}
 
 func (breed) act(w *World, e *Entity) bool { return w.tryMate(e) }
 
-// stayNearTrough walks a pet back toward its trough once it has strayed more
-// than roam tiles from it (a chicken). A pet with no trough, or one it cannot
-// reach, declines.
-type stayNearTrough struct {
-	roam int
+// stayNear walks a creature back toward its anchor once it has strayed more
+// than roam tiles from it: a chicken to its trough, a queen to her nest. One
+// with no anchor, or one it cannot reach, declines.
+type stayNear struct {
+	anchor anchorFn
+	roam   int
 }
 
-func (b stayNearTrough) act(w *World, e *Entity) bool {
-	trough, ok := e.petTrough()
-	if !ok || e.Pos.Chebyshev(trough) <= b.roam {
+// An anchorFn is where a creature keeps to, and false when it has nowhere.
+type anchorFn func(w *World, e *Entity) (Point, bool)
+
+// troughAnchor is a pet's trough (its PetBond).
+func troughAnchor(_ *World, e *Entity) (Point, bool) { return e.petTrough() }
+
+// nestAnchor is a laying alien's nest: where it was spawned or grew into its
+// laying form (LifeStage.nest).
+func nestAnchor(_ *World, e *Entity) (Point, bool) {
+	if e.life == nil || !e.life.hasNest {
+		return Point{}, false
+	}
+	return e.life.nest, true
+}
+
+func (b stayNear) act(w *World, e *Entity) bool {
+	home, ok := b.anchor(w, e)
+	if !ok || e.Pos.Chebyshev(home) <= b.roam {
 		return false
 	}
-	if _, ok := w.travelTo(e, trough); !ok {
+	if _, ok := w.travelTo(e, home); !ok {
 		return false
 	}
 	e.State = Moving

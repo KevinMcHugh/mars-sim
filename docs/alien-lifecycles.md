@@ -24,7 +24,7 @@ each form of a life is its own species value with its own behavior ladder.
 - [`internal/sim/components.go`](../internal/sim/components.go) — `LifeStage`, the component an alien of a multi-form species carries.
 - [`internal/sim/species.go`](../internal/sim/species.go) — `newAlienSpeciesTable`: one species per form, each with its ladder.
 - [`internal/sim/lore.go`](../internal/sim/lore.go) — the `Anatomy`, `Forms` and `FormCount` fields on `AlienSpecies`, the two extra passes in `rollAlienSpeciesRoster`, and the sentences `Description` adds.
-- [`internal/sim/config.go`](../internal/sim/config.go) — `alien-one-form-weight` … `alien-four-form-weight`, `alien-caste-percent`, `alien-stage-ticks`; and for broods `alien-lay-ticks`, `alien-brood-cap`, `alien-brood-radius`, `alien-species-cap`.
+- [`internal/sim/config.go`](../internal/sim/config.go) — `alien-one-form-weight` … `alien-four-form-weight`, `alien-caste-percent`, `alien-stage-ticks`; and for broods `alien-lay-ticks`, `alien-brood-cap`, `alien-brood-radius`, `alien-species-cap`, `alien-nest-roam`; and `alien-apex-percent`.
 - [`internal/sim/alien_lifecycle_test.go`](../internal/sim/alien_lifecycle_test.go) — the rules below, as tests.
 
 ## How it works
@@ -80,7 +80,61 @@ and some none. Each feature has degrees: 1 to 12 horns ("a single nub of a
 horn" … "a crown of 12 horns"), 2 to 14 antler tines, quills from "a few" to
 "a coat", a shell from "a patch" to "a full carapace", claws from "blunt
 nubs" to "scythe-like", a stinger or a barbed one, and a tail ending in a
-club, a spiked club or a stinger. They are description only for now.
+club, a spiked club or a stinger. Most of them fight (below); spines do
+not, yet.
+
+### Features that fight
+
+`alien_weapons.go` turns the body into combat, always reading the alien's
+**current form** (`anatomyOf`): a young form's lesser features, a queen's
+pushed ones. A species grows into its weapons.
+
+| Feature | In a fight |
+| --- | --- |
+| horns or antlers | grant **gore**: +8% damage per horn and +5% per antler tine, at most double |
+| a stinger, or a tail ending in one | grant **sting**: half damage (three quarters if barbed), but always to the torso, a vital part |
+| claws | the claw mode rakes 25% harder per grade |
+| a clubbed tail | the tail mode hits 50% harder (75% for a spiked club) |
+| a shell | every hit on it, gunshot or strike, is blunted 10% / 20% / 30% (patch, plates, carapace); a hit that does damage still does at least 1 |
+
+Gore and sting are **granted, not rolled**: every species with horns gores,
+every species with a stinger stings (`featureAttacks`, applied in the anatomy
+pass). They live in their own list, `featureAttackModes`, after the rolled
+`attackModes`, because `rollAttackModes` walks `attackModes` drawing from the
+lore stream and appending to it would have re-rolled every later species'
+attacks. At the moment of a blow, `attacksNow` drops a feature mode the body
+cannot use yet (a hornless grub of a horned species bites). A body without
+any feature fights exactly as before: same modes, same damage, same draws.
+Descriptions say "goring with their horns" and "stinging"; narration says
+"gores" and "stings".
+
+### Apex species
+
+A few species are **very deadly on purpose**. `rollApex` marks
+`alien-apex-percent` (8%) of the species that both fight (not Friendly) and
+have a feature; their features hit by `apexWeapons` instead of
+`ordinaryWeapons`:
+
+| | ordinary | apex |
+| --- | --- | --- |
+| gore | +8% per horn, +5% per tine, at most 2x | +15% per horn, +10% per tine, at most 3x |
+| claws | +25% per grade | +50% per grade |
+| club / spiked club tail | 1.5x / 1.75x | 2x / 2.5x |
+| sting (to the torso) | 0.5x / 0.75x barbed | 1x / 1.5x barbed |
+| shell blocks | 10% / 20% / 30% | 25% / 45% / 60% |
+
+Across 1,000 rolled species, 55 were apex: with the shipped one species per
+seed, about one game in twenty meets one. The lore tab warns: "Colonists who
+have seen what those can do speak of them in whispers; nothing else in the
+caves is as deadly." The roll draws from its own stream (`alienApexSeed`),
+once per species whatever its anatomy or temperament, so it moves no other
+draw and one species never shifts another's roll.
+
+What it does to a colony, over 20,000 ticks with 20 colonists, the first six
+apex seeds run with the apex roll off and on: a Hostile goring species took
+seed 11 from 19 survivors to 3 and seed 12 from 10 to 0; a Hostile stinger
+(seed 74) and the Cautious apex species (seeds 16, 36, 66) changed nothing,
+because a Cautious species only strikes a colonist who comes close.
 
 ### An individual's life
 
@@ -134,6 +188,18 @@ use the layer's turn):
    joey." when it is live young. A brood in an undiscovered cave is laid
    unlogged, as growth is, so a nest found late can be a big one.
 
+**A laying caste keeps to her nest.** A queen, betty, jill or matriarch
+remembers where she was spawned as one, or where she grew into one
+(`LifeStage.nest`). Her ladder is her temperament's with a `stayNear` rung
+right after dormancy: beyond `alien-nest-roam` (4) tiles of her nest she
+walks home before anything else, and within it she does what her
+temperament does, so a Hostile queen still strikes what comes close but is
+tethered to her brood. The roam is under the brood radius (6), so what she
+lays near home counts toward her nest's cap. The plain adult of a line
+without castes roams like any adult: if it kept to a nest too, such a
+species could never spread past where it started. `stayNear` is the
+chicken's rung: the trough and the nest are two anchors for one behavior.
+
 The lore tab's life paragraph ends with who breeds and how: "Only the
 queens lay eggs.", "Adults bear young."
 
@@ -185,22 +251,50 @@ queens lay eggs.", "Adults bear young."
   cleared, though the colony ended with 7 of its 20 (seed 5: the brood grew to 6 before colonists cleared it). The
   harsher numbers are a config change away.
 
+- **Features were cut back after a balance run.** The first numbers (a
+  gore up to 2.5x, a sting at 75% / 100% to the torso, a shell blocking
+  20% / 35% / 50%) wiped out three of sixteen 20-colonist colonies at the
+  shipped alien settings over 20,000 ticks, against one before. Two of
+  the three were a full carapace on a breeding species: at half damage
+  from every pistol shot a brood was all but impossible to clear. With the
+  numbers in the table, forty seeds lost four colonies against six before,
+  and ended with 641 colonists against 625: no harsher overall. Single
+  seeds flip either way (the wiped seed 8 was wiped again with stings
+  rolling their hit like any blow), because any change to which modes a
+  species rolls reshuffles every later draw; judge balance across many
+  seeds, not one.
+
+- **Deadly is fine; common is not.** After the balance run cut the
+  ordinary numbers back, the stronger ones came back as the apex table:
+  the game can have species that wipe a colony, as long as they are rare.
+  Rarity is the knob (`alien-apex-percent`); the apex numbers are not meant
+  to be fair.
+- **A flaky test that was a lifecycle assumption.** Adding apex turned up a
+  test that failed about one run in fifteen, on `main` too:
+  `TestBystanderRemembersAlienAttack` uses `DefaultConfig`, whose seed is the
+  clock, and set a victim's HP to its species' full bite damage. Since
+  lifecycles, an alien can spawn as a young form that bites for less, so the
+  "fatal" bite sometimes was not. It now uses `alienDamage`, what this alien
+  actually deals. A test on `DefaultConfig` gets a different roster every
+  run; it must not assume an adult, a single form, or no features.
+
 ## Extending it
 
-- **Combat from features.** Horns, stingers and tail clubs could add
-  `AttackMode`s (a gore, a sting) through `canUse`. Append new modes at the
-  end of `attackModes` so the lore stream's draws do not shift (see
-  [lore.md](./lore.md#extending-it)).
+- **Spines that fight back.** Quills are the one feature with no combat
+  effect yet. A natural one: an attacker striking a quilled alien takes
+  damage back (only another alien strikes one in melee today).
+- **Venom.** A sting is a torso blow today; lingering damage would need a
+  status component on the victim and a death path for it outside the turn
+  that dealt it.
 - **Breeding for single-form species.** They do not breed; giving them a
   laying form would need a first form to lay (a hatchling the size of the
   adult reads wrong), or a separate rule.
-- **A queen that stays home.** A queen runs her species' temperament ladder
-  like any adult and wanders; a `stayNear` rung for her nest (like the
-  chicken's trough) would keep broods together.
 - **Eggs as targets.** Colonists could smash eggs and casings (a work order,
   or a fight target that does not trigger flight).
-- **Stage words in names.** `alien-names.yaml` conditions could gain
-  feature leaves (`horns`, `shell`) so a horned species can be named for it.
+- **Stage words in names.** Feature names exist ("unicorn", "urchin",
+  "horror"; see [lore.md](./lore.md#naming-a-condition-gated-pool-not-a-flat-table)),
+  but nothing names a species for its lifecycle yet (a "broodmother" for a
+  line with queens, say). It would go in the same second pass.
 - Keep each young form a lesser version of the next (`gainsOnly` in the
   tests), keep sizes rising, and keep every new draw on the lifecycle or
   anatomy stream, or on `World.rng` when it is a gameplay decision.

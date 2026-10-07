@@ -22,7 +22,7 @@ Only colonists still have a turn of their own.
 Built:
 
 - [`internal/sim/species.go`](../internal/sim/species.go) — `Species`, `kindIdentity` (the Config-free half: name, noun, body, spawn site), `newSpeciesTable` (stats and ladders from `Config`), `World.speciesOf`.
-- [`internal/sim/behaviors.go`](../internal/sim/behaviors.go) — the `behavior` interface, `animalTurn`, and the rungs: `hunt` with its `preyFinder`s, `flee`, `forage` with its `foodSource`s, `breed`, `stayNearTrough`, `dormant`, `grazeScum`, `wander`.
+- [`internal/sim/behaviors.go`](../internal/sim/behaviors.go) — the `behavior` interface, `animalTurn`, and the rungs: `hunt` with its `preyFinder`s, `flee`, `forage` with its `foodSource`s, `breed`, `stayNear` with its anchors (a pet's trough, a queen's nest), `dormant`, `grazeScum`, `inert`, `wander`.
 - `newAlienSpeciesTable` and `World.buildAlienSpecies` (in `species.go`) — one species per rolled alien species.
 - [`internal/sim/tags.go`](../internal/sim/tags.go) — `Tags`, `tagsOf`, `nearestTagged`, `nearestTaggedWhere`, `sameSpecies`.
 - [`internal/sim/components.go`](../internal/sim/components.go) — `Breeding` and `PetBond`, with the `keeperOf` / `petTrough` accessors.
@@ -105,7 +105,7 @@ type hunt struct{ find preyFinder; catch func(w *World, hunter, prey *Entity); r
 type flee struct{ from Tags; radius int }
 type forage struct{ sources []foodSource }  // tried in order once hungry
 type breed struct{}                         // tryMate; litter size etc. still in Config
-type stayNearTrough struct{ roam int }      // a chicken
+type stayNear struct{ anchor anchorFn; roam int } // a chicken's trough, a queen's nest
 type dormant struct{}                       // an alien in an undiscovered cave shuffles about
 type grazeScum struct{}                     // a peaceful alien eats cave scum (alienGraze)
 type wander struct{}                        // always acts: every ladder ends here
@@ -158,7 +158,7 @@ cat.ladder     = {hunt{prey: Rat, rest: CatPounceRest}, wander{}}
 rat.ladder     = {flee{from: TagMouser, radius: RatFleeRadius},
                   forage{forageScavenge, foragePod}, breed{}, wander{}}
 chicken.ladder = {forage{(*World).chickenFeed, (*World).chickenGraze},
-                  stayNearTrough{roam: ChickenRoam}, wander{}}
+                  stayNear{anchor: troughAnchor, roam: ChickenRoam}, wander{}}
 ```
 
 **One turn function runs every species.** The steps every animal shares
@@ -419,9 +419,9 @@ the ladder is a refactor of the existing ladders, not a redesign of them.
    the inspector name forms. It changes the game, so it is checked by its
    own tests (`alien_lifecycle_test.go`), not by fingerprint. Departures
    from the proposal: the young graze rather than flee and forage, eggs are
-   invisible to colonists rather than findable, and features are
-   description only. (Laying came after, with population caps; see
-   alien-lifecycles.md.) See [alien-lifecycles.md](./alien-lifecycles.md).
+   invisible to colonists rather than findable, and features were
+   description only. (Laying, queens' nests and features that fight came
+   after; see alien-lifecycles.md.) See [alien-lifecycles.md](./alien-lifecycles.md).
 5. **Tags for prey and threat.** *Done.* Every prey and threat question asks
    for tags (`nearestTagged`, `nearestTaggedWhere`, the finders, `flee`);
    `nearestOfKind`, `nearestOfKindAnywhere`, `nearestReachablePrey` and the

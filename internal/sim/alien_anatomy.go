@@ -27,6 +27,21 @@ const (
 	TailStinger            // a stinger at the tip
 )
 
+// String is the tail tip's word in a name condition: plain, club,
+// spiked-club, stinger.
+func (t TailTip) String() string {
+	switch t {
+	case TailClub:
+		return "club"
+	case TailSpikedClub:
+		return "spiked-club"
+	case TailStinger:
+		return "stinger"
+	default:
+		return "plain"
+	}
+}
+
 // AlienAnatomy is a body's graded features. Zero is absent for each.
 type AlienAnatomy struct {
 	Horns   int // count: 1 nub ... a crown of a dozen

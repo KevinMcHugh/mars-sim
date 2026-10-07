@@ -421,3 +421,111 @@ func TestNameConditionWings(t *testing.T) {
 		t.Fatal("a wings-only condition reads as unconditional")
 	}
 }
+
+func gteCond(v int) *intCondition { return &intCondition{Gte: &v} }
+
+// Feature leaves test the species' graded anatomy, its tail tip and the apex
+// roll, and a condition using any of them is a feature condition.
+func TestNameConditionFeatures(t *testing.T) {
+	yes := true
+	horned := AlienSpecies{Anatomy: AlienAnatomy{Horns: 6, Shell: 2, TailTip: TailSpikedClub}, Apex: true}
+	bare := AlienSpecies{}
+	for _, tc := range []struct {
+		name string
+		c    nameCondition
+	}{
+		{"horns", nameCondition{Horns: gteCond(6)}},
+		{"shell", nameCondition{Shell: intCond(2)}},
+		{"tail-tip", nameCondition{TailTip: "spiked-club"}},
+		{"apex", nameCondition{Apex: &yes}},
+		{"nested", nameCondition{All: []nameCondition{{Any: []nameCondition{{Horns: gteCond(1)}}}}}},
+	} {
+		if !tc.c.matches(horned) {
+			t.Errorf("%s: does not match a species that has it", tc.name)
+		}
+		if tc.c.matches(bare) {
+			t.Errorf("%s: matches a featureless species", tc.name)
+		}
+		if !tc.c.usesFeatures() || tc.c.isZero() {
+			t.Errorf("%s: usesFeatures %v, isZero %v", tc.name, tc.c.usesFeatures(), tc.c.isZero())
+		}
+	}
+	if (nameCondition{Skin: "furry"}).usesFeatures() {
+		t.Error("a skin condition counts as a feature condition")
+	}
+}
+
+// No built-in feature name matches a species before anatomy is rolled: if
+// one did, it would leak into the first naming pass and shift every later
+// species' build (see renameForFeatures).
+func TestFeatureNamesNeverMatchABareBody(t *testing.T) {
+	cfg := DefaultConfig()
+	cfg.AlienSpeciesCount = 10
+	features := 0
+	for _, e := range defaultAlienNames() {
+		if e.When.usesFeatures() {
+			features++
+		}
+	}
+	if features == 0 {
+		t.Fatal("the built-in names have no feature names")
+	}
+	for seed := int64(1); seed <= 30; seed++ {
+		cfg.Seed = seed
+		for _, sp := range rollAlienSpeciesRoster(newRand(cfg.Seed^alienLoreSeed), cfg) {
+			sp.Anatomy, sp.Apex = AlienAnatomy{}, false
+			for _, e := range defaultAlienNames() {
+				if e.When.usesFeatures() && e.When.matches(sp) {
+					t.Fatalf("feature name %q matches a featureless %s species", e.Singular, sp.Skin)
+				}
+			}
+		}
+	}
+}
+
+// A species renamed for its features fits the name it took, and the pass
+// actually renames some.
+func TestFeatureNamesFitTheirSpecies(t *testing.T) {
+	cfg := DefaultConfig()
+	cfg.AlienSpeciesCount = 10
+	renamed := 0
+	for seed := int64(1); seed <= 40; seed++ {
+		cfg.Seed = seed
+		for _, sp := range rollAlienSpeciesRoster(newRand(cfg.Seed^alienLoreSeed), cfg) {
+			for _, e := range defaultAlienNames() {
+				if !e.When.usesFeatures() || !strings.HasSuffix(sp.Singular, e.Singular) {
+					continue
+				}
+				fits := false
+				for _, f := range defaultAlienNames() {
+					if f.Singular == e.Singular && f.When.matches(sp) {
+						fits = true
+					}
+				}
+				if !fits {
+					t.Errorf("%q does not fit its species: %+v apex %v", sp.Singular, sp.Anatomy, sp.Apex)
+				}
+				renamed++
+				break
+			}
+		}
+	}
+	if renamed < 20 {
+		t.Fatalf("only %d of 400 species took a feature name", renamed)
+	}
+	t.Logf("%d of 400 species took a feature name", renamed)
+}
+
+// Scientific names can follow features too: a horned species can be a
+// Ceratoceras cornutum, and only a horned one.
+func TestScientificNameFollowsFeatures(t *testing.T) {
+	tx := alienTaxonomy{
+		Prefixes: []taxonEntry{{Form: "cerato", When: nameCondition{Horns: gteCond(1)}}},
+		Roots:    []taxonEntry{{Form: "ceras", Gender: "n", When: nameCondition{Horns: gteCond(1)}}},
+		Epithets: []taxonEntry{{Form: "cornutus", Feminine: "cornuta", Neuter: "cornutum", When: nameCondition{Horns: gteCond(1)}}},
+	}
+	got := scientificName(newRand(1), AlienSpecies{Anatomy: AlienAnatomy{Horns: 3}}, tx, nil)
+	if got != "Ceratoceras cornutum" {
+		t.Fatalf("horned species named %q, want Ceratoceras cornutum", got)
+	}
+}

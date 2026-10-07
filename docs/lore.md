@@ -230,8 +230,11 @@ roughly even (45% each) — the "ET to Xenomorph" spread the ask described.
 
 ### Attack modes: how a species fights
 
-`AttackMode` is one of four: **bite**, **claws** (scratching), **tail**
-(thrashing), **strangle**. Each species rolls a set of them
+`AttackMode` is one of six: **bite**, **claws** (scratching), **tail**
+(thrashing), **strangle**, and two its anatomy grants rather than rolls,
+**gore** and **sting** (see
+[alien-lifecycles.md](./alien-lifecycles.md#features-that-fight)). Each
+species rolls a set of the first four
 (`rollAttackModes`, stored as the `AttackSet` bitmask `AlienSpecies.AttackModes`),
 and the set has to make sense for the body (`canUse`):
 
@@ -241,6 +244,8 @@ and the set has to make sense for the body (`canUse`):
 | claws | at least one arm | full damage to a random part |
 | tail | a tail | full damage to a random part |
 | strangle | at least two arms (a grip) | half damage, always to the head |
+| gore | horns or antlers (granted, not rolled) | scaled by horns and tines, to a random part |
+| sting | a stinger (granted, not rolled) | half damage (barbed: three quarters), always to the torso |
 
 Each allowed mode is kept on a coin flip, so two clawed, tailed species can
 still fight differently; if every flip misses, the species bites. A tail-less
@@ -324,6 +329,11 @@ type nameCondition struct {
 	Temperament, Skin, Color, Pattern, Height, Weight string
 	Tail, Wings                              *bool
 	Legs, Arms, Limbs, Eyes                  *intCondition // {eq,gt,gte,lt,lte}
+
+	// graded features and the apex roll (see alien-lifecycles.md)
+	Horns, Antlers, Spines, Shell, Claws, Stinger *intCondition
+	TailTip                                       string // plain | club | spiked-club | stinger
+	Apex                                          *bool
 }
 ```
 
@@ -345,6 +355,24 @@ the just-rolled species and draws one at random — overlapping conditions
 `alien-names.yaml`'s conditions are allowed to be loose and to overlap
 freely. `rollAlienSpecies` calls it *last*, after every other trait is
 rolled, since the name depends on the build, not the other way around.
+
+**Feature names are a second pass.** Graded anatomy and the apex roll come
+after the build, on streams of their own, so the first pick cannot see
+them: an entry gated on `horns`, `stinger`, `apex` and the like (a
+*feature name*, `usesFeatures`) never matches a body that has no features
+yet. After anatomy and apex, `renameForFeatures` gives each species whose
+features fit a free feature name a 60% chance of taking one ("unicorn" for
+a single horn, "crownhorn" for six or more, "urchin", "shellback",
+"reaper", "stingtail", "morningstar", and "horror", "dread" or
+"nightmare" for an apex species), freeing the first-pass name. The pass
+has its own stream (`alienFeatureNameSeed`) and draws once per species
+before anything else, so no species' build, temperament or first-pass name
+moved when feature names were added; about a third of species end up with
+one. A feature name must only test features a species *has* (`gte`, `eq`,
+`apex: true`): a condition a featureless species could meet (`not:
+{horns: ...}`) would join the first pass and shift every later species'
+build. `TestFeatureNamesNeverMatchABareBody` holds the built-in file to
+that.
 
 ### Name groups
 
@@ -638,8 +666,11 @@ word-wrapped to the panel width.
 
 ## Extending it
 
-- **More attack modes.** Add an `AttackMode` at the end of `attackModes`
-  (inserting mid-list shifts lore draws), a `canUse` gate, an `attackPhrase`
+- **More attack modes.** A mode a feature grants goes in
+  `featureAttackModes` and `featureAttacks`, with no draw at all, as gore
+  and sting do. A mode to roll goes at the end of `attackModes` (inserting
+  mid-list shifts lore draws, and even appending shifts every later
+  species' draws), a `canUse` gate, an `attackPhrase`
   phrase, a `strikeVerbs` entry, a `strikeTargetText` case, and whatever
   mechanics `strike` gives it (a stomp for heavy many-legged species, a
   sting for a tailed chitinous one). Modes could also gate names
@@ -652,9 +683,9 @@ word-wrapped to the panel width.
   several forms (egg, grub, pupa, joey; queen/worker/drone castes), each
   larger and more extreme than the last but recognizably the same, and every
   species rolls graded features (horns, antlers, stingers, quills, tail
-  clubs, shells) that `Description` adds a sentence for, and their adults
-  or queens lay the next generation. Next there: features that fight (a
-  gore, a sting). See
+  clubs, shells) that `Description` adds a sentence for, their adults
+  or queens lay the next generation, and the features fight: horns gore,
+  stingers sting, claws and clubs hit harder, shells blunt hits. See
   [alien-lifecycles.md](./alien-lifecycles.md).
 - **Per-individual variation.** Every alien of a given species is still
   stat-for-stat identical to every other of that species. Giving each

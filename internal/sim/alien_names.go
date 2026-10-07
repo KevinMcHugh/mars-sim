@@ -71,6 +71,22 @@ type nameCondition struct {
 	Arms  *intCondition `yaml:"arms,omitempty"`
 	Limbs *intCondition `yaml:"limbs,omitempty"`
 	Eyes  *intCondition `yaml:"eyes,omitempty"`
+
+	// Graded features (alien_anatomy.go): counts for horns and antler tines,
+	// grades 1-3 for spines, shell and claws, 1-2 for a stinger, and what a
+	// tail ends in. apex is the rare deadly species (alien_weapons.go). A
+	// name gated on any of these is a feature name: the first naming pass
+	// never sees one match (a species has no features yet when it is named),
+	// and the feature-naming pass may rename a species to it (see
+	// renameForFeatures).
+	Horns   *intCondition `yaml:"horns,omitempty"`
+	Antlers *intCondition `yaml:"antlers,omitempty"`
+	Spines  *intCondition `yaml:"spines,omitempty"`
+	Shell   *intCondition `yaml:"shell,omitempty"`
+	Claws   *intCondition `yaml:"claws,omitempty"`
+	Stinger *intCondition `yaml:"stinger,omitempty"`
+	TailTip string        `yaml:"tail-tip,omitempty"` // plain | club | spiked-club | stinger
+	Apex    *bool         `yaml:"apex,omitempty"`
 }
 
 // intCondition is a numeric comparison against one of a species' counts. Every
@@ -89,7 +105,34 @@ type intCondition struct {
 func (c nameCondition) isZero() bool {
 	return len(c.All) == 0 && len(c.Any) == 0 && c.Not == nil &&
 		c.Temperament == "" && c.Skin == "" && c.Color == "" && c.Pattern == "" && c.Height == "" && c.Weight == "" &&
-		c.Tail == nil && c.Wings == nil && c.Legs == nil && c.Arms == nil && c.Limbs == nil && c.Eyes == nil
+		c.Tail == nil && c.Wings == nil && c.Legs == nil && c.Arms == nil && c.Limbs == nil && c.Eyes == nil &&
+		!c.featureLeaf()
+}
+
+// featureLeaf reports whether c itself (not its sub-conditions) tests a
+// graded feature or apex.
+func (c nameCondition) featureLeaf() bool {
+	return c.Horns != nil || c.Antlers != nil || c.Spines != nil || c.Shell != nil ||
+		c.Claws != nil || c.Stinger != nil || c.TailTip != "" || c.Apex != nil
+}
+
+// usesFeatures reports whether c tests a graded feature or apex anywhere in
+// its tree: whether an entry under it is a feature name.
+func (c nameCondition) usesFeatures() bool {
+	if c.featureLeaf() {
+		return true
+	}
+	for _, sub := range c.All {
+		if sub.usesFeatures() {
+			return true
+		}
+	}
+	for _, sub := range c.Any {
+		if sub.usesFeatures() {
+			return true
+		}
+	}
+	return c.Not != nil && c.Not.usesFeatures()
 }
 
 func (c intCondition) matches(v int) bool {
@@ -170,6 +213,21 @@ func (c nameCondition) matches(sp AlienSpecies) bool {
 		return false
 	}
 	if c.Eyes != nil && !c.Eyes.matches(sp.Eyes) {
+		return false
+	}
+	a := sp.Anatomy
+	for _, leaf := range []struct {
+		c *intCondition
+		v int
+	}{{c.Horns, a.Horns}, {c.Antlers, a.Antlers}, {c.Spines, a.Spines}, {c.Shell, a.Shell}, {c.Claws, a.Claws}, {c.Stinger, a.Stinger}} {
+		if leaf.c != nil && !leaf.c.matches(leaf.v) {
+			return false
+		}
+	}
+	if c.TailTip != "" && !strings.EqualFold(c.TailTip, a.TailTip.String()) {
+		return false
+	}
+	if c.Apex != nil && *c.Apex != sp.Apex {
 		return false
 	}
 	return true
@@ -344,4 +402,52 @@ func withDefaultPlural(e AlienNameEntry) AlienNameEntry {
 		e.Plural = e.Singular + "s"
 	}
 	return e
+}
+
+// alienFeatureNameSeed separates the feature-naming pass's stream from the
+// other lore streams.
+const alienFeatureNameSeed = 0x0801F2E2858EFC16
+
+// featureRenamePercent is how often a species whose features fit a feature
+// name takes one, when one is free: often enough that a crown of horns
+// usually shows in the name, not so often that every horned species is a
+// "crownhorn".
+const featureRenamePercent = 60
+
+// renameForFeatures is the second naming pass, after anatomy and the apex
+// roll: a species whose features fit one of the feature names (entries
+// gated on horns, a stinger, apex and the like; see usesFeatures) takes one,
+// featureRenamePercent of the time, freeing the name the first pass gave it.
+// The first pass runs before anatomy exists, so it can never pick a feature
+// name, and this pass draws from its own stream: no species' build,
+// temperament or first-pass name moved when it was added. used is the
+// roster's taken names, kept current.
+func renameForFeatures(cfg Config, roster []AlienSpecies, names []AlienNameEntry, used map[string]bool) {
+	rng := newRand(cfg.Seed ^ alienFeatureNameSeed)
+	for i := range roster {
+		sp := &roster[i]
+		roll := rng.IntN(100) // one draw per species, whatever it matches
+		var fresh []AlienNameEntry
+		for _, e := range names {
+			if e.When.usesFeatures() && e.When.matches(*sp) && !used[strings.ToLower(e.Singular)] {
+				fresh = append(fresh, e)
+			}
+		}
+		if len(fresh) == 0 || roll >= featureRenamePercent {
+			continue
+		}
+		e := fresh[rng.IntN(len(fresh))]
+		emoji := ""
+		if len(e.Emoji) > 0 {
+			emoji = e.Emoji[rng.IntN(len(e.Emoji))]
+		}
+		plural := e.Plural
+		if plural == "" {
+			plural = e.Singular + "s"
+		}
+		delete(used, strings.ToLower(sp.Singular))
+		sp.Singular, sp.Plural = distinctAlienName(*sp, e.Singular, plural, used)
+		sp.Emoji = emoji
+		used[strings.ToLower(sp.Singular)] = true
+	}
 }

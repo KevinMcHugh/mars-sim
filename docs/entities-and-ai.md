@@ -13,7 +13,7 @@ turn order, the movement primitives, and each creature's behavior.
 
 - [`internal/sim/entity.go`](../internal/sim/entity.go) — `Kind`, `State`, `JobKind`, the `Entity` struct, `newEntity`.
 - [`internal/sim/species.go`](../internal/sim/species.go) — the species table: each kind's name, noun, body, spawn site, stats, and (cats, rats, chickens) behavior ladder.
-- [`internal/sim/behaviors.go`](../internal/sim/behaviors.go) — `animalTurn` and the behavior rungs ladders are built from (`hunt`, `flee`, `forage`, `breed`, `stayNearTrough`, `wander`).
+- [`internal/sim/behaviors.go`](../internal/sim/behaviors.go) — `animalTurn` and the behavior rungs ladders are built from (`hunt`, `flee`, `forage`, `breed`, `stayNear`, `dormant`, `grazeScum`, `inert`, `wander`).
 - [`internal/sim/systems.go`](../internal/sim/systems.go) — `step`, turn order, the colonist and alien turns, movement primitives, queries.
 - [`internal/sim/config.go`](../internal/sim/config.go) — the per-creature stat tunables.
 

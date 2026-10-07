@@ -74,8 +74,9 @@ func TestRosterScientificNames(t *testing.T) {
 // Naming must not consume the lore stream: a species' build has to come
 // out the same whether or not it is then given a scientific name, or adding
 // names would have re-rolled every existing seed's roster. The same holds
-// for the passes after naming, graded anatomy and lifecycles, which draw
-// from streams of their own.
+// for the passes after naming, graded anatomy, the apex roll, feature names
+// and lifecycles, which draw from streams of their own; a feature name may
+// replace the first pass's name, and nothing else.
 func TestScientificNamesDoNotShiftTheRoster(t *testing.T) {
 	cfg := DefaultConfig()
 	cfg.AlienSpeciesCount = 4
@@ -89,6 +90,13 @@ func TestScientificNamesDoNotShiftTheRoster(t *testing.T) {
 		used[strings.ToLower(want.Singular)] = true
 		got.ScientificName = ""
 		got.Anatomy, got.Forms, got.FormCount = AlienAnatomy{}, [maxAlienForms]AlienForm{}, 0
+		got.AttackModes &^= AttackSetOf(AttackGore, AttackSting) // granted by the anatomy pass
+		got.Apex = false                                         // its own stream
+		if isFeatureName(names, got.Singular) {
+			// The feature-naming pass renamed it (renameForFeatures); every
+			// other field must still be the first pass's.
+			got.Singular, got.Plural, got.Emoji = want.Singular, want.Plural, want.Emoji
+		}
 		if got != want {
 			t.Fatalf("species %d differs once named:\n%+v\n%+v", i, got, want)
 		}
@@ -175,4 +183,15 @@ func TestEmbeddedEpithetsDecline(t *testing.T) {
 	if declining == 0 {
 		t.Fatal("no declining epithets in the embedded taxonomy")
 	}
+}
+
+// isFeatureName reports whether singular is (or is qualified from) one of the
+// feature names: entries gated on graded features or apex.
+func isFeatureName(names []AlienNameEntry, singular string) bool {
+	for _, e := range names {
+		if e.When.usesFeatures() && strings.HasSuffix(strings.ToLower(singular), strings.ToLower(e.Singular)) {
+			return true
+		}
+	}
+	return false
 }
