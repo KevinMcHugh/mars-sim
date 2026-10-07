@@ -265,7 +265,8 @@ func TestDescriptionTellsTheLife(t *testing.T) {
 	cfg.Seed = 5
 	sp := rollAlienSpeciesRoster(newRand(cfg.Seed^alienLoreSeed), cfg)[0]
 	d := sp.Description()
-	if !strings.Contains(d, "Their life has 3 stages: ") || !strings.Contains(d, "Adults come as ") {
+	if !strings.Contains(d, "Their life has 3 stages: ") || !strings.Contains(d, "Adults come as ") ||
+		!(strings.Contains(d, " lay eggs.") || strings.Contains(d, " bear young.")) {
 		t.Fatalf("description does not tell the life: %s", d)
 	}
 	plain := sp
@@ -287,5 +288,166 @@ func TestLifecyclesAreDeterministic(t *testing.T) {
 		if a[i] != b[i] {
 			t.Fatalf("species %d rolled differently from the same seed", i)
 		}
+	}
+}
+
+// Every life has exactly one form that lays: the plain adult, or its laying
+// caste (queen, betty, jill, matriarch), never a young form.
+func TestEachLifeHasOneLayingForm(t *testing.T) {
+	for _, castes := range []bool{false, true} {
+		cfg := lifecycleConfig(3, castes)
+		cfg.AlienSpeciesCount = 8
+		for seed := int64(1); seed <= 20; seed++ {
+			cfg.Seed = seed
+			for _, sp := range rollAlienSpeciesRoster(newRand(cfg.Seed^alienLoreSeed), cfg) {
+				layers := 0
+				for _, f := range sp.LifeForms() {
+					if !f.Lays {
+						continue
+					}
+					layers++
+					if f.Stage != sp.stageCount()-1 {
+						t.Errorf("%s: young form %q lays", sp.Singular, f.Name)
+					}
+				}
+				if layers != 1 {
+					t.Errorf("%s: %d laying forms, want 1", sp.Singular, layers)
+				}
+			}
+		}
+	}
+}
+
+// layerWorld is a world with one species of lifecycleConfig(stages,
+// castes), a laying adult of it standing on open, revealed floor, and that
+// adult's laying form index.
+func layerWorld(t *testing.T, stages int, castes bool) (*World, *Entity) {
+	t.Helper()
+	cfg := lifecycleConfig(stages, castes)
+	w := newTestWorld(t, cfg)
+	at := Point{w.Width / 2, w.Height / 2}
+	carve(w, at.Add(-3, -3), at.Add(3, 3), Floor)
+	w.refreshSpatial()
+	w.reveal(at)
+	layer := -1
+	for i, f := range w.alienSpecies[0].LifeForms() {
+		if f.Lays {
+			layer = i
+		}
+	}
+	e := w.spawn(Alien, at)
+	e.life.form, e.life.growAt = layer, 0
+	w.resizeAlien(e, 100)
+	setAlienTemperament(w, 0, TemperamentFriendly) // it should lay, not hunt the test
+	return w, e
+}
+
+// A laying adult lays its species' first form beside it when its time
+// comes, at the very start of that stage, and says so in the log.
+func TestLayerLaysItsFirstForm(t *testing.T) {
+	w, mother := layerWorld(t, 3, true)
+	sp := w.alienSpecies[0]
+	before := w.kindCounts[Alien]
+	mother.life.layAt = w.tick
+	w.layBrood(mother)
+	if w.kindCounts[Alien] != before+1 {
+		t.Fatalf("aliens %d after laying, want %d", w.kindCounts[Alien], before+1)
+	}
+	var young *Entity
+	for id := range w.kindEntities[Alien] {
+		if c := w.entities[id]; c != mother {
+			young = c
+		}
+	}
+	if young.Species != mother.Species || young.life.form != 0 || !young.Pos.Adjacent(mother.Pos) {
+		t.Fatalf("brood is species %d form %d at %v; want species %d form 0 beside %v",
+			young.Species, young.life.form, young.Pos, mother.Species, mother.Pos)
+	}
+	if want := w.tick + sp.Forms[0].Ticks; young.life.growAt < want-2 || young.life.growAt > want {
+		t.Fatalf("brood grows at %d, want a full stage ahead (~%d)", young.life.growAt, want)
+	}
+	if young.HP != young.MaxHP {
+		t.Fatalf("brood born wounded: %d/%d", young.HP, young.MaxHP)
+	}
+	if mother.life.layAt <= w.tick {
+		t.Fatalf("next brood at %d, not after tick %d", mother.life.layAt, w.tick)
+	}
+	verb := "bears"
+	if sp.Forms[0].Inert {
+		verb = "lays"
+	}
+	found := false
+	for _, l := range w.log.tail(20) {
+		found = found || (l.Kind == LogBirth && strings.Contains(l.Text, " "+verb+" "))
+	}
+	if !found {
+		t.Fatalf("no log line that the mother %s; log: %v", verb, w.log.tail(5))
+	}
+}
+
+// A crowded nest does not lay: alien-brood-cap of the species within
+// alien-brood-radius stops the layer, though it still waits a full
+// interval before trying again.
+func TestCrowdedNestDoesNotLay(t *testing.T) {
+	w, mother := layerWorld(t, 2, false)
+	w.cfg.AlienBroodCap = 3
+	for _, d := range []Point{{2, 0}, {-2, 0}} {
+		kin := w.spawnAs(Alien, mother.Pos.Add(d.X, d.Y), mother.Species)
+		kin.life.growAt, kin.life.layAt = 0, 0
+	}
+	mother.life.layAt = w.tick
+	before := w.kindCounts[Alien]
+	w.layBrood(mother)
+	if w.kindCounts[Alien] != before {
+		t.Fatal("a nest at its cap laid anyway")
+	}
+	if mother.life.layAt != w.tick+w.cfg.AlienLayTicks {
+		t.Fatalf("next try at %d, want %d", mother.life.layAt, w.tick+w.cfg.AlienLayTicks)
+	}
+}
+
+// A layer with no free floor beside it does not lay.
+func TestNoRoomNoBrood(t *testing.T) {
+	w, mother := layerWorld(t, 2, false)
+	for _, d := range neighbors8 {
+		w.SetTerrain(mother.Pos.Add(d.X, d.Y), Rock)
+	}
+	w.refreshSpatial()
+	before := w.kindCounts[Alien]
+	w.layBrood(mother)
+	if w.kindCounts[Alien] != before {
+		t.Fatal("a walled-in layer laid onto rock")
+	}
+}
+
+// Only the laying caste lays: a worker, a drone or a bull never does.
+func TestNonLayingCastesNeverLay(t *testing.T) {
+	w, e := layerWorld(t, 2, true)
+	for i, f := range w.alienSpecies[0].LifeForms() {
+		if f.Stage == w.alienSpecies[0].stageCount()-1 && !f.Lays {
+			e.life.form, e.life.layAt = i, 0
+			break
+		}
+	}
+	before := w.kindCounts[Alien]
+	for i := 0; i < 3*w.cfg.AlienLayTicks; i += 97 {
+		w.animalTurn(e)
+		w.tick += 97
+	}
+	if w.kindCounts[Alien] != before || e.life.layAt != 0 {
+		t.Fatalf("a non-laying caste laid (aliens %d -> %d, layAt %d)", before, w.kindCounts[Alien], e.life.layAt)
+	}
+}
+
+// A step lays a brood when the layer's time has come: laying is wired into
+// the turn, not only callable.
+func TestStepLaysWhenDue(t *testing.T) {
+	w, mother := layerWorld(t, 2, false)
+	mother.life.layAt = w.tick + 1
+	before := w.kindCounts[Alien]
+	w.step()
+	w.step()
+	if w.kindCounts[Alien] != before+1 {
+		t.Fatalf("aliens %d after a due brood, want %d", w.kindCounts[Alien], before+1)
 	}
 }

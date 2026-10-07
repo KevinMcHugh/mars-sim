@@ -978,6 +978,18 @@ zoning-auto: true
 ## roughly how many ticks one alien life stage lasts before it grows into the next
 # alien-stage-ticks: 2160
 
+## ticks between broods for a laying alien (an adult of a multi-stage species, or its queen)
+# alien-lay-ticks: 4320
+
+## a laying alien does not lay while this many of its species live within alien-brood-radius of it
+# alien-brood-cap: 8
+
+## how far a laying alien counts its own kind when deciding whether its nest is full
+# alien-brood-radius: 6
+
+## no alien of a species lays while this many of that species are alive anywhere
+# alien-species-cap: 16
+
 # ── Weapons ─────────────────────────────────────────────────────────────
 ## HP removed per pistol shot
 # pistol-damage: 10

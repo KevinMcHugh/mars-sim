@@ -43,6 +43,10 @@ func (w *World) animalTurn(e *Entity) {
 		w.growUp(e)
 		sp = w.speciesOf(e)
 	}
+	// A laying form whose time has come lays its brood, and still acts.
+	if l := e.life; l != nil && l.layAt > 0 && w.tick >= l.layAt {
+		w.layBrood(e)
+	}
 
 	if sp.Paced {
 		if e.Cooldown > 0 {

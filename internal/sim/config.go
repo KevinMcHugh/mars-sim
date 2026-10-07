@@ -576,6 +576,13 @@ type Config struct {
 	AlienFourFormWeight  int `cfg:"alien-four-form-weight" doc:"relative odds a rolled alien species has four life stages"`
 	AlienCastePercent    int `cfg:"alien-caste-percent" doc:"percent of multi-stage alien species whose adults split into castes (queen/worker/drone, bull/betty)"`
 	AlienStageTicks      int `cfg:"alien-stage-ticks" doc:"roughly how many ticks one alien life stage lasts before it grows into the next"`
+	// Brood: how often an alien species' laying form (its plain adult, or
+	// its queen, betty, jill or matriarch) lays the first form of its life,
+	// and the crowding that stops it. Single-form species do not lay.
+	AlienLayTicks    int `cfg:"alien-lay-ticks" doc:"ticks between broods for a laying alien (an adult of a multi-stage species, or its queen)"`
+	AlienBroodCap    int `cfg:"alien-brood-cap" doc:"a laying alien does not lay while this many of its species live within alien-brood-radius of it"`
+	AlienBroodRadius int `cfg:"alien-brood-radius" doc:"how far a laying alien counts its own kind when deciding whether its nest is full"`
+	AlienSpeciesCap  int `cfg:"alien-species-cap" doc:"no alien of a species lays while this many of that species are alive anywhere"`
 
 	// AlienNames configures the pool of names ("xenos," "critters," ...) a
 	// rolled species can be given, each gated by a condition over its build
@@ -922,6 +929,10 @@ func DefaultConfig() Config {
 		AlienFourFormWeight:       3,
 		AlienCastePercent:         30,
 		AlienStageTicks:           2160, // two colony days
+		AlienLayTicks:             4320, // four colony days
+		AlienBroodCap:             8,
+		AlienBroodRadius:          6,
+		AlienSpeciesCap:           16, // at 30 a hostile brood could overrun a 20-colonist colony (docs/alien-lifecycles.md)
 
 		PistolDamage:    10,
 		PistolRange:     3,

@@ -419,8 +419,9 @@ the ladder is a refactor of the existing ladders, not a redesign of them.
    the inspector name forms. It changes the game, so it is checked by its
    own tests (`alien_lifecycle_test.go`), not by fingerprint. Departures
    from the proposal: the young graze rather than flee and forage, eggs are
-   invisible to colonists rather than findable, nothing lays eggs yet, and
-   features are description only. See [alien-lifecycles.md](./alien-lifecycles.md).
+   invisible to colonists rather than findable, and features are
+   description only. (Laying came after, with population caps; see
+   alien-lifecycles.md.) See [alien-lifecycles.md](./alien-lifecycles.md).
 5. **Tags for prey and threat.** *Done.* Every prey and threat question asks
    for tags (`nearestTagged`, `nearestTaggedWhere`, the finders, `flee`);
    `nearestOfKind`, `nearestOfKindAnywhere`, `nearestReachablePrey` and the

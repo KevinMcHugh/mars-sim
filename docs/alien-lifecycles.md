@@ -8,8 +8,11 @@ Some alien species change over a life: an egg that hatches into a grub, a
 joey that pupates, a nymph that becomes a queen. Each seed rolls them with
 its roster. Most species have a single form, and every species, single-form
 or not, rolls **graded anatomy**: horns, antlers, quills, a shell, claws, a
-stinger, a tail club, in degrees a life can grow along. The tone is the
-platypus: plausible parts assembled slightly wrong.
+stinger, a tail club, in degrees a life can grow along. A species with a
+lifecycle also **breeds**: its adult (or its queen, betty, jill or matriarch)
+lays the first form of its life, an egg or live young, until its nest or its
+numbers are full. The tone is the platypus: plausible parts assembled
+slightly wrong.
 
 This is phase 4b of [species-and-behaviors.md](./species-and-behaviors.md):
 each form of a life is its own species value with its own behavior ladder.
@@ -17,11 +20,11 @@ each form of a life is its own species value with its own behavior ladder.
 ## Source
 
 - [`internal/sim/alien_anatomy.go`](../internal/sim/alien_anatomy.go) — `AlienAnatomy`, `TailTip`, `rollAnatomy`, `scaledAnatomy` (a young form's lesser features), `featurePhrases`.
-- [`internal/sim/alien_lifecycle.go`](../internal/sim/alien_lifecycle.go) — `AlienForm`, the stage vocabulary (`stageWords`) and caste sets (`casteSets`), `rollLifecycle`, `pushedAnatomy` (a caste's), and the individual side: `beginLife`, `growUp`, `resizeAlien`, `alienDamage`, `inert`, `alienFormNoun`, and the lore tab's `lifePhrase`.
+- [`internal/sim/alien_lifecycle.go`](../internal/sim/alien_lifecycle.go) — `AlienForm`, the stage vocabulary (`stageWords`) and caste sets (`casteSets`), `rollLifecycle`, `pushedAnatomy` (a caste's), and the individual side: `beginLife`, `growUp`, `layBrood` (with `broodCrowded`, `speciesPopulation`, `startYoung`), `resizeAlien`, `alienDamage`, `inert`, `alienFormNoun`, and the lore tab's `lifePhrase` and `broodPhrase`.
 - [`internal/sim/components.go`](../internal/sim/components.go) — `LifeStage`, the component an alien of a multi-form species carries.
 - [`internal/sim/species.go`](../internal/sim/species.go) — `newAlienSpeciesTable`: one species per form, each with its ladder.
 - [`internal/sim/lore.go`](../internal/sim/lore.go) — the `Anatomy`, `Forms` and `FormCount` fields on `AlienSpecies`, the two extra passes in `rollAlienSpeciesRoster`, and the sentences `Description` adds.
-- [`internal/sim/config.go`](../internal/sim/config.go) — `alien-one-form-weight` … `alien-four-form-weight`, `alien-caste-percent`, `alien-stage-ticks`.
+- [`internal/sim/config.go`](../internal/sim/config.go) — `alien-one-form-weight` … `alien-four-form-weight`, `alien-caste-percent`, `alien-stage-ticks`; and for broods `alien-lay-ticks`, `alien-brood-cap`, `alien-brood-radius`, `alien-species-cap`.
 - [`internal/sim/alien_lifecycle_test.go`](../internal/sim/alien_lifecycle_test.go) — the rules below, as tests.
 
 ## How it works
@@ -106,6 +109,34 @@ it is, and the tick it grows into the next stage.
   flee it or fight it (`nearestAlien` and `observePersistent` skip it as they skip
   a dormant alien). Hostile aliens of another species can still eat one.
 
+### Broods
+
+Each life has exactly one **laying form** (`AlienForm.Lays`): the plain adult
+of a line without castes, or its laying caste: the queen (not the worker or
+drone), the betty (not the bull), the jill (not the jack), the matriarch (not
+the drudge or sire). Single-form species do not breed; their numbers are
+still only what worldgen's nests and the director put down.
+
+A laying alien carries a brood timer (`LifeStage.layAt`): spawned as a
+layer, part of the way through an interval so a nest's layers do not lay on
+the same tick; grown into one, a full `alien-lay-ticks` (four colony days)
+away. When it comes due, `layBrood` (an `animalTurn` pre-step that does not
+use the layer's turn):
+
+1. resets the timer, whatever happens next;
+2. does nothing if `alien-brood-cap` (8) of its species already live within
+   `alien-brood-radius` (6) of it, itself included, or `alien-species-cap`
+   (16) of its species live anywhere;
+3. does nothing if no floor tile beside it is free;
+4. otherwise lays the species' first form there, at the very start of that
+   stage and at full health (`startYoung`), and logs it: "A grelk queen lays
+   a grelk egg." when the first form is an egg, "A grelk betty bears a grelk
+   joey." when it is live young. A brood in an undiscovered cave is laid
+   unlogged, as growth is, so a nest found late can be a big one.
+
+The lore tab's life paragraph ends with who breeds and how: "Only the
+queens lay eggs.", "Adults bear young."
+
 ## Why it is this way
 
 - **Generated, mostly absent, and additive.** Authored stages would cap the
@@ -138,16 +169,34 @@ it is, and the tick it grows into the next stage.
   hunt" was the proposal's rule. Grazing keeps the young a competitor for
   scum, like a peaceful species.
 
+- **Two caps, because one ran away.** The first version capped broods only
+  by local crowding (`alien-brood-cap` within `alien-brood-radius`). In a long
+  run with an alien-heavy setup (seed 9, six species, 30 starting aliens) the
+  population went 30, 33, 46, 79, 108, 159, 243 over 30,000 ticks and was
+  still climbing: the young wander out of the layer's radius, so the nest
+  never looks full. The species-wide cap (`alien-species-cap`) is what bounds
+  it; the same run levels off at 92 (three breeding species at the cap, plus
+  the rest).
+- **The default cap is gentle on purpose.** At the shipped alien settings,
+  seeds whose one species has a lifecycle were run for 30,000 ticks with a
+  species cap of 30 and a brood every three days, and with 16 and four days.
+  At 30 a Hostile, three-stage species (seed 9) reached its cap and wiped out
+  a 20-colonist colony; at 16 the same seed's brood never passed 4 and was
+  cleared, though the colony ended with 7 of its 20 (seed 5: the brood grew to 6 before colonists cleared it). The
+  harsher numbers are a config change away.
+
 ## Extending it
 
 - **Combat from features.** Horns, stingers and tail clubs could add
   `AttackMode`s (a gore, a sting) through `canUse`. Append new modes at the
   end of `attackModes` so the lore stream's draws do not shift (see
   [lore.md](./lore.md#extending-it)).
-- **Reproduction.** Nothing lays eggs yet: aliens come only from worldgen
-  nests and the director. A queen (or any adult) laying eggs on a cadence
-  would complete the cycle; it needs a population cap, the way rat litters are
-  capped by floor space.
+- **Breeding for single-form species.** They do not breed; giving them a
+  laying form would need a first form to lay (a hatchling the size of the
+  adult reads wrong), or a separate rule.
+- **A queen that stays home.** A queen runs her species' temperament ladder
+  like any adult and wanders; a `stayNear` rung for her nest (like the
+  chicken's trough) would keep broods together.
 - **Eggs as targets.** Colonists could smash eggs and casings (a work order,
   or a fight target that does not trigger flight).
 - **Stage words in names.** `alien-names.yaml` conditions could gain
