@@ -4,7 +4,7 @@
 
 ## What it is
 
-Scum Lab is the tuning bench for `cognition.yaml`: one shell, one in-memory config, a nav of tools. **Focus Tester** explains one colonist's focus. **Grammar Builder** edits perceptions, reactions, and trait rules. The page does not run a world. Go still validates the file at load.
+Scum Lab is the tuning bench for `cognition.yaml`: one shell, one in-memory config, a nav of tools. **Focus Tester** explains one colonist's focus. **Grammar Builder** edits perceptions, reactions, and trait rules. **Sprite Designer** draws SVG map sprites with Claude and does not touch the config; see [sprite-designer.md](./sprite-designer.md). The page does not run a world. Go still validates the file at load.
 
 Focus scoring and colonist rolls go through a WASM build of the sim. Do not reimplement them in JavaScript. See [wasm.md](./wasm.md).
 
@@ -50,6 +50,7 @@ A new *system* still uses this shell. Scoring still goes through the WASM API in
 
 ## Related
 
+- [sprite-designer.md](./sprite-designer.md) — the Sprite Designer tab.
 - [wasm.md](./wasm.md) — the browser module, and why a `mind` package is the next cut.
 - [cli.md](./cli.md) — `-cognition`, `-print-cognition-config`, and `-print-cognition-vocab`.
 - [compositional-perception-and-events.md](./compositional-perception-and-events.md) — the grammar `cognition.yaml` holds.

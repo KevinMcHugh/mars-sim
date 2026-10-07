@@ -521,10 +521,58 @@ textarea {
 .modal-actions { margin-top: 10px; }
 .modal-actions span { display: flex; gap: 8px; align-items: center; }
 
+.sprites .sprite-prompt { margin-top: 10px; }
+.sprites .sprite-prompt small { color: var(--dim); font-size: 12px; }
+.sprites .sprite-prompt textarea, .sprite-source { min-height: 0; font-family: var(--sans); font-size: 14px; }
+.sprite-source { min-height: 180px; font-family: var(--mono); font-size: 12px; }
+.sprite-stage { display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-start; }
+.sprite-big {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 256px;
+  height: 256px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  /* A checkerboard, so transparent pixels read as transparent. */
+  background: repeating-conic-gradient(#efe0d2 0 25%, #fff 0 50%) 0 0 / 16px 16px;
+}
+.sprite-big img { width: 256px; height: 256px; }
+.sprite-big .hint { margin: 0; }
+.sprite-rows { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.sprite-rows .hint { margin: 0; }
+.sprite-row { display: flex; align-items: center; gap: 10px; }
+.sprite-row-label { width: 3.5rem; color: var(--dim); font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; }
+.sprite-tile { display: inline-grid; place-items: center; flex: none; border-radius: 2px; }
+.sprite-tile img { display: block; }
+.sprite-emoji { width: 32px; height: 32px; font-size: 25px; line-height: 1; }
+.sprite-says { margin: 12px 0 0; color: var(--muted); }
+.sprite-says:empty, .sprite-lint:empty { display: none; }
+.sprite-lint { margin: 8px 0 0; padding-left: 18px; color: var(--bad); font-size: 13px; }
+.sprite-versions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
+.sprite-versions:empty { display: none; }
+.tile button.sprite-version {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 4px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: #fff;
+  color: var(--muted);
+  font-size: 11px;
+}
+.tile button.sprite-version.on { border-color: var(--rust); background: #f6d7c4; color: var(--clay); }
+.sprite-version img { width: 40px; height: 40px; }
+.tile .form-actions button:disabled { opacity: 0.6; cursor: wait; }
+.tile .form-actions button[hidden] { display: none; }
+
 @media (max-width: 720px) {
   h1 { font-size: 40px; }
   .mast, .nav, #tool { padding-left: 16px; padding-right: 16px; }
   .slider-row, .eligibility li, .bio-top { grid-template-columns: 1fr; display: flex; flex-direction: column; align-items: stretch; }
   .around { grid-template-columns: 1fr; }
   .slider-read { text-align: left; }
+  .sprite-big, .sprite-big img { width: 192px; height: 192px; }
 }
