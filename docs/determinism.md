@@ -88,6 +88,15 @@ The grid layers are FNV-hashed rather than rendered; at one entry per tile per
 tick, formatting them dominated the test's runtime, and the field name is the
 whole diagnosis anyway.
 
+### Save and load
+
+A loaded game must play on exactly as the saved one would have.
+`TestSaveLoadPlaysOnIdentically` checks this the same way as the lockstep test
+above. It saves and loads a world, steps the original and the copy together,
+and compares their whole encoded state, not just a fingerprint. When they
+part, it reports the same fingerprint fields. See
+[save-load.md](./save-load.md).
+
 ### Golden hashes and other machines
 
 The lockstep test compares two runs in one process, so it can never see a
@@ -197,7 +206,7 @@ pattern worth remembering — the comparison `(d == bestDist && lessPoint(...))`
 *looks* like a proper total order, and is one only if `d` is computed
 independently of `bestDist`.
 
-That loop is gone now (see [needs.md](./needs.md)): candidates are collected
+That loop is gone now (see [drives.md](./drives.md)): candidates are collected
 into a slice with their distances and sorted by `compareFound`, distance then
 `lessPoint`. The two map loops left, `anyFreeFacility` over `Layer.facilityTiles`
 and `committedUsers` over `w.entities`, compute an "any match" and a count: the

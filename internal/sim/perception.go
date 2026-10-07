@@ -32,6 +32,9 @@ const (
 	NounScumhouse NounID = "scumhouse"
 	NounGoods     NounID = "goods"
 	NounSkill     NounID = "skill"
+	// NounLoneliness is what a colonist whose social drive sits at its
+	// ceiling feels (ConsequenceLoneliness).
+	NounLoneliness NounID = "loneliness"
 )
 
 const (
@@ -60,6 +63,10 @@ const (
 	ActionBuy        ActionID = "buy"
 	ActionHaul       ActionID = "haul"
 	ActionLearn      ActionID = "learn"
+	ActionFeel       ActionID = "feel"
+	ActionSocialize  ActionID = "socialize"
+	ActionCollapse   ActionID = "collapse"
+	ActionSoil       ActionID = "soil"
 )
 
 // ChannelID says how an observer learned about an occurrence. Direct is
@@ -120,7 +127,7 @@ func (w *World) factRef(e *Entity) FactRef {
 	switch e.Kind {
 	case Alien:
 		label = fmt.Sprintf("%s #%d", w.alienNounFor(e), e.ID)
-	case Cat, Rat:
+	case Cat, Rat, Chicken:
 		label = fmt.Sprintf("%s #%d", e.Kind, e.ID)
 	}
 	return FactRef{Noun: nounForKind(e.Kind), Entity: e.ID, Label: label}

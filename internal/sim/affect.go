@@ -29,7 +29,7 @@ const (
 )
 
 // AffectState is the colonist's bounded mood. Focus scoring reads Charge and
-// Grip; Valence is display-only, and deliberately so -- needs, HP and visible
+// Grip; Valence is display-only, and deliberately so -- drives, HP and visible
 // threats already feed scoring directly, so letting the axis that summarizes
 // them back in would count them twice.
 type AffectState struct {

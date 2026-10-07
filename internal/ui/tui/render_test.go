@@ -92,7 +92,8 @@ func TestRosterShowsColonistDetail(t *testing.T) {
 		Traits: []sim.Trait{sim.TraitBigEater},
 	}
 	snap.Entities[0].Inventory[0] = sim.ItemStack{Kind: sim.RawRock, Count: 12}
-	snap.NeedsMeta[0] = sim.NeedMeta{Name: "food", Max: 1000, Fatal: true}
+	snap.Entities[0].Backstory = "Worked as a janitor for MarsCorp."
+	snap.DrivesMeta[0] = sim.DriveMeta{Name: "food", Max: 1000, Consequence: sim.ConsequenceDeath}
 
 	var m tea.Model = New(nil, nil)
 	m, _ = m.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
@@ -100,6 +101,9 @@ func TestRosterShowsColonistDetail(t *testing.T) {
 	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyTab})
 
 	out := m.View()
+	if !strings.Contains(out, "Worked as a janitor for MarsCorp.") {
+		t.Error("roster should show the colonist's backstory")
+	}
 	if !strings.Contains(out, "Zoe Vargas") {
 		t.Error("roster should show the colonist's name")
 	}
@@ -807,5 +811,18 @@ func TestMarketTabShowsPricesAcrossDepotsAndPlans(t *testing.T) {
 		if !strings.Contains(out, want) {
 			t.Fatalf("market tab missing %q:\n%s", want, out)
 		}
+	}
+}
+
+// The header's title line shows the colony day and a zero-padded clock.
+func TestHeaderShowsDayAndTimeOfDay(t *testing.T) {
+	snap := makeSnapshot()
+	snap.Stats.Day, snap.Stats.MinuteOfDay = 3, 7*60+5
+	var model tea.Model = New(nil, nil)
+	model, _ = model.Update(tea.WindowSizeMsg{Width: 120, Height: 24})
+	model, _ = model.Update(snapshotMsg{snap: snap})
+	first := strings.SplitN(model.View(), "\n", 2)[0]
+	if !strings.Contains(first, "day 3  07:05") {
+		t.Errorf("header title line = %q, want the day and clock", first)
 	}
 }

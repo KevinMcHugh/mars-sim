@@ -64,7 +64,7 @@ dispatch to the active panel's handler.
   a legend and the tail of the event log. Log lines are word-wrapped to the
   panel rather than cut with an ellipsis — a cut line reads as a finished
   sentence — and each event keeps one stripe so a wrap stays visually one
-  entry (see The colony log). The header shows tick, speed, pause
+  entry (see The colony log). The header shows the colony day and time of day on its title line (see [days.md](./days.md)), then tick, speed, pause
   state, and `Stats` counts, including built dormitory beds, incinerators, and
   refuse still on the floor.
 - **Roster** (`renderRoster`): a scrolling, ID-sorted entity list — living
@@ -102,8 +102,8 @@ dispatch to the active panel's handler.
   [worldgen-chunks.md](./worldgen-chunks.md)), and the seed
   (`Snapshot.Seed`). Arrow navigation selects one of `Snapshot.AlienSpecies`
   — every kind of alien this seed rolled — and the detail pane lists its full
-  build (height/weight range, eyes, limb split, tail, skin, color, bite
-  damage/pace) as scannable stat lines, plus `AlienSpecies.Description()`'s
+  build (height/weight range, eyes, limb split, tail, wings, skin, color, attack
+  modes, attack damage/pace) as scannable stat lines, plus `AlienSpecies.Description()`'s
   narrative paragraph, word-wrapped (`wrapWords`) to the panel width. See
   [lore.md](./lore.md).
 - **Population** (`renderPopulation`): four braille line charts of the
@@ -262,7 +262,7 @@ and `enter` jumps directly to that container in the storage details panel.
 `tab` cycles **map → roster → jobs → storage → market → lore → population → activity → log → perf → map**.
 Roster, jobs, storage, market, lore, population, activity, log, and perf are collectively the details panels. In storage,
 `up`/`down` or `j`/`k` selects a container from the position-sorted snapshot
-list — a shared chest, or someone's crash-pod locker, labelled by owner — and
+list — a shared chest, or someone's ship locker, labelled by owner — and
 the inspector shows its occupied slots, total capacity, and whose the contents
 are. In market
 (`render_market.go`), the same keys select an account — the colony's treasury
@@ -292,6 +292,7 @@ the inspector shows its full build and a narrative description.
 | `shift+↑↓`, `pgup`/`pgdn` | scroll the roster inspector, or the log, a line / a screenful |
 | `home` / `end` (log) | jump to the oldest retained event / back to the live tail |
 | `c` (activity only) | switch the activity chart between shares of colonist time and average colonists |
+| `ctrl+s` | save the game to `mars-sim-<seed>-<time>.marssave` in the working directory (`SaveGame`); the footer says where it went. See [save-load.md](./save-load.md) |
 | `tab` | cycle map → roster → job board → storage → market → lore → population → activity → log → perf → map |
 | `q` / `esc` | quit (`esc` returns to the map from any details panel, or cancels an open menu) |
 

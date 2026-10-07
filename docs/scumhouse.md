@@ -52,8 +52,8 @@ The planner builds one in a walled room, a **kitchen** (`scumhouseRoom`, see
 [construction.md](./construction.md)):
 
 - with `infinite-food` off (the default), **first**, before any other room —
-  food is fatal, and it is the only place food comes from; crash-pod meals buy
-  the time. If the treasury can't fund it, it is marked out anyway as unpaid
+  food is fatal, and it is the only place food comes from; the meals in the lockers
+  buy the time. If the treasury can't fund it, it is marked out anyway as unpaid
   community work;
 - otherwise only when ordered (`b` then `h` in the TUI, `OrderScumhouse`).
 
@@ -99,6 +99,12 @@ outputs**; the workshop's owner does not.
 | render an animal carcass | 1 animal carcass | 1 meal | 10 |
 | press viscera | 2 viscera | 1 meal | 10 |
 | culture cave scum | 2 cave scum | 1 meal | 12 |
+
+Chicken feed (1 cave scum to 4 feed) is mixed at a scumhouse too, but it is
+deliberately **not** in this table: a cook works the first recipe it has
+inputs for, so listing it would let the colony's cooks turn its scum into
+feed. Only a chicken keeper mixes it, from scum in its own pockets, sharing
+the stove with the cook (see [chickens.md](./chickens.md)).
 
 A cook works the first recipe (in table order) it has inputs for — its own, or
 the colony's — at the nearest reachable scumhouse no other cook has claimed
@@ -159,10 +165,37 @@ a tick. Draws are a hash of the seed, the tick and the draw index, not a
 stream, so growth moves no other RNG. `scumPatches` is every patch sorted by
 chunk, then row by row within the chunk (`cmpScumPatch`), the way `genChunks`
 is sorted: which patch a draw picks depends on which patches exist, never on
-the order they arrived in. A chunk's patches sit together, so `applyChunk`
-adds them in one insert; `setScum` and `clearScum` keep the list in step
-with the map one patch at a time. A test that puts scum down goes through
-`setScum` (or `noScum` to clear it), never the map directly.
+the order they arrived in. `applyChunk`, `setScum` and `clearScum` keep the
+list in step with the map. A test that puts scum down goes through
+`setScum` (or `noScum` to clear it), never the map directly, and one that
+changes `ScumMax` afterwards re-puts each patch with `putScum`.
+
+**Why `scumPatches` is a `patchList`, not a slice.** It started as one sorted
+`[]Point`. Every new patch then moved every patch after it, so a map with room
+for many new patches went quadratic:
+`BenchmarkStepSmallColonyOnHugeMap2500` took ~10 ms a tick and the 10000 one
+never finished, which hung `go test -bench .`. `patchList` (`scumlist.go`)
+keeps the same order in blocks of 512 to 1024, with a Fenwick tree over
+the block sizes. Adding or removing a patch moves one block, and finding the
+k-th patch is logarithmic. A first version kept a running count of the
+patches before each block. Growth inserts between draws, so it re-summed every
+later block on almost every draw. Don't go back to it.
+
+**Why most draws skip the lookups.** Once the map holds `scum-percent` of its
+tiles in patches, there's no room for new ones, and a unit can only go on a
+patch below `ScumMax` (`scumThin`). On a settled map nearly every patch is
+full, and each draw used to be two map lookups that changed nothing. That was
+about two thirds of the CPU on a 10,000×10,000 game. Now, with no room:
+
+- a draw is turned away unless its tile is thin. A per-page count
+  (`scumThinPages`) answers that with a slice read before the map is touched;
+- the loops stop as soon as `scumThin` is empty;
+- the patch list is frozen into a flat copy, so a draw is a plain index (the
+  list can't change mid-loop when no patch can start or end).
+
+Draws are hashes, not a stream, so skipping one changes nothing, and the
+golden hashes didn't move. Every change to an amount goes through `putScum`,
+which keeps `scumThin` in step.
 
 **Why not a fixed sample.** The first version visited a sample of tiles over
 the whole map, skipped the ones in chunks not yet generated, capped the
@@ -202,7 +235,8 @@ the job board keeps the mining frontier, so finding scum never walks the map.
 > scrapes the rock: it harvests incubators, and wild scum is for seeding them
 > and for dire times (see [incubator.md](./incubator.md)). Read the scraping
 > steps below as what happens before the first incubator is built, or when
-> `wildScumAllowed`.
+> `wildScumAllowed`. Scraping to fill someone else's bid (a player's order, a
+> chef's bid) goes on regardless.
 
 **Food on its own account comes first.** When a meal sells for enough more
 than it costs a colonist to make (`foodPays`), `assignWorkJob` offers, right
@@ -221,6 +255,10 @@ offers its meals beyond `meal-keep` for sale where they're made
 (`offerOwnMeals`), at `mealSellPrice`: hungry colonists' bids queue at the
 pantry, so the next of them buys it at once.
 
+`mealSellPrice` is a meal's market value since price discovery
+([pricing.md](./pricing.md)); it was the charter's $5, so a meal trading at
+$100 brought no new cooks. The measurements below are from then.
+
 At the charter's $5 this pays only for colonists near a scumhouse. In a
 6-colonist colony it never does, and seeds 1–48 play exactly as they would
 without it. In a 100-colonist colony on a 300×150 map (seeds 1–4, 30,000
@@ -231,7 +269,7 @@ colonists' own account doesn't wait for it.
 
 `foodWanted` is true while the colony has a scumhouse and owns fewer than
 `meal-reserve` meals per colonist (`communityMeals`, memoized per tick —
-crash-pod lockers make one depot per settler, and every work-seeking colonist
+ship lockers make one depot per settler, and every work-seeking colonist
 asks). While it is, `assignWorkJob` offers, after construction and food on
 a colonist's own account:
 
@@ -329,6 +367,13 @@ chef's own kitchen isn't counted: the colony can't cook or buy scum there
 kitchen per ten colonists is a guess at what a colony needs; kitchens that
 are behind are a measurement of it.
 
+Every kitchen after the first goes into a production room the colony already
+has when it can: a stove and its pantry two tiles apart in a line, linked
+like a new kitchen's, fitted into free floor or by joining two rooms or
+growing one (see [room-expansion.md](./room-expansion.md)). Stoves are placed
+with their pantries, so every stove keeps one of its own. The first kitchen
+is always a room of its own: it is life support, and may be built unpaid.
+
 Together with cooks staying at the stove and giving way only to someone at
 the door (both below), this is what ended most big-colony die-offs: 100
 colonists on a 300×150 map, seeds 1–8, 30,000 ticks, starved 46 of 800
@@ -338,7 +383,8 @@ Six-colonist colonies, seeds 1–32, were unchanged (2 starved).
 Only the first is life support: it may be built unpaid
 and in a narrow room, and it holds up every other room until it's planned.
 Later ones are ordinary public works that need an aisle
-(`roomRecipe.aisleRequired`). A few rules keep kitchens usable:
+(`roomRecipe.aisleRequired`), as does a chef's own (see
+[skills.md](./skills.md)). A few rules keep kitchens usable:
 
 - **Scrape to sell only into a bid.** Scraping for money needs a buyer at the
   scumhouse (`tryAssignScrape`). Scraping to feed yourself doesn't.
@@ -379,7 +425,7 @@ Later ones are ordinary public works that need an aisle
   Treating chests and scumhouses as facility access tiles, where nobody idles
   (`onFacilityAccess`), looked like the obvious fix and made things far worse:
   161 starved across the sweep instead of 2. `stepAside` and the chat-partner
-  search avoid those tiles too, and every crash-pod row has a locker chest, so
+  search avoid those tiles too, and every crash-pod row had a locker chest, so
   idle colonists ran out of places to stand.
 
 With 40 colonists, a colony that kept one scumhouse lost 16 to 22 people to

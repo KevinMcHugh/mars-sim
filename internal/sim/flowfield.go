@@ -282,7 +282,7 @@ func (w *World) followField(e *Entity, f *flowField) bool {
 				}
 			}
 			for _, p := range next[:nn] {
-				if !w.Walkable(p) || w.lay(p).buildTiles[p] {
+				if !w.Walkable(p) || w.buildTiles[p] {
 					continue // never cross a tile a builder needs clear
 				}
 				nd := f.at(p)
@@ -378,7 +378,7 @@ func facilityGoal(w *World, kind Terrain) func(Point) bool {
 		if !w.Walkable(p) {
 			return false
 		}
-		restricted := w.lay(p).restrictedFixtures[kind] > 0
+		restricted := w.restrictedFixtures[kind] > 0
 		for _, d := range neighbors8 {
 			fc := p.Add(d.X, d.Y)
 			if w.TerrainAt(fc) == kind && (!restricted || w.communalFixture(fc)) {
@@ -396,8 +396,8 @@ func facilityGoal(w *World, kind Terrain) func(Point) bool {
 // the map's area.
 func facilitySeed(w *World, kind Terrain) func(add func(Point)) {
 	return func(add func(Point)) {
+		restricted := w.restrictedFixtures[kind] > 0
 		w.eachLayer(func(l *Layer) {
-			restricted := l.restrictedFixtures[kind] > 0
 			for fc := range l.facilityTiles[kind] {
 				// The shared field is everyone's route, so it only leads to
 				// fixtures everyone may use. A colonist headed for its own

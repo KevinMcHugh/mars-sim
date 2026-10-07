@@ -122,6 +122,9 @@ func NewEngine(cfg Config) *Engine {
 		world: w,
 		cmds:  make(chan Command, 32),
 		tps:   cfg.TicksPerSecond,
+		// The browser starts paused so the player can place the ships
+		// before anyone moves (see MoveShip).
+		paused: cfg.StartPaused,
 	}
 }
 
@@ -440,6 +443,61 @@ func (e *Engine) apply(cmd Command) (rateChanged bool) {
 		e.world.manualIncubators++
 	case OrderStair:
 		e.world.manualStairs++
+	case CancelExcavation:
+		e.world.cancelExcavation(c.ID)
+		e.requestPublish()
+	case PlaceColonyOrder:
+		e.world.placeColonyOrder(c)
+		e.requestPublish()
+	case RepriceColonyOrder:
+		e.world.repriceColonyOrder(c)
+		e.requestPublish()
+	case CancelColonyOrder:
+		e.world.cancelColonyOrder(c.ID)
+		e.requestPublish()
+	case SuspendColonyOrders:
+		e.world.suspendColonyOrders(c)
+		e.requestPublish()
+	case ResumeColonyOrders:
+		e.world.resumeColonyOrders(c)
+		e.requestPublish()
+	case SetColonyWideOrder:
+		e.world.setColonyWideOrder(c)
+		e.requestPublish()
+	case ClearColonyWideOrder:
+		e.world.clearColonyWideOrder(c)
+		e.requestPublish()
+	case OrderExcavation:
+		e.world.orderExcavation(c)
+		e.requestPublish() // the log line and the work order show at once
+	case PaintZone:
+		e.world.paintZone(c)
+		e.requestPublish()
+	case ClearArea:
+		e.world.clearArea(c)
+		e.requestPublish()
+	case CancelClear:
+		e.world.cancelClearing(c.ID)
+		e.requestPublish()
+	case MoveShip:
+		if e.world.moveShip(c) {
+			e.requestPublish()
+		}
+	case LandShip:
+		if e.world.landAloft(c) {
+			e.requestPublish()
+		}
+	case RollRecruits:
+		e.world.rollRecruits()
+		e.requestPublish()
+	case HireRecruits:
+		e.world.hireRecruits(c)
+		e.requestPublish()
+	case SaveGame:
+		err := e.Save(c.To)
+		if c.Done != nil {
+			c.Done <- err
+		}
 	}
 	return false
 }
@@ -449,7 +507,7 @@ func (e *Engine) spawn(kind Kind) {
 	center := Point{w.Width / 2, w.Height / 2, LandingLevel}
 	switch kind {
 	case Colonist:
-		w.arrive(true) // every colonist comes in a crash pod
+		w.land(1, true) // every colonist comes in a ship
 	case Alien:
 		if p, ok := w.alienSpawnSite(center, 8); ok {
 			w.spawn(Alien, p)
@@ -458,9 +516,9 @@ func (e *Engine) spawn(kind Kind) {
 		if p, ok := w.randomFloor(); ok {
 			w.spawn(Cat, p)
 		}
-	case Rat:
+	case Rat, Chicken:
 		if p, ok := w.randomFloor(); ok {
-			w.spawn(Rat, p)
+			w.spawn(kind, p) // a spawned chicken is a stray: no keeper, no trough
 		}
 	}
 }

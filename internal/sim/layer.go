@@ -1,14 +1,14 @@
 package sim
 
 // Level is how deep a layer of the world sits. Level 0 is the surface, the
-// landing level below it is where crash pods come down (today's whole map),
+// landing level below it is where colony ships come down (today's whole map),
 // and deeper levels count up from there. See docs/z-levels.md.
 type Level int
 
 const (
 	// SurfaceLevel is the open ground above the rock. Nothing is there yet.
 	SurfaceLevel Level = 0
-	// LandingLevel is where crash pods land, and the only level that exists
+	// LandingLevel is where colony ships land, and the only level that exists
 	// so far.
 	LandingLevel Level = 1
 	// MaxLevel is the deepest Config.DeepestLevel may ask for.
@@ -39,9 +39,13 @@ type Layer struct {
 	// set to TilesLive the grid aliases tiles instead and nothing is copied;
 	// the dirty list is then only reported, in Snapshot.TileChanges. See
 	// tilegrid.go.
-	snapGrid   *TileGrid
-	pageDirty  []bool // pageDirty[pi]: page pi changed since the last publish
-	dirtyPages []int  // the same pages, in mark order, for cheap iteration
+	//
+	// The grid is not saved (see save.go): under TilesLive its pages alias
+	// tiles' own, which the save codec cannot keep. A loaded world publishes
+	// its first grid afresh, with All set.
+	snapGrid   *TileGrid `save:"-"`
+	pageDirty  []bool    // pageDirty[pi]: page pi changed since the last publish
+	dirtyPages []int     // the same pages, in mark order, for cheap iteration
 	// occ is the occupancy index: occ holds the EntityID standing on a tile, or
 	// 0 for empty (IDs start at 1). It turns "who is here?" from an
 	// O(entities) scan into an O(1) lookup, and it is the reason at most one
@@ -89,9 +93,9 @@ type Layer struct {
 	// nil for untracked terrain kinds (Rock, Floor, Wall).
 	facilityTiles [numTerrains]map[Point]struct{}
 	// carvedAny/carvedMin/carvedMax track the bounding box of every tile that
-	// has ever been changed away from Rock. Terrain only ever moves Rock ->
-	// Floor -> Wall/facility in play, never back, so this box only grows; it
-	// is used to cap how far findRoomSiteAllowingRock's search radius needs to
+	// has ever been changed away from Rock. Nothing turns back into Rock in
+	// play (a cleared structure becomes Floor), so this box only grows; it
+	// is used to cap how far the room planner's search radius needs to
 	// grow before it can conclude no site exists, without scanning the whole
 	// map. See roomSiteClear: a valid site's side walls must already be
 	// Floor or Wall, so no valid site can lie outside this box.
@@ -109,17 +113,6 @@ type Layer struct {
 	// Reactive plumbing: systems subscribe to world events; the job board is the
 	// first consumer, tracking the mineable frontier from TileChanged events.
 	board *jobBoard
-	// storageContainers holds mutable contents only for tiles whose terrain is
-	// Storage. Keeping it sparse avoids inflating every tile in a large map.
-	storageContainers map[Point]*StorageContainer
-	// fixtures holds the ownership record of every placed fixture tile (pods,
-	// toilets, beds, incinerators, storage), kept in step by SetTerrain.
-	// restrictedFixtures counts, per terrain, the ones that are not communal:
-	// while it is zero for a kind, ownership cannot change how colonists use
-	// that kind, and the access checks skip their extra work. fixtureRev
-	// advances on any change so snapshots can reuse the last published list
-	// (snapFixtures, taken at snapFixtureRev). See property.go.
-	fixtures map[Point]*Fixture
 	// salt holds every tile carrying a deposit of salt (see salt.go). It
 	// never overlaps scum, and is never added to after generation.
 	salt map[Point]struct{}
@@ -138,49 +131,16 @@ type Layer struct {
 	exposedScum map[Point]struct{}
 	// scumPatches lists every patch in scum, sorted by cmpScumPatch, so
 	// growScum can draw a patch at random without the map's order deciding
-	// which (see setScum).
-	scumPatches []Point
-	// scumClaims and workshopClaims record who is headed to which patch and
-	// which workshop (see the comment on scum above).
-	scumClaims     map[Point]EntityID
-	workshopClaims map[Point]EntityID
-	// podRingHint is the search ring the last crash pod landed on, so the
-	// next search starts near there instead of rescanning the packed middle.
-	// See findPodSite.
-	podRingHint int
-	// pods holds the top-left of every crash pod that has landed, so a new pod
-	// can tell a neighbor's side hull it may share. Lookups only; never ranged.
-	pods               map[Point]bool
-	restrictedFixtures [numTerrains]int
-	// ownedFixtures indexes the restricted fixtures by owner, and
-	// paidFixtures the pay-per-use ones by terrain, so facilityReachable
-	// checks only those a colonist may use instead of every bunk in the
-	// colony, every tick, for every sleeper. Only ever read by "is any of
-	// these reachable", so their map order decides nothing.
-	ownedFixtures map[Owner]map[Point]bool
-	paidFixtures  [numTerrains]map[Point]bool
-	// buildTiles holds every not-yet-built task tile, rebuilt each tick. Colonists
-	// route around these so a crowd never parks on a tile a builder needs clear —
-	// otherwise a facility mobbed by its neighbors could never be raised. See
-	// rebuildBuildTiles.
-	buildTiles map[Point]bool
-	// doorTiles holds the single exterior tile in front of every room's
-	// doorway ever designated, forever — even after the room finishes or a
-	// later room's wall would otherwise cover it. roomSiteClear checks it
-	// alongside a candidate site's own requirements so a new room can never
-	// wall over an existing room's sole way out. Rooms are never demolished
-	// or un-designated, so entries are only ever added. See designateRoom.
-	doorTiles map[Point]bool
-	// pantryOf links each scumhouse to its pantry, and pantryHouse the other
-	// way (see linkPantry). Set when a kitchen is marked out; lookups check
-	// the chest is actually built.
-	pantryOf    map[Point]Point
-	pantryHouse map[Point]Point
-	// unfoundCaverns holds the center of every natural cavern not yet
-	// discovered; a breach that reveals one rolls for its alien nest on
-	// nestRNG, a seed-derived stream of its own. See rollNests and
-	// docs/caverns.md.
-	unfoundCaverns map[Point]struct{}
+	// which (see setScum and patchList).
+	scumPatches patchList
+	// scumThin is every patch below ScumMax: once the level has no room for
+	// new patches, the only ones growth can still add a unit to (see
+	// growScum).
+	scumThin map[Point]struct{}
+	// scumThinPages counts scumThin's patches on each tile page (indexed by
+	// tiles.pageIndex; nil until the first), so most of growScum's draws are
+	// turned away by a slice read rather than a map lookup.
+	scumThinPages []int32
 	// gen generates chunks: their ore veins and hidden caverns. See
 	// worldgen_chunks.go. nil for a world built without generate (tests),
 	// where every tile simply starts as Rock.
@@ -193,33 +153,26 @@ type Layer struct {
 	genDone, genSeen []bool
 	genChunks        []chunkKey
 	// preview is handed to Snapshots so a frontend with the fog off can see
-	// ungenerated chunks. The World never reads it.
-	preview *ChunkPreview
+	// ungenerated chunks. The World never reads it. Not saved: frontends read
+	// it from their own goroutines, and it is only a cache; afterLoad builds
+	// a fresh one.
+	preview *ChunkPreview `save:"-"`
 }
 
 // newLayer allocates an all-Rock layer of the given size.
 func newLayer(level Level, width, height int) *Layer {
 	l := &Layer{
-		Level:             level,
-		tiles:             newPagedGrid[tileCell](width, height),
-		refuse:            make(map[Point]refuseCell),
-		occ:               newPagedGrid[EntityID](width, height),
-		buildTiles:        make(map[Point]bool),
-		doorTiles:         make(map[Point]bool),
-		pods:              make(map[Point]bool),
-		storageContainers: make(map[Point]*StorageContainer),
-		fixtures:          make(map[Point]*Fixture),
-		pantryOf:          make(map[Point]Point),
-		pantryHouse:       make(map[Point]Point),
-		regionOf:          newPagedGrid[RegionID](width, height),
-		dirtyChunks:       make(map[int]struct{}),
-		scum:              make(map[Point]scumPatch),
-		salt:              make(map[Point]struct{}),
-		exposedSalt:       make(map[Point]struct{}),
-		exposedScum:       make(map[Point]struct{}),
-		scumClaims:        make(map[Point]EntityID),
-		workshopClaims:    make(map[Point]EntityID),
-		unfoundCaverns:    make(map[Point]struct{}),
+		Level:       level,
+		tiles:       newPagedGrid[tileCell](width, height),
+		refuse:      make(map[Point]refuseCell),
+		occ:         newPagedGrid[EntityID](width, height),
+		regionOf:    newPagedGrid[RegionID](width, height),
+		dirtyChunks: make(map[int]struct{}),
+		scum:        make(map[Point]scumPatch),
+		scumThin:    make(map[Point]struct{}),
+		salt:        make(map[Point]struct{}),
+		exposedSalt: make(map[Point]struct{}),
+		exposedScum: make(map[Point]struct{}),
 	}
 	l.terrainCounts[Rock] = width * height // every tile starts as Rock
 	l.pageDirty = make([]bool, len(l.tiles.pages))
@@ -236,7 +189,7 @@ func (w *World) layer(l Level) *Layer {
 	return w.layers[l]
 }
 
-// landing is the landing level's layer: where crash pods land and, so far,
+// landing is the landing level's layer: where colony ships land and, so far,
 // where the colony builds. Code that calls it is landing-level by design
 // (pod sites, the construction planner, the colony's silo), not by accident.
 func (w *World) landing() *Layer { return w.layers[LandingLevel] }
@@ -287,18 +240,13 @@ func (w *World) eachLayer(fn func(*Layer)) {
 }
 
 // containerAt is the storage container at p, or nil.
-func (w *World) containerAt(p Point) *StorageContainer { return w.lay(p).storageContainers[p] }
+func (w *World) containerAt(p Point) *StorageContainer { return w.storageContainers[p] }
 
-// eachContainer calls fn for every storage container on every level, levels
-// in order and each level's in map order: callers must not let the order
-// decide anything (they sum).
+// eachContainer calls fn for every storage container on every level, in map
+// order: callers must not let the order decide anything (they sum).
 func (w *World) eachContainer(fn func(*StorageContainer)) {
-	for _, l := range w.layers {
-		if l != nil {
-			for _, c := range l.storageContainers {
-				fn(c)
-			}
-		}
+	for _, c := range w.storageContainers {
+		fn(c)
 	}
 }
 

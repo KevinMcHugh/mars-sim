@@ -11,7 +11,7 @@ import (
 // used to be in that group and no longer are: mutation resizes a colonist and
 // scales their body with them, so HeightCM is live gameplay state once uranium
 // is involved (see mutation.go). Traits likewise change how a colonist plays:
-// they scale need rates and work behavior. As new needs and systems arrive,
+// they scale drive rates and work behavior. As new drives and systems arrive,
 // new traits slot in over the same machinery.
 //
 // Personality is generated from a dedicated RNG stream (World.prng) so that
@@ -84,6 +84,19 @@ func (g Gender) Possessive() string {
 		return "her"
 	default:
 		return "their"
+	}
+}
+
+// Reflexive returns the reflexive pronoun ("himself", "herself", "themself")
+// for memories and log lines about a colonist.
+func (g Gender) Reflexive() string {
+	switch g {
+	case GenderMan:
+		return "himself"
+	case GenderWoman:
+		return "herself"
+	default:
+		return "themself"
 	}
 }
 
@@ -174,7 +187,7 @@ func (h HairColor) String() string {
 	}
 }
 
-// Trait is a personality trait that changes a colonist's needs or behavior.
+// Trait is a personality trait that changes a colonist's drives or behavior.
 type Trait uint8
 
 const (
@@ -194,6 +207,8 @@ const (
 	TraitCowardly
 	TraitOptimist
 	TraitPessimist
+	TraitShortSleeper
+	TraitLongSleeper
 
 	numTraits // keep last
 )
@@ -207,7 +222,7 @@ const (
 	groupWorkEthic
 	groupSocial
 	// groupTemperament holds traits about disposition rather than a work/food/
-	// social need — today just Tidy, but it is its own axis (not mutually
+	// social drive — today just Tidy, but it is its own axis (not mutually
 	// exclusive with anything else) so a colonist could still be both an
 	// Industrious Extrovert and Tidy. A future opposite (e.g. "Slob", numbed to
 	// gore) would join this group.
@@ -223,6 +238,7 @@ const (
 	groupMutantAttitude
 	groupNerve
 	groupOutlook
+	groupSleep
 
 	numTraitGroups // keep last
 )
@@ -239,11 +255,12 @@ type traitSpec struct {
 	// such a group cannot shift any other personality roll for a given seed).
 	acquired bool
 
-	needRiseScale  [numNeeds]float64 // per-need multiplier on how fast it rises
-	restScale      float64           // multiplier on idle rest duration
-	workScale      float64           // multiplier on mine/build time (lower = faster)
-	socialNoNeed   bool
-	socialScale    float64
+	// driveRate changes how fast each drive grows, in percent: +50 makes it
+	// grow at 150%, -100 stops it. Zero leaves the drive alone.
+	driveRate      [numDrives]int
+	sleepHours     int     // clock hours added to (or taken from) a night's sleep
+	restScale      float64 // multiplier on idle rest duration
+	workScale      float64 // multiplier on mine/build time (lower = faster)
 	socialCapacity int
 	socialPenalty  int
 	affectHome     MoodVector
@@ -254,11 +271,11 @@ type traitSpec struct {
 var traitSpecs = [numTraits]traitSpec{
 	TraitBigEater: {
 		Name: "Big Eater", Desc: "Burns through rations and hungers faster.",
-		group: groupAppetite, needRiseScale: [numNeeds]float64{NeedFood: 1.5},
+		group: groupAppetite, driveRate: [numDrives]int{DriveFood: +50},
 	},
 	TraitLightEater: {
 		Name: "Light Eater", Desc: "Makes rations last and hungers slower.",
-		group: groupAppetite, needRiseScale: [numNeeds]float64{NeedFood: 0.7},
+		group: groupAppetite, driveRate: [numDrives]int{DriveFood: -30},
 	},
 	TraitIndustrious: {
 		Name: "Industrious", Desc: "Works quickly and rests little.",
@@ -270,20 +287,20 @@ var traitSpecs = [numTraits]traitSpec{
 	},
 	TraitAsocial: {
 		Name: "Asocial", Desc: "Does not need social interaction.",
-		group: groupSocial, socialNoNeed: true,
+		group: groupSocial, driveRate: [numDrives]int{DriveSocial: -100},
 	},
 	TraitIntrovert: {
-		Name: "Introvert", Desc: "Needs less socializing, but too much conversation wears on morale.",
-		group: groupSocial, socialScale: 0.5, socialCapacity: 2, socialPenalty: 5,
+		Name: "Introvert", Desc: "Drives less socializing, but too much conversation wears on morale.",
+		group: groupSocial, driveRate: [numDrives]int{DriveSocial: -50}, socialCapacity: 2, socialPenalty: 5,
 	},
 	TraitExtrovert: {
-		Name: "Extrovert", Desc: "Needs frequent social interaction to feel fulfilled.",
-		group: groupSocial, socialScale: 1.5, socialCapacity: 6,
+		Name: "Extrovert", Desc: "Drives frequent social interaction to feel fulfilled.",
+		group: groupSocial, driveRate: [numDrives]int{DriveSocial: +50}, socialCapacity: 6,
 	},
 	TraitTidy: {
 		Name: "Tidy", Desc: "Squeamish about mess; the sight of gore hits morale harder.",
 		group: groupTemperament,
-		// No need-rise/rest/work/social effect — Tidy's only effect is the extra
+		// No drive-rate/rest/work/social effect — Tidy's only effect is the extra
 		// gore appraisal declared by the tidy-gore cognition modifier.
 	},
 	TraitMutant: {
@@ -314,6 +331,14 @@ var traitSpecs = [numTraits]traitSpec{
 	TraitPessimist: {
 		Name: "Pessimist", Desc: "Settles back into expecting the worst.",
 		group: groupOutlook, affectHome: MoodVector{Grip: -8, Valence: -25},
+	},
+	TraitShortSleeper: {
+		Name: "Short Sleeper", Desc: "Up and about after seven hours in bed.",
+		group: groupSleep, sleepHours: -1,
+	},
+	TraitLongSleeper: {
+		Name: "Long Sleeper", Desc: "Drives nine hours in bed to get through the day.",
+		group: groupSleep, sleepHours: 1,
 	},
 }
 
@@ -391,12 +416,20 @@ func (p *Profile) HasTrait(t Trait) bool {
 }
 
 // assignPersonality gives a colonist a generated Profile and resolves its traits
-// into the per-colonist effective parameters the systems read (need rise, rest
+// into the per-colonist effective parameters the systems read (drive rates, rest
 // duration, work speed). Uses the personality RNG so it never perturbs the sim.
 func (w *World) assignPersonality(e *Entity) {
 	// uniquifyName is the only step that needs the colony. The draws themselves
 	// are rollProfile, which the lab's WASM build calls without a world.
 	e.Profile = rollProfile(w.prng, w.agePRNG, w.cfg.TraitChance)
+	w.settlePersonality(e)
+}
+
+// settlePersonality makes e's profile its own in the colony: a name nobody
+// else goes by, its traits' effective parameters, and its mood starting at
+// home. assignPersonality calls it on a fresh roll; a recruit, rolled by the
+// recruiter, on the profile its card showed.
+func (w *World) settlePersonality(e *Entity) {
 	w.uniquifyName(e)
 
 	w.resolveTraitEffects(e)
@@ -435,20 +468,19 @@ func rollAge(r *rand.Rand) int {
 // resolveTraitEffects recomputes a colonist's effective parameters from its
 // traits, starting from the config baselines set in newEntity.
 func (w *World) resolveTraitEffects(e *Entity) {
-	riseMul := [numNeeds]float64{}
-	for i := range riseMul {
-		riseMul[i] = 1
+	var drivePct [numDrives]int
+	for i := range drivePct {
+		drivePct[i] = 100
 	}
-	restMul, workMul, socialMul := 1.0, 1.0, 1.0
-	socialNoNeed := false
+	restMul, workMul := 1.0, 1.0
 	socialCapacity, socialPenalty := 1<<30, 0
+	sleepHours := 0
 	home := traitAffectHome(e.Profile.Traits)
 	for _, tr := range e.Profile.Traits {
 		s := traitSpecs[tr]
-		for i := 0; i < int(numNeeds); i++ {
-			if s.needRiseScale[i] > 0 {
-				riseMul[i] *= s.needRiseScale[i]
-			}
+		sleepHours += s.sleepHours
+		for i := range drivePct {
+			drivePct[i] = drivePct[i] * (100 + s.driveRate[i]) / 100
 		}
 		if s.restScale > 0 {
 			restMul *= s.restScale
@@ -456,27 +488,13 @@ func (w *World) resolveTraitEffects(e *Entity) {
 		if s.workScale > 0 {
 			workMul *= s.workScale
 		}
-		if s.socialNoNeed {
-			socialNoNeed = true
-		} else if s.socialScale > 0 {
-			socialMul *= s.socialScale
-		}
 		if s.socialCapacity > 0 && s.socialCapacity < socialCapacity {
 			socialCapacity = s.socialCapacity
 			socialPenalty = s.socialPenalty
 		}
 	}
-	for i := 0; i < int(numNeeds); i++ {
-		if NeedKind(i) == NeedSocial && socialNoNeed {
-			e.needRise[i] = 0
-			continue
-		}
-		scale := riseMul[i]
-		if NeedKind(i) == NeedSocial {
-			scale *= socialMul
-		}
-		e.needRise[i] = atLeast1(int(math.Round(float64(w.cfg.Needs[i].Rise) * scale)))
-	}
+	e.driveTrait = drivePct
+	e.sleepTicks = atLeast1(w.cfg.NightTicks() + sleepHours*w.cfg.TicksPerHour())
 	e.restTicks = atLeast1(int(math.Round(float64(w.cfg.RestTicks) * restMul)))
 	e.workScale = workMul
 	e.socialCapacity, e.socialPenalty = socialCapacity, socialPenalty
@@ -486,6 +504,8 @@ func (w *World) resolveTraitEffects(e *Entity) {
 		Grip:    clampInt(home.Grip, -lim, lim),
 		Valence: clampInt(home.Valence, -lim, lim),
 	}
+	// The new trait rates apply from now on (a colonist can mutate mid-game).
+	w.refreshDrives(e)
 }
 
 // rollTraits picks at most one trait from each group, each group taken with

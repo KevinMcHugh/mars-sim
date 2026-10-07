@@ -12,7 +12,7 @@ func TestTheColonysMealPriceRisesAsStoresFall(t *testing.T) {
 	for i := 0; i < 5; i++ {
 		w.spawn(Colonist, Point{12 + i, 10, LandingLevel})
 	}
-	c := w.landing().storageContainers[house]
+	c := w.storageContainers[house]
 	stock := func(n int) {
 		c.Inventory.Remove(Meal, c.Inventory.Count(Meal))
 		c.Inventory.Add(Meal, n)
@@ -39,7 +39,7 @@ func TestTheColonyRepricesItsMeals(t *testing.T) {
 	w, house := scumhouseWorld(t, false)
 	w.cfg.MealReserve, w.cfg.MealPriceMax, w.cfg.PriceMeal = 10, 300, 5
 	w.spawn(Colonist, Point{12, 10, LandingLevel})
-	c := w.landing().storageContainers[house]
+	c := w.storageContainers[house]
 	c.Inventory.Add(Meal, 10)
 	c.credit(Community, Meal, 10)
 	w.tick = marketInterval
@@ -77,7 +77,7 @@ func TestFoodOnItsOwnAccountWhenItPays(t *testing.T) {
 func TestACookSellsItsSurplusWhereItCooks(t *testing.T) {
 	w, house := scumhouseWorld(t, false)
 	w.cfg.MealKeep, w.cfg.PocketMealAt = 0, 0 // keep nothing back: no meal-keep, no pocket meal
-	c := w.landing().storageContainers[house]
+	c := w.storageContainers[house]
 	cook := w.spawn(Colonist, Point{12, 10, LandingLevel})
 	me := ColonistOwner(cook.ID)
 	c.Inventory.Add(CaveScum, 2)

@@ -35,6 +35,8 @@ them (see [valuation.md](./valuation.md)).
 - [`internal/ui/tui/render_market.go`](../internal/ui/tui/render_market.go) —
   books, trades, and open orders on the market tab.
 - [`internal/sim/market_test.go`](../internal/sim/market_test.go).
+- [`internal/sim/colonyorders.go`](../internal/sim/colonyorders.go) — the
+  player's orders for the colony (see [colony-orders.md](./colony-orders.md)).
 
 ## How it works
 
@@ -48,9 +50,12 @@ then oldest first.
 
 `post` places an order and **matches it at once**: while it crosses the head of
 the opposite side, they trade the smaller quantity **at the resting order's
-price**. Whatever is left rests; `ttl` (or never) decides when it expires.
+price**. The colony's orders pass over the colony's own, so it never trades
+with itself (see [colony-orders.md](./colony-orders.md)); a colonist's may. Whatever is left rests; `ttl` (or never) decides when it expires.
 Trades are recorded (`w.trades`, the last 64) and set the book's last price and
-volume.
+volume. Each order also records its own fills, `Filled` units and one `Fill`
+line per counterparty, for the Market tab's order detail; nothing in the
+simulation reads them (see [order-detail.md](./order-detail.md)).
 
 ### Escrow
 
@@ -79,14 +84,24 @@ wallet freezes, so a bid's escrow goes back to the wallet and freezes with it.
 ### The silo
 
 `marketDepot` is where the colony trades: its **communal** chest nearest the map
-centre (a crash-pod locker is private, so it never counts). It is cached on
+centre (a settler's locker is private, so it never counts). It is cached on
 `fixtureRev`, because a colony with a locker per settler has a container per
-settler. Crash pods mean nothing else ever calls for a shared chest, so the
+settler. Lockers for everyone mean nothing else ever calls for a shared chest, so the
 planner builds one when there is no silo (after life support, before bunks).
 
 Every `marketInterval` ticks, `runMarket` expires stale orders and has the
 colony top up a standing bid of `silo-bid-qty` units for each ore it buys, at
-the reference price, as far as the treasury stretches.
+the reference price, as far as the treasury stretches. By default only the
+bids for rock, iron ore and clay are posted; the colony posts none of its
+other standing orders (`standing-orders-build-only`, see
+[colony-orders.md](./colony-orders.md)).
+
+**A player's orders.** A player can post, reprice and remove the colony's
+orders from the browser (see [colony-orders.md](./colony-orders.md)). Those
+are marked `manual`, and the upkeep below never withdraws or retires one,
+though it counts them toward the quantities it tops up to. Every standing
+order the colony posts goes through `postStanding`, which posts nothing for a
+side and item the player has suspended.
 
 **When the silo moves**, because a communal chest was built nearer the centre
 or the silo chest was claimed, `retireOldSilo` cancels the colony's orders at
@@ -108,11 +123,14 @@ the centre doubled the money in escrow and left 64 iron bids open.
 - **Colonists sell surplus meals.** One holding more than `meal-keep` of its
   own meals outside the silo takes the rest there (`JobSell`: out of its
   locker, into its pockets, onto the silo's ledger in its own name) and asks
-  the reference price.
+  `mealSellPrice`: a meal's market value (see [pricing.md](./pricing.md)).
+  An unsold food ask comes down in steps, and idle food colonists own at the
+  kitchens and the silo is offered again.
 - **Hungry colonists buy.** One with no meal of its own or the colony's in
   reach buys the cheapest meal at the silo, a scumhouse, or a kitchen's pantry, at up to its
-  `mealBidLimit` (hunger times the meal's value, capped by its money), before
-  it eats gruel. If nothing fills, the bid queues for `demand-ttl` ticks at the
+  `mealBidLimit` (what its hunger and money will pay), before
+  it eats gruel. If nothing fills, the bid queues, starting low and rising
+  ([pricing.md](./pricing.md)), for `demand-ttl` ticks at the
   nearest kitchen's pantry (see [scumhouse.md](./scumhouse.md)), as demand the kitchen fills next and the producer planner
   can answer (see [valuation.md](./valuation.md)).
 
@@ -164,6 +182,7 @@ spent about 1500 of its 5000.
 
 - [economy.md](./economy.md) — the plan this is phase E4 of.
 - [money.md](./money.md) — accounts, `transfer`, and the audit escrow joins.
+- [colony-orders.md](./colony-orders.md) — the player trading for the colony.
 - [property.md](./property.md) — ledgers, and `moveLine`.
 - [food.md](./food.md) — where buying a meal sits in eating.
 - [storage.md](./storage.md) — where miners unload.

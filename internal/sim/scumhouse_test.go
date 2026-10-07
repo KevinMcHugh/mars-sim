@@ -41,7 +41,7 @@ func TestDeathsLeaveBodiesOfTheirKind(t *testing.T) {
 	}
 
 	starving := w.spawn(Colonist, Point{15, 12, LandingLevel})
-	starving.Needs[NeedFood] = w.cfg.Needs[NeedFood].Max
+	w.setDrive(starving, DriveFood, w.cfg.Drives[DriveFood].Max)
 	starving.HP = 1
 	for i := 0; i < 5 && w.entities[starving.ID] != nil; i++ {
 		w.step()
@@ -71,7 +71,7 @@ func TestCleanersFeedTheScumhouseAndBurnOnlyTheDead(t *testing.T) {
 	for i := 0; i < 200 && cleaner.Job == JobClean; i++ {
 		w.jobClean(cleaner)
 	}
-	c := w.landing().storageContainers[house]
+	c := w.storageContainers[house]
 	if c.held(Community, AlienCorpse) != 1 || c.held(Community, Viscera) != 1 {
 		t.Fatalf("scumhouse ledger = %+v, want the colony's alien carcass and viscera", c.Ledger)
 	}
@@ -110,7 +110,7 @@ func TestWithoutAnIncineratorColonistsBodiesStay(t *testing.T) {
 			w.jobClean(cleaner)
 		}
 	}
-	if w.landing().storageContainers[house].held(Community, AnimalCorpse) != 1 {
+	if w.storageContainers[house].held(Community, AnimalCorpse) != 1 {
 		t.Fatal("the animal carcass never reached the scumhouse")
 	}
 	if w.corpsesOfAt(Point{10, 10, LandingLevel}, ColonistCorpse) != 1 || cleaner.Inventory.Has(ColonistCorpse) {
@@ -122,7 +122,7 @@ func TestWithoutAnIncineratorColonistsBodiesStay(t *testing.T) {
 // The meals are not free: the scumhouse sells them, and a colonist buys one.
 func TestCookingTurnsTheColonysScumIntoItsMeals(t *testing.T) {
 	w, house := scumhouseWorld(t, false)
-	c := w.landing().storageContainers[house]
+	c := w.storageContainers[house]
 	c.Inventory.Add(CaveScum, 2)
 	c.credit(Community, CaveScum, 2)
 	cook := w.spawn(Colonist, Point{12, 10, LandingLevel})
@@ -154,7 +154,7 @@ func TestCookingTurnsTheColonysScumIntoItsMeals(t *testing.T) {
 	if ask, ok := w.bestAsk(Meal, house); !ok || ask.Actor != Community || ask.Price != w.refPrice(Meal) {
 		t.Fatalf("the scumhouse is not selling its meal: best ask %+v", ask)
 	}
-	other.Needs[NeedFood] = w.cfg.Needs[NeedFood].Max
+	w.setDrive(other, DriveFood, w.cfg.Drives[DriveFood].Max)
 	purse := other.wallet
 	if !w.tryBuyMeal(other) || other.wallet != purse-w.refPrice(Meal) {
 		t.Fatalf("a hungry colonist could not buy the meal (paid %v)", purse-other.wallet)
@@ -308,6 +308,9 @@ func TestScumSpreadsAtItsRateOnAnyMap(t *testing.T) {
 		w := newTestWorld(t, cfg)
 		w.cfg.ScumPercent = 0 // no room: spread only thickens
 		w.cfg.ScumMax = 1 << 30
+		for p, s := range w.landing().scum {
+			w.putScum(p, s.amount) // every patch is below the new cap: scumThin follows it
+		}
 		w.cfg.ScumSpawnPPM, w.cfg.ScumSpreadPercent = 0, 40
 		before, landing := 0, 0
 		for p, s := range w.landing().scum {
@@ -335,18 +338,40 @@ func TestScumSpreadsAtItsRateOnAnyMap(t *testing.T) {
 }
 
 // assertScumPatchesListed checks that scumPatches lists exactly the patches
-// on the map, in cmpScumPatch order: growScum draws from it.
+// on the map, in cmpScumPatch order, and scumThin exactly the ones below
+// ScumMax: growScum draws from both.
 func assertScumPatchesListed(t *testing.T, w *World) {
 	t.Helper()
-	if len(w.landing().scumPatches) != len(w.landing().scum) {
-		t.Fatalf("scumPatches lists %d patches, the map holds %d", len(w.landing().scumPatches), len(w.landing().scum))
+	listed := w.landing().scumPatches.appendTo(nil)
+	if len(listed) != len(w.landing().scum) || w.landing().scumPatches.len() != len(w.landing().scum) {
+		t.Fatalf("scumPatches lists %d patches (len %d), the map holds %d", len(listed), w.landing().scumPatches.len(), len(w.landing().scum))
 	}
-	if !slices.IsSortedFunc(w.landing().scumPatches, cmpScumPatch) {
+	if !slices.IsSortedFunc(listed, cmpScumPatch) {
 		t.Fatal("scumPatches is out of order")
 	}
-	for _, p := range w.landing().scumPatches {
+	for k, p := range listed {
 		if _, ok := w.landing().scum[p]; !ok {
 			t.Fatalf("scumPatches lists %v, which has no patch", p)
+		}
+		if got := w.landing().scumPatches.at(k); got != p {
+			t.Fatalf("scumPatches.at(%d) = %v, want %v", k, got, p)
+		}
+	}
+	for p, s := range w.landing().scum {
+		if _, thin := w.landing().scumThin[p]; thin != (s.amount < w.cfg.ScumMax) {
+			t.Fatalf("patch %v holds %d of %d, but scumThin says thin=%v", p, s.amount, w.cfg.ScumMax, thin)
+		}
+	}
+	if len(w.landing().scumThin) > len(w.landing().scum) {
+		t.Fatalf("scumThin lists %d patches, the map holds %d", len(w.landing().scumThin), len(w.landing().scum))
+	}
+	pages := map[int]int32{}
+	for p := range w.landing().scumThin {
+		pages[w.landing().tiles.pageIndex(p.X, p.Y)]++
+	}
+	for i, n := range w.landing().scumThinPages {
+		if n != pages[i] {
+			t.Fatalf("page %d counts %d thin patches, holds %d", i, n, pages[i])
 		}
 	}
 }
@@ -389,7 +414,7 @@ func TestScrapersBringScumInForTheColony(t *testing.T) {
 	for i := 0; i < 400 && s.Job == JobScrape; i++ {
 		w.jobScrape(s)
 	}
-	if got := w.landing().storageContainers[house].held(Community, CaveScum); got != w.cfg.ScumMax {
+	if got := w.storageContainers[house].held(Community, CaveScum); got != w.cfg.ScumMax {
 		t.Fatalf("scumhouse holds %d of the colony's scum, want %d", got, w.cfg.ScumMax)
 	}
 	if s.Inventory.Has(CaveScum) || s.foreignCargo(CaveScum) != 0 {
@@ -416,7 +441,7 @@ func TestAHungryScraperKeepsItsScum(t *testing.T) {
 		w.jobScrape(s)
 	}
 	me := ColonistOwner(s.ID)
-	if got := w.landing().storageContainers[house].held(me, CaveScum); got != w.cfg.ScumMax {
+	if got := w.storageContainers[house].held(me, CaveScum); got != w.cfg.ScumMax {
 		t.Fatalf("the scraper owns %d scum at the scumhouse, want %d", got, w.cfg.ScumMax)
 	}
 	if !w.tryAssignFoodWork(s, true) || s.Job != JobCraft || s.craftFor != me {
@@ -469,7 +494,7 @@ func TestConstructionCostsAreSpentFromTheBuildersStock(t *testing.T) {
 	chest := Point{8, 12, LandingLevel}
 	w.SetTerrain(chest, Storage)
 	w.refreshSpatial()
-	c := w.landing().storageContainers[chest]
+	c := w.storageContainers[chest]
 	c.Inventory.Add(RawRock, 1)
 	c.credit(ColonistOwner(b.ID), RawRock, 1)
 	task, ok := w.claimNearestTask(b.Pos, b.ID)
@@ -612,7 +637,7 @@ func TestScumhouseRoomHasALinkedPantry(t *testing.T) {
 	if pantry != house.Add(2, 0) {
 		t.Fatalf("pantry at %v, want two tiles along from the scumhouse at %v", pantry, house)
 	}
-	if w.landing().pantryOf[house] != pantry {
+	if w.pantryOf[house] != pantry {
 		t.Fatal("the planner did not link the pantry to its scumhouse")
 	}
 	// Wide or narrow, the tile between the stove and the pantry is floor, so
@@ -634,14 +659,14 @@ func TestTheCookDoesNotBlockThePantry(t *testing.T) {
 	house, pantry := Point{10, 6, LandingLevel}, Point{12, 6, LandingLevel}
 	w.SetTerrain(house, Scumhouse)
 	w.SetTerrain(pantry, Storage)
-	w.landing().pantryOf[house], w.landing().pantryHouse[pantry] = pantry, house
+	w.pantryOf[house], w.pantryHouse[pantry] = pantry, house
 	// Walls either side of the stove, as in a narrow room: its one open
 	// access tile below it is where the cook will stand.
 	w.SetTerrain(Point{9, 6, LandingLevel}, Wall)
 	w.SetTerrain(Point{9, 7, LandingLevel}, Wall)
 	w.SetTerrain(Point{11, 7, LandingLevel}, Wall)
 	w.refreshSpatial()
-	c := w.landing().storageContainers[house]
+	c := w.storageContainers[house]
 	c.Inventory.Add(CaveScum, 2)
 	c.credit(Community, CaveScum, 2)
 
@@ -652,7 +677,7 @@ func TestTheCookDoesNotBlockThePantry(t *testing.T) {
 	for i := 0; i < 200 && cook.Job == JobCraft; i++ {
 		w.jobCraft(cook)
 	}
-	if got := w.landing().storageContainers[pantry].held(Community, Meal) + w.openQty(Ask, Meal, pantry, Community); got != 1 {
+	if got := w.storageContainers[pantry].held(Community, Meal) + w.openQty(Ask, Meal, pantry, Community); got != 1 {
 		t.Fatalf("the pantry holds %d of the colony's meals, want the 1 just cooked", got)
 	}
 	if c.Inventory.Count(Meal) != 0 {
@@ -663,8 +688,8 @@ func TestTheCookDoesNotBlockThePantry(t *testing.T) {
 		t.Fatal("nobody can reach the pantry while the cook stands at the stove")
 	}
 	buyer := w.spawn(Colonist, Point{16, 10, LandingLevel})
-	buyer.Needs[NeedFood] = w.cfg.Needs[NeedFood].Max
-	if !w.tryBuyMeal(buyer) || w.landing().storageContainers[pantry].held(ColonistOwner(buyer.ID), Meal) != 1 {
+	w.setDrive(buyer, DriveFood, w.cfg.Drives[DriveFood].Max)
+	if !w.tryBuyMeal(buyer) || w.storageContainers[pantry].held(ColonistOwner(buyer.ID), Meal) != 1 {
 		t.Fatal("a hungry colonist could not buy the meal at the pantry")
 	}
 	assertMoneyConserved(t, w)

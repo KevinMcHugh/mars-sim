@@ -76,7 +76,7 @@ type Config struct {
 	// Starting population.
 	StartColonists int `cfg:"colonists" sec:"Starting population" doc:"starting number of colonists"`
 	StartAliens    int `cfg:"aliens" doc:"starting number of aliens"`
-	StartCats      int `cfg:"cats" doc:"starting number of cats"`
+	StartCats      int `cfg:"cats" doc:"starting number of stray cats (colonists also bring cats: see crash-pod-cat-weight)"`
 	StartRats      int `cfg:"rats" doc:"starting number of rats"`
 
 	// GraveyardSize is how many recent deaths (any kind) are kept in the
@@ -107,6 +107,14 @@ type Config struct {
 	// colony eats only what it landed with and what it produces. On is for
 	// tests and balancing. See docs/food.md.
 	InfiniteFood bool `cfg:"infinite-food" doc:"nutrient pods make free meals out of nothing (the safety net)"`
+	// ZoningAuto is who decides where the colony builds. Off (the game's
+	// default), the player draws zones and colonists build a structure only
+	// inside a zone of its kind; with no such zone they build nothing. On,
+	// the colony sites its rooms itself, as it always did, and zones each one
+	// as it marks it out. The terminal and headless runs have no way to draw
+	// a zone, so the committed mars-sim.yaml turns this on. See
+	// docs/zoning.md.
+	ZoningAuto bool `cfg:"zoning-auto" doc:"colonists choose where to build and zone it themselves; off, they build only inside zones the player draws (the browser's Zones tab)"`
 
 	// Food production. Cave scum is a biofilm on cave surfaces, the renewable
 	// base of the food chain: ScumPercent of the map's tiles carry a patch of
@@ -163,6 +171,24 @@ type Config struct {
 	MealPriceMax    int   `cfg:"meal-price-max" doc:"what the colony asks for a meal with its shelves bare, as a percent of price-meal; it rises to this as its stock falls below meal-reserve per colonist (100: a fixed price)"`
 	PocketMealAt    int   `cfg:"pocket-meal-at" doc:"food need at which a colonist with no meal on it fetches one of its own to carry, before it's hungry enough to eat (0: never)"`
 
+	// Price discovery (docs/pricing.md). A colonist's unsold food ask comes
+	// down AskDecayPercent every AskDecayTicks, to $1 (a meal, to what its
+	// scum costs); with RelistIdle,
+	// colonists offer idle food they own at the kitchens and the silo at its
+	// value. A hungry colonist's waiting meal bid starts at BidStartPercent
+	// of a meal's value and rises BidRaisePercent of its limit every
+	// BidRaiseTicks to that limit, which grows with hunger toward half its
+	// money (all of it at critical), whatever the last meal sold for. With MealSellAtMarket, colonists sell meals, and judge
+	// whether cooking pays, at a meal's market value, not price-meal.
+	AskDecayTicks    int  `cfg:"ask-decay-ticks" doc:"ticks a colonist's unsold ask for food (meals, scum, other biomatter) waits before it comes down in price (0: asks never move)"`
+	AskDecayPercent  int  `cfg:"ask-decay-percent" doc:"percent a colonist's unsold food ask comes down each time, at least $1, never below $1, or for a meal below what its scum costs"`
+	RelistIdle       bool `cfg:"relist-idle" doc:"colonists offer idle food they own at the kitchens and the silo for sale at its market value: meals beyond meal-keep, scum beyond one recipe's worth"`
+	BidStartPercent  int  `cfg:"bid-start-percent" doc:"a hungry colonist's waiting bid for a meal starts at this percent of a meal's value, or its limit if lower"`
+	BidRaiseTicks    int  `cfg:"bid-raise-ticks" doc:"ticks a hungry colonist's waiting meal bid goes unfilled before it raises it toward its limit (0: it bids its limit at once)"`
+	BidRaisePercent  int  `cfg:"bid-raise-percent" doc:"how much a hungry colonist raises its waiting meal bid each time, as a percent of its limit (what its hunger and money will pay), at least $1"`
+	FreePricesAt     int  `cfg:"free-prices-at" doc:"prices float only once the colony has held this many meals per colonist, its kitchens running; until then trades don't move them, and unsold asks don't come down (0: they float from landing)"`
+	MealSellAtMarket bool `cfg:"meal-sell-at-market" doc:"colonists price the meals they sell, and judge whether cooking pays, at a meal's market value (off: at price-meal)"`
+
 	// Skills. A colonist is credited SkillPracticePercent percent of the base
 	// ticks of every unit of work it completes, in that work's skill; ranks
 	// come from practice, and each rank makes the work faster and, for
@@ -211,6 +237,14 @@ type Config struct {
 	ArmoryRifles      int   `cfg:"armory-rifles" sec:"Foundry" doc:"assault rifles the colony wants in its armory (0: it builds no foundry and buys none)"`
 	PriceAssaultRifle int64 `cfg:"price-assault-rifle" doc:"what the colony pays for an assault rifle at its silo"`
 
+	// Colony standing orders. With StandingOrdersBuildOnly, the colony posts
+	// no standing orders but its silo bids for building materials
+	// (buildGoods). The rest (ore resales, meal asks, biomatter, water,
+	// uranium and rifle bids) mostly rested unfilled and buried the book;
+	// feeding the colony is the player's call, made with an order on the
+	// Market tab. See docs/colony-orders.md.
+	StandingOrdersBuildOnly bool `cfg:"standing-orders-build-only" sec:"Colony standing orders" doc:"the colony posts no standing orders but its bids for building materials (rock, iron ore, clay)"`
+
 	// Hauling and the colony as seller. With ColonySells, the colony offers
 	// what it bought at its silo beyond ColonyStockReserve units of each good
 	// (kept for public works), at ColonyMarkup percent over the reference
@@ -227,43 +261,88 @@ type Config struct {
 	// room it cannot fund is not planned. It pays WageCook each time a cook
 	// works a recipe on the colony's stock. A colonist with HouseSavings
 	// dollars commissions its own house (0 disables), whose toilet charges
-	// others ToiletFee a use. See docs/labor.md.
+	// others ToiletFee a use. WageDemolish pays for tearing a room's wall down
+	// to enlarge it: dearer than raising one, since the rock is not salvaged
+	// (see docs/room-expansion.md). See docs/labor.md.
 	WageDig        int64 `cfg:"wage-dig" sec:"Labor" doc:"what the colony pays to dig out one tile of a room"`
 	WageWall       int64 `cfg:"wage-wall" doc:"what the colony pays to raise one wall"`
 	WageFixture    int64 `cfg:"wage-fixture" doc:"what the colony pays to build one fixture (pod, toilet, bed, ...)"`
+	WageDemolish   int64 `cfg:"wage-demolish" doc:"what the colony pays to tear down one structure tile: a wall moved to enlarge a room, or anything a clearing order takes down"`
 	WageCook       int64 `cfg:"wage-cook" doc:"what the colony pays a cook each time it works a recipe on the colony's stock"`
 	HouseSavings   int64 `cfg:"house-savings" doc:"a colonist with this much money commissions its own house (0 disables)"`
 	KitchenRank    int   `cfg:"kitchen-rank" doc:"cooking rank at which a colonist buys a kitchen of its own when the shared stoves are crowded (3: a chef; 0 disables)"`
 	KitchenSavings int64 `cfg:"kitchen-savings" doc:"money a chef needs to commission its own kitchen: the room (about $50) and scum to cook in it"`
 	ToiletFee      int64 `cfg:"toilet-fee" doc:"what a house's toilet charges anyone but its owner per use (0: private)"`
 
-	// Crash pods. Every colonist arrives in one — at worldgen, from the spawn
-	// command, or from a director arrival — carrying its own bunk, toilet, and
-	// locker, and this manifest. See crashpod.go and docs/crash-pods.md.
-	CrashPodPurse      int64 `cfg:"crash-pod-purse" sec:"Crash pods" doc:"dollars each colonist arrives with"`
-	CrashPodMeals      int   `cfg:"crash-pod-meals" doc:"meals stocked in each crash pod's locker, on average"`
-	CrashPodMealSpread int   `cfg:"crash-pod-meal-spread" doc:"each pod's meals vary by up to this many either side of crash-pod-meals"`
-	CrashPodPistols    int   `cfg:"crash-pod-pistols" doc:"pistols in each crash pod's manifest, at most"`
-	CrashPodShotguns   int   `cfg:"crash-pod-shotguns" doc:"shotguns in each crash pod's manifest, at most"`
-	// Each gun the manifest lists is actually aboard a given pod with these
-	// odds, rolled per colonist, so some colonists land better armed than
-	// others and some land with no gun at all. See docs/crash-pods.md.
-	CrashPodPistolPercent  int `cfg:"crash-pod-pistol-percent" doc:"percent chance each manifest pistol is aboard a given colonist's pod"`
-	CrashPodShotgunPercent int `cfg:"crash-pod-shotgun-percent" doc:"percent chance each manifest shotgun is aboard a given colonist's pod"`
+	// Arrivals. Every colonist arrives aboard a colony ship — at worldgen,
+	// from the spawn command, or from a director arrival — with a locker of
+	// its own, communal bunks and toilets shared with its shipmates, and this
+	// manifest. The crash-pod-* names are from the one-pod-per-colonist
+	// arrivals ships replaced. See ship.go and docs/ships.md.
+	ShipCapacity      int `cfg:"ship-capacity" sec:"Arrivals" doc:"most settlers one colony ship carries; a larger wave comes down in several"`
+	ShipBunkPercent   int `cfg:"ship-bunk-percent" doc:"communal bunks a ship carries, as a percent of its passengers (rounded up)"`
+	ShipToiletPercent int `cfg:"ship-toilet-percent" doc:"communal toilets a ship carries, as a percent of its passengers (rounded up)"`
+	// A ship comes down as a stick (its rooms in a row), a hub and spoke, or
+	// a knobby cluster, picked per ship by these relative weights. All three
+	// at 0 is all sticks. See docs/ships.md.
+	ShipStickWeight   int `cfg:"ship-stick-weight" doc:"relative odds a colony ship is a stick: its rooms in a row along one aisle"`
+	ShipHubWeight     int `cfg:"ship-hub-weight" doc:"relative odds a colony ship is a hub and spoke: a concourse with a room down each spoke"`
+	ShipClusterWeight int `cfg:"ship-cluster-weight" doc:"relative odds a colony ship is a knobby cluster: rooms budding off a spine corridor"`
+	// PlaceShips leaves the founders' ships aloft at worldgen for a frontend
+	// to land one by one with LandShip before the first tick. The browser
+	// sets it; anything still aloft when the game starts lands by itself.
+	PlaceShips bool `cfg:"place-ships" doc:"hold the founders' ships aloft for the player to land one by one (the browser does)"`
+
+	CrashPodPurse      int64 `cfg:"crash-pod-purse" doc:"dollars each colonist arrives with"`
+	CrashPodMeals      int   `cfg:"crash-pod-meals" doc:"meals stocked in each colonist's locker, on average"`
+	CrashPodMealSpread int   `cfg:"crash-pod-meal-spread" doc:"each locker's meals vary by up to this many either side of crash-pod-meals"`
+	// Every colonist lands with exactly one rare item: a gun, a chicken (with
+	// a trough), or a cat, picked per colonist by these relative weights. A
+	// gun is a shotgun crash-pod-shotgun-percent of the time, else a pistol.
+	// All three weights at 0 lands everyone with none. See
+	// docs/ships.md and docs/chickens.md.
+	CrashPodGunWeight      int `cfg:"crash-pod-gun-weight" doc:"relative odds a colonist's one rare item is a gun"`
+	CrashPodChickenWeight  int `cfg:"crash-pod-chicken-weight" doc:"relative odds a colonist's one rare item is a chicken (with a trough in its ship's hold)"`
+	CrashPodCatWeight      int `cfg:"crash-pod-cat-weight" doc:"relative odds a colonist's one rare item is a cat"`
+	CrashPodShotgunPercent int `cfg:"crash-pod-shotgun-percent" doc:"percent of the guns colonists land with that are shotguns rather than pistols"`
+
+	// Recruiting. The player pays an off-world recruiter from the treasury
+	// for a set of candidates, then pays each one's passage to hire it; both
+	// leave the colony's money supply. A recruit arrives with its savings
+	// (minted into its wallet, like a purse) and recruit-meals meals in its
+	// pockets. Savings are log-normal: recruit-savings-spread is the
+	// half-width of the band about 95% of candidates fall in around the mean
+	// while it is well under the mean, and a wider spread leaves most
+	// candidates poor and a rare few rich. See recruit.go and
+	// docs/recruiting.md.
+	RecruiterFee         int64 `cfg:"recruiter-fee" sec:"Recruiting" doc:"dollars the treasury pays the recruiter for each set of candidates"`
+	RecruitCandidates    int   `cfg:"recruit-candidates" doc:"candidates in each set the recruiter presents (0 disables recruiting)"`
+	RecruitCost          int64 `cfg:"recruit-cost" doc:"dollars the treasury pays for each candidate hired: passage and starting supplies"`
+	RecruitMeals         int   `cfg:"recruit-meals" doc:"meals each recruit arrives with, in its pockets"`
+	RecruitSavingsMean   int64 `cfg:"recruit-savings-mean" doc:"average dollars a candidate brings with it, before clamping to the min and max"`
+	RecruitSavingsSpread int64 `cfg:"recruit-savings-spread" doc:"about 95% of candidates' savings fall within this many dollars of the mean, while it is well under the mean; wider gives a long tail of rare rich candidates (0: everyone brings the mean)"`
+	RecruitSavingsMin    int64 `cfg:"recruit-savings-min" doc:"fewest dollars a candidate brings (never below 0: no candidate arrives in debt)"`
+	RecruitSavingsMax    int64 `cfg:"recruit-savings-max" doc:"most dollars a candidate brings"`
 
 	// Timing.
 	TicksPerSecond int `cfg:"tps" sec:"Timing" doc:"simulation ticks per second"`
-	LogSize        int `cfg:"log-size" doc:"number of recent events retained"`
+	// StartPaused starts the engine paused. The browser sets it, so the
+	// player can move the ships before the first tick (see MoveShip).
+	StartPaused bool `cfg:"start-paused" doc:"start the game paused (the browser does, so the ships can be placed)"`
+	LogSize     int  `cfg:"log-size" doc:"number of recent events retained"`
 
 	// Colonist stats.
 	ColonistHP int `cfg:"colonist-hp" sec:"Colonists" doc:"colonist hit points"`
 	MineTicks  int `cfg:"mine-ticks" doc:"ticks of work to excavate one rock tile"`
 	BuildTicks int `cfg:"build-ticks" doc:"ticks of work to raise one wall"`
-	// DemolishTicks is how long breaking a wall down takes for a colonist
-	// escaping a sealed room (see FocusEscape, docs/escape.md). Costlier than
-	// raising one (BuildTicks): breaking out should be a last resort, not a
-	// cheaper substitute for a door once those exist.
-	DemolishTicks      int `cfg:"demolish-ticks" doc:"ticks of work to break down one wall tile when escaping a sealed room"`
+	// DemolishTicks is how long breaking a wall or hull tile down takes, for
+	// a colonist escaping a sealed room or a builder opening a passage (see
+	// FocusEscape, planPassage, docs/escape.md). Costlier than raising one
+	// (BuildTicks): breaking out should be a last resort, not a cheaper
+	// substitute for a door once those exist. Against MineTicks it also
+	// decides whether a way out goes round a structure through the rock or
+	// through its wall.
+	DemolishTicks      int `cfg:"demolish-ticks" doc:"ticks of work to break down one wall or hull tile, escaping a sealed room or opening a passage"`
 	FacilityBuildTicks int `cfg:"facility-ticks" doc:"ticks of work to build a pod or toilet"`
 	FleeRadius         int `cfg:"flee-radius" doc:"colonist flees when an alien is within this many tiles"`
 	// FleeReleaseMargin is flee's hysteresis band: a colonist already fleeing
@@ -275,7 +354,7 @@ type Config struct {
 	FleeReleaseMargin int `cfg:"flee-release-margin" doc:"a fleeing colonist keeps fleeing until no alien is within flee-radius plus this many tiles"`
 	// StompRadius is how far an idle colonist notices a rat and gives chase to
 	// crush it. Stomping is an idle whim: only colonists with nothing pressing
-	// (no threat, no urgent need, no work) hunt pests.
+	// (no threat, no urgent drive, no work) hunt pests.
 	ColonistStompRadius int `cfg:"stomp-radius" doc:"an idle colonist chases and crushes a rat within this many tiles"`
 	// GoreSightRadius is how far a colonist notices gore on the ground (see
 	// the visible-gore perception rule in cognition.yaml). Smaller than
@@ -283,7 +362,7 @@ type Config struct {
 	// a moving alien does.
 	GoreSightRadius int `cfg:"gore-sight-radius" doc:"a colonist notices gore on the ground within this many tiles"`
 
-	// Sanitation. A colonist with no urgent need cleans up refuse — gore and
+	// Sanitation. A colonist with no urgent drive cleans up refuse — gore and
 	// corpses — and hauls it to an incinerator to burn. CleanRadius is how far
 	// it looks for a mess (larger than GoreSightRadius, which is about noticing
 	// one, not going to find it); a Tidy colonist searches twice as far. See
@@ -293,10 +372,14 @@ type Config struct {
 	IncinerateTicks       int `cfg:"incinerate-ticks" doc:"ticks spent feeding a load of refuse into an incinerator"`
 	IncineratorBuildTicks int `cfg:"incinerator-ticks" doc:"ticks of work to build an incinerator"`
 
-	// Needs. One NeedSpec per NeedKind, indexed by that kind.
-	Needs                [numNeeds]NeedSpec `cfg:"needs" sec:"Needs"`
-	StarveDamage         int                `cfg:"starve-damage" doc:"HP lost per tick while a fatal need sits at its max"`
-	ColonistsPerFacility int                `cfg:"per-facility" doc:"colonists served by each life-support facility"`
+	// Drives. One DriveSpec per DriveKind, indexed by that kind.
+	Drives       [numDrives]DriveSpec `cfg:"drives" sec:"Drives"`
+	StarveDamage int                  `cfg:"starve-damage" doc:"HP lost per tick while a drive's death consequence applies"`
+	// DriveEffects are the effect profiles events can start on a colonist's
+	// drives (caffeine, water), indexed by DriveEffectKind. None ship yet;
+	// the config file has no lists, so they are set in code (drive_effects.go).
+	DriveEffects         []DriveEffectProfile
+	ColonistsPerFacility int `cfg:"per-facility" doc:"colonists served by each life-support facility"`
 
 	// Focus arbitration. Runtime copy of cognition.yaml's focuses/arbitration,
 	// written once at load by SyncWithCognition. Tune those tables there, not
@@ -322,6 +405,17 @@ type Config struct {
 	// larger colony's facility supply keep pace with growth; see
 	// construction.md.
 	MaxConcurrentProjects int `cfg:"max-concurrent-projects" doc:"rooms that can be under construction at once"`
+	// RoomExpansion has the colony put fixtures into the rooms it already
+	// has before it marks out a new one: into free floor in a room of their
+	// zone (a fit-out), or by growing a room through any of its walls.
+	// RoomMaxFacilities is the most fixtures, of any kind, a room holds.
+	// RoomMerge has it join two rooms of one zone that stand side by side,
+	// back to back or facing each other, tearing down the walls between
+	// them: first when it wants more fixtures, and otherwise when it has
+	// nothing else to build. See docs/room-expansion.md.
+	RoomExpansion     bool `cfg:"room-expansion" doc:"put fixtures into the colony's rooms of their zone, fitting out free floor or growing a room through any wall, before building a new one"`
+	RoomMaxFacilities int  `cfg:"room-max-facilities" doc:"most fixtures (of any kind: bunks, chests, stoves, incubators, chairs) one room holds"`
+	RoomMerge         bool `cfg:"room-merge" doc:"join two rooms of the same zone standing side by side, back to back or facing each other into one, tearing down the walls between them: when more fixtures are wanted, or when there is nothing else to build"`
 
 	// EscapeGraceTicks is how long a colonist's room must stay cut off from the
 	// colony's main connected network (see rooms.go's mainRoom) before it gives
@@ -404,6 +498,18 @@ type Config struct {
 	TalkQualityValence int `cfg:"talk-quality-valence" doc:"how strongly existing affinity biases conversation quality"`
 	TalkQualitySpread  int `cfg:"talk-quality-spread" doc:"random swing around a conversation's mean quality"`
 
+	// Conversation topics. Whoever raises the topic picks what kind of thing
+	// to talk about by these weights, among the kinds it has something to
+	// say about: one of its own memories, another colonist it has feelings
+	// about, or a piece of lore (an alien species or a corporation). Talking about a
+	// colonist is gossip: the listener's affinity toward the subject moves
+	// TalkGossipPercent of the way toward the speaker's, when the chat went
+	// well. See topics.go and docs/conversation-topics.md.
+	TalkTopicMemoryWeight   int `cfg:"talk-topic-memory-weight" doc:"relative weight of talking about one of the speaker's memories (0 never)"`
+	TalkTopicColonistWeight int `cfg:"talk-topic-colonist-weight" doc:"relative weight of talking about another colonist (0 never)"`
+	TalkTopicLoreWeight     int `cfg:"talk-topic-lore-weight" doc:"relative weight of talking about lore, such as an alien species or a corporation (0 never)"`
+	TalkGossipPercent       int `cfg:"talk-gossip-percent" doc:"percent of the gap a good chat about a colonist closes between the listener's affinity toward them and the speaker's"`
+
 	// The meeting hall: a room of chairs the colony commissions, where
 	// colonists go to socialize and to eat. See docs/meeting-hall.md.
 	ColonistsPerChair int `cfg:"colonists-per-chair" sec:"Meeting hall" doc:"the colony commissions meeting-hall chairs, one for each this many colonists (0: no hall, and talk and meals stay wherever they happen)"`
@@ -461,11 +567,12 @@ type Config struct {
 	AlienSlowness          int `cfg:"alien-slowness" doc:"baseline: alien acts once every N ticks (higher = slower), before a species' temperament scales it"`
 	AlienReferenceWeightKG int `cfg:"alien-reference-weight-kg" doc:"specimen weight in kg at which a species deals exactly alien-damage"`
 	AlienCautiousRadius    int `cfg:"alien-cautious-radius" doc:"how close a colonist must come before a Cautious species reacts and closes in"`
-	// AlienHungerRise is the food need an alien gains per tick. Only Friendly
-	// and Cautious species act on it: once it passes the food need's seek-at
+	// AlienHungerRate is the food drive an alien gains per tick, in thousandths
+	// of a point. Only Friendly
+	// and Cautious species act on it: once it passes the food drive's seek-at
 	// they graze exposed cave scum within AlienGrazeRadius (Hostile ones eat
 	// colonists instead). Aliens never starve. See alienGraze.
-	AlienHungerRise  int `cfg:"alien-hunger-rise" doc:"food need a Friendly or Cautious alien gains per tick before it goes grazing on cave scum"`
+	AlienHungerRate  int `cfg:"alien-hunger-rate" doc:"food drive a Friendly or Cautious alien gains per tick, in thousandths of a point, before it goes grazing on cave scum"`
 	AlienGrazeRadius int `cfg:"alien-graze-radius" doc:"how far a hungry Friendly or Cautious alien looks for cave scum to eat"`
 
 	// AlienNames configures the pool of names ("xenos," "critters," ...) a
@@ -490,16 +597,36 @@ type Config struct {
 	RifleDamage     int `cfg:"rifle-damage" doc:"HP removed per assault rifle burst"`
 	RifleRange      int `cfg:"rifle-range" doc:"max tiles an assault rifle can fire from"`
 	RifleFireRest   int `cfg:"rifle-fire-rest" doc:"cooldown ticks between assault rifle bursts"`
+	// CorporationCount is how many companies this seed's lore rolls; every gun
+	// kind gets a make and model from one of them. Flavor only. See
+	// arms_makers.go and docs/arms-makers.md.
+	CorporationCount int `cfg:"corporation-count" doc:"companies this seed's lore rolls; each gun kind is made by one of them"`
+	// CorporationEmployeePercent is the chance an arriving colonist used to
+	// work for one of them: backstory flavor only.
+	CorporationEmployeePercent int `cfg:"corporation-employee-percent" doc:"percent of arriving colonists who used to work for one of the lore's corporations (flavor only)"`
 
-	// Cat stats. Cats have no needs; they hunt rats on the floor by instinct.
+	// Cat stats. Cats have no drives; they hunt rats on the floor by instinct.
 	CatHP         int `cfg:"cat-hp" sec:"Cats" doc:"cat hit points"`
 	CatSlowness   int `cfg:"cat-slowness" doc:"cat acts once every N ticks (higher = slower)"`
 	CatPounceRest int `cfg:"cat-pounce-rest" doc:"cooldown ticks after a cat catches a rat"`
 
-	// Rat stats. Rats share the colonists' NeedFood but grow hungry far faster
+	// Chicken stats. A chicken has only the food drive: it eats feed from its
+	// keeper's trough, or grazes cave scum, and starves with neither. See
+	// chickens.go and docs/chickens.md.
+	ChickenHP          int `cfg:"chicken-hp" sec:"Chickens" doc:"chicken hit points"`
+	ChickenSlowness    int `cfg:"chicken-slowness" doc:"chicken acts once every N ticks (higher = slower)"`
+	ChickenHungerRate  int `cfg:"chicken-hunger-rate" doc:"food drive a chicken gains per tick, in thousandths of a point"`
+	ChickenGrazeRadius int `cfg:"chicken-graze-radius" doc:"how far a hungry chicken looks for cave scum to graze"`
+	ChickenRoam        int `cfg:"chicken-roam" doc:"a chicken with a trough wanders back toward it once farther than this many tiles"`
+	// A keeper refills its trough once it holds fewer than TroughLow units
+	// of feed, mixing enough to bring it to TroughFill.
+	TroughLow  int `cfg:"trough-low" doc:"a keeper refills its trough once it holds fewer than this many units of feed (0: keepers never tend)"`
+	TroughFill int `cfg:"trough-fill" doc:"units of feed a keeper fills its trough to"`
+
+	// Rat stats. Rats share the colonists' DriveFood but grow hungry far faster
 	// (they nibble constantly), and flee cats rather than aliens.
 	RatHP         int `cfg:"rat-hp" sec:"Rats" doc:"rat hit points"`
-	RatHungerRise int `cfg:"rat-hunger-rise" doc:"food need a rat gains per tick (rats eat frequently)"`
+	RatHungerRate int `cfg:"rat-hunger-rate" doc:"food drive a rat gains per tick, in thousandths of a point (rats eat frequently)"`
 	// RatScavengeRadius is how far a hungry rat looks for a body, gore, or
 	// cave scum to eat before it settles for raiding a nutrient pod. See
 	// scavenge.go.
@@ -543,7 +670,7 @@ func DefaultConfig() Config {
 		Seed:                 time.Now().UnixNano(),
 		StartColonists:       6,
 		StartAliens:          3,
-		StartCats:            2,
+		StartCats:            0, // the colony's cats come down in its crash pods
 		StartRats:            8,
 		// Placeholders until the market gives money a use: a treasury worth a
 		// few dozen purses, so the colony can outspend any one settler.
@@ -578,18 +705,26 @@ func DefaultConfig() Config {
 		// The charter's prices: a meal a few hours' pay, uranium dearest
 		// because it costs the miner a dose, raw rock not bought at all — there
 		// is always more, and buying it would drain the treasury on nothing.
-		PriceMeal:       5,
-		PriceRawRock:    0,
-		PriceIronOre:    3,
-		PriceWaterIce:   2,
-		PriceUraniumOre: 6,
-		PriceClay:       2,
-		SiloBidQty:      64,
-		OrderTTL:        2000,
-		MealKeep:        5,
-		MealWillingness: 3,
-		MealPriceMax:    100,
-		PocketMealAt:    300,
+		PriceMeal:        5,
+		PriceRawRock:     0,
+		PriceIronOre:     3,
+		PriceWaterIce:    2,
+		PriceUraniumOre:  6,
+		PriceClay:        2,
+		SiloBidQty:       64,
+		OrderTTL:         2000,
+		MealKeep:         5,
+		MealWillingness:  3,
+		AskDecayTicks:    150,
+		AskDecayPercent:  10,
+		RelistIdle:       true,
+		BidStartPercent:  80,
+		BidRaiseTicks:    50,
+		BidRaisePercent:  20,
+		MealSellAtMarket: true,
+		FreePricesAt:     1,
+		MealPriceMax:     100,
+		PocketMealAt:     300,
 		// Wages sized so a typical room costs the colony about a hundred
 		// dollars: fifty rooms from the founding grant, less what it spends
 		// buying ore. A house is a real purchase, several weeks of prospecting.
@@ -600,19 +735,20 @@ func DefaultConfig() Config {
 		// The colony sells at half again what it pays: enough over cost that
 		// its resales refill the treasury, not so much that a colonist would
 		// rather dig the ore itself every time. See docs/hauling.md.
-		ColonySells:          true,
-		ColonyMarkup:         50,
-		ColonyStockReserve:   8,
-		SiloMealStock:        6,
-		HaulPay:              1,
-		Skills:               true,
-		SkillPracticePercent: 100,
-		LaborPrice:           2,
-		PlanMinProfit:        1,
-		PlanCandidates:       4,
-		PlanTTL:              1500,
-		RateMemory:           4000,
-		DemandTTL:            300,
+		ColonySells:             true,
+		StandingOrdersBuildOnly: true,
+		ColonyMarkup:            50,
+		ColonyStockReserve:      8,
+		SiloMealStock:           6,
+		HaulPay:                 1,
+		Skills:                  true,
+		SkillPracticePercent:    100,
+		LaborPrice:              2,
+		PlanMinProfit:           1,
+		PlanCandidates:          4,
+		PlanTTL:                 1500,
+		RateMemory:              4000,
+		DemandTTL:               300,
 		// Priced by the meals they make (see recipes): two scum or two
 		// viscera to a $5 meal, so the colony roughly breaks even after the
 		// cook's wage; an alien carcass makes four.
@@ -637,6 +773,7 @@ func DefaultConfig() Config {
 		WageDig:           2,
 		WageWall:          2,
 		WageFixture:       5,
+		WageDemolish:      3,
 		WageCook:          1,
 		HouseSavings:      300,
 		KitchenRank:       3,
@@ -646,26 +783,45 @@ func DefaultConfig() Config {
 		// ten carry a colonist a few thousand ticks: long enough to settle in,
 		// short enough that food production matters once the safety net is
 		// off. Every settler lands armed, the way frontier settlers did.
+		// A ship of 20 sleeps 10 and has 5 toilets: enough to get by, not
+		// enough to keep the colony from building. See docs/ships.md.
+		ShipCapacity:      20,
+		ShipBunkPercent:   50,
+		ShipToiletPercent: 25,
+		// Every shape equally likely: the colony's landing site looks
+		// different from game to game.
+		ShipStickWeight:    1,
+		ShipHubWeight:      1,
+		ShipClusterWeight:  1,
 		CrashPodMeals:      10,
 		CrashPodMealSpread: 0,
-		CrashPodPistols:    1,
-		CrashPodShotguns:   1,
-		// About one colonist in four lands unarmed (30% × 80%), and one in
-		// five carries a shotgun.
-		CrashPodPistolPercent:  70,
-		CrashPodShotgunPercent: 20,
-		GraveyardSize:          50,
-		TicksPerSecond:         8,
-		LogSize:                64,
-		ColonistHP:             40,
-		MineTicks:              6,
-		BuildTicks:             8,
-		DemolishTicks:          16,
-		FacilityBuildTicks:     12,
-		FleeRadius:             5,
-		FleeReleaseMargin:      3,
-		ColonistStompRadius:    4,
-		GoreSightRadius:        3,
+		// Half the colony lands armed, a quarter with a chicken, a quarter
+		// with a cat; a quarter of the guns are shotguns.
+		CrashPodGunWeight:      50,
+		CrashPodChickenWeight:  25,
+		CrashPodCatWeight:      25,
+		CrashPodShotgunPercent: 25,
+
+		RecruiterFee:         500,
+		RecruitCandidates:    5,
+		RecruitCost:          100,
+		RecruitMeals:         3,
+		RecruitSavingsMean:   100,
+		RecruitSavingsSpread: 50,
+		RecruitSavingsMin:    0,
+		RecruitSavingsMax:    10000,
+		GraveyardSize:        50,
+		TicksPerSecond:       8,
+		LogSize:              64,
+		ColonistHP:           40,
+		MineTicks:            6,
+		BuildTicks:           8,
+		DemolishTicks:        16,
+		FacilityBuildTicks:   12,
+		FleeRadius:           5,
+		FleeReleaseMargin:    3,
+		ColonistStompRadius:  4,
+		GoreSightRadius:      3,
 
 		CleanRadius:           10,
 		CleanTicks:            6,
@@ -678,6 +834,9 @@ func DefaultConfig() Config {
 		RestTicks:             10,
 		StuckLimit:            8,
 		MaxConcurrentProjects: 2,
+		RoomExpansion:         true,
+		RoomMaxFacilities:     8,
+		RoomMerge:             true,
 		EscapeGraceTicks:      32,
 		TraitChance:           defaultTraitChance,
 		FamilyChance:          35,
@@ -726,6 +885,11 @@ func DefaultConfig() Config {
 		TalkQualityValence: 50,
 		TalkQualitySpread:  50,
 
+		TalkTopicMemoryWeight:   3,
+		TalkTopicColonistWeight: 3,
+		TalkTopicLoreWeight:     2,
+		TalkGossipPercent:       10,
+
 		MoodMax:                   defaultMoodMax,
 		ConversationCompanyWeight: 6,
 		ConversationQualityWeight: 10,
@@ -742,7 +906,7 @@ func DefaultConfig() Config {
 
 		FrontierFieldMinColonists: 800,
 		FrontierFieldMinArea:      90000, // ~300x300 and up
-		Needs:                     defaultNeeds(),
+		Drives:                    defaultDrives(),
 		AlienSpeciesCount:         1,
 		AlienHP:                   30,
 		AlienDamage:               6,
@@ -750,7 +914,7 @@ func DefaultConfig() Config {
 		AlienSlowness:             2,
 		AlienReferenceWeightKG:    80,
 		AlienCautiousRadius:       3,
-		AlienHungerRise:           2, // the colonist food rise: a grazer eats about as often as a colonist
+		AlienHungerRate:           2000, // two points a tick: a grazer eats about as often as a colonist
 		AlienGrazeRadius:          12,
 
 		PistolDamage:    10,
@@ -763,12 +927,23 @@ func DefaultConfig() Config {
 		RifleRange:      5,
 		RifleFireRest:   1,
 
+		CorporationCount:           4,
+		CorporationEmployeePercent: 60,
+
 		CatHP:         12,
 		CatSlowness:   2,
 		CatPounceRest: 4,
 
+		ChickenHP:          4,
+		ChickenSlowness:    3,
+		ChickenHungerRate:  2000, // two points a tick, about a colonist's
+		ChickenGrazeRadius: 10,
+		ChickenRoam:        6,
+		TroughLow:          4,
+		TroughFill:         12,
+
 		RatHP:         4,
-		RatHungerRise: 8, // 4x the colonist food rise: rats eat very frequently
+		RatHungerRate: 8000, // eight points a tick: rats eat very frequently
 		// Farther than a colonist cleans (clean-radius): a rat finds the dead
 		// before the colony does.
 		RatScavengeRadius: 12,

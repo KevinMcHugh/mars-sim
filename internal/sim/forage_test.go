@@ -24,7 +24,7 @@ func forageWorld(t *testing.T) (*World, Point) {
 func hungryColonist(w *World, p Point) *Entity {
 	e := w.spawn(Colonist, p)
 	w.transfer(ColonistOwner(e.ID), Community, e.wallet)
-	setHunger(w, e, w.cfg.Needs[NeedFood].SeekAt)
+	setHunger(w, e, w.cfg.Drives[DriveFood].SeekAt)
 	return e
 }
 
@@ -93,10 +93,10 @@ func TestAForagerDigsOutItsSupper(t *testing.T) {
 		if e == nil {
 			t.Fatalf("starved at tick %d", w.tick)
 		}
-		fed = w.needLevel(e, NeedFood) < w.cfg.Needs[NeedFood].SeekAt/2
+		fed = w.driveLevel(e, DriveFood) < w.cfg.Drives[DriveFood].SeekAt/2
 	}
 	if !fed {
-		t.Fatalf("not fed after 400 ticks: job %v, hunger %d, carrying %d scum", e.Job, w.needLevel(e, NeedFood), e.ownCarried(CaveScum))
+		t.Fatalf("not fed after 400 ticks: job %v, hunger %d, carrying %d scum", e.Job, w.driveLevel(e, DriveFood), e.ownCarried(CaveScum))
 	}
 	logged := false
 	for _, l := range w.log.entries {
@@ -116,7 +116,7 @@ func TestAForagerDigsOutItsSupper(t *testing.T) {
 // wait at all.
 func TestAForagerWaitsForTheColonysCooking(t *testing.T) {
 	w, house := forageWorld(t)
-	c := w.landing().storageContainers[house]
+	c := w.storageContainers[house]
 	c.Inventory.Add(CaveScum, 2)
 	c.credit(Community, CaveScum, 2) // one meal's worth
 	cook := w.spawn(Colonist, Point{11, 7, LandingLevel})
@@ -130,7 +130,7 @@ func TestAForagerWaitsForTheColonysCooking(t *testing.T) {
 		}
 	}
 	cook.Job, cook.Target, cook.craftFor = JobCraft, house, Community
-	w.landing().workshopClaims[house] = cook.ID
+	w.workshopClaims[house] = cook.ID
 	e := hungryColonist(w, Point{14, 10, LandingLevel})
 	e.focus = FocusEat
 	if w.planForage(e) {

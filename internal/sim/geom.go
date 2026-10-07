@@ -39,6 +39,12 @@ func (p Point) Chebyshev(o Point) int {
 	return d
 }
 
+// Manhattan returns the taxicab distance between two points, counting one
+// step per level crossed, as Chebyshev does.
+func (p Point) Manhattan(o Point) int {
+	return abs(p.X-o.X) + abs(p.Y-o.Y) + abs(int(p.Level)-int(o.Level))
+}
+
 // Adjacent reports whether o is within one 8-directional step of p on the
 // same level (and not p itself). A tile on another level is never adjacent,
 // even straight above or below: levels meet only at stairs.
@@ -65,6 +71,9 @@ var neighbors8 = [8]gridStep{
 	{-1, 0}, {1, 0},
 	{-1, 1}, {0, 1}, {1, 1},
 }
+
+// neighbors4 lists the four orthogonal steps around a cell.
+var neighbors4 = [4]gridStep{{0, -1}, {-1, 0}, {1, 0}, {0, 1}}
 
 func abs(x int) int {
 	if x < 0 {

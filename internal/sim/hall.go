@@ -2,9 +2,9 @@ package sim
 
 // ---- The meeting hall -------------------------------------------------------------
 //
-// Colonists used to "socialize" wherever they happened to be: a social need
+// Colonists used to "socialize" wherever they happened to be: a social drive
 // that crossed its threshold made them look for anyone idle within talk-radius,
-// and if nobody was, they stood there, need pinned, with nothing on the map to
+// and if nobody was, they stood there, drive pinned, with nothing on the map to
 // show whether they were chatting or only hoping to. The colony now
 // commissions a meeting hall, a walled room of chairs (hallRoom), and the hall
 // is where company is. A colonist who wants to socialize walks to a chair and
@@ -36,14 +36,17 @@ const (
 // wantsHall reports whether the colony wants chairs it has not planned: one
 // for each colonists-per-chair colonists, and never fewer than a hall's
 // minimum.
-func (w *World) wantsHall() bool {
+func (w *World) wantsHall() bool { return w.chairsShort() > 0 }
+
+// chairsShort is how many more chairs the colony wants than it has planned.
+func (w *World) chairsShort() int {
 	per := w.cfg.ColonistsPerChair
 	n := w.countKind(Colonist)
 	if per <= 0 || n < 2 {
-		return false
+		return 0
 	}
 	want := max((n+per-1)/per, hallRoom.minFac)
-	return w.plannedFacilities(Chair) < want
+	return max(0, want-w.plannedFacilities(Chair))
 }
 
 // hallOpen reports whether there is a hall to go to: the feature is on and a
@@ -155,7 +158,7 @@ func (w *World) hallTalkBonus(a, b *Entity) int {
 // walk is time it may not have), with a hall to go to. A meal eaten for later
 // (eatKeep) never goes.
 func (w *World) mealSeat(e *Entity) (Point, bool) {
-	if e.Kind != Colonist || e.eatKeep || !w.hallOpen() || e.needPhase[NeedFood] >= NeedCritical {
+	if e.Kind != Colonist || e.eatKeep || !w.hallOpen() || e.drives[DriveFood].phase >= DriveCritical {
 		return Point{}, false
 	}
 	return w.nearestChair(e)

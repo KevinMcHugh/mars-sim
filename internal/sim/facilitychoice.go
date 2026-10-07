@@ -2,7 +2,7 @@ package sim
 
 import "slices"
 
-// Choosing which facility of a kind a colonist commits to. See docs/needs.md
+// Choosing which facility of a kind a colonist commits to. See docs/drives.md
 // ("Spreading users across facilities") for what the choice is and why it
 // avoids congested facilities.
 //
@@ -11,7 +11,7 @@ import "slices"
 // at all, else the zero Point. It used to be computed by a BFS over everything
 // the colonist could reach, followed by a scan of every facility. On a big
 // colony that flood was a third of a real profile: it covered the whole
-// reachable map on every need decision, even when the pod was three tiles
+// reachable map on every drive decision, even when the pod was three tiles
 // away. Now there are up to three steps, cheapest first, and all of them
 // produce that same answer (TestChooseFacilityMatchesReference checks it
 // against the old version):
@@ -48,11 +48,12 @@ import "slices"
 // cannot see a colonist's own bunk — which may well be nearer than the nearest
 // communal one. While any fixture of a kind is restricted, then, the field
 // tiers are skipped and the bounded search runs, skipping what the colonist
-// may not use. With crash pods that is every bunk and toilet choice; the
-// search stops at the first usable free facility, usually the colonist's own
-// a few tiles away, so it stays cheap.
+// may not use. With a private bunk or toilet anywhere (a house's, or the
+// crash pods' that ships replaced) that is every bunk and toilet choice; the
+// search stops at the first usable free facility, usually a few tiles away,
+// so it stays cheap.
 
-// chooseFacility assigns a concrete facility to a need. The assignment is
+// chooseFacility assigns a concrete facility to a drive. The assignment is
 // retained on the entity for the whole use job, so a user never ping-pongs
 // between queues as their counts change.
 func (w *World) chooseFacility(e *Entity, kind Terrain) Point {
@@ -170,12 +171,7 @@ func (w *World) anyFreeFacility(e *Entity, kind Terrain, room RoomID) bool {
 // anyRestricted reports whether any fixture of kind, on any level, is not
 // communal.
 func (w *World) anyRestricted(kind Terrain) bool {
-	for _, l := range w.layers {
-		if l != nil && l.restrictedFixtures[kind] > 0 {
-			return true
-		}
-	}
-	return false
+	return w.restrictedFixtures[kind] > 0
 }
 
 // facilityByField is the first tier. It collects the facilities of kind at the
@@ -276,7 +272,7 @@ func compareFound(a, b foundFacility) int {
 // stops at the first distance at which it reaches an uncongested facility. If
 // it never reaches one, it returns the nearest facility it reached at all:
 // choosing the nearest even when it's busy still guarantees progress once its
-// current users leave, rather than declaring the need unreachable and starving
+// current users leave, rather than declaring the drive unreachable and starving
 // the colonist.
 //
 // room is the colonist's room, or 0 if it isn't standing on floor. Then there

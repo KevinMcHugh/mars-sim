@@ -19,8 +19,8 @@ func TestOneLayerAtTheLandingLevel(t *testing.T) {
 	}
 }
 
-// TestNothingIsOnTheSurface runs a colony long enough to trade and checks that
-// every place it names is on the landing level. The zero Point is on the
+// TestNothingIsOnTheSurface runs a colony for a while and checks that every
+// place it names is on the landing level. The zero Point is on the
 // surface, so a Point built without a level shows up here as level 0 instead
 // of passing as right while the colony has one level. See docs/layers.md.
 func TestNothingIsOnTheSurface(t *testing.T) {
@@ -37,9 +37,21 @@ func TestNothingIsOnTheSurface(t *testing.T) {
 			t.Errorf("entity %d (%v) is at %v, on level %d", id, e.Kind, e.Pos, e.Pos.Level)
 		}
 	}
-	if len(w.books) == 0 {
-		t.Fatal("no order book opened in 1200 ticks; pick a config that trades")
+	if len(w.ships) == 0 || len(w.fixtures) == 0 {
+		t.Fatal("no ship landed or no fixture placed; pick a config that settles")
 	}
+	for _, s := range w.ships {
+		if s.Origin.Level != LandingLevel {
+			t.Errorf("ship %d landed at %v", s.ID, s.Origin)
+		}
+	}
+	for p, f := range w.fixtures {
+		if p.Level != LandingLevel || f.Pos != p {
+			t.Errorf("a %v fixture at %v records its position as %v", f.Terrain, p, f.Pos)
+		}
+	}
+	// The colony may not have traded yet; any book or order it opened is
+	// checked all the same.
 	for k := range w.books {
 		if k.Depot.Level != LandingLevel {
 			t.Errorf("a %v book's depot %v is not on the landing level", k.Item, k.Depot)

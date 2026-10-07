@@ -82,7 +82,7 @@ func activityOfState(s State) (Activity, bool) {
 	switch s {
 	case Eating:
 		return ActEating, true
-	case Sleeping:
+	case Sleeping, PassedOut:
 		return ActSleeping, true
 	case Relieving:
 		return ActRelieving, true
@@ -124,7 +124,7 @@ func activityOfPurpose(e *Entity) Activity {
 		return ActCleaning
 	case JobStore, JobSell, JobCarry:
 		return ActHauling
-	case JobCraft:
+	case JobCraft, JobTend:
 		return ActCooking
 	case JobDemolish:
 		return ActEscaping

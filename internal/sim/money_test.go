@@ -137,9 +137,9 @@ func TestMoneyIsConserved(t *testing.T) {
 
 func assertMoneyConserved(t *testing.T, w *World) {
 	t.Helper()
-	if got := w.moneyInCirculation() + w.moneyFrozen + w.moneyEscrowed(); got != w.moneyIssued {
-		t.Fatalf("tick %d: circulating %v + frozen %v + escrowed %v = %v, issued %v",
-			w.tick, w.moneyInCirculation(), w.moneyFrozen, w.moneyEscrowed(), got, w.moneyIssued)
+	if got := w.moneyInCirculation() + w.moneyFrozen + w.moneyEscrowed() + w.moneyExported; got != w.moneyIssued {
+		t.Fatalf("tick %d: circulating %v + frozen %v + escrowed %v + exported %v = %v, issued %v",
+			w.tick, w.moneyInCirculation(), w.moneyFrozen, w.moneyEscrowed(), w.moneyExported, got, w.moneyIssued)
 	}
 	for _, o := range w.orders {
 		if o.Side == Bid && o.escrow != Money(o.Qty)*o.Price {
@@ -202,12 +202,18 @@ func TestTheWealthLevyTaxesOnlyTheExcess(t *testing.T) {
 // A 20-colonist colony used to drain its treasury by tick 20000: the colony
 // only paid out, so it stopped buying biomatter and most of the colony
 // starved. The wealth levy is money's way back.
+//
+// There are no aliens: on this seed they ate nine colonists, and whoever
+// starved during the raids changed with anything that moved a room, which is
+// not what this measures.
 func TestTheTreasuryOutlastsALongRun(t *testing.T) {
 	if testing.Short() {
 		t.Skip("long run")
 	}
 	cfg := DefaultConfig()
 	cfg.Seed, cfg.StartColonists, cfg.Width, cfg.Height = 9, 20, 200, 200
+	cfg.StartAliens, cfg.CavernNestPercent = 0, 0
+	cfg.ZoningAuto = true
 	w := NewEngine(cfg).world
 	for i := 0; i < 30000; i++ {
 		w.step()

@@ -60,7 +60,7 @@ maintained incrementally by `addGore`/`addCorpse`/`takeGore`/`takeCorpse` so the
 planner can ask "is the colony dirty?" without walking the grid.
 
 Which deaths leave a body is a decision at each call site, not a rule derived
-from the cause string: `bite` (an alien devouring a colonist) and `pounce` (a
+from the cause string: `strike` (an alien killing and eating a colonist) and `pounce` (a
 cat swallowing a rat) leave only gore, because the remains were eaten. `shoot`,
 `stomp`, and starvation call `addCorpse` as well.
 

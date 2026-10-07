@@ -117,21 +117,22 @@ func (w *World) shoot(colonist, alien *Entity, weapon ItemKind, spec weaponSpec)
 	part := w.rollHit(alien)
 	fatal := applyDamage(alien, part, spec.damage)
 	noun := w.alienNounFor(alien)
+	gun := w.weaponPhrase(weapon) // "a MarsCorp M-117 shotgun"
 
 	if fatal {
 		o := w.occurrence(colonist, ActionKill, alien, colonist.Pos, "")
-		o.ActorText = fmt.Sprintf("Killed %s with a %s!", noun, weapon)
+		o.ActorText = fmt.Sprintf("Killed %s with %s!", noun, gun)
 		o.WitnessText = fmt.Sprintf("Watched %s kill %s.", colonist.displayName(), noun)
 		w.addGore(alien.Pos)
 		w.addCorpse(alien.Pos, AlienCorpse) // nothing eats an alien: the body is the colony's to dispose of
-		w.remove(alien.ID, fmt.Sprintf("shot by %s with a %s", colonist.displayName(), weapon))
+		w.remove(alien.ID, fmt.Sprintf("shot by %s with %s", colonist.displayName(), gun))
 		w.emitOccurrence(o)
-		w.logEvent(LogDeath, fmt.Sprintf("%s guns down %s with a %s.", colonist.displayName(), noun, weapon))
+		w.logEvent(LogDeath, fmt.Sprintf("%s guns down %s with %s.", colonist.displayName(), noun, gun))
 		return
 	}
 	o := w.occurrence(colonist, ActionWound, alien, colonist.Pos, "")
-	o.ActorText = fmt.Sprintf("Shot %s in the %s with a %s.", noun, part, weapon)
+	o.ActorText = fmt.Sprintf("Shot %s in the %s with %s.", noun, part, gun)
 	o.WitnessText = fmt.Sprintf("Watched %s fight off %s.", colonist.displayName(), noun)
 	w.emitOccurrence(o)
-	w.logEvent(LogCombat, fmt.Sprintf("%s fires a %s at %s.", colonist.displayName(), weapon, noun))
+	w.logEvent(LogCombat, fmt.Sprintf("%s fires %s at %s.", colonist.displayName(), gun, noun))
 }

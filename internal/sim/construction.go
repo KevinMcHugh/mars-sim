@@ -46,6 +46,15 @@ func (w *World) buildCost(t Terrain) []ItemStack {
 	return constructionCost(t)
 }
 
+// taskBuildCost is what e's current build consumes: its kind's cost, or
+// nothing for a fixture's new place in a move (buildTask.moved).
+func (w *World) taskBuildCost(e *Entity) []ItemStack {
+	if e.task != nil && e.task.moved {
+		return nil
+	}
+	return w.buildCost(e.BuildKind)
+}
+
 // missingMaterials lists what e still needs in hand to build t.
 func missingMaterials(e *Entity, cost []ItemStack, payers []Owner) []ItemStack {
 	var out []ItemStack
@@ -132,7 +141,7 @@ func (w *World) canAffordBuild(e *Entity, t Terrain, issuer Owner) bool {
 // be dropped).
 func (w *World) gatherBuildMaterials(e *Entity) (ready, ok bool) {
 	payers := materialPayers(e, taskIssuer(e))
-	missing := missingMaterials(e, w.buildCost(e.BuildKind), payers)
+	missing := missingMaterials(e, w.taskBuildCost(e), payers)
 	if len(missing) == 0 {
 		return true, true
 	}
@@ -148,7 +157,7 @@ func (w *World) gatherBuildMaterials(e *Entity) (ready, ok bool) {
 		e.State = Moving
 		return false, true
 	}
-	c := w.lay(src).storageContainers[src]
+	c := w.storageContainers[src]
 	for _, m := range missing {
 		if !c.debit(payer, m.Kind, m.Count) {
 			return false, false
@@ -161,7 +170,7 @@ func (w *World) gatherBuildMaterials(e *Entity) (ready, ok bool) {
 
 // payForBuild consumes a finished structure's cost from the builder's hands.
 func (w *World) payForBuild(e *Entity) bool {
-	cost := w.buildCost(e.BuildKind)
+	cost := w.taskBuildCost(e)
 	payers := materialPayers(e, taskIssuer(e))
 	if len(missingMaterials(e, cost, payers)) > 0 {
 		return false

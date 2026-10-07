@@ -13,6 +13,9 @@ import (
 // The dead are removed the moment they are eaten or starve, so we re-check
 // liveness as we go.
 func (w *World) step() {
+	if len(w.aloft) > 0 {
+		w.landRestAloft() // nobody is left in orbit once the game starts
+	}
 	w.tick++
 	for _, id := range w.entityTurnOrder() {
 		e := w.entities[id]
@@ -22,13 +25,16 @@ func (w *World) step() {
 		switch e.Kind {
 		case Colonist:
 			w.colonistTurn(e)
-			w.tallyActivity(e) // the Activity tab's tally (read-only bookkeeping)
+			w.syncDriveActivity(e) // drives grow at the rate of what it is now doing
+			w.tallyActivity(e)     // the Activity tab's tally (read-only bookkeeping)
 		case Alien:
 			w.alienTurn(e)
 		case Cat:
 			w.catTurn(e)
 		case Rat:
 			w.ratTurn(e)
+		case Chicken:
+			w.chickenTurn(e)
 		}
 	}
 	w.refreshSpatial() // fold in any digging/building from this tick
@@ -45,31 +51,49 @@ func (w *World) step() {
 	w.rebuildBuildTiles() // reflect this tick's completions and any new project
 	w.runDirector()       // fire any scripted occurrence whose tick has arrived
 	w.samplePopulation()  // the Population tab's history (read-only bookkeeping)
+	w.sampleMetrics()     // the chart system's history (read-only bookkeeping)
 }
 
 // planInterval is how often the colony re-plans construction, in ticks. Facility
 // needs are slow, so a coarse cadence keeps planning cheap.
 const planInterval = 16
 
-// entityTurnOrder returns the deterministic per-tick action order. Fatal need
+// entityTurnOrder returns the deterministic per-tick action order. Fatal drive
 // urgency is a scheduling concern as well as a job-selection concern: in a full
 // facility room, acting first gives a colonist first claim on access space that
 // another colonist vacated on the previous tick.
 func (w *World) entityTurnOrder() []EntityID {
 	ids := w.entityIDsSorted()
-	sort.SliceStable(ids, func(i, j int) bool {
-		a, b := w.entities[ids[i]], w.entities[ids[j]]
-		if a.Kind != b.Kind {
-			return a.Kind == Colonist
+	// Read each colonist's hunger once rather than in every comparison.
+	type turn struct {
+		id       EntityID
+		colonist bool
+		hunger   int
+	}
+	turns := make([]turn, len(ids))
+	for i, id := range ids {
+		e := w.entities[id]
+		turns[i] = turn{id: id, colonist: e.Kind == Colonist}
+		if turns[i].colonist {
+			turns[i].hunger = w.driveLevel(e, DriveFood)
 		}
-		if a.Kind == Colonist {
-			ah, bh := w.needLevel(a, NeedFood), w.needLevel(b, NeedFood)
-			if ah != bh {
-				return ah > bh
+	}
+	// Stable over ascending IDs, so ties keep ID order.
+	slices.SortStableFunc(turns, func(a, b turn) int {
+		switch {
+		case a.colonist != b.colonist:
+			if a.colonist {
+				return -1
 			}
+			return 1
+		case a.colonist && a.hunger != b.hunger:
+			return b.hunger - a.hunger
 		}
-		return a.ID < b.ID
+		return 0
 	})
+	for i, t := range turns {
+		ids[i] = t.id
+	}
 	return ids
 }
 
@@ -117,12 +141,18 @@ func (w *World) entityIDsNearSorted(center Point, radius int) []EntityID {
 // ---- Colonists ---------------------------------------------------------------
 
 func (w *World) colonistTurn(e *Entity) {
-	w.applyStarvation(e)
+	// Effects wear on whatever the colonist is doing, so their stages move on
+	// before anything else this turn reads a drive.
+	w.advanceEffects(e)
+	w.applyDriveConsequences(e)
 	if !e.Alive() { // starved this tick
 		w.clearJob(e) // release any board claim before removal
 		w.addCorpse(e.Pos, ColonistCorpse)
 		w.remove(e.ID, "starved")
 		w.logEvent(LogDeath, fmt.Sprintf("%s starved to death.", e.displayName()))
+		return
+	}
+	if w.stayPassedOut(e) {
 		return
 	}
 
@@ -137,7 +167,7 @@ func (w *World) colonistTurn(e *Entity) {
 
 	// A stable resting/sleeping colonist has no perception product to ingest when
 	// no creature or gore is nearby. The fast path still performs threat, fatal
-	// need, facility, and uranium checks before it can return.
+	// drive, facility, and uranium checks before it can return.
 	if !w.alwaysArbitrate && w.tryCognitionFastPath(e) {
 		return
 	}
@@ -178,13 +208,13 @@ func (w *World) runCognition(e *Entity) {
 }
 
 // syncCognitionDeadlines applies only transitions whose cached boundary has
-// arrived. Fatal needs are also read every tick as a safety belt, independently
+// arrived. Fatal drives are also read every tick as a safety belt, independently
 // of the cache. Stimulus expiry remains exact at ExpiresAt.
 func (w *World) syncCognitionDeadlines(e *Entity) {
-	for n := NeedKind(0); n < numNeeds; n++ {
-		crossing := e.nextNeedPhaseTick[n]
-		if w.cfg.Needs[n].Fatal || crossing > 0 && w.tick >= crossing {
-			w.syncNeedPhase(e, n)
+	for n := DriveKind(0); n < numDrives; n++ {
+		crossing := e.drives[n].nextCrossing
+		if w.cfg.Drives[n].Fatal() || crossing > 0 && w.tick >= crossing {
+			w.syncDrivePhase(e, n)
 		}
 	}
 	if e.nextStimulusExpiry > 0 && w.tick >= e.nextStimulusExpiry {
@@ -210,9 +240,9 @@ func (w *World) tryCognitionFastPath(e *Entity) bool {
 		return false
 	}
 	restingIdle := e.focus == FocusIdle && e.Job == JobNone && e.resting && w.tick < e.wakeTick
-	sleeping := e.focus == FocusSleep && e.Job == JobUse && e.Need == NeedSleep && !e.carrying &&
+	sleeping := e.focus == FocusSleep && e.Job == JobUse && e.Drive == DriveSleep && !e.carrying &&
 		e.useFacilitySet && e.Pos.Adjacent(e.useFacility) &&
-		w.TerrainAt(e.useFacility) == w.cfg.Needs[NeedSleep].Facility
+		w.TerrainAt(e.useFacility) == w.cfg.Drives[DriveSleep].Facility
 	if (!restingIdle && !sleeping) || e.mindDirty || w.tick >= e.nextThinkTick ||
 		len(e.perceiving) != 0 {
 		return false
@@ -242,20 +272,16 @@ func (w *World) tryCognitionFastPath(e *Entity) bool {
 	}
 	// In-place sleep has no path, target search, or claim machinery to run. Its
 	// only changing score strengthens the incumbent; nextCognitionTick caps this
-	// path at every competing need boundary and the fallback deadline.
-	e.State = Sleeping
-	e.Progress++
-	if e.Progress >= w.cfg.Needs[NeedSleep].UseTicks {
-		w.finishUse(e, w.cfg.Needs[NeedSleep])
-	}
+	// path at every competing drive boundary and the fallback deadline.
+	w.sleepTick(e)
 	return true
 }
 
 func (w *World) runFocus(e *Entity, selected FocusCandidate) {
 	switch selected.Kind {
 	case FocusEat, FocusRelieve, FocusSocialize, FocusSleep:
-		need, _ := needForFocus(selected.Kind)
-		w.runNeedFocus(e, need)
+		need, _ := driveForFocus(selected.Kind)
+		w.runDriveFocus(e, need)
 	case FocusFlee:
 		threat := w.entities[selected.Threat]
 		if threat == nil || !threat.Alive() {
@@ -287,9 +313,9 @@ func (w *World) runFocus(e *Entity, selected FocusCandidate) {
 		w.runJob(e)
 	case FocusEscape:
 		if e.Job != JobDemolish && !w.assignDemolish(e) {
-			// Nothing reachable to break through (the pocket is bounded by rock,
-			// not a built wall) — fall back rather than spinning on this focus
-			// every tick with nothing to execute.
+			// No way out within reach of the search (see passageRoute) — fall
+			// back rather than spinning on this focus every tick with nothing
+			// to execute.
 			w.finishFocus(e)
 			w.runIdleFocus(e)
 			return
@@ -308,9 +334,9 @@ func (w *World) finishFocus(e *Entity) {
 	w.markMindDirty(e)
 }
 
-func (w *World) runNeedFocus(e *Entity, need NeedKind) {
+func (w *World) runDriveFocus(e *Entity, need DriveKind) {
 	e.resting = false
-	if need == NeedSocial {
+	if need == DriveSocial {
 		// A conversation already under way is the executor for this focus. Never
 		// restart it and reset the pair's shared timer.
 		if _, ok := w.talkPartner(e); ok {
@@ -329,20 +355,20 @@ func (w *World) runNeedFocus(e *Entity, need NeedKind) {
 		return
 	}
 
-	if need == NeedFood && e.Kind == Colonist {
+	if need == DriveFood && e.Kind == Colonist {
 		if w.runFoodFocus(e) {
 			return
 		}
 	}
 
-	handlingNeed := (e.Job == JobUse && e.Need == need) ||
-		(e.Job == JobBuild && (e.BuildKind == w.cfg.Needs[need].Facility || e.task != nil))
-	if handlingNeed {
+	handlingDrive := (e.Job == JobUse && e.Drive == need) ||
+		(e.Job == JobBuild && (e.BuildKind == w.cfg.Drives[need].Facility || e.task != nil))
+	if handlingDrive {
 		w.runJob(e)
 		return
 	}
 
-	spec := w.cfg.Needs[need]
+	spec := w.cfg.Drives[need]
 	existingReachable := w.facilityReachable(e, spec.Facility)
 	needMore := w.plannedFacilities(spec.Facility) < w.desiredFacilities(w.countKind(Colonist))
 	var task *buildTask
@@ -356,12 +382,12 @@ func (w *World) runNeedFocus(e *Entity, need NeedKind) {
 	case needMore && hasTask:
 		w.assignTask(e, task)
 	case existingReachable:
-		e.Job, e.Need, e.Progress = JobUse, need, 0
+		e.Job, e.Drive, e.Progress = JobUse, need, 0
 		e.useFacility, e.useFacilitySet = w.chooseFacility(e, spec.Facility), true
 	case hasTask:
 		w.assignTask(e, task)
 	case !w.reachableFacilityConstruction(e.Pos, spec.Facility):
-		if spot, ok := w.findBuildSpot(e.Pos, 20); ok && w.canAffordBuild(e, spec.Facility, Owner{}) {
+		if spot, ok := w.findBuildSpot(e.Pos, 20, spec.Facility); ok && w.canAffordBuild(e, spec.Facility, Owner{}) {
 			w.assignBuild(e, spec.Facility, spot)
 		}
 	default:
@@ -435,7 +461,7 @@ func (w *World) observeGore(e *Entity) {
 
 // stompNearbyRat lets a colonist with nothing pressing to do chase down and
 // crush a rat it notices. Stomping is an idle whim, not work: colonistTurn has
-// already ruled out threats, urgent needs, and available jobs before this runs.
+// already ruled out threats, urgent drives, and available jobs before this runs.
 // A stomp is instantly fatal to the tiny rat. Returns whether the colonist
 // spent its tick on the hunt (closing in or stomping).
 func (w *World) stompNearbyRat(e *Entity) bool {
@@ -479,13 +505,13 @@ func (w *World) idleWouldBlock(p Point) bool {
 }
 
 // onFacilityAccess reports whether p is next to a facility colonists walk to —
-// any need-satisfying structure, or the incinerator a hauler has to reach — so
+// any drive-satisfying structure, or the incinerator a hauler has to reach — so
 // an idle colonist standing there would block others from using it.
 //
 // Only communal fixtures count. A private bunk has one user, and treating it
 // like a shared one broke the colony the day crash pods landed: every tile
 // around every pod read as "in the way", so no idle colonist was ever
-// available to talk (availableToTalk), social need pinned at its ceiling, and
+// available to talk (availableToTalk), social drive pinned at its ceiling, and
 // the colony stopped working to wait for conversations that never came.
 func (w *World) onFacilityAccess(p Point) bool {
 	for _, d := range neighbors8 {
@@ -497,8 +523,8 @@ func (w *World) onFacilityAccess(p Point) bool {
 		if t == Incinerator {
 			return true
 		}
-		for i := 0; i < int(numNeeds); i++ {
-			if w.cfg.Needs[i].Facility != Rock && w.cfg.Needs[i].Facility == t {
+		for i := 0; i < int(numDrives); i++ {
+			if w.cfg.Drives[i].Facility != Rock && w.cfg.Drives[i].Facility == t {
 				return true
 			}
 		}
@@ -506,10 +532,28 @@ func (w *World) onFacilityAccess(p Point) bool {
 	return false
 }
 
-// onPendingBuild reports whether p is a not-yet-built task tile of some project,
-// which a builder must find clear to construct.
+// onPendingBuild reports whether p is a not-yet-built task tile in some
+// project's active phase, which a builder must find clear to construct.
 func (w *World) onPendingBuild(p Point) bool {
-	return w.lay(p).buildTiles[p]
+	return w.buildTiles[p]
+}
+
+// onPlannedTask reports whether p is the tile of any unfinished project task,
+// in any phase. buildTiles (onPendingBuild) only holds the active phase, so a
+// room's later-phase tiles — a fit-phase bunk tile is still plain Floor while
+// the walls go up — look free to it. A lone build on one of those leaves its
+// task forever unworkable (taskWorkable wants Floor), so the project never
+// completes and holds a concurrent-project slot for good. Scans every task, so
+// call it after the cheap checks; the emergency fallback is its only caller.
+func (w *World) onPlannedTask(p Point) bool {
+	for _, proj := range w.projects {
+		for _, t := range proj.tasks {
+			if t.pos.Equal(p) && !w.taskDone(t) {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // assignMine / assignBuild set a colonist's job and update the board's
@@ -537,7 +581,16 @@ func (w *World) useFrontierMining() bool {
 }
 
 // claimNearestMine claims the nearest unclaimed frontier rock whose complete
-// yield the colonist can carry and which is reachable from their room.
+// yield the colonist can carry and which is reachable from their room. Ties
+// break toward the row-major-first tile.
+//
+// It searches the board's per-chunk frontier buckets in chunk rings around the
+// colonist, like nearestMatch, and stops once the next ring cannot hold a tile
+// as close as the best so far. Within that, a tile's distance is checked before
+// the claim, reachability and carry checks, and only a tile that would beat
+// the best pays for them. (distance, row-major) is a total order, so the tile
+// chosen is the one a scan of the whole frontier would choose, whatever order
+// the buckets hold their tiles in.
 func (w *World) claimNearestMine(e *Entity) (Point, bool) {
 	room := w.roomOf(e.Pos)
 	if room == 0 {
@@ -545,17 +598,57 @@ func (w *World) claimNearestMine(e *Entity) (Point, bool) {
 	}
 	var best Point
 	found := false
-	bestDist := 1 << 30
-	for _, l := range w.layers {
-		if l == nil {
-			continue
+	bestDist := 0
+	own := w.lay(e.Pos).board
+	fcx, fcy := e.Pos.X/chunkSize, e.Pos.Y/chunkSize
+	maxRing := max(w.chunkCols, w.chunkRows)
+	for r := 0; r <= maxRing; r++ {
+		// A chunk in ring r holds no tile closer than (r-1)*chunkSize+1. Stop
+		// only when that is strictly farther than the best, since an equally
+		// near tile can still win the row-major tie-break.
+		if found && r >= 1 && (r-1)*chunkSize+1 > bestDist {
+			break
 		}
-		for p := range l.board.frontier {
-			if l.board.isClaimed(p) || !w.frontierReachable(p, room) ||
-				!e.Inventory.CanAddAll(miningYield(w.TileAt(p))...) {
+		loRow, hiRow, loCol, hiCol := fcy-r, fcy+r, fcx-r, fcx+r
+		for cy := max(loRow, 0); cy <= min(hiRow, w.chunkRows-1); cy++ {
+			onRowEdge := cy == loRow || cy == hiRow
+			for cx := max(loCol, 0); cx <= min(hiCol, w.chunkCols-1); cx++ {
+				if !onRowEdge && cx != loCol && cx != hiCol {
+					continue // interior chunk, already covered by a smaller ring
+				}
+				for _, p := range own.frontierByChunk[cy*w.chunkCols+cx] {
+					d := e.Pos.Chebyshev(p)
+					if found && (d > bestDist || (d == bestDist && !lessPoint(p, best))) {
+						continue
+					}
+					if own.isClaimed(p) || !w.frontierReachable(p, room) ||
+						!e.Inventory.CanAddAll(miningYield(w.TileAt(p))...) {
+						continue
+					}
+					best, bestDist, found = p, d, true
+				}
+			}
+		}
+	}
+	// Rock on other levels is only reachable through stairs, so the ring
+	// search above (by straight-line distance on this level) cannot rank it.
+	// With no stair there is nothing to look at; with one, scan the other
+	// levels' frontiers by travelEstimate. (distance, lessPoint) is a total
+	// order, so the result is the one a scan of every frontier would give.
+	if w.hasStairs() {
+		for _, l := range w.layers {
+			if l == nil || l.Level == e.Pos.Level {
 				continue
 			}
-			if d := w.travelEstimate(e.Pos, p); !found || d < bestDist || (d == bestDist && lessPoint(p, best)) {
+			for p := range l.board.frontier {
+				d := w.travelEstimate(e.Pos, p)
+				if found && (d > bestDist || (d == bestDist && !lessPoint(p, best))) {
+					continue
+				}
+				if l.board.isClaimed(p) || !w.frontierReachable(p, room) ||
+					!e.Inventory.CanAddAll(miningYield(w.TileAt(p))...) {
+					continue
+				}
 				best, bestDist, found = p, d, true
 			}
 		}
@@ -650,15 +743,15 @@ func (w *World) clearJob(e *Entity) {
 		}
 		e.eat, e.eatKeep = eatFetch, false
 	case JobCraft:
-		if w.lay(e.Target).workshopClaims[e.Target] == e.ID {
-			delete(w.lay(e.Target).workshopClaims, e.Target)
+		if w.workshopClaims[e.Target] == e.ID {
+			delete(w.workshopClaims, e.Target)
 		}
 	case JobScrape:
-		if (e.scrape == scrapeGather || e.scrape == scrapeHarvest) && w.lay(e.Target).scumClaims[e.Target] == e.ID {
-			delete(w.lay(e.Target).scumClaims, e.Target)
+		if (e.scrape == scrapeGather || e.scrape == scrapeHarvest) && w.scumClaims[e.Target] == e.ID {
+			delete(w.scumClaims, e.Target)
 		}
-		if e.scrapeSeed && w.lay(e.seedAt).workshopClaims[e.seedAt] == e.ID {
-			delete(w.lay(e.seedAt).workshopClaims, e.seedAt)
+		if e.scrapeSeed && w.workshopClaims[e.seedAt] == e.ID {
+			delete(w.workshopClaims, e.seedAt)
 		}
 		e.scrape = scrapeGather
 		e.scrapeFor, e.scrapeQty, e.scrapeKeep, e.scrapeSeed = Owner{}, 0, false, false
@@ -667,6 +760,8 @@ func (w *World) clearJob(e *Entity) {
 			delete(w.haulClaims, e.carryWork)
 		}
 		e.carry, e.carryFor, e.carryWork = carryFetch, Owner{}, 0
+	case JobTend:
+		w.releaseTend(e)
 	}
 	e.Job, e.Progress, e.partner, e.fieldDetour = JobNone, 0, 0, 0
 	e.useFacility, e.useFacilitySet, e.carrying = Point{}, false, false
@@ -706,6 +801,8 @@ func (w *World) runJob(e *Entity) {
 		w.jobSell(e)
 	case JobCarry:
 		w.jobCarry(e)
+	case JobTend:
+		w.jobTend(e)
 	default:
 		e.State = Idle
 		w.wanderStep(e)
@@ -734,19 +831,87 @@ func (w *World) tryStartTalk(e *Entity, forced bool) bool {
 
 // availableToTalk reports whether a colonist is free to be pulled into a chat:
 // idle with no committed job, not fleeing or seeking a facility, and not parked
-// on a tile others need clear. A candidate whose own most urgent need is
+// on a tile others need clear. A candidate whose own most urgent drive is
 // social is still available — otherwise two colonists who both urgently need
 // company can never talk to each other, since each disqualifies the other as
-// a partner, and social need sits permanently pinned at its ceiling in any
-// colony busy enough that nobody is ever fully need-free.
+// a partner, and social drive sits permanently pinned at its ceiling in any
+// colony busy enough that nobody is ever fully drive-free.
 func (w *World) availableToTalk(o *Entity) bool {
-	if o.Job != JobNone || o.State == Fleeing {
+	if o.Job != JobNone || o.State == Fleeing || o.passedOut {
 		return false
 	}
-	if need, urgent := w.mostUrgentNeed(o); urgent && need != NeedSocial {
+	if need, urgent := w.mostUrgentDrive(o); urgent && need != DriveSocial {
 		return false
 	}
 	return !w.idleWouldBlock(o.Pos)
+}
+
+// companyInReach reports whether e's socialize focus has anyone to find, which
+// is the reach that makes the focus eligible (social is the one drive a
+// colonist cannot meet alone). It mirrors what runDriveFocus can actually do:
+// a talk already under way; someone free within talk-radius, whom the forced
+// tryStartTalk would take; or, with a hall e can get a seat in, someone free in
+// the hall or headed there (headedForHall).
+//
+// Without it a socializer with nobody to find stood idle with the drive
+// pinned at its ceiling, outranking sleep with a bed in reach, until it passed
+// out, came to still tired, and did it again. That was most of the default
+// game's pass-outs (docs/drives.md, "Tuning the activity percents").
+//
+// The result is an "any match", so walking w.entities in map order is safe.
+func (w *World) companyInReach(e *Entity) bool {
+	if _, ok := w.talkPartner(e); ok {
+		return true
+	}
+	if _, ok := w.nearestMatch(e.Pos, w.cfg.TalkRadius, func(o *Entity) bool {
+		return o.Kind == Colonist && o.ID != e.ID && w.availableToTalk(o)
+	}); ok {
+		return true
+	}
+	if e.Kind != Colonist || !w.hallOpen() {
+		return false
+	}
+	if !w.inHall(e.Pos) {
+		if _, ok := w.nearestChair(e); !ok {
+			return false
+		}
+	}
+	for _, o := range w.entities {
+		if o.Kind != Colonist || o.ID == e.ID || !o.Alive() || o.passedOut {
+			continue
+		}
+		if w.inHall(o.Pos) && w.availableToTalk(o) || w.headedForHall(o) {
+			return true
+		}
+	}
+	return false
+}
+
+// headedForHall reports whether o is, or is about to be, on its way to the
+// hall for company: already socializing and not in a talk, or lonely and free
+// to go (the caller filters out the passed-out). The second half breaks a
+// stalemate the first cannot: two lonely colonists who each see the other not
+// yet socializing would each wait for the other to go first, and neither ever
+// would. Idle, a pressing drive is enough, since socialize beats idling as
+// soon as it presses. At work it has to be critical: only then is socialize's
+// score sure to pull o off the job (the critical bonus alone clears work's
+// commitment and the switch margin), and a partner who would not come is the
+// very wait this gate exists to end.
+func (w *World) headedForHall(o *Entity) bool {
+	phase := o.drives[DriveSocial].phase
+	switch o.focus {
+	case FocusSocialize:
+		// Not availableToTalk: that asks whether o may be pulled into a chat
+		// where it stands, and a socializer crossing a pending build tile on its
+		// way would read as no one coming.
+		return o.Job == JobNone && o.State != Fleeing
+	case FocusIdle:
+		return (phase == DrivePressing || phase == DriveCritical) && o.State != Fleeing
+	case FocusWork:
+		return phase == DriveCritical
+	default:
+		return false
+	}
 }
 
 // beginTalk commits two colonists to a mutual conversation.
@@ -755,7 +920,7 @@ func (w *World) beginTalk(a, b *Entity) {
 	a.Job, a.partner, a.Progress = JobTalk, b.ID, 0
 	b.Job, b.partner, b.Progress = JobTalk, a.ID, 0
 	for _, e := range []*Entity{a, b} {
-		if w.needLevel(e, NeedSocial) >= w.cfg.Needs[NeedSocial].SeekAt {
+		if w.driveLevel(e, DriveSocial) >= w.cfg.Drives[DriveSocial].SeekAt {
 			e.focus = FocusSocialize
 		} else {
 			e.focus = FocusIdle
@@ -770,7 +935,7 @@ func (w *World) beginTalk(a, b *Entity) {
 
 // talkPartner returns the colonist e is in a conversation with, if both sides
 // still claim each other. A conversation is only real while it is mutual: one
-// side being pulled away (a fatal need, a threat, a torn-down claim) ends it for
+// side being pulled away (a fatal drive, a threat, a torn-down claim) ends it for
 // both, which is what stops a colonist chatting with someone who has wandered
 // off to eat.
 func (w *World) talkPartner(e *Entity) (*Entity, bool) {
@@ -818,8 +983,8 @@ func (w *World) jobTalk(e *Entity) {
 		e.Progress++
 		if e.Progress >= w.cfg.TalkTicks {
 			w.finishTalk(e, p)
-			w.resetNeed(e, NeedSocial)
-			w.resetNeed(p, NeedSocial)
+			w.resetDrive(e, DriveSocial)
+			w.resetDrive(p, DriveSocial)
 			w.clearJob(p)
 			w.clearJob(e)
 		}
@@ -834,7 +999,8 @@ func (w *World) jobTalk(e *Entity) {
 // social-fatigue penalty (noteConversation), which must still be called exactly
 // once because it advances the rolling window. Per-observer appraisal targets
 // travel on the compositional occurrence into the shared ingestion funnel. See
-// docs/memories.md.
+// docs/memories.md. Each conversation also has a topic, which decides what the
+// two remember talking about; see docs/conversation-topics.md.
 func (w *World) finishTalk(a, b *Entity) {
 	existing := w.mutualAffinity(a.ID, b.ID)
 	quality := clampInt(w.rollTalkQuality(existing)+w.hallTalkBonus(a, b), -100, 100)
@@ -846,14 +1012,34 @@ func (w *World) finishTalk(a, b *Entity) {
 	w.bumpAffinity(a.ID, b.ID, step+w.mutantAffinityBonus(a, b))
 	w.bumpAffinity(b.ID, a.ID, step+w.mutantAffinityBonus(b, a))
 	outcome := w.talkMoodDelta(quality, existing)
+	// One of the two raises a topic; gossip about a third colonist carries
+	// the speaker's opinion to the listener (see topics.go).
+	topic := w.chooseTopic(a, b)
+	listener := a
+	if topic.Speaker == a.ID {
+		listener = b
+	}
+	w.applyGossip(topic, listener, quality)
 	o := w.occurrence(a, ActionConverse, b, a.Pos, "")
-	o.ActorText = fmt.Sprintf("Had a conversation with %s.", b.displayName())
-	o.TargetText = fmt.Sprintf("Had a conversation with %s.", a.displayName())
+	o.ActorText = w.conversationText(a, b, topic)
+	o.TargetText = w.conversationText(b, a, topic)
 	o.Appraisals = []ObserverAppraisal{
 		{Observer: a.ID, Target: conversationMoodVector(outcome + w.noteConversation(a))},
 		{Observer: b.ID, Target: conversationMoodVector(outcome + w.noteConversation(b))},
 	}
 	w.emitOccurrence(o)
+	// Company sought while lonely is its own experience, on top of how the
+	// talk went: a colonist who came to it with its social drive at seek-at
+	// or above "socialized". Read before jobTalk resets the drive.
+	for _, e := range []*Entity{a, b} {
+		if w.driveLevel(e, DriveSocial) >= w.cfg.Drives[DriveSocial].SeekAt {
+			other := b
+			if e == b {
+				other = a
+			}
+			w.emitOccurrence(w.occurrence(e, ActionSocialize, nil, e.Pos, "Enjoyed %s's company.", other.displayName()))
+		}
+	}
 }
 
 // assignWorkJob picks something productive to do: help build a planned project
@@ -884,6 +1070,14 @@ func (w *World) assignWorkJob(e *Entity) {
 	// and food work, smiths and gunsmiths let their plans run out of time
 	// with the steel and the rifles still sitting in the foundry.
 	if w.tryDeliverPlan(e) {
+		return
+	}
+	// A keeper keeps its chickens' trough in feed before it takes on any
+	// construction: it is a few units of scum, only when the trough runs
+	// low, and the hens starve within a few hundred ticks of it running dry.
+	// Placed behind the colony's cleaning, keepers got to it too late, and
+	// most hens starved beside living keepers (see chickens.go).
+	if w.tryAssignTend(e) {
 		return
 	}
 	// Collaborate on planned construction (facility rooms, etc.): claim the
@@ -942,7 +1136,7 @@ func (w *World) assignWorkJob(e *Entity) {
 	if w.foodWanted() && w.wildScumAllowed() && w.prospectingForFood() && e.Inventory.CanAdd(RawRock, 1) && w.tryProspect(e, false) {
 		return
 	}
-	// Surplus crash-pod meals go to market for someone hungrier to buy.
+	// Surplus locker meals go to market for someone hungrier to buy.
 	if w.tryAssignSellMeals(e) {
 		return
 	}
@@ -962,7 +1156,7 @@ func (w *World) assignWorkJob(e *Entity) {
 	// only take a job when unclaimed frontier remains.
 	if w.unclaimedFrontier() > 0 {
 		// Mining produces raw rock. Do not begin work that cannot yield its
-		// resource; construction and needs remain available to a full colonist.
+		// resource; construction and drives remain available to a full colonist.
 		if !e.Inventory.CanAdd(RawRock, 1) {
 			e.Job = JobNone
 			return
@@ -1015,7 +1209,7 @@ func (w *World) tryAssignStore(e *Entity) bool {
 	// the next trip.
 	if sell := w.sellableStacks(e); len(sell) > 0 {
 		if silo, ok := w.marketDepot(); ok && w.canUseFixture(e, silo) &&
-			w.taskReachable(silo, w.roomOf(e.Pos)) && w.lay(silo).storageContainers[silo].Inventory.CanAddAll(sell...) {
+			w.taskReachable(silo, w.roomOf(e.Pos)) && w.storageContainers[silo].Inventory.CanAddAll(sell...) {
 			e.Job, e.Target, e.Progress = JobStore, silo, 0
 			return true
 		}
@@ -1064,7 +1258,7 @@ func (w *World) nearestStorage(e *Entity, stacks []ItemStack, withSilo bool) (Po
 }
 
 func (w *World) jobStore(e *Entity) {
-	container := w.lay(e.Target).storageContainers[e.Target]
+	container := w.storageContainers[e.Target]
 	stacks := e.Inventory.storableStacks()
 	silo, hasSilo := w.marketDepot()
 	atSilo := hasSilo && e.Target == silo
@@ -1118,7 +1312,7 @@ func (w *World) plannedFacilities(kind Terrain) int {
 	return w.countTerrain(kind) + w.buildsInProgress(kind) + w.projectFacilityTasks(kind)
 }
 
-// desiredFacilities is how many of each need-satisfying structure (pods,
+// desiredFacilities is how many of each drive-satisfying structure (pods,
 // toilets, bunks) the colony wants for a given headcount (at least one).
 func (w *World) desiredFacilities(colonists int) int {
 	d := colonists / w.cfg.ColonistsPerFacility
@@ -1212,61 +1406,50 @@ func (w *World) updateDisconnected(e *Entity) {
 	}
 }
 
-// assignDemolish commits a colonist to breaking down the nearest reachable
-// wall bounding its own (cut-off) room. Reports whether one was found.
+// assignDemolish commits a colonist to the first tile on its cheapest way out
+// of its own (cut-off) room to the colony's main room: rock to dig through or
+// a wall or hull to break down, whichever route costs less work (see
+// escapeTarget). Reports whether there is one.
 func (w *World) assignDemolish(e *Entity) bool {
-	wall, ok := w.nearestEscapeWall(e.Pos)
+	target, ok := w.escapeTarget(e.Pos)
 	if !ok {
 		return false
 	}
-	e.Job, e.Target, e.Progress = JobDemolish, wall, 0
+	e.Job, e.Target, e.Progress = JobDemolish, target, 0
 	return true
 }
 
-// nearestEscapeWall finds the closest Wall tile bounding from's own room, by
-// walking distance within that room rather than a global scan: a sealed
-// pocket is by definition small, so this stays cheap exactly where it matters
-// (a colony-wide scan for one trapped colonist would not). Returns false if
-// the room is bounded entirely by solid rock rather than any built wall — a
-// natural cavern separation JobDemolish cannot do anything about.
-func (w *World) nearestEscapeWall(from Point) (Point, bool) {
-	room := w.roomOf(from)
-	if room == 0 {
-		return Point{}, false
-	}
-	seen := map[Point]bool{from: true}
-	queue := []Point{from}
-	for len(queue) > 0 {
-		p := queue[0]
-		queue = queue[1:]
-		for _, d := range neighbors8 {
-			n := p.Add(d.X, d.Y)
-			if !w.InBounds(n) || seen[n] {
-				continue
-			}
-			seen[n] = true
-			if t := w.TerrainAt(n); t == Wall || t == Hull {
-				return n, true
-			}
-			if w.Walkable(n) && w.roomOf(n) == room {
-				queue = append(queue, n)
-			}
-		}
-	}
-	return Point{}, false
-}
-
-// jobDemolish walks to the wall claimed by assignDemolish and breaks it down
-// over DemolishTicks, converting it back to Floor — mirroring jobMine's dig,
-// but reversing a wall instead of clearing rock. Reconnecting is implicit:
-// refreshSpatial folds the new Floor tile in at the end of this tick, and
-// updateDisconnected notices the room is whole again on the next.
+// jobDemolish walks to the tile claimed by assignDemolish and clears it to
+// Floor: a wall or hull broken down over DemolishTicks, or rock dug out over
+// MineTicks, the way a miner would. Reconnecting is implicit: refreshSpatial
+// folds the new Floor tile in at the end of this tick, and updateDisconnected
+// notices the room is whole again on the next — or, on a longer way out, the
+// next think assigns the next tile.
 func (w *World) jobDemolish(e *Entity) {
-	if t := w.TerrainAt(e.Target); t != Wall && t != Hull {
-		w.clearJob(e) // reconnected some other way, or someone else broke it first
+	t := w.TerrainAt(e.Target)
+	if t != Wall && t != Hull && t != Rock {
+		w.clearJob(e) // reconnected some other way, or someone else cleared it first
 		return
 	}
 	if e.Pos.Adjacent(e.Target) {
+		if t == Rock {
+			e.State = Mining
+			e.Progress++
+			if e.Progress < w.workTicks(e, SkillMining, w.cfg.MineTicks) {
+				return
+			}
+			// Whatever of the rock fits is kept. The rest is left as rubble:
+			// unlike a miner, a colonist digging its way out does not stop
+			// because its pockets are full.
+			for _, s := range miningYield(w.TileAt(e.Target)) {
+				e.Inventory.Add(s.Kind, s.Count)
+			}
+			w.SetTerrain(e.Target, Floor)
+			w.practise(e, SkillMining, w.cfg.MineTicks)
+			w.logEvent(LogEscape, fmt.Sprintf("Colonist #%d digs through rock to escape a sealed pocket.", e.ID))
+			w.clearJob(e)
+			return
+		}
 		e.State = Demolishing
 		e.Progress++
 		if e.Progress >= scaleTicks(w.cfg.DemolishTicks, e.workScale) {
@@ -1284,12 +1467,16 @@ func (w *World) jobDemolish(e *Entity) {
 }
 
 func (w *World) jobBuild(e *Entity) {
-	// A dig task (BuildKind Floor) works rock down to floor; every other kind
+	// A dig task (BuildKind Floor) works rock down to floor, or breaks a wall
+	// or hull down to it for a passage (buildTask.clears); every other kind
 	// builds atop existing floor. Anything else at the target — already
 	// finished, or changed to something unexpected — ends the job.
 	prereq := Floor
 	if e.BuildKind == Floor {
 		prereq = Rock
+		if e.task != nil {
+			prereq = e.task.clears
+		}
 	}
 	if w.TerrainAt(e.Target) != prereq {
 		w.clearJob(e)
@@ -1326,6 +1513,41 @@ func (w *World) jobBuild(e *Entity) {
 	e.stuck = 0
 	e.State = Building
 	e.Progress++
+	if isBuilt(prereq) {
+		// Breaking a structure down: for a passage, the work of an escape's
+		// demolition, and nothing to carry away; to move a room's wall out;
+		// or for a clearing order (see zones.go). demolish empties a depot
+		// first and keeps the structure registry true.
+		if e.Progress < scaleTicks(w.cfg.DemolishTicks, e.workScale) {
+			return
+		}
+		switch p := e.task.proj; {
+		case p != nil && p.name == ClearingName:
+			w.clearTile(e.Target)
+			o := w.occurrence(e, ActionClear, nil, e.Target, "Cleared away a %s at (%d, %d).", prereq, e.Target.X, e.Target.Y)
+			o.Object = FactRef{Noun: NounStructure, Label: prereq.String()}
+			w.emitOccurrence(o)
+		case e.task.moveTo != nil:
+			// A fixture moving out (see fixturemove.go): what it holds and
+			// whose it is go to its new place before the old comes down.
+			w.relocateFixture(e.Target, *e.task.moveTo)
+			w.demolish(e.Target)
+			w.logEvent(LogBuildStart, fmt.Sprintf("Colonist #%d moves a %s from (%d, %d) to (%d, %d).",
+				e.ID, prereq, e.Target.X, e.Target.Y, e.task.moveTo.X, e.task.moveTo.Y))
+		case p != nil && p.room != nil:
+			// A wall coming down as a room grows or joins another (see roomplan.go).
+			w.demolish(e.Target)
+			w.logEvent(LogBuildStart, fmt.Sprintf("Colonist #%d tears down a wall at (%d, %d) to enlarge the %s.",
+				e.ID, e.Target.X, e.Target.Y, w.roomTitle(p.room)))
+		default:
+			w.demolish(e.Target)
+			w.logEvent(LogEscape, fmt.Sprintf("Colonist #%d breaks through a %s at (%d, %d) to reach a cut-off part of the colony.",
+				e.ID, prereq, e.Target.X, e.Target.Y))
+		}
+		w.payWork(e.task.order, e)
+		w.clearJob(e)
+		return
+	}
 	if e.Progress < w.workTicks(e, buildSkill(e.BuildKind), w.buildTicks(e.BuildKind)) {
 		return
 	}
@@ -1375,6 +1597,8 @@ func (w *World) jobBuild(e *Entity) {
 			}
 		}
 		w.payWork(t.order, e)
+	} else {
+		w.registerLone(e.Target, e.BuildKind) // an emergency build: a structure of its own
 	}
 	w.noteBuild(e.BuildKind)
 	o := w.occurrence(e, ActionConstruct, nil, e.Target, "Finished construction of %s at (%d, %d).",
@@ -1389,7 +1613,7 @@ func (w *World) jobBuild(e *Entity) {
 const fieldDetourTicks = 20
 
 func (w *World) jobUse(e *Entity) {
-	spec := w.cfg.Needs[e.Need]
+	spec := w.cfg.Drives[e.Drive]
 	if e.carrying {
 		w.jobUseCarrying(e, spec)
 		return
@@ -1410,7 +1634,11 @@ func (w *World) jobUse(e *Entity) {
 			w.clearJob(e)
 			return
 		}
-		e.State = useState(e.Need)
+		if e.Drive == DriveSleep {
+			w.sleepTick(e) // a night ends when the drive has fallen to 0, not after UseTicks
+			return
+		}
+		e.State = useState(e.Drive)
 		e.Progress++
 		portable := spec.GrabTicks > 0 && spec.GrabTicks < spec.UseTicks
 		if portable {
@@ -1460,7 +1688,7 @@ func (w *World) jobUse(e *Entity) {
 	if e.fieldDetour > 0 {
 		e.fieldDetour--
 	}
-	// Route to the facility selected when the need became urgent. The shared field
+	// Route to the facility selected when the drive became urgent. The shared field
 	// is still the reachability gate, but routing to a concrete facility prevents
 	// every user from converging on its nearest seed.
 	arrived, ok := w.travelTo(e, e.useFacility)
@@ -1468,7 +1696,7 @@ func (w *World) jobUse(e *Entity) {
 		if !ok {
 			// A facility can become unreachable after a terrain change while the
 			// shared field still has another reachable goal. Fall back to that
-			// field rather than dropping the need and risking starvation.
+			// field rather than dropping the drive and risking starvation.
 			if w.followField(e, field) {
 				e.stuck = 0
 				e.State = Moving
@@ -1501,36 +1729,36 @@ func (w *World) jobUse(e *Entity) {
 	e.State = Moving
 }
 
-// jobUseCarrying finishes a portable need (see NeedSpec.GrabTicks) away from
+// jobUseCarrying finishes a portable drive (see DriveSpec.GrabTicks) away from
 // the facility. The colonist already grabbed it, so completion is guaranteed
 // — no travel, no facility reachability or crowding to worry about — freeing
 // the access tile it used to occupy for the rest of the process.
-func (w *World) jobUseCarrying(e *Entity, spec NeedSpec) {
-	e.State = useState(e.Need)
+func (w *World) jobUseCarrying(e *Entity, spec DriveSpec) {
+	e.State = useState(e.Drive)
 	e.Progress++
 	if e.Progress >= spec.UseTicks-spec.GrabTicks {
 		w.finishUse(e, spec)
 	}
 }
 
-// finishUse applies a completed JobUse: resets the need, records a memory,
+// finishUse applies a completed JobUse: resets the drive, records a memory,
 // and clears the job. Shared by an in-place use and a carried-away one.
-func (w *World) finishUse(e *Entity, spec NeedSpec) {
+func (w *World) finishUse(e *Entity, spec DriveSpec) {
 	if e.useFacilitySet {
 		w.chargeForUse(e, e.useFacility)
 	}
-	w.resetNeed(e, e.Need)
-	switch e.Need {
-	case NeedFood:
+	w.resetDrive(e, e.Drive)
+	switch e.Drive {
+	case DriveFood:
 		// The safety net's food: it keeps a colonist alive and not much more.
 		o := w.occurrence(e, ActionEat, nil, e.Pos, "Ate a ration of nutrient-pod gruel.")
 		o.Object = FactRef{Noun: NounGruel, Label: "gruel"}
 		w.emitOccurrence(o)
-	case NeedBladder:
+	case DriveBladder:
 		o := w.occurrence(e, ActionUse, nil, e.Pos, "Used the toilet.")
 		o.Object = FactRef{Noun: NounToilet, Label: "toilet"}
 		w.emitOccurrence(o)
-	case NeedSleep:
+	case DriveSleep:
 		o := w.occurrence(e, ActionSleep, nil, e.Pos, "Slept in a bed.")
 		o.Object = FactRef{Noun: NounBed, Label: "bed"}
 		w.emitOccurrence(o)
@@ -1710,13 +1938,17 @@ func (w *World) makeWayAt(e *Entity, target Point) bool {
 
 // findBuildSpot returns the nearest open Floor tile that sits against Rock or
 // Wall — an edge where new structure extends the colony rather than plugging a
-// walkway at random. The colonist's own tile is excluded.
-func (w *World) findBuildSpot(from Point, radius int) (Point, bool) {
+// walkway at random — on ground zoned for a lone fixture of kind (see
+// zoneAllows). The colonist's own tile is excluded, and so is every tile an
+// unfinished project task designates, in any phase (see onPlannedTask).
+func (w *World) findBuildSpot(from Point, radius int, kind Terrain) (Point, bool) {
 	var best Point
 	found := false
+	zone := FixtureZone(kind)
 	w.forEachInRadius(from, radius, func(p Point) bool {
 		if p.Equal(from) || w.TerrainAt(p) != Floor || w.occupied(p) ||
-			w.onPendingBuild(p) || !w.bordersSolid(p) {
+			w.onPendingBuild(p) || !w.bordersSolid(p) || w.onPlannedTask(p) ||
+			(zone != NoZone && !w.zoneAllows(p, zone)) {
 			return false
 		}
 		best, found = p, true
@@ -1806,7 +2038,7 @@ func (w *World) alienTurn(e *Entity) {
 	e.Quarry = prey.ID
 
 	if e.Pos.Adjacent(prey.Pos) {
-		w.bite(e, prey)
+		w.strike(e, prey)
 		e.Cooldown = sp.BiteRest
 		return
 	}
@@ -1825,7 +2057,7 @@ func (w *World) alienTurn(e *Entity) {
 // scum the colony could have scraped for its scumhouse, like a rat does, so a
 // peaceful species is still a competitor. See docs/lore.md.
 func (w *World) alienGraze(e *Entity, sp AlienSpecies) bool {
-	if w.needLevel(e, NeedFood) < w.cfg.Needs[NeedFood].SeekAt {
+	if w.driveLevel(e, DriveFood) < w.cfg.Drives[DriveFood].SeekAt {
 		return false
 	}
 	target, ok := w.nearestEdible(e, w.cfg.AlienGrazeRadius, w.grazeable)
@@ -1835,7 +2067,7 @@ func (w *World) alienGraze(e *Entity, sp AlienSpecies) bool {
 	if e.Pos.Within(target, 1) {
 		e.State = Eating
 		if w.takeScum(target) {
-			w.resetNeed(e, NeedFood)
+			w.resetDrive(e, DriveFood)
 		}
 		e.Cooldown = sp.BiteRest
 		return true
@@ -1848,31 +2080,77 @@ func (w *World) alienGraze(e *Entity, sp AlienSpecies) bool {
 	return true
 }
 
-// bite deals damage to a random body part of the alien's prey and eats it if
-// the wound is fatal (a vital part destroyed, or HP exhausted). A rat has no
-// parts to hit, so a bite just takes its HP. The prey remembers the attack,
-// and any other colonist close enough to have noticed the alien
-// (observeNearby's own sighting radius) remembers watching it happen. A
-// fatal bite leaves gore behind; the prey is eaten, so there is no body.
-func (w *World) bite(alien, prey *Entity) {
-	part := w.rollHit(prey)
-	fatal := applyDamage(prey, part, w.alienSpeciesFor(alien).BiteDamage)
+// strike attacks the alien's prey with one of its species' attack modes
+// (see AttackMode), picked uniformly on the simulation stream when it has
+// more than one -- the mode decides where the blow lands and how hard, so it
+// is gameplay, not flavor. A bite, claw rake, or tail lash lands on a random
+// body part at full damage; strangling goes for the throat (the head, when
+// the prey has one) at half damage, a slower but surer kill. A rat has no
+// parts to hit, so it just loses HP. The prey remembers the attack, and any
+// other colonist close enough to have noticed the alien (observeNearby's own
+// sighting radius) remembers watching it happen. A fatal strike leaves gore
+// behind; the prey is eaten, so there is no body.
+func (w *World) strike(alien, prey *Entity) {
+	sp := w.alienSpeciesFor(alien)
+	modes := sp.Attacks()
+	mode := modes[0]
+	if len(modes) > 1 {
+		mode = modes[w.rng.IntN(len(modes))]
+	}
+	var part BodyPart
+	dmg := sp.BiteDamage
+	if mode == AttackStrangle && prey.hasPart(Head) {
+		part = Head
+		dmg = (dmg + 1) / 2 // a zero baseline stays zero (see speciesDamage)
+	} else {
+		part = w.rollHit(prey)
+	}
+	fatal := applyDamage(prey, part, dmg)
 	noun := w.alienNounFor(alien)
 	name := w.preyName(prey)
+	verb := strikeVerbs[mode]
 	if fatal {
 		alien.State = Feeding
 		o := w.occurrence(alien, ActionKill, prey, prey.Pos, "")
-		o.WitnessText = fmt.Sprintf("Watched %s kill %s.", noun, name)
+		o.WitnessText = fmt.Sprintf("Watched %s %s %s to death.", noun, verb.base, name)
 		w.addGore(prey.Pos)
 		w.emitOccurrence(o)
-		w.remove(prey.ID, fmt.Sprintf("devoured by %s", noun))
-		w.logEvent(LogDeath, fmt.Sprintf("%s devours %s.", capitalizeFirst(noun), name))
+		w.remove(prey.ID, fmt.Sprintf("%s to death by %s", verb.past, noun))
+		w.logEvent(LogDeath, fmt.Sprintf("%s %s %s to death and devours the remains.",
+			capitalizeFirst(noun), verb.third, name))
 	} else {
 		alien.State = Hunting
 		o := w.occurrence(alien, ActionBite, prey, prey.Pos, "")
-		o.TargetText = fmt.Sprintf("Bitten in the %s by %s!", part, noun)
-		o.WitnessText = fmt.Sprintf("Watched %s attack %s.", noun, name)
+		o.TargetText = strikeTargetText(mode, part, noun)
+		o.WitnessText = fmt.Sprintf("Watched %s %s %s.", noun, verb.hit, name)
 		w.emitOccurrence(o)
+	}
+}
+
+// strikeVerb is one attack mode's verbs in the forms narration needs: a
+// non-fatal blow ("watched a grelk *lash* Ana") and a kill ("watched a grelk
+// *batter* Ana to death", "a grelk *batters* Ana to death", "*battered* to
+// death by a grelk").
+type strikeVerb struct{ hit, base, third, past string }
+
+var strikeVerbs = [...]strikeVerb{
+	AttackBite:     {"bite", "maul", "mauls", "mauled"},
+	AttackClaw:     {"claw", "claw", "claws", "clawed"},
+	AttackTail:     {"lash", "batter", "batters", "battered"},
+	AttackStrangle: {"throttle", "strangle", "strangles", "strangled"},
+}
+
+// strikeTargetText is what the victim of a non-fatal strike remembers.
+func strikeTargetText(mode AttackMode, part BodyPart, noun string) string {
+	switch mode {
+	case AttackClaw:
+		return fmt.Sprintf("Clawed across the %s by %s!", part, noun)
+	case AttackTail:
+		return fmt.Sprintf("Lashed across the %s by %s's tail!", part, noun)
+	case AttackStrangle:
+		return fmt.Sprintf("Half-strangled by %s!", noun)
+	default:
+		return fmt.Sprintf("Bitten in the %s by %s!", part, noun)
 	}
 }
 
@@ -1892,7 +2170,7 @@ func (w *World) preyName(prey *Entity) string {
 // ---- Cats --------------------------------------------------------------------
 
 // catTurn walks the cat toward the nearest rat and pounces when adjacent. Cats
-// have no needs; they simply hunt. Like everyone else they travel the floor
+// have no drives; they simply hunt. Like everyone else they travel the floor
 // with cached A* and give up on prey they cannot reach.
 func (w *World) catTurn(e *Entity) {
 	if e.Cooldown > 0 {
@@ -1939,11 +2217,11 @@ func (w *World) pounce(cat, prey *Entity) {
 // ---- Rats --------------------------------------------------------------------
 
 // ratTurn runs one rat tick: starve, flee cats, scavenge (or raid a pod) when
-// hungry, breed, otherwise scurry about. Rats reuse the colonists' food need
+// hungry, breed, otherwise scurry about. Rats reuse the colonists' food drive
 // but never build: they eat the same biomatter the scumhouse runs on, where it
 // lies, and fall back on pods only with nothing in reach. See scavenge.go.
 func (w *World) ratTurn(e *Entity) {
-	w.applyStarvation(e)
+	w.applyDriveConsequences(e)
 	if !e.Alive() { // starved this tick
 		w.clearJob(e)
 		w.addCorpse(e.Pos, AnimalCorpse)
@@ -1969,14 +2247,14 @@ func (w *World) ratTurn(e *Entity) {
 	// Hungry? Scavenge the nearest body, gore, or scum in range — the same
 	// biomatter the scumhouse runs on (see scavenge.go) — and only with none
 	// in reach raid a nutrient pod. Rats care only about food, so we check it
-	// directly rather than scanning every need.
-	hungry := w.needLevel(e, NeedFood) >= w.cfg.Needs[NeedFood].SeekAt
+	// directly rather than scanning every drive.
+	hungry := w.driveLevel(e, DriveFood) >= w.cfg.Drives[DriveFood].SeekAt
 	if hungry && e.Job == JobNone {
 		if target, ok := w.nearestScavenge(e); ok {
 			e.Job, e.Target, e.Progress = JobScavenge, target, 0
 		} else if w.podsFeed() {
 			if field := w.facilityField(NutrientPod); field != nil && field.at(e.Pos) >= 0 {
-				e.Job, e.Need, e.Progress = JobUse, NeedFood, 0
+				e.Job, e.Drive, e.Progress = JobUse, DriveFood, 0
 			}
 		}
 	}
@@ -2105,7 +2383,7 @@ func (w *World) wanderStep(e *Entity) {
 	if !w.Walkable(n) {
 		return
 	}
-	if e.Kind == Colonist && w.lay(n).buildTiles[n] {
+	if e.Kind == Colonist && w.buildTiles[n] {
 		return // colonists keep off tiles a builder needs clear
 	}
 	w.moveEntity(e, n)
@@ -2130,7 +2408,7 @@ func (w *World) stepAside(e *Entity) bool {
 			from := w.pointOf(ci)
 			for _, d := range neighbors8 {
 				p := from.Add(d.X, d.Y)
-				if !w.Walkable(p) || w.lay(p).buildTiles[p] {
+				if !w.Walkable(p) || w.buildTiles[p] {
 					continue
 				}
 				pi := w.index(p)

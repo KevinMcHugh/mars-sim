@@ -8,18 +8,22 @@ type Kind uint8
 
 const (
 	// Colonist is a human worker: walks on Floor, mines Rock, builds structures,
-	// tends to its needs, and flees from aliens.
+	// tends to its drives, and flees from aliens.
 	Colonist Kind = iota
 	// Alien is a subterranean mutant that walks the floor to hunt and eat
 	// colonists. Most start dormant in hidden caverns (see docs/caverns.md).
 	Alien
 	// Cat is a surface predator that stalks the floor hunting rats. It has no
-	// needs of its own; it hunts by instinct.
+	// drives of its own; it hunts by instinct.
 	Cat
 	// Rat is a pest that scurries the floor, scavenging bodies, gore, and cave
 	// scum, and nibbling from nutrient pods when there is nothing else.
-	// It has a hunger need and starves without food; cats eat it.
+	// It has a hunger drive and starves without food; cats eat it.
 	Rat
+	// Chicken is a colonist's bird, brought down in its ship. It grazes
+	// cave scum and eats feed from its keeper's trough, and starves without
+	// either. Cats and chickens ignore each other. See docs/chickens.md.
+	Chicken
 
 	numKinds // keep last: the number of entity kinds
 )
@@ -34,6 +38,8 @@ func (k Kind) String() string {
 		return "cat"
 	case Rat:
 		return "rat"
+	case Chicken:
+		return "chicken"
 	default:
 		return "unknown"
 	}
@@ -63,6 +69,7 @@ const (
 	Demolishing       // colonist breaking down a wall to escape a sealed room
 	Crafting          // colonist working a recipe at a workshop (the scumhouse)
 	Scraping          // colonist scraping cave scum off a surface
+	PassedOut         // colonist unconscious where it fell, a drive at its ceiling (see passOut)
 
 	numStates // keep last: the number of states
 )
@@ -83,6 +90,8 @@ func (s State) String() string {
 		return "relieving"
 	case Sleeping:
 		return "sleeping"
+	case PassedOut:
+		return "passed out"
 	case Talking:
 		return "talking"
 	case Fleeing:
@@ -260,7 +269,7 @@ const (
 	JobNone     JobKind = iota
 	JobMine             // excavate the Rock tile at Target
 	JobBuild            // construct BuildKind on the Floor tile at Target
-	JobUse              // walk to the facility at Target and satisfy Need
+	JobUse              // walk to the facility at Target and satisfy Drive
 	JobTalk             // walk to partner and chat, raising the pair's affinity
 	JobClean            // scrub refuse off Target, then haul it to an incinerator
 	JobStore            // unload general materials into the storage at Target
@@ -271,6 +280,7 @@ const (
 	JobScavenge         // (rats) eat the body, gore, or scum at Target where it lies
 	JobSell             // take surplus meals from the depot at Target to the silo and offer them
 	JobCarry            // carry its own goods to a buyer's depot and ask the price (see producer.go)
+	JobTend             // keep its chickens' trough in feed: scrape scum, mix feed at a scumhouse, fill the trough (see chickens.go)
 )
 
 // cleanStage is where a JobClean colonist is in the haul. The job is two legs
@@ -343,28 +353,43 @@ type Entity struct {
 	// colonists ever mutate. See mutation.go.
 	uraniumExposure int
 
-	// Needs are stored lazily: Needs[i] is the level as of tick needSince[i], so
-	// the current level is Needs[i] + needRise[i]*(now-needSince[i]) (see
-	// needLevel). Storing a base + timestamp instead of ticking every colonist
-	// every tick lets idle colonists rest without their needs drifting out of
-	// date. Used by colonists (all needs) and rats (food only).
-	Needs             [numNeeds]int
-	needSince         [numNeeds]int
-	needPhase         [numNeeds]NeedPhase
-	nextNeedPhaseTick [numNeeds]int
-	// starvationDamage tracks HP lost to each fatal need separately from wounds.
-	// Satisfying that need restores its own deprivation damage without healing
-	// unrelated injuries such as alien bites.
-	starvationDamage [numNeeds]int
+	// drives holds each drive's lazy state: a true level as of a tick, the
+	// rate it grows at from there, and where it sits in the drive's bands (see
+	// drives.go). Storing a base + timestamp instead of ticking every colonist
+	// every tick lets idle colonists rest without their drives drifting out of
+	// date; the base is folded forward only when the rate changes. Used by
+	// colonists (all drives) and rats, chickens and aliens (food only).
+	drives [numDrives]driveState
+	// driveBase is each drive's base rate for this kind of entity, in
+	// thousandths of a point a tick, before any modifier. driveTrait is the
+	// percent its traits scale that by (100 = unchanged), and driveActivity
+	// the drive activity its rates were last composed for. effects are the
+	// drive effects running on it, and nextEffectTick the earliest tick one
+	// of them changes stage (0: none). See drive_activity.go and
+	// drive_effects.go.
+	driveBase      [numDrives]int
+	driveTrait     [numDrives]int
+	driveActivity  DriveActivity
+	effects        []activeEffect
+	nextEffectTick int
+	// passedOut is whether the colonist is unconscious where it fell (a
+	// drive's ConsequencePassOut), and passedOutDrive the drive that put it
+	// down; it comes to once that drive falls below CriticalAt. See passOut.
+	passedOut      bool
+	passedOutDrive DriveKind
 
 	// Personality (colonists only). Profile holds the name, attributes, and
-	// traits; needRise, restTicks, and workScale are the trait-resolved effective
+	// traits; driveTrait, restTicks, and workScale are the trait-resolved effective
 	// parameters the systems read, so the hot paths never re-scan traits. See
 	// personality.go.
 	Profile   *Profile
-	needRise  [numNeeds]int // per-need rise per tick (base scaled by traits)
-	restTicks int           // idle rest duration (base scaled by traits)
-	workScale float64       // mine/build time multiplier (1.0 = baseline)
+	restTicks int // idle rest duration (base scaled by traits)
+	// sleepTicks is how long this colonist's night in bed lasts, from SeekAt:
+	// Config.NightTicks give or take a clock hour per sleep trait. The sleep
+	// drive falls in bed fast enough to fit it (see driveRate and
+	// docs/days.md).
+	sleepTicks int
+	workScale  float64 // mine/build time multiplier (1.0 = baseline)
 
 	// Skills (colonists only). practice is base work ticks of completed work
 	// per skill; ranks and labels are derived from it, never stored. yieldAcc
@@ -386,11 +411,22 @@ type Entity struct {
 	// wallet is the colonist's dollars (colonists only). Only transfer and mint
 	// change it; see money.go and docs/money.md.
 	wallet Money
-	// podOrigin is the top-left of the crash pod this colonist arrived in,
-	// when hasPod; colonists placed directly by tests or older code have none.
-	// See crashpod.go.
-	podOrigin Point
-	hasPod    bool
+	// ship is the ID of the colony ship this colonist came down in, 0 for
+	// none (colonists placed directly by tests). See ship.go.
+	ship int
+	// employer is 1 + the index of the corporation this colonist worked for
+	// before it came (0: none), and employerRole the job it held there.
+	// Flavor only; see rollEmployer in arms_makers.go.
+	employer     int
+	employerRole string
+	// keeper is the colonist a pet (a chicken or a cat) came down with, 0 for
+	// a stray. trough is where a chicken eats and where its keeper fills it,
+	// when hasTrough; a keeper has the same trough. tend is where a JobTend
+	// keeper is. See chickens.go.
+	keeper    EntityID
+	trough    Point
+	hasTrough bool
+	tend      tendStage
 	// eat is where a JobEat colonist is: fetching a meal, or eating one. See
 	// food.go.
 	eat eatStage
@@ -489,13 +525,13 @@ type Entity struct {
 
 	// Current job and its parameters.
 	Job            JobKind
-	Target         Point    // tile the job operates on or travels to
-	BuildKind      Terrain  // JobBuild: terrain to construct
-	Need           NeedKind // JobUse: which need this fulfills
+	Target         Point     // tile the job operates on or travels to
+	BuildKind      Terrain   // JobBuild: terrain to construct
+	Drive          DriveKind // JobUse: which drive this fulfills
 	useFacility    Point
 	useFacilitySet bool
-	// carrying reports whether a JobUse colonist has grabbed a portable need
-	// (see NeedSpec.GrabTicks) and stepped away from the facility to finish it,
+	// carrying reports whether a JobUse colonist has grabbed a portable drive
+	// (see DriveSpec.GrabTicks) and stepped away from the facility to finish it,
 	// rather than still occupying the facility's access tile.
 	carrying bool
 	partner  EntityID // JobTalk: the colonist being talked with; 0 if none
@@ -573,22 +609,31 @@ func newEntity(id EntityID, kind Kind, p Point, cfg Config) *Entity {
 	switch kind {
 	case Colonist:
 		e.MaxHP = cfg.ColonistHP
-		for i := 0; i < int(numNeeds); i++ {
-			e.needRise[i] = cfg.Needs[i].Rise
+		for i := 0; i < int(numDrives); i++ {
+			e.driveBase[i] = cfg.Drives[i].Rate
 		}
+		e.driveActivity = DriveIdle
 		e.restTicks = cfg.RestTicks
+		e.sleepTicks = cfg.NightTicks()
 	case Alien:
 		e.MaxHP = cfg.AlienHP
-		// Only the food need rises: Friendly and Cautious species graze cave
+		// Only the food drive rises: Friendly and Cautious species graze cave
 		// scum when it presses (see alienGraze). Aliens never starve.
-		e.needRise[NeedFood] = cfg.AlienHungerRise
+		e.driveBase[DriveFood] = cfg.AlienHungerRate
 	case Cat:
 		e.MaxHP = cfg.CatHP
 	case Rat:
 		e.MaxHP = cfg.RatHP
-		// Rats share the colonists' NeedFood but nibble constantly, so only their
-		// food need rises (fast); the others stay flat.
-		e.needRise[NeedFood] = cfg.RatHungerRise
+		// Rats share the colonists' DriveFood but nibble constantly, so only their
+		// food drive rises (fast); the others stay flat.
+		e.driveBase[DriveFood] = cfg.RatHungerRate
+	case Chicken:
+		e.MaxHP = cfg.ChickenHP
+		// Like a rat, a chicken has only the food drive.
+		e.driveBase[DriveFood] = cfg.ChickenHungerRate
+	}
+	for i := range e.driveTrait {
+		e.driveTrait[i] = 100
 	}
 	e.HP = e.MaxHP
 	if e.hasParts() {
@@ -638,6 +683,15 @@ func (e *Entity) possessive() string {
 		return "their"
 	}
 	return e.Profile.Gender.Possessive()
+}
+
+// reflexive is the colonist's reflexive pronoun ("herself") for memories and
+// log lines. Falls back to "themself" with no profile.
+func (e *Entity) reflexive() string {
+	if e.Profile == nil {
+		return "themself"
+	}
+	return e.Profile.Gender.Reflexive()
 }
 
 // clearPath discards any cached navigation route.

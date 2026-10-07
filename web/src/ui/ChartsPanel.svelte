@@ -1,9 +1,11 @@
 <script lang="ts">
   // The Charts tab: the TUI's three chart screens, Perf, Population and
-  // Activity, one at a time. Each view subscribes to its own topic, so a
-  // closed tab, or another view, costs the worker nothing.
+  // Activity, and Custom, the charts the player builds (docs/charts.md), one
+  // at a time. Each view subscribes to its own topics, so a closed tab, or
+  // another view, costs the worker nothing.
   import { subscribe, ui } from '../game.svelte';
   import ActivityChart from './charts/ActivityChart.svelte';
+  import CustomCharts from './charts/CustomCharts.svelte';
   import PerfCharts from './charts/PerfCharts.svelte';
   import PopulationCharts from './charts/PopulationCharts.svelte';
 
@@ -11,11 +13,12 @@
     { id: 'perf', label: 'Perf' },
     { id: 'population', label: 'Population' },
     { id: 'activity', label: 'Activity' },
+    { id: 'custom', label: 'Custom' },
   ] as const;
 
   // Population and Activity draw from the same topic.
   $effect(() => {
-    if (ui.chartView !== 'perf') return subscribe('population');
+    if (ui.chartView === 'population' || ui.chartView === 'activity') return subscribe('population');
   });
 </script>
 
@@ -31,8 +34,10 @@
     <PerfCharts />
   {:else if ui.chartView === 'population'}
     <PopulationCharts />
-  {:else}
+  {:else if ui.chartView === 'activity'}
     <ActivityChart />
+  {:else}
+    <CustomCharts />
   {/if}
 </div>
 

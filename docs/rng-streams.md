@@ -6,15 +6,15 @@
 
 Every random draw in the sim comes from a `math/rand/v2` PCG generator derived
 from `Config.Seed`. There are several separate streams, so one system's draws
-never shift another's. The five that live past world generation keep their
+never shift another's. The seven that live past world generation keep their
 PCG source next to them, which lets their state be saved and restored. That is
-the RNG half of save/load.
+the RNG half of save/load ([save-load.md](./save-load.md)).
 
 ## Source
 
 - `internal/sim/rng.go`: `newPCG` / `newRand` (seeding), `rngSources`,
   `rngState`, and `World.saveRNG` / `World.loadRNG`.
-- `internal/sim/world.go`: `newWorld` builds `rng`, `prng`, `agePRNG` and `skillRNG`.
+- `internal/sim/world.go`: `newWorld` builds `rng`, `prng`, `agePRNG`, `skillRNG`, `topicRNG` and `recruitRNG`.
 - `internal/sim/caverns.go`: `trackCavernsForNests` builds `nestRNG`.
 - `internal/sim/worldgen_chunks.go`: `featureRand`, the per-chunk worldgen
   streams.
@@ -29,16 +29,21 @@ the RNG half of save/load.
 | `World.agePRNG` (ages) | `Seed ^ 0x6A09E667` | whole game | yes |
 | `World.nestRNG` (alien nests) | `Seed ^ 0x0452821E638D0137` | whole game | yes |
 | `World.skillRNG` (arrival backgrounds) | `Seed ^ 0x3C6EF372FE94F82B` | whole game | yes |
+| `World.topicRNG` (conversation topics) | `Seed ^ 0x2B7E151628AED2A6` | whole game | yes |
+| `World.recruitRNG` (recruiter's candidates, where recruits arrive) | `Seed ^ 0x1F83D9ABFB41BD6B` | whole game | yes |
 | worldgen veins, per chunk and level | `featureRand(0x243F6A8885A308D3 + level, cx, cy)` | one plan | no |
 | worldgen cave scum, per chunk | `featureRand(0x5CA1AB1E, cx, cy)` | one plan | no |
 | worldgen salt, per chunk | `featureRand(0x5A17D0C5, cx, cy)` | one plan | no |
 | worldgen caverns, per chunk | `featureRand(0x13198A2E03707344, cx, cy)` | one plan | no |
 | worldgen passages, per cavern pair | `featureRand(0xA4093822299F31D0, both caverns)` | one plan | no |
 | alien lore roster | `Seed ^ alienLoreSeed` | `newWorld` only | no |
+| arms-maker lore (corporations, gun models) | `Seed ^ armsLoreSeed` | `newWorld` only | no |
+| alien scientific names | `Seed ^ alienTaxonomySeed` | `newWorld` only | no |
 
 Why the streams are split is covered per stream in
 [personality.md](./personality.md), [caverns.md](./caverns.md),
-[lore.md](./lore.md) and [skills.md](./skills.md).
+[lore.md](./lore.md), [alien-taxonomy.md](./alien-taxonomy.md), [skills.md](./skills.md),
+[conversation-topics.md](./conversation-topics.md) and [recruiting.md](./recruiting.md).
 
 **Seeding.** `newPCG(seed)` feeds the int64 through splitmix64 twice to fill
 PCG's 128-bit state. Seeds that are next to each other, or differ only by one
@@ -48,8 +53,15 @@ of the XOR constants above, therefore start from unrelated states.
 source. So `World.rngSrc` keeps the `*rand.PCG` behind each saved stream.
 `saveRNG` returns each source's `MarshalBinary` bytes in an `rngState`.
 `loadRNG` unmarshals them back into the same sources, and that rewinds the
-`*rand.Rand` wrappers too. The save file will embed `rngState`. The worldgen-only
-streams are used up before tick 0, so a load never needs them.
+`*rand.Rand` wrappers too. The worldgen-only streams are used up before tick 0,
+so a load never needs them.
+
+A save file does not go through `rngState`. The save codec
+([save-load.md](./save-load.md)) writes the whole World, and the PCGs go with it:
+`rngSrc.sim` and the source inside `w.rng` are one object, written once and
+loaded as one, so drawing from a loaded `w.rng` still moves `rngSrc.sim`
+(`TestSaveKeepsRNGSourcesShared`). `saveRNG` / `loadRNG` remain as the
+per-stream round trip `TestRNGStateRoundTrips` checks.
 
 `newWorld` takes the simulation stream's `*rand.PCG` (not a `*rand.Rand`), so
 the world always owns the source it would need to save. Tests that never draw
@@ -103,6 +115,5 @@ from `w.rng` pass `nil`.
 
 - [personality.md](./personality.md): why flavor draws stay off `World.rng`.
 - [determinism.md](./determinism.md): the other half of the invariant (map
-  order), and the lockstep test a save/load test will copy.
-- [browser-frontend.md](./browser-frontend.md): the save/load design this
-  unblocks.
+  order), and the lockstep test.
+- [save-load.md](./save-load.md): the save files that carry these streams.

@@ -9,8 +9,8 @@ container) has an ownership record saying whose it is and who may use it, and
 every storage container keeps a **ledger** of whose goods are inside it. This is
 phase **E1** of the [economy plan](./economy.md). It changes nothing about how
 the colony plays today — everything the colony builds is owned by the community
-and open to all — but it is the ground the crash pods (a colonist's own bunk
-and locker), the order book, and paid fixtures stand on.
+and open to all — but it is the ground the colony ships (a colonist's own
+locker), the order book, and paid fixtures stand on.
 
 ## Source
 
@@ -26,9 +26,9 @@ and locker), the order book, and paid fixtures stand on.
   and `facilityGoal` skip restricted fixtures.
 - [`internal/sim/facilitychoice.go`](../internal/sim/facilitychoice.go) —
   `chooseFacility` skips fixtures a colonist may not use.
-- [`internal/sim/systems.go`](../internal/sim/systems.go) — `runNeedFocus`,
+- [`internal/sim/systems.go`](../internal/sim/systems.go) — `runDriveFocus`,
   `jobUse`, `chooseStorage`, and `jobStore` (which credits the depositor).
-- [`internal/sim/needs.go`](../internal/sim/needs.go) — the starvation grace
+- [`internal/sim/drives.go`](../internal/sim/drives.go) — the starvation grace
   uses `facilityReachable`.
 - [`internal/sim/snapshot.go`](../internal/sim/snapshot.go) — `StorageView.Ledger`,
   `Snapshot.Fixtures`, `Snapshot.FixtureAt`.
@@ -76,7 +76,7 @@ pockets paid for its own emergency build.
 die: placing a fixture terrain calls `placeFixture`, which records it as owned
 by the community and `AccessCommunal`; replacing one calls `dropFixture`.
 Anything that wants a different owner calls `setFixtureOwner(pos, owner,
-access)` afterwards: crash pods (see [crash-pods.md](./crash-pods.md)) and
+access)` afterwards: colony ships, for their lockers and troughs (see [ships.md](./ships.md)), and
 commissioned rooms (see [labor.md](./labor.md)) do.
 
 `Access` is `AccessCommunal` (anyone), `AccessPrivate` (the owner only), or
@@ -108,7 +108,7 @@ field, or it would lead everyone else to a bed they may not use. So:
   `jobUse` re-chooses if the fixture it committed to stops being usable.
   `chooseFacility`'s fast tiers read the shared field, which can't see a
   colonist's own bunk, so while any fixture of a kind is restricted it goes
-  straight to its bounded search (see [needs.md](./needs.md)). That search
+  straight to its bounded search (see [drives.md](./drives.md)). That search
   stops at the first usable free facility, usually the colonist's own. A
   colonist standing on an access tile doesn't count as a queue for that
   facility (`facilityCongested`). Before that, a colonist at its own pod door
@@ -205,5 +205,5 @@ abandoned-property rules need law.
 - [economy.md](./economy.md) — the plan this is phase E1 of.
 - [money.md](./money.md) — the other half of `Owner`: wallets and the treasury.
 - [storage.md](./storage.md) — containers, and how colonists come to store.
-- [needs.md](./needs.md) — facility use, which private fixtures now gate.
+- [drives.md](./drives.md) — facility use, which private fixtures now gate.
 - [pathfinding.md](./pathfinding.md) — the shared flow fields.

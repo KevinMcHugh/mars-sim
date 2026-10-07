@@ -2,6 +2,7 @@ package sim
 
 import (
 	"math"
+	"slices"
 	"sort"
 )
 
@@ -20,7 +21,7 @@ type EntityView struct {
 	MaxHP     int
 	State     State
 	Focus     FocusKind
-	Needs     [numNeeds]int
+	Drives    [numDrives]int
 	Profile   *Profile  // colonists only; a deep copy, safe to read
 	Inventory Inventory // colonists only; copied by value
 	// Wallet is the colonist's dollars (colonists only). On a Deceased record
@@ -39,6 +40,10 @@ type EntityView struct {
 	// see Entity.Species and World.alienSpeciesFor). Zero-valued for every
 	// other kind. See docs/lore.md.
 	AlienSpecies AlienSpecies
+	// Keeper is the colonist a pet (a chicken or a cat) came down with in its
+	// ship, 0 for a stray or anything that is not a pet. See
+	// docs/chickens.md.
+	Keeper EntityID
 
 	// Relations are the colonist's familial ties to other colonists, derived from
 	// the family tree; Affinities are its tracked warmth toward colonists it has
@@ -62,10 +67,13 @@ type EntityView struct {
 	Skills          []SkillView
 	Profession      SkillKind
 	ProfessionLabel string
+	// Backstory is a colonist's one-line past, "Worked as a drill operator
+	// for MarsCorp." ("" for none). Flavor only; see docs/arms-makers.md.
+	Backstory string
 
 	// Dead, DiedTick, and Cause are set only on a Snapshot.Graveyard or
 	// Snapshot.Deceased entry: it died at DiedTick (from Cause, a short
-	// player-facing phrase like "shot by Zoe Vargas with a shotgun"), and
+	// player-facing phrase like "shot by Zoe Vargas with a MarsCorp M-117 shotgun"), and
 	// every other field is frozen from that moment — Pos is where it died,
 	// not where anything is now.
 	Dead     bool
@@ -136,14 +144,16 @@ func (p ProjectView) Assignees() []EntityID {
 }
 
 // EconomyView is the colony's money supply at a glance, for the market tab.
-// Issued always equals Circulating + Frozen; a frontend can show the three
-// side by side without re-deriving any of them. See docs/money.md.
+// Issued always equals Circulating + Frozen + Escrowed + Exported; a frontend
+// can show them side by side without re-deriving any of them. See
+// docs/money.md.
 type EconomyView struct {
 	Treasury    Money // the community's balance
 	Circulating Money // treasury plus every living colonist's wallet
 	Frozen      Money // locked in dead colonists' wallets
 	Escrowed    Money // held by open bids until they fill or are cancelled
-	Issued      Money // every dollar ever minted: Circulating + Frozen + Escrowed
+	Exported    Money // paid off-world: the recruiter's fees and recruits' passage
+	Issued      Money // every dollar ever minted: Circulating + Frozen + Escrowed + Exported
 
 	// The order book (see docs/market.md): every open order oldest first,
 	// every book that has ever had an order by depot then item, and the
@@ -154,6 +164,16 @@ type EconomyView struct {
 	// WorkOrders is every open work order, oldest first (see
 	// docs/labor.md).
 	WorkOrders []WorkOrderView
+	// DigWage is what one tile of an excavation order pays, and DigMax the most
+	// tiles one order may cover (see docs/excavation.md).
+	DigWage Money
+	DigMax  int
+	// Suspended is every standing order a player has suspended, bids first,
+	// then in item order (see docs/colony-orders.md).
+	Suspended []SuspendedView
+	// Wide is every colony-wide order a player has set, bids first, then in
+	// item order (see docs/colony-orders.md).
+	Wide []WideOrderView
 	// Silo is the colony's market depot, when it has one.
 	Silo    Point
 	HasSilo bool
@@ -201,6 +221,21 @@ type OrderView struct {
 	Price Money
 	Actor Owner
 	Depot Point
+	// Posted is the tick it was posted (a reprice keeps the original's),
+	// and Manual whether a player placed or repriced it for the colony (see
+	// docs/colony-orders.md).
+	Posted int
+	Manual bool
+	// Wide is set for an order a colony-wide order placed.
+	Wide bool
+	// Expires is the tick it expires, 0 never. Escrow is the money a bid
+	// still holds (an ask's escrow is its Qty in goods). Filled and Fills
+	// are what it has traded so far, and with whom (see Fill and
+	// docs/order-detail.md); Fills is a copy.
+	Expires int
+	Escrow  Money
+	Filled  int
+	Fills   []Fill
 }
 
 // BookView summarizes one (item, depot) book: the best price and depth on
@@ -222,17 +257,22 @@ func (w *World) economyView() EconomyView {
 		Circulating: w.moneyInCirculation(),
 		Frozen:      w.moneyFrozen,
 		Escrowed:    w.moneyEscrowed(),
+		Exported:    w.moneyExported,
 		Issued:      w.moneyIssued,
 		Trades:      append([]Trade(nil), w.trades...),
 	}
 	v.Silo, v.HasSilo = w.marketDepot()
+	v.Suspended = w.suspendedOrders()
+	v.Wide = w.wideOrders()
+	v.DigWage, v.DigMax = w.wageFor(Floor), maxExcavationTiles
 	for _, o := range w.sortedWork(nil) {
 		v.WorkOrders = append(v.WorkOrders, WorkOrderView{ID: o.ID, Kind: o.Kind, Issuer: o.Issuer,
 			Pay: o.Pay, Units: o.Units, Pos: o.Pos})
 	}
 	for _, o := range w.sortedOrders(nil) {
 		v.Orders = append(v.Orders, OrderView{ID: o.ID, Side: o.Side, Item: o.Item, Qty: o.Qty,
-			Price: o.Price, Actor: o.Actor, Depot: o.Depot})
+			Price: o.Price, Actor: o.Actor, Depot: o.Depot, Posted: o.Posted, Manual: o.manual, Wide: o.wide,
+			Expires: o.Expires, Escrow: o.escrow, Filled: o.Filled, Fills: slices.Clone(o.Fills)})
 	}
 	for k, b := range w.books {
 		bv := BookView{Item: k.Item, Depot: k.Depot, Last: b.last, Volume: b.volume, Traded: b.traded}
@@ -332,14 +372,18 @@ func (s *Snapshot) FixtureAt(p Point) (FixtureView, bool) {
 	return FixtureView{}, false
 }
 
-// NeedMeta describes a need for display: its name, ceiling, and whether maxing
-// it out is fatal. Carried in the snapshot so frontends can render need bars
-// without reaching into Config.
-type NeedMeta struct {
-	Name  string
-	Max   int
-	Fatal bool
+// DriveMeta describes a drive for display: its name, ceiling, and what reaching
+// the ceiling does (DriveSpec.CeilingConsequence). Carried in the snapshot so
+// frontends can render drive bars without reaching into Config.
+type DriveMeta struct {
+	Name        string
+	Max         int
+	Consequence Consequence
 }
+
+// Fatal reports whether a drive at its ceiling kills: the bar a frontend paints
+// red.
+func (m DriveMeta) Fatal() bool { return m.Consequence == ConsequenceDeath }
 
 // Stats summarizes the world at a glance for the UI header.
 type Stats struct {
@@ -347,6 +391,7 @@ type Stats struct {
 	Aliens    int
 	Cats      int
 	Rats      int
+	Chickens  int
 	FloorDug  int // tiles of discovered Floor (excavation progress; undiscovered caverns excluded)
 	// ExploredTiles is how many tiles World.reveal has ever uncovered (see
 	// World.exploredCount). Only meaningful when FogOfWar is on -- with it
@@ -368,6 +413,11 @@ type Stats struct {
 	// built without generation.
 	ChunksGenerated int
 	Chunks          int
+	// Day is the colony day since landing (day 1 is the landing day), at
+	// Config.TicksPerDay ticks a day, and MinuteOfDay is the clock time in
+	// minutes since midnight (0..1439). See docs/days.md.
+	Day         int
+	MinuteOfDay int
 }
 
 // Snapshot is an immutable, self-contained picture of the world at one tick.
@@ -381,7 +431,16 @@ type Stats struct {
 // Tiles aliases the live map, and the frame's terrain is only good on the
 // engine's goroutine until the next tick. Everything else stays a copy.
 type Snapshot struct {
-	Tick   int
+	Tick int
+	// TicksPerDay is Config.TicksPerDay, for a frontend turning some other
+	// tick (an order's Posted) into a day and a clock time with DayOf and
+	// MinuteOfDay. See docs/days.md.
+	TicksPerDay int
+	// Ships is every colony ship that has landed, in landing order, then any
+	// still aloft (see LandShip). Before the first tick (Tick 0) a frontend
+	// may land the next aloft one with LandShip and move landed ones with
+	// MoveShip.
+	Ships  []ShipView
 	Width  int
 	Height int
 	// Seed is this run's world seed -- the one fact that, together with the
@@ -421,9 +480,9 @@ type Snapshot struct {
 	Deceased map[EntityID]EntityView
 	// Log is the retained colony log, oldest first. Kind is the type column;
 	// Text is the sentence. See log.go.
-	Log       []LogEntry
-	Stats     Stats
-	NeedsMeta [numNeeds]NeedMeta
+	Log        []LogEntry
+	Stats      Stats
+	DrivesMeta [numDrives]DriveMeta
 
 	// Projects are the colony's queued construction work, for the job board.
 	// PendingFacilityRooms / PendingDormitories / PendingTrashRooms /
@@ -453,16 +512,35 @@ type Snapshot struct {
 	// incinerators, storage), sorted by position. The slice is shared between
 	// frames until a fixture changes, and never written after publication.
 	Fixtures []FixtureView
+	// Zoning (see docs/zoning.md). Zones is every zoned tile as row runs,
+	// sorted by row then column; Structures every standing or rising
+	// structure, by id. Both are shared between frames until they change,
+	// and never written after publication. ZoneWaiting lists the fixture
+	// kinds the colony wants and no zone has room for. ZoningAuto is the
+	// zoning-auto setting; ClearWage what clearing one tile pays.
+	Zones       []ZoneRun
+	Structures  []StructureView
+	ZoneWaiting []Terrain
+	ZoningAuto  bool
+	ClearWage   Money
 
 	// AlienSpecies is this world's roster of rolled alien species -- each
 	// one's build, colloquial name, and temperament. Every Alien in Entities
 	// carries a copy of the one it belongs to on its own EntityView.AlienSpecies;
 	// this is the full roster, for a codex-style listing. See docs/lore.md.
 	AlienSpecies []AlienSpecies
+	// Corporations is this world's roster of companies, and GunModels the make
+	// and model each gun kind carries (Maker indexes Corporations). Flavor
+	// only. See docs/arms-makers.md.
+	Corporations []Corporation
+	GunModels    []GunModel
 
 	// Economy is the money supply; each colonist's own balance is on its
 	// EntityView.Wallet.
 	Economy EconomyView
+	// Recruiting is the recruiter's terms and the set on offer (see
+	// docs/recruiting.md).
+	Recruiting RecruitingView
 
 	AffinityMax    int // affinity display bars run [-AffinityMax, AffinityMax]
 	MoodMax        int // charge and grip each run in [-MoodMax, MoodMax]
@@ -477,6 +555,10 @@ type Snapshot struct {
 	// Population is the colony's vital signs over the whole game, oldest
 	// first; see population.go. Shared between snapshots, never written.
 	Population []PopulationSample
+	// Metrics is everything the chart system can plot, sampled hourly on
+	// the colony clock over the whole game; see metrics.go and
+	// docs/charts.md. Shared between snapshots, never written.
+	Metrics *MetricsView
 
 	// FlowFields lists every shared flow field, in a stable order, for a
 	// frontend that offers to show one. FlowField is the one it asked for
@@ -623,6 +705,8 @@ func (w *World) snapshot(paused bool, tps int) *Snapshot {
 		StorageContainers: w.countTerrain(Storage),
 		Refuse:            w.refuseTotal(),
 	}
+	tpd := w.cfg.TicksPerDay()
+	stats.Day, stats.MinuteOfDay = DayOf(w.tick, tpd), MinuteOfDay(w.tick, tpd)
 	// Chunks counts every level the colony has broken into: each has the
 	// map's full complement.
 	w.eachLayer(func(l *Layer) {
@@ -643,13 +727,15 @@ func (w *World) snapshot(paused bool, tps int) *Snapshot {
 			stats.Cats++
 		case Rat:
 			stats.Rats++
+		case Chicken:
+			stats.Chickens++
 		}
 	}
 
-	var needsMeta [numNeeds]NeedMeta
-	for i := 0; i < int(numNeeds); i++ {
-		spec := w.cfg.Needs[i]
-		needsMeta[i] = NeedMeta{Name: spec.Name, Max: spec.Max, Fatal: spec.Fatal}
+	var drivesMeta [numDrives]DriveMeta
+	for i := 0; i < int(numDrives); i++ {
+		spec := w.cfg.Drives[i]
+		drivesMeta[i] = DriveMeta{Name: spec.Name, Max: spec.Max, Consequence: spec.CeilingConsequence()}
 	}
 
 	projects := make([]ProjectView, 0, len(w.projects))
@@ -678,6 +764,7 @@ func (w *World) snapshot(paused bool, tps int) *Snapshot {
 
 	return &Snapshot{
 		Tick:                 w.tick,
+		TicksPerDay:          tpd,
 		Width:                w.Width,
 		Height:               w.Height,
 		Seed:                 w.cfg.Seed,
@@ -687,7 +774,7 @@ func (w *World) snapshot(paused bool, tps int) *Snapshot {
 		Entities:             ents,
 		Log:                  w.log.tail(len(w.log.entries)),
 		Stats:                stats,
-		NeedsMeta:            needsMeta,
+		DrivesMeta:           drivesMeta,
 		Projects:             projects,
 		PendingFacilityRooms: w.manualFacilityRooms,
 		PendingDormitories:   w.manualDormitories,
@@ -700,16 +787,26 @@ func (w *World) snapshot(paused bool, tps int) *Snapshot {
 		PendingStairs:        w.manualStairs,
 		Storages:             storages,
 		Fixtures:             w.publishedFixtures(),
+		Zones:                w.publishedZones(),
+		Structures:           w.publishedStructures(),
+		ZoneWaiting:          w.zoneWaiting(),
+		ZoningAuto:           w.cfg.ZoningAuto,
+		ClearWage:            Money(w.cfg.WageDemolish),
 		Scum:                 w.publishedScum(),
 		Salt:                 w.publishedSalt(),
 		Graveyard:            append([]EntityView(nil), w.graveyard...),
 		Deceased:             w.publishedDeceasedColonists(),
 		AlienSpecies:         append([]AlienSpecies(nil), w.alienSpecies...),
+		Corporations:         append([]Corporation(nil), w.corporations...),
+		GunModels:            append([]GunModel(nil), w.gunModels...),
 		Population:           w.popHist,
+		Metrics:              w.metricsView(),
 		Economy:              w.economyView(),
+		Recruiting:           w.recruitingView(),
 		AffinityMax:          w.cfg.AffinityMax,
 		MoodMax:              w.cfg.MoodMax,
 		ScumMax:              w.cfg.ScumMax,
+		Ships:                w.shipViews(),
 		Paused:               paused,
 		TicksPerSecond:       tps,
 		FogOfWar:             w.cfg.FogOfWar,
@@ -721,17 +818,15 @@ func (w *World) snapshot(paused bool, tps int) *Snapshot {
 // position so the list never depends on map iteration order.
 func (w *World) snapshotStorages() []StorageView {
 	storages := make([]StorageView, 0)
-	w.eachLayer(func(l *Layer) {
-		for _, container := range l.storageContainers {
-			storages = append(storages, StorageView{
-				Pos:       container.Pos,
-				Terrain:   container.Terrain,
-				Pantry:    w.isPantry(container.Pos),
-				Inventory: container.Inventory,
-				Ledger:    append([]LedgerLine(nil), container.Ledger...),
-			})
-		}
-	})
+	for _, container := range w.storageContainers {
+		storages = append(storages, StorageView{
+			Pos:       container.Pos,
+			Terrain:   container.Terrain,
+			Pantry:    w.isPantry(container.Pos),
+			Inventory: container.Inventory,
+			Ledger:    append([]LedgerLine(nil), container.Ledger...),
+		})
+	}
 	sort.Slice(storages, func(i, j int) bool {
 		return lessPoint(storages[i].Pos, storages[j].Pos)
 	})
@@ -768,10 +863,11 @@ func (w *World) entityView(e *Entity, kinChildren map[kinID][]kinID, full bool) 
 		MaxHP:     e.MaxHP,
 		State:     e.State,
 		Focus:     e.focus,
-		Needs:     w.currentNeeds(e),
+		Drives:    w.currentDrives(e),
 		Profile:   e.Profile.clone(),
 		Inventory: e.Inventory,
 		Wallet:    e.wallet,
+		Keeper:    e.keeper,
 	}
 	if e.hasParts() {
 		ev.Parts = e.Parts
@@ -788,6 +884,7 @@ func (w *World) entityView(e *Entity, kinChildren map[kinID][]kinID, full bool) 
 		ev.Memories = append([]Memory(nil), e.Memories...)
 		ev.Skills = e.skillViews()
 		ev.Profession, ev.ProfessionLabel = e.profession, e.professionLabel()
+		ev.Backstory = w.backstory(e)
 		if full {
 			ev.Relations = append([]Relation(nil), w.cachedRelations(e, kinChildren)...)
 			ev.Affinities = w.affinitiesOf(e.ID)
@@ -796,11 +893,11 @@ func (w *World) entityView(e *Entity, kinChildren map[kinID][]kinID, full bool) 
 	return ev
 }
 
-// currentNeeds returns a colonist's need levels as of now, computed lazily.
-func (w *World) currentNeeds(e *Entity) [numNeeds]int {
-	var out [numNeeds]int
-	for i := 0; i < int(numNeeds); i++ {
-		out[i] = w.needLevel(e, NeedKind(i))
+// currentDrives returns a colonist's drive levels as of now, computed lazily.
+func (w *World) currentDrives(e *Entity) [numDrives]int {
+	var out [numDrives]int
+	for i := 0; i < int(numDrives); i++ {
+		out[i] = w.driveLevel(e, DriveKind(i))
 	}
 	return out
 }

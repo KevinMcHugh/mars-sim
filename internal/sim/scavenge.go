@@ -91,11 +91,11 @@ func (w *World) jobScavenge(e *Entity) {
 	}
 	e.State = Eating
 	e.Progress++
-	if e.Progress < w.cfg.Needs[NeedFood].UseTicks {
+	if e.Progress < w.cfg.Drives[DriveFood].UseTicks {
 		return
 	}
 	if w.eatScavenge(e.Target) {
-		w.resetNeed(e, NeedFood)
+		w.resetDrive(e, DriveFood)
 	}
 	w.clearJob(e)
 }

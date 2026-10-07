@@ -7,14 +7,15 @@ import "testing"
 func noScum(w *World) {
 	w.landing().scum = map[Point]scumPatch{}
 	w.landing().exposedScum = map[Point]struct{}{}
-	w.landing().scumPatches = nil
+	w.landing().scumPatches = patchList{}
+	w.landing().scumThin = map[Point]struct{}{}
+	w.landing().scumThinPages = nil
 }
 
 // hungryRat puts a rat at p with its hunger just past seeking.
 func hungryRat(w *World, p Point) *Entity {
 	r := w.spawn(Rat, p)
-	r.Needs[NeedFood] = w.cfg.Needs[NeedFood].SeekAt + 10
-	r.needSince[NeedFood] = w.tick
+	w.setDrive(r, DriveFood, w.cfg.Drives[DriveFood].SeekAt+10)
 	return r
 }
 
@@ -37,8 +38,8 @@ func TestRatsEatTheDeadBeforeRaidingPods(t *testing.T) {
 	if w.corpsesAt(body) != 0 {
 		t.Fatal("the rat never ate the carcass")
 	}
-	if w.needLevel(r, NeedFood) >= w.cfg.Needs[NeedFood].SeekAt {
-		t.Fatalf("the rat is still hungry (%d) after eating", w.needLevel(r, NeedFood))
+	if w.driveLevel(r, DriveFood) >= w.cfg.Drives[DriveFood].SeekAt {
+		t.Fatalf("the rat is still hungry (%d) after eating", w.driveLevel(r, DriveFood))
 	}
 }
 
@@ -65,8 +66,7 @@ func TestRatsEatGoreAndExposedScum(t *testing.T) {
 	if w.scavengeable(buried) || !w.scavengeable(face) {
 		t.Fatalf("scavengeable: buried %v, face %v", w.scavengeable(buried), w.scavengeable(face))
 	}
-	r.Needs[NeedFood] = w.cfg.Needs[NeedFood].SeekAt + 10
-	r.needSince[NeedFood] = w.tick
+	w.setDrive(r, DriveFood, w.cfg.Drives[DriveFood].SeekAt+10)
 	r.Job = JobNone
 	for i := 0; i < 200 && w.scumAt(face) == w.cfg.ScumMax; i++ {
 		w.step()
@@ -81,20 +81,25 @@ func TestRatsEatGoreAndExposedScum(t *testing.T) {
 
 // With the safety net off, rats live on biomatter where they used to starve at
 // once. Food is scarce — colonists scrape the same patches — so what is
-// compared is how long the rats last in total, not whether they make it.
+// compared is how long the rats last in total, not whether they make it, over
+// three seeds: on one, anything that moves the colonists (a room built
+// somewhere else) moves the rats' luck with it.
 func TestRatsLiveOnScumWithoutTheSafetyNet(t *testing.T) {
 	ratTicks := func(scum int) int {
-		cfg := testConfig()
-		cfg.Width, cfg.Height = 60, 36
-		cfg.StartAliens, cfg.StartCats = 0, 0
-		cfg.StartRats = 6
-		cfg.InfiniteFood = false
-		cfg.ScumPercent = scum
-		w := newTestWorld(t, cfg)
 		total := 0
-		for i := 0; i < 600; i++ {
-			w.step()
-			total += w.countKind(Rat)
+		for _, seed := range []int64{1, 2, 3} {
+			cfg := testConfig()
+			cfg.Seed = seed
+			cfg.Width, cfg.Height = 60, 36
+			cfg.StartAliens, cfg.StartCats = 0, 0
+			cfg.StartRats = 6
+			cfg.InfiniteFood = false
+			cfg.ScumPercent = scum
+			w := newTestWorld(t, cfg)
+			for i := 0; i < 600; i++ {
+				w.step()
+				total += w.countKind(Rat)
+			}
 		}
 		return total
 	}
@@ -108,8 +113,7 @@ func TestRatsLiveOnScumWithoutTheSafetyNet(t *testing.T) {
 func hungryAlien(w *World, p Point, temp AlienTemperament) *Entity {
 	w.alienSpecies[0].Temperament = temp
 	a := w.spawn(Alien, p)
-	a.Needs[NeedFood] = w.cfg.Needs[NeedFood].SeekAt + 10
-	a.needSince[NeedFood] = w.tick
+	w.setDrive(a, DriveFood, w.cfg.Drives[DriveFood].SeekAt+10)
 	return a
 }
 
@@ -137,8 +141,8 @@ func TestPeacefulAliensGrazeScum(t *testing.T) {
 			if w.scumAt(patch) == w.cfg.ScumMax {
 				t.Fatal("the hungry alien never grazed the scum")
 			}
-			if w.needLevel(a, NeedFood) >= w.cfg.Needs[NeedFood].SeekAt {
-				t.Fatalf("the alien is still hungry (%d) after grazing", w.needLevel(a, NeedFood))
+			if w.driveLevel(a, DriveFood) >= w.cfg.Drives[DriveFood].SeekAt {
+				t.Fatalf("the alien is still hungry (%d) after grazing", w.driveLevel(a, DriveFood))
 			}
 			if w.scumAt(buried) != w.cfg.ScumMax {
 				t.Fatal("scum sealed in rock was grazed")

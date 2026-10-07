@@ -309,13 +309,13 @@ func TestAlienNestsSpawnWhenBreached(t *testing.T) {
 	if n := w.countKind(Alien); n != 0 {
 		t.Fatalf("%d aliens exist before any cave was found", n)
 	}
-	if len(w.landing().unfoundCaverns) == 0 {
+	if len(w.unfoundCaverns) == 0 {
 		t.Fatal("no caverns tracked for nests")
 	}
 
 	cave := breachBeside(t, w, hiddenFloorTiles(w)[0])
 	for _, p := range cave {
-		if _, ok := w.landing().unfoundCaverns[p]; ok {
+		if _, ok := w.unfoundCaverns[p]; ok {
 			t.Fatalf("cavern center %v still unfound after the breach", p)
 		}
 	}

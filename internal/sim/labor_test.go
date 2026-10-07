@@ -104,9 +104,9 @@ func TestAColonistCommissionsAndPaysForAHouse(t *testing.T) {
 	for _, task := range house.tasks {
 		switch task.terrain {
 		case Bed:
-			bed = w.landing().fixtures[task.pos]
+			bed = w.fixtures[task.pos]
 		case Toilet:
-			toilet = w.landing().fixtures[task.pos]
+			toilet = w.fixtures[task.pos]
 		}
 	}
 	if bed == nil || toilet == nil {
@@ -139,17 +139,17 @@ func TestPaidToiletsChargeTheirUsers(t *testing.T) {
 		t.Fatal("wrong access to the paid toilet")
 	}
 	ownerStart, guestStart := owner.wallet, guest.wallet
-	for n := NeedKind(0); n < numNeeds; n++ {
-		guest.Needs[n] = 0 // nothing but the bladder calls
+	for n := DriveKind(0); n < numDrives; n++ {
+		w.setDrive(guest, n, 0) // nothing but the bladder calls
 	}
-	guest.Needs[NeedBladder] = w.cfg.Needs[NeedBladder].SeekAt + 10
-	for n := NeedKind(0); n < numNeeds; n++ {
-		w.syncNeedPhase(guest, n)
+	w.setDrive(guest, DriveBladder, w.cfg.Drives[DriveBladder].SeekAt+10)
+	for n := DriveKind(0); n < numDrives; n++ {
+		w.syncDrivePhase(guest, n)
 	}
-	for i := 0; i < 100 && w.needLevel(guest, NeedBladder) > 0; i++ {
+	for i := 0; i < 100 && w.driveLevel(guest, DriveBladder) > 0; i++ {
 		w.step()
 	}
-	if w.needLevel(guest, NeedBladder) != 0 {
+	if w.driveLevel(guest, DriveBladder) != 0 {
 		t.Fatal("the guest never used the toilet")
 	}
 	if guest.wallet != guestStart-3 || owner.wallet != ownerStart+3 {
@@ -171,13 +171,13 @@ func TestTheColonyBuysBiomatterAtItsScumhouse(t *testing.T) {
 	s := w.spawn(Colonist, Point{12, 12, LandingLevel})
 	start, treasury := s.wallet, w.treasury+w.moneyEscrowed()
 	s.Inventory.Add(CaveScum, 3)
-	if !w.deliverBiomatter(s, w.landing().storageContainers[house]) {
+	if !w.deliverBiomatter(s, w.storageContainers[house]) {
 		t.Fatal("delivery refused")
 	}
 	if want := start + 3*Money(w.cfg.PriceCaveScum); s.wallet != want {
 		t.Fatalf("scraper has %v after selling 3 scum, want %v", s.wallet, want)
 	}
-	if got := w.landing().storageContainers[house].held(Community, CaveScum); got != 3 {
+	if got := w.storageContainers[house].held(Community, CaveScum); got != 3 {
 		t.Fatalf("colony owns %d scum at the scumhouse, want 3", got)
 	}
 	if w.treasury+w.moneyEscrowed() != treasury-3*Money(w.cfg.PriceCaveScum) {
@@ -221,17 +221,22 @@ func TestACommissionDiesWithItsCommissioner(t *testing.T) {
 // Under scarcity (the game's defaults), a colony founded with no money still
 // feeds itself: it cannot pay for any room, but it marks out its first
 // scumhouse as unpaid community work — life support does not wait on money —
-// and nothing else.
+// and nothing else. A colonist can still spend its own crash-pod money: a
+// chef with savings may buy a kitchen of its own.
 func TestAColonyWithNoMoneyStillFeedsItself(t *testing.T) {
 	for _, seed := range []int64{42, 1, 3} {
 		cfg := DefaultConfig()
 		cfg.Seed, cfg.TraitChance = seed, 0
 		cfg.Width, cfg.Height = 40, 24
 		cfg.StartAliens, cfg.FoundingGrant, cfg.CavernNestPercent = 0, 0, 0 // about food, not aliens
+		cfg.ZoningAuto = true                                               // nobody draws zones here
 		w := newTestWorld(t, cfg)
 		for i := 0; i < 8000; i++ {
 			w.step()
 			for _, p := range w.projects {
+				if p.issuer.Kind == OwnerColonist {
+					continue // paid from its own wallet, not the treasury
+				}
 				if p.name != scumhouseRoom.name || p.issuer != Nobody {
 					t.Fatalf("seed %d tick %d: planned %q for %v with no money", seed, w.tick, p.name, p.issuer)
 				}
@@ -255,10 +260,10 @@ func TestDeathReleasesAJobsClaims(t *testing.T) {
 	w.refreshSpatial()
 	cook := w.spawn(Colonist, Point{10, 7, LandingLevel})
 	cook.Job, cook.Target = JobCraft, house
-	w.landing().workshopClaims[house] = cook.ID
+	w.workshopClaims[house] = cook.ID
 	scraper := w.spawn(Colonist, Point{14, 7, LandingLevel})
 	scraper.Job, scraper.Target, scraper.scrape = JobScrape, patch, scrapeGather
-	w.landing().scumClaims[patch] = scraper.ID
+	w.scumClaims[patch] = scraper.ID
 	hauler := w.spawn(Colonist, Point{12, 9, LandingLevel})
 	hauler.Job, hauler.carryWork = JobCarry, 77
 	w.haulClaims[77] = hauler.ID
@@ -266,8 +271,8 @@ func TestDeathReleasesAJobsClaims(t *testing.T) {
 	for _, e := range []*Entity{cook, scraper, hauler} {
 		w.remove(e.ID, "bitten")
 	}
-	if len(w.landing().workshopClaims) != 0 || len(w.landing().scumClaims) != 0 || len(w.haulClaims) != 0 {
-		t.Fatalf("claims outlived their claimants: workshops %v, scum %v, hauls %v", w.landing().workshopClaims, w.landing().scumClaims, w.haulClaims)
+	if len(w.workshopClaims) != 0 || len(w.scumClaims) != 0 || len(w.haulClaims) != 0 {
+		t.Fatalf("claims outlived their claimants: workshops %v, scum %v, hauls %v", w.workshopClaims, w.scumClaims, w.haulClaims)
 	}
 }
 
@@ -310,6 +315,7 @@ func TestAHouseWaitsForTheFirstScumhouse(t *testing.T) {
 	cfg := DefaultConfig()
 	cfg.Seed, cfg.StartAliens, cfg.CavernNestPercent = 42, 0, 0
 	cfg.Width, cfg.Height = 80, 50
+	cfg.ZoningAuto = true
 	w := newTestWorld(t, cfg)
 	rich := w.entities[w.entityIDsSorted()[0]]
 	w.transfer(Community, ColonistOwner(rich.ID), Money(cfg.HouseSavings))

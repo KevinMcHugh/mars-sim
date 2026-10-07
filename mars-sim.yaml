@@ -91,8 +91,8 @@
 ## starting number of aliens
 # aliens: 3
 
-## starting number of cats
-# cats: 2
+## starting number of stray cats (colonists also bring cats: see crash-pod-cat-weight)
+# cats: 0
 
 ## starting number of rats
 # rats: 8
@@ -115,6 +115,12 @@
 
 ## nutrient pods make free meals out of nothing (the safety net)
 # infinite-food: false
+
+## colonists choose where to build and zone it themselves; off, they build only inside zones the player draws (the browser's Zones tab)
+## Set here because the terminal and headless runs have no way to draw a
+## zone: with it off, their colonies would never build. The browser game
+## does not read this file and starts with it off. See docs/zoning.md.
+zoning-auto: true
 
 # ── Food production ─────────────────────────────────────────────────────
 ## percent of the map's tiles carrying a patch of cave scum
@@ -196,6 +202,30 @@
 ## food need at which a colonist with no meal on it fetches one of its own to carry, before it's hungry enough to eat (0: never)
 # pocket-meal-at: 300
 
+## ticks a colonist's unsold ask for food (meals, scum, other biomatter) waits before it comes down in price (0: asks never move)
+# ask-decay-ticks: 150
+
+## percent a colonist's unsold food ask comes down each time, at least $1, never below $1, or for a meal below what its scum costs
+# ask-decay-percent: 10
+
+## colonists offer idle food they own at the kitchens and the silo for sale at its market value: meals beyond meal-keep, scum beyond one recipe's worth
+# relist-idle: true
+
+## a hungry colonist's waiting bid for a meal starts at this percent of a meal's value, or its limit if lower
+# bid-start-percent: 80
+
+## ticks a hungry colonist's waiting meal bid goes unfilled before it raises it toward its limit (0: it bids its limit at once)
+# bid-raise-ticks: 50
+
+## how much a hungry colonist raises its waiting meal bid each time, as a percent of its limit (what its hunger and money will pay), at least $1
+# bid-raise-percent: 20
+
+## prices float only once the colony has held this many meals per colonist, its kitchens running; until then trades don't move them, and unsold asks don't come down (0: they float from landing)
+# free-prices-at: 1
+
+## colonists price the meals they sell, and judge whether cooking pays, at a meal's market value (off: at price-meal)
+# meal-sell-at-market: true
+
 # ── Skills ──────────────────────────────────────────────────────────────
 ## colonists arrive with skills, and skilled work is faster and yields more (off: no backgrounds, no effects)
 # skills: true
@@ -250,6 +280,10 @@
 ## what the colony pays for an assault rifle at its silo
 # price-assault-rifle: 60
 
+# ── Colony standing orders ──────────────────────────────────────────────
+## the colony posts no standing orders but its bids for building materials (rock, iron ore, clay)
+# standing-orders-build-only: true
+
 # ── Hauling ─────────────────────────────────────────────────────────────
 ## the colony sells the goods it bought, beyond its reserve, at its silo
 # colony-sells: true
@@ -276,6 +310,9 @@
 ## what the colony pays to build one fixture (pod, toilet, bed, ...)
 # wage-fixture: 5
 
+## what the colony pays to tear down one structure tile: a wall moved to enlarge a room, or anything a clearing order takes down
+# wage-demolish: 3
+
 ## what the colony pays a cook each time it works a recipe on the colony's stock
 # wage-cook: 1
 
@@ -291,31 +328,80 @@
 ## what a house's toilet charges anyone but its owner per use (0: private)
 # toilet-fee: 2
 
-# ── Crash pods ──────────────────────────────────────────────────────────
+# ── Arrivals ────────────────────────────────────────────────────────────
+## most settlers one colony ship carries; a larger wave comes down in several
+# ship-capacity: 20
+
+## communal bunks a ship carries, as a percent of its passengers (rounded up)
+# ship-bunk-percent: 50
+
+## communal toilets a ship carries, as a percent of its passengers (rounded up)
+# ship-toilet-percent: 25
+
+## relative odds a colony ship is a stick: its rooms in a row along one aisle
+# ship-stick-weight: 1
+
+## relative odds a colony ship is a hub and spoke: a concourse with a room down each spoke
+# ship-hub-weight: 1
+
+## relative odds a colony ship is a knobby cluster: rooms budding off a spine corridor
+# ship-cluster-weight: 1
+
+## hold the founders' ships aloft for the player to land one by one (the browser does)
+# place-ships: false
+
 ## dollars each colonist arrives with
 # crash-pod-purse: 100
 
-## meals stocked in each crash pod's locker, on average
+## meals stocked in each colonist's locker, on average
 # crash-pod-meals: 10
 
-## each pod's meals vary by up to this many either side of crash-pod-meals
+## each locker's meals vary by up to this many either side of crash-pod-meals
 # crash-pod-meal-spread: 0
 
-## pistols in each crash pod's manifest, at most
-# crash-pod-pistols: 1
+## relative odds a colonist's one rare item is a gun
+# crash-pod-gun-weight: 50
 
-## shotguns in each crash pod's manifest, at most
-# crash-pod-shotguns: 1
+## relative odds a colonist's one rare item is a chicken (with a trough in its ship's hold)
+# crash-pod-chicken-weight: 25
 
-## percent chance each manifest pistol is aboard a given colonist's pod
-# crash-pod-pistol-percent: 70
+## relative odds a colonist's one rare item is a cat
+# crash-pod-cat-weight: 25
 
-## percent chance each manifest shotgun is aboard a given colonist's pod
-# crash-pod-shotgun-percent: 20
+## percent of the guns colonists land with that are shotguns rather than pistols
+# crash-pod-shotgun-percent: 25
+
+# ── Recruiting ──────────────────────────────────────────────────────────
+## dollars the treasury pays the recruiter for each set of candidates
+# recruiter-fee: 500
+
+## candidates in each set the recruiter presents (0 disables recruiting)
+# recruit-candidates: 5
+
+## dollars the treasury pays for each candidate hired: passage and starting supplies
+# recruit-cost: 100
+
+## meals each recruit arrives with, in its pockets
+# recruit-meals: 3
+
+## average dollars a candidate brings with it, before clamping to the min and max
+# recruit-savings-mean: 100
+
+## about 95% of candidates' savings fall within this many dollars of the mean, while it is well under the mean; wider gives a long tail of rare rich candidates (0: everyone brings the mean)
+# recruit-savings-spread: 50
+
+## fewest dollars a candidate brings (never below 0: no candidate arrives in debt)
+# recruit-savings-min: 0
+
+## most dollars a candidate brings
+# recruit-savings-max: 10000
 
 # ── Timing ──────────────────────────────────────────────────────────────
 ## simulation ticks per second
 # tps: 8
+
+## start the game paused (the browser does, so the ships can be placed)
+# start-paused: false
 
 ## number of recent events retained
 # log-size: 64
@@ -330,7 +416,7 @@
 ## ticks of work to raise one wall
 # build-ticks: 8
 
-## ticks of work to break down one wall tile when escaping a sealed room
+## ticks of work to break down one wall or hull tile, escaping a sealed room or opening a passage
 # demolish-ticks: 16
 
 ## ticks of work to build a pod or toilet
@@ -361,101 +447,177 @@
 ## ticks of work to build an incinerator
 # incinerator-ticks: 20
 
-# ── Needs ───────────────────────────────────────────────────────────────
+# ── Drives ──────────────────────────────────────────────────────────────
 
-# One spec per colonist need. These are nested, so uncommenting a value means
-# uncommenting the "needs:" and need-name lines above it as well.
+# One spec per colonist drive. These are nested, so uncommenting a value means
+# uncommenting the "drives:" and drive-name lines above it as well.
 
-# needs:
+# drives:
 #   food:
-##     level gained per tick
-#     rise: 2
+##     base growth per tick, in thousandths of a point
+#     rate: 1750
+
+##     floor the level never falls below
+#     min: 0
 
 ##     level at which the colonist drops work to satisfy it
 #     seek-at: 650
 
-##     level at which the need becomes critical
+##     level at which the drive becomes critical
 #     critical-at: 1000
 
-##     ceiling; a fatal need sitting here drains HP
+##     ceiling; the drive's consequences there apply while it sits here
 #     max: 1000
 
-##     ticks spent using the facility
+##     ticks spent using the facility (0: until the drive falls to 0, as sleep does in bed)
 #     use-ticks: 18
-
-##     whether sitting at the ceiling damages the colonist
-#     fatal: true
 
 ##     ticks at the facility before carrying the rest away (0 = must be used in place)
 #     grab-ticks: 3
 
+#     activity:
+##       percent of the base rate in the asleep drive activity
+#       asleep: 10
+
+##       percent of the base rate in the idle drive activity
+#       idle: 75
+
+##       percent of the base rate in the working drive activity
+#       working: 100
+
+##       percent of the base rate in the labor drive activity
+#       labor: 140
+
+##       percent of the base rate in the unconscious drive activity
+#       unconscious: 10
+
+##     ticks between repeats of the drive's felt consequence while it stays in range (0: once until satisfied)
+#     consequence-every: 0
+
 #   bladder:
-##     level gained per tick
-#     rise: 3
+##     base growth per tick, in thousandths of a point
+#     rate: 3000
+
+##     floor the level never falls below
+#     min: 0
 
 ##     level at which the colonist drops work to satisfy it
 #     seek-at: 600
 
-##     level at which the need becomes critical
+##     level at which the drive becomes critical
 #     critical-at: 900
 
-##     ceiling; a fatal need sitting here drains HP
+##     ceiling; the drive's consequences there apply while it sits here
 #     max: 1000
 
-##     ticks spent using the facility
+##     ticks spent using the facility (0: until the drive falls to 0, as sleep does in bed)
 #     use-ticks: 10
-
-##     whether sitting at the ceiling damages the colonist
-#     fatal: false
 
 ##     ticks at the facility before carrying the rest away (0 = must be used in place)
 #     grab-ticks: 0
 
+#     activity:
+##       percent of the base rate in the asleep drive activity
+#       asleep: 10
+
+##       percent of the base rate in the idle drive activity
+#       idle: 100
+
+##       percent of the base rate in the working drive activity
+#       working: 100
+
+##       percent of the base rate in the labor drive activity
+#       labor: 100
+
+##       percent of the base rate in the unconscious drive activity
+#       unconscious: 10
+
+##     ticks between repeats of the drive's felt consequence while it stays in range (0: once until satisfied)
+#     consequence-every: 0
+
 #   social:
-##     level gained per tick
-#     rise: 2
+##     base growth per tick, in thousandths of a point
+#     rate: 2000
+
+##     floor the level never falls below
+#     min: 0
 
 ##     level at which the colonist drops work to satisfy it
 #     seek-at: 500
 
-##     level at which the need becomes critical
+##     level at which the drive becomes critical
 #     critical-at: 850
 
-##     ceiling; a fatal need sitting here drains HP
+##     ceiling; the drive's consequences there apply while it sits here
 #     max: 1000
 
-##     ticks spent using the facility
+##     ticks spent using the facility (0: until the drive falls to 0, as sleep does in bed)
 #     use-ticks: 0
 
-##     whether sitting at the ceiling damages the colonist
-#     fatal: false
-
 ##     ticks at the facility before carrying the rest away (0 = must be used in place)
 #     grab-ticks: 0
+
+#     activity:
+##       percent of the base rate in the asleep drive activity
+#       asleep: 0
+
+##       percent of the base rate in the idle drive activity
+#       idle: 100
+
+##       percent of the base rate in the working drive activity
+#       working: 100
+
+##       percent of the base rate in the labor drive activity
+#       labor: 100
+
+##       percent of the base rate in the unconscious drive activity
+#       unconscious: 0
+
+##     ticks between repeats of the drive's felt consequence while it stays in range (0: once until satisfied)
+#     consequence-every: 200
 
 #   sleep:
-##     level gained per tick
-#     rise: 1
+##     base growth per tick, in thousandths of a point
+#     rate: 1000
+
+##     floor the level never falls below
+#     min: 0
 
 ##     level at which the colonist drops work to satisfy it
-#     seek-at: 700
+#     seek-at: 720
 
-##     level at which the need becomes critical
+##     level at which the drive becomes critical
 #     critical-at: 900
 
-##     ceiling; a fatal need sitting here drains HP
+##     ceiling; the drive's consequences there apply while it sits here
 #     max: 1000
 
-##     ticks spent using the facility
-#     use-ticks: 40
-
-##     whether sitting at the ceiling damages the colonist
-#     fatal: false
+##     ticks spent using the facility (0: until the drive falls to 0, as sleep does in bed)
+#     use-ticks: 0
 
 ##     ticks at the facility before carrying the rest away (0 = must be used in place)
 #     grab-ticks: 0
 
-## HP lost per tick while a fatal need sits at its max
+#     activity:
+##       percent of the base rate in the asleep drive activity
+#       asleep: -200
+
+##       percent of the base rate in the idle drive activity
+#       idle: 100
+
+##       percent of the base rate in the working drive activity
+#       working: 100
+
+##       percent of the base rate in the labor drive activity
+#       labor: 100
+
+##       percent of the base rate in the unconscious drive activity
+#       unconscious: -100
+
+##     ticks between repeats of the drive's felt consequence while it stays in range (0: once until satisfied)
+#     consequence-every: 0
+
+## HP lost per tick while a drive's death consequence applies
 # starve-damage: 1
 
 ## colonists served by each life-support facility
@@ -468,8 +630,8 @@
 ##     baseline score before state contributions
 #     base: 0
 
-##     matching need pressure contribution
-#     need-weight: 0
+##     matching drive pressure contribution
+#     drive-weight: 0
 
 ##     signed response to affect charge
 #     charge-weight: -10
@@ -484,8 +646,8 @@
 ##     baseline score before state contributions
 #     base: 25
 
-##     matching need pressure contribution
-#     need-weight: 0
+##     matching drive pressure contribution
+#     drive-weight: 0
 
 ##     signed response to affect charge
 #     charge-weight: 20
@@ -500,8 +662,8 @@
 ##     baseline score before state contributions
 #     base: 40
 
-##     matching need pressure contribution
-#     need-weight: 100
+##     matching drive pressure contribution
+#     drive-weight: 100
 
 ##     signed response to affect charge
 #     charge-weight: 0
@@ -516,8 +678,8 @@
 ##     baseline score before state contributions
 #     base: 40
 
-##     matching need pressure contribution
-#     need-weight: 100
+##     matching drive pressure contribution
+#     drive-weight: 100
 
 ##     signed response to affect charge
 #     charge-weight: 0
@@ -532,8 +694,8 @@
 ##     baseline score before state contributions
 #     base: 40
 
-##     matching need pressure contribution
-#     need-weight: 100
+##     matching drive pressure contribution
+#     drive-weight: 100
 
 ##     signed response to affect charge
 #     charge-weight: 10
@@ -548,8 +710,8 @@
 ##     baseline score before state contributions
 #     base: 40
 
-##     matching need pressure contribution
-#     need-weight: 100
+##     matching drive pressure contribution
+#     drive-weight: 100
 
 ##     signed response to affect charge
 #     charge-weight: -30
@@ -564,8 +726,8 @@
 ##     baseline score before state contributions
 #     base: 0
 
-##     matching need pressure contribution
-#     need-weight: 0
+##     matching drive pressure contribution
+#     drive-weight: 0
 
 ##     signed response to affect charge
 #     charge-weight: 20
@@ -580,8 +742,8 @@
 ##     baseline score before state contributions
 #     base: 15
 
-##     matching need pressure contribution
-#     need-weight: 0
+##     matching drive pressure contribution
+#     drive-weight: 0
 
 ##     signed response to affect charge
 #     charge-weight: 20
@@ -596,8 +758,8 @@
 ##     baseline score before state contributions
 #     base: 400
 
-##     matching need pressure contribution
-#     need-weight: 0
+##     matching drive pressure contribution
+#     drive-weight: 0
 
 ##     signed response to affect charge
 #     charge-weight: 0
@@ -632,6 +794,15 @@
 
 ## rooms that can be under construction at once
 # max-concurrent-projects: 2
+
+## put fixtures into the colony's rooms of their zone, fitting out free floor or growing a room through any wall, before building a new one
+# room-expansion: true
+
+## most fixtures (of any kind: bunks, chests, stoves, incubators, chairs) one room holds
+# room-max-facilities: 8
+
+## join two rooms of the same zone standing side by side, back to back or facing each other into one, tearing down the walls between them: when more fixtures are wanted, or when there is nothing else to build
+# room-merge: true
 
 ## ticks a colonist's room must stay cut off from the colony before it breaks out on its own
 # escape-grace-ticks: 32
@@ -700,6 +871,18 @@
 
 ## random swing around a conversation's mean quality
 # talk-quality-spread: 50
+
+## relative weight of talking about one of the speaker's memories (0 never)
+# talk-topic-memory-weight: 3
+
+## relative weight of talking about another colonist (0 never)
+# talk-topic-colonist-weight: 3
+
+## relative weight of talking about lore, such as an alien species or a corporation (0 never)
+# talk-topic-lore-weight: 2
+
+## percent of the gap a good chat about a colonist closes between the listener's affinity toward them and the speaker's
+# talk-gossip-percent: 10
 
 # ── Meeting hall ────────────────────────────────────────────────────────
 ## the colony commissions meeting-hall chairs, one for each this many colonists (0: no hall, and talk and meals stay wherever they happen)
@@ -777,8 +960,8 @@
 ## how close a colonist must come before a Cautious species reacts and closes in
 # alien-cautious-radius: 3
 
-## food need a Friendly or Cautious alien gains per tick before it goes grazing on cave scum
-# alien-hunger-rise: 2
+## food drive a Friendly or Cautious alien gains per tick, in thousandths of a point, before it goes grazing on cave scum
+# alien-hunger-rate: 2000
 
 ## how far a hungry Friendly or Cautious alien looks for cave scum to eat
 # alien-graze-radius: 12
@@ -811,6 +994,12 @@
 ## cooldown ticks between assault rifle bursts
 # rifle-fire-rest: 1
 
+## companies this seed's lore rolls; each gun kind is made by one of them
+# corporation-count: 4
+
+## percent of arriving colonists who used to work for one of the lore's corporations (flavor only)
+# corporation-employee-percent: 60
+
 # ── Cats ────────────────────────────────────────────────────────────────
 ## cat hit points
 # cat-hp: 12
@@ -821,12 +1010,34 @@
 ## cooldown ticks after a cat catches a rat
 # cat-pounce-rest: 4
 
+# ── Chickens ────────────────────────────────────────────────────────────
+## chicken hit points
+# chicken-hp: 4
+
+## chicken acts once every N ticks (higher = slower)
+# chicken-slowness: 3
+
+## food drive a chicken gains per tick, in thousandths of a point
+# chicken-hunger-rate: 2000
+
+## how far a hungry chicken looks for cave scum to graze
+# chicken-graze-radius: 10
+
+## a chicken with a trough wanders back toward it once farther than this many tiles
+# chicken-roam: 6
+
+## a keeper refills its trough once it holds fewer than this many units of feed (0: keepers never tend)
+# trough-low: 4
+
+## units of feed a keeper fills its trough to
+# trough-fill: 12
+
 # ── Rats ────────────────────────────────────────────────────────────────
 ## rat hit points
 # rat-hp: 4
 
-## food need a rat gains per tick (rats eat frequently)
-# rat-hunger-rise: 8
+## food drive a rat gains per tick, in thousandths of a point (rats eat frequently)
+# rat-hunger-rate: 8000
 
 ## how far a hungry rat looks for bodies, gore, or scum to eat
 # rat-scavenge-radius: 12

@@ -49,7 +49,7 @@ func TestPopulationSampleCountsMealsAndFixtures(t *testing.T) {
 	w := propertyWorld(t)
 	w.SetTerrain(Point{10, 10, LandingLevel}, Storage)
 	w.SetTerrain(Point{12, 10, LandingLevel}, Bed)
-	c := w.landing().storageContainers[Point{10, 10, LandingLevel}]
+	c := w.storageContainers[Point{10, 10, LandingLevel}]
 	c.Inventory.Add(Meal, 7)
 	c.credit(Community, Meal, 7)
 	w.tick = popFirstEvery

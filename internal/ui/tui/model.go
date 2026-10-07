@@ -2,7 +2,9 @@ package tui
 
 import (
 	"fmt"
+	"os"
 	"strings"
+	"time"
 
 	"github.com/kevinmchugh/mars-sim/internal/sim"
 
@@ -161,6 +163,11 @@ type Model struct {
 
 	quitting bool
 
+	// saveNote reports the last ctrl+s in the footer, until saveNoteSeq's
+	// timer clears it (a newer save restarts the timer).
+	saveNote    string
+	saveNoteSeq int
+
 	// cache carries rendering work between frames; see renderCache.
 	cache *renderCache
 }
@@ -221,8 +228,66 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case tea.KeyMsg:
 		return m.handleKey(msg)
+
+	case savedMsg:
+		if msg.err != nil {
+			m.saveNote = "save failed: " + msg.err.Error()
+		} else {
+			m.saveNote = "saved " + msg.path
+		}
+		m.saveNoteSeq++
+		seq := m.saveNoteSeq
+		return m, tea.Tick(saveNoteFor, func(time.Time) tea.Msg { return clearSaveNoteMsg{seq} })
+
+	case clearSaveNoteMsg:
+		if msg.seq == m.saveNoteSeq {
+			m.saveNote = ""
+		}
+		return m, nil
 	}
 	return m, nil
+}
+
+// savedMsg reports how a ctrl+s save went; clearSaveNoteMsg takes the report
+// out of the footer again.
+type savedMsg struct {
+	path string
+	err  error
+}
+
+type clearSaveNoteMsg struct{ seq int }
+
+// saveNoteFor is how long a save's report stays in the footer.
+const saveNoteFor = 5 * time.Second
+
+// saveGame writes the game to a new file in the working directory, named for
+// the seed and the time. The engine owns the world, so the save itself runs
+// on the engine's goroutine (sim.SaveGame); this waits for it off the UI's.
+func saveGame(eng *sim.Engine, seed int64) tea.Cmd {
+	return func() tea.Msg {
+		path := fmt.Sprintf("mars-sim-%d-%s%s", seed, time.Now().Format("20060102-150405"), sim.SaveFileExtension)
+		f, err := os.Create(path)
+		if err != nil {
+			return savedMsg{err: err}
+		}
+		done := make(chan error, 1)
+		eng.Send(sim.SaveGame{To: f, Done: done})
+		select {
+		case err = <-done:
+		case <-time.After(30 * time.Second):
+			// Send drops a command when the buffer is full; the engine
+			// might never have seen this one.
+			err = fmt.Errorf("the engine did not answer")
+		}
+		if cerr := f.Close(); err == nil {
+			err = cerr
+		}
+		if err != nil {
+			os.Remove(path)
+			return savedMsg{err: err}
+		}
+		return savedMsg{path: path}
+	}
 }
 
 func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
@@ -252,6 +317,11 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "b":
 		m.menu = menuBuild
 		return m, nil
+	case "ctrl+s":
+		if m.latest == nil {
+			return m, nil
+		}
+		return m, saveGame(m.eng, m.latest.Seed)
 	}
 	switch m.mode {
 	case modeRoster:

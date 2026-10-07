@@ -108,10 +108,17 @@ const (
 	SkinBony
 	SkinChitinous
 	SkinSlimy
+	SkinRocky
+	SkinWoody
+	SkinMossy
+	SkinGelatinous
+	SkinHairy
+	SkinFeathered
 )
 
 var alienSkins = [...]AlienSkin{
 	SkinSmooth, SkinScaly, SkinFurry, SkinArmored, SkinBony, SkinChitinous, SkinSlimy,
+	SkinRocky, SkinWoody, SkinMossy, SkinGelatinous, SkinHairy, SkinFeathered,
 }
 
 func (s AlienSkin) String() string {
@@ -130,9 +137,149 @@ func (s AlienSkin) String() string {
 		return "chitinous"
 	case SkinSlimy:
 		return "slimy"
+	case SkinRocky:
+		return "rocky"
+	case SkinWoody:
+		return "woody"
+	case SkinMossy:
+		return "mossy"
+	case SkinGelatinous:
+		return "gelatinous"
+	case SkinHairy:
+		return "hairy"
+	case SkinFeathered:
+		return "feathered"
 	default:
 		return "unknown"
 	}
+}
+
+// AttackMode is one way a species can hurt its prey. Which modes a species
+// has is rolled once, gated by its anatomy (see rollAttackModes): only a
+// species with a tail can thrash one, only one with arms has claws, and
+// strangling needs at least two arms to get a grip. Every species has a
+// mouth, so biting is always available.
+type AttackMode uint8
+
+const (
+	AttackBite AttackMode = iota
+	AttackClaw
+	AttackTail
+	AttackStrangle
+)
+
+// attackModes is every mode in roll order. rollAttackModes walks it, so
+// reordering it (or inserting into the middle) shifts lore-stream draws.
+var attackModes = [...]AttackMode{AttackBite, AttackClaw, AttackTail, AttackStrangle}
+
+func (m AttackMode) String() string {
+	switch m {
+	case AttackBite:
+		return "bite"
+	case AttackClaw:
+		return "claws"
+	case AttackTail:
+		return "tail"
+	case AttackStrangle:
+		return "strangle"
+	default:
+		return "unknown"
+	}
+}
+
+// canUse reports whether a species' build allows an attack mode at all.
+func (sp AlienSpecies) canUse(m AttackMode) bool {
+	switch m {
+	case AttackClaw:
+		return sp.Arms > 0
+	case AttackTail:
+		return sp.Tail
+	case AttackStrangle:
+		return sp.Arms >= 2
+	default: // AttackBite: every species has a mouth
+		return true
+	}
+}
+
+// AttackSet is a set of AttackModes, one bit each. A bitmask rather than a
+// slice so AlienSpecies stays a comparable value that a Snapshot copies
+// without sharing a backing array.
+type AttackSet uint8
+
+// AttackSetOf builds a set from modes.
+func AttackSetOf(modes ...AttackMode) AttackSet {
+	var s AttackSet
+	for _, m := range modes {
+		s |= 1 << m
+	}
+	return s
+}
+
+// Has reports whether m is in the set.
+func (s AttackSet) Has(m AttackMode) bool { return s&(1<<m) != 0 }
+
+// rollAttackModes picks which of the modes its anatomy allows a species
+// actually fights with: each allowed mode is kept on a coin flip, so two
+// clawed, tailed species need not fight alike. A species that keeps nothing
+// bites -- every species has at least one way to attack.
+func rollAttackModes(rng *rand.Rand, sp AlienSpecies) AttackSet {
+	var set AttackSet
+	for _, m := range attackModes {
+		if sp.canUse(m) && rng.IntN(2) == 0 {
+			set |= AttackSetOf(m)
+		}
+	}
+	if set == 0 {
+		set = AttackSetOf(AttackBite)
+	}
+	return set
+}
+
+// Attacks is the species' attack modes in attackModes order, never empty: a
+// species built by hand (tests, mostly) with no AttackModes bites, the same
+// fallback rollAttackModes uses.
+func (sp AlienSpecies) Attacks() []AttackMode {
+	var modes []AttackMode
+	for _, m := range attackModes {
+		if sp.AttackModes.Has(m) {
+			modes = append(modes, m)
+		}
+	}
+	if len(modes) == 0 {
+		return []AttackMode{AttackBite}
+	}
+	return modes
+}
+
+// AttacksLabel lists the species' attack modes for a stat line: "bite,
+// claws, tail".
+func (sp AlienSpecies) AttacksLabel() string {
+	modes := sp.Attacks()
+	names := make([]string, len(modes))
+	for i, m := range modes {
+		names[i] = m.String()
+	}
+	return strings.Join(names, ", ")
+}
+
+// attackPhrase is how a description says a species fights: "biting,
+// raking with their claws, and thrashing their tails".
+func (sp AlienSpecies) attackPhrase() string {
+	modes := sp.Attacks()
+	phrases := make([]string, len(modes))
+	for i, m := range modes {
+		switch m {
+		case AttackClaw:
+			phrases[i] = "raking with their claws"
+		case AttackTail:
+			phrases[i] = "thrashing their tails"
+		case AttackStrangle:
+			phrases[i] = "strangling with their arms"
+		default:
+			phrases[i] = "biting"
+		}
+	}
+	return joinList(phrases)
 }
 
 // alienColors is the palette a species' Color is drawn from -- both flavor
@@ -222,6 +369,13 @@ type AlienSpecies struct {
 	Singular string
 	Plural   string
 
+	// ScientificName is the species' binomial, "Genus epithet" -- for
+	// example "Pseudursus ares" -- built from Greek and Latin word parts
+	// that fit its build (see alien_taxonomy.go). Already capitalized the
+	// way a binomial is written: genus capitalized, epithet lowercase.
+	// Empty for a hand-built species that never went through the roster.
+	ScientificName string
+
 	// Emoji is a candidate glyph drawn alongside the name, from the same
 	// alien-names.yaml entry's own emoji list (see alien_names.go). Empty
 	// when the winning entry listed none. This package treats it as opaque
@@ -240,7 +394,11 @@ type AlienSpecies struct {
 	Limbs int // how many limbs it walks/grasps with, arms and legs together
 	Arms  int // of Limbs, how many are prehensile arms rather than legs
 
-	Tail  bool
+	Tail bool
+	// Wings is a pair of wings. Anatomy only for now: no species flies, so
+	// wings change its description and what it can be named, not how it
+	// moves or fights (see docs/lore.md).
+	Wings bool
 	Skin  AlienSkin
 	Color string // one of alienColors
 	// Pattern is how Color is laid out: solid, striped, or spotted.
@@ -249,6 +407,10 @@ type AlienSpecies struct {
 	// Temperament decides whether and how this species fights -- see
 	// AlienTemperament and alienTurn in systems.go.
 	Temperament AlienTemperament
+
+	// AttackModes is how it hurts prey -- see rollAttackModes. Read it
+	// through Attacks(), which never returns empty.
+	AttackModes AttackSet
 
 	// BiteDamage, BiteRest, and Slowness are precomputed once at roll time
 	// from Config's alien baselines (AlienDamage/AlienBiteRest/
@@ -290,11 +452,18 @@ func sizeTier(v, small, average, large, huge int) AlienSizeTier {
 	}
 }
 
+// alienWingsPercent is the chance a species is winged, independent of
+// everything else it rolls: a feathered species is not more likely to have
+// wings, and a winged one may be any hide (a scaly dragon, a leathery bat, a
+// stone gargoyle).
+const alienWingsPercent = 20
+
 // rollAlienSpecies generates one alien species from rng, scaling its derived
 // combat stats from cfg's alien baselines and drawing its name from names
 // (the entries whose condition matches what was just rolled -- see
-// alien_names.go).
-func rollAlienSpecies(rng *rand.Rand, cfg Config, names []AlienNameEntry) AlienSpecies {
+// alien_names.go), skipping any name in used: the names earlier species in
+// the same roster already took (nil for none).
+func rollAlienSpecies(rng *rand.Rand, cfg Config, names []AlienNameEntry, used map[string]bool) AlienSpecies {
 	sp := AlienSpecies{
 		Eyes:        1 + rng.IntN(6), // 1..6
 		Limbs:       2 + rng.IntN(7), // 2..8
@@ -306,6 +475,8 @@ func rollAlienSpecies(rng *rand.Rand, cfg Config, names []AlienNameEntry) AlienS
 	// "all legs" (Arms == 0) and "all arms" (Arms == Limbs) are valid rolls.
 	sp.Tail = rng.IntN(2) == 0
 	sp.Pattern = rollPattern(rng)
+	// Before the name, so a name (and a scientific name) can ask for wings.
+	sp.Wings = rng.IntN(100) < alienWingsPercent
 
 	baseHeight := 45 + rng.IntN(330) // a 45cm gremlin up to a ~375cm brute
 	spread := 10 + rng.IntN(baseHeight/3+10)
@@ -319,7 +490,10 @@ func rollAlienSpecies(rng *rand.Rand, cfg Config, names []AlienNameEntry) AlienS
 	sp.WeightMinKG = max(1, int(float64(sp.HeightMinCM)*density))
 	sp.WeightMaxKG = max(sp.WeightMinKG+1, int(float64(sp.HeightMaxCM)*density))
 
-	sp.Singular, sp.Plural, sp.Emoji = pickAlienName(rng, sp, names)
+	sp.Singular, sp.Plural, sp.Emoji = pickAlienName(rng, sp, names, used)
+	// After the name, so adding attack modes left this species' own build
+	// and name exactly as before; only later species' draws shift.
+	sp.AttackModes = rollAttackModes(rng, sp)
 
 	sp.BiteDamage = speciesDamage(sp, cfg)
 	sp.BiteRest = scaledByTemperament(cfg.AlienBiteRest, sp.Temperament)
@@ -328,7 +502,10 @@ func rollAlienSpecies(rng *rand.Rand, cfg Config, names []AlienNameEntry) AlienS
 }
 
 // rollAlienSpeciesRoster rolls Config.AlienSpeciesCount species (at least
-// one, even if misconfigured to less) for a world.
+// one, even if misconfigured to less) for a world, then gives each a
+// scientific name. The names come from their own stream, seeded from
+// cfg.Seed, so drawing them never shifts what rng rolls for the species
+// themselves (see alien_taxonomy.go).
 func rollAlienSpeciesRoster(rng *rand.Rand, cfg Config) []AlienSpecies {
 	count := cfg.AlienSpeciesCount
 	if count < 1 {
@@ -339,8 +516,17 @@ func rollAlienSpeciesRoster(rng *rand.Rand, cfg Config) []AlienSpecies {
 		names = defaultAlienNames()
 	}
 	roster := make([]AlienSpecies, count)
+	used := make(map[string]bool, count) // names taken so far: no two species share one
 	for i := range roster {
-		roster[i] = rollAlienSpecies(rng, cfg, names)
+		roster[i] = rollAlienSpecies(rng, cfg, names, used)
+		used[strings.ToLower(roster[i].Singular)] = true
+	}
+	taxa := defaultTaxonomy()
+	taxRNG := newRand(cfg.Seed ^ alienTaxonomySeed)
+	binomials := make(map[string]bool, count) // no two species share a scientific name either
+	for i := range roster {
+		roster[i].ScientificName = scientificName(taxRNG, roster[i], taxa, binomials)
+		binomials[strings.ToLower(roster[i].ScientificName)] = true
 	}
 	return roster
 }
@@ -403,16 +589,172 @@ func (sp AlienSpecies) RosterLabel() string {
 	return sp.Emoji + " " + label
 }
 
-// Description is a full narrative summary of the species, for logs or a
-// future lore/codex display -- everything a colonist could plausibly have
-// worked out about the local wildlife by looking at one.
+// Description is a short field-guide entry for the species, for logs and the
+// lore tab -- everything a colonist could plausibly have worked out about the
+// local wildlife by looking at one. It reads like a wiki entry rather than a
+// stat block (the lore tab already lists the raw numbers above it), and its
+// framing follows Temperament: a friendly species is introduced as good
+// company, a cautious one as something to approach carefully, a hostile one
+// as a predator. Sizes are given in metric with imperial in parentheses.
+// The wording is a pure function of the species -- no RNG -- so it never
+// touches determinism.
 func (sp AlienSpecies) Description() string {
-	return fmt.Sprintf(
-		"%s stand %d-%d cm and weigh %d-%d kg, with %s, %s and %s, %s skin, %s, %s. Temperament: %s.",
-		capitalizeFirst(sp.Plural), sp.HeightMinCM, sp.HeightMaxCM, sp.WeightMinKG, sp.WeightMaxKG,
-		pluralize(sp.Eyes, "eye", "eyes"), pluralize(sp.Arms, "arm", "arms"), pluralize(sp.Legs(), "leg", "legs"),
-		sp.Skin, sp.ColorPhrase(), tailPhrase(sp.Tail), sp.Temperament.String(),
-	)
+	size := fmt.Sprintf("stand %s tall, weighing %s", sp.heightRangePhrase(), sp.weightRangePhrase())
+	name := capitalizeFirst(sp.Plural)
+	covering, coveringPlural := sp.coveringPhrase()
+	switch sp.Temperament {
+	case TemperamentFriendly:
+		return fmt.Sprintf("%s %s. They have %s. They are covered in %s and interact well with humans.",
+			name, size, joinList(sp.bodyParts()), covering)
+	case TemperamentHostile:
+		weapons := []string{pluralize(sp.Eyes, "eye", "eyes")}
+		if sp.Arms > 0 {
+			weapons = append(weapons, pluralize(sp.Arms, "fearsome arm", "fearsome arms"))
+		}
+		blend := "stands out against"
+		if blendsWithMars(sp.Color) {
+			blend = "blends into"
+		}
+		if coveringPlural {
+			blend = strings.Replace(blend, "stands", "stand", 1)
+			blend = strings.Replace(blend, "blends", "blend", 1)
+		}
+		sep := " and " // "with 5 eyes and crawl", not "with 5 eyes, and crawl"
+		if len(weapons) > 1 {
+			sep = ", and "
+		}
+		return fmt.Sprintf("The feared %s %s. They hunt humans with %s%s%s. They kill by %s. Their %s %s the Martian rock.",
+			name, size, joinList(weapons), sep, sp.gaitPhrase(), sp.attackPhrase(), covering, blend)
+	default: // TemperamentCautious
+		return fmt.Sprintf("%s %s. They are skittish around humans; approach with caution. They can be recognized by their %s, %s. Get too close and they lash out by %s.",
+			name, size, covering, joinList(sp.bodyParts()), sp.attackPhrase())
+	}
+}
+
+// heightRangePhrase renders the height range as metres with feet and inches
+// in parentheses: "1.9-3 m (6'3\"-9'10\")".
+func (sp AlienSpecies) heightRangePhrase() string {
+	return fmt.Sprintf("%s-%s m (%s-%s)", metres(sp.HeightMinCM), metres(sp.HeightMaxCM),
+		FormatHeight(sp.HeightMinCM), FormatHeight(sp.HeightMaxCM))
+}
+
+// weightRangePhrase renders the weight range as kilograms with pounds in
+// parentheses: "35-54 kg (77-119 lb)".
+func (sp AlienSpecies) weightRangePhrase() string {
+	return fmt.Sprintf("%d-%d kg (%d-%d lb)", sp.WeightMinKG, sp.WeightMaxKG,
+		scaleRound(sp.WeightMinKG, 22046, 10000), scaleRound(sp.WeightMaxKG, 22046, 10000))
+}
+
+// metres renders centimetres as metres to one decimal place, dropping a
+// trailing ".0" so 299 cm reads "3" rather than "3.0".
+func metres(cm int) string {
+	tenths := scaleRound(cm, 1, 10)
+	if tenths%10 == 0 {
+		return fmt.Sprintf("%d", tenths/10)
+	}
+	return fmt.Sprintf("%d.%d", tenths/10, tenths%10)
+}
+
+// bodyParts lists eyes, arms, legs, and (if present) the tail and wings as count
+// phrases, for a species description's anatomy sentence. A part the species
+// has none of is left out rather than read as "0 arms" or "no arms".
+func (sp AlienSpecies) bodyParts() []string {
+	parts := []string{pluralize(sp.Eyes, "eye", "eyes")}
+	if sp.Arms > 0 {
+		parts = append(parts, pluralize(sp.Arms, "arm", "arms"))
+	}
+	if legs := sp.Legs(); legs > 0 {
+		parts = append(parts, pluralize(legs, "leg", "legs"))
+	}
+	if sp.Tail {
+		parts = append(parts, "a tail")
+	}
+	if sp.Wings {
+		parts = append(parts, "a pair of wings")
+	}
+	return parts
+}
+
+// gaitPhrase is how a hostile species gets around, picked from its leg count
+// so a legless one slithers rather than "crawls on 0 legs". A winged one
+// keeps its wings folded: nothing flies (yet), and the description should
+// not promise that it does.
+func (sp AlienSpecies) gaitPhrase() string {
+	var gait string
+	switch legs := sp.Legs(); legs {
+	case 0:
+		gait = "slither along without legs"
+	case 1:
+		gait = "hop on 1 leg"
+	case 2:
+		gait = "stride on 2 legs"
+	default:
+		gait = fmt.Sprintf("crawl on %d legs", legs)
+	}
+	if sp.Wings {
+		gait += " with their wings folded"
+	}
+	return gait
+}
+
+// coveringPhrase names what the species' hide is made of, with its color
+// (and pattern) worked in -- "red chitin", "slimy purple skin", "green-
+// striped scales" -- and reports whether that noun is plural, so a sentence
+// built around it can agree its verb ("scales blend", "skin blends").
+func (sp AlienSpecies) coveringPhrase() (string, bool) {
+	c := sp.ColorPhrase()
+	switch sp.Skin {
+	case SkinScaly:
+		return c + " scales", true
+	case SkinFurry:
+		return c + " fur", false
+	case SkinArmored:
+		return c + " armor plates", true
+	case SkinBony:
+		return "bony " + c + " skin", false
+	case SkinChitinous:
+		return c + " chitin", false
+	case SkinSlimy:
+		return "slimy " + c + " skin", false
+	case SkinRocky:
+		return "craggy " + c + " stone", false
+	case SkinWoody:
+		return c + " bark", false
+	case SkinMossy:
+		return c + " moss", false
+	case SkinGelatinous:
+		return "quivering " + c + " jelly", false
+	case SkinHairy:
+		return "shaggy " + c + " hair", false
+	case SkinFeathered:
+		return c + " feathers", true
+	default: // SkinSmooth
+		return "smooth " + c + " skin", false
+	}
+}
+
+// blendsWithMars reports whether a hide color is camouflage against Martian
+// regolith and basalt, for a hostile species' description.
+func blendsWithMars(color string) bool {
+	switch color {
+	case "red", "orange", "yellow", "gray":
+		return true
+	}
+	return false
+}
+
+// joinList renders phrases as an English list with an Oxford comma: "a",
+// "a and b", "a, b, and c".
+func joinList(items []string) string {
+	switch len(items) {
+	case 0:
+		return ""
+	case 1:
+		return items[0]
+	case 2:
+		return items[0] + " and " + items[1]
+	}
+	return strings.Join(items[:len(items)-1], ", ") + ", and " + items[len(items)-1]
 }
 
 // ColorPhrase is Color with its Pattern folded in: "green" for a solid
@@ -422,13 +764,6 @@ func (sp AlienSpecies) ColorPhrase() string {
 		return sp.Color
 	}
 	return sp.Color + "-" + sp.Pattern.String()
-}
-
-func tailPhrase(hasTail bool) string {
-	if hasTail {
-		return "a tail"
-	}
-	return "no tail"
 }
 
 // pluralize renders "n word" with the right singular/plural noun.

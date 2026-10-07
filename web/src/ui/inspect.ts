@@ -9,7 +9,8 @@ export interface Colonist {
   height: string; heightCm: number; weightKg: number; skin: string; hair: string;
   wallet: number;
   mood: { charge: number; grip: number; valence: number; label: string; max: number };
-  needs: { name: string; value: number; max: number; fatal: boolean }[];
+  /** consequence is what a full bar does: "none", "death", "loneliness", "passing out" or "soiling" (sim.Consequence). */
+  drives: { name: string; value: number; max: number; consequence: string }[];
   inventory: Stack[];
   slots: number;
   traits: { name: string; desc: string }[];
@@ -17,6 +18,8 @@ export interface Colonist {
   skills: { name: string; label: string; rank: number; maxRank: number; practice: number }[];
   /** The skill it's known for, and its title in it; absent until it has one. */
   profession?: string; professionLabel?: string;
+  /** Who it worked for back home, "Worked as a drill operator for MarsCorp."; flavor only. */
+  backstory?: string;
   family: { relation: string; id: number; name: string }[];
   affinities: { id: number; name: string; value: number }[];
   affinityMax: number;

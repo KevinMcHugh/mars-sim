@@ -24,14 +24,79 @@ func testConfig() Config {
 	c.TraitChance = 0        // mechanics tests want baseline colonists; trait tests opt in
 	c.CavernNestPercent = 0  // tests that zero StartAliens expect no aliens; nest tests opt in
 	c.CrashPodMealSpread = 0 // mechanics tests count on every pod holding exactly crash-pod-meals
-	// ...and on every colonist landing with exactly one pistol and nothing else.
-	c.CrashPodShotguns, c.CrashPodPistolPercent = 0, 100
+	// ...and on every colonist landing with exactly one pistol and nothing
+	// else: no chickens, no cats. Pet tests opt in.
+	c.CrashPodGunWeight, c.CrashPodChickenWeight, c.CrashPodCatWeight = 1, 0, 0
+	c.CrashPodShotgunPercent = 0
+	// ...and on the founders landing in a stick, the one shape a 40×24 map
+	// always has room for. Shape tests opt in to the others.
+	c.ShipStickWeight, c.ShipHubWeight, c.ShipClusterWeight = 1, 0, 0
 	// Mechanics tests exercise the safety net and free construction (pods,
 	// emergency builds, facility queues); the game's defaults turn both off
 	// (economy phase E8). Scarcity tests start from DefaultConfig or turn
 	// them back off themselves.
 	c.InfiniteFood, c.ConstructionCosts = true, false
+	// ...and on trades moving prices from the first one: holding prices
+	// until the colony's kitchens run (free-prices-at) has a test of its own.
+	c.FreePricesAt = 0
+	// Mechanics tests were written against drives that grow at one rate
+	// awake and pause in bed (everything but sleep itself), with food at its
+	// old 2 a tick; activity-scaled growth has tests of its own
+	// (drive_model_test.go) that opt back in. Sleep keeps its shipped
+	// percents: it has to fall in bed and on the floor for a night or a
+	// pass-out to end.
+	c.Drives[DriveFood].Rate = 2000
+	for d := DriveKind(0); d < numDrives; d++ {
+		if d == DriveSleep {
+			continue
+		}
+		for a := range c.Drives[d].Activity {
+			c.Drives[d].Activity[a] = 100
+		}
+		c.Drives[d].Activity[DriveAsleep.index()] = 0
+		c.Drives[d].Activity[DriveUnconscious.index()] = 0
+	}
+	// They also count on the colony siting its own rooms: nothing in them
+	// draws a zone. Zoning tests turn it off (see zones_test.go).
+	c.ZoningAuto = true
+	// ...and on the colony posting all its standing orders, where the game
+	// posts only its building-material bids.
+	c.StandingOrdersBuildOnly = false
 	return c
+}
+
+// setDriveRate makes drive d grow at rate thousandths of a point a tick, as
+// its base rate with no trait scaling. Under testConfig's neutral activity
+// percents that is the rate it grows at awake.
+func setDriveRate(w *World, e *Entity, d DriveKind, rate int) {
+	e.driveBase[d], e.driveTrait[d] = rate, 100
+	w.refreshDrive(e, d, 0)
+}
+
+// quietDrives empties every drive of e and stops it growing, for a test about
+// something other than drives. Zeroing a drive's stored base alone was never
+// enough: a level is the base plus its growth since it was taken, so a base
+// of zero with an old timestamp still reads at the ceiling, and since drives
+// have consequences there a "fed" colonist would wet itself, pass out and
+// feel lonely every tick. Freezing the rates once, rather than resetting the
+// levels every tick, also spares the colonist re-deciding what to do on
+// every tick (a reset schedules a phase crossing).
+func quietDrives(w *World, e *Entity) {
+	if e.driveBase != [numDrives]int{} {
+		freezeDrives(w, e)
+	}
+	for d := DriveKind(0); d < numDrives; d++ {
+		if w.driveTrue(e, d) != 0 {
+			w.setDrive(e, d, 0)
+		}
+	}
+}
+
+// freezeDrives stops every drive of e from growing.
+func freezeDrives(w *World, e *Entity) {
+	for d := DriveKind(0); d < numDrives; d++ {
+		setDriveRate(w, e, d, 0)
+	}
 }
 
 // The starting world should contain the configured population and an open
@@ -216,6 +281,7 @@ func TestDeterministicRunUnderScarcity(t *testing.T) {
 		cfg.Seed, cfg.TraitChance = 7, 0
 		cfg.Width, cfg.Height = 250, 150
 		cfg.StartColonists = 40
+		cfg.ZoningAuto = true
 		return newTestWorld(t, cfg)
 	}
 	a, b := mk(), mk()
@@ -388,20 +454,20 @@ func TestColonistUsesNutrientPod(t *testing.T) {
 	w.SetTerrain(stand, Floor)
 
 	c := w.spawn(Colonist, stand)
-	c.Needs[NeedFood] = cfg.Needs[NeedFood].Max // ravenous
+	w.setDrive(c, DriveFood, cfg.Drives[DriveFood].Max) // ravenous
 
-	for i := 0; i < cfg.Needs[NeedFood].UseTicks+10; i++ {
+	for i := 0; i < cfg.Drives[DriveFood].UseTicks+10; i++ {
 		w.step()
 	}
 	if w.entities[c.ID] == nil {
 		t.Fatal("colonist starved next to a working nutrient pod")
 	}
-	if c.Needs[NeedFood] >= cfg.Needs[NeedFood].SeekAt {
-		t.Fatalf("food need not satisfied: %d", c.Needs[NeedFood])
+	if w.driveLevel(c, DriveFood) >= cfg.Drives[DriveFood].SeekAt {
+		t.Fatalf("food need not satisfied: %d", w.driveLevel(c, DriveFood))
 	}
 }
 
-// A tired colonist standing by a bed should sleep and reset its sleep need
+// A tired colonist standing by a bed should sleep and reset its sleep drive
 // instead of staying exhausted, reusing the same JobUse machinery as the pod.
 func TestColonistUsesBed(t *testing.T) {
 	cfg := testConfig()
@@ -414,16 +480,19 @@ func TestColonistUsesBed(t *testing.T) {
 	w.SetTerrain(stand, Floor)
 
 	c := w.spawn(Colonist, stand)
-	c.Needs[NeedSleep], c.needSince[NeedSleep] = cfg.Needs[NeedSleep].Max, w.tick // dead on its feet
+	// Dead on its feet, but short of the ceiling, where it would pass out
+	// instead (TestSleepDeprivedColonistPassesOut).
+	w.setDrive(c, DriveSleep, cfg.Drives[DriveSleep].CriticalAt)
 	// Clear the other (staggered) needs so nothing fatal outranks sleep here.
-	c.Needs[NeedFood], c.needSince[NeedFood] = 0, w.tick
-	c.Needs[NeedBladder], c.needSince[NeedBladder] = 0, w.tick
+	w.setDrive(c, DriveFood, 0)
+	w.setDrive(c, DriveBladder, 0)
 
-	for i := 0; i < cfg.Needs[NeedSleep].UseTicks+10; i++ {
+	// A night from critical-at is longer than one from seek-at.
+	for i := 0; i < 2*cfg.NightTicks(); i++ {
 		w.step()
 	}
-	if c.Needs[NeedSleep] >= cfg.Needs[NeedSleep].SeekAt {
-		t.Fatalf("sleep need not satisfied: %d", c.Needs[NeedSleep])
+	if w.driveLevel(c, DriveSleep) >= cfg.Drives[DriveSleep].SeekAt {
+		t.Fatalf("sleep need not satisfied: %d", w.driveLevel(c, DriveSleep))
 	}
 }
 
@@ -471,8 +540,8 @@ func TestUrgentColonistFinishesEmergencyBuild(t *testing.T) {
 	w := newTestWorld(t, cfg)
 	center := Point{w.Width / 2, w.Height / 2, LandingLevel}
 	c := w.spawn(Colonist, center)
-	c.Needs[NeedFood] = cfg.Needs[NeedFood].SeekAt
-	target, ok := w.findBuildSpot(c.Pos, 20)
+	w.setDrive(c, DriveFood, cfg.Drives[DriveFood].SeekAt)
+	target, ok := w.findBuildSpot(c.Pos, 20, NutrientPod)
 	if !ok {
 		t.Fatal("no emergency build spot")
 	}
@@ -487,7 +556,7 @@ func TestUrgentColonistFinishesEmergencyBuild(t *testing.T) {
 	}
 }
 
-// A non-fatal need (bladder, here) must trigger the same self-rescue as a
+// A non-fatal drive (bladder, here) must trigger the same self-rescue as a
 // fatal one: with no reachable toilet, no project task to help with, and none
 // under construction, a colonist stuck on its own builds one rather than
 // waiting indefinitely — the "stuck in a need loop" complaint a
@@ -500,10 +569,10 @@ func TestUrgentNonFatalNeedTriggersEmergencyBuild(t *testing.T) {
 	w := newTestWorld(t, cfg)
 	center := Point{w.Width / 2, w.Height / 2, LandingLevel}
 	c := w.spawn(Colonist, center)
-	c.Needs[NeedBladder], c.needSince[NeedBladder] = cfg.Needs[NeedBladder].SeekAt, w.tick
+	w.setDrive(c, DriveBladder, cfg.Drives[DriveBladder].SeekAt)
 	// Clear the other (staggered) needs so bladder is the one being addressed.
-	c.Needs[NeedFood], c.needSince[NeedFood] = 0, w.tick
-	c.Needs[NeedSleep], c.needSince[NeedSleep] = 0, w.tick
+	w.setDrive(c, DriveFood, 0)
+	w.setDrive(c, DriveSleep, 0)
 
 	w.tick++
 	w.colonistTurn(c)
@@ -518,6 +587,69 @@ func TestUrgentNonFatalNeedTriggersEmergencyBuild(t *testing.T) {
 	if got := w.TerrainAt(c.Target); got != Toilet {
 		t.Fatalf("emergency toilet build never finished: target terrain %v, progress %d", got, c.Progress)
 	}
+}
+
+// The emergency fallback must never build on a tile a project has planned, in
+// any phase. A room's fit-phase bunk tile is still plain Floor while its walls
+// go up, so it looked like a free edge; a lone toilet raised there left the
+// bunk task forever unworkable and the room never finished, holding its
+// concurrent-project slot for good.
+func TestEmergencyBuildSkipsPlannedTaskTiles(t *testing.T) {
+	setup := func(t *testing.T, pocketEnd int) (*World, *Entity, Point) {
+		t.Helper()
+		w := rockSiteWorld(t)
+		// A one-row pocket in solid rock: the colonist stands at its west
+		// end, the bunk tile is right beside it, and any further tiles are
+		// the only other edges in reach.
+		carve(w, Point{10, 10, LandingLevel}, Point{pocketEnd, 10, LandingLevel}, Floor)
+		bunk := Point{11, 10, LandingLevel}
+		// The room is still in its wall phase (a wall task out in the rock,
+		// unreachable, keeps that phase from finishing), so the bunk tile is
+		// not in buildTiles and onPendingBuild alone does not cover it.
+		w.projects = append(w.projects, &project{
+			id: 1, name: "test dormitory",
+			tasks: []*buildTask{
+				{pos: Point{30, 20, LandingLevel}, terrain: Wall, phase: roomWallPhase},
+				{pos: bunk, terrain: Bed, phase: roomFitPhase},
+			},
+		})
+		w.rebuildBuildTiles()
+		w.refreshSpatial()
+		if w.onPendingBuild(bunk) {
+			t.Fatal("setup: bunk tile is in the active phase; the test would not cover later phases")
+		}
+		c := w.spawn(Colonist, Point{10, 10, LandingLevel})
+		w.setDrive(c, DriveBladder, w.cfg.Drives[DriveBladder].SeekAt)
+		w.setDrive(c, DriveFood, 0)
+		w.setDrive(c, DriveSleep, 0)
+		return w, c, bunk
+	}
+
+	t.Run("only spot is planned", func(t *testing.T) {
+		w, c, bunk := setup(t, 11)
+		if spot, ok := w.findBuildSpot(c.Pos, 20, Toilet); ok {
+			t.Fatalf("findBuildSpot picked %v; the only floor edge is the planned bunk tile %v", spot, bunk)
+		}
+		w.tick++
+		w.colonistTurn(c)
+		if c.Job == JobBuild && c.Target.Equal(bunk) {
+			t.Fatalf("colonist started a lone %v on the planned bunk tile", c.BuildKind)
+		}
+		if got := w.TerrainAt(bunk); got != Floor {
+			t.Fatalf("bunk tile became %v", got)
+		}
+	})
+
+	t.Run("builds past it", func(t *testing.T) {
+		w, c, bunk := setup(t, 12)
+		w.tick++
+		w.colonistTurn(c)
+		want := Point{12, 10, LandingLevel}
+		if c.Job != JobBuild || c.BuildKind != Toilet || !c.Target.Equal(want) {
+			t.Fatalf("expected an emergency toilet at %v (past bunk %v), got job=%v kind=%v target=%v",
+				want, bunk, c.Job, c.BuildKind, c.Target)
+		}
+	})
 }
 
 // Once a facility of a kind already exists, an urgent colonist must not just
@@ -561,9 +693,9 @@ func TestUrgentColonistHelpsBuildWhenFacilityUndersupplied(t *testing.T) {
 	// existing toilet plus the project's own (still unbuilt) toilet task.
 	w.spawn(Colonist, center)
 	w.spawn(Colonist, center)
-	c.Needs[NeedBladder], c.needSince[NeedBladder] = cfg.Needs[NeedBladder].SeekAt, w.tick
-	c.Needs[NeedFood], c.needSince[NeedFood] = 0, w.tick
-	c.Needs[NeedSleep], c.needSince[NeedSleep] = 0, w.tick
+	w.setDrive(c, DriveBladder, cfg.Drives[DriveBladder].SeekAt)
+	w.setDrive(c, DriveFood, 0)
+	w.setDrive(c, DriveSleep, 0)
 
 	w.tick++
 	w.colonistTurn(c)
@@ -610,10 +742,9 @@ func TestColonistEscapesSealedRoom(t *testing.T) {
 }
 
 // A colonist sealed in by solid rock, with no built wall anywhere to break
-// down, has no recourse: JobDemolish only ever targets Wall. This still
-// starves, unchanged from before FocusEscape existed, and pins that natural
-// caverns aren't somehow now escapable too.
-func TestColonistStarvesWhenSealedByRock(t *testing.T) {
+// down, digs its own way out to the colony (escapeTarget). Before escapes
+// could dig, this colonist starved.
+func TestColonistDigsOutWhenSealedByRock(t *testing.T) {
 	cfg := testConfig()
 	cfg.StartColonists, cfg.StartAliens = 0, 0
 	w := newTestWorld(t, cfg)
@@ -629,11 +760,14 @@ func TestColonistStarvesWhenSealedByRock(t *testing.T) {
 	}
 
 	c := w.spawn(Colonist, pocket)
-	for i := 0; i < 1500 && w.entities[c.ID] != nil; i++ {
+	for i := 0; i < 1500 && w.entities[c.ID] != nil && w.roomOf(c.Pos) != w.mainRoom; i++ {
 		w.step()
 	}
-	if w.entities[c.ID] != nil {
-		t.Fatalf("colonist sealed in by rock survived with HP %d, food %d", c.HP, c.Needs[NeedFood])
+	if w.entities[c.ID] == nil {
+		t.Fatal("colonist sealed in by rock starved instead of digging out")
+	}
+	if room := w.roomOf(c.Pos); room != w.mainRoom {
+		t.Fatalf("colonist never dug through to the main room (in room %d, want %d)", room, w.mainRoom)
 	}
 }
 
@@ -650,21 +784,21 @@ func TestRatEatsFromPod(t *testing.T) {
 	w.SetTerrain(stand, Floor)
 
 	m := w.spawn(Rat, stand)
-	m.Needs[NeedFood] = cfg.Needs[NeedFood].SeekAt // hungry enough to seek
+	w.setDrive(m, DriveFood, cfg.Drives[DriveFood].SeekAt) // hungry enough to seek
 
-	for i := 0; i < cfg.Needs[NeedFood].UseTicks+20; i++ {
+	for i := 0; i < cfg.Drives[DriveFood].UseTicks+20; i++ {
 		w.step()
 	}
 	if w.entities[m.ID] == nil {
 		t.Fatal("rat starved next to a working nutrient pod")
 	}
-	if w.needLevel(m, NeedFood) >= cfg.Needs[NeedFood].SeekAt {
-		t.Fatalf("rat food need not satisfied: %d", w.needLevel(m, NeedFood))
+	if w.driveLevel(m, DriveFood) >= cfg.Drives[DriveFood].SeekAt {
+		t.Fatalf("rat food need not satisfied: %d", w.driveLevel(m, DriveFood))
 	}
 }
 
 // A rat with no reachable food must eventually starve, exercising the fatal
-// food need for rats.
+// food drive for rats.
 func TestRatStarvesWithoutFood(t *testing.T) {
 	cfg := testConfig()
 	cfg.StartColonists, cfg.StartAliens, cfg.StartCats, cfg.StartRats = 0, 0, 0, 0
@@ -681,7 +815,7 @@ func TestRatStarvesWithoutFood(t *testing.T) {
 		w.step()
 	}
 	if w.entities[m.ID] != nil {
-		t.Fatalf("walled-in rat survived with HP %d, food %d", m.HP, w.needLevel(m, NeedFood))
+		t.Fatalf("walled-in rat survived with HP %d, food %d", m.HP, w.driveLevel(m, DriveFood))
 	}
 }
 
@@ -717,7 +851,7 @@ func TestCatEatsRat(t *testing.T) {
 	}
 }
 
-// A colonist with nothing pressing to do — no threat, no urgent need, no work —
+// A colonist with nothing pressing to do — no threat, no urgent drive, no work —
 // should crush a rat it sees. Sealing a small floor pocket leaves the colonist
 // idle (no rock to mine, no reachable construction), so it stomps the pest.
 func TestIdleColonistStompsRat(t *testing.T) {
@@ -741,8 +875,8 @@ func TestIdleColonistStompsRat(t *testing.T) {
 	m := w.spawn(Rat, center.Add(1, 0))
 	c := w.spawn(Colonist, center)
 	// Fully satisfied, so no need preempts the stomp.
-	c.Needs[NeedFood], c.Needs[NeedBladder] = 0, 0
-	c.needSince[NeedFood], c.needSince[NeedBladder] = w.tick, w.tick
+	w.setDrive(c, DriveFood, 0)
+	w.setDrive(c, DriveBladder, 0)
 
 	for i := 0; i < 10 && w.entities[m.ID] != nil; i++ {
 		w.step()
@@ -903,7 +1037,7 @@ func TestAllRequestedColonistsSpawn(t *testing.T) {
 }
 
 // Regression: a colony left alone must feed itself over a long run, across seeds.
-// This has repeatedly regressed as new behavior landed — a non-fatal need
+// This has repeatedly regressed as new behavior landed — a non-fatal drive
 // starving the fatal one, a synchronized-hunger stampede deadlocking the
 // facilities, walls fragmenting the colony away from food, and (once facility
 // rooms arrived) builders trapped or crowds blocking construction. A crowd of 20
@@ -1017,6 +1151,7 @@ func TestLargeColonyDoesNotGridlockAtFacilities(t *testing.T) {
 	// this test for a reason that has nothing to do with facilities.
 	cfg.StartColonists, cfg.StartAliens, cfg.CavernNestPercent = 20, 0, 0
 	cfg.Width, cfg.Height = 200, 200
+	cfg.ZoningAuto = true
 	w := NewEngine(cfg).world
 
 	for i := 0; i < 10000; i++ {
@@ -1029,8 +1164,10 @@ func TestLargeColonyDoesNotGridlockAtFacilities(t *testing.T) {
 }
 
 // A room site can back onto another room's already-placed wall instead of
-// requiring untouched rock, so rooms can sit flush against each other and
-// share that boundary once a cave's easy rock-backed edges are used up.
+// requiring untouched rock, so rooms can sit flush against each other once a
+// cave's easy rock-backed edges are used up. It shares that wall outright as
+// its own back wall, rather than raising a second wall in front of it: the
+// double-thick wall rooms used to leave between them.
 func TestRoomSiteCanBackOntoAnotherRoomsWall(t *testing.T) {
 	cfg := testConfig()
 	cfg.StartColonists, cfg.StartAliens = 0, 0
@@ -1046,37 +1183,44 @@ func TestRoomSiteCanBackOntoAnotherRoomsWall(t *testing.T) {
 	}
 
 	width := bayWidth(roomFacilities)
-	// Site everything near the map center — findRoomSite prefers the site
-	// nearest center — and carve only the exact footprint roomSiteClear
-	// requires (not a whole open row), so no other column could also qualify
-	// and mask a regression in the assertion below.
 	oy := w.Height / 2
 	ox := w.Width / 2
 	backY := oy - 1
 	frontY := roomFrontWallY(oy)
-	// Simulate an already-built neighboring room: a wall row with no rock
-	// anywhere behind it (backY-1 lands here).
-	for x := ox; x < ox+width; x++ {
-		w.SetTerrain(Point{x, backY - 1, LandingLevel}, Wall)
+	// An already-built neighboring room's wall, corners and all, with no rock
+	// anywhere in front of it.
+	for x := ox - 1; x <= ox+width; x++ {
+		w.SetTerrain(Point{x, backY, LandingLevel}, Wall)
 	}
-	// The new room's own footprint plus its side lanes.
-	for y := backY; y <= frontY; y++ {
+	// The new room's interior plus its side lanes, and the approach row.
+	for y := backY + 1; y <= frontY+roomApproach; y++ {
 		for x := ox - 2; x <= ox+width+1; x++ {
 			w.SetTerrain(Point{x, y, LandingLevel}, Floor)
 		}
 	}
-	// The front approach lane.
-	for x := ox - 2; x <= ox+width+1; x++ {
-		w.SetTerrain(Point{x, frontY + roomApproach, LandingLevel}, Floor)
-	}
 	w.refreshSpatial()
+
+	// One row further forward, the room would raise its own back wall
+	// against the neighbor's.
+	if doubled := (roomFrame{o: Point{ox, oy + 1, LandingLevel}, width: width}); w.roomSiteClear(doubled, map[Point]bool{}, siteRules{}) ||
+		w.roomSiteClear(doubled, map[Point]bool{}, siteRules{unbacked: true}) {
+		t.Fatal("a site whose back wall stands against another room's wall was accepted")
+	}
 
 	site, ok := w.findRoomSite(width)
 	if !ok {
 		t.Fatal("expected a room site backed by an existing wall")
 	}
-	if want := (Point{ox, oy, LandingLevel}); site != want {
-		t.Fatalf("site = %v, want %v (backed by the wall at y=%d)", site, want, backY-1)
+	if want := (Point{ox, oy, LandingLevel}); site.o != want || site.face != faceSouth {
+		t.Fatalf("site = %+v, want %v (sharing the wall at y=%d)", site, want, backY)
+	}
+	if !w.designateRoom(dormRoom, site, roomFacilities, Community) {
+		t.Fatal("the room was not designated")
+	}
+	for _, tk := range w.projects[0].tasks {
+		if tk.pos.Y == backY {
+			t.Fatalf("a %v task at %v on the shared back wall", tk.terrain, tk.pos)
+		}
 	}
 }
 
@@ -1126,8 +1270,8 @@ func TestRoomSiteSharesSideWallWithNeighbor(t *testing.T) {
 	if !ok {
 		t.Fatal("expected a room site sharing a neighbor's side wall")
 	}
-	if want := (Point{ox, oy, LandingLevel}); site != want {
-		t.Fatalf("site = %v, want %v (sharing the wall at x=%d)", site, want, ox-1)
+	if want := (Point{ox, oy, LandingLevel}); site.o != want || site.face != faceSouth {
+		t.Fatalf("site = %+v, want %v (sharing the wall at x=%d)", site, want, ox-1)
 	}
 
 	w.designateRoom(dormRoom, site, 2, Community) // bayWidth(2) == 3, matching the site carved above
@@ -1186,8 +1330,8 @@ func TestRoomSiteCanIncludeUnexcavatedRock(t *testing.T) {
 	if !ok {
 		t.Fatal("expected a room site with an unexcavated interior")
 	}
-	if want := (Point{ox, oy, LandingLevel}); site != want {
-		t.Fatalf("site = %v, want %v", site, want)
+	if want := (Point{ox, oy, LandingLevel}); site.o != want || site.face != faceSouth {
+		t.Fatalf("site = %+v, want %v", site, want)
 	}
 
 	w.designateRoom(lifeSupportRoom, site, roomFacilities, Community)
@@ -1257,8 +1401,8 @@ func TestFindRoomSitePrefersClearOverRockNearCenter(t *testing.T) {
 	if !ok {
 		t.Fatal("expected a room site")
 	}
-	if want := (Point{clearOx, oy, LandingLevel}); site != want {
-		t.Fatalf("site = %v, want the clear site %v (nearer, rock-interior one should lose despite proximity)", site, want)
+	if want := (Point{clearOx, oy, LandingLevel}); site.o != want || site.face != faceSouth {
+		t.Fatalf("site = %+v, want the clear site %v (nearer, rock-interior one should lose despite proximity)", site, want)
 	}
 }
 
@@ -1268,7 +1412,7 @@ func TestFindRoomSitePrefersClearOverRockNearCenter(t *testing.T) {
 func TestColonistsExcavateAndBuildRoomFromRock(t *testing.T) {
 	cfg := testConfig()
 	// testConfig's default seed (42) hits a known pre-existing liveness gap
-	// with this test's 4-colonist room: a colonist with an urgent social need
+	// with this test's 4-colonist room: a colonist with an urgent social drive
 	// but no free chat partner idles indefinitely rather than picking up
 	// available construction work (colonistTurn's "wait for a partner instead
 	// of falling through to work" branch), and a small population can spend
@@ -1386,18 +1530,18 @@ func TestFacilityRoomHasCompleteWallsDoorAndBuildPhases(t *testing.T) {
 		}
 	}
 	width := bayWidth(roomFacilities)
-	backY := site.Y - 1
-	frontY := roomFrontWallY(site.Y)
-	door := Point{site.X + width/2, frontY, LandingLevel}
+	backY := site.o.Y - 1
+	frontY := roomFrontWallY(site.o.Y)
+	door := Point{site.o.X + width/2, frontY, site.o.Level}
 	if walls[door] {
 		t.Fatalf("doorway %v was designated as a wall", door)
 	}
 	for y := backY; y <= frontY; y++ {
-		if !walls[Point{site.X - 1, y, LandingLevel}] || !walls[Point{site.X + width, y, LandingLevel}] {
+		if !walls[Point{site.o.X - 1, y, site.o.Level}] || !walls[Point{site.o.X + width, y, site.o.Level}] {
 			t.Fatalf("room is missing a side wall on row %d", y)
 		}
 	}
-	for x := site.X; x < site.X+width; x++ {
+	for x := site.o.X; x < site.o.X+width; x++ {
 		if p := (Point{x, backY, LandingLevel}); !walls[p] {
 			t.Fatalf("room is missing back wall %v", p)
 		}
@@ -1408,7 +1552,7 @@ func TestFacilityRoomHasCompleteWallsDoorAndBuildPhases(t *testing.T) {
 
 	// A facility cannot be claimed while any phase-zero wall remains, and a wall
 	// already occupied when the project is designated must be left for later.
-	blockedWall := Point{site.X, backY, LandingLevel}
+	blockedWall := Point{site.o.X, backY, site.o.Level}
 	w.spawn(Colonist, blockedWall)
 	if task, ok := w.claimNearestTask(Point{door.X, door.Y + 1, LandingLevel}, 999); !ok ||
 		task.terrain != Wall || task.pos == blockedWall {
@@ -1419,7 +1563,7 @@ func TestFacilityRoomHasCompleteWallsDoorAndBuildPhases(t *testing.T) {
 // A room's doorway is only safe from being trapped if nothing can ever build
 // over the single exterior tile the door opens onto — including a later,
 // unrelated room. That tile carries no build task of its own (see
-// designateRoom), so without w.landing().doorTiles it looks like ordinary, unclaimed
+// designateRoom), so without w.doorTiles it looks like ordinary, unclaimed
 // floor to a new room's site check, and a room sited to reuse an existing
 // wall as backing can land its own side wall right on top of it.
 func TestRoomSiteClearRejectsCoveringAnotherRoomsDoorway(t *testing.T) {
@@ -1440,10 +1584,10 @@ func TestRoomSiteClearRejectsCoveringAnotherRoomsDoorway(t *testing.T) {
 
 	siteA := Point{5, 6, LandingLevel}
 	widthA := bayWidth(roomFacilities)
-	if !w.roomSiteClear(siteA.X, siteA.Y, widthA, map[Point]bool{}, false) {
+	if !w.roomSiteClear(roomFrame{o: siteA, width: widthA}, map[Point]bool{}, siteRules{}) {
 		t.Fatal("room A's own site is not clear before it is designated")
 	}
-	w.designateRoom(lifeSupportRoom, siteA, roomFacilities, Community)
+	w.designateRoom(lifeSupportRoom, roomFrame{o: siteA}, roomFacilities, Community)
 
 	// Finish room A instantly by building every task in place, then prune
 	// its project — a completed room's tiles must no longer sit in the
@@ -1461,24 +1605,26 @@ func TestRoomSiteClearRejectsCoveringAnotherRoomsDoorway(t *testing.T) {
 
 	frontYA := roomFrontWallY(siteA.Y)
 	doorA := Point{siteA.X + widthA/2, frontYA + roomApproach, LandingLevel}
-	if !w.landing().doorTiles[doorA] {
+	if !w.doorTiles[doorA] {
 		t.Fatalf("designateRoom did not reserve %v as room A's door tile", doorA)
 	}
 
-	// Room B sites entirely below and beside room A, backing onto room A's
-	// own front wall (a legitimate reuse, like sharing a party wall) — but
-	// its left side wall's column lands exactly on room A's door tile.
-	siteB := Point{doorA.X + 1, doorA.Y + 1, LandingLevel}
+	// Room B stands free below room A, sharing room A's front wall as its
+	// own back wall (a legitimate reuse, like sharing a party wall) — but its
+	// facility row lands exactly on room A's door tile, and its back wall
+	// across room A's doorway.
+	siteB := Point{doorA.X - 1, doorA.Y, doorA.Level}
 	widthB := bayWidth(2)
+	free := siteRules{unbacked: true}
 
-	delete(w.landing().doorTiles, doorA)
-	if !w.roomSiteClear(siteB.X, siteB.Y, widthB, map[Point]bool{}, false) {
+	delete(w.doorTiles, doorA)
+	if !w.roomSiteClear(roomFrame{o: siteB, width: widthB}, map[Point]bool{}, free) {
 		t.Fatal("test geometry does not actually reach room A's doorway tile; not exercising the fix")
 	}
-	w.landing().doorTiles[doorA] = true
+	w.doorTiles[doorA] = true
 
-	if w.roomSiteClear(siteB.X, siteB.Y, widthB, map[Point]bool{}, false) {
-		t.Fatalf("room B's site was accepted even though its side wall would cover room A's doorway tile %v", doorA)
+	if w.roomSiteClear(roomFrame{o: siteB, width: widthB}, map[Point]bool{}, free) {
+		t.Fatalf("room B's site was accepted even though it would cover room A's doorway tile %v", doorA)
 	}
 }
 
@@ -1507,7 +1653,7 @@ func TestColonistsCollaborateOnProject(t *testing.T) {
 	}
 	w.designateRoom(lifeSupportRoom, site, roomFacilities, Community)
 	for i := 0; i < roomFacilities; i++ {
-		w.spawn(Colonist, Point{site.X + i, roomFrontWallY(oy) + roomApproach, LandingLevel})
+		w.spawn(Colonist, Point{site.o.X + i, roomFrontWallY(oy) + roomApproach, site.o.Level})
 	}
 
 	maxConcurrent := 0

@@ -63,6 +63,7 @@ const (
 	glyphGunBench     = glyphs.GunBench
 	glyphChair        = glyphs.Chair
 	glyphIncubator    = glyphs.Incubator
+	glyphTrough       = glyphs.Trough
 	glyphStairDown    = glyphs.StairDown
 	glyphStairUp      = glyphs.StairUp
 	glyphColonist     = glyphs.Colonist
@@ -71,6 +72,7 @@ const (
 	glyphAlien        = glyphs.Alien
 	glyphCat          = glyphs.Cat
 	glyphRat          = glyphs.Rat
+	glyphChicken      = glyphs.Chicken
 	glyphStomp        = glyphs.Stomp
 	glyphFighting     = glyphs.Fighting
 	glyphGore         = glyphs.Gore
@@ -131,6 +133,23 @@ const (
 	glyphNewMoon      = glyphs.NewMoon
 	glyphBat          = glyphs.Bat
 	glyphPeacock      = glyphs.Peacock
+	glyphStone        = glyphs.Stone
+	glyphMoai         = glyphs.Moai
+	glyphTree         = glyphs.Tree
+	glyphWood         = glyphs.Wood
+	glyphHerb         = glyphs.Herb
+	glyphSeedling     = glyphs.Seedling
+	glyphCustard      = glyphs.Custard
+	glyphGorilla      = glyphs.Gorilla
+	glyphMammoth      = glyphs.Mammoth
+	glyphBird         = glyphs.Bird
+	glyphParrot       = glyphs.Parrot
+	glyphOwl          = glyphs.Owl
+	glyphDodo         = glyphs.Dodo
+	glyphEagle        = glyphs.Eagle
+	glyphAngel        = glyphs.Angel
+	glyphFly          = glyphs.Fly
+	glyphMosquito     = glyphs.Mosquito
 	glyphManAdult     = glyphs.ManAdult
 	glyphWomanAdult   = glyphs.WomanAdult
 	glyphPersonAdult  = glyphs.PersonAdult
@@ -176,6 +195,7 @@ var glyphRegistry = map[string]glyph{
 	glyphGunBench:    {glyphGunBench, 2, "Gb"},
 	glyphChair:       {glyphChair, 2, "Ch"},
 	glyphIncubator:   {glyphIncubator, 2, "In"},
+	glyphTrough:      {glyphTrough, 2, "Tr"},
 	glyphStairDown:   {glyphStairDown, 2, "vv"},
 	glyphStairUp:     {glyphStairUp, 2, "^^"},
 
@@ -185,6 +205,7 @@ var glyphRegistry = map[string]glyph{
 	glyphAlien:    {glyphAlien, 2, "A "},
 	glyphCat:      {glyphCat, 2, "f "},
 	glyphRat:      {glyphRat, 2, "r "},
+	glyphChicken:  {glyphChicken, 2, "c "},
 	glyphStomp:    {glyphStomp, 2, "@*"},
 	glyphFighting: {glyphFighting, 2, "@="},
 	glyphGore:     {glyphGore, 2, "~~"},
@@ -246,6 +267,23 @@ var glyphRegistry = map[string]glyph{
 	glyphNewMoon:      {glyphNewMoon, 2, "Nm"},
 	glyphBat:          {glyphBat, 2, "Ba"},
 	glyphPeacock:      {glyphPeacock, 2, "Pc"},
+	glyphStone:        {glyphStone, 2, "Ro"},
+	glyphMoai:         {glyphMoai, 2, "Mo"},
+	glyphTree:         {glyphTree, 2, "Tt"},
+	glyphWood:         {glyphWood, 2, "Wd"},
+	glyphHerb:         {glyphHerb, 2, "Hb"},
+	glyphSeedling:     {glyphSeedling, 2, "Sd"},
+	glyphCustard:      {glyphCustard, 2, "Jl"},
+	glyphGorilla:      {glyphGorilla, 2, "Go"},
+	glyphMammoth:      {glyphMammoth, 2, "Mm"},
+	glyphBird:         {glyphBird, 2, "Bi"},
+	glyphParrot:       {glyphParrot, 2, "Pa"},
+	glyphOwl:          {glyphOwl, 2, "Ow"},
+	glyphDodo:         {glyphDodo, 2, "Do"},
+	glyphEagle:        {glyphEagle, 2, "Ea"},
+	glyphAngel:        {glyphAngel, 2, "Ag"},
+	glyphFly:          {glyphFly, 2, "Fl"},
+	glyphMosquito:     {glyphMosquito, 2, "Mq"},
 
 	glyphManAdult:     {glyphManAdult, 2, "M "},
 	glyphWomanAdult:   {glyphWomanAdult, 2, "W "},

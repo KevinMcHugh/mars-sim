@@ -199,6 +199,10 @@ func (m Model) renderHeader() string {
 	s := m.latest
 	title := titleStyle.Render(fitGlyph(glyphMars) + "MARS-SIM")
 	sub := statStyle.Render("Mars Colony")
+	// The colony calendar sits on the title line, which has room to spare;
+	// the counts line below is already near a 120-column terminal's width.
+	clock := titleStyle.Render(fmt.Sprintf("day %d  %02d:%02d",
+		s.Stats.Day, s.Stats.MinuteOfDay/60, s.Stats.MinuteOfDay%60))
 
 	state := fmt.Sprintf("tick %d  |  %d tps", s.Tick, s.TicksPerSecond)
 	if l := m.levelLabel(); l != "" {
@@ -212,6 +216,7 @@ func (m Model) renderHeader() string {
 		fmt.Sprintf("%s %d", fitGlyph(glyphAlien), s.Stats.Aliens),
 		fmt.Sprintf("%s %d", fitGlyph(glyphCat), s.Stats.Cats),
 		fmt.Sprintf("%s %d", fitGlyph(glyphRat), s.Stats.Rats),
+		fmt.Sprintf("%s %d", fitGlyph(glyphChicken), s.Stats.Chickens),
 		fmt.Sprintf("%s %d", fitGlyph(glyphPod), s.Stats.Pods),
 		fmt.Sprintf("%s %d", fitGlyph(glyphToilet), s.Stats.Toilets),
 		fmt.Sprintf("%s %d", fitGlyph(glyphBed), s.Stats.Beds),
@@ -222,7 +227,7 @@ func (m Model) renderHeader() string {
 		fmt.Sprintf("excavated %d", s.Stats.FloorDug),
 	}, "  "))
 
-	line1 := lipgloss.JoinHorizontal(lipgloss.Left, title, "  ", sub)
+	line1 := lipgloss.JoinHorizontal(lipgloss.Left, title, "  ", sub, "   ", clock)
 	line2 := lipgloss.JoinHorizontal(lipgloss.Left, statStyle.Render(state), "   ", counts)
 	return strings.Join([]string{
 		cells.Truncate(line1, m.termW),
@@ -252,7 +257,7 @@ func (m Model) renderMap() string {
 
 	// Index entities by position for O(1) lookup while drawing; aliens win ties.
 	// The index holds each occupant's glyph rather than its EntityView: a view
-	// carries the profile, inventory, needs, relations and memories, and
+	// carries the profile, inventory, drives, relations and memories, and
 	// copying all of that into a map every frame was most of the map's
 	// garbage, for the one field drawn from it.
 	type occupant struct {
@@ -440,6 +445,7 @@ func (m Model) drawSidebar(rows int) string {
 		{g(glyphForge, "forge"), g(glyphGunBench, "gun bench")},
 		{g(glyphHull, "pod hull"), g(glyphSalt, "salt")},
 		{g(glyphChair, "chair"), g(glyphIncubator, "incubator")},
+		{g(glyphChicken, "chicken"), g(glyphTrough, "trough")},
 	}
 	if m.levelLabel() != "" { // stairs only matter once there is a level to go to
 		legendRows = append(legendRows, [2]entry{g(glyphStairDown, "way down"), g(glyphStairUp, "way up")})
@@ -471,7 +477,7 @@ func (m Model) drawSidebar(rows int) string {
 }
 
 func (m Model) renderFooter() string {
-	help := "space pause  +/- speed  s spawn  b build  i inspect  f flow fields  ←↑↓→/hjkl pan  tab details  q quit"
+	help := "space pause  +/- speed  s spawn  b build  i inspect  f flow fields  ←↑↓→/hjkl pan  tab details  ^s save  q quit"
 	if m.levelLabel() != "" {
 		help = "</> level  " + help
 	}
@@ -486,6 +492,9 @@ func (m Model) renderFooter() string {
 		// The player should know why the colony looks like a roguelike: the
 		// terminal, not the game, chose this.
 		help = "ASCII glyphs (terminal emoji widths disagreed)  |  " + help
+	}
+	if m.saveNote != "" {
+		help = m.saveNote + "  |  " + help
 	}
 	return m.footerLine(help)
 }

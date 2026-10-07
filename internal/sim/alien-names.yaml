@@ -8,7 +8,10 @@
 # Each entry is a candidate name with an optional "when" condition over the
 # rolled species' build. A name with no condition always applies. When more
 # than one name's condition matches a rolled species, one is picked at random
-# among them -- overlapping conditions are expected, not an error.
+# among them -- overlapping conditions are expected, not an error. A
+# "group" entry lists several names under one condition; it expands to one
+# entry per name. No two species in a world's roster share a name: a name an
+# earlier species took is skipped (see docs/lore.md).
 #
 # emoji is an optional list of candidate glyphs for that name: a species that
 # lands on this entry also draws one of these at random, independently of
@@ -32,6 +35,10 @@ names:
   - name: xeno
     plural: xenos
     emoji: ["👽"]
+
+  - name: grelk
+    plural: grelks
+    emoji: ["👽", "👾"]
 
   - name: gremlin
     plural: gremlins
@@ -101,32 +108,18 @@ names:
         - limbs: { eq: 0 }
         - skin: scaly
 
-  - name: reptile
-    plural: reptiles
+  # A name group: several names sharing one condition and one emoji list.
+  # It is shorthand for writing each name out as its own entry, so each name
+  # in it is as likely to be drawn as any standalone entry.
+  - group:
+      - reptile
+      - { name: reppy, plural: reppies }
+      - rept
     emoji: ["🦎", "🐍", "🐢", "🐊", "🐉"]
     when:
       skin: scaly
 
-  - name: reppy
-    plural: reppies
-    emoji: ["🦎", "🐍", "🐢", "🐊", "🐉"]
-    when:
-      skin: scaly
-
-  - name: rept
-    plural: repts
-    emoji: ["🦎", "🐍", "🐢", "🐊", "🐉"]
-    when:
-      skin: scaly
-
-  - name: furball
-    plural: furballs
-    emoji: ["🐹", "🐭", "🐰", "🐇"]
-    when:
-      skin: furry
-
-  - name: fuzzball
-    plural: fuzzballs
+  - group: [furball, fuzzball]
     emoji: ["🐹", "🐭", "🐰", "🐇"]
     when:
       skin: furry
@@ -249,6 +242,196 @@ names:
       all:
         - skin: slimy
         - pattern: spotted
+
+  # Rocky hides.
+  - group: [rockling, pebble]
+    emoji: ["🪨"]
+    when: { skin: rocky }
+
+  - name: golem
+    plural: golems
+    emoji: ["🗿", "🪨"]
+    when:
+      all:
+        - skin: rocky
+        - any:
+            - height: large
+            - height: huge
+
+  - name: gargoyle
+    plural: gargoyles
+    emoji: ["🗿", "🦇"]
+    when:
+      all:
+        - skin: rocky
+        - wings: true
+
+  # Woody hides.
+  - group: [stump, barkback]
+    emoji: ["🪵", "🌳"]
+    when: { skin: woody }
+
+  - name: twig
+    plural: twigs
+    emoji: ["🪵"]
+    when:
+      all:
+        - skin: woody
+        - any:
+            - weight: tiny
+            - weight: small
+
+  - name: treant
+    plural: treants
+    emoji: ["🌳"]
+    when:
+      all:
+        - skin: woody
+        - any:
+            - height: large
+            - height: huge
+
+  # Mossy hides.
+  - group: [mossback, shambler]
+    emoji: ["🌿", "🌱"]
+    when: { skin: mossy }
+
+  - name: bog thing
+    plural: bog things
+    emoji: ["🌿", "🧌"]
+    when:
+      all:
+        - skin: mossy
+        - temperament: hostile
+
+  # Gelatinous hides.
+  - group: [jelly, jiggler, ooze]
+    emoji: ["🍮", "🦠"]
+    when: { skin: gelatinous }
+
+  - name: jellyfish
+    plural: jellyfish
+    emoji: ["🦑", "🐙"]
+    when:
+      all:
+        - skin: gelatinous
+        - arms: { gte: 4 }
+
+  # Hairy hides.
+  - group: [shag, mophead]
+    emoji: ["🦍", "🐺"]
+    when: { skin: hairy }
+
+  - name: yeti
+    plural: yetis
+    emoji: ["🦍"]
+    when:
+      all:
+        - skin: hairy
+        - legs: { eq: 2 }
+        - any:
+            - height: large
+            - height: huge
+
+  - name: mammoth
+    plural: mammoths
+    emoji: ["🦣"]
+    when:
+      all:
+        - skin: hairy
+        - weight: huge
+
+  # Feathered hides.
+  - group: [{ name: birdie, plural: birdies }, plume]
+    emoji: ["🐦", "🦜", "🦉"]
+    when: { skin: feathered }
+
+  - name: dodo
+    plural: dodos
+    emoji: ["🦤"]
+    when:
+      all:
+        - skin: feathered
+        - wings: false
+
+  - name: chook
+    plural: chooks
+    emoji: ["🐔"]
+    when:
+      all:
+        - skin: feathered
+        - legs: { eq: 2 }
+
+  - name: harpy
+    plural: harpies
+    emoji: ["🦅", "🦉"]
+    when:
+      all:
+        - skin: feathered
+        - wings: true
+        - temperament: hostile
+
+  - name: angel
+    plural: angels
+    emoji: ["👼"]
+    when:
+      all:
+        - skin: feathered
+        - wings: true
+        - temperament: friendly
+
+  # Wings, on any hide. (They are anatomy only: nothing flies yet.)
+  - name: flapper
+    plural: flappers
+    emoji: ["🦇", "🦋"]
+    when: { wings: true }
+
+  - name: bat
+    plural: bats
+    emoji: ["🦇"]
+    when:
+      all:
+        - wings: true
+        - any:
+            - skin: furry
+            - skin: hairy
+            - skin: smooth
+
+  - name: dragon
+    plural: dragons
+    emoji: ["🐉", "🐲"]
+    when:
+      all:
+        - wings: true
+        - skin: scaly
+
+  - name: moth
+    plural: moths
+    emoji: ["🦋", "🪰"]
+    when:
+      all:
+        - wings: true
+        - skin: chitinous
+
+  - name: skeeter
+    plural: skeeters
+    emoji: ["🦟", "🪰"]
+    when:
+      all:
+        - wings: true
+        - skin: chitinous
+        - weight: tiny
+
+  - name: griffin
+    plural: griffins
+    emoji: ["🦅"]
+    when:
+      all:
+        - wings: true
+        - legs: { eq: 4 }
+        - any:
+            - skin: feathered
+            - skin: furry
 
   - name: tiger
     plural: tigers

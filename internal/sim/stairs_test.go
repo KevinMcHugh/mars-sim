@@ -1,6 +1,7 @@
 package sim
 
 import (
+	"bytes"
 	"fmt"
 	"testing"
 )
@@ -439,5 +440,34 @@ func TestNoStairsAtDeepestLevelOne(t *testing.T) {
 	}
 	if len(w.stairs) > 0 || w.stairPlanned() || len(w.layers) != int(LandingLevel)+1 {
 		t.Fatal("a colony limited to the landing level planned or dug a stair")
+	}
+}
+
+// A game saved with two levels loads with both and plays on exactly as the
+// saved one would have: every layer, the stair list and the cross-level
+// caches survive the round trip.
+func TestSaveLoadKeepsLevels(t *testing.T) {
+	straight := stairColony(t, 3)
+	straight.manualStairs = 1
+	runUntil(t, straight, 3000, "a stair", func() bool { return len(straight.stairs) > 0 })
+	for i := 0; i < 100; i++ {
+		straight.step()
+	}
+	loaded := saveAndLoad(t, straight)
+	if len(loaded.layers) != len(straight.layers) || loaded.layer(LandingLevel+1) == nil {
+		t.Fatalf("loaded %d layers, saved %d", len(loaded.layers), len(straight.layers))
+	}
+	if loaded.layer(SurfaceLevel) != nil {
+		t.Fatal("the surface came back as a layer")
+	}
+	for i := 0; i < 600; i++ {
+		straight.step()
+		loaded.step()
+		if i%50 != 49 {
+			continue
+		}
+		if !bytes.Equal(encodeWorld(t, straight), encodeWorld(t, loaded)) {
+			t.Fatalf("loaded game's state differs by tick %d: %s", straight.tick, saveDiff(straight, loaded))
+		}
 	}
 }

@@ -14,7 +14,7 @@ supply, a set of accounts, and the rules that keep them honest.
 ## Source
 
 - [`internal/sim/money.go`](../internal/sim/money.go) — `Money`, `transfer`,
-  `mint`, `freezeWallet`, `balance`, `moneyInCirculation`.
+  `mint`, `export`, `freezeWallet`, `balance`, `moneyInCirculation`.
 - [`internal/sim/owner.go`](../internal/sim/owner.go) — `Owner`/`OwnerKind`,
   the name of whoever holds money or property.
 - [`internal/sim/world.go`](../internal/sim/world.go) — `treasury`,
@@ -52,20 +52,25 @@ Money is created in exactly two places, both through `mint`:
 | the treasury | once, in `newWorld` | `founding-grant` (default 5000) |
 | a colonist's wallet | when it spawns — worldgen, the spawn command, anything else | `crash-pod-purse` (default 100) |
 
-Every minted dollar is added to `moneyIssued`. Nothing destroys money. When a
-colonist dies, `freezeWallet` moves its balance into `moneyFrozen`: the dollars
-stay on its permanent record (`EntityView.Wallet` in `Snapshot.Deceased`) but
+A recruit's wallet is the second row too: it mints the recruit's savings
+instead of the purse (see [recruiting.md](./recruiting.md)).
+
+Every minted dollar is added to `moneyIssued`. Money leaves the colony in
+exactly one way, through `export`: paying someone off-world, which today is
+only the recruiter's fee and a recruit's passage. Every exported dollar is
+added to `moneyExported`. When a colonist dies, `freezeWallet` moves its
+balance into `moneyFrozen`: the dollars stay on its permanent record (`EntityView.Wallet` in `Snapshot.Deceased`) but
 leave circulation, because nobody can spend them. So the books always balance:
 
 ```
 treasury + Σ living wallets (= moneyInCirculation) + moneyFrozen
     + moneyEscrowed (held by open bids and work orders, see market.md and
-      labor.md) == moneyIssued
+      labor.md) + moneyExported (paid off-world) == moneyIssued
 ```
 
 The wealth levy (below) moves money from wallets to the treasury through
-`transfer`, so it changes nobody's total but its payers': the supply is still
-fixed.
+`transfer`, so it changes nobody's total but its payers': the supply only
+changes when someone arrives or the colony pays someone off-world.
 
 `TestMoneyIsConserved` checks that on every tick of a colony that is gaining
 arrivals, losing colonists to aliens, and shuffling random payments between
@@ -117,12 +122,20 @@ at least a dollar if it holds any excess, nothing otherwise.
 It is all-or-nothing and reports whether it happened. Paying yourself is a
 no-op that still requires the funds.
 
+It also keeps the running totals the chart system reads (see
+[charts.md](./charts.md)): `moneyMoved` and `payments`, the dollars and the
+number of payments that changed hands. A transfer into escrow, or escrow
+going back to its own poster (`payer`), is not a payment, so a bid that fills
+under its limit counts its price once and its refund not at all.
+
 ### Seeing it
 
-`Snapshot.Economy` carries the treasury, circulating, frozen, and issued
-totals; each colonist's balance is on its `EntityView.Wallet`. The TUI's
+`Snapshot.Economy` carries the treasury, circulating, frozen, escrowed,
+exported, and issued totals; each colonist's balance is on its `EntityView.Wallet`. The TUI's
 **market** tab (between storage and lore) lists the treasury and every living
 colonist richest first, with the money supply beside the selected account.
+Both it and the browser's Market tab show the exported total as
+**Off-world** once there is any.
 
 ## Why it is this way
 
@@ -145,14 +158,21 @@ colonist richest first, with the money supply beside the selected account.
   `int`, `int64`, and `bool` (`bindConfigFlags` in `main.go`), and a named
   type would fall through its type switch.
 - **Minting draws no randomness.** The purse and grant are constants, so adding
-  money left every simulation fingerprint unchanged for the same seed.
+  money left every simulation fingerprint unchanged for the same seed. A
+  recruit's savings are random, but drawn on the recruit stream (see
+  [recruiting.md](./recruiting.md)).
+- **Exporting is counted, not hidden.** Money paid off-world could have been
+  subtracted from `moneyIssued` instead. Keeping it as its own total keeps
+  `moneyIssued` a record of everything minted, and lets the market tab say
+  how much the colony has spent outside itself.
 
 ## Extending it
 
 - **Paying for something** is a `transfer` call; check its result.
+- **Paying someone off-world** is an `export` call; check its result.
 - **A new source or sink of money** (a tax, a fee that burns money, lending)
-  must go through a funnel like `mint` that keeps an audit total, and
-  `assertMoneyConserved` in `money_test.go` must learn about it.
+  must go through a funnel like `mint` or `export` that keeps an audit total,
+  and `assertMoneyConserved` in `money_test.go` must learn about it.
 - **A new owner kind** needs a case in `account`; everything else takes an
   `Owner` and shouldn't care.
 
@@ -162,3 +182,4 @@ colonist richest first, with the money supply beside the selected account.
 - [property.md](./property.md) — the other half of `Owner`: who owns goods and fixtures.
 - [frontend-tui.md](./frontend-tui.md) — the market tab.
 - [configuration.md](./configuration.md) — the `founding-grant` and `crash-pod-purse` settings.
+- [recruiting.md](./recruiting.md) — the first money paid off-world, and savings minted on arrival.

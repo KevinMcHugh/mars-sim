@@ -10,6 +10,10 @@ func foundryWorld(t *testing.T, n int, ore int) (w *World, silo, forge, bench Po
 	t.Helper()
 	w = propertyWorld(t)
 	w.cfg.MealReserve, w.cfg.ScumhouseBidQty = 0, 0
+	// Nor does it fit its facility room out: with floor to spare it takes a
+	// bunk and chairs (see roomplan.go), and colonists sleeping and talking
+	// in them is not the work this measures.
+	w.cfg.RoomExpansion, w.cfg.RoomMerge = false, false
 	silo, forge, bench = Point{6, 6, LandingLevel}, Point{16, 6, LandingLevel}, Point{18, 6, LandingLevel}
 	w.SetTerrain(silo, Storage)
 	w.SetTerrain(forge, Forge)
@@ -18,9 +22,7 @@ func foundryWorld(t *testing.T, n int, ore int) (w *World, silo, forge, bench Po
 	stock(w, silo, Community, IronOre, ore)
 	for i := 0; i < n; i++ {
 		e := w.spawn(Colonist, Point{10 + 2*i, 12, LandingLevel})
-		for k := range e.Needs {
-			e.Needs[k] = 0
-		}
+		quietDrives(w, e)
 		e.wallet = 100
 		w.moneyIssued += 100 - Money(w.cfg.CrashPodPurse)
 		cols = append(cols, e)
@@ -37,9 +39,7 @@ func runFoundry(t *testing.T, w *World, limit int) (depth int) {
 		w.step()
 		for _, e := range w.entities {
 			if e.Kind == Colonist {
-				for k := range e.Needs {
-					e.Needs[k] = 0
-				}
+				quietDrives(w, e)
 			}
 		}
 		depth = max(depth, w.chainDepth())
@@ -63,7 +63,7 @@ func TestARifleBidReachesTheSilo(t *testing.T) {
 	if depth < 3 {
 		t.Fatalf("deepest plan was %d links below the rifle bid, want 3", depth)
 	}
-	if got := w.landing().storageContainers[silo].held(Community, AssaultRifle); got != 1 {
+	if got := w.storageContainers[silo].held(Community, AssaultRifle); got != 1 {
 		t.Fatalf("the colony holds %d rifles at the silo, want 1", got)
 	}
 	traded := map[ItemKind]Point{}
@@ -101,14 +101,12 @@ func TestOwnOreFillsTheForge(t *testing.T) {
 	}
 	for i := 0; i < 400 && w.orders[bid.ID] != nil; i++ {
 		w.step()
-		for k := range miner.Needs {
-			miner.Needs[k] = 0
-		}
+		quietDrives(w, miner)
 	}
-	if got := w.landing().storageContainers[forge].held(smith, IronOre); got != 2 {
+	if got := w.storageContainers[forge].held(smith, IronOre); got != 2 {
 		t.Fatalf("the smith holds %d ore at the forge, want 2", got)
 	}
-	if got := w.landing().storageContainers[chest].held(ColonistOwner(miner.ID), IronOre); got != 3 {
+	if got := w.storageContainers[chest].held(ColonistOwner(miner.ID), IronOre); got != 3 {
 		t.Fatalf("the miner kept %d ore in its chest, want 3", got)
 	}
 

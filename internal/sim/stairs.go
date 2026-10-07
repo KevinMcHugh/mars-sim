@@ -247,13 +247,13 @@ func (w *World) findStairSite(l Level) (Point, bool) {
 		}
 	}
 	ok := func(p Point) bool {
-		if !w.canDigStairAt(p) || designated[p] || w.lay(p).doorTiles[p] || w.occupied(p) ||
+		if !w.canDigStairAt(p) || designated[p] || w.doorTiles[p] || w.occupied(p) ||
 			w.mainRoom == 0 || w.roomOf(p) != w.mainRoom {
 			return false
 		}
 		for _, d := range neighbors8 {
 			n := p.Add(d.X, d.Y)
-			if w.TerrainAt(n) != Floor || designated[n] || w.lay(n).doorTiles[n] {
+			if w.TerrainAt(n) != Floor || designated[n] || w.doorTiles[n] {
 				return false
 			}
 		}

@@ -10,7 +10,7 @@ free gruel only when it has none. That fallback is the **safety net**
 (`infinite-food`), **off by default** since economy phase E8: pods feed
 nobody, and the colony lives on what it landed with and what it makes. The
 safety net stays a setting, for tests and balancing. This is the second half of phase
-**E2** of the [economy plan](./economy.md); [crash-pods.md](./crash-pods.md)
+**E2** of the [economy plan](./economy.md); [ships.md](./ships.md)
 covers where the first meals come from.
 
 ## Source
@@ -19,10 +19,10 @@ covers where the first meals come from.
   `tryStartEating`, `nearestMealDepot`, `jobEat`, `takeMeal`,
   `hungryWithoutFood`, `podsFeed`, `wantsFacility`; foraging
   (`planForage`, `tryProspect`, see [foraging.md](./foraging.md)).
-- [`internal/sim/systems.go`](../internal/sim/systems.go) — `runNeedFocus`
+- [`internal/sim/systems.go`](../internal/sim/systems.go) — `runDriveFocus`
   hands food to `runFoodFocus` first; `finishUse` records gruel; rats only eat
   at pods that feed.
-- [`internal/sim/needs.go`](../internal/sim/needs.go) — the starvation grace
+- [`internal/sim/drives.go`](../internal/sim/drives.go) — the starvation grace
   covers `JobEat`.
 - [`internal/sim/project.go`](../internal/sim/project.go) — `toiletRoom`,
   `facilityRoomRecipe`.
@@ -34,12 +34,12 @@ covers where the first meals come from.
 
 ### Who eats what
 
-When the food need is pressing, `runNeedFocus` gives `runFoodFocus` the turn
+When the food need is pressing, `runDriveFocus` gives `runFoodFocus` the turn
 first. It tries, in order:
 
 1. **A meal in the colonist's pockets**, usually its pocket meal (see *Pocket
    meals*). Eat it where it stands.
-2. **A meal of its own in a depot it can reach** — its crash pod's locker, to
+2. **A meal of its own in a depot it can reach** — its locker aboard ship, to
    begin with. Walk there, take one out (`debit`), step aside, eat it.
 3. **A meal bought.** The cheapest on offer at the silo or a scumhouse it can
    reach, up to its `mealBidLimit` (see [valuation.md](./valuation.md)). The
@@ -185,6 +185,10 @@ More stock makes it worse, not better (seeds 1–3, 30,000 ticks, starved of
 | `meal-reserve` 6 | 132 |
 | `crash-pod-meals` 20 | 172 |
 
+(These figures predate `standing-orders-build-only`, under which the
+colony posts no scum bids or meal asks; see
+[colony-orders.md](./colony-orders.md).)
+
 Two things hold production back. The colony's standing bids for scum are
 funded from the treasury, which building rooms for 100 colonists drains to $0
 by about tick 4,000, while colonists still eating their pod meals buy nothing.
@@ -196,7 +200,7 @@ is, so a shortage never raises the price that would draw more producers in.
 In `eatMeal` (and `eatWalk`) the meal is in hand: out of the pockets and off the ledger both.
 If the job is cleared — an alien comes round the corner — `clearJob` puts it
 back in the colonist's pockets, so a meal is never lost to a fright. The
-starvation grace (`applyStarvation`) covers a colonist in `JobEat` the way it
+starvation grace (`starve`) covers a colonist in `JobEat` the way it
 covers one queued at a reachable pod.
 
 ## Why it is this way
@@ -228,8 +232,8 @@ covers one queued at a reachable pod.
 
 ## Related
 
-- [needs.md](./needs.md) — the food need, its thresholds, and starvation.
-- [crash-pods.md](./crash-pods.md) — the meals a colonist lands with.
+- [drives.md](./drives.md) — the food drive, its thresholds, and starvation.
+- [ships.md](./ships.md) — the meals a colonist lands with.
 - [property.md](./property.md) — ledgers, `debit`, and who may use what.
 - [construction.md](./construction.md) — the facility room, and what it holds
   with the safety net off.

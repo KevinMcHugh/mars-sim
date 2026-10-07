@@ -8,7 +8,7 @@ The world is a single underground level: a grid of `Tile`s, stored in 64×64 pag
 starts as solid rock with ordinary, iron-bearing, water ice-bearing,
 uranium-bearing, or clay-bearing composition. World generation carves a landing cavern,
 hollows hidden natural caverns (some joined by passages) out of the rock
-beyond, lands the colonists' crash pods in the landing cavern, and seeds aliens
+beyond, lands the colonists' ships in the landing cavern, and seeds aliens
 out in the surrounding rock and cats/rats on the floor.
 
 ## Source
@@ -24,11 +24,11 @@ out in the surrounding rock and cats/rats on the floor.
 ### Terrain and tiles
 
 `Terrain` is an enum: `Rock`, `Floor`, `Wall`, `NutrientPod`, `Toilet`, `Bed`,
-`Incinerator`, `Storage`, `Scumhouse`, `Hull`, `Forge`, `GunBench`, `Chair`,
-`Incubator`, `StairDown`, `StairUp`. The two stair terrains are the ends of a
-stair between two levels (see [stairs.md](./stairs.md)). `Hull` is a crash pod's metal
-wall: it behaves like `Wall` but only ever arrives with a pod (see
-[crash-pods.md](./crash-pods.md)). Only
+`Incinerator`, `Storage`, `Scumhouse`, `Hull`, `StairDown`, `StairUp`. The two
+stair terrains are the ends of a stair between two levels (see
+[stairs.md](./stairs.md)). `Hull` is a colony ship's metal
+wall: it behaves like `Wall` but only ever arrives with a ship (see
+[ships.md](./ships.md)). Only
 `Floor` and the two stair ends are `Walkable()`, and every creature, aliens
 included, stays on them. Beds are dormitory bunks used from an
 adjacent floor tile; the incinerator is the machine refuse is burned in, used the
@@ -132,13 +132,16 @@ derived systems go stale (and the map the player sees never grows).
    dig breaks into one (see [caverns.md](./caverns.md)).
 2. Carves an **oval cavern** at the map center. `caveRadii` sizes it to the
    starting colonist count — ten tiles of elbow room per colonist plus the
-   ground its crash pod takes, at a 2:1 width:height ratio, never less than
-   `minCaveRy` (6) rows above and below the middle — clamped to the map. The
-   pods' share and the taller minimum both exist so the colony can still site
-   its first room once the pods are down; see [crash-pods.md](./crash-pods.md).
+   colonist's share of the ground its ship takes (`shipTilesPerColonist`),
+   at a 2:1 width:height ratio, never less than `minCaveRy` (6) rows above
+   and below the middle — clamped to the map. The ships' share and the taller
+   minimum both exist so the colony can still site its first room once the
+   ships are down; see [ships.md](./ships.md).
    Caverns keep `cavernLandingClearance` tiles clear of its bounding box.
-3. Lands each colonist in a crash pod (`arrive`), in the lower half of the
-   cavern, crashing through the rock once the open floor runs out.
+3. Lands the colonists in colony ships of up to `ship-capacity` (`arriveWave`),
+   in the lower half of the cavern, crashing through the rock once the open
+   floor runs out. With `place-ships` (the browser) it lands nobody and leaves
+   the ships aloft for the player to land.
 4. Places aliens with `alienSpawnSite`: on hidden cavern floor, where they lie
    dormant until the colony digs in, or, with no cave room, on colony floor far
    from the landing site. See [caverns.md](./caverns.md#aliens-in-the-caves).

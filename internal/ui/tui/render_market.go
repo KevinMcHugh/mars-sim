@@ -152,6 +152,9 @@ func (m Model) renderMarketDetail(a marketAccount, rows, width int) string {
 	stat("Circulating:", econ.Circulating.String())
 	stat("In escrow:", econ.Escrowed.String()+" (held by open bids)")
 	stat("Frozen:", econ.Frozen.String()+" (held by the dead)")
+	if econ.Exported > 0 {
+		stat("Off-world:", econ.Exported.String()+" (paid to recruit)")
+	}
 	stat("Issued:", econ.Issued.String())
 
 	if a.colonist != nil {
@@ -404,8 +407,11 @@ func (m Model) workLines() []string {
 	var out []string
 	for _, k := range order {
 		what := "build tasks"
-		if k.kind == sim.WorkHaul {
+		switch k.kind {
+		case sim.WorkHaul:
 			what = "units to haul"
+		case sim.WorkDig:
+			what = "tiles to dig"
 		}
 		out = append(out, fmt.Sprintf("%s: %d %s, %v held", m.ownerLabel(k.issuer), units[k], what, held[k]))
 	}

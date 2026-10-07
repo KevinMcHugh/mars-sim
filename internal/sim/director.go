@@ -177,17 +177,11 @@ func (w *World) fireAlienSwarm(ev scheduledEvent) {
 	w.logEvent(LogArrival, fmt.Sprintf("%s: a swarm of %s stirs below (%d).", ev.Name, noun, spawned))
 }
 
-// fireArrival brings a wave of new colonists down in crash pods, each through
-// arrive — the same way the founders landed. See docs/crash-pods.md.
+// fireArrival brings a wave of new colonists down in colony ships, through
+// arriveWave — the same way the founders landed. See docs/ships.md.
 func (w *World) fireArrival(ev scheduledEvent) {
-	landed := 0
-	for i := 0; i < ev.Occurrence.Count; i++ {
-		if w.arrive(false) == nil {
-			break
-		}
-		landed++
-	}
-	w.logEvent(LogArrival, fmt.Sprintf("%s: %d crash pods streak down toward the colony.", ev.Name, landed))
+	landed, ships := w.arriveWave(ev.Occurrence.Count, false)
+	w.logEvent(LogArrival, fmt.Sprintf("%s: %d settlers streak down toward the colony in %s.", ev.Name, landed, shipsNoun(ships)))
 }
 
 // fireSupplyDrop hands out weapons to living colonists: spread across

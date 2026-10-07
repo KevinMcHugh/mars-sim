@@ -1,6 +1,9 @@
 package sim
 
-import "sort"
+import (
+	"slices"
+	"sort"
+)
 
 // ---- The order book -------------------------------------------------------------
 //
@@ -50,6 +53,12 @@ type Order struct {
 	Depot   Point
 	Posted  int
 	Expires int // tick; 0 never
+	// Filled is how many units have traded so far, and Fills who they
+	// traded with, one line per counterparty in the order they first
+	// traded. They are for display (an order's detail page): nothing
+	// decides anything by them. See docs/order-detail.md.
+	Filled int
+	Fills  []Fill
 
 	// escrow is the money a bid is holding, Qty × Price at rest. An ask's
 	// escrow is goods, on the order's own ledger line at the depot.
@@ -59,6 +68,20 @@ type Order struct {
 	// See producer.go.
 	plan  planID
 	depth int
+	// manual marks an order a player placed or repriced for the colony
+	// (colonyorders.go). The colony's upkeep never withdraws or retires
+	// one; it still counts toward the quantities upkeep tops up to.
+	manual bool
+	// wide marks an order a colony-wide order placed (colonywide.go): its
+	// upkeep tops it up, moves it and reprices it, and the colony's other
+	// upkeep leaves its bids alone.
+	wide bool
+	// priced is the tick it was posted at its price: a reprice re-posts, so
+	// it is the last price change, which inherit leaves alone (Posted is the
+	// first). hunger marks a hungry colonist's waiting bid for a meal, which
+	// it raises while it goes unfilled. See pricing.go.
+	priced int
+	hunger bool
 }
 
 // owner is the order itself as a ledger or money holder: where its escrow
@@ -91,6 +114,46 @@ type Trade struct {
 	Seller Owner
 }
 
+// Fill is what one order has traded with one counterparty: how many units,
+// for how many dollars in all.
+type Fill struct {
+	With  Owner
+	Qty   int
+	Total Money
+}
+
+// recordFill notes n units traded with counterparty at price. An order's
+// fills are bounded by its counterparties, not its trades: a standing bid
+// filled one unit at a time by the same prospector stays one line.
+func (o *Order) recordFill(with Owner, n int, price Money) {
+	o.Filled += n
+	o.addFill(Fill{With: with, Qty: n, Total: Money(n) * price})
+}
+
+// addFill merges f into the counterparty's line, or starts one.
+func (o *Order) addFill(f Fill) {
+	for i := range o.Fills {
+		if o.Fills[i].With == f.With {
+			o.Fills[i].Qty += f.Qty
+			o.Fills[i].Total += f.Total
+			return
+		}
+	}
+	o.Fills = append(o.Fills, f)
+}
+
+// inherit carries prev's history onto o, the order that re-posts it (a
+// reprice cancels and posts again): when it opened, and what it had
+// filled, ahead of anything o filled on posting. Posted is display-only, so
+// this changes no matching; time priority is the new ID's.
+func (o *Order) inherit(prev *Order) {
+	fresh := o.Fills
+	o.Posted, o.Filled, o.Fills = prev.Posted, o.Filled+prev.Filled, slices.Clone(prev.Fills)
+	for _, f := range fresh {
+		o.addFill(f)
+	}
+}
+
 // maxTrades is how many recent trades the world keeps for display.
 const maxTrades = 64
 
@@ -120,13 +183,13 @@ func crosses(incoming, resting *Order) bool {
 // it does not hold at that depot. ttl is how many ticks the rest of the order
 // lives; 0 means it never expires.
 func (w *World) post(side Side, item ItemKind, qty int, price Money, actor Owner, depot Point, ttl int) (*Order, int) {
-	c := w.lay(depot).storageContainers[depot]
+	c := w.storageContainers[depot]
 	if c == nil || qty <= 0 || price < 0 || item == ItemNone {
 		return nil, 0
 	}
 	w.nextOrderID++
 	o := &Order{ID: w.nextOrderID, Side: side, Item: item, Qty: qty, Price: price,
-		Actor: actor, Depot: depot, Posted: w.tick}
+		Actor: actor, Depot: depot, Posted: w.tick, priced: w.tick}
 	if ttl > 0 {
 		o.Expires = w.tick + ttl
 	}
@@ -144,6 +207,8 @@ func (w *World) post(side Side, item ItemKind, qty int, price Money, actor Owner
 		}
 	}
 
+	w.posted[side][item]++
+	w.posted[side][ItemNone]++
 	key := bookKey{item, depot}
 	b := w.books[key]
 	if b == nil {
@@ -151,15 +216,25 @@ func (w *World) post(side Side, item ItemKind, qty int, price Money, actor Owner
 		w.books[key] = b
 	}
 	filled := 0
-	for o.Qty > 0 {
-		opposite := &b.asks
-		if side == Ask {
-			opposite = &b.bids
-		}
-		if len(*opposite) == 0 || !crosses(o, (*opposite)[0]) {
+	opposite := &b.asks
+	if side == Ask {
+		opposite = &b.bids
+	}
+	// The colony's orders never trade with each other: one passes over the
+	// colony's own to the next. Buying meals at $10 and selling them at $5 at
+	// one pantry, the colony would otherwise only ever trade with itself.
+	// A colonist's still may: a hungry cook whose meals are all on offer buys
+	// one back that way, and passing over it starved more of them (seed 2,
+	// 100 colonists: 55 against 37).
+	for i := 0; o.Qty > 0 && i < len(*opposite); {
+		resting := (*opposite)[i]
+		if !crosses(o, resting) {
 			break
 		}
-		resting := (*opposite)[0]
+		if actor == Community && resting.Actor == Community {
+			i++
+			continue
+		}
 		n := min(o.Qty, resting.Qty)
 		if side == Bid {
 			w.settle(b, c, o, resting, n, resting.Price)
@@ -168,7 +243,7 @@ func (w *World) post(side Side, item ItemKind, qty int, price Money, actor Owner
 		}
 		filled += n
 		if resting.Qty == 0 {
-			*opposite = (*opposite)[1:]
+			*opposite = append((*opposite)[:i], (*opposite)[i+1:]...)
 			w.closeOrder(resting)
 		}
 	}
@@ -196,11 +271,17 @@ func (w *World) settle(b *book, c *StorageContainer, bid, ask *Order, n int, pri
 	w.transfer(bid.owner(), ask.Actor, Money(n)*price)
 	bid.Qty -= n
 	ask.Qty -= n
+	bid.recordFill(ask.Actor, n, price)
+	ask.recordFill(bid.Actor, n, price)
 	if over := w.balance(bid.owner()) - Money(bid.Qty)*bid.Price; over > 0 {
 		w.transfer(bid.owner(), bid.Actor, over)
 	}
 	b.last, b.traded = price, true
 	b.volume += n
+	w.tradedUnits[ask.Item] += int64(n)
+	w.tradedUnits[ItemNone] += int64(n)
+	w.tradedValue[ask.Item] += int64(n) * int64(price)
+	w.tradedValue[ItemNone] += int64(n) * int64(price)
 	w.recordPrice(ask.Item, price)
 	w.trades = append(w.trades, Trade{Tick: w.tick, Item: ask.Item, Depot: ask.Depot, Qty: n,
 		Price: price, Buyer: bid.Actor, Seller: ask.Actor})
@@ -221,7 +302,7 @@ func (w *World) closeOrder(o *Order) {
 			o.escrow = 0
 		}
 	case Ask:
-		if c := w.lay(o.Depot).storageContainers[o.Depot]; c != nil && o.Qty > 0 {
+		if c := w.storageContainers[o.Depot]; c != nil && o.Qty > 0 {
 			c.moveLine(o.owner(), o.Actor, o.Item, o.Qty)
 		}
 	}
@@ -331,8 +412,8 @@ func (w *World) marketDepot() (Point, bool) {
 	center := Point{w.Width / 2, w.Height / 2, LandingLevel}
 	var best Point
 	bestDist, found := 1<<30, false
-	for p, c := range w.landing().storageContainers {
-		if c.Terrain != Storage || !w.communalFixture(p) || w.isPantry(p) {
+	for p, c := range w.storageContainers {
+		if p.Level != LandingLevel || c.Terrain != Storage || !w.communalFixture(p) || w.isPantry(p) {
 			continue // a pantry is a kitchen's, for meals: not the silo
 		}
 		d := center.Chebyshev(p)
@@ -381,6 +462,8 @@ func (w *World) runMarket() {
 	w.expireOrders()
 	w.prunePlans()
 	w.retireOldSilo()
+	w.movePrices()
+	w.refreshWideOrders()
 	w.refreshColonyBids()
 	w.refreshColonyAsks()
 	w.refreshBiomatterBids()
@@ -396,7 +479,8 @@ func (w *World) runMarket() {
 // orders never expire, so without this their escrow was stranded for good:
 // one chest built at the centre doubled the money in escrow and left 64 iron
 // bids open at the old silo. Unclaimed haul orders bound for it close too; a
-// haul already under way finishes where it was going.
+// haul already under way finishes where it was going. A player's order there
+// (manual) stays: the player can see it and take it off the book.
 func (w *World) retireOldSilo() {
 	silo, ok := w.marketDepot()
 	old, had := w.siloWas, w.siloSeen
@@ -404,7 +488,7 @@ func (w *World) retireOldSilo() {
 	if !had || (ok && silo == old) {
 		return
 	}
-	for _, o := range w.sortedOrders(func(o *Order) bool { return o.Actor == Community && o.Depot == old }) {
+	for _, o := range w.sortedOrders(func(o *Order) bool { return o.Actor == Community && o.Depot == old && !o.manual }) {
 		w.cancel(o)
 	}
 	for _, o := range w.sortedWork(func(o *WorkOrder) bool {
@@ -433,7 +517,7 @@ func (w *World) refreshColonyBids() {
 			want = afford
 		}
 		if want > 0 {
-			w.post(Bid, k, want, price, Community, silo, 0)
+			w.postStanding(Bid, k, want, price, silo)
 		}
 	}
 }
@@ -455,7 +539,7 @@ func (w *World) sellableStacks(e *Entity) []ItemStack {
 // at once against any bid (the colony's, for ore); the rest rests for
 // order-ttl ticks.
 func (w *World) sellAtMarket(e *Entity, p Point, kinds []ItemKind) {
-	c := w.lay(p).storageContainers[p]
+	c := w.storageContainers[p]
 	if c == nil {
 		return
 	}
@@ -526,7 +610,9 @@ func (w *World) tryBuyMeal(e *Entity) bool {
 		queue, ok = silo, true
 	}
 	if ok {
-		w.post(Bid, Meal, 1, limit, me, queue, w.cfg.DemandTTL)
+		if o, _ := w.post(Bid, Meal, 1, w.mealBidStart(e, limit), me, queue, w.cfg.DemandTTL); o != nil {
+			o.hunger = true
+		}
 	}
 	return false
 }
@@ -604,7 +690,7 @@ func (w *World) jobSell(e *Entity) {
 		e.State = Hauling
 		return
 	}
-	c := w.lay(e.Target).storageContainers[e.Target]
+	c := w.storageContainers[e.Target]
 	me := ColonistOwner(e.ID)
 	if c == nil {
 		w.clearJob(e)

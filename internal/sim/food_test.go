@@ -20,7 +20,7 @@ func ownedMeals(w *World, e *Entity) int {
 	if e.Job == JobEat && (e.eat == eatMeal || e.eat == eatWalk) {
 		n++ // in hand
 	}
-	for _, c := range w.landing().storageContainers {
+	for _, c := range w.storageContainers {
 		n += c.held(ColonistOwner(e.ID), Meal)
 	}
 	return n
@@ -42,7 +42,7 @@ func TestColonistsEatTheirOwnMealsBeforeGruel(t *testing.T) {
 			if e.Kind != Colonist {
 				continue
 			}
-			if e.Job == JobUse && e.Need == NeedFood && ownedMeals(w, e) > 0 {
+			if e.Job == JobUse && e.Drive == DriveFood && ownedMeals(w, e) > 0 {
 				t.Fatalf("tick %d: %s went to the pod with %d meals of its own", w.tick, e.displayName(), ownedMeals(w, e))
 			}
 		}
@@ -68,11 +68,12 @@ func TestColonistsEatTheirOwnMealsBeforeGruel(t *testing.T) {
 // long as the meals it landed with, and then starves. This is the scarcity
 // itself under test: the manifest sets the timeline.
 //
-// At the baseline rise of 2/tick a meal is due every SeekAt/2 = 325 ticks and
-// takes UseTicks = 18 to eat. From there, hunger climbs from 0 to Max in 500
+// At the base food rate a meal is due every SeekAt/rate ticks and takes
+// UseTicks = 18 to eat. From there, hunger climbs from 0 to Max in Max/rate
 // ticks and then drains HP at StarveDamage a tick. So with m meals nobody can
 // die before (m-1)·(325+18) + 18 + 500 + HP ticks, and everyone should be dead
-// by m·(325+18+travel) + 500 + HP, allowing some walking.
+// by m·(325+18+travel) + 500 + HP, allowing some walking — plus a night in
+// bed for each day that takes, since hunger is paused while asleep.
 func TestWithoutTheSafetyNetTheColonyStarvesOnSchedule(t *testing.T) {
 	const meals = 3
 	cfg := testConfig()
@@ -83,13 +84,16 @@ func TestWithoutTheSafetyNetTheColonyStarvesOnSchedule(t *testing.T) {
 	cfg.ScumPercent = 0        // nothing to make food from: no scum, and no creatures to die
 	cfg.IncubatorGrowTicks = 0 // and no incubator to seed: this colony produces nothing
 	w := newTestWorld(t, cfg)
-	spec := w.cfg.Needs[NeedFood]
-	rise := spec.Rise
-	cycle := spec.SeekAt/rise + spec.UseTicks
-	dying := (spec.Max)/rise + w.cfg.ColonistHP/w.cfg.StarveDamage
+	spec := w.cfg.Drives[DriveFood]
+	// testConfig grows every drive at its base rate whatever the colonist
+	// is doing awake, and pauses hunger in bed.
+	ticksTo := func(points int) int { return points * driveUnit / spec.Rate }
+	cycle := ticksTo(spec.SeekAt) + spec.UseTicks
+	dying := ticksTo(spec.Max) + w.cfg.ColonistHP/w.cfg.StarveDamage
 	earliest := (meals-1)*cycle + spec.UseTicks + dying
 	const travel = 60
 	latest := meals*(cycle+travel) + dying
+	latest += (latest/w.cfg.TicksPerDay() + 1) * w.cfg.NightTicks()
 	n := w.countKind(Colonist)
 
 	firstDeath, lastDeath := -1, -1
@@ -103,7 +107,7 @@ func TestWithoutTheSafetyNetTheColonyStarvesOnSchedule(t *testing.T) {
 			lastDeath = w.tick
 		}
 		for _, id := range w.entityIDsSorted() {
-			if e := w.entities[id]; e.Kind == Colonist && e.Job == JobUse && e.Need == NeedFood {
+			if e := w.entities[id]; e.Kind == Colonist && e.Job == JobUse && e.Drive == DriveFood {
 				t.Fatalf("tick %d: %s is using a pod with infinite-food off", w.tick, e.displayName())
 			}
 		}
@@ -134,7 +138,7 @@ func TestInterruptedMealGoesBackInThePocket(t *testing.T) {
 		}
 	}
 	e.Inventory.Add(Meal, 1)
-	e.Needs[NeedFood] = w.cfg.Needs[NeedFood].SeekAt
+	w.setDrive(e, DriveFood, w.cfg.Drives[DriveFood].SeekAt)
 	if !w.tryStartEating(e) || e.eat != eatMeal || e.Inventory.Count(Meal) != 0 {
 		t.Fatalf("did not start eating the carried meal: job %v stage %v meals %d", e.Job, e.eat, e.Inventory.Count(Meal))
 	}
@@ -150,7 +154,7 @@ func TestInterruptedMealGoesBackInThePocket(t *testing.T) {
 func TestColonistsEatOnlyMealsTheyMayTake(t *testing.T) {
 	w, e, chest := storageBehaviorWorld(t, true)
 	other := w.spawn(Colonist, Point{12, 12, LandingLevel})
-	c := w.landing().storageContainers[chest]
+	c := w.storageContainers[chest]
 	c.Inventory.Add(Meal, 2)
 	c.credit(ColonistOwner(other.ID), Meal, 2)
 	if _, ok := w.nearestMealDepot(e); ok {
@@ -187,14 +191,14 @@ func TestPressingHungerDropsWorkToCook(t *testing.T) {
 	w.refreshSpatial()
 	e := w.spawn(Colonist, Point{10, 7, LandingLevel})
 	me := ColonistOwner(e.ID)
-	c := w.landing().storageContainers[house]
+	c := w.storageContainers[house]
 	c.Inventory.Add(CaveScum, 2)
 	c.credit(me, CaveScum, 2)
 	w.assignMineTarget(e, Point{20, 12, LandingLevel})
 
 	// hungryWithoutFood only ever runs at pressing hunger: the eat focus
 	// isn't eligible before that.
-	e.needPhase[NeedFood] = NeedPressing
+	e.drives[DriveFood].phase = DrivePressing
 	w.hungryWithoutFood(e)
 	if e.Job != JobCraft || e.craftFor != me {
 		t.Fatalf("pressing hunger kept job %v (for %v); want cooking its own scum", e.Job, e.craftFor)
@@ -214,14 +218,14 @@ func TestPressingHungerFinishesTheColonysCooking(t *testing.T) {
 	house := Point{10, 6, LandingLevel}
 	w.SetTerrain(house, Scumhouse)
 	w.refreshSpatial()
-	c := w.landing().storageContainers[house]
+	c := w.storageContainers[house]
 	c.Inventory.Add(CaveScum, 2)
 	c.credit(Community, CaveScum, 2)
 	for p := range w.landing().scum {
 		w.clearScum(p) // nothing on the walls: the colony's scum is the only food to make
 	}
 	e := w.spawn(Colonist, Point{10, 7, LandingLevel})
-	e.needPhase[NeedFood] = NeedPressing
+	e.drives[DriveFood].phase = DrivePressing
 
 	for i := 0; i < 200 && c.held(Community, CaveScum) > 0; i++ {
 		w.hungryWithoutFood(e)
@@ -243,7 +247,7 @@ func TestTheColonyRationsTheStarving(t *testing.T) {
 	shelf := Point{10, 6, LandingLevel}
 	w.SetTerrain(shelf, Storage)
 	w.refreshSpatial()
-	c := w.landing().storageContainers[shelf]
+	c := w.storageContainers[shelf]
 	c.Inventory.Add(Meal, 3)
 	c.credit(Community, Meal, 3)
 	w.offerColonyMeals(shelf) // on sale, in escrow
@@ -251,11 +255,11 @@ func TestTheColonyRationsTheStarving(t *testing.T) {
 	me := ColonistOwner(e.ID)
 	w.transfer(me, Community, e.wallet) // broke
 
-	e.needPhase[NeedFood] = NeedPressing
+	e.drives[DriveFood].phase = DrivePressing
 	if w.tryRation(e) {
 		t.Fatal("rationed a colonist whose hunger is only pressing")
 	}
-	e.needPhase[NeedFood] = NeedCritical
+	e.drives[DriveFood].phase = DriveCritical
 	if !w.tryRation(e) {
 		t.Fatal("no ration for a broke colonist at critical hunger")
 	}
@@ -276,7 +280,7 @@ func TestAColonyCookWorksABatch(t *testing.T) {
 	house := Point{10, 6, LandingLevel}
 	w.SetTerrain(house, Scumhouse)
 	w.refreshSpatial()
-	c := w.landing().storageContainers[house]
+	c := w.storageContainers[house]
 	c.Inventory.Add(CaveScum, 20)
 	c.credit(Community, CaveScum, 20)
 	cook := w.spawn(Colonist, Point{10, 7, LandingLevel})
@@ -291,10 +295,10 @@ func TestAColonyCookWorksABatch(t *testing.T) {
 	}
 }
 
-// setHunger puts e's food need at level as of now.
+// setHunger puts e's food drive at level as of now.
 func setHunger(w *World, e *Entity, level int) {
-	e.Needs[NeedFood], e.needSince[NeedFood] = level, w.tick
-	w.syncNeedPhase(e, NeedFood)
+	w.setDrive(e, DriveFood, level)
+	w.syncDrivePhase(e, DriveFood)
 }
 
 // Before it's hungry enough to eat, a colonist with no meal on it fetches
@@ -307,7 +311,7 @@ func TestAColonistCarriesItsNextMeal(t *testing.T) {
 	w.refreshSpatial()
 	e := w.spawn(Colonist, Point{8, 8, LandingLevel})
 	me := ColonistOwner(e.ID)
-	c := w.landing().storageContainers[shelf]
+	c := w.storageContainers[shelf]
 	c.Inventory.Add(Meal, 2)
 	c.credit(me, Meal, 2)
 
@@ -326,7 +330,7 @@ func TestAColonistCarriesItsNextMeal(t *testing.T) {
 	if e.ownCarried(Meal) != 1 || c.held(me, Meal) != 1 {
 		t.Fatalf("after the fetch: %d carried, %d on the shelf; want 1 and 1", e.ownCarried(Meal), c.held(me, Meal))
 	}
-	if w.needLevel(e, NeedFood) == 0 {
+	if w.driveLevel(e, DriveFood) == 0 {
 		t.Fatal("fetching a pocket meal fed the colonist")
 	}
 	w.assignWorkJob(e)
@@ -334,7 +338,7 @@ func TestAColonistCarriesItsNextMeal(t *testing.T) {
 		t.Fatal("a colonist with a meal on it fetched another")
 	}
 
-	setHunger(w, e, w.cfg.Needs[NeedFood].SeekAt)
+	setHunger(w, e, w.cfg.Drives[DriveFood].SeekAt)
 	if !w.tryStartEating(e) || e.eat != eatMeal {
 		t.Fatalf("pressing hunger with a pocket meal: job %v stage %v, want eating at once", e.Job, e.eat)
 	}
@@ -348,7 +352,7 @@ func TestAPocketMealIsNeverBought(t *testing.T) {
 	shelf := Point{16, 10, LandingLevel}
 	w.SetTerrain(shelf, Storage)
 	w.refreshSpatial()
-	c := w.landing().storageContainers[shelf]
+	c := w.storageContainers[shelf]
 	c.Inventory.Add(Meal, 1)
 	c.credit(Community, Meal, 1)
 	w.offerColonyMeals(shelf)

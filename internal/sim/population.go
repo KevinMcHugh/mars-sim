@@ -53,7 +53,7 @@ func (w *World) samplePopulation() {
 		Activity:   w.actTally,
 		Walking:    w.walkTally,
 	}
-	w.eachLayer(func(l *Layer) { s.Fixtures += len(l.fixtures) })
+	s.Fixtures = len(w.fixtures)
 	w.eachContainer(func(c *StorageContainer) { s.Meals += c.Inventory.Count(Meal) })
 	h := w.popHist
 	if len(h) >= popHistory {

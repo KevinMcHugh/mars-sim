@@ -5,7 +5,7 @@ import "fmt"
 // ---- Food ---------------------------------------------------------------------
 //
 // Food is an item now. A hungry colonist eats, in order: a meal it is carrying,
-// a meal of its own in a depot it can reach (its crash pod's locker, to begin
+// a meal of its own in a depot it can reach (its locker aboard ship, to begin
 // with), a meal it buys — the colony's scumhouse sells what it cooks — and
 // only then the safety net: a nutrient pod, which makes gruel out of nothing
 // while infinite-food is on and serves nothing when it is off. The first
@@ -78,7 +78,7 @@ func (w *World) tryPocketMeal(e *Entity) bool {
 	if at <= 0 || e.Kind != Colonist || e.ownCarried(Meal) > 0 || !e.Inventory.CanAdd(Meal, 1) {
 		return false
 	}
-	if e.needPhase[NeedFood] >= NeedPressing || w.needLevel(e, NeedFood) < at {
+	if e.drives[DriveFood].phase >= DrivePressing || w.driveLevel(e, DriveFood) < at {
 		return false // pressing hunger eats (runFoodFocus); before at, it has time
 	}
 	depot, ok := w.nearestMealDepot(e)
@@ -125,7 +125,7 @@ func (w *World) nearestMealDepot(e *Entity) (Point, bool) {
 // the meal out steps aside first, like a pod's grab-and-go, so a shared depot's
 // access tile is free for the next person while this one eats.
 func (w *World) jobEat(e *Entity) {
-	spec := w.cfg.Needs[NeedFood]
+	spec := w.cfg.Drives[DriveFood]
 	if e.eat == eatFetch {
 		arrived, ok := w.travelTo(e, e.Target)
 		if !ok {
@@ -136,7 +136,7 @@ func (w *World) jobEat(e *Entity) {
 			e.State = Moving
 			return
 		}
-		c := w.lay(e.Target).storageContainers[e.Target]
+		c := w.storageContainers[e.Target]
 		if c == nil || !w.takeMeal(e, c) {
 			w.clearJob(e) // somebody got the last one first; think again
 			return
@@ -160,7 +160,7 @@ func (w *World) jobEat(e *Entity) {
 		return
 	}
 	if e.eat == eatWalk {
-		if e.needPhase[NeedFood] < NeedCritical {
+		if e.drives[DriveFood].phase < DriveCritical {
 			if arrived, ok := w.travelTo(e, e.Target); ok && !arrived {
 				e.State = Moving
 				return
@@ -176,7 +176,7 @@ func (w *World) jobEat(e *Entity) {
 		// Eaten: out of hand before clearJob, which would otherwise pocket it
 		// again as an interrupted meal — and so feed the colony forever.
 		e.eat = eatFetch
-		w.resetNeed(e, NeedFood)
+		w.resetDrive(e, DriveFood)
 		w.cancelMealBids(ColonistOwner(e.ID)) // fed: stop queuing for another
 		w.emitDone(e, ActionEat, NounMeal, "Had a meal.")
 		w.clearJob(e)
@@ -216,7 +216,7 @@ func (w *World) runFoodFocus(e *Entity) bool {
 		w.runJob(e)
 		return true
 	}
-	if e.Job == JobUse && e.Need == NeedFood && w.podsFeed() {
+	if e.Job == JobUse && e.Drive == DriveFood && w.podsFeed() {
 		return false // already queued at the safety net; let it finish
 	}
 	if w.tryStartEating(e) {
@@ -250,14 +250,14 @@ func (w *World) runFoodFocus(e *Entity) bool {
 // meal — starved a few tiles from shelves holding a hundred of the colony's
 // meals, scraping scum for a supper they would not live to cook.
 func (w *World) tryRation(e *Entity) bool {
-	if !w.cfg.Rations || e.needPhase[NeedFood] != NeedCritical {
+	if !w.cfg.Rations || e.drives[DriveFood].phase != DriveCritical {
 		return false
 	}
 	room := w.roomOf(e.Pos)
 	var best Point
 	found := false
 	for _, p := range w.mealDepots() {
-		c := w.lay(p).storageContainers[p]
+		c := w.storageContainers[p]
 		if c.held(Community, Meal)+w.openQty(Ask, Meal, p, Community) == 0 ||
 			!w.canUseFixture(e, p) || !w.taskReachable(p, room) {
 			continue
@@ -270,7 +270,7 @@ func (w *World) tryRation(e *Entity) bool {
 	if !found {
 		return false
 	}
-	c := w.lay(best).storageContainers[best]
+	c := w.storageContainers[best]
 	w.withdrawColonyAsks(Meal, best)
 	given := c.moveLine(Community, ColonistOwner(e.ID), Meal, 1)
 	w.offerColonyMeals(best) // the rest go back on sale
@@ -399,16 +399,14 @@ func (w *World) noteForaging(e *Entity) {
 func (w *World) foodCooking(e *Entity) bool {
 	room := w.roomOf(e.Pos)
 	coming := 0
-	w.eachLayer(func(l *Layer) {
-		for p, id := range l.workshopClaims {
-			cook := w.entities[id]
-			if cook == nil || cook.Job != JobCraft || cook.craftFor != Community || w.TerrainAt(p) != Scumhouse ||
-				!recipeMakesMeals(recipes[cook.recipe]) || !w.taskReachable(p, room) {
-				continue
-			}
-			coming += colonyMealsIn(l.storageContainers[p])
+	for p, id := range w.workshopClaims {
+		cook := w.entities[id]
+		if cook == nil || cook.Job != JobCraft || cook.craftFor != Community || w.TerrainAt(p) != Scumhouse ||
+			!recipeMakesMeals(recipes[cook.recipe]) || !w.taskReachable(p, room) {
+			continue
 		}
-	})
+		coming += colonyMealsIn(w.storageContainers[p])
+	}
 	return coming > 0 && coming >= w.hungryWithoutMeals()
 }
 
@@ -478,7 +476,7 @@ func (w *World) ownScumBanked(e *Entity) int {
 	if !ok {
 		return 0
 	}
-	return w.lay(p).storageContainers[p].held(ColonistOwner(e.ID), CaveScum)
+	return w.storageContainers[p].held(ColonistOwner(e.ID), CaveScum)
 }
 
 // tryForageScrape sends a forager to the nearest exposed patch to scrape and
@@ -493,7 +491,7 @@ func (w *World) tryForageScrape(e *Entity) bool {
 	if !ok {
 		return false
 	}
-	w.lay(patch).scumClaims[patch] = e.ID
+	w.scumClaims[patch] = e.ID
 	e.Job, e.Target, e.scrape, e.Progress = JobScrape, patch, scrapeGather, 0
 	e.scrapeKeep = true
 	return true
@@ -568,7 +566,7 @@ func (w *World) prospectingForFood() bool {
 			continue
 		}
 		for p := range l.exposedScum {
-			if w.scumAt(p) > 0 && l.scumClaims[p] == 0 {
+			if w.scumAt(p) > 0 && w.scumClaims[p] == 0 {
 				return false
 			}
 		}
@@ -648,7 +646,7 @@ func (w *World) tryEmergencyScumhouse(e *Entity) bool {
 	if w.reachableFacilityConstruction(e.Pos, Scumhouse) {
 		return false // someone is already raising one within reach
 	}
-	if spot, ok := w.findBuildSpot(e.Pos, 20); ok && w.canAffordBuild(e, Scumhouse, Owner{}) {
+	if spot, ok := w.findBuildSpot(e.Pos, 20, Scumhouse); ok && w.canAffordBuild(e, Scumhouse, Owner{}) {
 		w.assignBuild(e, Scumhouse, spot)
 		return true
 	}

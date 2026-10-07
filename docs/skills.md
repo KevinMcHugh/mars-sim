@@ -344,6 +344,11 @@ seed. It gets its own saved stream (`skillRNG`, per
 checks that a world generated with backgrounds is otherwise identical to one
 without.
 
+A colonist hired from off-world is the exception: its background is rolled
+with the rest of its card, by `rollBackgroundFrom` on the recruit stream, so
+the card can show it before anyone arrives (see
+[recruiting.md](./recruiting.md)).
+
 ### Opportunity cost in the producer planner (S3)
 
 Three parts, in `producer.go` and `valuation.go`.
@@ -413,7 +418,7 @@ the rest for later:
 | --- | --- | --- |
 | `plannedQty` | A bid that other plans already covered was invisible to everyone else. | **Gone.** Anyone may pursue any bid; the first to deliver fills it, and a later delivery rests as an ask (`TestColonistsCompeteForABid`). |
 | `planWaitingAt` | One colonist plans at a workshop at a time. | **Kept.** It's the physical constraint of one bench: without it, four colonists each held a plan at the one gun bench waiting on steel, and nobody was left to smelt ([foundry.md](./foundry.md)). Pricing the queue into the rate is still to do. |
-| Ask at the bid's price | Every seller is a price-taker. | Meals undercut the colony by a dollar (`mealSellPrice`); other goods still ask the bid's price. Proposed. |
+| Ask at the bid's price | Every seller is a price-taker. | Meals ask their market value (`mealSellPrice`), and unsold food asks come down in steps ([pricing.md](./pricing.md)); other goods still ask the bid's price. |
 | Derived bid at the whole margin | A buyer offers everything it can afford. | Proposed: offer less while more than one seller is around. |
 | One global price memory | Everyone knows every trade instantly. | Proposed: a per-colonist price memory. |
 
@@ -433,7 +438,8 @@ chef) and `kitchen-savings` ($100) in its wallet commissions a scumhouse room
 of its own when at least three in four of the colony's kitchens have a cook
 at them (`kitchensCrowded`, `commissionKitchens`), one per planning cycle,
 paid from its wallet through the ordinary commission machinery
-(`planRoomFor` with the chef as issuer). A colonist that cooks now and then is
+(`planRoomFor` with the chef as issuer). It waits for a site with an aisle,
+like the colony's later kitchens: a cook works it for long stretches. A colonist that cooks now and then is
 better served by the shared stoves; only a chef cooks enough, well enough, to
 keep a stove busy.
 

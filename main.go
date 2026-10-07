@@ -95,6 +95,8 @@ func main() {
 		econSeeds            string
 		printCognitionConfig bool
 		printCognitionVocab  bool
+		loadPath             string
+		savePath             string
 	)
 	flag.DurationVar(&duration, "duration", 0, "auto-exit after this long (0 = run until quit); handy for smoke tests")
 	flag.BoolVar(&headless, "headless", false, "run without the TUI, printing periodic stats")
@@ -111,6 +113,8 @@ func main() {
 	flag.IntVar(&econTrace, "econ-trace", 0, "run this many ticks as fast as possible and print an economy trace (CSV) instead of playing")
 	flag.IntVar(&econEvery, "econ-every", 100, "ticks between rows of an -econ-trace")
 	flag.StringVar(&econSeeds, "econ-seeds", "", "comma-separated seeds to trace one after another (default: -seed)")
+	flag.StringVar(&loadPath, "load", "", "play on from this save file instead of generating a world; the save's own settings replace the settings file and flags")
+	flag.StringVar(&savePath, "save", "", "write a save file here when the run ends (quit, -duration, or Ctrl+C); in the TUI, ctrl+s also saves at any time")
 
 	// Simulation config flags, each defaulting to the value the settings file
 	// left in place.
@@ -169,7 +173,23 @@ func main() {
 		return
 	}
 
-	eng := sim.NewEngine(cfg)
+	var eng *sim.Engine
+	if loadPath != "" {
+		var info sim.SaveInfo
+		eng, info, err = loadGame(loadPath)
+		if err != nil {
+			stopProfile()
+			fmt.Fprintln(os.Stderr, "mars-sim:", err)
+			os.Exit(2)
+		}
+		cfg = eng.Config()
+		if headless && info.Paused {
+			// Nothing in headless mode could resume a game saved paused.
+			eng.Send(sim.TogglePause{})
+		}
+	} else {
+		eng = sim.NewEngine(cfg)
+	}
 
 	// Subscribe before starting the engine so the very first frame is not missed.
 	snaps := eng.Subscribe()
@@ -180,21 +200,80 @@ func main() {
 	// quits on its own.)
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
-	go eng.Run(ctx)
+	runDone := make(chan struct{})
+	go func() {
+		eng.Run(ctx)
+		close(runDone)
+	}()
+	// finish stops the engine and, with -save, writes the game as it stands.
+	// Once Run has returned nothing else touches the world, so the save can
+	// run here rather than as a command.
+	finish := func() error {
+		cancel()
+		<-runDone
+		if savePath == "" {
+			return nil
+		}
+		return saveGame(eng, savePath)
+	}
 
 	if headless {
 		runHeadless(ctx, snaps, cfg, duration)
+		if err := finish(); err != nil {
+			fmt.Fprintln(os.Stderr, "mars-sim:", err)
+			stopProfile()
+			os.Exit(1)
+		}
 		return
 	}
 
 	setUpGlyphs(glyphs)
 
-	if err := runTUI(eng, snaps, duration); err != nil {
-		cancel()
+	err = runTUI(eng, snaps, duration)
+	if saveErr := finish(); err == nil {
+		err = saveErr
+	}
+	if err != nil {
 		stopProfile() // os.Exit skips deferred calls
 		fmt.Fprintln(os.Stderr, "mars-sim:", err)
 		os.Exit(1)
 	}
+}
+
+// loadGame reads a save file into an engine, saying on stderr which build
+// wrote it when that is not this one.
+func loadGame(path string) (*sim.Engine, sim.SaveInfo, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, sim.SaveInfo{}, fmt.Errorf("loading a save: %w", err)
+	}
+	defer f.Close()
+	eng, info, err := sim.LoadEngine(f)
+	if err != nil {
+		return nil, info, fmt.Errorf("loading %s: %w", path, err)
+	}
+	if info.Commit != sim.BuildCommit() {
+		fmt.Fprintf(os.Stderr, "mars-sim: %s was saved by commit %s; this is %s\n", path, info.Commit, sim.BuildCommit())
+	}
+	return eng, info, nil
+}
+
+// saveGame writes eng's game to path. The engine must not be running.
+func saveGame(eng *sim.Engine, path string) error {
+	f, err := os.Create(path)
+	if err != nil {
+		return fmt.Errorf("saving: %w", err)
+	}
+	if err := eng.Save(f); err != nil {
+		f.Close()
+		os.Remove(path)
+		return fmt.Errorf("saving: %w", err)
+	}
+	if err := f.Close(); err != nil {
+		return fmt.Errorf("saving: %w", err)
+	}
+	fmt.Fprintf(os.Stderr, "mars-sim: saved to %s\n", path)
+	return nil
 }
 
 // startCPUProfile begins writing a CPU profile to path, or does nothing if
@@ -481,10 +560,18 @@ func validateConfig(cfg sim.Config) error {
 		return fmt.Errorf("cavern nest size range is invalid: min %d, max %d", cfg.CavernNestMin, cfg.CavernNestMax)
 	case cfg.StartColonists < 0 || cfg.StartAliens < 0 || cfg.StartCats < 0 || cfg.StartRats < 0:
 		return fmt.Errorf("population counts cannot be negative")
-	case cfg.CrashPodMeals < 0 || cfg.CrashPodPistols < 0 || cfg.CrashPodShotguns < 0:
-		return fmt.Errorf("crash pod manifest counts cannot be negative")
-	case cfg.CrashPodPistolPercent < 0 || cfg.CrashPodPistolPercent > 100 || cfg.CrashPodShotgunPercent < 0 || cfg.CrashPodShotgunPercent > 100:
-		return fmt.Errorf("crash-pod-pistol-percent and crash-pod-shotgun-percent must be between 0 and 100 (got %d and %d)", cfg.CrashPodPistolPercent, cfg.CrashPodShotgunPercent)
+	case cfg.CrashPodMeals < 0:
+		return fmt.Errorf("crash-pod-meals cannot be negative")
+	case cfg.RecruiterFee < 0 || cfg.RecruitCost < 0 || cfg.RecruitCandidates < 0 || cfg.RecruitMeals < 0:
+		return fmt.Errorf("recruiter-fee, recruit-cost, recruit-candidates and recruit-meals cannot be negative")
+	case cfg.RecruitSavingsMean < 0 || cfg.RecruitSavingsSpread < 0 || cfg.RecruitSavingsMin < 0:
+		return fmt.Errorf("recruit-savings-mean, -spread and -min cannot be negative: no candidate arrives in debt")
+	case cfg.RecruitSavingsMax < cfg.RecruitSavingsMin:
+		return fmt.Errorf("recruit-savings-max (%d) is below recruit-savings-min (%d)", cfg.RecruitSavingsMax, cfg.RecruitSavingsMin)
+	case cfg.ShipCapacity < 1:
+		return fmt.Errorf("ship-capacity must be at least 1 (got %d)", cfg.ShipCapacity)
+	case cfg.ShipBunkPercent < 0 || cfg.ShipToiletPercent < 0:
+		return fmt.Errorf("ship-bunk-percent and ship-toilet-percent cannot be negative (got %d and %d)", cfg.ShipBunkPercent, cfg.ShipToiletPercent)
 	case cfg.ScumMax < 0 || cfg.ScumMax > 255:
 		// A patch's amount is published as one byte (Snapshot.Scum); 256
 		// would wrap to 0 and a full patch would vanish from the map.
@@ -522,6 +609,14 @@ func validateConfig(cfg sim.Config) error {
 		return fmt.Errorf("stuck-limit must be at least 1 (got %d)", cfg.StuckLimit)
 	case cfg.AlienSlowness < 1 || cfg.CatSlowness < 1:
 		return fmt.Errorf("alien-slowness and cat-slowness must be at least 1 (got %d and %d)", cfg.AlienSlowness, cfg.CatSlowness)
+	case cfg.ChickenSlowness < 1:
+		return fmt.Errorf("chicken-slowness must be at least 1 (got %d)", cfg.ChickenSlowness)
+	case cfg.CrashPodGunWeight < 0 || cfg.CrashPodChickenWeight < 0 || cfg.CrashPodCatWeight < 0:
+		return fmt.Errorf("crash-pod-gun-weight, crash-pod-chicken-weight and crash-pod-cat-weight must not be negative")
+	case cfg.CrashPodShotgunPercent < 0 || cfg.CrashPodShotgunPercent > 100:
+		return fmt.Errorf("crash-pod-shotgun-percent must be between 0 and 100 (got %d)", cfg.CrashPodShotgunPercent)
+	case cfg.TroughLow < 0 || cfg.TroughFill < cfg.TroughLow:
+		return fmt.Errorf("trough-low must not be negative, nor trough-fill below it (got %d and %d)", cfg.TroughLow, cfg.TroughFill)
 	case cfg.TraitChance < 0 || cfg.TraitChance > 100:
 		return fmt.Errorf("trait-chance must be between 0 and 100 (got %d)", cfg.TraitChance)
 	case cfg.UraniumExposureTicks < 1:
@@ -561,21 +656,24 @@ func validateConfig(cfg sim.Config) error {
 	case cfg.RatLitterMin < 0 || cfg.RatLitterMax < cfg.RatLitterMin:
 		return fmt.Errorf("rat litter range is invalid: min %d, max %d", cfg.RatLitterMin, cfg.RatLitterMax)
 	}
-	// Need specs are only reachable from the settings file and the -need-*
+	// Drive specs are only reachable from the settings file and the -drive-*
 	// flags, but a bad one breaks the colonists quietly (a need that never
 	// fires, or a fatal one pinned at its ceiling), so check them here too.
-	for _, spec := range cfg.Needs {
+	for _, spec := range cfg.Drives {
 		switch {
 		case spec.Max < 1:
-			return fmt.Errorf("need-%s-max must be at least 1 (got %d)", spec.Name, spec.Max)
-		case spec.Rise < 0:
-			return fmt.Errorf("need-%s-rise cannot be negative (got %d)", spec.Name, spec.Rise)
+			return fmt.Errorf("drive-%s-max must be at least 1 (got %d)", spec.Name, spec.Max)
+		case spec.Min > 0:
+			return fmt.Errorf("drive-%s-min cannot be above 0, the satisfied level (got %d)", spec.Name, spec.Min)
 		case spec.SeekAt < 0 || spec.SeekAt > spec.CriticalAt || spec.CriticalAt > spec.Max:
-			return fmt.Errorf("need-%s thresholds must satisfy 0 <= seek-at <= critical-at <= max (got %d, %d, %d)",
+			return fmt.Errorf("drive-%s thresholds must satisfy 0 <= seek-at <= critical-at <= max (got %d, %d, %d)",
 				spec.Name, spec.SeekAt, spec.CriticalAt, spec.Max)
 		case spec.UseTicks < 0 || spec.GrabTicks < 0:
-			return fmt.Errorf("need-%s use and grab ticks cannot be negative (got %d and %d)", spec.Name, spec.UseTicks, spec.GrabTicks)
+			return fmt.Errorf("drive-%s use and grab ticks cannot be negative (got %d and %d)", spec.Name, spec.UseTicks, spec.GrabTicks)
 		}
+	}
+	if err := cfg.CheckDrives(); err != nil {
+		return err
 	}
 	if cfg.FocusCurrentBonus < 0 || cfg.FocusSwitchMargin < 0 ||
 		cfg.FocusCriticalBonus < 0 || cfg.FocusFatalBonus < 0 {
@@ -585,8 +683,8 @@ func validateConfig(cfg sim.Config) error {
 		switch {
 		case spec.Name == "":
 			return fmt.Errorf("focus name cannot be empty")
-		case spec.NeedWeight < 0:
-			return fmt.Errorf("focus-%s-need-weight cannot be negative (got %d)", spec.Name, spec.NeedWeight)
+		case spec.DriveWeight < 0:
+			return fmt.Errorf("focus-%s-drive-weight cannot be negative (got %d)", spec.Name, spec.DriveWeight)
 		case spec.DistanceWeight < 0:
 			return fmt.Errorf("focus-%s-distance-weight cannot be negative (got %d)", spec.Name, spec.DistanceWeight)
 		}

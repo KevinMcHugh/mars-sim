@@ -2,6 +2,7 @@ package wire
 
 import (
 	"cmp"
+	"math"
 	"slices"
 	"strconv"
 	"time"
@@ -96,7 +97,8 @@ func jobsTopic(s *sim.Snapshot) JobsTopic {
 // ---- storage --------------------------------------------------------------
 
 // StorageRow is one container in the storage list. Its contents and ledger
-// are the tile inspector's (tile:<x>,<y>), which the page opens on a click.
+// are the tile inspector's (tile:<x>,<y>), which the page opens on a click;
+// the totals and ledger here are what the tab's pool and searches add up.
 type StorageRow struct {
 	X        int    `json:"x"`
 	Y        int    `json:"y"`
@@ -107,6 +109,10 @@ type StorageRow struct {
 	Capacity int    `json:"capacity"`
 	// Top is what it holds most of, "meal ×9", for a glance down the list.
 	Top string `json:"top,omitempty"`
+	// Contents totals its stacks by item, in item order.
+	Contents []Holding `json:"contents"`
+	// Ledger is whose they are, sorted by owner then item (the snapshot's).
+	Ledger []LedgerItem `json:"ledger"`
 }
 
 func storageTopic(s *sim.Snapshot) []StorageRow {
@@ -114,17 +120,28 @@ func storageTopic(s *sim.Snapshot) []StorageRow {
 	for _, st := range s.Storages {
 		info := storageInfo(s, st)
 		r := StorageRow{X: st.Pos.X, Y: st.Pos.Y, Label: info.Label, Used: info.Used, Slots: info.Slots,
-			Items: info.Items, Capacity: info.Capacity}
-		totals := map[string]int{}
-		var best string
-		for _, c := range info.Contents {
-			totals[c.Item] += c.Count
-			if best == "" || totals[c.Item] > totals[best] || totals[c.Item] == totals[best] && c.Item < best {
-				best = c.Item
+			Items: info.Items, Capacity: info.Capacity, Contents: []Holding{}, Ledger: info.Ledger}
+		totals := map[sim.ItemKind]int{}
+		for _, stack := range st.Inventory {
+			if stack.Count > 0 {
+				totals[stack.Kind] += stack.Count
 			}
 		}
-		if best != "" {
-			r.Top = best + " ×" + strconv.Itoa(totals[best])
+		kinds := make([]sim.ItemKind, 0, len(totals))
+		for k := range totals {
+			kinds = append(kinds, k)
+		}
+		slices.Sort(kinds) // item order, not the map's
+		var best Holding
+		for _, k := range kinds {
+			h := Holding{Item: k.String(), Count: totals[k]}
+			r.Contents = append(r.Contents, h)
+			if best.Item == "" || h.Count > best.Count || h.Count == best.Count && h.Item < best.Item {
+				best = h
+			}
+		}
+		if best.Item != "" {
+			r.Top = best.Item + " ×" + strconv.Itoa(best.Count)
 		}
 		rows = append(rows, r)
 	}
@@ -146,6 +163,96 @@ type MarketTopic struct {
 	ChainDepth int         `json:"chainDepth"`
 	Work       []WorkLine  `json:"work"`
 	Trades     []TradeLine `json:"trades"` // newest first
+	// Dig is what the dig tool needs to price an excavation order before it
+	// is sent: the wage a tile pays and the most tiles one order may cover.
+	Dig DigTerms `json:"dig"`
+	// Digs are the excavation orders still open, oldest first.
+	Digs []Dig `json:"digs"`
+	// Colony is what the order desk needs to place, reprice and withdraw
+	// the colony's orders (docs/colony-orders.md).
+	Colony ColonyDesk `json:"colony"`
+}
+
+// ColonyDesk is the colony's side of the book: its open orders, the depots
+// it may trade at, and the goods it may name.
+type ColonyDesk struct {
+	// Orders is every open order in the colony's name, oldest first.
+	Orders []ColonyOrder `json:"orders"`
+	// Depots is every communal container, the silo first, then by position.
+	Depots []Depot `json:"depots"`
+	// Items is every good an order may name, in item order.
+	Items []string `json:"items"`
+	// Suspended is every standing order a player has stopped, by side and
+	// item, bids first.
+	Suspended []Suspended `json:"suspended"`
+	// Wide is every colony-wide order, bids first, then in item order.
+	Wide []WideOrder `json:"wide"`
+}
+
+// WideOrder is a colony-wide order: a standing order by side and item, with
+// no depot, that the colony keeps on the book where the good changes hands.
+// Open is how many units its orders have open now, at Depots depots.
+type WideOrder struct {
+	Side   string `json:"side"`
+	Item   string `json:"item"`
+	Qty    int    `json:"qty"`
+	Price  int64  `json:"price"`
+	Open   int    `json:"open"`
+	Depots int    `json:"depots"`
+}
+
+// Suspended is a side and an item whose standing orders the colony has
+// stopped posting until a player resumes them.
+type Suspended struct {
+	Side string `json:"side"`
+	Item string `json:"item"`
+}
+
+// ColonyOrder is one of the colony's open orders. ID is what a reprice or a
+// cancel names. Manual is set for one a player placed or repriced; the
+// colony's own standing orders are topped up again if withdrawn.
+type ColonyOrder struct {
+	ID     uint64 `json:"id"`
+	Side   string `json:"side"`
+	Item   string `json:"item"`
+	Qty    int    `json:"qty"`
+	Price  int64  `json:"price"`
+	X      int    `json:"x"`
+	Y      int    `json:"y"`
+	Posted int    `json:"posted"`
+	Manual bool   `json:"manual"`
+	// Wide is set for an order a colony-wide order placed.
+	Wide bool `json:"wide"`
+}
+
+// Depot is a communal container the colony may trade at, and what the colony
+// holds there (on its own ledger line, so free to offer).
+type Depot struct {
+	X        int       `json:"x"`
+	Y        int       `json:"y"`
+	Label    string    `json:"label"`
+	Silo     bool      `json:"silo"`
+	Holdings []Holding `json:"holdings"`
+}
+
+// Dig is one open excavation order: its project id (what a cancel names), the
+// rectangle that bounds its tiles, how many are dug, and what its open work
+// orders hold.
+type Dig struct {
+	ID    int   `json:"id"`
+	X0    int   `json:"x0"`
+	Y0    int   `json:"y0"`
+	X1    int   `json:"x1"`
+	Y1    int   `json:"y1"`
+	Tiles int   `json:"tiles"`
+	Done  int   `json:"done"`
+	Held  int64 `json:"held"`
+}
+
+// DigTerms are the terms of an excavation order (docs/excavation.md).
+type DigTerms struct {
+	Wage     int64 `json:"wage"`
+	MaxTiles int   `json:"maxTiles"`
 }
 
 // Account is one balance. Key is its account:<key> topic: "colony" or a
@@ -162,6 +269,7 @@ type MoneySupply struct {
 	Circulating int64 `json:"circulating"`
 	Escrowed    int64 `json:"escrowed"`
 	Frozen      int64 `json:"frozen"`
+	Exported    int64 `json:"exported"` // paid off-world: recruiting (docs/recruiting.md)
 	Issued      int64 `json:"issued"`
 	Starved     int   `json:"starved"`
 }
@@ -221,13 +329,32 @@ func marketTopic(s *sim.Snapshot) MarketTopic {
 	t := MarketTopic{
 		Accounts: []Account{{Key: "colony", Label: "The colony (treasury)", Balance: int64(econ.Treasury)}},
 		Supply: MoneySupply{Treasury: int64(econ.Treasury), Circulating: int64(econ.Circulating),
-			Escrowed: int64(econ.Escrowed), Frozen: int64(econ.Frozen), Issued: int64(econ.Issued), Starved: econ.Starved},
+			Escrowed: int64(econ.Escrowed), Frozen: int64(econ.Frozen), Exported: int64(econ.Exported), Issued: int64(econ.Issued), Starved: econ.Starved},
 		Books:      []Book{},
 		Prices:     make([]Price, 0, len(econ.Prices)),
 		Plans:      make([]PlanLine, 0, len(econ.Plans)),
 		ChainDepth: econ.ChainDepth,
 		Work:       []WorkLine{},
 		Trades:     []TradeLine{},
+		Dig:        DigTerms{Wage: int64(econ.DigWage), MaxTiles: econ.DigMax},
+		Digs:       []Dig{},
+		Colony:     colonyDesk(s),
+	}
+	for _, p := range s.Projects {
+		if p.Name != sim.ExcavationName {
+			continue
+		}
+		d := Dig{ID: p.ID, X0: math.MaxInt, Y0: math.MaxInt, Tiles: len(p.Tasks), Done: p.TasksDone()}
+		for _, tk := range p.Tasks {
+			d.X0, d.Y0 = min(d.X0, tk.Pos.X), min(d.Y0, tk.Pos.Y)
+			d.X1, d.Y1 = max(d.X1, tk.Pos.X), max(d.Y1, tk.Pos.Y)
+		}
+		for _, o := range econ.WorkOrders {
+			if o.Kind == sim.WorkDig && o.Pos.X >= d.X0 && o.Pos.X <= d.X1 && o.Pos.Y >= d.Y0 && o.Pos.Y <= d.Y1 && digHas(p, o.Pos) {
+				d.Held += int64(o.Pay) * int64(o.Units)
+			}
+		}
+		t.Digs = append(t.Digs, d)
 	}
 	var colonists []sim.EntityView
 	for _, e := range s.Entities {
@@ -303,8 +430,9 @@ type Holding struct {
 	Count int    `json:"count"`
 }
 
-// OrderRow is one open order.
+// OrderRow is one open order. ID is its order:<id> topic.
 type OrderRow struct {
+	ID    uint64 `json:"id"`
 	Side  string `json:"side"`
 	Qty   int    `json:"qty"`
 	Item  string `json:"item"`
@@ -368,7 +496,7 @@ func accountTopic(s *sim.Snapshot, owner sim.Owner) AccountTopic {
 	}
 	for _, o := range s.Economy.Orders {
 		if o.Actor == owner {
-			t.Orders = append(t.Orders, OrderRow{Side: o.Side.String(), Qty: o.Qty, Item: o.Item.String(),
+			t.Orders = append(t.Orders, OrderRow{ID: uint64(o.ID), Side: o.Side.String(), Qty: o.Qty, Item: o.Item.String(),
 				Price: int64(o.Price), X: o.Depot.X, Y: o.Depot.Y})
 		}
 	}
@@ -384,4 +512,62 @@ func accountTopic(s *sim.Snapshot, owner sim.Owner) AccountTopic {
 		}
 	}
 	return t
+}
+
+func colonyDesk(s *sim.Snapshot) ColonyDesk {
+	econ := s.Economy
+	d := ColonyDesk{Orders: []ColonyOrder{}, Depots: []Depot{}, Items: []string{}, Suspended: []Suspended{},
+		Wide: []WideOrder{}}
+	for _, su := range econ.Suspended {
+		d.Suspended = append(d.Suspended, Suspended{Side: su.Side.String(), Item: su.Item.String()})
+	}
+	for _, wo := range econ.Wide {
+		d.Wide = append(d.Wide, WideOrder{Side: wo.Side.String(), Item: wo.Item.String(), Qty: wo.Qty,
+			Price: int64(wo.Price), Open: wo.Open, Depots: wo.Depots})
+	}
+	for _, o := range econ.Orders {
+		if o.Actor == sim.Community {
+			d.Orders = append(d.Orders, ColonyOrder{ID: uint64(o.ID), Side: o.Side.String(), Item: o.Item.String(),
+				Qty: o.Qty, Price: int64(o.Price), X: o.Depot.X, Y: o.Depot.Y, Posted: o.Posted, Manual: o.Manual, Wide: o.Wide})
+		}
+	}
+	for _, st := range s.Storages {
+		if f, ok := s.FixtureAt(st.Pos); ok && f.Access != sim.AccessCommunal {
+			continue
+		}
+		dp := Depot{X: st.Pos.X, Y: st.Pos.Y, Label: storageLabel(s, st), Silo: econ.HasSilo && st.Pos == econ.Silo,
+			Holdings: []Holding{}}
+		for _, l := range st.Ledger { // sorted by owner then item
+			if l.Owner == sim.Community && l.Count > 0 {
+				dp.Holdings = append(dp.Holdings, Holding{Item: l.Item.String(), Count: l.Count})
+			}
+		}
+		d.Depots = append(d.Depots, dp)
+	}
+	slices.SortStableFunc(d.Depots, func(a, b Depot) int {
+		if a.Silo != b.Silo {
+			if a.Silo {
+				return -1
+			}
+			return 1
+		}
+		if c := cmp.Compare(a.Y, b.Y); c != 0 {
+			return c
+		}
+		return cmp.Compare(a.X, b.X)
+	})
+	for _, k := range sim.TradableItems() {
+		d.Items = append(d.Items, k.String())
+	}
+	return d
+}
+
+// digHas reports whether a project has a task on pos.
+func digHas(p sim.ProjectView, pos sim.Point) bool {
+	for _, tk := range p.Tasks {
+		if tk.Pos == pos {
+			return true
+		}
+	}
+	return false
 }

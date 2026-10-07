@@ -163,7 +163,7 @@ func TestViolentDeathsLeaveGore(t *testing.T) {
 	victim := w.spawn(Colonist, victimSpot)
 	victim.HP = 1
 	victim.Parts = [numBodyParts]int{1, 1, 1, 1, 1, 1}
-	w.bite(alien, victim)
+	w.strike(alien, victim)
 	if w.goreAt(victimSpot) == 0 {
 		t.Error("a fatal alien bite should leave gore")
 	}
@@ -182,21 +182,20 @@ func TestViolentDeathsLeaveGore(t *testing.T) {
 	}
 }
 
-// Every colonist lands armed with its crash pod's manifest of weapons.
+// A colonist whose rare item is a gun lands with exactly one.
 func TestCrashPodsArmTheirColonists(t *testing.T) {
 	cfg := testConfig()
 	cfg.StartAliens, cfg.StartCats, cfg.StartRats = 0, 0, 0
 	cfg.StartColonists = 4
-	cfg.CrashPodPistols, cfg.CrashPodShotguns = 1, 1
-	cfg.CrashPodPistolPercent, cfg.CrashPodShotgunPercent = 100, 100
+	cfg.CrashPodGunWeight, cfg.CrashPodShotgunPercent = 1, 100
 	w := newTestWorld(t, cfg)
 
 	for _, e := range w.entities {
 		if e.Kind != Colonist {
 			continue
 		}
-		if e.Inventory.Count(Pistol) != 1 || e.Inventory.Count(Shotgun) != 1 {
-			t.Errorf("%s carries %d pistols and %d shotguns, want 1 and 1",
+		if e.Inventory.Count(Pistol) != 0 || e.Inventory.Count(Shotgun) != 1 {
+			t.Errorf("%s carries %d pistols and %d shotguns, want 0 and 1",
 				e.displayName(), e.Inventory.Count(Pistol), e.Inventory.Count(Shotgun))
 		}
 		if bestWeapon(e.Inventory) != Shotgun {

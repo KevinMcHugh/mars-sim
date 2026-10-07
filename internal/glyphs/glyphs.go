@@ -25,7 +25,7 @@ const (
 	ClayRock    = "\U0001F7E7" // 🟧 clay-bearing rock
 	Floor       = "  "         // open, walkable space
 	Wall        = "\U0001F9F1" // 🧱 built wall
-	Hull        = "\U00002B1C" // ⬜ crash pod hull: metal, not masonry
+	Hull        = "\U00002B1C" // ⬜ colony ship hull: metal, not masonry
 	Pod         = "\U0001F96B" // 🥫 nutrient pod (food)
 	Toilet      = "\U0001F6BD" // 🚽 toilet (bladder)
 	Bed         = "\U0001F6CC" // 🛌 dormitory bunk (sleep)
@@ -38,6 +38,7 @@ const (
 	GunBench    = "\U0001F528" // 🔨 gun bench: steel in, assault rifles out
 	Chair       = "\U0001F4BA" // 💺 chair in a meeting hall
 	Incubator   = "\U0001FAD9" // 🫙 scum incubator: a seed of scum in, scum grown on a schedule
+	Trough      = "\U0001FAA3" // 🪣 trough: a keeper's chicken feed
 	StairDown   = "\U0001F53D" // 🔽 the top of a stair: the way down to the next level
 	StairUp     = "\U0001F53C" // 🔼 the foot of a stair: the way back up
 
@@ -47,6 +48,7 @@ const (
 	Alien    = "\U0001F47D" // 👽 subterranean mutant
 	Cat      = "\U0001F408" // 🐈 floor predator hunting rats
 	Rat      = "\U0001F400" // 🐀 rat: scavenges pods, scum, and the dead
+	Chicken  = "\U0001F414" // 🐔 chicken: grazes scum, eats feed from its trough
 	Stomp    = "\U0001F97E" // 🥾 colonist chasing down a rat to stomp it
 	Fighting = "\U0001F52B" // 🔫 armed colonist standing its ground against an alien
 	Gore     = "\U0001FA78" // 🩸 a violent death's residue on a tile
@@ -116,6 +118,26 @@ const (
 	NewMoon      = "\U0001F311" // 🌑
 	Bat          = "\U0001F987" // 🦇
 	Peacock      = "\U0001F99A" // 🦚
+
+	// Glyphs for the rocky, woody, mossy, gelatinous, hairy, and feathered
+	// hides, and for wings (see docs/lore.md).
+	Stone    = "\U0001FAA8" // 🪨 rocky hides
+	Moai     = "\U0001F5FF" // 🗿 large rocky hides, gargoyles
+	Tree     = "\U0001F333" // 🌳 woody hides
+	Wood     = "\U0001FAB5" // 🪵 woody hides
+	Herb     = "\U0001F33F" // 🌿 mossy hides
+	Seedling = "\U0001F331" // 🌱 mossy hides
+	Custard  = "\U0001F36E" // 🍮 gelatinous hides
+	Gorilla  = "\U0001F98D" // 🦍 hairy hides
+	Mammoth  = "\U0001F9A3" // 🦣 huge hairy hides
+	Bird     = "\U0001F426" // 🐦 feathered hides
+	Parrot   = "\U0001F99C" // 🦜 feathered hides
+	Owl      = "\U0001F989" // 🦉 feathered hides
+	Dodo     = "\U0001F9A4" // 🦤 feathered, wingless
+	Eagle    = "\U0001F985" // 🦅 harpies, griffins
+	Angel    = "\U0001F47C" // 👼 feathered, winged, friendly
+	Fly      = "\U0001FAB0" // 🪰 chitinous, winged
+	Mosquito = "\U0001F99F" // 🦟 tiny, chitinous, winged
 
 	ManAdult     = "\U0001F468" // 👨 adult man colonist
 	WomanAdult   = "\U0001F469" // 👩 adult woman colonist
@@ -228,8 +250,28 @@ var All = []string{
 	Mars,
 	// Salt is last so it moved no existing glyph's index in the wire.
 	Salt,
-	// Appended, not inserted by kind: a glyph's index here is what a frame
-	// sends for it, so inserting one renumbers every glyph after it.
+	// So are the chickens' glyphs, after it.
+	Chicken,
+	Trough,
+	// And the new hides' and wings' glyphs, after those.
+	Stone,
+	Moai,
+	Tree,
+	Wood,
+	Herb,
+	Seedling,
+	Custard,
+	Gorilla,
+	Mammoth,
+	Bird,
+	Parrot,
+	Owl,
+	Dodo,
+	Eagle,
+	Angel,
+	Fly,
+	Mosquito,
+	// And the stairs, after those.
 	StairDown,
 	StairUp,
 }
@@ -325,6 +367,8 @@ func ForTerrain(t sim.Terrain) string {
 		return Chair
 	case sim.Incubator:
 		return Incubator
+	case sim.Trough:
+		return Trough
 	case sim.StairDown:
 		return StairDown
 	case sim.StairUp:
@@ -394,6 +438,8 @@ func ForKind(k sim.Kind) string {
 		return Cat
 	case sim.Rat:
 		return Rat
+	case sim.Chicken:
+		return Chicken
 	default:
 		return Colonist
 	}
@@ -410,6 +456,8 @@ func ForEntity(e sim.EntityView) string {
 		return Cat
 	case sim.Rat:
 		return Rat
+	case sim.Chicken:
+		return Chicken
 	case sim.Colonist:
 		switch e.State {
 		case sim.Fleeing:

@@ -34,10 +34,52 @@ var topicTable = map[string]topic{
 	"names":      {every: time.Second, build: namesTopic},
 	"perf":       {every: chartEvery, build: func(s *sim.Snapshot) any { return perfTopic(s) }},
 	"population": {every: chartEvery, build: func(s *sim.Snapshot) any { return populationTopic(s) }},
+	"metrics":    {every: chartEvery, build: func(s *sim.Snapshot) any { return metricsTopic(s) }},
 	"jobs":       {every: boardEvery, build: func(s *sim.Snapshot) any { return jobsTopic(s) }},
 	"storage":    {every: boardEvery, build: func(s *sim.Snapshot) any { return storageTopic(s) }},
 	"market":     {every: boardEvery, build: func(s *sim.Snapshot) any { return marketTopic(s) }},
 	"roster":     {every: rosterEvery, build: func(s *sim.Snapshot) any { return rosterTopic(s, false, false) }},
+	"zones":      {every: boardEvery, build: func(s *sim.Snapshot) any { return zonesTopic(s) }},
+	"zoning":     {every: boardEvery, build: func(s *sim.Snapshot) any { return zoningTopic(s) }},
+	"recruit":    {every: boardEvery, build: func(s *sim.Snapshot) any { return recruitTopic(s) }},
+	// Every advance, not on an interval: placing happens paused, when the
+	// only advance is the one a move command causes, and the page must see
+	// that move. A handful of ships is nothing to rebuild.
+	"ships": {every: 0, build: func(s *sim.Snapshot) any { return shipsTopic(s) }},
+}
+
+// ShipsTopic is the Ships tab: every colony ship's footprint, and whether
+// they may still be landed and moved (only before the first tick; see
+// sim.LandShip and sim.MoveShip).
+type ShipsTopic struct {
+	Placing bool       `json:"placing"`
+	Ships   []ShipLine `json:"ships"`
+}
+
+// ShipLine is one ship: its id, its footprint's top-left, size, and shape,
+// and how many came down in it. A ship still aloft has no position, and only
+// the next one to land has a size and shape yet.
+type ShipLine struct {
+	ID int `json:"id"`
+	X  int `json:"x"`
+	Y  int `json:"y"`
+	W  int `json:"w"`
+	H  int `json:"h"`
+	// Shape is the footprint row by row: '#' hull, '.' deck, ' ' outside
+	// the ship. Kind names it: stick, hub-and-spoke, or cluster.
+	Shape     []string `json:"shape,omitempty"`
+	Kind      string   `json:"kind,omitempty"`
+	Colonists int      `json:"colonists"`
+	Aloft     bool     `json:"aloft,omitempty"`
+}
+
+func shipsTopic(s *sim.Snapshot) ShipsTopic {
+	t := ShipsTopic{Placing: s.Tick == 0, Ships: make([]ShipLine, 0, len(s.Ships))}
+	for _, sh := range s.Ships {
+		t.Ships = append(t.Ships, ShipLine{ID: sh.ID, X: sh.X, Y: sh.Y, W: sh.Width, H: sh.Height,
+			Shape: sh.Shape, Kind: sh.ShapeName, Colonists: sh.Colonists, Aloft: sh.Aloft})
+	}
+	return t
 }
 
 // namesTopic is every living colonist's name by id, for the map's hover
@@ -92,6 +134,17 @@ func (t *Topics) Restart() {
 	}
 }
 
+// Refresh makes every topic due at the next Due, whatever its interval, and
+// still sends only those that changed. A command calls for it: the panel
+// that sent it should show what it did. Paused, nothing else publishes, so
+// a second order placed within the market topic's interval was applied but
+// never shown until the game ran again.
+func (t *Topics) Refresh() {
+	for _, st := range t.subs {
+		st.built = time.Time{}
+	}
+}
+
 // Unsubscribe stops sending name. Unsubscribing from something not
 // subscribed is a no-op.
 func (t *Topics) Unsubscribe(name string) { delete(t.subs, name) }
@@ -131,8 +184,26 @@ func (t *Topics) Due(snap *sim.Snapshot, now time.Time) map[string]json.RawMessa
 // LoreTopic is the Lore panel: facts about the world, and every rolled alien
 // species, as the TUI's lore tab shows them (internal/ui/tui/render_lore.go).
 type LoreTopic struct {
-	World   LoreWorld     `json:"world"`
-	Species []LoreSpecies `json:"species"`
+	World        LoreWorld         `json:"world"`
+	Species      []LoreSpecies     `json:"species"`
+	Guns         []LoreGun         `json:"guns"`
+	Corporations []LoreCorporation `json:"corporations"`
+}
+
+// LoreGun is the make and model one kind of gun carries. See
+// docs/arms-makers.md.
+type LoreGun struct {
+	Kind  string `json:"kind"`  // "pistol"
+	Maker string `json:"maker"` // "MarsCorp"
+	Model string `json:"model"` // "M-117"
+}
+
+// LoreCorporation is one rolled company. Description names the guns it makes.
+type LoreCorporation struct {
+	Name        string `json:"name"`
+	HQ          string `json:"hq"`
+	Founded     int    `json:"founded"`
+	Description string `json:"description"`
 }
 
 // LoreWorld is the world's size, how much of it the colony has explored and
@@ -149,27 +220,31 @@ type LoreWorld struct {
 
 // LoreSpecies is one rolled alien species. See docs/lore.md.
 type LoreSpecies struct {
-	Label       string `json:"label"` // the roster label, "Xeno · hostile"
-	Glyph       string `json:"glyph"` // what the map draws it as (glyphs.ForAlien)
-	Singular    string `json:"singular"`
-	Plural      string `json:"plural"`
-	Temperament string `json:"temperament"`
-	HeightMinCM int    `json:"heightMinCm"`
-	HeightMaxCM int    `json:"heightMaxCm"`
-	WeightMinKG int    `json:"weightMinKg"`
-	WeightMaxKG int    `json:"weightMaxKg"`
-	Eyes        int    `json:"eyes"`
-	Limbs       int    `json:"limbs"`
-	Arms        int    `json:"arms"`
-	Legs        int    `json:"legs"`
-	Tail        bool   `json:"tail"`
-	Skin        string `json:"skin"`
-	Color       string `json:"color"`
-	Pattern     string `json:"pattern"`
-	BiteDamage  int    `json:"biteDamage"`
-	BiteRest    int    `json:"biteRest"` // ticks between bites
-	Slowness    int    `json:"slowness"` // ticks per step
-	Description string `json:"description"`
+	Label    string `json:"label"` // the roster label, "Xeno · hostile"
+	Glyph    string `json:"glyph"` // what the map draws it as (glyphs.ForAlien)
+	Singular string `json:"singular"`
+	Plural   string `json:"plural"`
+	// ScientificName is the species' binomial, "Pseudursus ares".
+	ScientificName string `json:"scientificName"`
+	Temperament    string `json:"temperament"`
+	HeightMinCM    int    `json:"heightMinCm"`
+	HeightMaxCM    int    `json:"heightMaxCm"`
+	WeightMinKG    int    `json:"weightMinKg"`
+	WeightMaxKG    int    `json:"weightMaxKg"`
+	Eyes           int    `json:"eyes"`
+	Limbs          int    `json:"limbs"`
+	Arms           int    `json:"arms"`
+	Legs           int    `json:"legs"`
+	Tail           bool   `json:"tail"`
+	Wings          bool   `json:"wings"`
+	Skin           string `json:"skin"`
+	Color          string `json:"color"`
+	Pattern        string `json:"pattern"`
+	Attacks        string `json:"attacks"` // "bite, claws, tail"
+	BiteDamage     int    `json:"biteDamage"`
+	BiteRest       int    `json:"biteRest"` // ticks between bites
+	Slowness       int    `json:"slowness"` // ticks per step
+	Description    string `json:"description"`
 }
 
 func loreTopic(s *sim.Snapshot) any {
@@ -183,31 +258,44 @@ func loreTopic(s *sim.Snapshot) any {
 			Chunks:          s.Stats.Chunks,
 			Seed:            s.Seed,
 		},
-		Species: make([]LoreSpecies, 0, len(s.AlienSpecies)),
+		Species:      make([]LoreSpecies, 0, len(s.AlienSpecies)),
+		Guns:         make([]LoreGun, 0, len(s.GunModels)),
+		Corporations: make([]LoreCorporation, 0, len(s.Corporations)),
+	}
+	for _, g := range s.GunModels {
+		t.Guns = append(t.Guns, LoreGun{Kind: g.Kind.String(), Maker: g.Brand, Model: g.Model})
+	}
+	for i, c := range s.Corporations {
+		t.Corporations = append(t.Corporations, LoreCorporation{
+			Name: c.Name, HQ: c.HQ, Founded: c.Founded, Description: c.Description(i, s.GunModels),
+		})
 	}
 	for _, sp := range s.AlienSpecies {
 		t.Species = append(t.Species, LoreSpecies{
-			Label:       sp.RosterLabel(),
-			Glyph:       glyphs.ForAlien(sp),
-			Singular:    sp.Singular,
-			Plural:      sp.Plural,
-			Temperament: sp.Temperament.String(),
-			HeightMinCM: sp.HeightMinCM,
-			HeightMaxCM: sp.HeightMaxCM,
-			WeightMinKG: sp.WeightMinKG,
-			WeightMaxKG: sp.WeightMaxKG,
-			Eyes:        sp.Eyes,
-			Limbs:       sp.Limbs,
-			Arms:        sp.Arms,
-			Legs:        sp.Legs(),
-			Tail:        sp.Tail,
-			Skin:        sp.Skin.String(),
-			Color:       sp.Color,
-			Pattern:     sp.Pattern.String(),
-			BiteDamage:  sp.BiteDamage,
-			BiteRest:    sp.BiteRest,
-			Slowness:    sp.Slowness,
-			Description: sp.Description(),
+			Label:          sp.RosterLabel(),
+			Glyph:          glyphs.ForAlien(sp),
+			Singular:       sp.Singular,
+			Plural:         sp.Plural,
+			ScientificName: sp.ScientificName,
+			Temperament:    sp.Temperament.String(),
+			HeightMinCM:    sp.HeightMinCM,
+			HeightMaxCM:    sp.HeightMaxCM,
+			WeightMinKG:    sp.WeightMinKG,
+			WeightMaxKG:    sp.WeightMaxKG,
+			Eyes:           sp.Eyes,
+			Limbs:          sp.Limbs,
+			Arms:           sp.Arms,
+			Legs:           sp.Legs(),
+			Tail:           sp.Tail,
+			Wings:          sp.Wings,
+			Skin:           sp.Skin.String(),
+			Color:          sp.Color,
+			Pattern:        sp.Pattern.String(),
+			Attacks:        sp.AttacksLabel(),
+			BiteDamage:     sp.BiteDamage,
+			BiteRest:       sp.BiteRest,
+			Slowness:       sp.Slowness,
+			Description:    sp.Description(),
 		})
 	}
 	return t

@@ -8,7 +8,7 @@ import (
 )
 
 // settingLine matches a commented-out setting in the template ("# width: 80",
-// "#     rise: 2") but not the prose above it ("## world width in tiles") or a
+// "#     rate: 2000") but not the prose above it ("## world width in tiles") or a
 // section rule.
 var settingLine = regexp.MustCompile(`^# (\s*[a-z][a-z0-9-]*:.*)$`)
 
@@ -84,10 +84,10 @@ func TestApplyConfigFile(t *testing.T) {
 	data := []byte(`
 seed: 99
 colonists: 12
-needs:
+drives:
   food:
-    rise: 5
-    fatal: false
+    rate: 5
+    grab-ticks: 0
 `)
 	set, err := ApplyConfigFile(&cfg, data, ConfigFileName)
 	if err != nil {
@@ -99,13 +99,13 @@ needs:
 	if cfg.StartColonists != 12 {
 		t.Errorf("StartColonists = %d, want 12", cfg.StartColonists)
 	}
-	if cfg.Needs[NeedFood].Rise != 5 || cfg.Needs[NeedFood].Fatal {
-		t.Errorf("food need = %+v, want rise 5 and not fatal", cfg.Needs[NeedFood])
+	if cfg.Drives[DriveFood].Rate != 5 || cfg.Drives[DriveFood].GrabTicks != 0 {
+		t.Errorf("food drive = %+v, want rate 5 and grab-ticks 0", cfg.Drives[DriveFood])
 	}
-	if cfg.Needs[NeedFood].SeekAt != DefaultConfig().Needs[NeedFood].SeekAt {
+	if cfg.Drives[DriveFood].SeekAt != DefaultConfig().Drives[DriveFood].SeekAt {
 		t.Error("an untouched field inside a need was overwritten")
 	}
-	want := []string{"seed", "colonists", "needs.food.rise", "needs.food.fatal"}
+	want := []string{"seed", "colonists", "drives.food.rate", "drives.food.grab-ticks"}
 	if !reflect.DeepEqual(set, want) {
 		t.Errorf("set = %v, want %v", set, want)
 	}
@@ -130,13 +130,13 @@ func TestApplyConfigFileErrors(t *testing.T) {
 		want string // substring the message must carry
 	}{
 		{"unknown key", "colonits: 3\n", `unknown setting "colonits"`},
-		{"unknown nested key", "needs:\n  food:\n    risé: 3\n", `unknown setting "needs.food.risé"`},
+		{"unknown nested key", "drives:\n  food:\n    risé: 3\n", `unknown setting "drives.food.risé"`},
 		{"unknown section", "creatures:\n  goat: 3\n", `unknown setting "creatures"`},
 		{"not a number", "colonists: many\n", "want a whole number"},
-		{"not a bool", "needs:\n  food:\n    fatal: 3\n", "want true or false"},
+		{"not a bool", "infinite-food: 3\n", "want true or false"},
 		{"duplicate", "colonists: 3\ncolonists: 4\n", "set twice"},
 		{"list at top level", "- colonists\n", "want a mapping"},
-		{"scalar where a spec belongs", "needs: 3\n", `unknown setting "needs"`},
+		{"scalar where a spec belongs", "drives: 3\n", `unknown setting "drives"`},
 		{"line number", "\n\ncolonits: 3\n", ":3:"},
 	}
 	for _, tc := range cases {
@@ -175,7 +175,7 @@ func TestKnobsAreWellFormed(t *testing.T) {
 			t.Errorf("knob %q collides with the special seed setting", k.Name)
 		}
 	}
-	if !names["colonists"] || !names["need-food-rise"] || !names["focus-work-base"] ||
+	if !names["colonists"] || !names["drive-food-rate"] || !names["focus-work-base"] ||
 		!names["mood-charge-decay-per-tick"] || !names["mood-grip-decay-per-tick"] ||
 		!names["mood-label-switch-margin"] {
 		t.Error("expected knobs are missing; did the cfg tags move?")
@@ -201,16 +201,16 @@ func TestFocusKnobsUseFocusNames(t *testing.T) {
 func TestKnobsPointAtTheConfig(t *testing.T) {
 	cfg := DefaultConfig()
 	for _, k := range Knobs(&cfg) {
-		if k.Key != "needs.food.rise" {
+		if k.Key != "drives.food.rate" {
 			continue
 		}
 		*(k.Ptr.(*int)) = 123
-		if cfg.Needs[NeedFood].Rise != 123 {
+		if cfg.Drives[DriveFood].Rate != 123 {
 			t.Fatal("writing through a knob did not reach the config")
 		}
 		return
 	}
-	t.Fatal("needs.food.rise knob not found")
+	t.Fatal("drives.food.rate knob not found")
 }
 
 // Settings files written before a rename still load: mice became rats. A
@@ -223,10 +223,10 @@ func TestOldSettingNamesStillMeanSomething(t *testing.T) {
 	if cfg.StartRats != 3 {
 		t.Fatalf("mice: 3 set rats to %d", cfg.StartRats)
 	}
-	for _, old := range []string{"pistols", "shotguns"} {
+	for _, old := range []string{"pistols", "shotguns", "crash-pod-pistols", "crash-pod-shotguns", "crash-pod-pistol-percent"} {
 		_, err := ApplyConfigFile(&cfg, []byte(old+": 2\n"), ConfigFileName)
-		if err == nil || !strings.Contains(err.Error(), "crash-pod-"+old) {
-			t.Fatalf("%s: error %v does not point to crash-pod-%s", old, err, old)
+		if err == nil || !strings.Contains(err.Error(), "crash-pod-gun-weight") {
+			t.Fatalf("%s: error %v does not point to crash-pod-gun-weight", old, err)
 		}
 	}
 }

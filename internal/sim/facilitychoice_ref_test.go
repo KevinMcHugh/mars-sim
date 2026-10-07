@@ -189,7 +189,7 @@ func TestChooseFacilityMatchesReference(t *testing.T) {
 				if tc.hungry && tick%50 == 0 {
 					for _, e := range w.entities {
 						if e.Kind == Colonist {
-							e.Needs[NeedFood] = w.cfg.Needs[NeedFood].SeekAt
+							w.setDrive(e, DriveFood, w.cfg.Drives[DriveFood].SeekAt)
 						}
 					}
 				}
@@ -216,7 +216,7 @@ func TestChooseFacilityMatchesReference(t *testing.T) {
 						}
 						compared++
 						room := w.roomOf(e.Pos)
-						if room == 0 || w.landing().restrictedFixtures[kind] > 0 {
+						if room == 0 || w.restrictedFixtures[kind] > 0 {
 							searched++ // chooseFacility goes straight to the search
 							continue
 						}

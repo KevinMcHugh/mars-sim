@@ -55,7 +55,7 @@ func (w *World) trackCavernsForNests() {
 // never holds (or generates) thousands of aliens nobody has met.
 func (w *World) rollNests(centers []Point) {
 	for _, c := range centers {
-		delete(w.lay(c).unfoundCaverns, c)
+		delete(w.unfoundCaverns, c)
 		if w.nestRNG == nil || len(w.alienSpecies) == 0 {
 			continue
 		}

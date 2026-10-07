@@ -15,7 +15,7 @@ func labCognitionFrom(cfg Config) LabCognition {
 	for f := FocusKind(0); f < numFocusKinds; f++ {
 		spec := cfg.Focuses[f]
 		cog.Focuses[f.String()] = LabFocus{
-			Base: spec.Base, NeedWeight: spec.NeedWeight,
+			Base: spec.Base, DriveWeight: spec.DriveWeight,
 			ChargeWeight: spec.ChargeWeight, GripWeight: spec.GripWeight,
 			DistanceWeight: spec.DistanceWeight,
 		}
@@ -33,7 +33,7 @@ func labSituationFrom(w *World, e *Entity) LabSituation {
 	sit := LabSituation{
 		Charge: e.affect.Charge, Grip: e.affect.Grip, Valence: e.affect.Valence,
 		MoodLabel: e.affect.Label.String(),
-		Needs:     map[string]int{},
+		Drives:    map[string]int{},
 		Current:   e.focus.String(),
 		CanWork:   workJob(e.Job) || !e.resting || w.tick >= e.wakeTick,
 		Pod:       true, Toilet: true, Bed: true, Company: true,
@@ -41,8 +41,8 @@ func labSituationFrom(w *World, e *Entity) LabSituation {
 		Armed:  bestWeapon(e.Inventory) != ItemNone,
 		Sealed: e.disconnectedTicks >= w.cfg.EscapeGraceTicks,
 	}
-	for n := NeedKind(0); n < numNeeds; n++ {
-		sit.Needs[n.String()] = w.needLevel(e, n)
+	for n := DriveKind(0); n < numDrives; n++ {
+		sit.Drives[n.String()] = w.driveLevel(e, n)
 	}
 	if e.Profile != nil {
 		for _, trait := range e.Profile.Traits {
@@ -56,12 +56,11 @@ func TestLabEvaluateMatchesChooseFocus(t *testing.T) {
 	w, c := focusTestColonist(t)
 	c.focus = FocusWork
 	c.Job = JobMine
-	c.Needs[NeedFood] = w.cfg.Needs[NeedFood].SeekAt
-	c.needSince[NeedFood] = w.tick
+	w.setDrive(c, DriveFood, w.cfg.Drives[DriveFood].SeekAt)
 
 	var candidates [numFocusKinds]FocusCandidate
 	want := w.chooseFocus(c, &candidates)
-	got, err := LabEvaluate(w.cfg.Needs, w.cfg.MoodMax, w.cfg.MoodLabelSwitchMargin, labCognitionFrom(w.cfg), labSituationFrom(w, c))
+	got, err := LabEvaluate(w.cfg.Drives, w.cfg.MoodMax, w.cfg.MoodLabelSwitchMargin, labCognitionFrom(w.cfg), labSituationFrom(w, c))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -83,12 +82,11 @@ func TestLabEvaluateMatchesChooseFocus(t *testing.T) {
 
 func TestLabBenchReachDropsEligibilityOnly(t *testing.T) {
 	w, c := focusTestColonist(t)
-	c.Needs[NeedFood] = w.cfg.Needs[NeedFood].SeekAt
-	c.needSince[NeedFood] = w.tick
+	w.setDrive(c, DriveFood, w.cfg.Drives[DriveFood].SeekAt)
 	sit := labSituationFrom(w, c)
 	sit.Pod = false
 	sit.Current = FocusWork.String()
-	got, err := LabEvaluate(w.cfg.Needs, w.cfg.MoodMax, w.cfg.MoodLabelSwitchMargin, labCognitionFrom(w.cfg), sit)
+	got, err := LabEvaluate(w.cfg.Drives, w.cfg.MoodMax, w.cfg.MoodLabelSwitchMargin, labCognitionFrom(w.cfg), sit)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -96,7 +94,7 @@ func TestLabBenchReachDropsEligibilityOnly(t *testing.T) {
 	if eat.Eligible {
 		t.Fatal("eat stayed eligible with no pod")
 	}
-	if eat.Need == 0 {
+	if eat.Drive == 0 {
 		t.Fatal("bench gate cleared the need score")
 	}
 	if got.Winner.ID == FocusEat.String() {

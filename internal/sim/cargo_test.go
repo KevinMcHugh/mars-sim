@@ -40,7 +40,7 @@ func TestUnloadingCreditsEachShareToItsOwner(t *testing.T) {
 	for i := 0; i < 50 && e.Job == JobStore; i++ {
 		w.jobStore(e)
 	}
-	c := w.landing().storageContainers[chest]
+	c := w.storageContainers[chest]
 	mine := c.held(me, IronOre) + w.openQty(Ask, IronOre, chest, me) // at the silo it goes on sale
 	if c.held(Community, IronOre) != 2 || mine != 3 {
 		t.Fatalf("the chest credits the colony %d iron and the miner %d; want 2 and 3",

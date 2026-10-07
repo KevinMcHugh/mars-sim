@@ -11,6 +11,11 @@ line of documentation above it — so the file as generated changes nothing. You
 uncomment a line to change it, and commit the result so everyone (and CI, and
 your next session) plays the same colony.
 
+One line ships uncommented: `zoning-auto: true`. The terminal and headless runs
+have no way to draw a zone, and with manual zoning (the compiled default, which
+the browser game starts from) their colonies would never build. See
+[zoning.md](./zoning.md). Re-apply it when you regenerate the file.
+
 Settings apply in three layers, each overriding the one before it:
 
 ```
@@ -54,11 +59,13 @@ type-switches over those pointers to register flags; `ConfigTemplate` renders
 them as commented YAML; `ApplyConfigFile` looks them up by key. Add a field with
 a tag and all three surfaces get it.
 
-`Config.Needs` and `Config.Focuses` are arrays of specs, so their knobs nest:
-the file writes `needs.food.rise` and `focuses.work.base`, while flags flatten
-those to `-need-food-rise` and `-focus-work-base`. Element names come from the
+`Config.Drives` and `Config.Focuses` are arrays of specs, so their knobs nest:
+the file writes `drives.food.rate` and `focuses.work.base`, while flags flatten
+those to `-drive-food-rate` and `-focus-work-base`. Element names come from the
 corresponding enum's `String()` method, so both surfaces read the way a player
-would say them. Focus knobs are a runtime copy of `cognition.yaml`; a later
+would say them. An array of plain values inside a spec is one knob per element
+(`DriveSpec.Activity` gives `drives.food.activity.labor`), and its `doc` tag has
+a `%s` the element's name fills in. Focus knobs are a runtime copy of `cognition.yaml`; a later
 `SyncWithCognition` overwrites them. Tune arbitration there.
 
 ### Startup order
@@ -93,10 +100,11 @@ Old names still mean something (`RenamedSettings`, `RetiredSettings` in
 
 - **Renamed** settings load under their new name: `mice` is `rats`.
 - **Retired** settings stop startup with what replaced them. `pistols` and
-  `shotguns` were the colony ship's armory; every colonist now lands with its
-  own (`crash-pod-pistols`, `crash-pod-shotguns`). The count is per colonist,
-  so reading the old colony-wide total as the new setting would arm everyone
-  many times over.
+  `shotguns` were the colony ship's armory; then every colonist landed with
+  its own (`crash-pod-pistols`, `crash-pod-shotguns`, each with a
+  `-percent`). Now a gun is one of three rare items a colonist may land with
+  (`crash-pod-gun-weight`, see [ships.md](./ships.md)), so none of
+  those counts means what it did, and all five point there.
 
 ## Why it is this way
 
@@ -106,7 +114,7 @@ Old names still mean something (`RenamedSettings`, `RetiredSettings` in
   be regenerated, diffs show only what a player deliberately changed, and a
   default that moves in `config.go` still reaches anyone who never touched that
   line. The cost is that nested settings need their parent keys uncommented
-  too, which the file says at the top of the needs section.
+  too, which the file says at the top of the drives section.
 - **Unknown keys are fatal.** A typo in a committed settings file that silently
   does nothing is exactly the failure this file exists to prevent, and a game
   that quietly ignores your balance is worse than one that will not start.
@@ -142,4 +150,4 @@ Only `int`, `int64` and `bool` fields can be knobs. A new kind needs a case in
 
 - [configuration.md](./configuration.md) — the `Config` struct these settings fill in.
 - [cli.md](./cli.md) — the flags that sit on top of the file.
-- [needs.md](./needs.md) — the `NeedSpec` table that nests inside the file.
+- [drives.md](./drives.md) — the `DriveSpec` table that nests inside the file.

@@ -19,7 +19,7 @@ func TestFocusScoreTotalAndFormat(t *testing.T) {
 		Kind:     FocusWork,
 		Eligible: true,
 		Score: FocusScore{
-			Base: 1, Need: 2, Affect: 3, Stimulus: 4,
+			Base: 1, Drive: 2, Affect: 3, Stimulus: 4,
 			Personality: 5, Commitment: 6, Distance: -7,
 		},
 	}
@@ -43,7 +43,7 @@ func TestFocusCommitmentRequiresEligibility(t *testing.T) {
 		t.Fatalf("satisfied eat candidate = %+v, want ineligible without commitment", candidates[FocusEat])
 	}
 
-	c.Needs[NeedFood] = w.cfg.Needs[NeedFood].SeekAt
+	w.setDrive(c, DriveFood, w.cfg.Drives[DriveFood].SeekAt)
 	w.focusCandidates(c, &candidates)
 	if !candidates[FocusEat].Eligible ||
 		candidates[FocusEat].Score.Commitment != w.cfg.FocusCurrentBonus {
@@ -86,8 +86,8 @@ func TestFocusTieOrderingIsDeterministic(t *testing.T) {
 
 func TestFatalPressingNeedSuppressesNonFatalNeeds(t *testing.T) {
 	w, c := focusTestColonist(t)
-	c.Needs[NeedFood] = w.cfg.Needs[NeedFood].SeekAt
-	c.Needs[NeedBladder] = w.cfg.Needs[NeedBladder].Max
+	w.setDrive(c, DriveFood, w.cfg.Drives[DriveFood].SeekAt)
+	w.setDrive(c, DriveBladder, w.cfg.Drives[DriveBladder].Max)
 	var candidates [numFocusKinds]FocusCandidate
 	w.focusCandidates(c, &candidates)
 	if !candidates[FocusEat].Eligible {
@@ -102,7 +102,7 @@ func TestCriticalFatalNeedBeatsWorkCommitment(t *testing.T) {
 	w, c := focusTestColonist(t)
 	c.focus = FocusWork
 	c.Job = JobMine
-	c.Needs[NeedFood], c.needSince[NeedFood] = w.cfg.Needs[NeedFood].Max, w.tick
+	w.setDrive(c, DriveFood, w.cfg.Drives[DriveFood].Max)
 	var candidates [numFocusKinds]FocusCandidate
 	if got := w.chooseFocus(c, &candidates).Kind; got != FocusEat {
 		t.Fatalf("focus = %v, want critical food to preempt committed work", got)
@@ -111,7 +111,7 @@ func TestCriticalFatalNeedBeatsWorkCommitment(t *testing.T) {
 
 func TestVisibleThreatBeatsCriticalHunger(t *testing.T) {
 	w, c := focusTestColonist(t)
-	c.Needs[NeedFood] = w.cfg.Needs[NeedFood].Max
+	w.setDrive(c, DriveFood, w.cfg.Drives[DriveFood].Max)
 	w.spawn(Alien, c.Pos.Add(1, 0))
 	w.observeNearby(c)
 	var candidates [numFocusKinds]FocusCandidate
@@ -144,7 +144,7 @@ func TestFocusTransitionReleasesMineClaim(t *testing.T) {
 	w.landing().board.claimMine(target, c.ID)
 	c.Job, c.Target, c.mineClaimed = JobMine, target, true
 	c.focus = FocusWork
-	c.Needs[NeedFood] = w.cfg.Needs[NeedFood].SeekAt
+	w.setDrive(c, DriveFood, w.cfg.Drives[DriveFood].SeekAt)
 
 	w.colonistTurn(c)
 	if w.landing().board.isClaimed(target) {
@@ -169,7 +169,7 @@ func BenchmarkFocusCandidates(b *testing.B) {
 	cfg.Seed = 1
 	w := newWorld(cfg, nil)
 	c := newEntity(1, Colonist, Point{1, 1, LandingLevel}, cfg)
-	c.Needs[NeedFood] = cfg.Needs[NeedFood].SeekAt
+	w.setDrive(c, DriveFood, cfg.Drives[DriveFood].SeekAt)
 	w.entities[c.ID] = c
 	var candidates [numFocusKinds]FocusCandidate
 	b.ReportAllocs()
@@ -194,12 +194,12 @@ func fleeCorridorBounces(t *testing.T, margin int) int {
 	w.refreshSpatial()
 	w.spawn(Alien, Point{24, 6, LandingLevel})
 	c := w.spawn(Colonist, Point{8, 6, LandingLevel})
-	for n := NeedKind(0); n < numNeeds; n++ {
-		c.Needs[n] = 0
+	for n := DriveKind(0); n < numDrives; n++ {
+		w.setDrive(c, n, 0)
 	}
-	c.Needs[NeedBladder] = w.cfg.Needs[NeedBladder].SeekAt + 10
-	for n := NeedKind(0); n < numNeeds; n++ {
-		w.syncNeedPhase(c, n)
+	w.setDrive(c, DriveBladder, w.cfg.Drives[DriveBladder].SeekAt+10)
+	for n := DriveKind(0); n < numDrives; n++ {
+		w.syncDrivePhase(c, n)
 	}
 
 	type change struct {

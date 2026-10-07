@@ -16,7 +16,7 @@ package sim
 // Nothing in it is life support, so it may go up narrow in a cramped cavern:
 // a smith and a gunsmith rarely want the same tile at once.
 var foundryRoom = roomRecipe{
-	name: "foundry", kinds: []Terrain{Forge, GunBench}, minFac: 2, maxFac: 2, aisle: true,
+	name: "foundry", kinds: []Terrain{Forge, GunBench}, minFac: 2, maxFac: 2, aisle: true, paired: true,
 	planLog: "The colony marks out a foundry.",
 }
 
@@ -65,11 +65,11 @@ func (w *World) refreshArmoryBids() {
 	}
 	want := w.cfg.ArmoryRifles - w.armoryStock() - w.openQty(Bid, AssaultRifle, silo, Community)
 	want = min(want, int(w.treasury/price))
-	for want > 0 && !w.lay(silo).storageContainers[silo].Inventory.CanAdd(AssaultRifle, want) {
+	for want > 0 && !w.storageContainers[silo].Inventory.CanAdd(AssaultRifle, want) {
 		want--
 	}
 	if want > 0 {
-		w.post(Bid, AssaultRifle, want, price, Community, silo, 0)
+		w.postStanding(Bid, AssaultRifle, want, price, silo)
 	}
 }
 
@@ -119,7 +119,7 @@ func (w *World) ownStockFor(e *Entity, b *Order) (ownStock, bool) {
 		return ownStock{from: e.Pos, n: n, carried: true}, true
 	}
 	me := ColonistOwner(e.ID)
-	if c := w.lay(b.Depot).storageContainers[b.Depot]; c != nil {
+	if c := w.storageContainers[b.Depot]; c != nil {
 		if n := c.held(me, b.Item); n > 0 {
 			return ownStock{from: b.Depot, n: n}, true
 		}

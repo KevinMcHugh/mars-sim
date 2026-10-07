@@ -6,12 +6,14 @@
 
 The world is a stack of levels, each its own 2D grid. A `Level` numbers
 them: 0 is the surface (nothing is there yet), 1 is the landing level where
-crash pods come down, and deeper levels count up. Every `Point` carries the
-level it is on. Everything that belongs to one grid (tiles, occupancy, region
-labels, fixtures, storage, refuse, scum and salt, the job board, worldgen
-state) lives in that level's `Layer`. The `World` keeps what spans levels:
-entities, the economy, the flow fields, the region graph and rooms, the list
-of stairs, and scratch buffers.
+colony ships come down, and deeper levels count up. Every `Point` carries the
+level it is on. Everything indexed by a tile's (x, y) on one grid, and every
+per-level count (tiles, occupancy, region labels, refuse, scum and salt, the
+job board, facility indexes, worldgen state) lives in that level's `Layer`.
+The `World` keeps what spans levels: entities, the economy, the flow fields,
+the region graph and rooms, the list of stairs, scratch buffers, and the
+sparse maps keyed by `Point` (storage, fixtures, claims, door tiles,
+structures), because their keys already say which level they mean.
 
 This is the data model. How levels connect (stairs), and how everything that
 moves or searches crosses between them, is in [stairs.md](./stairs.md). The
@@ -85,10 +87,15 @@ Code that has a point asks that point's layer. The few places that use
 `landing()` do so on purpose, and are the list to revisit when the colony
 starts settling deeper levels:
 
-- crash pods land on the landing level (`findPodSite`, `podRingHint`);
+- colony ships land on the landing level (`LandShip`, `MoveShip`, the ship
+  siting in ship.go);
+- the zone grid covers the landing level only (`zonable`): the colony zones
+  where it lives, and a deeper tile reads as unzoned;
 - the room planner sites rooms there (`findRoomSiteAllowingRock`); the
   colony builds where it lives, and a deeper level is where it digs;
-- the market's silo is chosen there (`marketDepot`);
+- the market's silo is chosen there (`marketDepot`), and a browser's order
+  or tile point is read as one there (`parsePoint` in internal/wire, the
+  wasm host's order depot);
 - random placement for arrivals, rat plagues and the starting aliens
   (`randomTile`, `freeFloorTiles`, `alienSpawnSite`) and the director's
   occurrences.
@@ -112,6 +119,15 @@ of them) pays no more than it did. Queues and heaps hold `int32` cell indices;
 `World.index` folds the level in as `(level*Height + y)*Width + x` and
 `pointOf` undoes it. On a single level that adds the same constant to every
 index, so every tie broken on an index breaks the same way it did.
+
+### Saving and loading
+
+The save codec writes `World.layers` like any other slice of pointers: a nil
+entry (a level never broken into) stays nil, and each layer's fields are
+saved except those tagged `save:"-"` (the published grid and the chunk
+preview). `afterLoad` gives each generated layer a fresh preview. A game
+saved with two levels loads with both and plays on identically
+(`TestSaveLoadKeepsLevels`).
 
 ### What a frontend sees
 
@@ -166,9 +182,11 @@ for now (see [stairs.md](./stairs.md)).
 
 ## Extending it
 
-- New per-tile state goes on `Layer` (initialised in `newLayer`); state that
-  spans levels goes on `World`.
-- Reach per-tile state through the point you have: `w.lay(p).thing[p]`. An
+- New grid state (indexed by (x, y)) and per-level counts go on `Layer`
+  (initialised in `newLayer`); a sparse map keyed by `Point` goes on `World`,
+  since its key already names the level; state that spans levels goes on
+  `World`.
+- Reach a layer's state through the point you have: `w.lay(p).thing`. An
   iteration over every level goes through `eachLayer` (or `eachContainer`,
   `eachFacility`), in level order.
 - Use `Within`/`Adjacent` for "touching" and "in range", `travelEstimate` for

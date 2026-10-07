@@ -11,7 +11,7 @@ risk and reward. Each level down holds richer deposits and bigger caverns, and
 it holds more and worse aliens. The colony chooses when to dig down, and every
 way down is also a way up for whatever lives there.
 
-Up is a direction too. Crash pods land on **level 1**. Level 0 above it is the
+Up is a direction too. Colony ships land on **level 1**. Level 0 above it is the
 Martian **surface**, which has its own challenges and is planned separately
 (Z6).
 
@@ -63,7 +63,7 @@ makes sense inside one grid. `World` holds `layers []*Layer`, indexed by level:
 | Level | What it is |
 | --- | --- |
 | 0 | **The surface.** Open Martian ground above the rock, with its own hazards (see "The surface" below). Nobody starts here. |
-| 1 | **The landing level.** Crash pods come down here, and it is today's whole map. |
+| 1 | **The landing level.** Colony ships come down here, and it is today's whole map. |
 | 2+ | **The deeps.** Each level further down is richer and more dangerous. |
 
 A level nobody has broken into has a nil `Layer` and costs nothing. Every
@@ -89,7 +89,7 @@ type Level int // grows downward
 
 const (
 	SurfaceLevel Level = 0
-	LandingLevel Level = 1 // where pods land; today's map
+	LandingLevel Level = 1 // where ships land; today's map
 )
 
 type Point struct {
@@ -130,11 +130,17 @@ As built in Z0 and Z1 (see [layers.md](./layers.md)):
 | `carvedAny/Min/Max` | `pf` and every scratch buffer (single-threaded; reuse) |
 | `chunkEntities` (spatial index) | `stairs`, the sorted list of stair tops (Z1) |
 | `regionOf`, `dirtyChunks` | relationships, memories, director, RNG streams |
-| `salt`, `exposedSalt`, `scum`, `exposedScum`, `scumPatches` | projects (their tasks' points carry levels) |
-| `buildTiles`, `doorTiles`, `pods`, `podRingHint` (only level 1 has any) | the published-copy revisions (`saltRev`, `scumRev`, `fixtureRev`) |
-| `fixtures` and their indexes, `storageContainers`, `pantryOf`/`pantryHouse` | the market's silo cache (`marketDepotAt`, `siloWas`) |
-| `scumClaims`, `workshopClaims`, the job `board` (frontier and claims) | |
-| worldgen: `gen`, `genDone`, `genSeen`, `genChunks`, `preview`, `unfoundCaverns` | |
+| `salt`, `exposedSalt`, `scum`, `exposedScum`, `scumPatches`, `scumThin` | projects (their tasks' points carry levels) |
+| the job `board` (frontier, claims, `frontierByChunk`) | the sparse maps keyed by tile: `storageContainers`, `fixtures` and their indexes, `buildTiles`, `doorTiles`, `pantryOf`/`pantryHouse`, `scumClaims`, `workshopClaims`, `unfoundCaverns`, `structureAt`, `roomFloor` |
+| worldgen: `gen`, `genDone`, `genSeen`, `genChunks`, `preview` | colony ships (`ships`, `aloft`, `shipRingHint`) and the zone grid, both landing-level only |
+| | the published-copy revisions (`saltRev`, `scumRev`, `fixtureRev`) and the market's silo cache |
+
+**Departure:** Z1 first put the sparse tile-keyed maps on `Layer` too. Merging
+main's colony ships, zoning and structures moved them back to `World`: a key
+is a `Point`, which names its level, so one map serves every level with no
+lookup of the layer first, and main's code that reads them needed no port. A
+map belongs on `Layer` only when it is indexed by `(x, y)` alone (a grid) or
+holds a per-level count or aggregate.
 
 Region IDs stay **globally unique** (one counter on `World`) so the region
 graph, and with it rooms, can span levels without renumbering anything. That is
@@ -435,7 +441,7 @@ Build order and what each phase must prove:
 Invariants every phase keeps:
 
 - Level 1 generation and the one-level game are unchanged (golden hashes).
-- Crash pods land on level 1 and nowhere else.
+- Colony ships land on level 1 and nowhere else.
 - A vertical link is a column: both ends share `(x, y)`.
 - Rooms and `sameRoom` are symmetric: only two-way links are region links.
 - No map is ranged to decide anything: links, layers and dirty chunks are

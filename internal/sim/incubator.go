@@ -65,7 +65,7 @@ func (w *World) ripeScum(c *StorageContainer) int {
 func (w *World) ripeTotal() int {
 	n := 0
 	w.eachFacility(Incubator, func(p Point) {
-		if c := w.lay(p).storageContainers[p]; c != nil {
+		if c := w.storageContainers[p]; c != nil {
 			n += w.ripeScum(c)
 		}
 	})
@@ -81,7 +81,7 @@ func (w *World) growIncubators() {
 		return
 	}
 	w.eachFacility(Incubator, func(p Point) {
-		c := w.lay(p).storageContainers[p]
+		c := w.storageContainers[p]
 		if c == nil {
 			return
 		}
@@ -101,7 +101,7 @@ func (w *World) growIncubators() {
 func (w *World) scumInKitchens() int {
 	n := 0
 	for _, p := range w.colonyKitchens() {
-		if c := w.lay(p).storageContainers[p]; c != nil {
+		if c := w.storageContainers[p]; c != nil {
 			n += c.held(Community, CaveScum)
 		}
 	}
@@ -135,7 +135,7 @@ func (w *World) seedDeficit(c *StorageContainer) int {
 // nobody else is already loading.
 func (w *World) seedIncubator(e *Entity) (Point, bool) {
 	return w.nearestWorkshop(e, Incubator, func(c *StorageContainer) bool {
-		if id := w.lay(c.Pos).workshopClaims[c.Pos]; id != 0 && id != e.ID {
+		if id := w.workshopClaims[c.Pos]; id != 0 && id != e.ID {
 			return false // one seeder at a time, or the colony pays for far more than it needs
 		}
 		return w.seedDeficit(c) > 0 && c.Inventory.CanAdd(CaveScum, 1)
@@ -155,12 +155,12 @@ func (w *World) tryAssignSeed(e *Entity) bool {
 	if !ok {
 		return false
 	}
-	c := w.lay(inc).storageContainers[inc]
+	c := w.storageContainers[inc]
 	if e.Inventory.Has(CaveScum) {
 		if !c.Inventory.CanAdd(CaveScum, e.Inventory.Count(CaveScum)) {
 			return false
 		}
-		w.lay(inc).workshopClaims[inc] = e.ID
+		w.workshopClaims[inc] = e.ID
 		e.Job, e.Target, e.scrape, e.Progress = JobScrape, inc, scrapeHaul, 0
 		e.scrapeKeep, e.scrapeSeed, e.seedAt = false, true, inc
 		return true
@@ -173,8 +173,8 @@ func (w *World) tryAssignSeed(e *Entity) bool {
 	if !ok {
 		return false
 	}
-	w.lay(patch).scumClaims[patch] = e.ID
-	w.lay(inc).workshopClaims[inc] = e.ID
+	w.scumClaims[patch] = e.ID
+	w.workshopClaims[inc] = e.ID
 	e.Job, e.Target, e.scrape, e.Progress = JobScrape, patch, scrapeGather, 0
 	e.scrapeKeep, e.scrapeSeed, e.seedAt, e.scrapeQty = false, true, inc, load
 	return true
@@ -208,7 +208,7 @@ func (w *World) tryAssignHarvest(e *Entity) bool {
 		return false
 	}
 	inc, ok := w.nearestWorkshop(e, Incubator, func(c *StorageContainer) bool {
-		if id := w.lay(c.Pos).scumClaims[c.Pos]; id != 0 && id != e.ID {
+		if id := w.scumClaims[c.Pos]; id != 0 && id != e.ID {
 			return false
 		}
 		return w.ripeScum(c) >= w.scumPerMeal()
@@ -216,7 +216,7 @@ func (w *World) tryAssignHarvest(e *Entity) bool {
 	if !ok {
 		return false
 	}
-	w.lay(inc).scumClaims[inc] = e.ID
+	w.scumClaims[inc] = e.ID
 	e.Job, e.Target, e.scrape, e.Progress = JobScrape, inc, scrapeHarvest, 0
 	e.scrapeKeep, e.scrapeSeed = false, false
 	return true
@@ -226,7 +226,7 @@ func (w *World) tryAssignHarvest(e *Entity) bool {
 // its seed, and starts the haul to a scumhouse. The scum is the colony's, and
 // the colony pays wage-harvest for the trip.
 func (w *World) jobHarvest(e *Entity) {
-	c := w.lay(e.Target).storageContainers[e.Target]
+	c := w.storageContainers[e.Target]
 	if c == nil || c.Terrain != Incubator || w.ripeScum(c) < w.scumPerMeal() {
 		w.clearJob(e) // somebody got there first, or it was demolished
 		return
@@ -259,6 +259,6 @@ func (w *World) jobHarvest(e *Entity) {
 		w.transfer(Community, ColonistOwner(e.ID), Money(w.cfg.WageHarvest)) // as far as the treasury goes
 	}
 	w.emitDone(e, ActionScrape, NounScum, "Harvested %d units of cave scum from an incubator.", n)
-	delete(w.lay(e.Target).scumClaims, e.Target)
+	delete(w.scumClaims, e.Target)
 	e.Target, e.scrape, e.Progress = house, scrapeHaul, 0
 }

@@ -69,7 +69,7 @@ director script every run.
 | `rat-plague` | `count` | Spawns `count` rats on open floor, same placement as starting rats. `mouse-plague`, from before rats replaced mice, still loads as the same thing. |
 | `alien-swarm` | `count` | Spawns `count` aliens with the same placement as starting aliens: dormant on hidden cave floor, or colony floor far from the landing site when there is no cave room (see [caverns.md](./caverns.md#aliens-in-the-caves)). |
 | `supply-drop` | `pistols`, `shotguns` | Hands weapons to that many distinct living colonists (in random order), one each. What a colonist receives is its own ([property.md](./property.md)). |
-| `arrival` | `count` | Brings `count` new colonists down in crash pods, each through `arrive` — exactly as the founders landed ([crash-pods.md](./crash-pods.md)). |
+| `arrival` | `count` | Brings `count` new colonists down in colony ships of up to `ship-capacity` each, through `arriveWave` — exactly as the founders landed ([ships.md](./ships.md)). |
 
 A colonist with a full inventory is skipped rather than blocking the drop; an
 item that cannot be placed on anyone is simply lost. A wave that runs out of
@@ -116,7 +116,7 @@ script.
 - **No ground-drop entity for supply crates.** The simulation has no notion
   of an item lying on the floor waiting to be picked up — inventory only
   exists on colonists and storage containers. Handing weapons straight to
-  colonists, the way a crash pod's manifest arms its settler, reuses an
+  colonists, the way a settler's rare item arms it on landing, reuses an
   existing, tested mechanic instead of inventing a new one for one
   occurrence kind.
 
@@ -140,7 +140,7 @@ script.
 - [config-file.md](./config-file.md) — `mars-sim.yaml`, the tunable-knobs file
   this one deliberately does not try to be.
 - [architecture.md](./architecture.md) — the tick loop `runDirector` hooks into.
-- [crash-pods.md](./crash-pods.md) — `arrive`, which the `arrival` occurrence calls.
+- [ships.md](./ships.md) — `arriveWave`, which the `arrival` occurrence calls.
 - [combat.md](./combat.md) — aliens and weapons; the supply drop
   `supply-drop` mirrors.
 - [personality.md](./personality.md) — why gameplay RNG and flavor RNG are
