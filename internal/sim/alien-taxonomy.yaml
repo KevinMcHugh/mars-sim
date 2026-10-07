@@ -10,7 +10,10 @@
 # Each part is drawn at random from the entries whose "when" condition matches
 # the rolled species. "when" is the same condition tree alien-names.yaml uses
 # (all / any / not, temperament, skin, color, pattern, height, weight, tail,
-# wings, legs, arms, limbs, eyes); an entry with no "when" fits every species.
+# wings, legs, arms, limbs, eyes, and the graded features horns, antlers,
+# spines, shell, claws, stinger, tail-tip, plus apex); an entry with no
+# "when" fits every species. Scientific names are built after a species'
+# anatomy is rolled, so feature conditions match here.
 #
 # Prefixes are Greek or Latin combining forms (the "Erythro-" in
 # Erythrosaurus). Roots are the noun a genus ends in (the "-saurus"). When a
@@ -95,6 +98,16 @@ prefixes:
   - { form: phobo,  when: { temperament: hostile } }   # fear
   - { form: crypto, when: { temperament: cautious } }  # hidden
   - { form: hemero, when: { temperament: friendly } }  # tame
+
+  # Graded features (horns, antlers, spines, shell, claws, stinger, tail-tip)
+  # and apex. Scientific names are built after anatomy, so these can match.
+  - { form: cerato,  when: { horns: { gte: 1 } } }          # horn
+  - { form: elapho,  when: { antlers: { gte: 2 } } }        # deer (antlered)
+  - { form: acantho, when: { spines: { gte: 2 } } }         # spine
+  - { form: ostraco, when: { shell: { gte: 2 } } }          # shell
+  - { form: onycho,  when: { claws: { gte: 2 } } }          # claw
+  - { form: kentro,  when: { any: [{ stinger: { gte: 1 } }, { tail-tip: stinger }] } }  # sting
+  - { form: thanato, when: { apex: true } }                 # death
 
 roots:
   # Generic: fit anything, so a genus can always be built.
@@ -181,6 +194,12 @@ roots:
     gender: m
     when: { any: [{ height: huge }, { weight: huge }] }
 
+  # Graded features.
+  - { form: ceras,   gender: n, when: { horns: { gte: 1 } } }               # horn
+  - { form: elaphus, gender: m, mimic: true, when: { antlers: { gte: 4 } } } # deer
+  - { form: hystrix, gender: f, mimic: true, when: { spines: { gte: 2 } } }  # porcupine
+  - { form: scorpio, gender: m, mimic: true, when: { tail-tip: stinger } }   # scorpion
+
 epithets:
   # Mars and its places, as genitives ("of ..."): fit anything.
   - form: martis     # of Mars
@@ -243,3 +262,15 @@ epithets:
   - { form: ruber,     feminine: rubra,    neuter: rubrum,    when: { color: red } }       # red
   - { form: niger,     feminine: nigra,    neuter: nigrum,    when: { color: black } }     # black
   - { form: albus,     feminine: alba,     neuter: album,     when: { color: white } }     # white
+
+  # Graded features, and apex.
+  - { form: cornutus,     feminine: cornuta,     neuter: cornutum,     when: { horns: { gte: 1 } } }    # horned
+  - { form: multicornis,  when: { horns: { gte: 6 } } }                                                # many-horned
+  - { form: cervicornis,  when: { antlers: { gte: 4 } } }                                              # antlered like a deer
+  - { form: spinosus,     feminine: spinosa,     neuter: spinosum,     when: { spines: { gte: 1 } } }   # spiny
+  - { form: loricatus,    feminine: loricata,    neuter: loricatum,    when: { shell: { gte: 2 } } }    # armored
+  - { form: unguiculatus, feminine: unguiculata, neuter: unguiculatum, when: { claws: { gte: 2 } } }    # clawed
+  - { form: aculeatus,    feminine: aculeata,    neuter: aculeatum,    when: { stinger: { gte: 1 } } }  # stinging
+  - { form: clavicauda,   when: { any: [{ tail-tip: club }, { tail-tip: spiked-club }] } }            # club-tailed
+  - { form: horridus,     feminine: horrida,     neuter: horridum,     when: { apex: true } }           # dreadful
+  - { form: terribilis,   when: { apex: true } }                                                       # terrible

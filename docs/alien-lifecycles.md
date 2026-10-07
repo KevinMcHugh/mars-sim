@@ -291,8 +291,10 @@ queens lay eggs.", "Adults bear young."
   adult reads wrong), or a separate rule.
 - **Eggs as targets.** Colonists could smash eggs and casings (a work order,
   or a fight target that does not trigger flight).
-- **Stage words in names.** `alien-names.yaml` conditions could gain
-  feature leaves (`horns`, `shell`) so a horned species can be named for it.
+- **Stage words in names.** Feature names exist ("unicorn", "urchin",
+  "horror"; see [lore.md](./lore.md#naming-a-condition-gated-pool-not-a-flat-table)),
+  but nothing names a species for its lifecycle yet (a "broodmother" for a
+  line with queens, say). It would go in the same second pass.
 - Keep each young form a lesser version of the next (`gainsOnly` in the
   tests), keep sizes rising, and keep every new draw on the lifecycle or
   anatomy stream, or on `World.rng` when it is a gameplay decision.

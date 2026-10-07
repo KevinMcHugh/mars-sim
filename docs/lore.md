@@ -329,6 +329,11 @@ type nameCondition struct {
 	Temperament, Skin, Color, Pattern, Height, Weight string
 	Tail, Wings                              *bool
 	Legs, Arms, Limbs, Eyes                  *intCondition // {eq,gt,gte,lt,lte}
+
+	// graded features and the apex roll (see alien-lifecycles.md)
+	Horns, Antlers, Spines, Shell, Claws, Stinger *intCondition
+	TailTip                                       string // plain | club | spiked-club | stinger
+	Apex                                          *bool
 }
 ```
 
@@ -350,6 +355,24 @@ the just-rolled species and draws one at random — overlapping conditions
 `alien-names.yaml`'s conditions are allowed to be loose and to overlap
 freely. `rollAlienSpecies` calls it *last*, after every other trait is
 rolled, since the name depends on the build, not the other way around.
+
+**Feature names are a second pass.** Graded anatomy and the apex roll come
+after the build, on streams of their own, so the first pick cannot see
+them: an entry gated on `horns`, `stinger`, `apex` and the like (a
+*feature name*, `usesFeatures`) never matches a body that has no features
+yet. After anatomy and apex, `renameForFeatures` gives each species whose
+features fit a free feature name a 60% chance of taking one ("unicorn" for
+a single horn, "crownhorn" for six or more, "urchin", "shellback",
+"reaper", "stingtail", "morningstar", and "horror", "dread" or
+"nightmare" for an apex species), freeing the first-pass name. The pass
+has its own stream (`alienFeatureNameSeed`) and draws once per species
+before anything else, so no species' build, temperament or first-pass name
+moved when feature names were added; about a third of species end up with
+one. A feature name must only test features a species *has* (`gte`, `eq`,
+`apex: true`): a condition a featureless species could meet (`not:
+{horns: ...}`) would join the first pass and shift every later species'
+build. `TestFeatureNamesNeverMatchABareBody` holds the built-in file to
+that.
 
 ### Name groups
 

@@ -35,6 +35,17 @@
 #   tail:        true | false
 #   wings:       true | false
 #   legs / arms / limbs / eyes:  {eq: N} | {gt: N} | {gte: N} | {lt: N} | {lte: N}
+#   horns / antlers:             counts, the same comparisons (antlers counts tines)
+#   spines / shell / claws:      grades 1-3, the same comparisons
+#   stinger:                     grade 1-2 (2 is barbed), the same comparisons
+#   tail-tip:    plain | club | spiked-club | stinger
+#   apex:        true | false   (the rare, very deadly species)
+#
+# A name that tests any graded feature or apex is a feature name. It is never
+# picked when a species is first named (its features are rolled afterwards);
+# a later pass renames a species whose features fit one, most of the time.
+# Gate feature names only on features a species has (gte, eq, apex: true):
+# a condition a featureless species could meet would join the first pass.
 #
 # Combine with "all" (every sub-condition must match), "any" (at least one
 # must), and "not" (must not match) -- these nest to any depth.

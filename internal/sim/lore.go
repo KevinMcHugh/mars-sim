@@ -565,15 +565,10 @@ func rollAlienSpeciesRoster(rng *rand.Rand, cfg Config) []AlienSpecies {
 		roster[i] = rollAlienSpecies(rng, cfg, names, used)
 		used[strings.ToLower(roster[i].Singular)] = true
 	}
-	taxa := defaultTaxonomy()
-	taxRNG := newRand(cfg.Seed ^ alienTaxonomySeed)
-	binomials := make(map[string]bool, count) // no two species share a scientific name either
-	for i := range roster {
-		roster[i].ScientificName = scientificName(taxRNG, roster[i], taxa, binomials)
-		binomials[strings.ToLower(roster[i].ScientificName)] = true
-	}
-	// Anatomy and lifecycles each draw from a stream of their own, after
-	// everything above, so neither moved a single earlier draw.
+	// Anatomy, the apex roll, feature names, scientific names and lifecycles
+	// each draw from a stream of their own, after everything above, so none
+	// moved a single earlier draw. Anatomy comes first because feature names
+	// and scientific names can depend on it.
 	anatomyRNG := newRand(cfg.Seed ^ alienAnatomySeed)
 	for i := range roster {
 		roster[i].Anatomy = rollAnatomy(anatomyRNG, roster[i])
@@ -581,6 +576,14 @@ func rollAlienSpeciesRoster(rng *rand.Rand, cfg Config) []AlienSpecies {
 		roster[i].AttackModes |= featureAttacks(roster[i].Anatomy)
 	}
 	rollApex(cfg, roster) // its own stream too
+	renameForFeatures(cfg, roster, names, used)
+	taxa := defaultTaxonomy()
+	taxRNG := newRand(cfg.Seed ^ alienTaxonomySeed)
+	binomials := make(map[string]bool, count) // no two species share a scientific name either
+	for i := range roster {
+		roster[i].ScientificName = scientificName(taxRNG, roster[i], taxa, binomials)
+		binomials[strings.ToLower(roster[i].ScientificName)] = true
+	}
 	lifeRNG := newRand(cfg.Seed ^ alienLifecycleSeed)
 	for i := range roster {
 		rollLifecycle(lifeRNG, &roster[i], cfg)

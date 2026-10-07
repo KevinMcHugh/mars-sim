@@ -469,3 +469,70 @@ names:
     plural: opals
     emoji: ["🦚"]
     when: { color: iridescent }
+
+  # Feature names: gated on graded features (horns, antlers, spines, shell,
+  # claws, stinger, tail-tip) or apex. A species has no features when it is
+  # first named, so none of these can win that pass; afterwards, a species
+  # whose features fit one takes it most of the time (see renameForFeatures
+  # in alien_names.go). Gate them only on features a species HAS (gte, eq,
+  # apex: true): a condition that a featureless species could satisfy, such
+  # as `not: { horns: ... }`, would leak into the first pass.
+  - name: unicorn
+    plural: unicorns
+    emoji: ["🦄"]
+    when: { horns: { eq: 1 } }
+
+  - group: [crownhorn, thornhead]
+    emoji: ["🦏"]
+    when: { horns: { gte: 6 } }
+
+  - group: [stag, tinehorn]
+    emoji: ["🐎", "🦄"]
+    when: { antlers: { gte: 4 } }
+
+  - group: [quillback, pincushion, urchin]
+    emoji: ["🦡"]
+    when: { spines: { gte: 2 } }
+
+  - group: [shellback, tortoise]
+    emoji: ["🐢"]
+    when: { shell: { gte: 2 } }
+
+  - group: [ripper, raker]
+    emoji: ["🐺", "🦖"]
+    when: { claws: { gte: 2 } }
+
+  - name: reaper
+    plural: reapers
+    emoji: ["🦗"]
+    when: { claws: { eq: 3 } }
+
+  - group: [wasp, stinger]
+    emoji: ["🦟", "🦂"]
+    when: { stinger: { gte: 1 } }
+
+  - name: barb
+    plural: barbs
+    emoji: ["🦂"]
+    when: { stinger: { eq: 2 } }
+
+  - name: stingtail
+    plural: stingtails
+    emoji: ["🦂"]
+    when: { tail-tip: stinger }
+
+  - name: clubtail
+    plural: clubtails
+    emoji: ["🦖"]
+    when: { any: [{ tail-tip: club }, { tail-tip: spiked-club }] }
+
+  - name: morningstar
+    plural: morningstars
+    emoji: ["🦖"]
+    when: { tail-tip: spiked-club }
+
+  # The rare apex species (alien-apex-percent): the names colonists give the
+  # thing they will not go near.
+  - group: [horror, dread, nightmare]
+    emoji: ["💀", "👿", "🧌"]
+    when: { apex: true }
