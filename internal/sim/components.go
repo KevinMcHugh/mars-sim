@@ -36,6 +36,7 @@ type PetBond struct {
 type LifeStage struct {
 	form   int
 	growAt int
+	layAt  int // a laying form's next brood (0 for any other form); see layBrood
 }
 
 // keeperOf is the colonist a pet came down with, 0 for a stray or a non-pet.

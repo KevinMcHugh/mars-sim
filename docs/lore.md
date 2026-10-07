@@ -652,8 +652,9 @@ word-wrapped to the panel width.
   several forms (egg, grub, pupa, joey; queen/worker/drone castes), each
   larger and more extreme than the last but recognizably the same, and every
   species rolls graded features (horns, antlers, stingers, quills, tail
-  clubs, shells) that `Description` adds a sentence for. Next there: features
-  that fight (a gore, a sting) and adults that lay eggs. See
+  clubs, shells) that `Description` adds a sentence for, and their adults
+  or queens lay the next generation. Next there: features that fight (a
+  gore, a sting). See
   [alien-lifecycles.md](./alien-lifecycles.md).
 - **Per-individual variation.** Every alien of a given species is still
   stat-for-stat identical to every other of that species. Giving each

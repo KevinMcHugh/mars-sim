@@ -48,6 +48,10 @@ type AlienForm struct {
 	Inert bool
 	// Ticks is roughly how long the stage lasts; 0 for the last stage.
 	Ticks int
+	// Lays marks the form that brings the next generation: the plain adult
+	// of a line without castes, or its laying caste (a queen, a betty). It
+	// lays the species' first form, an egg or live young (see layBrood).
+	Lays bool
 
 	Limbs, Arms int
 	Tail, Wings bool
@@ -129,13 +133,14 @@ type casteWord struct {
 	name           string
 	weight         int
 	minPct, maxPct int
+	lays           bool // the caste that brings the next generation
 }
 
 var casteSets = []casteSet{
-	{familyInsect, []casteWord{{"queen", 1, 130, 170}, {"worker", 6, 80, 95}, {"drone", 3, 65, 85}}},
-	{familyMammal, []casteWord{{"bull", 1, 110, 135}, {"betty", 1, 90, 105}}},
-	{familyMammal, []casteWord{{"jack", 1, 100, 115}, {"jill", 1, 90, 100}}},
-	{familyAny, []casteWord{{"matriarch", 1, 140, 175}, {"drudge", 5, 75, 90}, {"sire", 2, 90, 110}}},
+	{familyInsect, []casteWord{{"queen", 1, 130, 170, true}, {"worker", 6, 80, 95, false}, {"drone", 3, 65, 85, false}}},
+	{familyMammal, []casteWord{{"bull", 1, 110, 135, false}, {"betty", 1, 90, 105, true}}},
+	{familyMammal, []casteWord{{"jack", 1, 100, 115, false}, {"jill", 1, 90, 100, true}}},
+	{familyAny, []casteWord{{"matriarch", 1, 140, 175, true}, {"drudge", 5, 75, 90, false}, {"sire", 2, 90, 110, false}}},
 }
 
 // familyOf is the word family a hide suggests. Bony and rocky hides suggest
@@ -280,12 +285,12 @@ func rollLifecycle(rng *rand.Rand, sp *AlienSpecies, cfg Config) {
 	if last == 0 {
 		return
 	}
-	adult := AlienForm{Stage: last, SizePct: 100, Limbs: sp.Limbs, Arms: sp.Arms, Tail: sp.Tail, Wings: sp.Wings, Anatomy: sp.Anatomy}
+	adult := AlienForm{Stage: last, SizePct: 100, Limbs: sp.Limbs, Arms: sp.Arms, Tail: sp.Tail, Wings: sp.Wings, Anatomy: sp.Anatomy, Lays: true}
 	if castes {
 		set := pickCasteSet(rng, family)
 		for _, c := range set.castes {
 			f := adult
-			f.Name, f.Weight = c.name, c.weight
+			f.Name, f.Weight, f.Lays = c.name, c.weight, c.lays
 			f.SizePct = c.minPct + rng.IntN(c.maxPct-c.minPct+1)
 			f.Anatomy = pushedAnatomy(sp.Anatomy, f.SizePct)
 			forms = append(forms, f)
@@ -382,6 +387,11 @@ func (w *World) beginLife(e *Entity) {
 	if t := sp.Forms[form].Ticks; t > 0 {
 		e.life.growAt = w.tick + 1 + w.rng.IntN(t)
 	}
+	if sp.Forms[form].Lays {
+		// Part of the way to its next brood, so a nest's layers do not all
+		// lay on the same tick.
+		e.life.layAt = w.tick + 1 + w.rng.IntN(max(1, w.cfg.AlienLayTicks))
+	}
 	w.resizeAlien(e, 100)
 }
 
@@ -416,12 +426,89 @@ func (w *World) growUp(e *Entity) {
 	if t := sp.Forms[e.life.form].Ticks; t > 0 {
 		e.life.growAt = w.tick + t
 	}
+	if sp.Forms[e.life.form].Lays {
+		e.life.layAt = w.tick + max(1, w.cfg.AlienLayTicks)
+	}
 	w.resizeAlien(e, oldPct)
 	e.clearPath()
 	e.Quarry = 0
 	if !w.dormant(e) {
 		w.logEvent(LogBirth, fmt.Sprintf("%s %s into %s.", capitalizeFirst(before), leaveVerb(from), w.alienNounFor(e)))
 	}
+}
+
+// layBrood is a laying form's next generation: once its time comes it lays
+// the species' first form (an egg, or live young: a joey, a grub) on a free
+// floor tile beside it, at the very start of that stage. It tries again
+// after alien-lay-ticks whether or not it laid, and it does not lay when
+// alien-brood-cap of its species already live within alien-brood-radius of
+// it, when alien-species-cap of its species live anywhere, or when no tile
+// beside it is free. The local cap is a nest crowding itself, like a rat
+// litter; the species cap is what keeps the young that wander off from
+// letting it lay forever. Laying does not use the layer's turn.
+func (w *World) layBrood(e *Entity) {
+	e.life.layAt = w.tick + max(1, w.cfg.AlienLayTicks)
+	if w.broodCrowded(e) || w.speciesPopulation(e) >= w.cfg.AlienSpeciesCap {
+		return
+	}
+	spot, ok := Point{}, false
+	for _, d := range neighbors8 {
+		if p := e.Pos.Add(d.X, d.Y); w.Walkable(p) && !w.occupied(p) {
+			spot, ok = p, true
+			break
+		}
+	}
+	if !ok {
+		return
+	}
+	young := w.spawnAs(Alien, spot, e.Species)
+	w.startYoung(young)
+	if !w.dormant(e) {
+		first, _ := w.formOf(young)
+		verb := "bears"
+		if first.Inert {
+			verb = "lays"
+		}
+		w.logEvent(LogBirth, fmt.Sprintf("%s %s %s.", capitalizeFirst(w.alienNounFor(e)), verb, w.alienNounFor(young)))
+	}
+}
+
+// broodCrowded reports whether a layer's surroundings already hold
+// alien-brood-cap of its species, itself included.
+func (w *World) broodCrowded(e *Entity) bool {
+	n := 0
+	for _, id := range w.entityIDsNearSorted(e.Pos, w.cfg.AlienBroodRadius) {
+		if c := w.entities[id]; c != nil && c.Alive() && sameSpecies(c, e) {
+			n++
+		}
+	}
+	return n >= w.cfg.AlienBroodCap
+}
+
+// speciesPopulation counts the living aliens of e's species. Laying is
+// rare, so a scan of the aliens is cheap enough.
+func (w *World) speciesPopulation(e *Entity) int {
+	n := 0
+	for id := range w.kindEntities[Alien] {
+		if c := w.entities[id]; c != nil && c.Alive() && c.Species == e.Species {
+			n++
+		}
+	}
+	return n
+}
+
+// startYoung puts a newly laid alien at the very start of its species'
+// first form, at full health: spawning gave it a random stage, as a nest
+// alien gets, and a brood is newborn.
+func (w *World) startYoung(e *Entity) {
+	sp := w.alienSpeciesFor(e)
+	e.HP, e.Parts = e.MaxHP, e.MaxParts
+	e.life.form, e.life.layAt = 0, 0
+	e.life.growAt = 0
+	if t := sp.Forms[0].Ticks; t > 0 {
+		e.life.growAt = w.tick + t
+	}
+	w.resizeAlien(e, 100)
 }
 
 // leaveVerb is what leaving a form is called: an egg hatches, a cocoon's
@@ -519,7 +606,22 @@ func (sp AlienSpecies) lifePhrase() string {
 	if castes {
 		out += " " + sp.castePhrase()
 	}
-	return out
+	return out + " " + sp.broodPhrase()
+}
+
+// broodPhrase says who brings the next generation and how: "Adults lay
+// eggs.", "Only the betties bear young."
+func (sp AlienSpecies) broodPhrase() string {
+	verb := "bear young"
+	if sp.Forms[0].Inert {
+		verb = "lay eggs"
+	}
+	for _, f := range sp.LifeForms() {
+		if f.Lays && f.Name != "" {
+			return fmt.Sprintf("Only the %s %s.", pluralizeWord(f.Name), verb)
+		}
+	}
+	return "Adults " + verb + "."
 }
 
 // youngPhrase describes a stage before the adult: "an egg", "a grub, about a
