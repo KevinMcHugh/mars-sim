@@ -85,7 +85,7 @@ func jobsTopic(s *sim.Snapshot) JobsTopic {
 		"trash room": s.PendingTrashRooms, "storage room": s.PendingStorageRooms,
 		"scumhouse": s.PendingScumhouses, "foundry": s.PendingFoundries,
 		"meeting hall": s.PendingHalls, "incubator": s.PendingIncubators,
-		"stair down": s.PendingStairs,
+		"stair down": s.PendingStairs, "shaft level": s.PendingShaftLevels,
 	} {
 		if n > 0 {
 			t.Pending[what] = n // a JSON object: encoding/json sorts its keys

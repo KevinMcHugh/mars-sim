@@ -11,7 +11,7 @@ import "slices"
 //     chunk's regions are recomputed.
 //   - A room is a connected component of the region graph: regions are linked
 //     when their cells touch (8-connectivity) across a chunk border, or when
-//     the two ends of a stair sit in them (see linkFrom). Rooms are relabelled
+//     the two ends of a stair sit in them (see links). Rooms are relabelled
 //     from the small region graph, not the full tile grid, and a room can span
 //     levels.
 //
@@ -180,7 +180,7 @@ func (w *World) linkChunkRegions(l *Layer, ci int) {
 	if regions == nil {
 		return // nothing in this chunk is floor, so there is nothing to link
 	}
-	stairs := w.hasStairs()
+	stairs := w.hasLinks()
 	for y := y0; y < y1; y++ {
 		for x := x0; x < x1; x++ {
 			rid := regions[offset(x, y)]
@@ -202,8 +202,9 @@ func (w *World) linkChunkRegions(l *Layer, ci int) {
 			if !stairs {
 				continue
 			}
-			if q, ok := w.linkFrom(Point{x, y, l.Level}); ok {
-				if nid := w.lay(q).regionOf.at(q.X, q.Y); nid != 0 {
+			lk, n := w.links(Point{x, y, l.Level})
+			for _, k := range lk[:n] {
+				if nid := w.lay(k.to).regionOf.at(k.to.X, k.to.Y); nid != 0 {
 					w.regions[rid].links[nid] = struct{}{}
 					w.regions[nid].links[rid] = struct{}{}
 				}

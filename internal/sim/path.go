@@ -37,6 +37,12 @@ type pathfinder struct {
 	// read instead of a map lookup.
 	corridorSeen layered[int32]
 	corridorGen  int32
+
+	// climb is what one level of shaft costs the mover this search is for:
+	// 0 for the usual climb (World.shaftCost), more for a laden climber,
+	// and negative for a mover that cannot climb at all, whose search does
+	// not use shafts. Set around a search by pathFor; see canClimb.
+	climb int32
 }
 
 func newPathfinder(w *World) *pathfinder {
@@ -93,7 +99,7 @@ func (pf *pathfinder) toAdjacent(start, target Point, useCorridor bool) ([]Point
 	pf.cells.set(start, pfCell{gen: pf.gen, g: 0, from: -1})
 	pf.open.reset()
 	pf.open.push(pfNode{si, hAdjacent(start, target)})
-	stairs := w.hasStairs()
+	stairs := w.hasLinks()
 	// The level the search is on, and its grids, looked up again only when a
 	// stair takes the search to another: nearly every search stays on one.
 	level := start.Level
@@ -152,15 +158,26 @@ func (pf *pathfinder) toAdjacent(start, target Point, useCorridor bool) ([]Point
 				pf.open.push(pfNode{ci + d.Y*w.Width + d.X, int(ng) + hAdjacent(np, target)})
 			}
 		}
-		// A stair is one more neighbour: its other end, one level away.
+		// A stair or shaft is one more neighbour: its other end, one level
+		// away. A stair costs a step, a shaft the mover's climb.
 		if stairs {
-			if np, ok := w.linkFrom(cp); ok {
-				if !useCorridor || pf.corridorSeen.at(np) == pf.corridorGen {
-					c := pf.cells.ptr(np)
-					if c.gen != pf.gen || ng < c.g {
-						c.gen, c.g, c.from = pf.gen, ng, int32(ci)
-						pf.open.push(pfNode{w.index(np), int(ng) + hAdjacent(np, target)})
+			lk, n := w.links(cp)
+			for _, k := range lk[:n] {
+				np, lg := k.to, cg+k.cost
+				if k.shaft {
+					if pf.climb < 0 {
+						continue
+					} else if pf.climb > 0 {
+						lg = cg + pf.climb
 					}
+				}
+				if useCorridor && pf.corridorSeen.at(np) != pf.corridorGen {
+					continue
+				}
+				c := pf.cells.ptr(np)
+				if c.gen != pf.gen || lg < c.g {
+					c.gen, c.g, c.from = pf.gen, lg, int32(ci)
+					pf.open.push(pfNode{w.index(np), int(lg) + hAdjacent(np, target)})
 				}
 			}
 		}

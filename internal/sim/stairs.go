@@ -6,23 +6,32 @@ import (
 )
 
 // Stairs: the one way between levels. A stair is a StairDown on one level and
-// a StairUp straight below it (see linkFrom); searches cross it as a single
+// a StairUp straight below it (see links); searches cross it as a single
 // step. This file keeps the list of stairs and the travel estimate built on
 // it. Building one is in project.go. See docs/z-levels.md.
 
-// trackStair keeps w.stairs, the upper end of every stair sorted by
-// lessPoint, in step with a terrain change at p. setTerrain calls it.
-func (w *World) trackStair(p Point, old, t Terrain) {
-	if old == StairDown {
-		if i, ok := slices.BinarySearchFunc(w.stairs, p, cmpPoint); ok {
-			w.stairs = slices.Delete(w.stairs, i, i+1)
-		}
+// trackLinks keeps w.stairs (the upper end of every stair) and w.shafts
+// (every shaft tile that can lead down), both sorted by lessPoint, in step
+// with a terrain change at p. setTerrain calls it.
+func (w *World) trackLinks(p Point, old, t Terrain) {
+	leadsDown := func(t Terrain) bool { return t == ShaftTop || t == ShaftMid }
+	w.stairs = trackSorted(w.stairs, p, old == StairDown, t == StairDown)
+	w.shafts = trackSorted(w.shafts, p, leadsDown(old), leadsDown(t))
+}
+
+// trackSorted removes p from the sorted list if was, and inserts it if is.
+func trackSorted(list []Point, p Point, was, is bool) []Point {
+	if was == is {
+		return list
 	}
-	if t == StairDown {
-		if i, ok := slices.BinarySearchFunc(w.stairs, p, cmpPoint); !ok {
-			w.stairs = slices.Insert(w.stairs, i, p)
-		}
+	i, ok := slices.BinarySearchFunc(list, p, cmpPoint)
+	if was && ok {
+		return slices.Delete(list, i, i+1)
 	}
+	if is && !ok {
+		return slices.Insert(list, i, p)
+	}
+	return list
 }
 
 // cmpPoint is lessPoint as a comparison.
@@ -44,9 +53,9 @@ const unreachableEstimate = 1 << 24
 // travelEstimate is a cheap guess at how many steps a walk from a to b takes,
 // for choosing the nearest of several candidates. On one level it is the
 // Chebyshev distance, as every such choice used before there were levels.
-// Across levels it is the cheapest chain of straight lines through stairs:
-// over to a stair, one step through it, and on from its other end, level by
-// level. Like Chebyshev it ignores walls; unlike Chebyshev between levels, it
+// Across levels it is the cheapest chain of straight lines through stairs
+// and shafts: over to one, through it (a step for a stair, a climb for a
+// shaft), and on from its other end, level by level. Like Chebyshev it ignores walls; unlike Chebyshev between levels, it
 // knows where the stairs are, so a rock straight below a colonist is not
 // "one step away" when the nearest stair is fifty tiles off.
 func (w *World) travelEstimate(a, b Point) int {
@@ -69,19 +78,30 @@ func (w *World) travelEstimateAcross(a, b Point) int {
 	}
 	cur := []reach{{a, 0}}
 	for l := a.Level; l != b.Level; l += step {
-		// The stairs between l and l+step, by their upper end's level.
+		// The stairs and shafts between l and l+step, by their upper end's
+		// level.
 		upper := min(l, l+step)
 		var next []reach
-		for _, s := range w.stairs {
-			if s.Level != upper {
-				continue
-			}
-			best := unreachableEstimate
-			for _, r := range cur {
-				best = min(best, r.cost+r.at.Chebyshev(Point{s.X, s.Y, l}))
-			}
-			if _, ok := w.linkFrom(s); ok {
-				next = append(next, reach{Point{s.X, s.Y, l + step}, best + 1})
+		for _, list := range [2][]Point{w.stairs, w.shafts} {
+			for _, s := range list {
+				if s.Level != upper {
+					continue
+				}
+				cost := int32(0)
+				lk, n := w.links(s)
+				for _, k := range lk[:n] {
+					if k.to.Level == upper+1 {
+						cost = k.cost
+					}
+				}
+				if cost == 0 {
+					continue // not linked down (yet)
+				}
+				best := unreachableEstimate
+				for _, r := range cur {
+					best = min(best, r.cost+r.at.Chebyshev(Point{s.X, s.Y, l}))
+				}
+				next = append(next, reach{Point{s.X, s.Y, l + step}, best + int(cost)})
 			}
 		}
 		if len(next) == 0 {

@@ -22,6 +22,13 @@ func (w *World) step() {
 		if e == nil || !e.Alive() {
 			continue
 		}
+		if w.climbing(e) {
+			if e.Kind == Colonist {
+				w.syncDriveActivity(e)
+				w.tallyActivity(e)
+			}
+			continue
+		}
 		switch e.Kind {
 		case Colonist:
 			w.colonistTurn(e)
@@ -38,6 +45,7 @@ func (w *World) step() {
 	if w.tick >= w.nextPlanTick {
 		w.planRooms()
 		w.planStairs()
+		w.planShafts()
 		w.nextPlanTick = w.tick + planInterval
 	}
 	w.runMarket()         // expire stale orders; top up the colony's standing bids
@@ -629,7 +637,7 @@ func (w *World) claimNearestMine(e *Entity) (Point, bool) {
 	// With no stair there is nothing to look at; with one, scan the other
 	// levels' frontiers by travelEstimate. (distance, lessPoint) is a total
 	// order, so the result is the one a scan of every frontier would give.
-	if w.hasStairs() {
+	if w.hasLinks() {
 		for _, l := range w.layers {
 			if l == nil || l.Level == e.Pos.Level {
 				continue
@@ -1472,7 +1480,13 @@ func (w *World) jobBuild(e *Entity) {
 			prereq = e.task.clears
 		}
 	}
-	if w.TerrainAt(e.Target) != prereq {
+	if e.BuildKind == ShaftTop {
+		// A shaft is dug from open floor, or deepened from its top.
+		if e.task == nil || !w.taskWorkable(e.task) {
+			w.clearJob(e)
+			return
+		}
+	} else if w.TerrainAt(e.Target) != prereq {
 		w.clearJob(e)
 		return
 	}
@@ -1542,7 +1556,11 @@ func (w *World) jobBuild(e *Entity) {
 		w.clearJob(e)
 		return
 	}
-	if e.Progress < w.workTicks(e, buildSkill(e.BuildKind), w.buildTicks(e.BuildKind)) {
+	ticks := w.buildTicks(e.BuildKind)
+	if e.BuildKind == ShaftTop {
+		ticks = w.shaftWorkTicks(e.task) // per level dug
+	}
+	if e.Progress < w.workTicks(e, buildSkill(e.BuildKind), ticks) {
 		return
 	}
 	if e.BuildKind == Floor {
@@ -1569,6 +1587,10 @@ func (w *World) jobBuild(e *Entity) {
 	}
 	if e.BuildKind == StairDown {
 		w.finishStair(e)
+		return
+	}
+	if e.BuildKind == ShaftTop {
+		w.finishShaft(e)
 		return
 	}
 	if !w.payForBuild(e) {
@@ -1768,7 +1790,7 @@ func (w *World) finishUse(e *Entity, spec DriveSpec) {
 // buildSkill is the skill a build task practises: digging a room's floor is
 // mining; raising anything is construction.
 func buildSkill(kind Terrain) SkillKind {
-	if kind == Floor || kind == StairDown { // a stair is dug, not built
+	if kind == Floor || kind == StairDown || kind == ShaftTop { // a stair or shaft is dug, not built
 		return SkillMining
 	}
 	return SkillConstruction
@@ -1784,6 +1806,8 @@ func (w *World) buildTicks(kind Terrain) int {
 		return w.cfg.IncineratorBuildTicks
 	case StairDown:
 		return w.cfg.StairTicks
+	case ShaftTop: // one level; a shaft task's work is per level (shaftWorkTicks)
+		return w.cfg.ShaftTicks
 	default:
 		return w.cfg.FacilityBuildTicks
 	}
@@ -1831,7 +1855,11 @@ func (w *World) travelTo(e *Entity, target Point) (arrived, ok bool) {
 	// (Re)plan when we have no route, it was for a different goal, or it ran out
 	// without arriving.
 	if len(e.path) == 0 || e.pathGoal != target || e.pathAt >= len(e.path) {
+		// The route weighs a shaft by e's own climb, and leaves shafts out
+		// for a mover that cannot climb (see canClimb).
+		w.pf.climb = w.climbCost(e)
 		route, found := w.pathToAdjacent(e.Pos, target)
+		w.pf.climb = 0
 		if !found {
 			e.clearPath()
 			if w.makeWayAt(e, target) && e.stuck < w.cfg.StuckLimit {
@@ -1850,7 +1878,12 @@ func (w *World) travelTo(e *Entity, target Point) (arrived, ok bool) {
 	// stray cat used to wedge a whole queue of colonists there, each abandoning
 	// and immediately re-claiming the same path with nothing ever able to make
 	// it past — StuckLimit just reset the standoff instead of resolving it.
+	//
+	// Nor is a shaft passed through a crowd: a climb starts from one end and
+	// lands on the other (see startClimb), so a mover waits while either end
+	// is taken.
 	landing := e.pathAt
+	prev := e.Pos
 	for landing < len(e.path) {
 		next := e.path[landing]
 		if !w.Walkable(next) { // terrain changed under the route; replan next tick
@@ -1858,13 +1891,19 @@ func (w *World) travelTo(e *Entity, target Point) (arrived, ok bool) {
 			return false, true
 		}
 		blocker := w.entityAt(next)
-		if blocker == nil || blocker.ID == e.ID {
+		free := blocker == nil || blocker.ID == e.ID
+		if (!free || landing > e.pathAt) && w.crossesShaft(prev, next) {
+			landing = len(e.path)
+			break
+		}
+		if free {
 			break
 		}
 		if blocker.Kind == Alien {
 			landing = len(e.path)
 			break
 		}
+		prev = next
 		landing++
 	}
 	if landing == len(e.path) {

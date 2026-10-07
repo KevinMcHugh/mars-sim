@@ -51,12 +51,18 @@ type repairScratch struct {
 // out to be too widespread to be worth repairing.
 func (f *flowField) repair() bool {
 	w := f.w
+	if w.hasShafts() {
+		// Repair assumes every link costs one step. A shaft's climb does
+		// not, so with one the field is rebuilt instead: correct, and
+		// dearer only in games that have dug a shaft.
+		return false
+	}
 	if f.seen == nil {
 		f.seen = make(map[int32]struct{})
 		f.checked = make(map[int32]struct{})
 		f.affected = make(map[int32]struct{})
 	}
-	f.stairs = w.hasStairs()
+	f.stairs = w.hasLinks()
 	clear(f.seen)
 	clear(f.checked)
 	clear(f.affected)
@@ -217,8 +223,9 @@ func (f *flowField) forNeighbours(i int32, fn func(int32)) {
 		fn(int32(base + ny*w.Width + nx))
 	}
 	if f.stairs {
-		if q, ok := w.linkFrom(p); ok {
-			fn(int32(w.index(q)))
+		lk, n := w.links(p)
+		for _, k := range lk[:n] {
+			fn(int32(w.index(k.to)))
 		}
 	}
 }

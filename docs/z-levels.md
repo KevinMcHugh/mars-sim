@@ -15,8 +15,9 @@ Up is a direction too. Colony ships land on **level 1**. Level 0 above it is the
 Martian **surface**, which has its own challenges and is planned separately
 (Z6).
 
-This is a design and a build plan. Z0 and Z1 are built (see
-[layers.md](./layers.md) and [stairs.md](./stairs.md)), and the rest is not.
+This is a design and a build plan. Z0, Z1 and Z2 are built (see
+[layers.md](./layers.md), [stairs.md](./stairs.md) and
+[shafts.md](./shafts.md)), and the rest is not.
 Where the build departed from this plan, the plan below says so. When a phase
 ships, its content moves into a present-tense doc and the table links to it.
 
@@ -24,7 +25,7 @@ ships, its content moves into a present-tense doc and the table links to it.
 | --- | --- |
 | Z0 — `Layer` split, one level | **Shipped** — [layers.md](./layers.md) |
 | Z1 — Stairs and a second level | **Shipped** — [stairs.md](./stairs.md) |
-| Z2 — Shafts | Proposed |
+| Z2 — Shafts | **Shipped** — [shafts.md](./shafts.md) |
 | Z3 — Holes | Proposed |
 | Z4 — Depth gating (challenge and reward) | Proposed |
 | Z5 — Browser frontend and wire format | Proposed |
@@ -39,7 +40,7 @@ Z0 and Z1 are in [`layer.go`](../internal/sim/layer.go),
 
 - [`internal/sim/layer.go`](../internal/sim/layer.go): every `w.landing()`,
   each one a decision that something happens only on the landing level.
-- [`internal/sim/layered.go`](../internal/sim/layered.go): `linkFrom`, the
+- [`internal/sim/layered.go`](../internal/sim/layered.go): `links`, the
   one definition of what connects two levels.
 - [`internal/sim/geom.go`](../internal/sim/geom.go): `Point`, `neighbors8`.
 - [`internal/sim/rooms.go`](../internal/sim/rooms.go),
@@ -165,12 +166,13 @@ type vlink struct {
 }
 ```
 
-**As built for stairs (Z1)** there is no link table: `linkFrom` reads a link
-from the two terrains (see [stairs.md](./stairs.md)), and `w.stairs` lists the
-stair tops in sorted order. A shaft spanning several levels may need a table
-(Z2); if so, a map keyed by `Point` at **both** ends plus a sorted slice for
-deterministic iteration (see [determinism.md](./determinism.md): the map is
-for lookups only, never ranged). Each end is a terrain on its level:
+**As built (Z1, Z2)** there is no link table: `links` reads every link from
+the terrains at both ends (see [stairs.md](./stairs.md) and
+[shafts.md](./shafts.md)), and `w.stairs` and `w.shafts` list the tiles that
+lead down, sorted. A shaft spanning several levels needed no table after all:
+a `ShaftMid` on each level it passes through links up and down, so a span is
+a chain of one-level links, each a terrain at both ends. Each end is a
+terrain on its level:
 
 | Kind | Upper tile | Lower tile | Who can use it | Cost |
 | --- | --- | --- | --- | --- |
@@ -208,6 +210,12 @@ the colony prefers stairs when it has both.
 Shafts are also the natural place for **haulage**: a winch at the top
 (a later fixture) moves goods up and down without a colonist carrying them,
 which is what makes a deep mine pay.
+
+**As built (Z2, see [shafts.md](./shafts.md)):** a full load does not forbid
+a climb; it slows it (`shaft-laden-climb-ticks`), because forbidding it
+stranded miners below with their ore and away from food. Flow-field repair
+falls back to a rebuild while a shaft exists. The climb happens after the
+move, at the far end, rather than between levels.
 
 #### Holes
 
@@ -422,9 +430,12 @@ Build order and what each phase must prove:
   the facility searches cross stairs; `travelEstimate`; per-level worldgen;
   `<`/`>` in the terminal. Golden hashes and golden frames unchanged. One-level
   games pay about 6% (see [layers.md](./layers.md)).
-- **Z2 — shafts.** Multi-level columns, `Climbing`, carry limits, weighted
-  edges (Dial's bucket queue in fields, edge costs in A\*), and alien access
-  by build.
+- **Z2 — shafts. Shipped** ([shafts.md](./shafts.md)): multi-level
+  columns dug in one job (`OrderShaft`, `shaft-ticks`), `Climbing` for
+  `shaft-climb-ticks` a level, laden climbs past `shaft-carry`
+  (`shaft-laden-climb-ticks`), weighted links (Dial's buckets in fields,
+  edge costs in A\*, `travelEstimate` through shafts), and alien access by
+  build (arms climb). Golden hashes and frames unchanged.
 - **Z3 — holes.** Directed drops, falling and fall damage, item chutes in the
   hauling planner, ladders turning a hole into a shaft, and escape for a
   fallen colonist.

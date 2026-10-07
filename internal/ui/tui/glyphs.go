@@ -66,6 +66,7 @@ const (
 	glyphTrough       = glyphs.Trough
 	glyphStairDown    = glyphs.StairDown
 	glyphStairUp      = glyphs.StairUp
+	glyphShaft        = glyphs.Shaft
 	glyphColonist     = glyphs.Colonist
 	glyphFleeing      = glyphs.Fleeing
 	glyphTalking      = glyphs.Talking
@@ -198,6 +199,7 @@ var glyphRegistry = map[string]glyph{
 	glyphTrough:      {glyphTrough, 2, "Tr"},
 	glyphStairDown:   {glyphStairDown, 2, "vv"},
 	glyphStairUp:     {glyphStairUp, 2, "^^"},
+	glyphShaft:       {glyphShaft, 2, "HH"},
 
 	glyphColonist: {glyphColonist, 2, "@ "},
 	glyphFleeing:  {glyphFleeing, 2, "@!"},

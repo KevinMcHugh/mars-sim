@@ -31,7 +31,7 @@ Z1.
   `eachLayer`, `eachContainer`, `eachFacility`, `containerAt`.
 - [`internal/sim/layered.go`](../internal/sim/layered.go): `layered[T]` (a
   `pagedGrid` per level), `World.index` / `pointOf` (cell indices that
-  include the level), `linkFrom`, `hasStairs`.
+  include the level), `links`, `hasLinks`, `hasShafts`.
 - [`internal/sim/snapshot.go`](../internal/sim/snapshot.go): `LevelTiles`,
   `Levels`, and the snapshot's tile readers choosing a level by the `Point`.
 - [`internal/sim/layer_test.go`](../internal/sim/layer_test.go): the
@@ -169,8 +169,8 @@ for now (see [stairs.md](./stairs.md)).
   significant at this machine's noise. A first cut was nearly twice as slow;
   three things got it back: hoisting the layer lookup out of the searches'
   inner loops (`layerIn`, caching the current level's grids), asking for
-  stair links only while a stair exists (`hasStairs` is
-  `len(w.stairs) > 0`), and skipping the refuse lookup in `TileAt` when a
+  stair links only while a stair exists (`hasLinks`, now covering shafts
+  too, is a length test on the stair and shaft lists), and skipping the refuse lookup in `TileAt` when a
   level has none.
 - **`noLayer` instead of nil.** Code that looks up a target before checking
   it (cleaning's unset `Point{-1, -1}`, which is on the surface) used to read

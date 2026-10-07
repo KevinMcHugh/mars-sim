@@ -191,7 +191,7 @@ func (w *World) facilityByField(e *Entity, kind Terrain, room RoomID) (fac Point
 	cells.set(e.Pos, flowCell{gen: gen})
 	queue := append(w.facilityQueue[:0], e.Pos)
 	nearest := w.facilityFound[:0]
-	stairs := w.hasStairs()
+	stairs := w.hasLinks()
 	// A tile at field distance d > 0 lies on a shortest route to a nearest
 	// facility exactly when the route continues through a neighbor at d-1.
 	// Following only those steps visits the union of all shortest routes
@@ -210,8 +210,8 @@ func (w *World) facilityByField(e *Entity, kind Terrain, room RoomID) (fac Point
 			}
 			continue
 		}
-		step := func(q Point) {
-			if !w.Walkable(q) || f.at(q) != d-1 {
+		step := func(q Point, cost int32) {
+			if !w.Walkable(q) || f.at(q) != d-cost {
 				return
 			}
 			c := cells.ptr(q)
@@ -222,11 +222,12 @@ func (w *World) facilityByField(e *Entity, kind Terrain, room RoomID) (fac Point
 			queue = append(queue, q)
 		}
 		for _, n := range neighbors8 {
-			step(p.Add(n.X, n.Y))
+			step(p.Add(n.X, n.Y), 1)
 		}
 		if stairs {
-			if q, ok := w.linkFrom(p); ok {
-				step(q)
+			lk, n := w.links(p)
+			for _, k := range lk[:n] {
+				step(k.to, k.cost)
 			}
 		}
 	}
@@ -292,7 +293,7 @@ func (w *World) facilityBySearch(e *Entity, kind Terrain, room RoomID) Point {
 	cells.set(e.Pos, flowCell{gen: gen})
 	queue := append(w.facilityQueue[:0], e.Pos)
 	found := w.facilityFound[:0]
-	stairs := w.hasStairs()
+	stairs := w.hasLinks()
 	// A facility's distance is that of its nearest reached access tile, and
 	// an access tile is a walkable tile beside it. The BFS reads every
 	// neighbor's terrain anyway, so it spots a facility while expanding the
@@ -347,13 +348,16 @@ func (w *World) facilityBySearch(e *Entity, kind Terrain, room RoomID) Point {
 			c.gen = gen
 			queue = append(queue, n)
 		}
-		// The far end of a stair is one more step: walkable, never a
-		// facility.
+		// The far end of a stair or shaft is one more node: walkable,
+		// never a facility. This search counts nodes, not cost, so a shaft
+		// looks as near as a stair here; the field it follows afterwards
+		// does weigh the climb.
 		if stairs {
-			if n, ok := w.linkFrom(p); ok {
-				if c := cells.ptr(n); c.gen != gen {
+			lk, nl := w.links(p)
+			for _, k := range lk[:nl] {
+				if c := cells.ptr(k.to); c.gen != gen {
 					c.gen = gen
-					queue = append(queue, n)
+					queue = append(queue, k.to)
 				}
 			}
 		}

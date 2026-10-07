@@ -15,10 +15,10 @@ crosses it, and how the colony digs one. The data model it rests on (levels,
 
 ## Source
 
-- [`internal/sim/layered.go`](../internal/sim/layered.go): `linkFrom` (what
-  a stair leads to), `hasStairs`.
+- [`internal/sim/layered.go`](../internal/sim/layered.go): `links` (what
+  a stair or shaft leads to, and its cost), `hasLinks`.
 - [`internal/sim/stairs.go`](../internal/sim/stairs.go): the stair list
-  (`trackStair`), `travelEstimate`, `addLayer`, `canDigStairAt`, `digStair`,
+  (`trackLinks`), `travelEstimate`, `addLayer`, `canDigStairAt`, `digStair`,
   and the planner: `planStairs`, `findStairSite`, `designateStair`,
   `finishStair`.
 - [`internal/sim/rooms.go`](../internal/sim/rooms.go): regions flood
@@ -44,15 +44,17 @@ crosses it, and how the colony digs one. The data model it rests on (levels,
 
 ### What a stair links
 
-`w.linkFrom(p)` is the single definition every system uses: a `StairDown` at
+`w.links(p)` is the single definition every system uses: a `StairDown` at
 `p` leads to the tile below if that is a `StairUp`, and a `StairUp` leads to
-the tile above if that is a `StairDown`. A stair with only one end in place
-links nothing. Both stair terrains are walkable, so a mover stands on either
+the tile above if that is a `StairDown`, each at a cost of one step. A stair
+with only one end in place links nothing. Shafts are links too, with a
+higher cost; see [shafts.md](./shafts.md). Both stair terrains are walkable, so a mover stands on either
 end like floor.
 
 `w.stairs` lists the upper end of every stair, sorted by `lessPoint`, kept in
-step by `setTerrain`. While it is empty, no search asks `linkFrom` at all
-(`hasStairs`), so a one-level game pays nothing for stairs in its hot loops.
+step by `setTerrain`. While it and the shaft list are empty, no search asks
+`links` at all (`hasLinks`), so a one-level game pays nothing for stairs in
+its hot loops.
 
 ### Every search treats a stair as one more neighbour
 
@@ -149,9 +151,10 @@ stair like any other terrain.
 - **One definition of a link.** A stair is defined by two terrains, not a
   link table: a half-built or walled-over stair links nothing, and every
   system (rooms, A\*, fields, repair) agrees about it because they all ask
-  `linkFrom`. The cost is that a stair can only join two neighbouring levels
-  at one (x, y), which is all a stair should do. Shafts (Z2) will need a
-  span; they can still be terrain-defined.
+  `links`. The cost is that a stair can only join two neighbouring levels
+  at one (x, y), which is all a stair should do. Shafts span many levels
+  and are still terrain-defined: a middle tile on each level links up and
+  down (see [shafts.md](./shafts.md)).
 - **A stair is mining, and free.** Making it a fixture build with materials
   would put a supply chain between the colony and its second level before
   there is any reason to go down. Depth's rewards (Z4) will justify a price.
@@ -168,10 +171,10 @@ stair like any other terrain.
 
 ## Extending it
 
-- A new search that expands neighbours must also try `linkFrom` (behind
-  `hasStairs`), or it will not see the other levels.
+- A new search that expands neighbours must also try `links` (behind
+  `hasLinks`), adding each link's cost, or it will not see the other levels.
 - A new "nearest" choice should rank by `travelEstimate`.
-- A new kind of vertical link (shaft, hole) belongs in `linkFrom`'s terrain
+- A new kind of vertical link belongs in `links`' terrain
   switch if it is two-way. A one-way link must not be a region link: rooms
   are symmetric. See [z-levels.md](./z-levels.md).
 - To let the colony build on a deeper level, start from the `landing()` calls

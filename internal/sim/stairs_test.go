@@ -45,10 +45,10 @@ func TestDigStairMakesBothEnds(t *testing.T) {
 	if got := w.TerrainAt(bottom); got != StairUp {
 		t.Errorf("bottom of the stair is %v, want stair up", got)
 	}
-	if q, ok := w.linkFrom(top); !ok || q != bottom {
+	if q, ok := linkFrom(w, top); !ok || q != bottom {
 		t.Errorf("linkFrom(top) = %v, %v; want %v", q, ok, bottom)
 	}
-	if q, ok := w.linkFrom(bottom); !ok || q != top {
+	if q, ok := linkFrom(w, bottom); !ok || q != top {
 		t.Errorf("linkFrom(bottom) = %v, %v; want %v", q, ok, top)
 	}
 	if !w.discovered(bottom) || !w.discovered(bottom.Add(1, 0)) {
@@ -88,7 +88,7 @@ func TestStairJoinsRoomsAcrossLevels(t *testing.T) {
 	if w.sameRoom(Point{5, 5, LandingLevel}, far) {
 		t.Fatal("walling over the top of the stair left the levels joined")
 	}
-	if _, ok := w.linkFrom(bottom); ok {
+	if _, ok := linkFrom(w, bottom); ok {
 		t.Error("the bottom of a stair with no top still links")
 	}
 	checkRoomLabelsAllLevels(t, w)
@@ -133,7 +133,7 @@ func checkRoute(t *testing.T, w *World, from Point, route []Point) {
 		if !w.Walkable(p) {
 			t.Fatalf("route steps onto %v, which is %v", p, w.TerrainAt(p))
 		}
-		if q, ok := w.linkFrom(prev); !(prev.Adjacent(p) || ok && q == p) {
+		if !(prev.Adjacent(p) || linked(w, prev, p)) {
 			t.Fatalf("route jumps from %v to %v", prev, p)
 		}
 		prev = p
@@ -262,8 +262,9 @@ func checkRoomLabelsAllLevels(t *testing.T, w *World) {
 					for _, d := range neighbors8 {
 						next = append(next, p.Add(d.X, d.Y))
 					}
-					if q, ok := w.linkFrom(p); ok {
-						next = append(next, q)
+					lk, nl := w.links(p)
+					for _, k := range lk[:nl] {
+						next = append(next, k.to)
 					}
 					for _, q := range next {
 						if w.Walkable(q) && !seen[q] {
@@ -275,6 +276,26 @@ func checkRoomLabelsAllLevels(t *testing.T, w *World) {
 			}
 		}
 	}
+}
+
+// linkFrom is the one tile a stair end at p links to (a stair has one link).
+func linkFrom(w *World, p Point) (Point, bool) {
+	lk, n := w.links(p)
+	if n == 0 {
+		return Point{}, false
+	}
+	return lk[0].to, true
+}
+
+// linked reports whether b is one of the tiles a links to.
+func linked(w *World, a, b Point) bool {
+	lk, n := w.links(a)
+	for _, k := range lk[:n] {
+		if k.to == b {
+			return true
+		}
+	}
+	return false
 }
 
 func (p Point) String() string { return fmt.Sprintf("(%d,%d)@%d", p.X, p.Y, p.Level) }

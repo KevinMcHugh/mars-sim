@@ -36,6 +36,9 @@ type flowField struct {
 	cells layered[flowCell]
 	gen   int32
 	queue []int32 // reusable BFS frontier (cell indices)
+	// later holds the far ends of shaft links waiting for the BFS to reach
+	// their distance (see rebuild): reusable buckets, like queue.
+	later [][]int32
 
 	// full means the field must be rebuilt from scratch: it has never been
 	// built, or more changed than a repair is worth. Otherwise touched lists
@@ -127,7 +130,27 @@ func (f *flowField) rebuild() {
 		q = append(q, int32(w.index(p)))
 	}
 	f.seed(add)
-	stairs := w.hasStairs()
+	stairs := w.hasLinks()
+
+	// A shaft link costs more than a step, which a plain BFS cannot weigh.
+	// Its far end waits in later, bucketed by the distance it arrives at,
+	// and joins the queue when the BFS's layers reach that distance: Dial's
+	// algorithm, with a ring of buckets one longer than the dearest link. A
+	// cell is stamped only when it joins the queue, so, as in a plain BFS,
+	// its first stamp is its least distance. With no shaft, later is never
+	// used and the search is the plain BFS it always was.
+	var later [][]int32
+	pending := 0
+	if w.hasShafts() {
+		nb := int(w.shaftCost()) + 1
+		for len(f.later) < nb {
+			f.later = append(f.later, nil)
+		}
+		later = f.later[:nb]
+		for i := range later {
+			later[i] = later[i][:0]
+		}
+	}
 
 	// Distance comes from the queue's layering rather than from reading the
 	// cell back: every seed is at 0 and each expansion is one step further, so
@@ -135,9 +158,24 @@ func (f *flowField) rebuild() {
 	// previous pass stopped appending. That is one paged read saved per node,
 	// on the hottest loop in the simulation.
 	cd, levelEnd := int32(0), len(q)
-	for head := 0; head < len(q); head++ {
-		if head == levelEnd {
+bfs:
+	for head := 0; ; head++ {
+		for head == levelEnd {
+			if head == len(q) && pending == 0 {
+				break bfs
+			}
 			cd++
+			if pending > 0 {
+				b := &later[int(cd)%len(later)]
+				for _, ni := range *b {
+					if c := f.cells.ptr(w.pointOf(int(ni))); c.gen != gen {
+						c.gen, c.dist = gen, cd
+						q = append(q, ni)
+					}
+				}
+				pending -= len(*b)
+				*b = (*b)[:0]
+			}
 			levelEnd = len(q)
 		}
 		ci := int(q[head])
@@ -197,18 +235,31 @@ func (f *flowField) rebuild() {
 			cell.gen, cell.dist = gen, cd+1
 			q = append(q, int32(ni))
 		}
-		// A stair is one more neighbour, one level away. Checked only while
-		// a stair exists, so a one-level world pays nothing for it here.
+		// A stair or shaft is one more neighbour, one level away. Checked
+		// only while one exists, so a one-level world pays nothing for it
+		// here.
 		if stairs {
-			if np, ok := w.linkFrom(cp); ok {
-				if cell := f.cells.ptr(np); cell.gen != gen {
-					cell.gen, cell.dist = gen, cd+1
-					q = append(q, int32(w.index(np)))
+			lk, n := w.links(cp)
+			for _, k := range lk[:n] {
+				cell := f.cells.ptr(k.to)
+				if cell.gen == gen {
+					continue
 				}
+				if k.cost == 1 {
+					cell.gen, cell.dist = gen, cd+1
+					q = append(q, int32(w.index(k.to)))
+					continue
+				}
+				b := &later[(int(cd)+int(k.cost))%len(later)]
+				*b = append(*b, int32(w.index(k.to)))
+				pending++
 			}
 		}
 	}
-	f.queue = q
+	// Keep the buffer, not its contents: the seeds went in in map order,
+	// and a scratch buffer holding them would make two identical worlds
+	// save differently (see docs/save-load.md).
+	f.queue = q[:0]
 }
 
 // ensureFresh brings the field up to date, at most once per tick: the first
@@ -252,7 +303,8 @@ func (w *World) followField(e *Entity, f *flowField) bool {
 	gen := w.transitGen
 	start := w.index(e.Pos)
 	w.transitSeen.set(e.Pos, gen)
-	stairs := w.hasStairs()
+	stairs := w.hasLinks()
+	climber := w.canClimb(e)
 	q := append(w.transitQ[:0], int32(start))
 	var cand [8]Point
 	var fallback [8]Point
@@ -266,22 +318,34 @@ func (w *World) followField(e *Entity, f *flowField) bool {
 		for ; head < levelEnd; head++ {
 			ci := int(q[head])
 			from := w.pointOf(ci)
-			// The eight neighbours, then the far end of a stair if from is
-			// one: the order candidates are found in is the order the random
-			// pick below chooses from, so it must be fixed.
-			var next [9]Point
+			// The eight neighbours, then the far ends of a stair or shaft
+			// if from is one: the order candidates are found in is the
+			// order the random pick below chooses from, so it must be
+			// fixed. extra is what a link costs beyond a step, so a
+			// candidate is judged by where it leaves the mover (its field
+			// distance plus the climb to get there), not by its distance
+			// alone.
+			var next [10]Point
+			var extra [10]int32
+			var shaft [10]bool
 			nn := 0
 			for _, d := range neighbors8 {
 				next[nn] = from.Add(d.X, d.Y)
 				nn++
 			}
 			if stairs {
-				if p, ok := w.linkFrom(from); ok {
-					next[nn] = p
+				lk, nl := w.links(from)
+				for _, k := range lk[:nl] {
+					// A shaft is climbed from where the mover stands, never
+					// passed through a crowd, and only by a climber.
+					if k.shaft && (ci != start || !climber) {
+						continue
+					}
+					next[nn], extra[nn], shaft[nn] = k.to, k.cost-1, k.shaft
 					nn++
 				}
 			}
-			for _, p := range next[:nn] {
+			for i, p := range next[:nn] {
 				if !w.Walkable(p) || w.buildTiles[p] {
 					continue // never cross a tile a builder needs clear
 				}
@@ -289,13 +353,14 @@ func (w *World) followField(e *Entity, f *flowField) bool {
 				if nd < 0 {
 					continue
 				}
+				nd += extra[i]
 				pi := w.index(p)
 				if pi == start {
 					continue
 				}
 				blocker := w.entityAt(p)
 				if blocker != nil && blocker.ID != e.ID {
-					if blocker.Kind != Alien && w.transitSeen.at(p) != gen {
+					if blocker.Kind != Alien && !shaft[i] && w.transitSeen.at(p) != gen {
 						w.transitSeen.set(p, gen)
 						q = append(q, int32(pi))
 					}

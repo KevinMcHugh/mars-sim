@@ -40,6 +40,9 @@ type buildTask struct {
 	// neither: it is unpaid, and its fixture stays the colony's.
 	order *WorkOrder
 	proj  *project
+	// depth is how many levels a shaft task (terrain ShaftTop) digs below
+	// its tile; see shafts.go.
+	depth int
 }
 
 // project is a planned structure: the colony builds all its tasks, then it is
@@ -74,6 +77,9 @@ type project struct {
 // facility, the dig task must count as done too, or it can never be satisfied
 // again and permanently blocks the project's phase from advancing.
 func (w *World) taskDone(t *buildTask) bool {
+	if t.terrain == ShaftTop {
+		return w.shaftTaskDone(t)
+	}
 	if t.terrain == Floor {
 		return w.TerrainAt(t.pos) != t.clears
 	}
@@ -90,6 +96,9 @@ func (w *World) taskWorkable(t *buildTask) bool {
 	}
 	if t.terrain == StairDown {
 		return w.canDigStairAt(t.pos)
+	}
+	if t.terrain == ShaftTop {
+		return w.canDigShaft(t.pos, shaftTaskBottom(t))
 	}
 	if t.terrain == Floor {
 		return w.TerrainAt(t.pos) == t.clears

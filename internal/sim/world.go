@@ -141,10 +141,20 @@ const (
 	// StairDown and StairUp are the two ends of a stair: StairDown on the
 	// upper level, StairUp on the level below, at the same (x, y). Both are
 	// walkable, and a mover on one end can step to the other as a single move.
-	// A stair is a link only while both ends are in place; see linkFrom and
+	// A stair is a link only while both ends are in place; see links and
 	// docs/z-levels.md.
 	StairDown
 	StairUp
+	// ShaftTop, ShaftMid and ShaftBottom make a shaft: a laddered column
+	// straight down, at one (x, y), through as many levels as it has been
+	// dug. ShaftTop is its upper end, ShaftBottom its lower end, and a
+	// ShaftMid is every level it passes through, where a climber can get
+	// off. All three are walkable. Crossing a shaft is slow (see
+	// Config.ShaftClimbTicks and docs/shafts.md); like a stair, it links two
+	// tiles only while both are in place.
+	ShaftTop
+	ShaftMid
+	ShaftBottom
 
 	numTerrains // keep last: the number of terrain kinds
 )
@@ -185,16 +195,26 @@ func (t Terrain) String() string {
 		return "stair down"
 	case StairUp:
 		return "stair up"
+	case ShaftTop:
+		return "shaft top"
+	case ShaftMid:
+		return "shaft"
+	case ShaftBottom:
+		return "shaft bottom"
 	default:
 		return "unknown"
 	}
 }
 
 // Walkable reports whether a creature can stand on this terrain. Everyone,
-// aliens included, keeps to walkable floor.
+// aliens included, keeps to walkable floor. The stair and shaft ends are the
+// last terrains, so they are one range test.
 func (t Terrain) Walkable() bool {
-	return t == Floor || t == StairDown || t == StairUp
+	return t == Floor || (t >= StairDown && t <= ShaftBottom)
 }
+
+// isShaft reports whether t is part of a shaft.
+func (t Terrain) isShaft() bool { return t >= ShaftTop && t <= ShaftBottom }
 
 // RockComposition identifies the useful material embedded in a rock tile.
 // Composition is separate from Terrain because every variety has the same
@@ -507,6 +527,9 @@ type World struct {
 	// stairs holds the upper end (the StairDown) of every stair, on every
 	// level, sorted by lessPoint. See stairs.go.
 	stairs []Point
+	// shafts holds every shaft tile that can lead down (ShaftTop and
+	// ShaftMid), on every level, sorted by lessPoint. See shafts.go.
+	shafts []Point
 
 	// snapFrame counts publishes so far (TileChanges.Frame); tileSharing is
 	// how the published grid relates to the live one (see tilegrid.go). The
@@ -623,6 +646,10 @@ type World struct {
 	// manualStairs counts stairs the player has ordered dug and the planner
 	// has not yet marked out (see planStairs).
 	manualStairs int
+	// manualShaftLevels is how many levels of shaft the player has ordered
+	// dug (OrderShaft) that the planner has not marked out yet. See
+	// planShafts.
+	manualShaftLevels int
 
 	// saltRev advances when exposedSalt changes; snapSalt is the copy last
 	// published, taken at snapSaltRev. See publishedSalt.
@@ -1201,7 +1228,7 @@ func (w *World) setTerrain(p Point, t Terrain, discover bool) {
 	}
 	w.lay(p).terrainCounts[old]--
 	w.lay(p).terrainCounts[t]++
-	w.trackStair(p, old, t)
+	w.trackLinks(p, old, t)
 	if w.lay(p).facilityTiles[old] != nil {
 		delete(w.lay(p).facilityTiles[old], p)
 	}
@@ -1420,6 +1447,9 @@ func (w *World) moveEntity(e *Entity, to Point) {
 	if oc, nc := w.chunkIndexOf(from), w.chunkIndexOf(to); oc != nc || fl != tl {
 		w.removeFromChunkIndex(fl, oc, e.ID)
 		tl.chunkEntities[nc] = append(tl.chunkEntities[nc], e.ID)
+	}
+	if fl != tl && w.crossesShaft(from, to) {
+		w.startClimb(e)
 	}
 	e.Pos = to
 }

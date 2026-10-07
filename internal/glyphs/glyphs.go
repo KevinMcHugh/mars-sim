@@ -41,6 +41,7 @@ const (
 	Trough      = "\U0001FAA3" // 🪣 trough: a keeper's chicken feed
 	StairDown   = "\U0001F53D" // 🔽 the top of a stair: the way down to the next level
 	StairUp     = "\U0001F53C" // 🔼 the foot of a stair: the way back up
+	Shaft       = "\U0001FA9C" // 🪜 a shaft's ladder: its top, its foot, and every level between
 
 	Colonist = "\U0001F477" // 👷 colonist of unknown age/gender (no profile)
 	Fleeing  = "\U0001F631" // 😱 colonist running from an alien
@@ -274,6 +275,8 @@ var All = []string{
 	// And the stairs, after those.
 	StairDown,
 	StairUp,
+	// And the shafts', after those.
+	Shaft,
 }
 
 var known = func() map[string]bool {
@@ -373,6 +376,8 @@ func ForTerrain(t sim.Terrain) string {
 		return StairDown
 	case sim.StairUp:
 		return StairUp
+	case sim.ShaftTop, sim.ShaftMid, sim.ShaftBottom:
+		return Shaft
 	default:
 		return Rock
 	}

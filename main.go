@@ -548,6 +548,14 @@ func validateConfig(cfg sim.Config) error {
 		return fmt.Errorf("a %dx%d map cannot go %d levels deep: every tile on every level needs a 32-bit index; dig shallower or use a smaller map", cfg.Width, cfg.Height, cfg.DeepestLevel)
 	case cfg.StairTicks < 1:
 		return fmt.Errorf("stair-ticks must be at least 1 (got %d)", cfg.StairTicks)
+	case cfg.ShaftTicks < 1:
+		return fmt.Errorf("shaft-ticks must be at least 1 (got %d)", cfg.ShaftTicks)
+	case cfg.ShaftClimbTicks < 1 || cfg.ShaftClimbTicks > 1000:
+		return fmt.Errorf("shaft-climb-ticks must be between 1 and 1000 (got %d)", cfg.ShaftClimbTicks)
+	case cfg.ShaftCarry < 0:
+		return fmt.Errorf("shaft-carry cannot be negative (got %d)", cfg.ShaftCarry)
+	case cfg.ShaftLadenClimbTicks < cfg.ShaftClimbTicks || cfg.ShaftLadenClimbTicks > 1000:
+		return fmt.Errorf("shaft-laden-climb-ticks must be between shaft-climb-ticks (%d) and 1000 (got %d)", cfg.ShaftClimbTicks, cfg.ShaftLadenClimbTicks)
 	case cfg.CavernPercent < 0 || cfg.CavernPercent > 100:
 		return fmt.Errorf("cavern-percent must be between 0 and 100 (got %d)", cfg.CavernPercent)
 	case cfg.CavernMin < 1 || cfg.CavernMax < cfg.CavernMin:
