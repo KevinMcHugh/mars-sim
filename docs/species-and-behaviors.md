@@ -244,6 +244,77 @@ runtime creation simple:
 - **Individual drift** (a mutated limb) stays on the entity. A species is the
   default; the entity is the truth.
 
+### Alien lifecycles (proposed)
+
+*Not built; recorded here because it is the strongest reason for the species
+model.* Today every alien species has one body. The idea is that some species
+**change over a life**: an egg that hatches into a larva, a pupa, an imago; a
+queen with workers and drones; a cocoon; a joey that grows into a bull or a
+betty. The tone is the platypus: plausible parts assembled slightly wrong.
+Mammal words on things that hatch, insect words on things with fur, a stage
+that should not exist between two that should.
+
+**Rules for generating a lifecycle** (all rolled at worldgen with the roster,
+never authored per species):
+
+- **Most species have one form.** A lifecycle is a notable thing a seed rolls
+  for one or two species, not the norm. Something like 60% single form, 25%
+  two, 12% three, 3% four or more is the starting point, weighted in `Config`.
+- **Stages are not Earth's.** The vocabulary borrows Earth words (egg, grub,
+  nymph, pupa, cocoon, imago, joey, puggle, bull, betty, queen, drone) but a
+  species picks and orders them freely: a joey can pupate; an egg can be the
+  *middle* stage; a cocoon can hatch something smaller than went in, as long
+  as the life as a whole grows (below). Stage names come from a
+  condition-gated pool like `alien-names.yaml`, so a furred species gets
+  mammal words and a shelled one gets insect words, and occasionally the
+  opposite, which is where the unsettling part comes from.
+- **They grow, and stay recognizable.** Each stage is a fraction of the
+  species' adult size range (the existing `HeightMin/MaxCM`, `WeightMin/MaxKG`
+  become the final stage's), rising through the life. Color, hide, pattern
+  and eye arrangement carry through every stage, so a colonist who has seen
+  the adult recognizes the grub.
+- **Change is additive and pushes further.** A later stage keeps everything
+  an earlier one had and may gain or intensify a feature: more limbs or eyes,
+  a tail, a shell, claws. "More extreme" means *more of the species' own
+  idea*, not more aggressive: a species whose larva has one nub of a horn has
+  an adult with a crown of them; a faintly spotted nymph becomes a densely
+  spotted imago. Temperament is the species', not the stage's (but see
+  behaviors below: an egg does not hunt). Think evolution lines in Pokémon,
+  generated once per seed instead of designed.
+- **Castes and sexes are branches, not stages.** A lifecycle is a sequence
+  that may end in a fork: the last stage splits into weighted forms (queen /
+  worker / drone, bull / betty). Branches share the line's appearance and
+  differ in size and features: the queen is the most extreme form, the drone
+  may be the least.
+
+**New anatomy worth adding now,** because lifecycles need features with
+degrees to grow along, and Earth has good ones: **stinger**, **spines or
+quills**, **horns** (a count), **antlers** (tines), a **tail ornament**
+(none, club, spiked club, stinger), **shell or carapace** (patch, plates,
+full), and **claws**. Each is a small level (0 = absent) so a line can go
+"one little horn → three horns → nine," "tail → clubbed tail → spiked club."
+Some imply an attack mode beside today's bite, claw, tail and strangle (a
+sting, a gore); some are only description until something uses them.
+Single-form species roll these too, so the features are not lifecycle-only.
+
+**How it fits the model.** Each stage (and each caste) is its own `Species`
+value, generated from the `AlienSpecies` line: its own size, features, attack
+modes, damage, pace, and **ladder**. An egg or cocoon has no ladder at all
+(it lies there, and can be found, guarded, or smashed); a larva might only
+`forage{scum}` and `flee`; the adult runs the temperament's ladder. An
+individual carries a small `*Lifecycle` component (which line, which stage,
+the tick it advances); growing up is swapping which species entry it points
+at. Aliens are spawned in nests at worldgen today and never reproduce, so the
+first version needs only aging and a mix of stages in a nest; a queen laying
+eggs is a later step.
+
+**Determinism.** Lifecycles roll on their own seeded stream, the way the
+taxonomy does (`alienTaxonomySeed`), so adding them re-rolls no existing
+roster's names, builds or temperaments. Which stage an individual spawns at,
+and its exact advance tick, are gameplay draws from `World.rng` at spawn,
+like which species it is. Stage features that change combat (an attack mode,
+damage from size) are simulation, never `World.prng` flavor.
+
 ### Migration
 
 Each phase is behavior-preserving and checkable against the lockstep test in
@@ -266,6 +337,12 @@ the ladder is a refactor of the existing ladders, not a redesign of them.
    for every animal, generate one `Species` per rolled `AlienSpecies`, and
    move `alienTurn` onto the ladder (strike, graze, the Cautious reaction,
    dormancy as a pre-step).
+4b. **Alien lifecycles.** Roll lifecycle lines and the new anatomy features
+   with the roster (on their own stream), generate a `Species` per stage and
+   caste, add the `*Lifecycle` component and aging, and teach the lore tab
+   and narration to describe a line. This changes the game, so it is checked
+   by its own tests, not by fingerprint. See
+   [Alien lifecycles](#alien-lifecycles-proposed).
 5. **Tags for prey and threat.** Replace kind arguments to the nearest-entity
    queries with tag sets. After this, `Kind` is only what the wire format and
    UI use to pick a sprite.
@@ -333,6 +410,12 @@ small. In this model they are simply a species whose one behavior is
 - **Tags, not kinds, in relationships.** Matching on kind is what made
   "cats ignore chickens" a rule someone had to remember. Matching on tags
   makes a new species fit into the food web by declaring what it is.
+- **Lifecycles are generated, mostly absent, and additive.** Authoring
+  stages per species would cap the variety at what someone wrote and make
+  every seed's aliens familiar. Making most species single-form keeps a
+  lifecycle a discovery. Keeping each stage a superset of the last is what
+  lets a colonist (and a player) recognize a grub as the young of the thing
+  that killed someone, which matters more than biological plausibility.
 - **Species as values.** The alien roster already generates species from a
   seed. A design where species come only from files would leave the aliens
   out.
