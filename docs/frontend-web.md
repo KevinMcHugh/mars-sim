@@ -133,9 +133,12 @@ tile cannot reach one.
 
 **Hosting:** [`.github/workflows/pages.yml`](../.github/workflows/pages.yml)
 publishes it to GitHub Pages, at <https://kevinmchugh.github.io/mars-sim/>,
-with the spike at `/mars-sim/spike/`. It builds on every push to `main` that
-touches `web/`, the engine or the wire, and can be run by hand from the Actions
-tab. It runs `npm ci`, `npm test` and `npm run build`, then deploys `web/dist`.
+with the spike at `/mars-sim/spike/` and [Scum Lab](./scum-lab.md) at
+`/mars-sim/scum-lab/`. It builds on every push to `main` that touches `web/`,
+the engine, the wire or `tools/scum-lab/`, and can be run by hand from the
+Actions tab. It runs `npm ci`, `npm test` and `npm run build`, then
+`tools/scum-lab/build.sh` and copies the lab into `web/dist/scum-lab/`, then
+deploys `web/dist`.
 The one-time setup is in the repo settings: **Pages → Build and deployment →
 Source: GitHub Actions**. The build needs nothing special for the subpath:
 Vite's `base: './'` keeps every URL relative, and the worker is found from

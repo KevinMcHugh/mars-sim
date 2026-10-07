@@ -1,5 +1,6 @@
 # Build the browser game (web/) and publish it to GitHub Pages:
-# https://kevinmchugh.github.io/mars-sim/ (the spike page is at /spike/).
+# https://kevinmchugh.github.io/mars-sim/ (the spike page is at /spike/,
+# Scum Lab at /scum-lab/).
 #
 # It runs on every push to main that could change the site, and by hand from
 # the Actions tab. One-time setup: Settings -> Pages -> Build and deployment ->
@@ -13,6 +14,7 @@ on:
       - "web/**"
       - "cmd/mars-sim-wasm/**"
       - "internal/**"
+      - "tools/scum-lab/**"
       - "go.mod"
       - "go.sum"
       - ".github/workflows/pages.yml"
@@ -58,6 +60,16 @@ jobs:
       - name: Build
         working-directory: web
         run: npm run build
+
+      # Scum Lab is plain static files with relative URLs, outside Vite. Build
+      # its WASM and copy the page in beside the game; the Go source and the
+      # build script stay out of the site.
+      - name: Build Scum Lab
+        run: |
+          tools/scum-lab/build.sh
+          mkdir -p web/dist/scum-lab
+          cp -R tools/scum-lab/. web/dist/scum-lab/
+          rm -rf web/dist/scum-lab/wasm web/dist/scum-lab/build.sh
 
       - uses: actions/configure-pages@v5
 
