@@ -22,6 +22,9 @@ type Species struct {
 	Body bool
 	// Spawn is where Engine.spawn places a new one.
 	Spawn spawnSite
+	// Tags are what other creatures' behaviors see it as: prey to hunt, a
+	// threat to flee (tags.go).
+	Tags Tags
 
 	// HP is its starting and maximum hit points.
 	HP int
@@ -56,11 +59,11 @@ const (
 
 // kindIdentity is every species' Config-independent identity.
 var kindIdentity = [numKinds]Species{
-	Colonist: {Kind: Colonist, Name: "colonist", Noun: NounColonist, Body: true, Spawn: spawnShip},
-	Alien:    {Kind: Alien, Name: "alien", Noun: NounAlien, Body: true, Spawn: spawnCavern},
-	Cat:      {Kind: Cat, Name: "cat", Noun: NounCat, Spawn: spawnFloor},
-	Rat:      {Kind: Rat, Name: "rat", Noun: NounRat, Spawn: spawnFloor},
-	Chicken:  {Kind: Chicken, Name: "chicken", Spawn: spawnFloor},
+	Colonist: {Kind: Colonist, Name: "colonist", Noun: NounColonist, Body: true, Spawn: spawnShip, Tags: TagColonist},
+	Alien:    {Kind: Alien, Name: "alien", Noun: NounAlien, Body: true, Spawn: spawnCavern, Tags: TagAlien},
+	Cat:      {Kind: Cat, Name: "cat", Noun: NounCat, Spawn: spawnFloor, Tags: TagMouser | TagPet},
+	Rat:      {Kind: Rat, Name: "rat", Noun: NounRat, Spawn: spawnFloor, Tags: TagVermin},
+	Chicken:  {Kind: Chicken, Name: "chicken", Spawn: spawnFloor, Tags: TagPet},
 }
 
 // newSpeciesTable builds the per-world species table: kindIdentity plus the
@@ -81,7 +84,7 @@ func newSpeciesTable(cfg Config) [numKinds]Species {
 	cat.HP = cfg.CatHP
 	cat.Paced, cat.Slowness = true, cfg.CatSlowness
 	cat.ladder = []behavior{
-		hunt{find: preyAnywhere(Rat), catch: (*World).pounce, rest: cfg.CatPounceRest},
+		hunt{find: preyAnywhere(TagVermin), catch: (*World).pounce, rest: cfg.CatPounceRest},
 		wander{},
 	}
 
@@ -93,7 +96,7 @@ func newSpeciesTable(cfg Config) [numKinds]Species {
 	rat.Starves, rat.Corpse = true, AnimalCorpse
 	rat.Breeds = true
 	rat.ladder = []behavior{
-		flee{from: Cat, radius: cfg.RatFleeRadius},
+		flee{from: TagMouser, radius: cfg.RatFleeRadius},
 		forage{sources: []foodSource{forageScavenge, foragePod}},
 		breed{},
 		wander{},
@@ -161,19 +164,23 @@ func newAlienSpeciesTable(base Species, roster []AlienSpecies, cfg Config) [][]S
 	return table
 }
 
+// hostilePrey is what a Hostile alien hunts: colonists, rats, and aliens
+// (never of its own species; see preyInRoom).
+const hostilePrey = TagColonist | TagVermin | TagAlien
+
 // temperamentLadder is an adult alien's ladder, by its species' temperament.
 func temperamentLadder(a AlienSpecies, cfg Config) []behavior {
 	switch a.Temperament {
 	case TemperamentHostile:
 		return []behavior{
 			dormant{},
-			hunt{find: (*World).nearestReachablePrey, catch: (*World).strike, rest: a.BiteRest},
+			hunt{find: preyInRoom(hostilePrey), catch: (*World).strike, rest: a.BiteRest},
 			wander{},
 		}
 	case TemperamentCautious:
 		return []behavior{
 			dormant{},
-			hunt{find: colonistWithin(cfg.AlienCautiousRadius), catch: (*World).strike, rest: a.BiteRest},
+			hunt{find: taggedWithin(TagColonist, cfg.AlienCautiousRadius), catch: (*World).strike, rest: a.BiteRest},
 			grazeScum{},
 			wander{},
 		}

@@ -4,7 +4,7 @@
 
 ## What it is
 
-**In progress: phases 1–4 and 4b of 7 are built** (see [Migration](#migration)).
+**Phases 1–5 (and 4b) of 7 are built**; 6 and 7 are optional (see [Migration](#migration)).
 A plan to stop hand-writing one turn function per creature and
 instead define each creature (cat, rat, chicken, each alien species) as a
 **species**: a set of attributes plus an ordered list of reusable
@@ -19,19 +19,21 @@ Only colonists still have a turn of their own.
 
 ## Source
 
-Built so far:
+Built:
 
 - [`internal/sim/species.go`](../internal/sim/species.go) — `Species`, `kindIdentity` (the Config-free half: name, noun, body, spawn site), `newSpeciesTable` (stats and ladders from `Config`), `World.speciesOf`.
 - [`internal/sim/behaviors.go`](../internal/sim/behaviors.go) — the `behavior` interface, `animalTurn`, and the rungs: `hunt` with its `preyFinder`s, `flee`, `forage` with its `foodSource`s, `breed`, `stayNearTrough`, `dormant`, `grazeScum`, `wander`.
 - `newAlienSpeciesTable` and `World.buildAlienSpecies` (in `species.go`) — one species per rolled alien species.
+- [`internal/sim/tags.go`](../internal/sim/tags.go) — `Tags`, `tagsOf`, `nearestTagged`, `nearestTaggedWhere`, `sameSpecies`.
 - [`internal/sim/components.go`](../internal/sim/components.go) — `Breeding` and `PetBond`, with the `keeperOf` / `petTrough` accessors.
-- [`internal/sim/species_test.go`](../internal/sim/species_test.go) — the table's and the components' invariants.
+- [`internal/sim/species_test.go`](../internal/sim/species_test.go) — the table's, the components' and the food web's invariants.
 
-Still to move (phase 5):
+Around it:
 
-- [`internal/sim/systems.go`](../internal/sim/systems.go) — the kind-keyed queries (`nearestOfKind*`, `nearestReachablePrey`) and the prey finders built on them.
-- [`internal/sim/lore.go`](../internal/sim/lore.go) — `AlienSpecies`, the per-seed roster whose temperament already picks between hunting and grazing.
-- [`internal/sim/snapshot.go`](../internal/sim/snapshot.go) — the per-kind counters in the frame's stats.
+- [`internal/sim/lore.go`](../internal/sim/lore.go) — `AlienSpecies`, the per-seed roster each alien species value is generated from (and its lifecycle; see [alien-lifecycles.md](./alien-lifecycles.md)).
+- [`internal/sim/snapshot.go`](../internal/sim/snapshot.go) — the per-kind counters in the frame's stats, which stay keyed by `Kind` for the wire format.
+
+Nothing in the plan is still to move; phases 6 and 7 are optional.
 
 ## How it works
 
@@ -100,7 +102,7 @@ type behavior interface {
 }
 
 type hunt struct{ find preyFinder; catch func(w *World, hunter, prey *Entity); rest int }
-type flee struct{ from Kind; radius int }
+type flee struct{ from Tags; radius int }
 type forage struct{ sources []foodSource }  // tried in order once hungry
 type breed struct{}                         // tryMate; litter size etc. still in Config
 type stayNearTrough struct{ roam int }      // a chicken
@@ -110,8 +112,9 @@ type wander struct{}                        // always acts: every ladder ends he
 ```
 
 `hunt` is shared by the cat and the hunting aliens: what differs is the
-**finder** (`preyAnywhere(Rat)` for a cat; `nearestReachablePrey` for a
-Hostile alien; `colonistWithin(alien-cautious-radius)` for a Cautious one)
+**finder** (`preyAnywhere(TagVermin)` for a cat; `preyInRoom(hostilePrey)`
+for a Hostile alien; `taggedWithin(TagColonist, alien-cautious-radius)` for
+a Cautious one)
 and the **catch** (`pounce`, `strike`). The proposal wrote it as
 `hunt{prey: tags, scope}`; a finder function is what the three hunters
 actually needed, and phase 5's tags will be a way to build finders. `flee`
@@ -152,7 +155,7 @@ nothing moved out of `mars-sim.yaml`):
 
 ```go
 cat.ladder     = {hunt{prey: Rat, rest: CatPounceRest}, wander{}}
-rat.ladder     = {flee{from: Cat, radius: RatFleeRadius},
+rat.ladder     = {flee{from: TagMouser, radius: RatFleeRadius},
                   forage{forageScavenge, foragePod}, breed{}, wander{}}
 chicken.ladder = {forage{(*World).chickenFeed, (*World).chickenGraze},
                   stayNearTrough{roam: ChickenRoam}, wander{}}
@@ -188,8 +191,8 @@ is now colonist or `animalTurn`.
 ladder by temperament:
 
 ```go
-Hostile:  {dormant{}, hunt{find: nearestReachablePrey, catch: strike, rest: BiteRest}, wander{}}
-Cautious: {dormant{}, hunt{find: colonistWithin(radius), catch: strike, rest: BiteRest},
+Hostile:  {dormant{}, hunt{find: preyInRoom(hostilePrey), catch: strike, rest: BiteRest}, wander{}}
+Cautious: {dormant{}, hunt{find: taggedWithin(TagColonist, radius), catch: strike, rest: BiteRest},
            grazeScum{}, wander{}}
 Friendly: {dormant{}, grazeScum{}, wander{}}
 ```
@@ -250,13 +253,34 @@ keeps apart.
 **Between categories, relationships are rules.** Cat hunts rat; rat flees
 cat; a Hostile alien hunts colonists, rats, and other species; cats and
 chickens ignore each other. These belong in behavior parameters, expressed
-over **tags** rather than kinds: `hunt{prey: rat}` matches any species tagged
-`rat`, and "chickens are not prey to cats" is simply the absence of a `hunt`
-that matches them. The one-line `chickens.md` rule ("cats and chickens ignore
-each other") stops being an invariant the code has to keep and becomes
-something you can read off the table. The query helpers `nearestOfKind` and
-`nearestReachablePrey` take a tag set instead of a `Kind` and keep their
-distance-then-ID tie break.
+over **tags** rather than kinds, and since phase 5 they are. Every species
+carries a `Tags` bitset (`tags.go`):
+
+| Species | Tags |
+| --- | --- |
+| colonist | `colonist` |
+| alien (every species, every form) | `alien` |
+| cat | `mouser`, `pet` |
+| rat | `vermin` |
+| chicken | `pet` |
+
+and the rules read off it: a cat hunts `vermin` (`preyAnywhere(TagVermin)`),
+a rat flees a `mouser` (`flee{from: TagMouser}`), a Hostile alien hunts
+`hostilePrey = colonist | vermin | alien` in its room but never its own
+species (`preyInRoom`, `sameSpecies`), a Cautious one reacts to a `colonist`
+nearby (`taggedWithin`), and colonists stomp `vermin` and flee and fight an
+`alien` (`nearestVermin`, `nearestAlien`). "Chickens are not prey to cats" is
+now simply that nothing a cat matches is on a chicken, and the one-line
+`chickens.md` rule stopped being an invariant the code has to keep.
+`TestFoodWebByTags` reads the web off the table.
+
+The tags are roles, not kinds wearing another name. `mouser` is not "cat":
+it is what a rat fears, which is why aliens, who also eat rats, do not carry
+it (a rat does not know to fear one). A new creature joins the web by what
+it is: a ferret would be `mouser`, a mouse `vermin`, and nothing else needs to
+change. The queries (`nearestTagged`, and `nearestTaggedWhere` for a search
+with no range) keep the distance-then-ID tie break, so the answer never
+depends on map order or the order kinds are scanned in.
 
 **Within or across individuals, relationships are edges.** A pet's keeper, a
 hunter's `Quarry`, a talker's `partner`, a colonist's family tree and
@@ -397,9 +421,15 @@ the ladder is a refactor of the existing ladders, not a redesign of them.
    from the proposal: the young graze rather than flee and forage, eggs are
    invisible to colonists rather than findable, nothing lays eggs yet, and
    features are description only. See [alien-lifecycles.md](./alien-lifecycles.md).
-5. **Tags for prey and threat.** Replace kind arguments to the nearest-entity
-   queries with tag sets. After this, `Kind` is only what the wire format and
-   UI use to pick a sprite.
+5. **Tags for prey and threat.** *Done.* Every prey and threat question asks
+   for tags (`nearestTagged`, `nearestTaggedWhere`, the finders, `flee`);
+   `nearestOfKind`, `nearestOfKindAnywhere`, `nearestReachablePrey` and the
+   per-kind wrappers are gone. `Kind` is not yet *only* a sprite key, though:
+   it still names colonists throughout the economy, jobs and social code
+   (colonists were always out of scope), it still tells an alien apart for
+   dormancy, naming and its roster index, landing still asks whether a pet is
+   a chicken to wire its trough, and the frame's per-kind counters are the
+   wire format's. None of those is a creature-to-creature rule.
 6. *(Optional, changes behavior.)* Run animals through the colonist focus
    arbitration (scored candidates, commitment, switch margin; see
    [cascading_wsts_architecture.md](./cascading_wsts_architecture.md)) instead
@@ -426,7 +456,7 @@ small. In this model they are simply a species whose one behavior is
   `save:"-"` and `newWorld` rebuilds it from the loaded Config (see
   [save-load.md](./save-load.md)). That also keeps it out of the save layout
   fingerprint, so files from before phase 1 still load.
-- **How phases 1–4 were checked.** The lockstep test runs two worlds in one
+- **How phases 1–5 were checked.** The lockstep test runs two worlds in one
   process, so it cannot see a refactor that changes behavior the same way in
   both. Instead, a throwaway test hashed the full `worldFingerprint` (plus each
   animal's cooldown, quarry, food drive, pregnancy and keeper) every tick
@@ -445,7 +475,10 @@ small. In this model they are simply a species whose one behavior is
   60% nests), and, because no seed tried rolled a Friendly species, runs that
   force temperaments onto the roster through a per-version helper; the
   check was trusted once moving the Cautious `grazeScum` rung above its
-  `hunt` changed the hashes.
+  `hunt` changed the hashes. Phase 5 used the same runs (baseline recorded on
+  `main` with lifecycles in, the form and size of every alien hashed too);
+  tagging chickens `vermin` changed six of the seventeen hashes, so the check
+  sees cats start hunting them.
 
 - **No modeling language.** We considered YAML growth, CUE, TypeScript as a
   definition language, and embedded scripting (Starlark, Lua). The

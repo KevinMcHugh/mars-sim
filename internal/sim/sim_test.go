@@ -960,7 +960,7 @@ func TestCatsWanderWithoutPrey(t *testing.T) {
 	}
 }
 
-// The chunk-spiral nearestOfKind must return exactly what a brute-force scan
+// The chunk-spiral nearestTagged must return exactly what a brute-force scan
 // would, including deterministic tie-breaking on ID. This guards the subtle
 // ring-stopping condition.
 func TestNearestMatchesBruteForce(t *testing.T) {
@@ -985,7 +985,7 @@ func TestNearestMatchesBruteForce(t *testing.T) {
 		from := Point{rng.IntN(w.Width), rng.IntN(w.Height)}
 		within := rng.IntN(200) + 1
 		for _, kind := range []Kind{Colonist, Alien} {
-			got, gok := w.nearestOfKind(from, kind, within)
+			got, gok := w.nearestTagged(from, w.species[kind].Tags, within)
 			want, wok := bruteNearestOfKind(w, from, kind, within)
 			if gok != wok {
 				t.Fatalf("presence mismatch from=%v kind=%v within=%d: got %v want %v", from, kind, within, gok, wok)

@@ -551,8 +551,8 @@ type World struct {
 	snapRefuseRev uint64
 
 	// kindEntities[k] holds the ID of every living entity of kind k. Kept in
-	// step by spawn/remove so a global "nearest of this kind, anywhere" search
-	// (see nearestOfKindAnywhere) can scan the handful of matching entities
+	// step by spawn/remove so a global "nearest with these tags, anywhere"
+	// search (see nearestTaggedWhere) can scan the handful of matching entities
 	// directly instead of nearestMatch's chunk-ring expansion, which is only
 	// cheap when the answer is nearby — an unbounded search (a cat with no
 	// rat left nearby, say) forces it to visit every chunk on the map to

@@ -174,11 +174,12 @@ to branch on rather than an incidental zero:
   interaction is explicitly unchanged for now — see Why it is this way.)
 - **Cautious** does not hunt, but reacts once a colonist comes within
   `Config.AlienCautiousRadius`: its `hunt` rung finds prey with the
-  radius-bounded `colonistWithin` instead of `nearestReachablePrey`, so it
+  radius-bounded `taggedWithin(TagColonist, radius)` instead of
+  `preyInRoom(hostilePrey)`, so it
   only ever notices — and then closes in on and bites — a colonist already
   close by. Left alone, it grazes cave scum when hungry, else wanders.
 - **Hostile** hunts the nearest prey anywhere it can walk to
-  (`nearestReachablePrey`: any distance, but only in its own room),
+  (`preyInRoom(hostilePrey)`: any distance, but only in its own room),
   unconditionally. Prey is a colonist, a rat, or an alien of **another
   species**; whichever is nearest, ties to the lower ID. Cautious uses the
   same room check within its radius, but only ever reacts to colonists.

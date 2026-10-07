@@ -73,19 +73,31 @@ type hunt struct {
 // the lower ID, so the choice never depends on map order.
 type preyFinder func(w *World, e *Entity) (*Entity, bool)
 
-// preyAnywhere finds the nearest living creature of kind anywhere on the map
-// (a cat after rats).
-func preyAnywhere(kind Kind) preyFinder {
-	return func(w *World, e *Entity) (*Entity, bool) { return w.nearestOfKindAnywhere(e.Pos, kind) }
+// preyAnywhere finds the nearest living creature carrying any of tags
+// anywhere on the map (a cat after vermin).
+func preyAnywhere(tags Tags) preyFinder {
+	return func(w *World, e *Entity) (*Entity, bool) { return w.nearestTaggedWhere(e.Pos, tags, nil) }
 }
 
-// colonistWithin finds the nearest colonist within radius in the hunter's own
-// room: a Cautious alien reacts to one that comes close, but does not go
-// looking beyond its radius.
-func colonistWithin(radius int) preyFinder {
+// preyInRoom finds the nearest living creature carrying any of tags in the
+// hunter's own room, never of its own species: a Hostile alien walks the
+// floor like everyone else, so prey behind a wall or across rock is out of
+// reach, and a nest does not eat itself.
+func preyInRoom(tags Tags) preyFinder {
+	return func(w *World, e *Entity) (*Entity, bool) {
+		return w.nearestTaggedWhere(e.Pos, tags, func(c *Entity) bool {
+			return c != e && !sameSpecies(c, e) && w.sameRoom(e.Pos, c.Pos)
+		})
+	}
+}
+
+// taggedWithin finds the nearest creature carrying any of tags within radius
+// in the hunter's own room: a Cautious alien reacts to a colonist that comes
+// close, but does not go looking beyond its radius.
+func taggedWithin(tags Tags, radius int) preyFinder {
 	return func(w *World, e *Entity) (*Entity, bool) {
 		return w.nearestMatch(e.Pos, radius, func(c *Entity) bool {
-			return c.Kind == Colonist && w.sameRoom(e.Pos, c.Pos)
+			return w.tagsOf(c).Has(tags) && w.sameRoom(e.Pos, c.Pos)
 		})
 	}
 }
@@ -113,15 +125,15 @@ func (b hunt) act(w *World, e *Entity) bool {
 	return true
 }
 
-// flee bolts from the nearest threat within radius, dropping whatever job it
-// had (a rat from a cat).
+// flee bolts from the nearest creature carrying any of from within radius,
+// dropping whatever job it had (a rat from a mouser).
 type flee struct {
-	from   Kind
+	from   Tags
 	radius int
 }
 
 func (b flee) act(w *World, e *Entity) bool {
-	threat, ok := w.nearestOfKind(e.Pos, b.from, b.radius)
+	threat, ok := w.nearestTagged(e.Pos, b.from, b.radius)
 	if !ok {
 		return false
 	}

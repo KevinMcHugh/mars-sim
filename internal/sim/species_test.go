@@ -187,3 +187,62 @@ func TestSpeciesOfAnAlienIsItsRolledSpecies(t *testing.T) {
 		}
 	}
 }
+
+// The food web, as tags say it: a cat hunts vermin and nothing else (not a
+// chicken, not another cat), a rat runs from mousers but not from aliens, and
+// a Hostile alien's prey is colonists, vermin and aliens but never a pet.
+func TestFoodWebByTags(t *testing.T) {
+	table := newSpeciesTable(DefaultConfig())
+	for _, tc := range []struct {
+		what string
+		got  bool
+		want bool
+	}{
+		{"cat hunts chickens", table[Chicken].Tags.Has(TagVermin), false},
+		{"cat hunts cats", table[Cat].Tags.Has(TagVermin), false},
+		{"cat hunts rats", table[Rat].Tags.Has(TagVermin), true},
+		{"rat flees cats", table[Cat].Tags.Has(TagMouser), true},
+		{"rat flees aliens", table[Alien].Tags.Has(TagMouser), false},
+		{"rat flees chickens", table[Chicken].Tags.Has(TagMouser), false},
+		{"hostile alien hunts chickens", table[Chicken].Tags.Has(hostilePrey), false},
+		{"hostile alien hunts cats", table[Cat].Tags.Has(hostilePrey), false},
+		{"hostile alien hunts colonists", table[Colonist].Tags.Has(hostilePrey), true},
+		{"hostile alien hunts rats", table[Rat].Tags.Has(hostilePrey), true},
+		{"hostile alien hunts aliens", table[Alien].Tags.Has(hostilePrey), true},
+	} {
+		if tc.got != tc.want {
+			t.Errorf("%s: %v, want %v", tc.what, tc.got, tc.want)
+		}
+	}
+}
+
+// A hunter's finder takes the nearest creature its tags match, past a nearer
+// one they do not: a cat walks by a chicken to the rat beyond it, and a
+// Hostile alien never takes one of its own species, however close.
+func TestPreyFindersFollowTags(t *testing.T) {
+	cfg := testConfig()
+	cfg.StartColonists, cfg.StartAliens, cfg.StartCats, cfg.StartRats = 0, 0, 0, 0
+	cfg.AlienSpeciesCount = 2
+	w := newTestWorld(t, cfg)
+	at := Point{w.Width / 2, w.Height / 2}
+	carve(w, at.Add(-4, 0), at.Add(4, 0), Floor)
+	w.refreshSpatial()
+
+	cat := w.spawn(Cat, at)
+	w.spawn(Chicken, at.Add(1, 0))
+	rat := w.spawn(Rat, at.Add(3, 0))
+	if got, ok := preyAnywhere(TagVermin)(w, cat); !ok || got != rat {
+		t.Fatalf("cat's prey = %v, want rat #%d past the chicken", got, rat.ID)
+	}
+
+	hunter := w.spawnAs(Alien, at.Add(-3, 0), 0)
+	kin := w.spawnAs(Alien, at.Add(-2, 0), 0)
+	stranger := w.spawnAs(Alien, at.Add(-4, 0), 1)
+	got, ok := preyInRoom(hostilePrey)(w, hunter)
+	if !ok || got == kin {
+		t.Fatalf("hostile alien's prey = %v; it must skip its own species (#%d)", got, kin.ID)
+	}
+	if got != stranger {
+		t.Fatalf("hostile alien's prey = #%d, want the other species' #%d", got.ID, stranger.ID)
+	}
+}

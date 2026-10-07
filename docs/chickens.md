@@ -55,9 +55,11 @@ A chicken's species ladder (`forage` from trough then scum, `stayNearTrough`,
 3. **Go home.** A chicken more than `chicken-roam` tiles from its trough walks
    back toward it; otherwise it wanders.
 
-A chicken flees nothing and nothing hunts it. Cats hunt only rats (their `hunt` rung),
-rats flee only cats, and a Hostile alien's prey is colonists, rats and other
-aliens (`nearestReachablePrey`). Like a cat or a rat, a chicken on a tile a
+A chicken flees nothing and nothing hunts it, which is now a fact about tags
+rather than a rule to remember: a chicken is tagged only `pet`, cats hunt
+`vermin` (rats), rats flee `mouser`s (cats), and a Hostile alien's prey is
+`colonist | vermin | alien` (`hostilePrey`). See
+[species-and-behaviors.md](./species-and-behaviors.md#relationships-rules-versus-edges). Like a cat or a rat, a chicken on a tile a
 colonist needs always gives way (`nudgeLoiterer`). A chicken added with the
 spawn command is a stray: no keeper, no trough, so it lives on scum.
 

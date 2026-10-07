@@ -46,7 +46,7 @@ There are three shapes this takes, and only the third is obvious:
 
 | Shape | Safe? | Example |
 | --- | --- | --- |
-| The loop's result does not depend on order (a sum, a count, an "any match", a min under a total order) | Yes | `nearestOfKindAnywhere` — min by distance, ties by entity ID |
+| The loop's result does not depend on order (a sum, a count, an "any match", a min under a total order) | Yes | `nearestTaggedWhere` — min by distance, ties by entity ID |
 | The loop assigns identity in visit order (a counter, an append) | **No** | `refreshSpatial` handing out `RegionID`s |
 | The loop picks a winner under a comparison that is not a total order | **No** | `chooseFacility` (see below) |
 

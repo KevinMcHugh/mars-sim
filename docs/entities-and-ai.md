@@ -175,7 +175,7 @@ through `animalTurn`. A species with a lifecycle has a species value per
 form: its eggs and cocoons lie inert, its young graze, and only its adults
 hunt (see [alien-lifecycles.md](./alien-lifecycles.md)). Aliens are paced by a `Cooldown` (their species'
 slowness, scaled from `AlienSlowness`). Each active turn: find
-the nearest prey in the alien's own room (`nearestReachablePrey`: a colonist,
+the nearest prey in the alien's own room (`preyInRoom(hostilePrey)`: a colonist,
 a rat, or an alien of another species); if adjacent, `strike` (one of its species' attack modes — bite, claws, tail,
 or strangle — lands `AlienDamage` on a random body part, or half of it on the head for a strangle — see [combat.md](./combat.md) — eating
 the prey if the wound is fatal, then rests `AlienBiteRest`); otherwise `travelTo` it over the floor with cached A\*,
@@ -247,12 +247,17 @@ safety net was off. The rename came with the diet.
 
 ### Neighbor queries
 
-`nearestOfKind` (and its `nearestColonist`/`nearestAlien`/`nearestCat`/
-`nearestRat` wrappers) expands in **chunk rings** around the query point and
+Queries ask for **tags**, not kinds (see
+[species-and-behaviors.md](./species-and-behaviors.md#relationships-rules-versus-edges)):
+`nearestTagged` (and the `nearestAlien` / `nearestVermin` wrappers) expands in
+**chunk rings** around the query point and
 stops once the next ring cannot beat the best candidate found — so "nearest prey"
 is cheap even on a crowded map. Ties break toward the lower ID for determinism.
 `forEachInRadius` visits tiles in a square ring, nearest-first, allocation-free,
-so it is safe to call per entity per tick.
+so it is safe to call per entity per tick. An unbounded search
+(`nearestTaggedWhere`, behind a cat's `preyAnywhere` and a Hostile alien's
+`preyInRoom`) scans `kindEntities` for each kind whose species can carry the
+tags instead, since chunk rings would cross the whole map to prove a miss.
 
 ## Why it is this way
 
