@@ -1,0 +1,95 @@
+{{define "title"}}{{.Species.Traits.Plural}} · Creature Lab{{end}}
+{{define "content"}}
+{{with .Species}}
+<p class="muted"><a href="/">Catalog</a> / seed {{.Seed}} · rolled by {{.GeneratorRev}}</p>
+<h1>{{if .Traits.Emoji}}{{.Traits.Emoji}} {{end}}{{.Traits.Plural}}</h1>
+<div class="sci">{{.Traits.ScientificName}}</div>
+<div class="row" style="margin:.4rem 0">
+  <span class="tag {{.Traits.Temperament}}">{{.Traits.Temperament}}</span>{{if .Traits.Apex}}<span class="tag hostile">apex</span>{{end}}
+  <span class="tag">{{len .Forms}} form{{if ne (len .Forms) 1}}s{{end}}</span>
+  {{if .Complete}}<span class="tag done">complete</span>{{end}}
+</div>
+{{end}}
+{{if .Msg}}<p class="flash">{{.Msg}}</p>{{end}}
+{{if .Err}}<p class="flash err">{{.Err}}</p>{{end}}
+
+{{with .Species}}
+<section class="panel">
+  <h2>Field notes</h2>
+  <p>{{.Traits.Description}}</p>
+  <dl class="traits">
+    <dt>Body</dt><dd>{{.Traits.Eyes}} eyes, {{.Traits.Arms}} arms, {{.Traits.Legs}} legs{{if .Traits.Tail}}, a tail{{end}}{{if .Traits.Wings}}, wings{{end}}</dd>
+    <dt>Covering</dt><dd>{{.Traits.Color}} {{.Traits.Skin}}, {{.Traits.Pattern}}</dd>
+    {{if .Traits.Features}}<dt>Features</dt><dd>{{join .Traits.Features ", "}}</dd>{{end}}
+    <dt>Attacks</dt><dd>{{join .Traits.Attacks ", "}}</dd>
+  </dl>
+  <form method="POST" action="/species/{{.ID}}/notes" id="notes">
+    <label class="muted" for="notes-text">Lab notes</label>
+    <textarea id="notes-text" name="notes" rows="2">{{.Notes}}</textarea>
+    <div class="row" style="margin-top:.4rem"><button class="ghost" type="submit">Save notes</button></div>
+  </form>
+</section>
+{{end}}
+
+{{$sp := .Species}}
+{{range .Slots}}
+<section class="panel" id="form-{{.Index}}">
+  <div class="row" style="justify-content:space-between">
+    <h2>Form {{.Index}}: {{.Name}} <span class="muted" style="font-weight:400">({{.Label}}{{if ne .SizePct 100}}, {{.SizePct}}% of adult size{{end}}{{if .Inert}}, inert{{end}})</span></h2>
+    <a class="btn ghost" href="/brief/{{$sp.ID}}/{{.Index}}">Brief as text</a>
+  </div>
+  <p class="muted" style="margin:.2rem 0">{{if .Inert}}An inert casing: no limbs or face.{{else}}{{.Arms}} arms, {{.Legs}} legs{{if .Tail}}, a tail{{end}}{{if .Wings}}, wings{{end}}{{if .Features}}; {{join .Features ", "}}{{end}}{{if .Lays}}; lays the next generation{{end}}{{end}}</p>
+
+  {{if .Accepted}}
+  <div class="previews" style="margin-top:.6rem">
+    {{$url := .Accepted.SVGURL}}
+    {{range backdrops}}
+    <div class="preview-row" title="{{.Name}}">
+      {{$bg := .Color}}
+      {{range sizes}}<span class="tile" style="width:{{.}}px;height:{{.}}px;background:{{$bg}}"><img src="{{$url}}" alt=""></span>{{end}}
+      <span class="muted" style="font-size:.8rem">{{.Name}}</span>
+    </div>
+    {{end}}
+  </div>
+  {{else}}
+  <p><span class="tile empty" style="width:64px;height:64px">none</span> No accepted sprite yet.</p>
+  {{end}}
+
+  {{if .Candidates}}
+  <div class="candidates">
+    {{range .Candidates}}
+    <div class="cand{{if .Accepted}} accepted{{end}}">
+      <a class="tile" style="background:var(--floor)" href="{{.SVGURL}}"><img src="{{.SVGURL}}" alt="candidate {{.ID}}"></a>
+      {{if .Note}}<span>{{.Note}}</span>{{end}}
+      <span class="muted">{{if .Author}}{{.Author}} · {{end}}{{.CreatedAt.Format "Jan 2 15:04"}}</span>
+      <div class="row">
+        {{if .Accepted}}<span class="tag done">accepted</span>{{else}}
+        <form class="inline" method="POST" action="/candidates/{{.ID}}/accept"><button type="submit">Accept</button></form>{{end}}
+        <form class="inline" method="POST" action="/candidates/{{.ID}}/delete"><button class="danger" type="submit">Remove</button></form>
+      </div>
+    </div>
+    {{end}}
+  </div>
+  {{end}}
+
+  <details style="margin-top:.75rem">
+    <summary>Paste an SVG</summary>
+    <form method="POST" action="/species/{{$sp.ID}}/forms/{{.Index}}/candidates" style="margin-top:.5rem">
+      <textarea name="svg" rows="8" placeholder="&lt;svg xmlns=&quot;http://www.w3.org/2000/svg&quot; viewBox=&quot;0 0 128 128&quot;&gt;…" required></textarea>
+      <div class="row" style="margin-top:.4rem">
+        <input name="note" placeholder="note (optional)" style="flex:1">
+        <input name="author" placeholder="author (optional)" size="16">
+        <label><input type="checkbox" name="accept" value="1"> accept</label>
+        <button type="submit">Add candidate</button>
+      </div>
+    </form>
+  </details>
+</section>
+{{end}}
+
+<details class="panel">
+  <summary>Delete this species</summary>
+  <p class="muted">It leaves the catalog with all its sprites.</p>
+  <form method="POST" action="/species/{{.Species.ID}}/delete"><button class="danger" type="submit">Delete {{.Species.Traits.Plural}}</button></form>
+</details>
+{{end}}

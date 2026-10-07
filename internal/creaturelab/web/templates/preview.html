@@ -1,0 +1,30 @@
+{{define "title"}}Roll species · Creature Lab{{end}}
+{{define "content"}}
+<h1>Roll species</h1>
+<p class="muted">Nothing here is saved until you keep it. Each seed always rolls the same species on this build.</p>
+<form method="GET" action="/preview" class="row panel">
+  <label>From seed <input name="seed" inputmode="numeric" value="{{if .Seed}}{{.Seed}}{{end}}" placeholder="random" size="14"></label>
+  <label>Count <input name="count" inputmode="numeric" value="{{.Count}}" size="3"></label>
+  <button type="submit">Roll</button>
+  {{if .Seed}}<a class="btn ghost" href="/preview?seed={{.Next}}&count={{.Count}}">Next {{.Count}}</a>{{end}}
+</form>
+<div class="grid">
+{{range .Previews}}
+  <article class="card">
+    <h3>{{if .Traits.Emoji}}{{.Traits.Emoji}} {{end}}{{.Traits.Plural}}</h3>
+    <div class="sci">{{.Traits.ScientificName}}</div>
+    <div class="row">
+      <span class="tag {{.Traits.Temperament}}">{{.Traits.Temperament}}</span>{{if .Traits.Apex}}<span class="tag hostile">apex</span>{{end}}
+      <span class="tag">{{len .Forms}} form{{if ne (len .Forms) 1}}s{{end}}</span>
+      <span class="muted" style="font-size:.8rem">seed {{.Seed}}</span>
+    </div>
+    <p style="margin:.3rem 0;font-size:.9rem">{{.Traits.Description}}</p>
+    {{if gt (len .Forms) 1}}<p class="muted" style="margin:0;font-size:.85rem">Forms: {{range $i, $f := .Forms}}{{if $i}} → {{end}}{{$f.Name}}{{end}}</p>{{end}}
+    <form method="POST" action="/species" style="margin-top:auto">
+      <input type="hidden" name="seed" value="{{.Seed}}">
+      <button type="submit">Keep this one</button>
+    </form>
+  </article>
+{{end}}
+</div>
+{{end}}
