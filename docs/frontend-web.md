@@ -20,6 +20,9 @@ readout. Around it is a Svelte chrome:
   (`zoning-auto`), and **Save game** / **Load game…** (Ctrl/⌘+S saves too;
   see [save-load.md](./save-load.md)), and under them a read-only list of
   every setting the game runs with ([game-settings.md](./game-settings.md)).
+  Last is a link to [Scum Lab](./scum-lab.md). It is a relative `scum-lab/`,
+  which resolves on Pages (see "Hosting" below) and 404s under `npm run dev`,
+  where Vite does not serve the lab.
   A cold load opens on that tab (see
   "The new-game form" below). Market stays
   under View although it hosts the colony's orders: it is mostly prices, and

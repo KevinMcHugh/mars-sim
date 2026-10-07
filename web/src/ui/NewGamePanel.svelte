@@ -5,7 +5,9 @@
   // settings first and the defaults are one click from landing the ships.
   // Below it, saving the running game to a file and loading one back
   // (docs/save-load.md). Last, every setting the running game uses
-  // (GameSettings, docs/game-settings.md).
+  // (GameSettings, docs/game-settings.md). At the bottom, a link to Scum Lab,
+  // which Pages publishes beside the game (docs/scum-lab.md); the relative URL
+  // finds it there, not under `npm run dev`.
   import { loadGame, newGame, saveGame, ui } from '../game.svelte';
   import GameSettings from './GameSettings.svelte';
   import { describeShips, initialSettings, shipLoads } from '../settings';
@@ -67,6 +69,11 @@
   <GameSettings />
 </section>
 
+<section aria-label="Tools">
+  <h3>Tools</h3>
+  <p class="muted"><a href="scum-lab/" target="_blank" rel="noopener">Scum Lab</a>: tune cognition.yaml and see why a colonist picks their focus.</p>
+</section>
+
 <style>
   form { display: grid; gap: 10px; }
   section { display: grid; gap: 8px; margin-top: 18px; padding-top: 12px; border-top: 1px solid var(--line); }
@@ -74,6 +81,7 @@
   .row { display: flex; gap: 8px; flex-wrap: wrap; }
   p { margin: 0; }
   .muted { color: var(--muted); }
+  a { color: var(--accent); }
   .ships { margin-top: -6px; font-size: 0.9em; }
   label { display: grid; gap: 3px; color: var(--muted); }
   label.check { display: flex; gap: 8px; align-items: center; color: var(--fg); }

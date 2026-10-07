@@ -22,7 +22,7 @@ tools/scum-lab/build.sh
 tools/scum-lab/build.sh --open
 ```
 
-It is also published at <https://kevinmchugh.github.io/mars-sim/scum-lab/>. The Pages workflow ([frontend-web.md](./frontend-web.md)) runs `build.sh` and copies the folder, minus `wasm/` and `build.sh`, into the game's `web/dist`. The lab stays outside Vite on purpose: every URL in it is relative (`sim.js` finds the module from `import.meta.url`), so it works from any subpath as is. Keep it that way; a root-absolute URL breaks it under `/mars-sim/`.
+It is also published at <https://kevinmchugh.github.io/mars-sim/scum-lab/>. The Pages workflow ([frontend-web.md](./frontend-web.md)) runs `build.sh` and copies the folder, minus `wasm/` and `build.sh`, into the game's `web/dist`. The lab stays outside Vite on purpose: every URL in it is relative (`sim.js` finds the module from `import.meta.url`), so it works from any subpath as is. Keep it that way; a root-absolute URL breaks it under `/mars-sim/`. The game's Game tab links to it at the bottom.
 
 ES modules do not load from `file://`. The shell mounts `#focus` or `#grammar` into `#tool`. Import, export, vocabulary, and reset live on the shell. Reset restores `defaults.js`, not an empty file. After import or reset the shell remounts the tool, so read config at `mount` time.
 
