@@ -238,7 +238,7 @@ func (w *World) tryCognitionFastPath(e *Entity) bool {
 	if threat, ok := w.nearestAlien(e.Pos, w.cfg.FleeRadius); ok && threat != nil {
 		return false
 	}
-	if rat, ok := w.nearestRat(e.Pos, w.cfg.ColonistStompRadius); ok && rat != nil {
+	if rat, ok := w.nearestVermin(e.Pos, w.cfg.ColonistStompRadius); ok && rat != nil {
 		return false
 	}
 	if w.hasGoreNearby(e) {
@@ -453,7 +453,7 @@ func (w *World) observeGore(e *Entity) {
 // A stomp is instantly fatal to the tiny rat. Returns whether the colonist
 // spent its tick on the hunt (closing in or stomping).
 func (w *World) stompNearbyRat(e *Entity) bool {
-	prey, ok := w.nearestRat(e.Pos, w.cfg.ColonistStompRadius)
+	prey, ok := w.nearestVermin(e.Pos, w.cfg.ColonistStompRadius)
 	if !ok {
 		return false
 	}
@@ -2241,79 +2241,24 @@ func (w *World) colonistsWithin(pos Point, radius int, exclude EntityID) []*Enti
 	return witnesses
 }
 
-func (w *World) nearestColonist(from Point, within int) (*Entity, bool) {
-	return w.nearestOfKind(from, Colonist, within)
-}
-
-// nearestAlien is the nearest alien the colony could know about: a dormant
-// alien (see World.dormant) is sealed in an undiscovered cave.
+// nearestAlien is the nearest alien the colony could know about and fear: a
+// dormant alien (see World.dormant) is sealed in an undiscovered cave, and an
+// egg or cocoon (World.inert) is no threat.
 func (w *World) nearestAlien(from Point, within int) (*Entity, bool) {
-	return w.nearestMatch(from, within, func(e *Entity) bool { return e.Kind == Alien && !w.dormant(e) && !w.inert(e) })
+	return w.nearestMatch(from, within, func(e *Entity) bool {
+		return w.tagsOf(e).Has(TagAlien) && !w.dormant(e) && !w.inert(e)
+	})
 }
 
-func (w *World) nearestCat(from Point, within int) (*Entity, bool) {
-	return w.nearestOfKind(from, Cat, within)
-}
-
-func (w *World) nearestRat(from Point, within int) (*Entity, bool) {
-	return w.nearestOfKind(from, Rat, within)
-}
-
-func (w *World) nearestOfKind(from Point, kind Kind, within int) (*Entity, bool) {
-	return w.nearestMatch(from, within, func(e *Entity) bool { return e.Kind == kind })
-}
-
-// nearestReachablePrey is what a Hostile alien hunts: the nearest colonist,
-// rat, or alien of another species in its own room, with ties toward the lower
-// ID. Its own species is never prey, so a nest does not eat itself. Each
-// candidate kind is scanned from kindEntities directly (see
-// nearestOfKindAnywhere for why); the distance-then-ID order makes the answer
-// independent of map iteration order.
-func (w *World) nearestReachablePrey(e *Entity) (*Entity, bool) {
-	var best *Entity
-	bestDist := 0
-	for _, kind := range [...]Kind{Colonist, Rat, Alien} {
-		for id := range w.kindEntities[kind] {
-			c := w.entities[id]
-			if c == nil || c == e || !c.Alive() || (kind == Alien && c.Species == e.Species) || !w.sameRoom(e.Pos, c.Pos) {
-				continue
-			}
-			d := e.Pos.Chebyshev(c.Pos)
-			if best == nil || d < bestDist || (d == bestDist && c.ID < best.ID) {
-				best, bestDist = c, d
-			}
-		}
-	}
-	return best, best != nil
-}
-
-// nearestOfKindAnywhere returns the globally nearest living entity of kind, with
-// no range limit — for a hunter whose prey can be anywhere on the map (an
-// alien after the nearest colonist, a cat after the nearest rat). It scans
-// World.kindEntities[kind] directly rather than going through nearestMatch's
-// chunk-ring expansion: that expansion is cheap when a match is nearby, but an
-// unbounded search forces it to visit every chunk on the map to confirm none
-// is closer. Entities of a given kind are typically few, so a direct scan is
-// far cheaper — same nearest-wins-ties-toward-lower-ID result as nearestMatch.
-func (w *World) nearestOfKindAnywhere(from Point, kind Kind) (*Entity, bool) {
-	var best *Entity
-	bestDist := 0
-	for id := range w.kindEntities[kind] {
-		e := w.entities[id]
-		if e == nil || !e.Alive() {
-			continue
-		}
-		d := from.Chebyshev(e.Pos)
-		if best == nil || d < bestDist || (d == bestDist && e.ID < best.ID) {
-			best, bestDist = e, d
-		}
-	}
-	return best, best != nil
+// nearestVermin is the nearest rat (or anything else tagged vermin) a
+// colonist could stomp.
+func (w *World) nearestVermin(from Point, within int) (*Entity, bool) {
+	return w.nearestTagged(from, TagVermin, within)
 }
 
 // nearestMatch returns the nearest living entity within range that satisfies
-// match, sharing the chunk-ring scan (and deterministic ID tie-break) with
-// nearestOfKind.
+// match, by a chunk-ring scan with a deterministic ID tie-break (nearestTagged
+// and the finders build on it).
 func (w *World) nearestMatch(from Point, within int, match func(*Entity) bool) (*Entity, bool) {
 	var best *Entity
 	bestDist := within + 1

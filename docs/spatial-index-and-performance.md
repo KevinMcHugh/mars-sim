@@ -44,8 +44,8 @@ entity map to count.
 ### Chunk entity index
 
 The map is divided into 16x16 **chunks** (`chunkSize`). `chunkEntities[ci]` buckets
-entity IDs by chunk, so neighbor queries scan only nearby chunks. `nearestOfKind`
-(see [entities-and-ai.md](./entities-and-ai.md)) expands in chunk rings and stops
+entity IDs by chunk, so neighbor queries scan only nearby chunks. `nearestMatch` (behind
+`nearestTagged`; see [entities-and-ai.md](./entities-and-ai.md)) expands in chunk rings and stops
 as soon as the next ring cannot beat the best candidate. Chunks also bound region
 recomputation (see [pathfinding.md](./pathfinding.md)). Buckets use swap-delete
 since order within a bucket does not matter (queries tie-break on ID).
