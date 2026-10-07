@@ -51,6 +51,18 @@
 ## ticks a climber with more than shaft-carry bulky goods takes to climb a shaft one level
 # shaft-laden-climb-ticks: 40
 
+## ticks of work to break a hole through to the level below
+# hole-ticks: 15
+
+## ticks of work to fit a ladder into a hole, making it a shaft
+# ladder-ticks: 20
+
+## damage per level fallen down a hole, to the legs first
+# fall-damage: 8
+
+## haulers may tip refuse down a hole instead of carrying it to an incinerator
+# hole-chutes: true
+
 ## percent of the map's tiles bearing iron
 # iron-rock-percent: 10
 

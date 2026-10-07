@@ -443,6 +443,10 @@ func (e *Engine) apply(cmd Command) (rateChanged bool) {
 		e.world.manualIncubators++
 	case OrderStair:
 		e.world.manualStairs++
+	case OrderHole:
+		e.world.manualHoles++
+	case OrderLadder:
+		e.world.manualLadders++
 	case OrderShaft:
 		e.world.manualShaftLevels += max(1, c.Levels)
 	case CancelExcavation:

@@ -10,13 +10,14 @@ import (
 // step. This file keeps the list of stairs and the travel estimate built on
 // it. Building one is in project.go. See docs/z-levels.md.
 
-// trackLinks keeps w.stairs (the upper end of every stair) and w.shafts
-// (every shaft tile that can lead down), both sorted by lessPoint, in step
-// with a terrain change at p. setTerrain calls it.
+// trackLinks keeps w.stairs (the upper end of every stair), w.shafts (every
+// shaft tile that can lead down) and w.holes, all sorted by lessPoint, in
+// step with a terrain change at p. setTerrain calls it.
 func (w *World) trackLinks(p Point, old, t Terrain) {
 	leadsDown := func(t Terrain) bool { return t == ShaftTop || t == ShaftMid }
 	w.stairs = trackSorted(w.stairs, p, old == StairDown, t == StairDown)
 	w.shafts = trackSorted(w.shafts, p, leadsDown(old), leadsDown(t))
+	w.holes = trackSorted(w.holes, p, old == Hole, t == Hole)
 }
 
 // trackSorted removes p from the sorted list if was, and inserts it if is.

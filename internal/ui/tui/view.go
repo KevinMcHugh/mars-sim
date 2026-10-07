@@ -449,7 +449,7 @@ func (m Model) drawSidebar(rows int) string {
 	}
 	if m.levelLabel() != "" { // stairs only matter once there is a level to go to
 		legendRows = append(legendRows, [2]entry{g(glyphStairDown, "way down"), g(glyphStairUp, "way up")},
-			[2]entry{g(glyphShaft, "shaft"), {}})
+			[2]entry{g(glyphShaft, "shaft"), g(glyphHole, "hole")})
 	}
 	if m.latest.FogOfWar {
 		legendRows = append(legendRows, [2]entry{{fogCells(1), "unexplored"}, {}})

@@ -155,6 +155,10 @@ const (
 	ShaftTop
 	ShaftMid
 	ShaftBottom
+	// Hole is an open drop through the floor to the level below: not
+	// walkable, and not a link, since nothing comes back up it. What goes
+	// in lands on the tile underneath. See holes.go and docs/holes.md.
+	Hole
 
 	numTerrains // keep last: the number of terrain kinds
 )
@@ -201,6 +205,8 @@ func (t Terrain) String() string {
 		return "shaft"
 	case ShaftBottom:
 		return "shaft bottom"
+	case Hole:
+		return "hole"
 	default:
 		return "unknown"
 	}
@@ -530,6 +536,9 @@ type World struct {
 	// shafts holds every shaft tile that can lead down (ShaftTop and
 	// ShaftMid), on every level, sorted by lessPoint. See shafts.go.
 	shafts []Point
+	// holes holds every Hole tile, on every level, sorted by lessPoint. See
+	// holes.go.
+	holes []Point
 
 	// snapFrame counts publishes so far (TileChanges.Frame); tileSharing is
 	// how the published grid relates to the live one (see tilegrid.go). The
@@ -650,6 +659,10 @@ type World struct {
 	// dug (OrderShaft) that the planner has not marked out yet. See
 	// planShafts.
 	manualShaftLevels int
+	// manualHoles and manualLadders count holes and ladders the player has
+	// ordered (OrderHole, OrderLadder) that the planner has not marked out
+	// yet. See planHoles.
+	manualHoles, manualLadders int
 
 	// saltRev advances when exposedSalt changes; snapSalt is the copy last
 	// published, taken at snapSaltRev. See publishedSalt.

@@ -191,8 +191,8 @@ clay, carcasses) is laden and takes `shaft-laden-climb-ticks` a level.
   never needs a shortest path.
 - A winch (the haulage the plan wants) would change `laden`, or let goods
   cross a shaft without a carrier.
-- Holes (Z3) are one-way, so they must not be links: see
-  [z-levels.md](./z-levels.md).
+- Holes are one-way, so they are not links; a ladder fitted into one makes
+  it a shaft through `canDigShaft` (see [holes.md](./holes.md)).
 
 ## Related
 

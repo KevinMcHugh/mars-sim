@@ -34,6 +34,14 @@ type Config struct {
 	ShaftClimbTicks      int `cfg:"shaft-climb-ticks" doc:"ticks a climber takes to climb a shaft one level (a stair takes 1)"`
 	ShaftCarry           int `cfg:"shaft-carry" doc:"bulky goods (ore, rock, ice, clay, carcasses) a climber can carry up or down a shaft at the usual pace"`
 	ShaftLadenClimbTicks int `cfg:"shaft-laden-climb-ticks" doc:"ticks a climber with more than shaft-carry bulky goods takes to climb a shaft one level"`
+	// Holes (see docs/holes.md): a one-way drop through the floor. HoleTicks
+	// is the work to break one through, LadderTicks to fit a ladder into one
+	// (making it a shaft), FallDamage the hurt per level fallen, and
+	// HoleChutes whether haulers tip refuse down holes.
+	HoleTicks   int  `cfg:"hole-ticks" doc:"ticks of work to break a hole through to the level below"`
+	LadderTicks int  `cfg:"ladder-ticks" doc:"ticks of work to fit a ladder into a hole, making it a shaft"`
+	FallDamage  int  `cfg:"fall-damage" doc:"damage per level fallen down a hole, to the legs first"`
+	HoleChutes  bool `cfg:"hole-chutes" doc:"haulers may tip refuse down a hole instead of carrying it to an incinerator"`
 	// Rock composition percentages. The remainder is ordinary rock.
 	IronRockPercent    int `cfg:"iron-rock-percent" doc:"percent of the map's tiles bearing iron"`
 	IceRockPercent     int `cfg:"ice-rock-percent" doc:"percent of the map's tiles bearing water ice"`
@@ -677,6 +685,10 @@ func DefaultConfig() Config {
 		ShaftClimbTicks:      8,
 		ShaftCarry:           4,
 		ShaftLadenClimbTicks: 40,
+		HoleTicks:            15,
+		LadderTicks:          20,
+		FallDamage:           8,
+		HoleChutes:           true,
 		IronRockPercent:      10,
 		IceRockPercent:       5,
 		UraniumRockPercent:   1,

@@ -552,6 +552,12 @@ func validateConfig(cfg sim.Config) error {
 		return fmt.Errorf("shaft-ticks must be at least 1 (got %d)", cfg.ShaftTicks)
 	case cfg.ShaftClimbTicks < 1 || cfg.ShaftClimbTicks > 1000:
 		return fmt.Errorf("shaft-climb-ticks must be between 1 and 1000 (got %d)", cfg.ShaftClimbTicks)
+	case cfg.HoleTicks < 1:
+		return fmt.Errorf("hole-ticks must be at least 1 (got %d)", cfg.HoleTicks)
+	case cfg.LadderTicks < 1:
+		return fmt.Errorf("ladder-ticks must be at least 1 (got %d)", cfg.LadderTicks)
+	case cfg.FallDamage < 0:
+		return fmt.Errorf("fall-damage cannot be negative (got %d)", cfg.FallDamage)
 	case cfg.ShaftCarry < 0:
 		return fmt.Errorf("shaft-carry cannot be negative (got %d)", cfg.ShaftCarry)
 	case cfg.ShaftLadenClimbTicks < cfg.ShaftClimbTicks || cfg.ShaftLadenClimbTicks > 1000:

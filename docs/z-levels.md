@@ -15,9 +15,9 @@ Up is a direction too. Colony ships land on **level 1**. Level 0 above it is the
 Martian **surface**, which has its own challenges and is planned separately
 (Z6).
 
-This is a design and a build plan. Z0, Z1 and Z2 are built (see
-[layers.md](./layers.md), [stairs.md](./stairs.md) and
-[shafts.md](./shafts.md)), and the rest is not.
+This is a design and a build plan. Z0 to Z3 are built (see
+[layers.md](./layers.md), [stairs.md](./stairs.md),
+[shafts.md](./shafts.md) and [holes.md](./holes.md)), and the rest is not.
 Where the build departed from this plan, the plan below says so. When a phase
 ships, its content moves into a present-tense doc and the table links to it.
 
@@ -26,7 +26,7 @@ ships, its content moves into a present-tense doc and the table links to it.
 | Z0 — `Layer` split, one level | **Shipped** — [layers.md](./layers.md) |
 | Z1 — Stairs and a second level | **Shipped** — [stairs.md](./stairs.md) |
 | Z2 — Shafts | **Shipped** — [shafts.md](./shafts.md) |
-| Z3 — Holes | Proposed |
+| Z3 — Holes | **Shipped** — [holes.md](./holes.md) |
 | Z4 — Depth gating (challenge and reward) | Proposed |
 | Z5 — Browser frontend and wire format | Proposed |
 | Z6 — The surface (level 0) | Proposed; needs its own doc |
@@ -244,7 +244,12 @@ behaviors that want it*:
   is a door that only opens inward. A hole up to the surface is also a
   breach in the colony's shelter (see "The surface").
 
-A hole with a ladder fitted becomes a shaft. That is the upgrade path. A
+A hole with a ladder fitted becomes a shaft. That is the upgrade path.
+
+**As built (Z3, see [holes.md](./holes.md)):** a hole is not walkable, so
+nobody steps on one by accident; a fall is either the floor giving way or a
+cornered colonist leaping. Chutes take refuse only, and a fallen colonist is
+fetched back by a ladder the colony fits, not by escape. A
 hole is what you get by digging straight down without building anything,
 or naturally in a cavern (Z4).
 
@@ -436,9 +441,12 @@ Build order and what each phase must prove:
   (`shaft-laden-climb-ticks`), weighted links (Dial's buckets in fields,
   edge costs in A\*, `travelEstimate` through shafts), and alien access by
   build (arms climb). Golden hashes and frames unchanged.
-- **Z3 — holes.** Directed drops, falling and fall damage, item chutes in the
-  hauling planner, ladders turning a hole into a shaft, and escape for a
-  fallen colonist.
+- **Z3 — holes. Shipped** ([holes.md](./holes.md)): directed drops,
+  falling and leg-first fall damage, a cornered colonist leaping, refuse
+  chutes, ladders turning a hole into a shaft, and a ladder fitted for a
+  colonist stranded below (in place of teaching escape to dig up). Supply
+  chutes through the hauling planner wait for a deep work camp (Z4); raids
+  through holes come with Z4's aliens below.
 - **Z4 — depth gating.** Per-level worldgen multipliers in `sim.Config` (ore
   vein density, uranium, cavern size, nest chance and size), species rolled
   per level in [lore.md](./lore.md) with hostility weighted by depth, natural

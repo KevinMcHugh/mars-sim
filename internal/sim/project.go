@@ -100,6 +100,9 @@ func (w *World) taskWorkable(t *buildTask) bool {
 	if t.terrain == ShaftTop {
 		return w.canDigShaft(t.pos, shaftTaskBottom(t))
 	}
+	if t.terrain == Hole {
+		return w.canDigHole(t.pos)
+	}
 	if t.terrain == Floor {
 		return w.TerrainAt(t.pos) == t.clears
 	}
