@@ -1,0 +1,14 @@
+{{define "title"}}Sign in · Creature Lab{{end}}
+{{define "account"}}<span class="muted">Not signed in</span>{{end}}
+{{define "content"}}
+<div class="panel" style="max-width:30rem;margin:3rem auto">
+  <h1>Sign in</h1>
+  <p class="muted">Paste a Creature Lab api key (it starts with <code>cl_</code>). Mint one on the server with <code>creature-lab keys create --name you</code>.</p>
+  {{if .Error}}<p class="flash err">{{.Error}}</p>{{end}}
+  <form method="POST" action="/login" class="row" style="margin-top:1rem">
+    <input type="password" name="api_key" placeholder="cl_…" autocomplete="off" autofocus aria-label="API key" style="flex:1">
+    <input type="hidden" name="next" value="{{.Next}}">
+    <button type="submit">Sign in</button>
+  </form>
+</div>
+{{end}}

@@ -54,3 +54,4 @@ The game cannot use these files yet. The browser map draws each symbol into a sp
 - [scum-lab.md](./scum-lab.md): the shell this tab mounts in.
 - [frontend-web.md](./frontend-web.md): the atlas and renderer a sprite would feed.
 - [lore.md](./lore.md): alien species and their rolled emoji.
+- [creature-lab.md](./creature-lab.md): the server that keeps a catalog of species with a sprite per lifecycle form, drawn over MCP with the same house style.

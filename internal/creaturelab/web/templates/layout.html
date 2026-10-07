@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{block "title" .}}Creature Lab{{end}}</title>
+<style>
+:root {
+  color-scheme: light dark;
+  --bg: #fbf7f4; --panel: #ffffff; --fg: #1d1512; --muted: #6b5a52; --line: #e3d6ce;
+  --accent: #a8402a; --accent-fg: #ffffff; --ok: #2f6b3a; --err: #b00020;
+  --floor: #f78765; --rock: #a8402a; --fog: #2e0d0b;
+}
+@media (prefers-color-scheme: dark) {
+  :root { --bg: #140c0a; --panel: #1d1310; --fg: #f2e7e2; --muted: #a8968e; --line: #3a2721;
+          --accent: #f78765; --accent-fg: #1d1512; --ok: #8fd19e; --err: #ff9aa8; }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg); font: 15px/1.5 system-ui, -apple-system, sans-serif; }
+header.top { display: flex; align-items: center; gap: 1.25rem; padding: .75rem 1rem; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+header.top .brand { font-weight: 700; color: var(--fg); text-decoration: none; }
+header.top nav { display: flex; gap: 1rem; flex: 1; }
+main { max-width: 72rem; margin: 0 auto; padding: 1.25rem 1rem 4rem; }
+a { color: var(--accent); }
+h1 { font-size: 1.6rem; margin: .2rem 0; }
+h2 { font-size: 1.15rem; margin: 0 0 .5rem; }
+.muted { color: var(--muted); }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 1rem; margin: 1rem 0; }
+.grid { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fill, minmax(17rem, 1fr)); }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: .85rem; display: flex; flex-direction: column; gap: .4rem; }
+.card h3 { margin: 0; font-size: 1.05rem; }
+.card h3 a { color: var(--fg); text-decoration: none; }
+.sci { font-style: italic; color: var(--muted); }
+.tag { display: inline-block; padding: 0 .45rem; border-radius: 999px; border: 1px solid var(--line); font-size: .8rem; color: var(--muted); }
+.tag.hostile { border-color: var(--err); color: var(--err); }
+.tag.done { border-color: var(--ok); color: var(--ok); }
+.thumbs { display: flex; gap: 4px; flex-wrap: wrap; }
+.tile { display: inline-flex; align-items: center; justify-content: center; border-radius: 4px; overflow: hidden; flex: none; }
+.tile img { display: block; width: 100%; height: 100%; }
+.tile.empty { border: 1px dashed var(--line); color: var(--muted); font-size: .75rem; }
+.bar { height: 6px; border-radius: 3px; background: var(--line); overflow: hidden; }
+.bar span { display: block; height: 100%; background: var(--ok); }
+button, .btn { font: inherit; padding: .45rem .9rem; border-radius: 6px; border: 1px solid var(--accent); background: var(--accent); color: var(--accent-fg); cursor: pointer; text-decoration: none; display: inline-block; }
+button.ghost, .btn.ghost { background: transparent; color: var(--accent); }
+button.danger { background: transparent; color: var(--err); border-color: var(--err); }
+input, textarea { font: inherit; padding: .45rem .6rem; border: 1px solid var(--line); border-radius: 6px; background: transparent; color: var(--fg); max-width: 100%; }
+textarea { width: 100%; font-family: ui-monospace, Menlo, monospace; font-size: .85rem; }
+form.inline { display: inline; }
+.row { display: flex; gap: .6rem; align-items: center; flex-wrap: wrap; }
+.flash { padding: .6rem .8rem; border-radius: 6px; border: 1px solid var(--ok); color: var(--ok); }
+.flash.err { border-color: var(--err); color: var(--err); }
+dl.traits { display: grid; grid-template-columns: max-content 1fr; gap: .2rem 1rem; margin: .5rem 0; }
+dl.traits dt { color: var(--muted); }
+dl.traits dd { margin: 0; }
+.previews { display: grid; gap: .6rem; }
+.preview-row { display: flex; gap: .5rem; align-items: flex-end; flex-wrap: wrap; }
+.candidates { display: grid; gap: .75rem; grid-template-columns: repeat(auto-fill, minmax(9.5rem, 1fr)); margin-top: .75rem; }
+.cand { border: 1px solid var(--line); border-radius: 8px; padding: .5rem; display: flex; flex-direction: column; gap: .35rem; font-size: .85rem; }
+.cand.accepted { border-color: var(--ok); box-shadow: 0 0 0 1px var(--ok) inset; }
+.cand .tile { width: 100%; aspect-ratio: 1; }
+details summary { cursor: pointer; color: var(--accent); }
+table { border-collapse: collapse; width: 100%; }
+td, th { text-align: left; padding: .3rem .5rem; border-bottom: 1px solid var(--line); vertical-align: top; }
+@media (max-width: 40rem) { dl.traits { grid-template-columns: 1fr; } dl.traits dt { margin-top: .4rem; } }
+</style>
+</head>
+<body>
+<header class="top">
+  <a class="brand" href="/">Creature Lab</a>
+  <nav><a href="/">Catalog</a><a href="/preview">Roll species</a></nav>
+  {{block "account" .}}<form class="inline" method="POST" action="/logout"><button class="ghost" type="submit">Sign out</button></form>{{end}}
+</header>
+<main>
+{{template "content" .}}
+</main>
+</body>
+</html>

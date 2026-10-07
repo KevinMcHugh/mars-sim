@@ -1,0 +1,34 @@
+{{define "title"}}Catalog · Creature Lab{{end}}
+{{define "content"}}
+<div class="row" style="justify-content:space-between">
+  <div>
+    <h1>Species catalog</h1>
+    <p class="muted">{{len .Species}} species, {{.Complete}} with a sprite for every form.</p>
+  </div>
+  <form method="POST" action="/species" class="row">
+    <input name="seed" inputmode="numeric" placeholder="seed (blank for random)" aria-label="Seed" size="22">
+    <button type="submit">Roll and save</button>
+  </form>
+</div>
+{{if not .Species}}
+<div class="panel"><p>No species yet. <a href="/preview">Roll a few</a> and keep the ones you like, or ask Claude over MCP to do it.</p></div>
+{{end}}
+<div class="grid">
+{{range .Species}}
+  <article class="card">
+    <h3><a href="/species/{{.ID}}">{{if .Emoji}}{{.Emoji}} {{end}}{{.Plural}}</a></h3>
+    <div class="sci">{{.ScientificName}}</div>
+    <div class="row">
+      <span class="tag {{.Temperament}}">{{.Temperament}}</span>{{if .Apex}}<span class="tag hostile">apex</span>{{end}}
+      <span class="tag">{{.FormCount}} form{{if ne .FormCount 1}}s{{end}}</span>
+      {{if .Complete}}<span class="tag done">complete</span>{{end}}
+      <span class="muted" style="font-size:.8rem">seed {{.Seed}}</span>
+    </div>
+    <div class="thumbs">
+      {{range .SpriteURLs}}<span class="tile" style="width:40px;height:40px;background:var(--floor)"><img src="{{.}}" alt=""></span>{{end}}
+    </div>
+    <div class="bar" title="{{.AcceptedCount}} of {{.FormCount}} sprites accepted"><span style="width:{{pct .AcceptedCount .FormCount}}%"></span></div>
+  </article>
+{{end}}
+</div>
+{{end}}
