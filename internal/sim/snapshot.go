@@ -444,6 +444,11 @@ type Snapshot struct {
 	// world. Shown on the lore panel so a player can share or record it. See
 	// docs/lore.md.
 	Seed int64
+	// Config is the settings this run was started with, for the browser's
+	// Game tab, which lists them all (wire's "config" topic). It points at
+	// the World's own copy rather than copying it every frame: a World's
+	// Config never changes after newWorld, so sharing it is safe. Read-only.
+	Config *Config
 	// Tiles is the terrain, as an immutable page-shared grid rather than a
 	// per-frame copy of the map. See tilegrid.go for why it is not a plain
 	// slice. Frontends should read it through TileAt / TerrainAt: Tiles.At
@@ -703,6 +708,7 @@ func (w *World) snapshot(paused bool, tps int) *Snapshot {
 		Width:                w.Width,
 		Height:               w.Height,
 		Seed:                 w.cfg.Seed,
+		Config:               &w.cfg,
 		Tiles:                tiles,
 		TileChanges:          tileChanges,
 		Entities:             ents,

@@ -17,6 +17,7 @@ way it is without re-deriving it from the source each time.
 | [cli.md](./cli.md) | The `mars-sim` command, application modes, duration/seed controls, validation, and CLI examples. |
 | [configuration.md](./configuration.md) | `sim.Config`, `DefaultConfig`, and how tunables become command-line flags. |
 | [config-file.md](./config-file.md) | `mars-sim.yaml`: the committed settings file between the compiled defaults and the flags, and the struct tags that generate it. |
+| [game-settings.md](./game-settings.md) | The browser Game tab's read-only list of every setting the running game uses, beside its default: the `config` topic built from `sim.Knobs`, and why the Snapshot shares the World's `Config`. |
 | [director.md](./director.md) | `director.yaml`: scheduling major occurrences (rat plagues, alien swarms, supply drops) into tick windows, separate from what fires in them. |
 | [world.md](./world.md) | The tile grid, terrain kinds, world state, and world generation. |
 | [worldgen-chunks.md](./worldgen-chunks.md) | Chunked, lazy world generation: ore veins, caverns and passages as a pure function of seed and chunk, generated only as the colony explores (never because a frontend looked), why the old whole-map generator could not be made lazy, and how far abundance drifts from its targets. |

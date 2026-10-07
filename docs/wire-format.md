@@ -174,6 +174,7 @@ of the payloads due, by name:
 | Topic | Every | Payload |
 | --- | --- | --- |
 | `lore` | 1 s | `world` (size, fog, explored tiles, chunks generated, seed) and `species` (each rolled species' roster label, map glyph, build, temperament, bite and pace, and field notes) |
+| `config` | 1 min | Every setting the game was started with (`ConfigTopic`): the `seed`, and `sections` as `mars-sim.yaml` groups them, each setting's `key`, `doc`, `value` and `default`. See [game-settings.md](./game-settings.md). |
 | `names` | 1 s | Every living colonist's name, by id (as a string key). The page holds it open for the hover readout, since frames carry ids, not names. It changes only on an arrival or a death. |
 | `roster`, `roster:<filters>` | 500 ms | One row per creature the TUI's roster lists (`RosterRow`): glyph, name, an info line (pronouns and age, an alien's species, or the kind), a state line (state and mood, or `dead — <cause>`), and health. By ID. Filters, comma-separated: `dead` (every dead colonist from `Deceased`, and the graveyard's other kinds the other filter admits) and `nonhuman` (aliens, cats, rats). |
 | `log` | 250 ms | The colony log as a stream (`LogTopic`): only the lines newer than the last send, each with `seq`, `tick`, `kind` (the `LogKind` label) and `text`. The first send, and the first after a new game, has `reset: true` and the whole ring. |

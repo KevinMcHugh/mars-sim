@@ -18,7 +18,9 @@ readout. Around it is a Svelte chrome:
   Game tab. That tab
   holds a new-game form, which can also start a colony that zones for itself
   (`zoning-auto`), and **Save game** / **Load game…** (Ctrl/⌘+S saves too;
-  see [save-load.md](./save-load.md)). A cold load opens on that tab (see
+  see [save-load.md](./save-load.md)), and under them a read-only list of
+  every setting the game runs with ([game-settings.md](./game-settings.md)).
+  A cold load opens on that tab (see
   "The new-game form" below). Market stays
   under View although it hosts the colony's orders: it is mostly prices, and
   splitting one tab across both rows would make the line meaningless.
@@ -47,7 +49,7 @@ The rest of the TUI's tabs are planned in
   (the tab list both share), `Bar` (a gauge), and one component
   per tab (`InspectPanel`, `RosterPanel`, `LogPanel`, `JobsPanel`,
   `StoragePanel`, `MarketPanel` with `AccountDetail` and `ColonyOrders`, `ZonesPanel`, `DigPanel`, `ChartsPanel`, `ShipsPanel`,
-  `RecruitPanel`, `LorePanel`, `NewGamePanel`), `Section` (a foldable heading), `LogTicker`, and `FlowControl` (the
+  `RecruitPanel`, `LorePanel`, `NewGamePanel` with `GameSettings`), `Section` (a foldable heading), `LogTicker`, and `FlowControl` (the
   flow-field picker and legend, see [flow-field-view.md](./flow-field-view.md)).
   `format.ts` formats money.
 - [`web/src/ui/charts/`](../web/src/ui/charts/Chart.svelte) — the Charts tab:
