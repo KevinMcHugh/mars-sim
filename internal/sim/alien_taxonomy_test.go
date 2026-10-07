@@ -89,6 +89,8 @@ func TestScientificNamesDoNotShiftTheRoster(t *testing.T) {
 		used[strings.ToLower(want.Singular)] = true
 		got.ScientificName = ""
 		got.Anatomy, got.Forms, got.FormCount = AlienAnatomy{}, [maxAlienForms]AlienForm{}, 0
+		got.AttackModes &^= AttackSetOf(AttackGore, AttackSting) // granted by the anatomy pass
+		got.Apex = false                                         // its own stream
 		if got != want {
 			t.Fatalf("species %d differs once named:\n%+v\n%+v", i, got, want)
 		}

@@ -603,6 +603,9 @@ type Config struct {
 	AlienBroodRadius int `cfg:"alien-brood-radius" doc:"how far a laying alien counts its own kind when deciding whether its nest is full"`
 	AlienSpeciesCap  int `cfg:"alien-species-cap" doc:"no alien of a species lays while this many of that species are alive anywhere"`
 	AlienNestRoam    int `cfg:"alien-nest-roam" doc:"how far a laying caste (queen, betty, jill, matriarch) strays from her nest before she heads home"`
+	// AlienApexPercent is how many of the species with any graded feature
+	// roll as apex: very deadly, and kept rare by this alone.
+	AlienApexPercent int `cfg:"alien-apex-percent" doc:"percent of alien species with horns, stingers, claws, clubs or shells whose features are far deadlier (apex species)"`
 
 	// AlienNames configures the pool of names ("xenos," "critters," ...) a
 	// rolled species can be given, each gated by a condition over its build
@@ -960,6 +963,7 @@ func DefaultConfig() Config {
 		AlienBroodRadius:          6,
 		AlienSpeciesCap:           16, // at 30 a hostile brood could overrun a 20-colonist colony (docs/alien-lifecycles.md)
 		AlienNestRoam:             4,
+		AlienApexPercent:          8,
 
 		PistolDamage:    10,
 		PistolRange:     3,

@@ -166,6 +166,10 @@ const (
 	AttackClaw
 	AttackTail
 	AttackStrangle
+	// AttackGore and AttackSting are granted by anatomy (horns or antlers; a
+	// stinger), not rolled: see alien_weapons.go.
+	AttackGore
+	AttackSting
 )
 
 // attackModes is every mode in roll order. rollAttackModes walks it, so
@@ -182,6 +186,10 @@ func (m AttackMode) String() string {
 		return "tail"
 	case AttackStrangle:
 		return "strangle"
+	case AttackGore:
+		return "gore"
+	case AttackSting:
+		return "sting"
 	default:
 		return "unknown"
 	}
@@ -235,12 +243,18 @@ func rollAttackModes(rng *rand.Rand, sp AlienSpecies) AttackSet {
 	return set
 }
 
-// Attacks is the species' attack modes in attackModes order, never empty: a
+// Attacks is the species' attack modes, the rolled ones in attackModes order
+// and then those its anatomy grants (featureAttackModes), never empty: a
 // species built by hand (tests, mostly) with no AttackModes bites, the same
 // fallback rollAttackModes uses.
 func (sp AlienSpecies) Attacks() []AttackMode {
 	var modes []AttackMode
 	for _, m := range attackModes {
+		if sp.AttackModes.Has(m) {
+			modes = append(modes, m)
+		}
+	}
+	for _, m := range featureAttackModes {
 		if sp.AttackModes.Has(m) {
 			modes = append(modes, m)
 		}
@@ -262,6 +276,20 @@ func (sp AlienSpecies) AttacksLabel() string {
 	return strings.Join(names, ", ")
 }
 
+// goreWeapon is what a goring species gores with, for its description.
+func (sp AlienSpecies) goreWeapon() string {
+	switch {
+	case sp.Anatomy.Horns > 0 && sp.Anatomy.Antlers > 0:
+		return "horns and antlers"
+	case sp.Anatomy.Antlers > 0:
+		return "antlers"
+	case sp.Anatomy.Horns == 1:
+		return "horn"
+	default:
+		return "horns"
+	}
+}
+
 // attackPhrase is how a description says a species fights: "biting,
 // raking with their claws, and thrashing their tails".
 func (sp AlienSpecies) attackPhrase() string {
@@ -275,6 +303,10 @@ func (sp AlienSpecies) attackPhrase() string {
 			phrases[i] = "thrashing their tails"
 		case AttackStrangle:
 			phrases[i] = "strangling with their arms"
+		case AttackGore:
+			phrases[i] = "goring with their " + sp.goreWeapon()
+		case AttackSting:
+			phrases[i] = "stinging"
 		default:
 			phrases[i] = "biting"
 		}
@@ -423,6 +455,9 @@ type AlienSpecies struct {
 	// Anatomy is the adult's graded features (horns, antlers, quills, shell,
 	// claws, a stinger, a tail ornament); see alien_anatomy.go.
 	Anatomy AlienAnatomy
+	// Apex marks one of the rare, very deadly species: its features hit by
+	// apexWeapons rather than ordinaryWeapons. See alien_weapons.go.
+	Apex bool
 	// Forms is the species' life, stage by stage (the last split into castes,
 	// when it has them), in its first FormCount entries; FormCount 0 is a
 	// single form, which is most species. See alien_lifecycle.go.
@@ -542,7 +577,10 @@ func rollAlienSpeciesRoster(rng *rand.Rand, cfg Config) []AlienSpecies {
 	anatomyRNG := newRand(cfg.Seed ^ alienAnatomySeed)
 	for i := range roster {
 		roster[i].Anatomy = rollAnatomy(anatomyRNG, roster[i])
+		// Horns gore and stingers sting: granted, not rolled, so no draw.
+		roster[i].AttackModes |= featureAttacks(roster[i].Anatomy)
 	}
+	rollApex(cfg, roster) // its own stream too
 	lifeRNG := newRand(cfg.Seed ^ alienLifecycleSeed)
 	for i := range roster {
 		rollLifecycle(lifeRNG, &roster[i], cfg)
@@ -623,6 +661,9 @@ func (sp AlienSpecies) Description() string {
 	out := sp.entry()
 	if feats := sp.Anatomy.featurePhrases(); len(feats) > 0 {
 		out += fmt.Sprintf(" Adults bear %s.", joinList(feats))
+		if sp.Apex {
+			out += " Colonists who have seen what those can do speak of them in whispers; nothing else in the caves is as deadly."
+		}
 	}
 	if life := sp.lifePhrase(); life != "" {
 		out += " " + life
