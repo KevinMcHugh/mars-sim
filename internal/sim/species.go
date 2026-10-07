@@ -30,8 +30,7 @@ type Species struct {
 	// Config.Drives in newEntity, not from here.
 	HungerRate int
 
-	// The rest drives animalTurn (cats, rats, chickens); colonists and aliens
-	// still have turns of their own.
+	// The rest drives animalTurn (everyone but colonists).
 	//
 	// Starves: a full food drive kills it, leaving a Corpse.
 	Starves bool
@@ -82,7 +81,7 @@ func newSpeciesTable(cfg Config) [numKinds]Species {
 	cat.HP = cfg.CatHP
 	cat.Paced, cat.Slowness = true, cfg.CatSlowness
 	cat.ladder = []behavior{
-		hunt{prey: Rat, rest: cfg.CatPounceRest},
+		hunt{find: preyAnywhere(Rat), catch: (*World).pounce, rest: cfg.CatPounceRest},
 		wander{},
 	}
 
@@ -114,5 +113,61 @@ func newSpeciesTable(cfg Config) [numKinds]Species {
 	return t
 }
 
-// speciesOf is the species an entity belongs to.
-func (w *World) speciesOf(e *Entity) *Species { return &w.species[e.Kind] }
+// newAlienSpeciesTable builds one Species per rolled AlienSpecies: the Alien
+// kind's identity and stats, with the rolled species' pace and a ladder its
+// temperament picks. Every ladder opens with dormancy (an alien in a cave
+// nobody has dug into only shuffles about; see docs/caverns.md).
+//
+//	Hostile:  hunt the nearest prey in its room (colonist, rat, other species)
+//	Cautious: strike a colonist that comes within alien-cautious-radius, else graze
+//	Friendly: graze, never hunt
+//
+// Damage, attack modes, and bite rest after a graze are read from the
+// roster when they are used (strike, alienGraze), so only pace and the
+// ladder are fixed here.
+func newAlienSpeciesTable(base Species, roster []AlienSpecies, cfg Config) []Species {
+	table := make([]Species, len(roster))
+	for i, a := range roster {
+		sp := base
+		sp.Paced, sp.Slowness = true, a.Slowness
+		switch a.Temperament {
+		case TemperamentHostile:
+			sp.ladder = []behavior{
+				dormant{},
+				hunt{find: (*World).nearestReachablePrey, catch: (*World).strike, rest: a.BiteRest},
+				wander{},
+			}
+		case TemperamentCautious:
+			sp.ladder = []behavior{
+				dormant{},
+				hunt{find: colonistWithin(cfg.AlienCautiousRadius), catch: (*World).strike, rest: a.BiteRest},
+				grazeScum{},
+				wander{},
+			}
+		default: // Friendly
+			sp.ladder = []behavior{dormant{}, grazeScum{}, wander{}}
+		}
+		table[i] = sp
+	}
+	return table
+}
+
+// buildAlienSpecies derives World.alienKinds from the rolled roster. newWorld
+// and afterLoad call it; so must anything that edits the roster (tests do).
+func (w *World) buildAlienSpecies() {
+	w.alienKinds = newAlienSpeciesTable(w.species[Alien], w.alienSpecies, w.cfg)
+}
+
+// speciesOf is the species an entity belongs to: its kind's, or for an alien
+// its rolled species' (Entity.Species indexes the roster), falling back to
+// the first like alienSpeciesFor does.
+func (w *World) speciesOf(e *Entity) *Species {
+	if e.Kind == Alien && len(w.alienKinds) > 0 {
+		idx := e.Species
+		if idx < 0 || idx >= len(w.alienKinds) {
+			idx = 0
+		}
+		return &w.alienKinds[idx]
+	}
+	return &w.species[e.Kind]
+}

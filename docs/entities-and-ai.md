@@ -57,8 +57,8 @@ eating while its job is building.
 ### The tick: `step()`
 
 `World.step()` increments the tick, then for each entity in turn order runs
-`colonistTurn`, `alienTurn`, or, for cats, rats and chickens, `animalTurn`,
-which runs the species' behavior ladder (see
+`colonistTurn`, or, for every other creature, `animalTurn`, which runs its
+species' behavior ladder (see
 [species-and-behaviors.md](./species-and-behaviors.md)). The dead are removed the
 moment they are eaten or starve, so liveness is re-checked as the loop proceeds.
 After all entities act, `step` folds in the tick's terrain changes:
@@ -167,9 +167,12 @@ was doing — a detect-and-correct backstop for a room sealed shut by
 construction elsewhere, excluded whenever a threat is visible so it never
 competes with fleeing or fighting. See [escape.md](./escape.md).
 
-### Alien behavior (`alienTurn`)
+### Alien behavior (ladder by temperament: `dormant`, `hunt`, `grazeScum`, `wander`)
 
-Aliens are paced by a `Cooldown` (from `AlienSlowness`). Each active turn: find
+Each rolled alien species is its own species value (`newAlienSpeciesTable`),
+whose ladder its temperament picks; an alien runs its own species' ladder
+through `animalTurn`. Aliens are paced by a `Cooldown` (their species'
+slowness, scaled from `AlienSlowness`). Each active turn: find
 the nearest prey in the alien's own room (`nearestReachablePrey`: a colonist,
 a rat, or an alien of another species); if adjacent, `strike` (one of its species' attack modes — bite, claws, tail,
 or strangle — lands `AlienDamage` on a random body part, or half of it on the head for a strangle — see [combat.md](./combat.md) — eating

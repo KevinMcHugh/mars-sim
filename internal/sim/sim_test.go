@@ -203,7 +203,7 @@ func TestAliensEatColonists(t *testing.T) {
 	// (Friendly) or only reacting within a radius (Cautious) that still
 	// covers this adjacency either way -- see lore.go.
 	for i := range w.alienSpecies {
-		w.alienSpecies[i].Temperament = TemperamentHostile
+		setAlienTemperament(w, i, TemperamentHostile)
 	}
 
 	center := Point{w.Width / 2, w.Height / 2}

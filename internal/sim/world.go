@@ -962,6 +962,9 @@ type World struct {
 	// docs/species-and-behaviors.md) how it behaves. Built from Config by
 	// newWorld, and not saved: a load rebuilds it from the saved Config.
 	species [numKinds]Species `save:"-"`
+	// alienKinds is one Species per rolled alien species (alienSpecies),
+	// derived the same way and likewise not saved (afterLoad rebuilds it).
+	alienKinds []Species `save:"-"`
 
 	// driveTables are the drives' compiled bands (drive_bands.go).
 	driveTables [numDrives]driveTable
@@ -1080,6 +1083,7 @@ func newWorld(cfg Config, src *rand.PCG) *World {
 	w.rngSrc.recruit = newPCG(cfg.Seed ^ recruitSeed)
 	w.recruitRNG = rand.New(w.rngSrc.recruit)
 	w.alienSpecies = rollAlienSpeciesRoster(newRand(cfg.Seed^alienLoreSeed), cfg)
+	w.buildAlienSpecies()
 	armsRNG := newRand(cfg.Seed ^ armsLoreSeed)
 	w.corporations = rollCorporationRoster(armsRNG, cfg)
 	w.gunModels = rollGunModels(armsRNG, w.corporations)

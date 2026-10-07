@@ -28,7 +28,7 @@ import (
 //   - Not w.prng, the personality stream, because a species' size and
 //     temperament are not mere flavor — they set actual bite damage and
 //     combat behavior (see speciesDamage/scaledByTemperament below and
-//     alienTurn in systems.go), so they must stay reproducible on the
+//     newAlienSpeciesTable in species.go), so they must stay reproducible on the
 //     deterministic side of the personality/sim split (see AGENTS.md).
 //   - Not w.rng, the simulation stream, for the same reason worldgen's
 //     streams (featureRand in worldgen_chunks.go) are not: rolling species must not shift
@@ -405,7 +405,7 @@ type AlienSpecies struct {
 	Pattern AlienPattern
 
 	// Temperament decides whether and how this species fights -- see
-	// AlienTemperament and alienTurn in systems.go.
+	// AlienTemperament and newAlienSpeciesTable in species.go.
 	Temperament AlienTemperament
 
 	// AttackModes is how it hurts prey -- see rollAttackModes. Read it

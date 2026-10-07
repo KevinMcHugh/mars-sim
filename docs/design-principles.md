@@ -29,7 +29,8 @@ number private to the system that owns it.
   downstream of the mood.
 - **Alien temperament** used to be a 0–100 aggression score where 0 happened to
   mean "never fights". Nothing had to handle that case. Now it is
-  `Friendly`/`Cautious`/`Hostile`, and `alienTurn` switches on it. The compiler
+  `Friendly`/`Cautious`/`Hostile`, and `newAlienSpeciesTable` switches on it to
+  pick each species' behavior ladder. The compiler
   and the reviewer can both see every case ([lore.md](./lore.md)).
 - **Height and weight for naming** are bucketed into tiers (`tiny` …) so the
   name conditions don't depend on raw centimetres.

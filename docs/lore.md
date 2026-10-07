@@ -58,8 +58,11 @@ than a hardcoded list. Each species also gets a scientific name
   `AlienCautiousRadius`, `AlienHungerRate`, `AlienGrazeRadius`, `AlienNames`, and `AlienDamage`/`AlienBiteRest`/
   `AlienSlowness`/`AlienReferenceWeightKG` (now baselines a species scales).
 - [`internal/sim/combat.go`](../internal/sim/combat.go),
-  [`internal/sim/systems.go`](../internal/sim/systems.go) — `alienTurn`'s
-  temperament dispatch, and where combat reads a specific alien's assigned
+  [`internal/sim/species.go`](../internal/sim/species.go) —
+  `newAlienSpeciesTable`, where temperament picks each rolled species'
+  behavior ladder ([species-and-behaviors.md](./species-and-behaviors.md));
+  [`internal/sim/systems.go`](../internal/sim/systems.go) — `strike`,
+  `alienGraze`, and where combat reads a specific alien's assigned
   species instead of a single world-wide value.
 - [`internal/sim/director.go`](../internal/sim/director.go) — the
   alien-swarm occurrence's flavor line, named after whichever spawned alien
@@ -165,13 +168,13 @@ same pattern worldgen's own streams use (see
 score, specifically so "never initiates combat" is a real case the code has
 to branch on rather than an incidental zero:
 
-- **Friendly** never fights. `alienTurn` (`systems.go`) never looks for
-  prey for it at all: it grazes cave scum when hungry, else wanders. (A
+- **Friendly** never fights. Its ladder (`newAlienSpeciesTable`) has no
+  `hunt` rung, so nothing ever looks for prey for it: it grazes cave scum when hungry, else wanders. (A
   colonist may still flee or fight one on its own initiative; that side of the
   interaction is explicitly unchanged for now — see Why it is this way.)
 - **Cautious** does not hunt, but reacts once a colonist comes within
-  `Config.AlienCautiousRadius`: `alienTurn` calls the radius-bounded
-  `nearestOfKind` instead of the unbounded `nearestOfKindAnywhere`, so it
+  `Config.AlienCautiousRadius`: its `hunt` rung finds prey with the
+  radius-bounded `colonistWithin` instead of `nearestReachablePrey`, so it
   only ever notices — and then closes in on and bites — a colonist already
   close by. Left alone, it grazes cave scum when hungry, else wanders.
 - **Hostile** hunts the nearest prey anywhere it can walk to
@@ -207,7 +210,8 @@ in reach, or not hungry, it wanders as before.
 
 - Reacting beats grazing: a hungry Cautious alien with a colonist in its
   radius goes for the colonist. Grazing is what it does when left alone.
-- Aliens **never starve**. `alienTurn` does not call `applyDriveConsequences`, so a
+- Aliens **never starve**. Their species is not `Starves`, so `animalTurn`
+  never applies drive consequences to them, and a
   grazer on a bare map is merely hungry. Starving aliens would quietly thin
   out the peaceful species on scum-poor seeds while Hostile ones (whose
   hunger is never read) lived forever — a balance change nobody asked for.
@@ -549,8 +553,8 @@ word-wrapped to the panel width.
   aggression score *could* land on "never fights" at exactly 0, but nothing
   forced any code to actually treat that as special — it was an emergent
   reading of a formula, not a case anything branched on. Naming the three
-  tiers `TemperamentFriendly`/`Cautious`/`Hostile` and switching on them in
-  `alienTurn` makes "never initiates combat" something the compiler and a
+  tiers `TemperamentFriendly`/`Cautious`/`Hostile` and switching on them
+  (now in `newAlienSpeciesTable`, to pick a ladder) makes "never initiates combat" something the compiler and a
   reviewer can see is handled, not something that happens to fall out of
   arithmetic.
 - **Colonist-side behavior is unchanged "for now."** A colonist still

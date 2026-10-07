@@ -389,7 +389,7 @@ func TestCaveAlienDormantUntilBreached(t *testing.T) {
 		t.Fatal("starting alien was not placed dormant in a hidden cave")
 	}
 	for i := 0; i < 200; i++ {
-		w.alienTurn(alien)
+		w.animalTurn(alien)
 		if w.TerrainAt(alien.Pos) != Floor || w.discovered(alien.Pos) {
 			t.Fatalf("dormant alien left its cave for %v", alien.Pos)
 		}

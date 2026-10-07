@@ -4,7 +4,7 @@
 
 ## What it is
 
-**In progress: phases 1–3 of 7 are built** (see [Migration](#migration)).
+**In progress: phases 1–4 of 7 are built** (see [Migration](#migration)).
 A plan to stop hand-writing one turn function per creature and
 instead define each creature (cat, rat, chicken, each alien species) as a
 **species**: a set of attributes plus an ordered list of reusable
@@ -13,21 +13,23 @@ entity-component system — behavior comes from what an entity *has*, not from a
 type switch — without adopting an ECS library, an archetype store, or a
 modeling language for definitions. The phases below are written so each one
 can land on its own without changing behavior. Cats, rats and chickens already
-run on behavior ladders, and rat breeding and pets are components; aliens and
-colonists still have turns of their own.
+run on behavior ladders, rat breeding and pets are components, and every
+rolled alien species is a species value with a ladder its temperament picks.
+Only colonists still have a turn of their own.
 
 ## Source
 
 Built so far:
 
 - [`internal/sim/species.go`](../internal/sim/species.go) — `Species`, `kindIdentity` (the Config-free half: name, noun, body, spawn site), `newSpeciesTable` (stats and ladders from `Config`), `World.speciesOf`.
-- [`internal/sim/behaviors.go`](../internal/sim/behaviors.go) — the `behavior` interface, `animalTurn`, and the rungs: `hunt`, `flee`, `forage` with its `foodSource`s, `breed`, `stayNearTrough`, `wander`.
+- [`internal/sim/behaviors.go`](../internal/sim/behaviors.go) — the `behavior` interface, `animalTurn`, and the rungs: `hunt` with its `preyFinder`s, `flee`, `forage` with its `foodSource`s, `breed`, `stayNearTrough`, `dormant`, `grazeScum`, `wander`.
+- `newAlienSpeciesTable` and `World.buildAlienSpecies` (in `species.go`) — one species per rolled alien species.
 - [`internal/sim/components.go`](../internal/sim/components.go) — `Breeding` and `PetBond`, with the `keeperOf` / `petTrough` accessors.
 - [`internal/sim/species_test.go`](../internal/sim/species_test.go) — the table's and the components' invariants.
 
-Still to move (phases 4–5):
+Still to move (phase 5):
 
-- [`internal/sim/systems.go`](../internal/sim/systems.go) — `alienTurn`, and the kind-keyed queries (`nearestOfKind*`, `nearestReachablePrey`).
+- [`internal/sim/systems.go`](../internal/sim/systems.go) — the kind-keyed queries (`nearestOfKind*`, `nearestReachablePrey`) and the prey finders built on them.
 - [`internal/sim/lore.go`](../internal/sim/lore.go) — `AlienSpecies`, the per-seed roster whose temperament already picks between hunting and grazing.
 - [`internal/sim/snapshot.go`](../internal/sim/snapshot.go) — the per-kind counters in the frame's stats.
 
@@ -97,15 +99,23 @@ type behavior interface {
 	act(w *World, e *Entity) bool
 }
 
-type hunt struct{ prey Kind; rest int }      // nearest prey anywhere; rest after a catch
+type hunt struct{ find preyFinder; catch func(w *World, hunter, prey *Entity); rest int }
 type flee struct{ from Kind; radius int }
 type forage struct{ sources []foodSource }  // tried in order once hungry
 type breed struct{}                         // tryMate; litter size etc. still in Config
 type stayNearTrough struct{ roam int }      // a chicken
+type dormant struct{}                       // an alien in an undiscovered cave shuffles about
+type grazeScum struct{}                     // a peaceful alien eats cave scum (alienGraze)
 type wander struct{}                        // always acts: every ladder ends here
 ```
 
-`hunt` and `flee` take a `Kind` for now; phase 5 widens that to tags.
+`hunt` is shared by the cat and the hunting aliens: what differs is the
+**finder** (`preyAnywhere(Rat)` for a cat; `nearestReachablePrey` for a
+Hostile alien; `colonistWithin(alien-cautious-radius)` for a Cautious one)
+and the **catch** (`pounce`, `strike`). The proposal wrote it as
+`hunt{prey: tags, scope}`; a finder function is what the three hunters
+actually needed, and phase 5's tags will be a way to build finders. `flee`
+still takes a `Kind`.
 `forage` first lets a foraging job already under way (`JobScavenge`, `JobUse`)
 run on, hungry or not, exactly as `ratTurn` did; only then does it check the
 food drive and try its sources. A `foodSource` is a plain
@@ -171,7 +181,27 @@ func (w *World) animalTurn(e *Entity) {
 cat configured with `cat-slowness: 0` must still honor its pounce rest. The
 Cooldown is set *before* the ladder so a rung can override it, which is what
 the old cat and chicken turns did between them. The `switch e.Kind` in `step`
-is now colonist, alien, or `animalTurn`.
+is now colonist or `animalTurn`.
+
+**Aliens.** `newAlienSpeciesTable` turns each rolled `AlienSpecies` into a
+`Species`: the Alien kind's identity and HP, the rolled species' pace, and a
+ladder by temperament:
+
+```go
+Hostile:  {dormant{}, hunt{find: nearestReachablePrey, catch: strike, rest: BiteRest}, wander{}}
+Cautious: {dormant{}, hunt{find: colonistWithin(radius), catch: strike, rest: BiteRest},
+           grazeScum{}, wander{}}
+Friendly: {dormant{}, grazeScum{}, wander{}}
+```
+
+`World.alienKinds` holds them, `speciesOf` routes an alien there by
+`Entity.Species` (its roster index, as before), and like `World.species` it
+is derived and not saved: `newWorld` and `afterLoad` rebuild it from the
+roster. Values the roster holds and combat reads when it happens (damage,
+attack modes, a graze's bite rest) are still read from the roster then;
+only pace and the ladder are fixed into the species. Anything that edits the
+roster after the world is built must call `buildAlienSpecies` (the tests
+that force a temperament do, through `setAlienTemperament`).
 
 ### Components: optional data, attached when needed
 
@@ -249,11 +279,10 @@ runtime creation simple:
 - **Ship arrivals** (a colonist's cat or chicken) spawn the species and attach
   a `PetBond` to the owner.
 - **Alien species are generated, not declared.** Each `AlienSpecies` the
-  roster rolls produces a `Species` whose ladder its temperament picks:
-  Hostile `[hunt{prey: colonist|rat|alien-not-mine, scope: room}, wander]`,
-  Friendly `[forage{scum}, wander]`, Cautious `[react{radius}, forage{scum},
-  wander]`. This is why a species must be a Go value and not only a file:
-  the most varied creatures in the game are made by a generator at worldgen.
+  roster rolls produces a `Species` whose ladder its temperament picks (see
+  **Aliens** above; built in phase 4). This is why a species must be a Go
+  value and not only a file: the most varied creatures in the game are made
+  by a generator at worldgen.
 - **Individual drift** (a mutated limb) stays on the entity. A species is the
   default; the entity is the truth.
 
@@ -349,10 +378,12 @@ the ladder is a refactor of the existing ladders, not a redesign of them.
    wire its trough, and the frame's per-kind counters are the wire format's.
    Save files from before phase 3 no longer load (the layout fingerprint
    changed with `Entity`'s fields), as with any field change.
-4. **Aliens.** Give `Entity.Species` the meaning "index into `World.species`"
-   for every animal, generate one `Species` per rolled `AlienSpecies`, and
-   move `alienTurn` onto the ladder (strike, graze, the Cautious reaction,
-   dormancy as a pre-step).
+4. **Aliens.** *Done.* One `Species` per rolled `AlienSpecies`
+   (`World.alienKinds`), `alienTurn` replaced by temperament ladders run
+   through `animalTurn`, dormancy as the first rung. `Entity.Species` keeps
+   its meaning (an index into the roster) rather than becoming an index
+   into one combined table; `speciesOf` does the routing, which left
+   `alienSpeciesFor` and everything reading the roster untouched.
 4b. **Alien lifecycles.** Roll lifecycle lines and the new anatomy features
    with the roster (on their own stream), generate a `Species` per stage and
    caste, add the `*Lifecycle` component and aging, and teach the lore tab
@@ -388,7 +419,7 @@ small. In this model they are simply a species whose one behavior is
   `save:"-"` and `newWorld` rebuilds it from the loaded Config (see
   [save-load.md](./save-load.md)). That also keeps it out of the save layout
   fingerprint, so files from before phase 1 still load.
-- **How phases 1–3 were checked.** The lockstep test runs two worlds in one
+- **How phases 1–4 were checked.** The lockstep test runs two worlds in one
   process, so it cannot see a refactor that changes behavior the same way in
   both. Instead, a throwaway test hashed the full `worldFingerprint` (plus each
   animal's cooldown, quarry, food drive, pregnancy and keeper) every tick
@@ -403,7 +434,11 @@ small. In this model they are simply a species whose one behavior is
   `HEAD`, components on the branch). A first mismatch turned out to be the
   helper, not the sim: it printed `Entity.trough` for hens, which the old
   layout set and the new one leaves in `PetBond`. Compare like with like
-  before believing a diff.
+  before believing a diff. Phase 4 added alien-heavy runs (five species,
+  60% nests), and, because no seed tried rolled a Friendly species, runs that
+  force temperaments onto the roster through a per-version helper; the
+  check was trusted once moving the Cautious `grazeScum` rung above its
+  `hunt` changed the hashes.
 
 - **No modeling language.** We considered YAML growth, CUE, TypeScript as a
   definition language, and embedded scripting (Starlark, Lua). The

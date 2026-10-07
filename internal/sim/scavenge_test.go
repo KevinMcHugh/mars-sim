@@ -111,7 +111,7 @@ func TestRatsLiveOnScumWithoutTheSafetyNet(t *testing.T) {
 // hungryAlien puts an alien of the given temperament at p with its hunger just
 // past seeking.
 func hungryAlien(w *World, p Point, temp AlienTemperament) *Entity {
-	w.alienSpecies[0].Temperament = temp
+	setAlienTemperament(w, 0, temp)
 	a := w.spawn(Alien, p)
 	w.setDrive(a, DriveFood, w.cfg.Drives[DriveFood].SeekAt+10)
 	return a
@@ -136,7 +136,7 @@ func TestPeacefulAliensGrazeScum(t *testing.T) {
 
 			a := hungryAlien(w, Point{8, 10}, temp)
 			for i := 0; i < 100 && w.scumAt(patch) == w.cfg.ScumMax; i++ {
-				w.alienTurn(a)
+				w.animalTurn(a)
 			}
 			if w.scumAt(patch) == w.cfg.ScumMax {
 				t.Fatal("the hungry alien never grazed the scum")
@@ -151,7 +151,7 @@ func TestPeacefulAliensGrazeScum(t *testing.T) {
 			left := w.scumAt(patch)
 			for i := 0; i < 5; i++ {
 				a.Cooldown = 0
-				w.alienTurn(a)
+				w.animalTurn(a)
 			}
 			if w.scumAt(patch) != left {
 				t.Fatal("a sated alien kept grazing")
@@ -169,7 +169,7 @@ func TestHostileAliensDoNotGraze(t *testing.T) {
 	w.refreshScumExposure(patch)
 	a := hungryAlien(w, Point{8, 10}, TemperamentHostile)
 	for i := 0; i < 50; i++ {
-		w.alienTurn(a)
+		w.animalTurn(a)
 	}
 	if w.scumAt(patch) != w.cfg.ScumMax {
 		t.Fatal("a hostile alien grazed scum")
@@ -186,7 +186,7 @@ func TestCautiousAlienReactsBeforeGrazing(t *testing.T) {
 	w.refreshScumExposure(patch)
 	a := hungryAlien(w, Point{8, 10}, TemperamentCautious)
 	c := w.spawn(Colonist, Point{8, 11})
-	w.alienTurn(a)
+	w.animalTurn(a)
 	if a.Quarry != c.ID || w.scumAt(patch) != w.cfg.ScumMax {
 		t.Fatalf("quarry %d (want %d), scum %d: the alien grazed instead of reacting", a.Quarry, c.ID, w.scumAt(patch))
 	}

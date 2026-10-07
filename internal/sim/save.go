@@ -286,6 +286,7 @@ func (w *World) afterLoad() {
 	if w.gen != nil && !w.cfg.FogOfWar {
 		w.preview = newChunkPreview(w.cfg)
 	}
+	w.buildAlienSpecies() // from the loaded roster
 }
 
 // SaveBytes is Save into memory, for hosts (the browser) that hand the file
