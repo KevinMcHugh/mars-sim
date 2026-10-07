@@ -80,7 +80,33 @@ and some none. Each feature has degrees: 1 to 12 horns ("a single nub of a
 horn" … "a crown of 12 horns"), 2 to 14 antler tines, quills from "a few" to
 "a coat", a shell from "a patch" to "a full carapace", claws from "blunt
 nubs" to "scythe-like", a stinger or a barbed one, and a tail ending in a
-club, a spiked club or a stinger. They are description only for now.
+club, a spiked club or a stinger. Most of them fight (below); spines do
+not, yet.
+
+### Features that fight
+
+`alien_weapons.go` turns the body into combat, always reading the alien's
+**current form** (`anatomyOf`): a young form's lesser features, a queen's
+pushed ones. A species grows into its weapons.
+
+| Feature | In a fight |
+| --- | --- |
+| horns or antlers | grant **gore**: +8% damage per horn and +5% per antler tine, at most double |
+| a stinger, or a tail ending in one | grant **sting**: half damage (three quarters if barbed), but always to the torso, a vital part |
+| claws | the claw mode rakes 25% harder per grade |
+| a clubbed tail | the tail mode hits 50% harder (75% for a spiked club) |
+| a shell | every hit on it, gunshot or strike, is blunted 10% / 20% / 30% (patch, plates, carapace); a hit that does damage still does at least 1 |
+
+Gore and sting are **granted, not rolled**: every species with horns gores,
+every species with a stinger stings (`featureAttacks`, applied in the anatomy
+pass). They live in their own list, `featureAttackModes`, after the rolled
+`attackModes`, because `rollAttackModes` walks `attackModes` drawing from the
+lore stream and appending to it would have re-rolled every later species'
+attacks. At the moment of a blow, `attacksNow` drops a feature mode the body
+cannot use yet (a hornless grub of a horned species bites). A body without
+any feature fights exactly as before: same modes, same damage, same draws.
+Descriptions say "goring with their horns" and "stinging"; narration says
+"gores" and "stings".
 
 ### An individual's life
 
@@ -197,12 +223,27 @@ queens lay eggs.", "Adults bear young."
   cleared, though the colony ended with 7 of its 20 (seed 5: the brood grew to 6 before colonists cleared it). The
   harsher numbers are a config change away.
 
+- **Features were cut back after a balance run.** The first numbers (a
+  gore up to 2.5x, a sting at 75% / 100% to the torso, a shell blocking
+  20% / 35% / 50%) wiped out three of sixteen 20-colonist colonies at the
+  shipped alien settings over 20,000 ticks, against one before. Two of
+  the three were a full carapace on a breeding species: at half damage
+  from every pistol shot a brood was all but impossible to clear. With the
+  numbers in the table, forty seeds lost four colonies against six before,
+  and ended with 641 colonists against 625: no harsher overall. Single
+  seeds flip either way (the wiped seed 8 was wiped again with stings
+  rolling their hit like any blow), because any change to which modes a
+  species rolls reshuffles every later draw; judge balance across many
+  seeds, not one.
+
 ## Extending it
 
-- **Combat from features.** Horns, stingers and tail clubs could add
-  `AttackMode`s (a gore, a sting) through `canUse`. Append new modes at the
-  end of `attackModes` so the lore stream's draws do not shift (see
-  [lore.md](./lore.md#extending-it)).
+- **Spines that fight back.** Quills are the one feature with no combat
+  effect yet. A natural one: an attacker striking a quilled alien takes
+  damage back (only another alien strikes one in melee today).
+- **Venom.** A sting is a torso blow today; lingering damage would need a
+  status component on the victim and a death path for it outside the turn
+  that dealt it.
 - **Breeding for single-form species.** They do not breed; giving them a
   laying form would need a first form to lay (a hatchling the size of the
   adult reads wrong), or a separate rule.

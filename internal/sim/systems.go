@@ -1970,21 +1970,23 @@ func (w *World) alienGraze(e *Entity, sp AlienSpecies) bool {
 // sighting radius) remembers watching it happen. A fatal strike leaves gore
 // behind; the prey is eaten, so there is no body.
 func (w *World) strike(alien, prey *Entity) {
-	sp := w.alienSpeciesFor(alien)
-	modes := sp.Attacks()
+	modes := w.attacksNow(alien)
 	mode := modes[0]
 	if len(modes) > 1 {
 		mode = modes[w.rng.IntN(len(modes))]
 	}
 	var part BodyPart
-	dmg := w.alienDamage(alien)
-	if mode == AttackStrangle && prey.hasPart(Head) {
+	dmg := w.modeDamage(alien, mode, w.alienDamage(alien))
+	switch {
+	case mode == AttackStrangle && prey.hasPart(Head):
 		part = Head
 		dmg = (dmg + 1) / 2 // a zero baseline stays zero (see speciesDamage)
-	} else {
+	case mode == AttackSting && prey.hasPart(Torso):
+		part = Torso // a stinger finds the body
+	default:
 		part = w.rollHit(prey)
 	}
-	fatal := applyDamage(prey, part, dmg)
+	fatal := applyDamage(prey, part, w.armored(prey, dmg))
 	noun := w.alienNounFor(alien)
 	name := w.preyName(prey)
 	verb := strikeVerbs[mode]
@@ -2017,6 +2019,8 @@ var strikeVerbs = [...]strikeVerb{
 	AttackClaw:     {"claw", "claw", "claws", "clawed"},
 	AttackTail:     {"lash", "batter", "batters", "battered"},
 	AttackStrangle: {"throttle", "strangle", "strangles", "strangled"},
+	AttackGore:     {"gore", "gore", "gores", "gored"},
+	AttackSting:    {"sting", "sting", "stings", "stung"},
 }
 
 // strikeTargetText is what the victim of a non-fatal strike remembers.
@@ -2028,6 +2032,10 @@ func strikeTargetText(mode AttackMode, part BodyPart, noun string) string {
 		return fmt.Sprintf("Lashed across the %s by %s's tail!", part, noun)
 	case AttackStrangle:
 		return fmt.Sprintf("Half-strangled by %s!", noun)
+	case AttackGore:
+		return fmt.Sprintf("Gored in the %s by %s!", part, noun)
+	case AttackSting:
+		return fmt.Sprintf("Stung by %s!", noun)
 	default:
 		return fmt.Sprintf("Bitten in the %s by %s!", part, noun)
 	}

@@ -107,7 +107,11 @@ zero) *and* from the entity's aggregate `HP` (also floored at zero, and still
 what starvation drains — see [drives.md](./drives.md)), then returns whether
 the hit was fatal by `Entity.Alive()`'s rule. Every damage source funnels
 through it: `strike` and `shoot` both call `rollHit` then `applyDamage`
-(except a strangling `strike`, which aims for the head without a roll).
+(except a strangling `strike`, which aims for the head without a roll, and a
+sting, which always lands on the torso). An alien's shell blunts what reaches
+`applyDamage` from either (`armored`), and its horns, claws and tail club
+scale its own blows (`modeDamage`); see
+[alien-lifecycles.md](./alien-lifecycles.md#features-that-fight).
 
 ### Weapons
 

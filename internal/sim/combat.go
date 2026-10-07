@@ -115,7 +115,7 @@ func (w *World) fightAlien(e, alien *Entity, weapon ItemKind) {
 // biting). Nearby colonists remember watching the fight.
 func (w *World) shoot(colonist, alien *Entity, weapon ItemKind, spec weaponSpec) {
 	part := w.rollHit(alien)
-	fatal := applyDamage(alien, part, spec.damage)
+	fatal := applyDamage(alien, part, w.armored(alien, spec.damage))
 	noun := w.alienNounFor(alien)
 	gun := w.weaponPhrase(weapon) // "a MarsCorp M-117 shotgun"
 
