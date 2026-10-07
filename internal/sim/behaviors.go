@@ -17,8 +17,8 @@ type behavior interface {
 	act(w *World, e *Entity) bool
 }
 
-// animalTurn runs one tick of a non-colonist, non-alien creature: the steps
-// every species shares (starving, giving birth, pacing), then its ladder.
+// animalTurn runs one tick of any creature but a colonist: the steps every
+// species shares (starving, giving birth, pacing), then its ladder.
 func (w *World) animalTurn(e *Entity) {
 	sp := w.speciesOf(e)
 	if sp.Starves {
@@ -37,6 +37,12 @@ func (w *World) animalTurn(e *Entity) {
 	if b := e.breeding; b != nil && b.pregnant && w.tick >= b.dueTick {
 		w.giveBirth(e)
 	}
+	// An alien whose time in a stage is up grows into the next, and acts
+	// as that from now on.
+	if l := e.life; l != nil && l.growAt > 0 && w.tick >= l.growAt {
+		w.growUp(e)
+		sp = w.speciesOf(e)
+	}
 
 	if sp.Paced {
 		if e.Cooldown > 0 {
@@ -54,16 +60,38 @@ func (w *World) animalTurn(e *Entity) {
 	}
 }
 
-// hunt chases the nearest living prey anywhere on the map and pounces when
-// adjacent (a cat after rats). It declines, clearing the quarry, when there is
-// no prey at all.
+// hunt chases the prey find picks and catches it when adjacent: a cat
+// pouncing on the nearest rat, an alien striking what it hunts. It declines,
+// clearing the quarry, when find has nothing.
 type hunt struct {
-	prey Kind
-	rest int // ticks of Cooldown after a catch
+	find  preyFinder
+	catch func(w *World, hunter, prey *Entity)
+	rest  int // ticks of Cooldown after a catch
+}
+
+// A preyFinder picks what a hunter goes after, nearest first with ties toward
+// the lower ID, so the choice never depends on map order.
+type preyFinder func(w *World, e *Entity) (*Entity, bool)
+
+// preyAnywhere finds the nearest living creature of kind anywhere on the map
+// (a cat after rats).
+func preyAnywhere(kind Kind) preyFinder {
+	return func(w *World, e *Entity) (*Entity, bool) { return w.nearestOfKindAnywhere(e.Pos, kind) }
+}
+
+// colonistWithin finds the nearest colonist within radius in the hunter's own
+// room: a Cautious alien reacts to one that comes close, but does not go
+// looking beyond its radius.
+func colonistWithin(radius int) preyFinder {
+	return func(w *World, e *Entity) (*Entity, bool) {
+		return w.nearestMatch(e.Pos, radius, func(c *Entity) bool {
+			return c.Kind == Colonist && w.sameRoom(e.Pos, c.Pos)
+		})
+	}
 }
 
 func (b hunt) act(w *World, e *Entity) bool {
-	prey, ok := w.nearestOfKindAnywhere(e.Pos, b.prey)
+	prey, ok := b.find(w, e)
 	if !ok {
 		e.Quarry = 0
 		return false
@@ -71,7 +99,7 @@ func (b hunt) act(w *World, e *Entity) bool {
 	e.Quarry = prey.ID
 
 	if e.Pos.Adjacent(prey.Pos) {
-		w.pounce(e, prey)
+		b.catch(w, e, prey)
 		e.Cooldown = b.rest
 		return true
 	}
@@ -183,6 +211,35 @@ func (b stayNearTrough) act(w *World, e *Entity) bool {
 		return false
 	}
 	e.State = Moving
+	return true
+}
+
+// dormant keeps an alien in a cave nobody has broken into to itself: it
+// shuffles about now and then, unseen (dormantTurn, docs/caverns.md).
+type dormant struct{}
+
+func (dormant) act(w *World, e *Entity) bool {
+	if !w.dormant(e) {
+		return false
+	}
+	w.dormantTurn(e)
+	return true
+}
+
+// grazeScum feeds a hungry peaceful alien on cave scum (alienGraze), which
+// sets its own Cooldown: a bite's rest after eating, a step's while walking.
+type grazeScum struct{}
+
+func (grazeScum) act(w *World, e *Entity) bool {
+	e.Quarry = 0
+	return w.alienGraze(e, w.alienSpeciesFor(e))
+}
+
+// inert is an egg or cocoon's whole ladder: it lies where it is.
+type inert struct{}
+
+func (inert) act(w *World, e *Entity) bool {
+	e.State, e.Quarry = Idle, 0
 	return true
 }
 

@@ -30,8 +30,7 @@ type Species struct {
 	// Config.Drives in newEntity, not from here.
 	HungerRate int
 
-	// The rest drives animalTurn (cats, rats, chickens); colonists and aliens
-	// still have turns of their own.
+	// The rest drives animalTurn (everyone but colonists).
 	//
 	// Starves: a full food drive kills it, leaving a Corpse.
 	Starves bool
@@ -82,7 +81,7 @@ func newSpeciesTable(cfg Config) [numKinds]Species {
 	cat.HP = cfg.CatHP
 	cat.Paced, cat.Slowness = true, cfg.CatSlowness
 	cat.ladder = []behavior{
-		hunt{prey: Rat, rest: cfg.CatPounceRest},
+		hunt{find: preyAnywhere(Rat), catch: (*World).pounce, rest: cfg.CatPounceRest},
 		wander{},
 	}
 
@@ -114,5 +113,96 @@ func newSpeciesTable(cfg Config) [numKinds]Species {
 	return t
 }
 
-// speciesOf is the species an entity belongs to.
-func (w *World) speciesOf(e *Entity) *Species { return &w.species[e.Kind] }
+// newAlienSpeciesTable builds the species for each rolled AlienSpecies, one
+// per form of its life (a single-form species has one): the Alien kind's
+// identity and stats, the rolled species' pace, and a ladder.
+//
+// The adult's ladder is its temperament's. Every mobile ladder opens with
+// dormancy (an alien in a cave nobody has dug into only shuffles about; see
+// docs/caverns.md):
+//
+//	Hostile:  hunt the nearest prey in its room (colonist, rat, other species)
+//	Cautious: strike a colonist that comes within alien-cautious-radius, else graze
+//	Friendly: graze, never hunt
+//
+// The young do not hunt: a mobile young form grazes whatever its species'
+// temperament, and an egg or cocoon (an inert form) only lies there.
+//
+// Damage, attack modes, and bite rest after a graze are read from the
+// roster when they are used (strike, alienGraze), so only pace and the
+// ladder are fixed here.
+func newAlienSpeciesTable(base Species, roster []AlienSpecies, cfg Config) [][]Species {
+	table := make([][]Species, len(roster))
+	for i, a := range roster {
+		sp := base
+		sp.Paced, sp.Slowness = true, a.Slowness
+		adult := sp
+		adult.ladder = temperamentLadder(a, cfg)
+		if a.FormCount == 0 {
+			table[i] = []Species{adult}
+			continue
+		}
+		forms := make([]Species, a.FormCount)
+		last := a.stageCount() - 1
+		for f, form := range a.LifeForms() {
+			switch {
+			case form.Inert:
+				forms[f] = sp
+				forms[f].ladder = []behavior{inert{}}
+			case form.Stage < last:
+				forms[f] = sp
+				forms[f].ladder = []behavior{dormant{}, grazeScum{}, wander{}}
+			default:
+				forms[f] = adult
+			}
+		}
+		table[i] = forms
+	}
+	return table
+}
+
+// temperamentLadder is an adult alien's ladder, by its species' temperament.
+func temperamentLadder(a AlienSpecies, cfg Config) []behavior {
+	switch a.Temperament {
+	case TemperamentHostile:
+		return []behavior{
+			dormant{},
+			hunt{find: (*World).nearestReachablePrey, catch: (*World).strike, rest: a.BiteRest},
+			wander{},
+		}
+	case TemperamentCautious:
+		return []behavior{
+			dormant{},
+			hunt{find: colonistWithin(cfg.AlienCautiousRadius), catch: (*World).strike, rest: a.BiteRest},
+			grazeScum{},
+			wander{},
+		}
+	default: // Friendly
+		return []behavior{dormant{}, grazeScum{}, wander{}}
+	}
+}
+
+// buildAlienSpecies derives World.alienKinds from the rolled roster. newWorld
+// and afterLoad call it; so must anything that edits the roster (tests do).
+func (w *World) buildAlienSpecies() {
+	w.alienKinds = newAlienSpeciesTable(w.species[Alien], w.alienSpecies, w.cfg)
+}
+
+// speciesOf is the species an entity belongs to: its kind's, or for an alien
+// its rolled species' (Entity.Species indexes the roster, falling back to
+// the first like alienSpeciesFor does) in its current form of life.
+func (w *World) speciesOf(e *Entity) *Species {
+	if e.Kind == Alien && len(w.alienKinds) > 0 {
+		idx := e.Species
+		if idx < 0 || idx >= len(w.alienKinds) {
+			idx = 0
+		}
+		forms := w.alienKinds[idx]
+		form := len(forms) - 1 // no stage of life: the adult (a single form's only entry)
+		if e.life != nil && e.life.form >= 0 && e.life.form < len(forms) {
+			form = e.life.form
+		}
+		return &forms[form]
+	}
+	return &w.species[e.Kind]
+}

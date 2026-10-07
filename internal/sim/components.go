@@ -29,6 +29,15 @@ type PetBond struct {
 	hasTrough bool
 }
 
+// LifeStage is an alien's place in its species' lifecycle (aliens whose
+// species has more than one form): which of AlienSpecies.Forms it is now,
+// and the tick it grows into the next stage (0 at the last). See
+// alien_lifecycle.go.
+type LifeStage struct {
+	form   int
+	growAt int
+}
+
 // keeperOf is the colonist a pet came down with, 0 for a stray or a non-pet.
 func (e *Entity) keeperOf() EntityID {
 	if e.pet == nil {

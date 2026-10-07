@@ -30,7 +30,7 @@ moment.
 - [`internal/sim/project.go`](../internal/sim/project.go) — `roomSiteClear` refusing undiscovered floor.
 - [`internal/sim/caverns.go`](../internal/sim/caverns.go) also holds the nests and dormancy: `trackCavernsForNests`, `rollNests`, `spawnNest`, `dormant`, and `dormantTurn`.
 - [`internal/sim/worldgen.go`](../internal/sim/worldgen.go) — `alienSpawnSite`, where every non-nest alien is placed.
-- [`internal/sim/systems.go`](../internal/sim/systems.go) — `alienTurn`'s dormant branch, and `nearestAlien` / `observeNearby` skipping dormant aliens.
+- [`internal/sim/behaviors.go`](../internal/sim/behaviors.go) — the `dormant` rung every alien ladder opens with; [`systems.go`](../internal/sim/systems.go) — `nearestAlien` / `observeNearby` skipping dormant aliens.
 - [`internal/sim/world.go`](../internal/sim/world.go) — `spawnAs`, `spawn` with the species already chosen; `revealAround` collecting found cavern centers for `rollNests`.
 - [`internal/sim/config.go`](../internal/sim/config.go) — `cavern-percent`, `cavern-min`, `cavern-max`, `cavern-passage-percent`, `cavern-nest-percent`, `cavern-nest-min`, `cavern-nest-max`.
 - [`internal/sim/caverns_test.go`](../internal/sim/caverns_test.go) — hidden at generation, the breach, passages, determinism, room labels under digging, nests spawning at the breach, nests leaving generation alone, and cave aliens staying dormant until found.

@@ -243,7 +243,7 @@ func entityTopic(s *sim.Snapshot, id sim.EntityID) EntityTopic {
 		}
 	}
 	if e.Kind == sim.Alien {
-		t.Species = e.AlienSpecies.RosterLabel()
+		t.Species = alienLabel(e)
 	}
 	if p := e.Profile; p != nil {
 		t.Colonist = colonistDetail(s, e, p)

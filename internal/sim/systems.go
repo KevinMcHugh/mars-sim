@@ -27,8 +27,6 @@ func (w *World) step() {
 			w.colonistTurn(e)
 			w.syncDriveActivity(e) // drives grow at the rate of what it is now doing
 			w.tallyActivity(e)     // the Activity tab's tally (read-only bookkeeping)
-		case Alien:
-			w.alienTurn(e)
 		default:
 			w.animalTurn(e)
 		}
@@ -1931,74 +1929,6 @@ func (w *World) bordersSolid(p Point) bool {
 
 // ---- Aliens ------------------------------------------------------------------
 
-// alienTurn dispatches on the alien's rolled species' Temperament
-// (AlienSpecies, see lore.go): Friendly never fights and only wanders;
-// Cautious reacts once a colonist comes within Config.AlienCautiousRadius but
-// does not chase one further off; Hostile hunts the nearest prey it can
-// reach anywhere on the map, unconditionally -- a colonist, a rat, or an
-// alien of another species (see nearestReachablePrey). Friendly and Cautious aliens eat cave scum instead of
-// colonists: when hungry and not reacting to anyone, they graze.
-func (w *World) alienTurn(e *Entity) {
-	if e.Cooldown > 0 {
-		e.Cooldown-- // still digesting or mid-stride between slow steps
-		return
-	}
-	sp := w.alienSpeciesFor(e)
-
-	if w.dormant(e) {
-		w.dormantTurn(e)
-		e.Cooldown = sp.Slowness - 1
-		return
-	}
-
-	if sp.Temperament == TemperamentFriendly {
-		e.Quarry = 0
-		if w.alienGraze(e, sp) {
-			return
-		}
-		e.State = Idle
-		w.wanderStep(e)
-		e.Cooldown = sp.Slowness - 1
-		return
-	}
-
-	var prey *Entity
-	var ok bool
-	// Aliens walk the floor like everyone else, so only a colonist in the
-	// same room is worth hunting: one behind a wall or across solid rock is
-	// out of reach.
-	if sp.Temperament == TemperamentHostile {
-		prey, ok = w.nearestReachablePrey(e)
-	} else { // Cautious: reacts, but does not go looking beyond its radius
-		prey, ok = w.nearestMatch(e.Pos, w.cfg.AlienCautiousRadius, func(c *Entity) bool {
-			return c.Kind == Colonist && w.sameRoom(e.Pos, c.Pos)
-		})
-	}
-	if !ok {
-		e.Quarry = 0
-		if sp.Temperament == TemperamentCautious && w.alienGraze(e, sp) {
-			return
-		}
-		e.State = Idle
-		w.wanderStep(e)
-		e.Cooldown = sp.Slowness - 1
-		return
-	}
-	e.Quarry = prey.ID
-
-	if e.Pos.Adjacent(prey.Pos) {
-		w.strike(e, prey)
-		e.Cooldown = sp.BiteRest
-		return
-	}
-
-	e.State = Hunting
-	if _, ok := w.travelTo(e, prey.Pos); !ok {
-		w.wanderStep(e) // wedged, or the route closed this tick
-	}
-	e.Cooldown = sp.Slowness - 1
-}
-
 // alienGraze feeds a hungry Friendly or Cautious alien on cave scum: it walks
 // to the nearest exposed patch within AlienGrazeRadius it can reach and eats a
 // unit, which sates it. It reports whether the alien spent its turn grazing;
@@ -2047,7 +1977,7 @@ func (w *World) strike(alien, prey *Entity) {
 		mode = modes[w.rng.IntN(len(modes))]
 	}
 	var part BodyPart
-	dmg := sp.BiteDamage
+	dmg := w.alienDamage(alien)
 	if mode == AttackStrangle && prey.hasPart(Head) {
 		part = Head
 		dmg = (dmg + 1) / 2 // a zero baseline stays zero (see speciesDamage)
@@ -2318,7 +2248,7 @@ func (w *World) nearestColonist(from Point, within int) (*Entity, bool) {
 // nearestAlien is the nearest alien the colony could know about: a dormant
 // alien (see World.dormant) is sealed in an undiscovered cave.
 func (w *World) nearestAlien(from Point, within int) (*Entity, bool) {
-	return w.nearestMatch(from, within, func(e *Entity) bool { return e.Kind == Alien && !w.dormant(e) })
+	return w.nearestMatch(from, within, func(e *Entity) bool { return e.Kind == Alien && !w.dormant(e) && !w.inert(e) })
 }
 
 func (w *World) nearestCat(from Point, within int) (*Entity, bool) {

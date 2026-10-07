@@ -306,14 +306,14 @@ func TestFriendlyAlienNeverInitiatesCombat(t *testing.T) {
 	cfg := testConfig()
 	cfg.StartColonists, cfg.StartAliens, cfg.StartCats, cfg.StartRats = 0, 0, 0, 0
 	w := newTestWorld(t, cfg)
-	w.alienSpecies[0].Temperament = TemperamentFriendly
+	setAlienTemperament(w, 0, TemperamentFriendly)
 
 	alien := w.spawn(Alien, Point{5, 5})
 	victim := w.spawn(Colonist, Point{6, 5}) // already adjacent
 	startHP := victim.HP
 
 	for i := 0; i < 50; i++ {
-		w.alienTurn(alien)
+		w.animalTurn(alien)
 		if alien.State == Hunting {
 			t.Fatalf("tick %d: friendly alien is Hunting, want it to never initiate", i)
 		}
@@ -330,14 +330,14 @@ func TestCautiousAlienOnlyReactsWithinRadius(t *testing.T) {
 	cfg.StartColonists, cfg.StartAliens, cfg.StartCats, cfg.StartRats = 0, 0, 0, 0
 	cfg.AlienCautiousRadius = 3
 	w := newTestWorld(t, cfg)
-	w.alienSpecies[0].Temperament = TemperamentCautious
+	setAlienTemperament(w, 0, TemperamentCautious)
 	carve(w, Point{2, 5}, Point{5 + cfg.AlienCautiousRadius + 5, 5}, Floor) // one room, so both are reachable
 	w.refreshSpatial()
 
 	alien := w.spawn(Alien, Point{5, 5})
 	far := w.spawn(Colonist, Point{5 + cfg.AlienCautiousRadius + 5, 5})
 
-	w.alienTurn(alien)
+	w.animalTurn(alien)
 	if alien.Quarry == far.ID {
 		t.Fatalf("cautious alien targeted a colonist %d tiles away, outside its radius %d",
 			alien.Pos.Chebyshev(far.Pos), cfg.AlienCautiousRadius)
@@ -345,7 +345,7 @@ func TestCautiousAlienOnlyReactsWithinRadius(t *testing.T) {
 
 	near := w.spawn(Colonist, Point{6, 5}) // adjacent, well within the radius
 	alien.Cooldown = 0                     // isolate this decision from the previous turn's pacing
-	w.alienTurn(alien)
+	w.animalTurn(alien)
 	if alien.Quarry != near.ID {
 		t.Fatalf("cautious alien did not react to a colonist adjacent to it")
 	}
@@ -358,7 +358,7 @@ func TestHostileAlienHuntsAcrossTheMap(t *testing.T) {
 	cfg := testConfig()
 	cfg.StartColonists, cfg.StartAliens, cfg.StartCats, cfg.StartRats = 0, 0, 0, 0
 	w := newTestWorld(t, cfg)
-	w.alienSpecies[0].Temperament = TemperamentHostile
+	setAlienTemperament(w, 0, TemperamentHostile)
 	carve(w, Point{1, 1}, Point{w.Width - 2, 1}, Floor)
 	carve(w, Point{w.Width - 2, 1}, Point{w.Width - 2, w.Height - 2}, Floor)
 	w.refreshSpatial()
@@ -367,7 +367,7 @@ func TestHostileAlienHuntsAcrossTheMap(t *testing.T) {
 	sealed := w.spawn(Colonist, Point{w.Width / 2, w.Height / 2}) // still the landing cave, closer
 	prey := w.spawn(Colonist, Point{w.Width - 2, w.Height - 2})
 
-	w.alienTurn(alien)
+	w.animalTurn(alien)
 	if alien.Quarry != prey.ID {
 		t.Fatalf("hostile alien targeted #%d, want the far colonist #%d in its room, not #%d behind rock",
 			alien.Quarry, prey.ID, sealed.ID)
@@ -375,7 +375,7 @@ func TestHostileAlienHuntsAcrossTheMap(t *testing.T) {
 	start := alien.Pos
 	for i := 0; i < 20; i++ {
 		alien.Cooldown = 0
-		w.alienTurn(alien)
+		w.animalTurn(alien)
 		if !w.Walkable(alien.Pos) {
 			t.Fatalf("alien left the floor for %v", alien.Pos)
 		}
@@ -450,7 +450,7 @@ func TestHostileAlienHuntsRatsAndOtherSpecies(t *testing.T) {
 	for _, preyKind := range []Kind{Rat, Alien} {
 		t.Run(preyKind.String(), func(t *testing.T) {
 			w := propertyWorld(t)
-			w.alienSpecies[0].Temperament = TemperamentHostile
+			setAlienTemperament(w, 0, TemperamentHostile)
 			other := w.alienSpecies[0]
 			other.Temperament = TemperamentFriendly // never fights back
 			w.alienSpecies = append(w.alienSpecies, other)
@@ -458,7 +458,7 @@ func TestHostileAlienHuntsRatsAndOtherSpecies(t *testing.T) {
 			hunter := w.spawnAs(Alien, Point{6, 10}, 0)
 			prey := w.spawnAs(preyKind, Point{16, 10}, 1)
 			for i := 0; i < 400 && w.entities[prey.ID] != nil; i++ {
-				w.alienTurn(hunter)
+				w.animalTurn(hunter)
 				if hunter.Quarry != 0 && hunter.Quarry != prey.ID {
 					t.Fatalf("hunting %d, want the %s %d", hunter.Quarry, preyKind, prey.ID)
 				}
@@ -473,12 +473,12 @@ func TestHostileAlienHuntsRatsAndOtherSpecies(t *testing.T) {
 // A Hostile alien never hunts its own species, so a nest does not eat itself.
 func TestHostileAlienSparesItsOwnSpecies(t *testing.T) {
 	w := propertyWorld(t)
-	w.alienSpecies[0].Temperament = TemperamentHostile
+	setAlienTemperament(w, 0, TemperamentHostile)
 	a := w.spawnAs(Alien, Point{6, 10}, 0)
 	b := w.spawnAs(Alien, Point{7, 10}, 0)
 	for i := 0; i < 50; i++ {
-		w.alienTurn(a)
-		w.alienTurn(b)
+		w.animalTurn(a)
+		w.animalTurn(b)
 	}
 	if a.Quarry != 0 || b.Quarry != 0 || a.HP != a.MaxHP || b.HP != b.MaxHP {
 		t.Fatalf("same-species aliens fought: quarries %d/%d, HP %d/%d", a.Quarry, b.Quarry, a.HP, b.HP)

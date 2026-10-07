@@ -1,6 +1,9 @@
 package sim
 
-import "testing"
+import (
+	"fmt"
+	"testing"
+)
 
 // Every Kind has a species entry that knows its own Kind and name, so a kind
 // added before numKinds cannot be left out of the table.
@@ -24,18 +27,26 @@ func TestSpeciesTableCoversEveryKind(t *testing.T) {
 // acts: the last rung must always act, or a creature could stand frozen with
 // a stale State. wander is that rung today.
 func TestAnimalLaddersEndInARungThatAlwaysActs(t *testing.T) {
-	table := newSpeciesTable(DefaultConfig())
+	cfg := DefaultConfig()
+	table := newSpeciesTable(cfg)
+	ladders := map[string][]behavior{}
 	for k := Kind(0); k < numKinds; k++ {
 		if k == Colonist || k == Alien {
-			continue // their own turns, not animalTurn (yet)
+			continue // colonists have their own turn; aliens use a rolled species each
 		}
-		ladder := table[k].ladder
+		ladders[k.String()] = table[k].ladder
+	}
+	for _, temp := range []AlienTemperament{TemperamentFriendly, TemperamentCautious, TemperamentHostile} {
+		roster := []AlienSpecies{{Temperament: temp, Slowness: 2, BiteRest: 3}}
+		ladders[temp.String()+" alien"] = newAlienSpeciesTable(table[Alien], roster, cfg)[0][0].ladder
+	}
+	for k, ladder := range ladders {
 		if len(ladder) == 0 {
-			t.Errorf("%v has no ladder, but step runs it through animalTurn", k)
+			t.Errorf("%s has no ladder, but step runs it through animalTurn", k)
 			continue
 		}
 		if _, ok := ladder[len(ladder)-1].(wander); !ok {
-			t.Errorf("%v's ladder ends in %T, not a rung that always acts", k, ladder[len(ladder)-1])
+			t.Errorf("%s's ladder ends in %T, not a rung that always acts", k, ladder[len(ladder)-1])
 		}
 	}
 }
@@ -124,5 +135,55 @@ func TestLandedPetsCarryAPetBond(t *testing.T) {
 	p, _ := w.randomFloor()
 	if stray := w.spawn(Chicken, p); stray.pet != nil {
 		t.Fatal("a spawned stray chicken has a PetBond")
+	}
+}
+
+// setAlienTemperament changes a rolled species' temperament and rebuilds the
+// derived species table, whose ladders the temperament picks.
+func setAlienTemperament(w *World, i int, t AlienTemperament) {
+	w.alienSpecies[i].Temperament = t
+	w.buildAlienSpecies()
+}
+
+// Each rolled alien species gets a ladder its temperament picks: dormancy
+// first, then a Hostile hunts, a Cautious hunts (near colonists only) then
+// grazes, and a Friendly only grazes. A Friendly ladder with a hunt in it
+// would make peaceful species bite.
+func TestAlienLaddersFollowTemperament(t *testing.T) {
+	cfg := DefaultConfig()
+	base := newSpeciesTable(cfg)[Alien]
+	for temp, want := range map[AlienTemperament][]string{
+		TemperamentHostile:  {"sim.dormant", "sim.hunt", "sim.wander"},
+		TemperamentCautious: {"sim.dormant", "sim.hunt", "sim.grazeScum", "sim.wander"},
+		TemperamentFriendly: {"sim.dormant", "sim.grazeScum", "sim.wander"},
+	} {
+		sp := newAlienSpeciesTable(base, []AlienSpecies{{Temperament: temp, Slowness: 4}}, cfg)[0][0]
+		var got []string
+		for _, b := range sp.ladder {
+			got = append(got, fmt.Sprintf("%T", b))
+		}
+		if fmt.Sprint(got) != fmt.Sprint(want) {
+			t.Errorf("%v ladder = %v, want %v", temp, got, want)
+		}
+		if !sp.Paced || sp.Slowness != 4 || sp.Kind != Alien || sp.HP != cfg.AlienHP {
+			t.Errorf("%v species = paced %v slowness %d kind %v hp %d", temp, sp.Paced, sp.Slowness, sp.Kind, sp.HP)
+		}
+	}
+}
+
+// An alien acts by its own rolled species, not the first one's.
+func TestSpeciesOfAnAlienIsItsRolledSpecies(t *testing.T) {
+	cfg := testConfig()
+	cfg.AlienSpeciesCount = 3
+	w := newTestWorld(t, cfg)
+	for i := range w.alienSpecies {
+		w.alienSpecies[i].Slowness = 10 + i
+	}
+	w.buildAlienSpecies()
+	for i := range w.alienSpecies {
+		e := &Entity{Kind: Alien, Species: i}
+		if got := w.speciesOf(e).Slowness; got != 10+i {
+			t.Errorf("alien of species %d paces at %d, want %d", i, got, 10+i)
+		}
 	}
 }
