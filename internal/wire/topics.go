@@ -248,6 +248,18 @@ type LoreSpecies struct {
 	BiteRest       int    `json:"biteRest"` // ticks between bites
 	Slowness       int    `json:"slowness"` // ticks per step
 	Description    string `json:"description"`
+
+	// Etymology takes ScientificName apart into its word parts and their
+	// meanings (sim.ScientificEtymology): pseudo- "false", -ursus "bear",
+	// ares "Mars". Empty when it can't.
+	Etymology []LoreTaxonGloss `json:"etymology"`
+}
+
+// LoreTaxonGloss is one word part of a scientific name.
+type LoreTaxonGloss struct {
+	Part    string `json:"part"` // "prefix", "root" or "epithet"
+	Form    string `json:"form"` // "pseudo"; an epithet as the name spells it
+	Meaning string `json:"meaning"`
 }
 
 func loreTopic(s *sim.Snapshot) any {
@@ -298,8 +310,18 @@ func loreTopic(s *sim.Snapshot) any {
 			BiteDamage:     sp.BiteDamage,
 			BiteRest:       sp.BiteRest,
 			Slowness:       sp.Slowness,
+			Etymology:      loreEtymology(sp.ScientificName),
 			Description:    sp.Description(),
 		})
 	}
 	return t
+}
+
+func loreEtymology(name string) []LoreTaxonGloss {
+	parts := sim.ScientificEtymology(name)
+	out := make([]LoreTaxonGloss, 0, len(parts))
+	for _, g := range parts {
+		out = append(out, LoreTaxonGloss{Part: g.Part, Form: g.Form, Meaning: g.Meaning})
+	}
+	return out
 }

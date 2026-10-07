@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math/rand/v2"
 	"strings"
+	"sync"
 
 	"gopkg.in/yaml.v3"
 )
@@ -35,6 +36,9 @@ const alienTaxonomySeed = 0x6C62272E07BB0142
 // it. Mimic on a root marks an Earth animal the species resembles; on a
 // prefix it means the prefix ("pseudo") only goes in front of a mimic root.
 //
+// Meaning is the English gloss ScientificEtymology shows for the part:
+// "red" for erythro, "bear" for ursus, "of Mars" for martis.
+//
 // Gender is a root's grammatical gender, "m", "f" or "n": a genus takes the
 // gender of the noun it ends in, so Pithecus is masculine, Medusa feminine
 // and Zoon neuter whatever prefix comes first. An epithet that is a Latin
@@ -43,6 +47,7 @@ const alienTaxonomySeed = 0x6C62272E07BB0142
 // invariable epithet (ferox, martis) leaves both empty.
 type taxonEntry struct {
 	Form     string        `yaml:"form"`
+	Meaning  string        `yaml:"meaning"`
 	Mimic    bool          `yaml:"mimic,omitempty"`
 	Gender   string        `yaml:"gender,omitempty"`
 	Feminine string        `yaml:"feminine,omitempty"`
@@ -87,7 +92,8 @@ func defaultTaxonomy() alienTaxonomy {
 // loadTaxonomy parses and checks an alien-taxonomy.yaml document. Every form
 // must be lowercase ASCII letters (they are glued together and capitalized
 // as-is), and each list needs at least one unconditional entry so that a
-// name can always be built, whatever the species rolled. Every root needs a
+// name can always be built, whatever the species rolled. Every entry needs a
+// meaning, so ScientificEtymology can gloss any name built. Every root needs a
 // gender, so an epithet that declines always knows which form to take, and
 // an epithet that declines gives both of its other forms.
 func loadTaxonomy(data []byte, name string) (alienTaxonomy, error) {
@@ -103,6 +109,9 @@ func loadTaxonomy(data []byte, name string) (alienTaxonomy, error) {
 		for i, e := range list.entries {
 			if !isLowerASCIIWord(e.Form) {
 				return tx, fmt.Errorf("%s: %s entry %d: form %q must be lowercase letters a-z", name, list.key, i, e.Form)
+			}
+			if strings.TrimSpace(e.Meaning) == "" {
+				return tx, fmt.Errorf("%s: %s %q needs a meaning", name, list.key, e.Form)
 			}
 			if e.When.isZero() && !e.Mimic {
 				unconditional = true
@@ -201,4 +210,79 @@ func isVowel(c byte) bool {
 		return true
 	}
 	return false
+}
+
+// TaxonGloss is one word part of a scientific name and what it means, as
+// ScientificEtymology recovers it.
+type TaxonGloss struct {
+	Part    string // "prefix", "root" or "epithet"
+	Form    string // the word part, unelided: "pseudo" in Pseudursus; an epithet as the name spells it, "hirsuta"
+	Meaning string // "false", "bear", "hairy"
+}
+
+var etymologyTaxonomy = sync.OnceValue(defaultTaxonomy)
+
+// ScientificEtymology takes a binomial apart again into the word parts
+// scientificName built it from, so a frontend can explain it: Pseudursus
+// ares is pseudo- "false" + -ursus "bear", ares "Mars". It runs the naming
+// logic backwards against the embedded taxonomy rather than reading parts
+// stored on the species, so it needs no save state and explains names in
+// saves made before it existed. A name it cannot take apart (a hand-built
+// species, or a word part since removed from the file) gives nil; the
+// numbering on an exhausted roster ("Areozoon martis 2") is ignored.
+func ScientificEtymology(name string) []TaxonGloss {
+	return etymology(etymologyTaxonomy(), name)
+}
+
+func etymology(tx alienTaxonomy, name string) []TaxonGloss {
+	words := strings.Fields(name)
+	if len(words) < 2 {
+		return nil
+	}
+	genus, epithet := strings.ToLower(words[0]), words[1]
+
+	// The epithet is a single entry, in whichever gender's form it took.
+	var ep *taxonEntry
+	gender := "" // the gender its form pins down, "" for an invariable one
+	for i, e := range tx.Epithets {
+		switch epithet {
+		case e.Form:
+			if e.Feminine != "" {
+				gender = "m"
+			}
+		case e.Feminine:
+			gender = "f"
+		case e.Neuter:
+			gender = "n"
+		default:
+			continue
+		}
+		ep = &tx.Epithets[i]
+		break
+	}
+	if ep == nil {
+		return nil
+	}
+
+	// The genus is prefix + root with joinTaxa's elision undone. Try every
+	// root the genus ends in and every prefix that joins with it to spell
+	// the genus, under the same rules scientificName draws by: pseudo- only
+	// before a mimic root, and a root agreeing with the epithet's gender.
+	// File order decides between two readings, so the answer is stable.
+	for _, r := range tx.Roots {
+		if !strings.HasSuffix(genus, r.Form) || (gender != "" && r.Gender != gender) {
+			continue
+		}
+		for _, p := range tx.Prefixes {
+			if (p.Mimic && !r.Mimic) || joinTaxa(p.Form, r.Form) != genus {
+				continue
+			}
+			return []TaxonGloss{
+				{Part: "prefix", Form: p.Form, Meaning: p.Meaning},
+				{Part: "root", Form: r.Form, Meaning: r.Meaning},
+				{Part: "epithet", Form: epithet, Meaning: ep.Meaning},
+			}
+		}
+	}
+	return nil
 }

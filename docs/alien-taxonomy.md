@@ -10,16 +10,19 @@ ferox* or *Hemerocyclops placens*. It is built from Greek and Latin word
 parts that fit the species' build, so the name is a coded description of the
 animal, the way real names are: *Lepidoraptor* is a scaly hunter, *Hexapus*
 has six legs. It is flavor only. The lore tab shows it, in the TUI and the
-browser, in italics under the species' title.
+browser, in italics under the species' title. In the browser a (?) button
+beside it takes the name apart again: *Pseudursus ares* is *pseudo-* "false"
++ *-ursus* "bear", *ares* "Mars".
 
 ## Source
 
 - [`internal/sim/alien_taxonomy.go`](../internal/sim/alien_taxonomy.go):
   `alienTaxonomy`, `taxonEntry`, `loadTaxonomy`, `scientificName`,
-  `joinTaxa` (vowel elision), and the `alienTaxonomySeed` stream key.
+  `joinTaxa` (vowel elision), the `alienTaxonomySeed` stream key, and
+  `ScientificEtymology` (the name taken apart again, for the (?) gloss).
 - [`internal/sim/alien-taxonomy.yaml`](../internal/sim/alien-taxonomy.yaml):
-  the word parts (prefixes, roots, epithets), each with an optional `when`
-  condition. Embedded with `go:embed`.
+  the word parts (prefixes, roots, epithets), each with a `meaning` (its
+  English gloss) and an optional `when` condition. Embedded with `go:embed`.
 - [`internal/sim/lore.go`](../internal/sim/lore.go):
   `AlienSpecies.ScientificName`, filled in by `rollAlienSpeciesRoster`.
 - [`internal/sim/alien_taxonomy_test.go`](../internal/sim/alien_taxonomy_test.go):
@@ -27,8 +30,9 @@ browser, in italics under the species' title.
   respect their conditions; and naming that leaves the rest of the roster
   roll unchanged.
 - Display: `renderLoreDetail` in `internal/ui/tui/render_lore.go`,
-  `LoreSpecies.ScientificName` in `internal/wire/topics.go`, and
-  `web/src/ui/LorePanel.svelte`.
+  `LoreSpecies.ScientificName` and `LoreSpecies.Etymology` in
+  `internal/wire/topics.go`, and `web/src/ui/LorePanel.svelte` (the (?)
+  disclosure).
 
 ## How it works
 
@@ -71,10 +75,33 @@ and the Martian place genitives), so a name can always be built.
 `loadTaxonomy` refuses a file that lacks one, and it also refuses any form
 that isn't lowercase `a-z`.
 
+Every entry also carries a `meaning`, a short literal English gloss
+("red", "bear", "of Mars"), and `loadTaxonomy` refuses an entry without one,
+so any name that can be built can be explained.
+
 No two species in a roster share a binomial. On a collision
 `scientificName` draws again, up to 16 times. If every attempt collides,
 which only a huge roster could cause, it numbers the name ("Areozoon
 martis 2"), the same way `distinctAlienName` numbers a common name.
+
+### Explaining a name: running it backwards
+
+`ScientificEtymology(name)` undoes `scientificName`. The epithet is matched
+against every epithet's masculine, feminine and neuter forms, which also
+pins the genus's gender when it declines. The genus is then split by trying
+each root it ends in (of that gender) against each prefix that `joinTaxa`
+would glue to it to spell the genus exactly, which undoes the vowel elision
+for free: `pseudursus` ends in `ursus`, and `joinTaxa("pseudo", "ursus")`
+is `pseudursus`. The mimic rule is enforced the same way (no `pseudo-`
+before a non-mimic root). If two splits both work, the file's order picks,
+so the answer is stable. A trailing collision number ("Areozoon martis 2")
+is ignored. A name it can't take apart (a hand-built test species, a word
+part since removed) gives nil, and the web hides the (?).
+
+The wire topic carries the result as `LoreSpecies.Etymology`; the web lore
+tab shows it as a click/tap disclosure under the binomial, the parts with
+their meanings, plus a line spelling out the join (and which vowel was
+dropped). The TUI does not show it yet.
 
 ## Why it is this way
 
@@ -120,6 +147,18 @@ martis 2"), the same way `distinctAlienName` numbers a common name.
   When adding a root, look up its gender rather than guessing from the
   ending: *Medusa* is feminine, but *-cephalus* is masculine and
   *-phasma* neuter.
+- **The gloss parses the name rather than storing its parts.** Recording
+  the drawn prefix, root and epithet on `AlienSpecies` would have been
+  simpler to read back, but it is new state: every save would have to carry
+  it, and saves made before it existed would have no explanation. The
+  binomial is already saved, and the drawing rules are reversible, so
+  parsing costs nothing in the save and explains every old name too.
+  `TestScientificEtymologyRoundTrips` checks that every rolled name comes
+  apart into parts that rebuild it exactly. The meanings live in the YAML,
+  next to the forms, rather than in a frontend table, so adding a word part
+  can't leave it unexplained.
+- **A click/tap (?) rather than a hover tooltip,** so it works on phones,
+  with a hit area padded past the small visible circle.
 - **Data, not a Go switch,** for the same reasons as the colloquial name
   pool (see [lore.md](./lore.md)): adding a word part is a YAML edit, and
   the condition language is one contributors already know.
@@ -135,8 +174,8 @@ martis 2"), the same way `distinctAlienName` numbers a common name.
 
 ## Extending it
 
-- **More word parts:** add an entry to `alien-taxonomy.yaml` with whatever
-  `when` fits. A form is lowercase ASCII. An epithet should be invariable
+- **More word parts:** add an entry to `alien-taxonomy.yaml` with a
+  `meaning` and whatever `when` fits. A form is lowercase ASCII. An epithet should be invariable
   (see above). Run `go test ./internal/sim -run Taxonomy` afterwards.
 - **Eponyms and colony naming.** TODO.md wants colonists to name new species
   themselves. Scientific practice offers an obvious hook: an epithet

@@ -12,6 +12,8 @@
     eyes: number; limbs: number; arms: number; legs: number; tail: boolean; wings: boolean;
     skin: string; color: string; pattern: string;
     attacks: string; biteDamage: number; biteRest: number; slowness: number; description: string;
+    // etymology is the binomial taken apart into its word parts (docs/alien-taxonomy.md).
+    etymology?: { part: 'prefix' | 'root' | 'epithet'; form: string; meaning: string }[];
   }
   interface Lore {
     world: { width: number; height: number; fogOfWar: boolean; exploredTiles: number; chunksGenerated: number; chunks: number; seed: number };
@@ -25,6 +27,16 @@
 
   let selected = $state(0);
   const sp = $derived(lore?.species[Math.min(selected, lore.species.length - 1)]);
+
+  // The (?) beside the binomial: a click/tap disclosure rather than a hover
+  // tooltip, so it works on touch. It stays open while browsing species.
+  let showEtymology = $state(false);
+  const elided = $derived.by(() => {
+    const [p, r] = sp?.etymology ?? [];
+    return p && r && /[aeiou]$/.test(p.form) && /^[aeiou]/.test(r.form) ? p.form.slice(-1) : '';
+  });
+  const affix = (g: { part: string; form: string }) =>
+    g.part === 'prefix' ? `${g.form}-` : g.part === 'root' ? `-${g.form}` : g.form;
 
   const area = $derived(lore ? lore.world.width * lore.world.height : 0);
   const explored = $derived(lore && area > 0 ? Math.floor((lore.world.exploredTiles * 100) / area) : 0);
@@ -60,7 +72,31 @@
       </ul>
       {#if sp}
         <h3>{sp.label}</h3>
-        {#if sp.scientificName}<p class="binomial">{sp.scientificName}</p>{/if}
+        {#if sp.scientificName}
+          <p class="binomial">
+            {sp.scientificName}
+            {#if sp.etymology?.length}
+              <button
+                type="button" class="why" aria-expanded={showEtymology} aria-controls="lore-etymology"
+                title="What does the name mean?" aria-label="What does the name mean?"
+                onclick={() => (showEtymology = !showEtymology)}>?</button>
+            {/if}
+          </p>
+          {#if showEtymology && sp.etymology?.length}
+            <div class="etymology" id="lore-etymology">
+              <dl>
+                {#each sp.etymology as g (g.part)}
+                  <dt><i>{affix(g)}</i></dt><dd>{g.meaning}</dd>
+                {/each}
+              </dl>
+              <p class="muted">
+                <i>{sp.scientificName.split(' ')[0]}</i> is
+                <i>{sp.etymology[0].form}</i> + <i>{sp.etymology[1].form}</i>{#if elided}, dropping the
+                  “{elided}” before a vowel{/if}; <i>{sp.etymology[2].form}</i> is the species epithet.
+              </p>
+            </div>
+          {/if}
+        {/if}
         <dl>
           <dt>Height</dt><dd>{sp.heightMinCm}–{sp.heightMaxCm} cm</dd>
           <dt>Weight</dt><dd>{sp.weightMinKg}–{sp.weightMaxKg} kg</dd>
@@ -104,7 +140,19 @@
 <style>
   h3 { font-size: 15px; margin: 14px 0 8px; }
   h3:has(+ .binomial) { margin-bottom: 2px; }
-  .binomial { font-style: italic; color: var(--muted); margin: 0 0 8px; }
+  .binomial { font-style: italic; color: var(--muted); margin: 0 0 8px; display: flex; align-items: center; gap: 6px; }
+  /* A round (?) with a touch-sized hit area around a small glyph. */
+  .why {
+    font-style: normal; font-size: 11px; line-height: 1; width: 18px; height: 18px; padding: 0;
+    border-radius: 50%; border: 1px solid var(--line); background: transparent; color: var(--muted);
+    position: relative; cursor: pointer;
+  }
+  .why::after { content: ''; position: absolute; inset: -10px; }
+  .why[aria-expanded='true'] { color: var(--accent); border-color: var(--accent); }
+  .etymology { border-left: 2px solid var(--line); padding: 2px 0 2px 10px; margin: -2px 0 12px; }
+  .etymology dl { margin: 0 0 6px; }
+  .etymology dd { font-variant-numeric: normal; }
+  .etymology p { font-size: 12px; }
   h4 { font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin: 12px 0 4px; }
   dl { display: grid; grid-template-columns: max-content 1fr; gap: 3px 12px; margin: 0 0 16px; }
   dt { color: var(--muted); }

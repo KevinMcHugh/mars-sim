@@ -16,13 +16,14 @@ func TestEmbeddedTaxonomyLoads(t *testing.T) {
 
 func TestLoadTaxonomyRejectsBadFiles(t *testing.T) {
 	for name, doc := range map[string]string{
-		"uppercase form":       "prefixes: [{form: Areo}]\nroots: [{form: zoon, gender: n}]\nepithets: [{form: martis}]",
-		"no unconditional":     "prefixes: [{form: areo, when: {skin: scaly}}]\nroots: [{form: zoon, gender: n}]\nepithets: [{form: martis}]",
-		"only a mimic":         "prefixes: [{form: pseudo, mimic: true}]\nroots: [{form: zoon, gender: n}]\nepithets: [{form: martis}]",
-		"empty epithet list":   "prefixes: [{form: areo}]\nroots: [{form: zoon, gender: n}]",
-		"root with no gender":  "prefixes: [{form: areo}]\nroots: [{form: zoon}]\nepithets: [{form: martis}]",
-		"root with bad gender": "prefixes: [{form: areo}]\nroots: [{form: zoon, gender: x}]\nepithets: [{form: martis}]",
-		"half a declension":    "prefixes: [{form: areo}]\nroots: [{form: zoon, gender: n}]\nepithets: [{form: martis}, {form: hirsutus, feminine: hirsuta}]",
+		"uppercase form":       "prefixes: [{form: Areo, meaning: m}]\nroots: [{form: zoon, meaning: m, gender: n}]\nepithets: [{form: martis, meaning: m}]",
+		"no unconditional":     "prefixes: [{form: areo, meaning: m, when: {skin: scaly}}]\nroots: [{form: zoon, meaning: m, gender: n}]\nepithets: [{form: martis, meaning: m}]",
+		"only a mimic":         "prefixes: [{form: pseudo, meaning: m, mimic: true}]\nroots: [{form: zoon, meaning: m, gender: n}]\nepithets: [{form: martis, meaning: m}]",
+		"empty epithet list":   "prefixes: [{form: areo, meaning: m}]\nroots: [{form: zoon, meaning: m, gender: n}]",
+		"root with no gender":  "prefixes: [{form: areo, meaning: m}]\nroots: [{form: zoon, meaning: m}]\nepithets: [{form: martis, meaning: m}]",
+		"root with bad gender": "prefixes: [{form: areo, meaning: m}]\nroots: [{form: zoon, meaning: m, gender: x}]\nepithets: [{form: martis, meaning: m}]",
+		"no meaning":           "prefixes: [{form: areo}]\nroots: [{form: zoon, meaning: m, gender: n}]\nepithets: [{form: martis, meaning: m}]",
+		"half a declension":    "prefixes: [{form: areo, meaning: m}]\nroots: [{form: zoon, meaning: m, gender: n}]\nepithets: [{form: martis, meaning: m}, {form: hirsutus, meaning: m, feminine: hirsuta}]",
 	} {
 		if _, err := loadTaxonomy([]byte(doc), name); err == nil {
 			t.Errorf("%s: loadTaxonomy accepted it", name)
@@ -194,4 +195,60 @@ func isFeatureName(names []AlienNameEntry, singular string) bool {
 		}
 	}
 	return false
+}
+
+// ScientificEtymology runs the naming backwards: every name a roster rolls
+// comes apart into a prefix, root and epithet that rebuild it exactly, each
+// with a meaning.
+func TestScientificEtymologyRoundTrips(t *testing.T) {
+	cfg := DefaultConfig()
+	cfg.AlienSpeciesCount = 6
+	for seed := int64(0); seed < 300; seed++ {
+		cfg.Seed = seed
+		for _, sp := range rollAlienSpeciesRoster(newRand(seed^alienLoreSeed), cfg) {
+			parts := ScientificEtymology(sp.ScientificName)
+			if len(parts) != 3 {
+				t.Fatalf("seed %d: %q gave %d parts, want 3", seed, sp.ScientificName, len(parts))
+			}
+			for _, g := range parts {
+				if g.Meaning == "" {
+					t.Fatalf("seed %d: %q: %s %q has no meaning", seed, sp.ScientificName, g.Part, g.Form)
+				}
+			}
+			rebuilt := capitalizeFirst(joinTaxa(parts[0].Form, parts[1].Form)) + " " + parts[2].Form
+			if rebuilt != sp.ScientificName {
+				t.Fatalf("seed %d: %q came apart as %+v, which rebuilds %q", seed, sp.ScientificName, parts, rebuilt)
+			}
+		}
+	}
+}
+
+func TestScientificEtymologyExamples(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		want []string // prefix, root, epithet forms
+	}{
+		{"Pseudursus ares", []string{"pseudo", "ursus", "ares"}},
+		{"Erythrosaurus ferox", []string{"erythro", "saurus", "ferox"}},
+		{"Dasyurus martis", []string{"dasy", "urus", "martis"}},
+		{"Lepidurus martis", []string{"lepido", "urus", "martis"}},
+		{"Areozoon martis 2", []string{"areo", "zoon", "martis"}},
+		{"Hyalomedusa hirsuta", []string{"hyalo", "medusa", "hirsuta"}},
+	} {
+		parts := ScientificEtymology(tc.name)
+		if len(parts) != 3 {
+			t.Errorf("%q: got %+v", tc.name, parts)
+			continue
+		}
+		for i, g := range parts {
+			if g.Form != tc.want[i] {
+				t.Errorf("%q: part %d = %q, want %q", tc.name, i, g.Form, tc.want[i])
+			}
+		}
+	}
+	for _, name := range []string{"", "Homo sapiens", "Pseudozoon martis", "Areozoon", "Pithecus hirsutum"} {
+		if parts := ScientificEtymology(name); parts != nil {
+			t.Errorf("%q: got %+v, want nil", name, parts)
+		}
+	}
 }
