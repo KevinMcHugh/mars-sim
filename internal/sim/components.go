@@ -37,6 +37,10 @@ type LifeStage struct {
 	form   int
 	growAt int
 	layAt  int // a laying form's next brood (0 for any other form); see layBrood
+	// nest is where a laying caste keeps to (hasNest): where it was spawned
+	// as one, or where it grew into one. See nestAnchor.
+	nest    Point
+	hasNest bool
 }
 
 // keeperOf is the colonist a pet came down with, 0 for a stray or a non-pet.

@@ -110,7 +110,7 @@ func newSpeciesTable(cfg Config) [numKinds]Species {
 	chicken.Paced, chicken.Slowness = true, cfg.ChickenSlowness
 	chicken.ladder = []behavior{
 		forage{sources: []foodSource{(*World).chickenFeed, (*World).chickenGraze}},
-		stayNearTrough{roam: cfg.ChickenRoam},
+		stayNear{anchor: troughAnchor, roam: cfg.ChickenRoam},
 		wander{},
 	}
 	return t
@@ -155,6 +155,14 @@ func newAlienSpeciesTable(base Species, roster []AlienSpecies, cfg Config) [][]S
 			case form.Stage < last:
 				forms[f] = sp
 				forms[f].ladder = []behavior{dormant{}, grazeScum{}, wander{}}
+			case form.Lays && form.Name != "":
+				// A laying caste (queen, betty, jill, matriarch) keeps to
+				// her nest: beyond alien-nest-roam of it she heads home
+				// before anything else her temperament would do, so her
+				// broods stay together. The plain adult of a line without
+				// castes roams, or such a species could never spread.
+				forms[f] = adult
+				forms[f].ladder = append([]behavior{dormant{}, stayNear{anchor: nestAnchor, roam: cfg.AlienNestRoam}}, adult.ladder[1:]...)
 			default:
 				forms[f] = adult
 			}

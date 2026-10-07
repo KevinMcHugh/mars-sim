@@ -41,8 +41,9 @@ ignore each other.
 
 ### The chicken
 
-A chicken's species ladder (`forage` from trough then scum, `stayNearTrough`,
-`wander`) runs through `animalTurn`, paced by `chicken-slowness`:
+A chicken's species ladder (`forage` from trough then scum, `stayNear` its
+trough, `wander`) runs through `animalTurn`, paced by `chicken-slowness` (a
+queen alien keeps to her nest with the same `stayNear` rung):
 
 1. **Starve.** Like a rat, a chicken has only `DriveFood`
    (`chicken-hunger-rate`, two points a tick) and starves at the top of it,

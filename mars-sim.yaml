@@ -990,6 +990,9 @@ zoning-auto: true
 ## no alien of a species lays while this many of that species are alive anywhere
 # alien-species-cap: 16
 
+## how far a laying caste (queen, betty, jill, matriarch) strays from her nest before she heads home
+# alien-nest-roam: 4
+
 # ── Weapons ─────────────────────────────────────────────────────────────
 ## HP removed per pistol shot
 # pistol-damage: 10
