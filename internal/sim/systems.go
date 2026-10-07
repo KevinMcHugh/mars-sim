@@ -2110,14 +2110,10 @@ func strikeTargetText(mode AttackMode, part BodyPart, noun string) string {
 // preyName is how the log and a witness name an alien's prey: a colonist by
 // name, another alien by its species' noun, a rat by number.
 func (w *World) preyName(prey *Entity) string {
-	switch prey.Kind {
-	case Alien:
+	if prey.Kind == Alien {
 		return w.alienNounFor(prey)
-	case Rat:
-		return fmt.Sprintf("rat #%d", prey.ID)
-	default:
-		return prey.displayName()
 	}
+	return prey.displayName()
 }
 
 // ---- Cats --------------------------------------------------------------------

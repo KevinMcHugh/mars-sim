@@ -958,6 +958,10 @@ type World struct {
 	rngSrc rngSources
 	log    *eventLog
 	cfg    Config
+	// species is what each Kind is: identity, stats, and (see
+	// docs/species-and-behaviors.md) how it behaves. Built from Config once.
+	species [numKinds]Species
+
 	// driveTables are the drives' compiled bands (drive_bands.go).
 	driveTables [numDrives]driveTable
 
@@ -1025,6 +1029,7 @@ func newWorld(cfg Config, src *rand.PCG) *World {
 		panic("invalid drive config: " + err.Error()) // main validates before a game starts
 	}
 	w := &World{
+		species:           newSpeciesTable(cfg),
 		driveTables:       driveTables,
 		Width:             cfg.Width,
 		Height:            cfg.Height,
@@ -1523,7 +1528,7 @@ func (w *World) spawnAs(kind Kind, p Point, species int) *Entity {
 // family in the colony, and brings its savings instead of a purse. See
 // recruit.go.
 func (w *World) spawnWith(kind Kind, p Point, species int, rec *recruitCandidate) *Entity {
-	e := newEntity(w.nextID, kind, p, w.cfg)
+	e := w.species[kind].newEntity(w.nextID, p, w.cfg)
 	// Stagger starting drive levels so a freshly settled colony does not all
 	// get hungry on the same tick and stampede the facilities at once.
 	var levels [numDrives]int
