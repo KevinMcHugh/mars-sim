@@ -959,8 +959,9 @@ type World struct {
 	log    *eventLog
 	cfg    Config
 	// species is what each Kind is: identity, stats, and (see
-	// docs/species-and-behaviors.md) how it behaves. Built from Config once.
-	species [numKinds]Species
+	// docs/species-and-behaviors.md) how it behaves. Built from Config by
+	// newWorld, and not saved: a load rebuilds it from the saved Config.
+	species [numKinds]Species `save:"-"`
 
 	// driveTables are the drives' compiled bands (drive_bands.go).
 	driveTables [numDrives]driveTable

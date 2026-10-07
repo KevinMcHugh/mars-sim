@@ -29,6 +29,19 @@ type Species struct {
 	// hunger. Only colonists have the other drives, and they are seeded from
 	// Config.Drives in newEntity, not from here.
 	HungerRate int
+
+	// The rest drives animalTurn (cats, rats, chickens); colonists and aliens
+	// still have turns of their own.
+	//
+	// Starves: a full food drive kills it, leaving a Corpse.
+	Starves bool
+	Corpse  ItemKind
+	// Paced: it acts once every Slowness ticks, counting down Cooldown in
+	// between.
+	Paced    bool
+	Slowness int
+	// ladder is its behaviors in priority order (behaviors.go).
+	ladder []behavior
 }
 
 // spawnSite is where Engine.spawn puts a new creature of a species.
@@ -61,13 +74,40 @@ func newSpeciesTable(cfg Config) [numKinds]Species {
 	// species graze cave scum when it presses (see alienGraze).
 	t[Alien].HungerRate = cfg.AlienHungerRate
 
-	t[Cat].HP = cfg.CatHP // no drives: cats hunt by instinct
+	// Cats have no drives: they hunt rats by instinct, and roam when there
+	// are none.
+	cat := &t[Cat]
+	cat.HP = cfg.CatHP
+	cat.Paced, cat.Slowness = true, cfg.CatSlowness
+	cat.ladder = []behavior{
+		hunt{prey: Rat, rest: cfg.CatPounceRest},
+		wander{},
+	}
 
-	// Rats and chickens have only the food drive, rats' rising fast.
-	t[Rat].HP = cfg.RatHP
-	t[Rat].HungerRate = cfg.RatHungerRate
-	t[Chicken].HP = cfg.ChickenHP
-	t[Chicken].HungerRate = cfg.ChickenHungerRate
+	// Rats have only the food drive, rising fast. They bolt from cats, eat
+	// the colony's leavings, and breed when nothing presses (see
+	// docs/entities-and-ai.md).
+	rat := &t[Rat]
+	rat.HP, rat.HungerRate = cfg.RatHP, cfg.RatHungerRate
+	rat.Starves, rat.Corpse = true, AnimalCorpse
+	rat.ladder = []behavior{
+		flee{from: Cat, radius: cfg.RatFleeRadius},
+		forage{sources: []foodSource{forageScavenge, foragePod}},
+		breed{},
+		wander{},
+	}
+
+	// Chickens eat from their keeper's trough, else graze scum, and stay
+	// near the trough. See docs/chickens.md.
+	chicken := &t[Chicken]
+	chicken.HP, chicken.HungerRate = cfg.ChickenHP, cfg.ChickenHungerRate
+	chicken.Starves, chicken.Corpse = true, AnimalCorpse
+	chicken.Paced, chicken.Slowness = true, cfg.ChickenSlowness
+	chicken.ladder = []behavior{
+		forage{sources: []foodSource{(*World).chickenFeed, (*World).chickenGraze}},
+		stayNearTrough{roam: cfg.ChickenRoam},
+		wander{},
+	}
 	return t
 }
 

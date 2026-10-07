@@ -4,24 +4,31 @@
 
 ## What it is
 
-**Proposal.** A plan to stop hand-writing one turn function per creature and
+**In progress: phases 1 and 2 of 7 are built** (see [Migration](#migration)).
+A plan to stop hand-writing one turn function per creature and
 instead define each creature (cat, rat, chicken, each alien species) as a
 **species**: a set of attributes plus an ordered list of reusable
 **behaviors** drawn from a shared library. It borrows the useful idea from an
 entity-component system — behavior comes from what an entity *has*, not from a
 type switch — without adopting an ECS library, an archetype store, or a
-modeling language for definitions. Nothing here is built yet; the phases
-below are written so each one can land on its own without changing behavior.
+modeling language for definitions. The phases below are written so each one
+can land on its own without changing behavior. Cats, rats and chickens already
+run on behavior ladders; aliens and colonists still have turns of their own.
 
 ## Source
 
-Where the things this proposal replaces live today:
+Built so far:
 
-- [`internal/sim/entity.go`](../internal/sim/entity.go) — `Kind`, the one `Entity` struct every kind shares, and `newEntity`'s per-kind stats switch.
-- [`internal/sim/systems.go`](../internal/sim/systems.go) — the `switch e.Kind` turn dispatch in `step`, `catTurn`, `ratTurn`, `tryMate`, and the shared primitives (`travelTo`, `fleeStep`, `wanderStep`, `nearestOfKind*`, `nearestReachablePrey`).
-- [`internal/sim/chickens.go`](../internal/sim/chickens.go) — `chickenTurn`, `chickenFeed`, `chickenGraze`.
+- [`internal/sim/species.go`](../internal/sim/species.go) — `Species`, `kindIdentity` (the Config-free half: name, noun, body, spawn site), `newSpeciesTable` (stats and ladders from `Config`), `World.speciesOf`.
+- [`internal/sim/behaviors.go`](../internal/sim/behaviors.go) — the `behavior` interface, `animalTurn`, and the rungs: `hunt`, `flee`, `forage` with its `foodSource`s, `breed`, `stayNearTrough`, `wander`.
+- [`internal/sim/species_test.go`](../internal/sim/species_test.go) — the table's invariants.
+
+Still to move (phases 3–5):
+
+- [`internal/sim/entity.go`](../internal/sim/entity.go) — the one `Entity` struct every kind shares, with rat breeding and pet fields not yet split into components.
+- [`internal/sim/systems.go`](../internal/sim/systems.go) — `alienTurn`, `tryMate`'s `canBreed` (`e.Kind == Rat`), and the kind-keyed queries (`nearestOfKind*`, `nearestReachablePrey`).
 - [`internal/sim/lore.go`](../internal/sim/lore.go) — `AlienSpecies`, the per-seed roster whose temperament already picks between hunting and grazing.
-- [`internal/sim/perception.go`](../internal/sim/perception.go), [`snapshot.go`](../internal/sim/snapshot.go), [`engine.go`](../internal/sim/engine.go) — the other `switch e.Kind` sites (nouns, labels, glyphs, spawning).
+- [`internal/sim/snapshot.go`](../internal/sim/snapshot.go) — the per-kind counters in the frame's stats.
 
 ## How it works
 
@@ -41,10 +48,11 @@ components "as behavior multiplies." This doc is that graduation plan. We want
 behaviors need. We do not want the storage model (see
 [Why it is this way](#why-it-is-this-way)).
 
-### Where we are
+### Where we started
 
-Each non-colonist kind is a hand-written priority ladder. Laid side by side,
-they are mostly the same rungs in different orders:
+Before phase 2 each non-colonist kind was a hand-written priority ladder
+(`catTurn`, `ratTurn`, `chickenTurn`, `alienTurn`). Laid side by side, they
+were mostly the same rungs in different orders:
 
 | Rung | Cat | Rat | Chicken | Alien (Hostile / Friendly, Cautious) |
 | --- | --- | --- | --- | --- |
@@ -58,10 +66,11 @@ they are mostly the same rungs in different orders:
 | stay near home | — | — | trough within `ChickenRoam` | — |
 | wander | ✓ | ✓ | ✓ | ✓ |
 
-The kind identity then leaks into roughly two dozen `switch e.Kind` /
+The kind identity leaked into roughly two dozen `switch e.Kind` /
 `e.Kind == X` sites: stats in `newEntity`, nouns and labels in `perception.go`,
-glyphs in `snapshot.go`, spawning in `engine.go`, prey names, and checks like
-`canBreed`'s `e.Kind == Rat`. Adding a goat today means touching all of them.
+spawning in `engine.go`, prey names, and checks like `canBreed`'s
+`e.Kind == Rat`. Phase 1 folded the identity and stat switches into the
+species table; the behavior checks go in phases 3 and 5.
 
 The `Entity` struct carries every kind's fields at once: colonist economy and
 mind state, chicken `keeper`/`trough`, rat `sex`/`pregnant`/`dueTick`, alien
@@ -87,61 +96,81 @@ type behavior interface {
 	act(w *World, e *Entity) bool
 }
 
-type flee struct{ from Tags; radius int }
-type hunt struct{ prey Tags; scope huntScope; rest int } // scope: anywhere, same room
-type forage struct{ sources []foodSource }               // tried in order
-type breed struct{ litter, gestation, mature int }
-type stayNear struct{ anchor anchorKind; roam int }      // chicken → its trough
-type wander struct{}
+type hunt struct{ prey Kind; rest int }      // nearest prey anywhere; rest after a catch
+type flee struct{ from Kind; radius int }
+type forage struct{ sources []foodSource }  // tried in order once hungry
+type breed struct{}                         // tryMate; litter size etc. still in Config
+type stayNearTrough struct{ roam int }      // a chicken
+type wander struct{}                        // always acts: every ladder ends here
 ```
 
-**A species is a value, not a type.** It holds the stats that are now spread
-across `newEntity` and `Config`, its display identity, its tags, and its
-ladder:
+`hunt` and `flee` take a `Kind` for now; phase 5 widens that to tags.
+`forage` first lets a foraging job already under way (`JobScavenge`, `JobUse`)
+run on, hungry or not, exactly as `ratTurn` did; only then does it check the
+food drive and try its sources. A `foodSource` is a plain
+`func(*World, *Entity) bool`, so the chicken's existing `chickenFeed` and
+`chickenGraze` plug in as method expressions (`(*World).chickenFeed`)
+unchanged.
+
+**A species is a value, not a type.** It holds the display identity and
+stats that used to be spread across `switch` statements, and its ladder:
 
 ```go
 type Species struct {
-	Name, Noun string
-	Tags       Tags      // what others' behaviors match on: prey, pest, pet, alien...
-	HP         int
-	HungerRise int       // 0: no food need
-	Starves    bool
-	Slowness   int       // turn pacing; 0 acts every tick
+	Kind       Kind
+	Name       string    // "rat": Kind.String, and "rat #12" labels
+	Noun       NounID    // perception grammar noun; "" for chickens
 	Body       bool      // per-part HP (hasParts)
-	Ladder     []behavior
+	Spawn      spawnSite // floor, ship, or cavern (Engine.spawn)
+	HP         int
+	HungerRate int       // food drive base rate; 0: no hunger
+	Starves    bool      // a full food drive kills it, leaving Corpse
+	Corpse     ItemKind
+	Paced      bool      // acts every Slowness ticks, counting down Cooldown
+	Slowness   int
+	ladder     []behavior
 }
 ```
 
-Expressed this way, today's creatures are (parameters elided; every value
-comes from the existing `Config` tunables, so nothing moves out of
-`mars-sim.yaml`):
+The table is indexed by `Kind`. `kindIdentity` is the Config-free half
+(name, noun, body, spawn site), readable without a World, so `Kind.String` and
+`Entity.hasParts` use it. `newSpeciesTable(cfg)` copies it and fills in stats
+and ladders from `Config`; `newWorld` keeps the result in `World.species`.
+The creatures, as built (every number is an existing `Config` tunable, so
+nothing moved out of `mars-sim.yaml`):
 
 ```go
-cat     = Species{Tags: pet,      Ladder: {hunt{prey: rat, scope: anywhere}, wander{}}}
-rat     = Species{Tags: pest|prey, Starves: true,
-                  Ladder: {flee{from: cat}, forage{scavenge, pod}, breed{…}, wander{}}}
-chicken = Species{Tags: pet,      Starves: true,
-                  Ladder: {forage{trough, scum}, stayNear{trough}, wander{}}}
+cat.ladder     = {hunt{prey: Rat, rest: CatPounceRest}, wander{}}
+rat.ladder     = {flee{from: Cat, radius: RatFleeRadius},
+                  forage{forageScavenge, foragePod}, breed{}, wander{}}
+chicken.ladder = {forage{(*World).chickenFeed, (*World).chickenGraze},
+                  stayNearTrough{roam: ChickenRoam}, wander{}}
 ```
 
 **One turn function runs every species.** The steps every animal shares
-(starvation, gestation, cooldown) run first; then the ladder runs top to
-bottom until a rung acts:
+(starvation, gestation, pacing) run first; then the ladder runs top to bottom
+until a rung acts:
 
 ```go
 func (w *World) animalTurn(e *Entity) {
-	sp := w.species[e.Species]
-	if sp.Starves && w.starved(e) { return }   // corpse, log, remove
-	if b := e.breeding; b != nil && b.due(w.tick) { w.giveBirth(e) }
-	if e.Cooldown > 0 { e.Cooldown--; return }
-	for _, b := range sp.Ladder {
-		if b.act(w, e) { break }
+	sp := w.speciesOf(e)
+	if sp.Starves { /* apply drives; if dead: corpse, log, remove, return */ }
+	if e.pregnant && w.tick >= e.dueTick { w.giveBirth(e) }
+	if sp.Paced {
+		if e.Cooldown > 0 { e.Cooldown--; return }
+		e.Cooldown = sp.Slowness - 1 // a rung may lengthen it (hunt's rest)
 	}
-	e.Cooldown = sp.Slowness - 1
+	for _, b := range sp.ladder {
+		if b.act(w, e) { return }
+	}
 }
 ```
 
-The `switch e.Kind` in `step` collapses to "colonist, or animal."
+`Paced` is its own flag, not "`Slowness > 0`": rats were never paced, and a
+cat configured with `cat-slowness: 0` must still honor its pounce rest. The
+Cooldown is set *before* the ladder so a rung can override it, which is what
+the old cat and chicken turns did between them. The `switch e.Kind` in `step`
+is now colonist, alien, or `animalTurn`.
 
 ### Components: optional data, attached when needed
 
@@ -222,12 +251,14 @@ Each phase is behavior-preserving and checkable against the lockstep test in
 and after. That means **every RNG draw happens in the same order as today** —
 the ladder is a refactor of the existing ladders, not a redesign of them.
 
-1. **Species table for identity.** A `[numKinds]Species` table holding stats,
-   nouns, labels, and glyph keys; `newEntity`, `Kind.String`, `nounForKind`,
-   `factRef`, snapshot glyphs, and `Engine.spawn` read it. No behavior moves.
-2. **Behaviors for cat, rat, chicken.** Lift each ladder rung out of
-   `catTurn`/`ratTurn`/`chickenTurn` into a behavior and run all three through
-   `animalTurn`. Delete the three turn functions.
+1. **Species table for identity.** *Done.* A `[numKinds]Species` table
+   holding stats, nouns, body and spawn site; `newEntity`, `Kind.String`,
+   `nounForKind`, `hasParts`, `factRef`, `preyName`, and `Engine.spawn` read
+   it. No behavior moved. One visible fix fell out: `displayName` gave an
+   unnamed cat or rat the fallback "colonist #12"; it now says "rat #12".
+2. **Behaviors for cat, rat, chicken.** *Done.* Each ladder rung lifted out
+   of `catTurn`/`ratTurn`/`chickenTurn` into a behavior; all three run
+   through `animalTurn`, and the three turn functions are gone.
 3. **Components.** Move rat breeding into `*Breeding` and the pet fields into
    `*PetBond`; replace the remaining `Kind == Rat/Chicken` checks with
    component checks.
@@ -253,6 +284,28 @@ small. In this model they are simply a species whose one behavior is
 `colonistTurn`.
 
 ## Why it is this way
+
+- **The table is indexed by `Kind`, not pointed to from `Entity`.** A
+  `*Species` on each entity was the obvious design, but tests and
+  `recruit.go` build `&Entity{Kind: Colonist, ...}` literals that would carry
+  a nil pointer. `Kind` is always set. Phase 4 can route aliens through
+  `speciesOf` to a per-species entry without touching `Entity`.
+- **The species table is not saved.** It is derived from the Config, and its
+  ladders are interface values the save codec has no names for. It is tagged
+  `save:"-"` and `newWorld` rebuilds it from the loaded Config (see
+  [save-load.md](./save-load.md)). That also keeps it out of the save layout
+  fingerprint, so files from before phase 1 still load.
+- **How phases 1–2 were checked.** The lockstep test runs two worlds in one
+  process, so it cannot see a refactor that changes behavior the same way in
+  both. Instead, a throwaway test hashed the full `worldFingerprint` (plus each
+  animal's cooldown, quarry, food drive, pregnancy and keeper) every tick
+  over ten seeded runs, on `origin/main` and on the branch; the hashes matched.
+  Lesson for the next phase: the `testConfig` runs alone proved nothing about
+  rats, because their cats ate every rat within a few hundred ticks, so no rat
+  ever foraged or raided a pod. Cat-free rat scenarios (on both `testConfig`
+  and `DefaultConfig`) were needed, and the check was only trusted once
+  swapping the rat's `breed` and `forage` rungs visibly changed the hashes
+  (rat populations doubled).
 
 - **No modeling language.** We considered YAML growth, CUE, TypeScript as a
   definition language, and embedded scripting (Starlark, Lua). The

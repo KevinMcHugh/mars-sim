@@ -15,13 +15,16 @@ ignore each other.
 ## Source
 
 - [`internal/sim/chickens.go`](../internal/sim/chickens.go) — `feedRecipe`,
-  `chickenTurn`, `chickenFeed`, `chickenGraze`; the keeper's job
+  `chickenFeed`, `chickenGraze`; the keeper's job
   (`tryAssignTend`, `jobTend` and its three stages, `troughWants`,
   `feedScumFor`, `releaseTend`).
 - [`internal/sim/crashpod.go`](../internal/sim/crashpod.go) — `podRareItem`,
   `podGun`, and the trough and pet in `arrive` (`podTrough`, `podPet`).
 - [`internal/sim/systems.go`](../internal/sim/systems.go) — where tending sits
-  in `assignWorkJob`; `chickenTurn` in `step`.
+  in `assignWorkJob`.
+- [`internal/sim/species.go`](../internal/sim/species.go) — the chicken's
+  species: stats and its behavior ladder, run by `animalTurn`
+  ([`behaviors.go`](../internal/sim/behaviors.go)).
 - [`internal/sim/world.go`](../internal/sim/world.go) (the `Trough` terrain),
   [`property.go`](../internal/sim/property.go) (a fixture with a depot),
   [`inventory.go`](../internal/sim/inventory.go) (the `Feed` item),
@@ -37,7 +40,8 @@ ignore each other.
 
 ### The chicken
 
-`chickenTurn` runs once a tick, paced by `chicken-slowness`:
+A chicken's species ladder (`forage` from trough then scum, `stayNearTrough`,
+`wander`) runs through `animalTurn`, paced by `chicken-slowness`:
 
 1. **Starve.** Like a rat, a chicken has only `DriveFood`
    (`chicken-hunger-rate`, two points a tick) and starves at the top of it,
@@ -50,7 +54,7 @@ ignore each other.
 3. **Go home.** A chicken more than `chicken-roam` tiles from its trough walks
    back toward it; otherwise it wanders.
 
-A chicken flees nothing and nothing hunts it. Cats hunt only rats (`catTurn`),
+A chicken flees nothing and nothing hunts it. Cats hunt only rats (their `hunt` rung),
 rats flee only cats, and a Hostile alien's prey is colonists, rats and other
 aliens (`nearestReachablePrey`). Like a cat or a rat, a chicken on a tile a
 colonist needs always gives way (`nudgeLoiterer`). A chicken added with the

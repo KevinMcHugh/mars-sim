@@ -29,12 +29,8 @@ func (w *World) step() {
 			w.tallyActivity(e)     // the Activity tab's tally (read-only bookkeeping)
 		case Alien:
 			w.alienTurn(e)
-		case Cat:
-			w.catTurn(e)
-		case Rat:
-			w.ratTurn(e)
-		case Chicken:
-			w.chickenTurn(e)
+		default:
+			w.animalTurn(e)
 		}
 	}
 	w.refreshSpatial() // fold in any digging/building from this tick
@@ -2118,39 +2114,6 @@ func (w *World) preyName(prey *Entity) string {
 
 // ---- Cats --------------------------------------------------------------------
 
-// catTurn walks the cat toward the nearest rat and pounces when adjacent. Cats
-// have no drives; they simply hunt. Like everyone else they travel the floor
-// with cached A* and give up on prey they cannot reach.
-func (w *World) catTurn(e *Entity) {
-	if e.Cooldown > 0 {
-		e.Cooldown-- // mid-stride between slow steps, or resting after a catch
-		return
-	}
-
-	prey, ok := w.nearestOfKindAnywhere(e.Pos, Rat)
-	if !ok {
-		e.State, e.Quarry = Idle, 0
-		w.wanderStep(e)
-		e.Cooldown = w.cfg.CatSlowness - 1
-		return
-	}
-	e.Quarry = prey.ID
-
-	if e.Pos.Adjacent(prey.Pos) {
-		w.pounce(e, prey)
-		e.Cooldown = w.cfg.CatPounceRest
-		return
-	}
-
-	e.State = Hunting
-	if _, ok := w.travelTo(e, prey.Pos); !ok {
-		// The rat is unreachable on foot (walled off, or the cat is wedged):
-		// prowl instead of standing still.
-		w.wanderStep(e)
-	}
-	e.Cooldown = w.cfg.CatSlowness - 1
-}
-
 // pounce catches and eats an adjacent rat. A rat is tiny, so a single pounce
 // is fatal. Any colonist close enough to have noticed the rat remembers
 // seeing it happen.
@@ -2164,67 +2127,6 @@ func (w *World) pounce(cat, prey *Entity) {
 }
 
 // ---- Rats --------------------------------------------------------------------
-
-// ratTurn runs one rat tick: starve, flee cats, scavenge (or raid a pod) when
-// hungry, breed, otherwise scurry about. Rats reuse the colonists' food drive
-// but never build: they eat the same biomatter the scumhouse runs on, where it
-// lies, and fall back on pods only with nothing in reach. See scavenge.go.
-func (w *World) ratTurn(e *Entity) {
-	w.applyDriveConsequences(e)
-	if !e.Alive() { // starved this tick
-		w.clearJob(e)
-		w.addCorpse(e.Pos, AnimalCorpse)
-		w.remove(e.ID, "starved")
-		w.logEvent(LogDeath, fmt.Sprintf("Rat #%d starves.", e.ID))
-		return
-	}
-
-	// A carried litter arrives once gestation completes, whatever else the rat
-	// does with the rest of its tick.
-	if e.pregnant && w.tick >= e.dueTick {
-		w.giveBirth(e)
-	}
-
-	// Survival first: bolt from a nearby cat.
-	if threat, ok := w.nearestCat(e.Pos, w.cfg.RatFleeRadius); ok {
-		w.clearJob(e)
-		e.State = Fleeing
-		w.fleeStep(e, threat.Pos)
-		return
-	}
-
-	// Hungry? Scavenge the nearest body, gore, or scum in range — the same
-	// biomatter the scumhouse runs on (see scavenge.go) — and only with none
-	// in reach raid a nutrient pod. Rats care only about food, so we check it
-	// directly rather than scanning every drive.
-	hungry := w.driveLevel(e, DriveFood) >= w.cfg.Drives[DriveFood].SeekAt
-	if hungry && e.Job == JobNone {
-		if target, ok := w.nearestScavenge(e); ok {
-			e.Job, e.Target, e.Progress = JobScavenge, target, 0
-		} else if w.podsFeed() {
-			if field := w.facilityField(NutrientPod); field != nil && field.at(e.Pos) >= 0 {
-				e.Job, e.Drive, e.Progress = JobUse, DriveFood, 0
-			}
-		}
-	}
-	switch e.Job {
-	case JobUse:
-		w.jobUse(e)
-		return
-	case JobScavenge:
-		w.jobScavenge(e)
-		return
-	}
-
-	// Nothing pressing: a rat with no cat to flee and no hunger to sate looks
-	// to breed with an adjacent mate.
-	if w.tryMate(e) {
-		return
-	}
-
-	e.State = Idle
-	w.wanderStep(e)
-}
 
 // rollRatSex assigns a rat its sex, an even male/female split. It draws from
 // the simulation RNG (not the personality stream) because breeding is a

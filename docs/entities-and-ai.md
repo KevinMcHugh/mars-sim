@@ -12,7 +12,9 @@ turn order, the movement primitives, and each creature's behavior.
 ## Source
 
 - [`internal/sim/entity.go`](../internal/sim/entity.go) — `Kind`, `State`, `JobKind`, the `Entity` struct, `newEntity`.
-- [`internal/sim/systems.go`](../internal/sim/systems.go) — `step`, turn order, per-kind turns, movement primitives, queries.
+- [`internal/sim/species.go`](../internal/sim/species.go) — the species table: each kind's name, noun, body, spawn site, stats, and (cats, rats, chickens) behavior ladder.
+- [`internal/sim/behaviors.go`](../internal/sim/behaviors.go) — `animalTurn` and the behavior rungs ladders are built from (`hunt`, `flee`, `forage`, `breed`, `stayNearTrough`, `wander`).
+- [`internal/sim/systems.go`](../internal/sim/systems.go) — `step`, turn order, the colonist and alien turns, movement primitives, queries.
 - [`internal/sim/config.go`](../internal/sim/config.go) — the per-creature stat tunables.
 
 ## How it works
@@ -25,6 +27,11 @@ deliberate scaffold choice: it keeps the code readable while systems are few, an
 fields can graduate into real components later as behavior multiplies. Colonists
 use the most fields (drives, personality, inventory, a job, a cached path); other
 kinds leave the irrelevant ones zero.
+
+That graduation has started: each kind is now a species value (`species.go`),
+and cats, rats and chickens are built from shared behavior rungs rather than
+hand-written turns. See [species-and-behaviors.md](./species-and-behaviors.md)
+for the plan and how far it has got.
 
 The five kinds:
 
@@ -50,7 +57,9 @@ eating while its job is building.
 ### The tick: `step()`
 
 `World.step()` increments the tick, then for each entity in turn order runs
-`colonistTurn` / `alienTurn` / `catTurn` / `ratTurn` / `chickenTurn`. The dead are removed the
+`colonistTurn`, `alienTurn`, or, for cats, rats and chickens, `animalTurn`,
+which runs the species' behavior ladder (see
+[species-and-behaviors.md](./species-and-behaviors.md)). The dead are removed the
 moment they are eaten or starve, so liveness is re-checked as the loop proceeds.
 After all entities act, `step` folds in the tick's terrain changes:
 `refreshSpatial` (regions/rooms), `pruneProjects`, `planFacilities` (on a
@@ -183,7 +192,7 @@ Most aliens spawn on hidden cavern floor (`alienSpawnSite`). An alien on
 undiscovered floor is **dormant**: it shuffles around its cave, unseen by
 colonists, until a dig breaks in. See [caverns.md](./caverns.md#aliens-in-the-caves).
 
-### Cat behavior (`catTurn`)
+### Cat behavior (ladder: `hunt` rats, `wander`)
 
 Cats have no drives — they hunt rats by instinct, paced by `CatSlowness`. They
 travel the floor with cached A\* and `pounce`
@@ -197,7 +206,7 @@ Cats arrive as one of a colonist's three possible rare items (see
 `cats` setting adds strays at worldgen and is 0 by default. A cat hunts only
 rats: chickens are not prey, and a chicken does not flee a cat.
 
-### Rat behavior (`ratTurn`)
+### Rat behavior (ladder: `flee` cats, `forage`, `breed`, `wander`)
 
 Rats reuse the colonists' `DriveFood`, but hunger far faster (`RatHungerRate`)
 and **never build**. They eat what the scumhouse eats: a hungry rat
@@ -207,9 +216,10 @@ or exposed cave scum, and eats a unit there (`JobScavenge`). Only with nothing
 in range does it raid a nutrient pod through the generic `JobUse` machinery,
 and only while pods feed anyone. Rats claim nothing, so they race cleaners and
 scrapers for the same biomatter; every unit a rat eats is a unit the colony
-cannot turn into slurry, and cats are what keep them down. Order: starve check,
-flee nearby cats (`RatFleeRadius`), scavenge or raid when hungry, breed,
-otherwise scurry.
+cannot turn into slurry, and cats are what keep them down. Order: starve check
+and any due litter (`animalTurn`), then the ladder: flee nearby cats
+(`RatFleeRadius`), scavenge or raid when hungry (a foraging job under way runs
+on), breed, otherwise scurry.
 
 Rats used to be mice, which only ate at pods and so starved as soon as the
 safety net was off. The rename came with the diet.
@@ -258,9 +268,11 @@ so it is safe to call per entity per tick.
 ## Extending it
 
 - **A new creature**: add a `Kind` before `numKinds`, give it stats in `Config`,
-  a spawn case in `Engine.spawn` and `worldgen`, a `String()` and glyph, and a
-  `<kind>Turn` in `systems.go` dispatched from `step`. Reuse `nearestOfKind`,
-  the movement primitives, and (if it has drives) the drive machinery.
+  an entry in `kindIdentity` (name, noun, body, spawn site), its stats and
+  behavior ladder in `newSpeciesTable`, and a glyph. `step` runs it through
+  `animalTurn`. Build the ladder from the existing rungs in `behaviors.go`, and
+  add a rung only for behavior none of them has. See
+  [species-and-behaviors.md](./species-and-behaviors.md#extending-it).
 - **A new job**: add a `JobKind`, an `assign*`/`clearJob` pair that keeps the job
   board's bookkeeping exact, a `job*` executor, and a case in `runJob`.
 - **A new display state**: add a `State`, set it in the relevant turn, and map it
