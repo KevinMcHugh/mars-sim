@@ -55,6 +55,8 @@ function freshSession() {
   return {
     name: "",
     standsFor: "👽",
+    fieldNotes: "", // a species' field notes pasted from the game's Lore panel
+    notesSent: "", // the field notes Claude last saw, so a change gets resent
     model: MODELS[0].id,
     effort: "medium",
     messages: [], // the API conversation, assistant content kept verbatim
@@ -164,7 +166,11 @@ function render() {
         </label>
       </div>
       <label class="field wide sprite-prompt">
-        <span id="sprite-prompt-label">Describe it</span>
+        <span>Field notes <small>(optional) Paste a species' notes from the game's Lore panel.</small></span>
+        <textarea id="sprite-notes" rows="3" placeholder="Grelks stand 1.2-1.4 m (3'11&quot;-4'7&quot;) tall, weighing 54-63 kg (119-139 lb). They are skittish around humans; approach with caution. They can be recognized by their gray chitin, 1 eye, 2 arms, 3 legs, and a tail. Get too close and they lash out by biting and thrashing their tails."></textarea>
+      </label>
+      <label class="field wide sprite-prompt">
+        <span id="sprite-prompt-label">Describe it, or add to the field notes</span>
         <textarea id="sprite-prompt" rows="3" placeholder="A squat, six-legged cave lizard with glowing green eyes and a ridge of bony plates."></textarea>
       </label>
       <div class="form-actions">
@@ -215,6 +221,7 @@ function wire(host, signal) {
   $("#sprite-effort").value = session.effort;
   $("#sprite-name").value = session.name;
   $("#sprite-stands").value = session.standsFor;
+  $("#sprite-notes").value = session.fieldNotes;
 
   on("#sprite-key", "change", event => saveKey(event.target.value.trim()));
   on("#sprite-forget", "click", () => {
@@ -239,6 +246,15 @@ function wire(host, signal) {
     saveSession();
     paint(host);
   });
+  on("#sprite-notes", "input", event => {
+    session.fieldNotes = event.target.value;
+    const species = speciesName(session.fieldNotes);
+    if (species && !$("#sprite-name").value.trim()) {
+      $("#sprite-name").value = species;
+      session.name = species;
+    }
+    saveSession();
+  });
   on("#sprite-send", "click", () => send(host));
   on("#sprite-prompt", "keydown", event => {
     if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) send(host);
@@ -251,6 +267,7 @@ function wire(host, signal) {
     session = { ...freshSession(), ...keep };
     saveSession();
     $("#sprite-name").value = "";
+    $("#sprite-notes").value = "";
     $("#sprite-prompt").value = "";
     note(host, "");
     paint(host);
@@ -344,7 +361,7 @@ function paint(host) {
   $("#sprite-send").disabled = busy;
   $("#sprite-send").textContent = busy ? "Drawing…" : session.versions.length ? "Revise it" : "Draw it";
   $("#sprite-stop").hidden = !busy;
-  $("#sprite-prompt-label").textContent = session.versions.length ? "What to change" : "Describe it";
+  $("#sprite-prompt-label").textContent = session.versions.length ? "What to change" : "Describe it, or add to the field notes";
   $("#sprite-effort").disabled = !modelInfo().effort;
 
   const cost = session.cost;
@@ -373,19 +390,28 @@ async function send(host) {
   const key = $("#sprite-key").value.trim();
   const prompt = $("#sprite-prompt").value.trim();
   if (!key) return note(host, "Paste an API key first.", "bad");
-  if (!prompt) return note(host, session.versions.length ? "Say what to change." : "Describe the sprite first.", "bad");
+  const notes = session.fieldNotes.trim();
+  const newNotes = notes !== "" && notes !== session.notesSent;
+  if (!prompt && !newNotes) {
+    const ask = session.versions.length ? "Say what to change." : "Describe the sprite or paste its field notes first.";
+    return note(host, ask, "bad");
+  }
   saveKey(key);
 
+  const parts = [];
   // If the person picked an older version or edited the source, Claude's last
   // SVG isn't what they're looking at. Show it the one they are.
-  let text = prompt;
   const lastClaude = [...session.versions].reverse().find(v => v.source === "claude");
   const shown = session.versions[session.current];
   if (shown && shown !== lastClaude) {
-    text = `Work from this version instead of your last one:\n\n\`\`\`svg\n${shown.svg}\n\`\`\`\n\n${prompt}`;
-  } else if (!session.versions.length && session.standsFor) {
-    text = `${prompt}\n\n(It replaces the ${session.standsFor} emoji on the map.)`;
+    parts.push(`Work from this version instead of your last one:\n\n\`\`\`svg\n${shown.svg}\n\`\`\``);
   }
+  // Field notes go out once, and again only when they change: the
+  // conversation already carries them.
+  if (newNotes) parts.push(fieldNotesBrief(notes, session.notesSent !== ""));
+  if (prompt) parts.push(prompt);
+  if (!session.versions.length && session.standsFor) parts.push(`(It replaces the ${session.standsFor} emoji on the map.)`);
+  const text = parts.join("\n\n");
 
   const model = modelInfo();
   const messages = [...session.messages, { role: "user", content: text }];
@@ -430,7 +456,8 @@ async function send(host) {
       const cut = data.stop_reason === "max_tokens" ? " The reply hit the length limit." : "";
       throw new Error(`No SVG in the reply.${cut} ${reply.slice(0, 200)}`.trim());
     }
-    addVersion({ svg, note: noteFrom(reply), prompt, source: "claude" });
+    if (newNotes) session.notesSent = notes;
+    addVersion({ svg, note: noteFrom(reply), prompt: prompt || "From the field notes.", source: "claude" });
     if (mounted(host)) $("#sprite-prompt").value = "";
     note(host, `Done in ${Math.round((Date.now() - started) / 1000)}s.`, "ok");
   } catch (error) {
@@ -440,6 +467,27 @@ async function send(host) {
     pending = null;
     if (mounted(host)) paint(host);
   }
+}
+
+// The game writes field notes (AlienSpecies.Description in internal/sim/lore.go)
+// as prose for the player. Tell Claude which parts are drawable and which
+// aren't: every creature fills one tile, so size is build, not scale.
+function fieldNotesBrief(notes, changed) {
+  const lead = changed ? "The field notes changed. Redraw to match the new ones:" : "Draw the species these field notes describe. They are what the player reads in the game:";
+  return `${lead}
+
+<field_notes>
+${notes}
+</field_notes>
+
+Match every countable feature exactly (eyes, arms, legs, wings, tail) so a player could check the sprite against the notes, and use the stated covering and color. Let the temperament show in the pose and expression, and make the attack visible if a body part delivers it (a tail that thrashes, arms that strangle). Height and weight only tell you the build, stocky or lanky: every creature is drawn filling one tile.`;
+}
+
+// The species' plural as the notes name it: "Grelks stand …" or
+// "The feared Grelks stand …". Used as a default sprite name.
+function speciesName(notes) {
+  const match = notes.trim().match(/^(?:The feared\s+)?([A-Za-z][\w'-]*)\s+stand\b/);
+  return match ? match[1].toLowerCase() : "";
 }
 
 // The shell reuses one host for every tool, so after a tab switch the answer

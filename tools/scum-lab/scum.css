@@ -522,6 +522,7 @@ textarea {
 .modal-actions span { display: flex; gap: 8px; align-items: center; }
 
 .sprites .sprite-prompt { margin-top: 10px; }
+.sprites .sprite-prompt small { color: var(--dim); font-size: 12px; }
 .sprites .sprite-prompt textarea, .sprite-source { min-height: 0; font-family: var(--sans); font-size: 14px; }
 .sprite-source { min-height: 180px; font-family: var(--mono); font-size: 12px; }
 .sprite-stage { display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-start; }
