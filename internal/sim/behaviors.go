@@ -34,7 +34,7 @@ func (w *World) animalTurn(e *Entity) {
 
 	// A carried litter arrives once gestation completes, whatever else the
 	// mother does with the rest of her tick.
-	if e.pregnant && w.tick >= e.dueTick {
+	if b := e.breeding; b != nil && b.pregnant && w.tick >= b.dueTick {
 		w.giveBirth(e)
 	}
 
@@ -175,10 +175,11 @@ type stayNearTrough struct {
 }
 
 func (b stayNearTrough) act(w *World, e *Entity) bool {
-	if !e.hasTrough || e.Pos.Chebyshev(e.trough) <= b.roam {
+	trough, ok := e.petTrough()
+	if !ok || e.Pos.Chebyshev(trough) <= b.roam {
 		return false
 	}
-	if _, ok := w.travelTo(e, e.trough); !ok {
+	if _, ok := w.travelTo(e, trough); !ok {
 		return false
 	}
 	e.State = Moving

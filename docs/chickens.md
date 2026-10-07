@@ -29,7 +29,8 @@ ignore each other.
   [`property.go`](../internal/sim/property.go) (a fixture with a depot),
   [`inventory.go`](../internal/sim/inventory.go) (the `Feed` item),
   [`entity.go`](../internal/sim/entity.go) (`Chicken`, `JobTend`, and the
-  `keeper`/`trough` fields).
+  keeper's `trough` field), [`components.go`](../internal/sim/components.go)
+  (the hen's `PetBond`: its keeper and its copy of the trough).
 - [`internal/sim/config.go`](../internal/sim/config.go) — the `Chickens`
   section and the `crash-pod-*-weight` settings.
 - [`internal/sim/chickens_test.go`](../internal/sim/chickens_test.go).

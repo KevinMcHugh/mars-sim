@@ -4,7 +4,7 @@
 
 ## What it is
 
-**In progress: phases 1 and 2 of 7 are built** (see [Migration](#migration)).
+**In progress: phases 1–3 of 7 are built** (see [Migration](#migration)).
 A plan to stop hand-writing one turn function per creature and
 instead define each creature (cat, rat, chicken, each alien species) as a
 **species**: a set of attributes plus an ordered list of reusable
@@ -13,7 +13,8 @@ entity-component system — behavior comes from what an entity *has*, not from a
 type switch — without adopting an ECS library, an archetype store, or a
 modeling language for definitions. The phases below are written so each one
 can land on its own without changing behavior. Cats, rats and chickens already
-run on behavior ladders; aliens and colonists still have turns of their own.
+run on behavior ladders, and rat breeding and pets are components; aliens and
+colonists still have turns of their own.
 
 ## Source
 
@@ -21,12 +22,12 @@ Built so far:
 
 - [`internal/sim/species.go`](../internal/sim/species.go) — `Species`, `kindIdentity` (the Config-free half: name, noun, body, spawn site), `newSpeciesTable` (stats and ladders from `Config`), `World.speciesOf`.
 - [`internal/sim/behaviors.go`](../internal/sim/behaviors.go) — the `behavior` interface, `animalTurn`, and the rungs: `hunt`, `flee`, `forage` with its `foodSource`s, `breed`, `stayNearTrough`, `wander`.
-- [`internal/sim/species_test.go`](../internal/sim/species_test.go) — the table's invariants.
+- [`internal/sim/components.go`](../internal/sim/components.go) — `Breeding` and `PetBond`, with the `keeperOf` / `petTrough` accessors.
+- [`internal/sim/species_test.go`](../internal/sim/species_test.go) — the table's and the components' invariants.
 
-Still to move (phases 3–5):
+Still to move (phases 4–5):
 
-- [`internal/sim/entity.go`](../internal/sim/entity.go) — the one `Entity` struct every kind shares, with rat breeding and pet fields not yet split into components.
-- [`internal/sim/systems.go`](../internal/sim/systems.go) — `alienTurn`, `tryMate`'s `canBreed` (`e.Kind == Rat`), and the kind-keyed queries (`nearestOfKind*`, `nearestReachablePrey`).
+- [`internal/sim/systems.go`](../internal/sim/systems.go) — `alienTurn`, and the kind-keyed queries (`nearestOfKind*`, `nearestReachablePrey`).
 - [`internal/sim/lore.go`](../internal/sim/lore.go) — `AlienSpecies`, the per-seed roster whose temperament already picks between hunting and grazing.
 - [`internal/sim/snapshot.go`](../internal/sim/snapshot.go) — the per-kind counters in the frame's stats.
 
@@ -180,18 +181,30 @@ this entity have X" replaces "is this entity kind K":
 
 ```go
 type Entity struct {
-	// ... identity, position, HP, needs, job, path: shared by everyone ...
+	// ... identity, position, HP, drives, job, path: shared by everyone ...
 	breeding *Breeding // sex, pregnant, dueTick, mateReadyTick
-	pet      *PetBond  // keeper, trough, hasTrough
+	pet      *PetBond  // keeper, and a chicken's trough
 	// later: mind *Mind for the colonist-only bulk, if it is ever worth it
 }
 ```
 
-`canBreed` becomes `e.breeding != nil && …`, not `e.Kind == Rat && …`. A
-species attaches its components at spawn (`breed` in the ladder implies a
-`Breeding`). Events can attach them later too: a stray cat adopted by a
-colonist gains a `PetBond`; a mutation already changes anatomy per individual
-through `MaxParts`.
+`canBreed` is `e.breeding != nil && …`, not `e.Kind == Rat && …`. A species
+with `Breeds` set attaches a `Breeding` (and rolls its sex, at the same point
+in the spawn as before) whenever one is spawned, a newborn pup included; a
+test holds `Breeds` and the `breed` rung together. Ship landing attaches a
+`PetBond` to the cat or hen a colonist brings; a stray has none. Events can
+attach them later too: a stray cat adopted by a colonist would gain a
+`PetBond`; a mutation already changes anatomy per individual through
+`MaxParts`.
+
+**The trough is held on both sides.** The proposal first put the trough
+wholly in `PetBond`, but the keeper colonist needs it too: it is the trough
+the keeper fills (`jobTend`), and the keeper has it before its hen is wired
+up at landing. So the colonist keeps `Entity.trough`/`hasTrough` (its side:
+where to deliver feed) and the hen's `PetBond` holds its own copy (where to
+eat). A trough that moves (`fixturemove.go`) or is torn down
+(`letGoFixture`) updates both, exactly as the shared fields were updated
+before.
 
 Components live on the entity, not in side tables keyed by `EntityID`. A
 `map[EntityID]*Breeding` is a map iteration waiting to decide a tie (see
@@ -330,9 +343,12 @@ the ladder is a refactor of the existing ladders, not a redesign of them.
 2. **Behaviors for cat, rat, chicken.** *Done.* Each ladder rung lifted out
    of `catTurn`/`ratTurn`/`chickenTurn` into a behavior; all three run
    through `animalTurn`, and the three turn functions are gone.
-3. **Components.** Move rat breeding into `*Breeding` and the pet fields into
-   `*PetBond`; replace the remaining `Kind == Rat/Chicken` checks with
-   component checks.
+3. **Components.** *Done.* Rat breeding is a `*Breeding` and a pet's keeper
+   (and a hen's trough) a `*PetBond`; `canBreed` checks the component. Two
+   kind checks stay on purpose: landing asks whether a pet is a chicken to
+   wire its trough, and the frame's per-kind counters are the wire format's.
+   Save files from before phase 3 no longer load (the layout fingerprint
+   changed with `Entity`'s fields), as with any field change.
 4. **Aliens.** Give `Entity.Species` the meaning "index into `World.species`"
    for every animal, generate one `Species` per rolled `AlienSpecies`, and
    move `alienTurn` onto the ladder (strike, graze, the Cautious reaction,
@@ -372,7 +388,7 @@ small. In this model they are simply a species whose one behavior is
   `save:"-"` and `newWorld` rebuilds it from the loaded Config (see
   [save-load.md](./save-load.md)). That also keeps it out of the save layout
   fingerprint, so files from before phase 1 still load.
-- **How phases 1–2 were checked.** The lockstep test runs two worlds in one
+- **How phases 1–3 were checked.** The lockstep test runs two worlds in one
   process, so it cannot see a refactor that changes behavior the same way in
   both. Instead, a throwaway test hashed the full `worldFingerprint` (plus each
   animal's cooldown, quarry, food drive, pregnancy and keeper) every tick
@@ -382,7 +398,12 @@ small. In this model they are simply a species whose one behavior is
   ever foraged or raided a pod. Cat-free rat scenarios (on both `testConfig`
   and `DefaultConfig`) were needed, and the check was only trusted once
   swapping the rat's `breed` and `forage` rungs visibly changed the hashes
-  (rat populations doubled).
+  (rat populations doubled). Phase 3 moved fields, so the test read
+  breeding and pet state through a small helper per version (old fields on
+  `HEAD`, components on the branch). A first mismatch turned out to be the
+  helper, not the sim: it printed `Entity.trough` for hens, which the old
+  layout set and the new one leaves in `PetBond`. Compare like with like
+  before believing a diff.
 
 - **No modeling language.** We considered YAML growth, CUE, TypeScript as a
   definition language, and embedded scripting (Starlark, Lua). The

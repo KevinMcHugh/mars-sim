@@ -36,6 +36,8 @@ type Species struct {
 	// Starves: a full food drive kills it, leaving a Corpse.
 	Starves bool
 	Corpse  ItemKind
+	// Breeds: one is spawned with a Breeding component and a rolled sex.
+	Breeds bool
 	// Paced: it acts once every Slowness ticks, counting down Cooldown in
 	// between.
 	Paced    bool
@@ -90,6 +92,7 @@ func newSpeciesTable(cfg Config) [numKinds]Species {
 	rat := &t[Rat]
 	rat.HP, rat.HungerRate = cfg.RatHP, cfg.RatHungerRate
 	rat.Starves, rat.Corpse = true, AnimalCorpse
+	rat.Breeds = true
 	rat.ladder = []behavior{
 		flee{from: Cat, radius: cfg.RatFleeRadius},
 		forage{sources: []foodSource{forageScavenge, foragePod}},

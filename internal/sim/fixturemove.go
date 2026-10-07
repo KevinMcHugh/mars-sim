@@ -58,6 +58,9 @@ func (w *World) relocateFixture(from, to Point) {
 		if e.hasTrough && e.trough == from {
 			e.trough = to
 		}
+		if e.pet != nil && e.pet.hasTrough && e.pet.trough == from {
+			e.pet.trough = to
+		}
 		if e.hasKitchen && e.kitchen == from {
 			e.kitchen = to
 		}

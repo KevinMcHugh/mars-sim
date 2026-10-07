@@ -1554,8 +1554,9 @@ func (w *World) spawnWith(kind Kind, p Point, species int, rec *recruitCandidate
 	// Personality resolves the trait-scaled rates, so drives start only after
 	// it: their rates, bands and next crossings are all read from it.
 	w.initDrives(e, levels)
-	if kind == Rat {
-		e.sex = w.rollRatSex() // decides which rats can carry a litter
+	if w.species[kind].Breeds {
+		// The sex decides which of them can carry a litter.
+		e.breeding = &Breeding{sex: w.rollSex()}
 	}
 	if kind == Alien {
 		e.Species = species

@@ -2128,21 +2128,22 @@ func (w *World) pounce(cat, prey *Entity) {
 
 // ---- Rats --------------------------------------------------------------------
 
-// rollRatSex assigns a rat its sex, an even male/female split. It draws from
-// the simulation RNG (not the personality stream) because breeding is a
-// simulation mechanic, not cosmetic flavor.
-func (w *World) rollRatSex() Sex {
+// rollSex assigns a breeding creature its sex, an even male/female split. It
+// draws from the simulation RNG (not the personality stream) because breeding
+// is a simulation mechanic, not cosmetic flavor.
+func (w *World) rollSex() Sex {
 	if w.rng.IntN(2) == 0 {
 		return SexMale
 	}
 	return SexFemale
 }
 
-// canBreed reports whether a rat may mate this tick: it is not already
-// carrying a litter and is past mateReadyTick, which gates both a newborn's
-// maturation and a mother's post-birth cooldown.
+// canBreed reports whether a creature may mate this tick: it breeds at all,
+// is not already carrying a litter, and is past mateReadyTick, which gates
+// both a newborn's maturation and a mother's post-birth cooldown.
 func (w *World) canBreed(e *Entity) bool {
-	return e.Kind == Rat && !e.pregnant && w.tick >= e.mateReadyTick
+	b := e.breeding
+	return b != nil && !b.pregnant && w.tick >= b.mateReadyTick
 }
 
 // tryMate pairs a rat with an adjacent eligible rat of the opposite sex. The
@@ -2154,17 +2155,17 @@ func (w *World) tryMate(e *Entity) bool {
 	}
 	for _, d := range neighbors8 {
 		mate := w.entityAt(e.Pos.Add(d.X, d.Y))
-		if mate == nil || !w.canBreed(mate) || mate.sex == e.sex {
+		if mate == nil || !w.canBreed(mate) || mate.breeding.sex == e.breeding.sex {
 			continue
 		}
 		female, male := e, mate
-		if female.sex != SexFemale {
+		if female.breeding.sex != SexFemale {
 			female, male = mate, e
 		}
-		female.pregnant = true
-		female.dueTick = w.tick + w.cfg.RatGestationTicks
-		e.mateReadyTick = w.tick + w.cfg.RatBreedCooldown
-		mate.mateReadyTick = w.tick + w.cfg.RatBreedCooldown
+		female.breeding.pregnant = true
+		female.breeding.dueTick = w.tick + w.cfg.RatGestationTicks
+		e.breeding.mateReadyTick = w.tick + w.cfg.RatBreedCooldown
+		mate.breeding.mateReadyTick = w.tick + w.cfg.RatBreedCooldown
 		e.State, mate.State = Idle, Idle
 		w.logEvent(LogMate, fmt.Sprintf("Rats #%d and #%d mate.", male.ID, female.ID))
 		return true
@@ -2177,8 +2178,8 @@ func (w *World) tryMate(e *Entity) bool {
 // within the configured range; pups with nowhere to land are simply not born (a
 // crowded cavern limits the warren). Newborns cannot breed until they mature.
 func (w *World) giveBirth(e *Entity) {
-	e.pregnant = false
-	e.mateReadyTick = w.tick + w.cfg.RatBreedCooldown
+	e.breeding.pregnant = false
+	e.breeding.mateReadyTick = w.tick + w.cfg.RatBreedCooldown
 	litter := w.cfg.RatLitterMin
 	if span := w.cfg.RatLitterMax - w.cfg.RatLitterMin; span > 0 {
 		litter += w.rng.IntN(span + 1)
@@ -2193,7 +2194,7 @@ func (w *World) giveBirth(e *Entity) {
 			continue
 		}
 		pup := w.spawn(Rat, p)
-		pup.mateReadyTick = w.tick + w.cfg.RatMaturityTicks
+		pup.breeding.mateReadyTick = w.tick + w.cfg.RatMaturityTicks
 		born++
 	}
 	if born > 0 {

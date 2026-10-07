@@ -32,24 +32,25 @@ var feedRecipe = Recipe{
 // there, reporting whether it is busy with that this tick. A trough out of
 // feed, gone, or cut off from the chicken's room leaves it to graze.
 func (w *World) chickenFeed(e *Entity) bool {
-	if !e.hasTrough {
+	trough, ok := e.petTrough()
+	if !ok {
 		return false
 	}
-	c := w.storageContainers[e.trough]
+	c := w.storageContainers[trough]
 	if c == nil || c.Terrain != Trough || c.Inventory.Count(Feed) == 0 {
 		return false
 	}
-	if e.Pos.Adjacent(e.trough) {
+	if e.Pos.Adjacent(trough) {
 		if takeFeed(c) {
 			e.State = Feeding
 			w.resetDrive(e, DriveFood)
 		}
 		return true
 	}
-	if !w.taskReachable(e.trough, w.roomOf(e.Pos)) {
+	if !w.taskReachable(trough, w.roomOf(e.Pos)) {
 		return false
 	}
-	if _, ok := w.travelTo(e, e.trough); !ok {
+	if _, ok := w.travelTo(e, trough); !ok {
 		return false
 	}
 	e.State = Moving
@@ -105,7 +106,7 @@ const (
 // Chickens are few, so this scans them outright.
 func (w *World) keepsChickens(e *Entity) bool {
 	for id := range w.kindEntities[Chicken] {
-		if c := w.entities[id]; c != nil && c.keeper == e.ID && c.Alive() {
+		if c := w.entities[id]; c != nil && c.keeperOf() == e.ID && c.Alive() {
 			return true
 		}
 	}

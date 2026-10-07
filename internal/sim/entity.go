@@ -409,11 +409,9 @@ type Entity struct {
 	// Flavor only; see rollEmployer in arms_makers.go.
 	employer     int
 	employerRole string
-	// keeper is the colonist a pet (a chicken or a cat) came down with, 0 for
-	// a stray. trough is where a chicken eats and where its keeper fills it,
-	// when hasTrough; a keeper has the same trough. tend is where a JobTend
-	// keeper is. See chickens.go.
-	keeper    EntityID
+	// trough is the trough a chicken keeper fills, when hasTrough (colonists
+	// only; its hens hold the same point in their PetBond). tend is where a
+	// JobTend keeper is. See chickens.go.
 	trough    Point
 	hasTrough bool
 	tend      tendStage
@@ -572,14 +570,11 @@ type Entity struct {
 	// rolled alien species this individual belongs to.
 	Species int
 
-	// Rat reproduction (rats only). sex decides who can carry a litter; a
-	// female rat that mates becomes pregnant until dueTick, when she births a
-	// litter. mateReadyTick gates breeding: it holds a newborn back until it
-	// matures and spaces out a female's litters after she gives birth.
-	sex           Sex
-	pregnant      bool
-	dueTick       int
-	mateReadyTick int
+	// Components: data only some creatures have, nil when absent (see
+	// components.go). breeding is a rat's reproductive state; pet is a pet's
+	// bond to the colonist it came down with.
+	breeding *Breeding
+	pet      *PetBond
 }
 
 // newEntity builds an entity of kind with its species' starting stats, for

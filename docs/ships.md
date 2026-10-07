@@ -185,8 +185,8 @@ and 10), and lands each with `land`:
    with `arrivalMeals` meals credited on its ledger, and fill each trough with
    `trough-fill` feed.
 6. Hand out the rare items: a gun goes in the pockets, and a chicken or a cat
-   steps out onto the next aisle tile with `keeper` set (a hen also gets its
-   keeper's trough). See [chickens.md](./chickens.md).
+   steps out onto the next aisle tile with a `PetBond` naming its keeper (a
+   hen's bond also gets its keeper's trough). See [chickens.md](./chickens.md).
 
 `planShip` guarantees there is aisle for every passenger and one pet each.
 Bunks and toilets alone almost always leave enough; a stick with many cat

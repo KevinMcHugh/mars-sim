@@ -187,13 +187,13 @@ func (w *World) landShip(n int, l shipLayout, o Point, crashed, announce bool) *
 			p := l.floor[next]
 			next++
 			hen := w.spawn(Chicken, o.Add(p.X, p.Y))
-			hen.keeper, hen.trough, hen.hasTrough = id, e.trough, true
+			hen.pet = &PetBond{keeper: id, trough: e.trough, hasTrough: true}
 			s.Pets = append(s.Pets, hen.ID)
 		case rareCat:
 			p := l.floor[next]
 			next++
 			cat := w.spawn(Cat, o.Add(p.X, p.Y))
-			cat.keeper = id
+			cat.pet = &PetBond{keeper: id}
 			s.Pets = append(s.Pets, cat.ID)
 		}
 	}
@@ -316,9 +316,9 @@ func (w *World) furnishShip(s *Ship) {
 		}
 	}
 	for _, id := range s.Pets {
-		if pet := w.entities[id]; pet != nil && pet.Kind == Chicken {
-			if keeper := w.entities[pet.keeper]; keeper != nil && keeper.hasTrough {
-				pet.trough, pet.hasTrough = keeper.trough, true
+		if pet := w.entities[id]; pet != nil && pet.Kind == Chicken && pet.pet != nil {
+			if keeper := w.entities[pet.pet.keeper]; keeper != nil && keeper.hasTrough {
+				pet.pet.trough, pet.pet.hasTrough = keeper.trough, true
 			}
 		}
 	}

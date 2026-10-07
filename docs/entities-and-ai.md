@@ -201,8 +201,8 @@ a rat is walled off or the cat is wedged, it prowls (`wanderStep`) instead of
 freezing.
 
 Cats arrive as one of a colonist's three possible rare items (see
-[ships.md](./ships.md)): a cat steps out of its owner's ship with
-`keeper` set to the owner, which so far is only shown, never acted on. The
+[ships.md](./ships.md)): a cat steps out of its owner's ship with a
+`PetBond` naming the owner, which so far is only shown, never acted on. The
 `cats` setting adds strays at worldgen and is 0 by default. A cat hunts only
 rats: chickens are not prey, and a chicken does not flee a cat.
 

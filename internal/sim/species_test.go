@@ -60,3 +60,69 @@ func TestDisplayNameFallsBackToSpecies(t *testing.T) {
 		}
 	}
 }
+
+// A species breeds exactly when its ladder has a breed rung, and only those
+// spawn with a Breeding component: a breed rung without one could never
+// mate, and a Breeding nobody acts on is dead weight.
+func TestBreedingComponentMatchesTheLadder(t *testing.T) {
+	cfg := testConfig()
+	cfg.StartColonists, cfg.StartAliens, cfg.StartCats, cfg.StartRats = 0, 0, 0, 0
+	w := newTestWorld(t, cfg)
+	for k := Kind(0); k < numKinds; k++ {
+		sp := w.species[k]
+		hasRung := false
+		for _, b := range sp.ladder {
+			if _, ok := b.(breed); ok {
+				hasRung = true
+			}
+		}
+		if hasRung != sp.Breeds {
+			t.Errorf("%v: breed rung %v, Breeds %v", k, hasRung, sp.Breeds)
+		}
+		if k == Colonist {
+			continue // colonists land in ships, not by spawn
+		}
+		p, ok := w.randomFloor()
+		if !ok {
+			t.Fatal("no floor to spawn on")
+		}
+		if e := w.spawn(k, p); (e.breeding != nil) != sp.Breeds {
+			t.Errorf("spawned %v has Breeding %v, species Breeds %v", k, e.breeding != nil, sp.Breeds)
+		}
+	}
+}
+
+// Pets that land with a colonist carry a PetBond naming it; a chicken's bond
+// also holds its keeper's trough. Strays have none.
+func TestLandedPetsCarryAPetBond(t *testing.T) {
+	for _, tc := range []struct {
+		name          string
+		chicken, cat  int
+		kind          Kind
+		wantTroughSet bool
+	}{
+		{"chicken", 1, 0, Chicken, true},
+		{"cat", 0, 1, Cat, false},
+	} {
+		w := petWorld(t, 0, tc.chicken, tc.cat, 2)
+		for id := range w.kindEntities[tc.kind] {
+			pet := w.entities[id]
+			if pet.pet == nil {
+				t.Fatalf("%s #%d landed without a PetBond", tc.name, id)
+			}
+			keeper := w.entities[pet.keeperOf()]
+			if keeper == nil || keeper.Kind != Colonist {
+				t.Fatalf("%s #%d's keeper is not a colonist", tc.name, id)
+			}
+			trough, ok := pet.petTrough()
+			if ok != tc.wantTroughSet || (ok && (!keeper.hasTrough || keeper.trough != trough)) {
+				t.Fatalf("%s #%d trough %v,%v; keeper's %v,%v", tc.name, id, trough, ok, keeper.trough, keeper.hasTrough)
+			}
+		}
+	}
+	w := petWorld(t, 0, 0, 0, 1)
+	p, _ := w.randomFloor()
+	if stray := w.spawn(Chicken, p); stray.pet != nil {
+		t.Fatal("a spawned stray chicken has a PetBond")
+	}
+}
