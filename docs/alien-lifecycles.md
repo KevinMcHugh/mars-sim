@@ -24,7 +24,7 @@ each form of a life is its own species value with its own behavior ladder.
 - [`internal/sim/components.go`](../internal/sim/components.go) — `LifeStage`, the component an alien of a multi-form species carries.
 - [`internal/sim/species.go`](../internal/sim/species.go) — `newAlienSpeciesTable`: one species per form, each with its ladder.
 - [`internal/sim/lore.go`](../internal/sim/lore.go) — the `Anatomy`, `Forms` and `FormCount` fields on `AlienSpecies`, the two extra passes in `rollAlienSpeciesRoster`, and the sentences `Description` adds.
-- [`internal/sim/config.go`](../internal/sim/config.go) — `alien-one-form-weight` … `alien-four-form-weight`, `alien-caste-percent`, `alien-stage-ticks`; and for broods `alien-lay-ticks`, `alien-brood-cap`, `alien-brood-radius`, `alien-species-cap`, `alien-nest-roam`.
+- [`internal/sim/config.go`](../internal/sim/config.go) — `alien-one-form-weight` … `alien-four-form-weight`, `alien-caste-percent`, `alien-stage-ticks`; and for broods `alien-lay-ticks`, `alien-brood-cap`, `alien-brood-radius`, `alien-species-cap`, `alien-nest-roam`; and `alien-apex-percent`.
 - [`internal/sim/alien_lifecycle_test.go`](../internal/sim/alien_lifecycle_test.go) — the rules below, as tests.
 
 ## How it works
@@ -107,6 +107,34 @@ cannot use yet (a hornless grub of a horned species bites). A body without
 any feature fights exactly as before: same modes, same damage, same draws.
 Descriptions say "goring with their horns" and "stinging"; narration says
 "gores" and "stings".
+
+### Apex species
+
+A few species are **very deadly on purpose**. `rollApex` marks
+`alien-apex-percent` (8%) of the species that both fight (not Friendly) and
+have a feature; their features hit by `apexWeapons` instead of
+`ordinaryWeapons`:
+
+| | ordinary | apex |
+| --- | --- | --- |
+| gore | +8% per horn, +5% per tine, at most 2x | +15% per horn, +10% per tine, at most 3x |
+| claws | +25% per grade | +50% per grade |
+| club / spiked club tail | 1.5x / 1.75x | 2x / 2.5x |
+| sting (to the torso) | 0.5x / 0.75x barbed | 1x / 1.5x barbed |
+| shell blocks | 10% / 20% / 30% | 25% / 45% / 60% |
+
+Across 1,000 rolled species, 55 were apex: with the shipped one species per
+seed, about one game in twenty meets one. The lore tab warns: "Colonists who
+have seen what those can do speak of them in whispers; nothing else in the
+caves is as deadly." The roll draws from its own stream (`alienApexSeed`),
+once per species whatever its anatomy or temperament, so it moves no other
+draw and one species never shifts another's roll.
+
+What it does to a colony, over 20,000 ticks with 20 colonists, the first six
+apex seeds run with the apex roll off and on: a Hostile goring species took
+seed 11 from 19 survivors to 3 and seed 12 from 10 to 0; a Hostile stinger
+(seed 74) and the Cautious apex species (seeds 16, 36, 66) changed nothing,
+because a Cautious species only strikes a colonist who comes close.
 
 ### An individual's life
 
@@ -235,6 +263,20 @@ queens lay eggs.", "Adults bear young."
   rolling their hit like any blow), because any change to which modes a
   species rolls reshuffles every later draw; judge balance across many
   seeds, not one.
+
+- **Deadly is fine; common is not.** After the balance run cut the
+  ordinary numbers back, the stronger ones came back as the apex table:
+  the game can have species that wipe a colony, as long as they are rare.
+  Rarity is the knob (`alien-apex-percent`); the apex numbers are not meant
+  to be fair.
+- **A flaky test that was a lifecycle assumption.** Adding apex turned up a
+  test that failed about one run in fifteen, on `main` too:
+  `TestBystanderRemembersAlienAttack` uses `DefaultConfig`, whose seed is the
+  clock, and set a victim's HP to its species' full bite damage. Since
+  lifecycles, an alien can spawn as a young form that bites for less, so the
+  "fatal" bite sometimes was not. It now uses `alienDamage`, what this alien
+  actually deals. A test on `DefaultConfig` gets a different roster every
+  run; it must not assume an adult, a single form, or no features.
 
 ## Extending it
 

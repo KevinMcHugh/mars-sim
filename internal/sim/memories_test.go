@@ -63,7 +63,10 @@ func TestBystanderRemembersAlienAttack(t *testing.T) {
 	// A second, fatal bite: the victim is removed and cannot hold a memory,
 	// but the bystander should remember watching the kill.
 	victim2 := w.spawn(Colonist, Point{1, 0})
-	victim2.HP = w.alienSpeciesFor(alien).BiteDamage
+	// Exactly what this alien's bite deals: DefaultConfig's seed is the
+	// clock, and a species with a lifecycle may spawn as a smaller form that
+	// bites for less than its species' full damage (see alienDamage).
+	victim2.HP = w.alienDamage(alien)
 	name := victim2.displayName()
 	w.strike(alien, victim2)
 

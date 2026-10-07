@@ -66,7 +66,7 @@ func weaponWorld(t *testing.T, a AlienAnatomy, modes AttackSet) (*World, *Entity
 	cfg.StartColonists, cfg.StartAliens, cfg.StartCats, cfg.StartRats = 0, 0, 0, 0
 	w := newTestWorld(t, cfg)
 	sp := &w.alienSpecies[0]
-	sp.Anatomy, sp.AttackModes, sp.BiteDamage = a, modes, 20
+	sp.Anatomy, sp.AttackModes, sp.BiteDamage, sp.Apex = a, modes, 20, false
 	w.buildAlienSpecies()
 	at := Point{w.Width / 2, w.Height / 2}
 	w.reveal(at)
@@ -152,5 +152,71 @@ func TestShellBluntsGunfire(t *testing.T) {
 		if got := 999 - alien.HP; got != want {
 			t.Errorf("shell %d: a 20-damage shot took %d, want %d", shell, got, want)
 		}
+	}
+}
+
+// Apex species are rare and only ever species that fight with something:
+// about alien-apex-percent of the fighting, featured ones, never a Friendly
+// or featureless one.
+func TestApexSpeciesAreRare(t *testing.T) {
+	cfg := DefaultConfig()
+	cfg.AlienSpeciesCount = 10
+	apex, eligible, total := 0, 0, 0
+	for seed := int64(1); seed <= 100; seed++ {
+		cfg.Seed = seed
+		for _, sp := range rollAlienSpeciesRoster(newRand(cfg.Seed^alienLoreSeed), cfg) {
+			total++
+			fights := sp.Anatomy.any() && sp.Temperament != TemperamentFriendly
+			if fights {
+				eligible++
+			}
+			if sp.Apex {
+				apex++
+				if !fights {
+					t.Fatalf("%s is apex but %s with %+v", sp.Singular, sp.Temperament, sp.Anatomy)
+				}
+				if !strings.Contains(sp.Description(), "whispers") {
+					t.Errorf("apex %s's description does not warn: %s", sp.Singular, sp.Description())
+				}
+			}
+		}
+	}
+	pct := 100 * apex / eligible
+	if pct < 4 || pct > 13 {
+		t.Fatalf("%d apex of %d eligible species (%d%%), want about %d%%", apex, eligible, pct, cfg.AlienApexPercent)
+	}
+	t.Logf("%d apex of %d species (%d eligible)", apex, total, eligible)
+}
+
+// An apex species' features hit far harder than an ordinary one's, and its
+// shell turns more aside; a featureless body of either fights the same.
+func TestApexWeaponsAreDeadlier(t *testing.T) {
+	for _, tc := range []struct {
+		a     AlienAnatomy
+		mode  AttackMode
+		plain int // percent of base, ordinary
+		apex  int // percent of base, apex
+	}{
+		{AlienAnatomy{}, AttackBite, 100, 100},
+		{AlienAnatomy{Horns: 5}, AttackGore, 140, 175},
+		{AlienAnatomy{Horns: 12, Antlers: 14}, AttackGore, 200, 300},
+		{AlienAnatomy{Claws: 3}, AttackClaw, 175, 250},
+		{AlienAnatomy{TailTip: TailSpikedClub}, AttackTail, 175, 250},
+		{AlienAnatomy{Stinger: 2}, AttackSting, 75, 150},
+	} {
+		w, alien, _ := weaponWorld(t, tc.a, AttackSetOf(tc.mode))
+		if got := w.modeDamage(alien, tc.mode, 20); got != 20*tc.plain/100 {
+			t.Errorf("ordinary %+v %v: %d, want %d", tc.a, tc.mode, got, 20*tc.plain/100)
+		}
+		w.alienSpecies[0].Apex = true
+		if got := w.modeDamage(alien, tc.mode, 20); got != 20*tc.apex/100 {
+			t.Errorf("apex %+v %v: %d, want %d", tc.a, tc.mode, got, 20*tc.apex/100)
+		}
+	}
+	w, alien, _ := weaponWorld(t, AlienAnatomy{Shell: 3}, AttackSetOf(AttackBite))
+	plain := w.armored(alien, 20)
+	w.alienSpecies[0].Apex = true
+	if apex := w.armored(alien, 20); plain != 14 || apex != 8 {
+		t.Fatalf("a 20-damage hit on a carapace: ordinary %d (want 14), apex %d (want 8)", plain, apex)
 	}
 }

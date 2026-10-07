@@ -455,6 +455,9 @@ type AlienSpecies struct {
 	// Anatomy is the adult's graded features (horns, antlers, quills, shell,
 	// claws, a stinger, a tail ornament); see alien_anatomy.go.
 	Anatomy AlienAnatomy
+	// Apex marks one of the rare, very deadly species: its features hit by
+	// apexWeapons rather than ordinaryWeapons. See alien_weapons.go.
+	Apex bool
 	// Forms is the species' life, stage by stage (the last split into castes,
 	// when it has them), in its first FormCount entries; FormCount 0 is a
 	// single form, which is most species. See alien_lifecycle.go.
@@ -577,6 +580,7 @@ func rollAlienSpeciesRoster(rng *rand.Rand, cfg Config) []AlienSpecies {
 		// Horns gore and stingers sting: granted, not rolled, so no draw.
 		roster[i].AttackModes |= featureAttacks(roster[i].Anatomy)
 	}
+	rollApex(cfg, roster) // its own stream too
 	lifeRNG := newRand(cfg.Seed ^ alienLifecycleSeed)
 	for i := range roster {
 		rollLifecycle(lifeRNG, &roster[i], cfg)
@@ -657,6 +661,9 @@ func (sp AlienSpecies) Description() string {
 	out := sp.entry()
 	if feats := sp.Anatomy.featurePhrases(); len(feats) > 0 {
 		out += fmt.Sprintf(" Adults bear %s.", joinList(feats))
+		if sp.Apex {
+			out += " Colonists who have seen what those can do speak of them in whispers; nothing else in the caves is as deadly."
+		}
 	}
 	if life := sp.lifePhrase(); life != "" {
 		out += " " + life

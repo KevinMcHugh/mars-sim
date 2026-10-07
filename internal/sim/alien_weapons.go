@@ -55,32 +55,70 @@ func (w *World) attacksNow(e *Entity) []AttackMode {
 	return modes
 }
 
-// modeDamage scales a strike's base damage by the feature behind it: each
-// horn adds 8% and each antler tine 5% to a gore (at most double), claws rake
-// a quarter harder per grade, a club tail hits half again as hard and a
-// spiked one three quarters, and a stinger stings at half (a barbed one at
-// three quarters) but always finds the body, a vital part (see strike). The
-// numbers were cut after a balance run; see docs/alien-lifecycles.md.
-// Bite and strangle, and every mode of a featureless body, are unchanged.
+// weaponTable is how hard a body's features hit, and how much a shell turns
+// aside. Most species use ordinaryWeapons; the rare apex species
+// (AlienSpecies.Apex) use apexWeapons.
+type weaponTable struct {
+	gorePerHorn, gorePerTine, goreMax int    // gore damage, percent of base
+	clawPerGrade                      int    // claw mode bonus per grade, percent
+	club, spikedClub                  int    // tail mode with a club, percent
+	sting, barbedSting                int    // sting damage, percent
+	shellBlocks                       [4]int // percent of a hit turned aside, by shell grade
+}
+
+// ordinaryWeapons is most species. The numbers were cut after a balance run
+// (a carapace blocking half of every shot made a breeding species all but
+// impossible to clear); see docs/alien-lifecycles.md.
+var ordinaryWeapons = weaponTable{
+	gorePerHorn: 8, gorePerTine: 5, goreMax: 200,
+	clawPerGrade: 25,
+	club:         150, spikedClub: 175,
+	sting: 50, barbedSting: 75,
+	shellBlocks: [4]int{0, 10, 20, 30},
+}
+
+// apexWeapons is the rare apex species: very deadly on purpose. Its rarity
+// (alien-apex-percent), not its numbers, is what keeps a colony's odds fair.
+var apexWeapons = weaponTable{
+	gorePerHorn: 15, gorePerTine: 10, goreMax: 300,
+	clawPerGrade: 50,
+	club:         200, spikedClub: 250,
+	sting: 100, barbedSting: 150,
+	shellBlocks: [4]int{0, 25, 45, 60},
+}
+
+// weaponsOf is the table an alien's features fight by.
+func (w *World) weaponsOf(e *Entity) *weaponTable {
+	if w.alienSpeciesFor(e).Apex {
+		return &apexWeapons
+	}
+	return &ordinaryWeapons
+}
+
+// modeDamage scales a strike's base damage by the feature behind it, by the
+// alien's weaponTable: gore by horns and tines (capped), claws by grade, a
+// tail by its club, and a sting at a fixed share (more if barbed) that
+// always finds the body, a vital part (see strike). Bite and strangle, and
+// every mode of a featureless body, are unchanged.
 func (w *World) modeDamage(e *Entity, mode AttackMode, base int) int {
-	a := w.anatomyOf(e)
+	a, t := w.anatomyOf(e), w.weaponsOf(e)
 	pct := 100
 	switch mode {
 	case AttackGore:
-		pct = min(200, 100+8*a.Horns+5*a.Antlers)
+		pct = min(t.goreMax, 100+t.gorePerHorn*a.Horns+t.gorePerTine*a.Antlers)
 	case AttackClaw:
-		pct = 100 + 25*a.Claws
+		pct = 100 + t.clawPerGrade*a.Claws
 	case AttackTail:
 		switch a.TailTip {
 		case TailClub:
-			pct = 150
+			pct = t.club
 		case TailSpikedClub:
-			pct = 175
+			pct = t.spikedClub
 		}
 	case AttackSting:
-		pct = 50
+		pct = t.sting
 		if a.Stinger >= 2 {
-			pct = 75
+			pct = t.barbedSting
 		}
 	}
 	if pct == 100 || base <= 0 {
@@ -88,11 +126,6 @@ func (w *World) modeDamage(e *Entity, mode AttackMode, base int) int {
 	}
 	return max(1, scaleRound(base, pct, 100))
 }
-
-// shellBlocks is the percent of a hit a shell turns aside, by grade: none,
-// a patch, plates, a full carapace. At 50% for a carapace a breeding species
-// became all but impossible to clear with pistols.
-var shellBlocks = [4]int{0, 10, 20, 30}
 
 // armored is a hit on target after its shell: an alien with a shell takes
 // less from every gunshot and every strike. A hit that does damage at all
@@ -105,5 +138,22 @@ func (w *World) armored(target *Entity, dmg int) int {
 	if shell <= 0 {
 		return dmg
 	}
-	return max(1, scaleRound(dmg, 100-shellBlocks[min(shell, 3)], 100))
+	return max(1, scaleRound(dmg, 100-w.weaponsOf(target).shellBlocks[min(shell, 3)], 100))
+}
+
+// alienApexSeed separates the apex roll's stream from the other lore
+// streams, so adding it moved no other draw.
+const alienApexSeed = 0x13198A2E03707344
+
+// rollApex marks the rare apex species: alien-apex-percent of species that
+// have a feature and fight (a featureless body has nothing to be deadly
+// with, and a Friendly species never attacks). It draws once per species
+// whatever the anatomy or temperament, so one species never shifts
+// another's roll.
+func rollApex(cfg Config, roster []AlienSpecies) {
+	rng := newRand(cfg.Seed ^ alienApexSeed)
+	for i := range roster {
+		hit := rng.IntN(100) < cfg.AlienApexPercent
+		roster[i].Apex = hit && roster[i].Anatomy.any() && roster[i].Temperament != TemperamentFriendly
+	}
 }
