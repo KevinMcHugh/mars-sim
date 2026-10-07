@@ -904,9 +904,9 @@ func TestRatsBreedAndGiveBirth(t *testing.T) {
 		}
 	}
 	male := w.spawn(Rat, center)
-	male.sex = SexMale
+	male.breeding.sex = SexMale
 	female := w.spawn(Rat, center.Add(1, 0))
-	female.sex = SexFemale
+	female.breeding.sex = SexFemale
 
 	for i := 0; i < cfg.RatGestationTicks+5; i++ {
 		w.step()
@@ -930,9 +930,9 @@ func TestSameSexRatsDoNotBreed(t *testing.T) {
 		}
 	}
 	a := w.spawn(Rat, center)
-	a.sex = SexMale
+	a.breeding.sex = SexMale
 	b := w.spawn(Rat, center.Add(1, 0))
-	b.sex = SexMale
+	b.breeding.sex = SexMale
 
 	for i := 0; i < cfg.RatGestationTicks+5; i++ {
 		w.step()

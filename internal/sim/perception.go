@@ -124,28 +124,17 @@ func (w *World) factRef(e *Entity) FactRef {
 		return FactRef{}
 	}
 	label := e.displayName()
-	switch e.Kind {
-	case Alien:
+	if e.Kind == Alien {
 		label = fmt.Sprintf("%s #%d", w.alienNounFor(e), e.ID)
-	case Cat, Rat, Chicken:
-		label = fmt.Sprintf("%s #%d", e.Kind, e.ID)
 	}
 	return FactRef{Noun: nounForKind(e.Kind), Entity: e.ID, Label: label}
 }
 
 func nounForKind(kind Kind) NounID {
-	switch kind {
-	case Colonist:
-		return NounColonist
-	case Alien:
-		return NounAlien
-	case Cat:
-		return NounCat
-	case Rat:
-		return NounRat
-	default:
-		return ""
+	if kind < numKinds {
+		return kindIdentity[kind].Noun
 	}
+	return ""
 }
 
 // ObserverAppraisal carries a contextual target for one observer. Conversation

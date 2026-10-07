@@ -1,15 +1,14 @@
 package sim
 
-import "fmt"
-
 // ---- Chickens ----------------------------------------------------------------
 //
 // A chicken is one of the three rare items a colonist can land with (see
 // arrivalRareItem): it steps out of its keeper's ship, with a trough in the hold. It has
 // one drive, food, and two ways to meet it: feed from its trough, or cave scum
-// grazed off the rock the way a peaceful alien grazes it. With neither it
-// starves, like a rat. Cats and chickens ignore each other: a cat hunts only
-// rats (catTurn), and a chicken flees nothing.
+// grazed off the rock the way a peaceful alien grazes it (the forage rung of
+// its ladder, species.go). With neither it starves, like a rat. Cats and chickens ignore each other: a cat hunts only
+// rats (the hunt in its species ladder, species.go), and a chicken flees
+// nothing.
 //
 // Feed is the keeper's work (JobTend): scrape scum, mix it into feed at a
 // scumhouse (feedRecipe), and carry the feed to the trough. See
@@ -29,60 +28,29 @@ var feedRecipe = Recipe{
 	Skill:    SkillCooking,
 }
 
-// chickenTurn runs one chicken tick: starve, then, when hungry, eat from the
-// trough or graze scum; otherwise wander, drifting home to the trough when
-// it has strayed.
-func (w *World) chickenTurn(e *Entity) {
-	w.applyDriveConsequences(e)
-	if !e.Alive() {
-		w.clearJob(e)
-		w.addCorpse(e.Pos, AnimalCorpse)
-		w.remove(e.ID, "starved")
-		w.logEvent(LogDeath, fmt.Sprintf("Chicken #%d starves.", e.ID))
-		return
-	}
-	if e.Cooldown > 0 {
-		e.Cooldown--
-		return
-	}
-	e.Cooldown = w.cfg.ChickenSlowness - 1
-	if w.driveLevel(e, DriveFood) >= w.cfg.Drives[DriveFood].SeekAt {
-		if w.chickenFeed(e) || w.chickenGraze(e) {
-			return
-		}
-	}
-	if e.hasTrough && e.Pos.Chebyshev(e.trough) > w.cfg.ChickenRoam {
-		if _, ok := w.travelTo(e, e.trough); ok {
-			e.State = Moving
-			return
-		}
-	}
-	e.State = Idle
-	w.wanderStep(e)
-}
-
 // chickenFeed sends a hungry chicken to its trough and eats a unit of feed
 // there, reporting whether it is busy with that this tick. A trough out of
 // feed, gone, or cut off from the chicken's room leaves it to graze.
 func (w *World) chickenFeed(e *Entity) bool {
-	if !e.hasTrough {
+	trough, ok := e.petTrough()
+	if !ok {
 		return false
 	}
-	c := w.storageContainers[e.trough]
+	c := w.storageContainers[trough]
 	if c == nil || c.Terrain != Trough || c.Inventory.Count(Feed) == 0 {
 		return false
 	}
-	if e.Pos.Adjacent(e.trough) {
+	if e.Pos.Adjacent(trough) {
 		if takeFeed(c) {
 			e.State = Feeding
 			w.resetDrive(e, DriveFood)
 		}
 		return true
 	}
-	if !w.taskReachable(e.trough, w.roomOf(e.Pos)) {
+	if !w.taskReachable(trough, w.roomOf(e.Pos)) {
 		return false
 	}
-	if _, ok := w.travelTo(e, e.trough); !ok {
+	if _, ok := w.travelTo(e, trough); !ok {
 		return false
 	}
 	e.State = Moving
@@ -138,7 +106,7 @@ const (
 // Chickens are few, so this scans them outright.
 func (w *World) keepsChickens(e *Entity) bool {
 	for id := range w.kindEntities[Chicken] {
-		if c := w.entities[id]; c != nil && c.keeper == e.ID && c.Alive() {
+		if c := w.entities[id]; c != nil && c.keeperOf() == e.ID && c.Alive() {
 			return true
 		}
 	}

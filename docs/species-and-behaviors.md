@@ -4,24 +4,32 @@
 
 ## What it is
 
-**Proposal.** A plan to stop hand-writing one turn function per creature and
+**In progress: phases 1–3 of 7 are built** (see [Migration](#migration)).
+A plan to stop hand-writing one turn function per creature and
 instead define each creature (cat, rat, chicken, each alien species) as a
 **species**: a set of attributes plus an ordered list of reusable
 **behaviors** drawn from a shared library. It borrows the useful idea from an
 entity-component system — behavior comes from what an entity *has*, not from a
 type switch — without adopting an ECS library, an archetype store, or a
-modeling language for definitions. Nothing here is built yet; the phases
-below are written so each one can land on its own without changing behavior.
+modeling language for definitions. The phases below are written so each one
+can land on its own without changing behavior. Cats, rats and chickens already
+run on behavior ladders, and rat breeding and pets are components; aliens and
+colonists still have turns of their own.
 
 ## Source
 
-Where the things this proposal replaces live today:
+Built so far:
 
-- [`internal/sim/entity.go`](../internal/sim/entity.go) — `Kind`, the one `Entity` struct every kind shares, and `newEntity`'s per-kind stats switch.
-- [`internal/sim/systems.go`](../internal/sim/systems.go) — the `switch e.Kind` turn dispatch in `step`, `catTurn`, `ratTurn`, `tryMate`, and the shared primitives (`travelTo`, `fleeStep`, `wanderStep`, `nearestOfKind*`, `nearestReachablePrey`).
-- [`internal/sim/chickens.go`](../internal/sim/chickens.go) — `chickenTurn`, `chickenFeed`, `chickenGraze`.
+- [`internal/sim/species.go`](../internal/sim/species.go) — `Species`, `kindIdentity` (the Config-free half: name, noun, body, spawn site), `newSpeciesTable` (stats and ladders from `Config`), `World.speciesOf`.
+- [`internal/sim/behaviors.go`](../internal/sim/behaviors.go) — the `behavior` interface, `animalTurn`, and the rungs: `hunt`, `flee`, `forage` with its `foodSource`s, `breed`, `stayNearTrough`, `wander`.
+- [`internal/sim/components.go`](../internal/sim/components.go) — `Breeding` and `PetBond`, with the `keeperOf` / `petTrough` accessors.
+- [`internal/sim/species_test.go`](../internal/sim/species_test.go) — the table's and the components' invariants.
+
+Still to move (phases 4–5):
+
+- [`internal/sim/systems.go`](../internal/sim/systems.go) — `alienTurn`, and the kind-keyed queries (`nearestOfKind*`, `nearestReachablePrey`).
 - [`internal/sim/lore.go`](../internal/sim/lore.go) — `AlienSpecies`, the per-seed roster whose temperament already picks between hunting and grazing.
-- [`internal/sim/perception.go`](../internal/sim/perception.go), [`snapshot.go`](../internal/sim/snapshot.go), [`engine.go`](../internal/sim/engine.go) — the other `switch e.Kind` sites (nouns, labels, glyphs, spawning).
+- [`internal/sim/snapshot.go`](../internal/sim/snapshot.go) — the per-kind counters in the frame's stats.
 
 ## How it works
 
@@ -41,10 +49,11 @@ components "as behavior multiplies." This doc is that graduation plan. We want
 behaviors need. We do not want the storage model (see
 [Why it is this way](#why-it-is-this-way)).
 
-### Where we are
+### Where we started
 
-Each non-colonist kind is a hand-written priority ladder. Laid side by side,
-they are mostly the same rungs in different orders:
+Before phase 2 each non-colonist kind was a hand-written priority ladder
+(`catTurn`, `ratTurn`, `chickenTurn`, `alienTurn`). Laid side by side, they
+were mostly the same rungs in different orders:
 
 | Rung | Cat | Rat | Chicken | Alien (Hostile / Friendly, Cautious) |
 | --- | --- | --- | --- | --- |
@@ -58,10 +67,11 @@ they are mostly the same rungs in different orders:
 | stay near home | — | — | trough within `ChickenRoam` | — |
 | wander | ✓ | ✓ | ✓ | ✓ |
 
-The kind identity then leaks into roughly two dozen `switch e.Kind` /
+The kind identity leaked into roughly two dozen `switch e.Kind` /
 `e.Kind == X` sites: stats in `newEntity`, nouns and labels in `perception.go`,
-glyphs in `snapshot.go`, spawning in `engine.go`, prey names, and checks like
-`canBreed`'s `e.Kind == Rat`. Adding a goat today means touching all of them.
+spawning in `engine.go`, prey names, and checks like `canBreed`'s
+`e.Kind == Rat`. Phase 1 folded the identity and stat switches into the
+species table; the behavior checks go in phases 3 and 5.
 
 The `Entity` struct carries every kind's fields at once: colonist economy and
 mind state, chicken `keeper`/`trough`, rat `sex`/`pregnant`/`dueTick`, alien
@@ -87,61 +97,81 @@ type behavior interface {
 	act(w *World, e *Entity) bool
 }
 
-type flee struct{ from Tags; radius int }
-type hunt struct{ prey Tags; scope huntScope; rest int } // scope: anywhere, same room
-type forage struct{ sources []foodSource }               // tried in order
-type breed struct{ litter, gestation, mature int }
-type stayNear struct{ anchor anchorKind; roam int }      // chicken → its trough
-type wander struct{}
+type hunt struct{ prey Kind; rest int }      // nearest prey anywhere; rest after a catch
+type flee struct{ from Kind; radius int }
+type forage struct{ sources []foodSource }  // tried in order once hungry
+type breed struct{}                         // tryMate; litter size etc. still in Config
+type stayNearTrough struct{ roam int }      // a chicken
+type wander struct{}                        // always acts: every ladder ends here
 ```
 
-**A species is a value, not a type.** It holds the stats that are now spread
-across `newEntity` and `Config`, its display identity, its tags, and its
-ladder:
+`hunt` and `flee` take a `Kind` for now; phase 5 widens that to tags.
+`forage` first lets a foraging job already under way (`JobScavenge`, `JobUse`)
+run on, hungry or not, exactly as `ratTurn` did; only then does it check the
+food drive and try its sources. A `foodSource` is a plain
+`func(*World, *Entity) bool`, so the chicken's existing `chickenFeed` and
+`chickenGraze` plug in as method expressions (`(*World).chickenFeed`)
+unchanged.
+
+**A species is a value, not a type.** It holds the display identity and
+stats that used to be spread across `switch` statements, and its ladder:
 
 ```go
 type Species struct {
-	Name, Noun string
-	Tags       Tags      // what others' behaviors match on: prey, pest, pet, alien...
-	HP         int
-	HungerRise int       // 0: no food need
-	Starves    bool
-	Slowness   int       // turn pacing; 0 acts every tick
+	Kind       Kind
+	Name       string    // "rat": Kind.String, and "rat #12" labels
+	Noun       NounID    // perception grammar noun; "" for chickens
 	Body       bool      // per-part HP (hasParts)
-	Ladder     []behavior
+	Spawn      spawnSite // floor, ship, or cavern (Engine.spawn)
+	HP         int
+	HungerRate int       // food drive base rate; 0: no hunger
+	Starves    bool      // a full food drive kills it, leaving Corpse
+	Corpse     ItemKind
+	Paced      bool      // acts every Slowness ticks, counting down Cooldown
+	Slowness   int
+	ladder     []behavior
 }
 ```
 
-Expressed this way, today's creatures are (parameters elided; every value
-comes from the existing `Config` tunables, so nothing moves out of
-`mars-sim.yaml`):
+The table is indexed by `Kind`. `kindIdentity` is the Config-free half
+(name, noun, body, spawn site), readable without a World, so `Kind.String` and
+`Entity.hasParts` use it. `newSpeciesTable(cfg)` copies it and fills in stats
+and ladders from `Config`; `newWorld` keeps the result in `World.species`.
+The creatures, as built (every number is an existing `Config` tunable, so
+nothing moved out of `mars-sim.yaml`):
 
 ```go
-cat     = Species{Tags: pet,      Ladder: {hunt{prey: rat, scope: anywhere}, wander{}}}
-rat     = Species{Tags: pest|prey, Starves: true,
-                  Ladder: {flee{from: cat}, forage{scavenge, pod}, breed{…}, wander{}}}
-chicken = Species{Tags: pet,      Starves: true,
-                  Ladder: {forage{trough, scum}, stayNear{trough}, wander{}}}
+cat.ladder     = {hunt{prey: Rat, rest: CatPounceRest}, wander{}}
+rat.ladder     = {flee{from: Cat, radius: RatFleeRadius},
+                  forage{forageScavenge, foragePod}, breed{}, wander{}}
+chicken.ladder = {forage{(*World).chickenFeed, (*World).chickenGraze},
+                  stayNearTrough{roam: ChickenRoam}, wander{}}
 ```
 
 **One turn function runs every species.** The steps every animal shares
-(starvation, gestation, cooldown) run first; then the ladder runs top to
-bottom until a rung acts:
+(starvation, gestation, pacing) run first; then the ladder runs top to bottom
+until a rung acts:
 
 ```go
 func (w *World) animalTurn(e *Entity) {
-	sp := w.species[e.Species]
-	if sp.Starves && w.starved(e) { return }   // corpse, log, remove
-	if b := e.breeding; b != nil && b.due(w.tick) { w.giveBirth(e) }
-	if e.Cooldown > 0 { e.Cooldown--; return }
-	for _, b := range sp.Ladder {
-		if b.act(w, e) { break }
+	sp := w.speciesOf(e)
+	if sp.Starves { /* apply drives; if dead: corpse, log, remove, return */ }
+	if e.pregnant && w.tick >= e.dueTick { w.giveBirth(e) }
+	if sp.Paced {
+		if e.Cooldown > 0 { e.Cooldown--; return }
+		e.Cooldown = sp.Slowness - 1 // a rung may lengthen it (hunt's rest)
 	}
-	e.Cooldown = sp.Slowness - 1
+	for _, b := range sp.ladder {
+		if b.act(w, e) { return }
+	}
 }
 ```
 
-The `switch e.Kind` in `step` collapses to "colonist, or animal."
+`Paced` is its own flag, not "`Slowness > 0`": rats were never paced, and a
+cat configured with `cat-slowness: 0` must still honor its pounce rest. The
+Cooldown is set *before* the ladder so a rung can override it, which is what
+the old cat and chicken turns did between them. The `switch e.Kind` in `step`
+is now colonist, alien, or `animalTurn`.
 
 ### Components: optional data, attached when needed
 
@@ -151,18 +181,30 @@ this entity have X" replaces "is this entity kind K":
 
 ```go
 type Entity struct {
-	// ... identity, position, HP, needs, job, path: shared by everyone ...
+	// ... identity, position, HP, drives, job, path: shared by everyone ...
 	breeding *Breeding // sex, pregnant, dueTick, mateReadyTick
-	pet      *PetBond  // keeper, trough, hasTrough
+	pet      *PetBond  // keeper, and a chicken's trough
 	// later: mind *Mind for the colonist-only bulk, if it is ever worth it
 }
 ```
 
-`canBreed` becomes `e.breeding != nil && …`, not `e.Kind == Rat && …`. A
-species attaches its components at spawn (`breed` in the ladder implies a
-`Breeding`). Events can attach them later too: a stray cat adopted by a
-colonist gains a `PetBond`; a mutation already changes anatomy per individual
-through `MaxParts`.
+`canBreed` is `e.breeding != nil && …`, not `e.Kind == Rat && …`. A species
+with `Breeds` set attaches a `Breeding` (and rolls its sex, at the same point
+in the spawn as before) whenever one is spawned, a newborn pup included; a
+test holds `Breeds` and the `breed` rung together. Ship landing attaches a
+`PetBond` to the cat or hen a colonist brings; a stray has none. Events can
+attach them later too: a stray cat adopted by a colonist would gain a
+`PetBond`; a mutation already changes anatomy per individual through
+`MaxParts`.
+
+**The trough is held on both sides.** The proposal first put the trough
+wholly in `PetBond`, but the keeper colonist needs it too: it is the trough
+the keeper fills (`jobTend`), and the keeper has it before its hen is wired
+up at landing. So the colonist keeps `Entity.trough`/`hasTrough` (its side:
+where to deliver feed) and the hen's `PetBond` holds its own copy (where to
+eat). A trough that moves (`fixturemove.go`) or is torn down
+(`letGoFixture`) updates both, exactly as the shared fields were updated
+before.
 
 Components live on the entity, not in side tables keyed by `EntityID`. A
 `map[EntityID]*Breeding` is a map iteration waiting to decide a tie (see
@@ -215,6 +257,77 @@ runtime creation simple:
 - **Individual drift** (a mutated limb) stays on the entity. A species is the
   default; the entity is the truth.
 
+### Alien lifecycles (proposed)
+
+*Not built; recorded here because it is the strongest reason for the species
+model.* Today every alien species has one body. The idea is that some species
+**change over a life**: an egg that hatches into a larva, a pupa, an imago; a
+queen with workers and drones; a cocoon; a joey that grows into a bull or a
+betty. The tone is the platypus: plausible parts assembled slightly wrong.
+Mammal words on things that hatch, insect words on things with fur, a stage
+that should not exist between two that should.
+
+**Rules for generating a lifecycle** (all rolled at worldgen with the roster,
+never authored per species):
+
+- **Most species have one form.** A lifecycle is a notable thing a seed rolls
+  for one or two species, not the norm. Something like 60% single form, 25%
+  two, 12% three, 3% four or more is the starting point, weighted in `Config`.
+- **Stages are not Earth's.** The vocabulary borrows Earth words (egg, grub,
+  nymph, pupa, cocoon, imago, joey, puggle, bull, betty, queen, drone) but a
+  species picks and orders them freely: a joey can pupate; an egg can be the
+  *middle* stage; a cocoon can hatch something smaller than went in, as long
+  as the life as a whole grows (below). Stage names come from a
+  condition-gated pool like `alien-names.yaml`, so a furred species gets
+  mammal words and a shelled one gets insect words, and occasionally the
+  opposite, which is where the unsettling part comes from.
+- **They grow, and stay recognizable.** Each stage is a fraction of the
+  species' adult size range (the existing `HeightMin/MaxCM`, `WeightMin/MaxKG`
+  become the final stage's), rising through the life. Color, hide, pattern
+  and eye arrangement carry through every stage, so a colonist who has seen
+  the adult recognizes the grub.
+- **Change is additive and pushes further.** A later stage keeps everything
+  an earlier one had and may gain or intensify a feature: more limbs or eyes,
+  a tail, a shell, claws. "More extreme" means *more of the species' own
+  idea*, not more aggressive: a species whose larva has one nub of a horn has
+  an adult with a crown of them; a faintly spotted nymph becomes a densely
+  spotted imago. Temperament is the species', not the stage's (but see
+  behaviors below: an egg does not hunt). Think evolution lines in Pokémon,
+  generated once per seed instead of designed.
+- **Castes and sexes are branches, not stages.** A lifecycle is a sequence
+  that may end in a fork: the last stage splits into weighted forms (queen /
+  worker / drone, bull / betty). Branches share the line's appearance and
+  differ in size and features: the queen is the most extreme form, the drone
+  may be the least.
+
+**New anatomy worth adding now,** because lifecycles need features with
+degrees to grow along, and Earth has good ones: **stinger**, **spines or
+quills**, **horns** (a count), **antlers** (tines), a **tail ornament**
+(none, club, spiked club, stinger), **shell or carapace** (patch, plates,
+full), and **claws**. Each is a small level (0 = absent) so a line can go
+"one little horn → three horns → nine," "tail → clubbed tail → spiked club."
+Some imply an attack mode beside today's bite, claw, tail and strangle (a
+sting, a gore); some are only description until something uses them.
+Single-form species roll these too, so the features are not lifecycle-only.
+
+**How it fits the model.** Each stage (and each caste) is its own `Species`
+value, generated from the `AlienSpecies` line: its own size, features, attack
+modes, damage, pace, and **ladder**. An egg or cocoon has no ladder at all
+(it lies there, and can be found, guarded, or smashed); a larva might only
+`forage{scum}` and `flee`; the adult runs the temperament's ladder. An
+individual carries a small `*Lifecycle` component (which line, which stage,
+the tick it advances); growing up is swapping which species entry it points
+at. Aliens are spawned in nests at worldgen today and never reproduce, so the
+first version needs only aging and a mix of stages in a nest; a queen laying
+eggs is a later step.
+
+**Determinism.** Lifecycles roll on their own seeded stream, the way the
+taxonomy does (`alienTaxonomySeed`), so adding them re-rolls no existing
+roster's names, builds or temperaments. Which stage an individual spawns at,
+and its exact advance tick, are gameplay draws from `World.rng` at spawn,
+like which species it is. Stage features that change combat (an attack mode,
+damage from size) are simulation, never `World.prng` flavor.
+
 ### Migration
 
 Each phase is behavior-preserving and checkable against the lockstep test in
@@ -222,19 +335,30 @@ Each phase is behavior-preserving and checkable against the lockstep test in
 and after. That means **every RNG draw happens in the same order as today** —
 the ladder is a refactor of the existing ladders, not a redesign of them.
 
-1. **Species table for identity.** A `[numKinds]Species` table holding stats,
-   nouns, labels, and glyph keys; `newEntity`, `Kind.String`, `nounForKind`,
-   `factRef`, snapshot glyphs, and `Engine.spawn` read it. No behavior moves.
-2. **Behaviors for cat, rat, chicken.** Lift each ladder rung out of
-   `catTurn`/`ratTurn`/`chickenTurn` into a behavior and run all three through
-   `animalTurn`. Delete the three turn functions.
-3. **Components.** Move rat breeding into `*Breeding` and the pet fields into
-   `*PetBond`; replace the remaining `Kind == Rat/Chicken` checks with
-   component checks.
+1. **Species table for identity.** *Done.* A `[numKinds]Species` table
+   holding stats, nouns, body and spawn site; `newEntity`, `Kind.String`,
+   `nounForKind`, `hasParts`, `factRef`, `preyName`, and `Engine.spawn` read
+   it. No behavior moved. One visible fix fell out: `displayName` gave an
+   unnamed cat or rat the fallback "colonist #12"; it now says "rat #12".
+2. **Behaviors for cat, rat, chicken.** *Done.* Each ladder rung lifted out
+   of `catTurn`/`ratTurn`/`chickenTurn` into a behavior; all three run
+   through `animalTurn`, and the three turn functions are gone.
+3. **Components.** *Done.* Rat breeding is a `*Breeding` and a pet's keeper
+   (and a hen's trough) a `*PetBond`; `canBreed` checks the component. Two
+   kind checks stay on purpose: landing asks whether a pet is a chicken to
+   wire its trough, and the frame's per-kind counters are the wire format's.
+   Save files from before phase 3 no longer load (the layout fingerprint
+   changed with `Entity`'s fields), as with any field change.
 4. **Aliens.** Give `Entity.Species` the meaning "index into `World.species`"
    for every animal, generate one `Species` per rolled `AlienSpecies`, and
    move `alienTurn` onto the ladder (strike, graze, the Cautious reaction,
    dormancy as a pre-step).
+4b. **Alien lifecycles.** Roll lifecycle lines and the new anatomy features
+   with the roster (on their own stream), generate a `Species` per stage and
+   caste, add the `*Lifecycle` component and aging, and teach the lore tab
+   and narration to describe a line. This changes the game, so it is checked
+   by its own tests, not by fingerprint. See
+   [Alien lifecycles](#alien-lifecycles-proposed).
 5. **Tags for prey and threat.** Replace kind arguments to the nearest-entity
    queries with tag sets. After this, `Kind` is only what the wire format and
    UI use to pick a sprite.
@@ -253,6 +377,33 @@ small. In this model they are simply a species whose one behavior is
 `colonistTurn`.
 
 ## Why it is this way
+
+- **The table is indexed by `Kind`, not pointed to from `Entity`.** A
+  `*Species` on each entity was the obvious design, but tests and
+  `recruit.go` build `&Entity{Kind: Colonist, ...}` literals that would carry
+  a nil pointer. `Kind` is always set. Phase 4 can route aliens through
+  `speciesOf` to a per-species entry without touching `Entity`.
+- **The species table is not saved.** It is derived from the Config, and its
+  ladders are interface values the save codec has no names for. It is tagged
+  `save:"-"` and `newWorld` rebuilds it from the loaded Config (see
+  [save-load.md](./save-load.md)). That also keeps it out of the save layout
+  fingerprint, so files from before phase 1 still load.
+- **How phases 1–3 were checked.** The lockstep test runs two worlds in one
+  process, so it cannot see a refactor that changes behavior the same way in
+  both. Instead, a throwaway test hashed the full `worldFingerprint` (plus each
+  animal's cooldown, quarry, food drive, pregnancy and keeper) every tick
+  over ten seeded runs, on `origin/main` and on the branch; the hashes matched.
+  Lesson for the next phase: the `testConfig` runs alone proved nothing about
+  rats, because their cats ate every rat within a few hundred ticks, so no rat
+  ever foraged or raided a pod. Cat-free rat scenarios (on both `testConfig`
+  and `DefaultConfig`) were needed, and the check was only trusted once
+  swapping the rat's `breed` and `forage` rungs visibly changed the hashes
+  (rat populations doubled). Phase 3 moved fields, so the test read
+  breeding and pet state through a small helper per version (old fields on
+  `HEAD`, components on the branch). A first mismatch turned out to be the
+  helper, not the sim: it printed `Entity.trough` for hens, which the old
+  layout set and the new one leaves in `PetBond`. Compare like with like
+  before believing a diff.
 
 - **No modeling language.** We considered YAML growth, CUE, TypeScript as a
   definition language, and embedded scripting (Starlark, Lua). The
@@ -280,6 +431,12 @@ small. In this model they are simply a species whose one behavior is
 - **Tags, not kinds, in relationships.** Matching on kind is what made
   "cats ignore chickens" a rule someone had to remember. Matching on tags
   makes a new species fit into the food web by declaring what it is.
+- **Lifecycles are generated, mostly absent, and additive.** Authoring
+  stages per species would cap the variety at what someone wrote and make
+  every seed's aliens familiar. Making most species single-form keeps a
+  lifecycle a discovery. Keeping each stage a superset of the last is what
+  lets a colonist (and a player) recognize a grub as the young of the thing
+  that killed someone, which matters more than biological plausibility.
 - **Species as values.** The alien roster already generates species from a
   seed. A design where species come only from files would leave the aliens
   out.

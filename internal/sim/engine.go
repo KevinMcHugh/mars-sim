@@ -497,20 +497,16 @@ func (e *Engine) apply(cmd Command) (rateChanged bool) {
 func (e *Engine) spawn(kind Kind) {
 	w := e.world
 	center := Point{w.Width / 2, w.Height / 2}
-	switch kind {
-	case Colonist:
+	switch w.species[kind].Spawn {
+	case spawnShip:
 		w.land(1, true) // every colonist comes in a ship
-	case Alien:
+	case spawnCavern:
 		if p, ok := w.alienSpawnSite(center, 8); ok {
-			w.spawn(Alien, p)
+			w.spawn(kind, p)
 		}
-	case Cat:
+	case spawnFloor:
 		if p, ok := w.randomFloor(); ok {
-			w.spawn(Cat, p)
-		}
-	case Rat, Chicken:
-		if p, ok := w.randomFloor(); ok {
-			w.spawn(kind, p) // a spawned chicken is a stray: no keeper, no trough
+			w.spawn(kind, p) // a spawned pet is a stray: no keeper, no trough
 		}
 	}
 }

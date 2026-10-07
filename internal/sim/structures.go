@@ -555,6 +555,9 @@ func (w *World) letGoFixture(p Point) {
 		if e.hasTrough && e.trough == p {
 			e.hasTrough = false
 		}
+		if e.pet != nil && e.pet.hasTrough && e.pet.trough == p {
+			e.pet.hasTrough = false
+		}
 		if e.hasKitchen && e.kitchen == p {
 			e.hasKitchen, e.kitchenCommissioned = false, false
 		}

@@ -52,7 +52,7 @@ func TestPetsLandInTheirKeepersPods(t *testing.T) {
 	}
 	for id := range w.kindEntities[Cat] {
 		cat := w.entities[id]
-		owner := w.entities[cat.keeper]
+		owner := w.entities[cat.keeperOf()]
 		if owner == nil || owner.Kind != Colonist {
 			t.Fatalf("cat #%d has no colonist keeper", cat.ID)
 		}
@@ -76,7 +76,7 @@ func TestChickensEatFeedThenGrazeScum(t *testing.T) {
 	c.Inventory.Add(Feed, 2)
 	c.credit(Community, Feed, 2)
 	hen := w.spawn(Chicken, Point{14, 10})
-	hen.trough, hen.hasTrough = trough, true
+	hen.pet = &PetBond{trough: trough, hasTrough: true}
 
 	hungry := func() {
 		w.setDrive(hen, DriveFood, w.cfg.Drives[DriveFood].SeekAt+10)
@@ -114,7 +114,7 @@ func TestKeepersFillTheirTroughs(t *testing.T) {
 	w.setFixtureOwner(trough, ColonistOwner(keeper.ID), AccessPrivate)
 	keeper.trough, keeper.hasTrough = trough, true
 	hen := w.spawn(Chicken, Point{6, 14})
-	hen.keeper, hen.trough, hen.hasTrough = keeper.ID, trough, true
+	hen.pet = &PetBond{keeper: keeper.ID, trough: trough, hasTrough: true}
 	putScum(w, Point{16, 14}, 2)
 	w.setScum(Point{18, 8}, 2)
 	w.exposedScum[Point{18, 8}] = struct{}{}

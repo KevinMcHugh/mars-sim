@@ -29,20 +29,10 @@ const (
 )
 
 func (k Kind) String() string {
-	switch k {
-	case Colonist:
-		return "colonist"
-	case Alien:
-		return "alien"
-	case Cat:
-		return "cat"
-	case Rat:
-		return "rat"
-	case Chicken:
-		return "chicken"
-	default:
-		return "unknown"
+	if k < numKinds {
+		return kindIdentity[k].Name
 	}
+	return "unknown"
 }
 
 // State is a coarse label for what an entity is currently doing. It is derived
@@ -419,11 +409,9 @@ type Entity struct {
 	// Flavor only; see rollEmployer in arms_makers.go.
 	employer     int
 	employerRole string
-	// keeper is the colonist a pet (a chicken or a cat) came down with, 0 for
-	// a stray. trough is where a chicken eats and where its keeper fills it,
-	// when hasTrough; a keeper has the same trough. tend is where a JobTend
-	// keeper is. See chickens.go.
-	keeper    EntityID
+	// trough is the trough a chicken keeper fills, when hasTrough (colonists
+	// only; its hens hold the same point in their PetBond). tend is where a
+	// JobTend keeper is. See chickens.go.
 	trough    Point
 	hasTrough bool
 	tend      tendStage
@@ -582,61 +570,45 @@ type Entity struct {
 	// rolled alien species this individual belongs to.
 	Species int
 
-	// Rat reproduction (rats only). sex decides who can carry a litter; a
-	// female rat that mates becomes pregnant until dueTick, when she births a
-	// litter. mateReadyTick gates breeding: it holds a newborn back until it
-	// matures and spaces out a female's litters after she gives birth.
-	sex           Sex
-	pregnant      bool
-	dueTick       int
-	mateReadyTick int
+	// Components: data only some creatures have, nil when absent (see
+	// components.go). breeding is a rat's reproductive state; pet is a pet's
+	// bond to the colonist it came down with.
+	breeding *Breeding
+	pet      *PetBond
 }
 
-// newEntity builds an entity with kind-appropriate starting stats. Colonists get
+// newEntity builds an entity of kind with its species' starting stats, for
+// callers without a World (tests); a World spawns through Species.newEntity on
+// its own table.
+func newEntity(id EntityID, kind Kind, p Point, cfg Config) *Entity {
+	t := newSpeciesTable(cfg)
+	return t[kind].newEntity(id, p, cfg)
+}
+
+// newEntity builds one of this species with its starting stats. Colonists get
 // baseline effective parameters here; assignPersonality later scales them by any
 // traits it rolls.
-func newEntity(id EntityID, kind Kind, p Point, cfg Config) *Entity {
+func (sp *Species) newEntity(id EntityID, p Point, cfg Config) *Entity {
+	kind := sp.Kind
 	e := &Entity{ID: id, Kind: kind, Pos: p, State: Idle, workScale: 1, focus: FocusIdle}
+	e.MaxHP = sp.HP
+	e.driveBase[DriveFood] = sp.HungerRate
 	if kind == Colonist {
 		e.mindDirty = true
-	}
-	if kind == Colonist {
 		e.affect.Label = MoodSteady
-	}
-	if kind == Colonist {
 		e.perceiving = make(map[perceptionKey]Occurrence)
-	}
-	switch kind {
-	case Colonist:
-		e.MaxHP = cfg.ColonistHP
 		for i := 0; i < int(numDrives); i++ {
 			e.driveBase[i] = cfg.Drives[i].Rate
 		}
 		e.driveActivity = DriveIdle
 		e.restTicks = cfg.RestTicks
 		e.sleepTicks = cfg.NightTicks()
-	case Alien:
-		e.MaxHP = cfg.AlienHP
-		// Only the food drive rises: Friendly and Cautious species graze cave
-		// scum when it presses (see alienGraze). Aliens never starve.
-		e.driveBase[DriveFood] = cfg.AlienHungerRate
-	case Cat:
-		e.MaxHP = cfg.CatHP
-	case Rat:
-		e.MaxHP = cfg.RatHP
-		// Rats share the colonists' DriveFood but nibble constantly, so only their
-		// food drive rises (fast); the others stay flat.
-		e.driveBase[DriveFood] = cfg.RatHungerRate
-	case Chicken:
-		e.MaxHP = cfg.ChickenHP
-		// Like a rat, a chicken has only the food drive.
-		e.driveBase[DriveFood] = cfg.ChickenHungerRate
 	}
 	for i := range e.driveTrait {
 		e.driveTrait[i] = 100
 	}
 	e.HP = e.MaxHP
-	if e.hasParts() {
+	if sp.Body {
 		e.Parts = distributeBodyParts(e.MaxHP)
 		e.MaxParts = e.Parts
 	}
@@ -646,7 +618,7 @@ func newEntity(id EntityID, kind Kind, p Point, cfg Config) *Entity {
 // hasParts reports whether this entity's wounds are tracked per body part.
 // Cats and rats die from a single pounce or stomp regardless of HP, so they
 // have no need of the detail.
-func (e *Entity) hasParts() bool { return e.Kind == Colonist || e.Kind == Alien }
+func (e *Entity) hasParts() bool { return e.Kind < numKinds && kindIdentity[e.Kind].Body }
 
 // hasPart reports whether this entity actually has a given body part: every
 // base part for a kind tracked by body part, plus whichever mutant parts it
@@ -668,12 +640,13 @@ func (e *Entity) Alive() bool {
 }
 
 // displayName is the colonist's name for player-facing text (logs, memories),
-// or a numbered fallback if it has no profile.
+// or a numbered fallback ("colonist #4", "rat #12") for anyone without a
+// profile.
 func (e *Entity) displayName() string {
 	if e.Profile != nil && e.Profile.Name != "" {
 		return e.Profile.Name
 	}
-	return fmt.Sprintf("colonist #%d", e.ID)
+	return fmt.Sprintf("%s #%d", e.Kind, e.ID)
 }
 
 // possessive is the colonist's possessive determiner for log lines: never

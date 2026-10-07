@@ -806,7 +806,7 @@ func (w *World) entityView(e *Entity, kinChildren map[kinID][]kinID, full bool) 
 		Profile:   e.Profile.clone(),
 		Inventory: e.Inventory,
 		Wallet:    e.wallet,
-		Keeper:    e.keeper,
+		Keeper:    e.keeperOf(),
 	}
 	if e.hasParts() {
 		ev.Parts = e.Parts
