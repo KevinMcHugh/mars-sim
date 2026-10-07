@@ -88,25 +88,21 @@ func (w *World) materialSource(e *Entity, missing []ItemStack, payers []Owner) (
 	for _, payer := range payers {
 		var best Point
 		bestDist, found := 1<<30, false
-		for p, c := range w.storageContainers {
+		w.eachContainer(func(c *StorageContainer) {
+			p := c.Pos
 			if c.Terrain != Storage || !w.canUseFixture(e, p) || !w.taskReachable(p, room) {
-				continue
+				return
 			}
-			enough := true
 			for _, m := range missing {
 				if c.held(payer, m.Kind) < m.Count {
-					enough = false
-					break
+					return
 				}
 			}
-			if !enough {
-				continue
-			}
-			d := e.Pos.Chebyshev(p)
+			d := w.travelEstimate(e.Pos, p)
 			if !found || d < bestDist || (d == bestDist && lessPoint(p, best)) {
 				best, bestDist, found = p, d, true
 			}
-		}
+		})
 		if found {
 			return best, payer, true
 		}

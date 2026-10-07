@@ -31,7 +31,7 @@ func TestChunkGenerationIsOrderIndependent(t *testing.T) {
 			cacheSize = 3
 			cfg.Width, cfg.Height = 150, 140
 		}
-		base := newWorldGen(cfg)
+		base := newWorldGen(cfg, LandingLevel)
 		cols, rows := base.chunkCols(), base.chunkRows()
 		want := map[chunkKey]*chunkContent{}
 		for cy := 0; cy < rows; cy++ {
@@ -40,7 +40,7 @@ func TestChunkGenerationIsOrderIndependent(t *testing.T) {
 			}
 		}
 
-		forgetful := newWorldGen(cfg)
+		forgetful := newWorldGen(cfg, LandingLevel)
 		for i := range forgetful.veins {
 			forgetful.veins[i] = newGenCache[chunkKey, []Point](cacheSize)
 		}
@@ -65,7 +65,7 @@ func TestChunkGenerationIsOrderIndependent(t *testing.T) {
 			if got := forgetful.chunk(int(k.cx), int(k.cy)); !sameChunk(got, want[k]) {
 				t.Fatalf("seed %d: chunk %v differs when generated out of order with a tiny cache", seed, k)
 			}
-			if got := newWorldGen(cfg).chunk(int(k.cx), int(k.cy)); !sameChunk(got, want[k]) {
+			if got := newWorldGen(cfg, LandingLevel).chunk(int(k.cx), int(k.cy)); !sameChunk(got, want[k]) {
 				t.Fatalf("seed %d: chunk %v differs when generated alone", seed, k)
 			}
 		}
@@ -90,7 +90,7 @@ func sameChunk(a, b *chunkContent) bool {
 func TestChunkFeaturesStayWithinNeighbours(t *testing.T) {
 	cfg := chunkTestConfig(3)
 	cfg.RockVeinMax = 200 // a vein this long must stop at its box, not escape it
-	g := newWorldGen(cfg)
+	g := newWorldGen(cfg, LandingLevel)
 	within := func(k chunkKey, p Point) bool {
 		lo, hi, _ := g.chunkBounds(k)
 		return p.X >= lo.X-genChunkSize && p.X <= hi.X+genChunkSize &&
@@ -137,7 +137,7 @@ func TestChunkFeaturesStayWithinNeighbours(t *testing.T) {
 // The order-independence test is only worth something if features really do
 // cross chunk edges: check that veins, caverns and passages all do.
 func TestChunkFeaturesCrossChunkEdges(t *testing.T) {
-	g := newWorldGen(chunkTestConfig(7))
+	g := newWorldGen(chunkTestConfig(7), LandingLevel)
 	chunkOf := func(p Point) chunkKey { return chunkKey{int32(p.X / genChunkSize), int32(p.Y / genChunkSize)} }
 	var veins, caves, passages bool
 	for cy := 0; cy < g.chunkRows(); cy++ {
@@ -200,7 +200,7 @@ func TestSaltNeverSharesATileWithScum(t *testing.T) {
 	for seed := int64(1); seed <= 12; seed++ {
 		cfg := chunkTestConfig(seed)
 		cfg.ScumPercent, cfg.SaltPercent = 40, 40 // crowded, so runs of both meet at every edge
-		g := newWorldGen(cfg)
+		g := newWorldGen(cfg, LandingLevel)
 		var salt int
 		for cy := 0; cy < g.chunkRows(); cy++ {
 			for cx := 0; cx < g.chunkCols(); cx++ {

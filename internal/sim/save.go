@@ -283,9 +283,11 @@ func (w *World) afterLoad() {
 	if w.frontier != nil {
 		w.frontier.seed, w.frontier.goal = frontierSeed(w), frontierGoal(w)
 	}
-	if w.gen != nil && !w.cfg.FogOfWar {
-		w.preview = newChunkPreview(w.cfg)
-	}
+	w.eachLayer(func(l *Layer) {
+		if l.gen != nil && !w.cfg.FogOfWar {
+			l.preview = newChunkPreview(w.cfg, l.Level)
+		}
+	})
 	w.buildAlienSpecies() // from the loaded roster
 }
 

@@ -48,11 +48,13 @@ each living colonist, `PerFixture`: each kind of fixture, or
 
 | Kind | Meaning | Examples |
 | --- | --- | --- |
-| `Level` | a value at the sample's moment | colonists, balance, price, open bids, units in storage, scumhouses standing, colonists who are chefs |
+| `Gauge` (`"level"` on the wire) | a value at the sample's moment | colonists, balance, price, open bids, units in storage, scumhouses standing, colonists who are chefs |
 | `Total` | a running total since the landing | money changed hands, payments, bids posted, units traded, trade value, deaths |
 
 A Total's amount over any span is the difference between the readings at its
-ends. The sim never chooses buckets: the page sums an hour, a half-day or a
+ends. (The Go constant is `Gauge`, not `Level`, because `Level` is a depth
+in the world; see [layers.md](./layers.md). The wire still says `"level"`.)
+The sim never chooses buckets: the page sums an hour, a half-day or a
 week out of the same series, and the running total itself answers "total
 bids over time".
 
@@ -194,7 +196,7 @@ so both metrics, and any other cut of them, read from one table.
   sample. That works for a fixed set of fields but not for one wallet per
   colonist, a set that grows and shrinks. Series also let a short-lived
   colonist's history cost only its own lifetime.
-- **Counters in the hot path, reads at sample time.** Reading a Level (a
+- **Counters in the hot path, reads at sample time.** Reading a Gauge (a
   balance, the stock in depots) once an hour costs nothing during play.
   Counting events can't be done by reading, so those are single integer
   adds where they happen. Neither path allocates.
@@ -225,7 +227,7 @@ samples.
 
 ## Extending it
 
-- **A new Level:** add a row to `metricDefs` with a `read` returning the
+- **A new Gauge:** add a row to `metricDefs` with a `read` returning the
   value. If several metrics need the same scan (a walk over containers or
   orders), compute it once in `newMetricCtx`.
 - **A new Total:** add a counter field on `World`, bump it where the thing

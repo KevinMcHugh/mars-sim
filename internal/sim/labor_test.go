@@ -126,12 +126,12 @@ func TestAColonistCommissionsAndPaysForAHouse(t *testing.T) {
 // cannot pay.
 func TestPaidToiletsChargeTheirUsers(t *testing.T) {
 	w := propertyWorld(t)
-	loo := Point{12, 10}
+	loo := Point{12, 10, LandingLevel}
 	w.SetTerrain(loo, Toilet)
 	w.refreshSpatial()
-	owner := w.spawn(Colonist, Point{6, 6})
-	guest := w.spawn(Colonist, Point{12, 12})
-	broke := w.spawn(Colonist, Point{14, 12})
+	owner := w.spawn(Colonist, Point{6, 6, LandingLevel})
+	guest := w.spawn(Colonist, Point{12, 12, LandingLevel})
+	broke := w.spawn(Colonist, Point{14, 12, LandingLevel})
 	broke.wallet = 0
 	w.setFixtureOwner(loo, ColonistOwner(owner.ID), AccessPaid)
 	w.setFixturePrice(loo, 3)
@@ -168,7 +168,7 @@ func TestTheColonyBuysBiomatterAtItsScumhouse(t *testing.T) {
 			t.Fatalf("colony bids for %d %s, want %d", got, k, w.cfg.ScumhouseBidQty)
 		}
 	}
-	s := w.spawn(Colonist, Point{12, 12})
+	s := w.spawn(Colonist, Point{12, 12, LandingLevel})
 	start, treasury := s.wallet, w.treasury+w.moneyEscrowed()
 	s.Inventory.Add(CaveScum, 3)
 	if !w.deliverBiomatter(s, w.storageContainers[house]) {
@@ -255,16 +255,16 @@ func TestAColonyWithNoMoneyStillFeedsItself(t *testing.T) {
 // stove, a scum patch. Only starvation used to clear the job first.
 func TestDeathReleasesAJobsClaims(t *testing.T) {
 	w := propertyWorld(t)
-	house, patch := Point{10, 6}, Point{15, 6}
+	house, patch := Point{10, 6, LandingLevel}, Point{15, 6, LandingLevel}
 	w.SetTerrain(house, Scumhouse)
 	w.refreshSpatial()
-	cook := w.spawn(Colonist, Point{10, 7})
+	cook := w.spawn(Colonist, Point{10, 7, LandingLevel})
 	cook.Job, cook.Target = JobCraft, house
 	w.workshopClaims[house] = cook.ID
-	scraper := w.spawn(Colonist, Point{14, 7})
+	scraper := w.spawn(Colonist, Point{14, 7, LandingLevel})
 	scraper.Job, scraper.Target, scraper.scrape = JobScrape, patch, scrapeGather
 	w.scumClaims[patch] = scraper.ID
-	hauler := w.spawn(Colonist, Point{12, 9})
+	hauler := w.spawn(Colonist, Point{12, 9, LandingLevel})
 	hauler.Job, hauler.carryWork = JobCarry, 77
 	w.haulClaims[77] = hauler.ID
 

@@ -20,7 +20,7 @@ func gridWorld(t testing.TB, size int) *World {
 // snapshot on another goroutine.
 func TestSnapshotTilesAreStableAfterLaterEdits(t *testing.T) {
 	w := gridWorld(t, 200)
-	p := Point{10, 10}
+	p := Point{10, 10, LandingLevel}
 	w.SetTerrain(p, Floor)
 
 	before := w.snapshot(false, 8)
@@ -44,22 +44,22 @@ func TestSnapshotTilesAreStableAfterLaterEdits(t *testing.T) {
 // holding it and shares every other page with the frame before.
 func TestPublishedTilesShareUnchangedPages(t *testing.T) {
 	w := gridWorld(t, 200)
-	w.SetTerrain(Point{10, 10}, Floor)
-	w.SetTerrain(Point{100, 100}, Floor)
-	first, _ := w.publishedTiles()
+	w.SetTerrain(Point{10, 10, LandingLevel}, Floor)
+	w.SetTerrain(Point{100, 100, LandingLevel}, Floor)
+	first, _ := w.publishedTiles(w.landing())
 
-	if second, _ := w.publishedTiles(); second != first {
+	if second, _ := w.publishedTiles(w.landing()); second != first {
 		t.Error("publishing with no terrain change allocated a new grid")
 	}
 
-	p := Point{101, 100}
+	p := Point{101, 100, LandingLevel}
 	w.SetTerrain(p, Floor)
-	third, _ := w.publishedTiles()
+	third, _ := w.publishedTiles(w.landing())
 	if third == first {
 		t.Fatal("publishing after a terrain change reused the stale grid")
 	}
 
-	changed := w.tiles.pageIndex(p.X, p.Y)
+	changed := w.landing().tiles.pageIndex(p.X, p.Y)
 	shared, written := 0, 0
 	for pi := range third.pages {
 		switch {
@@ -89,18 +89,18 @@ func TestPublishedTilesShareUnchangedPages(t *testing.T) {
 func TestSnapshotStatsMatchGrid(t *testing.T) {
 	w := gridWorld(t, 64)
 	for x := 5; x < 15; x++ {
-		w.SetTerrain(Point{x, 5}, Floor)
+		w.SetTerrain(Point{x, 5, LandingLevel}, Floor)
 	}
-	w.SetTerrain(Point{5, 5}, NutrientPod)
-	w.SetTerrain(Point{6, 5}, Toilet)
-	w.SetTerrain(Point{7, 5}, Bed)
-	w.SetTerrain(Point{8, 5}, Wall)
+	w.SetTerrain(Point{5, 5, LandingLevel}, NutrientPod)
+	w.SetTerrain(Point{6, 5, LandingLevel}, Toilet)
+	w.SetTerrain(Point{7, 5, LandingLevel}, Bed)
+	w.SetTerrain(Point{8, 5, LandingLevel}, Wall)
 
 	s := w.snapshot(false, 8)
 	var floor, pods, toilets, beds int
 	for y := 0; y < w.Height; y++ {
 		for x := 0; x < w.Width; x++ {
-			switch s.TerrainAt(Point{x, y}) {
+			switch s.TerrainAt(Point{x, y, LandingLevel}) {
 			case Floor:
 				floor++
 			case NutrientPod:
@@ -124,7 +124,7 @@ func TestSnapshotStatsMatchGrid(t *testing.T) {
 func TestTileGridOutOfBoundsIsRock(t *testing.T) {
 	w := gridWorld(t, 32)
 	s := w.snapshot(false, 8)
-	for _, p := range []Point{{-1, 0}, {0, -1}, {32, 0}, {0, 32}} {
+	for _, p := range []Point{{-1, 0, LandingLevel}, {0, -1, LandingLevel}, {32, 0, LandingLevel}, {0, 32, LandingLevel}} {
 		if got := s.TerrainAt(p); got != Rock {
 			t.Errorf("TerrainAt(%v) = %v, want Rock", p, got)
 		}
@@ -148,7 +148,7 @@ func TestNewTileGridRoundTrips(t *testing.T) {
 	}
 	for y := 0; y < height; y++ {
 		for x := 0; x < width; x++ {
-			if got, want := g.At(Point{x, y}).Terrain, tiles[y*width+x].Terrain; got != want {
+			if got, want := g.At(Point{x, y, LandingLevel}).Terrain, tiles[y*width+x].Terrain; got != want {
 				t.Fatalf("At(%d,%d) = %v, want %v", x, y, got, want)
 			}
 		}
@@ -182,7 +182,7 @@ func TestSnapshotTilesSafeForConcurrentReaders(t *testing.T) {
 			frames++
 			for y := 0; y < s.Height; y++ {
 				for x := 0; x < s.Width; x++ {
-					_ = s.TerrainAt(Point{x, y})
+					_ = s.TerrainAt(Point{x, y, LandingLevel})
 				}
 			}
 		case <-deadline:
@@ -201,7 +201,7 @@ func TestSnapshotTilesSafeForConcurrentReaders(t *testing.T) {
 func TestPublishedRefuseReachesFrontendsWithoutTerrainChange(t *testing.T) {
 	cfg := testConfig()
 	w := newTestWorld(t, cfg)
-	spot := Point{cfg.Width / 2, cfg.Height / 2}
+	spot := Point{cfg.Width / 2, cfg.Height / 2, LandingLevel}
 	w.SetTerrain(spot, Floor)
 	w.snapshot(false, 1) // publish, so the tile's page is clean from here on
 
@@ -233,7 +233,7 @@ func TestPublishedRefuseReachesFrontendsWithoutTerrainChange(t *testing.T) {
 func TestPublishedRefuseClearedByConstruction(t *testing.T) {
 	cfg := testConfig()
 	w := newTestWorld(t, cfg)
-	spot := Point{cfg.Width / 2, cfg.Height / 2}
+	spot := Point{cfg.Width / 2, cfg.Height / 2, LandingLevel}
 	w.SetTerrain(spot, Floor)
 	w.addGore(spot)
 	w.addCorpse(spot, ColonistCorpse)
@@ -248,8 +248,8 @@ func TestPublishedRefuseClearedByConstruction(t *testing.T) {
 	if w.refuseTotal() != 0 {
 		t.Errorf("refuseTotal = %d after clearing the only dirty tile, want 0", w.refuseTotal())
 	}
-	if len(w.refuse) != 0 {
-		t.Errorf("refuse index kept %d entries for a clean map; setRefuse should drop them", len(w.refuse))
+	if len(w.landing().refuse) != 0 {
+		t.Errorf("refuse index kept %d entries for a clean map; setRefuse should drop them", len(w.landing().refuse))
 	}
 }
 
@@ -267,12 +267,12 @@ func TestTileChangesReportDirtyPages(t *testing.T) {
 		if c := w.snapshot(false, 8).TileChanges; c.All || len(c.Pages) != 0 || c.Refuse {
 			t.Errorf("mode %d: quiet frame changes = %+v, want none", mode, c)
 		}
-		p := Point{100, 100}
+		p := Point{100, 100, LandingLevel}
 		w.SetTerrain(p, Floor) // also generates p's chunk, the first time
 		w.snapshot(false, 8)
 		w.SetTerrain(p.Add(1, 0), Floor)
 		c := w.snapshot(false, 8).TileChanges
-		if want := w.tiles.pageIndex(p.X, p.Y); c.All || len(c.Pages) != 1 || c.Pages[0] != want {
+		if want := w.landing().tiles.pageIndex(p.X, p.Y); c.All || len(c.Pages) != 1 || c.Pages[0] != want {
 			t.Errorf("mode %d: after one edit changes = %+v, want page %d", mode, c, want)
 		}
 		w.setRefuse(p, refuseCell{Gore: 1})
@@ -287,12 +287,12 @@ func TestTileChangesReportDirtyPages(t *testing.T) {
 // the only place a live frame may be read) sees it.
 func TestLiveTilesAliasTheWorld(t *testing.T) {
 	w := gridWorld(t, 200)
-	w.SetTerrain(Point{10, 10}, Floor)
+	w.SetTerrain(Point{10, 10, LandingLevel}, Floor)
 	w.SetTileSharing(TilesLive)
 	snap := w.snapshot(false, 8)
 	assertAliased := func(g *TileGrid) {
 		t.Helper()
-		for pi, page := range w.tiles.pages {
+		for pi, page := range w.landing().tiles.pages {
 			var want *tilePage
 			if page != nil {
 				want = (*tilePage)(page)
@@ -304,7 +304,7 @@ func TestLiveTilesAliasTheWorld(t *testing.T) {
 	}
 	assertAliased(snap.Tiles)
 
-	p := Point{11, 10}
+	p := Point{11, 10, LandingLevel}
 	w.SetTerrain(p, Floor)
 	w.setRefuse(p, refuseCell{Corpses: [numCorpseKinds]uint16{1}})
 	if got := snap.Tiles.At(p); got.Terrain != Floor || got.Corpses != 1 {
@@ -319,12 +319,12 @@ func TestLiveTilesAliasTheWorld(t *testing.T) {
 // not point at yet. Publishing must pick it up, still without copying it.
 func TestLiveTilesPickUpNewChunks(t *testing.T) {
 	w := gridWorld(t, 200)
-	w.SetTerrain(Point{10, 10}, Floor)
+	w.SetTerrain(Point{10, 10, LandingLevel}, Floor)
 	w.SetTileSharing(TilesLive)
 	snap := w.snapshot(false, 8)
 
-	far := Point{190, 190}
-	pi := w.tiles.pageIndex(far.X, far.Y)
+	far := Point{190, 190, LandingLevel}
+	pi := w.landing().tiles.pageIndex(far.X, far.Y)
 	if snap.Tiles.pages[pi] != nil {
 		t.Fatal("test needs a page that is not generated yet")
 	}
@@ -333,7 +333,7 @@ func TestLiveTilesPickUpNewChunks(t *testing.T) {
 	if !slices.Contains(next.TileChanges.Pages, pi) {
 		t.Errorf("changes %+v do not include the new page %d", next.TileChanges, pi)
 	}
-	if next.Tiles.pages[pi] != (*tilePage)(w.tiles.pages[pi]) {
+	if next.Tiles.pages[pi] != (*tilePage)(w.landing().tiles.pages[pi]) {
 		t.Error("the new page was copied or missed, want it aliased")
 	}
 	if got := next.Tiles.TerrainAt(far); got != Floor {
@@ -355,7 +355,7 @@ func TestSwitchingOffLiveTilesRestoresCopies(t *testing.T) {
 	if !snap.TileChanges.All {
 		t.Error("switching modes did not report a full resend")
 	}
-	p := Point{10, 10}
+	p := Point{10, 10, LandingLevel}
 	w.SetTerrain(p, Floor)
 	if got := snap.Tiles.TerrainAt(p); got != Rock {
 		t.Errorf("copy-on-write frame changed under us: %v, want Rock", got)

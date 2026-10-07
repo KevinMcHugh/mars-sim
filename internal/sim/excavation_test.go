@@ -8,7 +8,7 @@ func frontierRect(t *testing.T, w *World) OrderExcavation {
 	t.Helper()
 	var first Point
 	found := false
-	for p := range w.board.frontier {
+	for p := range w.landing().board.frontier {
 		if w.discovered(p) && (!found || lessPoint(p, first)) {
 			first, found = p, true
 		}
@@ -23,7 +23,7 @@ func rockIn(w *World, c OrderExcavation) int {
 	n := 0
 	for y := c.Y0; y <= c.Y1; y++ {
 		for x := c.X0; x <= c.X1; x++ {
-			if p := (Point{x, y}); w.TerrainAt(p) == Rock && w.discovered(p) && !w.doorTiles[p] {
+			if p := (Point{x, y, LandingLevel}); w.TerrainAt(p) == Rock && w.discovered(p) && !w.doorTiles[p] {
 				n++
 			}
 		}
@@ -125,7 +125,7 @@ func TestAnExcavationOrderIsBounded(t *testing.T) {
 	rock := 0
 	for y := box.Y0; y <= box.Y1; y++ {
 		for x := box.X0; x <= box.X1; x++ {
-			w.reveal(Point{x, y})
+			w.reveal(Point{x, y, LandingLevel})
 		}
 	}
 	rock = rockIn(w, box)
@@ -138,8 +138,8 @@ func TestAnExcavationOrderIsBounded(t *testing.T) {
 	open := Point{}
 	for y := 0; y < w.Height && open == (Point{}); y++ {
 		for x := 0; x < w.Width; x++ {
-			if w.TerrainAt(Point{x, y}) == Floor {
-				open = Point{x, y}
+			if w.TerrainAt(Point{x, y, LandingLevel}) == Floor {
+				open = Point{x, y, LandingLevel}
 				break
 			}
 		}

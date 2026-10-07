@@ -15,6 +15,25 @@ type Config struct {
 	// of generated chunks, so this also sets how far out they can start. See
 	// docs/worldgen-chunks.md.
 	WorldgenHalo int `cfg:"worldgen-halo" doc:"chunks (64x64 tiles) generated ahead of what the colony has seen; at least 1"`
+	// DeepestLevel is how far down the colony may dig stairs and shafts: level
+	// 1 is the landing level (where ships come down), and each level below is
+	// one more.
+	// 1 keeps the colony on the landing level, as before there were levels.
+	// See docs/z-levels.md.
+	DeepestLevel int `cfg:"deepest-level" doc:"deepest level the colony may dig stairs and shafts down to; 1 is the landing level, so 1 means no digging down"`
+	// StairTicks is the work it takes to dig a stair down: breaking through
+	// the rock below and shaping both ends.
+	StairTicks int `cfg:"stair-ticks" doc:"ticks of work to dig a stair down to the next level"`
+	// Shafts (see docs/shafts.md): a laddered column, cheaper to dig than a
+	// stair and slow to climb. ShaftTicks is the work to dig one a level
+	// deeper; ShaftClimbTicks the ticks a climb of one level takes (a stair
+	// takes one); a climber carrying more than ShaftCarry bulky goods (ore,
+	// rock, ice, clay, carcasses) has its hands full and takes
+	// ShaftLadenClimbTicks instead.
+	ShaftTicks           int `cfg:"shaft-ticks" doc:"ticks of work to dig a shaft one level deeper"`
+	ShaftClimbTicks      int `cfg:"shaft-climb-ticks" doc:"ticks a climber takes to climb a shaft one level (a stair takes 1)"`
+	ShaftCarry           int `cfg:"shaft-carry" doc:"bulky goods (ore, rock, ice, clay, carcasses) a climber can carry up or down a shaft at the usual pace"`
+	ShaftLadenClimbTicks int `cfg:"shaft-laden-climb-ticks" doc:"ticks a climber with more than shaft-carry bulky goods takes to climb a shaft one level"`
 	// Rock composition percentages. The remainder is ordinary rock.
 	IronRockPercent    int `cfg:"iron-rock-percent" doc:"percent of the map's tiles bearing iron"`
 	IceRockPercent     int `cfg:"ice-rock-percent" doc:"percent of the map's tiles bearing water ice"`
@@ -663,6 +682,12 @@ func DefaultConfig() Config {
 		Width:                80,
 		Height:               40,
 		WorldgenHalo:         2,
+		DeepestLevel:         1,
+		StairTicks:           60,
+		ShaftTicks:           30,
+		ShaftClimbTicks:      8,
+		ShaftCarry:           4,
+		ShaftLadenClimbTicks: 40,
 		IronRockPercent:      10,
 		IceRockPercent:       5,
 		UraniumRockPercent:   1,

@@ -138,6 +138,23 @@ const (
 	// it. A fixture with a depot, like a chest, that holds nothing but feed.
 	// It comes down in a chicken keeper's ship. See docs/chickens.md.
 	Trough
+	// StairDown and StairUp are the two ends of a stair: StairDown on the
+	// upper level, StairUp on the level below, at the same (x, y). Both are
+	// walkable, and a mover on one end can step to the other as a single move.
+	// A stair is a link only while both ends are in place; see links and
+	// docs/z-levels.md.
+	StairDown
+	StairUp
+	// ShaftTop, ShaftMid and ShaftBottom make a shaft: a laddered column
+	// straight down, at one (x, y), through as many levels as it has been
+	// dug. ShaftTop is its upper end, ShaftBottom its lower end, and a
+	// ShaftMid is every level it passes through, where a climber can get
+	// off. All three are walkable. Crossing a shaft is slow (see
+	// Config.ShaftClimbTicks and docs/shafts.md); like a stair, it links two
+	// tiles only while both are in place.
+	ShaftTop
+	ShaftMid
+	ShaftBottom
 
 	numTerrains // keep last: the number of terrain kinds
 )
@@ -174,16 +191,30 @@ func (t Terrain) String() string {
 		return "scum incubator"
 	case Trough:
 		return "trough"
+	case StairDown:
+		return "stair down"
+	case StairUp:
+		return "stair up"
+	case ShaftTop:
+		return "shaft top"
+	case ShaftMid:
+		return "shaft"
+	case ShaftBottom:
+		return "shaft bottom"
 	default:
 		return "unknown"
 	}
 }
 
 // Walkable reports whether a creature can stand on this terrain. Everyone,
-// aliens included, keeps to walkable floor.
+// aliens included, keeps to walkable floor. The stair and shaft ends are the
+// last terrains, so they are one range test.
 func (t Terrain) Walkable() bool {
-	return t == Floor
+	return t == Floor || (t >= StairDown && t <= ShaftBottom)
 }
+
+// isShaft reports whether t is part of a shaft.
+func (t Terrain) isShaft() bool { return t >= ShaftTop && t <= ShaftBottom }
 
 // RockComposition identifies the useful material embedded in a rock tile.
 // Composition is separate from Terrain because every variety has the same
@@ -319,8 +350,12 @@ func (r refuseCell) total() int {
 // tile returns the assembled view of the in-bounds tile at p, with any refuse
 // on it.
 func (w *World) tile(p Point) Tile {
-	c := w.tiles.at(p.X, p.Y)
-	r := w.refuse[p]
+	l := w.lay(p)
+	c := l.tiles.at(p.X, p.Y)
+	var r refuseCell
+	if len(l.refuse) > 0 { // usually empty: skip hashing p for nothing
+		r = l.refuse[p]
+	}
 	return Tile{
 		Terrain:     c.Terrain,
 		Composition: c.Composition,
@@ -359,13 +394,13 @@ func (w *World) addGore(p Point) {
 	if !w.InBounds(p) {
 		return
 	}
-	r := w.refuse[p]
+	r := w.lay(p).refuse[p]
 	if r.Gore >= maxGore {
 		return
 	}
 	r.Gore++
 	w.setRefuse(p, r)
-	w.goreTotal++
+	w.lay(p).goreTotal++
 }
 
 // addCorpse leaves a body of the given kind (ColonistCorpse, AlienCorpse or
@@ -380,13 +415,13 @@ func (w *World) addCorpse(p Point, kind ItemKind) {
 	if !w.InBounds(p) || i < 0 {
 		return
 	}
-	r := w.refuse[p]
+	r := w.lay(p).refuse[p]
 	if r.Corpses[i] >= maxCorpses {
 		return
 	}
 	r.Corpses[i]++
 	w.setRefuse(p, r)
-	w.corpseTotal++
+	w.lay(p).corpseTotal++
 }
 
 // refuseAt reports how many units of refuse — gore stains plus bodies — lie on
@@ -396,19 +431,19 @@ func (w *World) refuseAt(p Point) int {
 	if !w.InBounds(p) {
 		return 0
 	}
-	r := w.refuse[p]
+	r := w.lay(p).refuse[p]
 	return int(r.Gore) + r.total()
 }
 
 // goreAt and corpsesAt report one tile's refuse by kind, for the sight checks
 // and the gather loop that only care whether there is any.
-func (w *World) goreAt(p Point) int    { return int(w.refuse[p].Gore) }
-func (w *World) corpsesAt(p Point) int { return w.refuse[p].total() }
+func (w *World) goreAt(p Point) int    { return int(w.lay(p).refuse[p].Gore) }
+func (w *World) corpsesAt(p Point) int { return w.lay(p).refuse[p].total() }
 
 // corpsesOfAt reports how many bodies of one kind lie on p.
 func (w *World) corpsesOfAt(p Point, kind ItemKind) int {
 	if i := corpseIndex(kind); i >= 0 {
-		return int(w.refuse[p].Corpses[i])
+		return int(w.lay(p).refuse[p].Corpses[i])
 	}
 	return 0
 }
@@ -416,7 +451,11 @@ func (w *World) corpsesOfAt(p Point, kind ItemKind) int {
 // refuseTotal is the whole map's outstanding refuse, maintained incrementally
 // by the add/take helpers so the planner never rescans the grid to decide
 // whether the colony needs somewhere to burn things.
-func (w *World) refuseTotal() int { return w.goreTotal + w.corpseTotal }
+func (w *World) refuseTotal() int {
+	n := 0
+	w.eachLayer(func(l *Layer) { n += l.goreTotal + l.corpseTotal })
+	return n
+}
 
 // takeGore removes one gore stain from p, returning whether there was one.
 // Paired with takeCorpse, it is the only way refuse leaves a tile: a colonist
@@ -425,13 +464,13 @@ func (w *World) takeGore(p Point) bool {
 	if !w.InBounds(p) {
 		return false
 	}
-	r := w.refuse[p]
+	r := w.lay(p).refuse[p]
 	if r.Gore == 0 {
 		return false
 	}
 	r.Gore--
 	w.setRefuse(p, r)
-	w.goreTotal--
+	w.lay(p).goreTotal--
 	return true
 }
 
@@ -439,23 +478,23 @@ func (w *World) takeGore(p Point) bool {
 // is clean again. Keeping the index to dirty tiles only is the whole point of
 // it being sparse: a colony that cleans up after itself gives the memory back.
 func (w *World) setRefuse(p Point, r refuseCell) {
-	w.refuseRev++
+	w.lay(p).refuseRev++
 	if r == (refuseCell{}) {
-		delete(w.refuse, p)
+		delete(w.lay(p).refuse, p)
 		return
 	}
-	w.refuse[p] = r
+	w.lay(p).refuse[p] = r
 }
 
 // clearRefuse discards everything lying on a tile, keeping the running totals
 // in step. Callers mark the page dirty themselves.
 func (w *World) clearRefuse(p Point) {
-	r := w.refuse[p]
+	r := w.lay(p).refuse[p]
 	if r == (refuseCell{}) {
 		return
 	}
-	w.goreTotal -= int(r.Gore)
-	w.corpseTotal -= r.total()
+	w.lay(p).goreTotal -= int(r.Gore)
+	w.lay(p).corpseTotal -= r.total()
 	w.setRefuse(p, refuseCell{})
 }
 
@@ -466,13 +505,13 @@ func (w *World) takeCorpse(p Point, kind ItemKind) bool {
 	if !w.InBounds(p) || i < 0 {
 		return false
 	}
-	r := w.refuse[p]
+	r := w.lay(p).refuse[p]
 	if r.Corpses[i] == 0 {
 		return false
 	}
 	r.Corpses[i]--
 	w.setRefuse(p, r)
-	w.corpseTotal--
+	w.lay(p).corpseTotal--
 	return true
 }
 
@@ -481,74 +520,28 @@ func (w *World) takeCorpse(p Point, kind ItemKind) bool {
 // goroutine; frontends observe it through immutable Snapshots instead.
 type World struct {
 	Width, Height int
-	// tiles is terrain, composition and discovery, stored in the same 64x64
-	// pages as every other per-tile grid (see pagedgrid.go). One page is one
-	// worldgen chunk (see worldgen_chunks.go).
-	tiles pagedGrid[tileCell]
 
-	// The published tile grid handed to frontends in Snapshots, plus the pages
-	// of it that have gone stale since. Frames share every page that did not
-	// change, so publishing costs a page table and the handful of pages a tick
-	// actually touched instead of a copy of the whole map. With tileSharing
-	// set to TilesLive the grid aliases tiles instead and nothing is copied;
-	// the dirty list is then only reported, in Snapshot.TileChanges. See
-	// tilegrid.go.
-	//
-	// Neither the grid nor the sharing mode is saved (see save.go): under
-	// TilesLive the grid's pages alias tiles' own, which the save codec
-	// cannot keep, and the mode belongs to whichever host loads the game. A
-	// loaded world publishes its first grid afresh, with All set.
-	snapGrid    *TileGrid   `save:"-"`
-	snapFrame   uint64      // publishes so far; TileChanges.Frame
+	// layers indexes every layer by Level, nil for a level the colony has
+	// never broken into. See layer.go and docs/layers.md.
+	layers []*Layer
+	// stairs holds the upper end (the StairDown) of every stair, on every
+	// level, sorted by lessPoint. See stairs.go.
+	stairs []Point
+	// shafts holds every shaft tile that can lead down (ShaftTop and
+	// ShaftMid), on every level, sorted by lessPoint. See shafts.go.
+	shafts []Point
+
+	// snapFrame counts publishes so far (TileChanges.Frame); tileSharing is
+	// how the published grid relates to the live one (see tilegrid.go). The
+	// sharing mode is not saved: it belongs to whichever host loads the game.
+	snapFrame   uint64
 	tileSharing TileSharing `save:"-"`
-	pageDirty   []bool      // pageDirty[pi]: page pi changed since the last publish
-	dirtyPages  []int       // the same pages, in mark order, for cheap iteration
 
-	// occ is the occupancy index: occ holds the EntityID standing on a tile, or
-	// 0 for empty (IDs start at 1). It turns "who is here?" from an
-	// O(entities) scan into an O(1) lookup, and it is the reason at most one
-	// entity may occupy a tile. It is paged rather than dense because entities
-	// only ever stand on walkable tiles, and 0 — the zero value an unwritten
-	// page reads as — already means empty. See pagedgrid.go.
-	occ pagedGrid[EntityID]
-
-	// Aggregate counts maintained incrementally so callers never rescan the
-	// grid or the entity set to answer "how many of X?".
-	terrainCounts [numTerrains]int
-	kindCounts    [numKinds]int
-	// exploredCount is how many tiles reveal has ever marked Explored, kept
-	// incrementally the same way terrainCounts is: reveal only increments it
-	// the one time a tile flips (see reveal), so a frontend asking "how much
-	// of the map has the colony seen?" (the lore panel) never has to walk the
-	// grid to answer it. Kept with fog off too, but only published with it on
-	// (see snapshot) -- Snapshot.FogOfWar is what a caller checks first.
-	exploredCount int
-	// hiddenFloor counts non-Rock tiles that are not yet Explored: the floor of
-	// natural caverns the colony has not broken into. Every tile the colony
-	// changes is revealed as it changes, so this is exactly the undiscovered
-	// cavern floor, and Stats.FloorDug subtracts it. See docs/caverns.md.
-	hiddenFloor int
+	// kindCounts is the entity half of the aggregate counts above.
+	kindCounts [numKinds]int
 	// caveStack is revealAround's scratch for flooding the fog off a natural
 	// cavern the colony has just broken into.
 	caveStack []Point
-	// goreTotal/corpseTotal are the same idea for tile refuse: the colony's
-	// sanitation planning asks "is there anything to clean up?" every planning
-	// cycle, which must not mean walking the map. See refuseTotal.
-	goreTotal   int
-	corpseTotal int
-
-	// refuse indexes the tiles carrying gore or a body. It is sparse for the
-	// same reason storageContainers is: it describes the handful of tiles
-	// something died on, and storing it per-tile inflated every cell on the
-	// map to carry it. Absent means clean; see setRefuse.
-	//
-	// refuseRev advances on every write, so publishing can hand the previous
-	// frame's copy straight back when nothing died or got cleaned up this
-	// tick — which is almost every tick. snapRefuseRev is the revision the
-	// currently published grid's copy was taken at.
-	refuse        map[Point]refuseCell
-	refuseRev     uint64
-	snapRefuseRev uint64
 
 	// kindEntities[k] holds the ID of every living entity of kind k. Kept in
 	// step by spawn/remove so a global "nearest with these tags, anywhere"
@@ -559,30 +552,11 @@ type World struct {
 	// confirm nothing closer exists.
 	kindEntities [numKinds]map[EntityID]struct{}
 
-	// facilityTiles[t] holds every tile currently of terrain t, for the handful
-	// of terrain kinds colonists walk to (NutrientPod, Toilet, Bed, Incinerator). Kept in step
-	// by SetTerrain so chooseFacility and facilitySeed can visit just those
-	// tiles instead of scanning the whole grid — essential on large maps, where
-	// a full Width*Height scan dwarfs the tiny number of actual facilities.
-	// nil for untracked terrain kinds (Rock, Floor, Wall).
-	facilityTiles [numTerrains]map[Point]struct{}
-
-	// carvedAny/carvedMin/carvedMax track the bounding box of every tile that
-	// has ever been changed away from Rock. Nothing turns back into Rock in
-	// play (a cleared structure becomes Floor), so this box only grows; it
-	// is used to cap how far findRoomSiteWith's search radius needs to
-	// grow before it can conclude no site exists, without scanning the whole
-	// map. See roomSiteClear: a valid site's side walls must already be
-	// Floor or Wall, so no valid site can lie outside this box.
-	carvedAny bool
-	carvedMin Point
-	carvedMax Point
-
 	// Scratch for chooseFacility's searches (facilitychoice.go), reused across
 	// calls via a generation stamp instead of reallocating (and zeroing) a
 	// Width*Height slice every time a colonist needs a facility. See
 	// flowField.gen for the same trick.
-	facilityCells pagedGrid[flowCell]
+	facilityCells layered[flowCell]
 	facilityGen   int32
 	facilityQueue []Point
 	facilityFound []foundFacility
@@ -597,25 +571,22 @@ type World struct {
 	// for something that lives entirely inside one followField call on the
 	// engine goroutine — a third of all flow-field memory for scratch no two
 	// fields could ever want at the same time.
-	transitSeen pagedGrid[int32]
+	transitSeen layered[int32]
 	transitGen  int32
 	transitQ    []int32
 
-	// Spatial index: entities bucketed by chunk, so neighbor queries scan only
-	// nearby chunks. chunkEntities is indexed by chunk (cy*chunkCols + cx).
+	// chunkCols and chunkRows size the spatial index's chunk grid, the same on
+	// every level.
 	chunkCols, chunkRows int
-	chunkEntities        [][]EntityID
 
-	// Regions & rooms: floor tiles grouped into per-chunk regions, then into
-	// rooms (connected components of the region graph). Maintained incrementally
-	// as terrain changes so reachability queries stay cheap. See rooms.go.
-	regionOf pagedGrid[RegionID] // 0 = not floor / no region
-	regions  map[RegionID]*region
+	// regions is every region on every level, by ID. IDs come from one
+	// counter (nextRegion) so the region graph can link regions on different
+	// levels without renumbering. See docs/z-levels.md.
+	regions map[RegionID]*region
 	// regionLinkScratch backs sortedLinks, so the abstract search can expand
 	// neighbours in a stable order without allocating per node.
 	regionLinkScratch []RegionID
 	nextRegion        RegionID
-	dirtyChunks       map[int]struct{} // chunks whose regions need recompute
 	roomCount         int
 	// mainRoom is the discovered room with the most floor tiles, recomputed by
 	// relabelRooms — the colony's main connected network, against which every
@@ -640,12 +611,10 @@ type World struct {
 	// call once undiscovered caverns put thousands of regions on a big map.
 	relabelPass uint32
 
-	// Reactive plumbing: systems subscribe to world events; the job board is the
-	// first consumer, tracking the mineable frontier from TileChanged events.
-	// Not saved: closures over the world, which newWorld registers again
-	// on the world a save is loaded into.
+	// subscribers hear every world event; pf is the shared pathfinder. Not
+	// saved: closures over the world, which newWorld registers again on the
+	// world a save is loaded into.
 	subscribers []func(WorldEvent) `save:"-"`
-	board       *jobBoard
 	pf          *pathfinder
 
 	// Shared flow fields, rebuilt lazily when terrain (or, for the frontier,
@@ -674,55 +643,26 @@ type World struct {
 	manualDormitories   int
 	manualTrashRooms    int
 	manualStorageRooms  int
-	// storageContainers holds mutable contents only for tiles whose terrain is
-	// Storage. Keeping it sparse avoids inflating every tile in a large map.
-	storageContainers map[Point]*StorageContainer
-	// fixtures holds the ownership record of every placed fixture tile (pods,
-	// toilets, beds, incinerators, storage), kept in step by SetTerrain.
-	// restrictedFixtures counts, per terrain, the ones that are not communal:
-	// while it is zero for a kind, ownership cannot change how colonists use
-	// that kind, and the access checks skip their extra work. fixtureRev
-	// advances on any change so snapshots can reuse the last published list
-	// (snapFixtures, taken at snapFixtureRev). See property.go.
-	fixtures map[Point]*Fixture
-	// salt holds every tile carrying a deposit of salt (see salt.go). It
-	// never overlaps scum, and is never added to after generation.
-	salt map[Point]struct{}
-	// exposedSalt is the salt a colonist could reach, as exposedScum is for
-	// scum, so publishing never walks the whole map's deposits. saltRev
-	// advances when it changes and lets publishing reuse the last copy
-	// (snapSalt, taken at snapSaltRev); see publishedSalt.
-	exposedSalt map[Point]struct{}
+	// manualStairs counts stairs the player has ordered dug and the planner
+	// has not yet marked out (see planStairs).
+	manualStairs int
+	// manualShaftLevels is how many levels of shaft the player has ordered
+	// dug (OrderShaft) that the planner has not marked out yet. See
+	// planShafts.
+	manualShaftLevels int
+
+	// saltRev advances when exposedSalt changes; snapSalt is the copy last
+	// published, taken at snapSaltRev. See publishedSalt.
 	saltRev     uint64
 	snapSaltRev uint64
 	snapSalt    map[Point]struct{}
-	// Cave scum (see scumhouse.go): the sparse patches, the ones a colonist
-	// can currently reach (on floor, or on rock that borders walkable floor),
-	// which patch each scraper is headed to, and which workshop each cook has
-	// claimed. exposedScum is kept in step from TileChanged events, the way
-	// the job board keeps the mining frontier, so finding scum to scrape never
-	// walks the map.
-	scum        map[Point]scumPatch
-	exposedScum map[Point]struct{}
-	// scumPatches lists every patch in scum, sorted by cmpScumPatch, so
-	// growScum can draw a patch at random without the map's order deciding
-	// which (see setScum and patchList).
-	scumPatches patchList
-	// scumThin is every patch below ScumMax: once the map has no room for new
-	// patches, the only ones growth can still add a unit to (see growScum).
-	scumThin map[Point]struct{}
-	// scumThinPages counts scumThin's patches on each tile page (indexed by
-	// tiles.pageIndex; nil until the first), so most of growScum's draws are
-	// turned away by a slice read rather than a map lookup.
-	scumThinPages []int32
 	// scumRev advances on every change to scum or exposedScum that publishing
 	// can see. It lets publishing reuse the last published copy (snapScum,
 	// taken at snapScumRev); see publishedScum.
-	scumRev        uint64
-	snapScumRev    uint64
-	snapScum       map[Point]uint8
-	scumClaims     map[Point]EntityID
-	workshopClaims map[Point]EntityID
+	scumRev     uint64
+	snapScumRev uint64
+	snapScum    map[Point]uint8
+
 	// communityMealsTick/communityMealsCache memoize communityMeals for one
 	// tick; see foodWanted.
 	communityMealsTick int
@@ -742,7 +682,7 @@ type World struct {
 	manualHalls      int
 	// shipRingHint is the search ring the last colony ship landed on, so the
 	// next search starts near there instead of rescanning the packed middle.
-	// See findShipSite.
+	// See findShipSite. Ships land on the landing level only.
 	shipRingHint int
 	// ships is every colony ship that has landed, in landing order: ships[i]
 	// has ID i+1. See ship.go.
@@ -754,33 +694,15 @@ type World struct {
 	// recruits is the recruiter's set on offer (nil for none), recruitSets
 	// how many sets have been rolled, and recruitsHired how many recruits
 	// have arrived. See recruit.go.
-	recruits           *recruitOffer
-	recruitSets        int
-	recruitsHired      int
-	restrictedFixtures [numTerrains]int
-	// ownedFixtures indexes the restricted fixtures by owner, and
-	// paidFixtures the pay-per-use ones by terrain, so facilityReachable
-	// checks only those a colonist may use instead of every bunk in the
-	// colony, every tick, for every sleeper. Only ever read by "is any of
-	// these reachable", so their map order decides nothing.
-	ownedFixtures  map[Owner]map[Point]bool
-	paidFixtures   [numTerrains]map[Point]bool
+	recruits      *recruitOffer
+	recruitSets   int
+	recruitsHired int
+
+	// fixtureRev advances on any fixture change, so snapshots can reuse the
+	// last published list (snapFixtures, taken at snapFixtureRev).
 	fixtureRev     uint64
 	snapFixtureRev uint64
 	snapFixtures   []FixtureView
-	// buildTiles holds every not-yet-built task tile, rebuilt each tick. Colonists
-	// route around these so a crowd never parks on a tile a builder needs clear —
-	// otherwise a facility mobbed by its neighbors could never be raised. See
-	// rebuildBuildTiles.
-	buildTiles map[Point]bool
-	// doorTiles holds the single exterior tile in front of every room's
-	// doorway ever designated, forever — even after the room finishes or a
-	// later room's wall would otherwise cover it. roomSiteClear checks it
-	// alongside a candidate site's own requirements so a new room can never
-	// wall over an existing room's sole way out. An entry goes only when its
-	// room or pod is cleared away entirely (maybeRetire, structures.go). See
-	// designateRoom.
-	doorTiles map[Point]bool
 
 	// Zoning (zones.go): every tile's zone kind and crash-pod holds, how
 	// many tiles each kind covers, and a revision publishing reads (snapZones
@@ -801,8 +723,57 @@ type World struct {
 	// structureAt the ids standing on each built tile (two for a party
 	// wall). structureRev moves on any change publishing would show. See
 	// structures.go.
-	structures       map[int]*structure
-	structureAt      map[Point][]int
+	structures  map[int]*structure
+	structureAt map[Point][]int
+	// The sparse maps keyed by tile. A Point names its level, so one map
+	// serves every level; grids and per-level counts live on Layer instead.
+	// See docs/layers.md.
+	// storageContainers holds mutable contents only for tiles whose terrain is
+	// Storage. Keeping it sparse avoids inflating every tile in a large map.
+	storageContainers map[Point]*StorageContainer
+	// fixtures holds the ownership record of every placed fixture tile (pods,
+	// toilets, beds, incinerators, storage), kept in step by SetTerrain.
+	// restrictedFixtures counts, per terrain, the ones that are not communal:
+	// while it is zero for a kind, ownership cannot change how colonists use
+	// that kind, and the access checks skip their extra work. fixtureRev
+	// advances on any change so snapshots can reuse the last published list
+	// (snapFixtures, taken at snapFixtureRev). See property.go.
+	fixtures map[Point]*Fixture
+	// scumClaims and workshopClaims record who is headed to which patch and
+	// which workshop (see the comment on scum above).
+	scumClaims         map[Point]EntityID
+	workshopClaims     map[Point]EntityID
+	restrictedFixtures [numTerrains]int
+	// ownedFixtures indexes the restricted fixtures by owner, and
+	// paidFixtures the pay-per-use ones by terrain, so facilityReachable
+	// checks only those a colonist may use instead of every bunk in the
+	// colony, every tick, for every sleeper. Only ever read by "is any of
+	// these reachable", so their map order decides nothing.
+	ownedFixtures map[Owner]map[Point]bool
+	paidFixtures  [numTerrains]map[Point]bool
+	// buildTiles holds every not-yet-built task tile, rebuilt each tick. Colonists
+	// route around these so a crowd never parks on a tile a builder needs clear —
+	// otherwise a facility mobbed by its neighbors could never be raised. See
+	// rebuildBuildTiles.
+	buildTiles map[Point]bool
+	// doorTiles holds the single exterior tile in front of every room's
+	// doorway ever designated, forever — even after the room finishes or a
+	// later room's wall would otherwise cover it. roomSiteClear checks it
+	// alongside a candidate site's own requirements so a new room can never
+	// wall over an existing room's sole way out. An entry goes only when its
+	// room or pod is cleared away entirely (maybeRetire, structures.go). See
+	// designateRoom.
+	doorTiles map[Point]bool
+	// pantryOf links each scumhouse to its pantry, and pantryHouse the other
+	// way (see linkPantry). Set when a kitchen is marked out; lookups check
+	// the chest is actually built.
+	pantryOf    map[Point]Point
+	pantryHouse map[Point]Point
+	// unfoundCaverns holds the center of every natural cavern not yet
+	// discovered; a breach that reveals one rolls for its alien nest on
+	// nestRNG, a seed-derived stream of its own. See rollNests and
+	// docs/caverns.md.
+	unfoundCaverns   map[Point]struct{}
 	nextStructureID  int
 	structureRev     uint64
 	snapStructureRev uint64
@@ -909,11 +880,8 @@ type World struct {
 	// meal out of it this tick (memoized; see mealFetchesAt).
 	mealFetches   map[Point]int
 	mealFetchTick int
-	// pantryOf links each scumhouse to its pantry, and pantryHouse the other
-	// way (see linkPantry). Set when a kitchen is marked out; lookups check
-	// the chest is actually built.
-	pantryOf        map[Point]Point
-	pantryHouse     map[Point]Point
+
+	// candidatesCache is the planner's per-tick memo of candidate bids.
 	candidatesCache []*Order
 
 	// colonistNames indexes every living colonist's full name, so generation can
@@ -985,34 +953,17 @@ type World struct {
 	corporations []Corporation
 	gunModels    []GunModel
 
-	// unfoundCaverns holds the center of every natural cavern not yet
-	// discovered; a breach that reveals one rolls for its alien nest on
-	// nestRNG, a seed-derived stream of its own. See rollNests and
-	// docs/caverns.md.
-	unfoundCaverns map[Point]struct{}
-	nestRNG        *rand.Rand
+	// nestRNG rolls the nests (see Layer.unfoundCaverns).
+	nestRNG *rand.Rand
 	// nestCenters is revealAround's scratch: cavern centers found this flood.
 	nestCenters []Point
 	// holdNests defers revealAround's nest rolls while a ship lands, so a
 	// cavern its stamping breaks into rolls its nest only once everyone
 	// aboard has stepped out (see landShip).
 	holdNests bool
-	// gen generates chunks: their ore veins and hidden caverns. See
-	// worldgen_chunks.go. nil for a world built without generate (tests),
-	// where every tile simply starts as Rock.
-	gen *worldGen
-	// genDone marks the chunks generated so far and genSeen the chunks
-	// holding a tile the colony has seen, both by tile page index (one page
-	// is one chunk). genChunks lists the generated chunks sorted by row then
-	// column, so sampling from them depends on which chunks exist, never on
-	// the order they were generated in. See generateChunkAt.
-	genDone, genSeen []bool
-	genChunks        []chunkKey
-	// preview is handed to Snapshots so a frontend with the fog off can see
-	// ungenerated chunks. The World never reads it. Not saved: frontends
-	// read it from their own goroutines, and it is only a cache; afterLoad
-	// builds a fresh one.
-	preview *ChunkPreview `save:"-"`
+	// lazyGen is set once generate has run: every layer gets a chunk
+	// generator (see initGen), rather than starting as plain rock.
+	lazyGen bool
 	// cavernBreaches counts the floods revealAround has run: how many times
 	// the colony has broken into a cave system it did not know about.
 	cavernBreaches int
@@ -1024,7 +975,6 @@ type World struct {
 // simulation stream (w.rng); nil leaves the world without one, for tests that
 // never draw from it.
 func newWorld(cfg Config, src *rand.PCG) *World {
-	n := cfg.Width * cfg.Height
 	if !cfg.Cognition.compiled {
 		cfg.Cognition = DefaultCognitionConfig()
 	}
@@ -1038,25 +988,25 @@ func newWorld(cfg Config, src *rand.PCG) *World {
 		driveTables:       driveTables,
 		Width:             cfg.Width,
 		Height:            cfg.Height,
-		tiles:             newPagedGrid[tileCell](cfg.Width, cfg.Height),
-		refuse:            make(map[Point]refuseCell),
-		occ:               newPagedGrid[EntityID](cfg.Width, cfg.Height),
 		entities:          make(map[EntityID]*Entity),
 		colonistNames:     make(map[string]EntityID),
-		buildTiles:        make(map[Point]bool),
-		doorTiles:         make(map[Point]bool),
 		roomFloor:         make(map[Point]*roomRecord),
 		structures:        make(map[int]*structure),
 		structureAt:       make(map[Point][]int),
+		buildTiles:        make(map[Point]bool),
+		doorTiles:         make(map[Point]bool),
 		storageContainers: make(map[Point]*StorageContainer),
 		fixtures:          make(map[Point]*Fixture),
+		pantryOf:          make(map[Point]Point),
+		pantryHouse:       make(map[Point]Point),
+		scumClaims:        make(map[Point]EntityID),
+		workshopClaims:    make(map[Point]EntityID),
+		unfoundCaverns:    make(map[Point]struct{}),
 		orders:            make(map[OrderID]*Order),
 		workOrders:        make(map[OrderID]*WorkOrder),
 		books:             make(map[bookKey]*book),
 		plans:             make(map[planID]*plan),
 		haulClaims:        make(map[OrderID]EntityID),
-		pantryOf:          make(map[Point]Point),
-		pantryHouse:       make(map[Point]Point),
 		candidatesTick:    -1,
 		kin:               make(map[kinID]*kinPerson),
 		nextKinID:         1,
@@ -1069,6 +1019,8 @@ func newWorld(cfg Config, src *rand.PCG) *World {
 		cfg:               cfg,
 		cognition:         cfg.Cognition,
 	}
+	w.layers = make([]*Layer, LandingLevel+1)
+	w.layers[LandingLevel] = newLayer(LandingLevel, cfg.Width, cfg.Height)
 	w.rngSrc.sim = src
 	if src != nil {
 		w.rng = rand.New(src)
@@ -1088,35 +1040,30 @@ func newWorld(cfg Config, src *rand.PCG) *World {
 	armsRNG := newRand(cfg.Seed ^ armsLoreSeed)
 	w.corporations = rollCorporationRoster(armsRNG, cfg)
 	w.gunModels = rollGunModels(armsRNG, w.corporations)
-	w.terrainCounts[Rock] = n // every tile starts as Rock
 
 	for k := Kind(0); k < numKinds; k++ {
 		w.kindEntities[k] = make(map[EntityID]struct{})
 	}
 
-	w.facilityCells = newPagedGrid[flowCell](cfg.Width, cfg.Height)
-	w.transitSeen = newPagedGrid[int32](cfg.Width, cfg.Height)
-
-	w.pageDirty = make([]bool, len(w.tiles.pages))
+	w.facilityCells = newLayered[flowCell](cfg.Width, cfg.Height)
+	w.transitSeen = newLayered[int32](cfg.Width, cfg.Height)
 
 	w.chunkCols = ceilDiv(cfg.Width, chunkSize)
 	w.chunkRows = ceilDiv(cfg.Height, chunkSize)
-	w.chunkEntities = make([][]EntityID, w.chunkCols*w.chunkRows)
 
-	w.regionOf = newPagedGrid[RegionID](cfg.Width, cfg.Height)
+	// Zones are painted on the landing level only (see zones.go).
 	w.zones = newPagedGrid[zoneCell](cfg.Width, cfg.Height)
-	w.zoneTiles[NoZone] = n
+	w.zoneTiles[NoZone] = cfg.Width * cfg.Height
 	w.regions = make(map[RegionID]*region)
 	w.staleRooms = make(map[RoomID]struct{})
 	w.rooms = make(map[RoomID]int)
 	w.discoveredRooms = make(map[RoomID]int)
 	w.nextRegion = 1
-	w.dirtyChunks = make(map[int]struct{})
 
-	w.board = newJobBoard(w)
+	w.landing().board = newJobBoard(w)
 	w.subscribe(func(e WorldEvent) {
 		if tc, ok := e.(TileChanged); ok {
-			w.board.onTileChanged(tc)
+			w.lay(tc.Pos).board.onTileChanged(tc)
 		}
 	})
 	w.pf = newPathfinder(w)
@@ -1145,13 +1092,6 @@ func newWorld(cfg Config, src *rand.PCG) *World {
 	w.communityMealsTick = -1
 	w.storedMealsTick = -1
 	w.hungryTick = -1
-	w.scum = make(map[Point]scumPatch)
-	w.scumThin = make(map[Point]struct{})
-	w.salt = make(map[Point]struct{})
-	w.exposedSalt = make(map[Point]struct{})
-	w.exposedScum = make(map[Point]struct{})
-	w.scumClaims = make(map[Point]EntityID)
-	w.workshopClaims = make(map[Point]EntityID)
 	w.subscribe(func(e WorldEvent) {
 		if tc, ok := e.(TileChanged); ok {
 			w.refreshScumExposure(tc.Pos)
@@ -1183,14 +1123,17 @@ func newWorld(cfg Config, src *rand.PCG) *World {
 // than literals in newWorld so a loaded world can rebind them (see afterLoad).
 func frontierSeed(w *World) func(add func(Point)) {
 	return func(add func(Point)) {
-		for p := range w.board.frontier {
-			if _, taken := w.board.claimed[p]; taken {
-				continue
+		// On every level.
+		w.eachLayer(func(l *Layer) {
+			for p := range l.board.frontier {
+				if _, taken := l.board.claimed[p]; taken {
+					continue
+				}
+				for _, d := range neighbors8 {
+					add(p.Add(d.X, d.Y))
+				}
 			}
-			for _, d := range neighbors8 {
-				add(p.Add(d.X, d.Y))
-			}
-		}
+		})
 	}
 }
 
@@ -1200,7 +1143,7 @@ func frontierGoal(w *World) func(Point) bool {
 			return false
 		}
 		for _, d := range neighbors8 {
-			if w.board.isUnclaimedFrontier(p.Add(d.X, d.Y)) {
+			if w.lay(p).board.isUnclaimedFrontier(p.Add(d.X, d.Y)) {
 				return true
 			}
 		}
@@ -1215,28 +1158,22 @@ func (w *World) trackFacility(kind Terrain) {
 	if w.fields[kind] != nil {
 		return
 	}
-	w.facilityTiles[kind] = make(map[Point]struct{})
+	w.eachLayer(func(l *Layer) { l.facilityTiles[kind] = make(map[Point]struct{}) })
 	w.fields[kind] = newFlowField(w, facilitySeed(w, kind), facilityGoal(w, kind))
-}
-
-// index converts a coordinate to a slice offset. Callers must ensure the point
-// is in bounds.
-func (w *World) index(p Point) int {
-	return p.Y*w.Width + p.X
 }
 
 // InBounds reports whether p lies inside the world grid.
 func (w *World) InBounds(p Point) bool {
-	return p.X >= 0 && p.X < w.Width && p.Y >= 0 && p.Y < w.Height
+	return w.layerIn(p) != nil
 }
 
 // TerrainAt returns the terrain at p, or Rock for out-of-bounds cells so the
 // edge of the world reads as solid.
 func (w *World) TerrainAt(p Point) Terrain {
-	if !w.InBounds(p) {
-		return Rock
+	if l := w.layerIn(p); l != nil {
+		return l.tiles.at(p.X, p.Y).Terrain
 	}
-	return w.tiles.at(p.X, p.Y).Terrain
+	return Rock
 }
 
 // TileAt returns the tile at p. Out-of-bounds cells behave as ordinary rock.
@@ -1263,10 +1200,10 @@ func (w *World) carveHidden(p Point) {
 		return
 	}
 	w.generateChunkAt(p)
-	if w.tiles.at(p.X, p.Y).Explored || w.TerrainAt(p) != Rock {
+	if w.lay(p).tiles.at(p.X, p.Y).Explored || w.TerrainAt(p) != Rock {
 		return
 	}
-	w.hiddenFloor++
+	w.lay(p).hiddenFloor++
 	w.setTerrain(p, Floor, false)
 }
 
@@ -1275,7 +1212,7 @@ func (w *World) setTerrain(p Point, t Terrain, discover bool) {
 		return
 	}
 	w.generateChunkAt(p)
-	old := w.tiles.at(p.X, p.Y).Terrain
+	old := w.lay(p).tiles.at(p.X, p.Y).Terrain
 	if old == t {
 		return
 	}
@@ -1289,13 +1226,14 @@ func (w *World) setTerrain(p Point, t Terrain, discover bool) {
 		// "undiscovered cavern floor". See docs/fog-of-war.md.
 		w.revealAround(p)
 	}
-	w.terrainCounts[old]--
-	w.terrainCounts[t]++
-	if w.facilityTiles[old] != nil {
-		delete(w.facilityTiles[old], p)
+	w.lay(p).terrainCounts[old]--
+	w.lay(p).terrainCounts[t]++
+	w.trackLinks(p, old, t)
+	if w.lay(p).facilityTiles[old] != nil {
+		delete(w.lay(p).facilityTiles[old], p)
 	}
-	if w.facilityTiles[t] != nil {
-		w.facilityTiles[t][p] = struct{}{}
+	if w.lay(p).facilityTiles[t] != nil {
+		w.lay(p).facilityTiles[t][p] = struct{}{}
 	}
 	if hasDepot(old) {
 		delete(w.storageContainers, p)
@@ -1323,24 +1261,24 @@ func (w *World) setTerrain(p Point, t Terrain, discover bool) {
 		w.clearScum(p) // a structure seals the biofilm under it for good
 		w.clearSalt(p) // and buries the salt
 	}
-	w.tiles.ptr(p.X, p.Y).Terrain = t
+	w.lay(p).tiles.ptr(p.X, p.Y).Terrain = t
 	if _, ok := w.structureAt[p]; ok {
 		w.structureRev++ // a structure's tile went up or came down
 	}
 	w.markTilePageDirty(p)
-	w.dirtyChunks[w.chunkIndexOf(p)] = struct{}{}
+	w.lay(p).dirtyChunks[w.chunkIndexOf(p)] = struct{}{}
 	w.emit(TileChanged{Pos: p, Old: old, New: t})
 }
 
 // growCarvedBox extends the carved bounding box (see carvedMin) to cover p.
 func (w *World) growCarvedBox(p Point) {
-	if !w.carvedAny {
-		w.carvedAny = true
-		w.carvedMin, w.carvedMax = p, p
+	if !w.lay(p).carvedAny {
+		w.lay(p).carvedAny = true
+		w.lay(p).carvedMin, w.lay(p).carvedMax = p, p
 		return
 	}
-	w.carvedMin.X, w.carvedMax.X = min(w.carvedMin.X, p.X), max(w.carvedMax.X, p.X)
-	w.carvedMin.Y, w.carvedMax.Y = min(w.carvedMin.Y, p.Y), max(w.carvedMax.Y, p.Y)
+	w.lay(p).carvedMin.X, w.lay(p).carvedMax.X = min(w.lay(p).carvedMin.X, p.X), max(w.lay(p).carvedMax.X, p.X)
+	w.lay(p).carvedMin.Y, w.lay(p).carvedMax.Y = min(w.lay(p).carvedMin.Y, p.Y), max(w.lay(p).carvedMax.Y, p.Y)
 }
 
 // revealAround marks p and its eight neighbors explored, lifting the fog over
@@ -1397,24 +1335,24 @@ func (w *World) reveal(p Point) {
 		return
 	}
 	w.generateChunkAt(p)
-	c := w.tiles.ptr(p.X, p.Y)
+	c := w.lay(p).tiles.ptr(p.X, p.Y)
 	if c.Explored {
 		return
 	}
 	c.Explored = true
-	w.exploredCount++
+	w.lay(p).exploredCount++
 	w.markTilePageDirty(p)
 	if c.Terrain != Rock {
-		w.hiddenFloor--
+		w.lay(p).hiddenFloor--
 		w.caveStack = append(w.caveStack, p)
 	}
 	// The first tile seen in a chunk moves the generated frontier out
 	// around it. This is the only thing that generates chunks during play,
 	// and exploration is simulation state, so which chunks exist at any
 	// tick is the same on every machine.
-	if w.gen != nil {
-		if pi := w.tiles.pageIndex(p.X, p.Y); !w.genSeen[pi] {
-			w.genSeen[pi] = true
+	if w.lay(p).gen != nil {
+		if pi := w.lay(p).tiles.pageIndex(p.X, p.Y); !w.lay(p).genSeen[pi] {
+			w.lay(p).genSeen[pi] = true
 			w.generateAround(p)
 		}
 	}
@@ -1428,11 +1366,11 @@ func (w *World) discoverCavernTile(p Point) {
 	w.growCarvedBox(p)
 	w.refreshScumExposure(p) // the cavern's rim is reachable scum now
 	w.refreshSaltExposure(p) // and salt
-	w.dirtyChunks[w.chunkIndexOf(p)] = struct{}{}
-	if w.board != nil {
-		w.board.refreshFrontierCell(p)
+	w.lay(p).dirtyChunks[w.chunkIndexOf(p)] = struct{}{}
+	if w.lay(p).board != nil {
+		w.lay(p).board.refreshFrontierCell(p)
 		for _, d := range neighbors8 {
-			w.board.refreshFrontierCell(p.Add(d.X, d.Y))
+			w.lay(p).board.refreshFrontierCell(p.Add(d.X, d.Y))
 		}
 	}
 	if w.frontier != nil {
@@ -1444,7 +1382,8 @@ func (w *World) discoverCavernTile(p Point) {
 // fog of war is shown. Colony-facing systems use it to ignore the floor of
 // natural caverns nobody has broken into yet.
 func (w *World) discovered(p Point) bool {
-	return w.InBounds(p) && w.tiles.at(p.X, p.Y).Explored
+	l := w.layerIn(p)
+	return l != nil && l.tiles.at(p.X, p.Y).Explored
 }
 
 // Explored reports whether the colony has seen p, as a frontend should show it:
@@ -1457,19 +1396,21 @@ func (w *World) Explored(p Point) bool {
 	if !w.cfg.FogOfWar {
 		return true
 	}
-	return w.tiles.at(p.X, p.Y).Explored
+	return w.lay(p).tiles.at(p.X, p.Y).Explored
 }
 
 // Walkable reports whether a colonist can stand at p.
 func (w *World) Walkable(p Point) bool {
-	return w.InBounds(p) && w.tiles.at(p.X, p.Y).Terrain.Walkable()
+	l := w.layerIn(p)
+	return l != nil && l.tiles.at(p.X, p.Y).Terrain.Walkable()
 }
 
 // ---- Occupancy ---------------------------------------------------------------
 
 // occupied reports whether any entity stands on p.
 func (w *World) occupied(p Point) bool {
-	return w.InBounds(p) && w.occ.at(p.X, p.Y) != 0
+	l := w.layerIn(p)
+	return l != nil && l.occ.at(p.X, p.Y) != 0
 }
 
 // occupiedByOther reports whether an entity other than self stands on p.
@@ -1477,17 +1418,18 @@ func (w *World) occupiedByOther(p Point, self EntityID) bool {
 	if !w.InBounds(p) {
 		return false
 	}
-	id := w.occ.at(p.X, p.Y)
+	id := w.lay(p).occ.at(p.X, p.Y)
 	return id != 0 && id != self
 }
 
 // entityAt returns the entity standing on p, or nil when p is out of bounds or
 // empty.
 func (w *World) entityAt(p Point) *Entity {
-	if !w.InBounds(p) {
+	l := w.layerIn(p)
+	if l == nil {
 		return nil
 	}
-	return w.entities[w.occ.at(p.X, p.Y)]
+	return w.entities[l.occ.at(p.X, p.Y)]
 }
 
 // moveEntity relocates an entity, updating the occupancy index. Callers must
@@ -1497,11 +1439,17 @@ func (w *World) moveEntity(e *Entity, to Point) {
 		return
 	}
 	from := e.Pos
-	w.occ.set(from.X, from.Y, 0)
-	w.occ.set(to.X, to.Y, e.ID)
-	if oc, nc := w.chunkIndexOf(from), w.chunkIndexOf(to); oc != nc {
-		w.removeFromChunkIndex(oc, e.ID)
-		w.chunkEntities[nc] = append(w.chunkEntities[nc], e.ID)
+	fl, tl := w.lay(from), w.lay(to)
+	fl.occ.set(from.X, from.Y, 0)
+	tl.occ.set(to.X, to.Y, e.ID)
+	// Changing level (a stair) always changes chunk index too: the index is
+	// per layer.
+	if oc, nc := w.chunkIndexOf(from), w.chunkIndexOf(to); oc != nc || fl != tl {
+		w.removeFromChunkIndex(fl, oc, e.ID)
+		tl.chunkEntities[nc] = append(tl.chunkEntities[nc], e.ID)
+	}
+	if fl != tl && w.crossesShaft(from, to) {
+		w.startClimb(e)
 	}
 	e.Pos = to
 }
@@ -1569,11 +1517,11 @@ func (w *World) spawnWith(kind Kind, p Point, species int, rec *recruitCandidate
 	}
 	w.nextID++
 	w.entities[e.ID] = e
-	w.occ.set(p.X, p.Y, e.ID)
+	w.lay(p).occ.set(p.X, p.Y, e.ID)
 	w.kindCounts[kind]++
 	w.kindEntities[kind][e.ID] = struct{}{}
 	ci := w.chunkIndexOf(p)
-	w.chunkEntities[ci] = append(w.chunkEntities[ci], e.ID)
+	w.lay(p).chunkEntities[ci] = append(w.lay(p).chunkEntities[ci], e.ID)
 	if kind == Colonist {
 		// Every colonist arrives with a purse, or a recruit with its
 		// savings. Minted only now, once the colonist is registered,
@@ -1629,10 +1577,10 @@ func (w *World) remove(id EntityID, cause string) {
 		// cook killed mid-recipe locked its scumhouse.
 		w.clearJob(e)
 	}
-	w.occ.set(e.Pos.X, e.Pos.Y, 0)
+	w.lay(e.Pos).occ.set(e.Pos.X, e.Pos.Y, 0)
 	w.kindCounts[e.Kind]--
 	delete(w.kindEntities[e.Kind], id)
-	w.removeFromChunkIndex(w.chunkIndexOf(e.Pos), id)
+	w.removeFromChunkIndex(w.lay(e.Pos), w.chunkIndexOf(e.Pos), id)
 	// The kin node (if any) is left as-is: its entity field keeps pointing at
 	// id so surviving relatives' family trees still name this colonist and
 	// so descendants stay connected through them. relativesOf resolves
@@ -1650,5 +1598,11 @@ func (w *World) countKind(kind Kind) int {
 
 // countTerrain returns how many tiles currently hold the given terrain.
 func (w *World) countTerrain(t Terrain) int {
-	return w.terrainCounts[t]
+	n := 0
+	for _, l := range w.layers {
+		if l != nil {
+			n += l.terrainCounts[t]
+		}
+	}
+	return n
 }

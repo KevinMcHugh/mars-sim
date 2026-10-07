@@ -59,13 +59,13 @@ type roomFrame struct {
 func (f roomFrame) at(u, v int) Point {
 	switch f.face {
 	case faceNorth:
-		return Point{f.o.X + u, f.o.Y - v}
+		return Point{f.o.X + u, f.o.Y - v, f.o.Level}
 	case faceEast:
-		return Point{f.o.X + v, f.o.Y + u}
+		return Point{f.o.X + v, f.o.Y + u, f.o.Level}
 	case faceWest:
-		return Point{f.o.X - v, f.o.Y + u}
+		return Point{f.o.X - v, f.o.Y + u, f.o.Level}
 	default:
-		return Point{f.o.X + u, f.o.Y + v}
+		return Point{f.o.X + u, f.o.Y + v, f.o.Level}
 	}
 }
 
@@ -84,9 +84,9 @@ func frameAt(anchor Point, face roomFacing, width int) roomFrame {
 	f := roomFrame{face: face, width: width}
 	switch face {
 	case faceEast, faceWest:
-		f.o = Point{anchor.X, anchor.Y - width/2}
+		f.o = Point{anchor.X, anchor.Y - width/2, anchor.Level}
 	default:
-		f.o = Point{anchor.X - width/2, anchor.Y}
+		f.o = Point{anchor.X - width/2, anchor.Y, anchor.Level}
 	}
 	return f
 }
@@ -95,7 +95,7 @@ func frameAt(anchor Point, face roomFacing, width int) roomFrame {
 // inclusive, as its least and greatest corners.
 func (f roomFrame) box(u0, v0, u1, v1 int) (lo, hi Point) {
 	a, b := f.at(u0, v0), f.at(u1, v1)
-	return Point{min(a.X, b.X), min(a.Y, b.Y)}, Point{max(a.X, b.X), max(a.Y, b.Y)}
+	return Point{min(a.X, b.X), min(a.Y, b.Y), a.Level}, Point{max(a.X, b.X), max(a.Y, b.Y), a.Level}
 }
 
 // splitCheckMargin is how far beyond a room's footprint siteKeepsColonyWhole
@@ -130,8 +130,8 @@ func (w *World) siteKeepsColonyWhole(f roomFrame, designated map[Point]bool) boo
 // frame's shape.
 func (w *World) footprintKeepsColonyWhole(lo, hi Point, designated map[Point]bool) bool {
 	inFoot := func(p Point) bool { return p.X >= lo.X && p.X <= hi.X && p.Y >= lo.Y && p.Y <= hi.Y }
-	blo := Point{max(0, lo.X-splitCheckMargin), max(0, lo.Y-splitCheckMargin)}
-	bhi := Point{min(w.Width-1, hi.X+splitCheckMargin), min(w.Height-1, hi.Y+splitCheckMargin)}
+	blo := Point{max(0, lo.X-splitCheckMargin), max(0, lo.Y-splitCheckMargin), lo.Level}
+	bhi := Point{min(w.Width-1, hi.X+splitCheckMargin), min(w.Height-1, hi.Y+splitCheckMargin), hi.Level}
 	open := func(p Point) bool {
 		return p.X >= blo.X && p.X <= bhi.X && p.Y >= blo.Y && p.Y <= bhi.Y &&
 			!inFoot(p) && !designated[p] && w.Walkable(p)
@@ -149,7 +149,7 @@ func (w *World) footprintKeepsColonyWhole(lo, hi Point, designated map[Point]boo
 	var border []borderTile
 	for y := lo.Y - 1; y <= hi.Y+1; y++ {
 		for x := lo.X - 1; x <= hi.X+1; x++ {
-			p := Point{x, y}
+			p := Point{x, y, LandingLevel}
 			if !open(p) || !w.discovered(p) {
 				continue
 			}

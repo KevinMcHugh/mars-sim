@@ -33,9 +33,9 @@ func TestBystanderRemembersAlienAttack(t *testing.T) {
 	cfg := DefaultConfig()
 	w := newWorld(cfg, newPCG(1))
 
-	alien := w.spawn(Alien, Point{0, 0})
-	victim := w.spawn(Colonist, Point{1, 0})
-	bystander := w.spawn(Colonist, Point{1, 1})
+	alien := w.spawn(Alien, Point{0, 0, LandingLevel})
+	victim := w.spawn(Colonist, Point{1, 0, LandingLevel})
+	bystander := w.spawn(Colonist, Point{1, 1, LandingLevel})
 	// Pin the species to biting: the message shapes below are the bite's
 	// (see strikeTargetText for the others).
 	w.alienSpecies[alien.Species].AttackModes = AttackSetOf(AttackBite)
@@ -62,7 +62,7 @@ func TestBystanderRemembersAlienAttack(t *testing.T) {
 
 	// A second, fatal bite: the victim is removed and cannot hold a memory,
 	// but the bystander should remember watching the kill.
-	victim2 := w.spawn(Colonist, Point{1, 0})
+	victim2 := w.spawn(Colonist, Point{1, 0, LandingLevel})
 	// Exactly what this alien's bite deals: DefaultConfig's seed is the
 	// clock, and a species with a lifecycle may spawn as a smaller form that
 	// bites for less than its species' full damage (see alienDamage).
@@ -85,9 +85,9 @@ func TestDistantColonistDoesNotWitnessAlienAttack(t *testing.T) {
 	cfg := DefaultConfig()
 	w := newWorld(cfg, newPCG(1))
 
-	alien := w.spawn(Alien, Point{0, 0})
-	victim := w.spawn(Colonist, Point{1, 0})
-	far := w.spawn(Colonist, Point{0, cfg.FleeRadius + 5})
+	alien := w.spawn(Alien, Point{0, 0, LandingLevel})
+	victim := w.spawn(Colonist, Point{1, 0, LandingLevel})
+	far := w.spawn(Colonist, Point{0, cfg.FleeRadius + 5, LandingLevel})
 
 	victim.HP = 999
 	victim.Parts = [numBodyParts]int{999, 999, 999, 999, 999, 999}
@@ -104,9 +104,9 @@ func TestBystanderRemembersRatKilled(t *testing.T) {
 	cfg := DefaultConfig()
 	w := newWorld(cfg, newPCG(1))
 
-	colonist := w.spawn(Colonist, Point{0, 0})
-	bystander := w.spawn(Colonist, Point{0, 1})
-	rat := w.spawn(Rat, Point{1, 0})
+	colonist := w.spawn(Colonist, Point{0, 0, LandingLevel})
+	bystander := w.spawn(Colonist, Point{0, 1, LandingLevel})
+	rat := w.spawn(Rat, Point{1, 0, LandingLevel})
 	w.stomp(colonist, rat)
 
 	want := fmt.Sprintf("Watched a colonist crush rat #%d.", rat.ID)
@@ -114,8 +114,8 @@ func TestBystanderRemembersRatKilled(t *testing.T) {
 		t.Fatalf("bystander memory after stomp = %q, want %q", got, want)
 	}
 
-	cat := w.spawn(Cat, Point{0, 0})
-	rat2 := w.spawn(Rat, Point{1, 0})
+	cat := w.spawn(Cat, Point{0, 0, LandingLevel})
+	rat2 := w.spawn(Rat, Point{1, 0, LandingLevel})
 	w.pounce(cat, rat2)
 
 	want2 := fmt.Sprintf("Watched a cat catch rat #%d.", rat2.ID)
@@ -152,7 +152,7 @@ func TestRepeatedMinorEventsCollapse(t *testing.T) {
 	cfg := testConfig()
 	w := newTestWorld(t, cfg)
 
-	col := w.spawn(Colonist, Point{0, 0})
+	col := w.spawn(Colonist, Point{0, 0, LandingLevel})
 	for i := 0; i < 12; i++ {
 		w.tick = 100 + i*7
 		rememberTest(w, col, "finished-mining", fmt.Sprintf("Finished mining at (%d, %d).", i, i))
@@ -184,7 +184,7 @@ func TestSingleMinorEventKeepsItsOwnText(t *testing.T) {
 	cfg := testConfig()
 	w := newTestWorld(t, cfg)
 
-	col := w.spawn(Colonist, Point{0, 0})
+	col := w.spawn(Colonist, Point{0, 0, LandingLevel})
 	rememberTest(w, col, "finished-mining", "Finished mining at (514, 501).")
 
 	m := col.Memories[0]
@@ -202,7 +202,7 @@ func TestDifferentEventBreaksACollapsedRun(t *testing.T) {
 	cfg := testConfig()
 	w := newTestWorld(t, cfg)
 
-	col := w.spawn(Colonist, Point{0, 0})
+	col := w.spawn(Colonist, Point{0, 0, LandingLevel})
 	w.tick = 10
 	rememberTest(w, col, "finished-mining", "Finished mining at (1, 1).")
 	w.tick = 20
@@ -232,7 +232,7 @@ func TestNotableEventsDoNotCollapse(t *testing.T) {
 	cfg := testConfig()
 	w := newTestWorld(t, cfg)
 
-	col := w.spawn(Colonist, Point{0, 0})
+	col := w.spawn(Colonist, Point{0, 0, LandingLevel})
 	rememberTest(w, col, "conversation", "Had a conversation with Ada.")
 	rememberTest(w, col, "conversation", "Had a conversation with Bo.")
 
@@ -250,9 +250,9 @@ func TestCollapsedRunStillAppliesAffectPerOccurrence(t *testing.T) {
 	cfg := testConfig()
 	w := newTestWorld(t, cfg)
 
-	once := w.spawn(Colonist, Point{0, 0})
+	once := w.spawn(Colonist, Point{0, 0, LandingLevel})
 	once.Profile = &Profile{}
-	thrice := w.spawn(Colonist, Point{10, 10})
+	thrice := w.spawn(Colonist, Point{10, 10, LandingLevel})
 	thrice.Profile = &Profile{}
 
 	rememberTest(w, once, "finished-mining", "Finished mining at (1, 1).")

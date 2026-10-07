@@ -14,12 +14,12 @@ func zoneWorld(t *testing.T) *World {
 	w := newTestWorld(t, cfg)
 	for y := 0; y < w.Height; y++ {
 		for x := 0; x < w.Width; x++ {
-			w.SetTerrain(Point{x, y}, Rock)
+			w.SetTerrain(Point{x, y, LandingLevel}, Rock)
 		}
 	}
 	for y := 4; y <= 19; y++ {
 		for x := 4; x <= 35; x++ {
-			w.SetTerrain(Point{x, y}, Floor)
+			w.SetTerrain(Point{x, y, LandingLevel}, Floor)
 		}
 	}
 	w.refreshSpatial()
@@ -116,7 +116,7 @@ func TestPaintingAZoneReplacesWhatItCovers(t *testing.T) {
 	if got, want := zonedTiles(w, ZoneStorage), 8*5-1; got != want {
 		t.Errorf("storage covers %d tiles, want %d", got, want)
 	}
-	if w.zoneAt(Point{14, 8}) != ZoneStorage || w.zoneAt(Point{12, 8}) != ZoneResidence || w.zoneAt(Point{20, 10}) != ZoneResidence {
+	if w.zoneAt(Point{14, 8, LandingLevel}) != ZoneStorage || w.zoneAt(Point{12, 8, LandingLevel}) != ZoneResidence || w.zoneAt(Point{20, 10, LandingLevel}) != ZoneResidence {
 		t.Error("the later paint did not win where the zones met")
 	}
 	w.paintZone(PaintZone{Kind: NoZone, X0: 0, Y0: 0, X1: 39, Y1: 23})
@@ -206,13 +206,13 @@ func TestARezoneTheTreasuryCannotPayForChangesNothing(t *testing.T) {
 	w.manualDormitories = 1
 	w.planRooms()
 	buildAll(w, lastProject(t, w, dormRoom.name))
-	c := w.spawn(Colonist, Point{8, 8})
+	c := w.spawn(Colonist, Point{8, 8, LandingLevel})
 	w.transfer(Community, ColonistOwner(c.ID), w.treasury)
 
 	if w.paintZone(PaintZone{Kind: ZoneStorage, X0: 20, Y0: 6, X1: 30, Y1: 14}) {
 		t.Fatal("an empty treasury paid to clear a dormitory")
 	}
-	if w.zoneAt(Point{25, 10}) != ZoneResidence {
+	if w.zoneAt(Point{25, 10, LandingLevel}) != ZoneResidence {
 		t.Error("the refused paint changed the zone anyway")
 	}
 	// Painting where nothing needs doing is still free.
@@ -228,7 +228,7 @@ func TestAZoneOverRockOrdersItDugOut(t *testing.T) {
 	w := zoneWorld(t)
 	// Reveal a band of rock above the chamber.
 	for x := 6; x <= 12; x++ {
-		w.revealAround(Point{x, 3})
+		w.revealAround(Point{x, 3, LandingLevel})
 	}
 	c := PaintZone{Kind: ZoneProduction, X0: 6, Y0: 2, X1: 12, Y1: 6}
 	rock := len(w.unmarkedRock(6, 2, 12, 6))
@@ -281,7 +281,7 @@ func TestShipsHoldTheirGroundAsResidence(t *testing.T) {
 	}
 
 	// A communal chest elsewhere takes the locker's meals.
-	chest := Point{1, 1}
+	chest := Point{1, 1, LandingLevel}
 	w.SetTerrain(chest, Storage)
 	owner := w.entities[w.ships[0].Colonists[0]]
 	locker, ok := w.lockerOf(owner)
@@ -362,8 +362,8 @@ func TestAMovedShipTakesItsGroundWithIt(t *testing.T) {
 // chest, each line still its owner's; an ask resting there is withdrawn first.
 func TestClearingADepotMovesItsGoodsWithTheirOwners(t *testing.T) {
 	w := zoneWorld(t)
-	a, b := w.spawn(Colonist, Point{8, 8}), w.spawn(Colonist, Point{9, 8})
-	from, to := Point{10, 10}, Point{20, 10}
+	a, b := w.spawn(Colonist, Point{8, 8, LandingLevel}), w.spawn(Colonist, Point{9, 8, LandingLevel})
+	from, to := Point{10, 10, LandingLevel}, Point{20, 10, LandingLevel}
 	w.SetTerrain(from, Storage)
 	w.SetTerrain(to, Storage)
 	src := w.storageContainers[from]
@@ -398,13 +398,13 @@ func TestClearingAWallReroutesColonists(t *testing.T) {
 	w := zoneWorld(t)
 	// A wall across the chamber at x=20, open only at the bottom row.
 	for y := 4; y <= 18; y++ {
-		w.SetTerrain(Point{20, y}, Wall)
+		w.SetTerrain(Point{20, y, LandingLevel}, Wall)
 	}
-	toilet := Point{10, 5}
+	toilet := Point{10, 5, LandingLevel}
 	w.SetTerrain(toilet, Toilet)
 	w.refreshSpatial()
 	f := w.facilityField(Toilet)
-	at := Point{30, 5}
+	at := Point{30, 5, LandingLevel}
 	f.ensureFresh()
 	long := f.at(at)
 	if long <= 0 {
@@ -418,7 +418,7 @@ func TestClearingAWallReroutesColonists(t *testing.T) {
 	walker.path, walker.pathAt, walker.pathGoal = route, 0, toilet
 
 	w.tick++
-	w.clearTile(Point{20, 5})
+	w.clearTile(Point{20, 5, LandingLevel})
 	w.refreshSpatial()
 	f.ensureFresh()
 	if short := f.at(at); short <= 0 || short >= long {
@@ -446,14 +446,14 @@ func TestColonistsClearAnAreaAndArePaid(t *testing.T) {
 				ok := true
 				for dx := 0; dx < 3 && ok; dx++ {
 					for dy := -1; dy <= 1; dy++ {
-						p := Point{x + dx, y + dy}
+						p := Point{x + dx, y + dy, LandingLevel}
 						if w.TerrainAt(p) != Floor || w.occupied(p) || w.zoneLocked(p) || w.doorTiles[p] {
 							ok = false
 						}
 					}
 				}
 				if ok {
-					wall = []Point{{x, y}, {x + 1, y}, {x + 2, y}}
+					wall = []Point{{x, y, LandingLevel}, {x + 1, y, LandingLevel}, {x + 2, y, LandingLevel}}
 				}
 			}
 		}
@@ -491,7 +491,7 @@ func TestColonistsClearAnAreaAndArePaid(t *testing.T) {
 func TestAClearingOrderCanBeCancelled(t *testing.T) {
 	w := zoneWorld(t)
 	for x := 10; x <= 14; x++ {
-		w.SetTerrain(Point{x, 10}, Wall)
+		w.SetTerrain(Point{x, 10, LandingLevel}, Wall)
 	}
 	before := w.treasury
 	w.clearArea(ClearArea{X0: 10, Y0: 10, X1: 14, Y1: 10})
@@ -499,8 +499,8 @@ func TestAClearingOrderCanBeCancelled(t *testing.T) {
 	if !w.cancelClearing(p.id) {
 		t.Fatal("cancel refused")
 	}
-	if w.treasury != before || w.workEscrowed() != 0 || w.TerrainAt(Point{12, 10}) != Wall {
-		t.Fatalf("treasury %v (was %v), escrow %v, wall %v", w.treasury, before, w.workEscrowed(), w.TerrainAt(Point{12, 10}))
+	if w.treasury != before || w.workEscrowed() != 0 || w.TerrainAt(Point{12, 10, LandingLevel}) != Wall {
+		t.Fatalf("treasury %v (was %v), escrow %v, wall %v", w.treasury, before, w.workEscrowed(), w.TerrainAt(Point{12, 10, LandingLevel}))
 	}
 }
 
@@ -652,7 +652,7 @@ func TestEveryFixtureHasAZone(t *testing.T) {
 	}
 
 	w := newTestWorld(t, testConfig())
-	stove, pantry, chest := Point{3, 3}, Point{5, 3}, Point{9, 9}
+	stove, pantry, chest := Point{3, 3, LandingLevel}, Point{5, 3, LandingLevel}, Point{9, 9, LandingLevel}
 	w.pantryOf[stove], w.pantryHouse[pantry] = pantry, stove
 	if z := w.fixtureZone(pantry, Storage); z != ZoneProduction {
 		t.Errorf("a stove's pantry is %v, want production", z)

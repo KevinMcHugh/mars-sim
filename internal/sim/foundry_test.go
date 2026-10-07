@@ -14,14 +14,14 @@ func foundryWorld(t *testing.T, n int, ore int) (w *World, silo, forge, bench Po
 	// bunk and chairs (see roomplan.go), and colonists sleeping and talking
 	// in them is not the work this measures.
 	w.cfg.RoomExpansion, w.cfg.RoomMerge = false, false
-	silo, forge, bench = Point{6, 6}, Point{16, 6}, Point{18, 6}
+	silo, forge, bench = Point{6, 6, LandingLevel}, Point{16, 6, LandingLevel}, Point{18, 6, LandingLevel}
 	w.SetTerrain(silo, Storage)
 	w.SetTerrain(forge, Forge)
 	w.SetTerrain(bench, GunBench)
 	w.refreshSpatial()
 	stock(w, silo, Community, IronOre, ore)
 	for i := 0; i < n; i++ {
-		e := w.spawn(Colonist, Point{10 + 2*i, 12})
+		e := w.spawn(Colonist, Point{10 + 2*i, 12, LandingLevel})
 		quietDrives(w, e)
 		e.wallet = 100
 		w.moneyIssued += 100 - Money(w.cfg.CrashPodPurse)
@@ -91,7 +91,7 @@ func TestARifleBidReachesTheSilo(t *testing.T) {
 func TestOwnOreFillsTheForge(t *testing.T) {
 	w, _, forge, _, cols := foundryWorld(t, 2, 0)
 	smith, miner := ColonistOwner(cols[0].ID), cols[1]
-	chest := Point{8, 14}
+	chest := Point{8, 14, LandingLevel}
 	w.SetTerrain(chest, Storage)
 	w.refreshSpatial()
 	stock(w, chest, ColonistOwner(miner.ID), IronOre, 5)
@@ -110,7 +110,7 @@ func TestOwnOreFillsTheForge(t *testing.T) {
 		t.Fatalf("the miner kept %d ore in its chest, want 3", got)
 	}
 
-	carrier := w.spawn(Colonist, Point{12, 12})
+	carrier := w.spawn(Colonist, Point{12, 12, LandingLevel})
 	carrier.Inventory.Add(IronOre, 2)
 	w.transfer(ColonistOwner(carrier.ID), Community, carrier.wallet) // too poor to machine the rifle itself
 	w.post(Bid, IronOre, 2, 8, smith, forge, 0)
@@ -124,14 +124,14 @@ func TestOwnOreFillsTheForge(t *testing.T) {
 // stands.
 func TestArmoryBidsForItsShortfall(t *testing.T) {
 	w := propertyWorld(t)
-	silo := Point{6, 6}
+	silo := Point{6, 6, LandingLevel}
 	w.SetTerrain(silo, Storage)
 	w.refreshSpatial()
 	w.refreshArmoryBids()
 	if n := w.openQty(Bid, AssaultRifle, silo, Community); n != 0 {
 		t.Fatalf("with no gun bench the colony bids for %d rifles", n)
 	}
-	w.SetTerrain(Point{18, 6}, GunBench)
+	w.SetTerrain(Point{18, 6, LandingLevel}, GunBench)
 	stock(w, silo, Community, AssaultRifle, 1)
 	w.refreshArmoryBids()
 	w.refreshArmoryBids() // idempotent
@@ -165,9 +165,9 @@ func TestTheColonyBuildsAFoundry(t *testing.T) {
 func TestNoArmoryNoFoundry(t *testing.T) {
 	w := propertyWorld(t)
 	w.cfg.ArmoryRifles = 0
-	silo := Point{6, 6}
+	silo := Point{6, 6, LandingLevel}
 	w.SetTerrain(silo, Storage)
-	w.SetTerrain(Point{18, 6}, GunBench)
+	w.SetTerrain(Point{18, 6, LandingLevel}, GunBench)
 	w.refreshSpatial()
 	w.refreshArmoryBids()
 	if w.wantsFoundry() || w.openQty(Bid, AssaultRifle, silo, Community) != 0 {

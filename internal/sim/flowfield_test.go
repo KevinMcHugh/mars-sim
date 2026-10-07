@@ -11,11 +11,11 @@ func bfsFacilityDist(w *World, t Terrain) map[Point]int {
 	var q []Point
 	for y := 0; y < w.Height; y++ {
 		for x := 0; x < w.Width; x++ {
-			if w.TerrainAt(Point{x, y}) != t {
+			if w.TerrainAt(Point{x, y, LandingLevel}) != t {
 				continue
 			}
 			for _, d := range neighbors8 {
-				n := Point{x + d.X, y + d.Y}
+				n := Point{x + d.X, y + d.Y, LandingLevel}
 				if w.Walkable(n) {
 					if _, ok := dist[n]; !ok {
 						dist[n] = 0
@@ -46,13 +46,13 @@ func bfsFacilityDist(w *World, t Terrain) map[Point]int {
 func TestFlowFieldMatchesBFS(t *testing.T) {
 	w := roomsTestWorld(60, 40)
 	rng := newRand(31)
-	carve(w, Point{2, 2}, Point{57, 37}, Floor)
+	carve(w, Point{2, 2, LandingLevel}, Point{57, 37, LandingLevel}, Floor)
 	for i := 0; i < 200; i++ {
-		w.SetTerrain(Point{2 + rng.IntN(56), 2 + rng.IntN(36)}, Wall)
+		w.SetTerrain(Point{2 + rng.IntN(56), 2 + rng.IntN(36), LandingLevel}, Wall)
 	}
 	// Scatter a few pods on floor tiles.
 	for i := 0; i < 6; i++ {
-		p := Point{2 + rng.IntN(56), 2 + rng.IntN(36)}
+		p := Point{2 + rng.IntN(56), 2 + rng.IntN(36), LandingLevel}
 		if w.TerrainAt(p) == Floor {
 			w.SetTerrain(p, NutrientPod)
 		}
@@ -66,7 +66,7 @@ func TestFlowFieldMatchesBFS(t *testing.T) {
 	want := bfsFacilityDist(w, NutrientPod)
 	for y := 0; y < w.Height; y++ {
 		for x := 0; x < w.Width; x++ {
-			p := Point{x, y}
+			p := Point{x, y, LandingLevel}
 			if !w.Walkable(p) {
 				continue
 			}
@@ -86,12 +86,12 @@ func TestFlowFieldMatchesBFS(t *testing.T) {
 // reachable tile.
 func TestFlowFieldFollowReachesFacility(t *testing.T) {
 	w := roomsTestWorld(40, 20)
-	carve(w, Point{2, 2}, Point{37, 17}, Floor)
-	w.SetTerrain(Point{34, 15}, NutrientPod)
+	carve(w, Point{2, 2, LandingLevel}, Point{37, 17, LandingLevel}, Floor)
+	w.SetTerrain(Point{34, 15, LandingLevel}, NutrientPod)
 	w.refreshSpatial()
 
 	f := w.facilityField(NutrientPod)
-	start := Point{4, 4}
+	start := Point{4, 4, LandingLevel}
 	e := w.spawn(Colonist, start)
 	steps := 0
 	for f.at(e.Pos) > 0 && steps < 500 {
@@ -110,23 +110,23 @@ func TestFlowFieldFollowReachesFacility(t *testing.T) {
 
 func TestFlowFieldPassesThroughCrowdToFreeLanding(t *testing.T) {
 	w := roomsTestWorld(10, 5)
-	carve(w, Point{1, 2}, Point{7, 2}, Floor)
-	w.SetTerrain(Point{8, 2}, NutrientPod)
+	carve(w, Point{1, 2, LandingLevel}, Point{7, 2, LandingLevel}, Floor)
+	w.SetTerrain(Point{8, 2, LandingLevel}, NutrientPod)
 	w.refreshSpatial()
 
-	mover := w.spawn(Colonist, Point{1, 2})
+	mover := w.spawn(Colonist, Point{1, 2, LandingLevel})
 	for x := 2; x <= 6; x++ {
-		w.spawn(Colonist, Point{x, 2})
+		w.spawn(Colonist, Point{x, 2, LandingLevel})
 	}
 
 	if !w.followField(mover, w.facilityField(NutrientPod)) {
 		t.Fatal("flow-field movement could not pass through the crowded corridor")
 	}
-	if want := (Point{7, 2}); !mover.Pos.Equal(want) {
+	if want := (Point{7, 2, LandingLevel}); !mover.Pos.Equal(want) {
 		t.Fatalf("mover stopped at %v, want free facility access tile %v", mover.Pos, want)
 	}
 	for x := 2; x <= 6; x++ {
-		if got := w.entityAt(Point{x, 2}); got == nil || got == mover {
+		if got := w.entityAt(Point{x, 2, LandingLevel}); got == nil || got == mover {
 			t.Fatalf("transit changed occupant at {%d 2}: %v", x, got)
 		}
 	}
@@ -138,13 +138,13 @@ func TestFlowFieldPassesThroughCrowdToFreeLanding(t *testing.T) {
 // colonists to move out of one another's way.
 func TestFlowFieldStepsAsideWhenCrowdBlocksEveryDownhillTile(t *testing.T) {
 	w := roomsTestWorld(7, 5)
-	carve(w, Point{1, 2}, Point{4, 2}, Floor)
-	w.SetTerrain(Point{5, 2}, NutrientPod)
+	carve(w, Point{1, 2, LandingLevel}, Point{4, 2, LandingLevel}, Floor)
+	w.SetTerrain(Point{5, 2, LandingLevel}, NutrientPod)
 	w.refreshSpatial()
 
-	mover := w.spawn(Colonist, Point{2, 2})
-	w.spawn(Colonist, Point{3, 2})
-	w.spawn(Colonist, Point{4, 2})
+	mover := w.spawn(Colonist, Point{2, 2, LandingLevel})
+	w.spawn(Colonist, Point{3, 2, LandingLevel})
+	w.spawn(Colonist, Point{4, 2, LandingLevel})
 	field := w.facilityField(NutrientPod)
 	before := field.at(mover.Pos)
 
@@ -163,7 +163,7 @@ func TestColonistSeeksFacilityViaField(t *testing.T) {
 	cfg.StartColonists, cfg.StartAliens = 0, 0
 	w := newTestWorld(t, cfg)
 
-	center := Point{w.Width / 2, w.Height / 2}
+	center := Point{w.Width / 2, w.Height / 2, LandingLevel}
 	// A short corridor with a pod at the end.
 	carve(w, center, center.Add(6, 0), Floor)
 	w.SetTerrain(center.Add(7, 0), NutrientPod)

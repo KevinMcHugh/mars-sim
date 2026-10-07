@@ -234,7 +234,7 @@ func (w *World) landAloft(c LandShip) bool {
 	if w.tick != 0 || len(w.aloft) == 0 || c.Ship != len(w.ships)+1 {
 		return false
 	}
-	if w.landAt(w.aloft[0], Point{c.X, c.Y}, true) == nil {
+	if w.landAt(w.aloft[0], Point{c.X, c.Y, LandingLevel}, true) == nil {
 		return false
 	}
 	w.aloft = w.aloft[1:]
@@ -405,7 +405,7 @@ func (w *World) moveShip(c MoveShip) bool {
 	if w.tick != 0 || s == nil {
 		return false
 	}
-	o := Point{c.X, c.Y}
+	o := Point{c.X, c.Y, LandingLevel}
 	if !w.shipSiteAllowed(s, &s.layout, o) {
 		return false
 	}
@@ -418,8 +418,8 @@ func (w *World) moveShip(c MoveShip) bool {
 	aboard := make(map[EntityID]bool, len(riders))
 	for _, e := range riders {
 		aboard[e.ID] = true
-		w.occ.set(e.Pos.X, e.Pos.Y, 0)
-		w.removeFromChunkIndex(w.chunkIndexOf(e.Pos), e.ID)
+		w.lay(e.Pos).occ.set(e.Pos.X, e.Pos.Y, 0)
+		w.removeFromChunkIndex(w.lay(e.Pos), w.chunkIndexOf(e.Pos), e.ID)
 	}
 	old := s.Origin
 	w.unregisterShip(s)
@@ -439,9 +439,10 @@ func (w *World) moveShip(c MoveShip) bool {
 	for i, e := range riders {
 		p := o.Add(s.layout.floor[i].X, s.layout.floor[i].Y)
 		e.Pos = p
-		w.occ.set(p.X, p.Y, e.ID)
+		l := w.lay(p)
+		l.occ.set(p.X, p.Y, e.ID)
 		ci := w.chunkIndexOf(p)
-		w.chunkEntities[ci] = append(w.chunkEntities[ci], e.ID)
+		l.chunkEntities[ci] = append(l.chunkEntities[ci], e.ID)
 	}
 	w.furnishShip(s)
 	w.registerShip(s)
@@ -520,7 +521,7 @@ func (w *World) findShipSite(l shipLayout) (o Point, crashed, ok bool) {
 	// The top hull row starts one below the middle row, so the middle row
 	// itself stays walkable margin: in the smallest cavern (see minCaveRy) it
 	// is exactly the approach row of a room against the top rim.
-	center := Point{w.Width/2 - l.width/2, w.Height/2 + 1}
+	center := Point{w.Width/2 - l.width/2, w.Height/2 + 1, LandingLevel}
 	maxR := max(w.Width, w.Height)
 	designated := make(map[Point]bool)
 	for _, pr := range w.projects {
@@ -587,14 +588,14 @@ func forEachRingPoint(c Point, r int, visit func(Point) bool) {
 		y := c.Y + dy
 		if dy == r || dy == -r {
 			for x := c.X - 2*r; x <= c.X+2*r; x++ {
-				if visit(Point{x, y}) {
+				if visit(Point{x, y, LandingLevel}) {
 					return
 				}
 			}
 			continue
 		}
 		for _, x := range [4]int{c.X - 2*r, c.X - 2*r + 1, c.X + 2*r - 1, c.X + 2*r} {
-			if visit(Point{x, y}) {
+			if visit(Point{x, y, LandingLevel}) {
 				return
 			}
 		}
@@ -694,7 +695,7 @@ func shipZoneOK(w *World, p Point) bool {
 func (w *World) hiddenFloorNear(o Point, l *shipLayout) bool {
 	for y := o.Y - shipRevealReach; y < o.Y+l.height+shipRevealReach; y++ {
 		for x := o.X - shipRevealReach; x < o.X+l.width+shipRevealReach; x++ {
-			p := Point{x, y}
+			p := Point{x, y, LandingLevel}
 			if w.InBounds(p) && w.TerrainAt(p) == Floor && !w.discovered(p) {
 				return true
 			}

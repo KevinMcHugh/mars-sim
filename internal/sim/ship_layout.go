@@ -128,7 +128,7 @@ func (l *shipLayout) forEachTile(visit func(d Point, hull bool)) {
 	for dy := 0; dy < l.height; dy++ {
 		for dx := 0; dx < l.width; dx++ {
 			if c := l.cells[dy*l.width+dx]; c != shipVoid {
-				visit(Point{dx, dy}, c == shipHull)
+				visit(Point{dx, dy, 0}, c == shipHull)
 			}
 		}
 	}
@@ -226,15 +226,15 @@ func (c *shipCanvas) layout(shape shipShape) shipLayout {
 			lo, hi, first = p, p, false
 			continue
 		}
-		lo = Point{min(lo.X, p.X), min(lo.Y, p.Y)}
-		hi = Point{max(hi.X, p.X), max(hi.Y, p.Y)}
+		lo = Point{min(lo.X, p.X), min(lo.Y, p.Y), lo.Level}
+		hi = Point{max(hi.X, p.X), max(hi.Y, p.Y), hi.Level}
 	}
 	l := shipLayout{shape: shape, width: hi.X - lo.X + 1, height: hi.Y - lo.Y + 1}
 	l.cells = make([]shipCell, l.width*l.height)
 	for p, cell := range c.cells {
 		l.cells[(p.Y-lo.Y)*l.width+p.X-lo.X] = cell
 	}
-	shift := func(p Point) Point { return Point{p.X - lo.X, p.Y - lo.Y} }
+	shift := func(p Point) Point { return Point{p.X - lo.X, p.Y - lo.Y, p.Level} }
 	for _, f := range c.fixtures {
 		f.at = shift(f.at)
 		l.fixtures = append(l.fixtures, f)
@@ -257,10 +257,10 @@ func (c *shipCanvas) layout(shape shipShape) shipLayout {
 				}
 			}
 			if door {
-				l.doors = append(l.doors, Point{dx, dy})
+				l.doors = append(l.doors, Point{dx, dy, 0})
 			}
 			if margin {
-				l.margin = append(l.margin, Point{dx, dy})
+				l.margin = append(l.margin, Point{dx, dy, 0})
 			}
 		}
 	}
@@ -348,12 +348,12 @@ func (w *World) planStick(keepers []bool) shipLayout {
 	var top, bottom, partitions []Point
 	x := 0
 	for i, r := range rooms {
-		near, far := c.segment(Point{x, 0}, false, cols[i], r, true, true)
+		near, far := c.segment(Point{x, 0, 0}, false, cols[i], r, true, true)
 		top = append(top, near...)
 		bottom = append(bottom, far...)
 		x += cols[i] + 1
 		if i < len(rooms)-1 {
-			partitions = append(partitions, Point{x, 2}, Point{x, 3})
+			partitions = append(partitions, Point{x, 2, 0}, Point{x, 3, 0})
 		}
 	}
 	c.floor = append(append(top, bottom...), partitions...)
@@ -381,12 +381,12 @@ func (w *World) planHub(keepers []bool) shipLayout {
 			door := (x == 2 || x == 3) && (y == 0 || y == shipHubSide-1) ||
 				(y == 2 || y == 3) && (x == 0 || x == shipHubSide-1)
 			if edge && !door {
-				c.hull(Point{x, y})
+				c.hull(Point{x, y, 0})
 				continue
 			}
-			c.deck(Point{x, y})
+			c.deck(Point{x, y, 0})
 			if !edge {
-				c.floor = append(c.floor, Point{x, y})
+				c.floor = append(c.floor, Point{x, y, 0})
 			}
 		}
 	}
@@ -405,10 +405,10 @@ func (w *World) planHub(keepers []bool) shipLayout {
 		near, far := c.segment(o(cols), vertical, cols, r, true, true)
 		c.floor = append(append(c.floor, near...), far...)
 	}
-	spoke(hold, func(int) Point { return Point{edge, 0} }, false)
-	spoke(bunks, func(cols int) Point { return Point{-(cols + 1), 0} }, false)
-	spoke(toilets, func(int) Point { return Point{0, edge} }, true)
-	spoke(north, func(cols int) Point { return Point{0, -(cols + 1)} }, true)
+	spoke(hold, func(int) Point { return Point{edge, 0, 0} }, false)
+	spoke(bunks, func(cols int) Point { return Point{-(cols + 1), 0, 0} }, false)
+	spoke(toilets, func(int) Point { return Point{0, edge, 0} }, true)
+	spoke(north, func(cols int) Point { return Point{0, -(cols + 1), 0} }, true)
 	return c.layout(shipHub)
 }
 
@@ -440,12 +440,12 @@ func (w *World) planCluster(keepers []bool) shipLayout {
 		var near, far []Point
 		if i%2 == 0 {
 			x := 1 + 5*(i/2)
-			near, far = c.segment(Point{x, -(cols + 1)}, true, cols, k, false, true)
+			near, far = c.segment(Point{x, -(cols + 1), 0}, true, cols, k, false, true)
 			top = append(append(top, near...), far...)
 			right = max(right, x+5)
 		} else {
 			x := 3 + 5*(i/2)
-			near, far = c.segment(Point{x, 3}, true, cols, k, true, false)
+			near, far = c.segment(Point{x, 3, 0}, true, cols, k, true, false)
 			bottom = append(append(bottom, near...), far...)
 			right = max(right, x+5)
 		}
@@ -453,13 +453,13 @@ func (w *World) planCluster(keepers []bool) shipLayout {
 	width := right + 2
 	var spine [2][]Point
 	for x := 0; x < width; x++ {
-		c.hull(Point{x, 0})
-		c.hull(Point{x, 3})
-		c.deck(Point{x, 1})
-		c.deck(Point{x, 2})
+		c.hull(Point{x, 0, 0})
+		c.hull(Point{x, 3, 0})
+		c.deck(Point{x, 1, 0})
+		c.deck(Point{x, 2, 0})
 		if x > 0 && x < width-1 {
-			spine[0] = append(spine[0], Point{x, 1})
-			spine[1] = append(spine[1], Point{x, 2})
+			spine[0] = append(spine[0], Point{x, 1, 0})
+			spine[1] = append(spine[1], Point{x, 2, 0})
 		}
 	}
 	c.floor = append(append(append(spine[0], spine[1]...), top...), bottom...)

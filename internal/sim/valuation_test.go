@@ -10,16 +10,16 @@ func producerWorld(t *testing.T, n int) (w *World, house, silo Point, cols []*En
 	t.Helper()
 	w, house = scumhouseWorld(t, false)
 	w.cfg.MealReserve, w.cfg.ScumhouseBidQty = 0, 0
-	silo = Point{6, 6}
+	silo = Point{6, 6, LandingLevel}
 	w.SetTerrain(silo, Storage)
 	for y := 5; y <= 15; y++ {
-		p := Point{4, y}
+		p := Point{4, y, LandingLevel}
 		w.setScum(p, w.cfg.ScumMax)
 		w.refreshScumExposure(p)
 	}
 	w.refreshSpatial()
 	for i := 0; i < n; i++ {
-		e := w.spawn(Colonist, Point{10 + 2*i, 12})
+		e := w.spawn(Colonist, Point{10 + 2*i, 12, LandingLevel})
 		quietDrives(w, e)
 		cols = append(cols, e)
 	}

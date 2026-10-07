@@ -194,6 +194,8 @@ func depotLabel(s *sim.Snapshot, p sim.Point) string {
 }
 
 // parsePoint reads "<x>,<y>".
+// The browser shows the landing level only (see docs/stairs.md), so a point
+// it names is on the landing level.
 func parsePoint(arg string) (sim.Point, bool) {
 	xs, ys, ok := strings.Cut(arg, ",")
 	x, errX := strconv.Atoi(xs)
@@ -201,5 +203,5 @@ func parsePoint(arg string) (sim.Point, bool) {
 	if !ok || errX != nil || errY != nil {
 		return sim.Point{}, false
 	}
-	return sim.Point{X: x, Y: y}, true
+	return sim.Point{X: x, Y: y, Level: sim.LandingLevel}, true
 }

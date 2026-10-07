@@ -70,12 +70,12 @@ func TestPetsLandInTheirKeepersPods(t *testing.T) {
 func TestChickensEatFeedThenGrazeScum(t *testing.T) {
 	w := propertyWorld(t)
 	noScum(w)
-	trough := Point{10, 10}
+	trough := Point{10, 10, LandingLevel}
 	w.SetTerrain(trough, Trough)
 	c := w.storageContainers[trough]
 	c.Inventory.Add(Feed, 2)
 	c.credit(Community, Feed, 2)
-	hen := w.spawn(Chicken, Point{14, 10})
+	hen := w.spawn(Chicken, Point{14, 10, LandingLevel})
 	hen.pet = &PetBond{trough: trough, hasTrough: true}
 
 	hungry := func() {
@@ -93,7 +93,7 @@ func TestChickensEatFeedThenGrazeScum(t *testing.T) {
 	}
 
 	c.debit(Community, Feed, 1)
-	patch := Point{18, 12}
+	patch := Point{18, 12, LandingLevel}
 	putScum(w, patch, 2)
 	hungry()
 	for i := 0; i < 200 && w.scumAt(patch) == 2; i++ {
@@ -108,16 +108,16 @@ func TestChickensEatFeedThenGrazeScum(t *testing.T) {
 // scumhouse even while a cook holds the stove, and fills its trough.
 func TestKeepersFillTheirTroughs(t *testing.T) {
 	w, house := scumhouseWorld(t, false)
-	keeper := w.spawn(Colonist, Point{12, 12})
-	trough := Point{8, 12}
+	keeper := w.spawn(Colonist, Point{12, 12, LandingLevel})
+	trough := Point{8, 12, LandingLevel}
 	w.SetTerrain(trough, Trough)
 	w.setFixtureOwner(trough, ColonistOwner(keeper.ID), AccessPrivate)
 	keeper.trough, keeper.hasTrough = trough, true
-	hen := w.spawn(Chicken, Point{6, 14})
+	hen := w.spawn(Chicken, Point{6, 14, LandingLevel})
 	hen.pet = &PetBond{keeper: keeper.ID, trough: trough, hasTrough: true}
-	putScum(w, Point{16, 14}, 2)
-	w.setScum(Point{18, 8}, 2)
-	w.exposedScum[Point{18, 8}] = struct{}{}
+	putScum(w, Point{16, 14, LandingLevel}, 2)
+	w.setScum(Point{18, 8, LandingLevel}, 2)
+	w.landing().exposedScum[Point{18, 8, LandingLevel}] = struct{}{}
 	w.workshopClaims[house] = 999 // a cook at the stove
 
 	if !w.tryAssignTend(keeper) || keeper.tend != tendGather {
@@ -159,8 +159,8 @@ func TestKeepersFillTheirTroughs(t *testing.T) {
 // doesn't hunt it, and the chicken doesn't flee the cat.
 func TestCatsAndChickensIgnoreEachOther(t *testing.T) {
 	w := propertyWorld(t)
-	cat := w.spawn(Cat, Point{10, 10})
-	hen := w.spawn(Chicken, Point{12, 10})
+	cat := w.spawn(Cat, Point{10, 10, LandingLevel})
+	hen := w.spawn(Chicken, Point{12, 10, LandingLevel})
 	for i := 0; i < 300; i++ {
 		w.step()
 		if cat.State == Hunting || cat.Quarry != 0 {

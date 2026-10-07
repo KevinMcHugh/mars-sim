@@ -33,6 +33,24 @@
 ## chunks (64x64 tiles) generated ahead of what the colony has seen; at least 1
 # worldgen-halo: 2
 
+## deepest level the colony may dig stairs and shafts down to; 1 is the landing level, so 1 means no digging down
+# deepest-level: 1
+
+## ticks of work to dig a stair down to the next level
+# stair-ticks: 60
+
+## ticks of work to dig a shaft one level deeper
+# shaft-ticks: 30
+
+## ticks a climber takes to climb a shaft one level (a stair takes 1)
+# shaft-climb-ticks: 8
+
+## bulky goods (ore, rock, ice, clay, carcasses) a climber can carry up or down a shaft at the usual pace
+# shaft-carry: 4
+
+## ticks a climber with more than shaft-carry bulky goods takes to climb a shaft one level
+# shaft-laden-climb-ticks: 40
+
 ## percent of the map's tiles bearing iron
 # iron-rock-percent: 10
 

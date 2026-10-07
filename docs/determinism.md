@@ -38,8 +38,8 @@ two runs differ while the random numbers are identical.
 different order on every run of the same binary. That is a feature — it stops
 code depending on an order the language does not promise — and it is the single
 largest source of nondeterminism in an engine like this one, because the world
-keeps most of its indexes in maps: `w.entities`, `w.regions`, `w.dirtyChunks`,
-`w.facilityTiles`, `w.storageContainers`, `w.board.frontier`, `region.links`.
+keeps most of its indexes in maps: `w.entities`, `w.regions`, `Layer.dirtyChunks`,
+`Layer.facilityTiles`, `Layer.storageContainers`, `Layer.board.frontier`, `region.links`.
 
 Iterating a map is fine. What is not fine is letting the order decide anything.
 There are three shapes this takes, and only the third is obvious:
@@ -53,6 +53,18 @@ There are three shapes this takes, and only the third is obvious:
 The rule of thumb: **iterate a map only to compute something order-independent,
 or sort its keys first.** Sorting a handful of chunk indices or region IDs costs
 nothing next to the work the loop then does.
+
+### Levels
+
+The world is a stack of levels (see [layers.md](./layers.md)), and every rule
+above holds level by level, with the level as the leading key: `lessPoint`
+orders by level first; `refreshSpatial` re-floods dirty chunks level by level,
+shallowest first, so region IDs still come out the same; every loop over
+levels (`eachLayer`, `eachContainer`, `eachFacility`) runs in level order; and
+the list of stairs is kept sorted. A deeper level's worldgen streams and scum
+growth mix in its distance from the landing level, and the landing level
+mixes in nothing, so it is bit-for-bit what it was before there were levels.
+`TestStairRunsAreDeterministic` runs two colonies that dig down in lockstep.
 
 ### The lockstep test
 
@@ -196,7 +208,7 @@ independently of `bestDist`.
 
 That loop is gone now (see [drives.md](./drives.md)): candidates are collected
 into a slice with their distances and sorted by `compareFound`, distance then
-`lessPoint`. The two map loops left, `anyFreeFacility` over `w.facilityTiles`
+`lessPoint`. The two map loops left, `anyFreeFacility` over `Layer.facilityTiles`
 and `committedUsers` over `w.entities`, compute an "any match" and a count: the
 order-independent shape.
 

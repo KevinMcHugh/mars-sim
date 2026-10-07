@@ -56,10 +56,11 @@ func (w *World) hallOpen() bool {
 }
 
 // nearChair reports whether p is within r tiles of a chair. The chair set is
-// a handful of tiles, and the answer does not depend on their order.
+// a handful of tiles, and the answer does not depend on their order. Only
+// chairs on p's own level count: a hall is a room, not a column.
 func (w *World) nearChair(p Point, r int) bool {
-	for c := range w.facilityTiles[Chair] {
-		if p.Chebyshev(c) <= r {
+	for c := range w.lay(p).facilityTiles[Chair] {
+		if p.Within(c, r) {
 			return true
 		}
 	}
@@ -90,16 +91,16 @@ func (w *World) nearestChair(e *Entity) (Point, bool) {
 	room := w.roomOf(e.Pos)
 	var best Point
 	bestDist, found := 1<<30, false
-	for c := range w.facilityTiles[Chair] {
-		d := e.Pos.Chebyshev(c)
+	w.eachFacility(Chair, func(c Point) {
+		d := w.travelEstimate(e.Pos, c)
 		if d > w.cfg.HallRange || (found && d > bestDist) ||
 			!w.taskReachable(c, room) || w.chairCrowd(c) >= chairShare {
-			continue
+			return
 		}
 		if !found || d < bestDist || lessPoint(c, best) {
 			best, bestDist, found = c, d, true
 		}
-	}
+	})
 	return best, found
 }
 

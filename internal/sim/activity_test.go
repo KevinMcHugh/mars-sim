@@ -39,8 +39,8 @@ func TestActivityCreditsTheWalkToItsPurpose(t *testing.T) {
 // colonist-ticks up to its last sample.
 func TestActivityTallyCoversEveryTick(t *testing.T) {
 	w := propertyWorld(t)
-	a := w.spawn(Colonist, Point{8, 8})
-	b := w.spawn(Colonist, Point{10, 8})
+	a := w.spawn(Colonist, Point{8, 8, LandingLevel})
+	b := w.spawn(Colonist, Point{10, 8, LandingLevel})
 	for tick := 1; tick <= 60000; tick++ {
 		w.tick = tick
 		a.State, a.Job = Mining, JobMine

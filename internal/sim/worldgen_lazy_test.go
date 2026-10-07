@@ -26,27 +26,27 @@ func TestLazyChunksMatchThePureGenerator(t *testing.T) {
 	cfg.ScumSpawnPPM, cfg.ScumSpreadPercent = 0, 0
 	w := NewEngine(cfg).world
 	check := func(when string) {
-		fresh := newWorldGen(cfg)
-		for _, k := range w.genChunks {
+		fresh := newWorldGen(cfg, LandingLevel)
+		for _, k := range w.landing().genChunks {
 			want := fresh.chunk(int(k.cx), int(k.cy))
 			lo, hi, _ := fresh.chunkBounds(k)
 			for y := lo.Y; y <= hi.Y; y++ {
 				for x := lo.X; x <= hi.X; x++ {
-					got, off := w.tiles.at(x, y), offset(x, y)
+					got, off := w.landing().tiles.at(x, y), offset(x, y)
 					if got.Composition != want.comp[off] {
 						t.Fatalf("%s: tile (%d,%d) has %v, the generator says %v", when, x, y, got.Composition, want.comp[off])
 					}
 					if !got.Explored && (got.Terrain == Floor) != want.isFloor(off) {
 						t.Fatalf("%s: untouched tile (%d,%d) is %v, the generator says floor=%v", when, x, y, got.Terrain, want.isFloor(off))
 					}
-					if _, scum := w.scum[Point{x, y}]; !got.Explored && scum != want.isScum(off) {
+					if _, scum := w.landing().scum[Point{x, y, LandingLevel}]; !got.Explored && scum != want.isScum(off) {
 						t.Fatalf("%s: untouched tile (%d,%d) has scum=%v, the generator says %v", when, x, y, scum, want.isScum(off))
 					}
 					// Salt is only ever lost, never grown, so a tile the colony
 					// has not built on holds exactly what was generated.
-					if _, salt := w.salt[Point{x, y}]; salt && !want.isSalt(off) {
+					if _, salt := w.landing().salt[Point{x, y, LandingLevel}]; salt && !want.isSalt(off) {
 						t.Fatalf("%s: tile (%d,%d) has salt the generator did not place", when, x, y)
-					} else if !salt && want.isSalt(off) && w.tiles.at(x, y).Terrain == Rock {
+					} else if !salt && want.isSalt(off) && w.landing().tiles.at(x, y).Terrain == Rock {
 						t.Fatalf("%s: untouched tile (%d,%d) lost its salt", when, x, y)
 					}
 				}
@@ -54,11 +54,11 @@ func TestLazyChunksMatchThePureGenerator(t *testing.T) {
 		}
 	}
 	check("tick 0")
-	before := len(w.genChunks)
+	before := len(w.landing().genChunks)
 	for i := 0; i < ticks; i++ {
 		w.step()
 	}
-	if len(w.genChunks) == before {
+	if len(w.landing().genChunks) == before {
 		t.Fatal("no chunk was generated during the run")
 	}
 	check("after the run")
@@ -72,15 +72,15 @@ func TestLazyChunksMatchThePureGenerator(t *testing.T) {
 func TestGenerationStaysAheadOfExploration(t *testing.T) {
 	cfg, ticks := lazyGoldenConfig(t)
 	w := NewEngine(cfg).world
-	cols, rows := w.gen.chunkCols(), w.gen.chunkRows()
+	cols, rows := w.landing().gen.chunkCols(), w.landing().gen.chunkRows()
 	floodGenerated := false
 	generated := func(cx, cy int) bool {
-		return w.genDone[w.tiles.pageIndex(cx<<genChunkBits, cy<<genChunkBits)]
+		return w.landing().genDone[w.landing().tiles.pageIndex(cx<<genChunkBits, cy<<genChunkBits)]
 	}
 	for tick := 0; tick <= ticks; tick++ {
 		for cy := 0; cy < rows; cy++ {
 			for cx := 0; cx < cols; cx++ {
-				page := w.tiles.pageAt(cx<<genChunkBits, cy<<genChunkBits)
+				page := w.landing().tiles.pageAt(cx<<genChunkBits, cy<<genChunkBits)
 				if !generated(cx, cy) {
 					if page != nil {
 						t.Fatalf("tick %d: chunk (%d,%d) has tiles but was never generated", tick, cx, cy)
@@ -110,9 +110,9 @@ func TestGenerationStaysAheadOfExploration(t *testing.T) {
 			}
 		}
 		if tick < ticks {
-			chunks, breaches := len(w.genChunks), w.cavernBreaches
+			chunks, breaches := len(w.landing().genChunks), w.cavernBreaches
 			w.step()
-			if w.cavernBreaches > breaches && len(w.genChunks) > chunks {
+			if w.cavernBreaches > breaches && len(w.landing().genChunks) > chunks {
 				floodGenerated = true
 			}
 		}
@@ -133,11 +133,11 @@ func TestGenerationStaysAheadOfExploration(t *testing.T) {
 func TestReadingNeverGenerates(t *testing.T) {
 	cfg, _ := lazyGoldenConfig(t)
 	w := NewEngine(cfg).world
-	before := append([]chunkKey(nil), w.genChunks...)
+	before := append([]chunkKey(nil), w.landing().genChunks...)
 	snap := w.snapshot(false, 8)
 	for y := -1; y <= w.Height; y += 7 {
 		for x := -1; x <= w.Width; x += 7 {
-			p := Point{x, y}
+			p := Point{x, y, LandingLevel}
 			w.TileAt(p)
 			w.TerrainAt(p)
 			w.Walkable(p)
@@ -148,8 +148,8 @@ func TestReadingNeverGenerates(t *testing.T) {
 		}
 	}
 	goldenHash(w)
-	if len(w.genChunks) != len(before) {
-		t.Fatalf("reading the world generated %d chunks", len(w.genChunks)-len(before))
+	if len(w.landing().genChunks) != len(before) {
+		t.Fatalf("reading the world generated %d chunks", len(w.landing().genChunks)-len(before))
 	}
 }
 
@@ -165,7 +165,7 @@ func TestNewGameOnHugeMapGeneratesOnlyTheLandingSite(t *testing.T) {
 	// bounding box at the ends of both axes), so exactly the chunks within
 	// WorldgenHalo of that rectangle are generated.
 	rx, ry := caveRadii(cfg.Width, cfg.Height, cfg.StartColonists, shipTilesPerColonist(cfg))
-	c := Point{cfg.Width / 2, cfg.Height / 2}
+	c := Point{cfg.Width / 2, cfg.Height / 2, LandingLevel}
 	h := cfg.WorldgenHalo
 	x0, x1 := (c.X-rx-1)>>genChunkBits-h, (c.X+rx+1)>>genChunkBits+h
 	y0, y1 := (c.Y-ry-1)>>genChunkBits-h, (c.Y+ry+1)>>genChunkBits+h
@@ -175,21 +175,21 @@ func TestNewGameOnHugeMapGeneratesOnlyTheLandingSite(t *testing.T) {
 			want = append(want, chunkKey{int32(x), int32(y)})
 		}
 	}
-	if !slices.Equal(w.genChunks, want) {
-		t.Fatalf("generated chunks %v for a new game, want %v", w.genChunks, want)
+	if !slices.Equal(w.landing().genChunks, want) {
+		t.Fatalf("generated chunks %v for a new game, want %v", w.landing().genChunks, want)
 	}
-	if n := w.tiles.pagesAllocated(); n != len(w.genChunks) {
-		t.Fatalf("%d tile pages allocated for %d generated chunks", n, len(w.genChunks))
+	if n := w.landing().tiles.pagesAllocated(); n != len(w.landing().genChunks) {
+		t.Fatalf("%d tile pages allocated for %d generated chunks", n, len(w.landing().genChunks))
 	}
 	published := 0
-	grid, _ := w.publishedTiles()
+	grid, _ := w.publishedTiles(w.landing())
 	for _, p := range grid.pages {
 		if p != nil {
 			published++
 		}
 	}
-	if published != len(w.genChunks) {
-		t.Fatalf("published %d pages for %d generated chunks", published, len(w.genChunks))
+	if published != len(w.landing().genChunks) {
+		t.Fatalf("published %d pages for %d generated chunks", published, len(w.landing().genChunks))
 	}
 	if aliens := w.countKind(Alien); aliens != cfg.StartAliens {
 		t.Fatalf("placed %d of %d starting aliens", aliens, cfg.StartAliens)

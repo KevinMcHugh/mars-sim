@@ -15,7 +15,7 @@ reach it (see below), so a player can see where it is.
 
 - `internal/sim/worldgen_chunks.go`: `saltPlan` (the plan), `runPlan` (the walk
   it shares with scum), `chunkContent.isSalt`.
-- `internal/sim/worldgen.go`: `applyChunk` writes a chunk's salt into `World.salt`.
+- `internal/sim/worldgen.go`: `applyChunk` writes a chunk's salt into `Layer.salt`.
 - `internal/sim/salt.go`: `hasSalt`, `clearSalt`, exposure (`refreshSaltExposure`).
 - `internal/sim/snapshot.go`: `Snapshot.Salt`, `publishedSalt`.
 - `internal/wire/encoder.go`, `web/wire/decode.js`: the salt section.
@@ -31,7 +31,7 @@ reach it (see below), so a player can see where it is.
 
 ## How it works
 
-`World.salt` is a set of tiles. Each chunk plans its share of `salt-percent` of
+`Layer.salt` is a set of tiles. Each chunk plans its share of `salt-percent` of
 its area in the same short meandering runs as scum (`scumRunMin`–`scumRunMax`
 steps, distinct tiles counted so the chunk lands on its share). Like scum it
 sits on the rock rather than in it: a deposit can lie on what becomes cavern or
@@ -45,7 +45,7 @@ Salt and scum exclude each other in both directions:
 - **After generation, scum steps around salt.** `addScum` returns early on a
   salt tile, so neither a spawn nor a spread starts a patch there.
 
-It does not regenerate because nothing ever adds to `World.salt` after
+It does not regenerate because nothing ever adds to `Layer.salt` after
 `applyChunk`. There is no growth step to turn off. The only thing that changes
 it is `clearSalt`, which `setTerrain` calls when a structure is built on the
 tile, beside `clearScum`.
@@ -109,7 +109,7 @@ is kept in step from three places, the same three as scum's:
   without salt and 43 ms and 27.6 MB with it, below the cost before salt
   existed. `BenchmarkChunkCold` and `BenchmarkChunkWarm` are unchanged from
   before salt. Starting a game costs about 1.4 ms and 0.4 MB more, mostly the
-  `World.salt` set itself.
+  `Layer.salt` set itself.
 - **Why neighbours' scum is enough.** A salt tile lies at most
   `scumRunMax - 1` outside its owner chunk, and any scum that could cover it
   started within as far again. Two such reaches fit inside one chunk, which a

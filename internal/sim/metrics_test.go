@@ -34,7 +34,7 @@ func cloneView(v *MetricsView) *MetricsView {
 // published view is never written by later sampling.
 func TestMetricsSampleHourlyAndSpanTheGame(t *testing.T) {
 	w := propertyWorld(t)
-	w.spawn(Colonist, Point{8, 8})
+	w.spawn(Colonist, Point{8, 8, LandingLevel})
 	tpd := w.cfg.TicksPerDay()
 	var published, frozen *MetricsView
 	const end = 120000
@@ -176,9 +176,9 @@ func TestFixtureAndSkillRankMetrics(t *testing.T) {
 		}
 		return s.Values[len(s.Values)-1]
 	}
-	a, b := w.spawn(Colonist, Point{8, 8}), w.spawn(Colonist, Point{8, 9})
+	a, b := w.spawn(Colonist, Point{8, 8, LandingLevel}), w.spawn(Colonist, Point{8, 9, LandingLevel})
 	a.practice, b.practice = [numSkills]uint32{}, [numSkills]uint32{}
-	w.SetTerrain(Point{10, 10}, Scumhouse)
+	w.SetTerrain(Point{10, 10, LandingLevel}, Scumhouse)
 	v := sample()
 	if n := last(v, "fixture-kind/scumhouse"); n != 1 {
 		t.Fatalf("%d scumhouses, want 1", n)
@@ -190,8 +190,8 @@ func TestFixtureAndSkillRankMetrics(t *testing.T) {
 		t.Fatalf("untrained cooks %+v, want both colonists", s)
 	}
 
-	w.SetTerrain(Point{12, 10}, Scumhouse)
-	w.SetTerrain(Point{14, 10}, Incubator)
+	w.SetTerrain(Point{12, 10, LandingLevel}, Scumhouse)
+	w.SetTerrain(Point{14, 10, LandingLevel}, Incubator)
 	w.setRank(a, SkillCooking, 2)
 	w.setRank(b, SkillCooking, 3)
 	v = sample()

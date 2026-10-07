@@ -72,7 +72,7 @@ func TestAChefBuysAKitchenWhenTheStovesAreCrowded(t *testing.T) {
 func ownKitchenWorld(t *testing.T) (w *World, house Point, chef *Entity) {
 	t.Helper()
 	w, house = scumhouseWorld(t, false)
-	chef = w.spawn(Colonist, Point{19, 7})
+	chef = w.spawn(Colonist, Point{19, 7, LandingLevel})
 	w.setFixtureOwner(house, ColonistOwner(chef.ID), AccessCommunal)
 	chef.kitchen, chef.hasKitchen, chef.kitchenCommissioned = house, true, true
 	return w, house, chef
@@ -82,7 +82,7 @@ func ownKitchenWorld(t *testing.T) (w *World, house Point, chef *Entity) {
 // buys biomatter there, nor counts it among its own when planning kitchens.
 func TestOnlyTheOwnerCooksInAChefsKitchen(t *testing.T) {
 	w, house, chef := ownKitchenWorld(t)
-	other := w.spawn(Colonist, Point{12, 10})
+	other := w.spawn(Colonist, Point{12, 10, LandingLevel})
 	c := w.storageContainers[house]
 	for _, e := range []*Entity{chef, other} {
 		c.Inventory.Add(CaveScum, 2)
@@ -113,7 +113,7 @@ func TestOnlyTheOwnerCooksInAChefsKitchen(t *testing.T) {
 // nor sold.
 func TestAChefBuysScumForItsKitchen(t *testing.T) {
 	w, house, chef := ownKitchenWorld(t)
-	scraper := w.spawn(Colonist, Point{12, 10})
+	scraper := w.spawn(Colonist, Point{12, 10, LandingLevel})
 	if w.mayStockAt(scraper, house, CaveScum) {
 		t.Fatal("scum may be left in a chef's kitchen with nobody bidding for it")
 	}

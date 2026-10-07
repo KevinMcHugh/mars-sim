@@ -161,7 +161,7 @@ func openFloor(t *testing.T, w *World) Point {
 	t.Helper()
 	for y := 0; y < w.Height; y++ {
 		for x := 0; x < w.Width; x++ {
-			if p := (Point{x, y}); w.Walkable(p) && !w.occupied(p) {
+			if p := (Point{x, y, LandingLevel}); w.Walkable(p) && !w.occupied(p) {
 				return p
 			}
 		}
@@ -178,8 +178,8 @@ func TestTheWealthLevyTaxesOnlyTheExcess(t *testing.T) {
 	cfg.StartColonists, cfg.StartAliens, cfg.StartCats, cfg.StartRats = 0, 0, 0, 0
 	cfg.WealthTax, cfg.TaxFloor, cfg.TaxInterval = 2, 300, 100
 	w := newTestWorld(t, cfg)
-	rich := w.spawn(Colonist, Point{5, 5})
-	poor := w.spawn(Colonist, Point{7, 5})
+	rich := w.spawn(Colonist, Point{5, 5, LandingLevel})
+	poor := w.spawn(Colonist, Point{7, 5, LandingLevel})
 	w.transfer(Community, ColonistOwner(rich.ID), 1000-rich.wallet)
 	w.transfer(Community, ColonistOwner(poor.ID), 300-poor.wallet)
 	richBefore, poorBefore, treasury := rich.wallet, poor.wallet, w.treasury

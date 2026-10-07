@@ -101,7 +101,7 @@ func TestBoardTopics(t *testing.T) {
 		t.Errorf("depots %+v, items %v", m.Colony.Depots, m.Colony.Items)
 	}
 	for _, d := range m.Colony.Depots {
-		if f, ok := snap.FixtureAt(sim.Point{X: d.X, Y: d.Y}); ok && f.Access != sim.AccessCommunal {
+		if f, ok := snap.FixtureAt(sim.Point{X: d.X, Y: d.Y, Level: sim.LandingLevel}); ok && f.Access != sim.AccessCommunal {
 			t.Errorf("depot %+v is not communal", d)
 		}
 	}
@@ -152,7 +152,7 @@ func TestStorageRowContents(t *testing.T) {
 	inv[0] = sim.ItemStack{Kind: sim.Meal, Count: 4}
 	inv[1] = sim.ItemStack{Kind: sim.RawRock, Count: 2}
 	inv[3] = sim.ItemStack{Kind: sim.Meal, Count: 3}
-	snap.Storages = []sim.StorageView{{Pos: sim.Point{X: 1, Y: 1}, Inventory: inv,
+	snap.Storages = []sim.StorageView{{Pos: sim.Point{X: 1, Y: 1, Level: sim.LandingLevel}, Inventory: inv,
 		Ledger: []sim.LedgerLine{{Owner: me, Item: sim.Meal, Count: 7}, {Owner: sim.Community, Item: sim.RawRock, Count: 2}}}}
 	var rows []StorageRow
 	due(t, snap, "storage", &rows)
@@ -178,8 +178,8 @@ func TestAccountHoldings(t *testing.T) {
 	me := sim.ColonistOwner(1)
 	snap.Entities[0].Profile = &sim.Profile{Name: "Uma Xu"}
 	snap.Storages = []sim.StorageView{
-		{Pos: sim.Point{X: 1, Y: 1}, Ledger: []sim.LedgerLine{{Owner: me, Item: sim.Meal, Count: 2}, {Owner: sim.Community, Item: sim.Meal, Count: 5}}},
-		{Pos: sim.Point{X: 2, Y: 1}, Ledger: []sim.LedgerLine{{Owner: me, Item: sim.Meal, Count: 3}, {Owner: me, Item: sim.RawRock, Count: 1}}},
+		{Pos: sim.Point{X: 1, Y: 1, Level: sim.LandingLevel}, Ledger: []sim.LedgerLine{{Owner: me, Item: sim.Meal, Count: 2}, {Owner: sim.Community, Item: sim.Meal, Count: 5}}},
+		{Pos: sim.Point{X: 2, Y: 1, Level: sim.LandingLevel}, Ledger: []sim.LedgerLine{{Owner: me, Item: sim.Meal, Count: 3}, {Owner: me, Item: sim.RawRock, Count: 1}}},
 	}
 	var a AccountTopic
 	due(t, snap, "account:1", &a)

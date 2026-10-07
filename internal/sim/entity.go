@@ -60,6 +60,7 @@ const (
 	Crafting          // colonist working a recipe at a workshop (the scumhouse)
 	Scraping          // colonist scraping cave scum off a surface
 	PassedOut         // colonist unconscious where it fell, a drive at its ceiling (see passOut)
+	Climbing          // on a shaft's ladder between two levels (see startClimb)
 
 	numStates // keep last: the number of states
 )
@@ -80,6 +81,8 @@ func (s State) String() string {
 		return "relieving"
 	case Sleeping:
 		return "sleeping"
+	case Climbing:
+		return "climbing"
 	case PassedOut:
 		return "passed out"
 	case Talking:
@@ -367,6 +370,9 @@ type Entity struct {
 	// down; it comes to once that drive falls below CriticalAt. See passOut.
 	passedOut      bool
 	passedOutDrive DriveKind
+	// climbUntil is the last tick this entity is on a shaft's ladder: until
+	// it has passed, its turns are spent climbing. See startClimb.
+	climbUntil int
 
 	// Personality (colonists only). Profile holds the name, attributes, and
 	// traits; driveTrait, restTicks, and workScale are the trait-resolved effective

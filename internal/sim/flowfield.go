@@ -33,9 +33,12 @@ type flowField struct {
 	// the zero flowCell, whose gen can never match a live generation (rebuild
 	// pre-increments, so gen >= 1), so an untouched page reads as unreachable
 	// for free. See pagedgrid.go.
-	cells pagedGrid[flowCell]
+	cells layered[flowCell]
 	gen   int32
 	queue []int32 // reusable BFS frontier (cell indices)
+	// later holds the far ends of shaft links waiting for the BFS to reach
+	// their distance (see rebuild): reusable buckets, like queue.
+	later [][]int32
 
 	// full means the field must be rebuilt from scratch: it has never been
 	// built, or more changed than a repair is worth. Otherwise touched lists
@@ -56,7 +59,7 @@ func newFlowField(w *World, seed func(add func(Point)), goal func(Point) bool) *
 		w:         w,
 		seed:      seed,
 		goal:      goal,
-		cells:     newPagedGrid[flowCell](w.Width, w.Height),
+		cells:     newLayered[flowCell](w.Width, w.Height),
 		full:      true,
 		builtTick: -1,
 	}
@@ -73,6 +76,10 @@ const maxTouched = 1024
 // tile next to p is a goal (a facility built or removed beside it, a frontier
 // rock appearing, vanishing, or being claimed). The field repairs the tiles
 // around every touched point the next time it is read.
+//
+// A change at a stair also changes what the tile at its other end links to,
+// so repair looks at the tiles straight above and below every touched point
+// as well (see repair).
 func (f *flowField) touch(p Point) {
 	if f.full {
 		return
@@ -97,7 +104,7 @@ func (f *flowField) at(p Point) int32 {
 	if !w.InBounds(p) {
 		return -1
 	}
-	c := f.cells.at(p.X, p.Y)
+	c := f.cells.at(p)
 	if c.gen != f.gen { // not reached in the current field => unreachable
 		return -1
 	}
@@ -115,7 +122,7 @@ func (f *flowField) rebuild() {
 		if !w.Walkable(p) {
 			return
 		}
-		c := f.cells.ptr(p.X, p.Y)
+		c := f.cells.ptr(p)
 		if c.gen == gen {
 			return
 		}
@@ -123,6 +130,27 @@ func (f *flowField) rebuild() {
 		q = append(q, int32(w.index(p)))
 	}
 	f.seed(add)
+	stairs := w.hasLinks()
+
+	// A shaft link costs more than a step, which a plain BFS cannot weigh.
+	// Its far end waits in later, bucketed by the distance it arrives at,
+	// and joins the queue when the BFS's layers reach that distance: Dial's
+	// algorithm, with a ring of buckets one longer than the dearest link. A
+	// cell is stamped only when it joins the queue, so, as in a plain BFS,
+	// its first stamp is its least distance. With no shaft, later is never
+	// used and the search is the plain BFS it always was.
+	var later [][]int32
+	pending := 0
+	if w.hasShafts() {
+		nb := int(w.shaftCost()) + 1
+		for len(f.later) < nb {
+			f.later = append(f.later, nil)
+		}
+		later = f.later[:nb]
+		for i := range later {
+			later[i] = later[i][:0]
+		}
+	}
 
 	// Distance comes from the queue's layering rather than from reading the
 	// cell back: every seed is at 0 and each expansion is one step further, so
@@ -130,27 +158,46 @@ func (f *flowField) rebuild() {
 	// previous pass stopped appending. That is one paged read saved per node,
 	// on the hottest loop in the simulation.
 	cd, levelEnd := int32(0), len(q)
-	for head := 0; head < len(q); head++ {
-		if head == levelEnd {
+bfs:
+	for head := 0; ; head++ {
+		for head == levelEnd {
+			if head == len(q) && pending == 0 {
+				break bfs
+			}
 			cd++
+			if pending > 0 {
+				b := &later[int(cd)%len(later)]
+				for _, ni := range *b {
+					if c := f.cells.ptr(w.pointOf(int(ni))); c.gen != gen {
+						c.gen, c.dist = gen, cd
+						q = append(q, ni)
+					}
+				}
+				pending -= len(*b)
+				*b = (*b)[:0]
+			}
 			levelEnd = len(q)
 		}
 		ci := int(q[head])
-		cx, cy := ci%w.Width, ci/w.Width
-		page := f.cells.interiorPage(cx, cy)
+		cp := w.pointOf(ci)
+		cx, cy := cp.X, cp.Y
+		layer := w.lay(cp)
+		grid := f.cells.grid(cp.Level)
+		base := ci - (cy*w.Width + cx) // index of (0, 0) on this level
+		page := grid.interiorPage(cx, cy)
 		// Off a page edge, every neighbour's tile is in the same tile page
 		// as this node, at the same offset as its cell: one lookup for all
 		// eight terrain reads. This node is walkable, so its page exists.
 		var tiles []tileCell
 		if page != nil {
-			tiles = w.tiles.pageAt(cx, cy)
+			tiles = layer.tiles.pageAt(cx, cy)
 		}
 		for _, d := range neighbors8 {
 			nx, ny := cx+d.X, cy+d.Y
 			if nx < 0 || nx >= w.Width || ny < 0 || ny >= w.Height {
 				continue
 			}
-			ni := ny*w.Width + nx
+			ni := base + ny*w.Width + nx
 			cells := page
 			walkable := false // known walkable already (page-edge path)
 			if cells == nil {
@@ -158,10 +205,10 @@ func (f *flowField) rebuild() {
 				// not exist yet. Walkability has to be tested before asking for
 				// it: rock never enters a field, and allocating for one would
 				// give every field a border of pages around the reachable area.
-				if !w.tiles.at(nx, ny).Terrain.Walkable() {
+				if !layer.tiles.at(nx, ny).Terrain.Walkable() {
 					continue
 				}
-				cells = f.cells.pageAtAlloc(nx, ny)
+				cells = grid.pageAtAlloc(nx, ny)
 				walkable = true
 			}
 			// Stamp first, terrain second. Most neighbours in an open room are
@@ -179,7 +226,7 @@ func (f *flowField) rebuild() {
 				if tiles != nil {
 					t = tiles[o].Terrain
 				} else {
-					t = w.tiles.at(nx, ny).Terrain
+					t = layer.tiles.at(nx, ny).Terrain
 				}
 				if !t.Walkable() {
 					continue
@@ -188,8 +235,31 @@ func (f *flowField) rebuild() {
 			cell.gen, cell.dist = gen, cd+1
 			q = append(q, int32(ni))
 		}
+		// A stair or shaft is one more neighbour, one level away. Checked
+		// only while one exists, so a one-level world pays nothing for it
+		// here.
+		if stairs {
+			lk, n := w.links(cp)
+			for _, k := range lk[:n] {
+				cell := f.cells.ptr(k.to)
+				if cell.gen == gen {
+					continue
+				}
+				if k.cost == 1 {
+					cell.gen, cell.dist = gen, cd+1
+					q = append(q, int32(w.index(k.to)))
+					continue
+				}
+				b := &later[(int(cd)+int(k.cost))%len(later)]
+				*b = append(*b, int32(w.index(k.to)))
+				pending++
+			}
+		}
 	}
-	f.queue = q
+	// Keep the buffer, not its contents: the seeds went in in map order,
+	// and a scratch buffer holding them would make two identical worlds
+	// save differently (see docs/save-load.md).
+	f.queue = q[:0]
 }
 
 // ensureFresh brings the field up to date, at most once per tick: the first
@@ -232,7 +302,9 @@ func (w *World) followField(e *Entity, f *flowField) bool {
 	w.transitGen++
 	gen := w.transitGen
 	start := w.index(e.Pos)
-	w.transitSeen.set(e.Pos.X, e.Pos.Y, gen)
+	w.transitSeen.set(e.Pos, gen)
+	stairs := w.hasLinks()
+	climber := w.canClimb(e)
 	q := append(w.transitQ[:0], int32(start))
 	var cand [8]Point
 	var fallback [8]Point
@@ -245,9 +317,35 @@ func (w *World) followField(e *Entity, f *flowField) bool {
 		fallbackBest := int32(1<<31 - 1)
 		for ; head < levelEnd; head++ {
 			ci := int(q[head])
-			from := Point{ci % w.Width, ci / w.Width}
+			from := w.pointOf(ci)
+			// The eight neighbours, then the far ends of a stair or shaft
+			// if from is one: the order candidates are found in is the
+			// order the random pick below chooses from, so it must be
+			// fixed. extra is what a link costs beyond a step, so a
+			// candidate is judged by where it leaves the mover (its field
+			// distance plus the climb to get there), not by its distance
+			// alone.
+			var next [10]Point
+			var extra [10]int32
+			var shaft [10]bool
+			nn := 0
 			for _, d := range neighbors8 {
-				p := from.Add(d.X, d.Y)
+				next[nn] = from.Add(d.X, d.Y)
+				nn++
+			}
+			if stairs {
+				lk, nl := w.links(from)
+				for _, k := range lk[:nl] {
+					// A shaft is climbed from where the mover stands, never
+					// passed through a crowd, and only by a climber.
+					if k.shaft && (ci != start || !climber) {
+						continue
+					}
+					next[nn], extra[nn], shaft[nn] = k.to, k.cost-1, k.shaft
+					nn++
+				}
+			}
+			for i, p := range next[:nn] {
 				if !w.Walkable(p) || w.buildTiles[p] {
 					continue // never cross a tile a builder needs clear
 				}
@@ -255,14 +353,15 @@ func (w *World) followField(e *Entity, f *flowField) bool {
 				if nd < 0 {
 					continue
 				}
+				nd += extra[i]
 				pi := w.index(p)
 				if pi == start {
 					continue
 				}
 				blocker := w.entityAt(p)
 				if blocker != nil && blocker.ID != e.ID {
-					if blocker.Kind != Alien && w.transitSeen.at(p.X, p.Y) != gen {
-						w.transitSeen.set(p.X, p.Y, gen)
+					if blocker.Kind != Alien && !shaft[i] && w.transitSeen.at(p) != gen {
+						w.transitSeen.set(p, gen)
 						q = append(q, int32(pi))
 					}
 					continue
@@ -356,22 +455,25 @@ func facilityGoal(w *World, kind Terrain) func(Point) bool {
 }
 
 // facilitySeed builds the goal-seeding closure for a facility field: the walkable
-// neighbors of every tile of the given terrain. Iterates w.facilityTiles[kind]
-// (maintained incrementally by SetTerrain) rather than scanning the whole grid,
-// so cost tracks the number of facilities, not the map's area.
+// neighbors of every tile of the given terrain, on every level. Iterates each
+// layer's facilityTiles[kind] (maintained incrementally by SetTerrain) rather
+// than scanning the whole grid, so cost tracks the number of facilities, not
+// the map's area.
 func facilitySeed(w *World, kind Terrain) func(add func(Point)) {
 	return func(add func(Point)) {
 		restricted := w.restrictedFixtures[kind] > 0
-		for fc := range w.facilityTiles[kind] {
-			// The shared field is everyone's route, so it only leads to
-			// fixtures everyone may use. A colonist headed for its own
-			// private one routes there directly; see facilityReachable.
-			if restricted && !w.communalFixture(fc) {
-				continue
+		w.eachLayer(func(l *Layer) {
+			for fc := range l.facilityTiles[kind] {
+				// The shared field is everyone's route, so it only leads to
+				// fixtures everyone may use. A colonist headed for its own
+				// private one routes there directly; see facilityReachable.
+				if restricted && !w.communalFixture(fc) {
+					continue
+				}
+				for _, d := range neighbors8 {
+					add(fc.Add(d.X, d.Y))
+				}
 			}
-			for _, d := range neighbors8 {
-				add(fc.Add(d.X, d.Y))
-			}
-		}
+		})
 	}
 }

@@ -99,10 +99,10 @@ codec skips keep the fresh world's values:
 | --- | --- | --- |
 | `World.subscribers` | closures over the world | `newWorld` registers them again on the new world |
 | `flowField.seed` / `goal` | closures (funcs are never written) | `afterLoad` rebinds them (`facilitySeed`/`Goal`, `frontierSeed`/`Goal`) |
-| `World.snapGrid` | under `TilesLive` its pages alias `tiles`' pages, which the codec cannot keep | the first publish after the load builds it from scratch and reports `TileChanges.All` |
+| `Layer.snapGrid` (each level's) | under `TilesLive` its pages alias `tiles`' pages, which the codec cannot keep | the first publish after the load builds it from scratch and reports `TileChanges.All` |
 | `World.tileSharing` | it belongs to the host. The browser calls `ShareLiveTiles` on a loaded engine as on a new one | — |
 | `World.species` | it is derived from the Config, and its behavior ladders are interface values the codec has no names for | `newWorld` builds it from the loaded Config |
-| `World.preview` | it holds a mutex that frontends' goroutines take, and it is only a cache | `afterLoad` makes a new one when fog is off |
+| `Layer.preview` (each level's) | it holds a mutex that frontends' goroutines take, and it is only a cache | `afterLoad` makes a new one for each generated level when fog is off |
 
 Not saved because it is not in the World: the engine's perf history, which flow
 field a frontend is showing, and everything a frontend holds (camera, open

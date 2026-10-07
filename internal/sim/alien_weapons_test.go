@@ -68,7 +68,7 @@ func weaponWorld(t *testing.T, a AlienAnatomy, modes AttackSet) (*World, *Entity
 	sp := &w.alienSpecies[0]
 	sp.Anatomy, sp.AttackModes, sp.BiteDamage, sp.Apex = a, modes, 20, false
 	w.buildAlienSpecies()
-	at := Point{w.Width / 2, w.Height / 2}
+	at := Point{w.Width / 2, w.Height / 2, LandingLevel}
 	w.reveal(at)
 	alien := w.spawn(Alien, at)
 	victim := w.spawn(Colonist, at.Add(1, 0))

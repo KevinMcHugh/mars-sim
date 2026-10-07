@@ -28,10 +28,10 @@ func routeError(w *World, from, target Point, route []Point) string {
 // search over-explores and HPA* pays off.
 func detourWorld(size int) *World {
 	w := roomsTestWorld(size, size)
-	carve(w, Point{1, 1}, Point{size - 2, size - 2}, Floor)
+	carve(w, Point{1, 1, LandingLevel}, Point{size - 2, size - 2, LandingLevel}, Floor)
 	wallX := size / 2
 	for y := 0; y < size-6; y++ {
-		w.SetTerrain(Point{wallX, y}, Wall) // gap left near the bottom
+		w.SetTerrain(Point{wallX, y, LandingLevel}, Wall) // gap left near the bottom
 	}
 	w.refreshSpatial()
 	return w
@@ -79,7 +79,7 @@ func TestHPAValidAndNearOptimal(t *testing.T) {
 // Routes are deterministic: the same query yields the same route.
 func TestHPADeterministic(t *testing.T) {
 	w := detourWorld(96)
-	from, target := Point{5, 20}, Point{90, 20}
+	from, target := Point{5, 20, LandingLevel}, Point{90, 20, LandingLevel}
 	a, ok1 := w.pathToAdjacent(from, target)
 	b, ok2 := w.pathToAdjacent(from, target)
 	if !ok1 || !ok2 || len(a) != len(b) {
@@ -96,8 +96,8 @@ func TestHPADeterministic(t *testing.T) {
 // regions.
 func TestAbstractCorridorConnects(t *testing.T) {
 	w := detourWorld(96)
-	sr := w.regionOf.at(5, 20)
-	gr := w.regionOf.at(90, 20)
+	sr := w.landing().regionOf.at(5, 20)
+	gr := w.landing().regionOf.at(90, 20)
 	if sr == 0 || gr == 0 || sr == gr {
 		t.Fatalf("expected two distinct regions, got %d and %d", sr, gr)
 	}
@@ -114,7 +114,7 @@ func TestAbstractCorridorConnects(t *testing.T) {
 // abstract-routed one on the same long detour query.
 func benchDetourQuery(b *testing.B, useHPA bool) {
 	w := detourWorld(160)
-	from, target := Point{5, 40}, Point{150, 40}
+	from, target := Point{5, 40, LandingLevel}, Point{150, 40, LandingLevel}
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {

@@ -15,7 +15,7 @@ func (g *TileGrid) PageIndex(p Point) int {
 }
 
 // ReadPage fills dst, which must hold TilePageSide*TilePageSide tiles, with
-// page pi as TileAt reads each tile: row by row within the page, dst[0] being
+// page pi of the landing level (Tiles) as TileAt reads each tile: row by row within the page, dst[0] being
 // the tile at PageOrigin(pi). Tiles past the edge of the map read as Rock.
 //
 // Refuse is left out (Gore and Corpses read zero): read it once for the whole
@@ -45,12 +45,12 @@ func (s *Snapshot) ReadPage(pi int, dst []Tile) bool {
 		return false
 	}
 	for off := range dst {
-		p := Point{origin.X + off&gridPageMask, origin.Y + off>>gridPageBits}
+		p := Point{origin.X + off&gridPageMask, origin.Y + off>>gridPageBits, g.Level()}
 		switch {
 		case p.X >= s.Width || p.Y >= s.Height:
 			dst[off] = Tile{Terrain: Rock}
-		case s.preview != nil:
-			dst[off] = s.preview.At(p)
+		case s.previewOf(p) != nil:
+			dst[off] = s.previewOf(p).At(p)
 		default:
 			dst[off] = Tile{Terrain: Rock}
 		}

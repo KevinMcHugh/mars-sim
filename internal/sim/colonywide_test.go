@@ -7,7 +7,7 @@ import "testing"
 func wideWorld(t *testing.T) (w *World, silo Point, houses [2]Point, cs [3]*Entity) {
 	t.Helper()
 	w, silo, cs = marketWorld(t)
-	houses = [2]Point{{8, 6}, {16, 6}}
+	houses = [2]Point{{8, 6, LandingLevel}, {16, 6, LandingLevel}}
 	for _, h := range houses {
 		w.SetTerrain(h, Scumhouse)
 	}

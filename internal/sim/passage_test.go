@@ -6,7 +6,7 @@ import "testing"
 func passageWorld(t *testing.T) *World {
 	t.Helper()
 	w := rockSiteWorld(t)
-	carve(w, Point{10, 5}, Point{30, 18}, Floor)
+	carve(w, Point{10, 5, LandingLevel}, Point{30, 18, LandingLevel}, Floor)
 	w.refreshSpatial()
 	return w
 }
@@ -15,9 +15,9 @@ func passageWorld(t *testing.T) *World {
 // the wall: one rock tile costs less work than breaking the wall down.
 func TestEscapeDigsRoundAWallWhenRockIsCheaper(t *testing.T) {
 	w := passageWorld(t)
-	pocket := Point{8, 10}
+	pocket := Point{8, 10, LandingLevel}
 	w.SetTerrain(pocket, Floor)
-	w.SetTerrain(Point{9, 10}, Wall)
+	w.SetTerrain(Point{9, 10, LandingLevel}, Wall)
 	w.refreshSpatial()
 	if w.roomOf(pocket) == w.mainRoom {
 		t.Fatal("test setup: the pocket is not cut off")
@@ -37,10 +37,10 @@ func TestEscapeBreaksThroughAWallWhenRockIsDearer(t *testing.T) {
 	w := passageWorld(t)
 	// A sealed 3x3 room above the main area: walls x 17..21, y 1..4 with
 	// its bottom wall on y 4, right against the main area's top row.
-	carve(w, Point{17, 0}, Point{21, 4}, Wall)
-	carve(w, Point{18, 1}, Point{20, 3}, Floor)
+	carve(w, Point{17, 0, LandingLevel}, Point{21, 4, LandingLevel}, Wall)
+	carve(w, Point{18, 1, LandingLevel}, Point{20, 3, LandingLevel}, Floor)
 	w.refreshSpatial()
-	inside := Point{19, 2}
+	inside := Point{19, 2, LandingLevel}
 	if w.roomOf(inside) == w.mainRoom {
 		t.Fatal("test setup: the room is not sealed")
 	}
@@ -57,7 +57,7 @@ func TestEscapeBreaksThroughAWallWhenRockIsDearer(t *testing.T) {
 // side, and the colony's builders reopen it.
 func TestColonyDigsAPassageToACutOffFacility(t *testing.T) {
 	w := passageWorld(t)
-	pod := Point{25, 12}
+	pod := Point{25, 12, LandingLevel}
 	w.SetTerrain(pod, NutrientPod)
 	for _, d := range neighbors8 {
 		w.SetTerrain(pod.Add(d.X, d.Y), Wall)
@@ -80,8 +80,8 @@ func TestColonyDigsAPassageToACutOffFacility(t *testing.T) {
 		t.Fatalf("projects = %v, want the one passage while it is under way", projectNames(w.projects))
 	}
 
-	w.spawn(Colonist, Point{12, 8})
-	w.spawn(Colonist, Point{12, 9})
+	w.spawn(Colonist, Point{12, 8, LandingLevel})
+	w.spawn(Colonist, Point{12, 9, LandingLevel})
 	for i := 0; i < 600 && w.fixtureCutOff(pod); i++ {
 		w.step()
 	}

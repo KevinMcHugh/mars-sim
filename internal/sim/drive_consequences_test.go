@@ -53,7 +53,7 @@ func TestCeilingConsequenceFollowsMax(t *testing.T) {
 // every ConsequenceEvery ticks while it stays, and afresh after it is met.
 func TestLonelinessIsFeltAtTheCeiling(t *testing.T) {
 	w := roomsTestWorld(20, 20)
-	c := w.spawn(Colonist, Point{5, 5})
+	c := w.spawn(Colonist, Point{5, 5, LandingLevel})
 	spec := w.cfg.Drives[DriveSocial]
 	setDriveRate(w, c, DriveSocial, 0) // hold the level where the test puts it
 	w.setDrive(c, DriveSocial, spec.Max-1)
@@ -96,9 +96,9 @@ func TestLonelinessIsFeltAtTheCeiling(t *testing.T) {
 // Only the side of a conversation that came to it wanting company socialized.
 func TestConversationWhileLonelySocializes(t *testing.T) {
 	w := roomsTestWorld(20, 20)
-	carve(w, Point{5, 5}, Point{6, 5}, Floor)
-	lonely := w.spawn(Colonist, Point{5, 5})
-	content := w.spawn(Colonist, Point{6, 5})
+	carve(w, Point{5, 5, LandingLevel}, Point{6, 5, LandingLevel}, Floor)
+	lonely := w.spawn(Colonist, Point{5, 5, LandingLevel})
+	content := w.spawn(Colonist, Point{6, 5, LandingLevel})
 	spec := w.cfg.Drives[DriveSocial]
 	w.setDrive(lonely, DriveSocial, spec.SeekAt)
 	w.setDrive(content, DriveSocial, spec.SeekAt-1)
@@ -119,7 +119,7 @@ func TestSleepDeprivedColonistPassesOut(t *testing.T) {
 	cfg := testConfig()
 	cfg.StartColonists, cfg.StartAliens = 0, 0
 	w := newTestWorld(t, cfg)
-	at := Point{w.Width / 2, w.Height / 2}
+	at := Point{w.Width / 2, w.Height / 2, LandingLevel}
 	w.SetTerrain(at, Floor)
 	c := w.spawn(Colonist, at)
 	for n := DriveKind(0); n < numDrives; n++ {
@@ -174,7 +174,7 @@ func TestPassOutNeedsAFallingDrive(t *testing.T) {
 // finishes its sleep there rather than passing out.
 func TestAsleepInBedDoesNotPassOut(t *testing.T) {
 	w := roomsTestWorld(20, 20)
-	bed, stand := Point{6, 5}, Point{5, 5}
+	bed, stand := Point{6, 5, LandingLevel}, Point{5, 5, LandingLevel}
 	carve(w, stand, stand, Floor)
 	w.SetTerrain(bed, Bed)
 	c := w.spawn(Colonist, stand)
@@ -197,12 +197,12 @@ func TestAsleepInBedDoesNotPassOut(t *testing.T) {
 // and a Tidy witness minds more.
 func TestFullBladderWetsSelfAndIsSeen(t *testing.T) {
 	w := roomsTestWorld(30, 20)
-	carve(w, Point{5, 5}, Point{20, 5}, Floor)
-	c := w.spawn(Colonist, Point{5, 5})
-	near := w.spawn(Colonist, Point{6, 5})
-	tidy := w.spawn(Colonist, Point{7, 5})
+	carve(w, Point{5, 5, LandingLevel}, Point{20, 5, LandingLevel}, Floor)
+	c := w.spawn(Colonist, Point{5, 5, LandingLevel})
+	near := w.spawn(Colonist, Point{6, 5, LandingLevel})
+	tidy := w.spawn(Colonist, Point{7, 5, LandingLevel})
 	near.Profile.Traits, tidy.Profile.Traits = nil, []Trait{TraitTidy}
-	far := w.spawn(Colonist, Point{5 + w.cfg.GoreSightRadius + 5, 5})
+	far := w.spawn(Colonist, Point{5 + w.cfg.GoreSightRadius + 5, 5, LandingLevel})
 	w.setDrive(c, DriveBladder, w.cfg.Drives[DriveBladder].Max)
 	grip := c.affect.Grip
 
@@ -237,7 +237,7 @@ func TestFullBladderWetsSelfAndIsSeen(t *testing.T) {
 // A colonist already at the toilet when the bladder tops out is using it.
 func TestAtToiletDoesNotWetSelf(t *testing.T) {
 	w := roomsTestWorld(20, 20)
-	toilet, stand := Point{6, 5}, Point{5, 5}
+	toilet, stand := Point{6, 5, LandingLevel}, Point{5, 5, LandingLevel}
 	carve(w, stand, stand, Floor)
 	w.SetTerrain(toilet, Toilet)
 	c := w.spawn(Colonist, stand)
@@ -257,9 +257,9 @@ func TestWetSelfUsesPronouns(t *testing.T) {
 		want string
 	}{{GenderMan, "himself"}, {GenderWoman, "herself"}, {GenderNonbinary, "themself"}} {
 		w := roomsTestWorld(20, 20)
-		carve(w, Point{5, 5}, Point{6, 5}, Floor)
-		c := w.spawn(Colonist, Point{5, 5})
-		seer := w.spawn(Colonist, Point{6, 5})
+		carve(w, Point{5, 5, LandingLevel}, Point{6, 5, LandingLevel}, Floor)
+		c := w.spawn(Colonist, Point{5, 5, LandingLevel})
+		seer := w.spawn(Colonist, Point{6, 5, LandingLevel})
 		c.Profile.Gender = tc.g
 		w.wetSelf(c, DriveBladder)
 		if got, want := c.Memories[len(c.Memories)-1].Text, "Wet "+tc.want+"."; got != want {
@@ -302,9 +302,9 @@ func TestExperienceBelowTheCeiling(t *testing.T) {
 // colonist waited for a partner who never came, and it passed out with a bed
 // in reach: most of the default game's pass-outs were exactly this.
 func TestLonelyColonistWithNobodyToTalkToGoesToBed(t *testing.T) {
-	w, lonely, sleeper := lonelyBedroom(t, Point{4, 7})
+	w, lonely, sleeper := lonelyBedroom(t, Point{4, 7, LandingLevel})
 	sleeper.Job, sleeper.Drive = JobUse, DriveSleep
-	sleeper.useFacility, sleeper.useFacilitySet = Point{3, 7}, true
+	sleeper.useFacility, sleeper.useFacilitySet = Point{3, 7, LandingLevel}, true
 	sleeper.focus = FocusSleep
 	w.setDrive(sleeper, DriveSleep, w.cfg.Drives[DriveSleep].Max-50)
 
@@ -326,7 +326,7 @@ func TestLonelyColonistWithNobodyToTalkToGoesToBed(t *testing.T) {
 // The other half: with someone free to talk to in reach, the same colonist
 // still puts company first. Stepping aside is for when nobody could answer.
 func TestLonelyColonistWithSomeoneToTalkToSocializes(t *testing.T) {
-	w, lonely, other := lonelyBedroom(t, Point{6, 4})
+	w, lonely, other := lonelyBedroom(t, Point{6, 4, LandingLevel})
 	if !w.availableToTalk(other) {
 		t.Fatal("setup: the other colonist should be free to talk")
 	}
@@ -344,11 +344,11 @@ func TestLonelyColonistWithSomeoneToTalkToSocializes(t *testing.T) {
 func lonelyBedroom(t *testing.T, otherAt Point) (w *World, lonely, other *Entity) {
 	t.Helper()
 	w = roomsTestWorld(20, 12)
-	carve(w, Point{2, 2}, Point{15, 8}, Floor)
-	w.SetTerrain(Point{12, 3}, Bed)
-	w.SetTerrain(Point{3, 7}, Bed)
+	carve(w, Point{2, 2, LandingLevel}, Point{15, 8, LandingLevel}, Floor)
+	w.SetTerrain(Point{12, 3, LandingLevel}, Bed)
+	w.SetTerrain(Point{3, 7, LandingLevel}, Bed)
 	w.refreshSpatial()
-	lonely = w.spawn(Colonist, Point{4, 5})
+	lonely = w.spawn(Colonist, Point{4, 5, LandingLevel})
 	other = w.spawn(Colonist, otherAt)
 	for _, e := range []*Entity{lonely, other} {
 		for d := DriveKind(0); d < numDrives; d++ {
@@ -370,8 +370,8 @@ func lonelyBedroom(t *testing.T, otherAt Point) (w *World, lonely, other *Entity
 // is critical, who will be. Without the second, two lonely colonists at work
 // would each wait for the other to go first and neither ever would.
 func TestHallCompanyIncludesLonelyWorkers(t *testing.T) {
-	w, lonely, other := lonelyBedroom(t, Point{14, 3})
-	w.SetTerrain(Point{14, 8}, Chair)
+	w, lonely, other := lonelyBedroom(t, Point{14, 3, LandingLevel})
+	w.SetTerrain(Point{14, 8, LandingLevel}, Chair)
 	w.refreshSpatial()
 	if !w.hallOpen() || lonely.Pos.Chebyshev(other.Pos) <= w.cfg.TalkRadius {
 		t.Fatal("setup: want an open hall and the other colonist out of talk-radius")

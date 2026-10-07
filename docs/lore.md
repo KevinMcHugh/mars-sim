@@ -50,7 +50,7 @@ than a hardcoded list. Each species also gets a scientific name
   in the built-in `alien-names.yaml` is actually registered.
 - [`internal/sim/world.go`](../internal/sim/world.go) — `World.alienSpecies`
   (now a roster, `[]AlienSpecies`) and where it's rolled, in `newWorld`; the
-  per-`Alien` species draw in `spawn`; `World.exploredCount`, kept
+  per-`Alien` species draw in `spawn`; `Layer.exploredCount`, kept
   incrementally by `reveal`.
 - [`internal/sim/entity.go`](../internal/sim/entity.go) — `Entity.Species`,
   the index into `World.alienSpecies` an individual alien was assigned.

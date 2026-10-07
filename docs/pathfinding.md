@@ -25,13 +25,22 @@ get there?" in O(1) and bounds long searches.
 
 Walkable tiles are grouped in two levels so updates stay cheap:
 
-- A **region** is a connected component of `Floor` cells **within one chunk**
-  (chunks are 16x16; see
+- A **region** is a connected component of walkable cells (floor, both
+  ends of a stair, and shaft tiles) **within one chunk of one level** (chunks are 16x16; see
   [spatial-index-and-performance.md](./spatial-index-and-performance.md)).
 - A **room** is a connected component of the **region graph** — regions are linked
-  when their floor cells touch across a chunk border. A room's ID is the smallest
-  `RegionID` it contains, so it does not depend on the order the component is
-  walked.
+  when their cells touch across a chunk border, or when they hold the two ends
+  of a stair or shaft link, so a room can span levels (see
+  [stairs.md](./stairs.md) and [shafts.md](./shafts.md)). A
+  room's ID is the smallest `RegionID` it contains, so it does not depend on
+  the order the component is walked.
+
+Every search below (A\*, HPA\*, the flow fields and their repair) treats a
+stair or shaft as one more neighbour, and keeps its per-tile scratch in a
+`layered[T]` (a paged grid per level; see [layers.md](./layers.md)). A shaft
+costs more than a step: A\* adds its cost, and a flow field, while a shaft
+exists, holds its far ends in Dial's buckets and is rebuilt rather than
+repaired (see [shafts.md](./shafts.md)).
 
 When a tile changes, `SetTerrain` marks its chunk dirty; `refreshSpatial`
 (end of each tick) re-floods only the dirty chunks' regions, re-links across
@@ -240,8 +249,11 @@ gone. The others leave routes alone, as they always have.
   Facility-terrain fields are auto-allocated in `newWorld`.
 - **Reusing corridors**: HPA\* corridors are a natural thing to cache and share
   across agents — a noted future step.
-- **Z-levels**: the region, flow-field, and HPA\* machinery were built to extend
-  into a multi-floor world (not yet implemented).
+- **Z-levels**: levels, stairs and shafts are in (see [layers.md](./layers.md),
+  [stairs.md](./stairs.md), [shafts.md](./shafts.md)); HPA\* still routes
+  over an unweighted region graph, so a long corridor may run through a
+  shaft a stair would have beaten. Weighting region links is the next step
+  if that shows.
 
 ## Related
 

@@ -13,8 +13,8 @@ func nearestMineByScan(w *World, e *Entity) (Point, bool) {
 	var best Point
 	found := false
 	bestDist := 0
-	for p := range w.board.frontier {
-		if w.board.isClaimed(p) || !w.frontierReachable(p, room) ||
+	for p := range w.landing().board.frontier {
+		if w.landing().board.isClaimed(p) || !w.frontierReachable(p, room) ||
 			!e.Inventory.CanAddAll(miningYield(w.TileAt(p))...) {
 			continue
 		}
@@ -80,12 +80,12 @@ func TestClaimNearestMineMatchesFullScan(t *testing.T) {
 						continue
 					}
 					found++
-					w.board.releaseMine(got, e.ID)
+					w.landing().board.releaseMine(got, e.ID)
 					// Count queries the tie-break decided: another eligible
 					// tile at the same distance that loses on row-major order.
 					for _, d := range neighbors8 {
 						q := got.Add(d.X, d.Y)
-						if q != got && w.board.isFrontier(q) && !w.board.isClaimed(q) &&
+						if q != got && w.landing().board.isFrontier(q) && !w.landing().board.isClaimed(q) &&
 							e.Pos.Chebyshev(q) == e.Pos.Chebyshev(got) && w.frontierReachable(q, w.roomOf(e.Pos)) {
 							ties++
 							break
@@ -126,7 +126,7 @@ func TestClaimNearestMineNoneFits(t *testing.T) {
 	if !wantOK || got != want || !gotOK {
 		t.Fatalf("empty pack: ring search %v,%v; full scan %v,%v", got, gotOK, want, wantOK)
 	}
-	if !w.board.isClaimed(got) {
+	if !w.landing().board.isClaimed(got) {
 		t.Fatalf("claimNearestMine returned %v without claiming it", got)
 	}
 }

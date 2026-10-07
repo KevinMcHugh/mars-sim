@@ -312,7 +312,7 @@ before the first tick. A profile of `NewEngine` + first publish shows why:
   `planCavern`) add up to 1.2 GB churned. Carving caverns through `setTerrain`
   also fires `TileChanged` into the job board for tiles nobody can reach yet
   (15%).
-- **The map is stored twice.** `World.tiles` is 300 MB (3 bytes × 100M). The
+- **The map is stored twice.** `Layer.tiles` is 300 MB (3 bytes × 100M). The
   first publish clones every page into the `TileGrid`, which is another
   300 MB and 1.7 s natively.
 

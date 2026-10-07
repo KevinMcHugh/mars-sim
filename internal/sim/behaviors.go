@@ -90,7 +90,7 @@ func preyAnywhere(tags Tags) preyFinder {
 func preyInRoom(tags Tags) preyFinder {
 	return func(w *World, e *Entity) (*Entity, bool) {
 		return w.nearestTaggedWhere(e.Pos, tags, func(c *Entity) bool {
-			return c != e && !sameSpecies(c, e) && w.sameRoom(e.Pos, c.Pos)
+			return c != e && !sameSpecies(c, e) && w.canReach(e, c)
 		})
 	}
 }
