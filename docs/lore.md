@@ -647,12 +647,13 @@ word-wrapped to the panel width.
   winged species cross open floor faster, ignore rubble, or swoop (a wing
   buffet `AttackMode`, gated by `canUse` on `Wings`) would make it matter;
   keep the wording in `gaitPhrase` honest when it does.
-- **Lifecycles and graded anatomy.** Proposed: some species roll a life of
-  several forms (egg, grub, pupa, joey, imago; queen/worker/drone castes),
-  each larger and more extreme than the last but recognizably the same, and
-  every species gains graded features (horns, antlers, stingers, quills,
-  tail clubs, shells). See
-  [species-and-behaviors.md](./species-and-behaviors.md#alien-lifecycles-proposed).
+- **Lifecycles and graded anatomy** are built: some species roll a life of
+  several forms (egg, grub, pupa, joey; queen/worker/drone castes), each
+  larger and more extreme than the last but recognizably the same, and every
+  species rolls graded features (horns, antlers, stingers, quills, tail
+  clubs, shells) that `Description` adds a sentence for. Next there: features
+  that fight (a gore, a sting) and adults that lay eggs. See
+  [alien-lifecycles.md](./alien-lifecycles.md).
 - **Per-individual variation.** Every alien of a given species is still
   stat-for-stat identical to every other of that species. Giving each
   `Entity` its own height/weight rolled from its species' range (the way

@@ -28,6 +28,10 @@ func testConfig() Config {
 	// else: no chickens, no cats. Pet tests opt in.
 	c.CrashPodGunWeight, c.CrashPodChickenWeight, c.CrashPodCatWeight = 1, 0, 0
 	c.CrashPodShotgunPercent = 0
+	// ...and on every alien species having one form, so a spawned alien is
+	// an adult that hunts or grazes by its temperament, never an egg.
+	// Lifecycle tests opt in.
+	c.AlienOneFormWeight, c.AlienTwoFormWeight, c.AlienThreeFormWeight, c.AlienFourFormWeight = 1, 0, 0, 0
 	// ...and on the founders landing in a stick, the one shape a 40×24 map
 	// always has room for. Shape tests opt in to the others.
 	c.ShipStickWeight, c.ShipHubWeight, c.ShipClusterWeight = 1, 0, 0

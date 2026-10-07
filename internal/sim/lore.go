@@ -419,6 +419,15 @@ type AlienSpecies struct {
 	BiteDamage int
 	BiteRest   int
 	Slowness   int
+
+	// Anatomy is the adult's graded features (horns, antlers, quills, shell,
+	// claws, a stinger, a tail ornament); see alien_anatomy.go.
+	Anatomy AlienAnatomy
+	// Forms is the species' life, stage by stage (the last split into castes,
+	// when it has them), in its first FormCount entries; FormCount 0 is a
+	// single form, which is most species. See alien_lifecycle.go.
+	Forms     [maxAlienForms]AlienForm
+	FormCount int
 }
 
 // Legs is how many of a species' Limbs are legs rather than arms -- derived,
@@ -528,6 +537,16 @@ func rollAlienSpeciesRoster(rng *rand.Rand, cfg Config) []AlienSpecies {
 		roster[i].ScientificName = scientificName(taxRNG, roster[i], taxa, binomials)
 		binomials[strings.ToLower(roster[i].ScientificName)] = true
 	}
+	// Anatomy and lifecycles each draw from a stream of their own, after
+	// everything above, so neither moved a single earlier draw.
+	anatomyRNG := newRand(cfg.Seed ^ alienAnatomySeed)
+	for i := range roster {
+		roster[i].Anatomy = rollAnatomy(anatomyRNG, roster[i])
+	}
+	lifeRNG := newRand(cfg.Seed ^ alienLifecycleSeed)
+	for i := range roster {
+		rollLifecycle(lifeRNG, &roster[i], cfg)
+	}
 	return roster
 }
 
@@ -597,8 +616,22 @@ func (sp AlienSpecies) RosterLabel() string {
 // company, a cautious one as something to approach carefully, a hostile one
 // as a predator. Sizes are given in metric with imperial in parentheses.
 // The wording is a pure function of the species -- no RNG -- so it never
-// touches determinism.
+// touches determinism. A species with graded features or a lifecycle gets a
+// sentence for each after the entry (see alien_anatomy.go and
+// alien_lifecycle.go).
 func (sp AlienSpecies) Description() string {
+	out := sp.entry()
+	if feats := sp.Anatomy.featurePhrases(); len(feats) > 0 {
+		out += fmt.Sprintf(" Adults bear %s.", joinList(feats))
+	}
+	if life := sp.lifePhrase(); life != "" {
+		out += " " + life
+	}
+	return out
+}
+
+// entry is Description's field-guide sentences, by temperament.
+func (sp AlienSpecies) entry() string {
 	size := fmt.Sprintf("stand %s tall, weighing %s", sp.heightRangePhrase(), sp.weightRangePhrase())
 	name := capitalizeFirst(sp.Plural)
 	covering, coveringPlural := sp.coveringPhrase()
@@ -803,7 +836,7 @@ func (w *World) alienSpeciesFor(e *Entity) AlienSpecies {
 // alienNounFor returns e's species name with the right indefinite article --
 // "an alien", "a xeno", "an ET" -- for narration in place of the generic
 // "alien".
-func (w *World) alienNounFor(e *Entity) string { return withArticle(w.alienSpeciesFor(e).Singular) }
+func (w *World) alienNounFor(e *Entity) string { return withArticle(w.alienFormNoun(e)) }
 
 // alienPluralFor returns the plural colonists use for e's species, e.g.
 // "aliens", "xenos", "gremlins".

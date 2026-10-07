@@ -575,6 +575,7 @@ type Entity struct {
 	// bond to the colonist it came down with.
 	breeding *Breeding
 	pet      *PetBond
+	life     *LifeStage // an alien's stage of life, if its species has several
 }
 
 // newEntity builds an entity of kind with its species' starting stats, for

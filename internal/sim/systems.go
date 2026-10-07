@@ -1977,7 +1977,7 @@ func (w *World) strike(alien, prey *Entity) {
 		mode = modes[w.rng.IntN(len(modes))]
 	}
 	var part BodyPart
-	dmg := sp.BiteDamage
+	dmg := w.alienDamage(alien)
 	if mode == AttackStrangle && prey.hasPart(Head) {
 		part = Head
 		dmg = (dmg + 1) / 2 // a zero baseline stays zero (see speciesDamage)
@@ -2248,7 +2248,7 @@ func (w *World) nearestColonist(from Point, within int) (*Entity, bool) {
 // nearestAlien is the nearest alien the colony could know about: a dormant
 // alien (see World.dormant) is sealed in an undiscovered cave.
 func (w *World) nearestAlien(from Point, within int) (*Entity, bool) {
-	return w.nearestMatch(from, within, func(e *Entity) bool { return e.Kind == Alien && !w.dormant(e) })
+	return w.nearestMatch(from, within, func(e *Entity) bool { return e.Kind == Alien && !w.dormant(e) && !w.inert(e) })
 }
 
 func (w *World) nearestCat(from Point, within int) (*Entity, bool) {

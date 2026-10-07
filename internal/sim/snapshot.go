@@ -40,6 +40,9 @@ type EntityView struct {
 	// see Entity.Species and World.alienSpeciesFor). Zero-valued for every
 	// other kind. See docs/lore.md.
 	AlienSpecies AlienSpecies
+	// AlienForm is the alien's stage of life or caste ("grub", "queen"), empty
+	// for a single-form species or a plain adult. See docs/alien-lifecycles.md.
+	AlienForm string
 	// Keeper is the colonist a pet (a chicken or a cat) came down with in its
 	// ship, 0 for a stray or anything that is not a pet. See
 	// docs/chickens.md.
@@ -814,6 +817,9 @@ func (w *World) entityView(e *Entity, kinChildren map[kinID][]kinID, full bool) 
 	}
 	if e.Kind == Alien {
 		ev.AlienSpecies = w.alienSpeciesFor(e)
+		if f, ok := w.formOf(e); ok {
+			ev.AlienForm = f.Name
+		}
 	}
 	if e.Kind == Colonist {
 		ev.Charge = e.affect.Charge

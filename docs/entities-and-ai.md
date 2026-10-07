@@ -171,7 +171,9 @@ competes with fleeing or fighting. See [escape.md](./escape.md).
 
 Each rolled alien species is its own species value (`newAlienSpeciesTable`),
 whose ladder its temperament picks; an alien runs its own species' ladder
-through `animalTurn`. Aliens are paced by a `Cooldown` (their species'
+through `animalTurn`. A species with a lifecycle has a species value per
+form: its eggs and cocoons lie inert, its young graze, and only its adults
+hunt (see [alien-lifecycles.md](./alien-lifecycles.md)). Aliens are paced by a `Cooldown` (their species'
 slowness, scaled from `AlienSlowness`). Each active turn: find
 the nearest prey in the alien's own room (`nearestReachablePrey`: a colonist,
 a rat, or an alien of another species); if adjacent, `strike` (one of its species' attack modes — bite, claws, tail,

@@ -37,6 +37,12 @@ func (w *World) animalTurn(e *Entity) {
 	if b := e.breeding; b != nil && b.pregnant && w.tick >= b.dueTick {
 		w.giveBirth(e)
 	}
+	// An alien whose time in a stage is up grows into the next, and acts
+	// as that from now on.
+	if l := e.life; l != nil && l.growAt > 0 && w.tick >= l.growAt {
+		w.growUp(e)
+		sp = w.speciesOf(e)
+	}
 
 	if sp.Paced {
 		if e.Cooldown > 0 {
@@ -227,6 +233,14 @@ type grazeScum struct{}
 func (grazeScum) act(w *World, e *Entity) bool {
 	e.Quarry = 0
 	return w.alienGraze(e, w.alienSpeciesFor(e))
+}
+
+// inert is an egg or cocoon's whole ladder: it lies where it is.
+type inert struct{}
+
+func (inert) act(w *World, e *Entity) bool {
+	e.State, e.Quarry = Idle, 0
+	return true
 }
 
 // wander takes an aimless step. It always acts, so it ends every ladder.

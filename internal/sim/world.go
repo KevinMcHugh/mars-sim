@@ -962,9 +962,10 @@ type World struct {
 	// docs/species-and-behaviors.md) how it behaves. Built from Config by
 	// newWorld, and not saved: a load rebuilds it from the saved Config.
 	species [numKinds]Species `save:"-"`
-	// alienKinds is one Species per rolled alien species (alienSpecies),
-	// derived the same way and likewise not saved (afterLoad rebuilds it).
-	alienKinds []Species `save:"-"`
+	// alienKinds is one Species per form of each rolled alien species
+	// (alienKinds[species][form]; a single-form species has one), derived
+	// the same way and likewise not saved (afterLoad rebuilds it).
+	alienKinds [][]Species `save:"-"`
 
 	// driveTables are the drives' compiled bands (drive_bands.go).
 	driveTables [numDrives]driveTable
@@ -1564,6 +1565,7 @@ func (w *World) spawnWith(kind Kind, p Point, species int, rec *recruitCandidate
 	}
 	if kind == Alien {
 		e.Species = species
+		w.beginLife(e) // a species with a lifecycle: which stage, how far along
 	}
 	w.nextID++
 	w.entities[e.ID] = e

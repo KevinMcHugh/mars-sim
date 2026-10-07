@@ -119,7 +119,7 @@ func rosterRow(e sim.EntityView) RosterRow {
 		}
 		r.Info = p.Gender.Pronouns() + " · " + age
 	} else if e.Kind == sim.Alien {
-		r.Info = e.AlienSpecies.RosterLabel()
+		r.Info = alienLabel(e)
 	}
 	r.State = e.State.String()
 	if e.State == sim.Idle {
@@ -131,4 +131,13 @@ func rosterRow(e sim.EntityView) RosterRow {
 		r.State += " · " + e.MoodLabel
 	}
 	return r
+}
+
+// alienLabel is an alien's species label, with its stage of life or caste
+// when it has one: "Grelk · hostile · queen".
+func alienLabel(e sim.EntityView) string {
+	if e.AlienForm == "" {
+		return e.AlienSpecies.RosterLabel()
+	}
+	return e.AlienSpecies.RosterLabel() + " · " + e.AlienForm
 }

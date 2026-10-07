@@ -960,6 +960,24 @@ zoning-auto: true
 ## how far a hungry Friendly or Cautious alien looks for cave scum to eat
 # alien-graze-radius: 12
 
+## relative odds a rolled alien species has a single form (most do)
+# alien-one-form-weight: 60
+
+## relative odds a rolled alien species has two life stages
+# alien-two-form-weight: 25
+
+## relative odds a rolled alien species has three life stages
+# alien-three-form-weight: 12
+
+## relative odds a rolled alien species has four life stages
+# alien-four-form-weight: 3
+
+## percent of multi-stage alien species whose adults split into castes (queen/worker/drone, bull/betty)
+# alien-caste-percent: 30
+
+## roughly how many ticks one alien life stage lasts before it grows into the next
+# alien-stage-ticks: 2160
+
 # ── Weapons ─────────────────────────────────────────────────────────────
 ## HP removed per pistol shot
 # pistol-damage: 10

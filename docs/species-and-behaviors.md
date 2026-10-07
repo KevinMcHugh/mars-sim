@@ -4,7 +4,7 @@
 
 ## What it is
 
-**In progress: phases 1–4 of 7 are built** (see [Migration](#migration)).
+**In progress: phases 1–4 and 4b of 7 are built** (see [Migration](#migration)).
 A plan to stop hand-writing one turn function per creature and
 instead define each creature (cat, rat, chicken, each alien species) as a
 **species**: a set of attributes plus an ordered list of reusable
@@ -194,8 +194,10 @@ Cautious: {dormant{}, hunt{find: colonistWithin(radius), catch: strike, rest: Bi
 Friendly: {dormant{}, grazeScum{}, wander{}}
 ```
 
-`World.alienKinds` holds them, `speciesOf` routes an alien there by
-`Entity.Species` (its roster index, as before), and like `World.species` it
+`World.alienKinds` holds them (since phase 4b, one per form of each
+species' life: `alienKinds[species][form]`), `speciesOf` routes an alien
+there by `Entity.Species` (its roster index, as before) and its
+`LifeStage`, and like `World.species` it
 is derived and not saved: `newWorld` and `afterLoad` rebuild it from the
 roster. Values the roster holds and combat reads when it happens (damage,
 attack modes, a graze's bite rest) are still read from the roster then;
@@ -286,10 +288,12 @@ runtime creation simple:
 - **Individual drift** (a mutated limb) stays on the entity. A species is the
   default; the entity is the truth.
 
-### Alien lifecycles (proposed)
+### Alien lifecycles
 
-*Not built; recorded here because it is the strongest reason for the species
-model.* Today every alien species has one body. The idea is that some species
+*Built in phase 4b; [alien-lifecycles.md](./alien-lifecycles.md) is the
+reference for what shipped. This section is the original proposal, kept
+because it is the strongest reason for the species model; where the build
+differs, alien-lifecycles.md says so.* The idea is that some species
 **change over a life**: an egg that hatches into a larva, a pupa, an imago; a
 queen with workers and drones; a cocoon; a joey that grows into a bull or a
 betty. The tone is the platypus: plausible parts assembled slightly wrong.
@@ -384,12 +388,15 @@ the ladder is a refactor of the existing ladders, not a redesign of them.
    its meaning (an index into the roster) rather than becoming an index
    into one combined table; `speciesOf` does the routing, which left
    `alienSpeciesFor` and everything reading the roster untouched.
-4b. **Alien lifecycles.** Roll lifecycle lines and the new anatomy features
-   with the roster (on their own stream), generate a `Species` per stage and
-   caste, add the `*Lifecycle` component and aging, and teach the lore tab
-   and narration to describe a line. This changes the game, so it is checked
-   by its own tests, not by fingerprint. See
-   [Alien lifecycles](#alien-lifecycles-proposed).
+4b. **Alien lifecycles.** *Done.* Lifecycles and graded anatomy roll with the
+   roster on their own streams; `World.alienKinds` holds a `Species` per form
+   (`alienKinds[species][form]`); a `*LifeStage` component and a growth
+   pre-step in `animalTurn` age an individual; narration, the lore tab and
+   the inspector name forms. It changes the game, so it is checked by its
+   own tests (`alien_lifecycle_test.go`), not by fingerprint. Departures
+   from the proposal: the young graze rather than flee and forage, eggs are
+   invisible to colonists rather than findable, nothing lays eggs yet, and
+   features are description only. See [alien-lifecycles.md](./alien-lifecycles.md).
 5. **Tags for prey and threat.** Replace kind arguments to the nearest-entity
    queries with tag sets. After this, `Kind` is only what the wire format and
    UI use to pick a sprite.

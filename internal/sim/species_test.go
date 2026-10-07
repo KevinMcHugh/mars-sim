@@ -38,7 +38,7 @@ func TestAnimalLaddersEndInARungThatAlwaysActs(t *testing.T) {
 	}
 	for _, temp := range []AlienTemperament{TemperamentFriendly, TemperamentCautious, TemperamentHostile} {
 		roster := []AlienSpecies{{Temperament: temp, Slowness: 2, BiteRest: 3}}
-		ladders[temp.String()+" alien"] = newAlienSpeciesTable(table[Alien], roster, cfg)[0].ladder
+		ladders[temp.String()+" alien"] = newAlienSpeciesTable(table[Alien], roster, cfg)[0][0].ladder
 	}
 	for k, ladder := range ladders {
 		if len(ladder) == 0 {
@@ -157,7 +157,7 @@ func TestAlienLaddersFollowTemperament(t *testing.T) {
 		TemperamentCautious: {"sim.dormant", "sim.hunt", "sim.grazeScum", "sim.wander"},
 		TemperamentFriendly: {"sim.dormant", "sim.grazeScum", "sim.wander"},
 	} {
-		sp := newAlienSpeciesTable(base, []AlienSpecies{{Temperament: temp, Slowness: 4}}, cfg)[0]
+		sp := newAlienSpeciesTable(base, []AlienSpecies{{Temperament: temp, Slowness: 4}}, cfg)[0][0]
 		var got []string
 		for _, b := range sp.ladder {
 			got = append(got, fmt.Sprintf("%T", b))

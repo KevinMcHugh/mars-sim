@@ -566,6 +566,16 @@ type Config struct {
 	// colonists instead). Aliens never starve. See alienGraze.
 	AlienHungerRate  int `cfg:"alien-hunger-rate" doc:"food drive a Friendly or Cautious alien gains per tick, in thousandths of a point, before it goes grazing on cave scum"`
 	AlienGrazeRadius int `cfg:"alien-graze-radius" doc:"how far a hungry Friendly or Cautious alien looks for cave scum to eat"`
+	// Alien lifecycles (see docs/alien-lifecycles.md): the relative odds a
+	// rolled species lives as one, two, three or four forms, how often a
+	// multi-stage life ends in castes, and roughly how long a stage lasts
+	// (each species' stages vary by a quarter either side).
+	AlienOneFormWeight   int `cfg:"alien-one-form-weight" doc:"relative odds a rolled alien species has a single form (most do)"`
+	AlienTwoFormWeight   int `cfg:"alien-two-form-weight" doc:"relative odds a rolled alien species has two life stages"`
+	AlienThreeFormWeight int `cfg:"alien-three-form-weight" doc:"relative odds a rolled alien species has three life stages"`
+	AlienFourFormWeight  int `cfg:"alien-four-form-weight" doc:"relative odds a rolled alien species has four life stages"`
+	AlienCastePercent    int `cfg:"alien-caste-percent" doc:"percent of multi-stage alien species whose adults split into castes (queen/worker/drone, bull/betty)"`
+	AlienStageTicks      int `cfg:"alien-stage-ticks" doc:"roughly how many ticks one alien life stage lasts before it grows into the next"`
 
 	// AlienNames configures the pool of names ("xenos," "critters," ...) a
 	// rolled species can be given, each gated by a condition over its build
@@ -906,6 +916,12 @@ func DefaultConfig() Config {
 		AlienCautiousRadius:       3,
 		AlienHungerRate:           2000, // two points a tick: a grazer eats about as often as a colonist
 		AlienGrazeRadius:          12,
+		AlienOneFormWeight:        60,
+		AlienTwoFormWeight:        25,
+		AlienThreeFormWeight:      12,
+		AlienFourFormWeight:       3,
+		AlienCastePercent:         30,
+		AlienStageTicks:           2160, // two colony days
 
 		PistolDamage:    10,
 		PistolRange:     3,

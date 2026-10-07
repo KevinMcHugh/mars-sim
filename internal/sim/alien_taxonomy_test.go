@@ -73,7 +73,9 @@ func TestRosterScientificNames(t *testing.T) {
 
 // Naming must not consume the lore stream: a species' build has to come
 // out the same whether or not it is then given a scientific name, or adding
-// names would have re-rolled every existing seed's roster.
+// names would have re-rolled every existing seed's roster. The same holds
+// for the passes after naming, graded anatomy and lifecycles, which draw
+// from streams of their own.
 func TestScientificNamesDoNotShiftTheRoster(t *testing.T) {
 	cfg := DefaultConfig()
 	cfg.AlienSpeciesCount = 4
@@ -86,6 +88,7 @@ func TestScientificNamesDoNotShiftTheRoster(t *testing.T) {
 		want := rollAlienSpecies(rng, cfg, names, used)
 		used[strings.ToLower(want.Singular)] = true
 		got.ScientificName = ""
+		got.Anatomy, got.Forms, got.FormCount = AlienAnatomy{}, [maxAlienForms]AlienForm{}, 0
 		if got != want {
 			t.Fatalf("species %d differs once named:\n%+v\n%+v", i, got, want)
 		}

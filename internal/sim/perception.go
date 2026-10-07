@@ -410,7 +410,7 @@ func (w *World) observePersistent(observer *Entity, only NounID) {
 			if other == nil || other == observer || !other.Alive() {
 				continue
 			}
-			if other.Kind == Alien && w.dormant(other) {
+			if other.Kind == Alien && (w.dormant(other) || w.inert(other)) {
 				continue
 			}
 			noun := nounForKind(other.Kind)
