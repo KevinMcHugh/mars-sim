@@ -9,16 +9,16 @@ func scumBidWorld(t *testing.T) (w *World, e *Entity, near, far *Order) {
 	t.Helper()
 	w = propertyWorld(t)
 	noScum(w)
-	for _, p := range []Point{{6, 10}, {6, 11}} {
+	for _, p := range []Point{{6, 10, LandingLevel}, {6, 11, LandingLevel}} {
 		w.setScum(p, w.cfg.ScumMax)
 		w.refreshScumExposure(p)
 	}
-	w.SetTerrain(Point{8, 10}, Scumhouse)
-	w.SetTerrain(Point{22, 5}, Scumhouse)
+	w.SetTerrain(Point{8, 10, LandingLevel}, Scumhouse)
+	w.SetTerrain(Point{22, 5, LandingLevel}, Scumhouse)
 	w.refreshSpatial()
-	e = w.spawn(Colonist, Point{7, 10})
-	near, _ = w.post(Bid, CaveScum, 3, 3, Community, Point{8, 10}, 0)
-	far, _ = w.post(Bid, CaveScum, 3, 4, Community, Point{22, 5}, 0)
+	e = w.spawn(Colonist, Point{7, 10, LandingLevel})
+	near, _ = w.post(Bid, CaveScum, 3, 3, Community, Point{8, 10, LandingLevel}, 0)
+	far, _ = w.post(Bid, CaveScum, 3, 4, Community, Point{22, 5, LandingLevel}, 0)
 	return w, e, near, far
 }
 
@@ -43,7 +43,7 @@ func TestThePlannerTakesTheBestRate(t *testing.T) {
 // they compete for it, and the first to deliver fills it.
 func TestColonistsCompeteForABid(t *testing.T) {
 	w, a, near, _ := scumBidWorld(t)
-	b := w.spawn(Colonist, Point{7, 11})
+	b := w.spawn(Colonist, Point{7, 11, LandingLevel})
 	if !w.tryAssignProduce(a) || !w.tryAssignProduce(b) {
 		t.Fatal("both colonists should take a plan")
 	}
@@ -59,7 +59,7 @@ func TestColonistsCompeteForABid(t *testing.T) {
 func TestReservationFadesBackToLaborPrice(t *testing.T) {
 	w := propertyWorld(t)
 	w.cfg.LaborPrice, w.cfg.RateMemory = 2, 1000
-	e := w.spawn(Colonist, Point{8, 8})
+	e := w.spawn(Colonist, Point{8, 8, LandingLevel})
 	base := int64(2000)
 	if got := w.reservation(e); got != base {
 		t.Fatalf("with no earnings: %d, want %d", got, base)

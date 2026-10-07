@@ -110,7 +110,9 @@ the legend is built from that, not from the picker.
   goals). Sending only the interest rectangle bounds the section by the
   screen, and resending on a move is cheap because the interest only moves a
   page at a time. `FlowFieldView.Range` skips pages the field never reached,
-  so a zoomed-out view of a huge map costs what the colony in it does.
+  so a zoomed-out view of a huge map costs what the colony in it does. A
+  field spans every level (see [stairs.md](./stairs.md)); `Range` takes the
+  level to draw, and the browser asks for the landing level.
 - **Flagged clearing, not an empty list.** An empty flow section is also what a
   field with no tiles in view looks like, so "off" is field -1, not F = 0.
 - **The legend follows the frame, not the throttle.** Frame-driven UI

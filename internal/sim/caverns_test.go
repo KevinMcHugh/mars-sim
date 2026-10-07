@@ -31,7 +31,7 @@ func hiddenFloorTiles(w *World) []Point {
 	var out []Point
 	for y := 0; y < w.Height; y++ {
 		for x := 0; x < w.Width; x++ {
-			if p := (Point{x, y}); w.TerrainAt(p) != Rock && !w.discovered(p) {
+			if p := (Point{x, y, LandingLevel}); w.TerrainAt(p) != Rock && !w.discovered(p) {
 				out = append(out, p)
 			}
 		}
@@ -50,8 +50,8 @@ func TestCavernsGenerateHidden(t *testing.T) {
 	if len(hidden) == 0 {
 		t.Fatal("no natural caverns generated")
 	}
-	if w.hiddenFloor != len(hidden) {
-		t.Fatalf("hiddenFloor = %d, but %d unexplored floor tiles exist", w.hiddenFloor, len(hidden))
+	if w.landing().hiddenFloor != len(hidden) {
+		t.Fatalf("hiddenFloor = %d, but %d unexplored floor tiles exist", w.landing().hiddenFloor, len(hidden))
 	}
 	// Cavern abundance is an expected value per chunk (see
 	// TestAbundanceDriftWithinTolerance), so a map this small only has to
@@ -64,7 +64,7 @@ func TestCavernsGenerateHidden(t *testing.T) {
 	var known []Point
 	for y := 0; y < w.Height; y++ {
 		for x := 0; x < w.Width; x++ {
-			if p := (Point{x, y}); w.TerrainAt(p) == Floor && w.discovered(p) {
+			if p := (Point{x, y, LandingLevel}); w.TerrainAt(p) == Floor && w.discovered(p) {
 				known = append(known, p)
 			}
 		}
@@ -76,7 +76,7 @@ func TestCavernsGenerateHidden(t *testing.T) {
 			}
 		}
 		for _, d := range neighbors8 {
-			if q := h.Add(d.X, d.Y); w.board.isFrontier(q) {
+			if q := h.Add(d.X, d.Y); w.landing().board.isFrontier(q) {
 				t.Fatalf("rock %v beside undiscovered cavern %v is mining frontier", q, h)
 			}
 		}
@@ -100,8 +100,8 @@ func TestCavernPercentZeroGeneratesNone(t *testing.T) {
 	cfg := cavernTestConfig()
 	cfg.CavernPercent = 0
 	w := newTestWorld(t, cfg)
-	if w.hiddenFloor != 0 || len(hiddenFloorTiles(w)) != 0 {
-		t.Fatalf("CavernPercent 0 still generated %d hidden floor tiles", w.hiddenFloor)
+	if w.landing().hiddenFloor != 0 || len(hiddenFloorTiles(w)) != 0 {
+		t.Fatalf("CavernPercent 0 still generated %d hidden floor tiles", w.landing().hiddenFloor)
 	}
 }
 
@@ -124,12 +124,12 @@ func TestBreachingACavernRevealsItsWholeSystem(t *testing.T) {
 		t.Fatalf("hidden tile %v has no rock beside it to dig through", h)
 	}
 	cave := floorComponent(w, h)
-	before := w.hiddenFloor
+	before := w.landing().hiddenFloor
 
 	w.SetTerrain(breach, Floor)
 	w.refreshSpatial()
 
-	if got, want := w.hiddenFloor, before-len(cave); got != want {
+	if got, want := w.landing().hiddenFloor, before-len(cave); got != want {
 		t.Fatalf("hiddenFloor = %d after the breach, want %d (%d - the %d-tile system)", got, want, before, len(cave))
 	}
 	frontier := 0
@@ -146,7 +146,7 @@ func TestBreachingACavernRevealsItsWholeSystem(t *testing.T) {
 				t.Fatalf("rim tile %v of the breached cavern still unexplored", q)
 			}
 			if w.TerrainAt(q) == Rock {
-				if !w.board.isFrontier(q) {
+				if !w.landing().board.isFrontier(q) {
 					t.Fatalf("cavern wall %v is not mining frontier after the breach", q)
 				}
 				frontier++
@@ -177,14 +177,14 @@ func cavernsOnly(t *testing.T, passagePercent int) (*World, []*genCavern) {
 	cfg.Width, cfg.Height = 200, 100
 	cfg.CavernPassagePercent = passagePercent
 	w := newWorld(cfg, newPCG(1))
-	c := Point{w.Width / 2, w.Height / 2}
+	c := Point{w.Width / 2, w.Height / 2, LandingLevel}
 	r := cavernLandingClearance
-	w.gen = newWorldGenLanding(cfg, c.Add(-r, -r), c.Add(r, r))
+	w.landing().gen = newWorldGenLanding(cfg, LandingLevel, c.Add(-r, -r), c.Add(r, r))
 	var caves []*genCavern
-	for cy := 0; cy < w.gen.chunkRows(); cy++ {
-		for cx := 0; cx < w.gen.chunkCols(); cx++ {
-			w.applyChunk(cx, cy)
-			caves = append(caves, w.gen.keptCaverns(chunkKey{int32(cx), int32(cy)})...)
+	for cy := 0; cy < w.landing().gen.chunkRows(); cy++ {
+		for cx := 0; cx < w.landing().gen.chunkCols(); cx++ {
+			w.applyChunk(w.landing(), cx, cy)
+			caves = append(caves, w.landing().gen.keptCaverns(chunkKey{int32(cx), int32(cy)})...)
 		}
 	}
 	w.refreshSpatial()
@@ -254,7 +254,7 @@ func TestRoomLabelsWithCaverns(t *testing.T) {
 		if step%10 == 0 && len(hidden) > 0 {
 			p = hidden[rng.IntN(len(hidden))].Add(rng.IntN(3)-1, rng.IntN(3)-1)
 		} else {
-			p = Point{rng.IntN(w.Width), rng.IntN(w.Height)}
+			p = Point{rng.IntN(w.Width), rng.IntN(w.Height), LandingLevel}
 		}
 		switch rng.IntN(3) {
 		case 0:
@@ -266,8 +266,8 @@ func TestRoomLabelsWithCaverns(t *testing.T) {
 		}
 		w.refreshSpatial()
 		checkRoomLabels(t, w)
-		if got := len(hiddenFloorTiles(w)); got != w.hiddenFloor {
-			t.Fatalf("edit %d at %v: hiddenFloor %d, but %d unexplored floor tiles", step, p, w.hiddenFloor, got)
+		if got := len(hiddenFloorTiles(w)); got != w.landing().hiddenFloor {
+			t.Fatalf("edit %d at %v: hiddenFloor %d, but %d unexplored floor tiles", step, p, w.landing().hiddenFloor, got)
 		}
 	}
 }

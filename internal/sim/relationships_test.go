@@ -39,9 +39,9 @@ func mustRelate(t *testing.T, w *World, subject, other *Entity, want RelationKin
 // leaves unrelated generations without a direct tie.
 func TestKinLineDerivation(t *testing.T) {
 	w := kinWorld()
-	grandma := w.spawn(Colonist, Point{1, 1})
-	parent := w.spawn(Colonist, Point{2, 1})
-	child := w.spawn(Colonist, Point{3, 1})
+	grandma := w.spawn(Colonist, Point{1, 1, LandingLevel})
+	parent := w.spawn(Colonist, Point{2, 1, LandingLevel})
+	child := w.spawn(Colonist, Point{3, 1, LandingLevel})
 	grandma.Profile.Age = 70
 	parent.Profile.Age = 45
 	child.Profile.Age = 20
@@ -64,8 +64,8 @@ func TestKinLineDerivation(t *testing.T) {
 
 func TestParentMustBeAtLeastTwentyYearsOlder(t *testing.T) {
 	w := kinWorld()
-	parent := w.spawn(Colonist, Point{1, 1})
-	child := w.spawn(Colonist, Point{2, 1})
+	parent := w.spawn(Colonist, Point{1, 1, LandingLevel})
+	child := w.spawn(Colonist, Point{2, 1, LandingLevel})
 
 	parent.Profile.Age = 38
 	child.Profile.Age = 19
@@ -83,8 +83,8 @@ func TestParentMustBeAtLeastTwentyYearsOlder(t *testing.T) {
 // generation in between never joined the colony and so has no age to check.
 func TestGrandparentSpansTwoParentGaps(t *testing.T) {
 	w := kinWorld()
-	grandma := w.spawn(Colonist, Point{1, 1})
-	kid := w.spawn(Colonist, Point{2, 1})
+	grandma := w.spawn(Colonist, Point{1, 1, LandingLevel})
+	kid := w.spawn(Colonist, Point{2, 1, LandingLevel})
 
 	grandma.Profile.Age = 61
 	kid.Profile.Age = 43
@@ -107,9 +107,9 @@ func TestGrandparentSpansTwoParentGaps(t *testing.T) {
 // hung off it has to work for every colonist that phantom is a parent of.
 func TestGrandparentCheckedAgainstEveryGrandchild(t *testing.T) {
 	w := kinWorld()
-	older := w.spawn(Colonist, Point{1, 1})
-	younger := w.spawn(Colonist, Point{2, 1})
-	grandma := w.spawn(Colonist, Point{3, 1})
+	older := w.spawn(Colonist, Point{1, 1, LandingLevel})
+	younger := w.spawn(Colonist, Point{2, 1, LandingLevel})
+	grandma := w.spawn(Colonist, Point{3, 1, LandingLevel})
 
 	older.Profile.Age = 61
 	younger.Profile.Age = 18
@@ -129,9 +129,9 @@ func TestGrandparentCheckedAgainstEveryGrandchild(t *testing.T) {
 // parents are old enough for them too.
 func TestSiblingMustFitSharedParent(t *testing.T) {
 	w := kinWorld()
-	parent := w.spawn(Colonist, Point{1, 1})
-	kid := w.spawn(Colonist, Point{2, 1})
-	latecomer := w.spawn(Colonist, Point{3, 1})
+	parent := w.spawn(Colonist, Point{1, 1, LandingLevel})
+	kid := w.spawn(Colonist, Point{2, 1, LandingLevel})
+	latecomer := w.spawn(Colonist, Point{3, 1, LandingLevel})
 
 	parent.Profile.Age = 45
 	kid.Profile.Age = 20
@@ -155,7 +155,7 @@ func TestGeneratedFamilyAgesHoldUp(t *testing.T) {
 	w := newWorld(cfg, newPCG(11))
 
 	for i := 0; i < 120; i++ {
-		w.spawn(Colonist, Point{i % w.Width, i / w.Width})
+		w.spawn(Colonist, Point{i % w.Width, i / w.Width, LandingLevel})
 	}
 
 	// How many parent links separate each kind, from the subject's viewpoint:
@@ -194,9 +194,9 @@ func TestGeneratedFamilyAgesHoldUp(t *testing.T) {
 // Siblings share a parent, and a sibling's child is an aunt/uncle & nibling pair.
 func TestKinSiblingsAndNiblings(t *testing.T) {
 	w := kinWorld()
-	a := w.spawn(Colonist, Point{1, 1})
-	b := w.spawn(Colonist, Point{2, 1})
-	kid := w.spawn(Colonist, Point{3, 1})
+	a := w.spawn(Colonist, Point{1, 1, LandingLevel})
+	b := w.spawn(Colonist, Point{2, 1, LandingLevel})
+	kid := w.spawn(Colonist, Point{3, 1, LandingLevel})
 	a.Profile.Age = 60
 	b.Profile.Age = 40
 	kid.Profile.Age = 20
@@ -255,8 +255,8 @@ func TestNonbinaryPairingCoinFlip(t *testing.T) {
 	w := kinWorld()
 	sawMarried, sawRejected := false, false
 	for i := 0; i < 60 && !(sawMarried && sawRejected); i++ {
-		enby := w.spawn(Colonist, Point{0, 0})
-		hetero := w.spawn(Colonist, Point{1, 0})
+		enby := w.spawn(Colonist, Point{0, 0, LandingLevel})
+		hetero := w.spawn(Colonist, Point{1, 0, LandingLevel})
 		enby.Profile.Gender, enby.Profile.Orientation = GenderNonbinary, Bisexual
 		hetero.Profile.Gender, hetero.Profile.Orientation = GenderMan, Heterosexual
 		if w.wireRelation(enby, hetero, RelSpouse) {
@@ -277,7 +277,7 @@ func TestNonbinaryPairingCoinFlip(t *testing.T) {
 func TestFamilyChanceDisabled(t *testing.T) {
 	w := kinWorld() // FamilyChance == 0
 	for i := 0; i < 30; i++ {
-		e := w.spawn(Colonist, Point{i % w.Width, i / w.Width})
+		e := w.spawn(Colonist, Point{i % w.Width, i / w.Width, LandingLevel})
 		if rels := w.relativesOf(e, w.kinChildren()); len(rels) != 0 {
 			t.Fatalf("colonist #%d got relations with FamilyChance=0: %v", e.ID, rels)
 		}
@@ -294,7 +294,7 @@ func TestGeneratedFamilyReciprocal(t *testing.T) {
 	w := newWorld(cfg, newPCG(7))
 
 	for i := 0; i < 40; i++ {
-		w.spawn(Colonist, Point{i % w.Width, i / w.Width})
+		w.spawn(Colonist, Point{i % w.Width, i / w.Width, LandingLevel})
 	}
 
 	reciprocal := map[RelationKind]RelationKind{
@@ -344,20 +344,20 @@ func TestTalkingRaisesAffinity(t *testing.T) {
 	cx, cy := w.Width/2, w.Height/2
 	for y := cy - 1; y <= cy+1; y++ {
 		for x := cx - 2; x <= cx+2; x++ {
-			w.SetTerrain(Point{x, y}, Floor)
+			w.SetTerrain(Point{x, y, LandingLevel}, Floor)
 		}
 	}
 	for y := cy - 2; y <= cy+2; y++ {
 		for x := cx - 3; x <= cx+3; x++ {
-			if w.TerrainAt(Point{x, y}) != Floor {
-				w.SetTerrain(Point{x, y}, Wall)
+			if w.TerrainAt(Point{x, y, LandingLevel}) != Floor {
+				w.SetTerrain(Point{x, y, LandingLevel}, Wall)
 			}
 		}
 	}
 	w.refreshSpatial()
 
-	a := w.spawn(Colonist, Point{cx - 1, cy})
-	b := w.spawn(Colonist, Point{cx + 1, cy})
+	a := w.spawn(Colonist, Point{cx - 1, cy, LandingLevel})
+	b := w.spawn(Colonist, Point{cx + 1, cy, LandingLevel})
 	// Keep their needs quiet so nothing preempts the chat.
 	for _, e := range []*Entity{a, b} {
 		for i := 0; i < int(numDrives); i++ {
@@ -394,7 +394,7 @@ func TestSocialNeedPreemptsWork(t *testing.T) {
 	// this test used to fail a run in six.
 	cfg.Seed, cfg.TraitChance = 11, 0
 	w := newWorld(cfg, newPCG(11))
-	center := Point{w.Width / 2, w.Height / 2}
+	center := Point{w.Width / 2, w.Height / 2, LandingLevel}
 	w.SetTerrain(center, Floor)
 	w.SetTerrain(center.Add(1, 0), Floor)
 	w.refreshSpatial()
@@ -427,7 +427,7 @@ func TestMutuallyUrgentColonistsFinishConversation(t *testing.T) {
 	cfg.TalkChance = 0                // only the urgent drive may start this chat
 	cfg.Seed, cfg.TraitChance = 11, 0 // no Asocial roll: see TestSocialNeedPreemptsWork
 	w := newWorld(cfg, newPCG(11))
-	center := Point{w.Width / 2, w.Height / 2}
+	center := Point{w.Width / 2, w.Height / 2, LandingLevel}
 	w.SetTerrain(center, Floor)
 	w.SetTerrain(center.Add(1, 0), Floor)
 	w.refreshSpatial()

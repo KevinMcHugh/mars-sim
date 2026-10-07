@@ -121,7 +121,7 @@ func TestEveryFormSpawnsAlive(t *testing.T) {
 		cfg.Seed = seed
 		w := newTestWorld(t, cfg)
 		for form := range w.alienSpecies[0].LifeForms() {
-			e := w.spawn(Alien, Point{5, 5})
+			e := w.spawn(Alien, Point{5, 5, LandingLevel})
 			e.life.form = form
 			w.resizeAlien(e, 100)
 			if !e.Alive() || e.MaxHP < minAlienFormHP {
@@ -138,7 +138,7 @@ func TestAlienGrowsIntoItsNextStage(t *testing.T) {
 	cfg := lifecycleConfig(3, false)
 	w := newTestWorld(t, cfg)
 	sp := w.alienSpecies[0]
-	at := Point{w.Width / 2, w.Height / 2} // the landing cave, which the colony has seen
+	at := Point{w.Width / 2, w.Height / 2, LandingLevel} // the landing cave, which the colony has seen
 	w.reveal(at)
 	e := w.spawn(Alien, at)
 	if w.dormant(e) {
@@ -187,7 +187,7 @@ func TestInertFormsAreNoThreat(t *testing.T) {
 		if inertForm < 0 {
 			continue
 		}
-		at := Point{w.Width / 2, w.Height / 2}
+		at := Point{w.Width / 2, w.Height / 2, LandingLevel}
 		w.reveal(at)
 		e := w.spawn(Alien, at)
 		e.life.form, e.life.growAt = inertForm, w.tick+10000
@@ -220,7 +220,7 @@ func TestYoungFormsDoNotHunt(t *testing.T) {
 			continue
 		}
 		setAlienTemperament(w, 0, TemperamentHostile)
-		at := Point{w.Width / 2, w.Height / 2}
+		at := Point{w.Width / 2, w.Height / 2, LandingLevel}
 		w.reveal(at)
 		e := w.spawn(Alien, at)
 		e.life.form, e.life.growAt = 0, w.tick+10000
@@ -249,7 +249,7 @@ func TestStrikeDamageScalesWithForm(t *testing.T) {
 	cfg := lifecycleConfig(2, true)
 	w := newTestWorld(t, cfg)
 	w.alienSpecies[0].BiteDamage = 20
-	e := w.spawn(Alien, Point{5, 5})
+	e := w.spawn(Alien, Point{5, 5, LandingLevel})
 	for i, f := range w.alienSpecies[0].LifeForms() {
 		e.life.form = i
 		if got, want := w.alienDamage(e), max(1, scaleRound(20, f.SizePct, 100)); got != want {

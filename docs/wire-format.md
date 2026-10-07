@@ -203,6 +203,18 @@ selection is its own topic, so the dedupe and the interval work per creature
 with no extra state. Filth is not in the tile topic: the page already has it
 from the frames.
 
+### Levels
+
+The engine has a level per stair the colony has dug (see
+[stairs.md](./stairs.md)); the browser shows the landing level only, until
+phase Z5 of [z-levels.md](./z-levels.md) gives the frame a level. So the
+encoder sends `Snapshot.Tiles` (the landing level's grid) and leaves out
+every entity, scum patch and salt deposit on another level, and the flow
+section ranges over the landing level. The top of a stair is landing-level
+terrain and is drawn like any other: it has a glyph (appended to the end of
+`glyphs.All`, so no glyph sent before it was renumbered) and a palette colour.
+Nothing in the frame layout changed, and the golden frames did not move.
+
 ### When the host encodes
 
 `cmd/mars-sim-wasm`'s `advance` encodes when `Engine.Advance` published a

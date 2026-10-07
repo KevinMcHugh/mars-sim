@@ -46,9 +46,7 @@ func mined(k ItemKind) bool {
 // armoryStock is how many assault rifles the colony owns, in every depot.
 func (w *World) armoryStock() int {
 	n := 0
-	for _, c := range w.storageContainers {
-		n += c.held(Community, AssaultRifle)
-	}
+	w.eachContainer(func(c *StorageContainer) { n += c.held(Community, AssaultRifle) })
 	return n
 }
 
@@ -129,15 +127,16 @@ func (w *World) ownStockFor(e *Entity, b *Order) (ownStock, bool) {
 	room := w.roomOf(e.Pos)
 	var best ownStock
 	bestDist, found := 1<<30, false
-	for p, c := range w.storageContainers {
+	w.eachContainer(func(c *StorageContainer) {
+		p := c.Pos
 		n := c.held(me, b.Item)
 		if n <= 0 || !w.canUseFixture(e, p) || !w.taskReachable(p, room) {
-			continue
+			return
 		}
-		if d := e.Pos.Chebyshev(p); !found || d < bestDist || (d == bestDist && lessPoint(p, best.from)) {
+		if d := w.travelEstimate(e.Pos, p); !found || d < bestDist || (d == bestDist && lessPoint(p, best.from)) {
 			best, bestDist, found = ownStock{from: p, n: n}, d, true
 		}
-	}
+	})
 	return best, found
 }
 
@@ -167,9 +166,9 @@ func (w *World) planSupply(e *Entity, b *Order, s ownStock, probe *planOffer) bo
 		}
 		return false
 	}
-	walk := e.Pos.Chebyshev(b.Depot)
+	walk := w.travelEstimate(e.Pos, b.Depot)
 	if !s.carried {
-		walk = e.Pos.Chebyshev(s.from) + s.from.Chebyshev(b.Depot)
+		walk = w.travelEstimate(e.Pos, s.from) + w.travelEstimate(s.from, b.Depot)
 	}
 	profit := Money(qty)*(b.Price-w.refPrice(b.Item)) - w.laborCostFor(e, walk)
 	if profit < Money(w.cfg.PlanMinProfit) {

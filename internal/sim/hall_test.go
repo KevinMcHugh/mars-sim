@@ -9,8 +9,8 @@ func hallWorld(t *testing.T) *World {
 	t.Helper()
 	w := propertyWorld(t)
 	w.cfg.TalkChance = 0
-	w.SetTerrain(Point{10, 6}, Chair)
-	w.SetTerrain(Point{12, 6}, Chair)
+	w.SetTerrain(Point{10, 6, LandingLevel}, Chair)
+	w.SetTerrain(Point{12, 6, LandingLevel}, Chair)
 	w.refreshSpatial()
 	return w
 }
@@ -27,8 +27,8 @@ func calm(w *World, e *Entity) {
 // conversation they hold is in the hall, not where they stood.
 func TestSocializersMeetInTheHall(t *testing.T) {
 	w := hallWorld(t)
-	a := w.spawn(Colonist, Point{20, 14})
-	b := w.spawn(Colonist, Point{6, 14})
+	a := w.spawn(Colonist, Point{20, 14, LandingLevel})
+	b := w.spawn(Colonist, Point{6, 14, LandingLevel})
 	for _, e := range []*Entity{a, b} {
 		calm(w, e)
 		w.setDrive(e, DriveSocial, w.cfg.Drives[DriveSocial].SeekAt)
@@ -58,7 +58,7 @@ func TestSocializersMeetInTheHall(t *testing.T) {
 // need is critical (headedForHall).
 func TestAColonistWaitsInTheHallForCompany(t *testing.T) {
 	w := hallWorld(t)
-	a := w.spawn(Colonist, Point{11, 8})
+	a := w.spawn(Colonist, Point{11, 8, LandingLevel})
 	pin := func(level int, es ...*Entity) {
 		for _, e := range es {
 			calm(w, e)
@@ -74,7 +74,7 @@ func TestAColonistWaitsInTheHallForCompany(t *testing.T) {
 			t.Fatalf("tick %d: waiting for company with nobody in the colony to come", w.tick)
 		}
 	}
-	b := w.spawn(Colonist, Point{18, 12})
+	b := w.spawn(Colonist, Point{18, 12, LandingLevel})
 	pin(social.CriticalAt, a, b)
 	for i := 0; i < 300; i++ {
 		w.step()
@@ -95,7 +95,7 @@ func TestAColonistWaitsInTheHallForCompany(t *testing.T) {
 // A hungry colonist with a meal in its pocket takes it to the hall to eat.
 func TestMealsAreEatenInTheHall(t *testing.T) {
 	w := hallWorld(t)
-	e := w.spawn(Colonist, Point{20, 14})
+	e := w.spawn(Colonist, Point{20, 14, LandingLevel})
 	calm(w, e)
 	e.Inventory.Add(Meal, 1)
 	w.setDrive(e, DriveFood, w.cfg.Drives[DriveFood].SeekAt)
@@ -114,7 +114,7 @@ func TestMealsAreEatenInTheHall(t *testing.T) {
 // Critical hunger eats where it stands: the walk is time it may not have.
 func TestACriticallyHungryColonistEatsWhereItStands(t *testing.T) {
 	w := hallWorld(t)
-	e := w.spawn(Colonist, Point{20, 14})
+	e := w.spawn(Colonist, Point{20, 14, LandingLevel})
 	calm(w, e)
 	e.Inventory.Add(Meal, 1)
 	w.setDrive(e, DriveFood, w.cfg.Drives[DriveFood].CriticalAt)
@@ -136,7 +136,7 @@ func TestNoHallNoChange(t *testing.T) {
 	if w.hallOpen() {
 		t.Fatal("a hall is open with no chairs")
 	}
-	e := w.spawn(Colonist, Point{20, 14})
+	e := w.spawn(Colonist, Point{20, 14, LandingLevel})
 	if _, ok := w.mealSeat(e); ok {
 		t.Fatal("a meal seat exists with no chairs")
 	}
@@ -145,12 +145,12 @@ func TestNoHallNoChange(t *testing.T) {
 // Conversation in the hall is better; a chat elsewhere is not.
 func TestHallTalkBonus(t *testing.T) {
 	w := hallWorld(t)
-	a := w.spawn(Colonist, Point{11, 7})
-	b := w.spawn(Colonist, Point{13, 7})
+	a := w.spawn(Colonist, Point{11, 7, LandingLevel})
+	b := w.spawn(Colonist, Point{13, 7, LandingLevel})
 	if got := w.hallTalkBonus(a, b); got != w.cfg.HallTalkBonus {
 		t.Fatalf("bonus in the hall = %d, want %d", got, w.cfg.HallTalkBonus)
 	}
-	b.Pos = Point{20, 14}
+	b.Pos = Point{20, 14, LandingLevel}
 	if got := w.hallTalkBonus(a, b); got != 0 {
 		t.Fatalf("bonus with one partner outside = %d, want 0", got)
 	}

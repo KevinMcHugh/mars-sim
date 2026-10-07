@@ -31,6 +31,11 @@ type OrderIncubator struct{}
 // OrderFoundry asks the planner to queue one foundry: a forge and a gun bench.
 type OrderFoundry struct{}
 
+// OrderStair asks the planner to dig one stair down from the deepest level the
+// colony has reached, if Config.DeepestLevel allows going further. See
+// docs/z-levels.md.
+type OrderStair struct{}
+
 // OrderMeetingHall asks the planner to queue one meeting hall: a room of
 // chairs where colonists socialize and eat.
 type OrderMeetingHall struct{}
@@ -60,6 +65,7 @@ func (OrderStorageRoom) isCommand()  {}
 func (OrderScumhouse) isCommand()    {}
 func (OrderIncubator) isCommand()    {}
 func (OrderFoundry) isCommand()      {}
+func (OrderStair) isCommand()        {}
 func (OrderMeetingHall) isCommand()  {}
 
 // Engine drives the simulation. It owns the World and is the only goroutine that
@@ -435,6 +441,10 @@ func (e *Engine) apply(cmd Command) (rateChanged bool) {
 		e.world.manualHalls++
 	case OrderIncubator:
 		e.world.manualIncubators++
+	case OrderStair:
+		e.world.manualStairs++
+	case OrderShaft:
+		e.world.manualShaftLevels += max(1, c.Levels)
 	case CancelExcavation:
 		e.world.cancelExcavation(c.ID)
 		e.requestPublish()
@@ -496,7 +506,7 @@ func (e *Engine) apply(cmd Command) (rateChanged bool) {
 
 func (e *Engine) spawn(kind Kind) {
 	w := e.world
-	center := Point{w.Width / 2, w.Height / 2}
+	center := Point{w.Width / 2, w.Height / 2, LandingLevel}
 	switch w.species[kind].Spawn {
 	case spawnShip:
 		w.land(1, true) // every colonist comes in a ship

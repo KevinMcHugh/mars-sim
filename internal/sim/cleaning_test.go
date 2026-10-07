@@ -17,16 +17,16 @@ func cleanTestWorld(t *testing.T, withIncinerator bool) (*World, *Entity, Point)
 
 	for y := 5; y <= 15; y++ {
 		for x := 5; x <= 20; x++ {
-			w.SetTerrain(Point{x, y}, Floor)
+			w.SetTerrain(Point{x, y, LandingLevel}, Floor)
 		}
 	}
-	incinerator := Point{19, 10}
+	incinerator := Point{19, 10, LandingLevel}
 	if withIncinerator {
 		w.SetTerrain(incinerator, Incinerator)
 	}
 	w.refreshSpatial()
 
-	return w, w.spawn(Colonist, Point{10, 10}), incinerator
+	return w, w.spawn(Colonist, Point{10, 10, LandingLevel}), incinerator
 }
 
 // runColonist gives one colonist n turns without advancing the world clock, so
@@ -43,7 +43,7 @@ func runColonist(w *World, e *Entity, n int) {
 // and its own hands empty.
 func TestColonistCleansAndIncineratesRefuse(t *testing.T) {
 	w, colonist, _ := cleanTestWorld(t, true)
-	mess := Point{7, 7}
+	mess := Point{7, 7, LandingLevel}
 	w.addGore(mess)
 	w.addCorpse(mess, ColonistCorpse)
 
@@ -67,7 +67,7 @@ func TestColonistCleansAndIncineratesRefuse(t *testing.T) {
 // still cleans first, or in a real colony the mess would never be touched.
 func TestCleaningOutranksMining(t *testing.T) {
 	w, colonist, _ := cleanTestWorld(t, true)
-	w.addGore(Point{9, 9})
+	w.addGore(Point{9, 9, LandingLevel})
 
 	w.colonistTurn(colonist)
 
@@ -80,7 +80,7 @@ func TestCleaningOutranksMining(t *testing.T) {
 // with no incinerator in reach would only move the mess into an inventory slot.
 func TestNoCleaningWithoutIncinerator(t *testing.T) {
 	w, colonist, _ := cleanTestWorld(t, false)
-	mess := Point{7, 7}
+	mess := Point{7, 7, LandingLevel}
 	w.addGore(mess)
 
 	runColonist(w, colonist, 50)
@@ -121,8 +121,8 @@ func TestCarriedRefuseIsHauledOnceAnIncineratorExists(t *testing.T) {
 // and the second either finds other refuse or does something else entirely.
 func TestRefuseTileIsClaimedByOneCleaner(t *testing.T) {
 	w, first, _ := cleanTestWorld(t, true)
-	second := w.spawn(Colonist, Point{11, 10})
-	mess := Point{7, 7}
+	second := w.spawn(Colonist, Point{11, 10, LandingLevel})
+	mess := Point{7, 7, LandingLevel}
 	w.addGore(mess)
 
 	w.colonistTurn(first)
@@ -141,7 +141,7 @@ func TestRefuseTileIsClaimedByOneCleaner(t *testing.T) {
 // scrub. Mining through to it later is what makes it cleanable.
 func TestUnreachableRefuseIsNotTargeted(t *testing.T) {
 	w, colonist, _ := cleanTestWorld(t, true)
-	buried := Point{7, 3} // outside the carved chamber, still Rock
+	buried := Point{7, 3, LandingLevel} // outside the carved chamber, still Rock
 	w.addGore(buried)
 
 	w.colonistTurn(colonist)
@@ -160,7 +160,7 @@ func TestUnreachableRefuseIsNotTargeted(t *testing.T) {
 func TestBuildingOverRefuseClearsItButDiggingDoesNot(t *testing.T) {
 	w, _, _ := cleanTestWorld(t, false)
 
-	built := Point{8, 8}
+	built := Point{8, 8, LandingLevel}
 	w.addGore(built)
 	w.addCorpse(built, ColonistCorpse)
 	w.SetTerrain(built, Wall)
@@ -171,7 +171,7 @@ func TestBuildingOverRefuseClearsItButDiggingDoesNot(t *testing.T) {
 		t.Errorf("refuse total = %d, want 0 after the only mess was built over", w.refuseTotal())
 	}
 
-	dug := Point{7, 3} // rock, outside the chamber
+	dug := Point{7, 3, LandingLevel} // rock, outside the chamber
 	w.addGore(dug)
 	w.SetTerrain(dug, Floor)
 	if got := w.refuseAt(dug); got != 1 {
@@ -183,7 +183,7 @@ func TestBuildingOverRefuseClearsItButDiggingDoesNot(t *testing.T) {
 // get rid of it.
 func TestTidyColonistSearchesFurtherForMess(t *testing.T) {
 	w, plain, _ := cleanTestWorld(t, true)
-	tidy := w.spawn(Colonist, Point{11, 11})
+	tidy := w.spawn(Colonist, Point{11, 11, LandingLevel})
 	tidy.Profile = &Profile{Traits: []Trait{TraitTidy}}
 
 	if got, want := w.cleanRadius(plain), w.cfg.CleanRadius; got != want {
@@ -201,19 +201,19 @@ func TestDeathsLeaveCorpsesWhenNothingEatsThem(t *testing.T) {
 	cfg.StartColonists, cfg.StartAliens, cfg.StartCats, cfg.StartRats = 0, 0, 0, 0
 	w := newTestWorld(t, cfg)
 
-	stompSpot := Point{5, 5}
+	stompSpot := Point{5, 5, LandingLevel}
 	w.SetTerrain(stompSpot, Floor)
-	w.SetTerrain(Point{4, 5}, Floor)
-	stomper := w.spawn(Colonist, Point{4, 5})
+	w.SetTerrain(Point{4, 5, LandingLevel}, Floor)
+	stomper := w.spawn(Colonist, Point{4, 5, LandingLevel})
 	w.stomp(stomper, w.spawn(Rat, stompSpot))
 	if got := w.corpsesAt(stompSpot); got != 1 {
 		t.Errorf("corpses at the stomp = %d, want 1", got)
 	}
 
-	eatenSpot := Point{8, 5}
+	eatenSpot := Point{8, 5, LandingLevel}
 	w.SetTerrain(eatenSpot, Floor)
-	w.SetTerrain(Point{9, 5}, Floor)
-	cat := w.spawn(Cat, Point{9, 5})
+	w.SetTerrain(Point{9, 5, LandingLevel}, Floor)
+	cat := w.spawn(Cat, Point{9, 5, LandingLevel})
 	w.pounce(cat, w.spawn(Rat, eatenSpot))
 	if got := w.corpsesAt(eatenSpot); got != 0 {
 		t.Errorf("corpses where a cat ate its catch = %d, want 0", got)
@@ -226,7 +226,7 @@ func TestStarvationLeavesACorpse(t *testing.T) {
 	cfg.StartColonists, cfg.StartAliens, cfg.StartCats, cfg.StartRats = 0, 0, 0, 0
 	w := newTestWorld(t, cfg)
 
-	spot := Point{6, 6}
+	spot := Point{6, 6, LandingLevel}
 	w.SetTerrain(spot, Floor)
 	w.refreshSpatial()
 	victim := w.spawn(Colonist, spot)
@@ -255,7 +255,7 @@ func TestColonyPlansATrashRoomForItsRefuse(t *testing.T) {
 	w := newTestWorld(t, cfg)
 
 	// Satisfy every other demand so sanitation is what planRooms has left.
-	center := Point{w.Width / 2, w.Height / 2}
+	center := Point{w.Width / 2, w.Height / 2, LandingLevel}
 	desired := w.desiredFacilities(w.countKind(Colonist))
 	for i, kind := range []Terrain{NutrientPod, Toilet, Bed} {
 		for n := 0; n < desired; n++ {

@@ -14,7 +14,7 @@ func roomsTestWorld(w, h int) *World {
 func carve(w *World, from, to Point, t Terrain) {
 	for y := from.Y; y <= to.Y; y++ {
 		for x := from.X; x <= to.X; x++ {
-			w.SetTerrain(Point{x, y}, t)
+			w.SetTerrain(Point{x, y, LandingLevel}, t)
 		}
 	}
 }
@@ -33,7 +33,7 @@ func bruteRoomCount(w *World) int {
 				continue
 			}
 			count++
-			stack = append(stack[:0], Point{x, y})
+			stack = append(stack[:0], Point{x, y, LandingLevel})
 			seen[i] = true
 			for len(stack) > 0 {
 				p := stack[len(stack)-1]
@@ -43,7 +43,7 @@ func bruteRoomCount(w *World) int {
 					if !w.InBounds(q) {
 						continue
 					}
-					j := w.index(q)
+					j := w.flatIndex(q)
 					if tiles[j].Terrain == Floor && !seen[j] {
 						seen[j] = true
 						stack = append(stack, q)
@@ -59,28 +59,28 @@ func bruteRoomCount(w *World) int {
 // the connection splits them back to two.
 func TestRoomsMergeAndSplit(t *testing.T) {
 	w := roomsTestWorld(40, 24)
-	carve(w, Point{2, 5}, Point{4, 5}, Floor)  // room A
-	carve(w, Point{8, 5}, Point{10, 5}, Floor) // room B
+	carve(w, Point{2, 5, LandingLevel}, Point{4, 5, LandingLevel}, Floor)  // room A
+	carve(w, Point{8, 5, LandingLevel}, Point{10, 5, LandingLevel}, Floor) // room B
 	w.refreshSpatial()
 	if w.roomCount != 2 {
 		t.Fatalf("expected 2 rooms, got %d", w.roomCount)
 	}
 
-	carve(w, Point{5, 5}, Point{7, 5}, Floor) // connect A-B
+	carve(w, Point{5, 5, LandingLevel}, Point{7, 5, LandingLevel}, Floor) // connect A-B
 	w.refreshSpatial()
 	if w.roomCount != 1 {
 		t.Fatalf("expected 1 room after connecting, got %d", w.roomCount)
 	}
-	if !w.sameRoom(Point{2, 5}, Point{10, 5}) {
+	if !w.sameRoom(Point{2, 5, LandingLevel}, Point{10, 5, LandingLevel}) {
 		t.Fatal("connected tiles should be in the same room")
 	}
 
-	w.SetTerrain(Point{6, 5}, Wall) // split
+	w.SetTerrain(Point{6, 5, LandingLevel}, Wall) // split
 	w.refreshSpatial()
 	if w.roomCount != 2 {
 		t.Fatalf("expected 2 rooms after walling, got %d", w.roomCount)
 	}
-	if w.sameRoom(Point{2, 5}, Point{10, 5}) {
+	if w.sameRoom(Point{2, 5, LandingLevel}, Point{10, 5, LandingLevel}) {
 		t.Fatal("split tiles should be in different rooms")
 	}
 }
@@ -89,16 +89,16 @@ func TestRoomsMergeAndSplit(t *testing.T) {
 // and walling the border tile must split it — exercising cross-chunk linking.
 func TestRoomsCrossChunkBoundary(t *testing.T) {
 	w := roomsTestWorld(48, 24)
-	carve(w, Point{10, 8}, Point{25, 8}, Floor) // spans chunks 0 and 1 in x
+	carve(w, Point{10, 8, LandingLevel}, Point{25, 8, LandingLevel}, Floor) // spans chunks 0 and 1 in x
 	w.refreshSpatial()
 	if w.roomCount != 1 {
 		t.Fatalf("corridor across a chunk border should be 1 room, got %d", w.roomCount)
 	}
-	if !w.sameRoom(Point{10, 8}, Point{25, 8}) {
+	if !w.sameRoom(Point{10, 8, LandingLevel}, Point{25, 8, LandingLevel}) {
 		t.Fatal("cells across the chunk border should share a room")
 	}
 
-	w.SetTerrain(Point{16, 8}, Wall) // wall exactly on the chunk boundary
+	w.SetTerrain(Point{16, 8, LandingLevel}, Wall) // wall exactly on the chunk boundary
 	w.refreshSpatial()
 	if w.roomCount != 2 {
 		t.Fatalf("walling the border tile should split into 2 rooms, got %d", w.roomCount)
@@ -113,7 +113,7 @@ func TestRoomsIncrementalMatchesBruteForce(t *testing.T) {
 
 	// Seed a random floor layout.
 	for i := 0; i < 1200; i++ {
-		p := Point{rng.IntN(w.Width), rng.IntN(w.Height)}
+		p := Point{rng.IntN(w.Width), rng.IntN(w.Height), LandingLevel}
 		w.SetTerrain(p, Floor)
 	}
 	w.refreshSpatial()
@@ -123,7 +123,7 @@ func TestRoomsIncrementalMatchesBruteForce(t *testing.T) {
 
 	// Apply random incremental edits and re-check against ground truth.
 	for step := 0; step < 200; step++ {
-		p := Point{rng.IntN(w.Width), rng.IntN(w.Height)}
+		p := Point{rng.IntN(w.Width), rng.IntN(w.Height), LandingLevel}
 		if rng.IntN(2) == 0 {
 			w.SetTerrain(p, Floor)
 		} else {
@@ -165,21 +165,21 @@ func TestStartingCavernIsOneRoom(t *testing.T) {
 // See updateDisconnected, which every colonist is checked against.
 func TestMainRoomTracksLargestRoom(t *testing.T) {
 	w := roomsTestWorld(40, 24)
-	carve(w, Point{2, 5}, Point{3, 5}, Floor)   // small room: 2 tiles
-	carve(w, Point{10, 5}, Point{19, 5}, Floor) // big room: 10 tiles
+	carve(w, Point{2, 5, LandingLevel}, Point{3, 5, LandingLevel}, Floor)   // small room: 2 tiles
+	carve(w, Point{10, 5, LandingLevel}, Point{19, 5, LandingLevel}, Floor) // big room: 10 tiles
 	w.refreshSpatial()
 	if w.roomCount != 2 {
 		t.Fatalf("expected 2 rooms, got %d", w.roomCount)
 	}
-	big := w.roomOf(Point{10, 5})
+	big := w.roomOf(Point{10, 5, LandingLevel})
 	if w.mainRoom != big {
 		t.Fatalf("mainRoom = %d, want the bigger room %d", w.mainRoom, big)
 	}
 
 	// Growing the small room past the big one flips which is main.
-	carve(w, Point{2, 6}, Point{3, 15}, Floor) // +20 tiles onto the small room
+	carve(w, Point{2, 6, LandingLevel}, Point{3, 15, LandingLevel}, Floor) // +20 tiles onto the small room
 	w.refreshSpatial()
-	small := w.roomOf(Point{2, 5})
+	small := w.roomOf(Point{2, 5, LandingLevel})
 	if w.mainRoom != small {
 		t.Fatalf("mainRoom = %d, want the now-bigger room %d", w.mainRoom, small)
 	}
@@ -190,9 +190,9 @@ func TestMainRoomTracksLargestRoom(t *testing.T) {
 	// reassign fresh RegionIDs to an untouched room's portion that shares it,
 	// so a room's own ID is not guaranteed stable across an unrelated edit —
 	// only which physical room mainRoom names is.
-	carve(w, Point{2, 5}, Point{3, 15}, Wall)
+	carve(w, Point{2, 5, LandingLevel}, Point{3, 15, LandingLevel}, Wall)
 	w.refreshSpatial()
-	if stillBig := w.roomOf(Point{10, 5}); w.mainRoom != stillBig {
+	if stillBig := w.roomOf(Point{10, 5, LandingLevel}); w.mainRoom != stillBig {
 		t.Fatalf("mainRoom = %d after removing the bigger room, want %d", w.mainRoom, stillBig)
 	}
 }
@@ -202,8 +202,8 @@ func TestMainRoomTracksLargestRoom(t *testing.T) {
 // resets the instant it reconnects (see updateDisconnected).
 func TestUpdateDisconnectedTracksCutoffRoom(t *testing.T) {
 	w := roomsTestWorld(40, 24)
-	carve(w, Point{10, 5}, Point{19, 5}, Floor) // the main room: 10 tiles
-	pocket := Point{2, 5}
+	carve(w, Point{10, 5, LandingLevel}, Point{19, 5, LandingLevel}, Floor) // the main room: 10 tiles
+	pocket := Point{2, 5, LandingLevel}
 	w.SetTerrain(pocket, Floor) // isolated: 1 tile, well short of the main room
 	w.refreshSpatial()
 	if w.roomOf(pocket) == w.mainRoom {
@@ -219,7 +219,7 @@ func TestUpdateDisconnectedTracksCutoffRoom(t *testing.T) {
 	}
 
 	// Connect the pocket to the main room; the counter must reset immediately.
-	carve(w, Point{3, 5}, Point{9, 5}, Floor)
+	carve(w, Point{3, 5, LandingLevel}, Point{9, 5, LandingLevel}, Floor)
 	w.refreshSpatial()
 	if w.roomOf(pocket) != w.mainRoom {
 		t.Fatal("test setup did not reconnect the pocket")
@@ -245,7 +245,7 @@ func checkRoomLabels(t *testing.T, w *World) {
 		if tiles[i].Terrain != Floor || seen[i] {
 			continue
 		}
-		start := Point{i % w.Width, i / w.Width}
+		start := Point{i % w.Width, i / w.Width, LandingLevel}
 		room := w.roomOf(start)
 		minRegion := RegionID(1 << 30)
 		size, discovered := 0, false
@@ -255,15 +255,15 @@ func checkRoomLabels(t *testing.T, w *World) {
 			p := stack[len(stack)-1]
 			stack = stack[:len(stack)-1]
 			size++
-			discovered = discovered || tiles[w.index(p)].Explored
+			discovered = discovered || tiles[w.flatIndex(p)].Explored
 			if got := w.roomOf(p); got != room {
 				t.Fatalf("tile %v is in room %d, but its component started in room %d", p, got, room)
 			}
-			minRegion = min(minRegion, w.regionOf.at(p.X, p.Y))
+			minRegion = min(minRegion, w.landing().regionOf.at(p.X, p.Y))
 			for _, d := range neighbors8 {
 				q := p.Add(d.X, d.Y)
-				if w.InBounds(q) && tiles[w.index(q)].Terrain == Floor && !seen[w.index(q)] {
-					seen[w.index(q)] = true
+				if w.InBounds(q) && tiles[w.flatIndex(q)].Terrain == Floor && !seen[w.flatIndex(q)] {
+					seen[w.flatIndex(q)] = true
 					stack = append(stack, q)
 				}
 			}

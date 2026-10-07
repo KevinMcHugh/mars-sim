@@ -10,7 +10,7 @@ func TestTheColonysMealPriceRisesAsStoresFall(t *testing.T) {
 	w, house := scumhouseWorld(t, false)
 	w.cfg.MealReserve, w.cfg.MealPriceMax, w.cfg.PriceMeal = 2, 300, 5
 	for i := 0; i < 5; i++ {
-		w.spawn(Colonist, Point{12 + i, 10})
+		w.spawn(Colonist, Point{12 + i, 10, LandingLevel})
 	}
 	c := w.storageContainers[house]
 	stock := func(n int) {
@@ -38,7 +38,7 @@ func TestTheColonysMealPriceRisesAsStoresFall(t *testing.T) {
 func TestTheColonyRepricesItsMeals(t *testing.T) {
 	w, house := scumhouseWorld(t, false)
 	w.cfg.MealReserve, w.cfg.MealPriceMax, w.cfg.PriceMeal = 10, 300, 5
-	w.spawn(Colonist, Point{12, 10})
+	w.spawn(Colonist, Point{12, 10, LandingLevel})
 	c := w.storageContainers[house]
 	c.Inventory.Add(Meal, 10)
 	c.credit(Community, Meal, 10)
@@ -47,7 +47,7 @@ func TestTheColonyRepricesItsMeals(t *testing.T) {
 	if ask, ok := w.bestAsk(Meal, house); !ok || ask.Price != 5 {
 		t.Fatalf("with a full reserve: ask %+v, want $5", ask)
 	}
-	w.spawn(Colonist, Point{13, 10}) // a second mouth: 10 meals is now half the reserve
+	w.spawn(Colonist, Point{13, 10, LandingLevel}) // a second mouth: 10 meals is now half the reserve
 	w.refreshColonyMealAsks()
 	if ask, ok := w.bestAsk(Meal, house); !ok || ask.Price != w.colonyMealPrice() || ask.Price <= 5 {
 		t.Fatalf("with half the reserve: ask %+v, want the risen price %v", ask, w.colonyMealPrice())
@@ -61,7 +61,7 @@ func TestTheColonyRepricesItsMeals(t *testing.T) {
 // costs it, and then before the colony's food work.
 func TestFoodOnItsOwnAccountWhenItPays(t *testing.T) {
 	w, _ := scumhouseWorld(t, false)
-	e := w.spawn(Colonist, Point{12, 10})
+	e := w.spawn(Colonist, Point{12, 10, LandingLevel})
 	w.cfg.PriceMeal, w.cfg.MealPriceMax = 2, 100
 	if w.foodPays(e) {
 		t.Fatal("a $2 meal pays for two units of scum and the work")
@@ -78,7 +78,7 @@ func TestACookSellsItsSurplusWhereItCooks(t *testing.T) {
 	w, house := scumhouseWorld(t, false)
 	w.cfg.MealKeep, w.cfg.PocketMealAt = 0, 0 // keep nothing back: no meal-keep, no pocket meal
 	c := w.storageContainers[house]
-	cook := w.spawn(Colonist, Point{12, 10})
+	cook := w.spawn(Colonist, Point{12, 10, LandingLevel})
 	me := ColonistOwner(cook.ID)
 	c.Inventory.Add(CaveScum, 2)
 	c.credit(me, CaveScum, 2)

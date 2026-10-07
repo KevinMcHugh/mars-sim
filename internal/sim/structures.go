@@ -625,7 +625,7 @@ func (w *World) emptyDepot(p Point) {
 func (w *World) nearestChestFor(from Point, owner Owner, kind ItemKind) *StorageContainer {
 	var best *StorageContainer
 	bestD := 0
-	for q := range w.facilityTiles[Storage] {
+	for q := range w.lay(from).facilityTiles[Storage] {
 		if q == from {
 			continue
 		}

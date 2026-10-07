@@ -75,7 +75,7 @@ func (w *World) nearestTaggedWhere(from Point, tags Tags, keep func(*Entity) boo
 			if e == nil || !e.Alive() || !w.tagsOf(e).Has(tags) || (keep != nil && !keep(e)) {
 				continue
 			}
-			d := from.Chebyshev(e.Pos)
+			d := w.travelEstimate(from, e.Pos)
 			if best == nil || d < bestDist || (d == bestDist && e.ID < best.ID) {
 				best, bestDist = e, d
 			}

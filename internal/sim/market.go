@@ -408,11 +408,12 @@ func (w *World) marketDepot() (Point, bool) {
 	if w.marketDepotRev == w.fixtureRev+1 {
 		return w.marketDepotAt, w.marketDepotOK
 	}
-	center := Point{w.Width / 2, w.Height / 2}
+	// The silo is the landing level's: the colony's market is where it lives.
+	center := Point{w.Width / 2, w.Height / 2, LandingLevel}
 	var best Point
 	bestDist, found := 1<<30, false
 	for p, c := range w.storageContainers {
-		if c.Terrain != Storage || !w.communalFixture(p) || w.isPantry(p) {
+		if p.Level != LandingLevel || c.Terrain != Storage || !w.communalFixture(p) || w.isPantry(p) {
 			continue // a pantry is a kitchen's, for meals: not the silo
 		}
 		d := center.Chebyshev(p)
@@ -581,8 +582,8 @@ func (w *World) tryBuyMeal(e *Entity) bool {
 			continue
 		}
 		if best == nil || ask.Price < best.Price || (ask.Price == best.Price &&
-			(e.Pos.Chebyshev(p) < e.Pos.Chebyshev(best.Depot) ||
-				(e.Pos.Chebyshev(p) == e.Pos.Chebyshev(best.Depot) && lessPoint(p, best.Depot)))) {
+			(w.travelEstimate(e.Pos, p) < w.travelEstimate(e.Pos, best.Depot) ||
+				(w.travelEstimate(e.Pos, p) == w.travelEstimate(e.Pos, best.Depot) && lessPoint(p, best.Depot)))) {
 			best = ask
 		}
 	}
@@ -630,11 +631,11 @@ const (
 // every depot but the silo (meals already there are for sale or bought).
 func (w *World) surplusMeals(e *Entity, silo Point) int {
 	n := e.ownCarried(Meal)
-	for p, c := range w.storageContainers {
-		if p != silo {
+	w.eachContainer(func(c *StorageContainer) {
+		if c.Pos != silo {
 			n += c.held(ColonistOwner(e.ID), Meal)
 		}
-	}
+	})
 	return n - max(w.cfg.MealKeep, w.pocketMeals()) // never the pocket meal
 }
 
@@ -657,14 +658,15 @@ func (w *World) tryAssignSellMeals(e *Entity) bool {
 	me := ColonistOwner(e.ID)
 	var best Point
 	bestDist, found := 1<<30, false
-	for p, c := range w.storageContainers {
+	w.eachContainer(func(c *StorageContainer) {
+		p := c.Pos
 		if p == silo || c.held(me, Meal) == 0 || !w.canUseFixture(e, p) || !w.taskReachable(p, room) {
-			continue
+			return
 		}
-		if d := e.Pos.Chebyshev(p); !found || d < bestDist || (d == bestDist && lessPoint(p, best)) {
+		if d := w.travelEstimate(e.Pos, p); !found || d < bestDist || (d == bestDist && lessPoint(p, best)) {
 			best, bestDist, found = p, d, true
 		}
-	}
+	})
 	if !found {
 		return false
 	}

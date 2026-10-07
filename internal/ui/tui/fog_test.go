@@ -21,7 +21,7 @@ func fogSnapshot() *sim.Snapshot {
 	w, h := 12, 8
 	tiles := make([]sim.Tile, w*h)
 	for i := range tiles {
-		p := sim.Point{X: i % w, Y: i / w}
+		p := sim.Point{X: i % w, Y: i / w, Level: sim.LandingLevel}
 		tiles[i].Terrain = sim.Rock
 		tiles[i].Explored = fogExplored(p)
 	}
@@ -31,8 +31,8 @@ func fogSnapshot() *sim.Snapshot {
 		Tick: 3, Width: w, Height: h, Tiles: sim.NewTileGrid(w, h, tiles),
 		TicksPerSecond: 8, FogOfWar: true, MoodMax: 100, AffinityMax: 100,
 		Entities: []sim.EntityView{
-			{ID: 1, Kind: sim.Colonist, Pos: sim.Point{X: 2, Y: 2}, HP: 40, MaxHP: 40},
-			{ID: 2, Kind: sim.Alien, Pos: sim.Point{X: 9, Y: 6}, HP: 30, MaxHP: 30},
+			{ID: 1, Kind: sim.Colonist, Pos: sim.Point{X: 2, Y: 2, Level: sim.LandingLevel}, HP: 40, MaxHP: 40},
+			{ID: 2, Kind: sim.Alien, Pos: sim.Point{X: 9, Y: 6, Level: sim.LandingLevel}, HP: 30, MaxHP: 30},
 		},
 		Log: []sim.LogEntry{{Text: "The colony ship settles onto the Martian crust."}},
 	}
@@ -90,7 +90,7 @@ func TestMapHidesEntitiesInTheFog(t *testing.T) {
 	alien := snap.Entities[1].Pos
 	tiles := make([]sim.Tile, snap.Width*snap.Height)
 	for i := range tiles {
-		p := sim.Point{X: i % snap.Width, Y: i / snap.Width}
+		p := sim.Point{X: i % snap.Width, Y: i / snap.Width, Level: sim.LandingLevel}
 		tiles[i] = snap.TileAt(p)
 		if p == alien {
 			tiles[i].Explored = true
@@ -136,7 +136,7 @@ func TestInspectorHidesUnexploredTerrain(t *testing.T) {
 	m := fogModel(t, fogSnapshot())
 	m.inspecting = true
 
-	m.cursor = sim.Point{X: 9, Y: 6}
+	m.cursor = sim.Point{X: 9, Y: 6, Level: sim.LandingLevel}
 	for name, out := range map[string]string{"sidebar": m.renderMapSidebar(), "footer": m.renderFooter()} {
 		if !strings.Contains(out, "unexplored") {
 			t.Errorf("%s does not call an unexplored tile unexplored: %q", name, out)
@@ -146,7 +146,7 @@ func TestInspectorHidesUnexploredTerrain(t *testing.T) {
 		}
 	}
 
-	m.cursor = sim.Point{X: 2, Y: 2}
+	m.cursor = sim.Point{X: 2, Y: 2, Level: sim.LandingLevel}
 	if out := m.renderMapSidebar(); !strings.Contains(out, "floor") {
 		t.Errorf("sidebar does not report the explored tile's terrain: %q", out)
 	}

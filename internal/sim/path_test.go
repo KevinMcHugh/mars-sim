@@ -41,9 +41,9 @@ func TestPathOptimalMatchesBFS(t *testing.T) {
 	w := roomsTestWorld(60, 40)
 	rng := newRand(21)
 	// Carve a large room, then pepper it with wall obstacles.
-	carve(w, Point{2, 2}, Point{57, 37}, Floor)
+	carve(w, Point{2, 2, LandingLevel}, Point{57, 37, LandingLevel}, Floor)
 	for i := 0; i < 300; i++ {
-		w.SetTerrain(Point{2 + rng.IntN(56), 2 + rng.IntN(36)}, Wall)
+		w.SetTerrain(Point{2 + rng.IntN(56), 2 + rng.IntN(36), LandingLevel}, Wall)
 	}
 	w.refreshSpatial()
 
@@ -85,24 +85,24 @@ func TestPathfindingNavigatesMaze(t *testing.T) {
 	// A snake: floor corridors separated by walls with alternating gaps.
 	//   col 2 open top..bottom; wall col 3 with gap at bottom; col 4 open; wall
 	//   col 5 with gap at top; col 6 open; etc. Forces an up-down-up route.
-	carve(w, Point{1, 1}, Point{1, 10}, Floor) // start column
+	carve(w, Point{1, 1, LandingLevel}, Point{1, 10, LandingLevel}, Floor) // start column
 	for x := 2; x <= 18; x++ {
-		carve(w, Point{x, 1}, Point{x, 10}, Floor)
+		carve(w, Point{x, 1, LandingLevel}, Point{x, 10, LandingLevel}, Floor)
 	}
 	// Walls with a single gap, alternating ends.
 	for i, x := 0, 3; x <= 17; x, i = x+2, i+1 {
-		carve(w, Point{x, 1}, Point{x, 10}, Wall)
+		carve(w, Point{x, 1, LandingLevel}, Point{x, 10, LandingLevel}, Wall)
 		if i%2 == 0 {
-			w.SetTerrain(Point{x, 10}, Floor) // gap at bottom
+			w.SetTerrain(Point{x, 10, LandingLevel}, Floor) // gap at bottom
 		} else {
-			w.SetTerrain(Point{x, 1}, Floor) // gap at top
+			w.SetTerrain(Point{x, 1, LandingLevel}, Floor) // gap at top
 		}
 	}
 	w.refreshSpatial()
 
-	start := Point{1, 1}
+	start := Point{1, 1, LandingLevel}
 	col := w.spawn(Colonist, start)
-	target := Point{19, 5} // rock just past the far corridor
+	target := Point{19, 5, LandingLevel} // rock just past the far corridor
 	if w.TerrainAt(target) != Rock {
 		t.Fatalf("expected rock at target, got %v", w.TerrainAt(target))
 	}
@@ -131,40 +131,40 @@ func TestPathfindingNavigatesMaze(t *testing.T) {
 // a full search.
 func TestPathfindingRejectsUnreachable(t *testing.T) {
 	w := roomsTestWorld(40, 24)
-	carve(w, Point{3, 5}, Point{5, 7}, Floor)   // room A
-	carve(w, Point{20, 5}, Point{22, 7}, Floor) // room B
+	carve(w, Point{3, 5, LandingLevel}, Point{5, 7, LandingLevel}, Floor)   // room A
+	carve(w, Point{20, 5, LandingLevel}, Point{22, 7, LandingLevel}, Floor) // room B
 	w.refreshSpatial()
 
 	// A rock tile touching room B only.
-	target := Point{23, 6}
+	target := Point{23, 6, LandingLevel}
 	if w.TerrainAt(target) != Rock {
 		t.Fatalf("expected rock at %v", target)
 	}
-	if _, ok := w.pathToAdjacent(Point{4, 6}, target); ok {
+	if _, ok := w.pathToAdjacent(Point{4, 6, LandingLevel}, target); ok {
 		t.Fatal("A* should not find a route from room A to room B's rock")
 	}
 }
 
 func TestTravelPassesThroughColonistsButStopsOnFreeTile(t *testing.T) {
 	w := roomsTestWorld(9, 5)
-	carve(w, Point{1, 2}, Point{7, 2}, Floor)
+	carve(w, Point{1, 2, LandingLevel}, Point{7, 2, LandingLevel}, Floor)
 	w.refreshSpatial()
 
-	mover := w.spawn(Colonist, Point{1, 2})
+	mover := w.spawn(Colonist, Point{1, 2, LandingLevel})
 	for x := 2; x <= 5; x++ {
-		w.spawn(Colonist, Point{x, 2})
+		w.spawn(Colonist, Point{x, 2, LandingLevel})
 	}
-	target := Point{7, 2}
+	target := Point{7, 2, LandingLevel}
 
 	arrived, ok := w.travelTo(mover, target)
 	if !ok || !arrived {
 		t.Fatalf("travelTo through occupied corridor = arrived %v, ok %v", arrived, ok)
 	}
-	if want := (Point{6, 2}); !mover.Pos.Equal(want) {
+	if want := (Point{6, 2, LandingLevel}); !mover.Pos.Equal(want) {
 		t.Fatalf("mover stopped at %v, want first free route tile %v", mover.Pos, want)
 	}
 	for x := 2; x <= 5; x++ {
-		if got := w.entityAt(Point{x, 2}); got == nil || got == mover {
+		if got := w.entityAt(Point{x, 2, LandingLevel}); got == nil || got == mover {
 			t.Fatalf("transit changed occupant at {%d 2}: %v", x, got)
 		}
 	}
@@ -172,20 +172,20 @@ func TestTravelPassesThroughColonistsButStopsOnFreeTile(t *testing.T) {
 
 func TestPathDestinationMustBeUnoccupied(t *testing.T) {
 	w := roomsTestWorld(7, 5)
-	carve(w, Point{1, 2}, Point{5, 2}, Floor)
+	carve(w, Point{1, 2, LandingLevel}, Point{5, 2, LandingLevel}, Floor)
 	w.refreshSpatial()
 
-	mover := w.spawn(Colonist, Point{1, 2})
+	mover := w.spawn(Colonist, Point{1, 2, LandingLevel})
 	// The only tile adjacent to the target, held by someone working there: a
 	// loiterer would be nudged aside instead (see nudgeLoiterer).
-	worker := w.spawn(Colonist, Point{4, 2})
+	worker := w.spawn(Colonist, Point{4, 2, LandingLevel})
 	worker.Job = JobCraft
-	target := Point{5, 2}
+	target := Point{5, 2, LandingLevel}
 
 	if _, ok := w.travelTo(mover, target); ok {
 		t.Fatal("travelTo found an occupied destination")
 	}
-	if !mover.Pos.Equal(Point{1, 2}) {
+	if !mover.Pos.Equal(Point{1, 2, LandingLevel}) {
 		t.Fatalf("mover stopped on an occupied destination at %v", mover.Pos)
 	}
 }

@@ -7,7 +7,7 @@ import "testing"
 // evicted, so a colonist's own page keeps working after death.
 func TestDeceasedColonistArchivedPermanently(t *testing.T) {
 	w := kinWorld()
-	colonist := w.spawn(Colonist, Point{1, 1})
+	colonist := w.spawn(Colonist, Point{1, 1, LandingLevel})
 	id := colonist.ID
 
 	w.remove(id, "test")
@@ -30,7 +30,7 @@ func TestDeceasedColonistArchivedPermanently(t *testing.T) {
 func TestNonColonistsNotArchivedPermanently(t *testing.T) {
 	cfg := testConfig()
 	w := newTestWorld(t, cfg)
-	spot := Point{2, 0}
+	spot := Point{2, 0, LandingLevel}
 	w.SetTerrain(spot, Floor)
 	rat := w.spawn(Rat, spot)
 
@@ -49,14 +49,14 @@ func TestDeceasedSurvivesGraveyardEviction(t *testing.T) {
 	cfg.GraveyardSize = 1
 	w := newTestWorld(t, cfg)
 
-	colonist := w.spawn(Colonist, Point{0, 0})
-	victim := w.spawn(Colonist, Point{1, 0})
+	colonist := w.spawn(Colonist, Point{0, 0, LandingLevel})
+	victim := w.spawn(Colonist, Point{1, 0, LandingLevel})
 	w.remove(victim.ID, "starved")
 
 	// Fill the small bounded graveyard with unrelated deaths so it evicts
 	// the colonist's entry.
 	for i := 0; i < 3; i++ {
-		spot := Point{2, 0}
+		spot := Point{2, 0, LandingLevel}
 		w.SetTerrain(spot, Floor)
 		rat := w.spawn(Rat, spot)
 		w.stomp(colonist, rat)
@@ -80,7 +80,7 @@ func TestDeceasedArchivedEvenWhenGraveyardDisabled(t *testing.T) {
 	cfg.GraveyardSize = 0
 	w := newTestWorld(t, cfg)
 
-	colonist := w.spawn(Colonist, Point{0, 0})
+	colonist := w.spawn(Colonist, Point{0, 0, LandingLevel})
 	w.remove(colonist.ID, "starved")
 
 	if len(w.graveyard) != 0 {
@@ -96,7 +96,7 @@ func TestDeceasedArchivedEvenWhenGraveyardDisabled(t *testing.T) {
 // snapshotting it.
 func TestDeceasedRecordRetainsInventory(t *testing.T) {
 	w := kinWorld()
-	colonist := w.spawn(Colonist, Point{1, 1})
+	colonist := w.spawn(Colonist, Point{1, 1, LandingLevel})
 	colonist.Inventory[0] = ItemStack{Kind: RawRock, Count: 3}
 
 	w.remove(colonist.ID, "test")
@@ -113,8 +113,8 @@ func TestDeceasedRecordRetainsInventory(t *testing.T) {
 // Relation for them by ID, resolvable through Snapshot.Deceased.
 func TestDeadColonistStaysInLivingRelativeFamilyTree(t *testing.T) {
 	w := kinWorld()
-	parent := w.spawn(Colonist, Point{1, 1})
-	child := w.spawn(Colonist, Point{2, 1})
+	parent := w.spawn(Colonist, Point{1, 1, LandingLevel})
+	child := w.spawn(Colonist, Point{2, 1, LandingLevel})
 	parent.Profile.Age = 45
 	child.Profile.Age = 20
 	if !w.wireRelation(child, parent, RelChild) {
@@ -134,8 +134,8 @@ func TestDeadColonistStaysInLivingRelativeFamilyTree(t *testing.T) {
 // keeps showing who they were related to.
 func TestDeceasedRecordHasOwnRelations(t *testing.T) {
 	w := kinWorld()
-	parent := w.spawn(Colonist, Point{1, 1})
-	child := w.spawn(Colonist, Point{2, 1})
+	parent := w.spawn(Colonist, Point{1, 1, LandingLevel})
+	child := w.spawn(Colonist, Point{2, 1, LandingLevel})
 	parent.Profile.Age = 45
 	child.Profile.Age = 20
 	if !w.wireRelation(child, parent, RelChild) {
@@ -161,8 +161,8 @@ func TestDeceasedRecordHasOwnRelations(t *testing.T) {
 // hold.
 func TestSnapshotDeceasedIsCopiedPerDeathNotPerFrame(t *testing.T) {
 	w := kinWorld()
-	first := w.spawn(Colonist, Point{1, 1})
-	second := w.spawn(Colonist, Point{2, 1})
+	first := w.spawn(Colonist, Point{1, 1, LandingLevel})
+	second := w.spawn(Colonist, Point{2, 1, LandingLevel})
 	w.remove(first.ID, "test")
 
 	const probeID = EntityID(1 << 30)

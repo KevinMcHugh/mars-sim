@@ -7,10 +7,10 @@ import "testing"
 // owner and who may use it, a stove's pantry link both ways.
 func TestRelocatingAFixtureCarriesWhatIsItsOwn(t *testing.T) {
 	w := rockSiteWorld(t)
-	carve(w, Point{4, 4}, Point{20, 12}, Floor)
+	carve(w, Point{4, 4, LandingLevel}, Point{20, 12, LandingLevel}, Floor)
 	w.refreshSpatial()
 
-	oldChest, newChest := Point{6, 6}, Point{10, 6}
+	oldChest, newChest := Point{6, 6, LandingLevel}, Point{10, 6, LandingLevel}
 	w.SetTerrain(oldChest, Storage)
 	w.SetTerrain(newChest, Storage)
 	owner := ColonistOwner(7)
@@ -28,7 +28,7 @@ func TestRelocatingAFixtureCarriesWhatIsItsOwn(t *testing.T) {
 		t.Fatalf("the new chest's record is %+v, want the owner's and private", f)
 	}
 
-	oldInc, newInc := Point{6, 10}, Point{10, 10}
+	oldInc, newInc := Point{6, 10, LandingLevel}, Point{10, 10, LandingLevel}
 	w.SetTerrain(oldInc, Incubator)
 	w.SetTerrain(newInc, Incubator)
 	stock(w, oldInc, Community, CaveScum, w.incubatorSeed()+3)
@@ -37,7 +37,7 @@ func TestRelocatingAFixtureCarriesWhatIsItsOwn(t *testing.T) {
 		t.Fatalf("the moved incubator has %d ripe scum, want the 3 it had", got)
 	}
 
-	stove, pantry, newStove := Point{14, 6}, Point{16, 6}, Point{14, 10}
+	stove, pantry, newStove := Point{14, 6, LandingLevel}, Point{16, 6, LandingLevel}, Point{14, 10, LandingLevel}
 	w.SetTerrain(stove, Scumhouse)
 	w.SetTerrain(pantry, Storage)
 	w.SetTerrain(newStove, Scumhouse)
@@ -60,23 +60,23 @@ func TestRelocatingAFixtureCarriesWhatIsItsOwn(t *testing.T) {
 // without materials, the old comes down after, and the goods are in the new
 // chest, still their owner's.
 func TestColonistsMoveAChest(t *testing.T) {
-	w, a := builtRoom(t, storageRoom, Point{14, 10}, 1) // chest at (15, 10)
-	b := &roomRecord{lo: Point{20, 10}, hi: Point{22, 12}, zone: ZoneStorage, issuer: Community}
-	carve(w, Point{19, 9}, Point{23, 14}, Floor)
+	w, a := builtRoom(t, storageRoom, Point{14, 10, LandingLevel}, 1) // chest at (15, 10)
+	b := &roomRecord{lo: Point{20, 10, LandingLevel}, hi: Point{22, 12, LandingLevel}, zone: ZoneStorage, issuer: Community}
+	carve(w, Point{19, 9, LandingLevel}, Point{23, 14, LandingLevel}, Floor)
 	w.refreshSpatial()
-	from := Point{15, 10}
+	from := Point{15, 10, LandingLevel}
 	stock(w, from, Community, IronOre, 4)
 	// A chest nearer the old place than the new: had the goods been emptied
 	// out the usual way, they would have gone here.
-	decoy := Point{12, 12}
+	decoy := Point{12, 12, LandingLevel}
 	w.SetTerrain(decoy, Storage)
 	w.refreshSpatial()
-	to := Point{21, 10}
+	to := Point{21, 10, LandingLevel}
 	if !w.designateMove(a, b, []fixtureMove{{from: from, to: to, kind: Storage}}) {
 		t.Fatal("the move was not designated")
 	}
 	for i := 0; i < 3; i++ {
-		w.spawn(Colonist, Point{16 + i, 14})
+		w.spawn(Colonist, Point{16 + i, 14, LandingLevel})
 	}
 	stepFed(t, w, 4000, func() bool { return len(w.projects) == 0 })
 	if len(w.projects) > 0 {
@@ -96,10 +96,10 @@ func TestColonistsMoveAChest(t *testing.T) {
 // A small room is emptied into a bigger one of its zone nearby, and once it
 // stands empty its walls are cleared away and its record goes with them.
 func TestASmallRoomIsEmptiedAndClearedAway(t *testing.T) {
-	w, big := builtRoom(t, dormRoom, Point{8, 10}, 2) // inside x 8..10
-	carve(w, Point{14, 8}, Point{22, 15}, Floor)
+	w, big := builtRoom(t, dormRoom, Point{8, 10, LandingLevel}, 2) // inside x 8..10
+	carve(w, Point{14, 8, LandingLevel}, Point{22, 15, LandingLevel}, Floor)
 	w.refreshSpatial()
-	small := alsoBuilt(t, w, dormRoom, roomFrame{o: Point{18, 10}, width: 1}, 1) // one bunk at (18, 10)
+	small := alsoBuilt(t, w, dormRoom, roomFrame{o: Point{18, 10, LandingLevel}, width: 1}, 1) // one bunk at (18, 10)
 	w.refreshSpatial()
 	if _, _, ok := mergeBox(big, small); ok {
 		t.Fatal("test setup: the rooms are close enough to join")
@@ -112,11 +112,11 @@ func TestASmallRoomIsEmptiedAndClearedAway(t *testing.T) {
 		t.Fatalf("project %q moves from %p into %p, want the small room into the big", p.name, p.from, p.room)
 	}
 	for i := 0; i < 3; i++ {
-		w.spawn(Colonist, Point{12 + i, 14})
+		w.spawn(Colonist, Point{12 + i, 14, LandingLevel})
 	}
 	stepFed(t, w, 4000, func() bool { return len(w.projects) == 0 })
-	if w.TerrainAt(Point{18, 10}) != Floor || w.countTerrain(Bed) != 3 {
-		t.Fatalf("after the move: (18,10) is %v and there are %d bunks, want floor and 3", w.TerrainAt(Point{18, 10}), w.countTerrain(Bed))
+	if w.TerrainAt(Point{18, 10, LandingLevel}) != Floor || w.countTerrain(Bed) != 3 {
+		t.Fatalf("after the move: (18,10) is %v and there are %d bunks, want floor and 3", w.TerrainAt(Point{18, 10, LandingLevel}), w.countTerrain(Bed))
 	}
 	if !w.tidyRooms() {
 		t.Fatal("the empty room was not cleared away")
@@ -127,7 +127,7 @@ func TestASmallRoomIsEmptiedAndClearedAway(t *testing.T) {
 			t.Fatal("the cleared room is still recorded")
 		}
 	}
-	if w.TerrainAt(Point{17, 10}) == Wall || w.TerrainAt(Point{19, 10}) == Wall {
+	if w.TerrainAt(Point{17, 10, LandingLevel}) == Wall || w.TerrainAt(Point{19, 10, LandingLevel}) == Wall {
 		t.Fatal("the empty room's walls still stand")
 	}
 	if len(w.roomRecords) != 1 || w.countTerrain(Bed) != 3 {

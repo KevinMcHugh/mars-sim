@@ -56,7 +56,7 @@ type scumPatch struct {
 
 // scumAt is how much scum is on p now.
 func (w *World) scumAt(p Point) int {
-	return min(w.scum[p].amount, w.cfg.ScumMax)
+	return min(w.lay(p).scum[p].amount, w.cfg.ScumMax)
 }
 
 // takeScum scrapes one unit off p, reporting whether there was any. A patch
@@ -78,11 +78,12 @@ func (w *World) takeScum(p Point) bool {
 
 // clearScum destroys the patch on p: something was built over it.
 func (w *World) clearScum(p Point) {
-	if _, ok := w.scum[p]; ok {
-		delete(w.scum, p)
+	if _, ok := w.lay(p).scum[p]; ok {
+		l := w.lay(p)
+		delete(l.scum, p)
 		w.markThin(p, false)
-		delete(w.exposedScum, p)
-		w.scumPatches.remove(p)
+		delete(l.exposedScum, p)
+		l.scumPatches.remove(p)
 		w.scumRev++
 	}
 }
@@ -91,8 +92,9 @@ func (w *World) clearScum(p Point) {
 // new. Every patch goes on the map through here or applyChunk, so the two
 // agree.
 func (w *World) setScum(p Point, amount int) {
-	if _, ok := w.scum[p]; !ok {
-		w.scumPatches.insert(p)
+	l := w.lay(p)
+	if _, ok := l.scum[p]; !ok {
+		l.scumPatches.insert(p)
 	}
 	w.putScum(p, amount)
 }
@@ -100,34 +102,37 @@ func (w *World) setScum(p Point, amount int) {
 // putScum sets the amount on p's patch, keeping scumThin in step. Every
 // change to an amount goes through here (applyChunk's patches start full).
 func (w *World) putScum(p Point, amount int) {
-	w.scum[p] = scumPatch{amount: amount}
+	w.lay(p).scum[p] = scumPatch{amount: amount}
 	w.markThin(p, amount < w.cfg.ScumMax)
 }
 
-// markThin lists p in scumThin, or takes it off, keeping the page counts.
+// markThin lists p in its level's scumThin, or takes it off, keeping the
+// page counts.
 func (w *World) markThin(p Point, thin bool) {
-	if _, was := w.scumThin[p]; was == thin {
+	l := w.lay(p)
+	if _, was := l.scumThin[p]; was == thin {
 		return
 	}
-	if w.scumThinPages == nil {
-		w.scumThinPages = make([]int32, len(w.tiles.pages))
+	if l.scumThinPages == nil {
+		l.scumThinPages = make([]int32, len(l.tiles.pages))
 	}
-	pi := w.tiles.pageIndex(p.X, p.Y)
+	pi := l.tiles.pageIndex(p.X, p.Y)
 	if thin {
-		w.scumThin[p] = struct{}{}
-		w.scumThinPages[pi]++
+		l.scumThin[p] = struct{}{}
+		l.scumThinPages[pi]++
 	} else {
-		delete(w.scumThin, p)
-		w.scumThinPages[pi]--
+		delete(l.scumThin, p)
+		l.scumThinPages[pi]--
 	}
 }
 
 // thinScumAt reports whether p holds a patch below ScumMax.
 func (w *World) thinScumAt(p Point) bool {
-	if len(w.scumThin) == 0 || !w.InBounds(p) || w.scumThinPages[w.tiles.pageIndex(p.X, p.Y)] == 0 {
+	l := w.layerIn(p)
+	if l == nil || len(l.scumThin) == 0 || l.scumThinPages[l.tiles.pageIndex(p.X, p.Y)] == 0 {
 		return false
 	}
-	_, thin := w.scumThin[p]
+	_, thin := l.scumThin[p]
 	return thin
 }
 
@@ -172,16 +177,16 @@ func (w *World) scumExposed(p Point) bool {
 // the way the job board refreshes the mining frontier.
 func (w *World) refreshScumExposure(p Point) {
 	check := func(q Point) {
-		if _, ok := w.scum[q]; !ok {
+		if _, ok := w.lay(q).scum[q]; !ok {
 			return
 		}
-		_, was := w.exposedScum[q]
+		_, was := w.lay(q).exposedScum[q]
 		if now := w.scumExposed(q); now == was {
 			return
 		} else if now {
-			w.exposedScum[q] = struct{}{}
+			w.lay(q).exposedScum[q] = struct{}{}
 		} else {
-			delete(w.exposedScum, q)
+			delete(w.lay(q).exposedScum, q)
 		}
 		w.scumRev++
 	}
@@ -248,41 +253,52 @@ func (w *World) growScum() {
 	if w.cfg.ScumMax <= 0 {
 		return
 	}
+	w.eachLayer(w.growScumOn)
+}
+
+// growScumOn is growScum for one level. Each level grows on its own draws:
+// the landing level's are the ones it always had, and a deeper level mixes
+// its distance from it in, the way worldgen's streams do.
+func (w *World) growScumOn(l *Layer) {
 	// span is the tiles spawns land on: whole chunks, so a draw past the
 	// map's edge in an edge chunk is a miss and every real tile gets the same
 	// rate. A world built without generate (tests) is all generated.
 	span := w.Width * w.Height
-	if w.gen != nil {
-		span = len(w.genChunks) * genChunkArea
+	if l.gen != nil {
+		span = len(l.genChunks) * genChunkArea
 	}
 	if span == 0 {
 		return
 	}
-	room := len(w.scum) < min(w.Width*w.Height, span)*w.cfg.ScumPercent/100
+	room := len(l.scum) < min(w.Width*w.Height, span)*w.cfg.ScumPercent/100
 	h := uint64(w.cfg.Seed)*0x9E3779B97F4A7C15 ^ uint64(w.tick)*0xD1B54A32D192ED03
+	if d := uint64(l.Level - LandingLevel); d != 0 {
+		h ^= d * 0xBF58476D1CE4E5B9
+		splitmix64(&h)
+	}
 	hs := h ^ 0x5CA1AB1E // spawns draw apart from spreads
 	// lands reports whether a unit drawn for p could change anything.
 	lands := func(p Point) bool { return room || w.thinScumAt(p) }
 	for i := range scumDraws(span, w.cfg.ScumSpawnPPM, hs) {
-		if !room && len(w.scumThin) == 0 {
+		if !room && len(l.scumThin) == 0 {
 			break
 		}
 		r := hs + uint64(i+1)*2*0x9E3779B97F4A7C15
-		if p, ok := w.scumDrawTile(splitmix64(&r)); ok && lands(p) {
+		if p, ok := w.scumDrawTile(l, splitmix64(&r)); ok && lands(p) {
 			w.addScum(p, room)
 		}
 	}
-	spreads := scumDraws(w.scumPatches.len(), w.cfg.ScumSpreadPercent*10000, h)
-	if !room && len(w.scumThin) > 0 && spreads > 0 {
-		w.scumPatches.freeze() // no patch starts or ends below: the list holds still
+	spreads := scumDraws(l.scumPatches.len(), w.cfg.ScumSpreadPercent*10000, h)
+	if !room && len(l.scumThin) > 0 && spreads > 0 {
+		l.scumPatches.freeze() // no patch starts or ends below: the list holds still
 	}
 	for i := range spreads {
-		if !room && len(w.scumThin) == 0 {
+		if !room && len(l.scumThin) == 0 {
 			break
 		}
 		r := h + uint64(i+1)*2*0x9E3779B97F4A7C15 // two draws each, so no two share one
 		a, b := splitmix64(&r), splitmix64(&r)
-		from := w.scumPatches.at(int(a % uint64(w.scumPatches.len())))
+		from := l.scumPatches.at(int(a % uint64(l.scumPatches.len())))
 		d := neighbors9[b%9]
 		if p := from.Add(d.X, d.Y); lands(p) && w.generatedTile(p) {
 			w.addScum(p, room)
@@ -310,34 +326,38 @@ func scumDraws(n, ppm int, h uint64) int {
 // scumDrawTile turns a draw into a uniform tile of the generated chunks (the
 // whole map, for a world built without generate), reporting false for a tile
 // past the map's edge in a partial edge chunk.
-func (w *World) scumDrawTile(a uint64) (Point, bool) {
-	if w.gen == nil {
-		return Point{int(a % uint64(w.Width)), int((a >> 32) % uint64(w.Height))}, true
+func (w *World) scumDrawTile(l *Layer, a uint64) (Point, bool) {
+	if l.gen == nil {
+		return Point{int(a % uint64(w.Width)), int((a >> 32) % uint64(w.Height)), l.Level}, true
 	}
-	k := w.genChunks[a%uint64(len(w.genChunks))]
+	k := l.genChunks[a%uint64(len(l.genChunks))]
 	off := int((a >> 32) % genChunkArea)
-	p := Point{int(k.cx)<<genChunkBits + (off & (genChunkSize - 1)), int(k.cy)<<genChunkBits + (off >> genChunkBits)}
+	p := Point{int(k.cx)<<genChunkBits + (off & (genChunkSize - 1)), int(k.cy)<<genChunkBits + (off >> genChunkBits), l.Level}
 	return p, w.InBounds(p)
 }
 
 // generatedTile reports whether p is on the map in a generated chunk (every
 // tile, for a world built without generate).
 func (w *World) generatedTile(p Point) bool {
-	return w.InBounds(p) && (w.gen == nil || w.genDone[w.tiles.pageIndex(p.X, p.Y)])
+	if !w.InBounds(p) {
+		return false
+	}
+	l := w.lay(p)
+	return l.gen == nil || l.genDone[l.tiles.pageIndex(p.X, p.Y)]
 }
 
 // neighbors9 is a tile and its eight neighbours.
-var neighbors9 = [9]Point{{0, 0}, {1, 0}, {-1, 0}, {0, 1}, {0, -1}, {1, 1}, {1, -1}, {-1, 1}, {-1, -1}}
+var neighbors9 = [9]gridStep{{0, 0}, {1, 0}, {-1, 0}, {0, 1}, {0, -1}, {1, 1}, {1, -1}, {-1, 1}, {-1, -1}}
 
 // addScum adds a unit to p: thickening a patch already there, or, when room
 // allows, starting one on rock.
 func (w *World) addScum(p Point, room bool) {
-	if s, ok := w.scum[p]; ok {
+	if s, ok := w.lay(p).scum[p]; ok {
 		if s.amount >= w.cfg.ScumMax {
 			return
 		}
 		w.putScum(p, s.amount+1)
-		if _, exposed := w.exposedScum[p]; exposed {
+		if _, exposed := w.lay(p).exposedScum[p]; exposed {
 			w.scumRev++
 		}
 		return
@@ -359,9 +379,7 @@ func (w *World) communityMeals() int {
 		return w.communityMealsCache
 	}
 	n := 0
-	for _, c := range w.storageContainers {
-		n += c.held(Community, Meal)
-	}
+	w.eachContainer(func(c *StorageContainer) { n += c.held(Community, Meal) })
 	for _, o := range w.orders {
 		if o.Side == Ask && o.Item == Meal && o.Actor == Community {
 			n += o.Qty // on offer: still the colony's until it sells
@@ -407,16 +425,16 @@ func (w *World) nearestWorkshop(e *Entity, kind Terrain, ok func(*StorageContain
 	room := w.roomOf(e.Pos)
 	var best Point
 	bestDist, found := 1<<30, false
-	for p := range w.facilityTiles[kind] {
+	w.eachFacility(kind, func(p Point) {
 		c := w.storageContainers[p]
 		if c == nil || !w.canUseFixture(e, p) || !w.taskReachable(p, room) || (ok != nil && !ok(c)) {
-			continue
+			return
 		}
-		d := e.Pos.Chebyshev(p)
+		d := w.travelEstimate(e.Pos, p)
 		if !found || d < bestDist || (d == bestDist && lessPoint(p, best)) {
 			best, bestDist, found = p, d, true
 		}
-	}
+	})
 	return best, found
 }
 
@@ -520,7 +538,7 @@ func (w *World) jobCraft(e *Entity) {
 	}
 	// Down the line: the output goes straight into the pantry, if the
 	// kitchen has one, or back into the stove's own depot if not.
-	out := w.storageContainers[w.outputDepot(e.Target)]
+	out := w.containerAt(w.outputDepot(e.Target))
 	outputs := r.Outputs
 	if len(outputs) > 0 && w.skillEffect(e, r.Skill).YieldPct > 100 {
 		// A skilled worker's yield: now and then one unit more of the
@@ -663,25 +681,27 @@ func (w *World) nearestScum(e *Entity) (Point, bool) {
 	room := w.roomOf(e.Pos)
 	var best Point
 	bestDist, found := 1<<30, false
-	for p := range w.exposedScum {
-		if id := w.scumClaims[p]; id != 0 && id != e.ID {
-			continue
+	w.eachLayer(func(l *Layer) {
+		for p := range l.exposedScum {
+			if id := w.scumClaims[p]; id != 0 && id != e.ID {
+				continue
+			}
+			if w.scumAt(p) == 0 {
+				continue
+			}
+			reachable := w.taskReachable(p, room)
+			if w.Walkable(p) {
+				reachable = w.roomOf(p) == room
+			}
+			if !reachable {
+				continue
+			}
+			d := w.travelEstimate(e.Pos, p)
+			if !found || d < bestDist || (d == bestDist && lessPoint(p, best)) {
+				best, bestDist, found = p, d, true
+			}
 		}
-		if w.scumAt(p) == 0 {
-			continue
-		}
-		reachable := w.taskReachable(p, room)
-		if w.Walkable(p) {
-			reachable = w.roomOf(p) == room
-		}
-		if !reachable {
-			continue
-		}
-		d := e.Pos.Chebyshev(p)
-		if !found || d < bestDist || (d == bestDist && lessPoint(p, best)) {
-			best, bestDist, found = p, d, true
-		}
-	}
+	})
 	return best, found
 }
 
@@ -714,7 +734,7 @@ func (w *World) jobScrape(e *Entity) {
 		w.finishScraping(e)
 		return
 	}
-	if e.Pos.Chebyshev(e.Target) > 1 {
+	if !e.Pos.Within(e.Target, 1) {
 		arrived, ok := w.travelTo(e, e.Target)
 		if !ok {
 			w.clearJob(e)
@@ -893,10 +913,8 @@ var biomatterKinds = [...]ItemKind{CaveScum, Viscera, AnimalCorpse, AlienCorpse}
 
 // scumhousesSorted lists every scumhouse by position.
 func (w *World) scumhousesSorted() []Point {
-	out := make([]Point, 0, len(w.facilityTiles[Scumhouse]))
-	for p := range w.facilityTiles[Scumhouse] {
-		out = append(out, p)
-	}
+	var out []Point
+	w.eachFacility(Scumhouse, func(p Point) { out = append(out, p) })
 	sort.Slice(out, func(i, j int) bool { return lessPoint(out[i], out[j]) })
 	return out
 }
@@ -1134,7 +1152,7 @@ func (w *World) mealFetchesAt(p Point) int {
 		}
 		clear(w.mealFetches)
 		for _, e := range w.entities {
-			if e.Kind == Colonist && e.Job == JobEat && e.eat == eatFetch && e.Pos.Chebyshev(e.Target) <= mealFetchRadius {
+			if e.Kind == Colonist && e.Job == JobEat && e.eat == eatFetch && e.Pos.Within(e.Target, mealFetchRadius) {
 				w.mealFetches[e.Target]++
 			}
 		}
@@ -1302,7 +1320,7 @@ func (w *World) foodPays(e *Entity) bool {
 		}
 	}
 	scum := r.Inputs[0].Count
-	ticks := w.ownWorkTicks(e, r.Skill, r.Ticks) + scum*w.ownWorkTicks(e, SkillForaging, w.cfg.ScrapeTicks) + 2*e.Pos.Chebyshev(house)
+	ticks := w.ownWorkTicks(e, r.Skill, r.Ticks) + scum*w.ownWorkTicks(e, SkillForaging, w.cfg.ScrapeTicks) + 2*w.travelEstimate(e.Pos, house)
 	margin := w.mealSellPrice()*Money(meals) - Money(scum)*w.valueOf(CaveScum) - w.laborCostFor(e, ticks)
 	return margin >= Money(w.cfg.PlanMinProfit)
 }
@@ -1343,9 +1361,7 @@ func (w *World) storedMeals() int {
 		return w.storedMealsCache
 	}
 	n := 0
-	for _, c := range w.storageContainers {
-		n += c.Inventory.Count(Meal)
-	}
+	w.eachContainer(func(c *StorageContainer) { n += c.Inventory.Count(Meal) })
 	w.storedMealsTick, w.storedMealsCache = w.tick, n
 	return n
 }

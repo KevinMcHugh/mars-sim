@@ -43,7 +43,7 @@ func inBox(lo, hi, p Point) bool { return p.X >= lo.X && p.X <= hi.X && p.Y >= l
 
 // onRing reports whether p is in the wall ring round the inside lo..hi.
 func onRing(lo, hi, p Point) bool {
-	return inBox(Point{lo.X - 1, lo.Y - 1}, Point{hi.X + 1, hi.Y + 1}, p) && !inBox(lo, hi, p)
+	return inBox(Point{lo.X - 1, lo.Y - 1, lo.Level}, Point{hi.X + 1, hi.Y + 1, hi.Level}, p) && !inBox(lo, hi, p)
 }
 
 // outward is the step from a doorway d in the walls round lo..hi out of the
@@ -52,13 +52,13 @@ func onRing(lo, hi, p Point) bool {
 func outward(lo, hi, d Point) Point {
 	switch {
 	case d.Y == lo.Y-1 && d.X >= lo.X && d.X <= hi.X:
-		return Point{0, -1}
+		return Point{0, -1, 0}
 	case d.Y == hi.Y+1 && d.X >= lo.X && d.X <= hi.X:
-		return Point{0, 1}
+		return Point{0, 1, 0}
 	case d.X == lo.X-1 && d.Y >= lo.Y && d.Y <= hi.Y:
-		return Point{-1, 0}
+		return Point{-1, 0, 0}
 	case d.X == hi.X+1 && d.Y >= lo.Y && d.Y <= hi.Y:
-		return Point{1, 0}
+		return Point{1, 0, 0}
 	}
 	return Point{}
 }
@@ -82,7 +82,7 @@ func (w *World) newRoomRecord(f roomFrame, zone ZoneKind, issuer Owner) *roomRec
 func (w *World) indexRoom(rec *roomRecord) {
 	for y := rec.lo.Y; y <= rec.hi.Y; y++ {
 		for x := rec.lo.X; x <= rec.hi.X; x++ {
-			w.roomFloor[Point{x, y}] = rec
+			w.roomFloor[Point{x, y, LandingLevel}] = rec
 		}
 	}
 	for _, d := range rec.doors {
@@ -132,7 +132,7 @@ func (w *World) layoutFor(lo, hi Point, doors []Point, st roomPlanState) *roomLa
 	}
 	for y := lo.Y; y <= hi.Y; y++ {
 		for x := lo.X; x <= hi.X; x++ {
-			p := Point{x, y}
+			p := Point{x, y, LandingLevel}
 			if k, ok := st.planned[p]; ok {
 				l.occ[p] = k
 			} else if t := w.TerrainAt(p); FixtureZone(t) != NoZone {
@@ -156,7 +156,7 @@ func (l *roomLayout) order(w *World) {
 	var cs []cand
 	for y := l.lo.Y; y <= l.hi.Y; y++ {
 		for x := l.lo.X; x <= l.hi.X; x++ {
-			p := Point{x, y}
+			p := Point{x, y, LandingLevel}
 			d := 1 << 30
 			for _, in := range l.inner {
 				d = min(d, p.Manhattan(in))
@@ -304,7 +304,7 @@ type placement struct {
 // that does not fit.
 func (l *roomLayout) place(us []fixtureUnit, most int) []placement {
 	var out []placement
-	dirs := [...]Point{{1, 0}, {0, 1}, {-1, 0}, {0, -1}}
+	dirs := [...]Point{{1, 0, 0}, {0, 1, 0}, {-1, 0, 0}, {0, -1, 0}}
 	for _, u := range us {
 		if len(l.occ)+len(u) > most {
 			break
@@ -428,7 +428,7 @@ func (w *World) shapeWork(sh roomShape, st roomPlanState) (plan *shapePlan, hard
 	zone := sh.recs[0].zone
 	for y := sh.lo.Y - 1; y <= sh.hi.Y+1; y++ {
 		for x := sh.lo.X - 1; x <= sh.hi.X+1; x++ {
-			p := Point{x, y}
+			p := Point{x, y, LandingLevel}
 			ring := !inBox(sh.lo, sh.hi, p)
 			t := w.TerrainAt(p)
 			var oldIn, oldRing bool
@@ -481,7 +481,7 @@ func (w *World) shapeWork(sh roomShape, st roomPlanState) (plan *shapePlan, hard
 				plan.walls = append(plan.walls, p)
 				for _, d := range neighbors4 {
 					q := p.Add(d.X, d.Y)
-					if inBox(Point{sh.lo.X - 1, sh.lo.Y - 1}, Point{sh.hi.X + 1, sh.hi.Y + 1}, q) {
+					if inBox(Point{sh.lo.X - 1, sh.lo.Y - 1, sh.lo.Level}, Point{sh.hi.X + 1, sh.hi.Y + 1, sh.hi.Level}, q) {
 						continue
 					}
 					if w.TerrainAt(q) == Wall || st.walls[q] {
@@ -500,7 +500,7 @@ func (w *World) shapeKeepsColonyWhole(sh roomShape, st roomPlanState) bool {
 	if len(sh.recs) == 1 && sh.lo == sh.recs[0].lo && sh.hi == sh.recs[0].hi {
 		return true
 	}
-	return w.footprintKeepsColonyWhole(Point{sh.lo.X - 1, sh.lo.Y - 1}, Point{sh.hi.X + 1, sh.hi.Y + 1}, st.designated)
+	return w.footprintKeepsColonyWhole(Point{sh.lo.X - 1, sh.lo.Y - 1, sh.lo.Level}, Point{sh.hi.X + 1, sh.hi.Y + 1, sh.hi.Level}, st.designated)
 }
 
 // designateShape marks out sh's work and fixtures us as one project named
@@ -663,7 +663,7 @@ func (w *World) roomFixtures(rec *roomRecord, st roomPlanState) int {
 	n := 0
 	for y := rec.lo.Y; y <= rec.hi.Y; y++ {
 		for x := rec.lo.X; x <= rec.hi.X; x++ {
-			p := Point{x, y}
+			p := Point{x, y, LandingLevel}
 			if _, ok := st.planned[p]; ok || FixtureZone(w.TerrainAt(p)) != NoZone {
 				n++
 			}
@@ -716,8 +716,8 @@ func mergeBox(a, b *roomRecord) (lo, hi Point, ok bool) {
 	default:
 		return lo, hi, false
 	}
-	lo = Point{min(a.lo.X, b.lo.X), min(a.lo.Y, b.lo.Y)}
-	hi = Point{max(a.hi.X, b.hi.X), max(a.hi.Y, b.hi.Y)}
+	lo = Point{min(a.lo.X, b.lo.X), min(a.lo.Y, b.lo.Y), a.lo.Level}
+	hi = Point{max(a.hi.X, b.hi.X), max(a.hi.Y, b.hi.Y), a.hi.Level}
 	area := func(lo, hi Point) int { return (hi.X - lo.X + 1) * (hi.Y - lo.Y + 1) }
 	aa, ab := area(a.lo, a.hi), area(b.lo, b.hi)
 	// The rectangle less both rooms and what lies between them along the gap.
@@ -820,11 +820,11 @@ func (w *World) growRoom(recs []*roomRecord, us []fixtureUnit, st roomPlanState)
 			for k := 1; k <= maxRows; k++ {
 				sh := roomShape{recs: []*roomRecord{rec}, lo: rec.lo, hi: rec.hi}
 				switch side {
-				case Point{1, 0}:
+				case Point{1, 0, 0}:
 					sh.hi.X += k
-				case Point{-1, 0}:
+				case Point{-1, 0, 0}:
 					sh.lo.X -= k
-				case Point{0, 1}:
+				case Point{0, 1, 0}:
 					sh.hi.Y += k
 				default:
 					sh.lo.Y -= k
@@ -866,7 +866,7 @@ func (w *World) growRoom(recs []*roomRecord, us []fixtureUnit, st roomPlanState)
 // growSides is the order rec tries its walls in: those with no doorway
 // first, each lot east, west, south, north.
 func (w *World) growSides(rec *roomRecord) []Point {
-	all := []Point{{1, 0}, {-1, 0}, {0, 1}, {0, -1}}
+	all := []Point{{1, 0, 0}, {-1, 0, 0}, {0, 1, 0}, {0, -1, 0}}
 	var plain, doored []Point
 	for _, s := range all {
 		has := false

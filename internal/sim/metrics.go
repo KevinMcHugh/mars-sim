@@ -22,7 +22,7 @@ import (
 // per series, each starting at the sample its subject first had a value.
 //
 // Two kinds of reading cover everything asked for so far:
-//   - a Level is a value at a moment: a balance, a price, open bids;
+//   - a Gauge is a value at a moment: a balance, a price, open bids;
 //   - a Total is a running total since the landing: dollars that changed
 //     hands, bids posted. The amount in any span of time is the difference
 //     between two readings, so a frontend can bucket it by hour, half-day or
@@ -37,8 +37,9 @@ import (
 type MetricKind uint8
 
 const (
-	// Level is a reading at the sample's moment.
-	Level MetricKind = iota
+	// Gauge is a reading at the sample's moment. (Not "Level": that is a
+	// depth in the world; see layer.go.)
+	Gauge MetricKind = iota
 	// Total is a running total since the landing: what happened in a span is
 	// the difference between the readings at its ends. Before its first
 	// reading a Total was zero.
@@ -122,7 +123,7 @@ var metricDefs = []MetricDef{
 		read: func(c *metricCtx, _ int64) (int64, bool) { return int64(c.colonists), true }},
 	{Key: "colony-size", Label: "Colony size", Group: "Colony", Doc: "floor tiles dug or discovered",
 		read: func(c *metricCtx, _ int64) (int64, bool) {
-			return int64(c.w.terrainCounts[Floor] - c.w.hiddenFloor), true
+			return int64(c.w.countTerrain(Floor) - c.w.hiddenFloor()), true
 		}},
 	{Key: "fixtures", Label: "Fixtures", Group: "Colony", Doc: "placed fixtures: bunks, toilets, chests, workshops…",
 		read: func(c *metricCtx, _ int64) (int64, bool) { return int64(len(c.w.fixtures)), true }},
@@ -132,7 +133,7 @@ var metricDefs = []MetricDef{
 		read: func(c *metricCtx, _ int64) (int64, bool) { return int64(c.w.starved), true }},
 	{Key: "fixture-kind", Label: "Fixtures of a kind", Group: "Colony", Per: PerFixture,
 		Doc:  "placed fixtures of one kind: scumhouses, scum incubators, beds…",
-		read: func(c *metricCtx, t int64) (int64, bool) { return int64(c.w.terrainCounts[t]), true }},
+		read: func(c *metricCtx, t int64) (int64, bool) { return int64(c.w.countTerrain(Terrain(t))), true }},
 	{Key: "stock", Label: "In storage", Group: "Colony", Per: PerItem,
 		Doc:  "units in any depot (chests, lockers, scumhouses, the silo), whoever owns them",
 		read: func(c *metricCtx, k int64) (int64, bool) { return c.stock[k], true }},

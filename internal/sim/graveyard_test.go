@@ -8,9 +8,9 @@ func TestGraveyardRecordsDeath(t *testing.T) {
 	cfg := testConfig()
 	w := newTestWorld(t, cfg)
 
-	ratSpot := Point{5, 5}
+	ratSpot := Point{5, 5, LandingLevel}
 	w.SetTerrain(ratSpot, Floor)
-	colonist := w.spawn(Colonist, Point{4, 5})
+	colonist := w.spawn(Colonist, Point{4, 5, LandingLevel})
 	rat := w.spawn(Rat, ratSpot)
 	w.stomp(colonist, rat)
 
@@ -40,10 +40,10 @@ func TestGraveyardIsBounded(t *testing.T) {
 	cfg.GraveyardSize = 2
 	w := newTestWorld(t, cfg)
 
-	colonist := w.spawn(Colonist, Point{0, 0})
+	colonist := w.spawn(Colonist, Point{0, 0, LandingLevel})
 	var lastRatID EntityID
 	for i := 0; i < 5; i++ {
-		spot := Point{2, 0}
+		spot := Point{2, 0, LandingLevel}
 		w.SetTerrain(spot, Floor)
 		rat := w.spawn(Rat, spot)
 		lastRatID = rat.ID
@@ -66,8 +66,8 @@ func TestGraveyardDisabledWhenSizeZero(t *testing.T) {
 	cfg.GraveyardSize = 0
 	w := newTestWorld(t, cfg)
 
-	colonist := w.spawn(Colonist, Point{0, 0})
-	spot := Point{2, 0}
+	colonist := w.spawn(Colonist, Point{0, 0, LandingLevel})
+	spot := Point{2, 0, LandingLevel}
 	w.SetTerrain(spot, Floor)
 	rat := w.spawn(Rat, spot)
 	w.stomp(colonist, rat)
@@ -83,8 +83,8 @@ func TestSnapshotExposesGraveyard(t *testing.T) {
 	cfg := testConfig()
 	w := newTestWorld(t, cfg)
 
-	colonist := w.spawn(Colonist, Point{0, 0})
-	spot := Point{2, 0}
+	colonist := w.spawn(Colonist, Point{0, 0, LandingLevel})
+	spot := Point{2, 0, LandingLevel}
 	w.SetTerrain(spot, Floor)
 	rat := w.spawn(Rat, spot)
 	w.stomp(colonist, rat)

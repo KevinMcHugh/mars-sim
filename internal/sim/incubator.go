@@ -47,10 +47,10 @@ func (w *World) wantsIncubator() bool {
 
 // incubatorsSorted lists every incubator by position.
 func (w *World) incubatorsSorted() []Point {
-	out := make([]Point, 0, len(w.facilityTiles[Incubator]))
-	for p := range w.facilityTiles[Incubator] {
+	var out []Point
+	w.eachFacility(Incubator, func(p Point) {
 		out = append(out, p)
-	}
+	})
 	sort.Slice(out, func(i, j int) bool { return lessPoint(out[i], out[j]) })
 	return out
 }
@@ -64,11 +64,11 @@ func (w *World) ripeScum(c *StorageContainer) int {
 // ripeTotal is the ripe scum in every incubator.
 func (w *World) ripeTotal() int {
 	n := 0
-	for p := range w.facilityTiles[Incubator] {
+	w.eachFacility(Incubator, func(p Point) {
 		if c := w.storageContainers[p]; c != nil {
 			n += w.ripeScum(c)
 		}
-	}
+	})
 	return n
 }
 
@@ -80,19 +80,19 @@ func (w *World) growIncubators() {
 	if !w.incubatorsOn() || w.tick%w.cfg.IncubatorGrowTicks != 0 {
 		return
 	}
-	for p := range w.facilityTiles[Incubator] {
+	w.eachFacility(Incubator, func(p Point) {
 		c := w.storageContainers[p]
 		if c == nil {
-			continue
+			return
 		}
 		n := c.Inventory.Count(CaveScum)
 		if n < w.incubatorSeed() || n >= w.cfg.IncubatorCapacity {
-			continue
+			return
 		}
 		if c.Inventory.AddAll(ItemStack{CaveScum, 1}) {
 			c.credit(Community, CaveScum, 1)
 		}
-	}
+	})
 }
 
 // ---- When wild scum is allowed -------------------------------------------------------

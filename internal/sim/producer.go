@@ -345,7 +345,7 @@ func (w *World) planGather(e *Entity, b *Order, probe *planOffer) bool {
 	if !ok {
 		return false
 	}
-	ticks := qty*w.ownWorkTicks(e, SkillForaging, w.cfg.ScrapeTicks) + e.Pos.Chebyshev(patch) + patch.Chebyshev(b.Depot)
+	ticks := qty*w.ownWorkTicks(e, SkillForaging, w.cfg.ScrapeTicks) + w.travelEstimate(e.Pos, patch) + w.travelEstimate(patch, b.Depot)
 	profit := b.Price*Money(qty) - w.laborCostFor(e, ticks)
 	if profit < Money(w.cfg.PlanMinProfit) {
 		return false
@@ -406,7 +406,7 @@ func (w *World) planCraft(e *Entity, b *Order, probe *planOffer) (started, plann
 		c := w.storageContainers[house]
 		qty := min(out, b.Qty)
 		revenue := b.Price * Money(qty)
-		ticks := w.ownWorkTicks(e, r.Skill, r.Ticks) + e.Pos.Chebyshev(house) + house.Chebyshev(b.Depot)
+		ticks := w.ownWorkTicks(e, r.Skill, r.Ticks) + w.travelEstimate(e.Pos, house) + w.travelEstimate(house, b.Depot)
 		spent := w.laborCostFor(e, ticks)
 		type buy struct {
 			ask *Order
