@@ -40,7 +40,7 @@ func TestRockVeinsAreDeterministicAndNearAbundanceTargets(t *testing.T) {
 func isolatedDeposit(w *World) (Point, bool) {
 	for y := 0; y < w.Height; y++ {
 		for x := 0; x < w.Width; x++ {
-			p := Point{x, y}
+			p := Point{x, y, LandingLevel}
 			composition := w.TileAt(p).Composition
 			if composition == OrdinaryRock {
 				continue
@@ -100,7 +100,7 @@ func TestRockDepositsAreVeinsRatherThanIsolatedTiles(t *testing.T) {
 			cfg.UraniumRockPercent, cfg.ClayRockPercent = 10, 20
 			cfg.RockVeinMin, cfg.RockVeinMax = 2, 24
 			cfg.Seed = seed
-			g := newWorldGen(cfg)
+			g := newWorldGen(cfg, LandingLevel)
 			chunks := map[chunkKey]*chunkContent{}
 			comp := func(p Point) RockComposition {
 				if !g.inMap(p) {
@@ -114,7 +114,7 @@ func TestRockDepositsAreVeinsRatherThanIsolatedTiles(t *testing.T) {
 			}
 			for y := 0; y < cfg.Height; y++ {
 				for x := 0; x < cfg.Width; x++ {
-					p := Point{x, y}
+					p := Point{x, y, LandingLevel}
 					c := comp(p)
 					if c == OrdinaryRock {
 						continue

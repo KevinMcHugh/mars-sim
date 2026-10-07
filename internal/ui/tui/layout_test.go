@@ -185,13 +185,13 @@ func busySnapshot() *sim.Snapshot {
 	var entities []sim.EntityView
 	for i, p := range profiles {
 		entities = append(entities, sim.EntityView{
-			ID: sim.EntityID(i + 1), Kind: sim.Colonist, Pos: sim.Point{X: i, Y: 0},
+			ID: sim.EntityID(i + 1), Kind: sim.Colonist, Pos: sim.Point{X: i, Y: 0, Level: sim.LandingLevel},
 			HP: 40, MaxHP: 40, Charge: 20, Grip: 10, MoodLabel: "driven", State: states[i], Profile: p,
 		})
 	}
 	for i, kind := range []sim.Kind{sim.Alien, sim.Cat, sim.Rat} {
 		entities = append(entities, sim.EntityView{
-			ID: sim.EntityID(100 + i), Kind: kind, Pos: sim.Point{X: i, Y: 1}, HP: 30, MaxHP: 30,
+			ID: sim.EntityID(100 + i), Kind: kind, Pos: sim.Point{X: i, Y: 1, Level: sim.LandingLevel}, HP: 30, MaxHP: 30,
 		})
 	}
 
@@ -219,8 +219,8 @@ func busySnapshot() *sim.Snapshot {
 		Projects: []sim.ProjectView{{
 			ID: 1, Name: "a dormitory with a deliberately long name", QueuedTick: 2,
 			Tasks: []sim.TaskView{
-				{Pos: sim.Point{X: 1, Y: 1}, Terrain: sim.Wall, Done: true},
-				{Pos: sim.Point{X: 2, Y: 1}, Terrain: sim.Wall, Owner: 2},
+				{Pos: sim.Point{X: 1, Y: 1, Level: sim.LandingLevel}, Terrain: sim.Wall, Done: true},
+				{Pos: sim.Point{X: 2, Y: 1, Level: sim.LandingLevel}, Terrain: sim.Wall, Owner: 2},
 			},
 		}},
 		Perf: busyPerf(),

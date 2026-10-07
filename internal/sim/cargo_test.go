@@ -6,7 +6,7 @@ import "testing"
 // colony's meals does not eat them, and does not sell them as its own.
 func TestAHaulerDoesNotEatTheColonysMeals(t *testing.T) {
 	w := propertyWorld(t)
-	e := w.spawn(Colonist, Point{10, 10})
+	e := w.spawn(Colonist, Point{10, 10, LandingLevel})
 	e.Inventory.Add(Meal, 2)
 	e.addCargo(Community, Meal, 2)
 	if w.tryStartEating(e) {
@@ -16,7 +16,7 @@ func TestAHaulerDoesNotEatTheColonysMeals(t *testing.T) {
 	if !w.tryStartEating(e) || e.carriedFor(Community, Meal) != 2 {
 		t.Fatalf("the hauler should eat its own meal and still carry the colony's 2 (carries %d)", e.carriedFor(Community, Meal))
 	}
-	if silo := (Point{12, 6}); w.surplusMeals(e, silo) > 0 {
+	if silo := (Point{12, 6, LandingLevel}); w.surplusMeals(e, silo) > 0 {
 		t.Fatal("the colony's meals counted as the hauler's surplus to sell")
 	}
 }
@@ -25,10 +25,10 @@ func TestAHaulerDoesNotEatTheColonysMeals(t *testing.T) {
 // unloads each share to its owner.
 func TestUnloadingCreditsEachShareToItsOwner(t *testing.T) {
 	w := propertyWorld(t)
-	chest := Point{12, 6}
+	chest := Point{12, 6, LandingLevel}
 	w.SetTerrain(chest, Storage)
 	w.refreshSpatial()
-	e := w.spawn(Colonist, Point{12, 7})
+	e := w.spawn(Colonist, Point{12, 7, LandingLevel})
 	me := ColonistOwner(e.ID)
 	e.Inventory.Add(IronOre, 2)
 	e.addCargo(Community, IronOre, 2) // fetched for a public work
@@ -53,7 +53,7 @@ func TestUnloadingCreditsEachShareToItsOwner(t *testing.T) {
 func TestTheColonysRockDoesNotPayForYourOwnBuild(t *testing.T) {
 	w := propertyWorld(t)
 	w.cfg.ConstructionCosts = true
-	e := w.spawn(Colonist, Point{10, 10})
+	e := w.spawn(Colonist, Point{10, 10, LandingLevel})
 	cost := w.buildCost(Storage)
 	for _, c := range cost {
 		e.Inventory.Add(c.Kind, c.Count)

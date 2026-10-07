@@ -204,7 +204,7 @@ func (w *World) facilityReachable(e *Entity, kind Terrain) bool {
 	if field := w.facilityField(kind); field != nil && field.at(e.Pos) >= 0 {
 		return true
 	}
-	if w.restrictedFixtures[kind] == 0 {
+	if !w.anyRestricted(kind) {
 		return false
 	}
 	// Only the restricted ones e may use: its own, and anyone's paid ones.
@@ -349,7 +349,7 @@ func (w *World) publishedFixtures() []FixtureView {
 	if w.snapFixtures != nil && w.snapFixtureRev == w.fixtureRev {
 		return w.snapFixtures
 	}
-	out := make([]FixtureView, 0, len(w.fixtures))
+	out := make([]FixtureView, 0)
 	for _, f := range w.fixtures {
 		out = append(out, FixtureView{Pos: f.Pos, Terrain: f.Terrain, Owner: f.Owner, Access: f.Access, Price: f.Price})
 	}

@@ -32,7 +32,7 @@ func TestPatchListMatchesSortedSlice(t *testing.T) {
 		}
 	}
 	for step := range 20000 {
-		p := Point{r.IntN(300), r.IntN(300)}
+		p := Point{r.IntN(300), r.IntN(300), LandingLevel}
 		// Mostly inserts for the first half, mostly removals after.
 		grow := r.IntN(10) < 8
 		if step >= 10000 {

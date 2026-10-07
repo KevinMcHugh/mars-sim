@@ -43,18 +43,18 @@ type FlowFieldView struct {
 	Max   int32
 	// dist holds distance+1, so an unwritten page (zero) reads as
 	// unreachable without being allocated: the view is as sparse as the
-	// field it copies.
-	dist pagedGrid[int32]
+	// field it copies. A field spans levels, so the view does too.
+	dist layered[int32]
 	w, h int
 }
 
 // At returns the step distance from p to the field's nearest goal, or -1 if p
 // is out of bounds, not walkable, or cannot reach a goal.
 func (v *FlowFieldView) At(p Point) int32 {
-	if v == nil || p.X < 0 || p.X >= v.w || p.Y < 0 || p.Y >= v.h {
+	if v == nil || p.X < 0 || p.X >= v.w || p.Y < 0 || p.Y >= v.h || p.Level < 0 {
 		return -1
 	}
-	return v.dist.at(p.X, p.Y) - 1
+	return v.dist.at(p) - 1
 }
 
 // flowFieldRefs lists every shared field in a stable order: the facility
@@ -95,26 +95,32 @@ func (w *World) flowFieldView(r FlowFieldRef, prev *FlowFieldView, prevVersion i
 	if prev != nil && prev.Field == r && prevVersion == f.version {
 		return prev, prevVersion
 	}
-	v := &FlowFieldView{Field: r, dist: newPagedGrid[int32](w.Width, w.Height), w: w.Width, h: w.Height}
-	for pi, src := range f.cells.pages {
-		if src == nil {
+	v := &FlowFieldView{Field: r, dist: newLayered[int32](w.Width, w.Height), w: w.Width, h: w.Height}
+	for l := range f.cells.grids {
+		if f.cells.grids[l].pages == nil {
 			continue
 		}
-		var dst []int32
-		for i, c := range src {
-			if c.gen != f.gen {
+		out := v.dist.grid(Level(l))
+		for pi, src := range f.cells.grids[l].pages {
+			if src == nil {
 				continue
 			}
-			if dst == nil {
-				dst = make([]int32, gridPageLen)
+			var dst []int32
+			for i, c := range src {
+				if c.gen != f.gen {
+					continue
+				}
+				if dst == nil {
+					dst = make([]int32, gridPageLen)
+				}
+				dst[i] = c.dist + 1
+				if c.dist == 0 {
+					v.Goals++
+				}
+				v.Max = max(v.Max, c.dist)
 			}
-			dst[i] = c.dist + 1
-			if c.dist == 0 {
-				v.Goals++
-			}
-			v.Max = max(v.Max, c.dist)
+			out.pages[pi] = dst
 		}
-		v.dist.pages[pi] = dst
 	}
 	return v, f.version
 }
@@ -122,9 +128,9 @@ func (w *World) flowFieldView(r FlowFieldRef, prev *FlowFieldView, prevVersion i
 // NewFlowFieldView builds a view from explicit distances, for a hand-built
 // Snapshot (frontend tests). Every point not in dist reads as unreachable.
 func NewFlowFieldView(field FlowFieldRef, width, height int, dist map[Point]int32) *FlowFieldView {
-	v := &FlowFieldView{Field: field, dist: newPagedGrid[int32](width, height), w: width, h: height}
+	v := &FlowFieldView{Field: field, dist: newLayered[int32](width, height), w: width, h: height}
 	for p, d := range dist {
-		v.dist.set(p.X, p.Y, d+1)
+		v.dist.set(p, d+1)
 		if d == 0 {
 			v.Goals++
 		}
@@ -133,19 +139,20 @@ func NewFlowFieldView(field FlowFieldRef, width, height int, dist map[Point]int3
 	return v
 }
 
-// Range calls fn for every tile in [x0,x1)×[y0,y1) the field reaches, in row
-// order, with its distance. Stretches of the map the field never reached are
-// skipped a page at a time, so a view the size of a huge map costs what the
-// colony in it does, not its area.
-func (v *FlowFieldView) Range(x0, y0, x1, y1 int, fn func(p Point, dist int32)) {
-	if v == nil {
+// Range calls fn for every tile in [x0,x1)×[y0,y1) on level l the field
+// reaches, in row order, with its distance. Stretches of the map the field
+// never reached are skipped a page at a time, so a view the size of a huge
+// map costs what the colony in it does, not its area.
+func (v *FlowFieldView) Range(l Level, x0, y0, x1, y1 int, fn func(p Point, dist int32)) {
+	if v == nil || l < 0 || int(l) >= len(v.dist.grids) || v.dist.grids[l].pages == nil {
 		return
 	}
+	grid := &v.dist.grids[l]
 	x0, y0 = max(x0, 0), max(y0, 0)
 	x1, y1 = min(x1, v.w), min(y1, v.h)
 	for y := y0; y < y1; y++ {
 		for x := x0; x < x1; {
-			page := v.dist.pageAt(x, y)
+			page := grid.pageAt(x, y)
 			end := min(x1, (x|gridPageMask)+1) // the end of this page's row
 			if page == nil {
 				x = end
@@ -153,7 +160,7 @@ func (v *FlowFieldView) Range(x0, y0, x1, y1 int, fn func(p Point, dist int32)) 
 			}
 			for ; x < end; x++ {
 				if d := page[offset(x, y)]; d > 0 {
-					fn(Point{x, y}, d-1)
+					fn(Point{x, y, l}, d-1)
 				}
 			}
 		}

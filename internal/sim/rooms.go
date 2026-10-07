@@ -6,11 +6,14 @@ import "slices"
 // for reachability ("can I get from here to that job?"). They are built in two
 // levels so updates stay cheap as the map changes:
 //
-//   - A region is a connected component of Floor cells within a single chunk.
-//     When a tile changes, only that one chunk's regions are recomputed.
+//   - A region is a connected component of walkable cells (floor and stairs)
+//     within a single chunk of one level. When a tile changes, only that one
+//     chunk's regions are recomputed.
 //   - A room is a connected component of the region graph: regions are linked
-//     when their floor cells touch (8-connectivity) across a chunk border.
-//     Rooms are relabelled from the small region graph, not the full tile grid.
+//     when their cells touch (8-connectivity) across a chunk border, or when
+//     the two ends of a stair sit in them (see links). Rooms are relabelled
+//     from the small region graph, not the full tile grid, and a room can span
+//     levels.
 //
 // The result: excavating or walling a tile costs O(one chunk) to re-flood plus
 // O(regions) to relabel, instead of a global O(map) flood fill.
@@ -24,7 +27,8 @@ type RoomID int32
 
 type region struct {
 	id    RegionID
-	chunk int
+	level Level
+	chunk int // chunk index within the level
 	size  int
 	// discovered is set if any of the region's cells is Explored. Undiscovered
 	// regions are natural cavern floor the colony has not broken into; they
@@ -40,44 +44,53 @@ type region struct {
 // changed since the last call. It is invoked after world generation and at the
 // end of every tick; it is a no-op when nothing changed.
 func (w *World) refreshSpatial() {
-	if len(w.dirtyChunks) == 0 {
+	type dirtyChunk struct {
+		l  *Layer
+		ci int
+	}
+	var dirty []dirtyChunk
+	// Levels shallowest first, chunks in index order within each. Chunk order
+	// decides the order regions are created in, and a region's ID is just the
+	// next counter value. Leaving that to map iteration handed the same world
+	// different region IDs on different runs -- and since a room is named for
+	// the smallest region ID it contains, and the abstract search breaks ties
+	// toward the lower ID, that reached all the way out to which tile a
+	// colonist stepped on.
+	w.eachLayer(func(l *Layer) {
+		if len(l.dirtyChunks) == 0 {
+			return
+		}
+		start := len(dirty)
+		for ci := range l.dirtyChunks {
+			dirty = append(dirty, dirtyChunk{l, ci})
+		}
+		slices.SortFunc(dirty[start:], func(a, b dirtyChunk) int { return a.ci - b.ci })
+		clear(l.dirtyChunks)
+	})
+	if len(dirty) == 0 {
 		return
 	}
-	dirty := make([]int, 0, len(w.dirtyChunks))
-	for ci := range w.dirtyChunks {
-		dirty = append(dirty, ci)
-	}
-	// Chunk order decides the order regions are created in, and a region's ID
-	// is just the next counter value. Leaving that to map iteration handed the
-	// same world different region IDs on different runs -- and since a room is
-	// named for the smallest region ID it contains, and the abstract search
-	// breaks ties toward the lower ID, that reached all the way out to which
-	// tile a colonist stepped on.
-	slices.Sort(dirty)
 	// Pass 1: re-flood each dirty chunk's regions (needs no neighbor state).
-	for _, ci := range dirty {
-		w.recomputeChunkRegions(ci)
+	for _, d := range dirty {
+		w.recomputeChunkRegions(d.l, d.ci)
 	}
-	// Pass 2: link regions across borders, now that all dirty chunks have final
-	// region IDs assigned.
-	for _, ci := range dirty {
-		w.linkChunkRegions(ci)
-	}
-	for ci := range w.dirtyChunks {
-		delete(w.dirtyChunks, ci)
+	// Pass 2: link regions across borders and stairs, now that every dirty
+	// chunk on every level has final region IDs assigned.
+	for _, d := range dirty {
+		w.linkChunkRegions(d.l, d.ci)
 	}
 	w.relabelRooms()
 }
 
 // recomputeChunkRegions discards the chunk's old regions and re-floods its Floor
 // cells into fresh regions (without links yet).
-func (w *World) recomputeChunkRegions(ci int) {
+func (w *World) recomputeChunkRegions(l *Layer, ci int) {
 	x0, y0, x1, y1 := w.chunkBounds(ci)
 
 	// Drop old regions in this chunk and unlink them from their neighbors. The
 	// chunk lies inside a single page of regionOf (see pagedGrid.pageAt), so
 	// every access in this function hoists to one lookup.
-	regions := w.regionOf.pageAt(x0, y0)
+	regions := l.regionOf.pageAt(x0, y0)
 	old := make(map[RegionID]struct{})
 	if regions != nil {
 		for y := y0; y < y1; y++ {
@@ -110,28 +123,28 @@ func (w *World) recomputeChunkRegions(ci int) {
 	// Flood-fill new regions, staying within the chunk bounds. A region
 	// chunk lies inside one tile page, so the page is looked up once; a
 	// chunk nothing was ever written to is all Rock and has no regions.
-	tiles := w.tiles.pageAt(x0, y0)
+	tiles := l.tiles.pageAt(x0, y0)
 	if tiles == nil {
 		return
 	}
 	for y := y0; y < y1; y++ {
 		for x := x0; x < x1; x++ {
-			if tiles[offset(x, y)].Terrain != Floor {
+			if !tiles[offset(x, y)].Terrain.Walkable() {
 				continue
 			}
 			if regions == nil {
-				regions = w.regionOf.pageAtAlloc(x0, y0)
+				regions = l.regionOf.pageAtAlloc(x0, y0)
 			}
 			if regions[offset(x, y)] != 0 {
 				continue
 			}
 			rid := w.nextRegion
 			w.nextRegion++
-			reg := &region{id: rid, chunk: ci, rep: Point{x, y}, links: make(map[RegionID]struct{})}
+			reg := &region{id: rid, level: l.Level, chunk: ci, rep: Point{x, y, l.Level}, links: make(map[RegionID]struct{})}
 			w.regions[rid] = reg
 			w.relabelSeeds = append(w.relabelSeeds, rid)
 
-			w.floodStack = append(w.floodStack[:0], Point{x, y})
+			w.floodStack = append(w.floodStack[:0], Point{x, y, l.Level})
 			regions[offset(x, y)] = rid
 			for len(w.floodStack) > 0 {
 				p := w.floodStack[len(w.floodStack)-1]
@@ -145,9 +158,9 @@ func (w *World) recomputeChunkRegions(ci int) {
 					if qx < x0 || qx >= x1 || qy < y0 || qy >= y1 {
 						continue
 					}
-					if o := offset(qx, qy); tiles[o].Terrain == Floor && regions[o] == 0 {
+					if o := offset(qx, qy); tiles[o].Terrain.Walkable() && regions[o] == 0 {
 						regions[o] = rid
-						w.floodStack = append(w.floodStack, Point{qx, qy})
+						w.floodStack = append(w.floodStack, Point{qx, qy, l.Level})
 					}
 				}
 			}
@@ -156,14 +169,18 @@ func (w *World) recomputeChunkRegions(ci int) {
 }
 
 // linkChunkRegions connects this chunk's regions to adjacent regions in other
-// chunks wherever their floor cells touch. (Two floor cells in the same chunk
-// that touch are already the same region, so only cross-region touches matter.)
-func (w *World) linkChunkRegions(ci int) {
+// chunks wherever their cells touch, and to the region at the other end of
+// every stair in the chunk. (Two cells in the same chunk that touch are
+// already the same region, so only cross-region touches matter.) Links are
+// symmetric, so a region re-flooded on either side of a border or a stair
+// drops and re-makes the link from its side alone.
+func (w *World) linkChunkRegions(l *Layer, ci int) {
 	x0, y0, x1, y1 := w.chunkBounds(ci)
-	regions := w.regionOf.pageAt(x0, y0)
+	regions := l.regionOf.pageAt(x0, y0)
 	if regions == nil {
 		return // nothing in this chunk is floor, so there is nothing to link
 	}
+	stairs := w.hasLinks()
 	for y := y0; y < y1; y++ {
 		for x := x0; x < x1; x++ {
 			rid := regions[offset(x, y)]
@@ -171,16 +188,26 @@ func (w *World) linkChunkRegions(ci int) {
 				continue
 			}
 			for _, d := range neighbors8 {
-				q := Point{x + d.X, y + d.Y}
+				q := Point{x + d.X, y + d.Y, l.Level}
 				if !w.InBounds(q) {
 					continue
 				}
-				nid := w.regionOf.at(q.X, q.Y)
+				nid := l.regionOf.at(q.X, q.Y)
 				if nid == 0 || nid == rid {
 					continue
 				}
 				w.regions[rid].links[nid] = struct{}{}
 				w.regions[nid].links[rid] = struct{}{}
+			}
+			if !stairs {
+				continue
+			}
+			lk, n := w.links(Point{x, y, l.Level})
+			for _, k := range lk[:n] {
+				if nid := w.lay(k.to).regionOf.at(k.to.X, k.to.Y); nid != 0 {
+					w.regions[rid].links[nid] = struct{}{}
+					w.regions[nid].links[rid] = struct{}{}
+				}
 			}
 		}
 	}
@@ -287,12 +314,13 @@ type roomInfo struct {
 	discovered bool
 }
 
-// roomOf returns the room a tile belongs to, or 0 if it is not floor.
+// roomOf returns the room a tile belongs to, or 0 if it is not walkable.
 func (w *World) roomOf(p Point) RoomID {
-	if !w.InBounds(p) {
+	l := w.layerIn(p)
+	if l == nil {
 		return 0
 	}
-	rid := w.regionOf.at(p.X, p.Y)
+	rid := l.regionOf.at(p.X, p.Y)
 	if rid == 0 {
 		return 0
 	}

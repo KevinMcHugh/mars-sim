@@ -132,7 +132,7 @@ func TestVisibleThreatRefreshesWithoutMemorySpamAndRemovalEndsEligibility(t *tes
 func BenchmarkStimulusUpdate(b *testing.B) {
 	cfg := DefaultConfig()
 	w := newWorld(cfg, nil)
-	c := newEntity(1, Colonist, Point{1, 1}, cfg)
+	c := newEntity(1, Colonist, Point{1, 1, LandingLevel}, cfg)
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
 		w.tick = i
@@ -143,7 +143,7 @@ func BenchmarkStimulusUpdate(b *testing.B) {
 func BenchmarkStimulusBias(b *testing.B) {
 	cfg := DefaultConfig()
 	w := newWorld(cfg, nil)
-	c := newEntity(1, Colonist, Point{1, 1}, cfg)
+	c := newEntity(1, Colonist, Point{1, 1, LandingLevel}, cfg)
 	for i := 0; i < cfg.ActiveStimulusLimit; i++ {
 		c.stimuli[i] = Stimulus{Rule: "saw-alien", Source: EntityID(i + 1), Salience: 100, ExpiresAt: 100}
 	}

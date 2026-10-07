@@ -19,8 +19,8 @@ func topicConfig(memory, colonist, lore int) Config {
 func TestConversationAboutLoreNamesSpecies(t *testing.T) {
 	w := newTestWorld(t, topicConfig(0, 0, 1))
 	w.corporations = nil // species only: corporations are lore too
-	a := w.spawn(Colonist, Point{0, 0})
-	b := w.spawn(Colonist, Point{1, 0})
+	a := w.spawn(Colonist, Point{0, 0, LandingLevel})
+	b := w.spawn(Colonist, Point{1, 0, LandingLevel})
 
 	w.finishTalk(a, b)
 
@@ -66,8 +66,8 @@ func TestConversationAboutCorporationNamesOldEmployer(t *testing.T) {
 	w := newTestWorld(t, topicConfig(0, 0, 1))
 	w.alienSpecies = nil // corporations only
 	w.corporations = w.corporations[:1]
-	a := w.spawn(Colonist, Point{0, 0})
-	b := w.spawn(Colonist, Point{1, 0})
+	a := w.spawn(Colonist, Point{0, 0, LandingLevel})
+	b := w.spawn(Colonist, Point{1, 0, LandingLevel})
 	a.employer, a.employerRole = 1, "a janitor"
 	b.employer, b.employerRole = 1, "an intern"
 	name := w.corporations[0].Name
@@ -86,8 +86,8 @@ func TestConversationAboutCorporationNamesOldEmployer(t *testing.T) {
 // conversations (that would nest retellings).
 func TestConversationAboutMemoryRetellsSpeakerMemory(t *testing.T) {
 	w := newTestWorld(t, topicConfig(1, 0, 0))
-	a := w.spawn(Colonist, Point{0, 0})
-	b := w.spawn(Colonist, Point{1, 0})
+	a := w.spawn(Colonist, Point{0, 0, LandingLevel})
+	b := w.spawn(Colonist, Point{1, 0, LandingLevel})
 	for _, e := range []*Entity{a, b} {
 		rememberTest(w, e, "conversation", "Had a conversation with someone.")
 		rememberTest(w, e, "ate", "Had a meal.")
@@ -106,8 +106,8 @@ func TestConversationAboutMemoryRetellsSpeakerMemory(t *testing.T) {
 // With nothing to say about any enabled kind, a conversation is small talk.
 func TestConversationWithoutTopicIsSmallTalk(t *testing.T) {
 	w := newTestWorld(t, topicConfig(1, 1, 0))
-	a := w.spawn(Colonist, Point{0, 0})
-	b := w.spawn(Colonist, Point{1, 0})
+	a := w.spawn(Colonist, Point{0, 0, LandingLevel})
+	b := w.spawn(Colonist, Point{1, 0, LandingLevel})
 
 	w.finishTalk(a, b)
 
@@ -123,9 +123,9 @@ func TestGossipCarriesSpeakerOpinion(t *testing.T) {
 	cfg := topicConfig(0, 1, 0)
 	cfg.TalkGossipPercent = 50
 	w := newTestWorld(t, cfg)
-	a := w.spawn(Colonist, Point{0, 0})
-	b := w.spawn(Colonist, Point{1, 0})
-	c := w.spawn(Colonist, Point{5, 5})
+	a := w.spawn(Colonist, Point{0, 0, LandingLevel})
+	b := w.spawn(Colonist, Point{1, 0, LandingLevel})
+	c := w.spawn(Colonist, Point{5, 5, LandingLevel})
 	// Both dislike c equally hard from each side, so whoever speaks, the
 	// listener already agrees and nothing moves...
 	w.bumpAffinity(a.ID, c.ID, -40)
@@ -152,9 +152,9 @@ func TestGossipCarriesSpeakerOpinion(t *testing.T) {
 // the two talking.
 func TestGossipSubjectsExcludeTheTalkers(t *testing.T) {
 	w := newTestWorld(t, topicConfig(0, 1, 0))
-	a := w.spawn(Colonist, Point{0, 0})
-	b := w.spawn(Colonist, Point{1, 0})
-	c := w.spawn(Colonist, Point{5, 5})
+	a := w.spawn(Colonist, Point{0, 0, LandingLevel})
+	b := w.spawn(Colonist, Point{1, 0, LandingLevel})
+	c := w.spawn(Colonist, Point{5, 5, LandingLevel})
 	w.bumpAffinity(a.ID, b.ID, 30)
 	w.bumpAffinity(a.ID, c.ID, 30)
 	got := w.gossipSubjects(a, b)
@@ -168,10 +168,10 @@ func TestGossipSubjectsExcludeTheTalkers(t *testing.T) {
 func TestTopicChoiceLeavesSimStreamAlone(t *testing.T) {
 	w1 := newTestWorld(t, topicConfig(1, 1, 1))
 	w2 := newTestWorld(t, topicConfig(1, 1, 1))
-	a := w1.spawn(Colonist, Point{0, 0})
-	b := w1.spawn(Colonist, Point{1, 0})
-	w2.spawn(Colonist, Point{0, 0}) // spawning draws from rng; match it
-	w2.spawn(Colonist, Point{1, 0})
+	a := w1.spawn(Colonist, Point{0, 0, LandingLevel})
+	b := w1.spawn(Colonist, Point{1, 0, LandingLevel})
+	w2.spawn(Colonist, Point{0, 0, LandingLevel}) // spawning draws from rng; match it
+	w2.spawn(Colonist, Point{1, 0, LandingLevel})
 	w1.chooseTopic(a, b)
 	if w1.rng.Uint64() != w2.rng.Uint64() {
 		t.Fatal("chooseTopic drew from the simulation stream")

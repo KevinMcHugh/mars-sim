@@ -19,9 +19,9 @@ func driveWorld(t *testing.T, edit func(*Config)) (*World, *Entity) {
 		t.Fatal(err)
 	}
 	w := newWorld(cfg, newPCG(1))
-	carve(w, Point{2, 2}, Point{17, 17}, Floor)
+	carve(w, Point{2, 2, LandingLevel}, Point{17, 17, LandingLevel}, Floor)
 	w.refreshSpatial()
-	return w, w.spawn(Colonist, Point{5, 5})
+	return w, w.spawn(Colonist, Point{5, 5, LandingLevel})
 }
 
 // caffeine is the illustrative profile from docs/drives.md: it masks sleep

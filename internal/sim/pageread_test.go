@@ -20,7 +20,7 @@ func TestReadPageMatchesTileAt(t *testing.T) {
 		read, skipped := 0, 0
 		for py := 0; py*TilePageSide < cfg.Height; py++ {
 			for px := 0; px*TilePageSide < cfg.Width; px++ {
-				origin := Point{px * TilePageSide, py * TilePageSide}
+				origin := Point{px * TilePageSide, py * TilePageSide, LandingLevel}
 				pi := snap.Tiles.PageIndex(origin)
 				if got := snap.Tiles.PageOrigin(pi); got != origin {
 					t.Fatalf("PageOrigin(PageIndex(%v)) = %v", origin, got)
@@ -34,7 +34,7 @@ func TestReadPageMatchesTileAt(t *testing.T) {
 				}
 				read++
 				for off, got := range dst {
-					p := Point{origin.X + off%TilePageSide, origin.Y + off/TilePageSide}
+					p := Point{origin.X + off%TilePageSide, origin.Y + off/TilePageSide, LandingLevel}
 					want := Tile{Terrain: Rock}
 					if p.X < cfg.Width && p.Y < cfg.Height {
 						want = snap.TileAt(p)
@@ -54,14 +54,14 @@ func TestReadPageMatchesTileAt(t *testing.T) {
 
 func TestRefuseTilesListsRefuseInRowOrder(t *testing.T) {
 	w := gridWorld(t, 200)
-	w.setRefuse(Point{50, 60}, refuseCell{Gore: 2})
-	w.setRefuse(Point{10, 60}, refuseCell{Corpses: [numCorpseKinds]uint16{1, 2}})
-	w.setRefuse(Point{90, 5}, refuseCell{Gore: 1, Corpses: [numCorpseKinds]uint16{0, 0, 4}})
+	w.setRefuse(Point{50, 60, LandingLevel}, refuseCell{Gore: 2})
+	w.setRefuse(Point{10, 60, LandingLevel}, refuseCell{Corpses: [numCorpseKinds]uint16{1, 2}})
+	w.setRefuse(Point{90, 5, LandingLevel}, refuseCell{Gore: 1, Corpses: [numCorpseKinds]uint16{0, 0, 4}})
 	got := w.snapshot(false, 8).Tiles.RefuseTiles()
 	want := []RefuseTile{
-		{Pos: Point{90, 5}, Gore: 1, Corpses: 4},
-		{Pos: Point{10, 60}, Corpses: 3},
-		{Pos: Point{50, 60}, Gore: 2},
+		{Pos: Point{90, 5, LandingLevel}, Gore: 1, Corpses: 4},
+		{Pos: Point{10, 60, LandingLevel}, Corpses: 3},
+		{Pos: Point{50, 60, LandingLevel}, Gore: 2},
 	}
 	if !slices.Equal(got, want) {
 		t.Errorf("RefuseTiles = %+v, want %+v", got, want)

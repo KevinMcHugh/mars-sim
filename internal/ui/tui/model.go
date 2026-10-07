@@ -74,6 +74,8 @@ var buildMenuItems = []menuItem{
 	{"g", "foundry"},
 	{"m", "meeting hall"},
 	{"i", "scum incubator"},
+	{"v", "stair down"},
+	{"n", "shaft down"},
 }
 
 // filterMenuItems are the roster's toggleable filters. Unlike the spawn/build
@@ -173,7 +175,10 @@ type Model struct {
 
 // New builds a Model bound to an engine and its snapshot channel.
 func New(eng *sim.Engine, snaps <-chan *sim.Snapshot) Model {
-	return Model{eng: eng, snaps: snaps, cache: newRenderCache()}
+	// The camera's Level is the level the map shows; it starts where the
+	// pods land.
+	return Model{eng: eng, snaps: snaps, cache: newRenderCache(),
+		cam: sim.Point{Level: sim.LandingLevel}, cursor: sim.Point{Level: sim.LandingLevel}}
 }
 
 // Init starts listening for snapshots.
@@ -521,6 +526,10 @@ func (m Model) submitMenuItem(i int) {
 			m.eng.Send(sim.OrderMeetingHall{})
 		case "i":
 			m.eng.Send(sim.OrderIncubator{})
+		case "v":
+			m.eng.Send(sim.OrderStair{})
+		case "n":
+			m.eng.Send(sim.OrderShaft{Levels: 1})
 		}
 	}
 }
@@ -577,6 +586,12 @@ func (m Model) handleMapKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	case "F":
 		m.hideFlowField()
+		return m, nil
+	case "<", ",":
+		m.changeLevel(-1)
+		return m, nil
+	case ">", ".":
+		m.changeLevel(1)
 		return m, nil
 	}
 	if m.inspecting {
@@ -910,10 +925,46 @@ func (m *Model) centerCamera() {
 	}
 	cols, rows := m.viewportTiles()
 	m.cam = sim.Point{
-		X: m.latest.Width/2 - cols/2,
-		Y: m.latest.Height/2 - rows/2,
+		X:     m.latest.Width/2 - cols/2,
+		Y:     m.latest.Height/2 - rows/2,
+		Level: m.cam.Level,
 	}
 	m.clampCamera()
+}
+
+// changeLevel moves the map, and the inspect cursor with it, step levels up
+// (negative) or down (positive) to the next level the colony has broken into,
+// staying put at the shallowest or deepest. The (x, y) stays where it was, so
+// the view lands straight above or below what it was showing.
+func (m *Model) changeLevel(step int) {
+	if m.latest == nil {
+		return
+	}
+	levels := m.latest.Levels()
+	at := -1
+	for i, l := range levels {
+		if l == m.cam.Level {
+			at = i
+		}
+	}
+	next := at + step
+	if at < 0 || next < 0 || next >= len(levels) {
+		return
+	}
+	m.cam.Level, m.cursor.Level = levels[next], levels[next]
+}
+
+// levelLabel names the level the map shows, for the header: blank while the
+// colony has only ever had the one level, so a game that never digs down
+// looks as it always did.
+func (m Model) levelLabel() string {
+	if m.latest == nil || len(m.latest.Levels()) < 2 {
+		return ""
+	}
+	if m.cam.Level == sim.LandingLevel {
+		return "landing level"
+	}
+	return fmt.Sprintf("level %d", m.cam.Level)
 }
 
 func (m *Model) panCamera(dx, dy int) {

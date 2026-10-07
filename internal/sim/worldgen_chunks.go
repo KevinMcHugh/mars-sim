@@ -171,6 +171,11 @@ func (c *chunkContent) setSalt(off int)      { c.salt[off>>6] |= 1 << (off & 63)
 type worldGen struct {
 	cfg           Config
 	width, height int
+	// level is the level this generator lays down. Every Point it makes is
+	// on it, and it mixes into every feature's stream (see featureRand), so
+	// each level holds its own rock while the landing level holds exactly
+	// what it did before there were levels.
+	level Level
 	// landingLo/landingHi bound the landing cavern expanded by
 	// cavernLandingClearance: no cavern or passage may touch this box.
 	landingLo, landingHi Point
@@ -196,18 +201,24 @@ type worldGen struct {
 	nearBuf   []*genCavern
 }
 
-func newWorldGen(cfg Config) *worldGen {
-	center := Point{cfg.Width / 2, cfg.Height / 2}
+// newWorldGen returns the generator for one level. Only the landing level
+// keeps caverns clear of the landing site; deeper levels have no landing site,
+// and their exclusion box is empty.
+func newWorldGen(cfg Config, level Level) *worldGen {
+	if level != LandingLevel {
+		return newWorldGenLanding(cfg, level, Point{1, 1, level}, Point{0, 0, level})
+	}
+	center := Point{cfg.Width / 2, cfg.Height / 2, level}
 	rx, ry := caveRadii(cfg.Width, cfg.Height, cfg.StartColonists, shipTilesPerColonist(cfg))
 	lo := center.Add(-rx-cavernLandingClearance, -ry-cavernLandingClearance)
 	hi := center.Add(rx+cavernLandingClearance, ry+cavernLandingClearance)
-	return newWorldGenLanding(cfg, lo, hi)
+	return newWorldGenLanding(cfg, level, lo, hi)
 }
 
 // newWorldGenLanding is newWorldGen with an explicit exclusion box, for tests
 // that want caverns without a landing site in the way.
-func newWorldGenLanding(cfg Config, lo, hi Point) *worldGen {
-	g := &worldGen{cfg: cfg, width: cfg.Width, height: cfg.Height, landingLo: lo, landingHi: hi}
+func newWorldGenLanding(cfg Config, level Level, lo, hi Point) *worldGen {
+	g := &worldGen{cfg: cfg, width: cfg.Width, height: cfg.Height, level: level, landingLo: lo, landingHi: hi}
 	// Generating the halo around one newly seen chunk plans a square of
 	// 2*(halo+horizon)+1 chunks. Keep two of those per kind of plan, so
 	// digging along an edge reuses the plans its last step made, and no more:
@@ -252,7 +263,7 @@ func (g *worldGen) chunkBounds(k chunkKey) (lo, hi Point, ok bool) {
 	if k.cx < 0 || k.cy < 0 || x0 >= g.width || y0 >= g.height {
 		return Point{}, Point{}, false
 	}
-	return Point{x0, y0}, Point{x1, y1}, true
+	return Point{x0, y0, g.level}, Point{x1, y1, g.level}, true
 }
 
 func (g *worldGen) inMap(p Point) bool {
@@ -266,8 +277,16 @@ func (g *worldGen) nearLanding(p Point) bool {
 // featureRand returns the stream for one feature: the world seed and a stream
 // constant, mixed with the coordinates that identify the feature. Each value
 // goes through splitmix64, so neighbouring chunks get unrelated streams.
+//
+// A level other than the landing level mixes in its distance from it first.
+// The landing level mixes in nothing, so it draws exactly the streams it did
+// before there were levels, and every seed's landing level is unchanged.
 func (g *worldGen) featureRand(stream uint64, ids ...int64) *rand.Rand {
 	x := uint64(g.cfg.Seed) ^ stream
+	if d := int64(g.level - LandingLevel); d != 0 {
+		x ^= uint64(d) * 0x9E3779B97F4A7C15
+		splitmix64(&x)
+	}
 	for _, v := range ids {
 		x ^= uint64(v)
 		splitmix64(&x)
@@ -407,7 +426,7 @@ func (g *worldGen) growVeins(level int, k chunkKey, lo, hi Point, pct int) []Poi
 	// The window every vein of this chunk can reach, marked with the tiles of
 	// earlier levels. Gather the dependencies first: they share the scratch
 	// buffers this plan is about to use.
-	wlo := Point{lo.X - veinReach, lo.Y - veinReach}
+	wlo := Point{lo.X - veinReach, lo.Y - veinReach, g.level}
 	ww, wh := hi.X-lo.X+1+2*veinReach, hi.Y-lo.Y+1+2*veinReach
 	var earlier [][]Point
 	for l := 0; l < level; l++ {
@@ -435,7 +454,7 @@ func (g *worldGen) growVeins(level int, k chunkKey, lo, hi Point, pct int) []Poi
 		var origin Point
 		found := false
 		for try := 0; try < veinOriginTries && !found; try++ {
-			origin = Point{lo.X + rng.IntN(hi.X-lo.X+1), lo.Y + rng.IntN(hi.Y-lo.Y+1)}
+			origin = Point{lo.X + rng.IntN(hi.X-lo.X+1), lo.Y + rng.IntN(hi.Y-lo.Y+1), g.level}
 			free := func(p Point) bool {
 				x, y := p.X-wlo.X, p.Y-wlo.Y
 				return g.inMap(p) && !taken[y*ww+x]
@@ -585,7 +604,7 @@ const runReach = scumRunMax - 1
 // runWindow is the box every run of a chunk spanning lo..hi can reach: its
 // top-left corner, width and height.
 func runWindow(lo, hi Point) (wlo Point, ww, wh int) {
-	return Point{lo.X - runReach, lo.Y - runReach}, hi.X - lo.X + 1 + 2*runReach, hi.Y - lo.Y + 1 + 2*runReach
+	return Point{lo.X - runReach, lo.Y - runReach, lo.Level}, hi.X - lo.X + 1 + 2*runReach, hi.Y - lo.Y + 1 + 2*runReach
 }
 
 // runPlan places percent of chunk k's area as distinct tiles, in short
@@ -614,7 +633,7 @@ func (g *worldGen) runPlan(k chunkKey, stream uint64, percent int, avoid []bool)
 	placed := g.runPlaced
 	tiles := make([]Point, 0, budget)
 	for guard := 0; len(tiles) < budget && guard < 8*budget; guard++ {
-		p := Point{lo.X + rng.IntN(hi.X-lo.X+1), lo.Y + rng.IntN(hi.Y-lo.Y+1)}
+		p := Point{lo.X + rng.IntN(hi.X-lo.X+1), lo.Y + rng.IntN(hi.Y-lo.Y+1), g.level}
 		for n := scumRunMin + rng.IntN(scumRunMax-scumRunMin+1); n > 0 && len(tiles) < budget; n-- {
 			if g.inMap(p) {
 				x, y := p.X-wlo.X, p.Y-wlo.Y
@@ -656,8 +675,8 @@ func (g *worldGen) planCaverns(k chunkKey, lo, hi Point) []*genCavern {
 	maxSize := max(minSize, g.cfg.CavernMax)
 	// Centers stay off the edge margin, as the tiles do.
 	m := cavernEdgeMargin + 1
-	clo := Point{max(lo.X, m), max(lo.Y, m)}
-	chi := Point{min(hi.X, g.width-1-m), min(hi.Y, g.height-1-m)}
+	clo := Point{max(lo.X, m), max(lo.Y, m), g.level}
+	chi := Point{min(hi.X, g.width-1-m), min(hi.Y, g.height-1-m), g.level}
 	if clo.X > chi.X || clo.Y > chi.Y {
 		return nil
 	}
@@ -678,7 +697,7 @@ func (g *worldGen) planCaverns(k chunkKey, lo, hi Point) []*genCavern {
 	planned, failures := 0, 0
 	for planned < budget && failures < cavernSiteFailures {
 		c := &genCavern{owner: k, idx: int32(len(out)), key: rng.Uint64()}
-		c.center = Point{clo.X + rng.IntN(chi.X-clo.X+1), clo.Y + rng.IntN(chi.Y-clo.Y+1)}
+		c.center = Point{clo.X + rng.IntN(chi.X-clo.X+1), clo.Y + rng.IntN(chi.Y-clo.Y+1), g.level}
 		size := minSize + rng.IntN(maxSize-minSize+1)
 		if !g.growCavern(rng, c, size) {
 			failures++
@@ -778,7 +797,7 @@ func (g *worldGen) crowded(c *genCavern, near []*genCavern) bool {
 	// Mark c's tiles dilated by cavernSpacing over its bounding box, then
 	// test each rival tile with one lookup.
 	s := cavernSpacing
-	wlo := Point{c.lo.X - s, c.lo.Y - s}
+	wlo := Point{c.lo.X - s, c.lo.Y - s, g.level}
 	ww, wh := c.hi.X-c.lo.X+1+2*s, c.hi.Y-c.lo.Y+1+2*s
 	dilated := false
 	for _, o := range near {
@@ -904,8 +923,8 @@ func (g *worldGen) nearestCavern(c *genCavern) *genCavern {
 // off the usable map or out of the pair's box (plus passageSlack) is skipped.
 // The walk fails if it touches the landing box or runs too long.
 func (g *worldGen) walkPassage(rng *rand.Rand, from, to Point) ([]Point, bool) {
-	blo := Point{min(from.X, to.X) - passageSlack, min(from.Y, to.Y) - passageSlack}
-	bhi := Point{max(from.X, to.X) + passageSlack, max(from.Y, to.Y) + passageSlack}
+	blo := Point{min(from.X, to.X) - passageSlack, min(from.Y, to.Y) - passageSlack, g.level}
+	bhi := Point{max(from.X, to.X) + passageSlack, max(from.Y, to.Y) + passageSlack, g.level}
 	cur := from
 	limit := 4*from.Chebyshev(to) + 16
 	var path []Point
@@ -914,14 +933,14 @@ func (g *worldGen) walkPassage(rng *rand.Rand, from, to Point) ([]Point, bool) {
 			return nil, false
 		}
 		dx, dy := sign(to.X-cur.X), sign(to.Y-cur.Y)
-		var step Point
+		var step gridStep
 		switch {
 		case rng.IntN(4) == 0:
 			step = veinNeighbors[rng.IntN(len(veinNeighbors))]
 		case dx != 0 && (dy == 0 || rng.IntN(2) == 0):
-			step = Point{dx, 0}
+			step = gridStep{dx, 0}
 		default:
-			step = Point{0, dy}
+			step = gridStep{0, dy}
 		}
 		next := cur.Add(step.X, step.Y)
 		if next.X < cavernEdgeMargin || next.Y < cavernEdgeMargin ||

@@ -74,7 +74,7 @@ func activityOf(e *Entity) (a Activity, walking bool) {
 	if a, ok := activityOfState(e.State); ok {
 		return a, false
 	}
-	return activityOfPurpose(e), e.State == Moving
+	return activityOfPurpose(e), e.State == Moving || e.State == Climbing
 }
 
 // activityOfState is the activity a State names, if it names one.

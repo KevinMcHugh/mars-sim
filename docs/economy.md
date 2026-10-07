@@ -129,7 +129,7 @@ identity and should keep none:
 | --- | --- |
 | Fungible goods in a depot (ore, meals, biomatter) | The **depot ledger**: `(depot, owner, item) → count`. The container's physical stacks carry no owner. |
 | Goods a colonist is carrying | The carrier owns them, except units a **cargo record** says belong to someone else (a hauler moving your ore), unit by unit. Carrying isn't owning. |
-| Placed fixtures (beds, toilets, scumhouses, storage containers) | A sparse **fixture record** keyed by position, like `World.storageContainers`: owner plus access policy. |
+| Placed fixtures (beds, toilets, scumhouses, storage containers) | A sparse **fixture record** keyed by position, like `Layer.storageContainers`: owner plus access policy. |
 | Unique carried items (weapons) | The carrier, same as other carried goods, until a floor-item concept exists. |
 
 The ledger is what the original "silo" idea generalizes to. Deposit a

@@ -180,7 +180,7 @@ func (w *World) roomUnits(rec *roomRecord) ([]fixtureUnit, []Point) {
 	taken := map[Point]bool{}
 	for y := rec.lo.Y; y <= rec.hi.Y; y++ {
 		for x := rec.lo.X; x <= rec.hi.X; x++ {
-			p := Point{x, y}
+			p := Point{x, y, LandingLevel}
 			t := w.TerrainAt(p)
 			if FixtureZone(t) == NoZone || taken[p] {
 				continue

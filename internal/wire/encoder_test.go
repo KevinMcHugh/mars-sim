@@ -213,15 +213,15 @@ func fixture(fog bool) *sim.Snapshot {
 		Tiles:       sim.NewTileGrid(w, h, tiles),
 		TileChanges: sim.TileChanges{Frame: 1, All: true, Refuse: true},
 		Entities: []sim.EntityView{
-			{ID: 1, Kind: sim.Colonist, Pos: sim.Point{X: 10, Y: 3}, State: sim.Mining, Focus: sim.FocusWork},
-			{ID: 2, Kind: sim.Cat, Pos: sim.Point{X: 70, Y: 20}, State: sim.Hunting},
-			{ID: 9, Kind: sim.Alien, Pos: sim.Point{X: 149, Y: 69}, State: sim.Sleeping,
+			{ID: 1, Kind: sim.Colonist, Pos: sim.Point{X: 10, Y: 3, Level: sim.LandingLevel}, State: sim.Mining, Focus: sim.FocusWork},
+			{ID: 2, Kind: sim.Cat, Pos: sim.Point{X: 70, Y: 20, Level: sim.LandingLevel}, State: sim.Hunting},
+			{ID: 9, Kind: sim.Alien, Pos: sim.Point{X: 149, Y: 69, Level: sim.LandingLevel}, State: sim.Sleeping,
 				AlienSpecies: sim.AlienSpecies{Emoji: glyphs.Beetle}},
 		},
 		Stats:          sim.Stats{Colonists: 1, Cats: 1, Aliens: 1, FloorDug: 1500},
-		Scum:           map[sim.Point]uint8{{X: 12, Y: 4}: 3, {X: 2, Y: 4}: 1, {X: 130, Y: 1}: 2},
+		Scum:           map[sim.Point]uint8{{X: 12, Y: 4, Level: sim.LandingLevel}: 3, {X: 2, Y: 4, Level: sim.LandingLevel}: 1, {X: 130, Y: 1, Level: sim.LandingLevel}: 2},
 		ScumMax:        3,
-		Salt:           map[sim.Point]struct{}{{X: 7, Y: 9}: {}, {X: 1, Y: 9}: {}, {X: 129, Y: 0}: {}},
+		Salt:           map[sim.Point]struct{}{{X: 7, Y: 9, Level: sim.LandingLevel}: {}, {X: 1, Y: 9, Level: sim.LandingLevel}: {}, {X: 129, Y: 0, Level: sim.LandingLevel}: {}},
 		TicksPerSecond: 8,
 		FogOfWar:       fog,
 	}
@@ -288,7 +288,7 @@ func TestEncodedTilesMatchTileAt(t *testing.T) {
 		}
 		for _, p := range d.Pages {
 			for off := 0; off < pageTiles; off++ {
-				pos := sim.Point{X: int(p.PX)*sim.TilePageSide + off%sim.TilePageSide, Y: int(p.PY)*sim.TilePageSide + off/sim.TilePageSide}
+				pos := sim.Point{X: int(p.PX)*sim.TilePageSide + off%sim.TilePageSide, Y: int(p.PY)*sim.TilePageSide + off/sim.TilePageSide, Level: sim.LandingLevel}
 				want := sim.Tile{Terrain: sim.Rock}
 				visible := !fog
 				if pos.X < snap.Width && pos.Y < snap.Height {
@@ -321,7 +321,7 @@ func TestEncodeSendsOnlyChangedPages(t *testing.T) {
 	}
 
 	changed := *snap
-	pi := snap.Tiles.PageIndex(sim.Point{X: 70, Y: 10}) // page (1,0)
+	pi := snap.Tiles.PageIndex(sim.Point{X: 70, Y: 10, Level: sim.LandingLevel}) // page (1,0)
 	changed.TileChanges = sim.TileChanges{Frame: 3, Pages: []int{pi}, Refuse: true}
 	d := decode(t, e.Encode(&changed))
 	if len(d.Pages) != 1 || d.Pages[0].PX != 1 || d.Pages[0].PY != 0 || !d.HasRefuse || d.Reset {
@@ -491,7 +491,7 @@ func TestEncodeSendsScumWhenItChanges(t *testing.T) {
 
 	scraped := same
 	scraped.TileChanges = sim.TileChanges{Frame: 4}
-	scraped.Scum = map[sim.Point]uint8{{X: 12, Y: 4}: 2}
+	scraped.Scum = map[sim.Point]uint8{{X: 12, Y: 4, Level: sim.LandingLevel}: 2}
 	if d := decode(t, e.Encode(&scraped)); !d.HasScum || !slices.Equal(d.Scum, []decodedScum{{X: 12, Y: 4, Amount: 2}}) {
 		t.Errorf("changed scum: %v %+v", d.HasScum, d.Scum)
 	}
@@ -529,7 +529,7 @@ func TestEncodeSendsSaltWhenItChanges(t *testing.T) {
 
 	built := same
 	built.TileChanges = sim.TileChanges{Frame: 4}
-	built.Salt = map[sim.Point]struct{}{{X: 1, Y: 9}: {}}
+	built.Salt = map[sim.Point]struct{}{{X: 1, Y: 9, Level: sim.LandingLevel}: {}}
 	if d := decode(t, e.Encode(&built)); !d.HasSalt || !slices.Equal(d.Salt, []decodedSalt{{X: 1, Y: 9}}) {
 		t.Errorf("changed salt: %v %+v", d.HasSalt, d.Salt)
 	}
@@ -556,7 +556,7 @@ func TestEncodeFlowField(t *testing.T) {
 	toilet := sim.FlowFieldRef{Facility: sim.Toilet}
 	snap.FlowFields = []sim.FlowFieldRef{{Facility: sim.NutrientPod}, toilet, {Frontier: true}}
 	snap.FlowField = sim.NewFlowFieldView(toilet, snap.Width, snap.Height,
-		map[sim.Point]int32{{X: 5, Y: 2}: 3, {X: 1, Y: 1}: 0, {X: 100, Y: 5}: 70000})
+		map[sim.Point]int32{{X: 5, Y: 2, Level: sim.LandingLevel}: 3, {X: 1, Y: 1, Level: sim.LandingLevel}: 0, {X: 100, Y: 5, Level: sim.LandingLevel}: 70000})
 	d := decode(t, e.Encode(snap))
 	want := []decodedFlow{{X: 1, Y: 1, Dist: 0}, {X: 5, Y: 2, Dist: 3}} // (100,5) is out of view
 	if !d.HasFlow || d.FlowField != 1 || d.FlowMax != 70000 || d.FlowGoals != 1 || !slices.Equal(d.Flow, want) {

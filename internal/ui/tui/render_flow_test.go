@@ -44,7 +44,7 @@ func TestFlowFieldOverlayCycles(t *testing.T) {
 	}
 
 	snap.FlowField = sim.NewFlowFieldView(snap.FlowFields[0], snap.Width, snap.Height,
-		map[sim.Point]int32{{X: 0, Y: 0}: 0, {X: 1, Y: 0}: 1, {X: 2, Y: 0}: 17})
+		map[sim.Point]int32{{X: 0, Y: 0, Level: sim.LandingLevel}: 0, {X: 1, Y: 0, Level: sim.LandingLevel}: 1, {X: 2, Y: 0, Level: sim.LandingLevel}: 17})
 	model, _ = model.Update(snapshotMsg{snap: snap})
 	out := model.View()
 	for _, want := range []string{"FLOW FIELD", "toilet", "goal tiles   1", "farthest     17 steps", " 0 117", "flow field: toilet"} {
@@ -77,18 +77,18 @@ func TestFlowFieldOverlayCycles(t *testing.T) {
 func TestFlowFieldInspectShowsDistance(t *testing.T) {
 	snap := flowSnapshot()
 	snap.FlowField = sim.NewFlowFieldView(snap.FlowFields[0], snap.Width, snap.Height,
-		map[sim.Point]int32{{X: 3, Y: 2}: 4})
+		map[sim.Point]int32{{X: 3, Y: 2, Level: sim.LandingLevel}: 4})
 	var model tea.Model = New(nil, nil)
 	model, _ = model.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
 	model, _ = model.Update(snapshotMsg{snap: snap})
 	model, _ = model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'f'}})
 	model, _ = model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'i'}})
 	m := model.(Model)
-	m.cursor = sim.Point{X: 3, Y: 2}
+	m.cursor = sim.Point{X: 3, Y: 2, Level: sim.LandingLevel}
 	if out := m.View(); !strings.Contains(out, "toilet 4 steps") {
 		t.Fatalf("footer should give the cursor's distance:\n%s", out)
 	}
-	m.cursor = sim.Point{X: 0, Y: 0}
+	m.cursor = sim.Point{X: 0, Y: 0, Level: sim.LandingLevel}
 	if out := m.View(); !strings.Contains(out, "toilet unreachable") {
 		t.Fatalf("footer should call an unreached tile unreachable:\n%s", out)
 	}

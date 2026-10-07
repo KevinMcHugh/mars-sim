@@ -362,7 +362,7 @@ func parseCommand(s string) (sim.Command, error) {
 			return sim.ClearColonyWideOrder{Side: side, Item: item}, nil
 		}
 		return sim.PlaceColonyOrder{Side: side, Item: item, Qty: c.Qty, Price: sim.Money(c.Price),
-			Depot: sim.Point{X: c.X, Y: c.Y}}, nil
+			Depot: sim.Point{X: c.X, Y: c.Y, Level: sim.LandingLevel}}, nil
 	case "order-reprice":
 		return sim.RepriceColonyOrder{ID: sim.OrderID(c.ID), Price: sim.Money(c.Price)}, nil
 	case "order-cancel":

@@ -40,6 +40,9 @@ type buildTask struct {
 	// neither: it is unpaid, and its fixture stays the colony's.
 	order *WorkOrder
 	proj  *project
+	// depth is how many levels a shaft task (terrain ShaftTop) digs below
+	// its tile; see shafts.go.
+	depth int
 }
 
 // project is a planned structure: the colony builds all its tasks, then it is
@@ -74,6 +77,9 @@ type project struct {
 // facility, the dig task must count as done too, or it can never be satisfied
 // again and permanently blocks the project's phase from advancing.
 func (w *World) taskDone(t *buildTask) bool {
+	if t.terrain == ShaftTop {
+		return w.shaftTaskDone(t)
+	}
 	if t.terrain == Floor {
 		return w.TerrainAt(t.pos) != t.clears
 	}
@@ -87,6 +93,12 @@ func (w *World) taskDone(t *buildTask) bool {
 func (w *World) taskWorkable(t *buildTask) bool {
 	if w.taskDone(t) {
 		return false
+	}
+	if t.terrain == StairDown {
+		return w.canDigStairAt(t.pos)
+	}
+	if t.terrain == ShaftTop {
+		return w.canDigShaft(t.pos, shaftTaskBottom(t))
 	}
 	if t.terrain == Floor {
 		return w.TerrainAt(t.pos) == t.clears
@@ -172,7 +184,7 @@ func (w *World) claimNearestTaskIn(from Point, id EntityID, projects []*project)
 			if builder := w.entities[id]; builder != nil && !t.moved && !w.canAffordBuild(builder, t.terrain, p.issuer) {
 				continue
 			}
-			if d := from.Chebyshev(t.pos); best == nil || d < bestDist ||
+			if d := w.travelEstimate(from, t.pos); best == nil || d < bestDist ||
 				(d == bestDist && lessPoint(t.pos, best.pos)) {
 				best, bestDist = t, d
 			}
@@ -241,9 +253,7 @@ func (w *World) reachableFacilityConstruction(from Point, kind Terrain) bool {
 // Future-phase tiles remain usable as construction access until their phase
 // begins. Kept as a set so movement can test a tile in O(1).
 func (w *World) rebuildBuildTiles() {
-	for p := range w.buildTiles {
-		delete(w.buildTiles, p)
-	}
+	clear(w.buildTiles)
 	for _, p := range w.projects {
 		phase, ok := w.activeProjectPhase(p)
 		if !ok {
@@ -909,15 +919,16 @@ const roomSearchMaxRadius = roomSearchStartRadius * 4
 // perimeter is ready yet for the next room) would double the search box all
 // the way out to the full map before giving up.
 func (w *World) carvedSearchRadius(center Point, width int) int {
-	if !w.carvedAny {
+	l := w.lay(center)
+	if !l.carvedAny {
 		return roomSearchMaxRadius
 	}
 	margin := width + 2
 	corners := [4]Point{
-		{w.carvedMin.X - margin, w.carvedMin.Y - margin},
-		{w.carvedMin.X - margin, w.carvedMax.Y + margin},
-		{w.carvedMax.X + margin, w.carvedMin.Y - margin},
-		{w.carvedMax.X + margin, w.carvedMax.Y + margin},
+		{l.carvedMin.X - margin, l.carvedMin.Y - margin, l.Level},
+		{l.carvedMin.X - margin, l.carvedMax.Y + margin, l.Level},
+		{l.carvedMax.X + margin, l.carvedMin.Y - margin, l.Level},
+		{l.carvedMax.X + margin, l.carvedMax.Y + margin, l.Level},
 	}
 	r := roomSearchStartRadius
 	for _, c := range corners {
@@ -962,7 +973,7 @@ func (w *World) findRoomSiteWith(width int, rules siteRules) (roomFrame, bool) {
 			}
 		}
 	}
-	center := Point{w.Width / 2, w.Height / 2}
+	center := Point{w.Width / 2, w.Height / 2, LandingLevel}
 
 	// A usable site needs an already-cleared floor lane beside it (see
 	// roomSiteClear), so sites cluster near the existing colony rather than
@@ -991,15 +1002,15 @@ func (w *World) findRoomSiteWith(width int, rules siteRules) (roomFrame, bool) {
 		// box: four facings and two more passes for free-standing sites made
 		// a search that found nothing five times dearer before this.
 		ax0, ax1, ay0, ay1 := x0, x1, y0, y1
-		if w.carvedAny {
+		if cl := w.lay(center); cl.carvedAny {
 			m := width + 2
-			ax0, ax1 = max(ax0, w.carvedMin.X-m), min(ax1, w.carvedMax.X+m)
-			ay0, ay1 = max(ay0, w.carvedMin.Y-m), min(ay1, w.carvedMax.Y+m)
+			ax0, ax1 = max(ax0, cl.carvedMin.X-m), min(ax1, cl.carvedMax.X+m)
+			ay0, ay1 = max(ay0, cl.carvedMin.Y-m), min(ay1, cl.carvedMax.Y+m)
 		}
 
 		cands = cands[:0]
 		for rank, face := range roomFacings {
-			cands = w.appendRoomSites(cands, face, rank, width, Point{ax0, ay0}, Point{ax1, ay1}, center, designated, rules)
+			cands = w.appendRoomSites(cands, face, rank, width, Point{ax0, ay0, LandingLevel}, Point{ax1, ay1, LandingLevel}, center, designated, rules)
 		}
 		slices.SortFunc(cands, compareSiteCandidates)
 		for _, c := range cands {
@@ -1050,7 +1061,7 @@ func (w *World) appendRoomSites(cands []siteCandidate, face roomFacing, rank, wi
 					y = b + half + 1 // the loop's y++ lands on the first anchor clear of b
 					continue
 				}
-				try(Point{x, y})
+				try(Point{x, y, LandingLevel})
 			}
 		}
 	default:
@@ -1065,7 +1076,7 @@ func (w *World) appendRoomSites(cands []siteCandidate, face roomFacing, rank, wi
 					x = b + half + 1 // the loop's x++ lands on the first anchor clear of b
 					continue
 				}
-				try(Point{x, y})
+				try(Point{x, y, LandingLevel})
 			}
 		}
 	}
@@ -1077,7 +1088,7 @@ func (w *World) appendRoomSites(cands []siteCandidate, face roomFacing, rank, wi
 // appendRoomSites).
 func (w *World) lastUnwalkableInRow(y, x0, x1 int) (int, bool) {
 	for x := x1; x >= x0; x-- {
-		if !w.Walkable(Point{x, y}) {
+		if !w.Walkable(Point{x, y, LandingLevel}) {
 			return x, true
 		}
 	}
@@ -1087,7 +1098,7 @@ func (w *World) lastUnwalkableInRow(y, x0, x1 int) (int, bool) {
 // lastUnwalkableInColumn is lastUnwalkableInRow down column x.
 func (w *World) lastUnwalkableInColumn(x, y0, y1 int) (int, bool) {
 	for y := y1; y >= y0; y-- {
-		if !w.Walkable(Point{x, y}) {
+		if !w.Walkable(Point{x, y, LandingLevel}) {
 			return y, true
 		}
 	}

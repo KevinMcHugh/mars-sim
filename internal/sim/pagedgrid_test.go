@@ -52,7 +52,7 @@ func TestPagedGridUnwrittenReadsZero(t *testing.T) {
 // node on an edge is refused rather than handed a page its neighbours are not in.
 func TestPagedGridInteriorPage(t *testing.T) {
 	g := newPagedGrid[int32](256, 256)
-	for _, p := range []Point{{0, 10}, {gridPageMask, 10}, {10, 0}, {10, gridPageMask}, {gridPageSide, 10}} {
+	for _, p := range []Point{{0, 10, LandingLevel}, {gridPageMask, 10, LandingLevel}, {10, 0, LandingLevel}, {10, gridPageMask, LandingLevel}, {gridPageSide, 10, LandingLevel}} {
 		g.set(p.X, p.Y, 1)
 		if page := g.interiorPage(p.X, p.Y); page != nil && (p.X%gridPageSide == 0 || p.X%gridPageSide == gridPageMask || p.Y%gridPageSide == 0 || p.Y%gridPageSide == gridPageMask) {
 			t.Fatalf("interiorPage(%v) returned a page for an edge cell", p)
@@ -98,14 +98,14 @@ func TestPagedGridsStaySparse(t *testing.T) {
 	// The colony is a 60x60 chamber plus whatever it has dug, well inside a
 	// 4x4 block of 64x64 pages. Aliens roam through rock and drag the
 	// occupancy index wider than the rest, so it gets more room.
-	full := len(w.regionOf.pages)
+	full := len(w.landing().regionOf.pages)
 	for _, c := range []struct {
 		name  string
 		pages int
 		max   int
 	}{
-		{"regionOf", w.regionOf.pagesAllocated(), 16},
-		{"occ", w.occ.pagesAllocated(), 128},
+		{"regionOf", w.landing().regionOf.pagesAllocated(), 16},
+		{"occ", w.landing().occ.pagesAllocated(), 128},
 		{"facilityCells", w.facilityCells.pagesAllocated(), 16},
 		{"transitSeen", w.transitSeen.pagesAllocated(), 16},
 		{"pathfinder cells", w.pf.cells.pagesAllocated(), 16},

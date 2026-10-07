@@ -201,7 +201,7 @@ func assertLayoutSound(t *testing.T, what string, l *shipLayout) {
 	}
 	for dy := 0; dy < l.height; dy++ {
 		for dx := 0; dx < l.width; dx++ {
-			if p := (Point{dx, dy}); open(p) && !reached[p] {
+			if p := (Point{dx, dy, 0}); open(p) && !reached[p] {
 				t.Fatalf("%s: open deck at %v cannot be reached from outside:\n%s", what, p, strings.Join(l.rows, "\n"))
 			}
 		}
@@ -307,11 +307,11 @@ func TestShipCrashesThroughRockWhenTheCavernIsFull(t *testing.T) {
 	// on floor with a clear margin, so every landing has to crash.
 	for y := 0; y < w.Height; y++ {
 		for x := 0; x < w.Width; x++ {
-			w.SetTerrain(Point{x, y}, Rock)
+			w.SetTerrain(Point{x, y, LandingLevel}, Rock)
 		}
 	}
 	for x := 5; x < 35; x++ {
-		w.SetTerrain(Point{x, 12}, Floor)
+		w.SetTerrain(Point{x, 12, LandingLevel}, Floor)
 	}
 	w.refreshSpatial()
 
@@ -332,7 +332,7 @@ func TestShipCrashesThroughRockWhenTheCavernIsFull(t *testing.T) {
 	assertShipIntact(t, w, s)
 	w.refreshSpatial()
 	for _, id := range s.Colonists {
-		if w.roomOf(w.entities[id].Pos) != w.roomOf(Point{6, 12}) {
+		if w.roomOf(w.entities[id].Pos) != w.roomOf(Point{6, 12, LandingLevel}) {
 			t.Fatal("the crashed ship does not open onto the strip")
 		}
 	}
@@ -371,17 +371,17 @@ func TestShipsNeverLandInAnUndiscoveredCavern(t *testing.T) {
 	w := newTestWorld(t, cfg)
 	for y := 0; y < w.Height; y++ {
 		for x := 0; x < w.Width; x++ {
-			w.SetTerrain(Point{x, y}, Rock)
+			w.SetTerrain(Point{x, y, LandingLevel}, Rock)
 		}
 	}
 	for y := 15; y <= 26; y++ {
 		for x := 20; x <= 40; x++ {
-			cellAt(w, Point{x, y}).Explored = false
-			w.carveHidden(Point{x, y})
+			cellAt(w, Point{x, y, LandingLevel}).Explored = false
+			w.carveHidden(Point{x, y, LandingLevel})
 		}
 	}
 	for y := 10; y < 29; y++ {
-		w.SetTerrain(Point{5, y}, Floor)
+		w.SetTerrain(Point{5, y, LandingLevel}, Floor)
 	}
 	w.refreshSpatial()
 
@@ -390,7 +390,7 @@ func TestShipsNeverLandInAnUndiscoveredCavern(t *testing.T) {
 		t.Fatal("no site found")
 	}
 	w.refreshSpatial()
-	if w.roomOf(w.entities[s.Colonists[0]].Pos) != w.roomOf(Point{5, 10}) {
+	if w.roomOf(w.entities[s.Colonists[0]].Pos) != w.roomOf(Point{5, 10, LandingLevel}) {
 		t.Fatalf("the ship at %v landed cut off from the colony's corridor", s.Origin)
 	}
 }
@@ -405,13 +405,13 @@ func TestShipsNeverRevealAHiddenCavern(t *testing.T) {
 	w := newTestWorld(t, cfg)
 	for y := 0; y < w.Height; y++ {
 		for x := 0; x < w.Width; x++ {
-			w.SetTerrain(Point{x, y}, Rock)
+			w.SetTerrain(Point{x, y, LandingLevel}, Rock)
 		}
 	}
 	var cavern []Point
 	for y := 5; y <= 25; y++ {
 		for x := 30; x <= 45; x++ {
-			p := Point{x, y}
+			p := Point{x, y, LandingLevel}
 			cellAt(w, p).Explored = false
 			w.carveHidden(p)
 			cavern = append(cavern, p)
@@ -419,7 +419,7 @@ func TestShipsNeverRevealAHiddenCavern(t *testing.T) {
 	}
 	// The colony's corridor runs right alongside the cavern wall.
 	for y := 3; y < 28; y++ {
-		w.SetTerrain(Point{27, y}, Floor)
+		w.SetTerrain(Point{27, y, LandingLevel}, Floor)
 	}
 	w.refreshSpatial()
 	for i := 0; i < 4; i++ {
@@ -450,8 +450,8 @@ func TestMoveShipBeforeTheFirstTick(t *testing.T) {
 	}
 	a, b := w.ships[0], w.ships[1]
 	old := a.Origin
-	dest := Point{10, 5} // up in the rock, far from the cavern
-	rat := w.spawn(Rat, Point{0, 0})
+	dest := Point{10, 5, LandingLevel} // up in the rock, far from the cavern
+	rat := w.spawn(Rat, Point{0, 0, LandingLevel})
 	w.SetTerrain(dest.Add(3, 2), Floor)
 	w.moveEntity(rat, dest.Add(3, 2))
 
@@ -474,7 +474,7 @@ func TestMoveShipBeforeTheFirstTick(t *testing.T) {
 	assertShipIntact(t, w, b)
 	for _, id := range append(append([]EntityID(nil), a.Colonists...), a.Pets...) {
 		e := w.entities[id]
-		if !shipInterior(a, e.Pos) || w.occ.at(e.Pos.X, e.Pos.Y) != id {
+		if !shipInterior(a, e.Pos) || w.landing().occ.at(e.Pos.X, e.Pos.Y) != id {
 			t.Fatalf("%s did not come with its ship: at %v", e.displayName(), e.Pos)
 		}
 	}
@@ -594,7 +594,7 @@ func TestFoundersWaitAloftToBeLandedOneByOne(t *testing.T) {
 		t.Fatal("ship 1 would not land in open rock")
 	}
 	s := w.ships[0]
-	if s.Origin != (Point{10, 5}) || s.layout.width != next.Width || !slices.Equal(s.layout.rows, next.Shape) {
+	if s.Origin != (Point{10, 5, LandingLevel}) || s.layout.width != next.Width || !slices.Equal(s.layout.rows, next.Shape) {
 		t.Fatalf("ship 1 landed at %v as\n%s\nnot as shown:\n%s", s.Origin, strings.Join(s.layout.rows, "\n"), strings.Join(next.Shape, "\n"))
 	}
 	assertShipIntact(t, w, s)
@@ -638,10 +638,10 @@ func TestPlayerLandingBreaksIntoACavernAfterThePassengersAreOut(t *testing.T) {
 	if len(w.alienSpecies) == 0 {
 		t.Skip("no alien species to nest")
 	}
-	center := Point{40, 8}
+	center := Point{40, 8, LandingLevel}
 	for y := 4; y <= 12; y++ {
 		for x := 34; x <= 46; x++ {
-			p := Point{x, y}
+			p := Point{x, y, LandingLevel}
 			w.SetTerrain(p, Rock)
 			cellAt(w, p).Explored = false
 			w.carveHidden(p)
