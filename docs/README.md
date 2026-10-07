@@ -49,7 +49,8 @@ way it is without re-deriving it from the source each time.
 | [storage.md](./storage.md) | Placeable storage containers, their capacity, construction, and snapshot state. |
 | [affect.md](./affect.md) | Charge/grip/valence affect, the impact-weighted push/pull blend, fresh/worn wear, grammar-matched trait rules, per-colonist baselines, decay, labels, and focus contributions. |
 | [compositional-perception-and-events.md](./compositional-perception-and-events.md) | Occurrence/percept/reaction grammar: who notices a world fact, how they react, wear policies, and why tags were dropped. |
-| [scum-lab.md](./scum-lab.md) | Scum Lab: the shared shell, Focus Tester, Grammar Builder, and how to add a tool. |
+| [scum-lab.md](./scum-lab.md) | Scum Lab: the shared shell, Focus Tester, Grammar Builder, Sprite Designer, and how to add a tool. |
+| [sprite-designer.md](./sprite-designer.md) | Scum Lab's Sprite Designer: iterating on an SVG map sprite with the Claude API from the browser, tile-size previews, SVG/PNG export, and what the map needs before it can use one. |
 | [wasm.md](./wasm.md) | The browser module Scum Lab calls, why importing `internal/sim` pulls in more than the focus functions, and the `internal/mind` split that fixes it. |
 | [economy.md](./economy.md) | **Proposal.** Scarcity and economy: property and owners, crash-pod arrivals, dollars, recipes and slurry, the bid/ask book for goods and labor, and the phased build plan. |
 | [skills.md](./skills.md) | Skills and professions: practice in base work ticks, a few labelled ranks per skill on a per-skill log curve, skills rolled at arrival on their own RNG stream, faster work and larger yields that pay more per rank on steeper curves, and profession by standing. Proposed next: opportunity cost in the producer planner, competition for bids, and workshops of one's own. |
