@@ -43,6 +43,7 @@ type repairScratch struct {
 	affected   map[int32]struct{} // phase 1: cells that lost their distance
 	affectedAt []int32            // affected, in the order found
 	heap       distHeap           // phase 1 and phase 2 work queue
+	stairs     bool               // a stair exists: neighbours include links
 }
 
 // repair brings the field up to date by fixing the cells around f.touched. It
@@ -55,6 +56,7 @@ func (f *flowField) repair() bool {
 		f.checked = make(map[int32]struct{})
 		f.affected = make(map[int32]struct{})
 	}
+	f.stairs = w.hasStairs()
 	clear(f.seen)
 	clear(f.checked)
 	clear(f.affected)
@@ -62,21 +64,27 @@ func (f *flowField) repair() bool {
 	f.affectedAt = f.affectedAt[:0]
 
 	// Every tile within one step of a touched point may have changed
-	// walkability or goal status (see touch).
+	// walkability or goal status (see touch), and so may the tiles straight
+	// above and below it: if the touched point is (or was) one end of a
+	// stair, the other end just gained or lost its link.
+	add := func(q Point) {
+		if !w.InBounds(q) {
+			return
+		}
+		i := int32(w.index(q))
+		if _, dup := f.seen[i]; !dup {
+			f.seen[i] = struct{}{}
+			f.candidates = append(f.candidates, i)
+		}
+	}
 	for _, p := range f.touched {
 		for dy := -1; dy <= 1; dy++ {
 			for dx := -1; dx <= 1; dx++ {
-				q := Point{p.X + dx, p.Y + dy}
-				if !w.InBounds(q) {
-					continue
-				}
-				i := int32(w.index(q))
-				if _, dup := f.seen[i]; !dup {
-					f.seen[i] = struct{}{}
-					f.candidates = append(f.candidates, i)
-				}
+				add(p.Add(dx, dy))
 			}
 		}
+		add(Point{p.X, p.Y, p.Level - 1})
+		add(Point{p.X, p.Y, p.Level + 1})
 	}
 
 	// Phase 1: find what lost its distance, in order of old distance.
@@ -115,7 +123,7 @@ func (f *flowField) repair() bool {
 	// Phase 2: recompute, seeding from what is left.
 	h.reset()
 	seed := func(i int32) {
-		p := Point{int(i) % w.Width, int(i) / w.Width}
+		p := w.pointOf(int(i))
 		if !w.Walkable(p) {
 			return
 		}
@@ -147,7 +155,7 @@ func (f *flowField) repair() bool {
 		c := f.cellPtr(i)
 		c.gen, c.dist = f.gen, d
 		f.forNeighbours(i, func(n int32) {
-			if !w.tiles.at(int(n)%w.Width, int(n)/w.Width).Terrain.Walkable() {
+			if !w.Walkable(w.pointOf(int(n))) {
 				return
 			}
 			if nd, ok := f.dist(n); !ok || nd > d+1 {
@@ -163,7 +171,7 @@ func (f *flowField) repair() bool {
 // still next to an unaffected cell one step closer.
 func (f *flowField) supported(i, d int32) bool {
 	w := f.w
-	p := Point{int(i) % w.Width, int(i) / w.Width}
+	p := w.pointOf(int(i))
 	if !w.Walkable(p) {
 		return false
 	}
@@ -186,26 +194,32 @@ func (f *flowField) supported(i, d int32) bool {
 
 // dist is at for a cell index: the cell's distance, and whether it has one.
 func (f *flowField) dist(i int32) (int32, bool) {
-	w := f.w
-	c := f.cells.at(int(i)%w.Width, int(i)/w.Width)
+	c := f.cells.at(f.w.pointOf(int(i)))
 	return c.dist, c.gen == f.gen
 }
 
 func (f *flowField) cellPtr(i int32) *flowCell {
-	w := f.w
-	return f.cells.ptr(int(i)%w.Width, int(i)/w.Width)
+	return f.cells.ptr(f.w.pointOf(int(i)))
 }
 
-// forNeighbours calls fn with the index of each in-bounds 8-neighbour of i.
+// forNeighbours calls fn with the index of each in-bounds 8-neighbour of i,
+// and of the far end of a stair if i is one (the same neighbours rebuild
+// expands, so a repaired field matches a rebuilt one).
 func (f *flowField) forNeighbours(i int32, fn func(int32)) {
 	w := f.w
-	x, y := int(i)%w.Width, int(i)/w.Width
+	p := w.pointOf(int(i))
+	base := int(i) - (p.Y*w.Width + p.X)
 	for _, d := range neighbors8 {
-		nx, ny := x+d.X, y+d.Y
+		nx, ny := p.X+d.X, p.Y+d.Y
 		if nx < 0 || nx >= w.Width || ny < 0 || ny >= w.Height {
 			continue
 		}
-		fn(int32(ny*w.Width + nx))
+		fn(int32(base + ny*w.Width + nx))
+	}
+	if f.stairs {
+		if q, ok := w.linkFrom(p); ok {
+			fn(int32(w.index(q)))
+		}
 	}
 }
 

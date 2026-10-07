@@ -29,8 +29,8 @@ type ChunkPreview struct {
 // each chunk once per row of it.
 const previewCacheChunks = 256
 
-func newChunkPreview(cfg Config) *ChunkPreview {
-	return &ChunkPreview{gen: newWorldGen(cfg), chunks: newGenCache[chunkKey, *chunkContent](previewCacheChunks)}
+func newChunkPreview(cfg Config, level Level) *ChunkPreview {
+	return &ChunkPreview{gen: newWorldGen(cfg, level), chunks: newGenCache[chunkKey, *chunkContent](previewCacheChunks)}
 }
 
 // At returns the tile at the in-bounds p as generation will first lay it

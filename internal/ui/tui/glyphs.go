@@ -64,6 +64,8 @@ const (
 	glyphChair        = glyphs.Chair
 	glyphIncubator    = glyphs.Incubator
 	glyphTrough       = glyphs.Trough
+	glyphStairDown    = glyphs.StairDown
+	glyphStairUp      = glyphs.StairUp
 	glyphColonist     = glyphs.Colonist
 	glyphFleeing      = glyphs.Fleeing
 	glyphTalking      = glyphs.Talking
@@ -194,6 +196,8 @@ var glyphRegistry = map[string]glyph{
 	glyphChair:       {glyphChair, 2, "Ch"},
 	glyphIncubator:   {glyphIncubator, 2, "In"},
 	glyphTrough:      {glyphTrough, 2, "Tr"},
+	glyphStairDown:   {glyphStairDown, 2, "vv"},
+	glyphStairUp:     {glyphStairUp, 2, "^^"},
 
 	glyphColonist: {glyphColonist, 2, "@ "},
 	glyphFleeing:  {glyphFleeing, 2, "@!"},

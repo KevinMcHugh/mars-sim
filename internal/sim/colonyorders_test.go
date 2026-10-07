@@ -54,7 +54,7 @@ func TestAColonyOrderMustBeCovered(t *testing.T) {
 	if w.placeColonyOrder(PlaceColonyOrder{Side: Ask, Item: Meal, Qty: 4, Price: 5, Depot: silo}) {
 		t.Fatal("an ask for more than the colony holds was placed")
 	}
-	if w.placeColonyOrder(PlaceColonyOrder{Side: Ask, Item: Meal, Qty: 1, Price: 5, Depot: Point{1, 1}}) {
+	if w.placeColonyOrder(PlaceColonyOrder{Side: Ask, Item: Meal, Qty: 1, Price: 5, Depot: Point{1, 1, LandingLevel}}) {
 		t.Fatal("an order at no depot was placed")
 	}
 	if w.placeColonyOrder(PlaceColonyOrder{Side: Ask, Item: ColonistCorpse, Qty: 1, Price: 5, Depot: silo}) {
@@ -127,7 +127,7 @@ func TestUpkeepLeavesManualOrdersAlone(t *testing.T) {
 
 	w.tick = marketInterval
 	w.runMarket()
-	nearer := Point{w.Width / 2, w.Height / 2}
+	nearer := Point{w.Width / 2, w.Height / 2, LandingLevel}
 	w.SetTerrain(nearer, Storage)
 	w.refreshSpatial()
 	w.tick += marketInterval

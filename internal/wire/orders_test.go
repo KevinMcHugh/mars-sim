@@ -15,7 +15,7 @@ func orderSnap() *sim.Snapshot {
 	snap.Tick, snap.TicksPerDay = 1000, 400 // two and a half days in
 	snap.Entities[0].Profile = &sim.Profile{Name: "Uma Xu"}
 	uma := sim.ColonistOwner(snap.Entities[0].ID)
-	silo := sim.Point{X: 5, Y: 5}
+	silo := sim.Point{X: 5, Y: 5, Level: sim.LandingLevel}
 	snap.Economy.Silo, snap.Economy.HasSilo = silo, true
 	snap.Economy.Orders = []sim.OrderView{
 		{ID: 3, Side: sim.Bid, Item: sim.IronOre, Qty: 4, Price: 5, Actor: sim.Community, Depot: silo, Posted: 100,

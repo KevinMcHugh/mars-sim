@@ -10,11 +10,11 @@ import (
 func marketWorld(t *testing.T) (w *World, silo Point, cs [3]*Entity) {
 	t.Helper()
 	w = propertyWorld(t)
-	silo = Point{12, 6}
+	silo = Point{12, 6, LandingLevel}
 	w.SetTerrain(silo, Storage)
 	w.refreshSpatial()
 	for i := range cs {
-		cs[i] = w.spawn(Colonist, Point{8 + 2*i, 10})
+		cs[i] = w.spawn(Colonist, Point{8 + 2*i, 10, LandingLevel})
 		cs[i].wallet = 100
 		w.moneyIssued += 100 - Money(w.cfg.CrashPodPurse)
 	}
@@ -202,10 +202,10 @@ func TestProspectorsArePaidByTheColony(t *testing.T) {
 func TestHungryColonistsBuyWhatOthersSell(t *testing.T) {
 	w, silo, cs := marketWorld(t)
 	seller, buyer := cs[0], cs[1]
-	locker := Point{8, 14}
+	locker := Point{8, 14, LandingLevel}
 	w.SetTerrain(locker, Storage)
 	w.setFixtureOwner(locker, ColonistOwner(seller.ID), AccessPrivate)
-	w.SetTerrain(Point{20, 12}, NutrientPod) // the safety net, which should go unused
+	w.SetTerrain(Point{20, 12, LandingLevel}, NutrientPod) // the safety net, which should go unused
 	w.refreshSpatial()
 	stock(w, locker, ColonistOwner(seller.ID), Meal, w.cfg.MealKeep+3)
 
@@ -245,7 +245,7 @@ func TestTheColonyRetiresItsOrdersWhenTheSiloMoves(t *testing.T) {
 		t.Fatal("no standing bids at the first silo")
 	}
 	escrow := w.moneyEscrowed()
-	nearer := Point{w.Width / 2, w.Height / 2}
+	nearer := Point{w.Width / 2, w.Height / 2, LandingLevel}
 	w.SetTerrain(nearer, Storage)
 	w.refreshSpatial()
 	if s, _ := w.marketDepot(); s != nearer {

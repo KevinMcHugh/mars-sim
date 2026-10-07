@@ -18,7 +18,7 @@ func (w *World) scavengeable(p Point) bool {
 	if w.scumAt(p) == 0 {
 		return false
 	}
-	_, exposed := w.exposedScum[p]
+	_, exposed := w.lay(p).exposedScum[p]
 	return exposed
 }
 
@@ -35,7 +35,7 @@ func (w *World) grazeable(p Point) bool {
 	if w.scumAt(p) == 0 {
 		return false
 	}
-	_, exposed := w.exposedScum[p]
+	_, exposed := w.lay(p).exposedScum[p]
 	return exposed
 }
 
@@ -78,7 +78,7 @@ func (w *World) jobScavenge(e *Entity) {
 		w.clearJob(e)
 		return
 	}
-	if e.Pos.Chebyshev(e.Target) > 1 {
+	if !e.Pos.Within(e.Target, 1) {
 		arrived, ok := w.travelTo(e, e.Target)
 		if !ok {
 			w.clearJob(e)
@@ -112,7 +112,7 @@ func (w *World) eatScavenge(p Point) bool {
 	if w.takeGore(p) {
 		return true
 	}
-	if _, exposed := w.exposedScum[p]; exposed {
+	if _, exposed := w.lay(p).exposedScum[p]; exposed {
 		return w.takeScum(p)
 	}
 	return false

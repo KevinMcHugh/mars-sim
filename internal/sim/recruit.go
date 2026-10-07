@@ -236,7 +236,7 @@ func (w *World) recruitLanding(n int) []Point {
 		if w.TerrainAt(p) == Floor && !w.occupied(p) && !w.doorTiles[p] {
 			out = append(out, p)
 		}
-		for _, d := range [4]Point{{0, -1}, {1, 0}, {0, 1}, {-1, 0}} {
+		for _, d := range [4]gridStep{{0, -1}, {1, 0}, {0, 1}, {-1, 0}} {
 			q := p.Add(d.X, d.Y)
 			if !seen[q] && w.Walkable(q) {
 				seen[q] = true

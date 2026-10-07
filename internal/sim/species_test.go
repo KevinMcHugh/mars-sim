@@ -224,7 +224,7 @@ func TestPreyFindersFollowTags(t *testing.T) {
 	cfg.StartColonists, cfg.StartAliens, cfg.StartCats, cfg.StartRats = 0, 0, 0, 0
 	cfg.AlienSpeciesCount = 2
 	w := newTestWorld(t, cfg)
-	at := Point{w.Width / 2, w.Height / 2}
+	at := Point{w.Width / 2, w.Height / 2, LandingLevel}
 	carve(w, at.Add(-4, 0), at.Add(4, 0), Floor)
 	w.refreshSpatial()
 

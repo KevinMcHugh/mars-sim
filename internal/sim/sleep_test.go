@@ -19,7 +19,7 @@ func TestSleepTraitsMoveTheNightAnHour(t *testing.T) {
 		{[]Trait{TraitShortSleeper}, night - hour},
 		{[]Trait{TraitLongSleeper}, night + hour},
 	} {
-		e := w.spawn(Colonist, Point{6, 6})
+		e := w.spawn(Colonist, Point{6, 6, LandingLevel})
 		e.Profile.Traits = c.traits
 		w.resolveTraitEffects(e)
 		if e.sleepTicks != c.want {
@@ -44,9 +44,9 @@ func TestSleepTraitsMoveTheNightAnHour(t *testing.T) {
 func sleepyColonistBesideBed(t *testing.T) (*World, *Entity) {
 	t.Helper()
 	w := propertyWorld(t)
-	w.SetTerrain(Point{10, 10}, Bed)
+	w.SetTerrain(Point{10, 10, LandingLevel}, Bed)
 	w.refreshSpatial()
-	e := w.spawn(Colonist, Point{9, 10})
+	e := w.spawn(Colonist, Point{9, 10, LandingLevel})
 	w.setDrive(e, DriveSleep, w.cfg.Drives[DriveSleep].SeekAt+50)
 	w.setDrive(e, DriveFood, 200)
 	for i := 0; i < 50 && e.State != Sleeping; i++ {

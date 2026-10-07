@@ -29,8 +29,8 @@ func makeSnapshot() *sim.Snapshot {
 		Tiles:          sim.NewTileGrid(w, h, tiles),
 		TicksPerSecond: 8,
 		Entities: []sim.EntityView{
-			{ID: 1, Kind: sim.Colonist, Pos: sim.Point{X: 1, Y: 1}, HP: 40, MaxHP: 40, State: sim.Mining},
-			{ID: 2, Kind: sim.Alien, Pos: sim.Point{X: 4, Y: 2}, HP: 30, MaxHP: 30, State: sim.Hunting},
+			{ID: 1, Kind: sim.Colonist, Pos: sim.Point{X: 1, Y: 1, Level: sim.LandingLevel}, HP: 40, MaxHP: 40, State: sim.Mining},
+			{ID: 2, Kind: sim.Alien, Pos: sim.Point{X: 4, Y: 2, Level: sim.LandingLevel}, HP: 30, MaxHP: 30, State: sim.Hunting},
 		},
 		Log: []sim.LogEntry{{Text: "The colony ship settles onto the Martian crust."}},
 	}
@@ -136,11 +136,11 @@ func TestRosterShowsFamilyAndAffinity(t *testing.T) {
 	// Colonists Zoe is related to: one she likes, one she has come to dislike.
 	snap.Entities = append(snap.Entities,
 		sim.EntityView{
-			ID: 3, Kind: sim.Colonist, Pos: sim.Point{X: 1, Y: 2}, HP: 40, MaxHP: 40,
+			ID: 3, Kind: sim.Colonist, Pos: sim.Point{X: 1, Y: 2, Level: sim.LandingLevel}, HP: 40, MaxHP: 40,
 			Profile: &sim.Profile{Name: "Ravi Boone", Gender: sim.GenderMan},
 		},
 		sim.EntityView{
-			ID: 4, Kind: sim.Colonist, Pos: sim.Point{X: 2, Y: 2}, HP: 40, MaxHP: 40,
+			ID: 4, Kind: sim.Colonist, Pos: sim.Point{X: 2, Y: 2, Level: sim.LandingLevel}, HP: 40, MaxHP: 40,
 			Profile: &sim.Profile{Name: "Omar Petrov", Gender: sim.GenderMan},
 		},
 	)
@@ -172,8 +172,8 @@ func TestJobBoardShowsProjectAndAssignee(t *testing.T) {
 			QueuedTick: 2,
 			Phase:      0,
 			Tasks: []sim.TaskView{
-				{Pos: sim.Point{X: 1, Y: 1}, Terrain: sim.Wall, Done: true},
-				{Pos: sim.Point{X: 2, Y: 1}, Terrain: sim.Wall, Owner: 1},
+				{Pos: sim.Point{X: 1, Y: 1, Level: sim.LandingLevel}, Terrain: sim.Wall, Done: true},
+				{Pos: sim.Point{X: 2, Y: 1, Level: sim.LandingLevel}, Terrain: sim.Wall, Owner: 1},
 			},
 		},
 	}
@@ -201,8 +201,8 @@ func TestStorageDetailsTabNavigatesContainerContents(t *testing.T) {
 	first[0] = sim.ItemStack{Kind: sim.IronOre, Count: 12}
 	second[0] = sim.ItemStack{Kind: sim.WaterIce, Count: 7}
 	snap.Storages = []sim.StorageView{
-		{Pos: sim.Point{X: 1, Y: 2}, Inventory: first},
-		{Pos: sim.Point{X: 4, Y: 2}, Inventory: second},
+		{Pos: sim.Point{X: 1, Y: 2, Level: sim.LandingLevel}, Inventory: first},
+		{Pos: sim.Point{X: 4, Y: 2, Level: sim.LandingLevel}, Inventory: second},
 	}
 
 	var model tea.Model = New(nil, nil)
@@ -229,7 +229,7 @@ func TestMapCursorInspectsAndOpensStorage(t *testing.T) {
 	for i := range tiles {
 		tiles[i].Terrain = sim.Rock
 	}
-	p := sim.Point{X: snap.Width - 1, Y: snap.Height - 1}
+	p := sim.Point{X: snap.Width - 1, Y: snap.Height - 1, Level: sim.LandingLevel}
 	tiles[p.Y*snap.Width+p.X].Terrain = sim.Storage
 	snap.Tiles = sim.NewTileGrid(snap.Width, snap.Height, tiles)
 	var inventory sim.StorageInventory
@@ -632,7 +632,7 @@ func TestRosterDetailShowsCollapsedMemoryRun(t *testing.T) {
 func TestMarketTabListsAccountsAndMoneySupply(t *testing.T) {
 	snap := makeSnapshot()
 	snap.Entities = append(snap.Entities,
-		sim.EntityView{ID: 3, Kind: sim.Colonist, Pos: sim.Point{X: 2, Y: 1}, HP: 40, MaxHP: 40,
+		sim.EntityView{ID: 3, Kind: sim.Colonist, Pos: sim.Point{X: 2, Y: 1, Level: sim.LandingLevel}, HP: 40, MaxHP: 40,
 			Profile: &sim.Profile{Name: "Ada Richards"}, Wallet: 900})
 	snap.Entities[0].Profile = &sim.Profile{Name: "Bo Poorman"}
 	snap.Entities[0].Wallet = 25
@@ -671,8 +671,8 @@ func TestLedgerShowsInStorageAndMarket(t *testing.T) {
 	a[0] = sim.ItemStack{Kind: sim.IronOre, Count: 5}
 	b[0] = sim.ItemStack{Kind: sim.IronOre, Count: 7}
 	snap.Storages = []sim.StorageView{
-		{Pos: sim.Point{X: 1, Y: 2}, Inventory: a, Ledger: []sim.LedgerLine{{Owner: dee, Item: sim.IronOre, Count: 5}}},
-		{Pos: sim.Point{X: 4, Y: 2}, Inventory: b, Ledger: []sim.LedgerLine{{Owner: dee, Item: sim.IronOre, Count: 7}}},
+		{Pos: sim.Point{X: 1, Y: 2, Level: sim.LandingLevel}, Inventory: a, Ledger: []sim.LedgerLine{{Owner: dee, Item: sim.IronOre, Count: 5}}},
+		{Pos: sim.Point{X: 4, Y: 2, Level: sim.LandingLevel}, Inventory: b, Ledger: []sim.LedgerLine{{Owner: dee, Item: sim.IronOre, Count: 7}}},
 	}
 
 	var model tea.Model = New(nil, nil)
@@ -702,7 +702,7 @@ func TestSaltIsDrawn(t *testing.T) {
 	tiles[3*snap.Width+3].Gore = 1
 	snap.Tiles = sim.NewTileGrid(snap.Width, snap.Height, tiles)
 	snap.Entities = nil
-	snap.Salt = map[sim.Point]struct{}{{X: 2, Y: 2}: {}}
+	snap.Salt = map[sim.Point]struct{}{{X: 2, Y: 2, Level: sim.LandingLevel}: {}}
 
 	var model tea.Model = New(nil, nil)
 	model, _ = model.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
@@ -711,7 +711,7 @@ func TestSaltIsDrawn(t *testing.T) {
 	if n := strings.Count(model.View(), glyphSalt); n != 2 {
 		t.Fatalf("salt drawn %d times with one deposit and the legend, want 2:\n%s", n, model.View())
 	}
-	snap.Salt = map[sim.Point]struct{}{{X: 3, Y: 3}: {}} // under gore
+	snap.Salt = map[sim.Point]struct{}{{X: 3, Y: 3, Level: sim.LandingLevel}: {}} // under gore
 	model, _ = model.Update(snapshotMsg{snap: snap})
 	if n := strings.Count(model.View(), glyphSalt); n != 1 {
 		t.Fatalf("salt drawn %d times with the deposit under gore, want only the legend's:\n%s", n, model.View())
@@ -727,11 +727,11 @@ func TestScumAndScumhouseAreDrawn(t *testing.T) {
 	for i := range tiles {
 		tiles[i].Terrain = sim.Floor
 	}
-	house := sim.Point{X: 4, Y: 1}
+	house := sim.Point{X: 4, Y: 1, Level: sim.LandingLevel}
 	tiles[house.Y*snap.Width+house.X].Terrain = sim.Scumhouse
 	snap.Tiles = sim.NewTileGrid(snap.Width, snap.Height, tiles)
 	snap.Entities = nil
-	snap.Scum = map[sim.Point]uint8{{X: 2, Y: 2}: 3}
+	snap.Scum = map[sim.Point]uint8{{X: 2, Y: 2, Level: sim.LandingLevel}: 3}
 	snap.Storages = []sim.StorageView{{Pos: house, Terrain: sim.Scumhouse}}
 
 	var model tea.Model = New(nil, nil)
@@ -755,7 +755,7 @@ func TestMarketTabShowsBooksTradesAndOrders(t *testing.T) {
 	snap := makeSnapshot()
 	snap.Entities[0].Profile = &sim.Profile{Name: "Ida Miner"}
 	ida := sim.ColonistOwner(1)
-	silo := sim.Point{X: 3, Y: 2}
+	silo := sim.Point{X: 3, Y: 2, Level: sim.LandingLevel}
 	snap.Economy = sim.EconomyView{
 		Treasury: 900, Escrowed: 96, Issued: 1096, Circulating: 1000,
 		Books:  []sim.BookView{{Item: sim.IronOre, Depot: silo, BestBid: 3, BidQty: 32, Last: 3, Volume: 10, Traded: true}},
@@ -789,7 +789,7 @@ func TestMarketTabShowsBooksTradesAndOrders(t *testing.T) {
 func TestMarketTabShowsPricesAcrossDepotsAndPlans(t *testing.T) {
 	snap := makeSnapshot()
 	snap.Entities[0].Profile = &sim.Profile{Name: "Hal Hauler"}
-	silo, far := sim.Point{X: 3, Y: 2}, sim.Point{X: 9, Y: 7}
+	silo, far := sim.Point{X: 3, Y: 2, Level: sim.LandingLevel}, sim.Point{X: 9, Y: 7, Level: sim.LandingLevel}
 	snap.Economy = sim.EconomyView{
 		Treasury: 900, Issued: 1000, Circulating: 1000,
 		Books: []sim.BookView{

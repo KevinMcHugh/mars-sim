@@ -12,7 +12,7 @@ import (
 // landed in and around it, and a handful of aliens lurking in the hidden
 // caverns beyond it.
 func generate(w *World) {
-	center := Point{w.Width / 2, w.Height / 2}
+	center := Point{w.Width / 2, w.Height / 2, LandingLevel}
 
 	// Ore veins, cave scum and hidden natural caverns are generated chunk by chunk,
 	// lazily: carving the landing site generates the chunks under it, and
@@ -20,18 +20,8 @@ func generate(w *World) {
 	// the colony has seen (see generateChunkAt). What a chunk holds is a pure
 	// function of the config and its coordinates, on worldgen's own streams.
 	// See docs/worldgen-chunks.md.
-	w.gen = newWorldGen(w.cfg)
-	w.genDone = make([]bool, len(w.tiles.pages))
-	w.genSeen = make([]bool, len(w.tiles.pages))
-	// Only a fog-off frontend ever reads ungenerated chunks (see
-	// Snapshot.TileAt), and the fog setting is fixed for a run.
-	if !w.cfg.FogOfWar {
-		w.preview = newChunkPreview(w.cfg)
-	}
-	// Alien nests are not placed at generation: each cavern rolls for one
-	// when the colony breaks into it (see rollNests). Chunks register their
-	// caverns' centers as they are generated.
-	w.trackCavernsForNests()
+	w.generateLazily()
+	w.initGen(w.landing())
 
 	// Carve an oval starting cavern large enough to hold the colonists with room
 	// to move and a rock frontier to mine. Natural caverns keep
@@ -110,7 +100,7 @@ func generate(w *World) {
 
 // veinNeighbors are the four orthogonal steps: veins and passages grow along
 // them, so a deposit or tunnel is connected edge to edge, not by corners.
-var veinNeighbors = [...]Point{
+var veinNeighbors = [...]gridStep{
 	{0, -1},
 	{1, 0},
 	{0, 1},
@@ -123,10 +113,38 @@ var veinNeighbors = [...]Point{
 // its chunk exists. A world built without generate has no generator and
 // treats every chunk as plain rock.
 func (w *World) generateChunkAt(p Point) {
-	if w.gen == nil || w.genDone[w.tiles.pageIndex(p.X, p.Y)] {
+	l := w.lay(p)
+	if l.gen == nil || l.genDone[l.tiles.pageIndex(p.X, p.Y)] {
 		return
 	}
-	w.generateChunk(p.X>>genChunkBits, p.Y>>genChunkBits)
+	w.generateChunk(l, p.X>>genChunkBits, p.Y>>genChunkBits)
+}
+
+// generateLazily turns on chunked generation for every layer from now on
+// (generate calls it; a world built without it is plain rock everywhere, for
+// tests). Alien nests are not placed at generation: each cavern rolls for one
+// when the colony breaks into it (see rollNests). Chunks register their
+// caverns' centers as they are generated.
+func (w *World) generateLazily() {
+	w.lazyGen = true
+	w.trackCavernsForNests()
+}
+
+// initGen gives a layer its generator, if the world generates lazily. The
+// landing level gets one in generate; a deeper level gets one when the colony
+// first breaks into it (see addLayer).
+func (w *World) initGen(l *Layer) {
+	if !w.lazyGen {
+		return
+	}
+	l.gen = newWorldGen(w.cfg, l.Level)
+	l.genDone = make([]bool, len(l.tiles.pages))
+	l.genSeen = make([]bool, len(l.tiles.pages))
+	// Only a fog-off frontend ever reads ungenerated chunks (see
+	// Snapshot.TileAt), and the fog setting is fixed for a run.
+	if !w.cfg.FogOfWar {
+		l.preview = newChunkPreview(w.cfg, l.Level)
+	}
 }
 
 // generateAround generates every chunk within WorldgenHalo of the one holding
@@ -135,27 +153,28 @@ func (w *World) generateChunkAt(p Point) {
 // pages and region chunks, cavern centers, genChunks) commutes.
 func (w *World) generateAround(p Point) {
 	h := max(1, w.cfg.WorldgenHalo)
+	l := w.lay(p)
 	cx, cy := p.X>>genChunkBits, p.Y>>genChunkBits
-	for y := max(0, cy-h); y <= min(w.gen.chunkRows()-1, cy+h); y++ {
-		for x := max(0, cx-h); x <= min(w.gen.chunkCols()-1, cx+h); x++ {
-			w.generateChunk(x, y)
+	for y := max(0, cy-h); y <= min(l.gen.chunkRows()-1, cy+h); y++ {
+		for x := max(0, cx-h); x <= min(l.gen.chunkCols()-1, cx+h); x++ {
+			w.generateChunk(l, x, y)
 		}
 	}
 }
 
-// generateChunk generates chunk (cx, cy) unless it already exists.
-func (w *World) generateChunk(cx, cy int) {
-	pi := w.tiles.pageIndex(cx<<genChunkBits, cy<<genChunkBits)
-	if w.genDone[pi] {
+// generateChunk generates chunk (cx, cy) of layer l unless it already exists.
+func (w *World) generateChunk(l *Layer, cx, cy int) {
+	pi := l.tiles.pageIndex(cx<<genChunkBits, cy<<genChunkBits)
+	if l.genDone[pi] {
 		return
 	}
-	w.genDone[pi] = true
-	for _, c := range w.applyChunk(cx, cy) {
+	l.genDone[pi] = true
+	for _, c := range w.applyChunk(l, cx, cy) {
 		w.unfoundCaverns[c] = struct{}{}
 	}
 	k := chunkKey{int32(cx), int32(cy)}
-	i, _ := slices.BinarySearchFunc(w.genChunks, k, cmpChunkKey)
-	w.genChunks = slices.Insert(w.genChunks, i, k)
+	i, _ := slices.BinarySearchFunc(l.genChunks, k, cmpChunkKey)
+	l.genChunks = slices.Insert(l.genChunks, i, k)
 }
 
 // cmpChunkKey orders chunks by row, then column.
@@ -173,17 +192,18 @@ func cmpChunkKey(a, b chunkKey) int {
 // TileChanged events carveHidden used to fire only did work for tiles nobody
 // could reach. The counts, the published pages and the region chunks are
 // kept in step here instead.
-func (w *World) applyChunk(cx, cy int) []Point {
-	c := w.gen.chunk(cx, cy)
+func (w *World) applyChunk(l *Layer, cx, cy int) []Point {
+	c := l.gen.chunk(cx, cy)
+	lv := l.Level
 	x0, y0 := cx*genChunkSize, cy*genChunkSize
 	x1, y1 := min(x0+genChunkSize, w.Width), min(y0+genChunkSize, w.Height)
 	// One chunk is exactly one page, and nothing may write a tile before its
 	// chunk is generated (see generateChunkAt): a page that already exists
 	// here would hold writes this is about to overwrite.
-	if w.tiles.pageAt(x0, y0) != nil {
-		panic(fmt.Sprintf("worldgen: chunk (%d, %d) was written before it was generated", cx, cy))
+	if l.tiles.pageAt(x0, y0) != nil {
+		panic(fmt.Sprintf("worldgen: chunk (%d, %d) of level %d was written before it was generated", cx, cy, lv))
 	}
-	page := w.tiles.pageAtAlloc(x0, y0)
+	page := l.tiles.pageAtAlloc(x0, y0)
 	var patches []Point // row by row, which is cmpScumPatch's order within a chunk
 	for y := y0; y < y1; y++ {
 		for x := x0; x < x1; x++ {
@@ -191,30 +211,30 @@ func (w *World) applyChunk(cx, cy int) []Point {
 			cell := &page[off]
 			cell.Composition = c.comp[off]
 			if c.isScum(off) {
-				w.scum[Point{x, y}] = scumPatch{amount: w.cfg.ScumMax}
-				patches = append(patches, Point{x, y})
+				l.scum[Point{x, y, lv}] = scumPatch{amount: w.cfg.ScumMax}
+				patches = append(patches, Point{x, y, lv})
 			}
 			if c.isSalt(off) {
-				w.salt[Point{x, y}] = struct{}{}
+				l.salt[Point{x, y, lv}] = struct{}{}
 			}
 			if !c.isFloor(off) {
 				continue
 			}
 			if applyChunkViaCarveHidden {
-				w.carveHidden(Point{x, y})
+				w.carveHidden(Point{x, y, lv})
 				continue
 			}
 			cell.Terrain = Floor
-			w.terrainCounts[Rock]--
-			w.terrainCounts[Floor]++
-			w.hiddenFloor++
-			w.dirtyChunks[w.chunkIndexOf(Point{x, y})] = struct{}{}
+			l.terrainCounts[Rock]--
+			l.terrainCounts[Floor]++
+			l.hiddenFloor++
+			l.dirtyChunks[w.chunkIndexOf(Point{x, y, lv})] = struct{}{}
 		}
 	}
 	for _, p := range patches {
-		w.scumPatches.insert(p)
+		l.scumPatches.insert(p)
 	}
-	w.markTilePageDirty(Point{x0, y0})
+	w.markTilePageDirty(Point{x0, y0, lv})
 	// Nothing next to an ungenerated chunk has been discovered (discovered
 	// floor always has its neighbours revealed, which generates them first),
 	// so a new patch should never be exposed. Ask anyway, once the chunk's
@@ -222,10 +242,10 @@ func (w *World) applyChunk(cx, cy int) []Point {
 	for y := y0; y < y1; y++ {
 		for x := x0; x < x1; x++ {
 			if c.isScum(offset(x, y)) {
-				w.refreshScumExposure(Point{x, y})
+				w.refreshScumExposure(Point{x, y, lv})
 			}
 			if c.isSalt(offset(x, y)) {
-				w.refreshSaltExposure(Point{x, y})
+				w.refreshSaltExposure(Point{x, y, lv})
 			}
 		}
 	}
@@ -278,10 +298,16 @@ func caveRadii(width, height, n, shipShare int) (rx, ry int) {
 }
 
 // freeFloorTiles returns every walkable, unoccupied tile the colony has
-// discovered — undiscovered natural caverns are no place to put anyone. Used
-// for bulk placement where we need a guaranteed, uniform draw.
+// discovered on the landing level — undiscovered natural caverns are no place
+// to put anyone. Used for bulk placement where we need a guaranteed, uniform
+// draw.
+//
+// This and the random placement below (randomTile, randomFloor,
+// alienSpawnSite) work on the landing level by design: arrivals, rat plagues
+// and the aliens a game starts with all come to the colony's own level.
+// Deeper levels hold what their caverns hold (see rollNests).
 func (w *World) freeFloorTiles() []Point {
-	return w.freeFloorTilesIn(Point{0, 0}, Point{w.Width - 1, w.Height - 1})
+	return w.freeFloorTilesIn(Point{0, 0, LandingLevel}, Point{w.Width - 1, w.Height - 1, LandingLevel})
 }
 
 // freeFloorTilesIn is freeFloorTiles restricted to the inclusive box between lo
@@ -291,10 +317,10 @@ func (w *World) freeFloorTiles() []Point {
 func (w *World) freeFloorTilesIn(lo, hi Point) []Point {
 	x0, y0 := max(0, lo.X), max(0, lo.Y)
 	x1, y1 := min(w.Width-1, hi.X), min(w.Height-1, hi.Y)
-	out := make([]Point, 0, min(w.countTerrain(Floor)-w.hiddenFloor, (x1-x0+1)*(y1-y0+1)))
+	out := make([]Point, 0, min(w.countTerrain(Floor)-w.landing().hiddenFloor, (x1-x0+1)*(y1-y0+1)))
 	for y := y0; y <= y1; y++ {
 		for x := x0; x <= x1; x++ {
-			p := Point{x, y}
+			p := Point{x, y, LandingLevel}
 			if w.Walkable(p) && w.discovered(p) && !w.occupied(p) {
 				out = append(out, p)
 			}
@@ -324,11 +350,11 @@ const randomTileRejectionAttempts = 4096
 // or how likely each is. It stops a huge map from spending thousands of
 // guesses, and then a full-map scan, on chunks that do not exist.
 func (w *World) randomTile(pred func(Point) bool) (Point, bool) {
-	if w.gen != nil {
+	if w.landing().gen != nil {
 		return w.randomGeneratedTile(pred)
 	}
 	for i := 0; i < randomTileRejectionAttempts; i++ {
-		p := Point{w.rng.IntN(w.Width), w.rng.IntN(w.Height)}
+		p := Point{w.rng.IntN(w.Width), w.rng.IntN(w.Height), LandingLevel}
 		if pred(p) {
 			return p, true
 		}
@@ -341,12 +367,12 @@ func (w *World) randomTile(pred func(Point) bool) (Point, bool) {
 // misses, which keeps the draw uniform over tiles even though edge chunks are
 // partial.
 func (w *World) randomGeneratedTile(pred func(Point) bool) (Point, bool) {
-	if len(w.genChunks) == 0 {
+	if len(w.landing().genChunks) == 0 {
 		return Point{}, false
 	}
 	for i := 0; i < randomTileRejectionAttempts; i++ {
-		k := w.genChunks[w.rng.IntN(len(w.genChunks))]
-		p := Point{int(k.cx)<<genChunkBits + w.rng.IntN(genChunkSize), int(k.cy)<<genChunkBits + w.rng.IntN(genChunkSize)}
+		k := w.landing().genChunks[w.rng.IntN(len(w.landing().genChunks))]
+		p := Point{int(k.cx)<<genChunkBits + w.rng.IntN(genChunkSize), int(k.cy)<<genChunkBits + w.rng.IntN(genChunkSize), LandingLevel}
 		if w.InBounds(p) && pred(p) {
 			return p, true
 		}
@@ -369,11 +395,11 @@ func (w *World) randomGeneratedTile(pred func(Point) bool) (Point, bool) {
 // forGeneratedTiles calls fn for every in-bounds tile of every generated
 // chunk, chunk by chunk in genChunks order and row-major within each.
 func (w *World) forGeneratedTiles(fn func(Point)) {
-	for _, k := range w.genChunks {
+	for _, k := range w.landing().genChunks {
 		x0, y0 := int(k.cx)<<genChunkBits, int(k.cy)<<genChunkBits
 		for y := y0; y < min(y0+genChunkSize, w.Height); y++ {
 			for x := x0; x < min(x0+genChunkSize, w.Width); x++ {
-				fn(Point{x, y})
+				fn(Point{x, y, LandingLevel})
 			}
 		}
 	}
@@ -388,7 +414,7 @@ func (w *World) randomTileScan(pred func(Point) bool) (Point, bool) {
 	k := 0
 	for y := 0; y < w.Height; y++ {
 		for x := 0; x < w.Width; x++ {
-			p := Point{x, y}
+			p := Point{x, y, LandingLevel}
 			if !pred(p) {
 				continue
 			}
@@ -415,7 +441,7 @@ func (w *World) randomFloor() (Point, bool) {
 // discovered floor at least minDist from origin, and failing that to the
 // free discovered floor farthest from origin.
 func (w *World) alienSpawnSite(origin Point, minDist int) (Point, bool) {
-	if w.hiddenFloor > 0 {
+	if w.landing().hiddenFloor > 0 {
 		if p, ok := w.randomTile(func(p Point) bool {
 			return w.Walkable(p) && !w.discovered(p) && !w.occupied(p)
 		}); ok {
@@ -439,12 +465,12 @@ func (w *World) alienSpawnSite(origin Point, minDist int) (Point, bool) {
 			best, bestDist = p, d
 		}
 	}
-	if w.gen != nil {
+	if w.landing().gen != nil {
 		w.forGeneratedTiles(consider)
 	} else {
 		for y := 0; y < w.Height; y++ {
 			for x := 0; x < w.Width; x++ {
-				consider(Point{x, y})
+				consider(Point{x, y, LandingLevel})
 			}
 		}
 	}

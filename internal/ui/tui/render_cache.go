@@ -23,6 +23,7 @@ type renderCache struct {
 	sidebarRows  int
 	sidebarASCII bool
 	sidebarFog   bool
+	sidebarDeep  bool
 	sidebarLog   []sim.LogEntry
 	sidebarBand  int
 	sidebarOut   string
@@ -41,19 +42,20 @@ func newRenderCache() *renderCache {
 
 // sidebar returns the memoized sidebar, calling draw only when an input it
 // depends on has changed: the panel height, the event log, the glyph set,
-// whether fog of war is on (which adds a legend row), or the log stripe
-// phase. The phase is not a function of the log text — the ring can rotate
-// onto a slice that compares equal — so it is its own input.
-func (c *renderCache) sidebar(rows int, log []sim.LogEntry, ascii, fog bool, band int, draw func() string) string {
+// whether fog of war is on and whether there is more than one level (each
+// adds a legend row), or the log stripe phase. The phase is not a function of
+// the log text — the ring can rotate onto a slice that compares equal — so it
+// is its own input.
+func (c *renderCache) sidebar(rows int, log []sim.LogEntry, ascii, fog, deep bool, band int, draw func() string) string {
 	if c == nil {
 		return draw()
 	}
 	if c.sidebarValid && c.sidebarRows == rows && c.sidebarASCII == ascii && c.sidebarFog == fog &&
-		c.sidebarBand == band && slices.Equal(c.sidebarLog, log) {
+		c.sidebarDeep == deep && c.sidebarBand == band && slices.Equal(c.sidebarLog, log) {
 		return c.sidebarOut
 	}
 	c.sidebarOut = draw()
-	c.sidebarRows, c.sidebarASCII, c.sidebarFog, c.sidebarBand = rows, ascii, fog, band
+	c.sidebarRows, c.sidebarASCII, c.sidebarFog, c.sidebarDeep, c.sidebarBand = rows, ascii, fog, deep, band
 	c.sidebarLog = append(c.sidebarLog[:0], log...)
 	c.sidebarValid = true
 	return c.sidebarOut

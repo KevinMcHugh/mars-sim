@@ -104,9 +104,17 @@ type zoneCell struct {
 	locks uint8
 }
 
-// zoneAt is the zone kind of p; NoZone off the map.
+// zonable reports whether p can be zoned: on the map, on the landing level.
+// Zones are the colony's plan for where it lives, and it lives on the landing
+// level, so the zone grid covers that level only (see docs/layers.md); a
+// deeper tile reads as unzoned and painting it does nothing.
+func (w *World) zonable(p Point) bool {
+	return p.Level == LandingLevel && w.InBounds(p)
+}
+
+// zoneAt is the zone kind of p; NoZone off the map or off the landing level.
 func (w *World) zoneAt(p Point) ZoneKind {
-	if !w.InBounds(p) {
+	if !w.zonable(p) {
 		return NoZone
 	}
 	return w.zones.at(p.X, p.Y).kind
@@ -114,13 +122,13 @@ func (w *World) zoneAt(p Point) ZoneKind {
 
 // zoneLocked reports whether a colony ship holds p as residence.
 func (w *World) zoneLocked(p Point) bool {
-	return w.InBounds(p) && w.zones.at(p.X, p.Y).locks > 0
+	return w.zonable(p) && w.zones.at(p.X, p.Y).locks > 0
 }
 
 // setZone zones p as k (NoZone unzones it), keeping the per-kind counts and
 // the revision publishing reads. It does not look at locks: callers decide.
 func (w *World) setZone(p Point, k ZoneKind) {
-	if !w.InBounds(p) {
+	if !w.zonable(p) {
 		return
 	}
 	if old := w.zones.at(p.X, p.Y).kind; old == k {
@@ -135,7 +143,7 @@ func (w *World) setZone(p Point, k ZoneKind) {
 
 // lockZone holds p as residence for a colony ship (unlock releases one hold).
 func (w *World) lockZone(p Point) {
-	if !w.InBounds(p) {
+	if !w.zonable(p) {
 		return
 	}
 	w.setZone(p, ZoneResidence)
@@ -146,7 +154,7 @@ func (w *World) lockZone(p Point) {
 }
 
 func (w *World) unlockZone(p Point) {
-	if !w.InBounds(p) {
+	if !w.zonable(p) {
 		return
 	}
 	if c := w.zones.ptr(p.X, p.Y); c.locks > 0 {
@@ -210,7 +218,7 @@ func (w *World) planZonePaint(c PaintZone) *zonePaint {
 	changed := make(map[Point]bool)
 	for y := y0; y <= y1; y++ {
 		for x := x0; x <= x1; x++ {
-			p := Point{x, y}
+			p := Point{x, y, LandingLevel}
 			if w.zoneLocked(p) {
 				z.locked++
 				continue
@@ -354,7 +362,7 @@ func (w *World) unmarkedRock(x0, y0, x1, y1 int) []Point {
 	var out []Point
 	for y := y0; y <= y1; y++ {
 		for x := x0; x <= x1; x++ {
-			p := Point{x, y}
+			p := Point{x, y, LandingLevel}
 			if w.TerrainAt(p) != Rock || !w.discovered(p) || w.doorTiles[p] || taken[p] {
 				continue
 			}
@@ -407,7 +415,7 @@ func (w *World) clearArea(c ClearArea) bool {
 	var tiles []Point
 	for y := y0; y <= y1; y++ {
 		for x := x0; x <= x1; x++ {
-			p := Point{x, y}
+			p := Point{x, y, LandingLevel}
 			if isBuilt(w.TerrainAt(p)) && w.discovered(p) && !taken[p] {
 				tiles = append(tiles, p)
 			}

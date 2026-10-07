@@ -15,6 +15,14 @@ type Config struct {
 	// of generated chunks, so this also sets how far out they can start. See
 	// docs/worldgen-chunks.md.
 	WorldgenHalo int `cfg:"worldgen-halo" doc:"chunks (64x64 tiles) generated ahead of what the colony has seen; at least 1"`
+	// DeepestLevel is how far down the colony may dig stairs: level 1 is the
+	// landing level (where pods come down), and each level below is one more.
+	// 1 keeps the colony on the landing level, as before there were levels.
+	// See docs/z-levels.md.
+	DeepestLevel int `cfg:"deepest-level" doc:"deepest level the colony may dig stairs down to; 1 is the landing level, so 1 means no digging down"`
+	// StairTicks is the work it takes to dig a stair down: breaking through
+	// the rock below and shaping both ends.
+	StairTicks int `cfg:"stair-ticks" doc:"ticks of work to dig a stair down to the next level"`
 	// Rock composition percentages. The remainder is ordinary rock.
 	IronRockPercent    int `cfg:"iron-rock-percent" doc:"percent of the map's tiles bearing iron"`
 	IceRockPercent     int `cfg:"ice-rock-percent" doc:"percent of the map's tiles bearing water ice"`
@@ -652,6 +660,8 @@ func DefaultConfig() Config {
 		Width:                80,
 		Height:               40,
 		WorldgenHalo:         2,
+		DeepestLevel:         1,
+		StairTicks:           60,
 		IronRockPercent:      10,
 		IceRockPercent:       5,
 		UraniumRockPercent:   1,

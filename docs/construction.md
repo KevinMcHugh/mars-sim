@@ -62,6 +62,12 @@ each tick (`rebuildBuildTiles`). Colonists **route around** these tiles and neve
 idle on them, so a facility mobbed by its own neighbors can still be raised —
 otherwise a builder could never reach the tile.
 
+Not every project is a room. A **stair down** is a one-task project on an open
+floor tile, planned by `planStairs` rather than the room planner and dug as
+mining work; its completion makes the level below (see
+[stairs.md](./stairs.md)). Rooms themselves are sited on the landing level
+only.
+
 ### Room recipes and dormitories
 
 All rooms share the same wall-and-doorway shell. A `roomRecipe` supplies the

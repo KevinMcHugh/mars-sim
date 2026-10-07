@@ -39,6 +39,8 @@ const (
 	Chair       = "\U0001F4BA" // 💺 chair in a meeting hall
 	Incubator   = "\U0001FAD9" // 🫙 scum incubator: a seed of scum in, scum grown on a schedule
 	Trough      = "\U0001FAA3" // 🪣 trough: a keeper's chicken feed
+	StairDown   = "\U0001F53D" // 🔽 the top of a stair: the way down to the next level
+	StairUp     = "\U0001F53C" // 🔼 the foot of a stair: the way back up
 
 	Colonist = "\U0001F477" // 👷 colonist of unknown age/gender (no profile)
 	Fleeing  = "\U0001F631" // 😱 colonist running from an alien
@@ -269,6 +271,9 @@ var All = []string{
 	Angel,
 	Fly,
 	Mosquito,
+	// And the stairs, after those.
+	StairDown,
+	StairUp,
 }
 
 var known = func() map[string]bool {
@@ -364,6 +369,10 @@ func ForTerrain(t sim.Terrain) string {
 		return Incubator
 	case sim.Trough:
 		return Trough
+	case sim.StairDown:
+		return StairDown
+	case sim.StairUp:
+		return StairUp
 	default:
 		return Rock
 	}

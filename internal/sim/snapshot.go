@@ -334,10 +334,12 @@ func (w *World) publishedSalt() map[Point]struct{} {
 	if w.snapSalt != nil && w.snapSaltRev == w.saltRev {
 		return w.snapSalt
 	}
-	out := make(map[Point]struct{}, len(w.exposedSalt))
-	for p := range w.exposedSalt {
-		out[p] = struct{}{}
-	}
+	out := make(map[Point]struct{})
+	w.eachLayer(func(l *Layer) {
+		for p := range l.exposedSalt {
+			out[p] = struct{}{}
+		}
+	})
 	w.snapSalt, w.snapSaltRev = out, w.saltRev
 	return out
 }
@@ -352,12 +354,14 @@ func (w *World) publishedScum() map[Point]uint8 {
 	if w.snapScum != nil && w.snapScumRev == w.scumRev {
 		return w.snapScum
 	}
-	out := make(map[Point]uint8, len(w.exposedScum))
-	for p := range w.exposedScum {
-		if n := w.scumAt(p); n > 0 {
-			out[p] = uint8(min(n, math.MaxUint8)) // scum-max is validated to fit; never wrap
+	out := make(map[Point]uint8)
+	w.eachLayer(func(l *Layer) {
+		for p := range l.exposedScum {
+			if n := w.scumAt(p); n > 0 {
+				out[p] = uint8(min(n, math.MaxUint8)) // scum-max is validated to fit; never wrap
+			}
 		}
-	}
+	})
 	w.snapScum, w.snapScumRev = out, w.scumRev
 	return out
 }
@@ -457,10 +461,16 @@ type Snapshot struct {
 	// slice. Frontends should read it through TileAt / TerrainAt: Tiles.At
 	// holds only generated chunks, so with the fog off it would show the rest
 	// as bare rock where TileAt shows the preview.
-	Tiles *TileGrid
-	// TileChanges says which pages of Tiles changed since the previous
-	// Snapshot, for a consumer that forwards terrain incrementally (the
-	// browser's wire encoder). See tilegrid.go.
+	//
+	// Tiles is the landing level's grid. LevelTiles holds every level's,
+	// indexed by Level, nil for a level the colony has never broken into;
+	// TileAt, TerrainAt and ExploredAt read whichever level the Point they
+	// are given is on.
+	Tiles      *TileGrid
+	LevelTiles []*TileGrid
+	// TileChanges says which pages of Tiles (the landing level) changed since
+	// the previous Snapshot, for a consumer that forwards terrain
+	// incrementally (the browser's wire encoder). See tilegrid.go.
 	TileChanges TileChanges
 	Entities    []EntityView
 	// Graveyard is the most recent violent/starvation deaths (bounded by
@@ -495,7 +505,9 @@ type Snapshot struct {
 	PendingFoundries     int
 	PendingHalls         int
 	PendingIncubators    int
-	Storages             []StorageView
+	// PendingStairs counts stairs ordered but not yet marked out.
+	PendingStairs int
+	Storages      []StorageView
 	// Scum is how much cave scum is on every exposed patch that has any,
 	// computed fresh each frame because patches regrow lazily (see
 	// scumhouse.go). Read it with ScumAt.
@@ -570,10 +582,44 @@ type Snapshot struct {
 	// ExploredAt) instead of a test fixture rendering as a blank screen.
 	FogOfWar bool
 
-	// preview shows ungenerated chunks when the fog is off (see TileAt). It
-	// is shared between snapshots and safe for concurrent use; nil for a
-	// world built without generation.
-	preview *ChunkPreview
+	// previews show ungenerated chunks when the fog is off (see TileAt), one
+	// per level like LevelTiles. They are shared between snapshots and safe
+	// for concurrent use; nil for a world built without generation.
+	previews []*ChunkPreview
+}
+
+// Levels lists the levels the colony has broken into, shallowest first.
+func (s *Snapshot) Levels() []Level {
+	var out []Level
+	for l, g := range s.LevelTiles {
+		if g != nil {
+			out = append(out, Level(l))
+		}
+	}
+	if len(out) == 0 && s.Tiles != nil {
+		out = append(out, s.Tiles.Level()) // a hand-built frame
+	}
+	return out
+}
+
+// tilesOf is the grid of the level p is on: LevelTiles when it has one, and
+// Tiles otherwise (a hand-built frame sets only Tiles; nothing else exists).
+func (s *Snapshot) tilesOf(p Point) *TileGrid {
+	if int(p.Level) >= 0 && int(p.Level) < len(s.LevelTiles) && s.LevelTiles[p.Level] != nil {
+		return s.LevelTiles[p.Level]
+	}
+	if len(s.LevelTiles) == 0 {
+		return s.Tiles
+	}
+	return nil
+}
+
+// previewOf is the preview for the level p is on, or nil.
+func (s *Snapshot) previewOf(p Point) *ChunkPreview {
+	if int(p.Level) >= 0 && int(p.Level) < len(s.previews) {
+		return s.previews[p.Level]
+	}
+	return nil
 }
 
 // ExploredAt reports whether the colony has seen p, and so whether a frontend
@@ -588,10 +634,13 @@ func (s *Snapshot) ExploredAt(p Point) bool {
 	if p.X < 0 || p.X >= s.Width || p.Y < 0 || p.Y >= s.Height {
 		return false
 	}
+	if s.tilesOf(p) == nil && len(s.LevelTiles) > 0 {
+		return false // a level the colony has never broken into
+	}
 	if !s.FogOfWar {
 		return true
 	}
-	return s.Tiles.At(p).Explored
+	return s.tilesOf(p).At(p).Explored
 }
 
 // TerrainAt reads the published grid; out-of-bounds reads return Rock so callers
@@ -602,9 +651,9 @@ func (s *Snapshot) TerrainAt(p Point) Terrain {
 		return Rock
 	}
 	if s.previewing(p) {
-		return s.preview.At(p).Terrain
+		return s.previewOf(p).At(p).Terrain
 	}
-	return s.Tiles.TerrainAt(p)
+	return s.tilesOf(p).TerrainAt(p)
 }
 
 // TileAt reads the published grid's full Tile (terrain, composition, and gore),
@@ -620,20 +669,32 @@ func (s *Snapshot) TileAt(p Point) Tile {
 		return Tile{Terrain: Rock, Composition: OrdinaryRock}
 	}
 	if s.previewing(p) {
-		return s.preview.At(p)
+		return s.previewOf(p).At(p)
 	}
-	return s.Tiles.At(p)
+	return s.tilesOf(p).At(p)
 }
 
 // previewing reports whether the in-bounds p should be read from the preview:
 // fog is off and its chunk has not been generated.
 func (s *Snapshot) previewing(p Point) bool {
-	return s.preview != nil && !s.FogOfWar && !s.Tiles.hasPage(p)
+	g := s.tilesOf(p)
+	return g != nil && s.previewOf(p) != nil && !s.FogOfWar && !g.hasPage(p)
 }
 
 // snapshot builds an immutable view of the world's current state.
 func (w *World) snapshot(paused bool, tps int) *Snapshot {
-	tiles, tileChanges := w.publishedTiles()
+	w.snapFrame++
+	levelTiles := make([]*TileGrid, len(w.layers))
+	previews := make([]*ChunkPreview, len(w.layers))
+	var tileChanges TileChanges
+	w.eachLayer(func(l *Layer) {
+		g, changes := w.publishedTiles(l)
+		levelTiles[l.Level], previews[l.Level] = g, l.preview
+		if l.Level == LandingLevel {
+			tileChanges = changes
+		}
+	})
+	tileChanges.Frame = w.snapFrame
 
 	ents := make([]EntityView, 0, len(w.entities))
 	kinChildren := w.cachedKinChildren()
@@ -642,22 +703,26 @@ func (w *World) snapshot(paused bool, tps int) *Snapshot {
 	// every tick, which is exactly what the shared grid above avoids.
 	stats := Stats{
 		Rooms:         len(w.discoveredRooms),
-		FloorDug:      w.terrainCounts[Floor] - w.hiddenFloor,
+		FloorDug:      w.countTerrain(Floor) - w.hiddenFloor(),
 		ExploredTiles: w.exploredTilesStat(),
-		Pods:          w.terrainCounts[NutrientPod],
-		Toilets:       w.terrainCounts[Toilet],
-		Beds:          w.terrainCounts[Bed],
+		Pods:          w.countTerrain(NutrientPod),
+		Toilets:       w.countTerrain(Toilet),
+		Beds:          w.countTerrain(Bed),
 
-		Incinerators:      w.terrainCounts[Incinerator],
-		StorageContainers: w.terrainCounts[Storage],
+		Incinerators:      w.countTerrain(Incinerator),
+		StorageContainers: w.countTerrain(Storage),
 		Refuse:            w.refuseTotal(),
-		ChunksGenerated:   len(w.genChunks),
 	}
 	tpd := w.cfg.TicksPerDay()
 	stats.Day, stats.MinuteOfDay = DayOf(w.tick, tpd), MinuteOfDay(w.tick, tpd)
-	if w.gen != nil {
-		stats.Chunks = w.gen.chunkCols() * w.gen.chunkRows()
-	}
+	// Chunks counts every level the colony has broken into: each has the
+	// map's full complement.
+	w.eachLayer(func(l *Layer) {
+		stats.ChunksGenerated += len(l.genChunks)
+		if l.gen != nil {
+			stats.Chunks += l.gen.chunkCols() * l.gen.chunkRows()
+		}
+	})
 	for _, e := range w.entities {
 		ev := w.entityView(e, kinChildren, true)
 		ents = append(ents, ev)
@@ -712,7 +777,8 @@ func (w *World) snapshot(paused bool, tps int) *Snapshot {
 		Height:               w.Height,
 		Seed:                 w.cfg.Seed,
 		Config:               &w.cfg,
-		Tiles:                tiles,
+		Tiles:                levelTiles[LandingLevel],
+		LevelTiles:           levelTiles,
 		TileChanges:          tileChanges,
 		Entities:             ents,
 		Log:                  w.log.tail(len(w.log.entries)),
@@ -727,6 +793,7 @@ func (w *World) snapshot(paused bool, tps int) *Snapshot {
 		PendingFoundries:     w.manualFoundries,
 		PendingHalls:         w.manualHalls,
 		PendingIncubators:    w.manualIncubators,
+		PendingStairs:        w.manualStairs,
 		Storages:             storages,
 		Fixtures:             w.publishedFixtures(),
 		Zones:                w.publishedZones(),
@@ -752,14 +819,14 @@ func (w *World) snapshot(paused bool, tps int) *Snapshot {
 		Paused:               paused,
 		TicksPerSecond:       tps,
 		FogOfWar:             w.cfg.FogOfWar,
-		preview:              w.preview,
+		previews:             previews,
 	}
 }
 
 // snapshotStorages copies every storage container, ledger included, sorted by
 // position so the list never depends on map iteration order.
 func (w *World) snapshotStorages() []StorageView {
-	storages := make([]StorageView, 0, len(w.storageContainers))
+	storages := make([]StorageView, 0)
 	for _, container := range w.storageContainers {
 		storages = append(storages, StorageView{
 			Pos:       container.Pos,
@@ -854,5 +921,14 @@ func (w *World) exploredTilesStat() int {
 	if !w.cfg.FogOfWar {
 		return 0
 	}
-	return w.exploredCount
+	n := 0
+	w.eachLayer(func(l *Layer) { n += l.exploredCount })
+	return n
+}
+
+// hiddenFloor is how much undiscovered cavern floor there is, on every level.
+func (w *World) hiddenFloor() int {
+	n := 0
+	w.eachLayer(func(l *Layer) { n += l.hiddenFloor })
+	return n
 }

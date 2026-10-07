@@ -9,7 +9,7 @@ func arbitrageWorld(t *testing.T, sells bool) (w *World, silo, far Point, cols [
 	t.Helper()
 	w, _, silo, cols = producerWorld(t, 3)
 	w.cfg.ColonySells, w.cfg.ColonyStockReserve = sells, 0
-	far = Point{5, 15}
+	far = Point{5, 15, LandingLevel}
 	w.SetTerrain(far, Storage)
 	w.refreshSpatial()
 	c := w.storageContainers[silo]
@@ -163,7 +163,7 @@ func TestPublicWorksUseTheColonysStock(t *testing.T) {
 	if !w.canAffordBuild(e, Storage, Community) {
 		t.Fatal("a builder could not afford a public chest from the colony's stock")
 	}
-	e.task = &buildTask{pos: Point{12, 12}, terrain: Storage, proj: &project{issuer: Community}}
+	e.task = &buildTask{pos: Point{12, 12, LandingLevel}, terrain: Storage, proj: &project{issuer: Community}}
 	e.Job, e.BuildKind = JobBuild, Storage
 	for i := 0; i < 200; i++ {
 		if ready, ok := w.gatherBuildMaterials(e); ready || !ok {

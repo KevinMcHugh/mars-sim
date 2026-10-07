@@ -152,7 +152,7 @@ func (w *World) fireRatPlague(ev scheduledEvent) {
 // fireAlienSwarm drops a wave of aliens into the rock around the colony, the
 // same way the starting aliens are placed in generate() and Engine.spawn.
 func (w *World) fireAlienSwarm(ev scheduledEvent) {
-	center := Point{w.Width / 2, w.Height / 2}
+	center := Point{w.Width / 2, w.Height / 2, LandingLevel}
 	spawned := 0
 	var first *Entity
 	for i := 0; i < ev.Occurrence.Count; i++ {

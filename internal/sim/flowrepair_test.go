@@ -62,11 +62,16 @@ func TestFlowFieldRepairMatchesRebuild(t *testing.T) {
 func sameAsRebuild(w *World, f *flowField) error {
 	fresh := newFlowField(w, f.seed, f.goal)
 	fresh.rebuild()
-	for y := 0; y < w.Height; y++ {
-		for x := 0; x < w.Width; x++ {
-			p := Point{x, y}
-			if got, want := f.at(p), fresh.at(p); got != want {
-				return fmt.Errorf("%v: repaired distance %d, rebuilt %d", p, got, want)
+	for _, l := range w.layers {
+		if l == nil {
+			continue
+		}
+		for y := 0; y < w.Height; y++ {
+			for x := 0; x < w.Width; x++ {
+				p := Point{x, y, l.Level}
+				if got, want := f.at(p), fresh.at(p); got != want {
+					return fmt.Errorf("%v: repaired distance %d, rebuilt %d", p, got, want)
+				}
 			}
 		}
 	}
@@ -97,7 +102,7 @@ func TestFlowFieldGoalAgreesWithSeed(t *testing.T) {
 			})
 			for y := 0; y < w.Height; y++ {
 				for x := 0; x < w.Width; x++ {
-					p := Point{x, y}
+					p := Point{x, y, LandingLevel}
 					if f.goal(p) != seeded[p] {
 						t.Fatalf("tick %d, field %d, %v: goal says %v, seed says %v", w.tick, fi, p, f.goal(p), seeded[p])
 					}
@@ -113,7 +118,7 @@ func TestFlowFieldTooManyTouchesRebuilds(t *testing.T) {
 	f := w.frontier
 	f.ensureFresh()
 	for i := 0; i <= maxTouched; i++ {
-		f.touch(Point{i % w.Width, 0})
+		f.touch(Point{i % w.Width, 0, LandingLevel})
 	}
 	if !f.full || len(f.touched) != 0 {
 		t.Fatalf("after %d touches: full=%v, %d pending; want a full rebuild queued", maxTouched+1, f.full, len(f.touched))

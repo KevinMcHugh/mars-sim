@@ -62,7 +62,7 @@ func (w *World) planArbitrage(e *Entity, b, ask *Order, src Point, probe *planOf
 	if qty <= 0 || e.wallet < Money(qty)*ask.Price {
 		return false
 	}
-	walk := e.Pos.Chebyshev(src) + src.Chebyshev(b.Depot)
+	walk := w.travelEstimate(e.Pos, src) + w.travelEstimate(src, b.Depot)
 	profit := Money(qty)*(b.Price-ask.Price) - w.laborCostFor(e, walk)
 	if profit < Money(w.cfg.PlanMinProfit) {
 		return false
@@ -180,7 +180,7 @@ func (w *World) refreshSiloStock() {
 		}
 	}
 	sort.SliceStable(houses, func(i, j int) bool {
-		return houses[i].Chebyshev(silo) < houses[j].Chebyshev(silo)
+		return w.travelEstimate(houses[i], silo) < w.travelEstimate(houses[j], silo)
 	})
 	for _, h := range houses {
 		c := w.storageContainers[h]
