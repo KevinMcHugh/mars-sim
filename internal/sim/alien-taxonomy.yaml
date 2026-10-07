@@ -33,244 +33,277 @@
 # two forms as feminine and neuter, and the name agrees with its genus:
 # Pithecus hirsutus, Medusa hirsuta, Zoon hirsutum. Forms are lowercase
 # ASCII letters only.
+#
+# Every entry also has a meaning, its English gloss ("red", "bear", "of
+# Mars"). The web lore tab's (?) beside a binomial takes the name apart again
+# and shows these (sim.ScientificEtymology), so keep it short and literal.
 
 prefixes:
   # Mars itself (areology is the geology of Mars). Fits anything, so a genus
   # can always be built.
   - form: areo
+    meaning: "Mars (Ares)"
 
   # Pseudo-, "false": only before an Earth animal the species resembles.
-  - { form: pseudo, mimic: true }
+  - { form: pseudo, meaning: "false", mimic: true }
 
   # Color.
-  - { form: erythro,  when: { color: red } }
-  - { form: cirrho,   when: { color: orange } }    # tawny
-  - { form: xantho,   when: { color: yellow } }
-  - { form: chloro,   when: { color: green } }
-  - { form: cyano,    when: { color: blue } }
-  - { form: porphyro, when: { color: purple } }
-  - { form: polio,    when: { color: gray } }
-  - { form: melano,   when: { color: black } }
-  - { form: leuco,    when: { color: white } }
-  - { form: ochro,    when: { color: pale } }
-  - { form: irido,    when: { color: iridescent } }
+  - { form: erythro,  meaning: "red",     when: { color: red } }
+  - { form: cirrho,   meaning: "tawny",   when: { color: orange } }
+  - { form: xantho,   meaning: "yellow",  when: { color: yellow } }
+  - { form: chloro,   meaning: "green",   when: { color: green } }
+  - { form: cyano,    meaning: "blue",    when: { color: blue } }
+  - { form: porphyro, meaning: "purple",  when: { color: purple } }
+  - { form: polio,    meaning: "gray",    when: { color: gray } }
+  - { form: melano,   meaning: "black",   when: { color: black } }
+  - { form: leuco,    meaning: "white",   when: { color: white } }
+  - { form: ochro,    meaning: "pale",    when: { color: pale } }
+  - { form: irido,    meaning: "rainbow", when: { color: iridescent } }
 
   # Pattern.
-  - { form: rhabdo, when: { pattern: striped } }   # Rhabdomys, the striped mouse
-  - { form: sticto, when: { pattern: spotted } }
+  - { form: rhabdo, meaning: "striped", when: { pattern: striped } }  # Rhabdomys, the striped mouse
+  - { form: sticto, meaning: "spotted", when: { pattern: spotted } }
 
   # Hide.
-  - { form: leio,    when: { skin: smooth } }
-  - { form: lepido,  when: { skin: scaly } }
-  - { form: dasy,    when: { skin: furry } }       # Dasyurus, "hairy tail"
-  - { form: hoplo,   when: { skin: armored } }
-  - { form: osteo,   when: { skin: bony } }
-  - { form: ostraco, when: { skin: chitinous } }   # shelled
-  - { form: myxo,    when: { skin: slimy } }
-  - { form: litho,   when: { skin: rocky } }       # stone
-  - { form: petro,   when: { skin: rocky } }       # rock
-  - { form: xylo,    when: { skin: woody } }       # wood
-  - { form: dendro,  when: { skin: woody } }       # tree
-  - { form: bryo,    when: { skin: mossy } }       # moss: Bryozoa
-  - { form: hyalo,   when: { skin: gelatinous } }  # glassy, see-through
-  - { form: colla,   when: { skin: gelatinous } }  # glue: collagen
-  - { form: tricho,  when: { skin: hairy } }       # hair
-  - { form: lasio,   when: { skin: hairy } }       # shaggy: Lasiurus, the hairy bat
-  - { form: ptilo,   when: { skin: feathered } }   # feather: Ptilonorhynchus
+  - { form: leio,    meaning: "smooth",        when: { skin: smooth } }
+  - { form: lepido,  meaning: "scaly",         when: { skin: scaly } }
+  - { form: dasy,    meaning: "hairy, shaggy", when: { skin: furry } }       # Dasyurus, "hairy tail"
+  - { form: hoplo,   meaning: "armored",       when: { skin: armored } }
+  - { form: osteo,   meaning: "bone",          when: { skin: bony } }
+  - { form: ostraco, meaning: "shell",         when: { skin: chitinous } }   # shelled
+  - { form: myxo,    meaning: "slime",         when: { skin: slimy } }
+  - { form: litho,   meaning: "stone",         when: { skin: rocky } }
+  - { form: petro,   meaning: "rock",          when: { skin: rocky } }
+  - { form: xylo,    meaning: "wood",          when: { skin: woody } }
+  - { form: dendro,  meaning: "tree",          when: { skin: woody } }
+  - { form: bryo,    meaning: "moss",          when: { skin: mossy } }       # moss: Bryozoa
+  - { form: hyalo,   meaning: "glassy",        when: { skin: gelatinous } }  # glassy, see-through
+  - { form: colla,   meaning: "glue",          when: { skin: gelatinous } }  # glue: collagen
+  - { form: tricho,  meaning: "hair",          when: { skin: hairy } }
+  - { form: lasio,   meaning: "shaggy",        when: { skin: hairy } }       # shaggy: Lasiurus, the hairy bat
+  - { form: ptilo,   meaning: "feather",       when: { skin: feathered } }   # feather: Ptilonorhynchus
 
   # Wings.
-  - { form: ptero, when: { wings: true } }         # Pterodactylus
+  - { form: ptero, meaning: "wing", when: { wings: true } }  # Pterodactylus
 
   # Size.
   - form: mega
+    meaning: "great"
     when: { any: [{ height: huge }, { weight: huge }] }
   - form: giganto
+    meaning: "giant"
     when: { any: [{ height: huge }, { weight: huge }] }
   - form: macro
+    meaning: "large"
     when: { any: [{ height: large }, { weight: large }] }
   - form: micro
+    meaning: "small"
     when: { any: [{ height: small }, { height: tiny }] }
   - form: nano
+    meaning: "dwarf"
     when: { height: tiny }
 
   # Temperament.
-  - { form: deino,  when: { temperament: hostile } }   # terrible
-  - { form: phobo,  when: { temperament: hostile } }   # fear
-  - { form: crypto, when: { temperament: cautious } }  # hidden
-  - { form: hemero, when: { temperament: friendly } }  # tame
+  - { form: deino,  meaning: "terrible", when: { temperament: hostile } }
+  - { form: phobo,  meaning: "fear",     when: { temperament: hostile } }
+  - { form: crypto, meaning: "hidden",   when: { temperament: cautious } }
+  - { form: hemero, meaning: "tame",     when: { temperament: friendly } }
 
   # Graded features (horns, antlers, spines, shell, claws, stinger, tail-tip)
   # and apex. Scientific names are built after anatomy, so these can match.
-  - { form: cerato,  when: { horns: { gte: 1 } } }          # horn
-  - { form: elapho,  when: { antlers: { gte: 2 } } }        # deer (antlered)
-  - { form: acantho, when: { spines: { gte: 2 } } }         # spine
-  - { form: ostraco, when: { shell: { gte: 2 } } }          # shell
-  - { form: onycho,  when: { claws: { gte: 2 } } }          # claw
-  - { form: kentro,  when: { any: [{ stinger: { gte: 1 } }, { tail-tip: stinger }] } }  # sting
-  - { form: thanato, when: { apex: true } }                 # death
+  - { form: cerato,  meaning: "horn",  when: { horns: { gte: 1 } } }
+  - { form: elapho,  meaning: "deer",  when: { antlers: { gte: 2 } } }  # deer (antlered)
+  - { form: acantho, meaning: "spine", when: { spines: { gte: 2 } } }
+  - { form: ostraco, meaning: "shell", when: { shell: { gte: 2 } } }
+  - { form: onycho,  meaning: "claw",  when: { claws: { gte: 2 } } }
+  - { form: kentro,  meaning: "sting", when: { any: [{ stinger: { gte: 1 } }, { tail-tip: stinger }] } }
+  - { form: thanato, meaning: "death", when: { apex: true } }
 
 roots:
   # Generic: fit anything, so a genus can always be built.
-  - form: therium   # beast
+  - form: therium
+    meaning: "beast"
     gender: n
-  - form: morphus   # shape
+  - form: morphus
+    meaning: "shape"
     gender: m
-  - form: zoon      # animal
+  - form: zoon
+    meaning: "animal"
     gender: n
 
   # Earth animals it resembles.
-  - form: ursus     # bear
+  - form: ursus
+    meaning: "bear"
     gender: m
     mimic: true
     when: { all: [{ skin: furry }, { any: [{ weight: large }, { weight: huge }] }] }
-  - form: cyon      # dog
+  - form: cyon
+    meaning: "dog"
     gender: m
     mimic: true
     when: { all: [{ skin: furry }, { legs: { eq: 4 } }] }
-  - form: mys       # mouse
+  - form: mys
+    meaning: "mouse"
     gender: m
     mimic: true
     when: { all: [{ skin: furry }, { any: [{ weight: tiny }, { weight: small }] }] }
-  - { form: saurus,      gender: m, mimic: true, when: { skin: scaly } }        # lizard
-  - { form: ophis,       gender: m, mimic: true, when: { legs: { eq: 0 } } }    # snake
-  - { form: chelys,      gender: f, mimic: true, when: { skin: armored } }      # turtle
-  - { form: carcinus,    gender: m, mimic: true, when: { skin: chitinous } }    # crab
-  - form: scarabaeus  # beetle
+  - { form: saurus,   meaning: "lizard", gender: m, mimic: true, when: { skin: scaly } }
+  - { form: ophis,    meaning: "snake",  gender: m, mimic: true, when: { legs: { eq: 0 } } }
+  - { form: chelys,   meaning: "turtle", gender: f, mimic: true, when: { skin: armored } }
+  - { form: carcinus, meaning: "crab",   gender: m, mimic: true, when: { skin: chitinous } }
+  - form: scarabaeus
+    meaning: "beetle"
     gender: m
     mimic: true
     when: { all: [{ legs: { eq: 6 } }, { any: [{ skin: chitinous }, { skin: armored }] }] }
-  - { form: limax,       gender: m, mimic: true, when: { skin: slimy } }        # slug
-  - { form: phasma,      gender: n, mimic: true, when: { skin: woody } }        # stick insect
-  - { form: bradypus,    gender: m, mimic: true, when: { skin: mossy } }        # sloth: algae grows in its fur
-  - { form: medusa,      gender: f, mimic: true, when: { skin: gelatinous } }   # jellyfish
-  - { form: pithecus,    gender: m, mimic: true, when: { skin: hairy } }        # ape
-  - form: mammuthus   # mammoth
+  - { form: limax,    meaning: "slug",                   gender: m, mimic: true, when: { skin: slimy } }
+  - { form: phasma,   meaning: "stick insect (phantom)", gender: n, mimic: true, when: { skin: woody } }  # stick insect
+  - { form: bradypus, meaning: "sloth (slow foot)",      gender: m, mimic: true, when: { skin: mossy } }  # sloth: algae grows in its fur
+  - { form: medusa,   meaning: "jellyfish",              gender: f, mimic: true, when: { skin: gelatinous } }
+  - { form: pithecus, meaning: "ape",                    gender: m, mimic: true, when: { skin: hairy } }
+  - form: mammuthus
+    meaning: "mammoth"
     gender: m
     mimic: true
     when: { all: [{ skin: hairy }, { weight: huge }] }
-  - { form: ornis,       gender: m, mimic: true, when: { skin: feathered } }    # bird
-  - form: struthio    # ostrich
+  - { form: ornis, meaning: "bird", gender: m, mimic: true, when: { skin: feathered } }
+  - form: struthio
+    meaning: "ostrich"
     gender: m
     mimic: true
     when: { all: [{ skin: feathered }, { wings: false }, { legs: { eq: 2 } }] }
-  - form: nycteris    # bat
+  - form: nycteris
+    meaning: "bat"
     gender: f
     mimic: true
     when: { all: [{ wings: true }, { any: [{ skin: furry }, { skin: hairy }, { skin: smooth }] }] }
-  - { form: draco,       gender: m, mimic: true, when: { all: [{ wings: true }, { skin: scaly }] } }  # dragon; also the gliding lizard
-  - { form: batrachus,   gender: m, mimic: true, when: { skin: smooth } }       # frog
-  - { form: teuthis,     gender: f, mimic: true, when: { arms: { gte: 6 } } }   # squid
-  - { form: scolopendra, gender: f, mimic: true, when: { legs: { gte: 7 } } }  # centipede
+  - { form: draco,       meaning: "dragon",    gender: m, mimic: true, when: { all: [{ wings: true }, { skin: scaly }] } }  # dragon; also the gliding lizard
+  - { form: batrachus,   meaning: "frog",      gender: m, mimic: true, when: { skin: smooth } }
+  - { form: teuthis,     meaning: "squid",     gender: f, mimic: true, when: { arms: { gte: 6 } } }
+  - { form: scolopendra, meaning: "centipede", gender: f, mimic: true, when: { legs: { gte: 7 } } }
 
   # Anatomy.
-  - { form: cephalus,    gender: m, when: { skin: bony } }        # head
-  - { form: lithus,      gender: m, when: { skin: rocky } }       # stone: Coccolithus
-  - { form: dendron,     gender: n, when: { skin: woody } }       # tree
-  - { form: pteryx,      gender: f, when: { wings: true } }       # wing: Archaeopteryx
-  - { form: urus,        gender: m, when: { tail: true } }        # tail: Lepidurus
-  - { form: cheirus,     gender: m, when: { arms: { gte: 2 } } }  # hand: Pseudocheirus
-  - { form: cyclops,     gender: m, when: { eyes: { eq: 1 } } }
-  - { form: triops,      gender: m, when: { eyes: { eq: 3 } } }
-  - { form: tetrops,     gender: m, when: { eyes: { eq: 4 } } }
-  - { form: pentops,     gender: m, when: { eyes: { eq: 5 } } }
-  - { form: hexops,      gender: m, when: { eyes: { eq: 6 } } }
-  - { form: monopus,     gender: m, when: { legs: { eq: 1 } } }    # -pus, foot
-  - { form: dipus,       gender: m, when: { legs: { eq: 2 } } }
-  - { form: tripus,      gender: m, when: { legs: { eq: 3 } } }
-  - { form: tetrapus,    gender: m, when: { legs: { eq: 4 } } }
-  - { form: pentapus,    gender: m, when: { legs: { eq: 5 } } }
-  - { form: hexapus,     gender: m, when: { legs: { eq: 6 } } }
-  - { form: heptapus,    gender: m, when: { legs: { eq: 7 } } }
-  - { form: octopus,     gender: m, when: { legs: { eq: 8 } } }
+  - { form: cephalus, meaning: "head",       gender: m, when: { skin: bony } }
+  - { form: lithus,   meaning: "stone",      gender: m, when: { skin: rocky } }       # stone: Coccolithus
+  - { form: dendron,  meaning: "tree",       gender: n, when: { skin: woody } }
+  - { form: pteryx,   meaning: "wing",       gender: f, when: { wings: true } }       # wing: Archaeopteryx
+  - { form: urus,     meaning: "tail",       gender: m, when: { tail: true } }        # tail: Lepidurus
+  - { form: cheirus,  meaning: "hand",       gender: m, when: { arms: { gte: 2 } } }  # hand: Pseudocheirus
+  - { form: cyclops,  meaning: "round eye",  gender: m, when: { eyes: { eq: 1 } } }
+  - { form: triops,   meaning: "three eyes", gender: m, when: { eyes: { eq: 3 } } }
+  - { form: tetrops,  meaning: "four eyes",  gender: m, when: { eyes: { eq: 4 } } }
+  - { form: pentops,  meaning: "five eyes",  gender: m, when: { eyes: { eq: 5 } } }
+  - { form: hexops,   meaning: "six eyes",   gender: m, when: { eyes: { eq: 6 } } }
+  - { form: monopus,  meaning: "one foot",   gender: m, when: { legs: { eq: 1 } } }   # -pus, foot
+  - { form: dipus,    meaning: "two feet",   gender: m, when: { legs: { eq: 2 } } }
+  - { form: tripus,   meaning: "three feet", gender: m, when: { legs: { eq: 3 } } }
+  - { form: tetrapus, meaning: "four feet",  gender: m, when: { legs: { eq: 4 } } }
+  - { form: pentapus, meaning: "five feet",  gender: m, when: { legs: { eq: 5 } } }
+  - { form: hexapus,  meaning: "six feet",   gender: m, when: { legs: { eq: 6 } } }
+  - { form: heptapus, meaning: "seven feet", gender: m, when: { legs: { eq: 7 } } }
+  - { form: octopus,  meaning: "eight feet", gender: m, when: { legs: { eq: 8 } } }
 
   # Temperament.
-  - { form: odon,        gender: m, when: { temperament: hostile } }   # tooth
-  - { form: gnathus,     gender: m, when: { temperament: hostile } }   # jaw
-  - { form: lestes,      gender: m, when: { temperament: hostile } }   # robber
-  - { form: raptor,      gender: m, when: { temperament: hostile } }   # seizer
+  - { form: odon,    meaning: "tooth",  gender: m, when: { temperament: hostile } }
+  - { form: gnathus, meaning: "jaw",    gender: m, when: { temperament: hostile } }
+  - { form: lestes,  meaning: "robber", gender: m, when: { temperament: hostile } }
+  - { form: raptor,  meaning: "seizer", gender: m, when: { temperament: hostile } }
 
   # Size.
   - form: titan
+    meaning: "giant (a Titan)"
     gender: m
     when: { any: [{ height: huge }, { weight: huge }] }
 
   # Graded features.
-  - { form: ceras,   gender: n, when: { horns: { gte: 1 } } }               # horn
-  - { form: elaphus, gender: m, mimic: true, when: { antlers: { gte: 4 } } } # deer
-  - { form: hystrix, gender: f, mimic: true, when: { spines: { gte: 2 } } }  # porcupine
-  - { form: scorpio, gender: m, mimic: true, when: { tail-tip: stinger } }   # scorpion
+  - { form: ceras,   meaning: "horn",      gender: n, when: { horns: { gte: 1 } } }
+  - { form: elaphus, meaning: "deer",      gender: m, mimic: true, when: { antlers: { gte: 4 } } }
+  - { form: hystrix, meaning: "porcupine", gender: f, mimic: true, when: { spines: { gte: 2 } } }
+  - { form: scorpio, meaning: "scorpion",  gender: m, mimic: true, when: { tail-tip: stinger } }
 
 epithets:
   # Mars and its places, as genitives ("of ..."): fit anything.
-  - form: martis     # of Mars
+  - form: martis
+    meaning: "of Mars"
   - form: ares       # Mars, in apposition
-  - form: olympi     # of Olympus Mons
-  - form: elysii     # of Elysium
-  - form: arcadiae   # of Arcadia Planitia
-  - form: utopiae    # of Utopia Planitia
-  - form: amazonis   # of Amazonis Planitia
-  - form: cydoniae   # of Cydonia
-  - form: cavernicola  # cave-dweller
-  - form: saxicola     # rock-dweller
-  - form: troglodytes  # cave-goer
+    meaning: "Mars"
+  - form: olympi
+    meaning: "of Olympus Mons"
+  - form: elysii
+    meaning: "of Elysium"
+  - form: arcadiae
+    meaning: "of Arcadia Planitia"
+  - form: utopiae
+    meaning: "of Utopia Planitia"
+  - form: amazonis
+    meaning: "of Amazonis Planitia"
+  - form: cydoniae
+    meaning: "of Cydonia"
+  - form: cavernicola
+    meaning: "cave-dweller"
+  - form: saxicola
+    meaning: "rock-dweller"
+  - form: troglodytes
+    meaning: "cave-goer"
 
   # Temperament.
-  - { form: ferox,   when: { temperament: hostile } }   # fierce
-  - { form: atrox,   when: { temperament: hostile } }   # savage
-  - { form: rapax,   when: { temperament: hostile } }   # grasping
-  - { form: vorax,   when: { temperament: hostile } }   # devouring
-  - { form: phobos,  when: { temperament: hostile } }   # fear (the moon)
-  - { form: deimos,  when: { temperament: hostile } }   # dread (the other moon)
-  - { form: fallax,  when: { temperament: cautious } }  # deceptive
-  - { form: fugax,   when: { temperament: cautious } }  # fleeing
-  - { form: latens,  when: { temperament: cautious } }  # hiding
-  - { form: vigilans, when: { temperament: cautious } } # watchful
-  - { form: placens, when: { temperament: friendly } }  # pleasing
-  - { form: clemens, when: { temperament: friendly } }  # gentle
-  - { form: comes,   when: { temperament: friendly } }  # companion
+  - { form: ferox,    meaning: "fierce",                      when: { temperament: hostile } }
+  - { form: atrox,    meaning: "savage",                      when: { temperament: hostile } }
+  - { form: rapax,    meaning: "grasping",                    when: { temperament: hostile } }
+  - { form: vorax,    meaning: "devouring",                   when: { temperament: hostile } }
+  - { form: phobos,   meaning: "fear (also a moon of Mars)",  when: { temperament: hostile } }
+  - { form: deimos,   meaning: "dread (also a moon of Mars)", when: { temperament: hostile } }
+  - { form: fallax,   meaning: "deceptive",                   when: { temperament: cautious } }
+  - { form: fugax,    meaning: "fleeing",                     when: { temperament: cautious } }
+  - { form: latens,   meaning: "hiding",                      when: { temperament: cautious } }
+  - { form: vigilans, meaning: "watchful",                    when: { temperament: cautious } }
+  - { form: placens,  meaning: "pleasing",                    when: { temperament: friendly } }
+  - { form: clemens,  meaning: "gentle",                      when: { temperament: friendly } }
+  - { form: comes,    meaning: "companion",                   when: { temperament: friendly } }
 
   # Build.
-  - form: gigas      # giant
+  - form: gigas
+    meaning: "giant"
     when: { any: [{ height: huge }, { weight: huge }] }
-  - { form: pumilio, when: { height: tiny } }            # dwarf
-  - { form: velox,   when: { temperament: hostile } }    # swift
-  - { form: bipes,   when: { legs: { eq: 2 } } }         # two-footed
-  - { form: multipes, when: { legs: { gte: 6 } } }       # many-footed
-  - { form: longimanus, when: { arms: { gte: 2 } } }     # long-handed
-  - { form: longicauda, when: { tail: true } }           # long-tailed
-  - { form: versicolor, when: { color: iridescent } }    # changing color
-  - { form: bicolor, when: { not: { pattern: solid } } } # two-colored
-  - { form: concolor, when: { pattern: solid } }         # one color all over
+  - { form: pumilio,    meaning: "dwarf",              when: { height: tiny } }
+  - { form: velox,      meaning: "swift",              when: { temperament: hostile } }
+  - { form: bipes,      meaning: "two-footed",         when: { legs: { eq: 2 } } }
+  - { form: multipes,   meaning: "many-footed",        when: { legs: { gte: 6 } } }
+  - { form: longimanus, meaning: "long-handed",        when: { arms: { gte: 2 } } }
+  - { form: longicauda, meaning: "long-tailed",        when: { tail: true } }
+  - { form: versicolor, meaning: "changing color",     when: { color: iridescent } }
+  - { form: bicolor,    meaning: "two-colored",        when: { not: { pattern: solid } } }
+  - { form: concolor,   meaning: "one color all over", when: { pattern: solid } }
 
   # Hide.
-  - { form: lapis,      when: { skin: rocky } }          # stone, in apposition
-  - { form: arbor,      when: { skin: woody } }          # tree, in apposition
-  - { form: muscicola,  when: { skin: mossy } }          # moss-dweller
-  - { form: tremens,    when: { skin: gelatinous } }     # trembling
-  - { form: horrens,    when: { skin: hairy } }          # bristling
-  - { form: plumipes,   when: { skin: feathered } }      # feather-footed
-  - { form: volans,     when: { wings: true } }          # flying (Draco volans), though nothing flies yet
+  - { form: lapis,     meaning: "stone",          when: { skin: rocky } }  # stone, in apposition
+  - { form: arbor,     meaning: "tree",           when: { skin: woody } }  # tree, in apposition
+  - { form: muscicola, meaning: "moss-dweller",   when: { skin: mossy } }
+  - { form: tremens,   meaning: "trembling",      when: { skin: gelatinous } }
+  - { form: horrens,   meaning: "bristling",      when: { skin: hairy } }
+  - { form: plumipes,  meaning: "feather-footed", when: { skin: feathered } }
+  - { form: volans,    meaning: "flying",         when: { wings: true } }  # flying (Draco volans), though nothing flies yet
 
   # Adjectives that agree with the genus's gender.
-  - { form: hirsutus,  feminine: hirsuta,  neuter: hirsutum,  when: { skin: hairy } }      # hairy
-  - { form: villosus,  feminine: villosa,  neuter: villosum,  when: { skin: hairy } }      # shaggy
-  - { form: lapideus,  feminine: lapidea,  neuter: lapideum,  when: { skin: rocky } }      # stony
-  - { form: lignosus,  feminine: lignosa,  neuter: lignosum,  when: { skin: woody } }      # woody
-  - { form: muscosus,  feminine: muscosa,  neuter: muscosum,  when: { skin: mossy } }      # mossy
-  - { form: plumosus,  feminine: plumosa,  neuter: plumosum,  when: { skin: feathered } }  # feathery
-  - { form: alatus,    feminine: alata,    neuter: alatum,    when: { wings: true } }      # winged
-  - { form: ruber,     feminine: rubra,    neuter: rubrum,    when: { color: red } }       # red
-  - { form: niger,     feminine: nigra,    neuter: nigrum,    when: { color: black } }     # black
-  - { form: albus,     feminine: alba,     neuter: album,     when: { color: white } }     # white
+  - { form: hirsutus, meaning: "hairy",    feminine: hirsuta,  neuter: hirsutum,  when: { skin: hairy } }
+  - { form: villosus, meaning: "shaggy",   feminine: villosa,  neuter: villosum,  when: { skin: hairy } }
+  - { form: lapideus, meaning: "stony",    feminine: lapidea,  neuter: lapideum,  when: { skin: rocky } }
+  - { form: lignosus, meaning: "woody",    feminine: lignosa,  neuter: lignosum,  when: { skin: woody } }
+  - { form: muscosus, meaning: "mossy",    feminine: muscosa,  neuter: muscosum,  when: { skin: mossy } }
+  - { form: plumosus, meaning: "feathery", feminine: plumosa,  neuter: plumosum,  when: { skin: feathered } }
+  - { form: alatus,   meaning: "winged",   feminine: alata,    neuter: alatum,    when: { wings: true } }
+  - { form: ruber,    meaning: "red",      feminine: rubra,    neuter: rubrum,    when: { color: red } }
+  - { form: niger,    meaning: "black",    feminine: nigra,    neuter: nigrum,    when: { color: black } }
+  - { form: albus,    meaning: "white",    feminine: alba,     neuter: album,     when: { color: white } }
 
   # Graded features, and apex.
-  - { form: cornutus,     feminine: cornuta,     neuter: cornutum,     when: { horns: { gte: 1 } } }    # horned
-  - { form: multicornis,  when: { horns: { gte: 6 } } }                                                # many-horned
-  - { form: cervicornis,  when: { antlers: { gte: 4 } } }                                              # antlered like a deer
-  - { form: spinosus,     feminine: spinosa,     neuter: spinosum,     when: { spines: { gte: 1 } } }   # spiny
-  - { form: loricatus,    feminine: loricata,    neuter: loricatum,    when: { shell: { gte: 2 } } }    # armored
-  - { form: unguiculatus, feminine: unguiculata, neuter: unguiculatum, when: { claws: { gte: 2 } } }    # clawed
-  - { form: aculeatus,    feminine: aculeata,    neuter: aculeatum,    when: { stinger: { gte: 1 } } }  # stinging
-  - { form: clavicauda,   when: { any: [{ tail-tip: club }, { tail-tip: spiked-club }] } }            # club-tailed
-  - { form: horridus,     feminine: horrida,     neuter: horridum,     when: { apex: true } }           # dreadful
-  - { form: terribilis,   when: { apex: true } }                                                       # terrible
+  - { form: cornutus,     meaning: "horned",               feminine: cornuta,     neuter: cornutum,     when: { horns: { gte: 1 } } }
+  - { form: multicornis,  meaning: "many-horned",          when: { horns: { gte: 6 } } }
+  - { form: cervicornis,  meaning: "antlered like a deer", when: { antlers: { gte: 4 } } }
+  - { form: spinosus,     meaning: "spiny",                feminine: spinosa,     neuter: spinosum,     when: { spines: { gte: 1 } } }
+  - { form: loricatus,    meaning: "armored",              feminine: loricata,    neuter: loricatum,    when: { shell: { gte: 2 } } }
+  - { form: unguiculatus, meaning: "clawed",               feminine: unguiculata, neuter: unguiculatum, when: { claws: { gte: 2 } } }
+  - { form: aculeatus,    meaning: "stinging",             feminine: aculeata,    neuter: aculeatum,    when: { stinger: { gte: 1 } } }
+  - { form: clavicauda,   meaning: "club-tailed",          when: { any: [{ tail-tip: club }, { tail-tip: spiked-club }] } }
+  - { form: horridus,     meaning: "dreadful",             feminine: horrida,     neuter: horridum,     when: { apex: true } }
+  - { form: terribilis,   meaning: "terrible",             when: { apex: true } }
