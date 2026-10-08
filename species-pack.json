@@ -1,0 +1,1051 @@
+{
+  "source": "https://creature-lab-b2mxg.sprites.app",
+  "exportedAt": "2026-10-08T02:23:23Z",
+  "species": [
+    {
+      "id": "db3f0soa5kmtld0nnsv0",
+      "seed": 2019729750,
+      "generatorRev": "e5d324640f6f",
+      "species": {
+        "Singular": "critter",
+        "Plural": "critters",
+        "ScientificName": "Areotitan arcadiae",
+        "Emoji": "👾",
+        "HeightMinCM": 289,
+        "HeightMaxCM": 419,
+        "WeightMinKG": 89,
+        "WeightMaxKG": 130,
+        "Eyes": 6,
+        "Limbs": 2,
+        "Arms": 0,
+        "Tail": true,
+        "Wings": false,
+        "Skin": 8,
+        "Color": "blue",
+        "Pattern": 0,
+        "Temperament": 1,
+        "AttackModes": 1,
+        "BiteDamage": 8,
+        "BiteRest": 3,
+        "Slowness": 2,
+        "Anatomy": {
+          "Horns": 0,
+          "Antlers": 0,
+          "Spines": 0,
+          "Shell": 2,
+          "Claws": 0,
+          "Stinger": 0,
+          "TailTip": 1
+        },
+        "Apex": true,
+        "Forms": [
+          {
+            "Name": "egg",
+            "Stage": 0,
+            "Weight": 0,
+            "SizePct": 12,
+            "Inert": true,
+            "Ticks": 1620,
+            "Lays": false,
+            "Limbs": 0,
+            "Arms": 0,
+            "Tail": false,
+            "Wings": false,
+            "Anatomy": {
+              "Horns": 0,
+              "Antlers": 0,
+              "Spines": 0,
+              "Shell": 0,
+              "Claws": 0,
+              "Stinger": 0,
+              "TailTip": 0
+            }
+          },
+          {
+            "Name": "matriarch",
+            "Stage": 1,
+            "Weight": 1,
+            "SizePct": 147,
+            "Inert": false,
+            "Ticks": 0,
+            "Lays": true,
+            "Limbs": 2,
+            "Arms": 0,
+            "Tail": true,
+            "Wings": false,
+            "Anatomy": {
+              "Horns": 0,
+              "Antlers": 0,
+              "Spines": 0,
+              "Shell": 3,
+              "Claws": 0,
+              "Stinger": 0,
+              "TailTip": 1
+            }
+          },
+          {
+            "Name": "drudge",
+            "Stage": 1,
+            "Weight": 5,
+            "SizePct": 90,
+            "Inert": false,
+            "Ticks": 0,
+            "Lays": false,
+            "Limbs": 2,
+            "Arms": 0,
+            "Tail": true,
+            "Wings": false,
+            "Anatomy": {
+              "Horns": 0,
+              "Antlers": 0,
+              "Spines": 0,
+              "Shell": 1,
+              "Claws": 0,
+              "Stinger": 0,
+              "TailTip": 1
+            }
+          },
+          {
+            "Name": "sire",
+            "Stage": 1,
+            "Weight": 2,
+            "SizePct": 101,
+            "Inert": false,
+            "Ticks": 0,
+            "Lays": false,
+            "Limbs": 2,
+            "Arms": 0,
+            "Tail": true,
+            "Wings": false,
+            "Anatomy": {
+              "Horns": 0,
+              "Antlers": 0,
+              "Spines": 0,
+              "Shell": 3,
+              "Claws": 0,
+              "Stinger": 0,
+              "TailTip": 1
+            }
+          },
+          {
+            "Name": "",
+            "Stage": 0,
+            "Weight": 0,
+            "SizePct": 0,
+            "Inert": false,
+            "Ticks": 0,
+            "Lays": false,
+            "Limbs": 0,
+            "Arms": 0,
+            "Tail": false,
+            "Wings": false,
+            "Anatomy": {
+              "Horns": 0,
+              "Antlers": 0,
+              "Spines": 0,
+              "Shell": 0,
+              "Claws": 0,
+              "Stinger": 0,
+              "TailTip": 0
+            }
+          },
+          {
+            "Name": "",
+            "Stage": 0,
+            "Weight": 0,
+            "SizePct": 0,
+            "Inert": false,
+            "Ticks": 0,
+            "Lays": false,
+            "Limbs": 0,
+            "Arms": 0,
+            "Tail": false,
+            "Wings": false,
+            "Anatomy": {
+              "Horns": 0,
+              "Antlers": 0,
+              "Spines": 0,
+              "Shell": 0,
+              "Claws": 0,
+              "Stinger": 0,
+              "TailTip": 0
+            }
+          },
+          {
+            "Name": "",
+            "Stage": 0,
+            "Weight": 0,
+            "SizePct": 0,
+            "Inert": false,
+            "Ticks": 0,
+            "Lays": false,
+            "Limbs": 0,
+            "Arms": 0,
+            "Tail": false,
+            "Wings": false,
+            "Anatomy": {
+              "Horns": 0,
+              "Antlers": 0,
+              "Spines": 0,
+              "Shell": 0,
+              "Claws": 0,
+              "Stinger": 0,
+              "TailTip": 0
+            }
+          }
+        ],
+        "FormCount": 4
+      },
+      "sprites": [
+        {
+          "form": 0,
+          "name": "egg",
+          "svg": "\u003csvg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 128 128\"\u003e\n\u003cg stroke=\"#0f1a33\" stroke-width=\"5\" stroke-linejoin=\"round\" stroke-linecap=\"round\"\u003e\n\u003cpath d=\"M64 38 C82 38 92 70 92 84 C92 100 80 110 64 110 C48 110 36 100 36 84 C36 70 46 38 64 38Z\" fill=\"#3d6fb8\"/\u003e\n\u003cpath d=\"M56 48 L53 62 M72 50 L75 62 M48 78 L50 92 M64 74 L64 96 M80 78 L78 92\" fill=\"none\" stroke=\"#274a85\" stroke-width=\"5\"/\u003e\n\u003cpath d=\"M54 56 Q52 50 58 46\" fill=\"none\" stroke=\"#5b8fd6\" stroke-width=\"4\"/\u003e\n\u003c/g\u003e\n\u003c/svg\u003e"
+        },
+        {
+          "form": 1,
+          "name": "matriarch",
+          "svg": "\u003csvg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 128 128\"\u003e\n\u003cg stroke=\"#0f1a33\" stroke-width=\"5\" stroke-linejoin=\"round\" stroke-linecap=\"round\"\u003e\n\u003cpath d=\"M98 98 C116 98 120 82 114 64\" fill=\"none\" stroke-width=\"17\"/\u003e\n\u003cpath d=\"M98 98 C116 98 120 82 114 64\" fill=\"none\" stroke=\"#274a85\" stroke-width=\"7\"/\u003e\n\u003cpath d=\"M113 36 L118 45 L125 45 L121 54 L124 62 L115 63 L109 70 L105 61 L97 58 L102 50 L100 41 L108 43Z\" fill=\"#5b8fd6\"/\u003e\n\u003cpath d=\"M22 104 L12 118 L36 118 L40 106Z\" fill=\"#274a85\"/\u003e\n\u003cpath d=\"M88 106 L92 118 L116 118 L106 104Z\" fill=\"#274a85\"/\u003e\n\u003cellipse cx=\"62\" cy=\"92\" rx=\"50\" ry=\"22\" fill=\"#3d6fb8\"/\u003e\n\u003cpath d=\"M14 96 Q62 72 110 96 Q62 88 14 96Z\" fill=\"#5b8fd6\"/\u003e\n\u003cpath d=\"M22 80 Q62 26 102 80 Z\" fill=\"#3d6fb8\"/\u003e\n\u003cpath d=\"M22 66 Q62 18 102 66 Q62 44 22 66Z\" fill=\"#5b8fd6\"/\u003e\n\u003cpath d=\"M34 82 Q62 114 90 82 Q62 90 34 82Z\" fill=\"#1a0f1a\"/\u003e\n\u003cpath d=\"M38 84 L42 94 L47 86 L52 100 L57 88 L62 102 L67 88 L72 100 L77 86 L82 94 L86 84\" fill=\"#f2efe6\" stroke-width=\"3\"/\u003e\n\u003cpath d=\"M36 55 L56 62 M88 55 L68 62\" fill=\"none\" stroke-width=\"6\"/\u003e\n\u003c/g\u003e\n\u003cg fill=\"#ffd23f\" stroke=\"#0f1a33\" stroke-width=\"3\"\u003e\n\u003ccircle cx=\"45\" cy=\"64\" r=\"4.5\"/\u003e\u003ccircle cx=\"62\" cy=\"66\" r=\"4.5\"/\u003e\u003ccircle cx=\"79\" cy=\"64\" r=\"4.5\"/\u003e\n\u003ccircle cx=\"51\" cy=\"74\" r=\"3.2\"/\u003e\u003ccircle cx=\"62\" cy=\"75\" r=\"3.2\"/\u003e\u003ccircle cx=\"73\" cy=\"74\" r=\"3.2\"/\u003e\n\u003c/g\u003e\n\u003c/svg\u003e"
+        },
+        {
+          "form": 2,
+          "name": "drudge",
+          "svg": "\u003csvg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 128 128\"\u003e\n\u003cg stroke=\"#0f1a33\" stroke-width=\"5\" stroke-linejoin=\"round\" stroke-linecap=\"round\"\u003e\n\u003cpath d=\"M84 94 C102 98 110 84 108 66\" fill=\"none\" stroke-width=\"14\"/\u003e\n\u003cpath d=\"M84 94 C102 98 110 84 108 66\" fill=\"none\" stroke=\"#274a85\" stroke-width=\"5\"/\u003e\n\u003ccircle cx=\"108\" cy=\"58\" r=\"11\" fill=\"#3d6fb8\"/\u003e\n\u003cpath d=\"M47 100 L43 117 L57 117 L58 102Z\" fill=\"#274a85\"/\u003e\n\u003cpath d=\"M70 102 L71 117 L85 117 L81 100Z\" fill=\"#274a85\"/\u003e\n\u003cellipse cx=\"64\" cy=\"88\" rx=\"26\" ry=\"20\" fill=\"#3d6fb8\"/\u003e\n\u003cpath d=\"M50 82 Q62 66 78 76 Q66 76 54 86Z\" fill=\"#5b8fd6\"/\u003e\n\u003cpath d=\"M58 98 Q60 106 70 104\" fill=\"none\" stroke=\"#274a85\" stroke-width=\"4\"/\u003e\n\u003cellipse cx=\"64\" cy=\"54\" rx=\"24\" ry=\"22\" fill=\"#3d6fb8\"/\u003e\n\u003cpath d=\"M48 44 Q56 40 60 44\" fill=\"none\" stroke=\"#274a85\" stroke-width=\"4\"/\u003e\n\u003cpath d=\"M51 66 Q64 78 77 66 Z\" fill=\"#1a0f1a\"/\u003e\n\u003cpath d=\"M54 67 L57 72 L60 67 L64 73 L68 67 L71 72 L74 67\" fill=\"#f2efe6\" stroke-width=\"3\"/\u003e\n\u003c/g\u003e\n\u003cg fill=\"#ffd23f\" stroke=\"#0f1a33\" stroke-width=\"3\"\u003e\n\u003ccircle cx=\"52\" cy=\"51\" r=\"4.5\"/\u003e\u003ccircle cx=\"64\" cy=\"49\" r=\"4.5\"/\u003e\u003ccircle cx=\"76\" cy=\"51\" r=\"4.5\"/\u003e\n\u003ccircle cx=\"54\" cy=\"59\" r=\"3.2\"/\u003e\u003ccircle cx=\"64\" cy=\"58\" r=\"3.2\"/\u003e\u003ccircle cx=\"74\" cy=\"59\" r=\"3.2\"/\u003e\n\u003c/g\u003e\n\u003c/svg\u003e"
+        },
+        {
+          "form": 3,
+          "name": "sire",
+          "svg": "\u003csvg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 128 128\"\u003e\n\u003cg stroke=\"#0f1a33\" stroke-width=\"5\" stroke-linejoin=\"round\" stroke-linecap=\"round\"\u003e\n\u003cpath d=\"M84 90 C104 92 110 74 106 54\" fill=\"none\" stroke-width=\"15\"/\u003e\n\u003cpath d=\"M84 90 C104 92 110 74 106 54\" fill=\"none\" stroke=\"#274a85\" stroke-width=\"6\"/\u003e\n\u003cpath d=\"M106 32 L111 40 L119 41 L114 49 L116 57 L107 55 L100 60 L99 51 L92 46 L99 41 L100 33Z\" fill=\"#5b8fd6\"/\u003e\n\u003cpath d=\"M46 98 L42 117 L57 117 L58 100Z\" fill=\"#274a85\"/\u003e\n\u003cpath d=\"M70 100 L71 117 L86 117 L82 98Z\" fill=\"#274a85\"/\u003e\n\u003cellipse cx=\"64\" cy=\"86\" rx=\"28\" ry=\"21\" fill=\"#3d6fb8\"/\u003e\n\u003cpath d=\"M38 86 Q64 56 90 86 Q64 76 38 86Z\" fill=\"#5b8fd6\"/\u003e\n\u003cpath d=\"M41 97 Q64 76 87 97 Q64 90 41 97Z\" fill=\"#5b8fd6\"/\u003e\n\u003cellipse cx=\"64\" cy=\"50\" rx=\"25\" ry=\"23\" fill=\"#3d6fb8\"/\u003e\n\u003cpath d=\"M38 46 Q50 22 64 10 Q78 22 90 46 Q64 32 38 46Z\" fill=\"#5b8fd6\"/\u003e\n\u003cpath d=\"M50 62 Q64 76 78 62 Z\" fill=\"#1a0f1a\"/\u003e\n\u003cpath d=\"M53 63 L56 69 L59 64 L64 71 L69 64 L72 69 L75 63\" fill=\"#f2efe6\" stroke-width=\"3\"/\u003e\n\u003c/g\u003e\n\u003cg fill=\"#ffd23f\" stroke=\"#0f1a33\" stroke-width=\"3\"\u003e\n\u003ccircle cx=\"52\" cy=\"47\" r=\"4.5\"/\u003e\u003ccircle cx=\"64\" cy=\"45\" r=\"4.5\"/\u003e\u003ccircle cx=\"76\" cy=\"47\" r=\"4.5\"/\u003e\n\u003ccircle cx=\"54\" cy=\"55\" r=\"3.2\"/\u003e\u003ccircle cx=\"64\" cy=\"54\" r=\"3.2\"/\u003e\u003ccircle cx=\"74\" cy=\"55\" r=\"3.2\"/\u003e\n\u003c/g\u003e\n\u003c/svg\u003e"
+        }
+      ]
+    },
+    {
+      "id": "db3f40oa5kmtld0nnt2g",
+      "seed": 542875915,
+      "generatorRev": "e5d324640f6f",
+      "species": {
+        "Singular": "horror",
+        "Plural": "horrors",
+        "ScientificName": "Iridolestes deimos",
+        "Emoji": "💀",
+        "HeightMinCM": 48,
+        "HeightMaxCM": 96,
+        "WeightMinKG": 18,
+        "WeightMaxKG": 37,
+        "Eyes": 6,
+        "Limbs": 7,
+        "Arms": 4,
+        "Tail": false,
+        "Wings": true,
+        "Skin": 3,
+        "Color": "iridescent",
+        "Pattern": 0,
+        "Temperament": 2,
+        "AttackModes": 18,
+        "BiteDamage": 2,
+        "BiteRest": 2,
+        "Slowness": 1,
+        "Anatomy": {
+          "Horns": 3,
+          "Antlers": 0,
+          "Spines": 0,
+          "Shell": 0,
+          "Claws": 0,
+          "Stinger": 0,
+          "TailTip": 0
+        },
+        "Apex": true,
+        "Forms": [
+          {
+            "Name": "",
+            "Stage": 0,
+            "Weight": 0,
+            "SizePct": 0,
+            "Inert": false,
+            "Ticks": 0,
+            "Lays": false,
+            "Limbs": 0,
+            "Arms": 0,
+            "Tail": false,
+            "Wings": false,
+            "Anatomy": {
+              "Horns": 0,
+              "Antlers": 0,
+              "Spines": 0,
+              "Shell": 0,
+              "Claws": 0,
+              "Stinger": 0,
+              "TailTip": 0
+            }
+          },
+          {
+            "Name": "",
+            "Stage": 0,
+            "Weight": 0,
+            "SizePct": 0,
+            "Inert": false,
+            "Ticks": 0,
+            "Lays": false,
+            "Limbs": 0,
+            "Arms": 0,
+            "Tail": false,
+            "Wings": false,
+            "Anatomy": {
+              "Horns": 0,
+              "Antlers": 0,
+              "Spines": 0,
+              "Shell": 0,
+              "Claws": 0,
+              "Stinger": 0,
+              "TailTip": 0
+            }
+          },
+          {
+            "Name": "",
+            "Stage": 0,
+            "Weight": 0,
+            "SizePct": 0,
+            "Inert": false,
+            "Ticks": 0,
+            "Lays": false,
+            "Limbs": 0,
+            "Arms": 0,
+            "Tail": false,
+            "Wings": false,
+            "Anatomy": {
+              "Horns": 0,
+              "Antlers": 0,
+              "Spines": 0,
+              "Shell": 0,
+              "Claws": 0,
+              "Stinger": 0,
+              "TailTip": 0
+            }
+          },
+          {
+            "Name": "",
+            "Stage": 0,
+            "Weight": 0,
+            "SizePct": 0,
+            "Inert": false,
+            "Ticks": 0,
+            "Lays": false,
+            "Limbs": 0,
+            "Arms": 0,
+            "Tail": false,
+            "Wings": false,
+            "Anatomy": {
+              "Horns": 0,
+              "Antlers": 0,
+              "Spines": 0,
+              "Shell": 0,
+              "Claws": 0,
+              "Stinger": 0,
+              "TailTip": 0
+            }
+          },
+          {
+            "Name": "",
+            "Stage": 0,
+            "Weight": 0,
+            "SizePct": 0,
+            "Inert": false,
+            "Ticks": 0,
+            "Lays": false,
+            "Limbs": 0,
+            "Arms": 0,
+            "Tail": false,
+            "Wings": false,
+            "Anatomy": {
+              "Horns": 0,
+              "Antlers": 0,
+              "Spines": 0,
+              "Shell": 0,
+              "Claws": 0,
+              "Stinger": 0,
+              "TailTip": 0
+            }
+          },
+          {
+            "Name": "",
+            "Stage": 0,
+            "Weight": 0,
+            "SizePct": 0,
+            "Inert": false,
+            "Ticks": 0,
+            "Lays": false,
+            "Limbs": 0,
+            "Arms": 0,
+            "Tail": false,
+            "Wings": false,
+            "Anatomy": {
+              "Horns": 0,
+              "Antlers": 0,
+              "Spines": 0,
+              "Shell": 0,
+              "Claws": 0,
+              "Stinger": 0,
+              "TailTip": 0
+            }
+          },
+          {
+            "Name": "",
+            "Stage": 0,
+            "Weight": 0,
+            "SizePct": 0,
+            "Inert": false,
+            "Ticks": 0,
+            "Lays": false,
+            "Limbs": 0,
+            "Arms": 0,
+            "Tail": false,
+            "Wings": false,
+            "Anatomy": {
+              "Horns": 0,
+              "Antlers": 0,
+              "Spines": 0,
+              "Shell": 0,
+              "Claws": 0,
+              "Stinger": 0,
+              "TailTip": 0
+            }
+          }
+        ],
+        "FormCount": 0
+      },
+      "sprites": [
+        {
+          "form": 0,
+          "name": "adult",
+          "svg": "\u003csvg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 128 128\"\u003e\n\u003cdefs\u003e\n\u003clinearGradient id=\"o\" gradientUnits=\"userSpaceOnUse\" x1=\"10\" y1=\"10\" x2=\"118\" y2=\"118\"\u003e\n\u003cstop offset=\"0\" stop-color=\"#2fe0d0\"/\u003e\u003cstop offset=\"1\" stop-color=\"#9a5cff\"/\u003e\n\u003c/linearGradient\u003e\n\u003c/defs\u003e\n\u003cg fill=\"#100c16\" stroke=\"url(#o)\" stroke-width=\"5\" stroke-linejoin=\"miter\" stroke-miterlimit=\"8\"\u003e\n\u003cpath d=\"M48 60 L16 8 L36 74Z M80 60 L112 8 L92 74Z\"/\u003e\n\u003cpath d=\"M50 94 L38 104 L42 120 M64 98 L64 120 M78 94 L90 104 L86 120\" fill=\"none\" stroke-width=\"19\"/\u003e\n\u003cpath d=\"M50 94 L38 104 L42 120 M64 98 L64 120 M78 94 L90 104 L86 120\" fill=\"none\" stroke=\"#100c16\" stroke-width=\"10\"/\u003e\n\u003cpath d=\"M46 70 L30 62 L22 44 M82 70 L98 62 L106 44 M46 86 L28 90 L18 104 M82 86 L100 90 L110 104\" fill=\"none\" stroke-width=\"19\"/\u003e\n\u003cpath d=\"M46 70 L30 62 L22 44 M82 70 L98 62 L106 44 M46 86 L28 90 L18 104 M82 86 L100 90 L110 104\" fill=\"none\" stroke=\"#100c16\" stroke-width=\"10\"/\u003e\n\u003cpath d=\"M18 48 L8 26 L26 42Z M110 48 L120 26 L102 42Z M14 100 L6 120 L22 106Z M114 100 L122 120 L106 106Z\"/\u003e\n\u003cpath d=\"M40 70 L64 60 L88 70 L90 94 L64 106 L38 94Z\"/\u003e\n\u003cpath d=\"M54 36 L64 4 L74 36Z M46 40 L28 14 L58 34Z M82 40 L100 14 L70 34Z\"/\u003e\n\u003cpath d=\"M40 38 L64 30 L88 38 L82 58 L64 76 L46 58Z\"/\u003e\n\u003c/g\u003e\n\u003cg fill=\"#ff3030\"\u003e\n\u003cpath d=\"M47 44 L58 47 L49 49Z M81 44 L70 47 L79 49Z M59 41 L69 41 L64 45Z\"/\u003e\n\u003cpath d=\"M52 53 L59 55 L53 57Z M76 53 L69 55 L75 57Z M61 50 L67 50 L64 54Z\"/\u003e\n\u003c/g\u003e\n\u003cpath d=\"M56 63 L60 69 L64 64 L68 69 L72 63\" fill=\"none\" stroke=\"#e8e4f0\" stroke-width=\"3\" stroke-linejoin=\"miter\"/\u003e\n\u003c/svg\u003e"
+        }
+      ]
+    },
+    {
+      "id": "db3f770a5kmtkvrdi4n0",
+      "seed": 1065507186,
+      "generatorRev": "003af5f81907",
+      "species": {
+        "Singular": "grelk",
+        "Plural": "grelks",
+        "ScientificName": "Phoboraptor velox",
+        "Emoji": "👾",
+        "HeightMinCM": 252,
+        "HeightMaxCM": 400,
+        "WeightMinKG": 71,
+        "WeightMaxKG": 113,
+        "Eyes": 6,
+        "Limbs": 2,
+        "Arms": 1,
+        "Tail": false,
+        "Wings": false,
+        "Skin": 11,
+        "Color": "red",
+        "Pattern": 0,
+        "Temperament": 2,
+        "AttackModes": 17,
+        "BiteDamage": 7,
+        "BiteRest": 2,
+        "Slowness": 1,
+        "Anatomy": {
+          "Horns": 0,
+          "Antlers": 10,
+          "Spines": 1,
+          "Shell": 0,
+          "Claws": 0,
+          "Stinger": 0,
+          "TailTip": 0
+        },
+        "Apex": false,
+        "Forms": [
+          {
+            "Name": "joey",
+            "Stage": 0,
+            "Weight": 0,
+            "SizePct": 16,
+            "Inert": false,
+            "Ticks": 1728,
+            "Lays": false,
+            "Limbs": 1,
+            "Arms": 0,
+            "Tail": false,
+            "Wings": false,
+            "Anatomy": {
+              "Horns": 0,
+              "Antlers": 5,
+              "Spines": 1,
+              "Shell": 0,
+              "Claws": 0,
+              "Stinger": 0,
+              "TailTip": 0
+            }
+          },
+          {
+            "Name": "",
+            "Stage": 1,
+            "Weight": 0,
+            "SizePct": 100,
+            "Inert": false,
+            "Ticks": 0,
+            "Lays": true,
+            "Limbs": 2,
+            "Arms": 1,
+            "Tail": false,
+            "Wings": false,
+            "Anatomy": {
+              "Horns": 0,
+              "Antlers": 10,
+              "Spines": 1,
+              "Shell": 0,
+              "Claws": 0,
+              "Stinger": 0,
+              "TailTip": 0
+            }
+          },
+          {
+            "Name": "",
+            "Stage": 0,
+            "Weight": 0,
+            "SizePct": 0,
+            "Inert": false,
+            "Ticks": 0,
+            "Lays": false,
+            "Limbs": 0,
+            "Arms": 0,
+            "Tail": false,
+            "Wings": false,
+            "Anatomy": {
+              "Horns": 0,
+              "Antlers": 0,
+              "Spines": 0,
+              "Shell": 0,
+              "Claws": 0,
+              "Stinger": 0,
+              "TailTip": 0
+            }
+          },
+          {
+            "Name": "",
+            "Stage": 0,
+            "Weight": 0,
+            "SizePct": 0,
+            "Inert": false,
+            "Ticks": 0,
+            "Lays": false,
+            "Limbs": 0,
+            "Arms": 0,
+            "Tail": false,
+            "Wings": false,
+            "Anatomy": {
+              "Horns": 0,
+              "Antlers": 0,
+              "Spines": 0,
+              "Shell": 0,
+              "Claws": 0,
+              "Stinger": 0,
+              "TailTip": 0
+            }
+          },
+          {
+            "Name": "",
+            "Stage": 0,
+            "Weight": 0,
+            "SizePct": 0,
+            "Inert": false,
+            "Ticks": 0,
+            "Lays": false,
+            "Limbs": 0,
+            "Arms": 0,
+            "Tail": false,
+            "Wings": false,
+            "Anatomy": {
+              "Horns": 0,
+              "Antlers": 0,
+              "Spines": 0,
+              "Shell": 0,
+              "Claws": 0,
+              "Stinger": 0,
+              "TailTip": 0
+            }
+          },
+          {
+            "Name": "",
+            "Stage": 0,
+            "Weight": 0,
+            "SizePct": 0,
+            "Inert": false,
+            "Ticks": 0,
+            "Lays": false,
+            "Limbs": 0,
+            "Arms": 0,
+            "Tail": false,
+            "Wings": false,
+            "Anatomy": {
+              "Horns": 0,
+              "Antlers": 0,
+              "Spines": 0,
+              "Shell": 0,
+              "Claws": 0,
+              "Stinger": 0,
+              "TailTip": 0
+            }
+          },
+          {
+            "Name": "",
+            "Stage": 0,
+            "Weight": 0,
+            "SizePct": 0,
+            "Inert": false,
+            "Ticks": 0,
+            "Lays": false,
+            "Limbs": 0,
+            "Arms": 0,
+            "Tail": false,
+            "Wings": false,
+            "Anatomy": {
+              "Horns": 0,
+              "Antlers": 0,
+              "Spines": 0,
+              "Shell": 0,
+              "Claws": 0,
+              "Stinger": 0,
+              "TailTip": 0
+            }
+          }
+        ],
+        "FormCount": 2
+      },
+      "sprites": [
+        {
+          "form": 0,
+          "name": "joey",
+          "svg": "\u003csvg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 128 128\"\u003e\n\u003cg stroke-linejoin=\"miter\" stroke-linecap=\"round\"\u003e\n\u003cpath d=\"M54 62 L46 46 L38 32 M46 46 L32 46 M46 46 L50 32 M74 62 L82 46 L90 32 M82 46 L96 46\" fill=\"none\" stroke=\"#1a0806\" stroke-width=\"12\"/\u003e\n\u003cpath d=\"M54 62 L46 46 L38 32 M46 46 L32 46 M46 46 L50 32 M74 62 L82 46 L90 32 M82 46 L96 46\" fill=\"none\" stroke=\"#e9dcc0\" stroke-width=\"5.5\"/\u003e\n\u003cg stroke=\"#1a0806\" stroke-width=\"5\"\u003e\n\u003cpath d=\"M58 100 L58 112 L48 112 L46 118 L82 118 L80 112 L70 112 L70 100Z\" fill=\"#7a1a16\"/\u003e\n\u003cpath d=\"M64 48 L72 61 L87 55 L83 70 L99 74 L86 83 L95 96 L78 95 L72 99 L64 100 L56 99 L50 95 L33 96 L42 83 L29 74 L45 70 L41 55 L56 61Z\" fill=\"#c8322a\"/\u003e\n\u003cpath d=\"M54 88 L74 88 L64 98Z\" fill=\"#1a0806\"/\u003e\n\u003cpath d=\"M58 89 L61 94 L64 89 L67 94 L70 89\" fill=\"none\" stroke=\"#f4ecdc\" stroke-width=\"2.5\"/\u003e\n\u003c/g\u003e\n\u003cg fill=\"#ffe36b\" stroke=\"#1a0806\" stroke-width=\"3\"\u003e\n\u003ccircle cx=\"52\" cy=\"72\" r=\"5.5\"/\u003e\u003ccircle cx=\"64\" cy=\"70\" r=\"5.5\"/\u003e\u003ccircle cx=\"76\" cy=\"72\" r=\"5.5\"/\u003e\n\u003ccircle cx=\"55\" cy=\"82\" r=\"3.5\"/\u003e\u003ccircle cx=\"64\" cy=\"81\" r=\"3.5\"/\u003e\u003ccircle cx=\"73\" cy=\"82\" r=\"3.5\"/\u003e\n\u003c/g\u003e\n\u003c/g\u003e\n\u003c/svg\u003e"
+        },
+        {
+          "form": 1,
+          "name": "adult",
+          "svg": "\u003csvg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 128 128\"\u003e\n\u003cg stroke-linejoin=\"miter\" stroke-linecap=\"round\"\u003e\n\u003cpath d=\"M50 46 L40 32 L30 20 L22 8 M40 32 L25 34 M40 32 L42 17 M30 20 L15 22 M30 20 L34 7 M78 46 L88 32 L98 20 L106 8 M88 32 L103 34 M88 32 L86 17 M98 20 L113 22 M98 20 L94 7\" fill=\"none\" stroke=\"#1a0806\" stroke-width=\"11\"/\u003e\n\u003cpath d=\"M50 46 L40 32 L30 20 L22 8 M40 32 L25 34 M40 32 L42 17 M30 20 L15 22 M30 20 L34 7 M78 46 L88 32 L98 20 L106 8 M88 32 L103 34 M88 32 L86 17 M98 20 L113 22 M98 20 L94 7\" fill=\"none\" stroke=\"#e9dcc0\" stroke-width=\"5\"/\u003e\n\u003cg stroke=\"#1a0806\" stroke-width=\"5\"\u003e\n\u003cpath d=\"M56 96 L56 114 L44 114 L42 122 L84 122 L80 114 L70 114 L70 96Z\" fill=\"#7a1a16\"/\u003e\n\u003cpath d=\"M64 28 L72 47 L90 35 L85 55 L108 54 L92 68 L112 78 L89 83 L100 101 L79 94 L72 97 L64 98 L56 97 L49 94 L28 101 L39 83 L16 78 L36 68 L20 54 L43 55 L38 35 L56 47Z\" fill=\"#c8322a\"/\u003e\n\u003cpath d=\"M48 76 L80 76 L74 94 L54 94Z\" fill=\"#1a0806\"/\u003e\n\u003cpath d=\"M52 77 L56 85 L60 77 L64 87 L68 77 L72 85 L76 77Z M56 93 L60 87 L64 93 L68 87 L72 93Z\" fill=\"#f4ecdc\" stroke-width=\"2.5\"/\u003e\n\u003c/g\u003e\n\u003cpath d=\"M40 82 L24 90 L18 100\" fill=\"none\" stroke=\"#1a0806\" stroke-width=\"18\"/\u003e\n\u003cpath d=\"M40 82 L24 90 L18 100\" fill=\"none\" stroke=\"#c8322a\" stroke-width=\"9\"/\u003e\n\u003cpath d=\"M12 100 L6 116 L16 106Z M18 104 L16 122 L24 108Z M24 102 L30 118 L28 102Z\" fill=\"#e9dcc0\" stroke=\"#1a0806\" stroke-width=\"4\"/\u003e\n\u003cg fill=\"#ffe36b\" stroke=\"#1a0806\" stroke-width=\"3\"\u003e\n\u003ccircle cx=\"50\" cy=\"60\" r=\"5\"/\u003e\u003ccircle cx=\"64\" cy=\"58\" r=\"5\"/\u003e\u003ccircle cx=\"78\" cy=\"60\" r=\"5\"/\u003e\n\u003ccircle cx=\"54\" cy=\"69\" r=\"3.5\"/\u003e\u003ccircle cx=\"64\" cy=\"68\" r=\"3.5\"/\u003e\u003ccircle cx=\"74\" cy=\"69\" r=\"3.5\"/\u003e\n\u003c/g\u003e\n\u003c/g\u003e\n\u003c/svg\u003e"
+        }
+      ]
+    },
+    {
+      "id": "db3fahoa5kmtkvrdi4pg",
+      "seed": 2034581197,
+      "generatorRev": "003af5f81907",
+      "species": {
+        "Singular": "blob",
+        "Plural": "blobs",
+        "ScientificName": "Iridohexops cavernicola",
+        "Emoji": "👾",
+        "HeightMinCM": 273,
+        "HeightMaxCM": 333,
+        "WeightMinKG": 113,
+        "WeightMaxKG": 138,
+        "Eyes": 6,
+        "Limbs": 6,
+        "Arms": 2,
+        "Tail": false,
+        "Wings": false,
+        "Skin": 6,
+        "Color": "iridescent",
+        "Pattern": 0,
+        "Temperament": 1,
+        "AttackModes": 1,
+        "BiteDamage": 9,
+        "BiteRest": 3,
+        "Slowness": 2,
+        "Anatomy": {
+          "Horns": 0,
+          "Antlers": 0,
+          "Spines": 0,
+          "Shell": 0,
+          "Claws": 1,
+          "Stinger": 0,
+          "TailTip": 0
+        },
+        "Apex": false,
+        "Forms": [
+          {
+            "Name": "",
+            "Stage": 0,
+            "Weight": 0,
+            "SizePct": 0,
+            "Inert": false,
+            "Ticks": 0,
+            "Lays": false,
+            "Limbs": 0,
+            "Arms": 0,
+            "Tail": false,
+            "Wings": false,
+            "Anatomy": {
+              "Horns": 0,
+              "Antlers": 0,
+              "Spines": 0,
+              "Shell": 0,
+              "Claws": 0,
+              "Stinger": 0,
+              "TailTip": 0
+            }
+          },
+          {
+            "Name": "",
+            "Stage": 0,
+            "Weight": 0,
+            "SizePct": 0,
+            "Inert": false,
+            "Ticks": 0,
+            "Lays": false,
+            "Limbs": 0,
+            "Arms": 0,
+            "Tail": false,
+            "Wings": false,
+            "Anatomy": {
+              "Horns": 0,
+              "Antlers": 0,
+              "Spines": 0,
+              "Shell": 0,
+              "Claws": 0,
+              "Stinger": 0,
+              "TailTip": 0
+            }
+          },
+          {
+            "Name": "",
+            "Stage": 0,
+            "Weight": 0,
+            "SizePct": 0,
+            "Inert": false,
+            "Ticks": 0,
+            "Lays": false,
+            "Limbs": 0,
+            "Arms": 0,
+            "Tail": false,
+            "Wings": false,
+            "Anatomy": {
+              "Horns": 0,
+              "Antlers": 0,
+              "Spines": 0,
+              "Shell": 0,
+              "Claws": 0,
+              "Stinger": 0,
+              "TailTip": 0
+            }
+          },
+          {
+            "Name": "",
+            "Stage": 0,
+            "Weight": 0,
+            "SizePct": 0,
+            "Inert": false,
+            "Ticks": 0,
+            "Lays": false,
+            "Limbs": 0,
+            "Arms": 0,
+            "Tail": false,
+            "Wings": false,
+            "Anatomy": {
+              "Horns": 0,
+              "Antlers": 0,
+              "Spines": 0,
+              "Shell": 0,
+              "Claws": 0,
+              "Stinger": 0,
+              "TailTip": 0
+            }
+          },
+          {
+            "Name": "",
+            "Stage": 0,
+            "Weight": 0,
+            "SizePct": 0,
+            "Inert": false,
+            "Ticks": 0,
+            "Lays": false,
+            "Limbs": 0,
+            "Arms": 0,
+            "Tail": false,
+            "Wings": false,
+            "Anatomy": {
+              "Horns": 0,
+              "Antlers": 0,
+              "Spines": 0,
+              "Shell": 0,
+              "Claws": 0,
+              "Stinger": 0,
+              "TailTip": 0
+            }
+          },
+          {
+            "Name": "",
+            "Stage": 0,
+            "Weight": 0,
+            "SizePct": 0,
+            "Inert": false,
+            "Ticks": 0,
+            "Lays": false,
+            "Limbs": 0,
+            "Arms": 0,
+            "Tail": false,
+            "Wings": false,
+            "Anatomy": {
+              "Horns": 0,
+              "Antlers": 0,
+              "Spines": 0,
+              "Shell": 0,
+              "Claws": 0,
+              "Stinger": 0,
+              "TailTip": 0
+            }
+          },
+          {
+            "Name": "",
+            "Stage": 0,
+            "Weight": 0,
+            "SizePct": 0,
+            "Inert": false,
+            "Ticks": 0,
+            "Lays": false,
+            "Limbs": 0,
+            "Arms": 0,
+            "Tail": false,
+            "Wings": false,
+            "Anatomy": {
+              "Horns": 0,
+              "Antlers": 0,
+              "Spines": 0,
+              "Shell": 0,
+              "Claws": 0,
+              "Stinger": 0,
+              "TailTip": 0
+            }
+          }
+        ],
+        "FormCount": 0
+      },
+      "sprites": [
+        {
+          "form": 0,
+          "name": "adult",
+          "svg": "\u003csvg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 128 128\"\u003e\n\u003cdefs\u003e\n\u003clinearGradient id=\"g\" gradientUnits=\"userSpaceOnUse\" x1=\"14\" y1=\"6\" x2=\"114\" y2=\"110\"\u003e\n\u003cstop offset=\"0\" stop-color=\"#3fd0bc\"/\u003e\u003cstop offset=\"0.5\" stop-color=\"#7d63e0\"/\u003e\u003cstop offset=\"1\" stop-color=\"#d65ab8\"/\u003e\n\u003c/linearGradient\u003e\n\u003c/defs\u003e\n\u003cg stroke=\"#160c22\" stroke-width=\"5\" stroke-linejoin=\"round\" stroke-linecap=\"round\"\u003e\n\u003cpath d=\"M24 96 L22 122 L40 122 L40 98 M46 100 L46 123 L62 123 L60 100 M68 100 L66 123 L82 123 L82 100 M88 98 L88 122 L106 122 L104 96\" fill=\"#5a3fae\"/\u003e\n\u003cpath d=\"M64 5 C98 5 116 36 116 64 C116 88 110 100 102 102 C100 109 93 109 91 102 L58 104 C56 113 47 113 47 104 C26 104 12 90 12 64 C12 36 30 5 64 5Z\" fill=\"url(#g)\"/\u003e\n\u003cpath d=\"M30 82 L14 74 L10 56 M98 82 L114 74 L118 56\" fill=\"none\" stroke-width=\"18\"/\u003e\n\u003cpath d=\"M30 82 L14 74 L10 56 M98 82 L114 74 L118 56\" fill=\"none\" stroke=\"url(#g)\" stroke-width=\"9\"/\u003e\n\u003cpath d=\"M3 56 Q3 42 10 46 Q12 38 18 46 Q22 54 10 60 Q3 62 3 56Z M125 56 Q125 42 118 46 Q116 38 110 46 Q106 54 118 60 Q125 62 125 56Z\" fill=\"#e8dff5\"/\u003e\n\u003cpath d=\"M44 86 Q54 93 64 86 Q74 93 84 86\" fill=\"none\" stroke-width=\"5\"/\u003e\n\u003cpath d=\"M51 89 L53 96 L57 90 M77 89 L75 96 L71 90\" fill=\"#f4ecdc\" stroke-width=\"2.5\"/\u003e\n\u003c/g\u003e\n\u003cpath d=\"M32 28 Q39 16 51 15\" fill=\"none\" stroke=\"#ffffff\" stroke-width=\"5\" stroke-linecap=\"round\" opacity=\"0.75\"/\u003e\n\u003cg fill=\"#f6f2ff\" stroke=\"#160c22\" stroke-width=\"3\"\u003e\n\u003ccircle cx=\"43\" cy=\"48\" r=\"8\"/\u003e\u003ccircle cx=\"64\" cy=\"43\" r=\"8\"/\u003e\u003ccircle cx=\"85\" cy=\"48\" r=\"8\"/\u003e\n\u003ccircle cx=\"48\" cy=\"67\" r=\"6.5\"/\u003e\u003ccircle cx=\"64\" cy=\"64\" r=\"6.5\"/\u003e\u003ccircle cx=\"80\" cy=\"67\" r=\"6.5\"/\u003e\n\u003c/g\u003e\n\u003cg fill=\"#160c22\"\u003e\n\u003ccircle cx=\"47\" cy=\"49\" r=\"3.5\"/\u003e\u003ccircle cx=\"68\" cy=\"44\" r=\"3.5\"/\u003e\u003ccircle cx=\"89\" cy=\"49\" r=\"3.5\"/\u003e\n\u003ccircle cx=\"51\" cy=\"68\" r=\"3\"/\u003e\u003ccircle cx=\"67\" cy=\"65\" r=\"3\"/\u003e\u003ccircle cx=\"83\" cy=\"68\" r=\"3\"/\u003e\n\u003c/g\u003e\n\u003c/svg\u003e"
+        }
+      ]
+    },
+    {
+      "id": "db3fev8a5kmti2nq7f40",
+      "seed": 1049793213,
+      "generatorRev": "a761911b5e72",
+      "species": {
+        "Singular": "stingtail",
+        "Plural": "stingtails",
+        "ScientificName": "Microcheirus ares",
+        "Emoji": "🦂",
+        "HeightMinCM": 71,
+        "HeightMaxCM": 103,
+        "WeightMinKG": 21,
+        "WeightMaxKG": 31,
+        "Eyes": 4,
+        "Limbs": 6,
+        "Arms": 4,
+        "Tail": true,
+        "Wings": false,
+        "Skin": 5,
+        "Color": "green",
+        "Pattern": 0,
+        "Temperament": 2,
+        "AttackModes": 49,
+        "BiteDamage": 2,
+        "BiteRest": 2,
+        "Slowness": 1,
+        "Anatomy": {
+          "Horns": 10,
+          "Antlers": 0,
+          "Spines": 0,
+          "Shell": 0,
+          "Claws": 0,
+          "Stinger": 2,
+          "TailTip": 3
+        },
+        "Apex": false,
+        "Forms": [
+          {
+            "Name": "grub",
+            "Stage": 0,
+            "Weight": 0,
+            "SizePct": 10,
+            "Inert": false,
+            "Ticks": 2419,
+            "Lays": false,
+            "Limbs": 2,
+            "Arms": 1,
+            "Tail": false,
+            "Wings": false,
+            "Anatomy": {
+              "Horns": 2,
+              "Antlers": 0,
+              "Spines": 0,
+              "Shell": 0,
+              "Claws": 0,
+              "Stinger": 0,
+              "TailTip": 0
+            }
+          },
+          {
+            "Name": "nymph",
+            "Stage": 1,
+            "Weight": 0,
+            "SizePct": 49,
+            "Inert": false,
+            "Ticks": 2505,
+            "Lays": false,
+            "Limbs": 3,
+            "Arms": 2,
+            "Tail": true,
+            "Wings": false,
+            "Anatomy": {
+              "Horns": 5,
+              "Antlers": 0,
+              "Spines": 0,
+              "Shell": 0,
+              "Claws": 0,
+              "Stinger": 1,
+              "TailTip": 0
+            }
+          },
+          {
+            "Name": "instar",
+            "Stage": 2,
+            "Weight": 0,
+            "SizePct": 84,
+            "Inert": false,
+            "Ticks": 2073,
+            "Lays": false,
+            "Limbs": 5,
+            "Arms": 3,
+            "Tail": true,
+            "Wings": false,
+            "Anatomy": {
+              "Horns": 7,
+              "Antlers": 0,
+              "Spines": 0,
+              "Shell": 0,
+              "Claws": 0,
+              "Stinger": 1,
+              "TailTip": 3
+            }
+          },
+          {
+            "Name": "",
+            "Stage": 3,
+            "Weight": 0,
+            "SizePct": 100,
+            "Inert": false,
+            "Ticks": 0,
+            "Lays": true,
+            "Limbs": 6,
+            "Arms": 4,
+            "Tail": true,
+            "Wings": false,
+            "Anatomy": {
+              "Horns": 10,
+              "Antlers": 0,
+              "Spines": 0,
+              "Shell": 0,
+              "Claws": 0,
+              "Stinger": 2,
+              "TailTip": 3
+            }
+          },
+          {
+            "Name": "",
+            "Stage": 0,
+            "Weight": 0,
+            "SizePct": 0,
+            "Inert": false,
+            "Ticks": 0,
+            "Lays": false,
+            "Limbs": 0,
+            "Arms": 0,
+            "Tail": false,
+            "Wings": false,
+            "Anatomy": {
+              "Horns": 0,
+              "Antlers": 0,
+              "Spines": 0,
+              "Shell": 0,
+              "Claws": 0,
+              "Stinger": 0,
+              "TailTip": 0
+            }
+          },
+          {
+            "Name": "",
+            "Stage": 0,
+            "Weight": 0,
+            "SizePct": 0,
+            "Inert": false,
+            "Ticks": 0,
+            "Lays": false,
+            "Limbs": 0,
+            "Arms": 0,
+            "Tail": false,
+            "Wings": false,
+            "Anatomy": {
+              "Horns": 0,
+              "Antlers": 0,
+              "Spines": 0,
+              "Shell": 0,
+              "Claws": 0,
+              "Stinger": 0,
+              "TailTip": 0
+            }
+          },
+          {
+            "Name": "",
+            "Stage": 0,
+            "Weight": 0,
+            "SizePct": 0,
+            "Inert": false,
+            "Ticks": 0,
+            "Lays": false,
+            "Limbs": 0,
+            "Arms": 0,
+            "Tail": false,
+            "Wings": false,
+            "Anatomy": {
+              "Horns": 0,
+              "Antlers": 0,
+              "Spines": 0,
+              "Shell": 0,
+              "Claws": 0,
+              "Stinger": 0,
+              "TailTip": 0
+            }
+          }
+        ],
+        "FormCount": 4
+      },
+      "sprites": [
+        {
+          "form": 0,
+          "name": "grub",
+          "svg": "\u003csvg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 128 128\"\u003e\n\u003cg transform=\"translate(26.8 47.1) scale(0.62)\" stroke-linecap=\"round\"\u003e\n\u003cpath d=\"M60 98 L60 110 L56 122\" fill=\"none\" stroke=\"#0d1a0a\" stroke-width=\"17\" stroke-linejoin=\"miter\"/\u003e\n\u003cpath d=\"M60 98 L60 110 L56 122\" fill=\"none\" stroke=\"#2f6e22\" stroke-width=\"8\" stroke-linejoin=\"miter\"/\u003e\n\u003cpath d=\"M42 70 L24 62 L16 46\" fill=\"none\" stroke=\"#0d1a0a\" stroke-width=\"16\" stroke-linejoin=\"miter\"/\u003e\n\u003cpath d=\"M42 70 L24 62 L16 46\" fill=\"none\" stroke=\"#62c23c\" stroke-width=\"7\" stroke-linejoin=\"miter\"/\u003e\n\u003cpath d=\"M16 46 L6 38 L22 40Z\" fill=\"#ece4c4\" stroke=\"#0d1a0a\" stroke-width=\"4\" stroke-linejoin=\"miter\"/\u003e\n\u003cpath d=\"M44 62 L76 62 L86 84 L74 102 L46 102 L34 84Z\" fill=\"#62c23c\" stroke=\"#0d1a0a\" stroke-width=\"5\" stroke-linejoin=\"miter\"/\u003e\n\u003cpath d=\"M40 82 L60 76 L80 82 M46 94 L60 90 L74 94\" fill=\"none\" stroke=\"#2f6e22\" stroke-width=\"5\"/\u003e\n\u003cpath d=\"M44 33 L46 15 L60 27 L74 15 L76 33Z\" fill=\"#ece4c4\" stroke=\"#0d1a0a\" stroke-width=\"3.5\" stroke-linejoin=\"miter\"/\u003e\n\u003cpath d=\"M40 40 L60 32 L80 40 L82 56 L66 68 L54 68 L38 56Z\" fill=\"#62c23c\" stroke=\"#0d1a0a\" stroke-width=\"5\" stroke-linejoin=\"miter\"/\u003e\n\u003cpath d=\"M54 64 L46 74 L56 70Z M66 64 L74 74 L64 70Z\" fill=\"#ece4c4\" stroke=\"#0d1a0a\" stroke-width=\"4\" stroke-linejoin=\"miter\"/\u003e\n\u003cpath d=\"M44 44 L56 48 L46 51Z M76 44 L64 48 L74 51Z M48 54 L57 56 L50 59Z M72 54 L63 56 L70 59Z\" fill=\"#ff3a2a\" stroke=\"#0d1a0a\" stroke-width=\"2\"/\u003e\n\u003c/g\u003e\n\u003c/svg\u003e"
+        },
+        {
+          "form": 1,
+          "name": "nymph",
+          "svg": "\u003csvg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 128 128\"\u003e\n\u003cg transform=\"translate(17.2 27.3) scale(0.78)\" stroke-linecap=\"round\"\u003e\n\u003cpath d=\"M78 76 L102 62 L114 36 L104 14\" fill=\"none\" stroke=\"#0d1a0a\" stroke-width=\"16\"/\u003e\n\u003cpath d=\"M78 76 L102 62 L114 36 L104 14\" fill=\"none\" stroke=\"#2f6e22\" stroke-width=\"7\"/\u003e\n\u003cpath d=\"M60 98 L60 110 L56 122\" fill=\"none\" stroke=\"#0d1a0a\" stroke-width=\"17\" stroke-linejoin=\"miter\"/\u003e\n\u003cpath d=\"M60 98 L60 110 L56 122\" fill=\"none\" stroke=\"#2f6e22\" stroke-width=\"8\" stroke-linejoin=\"miter\"/\u003e\n\u003cpath d=\"M42 70 L24 62 L16 46\" fill=\"none\" stroke=\"#0d1a0a\" stroke-width=\"16\" stroke-linejoin=\"miter\"/\u003e\n\u003cpath d=\"M42 70 L24 62 L16 46\" fill=\"none\" stroke=\"#62c23c\" stroke-width=\"7\" stroke-linejoin=\"miter\"/\u003e\n\u003cpath d=\"M16 46 L6 38 L22 40Z\" fill=\"#ece4c4\" stroke=\"#0d1a0a\" stroke-width=\"4\" stroke-linejoin=\"miter\"/\u003e\n\u003cpath d=\"M78 72 L96 80 L108 72\" fill=\"none\" stroke=\"#0d1a0a\" stroke-width=\"16\" stroke-linejoin=\"miter\"/\u003e\n\u003cpath d=\"M78 72 L96 80 L108 72\" fill=\"none\" stroke=\"#62c23c\" stroke-width=\"7\" stroke-linejoin=\"miter\"/\u003e\n\u003cpath d=\"M108 72 L122 66 L114 80Z\" fill=\"#ece4c4\" stroke=\"#0d1a0a\" stroke-width=\"4\" stroke-linejoin=\"miter\"/\u003e\n\u003cpath d=\"M44 62 L76 62 L86 84 L74 102 L46 102 L34 84Z\" fill=\"#62c23c\" stroke=\"#0d1a0a\" stroke-width=\"5\" stroke-linejoin=\"miter\"/\u003e\n\u003cpath d=\"M40 82 L60 76 L80 82 M46 94 L60 90 L74 94\" fill=\"none\" stroke=\"#2f6e22\" stroke-width=\"5\"/\u003e\n\u003cpath d=\"M39 43 L27 30 L44 33 L41 17 L54 28 L60 12 L66 28 L79 17 L76 33 L93 30 L81 43Z\" fill=\"#ece4c4\" stroke=\"#0d1a0a\" stroke-width=\"3.5\" stroke-linejoin=\"miter\"/\u003e\n\u003cpath d=\"M40 40 L60 32 L80 40 L82 56 L66 68 L54 68 L38 56Z\" fill=\"#62c23c\" stroke=\"#0d1a0a\" stroke-width=\"5\" stroke-linejoin=\"miter\"/\u003e\n\u003cpath d=\"M54 64 L46 74 L56 70Z M66 64 L74 74 L64 70Z\" fill=\"#ece4c4\" stroke=\"#0d1a0a\" stroke-width=\"4\" stroke-linejoin=\"miter\"/\u003e\n\u003cpath d=\"M44 44 L56 48 L46 51Z M76 44 L64 48 L74 51Z M48 54 L57 56 L50 59Z M72 54 L63 56 L70 59Z\" fill=\"#ff3a2a\" stroke=\"#0d1a0a\" stroke-width=\"2\"/\u003e\n\u003cpath d=\"M112 18 L104 4 L92 12 L98 24Z\" fill=\"#62c23c\" stroke=\"#0d1a0a\" stroke-width=\"5\" stroke-linejoin=\"miter\"/\u003e\n\u003cpath d=\"M96 8 L70 6 L94 18Z\" fill=\"#ece4c4\" stroke=\"#0d1a0a\" stroke-width=\"4\"/\u003e\n\u003c/g\u003e\n\u003c/svg\u003e"
+        },
+        {
+          "form": 2,
+          "name": "instar",
+          "svg": "\u003csvg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 128 128\"\u003e\n\u003cg transform=\"translate(8.8 9.9) scale(0.92)\" stroke-linecap=\"round\"\u003e\n\u003cpath d=\"M78 76 L102 62 L114 36 L104 14\" fill=\"none\" stroke=\"#0d1a0a\" stroke-width=\"16\"/\u003e\n\u003cpath d=\"M78 76 L102 62 L114 36 L104 14\" fill=\"none\" stroke=\"#2f6e22\" stroke-width=\"7\"/\u003e\n\u003cpath d=\"M50 98 L42 110 L46 122\" fill=\"none\" stroke=\"#0d1a0a\" stroke-width=\"17\" stroke-linejoin=\"miter\"/\u003e\n\u003cpath d=\"M50 98 L42 110 L46 122\" fill=\"none\" stroke=\"#2f6e22\" stroke-width=\"8\" stroke-linejoin=\"miter\"/\u003e\n\u003cpath d=\"M70 98 L78 110 L74 122\" fill=\"none\" stroke=\"#0d1a0a\" stroke-width=\"17\" stroke-linejoin=\"miter\"/\u003e\n\u003cpath d=\"M70 98 L78 110 L74 122\" fill=\"none\" stroke=\"#2f6e22\" stroke-width=\"8\" stroke-linejoin=\"miter\"/\u003e\n\u003cpath d=\"M42 70 L24 62 L16 46\" fill=\"none\" stroke=\"#0d1a0a\" stroke-width=\"16\" stroke-linejoin=\"miter\"/\u003e\n\u003cpath d=\"M42 70 L24 62 L16 46\" fill=\"none\" stroke=\"#62c23c\" stroke-width=\"7\" stroke-linejoin=\"miter\"/\u003e\n\u003cpath d=\"M16 46 L6 38 L22 40Z\" fill=\"#ece4c4\" stroke=\"#0d1a0a\" stroke-width=\"4\" stroke-linejoin=\"miter\"/\u003e\n\u003cpath d=\"M42 86 L24 94 L14 108\" fill=\"none\" stroke=\"#0d1a0a\" stroke-width=\"16\" stroke-linejoin=\"miter\"/\u003e\n\u003cpath d=\"M42 86 L24 94 L14 108\" fill=\"none\" stroke=\"#62c23c\" stroke-width=\"7\" stroke-linejoin=\"miter\"/\u003e\n\u003cpath d=\"M14 108 L4 116 L20 114Z\" fill=\"#ece4c4\" stroke=\"#0d1a0a\" stroke-width=\"4\" stroke-linejoin=\"miter\"/\u003e\n\u003cpath d=\"M78 72 L96 80 L108 72\" fill=\"none\" stroke=\"#0d1a0a\" stroke-width=\"16\" stroke-linejoin=\"miter\"/\u003e\n\u003cpath d=\"M78 72 L96 80 L108 72\" fill=\"none\" stroke=\"#62c23c\" stroke-width=\"7\" stroke-linejoin=\"miter\"/\u003e\n\u003cpath d=\"M108 72 L122 66 L114 80Z\" fill=\"#ece4c4\" stroke=\"#0d1a0a\" stroke-width=\"4\" stroke-linejoin=\"miter\"/\u003e\n\u003cpath d=\"M44 62 L76 62 L86 84 L74 102 L46 102 L34 84Z\" fill=\"#62c23c\" stroke=\"#0d1a0a\" stroke-width=\"5\" stroke-linejoin=\"miter\"/\u003e\n\u003cpath d=\"M40 82 L60 76 L80 82 M46 94 L60 90 L74 94\" fill=\"none\" stroke=\"#2f6e22\" stroke-width=\"5\"/\u003e\n\u003cpath d=\"M38 48 L19 39 L40 39 L27 23 L46 32 L42 12 L55 28 L60 8 L65 28 L78 12 L74 32 L93 23 L80 39 L101 39 L82 48Z\" fill=\"#ece4c4\" stroke=\"#0d1a0a\" stroke-width=\"3.5\" stroke-linejoin=\"miter\"/\u003e\n\u003cpath d=\"M40 40 L60 32 L80 40 L82 56 L66 68 L54 68 L38 56Z\" fill=\"#62c23c\" stroke=\"#0d1a0a\" stroke-width=\"5\" stroke-linejoin=\"miter\"/\u003e\n\u003cpath d=\"M54 64 L46 74 L56 70Z M66 64 L74 74 L64 70Z\" fill=\"#ece4c4\" stroke=\"#0d1a0a\" stroke-width=\"4\" stroke-linejoin=\"miter\"/\u003e\n\u003cpath d=\"M44 44 L56 48 L46 51Z M76 44 L64 48 L74 51Z M48 54 L57 56 L50 59Z M72 54 L63 56 L70 59Z\" fill=\"#ff3a2a\" stroke=\"#0d1a0a\" stroke-width=\"2\"/\u003e\n\u003cpath d=\"M112 18 L104 4 L92 12 L98 24Z\" fill=\"#62c23c\" stroke=\"#0d1a0a\" stroke-width=\"5\" stroke-linejoin=\"miter\"/\u003e\n\u003cpath d=\"M96 8 L70 6 L94 18Z\" fill=\"#ece4c4\" stroke=\"#0d1a0a\" stroke-width=\"4\"/\u003e\n\u003c/g\u003e\n\u003c/svg\u003e"
+        },
+        {
+          "form": 3,
+          "name": "adult",
+          "svg": "\u003csvg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 128 128\"\u003e\n\u003cg transform=\"translate(4.0 0.0) scale(1.0)\" stroke-linecap=\"round\"\u003e\n\u003cpath d=\"M78 76 L102 62 L114 36 L104 14\" fill=\"none\" stroke=\"#0d1a0a\" stroke-width=\"16\"/\u003e\n\u003cpath d=\"M78 76 L102 62 L114 36 L104 14\" fill=\"none\" stroke=\"#2f6e22\" stroke-width=\"7\"/\u003e\n\u003cpath d=\"M50 98 L42 110 L46 122\" fill=\"none\" stroke=\"#0d1a0a\" stroke-width=\"17\" stroke-linejoin=\"miter\"/\u003e\n\u003cpath d=\"M50 98 L42 110 L46 122\" fill=\"none\" stroke=\"#2f6e22\" stroke-width=\"8\" stroke-linejoin=\"miter\"/\u003e\n\u003cpath d=\"M70 98 L78 110 L74 122\" fill=\"none\" stroke=\"#0d1a0a\" stroke-width=\"17\" stroke-linejoin=\"miter\"/\u003e\n\u003cpath d=\"M70 98 L78 110 L74 122\" fill=\"none\" stroke=\"#2f6e22\" stroke-width=\"8\" stroke-linejoin=\"miter\"/\u003e\n\u003cpath d=\"M42 70 L24 62 L16 46\" fill=\"none\" stroke=\"#0d1a0a\" stroke-width=\"16\" stroke-linejoin=\"miter\"/\u003e\n\u003cpath d=\"M42 70 L24 62 L16 46\" fill=\"none\" stroke=\"#62c23c\" stroke-width=\"7\" stroke-linejoin=\"miter\"/\u003e\n\u003cpath d=\"M16 46 L6 38 L22 40Z\" fill=\"#ece4c4\" stroke=\"#0d1a0a\" stroke-width=\"4\" stroke-linejoin=\"miter\"/\u003e\n\u003cpath d=\"M42 86 L24 94 L14 108\" fill=\"none\" stroke=\"#0d1a0a\" stroke-width=\"16\" stroke-linejoin=\"miter\"/\u003e\n\u003cpath d=\"M42 86 L24 94 L14 108\" fill=\"none\" stroke=\"#62c23c\" stroke-width=\"7\" stroke-linejoin=\"miter\"/\u003e\n\u003cpath d=\"M14 108 L4 116 L20 114Z\" fill=\"#ece4c4\" stroke=\"#0d1a0a\" stroke-width=\"4\" stroke-linejoin=\"miter\"/\u003e\n\u003cpath d=\"M78 72 L96 80 L108 72\" fill=\"none\" stroke=\"#0d1a0a\" stroke-width=\"16\" stroke-linejoin=\"miter\"/\u003e\n\u003cpath d=\"M78 72 L96 80 L108 72\" fill=\"none\" stroke=\"#62c23c\" stroke-width=\"7\" stroke-linejoin=\"miter\"/\u003e\n\u003cpath d=\"M108 72 L122 66 L114 80Z\" fill=\"#ece4c4\" stroke=\"#0d1a0a\" stroke-width=\"4\" stroke-linejoin=\"miter\"/\u003e\n\u003cpath d=\"M78 88 L96 96 L108 110\" fill=\"none\" stroke=\"#0d1a0a\" stroke-width=\"16\" stroke-linejoin=\"miter\"/\u003e\n\u003cpath d=\"M78 88 L96 96 L108 110\" fill=\"none\" stroke=\"#62c23c\" stroke-width=\"7\" stroke-linejoin=\"miter\"/\u003e\n\u003cpath d=\"M108 110 L118 120 L102 118Z\" fill=\"#ece4c4\" stroke=\"#0d1a0a\" stroke-width=\"4\" stroke-linejoin=\"miter\"/\u003e\n\u003cpath d=\"M44 62 L76 62 L86 84 L74 102 L46 102 L34 84Z\" fill=\"#62c23c\" stroke=\"#0d1a0a\" stroke-width=\"5\" stroke-linejoin=\"miter\"/\u003e\n\u003cpath d=\"M40 82 L60 76 L80 82 M46 94 L60 90 L74 94\" fill=\"none\" stroke=\"#2f6e22\" stroke-width=\"5\"/\u003e\n\u003cpath d=\"M38 52 L18 49 L38 45 L20 35 L41 38 L27 23 L46 32 L39 14 L52 28 L53 9 L60 27 L67 9 L68 28 L81 14 L74 32 L93 23 L79 38 L100 35 L82 45 L102 49 L82 52Z\" fill=\"#ece4c4\" stroke=\"#0d1a0a\" stroke-width=\"3.5\" stroke-linejoin=\"miter\"/\u003e\n\u003cpath d=\"M40 40 L60 32 L80 40 L82 56 L66 68 L54 68 L38 56Z\" fill=\"#62c23c\" stroke=\"#0d1a0a\" stroke-width=\"5\" stroke-linejoin=\"miter\"/\u003e\n\u003cpath d=\"M54 64 L46 74 L56 70Z M66 64 L74 74 L64 70Z\" fill=\"#ece4c4\" stroke=\"#0d1a0a\" stroke-width=\"4\" stroke-linejoin=\"miter\"/\u003e\n\u003cpath d=\"M44 44 L56 48 L46 51Z M76 44 L64 48 L74 51Z M48 54 L57 56 L50 59Z M72 54 L63 56 L70 59Z\" fill=\"#ff3a2a\" stroke=\"#0d1a0a\" stroke-width=\"2\"/\u003e\n\u003cpath d=\"M112 18 L104 4 L92 12 L98 24Z\" fill=\"#62c23c\" stroke=\"#0d1a0a\" stroke-width=\"5\" stroke-linejoin=\"miter\"/\u003e\n\u003cpath d=\"M96 8 L84 6 L86 2 L70 6 L84 12 L82 16 L94 18Z\" fill=\"#ece4c4\" stroke=\"#0d1a0a\" stroke-width=\"4\" stroke-linejoin=\"miter\"/\u003e\n\u003c/g\u003e\n\u003c/svg\u003e"
+        }
+      ]
+    }
+  ]
+}
