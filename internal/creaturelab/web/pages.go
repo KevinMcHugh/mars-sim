@@ -33,12 +33,21 @@ var backdrops = []backdrop{{"floor", "#f78765"}, {"rock", "#a8402a"}, {"fog", "#
 // tileSizes are the sizes a sprite is previewed at; 16 is where designs fail.
 var tileSizes = []int{16, 32, 64}
 
+// spritePreview is what the "preview" template draws: one sprite at every
+// tile size on every backdrop, beside the emoji it replaces, as the Scum Lab
+// Sprite Designer previews a drawing.
+type spritePreview struct {
+	URL   string
+	Emoji string
+}
+
 func parsePages() map[string]*template.Template {
 	funcs := template.FuncMap{
 		"backdrops": func() []backdrop { return backdrops },
 		"sizes":     func() []int { return tileSizes },
 		"join":      strings.Join,
 		"pct":       func(n, d int) int { return 100 * n / max(d, 1) },
+		"preview":   func(url, emoji string) spritePreview { return spritePreview{URL: url, Emoji: emoji} },
 	}
 	pages := map[string]*template.Template{}
 	for _, name := range []string{"login", "index", "preview", "species"} {

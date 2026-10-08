@@ -53,11 +53,14 @@ dl.traits { display: grid; grid-template-columns: max-content 1fr; gap: .2rem 1r
 dl.traits dt { color: var(--muted); }
 dl.traits dd { margin: 0; }
 .previews { display: grid; gap: .6rem; }
-.preview-row { display: flex; gap: .5rem; align-items: flex-end; flex-wrap: wrap; }
-.candidates { display: grid; gap: .75rem; grid-template-columns: repeat(auto-fill, minmax(9.5rem, 1fr)); margin-top: .75rem; }
+.preview-row { display: flex; gap: .5rem; align-items: center; flex-wrap: wrap; }
+.preview-label { width: 2.4rem; color: var(--muted); font-size: .7rem; text-transform: uppercase; letter-spacing: .05em; align-self: center; }
+.tile.emoji { width: 32px; height: 32px; font-size: 25px; line-height: 1; }
+.candidates { display: grid; gap: .75rem; grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr)); margin-top: .75rem; }
 .cand { border: 1px solid var(--line); border-radius: 8px; padding: .5rem; display: flex; flex-direction: column; gap: .35rem; font-size: .85rem; }
 .cand.accepted { border-color: var(--ok); box-shadow: 0 0 0 1px var(--ok) inset; }
-.cand .tile { width: 100%; aspect-ratio: 1; }
+.cand .tile.big { width: 128px; height: 128px; }
+.cand .previews { gap: .4rem; }
 details summary { cursor: pointer; color: var(--accent); }
 table { border-collapse: collapse; width: 100%; }
 td, th { text-align: left; padding: .3rem .5rem; border-bottom: 1px solid var(--line); vertical-align: top; }
