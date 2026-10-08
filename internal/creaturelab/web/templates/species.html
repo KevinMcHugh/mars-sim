@@ -1,4 +1,19 @@
 {{define "title"}}{{.Species.Traits.Plural}} · Creature Lab{{end}}
+{{/* preview draws one sprite on every backdrop at every tile size, with the
+     emoji it replaces at 32px on the end of each row for comparison. */}}
+{{define "preview"}}
+<div class="previews">
+  {{$p := .}}
+  {{range backdrops}}
+  <div class="preview-row" title="{{.Name}}">
+    <span class="preview-label">{{.Name}}</span>
+    {{$bg := .Color}}
+    {{range sizes}}<span class="tile" style="width:{{.}}px;height:{{.}}px;background:{{$bg}}"><img src="{{$p.URL}}" alt=""></span>{{end}}
+    {{if $p.Emoji}}<span class="tile emoji" style="background:{{$bg}}" title="the emoji it replaces">{{$p.Emoji}}</span>{{end}}
+  </div>
+  {{end}}
+</div>
+{{end}}
 {{define "content"}}
 {{with .Species}}
 <p class="muted"><a href="/">Catalog</a> / seed {{.Seed}} · rolled by {{.GeneratorRev}}</p>
@@ -37,6 +52,7 @@
 {{end}}
 
 {{$sp := .Species}}
+{{$emoji := .Species.Traits.Emoji}}
 {{range .Slots}}
 <section class="panel" id="form-{{.Index}}">
   <div class="row" style="justify-content:space-between">
@@ -46,16 +62,7 @@
   <p class="muted" style="margin:.2rem 0">{{if .Inert}}An inert casing: no limbs or face.{{else}}{{.Arms}} arms, {{.Legs}} legs{{if .Tail}}, a tail{{end}}{{if .Wings}}, wings{{end}}{{if .Features}}; {{join .Features ", "}}{{end}}{{if .Lays}}; lays the next generation{{end}}{{end}}</p>
 
   {{if .Accepted}}
-  <div class="previews" style="margin-top:.6rem">
-    {{$url := .Accepted.SVGURL}}
-    {{range backdrops}}
-    <div class="preview-row" title="{{.Name}}">
-      {{$bg := .Color}}
-      {{range sizes}}<span class="tile" style="width:{{.}}px;height:{{.}}px;background:{{$bg}}"><img src="{{$url}}" alt=""></span>{{end}}
-      <span class="muted" style="font-size:.8rem">{{.Name}}</span>
-    </div>
-    {{end}}
-  </div>
+  <div style="margin-top:.6rem">{{template "preview" (preview .Accepted.SVGURL $emoji)}}</div>
   {{else}}
   <p><span class="tile empty" style="width:64px;height:64px">none</span> No accepted sprite yet.</p>
   {{end}}
@@ -64,7 +71,8 @@
   <div class="candidates">
     {{range .Candidates}}
     <div class="cand{{if .Accepted}} accepted{{end}}">
-      <a class="tile" style="background:var(--floor)" href="{{.SVGURL}}"><img src="{{.SVGURL}}" alt="candidate {{.ID}}"></a>
+      <a class="tile big" style="background:var(--floor)" href="{{.SVGURL}}" title="Open the SVG"><img src="{{.SVGURL}}" alt="candidate {{.ID}}"></a>
+      {{template "preview" (preview .SVGURL $emoji)}}
       {{if .Note}}<span>{{.Note}}</span>{{end}}
       <span class="muted">{{if .Author}}{{.Author}} · {{end}}{{.CreatedAt.Format "Jan 2 15:04"}}</span>
       <div class="row">
