@@ -63,6 +63,30 @@
 ## haulers may tip refuse down a hole instead of carrying it to an incinerator
 # hole-chutes: true
 
+## percent more iron, ice and clay a level down, per level below the landing level
+# depth-ore-percent: 25
+
+## percent more uranium a level down, per level below the landing level
+# depth-uranium-percent: 100
+
+## percent bigger caverns a level down, per level below the landing level
+# depth-cavern-percent: 20
+
+## points added to cavern-nest-percent per level below the landing level
+# depth-nest-percent: 10
+
+## aliens added to a nest's size per level below the landing level
+# depth-nest-size: 1
+
+## percent more likely a nest is of a hostile species, per level below the landing level
+# depth-hostility: 100
+
+## chance (percent) that a cavern the colony breaks into holds a natural shaft down into a cavern below it
+# natural-shaft-percent: 20
+
+## chance (percent) that a cavern the colony breaks into has a sinkhole to the level below
+# sinkhole-percent: 10
+
 ## percent of the map's tiles bearing iron
 # iron-rock-percent: 10
 

@@ -191,7 +191,7 @@ is now colonist or `animalTurn`.
 ladder by temperament:
 
 ```go
-Hostile:  {dormant{}, hunt{find: preyInRoom(hostilePrey), catch: strike, rest: BiteRest}, wander{}}
+Hostile:  {dormant{}, hunt{find: preyInRoom(hostilePrey), catch: strike, rest: BiteRest}, raid{}, wander{}}
 Cautious: {dormant{}, hunt{find: taggedWithin(TagColonist, radius), catch: strike, rest: BiteRest},
            grazeScum{}, wander{}}
 Friendly: {dormant{}, grazeScum{}, wander{}}

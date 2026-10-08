@@ -218,7 +218,9 @@ func newWorldGen(cfg Config, level Level) *worldGen {
 // newWorldGenLanding is newWorldGen with an explicit exclusion box, for tests
 // that want caverns without a landing site in the way.
 func newWorldGenLanding(cfg Config, level Level, lo, hi Point) *worldGen {
-	g := &worldGen{cfg: cfg, width: cfg.Width, height: cfg.Height, level: level, landingLo: lo, landingHi: hi}
+	// A deeper level generates from its depth-scaled settings (see
+	// depthConfig); the landing level's are its own.
+	g := &worldGen{cfg: depthConfig(cfg, level), width: cfg.Width, height: cfg.Height, level: level, landingLo: lo, landingHi: hi}
 	// Generating the halo around one newly seen chunk plans a square of
 	// 2*(halo+horizon)+1 chunks. Keep two of those per kind of plan, so
 	// digging along an edge reuses the plans its last step made, and no more:

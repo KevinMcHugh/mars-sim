@@ -153,7 +153,7 @@ func TestAlienLaddersFollowTemperament(t *testing.T) {
 	cfg := DefaultConfig()
 	base := newSpeciesTable(cfg)[Alien]
 	for temp, want := range map[AlienTemperament][]string{
-		TemperamentHostile:  {"sim.dormant", "sim.hunt", "sim.wander"},
+		TemperamentHostile:  {"sim.dormant", "sim.hunt", "sim.raid", "sim.wander"},
 		TemperamentCautious: {"sim.dormant", "sim.hunt", "sim.grazeScum", "sim.wander"},
 		TemperamentFriendly: {"sim.dormant", "sim.grazeScum", "sim.wander"},
 	} {
