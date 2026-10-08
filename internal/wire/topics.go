@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/kevinmchugh/mars-sim/internal/glyphs"
@@ -253,11 +254,55 @@ type LoreSpecies struct {
 	// Notes are a packed species' lab notes, line breaks kept; empty for
 	// none. See docs/species-pack.md.
 	Notes string `json:"notes,omitempty"`
+	// Title is Label without the emoji, for a page that shows the species'
+	// sprite in its place.
+	Title string `json:"title"`
+	// Forms are a packed species' sprites, form by form in stage order, for
+	// the lore tab to show; empty for a rolled species. Portrait indexes the
+	// one to show beside the name: the first form of the last stage (the
+	// adult, or the first caste), or -1. See docs/species-pack.md.
+	Forms    []LoreForm `json:"forms,omitempty"`
+	Portrait int        `json:"portrait"`
 
 	// Etymology takes ScientificName apart into its word parts and their
 	// meanings (sim.ScientificEtymology): pseudo- "false", -ursus "bear",
 	// ares "Mars". Empty when it can't.
 	Etymology []LoreTaxonGloss `json:"etymology"`
+}
+
+// LoreForm is one form of a packed species: its name ("egg", "adult") and
+// its sprite, an index into Hello.glyphs.sprites (-1 for none).
+type LoreForm struct {
+	Name   string `json:"name"`
+	Sprite int    `json:"sprite"`
+}
+
+// loreForms is species i's forms for the lore tab, and which to show beside
+// its name.
+func loreForms(s *sim.Snapshot, i int) ([]LoreForm, int) {
+	fs := s.FormSprites(i)
+	if fs == nil {
+		return nil, -1
+	}
+	sp := s.AlienSpecies[i]
+	forms := make([]LoreForm, len(fs))
+	for f, x := range fs {
+		forms[f] = LoreForm{Name: x.Name, Sprite: x.Sprite}
+	}
+	portrait := 0
+	if life := sp.LifeForms(); len(life) > 0 {
+		last := life[len(life)-1].Stage
+		for f, form := range life {
+			if form.Stage == last {
+				portrait = f
+				break
+			}
+		}
+	}
+	if forms[portrait].Sprite < 0 {
+		portrait = -1
+	}
+	return forms, portrait
 }
 
 // LoreTaxonGloss is one word part of a scientific name.
@@ -318,7 +363,9 @@ func loreTopic(s *sim.Snapshot) any {
 			Etymology:      loreEtymology(sp.ScientificName),
 			Description:    s.FieldNotes(i),
 			Notes:          s.LabNotes(i),
+			Title:          strings.TrimSpace(strings.TrimPrefix(sp.RosterLabel(), sp.Emoji)),
 		})
+		t.Species[i].Forms, t.Species[i].Portrait = loreForms(s, i)
 	}
 	return t
 }

@@ -2,7 +2,8 @@
   // The Lore tab: world facts, the rolled alien species, and the arms makers
   // behind the colony's guns (docs/arms-makers.md), from the "lore"
   // topic (internal/wire/topics.go), as the TUI's lore tab shows them.
-  import { subscribe, topics } from '../game.svelte';
+  import { subscribe, topics, ui } from '../game.svelte';
+  import { sized } from '../map/atlas';
   import Section from './Section.svelte';
 
   interface Species {
@@ -13,6 +14,10 @@
     skin: string; color: string; pattern: string;
     attacks: string; biteDamage: number; biteRest: number; slowness: number; description: string;
     notes?: string;
+    // A packed species' sprites (docs/species-pack.md): title is label
+    // without its emoji, forms index Hello.glyphs.sprites, and portrait is
+    // the form shown beside the name (-1 for none).
+    title: string; forms?: { name: string; sprite: number }[]; portrait: number;
     // etymology is the binomial taken apart into its word parts (docs/alien-taxonomy.md).
     etymology?: { part: 'prefix' | 'root' | 'epithet'; form: string; meaning: string }[];
   }
@@ -38,6 +43,14 @@
   });
   const affix = (g: { part: string; form: string }) =>
     g.part === 'prefix' ? `${g.form}-` : g.part === 'root' ? `-${g.form}` : g.form;
+
+  // A sprite as an image source. It only ever goes into an <img>, where an
+  // SVG runs nothing; sized gives it the dimensions every browser needs.
+  function spriteURL(i: number | undefined): string {
+    const svg = i === undefined || i < 0 ? undefined : ui.hello?.glyphs.sprites?.[i];
+    return svg ? `data:image/svg+xml;charset=utf-8,${encodeURIComponent(sized(svg))}` : '';
+  }
+  const portrait = (s: Species) => spriteURL(s.forms?.[s.portrait]?.sprite);
 
   const area = $derived(lore ? lore.world.width * lore.world.height : 0);
   const explored = $derived(lore && area > 0 ? Math.floor((lore.world.exploredTiles * 100) / area) : 0);
@@ -67,12 +80,16 @@
       <ul class="list">
         {#each lore.species as s, i (s.label + i)}
           <li>
-            <button type="button" class:on={sp === s} onclick={() => (selected = i)}>{s.label}</button>
+            <button type="button" class:on={sp === s} onclick={() => (selected = i)}>
+              {#if portrait(s)}<img class="sprite mini" src={portrait(s)} alt="" />{s.title}{:else}{s.label}{/if}
+            </button>
           </li>
         {/each}
       </ul>
       {#if sp}
-        <h3>{sp.label}</h3>
+        <h3>
+          {#if portrait(sp)}<img class="sprite head" src={portrait(sp)} alt="" />{sp.title}{:else}{sp.label}{/if}
+        </h3>
         {#if sp.scientificName}
           <p class="binomial">
             {sp.scientificName}
@@ -97,6 +114,16 @@
               </p>
             </div>
           {/if}
+        {/if}
+        {#if sp.forms && sp.forms.length > 1}
+          <ul class="forms" aria-label="Forms">
+            {#each sp.forms as f, i (i)}
+              <li>
+                {#if spriteURL(f.sprite)}<img class="sprite" src={spriteURL(f.sprite)} alt="" />{/if}
+                <span>{f.name}</span>
+              </li>
+            {/each}
+          </ul>
         {/if}
         <dl>
           <dt>Height</dt><dd>{sp.heightMinCm}–{sp.heightMaxCm} cm</dd>
@@ -169,5 +196,12 @@
   .corp + .corp { margin-top: 8px; }
   /* Lab-written text keeps its own line breaks (docs/species-pack.md). */
   .notes { white-space: pre-line; }
+  .sprite { display: inline-block; vertical-align: middle; }
+  .sprite.mini { width: 20px; height: 20px; margin-right: 6px; }
+  .sprite.head { width: 40px; height: 40px; margin-right: 8px; }
+  h3:has(.sprite.head) { display: flex; align-items: center; }
+  .forms { list-style: none; padding: 0; margin: 0 0 10px; display: flex; flex-wrap: wrap; gap: 10px; }
+  .forms li { display: flex; flex-direction: column; align-items: center; gap: 2px; font-size: 12px; color: var(--muted); }
+  .forms .sprite { width: 48px; height: 48px; }
   .muted { color: var(--muted); }
 </style>

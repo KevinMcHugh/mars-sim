@@ -1,6 +1,7 @@
 package wire
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/kevinmchugh/mars-sim/internal/glyphs"
@@ -47,5 +48,41 @@ func TestLoreCarriesLabText(t *testing.T) {
 	}
 	if lore.Species[1].Description != sp.Description() || lore.Species[1].Notes != "" {
 		t.Fatalf("unedited lore %q / %q", lore.Species[1].Description, lore.Species[1].Notes)
+	}
+}
+
+// The lore topic lists a packed species' forms with their sprites and picks
+// the first form of the last stage to show beside the name; a rolled
+// species has neither, and its title is its label without the emoji.
+func TestLoreForms(t *testing.T) {
+	var sp sim.AlienSpecies
+	for seed := int64(1); ; seed++ {
+		if sp = sim.RollLabSpecies(seed); sp.FormCount >= 2 {
+			break
+		}
+	}
+	var of [7]int
+	for f := 0; f < sp.FormCount; f++ {
+		of[f] = f + 1
+	}
+	snap := &sim.Snapshot{
+		AlienSpecies: []sim.AlienSpecies{sp, sim.RollLabSpecies(1)},
+		Sprites:      make([]string, sp.FormCount),
+		SpriteOf:     [][7]int{of, {}},
+	}
+	lore := loreTopic(snap).(LoreTopic)
+	packed, rolled := lore.Species[0], lore.Species[1]
+	if len(packed.Forms) != sp.FormCount || packed.Forms[0].Sprite != 0 || packed.Forms[0].Name != sp.Forms[0].Name {
+		t.Fatalf("packed forms %+v", packed.Forms)
+	}
+	last := sp.Forms[sp.FormCount-1].Stage
+	if p := packed.Portrait; p < 0 || sp.Forms[p].Stage != last || (p > 0 && sp.Forms[p-1].Stage == last) {
+		t.Fatalf("portrait is form %d, want the first form of stage %d", p, last)
+	}
+	if rolled.Forms != nil || rolled.Portrait != -1 {
+		t.Fatalf("rolled species has forms %+v, portrait %d", rolled.Forms, rolled.Portrait)
+	}
+	if rolled.Title == "" || strings.Contains(rolled.Title, rolled.Glyph) {
+		t.Fatalf("title %q", rolled.Title)
 	}
 }
