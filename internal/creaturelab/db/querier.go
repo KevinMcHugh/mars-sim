@@ -9,16 +9,21 @@ import (
 )
 
 type Querier interface {
+	// Marks an invite used in one UPDATE, so two redemptions racing the same
+	// code cannot both succeed.
+	ClaimInviteByHash(ctx context.Context, codeHash string) (Invite, error)
 	ClearAccepted(ctx context.Context, arg ClearAcceptedParams) error
 	ConsumeOAuthCode(ctx context.Context, codeHash string) (OauthCode, error)
 	CreateAPIKey(ctx context.Context, arg CreateAPIKeyParams) (ApiKey, error)
 	CreateCandidate(ctx context.Context, arg CreateCandidateParams) (SpriteCandidate, error)
+	CreateInvite(ctx context.Context, arg CreateInviteParams) (Invite, error)
 	CreateOAuthClient(ctx context.Context, arg CreateOAuthClientParams) (OauthClient, error)
 	CreateOAuthCode(ctx context.Context, arg CreateOAuthCodeParams) error
 	CreateOAuthToken(ctx context.Context, arg CreateOAuthTokenParams) error
 	CreateSpecies(ctx context.Context, arg CreateSpeciesParams) (Species, error)
 	DeleteAPIKey(ctx context.Context, id string) error
 	DeleteCandidate(ctx context.Context, id string) (int64, error)
+	DeleteInvite(ctx context.Context, id string) (int64, error)
 	DeleteSpecies(ctx context.Context, id string) (int64, error)
 	GetAPIKey(ctx context.Context, id string) (ApiKey, error)
 	GetAPIKeyByHash(ctx context.Context, keyHash string) (ApiKey, error)
@@ -30,6 +35,8 @@ type Querier interface {
 	GetSpecies(ctx context.Context, id string) (Species, error)
 	ListAPIKeys(ctx context.Context) ([]ApiKey, error)
 	ListAcceptedForSpecies(ctx context.Context, speciesID string) ([]SpriteCandidate, error)
+	// Unused, unexpired, undeleted invites.
+	ListActiveInvites(ctx context.Context) ([]Invite, error)
 	// Every accepted sprite of every live species, for the export.
 	ListAllAccepted(ctx context.Context) ([]SpriteCandidate, error)
 	// Every live candidate for a species, newest first within each form.
@@ -39,6 +46,7 @@ type Querier interface {
 	MarkAccepted(ctx context.Context, id string) (SpriteCandidate, error)
 	RevokeOAuthToken(ctx context.Context, id string) error
 	RevokeOAuthTokenByHash(ctx context.Context, tokenHash string) error
+	SetInviteKey(ctx context.Context, arg SetInviteKeyParams) error
 	TouchAPIKey(ctx context.Context, id string) error
 	UpdateSpeciesNotes(ctx context.Context, arg UpdateSpeciesNotesParams) (Species, error)
 }

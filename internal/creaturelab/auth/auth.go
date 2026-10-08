@@ -21,6 +21,7 @@ const (
 	AccessTokenPrefix  = "cl_at_" // OAuth access tokens and web sessions
 	RefreshTokenPrefix = "cl_rt_" // OAuth refresh tokens
 	AuthCodePrefix     = "cl_ac_" // OAuth authorization codes
+	InvitePrefix       = "cl_iv_" // single-use invites, minted by `creature-lab invites create`
 )
 
 // GenerateKey returns a new raw api key. It is shown to a person once; only

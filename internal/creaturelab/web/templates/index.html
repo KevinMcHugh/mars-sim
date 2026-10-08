@@ -5,13 +5,15 @@
     <h1>Species catalog</h1>
     <p class="muted">{{len .Species}} species, {{.Complete}} with a sprite for every form.</p>
   </div>
+  {{if .SignedIn}}
   <form method="POST" action="/species" class="row">
     <input name="seed" inputmode="numeric" placeholder="seed (blank for random)" aria-label="Seed" size="22">
     <button type="submit">Roll and save</button>
   </form>
+  {{end}}
 </div>
 {{if not .Species}}
-<div class="panel"><p>No species yet. <a href="/preview">Roll a few</a> and keep the ones you like, or ask Claude over MCP to do it.</p></div>
+<div class="panel"><p>No species yet.{{if .SignedIn}} <a href="/preview">Roll a few</a> and keep the ones you like, or ask Claude over MCP to do it.{{end}}</p></div>
 {{end}}
 <div class="grid">
 {{range .Species}}

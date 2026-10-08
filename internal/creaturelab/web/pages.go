@@ -14,7 +14,15 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	"github.com/kevinmchugh/mars-sim/internal/creaturelab"
+	apigen "github.com/kevinmchugh/mars-sim/internal/creaturelab/api/gen"
+	"github.com/kevinmchugh/mars-sim/internal/creaturelab/auth"
+	"github.com/kevinmchugh/mars-sim/internal/creaturelab/server"
+	"github.com/kevinmchugh/mars-sim/internal/creaturelab/server/species"
+	"github.com/kevinmchugh/mars-sim/internal/creaturelab/server/sprites"
 )
+
+// The pages drive the same endpoints as the JSON API and MCP, through
+// server.BuildViewModel, and render the view models as HTML.
 
 // backdrop is a map color a sprite is previewed on, from
 // web/src/map/palette.ts (as the Sprite Designer's BACKDROPS are).
@@ -41,8 +49,11 @@ func parsePages() map[string]*template.Template {
 }
 
 // render writes a page through a buffer, so a template error becomes a 500
-// rather than half a page.
-func (s *Server) render(w http.ResponseWriter, status int, name string, data map[string]any) {
+// rather than half a page. Every page learns whether the visitor is signed
+// in: the public pages hide their forms from anyone who is not.
+func (s *Server) render(w http.ResponseWriter, r *http.Request, status int, name string, data map[string]any) {
+	data["SignedIn"] = auth.KeyID(r.Context()) != ""
+	data["Path"] = r.URL.RequestURI()
 	var buf bytes.Buffer
 	if err := s.pages[name].Execute(&buf, data); err != nil {
 		slog.Error("render", "page", name, "err", err)
@@ -54,7 +65,19 @@ func (s *Server) render(w http.ResponseWriter, status int, name string, data map
 	_, _ = buf.WriteTo(w)
 }
 
-// fail answers a page request whose service call failed.
+// statusOf maps the endpoints' errors to HTTP statuses.
+func statusOf(err error) int {
+	switch {
+	case errors.Is(err, creaturelab.ErrNotFound):
+		return http.StatusNotFound
+	case errors.Is(err, creaturelab.ErrNoSuchForm), errors.Is(err, creaturelab.ErrBadSVG):
+		return http.StatusUnprocessableEntity
+	default:
+		return http.StatusInternalServerError
+	}
+}
+
+// fail answers a page request whose endpoint failed.
 func (s *Server) fail(w http.ResponseWriter, r *http.Request, err error) {
 	status := statusOf(err)
 	if status == http.StatusInternalServerError {
@@ -79,7 +102,7 @@ func back(w http.ResponseWriter, r *http.Request, speciesID, anchor string, msg 
 }
 
 func (s *Server) indexPage(w http.ResponseWriter, r *http.Request) {
-	list, err := s.Svc.ListSpecies(r.Context())
+	list, err := server.BuildViewModel(r.Context(), species.ListEndpoint{Store: s.Store, Links: s.Links}, apigen.ListSpeciesRequestObject{})
 	if err != nil {
 		s.fail(w, r, err)
 		return
@@ -90,7 +113,7 @@ func (s *Server) indexPage(w http.ResponseWriter, r *http.Request) {
 			done++
 		}
 	}
-	s.render(w, http.StatusOK, "index", map[string]any{"Species": list, "Complete": done})
+	s.render(w, r, http.StatusOK, "index", map[string]any{"Species": list, "Complete": done})
 }
 
 func (s *Server) previewPage(w http.ResponseWriter, r *http.Request) {
@@ -99,8 +122,14 @@ func (s *Server) previewPage(w http.ResponseWriter, r *http.Request) {
 	if count == 0 {
 		count = 6
 	}
-	previews := s.Svc.PreviewSpecies(seed, count)
-	s.render(w, http.StatusOK, "preview", map[string]any{
+	previews, err := server.BuildViewModel(r.Context(), species.PreviewEndpoint{}, apigen.PreviewSpeciesRequestObject{
+		Params: apigen.PreviewSpeciesParams{Seed: seed, Count: count},
+	})
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	s.render(w, r, http.StatusOK, "preview", map[string]any{
 		"Previews": previews,
 		"Seed":     seed,
 		"Count":    len(previews),
@@ -118,7 +147,9 @@ func (s *Server) createSpecies(w http.ResponseWriter, r *http.Request) {
 		}
 		seed = n
 	}
-	sp, err := s.Svc.CreateSpecies(r.Context(), seed, r.FormValue("notes"))
+	sp, err := server.BuildViewModel(r.Context(), species.CreateEndpoint{Store: s.Store, Links: s.Links}, apigen.CreateSpeciesRequestObject{
+		Body: &apigen.SpeciesCreate{Seed: seed, Notes: r.FormValue("notes")},
+	})
 	if err != nil {
 		s.fail(w, r, err)
 		return
@@ -128,19 +159,19 @@ func (s *Server) createSpecies(w http.ResponseWriter, r *http.Request) {
 
 // formSlot is one form's section on the species page.
 type formSlot struct {
-	creaturelab.FormView
-	Accepted   *creaturelab.Candidate
-	Candidates []creaturelab.Candidate
+	species.FormView
+	Accepted   *sprites.Candidate
+	Candidates []sprites.Candidate
 }
 
 func (s *Server) speciesPage(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
-	sp, err := s.Svc.GetSpecies(r.Context(), id)
+	sp, err := server.BuildViewModel(r.Context(), species.GetEndpoint{Store: s.Store, Links: s.Links}, apigen.GetSpeciesRequestObject{SpeciesId: id})
 	if err != nil {
 		s.fail(w, r, err)
 		return
 	}
-	cands, err := s.Svc.ListCandidates(r.Context(), id, -1, false)
+	cands, err := server.BuildViewModel(r.Context(), sprites.ListEndpoint{Store: s.Store, Links: s.Links}, apigen.ListSpriteCandidatesRequestObject{SpeciesId: id})
 	if err != nil {
 		s.fail(w, r, err)
 		return
@@ -164,7 +195,7 @@ func (s *Server) speciesPage(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
-	s.render(w, http.StatusOK, "species", map[string]any{
+	s.render(w, r, http.StatusOK, "species", map[string]any{
 		"Species": sp,
 		"Slots":   slots,
 		"Msg":     r.URL.Query().Get("msg"),
@@ -174,7 +205,10 @@ func (s *Server) speciesPage(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) saveNotes(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
-	if _, err := s.Svc.SetSpeciesNotes(r.Context(), id, r.FormValue("notes")); err != nil {
+	if _, err := server.BuildViewModel(r.Context(), species.UpdateEndpoint{Store: s.Store, Links: s.Links}, apigen.UpdateSpeciesRequestObject{
+		SpeciesId: id,
+		Body:      &apigen.SpeciesUpdate{Notes: r.FormValue("notes")},
+	}); err != nil {
 		s.fail(w, r, err)
 		return
 	}
@@ -182,7 +216,7 @@ func (s *Server) saveNotes(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) deleteSpecies(w http.ResponseWriter, r *http.Request) {
-	if err := s.Svc.DeleteSpecies(r.Context(), chi.URLParam(r, "id")); err != nil {
+	if _, err := server.BuildViewModel(r.Context(), species.DeleteEndpoint{Store: s.Store}, apigen.DeleteSpeciesRequestObject{SpeciesId: chi.URLParam(r, "id")}); err != nil {
 		s.fail(w, r, err)
 		return
 	}
@@ -199,7 +233,16 @@ func (s *Server) pasteCandidate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	anchor := fmt.Sprintf("form-%d", form)
-	c, err := s.Svc.SubmitCandidate(r.Context(), id, form, r.FormValue("svg"), r.FormValue("note"), r.FormValue("author"), r.FormValue("accept") != "")
+	c, err := server.BuildViewModel(r.Context(), sprites.SubmitEndpoint{Store: s.Store, Links: s.Links}, apigen.SubmitSpriteCandidateRequestObject{
+		SpeciesId: id,
+		Form:      form,
+		Body: &apigen.CandidateSubmit{
+			Svg:    r.FormValue("svg"),
+			Note:   r.FormValue("note"),
+			Author: r.FormValue("author"),
+			Accept: r.FormValue("accept") != "",
+		},
+	})
 	if err != nil {
 		if errors.Is(err, creaturelab.ErrBadSVG) || errors.Is(err, creaturelab.ErrNoSuchForm) {
 			back(w, r, id, anchor, err.Error(), true)
@@ -219,7 +262,7 @@ func (s *Server) pasteCandidate(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) acceptCandidate(w http.ResponseWriter, r *http.Request) {
-	c, err := s.Svc.AcceptCandidate(r.Context(), chi.URLParam(r, "id"))
+	c, err := server.BuildViewModel(r.Context(), sprites.AcceptEndpoint{Store: s.Store, Links: s.Links}, apigen.AcceptSpriteCandidateRequestObject{CandidateId: chi.URLParam(r, "id")})
 	if err != nil {
 		s.fail(w, r, err)
 		return
@@ -229,12 +272,12 @@ func (s *Server) acceptCandidate(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) deleteCandidate(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
-	c, err := s.Svc.GetCandidate(r.Context(), id)
+	c, err := server.BuildViewModel(r.Context(), sprites.GetEndpoint{Store: s.Store, Links: s.Links}, apigen.GetSpriteCandidateRequestObject{CandidateId: id})
 	if err != nil {
 		s.fail(w, r, err)
 		return
 	}
-	if err := s.Svc.DeleteCandidate(r.Context(), id); err != nil {
+	if _, err := server.BuildViewModel(r.Context(), sprites.DeleteEndpoint{Store: s.Store}, apigen.DeleteSpriteCandidateRequestObject{CandidateId: id}); err != nil {
 		s.fail(w, r, err)
 		return
 	}
@@ -248,11 +291,11 @@ func (s *Server) briefText(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "bad form index", http.StatusBadRequest)
 		return
 	}
-	brief, err := s.Svc.SpriteBrief(r.Context(), chi.URLParam(r, "id"), form)
+	brief, err := server.BuildViewModel(r.Context(), sprites.BriefEndpoint{Store: s.Store}, apigen.GetSpriteBriefRequestObject{SpeciesId: chi.URLParam(r, "id"), Form: form})
 	if err != nil {
 		s.fail(w, r, err)
 		return
 	}
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-	_, _ = w.Write([]byte(brief + "\n\nReply with exactly one fenced code block tagged svg containing the complete SVG.\n"))
+	_, _ = w.Write([]byte(brief.Brief + "\n\nReply with exactly one fenced code block tagged svg containing the complete SVG.\n"))
 }

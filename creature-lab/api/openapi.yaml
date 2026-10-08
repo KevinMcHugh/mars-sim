@@ -1,0 +1,694 @@
+openapi: 3.0.3
+info:
+  title: Creature Lab API
+  description: |
+    The alien species catalog for mars-sim, with an SVG map sprite for every
+    form of each species' life. See docs/creature-lab.md.
+
+    Every operation needs a credential unless it says `security: []`: a `cl_`
+    api key or `cl_at_` access token as `Authorization: Bearer ...`, or the
+    web session cookie. Listing and viewing species and their sprite
+    candidates (accepted or not) is public, so anyone can browse the catalog. A missing or unknown credential gets a 401 whose
+    WWW-Authenticate header points at OAuth discovery.
+
+    This spec is the HTTP surface's source of truth. `make generate` in
+    creature-lab/ turns it into internal/creaturelab/api/gen.
+  version: 0.2.0
+
+servers:
+  - url: /api
+
+security:
+  - bearerAuth: []
+  - cookieAuth: []
+
+paths:
+  /preview:
+    get:
+      operationId: previewSpecies
+      summary: Roll species without saving them
+      description: Free to call. Rolls seed, seed+1, ... when seed is given, fresh seeds otherwise.
+      parameters:
+        - name: seed
+          in: query
+          schema:
+            type: integer
+            format: int64
+        - name: count
+          in: query
+          description: How many to roll, clamped to 1-12.
+          schema:
+            type: integer
+            default: 3
+      responses:
+        "200":
+          description: The rolled species
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SpeciesPreviewList"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /export:
+    get:
+      operationId: exportCatalog
+      summary: The catalog as a game build would load it
+      description: Each species as rolled (the sim.AlienSpecies JSON, unchanged) with its accepted sprites. Only complete species unless all is set.
+      parameters:
+        - name: all
+          in: query
+          description: Include species that are missing a sprite.
+          schema:
+            type: boolean
+      responses:
+        "200":
+          description: The export
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Export"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /species:
+    get:
+      operationId: listSpecies
+      summary: List saved species, newest first
+      security: []
+      responses:
+        "200":
+          description: The catalog
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SpeciesList"
+    post:
+      operationId: createSpecies
+      summary: Roll and save a species
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SpeciesCreate"
+      responses:
+        "201":
+          description: Species created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SpeciesDetail"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /species/{speciesId}:
+    parameters:
+      - $ref: "#/components/parameters/SpeciesId"
+    get:
+      operationId: getSpecies
+      summary: One species with its sprite slots
+      security: []
+      responses:
+        "200":
+          description: The species
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SpeciesDetail"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    patch:
+      operationId: updateSpecies
+      summary: Replace a species' notes
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SpeciesUpdate"
+      responses:
+        "200":
+          description: The updated species
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SpeciesDetail"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    delete:
+      operationId: deleteSpecies
+      summary: Remove a species and its sprites
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OK"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /species/{speciesId}/forms/{form}/brief:
+    parameters:
+      - $ref: "#/components/parameters/SpeciesId"
+      - $ref: "#/components/parameters/FormIndex"
+    get:
+      operationId: getSpriteBrief
+      summary: The drawing brief for one form
+      responses:
+        "200":
+          description: The brief
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SpriteBrief"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+
+  /species/{speciesId}/candidates:
+    parameters:
+      - $ref: "#/components/parameters/SpeciesId"
+    get:
+      operationId: listSpriteCandidates
+      summary: A species' sprite candidates, newest first within each form
+      security: []
+      parameters:
+        - name: form
+          in: query
+          description: Only this form; omit for every form.
+          schema:
+            type: integer
+            minimum: 0
+          x-go-type-skip-optional-pointer: false
+        - name: svg
+          in: query
+          description: Include each candidate's SVG source.
+          schema:
+            type: boolean
+      responses:
+        "200":
+          description: The candidates
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CandidateList"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /species/{speciesId}/forms/{form}/candidates:
+    parameters:
+      - $ref: "#/components/parameters/SpeciesId"
+      - $ref: "#/components/parameters/FormIndex"
+    post:
+      operationId: submitSpriteCandidate
+      summary: Store an SVG as a candidate sprite for one form
+      description: Unsafe SVG (scripts, event handlers, external references) is refused with a 422; house-style problems come back as warnings.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CandidateSubmit"
+      responses:
+        "201":
+          description: Candidate stored
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Candidate"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+
+  /candidates/{candidateId}:
+    parameters:
+      - $ref: "#/components/parameters/CandidateId"
+    get:
+      operationId: getSpriteCandidate
+      summary: One candidate with its SVG and house-style warnings
+      security: []
+      responses:
+        "200":
+          description: The candidate
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Candidate"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    delete:
+      operationId: deleteSpriteCandidate
+      summary: Remove a candidate
+      description: Removing the accepted one leaves its form without a sprite.
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OK"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /candidates/{candidateId}/accept:
+    parameters:
+      - $ref: "#/components/parameters/CandidateId"
+    post:
+      operationId: acceptSpriteCandidate
+      summary: Make a candidate its form's sprite
+      description: Replaces whichever was accepted before; that one stays as a candidate.
+      responses:
+        "200":
+          description: The accepted candidate
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Candidate"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      description: A cl_ api key, or a cl_at_ OAuth access token.
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: cl_session
+      description: The web session set by /login.
+
+  parameters:
+    SpeciesId:
+      name: speciesId
+      in: path
+      required: true
+      schema:
+        type: string
+    CandidateId:
+      name: candidateId
+      in: path
+      required: true
+      schema:
+        type: string
+    FormIndex:
+      name: form
+      in: path
+      required: true
+      description: Form index, from 0 in stage order.
+      schema:
+        type: integer
+
+  responses:
+    BadRequest:
+      description: Malformed request
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    Unauthorized:
+      description: No credential, or one that is unknown, expired or revoked
+      content:
+        text/plain:
+          schema:
+            type: string
+    NotFound:
+      description: No such species or candidate
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    Unprocessable:
+      description: No such form, or an SVG that was refused
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+
+  schemas:
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
+
+    OK:
+      type: object
+      required: [ok]
+      properties:
+        ok:
+          type: boolean
+
+    Traits:
+      type: object
+      description: A species in words. The stored row keeps the sim.AlienSpecies itself; this is its presentation.
+      required: [singular, plural, scientificName, temperament, skin, color, pattern, eyes, arms, legs, tail, wings, heightCM, weightKG, attacks, description]
+      properties:
+        singular:
+          type: string
+        plural:
+          type: string
+        scientificName:
+          type: string
+        emoji:
+          type: string
+        temperament:
+          type: string
+        apex:
+          type: boolean
+          description: One of the rare, very deadly species.
+        skin:
+          type: string
+        color:
+          type: string
+        pattern:
+          type: string
+        eyes:
+          type: integer
+        arms:
+          type: integer
+        legs:
+          type: integer
+        tail:
+          type: boolean
+        wings:
+          type: boolean
+        heightCM:
+          $ref: "#/components/schemas/Range"
+        weightKG:
+          $ref: "#/components/schemas/Range"
+        attacks:
+          type: array
+          items:
+            type: string
+        features:
+          type: array
+          items:
+            type: string
+        description:
+          type: string
+
+    Range:
+      type: array
+      description: "[min, max]"
+      minItems: 2
+      maxItems: 2
+      items:
+        type: integer
+
+    Form:
+      type: object
+      description: One sprite slot, a stage or caste of the species' life. index matches sim.AlienSpecies.LifeForms().
+      required: [index, name, label, stage, sizePct, arms, legs]
+      properties:
+        index:
+          type: integer
+        name:
+          type: string
+          description: '"egg", "grub", "queen"; "adult" for a plain adult'
+        label:
+          type: string
+          description: 'What the game calls one: "grelk egg", "grelk"'
+        stage:
+          type: integer
+        sizePct:
+          type: integer
+        inert:
+          type: boolean
+        arms:
+          type: integer
+        legs:
+          type: integer
+        tail:
+          type: boolean
+        wings:
+          type: boolean
+        features:
+          type: array
+          items:
+            type: string
+        lays:
+          type: boolean
+
+    FormView:
+      description: A slot and where its sprite stands.
+      allOf:
+        - $ref: "#/components/schemas/Form"
+        - type: object
+          required: [candidates]
+          properties:
+            acceptedId:
+              type: string
+            acceptedSvgUrl:
+              type: string
+            candidates:
+              type: integer
+
+    SpeciesPreview:
+      type: object
+      required: [seed, traits, forms]
+      properties:
+        seed:
+          type: integer
+          format: int64
+        traits:
+          $ref: "#/components/schemas/Traits"
+        forms:
+          type: array
+          items:
+            $ref: "#/components/schemas/Form"
+
+    SpeciesPreviewList:
+      type: object
+      required: [species]
+      properties:
+        species:
+          type: array
+          items:
+            $ref: "#/components/schemas/SpeciesPreview"
+
+    SpeciesSummary:
+      type: object
+      required: [id, seed, singular, plural, scientificName, temperament, formCount, acceptedCount, complete, createdAt, url]
+      properties:
+        id:
+          type: string
+        seed:
+          type: integer
+          format: int64
+        singular:
+          type: string
+        plural:
+          type: string
+        scientificName:
+          type: string
+        emoji:
+          type: string
+        temperament:
+          type: string
+        apex:
+          type: boolean
+        formCount:
+          type: integer
+        acceptedCount:
+          type: integer
+        complete:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+        url:
+          type: string
+        spriteUrls:
+          type: array
+          description: The accepted sprites, in form order.
+          items:
+            type: string
+
+    SpeciesList:
+      type: object
+      required: [species]
+      properties:
+        species:
+          type: array
+          items:
+            $ref: "#/components/schemas/SpeciesSummary"
+
+    SpeciesDetail:
+      type: object
+      required: [id, seed, generatorRev, traits, forms, complete, createdAt, url]
+      properties:
+        id:
+          type: string
+        seed:
+          type: integer
+          format: int64
+        generatorRev:
+          type: string
+          description: The mars-sim commit that rolled it.
+        notes:
+          type: string
+        traits:
+          $ref: "#/components/schemas/Traits"
+        forms:
+          type: array
+          items:
+            $ref: "#/components/schemas/FormView"
+        complete:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+        url:
+          type: string
+
+    SpeciesCreate:
+      type: object
+      properties:
+        seed:
+          type: integer
+          format: int64
+          description: Seed to roll, usually one from /preview; omit for a random one.
+        notes:
+          type: string
+
+    SpeciesUpdate:
+      type: object
+      required: [notes]
+      properties:
+        notes:
+          type: string
+
+    SpriteBrief:
+      type: object
+      required: [form, brief]
+      properties:
+        form:
+          type: integer
+        brief:
+          type: string
+
+    Candidate:
+      type: object
+      required: [id, speciesId, form, svgUrl, accepted, createdAt]
+      properties:
+        id:
+          type: string
+        speciesId:
+          type: string
+        form:
+          type: integer
+        svg:
+          type: string
+          description: Left out of listings unless asked for.
+        svgUrl:
+          type: string
+        note:
+          type: string
+        author:
+          type: string
+        accepted:
+          type: boolean
+        warnings:
+          type: array
+          items:
+            type: string
+        createdAt:
+          type: string
+          format: date-time
+
+    CandidateList:
+      type: object
+      required: [candidates]
+      properties:
+        candidates:
+          type: array
+          items:
+            $ref: "#/components/schemas/Candidate"
+
+    CandidateSubmit:
+      type: object
+      required: [svg]
+      properties:
+        svg:
+          type: string
+          description: The complete SVG document.
+        note:
+          type: string
+        author:
+          type: string
+        accept:
+          type: boolean
+          description: Also accept it as the form's sprite.
+
+    Export:
+      type: object
+      required: [exportedAt, species]
+      properties:
+        exportedAt:
+          type: string
+          format: date-time
+        species:
+          type: array
+          items:
+            $ref: "#/components/schemas/ExportSpecies"
+
+    ExportSpecies:
+      type: object
+      required: [id, seed, generatorRev, complete, species, sprites]
+      properties:
+        id:
+          type: string
+        seed:
+          type: integer
+          format: int64
+        generatorRev:
+          type: string
+        complete:
+          type: boolean
+        species:
+          description: The stored sim.AlienSpecies, unchanged.
+          x-go-type: json.RawMessage
+        sprites:
+          type: array
+          items:
+            $ref: "#/components/schemas/ExportSprite"
+
+    ExportSprite:
+      type: object
+      required: [form, name, svg]
+      properties:
+        form:
+          type: integer
+        name:
+          type: string
+        svg:
+          type: string

@@ -6,6 +6,10 @@
 //	creature-lab keys list                  list live api keys
 //	creature-lab keys rotate --id ID        replace a key, keeping its name
 //	creature-lab keys delete --id ID        revoke a key and every token it approved
+//	creature-lab invites create [--note N] [--expires-in D]
+//	                                        mint a single-use invite (printed once)
+//	creature-lab invites list               list unused, unexpired invites
+//	creature-lab invites delete --id ID     withdraw an unused invite
 package main
 
 import (
@@ -20,6 +24,7 @@ import (
 	"text/tabwriter"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/xid"
 
@@ -41,8 +46,10 @@ func main() {
 		err = serve()
 	case "keys":
 		err = keys(args)
+	case "invites":
+		err = invites(args)
 	default:
-		err = fmt.Errorf("unknown command %q; use serve or keys", cmd)
+		err = fmt.Errorf("unknown command %q; use serve, keys or invites", cmd)
 	}
 	if err != nil {
 		slog.Error("creature-lab", "err", err)
@@ -63,7 +70,7 @@ func serve() error {
 	if issuer == "" {
 		issuer = "http://localhost:" + port
 	}
-	srv := web.New(creaturelab.NewService(pool, issuer), issuer)
+	srv := web.New(creaturelab.NewStore(pool), issuer)
 	slog.Info("creature-lab listening", "port", port, "public_url", issuer, "generator", creaturelab.GeneratorRev())
 	hs := &http.Server{Addr: ":" + port, Handler: srv.Handler(), ReadHeaderTimeout: 10 * time.Second}
 	return hs.ListenAndServe()
@@ -130,6 +137,77 @@ func keys(args []string) error {
 		return mint(ctx, q, old.Name)
 	default:
 		return fmt.Errorf("unknown keys subcommand %q", sub)
+	}
+}
+
+// invites manages the single-use codes a newcomer redeems on the OAuth
+// authorize page in place of an api key. Redeeming one mints their key.
+func invites(args []string) error {
+	if len(args) == 0 {
+		return errors.New("usage: invites <create|list|delete> ...")
+	}
+	sub, args := args[0], args[1:]
+	fs := flag.NewFlagSet("invites "+sub, flag.ExitOnError)
+	note := fs.String("note", "", "who it is for; also the name of the key it mints (create)")
+	expiresIn := fs.Duration("expires-in", 0, "how long it stays redeemable, e.g. 168h; default never (create)")
+	id := fs.String("id", "", "invite id (delete)")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	ctx := context.Background()
+	pool, err := openPool(ctx)
+	if err != nil {
+		return err
+	}
+	defer pool.Close()
+	q := db.New(pool)
+
+	switch sub {
+	case "create":
+		raw, err := auth.RandToken(auth.InvitePrefix)
+		if err != nil {
+			return err
+		}
+		arg := db.CreateInviteParams{ID: xid.New().String(), CodeHash: auth.Hash(raw), Note: *note}
+		if *expiresIn > 0 {
+			arg.ExpiresAt = pgtype.Timestamptz{Time: time.Now().Add(*expiresIn), Valid: true}
+		}
+		row, err := q.CreateInvite(ctx, arg)
+		if err != nil {
+			return fmt.Errorf("create invite: %w", err)
+		}
+		fmt.Printf("invite_id: %s\ninvite:    %s\n\nPaste it on the authorize page when connecting Claude. It works once.\nSave it now; it is never shown again.\n", row.ID, raw)
+		return nil
+	case "list":
+		rows, err := q.ListActiveInvites(ctx)
+		if err != nil {
+			return err
+		}
+		tw := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
+		fmt.Fprintln(tw, "ID\tNOTE\tCREATED\tEXPIRES")
+		for _, r := range rows {
+			exp := "never"
+			if r.ExpiresAt.Valid {
+				exp = r.ExpiresAt.Time.UTC().Format(time.DateTime)
+			}
+			fmt.Fprintf(tw, "%s\t%s\t%s\t%s\n", r.ID, r.Note, r.CreatedAt.Time.UTC().Format(time.DateTime), exp)
+		}
+		return tw.Flush()
+	case "delete":
+		if *id == "" {
+			return errors.New("--id is required")
+		}
+		n, err := q.DeleteInvite(ctx, *id)
+		if err != nil {
+			return err
+		}
+		if n == 0 {
+			return fmt.Errorf("no unused invite %s", *id)
+		}
+		fmt.Printf("deleted invite %s\n", *id)
+		return nil
+	default:
+		return fmt.Errorf("unknown invites subcommand %q", sub)
 	}
 }
 

@@ -1,0 +1,12 @@
+# oapi-codegen config for creature-lab/api/openapi.yaml. Run `make generate`.
+package: apigen
+output: ../internal/creaturelab/api/gen/server.gen.go
+generate:
+  chi-server: true
+  models: true
+  strict-server: true
+  embedded-spec: true
+output-options:
+  # Optional fields stay plain values with omitempty, so view models convert
+  # to API types without a pointer per field.
+  prefer-skip-optional-pointer: true
