@@ -4,7 +4,7 @@
 
 ## What it is
 
-Scum Lab is the tuning bench for `cognition.yaml`: one shell, one in-memory config, a nav of tools. **Focus Tester** explains one colonist's focus. **Grammar Builder** edits perceptions, reactions, and trait rules. **Sprite Designer** draws SVG map sprites with Claude and does not touch the config; see [sprite-designer.md](./sprite-designer.md). The page does not run a world. Go still validates the file at load.
+Scum Lab is the tuning bench for `cognition.yaml`: one shell, one in-memory config, a nav of tools. **Focus Tester** explains one colonist's focus. **Grammar Builder** edits perceptions, reactions, and trait rules. **Sprite Designer** draws SVG map sprites with Claude and does not touch the config; see [sprite-designer.md](./sprite-designer.md). **Species Catalog** shows every species in [Creature Lab](./creature-lab.md) with its sprites, and does not touch the config either. The page does not run a world. Go still validates the file at load.
 
 Focus scoring and colonist rolls go through a WASM build of the sim. Do not reimplement them in JavaScript. See [wasm.md](./wasm.md).
 
@@ -30,6 +30,14 @@ Focus calls `evaluate` / `rollColonist` in `shared/sim.js` on each paint. Gramma
 
 `LabRoll` builds PCG streams with `newPCG` and the same keys as `World.prng` and `World.agePRNG`. It is not colonist N of a world seed: worldgen spends those streams on family and heredity first, and the bench rolls one person on a fresh pair of streams.
 
+### Species Catalog
+
+`tools/species.js` reads Creature Lab's public API: `GET /api/species` for the grid, then `/api/species/{id}` and `/api/species/{id}/candidates` when a card is opened. It needs no key, and it never writes; drawing and accepting stay in Creature Lab or its MCP tools. Each form shows its accepted sprite at 16, 32 and 64 px on the map's floor, rock and fog colors, followed by every candidate, accepted or not.
+
+The lab it reads is, in order: a `?lab=` in the page URL (`index.html?lab=http://127.0.0.1:8080#species` points it at a local `make dev`), the URL last loaded in this browser, or the deployed lab (`DEFAULT_LAB`). It works from GitHub Pages because Creature Lab sends `Access-Control-Allow-Origin: *` on its public reads.
+
+Because `?lab=` can name any server, the tab treats the lab's answers as hostile. Text goes in through `textContent`, and sprites only through `<img>`. Every URL the lab returns goes through `safeURL`, which keeps only `http(s)` and turns anything else into `#`. A `javascript:` link on this origin could read the Sprite Designer's API key from `localStorage`.
+
 ## Why it is this way
 
 Focus and grammar are two jobs: a person ("why did she run?") and a file ("what does `saw-alien` do?"). A third tuner had nowhere to go on one scroll. Native ES modules stayed; the WASM file is the only build step, and it exists so the bench cannot drift from `fillFocusCandidates`, `selectFocus`, and `rollProfile`.
@@ -51,6 +59,7 @@ A new *system* still uses this shell. Scoring still goes through the WASM API in
 ## Related
 
 - [sprite-designer.md](./sprite-designer.md) — the Sprite Designer tab.
+- [creature-lab.md](./creature-lab.md) — the species catalog the Species Catalog tab reads.
 - [wasm.md](./wasm.md) — the browser module, and why a `mind` package is the next cut.
 - [cli.md](./cli.md) — `-cognition`, `-print-cognition-config`, and `-print-cognition-vocab`.
 - [compositional-perception-and-events.md](./compositional-perception-and-events.md) — the grammar `cognition.yaml` holds.

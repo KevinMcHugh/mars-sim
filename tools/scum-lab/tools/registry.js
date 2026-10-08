@@ -24,5 +24,6 @@
 import { focusTool } from "./focus.js";
 import { grammarTool } from "./grammar.js";
 import { spritesTool } from "./sprites.js";
+import { speciesTool } from "./species.js";
 
-export const tools = [focusTool, grammarTool, spritesTool];
+export const tools = [focusTool, grammarTool, spritesTool, speciesTool];
