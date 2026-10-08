@@ -38,6 +38,8 @@ const terrains: Record<string, string> = {
   'shaft top': '#a0703a',
   shaft: '#a0703a',
   'shaft bottom': '#a0703a',
+  // A drop into the dark.
+  hole: '#0d0605',
 };
 
 const compositions: Record<string, string> = {

@@ -73,6 +73,12 @@ func (m Model) renderNoProjects(rows int) string {
 	if n := m.latest.PendingStairs; n > 0 {
 		b.WriteString(fmt.Sprintf("%d stair order(s) waiting for a site.\n", n))
 	}
+	if n := m.latest.PendingHoles; n > 0 {
+		b.WriteString(fmt.Sprintf("%d hole order(s) waiting for a site.\n", n))
+	}
+	if n := m.latest.PendingLadders; n > 0 {
+		b.WriteString(fmt.Sprintf("%d ladder order(s) waiting for a hole.\n", n))
+	}
 	if n := m.latest.PendingShaftLevels; n > 0 {
 		b.WriteString(fmt.Sprintf("%d level(s) of shaft ordered, waiting for a site.\n", n))
 	}

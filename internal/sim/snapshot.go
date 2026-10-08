@@ -514,7 +514,10 @@ type Snapshot struct {
 	// PendingShaftLevels counts levels of shaft ordered but not yet marked
 	// out.
 	PendingShaftLevels int
-	Storages           []StorageView
+	// PendingHoles and PendingLadders count holes and ladders ordered but
+	// not yet marked out.
+	PendingHoles, PendingLadders int
+	Storages                     []StorageView
 	// Scum is how much cave scum is on every exposed patch that has any,
 	// computed fresh each frame because patches regrow lazily (see
 	// scumhouse.go). Read it with ScumAt.
@@ -814,6 +817,8 @@ func (w *World) snapshot(paused bool, tps int) *Snapshot {
 		PendingIncubators:    w.manualIncubators,
 		PendingStairs:        w.manualStairs,
 		PendingShaftLevels:   w.manualShaftLevels,
+		PendingHoles:         w.manualHoles,
+		PendingLadders:       w.manualLadders,
 		Storages:             storages,
 		Fixtures:             w.publishedFixtures(),
 		Zones:                w.publishedZones(),

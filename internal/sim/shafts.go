@@ -52,6 +52,7 @@ func (w *World) canDigShaft(top Point, bottom Level) bool {
 		if !w.discovered(top) {
 			return false
 		}
+	case Hole: // fitting a ladder (see planLadders)
 	case ShaftTop:
 		from = w.shaftBottom(top)
 		if from >= bottom {
@@ -83,7 +84,12 @@ func (w *World) shaftWorkTicks(t *buildTask) int {
 	if w.TerrainAt(t.pos) == ShaftTop {
 		from = w.shaftBottom(t.pos)
 	}
-	return w.cfg.ShaftTicks * max(1, int(shaftTaskBottom(t)-from))
+	levels := max(1, int(shaftTaskBottom(t)-from))
+	if w.TerrainAt(t.pos) == Hole {
+		// A ladder into a hole: the first level is already open.
+		return w.cfg.LadderTicks + w.cfg.ShaftTicks*(levels-1)
+	}
+	return w.cfg.ShaftTicks * levels
 }
 
 // digShaft cuts the column at top down to level bottom: every level it

@@ -82,10 +82,13 @@ func (w *World) tryAssignClean(e *Entity) bool {
 	return true
 }
 
-// refuseDestinations reports whether e can reach an incinerator (burn) and a
-// scumhouse with room for more biomatter (feed).
+// refuseDestinations reports whether e can reach an incinerator or a hole
+// to tip refuse down (burn: somewhere that takes anything) and a scumhouse
+// with room for more biomatter (feed).
 func (w *World) refuseDestinations(e *Entity) (burn, feed bool) {
 	if field := w.facilityField(Incinerator); field != nil && field.at(e.Pos) >= 0 {
+		burn = true
+	} else if _, ok := w.nearestChute(e); ok {
 		burn = true
 	}
 	if w.countTerrain(Scumhouse) > 0 {
@@ -162,7 +165,13 @@ func (w *World) haulTarget(e *Entity) (Point, bool) {
 			return p, true
 		}
 	}
-	return w.nearestIncinerator(e)
+	// The incinerator, or a hole to tip it down if one is nearer (a chute:
+	// see holes.go). A tie goes to the incinerator.
+	inc, incOK := w.nearestIncinerator(e)
+	if h, ok := w.nearestChute(e); ok && (!incOK || w.travelEstimate(e.Pos, h) < w.travelEstimate(e.Pos, inc)) {
+		return h, true
+	}
+	return inc, incOK
 }
 
 // jobClean runs one tick of a cleaning job: scrub the refuse at Target into the
@@ -257,6 +266,7 @@ func (w *World) jobCleanHaul(e *Entity) {
 	switch t := w.TerrainAt(e.Target); {
 	case t == Scumhouse && len(biomatterStacks(e)) > 0:
 	case t == Incinerator:
+	case t == Hole && w.openHole(e.Target):
 	default:
 		dest, ok := w.haulTarget(e)
 		if !ok {
@@ -283,6 +293,11 @@ func (w *World) jobCleanHaul(e *Entity) {
 		if !carryingRefuse(e) {
 			w.clearJob(e)
 		}
+		return
+	}
+	if w.TerrainAt(e.Target) == Hole {
+		w.tipDown(e, e.Target) // a chute takes it at once
+		w.clearJob(e)
 		return
 	}
 	e.State = Cleaning

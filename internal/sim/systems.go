@@ -22,6 +22,9 @@ func (w *World) step() {
 		if e == nil || !e.Alive() {
 			continue
 		}
+		if len(w.holes) > 0 && w.TerrainAt(e.Pos) == Hole && !w.fall(e) {
+			continue // something put it over a hole, and the fall killed it
+		}
 		if w.climbing(e) {
 			if e.Kind == Colonist {
 				w.syncDriveActivity(e)
@@ -46,6 +49,7 @@ func (w *World) step() {
 		w.planRooms()
 		w.planStairs()
 		w.planShafts()
+		w.planHoles()
 		w.nextPlanTick = w.tick + planInterval
 	}
 	w.runMarket()         // expire stale orders; top up the colony's standing bids
@@ -1593,6 +1597,10 @@ func (w *World) jobBuild(e *Entity) {
 		w.finishShaft(e)
 		return
 	}
+	if e.BuildKind == Hole {
+		w.finishHole(e)
+		return
+	}
 	if !w.payForBuild(e) {
 		w.clearJob(e) // the materials went somewhere; fetch them again later
 		return
@@ -1790,7 +1798,7 @@ func (w *World) finishUse(e *Entity, spec DriveSpec) {
 // buildSkill is the skill a build task practises: digging a room's floor is
 // mining; raising anything is construction.
 func buildSkill(kind Terrain) SkillKind {
-	if kind == Floor || kind == StairDown || kind == ShaftTop { // a stair or shaft is dug, not built
+	if kind == Floor || kind == StairDown || kind == ShaftTop || kind == Hole { // a stair, shaft or hole is dug, not built
 		return SkillMining
 	}
 	return SkillConstruction
@@ -1808,6 +1816,8 @@ func (w *World) buildTicks(kind Terrain) int {
 		return w.cfg.StairTicks
 	case ShaftTop: // one level; a shaft task's work is per level (shaftWorkTicks)
 		return w.cfg.ShaftTicks
+	case Hole:
+		return w.cfg.HoleTicks
 	default:
 		return w.cfg.FacilityBuildTicks
 	}
@@ -2240,6 +2250,16 @@ func (w *World) fleeStep(e *Entity, threat Point) {
 		}
 		if dd := n.Chebyshev(threat); dd > bestDist {
 			best, bestDist = n, dd
+		}
+	}
+	// Cornered, with the threat upon it: an open hole beside it is a way
+	// out the threat cannot follow, if the drop will not kill it.
+	if best == e.Pos && e.Pos.Within(threat, 1) {
+		if h, ok := w.openHoleBeside(e.Pos); ok {
+			if _, levels, _ := w.fallTarget(h); levels*w.cfg.FallDamage < e.HP {
+				w.leap(e, h)
+				return
+			}
 		}
 	}
 	w.moveEntity(e, best)

@@ -76,6 +76,8 @@ var buildMenuItems = []menuItem{
 	{"i", "scum incubator"},
 	{"v", "stair down"},
 	{"n", "shaft down"},
+	{"o", "hole down"},
+	{"u", "ladder into a hole"},
 }
 
 // filterMenuItems are the roster's toggleable filters. Unlike the spawn/build
@@ -530,6 +532,10 @@ func (m Model) submitMenuItem(i int) {
 			m.eng.Send(sim.OrderStair{})
 		case "n":
 			m.eng.Send(sim.OrderShaft{Levels: 1})
+		case "o":
+			m.eng.Send(sim.OrderHole{})
+		case "u":
+			m.eng.Send(sim.OrderLadder{})
 		}
 	}
 }

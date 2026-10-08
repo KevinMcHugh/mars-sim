@@ -85,7 +85,7 @@ Where refuse can go decides what gets picked up (`refuseDestinations`):
 
 | Reachable | What a cleaner gathers |
 | --- | --- |
-| an incinerator | everything, as before |
+| an incinerator, or an open hole with `hole-chutes` on | everything; the hauler takes it to whichever is nearer, and a hole takes it down to the level below at once (see [holes.md](./holes.md)) |
 | only a scumhouse with room | biomatter only; a colonist's body stays where it lies |
 | neither | nothing |
 
