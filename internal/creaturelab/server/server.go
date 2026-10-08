@@ -57,6 +57,11 @@ func (s *Server) Mount(r chi.Router, requireAuth func(http.Handler) http.Handler
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			pattern := strings.TrimPrefix(chi.RouteContext(r.Context()).RoutePattern(), BaseURL)
 			if public[r.Method+" "+pattern] {
+				// Anyone may read these, so any site may too: Scum Lab's
+				// Species Catalog fetches them from GitHub Pages. No
+				// credentials are allowed cross-site, so this opens nothing
+				// an anonymous caller could not already get.
+				w.Header().Set("Access-Control-Allow-Origin", "*")
 				next.ServeHTTP(w, r)
 				return
 			}

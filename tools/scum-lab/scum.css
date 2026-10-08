@@ -568,6 +568,41 @@ textarea {
 .tile .form-actions button:disabled { opacity: 0.6; cursor: wait; }
 .tile .form-actions button[hidden] { display: none; }
 
+/* Species Catalog */
+.species { max-width: 1080px; }
+.species-source { display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap; }
+.species-source .field { flex: 1; min-width: 240px; }
+.species-head { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; flex-wrap: wrap; margin-bottom: 10px; }
+.species-head input[type="search"] { min-width: 220px; }
+.species-grid { display: grid; gap: 10px; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); }
+.tile button.species-card {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 4px;
+  padding: 10px; border-radius: 12px; border: 1px solid var(--line);
+  background: var(--bg-raise); color: var(--ink); text-align: left; min-width: 0;
+}
+.tile button.species-card:hover { border-color: var(--amber); }
+.tile button.species-card.on { border-color: var(--rust); box-shadow: 0 0 0 1px var(--rust) inset; }
+.species-card strong { font-family: var(--serif); font-size: 18px; font-weight: 600; }
+.species-sci { color: var(--muted); font-size: 13px; }
+.species-thumbs { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 4px; }
+.species-emoji { width: 40px; height: 40px; font-size: 26px; line-height: 1; }
+.species-tags { display: flex; flex-wrap: wrap; gap: 4px; }
+.species-tags .pill { margin-left: 0; }
+.pill.species-hostile { background: #e7a090; color: #6a2418; }
+.pill.species-cautious { background: #f0c48a; color: #6a3414; }
+.species-seed { color: var(--dim); font-family: var(--mono); font-size: 12px; }
+.species-link { color: var(--clay); font-weight: 600; }
+.species-facts { display: grid; grid-template-columns: max-content 1fr; gap: 2px 14px; margin: 0 0 6px; font-size: 14px; }
+.species-facts dt { color: var(--dim); }
+.species-facts dd { margin: 0; }
+.species-form { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); }
+.species-candidates { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.species-candidate {
+  display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 4px;
+  border: 1px solid var(--line); border-radius: 8px; color: var(--muted); font-size: 11px; text-decoration: none;
+}
+.species-candidate.on { border-color: var(--rust); color: var(--clay); }
+
 @media (max-width: 720px) {
   h1 { font-size: 40px; }
   .mast, .nav, #tool { padding-left: 16px; padding-right: 16px; }
@@ -575,4 +610,6 @@ textarea {
   .around { grid-template-columns: 1fr; }
   .slider-read { text-align: left; }
   .sprite-big, .sprite-big img { width: 192px; height: 192px; }
+  .species-facts { grid-template-columns: 1fr; }
+  .species-head input[type="search"] { min-width: 0; width: 100%; }
 }

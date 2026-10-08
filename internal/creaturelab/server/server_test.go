@@ -104,6 +104,11 @@ func TestAnonymousCallers(t *testing.T) {
 		if rec.Code != tc.want {
 			t.Errorf("%s %s: %d, want %d: %s", tc.method, tc.path, rec.Code, tc.want, rec.Body)
 		}
+		// Public reads open to any origin; nothing else does.
+		cors := rec.Header().Get("Access-Control-Allow-Origin")
+		if public := tc.want != http.StatusUnauthorized; public != (cors == "*") {
+			t.Errorf("%s %s: Access-Control-Allow-Origin %q", tc.method, tc.path, cors)
+		}
 	}
 
 	rec := httptest.NewRecorder()
