@@ -17,6 +17,9 @@ on:
       - "tools/scum-lab/**"
       - "go.mod"
       - "go.sum"
+      # The species pack ships beside the page (build-wasm.sh), so pulling a
+      # new one from Creature Lab is a site change too.
+      - "species-pack.json"
       - ".github/workflows/pages.yml"
   workflow_dispatch:
 

@@ -603,10 +603,17 @@ func fetchSpeciesPack(lab, path string) error {
 		return err
 	}
 	names := make([]string, len(res.Pack.Species))
+	notes, rewrites := 0, 0
 	for i, ps := range res.Pack.Species {
 		names[i] = ps.Species.Plural
+		if ps.Notes != "" {
+			notes++
+		}
+		if ps.Description != "" {
+			rewrites++
+		}
 	}
-	fmt.Printf("wrote %s: %d species (%s)", path, len(names), strings.Join(names, ", "))
+	fmt.Printf("wrote %s: %d species (%s), %d with lab notes, %d with rewritten field notes", path, len(names), strings.Join(names, ", "), notes, rewrites)
 	if res.Incomplete > 0 {
 		fmt.Printf("; %d more still missing sprites", res.Incomplete)
 	}
