@@ -477,7 +477,19 @@ func TestWebPages(t *testing.T) {
 		t.Fatalf("cross-origin delete: %d", resp.StatusCode)
 	}
 
+	// The ids the MCP tools take are on the pages, not only in the URL.
+	speciesID := strings.TrimPrefix(speciesPath, "/species/")
+	if !strings.Contains(page("/"), `<code class="id" title="Click to select. This is the id the MCP tools take.">`+speciesID+`</code>`) {
+		t.Error("catalog does not show the species id")
+	}
 	signedIn := page(speciesPath)
+	if !strings.Contains(signedIn, ">"+speciesID+"</code>") {
+		t.Error("species page does not show its id")
+	}
+	cands, err := l.q.ListCandidates(context.Background(), speciesID)
+	if err != nil || len(cands) == 0 || !strings.Contains(signedIn, ">"+cands[0].ID+"</code>") {
+		t.Errorf("species page does not show its candidates' ids (%v)", err)
+	}
 	for _, want := range []string{"Save notes", "Paste an SVG", "Brief as text", "Remove", "Delete " + plural, "Sign out"} {
 		if !strings.Contains(signedIn, want) {
 			t.Errorf("signed-in species page lacks %q", want)

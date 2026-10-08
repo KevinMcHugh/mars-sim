@@ -55,6 +55,10 @@ dl.traits dd { margin: 0; }
 .previews { display: grid; gap: .6rem; }
 .preview-row { display: flex; gap: .5rem; align-items: center; flex-wrap: wrap; }
 .preview-label { width: 2.4rem; color: var(--muted); font-size: .7rem; text-transform: uppercase; letter-spacing: .05em; align-self: center; }
+/* An id the MCP tools take. The pages run no script, so there is no copy
+   button: user-select: all makes one click select the whole id. */
+code.id { font-family: ui-monospace, Menlo, monospace; font-size: .8rem; padding: .05rem .35rem; border: 1px dashed var(--line); border-radius: 4px; user-select: all; -webkit-user-select: all; cursor: text; word-break: break-all; }
+.id-line { margin: .3rem 0; font-size: .85rem; }
 .tile.emoji { width: 32px; height: 32px; font-size: 25px; line-height: 1; }
 .candidates { display: grid; gap: .75rem; grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr)); margin-top: .75rem; }
 .cand { border: 1px solid var(--line); border-radius: 8px; padding: .5rem; display: flex; flex-direction: column; gap: .35rem; font-size: .85rem; }

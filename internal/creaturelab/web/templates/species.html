@@ -16,9 +16,10 @@
 {{end}}
 {{define "content"}}
 {{with .Species}}
-<p class="muted"><a href="/">Catalog</a> / seed {{.Seed}} · rolled by {{.GeneratorRev}}</p>
+<p class="muted"><a href="/">Catalog</a> / seed {{.Seed}}</p>
 <h1>{{if .Traits.Emoji}}{{.Traits.Emoji}} {{end}}{{.Traits.Plural}}</h1>
 <div class="sci">{{.Traits.ScientificName}}</div>
+<p class="id-line"><span class="muted">Species ID</span> <code class="id" title="Click to select. This is the id the MCP tools take.">{{.ID}}</code></p>
 <div class="row" style="margin:.4rem 0">
   <span class="tag {{.Traits.Temperament}}">{{.Traits.Temperament}}</span>{{if .Traits.Apex}}<span class="tag hostile">apex</span>{{end}}
   <span class="tag">{{len .Forms}} form{{if ne (len .Forms) 1}}s{{end}}</span>
@@ -38,6 +39,7 @@
     <dt>Covering</dt><dd>{{.Traits.Color}} {{.Traits.Skin}}, {{.Traits.Pattern}}</dd>
     {{if .Traits.Features}}<dt>Features</dt><dd>{{join .Traits.Features ", "}}</dd>{{end}}
     <dt>Attacks</dt><dd>{{join .Traits.Attacks ", "}}</dd>
+    <dt>Rolled by</dt><dd>seed {{.Seed}} on mars-sim {{.GeneratorRev}}</dd>
   </dl>
   {{if $signedIn}}
   <form method="POST" action="/species/{{.ID}}/notes" id="notes">
@@ -75,6 +77,7 @@
       {{template "preview" (preview .SVGURL $emoji)}}
       {{if .Note}}<span>{{.Note}}</span>{{end}}
       <span class="muted">{{if .Author}}{{.Author}} · {{end}}{{.CreatedAt.Format "Jan 2 15:04"}}</span>
+      <code class="id" title="Click to select. The candidate id accept_sprite_candidate and delete_sprite_candidate take.">{{.ID}}</code>
       <div class="row">
         {{if .Accepted}}<span class="tag done">accepted</span>{{else if $signedIn}}
         <form class="inline" method="POST" action="/candidates/{{.ID}}/accept"><button type="submit">Accept</button></form>{{end}}
