@@ -27,12 +27,12 @@ func due(t *testing.T, snap *sim.Snapshot, name string, v any) {
 
 func TestInspectTopicNames(t *testing.T) {
 	tp := NewTopics()
-	for _, ok := range []string{"entity:12", "tile:3,4", "tile:-1,0"} {
+	for _, ok := range []string{"entity:12", "tile:3,4", "tile:-1,0", "tile:3,4,2"} {
 		if err := tp.Subscribe(ok); err != nil {
 			t.Errorf("%s: %v", ok, err)
 		}
 	}
-	for _, bad := range []string{"entity:", "entity:x", "entity:-1", "tile:3", "tile:a,b", "tile:", "roster:1"} {
+	for _, bad := range []string{"entity:", "entity:x", "entity:-1", "tile:3", "tile:a,b", "tile:", "tile:3,4,x", "tile:3,4,-1", "tile:1,2,3,4", "roster:1"} {
 		if err := tp.Subscribe(bad); err == nil {
 			t.Errorf("%s subscribed", bad)
 		}

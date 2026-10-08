@@ -3,14 +3,14 @@
   // see what it would cost, and order it: the colony buys the digging from the
   // treasury as work orders on the order book (docs/excavation.md). The prices
   // and the open orders come from the market topic.
-  import { armDig, cancelDig, centerOn, clearDig, orderDig, subscribe, topics, ui } from '../game.svelte';
+  import { armDig, cancelDig, centerOn, clearDig, digDown, levelName, orderDig, subscribe, topics, ui } from '../game.svelte';
   import { money } from './format';
 
   interface Market {
     supply: { treasury: number };
     work: { issuer: string; kind: string; units: number; held: number }[];
     dig: { wage: number; maxTiles: number };
-    digs: { id: number; x0: number; y0: number; x1: number; y1: number; tiles: number; done: number; held: number }[];
+    digs: { id: number; x0: number; y0: number; x1: number; y1: number; level: number; tiles: number; done: number; held: number }[];
   }
 
   $effect(() => subscribe('market'));
@@ -20,6 +20,10 @@
   const m = $derived(topics.data.market as Market | undefined);
   const r = $derived(ui.dig.rect);
   const cost = $derived(m ? ui.dig.tiles * m.dig.wage : 0);
+  // Digging down is offered once the world lets the colony go below the
+  // landing level (deepest-level above it).
+  const canGoDown = $derived(!!ui.hello && ui.hello.deepestLevel > ui.hello.landingLevel);
+  let shaftLevels = $state(1);
 
   // Why the order cannot go, or null if it can.
   const blocked = $derived.by(() => {
@@ -47,6 +51,7 @@
   <dl>
     <dt>Area</dt>
     <dd>
+      {#if canGoDown}<span class="muted">{levelName(ui.level)}:</span>{/if}
       <button type="button" class="link" onclick={() => centerOn((r.x0 + r.x1) >> 1, (r.y0 + r.y1) >> 1)}>
         {r.x0},{r.y0} to {r.x1},{r.y1}
       </button>
@@ -73,8 +78,8 @@
   <ul class="lines">
     {#each m.digs as d (d.id)}
       <li>
-        <button type="button" class="link" onclick={() => centerOn((d.x0 + d.x1) >> 1, (d.y0 + d.y1) >> 1)}>
-          {d.x0},{d.y0} to {d.x1},{d.y1}
+        <button type="button" class="link" onclick={() => centerOn((d.x0 + d.x1) >> 1, (d.y0 + d.y1) >> 1, d.level)}>
+          {d.x0},{d.y0} to {d.x1},{d.y1}{#if canGoDown && d.level !== ui.hello?.landingLevel}, level {d.level}{/if}
         </button>
         {d.done}/{d.tiles} dug, {money(d.held)} held
         <button type="button" class="cancel" onclick={() => cancelDig(d.id)}
@@ -85,6 +90,27 @@
   <p class="muted">The Jobs tab shows who is digging. Cancelling keeps what is already dug and paid.</p>
 {/if}
 
+{#if canGoDown}
+  <h2>Dig down</h2>
+  <p class="muted">
+    The colony sites it on the deepest level it has reached and digs it free of charge. A stair is
+    walked both ways; a shaft is climbed slowly, and can go several levels at once; a hole is a drop
+    nothing comes back up, until a ladder turns it into a shaft. Deepest allowed: level {ui.hello?.deepestLevel}.
+  </p>
+  <div class="row wrap">
+    <button type="button" onclick={() => digDown('stair')} title="Order a stair down (docs/stairs.md)">Stair</button>
+    <span class="shaft">
+      <button type="button" onclick={() => digDown('shaft', shaftLevels)} title="Order a shaft this many levels deep (docs/shafts.md)">Shaft</button>
+      <input type="number" min="1" max={Math.max(1, (ui.hello?.deepestLevel ?? 1) - (ui.hello?.landingLevel ?? 1))}
+        aria-label="Shaft levels" bind:value={shaftLevels} />
+      <span class="muted">levels</span>
+    </span>
+    <button type="button" onclick={() => digDown('hole')} title="Order a hole broken through to the level below (docs/holes.md)">Hole</button>
+    <button type="button" onclick={() => digDown('ladder')} title="Fit a ladder into the first hole without one, making it a shaft">Ladder</button>
+  </div>
+  <p class="muted">The Jobs tab lists what is ordered and not yet marked out; &lt; and &gt; step the map between levels.</p>
+{/if}
+
 <style>
   h2 { font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin: 16px 0 6px; }
   h2:first-child { margin-top: 4px; }
@@ -93,6 +119,9 @@
   .warn { color: #ffb36b; }
   .row { display: flex; gap: 6px; margin: 8px 0; }
   .row button.on { background: var(--accent); color: #fff; }
+  .row.wrap { flex-wrap: wrap; align-items: center; }
+  .shaft { display: inline-flex; align-items: center; gap: 4px; }
+  .shaft input { width: 4em; }
   .row button.go { background: var(--accent); color: #fff; }
   .row button.go:disabled { background: transparent; color: inherit; }
   dl { display: grid; grid-template-columns: max-content 1fr; gap: 3px 12px; margin: 8px 0; }

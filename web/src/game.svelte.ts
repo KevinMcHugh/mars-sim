@@ -79,7 +79,46 @@ export const ui = $state({
    * so it never names a field the map is not showing.
    */
   flowShown: null as { field: number; max: number; goals: number } | null,
+  /**
+   * The level the map shows (docs/z-levels.md): the landing level until the
+   * player steps down a level. Every frame is of this level.
+   */
+  level: 1,
+  /** The levels the colony has broken into, shallowest first, as the last frame said. */
+  levels: [1] as number[],
 });
+
+/**
+ * Show level l, if the colony has broken into it. The map starts its tiles
+ * over (a frame of the new level resets them), and the area tools put down
+ * their areas, which were marked on the old level.
+ */
+export function setLevel(l: number): void {
+  if (l === ui.level || !ui.levels.includes(l)) return;
+  ui.level = l;
+  if (ui.dig.rect) clearDig();
+  if (ui.zone.rect) clearZoneTool();
+  ctl?.levelChanged();
+}
+
+/** Step d levels down (up when negative) through the levels broken into: the TUI's > and <. */
+export function stepLevel(d: number): void {
+  const i = ui.levels.indexOf(ui.level);
+  const j = Math.max(0, Math.min(ui.levels.length - 1, (i < 0 ? 0 : i) + d));
+  setLevel(ui.levels[j]);
+}
+
+/** Whether the map is on the landing level, where ships land and zones are painted. */
+export function onLandingLevel(): boolean {
+  return ui.level === (ui.hello?.landingLevel ?? 1);
+}
+
+/** A level's name for the chrome: the landing level is where the ships came down. */
+export function levelName(l: number): string {
+  const landing = ui.hello?.landingLevel ?? 1;
+  if (l === landing) return `level ${l} (landing)`;
+  return l === 0 ? 'the surface' : `level ${l}`;
+}
 
 /** Show a flow field on the map (an index into Hello.flowFields), or none (-1). */
 export function setFlowField(i: number): void {
@@ -206,6 +245,8 @@ export function shipSiteFree(ships: ShipLine[], s: ShipLine, o: { x: number; y: 
 
 /** Pick a ship up: the next click on the map lands it there. null puts the tool down. */
 export function armShip(id: number | null): void {
+  // Ships land on the landing level: show it.
+  if (id !== null && ui.hello) setLevel(ui.hello.landingLevel);
   ui.shipTool = id;
   ctl?.shipToolChanged();
 }
@@ -221,16 +262,27 @@ export function landAloft(id: number, x: number, y: number): void {
   ctl?.command({ type: 'ship-land', id, x, y });
 }
 
-/** A creature by id, or a tile. */
-export type Selection = { entity: number } | { tile: [number, number] };
+/**
+ * A creature by id, or a tile: x, y and the level it is on (the level the
+ * map shows, when left out).
+ */
+export type Selection = { entity: number } | { tile: [number, number] | [number, number, number] };
+
+/** The level a tile selection is on. */
+export function selectionLevel(s: { tile: [number, number] | [number, number, number] }): number {
+  return s.tile[2] ?? ui.level;
+}
 
 /** The topic that carries a selection (internal/wire/inspect.go). */
 export function selectionTopic(s: Selection): string {
-  return 'entity' in s ? `entity:${s.entity}` : `tile:${s.tile[0]},${s.tile[1]}`;
+  return 'entity' in s ? `entity:${s.entity}` : `tile:${s.tile[0]},${s.tile[1]},${selectionLevel(s)}`;
 }
 
 /** Inspect something: select it and open the Inspect tab (or raise its window). */
 export function inspect(s: Selection, from: string | null = null): void {
+  // A tile is pinned to its level, so the marker and the inspector agree
+  // after the map changes level.
+  if ('tile' in s) s = { tile: [s.tile[0], s.tile[1], selectionLevel(s)] };
   ui.selected = s;
   ui.inspectFrom = from;
   if (isFloating('inspect')) raiseFloat('inspect');
@@ -381,6 +433,8 @@ export interface Controller {
   saveGame(): void;
   /** Center the map on a tile. */
   centerOn(x: number, y: number): void;
+  /** ui.level changed: ask the worker for that level. */
+  levelChanged(): void;
   /** ui.selected changed: move the map's marker. */
   selected(): void;
   /** The dig tool's area changed (or was cleared): redraw its tint. */
@@ -416,7 +470,11 @@ export function subscribe(topic: string): () => void {
 export function newGame(settings: Settings): void { ctl?.newGame(settings); }
 export function loadGame(file: File): void { ctl?.loadGame(file); }
 export function saveGame(): void { ctl?.saveGame(); }
-export function centerOn(x: number, y: number): void { ctl?.centerOn(x, y); }
+/** Center the map on a tile, on level l if given (switching to it, if the colony has broken into it). */
+export function centerOn(x: number, y: number, l?: number): void {
+  if (l !== undefined) setLevel(l);
+  ctl?.centerOn(x, y);
+}
 export function highlight(tiles: { x: number; y: number; color: Uint8Array }[] | null): void { ctl?.highlight(tiles); }
 
 /** Arm or disarm the dig tool; disarming leaves the marked area alone. */
@@ -427,6 +485,7 @@ export function armDig(on: boolean): void {
 
 /** Pick the zone tool (a zone kind, 'none' or 'clear') and arm it, or disarm it. */
 export function armZone(tool: string, on: boolean): void {
+  if (on && tool !== 'clear' && !onLandingLevel()) return; // zones are the landing level's
   ui.zone.tool = tool;
   ui.zone.armed = on;
   if (on) ui.dig.armed = false;
@@ -448,7 +507,7 @@ export function zoneChanged(): void { ctl?.zoneChanged(); }
 export function applyZone(): void {
   const r = ui.zone.rect;
   if (!r) return;
-  if (ui.zone.tool === 'clear') ctl?.command({ type: 'clear', ...r });
+  if (ui.zone.tool === 'clear') ctl?.command({ type: 'clear', ...r, level: ui.level });
   else ctl?.command({ type: 'zone', kind: ui.zone.tool, ...r });
   clearZoneTool();
 }
@@ -470,8 +529,17 @@ export function clearDig(): void {
 export function orderDig(): void {
   const r = ui.dig.rect;
   if (!r) return;
-  ctl?.command({ type: 'dig', ...r });
+  ctl?.command({ type: 'dig', ...r, level: ui.level });
   clearDig();
+}
+
+/**
+ * Order something dug down from the deepest level the colony has reached: a
+ * stair, a shaft `levels` deep, a hole, or a ladder fitted into a hole
+ * (docs/stairs.md, docs/shafts.md, docs/holes.md). The planner sites it.
+ */
+export function digDown(kind: 'stair' | 'shaft' | 'hole' | 'ladder', levels = 1): void {
+  ctl?.command({ type: 'dig-down', kind, levels });
 }
 
 /** Cancel an open excavation order; what it still held goes back to the treasury. */
@@ -554,7 +622,8 @@ export function setSpeed(i: number): void {
 export const stepSpeed = (d: number) => setSpeed(ui.speed + d);
 
 /** Take the engine's state from a frame (at most UI_HZ times a second). */
-export function syncFrame(tick: number, paused: boolean, tps: number, stats: Record<string, number>): void {
+export function syncFrame(tick: number, paused: boolean, tps: number, stats: Record<string, number>, levels: number[]): void {
+  if (levels.length !== ui.levels.length || levels.some((l, i) => l !== ui.levels[i])) ui.levels = levels;
   ui.tick = tick;
   ui.paused = paused;
   ui.tps = tps;

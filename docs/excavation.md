@@ -108,6 +108,14 @@ concurrency cap counts rooms only. See [zoning.md](./zoning.md).
 - **The TUI has no dig tool.** `OrderExcavation` is an ordinary command, but
   only the browser frontend can mark an area.
 
+An order is on one level: `OrderExcavation.Level`, the level the browser
+shows (Z5 of [z-levels.md](./z-levels.md)). The zero value means the landing
+level (`orderLevel`), so a caller that never names a level digs where it
+always did; a level nobody has broken into has no rock the colony has seen,
+so an order there is refused. `ClearArea` names its level the same way, and
+never clears a stair, shaft or hole (`joinsLevels`): clearing one end would
+leave the other dangling on a level the player is not looking at.
+
 ## Extending it
 
 - **A colonist ordering a dig** from its own wallet: `issuer` is already a field,

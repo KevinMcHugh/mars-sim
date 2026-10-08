@@ -11,7 +11,7 @@ import (
 )
 
 // The inspector's topics: one creature ("entity:<id>") or one tile
-// ("tile:<x>,<y>"), with what the TUI's inspectors show
+// ("tile:<x>,<y>[,<level>]"), with what the TUI's inspectors show
 // (internal/ui/tui/render_roster.go, renderCursorInspector). They take a
 // parameter, so they are resolved by prefix rather than listed in topicTable.
 
@@ -19,7 +19,7 @@ import (
 // health bar moves while you watch, and one creature is cheap to build.
 const inspectEvery = 250 * time.Millisecond
 
-// paramTopic resolves "entity:<id>" and "tile:<x>,<y>", and the other
+// paramTopic resolves "entity:<id>" and "tile:<x>,<y>[,<level>]", and the other
 // topics that take a parameter: roster:, account:, book: and order:.
 func paramTopic(name string) (topic, bool) {
 	kind, arg, ok := strings.Cut(name, ":")
@@ -70,6 +70,7 @@ type EntityTopic struct {
 	Name  string      `json:"name"`
 	X     int         `json:"x"`
 	Y     int         `json:"y"`
+	Level int         `json:"level"`
 	State string      `json:"state"`
 	Focus string      `json:"focus"`
 	HP    int         `json:"hp"`
@@ -226,6 +227,7 @@ func entityTopic(s *sim.Snapshot, id sim.EntityID) EntityTopic {
 		Look:  glyphs.ForEntityLook(e),
 		Name:  entityName(e),
 		X:     e.Pos.X,
+		Level: int(e.Pos.Level),
 		Y:     e.Pos.Y,
 		State: e.State.String(),
 		Focus: e.Focus.String(),
@@ -338,6 +340,7 @@ func colonistNames(s *sim.Snapshot) map[sim.EntityID]string {
 type TileTopic struct {
 	X        int    `json:"x"`
 	Y        int    `json:"y"`
+	Level    int    `json:"level"`
 	Explored bool   `json:"explored"`
 	Terrain  string `json:"terrain,omitempty"` // a rock's composition, for rock
 	Glyph    string `json:"glyph,omitempty"`
@@ -385,7 +388,7 @@ type Creature struct {
 }
 
 func tileTopic(s *sim.Snapshot, p sim.Point) TileTopic {
-	t := TileTopic{X: p.X, Y: p.Y, Creatures: []Creature{}}
+	t := TileTopic{X: p.X, Y: p.Y, Level: int(p.Level), Creatures: []Creature{}}
 	if !s.ExploredAt(p) {
 		return t
 	}

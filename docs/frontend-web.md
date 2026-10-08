@@ -99,7 +99,8 @@ change with the dev server already running, run `npm run wasm` and reload.
 
 **The new-game form.** A cold load starts no game: it opens the **Game**
 tab, filled from the URL over the defaults (10000×10000, 6
-colonists, fog of war on, no seed, so the engine picks one), and **Start**
+colonists, fog of war on, deepest level 1, no seed, so the engine picks
+one), and **Start**
 goes straight to the Ships tab. The page used to generate a 10000×10000
 world on load, so the first thing a player saw was a game they had not
 chosen, and changing it meant generating a second world. Under the colonist
@@ -124,8 +125,27 @@ worker now reports every failure to the page as well.
 Normal, Fast, Faster, Max); arrows or WASD pan; `[` and `]` zoom; `f` steps the
 flow-field overlay through each field and back to off, and `F` turns it off
 (the top bar's *Flow* picker does the same, see
-[flow-field-view.md](./flow-field-view.md)); Escape closes the side panel. A
-click (or tap) on the map inspects what is there.
+[flow-field-view.md](./flow-field-view.md)); `>` and `<` (or `.` and `,`)
+step the map a level down or up; Escape closes the side panel. A click (or
+tap) on the map inspects what is there.
+
+**Levels.** The map shows one level at a time (`ui.level`), the landing
+level first. With a deepest level above 1 (the New game form's *Deepest
+level*, or `?deepest-level=` in the URL), the top bar gets a level picker
+(`LevelControl.svelte`) listing the levels the colony has broken into, which
+each frame reports, and the Dig tab gets **Dig down**: a stair, a shaft so
+many levels deep, a hole, or a ladder into a hole. The planner sites each on
+the deepest level reached, as the terminal's orders do. Changing level sends
+the worker the same interest rectangle with the new level; the next frame
+starts the tiles over (see [wire-format.md](./wire-format.md), "Levels"),
+and the page drops any frame still in flight from the old level. A dig or
+clearing is ordered on the level shown. Zones are the landing level's, so
+off it the Zones tab offers only *Clear area*, and the zone overlay is
+hidden. Picking up a ship goes back to the landing level. A selected tile
+carries its level, so its marker shows only on that level, and every link
+that names a place (the inspector's *Find*, a job's tiles, a storage row, a
+dig or clearing order) goes to its level first. The hover readout adds the
+level when it is not the landing level.
 
 **The hover readout** names the tile under the pointer and who is on it. A
 colonist is named from the `names` topic, which `main.ts` subscribes to for

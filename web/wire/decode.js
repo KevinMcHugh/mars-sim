@@ -6,9 +6,9 @@
 // The views alias the buffer. Keep the buffer (or copy out) for as long as you
 // read them.
 
-export const VERSION = 5;
+export const VERSION = 6;
 
-const HEADER = 72;
+const HEADER = 80;
 export const PAGE_SIDE = 64;
 export const PAGE_TILES = PAGE_SIDE * PAGE_SIDE;
 export const TILE_BYTES = 2; // terrain, flags
@@ -48,6 +48,9 @@ export function decodeFrame(buffer) {
   const nScum = dv.getUint32(48, true);
   const nSalt = dv.getUint32(52, true);
   const nFlow = dv.getUint32(56, true);
+  const levelMask = dv.getUint32(76, true);
+  const levels = [];
+  for (let l = 0; l < 32; l++) if (levelMask & (1 << l)) levels.push(l);
 
   let at = HEADER;
   const stats = new Int32Array(buffer, at, nStats);
@@ -148,6 +151,10 @@ export function decodeFrame(buffer) {
     tps: dv.getUint32(24, true),
     // Pages in view the worker still owes; they follow in the next frames.
     pagesOwed: dv.getUint32(44, true),
+    // The level every section of this frame is on (the one the page asked
+    // for), and the levels the colony has broken into, shallowest first.
+    level: dv.getUint32(72, true),
+    levels,
     stats,
     entities,
     pages,

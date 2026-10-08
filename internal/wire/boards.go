@@ -42,6 +42,7 @@ type Project struct {
 type Task struct {
 	X       int     `json:"x"`
 	Y       int     `json:"y"`
+	Level   int     `json:"level"`
 	Terrain string  `json:"terrain"`
 	Phase   int     `json:"phase"`
 	Done    bool    `json:"done"`
@@ -68,7 +69,7 @@ func jobsTopic(s *sim.Snapshot) JobsTopic {
 		pr := Project{ID: p.ID, Name: p.Name, QueuedTick: p.QueuedTick, Done: p.TasksDone(),
 			Tasks: make([]Task, 0, len(p.Tasks)), Assignees: []Person{}}
 		for _, tk := range p.Tasks {
-			task := Task{X: tk.Pos.X, Y: tk.Pos.Y, Terrain: tk.Terrain.String(), Phase: tk.Phase, Done: tk.Done}
+			task := Task{X: tk.Pos.X, Y: tk.Pos.Y, Level: int(tk.Pos.Level), Terrain: tk.Terrain.String(), Phase: tk.Phase, Done: tk.Done}
 			if tk.Owner != 0 && !tk.Done {
 				b := person(tk.Owner)
 				task.Builder = &b
@@ -98,11 +99,12 @@ func jobsTopic(s *sim.Snapshot) JobsTopic {
 // ---- storage --------------------------------------------------------------
 
 // StorageRow is one container in the storage list. Its contents and ledger
-// are the tile inspector's (tile:<x>,<y>), which the page opens on a click;
+// are the tile inspector's (tile:<x>,<y>,<level>), which the page opens on a click;
 // the totals and ledger here are what the tab's pool and searches add up.
 type StorageRow struct {
 	X        int    `json:"x"`
 	Y        int    `json:"y"`
+	Level    int    `json:"level"`
 	Label    string `json:"label"`
 	Used     int    `json:"used"`
 	Slots    int    `json:"slots"`
@@ -120,7 +122,7 @@ func storageTopic(s *sim.Snapshot) []StorageRow {
 	rows := make([]StorageRow, 0, len(s.Storages))
 	for _, st := range s.Storages {
 		info := storageInfo(s, st)
-		r := StorageRow{X: st.Pos.X, Y: st.Pos.Y, Label: info.Label, Used: info.Used, Slots: info.Slots,
+		r := StorageRow{X: st.Pos.X, Y: st.Pos.Y, Level: int(st.Pos.Level), Label: info.Label, Used: info.Used, Slots: info.Slots,
 			Items: info.Items, Capacity: info.Capacity, Contents: []Holding{}, Ledger: info.Ledger}
 		totals := map[sim.ItemKind]int{}
 		for _, stack := range st.Inventory {
@@ -245,6 +247,7 @@ type Dig struct {
 	Y0    int   `json:"y0"`
 	X1    int   `json:"x1"`
 	Y1    int   `json:"y1"`
+	Level int   `json:"level"` // an order covers one level
 	Tiles int   `json:"tiles"`
 	Done  int   `json:"done"`
 	Held  int64 `json:"held"`
@@ -349,6 +352,7 @@ func marketTopic(s *sim.Snapshot) MarketTopic {
 		for _, tk := range p.Tasks {
 			d.X0, d.Y0 = min(d.X0, tk.Pos.X), min(d.Y0, tk.Pos.Y)
 			d.X1, d.Y1 = max(d.X1, tk.Pos.X), max(d.Y1, tk.Pos.Y)
+			d.Level = int(tk.Pos.Level)
 		}
 		for _, o := range econ.WorkOrders {
 			if o.Kind == sim.WorkDig && o.Pos.X >= d.X0 && o.Pos.X <= d.X1 && o.Pos.Y >= d.Y0 && o.Pos.Y <= d.Y1 && digHas(p, o.Pos) {

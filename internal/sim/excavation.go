@@ -22,9 +22,12 @@ const ExcavationName = "excavation"
 const maxExcavationTiles = 400
 
 // OrderExcavation asks the colony to have an area mined out: the rectangle with
-// corners (X0, Y0) and (X1, Y1), inclusive, in either order. The outcome is
+// corners (X0, Y0) and (X1, Y1), inclusive, in either order, on Level. The outcome is
 // logged, since a command has no reply.
-type OrderExcavation struct{ X0, Y0, X1, Y1 int }
+type OrderExcavation struct {
+	X0, Y0, X1, Y1 int
+	Level          Level // the zero value is the landing level (orderLevel)
+}
 
 func (OrderExcavation) isCommand() {}
 
@@ -82,7 +85,7 @@ func (w *World) orderExcavation(c OrderExcavation) bool {
 
 	// Tiles another project already has a task on would be dug twice, and
 	// paid twice (unmarkedRock leaves them out).
-	rock := w.unmarkedRock(x0, y0, x1, y1)
+	rock := w.unmarkedRock(orderLevel(c.Level), x0, y0, x1, y1)
 	if len(rock) == 0 {
 		w.logEvent(LogBuildStart, "There is no unmarked rock the colony has seen in that area to dig out.")
 		return false

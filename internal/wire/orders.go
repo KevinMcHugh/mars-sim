@@ -193,15 +193,25 @@ func depotLabel(s *sim.Snapshot, p sim.Point) string {
 	return "depot"
 }
 
-// parsePoint reads "<x>,<y>".
-// The browser shows the landing level only (see docs/stairs.md), so a point
-// it names is on the landing level.
+// parsePoint reads "<x>,<y>" or "<x>,<y>,<level>". Without a level the
+// point is on the landing level: the depots the market topics name are all
+// there, and so was every point the page sent before it could show others.
 func parsePoint(arg string) (sim.Point, bool) {
-	xs, ys, ok := strings.Cut(arg, ",")
-	x, errX := strconv.Atoi(xs)
-	y, errY := strconv.Atoi(ys)
-	if !ok || errX != nil || errY != nil {
+	parts := strings.Split(arg, ",")
+	if len(parts) < 2 || len(parts) > 3 {
 		return sim.Point{}, false
 	}
-	return sim.Point{X: x, Y: y, Level: sim.LandingLevel}, true
+	x, errX := strconv.Atoi(parts[0])
+	y, errY := strconv.Atoi(parts[1])
+	if errX != nil || errY != nil {
+		return sim.Point{}, false
+	}
+	l := int(sim.LandingLevel)
+	if len(parts) == 3 {
+		var err error
+		if l, err = strconv.Atoi(parts[2]); err != nil || l < 0 {
+			return sim.Point{}, false
+		}
+	}
+	return sim.Point{X: x, Y: y, Level: sim.Level(l)}, true
 }

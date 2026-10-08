@@ -13,7 +13,7 @@ import (
 // can view it as an Int32Array or Uint8Array in place. docs/wire-format.md is
 // the reference; this is the code.
 const (
-	headerLen = 72
+	headerLen = 80
 	pageTiles = sim.TilePageSide * sim.TilePageSide
 	// tileBytes is one tile on the wire: terrain, then flags.
 	tileBytes = 2
@@ -56,6 +56,10 @@ type Encoder struct {
 
 	interest    Rect
 	hasInterest bool
+	// level is the level the page shows (SetLevel); sentLevel the one the
+	// pages it holds are from, which a change of level starts over.
+	level, sentLevel sim.Level
+	levelSent        bool
 
 	held      map[int]bool // page table indexes whose current tiles the page holds
 	lastFrame uint64       // TileChanges.Frame of the last snapshot applied
@@ -70,7 +74,7 @@ type Encoder struct {
 	// says the interest changed since then: the section only carries the
 	// tiles in view, so a new view needs them again.
 	lastFlow  *sim.FlowFieldView
-	ents      []sim.EntityView // landingEntities' buffer
+	ents      []sim.EntityView // levelEntities' buffer
 	flowMoved bool
 	flow      []flowTile
 	owed      int // pages in view still to send after the last frame
@@ -81,10 +85,23 @@ type Encoder struct {
 }
 
 // NewEncoder returns an encoder with nothing in view: frames carry no tiles
-// until SetInterest.
+// until SetInterest. It shows the landing level until SetLevel.
 func NewEncoder() *Encoder {
-	return &Encoder{held: map[int]bool{}, tiles: make([]sim.Tile, pageTiles)}
+	return &Encoder{held: map[int]bool{}, tiles: make([]sim.Tile, pageTiles), level: sim.LandingLevel}
 }
+
+// SetLevel sets the level the page is showing. Every section of a frame is
+// that level's: its tile pages, entities, refuse, scum, salt and flow. A new
+// level starts the page's tiles over (flagTilesReset), since the pages it
+// holds are another level's.
+func (e *Encoder) SetLevel(l sim.Level) {
+	if l != e.level {
+		e.level, e.flowMoved = l, true
+	}
+}
+
+// Level is the level the page is showing.
+func (e *Encoder) Level() sim.Level { return e.level }
 
 // SetInterest sets the map region the page is showing. Pages that intersect
 // it are sent as they become known or change; pages outside it are not, and
@@ -121,8 +138,12 @@ func (e *Encoder) Encode(snap *sim.Snapshot) []byte {
 	if snap.FogOfWar {
 		flags |= flagFogOfWar
 	}
-	tc := snap.TileChanges
-	if tc.Frame != e.lastFrame {
+	tc := snap.LevelTileChanges(e.level)
+	if !e.levelSent || e.sentLevel != e.level {
+		clear(e.held)
+		flags |= flagTilesReset | flagRefuseFrame
+		e.sentLevel, e.levelSent, e.lastFrame = e.level, true, tc.Frame
+	} else if tc.Frame != e.lastFrame {
 		if tc.All || tc.Frame != e.lastFrame+1 {
 			clear(e.held)
 			flags |= flagTilesReset | flagRefuseFrame
@@ -139,19 +160,20 @@ func (e *Encoder) Encode(snap *sim.Snapshot) []byte {
 
 	pages := e.pagesToSend(snap)
 	var refuse []sim.RefuseTile
-	if flags&flagRefuseFrame != 0 {
-		refuse = snap.Tiles.RefuseTiles()
+	grid := snap.LevelGrid(e.level)
+	if flags&flagRefuseFrame != 0 && grid != nil {
+		refuse = grid.RefuseTiles()
 	}
 	var scum []scumTile
 	if id := reflect.ValueOf(snap.Scum).Pointer(); id != e.lastScum || flags&flagTilesReset != 0 {
 		flags |= flagScumFrame
-		scum = scumTiles(snap.Scum)
+		scum = scumTiles(snap.Scum, e.level)
 		e.lastScum = id
 	}
 	var salt []sim.Point
 	if id := reflect.ValueOf(snap.Salt).Pointer(); id != e.lastSalt || flags&flagTilesReset != 0 {
 		flags |= flagSaltFrame
-		salt = saltTiles(snap.Salt)
+		salt = saltTiles(snap.Salt, e.level)
 		e.lastSalt = id
 	}
 
@@ -167,9 +189,8 @@ func (e *Encoder) Encode(snap *sim.Snapshot) []byte {
 		}
 	}
 
-	// The page shows the landing level (see docs/z-levels.md, phase Z5), so
-	// an entity anywhere else is not drawn.
-	ents := e.landingEntities(snap.Entities)
+	// The page shows one level, so an entity on any other is not drawn.
+	ents := e.levelEntities(snap.Entities)
 	n := len(ents)
 	size := headerLen +
 		4*len(statFields) +
@@ -201,6 +222,8 @@ func (e *Encoder) Encode(snap *sim.Snapshot) []byte {
 	le.PutUint32(b[60:], uint32(flowField))
 	le.PutUint32(b[64:], uint32(flowMax))
 	le.PutUint32(b[68:], uint32(flowGoals))
+	le.PutUint32(b[72:], uint32(e.level))
+	le.PutUint32(b[76:], levelMask(snap))
 	at := headerLen
 
 	for _, v := range statValues(snap.Stats) {
@@ -242,7 +265,7 @@ func (e *Encoder) Encode(snap *sim.Snapshot) []byte {
 	at += 8 * len(pages)
 	visibleAll := !snap.FogOfWar
 	for _, p := range pages {
-		snap.ReadPage(p.pi, e.tiles) // pagesToSend checked PageKnown
+		snap.ReadLevelPage(e.level, p.pi, e.tiles) // pagesToSend checked LevelPageKnown
 		for _, t := range e.tiles {
 			b[at] = byte(t.Terrain)
 			f := byte(t.Composition) & tileCompositionMask
@@ -316,7 +339,8 @@ func (e *Encoder) Encode(snap *sim.Snapshot) []byte {
 func (e *Encoder) pagesToSend(snap *sim.Snapshot) []pageRef {
 	e.order = e.order[:0]
 	e.owed = 0
-	if !e.hasInterest {
+	grid := snap.LevelGrid(e.level)
+	if !e.hasInterest || grid == nil {
 		return nil
 	}
 	side := sim.TilePageSide
@@ -329,8 +353,8 @@ func (e *Encoder) pagesToSend(snap *sim.Snapshot) []pageRef {
 	cx, cy := (x0+x1)/2/side, (y0+y1)/2/side
 	for py := y0 / side; py <= (y1-1)/side; py++ {
 		for px := x0 / side; px <= (x1-1)/side; px++ {
-			origin := sim.Point{X: px * side, Y: py * side, Level: sim.LandingLevel}
-			pi := snap.Tiles.PageIndex(origin)
+			origin := sim.Point{X: px * side, Y: py * side, Level: e.level}
+			pi := grid.PageIndex(origin)
 			if e.held[pi] {
 				continue
 			}
@@ -350,7 +374,7 @@ func (e *Encoder) pagesToSend(snap *sim.Snapshot) []pageRef {
 			e.owed = e.countShowable(snap, e.order[i:])
 			break
 		}
-		if !snap.PageKnown(p.pi) {
+		if !snap.LevelPageKnown(e.level, p.pi) {
 			continue
 		}
 		e.held[p.pi] = true
@@ -363,7 +387,7 @@ func (e *Encoder) pagesToSend(snap *sim.Snapshot) []pageRef {
 func (e *Encoder) countShowable(snap *sim.Snapshot, pages []pageRef) int {
 	n := 0
 	for _, p := range pages {
-		if snap.PageKnown(p.pi) {
+		if snap.LevelPageKnown(e.level, p.pi) {
 			n++
 		}
 	}
@@ -376,13 +400,25 @@ func clampInt32(v int) int32 {
 	return int32(max(min(v, math.MaxInt32), math.MinInt32))
 }
 
-// landingEntities is ents without those on any level but the landing level,
+// levelMask has bit l set for each level l the colony has broken into, so
+// the page knows which levels it can show.
+func levelMask(snap *sim.Snapshot) uint32 {
+	var m uint32
+	for _, l := range snap.Levels() {
+		if l >= 0 && l < 32 {
+			m |= 1 << uint(l)
+		}
+	}
+	return m
+}
+
+// levelEntities is ents without those on any level but the one shown,
 // reusing a buffer, or ents itself when every one is there (always, until
 // the colony digs down).
-func (e *Encoder) landingEntities(ents []sim.EntityView) []sim.EntityView {
+func (e *Encoder) levelEntities(ents []sim.EntityView) []sim.EntityView {
 	all := true
 	for i := range ents {
-		if ents[i].Pos.Level != sim.LandingLevel {
+		if ents[i].Pos.Level != e.level {
 			all = false
 			break
 		}
@@ -392,7 +428,7 @@ func (e *Encoder) landingEntities(ents []sim.EntityView) []sim.EntityView {
 	}
 	out := e.ents[:0]
 	for i := range ents {
-		if ents[i].Pos.Level == sim.LandingLevel {
+		if ents[i].Pos.Level == e.level {
 			out = append(out, ents[i])
 		}
 	}
@@ -407,10 +443,10 @@ type scumTile struct {
 
 // scumTiles lists the scum map in row order: map order is random, and the
 // frame's bytes should not be (the golden tests compare them).
-func scumTiles(m map[sim.Point]uint8) []scumTile {
+func scumTiles(m map[sim.Point]uint8, l sim.Level) []scumTile {
 	out := make([]scumTile, 0, len(m))
 	for p, n := range m {
-		if p.Level == sim.LandingLevel { // the page shows the landing level
+		if p.Level == l {
 			out = append(out, scumTile{p, n})
 		}
 	}
@@ -424,10 +460,10 @@ func scumTiles(m map[sim.Point]uint8) []scumTile {
 }
 
 // saltTiles lists the salt set in row order, for the same reason as scumTiles.
-func saltTiles(m map[sim.Point]struct{}) []sim.Point {
+func saltTiles(m map[sim.Point]struct{}, l sim.Level) []sim.Point {
 	out := make([]sim.Point, 0, len(m))
 	for p := range m {
-		if p.Level == sim.LandingLevel { // the page shows the landing level
+		if p.Level == l {
 			out = append(out, p)
 		}
 	}
@@ -454,7 +490,7 @@ func (e *Encoder) flowTiles(v *sim.FlowFieldView) []flowTile {
 		return out
 	}
 	r := e.interest
-	v.Range(sim.LandingLevel, r.X0, r.Y0, r.X1, r.Y1, func(p sim.Point, d int32) {
+	v.Range(e.level, r.X0, r.Y0, r.X1, r.Y1, func(p sim.Point, d int32) {
 		out = append(out, flowTile{p, uint16(min(d, math.MaxUint16))})
 	})
 	return out

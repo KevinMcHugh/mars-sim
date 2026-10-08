@@ -244,7 +244,7 @@ func (w *World) planZonePaint(c PaintZone) *zonePaint {
 	}
 	z.clear = w.tilesToClear(z.evicted)
 	if c.Kind != NoZone {
-		z.dig = w.unmarkedRock(x0, y0, x1, y1)
+		z.dig = w.unmarkedRock(LandingLevel, x0, y0, x1, y1)
 	}
 	return z
 }
@@ -357,12 +357,15 @@ func pluralNoun(n string) string {
 // unmarkedRock is the rock in a rectangle that an excavation could take: seen
 // by the colony, not a reserved door tile, and not already some project's
 // unfinished task.
-func (w *World) unmarkedRock(x0, y0, x1, y1 int) []Point {
+func (w *World) unmarkedRock(level Level, x0, y0, x1, y1 int) []Point {
+	if w.layer(level) == nil {
+		return nil // a level nobody has broken into has nothing seen
+	}
 	taken := w.markedTiles()
 	var out []Point
 	for y := y0; y <= y1; y++ {
 		for x := x0; x <= x1; x++ {
-			p := Point{x, y, LandingLevel}
+			p := Point{x, y, level}
 			if w.TerrainAt(p) != Rock || !w.discovered(p) || w.doorTiles[p] || taken[p] {
 				continue
 			}
@@ -392,10 +395,14 @@ func (w *World) markedTiles() map[Point]bool {
 const ClearingName = "clearing"
 
 // ClearArea orders every structure tile the colony has seen in the rectangle
-// cleared back to floor: walls, ships' hulls, fixtures. It is a paid
-// work order, all or nothing, and any room still going up in the area is
-// called off. Nothing about zoning changes. The outcome is logged.
-type ClearArea struct{ X0, Y0, X1, Y1 int }
+// cleared back to floor: walls, ships' hulls, fixtures, but never a stair,
+// shaft or hole (joinsLevels). It is a paid work order, all or nothing, and
+// any room still going up in the area is called off. Nothing about zoning
+// changes. The outcome is logged.
+type ClearArea struct {
+	X0, Y0, X1, Y1 int
+	Level          Level // the zero value is the landing level (orderLevel)
+}
 
 func (ClearArea) isCommand() {}
 
@@ -408,15 +415,35 @@ func (CancelClear) isCommand() {}
 // isBuilt reports whether terrain is a structure: anything but rock and floor.
 func isBuilt(t Terrain) bool { return t != Rock && t != Floor }
 
+// joinsLevels reports whether t is a stair, shaft or hole: clearing one end
+// would leave the other dangling on a level the player may not be looking
+// at, so a clearing leaves them be.
+func joinsLevels(t Terrain) bool { return t >= StairDown && t <= Hole }
+
+// orderLevel is the level a player's area order names. The zero value (the
+// surface) means the landing level, so an order that predates levels, or a
+// caller that never sets one, keeps meaning the map it always did; there is
+// nothing on the surface to dig or clear until Z6 (see docs/z-levels.md).
+func orderLevel(l Level) Level {
+	if l == SurfaceLevel {
+		return LandingLevel
+	}
+	return l
+}
+
 // clearArea carries out a ClearArea, and reports whether it did.
 func (w *World) clearArea(c ClearArea) bool {
 	x0, y0, x1, y1 := w.clampRect(c.X0, c.Y0, c.X1, c.Y1)
+	level := orderLevel(c.Level)
+	if w.layer(level) == nil {
+		x0, x1 = 1, 0 // a level nobody has broken into: nothing to clear
+	}
 	taken := w.markedTiles()
 	var tiles []Point
 	for y := y0; y <= y1; y++ {
 		for x := x0; x <= x1; x++ {
-			p := Point{x, y, LandingLevel}
-			if isBuilt(w.TerrainAt(p)) && w.discovered(p) && !taken[p] {
+			p := Point{x, y, level}
+			if t := w.TerrainAt(p); isBuilt(t) && !joinsLevels(t) && w.discovered(p) && !taken[p] {
 				tiles = append(tiles, p)
 			}
 		}
@@ -429,7 +456,7 @@ func (w *World) clearArea(c ClearArea) bool {
 			continue
 		}
 		for _, t := range p.tasks {
-			if t.pos.X >= x0 && t.pos.X <= x1 && t.pos.Y >= y0 && t.pos.Y <= y1 && !w.taskDone(t) {
+			if t.pos.Level == level && t.pos.X >= x0 && t.pos.X <= x1 && t.pos.Y >= y0 && t.pos.Y <= y1 && !w.taskDone(t) {
 				rooms = append(rooms, p)
 				break
 			}

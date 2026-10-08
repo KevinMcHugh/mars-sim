@@ -28,7 +28,7 @@ ships, its content moves into a present-tense doc and the table links to it.
 | Z2 — Shafts | **Shipped** — [shafts.md](./shafts.md) |
 | Z3 — Holes | **Shipped** — [holes.md](./holes.md) |
 | Z4 — Depth gating (challenge and reward) | **Shipped** — [depth.md](./depth.md) |
-| Z5 — Browser frontend and wire format | Proposed |
+| Z5 — Browser frontend and wire format | **Shipped** — [frontend-web.md](./frontend-web.md), [wire-format.md](./wire-format.md) |
 | Z6 — The surface (level 0) | Proposed; needs its own doc |
 
 ## Source
@@ -391,9 +391,15 @@ and the frontend filters to the viewed level.
   is more than one level, the header shows `landing level` or `level N` and
   the legend shows the stair glyphs (🔽/🔼). Not done: the roster does not
   yet show each colonist's level.
-- **Browser (Z5):** the view rectangle the page streams gains a level. Frame
-  tile pages are keyed `(level, page)`. The entity section carries a level byte.
-  The golden frames both decoders test against are re-pinned once, in Z5.
+- **Browser (Z5, shipped):** the view rectangle the page streams gains a
+  level, and every section of a frame is that level's; the header says which
+  level and which levels exist. The golden frames were re-pinned once.
+  **Departure:** the plan keyed frame pages by `(level, page)` and gave each
+  entity a level byte. As built the page holds one level at a time:
+  changing level resets its tiles and the encoder sends the new level from
+  scratch, so neither the page's page cache nor the entity section needed a
+  level, and a level's pages cost nothing while nobody looks at it. A switch
+  re-streams the view's pages (a few frames), which is the price.
 
 ## Why it is this way
 
@@ -454,7 +460,13 @@ Build order and what each phase must prove:
   raiding down holes. Aliens already hunted up stairs and shafts (rooms span
   levels). Departed from the plan: the species roster is the seed's, not
   rolled per level; depth weights which species nest, not which exist.
-- **Z5 — browser.** Wire format, view level, and `web/` rendering.
+- **Z5 — browser. Shipped** ([frontend-web.md](./frontend-web.md),
+  "Levels"; [wire-format.md](./wire-format.md), "Levels"): wire version 6
+  (a frame's level and the levels that exist), `Snapshot.LevelChanges` and
+  per-level page reads, a level picker and `<`/`>` in the page, dig-down
+  orders (stair, shaft, hole, ladder) in the Dig tab, dig and clear orders on
+  the level shown, levels on every topic row that names a place, and
+  *Deepest level* on the New game form.
 - **Z6 — the surface.** Level 0's own generator and hazards, and links dug
   **up** from level 1 to break out onto it. Its own doc before it is built.
 

@@ -17,11 +17,13 @@ export type Command =
   /** Order the rectangle (tiles, inclusive) mined out, paid for by the colony. */
   /** Cancel an excavation order by id, refunding what is unspent. */
   | { type: 'dig-cancel'; id: number }
-  | { type: 'dig'; x0: number; y0: number; x1: number; y1: number }
+  | { type: 'dig'; x0: number; y0: number; x1: number; y1: number; level?: number }
+  /** Dig down from the deepest level reached: a stair, a shaft so many levels deep, a hole, or a ladder into a hole (docs/z-levels.md). */
+  | { type: 'dig-down'; kind: 'stair' | 'shaft' | 'hole' | 'ladder'; levels?: number }
   /** Zone the rectangle as a kind by name ('none' unzones it); the work it implies is paid by the colony (docs/zoning.md). */
   | { type: 'zone'; kind: string; x0: number; y0: number; x1: number; y1: number }
   /** Order every structure in the rectangle cleared, paid by the colony. */
-  | { type: 'clear'; x0: number; y0: number; x1: number; y1: number }
+  | { type: 'clear'; x0: number; y0: number; x1: number; y1: number; level?: number }
   /** Cancel a clearing order by id, refunding what is unspent. */
   | { type: 'clear-cancel'; id: number }
   /** Reland a ship with its top-left at (x, y); only before the first tick (docs/ships.md). */
@@ -60,7 +62,7 @@ export interface Started {
  * A mismatch means mars-sim.wasm is from another build: usually a pull without
  * rerunning npm run wasm.
  */
-export const HOST_API = 20;
+export const HOST_API = 21;
 
 export class SimClient {
   private worker: Worker;
@@ -120,8 +122,9 @@ export class SimClient {
     this.worker.postMessage({ type: 'unsubscribe', topic });
   }
 
-  setInterest(r: TileRect): void {
-    this.worker.postMessage({ type: 'interest', rect: r });
+  /** The map region the page shows, and the level it is on. */
+  setInterest(r: TileRect, level: number): void {
+    this.worker.postMessage({ type: 'interest', rect: r, level });
   }
 
   private receive(msg: any): void {

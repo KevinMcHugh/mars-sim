@@ -475,8 +475,12 @@ type Snapshot struct {
 	// TileChanges says which pages of Tiles (the landing level) changed since
 	// the previous Snapshot, for a consumer that forwards terrain
 	// incrementally (the browser's wire encoder). See tilegrid.go.
-	TileChanges TileChanges
-	Entities    []EntityView
+	// LevelChanges is the same for every level, indexed like LevelTiles
+	// (the zero value for a level never broken into); every entry carries
+	// the same Frame.
+	TileChanges  TileChanges
+	LevelChanges []TileChanges
+	Entities     []EntityView
 	// Graveyard is the most recent violent/starvation deaths (bounded by
 	// Config.GraveyardSize), oldest first, for the roster's "dead" filter.
 	// See docs/combat.md.
@@ -708,14 +712,19 @@ func (w *World) snapshot(paused bool, tps int) *Snapshot {
 	w.snapFrame++
 	levelTiles := make([]*TileGrid, len(w.layers))
 	previews := make([]*ChunkPreview, len(w.layers))
-	var tileChanges TileChanges
+	levelChanges := make([]TileChanges, len(w.layers))
 	w.eachLayer(func(l *Layer) {
 		g, changes := w.publishedTiles(l)
 		levelTiles[l.Level], previews[l.Level] = g, l.preview
-		if l.Level == LandingLevel {
-			tileChanges = changes
-		}
+		levelChanges[l.Level] = changes
 	})
+	for i := range levelChanges {
+		levelChanges[i].Frame = w.snapFrame
+	}
+	var tileChanges TileChanges
+	if int(LandingLevel) < len(levelChanges) {
+		tileChanges = levelChanges[LandingLevel]
+	}
 	tileChanges.Frame = w.snapFrame
 
 	ents := make([]EntityView, 0, len(w.entities))
@@ -802,6 +811,7 @@ func (w *World) snapshot(paused bool, tps int) *Snapshot {
 		Tiles:                levelTiles[LandingLevel],
 		LevelTiles:           levelTiles,
 		TileChanges:          tileChanges,
+		LevelChanges:         levelChanges,
 		Entities:             ents,
 		Log:                  w.log.tail(len(w.log.entries)),
 		Stats:                stats,

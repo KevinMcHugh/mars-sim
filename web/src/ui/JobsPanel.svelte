@@ -6,7 +6,7 @@
   import { JOB_BUILDING, JOB_DONE, JOB_QUEUED } from '../map/palette';
 
   interface Person { id: number; name: string }
-  interface Task { x: number; y: number; terrain: string; phase: number; done: boolean; builder?: Person }
+  interface Task { x: number; y: number; level: number; terrain: string; phase: number; done: boolean; builder?: Person }
   interface Project { id: number; name: string; queuedTick: number; done: number; tasks: Task[]; assignees: Person[] }
   interface Jobs { projects: Project[]; pending: Record<string, number> }
 
@@ -19,7 +19,8 @@
   // The open project's tiles on the map, redrawn as its tasks change; gone
   // when it closes, finishes, or the tab unmounts.
   $effect(() => {
-    highlight(open ? open.tasks.map((t) => ({
+    // Only the shown level's tasks: the tint is drawn on the map as it is.
+    highlight(open ? open.tasks.filter((t) => t.level === ui.level).map((t) => ({
       x: t.x, y: t.y, color: t.done ? JOB_DONE : t.builder ? JOB_BUILDING : JOB_QUEUED,
     })) : null);
   });
@@ -27,9 +28,13 @@
 
   function center(p: Project): void {
     const todo = p.tasks.filter((t) => !t.done);
-    const ts = todo.length ? todo : p.tasks;
+    let ts = todo.length ? todo : p.tasks;
     if (!ts.length) return;
-    centerOn(Math.round(ts.reduce((s, t) => s + t.x, 0) / ts.length), Math.round(ts.reduce((s, t) => s + t.y, 0) / ts.length));
+    // A project can span levels (a stair, a shaft): center on its first
+    // task's level, and on that level's tasks.
+    const level = ts[0].level;
+    ts = ts.filter((t) => t.level === level);
+    centerOn(Math.round(ts.reduce((s, t) => s + t.x, 0) / ts.length), Math.round(ts.reduce((s, t) => s + t.y, 0) / ts.length), level);
   }
 
   const pending = $derived(jobs ? Object.entries(jobs.pending) : []);
@@ -67,7 +72,7 @@
             <ul class="tasks">
               {#each p.tasks as t, i (i)}
                 <li class:done={t.done}>
-                  <button type="button" class="link coord" onclick={() => inspect({ tile: [t.x, t.y] }, 'jobs')}>({t.x}, {t.y})</button>
+                  <button type="button" class="link coord" onclick={() => inspect({ tile: [t.x, t.y, t.level] }, 'jobs')}>({t.x}, {t.y}{t.level !== ui.hello?.landingLevel ? `, level ${t.level}` : ''})</button>
                   {t.terrain} —
                   {#if t.done}done{:else if t.builder}building: <button type="button" class="link" onclick={() => inspect({ entity: t.builder!.id }, 'jobs')}>{t.builder.name}</button>{:else}queued{/if}
                 </li>

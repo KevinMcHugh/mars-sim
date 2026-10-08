@@ -22,8 +22,8 @@
   const itemNames = $derived(rows ? items(rows) : []);
   const ownerNames = $derived(rows ? owners(rows) : []);
 
-  const at = (r: StorageRow) => sel !== null && sel[0] === r.x && sel[1] === r.y;
-  const open = (r: StorageRow) => inspect({ tile: [r.x, r.y] }, 'storage');
+  const at = (r: StorageRow) => sel !== null && sel[0] === r.x && sel[1] === r.y && (sel[2] ?? ui.level) === r.level;
+  const open = (r: StorageRow) => inspect({ tile: [r.x, r.y, r.level] }, 'storage');
 </script>
 
 {#if !rows || !p}
