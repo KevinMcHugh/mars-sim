@@ -38,9 +38,28 @@ type PackedSpecies struct {
 	ID           string `json:"id"`
 	Seed         int64  `json:"seed"`
 	GeneratorRev string `json:"generatorRev,omitempty"`
+	// Description is the species' field notes when the lab's were rewritten,
+	// shown in the lore tab in place of AlienSpecies.Description(); empty
+	// for the generated text. (The lab's export fills it either way, which
+	// shows the same words.)
+	Description string `json:"description,omitempty"`
+	// Notes are the lab's notes on the species, shown in the lore tab under
+	// the field notes: in-world writing, line breaks and all.
+	Notes string `json:"notes,omitempty"`
 	// Species is the species as rolled, with every field the game reads.
 	Species AlienSpecies   `json:"species"`
 	Sprites []PackedSprite `json:"sprites"`
+}
+
+// MaxPackedLoreBytes bounds a packed species' description and notes, each.
+const MaxPackedLoreBytes = 16 << 10
+
+// SpeciesLore is the text a lore tab shows for a species beyond what its
+// build implies: field notes rewritten in the lab (empty for the generated
+// ones) and the lab's notes. Rolled species have none.
+type SpeciesLore struct {
+	FieldNotes string
+	LabNotes   string
 }
 
 // PackedSprite is the accepted sprite for one form: Form indexes the
@@ -76,6 +95,9 @@ func LoadSpeciesPack(data []byte, name string) ([]PackedSpecies, error) {
 			return nil, fmt.Errorf("%s: %d forms (the most is %d)", where, sp.FormCount, maxAlienForms)
 		case sp.Limbs < sp.Arms || sp.Eyes < 0 || sp.HeightMaxCM <= 0 || sp.WeightMaxKG <= 0:
 			return nil, fmt.Errorf("%s: an impossible body", where)
+		}
+		if len(ps.Description) > MaxPackedLoreBytes || len(ps.Notes) > MaxPackedLoreBytes {
+			return nil, fmt.Errorf("%s: its description or notes run past %d bytes", where, MaxPackedLoreBytes)
 		}
 		seen := make([]bool, sp.slots())
 		for _, s := range ps.Sprites {
@@ -131,6 +153,15 @@ func packedRoster(rng *rand.Rand, cfg Config, pack []PackedSpecies, count int) (
 type alienSprites struct {
 	SVGs []string
 	Of   [][maxAlienForms]int
+}
+
+// packedLore is the lore text of a packed roster, by roster index.
+func packedLore(pack []PackedSpecies, picked []int) []SpeciesLore {
+	lore := make([]SpeciesLore, len(picked))
+	for r, i := range picked {
+		lore[r] = SpeciesLore{FieldNotes: strings.TrimSpace(pack[i].Description), LabNotes: strings.TrimSpace(pack[i].Notes)}
+	}
+	return lore
 }
 
 // buildAlienSprites lays out the sprites of a packed roster.

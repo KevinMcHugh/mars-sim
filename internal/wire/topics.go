@@ -247,7 +247,12 @@ type LoreSpecies struct {
 	BiteDamage     int    `json:"biteDamage"`
 	BiteRest       int    `json:"biteRest"` // ticks between bites
 	Slowness       int    `json:"slowness"` // ticks per step
-	Description    string `json:"description"`
+	// Description is the field notes: rewritten in Creature Lab for a
+	// packed species that has a rewrite, else generated.
+	Description string `json:"description"`
+	// Notes are a packed species' lab notes, line breaks kept; empty for
+	// none. See docs/species-pack.md.
+	Notes string `json:"notes,omitempty"`
 
 	// Etymology takes ScientificName apart into its word parts and their
 	// meanings (sim.ScientificEtymology): pseudo- "false", -ursus "bear",
@@ -285,7 +290,7 @@ func loreTopic(s *sim.Snapshot) any {
 			Name: c.Name, HQ: c.HQ, Founded: c.Founded, Description: c.Description(i, s.GunModels),
 		})
 	}
-	for _, sp := range s.AlienSpecies {
+	for i, sp := range s.AlienSpecies {
 		t.Species = append(t.Species, LoreSpecies{
 			Label:          sp.RosterLabel(),
 			Glyph:          glyphs.ForAlien(sp),
@@ -311,7 +316,8 @@ func loreTopic(s *sim.Snapshot) any {
 			BiteRest:       sp.BiteRest,
 			Slowness:       sp.Slowness,
 			Etymology:      loreEtymology(sp.ScientificName),
-			Description:    sp.Description(),
+			Description:    s.FieldNotes(i),
+			Notes:          s.LabNotes(i),
 		})
 	}
 	return t

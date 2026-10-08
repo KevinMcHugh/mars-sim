@@ -109,6 +109,32 @@ func TestPullKeepsSpeciesThisBuildRollsAlike(t *testing.T) {
 	}
 }
 
+// The lab's notes always come along; its field notes only when rewritten,
+// since the game writes the generated ones itself.
+func TestPullCarriesLabText(t *testing.T) {
+	ts := fakeLab(t, []int64{3, 7}, func(seed int64, d map[string]any) {
+		d["notes"] = fmt.Sprintf("Notes on seed %d.\nSecond line.", seed)
+		d["traits"].(map[string]any)["description"] = fmt.Sprint("Rewritten field notes for ", seed)
+		d["descriptionEdited"] = seed == 3
+	})
+	res, err := Pull(context.Background(), ts.Client(), ts.URL)
+	if err != nil || len(res.Pack.Species) != 2 {
+		t.Fatalf("pulled %d species: %v %q", len(res.Pack.Species), err, res.Skipped)
+	}
+	for _, ps := range res.Pack.Species {
+		if ps.Notes != fmt.Sprintf("Notes on seed %d.\nSecond line.", ps.Seed) {
+			t.Errorf("seed %d notes %q", ps.Seed, ps.Notes)
+		}
+		want := ""
+		if ps.Seed == 3 {
+			want = "Rewritten field notes for 3"
+		}
+		if ps.Description != want {
+			t.Errorf("seed %d description %q, want %q", ps.Seed, ps.Description, want)
+		}
+	}
+}
+
 func TestPullErrors(t *testing.T) {
 	if _, err := Encode(sim.SpeciesPack{}); !errors.Is(err, ErrNothing) {
 		t.Fatalf("an empty pull encoded: %v", err)
@@ -212,6 +238,8 @@ func TestPullFromARealLab(t *testing.T) {
 	for f := range drawn.Forms {
 		call("POST", fmt.Sprintf("/species/%s/forms/%d/candidates", drawn.ID, f), map[string]any{"svg": sprite, "accept": true}, nil)
 	}
+	const notes, rewrite = "Count the arms.\nThat is how you tell its age.", "Rewritten, in a voice of its own."
+	call("PATCH", "/species/"+drawn.ID, map[string]any{"notes": notes, "description": rewrite}, nil)
 
 	res, err := Pull(ctx, ts.Client(), ts.URL)
 	if err != nil {
@@ -223,6 +251,9 @@ func TestPullFromARealLab(t *testing.T) {
 	ps := res.Pack.Species[0]
 	if ps.ID != drawn.ID || ps.Seed != lifeSeed || len(ps.Sprites) != len(drawn.Forms) || ps.Sprites[1].SVG != sprite {
 		t.Fatalf("packed %+v", ps)
+	}
+	if ps.Notes != notes || ps.Description != rewrite {
+		t.Fatalf("lab text pulled as notes %q, description %q", ps.Notes, ps.Description)
 	}
 	if res.Pack.Source != ts.URL {
 		t.Fatalf("source %q, want %q", res.Pack.Source, ts.URL)

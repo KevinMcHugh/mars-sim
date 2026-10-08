@@ -32,3 +32,20 @@ func TestSpriteGlyphs(t *testing.T) {
 		t.Fatal("a world without a pack sent sprites")
 	}
 }
+
+// The lore topic carries a packed species' lab text: the rewrite in place of
+// the generated field notes, and the notes beside them.
+func TestLoreCarriesLabText(t *testing.T) {
+	sp := sim.RollLabSpecies(3)
+	snap := &sim.Snapshot{
+		AlienSpecies: []sim.AlienSpecies{sp, sp},
+		AlienLore:    []sim.SpeciesLore{{FieldNotes: "Rewritten.", LabNotes: "Notes."}, {}},
+	}
+	lore := loreTopic(snap).(LoreTopic)
+	if lore.Species[0].Description != "Rewritten." || lore.Species[0].Notes != "Notes." {
+		t.Fatalf("packed lore %+v", lore.Species[0])
+	}
+	if lore.Species[1].Description != sp.Description() || lore.Species[1].Notes != "" {
+		t.Fatalf("unedited lore %q / %q", lore.Species[1].Description, lore.Species[1].Notes)
+	}
+}

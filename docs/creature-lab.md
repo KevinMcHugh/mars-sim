@@ -42,7 +42,7 @@ A species' description (its "field notes", what a player reads in the game's Lor
 - **The rewrite is what shows everywhere:** in `traits.description` from the API and MCP, on the pages, in Scum Lab, in the sprite brief's `<field_notes>`, and in the export's `description`. A species detail also carries `generatedDescription` and `descriptionEdited`, so an agent can compare the two.
 - **Facts stay the traits' job.** Nothing checks a rewrite against the species. The MCP tool's description and the server instructions tell the agent to keep size, temperament, body, covering, features, attacks and life stages true, and to vary only voice and form. The brief also lists the form's exact body separately, so a loose rewrite cannot mislead an artist about limb counts.
 - **Limit:** a rewrite is capped at `MaxDescription` (4000 characters; the generated text runs a few hundred). Line breaks are kept and shown.
-- **The game does not read rewrites yet.** The export carries `description` beside the unchanged `species` struct. When the game loads a species pack, its Lore panel should prefer that over `AlienSpecies.Description()`.
+- **The game shows them.** A species pack carries the rewrite (`description`, only when `descriptionEdited`) and the lab notes (`notes`), and the game's lore tab shows the rewrite in place of the generated field notes, with the lab notes under it. See [species-pack.md](./species-pack.md#the-lore-tab).
 
 ### Who pays for drawing
 

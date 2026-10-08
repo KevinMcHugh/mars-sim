@@ -948,6 +948,9 @@ type World struct {
 	// sprites are the packed species' SVGs and which form draws with which
 	// (empty for a rolled roster); see species_pack.go.
 	sprites alienSprites
+	// speciesLore is the packed species' lab text, by roster index (nil for
+	// a rolled roster); see species_pack.go.
+	speciesLore []SpeciesLore
 
 	// corporations is this world's roster of companies back home, and
 	// gunModels the make and model every gun kind carries (one per
@@ -1042,6 +1045,7 @@ func newWorld(cfg Config, src *rand.PCG) *World {
 		var picked []int
 		w.alienSpecies, picked = packedRoster(newRand(cfg.Seed^alienLoreSeed), cfg, cfg.SpeciesPack, max(1, cfg.AlienSpeciesCount))
 		w.sprites = buildAlienSprites(cfg.SpeciesPack, picked)
+		w.speciesLore = packedLore(cfg.SpeciesPack, picked)
 	} else {
 		w.alienSpecies = rollAlienSpeciesRoster(newRand(cfg.Seed^alienLoreSeed), cfg)
 	}

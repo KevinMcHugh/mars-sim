@@ -67,6 +67,7 @@ func TestLoadSpeciesPack(t *testing.T) {
 		"form out of life": func(p *SpeciesPack) { p.Species[1].Sprites[0].Form = 5 },
 		"two for a form":   func(p *SpeciesPack) { p.Species[1].Sprites = append(p.Species[1].Sprites, p.Species[1].Sprites[0]) },
 		"not an svg":       func(p *SpeciesPack) { p.Species[1].Sprites[0].SVG = "hello" },
+		"huge notes":       func(p *SpeciesPack) { p.Species[0].Notes = strings.Repeat("x", MaxPackedLoreBytes+1) },
 		"huge sprite": func(p *SpeciesPack) {
 			p.Species[1].Sprites[0].SVG = "<svg>" + strings.Repeat(" ", MaxPackedSpriteBytes) + "</svg>"
 		},
@@ -193,5 +194,36 @@ func TestPackedWorldSurvivesASave(t *testing.T) {
 		if loaded.sprites.Of[i] != w.sprites.Of[i] {
 			t.Fatal("the sprite table changed in a save")
 		}
+	}
+}
+
+// A packed species' lore tab shows the lab's rewrite of its field notes, or
+// the generated ones when there is none, and the lab's notes.
+func TestPackedLore(t *testing.T) {
+	seeds := seedsWithLife(t, 2)
+	pack := testPack(t, seeds...)
+	pack[0].Description = "  Rewritten in the lab.  "
+	pack[0].Notes = "Count the arms.\nThat tells its age."
+	cfg := testConfig()
+	cfg.SpeciesPack = pack
+	cfg.AlienSpeciesCount = 2
+	w := newTestWorld(t, cfg)
+	snap := w.snapshot(false, 8)
+	for i, sp := range snap.AlienSpecies {
+		if sp.Singular == pack[0].Species.Singular {
+			if snap.FieldNotes(i) != "Rewritten in the lab." || snap.LabNotes(i) != "Count the arms.\nThat tells its age." {
+				t.Fatalf("rewritten species shows %q / %q", snap.FieldNotes(i), snap.LabNotes(i))
+			}
+		} else if snap.FieldNotes(i) != sp.Description() || snap.LabNotes(i) != "" {
+			t.Fatalf("an unedited species shows %q / %q", snap.FieldNotes(i), snap.LabNotes(i))
+		}
+	}
+	if loaded := saveAndLoad(t, w); len(loaded.speciesLore) != 2 {
+		t.Fatal("the lab text did not survive a save")
+	}
+
+	plain := newTestWorld(t, testConfig()).snapshot(false, 8)
+	if plain.FieldNotes(0) != plain.AlienSpecies[0].Description() || plain.LabNotes(0) != "" || plain.FieldNotes(99) != "" {
+		t.Fatal("a rolled species' lore is not its generated description")
 	}
 }

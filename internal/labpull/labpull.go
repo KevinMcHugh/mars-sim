@@ -1,6 +1,7 @@
 // Package labpull pulls a species pack from a Creature Lab server: every
-// species with a sprite for every form, as sim.PackedSpecies, using only the
-// lab's public reads (no key). See docs/species-pack.md.
+// species with a sprite for every form, as sim.PackedSpecies, with its
+// rewritten field notes and lab notes, using only the lab's public reads (no
+// key). See docs/species-pack.md.
 //
 // The public reads describe a species (its seed, the commit that rolled it,
 // its traits and forms) but do not carry the stored sim.AlienSpecies itself;
@@ -51,7 +52,12 @@ type (
 		ID           string `json:"id"`
 		Seed         int64  `json:"seed"`
 		GeneratorRev string `json:"generatorRev"`
-		Traits       struct {
+		Notes        string `json:"notes"`
+		// DescriptionEdited says traits.description is a rewrite, not the
+		// generated text.
+		DescriptionEdited bool `json:"descriptionEdited"`
+		Traits            struct {
+			Description    string `json:"description"`
 			Singular       string `json:"singular"`
 			Plural         string `json:"plural"`
 			ScientificName string `json:"scientificName"`
@@ -142,7 +148,12 @@ func pack(d speciesDetail, c candidateList) (ps sim.PackedSpecies, why string) {
 			accepted[cand.ID] = cand.SVG
 		}
 	}
-	ps = sim.PackedSpecies{ID: d.ID, Seed: d.Seed, GeneratorRev: d.GeneratorRev, Species: sp}
+	ps = sim.PackedSpecies{ID: d.ID, Seed: d.Seed, GeneratorRev: d.GeneratorRev, Notes: d.Notes, Species: sp}
+	// Only a rewrite is packed: unedited, the game writes the field notes
+	// itself, from the very species it plays, so they always match its stats.
+	if d.DescriptionEdited {
+		ps.Description = t.Description
+	}
 	for i, f := range d.Forms {
 		if f.Index != i || f.Name != names[i] {
 			return sim.PackedSpecies{}, fmt.Sprintf("rolled by %s with form %d a %s; this build rolls a %s", d.GeneratorRev, i, f.Name, names[i])
