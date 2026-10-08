@@ -18,6 +18,18 @@ type ApiKey struct {
 	DeletedAt  pgtype.Timestamptz `json:"deleted_at"`
 }
 
+type Invite struct {
+	ID        string             `json:"id"`
+	CodeHash  string             `json:"code_hash"`
+	Note      string             `json:"note"`
+	ExpiresAt pgtype.Timestamptz `json:"expires_at"`
+	UsedAt    pgtype.Timestamptz `json:"used_at"`
+	ApiKeyID  *string            `json:"api_key_id"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
+	DeletedAt pgtype.Timestamptz `json:"deleted_at"`
+}
+
 type OauthClient struct {
 	ID           string             `json:"id"`
 	RedirectUris []byte             `json:"redirect_uris"`

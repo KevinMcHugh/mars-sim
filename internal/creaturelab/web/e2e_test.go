@@ -17,7 +17,9 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/rs/xid"
@@ -25,6 +27,9 @@ import (
 	"github.com/kevinmchugh/mars-sim/internal/creaturelab"
 	"github.com/kevinmchugh/mars-sim/internal/creaturelab/auth"
 	"github.com/kevinmchugh/mars-sim/internal/creaturelab/db"
+	"github.com/kevinmchugh/mars-sim/internal/creaturelab/server/export"
+	"github.com/kevinmchugh/mars-sim/internal/creaturelab/server/species"
+	"github.com/kevinmchugh/mars-sim/internal/creaturelab/server/sprites"
 	"github.com/kevinmchugh/mars-sim/internal/creaturelab/web"
 )
 
@@ -59,18 +64,18 @@ func newLab(t *testing.T) *lab {
 
 	ts := httptest.NewServer(nil)
 	t.Cleanup(ts.Close)
-	svc := creaturelab.NewService(pool, ts.URL)
-	ts.Config.Handler = web.New(svc, ts.URL).Handler()
+	store := creaturelab.NewStore(pool)
+	ts.Config.Handler = web.New(store, ts.URL).Handler()
 
 	raw, err := auth.GenerateKey()
 	if err != nil {
 		t.Fatal(err)
 	}
-	key, err := svc.Q.CreateAPIKey(ctx, db.CreateAPIKeyParams{ID: xid.New().String(), Name: "test", KeyHash: auth.Hash(raw)})
+	key, err := store.CreateAPIKey(ctx, db.CreateAPIKeyParams{ID: xid.New().String(), Name: "test", KeyHash: auth.Hash(raw)})
 	if err != nil {
 		t.Fatal(err)
 	}
-	return &lab{t: t, url: ts.URL, key: raw, keyID: key.ID, q: svc.Q, client: &http.Client{
+	return &lab{t: t, url: ts.URL, key: raw, keyID: key.ID, q: store.Queries, client: &http.Client{
 		CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
 	}}
 }
@@ -145,14 +150,15 @@ func multiFormSeed(t *testing.T) int64 {
 func TestAPIFlow(t *testing.T) {
 	l := newLab(t)
 
-	resp := l.do("GET", "/api/species", "", nil, http.StatusUnauthorized, nil)
+	resp := l.do("GET", "/api/export", "", nil, http.StatusUnauthorized, nil)
 	if !strings.Contains(resp.Header.Get("WWW-Authenticate"), "/.well-known/oauth-protected-resource") {
 		t.Fatalf("401 does not point at OAuth discovery: %q", resp.Header.Get("WWW-Authenticate"))
 	}
-	l.do("GET", "/api/species", "cl_not-a-key", nil, http.StatusUnauthorized, nil)
+	l.do("GET", "/api/export", "cl_not-a-key", nil, http.StatusUnauthorized, nil)
+	l.do("POST", "/api/species", "", map[string]any{"seed": 1}, http.StatusUnauthorized, nil)
 
 	seed := multiFormSeed(t)
-	var sp creaturelab.SpeciesDetail
+	var sp species.Detail
 	l.do("POST", "/api/species", l.key, map[string]any{"seed": seed}, http.StatusCreated, &sp)
 	want := creaturelab.Roll(seed)
 	if sp.Seed != seed || sp.Traits.Plural != want.Plural || len(sp.Forms) != len(creaturelab.Forms(want)) || sp.Complete {
@@ -168,14 +174,14 @@ func TestAPIFlow(t *testing.T) {
 
 	path := "/api/species/" + sp.ID + "/forms/0/candidates"
 	l.do("POST", path, l.key, map[string]any{"svg": `<svg xmlns="http://www.w3.org/2000/svg" onload="alert(1)"/>`}, http.StatusUnprocessableEntity, nil)
-	var first, second creaturelab.Candidate
+	var first, second sprites.Candidate
 	l.do("POST", path, l.key, map[string]any{"svg": sprite, "note": "v1", "accept": true}, http.StatusCreated, &first)
 	l.do("POST", path, l.key, map[string]any{"svg": sprite, "note": "v2"}, http.StatusCreated, &second)
 	if !first.Accepted || second.Accepted {
 		t.Fatalf("accepted flags: first %v, second %v", first.Accepted, second.Accepted)
 	}
 	l.do("POST", "/api/candidates/"+second.ID+"/accept", l.key, nil, http.StatusOK, nil)
-	var cands struct{ Candidates []creaturelab.Candidate }
+	var cands struct{ Candidates []sprites.Candidate }
 	l.do("GET", "/api/species/"+sp.ID+"/candidates?form=0", l.key, nil, http.StatusOK, &cands)
 	accepted := 0
 	for _, c := range cands.Candidates {
@@ -198,7 +204,7 @@ func TestAPIFlow(t *testing.T) {
 		t.Fatal("sprite served without a sandbox CSP")
 	}
 
-	var exp creaturelab.Export
+	var exp export.Export
 	l.do("GET", "/api/export", l.key, nil, http.StatusOK, &exp)
 	if len(exp.Species) != 0 {
 		t.Fatal("export lists an incomplete species")
@@ -210,6 +216,35 @@ func TestAPIFlow(t *testing.T) {
 	if len(exp.Species) != 1 || !exp.Species[0].Complete || len(exp.Species[0].Sprites) != len(sp.Forms) {
 		t.Fatalf("export of a complete species: %+v", exp)
 	}
+
+	// Anyone may list and view species and every candidate, accepted or
+	// not, and open its sprite; nothing else is public.
+	var public struct{ Species []species.Summary }
+	l.do("GET", "/api/species", "", nil, http.StatusOK, &public)
+	if len(public.Species) != 1 || public.Species[0].ID != sp.ID || !public.Species[0].Complete {
+		t.Fatalf("public list: %+v", public)
+	}
+	var viewed species.Detail
+	l.do("GET", "/api/species/"+sp.ID, "", nil, http.StatusOK, &viewed)
+	if viewed.ID != sp.ID || len(viewed.Forms) != len(sp.Forms) || !viewed.Complete {
+		t.Fatalf("public view: %+v", viewed)
+	}
+	l.do("GET", "/api/species/no-such-species", "", nil, http.StatusNotFound, nil)
+	var anon struct{ Candidates []sprites.Candidate }
+	l.do("GET", "/api/species/"+sp.ID+"/candidates?svg=true", "", nil, http.StatusOK, &anon)
+	if len(anon.Candidates) != len(sp.Forms)+1 || anon.Candidates[0].SVG == "" {
+		t.Fatalf("public candidates: %d, want %d with SVG", len(anon.Candidates), len(sp.Forms)+1)
+	}
+	var unaccepted sprites.Candidate
+	l.do("GET", "/api/candidates/"+first.ID, "", nil, http.StatusOK, &unaccepted)
+	if unaccepted.Accepted || unaccepted.SVG == "" {
+		t.Fatalf("public unaccepted candidate: %+v", unaccepted)
+	}
+	l.do("GET", "/sprites/"+first.ID+".svg", "", nil, http.StatusOK, nil)
+	l.do("GET", "/api/species/"+sp.ID+"/forms/0/brief", "", nil, http.StatusUnauthorized, nil)
+	l.do("POST", "/api/candidates/"+first.ID+"/accept", "", nil, http.StatusUnauthorized, nil)
+	l.do("PATCH", "/api/species/"+sp.ID, "", map[string]any{"notes": "x"}, http.StatusUnauthorized, nil)
+	l.do("DELETE", "/api/species/"+sp.ID, "", nil, http.StatusUnauthorized, nil)
 
 	l.do("DELETE", "/api/candidates/"+second.ID, l.key, nil, http.StatusOK, nil)
 	l.do("GET", "/api/species/"+sp.ID, l.key, nil, http.StatusOK, &sp)
@@ -276,19 +311,110 @@ func TestOAuthFlow(t *testing.T) {
 	token(codeGrant, http.StatusBadRequest) // a code works once
 
 	access, refresh := tok["access_token"].(string), tok["refresh_token"].(string)
-	l.do("GET", "/api/species", access, nil, http.StatusOK, nil)
+	l.do("GET", "/api/export", access, nil, http.StatusOK, nil)
 
 	refreshGrant := url.Values{"grant_type": {"refresh_token"}, "refresh_token": {refresh}}
 	next := token(refreshGrant, http.StatusOK)
 	token(refreshGrant, http.StatusBadRequest) // a refresh token works once
-	l.do("GET", "/api/species", access, nil, http.StatusUnauthorized, nil)
-	l.do("GET", "/api/species", next["access_token"].(string), nil, http.StatusOK, nil)
+	l.do("GET", "/api/export", access, nil, http.StatusUnauthorized, nil)
+	l.do("GET", "/api/export", next["access_token"].(string), nil, http.StatusOK, nil)
 
 	// Deleting the key cuts off every token it approved.
 	if err := l.q.DeleteAPIKey(context.Background(), l.keyID); err != nil {
 		t.Fatal(err)
 	}
-	l.do("GET", "/api/species", next["access_token"].(string), nil, http.StatusUnauthorized, nil)
+	l.do("GET", "/api/export", next["access_token"].(string), nil, http.StatusUnauthorized, nil)
+}
+
+// A newcomer has no api key: they connect a client with a single-use invite,
+// which mints their key.
+func TestInviteFlow(t *testing.T) {
+	l := newLab(t)
+	ctx := context.Background()
+	const redirect = "https://claude.example/callback"
+	var reg struct {
+		ClientID string `json:"client_id"`
+	}
+	l.do("POST", "/oauth/register", "", map[string]any{"redirect_uris": []string{redirect}}, http.StatusCreated, &reg)
+
+	invite := func(note string, expires time.Duration) string {
+		t.Helper()
+		raw, _ := auth.RandToken(auth.InvitePrefix)
+		arg := db.CreateInviteParams{ID: xid.New().String(), CodeHash: auth.Hash(raw), Note: note}
+		if expires != 0 {
+			arg.ExpiresAt = pgtype.Timestamptz{Time: time.Now().Add(expires), Valid: true}
+		}
+		if _, err := l.q.CreateInvite(ctx, arg); err != nil {
+			t.Fatal(err)
+		}
+		return raw
+	}
+	verifier := "a-verifier-that-is-long-enough-for-pkce-0123456789"
+	sum := sha256.Sum256([]byte(verifier))
+	// authorize pastes credential on the authorize page and returns the
+	// status and, on success, the code.
+	authorize := func(credential string) (int, string) {
+		t.Helper()
+		form := url.Values{
+			"response_type": {"code"}, "client_id": {reg.ClientID}, "redirect_uri": {redirect},
+			"code_challenge": {base64.RawURLEncoding.EncodeToString(sum[:])}, "code_challenge_method": {"S256"},
+			"api_key": {credential},
+		}
+		resp, err := l.client.PostForm(l.url+"/oauth/authorize", form)
+		if err != nil {
+			t.Fatal(err)
+		}
+		resp.Body.Close()
+		loc, _ := url.Parse(resp.Header.Get("Location"))
+		return resp.StatusCode, loc.Query().Get("code")
+	}
+
+	raw := invite("ana", 0)
+	status, code := authorize(raw)
+	if status != http.StatusSeeOther || code == "" {
+		t.Fatalf("redeem invite: %d", status)
+	}
+	if status, _ = authorize(raw); status != http.StatusBadRequest {
+		t.Fatalf("an invite works once: %d", status)
+	}
+	if status, _ = authorize(auth.InvitePrefix + "not-an-invite"); status != http.StatusBadRequest {
+		t.Fatalf("unknown invite: %d", status)
+	}
+	if status, _ = authorize(invite("late", -time.Minute)); status != http.StatusBadRequest {
+		t.Fatalf("expired invite: %d", status)
+	}
+
+	resp, err := l.client.PostForm(l.url+"/oauth/token", url.Values{"grant_type": {"authorization_code"}, "code": {code},
+		"code_verifier": {verifier}, "client_id": {reg.ClientID}, "redirect_uri": {redirect}})
+	if err != nil || resp.StatusCode != http.StatusOK {
+		t.Fatalf("token: %v %v", resp.StatusCode, err)
+	}
+	var tok struct {
+		AccessToken string `json:"access_token"`
+	}
+	_ = json.NewDecoder(resp.Body).Decode(&tok)
+	resp.Body.Close()
+	var sp species.Detail
+	l.do("POST", "/api/species", tok.AccessToken, map[string]any{"seed": 7}, http.StatusCreated, &sp)
+
+	keys, err := l.q.ListAPIKeys(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var minted string
+	for _, k := range keys {
+		if k.Name == "ana" {
+			minted = k.ID
+		}
+	}
+	if minted == "" {
+		t.Fatal("redeeming the invite minted no key named after its note")
+	}
+	// The newcomer's key is a key like any other: deleting it cuts them off.
+	if err := l.q.DeleteAPIKey(ctx, minted); err != nil {
+		t.Fatal(err)
+	}
+	l.do("GET", "/api/export", tok.AccessToken, nil, http.StatusUnauthorized, nil)
 }
 
 func TestWebPages(t *testing.T) {
@@ -296,9 +422,9 @@ func TestWebPages(t *testing.T) {
 	jar, _ := cookiejar.New(nil)
 	browser := &http.Client{Jar: jar, CheckRedirect: l.client.CheckRedirect}
 
-	resp, _ := browser.Get(l.url + "/")
+	resp, _ := browser.Get(l.url + "/preview")
 	if resp.StatusCode != http.StatusSeeOther || !strings.HasPrefix(resp.Header.Get("Location"), "/login") {
-		t.Fatalf("signed-out catalog: %d %s", resp.StatusCode, resp.Header.Get("Location"))
+		t.Fatalf("signed-out preview: %d %s", resp.StatusCode, resp.Header.Get("Location"))
 	}
 	resp, _ = browser.PostForm(l.url+"/login", url.Values{"api_key": {l.key}, "next": {"/preview"}})
 	if resp.StatusCode != http.StatusSeeOther || resp.Header.Get("Location") != "/preview" {
@@ -351,10 +477,46 @@ func TestWebPages(t *testing.T) {
 		t.Fatalf("cross-origin delete: %d", resp.StatusCode)
 	}
 
-	resp, _ = browser.PostForm(l.url+"/logout", nil)
-	if resp, _ = browser.Get(l.url + "/"); resp.StatusCode != http.StatusSeeOther {
-		t.Fatal("signed out but the catalog still opens")
+	signedIn := page(speciesPath)
+	for _, want := range []string{"Save notes", "Paste an SVG", "Brief as text", "Remove", "Delete " + plural, "Sign out"} {
+		if !strings.Contains(signedIn, want) {
+			t.Errorf("signed-in species page lacks %q", want)
+		}
 	}
+
+	resp, _ = browser.PostForm(l.url+"/logout", nil)
+	if resp, _ = browser.Get(l.url + "/preview"); resp.StatusCode != http.StatusSeeOther {
+		t.Fatal("signed out but the preview page still opens")
+	}
+
+	// Signed out, the catalog and species pages are public and read-only:
+	// every sprite shows, and no form or button that changes anything does.
+	// A stale cookie reads as signed out rather than locking them.
+	jar.SetCookies(mustURL(l.url), []*http.Cookie{{Name: auth.SessionCookie, Value: "cl_at_stale"}})
+	if body := page("/"); !strings.Contains(body, plural) || strings.Contains(body, "Roll and save") || !strings.Contains(body, "Sign in") {
+		t.Fatal("signed-out catalog should list species read-only")
+	}
+	anon := page(speciesPath)
+	if !strings.Contains(anon, "/sprites/") || !strings.Contains(anon, "accepted") {
+		t.Fatal("signed-out species page does not show its sprites")
+	}
+	for _, hidden := range []string{"<form", "Paste an SVG", "Brief as text", "Remove", "Sign out"} {
+		if strings.Contains(anon, hidden) {
+			t.Errorf("signed-out species page shows %q", hidden)
+		}
+	}
+	resp, _ = browser.PostForm(l.url+speciesPath+"/notes", url.Values{"notes": {"x"}})
+	if resp.StatusCode != http.StatusUnauthorized {
+		t.Fatalf("signed-out notes post: %d", resp.StatusCode)
+	}
+}
+
+func mustURL(s string) *url.URL {
+	u, err := url.Parse(s)
+	if err != nil {
+		panic(err)
+	}
+	return u
 }
 
 // bearer adds an Authorization header to every request.
@@ -397,12 +559,12 @@ func TestMCPTools(t *testing.T) {
 		}
 	}
 
-	var previews struct{ Species []creaturelab.SpeciesPreview }
+	var previews struct{ Species []species.Preview }
 	call("preview_species", map[string]any{"seed": 10, "count": 2}, &previews)
 	if len(previews.Species) != 2 || previews.Species[1].Seed != 11 {
 		t.Fatalf("preview: %+v", previews)
 	}
-	var created struct{ Species creaturelab.SpeciesDetail }
+	var created struct{ Species species.Detail }
 	call("create_species", map[string]any{"seed": previews.Species[0].Seed}, &created)
 	id := created.Species.ID
 
@@ -411,9 +573,9 @@ func TestMCPTools(t *testing.T) {
 	if !strings.Contains(brief.Brief, creaturelab.HouseStyle) {
 		t.Fatal("brief lacks the house style")
 	}
-	var sub struct{ Candidate creaturelab.Candidate }
+	var sub struct{ Candidate sprites.Candidate }
 	call("submit_sprite_candidate", map[string]any{"speciesId": id, "form": 0, "svg": sprite, "author": "test", "accept": true}, &sub)
-	var got struct{ Species creaturelab.SpeciesDetail }
+	var got struct{ Species species.Detail }
 	call("get_species", map[string]any{"id": id}, &got)
 	if got.Species.Forms[0].AcceptedID != sub.Candidate.ID {
 		t.Fatalf("form 0 accepted %q, want %q", got.Species.Forms[0].AcceptedID, sub.Candidate.ID)

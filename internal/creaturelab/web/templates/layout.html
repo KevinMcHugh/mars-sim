@@ -67,8 +67,8 @@ td, th { text-align: left; padding: .3rem .5rem; border-bottom: 1px solid var(--
 <body>
 <header class="top">
   <a class="brand" href="/">Creature Lab</a>
-  <nav><a href="/">Catalog</a><a href="/preview">Roll species</a></nav>
-  {{block "account" .}}<form class="inline" method="POST" action="/logout"><button class="ghost" type="submit">Sign out</button></form>{{end}}
+  <nav><a href="/">Catalog</a>{{if .SignedIn}}<a href="/preview">Roll species</a>{{end}}</nav>
+  {{block "account" .}}{{if .SignedIn}}<form class="inline" method="POST" action="/logout"><button class="ghost" type="submit">Sign out</button></form>{{else}}<a class="btn ghost" href="/login?next={{.Path}}">Sign in</a>{{end}}{{end}}
 </header>
 <main>
 {{template "content" .}}

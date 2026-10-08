@@ -1,6 +1,7 @@
-// Package web is Creature Lab's HTTP surface: the JSON API, the MCP
-// endpoint's mount, OAuth, and a handful of server-rendered pages for looking
-// at sprites and accepting them. The pages are plain html/template with no
+// Package web is Creature Lab's HTTP surface: it mounts the JSON API
+// (package server, generated from the OpenAPI spec), the MCP endpoint, OAuth,
+// and serves a handful of server-rendered pages for looking at sprites and
+// accepting them. The pages are plain html/template with no
 // script, so there is no frontend build: the binary is the whole deploy.
 package web
 
@@ -24,6 +25,7 @@ import (
 	"github.com/kevinmchugh/mars-sim/internal/creaturelab/auth"
 	"github.com/kevinmchugh/mars-sim/internal/creaturelab/labmcp"
 	"github.com/kevinmchugh/mars-sim/internal/creaturelab/oauth"
+	"github.com/kevinmchugh/mars-sim/internal/creaturelab/server"
 )
 
 //go:embed templates/*.html
@@ -31,7 +33,9 @@ var templateFS embed.FS
 
 // Server holds what the routes need.
 type Server struct {
-	Svc    *creaturelab.Service
+	Store  *creaturelab.Store
+	Links  creaturelab.Links
+	API    *server.Server // the JSON API, mounted at /api
 	OAuth  *oauth.Handler
 	Issuer string       // public origin, no trailing slash
 	MCP    http.Handler // the streamable MCP handler, mounted at /mcp/rpc
@@ -39,13 +43,17 @@ type Server struct {
 	pages map[string]*template.Template
 }
 
-// New assembles the server on svc: OAuth issuing for issuer, and the MCP
-// tools over the same service.
-func New(svc *creaturelab.Service, issuer string) *Server {
-	mcpServer := labmcp.NewServer(svc)
+// New assembles the server on store: the API and the MCP tools over the same
+// endpoints, and OAuth issuing for issuer, which is also the origin of every
+// link in a response.
+func New(store *creaturelab.Store, issuer string) *Server {
+	links := creaturelab.NewLinks(issuer)
+	mcpServer := labmcp.NewServer(store, links)
 	return &Server{
-		Svc:    svc,
-		OAuth:  &oauth.Handler{Issuer: issuer, Q: svc.Q},
+		Store:  store,
+		Links:  links,
+		API:    server.New(store, links),
+		OAuth:  &oauth.Handler{Issuer: issuer, Q: store.Queries, Invites: store},
 		Issuer: issuer,
 		MCP:    mcpsdk.NewStreamableHTTPHandler(func(*http.Request) *mcpsdk.Server { return mcpServer }, nil),
 	}
@@ -54,7 +62,7 @@ func New(svc *creaturelab.Service, issuer string) *Server {
 // Handler builds the router.
 func (s *Server) Handler() http.Handler {
 	s.pages = parsePages()
-	q := s.Svc.Q
+	q := s.Store.Queries
 	denyAPI := auth.Unauthorized(s.Issuer)
 
 	r := chi.NewRouter()
@@ -67,10 +75,9 @@ func (s *Server) Handler() http.Handler {
 	r.With(s.sameOrigin).Post("/login", s.loginPOST)
 	r.With(s.sameOrigin).Post("/logout", s.logout)
 
-	r.Route("/api", func(r chi.Router) {
-		r.Use(auth.Require(q, denyAPI))
-		s.mountAPI(r)
-	})
+	// The JSON API decides per operation: the spec marks listing and
+	// viewing species public, and everything else needs a credential.
+	s.API.Mount(r, auth.Require(q, denyAPI))
 
 	// The bare /mcp path is intercepted by the sprites.dev proxy (a POST
 	// hangs before reaching the app), so MCP lives at /mcp/rpc, as in the
@@ -81,14 +88,21 @@ func (s *Server) Handler() http.Handler {
 		r.Handle("/mcp/rpc/*", s.MCP)
 	})
 
+	// The read-only pages are public, like the catalog reads in the API. A
+	// signed-in visitor gets the same pages with their forms and buttons.
+	r.Group(func(r chi.Router) {
+		r.Use(auth.Optional(q))
+		r.Use(pageHeaders)
+		r.Get("/", s.indexPage)
+		r.Get("/species/{id}", s.speciesPage)
+	})
+
 	r.Group(func(r chi.Router) {
 		r.Use(auth.Require(q, s.toLogin))
 		r.Use(s.sameOrigin)
 		r.Use(pageHeaders)
-		r.Get("/", s.indexPage)
 		r.Get("/preview", s.previewPage)
 		r.Post("/species", s.createSpecies)
-		r.Get("/species/{id}", s.speciesPage)
 		r.Post("/species/{id}/notes", s.saveNotes)
 		r.Post("/species/{id}/delete", s.deleteSpecies)
 		r.Post("/species/{id}/forms/{form}/candidates", s.pasteCandidate)
@@ -96,9 +110,9 @@ func (s *Server) Handler() http.Handler {
 		r.Post("/candidates/{id}/delete", s.deleteCandidate)
 		r.Get("/brief/{id}/{form}", s.briefText)
 	})
-	// Sprites take a bearer token as well as the session cookie, so the
-	// svgUrl in an API or MCP response opens for a client too.
-	r.With(auth.Require(q, denyAPI)).Get("/sprites/{id}.svg", s.spriteSVG)
+	// Sprites are public, accepted or not, like the candidates the API
+	// lists: the svgUrl in any response opens for anyone.
+	r.Get("/sprites/{id}.svg", s.spriteSVG)
 	return r
 }
 
@@ -152,19 +166,19 @@ func pageHeaders(next http.Handler) http.Handler {
 // ---- login ------------------------------------------------------------------
 
 func (s *Server) loginGET(w http.ResponseWriter, r *http.Request) {
-	s.render(w, http.StatusOK, "login", map[string]any{"Next": safeNext(r.URL.Query().Get("next"))})
+	s.render(w, r, http.StatusOK, "login", map[string]any{"Next": safeNext(r.URL.Query().Get("next"))})
 }
 
 func (s *Server) loginPOST(w http.ResponseWriter, r *http.Request) {
 	next := safeNext(r.FormValue("next"))
 	raw := strings.TrimSpace(r.FormValue("api_key"))
-	key, err := s.Svc.Q.GetAPIKeyByHash(r.Context(), auth.Hash(raw))
+	key, err := s.Store.GetAPIKeyByHash(r.Context(), auth.Hash(raw))
 	if err != nil {
 		status, msg := http.StatusUnauthorized, "That api key is not recognized."
 		if !errors.Is(err, pgx.ErrNoRows) {
 			status, msg = http.StatusInternalServerError, "Sign-in failed; try again."
 		}
-		s.render(w, status, "login", map[string]any{"Next": next, "Error": msg})
+		s.render(w, r, status, "login", map[string]any{"Next": next, "Error": msg})
 		return
 	}
 	token, err := s.OAuth.MintSession(r.Context(), key.ID)
@@ -202,14 +216,16 @@ func safeNext(next string) string {
 
 // ---- sprites ----------------------------------------------------------------
 
-// spriteSVG serves one candidate as an image. A candidate never changes
-// after it is stored, so it caches for a day. The sandbox CSP means a
+// spriteSVG serves one candidate as an image, to anyone. The sandbox CSP
+// matters more now that it is public: it means a
 // browser opening it directly runs nothing even if CheckSVG ever let
 // something through.
 func (s *Server) spriteSVG(w http.ResponseWriter, r *http.Request) {
-	svg, err := s.Svc.CandidateSVG(r.Context(), chi.URLParam(r, "id"))
+	// The raw SVG is all this needs, so it reads the store directly rather
+	// than running the get-candidate endpoint and its lint.
+	c, err := s.Store.GetCandidate(r.Context(), chi.URLParam(r, "id"))
 	if err != nil {
-		if errors.Is(err, creaturelab.ErrNotFound) {
+		if errors.Is(err, pgx.ErrNoRows) {
 			http.NotFound(w, r)
 			return
 		}
@@ -217,11 +233,14 @@ func (s *Server) spriteSVG(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "internal error", http.StatusInternalServerError)
 		return
 	}
+	svg := c.Svg
 	h := w.Header()
 	h.Set("Content-Type", "image/svg+xml; charset=utf-8")
 	h.Set("Content-Security-Policy", "default-src 'none'; style-src 'unsafe-inline'; img-src data:; sandbox")
 	h.Set("X-Content-Type-Options", "nosniff")
-	h.Set("Cache-Control", "private, max-age=86400")
+	// A candidate never changes once stored, but it can be deleted, so a
+	// shared cache keeps it for an hour rather than a day.
+	h.Set("Cache-Control", "public, max-age=3600")
 	_, _ = w.Write([]byte(svg))
 }
 

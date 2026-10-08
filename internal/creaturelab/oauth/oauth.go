@@ -3,7 +3,8 @@
 // internal/oauth with tenants and Google sign-in taken out.
 //
 // The flow: a client registers itself (POST /oauth/register), sends its user
-// to /oauth/authorize, where they paste a cl_ api key, gets a code back on
+// to /oauth/authorize, where they paste a cl_ api key (or, the first time, a
+// cl_iv_ invite, which mints them one), gets a code back on
 // its redirect_uri, and trades the code and its PKCE verifier at
 // /oauth/token for an access token (24 hours) and a refresh token (30 days).
 // The tokens act as the api key that approved them. claude.ai custom
@@ -46,6 +47,15 @@ type Handler struct {
 	// Issuer is the lab's public origin, as discovery documents advertise it.
 	Issuer string
 	Q      *db.Queries
+	// Invites redeems an invite pasted on the authorize page. Nil turns
+	// invites off: only existing api keys can authorize.
+	Invites InviteRedeemer
+}
+
+// InviteRedeemer spends an invite, minting the newcomer's api key, and runs
+// approve with it on the same transaction. *creaturelab.Store is one.
+type InviteRedeemer interface {
+	RedeemInvite(ctx context.Context, raw string, approve func(q *db.Queries, apiKeyID string) error) error
 }
 
 // Mount attaches every endpoint to r. All of them are public: discovery is
@@ -208,8 +218,10 @@ func (h *Handler) authorizeGET(w http.ResponseWriter, r *http.Request) {
 	renderAuthorize(w, http.StatusOK, p, "")
 }
 
-// authorizePOST checks the pasted key, mints a one-time code bound to the
-// client, redirect_uri and PKCE challenge, and sends the browser back.
+// authorizePOST checks the pasted key, or redeems the pasted invite, mints a
+// one-time code bound to the client, redirect_uri and PKCE challenge, and
+// sends the browser back. A newcomer can only get in with an invite; there
+// is no open sign-up.
 func (h *Handler) authorizePOST(w http.ResponseWriter, r *http.Request) {
 	if err := r.ParseForm(); err != nil {
 		http.Error(w, "bad form", http.StatusBadRequest)
@@ -225,39 +237,42 @@ func (h *Handler) authorizePOST(w http.ResponseWriter, r *http.Request) {
 	}
 	raw := strings.TrimSpace(r.FormValue("api_key"))
 	if raw == "" {
-		renderAuthorize(w, http.StatusBadRequest, p, "Paste your api key.")
+		renderAuthorize(w, http.StatusBadRequest, p, "Paste your api key, or an invite if you are new.")
 		return
 	}
-	key, err := h.Q.GetAPIKeyByHash(r.Context(), auth.Hash(raw))
-	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			renderAuthorize(w, http.StatusBadRequest, p, "That api key is not recognized.")
+	var code string
+	if strings.HasPrefix(raw, auth.InvitePrefix) {
+		if h.Invites == nil {
+			renderAuthorize(w, http.StatusBadRequest, p, "Invites are not accepted here.")
 			return
 		}
-		http.Error(w, "auth lookup failed", http.StatusInternalServerError)
-		return
-	}
-	code, err := auth.RandToken(auth.AuthCodePrefix)
-	if err != nil {
-		http.Error(w, "code generation failed", http.StatusInternalServerError)
-		return
-	}
-	var scope *string
-	if p.Scope != "" {
-		scope = &p.Scope
-	}
-	if err := h.Q.CreateOAuthCode(r.Context(), db.CreateOAuthCodeParams{
-		CodeHash:            auth.Hash(code),
-		ClientID:            p.ClientID,
-		ApiKeyID:            key.ID,
-		RedirectUri:         p.RedirectURI,
-		CodeChallenge:       p.CodeChallenge,
-		CodeChallengeMethod: p.CodeChallengeMethod,
-		Scope:               scope,
-		ExpiresAt:           at(time.Now().Add(AuthCodeTTL)),
-	}); err != nil {
-		http.Error(w, "code persist failed", http.StatusInternalServerError)
-		return
+		err := h.Invites.RedeemInvite(r.Context(), raw, func(q *db.Queries, apiKeyID string) error {
+			var err error
+			code, err = mintCode(r.Context(), q, apiKeyID, p)
+			return err
+		})
+		if err != nil {
+			if errors.Is(err, pgx.ErrNoRows) {
+				renderAuthorize(w, http.StatusBadRequest, p, "That invite is not recognized, or it has expired or already been used.")
+				return
+			}
+			http.Error(w, "invite redemption failed", http.StatusInternalServerError)
+			return
+		}
+	} else {
+		key, err := h.Q.GetAPIKeyByHash(r.Context(), auth.Hash(raw))
+		if err != nil {
+			if errors.Is(err, pgx.ErrNoRows) {
+				renderAuthorize(w, http.StatusBadRequest, p, "That api key is not recognized.")
+				return
+			}
+			http.Error(w, "auth lookup failed", http.StatusInternalServerError)
+			return
+		}
+		if code, err = mintCode(r.Context(), h.Q, key.ID, p); err != nil {
+			http.Error(w, "code persist failed", http.StatusInternalServerError)
+			return
+		}
 	}
 	dest, err := url.Parse(p.RedirectURI)
 	if err != nil {
@@ -271,6 +286,28 @@ func (h *Handler) authorizePOST(w http.ResponseWriter, r *http.Request) {
 	}
 	dest.RawQuery = q.Encode()
 	http.Redirect(w, r, dest.String(), http.StatusSeeOther)
+}
+
+// mintCode stores a one-time authorization code for apiKeyID on q.
+func mintCode(ctx context.Context, q *db.Queries, apiKeyID string, p authorizeParams) (string, error) {
+	code, err := auth.RandToken(auth.AuthCodePrefix)
+	if err != nil {
+		return "", err
+	}
+	var scope *string
+	if p.Scope != "" {
+		scope = &p.Scope
+	}
+	return code, q.CreateOAuthCode(ctx, db.CreateOAuthCodeParams{
+		CodeHash:            auth.Hash(code),
+		ClientID:            p.ClientID,
+		ApiKeyID:            apiKeyID,
+		RedirectUri:         p.RedirectURI,
+		CodeChallenge:       p.CodeChallenge,
+		CodeChallengeMethod: p.CodeChallengeMethod,
+		Scope:               scope,
+		ExpiresAt:           at(time.Now().Add(AuthCodeTTL)),
+	})
 }
 
 // ---- token ------------------------------------------------------------------
@@ -444,9 +481,10 @@ button { font:inherit; padding:.6rem 1rem; border:0; border-radius:6px; backgrou
 <body>
 <h1>Connect to Creature Lab</h1>
 {{if .Error}}<p class="err">{{.Error}}</p>{{end}}
-<p>Paste a Creature Lab api key (it starts with <code>cl_</code>) to let this client read and edit the species catalog as you.</p>
+<p>Paste your Creature Lab api key (it starts with <code>cl_</code>) to let this client read and edit the species catalog as you.</p>
+<p>New here? Paste the invite you were given (it starts with <code>cl_iv_</code>). It works once, and connects this client as you from then on.</p>
 <form method="POST">
-<input type="password" name="api_key" autocomplete="off" autofocus placeholder="cl_…" aria-label="API key">
+<input type="password" name="api_key" autocomplete="off" autofocus placeholder="cl_… or cl_iv_…" aria-label="API key or invite">
 <input type="hidden" name="response_type" value="code">
 <input type="hidden" name="client_id" value="{{.Params.ClientID}}">
 <input type="hidden" name="redirect_uri" value="{{.Params.RedirectURI}}">

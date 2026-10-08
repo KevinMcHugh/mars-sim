@@ -77,6 +77,28 @@ func Require(q *db.Queries, deny http.HandlerFunc) func(http.Handler) http.Handl
 	}
 }
 
+// Optional is middleware for pages anyone may read: it puts the request's
+// api key on the context when its credential is good, and otherwise lets the
+// request through anonymous, so a stale session cookie just reads as signed
+// out instead of locking a public page.
+func Optional(q *db.Queries) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if token := TokenFrom(r); token != "" {
+				keyID, err := Resolve(r.Context(), q, token)
+				if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+					http.Error(w, "auth lookup failed", http.StatusInternalServerError)
+					return
+				}
+				if err == nil {
+					r = r.WithContext(WithKey(r.Context(), keyID))
+				}
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+
 // Unauthorized is the deny for API and MCP routes: a 401 whose
 // WWW-Authenticate header tells an MCP client where OAuth discovery lives,
 // which is how claude.ai starts the connector flow.
