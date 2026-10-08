@@ -122,7 +122,8 @@ paths:
           $ref: "#/components/responses/NotFound"
     patch:
       operationId: updateSpecies
-      summary: Replace a species' notes
+      summary: Replace a species' notes or field notes
+      description: Sets whichever fields are given and leaves the rest alone. An empty description resets the field notes to the generated text.
       requestBody:
         required: true
         content:
@@ -142,6 +143,8 @@ paths:
           $ref: "#/components/responses/Unauthorized"
         "404":
           $ref: "#/components/responses/NotFound"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
     delete:
       operationId: deleteSpecies
       summary: Remove a species and its sprites
@@ -544,7 +547,7 @@ components:
 
     SpeciesDetail:
       type: object
-      required: [id, seed, generatorRev, traits, forms, complete, createdAt, url]
+      required: [id, seed, generatorRev, traits, generatedDescription, forms, complete, createdAt, url]
       properties:
         id:
           type: string
@@ -558,6 +561,12 @@ components:
           type: string
         traits:
           $ref: "#/components/schemas/Traits"
+        generatedDescription:
+          type: string
+          description: The field notes the roster code wrote when it rolled the species. traits.description is these unless descriptionEdited.
+        descriptionEdited:
+          type: boolean
+          description: traits.description was rewritten and differs from generatedDescription.
         forms:
           type: array
           items:
@@ -582,10 +591,16 @@ components:
 
     SpeciesUpdate:
       type: object
-      required: [notes]
       properties:
         notes:
           type: string
+          description: Replacement lab notes; omit to leave them.
+          x-go-type-skip-optional-pointer: false
+        description:
+          type: string
+          maxLength: 4000
+          description: Replacement field notes; omit to leave them, or send "" to go back to the generated text.
+          x-go-type-skip-optional-pointer: false
 
     SpriteBrief:
       type: object
@@ -663,10 +678,13 @@ components:
 
     ExportSpecies:
       type: object
-      required: [id, seed, generatorRev, complete, species, sprites]
+      required: [id, seed, generatorRev, complete, description, species, sprites]
       properties:
         id:
           type: string
+        description:
+          type: string
+          description: The field notes to show, edited or as generated. species holds the struct the game rolled; a rewritten description lives only here.
         seed:
           type: integer
           format: int64

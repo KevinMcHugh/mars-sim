@@ -65,22 +65,23 @@ type OauthToken struct {
 }
 
 type Species struct {
-	ID             string             `json:"id"`
-	Seed           int64              `json:"seed"`
-	GeneratorRev   string             `json:"generator_rev"`
-	Singular       string             `json:"singular"`
-	Plural         string             `json:"plural"`
-	ScientificName string             `json:"scientific_name"`
-	Emoji          string             `json:"emoji"`
-	Temperament    string             `json:"temperament"`
-	FormCount      int32              `json:"form_count"`
-	Description    string             `json:"description"`
-	Data           []byte             `json:"data"`
-	Notes          string             `json:"notes"`
-	CreatedBy      *string            `json:"created_by"`
-	CreatedAt      pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
-	DeletedAt      pgtype.Timestamptz `json:"deleted_at"`
+	ID                  string             `json:"id"`
+	Seed                int64              `json:"seed"`
+	GeneratorRev        string             `json:"generator_rev"`
+	Singular            string             `json:"singular"`
+	Plural              string             `json:"plural"`
+	ScientificName      string             `json:"scientific_name"`
+	Emoji               string             `json:"emoji"`
+	Temperament         string             `json:"temperament"`
+	FormCount           int32              `json:"form_count"`
+	Description         string             `json:"description"`
+	Data                []byte             `json:"data"`
+	Notes               string             `json:"notes"`
+	CreatedBy           *string            `json:"created_by"`
+	CreatedAt           pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt           pgtype.Timestamptz `json:"updated_at"`
+	DeletedAt           pgtype.Timestamptz `json:"deleted_at"`
+	DescriptionOverride string             `json:"description_override"`
 }
 
 type SpriteCandidate struct {

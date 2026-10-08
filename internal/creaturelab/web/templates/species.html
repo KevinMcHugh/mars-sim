@@ -31,9 +31,28 @@
 
 {{$signedIn := .SignedIn}}
 {{with .Species}}
-<section class="panel">
-  <h2>Field notes</h2>
-  <p>{{.Traits.Description}}</p>
+<section class="panel" id="field-notes">
+  <h2>Field notes{{if .DescriptionEdited}} <span class="tag" title="Rewritten; the generated text is kept below">rewritten</span>{{end}}</h2>
+  <p class="field-notes">{{.Traits.Description}}</p>
+  {{if .DescriptionEdited}}
+  <details>
+    <summary>Generated text</summary>
+    <p class="muted field-notes">{{.GeneratedDescription}}</p>
+  </details>
+  {{end}}
+  {{if $signedIn}}
+  <details style="margin:.4rem 0 .8rem">
+    <summary>Rewrite the field notes</summary>
+    <form method="POST" action="/species/{{.ID}}/description" style="margin-top:.5rem">
+      <p class="muted" style="margin:0 0 .4rem">Keep every fact true to the traits below; change the voice as much as you like.</p>
+      <textarea name="description" rows="6" maxlength="4000">{{.Traits.Description}}</textarea>
+      <div class="row" style="margin-top:.4rem">
+        <button type="submit">Save field notes</button>
+        {{if .DescriptionEdited}}<button class="ghost" type="submit" name="reset" value="1" formnovalidate>Reset to generated</button>{{end}}
+      </div>
+    </form>
+  </details>
+  {{end}}
   <dl class="traits">
     <dt>Body</dt><dd>{{.Traits.Eyes}} eyes, {{.Traits.Arms}} arms, {{.Traits.Legs}} legs{{if .Traits.Tail}}, a tail{{end}}{{if .Traits.Wings}}, wings{{end}}</dd>
     <dt>Covering</dt><dd>{{.Traits.Color}} {{.Traits.Skin}}, {{.Traits.Pattern}}</dd>

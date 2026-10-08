@@ -48,7 +48,10 @@ type Querier interface {
 	RevokeOAuthTokenByHash(ctx context.Context, tokenHash string) error
 	SetInviteKey(ctx context.Context, arg SetInviteKeyParams) error
 	TouchAPIKey(ctx context.Context, id string) error
-	UpdateSpeciesNotes(ctx context.Context, arg UpdateSpeciesNotesParams) (Species, error)
+	// Sets whichever of notes and description_override are given (non-null)
+	// and leaves the other alone. An empty description_override resets the
+	// field notes to the generated text.
+	UpdateSpecies(ctx context.Context, arg UpdateSpeciesParams) (Species, error)
 }
 
 var _ Querier = (*Queries)(nil)

@@ -79,7 +79,7 @@ func statusOf(err error) int {
 	switch {
 	case errors.Is(err, creaturelab.ErrNotFound):
 		return http.StatusNotFound
-	case errors.Is(err, creaturelab.ErrNoSuchForm), errors.Is(err, creaturelab.ErrBadSVG):
+	case errors.Is(err, creaturelab.ErrNoSuchForm), errors.Is(err, creaturelab.ErrBadSVG), errors.Is(err, creaturelab.ErrBadInput):
 		return http.StatusUnprocessableEntity
 	default:
 		return http.StatusInternalServerError
@@ -216,13 +216,38 @@ func (s *Server) saveNotes(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	if _, err := server.BuildViewModel(r.Context(), species.UpdateEndpoint{Store: s.Store, Links: s.Links}, apigen.UpdateSpeciesRequestObject{
 		SpeciesId: id,
-		Body:      &apigen.SpeciesUpdate{Notes: r.FormValue("notes")},
+		Body:      &apigen.SpeciesUpdate{Notes: ptr(r.FormValue("notes"))},
 	}); err != nil {
 		s.fail(w, r, err)
 		return
 	}
 	back(w, r, id, "notes", "Notes saved.", false)
 }
+
+// saveDescription rewrites the field notes; the reset button sends them
+// empty, which goes back to the generated text.
+func (s *Server) saveDescription(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	text, msg := r.FormValue("description"), "Field notes rewritten."
+	if r.FormValue("reset") != "" {
+		text, msg = "", "Field notes reset to the generated text."
+	}
+	_, err := server.BuildViewModel(r.Context(), species.UpdateEndpoint{Store: s.Store, Links: s.Links}, apigen.UpdateSpeciesRequestObject{
+		SpeciesId: id,
+		Body:      &apigen.SpeciesUpdate{Description: &text},
+	})
+	if errors.Is(err, creaturelab.ErrBadInput) {
+		back(w, r, id, "field-notes", err.Error(), true)
+		return
+	}
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	back(w, r, id, "field-notes", msg, false)
+}
+
+func ptr[T any](v T) *T { return &v }
 
 func (s *Server) deleteSpecies(w http.ResponseWriter, r *http.Request) {
 	if _, err := server.BuildViewModel(r.Context(), species.DeleteEndpoint{Store: s.Store}, apigen.DeleteSpeciesRequestObject{SpeciesId: chi.URLParam(r, "id")}); err != nil {

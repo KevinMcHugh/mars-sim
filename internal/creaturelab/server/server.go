@@ -134,9 +134,9 @@ func writeError(w http.ResponseWriter, status int, msg string) {
 func isNotFound(err error) bool { return errors.Is(err, creaturelab.ErrNotFound) }
 
 // isUnprocessable is a request that parsed but cannot be done: a form the
-// species does not have, or an SVG that was refused.
+// species does not have, an SVG that was refused, or a field out of bounds.
 func isUnprocessable(err error) bool {
-	return errors.Is(err, creaturelab.ErrNoSuchForm) || errors.Is(err, creaturelab.ErrBadSVG)
+	return errors.Is(err, creaturelab.ErrNoSuchForm) || errors.Is(err, creaturelab.ErrBadSVG) || errors.Is(err, creaturelab.ErrBadInput)
 }
 
 func notFound(err error) apigen.NotFoundJSONResponse {
@@ -179,8 +179,11 @@ func (s *Server) UpdateSpecies(ctx context.Context, req apigen.UpdateSpeciesRequ
 		return apigen.UpdateSpecies400JSONResponse{BadRequestJSONResponse: apigen.BadRequestJSONResponse{Error: "body required"}}, nil
 	}
 	resp, err := Run(ctx, species.UpdateEndpoint{Store: s.store, Links: s.links}, req)
-	if isNotFound(err) {
+	switch {
+	case isNotFound(err):
 		return apigen.UpdateSpecies404JSONResponse{NotFoundJSONResponse: notFound(err)}, nil
+	case isUnprocessable(err):
+		return apigen.UpdateSpecies422JSONResponse{UnprocessableJSONResponse: unprocessable(err)}, nil
 	}
 	return resp, err
 }

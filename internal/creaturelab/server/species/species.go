@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/rs/xid"
 
@@ -48,17 +49,21 @@ type Summary struct {
 	SpriteURLs []string `json:"spriteUrls,omitempty"`
 }
 
-// Detail is one species with its slots.
+// Detail is one species with its slots. Traits.Description is the field
+// notes as shown, rewritten or generated.
 type Detail struct {
 	ID           string             `json:"id"`
 	Seed         int64              `json:"seed"`
 	GeneratorRev string             `json:"generatorRev"`
 	Notes        string             `json:"notes,omitempty"`
 	Traits       creaturelab.Traits `json:"traits"`
-	Forms        []FormView         `json:"forms"`
-	Complete     bool               `json:"complete"`
-	CreatedAt    time.Time          `json:"createdAt"`
-	URL          string             `json:"url"`
+	// GeneratedDescription is the roster code's text, as rolled.
+	GeneratedDescription string     `json:"generatedDescription"`
+	DescriptionEdited    bool       `json:"descriptionEdited,omitempty"`
+	Forms                []FormView `json:"forms"`
+	Complete             bool       `json:"complete"`
+	CreatedAt            time.Time  `json:"createdAt"`
+	URL                  string     `json:"url"`
 }
 
 // FormView is a slot and where its sprite stands.
@@ -97,16 +102,20 @@ func ToDetail(m Model, links creaturelab.Links) Detail {
 			accepted++
 		}
 	}
+	traits := creaturelab.TraitsOf(m.Species)
+	traits.Description = creaturelab.FieldNotes(m.Row)
 	return Detail{
-		ID:           m.Row.ID,
-		Seed:         m.Row.Seed,
-		GeneratorRev: m.Row.GeneratorRev,
-		Notes:        m.Row.Notes,
-		Traits:       creaturelab.TraitsOf(m.Species),
-		Forms:        views,
-		Complete:     accepted >= len(forms),
-		CreatedAt:    m.Row.CreatedAt.Time,
-		URL:          links.Species(m.Row.ID),
+		ID:                   m.Row.ID,
+		Seed:                 m.Row.Seed,
+		GeneratorRev:         m.Row.GeneratorRev,
+		Notes:                m.Row.Notes,
+		Traits:               traits,
+		GeneratedDescription: m.Row.Description,
+		DescriptionEdited:    m.Row.DescriptionOverride != "",
+		Forms:                views,
+		Complete:             accepted >= len(forms),
+		CreatedAt:            m.Row.CreatedAt.Time,
+		URL:                  links.Species(m.Row.ID),
 	}
 }
 
@@ -213,15 +222,17 @@ func detailToAPI(d Detail) apigen.SpeciesDetail {
 		}
 	}
 	return apigen.SpeciesDetail{
-		Id:           d.ID,
-		Seed:         d.Seed,
-		GeneratorRev: d.GeneratorRev,
-		Notes:        d.Notes,
-		Traits:       TraitsToAPI(d.Traits),
-		Forms:        forms,
-		Complete:     d.Complete,
-		CreatedAt:    d.CreatedAt,
-		Url:          d.URL,
+		Id:                   d.ID,
+		Seed:                 d.Seed,
+		GeneratorRev:         d.GeneratorRev,
+		Notes:                d.Notes,
+		Traits:               TraitsToAPI(d.Traits),
+		GeneratedDescription: d.GeneratedDescription,
+		DescriptionEdited:    d.DescriptionEdited,
+		Forms:                forms,
+		Complete:             d.Complete,
+		CreatedAt:            d.CreatedAt,
+		Url:                  d.URL,
 	}
 }
 
@@ -445,18 +456,33 @@ func (e CreateEndpoint) Render(vm Detail) apigen.CreateSpeciesResponseObject {
 // -----------------------------------------------------------------------------
 
 type UpdateStore interface {
-	UpdateSpeciesNotes(ctx context.Context, arg db.UpdateSpeciesNotesParams) (db.Species, error)
+	UpdateSpecies(ctx context.Context, arg db.UpdateSpeciesParams) (db.Species, error)
 	CandidateLister
 }
 
-// UpdateEndpoint replaces a species' free-text notes.
+// UpdateEndpoint replaces a species' lab notes, its field notes, or both;
+// a field left nil is left alone. Empty field notes go back to the
+// generated text. Rewriting them is how an agent gives a species a voice
+// the roster's template does not; the generated text is kept regardless.
 type UpdateEndpoint struct {
 	Store UpdateStore
 	Links creaturelab.Links
 }
 
 func (e UpdateEndpoint) Interact(ctx context.Context, req apigen.UpdateSpeciesRequestObject) (Model, error) {
-	row, err := e.Store.UpdateSpeciesNotes(ctx, db.UpdateSpeciesNotesParams{ID: req.SpeciesId, Notes: strings.TrimSpace(req.Body.Notes)})
+	arg := db.UpdateSpeciesParams{ID: req.SpeciesId}
+	if n := req.Body.Notes; n != nil {
+		trimmed := strings.TrimSpace(*n)
+		arg.Notes = &trimmed
+	}
+	if d := req.Body.Description; d != nil {
+		trimmed := strings.TrimSpace(*d)
+		if n := utf8.RuneCountInString(trimmed); n > creaturelab.MaxDescription {
+			return Model{}, fmt.Errorf("%w: description is %d characters; the limit is %d", creaturelab.ErrBadInput, n, creaturelab.MaxDescription)
+		}
+		arg.DescriptionOverride = &trimmed
+	}
+	row, err := e.Store.UpdateSpecies(ctx, arg)
 	if err != nil {
 		return Model{}, creaturelab.NotFound(err, "species", req.SpeciesId)
 	}

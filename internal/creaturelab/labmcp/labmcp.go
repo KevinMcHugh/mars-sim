@@ -29,6 +29,7 @@ Typical session:
 1. preview_species to roll a few unsaved species and pick one the user likes (free; nothing is stored).
 2. create_species with that seed to save it.
 3. For each form that has no accepted sprite: get_sprite_brief, draw an SVG that follows it exactly, and submit_sprite_candidate. Show the user the svgUrl or the SVG itself, revise and resubmit as they ask (each submission is a new candidate), then accept_sprite_candidate on the one they approve.
+A species' field notes (traits.description) start as the roster code's generated text, which is accurate but reads alike across species. When asked to, rewrite them with set_species_description in a voice of their own, keeping every fact consistent with the traits; get_species shows the generated text alongside.
 Forms are numbered from 0 in stage order. A species is complete when every form has an accepted sprite. Do not accept a sprite the user has not approved unless they asked you to.`
 
 // NewServer builds the MCP server with every tool registered.
@@ -101,6 +102,11 @@ type CreateSpeciesInput struct {
 type NotesInput struct {
 	ID    string `json:"id" jsonschema:"species id"`
 	Notes string `json:"notes" jsonschema:"replacement notes"`
+}
+
+type DescriptionInput struct {
+	ID          string `json:"id" jsonschema:"species id"`
+	Description string `json:"description" jsonschema:"the new field notes, up to 4000 characters; an empty string goes back to the generated text"`
 }
 
 type SubmitInput struct {
@@ -190,7 +196,18 @@ func registerWrite(s *mcpsdk.Server, store server.Store, links creaturelab.Links
 	}, func(ctx context.Context, _ *mcpsdk.CallToolRequest, in NotesInput) (*mcpsdk.CallToolResult, SpeciesOutput, error) {
 		vm, err := server.BuildViewModel(ctx, species.UpdateEndpoint{Store: store, Links: links}, apigen.UpdateSpeciesRequestObject{
 			SpeciesId: in.ID,
-			Body:      &apigen.SpeciesUpdate{Notes: in.Notes},
+			Body:      &apigen.SpeciesUpdate{Notes: &in.Notes},
+		})
+		return nil, SpeciesOutput{Species: vm}, err
+	})
+
+	mcpsdk.AddTool(s, &mcpsdk.Tool{
+		Name:        "set_species_description",
+		Description: "Rewrite a species' field notes, the description a player reads in the game. The generated one is accurate but formulaic and reads the same for every species; a rewrite gives it its own voice. Keep every fact consistent with the species' traits (size, weight, temperament, body, covering, features, attacks, life stages) and do not invent abilities it lacks; vary the form and tone freely, e.g. a field researcher's log, a colonist's warning, a naturalist's entry. The generated text is kept and comes back if you send an empty description.",
+	}, func(ctx context.Context, _ *mcpsdk.CallToolRequest, in DescriptionInput) (*mcpsdk.CallToolResult, SpeciesOutput, error) {
+		vm, err := server.BuildViewModel(ctx, species.UpdateEndpoint{Store: store, Links: links}, apigen.UpdateSpeciesRequestObject{
+			SpeciesId: in.ID,
+			Body:      &apigen.SpeciesUpdate{Description: &in.Description},
 		})
 		return nil, SpeciesOutput{Species: vm}, err
 	})
