@@ -146,8 +146,9 @@ wanders.
 `Layer.unfoundCaverns` (`trackCavernsForNests`). When `revealAround` floods a
 breach, it notes every center it discovers. Once the whole system is revealed,
 `rollNests` gives each of those caverns its single `CavernNestPercent` roll, in
-discovery order. On a hit, `spawnNest` places `CavernNestMin`–`CavernNestMax`
-aliens of one species on free discovered floor within `nestRadius` (4) of the
+discovery order (below the landing level, the depth-scaled settings, and a
+species draw weighted toward hostiles: see [depth.md](./depth.md)). On a hit,
+`spawnNest` places `CavernNestMin`–`CavernNestMax` aliens of one species on free discovered floor within `nestRadius` (4) of the
 center and logs "The colony has broken into a nest of ... (n)!". They are on
 discovered floor, so they are awake from the start and act like any alien of
 their species.

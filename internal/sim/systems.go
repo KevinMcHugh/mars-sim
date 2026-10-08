@@ -2257,7 +2257,7 @@ func (w *World) fleeStep(e *Entity, threat Point) {
 	if best == e.Pos && e.Pos.Within(threat, 1) {
 		if h, ok := w.openHoleBeside(e.Pos); ok {
 			if _, levels, _ := w.fallTarget(h); levels*w.cfg.FallDamage < e.HP {
-				w.leap(e, h)
+				w.leap(e, h, fmt.Sprintf("%s leaps down a hole to get away.", capitalizeFirst(e.displayName())))
 				return
 			}
 		}

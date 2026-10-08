@@ -59,7 +59,7 @@ func (w *World) rollNests(centers []Point) {
 		if w.nestRNG == nil || len(w.alienSpecies) == 0 {
 			continue
 		}
-		if w.nestRNG.IntN(100) < w.cfg.CavernNestPercent {
+		if w.nestRNG.IntN(100) < depthConfig(w.cfg, c.Level).CavernNestPercent {
 			w.spawnNest(c)
 		}
 	}
@@ -71,10 +71,11 @@ func (w *World) rollNests(centers []Point) {
 // simulation stream, and members go through spawnAs so no species is drawn
 // from it either.
 func (w *World) spawnNest(center Point) {
-	lo := max(1, w.cfg.CavernNestMin)
-	hi := max(lo, w.cfg.CavernNestMax)
+	cfg := depthConfig(w.cfg, center.Level) // deeper nests are bigger
+	lo := max(1, cfg.CavernNestMin)
+	hi := max(lo, cfg.CavernNestMax)
 	want := lo + w.nestRNG.IntN(hi-lo+1)
-	species := w.nestRNG.IntN(len(w.alienSpecies))
+	species := w.nestSpecies(center.Level)
 	var sites []Point
 	for dy := -nestRadius; dy <= nestRadius; dy++ {
 		for dx := -nestRadius; dx <= nestRadius; dx++ {

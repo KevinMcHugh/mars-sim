@@ -662,6 +662,11 @@ func validateConfig(cfg sim.Config) error {
 		return fmt.Errorf("hole-ticks must be at least 1 (got %d)", cfg.HoleTicks)
 	case cfg.LadderTicks < 1:
 		return fmt.Errorf("ladder-ticks must be at least 1 (got %d)", cfg.LadderTicks)
+	case cfg.DepthOrePercent < 0 || cfg.DepthUraniumPercent < 0 || cfg.DepthCavernPercent < 0 ||
+		cfg.DepthNestPercent < 0 || cfg.DepthNestSize < 0 || cfg.DepthHostility < 0:
+		return fmt.Errorf("the depth-* settings cannot be negative")
+	case cfg.NaturalShaftPercent < 0 || cfg.NaturalShaftPercent > 100 || cfg.SinkholePercent < 0 || cfg.SinkholePercent > 100:
+		return fmt.Errorf("natural-shaft-percent and sinkhole-percent must be between 0 and 100")
 	case cfg.FallDamage < 0:
 		return fmt.Errorf("fall-damage cannot be negative (got %d)", cfg.FallDamage)
 	case cfg.ShaftCarry < 0:

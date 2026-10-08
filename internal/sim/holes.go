@@ -302,9 +302,18 @@ func (w *World) freeTileNear(p Point, id EntityID) (Point, bool) {
 
 // leap sends e down the open hole at h beside it: a colonist cornered by a
 // threat with no step away takes the drop rather than the bite (see
-// fleeStep). It reports whether e is still alive.
-func (w *World) leap(e *Entity, h Point) bool {
-	w.logEvent(LogNote, fmt.Sprintf("%s leaps down a hole to get away.", capitalizeFirst(e.displayName())))
+// fleeStep), or a hostile alien drops in on prey (see raid). why is the log
+// line. With nowhere free to land, e stays put. It reports whether e is
+// still alive.
+func (w *World) leap(e *Entity, h Point, why string) bool {
+	land, _, ok := w.fallTarget(h)
+	if !ok {
+		return true
+	}
+	if _, ok := w.freeTileNear(land, e.ID); !ok {
+		return true // nowhere to land: it stays where it is
+	}
+	w.logEvent(LogNote, why)
 	w.lay(e.Pos).occ.set(e.Pos.X, e.Pos.Y, 0)
 	w.lay(h).occ.set(h.X, h.Y, e.ID)
 	if oc, nc := w.chunkIndexOf(e.Pos), w.chunkIndexOf(h); oc != nc {

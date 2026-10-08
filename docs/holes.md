@@ -123,8 +123,8 @@ everything else (rooms, fields, the climb) is a shaft's (see
   receive them and the hauling planner to price a drop as a leg; there is
   no deep work camp yet (depth pays in Z4). Refuse already has a hauler and
   a destination, so it was the chute worth building now.
-- **No raids yet.** Aliens dropping in through a hole from above is Z4's,
-  with aliens on deeper levels and climbing toward the colony.
+- **Raids came with Z4.** A hostile alien with nothing to walk to drops
+  down a hole onto prey below (the `raid` rung; see [depth.md](./depth.md)).
 
 ## Extending it
 

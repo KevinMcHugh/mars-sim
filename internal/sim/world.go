@@ -539,6 +539,10 @@ type World struct {
 	// holes holds every Hole tile, on every level, sorted by lessPoint. See
 	// holes.go.
 	holes []Point
+	// peeks previews the generators of levels nobody has broken into, for
+	// asking what lies below a cavern (see below in depth.go). A cache: not
+	// saved.
+	peeks map[Level]*ChunkPreview `save:"-"`
 
 	// snapFrame counts publishes so far (TileChanges.Frame); tileSharing is
 	// how the published grid relates to the live one (see tilegrid.go). The
@@ -1338,7 +1342,7 @@ func (w *World) revealAround(p Point) {
 		// their aliens land on discovered floor, awake -- or, under a landing
 		// ship, once its passengers are out (see landShip).
 		if !w.holdNests {
-			w.rollNests(w.nestCenters)
+			w.rollNestsAndFeatures(w.nestCenters)
 			w.nestCenters = w.nestCenters[:0]
 		}
 	}

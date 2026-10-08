@@ -15,7 +15,7 @@ Up is a direction too. Colony ships land on **level 1**. Level 0 above it is the
 Martian **surface**, which has its own challenges and is planned separately
 (Z6).
 
-This is a design and a build plan. Z0 to Z3 are built (see
+This is a design and a build plan. Z0 to Z4 are built (see [depth.md](./depth.md),
 [layers.md](./layers.md), [stairs.md](./stairs.md),
 [shafts.md](./shafts.md) and [holes.md](./holes.md)), and the rest is not.
 Where the build departed from this plan, the plan below says so. When a phase
@@ -27,7 +27,7 @@ ships, its content moves into a present-tense doc and the table links to it.
 | Z1 — Stairs and a second level | **Shipped** — [stairs.md](./stairs.md) |
 | Z2 — Shafts | **Shipped** — [shafts.md](./shafts.md) |
 | Z3 — Holes | **Shipped** — [holes.md](./holes.md) |
-| Z4 — Depth gating (challenge and reward) | Proposed |
+| Z4 — Depth gating (challenge and reward) | **Shipped** — [depth.md](./depth.md) |
 | Z5 — Browser frontend and wire format | Proposed |
 | Z6 — The surface (level 0) | Proposed; needs its own doc |
 
@@ -447,12 +447,13 @@ Build order and what each phase must prove:
   colonist stranded below (in place of teaching escape to dig up). Supply
   chutes through the hauling planner wait for a deep work camp (Z4); raids
   through holes come with Z4's aliens below.
-- **Z4 — depth gating.** Per-level worldgen multipliers in `sim.Config` (ore
-  vein density, uranium, cavern size, nest chance and size), species rolled
-  per level in [lore.md](./lore.md) with hostility weighted by depth, natural
-  shafts and sinkholes in caverns, and aliens climbing up links toward the
-  colony. This is the phase the feature exists for. Everything before it is
-  plumbing.
+- **Z4 — depth gating. Shipped** ([depth.md](./depth.md)): per-level
+  worldgen and nest multipliers (`depth-*` settings via `depthConfig`),
+  nests weighted toward hostile species by depth, natural shafts between
+  stacked caverns and sinkholes found on breaking in, and hostile aliens
+  raiding down holes. Aliens already hunted up stairs and shafts (rooms span
+  levels). Departed from the plan: the species roster is the seed's, not
+  rolled per level; depth weights which species nest, not which exist.
 - **Z5 — browser.** Wire format, view level, and `web/` rendering.
 - **Z6 — the surface.** Level 0's own generator and hazards, and links dug
   **up** from level 1 to break out onto it. Its own doc before it is built.

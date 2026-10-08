@@ -183,6 +183,7 @@ func temperamentLadder(a AlienSpecies, cfg Config) []behavior {
 		return []behavior{
 			dormant{},
 			hunt{find: preyInRoom(hostilePrey), catch: (*World).strike, rest: a.BiteRest},
+			raid{}, // nothing to walk to: drop down a hole onto prey below
 			wander{},
 		}
 	case TemperamentCautious:

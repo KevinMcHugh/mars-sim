@@ -42,6 +42,21 @@ type Config struct {
 	LadderTicks int  `cfg:"ladder-ticks" doc:"ticks of work to fit a ladder into a hole, making it a shaft"`
 	FallDamage  int  `cfg:"fall-damage" doc:"damage per level fallen down a hole, to the legs first"`
 	HoleChutes  bool `cfg:"hole-chutes" doc:"haulers may tip refuse down a hole instead of carrying it to an incinerator"`
+	// Depth (see docs/depth.md): every level below the landing level is
+	// richer and more dangerous. Each Depth* setting applies once per level
+	// down: ore and uranium vein percentages and cavern sizes grow by that
+	// percent, the nest chance by that many points, nests by that many
+	// aliens, and hostile species' weight in a nest's draw by that percent.
+	// A cavern the colony breaks into may hold a natural shaft into a cavern
+	// below, or a sinkhole.
+	DepthOrePercent     int `cfg:"depth-ore-percent" doc:"percent more iron, ice and clay a level down, per level below the landing level"`
+	DepthUraniumPercent int `cfg:"depth-uranium-percent" doc:"percent more uranium a level down, per level below the landing level"`
+	DepthCavernPercent  int `cfg:"depth-cavern-percent" doc:"percent bigger caverns a level down, per level below the landing level"`
+	DepthNestPercent    int `cfg:"depth-nest-percent" doc:"points added to cavern-nest-percent per level below the landing level"`
+	DepthNestSize       int `cfg:"depth-nest-size" doc:"aliens added to a nest's size per level below the landing level"`
+	DepthHostility      int `cfg:"depth-hostility" doc:"percent more likely a nest is of a hostile species, per level below the landing level"`
+	NaturalShaftPercent int `cfg:"natural-shaft-percent" doc:"chance (percent) that a cavern the colony breaks into holds a natural shaft down into a cavern below it"`
+	SinkholePercent     int `cfg:"sinkhole-percent" doc:"chance (percent) that a cavern the colony breaks into has a sinkhole to the level below"`
 	// Rock composition percentages. The remainder is ordinary rock.
 	IronRockPercent    int `cfg:"iron-rock-percent" doc:"percent of the map's tiles bearing iron"`
 	IceRockPercent     int `cfg:"ice-rock-percent" doc:"percent of the map's tiles bearing water ice"`
@@ -707,6 +722,14 @@ func DefaultConfig() Config {
 		LadderTicks:          20,
 		FallDamage:           8,
 		HoleChutes:           true,
+		DepthOrePercent:      25,
+		DepthUraniumPercent:  100,
+		DepthCavernPercent:   20,
+		DepthNestPercent:     10,
+		DepthNestSize:        1,
+		DepthHostility:       100,
+		NaturalShaftPercent:  20,
+		SinkholePercent:      10,
 		IronRockPercent:      10,
 		IceRockPercent:       5,
 		UraniumRockPercent:   1,

@@ -199,7 +199,7 @@ func (w *World) landShip(n int, l shipLayout, o Point, crashed, announce bool) *
 	}
 	w.holdNests = false
 	if len(w.nestCenters) > 0 {
-		w.rollNests(w.nestCenters)
+		w.rollNestsAndFeatures(w.nestCenters)
 		w.nestCenters = w.nestCenters[:0]
 	}
 
