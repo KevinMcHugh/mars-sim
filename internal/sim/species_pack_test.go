@@ -227,3 +227,35 @@ func TestPackedLore(t *testing.T) {
 		t.Fatal("a rolled species' lore is not its generated description")
 	}
 }
+
+// The lore tab learns each packed species' forms and the sprite each draws
+// with; a rolled species has none.
+func TestFormSprites(t *testing.T) {
+	seeds := seedsWithLife(t, 2) // one with a life, one single-form
+	cfg := testConfig()
+	cfg.SpeciesPack = testPack(t, seeds...)
+	cfg.AlienSpeciesCount = 2
+	snap := newTestWorld(t, cfg).snapshot(false, 8)
+	for i, sp := range snap.AlienSpecies {
+		fs := snap.FormSprites(i)
+		if len(fs) != sp.slots() {
+			t.Fatalf("%s: %d forms, want %d", sp.Plural, len(fs), sp.slots())
+		}
+		for f, x := range fs {
+			if x.Sprite < 0 || snap.Sprites[x.Sprite] != spriteSVG(sp, f) {
+				t.Fatalf("%s form %d (%s) shows the wrong sprite", sp.Plural, f, x.Name)
+			}
+			want := "adult"
+			if f < sp.FormCount && sp.Forms[f].Name != "" {
+				want = sp.Forms[f].Name
+			}
+			if x.Name != want {
+				t.Fatalf("%s form %d is named %q, want %q", sp.Plural, f, x.Name, want)
+			}
+		}
+	}
+	plain := newTestWorld(t, testConfig()).snapshot(false, 8)
+	if plain.FormSprites(0) != nil || plain.FormSprites(-1) != nil {
+		t.Fatal("a rolled species has form sprites")
+	}
+}

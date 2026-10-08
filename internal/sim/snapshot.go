@@ -553,6 +553,9 @@ type Snapshot struct {
 	// field notes and lab notes from a species pack. Nil for a rolled roster.
 	// Shared like Sprites. Read it through FieldNotes and LabNotes.
 	AlienLore []SpeciesLore
+	// SpriteOf is, by AlienSpecies index then form, a place in Sprites plus
+	// one (0 for none). Shared like Sprites. Read it through FormSprites.
+	SpriteOf [][maxAlienForms]int
 	// Corporations is this world's roster of companies, and GunModels the make
 	// and model each gun kind carries (Maker indexes Corporations). Flavor
 	// only. See docs/arms-makers.md.
@@ -825,6 +828,7 @@ func (w *World) snapshot(paused bool, tps int) *Snapshot {
 		AlienSpecies:         append([]AlienSpecies(nil), w.alienSpecies...),
 		Sprites:              w.sprites.SVGs,
 		AlienLore:            w.speciesLore,
+		SpriteOf:             w.sprites.Of,
 		Corporations:         append([]Corporation(nil), w.corporations...),
 		GunModels:            append([]GunModel(nil), w.gunModels...),
 		Population:           w.popHist,
@@ -972,4 +976,35 @@ func (s *Snapshot) LabNotes(i int) string {
 		return ""
 	}
 	return s.AlienLore[i].LabNotes
+}
+
+// FormSprite is one form of a species and the sprite it draws with.
+type FormSprite struct {
+	// Name is the form's stage or caste word, "adult" for a plain adult or a
+	// single-form species.
+	Name string
+	// Sprite indexes Sprites, or is -1 for a form without one.
+	Sprite int
+}
+
+// FormSprites is species i's forms in stage order with their sprites, or nil
+// when it has none (every rolled species). See docs/species-pack.md.
+func (s *Snapshot) FormSprites(i int) []FormSprite {
+	if i < 0 || i >= len(s.SpriteOf) || i >= len(s.AlienSpecies) {
+		return nil
+	}
+	sp := s.AlienSpecies[i]
+	out := make([]FormSprite, sp.slots())
+	drawn := false
+	for f := range out {
+		out[f] = FormSprite{Name: "adult", Sprite: s.SpriteOf[i][f] - 1}
+		if f < sp.FormCount && sp.Forms[f].Name != "" {
+			out[f].Name = sp.Forms[f].Name
+		}
+		drawn = drawn || out[f].Sprite >= 0
+	}
+	if !drawn {
+		return nil
+	}
+	return out
 }
