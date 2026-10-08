@@ -72,13 +72,26 @@ export function buildAtlas(
     // One upload once every image has settled, not one per image.
     void Promise.allSettled(images.map(async ({ index, svg }) => {
       const img = await loadSVG(svg);
+      if (!img.naturalWidth || !img.naturalHeight) throw new Error('sprite has no size');
       const x = (index % cols) * CELL;
       const y = Math.floor(index / cols) * CELL;
+      // Only clear the emoji once the image is known to draw, so a sprite
+      // that fails leaves its fallback rather than a blank cell.
       ctx.clearRect(x, y, CELL, CELL);
       ctx.drawImage(img, x, y, CELL, CELL);
-    })).then(() => {
+    })).then((results) => {
+      results.forEach((r, i) => {
+        if (r.status === 'rejected') console.warn(`species-pack sprite ${i} not drawn:`, r.reason);
+      });
       if (atlas.disposed) return;
-      upload(gl, texture, canvas);
+      try {
+        upload(gl, texture, canvas);
+      } catch (e) {
+        // A browser that taints a canvas drawn with an SVG image refuses the
+        // upload; the first upload, all emoji, stays in place.
+        console.warn('species-pack sprites not uploaded:', e);
+        return;
+      }
       onPainted();
     });
   }
@@ -102,9 +115,26 @@ function upload(gl: WebGL2RenderingContext, texture: WebGLTexture, canvas: HTMLC
  */
 function loadSVG(svg: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
-    const img = new Image();
+    const img = new Image(CELL, CELL);
     img.onload = () => resolve(img);
     img.onerror = () => reject(new Error('sprite did not decode'));
-    img.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+    img.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(sized(svg))}`;
   });
+}
+
+/**
+ * The SVG with a width and height on its root. Creature Lab's house style
+ * gives a sprite only a viewBox, and an SVG image with no width or height has
+ * no intrinsic size: Chrome makes one up and draws it, but Firefox (and some
+ * Safari versions) decode it with a natural size of 0 and drawImage then draws
+ * nothing. Sizing it to the cell makes every browser draw it. Parsing as
+ * image/svg+xml runs nothing; the result is only ever used as an image.
+ */
+export function sized(svg: string): string {
+  const doc = new DOMParser().parseFromString(svg, 'image/svg+xml');
+  const root = doc.documentElement;
+  if (root.nodeName.toLowerCase() !== 'svg' || doc.getElementsByTagName('parsererror').length > 0) return svg;
+  if (!root.hasAttribute('width')) root.setAttribute('width', String(CELL));
+  if (!root.hasAttribute('height')) root.setAttribute('height', String(CELL));
+  return new XMLSerializer().serializeToString(doc);
 }
