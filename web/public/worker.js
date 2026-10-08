@@ -86,7 +86,10 @@ async function handle(msg) {
       budgetMs = msg.budgetMs ?? budgetMs;
       // Builds before the API was versioned have no marssim.api: call them 1.
       const api = marssim.api ?? 1;
-      const r = JSON.parse(marssim.start(JSON.stringify(msg.settings)));
+      // The species pack rides in the settings mapping under its own key,
+      // which the engine takes out before reading the settings.
+      const settings = msg.pack ? { ...msg.settings, 'species-pack': msg.pack } : msg.settings;
+      const r = JSON.parse(marssim.start(JSON.stringify(settings)));
       postMessage({ type: 'started', result: r, loadMs, api });
       if (!r.error) { started = true; schedule(0); }
       break;

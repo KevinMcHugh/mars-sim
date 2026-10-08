@@ -162,12 +162,7 @@ sprite config update -s creature-lab --url-auth public
 
 ## Extending it
 
-- **Using the catalog in the game** is the point, and it is not built yet. The likely shape:
-  1. A `-species-pack` file: an export (`/api/export`) the game loads in place of rolling, with `AlienSpeciesCount` picking from it on the world's RNG. Only species with a sprite for every form are picked.
-  2. The wire saying which species and form an alien is.
-  3. `buildAtlas` drawing the pack's SVGs into atlas cells, with the emoji as fallback (see [sprite-designer.md](./sprite-designer.md#using-a-sprite-in-the-game)).
-
-  Because stored species are frozen, a pack is stable across game commits. The roster code's later features will not reach old species unless they are re-rolled.
+- **Using the catalog in the game** is built: `go run . -fetch-species URL` pulls every complete species into `species-pack.json`, and the game plays from it. It uses the public reads, not `/api/export` (which needs a key), so it re-rolls each seed and skips any species this build rolls differently. See [species-pack.md](./species-pack.md). Making `exportCatalog` public would let a pull take species exactly as stored, including ones an older build rolled. The pack format already matches the export.
 - **A new field on the stored species** needs no migration: it lives in `data`. Add it to `Traits` if a person or an artist should see it, and to `Brief` if it changes the drawing, as `Apex` does.
 - **A new operation:** add its path and schemas to `creature-lab/api/openapi.yaml` (with `security: []` only if anyone may call it), run `make generate`, write an `Endpoint` in `server/species`, `server/sprites` or a new package with its own narrow `Store`, and add the method to `server/server.go`, mapping its errors to the spec's responses. If Claude should have it, add a tool in `labmcp` that drives the endpoint through `server.BuildViewModel`. Add a case to `e2e_test.go`, and update `TestOnlyCatalogReadsArePublic` if the public set changed.
 - **Schema change:** add a dbmate migration (never edit an applied one), then run `make generate`.

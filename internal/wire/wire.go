@@ -68,6 +68,12 @@ type HelloGlyphs struct {
 	// glyph, and the last is always a plain symbol. See
 	// docs/colonist-looks.md.
 	Looks []glyphs.Look `json:"looks"`
+	// Sprites are the SVG sources of a species pack's aliens
+	// (sim.Snapshot.Sprites): a frame's glyph len(Symbols)+len(Looks)+i is
+	// Sprites[i]. Empty for a rolled roster. A page that cannot draw one
+	// shows SpriteFallback in its place. See docs/species-pack.md.
+	Sprites        []string `json:"sprites"`
+	SpriteFallback int      `json:"spriteFallback"`
 }
 
 // glyphIndex is each glyph's position in glyphs.All, the index frames carry
@@ -80,16 +86,20 @@ var glyphIndex = func() map[string]uint16 {
 	return m
 }()
 
-// entityGlyph is the glyph index a frame carries for e: its look past the end
-// of glyphs.All when it has one, else its glyph in it.
+// entityGlyph is the glyph index a frame carries for e: its sprite past the
+// looks when it has one, its look past the end of glyphs.All when it has one,
+// else its glyph in it.
 func entityGlyph(e sim.EntityView) uint16 {
+	if e.Sprite > 0 {
+		return uint16(len(glyphs.All) + len(glyphs.Looks) + e.Sprite - 1)
+	}
 	if i, ok := glyphs.LookIndex(e); ok {
 		return uint16(i)
 	}
 	return glyphIndex[glyphs.ForEntity(e)]
 }
 
-func helloGlyphs() HelloGlyphs {
+func helloGlyphs(sprites []string) HelloGlyphs {
 	enums := sim.EnumNames()
 	terrains := enums.Terrains
 	h := HelloGlyphs{
@@ -99,6 +109,9 @@ func helloGlyphs() HelloGlyphs {
 		Gore:    int(glyphIndex[glyphs.Gore]),
 		Corpse:  int(glyphIndex[glyphs.Corpse]),
 		Looks:   glyphs.Looks,
+		Sprites: append([]string{}, sprites...),
+		// The plain alien: what a hover line says until the image is drawn.
+		SpriteFallback: int(glyphIndex[glyphs.ForKind(sim.Alien)]),
 	}
 	for k := range enums.Kinds {
 		h.Kinds[k] = int(glyphIndex[glyphs.ForKind(sim.Kind(k))])
@@ -125,7 +138,7 @@ func NewHello(snap *sim.Snapshot) Hello {
 		FogOfWar: snap.FogOfWar,
 		Enums:    sim.EnumNames(),
 		Stats:    statNames,
-		Glyphs:   helloGlyphs(),
+		Glyphs:   helloGlyphs(snap.Sprites),
 		GoreMax:  sim.MaxGore,
 		ScumMax:  snap.ScumMax,
 

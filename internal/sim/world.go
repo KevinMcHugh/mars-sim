@@ -945,6 +945,9 @@ type World struct {
 	// Rolled once in newWorld, off its own seed-derived stream (neither rng
 	// nor prng). See lore.go.
 	alienSpecies []AlienSpecies
+	// sprites are the packed species' SVGs and which form draws with which
+	// (empty for a rolled roster); see species_pack.go.
+	sprites alienSprites
 
 	// corporations is this world's roster of companies back home, and
 	// gunModels the make and model every gun kind carries (one per
@@ -1035,7 +1038,13 @@ func newWorld(cfg Config, src *rand.PCG) *World {
 	w.topicRNG = rand.New(w.rngSrc.topic)
 	w.rngSrc.recruit = newPCG(cfg.Seed ^ recruitSeed)
 	w.recruitRNG = rand.New(w.rngSrc.recruit)
-	w.alienSpecies = rollAlienSpeciesRoster(newRand(cfg.Seed^alienLoreSeed), cfg)
+	if len(cfg.SpeciesPack) > 0 {
+		var picked []int
+		w.alienSpecies, picked = packedRoster(newRand(cfg.Seed^alienLoreSeed), cfg, cfg.SpeciesPack, max(1, cfg.AlienSpeciesCount))
+		w.sprites = buildAlienSprites(cfg.SpeciesPack, picked)
+	} else {
+		w.alienSpecies = rollAlienSpeciesRoster(newRand(cfg.Seed^alienLoreSeed), cfg)
+	}
 	w.buildAlienSpecies()
 	armsRNG := newRand(cfg.Seed ^ armsLoreSeed)
 	w.corporations = rollCorporationRoster(armsRNG, cfg)

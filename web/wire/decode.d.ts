@@ -39,6 +39,14 @@ export interface Hello {
      * which symbols covers every index a frame carries.
      */
     looks: string[][];
+    /**
+     * A species pack's sprites, as SVG source: a frame's glyph
+     * symbols.length + looks.length + i is sprites[i] (docs/species-pack.md).
+     * withLooks appends spriteFallback's symbol for each, so text shows a
+     * plain alien; the map's atlas paints the SVG over that cell.
+     */
+    sprites: string[];
+    spriteFallback: number;
   };
   /** The most gore / scum one tile holds, for shading by amount. */
   goreMax: number;

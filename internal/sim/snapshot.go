@@ -43,6 +43,10 @@ type EntityView struct {
 	// AlienForm is the alien's stage of life or caste ("grub", "queen"), empty
 	// for a single-form species or a plain adult. See docs/alien-lifecycles.md.
 	AlienForm string
+	// Sprite is the alien's sprite from a species pack, as an index into
+	// Snapshot.Sprites plus one; 0 draws the species' emoji, as every alien
+	// of a rolled species does. See docs/species-pack.md.
+	Sprite int
 	// Keeper is the colonist a pet (a chicken or a cat) came down with in its
 	// ship, 0 for a stray or anything that is not a pet. See
 	// docs/chickens.md.
@@ -540,6 +544,11 @@ type Snapshot struct {
 	// carries a copy of the one it belongs to on its own EntityView.AlienSpecies;
 	// this is the full roster, for a codex-style listing. See docs/lore.md.
 	AlienSpecies []AlienSpecies
+	// Sprites are the SVG sources a packed species' aliens draw with
+	// (EntityView.Sprite indexes them), empty for a rolled roster. Fixed for
+	// the life of the world, so every snapshot shares the one slice: do not
+	// modify it.
+	Sprites []string
 	// Corporations is this world's roster of companies, and GunModels the make
 	// and model each gun kind carries (Maker indexes Corporations). Flavor
 	// only. See docs/arms-makers.md.
@@ -810,6 +819,7 @@ func (w *World) snapshot(paused bool, tps int) *Snapshot {
 		Graveyard:            append([]EntityView(nil), w.graveyard...),
 		Deceased:             w.publishedDeceasedColonists(),
 		AlienSpecies:         append([]AlienSpecies(nil), w.alienSpecies...),
+		Sprites:              w.sprites.SVGs,
 		Corporations:         append([]Corporation(nil), w.corporations...),
 		GunModels:            append([]GunModel(nil), w.gunModels...),
 		Population:           w.popHist,
@@ -891,6 +901,7 @@ func (w *World) entityView(e *Entity, kinChildren map[kinID][]kinID, full bool) 
 		if f, ok := w.formOf(e); ok {
 			ev.AlienForm = f.Name
 		}
+		ev.Sprite = w.spriteFor(e)
 	}
 	if e.Kind == Colonist {
 		ev.Charge = e.affect.Charge

@@ -32,6 +32,8 @@ Startup follows this order:
     the same way, for the same reason. See [director.md](./director.md).
 2c. Apply the cognition balance file (`cognition.yaml`, or `-cognition PATH`)
     the same way. See [compositional-perception-and-events.md](./compositional-perception-and-events.md).
+2d. Read the species pack (`species-pack.json`, or `-species-pack PATH`) the
+    same way, unless the run is `-fetch-species`. See [species-pack.md](./species-pack.md).
 3. Register flags whose defaults come from that config.
 4. Parse flags (with `?`, `-?`, and `--?` as help aliases).
 4b. `SyncWithCognition` copies `cognition.yaml`'s focuses/arbitration onto
@@ -56,6 +58,8 @@ These flags control how the process runs rather than the simulated world:
 | `-config <path>` | Read this settings file instead of `mars-sim.yaml` in the working directory. A file named here that does not exist is an error; `-config ""` reads no file at all. |
 | `-director <path>` | Read this director schedule file instead of `director.yaml` in the working directory. A file named here that does not exist is an error; `-director ""` runs with no scheduled occurrences. See [director.md](./director.md). |
 | `-cognition <path>` | Read this cognition balance file instead of `cognition.yaml` in the working directory. A file named here that does not exist is an error; `-cognition ""` uses the compiled defaults. See [compositional-perception-and-events.md](./compositional-perception-and-events.md). |
+| `-species-pack <path>` | Draw alien species, and their sprites, from this pack instead of `species-pack.json` in the working directory. A file named here that does not exist is an error; `-species-pack ""` rolls species instead. See [species-pack.md](./species-pack.md). |
+| `-fetch-species <url>` | Pull every complete species from this Creature Lab into the `-species-pack` file, say what was skipped and why, then exit. Uses only the lab's public reads. An empty pull leaves the old file alone. |
 | `-load <path>` | Play on from a save file instead of generating a world. The save carries its own settings, so it ignores the settings file and the simulation flags. A save written by a build with a different world layout is refused, and the error names both commits. See [save-load.md](./save-load.md). |
 | `-save <path>` | Write a save file when the run ends: quitting the TUI, `-duration` running out, or Ctrl+C. In the TUI, `ctrl+s` also saves at any time. |
 | `-cpuprofile <path>` | Write a CPU profile of the whole run (world generation included) to this file. See [Profiling](#profiling). |

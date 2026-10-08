@@ -60,7 +60,7 @@ export interface Started {
  * A mismatch means mars-sim.wasm is from another build: usually a pull without
  * rerunning npm run wasm.
  */
-export const HOST_API = 19;
+export const HOST_API = 20;
 
 export class SimClient {
   private worker: Worker;
@@ -78,11 +78,15 @@ export class SimClient {
     this.worker.onerror = (e) => this.onError(e.message || 'worker failed to load');
   }
 
-  start(settings: Settings, budgetMs = 8): Promise<Started> {
+  /**
+   * New game. pack, if given, is a species-pack.json object: the world draws
+   * its alien species, and their sprites, from it (docs/species-pack.md).
+   */
+  start(settings: Settings, budgetMs = 8, pack: unknown = null): Promise<Started> {
     return new Promise((resolve, reject) => {
       this.pending = resolve;
       this.failed = reject;
-      this.worker.postMessage({ type: 'start', settings, budgetMs });
+      this.worker.postMessage({ type: 'start', settings, budgetMs, pack });
     });
   }
 

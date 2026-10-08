@@ -4,7 +4,7 @@
 
 ## What it is
 
-A Scum Lab tab for drawing map sprites with Claude. You paste a Claude API key, describe a creature, and revise the SVG over several turns. The tab previews it at real tile sizes on the map's own colors, and you can download it as SVG or as a 128px PNG. Nothing in the game reads these sprites yet. The tab produces art for when the map stops drawing emoji. See "Using a sprite in the game" below.
+A Scum Lab tab for drawing map sprites with Claude. You paste a Claude API key, describe a creature, and revise the SVG over several turns. The tab previews it at real tile sizes on the map's own colors, and you can download it as SVG or as a 128px PNG. Nothing in the game reads a sprite from this tab directly; the game draws the sprites of species pulled from Creature Lab. See "Using a sprite in the game" below.
 
 ## Source
 
@@ -34,13 +34,9 @@ A Scum Lab tab for drawing map sprites with Claude. You paste a Claude API key, 
 
 ## Using a sprite in the game
 
-The game cannot use these files yet. The browser map draws each symbol into a sprite sheet ([frontend-web.md](./frontend-web.md), `buildAtlas` in `web/src/map/atlas.ts`). Supporting sprites means:
+The game draws sprites per species and form, but only for species pulled from [Creature Lab](./creature-lab.md) into a species pack ([species-pack.md](./species-pack.md)). There, `buildAtlas` paints each SVG over its cell once it decodes, the emoji stays as the fallback, and the wire says which sprite an alien draws. A sprite downloaded from this tab is not wired to anything. To use it, draw it for a lab species (paste it on the species page, or submit it over MCP) and pull a pack.
 
-1. Map an emoji to an SVG on the frontend, and in `buildAtlas` draw that SVG into the cell (`drawImage` after the image decodes) instead of `fillText`. The atlas build becomes async.
-2. Keep the emoji as the fallback. The terminal UI stays on emoji, and so does a custom `-alien-names` file with no art.
-3. For art per *species* rather than per emoji, the wire has to say which species an alien is. Several species can roll the same emoji ([lore.md](./lore.md)).
-
-"Stands in for" in the tab records which emoji a sprite replaces, for that mapping.
+"Stands in for" in the tab records which emoji a sprite replaces. Nothing reads it yet: the game maps sprites to species, not to emoji.
 
 ## Extending it
 
