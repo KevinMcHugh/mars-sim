@@ -172,6 +172,30 @@ func TestAPIFlow(t *testing.T) {
 	}
 	l.do("GET", "/api/species/"+sp.ID+"/forms/99/brief", l.key, nil, http.StatusUnprocessableEntity, nil)
 
+	// Field notes can be rewritten; the generated text is kept, and an
+	// empty rewrite goes back to it.
+	const rewrite = "Day 41. The thing watched us from the scum line for an hour before it moved."
+	var edited species.Detail
+	l.do("PATCH", "/api/species/"+sp.ID, l.key, map[string]any{"description": rewrite}, http.StatusOK, &edited)
+	if edited.Traits.Description != rewrite || !edited.DescriptionEdited || edited.GeneratedDescription != want.Description() {
+		t.Fatalf("rewritten field notes: %+v", edited)
+	}
+	l.do("PATCH", "/api/species/"+sp.ID, l.key, map[string]any{"notes": "kept for its eggs"}, http.StatusOK, &edited)
+	if edited.Traits.Description != rewrite || edited.Notes != "kept for its eggs" {
+		t.Fatal("setting notes alone touched the field notes")
+	}
+	l.do("GET", "/api/species/"+sp.ID+"/forms/1/brief", l.key, nil, http.StatusOK, &brief)
+	if !strings.Contains(brief.Brief, rewrite) || strings.Contains(brief.Brief, want.Description()) {
+		t.Fatal("the brief does not use the rewritten field notes")
+	}
+	l.do("PATCH", "/api/species/"+sp.ID, l.key, map[string]any{"description": strings.Repeat("x", creaturelab.MaxDescription+1)}, http.StatusUnprocessableEntity, nil)
+	var reset species.Detail // fresh: descriptionEdited is omitted when false
+	l.do("PATCH", "/api/species/"+sp.ID, l.key, map[string]any{"description": ""}, http.StatusOK, &reset)
+	if reset.Traits.Description != want.Description() || reset.DescriptionEdited {
+		t.Fatalf("reset field notes: %+v", reset)
+	}
+	l.do("PATCH", "/api/species/"+sp.ID, l.key, map[string]any{"description": rewrite}, http.StatusOK, nil)
+
 	path := "/api/species/" + sp.ID + "/forms/0/candidates"
 	l.do("POST", path, l.key, map[string]any{"svg": `<svg xmlns="http://www.w3.org/2000/svg" onload="alert(1)"/>`}, http.StatusUnprocessableEntity, nil)
 	var first, second sprites.Candidate
@@ -216,6 +240,9 @@ func TestAPIFlow(t *testing.T) {
 	if len(exp.Species) != 1 || !exp.Species[0].Complete || len(exp.Species[0].Sprites) != len(sp.Forms) {
 		t.Fatalf("export of a complete species: %+v", exp)
 	}
+	if exp.Species[0].Description != rewrite {
+		t.Fatalf("export carries field notes %q, want the rewrite", exp.Species[0].Description)
+	}
 
 	// Anyone may list and view species and every candidate, accepted or
 	// not, and open its sprite; nothing else is public.
@@ -226,7 +253,7 @@ func TestAPIFlow(t *testing.T) {
 	}
 	var viewed species.Detail
 	l.do("GET", "/api/species/"+sp.ID, "", nil, http.StatusOK, &viewed)
-	if viewed.ID != sp.ID || len(viewed.Forms) != len(sp.Forms) || !viewed.Complete {
+	if viewed.ID != sp.ID || len(viewed.Forms) != len(sp.Forms) || !viewed.Complete || viewed.Traits.Description != rewrite {
 		t.Fatalf("public view: %+v", viewed)
 	}
 	l.do("GET", "/api/species/no-such-species", "", nil, http.StatusNotFound, nil)
@@ -482,7 +509,14 @@ func TestWebPages(t *testing.T) {
 	if !strings.Contains(page("/"), `<code class="id" title="Click to select. This is the id the MCP tools take.">`+speciesID+`</code>`) {
 		t.Error("catalog does not show the species id")
 	}
+	resp, _ = browser.PostForm(l.url+speciesPath+"/description", url.Values{"description": {"Seen once, near the vents."}})
+	if resp.StatusCode != http.StatusSeeOther || strings.Contains(resp.Header.Get("Location"), "err=") {
+		t.Fatalf("rewrite field notes: %d %s", resp.StatusCode, resp.Header.Get("Location"))
+	}
 	signedIn := page(speciesPath)
+	if !strings.Contains(signedIn, "Seen once, near the vents.") || !strings.Contains(signedIn, "Reset to generated") {
+		t.Error("species page does not show the rewritten field notes and a reset")
+	}
 	if !strings.Contains(signedIn, ">"+speciesID+"</code>") {
 		t.Error("species page does not show its id")
 	}
@@ -591,6 +625,12 @@ func TestMCPTools(t *testing.T) {
 	call("get_species", map[string]any{"id": id}, &got)
 	if got.Species.Forms[0].AcceptedID != sub.Candidate.ID {
 		t.Fatalf("form 0 accepted %q, want %q", got.Species.Forms[0].AcceptedID, sub.Candidate.ID)
+	}
+
+	var described struct{ Species species.Detail }
+	call("set_species_description", map[string]any{"id": id, "description": "A naturalist's entry."}, &described)
+	if described.Species.Traits.Description != "A naturalist's entry." || !described.Species.DescriptionEdited {
+		t.Fatalf("set_species_description: %+v", described.Species)
 	}
 
 	res, err := session.CallTool(ctx, &mcpsdk.CallToolParams{Name: "submit_sprite_candidate",

@@ -74,7 +74,7 @@ func TestBrief(t *testing.T) {
 	forms := Forms(sp)
 	last := len(forms) - 1
 	siblings := map[int]string{0: `<svg id="first"/>`, last: `<svg id="mine"/>`}
-	brief, err := Brief(sp, last, siblings)
+	brief, err := Brief(sp, sp.Description(), last, siblings)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -86,7 +86,7 @@ func TestBrief(t *testing.T) {
 	if strings.Contains(brief, `<svg id="mine"/>`) {
 		t.Error("brief shows the form its own accepted sprite as a sibling")
 	}
-	if _, err := Brief(sp, len(forms), nil); !errors.Is(err, ErrNoSuchForm) {
+	if _, err := Brief(sp, sp.Description(), len(forms), nil); !errors.Is(err, ErrNoSuchForm) {
 		t.Errorf("out-of-range form: err %v, want ErrNoSuchForm", err)
 	}
 }

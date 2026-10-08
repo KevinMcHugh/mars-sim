@@ -19,8 +19,14 @@ FROM species
 WHERE deleted_at IS NULL
 ORDER BY created_at DESC;
 
--- name: UpdateSpeciesNotes :one
-UPDATE species SET notes = $2, updated_at = NOW()
+-- Sets whichever of notes and description_override are given (non-null)
+-- and leaves the other alone. An empty description_override resets the
+-- field notes to the generated text.
+-- name: UpdateSpecies :one
+UPDATE species SET
+    notes = COALESCE(sqlc.narg(notes), notes),
+    description_override = COALESCE(sqlc.narg(description_override), description_override),
+    updated_at = NOW()
 WHERE id = $1 AND deleted_at IS NULL
 RETURNING *;
 

@@ -20,12 +20,15 @@ type Export struct {
 
 // Species is one species in an Export.
 type Species struct {
-	ID           string          `json:"id"`
-	Seed         int64           `json:"seed"`
-	GeneratorRev string          `json:"generatorRev"`
-	Complete     bool            `json:"complete"`
-	Species      json.RawMessage `json:"species"`
-	Sprites      []Sprite        `json:"sprites"`
+	ID           string `json:"id"`
+	Seed         int64  `json:"seed"`
+	GeneratorRev string `json:"generatorRev"`
+	Complete     bool   `json:"complete"`
+	// Description is the field notes to show, rewritten or generated. A
+	// rewrite is not part of Species, the struct the game rolled.
+	Description string          `json:"description"`
+	Species     json.RawMessage `json:"species"`
+	Sprites     []Sprite        `json:"sprites"`
 }
 
 // Sprite is one accepted sprite.
@@ -68,7 +71,11 @@ func (e Endpoint) Interact(ctx context.Context, req apigen.ExportCatalogRequestO
 			return Export{}, err
 		}
 		forms := creaturelab.Forms(sp)
-		es := Species{ID: r.ID, Seed: r.Seed, GeneratorRev: r.GeneratorRev, Complete: complete, Species: r.Data, Sprites: []Sprite{}}
+		es := Species{
+			ID: r.ID, Seed: r.Seed, GeneratorRev: r.GeneratorRev, Complete: complete,
+			Description: creaturelab.FieldNotes(db.Species{Description: r.Description, DescriptionOverride: r.DescriptionOverride}),
+			Species:     r.Data, Sprites: []Sprite{},
+		}
 		for _, c := range sprites[r.ID] {
 			name := ""
 			if int(c.Form) < len(forms) {
@@ -95,6 +102,7 @@ func (Endpoint) Render(x Export) apigen.ExportCatalogResponseObject {
 			Seed:         s.Seed,
 			GeneratorRev: s.GeneratorRev,
 			Complete:     s.Complete,
+			Description:  s.Description,
 			Species:      s.Species,
 			Sprites:      sprites,
 		}

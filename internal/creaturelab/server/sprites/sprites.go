@@ -104,7 +104,7 @@ func (e BriefEndpoint) Interact(ctx context.Context, req apigen.GetSpriteBriefRe
 	for _, c := range acc {
 		siblings[int(c.Form)] = c.Svg
 	}
-	text, err := creaturelab.Brief(sp, req.Form, siblings)
+	text, err := creaturelab.Brief(sp, creaturelab.FieldNotes(row), req.Form, siblings)
 	if err != nil {
 		return Brief{}, err
 	}

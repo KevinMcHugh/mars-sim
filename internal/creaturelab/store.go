@@ -20,10 +20,15 @@ import (
 var (
 	ErrNotFound   = errors.New("not found")
 	ErrNoSuchForm = errors.New("no such form")
+	ErrBadInput   = errors.New("bad input")
 )
 
 // MaxPreview bounds one preview call.
 const MaxPreview = 12
+
+// MaxDescription bounds rewritten field notes, in characters. The generated
+// ones run a few hundred; this leaves room for a much richer rewrite.
+const MaxDescription = 4000
 
 // Store is the lab's persistence: every sqlc query, plus the operations that
 // need a transaction. Endpoints each declare a narrow interface of just the
@@ -115,6 +120,17 @@ func (l Links) Species(id string) string { return l.Base + "/species/" + id }
 
 // Sprite is a candidate's SVG.
 func (l Links) Sprite(id string) string { return l.Base + "/sprites/" + id + ".svg" }
+
+// FieldNotes is the description to show for a stored species: its rewrite
+// when it has one, else the text the roster code generated when it rolled
+// the species (kept in description as rolled, not regenerated, since later
+// roster code may word it differently).
+func FieldNotes(row db.Species) string {
+	if row.DescriptionOverride != "" {
+		return row.DescriptionOverride
+	}
+	return row.Description
+}
 
 // DecodeSpecies loads a row's stored sim.AlienSpecies.
 func DecodeSpecies(row db.Species) (sim.AlienSpecies, error) {

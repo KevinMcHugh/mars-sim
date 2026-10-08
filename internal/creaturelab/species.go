@@ -192,10 +192,11 @@ Every SVG must follow these rules:
 - Keep it small: a sprite is usually 20-60 lines.`
 
 // Brief is everything an artist needs to draw one slot: the house style, the
-// species' field notes, and what is particular to this form. siblings are the
+// species' field notes (fieldNotes: generated or rewritten, as the species
+// shows them), and what is particular to this form. siblings are the
 // accepted sprites of the species' other forms, keyed by form index, so a
 // life reads as one creature growing up; nil or empty for none.
-func Brief(sp sim.AlienSpecies, form int, siblings map[int]string) (string, error) {
+func Brief(sp sim.AlienSpecies, fieldNotes string, form int, siblings map[int]string) (string, error) {
 	forms := Forms(sp)
 	if form < 0 || form >= len(forms) {
 		return "", fmt.Errorf("%w: form %d (species has %d)", ErrNoSuchForm, form, len(forms))
@@ -204,7 +205,7 @@ func Brief(sp sim.AlienSpecies, form int, siblings map[int]string) (string, erro
 	var b strings.Builder
 	b.WriteString(HouseStyle)
 	b.WriteString("\n\nThe species' field notes, as the player reads them in the game:\n\n<field_notes>\n")
-	b.WriteString(sp.Description())
+	b.WriteString(fieldNotes)
 	b.WriteString("\n</field_notes>\n\n")
 	fmt.Fprintf(&b, "Colour: %s, %s. Covering: %s. Eyes: %d.\n\n", sp.Color, sp.Pattern, sp.Skin, sp.Eyes)
 	if sp.Apex {

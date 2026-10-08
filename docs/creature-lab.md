@@ -34,6 +34,16 @@ The game does not read the catalog yet. See "Extending it" for the plan.
 4. **Accept** (`accept_sprite_candidate`, or the Accept button). At most one candidate per slot is accepted. A species is *complete* when every slot has one. To judge a drawing, the species page previews each candidate the way the Scum Lab Sprite Designer does: at 128 px, and on the map's floor, rock and fog colors at 16, 32 and 64 px beside the emoji it replaces. 16 px is where most drawings fail, so compare there before accepting. The page's `preview` template draws these, and the accepted sprite at the top of each form uses the same template. The pages also show the ids the MCP tools take: the species id on its catalog card and under its name, and each candidate's id on its card, next to the form index in each form's heading. They are `code.id` elements with `user-select: all`, so one click selects the whole id. The pages run no script, so there is no copy button.
 5. **Export** (`GET /api/export`). Each complete species comes out as rolled, with its accepted SVGs.
 
+### Field notes
+
+A species' description (its "field notes", what a player reads in the game's Lore panel) starts as the roster code's generated text. That text is accurate but built from one template, so every species reads alike. When an agent is working on the catalog, it can give a species a voice of its own: `set_species_description` over MCP, `PATCH /api/species/{id}` with `description`, or "Rewrite the field notes" on the species page.
+
+- **The generated text is never overwritten.** It stays in `species.description` as rolled, and a rewrite goes in `description_override`. `creaturelab.FieldNotes` picks the rewrite when there is one. An empty rewrite goes back to the generated text, which is how the page's reset button works. Keeping both means a bad rewrite costs nothing, and the original is always there to check facts against.
+- **The rewrite is what shows everywhere:** in `traits.description` from the API and MCP, on the pages, in Scum Lab, in the sprite brief's `<field_notes>`, and in the export's `description`. A species detail also carries `generatedDescription` and `descriptionEdited`, so an agent can compare the two.
+- **Facts stay the traits' job.** Nothing checks a rewrite against the species. The MCP tool's description and the server instructions tell the agent to keep size, temperament, body, covering, features, attacks and life stages true, and to vary only voice and form. The brief also lists the form's exact body separately, so a loose rewrite cannot mislead an artist about limb counts.
+- **Limit:** a rewrite is capped at `MaxDescription` (4000 characters; the generated text runs a few hundred). Line breaks are kept and shown.
+- **The game does not read rewrites yet.** The export carries `description` beside the unchanged `species` struct. When the game loads a species pack, its Lore panel should prefer that over `AlienSpecies.Description()`.
+
 ### Who pays for drawing
 
 The server never calls a model. Over MCP, the person's own Claude draws, so a sprite costs whatever their Claude plan costs, when they choose to spend it. Without MCP, the species page has **Brief as text** (`/brief/{id}/{form}`) to paste into any chat, and a **Paste an SVG** box for the answer. Contrast the Scum Lab [Sprite Designer](./sprite-designer.md), which bills a Console API key per token from the browser.
@@ -54,7 +64,7 @@ The schema is dedicated to this job: purpose-built tables, not inventory's gener
 
 | table | holds |
 | --- | --- |
-| `species` | `seed`, `generator_rev` (the commit that rolled it), `data` (the whole `sim.AlienSpecies` as JSONB), copies of the name, temperament and description for listing, `form_count` (its sprite slots), `notes` |
+| `species` | `seed`, `generator_rev` (the commit that rolled it), `data` (the whole `sim.AlienSpecies` as JSONB), copies of the name, temperament and generated description for listing, `description_override` (rewritten field notes; `''` for none), `form_count` (its sprite slots), `notes` |
 | `sprite_candidates` | `(species_id, form)` slot, `svg` in a `text` column, `note`, `author`, `accepted_at`. A partial unique index allows one accepted per live slot. |
 | `api_keys`, `oauth_*`, `invites` | auth (below) |
 
