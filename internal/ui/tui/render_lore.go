@@ -32,7 +32,7 @@ func (m Model) renderLore() string {
 		sel := clamp(m.loreSelected, 0, len(m.latest.AlienSpecies)-1)
 		body = lipgloss.JoinHorizontal(lipgloss.Top, body,
 			strings.Repeat(" ", panelGap),
-			m.renderLoreDetail(m.latest.AlienSpecies[sel], rows, detailWidth))
+			m.renderLoreDetail(m.latest.AlienSpecies[sel], m.latest.FieldNotes(sel), m.latest.LabNotes(sel), rows, detailWidth))
 	}
 	return strings.Join([]string{header, body, footer}, "\n")
 }
@@ -124,10 +124,10 @@ func (m Model) writeArmsLore(b *strings.Builder, inner int) {
 	}
 }
 
-// renderLoreDetail lists everything known about one rolled species: its
-// build as explicit stat lines (for scanning at a glance) plus
-// AlienSpecies.Description()'s narrative paragraph (for reading).
-func (m Model) renderLoreDetail(sp sim.AlienSpecies, rows, width int) string {
+// renderLoreDetail lists everything known about one species: its build as
+// explicit stat lines (for scanning at a glance), its field notes (for
+// reading), and a packed species' lab notes, if it has any.
+func (m Model) renderLoreDetail(sp sim.AlienSpecies, fieldNotes, labNotes string, rows, width int) string {
 	inner := panelInner(width)
 
 	var b strings.Builder
@@ -169,11 +169,29 @@ func (m Model) renderLoreDetail(sp sim.AlienSpecies, rows, width int) string {
 	b.WriteString("\n")
 	b.WriteString(labelStyle.Render("FIELD NOTES"))
 	b.WriteByte('\n')
-	for _, line := range wrapWords(sp.Description(), inner) {
-		b.WriteString(line)
+	writeParagraphs(&b, fieldNotes, inner)
+	if labNotes != "" {
+		b.WriteString("\n")
+		b.WriteString(labelStyle.Render("LAB NOTES"))
 		b.WriteByte('\n')
+		writeParagraphs(&b, labNotes, inner)
 	}
 	return sidebarStyle.Width(width - borderCells).Height(rows - borderCells).MaxHeight(rows).Render(b.String())
+}
+
+// writeParagraphs wraps text to width, keeping its own line breaks: lab
+// notes are written as lines and short paragraphs.
+func writeParagraphs(b *strings.Builder, text string, width int) {
+	for _, para := range strings.Split(text, "\n") {
+		if strings.TrimSpace(para) == "" {
+			b.WriteByte('\n')
+			continue
+		}
+		for _, line := range wrapWords(para, width) {
+			b.WriteString(line)
+			b.WriteByte('\n')
+		}
+	}
 }
 
 // wrapWords greedily wraps s into lines of at most width cells, breaking

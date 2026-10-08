@@ -55,7 +55,9 @@ much is on it. Version 4 adds the **salt** section (see below); the header's
 reserved word became the salt count. `glyphs.looks` (no version bump: the
 frame layout is unchanged) lists colonist looks, each a candidate list; a
 frame's glyph index past the end of `symbols` names one (see
-[colonist-looks.md](./colonist-looks.md)). Version 5 adds the **flow** section and
+[colonist-looks.md](./colonist-looks.md)). `glyphs.sprites` and
+`glyphs.spriteFallback` (no version bump either) carry a species pack's SVGs, which
+indexes past the looks name ([species-pack.md](./species-pack.md)). Version 5 adds the **flow** section and
 four header words for it, and Hello's `flowFields`: the shared flow fields'
 names (`FlowFieldRef.Name`), in the engine's order, which the flow section's
 field index and the page's `flow` command both index. The fields are made with
@@ -96,7 +98,9 @@ Then the sections, in order:
   by `glyphs.ForEntity`, from things the page never sees (a colonist's gender,
   age and traits, an alien's species), so the TUI and the browser always
   agree — except that a resting colonist's index may point past `symbols`
-  into `looks`, the same figure in their own skin and hair.
+  into `looks`, the same figure in their own skin and hair, and an alien of a
+  packed species' index may point past `looks` into `sprites`: its form's
+  SVG (`EntityView.Sprite`; see [species-pack.md](./species-pack.md)).
 - **pages**: `int32 px × P`, `int32 py × P` (page coordinates, so tile
   `px*64`), then P × 4096 tiles of 2 bytes, row by row: **terrain**, then
   **flags** (rock composition in the low 4 bits, bit 4 *visible* = explored,

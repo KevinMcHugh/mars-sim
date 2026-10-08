@@ -165,3 +165,25 @@ func TestLoreTabListsGunsAndCorporations(t *testing.T) {
 		}
 	}
 }
+
+// A species from a pack shows the lab's rewrite as its field notes and the
+// lab's notes under them, each of their lines on its own line.
+func TestLoreTabShowsLabText(t *testing.T) {
+	snap := loreSnapshot()
+	snap.AlienLore = []sim.SpeciesLore{{FieldNotes: "Rewritten in the lab.", LabNotes: "Count the arms.\nLeave the area."}, {}}
+	var model tea.Model = New(nil, nil)
+	model, _ = model.Update(tea.WindowSizeMsg{Width: 100, Height: 60})
+	model, _ = model.Update(snapshotMsg{snap: snap})
+	for range 5 {
+		model, _ = model.Update(tea.KeyMsg{Type: tea.KeyTab})
+	}
+	out := model.View()
+	for _, want := range []string{"FIELD NOTES", "Rewritten in the lab.", "LAB NOTES", "Count the arms.", "Leave the area."} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("lore tab missing %q:\n%s", want, out)
+		}
+	}
+	if strings.Contains(out, "Count the arms. Leave") {
+		t.Fatal("the notes' line break was lost")
+	}
+}

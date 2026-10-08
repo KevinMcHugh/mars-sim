@@ -8,7 +8,9 @@
 // It exports these on globalThis.marssim:
 //
 //	start(settings)        new game; settings is a mars-sim.yaml mapping as
-//	                       JSON. Returns JSON: timings and the wire Hello.
+//	                       JSON, plus an optional "species-pack" (the
+//	                       species-pack.json object). Returns JSON: timings
+//	                       and the wire Hello.
 //	advance(ms)            run the ticks due within a budget (see
 //	                       sim.Engine.Advance). Returns {wait, frame, perf,
 //	                       topics}: frame is a wire frame (Uint8Array) or
@@ -48,8 +50,8 @@ import (
 // instead of a panel that silently never loads. 1 was everything before
 // subscribe/unsubscribe; 2 had no entity: or tile: topics; 3 no roster; 4 no log; 5 no jobs, storage, market or account:; 6 no perf or population; 7 no flow command; 8 no dig command; 9 no dig-cancel; 10 no order-place, order-reprice or order-cancel; 11 no order-suspend or order-resume; 12 no ship-move; 13 no ship-land; 14 no zone, clear or clear-cancel; 15 no save or load; 16 no recruit-roll or recruit-hire; 17 called the entity
 // panel's drives "needs", with a fatal flag where 18 has a consequence; 18 had
-// no order-wide-set or order-wide-clear.
-const hostAPI = 19
+// no order-wide-set or order-wide-clear; 19 took no species-pack in start.
+const hostAPI = 20
 
 var (
 	eng *sim.Engine
@@ -167,6 +169,11 @@ type startResult struct {
 // settings-file parser reads them as is).
 func start(settings string) startResult {
 	cfg := sim.DefaultConfig()
+	settings, pack, err := takeSpeciesPack(settings)
+	if err != nil {
+		return startResult{Error: err.Error()}
+	}
+	cfg.SpeciesPack = pack
 	set, err := sim.ApplyConfigFile(&cfg, []byte(settings), "settings")
 	if err != nil {
 		return startResult{Error: err.Error()}
@@ -176,6 +183,31 @@ func start(settings string) startResult {
 	r := begin(sim.NewEngine(cfg))
 	r.Set, r.GenMs = set, ms(time.Since(t0))
 	return r
+}
+
+// takeSpeciesPack removes the "species-pack" key from the settings mapping
+// and loads it: the page's species-pack.json, sent whole
+// (docs/species-pack.md). It is not a setting, so the settings file parser
+// would refuse it. No key, or null, means a rolled roster.
+func takeSpeciesPack(settings string) (string, []sim.PackedSpecies, error) {
+	var m map[string]json.RawMessage
+	if err := json.Unmarshal([]byte(settings), &m); err != nil {
+		return settings, nil, nil // not a JSON object: let the settings parser say why
+	}
+	raw, ok := m["species-pack"]
+	if !ok {
+		return settings, nil, nil
+	}
+	delete(m, "species-pack")
+	rest, err := json.Marshal(m)
+	if err != nil {
+		return "", nil, err
+	}
+	if string(raw) == "null" {
+		return string(rest), nil, nil
+	}
+	pack, err := sim.LoadSpeciesPack(raw, "species-pack.json")
+	return string(rest), pack, err
 }
 
 // load replaces the game with a save file's. A file that does not load

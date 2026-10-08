@@ -617,6 +617,13 @@ type Config struct {
 	// Schedules. See lore.go, alien_names.go and docs/lore.md.
 	AlienNames []AlienNameEntry
 
+	// SpeciesPack is alien species pulled from Creature Lab, each with a
+	// sprite per form. When it holds any, a world draws its roster from it
+	// (alien-species-count of them, no more than it holds) instead of rolling
+	// one. Untagged like AlienNames: it is loaded from species-pack.json (or
+	// -species-pack). See species_pack.go and docs/species-pack.md.
+	SpeciesPack []PackedSpecies
+
 	// Weapon stats. A colonist carrying one stands and fights an alien within
 	// Range instead of fleeing, firing once every FireRest ticks. See
 	// combat.go and docs/combat.md.

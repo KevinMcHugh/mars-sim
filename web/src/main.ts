@@ -153,13 +153,30 @@ window.addEventListener('keydown', (e) => {
 
 /**
  * hello with each colonist look resolved to the candidate this browser's
- * emoji font draws as one glyph and appended to symbols, so every glyph index
+ * emoji font draws as one glyph and appended to symbols (then a stand-in for
+ * each species-pack sprite), so every glyph index
  * a frame carries is a plain index into symbols: the map's atlas, the hover
  * line and the top bar need know nothing about looks.
  */
 function withLooks(h: Hello): Hello {
-  const symbols = [...h.glyphs.symbols, ...h.glyphs.looks.map((l) => pickGlyph(l))];
+  // Sprites come last, each standing in as the plain alien wherever a symbol
+  // is shown as text; the map's atlas paints the SVG over its cell.
+  const sprites = (h.glyphs.sprites ?? []).map(() => h.glyphs.symbols[h.glyphs.spriteFallback] ?? '');
+  const symbols = [...h.glyphs.symbols, ...h.glyphs.looks.map((l) => pickGlyph(l)), ...sprites];
   return { ...h, glyphs: { ...h.glyphs, symbols } };
+}
+
+/**
+ * The species pack shipped beside the page (species-pack.json, copied in by
+ * build-wasm.sh from the repo root), or null when there is none: the world
+ * then rolls its species as before. Fetched once per page load.
+ */
+let packOnce: Promise<unknown> | null = null;
+function speciesPack(): Promise<unknown> {
+  packOnce ??= fetch('species-pack.json')
+    .then((r) => (r.ok ? r.json() : null))
+    .catch(() => null);
+  return packOnce;
 }
 
 async function newGame(settings: Settings): Promise<void> {
@@ -171,7 +188,8 @@ async function newGame(settings: Settings): Promise<void> {
   try {
     // Paused, with the founders' ships aloft, so the player lands each one
     // before anyone moves (docs/ships.md).
-    began(await sim.start({ tps: 8, 'start-paused': true, 'place-ships': true, ...settings }));
+    const pack = await speciesPack();
+    began(await sim.start({ tps: 8, 'start-paused': true, 'place-ships': true, ...settings }, undefined, pack));
     status(null);
     setPanel('ships'); // the game starts with placing the ships
   } catch (e) {

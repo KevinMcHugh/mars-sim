@@ -13,3 +13,13 @@ cp "$(go env GOROOT)/lib/wasm/wasm_exec.js" web/public/wasm_exec.js
 chmod u+w web/public/wasm_exec.js
 GOOS=js GOARCH=wasm go build -ldflags="-s -w" -o web/public/mars-sim.wasm ./cmd/mars-sim-wasm
 printf 'built web/public/mars-sim.wasm\n'
+
+# The species pack pulled from Creature Lab (go run . -fetch-species URL),
+# served beside the page, which hands it to the engine at each new game. No
+# pack at the root means none here either, so a stale copy cannot linger.
+if [ -f species-pack.json ]; then
+  cp species-pack.json web/public/species-pack.json
+  printf 'copied species-pack.json\n'
+else
+  rm -f web/public/species-pack.json
+fi

@@ -212,7 +212,10 @@ skin tone and hair ([colonist-looks.md](./colonist-looks.md)):
 
 - **The atlas.** `atlas.ts` draws every glyph in `Hello.glyphs.symbols` once,
   with the browser's emoji font, into 128-pixel cells of one canvas. It uploads
-  that as a premultiplied, mipmapped texture.
+  that as a premultiplied, mipmapped texture. A species pack's sprites
+  (`Hello.glyphs.sprites`, the last symbols after `withLooks`) are painted over
+  their cells once the SVGs decode, and the texture is uploaded again
+  ([species-pack.md](./species-pack.md)).
 - **Terrain.** A terrain with a glyph (a bed, a wall, a forge) draws its emoji
   over a floor-colored backdrop, straight from the atlas in the terrain
   shader.

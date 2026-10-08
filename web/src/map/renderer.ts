@@ -381,8 +381,16 @@ export class MapRenderer {
     gl.uniform1iv(this.u['t.uTerrainGlyph'], terrainGlyphs);
     gl.uniform3fv(this.u['t.uGlyphBackdrop'], palette.GLYPH_BACKDROP);
 
-    if (this.atlas) gl.deleteTexture(this.atlas.texture);
-    this.atlas = buildAtlas(gl, hello.glyphs.symbols);
+    if (this.atlas) {
+      this.atlas.disposed = true;
+      gl.deleteTexture(this.atlas.texture);
+    }
+    // A species pack's sprites are the last symbols (withLooks in main.ts).
+    const sprites = hello.glyphs.sprites ?? [];
+    const firstSprite = hello.glyphs.symbols.length - sprites.length;
+    this.atlas = buildAtlas(gl, hello.glyphs.symbols,
+      sprites.map((svg, i) => ({ index: firstSprite + i, svg })),
+      () => { this.dirty = true; });
     gl.useProgram(this.spriteProg);
     const kinds = pad(palette.kindColors(hello.enums.kinds), MAX_KINDS);
     kinds.set(palette.CORPSE, KIND_CORPSE * 3);

@@ -12,6 +12,7 @@
     eyes: number; limbs: number; arms: number; legs: number; tail: boolean; wings: boolean;
     skin: string; color: string; pattern: string;
     attacks: string; biteDamage: number; biteRest: number; slowness: number; description: string;
+    notes?: string;
     // etymology is the binomial taken apart into its word parts (docs/alien-taxonomy.md).
     etymology?: { part: 'prefix' | 'root' | 'epithet'; form: string; meaning: string }[];
   }
@@ -113,7 +114,11 @@
           <dt>Move pace</dt><dd>every {sp.slowness} ticks</dd>
         </dl>
         <h4>Field notes</h4>
-        <p>{sp.description}</p>
+        <p class="notes">{sp.description}</p>
+        {#if sp.notes}
+          <h4>Lab notes</h4>
+          <p class="notes">{sp.notes}</p>
+        {/if}
       {/if}
     {/if}
   </Section>
@@ -162,5 +167,7 @@
   .list button.on { background: rgba(255, 255, 255, 0.1); border-color: var(--line); }
   p { margin: 0; line-height: 1.5; }
   .corp + .corp { margin-top: 8px; }
+  /* Lab-written text keeps its own line breaks (docs/species-pack.md). */
+  .notes { white-space: pre-line; }
   .muted { color: var(--muted); }
 </style>

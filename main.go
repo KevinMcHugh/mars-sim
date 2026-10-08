@@ -32,6 +32,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/kevinmchugh/mars-sim/internal/labpull"
 	"github.com/kevinmchugh/mars-sim/internal/sim"
 	"github.com/kevinmchugh/mars-sim/internal/ui/tui"
 
@@ -82,6 +83,17 @@ func main() {
 		os.Exit(2)
 	}
 
+	// A species pack pulled from Creature Lab loads the same way: an absent
+	// default file means a rolled roster, as before packs existed. A run
+	// that is fetching one writes it instead, so it reads no old copy.
+	speciesPackPath, speciesPackPathGiven := pathFromArgs(os.Args[1:], "species-pack", sim.SpeciesPackFileName)
+	if _, fetching := pathFromArgs(os.Args[1:], "fetch-species", ""); !fetching {
+		if err := loadSpeciesPackFile(&cfg, speciesPackPath, speciesPackPathGiven); err != nil {
+			fmt.Fprintln(os.Stderr, "mars-sim:", err)
+			os.Exit(2)
+		}
+	}
+
 	// Application flags (not part of the simulation config).
 	var (
 		duration             time.Duration
@@ -97,6 +109,7 @@ func main() {
 		printCognitionVocab  bool
 		loadPath             string
 		savePath             string
+		fetchSpecies         string
 	)
 	flag.DurationVar(&duration, "duration", 0, "auto-exit after this long (0 = run until quit); handy for smoke tests")
 	flag.BoolVar(&headless, "headless", false, "run without the TUI, printing periodic stats")
@@ -105,6 +118,8 @@ func main() {
 	flag.String("config", cfgPath, "settings file to read before the flags (\"\" to ignore any file)")
 	flag.String("director", directorPath, "director schedule file to read (\"\" to run with no scheduled occurrences)")
 	flag.String("alien-names", alienNamesPath, "alien name pool file to read (\"\" to use the built-in pool)")
+	flag.String("species-pack", speciesPackPath, "species pack to draw alien species and their sprites from, pulled from Creature Lab (\"\" to roll species instead)")
+	flag.StringVar(&fetchSpecies, "fetch-species", "", "pull every complete species from this Creature Lab URL into -species-pack, then exit")
 	flag.String("cognition", cogPath, "cognition balance file to read before flags (\"\" to ignore any file)")
 	flag.BoolVar(&printConfig, "print-config", false, "write a commented settings file with every setting at its default, then exit")
 	flag.BoolVar(&printCognitionConfig, "print-cognition-config", false, "write a cognition settings file with every setting at its default, then exit")
@@ -126,6 +141,14 @@ func main() {
 		fmt.Fprintln(os.Stderr, "mars-sim:", err)
 		fmt.Fprintln(os.Stderr, "run with -h for options")
 		os.Exit(2)
+	}
+
+	if fetchSpecies != "" {
+		if err := fetchSpeciesPack(fetchSpecies, flag.Lookup("species-pack").Value.String()); err != nil {
+			fmt.Fprintln(os.Stderr, "mars-sim:", err)
+			os.Exit(1)
+		}
+		return
 	}
 
 	if printConfig {
@@ -515,6 +538,82 @@ func loadAlienNamesFile(cfg *sim.Config, path string, given bool) error {
 	return nil
 }
 
+// pathFromArgs finds -name (or --name) by hand, for a file that must load
+// before flag.Parse runs, as alienNamesPathFromArgs does. A bare -name with
+// nothing after it reads as "", which opts out.
+func pathFromArgs(args []string, name, def string) (path string, given bool) {
+	for i, a := range args {
+		flagName, value, hasValue := strings.Cut(a, "=")
+		if flagName != "-"+name && flagName != "--"+name {
+			continue
+		}
+		if hasValue {
+			return value, true
+		}
+		if i+1 < len(args) {
+			return args[i+1], true
+		}
+		return "", true
+	}
+	return def, false
+}
+
+// loadSpeciesPackFile applies a species pack to cfg (docs/species-pack.md).
+// Like the alien name pool, an absent default file is normal and a named one
+// that is missing or does not parse stops the run.
+func loadSpeciesPackFile(cfg *sim.Config, path string, given bool) error {
+	if path == "" {
+		return nil // -species-pack "" rolls species instead
+	}
+	data, err := os.ReadFile(path)
+	switch {
+	case errors.Is(err, fs.ErrNotExist) && !given:
+		return nil
+	case err != nil:
+		return fmt.Errorf("reading species pack: %w", err)
+	}
+	pack, err := sim.LoadSpeciesPack(data, path)
+	if err != nil {
+		return err
+	}
+	cfg.SpeciesPack = pack
+	return nil
+}
+
+// fetchSpeciesPack pulls every complete species from a Creature Lab and
+// writes them to path, saying what it kept and what it skipped.
+func fetchSpeciesPack(lab, path string) error {
+	if path == "" {
+		return errors.New("-fetch-species needs a -species-pack file to write")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	defer cancel()
+	res, err := labpull.Pull(ctx, nil, lab)
+	if err != nil {
+		return err
+	}
+	for _, why := range res.Skipped {
+		fmt.Fprintln(os.Stderr, "skipped", why)
+	}
+	data, err := labpull.Encode(res.Pack)
+	if err != nil {
+		return fmt.Errorf("%w (%d skipped, %d still missing sprites); %s left as it was", err, len(res.Skipped), res.Incomplete, path)
+	}
+	if err := os.WriteFile(path, data, 0o644); err != nil {
+		return err
+	}
+	names := make([]string, len(res.Pack.Species))
+	for i, ps := range res.Pack.Species {
+		names[i] = ps.Species.Plural
+	}
+	fmt.Printf("wrote %s: %d species (%s)", path, len(names), strings.Join(names, ", "))
+	if res.Incomplete > 0 {
+		fmt.Printf("; %d more still missing sprites", res.Incomplete)
+	}
+	fmt.Println()
+	return nil
+}
+
 // checkNoArgs rejects anything left over after the flags. Go's flag package
 // stops at the first argument that is not a flag and leaves the rest
 // unparsed, so "mars-sim -- -tps 100" or "mars-sim x -tps 100" used to run at
@@ -712,7 +811,8 @@ func usage() {
 	fmt.Fprintf(out, "  %s -headless -duration 10s -seed 42\n", name)
 	fmt.Fprintf(out, "  %s -print-config > %s   # a settings file you can edit and commit\n", name, sim.ConfigFileName)
 	fmt.Fprintf(out, "  %s -director %s        # script scheduled occurrences (rat plagues, alien swarms, supply drops)\n", name, sim.DirectorFileName)
-	fmt.Fprintf(out, "  %s -alien-names %s   # customize what a seed's aliens can be named\n\n", name, sim.AlienNameFileName)
+	fmt.Fprintf(out, "  %s -alien-names %s   # customize what a seed's aliens can be named\n", name, sim.AlienNameFileName)
+	fmt.Fprintf(out, "  %s -fetch-species https://creature-lab-b2mxg.sprites.app   # pull species and their sprites into %s\n\n", name, sim.SpeciesPackFileName)
 	fmt.Fprintf(out, "Options:\n")
 	flag.PrintDefaults()
 }

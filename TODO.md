@@ -23,4 +23,4 @@ Things to build/fix as we think of them:
   * defensive quills: spines are the one feature with no combat effect; an attacker striking a quilled alien takes damage back (today only other aliens strike in melee)
   * breeding for single-form species: most species never reproduce, so worldgen and the director set their numbers for good. Maybe adults bear young that are small adults; maybe they never breed
   * habitats: bind a species to a level (deep dwellers, surface grazers) and let that decide where nests are seeded, where it roams, and whether it will take stairs or shafts. Interacts with levels (#159): queens' nest anchors, brood caps and travel estimates all carry a level now
-  * forms on the map: eggs, young and queens all draw with the species' glyph. Give forms their own look (Sprite Designer in Scum Lab), and show apex outside the description. Needs setup first
+  * forms on the map: species pulled from Creature Lab draw each form with its own sprite in the browser (docs/species-pack.md); rolled species, and the terminal, still draw every form with the species' glyph. Still to do: show apex outside the description

@@ -43,6 +43,10 @@ type EntityView struct {
 	// AlienForm is the alien's stage of life or caste ("grub", "queen"), empty
 	// for a single-form species or a plain adult. See docs/alien-lifecycles.md.
 	AlienForm string
+	// Sprite is the alien's sprite from a species pack, as an index into
+	// Snapshot.Sprites plus one; 0 draws the species' emoji, as every alien
+	// of a rolled species does. See docs/species-pack.md.
+	Sprite int
 	// Keeper is the colonist a pet (a chicken or a cat) came down with in its
 	// ship, 0 for a stray or anything that is not a pet. See
 	// docs/chickens.md.
@@ -540,6 +544,15 @@ type Snapshot struct {
 	// carries a copy of the one it belongs to on its own EntityView.AlienSpecies;
 	// this is the full roster, for a codex-style listing. See docs/lore.md.
 	AlienSpecies []AlienSpecies
+	// Sprites are the SVG sources a packed species' aliens draw with
+	// (EntityView.Sprite indexes them), empty for a rolled roster. Fixed for
+	// the life of the world, so every snapshot shares the one slice: do not
+	// modify it.
+	Sprites []string
+	// AlienLore is each species' lab text, by AlienSpecies index: rewritten
+	// field notes and lab notes from a species pack. Nil for a rolled roster.
+	// Shared like Sprites. Read it through FieldNotes and LabNotes.
+	AlienLore []SpeciesLore
 	// Corporations is this world's roster of companies, and GunModels the make
 	// and model each gun kind carries (Maker indexes Corporations). Flavor
 	// only. See docs/arms-makers.md.
@@ -810,6 +823,8 @@ func (w *World) snapshot(paused bool, tps int) *Snapshot {
 		Graveyard:            append([]EntityView(nil), w.graveyard...),
 		Deceased:             w.publishedDeceasedColonists(),
 		AlienSpecies:         append([]AlienSpecies(nil), w.alienSpecies...),
+		Sprites:              w.sprites.SVGs,
+		AlienLore:            w.speciesLore,
 		Corporations:         append([]Corporation(nil), w.corporations...),
 		GunModels:            append([]GunModel(nil), w.gunModels...),
 		Population:           w.popHist,
@@ -891,6 +906,7 @@ func (w *World) entityView(e *Entity, kinChildren map[kinID][]kinID, full bool) 
 		if f, ok := w.formOf(e); ok {
 			ev.AlienForm = f.Name
 		}
+		ev.Sprite = w.spriteFor(e)
 	}
 	if e.Kind == Colonist {
 		ev.Charge = e.affect.Charge
@@ -935,4 +951,25 @@ func (w *World) hiddenFloor() int {
 	n := 0
 	w.eachLayer(func(l *Layer) { n += l.hiddenFloor })
 	return n
+}
+
+// FieldNotes is what a lore tab shows as species i's field notes: the lab's
+// rewrite when a species pack has one, else the generated
+// AlienSpecies.Description().
+func (s *Snapshot) FieldNotes(i int) string {
+	if i < 0 || i >= len(s.AlienSpecies) {
+		return ""
+	}
+	if i < len(s.AlienLore) && s.AlienLore[i].FieldNotes != "" {
+		return s.AlienLore[i].FieldNotes
+	}
+	return s.AlienSpecies[i].Description()
+}
+
+// LabNotes is species i's notes from Creature Lab, or "" for none.
+func (s *Snapshot) LabNotes(i int) string {
+	if i < 0 || i >= len(s.AlienLore) {
+		return ""
+	}
+	return s.AlienLore[i].LabNotes
 }
