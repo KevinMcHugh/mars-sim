@@ -107,10 +107,12 @@ its other end, level by level. With no stair between two levels it answers
   (`OrderStair`, `b` then `v` in the terminal) or when there is no unclaimed
   mining frontier on any level. It draws nothing random.
 - **Where.** `findStairSite` spreads outward from an anchor (the middle of
-  the map on the landing level, the foot of the stair in on a deeper one) and
-  takes the first open, known floor tile in the main room whose eight
-  neighbours are open floor too, so the stair plugs no corridor and has room
-  around it.
+  the map on the landing level, the foot of the stair in on a deeper one, or
+  of the shaft in when there is no stair) and takes the first open, known
+  floor tile in the main room whose eight neighbours are open floor too, so
+  the stair plugs no corridor and has room around it. It stops at the edge
+  of the main room's extent on that level (`mainRoomBounds`, the chunks its
+  regions are in); see "Why".
 - **Building it.** A stair is a one-task project, paid for and claimed like
   any other build. It is mining work (`buildSkill`), takes `stair-ticks`, and
   costs no materials. On completion `finishStair` calls `digStair`: the tile
@@ -150,6 +152,14 @@ shafts, holes and ladders (see [frontend-web.md](./frontend-web.md),
 
 ## Why it is this way
 
+- **The site search is bounded by the main room.** A level the colony has
+  just broken into is often only the foot of a stair or shaft, with no site
+  on it, and the planners ask for a site on the deepest level every planning
+  round until the order can be met. The search used to run out to the map's
+  full width before giving up: seconds a round on a 1000x1000 map, and on the
+  browser's 10000x10000 the worker never got through a tick (a shaft and then
+  a hole froze the game). A site must be in the main room, so nothing past
+  the main room's bounds can be one, and the first site found is the same.
 - **One definition of a link.** A stair is defined by two terrains, not a
   link table: a half-built or walled-over stair links nothing, and every
   system (rooms, A\*, fields, repair) agrees about it because they all ask

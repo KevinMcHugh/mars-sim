@@ -30,7 +30,7 @@ sits beside are [stairs.md](./stairs.md) and [shafts.md](./shafts.md).
   `refuseDestinations`, `haulTarget` and `jobCleanHaul` use a hole as a
   chute.
 - [`internal/sim/holes_test.go`](../internal/sim/holes_test.go): digging
-  one, a two-level fall's damage, a fatal fall and a crowded landing, a
+  one, a hole ordered below a fresh shaft waiting without a map-wide search, a two-level fall's damage, a fatal fall and a crowded landing, a
   cornered colonist leaping (and not leaping to its death), the chute, a
   stranded colonist getting a ladder, and the ordered hole and ladder in a
   real colony, deterministic and surviving a save.
@@ -57,6 +57,11 @@ sited (`findStairSite`, on the deepest level reached), as one task of
 to floor (making the level and revealing around it) and then turns the tile
 into the hole. The landing is a one-tile pocket in the rock until someone
 mines it out.
+
+The site is on the deepest level reached, so after a shaft or stair down
+that level is often only its foot, with nowhere to put a hole: the order
+waits (cheaply; see [stairs.md](./stairs.md)) until the colony mines room
+there.
 
 ### Falling
 

@@ -250,16 +250,28 @@ func (w *World) designateStair(p Point, issuer Owner) bool {
 // to step around. The search spreads from an anchor and takes the first
 // site it meets, ring by ring and in a fixed order within a ring: on the
 // landing level the middle of the map (where the colony lands), on a deeper
-// level the foot of the stair that leads into it.
+// level the foot of the stair (or, with no stair, the shaft) that leads into
+// it. The search stops at the edge of the main room's extent on level l, the
+// only place a site can be (see mainRoomBounds).
 func (w *World) findStairSite(l Level) (Point, bool) {
 	anchor := Point{w.Width / 2, w.Height / 2, l}
 	if l != LandingLevel {
+		found := false
 		for _, s := range w.stairs {
 			if s.Level == l-1 {
-				anchor = Point{s.X, s.Y, l}
+				anchor, found = Point{s.X, s.Y, l}, true
 				break
 			}
 		}
+		for _, s := range w.shafts {
+			if !found && s.Level == l-1 {
+				anchor, found = Point{s.X, s.Y, l}, true
+			}
+		}
+	}
+	x0, y0, x1, y1, reached := w.mainRoomBounds(l)
+	if !reached {
+		return Point{}, false
 	}
 	designated := make(map[Point]bool)
 	for _, p := range w.projects {
@@ -285,7 +297,9 @@ func (w *World) findStairSite(l Level) (Point, bool) {
 	}
 	var site Point
 	found := false
-	w.forEachInRadius(anchor, max(w.Width, w.Height), func(p Point) bool {
+	// The farthest ring that still touches the main room's bounds.
+	radius := max(anchor.X-x0, x1-1-anchor.X, anchor.Y-y0, y1-1-anchor.Y)
+	w.forEachInRadius(anchor, radius, func(p Point) bool {
 		if ok(p) {
 			site, found = p, true
 			return true
@@ -293,6 +307,33 @@ func (w *World) findStairSite(l Level) (Point, bool) {
 		return false
 	})
 	return site, found
+}
+
+// mainRoomBounds is the half-open tile bounds [x0,x1) x [y0,y1) of the
+// chunks holding the main room's regions on level l; ok is false when the
+// main room does not reach level l. findStairSite searches no further: a
+// level the colony has just broken into is often only the foot of a stair or
+// shaft, with no site anywhere on it, and searching the whole map for one
+// cost seconds a planning round on a big map (minutes on the browser's
+// 10000x10000), every round until the order could be met.
+func (w *World) mainRoomBounds(l Level) (x0, y0, x1, y1 int, ok bool) {
+	if w.mainRoom == 0 {
+		return 0, 0, 0, 0, false
+	}
+	// Map order is fine here: only the min and max are kept.
+	for _, r := range w.regions {
+		if r.level != l || r.room != w.mainRoom {
+			continue
+		}
+		cx0, cy0, cx1, cy1 := w.chunkBounds(r.chunk)
+		if !ok {
+			x0, y0, x1, y1, ok = cx0, cy0, cx1, cy1, true
+			continue
+		}
+		x0, y0 = min(x0, cx0), min(y0, cy0)
+		x1, y1 = max(x1, cx1), max(y1, cy1)
+	}
+	return x0, y0, x1, y1, ok
 }
 
 // finishStair is jobBuild's last step for a stair task: dig it, and pay and
