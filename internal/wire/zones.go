@@ -133,6 +133,7 @@ func zoningTopic(s *sim.Snapshot) ZoningTopic {
 		for _, tk := range p.Tasks {
 			d.X0, d.Y0 = min(d.X0, tk.Pos.X), min(d.Y0, tk.Pos.Y)
 			d.X1, d.Y1 = max(d.X1, tk.Pos.X), max(d.Y1, tk.Pos.Y)
+			d.Level = int(tk.Pos.Level)
 		}
 		for _, o := range econ.WorkOrders {
 			if o.Kind == sim.WorkClear && digHas(p, o.Pos) {

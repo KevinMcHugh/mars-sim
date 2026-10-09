@@ -16,7 +16,9 @@
 //	                       topics}: frame is a wire frame (Uint8Array) or
 //	                       null; topics is JSON of the panel topics due, or
 //	                       null (see wire.Topics).
-//	interest(x0,y0,x1,y1)  the map region the page shows, in tiles
+//	interest(x0,y0,x1,y1,level)  the map region the page shows, in tiles,
+//	                       and on which level (the landing level if left
+//	                       out)
 //	subscribe(topic)       start sending a panel's topic ("lore")
 //	unsubscribe(topic)     stop sending it
 //	send(command)          queue a command (JSON), applied at the next advance
@@ -50,8 +52,10 @@ import (
 // instead of a panel that silently never loads. 1 was everything before
 // subscribe/unsubscribe; 2 had no entity: or tile: topics; 3 no roster; 4 no log; 5 no jobs, storage, market or account:; 6 no perf or population; 7 no flow command; 8 no dig command; 9 no dig-cancel; 10 no order-place, order-reprice or order-cancel; 11 no order-suspend or order-resume; 12 no ship-move; 13 no ship-land; 14 no zone, clear or clear-cancel; 15 no save or load; 16 no recruit-roll or recruit-hire; 17 called the entity
 // panel's drives "needs", with a fatal flag where 18 has a consequence; 18 had
-// no order-wide-set or order-wide-clear; 19 took no species-pack in start.
-const hostAPI = 20
+// no order-wide-set or order-wide-clear; 19 took no species-pack in start;
+// 20 showed only the landing level (no level in interest, dig or clear, no
+// dig-down).
+const hostAPI = 21
 
 var (
 	eng *sim.Engine
@@ -108,6 +112,9 @@ func main() {
 			return toJSON(errorResult("interest needs a started engine and x0, y0, x1, y1"))
 		}
 		enc.SetInterest(wire.Rect{X0: args[0].Int(), Y0: args[1].Int(), X1: args[2].Int(), Y1: args[3].Int()})
+		if len(args) > 4 && args[4].Type() == js.TypeNumber {
+			enc.SetLevel(sim.Level(args[4].Int()))
+		}
 		interestMoved = true
 		return toJSON(struct{}{})
 	}))
@@ -308,11 +315,15 @@ type memoryResult struct {
 
 // command is a sim.Command as the page sends it.
 type command struct {
-	Type string `json:"type"` // pause | speed | spawn | flow | dig | dig-cancel | zone | clear | clear-cancel | ship-move | ship-land | order-place | order-reprice | order-cancel | order-suspend | order-resume | order-wide-set | order-wide-clear | recruit-roll | recruit-hire
+	Type string `json:"type"` // pause | speed | spawn | flow | dig | dig-cancel | dig-down | zone | clear | clear-cancel | ship-move | ship-land | order-place | order-reprice | order-cancel | order-suspend | order-resume | order-wide-set | order-wide-clear | recruit-roll | recruit-hire
 	Rate int    `json:"rate,omitempty"`
-	// Kind is what to spawn, or for zone the zone kind by name ("none"
-	// unzones).
+	// Kind is what to spawn; for zone the zone kind by name ("none"
+	// unzones); for dig-down what to dig: stair, shaft, hole or ladder.
 	Kind string `json:"kind,omitempty"`
+	// Level is the level a dig or clear is on (the landing level if left
+	// out); Levels how deep a dig-down shaft goes.
+	Level  int `json:"level,omitempty"`
+	Levels int `json:"levels,omitempty"`
 	// Field is the flow field to show, an index into Hello.flowFields, or
 	// -1 for none.
 	Field *int `json:"field,omitempty"`
@@ -358,7 +369,19 @@ func parseCommand(s string) (sim.Command, error) {
 	case "recruit-hire":
 		return sim.HireRecruits{Offer: c.ID, Picks: c.Picks}, nil
 	case "dig":
-		return sim.OrderExcavation{X0: c.X0, Y0: c.Y0, X1: c.X1, Y1: c.Y1}, nil
+		return sim.OrderExcavation{X0: c.X0, Y0: c.Y0, X1: c.X1, Y1: c.Y1, Level: sim.Level(c.Level)}, nil
+	case "dig-down":
+		switch c.Kind {
+		case "stair":
+			return sim.OrderStair{}, nil
+		case "shaft":
+			return sim.OrderShaft{Levels: max(c.Levels, 1)}, nil
+		case "hole":
+			return sim.OrderHole{}, nil
+		case "ladder":
+			return sim.OrderLadder{}, nil
+		}
+		return nil, fmt.Errorf("unknown dig-down %q", c.Kind)
 	case "zone":
 		k, ok := sim.ParseZoneKind(c.Kind)
 		if !ok {
@@ -366,7 +389,7 @@ func parseCommand(s string) (sim.Command, error) {
 		}
 		return sim.PaintZone{Kind: k, X0: c.X0, Y0: c.Y0, X1: c.X1, Y1: c.Y1}, nil
 	case "clear":
-		return sim.ClearArea{X0: c.X0, Y0: c.Y0, X1: c.X1, Y1: c.Y1}, nil
+		return sim.ClearArea{X0: c.X0, Y0: c.Y0, X1: c.X1, Y1: c.Y1, Level: sim.Level(c.Level)}, nil
 	case "clear-cancel":
 		return sim.CancelClear{ID: c.ID}, nil
 	case "order-place", "order-suspend", "order-resume", "order-wide-set", "order-wide-clear":

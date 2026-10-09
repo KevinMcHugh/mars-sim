@@ -25,7 +25,7 @@ import (
 // Version is the frame layout's version, carried in every frame header and in
 // Hello. Bump it on any change to the layout, and update the decoder
 // (web/wire/decode.js) and the golden files in the same change.
-const Version = 5
+const Version = 6
 
 // Hello is the once-per-game message.
 type Hello struct {
@@ -48,6 +48,12 @@ type Hello struct {
 	// FlowFields names the shared flow fields, in the engine's order: the
 	// flow section's field index, and the page's flow command, index this.
 	FlowFields []string `json:"flowFields"`
+	// LandingLevel is the level ships land on, the one the page shows
+	// first; DeepestLevel the deepest the colony may dig to. A frame says
+	// which level it shows and which levels exist so far. See
+	// docs/z-levels.md.
+	LandingLevel int `json:"landingLevel"`
+	DeepestLevel int `json:"deepestLevel"`
 }
 
 // HelloGlyphs is the map's emoji (internal/glyphs) as the page needs them: the
@@ -143,7 +149,19 @@ func NewHello(snap *sim.Snapshot) Hello {
 		ScumMax:  snap.ScumMax,
 
 		FlowFields: flowFieldNames(snap.FlowFields),
+
+		LandingLevel: int(sim.LandingLevel),
+		DeepestLevel: deepestLevel(snap),
 	}
+}
+
+// deepestLevel is Config.DeepestLevel, or the landing level for a hand-built
+// Snapshot with no Config.
+func deepestLevel(snap *sim.Snapshot) int {
+	if snap.Config == nil {
+		return int(sim.LandingLevel)
+	}
+	return max(snap.Config.DeepestLevel, int(sim.LandingLevel))
 }
 
 func flowFieldNames(refs []sim.FlowFieldRef) []string {

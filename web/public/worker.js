@@ -129,7 +129,7 @@ async function handle(msg) {
     }
     case 'interest': {
       const { x0, y0, x1, y1 } = msg.rect;
-      marssim.interest(x0, y0, x1, y1);
+      marssim.interest(x0, y0, x1, y1, msg.level);
       schedule(0); // send the newly visible pages now, even if paused
       break;
     }

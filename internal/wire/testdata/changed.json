@@ -1,5 +1,5 @@
 {
-  "version": 5,
+  "version": 6,
   "paused": true,
   "fogOfWar": true,
   "tilesReset": false,
@@ -102,5 +102,7 @@
       "y": 5,
       "dist": 40
     }
-  ]
+  ],
+  "level": 1,
+  "levels": 2
 }

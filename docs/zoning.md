@@ -214,7 +214,10 @@ replan too changed what seeds produce.
 tile the colony has seen in a rectangle, with no zone involved. A room still
 going up in the area is called off and refunded. It is not a zone and leaves
 nothing behind. `CancelClear` refunds what an open clearing order still holds,
-like an excavation's cancel.
+like an excavation's cancel. A clearing is on the level the browser shows
+(`ClearArea.Level`), and never takes out a stair, shaft or hole; zones
+themselves are the landing level's only, so below it the Zones tab offers
+only this tool (see [excavation.md](./excavation.md)).
 
 ### The map and the tab
 

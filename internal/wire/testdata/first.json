@@ -1,5 +1,5 @@
 {
-  "version": 5,
+  "version": 6,
   "paused": false,
   "fogOfWar": true,
   "tilesReset": true,
@@ -135,5 +135,7 @@
   "flowField": -1,
   "flowMax": 0,
   "flowGoals": 0,
-  "flow": []
+  "flow": [],
+  "level": 1,
+  "levels": 2
 }

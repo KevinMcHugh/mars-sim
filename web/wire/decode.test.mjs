@@ -49,6 +49,8 @@ function asGolden(f) {
     flow: f.flow === null ? [] : Array.from({ length: f.flow.count }, (_, i) => ({
       x: f.flow.x[i], y: f.flow.y[i], dist: f.flow.dist[i],
     })),
+    level: f.level,
+    levels: f.levels.reduce((m, l) => m | (1 << l), 0),
   };
 }
 

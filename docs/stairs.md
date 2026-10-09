@@ -142,9 +142,11 @@ the view's (x, y), so the view lands straight above or below where it was.
 The header names the level and the legend shows 🔽/🔼 once there is more
 than one level; a one-level game looks as it always did.
 
-The browser still shows the landing level only (phase Z5): the wire encoder
-leaves out entities, scum and salt on other levels, and draws the top of a
-stair like any other terrain.
+The browser does the same since Z5: a level picker in the top bar and `<`
+and `>` change the level the map shows, and the Dig tab orders stairs,
+shafts, holes and ladders (see [frontend-web.md](./frontend-web.md),
+"Levels"). Every frame is one level's (see
+[wire-format.md](./wire-format.md), "Levels").
 
 ## Why it is this way
 

@@ -9,7 +9,7 @@
 import { mount } from 'svelte';
 import type { Frame, Hello } from '../wire/decode.js';
 import { namedStats, TILE_COMPOSITION_MASK, TILE_VISIBLE } from '../wire/decode.js';
-import { armShip, colonyLog, cycleFlowField, inspect, install, landAloft, moveShip, setFlowField, setPanel, shipSiteAt, shipSiteFree, shipTiles, stepSpeed, subscribe, syncFrame, togglePause, topics, ui, UI_HZ } from './game.svelte';
+import { armShip, colonyLog, cycleFlowField, inspect, install, landAloft, moveShip, onLandingLevel, selectionLevel, setFlowField, setPanel, shipSiteAt, shipSiteFree, shipTiles, stepLevel, stepSpeed, subscribe, syncFrame, togglePause, topics, ui, UI_HZ } from './game.svelte';
 import type { ShipLine, ShipsTopic, ZonePreview } from './game.svelte';
 import { attachInput } from './map/input';
 import { MapRenderer } from './map/renderer';
@@ -57,6 +57,12 @@ install({
   loadGame: (f) => { void loadGame(f); },
   saveGame: () => { void saveGame(); },
   centerOn: (x, y) => { cam.cx = x + 0.5; cam.cy = y + 0.5; viewChanged(); },
+  levelChanged: () => {
+    lastInterest = ''; // the same pages, but of another level
+    showZones();
+    updateMark();
+    viewChanged();
+  },
   selected: () => updateMark(),
   digChanged: () => showDig(),
   zoneChanged: () => showZone(),
@@ -87,6 +93,10 @@ sim.onTopics = (t) => {
 };
 sim.onFrame = (f, bytes) => {
   if (!hello) return;
+  // A frame still in flight from before the map changed level: its tiles
+  // and creatures are the old level's. The next one is of the new level,
+  // and starts the tiles over.
+  if (f.level !== ui.level) return;
   last = f;
   map.applyFrame(f);
   updateMark();
@@ -108,7 +118,7 @@ sim.onFrame = (f, bytes) => {
   const now = performance.now();
   if (now - lastUI >= 1000 / UI_HZ || f.paused !== ui.paused) {
     lastUI = now;
-    syncFrame(f.tick, f.paused, f.tps, namedStats(f, hello));
+    syncFrame(f.tick, f.paused, f.tps, namedStats(f, hello), f.levels);
     if (hoverAt) showHover(...hoverAt);
   }
 };
@@ -135,6 +145,9 @@ window.addEventListener('keydown', (e) => {
   switch (e.key) {
     case ' ': togglePause(); break;
     case '+': case '=': stepSpeed(1); break;
+    // A level down or up, as in the terminal (docs/z-levels.md).
+    case '>': case '.': stepLevel(1); break;
+    case '<': case ',': stepLevel(-1); break;
     case '-': case '_': stepSpeed(-1); break;
     // Ctrl/Cmd+S saves the game rather than the page.
     case 's': case 'S':
@@ -270,6 +283,8 @@ function resetGame(): void {
   ui.zone = { armed: false, tool: ui.zone.tool, rect: null, preview: null };
   ui.shipTool = null;
   ui.shipSent = null;
+  ui.level = 1;
+  ui.levels = [1];
   lastInterest = '';
 }
 
@@ -279,6 +294,8 @@ function began(started: Started): void {
   ui.hello = hello;
   debug.hello = hello;
   debug.genMs = started.genMs;
+  ui.level = hello.landingLevel;
+  ui.levels = [hello.landingLevel];
   map.reset(hello);
   cam.cx = hello.width / 2;
   cam.cy = hello.height / 2;
@@ -293,10 +310,10 @@ function viewChanged(): void {
   // A page of margin, so a short pan finds its tiles already here.
   const r: TileRect = cam.visibleTiles(hello.width, hello.height, hello.pageSide);
   const side = hello.pageSide;
-  const key = [r.x0, r.y0, r.x1, r.y1].map((v) => Math.floor(v / side)).join(',');
+  const key = [r.x0, r.y0, r.x1, r.y1].map((v) => Math.floor(v / side)).join(',') + `@${ui.level}`;
   if (key === lastInterest) return; // same pages as last time
   lastInterest = key;
-  sim.setInterest(r);
+  sim.setInterest(r, ui.level);
 }
 
 function centerOnColony(f: Frame): void {
@@ -332,7 +349,7 @@ function select(sx: number, sy: number): void {
   // Each click steps one along: the creatures here in turn, then the tile.
   const sel = ui.selected;
   const at = sel && 'entity' in sel ? here.indexOf(sel.entity) : -1;
-  inspect(at + 1 < here.length ? { entity: here[at + 1] } : { tile: [x, y] });
+  inspect(at + 1 < here.length ? { entity: here[at + 1] } : { tile: [x, y, ui.level] });
 }
 
 // The dig tool: where the drag began, in tiles, and the tint it puts on the map.
@@ -384,7 +401,8 @@ interface ZoningTopic {
 /** Draw the zones topic on the map. */
 function showZones(): void {
   const z = topics.data.zones as ZonesTopic | undefined;
-  if (!z) { map.setZones([], []); return; }
+  // Zones are painted on the landing level only (docs/zoning.md).
+  if (!z || !onLandingLevel()) { map.setZones([], []); return; }
   map.setZones(z.runs, z.kinds.map((k) => (k.color ? palette.zoneTint(k.color, palette.ZONE_ALPHA) : undefined!)));
 }
 
@@ -448,7 +466,8 @@ function showZone(): void {
       if (kind > 0 && seen && cell![0] === 0) p.dig++;
     }
   }
-  for (const s of zoning?.structures ?? []) {
+  // Structures are listed for the zoning of the landing level.
+  for (const s of onLandingLevel() ? zoning?.structures ?? [] : []) {
     if (s.x1 < r.x0 || s.x0 > r.x1 || s.y1 < r.y0 || s.y0 > r.y1) continue;
     if (kind < 0) { if (s.rising) p.rising++; continue; }
     if (s.zone === kind) continue;
@@ -542,7 +561,7 @@ function landShip(x: number, y: number): void {
 function updateMark(): void {
   const s = ui.selected;
   if (!s) { map.setMark(null); return; }
-  if ('tile' in s) { map.setMark(s.tile); return; }
+  if ('tile' in s) { map.setMark(selectionLevel(s) === ui.level ? [s.tile[0], s.tile[1]] : null); return; }
   const e = last?.entities;
   if (e) {
     for (let i = 0; i < e.count; i++) {
@@ -562,7 +581,7 @@ function showHover(sx: number, sy: number): void {
   const x = Math.floor(fx), y = Math.floor(fy);
   if (x < 0 || y < 0 || x >= hello.width || y >= hello.height) { ui.hover = null; return; }
   const names = topics.data.names as Record<string, string> | undefined;
-  const parts = [`${x}, ${y}`];
+  const parts = [onLandingLevel() ? `${x}, ${y}` : `${x}, ${y}, level ${ui.level}`];
   const cell = map.tileAt(x, y);
   if (!cell || !(cell[1] & TILE_VISIBLE)) {
     parts.push('unexplored');

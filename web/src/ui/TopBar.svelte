@@ -4,6 +4,7 @@
   import { ui } from '../game.svelte';
   import SpeedControl from './SpeedControl.svelte';
   import FlowControl from './FlowControl.svelte';
+  import LevelControl from './LevelControl.svelte';
   import { clock } from './format';
 
   // Creatures: their generic glyph (glyphs.ForKind), as the TUI's header shows them.
@@ -39,6 +40,7 @@
   <span class="readout tick">tick {ui.tick.toLocaleString()}</span>
   <SpeedControl />
   <FlowControl />
+  <LevelControl />
   {#if ui.hello}
     <span class="counts">
       {#each creatures as [stat, kind] (stat)}

@@ -61,7 +61,9 @@ indexes past the looks name ([species-pack.md](./species-pack.md)). Version 5 ad
 four header words for it, and Hello's `flowFields`: the shared flow fields'
 names (`FlowFieldRef.Name`), in the engine's order, which the flow section's
 field index and the page's `flow` command both index. The fields are made with
-the world, so the list never changes during a game.
+the world, so the list never changes during a game. Version 6 adds two
+header words, the frame's **level** and the **levels** that exist, and
+Hello's `landingLevel` and `deepestLevel` (see "Levels" below).
 
 ### A frame
 
@@ -72,7 +74,7 @@ nothing).
 | Offset | Size | Field |
 | --- | --- | --- |
 | 0 | 4 | magic `MSFR` |
-| 4 | 2 | `Version` (5) |
+| 4 | 2 | `Version` (6) |
 | 6 | 2 | flags: 1 paused, 2 fog of war, 4 **tiles reset**, 8 **refuse frame**, 16 **scum frame**, 32 **salt frame**, 64 **flow frame** |
 | 8 | 8 | tick |
 | 16 | 8 | `TileChanges.Frame` |
@@ -88,6 +90,8 @@ nothing).
 | 60 | 4 | flow field: an index into `Hello.flowFields`, or -1 for none (int32) |
 | 64 | 4 | the flow field's largest distance, over the whole map |
 | 68 | 4 | the flow field's goal tiles (distance 0), over the whole map |
+| 72 | 4 | the level every section of this frame is on (`Encoder.SetLevel`) |
+| 76 | 4 | the levels the colony has broken into: bit l set for level l |
 
 Then the sections, in order:
 
@@ -209,15 +213,31 @@ from the frames.
 
 ### Levels
 
-The engine has a level per stair the colony has dug (see
-[stairs.md](./stairs.md)); the browser shows the landing level only, until
-phase Z5 of [z-levels.md](./z-levels.md) gives the frame a level. So the
-encoder sends `Snapshot.Tiles` (the landing level's grid) and leaves out
-every entity, scum patch and salt deposit on another level, and the flow
-section ranges over the landing level. The top of a stair is landing-level
-terrain and is drawn like any other: it has a glyph (appended to the end of
-`glyphs.All`, so no glyph sent before it was renumbered) and a palette colour.
-Nothing in the frame layout changed, and the golden frames did not move.
+The engine has a level for every one the colony has broken into (see
+[z-levels.md](./z-levels.md)). A frame is **one level's**: the one the page
+asked for, with `interest`'s fifth argument (`Encoder.SetLevel`; the landing
+level until it does). Its tile pages come from that level's grid
+(`Snapshot.LevelGrid`, `ReadLevelPage`), following that level's changes
+(`Snapshot.LevelTileChanges`); its entities, refuse, scum and salt are the
+ones on that level, and its flow section ranges over it. The header says
+which level it is (offset 72) and which levels exist (offset 76), so the page
+can offer only levels there is something on.
+
+Changing level **starts the tiles over**: the next frame sets `tiles reset`
+(and the refuse, scum and salt frames), and carries the new level's pages
+from scratch. The page holds one level's pages at a time and never keys them
+by level. A frame of the old level can still be in flight when the page
+switches; the page drops any frame whose level is not the one it shows.
+
+Stairs, shafts and holes are terrain like any other: each has a glyph
+(appended to the end of `glyphs.All`, so no glyph sent before it was
+renumbered) and a palette colour.
+
+Points the page names in topics (`tile:<x>,<y>,<level>`) carry a level; one
+without (the market's `book:` depots, which are all on the landing level)
+means the landing level. Topic rows that name a place (`entity:`, `tile:`,
+the job board's tasks, storage rows, dig and clearing orders) carry a
+`level`, so the page can take the player to it.
 
 ### When the host encodes
 

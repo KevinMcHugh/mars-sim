@@ -6,7 +6,7 @@ export interface Holding { item: string; count: number }
 export interface LedgerItem { owner: string; item: string; count: number }
 
 export interface StorageRow {
-  x: number; y: number; label: string;
+  x: number; y: number; level: number; label: string;
   used: number; slots: number; items: number; capacity: number;
   top?: string;
   contents: Holding[];

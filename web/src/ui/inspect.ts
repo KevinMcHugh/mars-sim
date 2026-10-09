@@ -33,7 +33,7 @@ export interface EntityInfo {
   id: number; kind: string; glyph: string; name: string;
   /** The glyph in the colonist's own skin and hair: pick with pickGlyph. */
   look?: string[];
-  x: number; y: number; state: string; focus: string;
+  x: number; y: number; level: number; state: string; focus: string;
   hp: number; maxHp: number; parts: PartHP[];
   dead: boolean; diedTick?: number; cause?: string;
   species?: string;
@@ -41,7 +41,7 @@ export interface EntityInfo {
 }
 
 export interface TileInfo {
-  x: number; y: number;
+  x: number; y: number; level: number;
   /** False under the fog: nothing else is set. */
   explored: boolean;
   terrain?: string; glyph?: string;

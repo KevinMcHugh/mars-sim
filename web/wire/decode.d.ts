@@ -53,6 +53,9 @@ export interface Hello {
   scumMax: number;
   /** The shared flow fields' names; the flow command and a frame's flow.field index this. */
   flowFields: string[];
+  /** The level ships land on, shown first; the deepest the colony may dig to. */
+  landingLevel: number;
+  deepestLevel: number;
 }
 
 export interface Frame {
@@ -64,6 +67,10 @@ export interface Frame {
   tileFrame: number;
   tps: number;
   pagesOwed: number;
+  /** The level every section of the frame is on. */
+  level: number;
+  /** The levels the colony has broken into, shallowest first. */
+  levels: number[];
   stats: Int32Array;
   entities: {
     count: number;

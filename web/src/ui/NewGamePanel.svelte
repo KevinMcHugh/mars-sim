@@ -17,6 +17,9 @@
   let width = $state(Number(init.width));
   let height = $state(Number(init.height));
   let colonists = $state(Number(init.colonists));
+  // How deep the colony may dig: 1 keeps it on the landing level
+  // (docs/z-levels.md); deeper levels are richer and more dangerous.
+  let deepest = $state(Number(init['deepest-level']));
   // A number input binds a number, or null when empty: empty lets the engine pick.
   let seed: number | null = $state(init.seed === undefined ? null : Number(init.seed));
   let fog = $state(init['fog-of-war'] !== false);
@@ -29,7 +32,7 @@
 
   function start(e: SubmitEvent) {
     e.preventDefault();
-    const s: Settings = { width, height, colonists, 'fog-of-war': fog, 'zoning-auto': autoZoning };
+    const s: Settings = { width, height, colonists, 'fog-of-war': fog, 'zoning-auto': autoZoning, 'deepest-level': Math.max(1, deepest || 1) };
     if (seed !== null && Number.isFinite(seed)) s.seed = seed;
     newGame(s);
   }
@@ -49,6 +52,7 @@
   <label>Height <input type="number" min="64" bind:value={height} /></label>
   <label>Colonists <input type="number" min="1" bind:value={colonists} aria-describedby="ship-count" /></label>
   <p id="ship-count" class="muted ships" aria-live="polite">{ships} to land</p>
+  <label title="How many levels down the colony may dig: 1 keeps it on the level its ships land on">Deepest level <input type="number" min="1" max="16" bind:value={deepest} /></label>
   <label>Seed <input type="number" placeholder="random" bind:value={seed} /></label>
   <label class="check"><input type="checkbox" bind:checked={fog} /> Fog of war</label>
   <label class="check"><input type="checkbox" bind:checked={autoZoning} /> Colonists zone for themselves</label>

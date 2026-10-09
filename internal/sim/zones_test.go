@@ -231,7 +231,7 @@ func TestAZoneOverRockOrdersItDugOut(t *testing.T) {
 		w.revealAround(Point{x, 3, LandingLevel})
 	}
 	c := PaintZone{Kind: ZoneProduction, X0: 6, Y0: 2, X1: 12, Y1: 6}
-	rock := len(w.unmarkedRock(6, 2, 12, 6))
+	rock := len(w.unmarkedRock(LandingLevel, 6, 2, 12, 6))
 	if rock == 0 {
 		t.Fatal("no seen rock in the zone")
 	}

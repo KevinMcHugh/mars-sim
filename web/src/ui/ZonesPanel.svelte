@@ -18,7 +18,7 @@
     types: { name: string; zone: string }[];
     tiles: Record<string, number>;
     structures: { id: number; type: string; ship: boolean }[];
-    clears: { id: number; x0: number; y0: number; x1: number; y1: number; tiles: number; done: number; held: number }[];
+    clears: { id: number; x0: number; y0: number; x1: number; y1: number; level: number; tiles: number; done: number; held: number }[];
     waiting: { name: string; zone: string }[];
   }
 
@@ -64,6 +64,10 @@
   const verb = $derived(tool === 'clear' ? `Clear for ${money(cost)}` : tool === 'none' ? 'Remove zoning' : `Zone ${tool}`);
   const toolLabel = (t: string) => (t === 'none' ? 'Remove zone' : t === 'clear' ? 'Clear area' : t);
 
+  // Zones are the landing level's (docs/zoning.md); below it only the
+  // clear tool works.
+  const landing = $derived(ui.hello ? ui.level === ui.hello.landingLevel : true);
+
   function pick(t: string) {
     armZone(t, !(ui.zone.armed && tool === t));
   }
@@ -78,16 +82,20 @@
 <div class="tools">
   {#each kinds as k (k.name)}
     <button type="button" class:on={ui.zone.armed && tool === k.name} aria-pressed={ui.zone.armed && tool === k.name}
-      onclick={() => pick(k.name)}>
+      disabled={!landing} onclick={() => pick(k.name)}>
       <span class="swatch" style:background={k.color}></span>{k.name}
     </button>
   {/each}
   {#each ['none', 'clear'] as t (t)}
-    <button type="button" class:on={ui.zone.armed && tool === t} aria-pressed={ui.zone.armed && tool === t} onclick={() => pick(t)}>
+    <button type="button" class:on={ui.zone.armed && tool === t} aria-pressed={ui.zone.armed && tool === t}
+      disabled={!landing && t !== 'clear'} onclick={() => pick(t)}>
       {toolLabel(t)}
     </button>
   {/each}
 </div>
+{#if !landing}
+  <p class="muted">Zones are painted on the landing level; on this level you can only order structures cleared.</p>
+{/if}
 {#if ui.zone.armed}
   <p class="muted">Drag on the map to mark the area ({toolLabel(tool)}).</p>
 {/if}
@@ -159,8 +167,8 @@
   <ul class="lines">
     {#each z.clears as c (c.id)}
       <li>
-        <button type="button" class="link" onclick={() => centerOn((c.x0 + c.x1) >> 1, (c.y0 + c.y1) >> 1)}>
-          {c.x0},{c.y0} to {c.x1},{c.y1}
+        <button type="button" class="link" onclick={() => centerOn((c.x0 + c.x1) >> 1, (c.y0 + c.y1) >> 1, c.level)}>
+          {c.x0},{c.y0} to {c.x1},{c.y1}{#if c.level !== ui.hello?.landingLevel}, level {c.level}{/if}
         </button>
         {c.done}/{c.tiles} cleared, {money(c.held)} held
         <button type="button" class="cancel" onclick={() => cancelClear(c.id)}

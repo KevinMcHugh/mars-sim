@@ -41,7 +41,7 @@
     <header>
       <h3><span class="glyph">{pickGlyph(entity.look, entity.glyph)}</span> {entity.name}</h3>
       {#if !entity.dead}
-        <button type="button" class="small" title="Center the map on it" onclick={() => centerOn(entity.x, entity.y)}>Find</button>
+        <button type="button" class="small" title="Center the map on it" onclick={() => centerOn(entity.x, entity.y, entity.level)}>Find</button>
       {/if}
     </header>
     {#if c}
@@ -51,7 +51,7 @@
       <p class="sub">{c.skin} skin · {c.hair} hair · ${c.wallet.toLocaleString()}</p>
       {#if c.backstory}<p class="sub">{c.backstory}</p>{/if}
     {:else}
-      <p class="sub">{[entity.kind, `(${entity.x}, ${entity.y})`, entity.species].filter(Boolean).join(' · ')}</p>
+      <p class="sub">{[entity.kind, `(${entity.x}, ${entity.y}${entity.level !== ui.hello?.landingLevel ? `, level ${entity.level}` : ''})`, entity.species].filter(Boolean).join(' · ')}</p>
     {/if}
 
     <Section id="inspect.status" title="Status">
@@ -168,7 +168,7 @@
   <header>
     <h3>{#if tile.glyph}<span class="glyph">{tile.glyph}</span>{/if}{tile.glyph ? ' ' : ''}{tile.explored ? tile.terrain : 'Unexplored'}</h3>
   </header>
-  <p class="sub">({tile.x}, {tile.y})</p>
+  <p class="sub">({tile.x}, {tile.y}{tile.level !== ui.hello?.landingLevel ? `, level ${tile.level}` : ''})</p>
   {#if tile.fixture}
     <Section id="inspect.fixture" title="Fixture">
       <dl>

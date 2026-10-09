@@ -26,8 +26,17 @@ func (g *TileGrid) PageIndex(p Point) int {
 // would read as unexplored Rock. With fog off, an ungenerated page reads from
 // the preview, as TileAt does.
 func (s *Snapshot) ReadPage(pi int, dst []Tile) bool {
+	return s.ReadLevelPage(s.Tiles.Level(), pi, dst)
+}
+
+// ReadLevelPage is ReadPage for page pi of level l's grid (LevelTiles). A
+// level the colony has never broken into has nothing to show.
+func (s *Snapshot) ReadLevelPage(l Level, pi int, dst []Tile) bool {
 	dst = dst[:gridPageLen]
-	g := s.Tiles
+	g := s.LevelGrid(l)
+	if g == nil {
+		return false
+	}
 	var page *tilePage
 	if pi >= 0 && pi < len(g.pages) {
 		page = g.pages[pi]
@@ -41,7 +50,7 @@ func (s *Snapshot) ReadPage(pi int, dst []Tile) bool {
 		// already the zero Rock; nothing to clip.
 		return true
 	}
-	if !s.PageKnown(pi) {
+	if !s.LevelPageKnown(l, pi) {
 		return false
 	}
 	for off := range dst {
@@ -61,8 +70,38 @@ func (s *Snapshot) ReadPage(pi int, dst []Tile) bool {
 // PageKnown reports whether ReadPage(pi) has anything to show, without
 // reading it: the page's chunk is generated, or the fog is off.
 func (s *Snapshot) PageKnown(pi int) bool {
-	g := s.Tiles
+	return s.LevelPageKnown(s.Tiles.Level(), pi)
+}
+
+// LevelPageKnown is PageKnown for page pi of level l's grid.
+func (s *Snapshot) LevelPageKnown(l Level, pi int) bool {
+	g := s.LevelGrid(l)
+	if g == nil {
+		return false
+	}
 	return !s.FogOfWar || pi >= 0 && pi < len(g.pages) && g.pages[pi] != nil
+}
+
+// LevelGrid is level l's published grid, or nil for a level the colony has
+// never broken into. A hand-built Snapshot that sets only Tiles has that one
+// level.
+func (s *Snapshot) LevelGrid(l Level) *TileGrid {
+	if len(s.LevelTiles) == 0 && l != s.Tiles.Level() {
+		return nil
+	}
+	return s.tilesOf(Point{Level: l})
+}
+
+// LevelTileChanges is LevelChanges[l], or TileChanges for a hand-built
+// Snapshot that sets only Tiles.
+func (s *Snapshot) LevelTileChanges(l Level) TileChanges {
+	if int(l) >= 0 && int(l) < len(s.LevelChanges) {
+		return s.LevelChanges[l]
+	}
+	if len(s.LevelTiles) == 0 && l == s.Tiles.Level() {
+		return s.TileChanges
+	}
+	return TileChanges{Frame: s.TileChanges.Frame}
 }
 
 // RefuseTile is one tile with refuse on it: a violent death's gore, bodies,

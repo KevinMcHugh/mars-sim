@@ -36,6 +36,8 @@ type decoded struct {
 	FlowMax   int32          `json:"flowMax"`
 	FlowGoals int32          `json:"flowGoals"`
 	Flow      []decodedFlow  `json:"flow"`
+	Level     uint32         `json:"level"`
+	Levels    uint32         `json:"levels"`
 }
 
 type decodedFlow struct {
@@ -104,6 +106,8 @@ func decode(t *testing.T, b []byte) decoded {
 		TileFrame: le.Uint64(b[16:]),
 		TPS:       le.Uint32(b[24:]),
 		Owed:      le.Uint32(b[44:]),
+		Level:     le.Uint32(b[72:]),
+		Levels:    le.Uint32(b[76:]),
 	}
 	nStats, n := int(le.Uint32(b[28:])), int(le.Uint32(b[32:]))
 	nPages, nRefuse := int(le.Uint32(b[36:])), int(le.Uint32(b[40:]))
@@ -578,5 +582,74 @@ func TestEncodeFlowField(t *testing.T) {
 	snap.FlowField = nil
 	if d := decode(t, e.Encode(snap)); !d.HasFlow || d.FlowField != -1 || len(d.Flow) != 0 {
 		t.Fatalf("hiding the field should send an empty section with field -1: %+v", d)
+	}
+}
+
+// A frame shows one level: the page's choice (SetLevel). Changing it starts
+// the tiles over, and every section is that level's.
+func TestEncodeShowsTheChosenLevel(t *testing.T) {
+	const w, h = 70, 10
+	deep := sim.LandingLevel + 1
+	landTiles, deepTiles := make([]sim.Tile, w*h), make([]sim.Tile, w*h)
+	for i := range landTiles {
+		landTiles[i] = sim.Tile{Terrain: sim.Floor, Explored: true}
+	}
+	deepTiles[5*w+3] = sim.Tile{Terrain: sim.StairUp, Explored: true}
+	deepTiles[5*w+66] = sim.Tile{Terrain: sim.Floor, Explored: true, Gore: 1}
+	all := sim.TileChanges{Frame: 1, All: true, Refuse: true}
+	snap := &sim.Snapshot{
+		Width: w, Height: h,
+		Tiles:        sim.NewTileGrid(w, h, landTiles),
+		LevelTiles:   []*sim.TileGrid{nil, sim.NewTileGrid(w, h, landTiles), sim.NewTileGridOn(deep, w, h, deepTiles)},
+		TileChanges:  all,
+		LevelChanges: []sim.TileChanges{{Frame: 1}, all, all},
+		Entities: []sim.EntityView{
+			{ID: 1, Kind: sim.Colonist, Pos: sim.Point{X: 2, Y: 2, Level: sim.LandingLevel}},
+			{ID: 2, Kind: sim.Colonist, Pos: sim.Point{X: 3, Y: 5, Level: deep}},
+		},
+		Scum:     map[sim.Point]uint8{{X: 1, Y: 1, Level: sim.LandingLevel}: 1, {X: 4, Y: 5, Level: deep}: 2},
+		ScumMax:  3,
+		FogOfWar: true,
+	}
+	snap.Tiles = snap.LevelTiles[sim.LandingLevel]
+	e := NewEncoder()
+	e.SetInterest(everything())
+
+	d := decode(t, e.Encode(snap))
+	if d.Level != uint32(sim.LandingLevel) || d.Levels != 1<<1|1<<2 {
+		t.Fatalf("level %d, levels %b; want the landing level of levels 1 and 2", d.Level, d.Levels)
+	}
+	if len(d.Entities) != 1 || d.Entities[0].ID != 1 || len(d.Scum) != 1 || d.Scum[0].X != 1 {
+		t.Errorf("landing frame carries entities %v, scum %v", d.Entities, d.Scum)
+	}
+
+	e.SetLevel(deep)
+	d = decode(t, e.Encode(snap))
+	if !d.Reset || d.Level != uint32(deep) {
+		t.Fatalf("after SetLevel: reset %v, level %d", d.Reset, d.Level)
+	}
+	if len(d.Entities) != 1 || d.Entities[0].ID != 2 || len(d.Scum) != 1 || d.Scum[0].Amount != 2 {
+		t.Errorf("deep frame carries entities %v, scum %v", d.Entities, d.Scum)
+	}
+	if len(d.Refuse) != 1 || d.Refuse[0].X != 66 {
+		t.Errorf("deep frame's refuse is %v, want the gore at x 66", d.Refuse)
+	}
+	if len(d.Pages) != 2 {
+		t.Fatalf("deep frame carries %d pages, want 2", len(d.Pages))
+	}
+	stair := d.Pages[0].Tiles[(5*sim.TilePageSide+3)*tileBytes]
+	if d.Pages[0].PX != 0 || sim.Terrain(stair) != sim.StairUp {
+		t.Errorf("page %d holds terrain %v at (3, 5), want the stair's foot", d.Pages[0].PX, sim.Terrain(stair))
+	}
+
+	e.SetLevel(deep + 1) // never broken into
+	d = decode(t, e.Encode(snap))
+	if !d.Reset || len(d.Pages) != 0 || len(d.Entities) != 0 {
+		t.Errorf("an unbroken level: reset %v, %d pages, %d entities", d.Reset, len(d.Pages), len(d.Entities))
+	}
+
+	e.SetLevel(sim.LandingLevel)
+	if d = decode(t, e.Encode(snap)); !d.Reset || len(d.Pages) != 2 || d.Level != uint32(sim.LandingLevel) {
+		t.Errorf("back on the landing level: reset %v, %d pages, level %d", d.Reset, len(d.Pages), d.Level)
 	}
 }
