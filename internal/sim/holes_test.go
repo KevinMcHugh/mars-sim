@@ -233,3 +233,32 @@ func TestOrderedHoleAndLadder(t *testing.T) {
 		t.Fatalf("loaded game's state differs: %s", saveDiff(w, loaded))
 	}
 }
+
+// A hole ordered after a one-level shaft: the deepest level is then only the
+// shaft's foot, with nowhere to site a hole. The site search must stop at the
+// main room's extent there, not sweep the whole map every planning round
+// (which froze the browser's 10000x10000 game), and the order waits.
+func TestHoleAfterShaftSearchesOnlyTheMainRoom(t *testing.T) {
+	w := shaftColony(t, 1)
+	w.manualShaftLevels = 1
+	runUntil(t, w, 4000, "a shaft", func() bool { return len(w.shafts) > 0 })
+	foot := Point{w.shafts[0].X, w.shafts[0].Y, LandingLevel + 1}
+	x0, y0, x1, y1, ok := w.mainRoomBounds(foot.Level)
+	if !ok || x1-x0 != chunkSize || y1-y0 != chunkSize || foot.X < x0 || foot.X >= x1 || foot.Y < y0 || foot.Y >= y1 {
+		t.Fatalf("main room bounds on level %d = [%d,%d)x[%d,%d) %v, want the chunk holding %v",
+			foot.Level, x0, x1, y0, y1, ok, foot)
+	}
+	if site, ok := w.findStairSite(foot.Level); ok {
+		t.Fatalf("site %v on a level that is only a shaft's foot", site)
+	}
+	if _, _, _, _, ok := w.mainRoomBounds(LandingLevel + 2); ok {
+		t.Error("the main room reaches a level nobody has broken into")
+	}
+	w.manualHoles = 1
+	for i := 0; i < 300; i++ {
+		w.step()
+	}
+	if w.manualHoles != 1 || len(w.holes) != 0 {
+		t.Errorf("order pending %d, holes %v: want the order waiting", w.manualHoles, w.holes)
+	}
+}
