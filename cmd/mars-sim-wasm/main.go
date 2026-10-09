@@ -54,8 +54,8 @@ import (
 // panel's drives "needs", with a fatal flag where 18 has a consequence; 18 had
 // no order-wide-set or order-wide-clear; 19 took no species-pack in start;
 // 20 showed only the landing level (no level in interest, dig or clear, no
-// dig-down).
-const hostAPI = 21
+// dig-down); 21 sited a dig-down hole itself (no x, y).
+const hostAPI = 22
 
 var (
 	eng *sim.Engine
@@ -320,8 +320,8 @@ type command struct {
 	// Kind is what to spawn; for zone the zone kind by name ("none"
 	// unzones); for dig-down what to dig: stair, shaft, hole or ladder.
 	Kind string `json:"kind,omitempty"`
-	// Level is the level a dig or clear is on (the landing level if left
-	// out); Levels how deep a dig-down shaft goes.
+	// Level is the level a dig, clear or dig-down hole is on (the landing
+	// level if left out); Levels how deep a dig-down shaft goes.
 	Level  int `json:"level,omitempty"`
 	Levels int `json:"levels,omitempty"`
 	// Field is the flow field to show, an index into Hello.flowFields, or
@@ -337,6 +337,7 @@ type command struct {
 	// ("bid" or "ask") and the item by name; order-place and
 	// order-wide-set also the quantity, and order-place the depot (x, y);
 	// order-place, order-wide-set and order-reprice: the price. ship-move, ship-land: the ship's (new) top-left (x, y).
+	// dig-down hole: the tile to break through, (x, y) on level.
 	Side  string `json:"side,omitempty"`
 	Item  string `json:"item,omitempty"`
 	Qty   int    `json:"qty,omitempty"`
@@ -377,7 +378,12 @@ func parseCommand(s string) (sim.Command, error) {
 		case "shaft":
 			return sim.OrderShaft{Levels: max(c.Levels, 1)}, nil
 		case "hole":
-			return sim.OrderHole{}, nil
+			// The player sites a hole: the tile (x, y) on level.
+			l := sim.Level(c.Level)
+			if c.Level == 0 {
+				l = sim.LandingLevel
+			}
+			return sim.OrderHole{At: sim.Point{X: c.X, Y: c.Y, Level: l}}, nil
 		case "ladder":
 			return sim.OrderLadder{}, nil
 		}

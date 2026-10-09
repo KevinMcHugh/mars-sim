@@ -49,7 +49,7 @@ func (w *World) step() {
 		w.planRooms()
 		w.planStairs()
 		w.planShafts()
-		w.planHoles()
+		w.planLadders()
 		w.nextPlanTick = w.tick + planInterval
 	}
 	w.runMarket()         // expire stale orders; top up the colony's standing bids

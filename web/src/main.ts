@@ -9,7 +9,7 @@
 import { mount } from 'svelte';
 import type { Frame, Hello } from '../wire/decode.js';
 import { namedStats, TILE_COMPOSITION_MASK, TILE_VISIBLE } from '../wire/decode.js';
-import { armShip, colonyLog, cycleFlowField, inspect, install, landAloft, moveShip, onLandingLevel, selectionLevel, setFlowField, setPanel, shipSiteAt, shipSiteFree, shipTiles, stepLevel, stepSpeed, subscribe, syncFrame, togglePause, topics, ui, UI_HZ } from './game.svelte';
+import { armHole, armShip, colonyLog, cycleFlowField, inspect, install, landAloft, moveShip, onLandingLevel, orderHole, selectionLevel, setFlowField, setPanel, shipSiteAt, shipSiteFree, shipTiles, stepLevel, stepSpeed, subscribe, syncFrame, togglePause, topics, ui, UI_HZ } from './game.svelte';
 import type { ShipLine, ShipsTopic, ZonePreview } from './game.svelte';
 import { attachInput } from './map/input';
 import { MapRenderer } from './map/renderer';
@@ -67,6 +67,7 @@ install({
   digChanged: () => showDig(),
   zoneChanged: () => showZone(),
   shipToolChanged: () => showShipPreview(),
+  holeToolChanged: () => showHolePreview(),
   highlight: (tiles) => map.setHighlight(tiles),
 });
 // Colonists' names for the hover readout; frames carry only ids. Held for
@@ -133,6 +134,11 @@ attachInput(canvas, cam, {
       shipAt = [Math.floor(fx), Math.floor(fy)];
       showShipPreview();
     }
+    if (ui.holeTool && hello) {
+      const [fx, fy] = cam.toTile(x, y);
+      holeAt = [Math.floor(fx), Math.floor(fy)];
+      showHolePreview();
+    }
   },
   leave: () => { hoverAt = null; ui.hover = null; },
   click: (x, y) => select(x, y),
@@ -149,6 +155,11 @@ window.addEventListener('keydown', (e) => {
     case '>': case '.': stepLevel(1); break;
     case '<': case ',': stepLevel(-1); break;
     case '-': case '_': stepSpeed(-1); break;
+    // Put the hole tool down without ordering.
+    case 'Escape':
+      if (!ui.holeTool) return;
+      armHole(false);
+      break;
     // Ctrl/Cmd+S saves the game rather than the page.
     case 's': case 'S':
       if (!(e.ctrlKey || e.metaKey) || e.altKey) return;
@@ -283,6 +294,8 @@ function resetGame(): void {
   ui.zone = { armed: false, tool: ui.zone.tool, rect: null, preview: null };
   ui.shipTool = null;
   ui.shipSent = null;
+  ui.holeTool = false;
+  holeAt = null;
   ui.level = 1;
   ui.levels = [1];
   lastInterest = '';
@@ -341,6 +354,7 @@ function select(sx: number, sy: number): void {
   const x = Math.floor(fx), y = Math.floor(fy);
   if (x < 0 || y < 0 || x >= hello.width || y >= hello.height) return;
   if (ui.shipTool !== null) { landShip(x, y); return; }
+  if (ui.holeTool) { orderHole(x, y); return; }
   const here: number[] = [];
   if (last && map.visible(x, y)) {
     const e = last.entities;
@@ -516,6 +530,26 @@ let shipAt: [number, number] | null = null;
 const SHIP_OK = new Uint8Array([90, 200, 120, 120]);
 const SHIP_BAD = new Uint8Array([230, 70, 60, 120]);
 const SHIP_FROM = new Uint8Array([120, 160, 255, 70]);
+
+// The hole tool: the tile the pointer is over.
+let holeAt: [number, number] | null = null;
+
+/**
+ * Tint the tile under the pointer while the hole tool is up: green on open
+ * floor the colony has seen, red elsewhere. The engine has the last word
+ * (the tile must also be reachable, and not marked for anything else).
+ */
+function showHolePreview(): void {
+  if (!ui.holeTool || !holeAt || !hello) {
+    if (!ui.holeTool) map.setHighlight(null);
+    return;
+  }
+  const [x, y] = holeAt;
+  const cell = map.tileAt(x, y);
+  const floor = hello.enums.terrains.indexOf('floor');
+  const ok = cell !== null && (cell[1] & TILE_VISIBLE) !== 0 && cell[0] === floor;
+  map.setHighlight([{ x, y, color: ok ? SHIP_OK : SHIP_BAD }]);
+}
 
 /** The ship the tool holds, and the ships topic it was picked from. */
 function heldShip(): { ships: ShipLine[]; ship: ShipLine } | null {

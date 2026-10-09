@@ -3,7 +3,7 @@
   // see what it would cost, and order it: the colony buys the digging from the
   // treasury as work orders on the order book (docs/excavation.md). The prices
   // and the open orders come from the market topic.
-  import { armDig, cancelDig, centerOn, clearDig, digDown, levelName, orderDig, subscribe, topics, ui } from '../game.svelte';
+  import { armDig, armHole, cancelDig, centerOn, clearDig, digDown, levelName, orderDig, subscribe, topics, ui } from '../game.svelte';
   import { money } from './format';
 
   interface Market {
@@ -15,7 +15,7 @@
 
   $effect(() => subscribe('market'));
   // Leaving the tab puts the tool down and clears the tint it left on the map.
-  $effect(() => () => clearDig());
+  $effect(() => () => { clearDig(); armHole(false); });
 
   const m = $derived(topics.data.market as Market | undefined);
   const r = $derived(ui.dig.rect);
@@ -93,9 +93,10 @@
 {#if canGoDown}
   <h2>Dig down</h2>
   <p class="muted">
-    The colony sites it on the deepest level it has reached and digs it free of charge. A stair is
-    walked both ways; a shaft is climbed slowly, and can go several levels at once; a hole is a drop
-    nothing comes back up, until a ladder turns it into a shaft. Deepest allowed: level {ui.hello?.deepestLevel}.
+    The colony digs these free of charge. It sites a stair or shaft on the deepest level it has reached;
+    you pick where a hole goes. A stair is walked both ways; a shaft is climbed slowly, and can go several
+    levels at once; a hole is a drop nothing comes back up, until a ladder turns it into a shaft. Deepest
+    allowed: level {ui.hello?.deepestLevel}.
   </p>
   <div class="row wrap">
     <button type="button" onclick={() => digDown('stair')} title="Order a stair down (docs/stairs.md)">Stair</button>
@@ -105,10 +106,14 @@
         aria-label="Shaft levels" bind:value={shaftLevels} />
       <span class="muted">levels</span>
     </span>
-    <button type="button" onclick={() => digDown('hole')} title="Order a hole broken through to the level below (docs/holes.md)">Hole</button>
+    <button type="button" class:on={ui.holeTool} aria-pressed={ui.holeTool} onclick={() => armHole(!ui.holeTool)}
+      title="Pick a floor tile on the map to break a hole through to the level below (docs/holes.md)">{ui.holeTool ? 'Click a floor tile…' : 'Hole'}</button>
     <button type="button" onclick={() => digDown('ladder')} title="Fit a ladder into the first hole without one, making it a shaft">Ladder</button>
   </div>
-  <p class="muted">The Jobs tab lists what is ordered and not yet marked out; &lt; and &gt; step the map between levels.</p>
+  <p class="muted">
+    The Jobs tab lists what is ordered and not yet marked out; &lt; and &gt; step the map between levels.
+    A hole goes on the level the map shows; Esc puts the tool down, and a tile the colony cannot use is refused in the log.
+  </p>
 {/if}
 
 <style>

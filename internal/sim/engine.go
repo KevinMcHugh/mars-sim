@@ -444,7 +444,8 @@ func (e *Engine) apply(cmd Command) (rateChanged bool) {
 	case OrderStair:
 		e.world.manualStairs++
 	case OrderHole:
-		e.world.manualHoles++
+		e.world.orderHole(c.At)
+		e.requestPublish()
 	case OrderLadder:
 		e.world.manualLadders++
 	case OrderShaft:

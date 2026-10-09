@@ -663,10 +663,10 @@ type World struct {
 	// dug (OrderShaft) that the planner has not marked out yet. See
 	// planShafts.
 	manualShaftLevels int
-	// manualHoles and manualLadders count holes and ladders the player has
-	// ordered (OrderHole, OrderLadder) that the planner has not marked out
-	// yet. See planHoles.
-	manualHoles, manualLadders int
+	// manualLadders counts ladders the player has ordered (OrderLadder)
+	// that the planner has not marked out yet. See planLadders. (A hole is
+	// sited by the player and marked out at once: see orderHole.)
+	manualLadders int
 
 	// saltRev advances when exposedSalt changes; snapSalt is the copy last
 	// published, taken at snapSaltRev. See publishedSalt.

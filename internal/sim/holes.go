@@ -19,9 +19,11 @@ const (
 	ladderProjectName = "ladder"
 )
 
-// OrderHole asks the planner to dig one hole down from the deepest level the
-// colony has reached, sited as a stair would be.
-type OrderHole struct{}
+// OrderHole asks the colony to break a hole through the floor at At, a tile
+// the player picks: known open floor in the colony's main room, on a level
+// Config allows digging below (see holeRefusal). The hole is marked out at
+// once; a tile that cannot take one is refused in the log.
+type OrderHole struct{ At Point }
 
 func (OrderHole) isCommand() {}
 
@@ -91,30 +93,61 @@ func (w *World) digHole(p Point) bool {
 	return true
 }
 
-// planHoles marks out the hole the player ordered (OrderHole), one at a
-// time, and fits ladders (planLadders). It draws nothing random.
-func (w *World) planHoles() {
-	w.planLadders()
-	if w.manualHoles == 0 || w.taskPlanned(Hole) {
-		return
+// holeRefusal says why a hole cannot be ordered at p, or "" if it can: p
+// must be known open floor the colony can reach (its main room), not a
+// doorway or a tile already marked for building, on a level Config allows
+// digging below, over rock or floor (canDigHole).
+func (w *World) holeRefusal(p Point) string {
+	below := Point{p.X, p.Y, p.Level + 1}
+	switch {
+	case !w.InBounds(p) || w.layerIn(p) == nil:
+		return "There is no such tile."
+	case p.Level < LandingLevel || int(below.Level) > w.cfg.DeepestLevel:
+		return fmt.Sprintf("The colony may not dig below level %d.", w.cfg.DeepestLevel)
+	case !w.discovered(p):
+		return "The colony has not seen that tile."
+	case w.TerrainAt(p) != Floor || w.doorTiles[p]:
+		return "A hole can only be broken through open floor."
+	case w.TerrainAt(below) != Rock && w.TerrainAt(below) != Floor:
+		return "Something is built under that tile."
+	case w.taskAt(p):
+		return "That tile is already marked for building."
+	case w.mainRoom == 0 || w.roomOf(p) != w.mainRoom:
+		return "The colony cannot reach that tile."
 	}
-	if int(w.deepestLevel()) >= w.cfg.DeepestLevel {
-		w.manualHoles = 0 // nowhere further to dig
-		return
-	}
-	site, ok := w.findStairSite(w.deepestLevel())
-	if !ok || !w.canDigHole(site) {
-		return // try again next planning round
+	return ""
+}
+
+// orderHole marks out a hole at p, the player's pick (OrderHole), as one
+// task of hole-ticks mining work, free of materials. It reports false,
+// logging why, when p cannot take one (holeRefusal).
+func (w *World) orderHole(p Point) bool {
+	if why := w.holeRefusal(p); why != "" {
+		w.logEvent(LogBuildStart, fmt.Sprintf("No hole at (%d, %d): %s", p.X, p.Y, why))
+		return false
 	}
 	pr := &project{id: w.nextProjectID, name: holeProjectName, queuedTick: w.tick, issuer: Community}
-	pr.tasks = []*buildTask{{pos: site, terrain: Hole, proj: pr}}
+	pr.tasks = []*buildTask{{pos: p, terrain: Hole, proj: pr}}
 	if !w.fundProject(pr) {
-		return
+		return false
 	}
 	w.nextProjectID++
 	w.projects = append(w.projects, pr)
-	w.manualHoles--
-	w.logEvent(LogBuildStart, fmt.Sprintf("The colony marks out a hole down to level %d.", site.Level+1))
+	w.logEvent(LogBuildStart, fmt.Sprintf("The colony marks out a hole at (%d, %d) down to level %d.", p.X, p.Y, p.Level+1))
+	return true
+}
+
+// taskAt reports whether an unbuilt task of any project, in any phase, is
+// on p.
+func (w *World) taskAt(p Point) bool {
+	for _, pr := range w.projects {
+		for _, tk := range pr.tasks {
+			if tk.pos == p && !w.taskDone(tk) {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // taskPlanned reports whether a task of terrain t is planned and unbuilt.

@@ -134,8 +134,15 @@ level first. With a deepest level above 1 (the New game form's *Deepest
 level*, or `?deepest-level=` in the URL), the top bar gets a level picker
 (`LevelControl.svelte`) listing the levels the colony has broken into, which
 each frame reports, and the Dig tab gets **Dig down**: a stair, a shaft so
-many levels deep, a hole, or a ladder into a hole. The planner sites each on
-the deepest level reached, as the terminal's orders do. Changing level sends
+many levels deep, a hole, or a ladder into a hole. The planner sites a
+stair, shaft or ladder on the deepest level reached, as the terminal's
+orders do. A hole the player sites: the Hole button picks up a one-click
+tool (`ui.holeTool`, `armHole`) that tints the tile under the pointer green
+on seen open floor and red elsewhere, and a click orders the hole there, on
+the level shown (`orderHole`; the `dig-down` command with `x`, `y` and
+`level`), then puts the tool down; Esc or leaving the tab puts it down
+without ordering. The engine has the last word, and a refusal lands in the
+log (see [holes.md](./holes.md)). Changing level sends
 the worker the same interest rectangle with the new level; the next frame
 starts the tiles over (see [wire-format.md](./wire-format.md), "Levels"),
 and the page drops any frame still in flight from the old level. A dig or

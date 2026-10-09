@@ -63,6 +63,8 @@ export const ui = $state({
   dig: { armed: false, rect: null, tiles: 0 } as DigState,
   /** The Zones tab's tool, the area marked with it, and what applying it would do (ZonesPanel.svelte). */
   zone: { armed: false, tool: 'residence', rect: null, preview: null } as ZoneState,
+  /** The Dig tab's hole tool: while set, a click on the map orders a hole broken through that tile (DigPanel.svelte). */
+  holeTool: false,
   /** The Ships tab's tool: the ship a click on the map relands, or null (ShipsPanel.svelte). */
   shipTool: null as number | null,
   /** The aloft ship last sent down: the Ships tab does not pick it up again while the topic catches up. */
@@ -441,6 +443,8 @@ export interface Controller {
   digChanged(): void;
   /** The zone tool, its area, or what it would cover changed: re-estimate and redraw. */
   zoneChanged(): void;
+  /** The hole tool was picked up or put down: redraw (or clear) its preview. */
+  holeToolChanged(): void;
   /** The ship tool was picked up or put down: redraw (or clear) its preview. */
   shipToolChanged(): void;
   /** Tint these tiles on the map (a job's), or none. */
@@ -480,7 +484,7 @@ export function highlight(tiles: { x: number; y: number; color: Uint8Array }[] |
 /** Arm or disarm the dig tool; disarming leaves the marked area alone. */
 export function armDig(on: boolean): void {
   ui.dig.armed = on;
-  if (on) ui.zone.armed = false; // one area tool at a time
+  if (on) { ui.zone.armed = false; armHole(false); } // one map tool at a time
 }
 
 /** Pick the zone tool (a zone kind, 'none' or 'clear') and arm it, or disarm it. */
@@ -488,7 +492,7 @@ export function armZone(tool: string, on: boolean): void {
   if (on && tool !== 'clear' && !onLandingLevel()) return; // zones are the landing level's
   ui.zone.tool = tool;
   ui.zone.armed = on;
-  if (on) ui.dig.armed = false;
+  if (on) { ui.dig.armed = false; armHole(false); }
   ctl?.zoneChanged();
 }
 
@@ -535,11 +539,30 @@ export function orderDig(): void {
 
 /**
  * Order something dug down from the deepest level the colony has reached: a
- * stair, a shaft `levels` deep, a hole, or a ladder fitted into a hole
- * (docs/stairs.md, docs/shafts.md, docs/holes.md). The planner sites it.
+ * stair, a shaft `levels` deep, or a ladder fitted into a hole
+ * (docs/stairs.md, docs/shafts.md, docs/holes.md). The planner sites it. A
+ * hole the player sites: see armHole.
  */
-export function digDown(kind: 'stair' | 'shaft' | 'hole' | 'ladder', levels = 1): void {
+export function digDown(kind: 'stair' | 'shaft' | 'ladder', levels = 1): void {
   ctl?.command({ type: 'dig-down', kind, levels });
+}
+
+/** Pick up or put down the hole tool: while up, a click on the map orders a hole there. */
+export function armHole(on: boolean): void {
+  if (ui.holeTool === on) return;
+  ui.holeTool = on;
+  if (on) { ui.dig.armed = false; ui.zone.armed = false; }
+  ctl?.holeToolChanged();
+}
+
+/**
+ * Order a hole broken through tile (x, y) of the level the map shows
+ * (docs/holes.md), and put the tool down. The engine checks the tile; a
+ * refusal, and why, lands in the log.
+ */
+export function orderHole(x: number, y: number): void {
+  ctl?.command({ type: 'dig-down', kind: 'hole', x, y, level: ui.level });
+  armHole(false);
 }
 
 /** Cancel an open excavation order; what it still held goes back to the treasury. */
