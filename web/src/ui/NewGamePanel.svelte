@@ -26,13 +26,17 @@
   // Off (the default): the player draws zones and colonists build only in
   // them. On: the colony zones and builds by itself (docs/zoning.md).
   let autoZoning = $state(init['zoning-auto'] === true);
+  // Off (the default): the player picks the tile of every stair, shaft,
+  // hole and ladder. On: the colony may pick, and digs stairs down on its
+  // own (docs/siting.md).
+  let autoSiting = $state(init['siting-auto'] === true);
   // The founders' ships, which the player lands one by one after Start
   // (docs/ships.md).
   const ships = $derived(describeShips(shipLoads(colonists)));
 
   function start(e: SubmitEvent) {
     e.preventDefault();
-    const s: Settings = { width, height, colonists, 'fog-of-war': fog, 'zoning-auto': autoZoning, 'deepest-level': Math.max(1, deepest || 1) };
+    const s: Settings = { width, height, colonists, 'fog-of-war': fog, 'zoning-auto': autoZoning, 'siting-auto': autoSiting, 'deepest-level': Math.max(1, deepest || 1) };
     if (seed !== null && Number.isFinite(seed)) s.seed = seed;
     newGame(s);
   }
@@ -56,6 +60,7 @@
   <label>Seed <input type="number" placeholder="random" bind:value={seed} /></label>
   <label class="check"><input type="checkbox" bind:checked={fog} /> Fog of war</label>
   <label class="check"><input type="checkbox" bind:checked={autoZoning} /> Colonists zone for themselves</label>
+  <label class="check" title="Colonists may choose where stairs, shafts, holes and ladders go, and dig stairs down on their own when they run out of rock"><input type="checkbox" bind:checked={autoSiting} /> Colonists choose where to dig down</label>
   <button type="submit">Start</button>
 </form>
 

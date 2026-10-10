@@ -76,7 +76,7 @@ var buildMenuItems = []menuItem{
 	{"i", "scum incubator"},
 	{"v", "stair down"},
 	{"n", "shaft down"},
-	{"o", "hole at the cursor"},
+	{"o", "hole down"},
 	{"u", "ladder into a hole"},
 }
 
@@ -533,10 +533,7 @@ func (m Model) submitMenuItem(i int) {
 		case "n":
 			m.eng.Send(sim.OrderShaft{Levels: 1})
 		case "o":
-			// The player sites a hole: at the inspect cursor, which starts
-			// in the middle of the view if it has never been placed.
-			m.placeCursor()
-			m.eng.Send(sim.OrderHole{At: m.cursor})
+			m.eng.Send(sim.OrderHole{})
 		case "u":
 			m.eng.Send(sim.OrderLadder{})
 		}
@@ -644,12 +641,6 @@ func (m Model) handleMapKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 func (m *Model) beginInspection() {
 	m.inspecting = true
-	m.placeCursor()
-}
-
-// placeCursor puts the inspect cursor in the middle of the view, on the
-// level shown, unless it has been placed already.
-func (m *Model) placeCursor() {
 	if m.cursorReady || m.latest == nil {
 		return
 	}

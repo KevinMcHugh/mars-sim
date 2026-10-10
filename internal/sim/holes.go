@@ -19,17 +19,18 @@ const (
 	ladderProjectName = "ladder"
 )
 
-// OrderHole asks the colony to break a hole through the floor at At, a tile
-// the player picks: known open floor in the colony's main room, on a level
-// Config allows digging below (see holeRefusal). The hole is marked out at
-// once; a tile that cannot take one is refused in the log.
+// OrderHole asks for a hole broken through the floor: at the tile At, the
+// player's pick, or, with At left zero and Config.SitingAuto on, where the
+// planner sites it on the deepest level reached. See docs/siting.md.
 type OrderHole struct{ At Point }
 
 func (OrderHole) isCommand() {}
 
-// OrderLadder asks the planner to fit a ladder into the colony's first hole
-// without one, turning it into a shaft.
-type OrderLadder struct{}
+// OrderLadder asks for a ladder fitted into a hole, turning it into a
+// shaft: the hole at At, the player's pick, or, with At left zero and
+// Config.SitingAuto on, the colony's first hole that can take one. See
+// docs/siting.md.
+type OrderLadder struct{ At Point }
 
 func (OrderLadder) isCommand() {}
 
@@ -93,37 +94,31 @@ func (w *World) digHole(p Point) bool {
 	return true
 }
 
-// holeRefusal says why a hole cannot be ordered at p, or "" if it can: p
-// must be known open floor the colony can reach (its main room), not a
-// doorway or a tile already marked for building, on a level Config allows
-// digging below, over rock or floor (canDigHole).
-func (w *World) holeRefusal(p Point) string {
-	below := Point{p.X, p.Y, p.Level + 1}
-	switch {
-	case !w.InBounds(p) || w.layerIn(p) == nil:
-		return "There is no such tile."
-	case p.Level < LandingLevel || int(below.Level) > w.cfg.DeepestLevel:
-		return fmt.Sprintf("The colony may not dig below level %d.", w.cfg.DeepestLevel)
-	case !w.discovered(p):
-		return "The colony has not seen that tile."
-	case w.TerrainAt(p) != Floor || w.doorTiles[p]:
-		return "A hole can only be broken through open floor."
-	case w.TerrainAt(below) != Rock && w.TerrainAt(below) != Floor:
-		return "Something is built under that tile."
-	case w.taskAt(p):
-		return "That tile is already marked for building."
-	case w.mainRoom == 0 || w.roomOf(p) != w.mainRoom:
-		return "The colony cannot reach that tile."
+// planHoles marks out the hole the player ordered without a tile
+// (OrderHole, with SitingAuto), one at a time, sited as a stair is, and fits
+// ladders (planLadders). It draws nothing random.
+func (w *World) planHoles() {
+	w.planLadders()
+	if w.manualHoles == 0 || w.taskPlanned(Hole) {
+		return
 	}
-	return ""
+	if int(w.deepestLevel()) >= w.cfg.DeepestLevel {
+		w.manualHoles = 0 // nowhere further to dig
+		return
+	}
+	site, ok := w.findStairSite(w.deepestLevel())
+	if !ok || !w.canDigHole(site) {
+		return // try again next planning round
+	}
+	if w.designateHole(site) {
+		w.manualHoles--
+	}
 }
 
-// orderHole marks out a hole at p, the player's pick (OrderHole), as one
-// task of hole-ticks mining work, free of materials. It reports false,
-// logging why, when p cannot take one (holeRefusal).
-func (w *World) orderHole(p Point) bool {
-	if why := w.holeRefusal(p); why != "" {
-		w.logEvent(LogBuildStart, fmt.Sprintf("No hole at (%d, %d): %s", p.X, p.Y, why))
+// designateHole plans a hole at p as one task of hole-ticks mining work,
+// free of materials.
+func (w *World) designateHole(p Point) bool {
+	if !w.canDigHole(p) {
 		return false
 	}
 	pr := &project{id: w.nextProjectID, name: holeProjectName, queuedTick: w.tick, issuer: Community}
@@ -135,19 +130,6 @@ func (w *World) orderHole(p Point) bool {
 	w.projects = append(w.projects, pr)
 	w.logEvent(LogBuildStart, fmt.Sprintf("The colony marks out a hole at (%d, %d) down to level %d.", p.X, p.Y, p.Level+1))
 	return true
-}
-
-// taskAt reports whether an unbuilt task of any project, in any phase, is
-// on p.
-func (w *World) taskAt(p Point) bool {
-	for _, pr := range w.projects {
-		for _, tk := range pr.tasks {
-			if tk.pos == p && !w.taskDone(tk) {
-				return true
-			}
-		}
-	}
-	return false
 }
 
 // taskPlanned reports whether a task of terrain t is planned and unbuilt.

@@ -68,8 +68,12 @@ shaft pays nothing for any of it.
 
 ### Digging one
 
-`OrderShaft{Levels}` (`b` then `n` in the terminal, one level per press)
-adds to `manualShaftLevels`. `planShafts` runs with the stair planner: it
+`OrderShaft{Levels, At}` with a tile (the browser's Dig tab: the Shaft
+tool and its levels box, then a click on the map) is checked and marked out
+at once, or refused in the log: open floor starts a new shaft, a shaft's
+top deepens it, cut short at `deepest-level` (see [siting.md](./siting.md)).
+Without a tile (`b` then `n` in the terminal, one level per press) it needs
+`siting-auto` and adds to `manualShaftLevels`. `planShafts` runs with the stair planner: it
 deepens the deepest shaft the colony can reach by that many levels, or, with
 none to deepen, starts a new one where a stair would go (`findStairSite` on
 the deepest level reached). The order is spent once a shaft is marked out.

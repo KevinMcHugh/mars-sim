@@ -54,8 +54,9 @@ import (
 // panel's drives "needs", with a fatal flag where 18 has a consequence; 18 had
 // no order-wide-set or order-wide-clear; 19 took no species-pack in start;
 // 20 showed only the landing level (no level in interest, dig or clear, no
-// dig-down); 21 sited a dig-down hole itself (no x, y).
-const hostAPI = 22
+// dig-down); 21 sited a dig-down hole itself (no x, y); 22 sited every other
+// dig-down itself.
+const hostAPI = 23
 
 var (
 	eng *sim.Engine
@@ -320,8 +321,9 @@ type command struct {
 	// Kind is what to spawn; for zone the zone kind by name ("none"
 	// unzones); for dig-down what to dig: stair, shaft, hole or ladder.
 	Kind string `json:"kind,omitempty"`
-	// Level is the level a dig, clear or dig-down hole is on (the landing
-	// level if left out); Levels how deep a dig-down shaft goes.
+	// Level is the level a dig or clear is on (the landing level if left
+	// out), or a dig-down's tile is on (left out, the colony sites it);
+	// Levels how deep a dig-down shaft goes.
 	Level  int `json:"level,omitempty"`
 	Levels int `json:"levels,omitempty"`
 	// Field is the flow field to show, an index into Hello.flowFields, or
@@ -337,7 +339,7 @@ type command struct {
 	// ("bid" or "ask") and the item by name; order-place and
 	// order-wide-set also the quantity, and order-place the depot (x, y);
 	// order-place, order-wide-set and order-reprice: the price. ship-move, ship-land: the ship's (new) top-left (x, y).
-	// dig-down hole: the tile to break through, (x, y) on level.
+	// dig-down: the tile to dig down from, (x, y) on level.
 	Side  string `json:"side,omitempty"`
 	Item  string `json:"item,omitempty"`
 	Qty   int    `json:"qty,omitempty"`
@@ -372,20 +374,21 @@ func parseCommand(s string) (sim.Command, error) {
 	case "dig":
 		return sim.OrderExcavation{X0: c.X0, Y0: c.Y0, X1: c.X1, Y1: c.Y1, Level: sim.Level(c.Level)}, nil
 	case "dig-down":
+		// With a level, the tile the player picked, (x, y) on it; without,
+		// the zero Point, which leaves the site to the colony (siting-auto).
+		var at sim.Point
+		if c.Level > 0 {
+			at = sim.Point{X: c.X, Y: c.Y, Level: sim.Level(c.Level)}
+		}
 		switch c.Kind {
 		case "stair":
-			return sim.OrderStair{}, nil
+			return sim.OrderStair{At: at}, nil
 		case "shaft":
-			return sim.OrderShaft{Levels: max(c.Levels, 1)}, nil
+			return sim.OrderShaft{Levels: max(c.Levels, 1), At: at}, nil
 		case "hole":
-			// The player sites a hole: the tile (x, y) on level.
-			l := sim.Level(c.Level)
-			if c.Level == 0 {
-				l = sim.LandingLevel
-			}
-			return sim.OrderHole{At: sim.Point{X: c.X, Y: c.Y, Level: l}}, nil
+			return sim.OrderHole{At: at}, nil
 		case "ladder":
-			return sim.OrderLadder{}, nil
+			return sim.OrderLadder{At: at}, nil
 		}
 		return nil, fmt.Errorf("unknown dig-down %q", c.Kind)
 	case "zone":

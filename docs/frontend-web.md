@@ -17,7 +17,7 @@ readout. Around it is a Svelte chrome:
   whose job is to change it: Zones, Dig, Ships, Recruit and the
   Game tab. That tab
   holds a new-game form, which can also start a colony that zones for itself
-  (`zoning-auto`), and **Save game** / **Load game…** (Ctrl/⌘+S saves too;
+  (`zoning-auto`) or chooses where to dig down (`siting-auto`), and **Save game** / **Load game…** (Ctrl/⌘+S saves too;
   see [save-load.md](./save-load.md)), and under them a read-only list of
   every setting the game runs with ([game-settings.md](./game-settings.md)).
   Last is a link to [Scum Lab](./scum-lab.md). It is a relative `scum-lab/`,
@@ -92,7 +92,7 @@ The rest of the TUI's tabs are planned in
 **Running it:** from `web/`, run `npm install` once, then `npm run dev`, which
 rebuilds the WASM first (`predev`), then serves the game on
 <http://localhost:5173/> and the spike on `/spike/`. The URL fills the
-new-game form: `?width=2000&height=2000&seed=7&fog-of-war=false&zoning-auto=true`. `npm run build`
+new-game form: `?width=2000&height=2000&seed=7&fog-of-war=false&zoning-auto=true&siting-auto=true`. `npm run build`
 writes a static site to `web/dist/`. `npm run check` type-checks and `npm test`
 runs the wire decoder's, the activity chart's, the ship count's, the Storage tab's and the shared number and time formats' tests. All of these need Go on the path. After a Go
 change with the dev server already running, run `npm run wasm` and reload.
@@ -134,15 +134,13 @@ level first. With a deepest level above 1 (the New game form's *Deepest
 level*, or `?deepest-level=` in the URL), the top bar gets a level picker
 (`LevelControl.svelte`) listing the levels the colony has broken into, which
 each frame reports, and the Dig tab gets **Dig down**: a stair, a shaft so
-many levels deep, a hole, or a ladder into a hole. The planner sites a
-stair, shaft or ladder on the deepest level reached, as the terminal's
-orders do. A hole the player sites: the Hole button picks up a one-click
-tool (`ui.holeTool`, `armHole`) that tints the tile under the pointer green
-on seen open floor and red elsewhere, and a click orders the hole there, on
-the level shown (`orderHole`; the `dig-down` command with `x`, `y` and
-`level`), then puts the tool down; Esc or leaving the tab puts it down
-without ordering. The engine has the last word, and a refusal lands in the
-log (see [holes.md](./holes.md)). Changing level sends
+many levels deep, a hole, or a ladder into a hole, each placed by the
+player: a button picks up a one-click tool (`ui.siteTool`, `armSite`) that
+tints the tile under the pointer, and a click orders it there on the level
+shown (`orderSite`; the `dig-down` command with `x`, `y` and `level`). A game
+started with `siting-auto` also offers "Or let the colony pick". The engine
+has the last word, and a refusal lands in the log (see
+[siting.md](./siting.md)). Changing level sends
 the worker the same interest rectangle with the new level; the next frame
 starts the tiles over (see [wire-format.md](./wire-format.md), "Levels"),
 and the page drops any frame still in flight from the old level. A dig or

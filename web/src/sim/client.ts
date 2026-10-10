@@ -18,10 +18,12 @@ export type Command =
   /** Cancel an excavation order by id, refunding what is unspent. */
   | { type: 'dig-cancel'; id: number }
   | { type: 'dig'; x0: number; y0: number; x1: number; y1: number; level?: number }
-  /** Dig down from the deepest level reached: a stair, a shaft so many levels deep, or a ladder into a hole (docs/z-levels.md). */
-  | { type: 'dig-down'; kind: 'stair' | 'shaft' | 'ladder'; levels?: number }
-  /** Break a hole through the floor at (x, y) on a level, a tile the player picked (docs/holes.md). */
-  | { type: 'dig-down'; kind: 'hole'; x: number; y: number; level: number }
+  /**
+   * Dig down: a stair, a shaft so many levels deep, a hole, or a ladder into
+   * a hole, from (x, y) on a level, a tile the player picked; or, with no
+   * level, wherever the colony sites it (siting-auto only). See docs/siting.md.
+   */
+  | { type: 'dig-down'; kind: 'stair' | 'shaft' | 'hole' | 'ladder'; levels?: number; x?: number; y?: number; level?: number }
   /** Zone the rectangle as a kind by name ('none' unzones it); the work it implies is paid by the colony (docs/zoning.md). */
   | { type: 'zone'; kind: string; x0: number; y0: number; x1: number; y1: number }
   /** Order every structure in the rectangle cleared, paid by the colony. */
@@ -64,7 +66,7 @@ export interface Started {
  * A mismatch means mars-sim.wasm is from another build: usually a pull without
  * rerunning npm run wasm.
  */
-export const HOST_API = 22;
+export const HOST_API = 23;
 
 export class SimClient {
   private worker: Worker;

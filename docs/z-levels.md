@@ -464,7 +464,7 @@ Build order and what each phase must prove:
   "Levels"; [wire-format.md](./wire-format.md), "Levels"): wire version 6
   (a frame's level and the levels that exist), `Snapshot.LevelChanges` and
   per-level page reads, a level picker and `<`/`>` in the page, dig-down
-  orders (stair, shaft, a hole at a tile the player picks, ladder) in the Dig tab, dig and clear orders on
+  orders (stair, shaft, hole, ladder, each at a tile the player picks; see siting.md) in the Dig tab, dig and clear orders on
   the level shown, levels on every topic row that names a place, and
   *Deepest level* on the New game form.
 - **Z6 — the surface.** Level 0's own generator and hazards, and links dug

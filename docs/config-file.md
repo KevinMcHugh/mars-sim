@@ -11,10 +11,12 @@ line of documentation above it — so the file as generated changes nothing. You
 uncomment a line to change it, and commit the result so everyone (and CI, and
 your next session) plays the same colony.
 
-One line ships uncommented: `zoning-auto: true`. The terminal and headless runs
-have no way to draw a zone, and with manual zoning (the compiled default, which
-the browser game starts from) their colonies would never build. See
-[zoning.md](./zoning.md). Re-apply it when you regenerate the file.
+Two lines ship uncommented: `zoning-auto: true` and `siting-auto: true`. The
+terminal and headless runs have no way to draw a zone or pick a tile, and with
+manual zoning and siting (the compiled defaults, which the browser game starts
+from) their colonies would never build or dig down. See
+[zoning.md](./zoning.md) and [siting.md](./siting.md). Re-apply both when you
+regenerate the file.
 
 Settings apply in three layers, each overriding the one before it:
 

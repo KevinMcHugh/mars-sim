@@ -31,10 +31,11 @@ type OrderIncubator struct{}
 // OrderFoundry asks the planner to queue one foundry: a forge and a gun bench.
 type OrderFoundry struct{}
 
-// OrderStair asks the planner to dig one stair down from the deepest level the
-// colony has reached, if Config.DeepestLevel allows going further. See
-// docs/z-levels.md.
-type OrderStair struct{}
+// OrderStair asks for one stair down: from the tile At, the player's pick,
+// or, with At left zero and Config.SitingAuto on, from where the planner
+// sites it on the deepest level the colony has reached. See docs/siting.md
+// and docs/stairs.md.
+type OrderStair struct{ At Point }
 
 // OrderMeetingHall asks the planner to queue one meeting hall: a room of
 // chairs where colonists socialize and eat.
@@ -441,15 +442,9 @@ func (e *Engine) apply(cmd Command) (rateChanged bool) {
 		e.world.manualHalls++
 	case OrderIncubator:
 		e.world.manualIncubators++
-	case OrderStair:
-		e.world.manualStairs++
-	case OrderHole:
-		e.world.orderHole(c.At)
+	case OrderStair, OrderShaft, OrderHole, OrderLadder:
+		e.world.orderDigDown(c)
 		e.requestPublish()
-	case OrderLadder:
-		e.world.manualLadders++
-	case OrderShaft:
-		e.world.manualShaftLevels += max(1, c.Levels)
 	case CancelExcavation:
 		e.world.cancelExcavation(c.ID)
 		e.requestPublish()

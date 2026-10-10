@@ -63,7 +63,10 @@ names (`FlowFieldRef.Name`), in the engine's order, which the flow section's
 field index and the page's `flow` command both index. The fields are made with
 the world, so the list never changes during a game. Version 6 adds two
 header words, the frame's **level** and the **levels** that exist, and
-Hello's `landingLevel` and `deepestLevel` (see "Levels" below).
+Hello's `landingLevel` and `deepestLevel` (see "Levels" below). Hello's
+`sitingAuto` (no version bump: the frame layout is unchanged) is the
+`siting-auto` setting, so the Dig tab can offer orders that leave the tile to
+the colony ([siting.md](./siting.md)).
 
 ### A frame
 

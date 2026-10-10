@@ -149,6 +149,17 @@ type Config struct {
 	// a zone, so the committed mars-sim.yaml turns this on. See
 	// docs/zoning.md.
 	ZoningAuto bool `cfg:"zoning-auto" doc:"colonists choose where to build and zone it themselves; off, they build only inside zones the player draws (the browser's Zones tab)"`
+	// SitingAuto is who decides where the colony digs down: stairs, shafts,
+	// holes and the ladders fitted into them. Off (the game's default), the
+	// player picks the tile of every one (the browser's Dig tab), and an
+	// order without a tile is refused. On, an order may leave the tile to
+	// the planner, which sites it on the deepest level reached, and the
+	// colony digs a stair down on its own when it runs out of rock to mine.
+	// A ladder to fetch back a colonist stranded below a hole is fitted in
+	// either mode. The terminal and headless runs have no way to pick a
+	// tile, so the committed mars-sim.yaml turns this on, as it does
+	// ZoningAuto. See docs/siting.md.
+	SitingAuto bool `cfg:"siting-auto" doc:"colonists choose where stairs, shafts, holes and ladders go, and dig stairs down on their own; off, the player picks every tile (the browser's Dig tab)"`
 
 	// Food production. Cave scum is a biofilm on cave surfaces, the renewable
 	// base of the food chain: ScumPercent of the map's tiles carry a patch of

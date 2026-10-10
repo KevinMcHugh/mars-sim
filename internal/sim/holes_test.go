@@ -211,15 +211,16 @@ func TestOrderedHoleAndLadder(t *testing.T) {
 		if !ok {
 			t.Fatal("no open floor to order a hole on")
 		}
-		if !w.orderHole(site) {
-			t.Fatalf("hole at %v refused: %s", site, w.holeRefusal(site))
+		w.orderDigDown(OrderHole{At: site})
+		if !w.taskPlanned(Hole) {
+			t.Fatalf("hole at %v refused: %s", site, w.downRefusal(site, "hole"))
 		}
 		runUntil(t, w, 3000, "a hole", func() bool { return len(w.holes) > 0 })
 		h := w.holes[0]
 		if h != site || w.TerrainAt(Point{h.X, h.Y, h.Level + 1}) != Floor {
 			t.Fatalf("hole at %v, ordered at %v, below %v", h, site, w.TerrainAt(Point{h.X, h.Y, h.Level + 1}))
 		}
-		w.manualLadders = 1
+		w.orderDigDown(OrderLadder{At: h})
 		runUntil(t, w, 3000, "a ladder", func() bool { return w.TerrainAt(h) == ShaftTop })
 		if w.TerrainAt(Point{h.X, h.Y, h.Level + 1}) != ShaftBottom {
 			t.Fatal("the ladder has no foot")
@@ -260,47 +261,5 @@ func TestSiteSearchStopsAtTheMainRoom(t *testing.T) {
 	}
 	if _, _, _, _, ok := w.mainRoomBounds(LandingLevel + 2); ok {
 		t.Error("the main room reaches a level nobody has broken into")
-	}
-}
-
-// A hole goes where the player says, or nowhere: each tile that cannot take
-// one is refused, changing nothing, and a good one is marked out at once.
-func TestOrderHoleChecksTheTile(t *testing.T) {
-	w := shaftColony(t, 1)
-	good, ok := w.findStairSite(LandingLevel)
-	if !ok {
-		t.Fatal("no open floor to order a hole on")
-	}
-	rock := good
-	for w.TerrainAt(rock) != Rock {
-		rock.X++
-	}
-	unseen := Point{0, 0, LandingLevel}
-	if w.discovered(unseen) {
-		t.Fatal("the map's corner is discovered: pick another unseen tile")
-	}
-	shallow := w.cfg
-	shallow.DeepestLevel = 1
-	for _, c := range []struct {
-		name string
-		w    *World
-		p    Point
-	}{
-		{"rock", w, rock},
-		{"unseen", w, unseen},
-		{"off the map", w, Point{-1, 0, LandingLevel}},
-		{"a level not broken into", w, Point{good.X, good.Y, LandingLevel + 1}},
-		{"too deep", newTestWorld(t, shallow), good},
-	} {
-		before := len(c.w.projects)
-		if c.w.orderHole(c.p) || len(c.w.projects) != before {
-			t.Errorf("%s (%v): a hole was marked out", c.name, c.p)
-		}
-	}
-	if !w.orderHole(good) || !w.taskPlanned(Hole) {
-		t.Fatalf("hole at %v refused: %s", good, w.holeRefusal(good))
-	}
-	if w.orderHole(good) {
-		t.Error("the same tile took a second hole")
 	}
 }

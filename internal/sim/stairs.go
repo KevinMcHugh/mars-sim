@@ -174,8 +174,9 @@ func (w *World) digStair(p Point) bool {
 const stairProjectName = "stair down"
 
 // planStairs marks out a stair down when the colony wants one and Config
-// allows it: when the player ordered one (OrderStair), or when there is no
-// mining frontier left to work on any level. One stair is planned at a time,
+// allows it: when the player ordered one without a tile (OrderStair), or,
+// with SitingAuto, when there is no mining frontier left to work on any
+// level. One stair is planned at a time,
 // from the deepest level the colony has reached. It draws nothing random, and
 // with DeepestLevel at 1 it does nothing at all, so a game that cannot dig
 // down runs exactly as it did before levels.
@@ -188,7 +189,9 @@ func (w *World) planStairs() {
 	if w.stairPlanned() {
 		return
 	}
-	if w.manualStairs == 0 && w.unclaimedFrontier() > 0 {
+	// Digging down unasked is siting a stair, which is the player's to do
+	// without SitingAuto.
+	if w.manualStairs == 0 && (!w.cfg.SitingAuto || w.unclaimedFrontier() > 0) {
 		return
 	}
 	site, ok := w.findStairSite(from)

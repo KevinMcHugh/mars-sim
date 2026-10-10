@@ -3,7 +3,8 @@
   // see what it would cost, and order it: the colony buys the digging from the
   // treasury as work orders on the order book (docs/excavation.md). The prices
   // and the open orders come from the market topic.
-  import { armDig, armHole, cancelDig, centerOn, clearDig, digDown, levelName, orderDig, subscribe, topics, ui } from '../game.svelte';
+  import { armDig, armSite, cancelDig, centerOn, clearDig, digDownAuto, levelName, orderDig, subscribe, topics, ui } from '../game.svelte';
+  import type { DigDownKind } from '../game.svelte';
   import { money } from './format';
 
   interface Market {
@@ -15,7 +16,7 @@
 
   $effect(() => subscribe('market'));
   // Leaving the tab puts the tool down and clears the tint it left on the map.
-  $effect(() => () => { clearDig(); armHole(false); });
+  $effect(() => () => { clearDig(); armSite(null); });
 
   const m = $derived(topics.data.market as Market | undefined);
   const r = $derived(ui.dig.rect);
@@ -24,6 +25,20 @@
   // landing level (deepest-level above it).
   const canGoDown = $derived(!!ui.hello && ui.hello.deepestLevel > ui.hello.landingLevel);
   let shaftLevels = $state(1);
+  // A held shaft tool follows the levels box.
+  $effect(() => {
+    const n = Math.max(1, shaftLevels || 1);
+    if (ui.siteTool?.kind === 'shaft' && ui.siteTool.levels !== n) ui.siteTool.levels = n;
+  });
+
+  // The dig-down buttons: what each orders, and what the player should click.
+  const DOWN: { kind: DigDownKind; label: string; pick: string; title: string }[] = [
+    { kind: 'stair', label: 'Stair', pick: 'a floor tile', title: 'Pick a floor tile on the map to dig a stair down from (docs/stairs.md)' },
+    { kind: 'shaft', label: 'Shaft', pick: 'a floor tile or shaft top', title: 'Pick a floor tile to sink a shaft this many levels deep from, or a shaft\'s top to deepen it (docs/shafts.md)' },
+    { kind: 'hole', label: 'Hole', pick: 'a floor tile', title: 'Pick a floor tile on the map to break a hole through to the level below (docs/holes.md)' },
+    { kind: 'ladder', label: 'Ladder', pick: 'a hole', title: 'Pick a hole on the map to fit a ladder into, making it a shaft (docs/holes.md)' },
+  ];
+  const toggle = (kind: DigDownKind) => armSite(ui.siteTool?.kind === kind ? null : kind, shaftLevels);
 
   // Why the order cannot go, or null if it can.
   const blocked = $derived.by(() => {
@@ -93,26 +108,37 @@
 {#if canGoDown}
   <h2>Dig down</h2>
   <p class="muted">
-    The colony digs these free of charge. It sites a stair or shaft on the deepest level it has reached;
-    you pick where a hole goes. A stair is walked both ways; a shaft is climbed slowly, and can go several
-    levels at once; a hole is a drop nothing comes back up, until a ladder turns it into a shaft. Deepest
-    allowed: level {ui.hello?.deepestLevel}.
+    The colony digs these free of charge, from the tile you pick. A stair is walked both ways; a shaft is
+    climbed slowly, and can go several levels at once; a hole is a drop nothing comes back up, until a
+    ladder turns it into a shaft. Deepest allowed: level {ui.hello?.deepestLevel}.
   </p>
   <div class="row wrap">
-    <button type="button" onclick={() => digDown('stair')} title="Order a stair down (docs/stairs.md)">Stair</button>
-    <span class="shaft">
-      <button type="button" onclick={() => digDown('shaft', shaftLevels)} title="Order a shaft this many levels deep (docs/shafts.md)">Shaft</button>
-      <input type="number" min="1" max={Math.max(1, (ui.hello?.deepestLevel ?? 1) - (ui.hello?.landingLevel ?? 1))}
-        aria-label="Shaft levels" bind:value={shaftLevels} />
-      <span class="muted">levels</span>
-    </span>
-    <button type="button" class:on={ui.holeTool} aria-pressed={ui.holeTool} onclick={() => armHole(!ui.holeTool)}
-      title="Pick a floor tile on the map to break a hole through to the level below (docs/holes.md)">{ui.holeTool ? 'Click a floor tile…' : 'Hole'}</button>
-    <button type="button" onclick={() => digDown('ladder')} title="Fit a ladder into the first hole without one, making it a shaft">Ladder</button>
+    {#each DOWN as d (d.kind)}
+      {@const on = ui.siteTool?.kind === d.kind}
+      <button type="button" class:on aria-pressed={on} onclick={() => toggle(d.kind)} title={d.title}>
+        {on ? `Click ${d.pick}…` : d.label}
+      </button>
+      {#if d.kind === 'shaft'}
+        <span class="shaft">
+          <input type="number" min="1" max={Math.max(1, (ui.hello?.deepestLevel ?? 1) - (ui.hello?.landingLevel ?? 1))}
+            aria-label="Shaft levels" bind:value={shaftLevels} />
+          <span class="muted">levels</span>
+        </span>
+      {/if}
+    {/each}
   </div>
+  {#if ui.hello?.sitingAuto}
+    <div class="row wrap">
+      <span class="muted">Or let the colony pick:</span>
+      {#each DOWN as d (d.kind)}
+        <button type="button" onclick={() => digDownAuto(d.kind, shaftLevels)}
+          title="The colony sites it on the deepest level it has reached (siting-auto)">{d.label}</button>
+      {/each}
+    </div>
+  {/if}
   <p class="muted">
-    The Jobs tab lists what is ordered and not yet marked out; &lt; and &gt; step the map between levels.
-    A hole goes on the level the map shows; Esc puts the tool down, and a tile the colony cannot use is refused in the log.
+    It goes on the level the map shows (&lt; and &gt; step between levels); Esc puts the tool down. A tile
+    the colony cannot use is refused in the log, and the Jobs tab shows what is marked out.
   </p>
 {/if}
 

@@ -170,6 +170,11 @@
 ## does not read this file and starts with it off. See docs/zoning.md.
 zoning-auto: true
 
+## Set here because the terminal and headless runs have no way to pick a
+## tile: with it off, they could never dig down. The browser game does not
+## read this file and starts with it off. See docs/siting.md.
+siting-auto: true
+
 # ── Food production ─────────────────────────────────────────────────────
 ## percent of the map's tiles carrying a patch of cave scum
 # scum-percent: 6

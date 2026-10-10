@@ -54,6 +54,10 @@ type Hello struct {
 	// docs/z-levels.md.
 	LandingLevel int `json:"landingLevel"`
 	DeepestLevel int `json:"deepestLevel"`
+	// SitingAuto is the siting-auto setting: whether the colony may pick
+	// where to dig down itself (docs/siting.md), so the page can offer
+	// orders without a tile.
+	SitingAuto bool `json:"sitingAuto"`
 }
 
 // HelloGlyphs is the map's emoji (internal/glyphs) as the page needs them: the
@@ -152,6 +156,7 @@ func NewHello(snap *sim.Snapshot) Hello {
 
 		LandingLevel: int(sim.LandingLevel),
 		DeepestLevel: deepestLevel(snap),
+		SitingAuto:   snap.Config != nil && snap.Config.SitingAuto,
 	}
 }
 
