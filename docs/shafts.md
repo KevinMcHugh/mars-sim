@@ -69,7 +69,7 @@ shaft pays nothing for any of it.
 ### Digging one
 
 `OrderShaft{Levels, At}` with a tile (the browser's Dig tab: the Shaft
-tool and its levels box, then a click on the map) is checked and marked out
+tool, with its depth from the *Shaft depth* box, then a click on the map) is checked and marked out
 at once, or refused in the log: open floor starts a new shaft, a shaft's
 top deepens it, cut short at `deepest-level` (see [siting.md](./siting.md)).
 Without a tile (`b` then `n` in the terminal, one level per press) it needs

@@ -33,12 +33,22 @@
 
   // The dig-down buttons: what each orders, and what the player should click.
   const DOWN: { kind: DigDownKind; label: string; pick: string; title: string }[] = [
-    { kind: 'stair', label: 'Stair', pick: 'a floor tile', title: 'Pick a floor tile on the map to dig a stair down from (docs/stairs.md)' },
-    { kind: 'shaft', label: 'Shaft', pick: 'a floor tile or shaft top', title: 'Pick a floor tile to sink a shaft this many levels deep from, or a shaft\'s top to deepen it (docs/shafts.md)' },
-    { kind: 'hole', label: 'Hole', pick: 'a floor tile', title: 'Pick a floor tile on the map to break a hole through to the level below (docs/holes.md)' },
-    { kind: 'ladder', label: 'Ladder', pick: 'a hole', title: 'Pick a hole on the map to fit a ladder into, making it a shaft (docs/holes.md)' },
+    { kind: 'stair', label: 'Stair', pick: 'a floor tile to dig a stair down from', title: 'A stair down: walked both ways (docs/stairs.md)' },
+    { kind: 'shaft', label: 'Shaft', pick: 'a floor tile to sink a shaft from, or a shaft\'s top to deepen it', title: 'A shaft: climbed slowly, and can go several levels at once (docs/shafts.md)' },
+    { kind: 'hole', label: 'Hole', pick: 'a floor tile to break a hole through', title: 'A hole: a drop nothing comes back up (docs/holes.md)' },
+    { kind: 'ladder', label: 'Ladder', pick: 'a hole to fit a ladder into', title: 'A ladder into a hole, making it a shaft (docs/holes.md)' },
   ];
-  const toggle = (kind: DigDownKind) => armSite(ui.siteTool?.kind === kind ? null : kind, shaftLevels);
+  // With siting-auto, a button can leave the tile to the colony instead of
+  // picking up the tool (docs/siting.md). Only offered in such a game.
+  let colonyPicks = $state(false);
+  const autoSiting = $derived(!!ui.hello?.sitingAuto && colonyPicks);
+  // Ticking the box puts down a tool already in hand.
+  $effect(() => { if (autoSiting) armSite(null); });
+  const held = $derived(DOWN.find((d) => d.kind === ui.siteTool?.kind));
+  function press(kind: DigDownKind) {
+    if (autoSiting) digDownAuto(kind, shaftLevels);
+    else armSite(ui.siteTool?.kind === kind ? null : kind, shaftLevels);
+  }
 
   // Why the order cannot go, or null if it can.
   const blocked = $derived.by(() => {
@@ -108,37 +118,38 @@
 {#if canGoDown}
   <h2>Dig down</h2>
   <p class="muted">
-    The colony digs these free of charge, from the tile you pick. A stair is walked both ways; a shaft is
-    climbed slowly, and can go several levels at once; a hole is a drop nothing comes back up, until a
-    ladder turns it into a shaft. Deepest allowed: level {ui.hello?.deepestLevel}.
+    The colony digs these free of charge. A stair is walked both ways; a shaft is climbed slowly, and can
+    go several levels at once; a hole is a drop nothing comes back up, until a ladder turns it into a
+    shaft. Deepest allowed: level {ui.hello?.deepestLevel}.
   </p>
-  <div class="row wrap">
+  <div class="row">
     {#each DOWN as d (d.kind)}
       {@const on = ui.siteTool?.kind === d.kind}
-      <button type="button" class:on aria-pressed={on} onclick={() => toggle(d.kind)} title={d.title}>
-        {on ? `Click ${d.pick}…` : d.label}
-      </button>
-      {#if d.kind === 'shaft'}
-        <span class="shaft">
-          <input type="number" min="1" max={Math.max(1, (ui.hello?.deepestLevel ?? 1) - (ui.hello?.landingLevel ?? 1))}
-            aria-label="Shaft levels" bind:value={shaftLevels} />
-          <span class="muted">levels</span>
-        </span>
-      {/if}
+      <button type="button" class:on aria-pressed={on} onclick={() => press(d.kind)} title={d.title}>{d.label}</button>
     {/each}
   </div>
+  <label class="field">
+    Shaft depth
+    <input type="number" min="1" max={Math.max(1, (ui.hello?.deepestLevel ?? 1) - (ui.hello?.landingLevel ?? 1))}
+      bind:value={shaftLevels} />
+    <span class="muted">levels</span>
+  </label>
   {#if ui.hello?.sitingAuto}
-    <div class="row wrap">
-      <span class="muted">Or let the colony pick:</span>
-      {#each DOWN as d (d.kind)}
-        <button type="button" onclick={() => digDownAuto(d.kind, shaftLevels)}
-          title="The colony sites it on the deepest level it has reached (siting-auto)">{d.label}</button>
-      {/each}
-    </div>
+    <label class="field" title="The colony sites each one on the deepest level it has reached (siting-auto)">
+      <input type="checkbox" bind:checked={colonyPicks} /> Let the colony pick the tile
+    </label>
+  {/if}
+  {#if held}
+    <p class="prompt">Click {held.pick}. Esc puts the tool down.</p>
   {/if}
   <p class="muted">
-    It goes on the level the map shows (&lt; and &gt; step between levels); Esc puts the tool down. A tile
-    the colony cannot use is refused in the log, and the Jobs tab shows what is marked out.
+    {#if autoSiting}
+      The colony sites each on the deepest level it has reached.
+    {:else}
+      It goes on the level the map shows (&lt; and &gt; step between levels). A tile the colony cannot
+      use is refused in the log.
+    {/if}
+    The Jobs tab shows what is marked out.
   </p>
 {/if}
 
@@ -150,9 +161,9 @@
   .warn { color: #ffb36b; }
   .row { display: flex; gap: 6px; margin: 8px 0; }
   .row button.on { background: var(--accent); color: #fff; }
-  .row.wrap { flex-wrap: wrap; align-items: center; }
-  .shaft { display: inline-flex; align-items: center; gap: 4px; }
-  .shaft input { width: 4em; }
+  .field { display: flex; align-items: center; gap: 6px; margin: 6px 0; }
+  .field input[type='number'] { width: 4em; }
+  .prompt { color: var(--accent); }
   .row button.go { background: var(--accent); color: #fff; }
   .row button.go:disabled { background: transparent; color: inherit; }
   dl { display: grid; grid-template-columns: max-content 1fr; gap: 3px 12px; margin: 8px 0; }

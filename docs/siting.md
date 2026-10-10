@@ -96,8 +96,11 @@ not a siting choice.
 
 ### The browser
 
-The Dig tab's *Dig down* buttons (Stair, Shaft with its levels box, Hole,
-Ladder) each pick up a one-click tool (`ui.siteTool`, `armSite`). While it is
+The Dig tab's *Dig down* section is one row of buttons (Stair, Shaft, Hole,
+Ladder), a *Shaft depth* box under them, and, in a siting-auto game, a
+*Let the colony pick the tile* checkbox. Unticked (and always, in a game
+without siting-auto), each button picks up a one-click tool (`ui.siteTool`,
+`armSite`), and a line under the buttons says what to click. While it is
 up, the tile under the pointer is tinted green where the page thinks the
 order could go (seen open floor; for a shaft also a shaft's top; for a
 ladder a hole) and red elsewhere, and a click orders it there on the level
@@ -105,10 +108,12 @@ the map shows (`orderSite`), then puts the tool down. Esc, another map tool,
 or leaving the tab puts it down without ordering. The page only estimates:
 the engine has the last word, and its refusal lands in the log.
 
-A game started with siting-auto (the New game form's "Colonists choose where
-to dig down", or `?siting-auto=true`) also gets a row of "Or let the colony
-pick" buttons, which send the order without a tile. Hello's `sitingAuto`
-says which mode the game is in.
+Ticked, the same buttons send the order at once without a tile
+(`digDownAuto`), and ticking it puts down a tool already in hand. The box
+is offered only in a game started with siting-auto (the New game form's
+"Colonists choose where to dig down", or `?siting-auto=true`); Hello's
+`sitingAuto` says which mode the game is in. It is a toggle on one set of
+buttons, not a second row of them, so each kind has exactly one button.
 
 ### The terminal
 

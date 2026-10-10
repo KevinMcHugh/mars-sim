@@ -138,7 +138,8 @@ many levels deep, a hole, or a ladder into a hole, each placed by the
 player: a button picks up a one-click tool (`ui.siteTool`, `armSite`) that
 tints the tile under the pointer, and a click orders it there on the level
 shown (`orderSite`; the `dig-down` command with `x`, `y` and `level`). A game
-started with `siting-auto` also offers "Or let the colony pick". The engine
+started with `siting-auto` also offers a *Let the colony pick the tile*
+checkbox, which makes the same buttons send the order without a tile. The engine
 has the last word, and a refusal lands in the log (see
 [siting.md](./siting.md)). Changing level sends
 the worker the same interest rectangle with the new level; the next frame
