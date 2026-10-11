@@ -433,9 +433,14 @@ ticker's), until they are opened again.
   wrong zone, tinted red with a warning of the extra clearing order. The
   button sends `zone` or `clear`. Below are what the colony is waiting on a
   zone for, the tiles each kind covers and what it holds, and open clearing
-  orders with **Cancel** (`clear-cancel`). The map's zone wash is drawn
+  orders with **Cancel** (`clear-cancel`). **Defense** marks an area on any
+  level and posts a detail of armed colonists there (`defend`, host API 22;
+  see [defense.md](./defense.md)); the tab lists each defense zone with its
+  guards, `−`/`+` for the detail (`defend-detail`) and **Cancel**
+  (`defend-cancel`). The map's zone wash is drawn
   whatever tab is open: the page holds the `zones` topic for its life and
-  `setZones` draws it as the lowest tint layer, under filth.
+  `setZones` draws it as the lowest tint layer, under filth, with the
+  defense zones on the level shown as runs of one more kind on top.
 - **Dig** orders an area mined out (see [excavation.md](./excavation.md)).
   **Mark an area** arms a tool: while it is armed a drag on the map draws a
   rectangle instead of panning (`attachInput`'s `areaTool` and `area` hooks),
@@ -499,9 +504,9 @@ plus the player's own charts, drawn with
 
 The colors are the dataviz reference palette's dark steps, checked with its
 validator against the charts' surface (`#1a1a19`). A chart gets at most eight
-categorical hues and the game has 13 activities, so related ones share a band
-(mining & building, hauling & cleaning, and escaping, fleeing and fighting
-as "danger"), with idle as a neutral gray lid. The hover tooltip and the
+categorical hues and the game has 14 activities, so related ones share a band
+(mining & building, hauling & cleaning, and guarding, escaping, fleeing and
+fighting as "danger"), with idle as a neutral gray lid. The hover tooltip and the
 table under the chart still name every activity, lately (the last tenth of
 the game) and over the whole game. Every chart has a hover tooltip.
 

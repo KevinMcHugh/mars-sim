@@ -29,6 +29,7 @@ const (
 	ActFighting             // firing on an alien, stomping a rat
 	ActFleeing              // running from an alien
 	ActEscaping             // breaking out of a sealed room
+	ActGuarding             // on station in a defense zone, or walking to it
 
 	NumActivities
 )
@@ -61,6 +62,8 @@ func (a Activity) String() string {
 		return "fleeing"
 	case ActEscaping:
 		return "escaping"
+	case ActGuarding:
+		return "guarding"
 	default:
 		return "?"
 	}
@@ -104,6 +107,8 @@ func activityOfState(s State) (Activity, bool) {
 		return ActFleeing, true
 	case Demolishing:
 		return ActEscaping, true
+	case Guarding:
+		return ActGuarding, true
 	}
 	return 0, false
 }
@@ -128,6 +133,8 @@ func activityOfPurpose(e *Entity) Activity {
 		return ActCooking
 	case JobDemolish:
 		return ActEscaping
+	case JobGuard:
+		return ActGuarding
 	}
 	// JobUse, or no job: the focus says what the walk is for.
 	switch e.focus {

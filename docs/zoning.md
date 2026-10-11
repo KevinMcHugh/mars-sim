@@ -228,7 +228,10 @@ zone. The `zoning` topic carries the Zones tab: the type table, tile counts,
 every structure (type, zone, bounds, tiles built, ship, rising), open clearing
 orders, and the waiting list.
 
-The tab's tools are one per zone kind, "Remove zone", and "Clear area". A drag
+The tab's tools are one per zone kind, "Defense", "Remove zone", and "Clear area".
+Defense is not a zone kind on this grid: a defense zone overlaps the zones it
+guards and may lie on any level, so it is a record of its own (see
+[defense.md](./defense.md)). A drag
 marks the area (the Dig tool's `areaTool` hook, shared). `showZone` estimates
 the outcome from the topics and the tile pages the page holds, the same way the
 Dig tab counts rock: tiles changed, held tiles skipped, rock to dig, structures
@@ -319,3 +322,5 @@ hashes moved.
   opens.
 - [frontend-web.md](./frontend-web.md): the Zones tab and the map's layers.
 - [wire-format.md](./wire-format.md): the `zones` and `zoning` topics.
+- [defense.md](./defense.md): defense zones, the Zones tab's other tool,
+  which posts armed colonists rather than building anything.

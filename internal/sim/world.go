@@ -731,6 +731,10 @@ type World struct {
 	snapZoneRev uint64
 	snapZones   []ZoneRun
 	zoneWaits   [numTerrains]int
+	// defensePosts are the defense zones by id (defense.go), and
+	// nextDefenseID the last id handed out.
+	defensePosts  []*defensePost
+	nextDefenseID int
 	// playerZoned is set once the player has painted a zone or cleared an
 	// area. Until then, with zoning-auto, every zoned tile is under a room
 	// the colony built or a crash pod, so planRoomFor skips the search
