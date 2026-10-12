@@ -11,6 +11,7 @@
   // finds it there, not under `npm run dev`.
   import { loadGame, newGame, saveGame, ui } from '../game.svelte';
   import GameSettings from './GameSettings.svelte';
+  import Help from './Help.svelte';
   import Section from './Section.svelte';
   import { describeShips, initialSettings, shipLoads } from '../settings';
   import type { Settings } from '../sim/client';
@@ -30,6 +31,7 @@
   let autoZoning = $state(init['zoning-auto'] === true);
   // The founders' ships, which the player lands one by one after Start
   // (docs/ships.md).
+  let saveHelp = $state(false);
   const ships = $derived(describeShips(shipLoads(colonists)));
 
   function start(e: SubmitEvent) {
@@ -49,8 +51,8 @@
 </script>
 
 <section aria-label="Saved games">
-  <h3>Saved games</h3>
-  <p class="muted">A save is the whole game: it plays on exactly as it would have. Saves only load into the build that made them, or one whose world has not changed shape since.</p>
+  <h3>Saved games<Help bind:open={saveHelp} label="What is in a save?" /></h3>
+  {#if saveHelp}<p class="help-text">A save is the whole game: it plays on exactly as it would have. Saves only load into the build that made them, or one whose world has not changed shape since.</p>{/if}
   <div class="row">
     <button type="button" onclick={saveGame} disabled={!ui.hello} title="Save game (Ctrl+S / ⌘S)" aria-keyshortcuts="Control+S Meta+S">Save game</button>
     <button type="button" onclick={() => picker.click()}>Load game…</button>
@@ -59,9 +61,9 @@
 </section>
 
 <section aria-label="New game">
-  <Section id="game.new" tag="h2" title="New game">
+  {#snippet newHelp()}Choose a world and its founders, then land their ships.{/snippet}
+  <Section id="game.new" tag="h2" title="New game" help={newHelp}>
     <form onsubmit={start}>
-      <p class="muted">Choose a world and its founders, then land their ships.</p>
       <label>Width <input type="number" min="64" bind:value={width} /></label>
       <label>Height <input type="number" min="64" bind:value={height} /></label>
       <label>Colonists <input type="number" min="1" bind:value={colonists} aria-describedby="ship-count" /></label>

@@ -78,3 +78,7 @@ button:disabled, select:disabled { opacity: 0.45; cursor: default; }
 .status.error { color: #f2877e; }
 .status[hidden] { display: none; }
 
+
+/* An explanation a (?) shows (ui/Help.svelte). The class is doubled to
+   outrank a tab's own scoped `p { margin: 0 }`. */
+.help-text.help-text { margin: 4px 0 8px; color: var(--muted); font-size: 13px; line-height: 1.45; }

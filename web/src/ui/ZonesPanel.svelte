@@ -9,6 +9,9 @@
   import { anyLevelTool, applyZone, armZone, cancelClear, cancelDefense, centerOn, clearZoneTool, setDefenseDetail, subscribe, topics, ui, zoneChanged } from '../game.svelte';
   import { untrack } from 'svelte';
   import { money } from './format';
+  import Help from './Help.svelte';
+
+  let help = $state(false);
 
   interface Zones { kinds: { name: string; color: string }[]; defenseColor: string }
   interface Defense {
@@ -100,7 +103,8 @@
 {#if z?.auto}
   <p class="muted">The colony is zoning for itself (zoning-auto): it builds where it chooses and zones each room as it marks it out, using your zones first.</p>
 {:else}
-  <p class="muted">Colonists build only inside a zone of the right kind: a room goes where its fixtures belong, and fixtures of one zone may share a room (a stove and an incubator are both production). Zoning is free; digging out rock in a new zone, and clearing a structure left in the wrong zone, are paid work.</p>
+  <Help bind:open={help} float label="What are zones?" />
+  {#if help}<p class="help-text">Colonists build only inside a zone of the right kind: a room goes where its fixtures belong, and fixtures of one zone may share a room (a stove and an incubator are both production). Zoning is free; digging out rock in a new zone, and clearing a structure left in the wrong zone, are paid work.</p>{/if}
 {/if}
 
 <div class="tools">

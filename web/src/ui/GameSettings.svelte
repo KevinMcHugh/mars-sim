@@ -46,11 +46,14 @@
   }
 </script>
 
-<Section id="game.settings" tag="h2" title="Settings" note={cfg ? `(${total}, ${nChanged} changed)` : undefined}>
+{#snippet help()}
+  What this game runs with. The New game form sets a few; the rest are the built-in defaults, or whatever a loaded save was started with. A highlighted setting differs from its default.
+{/snippet}
+
+<Section id="game.settings" tag="h2" title="Settings" note={cfg ? `(${total}, ${nChanged} changed)` : undefined} help={cfg ? help : undefined}>
   {#if !cfg}
     <p class="muted">Start or load a game to see the settings it runs with.</p>
   {:else}
-    <p class="muted">What this game runs with. The form above sets a few; the rest are the built-in defaults, or whatever a loaded save was started with. A highlighted setting differs from its default.</p>
     <dl class="seed"><dt>seed</dt><dd><code>{cfg.seed}</code></dd></dl>
     <div class="controls">
       <input type="search" placeholder="Filter settings" aria-label="Filter settings" bind:value={filter} />

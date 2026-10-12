@@ -8,6 +8,9 @@
   import { pickGlyph } from '../emoji';
   import { hireRecruits, rollRecruits, subscribe, topics } from '../game.svelte';
   import { money } from './format';
+  import Help from './Help.svelte';
+
+  let help = $state(false);
 
   interface Candidate {
     index: number; name: string; glyph: string; look?: string[];
@@ -65,12 +68,15 @@
 {:else if t.setSize === 0}
   <p class="muted">Recruiting is off in this game (recruit-candidates is 0).</p>
 {:else}
-  <p class="muted">
-    Hire colonists from off-world. A recruiter presents {t.setSize} candidates for {money(t.fee)}; each one
-    you hire costs {money(t.cost)} for passage and arrives at once beside a ship with {t.meals}
-    {t.meals === 1 ? 'meal' : 'meals'} and their own savings. The fee and passage leave the colony for good;
-    the savings stay in the colonists' pockets.
-  </p>
+  <Help bind:open={help} float label="How does recruiting work?" />
+  {#if help}
+    <p class="help-text">
+      Hire colonists from off-world. A recruiter presents {t.setSize} candidates for {money(t.fee)}; each one
+      you hire costs {money(t.cost)} for passage and arrives at once beside a ship with {t.meals}
+      {t.meals === 1 ? 'meal' : 'meals'} and their own savings. The fee and passage leave the colony for good;
+      the savings stay in the colonists' pockets.
+    </p>
+  {/if}
   <dl>
     <dt>Treasury</dt><dd>{money(t.treasury)}</dd>
     {#if t.hired > 0}<dt>Recruited</dt><dd>{t.hired} <span class="muted">from {t.sets} {t.sets === 1 ? 'set' : 'sets'}</span></dd>{/if}
