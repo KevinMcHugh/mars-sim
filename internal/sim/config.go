@@ -297,12 +297,16 @@ type Config struct {
 	// dollars commissions its own house (0 disables), whose toilet charges
 	// others ToiletFee a use. WageDemolish pays for tearing a room's wall down
 	// to enlarge it: dearer than raising one, since the rock is not salvaged
-	// (see docs/room-expansion.md). See docs/labor.md.
+	// (see docs/room-expansion.md). WageGuard pays a guard each hour on
+	// station in a defense zone, and GuardSight is how far a guard reaches
+	// to shoot (see docs/defense.md). See docs/labor.md.
 	WageDig        int64 `cfg:"wage-dig" sec:"Labor" doc:"what the colony pays to dig out one tile of a room"`
 	WageWall       int64 `cfg:"wage-wall" doc:"what the colony pays to raise one wall"`
 	WageFixture    int64 `cfg:"wage-fixture" doc:"what the colony pays to build one fixture (pod, toilet, bed, ...)"`
 	WageDemolish   int64 `cfg:"wage-demolish" doc:"what the colony pays to tear down one structure tile: a wall moved to enlarge a room, or anything a clearing order takes down"`
 	WageCook       int64 `cfg:"wage-cook" doc:"what the colony pays a cook each time it works a recipe on the colony's stock"`
+	WageGuard      int64 `cfg:"wage-guard" doc:"what the colony pays a guard for each hour on station in a defense zone"`
+	GuardSight     int   `cfg:"guard-sight" doc:"a guard shoots an alien within this many tiles of it and of its defense zone"`
 	HouseSavings   int64 `cfg:"house-savings" doc:"a colonist with this much money commissions its own house (0 disables)"`
 	KitchenRank    int   `cfg:"kitchen-rank" doc:"cooking rank at which a colonist buys a kitchen of its own when the shared stoves are crowded (3: a chef; 0 disables)"`
 	KitchenSavings int64 `cfg:"kitchen-savings" doc:"money a chef needs to commission its own kitchen: the room (about $50) and scum to cook in it"`
@@ -853,6 +857,8 @@ func DefaultConfig() Config {
 		WageFixture:       5,
 		WageDemolish:      3,
 		WageCook:          1,
+		WageGuard:         2,
+		GuardSight:        8,
 		HouseSavings:      300,
 		KitchenRank:       3,
 		KitchenSavings:    100,

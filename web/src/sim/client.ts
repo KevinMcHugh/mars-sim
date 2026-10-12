@@ -26,6 +26,12 @@ export type Command =
   | { type: 'clear'; x0: number; y0: number; x1: number; y1: number; level?: number }
   /** Cancel a clearing order by id, refunding what is unspent. */
   | { type: 'clear-cancel'; id: number }
+  /** Post a detail of qty armed colonists to defend the rectangle (docs/defense.md). */
+  | { type: 'defend'; x0: number; y0: number; x1: number; y1: number; level?: number; qty: number }
+  /** Change how many guards a defense zone asks for. */
+  | { type: 'defend-detail'; id: number; qty: number }
+  /** Stand a defense zone's detail down. */
+  | { type: 'defend-cancel'; id: number }
   /** Reland a ship with its top-left at (x, y); only before the first tick (docs/ships.md). */
   | { type: 'ship-move'; id: number; x: number; y: number }
   /** Land the next ship still aloft with its top-left at (x, y); only before the first tick. */
@@ -62,7 +68,7 @@ export interface Started {
  * A mismatch means mars-sim.wasm is from another build: usually a pull without
  * rerunning npm run wasm.
  */
-export const HOST_API = 21;
+export const HOST_API = 22;
 
 export class SimClient {
   private worker: Worker;

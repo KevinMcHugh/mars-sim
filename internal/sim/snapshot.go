@@ -545,6 +545,12 @@ type Snapshot struct {
 	ZoneWaiting []Terrain
 	ZoningAuto  bool
 	ClearWage   Money
+	// Defense is every defense zone by id (see docs/defense.md); GuardWage
+	// what a guard is paid an hour, and Armed how many living colonists
+	// carry a weapon (the most a detail can ever be).
+	Defense   []DefenseView
+	GuardWage Money
+	Armed     int
 
 	// AlienSpecies is this world's roster of rolled alien species -- each
 	// one's build, colloquial name, and temperament. Every Alien in Entities
@@ -836,6 +842,9 @@ func (w *World) snapshot(paused bool, tps int) *Snapshot {
 		ZoneWaiting:          w.zoneWaiting(),
 		ZoningAuto:           w.cfg.ZoningAuto,
 		ClearWage:            Money(w.cfg.WageDemolish),
+		Defense:              w.publishedDefense(),
+		GuardWage:            Money(w.cfg.WageGuard),
+		Armed:                w.armedColonists(),
 		Scum:                 w.publishedScum(),
 		Salt:                 w.publishedSalt(),
 		Graveyard:            append([]EntityView(nil), w.graveyard...),

@@ -113,7 +113,7 @@ column, rounded up to a whole colonist. The x axis reuses the Population tab's
   above each activity keeps the two together, so "cooking is a third walking"
   reads off the chart, and the legend's `walk` column gives the number.
 - **Stacking order.** Needs sit at the floor, work in the middle, danger
-  (escaping, fleeing, fighting) above that, and idle on top as a grey lid. A
+  (guarding, escaping, fleeing, fighting) above that, and idle on top as a grey lid. A
   raid shows up as red and magenta swelling just under the lid, where the eye
   lands, and not buried in the middle of the stack.
 - **Read-only bookkeeping.** Nothing reads the tally back, so it cannot

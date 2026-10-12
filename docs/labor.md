@@ -100,6 +100,12 @@ through `facilityReachable` and `chooseFacility`. A colonist that can no longer
 pay by the time it is done has had its use anyway — there is no debt to run up
 yet.
 
+### Guard duty
+
+A guard on a defense zone's detail is paid `wage-guard` for every hour it
+spends inside the area, straight from the treasury as far as it goes, like the
+cook below: a detail has no end to escrow for. See [defense.md](./defense.md).
+
 ### Cooking for the colony
 
 A cook working a recipe on the colony's stock is paid `wage-cook` per recipe,
@@ -113,6 +119,7 @@ now buys biomatter outright with standing bids (see
 | `wage-dig` / `wage-wall` / `wage-fixture` | 2 / 2 / 5 |
 | `wage-demolish` | 3 per structure tile torn down: a wall moved to enlarge a room, or anything a clearing order takes |
 | `wage-cook` | 1 per recipe |
+| `wage-guard` | 2 per hour on station in a defense zone |
 | `house-savings` | 300 (0 disables commissions) |
 | `toilet-fee` | 2 (0 makes a house's toilet private) |
 
@@ -176,3 +183,4 @@ $450 at 40,000 while the treasury fell. The wealth levy (see
 - [property.md](./property.md) — owners, access, and paid fixtures.
 - [money.md](./money.md) — accounts and the audit.
 - [scumhouse.md](./scumhouse.md) — biomatter, which the colony buys, and its cook.
+- [defense.md](./defense.md) — guard duty, paid by the hour.

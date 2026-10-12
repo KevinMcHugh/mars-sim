@@ -41,6 +41,7 @@ var activityBands = []activityBand{
 	{sim.ActBuilding, "33", "25"},
 	{sim.ActHauling, "37", "30"},
 	{sim.ActCleaning, "113", "65"},
+	{sim.ActGuarding, "166", "94"},
 	{sim.ActEscaping, "137", "95"},
 	{sim.ActFleeing, "201", "90"},
 	{sim.ActFighting, "196", "88"},

@@ -768,6 +768,8 @@ func (w *World) clearJob(e *Entity) {
 		e.carry, e.carryFor, e.carryWork = carryFetch, Owner{}, 0
 	case JobTend:
 		w.releaseTend(e)
+	case JobGuard:
+		w.releaseGuard(e)
 	}
 	e.Job, e.Progress, e.partner, e.fieldDetour = JobNone, 0, 0, 0
 	e.useFacility, e.useFacilitySet, e.carrying = Point{}, false, false
@@ -809,6 +811,8 @@ func (w *World) runJob(e *Entity) {
 		w.jobCarry(e)
 	case JobTend:
 		w.jobTend(e)
+	case JobGuard:
+		w.jobGuard(e)
 	default:
 		e.State = Idle
 		w.wanderStep(e)
@@ -1084,6 +1088,14 @@ func (w *World) assignWorkJob(e *Entity) {
 	// Placed behind the colony's cleaning, keepers got to it too late, and
 	// most hens starved beside living keepers (see chickens.go).
 	if w.tryAssignTend(e) {
+		return
+	}
+	// A defense zone short of its detail takes an armed colonist before any
+	// public work: the player asked for it, and an empty post is what lets
+	// an alien out of a shaft into the colony. Behind the trough and goods
+	// already sold, which are a few ticks' work and starve or stall
+	// somebody if left.
+	if w.tryAssignGuard(e) {
 		return
 	}
 	// Collaborate on planned construction (facility rooms, etc.): claim the
