@@ -10,6 +10,7 @@
   // click.
   import { cancelColonyOrder, centerOn, clearColonyWideOrder, placeColonyOrder, repriceColonyOrder, resumeColonyOrders, setColonyWideOrder, suspendColonyOrders } from '../game.svelte';
   import { money } from './format';
+  import Help from './Help.svelte';
   import OrderDetail from './OrderDetail.svelte';
 
   interface Desk {
@@ -28,6 +29,7 @@
   }
 
   let { desk, treasury, prices, books }: Props = $props();
+  let help = $state(false);
 
   // ---- placing -------------------------------------------------------------
 
@@ -163,7 +165,11 @@
   };
 </script>
 
-<p class="muted">Trade in the colony's name. A bid is paid from the treasury, an ask from what the colony holds. <em>Anywhere</em> is a standing order the colony keeps on the book where the good changes hands; a depot places one order there.</p>
+<Help bind:open={help} float label="How does trading work?" />
+{#if help}
+  <p class="help-text">Trade in the colony's name. A bid is paid from the treasury, an ask from what the colony holds. <em>Anywhere</em> is a standing order the colony keeps on the book where the good changes hands; a depot places one order there.</p>
+  <p class="help-text">Repricing re-posts an order, so it joins the back of the queue at its new price. Standing orders (auto) are topped up again by the colony after you remove them; suspend one to keep it off the book.</p>
+{/if}
 
 <form class="place" onsubmit={(e) => { e.preventDefault(); place(); }}>
   <div class="sides" role="group" aria-label="Side">
@@ -279,7 +285,6 @@
       {/each}
     </tbody>
   </table>
-  <p class="muted">Repricing re-posts the order, so it joins the back of the queue at its new price. Standing orders (auto) are topped up again by the colony after you remove them; suspend one to keep it off the book.</p>
 {/if}
 
 {#if desk.suspended.length > 0}

@@ -15,7 +15,10 @@
   }
 
   $effect(() => subscribe('market'));
-  const m = $derived(topics.data.market as Market | undefined);
+  // Leaving the tab drops the topic before ColonyOrders is torn down, and its
+  // props would then read through undefined: keep the last payload instead.
+  let last: Market | undefined;
+  const m = $derived.by(() => (last = (topics.data.market as Market | undefined) ?? last));
 </script>
 
 {#if !m}

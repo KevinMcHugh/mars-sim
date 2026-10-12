@@ -34,6 +34,13 @@ readout. Around it is a Svelte chrome:
   Any tab can be **popped out** (⧉ in its title row) into a window over the
   map, to watch it beside the docked tab: see
   [floating-panels.md](./floating-panels.md).
+- **Explanations behind a (?).** A tab's paragraph on how its mechanic
+  works (what zones are for, what a dig order pays, what a save holds, how
+  recruiting and colony trading cost) is shut by default behind a small (?)
+  (`Help.svelte`), at the top right of the tab or after a heading
+  (`Section`'s `help` snippet). Each tab used to open with one of these: read
+  once, then in the way every time. Text that says what is happening now
+  ("the colony is zoning for itself", "Deepest allowed: level 3") stays out.
 - **A log ticker** over the map's bottom-left corner: the last few colony-log
   lines, fading after a few seconds.
 
@@ -56,7 +63,7 @@ The rest of the TUI's tabs are planned in
   (the tab list both share), `Bar` (a gauge), and one component
   per tab (`InspectPanel`, `RosterPanel`, `LogPanel`, `JobsPanel`,
   `StoragePanel`, `MarketPanel` with `AccountDetail`, `TradePanel` with `ColonyOrders`, `ZonesPanel`, `DigPanel`, `ChartsPanel`, `PerfPanel`, `ShipsPanel`,
-  `RecruitPanel`, `LorePanel`, `NewGamePanel` with `GameSettings`), `Section` (a foldable heading), `LogTicker`, and `FlowControl` (the
+  `RecruitPanel`, `LorePanel`, `NewGamePanel` with `GameSettings`), `Section` (a foldable heading), `Help` (a (?) that shows an explanation), `LogTicker`, and `FlowControl` (the
   flow-field picker and legend, see [flow-field-view.md](./flow-field-view.md)).
   `format.ts` formats money.
 - [`web/src/ui/charts/`](../web/src/ui/charts/Chart.svelte) — the Charts tab:

@@ -5,6 +5,10 @@
   // and the open orders come from the market topic.
   import { armDig, cancelDig, centerOn, clearDig, digDown, levelName, orderDig, subscribe, topics, ui } from '../game.svelte';
   import { money } from './format';
+  import Help from './Help.svelte';
+
+  let help = $state(false);
+  let downHelp = $state(false);
 
   interface Market {
     supply: { treasury: number };
@@ -35,10 +39,13 @@
   });
 </script>
 
-<p class="muted">
-  Order an area mined out. The colony pays for it from the treasury: every tile of rock it has seen
-  becomes a work order, paid to whoever digs it, who keeps the ore.
-</p>
+<Help bind:open={help} float label="How does digging work?" />
+{#if help}
+  <p class="help-text">
+    Order an area mined out. The colony pays for it from the treasury: every tile of rock it has seen
+    becomes a work order, paid to whoever digs it, who keeps the ore.
+  </p>
+{/if}
 
 <div class="row">
   <button type="button" class:on={ui.dig.armed} aria-pressed={ui.dig.armed} onclick={() => armDig(!ui.dig.armed)}>
@@ -91,12 +98,16 @@
 {/if}
 
 {#if canGoDown}
-  <h2>Dig down</h2>
-  <p class="muted">
-    The colony sites it on the deepest level it has reached and digs it free of charge. A stair is
-    walked both ways; a shaft is climbed slowly, and can go several levels at once; a hole is a drop
-    nothing comes back up, until a ladder turns it into a shaft. Deepest allowed: level {ui.hello?.deepestLevel}.
-  </p>
+  <h2>Dig down<Help bind:open={downHelp} label="How does digging down work?" /></h2>
+  {#if downHelp}
+    <p class="help-text">
+      The colony sites it on the deepest level it has reached and digs it free of charge. A stair is
+      walked both ways; a shaft is climbed slowly, and can go several levels at once; a hole is a drop
+      nothing comes back up, until a ladder turns it into a shaft. The Jobs tab lists what is ordered
+      and not yet marked out; &lt; and &gt; step the map between levels.
+    </p>
+  {/if}
+  <p class="muted">Deepest allowed: level {ui.hello?.deepestLevel}.</p>
   <div class="row wrap">
     <button type="button" onclick={() => digDown('stair')} title="Order a stair down (docs/stairs.md)">Stair</button>
     <span class="shaft">
@@ -108,7 +119,6 @@
     <button type="button" onclick={() => digDown('hole')} title="Order a hole broken through to the level below (docs/holes.md)">Hole</button>
     <button type="button" onclick={() => digDown('ladder')} title="Fit a ladder into the first hole without one, making it a shaft">Ladder</button>
   </div>
-  <p class="muted">The Jobs tab lists what is ordered and not yet marked out; &lt; and &gt; step the map between levels.</p>
 {/if}
 
 <style>
