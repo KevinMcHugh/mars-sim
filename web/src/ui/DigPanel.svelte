@@ -32,7 +32,7 @@
   // Why the order cannot go, or null if it can.
   const blocked = $derived.by(() => {
     if (!m || !r) return null;
-    if (ui.dig.tiles === 0) return 'No rock the colony has seen in this area.';
+    if (ui.dig.tiles === 0) return 'No rock to dig in this area.';
     if (ui.dig.tiles > m.dig.maxTiles) return `Too large: an order covers at most ${m.dig.maxTiles} tiles.`;
     if (cost > m.supply.treasury) return `The treasury (${money(m.supply.treasury)}) cannot pay for it.`;
     return null;
@@ -42,8 +42,9 @@
 <Help bind:open={help} float label="How does digging work?" />
 {#if help}
   <p class="help-text">
-    Order an area mined out. The colony pays for it from the treasury: every tile of rock it has seen
-    becomes a work order, paid to whoever digs it, who keeps the ore.
+    Order an area mined out. The colony pays for it from the treasury: every tile of rock in it,
+    including rock it has not uncovered yet, becomes a work order, paid to whoever digs it, who
+    keeps the ore. Miners clear it from the edge inward.
   </p>
 {/if}
 

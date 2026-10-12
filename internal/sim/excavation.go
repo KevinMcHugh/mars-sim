@@ -5,8 +5,8 @@ import "fmt"
 // ---- Excavation orders -----------------------------------------------------------
 //
 // A player can order an area mined out. The order is an ordinary public work,
-// bought like a room: every rock tile in the area the colony has seen becomes a
-// dig task of one project, and every task is a work order (WorkDig) on the
+// bought like a room: every rock tile in the area the colony has seen, and
+// every tile it has not seen at all, becomes a dig task of one project, and every task is a work order (WorkDig) on the
 // order book, escrowed from the treasury. Whoever digs a tile is paid its wage
 // (wage-dig) when it is cleared, and keeps the ore. It is all or nothing, as
 // fundProject is for a room: a treasury that cannot cover the whole area buys
@@ -78,20 +78,20 @@ func (w *World) cancelClearing(id int) bool {
 	return w.cancelOrdered(id, ClearingName, "a clearing", "cleared")
 }
 
-// orderExcavation marks out the rock the colony has seen inside the rectangle,
+// orderExcavation marks out the rock inside the rectangle, seen or not,
 // funded by the treasury, and reports whether it did. It logs why not.
 func (w *World) orderExcavation(c OrderExcavation) bool {
 	x0, y0, x1, y1 := w.clampRect(c.X0, c.Y0, c.X1, c.Y1)
 
 	// Tiles another project already has a task on would be dug twice, and
 	// paid twice (unmarkedRock leaves them out).
-	rock := w.unmarkedRock(orderLevel(c.Level), x0, y0, x1, y1)
+	rock := w.unmarkedRock(orderLevel(c.Level), x0, y0, x1, y1, true)
 	if len(rock) == 0 {
-		w.logEvent(LogBuildStart, "There is no unmarked rock the colony has seen in that area to dig out.")
+		w.logEvent(LogBuildStart, "There is no unmarked rock in that area to dig out.")
 		return false
 	}
 	if len(rock) > maxExcavationTiles {
-		w.logEvent(LogBuildStart, fmt.Sprintf("That area is %d tiles of rock; an excavation order covers at most %d.", len(rock), maxExcavationTiles))
+		w.logEvent(LogBuildStart, fmt.Sprintf("That area is %d tiles to dig; an excavation order covers at most %d.", len(rock), maxExcavationTiles))
 		return false
 	}
 	p := w.startExcavation(rock)
@@ -100,7 +100,7 @@ func (w *World) orderExcavation(c OrderExcavation) bool {
 			Money(len(rock))*w.wageFor(Floor), len(rock)))
 		return false
 	}
-	w.logEvent(LogBuildStart, fmt.Sprintf("The colony orders %d tiles of rock dug out, %v escrowed.", len(rock), w.projectCost(p)))
+	w.logEvent(LogBuildStart, fmt.Sprintf("The colony orders %d tiles dug out, %v escrowed.", len(rock), w.projectCost(p)))
 	return true
 }
 

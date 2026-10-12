@@ -528,7 +528,10 @@ function showDefense(r: Rect, zones: ZonesTopic | undefined): void {
   map.setHighlight(tint);
 }
 
-/** Count and tint the rock the colony has seen inside the marked area. */
+/**
+ * Count and tint what an order of the marked area would buy: the rock the
+ * colony has seen, and every tile it has not (the engine's unmarkedRock).
+ */
 function showDig(): void {
   const r = ui.dig.rect;
   if (!r || !hello) { ui.dig.tiles = 0; map.setHighlight(null); return; }
@@ -537,8 +540,9 @@ function showDig(): void {
   for (let y = r.y0; y <= r.y1; y++) {
     for (let x = r.x0; x <= r.x1; x++) {
       const cell = map.tileAt(x, y);
-      // Terrain 0 is rock; the order only covers what the colony has seen.
-      if (!cell || cell[0] !== 0 || !(cell[1] & TILE_VISIBLE)) continue;
+      // Terrain 0 is rock. A tile under the fog (or on a page not held) is
+      // bought whatever it hides, so the price says nothing about caverns.
+      if (cell && (cell[1] & TILE_VISIBLE) && cell[0] !== 0) continue;
       n++;
       if (tiles.length < DIG_TINT_MAX) tiles.push({ x, y, color: DIG_TINT });
     }
