@@ -90,7 +90,7 @@ The rest of the TUI's tabs are planned in
 - [`web/src/map/input.ts`](../web/src/map/input.ts) — drag, wheel, pinch and
   keyboard.
 - [`web/src/map/palette.ts`](../web/src/map/palette.ts) — the flat colors, by
-  name.
+  name, and how the ground darkens with depth (see [depth-palette.md](./depth-palette.md)).
 - [`web/src/sim/client.ts`](../web/src/sim/client.ts) — `SimClient`, the page's
   side of the worker.
 - [`web/public/worker.js`](../web/public/worker.js) — the worker's host loop

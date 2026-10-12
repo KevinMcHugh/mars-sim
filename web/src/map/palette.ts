@@ -71,6 +71,40 @@ function lookup(names: string[], table: Record<string, string>): RGB[] {
 
 export const terrainColors = (names: string[]) => lookup(names, terrains);
 export const compositionColors = (names: string[]) => lookup(names, compositions);
+
+// Depth (docs/depth-palette.md): the map darkens as the player steps down,
+// from the landing level's reds at level 1 to black fog and charcoal floor at
+// DARK_LEVEL and below. Only the ground darkens; creatures, glyphs and the
+// overlays keep their colors, so they read on the dark more plainly, not less.
+export const DARK_LEVEL = 5;
+const DEEP_FOG = hex('#000000');
+const CHARCOAL = hex('#36322f');
+/** Under a facility's glyph at depth: charcoal, a shade darker, as GLYPH_BACKDROP is to the floor. */
+const DEEP_BACKDROP = hex('#2a2725');
+/** What the rest of the ground (rock, walls, stairs) is scaled by at DARK_LEVEL. */
+const DEEP_DIM = 0.45;
+
+/** How far level is toward fully dark: 0 at level 1 (and the surface), 1 at DARK_LEVEL and below. */
+export function depthDarkness(level: number): number {
+  return Math.min(1, Math.max(0, (level - 1) / (DARK_LEVEL - 1)));
+}
+
+const mix = (a: RGB, b: RGB, t: number): RGB => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
+const dim = (c: RGB, t: number): RGB => mix(c, [0, 0, 0], t * (1 - DEEP_DIM));
+
+/** The ground's colors on a level: terrain and rock colors by name, the fog, and a glyph's backdrop. */
+export function depthPalette(level: number, terrainNames: string[], compositionNames: string[]) {
+  const t = depthDarkness(level);
+  const base = terrainColors(terrainNames);
+  return {
+    // A name with no color stays MISSING's loud magenta at any depth.
+    terrains: terrainNames.map((n, i) =>
+      n === 'floor' ? mix(base[i], CHARCOAL, t) : n in terrains ? dim(base[i], t) : base[i]),
+    rocks: compositionColors(compositionNames).map((c) => dim(c, t)),
+    fog: mix(FOG, DEEP_FOG, t),
+    backdrop: mix(GLYPH_BACKDROP, DEEP_BACKDROP, t),
+  };
+}
 export const kindColors = (names: string[]) => lookup(names, kinds);
 
 // Filth tints (see renderer.ts): a wash over the tile, deeper with more on it.

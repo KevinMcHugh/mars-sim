@@ -225,6 +225,9 @@ export class MapRenderer {
   readonly camera = new Camera();
   private gl: WebGL2RenderingContext;
   private hello: Hello | null = null;
+  /** The level the ground is colored for, and its fog (see setDepth). */
+  private depth = 0;
+  private fog: readonly number[] = palette.FOG;
 
   private terrainProg: WebGLProgram;
   private spriteProg: WebGLProgram;
@@ -372,14 +375,10 @@ export class MapRenderer {
     this.lastFrame = null;
 
     const gl = this.gl;
-    gl.useProgram(this.terrainProg);
-    gl.uniform3fv(this.u['t.uTerrainColors'], pad(palette.terrainColors(hello.enums.terrains), MAX_TERRAINS));
-    gl.uniform3fv(this.u['t.uRockColors'], pad(palette.compositionColors(hello.enums.compositions), MAX_COMPOSITIONS));
-    gl.uniform3fv(this.u['t.uFog'], palette.FOG);
+    this.setDepth(hello.landingLevel);
     const terrainGlyphs = new Int32Array(MAX_TERRAINS).fill(-1);
     hello.glyphs.terrain.slice(0, MAX_TERRAINS).forEach((g, i) => { terrainGlyphs[i] = g; });
     gl.uniform1iv(this.u['t.uTerrainGlyph'], terrainGlyphs);
-    gl.uniform3fv(this.u['t.uGlyphBackdrop'], palette.GLYPH_BACKDROP);
 
     if (this.atlas) {
       this.atlas.disposed = true;
@@ -398,9 +397,29 @@ export class MapRenderer {
     this.dirty = true;
   }
 
+  /**
+   * Color the ground for a level: it darkens as the map goes down
+   * (docs/depth-palette.md). Leaves the terrain program in use.
+   */
+  private setDepth(level: number): void {
+    const hello = this.hello;
+    if (!hello) return;
+    this.depth = level;
+    const d = palette.depthPalette(level, hello.enums.terrains, hello.enums.compositions);
+    this.fog = d.fog;
+    const gl = this.gl;
+    gl.useProgram(this.terrainProg);
+    gl.uniform3fv(this.u['t.uTerrainColors'], pad(d.terrains, MAX_TERRAINS));
+    gl.uniform3fv(this.u['t.uRockColors'], pad(d.rocks, MAX_COMPOSITIONS));
+    gl.uniform3fv(this.u['t.uFog'], d.fog);
+    gl.uniform3fv(this.u['t.uGlyphBackdrop'], d.backdrop);
+    this.dirty = true;
+  }
+
   /** Take one decoded frame: upload its pages, entities and refuse. */
   applyFrame(f: Frame): void {
     const gl = this.gl;
+    if (f.level !== this.depth) this.setDepth(f.level);
     if (f.tilesReset) {
       // The worker starts the pages over. Chunk textures are kept (they are
       // overwritten as pages arrive), but the CPU copies must go, or hover
@@ -742,7 +761,7 @@ export class MapRenderer {
     const bottom = Math.round((hello.height - cam.cy) * scale + this.canvas.height / 2);
     gl.enable(gl.SCISSOR_TEST);
     gl.scissor(left, this.canvas.height - bottom, Math.max(0, right - left), Math.max(0, bottom - top));
-    gl.clearColor(palette.FOG[0], palette.FOG[1], palette.FOG[2], 1);
+    gl.clearColor(this.fog[0], this.fog[1], this.fog[2], 1);
     gl.clear(gl.COLOR_BUFFER_BIT);
     gl.disable(gl.SCISSOR_TEST);
 
