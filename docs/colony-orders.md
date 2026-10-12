@@ -4,7 +4,7 @@
 
 ## What it is
 
-The player trading on the colony's behalf. From the browser's Market tab a
+The player trading on the colony's behalf. From the browser's Trade tab a
 player posts a bid or an ask in the colony's name at any communal depot,
 reprices one of the colony's open orders, takes one off the book, or
 suspends one of the colony's standing orders so it stops coming back. Or the
@@ -198,7 +198,10 @@ It does still *count* them: `openQty` sums every colony order, so the upkeep
 that tops a standing bid up to `silo-bid-qty` sees a manual bid for the same
 good at the same depot as part of that quantity.
 
-**The desk** (`ColonyOrders.svelte`) reads the market topic's `colony` field.
+**The desk** (`ColonyOrders.svelte`, the whole of the Trade tab, `TradePanel.svelte`) reads the market topic's `colony` field.
+It used to sit in the middle of the Market tab, among the prices and books; it
+moved to its own tab under **Act** because placing orders changes the colony,
+and every other tab that does that is there.
 It defaults to the silo, prefills the price with the item's market value (in the field itself, not a
 placeholder, and again on each change of side or item, but not when the value
 merely moves under a price the player typed),
@@ -303,4 +306,4 @@ the answer, since a command has no reply.
 - [hauling.md](./hauling.md) — the colony's asks and meal hauling.
 - [excavation.md](./excavation.md) — the other player order paid from the
   treasury.
-- [frontend-web.md](./frontend-web.md) — the Market tab.
+- [frontend-web.md](./frontend-web.md) — the Trade and Market tabs.
