@@ -6,8 +6,10 @@
 
 The player can order an area mined out. In the browser, the **Dig** tab arms a
 tool, a drag on the map marks a rectangle, and **Order** buys the digging: every
-rock tile in it that the colony has seen becomes one `WorkDig` order on the order
-book, escrowed from the treasury. Whoever digs a tile is paid its wage
+rock tile in it that the colony has seen, and every tile it has not seen at all,
+becomes one `WorkDig` order on the order book, escrowed from the treasury. So an
+order can clear a wide area in one go, not just the revealed rim of rock
+around the colony. Whoever digs a tile is paid its wage
 (`wage-dig`) when it is cleared and keeps the ore. It is the player's hand on
 the same machinery the room planner uses ([labor.md](./labor.md)), not a new
 kind of job.
@@ -34,10 +36,11 @@ kind of job.
 
 ## How it works
 
-`orderExcavation` clamps the rectangle to the map, then collects every tile that
-is `Rock`, `discovered` (the colony has seen it; fog is not something an order
-can see through), not a reserved door tile, and not already a task of another
-project. Those become the tasks of one project named `excavation`, issued by
+`orderExcavation` clamps the rectangle to the map, then collects
+(`unmarkedRock(..., unseen=true)`) every tile that is either seen `Rock` or not
+`Explored` at all, and is not a reserved door tile or already a task of another
+project. An unseen tile is taken whatever it really is: usually rock, but it
+can be a hidden cavern's floor (see below). Those become the tasks of one project named `excavation`, issued by
 `Community`, with `workKind: WorkDig`, and `fundProject` posts a work order for
 each at `wageFor(Floor)`.
 
@@ -70,12 +73,30 @@ is over `maxExcavationTiles`, or costs more than the treasury holds.
   treasury. `maxExcavationTiles` bounds an order, and the page says so before
   sending rather than the engine truncating a rectangle in some arbitrary
   order.
-- **Seen rock only.** Ordering a dig through unexplored rock would reveal the
-  map for the price of a wage. The page and the engine both ignore unseen tiles.
+- **Unseen tiles, bought blind.** Orders used to take only rock the colony had
+  seen, which in practice meant the one-tile rim of revealed rock around the
+  colony: clearing a large area took an order per ring. They now take every
+  unseen tile too. The danger was that an order through the fog maps it, so
+  the rule is that nothing about an order may depend on what is under the fog:
+  - An unseen tile is bought, counted and priced the same whatever it holds.
+    Taking only the unseen tiles that are really rock would make the tile
+    count a cavern detector. The page counts the same way (`showDig`).
+  - A dig task on a tile not yet `discovered` is never `taskDone`, even when
+    the tile is a hidden cavern's floor and so already "not rock". Without
+    that, the order's `done` count (and the project finishing) would show
+    the hidden floor before anyone found it. Once digging beside it reveals
+    it, the task is done, unpaid, and its escrow is refunded with the
+    project's by `pruneProjects`.
+  - Fog off (`fog-of-war: false`) makes every tile `Explored`, so only rock
+    counts, matching what the page shows.
+  Breaking into a cavern this way is the same as frontier mining doing it:
+  whatever is nesting there wakes up. The order makes that easy to do by
+  accident over a big area; it is the player's call.
 - **Skipping tiles already in a project.** Otherwise two orders for one area
   would pay twice for the same tile, and the second's tasks would be done
   before anyone held them. The page doesn't know which tiles are taken, so its
-  count can be higher than what the engine buys.
+  count can be higher than what the engine buys. (It also counts a tile on a
+  page it doesn't hold as unseen.)
 
 ## Cancelling
 
@@ -92,6 +113,8 @@ every walkable tile.
 ## Zones over rock
 
 Painting a zone over rock the colony has seen digs it out the same way
+(but only seen rock: `unmarkedRock(..., unseen=false)`, since a zone painted
+over fog is a reservation, not an order to tunnel through it)
 (`startExcavation`, shared with `orderExcavation`): an ordinary `excavation`
 project that shows on the Dig tab and cancels like any other. A zone's dig is
 not capped at `maxExcavationTiles`, because the Zones tab prices the whole paint
@@ -105,6 +128,12 @@ concurrency cap counts rooms only. See [zoning.md](./zoning.md).
   [work-market.md](./work-market.md)), so a miner who passes a marked tile may
   clear it without holding the task. The order's leftover escrow is refunded
   when the project finishes.
+- **An order over a sealed cavern can sit forever.** Hidden floor tasks are
+  not done until revealed, and if nothing in the order is rock the colony
+  can reach, nothing reveals them. It reads exactly like an order on
+  unreachable rock (no progress), which is the point; **Cancel** refunds it.
+- **The cap is still `maxExcavationTiles`** (400, so 20×20). A larger area
+  is several orders.
 - **The TUI has no dig tool.** `OrderExcavation` is an ordinary command, but
   only the browser frontend can mark an area.
 

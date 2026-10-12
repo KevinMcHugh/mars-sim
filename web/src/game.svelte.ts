@@ -149,7 +149,7 @@ export function cycleFlowField(): void {
 /**
  * The dig tool: while armed, a drag on the map marks an area instead of
  * panning. `rect` is the marked area, in tiles and inclusive, and `tiles` how
- * many of them are rock the colony has seen (what an order would pay to dig).
+ * many of them an order would pay to dig: seen rock, and every unseen tile.
  */
 export interface DigState {
   armed: boolean;

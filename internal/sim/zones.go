@@ -244,7 +244,7 @@ func (w *World) planZonePaint(c PaintZone) *zonePaint {
 	}
 	z.clear = w.tilesToClear(z.evicted)
 	if c.Kind != NoZone {
-		z.dig = w.unmarkedRock(LandingLevel, x0, y0, x1, y1)
+		z.dig = w.unmarkedRock(LandingLevel, x0, y0, x1, y1, false)
 	}
 	return z
 }
@@ -354,10 +354,13 @@ func pluralNoun(n string) string {
 	return n + "s"
 }
 
-// unmarkedRock is the rock in a rectangle that an excavation could take: seen
-// by the colony, not a reserved door tile, and not already some project's
-// unfinished task.
-func (w *World) unmarkedRock(level Level, x0, y0, x1, y1 int) []Point {
+// unmarkedRock is the rock in a rectangle that an excavation could take: not a
+// reserved door tile, and not already some project's unfinished task. With
+// unseen false it is only rock the colony can see; with unseen true (the dig
+// tool's orders) it is that plus every tile the colony cannot see, whatever is
+// really there, so an order neither costs nor counts differently over a hidden
+// cavern (see taskDone, and docs/excavation.md).
+func (w *World) unmarkedRock(level Level, x0, y0, x1, y1 int, unseen bool) []Point {
 	if w.layer(level) == nil {
 		return nil // a level nobody has broken into has nothing seen
 	}
@@ -366,7 +369,10 @@ func (w *World) unmarkedRock(level Level, x0, y0, x1, y1 int) []Point {
 	for y := y0; y <= y1; y++ {
 		for x := x0; x <= x1; x++ {
 			p := Point{x, y, level}
-			if w.TerrainAt(p) != Rock || !w.discovered(p) || w.doorTiles[p] || taken[p] {
+			if w.doorTiles[p] || taken[p] {
+				continue
+			}
+			if seen := w.Explored(p); !(seen && w.TerrainAt(p) == Rock) && (seen || !unseen) {
 				continue
 			}
 			out = append(out, p)

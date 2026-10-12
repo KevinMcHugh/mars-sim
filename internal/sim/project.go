@@ -76,12 +76,18 @@ type project struct {
 // then build on it); once the later task converts that floor into a wall or
 // facility, the dig task must count as done too, or it can never be satisfied
 // again and permanently blocks the project's phase from advancing.
+//
+// A dig on a tile the colony has not discovered is never done, even when the
+// tile is really a hidden cavern's floor: an excavation ordered through the
+// fog would otherwise show its hidden floor as already dug, which maps the
+// caverns for the price of an order. Digging next to it reveals it, and then
+// it is done (unpaid, its escrow refunded with the project's).
 func (w *World) taskDone(t *buildTask) bool {
 	if t.terrain == ShaftTop {
 		return w.shaftTaskDone(t)
 	}
 	if t.terrain == Floor {
-		return w.TerrainAt(t.pos) != t.clears
+		return w.TerrainAt(t.pos) != t.clears && w.discovered(t.pos)
 	}
 	return w.TerrainAt(t.pos) == t.terrain
 }

@@ -19,11 +19,17 @@ func frontierRect(t *testing.T, w *World) OrderExcavation {
 	return OrderExcavation{X0: first.X, Y0: first.Y, X1: first.X + 2, Y1: first.Y + 2}
 }
 
+// rockIn counts what an order of c would buy: seen rock, and every tile the
+// colony has not seen.
 func rockIn(w *World, c OrderExcavation) int {
 	n := 0
 	for y := c.Y0; y <= c.Y1; y++ {
 		for x := c.X0; x <= c.X1; x++ {
-			if p := (Point{x, y, LandingLevel}); w.TerrainAt(p) == Rock && w.discovered(p) && !w.doorTiles[p] {
+			p := Point{x, y, LandingLevel}
+			if w.doorTiles[p] {
+				continue
+			}
+			if !w.Explored(p) || w.TerrainAt(p) == Rock {
 				n++
 			}
 		}
@@ -212,4 +218,79 @@ func TestCancelLeavesRoomsAlone(t *testing.T) {
 	if w.cancelExcavation(w.projects[0].id) {
 		t.Fatal("a room was cancelled as an excavation")
 	}
+}
+
+// unseenRect is a 3x3 rectangle of tiles the colony has never seen, two tiles
+// past the explored frontier rock along a row, so the colony digs up to it.
+func unseenRect(t *testing.T, w *World) OrderExcavation {
+	t.Helper()
+	c := frontierRect(t, w)
+	for x := c.X0; x < w.Width-3; x++ {
+		r := OrderExcavation{X0: x, Y0: c.Y0, X1: x + 2, Y1: c.Y0 + 2}
+		unseen := true
+		for y := r.Y0; y <= r.Y1 && unseen; y++ {
+			for xx := r.X0; xx <= r.X1; xx++ {
+				if w.discovered(Point{xx, y, LandingLevel}) {
+					unseen = false
+					break
+				}
+			}
+		}
+		if unseen {
+			return r
+		}
+	}
+	t.Fatal("no unseen 3x3 area beside the frontier")
+	return OrderExcavation{}
+}
+
+// An order can mark out rock the colony has never seen, so a wide area can be
+// cleared in one go rather than one revealed rim at a time.
+func TestAnExcavationOrderTakesUnseenTiles(t *testing.T) {
+	cfg := testConfig()
+	cfg.StartAliens = 0
+	w := newTestWorld(t, cfg)
+	c := unseenRect(t, w)
+	if !w.orderExcavation(c) {
+		t.Fatalf("order through the fog refused; log: %v", w.log.tail(1))
+	}
+	if p := w.projects[len(w.projects)-1]; len(p.tasks) != 9 {
+		t.Fatalf("%d tasks for a 3x3 unseen area, want 9", len(p.tasks))
+	}
+	assertMoneyConserved(t, w)
+}
+
+// A tile of hidden cavern floor in an order costs what rock would and is not
+// shown as dug until the colony has discovered it: an order must not map the
+// caverns. Once it is discovered it counts as done, and its escrow comes back.
+func TestAnExcavationOrderDoesNotRevealHiddenFloor(t *testing.T) {
+	cfg := testConfig()
+	cfg.StartAliens = 0
+	w := newTestWorld(t, cfg)
+	c := unseenRect(t, w)
+	hidden := Point{c.X0 + 1, c.Y0 + 1, LandingLevel}
+	w.carveHidden(hidden)
+	if w.TerrainAt(hidden) != Floor || w.discovered(hidden) {
+		t.Fatal("could not carve a hidden floor tile")
+	}
+	before := w.treasury
+	if !w.orderExcavation(c) {
+		t.Fatalf("order refused; log: %v", w.log.tail(1))
+	}
+	p := w.projects[len(w.projects)-1]
+	if len(p.tasks) != 9 || w.treasury != before-9*w.wageFor(Floor) {
+		t.Fatalf("%d tasks, paid %v: hidden floor should be bought like rock", len(p.tasks), before-w.treasury)
+	}
+	for _, task := range p.tasks {
+		if task.pos == hidden && w.taskDone(task) {
+			t.Fatal("hidden floor counts as dug before anyone found it")
+		}
+	}
+	w.reveal(hidden)
+	for _, task := range p.tasks {
+		if task.pos == hidden && !w.taskDone(task) {
+			t.Fatal("discovered floor still counts as rock to dig")
+		}
+	}
+	assertMoneyConserved(t, w)
 }
