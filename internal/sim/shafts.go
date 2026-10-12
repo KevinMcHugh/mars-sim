@@ -13,10 +13,15 @@ import "fmt"
 // shaftProjectName names a shaft's project in the job board and the log.
 const shaftProjectName = "shaft"
 
-// OrderShaft asks the planner to dig a shaft Levels levels deep (at least
-// one), or to deepen the colony's deepest shaft by that much, down to as far
-// as Config.DeepestLevel allows.
-type OrderShaft struct{ Levels int }
+// OrderShaft asks for a shaft Levels levels deep (at least one), down to as
+// far as Config.DeepestLevel allows: sunk from the tile At, the player's
+// pick (deepening the shaft there, if At is a shaft's top), or, with At left
+// zero and Config.SitingAuto on, wherever the planner sites it, deepening the
+// colony's deepest shaft if it can. See docs/siting.md.
+type OrderShaft struct {
+	Levels int
+	At     Point
+}
 
 func (OrderShaft) isCommand() {}
 
