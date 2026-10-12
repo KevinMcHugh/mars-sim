@@ -5,9 +5,10 @@
 
 import type { Settings } from './sim/client';
 
-// deepest-level 1 is the engine's default: the colony stays on the landing
-// level, and the page shows no level controls (docs/z-levels.md).
-const DEFAULTS: Settings = { width: 10000, height: 10000, colonists: 6, 'fog-of-war': true, 'zoning-auto': false, 'deepest-level': 1 };
+// deepest-level 3, not the engine's 1, so a browser game can dig two levels
+// down and shows the level controls; ?deepest-level=1 keeps the colony on
+// the landing level (docs/z-levels.md).
+const DEFAULTS: Settings = { width: 10000, height: 10000, colonists: 6, 'fog-of-war': true, 'zoning-auto': false, 'deepest-level': 3 };
 
 /**
  * Most settlers one colony ship carries: sim.DefaultConfig's ship-capacity.

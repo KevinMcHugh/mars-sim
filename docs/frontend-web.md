@@ -99,7 +99,7 @@ change with the dev server already running, run `npm run wasm` and reload.
 
 **The new-game form.** A cold load starts no game: it opens the **Game**
 tab, filled from the URL over the defaults (10000×10000, 6
-colonists, fog of war on, deepest level 1, no seed, so the engine picks
+colonists, fog of war on, deepest level 3, no seed, so the engine picks
 one), and **Start**
 goes straight to the Ships tab. The page used to generate a 10000×10000
 world on load, so the first thing a player saw was a game they had not
@@ -131,7 +131,8 @@ tap) on the map inspects what is there.
 
 **Levels.** The map shows one level at a time (`ui.level`), the landing
 level first. With a deepest level above 1 (the New game form's *Deepest
-level*, or `?deepest-level=` in the URL), the top bar gets a level picker
+level*, 3 by default, or `?deepest-level=` in the URL; the engine's own
+default is 1), the top bar gets a level picker
 (`LevelControl.svelte`) listing the levels the colony has broken into, which
 each frame reports, and the Dig tab gets **Dig down**: a stair, a shaft so
 many levels deep, a hole, or a ladder into a hole. The planner sites each on

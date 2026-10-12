@@ -15,6 +15,7 @@ Things to build/fix as we think of them:
 * lending
 * prediction markets
 * sickness
+* z-levels phase Z6: the surface (level 0), the last phase of docs/z-levels.md. Needs its own design doc first: level 0's own generator (open ground, not rock), its hazards, links dug up to it, and a hole to the surface breaching the colony's shelter
 * atmospheric conditions and related: temperature, rain from condensation on the cavern roof, humidity, light levels
 * creatures, after the species-and-behaviors work (see docs/species-and-behaviors.md and docs/alien-lifecycles.md)
   * phase 6: animals choose by scoring, not a fixed ladder — run cats, rats, chickens and aliens through the colonist focus arbitration (scored candidates, commitment, switch margin) so a starving rat can outweigh a distant cat, or a queen leaves her nest to defend a brood. Changes gameplay; needs balance runs across many seeds
