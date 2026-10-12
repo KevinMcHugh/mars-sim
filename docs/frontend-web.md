@@ -110,7 +110,7 @@ change with the dev server already running, run `npm run wasm` and reload.
 
 **The new-game form.** A cold load starts no game: it opens the **Game**
 tab, filled from the URL over the defaults (10000×10000, 6
-colonists, fog of war on, deepest level 1, no seed, so the engine picks
+colonists, fog of war on, deepest level 3, no seed, so the engine picks
 one), and **Start**
 goes straight to the Ships tab. The page used to generate a 10000×10000
 world on load, so the first thing a player saw was a game they had not
@@ -142,7 +142,8 @@ tap) on the map inspects what is there.
 
 **Levels.** The map shows one level at a time (`ui.level`), the landing
 level first. With a deepest level above 1 (the New game form's *Deepest
-level*, or `?deepest-level=` in the URL), the top bar gets a level picker
+level*, 3 by default, or `?deepest-level=` in the URL; the engine's own
+default is 1), the top bar gets a level picker
 (`LevelControl.svelte`) listing the levels the colony has broken into, which
 each frame reports, and the Dig tab gets **Dig down**: a stair, a shaft so
 many levels deep, a hole, or a ladder into a hole. The planner sites each on
@@ -446,9 +447,14 @@ ticker's), until they are opened again.
   wrong zone, tinted red with a warning of the extra clearing order. The
   button sends `zone` or `clear`. Below are what the colony is waiting on a
   zone for, the tiles each kind covers and what it holds, and open clearing
-  orders with **Cancel** (`clear-cancel`). The map's zone wash is drawn
+  orders with **Cancel** (`clear-cancel`). **Defense** marks an area on any
+  level and posts a detail of armed colonists there (`defend`, host API 22;
+  see [defense.md](./defense.md)); the tab lists each defense zone with its
+  guards, `−`/`+` for the detail (`defend-detail`) and **Cancel**
+  (`defend-cancel`). The map's zone wash is drawn
   whatever tab is open: the page holds the `zones` topic for its life and
-  `setZones` draws it as the lowest tint layer, under filth.
+  `setZones` draws it as the lowest tint layer, under filth, with the
+  defense zones on the level shown as runs of one more kind on top.
 - **Dig** orders an area mined out (see [excavation.md](./excavation.md)).
   **Mark an area** arms a tool: while it is armed a drag on the map draws a
   rectangle instead of panning (`attachInput`'s `areaTool` and `area` hooks),
@@ -511,9 +517,9 @@ charts. The **Charts** tab has two views, a view at a time:
 
 The colors are the dataviz reference palette's dark steps, checked with its
 validator against the charts' surface (`#1a1a19`). A chart gets at most eight
-categorical hues and the game has 13 activities, so related ones share a band
-(mining & building, hauling & cleaning, and escaping, fleeing and fighting
-as "danger"), with idle as a neutral gray lid. The hover tooltip and the
+categorical hues and the game has 14 activities, so related ones share a band
+(mining & building, hauling & cleaning, and guarding, escaping, fleeing and
+fighting as "danger"), with idle as a neutral gray lid. The hover tooltip and the
 table under the chart still name every activity, lately (the last tenth of
 the game) and over the whole game. Every chart has a hover tooltip.
 

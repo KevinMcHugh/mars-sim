@@ -75,7 +75,7 @@ export const ui = $state({
   /** The Dig tab's tool and the area marked with it (DigPanel.svelte). */
   dig: { armed: false, rect: null, tiles: 0 } as DigState,
   /** The Zones tab's tool, the area marked with it, and what applying it would do (ZonesPanel.svelte). */
-  zone: { armed: false, tool: 'residence', rect: null, preview: null } as ZoneState,
+  zone: { armed: false, tool: 'residence', rect: null, preview: null, detail: 2 } as ZoneState,
   /** The Ships tab's tool: the ship a click on the map relands, or null (ShipsPanel.svelte). */
   shipTool: null as number | null,
   /** The aloft ship last sent down: the Ships tab does not pick it up again while the topic catches up. */
@@ -162,7 +162,8 @@ export interface Rect { x0: number; y0: number; x1: number; y1: number }
 
 /**
  * The zone tool (docs/zoning.md): a zone kind's name to paint it, 'none' to
- * remove zoning, or 'clear' to order the structures in the area cleared.
+ * remove zoning, 'clear' to order the structures in the area cleared, or
+ * 'defense' to post a detail of `detail` armed colonists there (docs/defense.md).
  * While armed, a drag on the map marks `rect`; `preview` is the page's
  * estimate of what applying it would do (main.ts, showZone).
  */
@@ -171,6 +172,7 @@ export interface ZoneState {
   tool: string;
   rect: Rect | null;
   preview: ZonePreview | null;
+  detail: number;
 }
 
 /** What a zone paint or a clearing would do, as far as the page can tell. */
@@ -496,9 +498,14 @@ export function armDig(on: boolean): void {
   if (on) ui.zone.armed = false; // one area tool at a time
 }
 
-/** Pick the zone tool (a zone kind, 'none' or 'clear') and arm it, or disarm it. */
+/** Whether a zone tool works below the landing level: clearing and defense do. */
+export function anyLevelTool(tool: string): boolean {
+  return tool === 'clear' || tool === 'defense';
+}
+
+/** Pick the zone tool (a zone kind, 'none', 'clear' or 'defense') and arm it, or disarm it. */
 export function armZone(tool: string, on: boolean): void {
-  if (on && tool !== 'clear' && !onLandingLevel()) return; // zones are the landing level's
+  if (on && !anyLevelTool(tool) && !onLandingLevel()) return; // zones are the landing level's
   ui.zone.tool = tool;
   ui.zone.armed = on;
   if (on) ui.dig.armed = false;
@@ -521,8 +528,19 @@ export function applyZone(): void {
   const r = ui.zone.rect;
   if (!r) return;
   if (ui.zone.tool === 'clear') ctl?.command({ type: 'clear', ...r, level: ui.level });
+  else if (ui.zone.tool === 'defense') ctl?.command({ type: 'defend', ...r, level: ui.level, qty: ui.zone.detail });
   else ctl?.command({ type: 'zone', kind: ui.zone.tool, ...r });
   clearZoneTool();
+}
+
+/** Change how many armed colonists a defense zone asks for. */
+export function setDefenseDetail(id: number, qty: number): void {
+  ctl?.command({ type: 'defend-detail', id, qty });
+}
+
+/** Stand a defense zone's detail down. */
+export function cancelDefense(id: number): void {
+  ctl?.command({ type: 'defend-cancel', id });
 }
 
 /** Cancel an open clearing order; what it still held goes back to the treasury. */

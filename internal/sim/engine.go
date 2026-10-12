@@ -485,6 +485,15 @@ func (e *Engine) apply(cmd Command) (rateChanged bool) {
 	case CancelClear:
 		e.world.cancelClearing(c.ID)
 		e.requestPublish()
+	case OrderDefense:
+		e.world.orderDefense(c)
+		e.requestPublish()
+	case SetDefenseDetail:
+		e.world.setDefenseDetail(c)
+		e.requestPublish()
+	case CancelDefense:
+		e.world.cancelDefense(c.ID)
+		e.requestPublish()
 	case MoveShip:
 		if e.world.moveShip(c) {
 			e.requestPublish()

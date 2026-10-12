@@ -21,7 +21,16 @@ type ZonesTopic struct {
 	// Runs are [y, x0, x1, kind, locked] (locked 1: a colony ship's ground),
 	// sorted by row then column.
 	Runs [][5]int `json:"runs"`
+	// Defense is every defense zone's area, [id, level, x0, y0, x1, y1], by
+	// id, and DefenseColor the "#rrggbb" the map tints them. Defense zones
+	// are not on the zone grid: they overlap the other kinds and lie on any
+	// level (see docs/defense.md).
+	Defense      [][6]int `json:"defense"`
+	DefenseColor string   `json:"defenseColor"`
 }
+
+// DefenseColor is the tint of a defense zone, on the map and the Zones tab.
+const DefenseColor = "#e53935"
 
 // ZoneKind is one zone kind's name and the "#rrggbb" it is tinted.
 type ZoneKind struct {
@@ -30,7 +39,11 @@ type ZoneKind struct {
 }
 
 func zonesTopic(s *sim.Snapshot) ZonesTopic {
-	t := ZonesTopic{Kinds: zoneKinds(), Runs: make([][5]int, 0, len(s.Zones))}
+	t := ZonesTopic{Kinds: zoneKinds(), Runs: make([][5]int, 0, len(s.Zones)),
+		Defense: make([][6]int, 0, len(s.Defense)), DefenseColor: DefenseColor}
+	for _, d := range s.Defense {
+		t.Defense = append(t.Defense, [6]int{d.ID, int(d.Level), d.X0, d.Y0, d.X1, d.Y1})
+	}
 	for _, r := range s.Zones {
 		locked := 0
 		if r.Locked {
@@ -71,6 +84,36 @@ type ZoningTopic struct {
 	// Waiting names the fixture kinds the colony wants and no zone has room
 	// for (manual zoning only).
 	Waiting []StructureType `json:"waiting"`
+	// Defense is every defense zone, by id; GuardWage what a guard is paid
+	// an hour on station, Armed how many living colonists carry a weapon,
+	// and MaxDefense the most tiles one zone may cover.
+	Defense    []Defense `json:"defense"`
+	GuardWage  int64     `json:"guardWage"`
+	Armed      int       `json:"armed"`
+	MaxDefense int       `json:"maxDefense"`
+	MaxDetail  int       `json:"maxDetail"`
+}
+
+// Defense is one defense zone: its area, the detail it asks for, the guards
+// holding it (by id and name), how many of them are inside the area now, and
+// what the colony has paid them.
+type Defense struct {
+	ID        int     `json:"id"`
+	Level     int     `json:"level"`
+	X0        int     `json:"x0"`
+	Y0        int     `json:"y0"`
+	X1        int     `json:"x1"`
+	Y1        int     `json:"y1"`
+	Detail    int     `json:"detail"`
+	Guards    []Guard `json:"guards"`
+	OnStation int     `json:"onStation"`
+	Paid      int64   `json:"paid"`
+}
+
+// Guard is one colonist on a defense detail.
+type Guard struct {
+	ID   uint64 `json:"id"`
+	Name string `json:"name"`
 }
 
 // StructureType is a kind of fixture and the zone kind it is built in. (The
@@ -108,6 +151,28 @@ func zoningTopic(s *sim.Snapshot) ZoningTopic {
 		Structures: make([]Structure, 0, len(s.Structures)),
 		Clears:     []Dig{},
 		Waiting:    []StructureType{},
+		Defense:    make([]Defense, 0, len(s.Defense)),
+		GuardWage:  int64(s.GuardWage),
+		Armed:      s.Armed,
+		MaxDefense: sim.MaxDefenseTiles,
+		MaxDetail:  sim.MaxDefenseDetail,
+	}
+	var names map[sim.EntityID]string
+	for _, d := range s.Defense {
+		if names == nil && len(d.Guards) > 0 {
+			names = map[sim.EntityID]string{}
+			for _, e := range s.Entities {
+				if e.Kind == sim.Colonist {
+					names[e.ID] = entityName(e)
+				}
+			}
+		}
+		v := Defense{ID: d.ID, Level: int(d.Level), X0: d.X0, Y0: d.Y0, X1: d.X1, Y1: d.Y1,
+			Detail: d.Detail, Guards: make([]Guard, 0, len(d.Guards)), OnStation: d.OnStation, Paid: int64(d.Paid)}
+		for _, id := range d.Guards {
+			v.Guards = append(v.Guards, Guard{ID: uint64(id), Name: names[id]})
+		}
+		t.Defense = append(t.Defense, v)
 	}
 	for _, k := range sim.FixtureKinds() {
 		t.Types = append(t.Types, StructureType{Name: k.String(), Zone: sim.FixtureZone(k).String()})

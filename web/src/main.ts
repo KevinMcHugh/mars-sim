@@ -10,7 +10,7 @@ import { mount } from 'svelte';
 import type { Frame, Hello } from '../wire/decode.js';
 import { namedStats, TILE_COMPOSITION_MASK, TILE_VISIBLE } from '../wire/decode.js';
 import { armShip, colonyLog, cycleFlowField, inspect, install, landAloft, moveShip, onLandingLevel, selectionLevel, setFlowField, setPanel, shipSiteAt, shipSiteFree, shipTiles, stepLevel, stepSpeed, subscribe, syncFrame, togglePause, topics, ui, UI_HZ } from './game.svelte';
-import type { ShipLine, ShipsTopic, ZonePreview } from './game.svelte';
+import type { Rect, ShipLine, ShipsTopic, ZonePreview } from './game.svelte';
 import { attachInput } from './map/input';
 import { MapRenderer } from './map/renderer';
 import type { TileRect } from './map/camera';
@@ -280,7 +280,7 @@ function resetGame(): void {
   map.setZones([], []);
   digFrom = null;
   ui.dig = { armed: false, rect: null, tiles: 0 };
-  ui.zone = { armed: false, tool: ui.zone.tool, rect: null, preview: null };
+  ui.zone = { armed: false, tool: ui.zone.tool, rect: null, preview: null, detail: ui.zone.detail };
   ui.shipTool = null;
   ui.shipSent = null;
   ui.level = 1;
@@ -392,7 +392,13 @@ function dragArea(phase: 'start' | 'move' | 'end' | 'cancel', sx: number, sy: nu
 }
 
 /** The zones topic (internal/wire/zones.go). */
-interface ZonesTopic { kinds: { name: string; color: string }[]; runs: number[][] }
+interface ZonesTopic {
+  kinds: { name: string; color: string }[];
+  runs: number[][];
+  /** Defense zones: [id, level, x0, y0, x1, y1] (docs/defense.md). */
+  defense: number[][];
+  defenseColor: string;
+}
 /** The zoning topic's structures, as the preview reads them. */
 interface ZoningTopic {
   structures: { id: number; type: string; zone: number; x0: number; y0: number; x1: number; y1: number; built: number; ship: boolean; rising: boolean }[];
@@ -401,9 +407,19 @@ interface ZoningTopic {
 /** Draw the zones topic on the map. */
 function showZones(): void {
   const z = topics.data.zones as ZonesTopic | undefined;
-  // Zones are painted on the landing level only (docs/zoning.md).
-  if (!z || !onLandingLevel()) { map.setZones([], []); return; }
-  map.setZones(z.runs, z.kinds.map((k) => (k.color ? palette.zoneTint(k.color, palette.ZONE_ALPHA) : undefined!)));
+  if (!z) { map.setZones([], []); return; }
+  // Zones are painted on the landing level only (docs/zoning.md); defense
+  // zones lie on any level, over whatever zone is there, drawn as runs of
+  // one more kind after the zone kinds.
+  const runs = onLandingLevel() ? [...z.runs] : [];
+  const defense = z.kinds.length;
+  for (const [, level, x0, y0, x1, y1] of z.defense ?? []) {
+    if (level !== ui.level) continue;
+    for (let y = y0; y <= y1; y++) runs.push([y, x0, x1, defense, 0]);
+  }
+  const colors = z.kinds.map((k) => (k.color ? palette.zoneTint(k.color, palette.ZONE_ALPHA) : undefined!));
+  colors.push(palette.zoneTint(z.defenseColor, palette.ZONE_ALPHA));
+  map.setZones(runs, colors);
 }
 
 /** A previewed area this large is estimated but not tinted tile by tile. */
@@ -425,6 +441,7 @@ function showZone(): void {
   const zones = topics.data.zones as ZonesTopic | undefined;
   const zoning = topics.data.zoning as ZoningTopic | undefined;
   const tool = ui.zone.tool;
+  if (tool === 'defense') { showDefense(r, zones); return; }
   const kind = tool === 'clear' ? -1 : Math.max(0, zones?.kinds.findIndex((k) => k.name === tool) ?? 0);
   const floor = hello.enums.terrains.indexOf('floor');
   const w = r.x1 - r.x0 + 1, h = r.y1 - r.y0 + 1;
@@ -488,6 +505,27 @@ function showZone(): void {
   if (kind < 0) p.clear = p.tiles;
   ui.zone.preview = p;
   map.setHighlight(tint.length > DIG_TINT_MAX ? tint.slice(0, DIG_TINT_MAX) : tint);
+}
+
+/**
+ * Preview a defense zone (docs/defense.md): nothing is built, dug or cleared,
+ * so the estimate is just the tiles the colony has seen in the area.
+ */
+function showDefense(r: Rect, zones: ZonesTopic | undefined): void {
+  const p: ZonePreview = { tiles: 0, locked: 0, dig: 0, evicted: [], clear: 0, rising: 0 };
+  const tint: { x: number; y: number; color: Uint8Array }[] = [];
+  const color = palette.zoneTint(zones?.defenseColor ?? '#e53935', palette.ZONE_PREVIEW_ALPHA);
+  const area = (r.x1 - r.x0 + 1) * (r.y1 - r.y0 + 1);
+  for (let y = r.y0; y <= r.y1 && area <= ZONE_PREVIEW_MAX; y++) {
+    for (let x = r.x0; x <= r.x1; x++) {
+      const cell = map.tileAt(x, y);
+      if (cell === null || (cell[1] & TILE_VISIBLE) === 0) continue;
+      p.tiles++;
+      if (tint.length < DIG_TINT_MAX) tint.push({ x, y, color });
+    }
+  }
+  ui.zone.preview = p;
+  map.setHighlight(tint);
 }
 
 /** Count and tint the rock the colony has seen inside the marked area. */

@@ -54,8 +54,8 @@ import (
 // panel's drives "needs", with a fatal flag where 18 has a consequence; 18 had
 // no order-wide-set or order-wide-clear; 19 took no species-pack in start;
 // 20 showed only the landing level (no level in interest, dig or clear, no
-// dig-down).
-const hostAPI = 21
+// dig-down); 21 had no defend, defend-detail or defend-cancel.
+const hostAPI = 22
 
 var (
 	eng *sim.Engine
@@ -315,20 +315,21 @@ type memoryResult struct {
 
 // command is a sim.Command as the page sends it.
 type command struct {
-	Type string `json:"type"` // pause | speed | spawn | flow | dig | dig-cancel | dig-down | zone | clear | clear-cancel | ship-move | ship-land | order-place | order-reprice | order-cancel | order-suspend | order-resume | order-wide-set | order-wide-clear | recruit-roll | recruit-hire
+	Type string `json:"type"` // pause | speed | spawn | flow | dig | dig-cancel | dig-down | zone | clear | clear-cancel | defend | defend-detail | defend-cancel | ship-move | ship-land | order-place | order-reprice | order-cancel | order-suspend | order-resume | order-wide-set | order-wide-clear | recruit-roll | recruit-hire
 	Rate int    `json:"rate,omitempty"`
 	// Kind is what to spawn; for zone the zone kind by name ("none"
 	// unzones); for dig-down what to dig: stair, shaft, hole or ladder.
 	Kind string `json:"kind,omitempty"`
-	// Level is the level a dig or clear is on (the landing level if left
-	// out); Levels how deep a dig-down shaft goes.
+	// Level is the level a dig, clear or defend is on (the landing level if
+	// left out); Levels how deep a dig-down shaft goes; Qty a defend's or
+	// defend-detail's detail.
 	Level  int `json:"level,omitempty"`
 	Levels int `json:"levels,omitempty"`
 	// Field is the flow field to show, an index into Hello.flowFields, or
 	// -1 for none.
 	Field *int `json:"field,omitempty"`
 	// dig, zone and clear: the rectangle, inclusive, in tiles.
-	ID int `json:"id,omitempty"` // dig-cancel, clear-cancel: the project id; order-*: the order's id; ship-move, ship-land: the ship's; recruit-hire: the set on offer
+	ID int `json:"id,omitempty"` // dig-cancel, clear-cancel: the project id; defend-detail, defend-cancel: the defense zone's; order-*: the order's id; ship-move, ship-land: the ship's; recruit-hire: the set on offer
 	X0 int `json:"x0,omitempty"`
 	Y0 int `json:"y0,omitempty"`
 	X1 int `json:"x1,omitempty"`
@@ -392,6 +393,12 @@ func parseCommand(s string) (sim.Command, error) {
 		return sim.ClearArea{X0: c.X0, Y0: c.Y0, X1: c.X1, Y1: c.Y1, Level: sim.Level(c.Level)}, nil
 	case "clear-cancel":
 		return sim.CancelClear{ID: c.ID}, nil
+	case "defend":
+		return sim.OrderDefense{X0: c.X0, Y0: c.Y0, X1: c.X1, Y1: c.Y1, Level: sim.Level(c.Level), Detail: c.Qty}, nil
+	case "defend-detail":
+		return sim.SetDefenseDetail{ID: c.ID, Detail: c.Qty}, nil
+	case "defend-cancel":
+		return sim.CancelDefense{ID: c.ID}, nil
 	case "order-place", "order-suspend", "order-resume", "order-wide-set", "order-wide-clear":
 		item, ok := sim.ParseItemKind(c.Item)
 		if !ok {

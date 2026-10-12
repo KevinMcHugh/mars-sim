@@ -364,6 +364,12 @@ zoning-auto: true
 ## what the colony pays a cook each time it works a recipe on the colony's stock
 # wage-cook: 1
 
+## what the colony pays a guard for each hour on station in a defense zone
+# wage-guard: 2
+
+## a guard shoots an alien within this many tiles of it and of its defense zone
+# guard-sight: 8
+
 ## a colonist with this much money commissions its own house (0 disables)
 # house-savings: 300
 

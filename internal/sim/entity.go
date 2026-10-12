@@ -61,6 +61,7 @@ const (
 	Scraping          // colonist scraping cave scum off a surface
 	PassedOut         // colonist unconscious where it fell, a drive at its ceiling (see passOut)
 	Climbing          // on a shaft's ladder between two levels (see startClimb)
+	Guarding          // armed colonist on station in a defense zone (see defense.go)
 
 	numStates // keep last: the number of states
 )
@@ -83,6 +84,8 @@ func (s State) String() string {
 		return "sleeping"
 	case Climbing:
 		return "climbing"
+	case Guarding:
+		return "guarding"
 	case PassedOut:
 		return "passed out"
 	case Talking:
@@ -274,6 +277,7 @@ const (
 	JobSell             // take surplus meals from the depot at Target to the silo and offer them
 	JobCarry            // carry its own goods to a buyer's depot and ask the price (see producer.go)
 	JobTend             // keep its chickens' trough in feed: scrape scum, mix feed at a scumhouse, fill the trough (see chickens.go)
+	JobGuard            // hold a station in a defense zone and shoot what threatens it (see defense.go)
 )
 
 // cleanStage is where a JobClean colonist is in the haul. The job is two legs
@@ -421,6 +425,13 @@ type Entity struct {
 	trough    Point
 	hasTrough bool
 	tend      tendStage
+	// guardPost is the defense zone a JobGuard colonist holds (its station
+	// is Target); guardDwell how long it has held this station, and
+	// guardHour the ticks on station toward its next hour's pay. See
+	// defense.go.
+	guardPost  int
+	guardDwell int
+	guardHour  int
 	// eat is where a JobEat colonist is: fetching a meal, or eating one. See
 	// food.go.
 	eat eatStage
