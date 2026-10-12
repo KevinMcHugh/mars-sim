@@ -1,24 +1,20 @@
 <script lang="ts">
-  // The Charts tab: the TUI's three chart screens, Perf, Population and
-  // Activity, and Custom, the charts the player builds (docs/charts.md), one
-  // at a time. Each view subscribes to its own topics, so a closed tab, or
-  // another view, costs the worker nothing.
+  // The Charts tab: Custom, the charts the player builds (docs/charts.md),
+  // which start with the colony's vital signs (once the Population view), and
+  // Activity, the TUI's activity screen, one at a time. Each view subscribes
+  // to its own topics, so a closed tab, or another view, costs the worker
+  // nothing. The engine's own timing is the Perf tab (PerfPanel).
   import { subscribe, ui } from '../game.svelte';
   import ActivityChart from './charts/ActivityChart.svelte';
   import CustomCharts from './charts/CustomCharts.svelte';
-  import PerfCharts from './charts/PerfCharts.svelte';
-  import PopulationCharts from './charts/PopulationCharts.svelte';
 
   const views = [
-    { id: 'perf', label: 'Perf' },
-    { id: 'population', label: 'Population' },
-    { id: 'activity', label: 'Activity' },
     { id: 'custom', label: 'Custom' },
+    { id: 'activity', label: 'Activity' },
   ] as const;
 
-  // Population and Activity draw from the same topic.
   $effect(() => {
-    if (ui.chartView === 'population' || ui.chartView === 'activity') return subscribe('population');
+    if (ui.chartView === 'activity') return subscribe('population');
   });
 </script>
 
@@ -30,11 +26,7 @@
 </div>
 
 <div class="surface">
-  {#if ui.chartView === 'perf'}
-    <PerfCharts />
-  {:else if ui.chartView === 'population'}
-    <PopulationCharts />
-  {:else if ui.chartView === 'activity'}
+  {#if ui.chartView === 'activity'}
     <ActivityChart />
   {:else}
     <CustomCharts />

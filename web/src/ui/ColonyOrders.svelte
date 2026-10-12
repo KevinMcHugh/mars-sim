@@ -1,5 +1,5 @@
 <script lang="ts">
-  // The colony's order desk, in the Market tab: post a bid or an ask in the
+  // The colony's order desk, the Trade tab (TradePanel): post a bid or an ask in the
   // colony's name at a communal depot, and reprice or withdraw the colony's
   // open orders, or suspend a standing order (by side and item, colony-wide)
   // so upkeep stops posting it. A colony-wide order names no depot: upkeep
@@ -163,7 +163,6 @@
   };
 </script>
 
-<h2>Colony orders</h2>
 <p class="muted">Trade in the colony's name. A bid is paid from the treasury, an ask from what the colony holds. <em>Anywhere</em> is a standing order the colony keeps on the book where the good changes hands; a depot places one order there.</p>
 
 <form class="place" onsubmit={(e) => { e.preventDefault(); place(); }}>
@@ -297,7 +296,6 @@
 {/if}
 
 <style>
-  h2 { font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin: 16px 0 6px; }
   p { margin: 0 0 6px; }
   .muted { color: var(--muted); }
   .warn { color: #ffb36b; }

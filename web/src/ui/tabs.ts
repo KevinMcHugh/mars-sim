@@ -9,17 +9,20 @@ import LogPanel from './LogPanel.svelte';
 import LorePanel from './LorePanel.svelte';
 import MarketPanel from './MarketPanel.svelte';
 import NewGamePanel from './NewGamePanel.svelte';
+import PerfPanel from './PerfPanel.svelte';
 import RecruitPanel from './RecruitPanel.svelte';
 import RosterPanel from './RosterPanel.svelte';
 import ShipsPanel from './ShipsPanel.svelte';
 import StoragePanel from './StoragePanel.svelte';
+import TradePanel from './TradePanel.svelte';
 import ZonesPanel from './ZonesPanel.svelte';
 
 export type Tab = { id: string; label: string; component: Component };
 
 // Two groups, one strip each: tabs that only show the colony, and tabs whose
-// job is to change it (arm a map tool, send a command). Market stays with the
-// information: its colony orders are a corner of a tab that is mostly prices.
+// job is to change it (arm a map tool, send a command). The market is split
+// the same way: Market shows prices, books and accounts; Trade places the
+// colony's orders.
 export const groups: { id: string; label: string; tabs: Tab[] }[] = [
   {
     id: 'info', label: 'View', tabs: [
@@ -30,6 +33,7 @@ export const groups: { id: string; label: string; tabs: Tab[] }[] = [
       { id: 'storage', label: 'Storage', component: StoragePanel },
       { id: 'market', label: 'Market', component: MarketPanel },
       { id: 'charts', label: 'Charts', component: ChartsPanel },
+      { id: 'perf', label: 'Perf', component: PerfPanel },
       { id: 'lore', label: 'Lore', component: LorePanel },
     ],
   },
@@ -38,6 +42,7 @@ export const groups: { id: string; label: string; tabs: Tab[] }[] = [
       { id: 'zones', label: 'Zones', component: ZonesPanel },
       { id: 'dig', label: 'Dig', component: DigPanel },
       { id: 'ships', label: 'Ships', component: ShipsPanel },
+      { id: 'trade', label: 'Trade', component: TradePanel },
       { id: 'recruit', label: 'Recruit', component: RecruitPanel },
       { id: 'game', label: 'Game', component: NewGamePanel },
     ],

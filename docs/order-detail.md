@@ -4,7 +4,7 @@
 
 ## What it is
 
-In the browser's Market tab, any open bid or ask opens a detail view where it
+In the browser's Market and Trade tabs, any open bid or ask opens a detail view where it
 is listed. The view shows who posted the order, which side it is on, the item,
 the unit price, how much has filled out of how much, the total at the limit,
 what it still holds in escrow, the depot, when it opened on the colony clock
@@ -123,5 +123,5 @@ lists it, as an account does in the Accounts list:
 - [market.md](./market.md) — orders, books, settlement and escrow.
 - [colony-orders.md](./colony-orders.md) — the colony's desk, and repricing.
 - [wire-format.md](./wire-format.md) — the topic tier and the topic table.
-- [frontend-web.md](./frontend-web.md) — the Market tab.
+- [frontend-web.md](./frontend-web.md) — the Market and Trade tabs.
 - [days.md](./days.md) — the colony day and clock the times are on.

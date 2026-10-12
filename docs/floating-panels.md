@@ -63,8 +63,9 @@ is remembered in this browser.
   the two copies would fight over: Dig and Zones arm a map tool, Jobs lays a
   highlight on the map and clears it when it unmounts. One instance per tab
   keeps every tab's lifetime what it was. The cost is that Charts shows one
-  view at a time, even floating: Perf and Population side by side would need
-  `ui.chartView` per instance.
+  view at a time, even floating: Custom and Activity side by side would need
+  `ui.chartView` per instance. (Perf, once a view of Charts, is its own tab,
+  so it can float beside them.)
 - **The selection follows what is open, docked or floating.** Leaving the
   inspector used to mean "the side panel shows another tab". Now it is
   "neither the inspector, nor the roster, nor the tab the selection came from

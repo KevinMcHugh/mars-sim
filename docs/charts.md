@@ -9,7 +9,9 @@ balance, a good's price, how many bids are open, how much money changed
 hands. Once a colony hour the world reads every metric for every subject it
 covers (each good, each account) and keeps the readings for the whole game.
 In the browser, the Charts tab's **Custom** view lets the player build charts
-from any of them. A chart holds up to eight series, plots their readings or
+from any of them. It starts with the colony's vital signs (colonists, meals in
+storage, colony size, fixtures), which were the Population view until it was
+folded in here, then a few money and market charts. A chart holds up to eight series, plots their readings or
 buckets them by hour, half-day, day or week ("D43 H1: $1,394 changed hands"),
 and is remembered in that browser.
 
@@ -103,7 +105,7 @@ evenly (`effectiveBucket`) and says so under the chart.
 
 Halving loses nothing from a Total, since each kept reading is still the
 running total at its tick (`TestMetricsSampleHourlyAndSpanTheGame` pins
-this). Levels lose resolution, as on the Population tab.
+this). Levels lose resolution, as on the TUI's Population tab.
 
 ### Publishing without copying
 
@@ -245,8 +247,19 @@ samples.
   charts, so keep them stable (items use their name, not their enum value).
 - **Keys are an interface.** Renaming a metric's `Key` silently empties every
   saved chart that used it.
+- **The Population view became custom charts.** The browser's Charts tab
+  had a fixed Population view (four charts from the `population` topic). The
+  same four readings are metrics (`colonists/`, `stock/meal`, `colony-size/`,
+  `fixtures/`), so they are now the first four starter charts
+  (`POPULATION_CHARTS` in `builder.ts`) and the view is gone. A browser that
+  already had saved charts gets them added once, ahead of its own
+  (`withPopulationCharts`, and the `chartsPopulation` pref in
+  `game.svelte.ts` that keeps a chart the player then removes from coming
+  back). They sample hourly rather than every 50 ticks, so a very young
+  colony shows "no readings yet" for its first colony hour.
 - **Not built:** the TUI has no chart builder. Its Population and Activity
-  screens predate this and still read the Population history. Moving them
+  screens predate this and still read the Population history, as does the
+  browser's Activity view. Moving them
   onto metrics would remove one of the two histories.
 
 ## Related

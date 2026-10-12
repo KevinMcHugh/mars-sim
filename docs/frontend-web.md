@@ -13,20 +13,24 @@ readout. Around it is a Svelte chrome:
   the TUI header's counts, as emoji (👷 👽 🐈 🐀, then each fixture's glyph).
 - **A side panel,** whose tab strip has two labelled rows. **View** holds the
   tabs that show the colony: the Inspect tab (click the map), the Roster, the
-  Log, Jobs, Storage, Market, Charts and the Lore tab. **Act** holds the tabs
-  whose job is to change it: Zones, Dig, Ships, Recruit and the
+  Log, Jobs, Storage, Market, Charts, Perf and the Lore tab. **Act** holds the tabs
+  whose job is to change it: Zones, Dig, Ships, Trade, Recruit and the
   Game tab. That tab
-  holds a new-game form, which can also start a colony that zones for itself
-  (`zoning-auto`), and **Save game** / **Load game…** (Ctrl/⌘+S saves too;
-  see [save-load.md](./save-load.md)), and under them a read-only list of
+  opens with **Save game** / **Load game…** (Ctrl/⌘+S saves too;
+  see [save-load.md](./save-load.md)), then **New game**, a foldable section
+  holding the new-game form, which can also start a colony that zones for itself
+  (`zoning-auto`), and under them a read-only list of
   every setting the game runs with ([game-settings.md](./game-settings.md)).
   Last is a link to [Scum Lab](./scum-lab.md). It is a relative `scum-lab/`,
   which resolves on Pages (see "Hosting" below) and 404s under `npm run dev`,
   where Vite does not serve the lab.
   A cold load opens on that tab (see
-  "The new-game form" below). Market stays
-  under View although it hosts the colony's orders: it is mostly prices, and
-  splitting one tab across both rows would make the line meaningless.
+  "The new-game form" below). Saving and loading come first because they are
+  what the tab is for once a game runs; folding New game shut keeps the form
+  out of the way then (a fold is remembered, like every `Section`). The
+  market is split across the two rows: Market (prices, books, accounts) shows,
+  and Trade (the colony's order desk) acts. Trade was once a corner of the
+  Market tab, which kept the colony's only orders under View.
   Any tab can be **popped out** (⧉ in its title row) into a window over the
   map, to watch it beside the docked tab: see
   [floating-panels.md](./floating-panels.md).
@@ -51,13 +55,13 @@ The rest of the TUI's tabs are planned in
   (popped-out tabs, see [floating-panels.md](./floating-panels.md)), `tabs.ts`
   (the tab list both share), `Bar` (a gauge), and one component
   per tab (`InspectPanel`, `RosterPanel`, `LogPanel`, `JobsPanel`,
-  `StoragePanel`, `MarketPanel` with `AccountDetail` and `ColonyOrders`, `ZonesPanel`, `DigPanel`, `ChartsPanel`, `ShipsPanel`,
+  `StoragePanel`, `MarketPanel` with `AccountDetail`, `TradePanel` with `ColonyOrders`, `ZonesPanel`, `DigPanel`, `ChartsPanel`, `PerfPanel`, `ShipsPanel`,
   `RecruitPanel`, `LorePanel`, `NewGamePanel` with `GameSettings`), `Section` (a foldable heading), `LogTicker`, and `FlowControl` (the
   flow-field picker and legend, see [flow-field-view.md](./flow-field-view.md)).
   `format.ts` formats money.
 - [`web/src/ui/charts/`](../web/src/ui/charts/Chart.svelte) — the Charts tab:
-  `Chart` (one uPlot chart with a tooltip), `PerfCharts`,
-  `PopulationCharts`, `ActivityChart`, `CustomCharts` with `CustomChart`,
+  `Chart` (one uPlot chart with a tooltip), `PerfCharts` (the Perf tab),
+  `ActivityChart`, `CustomCharts` with `CustomChart`,
   `SeriesPicker` and `Subscribe` (the chart builder, see
   [charts.md](./charts.md)), `theme.ts` (colors and the activity
   bands), `population.ts` (the activity arithmetic, tested by
@@ -418,7 +422,9 @@ ticker's), until they are opened again.
   a link to the inspector. A book opens in place to list its orders, and any
   open order (in a book, an account, or the colony's desk) opens its detail,
   each from its own topic (`book:`, `order:`; see
-  [order-detail.md](./order-detail.md)). Its **Colony orders** desk (`ColonyOrders`) posts a
+  [order-detail.md](./order-detail.md)).
+- **Trade** (under Act, from the same `market` topic) is the colony's order
+  desk (`ColonyOrders`). It posts a
   bid or an ask in the colony's name, and reprices or removes the colony's
   open orders, with the `order-place`, `order-reprice` and `order-cancel`
   commands, suspends or resumes a standing order with `order-suspend`
@@ -481,27 +487,26 @@ A link from any of these into the inspector remembers its tab
 (`ui.inspectFrom`), so the inspector offers **← Jobs**, **← Storage** or
 **← Market**. Going back keeps the selection, so the row stays highlighted.
 
-**Charts** are the TUI's three chart screens in one tab, a view at a time,
-plus the player's own charts, drawn with
-[uPlot](https://github.com/leeoniya/uPlot) on their own opaque surface:
+**Charts** are drawn with [uPlot](https://github.com/leeoniya/uPlot) on their
+own opaque surface. The **Perf** tab (the `perf` topic) has ticks per second,
+averaged over the trailing second as the TUI does, and milliseconds per tick,
+with a gap where the game was paused, over the last five minutes. Two charts,
+never one with two y-axes: the measures share only the clock. It was a view
+of the Charts tab; as a tab of its own it can float beside the colony's
+charts. The **Charts** tab has two views, a view at a time:
 
-- **Perf** (the `perf` topic): ticks per second, averaged over the trailing
-  second as the TUI does, and milliseconds per tick, with a gap where the
-  game was paused, over the last five minutes. Two charts, never one with two
-  y-axes: the measures share only the clock.
-- **Population** (`population`): colonists, meals in storage, colony size and
-  fixtures over the whole game, four small charts, since their scales differ
-  by orders of magnitude.
+- **Custom** (`metrics`, and a `series:<key>` per series shown): charts the
+  player builds from anything the sim measures, readings or bucketed per
+  hour, half-day, day or week, kept in this browser. See
+  [charts.md](./charts.md). The first four starter charts are what the
+  Population view used to show: colonists, meals in storage, colony size and
+  fixtures, one chart each since their scales differ by orders of magnitude.
 - **Activity** (`population` too): a stacked area of what colonists spend
   their time on, as a share of colonist time or as average colonists. The
   game is summed into at most 48 columns, as the TUI sums per plot column: a
   sample covers as little as 50 ticks, and drawn one by one the stack was
   noise. Each band is split into doing it and walking there, the walking part
   hatched at 45° in the band's color rather than given a second hue.
-- **Custom** (`metrics`, and a `series:<key>` per series shown): charts the
-  player builds from anything the sim measures, readings or bucketed per
-  hour, half-day, day or week, kept in this browser. See
-  [charts.md](./charts.md).
 
 The colors are the dataviz reference palette's dark steps, checked with its
 validator against the charts' surface (`#1a1a19`). A chart gets at most eight

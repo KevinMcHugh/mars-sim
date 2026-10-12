@@ -201,11 +201,25 @@ export function newChartId(): string {
 }
 
 /**
- * The charts a new player starts with: the ones the chart system was asked
- * for (money changing hands per half-day, open and posted bids, the
- * treasury, a price), to edit or throw away.
+ * The colony's vital signs, which were the Charts tab's Population view
+ * (docs/population-screen.md) before they became custom charts: one chart
+ * each, not four lines on one, since their scales differ by orders of
+ * magnitude.
+ */
+export const POPULATION_CHARTS: ChartSpec[] = [
+  { id: 'start-colonists', title: 'Colonists', series: ['colonists/'], bucket: 0 },
+  { id: 'start-meals', title: 'Meals in storage', series: ['stock/meal'], bucket: 0 },
+  { id: 'start-colony-size', title: 'Colony size (floor tiles)', series: ['colony-size/'], bucket: 0 },
+  { id: 'start-fixtures', title: 'Fixtures', series: ['fixtures/'], bucket: 0 },
+];
+
+/**
+ * The charts a new player starts with: the colony's vital signs, then the
+ * ones the chart system was asked for (money changing hands per half-day,
+ * open and posted bids, the treasury, a price), to edit or throw away.
  */
 export const STARTER_CHARTS: ChartSpec[] = [
+  ...POPULATION_CHARTS,
   { id: 'start-moved', title: 'Money changing hands', series: ['money-moved/'], bucket: 12 },
   { id: 'start-open-bids', title: 'Open bids', series: ['open-bids/all'], bucket: 0 },
   { id: 'start-bids-posted', title: 'Bids posted', series: ['bids-posted/all'], bucket: 0 },
@@ -226,4 +240,15 @@ export function parseCharts(v: unknown): ChartSpec[] | null {
     out.push({ id, title: title.slice(0, 80), series: keys, bucket: b });
   }
   return out;
+}
+
+/**
+ * Saved charts from before the Population view moved into Custom: the
+ * population charts go first, unless the player already has one of the same
+ * id. Run once per browser (game.svelte.ts remembers that it has), so a
+ * chart removed afterwards stays removed.
+ */
+export function withPopulationCharts(saved: ChartSpec[]): ChartSpec[] {
+  const have = new Set(saved.map((c) => c.id));
+  return [...structuredClone(POPULATION_CHARTS).filter((c) => !have.has(c.id)), ...saved];
 }

@@ -6,7 +6,7 @@
 import type { Hello } from '../wire/decode.js';
 import type { Command, Settings } from './sim/client';
 import { reuse } from './reuse';
-import { parseCharts, STARTER_CHARTS } from './ui/charts/builder';
+import { parseCharts, STARTER_CHARTS, withPopulationCharts, type ChartSpec } from './ui/charts/builder';
 import { SPEEDS, speedIndex } from './speed';
 
 /** How often frame-driven UI (clock, stats, speed) refreshes. */
@@ -26,6 +26,19 @@ function loadPref<T>(key: string, fallback: T): T {
 }
 function savePref(key: string, value: unknown): void {
   try { localStorage.setItem(PREF_PREFIX + key, JSON.stringify(value)); } catch { /* not remembered */ }
+}
+
+// The player's charts, or the starters. Charts saved before the Population
+// view became custom charts get those charts added, once.
+function loadCharts(): ChartSpec[] {
+  const saved = parseCharts(loadPref('charts', null));
+  const done = loadPref('chartsPopulation', false);
+  savePref('chartsPopulation', true);
+  if (!saved) return structuredClone(STARTER_CHARTS); // they include them
+  if (done) return saved;
+  const charts = withPopulationCharts(saved);
+  savePref('charts', charts);
+  return charts;
 }
 
 export const ui = $state({
@@ -68,9 +81,9 @@ export const ui = $state({
   /** The aloft ship last sent down: the Ships tab does not pick it up again while the topic catches up. */
   shipSent: null as number | null,
   /** The Charts tab's view, kept while the tab is closed. */
-  chartView: 'perf' as 'perf' | 'population' | 'activity' | 'custom',
+  chartView: 'custom' as 'custom' | 'activity',
   /** The charts the player has made in the Custom view, remembered in this browser (saveCharts). */
-  charts: parseCharts(loadPref('charts', null)) ?? structuredClone(STARTER_CHARTS),
+  charts: loadCharts(),
   /** The flow field asked for (an index into Hello.flowFields), or -1 for none. */
   flowPick: -1,
   /**

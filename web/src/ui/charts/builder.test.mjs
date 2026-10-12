@@ -101,3 +101,12 @@ test('the picker sorts ranks by skill, then by rank as a number', () => {
   const goods = ['meal', 'iron ore'].map(s);
   assert.equal(pickerOrder('item', goods), goods);
 });
+
+test('saved charts gain the population charts once, ahead of their own, without doubling any', async () => {
+  const { withPopulationCharts, POPULATION_CHARTS } = await import('./builder.ts');
+  const mine = { id: 'mine', title: 'Mine', series: ['price/meal'], bucket: 0 };
+  const kept = { id: 'start-colonists', title: 'Renamed', series: ['colonists/'], bucket: 24 };
+  const out = withPopulationCharts([kept, mine]);
+  assert.deepEqual(out.map((c) => c.id), [...POPULATION_CHARTS.filter((c) => c.id !== kept.id).map((c) => c.id), 'start-colonists', 'mine']);
+  assert.equal(out.find((c) => c.id === 'start-colonists').title, 'Renamed');
+});
