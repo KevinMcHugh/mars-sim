@@ -184,7 +184,7 @@ func TestStrandedColonistGetsALadder(t *testing.T) {
 	if w.mainRoom == 0 || w.sameRoom(below.Pos, Point{4, 5, LandingLevel}) {
 		t.Fatal("the faller is not cut off")
 	}
-	w.planHoles()
+	w.planLadders()
 	if !w.taskPlanned(ShaftTop) {
 		t.Fatal("no ladder planned for the stranded colonist")
 	}
@@ -201,18 +201,26 @@ func TestStrandedColonistGetsALadder(t *testing.T) {
 	}
 }
 
-// The whole path a player sees: order a hole, the colony digs it, order a
-// ladder, the colony fits it; the run is deterministic and survives a save.
+// The whole path a player sees: pick a tile and order a hole there, the
+// colony digs it, order a ladder, the colony fits it; the run is
+// deterministic and survives a save.
 func TestOrderedHoleAndLadder(t *testing.T) {
 	run := func() (*World, string) {
 		w := shaftColony(t, 4)
-		w.manualHoles = 1
+		site, ok := w.findStairSite(LandingLevel) // somewhere a player might pick
+		if !ok {
+			t.Fatal("no open floor to order a hole on")
+		}
+		w.orderDigDown(OrderHole{At: site})
+		if !w.taskPlanned(Hole) {
+			t.Fatalf("hole at %v refused: %s", site, w.downRefusal(site, "hole"))
+		}
 		runUntil(t, w, 3000, "a hole", func() bool { return len(w.holes) > 0 })
 		h := w.holes[0]
-		if w.manualHoles != 0 || w.TerrainAt(Point{h.X, h.Y, h.Level + 1}) != Floor {
-			t.Fatalf("hole at %v: order pending %d, below %v", h, w.manualHoles, w.TerrainAt(Point{h.X, h.Y, h.Level + 1}))
+		if h != site || w.TerrainAt(Point{h.X, h.Y, h.Level + 1}) != Floor {
+			t.Fatalf("hole at %v, ordered at %v, below %v", h, site, w.TerrainAt(Point{h.X, h.Y, h.Level + 1}))
 		}
-		w.manualLadders = 1
+		w.orderDigDown(OrderLadder{At: h})
 		runUntil(t, w, 3000, "a ladder", func() bool { return w.TerrainAt(h) == ShaftTop })
 		if w.TerrainAt(Point{h.X, h.Y, h.Level + 1}) != ShaftBottom {
 			t.Fatal("the ladder has no foot")
@@ -234,11 +242,11 @@ func TestOrderedHoleAndLadder(t *testing.T) {
 	}
 }
 
-// A hole ordered after a one-level shaft: the deepest level is then only the
-// shaft's foot, with nowhere to site a hole. The site search must stop at the
+// After a one-level shaft the deepest level is only the shaft's foot, with
+// no site on it. The stair and shaft planners' site search must stop at the
 // main room's extent there, not sweep the whole map every planning round
-// (which froze the browser's 10000x10000 game), and the order waits.
-func TestHoleAfterShaftSearchesOnlyTheMainRoom(t *testing.T) {
+// (which froze the browser's 10000x10000 game).
+func TestSiteSearchStopsAtTheMainRoom(t *testing.T) {
 	w := shaftColony(t, 1)
 	w.manualShaftLevels = 1
 	runUntil(t, w, 4000, "a shaft", func() bool { return len(w.shafts) > 0 })
@@ -253,12 +261,5 @@ func TestHoleAfterShaftSearchesOnlyTheMainRoom(t *testing.T) {
 	}
 	if _, _, _, _, ok := w.mainRoomBounds(LandingLevel + 2); ok {
 		t.Error("the main room reaches a level nobody has broken into")
-	}
-	w.manualHoles = 1
-	for i := 0; i < 300; i++ {
-		w.step()
-	}
-	if w.manualHoles != 1 || len(w.holes) != 0 {
-		t.Errorf("order pending %d, holes %v: want the order waiting", w.manualHoles, w.holes)
 	}
 }

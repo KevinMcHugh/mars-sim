@@ -18,7 +18,7 @@ sits beside are [stairs.md](./stairs.md) and [shafts.md](./shafts.md).
 
 - [`internal/sim/holes.go`](../internal/sim/holes.go): the drop
   (`fallTarget`, `openHole`), digging (`canDigHole`, `digHole`,
-  `planHoles`, `OrderHole`, `finishHole`), ladders (`planLadders`,
+  `OrderHole`, `planHoles`, `designateHole`, `finishHole`), ladders (`planLadders`,
   `strandedIn`, `designateLadder`, `OrderLadder`), falling (`fall`,
   `bodyOf`, `freeTileNear`, `leap`, `openHoleBeside`) and chutes
   (`nearestChute`, `tipDown`).
@@ -29,8 +29,11 @@ sits beside are [stairs.md](./stairs.md) and [shafts.md](./shafts.md).
 - [`internal/sim/cleaning.go`](../internal/sim/cleaning.go):
   `refuseDestinations`, `haulTarget` and `jobCleanHaul` use a hole as a
   chute.
+- [`internal/sim/siting.go`](../internal/sim/siting.go): a hole or ladder
+  ordered at a picked tile (`downRefusal`, `ladderRefusal`); see
+  [siting.md](./siting.md).
 - [`internal/sim/holes_test.go`](../internal/sim/holes_test.go): digging
-  one, a hole ordered below a fresh shaft waiting without a map-wide search, a two-level fall's damage, a fatal fall and a crowded landing, a
+  one, the site search below a fresh shaft stopping at the main room, a two-level fall's damage, a fatal fall and a crowded landing, a
   cornered colonist leaping (and not leaping to its death), the chute, a
   stranded colonist getting a ladder, and the ordered hole and ladder in a
   real colony, deterministic and surviving a save.
@@ -50,18 +53,16 @@ on the way, and how many levels that is. A hole whose column is closed
 
 ### Digging one
 
-`OrderHole` (`b` then `o` in the terminal) adds to `manualHoles`.
-`planHoles` runs with the other planners: it sites the hole as a stair is
-sited (`findStairSite`, on the deepest level reached), as one task of
-`hole-ticks` mining work, free of materials. `digHole` opens the tile below
-to floor (making the level and revealing around it) and then turns the tile
-into the hole. The landing is a one-tile pocket in the rock until someone
-mines it out.
-
-The site is on the deepest level reached, so after a shaft or stair down
-that level is often only its foot, with nowhere to put a hole: the order
-waits (cheaply; see [stairs.md](./stairs.md)) until the colony mines room
-there.
+`OrderHole{At}` asks for one. With a tile (the browser's Dig tab: the Hole
+tool, then a click on the map) it is checked and marked out at once, or
+refused in the log; see [siting.md](./siting.md) for the rules. Without one
+(`b` then `o` in the terminal) it needs `siting-auto`, and adds to
+`manualHoles`: `planHoles` sites it as a stair is sited (`findStairSite`, on
+the deepest level reached), one at a time. Either way it is one task of
+`hole-ticks` mining work, free of materials (`designateHole`). `digHole`
+opens the tile below to floor (making the level and revealing around it) and
+then turns the tile into the hole. The landing is a one-tile pocket in the
+rock until someone mines it out.
 
 ### Falling
 
@@ -101,13 +102,24 @@ the hole's tile, which `canDigShaft` accepts as a top and `digShaft` turns
 into a `ShaftTop` over a `ShaftBottom`. It takes `ladder-ticks`, since the
 level below is already open. `planLadders` fits one when a colonist is
 stranded below a hole (its landing is in a room with a living colonist that
-is not the colony's main room), or when the player ordered one
-(`OrderLadder`, `b` then `u`), into the first hole the colony can stand
-beside. The ladder rejoins the stranded colonist's pocket to the colony, and
+is not the colony's main room; in either siting mode), or when the player
+ordered one: into the hole picked (`OrderLadder{At}`, the Dig tab's Ladder
+tool), or, unsited (`b` then `u`, with `siting-auto`), into the first hole
+the colony can stand beside. The ladder rejoins the stranded colonist's pocket to the colony, and
 everything else (rooms, fields, the climb) is a shaft's (see
 [shafts.md](./shafts.md)).
 
 ## Why it is this way
+
+- **The player can site a hole.** A hole is a deliberate drop (a chute
+  over a pit, a way into a cavern below, a trap), so where it goes is the
+  whole point, and the planner's pick was rarely it. Worse, after a shaft
+  or stair down the deepest level is only its foot, so an unsited order
+  can wait forever, and the map-wide site search it ran every planning
+  round froze the browser game (see [stairs.md](./stairs.md) and
+  [siting.md](./siting.md)). A picked hole is marked out or refused on the
+  spot. Nothing checks that it keeps the colony whole: a hole in a one-tile
+  corridor cuts it, which is the player's call.
 
 - **Not a link.** A one-way edge in the region graph would make "A reaches
   B" stop meaning "B reaches A", and every job gate assumes it does. Holes

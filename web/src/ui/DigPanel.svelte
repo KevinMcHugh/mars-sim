@@ -3,7 +3,8 @@
   // see what it would cost, and order it: the colony buys the digging from the
   // treasury as work orders on the order book (docs/excavation.md). The prices
   // and the open orders come from the market topic.
-  import { armDig, cancelDig, centerOn, clearDig, digDown, levelName, orderDig, subscribe, topics, ui } from '../game.svelte';
+  import { armDig, armSite, cancelDig, centerOn, clearDig, digDownAuto, levelName, orderDig, subscribe, topics, ui } from '../game.svelte';
+  import type { DigDownKind } from '../game.svelte';
   import { money } from './format';
   import Help from './Help.svelte';
 
@@ -19,7 +20,7 @@
 
   $effect(() => subscribe('market'));
   // Leaving the tab puts the tool down and clears the tint it left on the map.
-  $effect(() => () => clearDig());
+  $effect(() => () => { clearDig(); armSite(null); });
 
   const m = $derived(topics.data.market as Market | undefined);
   const r = $derived(ui.dig.rect);
@@ -28,6 +29,30 @@
   // landing level (deepest-level above it).
   const canGoDown = $derived(!!ui.hello && ui.hello.deepestLevel > ui.hello.landingLevel);
   let shaftLevels = $state(1);
+  // A held shaft tool follows the levels box.
+  $effect(() => {
+    const n = Math.max(1, shaftLevels || 1);
+    if (ui.siteTool?.kind === 'shaft' && ui.siteTool.levels !== n) ui.siteTool.levels = n;
+  });
+
+  // The dig-down buttons: what each orders, and what the player should click.
+  const DOWN: { kind: DigDownKind; label: string; pick: string; title: string }[] = [
+    { kind: 'stair', label: 'Stair', pick: 'a floor tile to dig a stair down from', title: 'A stair down: walked both ways (docs/stairs.md)' },
+    { kind: 'shaft', label: 'Shaft', pick: 'a floor tile to sink a shaft from, or a shaft\'s top to deepen it', title: 'A shaft: climbed slowly, and can go several levels at once (docs/shafts.md)' },
+    { kind: 'hole', label: 'Hole', pick: 'a floor tile to break a hole through', title: 'A hole: a drop nothing comes back up (docs/holes.md)' },
+    { kind: 'ladder', label: 'Ladder', pick: 'a hole to fit a ladder into', title: 'A ladder into a hole, making it a shaft (docs/holes.md)' },
+  ];
+  // With siting-auto, a button can leave the tile to the colony instead of
+  // picking up the tool (docs/siting.md). Only offered in such a game.
+  let colonyPicks = $state(false);
+  const autoSiting = $derived(!!ui.hello?.sitingAuto && colonyPicks);
+  // Ticking the box puts down a tool already in hand.
+  $effect(() => { if (autoSiting) armSite(null); });
+  const held = $derived(DOWN.find((d) => d.kind === ui.siteTool?.kind));
+  function press(kind: DigDownKind) {
+    if (autoSiting) digDownAuto(kind, shaftLevels);
+    else armSite(ui.siteTool?.kind === kind ? null : kind, shaftLevels);
+  }
 
   // Why the order cannot go, or null if it can.
   const blocked = $derived.by(() => {
@@ -102,24 +127,41 @@
   <h2>Dig down<Help bind:open={downHelp} label="How does digging down work?" /></h2>
   {#if downHelp}
     <p class="help-text">
-      The colony sites it on the deepest level it has reached and digs it free of charge. A stair is
-      walked both ways; a shaft is climbed slowly, and can go several levels at once; a hole is a drop
-      nothing comes back up, until a ladder turns it into a shaft. The Jobs tab lists what is ordered
-      and not yet marked out; &lt; and &gt; step the map between levels.
+      The colony digs these free of charge. A stair is walked both ways; a shaft is climbed slowly, and can
+      go several levels at once; a hole is a drop nothing comes back up, until a ladder turns it into a
+      shaft. Pick one, then click the tile it goes on; a tile the colony cannot use is refused in the
+      log. &lt; and &gt; step the map between levels.
     </p>
   {/if}
   <p class="muted">Deepest allowed: level {ui.hello?.deepestLevel}.</p>
-  <div class="row wrap">
-    <button type="button" onclick={() => digDown('stair')} title="Order a stair down (docs/stairs.md)">Stair</button>
-    <span class="shaft">
-      <button type="button" onclick={() => digDown('shaft', shaftLevels)} title="Order a shaft this many levels deep (docs/shafts.md)">Shaft</button>
-      <input type="number" min="1" max={Math.max(1, (ui.hello?.deepestLevel ?? 1) - (ui.hello?.landingLevel ?? 1))}
-        aria-label="Shaft levels" bind:value={shaftLevels} />
-      <span class="muted">levels</span>
-    </span>
-    <button type="button" onclick={() => digDown('hole')} title="Order a hole broken through to the level below (docs/holes.md)">Hole</button>
-    <button type="button" onclick={() => digDown('ladder')} title="Fit a ladder into the first hole without one, making it a shaft">Ladder</button>
+  <div class="row">
+    {#each DOWN as d (d.kind)}
+      {@const on = ui.siteTool?.kind === d.kind}
+      <button type="button" class:on aria-pressed={on} onclick={() => press(d.kind)} title={d.title}>{d.label}</button>
+    {/each}
   </div>
+  <label class="field">
+    Shaft depth
+    <input type="number" min="1" max={Math.max(1, (ui.hello?.deepestLevel ?? 1) - (ui.hello?.landingLevel ?? 1))}
+      bind:value={shaftLevels} />
+    <span class="muted">levels</span>
+  </label>
+  {#if ui.hello?.sitingAuto}
+    <label class="field" title="The colony sites each one on the deepest level it has reached (siting-auto)">
+      <input type="checkbox" bind:checked={colonyPicks} /> Let the colony pick the tile
+    </label>
+  {/if}
+  {#if held}
+    <p class="prompt">Click {held.pick}. Esc puts the tool down.</p>
+  {/if}
+  <p class="muted">
+    {#if autoSiting}
+      The colony sites each on the deepest level it has reached.
+    {:else}
+      It goes on the level the map shows.
+    {/if}
+    The Jobs tab shows what is marked out.
+  </p>
 {/if}
 
 <style>
@@ -130,9 +172,9 @@
   .warn { color: #ffb36b; }
   .row { display: flex; gap: 6px; margin: 8px 0; }
   .row button.on { background: var(--accent); color: #fff; }
-  .row.wrap { flex-wrap: wrap; align-items: center; }
-  .shaft { display: inline-flex; align-items: center; gap: 4px; }
-  .shaft input { width: 4em; }
+  .field { display: flex; align-items: center; gap: 6px; margin: 6px 0; }
+  .field input[type='number'] { width: 4em; }
+  .prompt { color: var(--accent); }
   .row button.go { background: var(--accent); color: #fff; }
   .row button.go:disabled { background: transparent; color: inherit; }
   dl { display: grid; grid-template-columns: max-content 1fr; gap: 3px 12px; margin: 8px 0; }

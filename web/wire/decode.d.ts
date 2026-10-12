@@ -56,6 +56,8 @@ export interface Hello {
   /** The level ships land on, shown first; the deepest the colony may dig to. */
   landingLevel: number;
   deepestLevel: number;
+  /** The siting-auto setting: whether the colony may pick where to dig down itself (docs/siting.md). */
+  sitingAuto: boolean;
 }
 
 export interface Frame {

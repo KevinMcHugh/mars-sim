@@ -1,4 +1,4 @@
-// New-game settings, from the URL (?width=2000&seed=7&fog-of-war=false&zoning-auto=true&deepest-level=3) over
+// New-game settings, from the URL (?width=2000&seed=7&fog-of-war=false&zoning-auto=true&siting-auto=true&deepest-level=3) over
 // these defaults. Keys are mars-sim.yaml's (see docs/config-file.md); a seed
 // left out lets the engine pick one. They fill the New game form, which a
 // cold load opens rather than starting a game (docs/frontend-web.md).
@@ -8,7 +8,7 @@ import type { Settings } from './sim/client';
 // deepest-level 3, not the engine's 1, so a browser game can dig two levels
 // down and shows the level controls; ?deepest-level=1 keeps the colony on
 // the landing level (docs/z-levels.md).
-const DEFAULTS: Settings = { width: 10000, height: 10000, colonists: 6, 'fog-of-war': true, 'zoning-auto': false, 'deepest-level': 3 };
+const DEFAULTS: Settings = { width: 10000, height: 10000, colonists: 6, 'fog-of-war': true, 'zoning-auto': false, 'siting-auto': false, 'deepest-level': 3 };
 
 /**
  * Most settlers one colony ship carries: sim.DefaultConfig's ship-capacity.
@@ -47,7 +47,9 @@ export function initialSettings(): Settings {
   }
   const fog = params.get('fog-of-war');
   if (fog !== null) s['fog-of-war'] = fog !== 'false';
-  const auto = params.get('zoning-auto');
-  if (auto !== null) s['zoning-auto'] = auto !== 'false';
+  for (const key of ['zoning-auto', 'siting-auto']) {
+    const v = params.get(key);
+    if (v !== null) s[key] = v !== 'false';
+  }
   return s;
 }

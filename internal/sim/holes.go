@@ -19,15 +19,18 @@ const (
 	ladderProjectName = "ladder"
 )
 
-// OrderHole asks the planner to dig one hole down from the deepest level the
-// colony has reached, sited as a stair would be.
-type OrderHole struct{}
+// OrderHole asks for a hole broken through the floor: at the tile At, the
+// player's pick, or, with At left zero and Config.SitingAuto on, where the
+// planner sites it on the deepest level reached. See docs/siting.md.
+type OrderHole struct{ At Point }
 
 func (OrderHole) isCommand() {}
 
-// OrderLadder asks the planner to fit a ladder into the colony's first hole
-// without one, turning it into a shaft.
-type OrderLadder struct{}
+// OrderLadder asks for a ladder fitted into a hole, turning it into a
+// shaft: the hole at At, the player's pick, or, with At left zero and
+// Config.SitingAuto on, the colony's first hole that can take one. See
+// docs/siting.md.
+type OrderLadder struct{ At Point }
 
 func (OrderLadder) isCommand() {}
 
@@ -91,8 +94,9 @@ func (w *World) digHole(p Point) bool {
 	return true
 }
 
-// planHoles marks out the hole the player ordered (OrderHole), one at a
-// time, and fits ladders (planLadders). It draws nothing random.
+// planHoles marks out the hole the player ordered without a tile
+// (OrderHole, with SitingAuto), one at a time, sited as a stair is, and fits
+// ladders (planLadders). It draws nothing random.
 func (w *World) planHoles() {
 	w.planLadders()
 	if w.manualHoles == 0 || w.taskPlanned(Hole) {
@@ -106,15 +110,26 @@ func (w *World) planHoles() {
 	if !ok || !w.canDigHole(site) {
 		return // try again next planning round
 	}
+	if w.designateHole(site) {
+		w.manualHoles--
+	}
+}
+
+// designateHole plans a hole at p as one task of hole-ticks mining work,
+// free of materials.
+func (w *World) designateHole(p Point) bool {
+	if !w.canDigHole(p) {
+		return false
+	}
 	pr := &project{id: w.nextProjectID, name: holeProjectName, queuedTick: w.tick, issuer: Community}
-	pr.tasks = []*buildTask{{pos: site, terrain: Hole, proj: pr}}
+	pr.tasks = []*buildTask{{pos: p, terrain: Hole, proj: pr}}
 	if !w.fundProject(pr) {
-		return
+		return false
 	}
 	w.nextProjectID++
 	w.projects = append(w.projects, pr)
-	w.manualHoles--
-	w.logEvent(LogBuildStart, fmt.Sprintf("The colony marks out a hole down to level %d.", site.Level+1))
+	w.logEvent(LogBuildStart, fmt.Sprintf("The colony marks out a hole at (%d, %d) down to level %d.", p.X, p.Y, p.Level+1))
+	return true
 }
 
 // taskPlanned reports whether a task of terrain t is planned and unbuilt.

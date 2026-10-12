@@ -102,10 +102,15 @@ its other end, level by level. With no stair between two levels it answers
 - **The setting.** `deepest-level` (default 1) is how far down the colony
   may dig. At 1 it never plans a stair, so a game that does not ask for
   levels is unchanged. `stair-ticks` is the work one takes.
-- **When.** `planStairs` runs with the room planner. It marks out one stair
-  at a time, from the deepest level reached, when the player has ordered one
-  (`OrderStair`, `b` then `v` in the terminal) or when there is no unclaimed
-  mining frontier on any level. It draws nothing random.
+- **A picked tile.** `OrderStair{At}` with a tile (the browser's Dig tab:
+  the Stair tool, then a click on the map) is checked and marked out at
+  once, or refused in the log, in either siting mode. See
+  [siting.md](./siting.md).
+- **When the colony sites it.** Only with `siting-auto`: `planStairs` runs
+  with the room planner and marks out one stair at a time, from the deepest
+  level reached, when the player has ordered one without a tile
+  (`OrderStair{}`, `b` then `v` in the terminal) or when there is no
+  unclaimed mining frontier on any level. It draws nothing random.
 - **Where.** `findStairSite` spreads outward from an anchor (the middle of
   the map on the landing level, the foot of the stair in on a deeper one, or
   of the shaft in when there is no stair) and takes the first open, known
