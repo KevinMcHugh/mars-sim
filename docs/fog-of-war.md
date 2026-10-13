@@ -128,6 +128,10 @@ terrain nor occupant:
   undiscovered cave is exactly what the fog is for; drawing it on an otherwise blank tile
   would also just look like a bug. Colonists and pets live on floor, which is
   always explored, so nothing the player owns can hide from them.
+  The header's alien count (`Stats.Aliens`) follows the same rule and counts
+  only aliens on explored tiles. Counting every alien would tell the player how
+  many are still hidden in caves they have not found, and the header would not
+  match the map.
 - **Runs, not tiles.** Consecutive fog tiles are emitted as one styled run. Early
   on most of the screen is fog, and a pair of escape sequences per tile is the
   kind of ANSI bill that already made redraws sluggish once (see *Redraw cost* in
