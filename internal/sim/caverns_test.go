@@ -406,3 +406,28 @@ func TestCaveAlienDormantUntilBreached(t *testing.T) {
 		t.Fatal("nearestAlien does not see a woken cave alien")
 	}
 }
+
+// The header's alien count is the colony's knowledge, not the world's: an
+// alien dormant in a hidden cave is left out until the cave is found.
+func TestHiddenCaveAlienIsNotCounted(t *testing.T) {
+	cfg := cavernTestConfig()
+	cfg.CavernNestPercent = 0
+	cfg.StartAliens = 1
+	w := newTestWorld(t, cfg)
+	var alien *Entity
+	for _, e := range w.entities {
+		if e.Kind == Alien {
+			alien = e
+		}
+	}
+	if alien == nil || !w.dormant(alien) {
+		t.Fatal("starting alien was not placed dormant in a hidden cave")
+	}
+	if got := w.snapshot(false, 8).Stats.Aliens; got != 0 {
+		t.Fatalf("Stats.Aliens = %d with the only alien hidden, want 0", got)
+	}
+	breachBeside(t, w, alien.Pos)
+	if got := w.snapshot(false, 8).Stats.Aliens; got != 1 {
+		t.Fatalf("Stats.Aliens = %d after its cave was breached, want 1", got)
+	}
+}

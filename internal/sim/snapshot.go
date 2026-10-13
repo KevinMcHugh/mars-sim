@@ -395,7 +395,7 @@ func (m DriveMeta) Fatal() bool { return m.Consequence == ConsequenceDeath }
 // Stats summarizes the world at a glance for the UI header.
 type Stats struct {
 	Colonists int
-	Aliens    int
+	Aliens    int // aliens on explored tiles only: the ones the colony knows about
 	Cats      int
 	Rats      int
 	Chickens  int
@@ -767,7 +767,12 @@ func (w *World) snapshot(paused bool, tps int) *Snapshot {
 		case Colonist:
 			stats.Colonists++
 		case Alien:
-			stats.Aliens++
+			// Only the aliens the colony can see: one dormant in an
+			// undiscovered cave is hidden from the map, so counting it
+			// would give away what the fog is for.
+			if w.Explored(e.Pos) {
+				stats.Aliens++
+			}
 		case Cat:
 			stats.Cats++
 		case Rat:
