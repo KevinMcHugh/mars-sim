@@ -530,6 +530,10 @@ type Snapshot struct {
 	// exposure rule as scum). It is shared between frames until it changes,
 	// and never written after publication. Read it with SaltAt.
 	Salt map[Point]struct{}
+	// Remains names the bodies lying on each tile, oldest first, where the
+	// death had a victim to name. Shared between frames until it changes and
+	// never written after publication. Read it with RemainsAt.
+	Remains map[Point][]Remains
 	// Fixtures is the ownership of every placed fixture (pods, toilets, beds,
 	// incinerators, storage), sorted by position. The slice is shared between
 	// frames until a fixture changes, and never written after publication.
@@ -852,6 +856,7 @@ func (w *World) snapshot(paused bool, tps int) *Snapshot {
 		Armed:                w.armedColonists(),
 		Scum:                 w.publishedScum(),
 		Salt:                 w.publishedSalt(),
+		Remains:              w.publishedRemains(),
 		Graveyard:            append([]EntityView(nil), w.graveyard...),
 		Deceased:             w.publishedDeceasedColonists(),
 		AlienSpecies:         append([]AlienSpecies(nil), w.alienSpecies...),

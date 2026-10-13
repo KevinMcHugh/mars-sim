@@ -502,6 +502,7 @@ func (w *World) clearRefuse(p Point) {
 	w.lay(p).goreTotal -= int(r.Gore)
 	w.lay(p).corpseTotal -= r.total()
 	w.setRefuse(p, refuseCell{})
+	w.clearAllRemains(p)
 }
 
 // takeCorpse removes one body of the given kind from p, returning whether
@@ -518,6 +519,7 @@ func (w *World) takeCorpse(p Point, kind ItemKind) bool {
 	r.Corpses[i]--
 	w.setRefuse(p, r)
 	w.lay(p).corpseTotal--
+	w.forgetRemains(p, kind)
 	return true
 }
 
@@ -674,6 +676,14 @@ type World struct {
 	saltRev     uint64
 	snapSaltRev uint64
 	snapSalt    map[Point]struct{}
+	// remains names the bodies lying on each tile, where the death that left
+	// them had a victim to name; refuse only counts them. remainsRev advances
+	// on every change, and snapRemains is the copy last published, taken at
+	// snapRemainsRev. See remains.go.
+	remains        map[Point][]Remains
+	remainsRev     uint64
+	snapRemainsRev uint64
+	snapRemains    map[Point][]Remains
 	// scumRev advances on every change to scum or exposedScum that publishing
 	// can see. It lets publishing reuse the last published copy (snapScum,
 	// taken at snapScumRev); see publishedScum.

@@ -204,6 +204,29 @@
       {/if}
     </Section>
   {/if}
+  {#if tile.bodies}
+    {@const named = tile.remains ?? []}
+    {@const unnamed = tile.bodies - named.length}
+    <Section id="inspect.bodies" title={tile.bodies === 1 ? 'A body' : `${tile.bodies} bodies`}>
+      <ul class="plain">
+        {#each named as b (b.id)}
+          <li>
+            <button type="button" class="link" onclick={() => inspect({ entity: b.id }, ui.inspectFrom)}>{pickGlyph(b.look, b.glyph)} {b.name}</button>{#if b.cause} · {b.cause}{/if}{#if b.diedTick !== undefined} <span class="tick">tick {b.diedTick}</span>{/if}
+          </li>
+        {/each}
+        {#if unnamed > 0}<li class="muted">{unnamed === 1 ? 'one' : unnamed} unidentified</li>{/if}
+      </ul>
+    </Section>
+  {/if}
+  {#if tile.gore || tile.scum || tile.salt}
+    <Section id="inspect.floor" title="On the floor">
+      <dl>
+        {#if tile.gore}<dt>Viscera</dt><dd>{tile.gore}/{tile.goreMax}</dd>{/if}
+        {#if tile.scum}<dt>Cave scum</dt><dd>{tile.scum}/{tile.scumMax}</dd>{/if}
+        {#if tile.salt}<dt>Salt</dt><dd>a deposit</dd>{/if}
+      </dl>
+    </Section>
+  {/if}
   {#if tile.creatures.length > 0}
     <Section id="inspect.here" title="Here">
       <ul class="plain">

@@ -349,6 +349,31 @@ type TileTopic struct {
 	Storage *StorageInfo `json:"storage,omitempty"`
 	// Creatures are those standing here, for the page to inspect.
 	Creatures []Creature `json:"creatures"`
+	// The refuse and deposits on the tile, as the map's hover line shows
+	// them: gore out of GoreMax, scum out of ScumMax, whether there is salt,
+	// and how many bodies lie here.
+	Gore    int  `json:"gore,omitempty"`
+	GoreMax int  `json:"goreMax,omitempty"`
+	Scum    int  `json:"scum,omitempty"`
+	ScumMax int  `json:"scumMax,omitempty"`
+	Salt    bool `json:"salt,omitempty"`
+	Bodies  int  `json:"bodies,omitempty"`
+	// Remains names the bodies here whose death is on record, oldest first;
+	// the other Bodies-len(Remains) were dumped here unnamed (see
+	// docs/remains.md).
+	Remains []Body `json:"remains,omitempty"`
+}
+
+// Body is one named body on a tile. ID is the dead creature, for the page to
+// inspect; Cause and DiedTick are blank once its record has aged out of the
+// graveyard (a rat, say, long dead).
+type Body struct {
+	ID       uint64      `json:"id"`
+	Glyph    string      `json:"glyph"`
+	Look     glyphs.Look `json:"look,omitempty"`
+	Name     string      `json:"name"`
+	Cause    string      `json:"cause,omitempty"`
+	DiedTick int         `json:"diedTick,omitempty"`
 }
 
 // FixtureInfo is a facility's ownership. Owner is a display label;
@@ -423,7 +448,28 @@ func tileTopic(s *sim.Snapshot, p sim.Point) TileTopic {
 			t.Creatures = append(t.Creatures, Creature{ID: uint64(e.ID), Glyph: glyphs.ForEntity(e), Look: glyphs.ForEntityLook(e), Name: entityName(e), State: e.State.String()})
 		}
 	}
+	if tile.Gore > 0 {
+		t.Gore, t.GoreMax = int(tile.Gore), sim.MaxGore
+	}
+	if n := s.ScumAt(p); n > 0 {
+		t.Scum, t.ScumMax = n, s.ScumMax
+	}
+	t.Salt = s.SaltAt(p)
+	t.Bodies = int(tile.Corpses)
+	for _, r := range s.RemainsAt(p) {
+		t.Remains = append(t.Remains, remainsBody(s, r))
+	}
 	return t
+}
+
+// remainsBody names one body, from the dead creature's record when there
+// still is one.
+func remainsBody(s *sim.Snapshot, r sim.Remains) Body {
+	e, ok := findEntity(s, r.ID)
+	if !ok {
+		return Body{ID: uint64(r.ID), Glyph: glyphs.Corpse, Name: fmt.Sprintf("%s #%d", r.Body, r.ID)}
+	}
+	return Body{ID: uint64(e.ID), Glyph: glyphs.ForEntity(e), Look: glyphs.ForEntityLook(e), Name: entityName(e), Cause: e.Cause, DiedTick: e.DiedTick}
 }
 
 func storageInfo(s *sim.Snapshot, st sim.StorageView) *StorageInfo {

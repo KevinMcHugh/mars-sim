@@ -166,3 +166,25 @@ func TestInspectDeadAndMissing(t *testing.T) {
 		t.Errorf("missing = %+v", e)
 	}
 }
+
+// A tile names the bodies on it from the dead's records: a colonist from the
+// archive, and a creature whose graveyard record has aged out by its kind.
+func TestInspectTileNamesTheDead(t *testing.T) {
+	snap := fixture(true)
+	p := sim.Point{X: 7, Y: 0, Level: sim.LandingLevel} // explored floor in the fixture
+	snap.Deceased = map[sim.EntityID]sim.EntityView{
+		40: {ID: 40, Kind: sim.Colonist, Profile: &sim.Profile{Name: "Uma Xu"}, Dead: true, DiedTick: 900, Cause: "starved"},
+	}
+	snap.Remains = map[sim.Point][]sim.Remains{p: {{ID: 40, Body: sim.ColonistCorpse}, {ID: 41, Body: sim.AnimalCorpse}}}
+	var tile TileTopic
+	due(t, snap, "tile:7,0", &tile)
+	if len(tile.Remains) != 2 {
+		t.Fatalf("remains = %+v", tile.Remains)
+	}
+	if b := tile.Remains[0]; b.ID != 40 || b.Name != "Uma Xu" || b.Cause != "starved" || b.DiedTick != 900 {
+		t.Errorf("colonist's body = %+v", b)
+	}
+	if b := tile.Remains[1]; b.ID != 41 || b.Name != "animal carcass #41" || b.Cause != "" {
+		t.Errorf("aged-out body = %+v", b)
+	}
+}
