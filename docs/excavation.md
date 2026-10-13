@@ -98,6 +98,24 @@ is over `maxExcavationTiles`, or costs more than the treasury holds.
   count can be higher than what the engine buys. (It also counts a tile on a
   page it doesn't hold as unseen.)
 
+## On the map
+
+Every tile an excavation order has marked and nobody has dug yet is hatched
+orange on the map, the marked area outlined, whatever tab is open and on any
+level (each level shows its own). Before this the only sign of an order was
+the drag's tint, which went away with the Dig tab, so a player could not see
+what was already ordered, and could order it again. The tiles ride the
+`zones` topic as `digs`, `[level, y, x0, x1]` row runs (`digRuns` in
+[`internal/wire/zones.go`](../internal/wire/zones.go)), from every
+`excavation` project's tasks not `Done`, which includes a zone's dig over rock.
+A tile under the fog stays marked until it is found and dug (see above).
+`zoneMarks` in [`web/src/main.ts`](../web/src/main.ts) turns them into
+`setMarks` tiles, the same layer that outlines defense zones (see
+[defense.md](./defense.md)): over the zones, filth and flow tints, under the
+sprites, with lines sized in pixels so they stay lines at any zoom, and a flat
+wash in place of stripes once a tile is under 6 pixels. Rooms' digging is not
+marked: it is the planner's, and the Jobs tab highlights it.
+
 ## Cancelling
 
 `CancelExcavation{ID}` names the excavation's project id, which the market

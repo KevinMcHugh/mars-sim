@@ -1,15 +1,18 @@
 package wire
 
 import (
+	"cmp"
 	"math"
+	"slices"
 
 	"github.com/kevinmchugh/mars-sim/internal/sim"
 )
 
 // Zoning's two topics (see docs/zoning.md). "zones" is what the map draws:
-// every zoned tile as row runs, and the colour of each kind. The page holds
-// it for its whole life, as it does "names", so the overlay is always there;
-// it changes only when someone zones something. "zoning" is the Zones tab:
+// every zoned tile as row runs, the colour of each kind, the defense zones,
+// and the tiles marked for digging. The page holds it for its whole life, as
+// it does "names", so the overlay is always there; it changes only when
+// someone zones, posts or stands down a defense zone, or digs a marked tile. "zoning" is the Zones tab:
 // the structure-type table, every structure, the clearing orders, and what
 // the colony is waiting on a zone for.
 
@@ -27,6 +30,11 @@ type ZonesTopic struct {
 	// level (see docs/defense.md).
 	Defense      [][6]int `json:"defense"`
 	DefenseColor string   `json:"defenseColor"`
+	// Digs are the tiles excavation orders have marked and nobody has dug
+	// yet, as row runs [level, y, x0, x1], sorted by level, row, then
+	// column, so the map can show what is marked for mining on any level
+	// whatever tab is open (see docs/excavation.md).
+	Digs [][4]int `json:"digs"`
 }
 
 // DefenseColor is the tint of a defense zone, on the map and the Zones tab.
@@ -44,6 +52,7 @@ func zonesTopic(s *sim.Snapshot) ZonesTopic {
 	for _, d := range s.Defense {
 		t.Defense = append(t.Defense, [6]int{d.ID, int(d.Level), d.X0, d.Y0, d.X1, d.Y1})
 	}
+	t.Digs = digRuns(s)
 	for _, r := range s.Zones {
 		locked := 0
 		if r.Locked {
@@ -52,6 +61,37 @@ func zonesTopic(s *sim.Snapshot) ZonesTopic {
 		t.Runs = append(t.Runs, [5]int{r.Y, r.X0, r.X1, int(r.Kind), locked})
 	}
 	return t
+}
+
+// digRuns is every undug tile of every excavation order, as sorted row runs.
+// A tile under the fog stays marked until it is found and dug (taskDone).
+func digRuns(s *sim.Snapshot) [][4]int {
+	var tiles []sim.Point
+	for _, p := range s.Projects {
+		if p.Name != sim.ExcavationName {
+			continue
+		}
+		for _, tk := range p.Tasks {
+			if !tk.Done {
+				tiles = append(tiles, tk.Pos)
+			}
+		}
+	}
+	slices.SortFunc(tiles, func(a, b sim.Point) int {
+		return cmp.Or(cmp.Compare(a.Level, b.Level), cmp.Compare(a.Y, b.Y), cmp.Compare(a.X, b.X))
+	})
+	runs := make([][4]int, 0, len(tiles))
+	for _, pt := range tiles {
+		if n := len(runs); n > 0 {
+			r := &runs[n-1]
+			if r[0] == int(pt.Level) && r[1] == pt.Y && r[3] >= pt.X-1 {
+				r[3] = max(r[3], pt.X)
+				continue
+			}
+		}
+		runs = append(runs, [4]int{int(pt.Level), pt.Y, pt.X, pt.X})
+	}
+	return runs
 }
 
 // zoneKinds lists the kinds by value, "none" first.

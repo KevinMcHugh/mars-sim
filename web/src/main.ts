@@ -12,7 +12,8 @@ import { namedStats, TILE_COMPOSITION_MASK, TILE_VISIBLE } from '../wire/decode.
 import { armShip, armSite, colonyLog, cycleFlowField, inspect, install, landAloft, moveShip, onLandingLevel, orderSite, selectionLevel, setFlowField, setPanel, shipSiteAt, shipSiteFree, shipTiles, stepLevel, stepSpeed, subscribe, syncFrame, togglePause, topics, ui, UI_HZ } from './game.svelte';
 import type { Rect, ShipLine, ShipsTopic, ZonePreview } from './game.svelte';
 import { attachInput } from './map/input';
-import { MapRenderer } from './map/renderer';
+import { MapRenderer, MARK_BOTTOM, MARK_HATCH, MARK_LEFT, MARK_RIGHT, MARK_TOP } from './map/renderer';
+import type { TileMark } from './map/renderer';
 import type { TileRect } from './map/camera';
 import { pickGlyph } from './emoji';
 import * as palette from './map/palette';
@@ -289,6 +290,7 @@ function resetGame(): void {
   map.setHighlight(null);
   map.setMark(null);
   map.setZones([], []);
+  map.setMarks([]);
   digFrom = null;
   ui.dig = { armed: false, rect: null, tiles: 0 };
   ui.zone = { armed: false, tool: ui.zone.tool, rect: null, preview: null, detail: ui.zone.detail };
@@ -412,6 +414,8 @@ interface ZonesTopic {
   /** Defense zones: [id, level, x0, y0, x1, y1] (docs/defense.md). */
   defense: number[][];
   defenseColor: string;
+  /** Tiles marked for digging and not dug yet: [level, y, x0, x1] (docs/excavation.md). */
+  digs?: number[][];
 }
 /** The zoning topic's structures, as the preview reads them. */
 interface ZoningTopic {
@@ -421,7 +425,8 @@ interface ZoningTopic {
 /** Draw the zones topic on the map. */
 function showZones(): void {
   const z = topics.data.zones as ZonesTopic | undefined;
-  if (!z) { map.setZones([], []); return; }
+  if (!z) { map.setZones([], []); map.setMarks([]); return; }
+  map.setMarks(zoneMarks(z, ui.level));
   // Zones are painted on the landing level only (docs/zoning.md); defense
   // zones lie on any level, over whatever zone is there, drawn as runs of
   // one more kind after the zone kinds.
@@ -434,6 +439,47 @@ function showZones(): void {
   const colors = z.kinds.map((k) => (k.color ? palette.zoneTint(k.color, palette.ZONE_ALPHA) : undefined!));
   colors.push(palette.zoneTint(z.defenseColor, palette.ZONE_ALPHA));
   map.setZones(runs, colors);
+}
+
+/**
+ * The standing marks on a level (docs/defense.md, docs/excavation.md): each
+ * defense zone outlined in its colour, and every tile marked for digging
+ * hatched, the marked area outlined. Whatever tab is open and whatever lies
+ * under them, so a guarded or a to-be-mined area always reads as one.
+ */
+function zoneMarks(z: ZonesTopic, level: number): TileMark[] {
+  const marks: TileMark[] = [];
+  const edge = palette.zoneTint(z.defenseColor, palette.MARK_ALPHA);
+  for (const [, l, x0, y0, x1, y1] of z.defense ?? []) {
+    if (l !== level) continue;
+    for (let y = y0; y <= y1; y++) {
+      for (let x = x0; x <= x1; x++) {
+        const style = (x === x0 ? MARK_LEFT : 0) | (x === x1 ? MARK_RIGHT : 0)
+          | (y === y0 ? MARK_TOP : 0) | (y === y1 ? MARK_BOTTOM : 0);
+        if (style) marks.push({ x, y, color: edge, style });
+        else if (y !== y0 && y !== y1) x = x1 - 1; // skip the inside of the row
+      }
+    }
+  }
+  // The dig tiles by row, to outline the edge of the marked set.
+  const rows = new Map<number, number[][]>();
+  for (const [l, y, x0, x1] of z.digs ?? []) {
+    if (l !== level) continue;
+    let r = rows.get(y);
+    if (!r) rows.set(y, (r = []));
+    r.push([x0, x1]);
+  }
+  const has = (x: number, y: number) => rows.get(y)?.some(([a, b]) => x >= a && x <= b) ?? false;
+  for (const [y, runs] of rows) {
+    for (const [x0, x1] of runs) {
+      for (let x = x0; x <= x1; x++) {
+        const style = MARK_HATCH | (x === x0 ? MARK_LEFT : 0) | (x === x1 ? MARK_RIGHT : 0)
+          | (has(x, y - 1) ? 0 : MARK_TOP) | (has(x, y + 1) ? 0 : MARK_BOTTOM);
+        marks.push({ x, y, color: palette.DIG_MARK, style });
+      }
+    }
+  }
+  return marks;
 }
 
 /** A previewed area this large is estimated but not tinted tile by tile. */

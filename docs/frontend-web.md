@@ -461,12 +461,17 @@ ticker's), until they are opened again.
   whatever tab is open: the page holds the `zones` topic for its life and
   `setZones` draws it as the lowest tint layer, under filth, with the
   defense zones on the level shown as runs of one more kind on top.
+  `setMarks` draws the player's standing marks from the same topic over
+  every tint and under the sprites: each defense zone's outline, and the
+  tiles dig orders have marked and nobody has dug yet, hatched (see
+  [excavation.md](./excavation.md), "On the map").
 - **Dig** orders an area mined out (see [excavation.md](./excavation.md)).
   **Mark an area** arms a tool: while it is armed a drag on the map draws a
   rectangle instead of panning (`attachInput`'s `areaTool` and `area` hooks),
   the rock the colony has seen in it is tinted with the same highlight the
   Jobs tab uses, and the panel prices it from the market topic's `dig` terms.
-  **Order** sends the `dig` command; the open orders are listed below with a **Cancel** that sends `dig-cancel`. The tool is one-shot, and leaving the tab
+  **Order** sends the `dig` command, and from then the area stays hatched
+  on the map whatever tab is open until it is dug; the open orders are listed below with a **Cancel** that sends `dig-cancel`. The tool is one-shot, and leaving the tab
   clears it. The page counts rock itself from the tile pages it holds
   (terrain 0, visible); the engine recounts, so the two can differ by tiles
   already ordered.
