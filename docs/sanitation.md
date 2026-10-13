@@ -50,9 +50,10 @@ Two fields on `Tile` hold everything there is to clean:
 
 Behind `Tile.Corpses` (a total, for display) the refuse index counts bodies
 **by kind** — `ColonistCorpse`, `AlienCorpse`, `AnimalCorpse` — because the
-kind decides where one goes. Every `addCorpse` call names it: starvation leaves
+kind decides where one goes. Every body names its kind: starvation leaves
 a colonist's body (or, for a rat, an animal's), `shoot` an alien's, `stomp` an
-animal's. Gore is one undifferentiated count: viscera is viscera, whoever it
+animal's. A death with a victim goes through `leaveBody`, which also records
+whose body it is for the tile inspector ([remains.md](./remains.md)). Gore is one undifferentiated count: viscera is viscera, whoever it
 came from.
 
 `refuseAt(p)` is their sum, and `refuseTotal()` is the map-wide running total,

@@ -266,7 +266,7 @@ func (w *World) fall(e *Entity) bool {
 	}
 	name := e.displayName()
 	if fatal {
-		w.addCorpse(dest, w.bodyOf(e))
+		w.leaveBody(e, dest, w.bodyOf(e))
 		w.remove(e.ID, "fell to its death")
 		w.logEvent(LogDeath, fmt.Sprintf("%s falls %d level(s) down a hole and is killed.", capitalizeFirst(name), levels))
 		return false

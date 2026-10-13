@@ -25,7 +25,7 @@ func (w *World) animalTurn(e *Entity) {
 		w.applyDriveConsequences(e)
 		if !e.Alive() { // starved this tick
 			w.clearJob(e)
-			w.addCorpse(e.Pos, sp.Corpse)
+			w.leaveBody(e, e.Pos, sp.Corpse)
 			w.remove(e.ID, "starved")
 			w.logEvent(LogDeath, fmt.Sprintf("%s #%d starves.", capitalizeFirst(sp.Name), e.ID))
 			return

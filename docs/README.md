@@ -51,6 +51,7 @@ way it is without re-deriving it from the source each time.
 | [construction.md](./construction.md) | Construction projects and the facility-room design: rooms facing any way, standing free, never cutting the colony in two, and the deadlocks that shaped it. |
 | [room-expansion.md](./room-expansion.md) | Rooms as walled rectangles holding any fixtures of one zone: the layout rule for where a fixture may stand, fitting fixtures into free floor, joining rooms side by side, back to back or facing each other, growing through any wall (a doorway moving with it), moving fixtures with their goods and links, emptying small rooms into bigger ones and clearing the shells, waiting for a room going up, the narrow fallback for the first, and the measurements behind it. |
 | [escape.md](./escape.md) | What happens when part of the colony ends up cut off: a sealed-in colonist digs or breaks its way out, and a cut-off facility gets a passage dug to it. |
+| [remains.md](./remains.md) | Whose body is whose: the remains index beside the refuse counts, why a body loses its name when it is picked up, and how the tile inspector names the dead. |
 | [sanitation.md](./sanitation.md) | Cleaning up gore and corpses, hauling refuse, the incinerator, and the trash room. |
 | [pathfinding.md](./pathfinding.md) | Rooms/regions, tile A\*, shared flow fields, and hierarchical (HPA\*) routing. |
 | [spatial-index-and-performance.md](./spatial-index-and-performance.md) | The occupancy index, incremental counts, chunk index, the job board, and the performance story. |

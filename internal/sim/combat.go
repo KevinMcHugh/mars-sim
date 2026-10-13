@@ -124,7 +124,7 @@ func (w *World) shoot(colonist, alien *Entity, weapon ItemKind, spec weaponSpec)
 		o.ActorText = fmt.Sprintf("Killed %s with %s!", noun, gun)
 		o.WitnessText = fmt.Sprintf("Watched %s kill %s.", colonist.displayName(), noun)
 		w.addGore(alien.Pos)
-		w.addCorpse(alien.Pos, AlienCorpse) // nothing eats an alien: the body is the colony's to dispose of
+		w.leaveBody(alien, alien.Pos, AlienCorpse) // nothing eats an alien: the body is the colony's to dispose of
 		w.remove(alien.ID, fmt.Sprintf("shot by %s with %s", colonist.displayName(), gun))
 		w.emitOccurrence(o)
 		w.logEvent(LogDeath, fmt.Sprintf("%s guns down %s with %s.", colonist.displayName(), noun, gun))

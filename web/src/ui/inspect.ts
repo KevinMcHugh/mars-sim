@@ -52,4 +52,11 @@ export interface TileInfo {
     ledger: { owner: string; item: string; count: number }[];
   };
   creatures: { id: number; glyph: string; look?: string[]; name: string; state: string }[];
+  /** Refuse and deposits on the tile, as the hover line shows them; absent when none. */
+  gore?: number; goreMax?: number;
+  scum?: number; scumMax?: number;
+  salt?: boolean;
+  bodies?: number;
+  /** The bodies here whose death is on record, oldest first (docs/remains.md). cause and diedTick are absent once the record has aged out. */
+  remains?: { id: number; glyph: string; look?: string[]; name: string; cause?: string; diedTick?: number }[];
 }

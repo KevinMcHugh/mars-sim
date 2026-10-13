@@ -153,7 +153,7 @@ func (w *World) colonistTurn(e *Entity) {
 	w.applyDriveConsequences(e)
 	if !e.Alive() { // starved this tick
 		w.clearJob(e) // release any board claim before removal
-		w.addCorpse(e.Pos, ColonistCorpse)
+		w.leaveBody(e, e.Pos, ColonistCorpse)
 		w.remove(e.ID, "starved")
 		w.logEvent(LogDeath, fmt.Sprintf("%s starved to death.", e.displayName()))
 		return
@@ -497,7 +497,7 @@ func (w *World) stomp(colonist, rat *Entity) {
 	o.ActorText = fmt.Sprintf("Crushed rat #%d.", rat.ID)
 	o.WitnessText = fmt.Sprintf("Watched a colonist crush rat #%d.", rat.ID)
 	w.addGore(rat.Pos)
-	w.addCorpse(rat.Pos, AnimalCorpse) // a crushed pest still has to be carried off
+	w.leaveBody(rat, rat.Pos, AnimalCorpse) // a crushed pest still has to be carried off
 	w.remove(rat.ID, fmt.Sprintf("crushed by %s", colonist.displayName()))
 	w.emitOccurrence(o)
 	w.logEvent(LogDeath, fmt.Sprintf("Colonist #%d stomps rat #%d.", colonist.ID, rat.ID))
