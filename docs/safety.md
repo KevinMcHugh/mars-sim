@@ -19,12 +19,21 @@ a [defense zone](./defense.md).
 
 Nothing here is built.
 
+## Decisions already made
+
+| Topic | Decision |
+| --- | --- |
+| Who guards | Only colonists who feel safe. A guard or bodyguard takes a post only while its own safety is calm, and gives the post up once it is uneasy. Guards never need guards. |
+| Who is not afraid | Disposition, not luck: traits for outlook and boldness, and a guarding skill learned on duty, make a colonist less susceptible to fear. Bodyguards are the colonists those leave calm. |
+| What a bodyguard knows | Only what is on the market: the contract's rate, hours and escrow, and where the client is. Never the client's drives, affect or memories. |
+| Defense over a home | Not a case. Home is already the safest place class, and a defense zone over it changes nothing for safety. |
+
 | Phase | What ships | Status |
 | --- | --- | --- |
-| S1 | The safety drive: a place-dependent rate (home, settled, frontier, guarded), bumps from percepts through a `drives` field on reactions in `cognition.yaml`, and the felt-unsafe experience at the ceiling. No behavior beyond affect. | Proposed |
+| S1 | The safety drive: a place-dependent rate (home, settled, frontier, guarded), bumps from percepts through a `drives` field on reactions in `cognition.yaml`, the felt-unsafe experience at the ceiling, and the disposition traits (Bold/Timid, and safety rules on nerve and outlook). No behavior beyond affect. | Proposed |
 | S2 | Hearsay: a recounted memory reaches the listener as a percept on a new `hearsay` channel, so hearing about a killing or a sighting is a reaction row; the dead become conversation topics. | Proposed |
 | S3 | Wants: one willingness-to-pay rule for any drive, the hook that posts an order when a drive presses, and the inspector line that explains it. | Proposed |
-| S4 | Bodyguards: `WorkEscort` contracts escrowed from the client, `JobEscort` as a guard post that follows a colonist, protection as a place class, and escorts on the Market tab. | Proposed |
+| S4 | Bodyguards: `WorkEscort` contracts escrowed from the client, `JobEscort` as a guard post that follows a colonist, protection as a place class, the calm-to-serve rule for every guard post, the guarding skill, and escorts on the Market tab. | Proposed |
 | S5 | Critical safety: retreating home, turning down frontier work, restless nights. | Proposed |
 | S6 | Other things fear buys: a gun of one's own, chipping in to a defense zone's wages. | Proposed |
 
@@ -37,6 +46,10 @@ What changes, when built:
 - `internal/sim/place.go` (new): `PlaceClass` (home, settled, frontier,
   guarded), `placeOf`, and `syncPlace`, the place twin of
   `syncDriveActivity`.
+- [`internal/sim/personality.go`](../internal/sim/personality.go): the
+  `daring` trait group (Bold, Timid); safety rates on Resilient, Cowardly,
+  Optimist and Pessimist.
+- [`internal/sim/skills.go`](../internal/sim/skills.go): `SkillGuarding`.
 - [`internal/sim/cognition_config.go`](../internal/sim/cognition_config.go):
   a `drives` field on reactions, the `hearsay` channel, and the `die`,
   `guard` and `hear` vocabulary.
@@ -114,8 +127,56 @@ escort entering or leaving `escort-radius` flips the client's flag and
 calls `refreshDrive`, so no client scans for its guard every tick.
 
 Carrying a weapon is a trait-like modifier, not a place: an armed colonist's
-safety builds at `safety-armed-percent` (−40) of the rate. Resilient (−30)
-and Cowardly (+50) set `driveRate` for safety in their trait specs.
+safety builds at `safety-armed-percent` (−40) of the rate. Disposition
+(below) scales it further.
+
+### Disposition: who is not afraid
+
+Whether a colonist can work the frontier, and whether it can earn a living
+guarding others, should come from who it is. Three layers, each already a
+mechanism in the game, do different jobs:
+
+| Layer | What it is | Lasts | Mechanism |
+| --- | --- | --- | --- |
+| Wear | habituation to a kind of sight | rolls off with the memories | fresh/worn on the `drives` bump |
+| Traits | temperament the colonist arrived with | for life | `driveRate` on safety, and trait rules scaling bumps |
+| Skill | nerve learned on duty | for life, grows with practice | `SkillGuarding` rank |
+
+**Traits.** A new mutually exclusive group, `daring`, appended after the
+existing groups so earlier rolls keep their order:
+
+| Trait | Safety rate | Bumps (trait rule `impact`) | Reads as |
+| --- | --- | --- | --- |
+| Bold | −40 | 60% from sight, 50% from hearsay | steady under fire; shrugs off rumors |
+| Timid | +40 | 140% | jumps at shadows |
+
+The existing groups take on safety where it is in their character, as data,
+not new traits:
+
+- **nerve.** Resilient −20 to the rate; Cowardly +50, and its existing
+  `cowardly-visible-alien` and `cowardly-bitten` rules scale the bumps too,
+  since a trait rule's impact scale applies to them.
+- **outlook.** Optimist discounts what it hears (hearsay bumps 70%) and
+  recovers faster at home (place% −400); Pessimist takes hearsay at 130%.
+  Outlook is about how a colonist reads the world, so it bites on rumor
+  rather than on what it sees with its own eyes.
+
+Trait percents multiply, as they do for every drive, so a Bold, Resilient,
+armed colonist on level 1's frontier builds safety at under a third of an
+ordinary colonist's rate there (60% × 80% × 60%): about 23 hours from calm
+to uneasy, against seven.
+
+**Skill.** `SkillGuarding` is practised by every tick on station, as a guard
+or an escort, and by every alien a guard fights. Base 4, the baseline: there
+is plenty of it once a colony keeps a detail, and a veteran should be
+plainly better than a recruit. Each rank cuts the frontier and guarded
+rates and the sight bumps by `guarding-nerve-percent` (15) per rank, up to
+four ranks. It is not wear: wear rolls off when the memories do, and a
+veteran who has been home a month is still a veteran.
+
+Skill feeds the market the usual way (see [skills.md](./skills.md)): a
+ranked guard's reservation is what it has been earning, so veterans hold
+out for better-paying contracts and recruits take the cheap ones.
 
 ### What a colonist sees
 
@@ -256,11 +317,27 @@ rather than forks: `defensePost` gets a second shape, an area of
 `escort-radius` (3) round its client's position, and everything else is
 shared. `JobEscort` is `JobGuard` on a moving area:
 
-- **Who takes it.** An armed colonist looking for work, in `assignWorkJob`
-  where `tryAssignGuard` is, and in one comparison with it: open defense
-  posts and escort contracts ranked by hourly pay, then id. Not the client
-  itself, and only if the client is reachable. A contract is open only
-  while its client is out of its home; a colonist at home needs no guard.
+- **Who takes it.** An armed colonist looking for work whose own safety is
+  calm (below `SeekAt`), in `assignWorkJob` where `tryAssignGuard` is, and
+  in one comparison with it: open defense posts and escort contracts ranked
+  by hourly pay, then id. Not the client itself, and only if the client is
+  reachable. A contract is open only while its client is out of its home;
+  a colonist at home needs no guard.
+- **Only the market.** What an escort weighs is what the book shows: the
+  contract's rate, hours left, escrow, and where its client stands. Where
+  the client stands is public, the way any colonist is visible on the map.
+  How the client feels is not. The escort never reads the client's drives,
+  affect or memories, and the client's fear reaches the market only as the
+  price it chose to post. That rules out the shortcut `companyInReach`
+  takes for conversation ([drives.md](./drives.md), *Known problem*).
+- **Calm to serve.** The same rule holds on station, for defense posts as
+  well as contracts: a guard whose own safety reaches pressing gives the
+  post up (`currentFocusEligible` for `JobGuard` and `JobEscort`), and the
+  post is released for the next calm, armed colonist. Guards out on the
+  frontier still feel it, more slowly for being armed, Bold or skilled, so
+  a detail turns over as its guards get uneasy, the way it already turns
+  over for food and sleep. That is why guards never need guards: whoever
+  is on station is, by construction, not afraid.
 - **On station.** The escort walks to within `escort-radius` of the client
   and keeps there, re-pathing when the client moves (a target it already
   follows the way a hauler follows a route). Every tick it looks for an
@@ -347,6 +424,22 @@ for each miner buys them back.
   station (fight within sight, leave for drives, release on leaving, pay by
   time inside the area) is what an escort does. Only the area moves. One
   post type keeps the invariants in one place.
+- **Guards self-select by calm, not by a guard flag.** A bodyguard who is
+  itself afraid is no protection, and hiring guards for guards has no
+  bottom. Making calm the condition for taking and keeping a post means the
+  colonists who end up guarding are the armed, Bold, skilled ones, without
+  a role anyone assigns. It also changes defense zones: a detail on a
+  dangerous mine now staffs itself from the brave, and runs short when the
+  colony has none, which is a fact the Zones tab should show.
+- **Disposition as traits and a skill, not one stat.** A courage number
+  would be the integer-as-interface mistake (rule 1). Traits say who a
+  colonist was when it landed; the skill says what duty has made of it;
+  wear says what it has seen lately. Each has a different lifetime, so
+  each is its own mechanism.
+- **Escorts read the book.** Colonists already read each other's minds to
+  decide who will talk, and drives.md calls that a known problem. Hiring is
+  new code, so it starts from the end state: the client's fear is private,
+  and the price is how it speaks.
 - **Not billed at home.** The client is safe there anyway, and keeping a
   guard outside a bedroom for eight hours is the empty-post problem defense
   zones solved by releasing on leaving.
@@ -370,6 +463,7 @@ for each miner buys them back.
 | `escort-radius` | 3 | how close an escort keeps, and counts as guarding |
 | `escort-willingness` | 250 | percent of `wage-guard` an unsafe colonist will pay at the ceiling |
 | `want-recheck-ticks` | 90 | how often an open want is reconsidered while it presses |
+| `guarding-nerve-percent` | 15 | how much each `SkillGuarding` rank cuts safety's frontier rate and sight bumps |
 
 ## Extending it
 
@@ -388,8 +482,13 @@ for each miner buys them back.
 - **Invariants:** every safety rate change goes through `refreshDrive`; the
   guarded flag changes only on the escort's enter/leave transition; a
   contract has at most one escort on station; escorts and posts are ranked
-  by pay then id, never by map order; hearsay never exceeds
+  by pay then id, never by map order; nobody holds a guard post or contract
+  while its own safety is pressing; nothing in hiring reads another
+  colonist's drives, affect or memories; hearsay never exceeds
   `hearsay-max-hops`.
+- **A new disposition trait** (a veteran's Shell-Shocked, acquired by too
+  many killings witnessed) is a `traitSpec` with a safety `driveRate` and,
+  if it should change what sights do, trait rules in `cognition.yaml`.
 
 ## Open questions
 
@@ -397,22 +496,19 @@ for each miner buys them back.
   barely mourned until someone notices. Should there be a daily notice, an
   occurrence everyone perceives at the day's turn, for each colonist who
   died the day before?
-- **Do escorts count as frontier work?** An escort out on the frontier
-  feels it too, less because it is armed. Should being the bodyguard itself
-  count as guarded (strength in numbers), or should guards need guards?
-- **Does a defense zone over the colonist's own home matter?** Home is
-  already the safest place. Probably not, but a raid on the dormitories is
-  exactly when it would.
-- **Who sees fear?** Colonists currently read each other's drives to decide
-  who will talk ([drives.md](./drives.md), *Known problem*). An escort
-  should take a contract because it is on the book, not because it can see
-  the client is afraid; keep it that way.
+- **Hiring by reputation.** A client sees nothing about who takes its
+  contract. Should a client be able to post "rank 2 guarding or better", at
+  a higher price, once skill ranks are public on the roster?
 
 ## Related
 
 - [drives.md](./drives.md): the drive model, bands, consequences, and the
   location-dependent rate roadmap this builds on.
-- [defense.md](./defense.md): guard posts, which escorts generalize.
+- [defense.md](./defense.md): guard posts, which escorts generalize, and
+  which take on the calm-to-serve rule.
+- [personality.md](./personality.md): trait groups, where `daring` joins.
+- [skills.md](./skills.md): ranks and reservations, where `SkillGuarding`
+  joins.
 - [compositional-perception-and-events.md](./compositional-perception-and-events.md):
   the grammar the bumps and the hearsay channel extend.
 - [affect.md](./affect.md): wear, fresh/worn readings, trait scales.
