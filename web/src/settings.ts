@@ -1,4 +1,4 @@
-// New-game settings, from the URL (?width=2000&seed=7&fog-of-war=false&zoning-auto=true&siting-auto=true&deepest-level=3) over
+// New-game settings, from the URL (?width=2000&seed=7&fog-of-war=false&zoning-auto=true&siting-auto=true&deepest-level=3&alien-species-count=2) over
 // these defaults. Keys are mars-sim.yaml's (see docs/config-file.md); a seed
 // left out lets the engine pick one. They fill the New game form, which a
 // cold load opens rather than starting a game (docs/frontend-web.md).
@@ -7,8 +7,10 @@ import type { Settings } from './sim/client';
 
 // deepest-level 3, not the engine's 1, so a browser game can dig two levels
 // down and shows the level controls; ?deepest-level=1 keeps the colony on
-// the landing level (docs/z-levels.md).
-const DEFAULTS: Settings = { width: 10000, height: 10000, colonists: 6, 'fog-of-war': true, 'zoning-auto': false, 'siting-auto': false, 'deepest-level': 3 };
+// the landing level (docs/z-levels.md). 20 colonists (one full ship) and 3
+// alien species, not the engine's 6 and 1, so a browser game starts with a
+// colony and a world big enough to be interesting.
+const DEFAULTS: Settings = { width: 10000, height: 10000, colonists: 20, 'alien-species-count': 3, 'fog-of-war': true, 'zoning-auto': false, 'siting-auto': false, 'deepest-level': 3 };
 
 /**
  * Most settlers one colony ship carries: sim.DefaultConfig's ship-capacity.
@@ -41,7 +43,7 @@ export function describeShips(loads: number[]): string {
 export function initialSettings(): Settings {
   const s: Settings = { ...DEFAULTS };
   const params = new URLSearchParams(location.search);
-  for (const key of ['width', 'height', 'colonists', 'seed', 'deepest-level']) {
+  for (const key of ['width', 'height', 'colonists', 'alien-species-count', 'seed', 'deepest-level']) {
     const v = params.get(key);
     if (v !== null && v !== '') s[key] = Number(v);
   }

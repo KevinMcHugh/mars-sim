@@ -103,16 +103,20 @@ The rest of the TUI's tabs are planned in
 **Running it:** from `web/`, run `npm install` once, then `npm run dev`, which
 rebuilds the WASM first (`predev`), then serves the game on
 <http://localhost:5173/> and the spike on `/spike/`. The URL fills the
-new-game form: `?width=2000&height=2000&seed=7&fog-of-war=false&zoning-auto=true&siting-auto=true`. `npm run build`
+new-game form: `?width=2000&height=2000&seed=7&fog-of-war=false&zoning-auto=true&siting-auto=true&alien-species-count=2`. `npm run build`
 writes a static site to `web/dist/`. `npm run check` type-checks and `npm test`
 runs the wire decoder's, the activity chart's, the ship count's, the Storage tab's and the shared number and time formats' tests. All of these need Go on the path. After a Go
 change with the dev server already running, run `npm run wasm` and reload.
 
 **The new-game form.** A cold load starts no game: it opens the **Game**
-tab, filled from the URL over the defaults (10000×10000, 6
-colonists, fog of war on, deepest level 3, no seed, so the engine picks
-one), and **Start**
-goes straight to the Ships tab. The page used to generate a 10000×10000
+tab, filled from the URL over the defaults (10000×10000, 20
+colonists — one full ship — 3 alien species, fog of war on, deepest level
+3, no seed, so the engine picks one), and **Start**
+goes straight to the Ships tab. The fields sit in an **Options** fold that
+starts shut (`Section`'s `shut`), with a line above Start saying what the
+defaults give ("20 colonists in 1 ship, 3 alien species"): most players
+start on the defaults, and a wall of inputs made the tab read as a chore.
+Opening Options is remembered like any fold. The page used to generate a 10000×10000
 world on load, so the first thing a player saw was a game they had not
 chosen, and changing it meant generating a second world. Under the colonist
 count the form says how many ships that is to land ("2 ships of 15"):
