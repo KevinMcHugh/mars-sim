@@ -26,12 +26,13 @@ Nothing here is built.
 | Who guards | Only colonists who feel safe. A guard or bodyguard takes a post only while its own safety is calm, and gives the post up once it is uneasy. Guards never need guards. |
 | Who is not afraid | Disposition, not luck: traits for outlook and boldness, and a guarding skill learned on duty, make a colonist less susceptible to fear. Bodyguards are the colonists those leave calm. |
 | What a bodyguard knows | Only what is on the market: the contract's rate, hours and escrow, and where the client is. Never the client's drives, affect or memories. |
+| How deaths get around | Two ways: hearsay as people talk, and the **nightly news**, a broadcast every evening of the day's major news. Deaths first; arrivals next; more kinds later. |
 | Defense over a home | Not a case. Home is already the safest place class, and a defense zone over it changes nothing for safety. |
 
 | Phase | What ships | Status |
 | --- | --- | --- |
 | S1 | The safety drive: a place-dependent rate (home, settled, frontier, guarded), bumps from percepts through a `drives` field on reactions in `cognition.yaml`, the felt-unsafe experience at the ceiling, and the disposition traits (Bold/Timid, and safety rules on nerve and outlook). No behavior beyond affect. | Proposed |
-| S2 | Hearsay: a recounted memory reaches the listener as a percept on a new `hearsay` channel, so hearing about a killing or a sighting is a reaction row; the dead become conversation topics. | Proposed |
+| S2 | Hearsay and the nightly news: a recounted memory reaches the listener as a percept on a new `hearsay` channel, so hearing about a killing or a sighting is a reaction row; the dead become conversation topics; an evening broadcast on a `broadcast` channel reports the day's deaths, then arrivals. | Proposed |
 | S3 | Wants: one willingness-to-pay rule for any drive, the hook that posts an order when a drive presses, and the inspector line that explains it. | Proposed |
 | S4 | Bodyguards: `WorkEscort` contracts escrowed from the client, `JobEscort` as a guard post that follows a colonist, protection as a place class, the calm-to-serve rule for every guard post, the guarding skill, and escorts on the Market tab. | Proposed |
 | S5 | Critical safety: retreating home, turning down frontier work, restless nights. | Proposed |
@@ -60,6 +61,9 @@ What changes, when built:
   percepts for the listener; the dead as topics.
 - [`internal/sim/entity.go`](../internal/sim/entity.go): `Memory` gains the
   gist of the occurrence it holds and a hop count.
+- `internal/sim/news.go` (new): `NewsItem`, `reportNews`, `broadcastNews`,
+  and each colonist's cursor into the news; deaths report from where a
+  colonist is removed, arrivals from ship landings and recruiting.
 - `internal/sim/wants.go` (new): `wantSpec`, `willingness`, `postWants`.
 - [`internal/sim/workorder.go`](../internal/sim/workorder.go): `WorkEscort`.
 - [`internal/sim/defense.go`](../internal/sim/defense.go): the post grows a
@@ -257,9 +261,60 @@ reactions:
   killed." is a hearsay percept too. Friends (`object_relation: friend`)
   take it hardest, as a trait-free rule.
 
-This is deliberately slow and uneven: a death is known by the people who
-saw it and spreads as people talk. A colony-wide death notice at the start
-of each day is the alternative; see *Open questions*.
+Hearsay is slow and uneven on purpose: a death is known first by the people
+who saw it and spreads as people talk. The nightly news makes sure it
+reaches everyone by the end of the day.
+
+### The nightly news
+
+Every evening at `news-hour` (21:00, an hour before the base rhythm's
+bedtime) the colony hears the day's major news. It is the colony's one
+broadcast: one place where any system can put something everyone should
+know, and one reaction channel that says how hearing it feels.
+
+- **Reporting.** A system with news calls `reportNews(gist, subject,
+  text)` at its point of truth. The item joins `World.news`, in tick order,
+  with the same gist a memory carries (actor noun, action, object noun) and
+  the entity or ship it is about. Today: a colonist dies (`colonist / die`,
+  "Cy Ortega was killed by a grelk on level 2.", or starved, or fell). Next:
+  arrivals (`ship / land`, "A ship landed with 12 aboard."; a recruit
+  joining). Later, anything major: a nest found, a new species sighted, a
+  cavern broken into, a defense zone posted.
+- **Broadcasting.** At `news-hour`, `broadcastNews` walks living colonists
+  in ID order and hands each the items since its cursor as percepts on a new
+  `broadcast` channel, role witness, phase instant. A colonist asleep or
+  passed out at news time hears it when it next wakes; the cursor is what
+  makes that free. No RNG is drawn, so it is deterministic and costs one
+  pass a day.
+- **Already knew.** A colonist whose memories already hold the same gist
+  about the same subject (it saw the killing, or heard it over lunch) skips
+  that item, so a witness is not hit twice by one death.
+- **Reactions** are rows like any other:
+
+```yaml
+  - id: news-colonist-died
+    match: { actor_noun: colonist, action: die, channel: broadcast }
+    memory: { record: true }
+    affect: { impact: 35, fresh: { charge: 5, grip: -15, valence: -25 },
+              worn: { charge: 0, grip: -20, valence: -25 } }
+    drives: { safety: { fresh: 120, worn: 80 } }
+    wear_policy: memory-occasions
+  - id: news-arrival
+    match: { actor_noun: ship, action: land, channel: broadcast }
+    memory: { record: true }
+    affect: { impact: 15, fresh: { charge: 5, grip: 5, valence: 10 },
+              worn: { charge: 2, grip: 2, valence: 5 } }
+    drives: { safety: { fresh: -30, worn: -10 } }
+```
+
+  A friend's death (`object_relation: friend`) hits harder, as on every
+  other channel. New arrivals ease safety a little: more hands, more guns.
+- **Retelling.** A news memory is hop 0, like something seen, so it can be
+  recounted as hearsay the next day. The memory reads "Heard on the evening
+  news: Cy Ortega was killed by a grelk."
+- **Frontends.** The log prints the broadcast as one entry headed "Evening
+  news, day 4", and a `news` topic lists past broadcasts for a News panel.
+  `World.news` keeps the last `news-days` (30) days, so it stays bounded.
 
 ### At the ceiling
 
@@ -404,6 +459,13 @@ for each miner buys them back.
   meeting hall. A class with a negative rate for safe places gives the same
   curve, recovers naturally, and is the shape the beauty/comfort roadmap
   already asked for.
+- **A broadcast, not instant knowledge.** Every colonist learning of a death
+  the tick it happens would be the "universal fact stream" the perception
+  design rejected, and it would flatten the story: nobody would ever be the
+  one to break the news. Once a day, at a time the colony keeps, gives a
+  death a few hours to travel by word of mouth first and still guarantees
+  nobody is killed alone and forgotten. One channel for all major news means
+  arrivals and the rest cost a `reportNews` call and a reaction row each.
 - **Hearsay as a channel, not a conversation effect.** The obvious build
   was a function next to `applyGossip` that nudges the listener when the
   topic is scary. That is a second, hand-written list of what is scary.
@@ -459,6 +521,8 @@ for each miner buys them back.
 | `safety-armed-percent` | −40 | rate change while carrying a weapon |
 | `hearsay-max-hops` | 2 | how many retellings news survives |
 | `hearsay-hop-percent` | 50 | how much of a bump survives each retelling |
+| `news-hour` | 21 | the clock hour of the evening broadcast |
+| `news-days` | 30 | days of broadcasts the colony keeps |
 | `escort-hours` | 8 | length of a contract |
 | `escort-radius` | 3 | how close an escort keeps, and counts as guarding |
 | `escort-willingness` | 250 | percent of `wage-guard` an unsafe colonist will pay at the ceiling |
@@ -469,6 +533,8 @@ for each miner buys them back.
 
 - **A new thing to be afraid of** (a sinkhole, a cave-in, an uncatalogued
   species) is an occurrence and a reaction with a `drives` field. No Go.
+- **A new kind of news** is a `reportNews` call where the thing happens and
+  a reaction on the `broadcast` channel. Nothing in the broadcast changes.
 - **Another drive that buys** (comfort buying furniture, hygiene buying a
   wash) is a `wantSpec` row and its `Post`.
 - **Buying a gun instead (S6).** A second option on safety's want: a bid for
@@ -492,10 +558,9 @@ for each miner buys them back.
 
 ## Open questions
 
-- **Death notices.** Gossip-only means a colonist killed alone, unseen, is
-  barely mourned until someone notices. Should there be a daily notice, an
-  occurrence everyone perceives at the day's turn, for each colonist who
-  died the day before?
+- **What counts as major news.** Deaths and arrivals are clear. Should
+  smaller things make it on a slow day (a rank-up, a new house), or should
+  the broadcast stay rare enough that hearing it means something?
 - **Hiring by reputation.** A client sees nothing about who takes its
   contract. Should a client be able to post "rank 2 guarding or better", at
   a higher price, once skill ranks are public on the roster?
