@@ -65,7 +65,7 @@ func (w *World) cancelOrdered(id int, name, what, doneVerb string) bool {
 		// A worker on its way drops the job, so it is not paid for a task
 		// that no longer exists.
 		w.cancelProject(p)
-		w.logEvent(LogBuildStart, fmt.Sprintf("The colony cancels %s of %d tiles, %d already %s, and takes back %v.",
+		w.logEventProject(LogBuildStart, p, fmt.Sprintf("The colony cancels %s of %d tiles, %d already %s, and takes back %v.",
 			what, len(p.tasks), done, doneVerb, refunded))
 		return true
 	}
@@ -96,11 +96,11 @@ func (w *World) orderExcavation(c OrderExcavation) bool {
 	}
 	p := w.startExcavation(rock)
 	if p == nil {
-		w.logEvent(LogBuildStart, fmt.Sprintf("The treasury cannot pay %v to dig out %d tiles.",
+		w.logEventAt(LogBuildStart, rectSite(x0, y0, x1, y1, orderLevel(c.Level)), fmt.Sprintf("The treasury cannot pay %v to dig out %d tiles.",
 			Money(len(rock))*w.wageFor(Floor), len(rock)))
 		return false
 	}
-	w.logEvent(LogBuildStart, fmt.Sprintf("The colony orders %d tiles dug out, %v escrowed.", len(rock), w.projectCost(p)))
+	w.logEventProject(LogBuildStart, p, fmt.Sprintf("The colony orders %d tiles dug out, %v escrowed.", len(rock), w.projectCost(p)))
 	return true
 }
 

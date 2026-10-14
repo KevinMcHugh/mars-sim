@@ -382,7 +382,7 @@ func (w *World) noteForaging(e *Entity) {
 		return
 	}
 	e.forageNoted = true
-	w.logEvent(LogNote, fmt.Sprintf("%s has nothing to eat and goes looking for scum.", e.displayName()))
+	w.logEventAt(LogNote, e.Pos, fmt.Sprintf("%s has nothing to eat and goes looking for scum.", e.displayName()))
 }
 
 // foodCooking reports whether the colony's cooks, at scumhouses e can

@@ -90,7 +90,7 @@ func (w *World) digHole(p Point) bool {
 	w.addLayer(below.Level)
 	w.SetTerrain(below, Floor)
 	w.SetTerrain(p, Hole)
-	w.logEvent(LogBuildComplete, fmt.Sprintf("A hole is broken through to level %d.", below.Level))
+	w.logEventAt(LogBuildComplete, p, fmt.Sprintf("A hole is broken through to level %d.", below.Level))
 	return true
 }
 
@@ -128,7 +128,7 @@ func (w *World) designateHole(p Point) bool {
 	}
 	w.nextProjectID++
 	w.projects = append(w.projects, pr)
-	w.logEvent(LogBuildStart, fmt.Sprintf("The colony marks out a hole at (%d, %d) down to level %d.", p.X, p.Y, p.Level+1))
+	w.logEventAt(LogBuildStart, p, fmt.Sprintf("The colony marks out a hole at (%d, %d) down to level %d.", p.X, p.Y, p.Level+1))
 	return true
 }
 
@@ -221,7 +221,7 @@ func (w *World) designateLadder(h Point) bool {
 	}
 	w.nextProjectID++
 	w.projects = append(w.projects, pr)
-	w.logEvent(LogBuildStart, fmt.Sprintf("The colony means to fit a ladder into the hole at (%d, %d).", h.X, h.Y))
+	w.logEventAt(LogBuildStart, h, fmt.Sprintf("The colony means to fit a ladder into the hole at (%d, %d).", h.X, h.Y))
 	return true
 }
 
@@ -268,10 +268,10 @@ func (w *World) fall(e *Entity) bool {
 	if fatal {
 		w.leaveBody(e, dest, w.bodyOf(e))
 		w.remove(e.ID, "fell to its death")
-		w.logEvent(LogDeath, fmt.Sprintf("%s falls %d level(s) down a hole and is killed.", capitalizeFirst(name), levels))
+		w.logEventAt(LogDeath, dest, fmt.Sprintf("%s falls %d level(s) down a hole and is killed.", capitalizeFirst(name), levels))
 		return false
 	}
-	w.logEvent(LogNote, fmt.Sprintf("%s falls %d level(s) down a hole to level %d.", capitalizeFirst(name), levels, dest.Level))
+	w.logEventAt(LogNote, dest, fmt.Sprintf("%s falls %d level(s) down a hole to level %d.", capitalizeFirst(name), levels, dest.Level))
 	return true
 }
 
@@ -328,7 +328,7 @@ func (w *World) leap(e *Entity, h Point, why string) bool {
 	if _, ok := w.freeTileNear(land, e.ID); !ok {
 		return true // nowhere to land: it stays where it is
 	}
-	w.logEvent(LogNote, why)
+	w.logEventAt(LogNote, h, why)
 	w.lay(e.Pos).occ.set(e.Pos.X, e.Pos.Y, 0)
 	w.lay(h).occ.set(h.X, h.Y, e.ID)
 	if oc, nc := w.chunkIndexOf(e.Pos), w.chunkIndexOf(h); oc != nc {
@@ -405,5 +405,5 @@ func (w *World) tipDown(e *Entity, h Point) {
 	o := w.occurrence(e, ActionIncinerate, nil, e.Pos, "Tipped %s down a hole.", phrase)
 	o.Object = FactRef{Noun: NounRefuse, Label: "refuse"}
 	w.emitOccurrence(o)
-	w.logEvent(LogBurn, fmt.Sprintf("%s tips %s down a hole to level %d.", e.displayName(), phrase, land.Level))
+	w.logEventAt(LogBurn, land, fmt.Sprintf("%s tips %s down a hole to level %d.", e.displayName(), phrase, land.Level))
 }

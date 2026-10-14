@@ -177,7 +177,7 @@ func (w *World) hireRecruits(c HireRecruits) bool {
 	}
 	w.recruits = nil
 	w.recruitsHired += len(picks)
-	w.logEvent(LogArrival, fmt.Sprintf("%s from off-world for %v, bringing %v: %s.",
+	w.logEventAt(LogArrival, at[0], fmt.Sprintf("%s from off-world for %v, bringing %v: %s.",
 		pluralize(len(picks), "recruit arrives", "recruits arrive"), cost, brought, strings.Join(names, ", ")))
 	return true
 }

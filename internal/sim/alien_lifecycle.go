@@ -435,7 +435,7 @@ func (w *World) growUp(e *Entity) {
 	e.clearPath()
 	e.Quarry = 0
 	if !w.dormant(e) {
-		w.logEvent(LogBirth, fmt.Sprintf("%s %s into %s.", capitalizeFirst(before), leaveVerb(from), w.alienNounFor(e)))
+		w.logEventAt(LogBirth, e.Pos, fmt.Sprintf("%s %s into %s.", capitalizeFirst(before), leaveVerb(from), w.alienNounFor(e)))
 	}
 }
 
@@ -471,7 +471,7 @@ func (w *World) layBrood(e *Entity) {
 		if first.Inert {
 			verb = "lays"
 		}
-		w.logEvent(LogBirth, fmt.Sprintf("%s %s %s.", capitalizeFirst(w.alienNounFor(e)), verb, w.alienNounFor(young)))
+		w.logEventAt(LogBirth, young.Pos, fmt.Sprintf("%s %s %s.", capitalizeFirst(w.alienNounFor(e)), verb, w.alienNounFor(young)))
 	}
 }
 

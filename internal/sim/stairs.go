@@ -166,7 +166,7 @@ func (w *World) digStair(p Point) bool {
 	w.addLayer(below.Level)
 	w.SetTerrain(below, StairUp)
 	w.SetTerrain(p, StairDown)
-	w.logEvent(LogBuildComplete, fmt.Sprintf("A stair is dug down to level %d.", below.Level))
+	w.logEventAt(LogBuildComplete, p, fmt.Sprintf("A stair is dug down to level %d.", below.Level))
 	return true
 }
 
@@ -242,7 +242,7 @@ func (w *World) designateStair(p Point, issuer Owner) bool {
 	}
 	w.nextProjectID++
 	w.projects = append(w.projects, pr)
-	w.logEvent(LogBuildStart, fmt.Sprintf("The colony marks out a stair down to level %d.", p.Level+1))
+	w.logEventAt(LogBuildStart, p, fmt.Sprintf("The colony marks out a stair down to level %d.", p.Level+1))
 	return true
 }
 

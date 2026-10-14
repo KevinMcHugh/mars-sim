@@ -529,7 +529,7 @@ func (w *World) passOut(e *Entity, d DriveKind) {
 	w.refreshDrives(e)
 	o := w.occurrence(e, ActionCollapse, nil, e.Pos, "Passed out from exhaustion.")
 	w.emitOccurrence(o)
-	w.logEvent(LogNote, fmt.Sprintf("%s passed out from exhaustion.", e.displayName()))
+	w.logEventAt(LogNote, e.Pos, fmt.Sprintf("%s passed out from exhaustion.", e.displayName()))
 	w.markMindDirty(e)
 }
 
@@ -566,5 +566,5 @@ func (w *World) wetSelf(e *Entity, d DriveKind) {
 	o.ActorText = fmt.Sprintf("Wet %s.", e.reflexive())
 	o.WitnessText = fmt.Sprintf("Saw %s wet %s.", e.displayName(), e.reflexive())
 	w.emitOccurrence(o)
-	w.logEvent(LogNote, fmt.Sprintf("%s wet %s.", e.displayName(), e.reflexive()))
+	w.logEventAt(LogNote, e.Pos, fmt.Sprintf("%s wet %s.", e.displayName(), e.reflexive()))
 }

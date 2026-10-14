@@ -27,7 +27,7 @@ func (w *World) animalTurn(e *Entity) {
 			w.clearJob(e)
 			w.leaveBody(e, e.Pos, sp.Corpse)
 			w.remove(e.ID, "starved")
-			w.logEvent(LogDeath, fmt.Sprintf("%s #%d starves.", capitalizeFirst(sp.Name), e.ID))
+			w.logEventAt(LogDeath, e.Pos, fmt.Sprintf("%s #%d starves.", capitalizeFirst(sp.Name), e.ID))
 			return
 		}
 	}
