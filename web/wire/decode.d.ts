@@ -58,6 +58,9 @@ export interface Hello {
   deepestLevel: number;
   /** The siting-auto setting: whether the colony may pick where to dig down itself (docs/siting.md). */
   sitingAuto: boolean;
+  /** The colony calendar, for dating a tick as "Day 3 07:05" (ui/format.ts when; docs/days.md). */
+  ticksPerDay: number;
+  landingHour: number;
 }
 
 export interface Frame {

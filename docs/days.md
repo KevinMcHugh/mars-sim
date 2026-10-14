@@ -25,6 +25,8 @@ from that.
 - [`internal/sim/snapshot.go`](../internal/sim/snapshot.go) — `Stats.Day` and `Stats.MinuteOfDay`, filled in by `snapshot`.
 - [`internal/ui/tui/view.go`](../internal/ui/tui/view.go) — `renderHeader` shows `day N  HH:MM` on the title line.
 - [`web/src/ui/TopBar.svelte`](../web/src/ui/TopBar.svelte) — the web top bar's `day N HH:MM` readout.
+- [`internal/wire/wire.go`](../internal/wire/wire.go) — Hello's `TicksPerDay` and `LandingHour`, the calendar the page dates past ticks with.
+- [`web/src/ui/format.ts`](../web/src/ui/format.ts) — `when` and `whenRange`, the page's copy of `DayOf` and `MinuteOfDay`, used wherever a panel says when something happened (log lines, memories, deaths and bodies, market trades, queued projects); `format.test.mjs` pins it to the Go tests' cases.
 - [`internal/sim/drives_test.go`](../internal/sim/drives_test.go) — `TestTicksPerDayFollowsSleep`, `TestDayOfCountsLandingAsDayOne`, `TestMinuteOfDayStartsAtLandingHour`.
 - [`internal/sim/sleep_test.go`](../internal/sim/sleep_test.go) — trait night lengths, the night lasting until sleep is met, interrupted nights keeping what was slept, and waking to flee.
 - [`internal/ui/tui/render_test.go`](../internal/ui/tui/render_test.go) — `TestHeaderShowsDayAndTimeOfDay`.
@@ -112,9 +114,16 @@ it there truncated that line, which `TestLogTabShowsTheFullEntryWrapped` caught.
 - **Charts stay in ticks.** The performance and population charts measure the
   engine; a day there would only blur the resolution. Days are for the player's
   sense of elapsed colony time.
-- **A clock in Go, not in the page.** The sim sends minutes since midnight
-  rather than the day length, so the TUI and the page cannot disagree about
-  where the landing falls or when midnight is.
+- **A clock in Go, and one copy in the page.** For the current time the sim
+  sends minutes since midnight rather than the day length, so the TUI and the
+  page cannot disagree about where the landing falls or when midnight is. But
+  the page also dates things that already happened (a log line, a memory, a
+  death, a trade), each sent as a tick; a day and minute beside every one of
+  those would have meant a wire field per timestamp. So Hello carries
+  `ticksPerDay` and `landingHour` once, and `format.ts` repeats the two-line
+  formula, with a test using the Go tests' own cases so the two cannot drift
+  quietly. Panels show those times as "Day 3 07:05", never as a tick: a tick
+  number meant nothing to a player next to a top bar that reads in days.
 - **Landing at 06:00, midnight rollover.** Colonists land with no sleep drive,
   so landing is their morning. A day number that turned over at landing would
   make 05:59 and 06:00 different days, which reads wrong next to a clock.

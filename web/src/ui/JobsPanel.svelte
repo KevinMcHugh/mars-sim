@@ -3,6 +3,7 @@
   // the TUI's shows it. Selecting a project lays its tiles over the map:
   // yellow queued, orange being built, green done.
   import { centerOn, highlight, inspect, subscribe, topics, ui } from '../game.svelte';
+  import { span, when } from './format';
   import { JOB_BUILDING, JOB_DONE, JOB_QUEUED } from '../map/palette';
 
   interface Person { id: number; name: string }
@@ -38,6 +39,12 @@
   }
 
   const pending = $derived(jobs ? Object.entries(jobs.pending) : []);
+
+  /** How long ago a project was queued, in colony time (a day is 1440 minutes). */
+  function queuedAgo(queued: number): string {
+    const tpd = Math.max(ui.hello?.ticksPerDay ?? 1, 1);
+    return span((Math.max(0, ui.tick - queued) * 1440) / tpd);
+  }
 </script>
 
 {#if !jobs}
@@ -59,7 +66,7 @@
           <span class="name">{p.name}</span>
           <span class="frac">{p.done}/{p.tasks.length}</span>
           <span class="bar"><span style="width: {p.tasks.length ? (p.done * 100) / p.tasks.length : 0}%"></span></span>
-          <span class="sub">{p.assignees.length} assigned · queued t{p.queuedTick}, {Math.max(0, ui.tick - p.queuedTick).toLocaleString()} ticks ago</span>
+          <span class="sub">{p.assignees.length} assigned · queued {when(p.queuedTick, ui.hello)}, {queuedAgo(p.queuedTick)} ago</span>
         </button>
         {#if p.id === openId}
           <div class="detail">

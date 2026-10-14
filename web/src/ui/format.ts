@@ -22,6 +22,38 @@ export function dayClock(day: number, minute: number): string {
   return `Day ${grouped.format(day)} ${clock(minute)}`;
 }
 
+/** The colony calendar from the Hello: ticks a day, and the hour the landing (tick 0) fell. */
+export interface Calendar { ticksPerDay: number; landingHour: number }
+
+/**
+ * The day and clock time a tick fell on, as sim.DayOf and sim.MinuteOfDay
+ * compute them: the landing is day 1 at landingHour, and the day turns over
+ * at midnight.
+ */
+export function dayMinute(tick: number, cal: Calendar): { day: number; minute: number } {
+  const tpd = Math.max(cal.ticksPerDay, 1);
+  const t = tick + Math.floor((tpd * cal.landingHour) / 24);
+  return { day: Math.floor(t / tpd) + 1, minute: Math.floor(((t % tpd) * 1440) / tpd) };
+}
+
+/** When a tick fell, as the top bar reads the clock: "Day 3 07:05". Without a calendar (no Hello yet) it is the tick. */
+export function when(tick: number, cal: Calendar | null | undefined): string {
+  if (!cal) return `tick ${grouped.format(tick)}`;
+  const { day, minute } = dayMinute(tick, cal);
+  return dayClock(day, minute);
+}
+
+/**
+ * A run of ticks from first to last: "Day 3 07:05–09:10", naming the second
+ * day only when it differs ("Day 3 23:40–Day 4 00:20").
+ */
+export function whenRange(first: number, last: number, cal: Calendar | null | undefined): string {
+  if (!cal) return `ticks ${grouped.format(first)}–${grouped.format(last)}`;
+  const a = dayMinute(first, cal), b = dayMinute(last, cal);
+  if (a.day === b.day && a.minute === b.minute) return dayClock(a.day, a.minute);
+  return `${dayClock(a.day, a.minute)}–${a.day === b.day ? clock(b.minute) : dayClock(b.day, b.minute)}`;
+}
+
 /**
  * A stretch of colony time, in colony minutes (a day is 1440 however many
  * ticks it lasts), to its two largest units: "3 days, 2 hrs", "5 hrs, 12

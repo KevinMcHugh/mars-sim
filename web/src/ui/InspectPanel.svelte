@@ -8,6 +8,7 @@
   import { centerOn, inspect, selectionTopic, setPanel, subscribe, topics, ui } from '../game.svelte';
   import Bar from './Bar.svelte';
   import Section from './Section.svelte';
+  import { when, whenRange } from './format';
   import type { EntityInfo, TileInfo } from './inspect';
 
   // The tabs that open the inspector, for its way back.
@@ -23,7 +24,7 @@
   const c = $derived(entity?.colonist);
 
   function memoryTick(m: { tick: number; lastTick: number; count: number }): string {
-    return m.count > 1 ? `t${m.tick}–${m.lastTick} (×${m.count})` : `t${m.tick}`;
+    return m.count > 1 ? `${whenRange(m.tick, m.lastTick, ui.hello)} (×${m.count})` : when(m.tick, ui.hello);
   }
 </script>
 
@@ -56,7 +57,7 @@
 
     <Section id="inspect.status" title="Status">
       {#if entity.dead}
-        <p>Dead at tick {entity.diedTick} — {entity.cause}</p>
+        <p>Died {when(entity.diedTick ?? 0, ui.hello)} — {entity.cause}</p>
       {:else}
         <p>{entity.state}{entity.focus && entity.focus !== 'idle' ? ` · focus: ${entity.focus}` : ''}</p>
         <div class="bars"><Bar label="health" value={entity.hp} max={entity.maxHp} /></div>
@@ -211,7 +212,7 @@
       <ul class="plain">
         {#each named as b (b.id)}
           <li>
-            <button type="button" class="link" onclick={() => inspect({ entity: b.id }, ui.inspectFrom)}>{pickGlyph(b.look, b.glyph)} {b.name}</button>{#if b.cause} · {b.cause}{/if}{#if b.diedTick !== undefined} <span class="tick">tick {b.diedTick}</span>{/if}
+            <button type="button" class="link" onclick={() => inspect({ entity: b.id }, ui.inspectFrom)}>{pickGlyph(b.look, b.glyph)} {b.name}</button>{#if b.cause}<span class="detail">· {b.cause}</span>{/if}{#if b.diedTick !== undefined}<span class="detail when">· {when(b.diedTick, ui.hello)}</span>{/if}
           </li>
         {/each}
         {#if unnamed > 0}<li class="muted">{unnamed === 1 ? 'one' : unnamed} unidentified</li>{/if}
@@ -261,6 +262,9 @@
   .plain li { line-height: 1.5; }
   .memories li { line-height: 1.4; margin-bottom: 4px; }
   .tick { color: var(--muted); font-variant-numeric: tabular-nums; margin-right: 4px; }
+  /* A space before each "· detail" by margin: Svelte drops the whitespace at an {#if} block's edges. */
+  .detail { margin-left: 0.3em; }
+  .when { color: var(--muted); font-variant-numeric: tabular-nums; }
   .link {
     border: none; background: none; padding: 0; color: #8fd0ff; cursor: pointer;
   }
