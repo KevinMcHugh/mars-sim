@@ -5,7 +5,8 @@
   // from, seeded from the URL (?width=…&seed=…&fog-of-war=false). Keys are
   // mars-sim.yaml's. A cold load opens this tab rather than starting a game,
   // so the player sees the settings first and the defaults are one click
-  // from landing the ships. Then every setting the running game uses
+  // from landing the ships; the settings themselves sit folded shut under
+  // Options, with a line above Start saying what the defaults give. Then every setting the running game uses
   // (GameSettings, docs/game-settings.md). At the bottom, a link to Scum Lab,
   // which Pages publishes beside the game (docs/scum-lab.md); the relative URL
   // finds it there, not under `npm run dev`.
@@ -20,6 +21,8 @@
   let width = $state(Number(init.width));
   let height = $state(Number(init.height));
   let colonists = $state(Number(init.colonists));
+  // How many alien species the world rolls (docs/lore.md).
+  let species = $state(Number(init['alien-species-count']));
   // How deep the colony may dig: 1 keeps it on the landing level
   // (docs/z-levels.md); deeper levels are richer and more dangerous.
   let deepest = $state(Number(init['deepest-level']));
@@ -40,7 +43,7 @@
 
   function start(e: SubmitEvent) {
     e.preventDefault();
-    const s: Settings = { width, height, colonists, 'fog-of-war': fog, 'zoning-auto': autoZoning, 'siting-auto': autoSiting, 'deepest-level': Math.max(1, deepest || 1) };
+    const s: Settings = { width, height, colonists, 'alien-species-count': Math.max(1, species || 1), 'fog-of-war': fog, 'zoning-auto': autoZoning, 'siting-auto': autoSiting, 'deepest-level': Math.max(1, deepest || 1) };
     if (seed !== null && Number.isFinite(seed)) s.seed = seed;
     newGame(s);
   }
@@ -68,15 +71,21 @@
   {#snippet newHelp()}Choose a world and its founders, then land their ships.{/snippet}
   <Section id="game.new" tag="h2" title="New game" help={newHelp}>
     <form onsubmit={start}>
-      <label>Width <input type="number" min="64" bind:value={width} /></label>
-      <label>Height <input type="number" min="64" bind:value={height} /></label>
-      <label>Colonists <input type="number" min="1" bind:value={colonists} aria-describedby="ship-count" /></label>
-      <p id="ship-count" class="muted ships" aria-live="polite">{ships} to land</p>
-      <label title="How many levels down the colony may dig: 1 keeps it on the level its ships land on">Deepest level <input type="number" min="1" max="16" bind:value={deepest} /></label>
-      <label>Seed <input type="number" placeholder="random" bind:value={seed} /></label>
-      <label class="check"><input type="checkbox" bind:checked={fog} /> Fog of war</label>
-      <label class="check"><input type="checkbox" bind:checked={autoZoning} /> Colonists zone for themselves</label>
-      <label class="check" title="Colonists may choose where stairs, shafts, holes and ladders go, and dig stairs down on their own when they run out of rock"><input type="checkbox" bind:checked={autoSiting} /> Colonists choose where to dig down</label>
+      <p class="muted" aria-live="polite">{colonists} colonists in {ships}, {species} alien species</p>
+      <Section id="game.new.options" title="Options" shut>
+        <div class="options">
+          <label>Width <input type="number" min="64" bind:value={width} /></label>
+          <label>Height <input type="number" min="64" bind:value={height} /></label>
+          <label>Colonists <input type="number" min="1" bind:value={colonists} aria-describedby="ship-count" /></label>
+          <p id="ship-count" class="muted ships" aria-live="polite">{ships} to land</p>
+          <label>Alien species <input type="number" min="1" bind:value={species} /></label>
+          <label title="How many levels down the colony may dig: 1 keeps it on the level its ships land on">Deepest level <input type="number" min="1" max="16" bind:value={deepest} /></label>
+          <label>Seed <input type="number" placeholder="random" bind:value={seed} /></label>
+          <label class="check"><input type="checkbox" bind:checked={fog} /> Fog of war</label>
+          <label class="check"><input type="checkbox" bind:checked={autoZoning} /> Colonists zone for themselves</label>
+          <label class="check" title="Colonists may choose where stairs, shafts, holes and ladders go, and dig stairs down on their own when they run out of rock"><input type="checkbox" bind:checked={autoSiting} /> Colonists choose where to dig down</label>
+        </div>
+      </Section>
       <button type="submit">Start</button>
     </form>
   </Section>
@@ -92,7 +101,7 @@
 </section>
 
 <style>
-  form { display: grid; gap: 10px; }
+  form, .options { display: grid; gap: 10px; }
   section { display: grid; gap: 8px; margin-top: 18px; padding-top: 12px; border-top: 1px solid var(--line); }
   section:first-child { margin-top: 0; padding-top: 0; border-top: none; }
   h3 { margin: 0; font-size: 1em; }

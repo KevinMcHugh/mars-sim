@@ -702,9 +702,14 @@ export function setTicker(on: boolean): void {
   savePref('ticker', on);
 }
 
-/** Fold a tab section (Section.svelte) shut or open it, and remember it in this browser. */
-export function toggleSection(id: string): void {
-  if (ui.collapsed[id]) delete ui.collapsed[id];
-  else ui.collapsed[id] = true;
+/**
+ * Fold a tab section (Section.svelte) shut or open it, and remember it in this
+ * browser. ui.collapsed keeps only the sections not in their default state:
+ * true for one folded shut, false for one opened that starts shut.
+ */
+export function toggleSection(id: string, shutByDefault = false): void {
+  const shut = !(ui.collapsed[id] ?? shutByDefault);
+  if (shut === shutByDefault) delete ui.collapsed[id];
+  else ui.collapsed[id] = shut;
   savePref('collapsed', $state.snapshot(ui.collapsed));
 }
