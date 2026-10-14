@@ -268,7 +268,7 @@ func (w *World) commissionKitchens() {
 		r.aisleRequired = true
 		if w.planRoomFor(r, ColonistOwner(e.ID)) {
 			e.kitchenCommissioned = true
-			w.logEvent(LogBuildStart, fmt.Sprintf("%s, %s, commissions a kitchen of %s own.", e.displayName(), withArticle(e.skillLabel(SkillCooking)), e.possessive()))
+			w.logEventProject(LogBuildStart, w.lastProject(), fmt.Sprintf("%s, %s, commissions a kitchen of %s own.", e.displayName(), withArticle(e.skillLabel(SkillCooking)), e.possessive()))
 		}
 		return
 	}
@@ -287,7 +287,7 @@ func (w *World) commissionHouses() {
 		}
 		if w.planRoomFor(houseRoom, ColonistOwner(e.ID)) {
 			e.commissioned = true
-			w.logEvent(LogBuildStart, fmt.Sprintf("%s commissions a house.", e.displayName()))
+			w.logEventProject(LogBuildStart, w.lastProject(), fmt.Sprintf("%s commissions a house.", e.displayName()))
 		}
 		return
 	}

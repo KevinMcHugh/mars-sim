@@ -127,7 +127,7 @@ func (w *World) orderDefense(c OrderDefense) bool {
 	w.nextDefenseID++
 	w.defensePosts = append(w.defensePosts, &defensePost{id: w.nextDefenseID, level: level,
 		x0: x0, y0: y0, x1: x1, y1: y1, detail: detail, openedTick: w.tick})
-	w.logEvent(LogBuildStart, fmt.Sprintf("The colony posts a detail of %s to defend %d,%d to %d,%d%s, at %v an hour each.",
+	w.logEventAt(LogBuildStart, rectSite(x0, y0, x1, y1, level), fmt.Sprintf("The colony posts a detail of %s to defend %d,%d to %d,%d%s, at %v an hour each.",
 		plural(detail, "armed colonist"), x0, y0, x1, y1, levelPhrase(level), Money(w.cfg.WageGuard)))
 	return true
 }
@@ -159,7 +159,7 @@ func (w *World) setDefenseDetail(c SetDefenseDetail) bool {
 			d.guards = d.guards[:len(d.guards)-1]
 		}
 	}
-	w.logEvent(LogBuildStart, fmt.Sprintf("The detail defending %d,%d to %d,%d is now %s.",
+	w.logEventAt(LogBuildStart, rectSite(d.x0, d.y0, d.x1, d.y1, d.level), fmt.Sprintf("The detail defending %d,%d to %d,%d is now %s.",
 		d.x0, d.y0, d.x1, d.y1, plural(detail, "armed colonist")))
 	return true
 }
@@ -176,7 +176,7 @@ func (w *World) cancelDefense(id int) bool {
 		}
 	}
 	w.defensePosts = slices.DeleteFunc(w.defensePosts, func(o *defensePost) bool { return o == d })
-	w.logEvent(LogBuildStart, fmt.Sprintf("The colony stands down the detail defending %d,%d to %d,%d%s.",
+	w.logEventAt(LogBuildStart, rectSite(d.x0, d.y0, d.x1, d.y1, d.level), fmt.Sprintf("The colony stands down the detail defending %d,%d to %d,%d%s.",
 		d.x0, d.y0, d.x1, d.y1, levelPhrase(d.level)))
 	return true
 }

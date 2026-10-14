@@ -68,7 +68,7 @@ func (w *World) orderDigDown(c Command) {
 		}
 	}
 	if why != "" {
-		w.logEvent(LogBuildStart, fmt.Sprintf("No %s at (%d, %d): %s", what, at.X, at.Y, why))
+		w.logEventAt(LogBuildStart, at, fmt.Sprintf("No %s at (%d, %d): %s", what, at.X, at.Y, why))
 	}
 }
 

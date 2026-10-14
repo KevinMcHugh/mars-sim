@@ -173,7 +173,7 @@ func (w *World) naturalShaft(c Point, g *worldGen) {
 	w.addLayer(foot.Level)
 	w.SetTerrain(foot, ShaftBottom) // breaking in: the cavern below floods into view
 	w.SetTerrain(p, ShaftTop)
-	w.logEvent(LogCavern, fmt.Sprintf("The cavern holds a natural shaft down to a cavern on level %d.", foot.Level))
+	w.logEventAt(LogCavern, p, fmt.Sprintf("The cavern holds a natural shaft down to a cavern on level %d.", foot.Level))
 }
 
 // sinkhole opens a hole in the cavern at c's floor onto the level below:
@@ -194,7 +194,7 @@ func (w *World) sinkhole(c Point, g *worldGen) {
 	w.addLayer(foot.Level)
 	w.SetTerrain(foot, Floor)
 	w.SetTerrain(p, Hole)
-	w.logEvent(LogCavern, fmt.Sprintf("A sinkhole in the cavern floor drops to level %d.", foot.Level))
+	w.logEventAt(LogCavern, p, fmt.Sprintf("A sinkhole in the cavern floor drops to level %d.", foot.Level))
 }
 
 // rollNestsAndFeatures is rollNests followed by naturalFeatures, on a copy

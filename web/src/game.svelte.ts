@@ -415,8 +415,10 @@ class TopicData {
 }
 export const topics = new TopicData();
 
+/** A colony-log line's tile: where clicking the line takes the map. */
+export interface LogPlace { x: number; y: number; level: number }
 /** One colony-log line (internal/wire/log.go), and when the page got it. */
-export interface LogLine { seq: number; tick: number; kind: string; text: string; at: number }
+export interface LogLine { seq: number; tick: number; kind: string; text: string; place?: LogPlace; at: number }
 
 /** How many log lines the page keeps. The engine keeps only -log-size (64). */
 export const LOG_KEEP = 2000;
@@ -493,6 +495,12 @@ export function saveGame(): void { ctl?.saveGame(); }
 export function centerOn(x: number, y: number, l?: number): void {
   if (l !== undefined) setLevel(l);
   ctl?.centerOn(x, y);
+}
+/** Center the map on a log line's tile, if it has one; reports whether it did. */
+export function goToLogLine(l: { place?: LogPlace }): boolean {
+  if (!l.place) return false;
+  centerOn(l.place.x, l.place.y, l.place.level);
+  return true;
 }
 export function highlight(tiles: { x: number; y: number; color: Uint8Array }[] | null): void { ctl?.highlight(tiles); }
 

@@ -203,6 +203,32 @@ passes a tick. The ring drops lines from the front without saying so; `Seq`
 is what lets the browser's log topic send only new lines, and keep a history
 longer than `-log-size` (see [frontend-web.md](./frontend-web.md)).
 
+#### Where a line points
+
+An entry can also carry the tile it is about (`At`, valid when `HasAt`), and
+the browser's log takes the map there when the line is clicked. The TUI has
+no mouse, so it ignores it. Pick the call by what the line is about:
+
+- `w.logEventAt(kind, at, text)` for something that happened somewhere: an
+  entity's death, fall, mutation or birth (its `Pos`, read before `remove`,
+  which leaves the struct's `Pos` alone), a structure finished (the build
+  target), a hole, stair or shaft (its top tile), a market order (its depot).
+- `w.logEventProject(kind, p, text)` for a project: the middle of its tasks'
+  bounding box on its first task's level (`project.site`). A room uses
+  `roomRecord.site()`, the middle of its inside; an area order (a zone,
+  clearing, excavation, a defense detail) uses `rectSite` on the rectangle.
+- `w.logEvent(kind, text)` only for a line about no one place: the recruiter,
+  a colony-wide order, a refusal with nothing to look at, a wave of ships
+  landing in several spots, the founding.
+
+The place is the *middle* of an area rather than a corner because the click
+centers the map on it; a corner puts most of a large room off screen. It is
+not saved: the log is not part of a save file. Coordinates are plain data,
+written at the moment of the event, so a dead colonist's line still points
+at where they fell after their entity is gone, which is the point. A tile
+written in the sentence itself ("at (12, 7)") is kept: the TUI still reads
+it, and the browser's link is in addition to it, not instead.
+
 Entries alternate between two close shades (`logBandStyle`), and the stripe
 is per entry, not per visual row. Striping each row would split a wrapped
 event across both shades, which is the opposite of making the entries easy

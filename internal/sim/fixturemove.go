@@ -162,7 +162,7 @@ func (w *World) consolidateRooms(st roomPlanState) bool {
 				moves[i] = fixtureMove{from: from[i], to: f.pos, kind: f.kind}
 			}
 			if w.designateMove(src, dst, moves) {
-				w.logEvent(LogBuildStart, fmt.Sprintf("The colony moves the fixtures of a small %s into a %s, to clear the room away.",
+				w.logEventAt(LogBuildStart, dst.site(), fmt.Sprintf("The colony moves the fixtures of a small %s into a %s, to clear the room away.",
 					w.roomTitle(src), w.roomTitle(dst)))
 				return true
 			}
@@ -215,6 +215,6 @@ func (w *World) clearShell(rec *roomRecord) bool {
 		return false
 	}
 	p.from = rec
-	w.logEvent(LogBuildStart, fmt.Sprintf("The colony clears away an empty %s.", w.roomTitle(rec)))
+	w.logEventProject(LogBuildStart, p, fmt.Sprintf("The colony clears away an empty %s.", w.roomTitle(rec)))
 	return true
 }

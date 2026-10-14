@@ -42,7 +42,8 @@ readout. Around it is a Svelte chrome:
   once, then in the way every time. Text that says what is happening now
   ("the colony is zoning for itself", "Deepest allowed: level 3") stays out.
 - **A log ticker** over the map's bottom-left corner: the last few colony-log
-  lines, fading after a few seconds.
+  lines, fading after a few seconds. A line about a place, here and in the
+  Log tab, takes the map there when clicked.
 
 The rest of the TUI's tabs are planned in
 [browser-frontend.md](./browser-frontend.md), "Parity with the TUI". The plan it is part of is
@@ -342,7 +343,11 @@ closed.
   sentence, wrapped, never cut: the TUI found a cut sentence reads as a
   finished one. It follows the tail while scrolled to the bottom; scrolled
   back, it stays put and offers "↓ N new". A type menu and a search filter
-  it. Wrapped lines have no fixed height, so it is not a virtual list like
+  it. A line with a `place` (most of them; see "Where a line points" in
+  [frontend-tui.md](./frontend-tui.md)) is a button: clicking it centers the
+  map on that tile and switches to its level (`goToLogLine`, through
+  `centerOn`). A line without one stays plain text, so a reader can tell
+  which lines go somewhere. Wrapped lines have no fixed height, so it is not a virtual list like
   the roster's. Two things keep it cheap instead:
   - **A window by count.** Only the newest 200 matching lines are in the DOM
     while it follows the tail; scrolling near the top adds 200 older ones
@@ -359,7 +364,9 @@ closed.
     anchoring); turning anchoring off to do it by hand everywhere made the
     view drift.
 - **The ticker** (`LogTicker.svelte`) shows the last four lines for 12
-  seconds after they arrive, fading out; a click opens the Log tab, and it
+  seconds after they arrive, fading out. Each line is its own button:
+  clicking one with a `place` centers the map there, and clicking one
+  without opens the Log tab (as a click anywhere on it used to). It
   hides while that tab is open. Its fade timer stops once the newest line has
   faded, so a quiet colony runs no timer.
   - **×** hides it, remembered in this browser (`ui.ticker`, saved to

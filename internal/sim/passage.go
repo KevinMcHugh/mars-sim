@@ -189,7 +189,7 @@ func (w *World) planPassage() bool {
 	}
 	w.nextProjectID++
 	w.projects = append(w.projects, p)
-	w.logEvent(LogBuildStart, fmt.Sprintf("The colony orders a way dug through to the %s cut off at (%d, %d).",
+	w.logEventAt(LogBuildStart, target, fmt.Sprintf("The colony orders a way dug through to the %s cut off at (%d, %d).",
 		w.TerrainAt(target), target.X, target.Y))
 	return true
 }
