@@ -152,6 +152,9 @@ func (m Model) renderColonistList(cs []sim.EntityView, sel, rows, width int) str
 		if c.State == sim.Idle {
 			state = "idling"
 		}
+		if c.Peril != sim.PerilNone {
+			state += " (" + c.Peril.String() + ")"
+		}
 		infoLine := c.Kind.String() // overwritten below for a colonist or an alien
 		if c.Profile != nil {
 			pronouns = c.Profile.Gender.Pronouns()
@@ -262,6 +265,9 @@ func (m Model) detailLines(c sim.EntityView, inner, barW int) []string {
 	b.WriteString("\n")
 
 	status := c.State.String()
+	if c.Peril != sim.PerilNone {
+		status += " (" + c.Peril.String() + ")"
+	}
 	if c.Dead {
 		status = fmt.Sprintf("dead (tick %d) — %s", c.DiedTick, c.Cause)
 	}

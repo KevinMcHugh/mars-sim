@@ -67,6 +67,13 @@ const (
 	ActionSocialize  ActionID = "socialize"
 	ActionCollapse   ActionID = "collapse"
 	ActionSoil       ActionID = "soil"
+	// Aid (casualty.go): bringing a casualty round, losing one you were going
+	// to, and walking past one who then died (abandon), or not stopping for a
+	// reason (fail).
+	ActionRescue  ActionID = "rescue"
+	ActionLose    ActionID = "lose"
+	ActionAbandon ActionID = "abandon"
+	ActionFail    ActionID = "fail"
 )
 
 // ChannelID says how an observer learned about an occurrence. Direct is
@@ -530,6 +537,8 @@ func (w *World) perceptionRadius(rule PerceptionRule) int {
 		return w.cfg.ColonistStompRadius
 	case RadiusGoreSight:
 		return w.cfg.GoreSightRadius
+	case RadiusAidSight:
+		return w.cfg.AidSight
 	default:
 		return 0
 	}

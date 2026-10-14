@@ -209,6 +209,11 @@ const (
 	TraitPessimist
 	TraitShortSleeper
 	TraitLongSleeper
+	// TraitCaring and TraitCallous are the compassion group: how readily a
+	// colonist stops for a colonist who cannot help itself. They are rolled
+	// on their own stream (see rollCompassion), not with the rest.
+	TraitCaring
+	TraitCallous
 
 	numTraits // keep last
 )
@@ -239,6 +244,10 @@ const (
 	groupNerve
 	groupOutlook
 	groupSleep
+	// groupCompassion is how readily a colonist helps a casualty (see
+	// casualty.go). It changes behavior, so it is not flavor, and it is rolled
+	// on its own stream so adding it moved no other trait any seed rolls.
+	groupCompassion
 
 	numTraitGroups // keep last
 )
@@ -340,6 +349,16 @@ var traitSpecs = [numTraits]traitSpec{
 		Name: "Long Sleeper", Desc: "Drives nine hours in bed to get through the day.",
 		group: groupSleep, sleepHours: 1,
 	},
+	TraitCaring: {
+		Name: "Caring", Desc: "Stops for anyone in trouble, and carries it hard when too late.",
+		group: groupCompassion,
+		// No scalar effect: the aid score (aidOption) and the guilt and
+		// helped readings (cognition trait rules) read it.
+	},
+	TraitCallous: {
+		Name: "Callous", Desc: "Looks after family; everyone else can look after themselves.",
+		group: groupCompassion,
+	},
 }
 
 // Name returns a trait's display name.
@@ -422,6 +441,7 @@ func (w *World) assignPersonality(e *Entity) {
 	// uniquifyName is the only step that needs the colony. The draws themselves
 	// are rollProfile, which the lab's WASM build calls without a world.
 	e.Profile = rollProfile(w.prng, w.agePRNG, w.cfg.TraitChance)
+	addCompassion(e.Profile, w.compassionRNG, w.cfg.TraitChance)
 	w.settlePersonality(e)
 }
 
@@ -515,6 +535,9 @@ func (w *World) resolveTraitEffects(e *Entity) {
 func rollTraits(r *rand.Rand, traitChance int) []Trait {
 	var out []Trait
 	for g := traitGroup(0); g < numTraitGroups; g++ {
+		if ownStreamGroup(g) {
+			continue
+		}
 		group := rollableTraitsInGroup(g)
 		if len(group) == 0 {
 			continue
@@ -525,6 +548,29 @@ func rollTraits(r *rand.Rand, traitChance int) []Trait {
 		out = append(out, group[r.IntN(len(group))])
 	}
 	return out
+}
+
+// ownStreamGroup reports whether trait group g is rolled on a stream of its
+// own rather than in rollTraits. A group added after seeds were in play is
+// rolled apart, so it shifts no draw of the groups before it: every colonist
+// keeps the traits it had, and gains the new group's on top.
+func ownStreamGroup(g traitGroup) bool { return g == groupCompassion }
+
+// rollCompassion draws the compassion group the way rollTraits draws every
+// other: taken with TraitChance probability, then one of its traits.
+func rollCompassion(r *rand.Rand, traitChance int) (Trait, bool) {
+	group := rollableTraitsInGroup(groupCompassion)
+	if len(group) == 0 || r.IntN(100) >= traitChance {
+		return 0, false
+	}
+	return group[r.IntN(len(group))], true
+}
+
+// addCompassion gives p a compassion trait from r, if it rolls one.
+func addCompassion(p *Profile, r *rand.Rand, traitChance int) {
+	if t, ok := rollCompassion(r, traitChance); ok {
+		p.Traits = append(p.Traits, t)
+	}
 }
 
 func traitAffectHome(traits []Trait) MoodVector {
@@ -565,6 +611,8 @@ func (g traitGroup) labID() string {
 		return "nerve"
 	case groupOutlook:
 		return "outlook"
+	case groupCompassion:
+		return "compassion"
 	default:
 		return "trait"
 	}

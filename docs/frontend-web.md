@@ -528,9 +528,9 @@ charts. The **Charts** tab has two views, a view at a time:
 
 The colors are the dataviz reference palette's dark steps, checked with its
 validator against the charts' surface (`#1a1a19`). A chart gets at most eight
-categorical hues and the game has 14 activities, so related ones share a band
-(mining & building, hauling & cleaning, and guarding, escaping, fleeing and
-fighting as "danger"), with idle as a neutral gray lid. The hover tooltip and the
+categorical hues and the game has 15 activities, so related ones share a band
+(mining & building, hauling & cleaning, and aiding, guarding, escaping, fleeing
+and fighting as "danger"), with idle as a neutral gray lid. The hover tooltip and the
 table under the chart still name every activity, lately (the last tenth of
 the game) and over the whole game. Every chart has a hover tooltip.
 

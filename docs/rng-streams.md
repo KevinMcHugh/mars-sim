@@ -14,7 +14,7 @@ the RNG half of save/load ([save-load.md](./save-load.md)).
 
 - `internal/sim/rng.go`: `newPCG` / `newRand` (seeding), `rngSources`,
   `rngState`, and `World.saveRNG` / `World.loadRNG`.
-- `internal/sim/world.go`: `newWorld` builds `rng`, `prng`, `agePRNG`, `skillRNG`, `topicRNG` and `recruitRNG`.
+- `internal/sim/world.go`: `newWorld` builds `rng`, `prng`, `agePRNG`, `skillRNG`, `topicRNG`, `recruitRNG` and `compassionRNG`.
 - `internal/sim/caverns.go`: `trackCavernsForNests` builds `nestRNG`.
 - `internal/sim/worldgen_chunks.go`: `featureRand`, the per-chunk worldgen
   streams.
@@ -31,6 +31,7 @@ the RNG half of save/load ([save-load.md](./save-load.md)).
 | `World.skillRNG` (arrival backgrounds) | `Seed ^ 0x3C6EF372FE94F82B` | whole game | yes |
 | `World.topicRNG` (conversation topics) | `Seed ^ 0x2B7E151628AED2A6` | whole game | yes |
 | `World.recruitRNG` (recruiter's candidates, where recruits arrive) | `Seed ^ 0x1F83D9ABFB41BD6B` | whole game | yes |
+| `World.compassionRNG` (the Caring/Callous trait group) | `Seed ^ 0x6C62272E07BB0142` | whole game | yes |
 | worldgen veins, per chunk and level | `featureRand(0x243F6A8885A308D3 + level, cx, cy)` | one plan | no |
 | worldgen cave scum, per chunk | `featureRand(0x5CA1AB1E, cx, cy)` | one plan | no |
 | worldgen salt, per chunk | `featureRand(0x5A17D0C5, cx, cy)` | one plan | no |
@@ -43,7 +44,8 @@ the RNG half of save/load ([save-load.md](./save-load.md)).
 Why the streams are split is covered per stream in
 [personality.md](./personality.md), [caverns.md](./caverns.md),
 [lore.md](./lore.md), [alien-taxonomy.md](./alien-taxonomy.md), [skills.md](./skills.md),
-[conversation-topics.md](./conversation-topics.md) and [recruiting.md](./recruiting.md).
+[conversation-topics.md](./conversation-topics.md), [recruiting.md](./recruiting.md)
+and [emergency-services.md](./emergency-services.md).
 
 **Seeding.** `newPCG(seed)` feeds the int64 through splitmix64 twice to fill
 PCG's 128-bit state. Seeds that are next to each other, or differ only by one

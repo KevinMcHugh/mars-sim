@@ -58,6 +58,8 @@ const (
 	Cleaning = "\U0001F9F9" // 🧹 colonist scrubbing refuse up or feeding the incinerator
 	Hauling  = "\U0001F4E6" // 📦 colonist carrying refuse to the incinerator
 	Mutant   = "\U0001F9DF" // 🧟 colonist changed by uranium (see docs/mutation.md)
+	Down     = "\U0001F635" // 😵 colonist passed out where it fell: a casualty (see docs/emergency-services.md)
+	Aiding   = "\U0001FA79" // 🩹 colonist bringing a casualty round
 
 	// Alien species flavor glyphs: the curated set an AlienSpecies.Emoji (see
 	// docs/lore.md and internal/sim/alien-names.yaml) can draw from and still
@@ -280,6 +282,9 @@ var All = []string{
 	Shaft,
 	// And the holes', after those.
 	Hole,
+	// And the casualty's and its helper's, after those.
+	Down,
+	Aiding,
 }
 
 var known = func() map[string]bool {
@@ -482,6 +487,10 @@ func ForEntity(e sim.EntityView) string {
 			return Cleaning
 		case sim.Hauling, sim.Storing:
 			return Hauling
+		case sim.PassedOut:
+			return Down
+		case sim.Aiding:
+			return Aiding
 		default:
 			return ForColonist(e.Profile)
 		}

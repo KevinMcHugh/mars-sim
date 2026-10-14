@@ -62,6 +62,7 @@ const (
 	PassedOut         // colonist unconscious where it fell, a drive at its ceiling (see passOut)
 	Climbing          // on a shaft's ladder between two levels (see startClimb)
 	Guarding          // armed colonist on station in a defense zone (see defense.go)
+	Aiding            // colonist bringing round a casualty beside it (see casualty.go)
 
 	numStates // keep last: the number of states
 )
@@ -86,6 +87,8 @@ func (s State) String() string {
 		return "climbing"
 	case Guarding:
 		return "guarding"
+	case Aiding:
+		return "aiding"
 	case PassedOut:
 		return "passed out"
 	case Talking:
@@ -278,6 +281,7 @@ const (
 	JobCarry            // carry its own goods to a buyer's depot and ask the price (see producer.go)
 	JobTend             // keep its chickens' trough in feed: scrape scum, mix feed at a scumhouse, fill the trough (see chickens.go)
 	JobGuard            // hold a station in a defense zone and shoot what threatens it (see defense.go)
+	JobAid              // walk to a casualty and bring it round (see casualty.go)
 )
 
 // cleanStage is where a JobClean colonist is in the haul. The job is two legs
@@ -374,6 +378,16 @@ type Entity struct {
 	// down; it comes to once that drive falls below CriticalAt. See passOut.
 	passedOut      bool
 	passedOutDrive DriveKind
+	// Aid (colonists only; see casualty.go). aidTarget is the casualty this
+	// colonist holds the claim on while it helps; aidedBy, on a casualty, is
+	// that helper. aidPassedBy is who a casualty's rescue was offered to and
+	// who chose something else, sorted by ID, for guilt if it dies.
+	// noticedCasualty is the last unhelped casualty that made this colonist
+	// think again on sight.
+	aidTarget       EntityID
+	aidedBy         EntityID
+	aidPassedBy     []aidPass
+	noticedCasualty EntityID
 	// climbUntil is the last tick this entity is on a shaft's ladder: until
 	// it has passed, its turns are spent climbing. See startClimb.
 	climbUntil int

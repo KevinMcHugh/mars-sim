@@ -70,6 +70,8 @@ const (
 	glyphHole         = glyphs.Hole
 	glyphColonist     = glyphs.Colonist
 	glyphFleeing      = glyphs.Fleeing
+	glyphDown         = glyphs.Down
+	glyphAiding       = glyphs.Aiding
 	glyphTalking      = glyphs.Talking
 	glyphAlien        = glyphs.Alien
 	glyphCat          = glyphs.Cat
@@ -217,6 +219,8 @@ var glyphRegistry = map[string]glyph{
 	glyphCleaning: {glyphCleaning, 2, "@/"},
 	glyphHauling:  {glyphHauling, 2, "@+"},
 	glyphMutant:   {glyphMutant, 2, "@%"},
+	glyphDown:     {glyphDown, 2, "@_"},
+	glyphAiding:   {glyphAiding, 2, "@h"},
 
 	glyphLizard:       {glyphLizard, 2, "Lz"},
 	glyphSnake:        {glyphSnake, 2, "Sn"},

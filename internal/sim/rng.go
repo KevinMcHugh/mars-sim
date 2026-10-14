@@ -33,13 +33,13 @@ func splitmix64(s *uint64) uint64 {
 // Worldgen-only streams (composition, scum, caverns, alien lore) are spent
 // before the first tick and are not here.
 type rngSources struct {
-	sim, personality, age, nest, skill, topic, recruit *rand.PCG
+	sim, personality, age, nest, skill, topic, recruit, compassion *rand.PCG
 }
 
 // rngState is the saved form of rngSources: each stream's MarshalBinary
 // output, nil for a stream the world never created.
 type rngState struct {
-	Sim, Personality, Age, Nest, Skill, Topic, Recruit []byte
+	Sim, Personality, Age, Nest, Skill, Topic, Recruit, Compassion []byte
 }
 
 func (w *World) saveRNG() (rngState, error) {
@@ -87,5 +87,6 @@ func (w *World) rngFields(st *rngState) []struct {
 		{w.rngSrc.skill, &st.Skill},
 		{w.rngSrc.topic, &st.Topic},
 		{w.rngSrc.recruit, &st.Recruit},
+		{w.rngSrc.compassion, &st.Compassion},
 	}
 }

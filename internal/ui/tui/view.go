@@ -434,6 +434,7 @@ func (m Model) drawSidebar(rows int) string {
 		{g(glyphColonist, "colonist"), g(glyphAlien, "alien")},
 		{g(glyphCat, "cat"), g(glyphRat, "rat")},
 		{g(glyphFleeing, "fleeing"), g(glyphTalking, "talking")},
+		{g(glyphDown, "passed out"), g(glyphAiding, "helping")},
 		{g(glyphPod, "food pod"), g(glyphToilet, "toilet")},
 		{g(glyphBed, "bunk"), g(glyphWall, "wall")},
 		{g(glyphIncinerator, "burner"), g(glyphCorpse, "body")},

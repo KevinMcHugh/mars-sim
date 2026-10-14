@@ -425,8 +425,11 @@ type Config struct {
 	Drives       [numDrives]DriveSpec `cfg:"drives" sec:"Drives"`
 	StarveDamage int                  `cfg:"starve-damage" doc:"HP lost per tick while a drive's death consequence applies"`
 	// DriveEffects are the effect profiles events can start on a colonist's
-	// drives (caffeine, water), indexed by DriveEffectKind. None ship yet;
-	// the config file has no lists, so they are set in code (drive_effects.go).
+	// drives (caffeine, water), indexed by DriveEffectKind. The one that ships
+	// is roused, which a helper starts on a colonist it brings round (see
+	// rousedEffect in casualty.go); it is found by name, so a config that
+	// leaves it out just rouses without it. The config file has no lists, so
+	// they are set in code.
 	DriveEffects         []DriveEffectProfile
 	ColonistsPerFacility int `cfg:"per-facility" doc:"colonists served by each life-support facility"`
 
@@ -564,6 +567,26 @@ type Config struct {
 	ColonistsPerChair int `cfg:"colonists-per-chair" sec:"Meeting hall" doc:"the colony commissions meeting-hall chairs, one for each this many colonists (0: no hall, and talk and meals stay wherever they happen)"`
 	HallRange         int `cfg:"hall-range" doc:"farthest a colonist walks to the meeting hall to socialize or eat, in tiles"`
 	HallTalkBonus     int `cfg:"hall-talk-bonus" doc:"conversation quality points added when both partners are in the meeting hall"`
+
+	// Aid: colonists helping a colonist that cannot help itself. A casualty
+	// is a colonist passed out where it fell; its Peril (stable, serious,
+	// critical) and the helper's ties to it score the aid focus beside every
+	// other focus. Hostile hunters rank a casualty as nearer than it is. See
+	// docs/emergency-services.md.
+	Aid                  bool `cfg:"aid" sec:"Aid" doc:"colonists stop to help a passed-out colonist (off: nobody helps, as before)"`
+	AidSight             int  `cfg:"aid-sight" doc:"a colonist notices a casualty within this many tiles, on its own level"`
+	AidRouseTicks        int  `cfg:"aid-rouse-ticks" doc:"ticks beside a passed-out colonist to bring it round"`
+	AidPerilStable       int  `cfg:"aid-peril-stable" doc:"aid score for a casualty that is down but not getting worse"`
+	AidPerilSerious      int  `cfg:"aid-peril-serious" doc:"aid score for a casualty getting worse (hunger pressing while it lies there)"`
+	AidPerilCritical     int  `cfg:"aid-peril-critical" doc:"aid score for a casualty close to death (starving, or badly hurt)"`
+	AidAffinityWeight    int  `cfg:"aid-affinity-weight" doc:"aid score at full affinity toward the casualty (negative toward a rival)"`
+	AidKinBonus          int  `cfg:"aid-kin-bonus" doc:"aid score added when the casualty is close family (spouse, parent, child, sibling)"`
+	AidTraitBonus        int  `cfg:"aid-trait-bonus" doc:"aid score a Caring colonist adds, and a Callous one takes away for anyone but family"`
+	AidCowardPenalty     int  `cfg:"aid-coward-penalty" doc:"aid score a Cowardly colonist loses while an alien is in sight"`
+	AidGratitude         int  `cfg:"aid-gratitude" doc:"affinity a rescued colonist gains toward its rescuer"`
+	AidPassedByMax       int  `cfg:"aid-passed-by-max" doc:"most colonists a casualty remembers passing it by, for guilt if it dies"`
+	PerilCriticalHPPct   int  `cfg:"peril-critical-hp" doc:"a casualty below this percent of its hit points is critical"`
+	HelplessPreyDiscount int  `cfg:"helpless-prey-discount" doc:"tiles nearer a hostile hunter reckons a passed-out colonist (0: hunters ignore helplessness)"`
 
 	// Affect. Charge, grip and valence each run in [-MoodMax, MoodMax].
 	// Conversation company/quality produce a temporary signed outcome which is
@@ -972,9 +995,24 @@ func DefaultConfig() Config {
 		TalkAffinityGain: 4,
 		AffinityMax:      100,
 
-		ColonistsPerChair: 4,
-		HallRange:         48,
-		HallTalkBonus:     15,
+		DriveEffects:         []DriveEffectProfile{rousedEffect()},
+		Aid:                  true,
+		AidSight:             6,
+		AidRouseTicks:        8,
+		AidPerilStable:       20,
+		AidPerilSerious:      60,
+		AidPerilCritical:     150,
+		AidAffinityWeight:    60,
+		AidKinBonus:          40,
+		AidTraitBonus:        40,
+		AidCowardPenalty:     40,
+		AidGratitude:         30,
+		AidPassedByMax:       16,
+		PerilCriticalHPPct:   25,
+		HelplessPreyDiscount: 6,
+		ColonistsPerChair:    4,
+		HallRange:            48,
+		HallTalkBonus:        15,
 
 		TalkQualityBias:    20,
 		TalkQualityValence: 50,

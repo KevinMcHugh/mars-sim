@@ -188,6 +188,7 @@ func (w *World) colonistTurn(e *Entity) {
 	// branch below can return. See mutation.go.
 	w.applyUraniumExposure(e)
 	w.syncCognitionDeadlines(e)
+	w.noticeCasualty(e)
 	w.runCognition(e)
 }
 
@@ -203,6 +204,9 @@ func (w *World) runCognition(e *Entity) {
 		selected = w.chooseFocus(e, &candidates)
 		e.mindDirty = false
 		e.nextThinkTick = w.nextCognitionTick(e)
+		if offered := candidates[FocusAid]; offered.Eligible && selected.Kind != FocusAid {
+			w.notePass(e, offered.Casualty, selected)
+		}
 	}
 	if selected.Kind != e.focus {
 		w.clearJob(e)
@@ -317,6 +321,8 @@ func (w *World) runFocus(e *Entity, selected FocusCandidate) {
 		}
 		e.resting = false
 		w.runJob(e)
+	case FocusAid:
+		w.runAidFocus(e, selected)
 	case FocusEscape:
 		if e.Job != JobDemolish && !w.assignDemolish(e) {
 			// No way out within reach of the search (see passageRoute) — fall
@@ -770,6 +776,8 @@ func (w *World) clearJob(e *Entity) {
 		w.releaseTend(e)
 	case JobGuard:
 		w.releaseGuard(e)
+	case JobAid:
+		w.releaseAid(e)
 	}
 	e.Job, e.Progress, e.partner, e.fieldDetour = JobNone, 0, 0, 0
 	e.useFacility, e.useFacilitySet, e.carrying = Point{}, false, false

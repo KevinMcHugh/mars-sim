@@ -79,6 +79,7 @@ const (
 	RadiusFlee      RadiusID = "flee-radius"
 	RadiusStomp     RadiusID = "stomp-radius"
 	RadiusGoreSight RadiusID = "gore-sight-radius"
+	RadiusAidSight  RadiusID = "aid-sight"
 )
 
 // PerceptionCadence controls when a matching world fact becomes a percept.
@@ -222,6 +223,8 @@ func ParseFocusKind(s string) (FocusKind, error) {
 		return FocusFight, nil
 	case "escape":
 		return FocusEscape, nil
+	case "aid":
+		return FocusAid, nil
 	default:
 		return 0, fmt.Errorf("unknown focus kind %q", s)
 	}
@@ -313,6 +316,11 @@ func DefaultCognitionConfig() CognitionConfig {
 		// deliberately clears even a maxed-out fatal drive. focusCandidates
 		// excludes it while a threat is visible. See docs/escape.md.
 		FocusEscape: {Name: "escape", Base: 400, DriveWeight: 0, ChargeWeight: 0, GripWeight: 0, DistanceWeight: 0},
+		// FocusAid's base is small: what makes it win is the casualty's peril
+		// and the helper's ties to it, added in fillFocusCandidates. A
+		// composed colonist acts and a panicked one freezes (grip), and a
+		// little charge helps. See docs/emergency-services.md.
+		FocusAid: {Name: "aid", Base: 30, DriveWeight: 0, ChargeWeight: 10, GripWeight: 30, DistanceWeight: 1},
 	}
 	c.Arbitration = ArbitrationConfig{
 		CurrentBonus: 25, SwitchMargin: 10, CriticalBonus: 100,
@@ -331,6 +339,7 @@ func DefaultCognitionConfig() CognitionConfig {
 		ActionClean, ActionIncinerate, ActionMutate, ActionCook, ActionScrape,
 		ActionDeliver, ActionTrade, ActionBuy, ActionHaul, ActionLearn,
 		ActionFeel, ActionSocialize, ActionCollapse, ActionSoil,
+		ActionRescue, ActionLose, ActionAbandon, ActionFail,
 	}
 	c.Perceptions = []PerceptionRule{
 		{ID: "direct-actor", Channel: ChannelDirect, Role: RoleActor, Cadence: CadenceInstant},
@@ -346,6 +355,7 @@ func DefaultCognitionConfig() CognitionConfig {
 		{ID: "witness-alien-killed", Match: OccurrencePattern{ActorNoun: NounColonist, Action: ActionKill, ObjectNoun: NounAlien}, Channel: ChannelSight, Role: RoleWitness, Radius: RadiusFlee, Cadence: CadenceInstant},
 		{ID: "witness-gunfight", Match: OccurrencePattern{ActorNoun: NounColonist, Action: ActionWound, ObjectNoun: NounAlien}, Channel: ChannelSight, Role: RoleWitness, Radius: RadiusFlee, Cadence: CadenceInstant},
 		{ID: "witness-mutation", Match: OccurrencePattern{ActorNoun: NounColonist, Action: ActionMutate}, Channel: ChannelSight, Role: RoleWitness, Radius: RadiusFlee, Cadence: CadenceInstant},
+		{ID: "witness-collapse", Match: OccurrencePattern{ActorNoun: NounColonist, Action: ActionCollapse}, Channel: ChannelSight, Role: RoleWitness, Radius: RadiusAidSight, Cadence: CadenceInstant},
 	}
 
 	sawAlien := reaction("saw-alien", sightMatch(ActionPresent, NounAlien, "", PhaseEnter), 45, MoodVector{8, -10, -15}, MoodVector{5, -22, -22})
@@ -429,6 +439,25 @@ func DefaultCognitionConfig() CognitionConfig {
 	soiledSelf := reaction("soiled-self", directMatch(ActionSoil, NounColonist, "", RoleActor), 45, MoodVector{10, -30, -20}, MoodVector{6, -40, -30})
 	witnessedSoiling := reaction("witnessed-soiling", sightMatch(ActionSoil, NounColonist, "", PhaseInstant), 10, MoodVector{0, -2, -3}, MoodVector{0, -1, -1})
 	boughtMeal := reaction("bought-meal", directMatch(ActionBuy, NounColonist, NounMeal, RoleActor), 12, MoodVector{2, 3, 0}, MoodVector{1, 0, 0})
+	// Aid (casualty.go). Seeing someone collapse is a jolt, and a pull toward
+	// helping for a while (the aid focus's stimulus); having just seen it
+	// counts for more than walking past someone who has lain there an hour.
+	witnessedCollapse := reaction("witnessed-collapse", sightMatch(ActionCollapse, NounColonist, "", PhaseInstant), 20, MoodVector{10, -6, -6}, MoodVector{4, -4, -4})
+	witnessedCollapse.Stimulus = &EventStimulusSpec{
+		Salience: 60, Lifetime: 30, Source: StimulusSourceActor,
+		Contribution: [numFocusKinds]int{FocusAid: 40},
+	}
+	// Helping someone up is one of the best things that happens to a
+	// colonist, and stays good; being helped up is relief and a debt.
+	helped := reaction("helped", directMatch(ActionRescue, NounColonist, NounColonist, RoleActor), 40, MoodVector{12, 25, 20}, MoodVector{8, 18, 15})
+	wasHelped := reaction("was-helped", directMatch(ActionRescue, NounColonist, NounColonist, RoleTarget), 35, MoodVector{8, 15, 15}, MoodVector{4, 8, 8})
+	// Losing someone you were on your way to is grief: no blame, all loss.
+	couldntSave := reaction("couldnt-save", directMatch(ActionLose, NounColonist, NounColonist, RoleActor), 60, MoodVector{-20, -20, -35}, MoodVector{-25, -30, -45})
+	// Guilt: walking past someone who then died (abandon), or not stopping for
+	// them for a reason of one's own (fail), which weighs half as much. Both
+	// get heavier each time.
+	guilt := reaction("guilt", directMatch(ActionAbandon, NounColonist, NounColonist, RoleActor), 70, MoodVector{-10, -40, -45}, MoodVector{-15, -55, -60})
+	guiltLight := reaction("guilt-light", directMatch(ActionFail, NounColonist, NounColonist, RoleActor), 45, MoodVector{-5, -20, -22}, MoodVector{-8, -28, -30})
 
 	for _, r := range []*ReactionSpec{
 		&finishedMining, &clearedRock, &finishedConstruction, &cleanedRefuse,
@@ -478,7 +507,8 @@ func DefaultCognitionConfig() CognitionConfig {
 		cleanedRefuse, incineratedRefuse, mutated, witnessedMutation,
 		ateGruel, cooked, scrapedScum, fedScumhouse, wentToMarket, hauled,
 		boughtMeal, roseInTrade, feltLonely, socialized, passedOut,
-		soiledSelf, witnessedSoiling,
+		soiledSelf, witnessedSoiling, witnessedCollapse, helped, wasHelped,
+		couldntSave, guilt, guiltLight,
 	}
 	scaled := func(id RuleID, trait Trait, match PerceptPattern, impact, charge, grip, valence, wear int) TraitRule {
 		return TraitRule{ID: id, Trait: trait, Match: match, Impact: impact, Charge: charge, Grip: grip, Valence: valence, WearRate: wear}
@@ -506,6 +536,11 @@ func DefaultCognitionConfig() CognitionConfig {
 		scaled("cowardly-visible-alien", TraitCowardly, sawAlien.Match, 150, 100, 100, 100, 100),
 		scaled("cowardly-bitten", TraitCowardly, bitten.Match, 150, 100, 100, 100, 100),
 		scaled("cowardly-witnessed-gunfight", TraitCowardly, witnessedFight.Match, 150, 100, 100, 100, 100),
+		scaled("caring-helped", TraitCaring, helped.Match, 150, 150, 150, 150, 100),
+		scaled("caring-guilt", TraitCaring, guilt.Match, 200, 200, 200, 200, 100),
+		scaled("caring-guilt-light", TraitCaring, guiltLight.Match, 200, 200, 200, 200, 100),
+		scaled("caring-couldnt-save", TraitCaring, couldntSave.Match, 150, 150, 150, 150, 100),
+		scaled("callous-helped", TraitCallous, helped.Match, 50, 50, 50, 50, 100),
 	}
 	if err := compileCognition(&c); err != nil {
 		panic("invalid default cognition config: " + err.Error())
@@ -721,7 +756,7 @@ func validRole(role ObserverRole) bool {
 }
 
 func validRadius(radius RadiusID) bool {
-	return radius == RadiusFlee || radius == RadiusStomp || radius == RadiusGoreSight
+	return radius == RadiusFlee || radius == RadiusStomp || radius == RadiusGoreSight || radius == RadiusAidSight
 }
 
 func containsNoun(values []NounID, want NounID) bool {
@@ -1286,7 +1321,7 @@ func CognitionVocabularyJSON(configs ...CognitionConfig) []byte {
 	v.Vocabulary.Phases = []string{string(PhaseInstant), string(PhaseEnter), string(PhaseOngoing), string(PhaseExit)}
 	v.Vocabulary.ObjectRelations = []string{string(ObjectRelationFriend)}
 	v.Vocabulary.Cadences = []string{string(CadenceInstant), string(CadenceEnter), string(CadenceEnterOngoing)}
-	v.Vocabulary.Radii = []string{string(RadiusFlee), string(RadiusStomp), string(RadiusGoreSight)}
+	v.Vocabulary.Radii = []string{string(RadiusFlee), string(RadiusStomp), string(RadiusGoreSight), string(RadiusAidSight)}
 	v.Vocabulary.WearPolicies = []string{string(WearPolicyMemoryOccasions), string(WearPolicyNone)}
 	v.Vocabulary.Traits = traits
 	for focus := FocusKind(0); focus < numFocusKinds; focus++ {

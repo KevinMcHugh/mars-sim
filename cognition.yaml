@@ -4,7 +4,7 @@ schema_version: 1
 # Stable content vocabulary used by editor dropdowns and rule validation.
 vocabulary:
   nouns: [colonist, alien, cat, rat, gore, meal, toilet, bed, need, rock, structure, refuse, gruel, scum, scumhouse, goods, skill, loneliness]
-  actions: [present, bite, attack, kill, crush, catch, wound, converse, eat, use, sleep, satisfy, mine, clear, construct, clean, incinerate, mutate, cook, scrape, deliver, trade, buy, haul, learn, feel, socialize, collapse, soil]
+  actions: [present, bite, attack, kill, crush, catch, wound, converse, eat, use, sleep, satisfy, mine, clear, construct, clean, incinerate, mutate, cook, scrape, deliver, trade, buy, haul, learn, feel, socialize, collapse, soil, rescue, lose, abandon, fail]
 
 attractors:
   driven    : { good: "driven"    , bad: "furious"   , charge:  70, grip:  60, radius: 46 }
@@ -27,6 +27,7 @@ focuses:
   flee      : { base:   0, drive_weight:   0, charge_weight:  20, grip_weight: -40, distance_weight: 1 }
   fight     : { base:  15, drive_weight:   0, charge_weight:  20, grip_weight:  40, distance_weight: 1 }
   escape    : { base: 400, drive_weight:   0, charge_weight:   0, grip_weight:   0, distance_weight: 0 }
+  aid       : { base:  30, drive_weight:   0, charge_weight:  10, grip_weight:  30, distance_weight: 1 }
 
 arbitration:
   current_bonus: 25
@@ -78,6 +79,9 @@ perceptions:
   - id: witness-mutation
     match: { actor_noun: colonist, action: mutate }
     sense: { channel: sight, role: witness, radius: flee-radius, cadence: instant }
+  - id: witness-collapse
+    match: { actor_noun: colonist, action: collapse }
+    sense: { channel: sight, role: witness, radius: aid-sight, cadence: instant }
 
 # Reaction rules select one deterministic cognitive interpretation per percept.
 reactions:
@@ -293,6 +297,39 @@ reactions:
     memory: { record: true }
     affect: { impact: 10, fresh: { charge: 0, grip: -2, valence: -3 }, worn: { charge: 0, grip: -1, valence: -1 } }
     wear_policy: memory-occasions
+  # Aid (casualty.go): seeing a collapse pulls toward helping; helping
+  # someone up stays good; losing one you were on your way to is grief;
+  # walking past one who then died is guilt (half as heavy with a reason).
+  - id: witnessed-collapse
+    match: { actor_noun: colonist, action: collapse, channel: sight, role: witness, phase: instant }
+    memory: { record: true }
+    affect: { impact: 20, fresh: { charge: 10, grip: -6, valence: -6 }, worn: { charge: 4, grip: -4, valence: -4 } }
+    wear_policy: memory-occasions
+    stimulus: { salience: 60, lifetime: 30, source: actor, contributions: {aid: 40} }
+  - id: helped
+    match: { actor_noun: colonist, action: rescue, object_noun: colonist, channel: direct, role: actor, phase: instant }
+    memory: { record: true }
+    affect: { impact: 40, fresh: { charge: 12, grip: 25, valence: 20 }, worn: { charge: 8, grip: 18, valence: 15 } }
+    wear_policy: memory-occasions
+  - id: was-helped
+    match: { actor_noun: colonist, action: rescue, object_noun: colonist, channel: direct, role: target, phase: instant }
+    memory: { record: true }
+    affect: { impact: 35, fresh: { charge: 8, grip: 15, valence: 15 }, worn: { charge: 4, grip: 8, valence: 8 } }
+    wear_policy: memory-occasions
+  - id: couldnt-save
+    match: { actor_noun: colonist, action: lose, object_noun: colonist, channel: direct, role: actor, phase: instant }
+    memory: { record: true }
+    affect: { impact: 60, fresh: { charge: -20, grip: -20, valence: -35 }, worn: { charge: -25, grip: -30, valence: -45 } }
+    wear_policy: memory-occasions
+  - id: guilt
+    match: { actor_noun: colonist, action: abandon, object_noun: colonist, channel: direct, role: actor, phase: instant }
+    memory: { record: true }
+    affect: { impact: 70, fresh: { charge: -10, grip: -40, valence: -45 }, worn: { charge: -15, grip: -55, valence: -60 } }
+    wear_policy: memory-occasions
+  - id: guilt-light
+    match: { actor_noun: colonist, action: fail, object_noun: colonist, channel: direct, role: actor, phase: instant }
+    memory: { record: true }
+    affect: { impact: 45, fresh: { charge: -5, grip: -20, valence: -22 }, worn: { charge: -8, grip: -28, valence: -30 } }
 
 # Trait rules compose in declaration order. Scales are percentages.
 trait_rules:
@@ -382,3 +419,23 @@ trait_rules:
     trait: cowardly
     match: { actor_noun: colonist, action: wound, object_noun: alien, channel: sight, role: witness, phase: instant }
     scales: { impact: 150, charge: 100, grip: 100, valence: 100, wear_rate: 100 }
+  - id: caring-helped
+    trait: caring
+    match: { actor_noun: colonist, action: rescue, object_noun: colonist, channel: direct, role: actor, phase: instant }
+    scales: { impact: 150, charge: 150, grip: 150, valence: 150, wear_rate: 100 }
+  - id: caring-guilt
+    trait: caring
+    match: { actor_noun: colonist, action: abandon, object_noun: colonist, channel: direct, role: actor, phase: instant }
+    scales: { impact: 200, charge: 200, grip: 200, valence: 200, wear_rate: 100 }
+  - id: caring-guilt-light
+    trait: caring
+    match: { actor_noun: colonist, action: fail, object_noun: colonist, channel: direct, role: actor, phase: instant }
+    scales: { impact: 200, charge: 200, grip: 200, valence: 200, wear_rate: 100 }
+  - id: caring-couldnt-save
+    trait: caring
+    match: { actor_noun: colonist, action: lose, object_noun: colonist, channel: direct, role: actor, phase: instant }
+    scales: { impact: 150, charge: 150, grip: 150, valence: 150, wear_rate: 100 }
+  - id: callous-helped
+    trait: callous
+    match: { actor_noun: colonist, action: rescue, object_noun: colonist, channel: direct, role: actor, phase: instant }
+    scales: { impact: 50, charge: 50, grip: 50, valence: 50, wear_rate: 100 }

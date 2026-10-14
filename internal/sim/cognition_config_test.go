@@ -18,7 +18,7 @@ func TestDefaultCognitionRulesCompileAndCoverShippedContent(t *testing.T) {
 			t.Errorf("attractor %d mismatch: got %+v, want %+v", i, got, a)
 		}
 	}
-	if got, want := len(def.Reactions), 38; got != want {
+	if got, want := len(def.Reactions), 44; got != want {
 		t.Fatalf("reaction count = %d, want %d migrated reactions", got, want)
 	}
 	for _, id := range []RuleID{
@@ -32,6 +32,7 @@ func TestDefaultCognitionRulesCompileAndCoverShippedContent(t *testing.T) {
 		"mutated", "witnessed-mutation", "ate-gruel", "cooked", "scraped-scum",
 		"fed-scumhouse", "went-to-market", "hauled", "bought-meal",
 		"rose-in-trade", "felt-lonely", "socialized", "passed-out", "soiled-self", "witnessed-soiling",
+		"witnessed-collapse", "helped", "was-helped", "couldnt-save", "guilt", "guilt-light",
 	} {
 		if _, ok := def.reaction(id); !ok {
 			t.Errorf("missing shipped reaction %q", id)

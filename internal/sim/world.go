@@ -884,6 +884,12 @@ type World struct {
 	nextPlanID     planID
 	starved        int
 	candidatesTick int
+	// casualties are the colonists that cannot help themselves (passed out),
+	// sorted by ID; aidRescues counts casualties brought round by a helper and
+	// aidDeaths casualties who died where they lay. See casualty.go.
+	casualties []EntityID
+	aidRescues int
+	aidDeaths  int
 	// haulClaims records which colonist has taken each open haul order, so
 	// two never set off for the same goods. See hauling.go.
 	haulClaims map[OrderID]EntityID
@@ -952,8 +958,9 @@ type World struct {
 	skillRNG        *rand.Rand // arrival backgrounds (skills.go): they change behavior, so not prng, and not rng so they shift no other draw
 	topicRNG        *rand.Rand // conversation topics (topics.go): gossip moves affinity, so not prng, and not rng so they shift no other draw
 	recruitRNG      *rand.Rand // the recruiter's candidates and where recruits arrive (recruit.go): player-driven, so rolling a set shifts no other stream
+	compassionRNG   *rand.Rand // the compassion trait group (casualty.go): it changes behavior, and arrived after the other groups, so it shifts none of their draws
 	// rngSrc holds the PCG sources behind rng, prng, agePRNG, nestRNG,
-	// skillRNG, topicRNG and recruitRNG, so
+	// skillRNG, topicRNG, recruitRNG and compassionRNG, so
 	// their state can be saved. See rng.go.
 	rngSrc rngSources
 	log    *eventLog
@@ -1073,6 +1080,8 @@ func newWorld(cfg Config, src *rand.PCG) *World {
 	w.topicRNG = rand.New(w.rngSrc.topic)
 	w.rngSrc.recruit = newPCG(cfg.Seed ^ recruitSeed)
 	w.recruitRNG = rand.New(w.rngSrc.recruit)
+	w.rngSrc.compassion = newPCG(cfg.Seed ^ compassionSeed)
+	w.compassionRNG = rand.New(w.rngSrc.compassion)
 	if len(cfg.SpeciesPack) > 0 {
 		var picked []int
 		w.alienSpecies, picked = packedRoster(newRand(cfg.Seed^alienLoreSeed), cfg, cfg.SpeciesPack, max(1, cfg.AlienSpeciesCount))
@@ -1601,6 +1610,9 @@ func (w *World) remove(id EntityID, cause string) {
 		}
 	}
 	if e.Kind == Colonist {
+		// A casualty's death is settled with the living (guilt, grief) while
+		// its name and family can still be read.
+		w.casualtyDied(e)
 		// Open orders go first, so a bid's escrow is back in the wallet
 		// before the wallet freezes.
 		w.cancelOrdersOf(ColonistOwner(e.ID))

@@ -86,12 +86,18 @@ func preyAnywhere(tags Tags) preyFinder {
 // preyInRoom finds the nearest living creature carrying any of tags in the
 // hunter's own room, never of its own species: a Hostile alien walks the
 // floor like everyone else, so prey behind a wall or across rock is out of
-// reach, and a nest does not eat itself.
+// reach, and a nest does not eat itself. A colonist passed out on the floor
+// counts as helpless-prey-discount tiles nearer than it is: a hunter goes for
+// what cannot run or fight back (see casualty.go).
 func preyInRoom(tags Tags) preyFinder {
 	return func(w *World, e *Entity) (*Entity, bool) {
-		return w.nearestTaggedWhere(e.Pos, tags, func(c *Entity) bool {
+		var bias func(*Entity) int
+		if w.cfg.HelplessPreyDiscount != 0 && len(w.casualties) > 0 {
+			bias = w.helplessBias
+		}
+		return w.nearestTaggedRanked(e.Pos, tags, func(c *Entity) bool {
 			return c != e && !sameSpecies(c, e) && w.canReach(e, c)
-		})
+		}, bias)
 	}
 }
 
