@@ -94,9 +94,9 @@ a battery in its depot cooks powered, and a stove without one still cooks.
 One unit of uranium ore makes 40 pellets, and those make 480 batteries. At
 about two meals per colonist-day ([drives.md](./drives.md)), that is a little
 over twelve days of cooking for twenty colonists from one tile of ore. A
-16-tile vein runs the same colony for most of a year. That is why uranium can
+16-tile vein runs the same colony for about six months. That is why uranium can
 be rare: the colony needs to find it, not to find a lot of it. Water ice goes
-at one unit per twelve batteries, about three and a half a day for the same
+at one unit per twelve batteries, three or four a day for the same
 colony: a steady trickle of work for an ice miner, which is the role ice
 should have.
 
@@ -125,8 +125,9 @@ tariff included.
 ### The build-out: batteries in the ships
 
 Every ship's **hold** carries `ship-batteries` (default 10 per passenger),
-owned by the colony, which is enough for the colony's kitchens to cook powered
-for roughly the first week and a half. Each **locker** carries
+owned by the colony. At two meals a colonist-day that is five days of powered
+cooking, on top of the five days the meals in the lockers already cover, so
+about ten days before the colony has to cook cold. Each **locker** carries
 `crash-pod-batteries` (default 2) of the settler's own, for a colonist cooking
 its own supper. Arrivals bring their share, so a growing colony's reserve grows
 with it.
