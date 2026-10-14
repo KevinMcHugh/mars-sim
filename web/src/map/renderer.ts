@@ -43,6 +43,7 @@ import { buildAtlas } from './atlas';
 import type { Atlas } from './atlas';
 import { Camera } from './camera';
 import * as palette from './palette';
+import { TILE_ART } from './tileart';
 
 const CHUNK_PAGES = 32;
 const CHUNK_TILES = CHUNK_PAGES * PAGE_SIDE; // 2048: under every WebGL2 max texture size
@@ -481,8 +482,10 @@ export class MapRenderer {
     // A species pack's sprites are the last symbols (withLooks in main.ts).
     const sprites = hello.glyphs.sprites ?? [];
     const firstSprite = hello.glyphs.symbols.length - sprites.length;
+    // Terrain with hand-drawn art in place of its emoji (docs/tile-art.md).
+    const art = hello.glyphs.symbols.flatMap((s, index) => (TILE_ART[s] ? [{ index, svg: TILE_ART[s] }] : []));
     this.atlas = buildAtlas(gl, hello.glyphs.symbols,
-      sprites.map((svg, i) => ({ index: firstSprite + i, svg })),
+      [...art, ...sprites.map((svg, i) => ({ index: firstSprite + i, svg }))],
       () => { this.dirty = true; });
     gl.useProgram(this.spriteProg);
     const kinds = pad(palette.kindColors(hello.enums.kinds), MAX_KINDS);

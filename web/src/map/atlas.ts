@@ -17,7 +17,10 @@ export interface Atlas {
   disposed?: boolean;
 }
 
-/** An SVG to paint over a symbol's cell: a species-pack sprite (docs/species-pack.md). */
+/**
+ * An SVG to paint over a symbol's cell: a species-pack sprite
+ * (docs/species-pack.md) or a terrain's tile art (docs/tile-art.md).
+ */
 export interface AtlasImage {
   index: number;
   svg: string;
@@ -81,7 +84,7 @@ export function buildAtlas(
       ctx.drawImage(img, x, y, CELL, CELL);
     })).then((results) => {
       results.forEach((r, i) => {
-        if (r.status === 'rejected') console.warn(`species-pack sprite ${i} not drawn:`, r.reason);
+        if (r.status === 'rejected') console.warn(`atlas image ${i} not drawn:`, r.reason);
       });
       if (atlas.disposed) return;
       try {
@@ -89,7 +92,7 @@ export function buildAtlas(
       } catch (e) {
         // A browser that taints a canvas drawn with an SVG image refuses the
         // upload; the first upload, all emoji, stays in place.
-        console.warn('species-pack sprites not uploaded:', e);
+        console.warn('atlas images not uploaded:', e);
         return;
       }
       onPainted();
