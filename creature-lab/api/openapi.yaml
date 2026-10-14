@@ -122,8 +122,8 @@ paths:
           $ref: "#/components/responses/NotFound"
     patch:
       operationId: updateSpecies
-      summary: Replace a species' notes or field notes
-      description: Sets whichever fields are given and leaves the rest alone. An empty description resets the field notes to the generated text.
+      summary: Replace a species' notes, field notes or common name
+      description: Sets whichever fields are given and leaves the rest alone. An empty description resets the field notes to the generated text; an empty singular resets the common name to the rolled one.
       requestBody:
         required: true
         content:
@@ -511,6 +511,9 @@ components:
           type: string
         plural:
           type: string
+        nameEdited:
+          type: boolean
+          description: singular and plural were renamed in the lab, not rolled.
         scientificName:
           type: string
         emoji:
@@ -547,7 +550,7 @@ components:
 
     SpeciesDetail:
       type: object
-      required: [id, seed, generatorRev, traits, generatedDescription, forms, complete, createdAt, url]
+      required: [id, seed, generatorRev, traits, generatedDescription, generatedSingular, generatedPlural, forms, complete, createdAt, url]
       properties:
         id:
           type: string
@@ -567,6 +570,15 @@ components:
         descriptionEdited:
           type: boolean
           description: traits.description was rewritten and differs from generatedDescription.
+        generatedSingular:
+          type: string
+          description: The common name the roster code rolled. traits.singular is this unless nameEdited.
+        generatedPlural:
+          type: string
+          description: The rolled common name's plural. traits.plural is this unless nameEdited.
+        nameEdited:
+          type: boolean
+          description: traits.singular and traits.plural were renamed and differ from the rolled names. Unless descriptionEdited, traits.description then has the new name in place of the rolled one.
         forms:
           type: array
           items:
@@ -601,6 +613,15 @@ components:
           maxLength: 4000
           description: Replacement field notes; omit to leave them, or send "" to go back to the generated text.
           x-go-type-skip-optional-pointer: false
+        singular:
+          type: string
+          maxLength: 40
+          description: A new common name, singular ("glass krell"); omit to leave it, or send "" to go back to the rolled name (plural is then ignored).
+          x-go-type-skip-optional-pointer: false
+        plural:
+          type: string
+          maxLength: 40
+          description: The new name's plural ("glass krells"). Only with singular; omit it to add an s (or y to ies).
 
     SpriteBrief:
       type: object
@@ -678,13 +699,19 @@ components:
 
     ExportSpecies:
       type: object
-      required: [id, seed, generatorRev, complete, description, species, sprites]
+      required: [id, seed, generatorRev, complete, description, singular, plural, species, sprites]
       properties:
         id:
           type: string
         description:
           type: string
           description: The field notes to show, edited or as generated. species holds the struct the game rolled; a rewritten description lives only here.
+        singular:
+          type: string
+          description: The common name to show, renamed or as rolled. species keeps the rolled name; a rename lives only here.
+        plural:
+          type: string
+          description: The plural of singular.
         seed:
           type: integer
           format: int64

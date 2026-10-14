@@ -24,3 +24,8 @@ func (a AlienAnatomy) FeaturePhrases() []string { return a.featurePhrases() }
 // SizeWords renders a form's size against the adult's in words, as the lore
 // tab does ("about a fifth of adult size").
 func (f AlienForm) SizeWords() string { return sizeWords(f.SizePct) }
+
+// PluralName is the plural the game would give a one-word-at-the-end name
+// ("krell" → "krells", "glass fly" → "glass flies"), for a rename in the lab
+// that does not spell its plural out.
+func PluralName(singular string) string { return pluralizeWord(singular) }

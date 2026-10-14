@@ -99,3 +99,19 @@ func TestBodyLineCounts(t *testing.T) {
 		t.Fatalf("bodyLine = %q, want %q", got, want)
 	}
 }
+
+func TestRenamed(t *testing.T) {
+	for _, c := range []struct{ in, want string }{
+		{"Krells stand 2 m tall. A krell hunts alone.", "Vent wraiths stand 2 m tall. A vent wraith hunts alone."},
+		{"The feared krells hunt humans.", "The feared vent wraiths hunt humans."},
+		{"Krellish rock is not a krell.", "Krellish rock is not a vent wraith."}, // whole words only
+	} {
+		if got := Renamed(c.in, "krell", "krells", "vent wraith", "vent wraiths"); got != c.want {
+			t.Errorf("Renamed(%q) = %q, want %q", c.in, got, c.want)
+		}
+	}
+	// A new name that contains the old one is not renamed twice.
+	if got := Renamed("Krells and a krell.", "krell", "krells", "glass krell", "glass krells"); got != "Glass krells and a glass krell." {
+		t.Errorf("got %q", got)
+	}
+}

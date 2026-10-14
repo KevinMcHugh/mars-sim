@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"strings"
 	"time"
+	"unicode"
 	"unicode/utf8"
 
 	"github.com/rs/xid"
@@ -36,6 +37,7 @@ type Summary struct {
 	Seed           int64     `json:"seed"`
 	Singular       string    `json:"singular"`
 	Plural         string    `json:"plural"`
+	NameEdited     bool      `json:"nameEdited,omitempty"`
 	ScientificName string    `json:"scientificName"`
 	Emoji          string    `json:"emoji,omitempty"`
 	Temperament    string    `json:"temperament"`
@@ -50,7 +52,8 @@ type Summary struct {
 }
 
 // Detail is one species with its slots. Traits.Description is the field
-// notes as shown, rewritten or generated.
+// notes as shown, rewritten or generated, and Traits.Singular and Plural are
+// the common name as shown, renamed or rolled.
 type Detail struct {
 	ID           string             `json:"id"`
 	Seed         int64              `json:"seed"`
@@ -58,12 +61,16 @@ type Detail struct {
 	Notes        string             `json:"notes,omitempty"`
 	Traits       creaturelab.Traits `json:"traits"`
 	// GeneratedDescription is the roster code's text, as rolled.
-	GeneratedDescription string     `json:"generatedDescription"`
-	DescriptionEdited    bool       `json:"descriptionEdited,omitempty"`
-	Forms                []FormView `json:"forms"`
-	Complete             bool       `json:"complete"`
-	CreatedAt            time.Time  `json:"createdAt"`
-	URL                  string     `json:"url"`
+	GeneratedDescription string `json:"generatedDescription"`
+	DescriptionEdited    bool   `json:"descriptionEdited,omitempty"`
+	// GeneratedSingular and GeneratedPlural are the name it rolled with.
+	GeneratedSingular string     `json:"generatedSingular"`
+	GeneratedPlural   string     `json:"generatedPlural"`
+	NameEdited        bool       `json:"nameEdited,omitempty"`
+	Forms             []FormView `json:"forms"`
+	Complete          bool       `json:"complete"`
+	CreatedAt         time.Time  `json:"createdAt"`
+	URL               string     `json:"url"`
 }
 
 // FormView is a slot and where its sprite stands.
@@ -112,6 +119,9 @@ func ToDetail(m Model, links creaturelab.Links) Detail {
 		Traits:               traits,
 		GeneratedDescription: m.Row.Description,
 		DescriptionEdited:    m.Row.DescriptionOverride != "",
+		GeneratedSingular:    m.Row.Singular,
+		GeneratedPlural:      m.Row.Plural,
+		NameEdited:           creaturelab.NameEdited(m.Row),
 		Forms:                views,
 		Complete:             accepted >= len(forms),
 		CreatedAt:            m.Row.CreatedAt.Time,
@@ -229,6 +239,9 @@ func detailToAPI(d Detail) apigen.SpeciesDetail {
 		Traits:               TraitsToAPI(d.Traits),
 		GeneratedDescription: d.GeneratedDescription,
 		DescriptionEdited:    d.DescriptionEdited,
+		GeneratedSingular:    d.GeneratedSingular,
+		GeneratedPlural:      d.GeneratedPlural,
+		NameEdited:           d.NameEdited,
 		Forms:                forms,
 		Complete:             d.Complete,
 		CreatedAt:            d.CreatedAt,
@@ -242,6 +255,7 @@ func summaryToAPI(s Summary) apigen.SpeciesSummary {
 		Seed:           s.Seed,
 		Singular:       s.Singular,
 		Plural:         s.Plural,
+		NameEdited:     s.NameEdited,
 		ScientificName: s.ScientificName,
 		Emoji:          s.Emoji,
 		Temperament:    s.Temperament,
@@ -346,11 +360,14 @@ func (e ListEndpoint) Build(m listModel) []Summary {
 		// Flags with no column of their own come from the stored species.
 		var flags struct{ Apex bool }
 		_ = json.Unmarshal(r.Data, &flags)
+		row := db.Species{Singular: r.Singular, Plural: r.Plural, SingularOverride: r.SingularOverride, PluralOverride: r.PluralOverride}
+		singular, plural := creaturelab.CommonName(row)
 		out[i] = Summary{
 			ID:             r.ID,
 			Seed:           r.Seed,
-			Singular:       r.Singular,
-			Plural:         r.Plural,
+			Singular:       singular,
+			Plural:         plural,
+			NameEdited:     creaturelab.NameEdited(row),
 			ScientificName: r.ScientificName,
 			Emoji:          r.Emoji,
 			Temperament:    r.Temperament,
@@ -457,13 +474,14 @@ func (e CreateEndpoint) Render(vm Detail) apigen.CreateSpeciesResponseObject {
 
 type UpdateStore interface {
 	UpdateSpecies(ctx context.Context, arg db.UpdateSpeciesParams) (db.Species, error)
-	CandidateLister
+	GetStore
 }
 
-// UpdateEndpoint replaces a species' lab notes, its field notes, or both;
-// a field left nil is left alone. Empty field notes go back to the
-// generated text. Rewriting them is how an agent gives a species a voice
-// the roster's template does not; the generated text is kept regardless.
+// UpdateEndpoint replaces a species' lab notes, its field notes, its common
+// name, or any of them; a field left nil is left alone. Empty field notes go
+// back to the generated text, and an empty name to the rolled one. Rewriting
+// them is how an agent gives a species a voice, or a name, the roster's
+// template does not; what was rolled is kept regardless.
 type UpdateEndpoint struct {
 	Store UpdateStore
 	Links creaturelab.Links
@@ -482,12 +500,55 @@ func (e UpdateEndpoint) Interact(ctx context.Context, req apigen.UpdateSpeciesRe
 		}
 		arg.DescriptionOverride = &trimmed
 	}
+	if req.Body.Singular != nil || req.Body.Plural != "" {
+		current, err := e.Store.GetSpecies(ctx, req.SpeciesId)
+		if err != nil {
+			return Model{}, creaturelab.NotFound(err, "species", req.SpeciesId)
+		}
+		singular, plural, err := rename(current, req.Body.Singular, req.Body.Plural)
+		if err != nil {
+			return Model{}, err
+		}
+		arg.SingularOverride, arg.PluralOverride = &singular, &plural
+	}
 	row, err := e.Store.UpdateSpecies(ctx, arg)
 	if err != nil {
 		return Model{}, creaturelab.NotFound(err, "species", req.SpeciesId)
 	}
 	return withCandidates(ctx, e.Store, row)
 }
+
+// rename checks a new common name for row and returns the overrides to
+// store: both empty to go back to the rolled name, which is also what a
+// "rename" to the rolled name itself stores. An empty plural is the
+// singular's plural as the game would make it.
+func rename(row db.Species, singular *string, plural string) (string, string, error) {
+	if singular == nil {
+		return "", "", fmt.Errorf("%w: a plural needs its singular", creaturelab.ErrBadInput)
+	}
+	s, p := cleanName(*singular), cleanName(plural)
+	if s == "" {
+		return "", "", nil
+	}
+	if p == "" {
+		p = sim.PluralName(s)
+	}
+	for _, n := range []string{s, p} {
+		if c := utf8.RuneCountInString(n); c > creaturelab.MaxName {
+			return "", "", fmt.Errorf("%w: name %q is %d characters; the limit is %d", creaturelab.ErrBadInput, n, c, creaturelab.MaxName)
+		}
+		if strings.IndexFunc(n, func(r rune) bool { return !unicode.IsPrint(r) }) >= 0 {
+			return "", "", fmt.Errorf("%w: name %q has a character that does not print", creaturelab.ErrBadInput, n)
+		}
+	}
+	if s == row.Singular && p == row.Plural {
+		return "", "", nil
+	}
+	return s, p, nil
+}
+
+// cleanName trims a name and squeezes its inner runs of space to one.
+func cleanName(s string) string { return strings.Join(strings.Fields(s), " ") }
 
 func (e UpdateEndpoint) Build(m Model) Detail { return ToDetail(m, e.Links) }
 

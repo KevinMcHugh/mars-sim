@@ -17,8 +17,8 @@
 {{define "content"}}
 {{with .Species}}
 <p class="muted"><a href="/">Catalog</a> / seed {{.Seed}}</p>
-<h1>{{if .Traits.Emoji}}{{.Traits.Emoji}} {{end}}{{.Traits.Plural}}</h1>
-<div class="sci">{{.Traits.ScientificName}}</div>
+<h1 id="name">{{if .Traits.Emoji}}{{.Traits.Emoji}} {{end}}{{.Traits.Plural}}{{if .NameEdited}} <span class="tag" title="Renamed; it rolled as {{.GeneratedPlural}}">renamed</span>{{end}}</h1>
+<div class="sci">{{.Traits.ScientificName}}{{if .NameEdited}} <span class="muted">· rolled as {{.GeneratedSingular}} / {{.GeneratedPlural}}</span>{{end}}</div>
 <p class="id-line"><span class="muted">Species ID</span> <code class="id" title="Click to select. This is the id the MCP tools take.">{{.ID}}</code></p>
 <div class="row" style="margin:.4rem 0">
   <span class="tag {{.Traits.Temperament}}">{{.Traits.Temperament}}</span>{{if .Traits.Apex}}<span class="tag hostile">apex</span>{{end}}
@@ -31,6 +31,20 @@
 
 {{$signedIn := .SignedIn}}
 {{with .Species}}
+{{if $signedIn}}
+<details class="panel">
+  <summary>Rename the species</summary>
+  <form method="POST" action="/species/{{.ID}}/name" style="margin-top:.5rem">
+    <p class="muted" style="margin:0 0 .4rem">A common name the game uses everywhere, to tell this species apart from others. Lowercase, like the rolled ones; the scientific name stays. Leave the plural empty to add an s.</p>
+    <div class="row">
+      <input name="singular" value="{{.Traits.Singular}}" maxlength="40" required placeholder="singular" aria-label="Singular">
+      <input name="plural" value="{{if .NameEdited}}{{.Traits.Plural}}{{end}}" maxlength="40" placeholder="plural (optional)" aria-label="Plural">
+      <button type="submit">Save name</button>
+      {{if .NameEdited}}<button class="ghost" type="submit" name="reset" value="1" formnovalidate>Reset to {{.GeneratedSingular}}</button>{{end}}
+    </div>
+  </form>
+</details>
+{{end}}
 <section class="panel" id="field-notes">
   <h2>Field notes{{if .DescriptionEdited}} <span class="tag" title="Rewritten; the generated text is kept below">rewritten</span>{{end}}</h2>
   <p class="field-notes">{{.Traits.Description}}</p>

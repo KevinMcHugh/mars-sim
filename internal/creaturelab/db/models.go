@@ -82,6 +82,8 @@ type Species struct {
 	UpdatedAt           pgtype.Timestamptz `json:"updated_at"`
 	DeletedAt           pgtype.Timestamptz `json:"deleted_at"`
 	DescriptionOverride string             `json:"description_override"`
+	SingularOverride    string             `json:"singular_override"`
+	PluralOverride      string             `json:"plural_override"`
 }
 
 type SpriteCandidate struct {

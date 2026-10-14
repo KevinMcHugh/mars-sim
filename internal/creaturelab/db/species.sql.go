@@ -16,7 +16,7 @@ INSERT INTO species (
     id, seed, generator_rev, singular, plural, scientific_name, emoji,
     temperament, form_count, description, data, notes, created_by
 ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
-RETURNING id, seed, generator_rev, singular, plural, scientific_name, emoji, temperament, form_count, description, data, notes, created_by, created_at, updated_at, deleted_at, description_override
+RETURNING id, seed, generator_rev, singular, plural, scientific_name, emoji, temperament, form_count, description, data, notes, created_by, created_at, updated_at, deleted_at, description_override, singular_override, plural_override
 `
 
 type CreateSpeciesParams struct {
@@ -70,6 +70,8 @@ func (q *Queries) CreateSpecies(ctx context.Context, arg CreateSpeciesParams) (S
 		&i.UpdatedAt,
 		&i.DeletedAt,
 		&i.DescriptionOverride,
+		&i.SingularOverride,
+		&i.PluralOverride,
 	)
 	return i, err
 }
@@ -88,7 +90,7 @@ func (q *Queries) DeleteSpecies(ctx context.Context, id string) (int64, error) {
 }
 
 const getSpecies = `-- name: GetSpecies :one
-SELECT id, seed, generator_rev, singular, plural, scientific_name, emoji, temperament, form_count, description, data, notes, created_by, created_at, updated_at, deleted_at, description_override FROM species
+SELECT id, seed, generator_rev, singular, plural, scientific_name, emoji, temperament, form_count, description, data, notes, created_by, created_at, updated_at, deleted_at, description_override, singular_override, plural_override FROM species
 WHERE id = $1 AND deleted_at IS NULL
 `
 
@@ -113,12 +115,14 @@ func (q *Queries) GetSpecies(ctx context.Context, id string) (Species, error) {
 		&i.UpdatedAt,
 		&i.DeletedAt,
 		&i.DescriptionOverride,
+		&i.SingularOverride,
+		&i.PluralOverride,
 	)
 	return i, err
 }
 
 const listSpecies = `-- name: ListSpecies :many
-SELECT species.id, species.seed, species.generator_rev, species.singular, species.plural, species.scientific_name, species.emoji, species.temperament, species.form_count, species.description, species.data, species.notes, species.created_by, species.created_at, species.updated_at, species.deleted_at, species.description_override,
+SELECT species.id, species.seed, species.generator_rev, species.singular, species.plural, species.scientific_name, species.emoji, species.temperament, species.form_count, species.description, species.data, species.notes, species.created_by, species.created_at, species.updated_at, species.deleted_at, species.description_override, species.singular_override, species.plural_override,
        (SELECT COUNT(*) FROM sprite_candidates c
          WHERE c.species_id = species.id AND c.accepted_at IS NOT NULL
            AND c.deleted_at IS NULL)::INT AS accepted_count
@@ -145,6 +149,8 @@ type ListSpeciesRow struct {
 	UpdatedAt           pgtype.Timestamptz `json:"updated_at"`
 	DeletedAt           pgtype.Timestamptz `json:"deleted_at"`
 	DescriptionOverride string             `json:"description_override"`
+	SingularOverride    string             `json:"singular_override"`
+	PluralOverride      string             `json:"plural_override"`
 	AcceptedCount       int32              `json:"accepted_count"`
 }
 
@@ -176,6 +182,8 @@ func (q *Queries) ListSpecies(ctx context.Context) ([]ListSpeciesRow, error) {
 			&i.UpdatedAt,
 			&i.DeletedAt,
 			&i.DescriptionOverride,
+			&i.SingularOverride,
+			&i.PluralOverride,
 			&i.AcceptedCount,
 		); err != nil {
 			return nil, err
@@ -192,22 +200,33 @@ const updateSpecies = `-- name: UpdateSpecies :one
 UPDATE species SET
     notes = COALESCE($2, notes),
     description_override = COALESCE($3, description_override),
+    singular_override = COALESCE($4, singular_override),
+    plural_override = COALESCE($5, plural_override),
     updated_at = NOW()
 WHERE id = $1 AND deleted_at IS NULL
-RETURNING id, seed, generator_rev, singular, plural, scientific_name, emoji, temperament, form_count, description, data, notes, created_by, created_at, updated_at, deleted_at, description_override
+RETURNING id, seed, generator_rev, singular, plural, scientific_name, emoji, temperament, form_count, description, data, notes, created_by, created_at, updated_at, deleted_at, description_override, singular_override, plural_override
 `
 
 type UpdateSpeciesParams struct {
 	ID                  string  `json:"id"`
 	Notes               *string `json:"notes"`
 	DescriptionOverride *string `json:"description_override"`
+	SingularOverride    *string `json:"singular_override"`
+	PluralOverride      *string `json:"plural_override"`
 }
 
-// Sets whichever of notes and description_override are given (non-null)
-// and leaves the other alone. An empty description_override resets the
-// field notes to the generated text.
+// Sets whichever of notes, description_override and the name overrides are
+// given (non-null) and leaves the rest alone. An empty description_override
+// resets the field notes to the generated text, and empty name overrides
+// reset the common name to the rolled one.
 func (q *Queries) UpdateSpecies(ctx context.Context, arg UpdateSpeciesParams) (Species, error) {
-	row := q.db.QueryRow(ctx, updateSpecies, arg.ID, arg.Notes, arg.DescriptionOverride)
+	row := q.db.QueryRow(ctx, updateSpecies,
+		arg.ID,
+		arg.Notes,
+		arg.DescriptionOverride,
+		arg.SingularOverride,
+		arg.PluralOverride,
+	)
 	var i Species
 	err := row.Scan(
 		&i.ID,
@@ -227,6 +246,8 @@ func (q *Queries) UpdateSpecies(ctx context.Context, arg UpdateSpeciesParams) (S
 		&i.UpdatedAt,
 		&i.DeletedAt,
 		&i.DescriptionOverride,
+		&i.SingularOverride,
+		&i.PluralOverride,
 	)
 	return i, err
 }

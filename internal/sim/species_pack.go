@@ -46,6 +46,12 @@ type PackedSpecies struct {
 	// Notes are the lab's notes on the species, shown in the lore tab under
 	// the field notes: in-world writing, line breaks and all.
 	Notes string `json:"notes,omitempty"`
+	// Singular and Plural are the species' common name when it was renamed
+	// in the lab; empty for the rolled name in Species. A world plays the
+	// species under this name everywhere. (The lab's export fills them
+	// either way, which gives the same name.)
+	Singular string `json:"singular,omitempty"`
+	Plural   string `json:"plural,omitempty"`
 	// Species is the species as rolled, with every field the game reads.
 	Species AlienSpecies   `json:"species"`
 	Sprites []PackedSprite `json:"sprites"`
@@ -53,6 +59,20 @@ type PackedSpecies struct {
 
 // MaxPackedLoreBytes bounds a packed species' description and notes, each.
 const MaxPackedLoreBytes = 16 << 10
+
+// MaxPackedNameBytes bounds a packed species' rename, singular or plural.
+// The lab allows 40 characters; this leaves room for multi-byte ones.
+const MaxPackedNameBytes = 160
+
+// named is the species as a world plays it: as rolled, under its lab rename
+// if it has one.
+func (ps PackedSpecies) named() AlienSpecies {
+	sp := ps.Species
+	if s, p := strings.TrimSpace(ps.Singular), strings.TrimSpace(ps.Plural); s != "" && p != "" {
+		sp.Singular, sp.Plural = s, p
+	}
+	return sp
+}
 
 // SpeciesLore is the text a lore tab shows for a species beyond what its
 // build implies: field notes rewritten in the lab (empty for the generated
@@ -99,6 +119,12 @@ func LoadSpeciesPack(data []byte, name string) ([]PackedSpecies, error) {
 		if len(ps.Description) > MaxPackedLoreBytes || len(ps.Notes) > MaxPackedLoreBytes {
 			return nil, fmt.Errorf("%s: its description or notes run past %d bytes", where, MaxPackedLoreBytes)
 		}
+		switch s, p := strings.TrimSpace(ps.Singular), strings.TrimSpace(ps.Plural); {
+		case (s == "") != (p == ""):
+			return nil, fmt.Errorf("%s: a rename needs both a singular and a plural", where)
+		case len(s) > MaxPackedNameBytes || len(p) > MaxPackedNameBytes:
+			return nil, fmt.Errorf("%s: its rename runs past %d bytes", where, MaxPackedNameBytes)
+		}
 		seen := make([]bool, sp.slots())
 		for _, s := range ps.Sprites {
 			switch {
@@ -119,7 +145,7 @@ func LoadSpeciesPack(data []byte, name string) ([]PackedSpecies, error) {
 
 // packedRoster is the roster for a world with a species pack: count species
 // drawn from it on rng (the lore stream), no two sharing a name, in pack
-// order of drawing. Asking for more species than the pack holds gives every
+// order of drawing, each under its lab rename if it has one. Asking for more species than the pack holds gives every
 // distinct one: a pack replaces rolling rather than mixing with it, so a
 // world's species are all ones somebody looked at. Each one's combat pace and
 // damage are worked out again from this world's settings, since the lab
@@ -131,7 +157,7 @@ func packedRoster(rng *rand.Rand, cfg Config, pack []PackedSpecies, count int) (
 		if len(roster) == count {
 			break
 		}
-		sp := pack[i].Species
+		sp := pack[i].named()
 		name, binomial := strings.ToLower(sp.Singular), strings.ToLower(sp.ScientificName)
 		if used[name] || (binomial != "" && sci[binomial]) {
 			continue // two lab species can share a name; a world cannot
