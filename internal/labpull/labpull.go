@@ -1,7 +1,7 @@
 // Package labpull pulls a species pack from a Creature Lab server: every
 // species with a sprite for every form, as sim.PackedSpecies, with its
-// rewritten field notes and lab notes, using only the lab's public reads (no
-// key). See docs/species-pack.md.
+// rewritten field notes, lab notes and new name, using only the lab's public
+// reads (no key). See docs/species-pack.md.
 //
 // The public reads describe a species (its seed, the commit that rolled it,
 // its traits and forms) but do not carry the stored sim.AlienSpecies itself;
@@ -56,6 +56,11 @@ type (
 		// DescriptionEdited says traits.description is a rewrite, not the
 		// generated text.
 		DescriptionEdited bool `json:"descriptionEdited"`
+		// NameEdited says traits.singular and plural are a rename; the
+		// rolled name is in generatedSingular and generatedPlural.
+		NameEdited        bool   `json:"nameEdited"`
+		GeneratedSingular string `json:"generatedSingular"`
+		GeneratedPlural   string `json:"generatedPlural"`
 		Traits            struct {
 			Description    string `json:"description"`
 			Singular       string `json:"singular"`
@@ -130,9 +135,14 @@ func Pull(ctx context.Context, client *http.Client, base string) (Result, error)
 func pack(d speciesDetail, c candidateList) (ps sim.PackedSpecies, why string) {
 	sp := sim.RollLabSpecies(d.Seed)
 	t := d.Traits
+	// A renamed species is checked against the name it rolled with.
+	singular, plural := t.Singular, t.Plural
+	if d.NameEdited {
+		singular, plural = d.GeneratedSingular, d.GeneratedPlural
+	}
 	switch {
-	case sp.Singular != t.Singular || sp.Plural != t.Plural:
-		return ps, fmt.Sprintf("rolled by %s as %q; this build rolls %q from that seed", d.GeneratorRev, t.Plural, sp.Plural)
+	case sp.Singular != singular || sp.Plural != plural:
+		return ps, fmt.Sprintf("rolled by %s as %q; this build rolls %q from that seed", d.GeneratorRev, plural, sp.Plural)
 	case sp.ScientificName != t.ScientificName:
 		return ps, fmt.Sprintf("rolled by %s as %s; this build rolls %s", d.GeneratorRev, t.ScientificName, sp.ScientificName)
 	case sp.Temperament.String() != t.Temperament || sp.Apex != t.Apex:
@@ -153,6 +163,11 @@ func pack(d speciesDetail, c candidateList) (ps sim.PackedSpecies, why string) {
 	// itself, from the very species it plays, so they always match its stats.
 	if d.DescriptionEdited {
 		ps.Description = t.Description
+	}
+	// A rename is packed beside the species, which stays as rolled; the game
+	// plays it under the new name, and writes unedited field notes with it.
+	if d.NameEdited {
+		ps.Singular, ps.Plural = t.Singular, t.Plural
 	}
 	for i, f := range d.Forms {
 		if f.Index != i || f.Name != names[i] {

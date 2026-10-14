@@ -5,7 +5,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"regexp"
 	"strings"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -29,6 +32,11 @@ const MaxPreview = 12
 // MaxDescription bounds rewritten field notes, in characters. The generated
 // ones run a few hundred; this leaves room for a much richer rewrite.
 const MaxDescription = 4000
+
+// MaxName bounds a renamed common name, in characters, singular or plural.
+// Rolled names run one or two words; the game prints them in log lines and
+// lore headings, so a name stays a name, not a sentence.
+const MaxName = 40
 
 // Store is the lab's persistence: every sqlc query, plus the operations that
 // need a transaction. Endpoints each declare a narrow interface of just the
@@ -124,19 +132,75 @@ func (l Links) Sprite(id string) string { return l.Base + "/sprites/" + id + ".s
 // FieldNotes is the description to show for a stored species: its rewrite
 // when it has one, else the text the roster code generated when it rolled
 // the species (kept in description as rolled, not regenerated, since later
-// roster code may word it differently).
+// roster code may word it differently), with a renamed species' new name in
+// place of the rolled one.
 func FieldNotes(row db.Species) string {
 	if row.DescriptionOverride != "" {
 		return row.DescriptionOverride
 	}
+	if NameEdited(row) {
+		singular, plural := CommonName(row)
+		return Renamed(row.Description, row.Singular, row.Plural, singular, plural)
+	}
 	return row.Description
 }
 
-// DecodeSpecies loads a row's stored sim.AlienSpecies.
+// NameEdited says the species was renamed in the lab.
+func NameEdited(row db.Species) bool { return row.SingularOverride != "" }
+
+// CommonName is the name to show for a stored species: its rename when it
+// has one, else the name it rolled with (kept in singular and plural, and in
+// data, as rolled).
+func CommonName(row db.Species) (singular, plural string) {
+	if NameEdited(row) {
+		return row.SingularOverride, row.PluralOverride
+	}
+	return row.Singular, row.Plural
+}
+
+// Renamed is text with every whole-word mention of a species' old name,
+// plural or singular, swapped for its new one, keeping a capital first
+// letter where the old one had it ("Krells stand…" → "Glass krells
+// stand…"). It is how generated field notes, which name the species, follow
+// a rename without being regenerated.
+func Renamed(text, fromSingular, fromPlural, toSingular, toPlural string) string {
+	var alts []string
+	for _, w := range []string{fromPlural, fromSingular} { // plural first: it usually extends the singular
+		if w != "" {
+			alts = append(alts, regexp.QuoteMeta(w))
+		}
+	}
+	if len(alts) == 0 {
+		return text
+	}
+	re, err := regexp.Compile(`(?i)\b(?:` + strings.Join(alts, "|") + `)\b`)
+	if err != nil {
+		return text
+	}
+	return re.ReplaceAllStringFunc(text, func(m string) string {
+		to := toSingular
+		if strings.EqualFold(m, fromPlural) {
+			to = toPlural
+		}
+		if r, _ := utf8.DecodeRuneInString(m); unicode.IsUpper(r) {
+			first, n := utf8.DecodeRuneInString(to)
+			to = string(unicode.ToUpper(first)) + to[n:]
+		}
+		return to
+	})
+}
+
+// DecodeSpecies loads a row's stored sim.AlienSpecies as the lab shows it:
+// as rolled, but with its rename, if it has one, in Singular and Plural, so
+// traits, form labels and briefs all use the new name. row.Data itself keeps
+// the rolled name.
 func DecodeSpecies(row db.Species) (sim.AlienSpecies, error) {
 	var sp sim.AlienSpecies
 	if err := json.Unmarshal(row.Data, &sp); err != nil {
 		return sp, fmt.Errorf("species %s: stored data: %w", row.ID, err)
+	}
+	if NameEdited(row) {
+		sp.Singular, sp.Plural = CommonName(row)
 	}
 	return sp, nil
 }

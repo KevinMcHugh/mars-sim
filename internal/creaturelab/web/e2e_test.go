@@ -194,7 +194,40 @@ func TestAPIFlow(t *testing.T) {
 	if reset.Traits.Description != want.Description() || reset.DescriptionEdited {
 		t.Fatalf("reset field notes: %+v", reset)
 	}
-	l.do("PATCH", "/api/species/"+sp.ID, l.key, map[string]any{"description": rewrite}, http.StatusOK, nil)
+
+	// A species can be renamed; the rolled name is kept, generated field
+	// notes, form labels and the brief follow the new name, and an empty
+	// name goes back to the rolled one.
+	var renamed species.Detail
+	l.do("PATCH", "/api/species/"+sp.ID, l.key, map[string]any{"singular": "  vent   wraith "}, http.StatusOK, &renamed)
+	if renamed.Traits.Singular != "vent wraith" || renamed.Traits.Plural != "vent wraiths" || !renamed.NameEdited ||
+		renamed.GeneratedSingular != want.Singular || renamed.GeneratedPlural != want.Plural {
+		t.Fatalf("renamed: %+v", renamed)
+	}
+	if !strings.Contains(strings.ToLower(renamed.Traits.Description), "vent wraiths") || strings.Contains(renamed.Traits.Description, want.Plural) {
+		t.Fatalf("generated field notes do not follow the rename: %q", renamed.Traits.Description)
+	}
+	if renamed.GeneratedDescription != want.Description() {
+		t.Fatal("renaming touched the generated description")
+	}
+	if !strings.Contains(renamed.Forms[0].Label, "vent wraith") {
+		t.Fatalf("form label %q does not follow the rename", renamed.Forms[0].Label)
+	}
+	l.do("GET", "/api/species/"+sp.ID+"/forms/1/brief", l.key, nil, http.StatusOK, &brief)
+	if !strings.Contains(strings.ToLower(brief.Brief), "vent wraith") {
+		t.Fatal("the brief does not use the new name")
+	}
+	l.do("PATCH", "/api/species/"+sp.ID, l.key, map[string]any{"plural": "wraiths"}, http.StatusUnprocessableEntity, nil)
+	l.do("PATCH", "/api/species/"+sp.ID, l.key, map[string]any{"singular": strings.Repeat("x", creaturelab.MaxName+1)}, http.StatusUnprocessableEntity, nil)
+	var unnamed species.Detail
+	l.do("PATCH", "/api/species/"+sp.ID, l.key, map[string]any{"singular": ""}, http.StatusOK, &unnamed)
+	if unnamed.Traits.Singular != want.Singular || unnamed.Traits.Plural != want.Plural || unnamed.NameEdited || unnamed.Traits.Description != want.Description() {
+		t.Fatalf("reset name: %+v", unnamed)
+	}
+	l.do("PATCH", "/api/species/"+sp.ID, l.key, map[string]any{"singular": "vent wraith", "plural": "vent wraithes", "description": rewrite}, http.StatusOK, &renamed)
+	if renamed.Traits.Plural != "vent wraithes" || renamed.Traits.Description != rewrite {
+		t.Fatalf("rename with a plural and a rewrite: %+v", renamed)
+	}
 
 	path := "/api/species/" + sp.ID + "/forms/0/candidates"
 	l.do("POST", path, l.key, map[string]any{"svg": `<svg xmlns="http://www.w3.org/2000/svg" onload="alert(1)"/>`}, http.StatusUnprocessableEntity, nil)
@@ -243,12 +276,15 @@ func TestAPIFlow(t *testing.T) {
 	if exp.Species[0].Description != rewrite {
 		t.Fatalf("export carries field notes %q, want the rewrite", exp.Species[0].Description)
 	}
+	if exp.Species[0].Singular != "vent wraith" || exp.Species[0].Plural != "vent wraithes" || !strings.Contains(string(exp.Species[0].Species), `"`+want.Singular+`"`) {
+		t.Fatalf("export names it %q/%q; want the rename, with the rolled species unchanged", exp.Species[0].Singular, exp.Species[0].Plural)
+	}
 
 	// Anyone may list and view species and every candidate, accepted or
 	// not, and open its sprite; nothing else is public.
 	var public struct{ Species []species.Summary }
 	l.do("GET", "/api/species", "", nil, http.StatusOK, &public)
-	if len(public.Species) != 1 || public.Species[0].ID != sp.ID || !public.Species[0].Complete {
+	if len(public.Species) != 1 || public.Species[0].ID != sp.ID || !public.Species[0].Complete || public.Species[0].Plural != "vent wraithes" || !public.Species[0].NameEdited {
 		t.Fatalf("public list: %+v", public)
 	}
 	var viewed species.Detail
@@ -513,7 +549,17 @@ func TestWebPages(t *testing.T) {
 	if resp.StatusCode != http.StatusSeeOther || strings.Contains(resp.Header.Get("Location"), "err=") {
 		t.Fatalf("rewrite field notes: %d %s", resp.StatusCode, resp.Header.Get("Location"))
 	}
+	resp, _ = browser.PostForm(l.url+speciesPath+"/name", url.Values{"singular": {"ember skulk"}})
+	if resp.StatusCode != http.StatusSeeOther || strings.Contains(resp.Header.Get("Location"), "err=") {
+		t.Fatalf("rename: %d %s", resp.StatusCode, resp.Header.Get("Location"))
+	}
 	signedIn := page(speciesPath)
+	if !strings.Contains(signedIn, "ember skulks") || !strings.Contains(signedIn, "Reset to "+creaturelab.Roll(seed).Singular) {
+		t.Error("species page does not show the new name and a reset")
+	}
+	if !strings.Contains(page("/"), "ember skulks") {
+		t.Error("catalog does not show the new name")
+	}
 	if !strings.Contains(signedIn, "Seen once, near the vents.") || !strings.Contains(signedIn, "Reset to generated") {
 		t.Error("species page does not show the rewritten field notes and a reset")
 	}
@@ -524,7 +570,7 @@ func TestWebPages(t *testing.T) {
 	if err != nil || len(cands) == 0 || !strings.Contains(signedIn, ">"+cands[0].ID+"</code>") {
 		t.Errorf("species page does not show its candidates' ids (%v)", err)
 	}
-	for _, want := range []string{"Save notes", "Paste an SVG", "Brief as text", "Remove", "Delete " + plural, "Sign out"} {
+	for _, want := range []string{"Save notes", "Save name", "Paste an SVG", "Brief as text", "Remove", "Delete ember skulks", "Sign out"} {
 		if !strings.Contains(signedIn, want) {
 			t.Errorf("signed-in species page lacks %q", want)
 		}
@@ -539,14 +585,14 @@ func TestWebPages(t *testing.T) {
 	// every sprite shows, and no form or button that changes anything does.
 	// A stale cookie reads as signed out rather than locking them.
 	jar.SetCookies(mustURL(l.url), []*http.Cookie{{Name: auth.SessionCookie, Value: "cl_at_stale"}})
-	if body := page("/"); !strings.Contains(body, plural) || strings.Contains(body, "Roll and save") || !strings.Contains(body, "Sign in") {
+	if body := page("/"); !strings.Contains(body, "ember skulks") || strings.Contains(body, "Roll and save") || !strings.Contains(body, "Sign in") {
 		t.Fatal("signed-out catalog should list species read-only")
 	}
 	anon := page(speciesPath)
 	if !strings.Contains(anon, "/sprites/") || !strings.Contains(anon, "accepted") {
 		t.Fatal("signed-out species page does not show its sprites")
 	}
-	for _, hidden := range []string{"<form", "Paste an SVG", "Brief as text", "Remove", "Sign out"} {
+	for _, hidden := range []string{"<form", "Rename the species", "Paste an SVG", "Brief as text", "Remove", "Sign out"} {
 		if strings.Contains(anon, hidden) {
 			t.Errorf("signed-out species page shows %q", hidden)
 		}
@@ -631,6 +677,12 @@ func TestMCPTools(t *testing.T) {
 	call("set_species_description", map[string]any{"id": id, "description": "A naturalist's entry."}, &described)
 	if described.Species.Traits.Description != "A naturalist's entry." || !described.Species.DescriptionEdited {
 		t.Fatalf("set_species_description: %+v", described.Species)
+	}
+
+	var named struct{ Species species.Detail }
+	call("set_species_name", map[string]any{"id": id, "singular": "dust wyrm"}, &named)
+	if named.Species.Traits.Singular != "dust wyrm" || named.Species.Traits.Plural != "dust wyrms" || !named.Species.NameEdited {
+		t.Fatalf("set_species_name: %+v", named.Species)
 	}
 
 	res, err := session.CallTool(ctx, &mcpsdk.CallToolParams{Name: "submit_sprite_candidate",

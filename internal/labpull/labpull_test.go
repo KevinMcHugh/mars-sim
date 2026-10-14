@@ -135,6 +135,42 @@ func TestPullCarriesLabText(t *testing.T) {
 	}
 }
 
+// A species renamed in the lab is checked against the name it rolled with
+// and packed with its rename beside it.
+func TestPullCarriesARename(t *testing.T) {
+	ts := fakeLab(t, []int64{3, 7}, func(seed int64, d map[string]any) {
+		if seed != 3 {
+			return
+		}
+		traits := d["traits"].(map[string]any)
+		d["nameEdited"], d["generatedSingular"], d["generatedPlural"] = true, traits["singular"], traits["plural"]
+		traits["singular"], traits["plural"] = "vent wraith", "vent wraiths"
+	})
+	res, err := Pull(context.Background(), ts.Client(), ts.URL)
+	if err != nil || len(res.Pack.Species) != 2 {
+		t.Fatalf("pulled %d species: %v %q", len(res.Pack.Species), err, res.Skipped)
+	}
+	for _, ps := range res.Pack.Species {
+		if ps.Species != sim.RollLabSpecies(ps.Seed) {
+			t.Errorf("seed %d: the packed species is not as rolled", ps.Seed)
+		}
+		want := [2]string{}
+		if ps.Seed == 3 {
+			want = [2]string{"vent wraith", "vent wraiths"}
+		}
+		if got := [2]string{ps.Singular, ps.Plural}; got != want {
+			t.Errorf("seed %d rename %q, want %q", ps.Seed, got, want)
+		}
+	}
+	data, err := Encode(res.Pack)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := sim.LoadSpeciesPack(data, "pulled"); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestPullErrors(t *testing.T) {
 	if _, err := Encode(sim.SpeciesPack{}); !errors.Is(err, ErrNothing) {
 		t.Fatalf("an empty pull encoded: %v", err)
