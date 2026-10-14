@@ -25,6 +25,13 @@
 // quads over the filth: every visible tile the shown field reaches, colored
 // by its distance to the field's nearest goal.
 //
+// The player's standing marks (setMarks) go over all of that, under the
+// sprites: a defense zone's outline (docs/defense.md) and the hatching on
+// tiles an excavation order has marked and nobody has dug yet
+// (docs/excavation.md). A wash alone mixed into whatever zone, filth or fog
+// was under it; a line and a hatch read as "guarded" and "to be mined" on
+// any ground.
+//
 // Zoomed in (GLYPH_ZOOM and up), glyphs replace the flat colors: a facility's
 // emoji over a floor backdrop, and each entity's own emoji (picked in Go, see
 // internal/glyphs) from the atlas (atlas.ts). Zoomed out, a glyph would be a
@@ -128,6 +135,63 @@ precision highp float;
 in vec4 vColor;
 out vec4 outColor;
 void main() { outColor = vColor; }`;
+
+// A mark: one tile's outline edges and hatching (MARK_* bits), in one
+// premultiplied colour. Lines are sized in pixels, so they stay a line at any
+// zoom.
+const MARKS_VS = `#version 300 es
+in vec2 aCorner;
+in ivec2 aPos;          // per instance: tile
+in vec4 aColor;         // per instance: premultiplied colour
+in uint aStyle;         // per instance: MARK_* bits
+uniform vec2 uCam;
+uniform float uScale;
+uniform vec2 uView;
+out vec2 vTile;         // map position, tiles
+out vec2 vFrac;         // position within the tile, 0..1
+out vec4 vColor;
+flat out uint vStyle;
+void main() {
+  vColor = aColor;
+  vStyle = aStyle;
+  vFrac = aCorner;
+  vTile = vec2(aPos) + aCorner;
+  vec2 px = (vTile - uCam) * uScale;
+  gl_Position = vec4(px.x / (uView.x * 0.5), -px.y / (uView.y * 0.5), 0.0, 1.0);
+}`;
+
+const MARKS_FS = `#version 300 es
+precision highp float;
+in vec2 vTile;
+in vec2 vFrac;
+in vec4 vColor;
+flat in uint vStyle;
+uniform float uScale;   // device pixels per tile
+uniform float uLine;    // an outline's width, device pixels
+out vec4 outColor;
+void main() {
+  vec2 f = vFrac * uScale;
+  float d = 1e9;
+  if ((vStyle & 1u) != 0u) d = min(d, f.x);
+  if ((vStyle & 2u) != 0u) d = min(d, uScale - f.x);
+  if ((vStyle & 4u) != 0u) d = min(d, f.y);
+  if ((vStyle & 8u) != 0u) d = min(d, uScale - f.y);
+  if (d < uLine) { outColor = vColor; return; }
+  if ((vStyle & 16u) != 0u) {
+    // Too small to stripe: a flat wash, so the area still shows.
+    if (uScale < 6.0) { outColor = vColor * 0.55; return; }
+    // Diagonal stripes in map space, so they run on across tiles, at
+    // least 8 pixels apart.
+    float period = max(0.5, 8.0 / uScale);
+    if (fract((vTile.x + vTile.y) / period) < 0.35) { outColor = vColor * 0.8; return; }
+  }
+  discard;
+}`;
+
+/** A mark's outline edges and hatching, for setMarks. */
+export const MARK_LEFT = 1, MARK_RIGHT = 2, MARK_TOP = 4, MARK_BOTTOM = 8, MARK_HATCH = 16;
+/** One tile of a standing mark (setMarks). */
+export interface TileMark { x: number; y: number; color: Uint8Array; style: number }
 
 /** What is on one dirty tile, for the tint and the hover readout. */
 export interface Filth { gore: number; scum: number; salt: boolean; corpses: number }
@@ -269,6 +333,13 @@ export class MapRenderer {
   private zonePos: WebGLBuffer;
   private zoneColor: WebGLBuffer;
   private zoneCount = 0;
+  // Standing marks (setMarks): outlines and hatching, over the tints.
+  private marksProg: WebGLProgram;
+  private marksVAO: WebGLVertexArrayObject;
+  private marksPos: WebGLBuffer;
+  private marksColor: WebGLBuffer;
+  private marksStyle: WebGLBuffer;
+  private marksCount = 0;
   // Highlighted tiles (a job's): tint quads like filth's, in their own buffers.
   private hiVAO: WebGLVertexArrayObject;
   private hiPos: WebGLBuffer;
@@ -297,6 +368,8 @@ export class MapRenderer {
     this.tintProg = program(gl, TINT_VS, TINT_FS);
     for (const n of ['uCam', 'uScale', 'uView']) this.u['f.' + n] = gl.getUniformLocation(this.tintProg, n);
     this.markProg = program(gl, MARK_VS, MARK_FS);
+    this.marksProg = program(gl, MARKS_VS, MARKS_FS);
+    for (const n of ['uCam', 'uScale', 'uView', 'uLine']) this.u['k.' + n] = gl.getUniformLocation(this.marksProg, n);
     for (const n of ['uTile', 'uPad', 'uCam', 'uScale', 'uView', 'uSide', 'uLine', 'uColor']) {
       this.u['m.' + n] = gl.getUniformLocation(this.markProg, n);
     }
@@ -345,6 +418,27 @@ export class MapRenderer {
     this.flowPos = gl.createBuffer()!;
     this.flowColor = gl.createBuffer()!;
     this.flowVAO = this.tintLayerVAO(this.flowPos, this.flowColor);
+    this.marksPos = gl.createBuffer()!;
+    this.marksColor = gl.createBuffer()!;
+    this.marksStyle = gl.createBuffer()!;
+    this.marksVAO = gl.createVertexArray()!;
+    gl.bindVertexArray(this.marksVAO);
+    corner(gl, this.marksProg, this.quad);
+    const kPos = gl.getAttribLocation(this.marksProg, 'aPos');
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.marksPos);
+    gl.enableVertexAttribArray(kPos);
+    gl.vertexAttribIPointer(kPos, 2, gl.INT, 0, 0);
+    gl.vertexAttribDivisor(kPos, 1);
+    const kColor = gl.getAttribLocation(this.marksProg, 'aColor');
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.marksColor);
+    gl.enableVertexAttribArray(kColor);
+    gl.vertexAttribPointer(kColor, 4, gl.UNSIGNED_BYTE, true, 0, 0);
+    gl.vertexAttribDivisor(kColor, 1);
+    const kStyle = gl.getAttribLocation(this.marksProg, 'aStyle');
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.marksStyle);
+    gl.enableVertexAttribArray(kStyle);
+    gl.vertexAttribIPointer(kStyle, 1, gl.UNSIGNED_BYTE, 0, 0);
+    gl.vertexAttribDivisor(kStyle, 1);
     this.markVAO = gl.createVertexArray()!;
     gl.bindVertexArray(this.markVAO);
     corner(gl, this.markProg, this.quad);
@@ -365,7 +459,7 @@ export class MapRenderer {
     for (const c of this.chunks.values()) this.gl.deleteTexture(c.tex);
     this.chunks.clear();
     this.pages.clear();
-    this.entityCount = this.refuseCount = this.tintCount = this.hiCount = this.flowCount = this.zoneCount = 0;
+    this.entityCount = this.refuseCount = this.tintCount = this.hiCount = this.flowCount = this.zoneCount = this.marksCount = 0;
     this.refuse = null;
     this.scum = null;
     this.salt = null;
@@ -657,6 +751,28 @@ export class MapRenderer {
     this.dirty = true;
   }
 
+  /**
+   * The player's standing marks: defense zones' outlines and the tiles
+   * marked for digging (see the header). Like zones, they show on fogged
+   * ground too.
+   */
+  setMarks(marks: TileMark[]): void {
+    const n = marks.length;
+    const pos = new Int32Array(n * 2);
+    const color = new Uint8Array(n * 4);
+    const style = new Uint8Array(n);
+    marks.forEach((m, i) => { pos[2 * i] = m.x; pos[2 * i + 1] = m.y; color.set(m.color, 4 * i); style[i] = m.style; });
+    const gl = this.gl;
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.marksPos);
+    gl.bufferData(gl.ARRAY_BUFFER, pos, gl.DYNAMIC_DRAW);
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.marksColor);
+    gl.bufferData(gl.ARRAY_BUFFER, color, gl.DYNAMIC_DRAW);
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.marksStyle);
+    gl.bufferData(gl.ARRAY_BUFFER, style, gl.DYNAMIC_DRAW);
+    this.marksCount = n;
+    this.dirty = true;
+  }
+
   /** Mark one tile (the inspector's selection), or none. */
   setMark(at: [number, number] | null): void {
     const m = this.mark;
@@ -819,6 +935,15 @@ export class MapRenderer {
       gl.uniform1f(this.u['f.uScale'], scale);
       gl.uniform2f(this.u['f.uView'], this.canvas.width, this.canvas.height);
       gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, this.flowCount);
+    }
+    if (this.marksCount > 0) {
+      gl.useProgram(this.marksProg);
+      gl.bindVertexArray(this.marksVAO);
+      gl.uniform2f(this.u['k.uCam'], cam.cx, cam.cy);
+      gl.uniform1f(this.u['k.uScale'], scale);
+      gl.uniform2f(this.u['k.uView'], this.canvas.width, this.canvas.height);
+      gl.uniform1f(this.u['k.uLine'], Math.min(Math.max(1, Math.round(2 * dpr)), scale / 3));
+      gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, this.marksCount);
     }
     if (this.hiCount > 0) {
       gl.useProgram(this.tintProg);

@@ -53,7 +53,10 @@ over `MaxDefenseTiles`. It costs nothing to post: there is no escrow (see
 below). Each zone is listed on the tab with its guards, how many are inside
 the area now, what they have been paid, `−`/`+` for the detail, and
 **Cancel**. The map tints every defense zone on the level shown red, over
-whatever zone is under it.
+whatever zone is under it, and outlines it in the same red (`setMarks`), on
+any tab, fogged ground included. The wash alone was not enough: red over the
+red rock, or mixed into a zone's colour, did not read as a defense zone, and
+a line round the area does whatever is under it.
 
 ### Who guards
 

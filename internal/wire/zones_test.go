@@ -1,6 +1,7 @@
 package wire
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
@@ -68,5 +69,29 @@ func TestZoneTopics(t *testing.T) {
 	}
 	if ships != len(snap.Ships) || ships == 0 {
 		t.Errorf("%d ships listed, the snapshot has %d", ships, len(snap.Ships))
+	}
+}
+
+// The overlay marks every excavation tile not yet dug, as sorted row runs
+// per level, and nothing of a room's project or a dug tile.
+func TestZonesDigRuns(t *testing.T) {
+	at := func(x, y int, l sim.Level, done bool) sim.TaskView {
+		return sim.TaskView{Pos: sim.Point{X: x, Y: y, Level: l}, Done: done}
+	}
+	deep := sim.LandingLevel + 1
+	snap := &sim.Snapshot{Projects: []sim.ProjectView{
+		{ID: 1, Name: sim.ExcavationName, Tasks: []sim.TaskView{
+			at(6, 2, deep, false), at(5, 2, deep, false), at(7, 2, deep, true), at(8, 2, deep, false),
+			at(4, 3, sim.LandingLevel, false), at(3, 3, sim.LandingLevel, false),
+		}},
+		{ID: 2, Name: "dormitory", Tasks: []sim.TaskView{at(1, 1, sim.LandingLevel, false)}},
+		{ID: 3, Name: sim.ExcavationName, Tasks: []sim.TaskView{at(5, 3, sim.LandingLevel, false)}},
+	}}
+	var zones ZonesTopic
+	due(t, snap, "zones", &zones)
+	l, d := int(sim.LandingLevel), int(deep)
+	want := [][4]int{{l, 3, 3, 5}, {d, 2, 5, 6}, {d, 2, 8, 8}}
+	if fmt.Sprint(zones.Digs) != fmt.Sprint(want) {
+		t.Errorf("digs = %v, want %v", zones.Digs, want)
 	}
 }

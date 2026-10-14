@@ -170,6 +170,13 @@ export const ZONE_ALPHA = 0.36;
 export const ZONE_PREVIEW_ALPHA = 0.55;
 /** The premultiplied RGBA tint for a zone colour ("#rrggbb") at alpha a. */
 export const zoneTint = (color: string, a: number) => premul(color, a);
+/**
+ * The player's standing marks (renderer.ts, setMarks): a defense zone's
+ * outline, in the zone's own colour (from the zones topic) at MARK_ALPHA, and
+ * the hatching on tiles marked for digging, the dig tool's orange.
+ */
+export const MARK_ALPHA = 0.95;
+export const DIG_MARK = premul('#ff8a3d', 0.9);
 /** The preview of unzoning: the ground goes grey-black. */
 export const UNZONE_PREVIEW = premul('#1b1b1b', 0.5);
 /** A structure the paint or the clear tool will take down. */
