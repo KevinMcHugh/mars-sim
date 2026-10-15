@@ -27,6 +27,7 @@ type LogTopic struct {
 type LogEntry struct {
 	Seq  int    `json:"seq"`
 	Tick int    `json:"tick"`
+	When string `json:"when"` // Tick as a colony date and time (sim.Clock)
 	Kind string `json:"kind"` // sim.LogKind's label: "death", "build complete", ...
 	Text string `json:"text"`
 	// Place is the tile the line is about, which clicking it centers the
@@ -63,7 +64,7 @@ func newLogTopic() topic {
 			}
 		}
 		for _, e := range log[from:] {
-			le := LogEntry{Seq: e.Seq, Tick: e.Tick, Kind: e.Kind.String(), Text: e.Text}
+			le := LogEntry{Seq: e.Seq, Tick: e.Tick, When: sim.Clock(e.Tick, s.TicksPerDay), Kind: e.Kind.String(), Text: e.Text}
 			if e.HasAt {
 				le.Place = &LogPlace{X: e.At.X, Y: e.At.Y, Level: int(e.At.Level)}
 			}

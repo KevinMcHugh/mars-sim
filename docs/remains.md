@@ -6,7 +6,7 @@
 
 A record of whose body lies on a tile, so the tile inspector can answer "who
 is this?" when a player finds a body, and link through to the dead creature's
-inspector (its cause and tick of death, and for a colonist the whole archived
+inspector (its cause and when it died, as a colony day and time, and for a colonist the whole archived
 profile) to work out what happened.
 
 ## Source

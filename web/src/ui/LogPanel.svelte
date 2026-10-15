@@ -126,7 +126,7 @@
     {#each shown as l (l.seq)}
       {#snippet body()}
         <span class="kind" style="color: {logKindColor(l.kind)}">{l.kind}</span>
-        <span class="tick">t{l.tick}</span>
+        <span class="tick">{l.when}</span>
         <span class="text">{l.text}</span>
       {/snippet}
       {#if l.place}

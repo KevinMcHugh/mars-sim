@@ -328,3 +328,26 @@ func TestMinuteOfDayStartsAtLandingHour(t *testing.T) {
 		t.Errorf("MinuteOfDay with a zero day length = %d, want 0", got)
 	}
 }
+
+// Clock and ClockRange are how every panel dates a tick, so they must agree
+// with DayOf and MinuteOfDay: 740 ticks a day, landing at 06:00.
+func TestClockReadsDayAndTime(t *testing.T) {
+	for _, c := range []struct {
+		first, last int
+		want        string
+	}{
+		{0, 0, "Day 1 06:00"},
+		{370, 370, "Day 1 18:00"},
+		{554, 554, "Day 1 23:58"},
+		{555, 555, "Day 2 00:00"},
+		{0, 370, "Day 1 06:00–18:00"},
+		{554, 600, "Day 1 23:58–Day 2 01:27"},
+	} {
+		if got := ClockRange(c.first, c.last, 740); got != c.want {
+			t.Errorf("ClockRange(%d, %d, 740) = %q, want %q", c.first, c.last, got, c.want)
+		}
+	}
+	if got := Clock(555, 740); got != "Day 2 00:00" {
+		t.Errorf("Clock(555, 740) = %q", got)
+	}
+}

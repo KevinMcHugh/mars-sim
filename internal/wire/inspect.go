@@ -81,6 +81,7 @@ type EntityTopic struct {
 	Dead  bool     `json:"dead"`
 	// DiedTick and Cause are set when Dead; X and Y are then where it died.
 	DiedTick int    `json:"diedTick,omitempty"`
+	DiedAt   string `json:"diedAt,omitempty"` // DiedTick as a colony date and time (sim.Clock)
 	Cause    string `json:"cause,omitempty"`
 	// Species is an alien's roster label ("🦗 Bug · hostile").
 	Species string `json:"species,omitempty"`
@@ -187,10 +188,12 @@ type Acquaint struct {
 }
 
 // MemoryLine is one memory. Count > 1 is a run of the same event from Tick
-// to LastTick (docs/memories.md).
+// to LastTick (docs/memories.md); When is that span as colony dates and times
+// (sim.ClockRange).
 type MemoryLine struct {
 	Tick     int    `json:"tick"`
 	LastTick int    `json:"lastTick"`
+	When     string `json:"when"`
 	Count    int    `json:"count"`
 	Text     string `json:"text"`
 }
@@ -237,7 +240,7 @@ func entityTopic(s *sim.Snapshot, id sim.EntityID) EntityTopic {
 		Dead:  e.Dead,
 	}
 	if e.Dead {
-		t.DiedTick, t.Cause = e.DiedTick, e.Cause
+		t.DiedTick, t.DiedAt, t.Cause = e.DiedTick, sim.Clock(e.DiedTick, s.TicksPerDay), e.Cause
 	}
 	for i, hp := range e.Parts {
 		if e.MaxParts[i] > 0 {
@@ -305,7 +308,7 @@ func colonistDetail(s *sim.Snapshot, e sim.EntityView, p *sim.Profile) *Colonist
 	}
 	for i := len(e.Memories) - 1; i >= 0; i-- {
 		m := e.Memories[i]
-		c.Memories = append(c.Memories, MemoryLine{Tick: m.Tick, LastTick: m.LastTick, Count: m.Count, Text: m.Text})
+		c.Memories = append(c.Memories, MemoryLine{Tick: m.Tick, LastTick: m.LastTick, When: sim.ClockRange(m.Tick, m.LastTick, s.TicksPerDay), Count: m.Count, Text: m.Text})
 	}
 	return c
 }
@@ -374,6 +377,7 @@ type Body struct {
 	Name     string      `json:"name"`
 	Cause    string      `json:"cause,omitempty"`
 	DiedTick int         `json:"diedTick,omitempty"`
+	DiedAt   string      `json:"diedAt,omitempty"` // DiedTick as a colony date and time (sim.Clock)
 }
 
 // FixtureInfo is a facility's ownership. Owner is a display label;
@@ -469,7 +473,7 @@ func remainsBody(s *sim.Snapshot, r sim.Remains) Body {
 	if !ok {
 		return Body{ID: uint64(r.ID), Glyph: glyphs.Corpse, Name: fmt.Sprintf("%s #%d", r.Body, r.ID)}
 	}
-	return Body{ID: uint64(e.ID), Glyph: glyphs.ForEntity(e), Look: glyphs.ForEntityLook(e), Name: entityName(e), Cause: e.Cause, DiedTick: e.DiedTick}
+	return Body{ID: uint64(e.ID), Glyph: glyphs.ForEntity(e), Look: glyphs.ForEntityLook(e), Name: entityName(e), Cause: e.Cause, DiedTick: e.DiedTick, DiedAt: sim.Clock(e.DiedTick, s.TicksPerDay)}
 }
 
 func storageInfo(s *sim.Snapshot, st sim.StorageView) *StorageInfo {

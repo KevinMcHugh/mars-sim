@@ -8,6 +8,8 @@ package sim
 // tick it was taken, folded forward whenever an input to the rate changes, so
 // a colonist whose rate is steady costs nothing per tick. See docs/drives.md.
 
+import "fmt"
+
 // driveUnit is how many stored units make one point of a drive. Levels and
 // rates are kept in thousandths so a rate can be scaled by any percent; with
 // whole points, food rising 2 a tick could only be halved or stopped.
@@ -244,6 +246,30 @@ func DayOf(tick, ticksPerDay int) int {
 func MinuteOfDay(tick, ticksPerDay int) int {
 	ticksPerDay = max(ticksPerDay, 1)
 	return (tick + landingOffset(ticksPerDay)) % ticksPerDay * (24 * 60) / ticksPerDay
+}
+
+// Clock is when tick falls on the colony calendar, as the panels write it:
+// "Day 3 07:05". It is the one place a tick becomes a date: the browser gets
+// the string with the tick (internal/wire), so it never repeats the formula.
+func Clock(tick, ticksPerDay int) string {
+	m := MinuteOfDay(tick, ticksPerDay)
+	return fmt.Sprintf("Day %d %02d:%02d", DayOf(tick, ticksPerDay), m/60, m%60)
+}
+
+// ClockRange is a run of ticks from first to last: "Day 3 07:05–09:10",
+// naming the second day only when it differs ("Day 3 23:40–Day 4 00:20"),
+// and just Clock when both fall on the same minute.
+func ClockRange(first, last, ticksPerDay int) string {
+	a, b := Clock(first, ticksPerDay), Clock(last, ticksPerDay)
+	switch {
+	case a == b:
+		return a
+	case DayOf(first, ticksPerDay) == DayOf(last, ticksPerDay):
+		m := MinuteOfDay(last, ticksPerDay)
+		return fmt.Sprintf("%s–%02d:%02d", a, m/60, m%60)
+	default:
+		return a + "–" + b
+	}
 }
 
 // driveState is one entity's lazy state for one drive. base is the true

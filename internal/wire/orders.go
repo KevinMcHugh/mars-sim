@@ -139,6 +139,12 @@ func orderParam(arg string) (topic, bool) {
 	return topic{every: boardEvery, build: func(s *sim.Snapshot) any { return orderTopic(s, sim.OrderID(id)) }}, true
 }
 
+// colonyMinutes is a stretch of ticks (none, if negative) in colony minutes:
+// a day is 1440 however many ticks it lasts.
+func colonyMinutes(s *sim.Snapshot, ticks int) int {
+	return max(ticks, 0) * (24 * 60) / max(s.TicksPerDay, 1)
+}
+
 func orderTopic(s *sim.Snapshot, id sim.OrderID) OrderTopic {
 	t := OrderTopic{ID: uint64(id), Fills: []OrderFill{}}
 	i := slices.IndexFunc(s.Economy.Orders, func(o sim.OrderView) bool { return o.ID == id })
@@ -147,7 +153,6 @@ func orderTopic(s *sim.Snapshot, id sim.OrderID) OrderTopic {
 	}
 	o := s.Economy.Orders[i]
 	tpd := max(s.TicksPerDay, 1)
-	minutes := func(ticks int) int { return ticks * (24 * 60) / tpd }
 	t.Found, t.Side, t.Item, t.Manual = true, o.Side.String(), o.Item.String(), o.Manual
 	t.Owner, t.OwnerKey = ownerLabel(s, o.Actor), ownerKey(o.Actor)
 	t.Price, t.Filled, t.Open = int64(o.Price), o.Filled, o.Qty
@@ -158,9 +163,9 @@ func orderTopic(s *sim.Snapshot, id sim.OrderID) OrderTopic {
 	}
 	t.X, t.Y, t.Depot = o.Depot.X, o.Depot.Y, depotLabel(s, o.Depot)
 	t.Posted, t.PostedDay, t.PostedMinute = o.Posted, sim.DayOf(o.Posted, tpd), sim.MinuteOfDay(o.Posted, tpd)
-	t.OpenMinutes = minutes(max(s.Tick-o.Posted, 0))
+	t.OpenMinutes = colonyMinutes(s, s.Tick-o.Posted)
 	if o.Expires > 0 {
-		t.ExpiresMinutes = minutes(max(o.Expires-s.Tick, 0))
+		t.ExpiresMinutes = colonyMinutes(s, o.Expires-s.Tick)
 	}
 	for _, f := range o.Fills {
 		t.Fills = append(t.Fills, OrderFill{Key: ownerKey(f.With), Label: ownerLabel(s, f.With), Qty: f.Qty, Total: int64(f.Total)})

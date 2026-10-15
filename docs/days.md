@@ -25,7 +25,9 @@ from that.
 - [`internal/sim/snapshot.go`](../internal/sim/snapshot.go) — `Stats.Day` and `Stats.MinuteOfDay`, filled in by `snapshot`.
 - [`internal/ui/tui/view.go`](../internal/ui/tui/view.go) — `renderHeader` shows `day N  HH:MM` on the title line.
 - [`web/src/ui/TopBar.svelte`](../web/src/ui/TopBar.svelte) — the web top bar's `day N HH:MM` readout.
-- [`internal/sim/drives_test.go`](../internal/sim/drives_test.go) — `TestTicksPerDayFollowsSleep`, `TestDayOfCountsLandingAsDayOne`, `TestMinuteOfDayStartsAtLandingHour`.
+- [`internal/sim/drives.go`](../internal/sim/drives.go) — `Clock` and `ClockRange`, a tick (or a run of them) as "Day 3 07:05".
+- [`internal/wire`](../internal/wire) — every past time a panel shows rides with its tick as a `sim.Clock` string: a log line's and a trade's `when`, a memory's `when` (a `ClockRange`), a death's and a body's `diedAt`, a project's `queuedAt` (and `queuedMinutes` ago).
+- [`internal/sim/drives_test.go`](../internal/sim/drives_test.go) — `TestTicksPerDayFollowsSleep`, `TestDayOfCountsLandingAsDayOne`, `TestMinuteOfDayStartsAtLandingHour`, `TestClockReadsDayAndTime`.
 - [`internal/sim/sleep_test.go`](../internal/sim/sleep_test.go) — trait night lengths, the night lasting until sleep is met, interrupted nights keeping what was slept, and waking to flee.
 - [`internal/ui/tui/render_test.go`](../internal/ui/tui/render_test.go) — `TestHeaderShowsDayAndTimeOfDay`.
 
@@ -114,7 +116,15 @@ it there truncated that line, which `TestLogTabShowsTheFullEntryWrapped` caught.
   sense of elapsed colony time.
 - **A clock in Go, not in the page.** The sim sends minutes since midnight
   rather than the day length, so the TUI and the page cannot disagree about
-  where the landing falls or when midnight is.
+  where the landing falls or when midnight is. The same goes for past times:
+  a log line, a memory, a death, a trade or a queued project reaches the page
+  with its date already written by `sim.Clock`, in the worker, beside the
+  tick. A copy of the formula in TypeScript (Hello carrying the day length,
+  pinned by a test) was tried first and dropped: a second implementation can
+  drift, and the Go engine runs in a worker the page's panels cannot call
+  synchronously, so the string has to come with the data. Panels show these
+  times as "Day 3 07:05", never as a tick: a tick number meant nothing next to
+  a top bar that reads in days.
 - **Landing at 06:00, midnight rollover.** Colonists land with no sleep drive,
   so landing is their morning. A day number that turned over at landing would
   make 05:59 and 06:00 different days, which reads wrong next to a clock.
