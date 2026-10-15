@@ -5,11 +5,23 @@ import (
 	"testing"
 )
 
+// aidConfig pins what the aid tests assume of their world: a fixed seed
+// (DefaultConfig's is the clock) and no family, so two colonists spawned side
+// by side are strangers every run. edit applies after.
+func aidConfig(edit func(*Config)) func(*Config) {
+	return func(c *Config) {
+		c.Seed, c.FamilyChance = 1, 0
+		if edit != nil {
+			edit(c)
+		}
+	}
+}
+
 // aidWorld is a small open floor with a colonist about to be a casualty and a
-// bystander three tiles off, both fed, rested and without traits.
+// bystander three tiles off, both fed, rested, strangers and without traits.
 func aidWorld(t *testing.T, edit func(*Config)) (w *World, casualty, bystander *Entity) {
 	t.Helper()
-	w, casualty = driveWorld(t, edit)
+	w, casualty = driveWorld(t, aidConfig(edit))
 	bystander = w.spawn(Colonist, casualty.Pos.Add(3, 0))
 	for _, e := range []*Entity{casualty, bystander} {
 		e.Profile.Traits = nil
@@ -42,7 +54,7 @@ func stepUntil(w *World, limit int, done func() bool) int {
 // Passing out puts a colonist in the casualty index; how much danger it is in
 // follows its hunger; coming to on its own takes it out again.
 func TestPassingOutMakesACasualty(t *testing.T) {
-	w, c := driveWorld(t, func(c *Config) { c.Aid = false })
+	w, c := driveWorld(t, aidConfig(func(c *Config) { c.Aid = false }))
 	food := w.cfg.Drives[DriveFood]
 	knockOut(w, c)
 	if !c.passedOut || !w.isCasualty(c) {
