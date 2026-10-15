@@ -1060,7 +1060,16 @@ siting-auto: true
 ## calls per thousand hours on call colonists reckon an EMT answers, before the colony has measured it
 # emt-call-rate: 20
 
-## aid score an on-call EMT adds for any casualty
+## percent of its expected fee income a colonist counts on when it weighs being on call (Industrious more, Lazy much less, Optimist a little more, Pessimist a little less)
+# emt-fee-trust: 80
+
+## aid score an on-call EMT adds for each dollar of the per-call fee
+# emt-fee-incentive: 4
+
+## most aid score the per-call fee adds
+# emt-fee-incentive-max: 100
+
+## aid score an on-call EMT adds for any casualty, out of duty (half for a Lazy EMT, a quarter more for an Industrious one)
 # aid-duty-bonus: 80
 
 ## with an EMT detail, the colony commissions an infirmary cot for each this many colonists (0: none)

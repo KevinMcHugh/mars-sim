@@ -39,6 +39,7 @@
       share: number; cheapestAsk: number; willing: number;
       responses: number; responseMinutes: number;
       fee: number; maxFee: number; feesPaid: number; callRate: number;
+      package: number; ethics: string[];
     };
   }
 
@@ -259,7 +260,7 @@
         <button type="button" disabled={z.emt.detail >= z.emt.max} onclick={() => setEMTDetail(z.emt.detail + 1)} aria-label="One EMT more">+</button>
       </span>
       <div class="muted holds">
-        {#if z.emt.detail === 0}none kept on call: only colonists who happen by help a casualty{:else if z.emt.onCall.length > 0}{z.emt.onCall.map((g) => g.name).join(', ')}{:else if z.emt.willing === 0}nobody will take it at this wage{:else}waiting for a willing colonist looking for work{/if}
+        {#if z.emt.detail === 0}none kept on call: only colonists who happen by help a casualty{:else if z.emt.onCall.length > 0}{z.emt.onCall.map((g, i) => (z.emt.ethics[i] ? `${g.name} (${z.emt.ethics[i]})` : g.name)).join(', ')}{:else if z.emt.willing === 0}nobody will take it at this wage{:else}waiting for a willing colonist looking for work{/if}
         · {money(z.emt.paid)} paid · {z.emt.cots} {z.emt.cots === 1 ? 'cot' : 'cots'}
       </div>
     </li>
@@ -285,6 +286,12 @@
       </span>
       <div class="muted holds">
         {money(z.emt.feesPaid)} paid in fees · an EMT answers {(z.emt.callRate / 1000).toFixed(2)} calls an hour on call
+      </div>
+    </li>
+    <li>
+      <b>Package</b> about {cents(z.emt.package)} an hour, {z.emt.package > 0 ? Math.round((100 * (z.emt.package - z.emt.wage)) / z.emt.package) : 0}% of it by the call
+      <div class="muted holds">
+        A wage pays the same however hard an EMT answers, and lazy colonists take it as readily as anyone. Pay by the call draws the industrious, who count on earning it, and every EMT answers harder for a bigger fee.
       </div>
     </li>
   </ul>

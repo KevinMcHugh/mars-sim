@@ -145,9 +145,59 @@ func (w *World) emtAsk(e *Entity) int {
 	}
 	ask := (hour*w.emtShare+999)/1000 + premium
 	// What the calls themselves pay comes off: emtCallRate calls per
-	// thousand hours on call, at the fee, in cents an hour.
-	ask -= int(w.emtFee) * 100 * w.emtCallRate / 1000
+	// thousand hours on call, at the fee, in cents an hour, at what this
+	// colonist reckons uncertain pay is worth (emtFeeTrust).
+	ask -= w.emtFeeIncome() * w.emtFeeTrust(e) / 100
 	return max(0, ask)
+}
+
+// emtFeeIncome is what the per-call fee pays an EMT, in cents an hour, at
+// the calls an EMT has lately answered.
+func (w *World) emtFeeIncome() int {
+	return int(w.emtFee) * 100 * w.emtCallRate / 1000
+}
+
+// emtFeeTrust is how much of its expected fee income e counts on, in
+// percent: pay that has to be earned call by call is less sure than a wage.
+// emt-fee-trust for most; an Industrious colonist counts on more (it expects
+// to earn it), a Lazy one on much less, an Optimist a little more and a
+// Pessimist a little less. So a package heavy on fees draws the hard
+// workers, and one heavy on wage draws whoever is cheapest, lazy or not.
+func (w *World) emtFeeTrust(e *Entity) int {
+	trust := w.cfg.EMTFeeTrustPct
+	if p := e.Profile; p != nil {
+		switch {
+		case p.HasTrait(TraitIndustrious):
+			trust += 40
+		case p.HasTrait(TraitLazy):
+			trust -= 30
+		}
+		switch {
+		case p.HasTrait(TraitOptimist):
+			trust += 20
+		case p.HasTrait(TraitPessimist):
+			trust -= 20
+		}
+	}
+	return max(0, trust)
+}
+
+// emtDuty is the aid score an on-call EMT adds for a casualty: the duty a
+// wage buys, which a Lazy EMT feels at half strength and an Industrious one
+// at a quarter more, and the pull of the fee itself, emt-fee-incentive
+// points a dollar up to emt-fee-incentive-max, which every EMT feels alike.
+// A wage pays the same however hard it answers; a fee pays for answering.
+func (w *World) emtDuty(e *Entity) int {
+	duty := w.cfg.AidDutyBonus
+	if p := e.Profile; p != nil {
+		switch {
+		case p.HasTrait(TraitLazy):
+			duty /= 2
+		case p.HasTrait(TraitIndustrious):
+			duty = duty * 5 / 4
+		}
+	}
+	return duty + min(int(w.emtFee)*w.cfg.EMTFeeIncentive, w.cfg.EMTFeeIncentiveMax)
 }
 
 // tryTakeOnCall puts e on the detail if a place is open and the wage meets
@@ -248,6 +298,9 @@ type EMTView struct {
 	Fee, MaxFee Money
 	FeesPaid    Money
 	CallRate    int
+	// Package is what the wage and the fee together pay an EMT that counts
+	// on its fees at face value, in cents an hour.
+	Package int
 }
 
 func (w *World) publishedEMT() EMTView {
@@ -258,6 +311,7 @@ func (w *World) publishedEMT() EMTView {
 		Cots: w.countTerrain(Cot), Share: w.emtShare, CheapestAsk: -1,
 		Responses: w.emtResponses,
 		Fee:       w.emtFee, MaxFee: MaxEMTFee, FeesPaid: w.emtFeesPaid, CallRate: w.emtCallRate,
+		Package: w.emtWage + w.emtFeeIncome(),
 	}
 	if w.emtResponses > 0 {
 		v.ResponseTicks = w.emtResponseTicks / w.emtResponses
