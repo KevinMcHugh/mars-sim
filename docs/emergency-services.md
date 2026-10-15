@@ -399,6 +399,29 @@ detail with a small retainer and pay mostly for what is done; a quiet
 colony's EMTs still want the retainer, since few calls come. The tab shows
 the fee, what has been paid in fees, and the call rate.
 
+**The pay package is gameplay.** The wage and the fee are two controls, and
+the player can set any mix of them. The mix changes who signs up and how
+hard they work, not only what it costs:
+
+- **Who signs up.** Fee income is earned call by call, so it is less sure
+  than a wage, and colonists count on it differently (`emtFeeTrust`):
+  `emt-fee-trust` (80%) of its expected value for most, 40 points more for
+  an Industrious colonist (it expects to earn it), 30 fewer for a Lazy one,
+  20 more for an Optimist and 20 fewer for a Pessimist. With no fee, work
+  ethic does not change anyone's ask, so a pure wage draws whoever is
+  cheapest, the lazy as readily as anyone; a fee-heavy package draws the
+  hard workers.
+- **How hard they work.** On call, an EMT adds `emtDuty` to helping any
+  casualty: the duty a wage buys (`aid-duty-bonus`, 80), felt at half
+  strength by a Lazy EMT and a quarter more by an Industrious one, plus the
+  pull of the fee itself, `emt-fee-incentive` (4) points a dollar up to
+  `emt-fee-incentive-max` (100), which every EMT feels alike. A wage pays
+  the same however hard an EMT answers; a fee pays for answering.
+
+The Zones tab shows the package (what wage and fee together pay an EMT an
+hour, at the measured call rate, and how much of it is by the call) and
+each on-call EMT's work ethic, so the player can see who a package draws.
+
 Unlike a guard post, **being on call is not a job.** It is a status
 (`Entity.onCall`) that a colonist carries while it does other work. A
 colonist looking for work takes an open place on the detail
@@ -796,6 +819,29 @@ everything the colony paid its EMTs.
   run, against about $2,200 at the first build's fixed $2 an hour, with
   survival as good as any measured. Survival differences are still within
   the noise.
+
+### Pay packages
+
+The same 32 alien-heavy colonies, a detail of three, three packages of
+roughly comparable worth. EMT-hours are sampled each hour, by the on-call
+EMTs' work ethic.
+
+| Package | EMT-hours | Industrious | Lazy | Paid | Alive |
+| --- | --- | --- | --- | --- | --- |
+| $1 an hour | 30,866 | 14% | 17% | $29,565 | 575 |
+| $15 a call | 13,335 | 21% | 9% | $3,345 | 650 |
+| 50¢ an hour and $8 a call | 26,530 | 15% | 16% | $14,509 | 618 |
+
+- **The structure picks the people.** Paid by the call, the detail is half
+  as lazy and half again as industrious as on a wage; the mix sits with the
+  wage, since its wage alone already covers most asks.
+- **It trades coverage for cost.** By the call, the detail is on call for
+  under half the hours the wage buys (fees alone cover fewer colonists'
+  asks, and asks rise as the colony measures fewer calls), at about a ninth
+  of the cost.
+- **Survival leans the same way but is not settled.** The fee-only colonies
+  did best, but by about as much as 32-seed runs of the same package have
+  disagreed with each other before.
 
 ## Open questions
 

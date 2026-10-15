@@ -239,7 +239,7 @@ func (w *World) aidOptionFor(e *Entity, threat bool) (aidOption, bool) {
 		if !self {
 			o.personality = w.aidRegard(e, c, threat)
 			if e.onCall {
-				o.personality += w.cfg.AidDutyBonus
+				o.personality += w.emtDuty(e)
 			}
 			o.distance = w.travelEstimate(e.Pos, c.Pos)
 		}

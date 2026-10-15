@@ -342,11 +342,62 @@ func TestFeesLowerTheRetainerAsk(t *testing.T) {
 	w, c := driveWorld(t, aidConfig(func(c *Config) { c.EMTDetail = 1 }))
 	ask := w.emtAsk(c)
 	w.emtFee, w.emtCallRate = 1, 100 // $1 a call, a call every ten hours: 10¢ an hour
-	if got := w.emtAsk(c); got != max(0, ask-10) {
-		t.Fatalf("ask with fees %d¢, want %d¢", got, max(0, ask-10))
+	want := max(0, ask-10*w.cfg.EMTFeeTrustPct/100)
+	if got := w.emtAsk(c); got != want {
+		t.Fatalf("ask with fees %d¢, want %d¢ (fees counted at %d%%)", got, want, w.cfg.EMTFeeTrustPct)
 	}
 	w.emtFee = 50
 	if got := w.emtAsk(c); got != 0 {
 		t.Fatalf("ask %d¢ with fees worth more than the place", got)
+	}
+}
+
+// How a package is split matters: fee income is counted on more by an
+// Industrious colonist than a Lazy one, so a fee-heavy package draws the
+// hard workers, while a wage draws whoever is cheapest.
+func TestPayStructureDrawsDifferentColonists(t *testing.T) {
+	w, c := driveWorld(t, aidConfig(func(c *Config) { c.EMTDetail = 1 }))
+	ask := func(tr Trait) int {
+		c.Profile.Traits = []Trait{tr}
+		return w.emtAsk(c)
+	}
+	// A pure wage: work ethic does not change the ask.
+	if ask(TraitIndustrious) != ask(TraitLazy) {
+		t.Fatalf("with no fee, Industrious asks %d¢, Lazy %d¢", ask(TraitIndustrious), ask(TraitLazy))
+	}
+	// Pay by the call: the Industrious ask less, the Lazy more.
+	w.emtFee, w.emtCallRate = 1, 100
+	if !(ask(TraitIndustrious) < ask(TraitLazy)) {
+		t.Fatalf("paid by the call, Industrious asks %d¢, Lazy %d¢", ask(TraitIndustrious), ask(TraitLazy))
+	}
+	c.Profile.Traits = []Trait{TraitOptimist}
+	opt := w.emtFeeTrust(c)
+	c.Profile.Traits = []Trait{TraitPessimist}
+	if pess := w.emtFeeTrust(c); !(opt > w.cfg.EMTFeeTrustPct && pess < w.cfg.EMTFeeTrustPct) {
+		t.Fatalf("fee trust: optimist %d%%, pessimist %d%%, base %d%%", opt, pess, w.cfg.EMTFeeTrustPct)
+	}
+}
+
+// A wage buys duty, felt at half strength by a Lazy EMT; a fee adds a pull
+// every EMT feels alike, capped.
+func TestEMTDutyAndFeeIncentive(t *testing.T) {
+	w, c := driveWorld(t, aidConfig(nil))
+	base := w.cfg.AidDutyBonus
+	c.Profile.Traits = []Trait{TraitLazy}
+	if got := w.emtDuty(c); got != base/2 {
+		t.Fatalf("lazy duty %d, want %d", got, base/2)
+	}
+	c.Profile.Traits = []Trait{TraitIndustrious}
+	if got := w.emtDuty(c); got != base*5/4 {
+		t.Fatalf("industrious duty %d, want %d", got, base*5/4)
+	}
+	c.Profile.Traits = nil
+	w.emtFee = 5
+	if got := w.emtDuty(c); got != base+5*w.cfg.EMTFeeIncentive {
+		t.Fatalf("duty with a $5 fee %d, want %d", got, base+5*w.cfg.EMTFeeIncentive)
+	}
+	w.emtFee = MaxEMTFee
+	if got := w.emtDuty(c); got != base+w.cfg.EMTFeeIncentiveMax {
+		t.Fatalf("duty with the largest fee %d, want the cap %d", got, base+w.cfg.EMTFeeIncentiveMax)
 	}
 }

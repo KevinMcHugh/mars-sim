@@ -168,6 +168,12 @@ type EMT struct {
 	MaxFee   int64 `json:"maxFee"`
 	FeesPaid int64 `json:"feesPaid"`
 	CallRate int   `json:"callRate"`
+	// Package is what the wage and the fee together pay an EMT, in cents
+	// an hour, at the calls an EMT has lately answered; Ethics is each
+	// on-call EMT's work ethic ("industrious", "lazy" or ""), in OnCall's
+	// order: who the package has drawn.
+	Package int      `json:"package"`
+	Ethics  []string `json:"ethics"`
 }
 
 // Defense is one defense zone: its area, the detail it asks for, the guards
@@ -215,6 +221,23 @@ type Structure struct {
 	Rising bool   `json:"rising"`
 }
 
+// workEthic is colonist id's work ethic trait, lowercase, or "" for none.
+func workEthic(s *sim.Snapshot, id sim.EntityID) string {
+	for _, e := range s.Entities {
+		if e.ID != id || e.Profile == nil {
+			continue
+		}
+		switch {
+		case e.Profile.HasTrait(sim.TraitIndustrious):
+			return "industrious"
+		case e.Profile.HasTrait(sim.TraitLazy):
+			return "lazy"
+		}
+		return ""
+	}
+	return ""
+}
+
 // emtMinutes is the EMTs' average response in clock minutes.
 func emtMinutes(s *sim.Snapshot) int {
 	if s.Config == nil {
@@ -258,8 +281,10 @@ func zoningTopic(s *sim.Snapshot) ZoningTopic {
 		}
 		return names[id]
 	}
+	t.EMT.Package, t.EMT.Ethics = s.EMT.Package, make([]string, 0, len(s.EMT.OnCall))
 	for _, id := range s.EMT.OnCall {
 		t.EMT.OnCall = append(t.EMT.OnCall, Guard{ID: uint64(id), Name: nameOf(id)})
+		t.EMT.Ethics = append(t.EMT.Ethics, workEthic(s, id))
 	}
 	for _, d := range s.Defense {
 		if names == nil && len(d.Guards) > 0 {
