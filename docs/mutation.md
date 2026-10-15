@@ -16,8 +16,8 @@ Those two numbers are deliberately harsh. Mutation is a rarity the colony talks
 about, not a career stage. They were tuned with uranium at 1% of rock, where
 about **1% of colonists** were mutants after a typical run, creeping toward 3%
 in a very long one. Uranium is now rarer (`UraniumRockPermille`, 3 per mille;
-see [power.md](./power.md)), and mutation is rarer with it until a reactor
-becomes a second dose source. See [Tuning the rate](#tuning-the-rate).
+see [power.md](./power.md)), but every world is promised one full-size
+mother lode, and the measured rate came out about where it was. See [Tuning the rate](#tuning-the-rate).
 
 A mutation also **resizes** the colonist. Every one of them moves their height
 a `MutationStaturePercent` (15%) step up or down, and the body goes with it —
@@ -271,12 +271,17 @@ count meaningless without it), at the default dose and chance:
 | uranium | 10,000 ticks | 30,000 ticks |
 | --- | --- | --- |
 | 10 per mille (the old 1%) | 1.7% (5 of 303) | 3.6% (11 of 303) |
-| **3 per mille** | **0.3% (1 of 302)** | **1.7% (5 of 302)** |
+| 3 per mille | 0.3% (1 of 302) | 1.7% (5 of 302) |
+| **3 per mille and a mother lode** | **0.7% (2 of 304)** | **4.3% (13 of 304)** |
 
-Mutation falls by between half and four fifths. `UraniumExposureTicks` was
-deliberately **not** retuned. The reactor is meant to become a dose source in
-power phase P2, and retuning now would only mean doing it again then. The
-counts are small, so measure on more seeds when that retune comes.
+Rarer uranium alone cut mutation by between half and four fifths. The mother
+lode (a full-size vein every world is promised, see
+[worldgen-chunks.md](./worldgen-chunks.md#the-mother-lode)) brings it back to
+about where it was, because the one vein a world is sure to have is a big one.
+The counts are small, so the difference between the first and last rows is
+mostly noise. `UraniumExposureTicks` was deliberately **not** retuned. The
+reactor is meant to become a dose source in power phase P2, and the retune
+belongs after that, on more seeds.
 
 Two lessons for anyone re-balancing this: cutting `MutationChance` alone barely
 moves the outcome (25% → 1% only took 43% of colonists down to 20%), and the

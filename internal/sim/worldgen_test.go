@@ -131,3 +131,39 @@ func TestRockDepositsAreVeinsRatherThanIsolatedTiles(t *testing.T) {
 		}
 	})
 }
+
+// Uranium is rare enough that a small landing level would often hold none.
+// The mother lode promises every world some, standing as rock after the
+// landing carve and away from the ships, so the colony digs to it. See
+// docs/power.md.
+func TestEveryWorldHasAMotherLode(t *testing.T) {
+	for _, size := range [][2]int{{80, 40}, {64, 64}, {120, 60}} {
+		for seed := int64(1); seed <= 300; seed++ {
+			cfg := DefaultConfig()
+			cfg.Width, cfg.Height = size[0], size[1]
+			cfg.Seed = seed
+			w := NewEngine(cfg).world
+			n := 0
+			for _, tile := range denseTiles(w) {
+				if tile.Terrain == Rock && tile.Composition == UraniumBearingRock {
+					n++
+				}
+			}
+			if n < cfg.RockVeinMax/2 {
+				t.Fatalf("%dx%d seed %d: %d uranium tiles, want a mother lode of about %d", size[0], size[1], seed, n, cfg.RockVeinMax)
+			}
+		}
+	}
+}
+
+// With uranium off there is no mother lode either.
+func TestNoMotherLodeWithoutUranium(t *testing.T) {
+	cfg := DefaultConfig()
+	cfg.UraniumRockPermille = 0
+	cfg.Seed = 7
+	for _, tile := range denseTiles(NewEngine(cfg).world) {
+		if tile.Composition == UraniumBearingRock {
+			t.Fatal("uranium generated with uranium-rock-permille 0")
+		}
+	}
+}

@@ -458,11 +458,39 @@ rolls zero where one or more is expected.
 
 Uranium has since been made rare on purpose (3 per mille, see
 [power.md](./power.md)). An 80×40 landing level now expects less than one
-vein, and about half the seeds generate none: 240 of 500 seeds, against 47 of
-500 at 120×60 and none at 300×150. That is the intended outcome, not drift, so
+ordinary vein, and about half the seeds would generate none: 240 of 500 seeds,
+against 47 of 500 at 120×60 and none at 300×150. The mother lode (below) is
+what keeps those worlds from having no uranium at all, so
 `TestAbundanceDriftWithinTolerance` no longer asks every small map for
-uranium. Its mean check also allows three standard errors, because a feature
-with a few veins a seed varies too much for 40 seeds to pin it to 5%.
+ordinary uranium veins. Its mean check also allows three standard errors,
+because a feature with a few veins a seed varies too much for 40 seeds to pin
+it to 5%.
+
+### The mother lode
+
+Every level is promised one full-size (`rock-vein-max`) uranium vein, so that
+a world with uranium turned on always has some to find. Without it, half of
+default worlds had none in reach. It has to be promised without breaking
+lazy generation, so:
+
+- **Which chunk** is a pure function of the seed, the map and the level
+  (`pickMotherLode`, on `genStreamMotherLode` with no ids). It is chosen from
+  the chunks with any tile outside the landing box, in raster order, so it
+  never depends on what has been generated.
+- **The vein** grows first in that chunk's uranium plan, from its own stream
+  keyed by the chunk, so the chunk's ordinary veins draw exactly what they
+  would have. It starts outside the landing box, and it steers around every
+  tile the caverns and passages of the chunks within two will open up. An
+  early version didn't, and on some seeds a cavern swallowed all but two of
+  its 24 tiles. Caverns never read veins, so reading their plans here adds no
+  cycle. It gets `motherLodeTries` (512) origins instead of 8.
+- **It stands in for one ordinary vein** of its chunk, so a big map's
+  abundance barely moves. A small map gains the vein it was promised.
+
+`TestEveryWorldHasAMotherLode` checks 300 seeds at three small sizes for
+uranium standing as rock after the landing carve. The drift sweep turns the
+mother lode off (`hasMotherLode = false`), since it measures the configured
+share and the mother lode is a promise on top of it.
 
 ### Veins avoid their own chunk's veins
 

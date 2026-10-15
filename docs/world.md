@@ -49,7 +49,9 @@ colonist under a dose that can eventually mutate them. It is also by far the
 scarcest deposit, at 3 tiles in a thousand against iron's 10%, set per mille
 (`uranium-rock-permille`) because a whole percent was too much: uranium is meant
 to be a strike a colony digs for, and a hazard when it finds one, not a routine
-yield ([power.md](./power.md)).
+yield ([power.md](./power.md)). Every level is promised one full-size vein, its
+mother lode, away from the landing site
+([worldgen-chunks.md](./worldgen-chunks.md#the-mother-lode)).
 That lives entirely in `mutation.go` and reads the tile — the tile itself
 behaves like any other rock. See [mutation.md](./mutation.md).
 

@@ -34,11 +34,15 @@ func abundanceTargets(cfg Config) abundance {
 }
 
 // measureAbundance generates every chunk of a cfg-sized map (no World, no
-// landing-site carving) and returns its percentages. The landing exclusion box
-// still applies, as it does in a real world.
+// landing-site carving, no mother lode) and returns its percentages. The
+// landing exclusion box still applies, as it does in a real world.
 func measureAbundance(cfg Config) abundance {
 	g := newWorldGen(cfg, LandingLevel)
 	g.withCacheSize(2 * g.chunkCols() * (2*genHorizon + 1))
+	// The mother lode is a promise on top of the configured share, not part
+	// of it: a full vein a world, whatever its size. It has its own test
+	// (TestEveryWorldHasAMotherLode); this measures the ordinary veins.
+	g.hasMotherLode = false
 	var counts [len(veinLevels) + 3]int
 	for cy := 0; cy < g.chunkRows(); cy++ {
 		for cx := 0; cx < g.chunkCols(); cx++ {

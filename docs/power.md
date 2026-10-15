@@ -38,7 +38,7 @@ exist.
 
 | Phase | What ships | Status |
 | --- | --- | --- |
-| P0 | Rarer uranium: a per-mille setting, fewer veins of the same size, mutation re-measured | **Shipped** |
+| P0 | Rarer uranium: a per-mille setting, fewer veins of the same size, a mother lode in every world, mutation re-measured | **Shipped** |
 | P1 | Batteries and powered cooking: the `Battery` good, powered and cold recipe rows, batteries in the ships, battery supply drops | Proposed |
 | P2 | The reactor under a monopoly: fuel pellets, the reactor room, the operator's wage, the colony's uranium and ice bids, the tariff | Proposed |
 | P3 | The market and the public option: `power-policy`, reactor commissions, the colony buying batteries instead of making them, the colony's reactor of last resort | Proposed |
@@ -49,7 +49,8 @@ exist.
 ## Source
 
 P0 is in `config.go` (`UraniumRockPermille`), `configfile.go` (the retired
-`uranium-rock-percent`), `worldgen_chunks.go` (`veinShare`), `depth.go`, and
+`uranium-rock-percent`), `worldgen_chunks.go` (`veinShare`, `pickMotherLode`
+and the mother lode in `growVeins`), `depth.go`, and
 the vein, depth, drift and mutation tests. The expected footprint of the rest:
 
 - `internal/sim/power.go`: `PowerPolicy`, the reactor's fixture and room
@@ -83,6 +84,7 @@ These came out of the conversation that started this doc and the review of it
 | Batteries | Single-use for now. Rechargeable batteries with empties are a possible later step, not part of this plan. |
 | No power | Cooking without a battery is slower and leaner (cold cooking), never impossible. |
 | Rarity | Uranium gets rarer than the old 1%, for flavor: you truly don't need much of it. **3 per mille** on the landing level, for now. |
+| No uranium in reach | Every world gets a **mother lode**: one full-size vein per level, in a chunk picked from the seed. |
 | Not a concern yet | An import price ceiling for batteries, and the exact starting numbers. Both are left to tuning. |
 
 ## How it works (proposed)
@@ -342,16 +344,22 @@ What it measured ([worldgen-chunks.md](./worldgen-chunks.md),
 [mutation.md](./mutation.md#after-uranium-got-rarer)):
 
 - **Abundance holds.** The mean is 0.30–0.31% from 80×40 to 1024×1024 maps.
-- **Small maps can have none.** An 80×40 landing level expects less than one
-  vein: 240 of 500 seeds generate no uranium there, 47 of 500 at 120×60, and
-  none at 300×150. The default game is 80×40 with `deepest-level` 1, so about
-  half of default worlds have no uranium they can reach. That is harmless
-  today, when uranium only mutates. It matters once a reactor needs it. See
-  [Open questions](#open-questions).
-- **Mutation drops** by between half and four fifths (0.3% of colonists after
-  10,000 ticks, against 1.7% at the old rate). `uranium-exposure-ticks` is
-  deliberately not retuned yet: reactor exposure (P2) adds a dose source back,
-  and the retune belongs after that.
+- **Small maps would have had none.** An 80×40 landing level expects less
+  than one ordinary vein: 240 of 500 seeds would generate no uranium there,
+  47 of 500 at 120×60, and none at 300×150. The default game is 80×40 with
+  `deepest-level` 1, so half of default worlds would have had no uranium in
+  reach, and no way to power a reactor.
+- **So every world gets a mother lode.** One chunk per level, picked from the
+  seed alone so lazy generation keeps working, always grows a full-size vein,
+  outside the landing site and clear of where caverns will open, so the
+  colony has to dig to it and finds it intact. It replaces one of its chunk's
+  ordinary veins, so big maps keep their share. See
+  [worldgen-chunks.md](./worldgen-chunks.md#the-mother-lode).
+- **Mutation** fell by between half and four fifths with rarer uranium alone,
+  and came back to about the old rate with the mother lode (0.7% of colonists
+  after 10,000 ticks, against 1.7% at the old 1%, on only 8 seeds).
+  `uranium-exposure-ticks` is deliberately not retuned yet: reactor exposure
+  (P2) adds another dose source, and the retune belongs after that.
 - **Worldgen moved a little.** Iron and ice come before uranium in
   `veinLevels` and did not move. Clay avoids uranium tiles, so a few clay veins
   shifted, and the golden tile hashes were re-pinned. Entities and the RNG
@@ -420,12 +428,6 @@ What it measured ([worldgen-chunks.md](./worldgen-chunks.md),
 - **The target rarity.** 3 per mille is the number for now. The right one is
   the one where a colony usually finds uranium within its first two weeks of
   digging, but has to dig for it.
-- **A world with no uranium in reach.** About half of default worlds (80×40,
-  no digging down) have none on the landing level. Before P2 makes power
-  depend on it, pick one: accept it (those colonies cook cold, or wait for
-  supply drops), guarantee a **mother lode** (one chunk per world, chosen from
-  the seed alone so lazy generation keeps working, always holds a vein), or
-  raise the default map size or `deepest-level`.
 
 ## Extending it
 
