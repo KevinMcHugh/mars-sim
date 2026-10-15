@@ -23,11 +23,13 @@ import "slices"
 // willing colonist looking for work takes it. See
 // docs/emergency-services.md.
 
-// MaxEMTDetail is the most colonists the player may keep on call, and
-// MaxEMTWage the highest wage it may offer, in cents an hour.
+// MaxEMTDetail is the most colonists the player may keep on call,
+// MaxEMTWage the highest wage it may offer, in cents an hour, and MaxEMTFee
+// the highest fee per call, in dollars.
 const (
 	MaxEMTDetail = 20
 	MaxEMTWage   = 1000
+	MaxEMTFee    = 50
 )
 
 // SetEMTDetail sets how many colonists the colony keeps on call as EMTs (0
@@ -44,6 +46,55 @@ type SetEMTWage struct {
 }
 
 func (SetEMTWage) isCommand() {}
+
+// SetEMTFee sets what the colony pays an on-call EMT for each casualty it
+// sees to, in dollars (0: no fee).
+type SetEMTFee struct {
+	Dollars int
+}
+
+func (SetEMTFee) isCommand() {}
+
+// setEMTFee carries out a SetEMTFee, and reports whether it did. Orders
+// already posted keep the fee they were posted at.
+func (w *World) setEMTFee(c SetEMTFee) bool {
+	if c.Dollars < 0 || c.Dollars > MaxEMTFee {
+		return false
+	}
+	w.emtFee = Money(c.Dollars)
+	return true
+}
+
+// postRescue opens the colony's per-call order for casualty c, escrowing the
+// fee from the treasury, when there is a detail and a fee and the treasury
+// can fund it. It is an order like any other on the work book: the money
+// sits in escrow until settleRescue pays it out or sends it home.
+func (w *World) postRescue(c *Entity) {
+	if w.emtDetail <= 0 || w.emtFee <= 0 || c.rescueOrder != 0 {
+		return
+	}
+	if o := w.postWork(WorkRescue, Community, w.emtFee, 1, c.Pos); o != nil {
+		c.rescueOrder = o.ID
+	}
+}
+
+// settleRescue closes casualty c's per-call order: paid to helper if helper
+// is an on-call EMT that did something for it, and otherwise back to the
+// treasury (it came round on its own, saw to itself, or a bystander helped:
+// a bystander's help is its own, and nobody is paid for it).
+func (w *World) settleRescue(c, helper *Entity) {
+	o := w.workOrders[c.rescueOrder]
+	c.rescueOrder = 0
+	if o == nil {
+		return
+	}
+	if helper != nil && helper != c && helper.onCall && helper.aidDone != (aidDone{}) {
+		w.emtFeesPaid += o.Pay
+		w.payWork(o, helper)
+		return
+	}
+	w.closeWork(o)
+}
 
 // setEMTDetail carries out a SetEMTDetail, and reports whether it did. A cut
 // stands down the highest IDs first, so who stays never depends on map order.
@@ -77,7 +128,10 @@ func (w *World) setEMTWage(c SetEMTWage) bool {
 // calls) at what its time is worth to it (reservation, as for any other
 // work), plus emt-premium percent of an hour's worth for being interruptible
 // at all. A Caring colonist asks half the premium and a Callous one double:
-// one would do it anyway, the other wants paying for its trouble.
+// one would do it anyway, the other wants paying for its trouble. What it
+// expects the calls themselves to pay (the per-call fee, at the calls an EMT
+// has lately answered an hour) comes off, so a colony that pays by the call
+// can offer a smaller retainer.
 func (w *World) emtAsk(e *Entity) int {
 	hour := int(w.reservation(e)) * w.cfg.TicksPerHour() / 1000 // cents an hour
 	premium := hour * w.cfg.EMTPremiumPct / 100
@@ -89,7 +143,11 @@ func (w *World) emtAsk(e *Entity) int {
 			premium *= 2
 		}
 	}
-	return (hour*w.emtShare+999)/1000 + premium
+	ask := (hour*w.emtShare+999)/1000 + premium
+	// What the calls themselves pay comes off: emtCallRate calls per
+	// thousand hours on call, at the fee, in cents an hour.
+	ask -= int(w.emtFee) * 100 * w.emtCallRate / 1000
+	return max(0, ask)
 }
 
 // tryTakeOnCall puts e on the detail if a place is open and the wage meets
@@ -161,7 +219,9 @@ func (w *World) updateEMTShare() {
 	}
 	now := w.emtBusyTicks * 1000 / w.emtOnTicks
 	w.emtShare = (3*w.emtShare + now) / 4
-	w.emtOnTicks, w.emtBusyTicks = 0, 0
+	rate := w.emtCallsWindow * 1000 * w.cfg.TicksPerHour() / w.emtOnTicks
+	w.emtCallRate = (3*w.emtCallRate + rate) / 4
+	w.emtOnTicks, w.emtBusyTicks, w.emtCallsWindow = 0, 0, 0
 }
 
 // EMTView is the EMT detail as a frontend shows it: how many it asks for,
@@ -182,6 +242,12 @@ type EMTView struct {
 	// on-call EMT to set out to it (0 before any has), and Responses how
 	// many it has answered.
 	ResponseTicks, Responses int
+	// Fee is the per-call fee in dollars and MaxFee the highest, FeesPaid
+	// what the colony has paid in fees, and CallRate the calls an EMT has
+	// lately answered per thousand hours on call.
+	Fee, MaxFee Money
+	FeesPaid    Money
+	CallRate    int
 }
 
 func (w *World) publishedEMT() EMTView {
@@ -191,6 +257,7 @@ func (w *World) publishedEMT() EMTView {
 		Wage:   w.emtWage, MaxWage: MaxEMTWage, Paid: w.emtPaid,
 		Cots: w.countTerrain(Cot), Share: w.emtShare, CheapestAsk: -1,
 		Responses: w.emtResponses,
+		Fee:       w.emtFee, MaxFee: MaxEMTFee, FeesPaid: w.emtFeesPaid, CallRate: w.emtCallRate,
 	}
 	if w.emtResponses > 0 {
 		v.ResponseTicks = w.emtResponseTicks / w.emtResponses

@@ -297,3 +297,56 @@ func TestSwapEntities(t *testing.T) {
 		t.Fatal("swap left the occupancy index wrong")
 	}
 }
+
+// With a per-call fee, each casualty's fee is escrowed from the treasury and
+// paid to the on-call EMT that sees to it; when a bystander helps instead,
+// it goes back to the treasury. No money is made or lost either way.
+func TestRescueFeeIsPaidToTheEMT(t *testing.T) {
+	for _, onCall := range []bool{true, false} {
+		w, c, b := aidWorld(t, func(c *Config) { c.EMTDetail, c.EMTFee, c.EMTWage = 1, 3, 1000 })
+		w.treasury += 100
+		w.moneyIssued += 100
+		if onCall {
+			w.tryTakeOnCall(b)
+			if !b.onCall {
+				t.Fatal("test setup: helper not on call")
+			}
+		} else {
+			w.emtDetail = 0 // nobody on call, so no order either
+		}
+		treasury, wallet := w.treasury, b.wallet
+		knockOut(w, c)
+		if onCall && c.rescueOrder == 0 {
+			t.Fatal("no rescue order posted for a casualty")
+		}
+		if took := stepUntil(w, 40, func() bool { return !c.passedOut }); took > 40 {
+			t.Fatal("never brought round")
+		}
+		if c.rescueOrder != 0 || len(w.sortedWork(func(o *WorkOrder) bool { return o.Kind == WorkRescue })) != 0 {
+			t.Fatal("rescue order left open")
+		}
+		paid := b.wallet - wallet
+		if onCall && (paid < 3 || w.emtFeesPaid != 3) {
+			t.Fatalf("EMT paid %d in all (fees %d), want the $3 fee", paid, w.emtFeesPaid)
+		}
+		if !onCall && (w.treasury != treasury || w.emtFeesPaid != 0) {
+			t.Fatalf("bystander rescue: treasury %d, was %d; fees %d", w.treasury, treasury, w.emtFeesPaid)
+		}
+		assertMoneyConserved(t, w)
+	}
+}
+
+// What a colonist expects the calls to pay comes off its retainer ask,
+// never below nothing.
+func TestFeesLowerTheRetainerAsk(t *testing.T) {
+	w, c := driveWorld(t, aidConfig(func(c *Config) { c.EMTDetail = 1 }))
+	ask := w.emtAsk(c)
+	w.emtFee, w.emtCallRate = 1, 100 // $1 a call, a call every ten hours: 10¢ an hour
+	if got := w.emtAsk(c); got != max(0, ask-10) {
+		t.Fatalf("ask with fees %d¢, want %d¢", got, max(0, ask-10))
+	}
+	w.emtFee = 50
+	if got := w.emtAsk(c); got != 0 {
+		t.Fatalf("ask %d¢ with fees worth more than the place", got)
+	}
+}

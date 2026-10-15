@@ -377,6 +377,28 @@ the cheapest ask among colonists not on call, how many would take the place
 at the wage offered, the measured call share, and how long casualties have
 waited for an EMT to set out (`noteResponse`), so the player can price it.
 
+**Paying by the call.** The player can also set a fee per call (`SetEMTFee`,
+0 to `MaxEMTFee` $50, `emt-fee` where a game starts, $0). With a detail and
+a fee, the colony posts a `WorkRescue` order on the work book for every
+casualty as it goes down (`postRescue`), escrowing the fee from the
+treasury as any work order does. It is settled when the casualty stops being
+one (`settleRescue`, from `dropCasualty`, or from `finishAid` for one laid
+in a cot, which is still a casualty while it heals there): paid to the
+on-call EMT that saw it to, and otherwise, if it came round on its own, saw
+to itself, or a bystander helped, back to the treasury. **Bystanders are
+never paid**: a colonist who stops for a stranger does it for its own
+reasons, and the fee is the colony's price for coverage, not for kindness.
+
+The fee comes off the retainer a colonist asks. The colony measures how
+many calls an EMT answers per thousand hours on call (`emtCallRate`, folded
+in with `emtShare`, from a prior of `emt-call-rate` 20: without one, a
+detail paid only by the call never staffed, since nobody on call meant no
+calls measured and so no fee in anyone's reckoning), and a colonist's ask is cut by what that many calls
+would pay it at the fee, never below nothing. So a colony can staff its
+detail with a small retainer and pay mostly for what is done; a quiet
+colony's EMTs still want the retainer, since few calls come. The tab shows
+the fee, what has been paid in fees, and the call rate.
+
 Unlike a guard post, **being on call is not a job.** It is a status
 (`Entity.onCall`) that a colonist carries while it does other work. A
 colonist looking for work takes an open place on the detail
@@ -751,6 +773,29 @@ casualty to a helper setting out to it.
   infirmary is built for the detail the player sets, not for whoever the
   wage has drawn so far, so a player who raises the offer finds the cots
   already standing.
+
+### Paying by the call
+
+The same 32 alien-heavy colonies with a detail of three and no retainer,
+paid only by the call (with `emt-call-rate` 20 as the prior). "Paid" is
+everything the colony paid its EMTs.
+
+| Fee per call | Places filled (of 96, at the end) | Calls EMTs answered | Paid | Alive |
+| --- | --- | --- | --- | --- |
+| $1, $3, $5 | 0 | 0 | $0 | 598 |
+| $10 | 8 | 324 | $1,970 | 622 |
+| $20 | 5 | 380 | $4,160 | 596 |
+| 25¢ an hour and $2 a call | 28 | 501 | $4,630 | 581 |
+
+- **Below about $10 a call nobody comes.** At 20 calls per thousand hours,
+  $5 a call is worth 10¢ an hour against an ask of about 18¢.
+- **Above it the detail staffs, answers, and thins out.** Each colony
+  measures fewer calls than the prior reckoned, so asks rise again and
+  most EMTs leave by the end; those who stay are the cheapest.
+- **It is cheap.** At $10 a call coverage cost about $62 a colony over the
+  run, against about $2,200 at the first build's fixed $2 an hour, with
+  survival as good as any measured. Survival differences are still within
+  the noise.
 
 ## Open questions
 

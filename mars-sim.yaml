@@ -1054,6 +1054,12 @@ siting-auto: true
 ## per mille of on-call time colonists reckon calls take, before the colony has measured it
 # emt-call-share: 100
 
+## dollars the colony pays an on-call EMT for each casualty it sees to, at the start (the player sets it in play; 0: none)
+# emt-fee: 0
+
+## calls per thousand hours on call colonists reckon an EMT answers, before the colony has measured it
+# emt-call-rate: 20
+
 ## aid score an on-call EMT adds for any casualty
 # aid-duty-bonus: 80
 

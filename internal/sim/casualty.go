@@ -111,6 +111,7 @@ func (w *World) addCasualty(e *Entity) {
 	}
 	w.casualties = slices.Insert(w.casualties, i, e.ID)
 	e.casualtySince = w.tick
+	w.postRescue(e)
 	for _, id := range w.onCall {
 		if emt := w.entities[id]; emt != nil && emt != e {
 			w.markMindDirty(emt)
@@ -125,7 +126,9 @@ func (w *World) dropCasualty(e *Entity) {
 	if i, found := slices.BinarySearch(w.casualties, e.ID); found {
 		w.casualties = slices.Delete(w.casualties, i, i+1)
 	}
-	if helper := w.entities[e.aidedBy]; helper != nil && helper.aidTarget == e.ID {
+	helper := w.entities[e.aidedBy]
+	w.settleRescue(e, helper)
+	if helper != nil && helper.aidTarget == e.ID {
 		helper.aidTarget = 0
 	}
 	e.aidedBy = 0
@@ -138,6 +141,7 @@ func (w *World) dropCasualty(e *Entity) {
 // detail that keeps working is close enough to matter.
 func (w *World) noteResponse(helper *Entity, ticks int) {
 	if helper.onCall {
+		w.emtCallsWindow++
 		w.emtResponses++
 		w.emtResponseTicks += ticks
 	} else {
@@ -453,11 +457,13 @@ func (w *World) rouse(helper, c *Entity) {
 			helper.aidDone.gave = true
 		}
 	}
+	// Marked before it comes round: coming round settles the call, which
+	// pays only a helper that did something.
+	helper.aidDone.roused = true
 	w.comeRound(c)
 	if kind, ok := w.driveEffectNamed(rousedEffectName); ok {
 		w.applyEffect(c, kind)
 	}
-	helper.aidDone.roused = true
 }
 
 // comeRound is a casualty getting up: on its own, or roused. It leaves any
@@ -474,6 +480,11 @@ func (w *World) comeRound(c *Entity) {
 // was done (helped, was helped), the casualty's gratitude, and the helper
 // back to choosing. Seeing to oneself is no story.
 func (w *World) finishAid(e, c *Entity) {
+	if e.aidDone.dragged {
+		// Laid in a cot, a casualty is still one (it heals there), so the
+		// call is settled here rather than when it leaves the index.
+		w.settleRescue(c, e)
+	}
 	done := e.aidDone
 	e.aidDone = aidDone{}
 	w.finishFocus(e)

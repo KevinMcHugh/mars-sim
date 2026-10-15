@@ -23,10 +23,11 @@ import (
 type WorkKind uint8
 
 const (
-	WorkBuild WorkKind = iota // raise one build task's tile
-	WorkHaul                  // move a unit of the issuer's goods from one depot to another
-	WorkDig                   // dig out one rock tile of an excavation order (see excavation.go)
-	WorkClear                 // clear one structure tile of a clearing order (see zones.go)
+	WorkBuild  WorkKind = iota // raise one build task's tile
+	WorkHaul                   // move a unit of the issuer's goods from one depot to another
+	WorkDig                    // dig out one rock tile of an excavation order (see excavation.go)
+	WorkClear                  // clear one structure tile of a clearing order (see zones.go)
+	WorkRescue                 // see one casualty to, for an on-call EMT (see emt.go)
 )
 
 func (k WorkKind) String() string {
@@ -37,6 +38,8 @@ func (k WorkKind) String() string {
 		return "dig"
 	case WorkClear:
 		return "clear"
+	case WorkRescue:
+		return "rescue"
 	}
 	return "haul"
 }
