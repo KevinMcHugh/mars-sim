@@ -224,13 +224,13 @@ var infirmaryRoom = roomRecipe{
 
 // cotsShort is how many more cots the colony wants than it has planned: one
 // for each colonists-per-cot colonists, never fewer than an infirmary's
-// minimum, and none at all until someone is on call. A detail nobody will
-// take at the wage offered is no reason to dig an infirmary: at 0 cents,
-// every measured colony built one for EMTs that never came.
+// minimum, and none at all without an EMT detail. It follows the detail the
+// player sets, not who has taken it: an infirmary is the colony's to build,
+// whether or not the wage it offers has drawn anyone yet.
 func (w *World) cotsShort() int {
 	per := w.cfg.ColonistsPerCot
 	n := w.countKind(Colonist)
-	if per <= 0 || len(w.onCall) == 0 || n < 2 {
+	if per <= 0 || w.emtDetail <= 0 || n < 2 {
 		return 0
 	}
 	want := max((n+per-1)/per, infirmaryRoom.minFac)

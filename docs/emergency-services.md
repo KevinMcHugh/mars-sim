@@ -746,9 +746,11 @@ casualty to a helper setting out to it.
   not yet tested: at 25¢ the detail fills early, which commissions the
   infirmary (every colony built its cots), then empties as asks rise past
   the offer, so the colony pays for the rooms and gets little coverage.
-- **No infirmary for an empty detail.** At 0¢ nobody took a place, but the
-  colony had already built every colony an infirmary. The infirmary now
-  waits until someone is on call.
+- **The infirmary follows the detail, not its staff.** At 0¢ nobody took a
+  place, and every colony still built its cots. That is intended: the
+  infirmary is built for the detail the player sets, not for whoever the
+  wage has drawn so far, so a player who raises the offer finds the cots
+  already standing.
 
 ## Open questions
 
@@ -765,8 +767,8 @@ casualty to a helper setting out to it.
 5. **What is an EMT worth?** Wages are now the player's offer and the
    colonists' asks (*Market wages*). In alien-heavy colonies without
    bleeding or with it, a detail barely changes survival from $1 an hour
-   up, and a detail priced too low to stay staffed does worse than none.
-   Whether a staffed infirmary should outlast its staff is open.
+   up, and a detail priced too low to stay staffed does worse than none,
+   perhaps because its infirmary is built either way.
 6. **Cost at scale.** Walking wounded make the casualty index bigger in a
    big fight, and `noticeCasualty` walks it for every colonist each turn
    while it is not empty. Fine at tens of casualties; worth a benchmark
