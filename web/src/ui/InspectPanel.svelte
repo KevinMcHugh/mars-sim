@@ -89,6 +89,7 @@
               danger={d.consequence === 'death'} title={d.consequence === 'none' ? undefined : `When full: ${d.consequence}`} />
           {/each}
         </div>
+        {#if c.want}<p class="want">{c.want}</p>{/if}
       </Section>
 
       <Section id="inspect.inventory" title="Inventory">
@@ -274,4 +275,5 @@
   .actions { display: flex; gap: 4px; flex: none; }
   .small.on { background: var(--accent); color: #fff; }
   .back { display: block; margin-bottom: 8px; }
+  .want { margin: 6px 0 0; font-size: 12px; color: var(--muted); }
 </style>

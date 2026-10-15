@@ -282,6 +282,7 @@ const (
 	JobTend             // keep its chickens' trough in feed: scrape scum, mix feed at a scumhouse, fill the trough (see chickens.go)
 	JobGuard            // hold a station in a defense zone and shoot what threatens it (see defense.go)
 	JobAid              // walk to a casualty and bring it round (see casualty.go)
+	JobFetch            // collect a gun it bought from the depot at Target (see wants.go)
 )
 
 // cleanStage is where a JobClean colonist is in the haul. The job is two legs
@@ -401,6 +402,11 @@ type Entity struct {
 	// newsHeard is the Seq of the first news item it has not heard yet
 	// (news.go).
 	newsHeard int
+	// wants is where it is on each drive's ladder of wants (wants.go).
+	wants [numDrives]wantState
+	// gunWaiting is the weaponRank of a gun it bought and has not yet
+	// fetched from the depot it was bought at (0: none).
+	gunWaiting int
 
 	// Aid (colonists only; see casualty.go). aidTarget is the casualty this
 	// colonist holds the claim on while it helps; aidedBy, on a casualty, is

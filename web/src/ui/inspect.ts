@@ -20,6 +20,8 @@ export interface Colonist {
   profession?: string; professionLabel?: string;
   /** Who it worked for back home, "Worked as a drill operator for MarsCorp."; flavor only. */
   backstory?: string;
+  /** What a pressing drive would have it buy, and what it will pay (sim wants.go). */
+  want?: string;
   family: { relation: string; id: number; name: string }[];
   affinities: { id: number; name: string; value: number }[];
   affinityMax: number;

@@ -333,6 +333,12 @@ siting-auto: true
 ## what the colony pays for an assault rifle at its silo
 # price-assault-rifle: 60
 
+## what a pistol is worth before one has traded
+# price-pistol: 20
+
+## what a shotgun is worth before one has traded
+# price-shotgun: 35
+
 # ── Colony standing orders ──────────────────────────────────────────────
 ## the colony posts no standing orders but its bids for building materials (rock, iron ore, clay)
 # standing-orders-build-only: true
@@ -1141,6 +1147,21 @@ siting-auto: true
 
 ## days of news the colony keeps for the News panel
 # news-days: 30
+
+## ticks a want's order rests on the book before the colonist decides again
+# want-ttl: 1080
+
+## lapsed orders on one rung before a colonist that can afford the next looks past it
+# want-patience: 3
+
+## ticks a rung just taken is given to work before the next is wanted
+# want-settle-ticks: 1080
+
+## percent of a gun's price a colonist will pay at its safety drive's ceiling
+# gun-willingness: 150
+
+## meals' worth of money a colonist keeps back from anything a want would buy
+# want-reserve-meals: 4
 
 # ── Meeting hall ────────────────────────────────────────────────────────
 ## the colony commissions meeting-hall chairs, one for each this many colonists (0: no hall, and talk and meals stay wherever they happen)

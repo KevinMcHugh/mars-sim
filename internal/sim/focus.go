@@ -156,7 +156,8 @@ func affectContribution(charge, grip int, spec FocusSpec, moodMax int) int {
 
 func workJob(job JobKind) bool {
 	switch job {
-	case JobMine, JobBuild, JobClean, JobStore, JobCraft, JobScrape, JobSell, JobCarry, JobTend, JobGuard:
+	case JobMine, JobBuild, JobClean, JobStore, JobCraft, JobScrape, JobSell, JobCarry, JobTend, JobGuard, JobFetch:
+
 		return true
 	default:
 		return false

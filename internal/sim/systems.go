@@ -37,6 +37,7 @@ func (w *World) step() {
 		case Colonist:
 			w.colonistTurn(e)
 			w.hearNews(e)          // the evening news, once it is awake to hear it
+			w.postWants(e)         // what a pressing drive would buy (wants.go)
 			w.syncDriveActivity(e) // drives grow at the rate of what it is now doing
 
 			w.tallyActivity(e) // the Activity tab's tally (read-only bookkeeping)
@@ -824,6 +825,8 @@ func (w *World) runJob(e *Entity) {
 		w.jobTend(e)
 	case JobGuard:
 		w.jobGuard(e)
+	case JobFetch:
+		w.jobFetch(e)
 	default:
 		e.State = Idle
 		w.wanderStep(e)
@@ -1070,6 +1073,12 @@ func (w *World) finishTalk(a, b *Entity) {
 // first (life-support rooms), otherwise mine the frontier. Leaves JobNone if
 // nothing suitable is reachable.
 func (w *World) assignWorkJob(e *Entity) {
+	// A gun it bought, waiting at a depot, before anything else: it goes out
+	// to the frontier armed.
+	if w.tryFetchGun(e) {
+		return
+	}
+
 	// A meal in its pockets before it's hungry, so hunger never starts with a
 	// walk across the colony (see food.go).
 	if w.tryPocketMeal(e) {

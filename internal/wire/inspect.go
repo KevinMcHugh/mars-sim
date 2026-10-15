@@ -122,7 +122,9 @@ type ColonistDetail struct {
 	ProfessionLabel string       `json:"professionLabel,omitempty"`
 	// Backstory is its one-line past, "Worked as a drill operator for
 	// MarsCorp." ("" for none). Flavor only (docs/arms-makers.md).
-	Backstory   string     `json:"backstory,omitempty"`
+	Backstory string `json:"backstory,omitempty"`
+	// Want is what a pressing drive would have it buy (sim.EntityView.Want).
+	Want        string     `json:"want,omitempty"`
 	Family      []Kin      `json:"family"`
 	Affinities  []Acquaint `json:"affinities"`
 	AffinityMax int        `json:"affinityMax"`
@@ -297,6 +299,8 @@ func colonistDetail(s *sim.Snapshot, e sim.EntityView, p *sim.Profile) *Colonist
 		c.Profession, c.ProfessionLabel = e.Profession.String(), e.ProfessionLabel
 	}
 	c.Backstory = e.Backstory
+	c.Want = e.Want
+
 	if len(e.Relations) > 0 || len(e.Affinities) > 0 {
 		names := colonistNames(s)
 		for _, r := range e.Relations {

@@ -80,6 +80,10 @@ type EntityView struct {
 	// Backstory is a colonist's one-line past, "Worked as a drill operator
 	// for MarsCorp." ("" for none). Flavor only; see docs/arms-makers.md.
 	Backstory string
+	// Want is what a pressing drive would have it buy, and what it will pay
+	// ("Wants a gun: will pay up to $15; has $61."), empty when nothing
+	// presses. See wants.go.
+	Want string
 
 	// Dead, DiedTick, and Cause are set only on a Snapshot.Graveyard or
 	// Snapshot.Deceased entry: it died at DiedTick (from Cause, a short
@@ -968,6 +972,7 @@ func (w *World) entityView(e *Entity, kinChildren map[kinID][]kinID, full bool) 
 		ev.Skills = e.skillViews()
 		ev.Profession, ev.ProfessionLabel = e.profession, e.professionLabel()
 		ev.Backstory = w.backstory(e)
+		ev.Want = w.wantLine(e)
 		if full {
 			ev.Relations = append([]Relation(nil), w.cachedRelations(e, kinChildren)...)
 			ev.Affinities = w.affinitiesOf(e.ID)

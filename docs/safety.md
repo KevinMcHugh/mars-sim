@@ -19,9 +19,9 @@ book: a bid for a gun, a bid for a better one, and at the top, an escort
 contract an armed colonist takes the way it takes a post in a
 [defense zone](./defense.md).
 
-S1 and S2 are built: the safety drive, what moves it, the traits that temper
-it, hearsay, and the nightly news. From S3 on (wants, guns, bodyguards) it is
-a proposal. *Built so far* below records where the build departed from the
+S1 to S3 are built: the safety drive, what moves it, the traits that temper
+it, hearsay, the nightly news, and wants, with safety's first two rungs (a
+gun, a better gun). From S4 on (bodyguards) it is a proposal. *Built so far* below records where the build departed from the
 plan and what it measured.
 
 ## Decisions already made
@@ -40,10 +40,10 @@ plan and what it measured.
 | --- | --- | --- |
 | S1 | The safety drive: a place-dependent rate (home, settled, frontier, guarded), bumps from percepts through a `drives` field on reactions in `cognition.yaml`, the felt-unsafe experience at the ceiling, and the disposition traits (Bold/Timid, and safety rules on nerve and outlook). No behavior beyond affect. | Shipped |
 | S2 | Hearsay and the nightly news: a recounted memory reaches the listener as a percept on a new `hearsay` channel, so hearing about a killing or a sighting is a reaction row; an evening broadcast on a `broadcast` channel reports the day's deaths and arrivals. | Shipped |
-| S3 | Wants: one willingness-to-pay rule for any drive, ladders of rungs, the hook that posts an order when a drive presses, and the inspector line that explains it. Safety's first two rungs: a gun, then a better gun, with the old one sold on. | Proposed |
+| S3 | Wants: one willingness-to-pay rule for any drive, ladders of rungs, the hook that posts an order when a drive presses, and the inspector line that explains it. Safety's first two rungs: a gun, then a better gun, with the old one sold on; pistols and shotguns machined at the gun bench (pulled forward from S6). | Shipped |
 | S4 | Bodyguards: `WorkEscort` contracts escrowed from the client, `JobEscort` as a guard post that follows a colonist, protection as a place class, the calm-to-serve rule for every guard post, the guarding skill, and escorts on the Market tab. | Proposed |
 | S5 | Critical safety: retreating home, turning down frontier work, restless nights. | Proposed |
-| S6 | Chipping in to a defense zone's wages; pistols and shotguns made at the gun bench. | Proposed |
+| S6 | Chipping in to a defense zone's wages. | Proposed |
 
 ## Source
 
@@ -89,14 +89,28 @@ Built (S1, S2):
   the rows and settings above.
 - [`internal/sim/safety_test.go`](../internal/sim/safety_test.go).
 
-Proposed (S3 on):
+Built (S3):
+
+- [`internal/sim/wants.go`](../internal/sim/wants.go): `wantRung`,
+  `wantSpec`, `wantState`, `willingness`, `postWants` (`runWant`),
+  `wantLine` (the inspector's sentence); safety's ladder (`safetyRungs`,
+  `gunValue`, `bestGunOwned`, `bidForGun`); fetching a bought gun
+  (`tryFetchGun`, `jobFetch`, `JobFetch`) and putting the old one on sale.
+- [`internal/sim/scumhouse.go`](../internal/sim/scumhouse.go): the pistol
+  and shotgun recipes at the gun bench.
+- [`internal/sim/foundry.go`](../internal/sim/foundry.go): `ownStockFor`
+  never counts the gun in a colonist's hand.
+- [`internal/sim/systems.go`](../internal/sim/systems.go): `postWants` after
+  every colonist turn; `tryFetchGun` first in `assignWorkJob`.
+- [`internal/sim/snapshot.go`](../internal/sim/snapshot.go),
+  [`internal/wire/inspect.go`](../internal/wire/inspect.go),
+  [`web/src/ui/InspectPanel.svelte`](../web/src/ui/InspectPanel.svelte):
+  `EntityView.Want`, the entity topic's `want`, shown under Drives.
+- [`internal/sim/wants_test.go`](../internal/sim/wants_test.go).
+
+Proposed (S4 on):
 
 - [`internal/sim/skills.go`](../internal/sim/skills.go): `SkillGuarding`.
-- `internal/sim/wants.go` (new): `wantSpec`, `wantRung`, `willingness`,
-  `postWants`; safety's ladder.
-- [`internal/sim/combat.go`](../internal/sim/combat.go),
-  [`inventory.go`](../internal/sim/inventory.go): reference prices for the
-  pistol and shotgun; a bought gun fetched from its depot.
 - [`internal/sim/workorder.go`](../internal/sim/workorder.go): `WorkEscort`.
 - [`internal/sim/defense.go`](../internal/sim/defense.go): the post grows a
   second shape, an area that follows a client; `tryAssignEscort`,
@@ -376,32 +390,34 @@ second copy, and lets one drive want several things in turn:
 
 ```go
 type wantRung struct {
-    Name   string                       // "a gun", "a better gun", "a bodyguard"
-    Held   func(*World, *Entity) bool   // already has what this rung buys
-    Value  func(*World, *Entity) Money  // what it is worth to a calm colonist
-    Most   int                          // willingness percent at the ceiling
-    Budget int                          // percent of the wallet it may spend (0: the meal rule)
-    Post   func(*World, *Entity, Money) bool
+    name  string                         // "a gun", "a better gun"
+    held  func(*World, *Entity) bool     // already has what this rung buys
+    value func(*World, *Entity) Money    // what it is worth to a calm colonist
+    most  func(*World) int               // willingness percent at the ceiling
+    post  func(*World, *Entity, Money, int) *Order // its order, at a limit, with a lifetime
 }
 
 type wantSpec struct {
-    Drive DriveKind
-    From  DrivePhase // DrivePressing: when the want switches on
-    Rungs []wantRung // climbed in order
+    drive DriveKind
+    rungs []wantRung // climbed in order
 }
 ```
 
-`willingness` is `mealBidLimitWith` generalized: it starts at `Value` when
-the drive first presses, rises linearly to `Most`% of it at the ceiling, and
-is capped by what the colonist will spend. With `Budget` 0 that cap is the
-meal rule: half the wallet until critical, then all of it. A rung with a
-`Budget` may spend only that percent of the wallet, however afraid the
-colonist is.
+`willingness` is `mealBidLimitWith` generalized: it starts at the rung's
+value when the drive first presses (`SeekAt`) and rises linearly to `most`%
+of it at the ceiling. It spends only what the colonist has beyond
+`want-reserve-meals` (4) meals' worth, and half of that until the drive is
+critical, then all of it. The bodyguard rung (S4) will add its own spending
+rule, a share of the wallet per shift.
 
-`postWants` runs when a drive's phase changes (the crossing `syncDriveBand`
-already schedules) and when the colonist's open want expires, so it costs
-nothing for a calm colonist. It wants the **first rung not yet held** that
-it can afford, and posts that one; one want is open per drive per colonist.
+`postWants` runs after every colonist turn; with an order open, or the
+drive calm, it costs a comparison. It first notes what became of the open
+order: gone with `Filled` set is a purchase, gone without is a lapse. Then,
+if the drive presses and the colonist is not hungry (food comes first), it
+wants the **first rung not yet held** and posts that one, at its
+willingness; one want is open per drive per colonist. A colonist that
+cannot post at all (no market depot, no money beyond its food) tries again
+90 ticks later.
 A colonist climbs the next rung only after `want-settle-ticks` (one day)
 with the last one held and its safety still pressing: a new gun is given a
 chance to calm it first.
@@ -437,10 +453,11 @@ The book therefore always holds the colony's unmet fear, priced, for a day
 at a time, and a lapsed order never lingers after the fear behind it has
 gone.
 
-The inspector shows the ladder and where the colonist stands on it:
-"Uneasy (720). Has a pistol. Wants a better gun: will pay up to $30 for a
-shotgun, less $20 for its pistol; has $61. Can't afford a bodyguard." That is rule 6
-(every choice explainable), and it is most of the tuning interface.
+The inspector shows what the colonist wants and why, under its drives:
+"Wants a better gun: will pay up to $12; has $61.", or "can't afford it".
+That is rule 6 (every choice explainable), and it is most of the tuning
+interface. (The planned sentence named the gun and the trade-in; the built
+one is shorter.)
 
 Hunger moving onto `wantSpec` is a refactor, not part of this plan; the
 meal rule is the reference the general one is checked against.
@@ -453,19 +470,29 @@ meal rule is the reference the general one is checked against.
 | a better gun | it carries a gun above its own, up to a rifle | a bid for the next gun up or better; its old gun goes on sale when the new one arrives | the new gun's price, less what the old one fetches | the meal rule |
 | a bodyguard | it has an escort contract open | an escort contract | `escort-wage` an hour | `escort-budget-percent` of the wallet a shift |
 
-**Guns.** A gun is a good like a meal: a bid at a depot, filled from an ask,
-left there in the buyer's name and fetched by an ordinary job, as a bought
-meal is. Prices: `price-pistol` (20), `price-shotgun` (35) and the existing
-`price-assault-rifle` (60), each up to `gun-willingness` (150%) at the
-ceiling. Rifles already come down a supply chain, so a frightened
-colonist's bid for one reaches the gun bench through the producer planner
-the way a hungry colonist's bid reaches the cave wall
-([valuation.md](./valuation.md), [foundry.md](./foundry.md)). Pistols and
-shotguns have no recipe yet: they are bought secondhand, from the colonists
-who landed with them and from those trading up, whose old gun goes on sale
-at its value when the new one arrives. The ladder makes a gun market where
-there was none. A trade-in is also why the second rung is cheaper than it
-looks: a $35 shotgun costs a pistol owner $15.
+**Guns.** A gun is a good like a meal: a bid at the market depot (the
+silo), filled from an ask, left there in the buyer's name, and fetched.
+`bidForGun` bids for the best gun above the colonist's own it can pay for at
+its price, or, if it can pay for none, for the cheapest one above at what it
+can pay: a bid below the price is still demand. Prices: `price-pistol` (20),
+`price-shotgun` (35) and the existing `price-assault-rifle` (60), each the
+gun's value until guns of its kind trade (`gunValue`; kept apart from
+`refPrice`, the colony's silo price, so the foundry's reckoning did not
+move), and each up to `gun-willingness` (150%) at the ceiling.
+
+Every gun is machined at the gun bench, for a bid, through the producer
+planner, the way a hungry colonist's bid reaches the cave wall
+([valuation.md](./valuation.md), [foundry.md](./foundry.md)): a pistol from
+one steel ingot, a shotgun from two, a rifle from three. Guns also come
+secondhand: a colonist trading up fetches its new gun (`JobFetch`, first in
+`assignWorkJob`, so it does not go out unarmed) and leaves the old one in
+the depot on sale at its value. A trade-in is why the second rung is cheaper
+than it looks: a $35 shotgun costs a pistol owner $15. A colonist never
+sells the gun in its hand to someone else's bid (`ownStockFor`).
+
+A bought gun is remembered (`gunWaiting`) until it is fetched, rather than
+found by searching every depot: the rung's `held` runs every turn for an
+uneasy colonist and for the inspector every frame.
 
 A colonist that buys a gun is armed, so it also becomes someone who can
 guard: fear builds the colony's pool of guards from the bottom.
@@ -578,6 +605,36 @@ shifts at the rock face, and a defense zone over the mine or a bodyguard
 for each miner buys them back.
 
 ## Built so far
+
+### S3: wants and guns
+
+Measured on three seeds of a 20-colonist game with zoning-auto and the food
+safety net on, for 10,800 ticks each:
+
+| | seed 1 | seed 2 | seed 3 |
+| --- | --- | --- | --- |
+| gun bids posted | 11 | 24 | 25 |
+| guns traded (new and secondhand) | 8 | 9 | 10 |
+| armed colonists, start → end | 12 → 11 | 10 → 10 | 10 → 14 |
+| carrying a shotgun or rifle at the end | 2 | 5 | 2 |
+| starved | 0 | 0 | 0 |
+
+- **Without a forge's sidearms, nothing filled.** Built as first planned
+  (pistols and shotguns secondhand only), the same games posted 14 to 34
+  gun bids and traded none: nobody trades up when nothing better is ever
+  sold, and the colonists' rifle bids sat below what a rifle costs to make.
+  Pulling S6's recipes forward is what made the market answer.
+- **Food comes first.** Without a reserve, colonists spent the money they
+  needed for meals, and the long-run treasury test (20 colonists, 30,000
+  ticks) starved 3 against its limit of 2. Wants now spend only money beyond
+  `want-reserve-meals` meals' worth, and post nothing while the colonist is
+  hungry.
+- **The default 6-colonist game has no market.** It never builds a silo
+  before it starves (no communal container in six seeds), so its colonists
+  want guns and have nowhere to bid. That is the game's scarcity, not the
+  ladder's.
+
+### S1 and S2
 
 S1 and S2 as built, measured on the drive tuning harness's six seeds of the
 default game for 10,800 ticks each (about 140 colonist-days):
@@ -704,7 +761,7 @@ default game for 10,800 ticks each (about 140 colonist-days):
 
 ## Settings
 
-Built settings first; the rest arrive with S3 and S4.
+Built settings first; the rest arrive with S4.
 
 | Setting | Default | Meaning |
 | --- | --- | --- |
@@ -718,16 +775,17 @@ Built settings first; the rest arrive with S3 and S4.
 | `hearsay-hop-percent` | 50 | how much of a bump survives each retelling |
 | `news-hour` | 21 | the clock hour of the evening broadcast |
 | `news-days` | 30 | days of broadcasts the colony keeps |
+| `price-pistol` / `price-shotgun` | 20 / 35 | what those guns are worth before any has traded; the rifle keeps `price-assault-rifle` (60) |
+| `gun-willingness` | 150 | percent of a gun's price a colonist will pay at the ceiling |
+| `want-ttl` | 1080 | how long a want's order rests on the book before the colonist decides again |
+| `want-patience` | 3 | lapsed orders on one rung before a colonist that can afford the next rung looks past it |
+| `want-settle-ticks` | 1080 | how long a rung just taken is given to work before the next is wanted |
+| `want-reserve-meals` | 4 | meals' worth of money a colonist keeps back from any want |
 | `escort-hours` | 8 | length of a contract |
 | `escort-radius` | 3 | how close an escort keeps, and counts as guarding |
 | `escort-wage` | 6 | the least an escort contract may pay an hour |
 | `escort-willingness` | 150 | percent of `escort-wage` a client will pay at the ceiling |
 | `escort-budget-percent` | 10 | the most of its wallet a client spends on one shift |
-| `price-pistol` / `price-shotgun` | 20 / 35 | reference prices; the rifle keeps `price-assault-rifle` (60) |
-| `gun-willingness` | 150 | percent of a gun's price a colonist will pay at the ceiling |
-| `want-settle-ticks` | 1080 | how long a rung is held, still pressing, before the next is wanted |
-| `want-ttl` | 1080 | how long a want's order rests on the book before the colonist decides again |
-| `want-patience` | 3 | lapsed orders on one rung before a colonist that can afford the next rung looks past it |
 | `guarding-nerve-percent` | 15 | how much each `SkillGuarding` rank cuts safety's frontier rate and sight bumps |
 
 ## Extending it
@@ -741,8 +799,6 @@ Built settings first; the rest arrive with S3 and S4.
 - **Another rung** (body armour between the guns and the guard, say) is a
   `wantRung` in safety's ladder and, if it should calm, a modifier on the
   rate. Order is the ladder's order.
-- **Pistols and shotguns at the gun bench (S6)** are recipe rows. Until
-  then the secondhand market is all there is, and that is fine.
 - **Chipping in to a defense zone (S6).** A colonist whose frontier is a
   zone's area could add to the zone's wage pool instead of hiring alone,
   which is the first public good paid for by the people who use it
