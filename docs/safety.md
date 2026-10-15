@@ -4,9 +4,10 @@
 
 ## What it is
 
-A plan for a fifth colonist drive, **safety**, and the first way a feeling
-turns into a purchase: a colonist who feels unsafe hires an armed colonist
-to walk with it as a **bodyguard**, paid by the hour from its own wallet.
+A plan for a fifth colonist drive, **safety**, and the first feeling that
+turns into a ladder of purchases: a colonist who feels unsafe buys a gun,
+then a better gun, and finally, if it is rich, hires an armed colonist to
+walk with it as a **bodyguard**, paid by the hour from its own wallet.
 
 Safety builds from what the colonist goes through: seeing an alien, a
 gunfight or a colonist killed, hearing about those things in conversation,
@@ -14,8 +15,9 @@ and time spent out on the frontier rather than at home. It falls at home,
 in a staffed defense zone, and with a bodyguard at its side. Once it presses,
 the colonist **wants** protection, and a general want layer (the one
 `mealBidLimit` is today, for hunger alone) turns that into an order on the
-book: an escort contract an armed colonist takes the way it takes a post in
-a [defense zone](./defense.md).
+book: a bid for a gun, a bid for a better one, and at the top, an escort
+contract an armed colonist takes the way it takes a post in a
+[defense zone](./defense.md).
 
 Nothing here is built.
 
@@ -27,16 +29,18 @@ Nothing here is built.
 | Who is not afraid | Disposition, not luck: traits for outlook and boldness, and a guarding skill learned on duty, make a colonist less susceptible to fear. Bodyguards are the colonists those leave calm. |
 | What a bodyguard knows | Only what is on the market: the contract's rate, hours and escrow, and where the client is. Never the client's drives, affect or memories. |
 | How deaths get around | Two ways: hearsay as people talk, and the **nightly news**, a broadcast every evening of the day's major news. Deaths first; arrivals next; more kinds later. |
+| What fear buys | A ladder, one rung at a time: a gun, a better gun, a bodyguard. A colonist climbs only while it still feels unsafe with what it has. |
+| Who can afford a guard | Only the rich. A bodyguard costs several times a defense post's wage, and a colonist spends on one only out of savings it would not miss, so a typical purse buys guns and never a guard. |
 | Defense over a home | Not a case. Home is already the safest place class, and a defense zone over it changes nothing for safety. |
 
 | Phase | What ships | Status |
 | --- | --- | --- |
 | S1 | The safety drive: a place-dependent rate (home, settled, frontier, guarded), bumps from percepts through a `drives` field on reactions in `cognition.yaml`, the felt-unsafe experience at the ceiling, and the disposition traits (Bold/Timid, and safety rules on nerve and outlook). No behavior beyond affect. | Proposed |
 | S2 | Hearsay and the nightly news: a recounted memory reaches the listener as a percept on a new `hearsay` channel, so hearing about a killing or a sighting is a reaction row; the dead become conversation topics; an evening broadcast on a `broadcast` channel reports the day's deaths, then arrivals. | Proposed |
-| S3 | Wants: one willingness-to-pay rule for any drive, the hook that posts an order when a drive presses, and the inspector line that explains it. | Proposed |
+| S3 | Wants: one willingness-to-pay rule for any drive, ladders of rungs, the hook that posts an order when a drive presses, and the inspector line that explains it. Safety's first two rungs: a gun, then a better gun, with the old one sold on. | Proposed |
 | S4 | Bodyguards: `WorkEscort` contracts escrowed from the client, `JobEscort` as a guard post that follows a colonist, protection as a place class, the calm-to-serve rule for every guard post, the guarding skill, and escorts on the Market tab. | Proposed |
 | S5 | Critical safety: retreating home, turning down frontier work, restless nights. | Proposed |
-| S6 | Other things fear buys: a gun of one's own, chipping in to a defense zone's wages. | Proposed |
+| S6 | Chipping in to a defense zone's wages; pistols and shotguns made at the gun bench. | Proposed |
 
 ## Source
 
@@ -64,7 +68,11 @@ What changes, when built:
 - `internal/sim/news.go` (new): `NewsItem`, `reportNews`, `broadcastNews`,
   and each colonist's cursor into the news; deaths report from where a
   colonist is removed, arrivals from ship landings and recruiting.
-- `internal/sim/wants.go` (new): `wantSpec`, `willingness`, `postWants`.
+- `internal/sim/wants.go` (new): `wantSpec`, `wantRung`, `willingness`,
+  `postWants`; safety's ladder.
+- [`internal/sim/combat.go`](../internal/sim/combat.go),
+  [`inventory.go`](../internal/sim/inventory.go): reference prices for the
+  pistol and shotgun; a bought gun fetched from its depot.
 - [`internal/sim/workorder.go`](../internal/sim/workorder.go): `WorkEscort`.
 - [`internal/sim/defense.go`](../internal/sim/defense.go): the post grows a
   second shape, an area that follows a client; `tryAssignEscort`,
@@ -130,9 +138,11 @@ nothing moves. The guarded class is set from the guard's side (below): an
 escort entering or leaving `escort-radius` flips the client's flag and
 calls `refreshDrive`, so no client scans for its guard every tick.
 
-Carrying a weapon is a trait-like modifier, not a place: an armed colonist's
-safety builds at `safety-armed-percent` (−40) of the rate. Disposition
-(below) scales it further.
+Carrying a weapon is a trait-like modifier, not a place, and a better gun
+calms more: an armed colonist's safety rate changes by its best weapon's
+`safety-armed-*` percent, −25 for a pistol, −35 for a shotgun and −50 for
+an assault rifle. That difference is what makes the second rung of the
+ladder (below) worth buying. Disposition (below) scales it further.
 
 ### Disposition: who is not afraid
 
@@ -165,10 +175,10 @@ not new traits:
   Outlook is about how a colonist reads the world, so it bites on rumor
   rather than on what it sees with its own eyes.
 
-Trait percents multiply, as they do for every drive, so a Bold, Resilient,
-armed colonist on level 1's frontier builds safety at under a third of an
-ordinary colonist's rate there (60% × 80% × 60%): about 23 hours from calm
-to uneasy, against seven.
+Trait percents multiply, as they do for every drive, so a Bold, Resilient
+colonist carrying a rifle on level 1's frontier builds safety at a quarter
+of an unarmed ordinary colonist's rate there (60% × 80% × 50%): about 28
+hours from calm to uneasy, against seven.
 
 **Skill.** `SkillGuarding` is practised by every tick on station, as a guard
 or an escort, and by every alien a guard fights. Base 4, the baseline: there
@@ -330,39 +340,106 @@ decides what terror feels like.
 
 Hunger is the one drive that buys anything today, through `mealBidLimit`
 and `tryBuyMeal`. S3 names the pattern so safety can use it without a
-second copy:
+second copy, and lets one drive want several things in turn:
 
 ```go
-type wantSpec struct {
-    Drive  DriveKind
-    From   DrivePhase         // DrivePressing: when the want switches on
-    Value  func(*World) Money // what it is worth to a calm colonist
-    Most   int                // willingness percent at the ceiling
+type wantRung struct {
+    Name   string                       // "a gun", "a better gun", "a bodyguard"
+    Held   func(*World, *Entity) bool   // already has what this rung buys
+    Open   func(*World, *Entity) bool   // something could fill it: an ask, a recipe, a calm guard
+    Value  func(*World, *Entity) Money  // what it is worth to a calm colonist
+    Most   int                          // willingness percent at the ceiling
+    Budget int                          // percent of the wallet it may spend (0: the meal rule)
     Post   func(*World, *Entity, Money) bool
+}
+
+type wantSpec struct {
+    Drive DriveKind
+    From  DrivePhase // DrivePressing: when the want switches on
+    Rungs []wantRung // climbed in order
 }
 ```
 
 `willingness` is `mealBidLimitWith` generalized: it starts at `Value` when
-the drive first presses, rises linearly to `Most`% of it at the ceiling,
-and is capped by a share of the wallet that grows with urgency (half until
-critical, then all of it, as for a meal). One want is open per drive per
-colonist. `postWants` runs when a drive's phase changes (the crossing
-`syncDriveBand` already schedules) and on a cooldown while it stays
-pressing, so it costs nothing for a calm colonist.
+the drive first presses, rises linearly to `Most`% of it at the ceiling, and
+is capped by what the colonist will spend. With `Budget` 0 that cap is the
+meal rule: half the wallet until critical, then all of it. A rung with a
+`Budget` may spend only that percent of the wallet, however afraid the
+colonist is.
 
-The inspector shows the want and why: "Uneasy (720). Wants a bodyguard:
-will pay up to $4/h for 8 h; has $61." A colonist that cannot afford one
-says so. That is rule 6 (every choice explainable), and it is most of the
-tuning interface.
+`postWants` runs when a drive's phase changes (the crossing `syncDriveBand`
+already schedules) and every `want-recheck-ticks` while it stays pressing,
+so it costs nothing for a calm colonist. It wants the **first rung not yet
+held** that is open and affordable, and posts that one; one want is open
+per drive per colonist. A rung nothing could fill (no ask on the book, no
+recipe that makes it, no calm armed colonist) or the colonist could never
+afford is passed over, so a colony without a foundry does not leave its
+pistol owners stuck wanting rifles. A colonist climbs the next rung only
+after `want-settle-ticks` (one day) with the last one held and its safety
+still pressing: a new gun is given a chance to calm it first.
+
+The inspector shows the ladder and where the colonist stands on it:
+"Uneasy (720). Has a pistol. Wants a better gun: will pay up to $48 for a
+shotgun or a rifle; has $61. Can't afford a bodyguard." That is rule 6
+(every choice explainable), and it is most of the tuning interface.
 
 Hunger moving onto `wantSpec` is a refactor, not part of this plan; the
 meal rule is the reference the general one is checked against.
 
+### Safety's ladder
+
+| Rung | Held when | Posts | Worth | Spends |
+| --- | --- | --- | --- | --- |
+| a gun | it carries any weapon | a bid for the best gun it can pay for | that gun's price | the meal rule |
+| a better gun | it carries a gun above its own, up to a rifle | a bid for the next gun up or better; its old gun goes on sale when the new one arrives | the new gun's price, less what the old one fetches | the meal rule |
+| a bodyguard | it has an escort contract open | an escort contract | `escort-wage` an hour | `escort-budget-percent` of the wallet a shift |
+
+**Guns.** A gun is a good like a meal: a bid at a depot, filled from an ask,
+left there in the buyer's name and fetched by an ordinary job, as a bought
+meal is. Prices: `price-pistol` (20), `price-shotgun` (35) and the existing
+`price-assault-rifle` (60), each up to `gun-willingness` (150%) at the
+ceiling. Rifles already come down a supply chain, so a frightened
+colonist's bid for one reaches the gun bench through the producer planner
+the way a hungry colonist's bid reaches the cave wall
+([valuation.md](./valuation.md), [foundry.md](./foundry.md)). Pistols and
+shotguns have no recipe yet: they are bought secondhand, from the colonists
+who landed with them and from those trading up, whose old gun goes on sale
+at its value when the new one arrives. The ladder makes a gun market where
+there was none. A trade-in is also why the second rung is cheaper than it
+looks: an $11 shotgun upgrade is the shotgun's price less what the pistol
+fetches.
+
+A colonist that buys a gun is armed, so it also becomes someone who can
+guard: fear builds the colony's pool of guards from the bottom.
+
+**A bodyguard is for the rich.** Two rules together make it so:
+
+- **It costs what a guard could earn elsewhere, and more.** A bodyguard is
+  calm, armed, and walking into danger on purpose; it is the scarcest labor
+  in the colony. A contract may not be posted below `escort-wage` (6) an
+  hour, three times `wage-guard`, so a shift (`escort-hours`, 8) costs at
+  least $48. The armed colonists it competes for rank it against defense
+  posts and other paid work by rate, so a cheaper contract would sit open.
+- **It is paid from savings, not from need.** A gun is bought once and kept,
+  so a frightened colonist will spend most of what it has on one, as it
+  would on a meal when starving. A bodyguard is paid every day the fear
+  lasts, so the rung's `Budget` lets a shift cost at most
+  `escort-budget-percent` (10) of the wallet. At the minimum wage that is a
+  wallet of $480 or more.
+
+A colonist lands with `crash-pod-purse` ($100), commissions a house at
+`house-savings` ($300), and recruits bring a log-normal purse averaging
+$100. So the colonists who hire guards are the colony's richest: a lucky
+recruit, a master smith, a landlord with paid toilets. Everyone else stops
+at the second rung. Who is rich enough is a fact the economy produces, not
+a flag; the inspector says "Can't afford a bodyguard" for the rest.
+
 ### Bodyguards
 
-Safety's want posts an **escort contract**: a `WorkEscort` work order,
-issued by the client, for `escort-hours` (8) hours at the hourly price
-`willingness` gives, escrowed up front through `postWork`. Defense zones
+The ladder's top rung posts an **escort contract**: a `WorkEscort` work
+order, issued by the client, for `escort-hours` (8) hours at the hourly
+price `willingness` gives (never below `escort-wage`), escrowed up front
+through `postWork`. Defense zones
 pay from the treasury as they go because a detail has no end
 ([defense.md](./defense.md)); a contract has one, so it escrows like every
 other work order, and the money audit already counts it.
@@ -498,6 +575,17 @@ for each miner buys them back.
   colonist was when it landed; the skill says what duty has made of it;
   wear says what it has seen lately. Each has a different lifetime, so
   each is its own mechanism.
+- **A ladder, not the most relief per dollar.** The obvious want would cost
+  every option and buy the best value. That makes the poor and the rich
+  want the same thing and differ only in whether they can pay, which hides
+  the story. A ladder says what people actually do: get a gun, get a better
+  one, and only then, if they can, pay someone. It also keeps the bodyguard
+  rare, which is what makes one mean something.
+- **Guns spend like meals, guards spend from savings.** A durable good is
+  worth stretching for once; a service paid every day is not. Two spending
+  rules, one per kind of rung, are what put guns in everyone's reach and
+  guards in only the rich's, without a wealth threshold anyone tunes by
+  hand.
 - **Escorts read the book.** Colonists already read each other's minds to
   decide who will talk, and drives.md calls that a known problem. Hiring is
   new code, so it starts from the end state: the client's fear is private,
@@ -518,14 +606,19 @@ for each miner buys them back.
 | `drives.safety.rate` | 1000 | base growth, before the place percent |
 | `drives.safety.place.*` | −300 / −50 / 200 / −200 | home / settled / frontier / guarded |
 | `safety-depth-percent` | 50 | extra frontier growth per level below the landing level |
-| `safety-armed-percent` | −40 | rate change while carrying a weapon |
 | `hearsay-max-hops` | 2 | how many retellings news survives |
 | `hearsay-hop-percent` | 50 | how much of a bump survives each retelling |
 | `news-hour` | 21 | the clock hour of the evening broadcast |
 | `news-days` | 30 | days of broadcasts the colony keeps |
 | `escort-hours` | 8 | length of a contract |
 | `escort-radius` | 3 | how close an escort keeps, and counts as guarding |
-| `escort-willingness` | 250 | percent of `wage-guard` an unsafe colonist will pay at the ceiling |
+| `escort-wage` | 6 | the least an escort contract may pay an hour |
+| `escort-willingness` | 150 | percent of `escort-wage` a client will pay at the ceiling |
+| `escort-budget-percent` | 10 | the most of its wallet a client spends on one shift |
+| `price-pistol` / `price-shotgun` | 20 / 35 | reference prices; the rifle keeps `price-assault-rifle` (60) |
+| `gun-willingness` | 150 | percent of a gun's price a colonist will pay at the ceiling |
+| `safety-armed-pistol` / `-shotgun` / `-rifle` | −25 / −35 / −50 | safety rate change for the best gun carried |
+| `want-settle-ticks` | 1080 | how long a rung is held, still pressing, before the next is wanted |
 | `want-recheck-ticks` | 90 | how often an open want is reconsidered while it presses |
 | `guarding-nerve-percent` | 15 | how much each `SkillGuarding` rank cuts safety's frontier rate and sight bumps |
 
@@ -537,10 +630,11 @@ for each miner buys them back.
   a reaction on the `broadcast` channel. Nothing in the broadcast changes.
 - **Another drive that buys** (comfort buying furniture, hygiene buying a
   wash) is a `wantSpec` row and its `Post`.
-- **Buying a gun instead (S6).** A second option on safety's want: a bid for
-  the cheapest weapon on the book, costed as hours of escort it would
-  replace. The want picks the option with the most relief per dollar.
-  Guns already have a supply chain ([foundry.md](./foundry.md)).
+- **Another rung** (body armour between the guns and the guard, say) is a
+  `wantRung` in safety's ladder and, if it should calm, a modifier on the
+  rate. Order is the ladder's order.
+- **Pistols and shotguns at the gun bench (S6)** are recipe rows. Until
+  then the secondhand market is all there is, and that is fine.
 - **Chipping in to a defense zone (S6).** A colonist whose frontier is a
   zone's area could add to the zone's wage pool instead of hiring alone,
   which is the first public good paid for by the people who use it
