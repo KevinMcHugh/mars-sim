@@ -115,7 +115,7 @@ type MetricLine struct {
 	Doc   string `json:"doc"`
 	Kind  string `json:"kind"` // "level" or "total" (a running total since the landing)
 	Unit  string `json:"unit"` // "count" or "dollars"
-	Per   string `json:"per"`  // "colony", "item", "account", "fixture" or "skill-rank"
+	Per   string `json:"per"`  // "colony", "item", "account", "fixture", "skill-rank" or "activity"
 }
 
 // SeriesLine is one series the picker can offer: Metric indexes Metrics.

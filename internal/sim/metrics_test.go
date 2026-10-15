@@ -212,6 +212,40 @@ func TestFixtureAndSkillRankMetrics(t *testing.T) {
 	}
 }
 
+// Colonists are counted by what they are doing at the sample, walking to it
+// included, with the walking also counted on its own; an activity nobody has
+// done has no series.
+func TestActivityMetrics(t *testing.T) {
+	w := propertyWorld(t)
+	tpd := w.cfg.TicksPerDay()
+	a, b, c := w.spawn(Colonist, Point{8, 8, LandingLevel}), w.spawn(Colonist, Point{8, 9, LandingLevel}),
+		w.spawn(Colonist, Point{8, 10, LandingLevel})
+	a.State = Crafting
+	b.State, b.Job = Moving, JobCraft // on the way to cook
+	c.State = Sleeping
+	for w.tick++; clockHour(w.tick, tpd) == clockHour(w.tick-1, tpd); w.tick++ {
+	}
+	w.sampleMetrics()
+	v := w.metricsView()
+	for key, want := range map[string]int64{
+		"activity/cooking": 2, "activity-walking/cooking": 1, "activity/sleeping": 1,
+	} {
+		s := series(v, key)
+		if s == nil {
+			t.Fatalf("no series %q", key)
+		}
+		if n := s.Values[len(s.Values)-1]; n != want {
+			t.Errorf("%s = %d, want %d", key, n, want)
+		}
+	}
+	if s := series(v, "activity/cooking"); s.Subject != "cooking" {
+		t.Errorf("subject %q, want \"cooking\"", s.Subject)
+	}
+	if series(v, "activity/mining") != nil || series(v, "activity-walking/sleeping") != nil {
+		t.Error("an activity nobody is doing already has a series")
+	}
+}
+
 // Every skill's ranks fit the counts, and every fixture kind is counted.
 func TestMetricSubjectsCoverFixturesAndRanks(t *testing.T) {
 	for k := SkillKind(1); k < numSkills; k++ {

@@ -45,12 +45,13 @@ and is remembered in that browser.
 A `MetricDef` row says what a metric is (key, label, group, a line of doc for
 the picker), its unit (count or dollars), what it is read for (`PerColony`,
 `PerItem` with "all goods" as subject 0, `PerAccount`: the treasury and
-each living colonist, `PerFixture`: each kind of fixture, or
-`PerSkillRank`: each rank of each skill), and how to read it. There are two kinds of reading:
+each living colonist, `PerFixture`: each kind of fixture,
+`PerSkillRank`: each rank of each skill, or `PerActivity`: each
+[Activity](./activity-screen.md)), and how to read it. There are two kinds of reading:
 
 | Kind | Meaning | Examples |
 | --- | --- | --- |
-| `Gauge` (`"level"` on the wire) | a value at the sample's moment | colonists, balance, price, open bids, units in storage, scumhouses standing, colonists who are chefs |
+| `Gauge` (`"level"` on the wire) | a value at the sample's moment | colonists, balance, price, open bids, units in storage, scumhouses standing, colonists who are chefs, colonists cooking |
 | `Total` | a running total since the landing | money changed hands, payments, bids posted, units traded, trade value, deaths |
 
 A Total's amount over any span is the difference between the readings at its
@@ -83,9 +84,10 @@ bar names days.
 For each metric and subject the sample reads `(value, ok)`:
 
 - A subject with no series yet gets one at its first reading. A per-item,
-  per-fixture or per-rank series waits for a non-zero reading
-  (`waitsForReading`), so goods nobody has touched, fixtures never built and
-  ranks nobody has reached add nothing to the picker. A price waits for the
+  per-fixture, per-rank or per-activity series waits for a non-zero reading
+  (`waitsForReading`), so goods nobody has touched, fixtures never built,
+  ranks nobody has reached and things nobody has done add nothing to the
+  picker. A price waits for the
   good's first trade.
 - A series whose subject stops reading (`ok` false, or a colonist no longer
   living) **ends**. It keeps its history and is listed as "gone".
@@ -178,6 +180,25 @@ order they started, which for ranks is whenever a colonist first reached
 one, and read as a jumble with gaps. The counts are exact per rank
 so both metrics, and any other cut of them, read from one table.
 
+### Colonists by activity
+
+`activity` counts living colonists doing one thing at the sample's moment,
+classified exactly as the [Activity tab](./activity-screen.md) does
+(`activityOf`): cooking is a colonist at a scumhouse recipe *or walking to
+one*. `activity-walking` is the walking part on its own, so "how many are
+actually at the stove" is `activity` minus `activity-walking`. Series are
+keyed by the activity's name (`activity/cooking`, `activity-walking/mining`)
+and the picker lists them alphabetically. `newMetricCtx` classifies each
+colonist once per sample, in the walk it already makes.
+
+These are Gauges read once an hour, not the Activity tab's every-tick
+tally. Long work (cooking, sleeping, mining) reads well; a short spike (a
+fight of a few ticks) between two samples is missed. That is the price of
+one table of hourly readings; the tally would need its own running counters
+per activity to become a Total (colonist-time), which nobody has asked for
+yet. A Total of colonist-ticks would also only read sensibly once divided by
+the bucket's length, which the page doesn't do for any other metric.
+
 ## Why it is this way
 
 - **One table, everything else follows.** "Any new thing countable and
@@ -237,6 +258,9 @@ samples.
   row reading it. Never decrement a Total: the page reads differences.
 - **A new fixture kind:** add it to `metricFixtures`
   (`TestMetricSubjectsCoverFixturesAndRanks` fails until you do).
+- **A new activity:** nothing to do: `metricActivities` covers every
+  `Activity` below `NumActivities`, and its key is its `String`, so renaming
+  an activity's string empties saved charts that used it.
 - **A new skill or rank:** nothing to do, unless a skill outgrows
   `maxSkillRanks` (the same test says so).
 - **A new family of subjects** (per species, per workshop): a `MetricPer`
