@@ -379,8 +379,8 @@ after `want-settle-ticks` (one day) with the last one held and its safety
 still pressing: a new gun is given a chance to calm it first.
 
 The inspector shows the ladder and where the colonist stands on it:
-"Uneasy (720). Has a pistol. Wants a better gun: will pay up to $48 for a
-shotgun or a rifle; has $61. Can't afford a bodyguard." That is rule 6
+"Uneasy (720). Has a pistol. Wants a better gun: will pay up to $30 for a
+shotgun, less $20 for its pistol; has $61. Can't afford a bodyguard." That is rule 6
 (every choice explainable), and it is most of the tuning interface.
 
 Hunger moving onto `wantSpec` is a refactor, not part of this plan; the
@@ -406,8 +406,7 @@ shotguns have no recipe yet: they are bought secondhand, from the colonists
 who landed with them and from those trading up, whose old gun goes on sale
 at its value when the new one arrives. The ladder makes a gun market where
 there was none. A trade-in is also why the second rung is cheaper than it
-looks: an $11 shotgun upgrade is the shotgun's price less what the pistol
-fetches.
+looks: a $35 shotgun costs a pistol owner $15.
 
 A colonist that buys a gun is armed, so it also becomes someone who can
 guard: fear builds the colony's pool of guards from the bottom.
