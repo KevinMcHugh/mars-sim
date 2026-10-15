@@ -63,6 +63,12 @@ export const ui = $state({
   floats: loadPref('floats', [] as FloatWin[]),
   /** What the Inspect tab shows, and the map marks. */
   selected: null as Selection | null,
+  /**
+   * The creature the camera follows (FollowChip.svelte, docs/follow.md), or
+   * null. Separate from the selection: closing the inspector to see the map
+   * keeps following.
+   */
+  follow: null as number | null,
   /** The tab a selection was made from, for the inspector's way back. */
   inspectFrom: null as string | null,
   /** The roster's filters, kept while the tab is closed (the TUI's f). */
@@ -108,8 +114,9 @@ export const ui = $state({
  * over (a frame of the new level resets them), and the area tools put down
  * their areas, which were marked on the old level.
  */
-export function setLevel(l: number): void {
+export function setLevel(l: number, keepFollow = false): void {
   if (l === ui.level || !ui.levels.includes(l)) return;
+  if (!keepFollow) ui.follow = null; // looking elsewhere: the camera is the player's again
   ui.level = l;
   if (ui.dig.rect) clearDig();
   if (ui.zone.rect) clearZoneTool();
@@ -452,6 +459,8 @@ export interface Controller {
   saveGame(): void;
   /** Center the map on a tile. */
   centerOn(x: number, y: number): void;
+  /** ui.follow changed: center on the creature now, from the last frame. */
+  followChanged(): void;
   /** ui.level changed: ask the worker for that level. */
   levelChanged(): void;
   /** ui.selected changed: move the map's marker. */
@@ -493,7 +502,24 @@ export function loadGame(file: File): void { ctl?.loadGame(file); }
 export function saveGame(): void { ctl?.saveGame(); }
 /** Center the map on a tile, on level l if given (switching to it, if the colony has broken into it). */
 export function centerOn(x: number, y: number, l?: number): void {
+  ui.follow = null; // going somewhere stops following
   if (l !== undefined) setLevel(l);
+  ctl?.centerOn(x, y);
+}
+
+/** Keep the camera on a creature as it moves (null stops). Panning, a level change or any centerOn stops it too. */
+export function follow(id: number | null): void {
+  ui.follow = id;
+  ctl?.followChanged();
+}
+
+/**
+ * The followed creature is on another level (it took a stair, a shaft or a
+ * ladder): take the map there and center on it, still following.
+ */
+export function followTo(x: number, y: number, l: number): void {
+  if (ui.follow === null) return;
+  setLevel(l, true);
   ctl?.centerOn(x, y);
 }
 /** Center the map on a log line's tile, if it has one; reports whether it did. */

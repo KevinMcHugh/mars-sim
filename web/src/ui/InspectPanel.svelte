@@ -5,7 +5,7 @@
   // cursor's. Names of kin, acquaintances, owners and creatures on a tile
   // inspect them in turn.
   import { pickGlyph } from '../emoji';
-  import { centerOn, inspect, selectionTopic, setPanel, subscribe, topics, ui } from '../game.svelte';
+  import { centerOn, follow, inspect, selectionTopic, setPanel, subscribe, topics, ui } from '../game.svelte';
   import Bar from './Bar.svelte';
   import Section from './Section.svelte';
   import type { EntityInfo, TileInfo } from './inspect';
@@ -38,7 +38,12 @@
     <header>
       <h3><span class="glyph">{pickGlyph(entity.look, entity.glyph)}</span> {entity.name}</h3>
       {#if !entity.dead}
+        <span class="actions">
         <button type="button" class="small" title="Center the map on it" onclick={() => centerOn(entity.x, entity.y, entity.level)}>Find</button>
+        <button type="button" class="small" class:on={ui.follow === entity.id} aria-pressed={ui.follow === entity.id}
+          title={ui.follow === entity.id ? 'Stop following' : 'Keep the map centered on it as it moves (a pan stops it)'}
+          onclick={() => follow(ui.follow === entity.id ? null : entity.id)}>{ui.follow === entity.id ? 'Following' : 'Follow'}</button>
+        </span>
       {/if}
     </header>
     {#if c}
@@ -266,5 +271,7 @@
   }
   .link:hover { text-decoration: underline; }
   .small { padding: 2px 8px; font-size: 12px; }
+  .actions { display: flex; gap: 4px; flex: none; }
+  .small.on { background: var(--accent); color: #fff; }
   .back { display: block; margin-bottom: 8px; }
 </style>
