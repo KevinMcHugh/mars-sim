@@ -739,6 +739,13 @@ casualty to a helper setting out to it.
   and in colonies where bystanders already reach most casualties, that is
   worth little. With bleeding on, where a casualty has a clock and only an
   EMT can drag, the answer may differ; it is not measured yet.
+- **With bleeding on, the same.** The same colonies with `bleeding` on: no
+  detail 619 alive (4 bled to death), 25¢ 571 (6; 17 places filled at the
+  end), $1 628 (4; 60), $2 625 (2; 69). EMTs set out within one or two
+  ticks. Level from $1 up; 25¢ worst, as it was without bleeding. A guess,
+  not yet tested: at 25¢ the detail fills early, which commissions the
+  infirmary (every colony built its cots), then empties as asks rise past
+  the offer, so the colony pays for the rooms and gets little coverage.
 - **No infirmary for an empty detail.** At 0¢ nobody took a place, but the
   colony had already built every colony an infirmary. The infirmary now
   waits until someone is on call.
@@ -757,8 +764,9 @@ casualty to a helper setting out to it.
    over 32 seeds); turning it on is a call about how fights should feel.
 5. **What is an EMT worth?** Wages are now the player's offer and the
    colonists' asks (*Market wages*). In alien-heavy colonies without
-   bleeding, a detail barely changes survival at any wage; whether it earns
-   its keep with bleeding on is the next measurement.
+   bleeding or with it, a detail barely changes survival from $1 an hour
+   up, and a detail priced too low to stay staffed does worse than none.
+   Whether a staffed infirmary should outlast its staff is open.
 6. **Cost at scale.** Walking wounded make the casualty index bigger in a
    big fight, and `noticeCasualty` walks it for every colonist each turn
    while it is not empty. Fine at tens of casualties; worth a benchmark
