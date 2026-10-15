@@ -95,9 +95,10 @@ per group, each taken with `TraitChance` probability:
 | temperament | Tidy | 2.2x gore/death/mess appraisal and doubled grip relief from incineration |
 | mutant attitude | Mutant-Lover | extra affinity toward mutants and reflected mutation grip |
 | mutation | Mutant | *acquired in play only* — the marker for a colonist uranium has changed |
-| nerve | Resilient / Cowardly | wear rate 40 / 180; Cowardly also 1.5× threat impact |
+| nerve | Resilient / Cowardly | wear rate 40 / 180; Cowardly also 1.5× threat impact; safety drive −20 / +50 |
 | outlook | Optimist / Pessimist | affect home `{grip: 8, valence: 25}` / `{grip: -8, valence: -25}` |
 | sleep | Short Sleeper / Long Sleeper | a night in bed one clock hour shorter / longer (`sleepHours`; see [days.md](./days.md)) |
+| daring | Bold / Timid | safety drive −40 / +40; sights land at 60% / 140%, hearsay at 50% / 140% (see [safety.md](./safety.md)) |
 | compassion | Caring / Callous | aid score +`aid-trait-bonus` for anyone / −`aid-trait-bonus` for anyone but close family; Caring feels helping, guilt and grief harder, Callous feels helping less and no guilt for strangers (see [emergency-services.md](./emergency-services.md)) |
 
 `temperament` is a group of one today — unlike the others, Tidy isn't paired
@@ -113,6 +114,10 @@ change later personality outcomes for a given seed.
 own (`compassionRNG`, `ownStreamGroup`, `rollCompassion`), after the profile,
 so adding it moved no trait any seed already rolled. A recruit's compassion is
 drawn last from the recruit stream, after its savings, for the same reason.
+`daring` is rolled the same way on a stream of its own (`daringRNG`,
+`addDaring`), after compassion, for colonists and recruits alike; a
+recruit's daring comes from that stream too, so no recruit card moved.
+
 
 `mutation` is different in kind: `TraitMutant` is marked `acquired`, so
 `rollTraits` never draws it and no colonist is ever *generated* a mutant —

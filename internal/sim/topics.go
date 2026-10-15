@@ -207,9 +207,68 @@ func (w *World) recountableMemories(e *Entity) []Memory {
 	for _, m := range e.Memories {
 		if m.Rule != conversationRule {
 			out = append(out, m)
+			continue
+		}
+		// A conversation in which the colonist heard something worth
+		// passing on is retold as what it heard, not as the conversation,
+		// until the news has been through hearsay-max-hops retellings.
+		if g := m.Gist; g != nil && g.Hops > 0 && g.Hops < w.cfg.HearsayMaxHops {
+			m.Text = g.Text
+			out = append(out, m)
 		}
 	}
 	return out
+}
+
+// tellHearsay hands the listener of a memory topic what the speaker recalled,
+// as a hearsay percept: the reactions in cognition.yaml decide what hearing
+// it does. A listener who already knows (it saw it, or heard it already) is
+// not told again, and nothing the reactions do not care about is passed on.
+// Its memory of the conversation then carries the gist one hop further.
+func (w *World) tellHearsay(t ConversationTopic, listener *Entity) {
+	g := t.Memory.Gist
+	if t.Kind != TopicMemory || g == nil || g.Hops >= w.cfg.HearsayMaxHops {
+		return
+	}
+	if w.knows(listener, g.Actor, g.Action, g.Object) {
+		return
+	}
+	o := Occurrence{Actor: g.Actor, Action: g.Action, Object: g.Object, Location: listener.Pos, Text: g.Text}
+	p := w.perceptFor(listener, ChannelHearsay, RoleWitness, PhaseInstant, o)
+	p.Hops = g.Hops + 1
+	if _, ok := w.cognition.reactionFor(p); !ok {
+		return
+	}
+	w.rememberPercept(listener, p)
+	if n := len(listener.Memories); n > 0 {
+		if m := &listener.Memories[n-1]; m.Rule == conversationRule && m.Tick == w.tick {
+			m.Gist = &MemoryGist{Actor: g.Actor, Action: g.Action, Object: g.Object, Text: g.Text, Hops: p.Hops}
+		}
+	}
+}
+
+// knows reports whether e remembers this occurrence already: the same who,
+// what and whom, or, for a death, the killing (and the reverse). An
+// occurrence about no entity at all (a ship's landing) is never "known".
+func (w *World) knows(e *Entity, actor FactRef, action ActionID, object FactRef) bool {
+	if actor.Entity == 0 && object.Entity == 0 {
+		return false
+	}
+	for _, m := range e.Memories {
+		g := m.Gist
+		if g == nil {
+			continue
+		}
+		if g.Action == action && g.Actor.Noun == actor.Noun && g.Actor.Entity == actor.Entity &&
+			g.Object.Noun == object.Noun && g.Object.Entity == object.Entity {
+			return true
+		}
+		death := (action == ActionDie && g.Action == ActionKill) || (action == ActionKill && g.Action == ActionDie)
+		if death && object.Entity != 0 && g.Object.Entity == object.Entity {
+			return true
+		}
+	}
+	return false
 }
 
 // conversationRule is the reaction ID a conversation memory is recorded under

@@ -59,6 +59,11 @@ const (
 	DriveBladder
 	DriveSocial
 	DriveSleep
+	// DriveSafety is how unsafe a colonist feels: 0 calm, Max terrified. It
+	// builds on the frontier and from what the colonist sees and hears, and
+	// falls at home and under guard. It is Unsought: felt, not acted on (see
+	// docs/safety.md).
+	DriveSafety
 
 	numDrives // keep last: the count of drives
 )
@@ -73,6 +78,8 @@ func (n DriveKind) String() string {
 		return "social"
 	case DriveSleep:
 		return "sleep"
+	case DriveSafety:
+		return "safety"
 	default:
 		return "drive"
 	}
@@ -119,6 +126,19 @@ func defaultDrives() [numDrives]DriveSpec {
 			Facility: Bed, UseTicks: 0,
 			Consequences: []DriveConsequence{atCeiling(ConsequencePassOut)},
 		},
+		DriveSafety: {
+			// Safety has no facility: it is met by where the colonist is
+			// (Place) and what it carries (Armed). On level 1's frontier it
+			// goes from calm to uneasy in about 300 ticks; a night at home
+			// takes it from the ceiling to zero. At the ceiling the colonist
+			// feels unsafe, and again every 200 ticks it stays there.
+			Name: "safety", Rate: 1000, SeekAt: 600, CriticalAt: 850, Max: 1000,
+			Facility: Rock, Unsought: true,
+			PlaceDepth:       50,
+			Armed:            [numWeaponRanks]int{-25, -35, -50},
+			Consequences:     []DriveConsequence{atCeiling(ConsequenceUnsafe)},
+			ConsequenceEvery: 200,
+		},
 	}
 	// Every drive grows at its full rate in every drive activity unless set
 	// otherwise below, so a new DriveActivity starts out neutral.
@@ -126,7 +146,13 @@ func defaultDrives() [numDrives]DriveSpec {
 		for a := range d[i].Activity {
 			d[i].Activity[a] = 100
 		}
+		for p := range d[i].Place {
+			d[i].Place[p] = 100
+		}
 	}
+	// Safety falls at home and under guard, barely in the settled colony,
+	// and builds on the frontier (faster below; PlaceDepth).
+	d[DriveSafety].Place = placePercents(-300, -50, 200, -200)
 	// Hunger never stops, but it is slowest asleep and fastest at hard labor.
 	d[DriveFood].Activity = activityPercents(10, 75, 100, 140, 10)
 	// Asleep, the other drives all but stop: a night is longer than food or
@@ -153,6 +179,17 @@ func activityPercents(asleep, idle, working, labor, unconscious int) [numDriveAc
 	p[DriveWorking.index()] = working
 	p[DriveLabor.index()] = labor
 	p[DriveUnconscious.index()] = unconscious
+	return p
+}
+
+// placePercents lists a drive's percents in PlaceClass order: home, settled,
+// frontier, guarded.
+func placePercents(home, settled, frontier, guarded int) [numPlaces]int {
+	var p [numPlaces]int
+	p[PlaceHome.index()] = home
+	p[PlaceSettled.index()] = settled
+	p[PlaceFrontier.index()] = frontier
+	p[PlaceGuarded.index()] = guarded
 	return p
 }
 
@@ -185,6 +222,19 @@ type DriveSpec struct {
 	// activity (see drive_activity.go), indexed by DriveActivity.index().
 	// A negative percent makes the drive fall: sleep, asleep.
 	Activity [numDriveActivities]int `cfg:"activity" doc:"percent of the base rate in the %s drive activity"`
+	// Place is the percent of the rate this drive grows at in each place
+	// class (see place.go), indexed by PlaceClass.index(); 100 everywhere
+	// for a drive that does not care where the colonist is. PlaceDepth adds
+	// to the frontier's percent for every level below the landing level.
+	Place      [numPlaces]int `cfg:"place" doc:"percent of the rate while the colonist is %s"`
+	PlaceDepth int            `cfg:"place-depth" doc:"percent added to the frontier's for each level below the landing level"`
+	// Armed is the percent change to the rate while the best weapon the
+	// colonist carries is a pistol, a shotgun or a rifle (weaponRank 1..3).
+	Armed [numWeaponRanks]int `cfg:"armed" doc:"percent change to the rate while the best weapon carried is a %s"`
+	// Unsought marks a drive colonists feel but do not act to satisfy: it
+	// emits no focus pressure and is never the most urgent drive. Its bands
+	// and consequences still apply. Identity, not balance: untagged.
+	Unsought bool
 	// Consequences and Ramps declare what levels do (see drive_bands.go).
 	Consequences []DriveConsequence
 	Ramps        []DriveRamp
@@ -340,6 +390,12 @@ func (w *World) driveRate(e *Entity, d DriveKind) int {
 			rate = rate * w.cfg.NightTicks() / e.sleepTicks
 		}
 	}
+	if e.Kind == Colonist {
+		rate = rate * w.placePercent(e, d) / 100
+		if e.weaponRank > 0 {
+			rate = rate * (100 + w.cfg.Drives[d].Armed[e.weaponRank-1]) / 100
+		}
+	}
 	rate = rate * e.driveTrait[d] / 100
 	for src := DriveKind(0); src < numDrives; src++ {
 		for _, c := range w.driveTables[src].rates[e.drives[src].band] {
@@ -452,7 +508,11 @@ func (w *World) mostUrgentDrive(e *Entity) (DriveKind, bool) {
 	found := false
 	for i := 0; i < int(numDrives); i++ {
 		spec := w.cfg.Drives[i]
+		if spec.Unsought {
+			continue
+		}
 		over := w.driveLevel(e, DriveKind(i)) - spec.SeekAt
+
 		if over < 0 {
 			continue
 		}

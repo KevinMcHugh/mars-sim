@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"slices"
 	"sort"
 	"strings"
 
@@ -70,6 +71,17 @@ type ReactionSpec struct {
 	Worn       MoodVector
 	WearPolicy WearPolicyID
 	Stimulus   *EventStimulusSpec
+	// Drives bump the observer's drives once, as the percept lands: whole
+	// points added to the true level (negative relieves), read between
+	// Fresh and Worn by the same wear as the affect, and scaled by trait
+	// rules' impact. Sorted by drive. See docs/safety.md.
+	Drives []DriveBump
+}
+
+// DriveBump is one reaction's push on one drive, in whole points.
+type DriveBump struct {
+	Drive       DriveKind
+	Fresh, Worn int
 }
 
 // RadiusID names a simulation distance knob available to perception rules.
@@ -331,6 +343,7 @@ func DefaultCognitionConfig() CognitionConfig {
 		NounColonist, NounAlien, NounCat, NounRat, NounGore, NounMeal,
 		NounToilet, NounBed, NounNeed, NounRock, NounStructure, NounRefuse,
 		NounGruel, NounScum, NounScumhouse, NounGoods, NounSkill, NounLoneliness,
+		NounDanger, NounShip,
 	}
 	c.Actions = []ActionID{
 		ActionPresent, ActionBite, ActionAttack, ActionKill, ActionCrush,
@@ -340,6 +353,7 @@ func DefaultCognitionConfig() CognitionConfig {
 		ActionDeliver, ActionTrade, ActionBuy, ActionHaul, ActionLearn,
 		ActionFeel, ActionSocialize, ActionCollapse, ActionSoil,
 		ActionRescue, ActionLose, ActionAbandon, ActionFail,
+		ActionDie, ActionArrive,
 	}
 	c.Perceptions = []PerceptionRule{
 		{ID: "direct-actor", Channel: ChannelDirect, Role: RoleActor, Cadence: CadenceInstant},
@@ -429,7 +443,11 @@ func DefaultCognitionConfig() CognitionConfig {
 	// lonely is the other side of it: a real lift, which fades as it becomes
 	// routine.
 	feltLonely := reaction("felt-lonely", directMatch(ActionFeel, NounColonist, NounLoneliness, RoleActor), 30, MoodVector{-8, -6, -12}, MoodVector{-12, -10, -20})
-	socialized := reaction("socialized", directMatch(ActionSocialize, NounColonist, "", RoleActor), 20, MoodVector{5, 4, 5}, MoodVector{3, 2, 2})
+	// A safety drive left at its ceiling is felt as fear (ConsequenceUnsafe):
+	// control slipping away, and worse the more often it comes back.
+	feltUnsafe := reaction("felt-unsafe", directMatch(ActionFeel, NounColonist, NounDanger, RoleActor), 30, MoodVector{4, -12, -8}, MoodVector{2, -22, -15})
+	socialized := reaction("socialized",
+		directMatch(ActionSocialize, NounColonist, "", RoleActor), 20, MoodVector{5, 4, 5}, MoodVector{3, 2, 2})
 	// Passing out is losing control of your own body: grip takes the hit, and
 	// it is worse the more often it has happened.
 	passedOut := reaction("passed-out", directMatch(ActionCollapse, NounColonist, "", RoleActor), 40, MoodVector{-10, -25, -15}, MoodVector{-10, -35, -25})
@@ -463,7 +481,7 @@ func DefaultCognitionConfig() CognitionConfig {
 		&finishedMining, &clearedRock, &finishedConstruction, &cleanedRefuse,
 		&incineratedRefuse, &ate, &usedToilet, &slept, &needSatisfied,
 		&ateGruel, &cooked, &scrapedScum, &fedScumhouse, &wentToMarket, &hauled,
-		&feltLonely, &socialized, &passedOut, &soiledSelf,
+		&feltLonely, &feltUnsafe, &socialized, &passedOut, &soiledSelf,
 	} {
 		r.Memory.Collapse = map[RuleID]string{
 			"finished-mining":       "Finished mining.",
@@ -482,9 +500,11 @@ func DefaultCognitionConfig() CognitionConfig {
 			"went-to-market":        "Went to market.",
 			"hauled":                "Hauled goods for hire.",
 			"felt-lonely":           "Felt lonely.",
+			"felt-unsafe":           "Felt unsafe.",
 			"socialized":            "Enjoyed some company.",
-			"passed-out":            "Passed out from exhaustion.",
-			"soiled-self":           "Had accidents.",
+
+			"passed-out":  "Passed out from exhaustion.",
+			"soiled-self": "Had accidents.",
 		}[r.ID]
 	}
 	workStimulus := func(r *ReactionSpec) {
@@ -499,16 +519,68 @@ func DefaultCognitionConfig() CognitionConfig {
 	workStimulus(&cleanedRefuse)
 	workStimulus(&incineratedRefuse)
 
+	// Violence and threat make a colonist feel unsafe (DriveSafety); seeing
+	// the threat die is relief. Worn readings are lower: a veteran hardens.
+	safety := func(r *ReactionSpec, fresh, worn int) {
+		r.Drives = []DriveBump{{Drive: DriveSafety, Fresh: fresh, Worn: worn}}
+	}
+	safety(&sawAlien, 150, 80)
+	safety(&sawGore, 40, 20)
+	safety(&witnessedFight, 100, 60)
+	safety(&witnessedAttacked, 250, 150)
+	safety(&witnessedKilled, 400, 250)
+	safety(&bitten, 350, 300)
+	safety(&witnessedAlien, -50, -20)
+	safety(&killedAlien, -150, -50)
+
+	// Hearsay (a memory recounted in conversation) lands softer than the
+	// sight, and records nothing of its own: the listener's memory of the
+	// conversation already says what it heard, and carries it on.
+	hearsay := func(id string, action ActionID, actor, object NounID, relation ObjectRelationID, impact int, mood MoodVector, unsafe int) ReactionSpec {
+		r := ReactionSpec{
+			ID: RuleID(id), Impact: impact, Fresh: mood, Worn: mood, WearPolicy: WearPolicyNone,
+			Match: PerceptPattern{
+				OccurrencePattern: OccurrencePattern{ActorNoun: actor, Action: action, ObjectNoun: object},
+				Channel:           ChannelHearsay, Phase: PhaseInstant, ObjectRelation: relation,
+			},
+		}
+		safety(&r, unsafe, unsafe)
+		return r
+	}
+	heardKilled := hearsay("heard-colonist-killed", ActionKill, NounAlien, NounColonist, "", 40, MoodVector{10, -20, -30}, 150)
+	heardFriendKilled := hearsay("heard-friend-killed", ActionKill, NounAlien, NounColonist, ObjectRelationFriend, 60, MoodVector{15, -30, -50}, 220)
+	heardAttacked := hearsay("heard-colonist-attacked", ActionBite, NounAlien, NounColonist, "", 25, MoodVector{5, -10, -15}, 80)
+	heardSighting := hearsay("heard-alien-sighting", ActionPresent, NounAlien, "", "", 10, MoodVector{2, -4, -5}, 40)
+	heardDied := hearsay("heard-colonist-died", ActionDie, "", NounColonist, "", 30, MoodVector{0, -10, -25}, 100)
+	heardFriendDied := hearsay("heard-friend-died", ActionDie, "", NounColonist, ObjectRelationFriend, 55, MoodVector{0, -20, -50}, 150)
+	// The nightly news (news.go) is heard by everyone, so it is remembered,
+	// and wears like anything else that keeps happening.
+	broadcast := func(id string, action ActionID, actor, object NounID, relation ObjectRelationID, impact int, fresh, worn MoodVector, freshUnsafe, wornUnsafe int) ReactionSpec {
+		r := reaction(id, PerceptPattern{
+			OccurrencePattern: OccurrencePattern{ActorNoun: actor, Action: action, ObjectNoun: object},
+			Channel:           ChannelBroadcast, Phase: PhaseInstant, ObjectRelation: relation,
+		}, impact, fresh, worn)
+		safety(&r, freshUnsafe, wornUnsafe)
+		return r
+	}
+	newsDied := broadcast("news-colonist-died", ActionDie, "", NounColonist, "", 35, MoodVector{5, -15, -25}, MoodVector{0, -20, -25}, 120, 80)
+	newsFriendDied := broadcast("news-friend-died", ActionDie, "", NounColonist, ObjectRelationFriend, 60, MoodVector{5, -30, -45}, MoodVector{0, -35, -50}, 200, 150)
+	newsArrival := broadcast("news-arrival", ActionArrive, "", "", "", 15, MoodVector{5, 5, 10}, MoodVector{2, 2, 5}, -30, -10)
+
 	c.Reactions = []ReactionSpec{
-		sawAlien, sawRat, sawGore, bitten, witnessedKilled, witnessedAttacked,
+		sawAlien,
+		sawRat, sawGore, bitten, witnessedKilled, witnessedAttacked,
 		crushedRat, witnessedRat, witnessedCat, killedAlien, witnessedAlien,
 		woundedAlien, witnessedFight, conversation, ate, usedToilet, slept,
 		needSatisfied, finishedMining, clearedRock, finishedConstruction,
 		cleanedRefuse, incineratedRefuse, mutated, witnessedMutation,
 		ateGruel, cooked, scrapedScum, fedScumhouse, wentToMarket, hauled,
-		boughtMeal, roseInTrade, feltLonely, socialized, passedOut,
+		boughtMeal, roseInTrade, feltLonely, feltUnsafe, socialized, passedOut,
+
 		soiledSelf, witnessedSoiling, witnessedCollapse, helped, wasHelped,
 		couldntSave, guilt, guiltLight,
+		heardKilled, heardFriendKilled, heardAttacked, heardSighting,
+		heardDied, heardFriendDied, newsDied, newsFriendDied, newsArrival,
 	}
 	scaled := func(id RuleID, trait Trait, match PerceptPattern, impact, charge, grip, valence, wear int) TraitRule {
 		return TraitRule{ID: id, Trait: trait, Match: match, Impact: impact, Charge: charge, Grip: grip, Valence: valence, WearRate: wear}
@@ -541,7 +613,16 @@ func DefaultCognitionConfig() CognitionConfig {
 		scaled("caring-guilt-light", TraitCaring, guiltLight.Match, 200, 200, 200, 200, 100),
 		scaled("caring-couldnt-save", TraitCaring, couldntSave.Match, 150, 150, 150, 150, 100),
 		scaled("callous-helped", TraitCallous, helped.Match, 50, 50, 50, 50, 100),
+		// Daring scales how hard anything seen lands, the safety bump with it.
+		scaled("bold-sight", TraitBold, PerceptPattern{Channel: ChannelSight}, 60, 100, 100, 100, 100),
+		scaled("timid-sight", TraitTimid, PerceptPattern{Channel: ChannelSight}, 140, 100, 100, 100, 100),
+		scaled("timid-hearsay", TraitTimid, PerceptPattern{Channel: ChannelHearsay}, 140, 100, 100, 100, 100),
+		// Outlook bites on rumor rather than on what a colonist sees itself.
+		scaled("bold-hearsay", TraitBold, PerceptPattern{Channel: ChannelHearsay}, 50, 100, 100, 100, 100),
+		scaled("optimist-hearsay", TraitOptimist, PerceptPattern{Channel: ChannelHearsay}, 70, 100, 100, 100, 100),
+		scaled("pessimist-hearsay", TraitPessimist, PerceptPattern{Channel: ChannelHearsay}, 130, 100, 100, 100, 100),
 	}
+
 	if err := compileCognition(&c); err != nil {
 		panic("invalid default cognition config: " + err.Error())
 	}
@@ -602,6 +683,9 @@ func compileCognition(c *CognitionConfig) error {
 		}
 		if !validChannel(r.Channel) {
 			return fmt.Errorf("perception %s: unknown channel %q", r.ID, r.Channel)
+		}
+		if deliveredChannel(r.Channel) {
+			return fmt.Errorf("perception %s: channel %q is delivered by its feature, not sensed", r.ID, r.Channel)
 		}
 		if !validRole(r.Role) {
 			return fmt.Errorf("perception %s: unknown role %q", r.ID, r.Role)
@@ -748,7 +832,14 @@ func validatePerceptPattern(c *CognitionConfig, p PerceptPattern, where string) 
 
 func validChannel(channel ChannelID) bool {
 	return channel == ChannelDirect || channel == ChannelSight ||
-		channel == ChannelHearing || channel == ChannelProximity
+		channel == ChannelHearing || channel == ChannelProximity || deliveredChannel(channel)
+}
+
+// deliveredChannel reports whether percepts on channel come only from the
+// feature that delivers them (conversation, the news), so no perception rule
+// may sense on it.
+func deliveredChannel(channel ChannelID) bool {
+	return channel == ChannelHearsay || channel == ChannelBroadcast
 }
 
 func validRole(role ObserverRole) bool {
@@ -889,6 +980,13 @@ type yamlReaction struct {
 	Affect     *yamlAffect       `yaml:"affect,omitempty"`
 	WearPolicy string            `yaml:"wear_policy,omitempty"`
 	Stimulus   *yamlStimulus     `yaml:"stimulus,omitempty"`
+	// Drives maps a drive's name to its bump; a drive set to 0/0 drops it.
+	Drives map[string]yamlDriveBump `yaml:"drives,omitempty"`
+}
+
+type yamlDriveBump struct {
+	Fresh int `yaml:"fresh"`
+	Worn  int `yaml:"worn"`
 }
 
 type yamlScales struct {
@@ -1183,12 +1281,38 @@ func applyYAMLReaction(cfg *CognitionConfig, y yamlReaction) error {
 			rule.Stimulus.Contribution[focus] = value
 		}
 	}
+	if y.Drives != nil {
+		bumps := append([]DriveBump(nil), rule.Drives...)
+		for name, v := range y.Drives {
+			d, err := ParseDriveKind(name)
+			if err != nil {
+				return fmt.Errorf("reaction %s drives: %w", id, err)
+			}
+			bumps = slices.DeleteFunc(bumps, func(b DriveBump) bool { return b.Drive == d })
+			if v.Fresh != 0 || v.Worn != 0 {
+				bumps = append(bumps, DriveBump{Drive: d, Fresh: v.Fresh, Worn: v.Worn})
+			}
+		}
+		slices.SortFunc(bumps, func(a, b DriveBump) int { return int(a.Drive) - int(b.Drive) })
+		rule.Drives = bumps
+	}
 	if i >= 0 {
 		cfg.Reactions[i] = rule
 	} else {
 		cfg.Reactions = append(cfg.Reactions, rule)
 	}
 	return nil
+}
+
+// ParseDriveKind is the drive with this name ("safety").
+func ParseDriveKind(name string) (DriveKind, error) {
+	name = canonicalID(name)
+	for d := DriveKind(0); d < numDrives; d++ {
+		if d.String() == name {
+			return d, nil
+		}
+	}
+	return 0, fmt.Errorf("unknown drive %q", name)
 }
 
 func moodVectorFromYAML(y *yamlTarget) MoodVector {
@@ -1316,7 +1440,8 @@ func CognitionVocabularyJSON(configs ...CognitionConfig) []byte {
 	}{SchemaVersion: 1}
 	v.Vocabulary.Nouns = nounStrings(def.Nouns)
 	v.Vocabulary.Actions = actionStrings(def.Actions)
-	v.Vocabulary.Channels = []string{string(ChannelDirect), string(ChannelSight), string(ChannelHearing), string(ChannelProximity)}
+	v.Vocabulary.Channels = []string{string(ChannelDirect), string(ChannelSight), string(ChannelHearing), string(ChannelProximity), string(ChannelHearsay), string(ChannelBroadcast)}
+
 	v.Vocabulary.Roles = []string{string(RoleActor), string(RoleTarget), string(RoleWitness)}
 	v.Vocabulary.Phases = []string{string(PhaseInstant), string(PhaseEnter), string(PhaseOngoing), string(PhaseExit)}
 	v.Vocabulary.ObjectRelations = []string{string(ObjectRelationFriend)}
@@ -1329,7 +1454,7 @@ func CognitionVocabularyJSON(configs ...CognitionConfig) []byte {
 	}
 	v.Schema = map[string][]string{
 		"perception": {"id", "match", "sense"},
-		"reaction":   {"id", "priority", "match", "memory", "affect", "wear_policy", "stimulus"},
+		"reaction":   {"id", "priority", "match", "memory", "affect", "wear_policy", "stimulus", "drives"},
 		"trait_rule": {"id", "trait", "match", "scales"},
 	}
 	data, err := json.MarshalIndent(v, "", "  ")
@@ -1446,6 +1571,17 @@ reactions:
 		fmt.Fprintf(&b, "    affect: { impact: %d, fresh: { charge: %d, grip: %d, valence: %d }, worn: { charge: %d, grip: %d, valence: %d } }\n",
 			r.Impact, r.Fresh.Charge, r.Fresh.Grip, r.Fresh.Valence, r.Worn.Charge, r.Worn.Grip, r.Worn.Valence)
 		fmt.Fprintf(&b, "    wear_policy: %s\n", r.WearPolicy)
+		if len(r.Drives) > 0 {
+			b.WriteString("    drives: {")
+			for i, d := range r.Drives {
+				if i > 0 {
+					b.WriteString(",")
+				}
+				fmt.Fprintf(&b, " %s: { fresh: %d, worn: %d }", d.Drive, d.Fresh, d.Worn)
+			}
+			b.WriteString(" }\n")
+		}
+
 		if r.Stimulus != nil {
 			fmt.Fprintf(&b, "    stimulus: { salience: %d, lifetime: %d, source: %s, contributions: {",
 				r.Stimulus.Salience, r.Stimulus.Lifetime, r.Stimulus.Source)

@@ -564,6 +564,16 @@ type Config struct {
 	TalkTopicLoreWeight     int `cfg:"talk-topic-lore-weight" doc:"relative weight of talking about lore, such as an alien species or a corporation (0 never)"`
 	TalkGossipPercent       int `cfg:"talk-gossip-percent" doc:"percent of the gap a good chat about a colonist closes between the listener's affinity toward them and the speaker's"`
 
+	// Hearsay and the news. A memory recounted in conversation reaches the
+	// listener as hearsay, and can be retold up to HearsayMaxHops times, each
+	// retelling past the first landing HearsayHopPercent as hard. Every
+	// evening at NewsHour the colony hears the day's major news (deaths,
+	// arrivals). See news.go and docs/safety.md.
+	HearsayMaxHops    int `cfg:"hearsay-max-hops" doc:"how many retellings news survives in conversation (0: hearsay off)"`
+	HearsayHopPercent int `cfg:"hearsay-hop-percent" doc:"percent of its weight hearsay keeps at each retelling after the first"`
+	NewsHour          int `cfg:"news-hour" doc:"clock hour of the evening news broadcast (-1: no news)"`
+	NewsDays          int `cfg:"news-days" doc:"days of news the colony keeps for the News panel"`
+
 	// The meeting hall: a room of chairs the colony commissions, where
 	// colonists go to socialize and to eat. See docs/meeting-hall.md.
 	ColonistsPerChair int `cfg:"colonists-per-chair" sec:"Meeting hall" doc:"the colony commissions meeting-hall chairs, one for each this many colonists (0: no hall, and talk and meals stay wherever they happen)"`
@@ -1024,6 +1034,11 @@ func DefaultConfig() Config {
 		TalkTopicColonistWeight: 3,
 		TalkTopicLoreWeight:     2,
 		TalkGossipPercent:       10,
+
+		HearsayMaxHops:    2,
+		HearsayHopPercent: 50,
+		NewsHour:          21,
+		NewsDays:          30,
 
 		MoodMax:                   defaultMoodMax,
 		ConversationCompanyWeight: 6,
