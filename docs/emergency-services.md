@@ -81,7 +81,11 @@ Built (A1, A2):
 - `Aiding` (state), `JobAid`, `ActAiding` ("aiding" on the Activity tab);
   `EntityView.Peril`, shown after the state in both rosters
   ("passed out (critical)"); the 😵 and 🩹 map glyphs
-  ([`glyphs.go`](../internal/glyphs/glyphs.go), `@_` and `@h` in ASCII).
+  ([`glyphs.go`](../internal/glyphs/glyphs.go), `@_` and `@h` in ASCII). In
+  the browser a helper is a firefighter in its own gender and skin tone
+  (👨🏿‍🚒 👩🏻‍🚒 🧑🏽‍🚒, [`looks.go`](../internal/glyphs/looks.go)); the
+  terminal keeps 🩹, since terminals disagree about the width of ZWJ
+  sequences ([colonist-looks.md](./colonist-looks.md)).
 - [`internal/sim/casualty_test.go`](../internal/sim/casualty_test.go).
 
 Still to come:

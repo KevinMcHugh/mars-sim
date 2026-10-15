@@ -64,6 +64,40 @@ func TestColonistLooks(t *testing.T) {
 	}
 }
 
+// A colonist helping a casualty is a firefighter of its own gender and skin
+// tone, an adult one even when the colonist is a senior (Unicode has no
+// older firefighter); a font without the sequence falls back to 🩹.
+func TestHelperIsAFirefighter(t *testing.T) {
+	cases := []struct {
+		p    sim.Profile
+		want Look
+	}{
+		{sim.Profile{Gender: sim.GenderMan, Age: 30, SkinTone: sim.SkinDark, HairColor: sim.HairRed},
+			Look{"👨🏿‍🚒", "👨‍🚒", Aiding}},
+		{sim.Profile{Gender: sim.GenderWoman, Age: 75, SkinTone: sim.SkinLight},
+			Look{"👩🏻‍🚒", "👩‍🚒", Aiding}},
+		{sim.Profile{Gender: sim.Gender(99), Age: 30, SkinTone: sim.SkinMedium},
+			Look{"🧑🏽‍🚒", "🧑‍🚒", Aiding}},
+	}
+	for _, c := range cases {
+		e := sim.EntityView{Kind: sim.Colonist, State: sim.Aiding, Profile: &c.p}
+		got := ForEntityLook(e)
+		if len(got) != len(c.want) {
+			t.Errorf("%+v: got %+q, want %+q", c.p, got, c.want)
+			continue
+		}
+		for i := range got {
+			if got[i] != c.want[i] {
+				t.Errorf("%+v: got %+q, want %+q", c.p, got, c.want)
+				break
+			}
+		}
+		if i, ok := LookIndex(e); !ok || Looks[i-len(All)][0] != c.want[0] {
+			t.Errorf("%+v: look index %d, ok %v", c.p, i, ok)
+		}
+	}
+}
+
 // A look replaces only the resting figure: a state glyph, a mutant and a
 // creature keep theirs.
 func TestLooksOnlyReplaceTheRestingFigure(t *testing.T) {
@@ -79,6 +113,7 @@ func TestLooksOnlyReplaceTheRestingFigure(t *testing.T) {
 
 	mutant := &sim.Profile{Gender: sim.GenderMan, Age: 30, Traits: []sim.Trait{sim.TraitMutant}}
 	for _, e := range []sim.EntityView{
+		{Kind: sim.Colonist, State: sim.Aiding, Profile: mutant},
 		{Kind: sim.Colonist, State: sim.Fleeing, Profile: p},
 		{Kind: sim.Colonist, Profile: mutant},
 		{Kind: sim.Colonist},
