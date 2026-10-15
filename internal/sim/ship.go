@@ -306,6 +306,11 @@ func (w *World) furnishShip(s *Ship) {
 			if n := w.arrivalMeals(id); n > 0 && c.Inventory.Add(Meal, n) {
 				c.credit(me, Meal, n)
 			}
+			// The colony's batteries ride in the passengers' lockers, on
+			// the colony's ledger, until it hauls them to its stoves.
+			if n := w.cfg.ShipBatteries; n > 0 && w.cfg.Power && c.Inventory.Add(Battery, n) {
+				c.credit(Community, Battery, n)
+			}
 		case Trough:
 			e.trough, e.hasTrough = p, true
 			// The trough lands full, so the hen eats while its keeper

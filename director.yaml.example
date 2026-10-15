@@ -29,6 +29,7 @@ schedules:
       - kind: supply-drop
         pistols: 2
         shotguns: 1
+        batteries: 40   # the colony's, landed at its silo for its stoves
 
   - name: "new arrivals"
     earliest_tick: 2000

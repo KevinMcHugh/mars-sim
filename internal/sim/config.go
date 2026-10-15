@@ -143,6 +143,12 @@ type Config struct {
 	// colony eats only what it landed with and what it produces. On is for
 	// tests and balancing. See docs/food.md.
 	InfiniteFood bool `cfg:"infinite-food" doc:"nutrient pods make free meals out of nothing (the safety net)"`
+	// Power is whether cooking runs on batteries (docs/power.md). On, a
+	// stove with a battery in its depot cooks as it always did and spends
+	// the battery; without one it cooks cold, slower and on more scum. Off,
+	// every stove cooks as if powered and nothing spends a battery: the
+	// rules from before power, which the mechanics tests use.
+	Power bool `cfg:"power" doc:"cooking spends batteries; a stove without one cooks cold, slower and on more scum"`
 	// ZoningAuto is who decides where the colony builds. Off (the game's
 	// default), the player draws zones and colonists build a structure only
 	// inside a zone of its kind; with no such zone they build nothing. On,
@@ -347,6 +353,13 @@ type Config struct {
 	CrashPodPurse      int64 `cfg:"crash-pod-purse" doc:"dollars each colonist arrives with"`
 	CrashPodMeals      int   `cfg:"crash-pod-meals" doc:"meals stocked in each colonist's locker, on average"`
 	CrashPodMealSpread int   `cfg:"crash-pod-meal-spread" doc:"each locker's meals vary by up to this many either side of crash-pod-meals"`
+	// ShipBatteries are the colony's batteries for the build-out, landed in
+	// each passenger's locker on the colony's ledger. The colony keeps
+	// KitchenBatteryStock of them at each of its stoves, paying each
+	// passenger haul-pay to carry its share out of its own locker. See
+	// docs/power.md.
+	ShipBatteries       int `cfg:"ship-batteries" doc:"the colony's batteries landed in each passenger's locker, for the stoves until there is a reactor"`
+	KitchenBatteryStock int `cfg:"kitchen-battery-stock" doc:"batteries the colony keeps at each of its stoves, hauled in for hire from wherever it holds them"`
 	// Every colonist lands with exactly one rare item: a gun, a chicken (with
 	// a trough), or a cat, picked per colonist by these relative weights. A
 	// gun is a shotgun crash-pod-shotgun-percent of the time, else a pistol.
@@ -801,6 +814,7 @@ func DefaultConfig() Config {
 		// building costs materials. The safety net stays a setting, for tests
 		// and for balancing. See docs/economy.md.
 		InfiniteFood:  false,
+		Power:         true,
 		CrashPodPurse: 100,
 		// Scum is tuned so a small colony that keeps digging can feed itself
 		// once its crash-pod meals run out: see the sustain test in
@@ -910,11 +924,13 @@ func DefaultConfig() Config {
 		ShipToiletPercent: 25,
 		// Every shape equally likely: the colony's landing site looks
 		// different from game to game.
-		ShipStickWeight:    1,
-		ShipHubWeight:      1,
-		ShipClusterWeight:  1,
-		CrashPodMeals:      10,
-		CrashPodMealSpread: 0,
+		ShipStickWeight:     1,
+		ShipHubWeight:       1,
+		ShipClusterWeight:   1,
+		CrashPodMeals:       10,
+		CrashPodMealSpread:  0,
+		ShipBatteries:       10,
+		KitchenBatteryStock: 12,
 		// Half the colony lands armed, a quarter with a chicken, a quarter
 		// with a cat; a quarter of the guns are shotguns.
 		CrashPodGunWeight:      50,

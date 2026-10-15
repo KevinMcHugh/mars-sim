@@ -32,14 +32,16 @@ a thousand, deliberately), found by digging, deeper more often than not, and a
 small vein is worth a fortune because a single unit of ore runs a kitchen for
 days. Water ice is the dull bulk input that the reactor goes through steadily.
 
-Only P0, rarer uranium, is built. Today uranium and water ice are mined and
-sold to the silo, and then nothing uses them. Power gives both a reason to
-exist.
+P0 (rarer uranium) and P1 (batteries and powered cooking) are built. The
+colony cooks on the batteries its ships landed, and cold once they run out;
+nothing charges new ones until the reactor (P2). Today uranium and water ice
+are mined and sold to the silo, and then nothing uses them. Power gives both a
+reason to exist.
 
 | Phase | What ships | Status |
 | --- | --- | --- |
 | P0 | Rarer uranium: a per-mille setting, fewer veins of the same size, a mother lode in every world, mutation re-measured | **Shipped** |
-| P1 | Batteries and powered cooking: the `Battery` good, powered and cold recipe rows, batteries in the ships, battery supply drops | Proposed |
+| P1 | Batteries and powered cooking: the `Battery` good, powered and cold recipe rows, batteries in the ships, battery supply drops | **Shipped** |
 | P2 | The reactor under a monopoly: fuel pellets, the reactor room, the operator's wage, the colony's uranium and ice bids, the tariff | Proposed |
 | P3 | The market and the public option: `power-policy`, reactor commissions, the colony buying batteries instead of making them, the colony's reactor of last resort | Proposed |
 | P4 | The charter: the corporation as an owner, its capital, royalty and remittance | Proposed |
@@ -47,6 +49,12 @@ exist.
 | P6 | The player's view: the policy on the new-game form and in game, the tariff in the Trade tab, power on the charts | Proposed |
 
 ## Source
+
+P1 is in `power.go` (`recipeEnabled`, `needs`, `refreshKitchenBatteries`,
+`deliverBatteries`), `scumhouse.go` (the powered and cold rows, `Recipe.Cold`,
+`scumMealRecipe`), `ship.go` (the colony's batteries in each locker),
+`director.go` (`batteries` on a supply drop), `food.go` (`colonyMealsIn`), and
+`power_test.go`.
 
 P0 is in `config.go` (`UraniumRockPermille`), `configfile.go` (the retired
 `uranium-rock-percent`), `worldgen_chunks.go` (`veinShare`, `pickMotherLode`
@@ -108,11 +116,23 @@ inventing a network, and it costs nothing per tick.
 | press fuel pellets | reactor | 1 uranium ore | 40 fuel pellets | 60 |
 | charge batteries | reactor | 1 fuel pellet, 1 water ice | 12 batteries | 20 |
 | culture cave scum | scumhouse | 2 cave scum, 1 battery | 1 meal | 12 |
-| culture cave scum, cold | scumhouse | 3 cave scum | 1 meal | 36 |
+| culture cave scum cold | scumhouse | 3 cave scum | 1 meal | 36 |
 
-The other three food recipes get the same pair: a powered row first, a cold
-row after it. A cook works the first recipe it has inputs for, so a stove with
-a battery in its depot cooks powered, and a stove without one still cooks.
+The reactor rows are P2. The food rows are built (P1), and every food recipe
+has the same pair:
+
+| Powered (1 battery) | Cold |
+| --- | --- |
+| 1 alien carcass → 4 meals, 30 ticks | 1 alien carcass → 3 meals, 90 ticks |
+| 1 animal carcass → 1 meal, 10 ticks | 3 animal carcasses → 2 meals, 60 ticks |
+| 2 viscera → 1 meal, 10 ticks | 3 viscera → 1 meal, 30 ticks |
+| 2 cave scum → 1 meal, 12 ticks | 3 cave scum → 1 meal, 36 ticks |
+
+Every powered row comes before every cold row in `recipes`. A cook works the
+first recipe it has inputs for, so a stove with a battery in its depot cooks
+powered, and a stove without one still cooks. Cold is three times the ticks
+and two thirds of the meals for the inputs. A carcass can't be split, so the
+alien carcass loses a quarter instead.
 
 One unit of uranium ore makes 40 pellets, and those make 480 batteries. At
 about two meals per colonist-day ([drives.md](./drives.md)), that is a little
@@ -128,8 +148,9 @@ then runs on a stock of pellets, and so uranium ore does not sit in the
 reactor's depot dosing nobody. (Ore in a depot doses nobody today; see
 [Reactor exposure](#reactor-exposure).)
 
-The numbers are first guesses, and all of them are tunables
-(`reactor-pellets`, `reactor-batteries`, and the cold recipes' ratios).
+The numbers are first guesses. The cold rows are data in the recipe table, as
+every recipe is ([scumhouse.md](./scumhouse.md)); the reactor's ratios will be
+too.
 
 ### Cold cooking: power is an advantage, not a gate
 
@@ -139,6 +160,12 @@ nobody starves *because* the batteries ran out. That follows principle 7 in
 [design-principles.md](./design-principles.md): running out of batteries is a
 bad decision, and it should hurt like one. It should not read as a bug.
 
+**The `power` switch** (on by default) turns all of this off: with it off,
+every powered row works without a battery and spends none, and the cold rows
+are never worked. That is the rule from before power. The mechanics tests run
+with it off (`testConfig`), because dozens of them stock a stove with exactly
+one powered meal's worth of scum, and a power test turns it on.
+
 The gap between the two rows is what gives power its price. The producer
 planner ([valuation.md](./valuation.md)) already compares recipes by what
 they cost and pay. A battery is worth buying up to the scum and cook's time it
@@ -147,22 +174,49 @@ tariff included.
 
 ### The build-out: batteries in the ships
 
-Every ship's **hold** carries `ship-batteries` (default 10 per passenger),
-owned by the colony. At two meals a colonist-day that is five days of powered
-cooking, on top of the five days the meals in the lockers already cover, so
-about ten days before the colony has to cook cold. Each **locker** carries
-`crash-pod-batteries` (default 2) of the settler's own, for a colonist cooking
-its own supper. Arrivals bring their share, so a growing colony's reserve grows
-with it.
+Every passenger's **locker** lands with `ship-batteries` (default 10) of the
+**colony's** batteries, on the colony's ledger line. The locker is private, so
+only its passenger may take them out. Every market interval
+`refreshKitchenBatteries` tops each colony stove up to
+`kitchen-battery-stock` (default 12). For what's missing and not already on
+its way, it posts a haul order (`WorkHaul`, `haul-pay` a unit) from wherever
+the colony holds batteries, nearest first. At landing that means each
+passenger is paid to carry its share from its own locker to the stove. The
+supply drop's batteries at the silo go the same way. Arrivals bring their
+share, so a growing colony's reserve grows with it.
 
-The director's `supply-drop` gains a `batteries` count, delivered to the silo
+The proposal also gave each settler `crash-pod-batteries` of their own, for
+cooking their own supper. That is **not built**. A colonist's own scum would
+need a battery of its own in the stove's depot, which means buying or hauling
+it, and that is the market's job (P3). So a colonist cooking its own food
+cooks cold for now, and `scumMealRecipe(own)` tells foraging and the
+producer's sums so.
+
+The director's `supply-drop` takes a `batteries` count, delivered to the silo
 as the colony's own. A `director.yaml` can then script the ship that arrives
-just as the batteries run low, or the one that doesn't.
+just as the batteries run low, or the one that doesn't. With no silo yet the
+drop's batteries are lost, the way a weapon with no one to hold it is.
 
 The point of the build-out is that the first reactor is a project, not a
-precondition. The colony lands, cooks on imported power, and has a week or two
-to find uranium, dig ice, and build. A colony that dawdles finds out what cold
-cooking costs.
+precondition. The colony lands, cooks on imported power, and has time to find
+uranium, dig ice, and build. A colony that dawdles finds out what cold cooking
+costs.
+
+**What it measured.** Eight seeds of a 120×60 map, 20 colonists, zoning and
+siting automatic (as the committed `mars-sim.yaml` runs), 40,000 ticks (38
+days):
+
+| | starved | alive at the end | colony batteries left |
+| --- | --- | --- | --- |
+| `power: false` | 4 | 131 of 160 | n/a |
+| `power: true` | 1 | 134 of 160 | 1 to 159 of 200, about half on average |
+
+Survival didn't get worse; the difference is noise. The batteries last far
+longer than the "ten days" this doc first guessed, because the colony's stoves
+cook only part of what the colony eats. Carcasses, chefs and colonists cooking
+their own scum make the rest, and those cook cold already. So in P1 the
+colony's stoves mostly stay powered for the first month. The reactor (P2) is
+what makes that last.
 
 ### The reactor
 

@@ -164,6 +164,9 @@
 ## nutrient pods make free meals out of nothing (the safety net)
 # infinite-food: false
 
+## cooking spends batteries; a stove without one cooks cold, slower and on more scum
+# power: true
+
 ## colonists choose where to build and zone it themselves; off, they build only inside zones the player draws (the browser's Zones tab)
 ## Set here because the terminal and headless runs have no way to draw a
 ## zone: with it off, their colonies would never build. The browser game
@@ -417,6 +420,12 @@ siting-auto: true
 
 ## each locker's meals vary by up to this many either side of crash-pod-meals
 # crash-pod-meal-spread: 0
+
+## the colony's batteries landed in each passenger's locker, for the stoves until there is a reactor
+# ship-batteries: 10
+
+## batteries the colony keeps at each of its stoves, hauled in for hire from wherever it holds them
+# kitchen-battery-stock: 12
 
 ## relative odds a colonist's one rare item is a gun
 # crash-pod-gun-weight: 50

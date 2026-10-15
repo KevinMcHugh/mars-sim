@@ -470,6 +470,7 @@ func (w *World) runMarket() {
 	w.refreshChefBids()
 	w.refreshArmoryBids()
 	w.refreshSiloStock()
+	w.refreshKitchenBatteries()
 	w.refreshColonyMealAsks()
 }
 

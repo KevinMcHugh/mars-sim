@@ -120,7 +120,7 @@ func TestAForagerWaitsForTheColonysCooking(t *testing.T) {
 	c.Inventory.Add(CaveScum, 2)
 	c.credit(Community, CaveScum, 2) // one meal's worth
 	cook := w.spawn(Colonist, Point{11, 7, LandingLevel})
-	r, ok := scumMealRecipe()
+	r, ok := w.scumMealRecipe(false)
 	if !ok {
 		t.Fatal("no scum recipe")
 	}

@@ -127,7 +127,7 @@ func (w *World) askFloor(item ItemKind) Money {
 // mealInputCost is what the scum for one meal is worth now: the scum recipe's
 // inputs at their value, per meal it makes, at least $1.
 func (w *World) mealInputCost() Money {
-	r, ok := scumMealRecipe()
+	r, ok := w.scumMealRecipe(false)
 	if !ok {
 		return 1
 	}
@@ -139,7 +139,9 @@ func (w *World) mealInputCost() Money {
 	}
 	var cost Money
 	for _, in := range r.Inputs {
-		cost += Money(in.Count) * w.valueOf(in.Kind)
+		if w.needs(in) {
+			cost += Money(in.Count) * w.valueOf(in.Kind)
+		}
 	}
 	return max(1, cost/Money(max(1, meals)))
 }
