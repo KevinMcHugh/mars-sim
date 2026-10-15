@@ -132,6 +132,20 @@ type ZoningTopic struct {
 	Armed      int       `json:"armed"`
 	MaxDefense int       `json:"maxDefense"`
 	MaxDetail  int       `json:"maxDetail"`
+	// EMT is the colony's EMT detail (docs/emergency-services.md).
+	EMT EMT `json:"emt"`
+}
+
+// EMT is the EMT detail: how many the colony keeps on call, the most it may,
+// who is on call now, what one is paid an hour and what the colony has paid
+// in all, and how many infirmary cots stand.
+type EMT struct {
+	Detail int     `json:"detail"`
+	Max    int     `json:"max"`
+	OnCall []Guard `json:"onCall"`
+	Wage   int64   `json:"wage"`
+	Paid   int64   `json:"paid"`
+	Cots   int     `json:"cots"`
 }
 
 // Defense is one defense zone: its area, the detail it asks for, the guards
@@ -196,8 +210,24 @@ func zoningTopic(s *sim.Snapshot) ZoningTopic {
 		Armed:      s.Armed,
 		MaxDefense: sim.MaxDefenseTiles,
 		MaxDetail:  sim.MaxDefenseDetail,
+		EMT: EMT{Detail: s.EMT.Detail, Max: s.EMT.Max, OnCall: make([]Guard, 0, len(s.EMT.OnCall)),
+			Wage: int64(s.EMT.Wage), Paid: int64(s.EMT.Paid), Cots: s.EMT.Cots},
 	}
 	var names map[sim.EntityID]string
+	nameOf := func(id sim.EntityID) string {
+		if names == nil {
+			names = map[sim.EntityID]string{}
+			for _, e := range s.Entities {
+				if e.Kind == sim.Colonist {
+					names[e.ID] = entityName(e)
+				}
+			}
+		}
+		return names[id]
+	}
+	for _, id := range s.EMT.OnCall {
+		t.EMT.OnCall = append(t.EMT.OnCall, Guard{ID: uint64(id), Name: nameOf(id)})
+	}
 	for _, d := range s.Defense {
 		if names == nil && len(d.Guards) > 0 {
 			names = map[sim.EntityID]string{}

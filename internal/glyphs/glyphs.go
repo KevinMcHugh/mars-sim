@@ -37,6 +37,7 @@ const (
 	Forge       = "\U0001F3ED" // 🏭 forge: iron ore in, steel ingots out
 	GunBench    = "\U0001F528" // 🔨 gun bench: steel in, assault rifles out
 	Chair       = "\U0001F4BA" // 💺 chair in a meeting hall
+	Cot         = "\U0001F3E5" // 🏥 cot in an infirmary
 	Incubator   = "\U0001FAD9" // 🫙 scum incubator: a seed of scum in, scum grown on a schedule
 	Trough      = "\U0001FAA3" // 🪣 trough: a keeper's chicken feed
 	StairDown   = "\U0001F53D" // 🔽 the top of a stair: the way down to the next level
@@ -285,6 +286,8 @@ var All = []string{
 	// And the casualty's and its helper's, after those.
 	Down,
 	Aiding,
+	// And the infirmary's cot, after those.
+	Cot,
 }
 
 var known = func() map[string]bool {
@@ -376,6 +379,8 @@ func ForTerrain(t sim.Terrain) string {
 		return GunBench
 	case sim.Chair:
 		return Chair
+	case sim.Cot:
+		return Cot
 	case sim.Incubator:
 		return Incubator
 	case sim.Trough:

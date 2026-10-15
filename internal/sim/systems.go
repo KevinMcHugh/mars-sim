@@ -151,13 +151,20 @@ func (w *World) colonistTurn(e *Entity) {
 	// before anything else this turn reads a drive.
 	w.advanceEffects(e)
 	w.applyDriveConsequences(e)
-	if !e.Alive() { // starved this tick
+	bled := w.bleed(e)
+	if !e.Alive() { // starved or bled out this tick
+		cause, line := "starved", "%s starved to death."
+		if bled {
+			cause, line = "bled to death", "%s bled to death."
+		}
 		w.clearJob(e) // release any board claim before removal
 		w.leaveBody(e, e.Pos, ColonistCorpse)
-		w.remove(e.ID, "starved")
-		w.logEvent(LogDeath, fmt.Sprintf("%s starved to death.", e.displayName()))
+		w.remove(e.ID, cause)
+		w.logEvent(LogDeath, fmt.Sprintf(line, e.displayName()))
 		return
 	}
+	w.healWounds(e)
+	w.serveOnCall(e)
 	if w.stayPassedOut(e) {
 		return
 	}
@@ -1064,6 +1071,9 @@ func (w *World) finishTalk(a, b *Entity) {
 // first (life-support rooms), otherwise mine the frontier. Leaves JobNone if
 // nothing suitable is reachable.
 func (w *World) assignWorkJob(e *Entity) {
+	// A colonist looking for work takes an open place on the EMT detail and
+	// goes on looking: being on call is not a job (see emt.go).
+	w.tryTakeOnCall(e)
 	// A meal in its pockets before it's hungry, so hunger never starts with a
 	// walk across the colony (see food.go).
 	if w.tryPocketMeal(e) {
@@ -1860,6 +1870,8 @@ func (w *World) noteBuild(kind Terrain) {
 		w.logEvent(LogBuildComplete, "A gun bench is set up in the foundry.")
 	case Chair:
 		w.logEvent(LogBuildComplete, "A chair is set out in the meeting hall.")
+	case Cot:
+		w.logEvent(LogBuildComplete, "A cot is made up in the infirmary.")
 	case Incubator:
 		w.logEvent(LogBuildComplete, "A scum incubator hums to life.")
 	}
@@ -1963,6 +1975,11 @@ func (w *World) travelTo(e *Entity, target Point) (arrived, ok bool) {
 func (w *World) nudgeLoiterer(e *Entity, end Point) bool {
 	b := w.entityAt(end)
 	if b == nil || b.ID == e.ID || b.Kind == Alien {
+		return false
+	}
+	// A colonist passed out on the floor has no job, but it is not loitering:
+	// it cannot step anywhere, and nudging it slid a casualty along the floor.
+	if b.passedOut {
 		return false
 	}
 	if b.Kind != Colonist {
@@ -2121,6 +2138,7 @@ func (w *World) strike(alien, prey *Entity) {
 		o.TargetText = strikeTargetText(mode, part, noun)
 		o.WitnessText = fmt.Sprintf("Watched %s %s %s.", noun, verb.hit, name)
 		w.emitOccurrence(o)
+		w.hurt(prey)
 	}
 }
 

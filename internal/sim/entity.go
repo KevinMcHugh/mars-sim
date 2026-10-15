@@ -388,6 +388,30 @@ type Entity struct {
 	aidedBy         EntityID
 	aidPassedBy     []aidPass
 	noticedCasualty EntityID
+	aidDone         aidDone // what this helper has done for aidTarget so far
+	// Wounds (colonists only; see wounds.go): each part's wound, how many are
+	// dressed and healing, progress toward the next point healed or bled
+	// (hundredths of an HP times ticks an hour), and the heal rate the medic who dressed them gave (percent, 0
+	// for none). downBled is a colonist down from blood loss rather than
+	// exhaustion, which nobody can rouse; inCot one an EMT laid beside the cot
+	// at cotAt.
+	wounds   [numBodyParts]Wound
+	dressed  int
+	healAcc  int
+	healPct  int
+	bleedAcc int
+	downBled bool
+	inCot    bool
+	cotAt    Point
+	// The EMT detail (see emt.go): onCall while this colonist holds a place,
+	// emtTicks toward its next hour's pay, and the route it is dragging its
+	// casualty along to the cot at dragCot (dragAcc paces it at drag-speed).
+	onCall   bool
+	emtTicks int
+	dragPath []Point
+	dragAt   int
+	dragAcc  int
+	dragCot  Point
 	// climbUntil is the last tick this entity is on a shaft's ladder: until
 	// it has passed, its turns are spent climbing. See startClimb.
 	climbUntil int

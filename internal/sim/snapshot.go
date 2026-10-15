@@ -23,7 +23,12 @@ type EntityView struct {
 	Focus FocusKind
 	// Peril is how much danger a casualty (a colonist passed out where it
 	// fell) is in; PerilNone for everyone else. See casualty.go.
-	Peril     Peril
+	Peril Peril
+	// Wounds is each body part's wound: open, dressed, or none (colonists
+	// only; see wounds.go). OnCall is whether the colonist is on the EMT
+	// detail.
+	Wounds    [numBodyParts]Wound
+	OnCall    bool
 	Drives    [numDrives]int
 	Profile   *Profile  // colonists only; a deep copy, safe to read
 	Inventory Inventory // colonists only; copied by value
@@ -555,7 +560,9 @@ type Snapshot struct {
 	// Defense is every defense zone by id (see docs/defense.md); GuardWage
 	// what a guard is paid an hour, and Armed how many living colonists
 	// carry a weapon (the most a detail can ever be).
-	Defense   []DefenseView
+	Defense []DefenseView
+	// EMT is the colony's EMT detail (see emt.go).
+	EMT       EMTView
 	GuardWage Money
 	Armed     int
 
@@ -855,6 +862,7 @@ func (w *World) snapshot(paused bool, tps int) *Snapshot {
 		ZoningAuto:           w.cfg.ZoningAuto,
 		ClearWage:            Money(w.cfg.WageDemolish),
 		Defense:              w.publishedDefense(),
+		EMT:                  w.publishedEMT(),
 		GuardWage:            Money(w.cfg.WageGuard),
 		Armed:                w.armedColonists(),
 		Scum:                 w.publishedScum(),
@@ -933,6 +941,8 @@ func (w *World) entityView(e *Entity, kinChildren map[kinID][]kinID, full bool) 
 		State:     e.State,
 		Focus:     e.focus,
 		Peril:     w.perilOf(e),
+		Wounds:    e.wounds,
+		OnCall:    e.onCall,
 		Drives:    w.currentDrives(e),
 		Profile:   e.Profile.clone(),
 		Inventory: e.Inventory,

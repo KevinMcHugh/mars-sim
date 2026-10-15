@@ -1012,6 +1012,51 @@ siting-auto: true
 ## tiles nearer a hostile hunter reckons a passed-out colonist (0: hunters ignore helplessness)
 # helpless-prey-discount: 6
 
+## ticks to dress one wound (less with medicine rank)
+# aid-dress-ticks: 15
+
+## percent of the usual time a colonist takes to dress its own wound
+# aid-self-dress: 200
+
+## HP a dressed wound heals each hour asleep in a bunk
+# heal-per-hour: 1
+
+## heal rate in an infirmary cot, percent of a bunk's
+# heal-cot: 300
+
+## heal rate lying down on the floor (passed out), percent of a bunk's
+# heal-floor: 50
+
+## a bad open wound bleeds until it is dressed, and a colonist that loses too much collapses
+# bleeding: false
+
+## an open wound bleeds while its part is below this percent of its HP
+# bleed-threshold: 50
+
+## hundredths of an HP an hour a bleeding wound loses for each point its part has lost
+# bleed-rate: 40
+
+## a bleeding colonist below this percent of its HP collapses
+# bleed-collapse: 30
+
+## a colonist down from blood loss comes round once healed to this percent of its HP and not bleeding
+# bleed-wake: 40
+
+## colonists the colony keeps on call as EMTs at the start (the player sets it in play)
+# emt-detail: 0
+
+## what the colony pays an on-call EMT for each hour on call and awake
+# wage-emt: 2
+
+## aid score an on-call EMT adds for any casualty
+# aid-duty-bonus: 80
+
+## with an EMT detail, the colony commissions an infirmary cot for each this many colonists (0: none)
+# colonists-per-cot: 8
+
+## an EMT dragging a casualty moves at this percent of a step a tick
+# drag-speed: 50
+
 # ── Affect ──────────────────────────────────────────────────────────────
 ## charge, grip and valence each run in [-mood-max, mood-max]
 # mood-max: 100
