@@ -490,6 +490,9 @@ func (e *Engine) apply(cmd Command) (rateChanged bool) {
 	case SetEMTDetail:
 		e.world.setEMTDetail(c)
 		e.requestPublish()
+	case SetEMTWage:
+		e.world.setEMTWage(c)
+		e.requestPublish()
 	case CancelDefense:
 		e.world.cancelDefense(c.ID)
 		e.requestPublish()

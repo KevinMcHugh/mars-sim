@@ -110,6 +110,7 @@ func (w *World) addCasualty(e *Entity) {
 		return
 	}
 	w.casualties = slices.Insert(w.casualties, i, e.ID)
+	e.casualtySince = w.tick
 	for _, id := range w.onCall {
 		if emt := w.entities[id]; emt != nil && emt != e {
 			w.markMindDirty(emt)
@@ -129,6 +130,20 @@ func (w *World) dropCasualty(e *Entity) {
 	}
 	e.aidedBy = 0
 	e.aidPassedBy = nil
+	e.aidReached = false
+}
+
+// noteResponse records how long a casualty waited before a helper set out to
+// it, apart for on-call EMTs and for bystanders: the measure of whether a
+// detail that keeps working is close enough to matter.
+func (w *World) noteResponse(helper *Entity, ticks int) {
+	if helper.onCall {
+		w.emtResponses++
+		w.emtResponseTicks += ticks
+	} else {
+		w.aidResponses++
+		w.aidResponseTicks += ticks
+	}
 }
 
 // closeKin reports whether b is a's spouse, parent, child or sibling.
@@ -353,6 +368,10 @@ func (w *World) runAidFocus(e *Entity, selected FocusCandidate) {
 		w.clearJob(e)
 		e.Job, e.aidTarget, e.Progress = JobAid, c.ID, 0
 		e.aidDone = aidDone{}
+		if c.aidedBy == 0 && c != e && !c.aidReached {
+			c.aidReached = true
+			w.noteResponse(e, w.tick-c.casualtySince)
+		}
 		c.aidedBy = e.ID
 		w.forgetPass(c, e.ID)
 	}

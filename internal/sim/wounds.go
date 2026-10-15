@@ -224,7 +224,9 @@ var infirmaryRoom = roomRecipe{
 
 // cotsShort is how many more cots the colony wants than it has planned: one
 // for each colonists-per-cot colonists, never fewer than an infirmary's
-// minimum, and none at all without an EMT detail.
+// minimum, and none at all without an EMT detail. It follows the detail the
+// player sets, not who has taken it: an infirmary is the colony's to build,
+// whether or not the wage it offers has drawn anyone yet.
 func (w *World) cotsShort() int {
 	per := w.cfg.ColonistsPerCot
 	n := w.countKind(Colonist)

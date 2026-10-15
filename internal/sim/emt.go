@@ -2,22 +2,33 @@ package sim
 
 import "slices"
 
-// Emergency services (aid phase A4). The player sets an EMT detail: how many
-// colonists to keep on call. Being on call is not a job a colonist stands at
-// but a status it carries while it works: a colonist looking for work takes
-// an open place on the detail and goes on choosing work as usual. While on
-// call it hears of every casualty in the colony, not just the ones it can
-// see, and helping one scores aid-duty-bonus more, enough to drop any work
-// and its own pressing (not critical) needs. Only an EMT drags a colonist
-// down from blood loss to an infirmary cot. The treasury pays each on-call
-// colonist wage-emt for every hour on call and awake, as far as it goes,
-// as it pays a guard. It keeps the place until it sleeps, goes down, becomes
-// a casualty itself, or the detail is cut below it; then the next colonist
-// looking for work takes it, so the detail staffs itself in shifts. See
+// Emergency services (aid phase A4). The player sets an EMT detail, how many
+// colonists to keep on call, and the wage, in cents an hour. Being on call is
+// not a job a colonist stands at but a status it carries while it works: it
+// hears of every casualty in the colony, not just the ones it can see, and
+// helping one scores aid-duty-bonus more, enough to drop any work and its own
+// pressing (not critical) needs. Only an EMT drags a colonist down from blood
+// loss to an infirmary cot.
+//
+// The wage is a market price, not a rule. Each colonist asks its own price
+// for being on call (emtAsk): what the calls will take of its time, at what
+// its time is worth to it (its reservation, as for any other work), plus a
+// premium for being the one who has to drop everything. A colonist looking
+// for work takes an open place only if the wage meets its ask, and quits on
+// payday if its ask has risen above it. So a wage too low leaves places
+// empty, and the colonists who take one are the ones whose time is cheapest
+// or who care most. The treasury pays as far as it goes, in whole dollars
+// as they accrue. A colonist keeps its place until it sleeps, goes down,
+// becomes a casualty, quits, or the detail is cut below it; then the next
+// willing colonist looking for work takes it. See
 // docs/emergency-services.md.
 
-// MaxEMTDetail is the most colonists the player may keep on call.
-const MaxEMTDetail = 20
+// MaxEMTDetail is the most colonists the player may keep on call, and
+// MaxEMTWage the highest wage it may offer, in cents an hour.
+const (
+	MaxEMTDetail = 20
+	MaxEMTWage   = 1000
+)
 
 // SetEMTDetail sets how many colonists the colony keeps on call as EMTs (0
 // stands the detail down).
@@ -26,6 +37,13 @@ type SetEMTDetail struct {
 }
 
 func (SetEMTDetail) isCommand() {}
+
+// SetEMTWage sets what the colony offers an on-call EMT, in cents an hour.
+type SetEMTWage struct {
+	Cents int
+}
+
+func (SetEMTWage) isCommand() {}
 
 // setEMTDetail carries out a SetEMTDetail, and reports whether it did. A cut
 // stands down the highest IDs first, so who stays never depends on map order.
@@ -44,11 +62,45 @@ func (w *World) setEMTDetail(c SetEMTDetail) bool {
 	return true
 }
 
-// tryTakeOnCall puts e on the detail if a place is open. assignWorkJob calls
-// it for a colonist looking for work, which then goes on to choose work as
-// usual: the place costs it nothing until a casualty comes up.
+// setEMTWage carries out a SetEMTWage, and reports whether it did. Nobody
+// quits the moment a wage is cut: each EMT weighs it on its next payday.
+func (w *World) setEMTWage(c SetEMTWage) bool {
+	if c.Cents < 0 || c.Cents > MaxEMTWage {
+		return false
+	}
+	w.emtWage = c.Cents
+	return true
+}
+
+// emtAsk is what e wants, in cents an hour, to be on call: the share of an
+// hour the calls take (emtShare, what the colony's EMTs have lately spent on
+// calls) at what its time is worth to it (reservation, as for any other
+// work), plus emt-premium percent of an hour's worth for being interruptible
+// at all. A Caring colonist asks half the premium and a Callous one double:
+// one would do it anyway, the other wants paying for its trouble.
+func (w *World) emtAsk(e *Entity) int {
+	hour := int(w.reservation(e)) * w.cfg.TicksPerHour() / 1000 // cents an hour
+	premium := hour * w.cfg.EMTPremiumPct / 100
+	if p := e.Profile; p != nil {
+		switch {
+		case p.HasTrait(TraitCaring):
+			premium /= 2
+		case p.HasTrait(TraitCallous):
+			premium *= 2
+		}
+	}
+	return (hour*w.emtShare+999)/1000 + premium
+}
+
+// tryTakeOnCall puts e on the detail if a place is open and the wage meets
+// its ask. assignWorkJob calls it for a colonist looking for work, which then
+// goes on to choose work as usual: the place costs it nothing until a
+// casualty comes up.
 func (w *World) tryTakeOnCall(e *Entity) {
 	if e.onCall || len(w.onCall) >= w.emtDetail || e.passedOut || e.Kind != Colonist || w.isCasualty(e) {
+		return
+	}
+	if w.emtWage < w.emtAsk(e) {
 		return
 	}
 	i, _ := slices.BinarySearch(w.onCall, e.ID)
@@ -57,17 +109,20 @@ func (w *World) tryTakeOnCall(e *Entity) {
 	w.markMindDirty(e) // a casualty may already be waiting
 }
 
-// releaseOnCall takes e off the detail.
+// releaseOnCall takes e off the detail. Pay accrued and not yet a whole
+// dollar goes with the place.
 func (w *World) releaseOnCall(e *Entity) {
 	if i, found := slices.BinarySearch(w.onCall, e.ID); found {
 		w.onCall = slices.Delete(w.onCall, i, i+1)
 	}
-	e.onCall, e.emtTicks = false, 0
+	e.onCall, e.emtTicks, e.emtOwed = false, 0, 0
 }
 
 // serveOnCall runs an on-call colonist's turn on the detail: it goes off
-// call when it sleeps, goes down or is a casualty itself, and otherwise
-// counts toward its next hour's pay.
+// call when it sleeps, goes down or is a casualty itself; otherwise its hour
+// counts toward its pay and toward the colony's measure of how much of an
+// EMT's time calls take. On payday it is paid what has accrued, in whole
+// dollars, and quits if its ask has risen above the wage.
 func (w *World) serveOnCall(e *Entity) {
 	if !e.onCall {
 		return
@@ -76,31 +131,86 @@ func (w *World) serveOnCall(e *Entity) {
 		w.releaseOnCall(e)
 		return
 	}
+	w.emtOnTicks++
+	if e.Job == JobAid {
+		w.emtBusyTicks++
+	}
+	w.updateEMTShare()
 	e.emtTicks++
 	if e.emtTicks < w.cfg.TicksPerHour() {
 		return
 	}
 	e.emtTicks = 0
-	if pay := Money(w.cfg.WageEMT); pay > 0 && w.transfer(Community, ColonistOwner(e.ID), pay) {
-		w.emtPaid += pay // as far as the treasury goes
+	e.emtOwed += w.emtWage
+	if dollars := Money(e.emtOwed / 100); dollars > 0 && w.transfer(Community, ColonistOwner(e.ID), dollars) {
+		e.emtOwed -= int(dollars) * 100
+		w.emtPaid += dollars // as far as the treasury goes
 	}
+	if w.emtWage < w.emtAsk(e) {
+		w.releaseOnCall(e)
+	}
+}
+
+// updateEMTShare folds what EMTs have spent on calls into emtShare, the
+// per-mille of on-call time that calls take, once a day's worth of on-call
+// ticks has gathered: a quarter new, three quarters what it was, so one bad
+// day moves the price without setting it.
+func (w *World) updateEMTShare() {
+	if w.emtOnTicks < w.cfg.TicksPerDay() {
+		return
+	}
+	now := w.emtBusyTicks * 1000 / w.emtOnTicks
+	w.emtShare = (3*w.emtShare + now) / 4
+	w.emtOnTicks, w.emtBusyTicks = 0, 0
 }
 
 // EMTView is the EMT detail as a frontend shows it: how many it asks for,
-// who is on call now, what one is paid an hour, what the colony has paid in
-// all, and how many cots stand.
+// who is on call now, the wage in cents an hour, what the colony has paid in
+// all, how many cots stand, the share of on-call time calls have lately
+// taken (per mille), and the market: the cheapest ask among the colonists
+// not on call (-1 with none) and how many of them the wage would draw.
 type EMTView struct {
-	Detail, Max int
-	OnCall      []EntityID
-	Wage, Paid  Money
-	Cots        int
+	Detail, Max   int
+	OnCall        []EntityID
+	Wage, MaxWage int
+	Paid          Money
+	Cots          int
+	Share         int
+	CheapestAsk   int
+	Willing       int
+	// ResponseTicks is how long, on average, a casualty has waited for an
+	// on-call EMT to set out to it (0 before any has), and Responses how
+	// many it has answered.
+	ResponseTicks, Responses int
 }
 
 func (w *World) publishedEMT() EMTView {
-	return EMTView{
+	v := EMTView{
 		Detail: w.emtDetail, Max: MaxEMTDetail,
 		OnCall: slices.Clone(w.onCall),
-		Wage:   Money(w.cfg.WageEMT), Paid: w.emtPaid,
-		Cots: w.countTerrain(Cot),
+		Wage:   w.emtWage, MaxWage: MaxEMTWage, Paid: w.emtPaid,
+		Cots: w.countTerrain(Cot), Share: w.emtShare, CheapestAsk: -1,
+		Responses: w.emtResponses,
 	}
+	if w.emtResponses > 0 {
+		v.ResponseTicks = w.emtResponseTicks / w.emtResponses
+	}
+	if w.emtDetail == 0 {
+		return v // nobody is asked: the market is not worth reckoning
+	}
+	// Map order does not matter: a minimum and a count.
+	for id := range w.kindEntities[Colonist] {
+		e := w.entities[id]
+		if e == nil || !e.Alive() || e.onCall {
+			continue
+		}
+		ask := w.emtAsk(e)
+		if v.CheapestAsk < 0 || ask < v.CheapestAsk {
+			v.CheapestAsk = ask
+		}
+		if ask <= w.emtWage {
+			v.Willing++
+		}
+	}
+	return v
 }

@@ -139,13 +139,27 @@ type ZoningTopic struct {
 // EMT is the EMT detail: how many the colony keeps on call, the most it may,
 // who is on call now, what one is paid an hour and what the colony has paid
 // in all, and how many infirmary cots stand.
+//
+// The wage is a market price in cents an hour: Share is the per-mille of
+// on-call time calls have lately taken, CheapestAsk the lowest price a
+// colonist not on call would take the place at (-1 with none), and Willing
+// how many of them would take it at the wage offered.
 type EMT struct {
-	Detail int     `json:"detail"`
-	Max    int     `json:"max"`
-	OnCall []Guard `json:"onCall"`
-	Wage   int64   `json:"wage"`
-	Paid   int64   `json:"paid"`
-	Cots   int     `json:"cots"`
+	Detail      int     `json:"detail"`
+	Max         int     `json:"max"`
+	OnCall      []Guard `json:"onCall"`
+	Wage        int     `json:"wage"`
+	MaxWage     int     `json:"maxWage"`
+	Paid        int64   `json:"paid"`
+	Cots        int     `json:"cots"`
+	Share       int     `json:"share"`
+	CheapestAsk int     `json:"cheapestAsk"`
+	Willing     int     `json:"willing"`
+	// Responses is how many casualties on-call EMTs have answered, and
+	// ResponseMinutes how long one waited for an EMT to set out to it, on
+	// average, in clock minutes.
+	Responses       int `json:"responses"`
+	ResponseMinutes int `json:"responseMinutes"`
 }
 
 // Defense is one defense zone: its area, the detail it asks for, the guards
@@ -193,6 +207,14 @@ type Structure struct {
 	Rising bool   `json:"rising"`
 }
 
+// emtMinutes is the EMTs' average response in clock minutes.
+func emtMinutes(s *sim.Snapshot) int {
+	if s.Config == nil {
+		return 0
+	}
+	return s.EMT.ResponseTicks * 60 / s.Config.TicksPerHour()
+}
+
 func zoningTopic(s *sim.Snapshot) ZoningTopic {
 	econ := s.Economy
 	t := ZoningTopic{
@@ -211,7 +233,9 @@ func zoningTopic(s *sim.Snapshot) ZoningTopic {
 		MaxDefense: sim.MaxDefenseTiles,
 		MaxDetail:  sim.MaxDefenseDetail,
 		EMT: EMT{Detail: s.EMT.Detail, Max: s.EMT.Max, OnCall: make([]Guard, 0, len(s.EMT.OnCall)),
-			Wage: int64(s.EMT.Wage), Paid: int64(s.EMT.Paid), Cots: s.EMT.Cots},
+			Wage: s.EMT.Wage, MaxWage: s.EMT.MaxWage, Paid: int64(s.EMT.Paid), Cots: s.EMT.Cots,
+			Share: s.EMT.Share, CheapestAsk: s.EMT.CheapestAsk, Willing: s.EMT.Willing,
+			Responses: s.EMT.Responses, ResponseMinutes: emtMinutes(s)},
 	}
 	var names map[sim.EntityID]string
 	nameOf := func(id sim.EntityID) string {

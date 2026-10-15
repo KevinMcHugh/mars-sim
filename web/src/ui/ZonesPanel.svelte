@@ -6,7 +6,7 @@
   // The overlay itself comes from the zones topic, which the page always
   // holds; this tab adds the zoning topic. The Defense tool posts a detail of
   // armed colonists to keep an area safe, on any level (docs/defense.md).
-  import { anyLevelTool, applyZone, armZone, cancelClear, cancelDefense, centerOn, clearZoneTool, setDefenseDetail, setEMTDetail, subscribe, topics, ui, zoneChanged } from '../game.svelte';
+  import { anyLevelTool, applyZone, armZone, cancelClear, cancelDefense, centerOn, clearZoneTool, setDefenseDetail, setEMTDetail, setEMTWage, subscribe, topics, ui, zoneChanged } from '../game.svelte';
   import { untrack } from 'svelte';
   import { money } from './format';
   import Help from './Help.svelte';
@@ -33,7 +33,12 @@
     armed: number;
     maxDefense: number;
     maxDetail: number;
-    emt: { detail: number; max: number; onCall: { id: number; name: string }[]; wage: number; paid: number; cots: number };
+    emt: {
+      detail: number; max: number; onCall: { id: number; name: string }[];
+      wage: number; maxWage: number; paid: number; cots: number;
+      share: number; cheapestAsk: number; willing: number;
+      responses: number; responseMinutes: number;
+    };
   }
 
   $effect(() => subscribe('zoning'));
@@ -98,6 +103,11 @@
 
   function pick(t: string) {
     armZone(t, !(ui.zone.armed && tool === t));
+  }
+
+  /** Cents an hour as a price: 25¢, $1.50. */
+  function cents(c: number): string {
+    return c < 100 ? `${c}¢` : `$${(c / 100).toFixed(2)}`;
   }
 </script>
 
@@ -248,12 +258,26 @@
         <button type="button" disabled={z.emt.detail >= z.emt.max} onclick={() => setEMTDetail(z.emt.detail + 1)} aria-label="One EMT more">+</button>
       </span>
       <div class="muted holds">
-        {#if z.emt.detail === 0}none kept on call: only colonists who happen by help a casualty{:else if z.emt.onCall.length > 0}{z.emt.onCall.map((g) => g.name).join(', ')}{:else}waiting for colonists looking for work{/if}
-        · {money(z.emt.wage)} an hour each · {money(z.emt.paid)} paid · {z.emt.cots} {z.emt.cots === 1 ? 'cot' : 'cots'}
+        {#if z.emt.detail === 0}none kept on call: only colonists who happen by help a casualty{:else if z.emt.onCall.length > 0}{z.emt.onCall.map((g) => g.name).join(', ')}{:else if z.emt.willing === 0}nobody will take it at this wage{:else}waiting for a willing colonist looking for work{/if}
+        · {money(z.emt.paid)} paid · {z.emt.cots} {z.emt.cots === 1 ? 'cot' : 'cots'}
       </div>
     </li>
+    <li>
+      <b>Wage</b> {cents(z.emt.wage)} an hour
+      <span class="stepper">
+        <button type="button" disabled={z.emt.wage <= 0} onclick={() => setEMTWage(Math.max(0, z.emt.wage - 5))} aria-label="Offer 5¢ less">−</button>
+        <button type="button" disabled={z.emt.wage >= z.emt.maxWage} onclick={() => setEMTWage(Math.min(z.emt.maxWage, z.emt.wage + 5))} aria-label="Offer 5¢ more">+</button>
+      </span>
+      {#if z.emt.detail > 0}
+        <div class="muted holds">
+          {#if z.emt.cheapestAsk < 0}nobody else to ask{:else}cheapest ask {cents(z.emt.cheapestAsk)} · {z.emt.willing} would take it at this wage{/if}
+          · calls take {(z.emt.share / 10).toFixed(1)}% of on-call time
+          {#if z.emt.responses > 0}· {z.emt.responses} answered, {z.emt.responseMinutes} min to set out on average{/if}
+        </div>
+      {/if}
+    </li>
   </ul>
-  <p class="muted">EMTs keep working while on call, drop it for a casualty anywhere in the colony, and carry anyone who cannot be brought round to an infirmary cot.</p>
+  <p class="muted">EMTs keep working while on call, drop it for a casualty anywhere in the colony, and carry anyone who cannot be brought round to an infirmary cot. Each colonist asks its own price for being on call, from what its time is worth and how much of it calls take: offer less than it asks and it will not come, or will quit.</p>
 {/if}
 
 <h2>Open clearing orders</h2>
