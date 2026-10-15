@@ -547,6 +547,11 @@ export function setEMTDetail(qty: number): void {
   ctl?.command({ type: 'emt-detail', qty });
 }
 
+/** Change what the colony offers an EMT, in cents an hour. */
+export function setEMTWage(qty: number): void {
+  ctl?.command({ type: 'emt-wage', qty });
+}
+
 /** Stand a defense zone's detail down. */
 export function cancelDefense(id: number): void {
   ctl?.command({ type: 'defend-cancel', id });

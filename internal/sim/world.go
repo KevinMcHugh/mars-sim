@@ -905,6 +905,19 @@ type World struct {
 	onCall    []EntityID
 	emtPaid   Money
 	cotClaims map[Point]EntityID
+	// emtWage is what the colony offers an EMT, in cents an hour; emtShare
+	// the per-mille of on-call time calls have lately taken, the colonists'
+	// guide to what being on call costs them, folded in from emtBusyTicks
+	// of emtOnTicks once a day's worth has gathered (emt.go).
+	emtWage      int
+	emtShare     int
+	emtOnTicks   int
+	emtBusyTicks int
+	// How long casualties waited before a helper set out to them, summed,
+	// and how many did: for on-call EMTs and for bystanders apart
+	// (noteResponse).
+	emtResponses, emtResponseTicks int
+	aidResponses, aidResponseTicks int
 	// haulClaims records which colonist has taken each open haul order, so
 	// two never set off for the same goods. See hauling.go.
 	haulClaims map[OrderID]EntityID
@@ -1097,6 +1110,8 @@ func newWorld(cfg Config, src *rand.PCG) *World {
 	w.rngSrc.recruit = newPCG(cfg.Seed ^ recruitSeed)
 	w.recruitRNG = rand.New(w.rngSrc.recruit)
 	w.emtDetail = cfg.EMTDetail
+	w.emtWage = cfg.EMTWage
+	w.emtShare = cfg.EMTCallShare
 	w.rngSrc.compassion = newPCG(cfg.Seed ^ compassionSeed)
 	w.compassionRNG = rand.New(w.rngSrc.compassion)
 	if len(cfg.SpeciesPack) > 0 {

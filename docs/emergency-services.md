@@ -340,11 +340,42 @@ colony pays nothing.
 This borrows from [defense.md](./defense.md). The player sets an **EMT
 detail**: the number of colonists to keep on call (0 to `MaxEMTDetail`, 20;
 `emt-detail` sets where a game starts, 0 by default). It is the *Emergency
-services* section of the Zones tab, under the defense zones: a − / + stepper,
-who is on call, the wage, what has been paid, and how many cots stand. It is
-not tied to an area. The treasury pays each on-call colonist `wage-emt` per hour, as far as
-it goes. That is the guard and cook model: the detail has no end, so there
-is nothing to escrow.
+services* section of the Zones tab, under the defense zones: − / + for the
+detail and for the wage, who is on call, what has been paid, how many cots
+stand, and the market (below). It is not tied to an area. The treasury pays
+each on-call colonist the wage for every hour on call and awake, as far as
+it goes: the guard and cook model, since the detail has no end and there is
+nothing to escrow.
+
+**The wage is a market price, not a rule.** The player offers it, in cents
+an hour (`SetEMTWage`, 0 to `MaxEMTWage`, `emt-wage` 25¢ where a game
+starts), and each colonist decides whether being on call is worth it to
+it. A colonist's **ask** (`emtAsk`) is:
+
+- the share of an hour calls take (`emtShare`, per mille), at what an hour
+  of its time is worth to it (its `reservation`, the same reckoning the
+  producer planner uses: `labor-price`, or more if it has lately earned
+  more), plus
+- `emt-premium` (10%) of that hour's worth, for being the one who has to
+  drop everything. A Caring colonist asks half the premium, a Callous one
+  double.
+
+At the defaults that is about 18¢ an hour (an hour of plain work is worth
+90¢; calls are reckoned at 10% of it, `emt-call-share` 100‰, until the
+colony has measured its own). `emtShare` is measured: once a day's worth of
+on-call ticks has gathered, the share of them EMTs spent on calls (`JobAid`)
+is folded in, a quarter new to three quarters old. A busier colony's EMTs
+ask more.
+
+A colonist looking for work takes an open place only if the wage meets its
+ask, and on each payday quits if it no longer does: a colonist whose time
+became worth more (a chef earning well) leaves the detail to someone
+cheaper. So a wage set too low leaves places empty, and the colonists who
+take them are those whose time is cheapest or who care most. Pay accrues in
+cents and is paid in whole dollars as it adds up (`emtOwed`). The tab shows
+the cheapest ask among colonists not on call, how many would take the place
+at the wage offered, the measured call share, and how long casualties have
+waited for an EMT to set out (`noteResponse`), so the player can price it.
 
 Unlike a guard post, **being on call is not a job.** It is a status
 (`Entity.onCall`) that a colonist carries while it does other work. A
@@ -398,8 +429,7 @@ Eating, the toilet and conversation do not release the place, since an EMT
 can answer a call from any of them. Sleep does (`serveOnCall` releases it
 once the colonist is `Sleeping`), and so does going down or becoming a
 casualty itself, so the detail staffs itself in shifts across the colony's
-night. Pay is `wage-emt` (2) for every hour on call and awake, from the
-treasury as far as it goes, as a guard is paid.
+night.
 
 **Why the colony pays at all**, when altruism exists: altruism is local,
 depends on the casualty's friendships, and is unreliable at night. A colony
@@ -671,12 +701,47 @@ What they say:
   A3: aid off 136 starved and 251 alive, aid on 36 and 349 (A2 alone: 40
   and 359), bleeding on 39 and 347 with three collapses. Few wounds, little
   change.
-- **A paid EMT detail costs more than it saves here.** Three EMTs' wages
-  took about $2,200 from each colony's treasury over the run, money its
-  public works did not get; unpaid, the same detail did better than no
-  detail. `wage-emt` 2 copies the guard's wage. Whether the answer is a
-  lower wage, a detail sized to the colony, or simply leaving it to the
-  player, it is the player's knob, and it starts at 0.
+- **A paid EMT detail at a fixed $2 an hour cost more than it saved** in
+  the first build: about $2,200 from each colony's treasury, and unpaid the
+  same detail did better. That is what turned the wage into a market price.
+
+### Market wages
+
+The wage is now the player's offer and each colonist's ask decides who
+takes it (see *Emergency services*). The same 32 alien-heavy colonies, with
+a detail of three at each wage. "Places filled" counts EMTs on call at the
+end, of 96 places; response is the average ticks from a colonist becoming a
+casualty to a helper setting out to it.
+
+| Wage offered | Places filled | Paid | Alive | Killed | Starved | EMT response | Bystander response |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| No detail | – | – | 604 | 335 | 21 | – | 14 |
+| 0¢ | 0 | $0 | 598 | 339 | 23 | – | 14 |
+| 25¢ | 22 | $3,912 | 582 | 348 | 30 | 2 | 10 |
+| 50¢ | 34 | $11,375 | 594 | 345 | 21 | 3 | 8 |
+| $1 | 61 | $30,614 | 595 | 336 | 29 | 2 | 7 |
+| $2 | 75 | $70,932 | 651 | 293 | 16 | 2 | 1 |
+
+- **The market does what a market does.** At 25¢, a little over the
+  default ask, fewer than a quarter of the places are filled by the end:
+  as the colony measures how much of an EMT's time calls take, and as
+  colonists earn more at their trades, their asks rise past the offer and
+  they quit. Places fill as the wage rises.
+- **Distance is not the problem.** An on-call EMT sets out to a casualty
+  within two or three ticks of it going down, wherever it is working;
+  bystanders, when they are the ones to go, take 7 to 14. Being far away
+  costs an EMT walking time after it sets out, which this does not measure.
+- **Survival barely moves.** Between no detail and $1 an hour every result
+  is within the spread 8-seed slices showed. Only $2 stands out, and the
+  first build's run at a fixed $2 (596 alive) differed from it only in
+  colonists being able to quit, so it is not safe to read it as the price
+  of survival. What an EMT adds over a bystander here is speed and reach,
+  and in colonies where bystanders already reach most casualties, that is
+  worth little. With bleeding on, where a casualty has a clock and only an
+  EMT can drag, the answer may differ; it is not measured yet.
+- **No infirmary for an empty detail.** At 0¢ nobody took a place, but the
+  colony had already built every colony an infirmary. The infirmary now
+  waits until someone is on call.
 
 ## Open questions
 
@@ -690,8 +755,10 @@ What they say:
    whether 16 is the right number should come from a run.
 4. **Bleeding on by default?** It met the bar this doc set (no more deaths
    over 32 seeds); turning it on is a call about how fights should feel.
-5. **What should an EMT cost?** At the guard's wage a detail of three costs
-   more than it saves in alien-heavy colonies.
+5. **What is an EMT worth?** Wages are now the player's offer and the
+   colonists' asks (*Market wages*). In alien-heavy colonies without
+   bleeding, a detail barely changes survival at any wage; whether it earns
+   its keep with bleeding on is the next measurement.
 6. **Cost at scale.** Walking wounded make the casualty index bigger in a
    big fight, and `noticeCasualty` walks it for every colonist each turn
    while it is not empty. Fine at tens of casualties; worth a benchmark

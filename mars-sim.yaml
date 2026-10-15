@@ -1045,8 +1045,14 @@ siting-auto: true
 ## colonists the colony keeps on call as EMTs at the start (the player sets it in play)
 # emt-detail: 0
 
-## what the colony pays an on-call EMT for each hour on call and awake
-# wage-emt: 2
+## cents an hour the colony offers an on-call EMT at the start (the player sets it in play); a colonist takes the place only if this meets its ask
+# emt-wage: 25
+
+## what a colonist asks for being on call at all, as a percent of what an hour of its time is worth (Caring asks half, Callous double)
+# emt-premium: 10
+
+## per mille of on-call time colonists reckon calls take, before the colony has measured it
+# emt-call-share: 100
 
 ## aid score an on-call EMT adds for any casualty
 # aid-duty-bonus: 80

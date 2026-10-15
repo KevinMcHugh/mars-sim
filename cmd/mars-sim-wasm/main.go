@@ -55,8 +55,8 @@ import (
 // no order-wide-set or order-wide-clear; 19 took no species-pack in start;
 // 20 showed only the landing level (no level in interest, dig or clear, no
 // dig-down); 21 had no defend, defend-detail or defend-cancel; 22 sited
-// every dig-down itself (no x, y); 23 had no emt-detail.
-const hostAPI = 24
+// every dig-down itself (no x, y); 23 had no emt-detail; 24 no emt-wage.
+const hostAPI = 25
 
 var (
 	eng *sim.Engine
@@ -316,7 +316,7 @@ type memoryResult struct {
 
 // command is a sim.Command as the page sends it.
 type command struct {
-	Type string `json:"type"` // pause | speed | spawn | flow | dig | dig-cancel | dig-down | zone | clear | clear-cancel | defend | defend-detail | defend-cancel | emt-detail | ship-move | ship-land | order-place | order-reprice | order-cancel | order-suspend | order-resume | order-wide-set | order-wide-clear | recruit-roll | recruit-hire
+	Type string `json:"type"` // pause | speed | spawn | flow | dig | dig-cancel | dig-down | zone | clear | clear-cancel | defend | defend-detail | defend-cancel | emt-detail | emt-wage | ship-move | ship-land | order-place | order-reprice | order-cancel | order-suspend | order-resume | order-wide-set | order-wide-clear | recruit-roll | recruit-hire
 	Rate int    `json:"rate,omitempty"`
 	// Kind is what to spawn; for zone the zone kind by name ("none"
 	// unzones); for dig-down what to dig: stair, shaft, hole or ladder.
@@ -410,6 +410,8 @@ func parseCommand(s string) (sim.Command, error) {
 		return sim.CancelDefense{ID: c.ID}, nil
 	case "emt-detail":
 		return sim.SetEMTDetail{Detail: c.Qty}, nil
+	case "emt-wage":
+		return sim.SetEMTWage{Cents: c.Qty}, nil
 	case "order-place", "order-suspend", "order-resume", "order-wide-set", "order-wide-clear":
 		item, ok := sim.ParseItemKind(c.Item)
 		if !ok {

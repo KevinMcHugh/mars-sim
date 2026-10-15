@@ -389,6 +389,8 @@ type Entity struct {
 	aidPassedBy     []aidPass
 	noticedCasualty EntityID
 	aidDone         aidDone // what this helper has done for aidTarget so far
+	casualtySince   int     // tick this colonist last became a casualty
+	aidReached      bool    // a helper has set out to it since (for response times)
 	// Wounds (colonists only; see wounds.go): each part's wound, how many are
 	// dressed and healing, progress toward the next point healed or bled
 	// (hundredths of an HP times ticks an hour), and the heal rate the medic who dressed them gave (percent, 0
@@ -408,6 +410,7 @@ type Entity struct {
 	// casualty along to the cot at dragCot (dragAcc paces it at drag-speed).
 	onCall   bool
 	emtTicks int
+	emtOwed  int // cents of EMT pay accrued and not yet a whole dollar
 	dragPath []Point
 	dragAt   int
 	dragAcc  int

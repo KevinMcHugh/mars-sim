@@ -148,7 +148,7 @@ func TestBleedingCollapsesAndComesRound(t *testing.T) {
 // A colonist looking for work takes an open place on the EMT detail, keeps
 // working, is paid by the hour, and goes off call when it sleeps.
 func TestEMTDetailStaffsItselfAndIsPaid(t *testing.T) {
-	w, c := driveWorld(t, aidConfig(func(c *Config) { c.EMTDetail = 1 }))
+	w, c := driveWorld(t, aidConfig(func(c *Config) { c.EMTDetail, c.EMTWage = 1, 250 }))
 	other := w.spawn(Colonist, c.Pos.Add(2, 0))
 	w.tryTakeOnCall(c)
 	w.tryTakeOnCall(other)
@@ -160,8 +160,9 @@ func TestEMTDetailStaffsItselfAndIsPaid(t *testing.T) {
 	for range w.cfg.TicksPerHour() {
 		w.serveOnCall(c)
 	}
-	if c.wallet-wallet != Money(w.cfg.WageEMT) || w.emtPaid != Money(w.cfg.WageEMT) {
-		t.Fatalf("paid %d (total %d), want %d", c.wallet-wallet, w.emtPaid, w.cfg.WageEMT)
+	// $2.50 an hour: $2 paid, 50 cents carried to the next payday.
+	if c.wallet-wallet != 2 || w.emtPaid != 2 || c.emtOwed != 50 {
+		t.Fatalf("paid %d (total %d, owed %d¢), want $2 and 50¢ owed", c.wallet-wallet, w.emtPaid, c.emtOwed)
 	}
 	c.State = Sleeping
 	w.serveOnCall(c)
@@ -173,6 +174,52 @@ func TestEMTDetailStaffsItselfAndIsPaid(t *testing.T) {
 	w.setEMTDetail(SetEMTDetail{Detail: 0})
 	if other.onCall || len(w.onCall) != 0 {
 		t.Fatal("a cut detail kept its EMT")
+	}
+}
+
+// Each colonist asks its own price for being on call: what the calls take
+// of its time at what its time is worth, plus a premium a Caring colonist
+// halves and a Callous one doubles. Below its ask it will not take the
+// place; once its time is worth more than the wage, it quits on payday.
+func TestColonistsWeighTheEMTWage(t *testing.T) {
+	w, c := driveWorld(t, aidConfig(func(c *Config) { c.EMTDetail, c.EMTWage = 1, 0 }))
+	ask := w.emtAsk(c)
+	if ask <= 0 {
+		t.Fatalf("ask %d¢: being on call should cost something", ask)
+	}
+	w.tryTakeOnCall(c)
+	if c.onCall {
+		t.Fatal("took the place for nothing")
+	}
+	c.Profile.Traits = []Trait{TraitCaring}
+	caring := w.emtAsk(c)
+	c.Profile.Traits = []Trait{TraitCallous}
+	callous := w.emtAsk(c)
+	c.Profile.Traits = nil
+	if !(caring < ask && ask < callous) {
+		t.Fatalf("asks: caring %d¢, plain %d¢, callous %d¢", caring, ask, callous)
+	}
+	w.emtShare = 500 // calls take half an EMT's time
+	if busy := w.emtAsk(c); busy <= ask {
+		t.Fatalf("ask %d¢ with calls taking half its time, %d¢ before", busy, ask)
+	}
+	w.emtShare = w.cfg.EMTCallShare
+	w.setEMTWage(SetEMTWage{Cents: ask})
+	w.tryTakeOnCall(c)
+	if !c.onCall {
+		t.Fatalf("would not take %d¢ asking %d¢", w.emtWage, ask)
+	}
+	if v := w.publishedEMT(); v.Wage != ask || len(v.OnCall) != 1 {
+		t.Fatalf("view %+v", v)
+	}
+	// Its time is suddenly worth much more: it quits on payday.
+	c.earned[SkillMining], c.earnedTick[SkillMining] = 50_000, w.tick+1
+	w.tick++
+	for range w.cfg.TicksPerHour() {
+		w.serveOnCall(c)
+	}
+	if c.onCall {
+		t.Fatalf("stayed on call asking %d¢ for %d¢", w.emtAsk(c), w.emtWage)
 	}
 }
 

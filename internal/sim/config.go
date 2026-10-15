@@ -593,21 +593,23 @@ type Config struct {
 	// a colonist that has lost too much collapses. Emergency services (A4):
 	// the EMT detail, its pay and duty, cots and dragging. See wounds.go,
 	// emt.go and docs/emergency-services.md.
-	AidDressTicks     int   `cfg:"aid-dress-ticks" doc:"ticks to dress one wound (less with medicine rank)"`
-	AidSelfDressPct   int   `cfg:"aid-self-dress" doc:"percent of the usual time a colonist takes to dress its own wound"`
-	HealPerHour       int   `cfg:"heal-per-hour" doc:"HP a dressed wound heals each hour asleep in a bunk"`
-	HealCotPct        int   `cfg:"heal-cot" doc:"heal rate in an infirmary cot, percent of a bunk's"`
-	HealFloorPct      int   `cfg:"heal-floor" doc:"heal rate lying down on the floor (passed out), percent of a bunk's"`
-	Bleeding          bool  `cfg:"bleeding" doc:"a bad open wound bleeds until it is dressed, and a colonist that loses too much collapses"`
-	BleedThresholdPct int   `cfg:"bleed-threshold" doc:"an open wound bleeds while its part is below this percent of its HP"`
-	BleedPct          int   `cfg:"bleed-rate" doc:"hundredths of an HP an hour a bleeding wound loses for each point its part has lost"`
-	BleedCollapsePct  int   `cfg:"bleed-collapse" doc:"a bleeding colonist below this percent of its HP collapses"`
-	BleedWakePct      int   `cfg:"bleed-wake" doc:"a colonist down from blood loss comes round once healed to this percent of its HP and not bleeding"`
-	EMTDetail         int   `cfg:"emt-detail" doc:"colonists the colony keeps on call as EMTs at the start (the player sets it in play)"`
-	WageEMT           int64 `cfg:"wage-emt" doc:"what the colony pays an on-call EMT for each hour on call and awake"`
-	AidDutyBonus      int   `cfg:"aid-duty-bonus" doc:"aid score an on-call EMT adds for any casualty"`
-	ColonistsPerCot   int   `cfg:"colonists-per-cot" doc:"with an EMT detail, the colony commissions an infirmary cot for each this many colonists (0: none)"`
-	DragSpeedPct      int   `cfg:"drag-speed" doc:"an EMT dragging a casualty moves at this percent of a step a tick"`
+	AidDressTicks     int  `cfg:"aid-dress-ticks" doc:"ticks to dress one wound (less with medicine rank)"`
+	AidSelfDressPct   int  `cfg:"aid-self-dress" doc:"percent of the usual time a colonist takes to dress its own wound"`
+	HealPerHour       int  `cfg:"heal-per-hour" doc:"HP a dressed wound heals each hour asleep in a bunk"`
+	HealCotPct        int  `cfg:"heal-cot" doc:"heal rate in an infirmary cot, percent of a bunk's"`
+	HealFloorPct      int  `cfg:"heal-floor" doc:"heal rate lying down on the floor (passed out), percent of a bunk's"`
+	Bleeding          bool `cfg:"bleeding" doc:"a bad open wound bleeds until it is dressed, and a colonist that loses too much collapses"`
+	BleedThresholdPct int  `cfg:"bleed-threshold" doc:"an open wound bleeds while its part is below this percent of its HP"`
+	BleedPct          int  `cfg:"bleed-rate" doc:"hundredths of an HP an hour a bleeding wound loses for each point its part has lost"`
+	BleedCollapsePct  int  `cfg:"bleed-collapse" doc:"a bleeding colonist below this percent of its HP collapses"`
+	BleedWakePct      int  `cfg:"bleed-wake" doc:"a colonist down from blood loss comes round once healed to this percent of its HP and not bleeding"`
+	EMTDetail         int  `cfg:"emt-detail" doc:"colonists the colony keeps on call as EMTs at the start (the player sets it in play)"`
+	EMTWage           int  `cfg:"emt-wage" doc:"cents an hour the colony offers an on-call EMT at the start (the player sets it in play); a colonist takes the place only if this meets its ask"`
+	EMTPremiumPct     int  `cfg:"emt-premium" doc:"what a colonist asks for being on call at all, as a percent of what an hour of its time is worth (Caring asks half, Callous double)"`
+	EMTCallShare      int  `cfg:"emt-call-share" doc:"per mille of on-call time colonists reckon calls take, before the colony has measured it"`
+	AidDutyBonus      int  `cfg:"aid-duty-bonus" doc:"aid score an on-call EMT adds for any casualty"`
+	ColonistsPerCot   int  `cfg:"colonists-per-cot" doc:"with an EMT detail, the colony commissions an infirmary cot for each this many colonists (0: none)"`
+	DragSpeedPct      int  `cfg:"drag-speed" doc:"an EMT dragging a casualty moves at this percent of a step a tick"`
 
 	// Affect. Charge, grip and valence each run in [-MoodMax, MoodMax].
 	// Conversation company/quality produce a temporary signed outcome which is
@@ -1042,7 +1044,9 @@ func DefaultConfig() Config {
 		BleedCollapsePct:     30,
 		BleedWakePct:         40,
 		EMTDetail:            0,
-		WageEMT:              2,
+		EMTWage:              25,
+		EMTPremiumPct:        10,
+		EMTCallShare:         100,
 		AidDutyBonus:         80,
 		ColonistsPerCot:      8,
 		DragSpeedPct:         50,
