@@ -349,8 +349,14 @@ know, and one reaction channel that says how hearing it feels.
   every other channel. New arrivals ease safety a little: more hands, more
   guns. News is remembered ("Heard on the evening news: …") at hop 0, so it
   can be retold the next day.
-- **Frontends.** The log line is all there is so far. A `news` topic for a
-  News panel is not built.
+- **Frontends.** The log prints each broadcast as one line. The browser's
+  **News** tab (`web/src/ui/NewsPanel.svelte`, beside Log) lists every
+  broadcast still kept, newest first, from the `news` topic
+  (`internal/wire/news.go`; see [wire-format.md](./wire-format.md)); a story
+  about a place (a death, a landing) is a button that centers the map
+  there. `Snapshot.News` (`publishedNewsBroadcasts`) is rebuilt only when a
+  broadcast airs or old news is dropped, and shared by every snapshot in
+  between. The terminal has no News tab; its log has the broadcast line.
 
 ### At the ceiling
 
@@ -598,7 +604,7 @@ default game for 10,800 ticks each (about 140 colonist-days):
   make hearsay matter; it is left as a decision, since it changes what every
   conversation is about.
 - **Not built from the plan:** the dead as gossip subjects, Optimists
-  recovering faster at home, the `news` topic, and Scum Lab's copy of the
+  recovering faster at home, and Scum Lab's copy of the
   cognition defaults (`tools/scum-lab/shared/defaults.js`), which does not
   know the `drives` field or the new reactions.
 - **Every seed's game changes.** The tick-0 world is untouched (an unsought

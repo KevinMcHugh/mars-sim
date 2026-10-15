@@ -990,6 +990,11 @@ type World struct {
 	news      []NewsItem
 	newsSeq   int
 	newsAired int
+	// newsRev moves whenever a broadcast airs or old news is dropped, and
+	// publishedNews is the News tab's view as of publishedNewsRev-1.
+	newsRev          int
+	publishedNews    []NewsBroadcast
+	publishedNewsRev int
 
 	// alienSpecies is this world's roster of rolled alien species -- each
 	// one's build, colloquial name, temperament, and the combat stats (bite

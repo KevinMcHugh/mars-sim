@@ -307,3 +307,27 @@ func TestReactionDrivesRoundTripThroughYAML(t *testing.T) {
 		}
 	}
 }
+
+// The News tab's view groups aired items by broadcast, newest first, and is
+// shared by every snapshot until the next broadcast.
+func TestPublishedNewsGroupsBroadcasts(t *testing.T) {
+	w := safetyWorld(t)
+	w.reportNews(NewsItem{Action: ActionDie, Text: "first", Place: Point{1, 2, LandingLevel}, HasPlace: true})
+	if len(w.publishedNewsBroadcasts()) != 0 {
+		t.Fatal("unaired news was published")
+	}
+	w.tick = newsTick(w, w.tick)
+	w.airNews()
+	w.reportNews(NewsItem{Action: ActionArrive, Text: "second"})
+	w.reportNews(NewsItem{Action: ActionArrive, Text: "third"})
+	w.tick = newsTick(w, w.tick)
+	w.airNews()
+	got := w.publishedNewsBroadcasts()
+	if len(got) != 2 || len(got[0].Items) != 2 || got[0].Items[0].Text != "second" || got[0].Items[1].Kind != "arrival" ||
+		len(got[1].Items) != 1 || got[1].Items[0].Kind != "death" || !got[1].Items[0].HasPlace {
+		t.Fatalf("broadcasts %+v", got)
+	}
+	if again := w.publishedNewsBroadcasts(); &again[0] != &got[0] {
+		t.Fatal("the view was rebuilt with nothing new aired")
+	}
+}

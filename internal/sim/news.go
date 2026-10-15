@@ -23,9 +23,68 @@ type NewsItem struct {
 	Action ActionID
 	Object FactRef
 	Text   string
+	// Place is where it happened, for the News tab to point the map at;
+	// HasPlace is false for news about no one place.
+	Place    Point
+	HasPlace bool
+	// Aired is the tick of the broadcast it went out in; 0 until then.
+	Aired int
 	// newcomers are who the news is about when it is an arrival: they were
 	// there, so they do not hear it.
 	newcomers []EntityID
+}
+
+// NewsBroadcast is one evening's news as it aired, for the News tab.
+type NewsBroadcast struct {
+	Tick  int
+	Items []NewsLine
+}
+
+// NewsLine is one item of a broadcast: what was said, what kind of news it
+// is ("death", "arrival"), and where it happened, if anywhere.
+type NewsLine struct {
+	Text     string
+	Kind     string
+	Place    Point
+	HasPlace bool
+}
+
+// newsKind names an item's kind for the News tab, from its action.
+func newsKind(a ActionID) string {
+	switch a {
+	case ActionDie:
+		return "death"
+	case ActionArrive:
+		return "arrival"
+	default:
+		return string(a)
+	}
+}
+
+// publishedNewsBroadcasts is every broadcast still kept, newest first, as
+// snapshots publish it: built when something airs or is dropped, and shared
+// by every snapshot until then, so nothing may modify it.
+func (w *World) publishedNewsBroadcasts() []NewsBroadcast {
+	if w.publishedNewsRev == w.newsRev+1 {
+		return w.publishedNews
+	}
+	var out []NewsBroadcast
+	for i := len(w.news) - 1; i >= 0; i-- {
+		it := w.news[i]
+		if it.Aired == 0 {
+			continue
+		}
+		if len(out) == 0 || out[len(out)-1].Tick != it.Aired {
+			out = append(out, NewsBroadcast{Tick: it.Aired})
+		}
+		b := &out[len(out)-1]
+		b.Items = append(b.Items, NewsLine{Text: it.Text, Kind: newsKind(it.Action), Place: it.Place, HasPlace: it.HasPlace})
+	}
+	for i := range out { // items in the order they were reported
+		slices.Reverse(out[i].Items)
+	}
+	w.publishedNews, w.publishedNewsRev = out, w.newsRev+1
+	return out
 }
 
 // reportNews adds an item to the next broadcast.
@@ -52,16 +111,23 @@ func (w *World) airNews() {
 	}
 	if w.newsAired < w.newsSeq {
 		lines := make([]string, 0, w.newsSeq-w.newsAired)
-		for _, it := range w.news {
-			if it.Seq >= w.newsAired {
+		for i := range w.news {
+			if it := &w.news[i]; it.Seq >= w.newsAired {
 				lines = append(lines, it.Text)
+				it.Aired = w.tick
 			}
 		}
 		w.newsAired = w.newsSeq
+		w.newsRev++
 		w.logEvent(LogNote, fmt.Sprintf("Evening news, day %d: %s", DayOf(w.tick, w.cfg.TicksPerDay()), strings.Join(lines, " ")))
 	}
 	keep := w.tick - max(w.cfg.NewsDays, 1)*w.cfg.TicksPerDay()
-	w.news = slices.DeleteFunc(w.news, func(it NewsItem) bool { return it.Seq < w.newsAired && it.Tick < keep })
+	if n := len(w.news); n > 0 {
+		w.news = slices.DeleteFunc(w.news, func(it NewsItem) bool { return it.Seq < w.newsAired && it.Tick < keep })
+		if len(w.news) != n {
+			w.newsRev++
+		}
+	}
 }
 
 // hearNews gives e the news that has aired since it last listened, if it is
@@ -89,7 +155,8 @@ func (w *World) hearNews(e *Entity) {
 func (w *World) reportDeath(e *Entity, cause string) {
 	w.reportNews(NewsItem{
 		Action: ActionDie, Object: w.factRef(e),
-		Text: fmt.Sprintf("%s is dead: %s.", e.displayName(), cause),
+		Text:  fmt.Sprintf("%s is dead: %s.", e.displayName(), cause),
+		Place: e.Pos, HasPlace: true,
 	})
 }
 
@@ -102,16 +169,22 @@ func (w *World) reportShipArrival(s *Ship) {
 	}
 	w.reportNews(NewsItem{
 		Actor: FactRef{Noun: NounShip, Label: "a colony ship"}, Action: ActionArrive, Text: text,
+		Place: s.Origin.Add(s.layout.width/2, s.layout.height/2), HasPlace: true,
 		newcomers: slices.Clone(s.Colonists),
 	})
 }
 
 // reportRecruits is the news of recruits arriving from off-world.
 func (w *World) reportRecruits(ids []EntityID, names []string) {
-	w.reportNews(NewsItem{
+	item := NewsItem{
 		Actor: FactRef{Noun: NounColonist, Label: "recruits"}, Action: ActionArrive,
-		Text: fmt.Sprintf("%s from off-world: %s.", pluralize(len(ids), "recruit arrived", "recruits arrived"), strings.Join(names, ", ")),
-
+		Text:      fmt.Sprintf("%s from off-world: %s.", pluralize(len(ids), "recruit arrived", "recruits arrived"), strings.Join(names, ", ")),
 		newcomers: slices.Clone(ids),
-	})
+	}
+	if len(ids) > 0 {
+		if e := w.entities[ids[0]]; e != nil {
+			item.Place, item.HasPlace = e.Pos, true
+		}
+	}
+	w.reportNews(item)
 }
