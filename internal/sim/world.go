@@ -918,6 +918,14 @@ type World struct {
 	// (noteResponse).
 	emtResponses, emtResponseTicks int
 	aidResponses, aidResponseTicks int
+	// The per-call fee (emt.go): what the colony pays an on-call EMT for
+	// each casualty it sees to, in dollars; what it has paid in fees; and
+	// the calls an EMT answers per thousand hours on call (emtCallRate),
+	// folded in from emtCallsWindow with emtShare.
+	emtFee         Money
+	emtFeesPaid    Money
+	emtCallRate    int
+	emtCallsWindow int
 	// haulClaims records which colonist has taken each open haul order, so
 	// two never set off for the same goods. See hauling.go.
 	haulClaims map[OrderID]EntityID
@@ -1112,6 +1120,8 @@ func newWorld(cfg Config, src *rand.PCG) *World {
 	w.emtDetail = cfg.EMTDetail
 	w.emtWage = cfg.EMTWage
 	w.emtShare = cfg.EMTCallShare
+	w.emtFee = Money(cfg.EMTFee)
+	w.emtCallRate = cfg.EMTCallRate
 	w.rngSrc.compassion = newPCG(cfg.Seed ^ compassionSeed)
 	w.compassionRNG = rand.New(w.rngSrc.compassion)
 	if len(cfg.SpeciesPack) > 0 {

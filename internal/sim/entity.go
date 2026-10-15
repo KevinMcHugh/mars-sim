@@ -411,10 +411,13 @@ type Entity struct {
 	onCall   bool
 	emtTicks int
 	emtOwed  int // cents of EMT pay accrued and not yet a whole dollar
-	dragPath []Point
-	dragAt   int
-	dragAcc  int
-	dragCot  Point
+	// rescueOrder is the colony's open per-call order for this casualty, 0
+	// for none (see postRescue).
+	rescueOrder OrderID
+	dragPath    []Point
+	dragAt      int
+	dragAcc     int
+	dragCot     Point
 	// climbUntil is the last tick this entity is on a shaft's ladder: until
 	// it has passed, its turns are spent climbing. See startClimb.
 	climbUntil int

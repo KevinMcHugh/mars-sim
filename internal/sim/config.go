@@ -607,6 +607,8 @@ type Config struct {
 	EMTWage           int  `cfg:"emt-wage" doc:"cents an hour the colony offers an on-call EMT at the start (the player sets it in play); a colonist takes the place only if this meets its ask"`
 	EMTPremiumPct     int  `cfg:"emt-premium" doc:"what a colonist asks for being on call at all, as a percent of what an hour of its time is worth (Caring asks half, Callous double)"`
 	EMTCallShare      int  `cfg:"emt-call-share" doc:"per mille of on-call time colonists reckon calls take, before the colony has measured it"`
+	EMTFee            int  `cfg:"emt-fee" doc:"dollars the colony pays an on-call EMT for each casualty it sees to, at the start (the player sets it in play; 0: none)"`
+	EMTCallRate       int  `cfg:"emt-call-rate" doc:"calls per thousand hours on call colonists reckon an EMT answers, before the colony has measured it"`
 	AidDutyBonus      int  `cfg:"aid-duty-bonus" doc:"aid score an on-call EMT adds for any casualty"`
 	ColonistsPerCot   int  `cfg:"colonists-per-cot" doc:"with an EMT detail, the colony commissions an infirmary cot for each this many colonists (0: none)"`
 	DragSpeedPct      int  `cfg:"drag-speed" doc:"an EMT dragging a casualty moves at this percent of a step a tick"`
@@ -1047,6 +1049,8 @@ func DefaultConfig() Config {
 		EMTWage:              25,
 		EMTPremiumPct:        10,
 		EMTCallShare:         100,
+		EMTFee:               0,
+		EMTCallRate:          20,
 		AidDutyBonus:         80,
 		ColonistsPerCot:      8,
 		DragSpeedPct:         50,

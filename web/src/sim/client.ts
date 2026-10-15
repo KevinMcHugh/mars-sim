@@ -40,6 +40,8 @@ export type Command =
   | { type: 'emt-detail'; qty: number }
   /** Offer EMTs qty cents an hour; colonists take the place only if it meets their ask. */
   | { type: 'emt-wage'; qty: number }
+  /** Pay an on-call EMT qty dollars for each casualty it sees to (0: no fee). */
+  | { type: 'emt-fee'; qty: number }
   /** Reland a ship with its top-left at (x, y); only before the first tick (docs/ships.md). */
   | { type: 'ship-move'; id: number; x: number; y: number }
   /** Land the next ship still aloft with its top-left at (x, y); only before the first tick. */
@@ -76,7 +78,7 @@ export interface Started {
  * A mismatch means mars-sim.wasm is from another build: usually a pull without
  * rerunning npm run wasm.
  */
-export const HOST_API = 25;
+export const HOST_API = 26;
 
 export class SimClient {
   private worker: Worker;

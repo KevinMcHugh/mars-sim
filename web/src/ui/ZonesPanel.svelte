@@ -6,7 +6,7 @@
   // The overlay itself comes from the zones topic, which the page always
   // holds; this tab adds the zoning topic. The Defense tool posts a detail of
   // armed colonists to keep an area safe, on any level (docs/defense.md).
-  import { anyLevelTool, applyZone, armZone, cancelClear, cancelDefense, centerOn, clearZoneTool, setDefenseDetail, setEMTDetail, setEMTWage, subscribe, topics, ui, zoneChanged } from '../game.svelte';
+  import { anyLevelTool, applyZone, armZone, cancelClear, cancelDefense, centerOn, clearZoneTool, setDefenseDetail, setEMTDetail, setEMTFee, setEMTWage, subscribe, topics, ui, zoneChanged } from '../game.svelte';
   import { untrack } from 'svelte';
   import { money } from './format';
   import Help from './Help.svelte';
@@ -38,6 +38,7 @@
       wage: number; maxWage: number; paid: number; cots: number;
       share: number; cheapestAsk: number; willing: number;
       responses: number; responseMinutes: number;
+      fee: number; maxFee: number; feesPaid: number; callRate: number;
     };
   }
 
@@ -276,8 +277,18 @@
         </div>
       {/if}
     </li>
+    <li>
+      <b>Per call</b> {money(z.emt.fee)}
+      <span class="stepper">
+        <button type="button" disabled={z.emt.fee <= 0} onclick={() => setEMTFee(z.emt.fee - 1)} aria-label="Pay $1 less a call">−</button>
+        <button type="button" disabled={z.emt.fee >= z.emt.maxFee} onclick={() => setEMTFee(z.emt.fee + 1)} aria-label="Pay $1 more a call">+</button>
+      </span>
+      <div class="muted holds">
+        {money(z.emt.feesPaid)} paid in fees · an EMT answers {(z.emt.callRate / 1000).toFixed(2)} calls an hour on call
+      </div>
+    </li>
   </ul>
-  <p class="muted">EMTs keep working while on call, drop it for a casualty anywhere in the colony, and carry anyone who cannot be brought round to an infirmary cot. Each colonist asks its own price for being on call, from what its time is worth and how much of it calls take: offer less than it asks and it will not come, or will quit.</p>
+  <p class="muted">EMTs keep working while on call, drop it for a casualty anywhere in the colony, and carry anyone who cannot be brought round to an infirmary cot. Each colonist asks its own price for being on call, from what its time is worth and how much of it calls take, less what it expects the calls to pay: offer less than it asks and it will not come, or will quit. A fee is escrowed for each casualty and paid to the EMT who sees to it; a bystander's help is its own.</p>
 {/if}
 
 <h2>Open clearing orders</h2>

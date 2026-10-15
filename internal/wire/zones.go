@@ -160,6 +160,14 @@ type EMT struct {
 	// average, in clock minutes.
 	Responses       int `json:"responses"`
 	ResponseMinutes int `json:"responseMinutes"`
+	// Fee is what the colony pays an EMT per casualty seen to, in dollars
+	// (MaxFee the most it may), FeesPaid what it has paid in fees, and
+	// CallRate the calls an EMT has lately answered per thousand hours on
+	// call.
+	Fee      int64 `json:"fee"`
+	MaxFee   int64 `json:"maxFee"`
+	FeesPaid int64 `json:"feesPaid"`
+	CallRate int   `json:"callRate"`
 }
 
 // Defense is one defense zone: its area, the detail it asks for, the guards
@@ -235,7 +243,8 @@ func zoningTopic(s *sim.Snapshot) ZoningTopic {
 		EMT: EMT{Detail: s.EMT.Detail, Max: s.EMT.Max, OnCall: make([]Guard, 0, len(s.EMT.OnCall)),
 			Wage: s.EMT.Wage, MaxWage: s.EMT.MaxWage, Paid: int64(s.EMT.Paid), Cots: s.EMT.Cots,
 			Share: s.EMT.Share, CheapestAsk: s.EMT.CheapestAsk, Willing: s.EMT.Willing,
-			Responses: s.EMT.Responses, ResponseMinutes: emtMinutes(s)},
+			Responses: s.EMT.Responses, ResponseMinutes: emtMinutes(s),
+			Fee: int64(s.EMT.Fee), MaxFee: int64(s.EMT.MaxFee), FeesPaid: int64(s.EMT.FeesPaid), CallRate: s.EMT.CallRate},
 	}
 	var names map[sim.EntityID]string
 	nameOf := func(id sim.EntityID) string {
