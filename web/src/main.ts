@@ -9,7 +9,7 @@
 import { mount } from 'svelte';
 import type { Frame, Hello } from '../wire/decode.js';
 import { namedStats, TILE_COMPOSITION_MASK, TILE_VISIBLE } from '../wire/decode.js';
-import { armShip, armSite, colonyLog, cycleFlowField, inspect, install, landAloft, moveShip, onLandingLevel, orderSite, selectionLevel, setFlowField, setPanel, shipSiteAt, shipSiteFree, shipTiles, stepLevel, stepSpeed, subscribe, syncFrame, togglePause, topics, ui, UI_HZ } from './game.svelte';
+import { armShip, armSite, colonyLog, cycleFlowField, follow, inspect, install, landAloft, moveShip, onLandingLevel, orderSite, selectionLevel, setFlowField, setPanel, shipSiteAt, shipSiteFree, shipTiles, stepLevel, stepSpeed, subscribe, syncFrame, togglePause, topics, ui, UI_HZ } from './game.svelte';
 import type { Rect, ShipLine, ShipsTopic, ZonePreview } from './game.svelte';
 import { attachInput } from './map/input';
 import { MapRenderer, MARK_BOTTOM, MARK_HATCH, MARK_LEFT, MARK_RIGHT, MARK_TOP } from './map/renderer';
@@ -58,6 +58,7 @@ install({
   loadGame: (f) => { void loadGame(f); },
   saveGame: () => { void saveGame(); },
   centerOn: (x, y) => { cam.cx = x + 0.5; cam.cy = y + 0.5; viewChanged(); },
+  followChanged: () => followCamera(),
   levelChanged: () => {
     lastInterest = ''; // the same pages, but of another level
     showZones();
@@ -102,6 +103,7 @@ sim.onFrame = (f, bytes) => {
   last = f;
   map.applyFrame(f);
   updateMark();
+  followCamera();
   debug.frames++;
   debug.bytes += bytes;
   debug.tick = f.tick;
@@ -127,6 +129,7 @@ sim.onFrame = (f, bytes) => {
 
 attachInput(canvas, cam, {
   changed: () => { viewChanged(); },
+  panned: () => { if (ui.follow !== null) follow(null); },
   hover: (x, y) => {
     hoverAt = [x, y];
     showHover(x, y);
@@ -284,6 +287,7 @@ function resetGame(): void {
   hello = null;
   ui.hello = null;
   ui.selected = null;
+  ui.follow = null;
   ui.flowPick = -1; // a new engine shows no field
   ui.flowShown = null;
   colonyLog.clear();
@@ -699,6 +703,26 @@ function updateMark(): void {
     }
   }
   map.setMark(null); // dead or gone
+}
+
+/**
+ * Keep the camera on the followed creature (ui.follow): each frame, center on
+ * where it is now. Only on this level's frame: when it changes level,
+ * FollowChip sees it in its topic and takes the map there (followTo). Not
+ * under the fog, as the marker, or following would give it away.
+ */
+function followCamera(): void {
+  if (ui.follow === null || !last) return;
+  const e = last.entities;
+  for (let i = 0; i < e.count; i++) {
+    if (e.id[i] !== ui.follow) continue;
+    if (!map.visible(e.x[i], e.y[i])) return;
+    const cx = e.x[i] + 0.5, cy = e.y[i] + 0.5;
+    if (cam.cx === cx && cam.cy === cy) return;
+    cam.cx = cx; cam.cy = cy;
+    viewChanged();
+    return;
+  }
 }
 
 /** Describe the tile under the pointer: terrain, and whatever is on it. */

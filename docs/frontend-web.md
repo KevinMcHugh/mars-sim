@@ -62,7 +62,7 @@ The rest of the TUI's tabs are planned in
   `TopBar`, `SpeedControl`, `SidePanel`, `FloatingPanels` and `PanelHead`
   (popped-out tabs, see [floating-panels.md](./floating-panels.md)), `tabs.ts`
   (the tab list both share), `Bar` (a gauge), and one component
-  per tab (`InspectPanel`, `RosterPanel`, `LogPanel`, `JobsPanel`,
+  per tab (`InspectPanel`, `FollowChip` (see [follow.md](./follow.md)), `RosterPanel`, `LogPanel`, `JobsPanel`,
   `StoragePanel`, `MarketPanel` with `AccountDetail`, `TradePanel` with `ColonyOrders`, `ZonesPanel`, `DigPanel`, `ChartsPanel`, `PerfPanel`, `ShipsPanel`,
   `RecruitPanel`, `LorePanel`, `NewGamePanel` with `GameSettings`), `Section` (a foldable heading), `Help` (a (?) that shows an explanation), `LogTicker`, and `FlowControl` (the
   flow-field picker and legend, see [flow-field-view.md](./flow-field-view.md)).
@@ -305,7 +305,8 @@ Inspect tab:
   tile gets its terrain, its fixture's owner and access, a container's contents
   and ledger, and who stands on it. Names (kin, acquaintances, an owner, a
   creature on a tile) are links that inspect them in turn; **Find** centers the
-  map on the creature.
+  map on the creature, and **Follow** keeps it centered as the creature moves,
+  with a chip in the top bar to stop (see [follow.md](./follow.md)).
 - **The marker** is a square ring on the selected tile, or on the selected
   creature wherever the latest frame puts it (`MapRenderer.setMark`, its own
   small shader). It is at least 14 CSS pixels across, so it still rings a dot
