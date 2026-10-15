@@ -666,6 +666,11 @@ What they say:
   doc set for turning it on by default. It stays off until the call is
   made, because it also changes the game's feel: fights leave colonists
   down, not just hurt.
+- **Wound care keeps what aid won in a hungry colony.** The A2 scarcity
+  scenario (100 colonists, 300×150, seeds 1–4, to tick 30,000) rerun with
+  A3: aid off 136 starved and 251 alive, aid on 36 and 349 (A2 alone: 40
+  and 359), bleeding on 39 and 347 with three collapses. Few wounds, little
+  change.
 - **A paid EMT detail costs more than it saves here.** Three EMTs' wages
   took about $2,200 from each colony's treasury over the run, money its
   public works did not get; unpaid, the same detail did better than no
