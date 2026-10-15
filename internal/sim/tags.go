@@ -64,6 +64,14 @@ func (w *World) nearestTagged(from Point, tags Tags, within int) (*Entity, bool)
 // so a direct scan is far cheaper. The distance-then-ID order makes the
 // answer independent of both map order and the order kinds are scanned in.
 func (w *World) nearestTaggedWhere(from Point, tags Tags, keep func(*Entity) bool) (*Entity, bool) {
+	return w.nearestTaggedRanked(from, tags, keep, nil)
+}
+
+// nearestTaggedRanked is nearestTaggedWhere with a bias: each candidate's
+// distance is reckoned bias(candidate) tiles shorter, so a hunter can prefer
+// prey that is a little further off but easier (see helplessBias). A nil bias
+// is plain nearest.
+func (w *World) nearestTaggedRanked(from Point, tags Tags, keep func(*Entity) bool, bias func(*Entity) int) (*Entity, bool) {
 	var best *Entity
 	bestDist := 0
 	for k := Kind(0); k < numKinds; k++ {
@@ -76,6 +84,9 @@ func (w *World) nearestTaggedWhere(from Point, tags Tags, keep func(*Entity) boo
 				continue
 			}
 			d := w.travelEstimate(from, e.Pos)
+			if bias != nil {
+				d -= bias(e)
+			}
 			if best == nil || d < bestDist || (d == bestDist && e.ID < best.ID) {
 				best, bestDist = e, d
 			}

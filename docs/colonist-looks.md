@@ -41,9 +41,17 @@ gets just tone, then plain.
 | blonde | 👱🏿‍♂️ · 👱🏿‍♀️ · 👱🏿 (blond is its own base, not a component) | 👴🏿 |
 
 Seniors (👴 👵 🧓) only take a tone: Unicode has no hair components for them.
-A mutant (🧟) and a colonist drawn by their state (😱 💬 🔫 📦 …) have no look.
+A mutant (🧟) and a colonist drawn by their state (😱 💬 🔫 📦 …) have no look,
+with one exception: a colonist helping a casualty (`Aiding`) is a
+firefighter of its own gender in its own tone, 👨🏿‍🚒 · 👩🏻‍🚒 · 🧑🏽‍🚒, then the
+untoned one, then the TUI's 🩹 (see
+[emergency-services.md](./emergency-services.md)). A role sequence has no room
+for hair, and Unicode has no senior firefighter, so a senior helper is the
+adult one.
 
-`glyphs.Looks` enumerates every look once (90 of them) in a fixed order. The
+`glyphs.Looks` enumerates every look once in a fixed order: the 90 resting
+looks, then the 15 firefighters after them, so adding the firefighters moved
+no index a frame already carried. The
 frame's `uint16` glyph index already had room: an index `len(All)+i` means
 `Looks[i]` (`entityGlyph`). Hello sends `glyphs.looks`, and roster rows and
 inspector payloads carry the colonist's `look` list beside the plain `glyph`.

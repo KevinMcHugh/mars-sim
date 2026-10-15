@@ -1,0 +1,585 @@
+# Aid and emergency services
+
+> Part of the [mars-sim documentation](./README.md).
+
+## What it is
+
+A plan for what happens when a colonist is in trouble and someone else could
+help. Today nobody can. A colonist who passes out can starve on the floor while
+its friends walk past, and a wound never heals. This proposal covers two ways
+help arrives:
+
+- **Aid.** A colonist who sees someone in trouble may stop what it is doing
+  and help, because it cares. No one pays for it. How likely it is to help
+  depends on how bad things look, who the casualty is to it, what kind of
+  person it is, and what else it needs right now.
+- **Emergency services.** The colony pays colonists to be on call as EMTs.
+  An EMT is told about every casualty in the colony, not just the ones it
+  can see. It responds before other work, and it can do more than a
+  bystander: move a casualty and treat wounds.
+
+Both go through the same focus arbiter as eating, fleeing and fighting.
+Neither one is a new rung on a ladder.
+
+Phases A1 and A2 are built: colonists help each other. A3 onward (wound
+care, paid EMTs, bleeding) are still proposals. *As built* at the end of
+this doc records where the code departed from the plan, and what aid did in
+measured runs. Issue:
+[KevinMcHugh/mars-sim#154](https://github.com/KevinMcHugh/mars-sim/issues/154).
+
+| Phase | What ships | Status |
+| --- | --- | --- |
+| A1 | The casualty model: a `Peril` enum, the casualty index, and the roster and map showing who is in trouble. No behavior changes. | Shipped |
+| A2 | Aid: `FocusAid` and `JobAid`. A bystander rouses a passed-out colonist and may give it a meal. The `Caring`/`Callous` traits. Aid leaves memories, affinity and guilt behind. Hunting aliens go for the helpless first. | Shipped |
+| A3 | Wound care: first aid dresses wounds, dressed wounds heal in bed, the infirmary cot fixture, and `SkillMedicine`. | Proposed |
+| A4 | EMTs: an on-call detail paid by the hour from the treasury. EMTs keep working while on call and drop it for a casualty anywhere in the colony. Dragging a casualty to the infirmary. | Proposed |
+| A5 | Bleeding: severe hits get a clock that aid can beat. Off by default until measured. | Proposed, optional |
+| Later | Prey preference as a per-species field. Medicine and prosthetics (limbs ordered on the next resupply), medkits as a supply chain, paying EMTs per call on the order book. | Not designed |
+
+## Decisions already made
+
+| Topic | Decision |
+| --- | --- |
+| Traits | Yes: a new `compassion` trait group holding `Caring` and `Callous`. |
+| EMTs between calls | They work elsewhere. Being on call is a status the colonist carries, not a job it stands at. |
+| Aliens and the helpless | Hunters prefer prey that cannot flee or fight back. All hostile species do this at first; it becomes a per-species setting later. |
+| Guilt | Yes, but only for colonists the arbiter actually offered the rescue to and who chose something they did not need. See *Guilt: who could have helped*. |
+
+## Source
+
+Built (A1, A2):
+
+- [`internal/sim/casualty.go`](../internal/sim/casualty.go): `Peril` and
+  `perilOf`; the casualty index (`World.casualties`, `addCasualty`,
+  `dropCasualty`, `isCasualty`); `aidOptionFor` and `aidRegard` (what
+  helping scores); `noticeCasualty`; `notePass` (the passed-by record);
+  `runAidFocus`, `rouse` and `releaseAid` (`JobAid`); `casualtyDied` (guilt
+  and grief); the `roused` drive effect; `helplessBias`.
+- [`internal/sim/focus.go`](../internal/sim/focus.go): `FocusAid`, its
+  candidate in `fillFocusCandidates`, `FocusCandidate.Casualty`.
+- [`internal/sim/systems.go`](../internal/sim/systems.go): `runCognition`
+  records a pass after arbitration; `colonistTurn` calls `noticeCasualty`;
+  `clearJob` releases `JobAid`.
+- [`internal/sim/drive_bands.go`](../internal/sim/drive_bands.go): `passOut`
+  adds a casualty, coming to drops it. [`world.go`](../internal/sim/world.go):
+  `remove` settles a casualty's death first.
+- [`internal/sim/personality.go`](../internal/sim/personality.go):
+  `groupCompassion`, `TraitCaring`, `TraitCallous`, `ownStreamGroup`,
+  `rollCompassion`; [`recruit.go`](../internal/sim/recruit.go) rolls a
+  recruit's last; [`rng.go`](../internal/sim/rng.go): the compassion stream.
+- [`internal/sim/behaviors.go`](../internal/sim/behaviors.go) and
+  [`tags.go`](../internal/sim/tags.go): `preyInRoom` ranks through
+  `nearestTaggedRanked` with `helplessBias`.
+- [`internal/sim/cognition_config.go`](../internal/sim/cognition_config.go)
+  and [`cognition.yaml`](../cognition.yaml): the `aid` focus; the `rescue`,
+  `lose`, `abandon` and `fail` actions; the `aid-sight` radius and the
+  `witness-collapse` perception; the `witnessed-collapse`, `helped`,
+  `was-helped`, `couldnt-save`, `guilt` and `guilt-light` reactions; the
+  Caring and Callous trait rules.
+- [`internal/sim/config.go`](../internal/sim/config.go): the `Aid` settings
+  section and the `roused` drive effect.
+- `Aiding` (state), `JobAid`, `ActAiding` ("aiding" on the Activity tab);
+  `EntityView.Peril`, shown after the state in both rosters
+  ("passed out (critical)"); the 😵 and 🩹 map glyphs
+  ([`glyphs.go`](../internal/glyphs/glyphs.go), `@_` and `@h` in ASCII). In
+  the browser a helper is a firefighter in its own gender and skin tone
+  (👨🏿‍🚒 👩🏻‍🚒 🧑🏽‍🚒, [`looks.go`](../internal/glyphs/looks.go)); the
+  terminal keeps 🩹, since terminals disagree about the width of ZWJ
+  sequences ([colonist-looks.md](./colonist-looks.md)).
+- [`internal/sim/casualty_test.go`](../internal/sim/casualty_test.go).
+
+Still to come:
+
+- [`internal/sim/defense.go`](../internal/sim/defense.go): the template for
+  the EMT detail. `emt.go` should copy it, not generalize it on the first
+  pass.
+- [`internal/sim/skills.go`](../internal/sim/skills.go): `SkillMedicine`.
+- [`internal/sim/combat.go`](../internal/sim/combat.go): wounds record that
+  they need dressing, and later that they are bleeding.
+
+## How it works
+
+### The tension: is this a ladder?
+
+"Am I dying?" and "is someone near me dying?" seem to call for fixed rules
+that override everything else. The focus system already handles the first
+one without a hard rule. A pressing fatal drive gets `fatal_bonus` (150), and
+`escape` has a base of 400. Those are scores. They are big enough that they
+almost always win, but they can still be outweighed. The only hard rules are
+**eligibility** rules, such as a pressing fatal drive making non-fatal drive
+focuses ineligible.
+
+Aid follows the same split:
+
+- **Hard gates (code).** These are only rules that exist to keep things
+  correct. A casualty does not choose anything. A responder cannot be a
+  casualty itself. One colonist holds a casualty's aid claim at a time, the
+  same ownership rule every job follows. Two can hold it when dragging (A4).
+- **Everything else is a score.** That includes self-preservation against
+  altruism. A colonist who is hungry, but not yet critical, will stop for its
+  dying child. A colonist who is critically starving will not stop for a
+  stranger. Each of those outcomes is a sum of named contributions that a
+  trace can show (principle 6).
+
+So the ladder-like behavior comes from the weights, not from the structure.
+That means personality and relationships can change the order, which a
+ladder never allows.
+
+### Casualties and `Peril`
+
+A **casualty** is a colonist that cannot help itself and will get worse
+without help. It is described by an enum (principle 1). Other systems switch
+on the enum and never read HP or drive levels themselves:
+
+| `Peril` | Meaning | Today's cases |
+| --- | --- | --- |
+| `PerilNone` | Not a casualty | Everyone else |
+| `PerilStable` | Down, but not getting worse | Passed out, hunger well below its ceiling |
+| `PerilSerious` | Getting worse; death is hours away | Passed out with hunger past `SeekAt`; an undressed wound below half its part's HP (A3); bleeding (A5) |
+| `PerilCritical` | Death is close | Passed out with hunger at its ceiling (starving); aggregate HP under `peril-critical-hp`; heavy bleeding (A5) |
+
+`perilOf(e)` is the one place that maps state to `Peril`. It is read on
+demand, not stored: the hunger it reads is lazy anyway, and only casualties
+are ever asked, so there is nothing to keep in step. Casualties sit in
+`World.casualties`, a slice sorted by `EntityID`. `passOut` adds one and
+coming to (on its own, or roused) or dying takes it out, so nothing has to
+scan the world to find casualties (principle 9). It is almost always empty or
+tiny. Today a casualty is exactly a colonist passed out where it fell; low HP
+makes one critical only while it is down.
+
+A walking wounded colonist (hurt, but conscious and mobile) is not a
+casualty. It can go to the infirmary itself (A3). This keeps aid for people
+who are actually helpless.
+
+### Noticing a casualty
+
+The plan was a persistent `casualty / present` percept. As built, eligibility
+is read straight from the casualty index, the way threats are read from the
+alien index rather than from percepts: `aidOptionFor` walks the (tiny) index
+for casualties on the colonist's level within `aid-sight` (6) that it can
+reach and nobody else is helping. Two things make sure the arbiter looks:
+
+- **Seeing the collapse.** `passOut`'s `collapse` occurrence reaches anyone
+  within `aid-sight` through a new `witness-collapse` perception. The
+  `witnessed-collapse` reaction is a small jolt and an aid stimulus (+40 for
+  30 ticks), so having *just seen* someone go down counts for more than
+  walking past someone who has lain there an hour.
+- **Coming across one.** `noticeCasualty` marks a colonist's mind dirty the
+  first time an unhelped casualty is in sight, so it thinks again that tick
+  rather than at its next scheduled reconsideration (up to 32 ticks later,
+  most of a starving casualty's time).
+
+A sleeping or resting colonist on the cognition fast path does neither: it
+does not wake for a casualty it cannot see.
+
+### Deciding to help: `FocusAid`
+
+`FocusAid` is a new focus kind. It is eligible when the colonist perceives at
+least one casualty that nobody else is helping, and the colonist is not a
+casualty itself. Its score is built from named contributions:
+
+| Contribution | Source | Default sketch |
+| --- | --- | --- |
+| Base | `focuses.aid.base` | 30 |
+| Peril (in the `Drive` slot) | the casualty's `Peril` | Stable 20, Serious 60, Critical 150 |
+| Bond (in the `Personality` slot) | `affinityBetween(helper, casualty)`, plus kin | `aid-affinity-weight` × affinity / `AffinityMax` (±60), +40 for close kin (spouse, parent, child, sibling) |
+| Affect | `charge_weight`, `grip_weight` | charge 10, grip 30: a composed colonist acts, and a panicked one freezes |
+| Traits | personality | Caring +40; Callous −40 for anyone but kin; Cowardly −40 while a threat is in sight |
+| Stimulus | just saw the collapse | +40 for 30 ticks (`witnessed-collapse`) |
+| Commitment | already aiding | `current_bonus` |
+| Distance | cheap distance to the casualty | −1 per unit |
+| Bystander | someone else is already aiding | the casualty is ineligible, not just penalized |
+
+A few worked cases with the shipped weights (eat: base 40,
+drive_weight 100, critical +100, fatal +150; work: base 25):
+
+| Situation | Aid | Best rival | Outcome |
+| --- | --- | --- | --- |
+| A stranger collapses 6 tiles away; the helper is fed | 30+20−6 = 44 | work ≈ 25 | Helps |
+| A stranger is starving on the floor; the helper is pressing hungry | 30+150−6 = 174 | eat ≈ 40+50+150 = 240 | Eats first, then helps |
+| Its child is starving on the floor; the helper is pressing hungry | 30+150+40+30−6 = 244 | eat ≈ 240 | Helps (barely) |
+| Its child is starving; the helper is critically hungry | 244 | eat ≈ 390 | Eats |
+| A rival (affinity −80) collapses; nothing is pressing | 30+20−48−6 ≈ −4 | idle 0 | Walks past |
+| A friend is down with an alien 4 tiles away; the helper is armed and composed | about 150 | fight ≈ 15+grip | Usually helps; tuning decides |
+
+The last row is the one that needs measuring. Threats stay eligible and
+compete on score, as they do against a fatal drive today. A parent can still
+run into danger for its child, and that is a story worth telling.
+
+### The compassion traits
+
+A new trait group, `groupCompassion`, holds two traits. A colonist gets at
+most one, or neither, like every other group.
+
+| Trait | Aid score | After a rescue | Guilt |
+| --- | --- | --- | --- |
+| `Caring` | +40 toward anyone | Bigger lift from `helped` | Heavier |
+| (neither) | none | as described below | as described below |
+| `Callous` | −40, except toward kin | Smaller lift | None |
+
+`Callous` still helps family. That keeps it from being simply the villain
+trait: it describes a colonist whose concern stops at its own people.
+
+**Rolled on its own stream.** `rollProfile` draws traits from the
+personality stream group by group, so a new group in that loop would add
+draws and move every trait rolled after it. These traits change behavior, so
+they are not flavor (principle 3). So the group is skipped by `rollTraits`
+(`ownStreamGroup`) and drawn after the profile from `compassionRNG`, the way
+the recruit and topic streams were added ([rng-streams.md](./rng-streams.md)).
+A recruit's is drawn last from the recruit stream. With aid off, every
+golden run is unchanged.
+
+### Helping: `JobAid`
+
+The job carries out the focus. It claims the casualty: one helper, keyed by
+`EntityID`, released in `clearJob` the way a guard post is. It walks to an
+adjacent tile, then does whatever the casualty's state calls for:
+
+| Casualty state | What a bystander does | What an EMT adds (A4) |
+| --- | --- | --- |
+| Passed out (from exhaustion) | **Rouse** it (`aid-rouse-ticks`, 8): it ends `PassedOut` and applies the `roused` drive effect | The same |
+| Passed out and hungry | Rouse it and **give it a meal** if the helper carries one of its own and the casualty has none (a gift). Its own focus then eats it | Drag it to the infirmary, where a cot holds hunger (A3/A4) |
+| Wounded, undressed (A3) | **Dress** the wound (`dress-ticks`, faster with medicine rank) | The same, faster |
+| Bleeding (A5) | **Hold pressure**: no bleeding while the helper stays; dressing it stops it for good | The same, faster |
+| Can't be reached safely | Nothing; the focus loses on score | The same |
+
+The **`roused` effect** is a drive-effect profile, like caffeine, and the
+first one that ships (`rousedEffect`, found by name). It takes 50 points off
+the sleep drive at once (`Instant`) and slows its growth to a quarter for 135
+ticks, three hours (`RateChange` −75). Without it, a roused colonist would
+pass out again about nine ticks later, because nothing has lowered its sleep
+drive: that is exactly what the first build did, and one test colony roused
+the same colonist 14 times before it starved. The roused colonist is still exhausted. It is now
+awake for long enough to eat and get to a bunk, and its own focus decides
+which comes first.
+
+**A gift is the first unpaid transfer of goods.** Every other movement of a
+meal goes through the market. The meal moves from the helper's pocket to the
+casualty's, and an item in a colonist's pocket with no cargo record is its
+own ([cargo.go](../internal/sim/cargo.go)), so ownership moves with it.
+Nothing is created and no money moves, so neither audit sees it.
+
+### What it leaves behind
+
+Principle 5: each rescue should leave a lasting mark on both people.
+
+- **Helper:** a `helped` memory ("Helped Ana Ruiz up off the floor."). It
+  gives a lift in grip and valence that stays good with repetition. Caring
+  colonists feel it half again as much, Callous ones half as much.
+- **Casualty:** a `was-helped` memory, plus a large one-way affinity bump
+  toward its rescuer (`aid-gratitude`). Gratitude is per direction, like
+  conversation credit.
+- **A colonist who could have helped and didn't:** `guilt`, covered in the
+  next section.
+- **A helper whose casualty died anyway:** `couldnt-save`, which is grief,
+  not guilt. Trying and failing should feel different from walking past.
+
+This is also the first time affinity has a real effect in the simulation.
+Friendships made in conversation now decide who gets picked up off the floor.
+
+### Guilt: who could have helped
+
+Guilt can be determined, because the arbiter already makes the decision that
+guilt is about. Whenever a colonist's arbitration has `FocusAid` eligible for
+a casualty and picks something else, that is a recorded choice not to help,
+along with what was chosen instead. The casualty keeps a short record of
+those choices:
+
+- `passedBy`: the colonists who were offered the rescue and passed, each with
+  the focus that won. It is a slice sorted by `EntityID`, holds one entry per
+  colonist (the latest choice replaces an earlier one), and is capped at
+  `aid-passed-by-max` (16). It is cleared when the casualty recovers.
+- Nothing is added when no arbitration happens. A colonist that never
+  noticed the casualty (asleep, out of sight, on another level) was never
+  offered the rescue and owes nothing.
+
+When the casualty dies, `remove` reads `passedBy` and sends each living entry
+a `guilt` occurrence. How heavy it is depends on what won, so a player can
+read why:
+
+| What won | Reading | Why |
+| --- | --- | --- |
+| Flee, fight, escape, or a fatal drive at `DriveCritical` | none | It could not have helped. Self-preservation is not a failing |
+| A fatal drive at `DrivePressing` | light (`guilt-light`) | It had a reason |
+| Work, idle, socialize, sleep, relieve | full (`guilt`) | It chose something it did not need |
+| On-call EMT, anything but a fatal or a threat | full ×1.5 | It was paid to come (A4, not built) |
+
+The two weights are two reactions, `guilt` (`abandon`) and `guilt-light`
+(`fail`), so each tier's reading is data in `cognition.yaml`. `Caring`
+doubles either through a trait rule. `Callous` removes it unless the dead
+colonist was close kin; that exception needs the family tree, so it is in
+`casualtyDied`, not a rule. The memory names the dead colonist ("Walked past
+Ana Ruiz, who died."), so guilt stays specific. It is never a vague mood.
+Only the casualty the arbiter offered is recorded: with two down in sight,
+a colonist owes the one it was offered, not both.
+
+The cost is one small append on an arbitration that chose something other
+than an eligible aid. That only happens while a casualty exists, so a quiet
+colony pays nothing.
+
+### Emergency services: the EMT detail (A4)
+
+This borrows from [defense.md](./defense.md). The player sets an **EMT
+detail**: the number of colonists to keep on call. It goes on the Zones tab
+next to defense, or in a small Medical section, and it is not tied to an
+area. The treasury pays each on-call colonist `wage-emt` per hour, as far as
+it goes. That is the guard and cook model: the detail has no end, so there
+is nothing to escrow.
+
+Unlike a guard post, **being on call is not a job.** It is a status
+(`Entity.onCall`) that a colonist carries while it does other work. A
+colonist looking for work takes an open place on the detail
+(`tryTakeOnCall`, in `EntityID` order) and then goes on choosing work as
+usual. It keeps the place until it goes to sleep, passes out, becomes a
+casualty, or the detail is cut below it. Then the place is released and the
+next colonist looking for work takes it. Pay is counted only while the
+colonist is awake and on call.
+
+What being on call changes:
+
+1. **Colony-wide awareness.** An on-call EMT is eligible for `FocusAid`
+   toward *any* entry in the casualty index on its level or a connected
+   level. It does not need to see the casualty. It skips the sight percept
+   and reads the index directly, which is cheap because the index is tiny.
+   When a colonist enters the index, every on-call EMT is marked
+   mind-dirty (`markMindDirty`), so the call reaches it on that tick. The
+   on-call roster is short, so this is cheap.
+2. **Duty.** It adds `aid-duty-bonus` (default 80). That is well above
+   work's commitment bonus (25), so an EMT drops a dig or a recipe for any
+   casualty, and a Stable stranger across the colony beats its own pressing
+   hunger. A fatal critical drive still wins: a dead EMT saves nobody.
+   Dropping work goes through `clearJob`, which releases its claims as any
+   interruption does.
+3. **Dispatch without a dispatcher.** Responders are pulled, not pushed.
+   Each EMT scores the casualties it knows about, and the claim makes sure
+   only one gets each casualty. Distance in the score already sends the
+   nearest one, and ties go by `EntityID` (determinism).
+4. **Dragging.** An EMT can move a casualty to the nearest infirmary cot.
+   The casualty stays an entity and keeps its tile in the occupancy index.
+   Each step, it moves into the tile the EMT just left. It is slow
+   (`drag-speed-pct`), but it never needs two entities on one tile, which is
+   the trap [sanitation.md](./sanitation.md) hit with corpse entities. A
+   second EMT can join the claim to restore full speed.
+5. **Between calls,** an EMT works like anyone else. The retainer pays for
+   the promise to drop that work, not for standing by. Response time is the
+   price: an EMT mining at the frontier is far from a collapse in the
+   dormitory. That has to be measured (time from entering the index to the
+   first aid tick). A later option is to have on-call EMTs give a small
+   preference to work near the infirmary, but only if the measurement says
+   it is needed.
+
+Eating, the toilet and conversation do not release the place, since an EMT
+can answer a call from any of them. Sleep does, so the detail staffs itself
+in shifts across the colony's night.
+
+**Why the colony pays at all**, when altruism exists: altruism is local,
+depends on the casualty's friendships, and is unreliable at night. A colony
+of strangers, or one where everyone is asleep, lets people die. Paying for
+EMTs buys coverage. It is a public good, which is the one thing
+[work-market.md](./work-market.md) says the colony should still pay for.
+
+### Aliens hunt the helpless (A2)
+
+A colonist lying on the floor is easy prey, and a hunter should know it.
+The hostile ladder's `hunt` rung finds prey with `preyInRoom(hostilePrey)`,
+which used to take the nearest. It now ranks through `nearestTaggedRanked`:
+a casualty counts as nearer than it is, by `helpless-prey-discount` tiles
+(default 6; 0 turns it off). The hunter still goes for whatever is close,
+but a downed colonist a few tiles further away wins over a standing one.
+The bias is only passed while the casualty index is non-empty, so this
+costs nothing in a colony where nobody is down.
+
+This ships in A2, with aid, on purpose. On its own it makes collapsing more
+deadly; together with aid it raises the stakes of a rescue. A friend who
+stops to rouse someone now does it with something closing in. The
+measurement to watch is deaths among the collapsed, with and without aid.
+
+**Per species, later.** The preference should become a property of the
+species, not a rule for all hunters: some scavenge the weak, some go for the
+biggest threat, some ignore the prone. That is a `PreyPreference` enum
+(`PreyNearest`, `PreyHelpless`, and later others) on the species table.
+Rolling it would change the roster for every seed, which would break
+[species-pack.md](./species-pack.md)'s check that a pack's species roll alike
+in this build. So the field should start as data with a default. It can be
+derived from traits a species already rolls (an apex or a stinger-bearer, for
+instance), or set per species in Creature Lab. It should not get a new draw
+from the roster stream.
+
+### Wound care and the infirmary (A3)
+
+- Every hit `applyDamage` lands on a part marks that part's wound as
+  **undressed**. An undressed part never heals. That keeps today's behavior
+  ("injuries are permanent") as the default when no one helps.
+- **Dressing** a wound (first aid, by anyone) marks it dressed. A dressed
+  part heals `heal-rate` HP per hour, but only while the colonist is lying
+  down: in a bunk, or faster in an infirmary cot.
+- A **destroyed** part (0 HP) never regrows. Replacing one is medicine and
+  prosthetics, which the issue's comment imagines as limbs on the next
+  resupply. That is out of scope here.
+- The **infirmary cot** is a fixture like a bunk, and the room is a facility
+  room like any other ([construction.md](./construction.md)). A casualty in
+  a cot does not starve: the cot holds the food drive (an activity row in
+  the drive table, like sleep's). Wounds heal at `cot-heal-pct`. A
+  conscious colonist with an undressed or badly hurt part seeks a cot the
+  way a tired one seeks a bunk.
+- **`SkillMedicine`** is credited per tick of dressing, rousing, and
+  dragging. Rank shortens dressing and raises the heal rate of wounds the
+  medic dressed. It uses the same `rankEffect` curve as every other skill.
+
+### Bleeding (A5, optional)
+
+Today a wound is either fatal at once (head or torso at 0) or harmless
+forever. There is no clock running in between, so aid has nothing to race
+against for wounds. **Bleeding** adds that clock. A hit that takes a part
+below `bleed-threshold-pct` of its max starts it bleeding, which drains
+aggregate HP at a rate set by the size of the wound until the wound is
+dressed. This would be the first thing to make combat more deadly, so it
+ships behind `bleeding: false`. It turns on by default only after a
+20-seed measurement shows that bleeding plus aid kills no more colonists
+than the current game does.
+
+## Why it is this way
+
+- **One arbiter, not a rescue rung.** A rung such as "if a casualty is in
+  sight, aid" would make every colonist the same Good Samaritan and would
+  ignore their history (principle 5). A score lets a rival walk past and a
+  parent run into danger, and either choice can be explained.
+- **`Peril` is an enum.** If aid read hunger levels and HP directly, the
+  EMT, the roster, the map and the memory text would each set their own
+  thresholds (principle 1).
+- **A hard claim, not a bystander penalty.** If the score were only
+  discounted while someone else helped, five colonists would crowd around one
+  casualty on a close call. The claim is the job board's ownership invariant,
+  and it is what keeps the bystander effect from becoming a pile-up.
+- **Rousing, not an IV, for bystanders.** The data says the main killer is
+  starving while passed out. In [pricing.md](./pricing.md), 289 of 289
+  starvation deaths were colonists who had passed out first. Waking someone
+  up so its own drives can work is the smallest fix with the biggest effect,
+  and it needs no new facility.
+- **EMTs are a detail, not an order per incident.** A bounty posted per
+  casualty fits the direction [work-market.md](./work-market.md) sets
+  (urgency shows up in the price). It does not work in an emergency, though,
+  because a bounty only reaches colonists whose focus is already work, and
+  nobody is waiting nearby. The retainer pays for availability, which is
+  what emergency services actually sell. A per-call fee on top is listed
+  under *Extending it*.
+- **On call is a status, not a post.** A guard is paid to be in a place;
+  an EMT is paid to be available. Holding a job would keep it from working,
+  and an idle detail is expensive in a small colony. A status that the duty
+  bonus turns into a response gets the coverage without the idle hours. The
+  price is response time, which the measurement in A4 decides.
+- **Guilt comes from the arbiter's own record.** If guilt were worked out
+  after a death ("who was nearby?"), it would blame colonists who never
+  noticed and miss the ones who walked past an hour earlier. Recording the
+  choice when the arbiter made it means guilt matches what the colonist
+  actually did, and the trace can show it.
+- **Drag, don't carry.** A carried living colonist would need either to
+  leave the occupancy index or to share a tile, and both break invariants
+  that much of the code relies on.
+- **Nothing changes until there is a casualty.** With the casualty index
+  empty, `FocusAid` is ineligible and costs one length check, and nothing
+  draws on the RNG. Golden runs move only when someone is actually in
+  trouble, and the change in those runs is exactly what we want to measure.
+
+## Extending it
+
+- **Per-call fee:** the colony pays `fee-rescue` when a casualty reaches a
+  cot or drops to `PerilNone` under an EMT's care. This could be a
+  `WorkRescue` order once [work-market.md](./work-market.md) W3 sets wages
+  that rise with urgency.
+- **The casualty pays.** A rescued colonist tipping its rescuer, or being
+  billed for its cot time like a paid fixture, is the economy's call to make,
+  not this doc's.
+- **Medkits:** dressing could consume a `Bandage` item made from scum fiber
+  or bought at the market. That would turn first aid into a supply chain the
+  way [foundry.md](./foundry.md) did for guns.
+- **Prosthetics** (from the issue): a destroyed limb becomes a line on the
+  next resupply's manifest. It is paid from the casualty's wallet or the
+  treasury, and fitted in the infirmary.
+- **Limb injuries with teeth** ([combat.md](./combat.md)): once a ruined leg
+  slows a colonist, "can walk to the infirmary itself" stops being true for
+  some wounded, and they become casualties.
+- **Per-species prey preference:** see *Aliens hunt the helpless*. Adding a
+  preference is an enum value and a case in the hunt finder.
+- **Invariants:** each casualty has at most one aid claim (two while
+  dragging); a colonist is in `casualties` exactly while its peril is not
+  `PerilNone`; the index is kept and searched in `EntityID` order, never in
+  map order. The same holds for the on-call roster and `passedBy`. A
+  colonist is on call only while awake.
+
+## As built (A1, A2)
+
+Where the build departed from the plan above, and why:
+
+- **No `casualty / present` percept.** Eligibility is read from the casualty
+  index the way threats are read from the alien index; seeing a collapse
+  (`witness-collapse`) and coming across one (`noticeCasualty`) make the
+  arbiter look. See *Noticing a casualty*.
+- **`Peril` is read on demand**, not cached on change.
+- **The roused effect was not optional.** Without it the first build roused
+  one colonist 14 times in 250 ticks, each time to collapse again nine ticks
+  later, until it starved on the floor.
+- **Guilt's tiers are two reactions** (`guilt`, `guilt-light`), so their
+  weights are data; the Callous kin exception is code.
+- **Aid off is the old game.** `aid: false` with `helpless-prey-discount: 0`
+  reproduces every golden run exactly: the compassion stream moves nothing
+  else. With the defaults, the goldens were re-pinned.
+
+### What it does in a run
+
+The scenario that [pricing.md](./pricing.md) found starvation hiding in:
+100 colonists on a 300×150 map, seeds 1–4, to tick 30,000, totals over the
+four colonies.
+
+| | Passed out | Rescued | Starved | Killed | Alive at the end | Guilt (light) | Grief |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| Aid off | 792 | 0 | 128 | 19 | 253 | 0 | 0 |
+| Aid on | 1,274 | 1,075 | 40 | 1 | 359 | 5 (13) | 6 |
+
+Aid cuts starvation by two thirds, and every one of the 128 starvations with
+it off was a colonist who died where it lay. More pass-outs with aid on is a
+survivor effect: colonists who would have starved live to be tired again.
+Guilt is rare (18 colonists in four colonies of 100 over the whole run),
+which is about right for something that should be remembered.
+
+The hunting preference, measured with more aliens (30 colonists on 160×80,
+12 aliens, seeds 1–8, to tick 20,000):
+
+| | Starved | Killed | Alive |
+| --- | --- | --- | --- |
+| Aid off | 8 | 97 | 135 |
+| Aid off, hunters prefer the helpless | 9 | 96 | 135 |
+| Aid on (with or without the preference) | 10 | 82 | 148 |
+
+With aid on, casualties are brought round within a few ticks, so a hunter
+almost never finds one: the preference changed no outcome in these runs.
+With aid off, it changes which runs play out but not how many die. It is a
+story rule more than a balance one for now; it will matter more once
+wounds keep colonists down (A3, A5). Aid itself saves colonists from aliens
+too: a colonist brought round can run.
+
+## Open questions
+
+1. **Response time with working EMTs.** Is the time from collapse to first
+   aid good enough without any pull toward the infirmary? Measure it before
+   adding one.
+2. **Which existing species traits imply `PreyHelpless`?** This only matters
+   if the per-species field is derived rather than set in Creature Lab.
+3. **Is guilt lopsided in big colonies?** With 2000 colonists, a death in a
+   busy corridor could add up to 16 guilty memories. The cap bounds it, but
+   whether 16 is the right number should come from a run.
+
+## Related
+
+- [drives.md](./drives.md): passing out, starvation, drive effects.
+- [cascading_wsts_architecture.md](./cascading_wsts_architecture.md),
+  [focus.go](../internal/sim/focus.go): the arbiter `FocusAid` joins.
+- [defense.md](./defense.md): the detail-and-retainer pattern EMTs copy.
+- [combat.md](./combat.md): body parts and wounds.
+- [memories.md](./memories.md), [affect.md](./affect.md): what aid leaves
+  behind.
+- [pricing.md](./pricing.md): the measurement that every starvation death
+  passed out first.
+- [work-market.md](./work-market.md), [labor.md](./labor.md): who pays for
+  public goods.
+- [skills.md](./skills.md): `SkillMedicine`.

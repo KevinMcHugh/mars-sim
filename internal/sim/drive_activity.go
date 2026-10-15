@@ -67,6 +67,7 @@ var activityDrives = [NumActivities]activityDrive{
 	ActFleeing:     {DriveLabor, DriveLabor},
 	ActEscaping:    {DriveLabor, DriveWorking},
 	ActGuarding:    {DriveWorking, DriveWorking},
+	ActAiding:      {DriveWorking, DriveLabor},
 }
 
 // driveActivityOf is the drive activity colonist e is in now. Doing applies

@@ -261,7 +261,10 @@ coupling.
   does not fall while unconscious, or one that starts at or below
   `CriticalAt`. While down its affect decays and uranium and sealed rooms still
   apply, but it perceives and chooses nothing: it cannot flee, and nobody can
-  pull it into a conversation. The `passed-out` reaction hits grip hardest
+  pull it into a conversation. It is a **casualty**: a colonist who sees it may
+  stop to bring it round sooner (with a `roused` drive effect that holds its
+  sleep off for a while) and share a meal, and a hostile alien reckons it
+  nearer than it is. See [emergency-services.md](./emergency-services.md). The `passed-out` reaction hits grip hardest
   (losing control of your own body) and is worse each time. `PassedOut` counts
   as sleeping on the Activity chart; `driveActivityOf` files it as unconscious,
   because the floor is not a bed.

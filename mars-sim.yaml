@@ -829,6 +829,22 @@ siting-auto: true
 ##     penalty per cheap distance unit
 #     distance-weight: 0
 
+#   aid:
+##     baseline score before state contributions
+#     base: 30
+
+##     matching drive pressure contribution
+#     drive-weight: 0
+
+##     signed response to affect charge
+#     charge-weight: 10
+
+##     signed response to affect grip
+#     grip-weight: 30
+
+##     penalty per cheap distance unit
+#     distance-weight: 1
+
 ## score bonus for continuing the current eligible focus
 # focus-current-bonus: 25
 
@@ -952,6 +968,49 @@ siting-auto: true
 
 ## conversation quality points added when both partners are in the meeting hall
 # hall-talk-bonus: 15
+
+# ── Aid ─────────────────────────────────────────────────────────────────
+## colonists stop to help a passed-out colonist (off: nobody helps, as before)
+# aid: true
+
+## a colonist notices a casualty within this many tiles, on its own level
+# aid-sight: 6
+
+## ticks beside a passed-out colonist to bring it round
+# aid-rouse-ticks: 8
+
+## aid score for a casualty that is down but not getting worse
+# aid-peril-stable: 20
+
+## aid score for a casualty getting worse (hunger pressing while it lies there)
+# aid-peril-serious: 60
+
+## aid score for a casualty close to death (starving, or badly hurt)
+# aid-peril-critical: 150
+
+## aid score at full affinity toward the casualty (negative toward a rival)
+# aid-affinity-weight: 60
+
+## aid score added when the casualty is close family (spouse, parent, child, sibling)
+# aid-kin-bonus: 40
+
+## aid score a Caring colonist adds, and a Callous one takes away for anyone but family
+# aid-trait-bonus: 40
+
+## aid score a Cowardly colonist loses while an alien is in sight
+# aid-coward-penalty: 40
+
+## affinity a rescued colonist gains toward its rescuer
+# aid-gratitude: 30
+
+## most colonists a casualty remembers passing it by, for guilt if it dies
+# aid-passed-by-max: 16
+
+## a casualty below this percent of its hit points is critical
+# peril-critical-hp: 25
+
+## tiles nearer a hostile hunter reckons a passed-out colonist (0: hunters ignore helplessness)
+# helpless-prey-discount: 6
 
 # ── Affect ──────────────────────────────────────────────────────────────
 ## charge, grip and valence each run in [-mood-max, mood-max]

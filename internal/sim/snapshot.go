@@ -14,13 +14,16 @@ import (
 // moment it died, not a still-simulated thing occupying a tile. See
 // docs/combat.md.
 type EntityView struct {
-	ID        EntityID
-	Kind      Kind
-	Pos       Point
-	HP        int
-	MaxHP     int
-	State     State
-	Focus     FocusKind
+	ID    EntityID
+	Kind  Kind
+	Pos   Point
+	HP    int
+	MaxHP int
+	State State
+	Focus FocusKind
+	// Peril is how much danger a casualty (a colonist passed out where it
+	// fell) is in; PerilNone for everyone else. See casualty.go.
+	Peril     Peril
 	Drives    [numDrives]int
 	Profile   *Profile  // colonists only; a deep copy, safe to read
 	Inventory Inventory // colonists only; copied by value
@@ -929,6 +932,7 @@ func (w *World) entityView(e *Entity, kinChildren map[kinID][]kinID, full bool) 
 		MaxHP:     e.MaxHP,
 		State:     e.State,
 		Focus:     e.focus,
+		Peril:     w.perilOf(e),
 		Drives:    w.currentDrives(e),
 		Profile:   e.Profile.clone(),
 		Inventory: e.Inventory,

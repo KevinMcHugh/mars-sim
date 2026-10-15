@@ -20,6 +20,10 @@ const (
 	FocusFlee
 	FocusFight
 	FocusEscape
+	// FocusAid is helping a casualty in sight: scored, never a rung, so a
+	// colonist's own needs, its ties to the casualty and its nature all weigh
+	// in. See casualty.go.
+	FocusAid
 
 	numFocusKinds
 )
@@ -44,6 +48,8 @@ func (f FocusKind) String() string {
 		return "fight"
 	case FocusEscape:
 		return "escape"
+	case FocusAid:
+		return "aid"
 	default:
 		return "focus"
 	}
@@ -82,6 +88,7 @@ type FocusCandidate struct {
 	Kind     FocusKind
 	Drive    DriveKind
 	Threat   EntityID
+	Casualty EntityID // FocusAid's casualty
 	Eligible bool
 	Score    FocusScore
 }
@@ -273,6 +280,9 @@ func (w *World) currentFocusEligible(e *Entity, threat *Entity) bool {
 		return threat != nil && bestWeapon(e.Inventory) != ItemNone
 	case FocusEscape:
 		return threat == nil && e.disconnectedTicks >= w.cfg.EscapeGraceTicks
+	case FocusAid:
+		c := w.entities[e.aidTarget]
+		return w.cfg.Aid && c != nil && w.isCasualty(c) && c.aidedBy == e.ID
 	default:
 		return false
 	}
@@ -285,6 +295,9 @@ func cachedFocusCandidate(e *Entity, threat *Entity) FocusCandidate {
 	}
 	if threat != nil && (e.focus == FocusFlee || e.focus == FocusFight) {
 		selected.Threat = threat.ID
+	}
+	if e.focus == FocusAid {
+		selected.Casualty = e.aidTarget
 	}
 	return selected
 }
@@ -307,6 +320,8 @@ type focusInputs struct {
 	armed                                   bool
 	escape                                  bool
 	noCompany                               bool // socialize has nobody to find (companyInReach)
+	aid                                     bool // a casualty is offered (aidOptionFor)
+	aidOption                               aidOption
 	currentBonus, criticalBonus, fatalBonus int
 }
 
@@ -328,6 +343,7 @@ func (w *World) focusCandidates(e *Entity, out *[numFocusKinds]FocusCandidate) {
 	if threat != nil {
 		threatID = threat.ID
 	}
+	aid, aidOK := w.aidOptionFor(e, hasThreat)
 	fillFocusCandidates(focusInputs{
 		focuses:       w.cfg.Focuses,
 		needs:         w.cfg.Drives,
@@ -345,6 +361,8 @@ func (w *World) focusCandidates(e *Entity, out *[numFocusKinds]FocusCandidate) {
 		armed:         bestWeapon(e.Inventory) != ItemNone,
 		escape:        !hasThreat && e.disconnectedTicks >= w.cfg.EscapeGraceTicks,
 		noCompany:     noCompany,
+		aid:           aidOK,
+		aidOption:     aid,
 		currentBonus:  w.cfg.FocusCurrentBonus,
 		criticalBonus: w.cfg.FocusCriticalBonus,
 		fatalBonus:    w.cfg.FocusFatalBonus,
@@ -440,6 +458,17 @@ func fillFocusCandidates(in focusInputs, out *[numFocusKinds]FocusCandidate) {
 	// thing that still outranks it — self-preservation never waits on a wall.
 	// See updateDisconnected and rooms.go's mainRoom.
 	out[FocusEscape].Eligible = in.escape
+
+	// Helping a casualty: its peril stands where a drive's pressure would,
+	// the helper's ties and nature in the personality slot.
+	if in.aid {
+		c := &out[FocusAid]
+		c.Eligible = true
+		c.Casualty = in.aidOption.casualty
+		c.Score.Drive = in.aidOption.peril
+		c.Score.Personality = in.aidOption.personality
+		c.Score.Distance = -in.aidOption.distance * in.focuses[FocusAid].DistanceWeight
+	}
 
 	if in.current < numFocusKinds && out[in.current].Eligible {
 		out[in.current].Score.Commitment = in.currentBonus

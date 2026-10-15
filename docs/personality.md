@@ -98,6 +98,7 @@ per group, each taken with `TraitChance` probability:
 | nerve | Resilient / Cowardly | wear rate 40 / 180; Cowardly also 1.5× threat impact |
 | outlook | Optimist / Pessimist | affect home `{grip: 8, valence: 25}` / `{grip: -8, valence: -25}` |
 | sleep | Short Sleeper / Long Sleeper | a night in bed one clock hour shorter / longer (`sleepHours`; see [days.md](./days.md)) |
+| compassion | Caring / Callous | aid score +`aid-trait-bonus` for anyone / −`aid-trait-bonus` for anyone but close family; Caring feels helping, guilt and grief harder, Callous feels helping less and no guilt for strangers (see [emergency-services.md](./emergency-services.md)) |
 
 `temperament` is a group of one today — unlike the others, Tidy isn't paired
 with a mutually-exclusive opposite yet (a "Slob", numbed to gore, would be
@@ -108,6 +109,10 @@ shape, waiting on its own opposite (a purist who recoils from mutants).
 `nerve`, `outlook` and `sleep` were appended after the existing groups so every
 pre-existing group roll keeps its order; the extra draws intentionally
 change later personality outcomes for a given seed.
+`compassion` came later still and is rolled differently: on a stream of its
+own (`compassionRNG`, `ownStreamGroup`, `rollCompassion`), after the profile,
+so adding it moved no trait any seed already rolled. A recruit's compassion is
+drawn last from the recruit stream, after its savings, for the same reason.
 
 `mutation` is different in kind: `TraitMutant` is marked `acquired`, so
 `rollTraits` never draws it and no colonist is ever *generated* a mutant —

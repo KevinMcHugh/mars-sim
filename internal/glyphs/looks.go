@@ -20,6 +20,8 @@ const (
 	zwj  = "\u200D"
 	vs16 = "\uFE0F"
 
+	fireEngine = "\U0001F692" // 🚒 the role component of a firefighter (👨‍🚒)
+
 	hairRed   = "\U0001F9B0" // 🦰
 	hairWhite = "\U0001F9B3" // 🦳
 	hairBald  = "\U0001F9B2" // 🦲
@@ -48,6 +50,33 @@ type lookKey struct {
 	figure string // the plain figure from ForColonist
 	tone   sim.SkinTone
 	hair   sim.HairColor
+	role   lookRole
+}
+
+// lookRole is what a look shows the colonist doing: at rest (its own figure,
+// hair and all), or a role whose emoji is a figure ZWJ an object.
+type lookRole uint8
+
+const (
+	roleResting lookRole = iota
+	// roleFirefighter is a colonist bringing a casualty round (sim.Aiding):
+	// 👨‍🚒 👩‍🚒 🧑‍🚒 in its own skin tone. A role sequence has no room for a
+	// hair component, and Unicode has no senior firefighter, so the figure
+	// is the adult one for the colonist's gender and hair folds away.
+	roleFirefighter
+)
+
+// adultFigure is the adult figure for the same gender as figure.
+func adultFigure(figure string) string {
+	switch figure {
+	case ManSenior:
+		return ManAdult
+	case WomanSenior:
+		return WomanAdult
+	case PersonSenior:
+		return PersonAdult
+	}
+	return figure
 }
 
 // seniors have no hair components in Unicode, only skin tones.
@@ -71,6 +100,16 @@ func foldHair(figure string, h sim.HairColor) sim.HairColor {
 // fuses because it is the one the colonist's flavor text leads with.
 func (k lookKey) build() Look {
 	tone := skinModifier(k.tone)
+	if k.role == roleFirefighter {
+		// The plain glyph a frontend with no looks draws (Aiding, from All)
+		// is the last resort, so a font without the sequence still shows
+		// someone helping rather than a firefighter split in two.
+		l := Look{k.figure + tone + zwj + fireEngine}
+		if tone != "" {
+			l = append(l, k.figure+zwj+fireEngine)
+		}
+		return append(l, Aiding)
+	}
 	withHair := func(tone string) string {
 		switch k.hair {
 		case sim.HairRed:
@@ -123,13 +162,22 @@ func init() {
 	for _, f := range figures {
 		for t := sim.SkinLight; t <= sim.SkinDark; t++ {
 			for _, h := range hairs {
-				k := lookKey{f, t, foldHair(f, h)}
+				k := lookKey{figure: f, tone: t, hair: foldHair(f, h)}
 				if _, ok := lookIndex[k]; ok {
 					continue
 				}
 				lookIndex[k] = len(Looks)
 				Looks = append(Looks, k.build())
 			}
+		}
+	}
+	// Roles come after every resting look, so adding them moved no index a
+	// frame already carried.
+	for _, f := range []string{ManAdult, WomanAdult, PersonAdult} {
+		for t := sim.SkinLight; t <= sim.SkinDark; t++ {
+			k := lookKey{figure: f, tone: t, hair: sim.HairBlack, role: roleFirefighter}
+			lookIndex[k] = len(Looks)
+			Looks = append(Looks, k.build())
 		}
 	}
 }
@@ -142,7 +190,7 @@ func lookKeyFor(p *sim.Profile) (lookKey, bool) {
 	if p == nil || figure == Mutant {
 		return lookKey{}, false
 	}
-	return lookKey{figure, p.SkinTone, foldHair(figure, p.HairColor)}, true
+	return lookKey{figure: figure, tone: p.SkinTone, hair: foldHair(figure, p.HairColor)}, true
 }
 
 // ForColonistLook is ForColonist with the colonist's own skin and hair: the
@@ -154,10 +202,21 @@ func ForColonistLook(p *sim.Profile) Look {
 	return nil
 }
 
-// entityLookKey is e's look when ForEntity draws it as its resting figure, not
-// a state glyph or another creature.
+// entityLookKey is e's look when ForEntity draws it as its resting figure, or
+// as a colonist helping a casualty (a firefighter in its own tone); not
+// another state glyph or another creature.
 func entityLookKey(e sim.EntityView) (lookKey, bool) {
-	if e.Kind != sim.Colonist || ForEntity(e) != ForColonist(e.Profile) {
+	if e.Kind != sim.Colonist {
+		return lookKey{}, false
+	}
+	if e.State == sim.Aiding && ForEntity(e) == Aiding {
+		k, ok := lookKeyFor(e.Profile)
+		if !ok {
+			return lookKey{}, false
+		}
+		return lookKey{figure: adultFigure(k.figure), tone: k.tone, hair: sim.HairBlack, role: roleFirefighter}, true
+	}
+	if ForEntity(e) != ForColonist(e.Profile) {
 		return lookKey{}, false
 	}
 	return lookKeyFor(e.Profile)

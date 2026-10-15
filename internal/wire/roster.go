@@ -125,6 +125,9 @@ func rosterRow(e sim.EntityView) RosterRow {
 	if e.State == sim.Idle {
 		r.State = "idling"
 	}
+	if e.Peril != sim.PerilNone {
+		r.State += " (" + e.Peril.String() + ")"
+	}
 	if e.Dead {
 		r.State = "dead — " + e.Cause
 	} else if e.MoodLabel != "" {

@@ -99,12 +99,15 @@ func (w *World) rollCandidate(taken map[string]bool) *recruitCandidate {
 	// updateProfession need.
 	scratch := &Entity{Kind: Colonist, Profile: p}
 	w.rollBackgroundFrom(r, scratch)
-	return &recruitCandidate{
+	c := &recruitCandidate{
 		profile:    p,
 		practice:   scratch.practice,
 		profession: scratch.profession,
 		savings:    rollSavings(r, w.cfg),
 	}
+	// Last, so it moves none of the draws above (see ownStreamGroup).
+	addCompassion(p, r, w.cfg.TraitChance)
+	return c
 }
 
 // rollSavings draws what a candidate brings: log-normal, with mean

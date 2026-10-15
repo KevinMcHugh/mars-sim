@@ -531,6 +531,7 @@ func (w *World) passOut(e *Entity, d DriveKind) {
 	w.emitOccurrence(o)
 	w.logEventAt(LogNote, e.Pos, fmt.Sprintf("%s passed out from exhaustion.", e.displayName()))
 	w.markMindDirty(e)
+	w.addCasualty(e)
 }
 
 // stayPassedOut runs an unconscious colonist's turn and reports whether it is
@@ -551,6 +552,7 @@ func (w *World) stayPassedOut(e *Entity) bool {
 	}
 	e.passedOut = false
 	e.State = Idle
+	w.dropCasualty(e)
 	w.markMindDirty(e)
 	return true // the waking tick is spent coming to
 }
