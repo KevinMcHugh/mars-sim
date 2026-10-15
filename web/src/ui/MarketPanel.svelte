@@ -6,11 +6,11 @@
   // order desk (ColonyOrders) is the Trade tab (TradePanel). A
   // book opens in place to list its orders (BookOrders), and any order opens
   // its detail (OrderDetail, docs/order-detail.md).
-  import { inspect, subscribe, topics, ui } from '../game.svelte';
+  import { inspect, subscribe, topics } from '../game.svelte';
   import AccountDetail from './AccountDetail.svelte';
   import BookOrders from './BookOrders.svelte';
   import Section from './Section.svelte';
-  import { money, when } from './format';
+  import { money } from './format';
 
   interface Market {
     accounts: { key: string; label: string; balance: number }[];
@@ -20,7 +20,7 @@
     plans: { actor: { id: number; name: string }; summary: string; waiting: boolean }[];
     chainDepth: number;
     work: { issuer: string; kind: string; units: number; held: number }[];
-    trades: { tick: number; seller: string; buyer: string; qty: number; item: string; price: number }[];
+    trades: { tick: number; when: string; seller: string; buyer: string; qty: number; item: string; price: number }[];
   }
 
   $effect(() => subscribe('market'));
@@ -135,7 +135,7 @@
     {:else}
       <ul class="lines">
         {#each m.trades as t, i (i)}
-          <li><span class="muted">{when(t.tick, ui.hello)}</span> {t.seller} sold {t.buyer} {t.qty} {t.item} @ {money(t.price)}</li>
+          <li><span class="muted">{t.when}</span> {t.seller} sold {t.buyer} {t.qty} {t.item} @ {money(t.price)}</li>
         {/each}
       </ul>
     {/if}

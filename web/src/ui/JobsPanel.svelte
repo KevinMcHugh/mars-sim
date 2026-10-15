@@ -3,12 +3,12 @@
   // the TUI's shows it. Selecting a project lays its tiles over the map:
   // yellow queued, orange being built, green done.
   import { centerOn, highlight, inspect, subscribe, topics, ui } from '../game.svelte';
-  import { span, when } from './format';
+  import { span } from './format';
   import { JOB_BUILDING, JOB_DONE, JOB_QUEUED } from '../map/palette';
 
   interface Person { id: number; name: string }
   interface Task { x: number; y: number; level: number; terrain: string; phase: number; done: boolean; builder?: Person }
-  interface Project { id: number; name: string; queuedTick: number; done: number; tasks: Task[]; assignees: Person[] }
+  interface Project { id: number; name: string; queuedTick: number; queuedAt: string; queuedMinutes: number; done: number; tasks: Task[]; assignees: Person[] }
   interface Jobs { projects: Project[]; pending: Record<string, number> }
 
   $effect(() => subscribe('jobs'));
@@ -39,12 +39,6 @@
   }
 
   const pending = $derived(jobs ? Object.entries(jobs.pending) : []);
-
-  /** How long ago a project was queued, in colony time (a day is 1440 minutes). */
-  function queuedAgo(queued: number): string {
-    const tpd = Math.max(ui.hello?.ticksPerDay ?? 1, 1);
-    return span((Math.max(0, ui.tick - queued) * 1440) / tpd);
-  }
 </script>
 
 {#if !jobs}
@@ -66,7 +60,7 @@
           <span class="name">{p.name}</span>
           <span class="frac">{p.done}/{p.tasks.length}</span>
           <span class="bar"><span style="width: {p.tasks.length ? (p.done * 100) / p.tasks.length : 0}%"></span></span>
-          <span class="sub">{p.assignees.length} assigned · queued {when(p.queuedTick, ui.hello)}, {queuedAgo(p.queuedTick)} ago</span>
+          <span class="sub">{p.assignees.length} assigned · queued {p.queuedAt}, {span(p.queuedMinutes)} ago</span>
         </button>
         {#if p.id === openId}
           <div class="detail">

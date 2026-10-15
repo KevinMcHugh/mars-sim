@@ -66,9 +66,7 @@ header words, the frame's **level** and the **levels** that exist, and
 Hello's `landingLevel` and `deepestLevel` (see "Levels" below). Hello's
 `sitingAuto` (no version bump: the frame layout is unchanged) is the
 `siting-auto` setting, so the Dig tab can offer orders that leave the tile to
-the colony ([siting.md](./siting.md)). Hello's `ticksPerDay` and
-`landingHour` (also no bump) are the colony calendar, so the page can date a
-tick it was sent as "Day 3 07:05" ([days.md](./days.md)).
+the colony ([siting.md](./siting.md)).
 
 ### A frame
 

@@ -428,9 +428,6 @@ func TestHelloNamesEverythingAFrameIndexes(t *testing.T) {
 	if h.Version != Version || h.PageSide != sim.TilePageSide || h.Width != 150 || !h.FogOfWar {
 		t.Errorf("hello = %+v", h)
 	}
-	if h.TicksPerDay < 1 || h.LandingHour != sim.LandingHour {
-		t.Errorf("calendar = %d ticks a day, landing at %d", h.TicksPerDay, h.LandingHour)
-	}
 	if len(h.Stats) != len(statFields) || h.Stats[0] != "Colonists" {
 		t.Errorf("stats = %v", h.Stats)
 	}

@@ -418,7 +418,7 @@ export const topics = new TopicData();
 /** A colony-log line's tile: where clicking the line takes the map. */
 export interface LogPlace { x: number; y: number; level: number }
 /** One colony-log line (internal/wire/log.go), and when the page got it. */
-export interface LogLine { seq: number; tick: number; kind: string; text: string; place?: LogPlace; at: number }
+export interface LogLine { seq: number; tick: number; when: string; kind: string; text: string; place?: LogPlace; at: number }
 
 /** How many log lines the page keeps. The engine keeps only -log-size (64). */
 export const LOG_KEEP = 2000;

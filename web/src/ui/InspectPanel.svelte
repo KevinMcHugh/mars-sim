@@ -8,7 +8,6 @@
   import { centerOn, inspect, selectionTopic, setPanel, subscribe, topics, ui } from '../game.svelte';
   import Bar from './Bar.svelte';
   import Section from './Section.svelte';
-  import { when, whenRange } from './format';
   import type { EntityInfo, TileInfo } from './inspect';
 
   // The tabs that open the inspector, for its way back.
@@ -23,9 +22,6 @@
   const tile = $derived(ui.selected && 'tile' in ui.selected ? (data as TileInfo | undefined) : undefined);
   const c = $derived(entity?.colonist);
 
-  function memoryTick(m: { tick: number; lastTick: number; count: number }): string {
-    return m.count > 1 ? `${whenRange(m.tick, m.lastTick, ui.hello)} (×${m.count})` : when(m.tick, ui.hello);
-  }
 </script>
 
 {#if ui.inspectFrom && backLabels[ui.inspectFrom]}
@@ -57,7 +53,7 @@
 
     <Section id="inspect.status" title="Status">
       {#if entity.dead}
-        <p>Died {when(entity.diedTick ?? 0, ui.hello)} — {entity.cause}</p>
+        <p>Died {entity.diedAt} — {entity.cause}</p>
       {:else}
         <p>{entity.state}{entity.focus && entity.focus !== 'idle' ? ` · focus: ${entity.focus}` : ''}</p>
         <div class="bars"><Bar label="health" value={entity.hp} max={entity.maxHp} /></div>
@@ -159,7 +155,7 @@
           <p class="muted">no memories yet</p>
         {:else}
           <ul class="memories">
-            {#each c.memories as m, i (i)}<li><span class="tick">{memoryTick(m)}</span> {m.text}</li>{/each}
+            {#each c.memories as m, i (i)}<li><span class="tick">{m.when}{m.count > 1 ? ` (×${m.count})` : ''}</span> {m.text}</li>{/each}
           </ul>
         {/if}
       </Section>
@@ -212,7 +208,7 @@
       <ul class="plain">
         {#each named as b (b.id)}
           <li>
-            <button type="button" class="link" onclick={() => inspect({ entity: b.id }, ui.inspectFrom)}>{pickGlyph(b.look, b.glyph)} {b.name}</button>{#if b.cause}<span class="detail">· {b.cause}</span>{/if}{#if b.diedTick !== undefined}<span class="detail when">· {when(b.diedTick, ui.hello)}</span>{/if}
+            <button type="button" class="link" onclick={() => inspect({ entity: b.id }, ui.inspectFrom)}>{pickGlyph(b.look, b.glyph)} {b.name}</button>{#if b.cause}<span class="detail">· {b.cause}</span>{/if}{#if b.diedAt}<span class="detail when">· {b.diedAt}</span>{/if}
           </li>
         {/each}
         {#if unnamed > 0}<li class="muted">{unnamed === 1 ? 'one' : unnamed} unidentified</li>{/if}

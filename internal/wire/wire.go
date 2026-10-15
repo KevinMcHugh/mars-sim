@@ -58,11 +58,6 @@ type Hello struct {
 	// where to dig down itself (docs/siting.md), so the page can offer
 	// orders without a tile.
 	SitingAuto bool `json:"sitingAuto"`
-	// TicksPerDay and LandingHour are the colony calendar (sim.DayOf,
-	// sim.MinuteOfDay), so the page can date a log line, a memory or a
-	// death as "Day 3 07:05" rather than by its tick. See docs/days.md.
-	TicksPerDay int `json:"ticksPerDay"`
-	LandingHour int `json:"landingHour"`
 }
 
 // HelloGlyphs is the map's emoji (internal/glyphs) as the page needs them: the
@@ -162,9 +157,6 @@ func NewHello(snap *sim.Snapshot) Hello {
 		LandingLevel: int(sim.LandingLevel),
 		DeepestLevel: deepestLevel(snap),
 		SitingAuto:   snap.Config != nil && snap.Config.SitingAuto,
-
-		TicksPerDay: max(snap.TicksPerDay, 1),
-		LandingHour: sim.LandingHour,
 	}
 }
 

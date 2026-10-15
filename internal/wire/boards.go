@@ -30,12 +30,16 @@ type JobsTopic struct {
 
 // Project is one queued construction project.
 type Project struct {
-	ID         int      `json:"id"`
-	Name       string   `json:"name"`
-	QueuedTick int      `json:"queuedTick"`
-	Done       int      `json:"done"`
-	Tasks      []Task   `json:"tasks"`
-	Assignees  []Person `json:"assignees"`
+	ID         int    `json:"id"`
+	Name       string `json:"name"`
+	QueuedTick int    `json:"queuedTick"`
+	// QueuedAt is QueuedTick as a colony date and time (sim.Clock), and
+	// QueuedMinutes how long ago that was, in colony minutes.
+	QueuedAt      string   `json:"queuedAt"`
+	QueuedMinutes int      `json:"queuedMinutes"`
+	Done          int      `json:"done"`
+	Tasks         []Task   `json:"tasks"`
+	Assignees     []Person `json:"assignees"`
 }
 
 // Task is one tile of a project. Builder is set while someone is building it.
@@ -67,6 +71,7 @@ func jobsTopic(s *sim.Snapshot) JobsTopic {
 	}
 	for _, p := range s.Projects {
 		pr := Project{ID: p.ID, Name: p.Name, QueuedTick: p.QueuedTick, Done: p.TasksDone(),
+			QueuedAt: sim.Clock(p.QueuedTick, s.TicksPerDay), QueuedMinutes: colonyMinutes(s, s.Tick-p.QueuedTick),
 			Tasks: make([]Task, 0, len(p.Tasks)), Assignees: []Person{}}
 		for _, tk := range p.Tasks {
 			task := Task{X: tk.Pos.X, Y: tk.Pos.Y, Level: int(tk.Pos.Level), Terrain: tk.Terrain.String(), Phase: tk.Phase, Done: tk.Done}
@@ -318,6 +323,7 @@ type WorkLine struct {
 // TradeLine is one trade.
 type TradeLine struct {
 	Tick   int    `json:"tick"`
+	When   string `json:"when"` // Tick as a colony date and time (sim.Clock)
 	Seller string `json:"seller"`
 	Buyer  string `json:"buyer"`
 	Qty    int    `json:"qty"`
@@ -407,7 +413,7 @@ func marketTopic(s *sim.Snapshot) MarketTopic {
 	}
 	for i := len(econ.Trades) - 1; i >= 0 && len(t.Trades) < maxTradeLines; i-- {
 		tr := econ.Trades[i]
-		t.Trades = append(t.Trades, TradeLine{Tick: tr.Tick, Seller: ownerLabel(s, tr.Seller), Buyer: ownerLabel(s, tr.Buyer),
+		t.Trades = append(t.Trades, TradeLine{Tick: tr.Tick, When: sim.Clock(tr.Tick, s.TicksPerDay), Seller: ownerLabel(s, tr.Seller), Buyer: ownerLabel(s, tr.Buyer),
 			Qty: tr.Qty, Item: tr.Item.String(), Price: int64(tr.Price)})
 	}
 	return t

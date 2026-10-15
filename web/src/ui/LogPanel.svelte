@@ -17,7 +17,6 @@
   // times a second.
   import { tick } from 'svelte';
   import { colonyLog, goToLogLine, LOG_KEEP, setTicker, ui } from '../game.svelte';
-  import { when } from './format';
   import { logKindColor } from './logkinds';
 
   let kind = $state('');
@@ -127,7 +126,7 @@
     {#each shown as l (l.seq)}
       {#snippet body()}
         <span class="kind" style="color: {logKindColor(l.kind)}">{l.kind}</span>
-        <span class="tick">{when(l.tick, ui.hello)}</span>
+        <span class="tick">{l.when}</span>
         <span class="text">{l.text}</span>
       {/snippet}
       {#if l.place}
