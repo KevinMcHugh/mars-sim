@@ -272,6 +272,7 @@ func (w *World) fall(e *Entity) bool {
 		return false
 	}
 	w.logEvent(LogNote, fmt.Sprintf("%s falls %d level(s) down a hole to level %d.", capitalizeFirst(name), levels, dest.Level))
+	w.hurt(e)
 	return true
 }
 

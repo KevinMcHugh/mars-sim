@@ -1,7 +1,8 @@
 // The inspector's topic payloads (internal/wire/inspect.go: EntityTopic and
 // TileTopic), as the page reads them.
 
-export interface PartHP { name: string; hp: number; max: number }
+/** wound is "open", "dressed", or absent for a whole part (docs/emergency-services.md). */
+export interface PartHP { name: string; hp: number; max: number; wound?: string }
 export interface Stack { slot: number; item: string; count: number }
 
 export interface Colonist {

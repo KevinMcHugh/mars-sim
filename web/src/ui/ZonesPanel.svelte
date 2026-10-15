@@ -6,7 +6,7 @@
   // The overlay itself comes from the zones topic, which the page always
   // holds; this tab adds the zoning topic. The Defense tool posts a detail of
   // armed colonists to keep an area safe, on any level (docs/defense.md).
-  import { anyLevelTool, applyZone, armZone, cancelClear, cancelDefense, centerOn, clearZoneTool, setDefenseDetail, subscribe, topics, ui, zoneChanged } from '../game.svelte';
+  import { anyLevelTool, applyZone, armZone, cancelClear, cancelDefense, centerOn, clearZoneTool, setDefenseDetail, setEMTDetail, subscribe, topics, ui, zoneChanged } from '../game.svelte';
   import { untrack } from 'svelte';
   import { money } from './format';
   import Help from './Help.svelte';
@@ -33,6 +33,7 @@
     armed: number;
     maxDefense: number;
     maxDetail: number;
+    emt: { detail: number; max: number; onCall: { id: number; name: string }[]; wage: number; paid: number; cots: number };
   }
 
   $effect(() => subscribe('zoning'));
@@ -233,6 +234,26 @@
       </li>
     {/each}
   </ul>
+{/if}
+
+<h2>Emergency services</h2>
+{#if !z}
+  <p class="muted">Loading…</p>
+{:else}
+  <ul class="lines">
+    <li>
+      <b>EMTs on call</b> {z.emt.onCall.length}/{z.emt.detail}
+      <span class="stepper">
+        <button type="button" disabled={z.emt.detail <= 0} onclick={() => setEMTDetail(z.emt.detail - 1)} aria-label="One EMT fewer">−</button>
+        <button type="button" disabled={z.emt.detail >= z.emt.max} onclick={() => setEMTDetail(z.emt.detail + 1)} aria-label="One EMT more">+</button>
+      </span>
+      <div class="muted holds">
+        {#if z.emt.detail === 0}none kept on call: only colonists who happen by help a casualty{:else if z.emt.onCall.length > 0}{z.emt.onCall.map((g) => g.name).join(', ')}{:else}waiting for colonists looking for work{/if}
+        · {money(z.emt.wage)} an hour each · {money(z.emt.paid)} paid · {z.emt.cots} {z.emt.cots === 1 ? 'cot' : 'cots'}
+      </div>
+    </li>
+  </ul>
+  <p class="muted">EMTs keep working while on call, drop it for a casualty anywhere in the colony, and carry anyone who cannot be brought round to an infirmary cot.</p>
 {/if}
 
 <h2>Open clearing orders</h2>

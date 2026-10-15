@@ -159,6 +159,12 @@ const (
 	// walkable, and not a link, since nothing comes back up it. What goes
 	// in lands on the tile underneath. See holes.go and docs/holes.md.
 	Hole
+	// Cot is a bed in an infirmary, where an EMT lays a colonist down from
+	// blood loss: its hunger held while it lies there, its wounds healing
+	// faster. Furniture, like a chair: nobody owns one or uses it through the
+	// facility machinery; a casualty lies on the floor beside it. Blocks
+	// movement. See wounds.go and docs/emergency-services.md.
+	Cot
 
 	numTerrains // keep last: the number of terrain kinds
 )
@@ -207,6 +213,8 @@ func (t Terrain) String() string {
 		return "shaft bottom"
 	case Hole:
 		return "hole"
+	case Cot:
+		return "cot"
 	default:
 		return "unknown"
 	}
@@ -890,6 +898,13 @@ type World struct {
 	casualties []EntityID
 	aidRescues int
 	aidDeaths  int
+	// The EMT detail (emt.go): how many the player wants on call, who is (by
+	// ID), and what the colony has paid them. cotClaims is which casualty
+	// lies beside, or is being dragged to, each infirmary cot (wounds.go).
+	emtDetail int
+	onCall    []EntityID
+	emtPaid   Money
+	cotClaims map[Point]EntityID
 	// haulClaims records which colonist has taken each open haul order, so
 	// two never set off for the same goods. See hauling.go.
 	haulClaims map[OrderID]EntityID
@@ -1052,6 +1067,7 @@ func newWorld(cfg Config, src *rand.PCG) *World {
 		books:             make(map[bookKey]*book),
 		plans:             make(map[planID]*plan),
 		haulClaims:        make(map[OrderID]EntityID),
+		cotClaims:         make(map[Point]EntityID),
 		candidatesTick:    -1,
 		kin:               make(map[kinID]*kinPerson),
 		nextKinID:         1,
@@ -1080,6 +1096,7 @@ func newWorld(cfg Config, src *rand.PCG) *World {
 	w.topicRNG = rand.New(w.rngSrc.topic)
 	w.rngSrc.recruit = newPCG(cfg.Seed ^ recruitSeed)
 	w.recruitRNG = rand.New(w.rngSrc.recruit)
+	w.emtDetail = cfg.EMTDetail
 	w.rngSrc.compassion = newPCG(cfg.Seed ^ compassionSeed)
 	w.compassionRNG = rand.New(w.rngSrc.compassion)
 	if len(cfg.SpeciesPack) > 0 {
@@ -1141,6 +1158,7 @@ func newWorld(cfg Config, src *rand.PCG) *World {
 	w.trackFacility(GunBench)
 	// Colonists walk to a meeting hall's chairs to socialize and to eat.
 	w.trackFacility(Chair)
+	w.trackFacility(Cot)
 	// And scrapers and harvesters to the incubator.
 	w.trackFacility(Incubator)
 	w.communityMealsTick = -1
@@ -1613,6 +1631,7 @@ func (w *World) remove(id EntityID, cause string) {
 		// A casualty's death is settled with the living (guilt, grief) while
 		// its name and family can still be read.
 		w.casualtyDied(e)
+		w.releaseOnCall(e)
 		// Open orders go first, so a bid's escrow is back in the wallet
 		// before the wallet freezes.
 		w.cancelOrdersOf(ColonistOwner(e.ID))

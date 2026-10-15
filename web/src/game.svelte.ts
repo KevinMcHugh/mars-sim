@@ -542,6 +542,11 @@ export function setDefenseDetail(id: number, qty: number): void {
   ctl?.command({ type: 'defend-detail', id, qty });
 }
 
+/** Change how many colonists the colony keeps on call as EMTs. */
+export function setEMTDetail(qty: number): void {
+  ctl?.command({ type: 'emt-detail', qty });
+}
+
 /** Stand a defense zone's detail down. */
 export function cancelDefense(id: number): void {
   ctl?.command({ type: 'defend-cancel', id });

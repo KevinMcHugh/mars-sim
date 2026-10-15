@@ -28,6 +28,11 @@ const (
 	SkillCooking
 	SkillConstruction
 	SkillSmithing
+	// SkillMedicine is learned by seeing to casualties: dressing wounds,
+	// bringing colonists round, dragging them to a cot. Nobody arrives with
+	// it (backgroundWeights leaves it out), so adding it moved no seed's
+	// arrival rolls. See casualty.go.
+	SkillMedicine
 	numSkills
 )
 
@@ -96,6 +101,13 @@ var skillSpecs = [numSkills]skillSpec{
 		Name: "smithing", Unit: 80, Base: 6, // rank 1 at two ingots
 		Labels:  []string{"", "apprentice smith", "journeyman smith", "smith", "master smith"},
 		Effects: []rankEffect{{100, 100}, {100, 100}, {75, 110}, {55, 125}, {40, 140}},
+	},
+	// Medicine: ticks to dress a wound, and (as yield) how fast what the
+	// medic dressed heals.
+	SkillMedicine: {
+		Name: "medicine", Unit: 30, Base: 3, // rank 1 at two dressings
+		Labels:  []string{"", "first-aider", "medic", "paramedic", "doctor"},
+		Effects: []rankEffect{{100, 100}, {100, 100}, {80, 110}, {65, 125}, {50, 150}},
 	},
 }
 

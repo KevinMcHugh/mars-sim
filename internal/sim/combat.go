@@ -53,6 +53,9 @@ func applyDamage(target *Entity, part BodyPart, dmg int) (fatal bool) {
 		if target.Parts[part] < 0 {
 			target.Parts[part] = 0
 		}
+		if dmg > 0 {
+			target.wound(part)
+		}
 	}
 	target.HP -= dmg
 	if target.HP < 0 {
