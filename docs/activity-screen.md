@@ -134,6 +134,10 @@ column, rounded up to a whole colonist. The x axis reuses the Population tab's
 
 ## Related
 
+- [charts.md](./charts.md): the `activity` and `activity-walking` metrics
+  chart the same classification as hourly head counts in the browser's
+  custom charts.
+
 - [population-screen.md](./population-screen.md): the history this rides on.
 - [entities-and-ai.md](./entities-and-ai.md): State, focus, and job.
 - [frontend-tui.md](./frontend-tui.md): tabs and screens.

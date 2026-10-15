@@ -97,6 +97,7 @@ test('the picker sorts ranks by skill, then by rank as a number', () => {
     'mining 3: digger', 'mining 10: x', 'smithing 2: journeyman smith',
   ]);
   assert.deepEqual(pickerOrder('fixture', ['scumhouse', 'bed', 'forge'].map(s)).map((x) => x.subject), ['bed', 'forge', 'scumhouse']);
+  assert.deepEqual(pickerOrder('activity', ['sleeping', 'cooking', 'idle'].map(s)).map((x) => x.subject), ['cooking', 'idle', 'sleeping']);
   // Goods keep the catalog's order.
   const goods = ['meal', 'iron ore'].map(s);
   assert.equal(pickerOrder('item', goods), goods);
