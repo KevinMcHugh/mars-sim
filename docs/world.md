@@ -45,9 +45,11 @@ excavation rules instead of multiplying terrain cases throughout the simulation.
 
 Uranium is the one composition that does something beyond its yield: standing
 next to an unexcavated uranium deposit (or carrying the ore away from it) puts a
-colonist under a dose that can eventually mutate them. It is also the scarcest
-deposit, at 1% of rock against iron's 10%, because that dose is the point of it:
-uranium is meant to be a hazard a colony stumbles onto, not a routine yield.
+colonist under a dose that can eventually mutate them. It is also by far the
+scarcest deposit, at 3 tiles in a thousand against iron's 10%, set per mille
+(`uranium-rock-permille`) because a whole percent was too much: uranium is meant
+to be a strike a colony digs for, and a hazard when it finds one, not a routine
+yield ([power.md](./power.md)).
 That lives entirely in `mutation.go` and reads the tile — the tile itself
 behaves like any other rock. See [mutation.md](./mutation.md).
 

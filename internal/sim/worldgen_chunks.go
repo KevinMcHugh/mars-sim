@@ -91,18 +91,25 @@ const (
 // New compositions go at the end, so adding one moves no existing vein.
 var veinLevels = [...]RockComposition{IronBearingRock, WaterIceBearingRock, UraniumBearingRock, ClayBearingRock}
 
-func veinPercent(cfg *Config, level int) int {
+// veinShare is the share of the map a composition level covers, as share
+// tiles in every per: per is 100 for the compositions set in percent and 1000
+// for uranium, set per mille. The vein count keeps each composition's own
+// denominator rather than converting everything to per mille, because the
+// denominator is the bound of the count's one random draw: a percent
+// composition drawn over a thousand would move every iron and ice vein on
+// every seed.
+func veinShare(cfg *Config, level int) (share, per int) {
 	switch veinLevels[level] {
 	case IronBearingRock:
-		return cfg.IronRockPercent
+		return cfg.IronRockPercent, 100
 	case WaterIceBearingRock:
-		return cfg.IceRockPercent
+		return cfg.IceRockPercent, 100
 	case UraniumBearingRock:
-		return cfg.UraniumRockPercent
+		return cfg.UraniumRockPermille, 1000
 	case ClayBearingRock:
-		return cfg.ClayRockPercent
+		return cfg.ClayRockPercent, 100
 	}
-	return 0
+	return 0, 100
 }
 
 // chunkKey names a worldgen chunk.
@@ -412,16 +419,16 @@ func (g *worldGen) veinPlan(level int, k chunkKey) []Point {
 		return v
 	}
 	var tiles []Point
-	pct := veinPercent(&g.cfg, level)
+	share, per := veinShare(&g.cfg, level)
 	lo, hi, ok := g.chunkBounds(k)
-	if ok && pct > 0 {
-		tiles = g.growVeins(level, k, lo, hi, pct)
+	if ok && share > 0 {
+		tiles = g.growVeins(level, k, lo, hi, share, per)
 	}
 	g.veins[level].put(k, tiles)
 	return tiles
 }
 
-func (g *worldGen) growVeins(level int, k chunkKey, lo, hi Point, pct int) []Point {
+func (g *worldGen) growVeins(level int, k chunkKey, lo, hi Point, share, per int) []Point {
 	minSize := max(2, g.cfg.RockVeinMin) // a one-tile vein is an isolated deposit
 	maxSize := max(minSize, g.cfg.RockVeinMax)
 
@@ -446,7 +453,7 @@ func (g *worldGen) growVeins(level int, k chunkKey, lo, hi Point, pct int) []Poi
 
 	rng := g.featureRand(genStreamVein+uint64(level), int64(k.cx), int64(k.cy))
 	area := int64(hi.X-lo.X+1) * int64(hi.Y-lo.Y+1)
-	count := stratified(rng, area*int64(pct)*2, 100*int64(minSize+maxSize))
+	count := stratified(rng, area*int64(share)*2, int64(per)*int64(minSize+maxSize))
 
 	const box = 2*veinReach + 1
 	g.own = resetBools(g.own, box*box)

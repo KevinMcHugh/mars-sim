@@ -66,12 +66,12 @@ func TestRockDepositsAreVeinsRatherThanIsolatedTiles(t *testing.T) {
 	// composition keep running into each other and the map edge.
 	for _, tc := range []struct {
 		name                   string
-		iron, ice, uran, clay  int
+		iron, ice, uran, clay  int // uran per mille, the rest percent
 		veinMin, veinMax, size int
 	}{
-		{"ordinary", 10, 5, 1, 7, 8, 16, 40},
-		{"crowded", 30, 20, 10, 20, 4, 24, 40},
-		{"tiny-veins", 10, 10, 10, 10, 1, 2, 30},
+		{"ordinary", 10, 5, 10, 7, 8, 16, 40},
+		{"crowded", 30, 20, 100, 20, 4, 24, 40},
+		{"tiny-veins", 10, 10, 100, 10, 1, 2, 30},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			for seed := int64(1); seed <= 300; seed++ {
@@ -79,7 +79,7 @@ func TestRockDepositsAreVeinsRatherThanIsolatedTiles(t *testing.T) {
 				cfg.Width, cfg.Height = tc.size, tc.size*3/4
 				cfg.StartColonists, cfg.StartAliens, cfg.StartCats, cfg.StartRats = 0, 0, 0, 0
 				cfg.IronRockPercent, cfg.IceRockPercent = tc.iron, tc.ice
-				cfg.UraniumRockPercent, cfg.ClayRockPercent = tc.uran, tc.clay
+				cfg.UraniumRockPermille, cfg.ClayRockPercent = tc.uran, tc.clay
 				cfg.RockVeinMin, cfg.RockVeinMax = tc.veinMin, tc.veinMax
 				cfg.Seed = seed
 				if p, ok := isolatedDeposit(NewEngine(cfg).world); ok {
@@ -97,7 +97,7 @@ func TestRockDepositsAreVeinsRatherThanIsolatedTiles(t *testing.T) {
 			cfg := testConfig()
 			cfg.Width, cfg.Height = 200, 130
 			cfg.IronRockPercent, cfg.IceRockPercent = 30, 20
-			cfg.UraniumRockPercent, cfg.ClayRockPercent = 10, 20
+			cfg.UraniumRockPermille, cfg.ClayRockPercent = 100, 20
 			cfg.RockVeinMin, cfg.RockVeinMax = 2, 24
 			cfg.Seed = seed
 			g := newWorldGen(cfg, LandingLevel)

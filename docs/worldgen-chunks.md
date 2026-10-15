@@ -131,8 +131,12 @@ and that is what makes the order irrelevant.
 Compositions have a priority order, `veinLevels`: iron, then ice, uranium,
 clay. For each chunk and level:
 
-- **Count.** `stratified(area × percent / 100 / mean vein size)`: the floor of
+- **Count.** `stratified(area × share / per / mean vein size)`: the floor of
   the expected count, plus one with the leftover fraction as its probability.
+  `veinShare` gives each level its share and its `per`: 100 for the
+  compositions set in percent, 1000 for uranium, set per mille. Each keeps
+  its own denominator because the denominator bounds the count's random draw:
+  converting iron to per mille would have moved every iron vein on every seed.
 - **Origin.** A random tile of the chunk that is not taken by an earlier
   level and has at least one free orthogonal neighbour. It gets
   `veinOriginTries` (8) attempts, then the vein is skipped.
@@ -318,38 +322,39 @@ The old generator hit each percentage exactly, because it counted tiles across
 the whole map. A chunk can only aim at its own share, so abundance is now an
 expected value. Here is how far it drifts, over many seeds at the default
 config (`MARS_DRIFT_REPORT=1 go test ./internal/sim -run
-TestAbundanceDriftReport -v`):
+TestAbundanceDriftReport -v`). Uranium is per mille in the settings and in
+percent here, like everything else (3 per mille is 0.3%):
 
 | map | seeds | feature | target % | mean % | mean error | sd | min | max |
 | --- | ---: | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| 80x40 | 500 | iron | 10 | 10.02 | +0.2% | 0.72 | 7.94 | 12.19 |
-| 80x40 | 500 | ice | 5 | 5.01 | +0.2% | 0.48 | 3.44 | 6.31 |
-| 80x40 | 500 | uranium | 1 | 1.01 | +0.8% | 0.41 | 0.12 | 2.00 |
-| 80x40 | 500 | clay | 5 | 4.97 | -0.5% | 0.49 | 3.66 | 6.31 |
-| 80x40 | 500 | cavern | 4 | 3.91 | -2.2% | 1.15 | 0.97 | 7.22 |
-| 80x40 | 500 | scum | 6 | 6.00 | -0.1% | 0.02 | 5.88 | 6.03 |
-| 80x40 | 500 | salt | 3 | 3.00 | +0.0% | 0.02 | 2.94 | 3.03 |
-| 256x256 | 500 | iron | 10 | 9.97 | -0.3% | 0.26 | 9.29 | 10.54 |
-| 256x256 | 500 | ice | 5 | 4.98 | -0.5% | 0.15 | 4.62 | 5.42 |
-| 256x256 | 500 | uranium | 1 | 1.01 | +1.3% | 0.10 | 0.73 | 1.26 |
-| 256x256 | 500 | clay | 5 | 4.98 | -0.4% | 0.14 | 4.60 | 5.39 |
-| 256x256 | 500 | cavern | 4 | 4.11 | +2.7% | 0.33 | 3.09 | 4.99 |
-| 256x256 | 500 | scum | 6 | 6.00 | -0.1% | 0.01 | 5.98 | 6.00 |
-| 256x256 | 500 | salt | 3 | 3.00 | -0.0% | 0.00 | 2.98 | 3.00 |
-| 1024x1024 | 100 | iron | 10 | 10.00 | -0.0% | 0.11 | 9.79 | 10.14 |
-| 1024x1024 | 100 | ice | 5 | 4.97 | -0.6% | 0.04 | 4.88 | 5.02 |
-| 1024x1024 | 100 | uranium | 1 | 1.00 | +0.1% | 0.04 | 0.95 | 1.07 |
-| 1024x1024 | 100 | clay | 5 | 4.95 | -0.9% | 0.03 | 4.89 | 4.99 |
-| 1024x1024 | 100 | cavern | 4 | 4.08 | +2.0% | 0.14 | 3.78 | 4.40 |
-| 1024x1024 | 100 | scum | 6 | 5.99 | -0.1% | 0.00 | 5.99 | 6.00 |
-| 1024x1024 | 100 | salt | 3 | 3.00 | -0.0% | 0.00 | 3.00 | 3.00 |
-| 4096x4096 | 10 | iron | 10 | 9.95 | -0.5% | 0.00 | 9.95 | 9.96 |
-| 4096x4096 | 10 | ice | 5 | 4.94 | -1.2% | 0.00 | 4.94 | 4.94 |
-| 4096x4096 | 10 | uranium | 1 | 0.97 | -3.0% | 0.00 | 0.97 | 0.97 |
-| 4096x4096 | 10 | clay | 5 | 4.94 | -1.2% | 0.00 | 4.94 | 4.94 |
-| 4096x4096 | 10 | cavern | 4 | 4.16 | +3.9% | 0.02 | 4.12 | 4.18 |
-| 4096x4096 | 10 | scum | 6 | 5.99 | -0.1% | 0.00 | 5.99 | 5.99 |
-| 4096x4096 | 10 | salt | 3 | 3.00 | -0.0% | 0.00 | 3.00 | 3.00 |
+| 80x40 | 500 | iron | 10.0 | 10.02 | +0.2% | 0.72 | 7.94 | 12.19 |
+| 80x40 | 500 | ice | 5.0 | 5.01 | +0.2% | 0.48 | 3.44 | 6.31 |
+| 80x40 | 500 | uranium | 0.3 | 0.30 | -1.3% | 0.32 | 0.00 | 1.38 |
+| 80x40 | 500 | clay | 5.0 | 4.97 | -0.5% | 0.48 | 3.66 | 6.31 |
+| 80x40 | 500 | cavern | 4.0 | 3.96 | -1.1% | 1.17 | 0.94 | 7.97 |
+| 80x40 | 500 | scum | 6.0 | 6.00 | -0.1% | 0.02 | 5.88 | 6.03 |
+| 80x40 | 500 | salt | 3.0 | 3.00 | +0.0% | 0.02 | 2.94 | 3.03 |
+| 256x256 | 500 | iron | 10.0 | 9.97 | -0.3% | 0.26 | 9.29 | 10.54 |
+| 256x256 | 500 | ice | 5.0 | 4.98 | -0.5% | 0.15 | 4.62 | 5.42 |
+| 256x256 | 500 | uranium | 0.3 | 0.31 | +2.7% | 0.07 | 0.13 | 0.46 |
+| 256x256 | 500 | clay | 5.0 | 4.98 | -0.3% | 0.14 | 4.63 | 5.38 |
+| 256x256 | 500 | cavern | 4.0 | 4.11 | +2.7% | 0.33 | 3.09 | 5.06 |
+| 256x256 | 500 | scum | 6.0 | 6.00 | -0.1% | 0.01 | 5.98 | 6.00 |
+| 256x256 | 500 | salt | 3.0 | 3.00 | -0.0% | 0.00 | 2.98 | 3.00 |
+| 1024x1024 | 100 | iron | 10.0 | 10.00 | -0.0% | 0.11 | 9.79 | 10.14 |
+| 1024x1024 | 100 | ice | 5.0 | 4.97 | -0.6% | 0.04 | 4.88 | 5.02 |
+| 1024x1024 | 100 | uranium | 0.3 | 0.31 | +2.1% | 0.03 | 0.25 | 0.34 |
+| 1024x1024 | 100 | clay | 5.0 | 4.96 | -0.9% | 0.02 | 4.90 | 5.00 |
+| 1024x1024 | 100 | cavern | 4.0 | 4.08 | +2.0% | 0.14 | 3.78 | 4.40 |
+| 1024x1024 | 100 | scum | 6.0 | 5.99 | -0.1% | 0.00 | 5.99 | 6.00 |
+| 1024x1024 | 100 | salt | 3.0 | 3.00 | -0.0% | 0.00 | 3.00 | 3.00 |
+| 4096x4096 | 10 | iron | 10.0 | 9.95 | -0.5% | 0.00 | 9.95 | 9.96 |
+| 4096x4096 | 10 | ice | 5.0 | 4.94 | -1.2% | 0.00 | 4.94 | 4.94 |
+| 4096x4096 | 10 | uranium | 0.3 | 0.28 | -5.2% | 0.00 | 0.28 | 0.28 |
+| 4096x4096 | 10 | clay | 5.0 | 4.94 | -1.2% | 0.00 | 4.94 | 4.95 |
+| 4096x4096 | 10 | cavern | 4.0 | 4.16 | +3.9% | 0.02 | 4.12 | 4.18 |
+| 4096x4096 | 10 | scum | 6.0 | 5.99 | -0.1% | 0.00 | 5.99 | 5.99 |
+| 4096x4096 | 10 | salt | 3.0 | 3.00 | -0.0% | 0.00 | 3.00 | 3.00 |
 
 Cavern floor now includes passages, which the old target did not count. The
 cavern's crowding drops and its passages roughly cancel at the default
@@ -447,9 +452,17 @@ Caverns are compared with `is` (owner chunk and index) everywhere.
 ### Stratified counts, not Poisson
 
 A Poisson draw with mean 2 rolls zero about 13% of the time. Uranium at 1% on
-80×40 is about two veins, so a Poisson count would leave about one small map
-in eight with no uranium, and with it no mutation hazard. `stratified` never
+80×40 was about two veins, so a Poisson count would have left about one small
+map in eight with no uranium, and with it no mutation hazard. `stratified` never
 rolls zero where one or more is expected.
+
+Uranium has since been made rare on purpose (3 per mille, see
+[power.md](./power.md)). An 80×40 landing level now expects less than one
+vein, and about half the seeds generate none: 240 of 500 seeds, against 47 of
+500 at 120×60 and none at 300×150. That is the intended outcome, not drift, so
+`TestAbundanceDriftWithinTolerance` no longer asks every small map for
+uranium. Its mean check also allows three standard errors, because a feature
+with a few veins a seed varies too much for 40 seeds to pin it to 5%.
 
 ### Veins avoid their own chunk's veins
 

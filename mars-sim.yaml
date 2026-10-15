@@ -93,8 +93,8 @@
 ## percent of the map's tiles bearing water ice
 # ice-rock-percent: 5
 
-## percent of the map's tiles bearing uranium
-# uranium-rock-percent: 1
+## tiles per thousand of the map bearing uranium
+# uranium-rock-permille: 3
 
 ## percent of the map's tiles bearing clay
 # clay-rock-percent: 5

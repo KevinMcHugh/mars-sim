@@ -643,10 +643,10 @@ func validateConfig(cfg sim.Config) error {
 	switch {
 	case cfg.Width < 10 || cfg.Height < 10:
 		return fmt.Errorf("world must be at least 10x10 (got %dx%d)", cfg.Width, cfg.Height)
-	case cfg.IronRockPercent < 0 || cfg.IceRockPercent < 0 || cfg.UraniumRockPercent < 0 || cfg.ClayRockPercent < 0 ||
-		cfg.IronRockPercent+cfg.IceRockPercent+cfg.UraniumRockPercent+cfg.ClayRockPercent > 100:
-		return fmt.Errorf("rock composition percentages must be non-negative and total at most 100 (got iron %d + ice %d + uranium %d + clay %d)",
-			cfg.IronRockPercent, cfg.IceRockPercent, cfg.UraniumRockPercent, cfg.ClayRockPercent)
+	case cfg.IronRockPercent < 0 || cfg.IceRockPercent < 0 || cfg.UraniumRockPermille < 0 || cfg.ClayRockPercent < 0 ||
+		10*(cfg.IronRockPercent+cfg.IceRockPercent+cfg.ClayRockPercent)+cfg.UraniumRockPermille > 1000:
+		return fmt.Errorf("rock compositions must be non-negative and cover at most the whole map (got iron %d%% + ice %d%% + clay %d%% + uranium %d per mille)",
+			cfg.IronRockPercent, cfg.IceRockPercent, cfg.ClayRockPercent, cfg.UraniumRockPermille)
 	case cfg.RockVeinMin < 1 || cfg.RockVeinMax < cfg.RockVeinMin:
 		return fmt.Errorf("rock vein range is invalid: min %d, max %d", cfg.RockVeinMin, cfg.RockVeinMax)
 	case cfg.WorldgenHalo < 1:
