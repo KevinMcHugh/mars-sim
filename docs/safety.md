@@ -346,7 +346,6 @@ second copy, and lets one drive want several things in turn:
 type wantRung struct {
     Name   string                       // "a gun", "a better gun", "a bodyguard"
     Held   func(*World, *Entity) bool   // already has what this rung buys
-    Open   func(*World, *Entity) bool   // something could fill it: an ask, a recipe, a calm guard
     Value  func(*World, *Entity) Money  // what it is worth to a calm colonist
     Most   int                          // willingness percent at the ceiling
     Budget int                          // percent of the wallet it may spend (0: the meal rule)
@@ -368,15 +367,43 @@ meal rule: half the wallet until critical, then all of it. A rung with a
 colonist is.
 
 `postWants` runs when a drive's phase changes (the crossing `syncDriveBand`
-already schedules) and every `want-recheck-ticks` while it stays pressing,
-so it costs nothing for a calm colonist. It wants the **first rung not yet
-held** that is open and affordable, and posts that one; one want is open
-per drive per colonist. A rung nothing could fill (no ask on the book, no
-recipe that makes it, no calm armed colonist) or the colonist could never
-afford is passed over, so a colony without a foundry does not leave its
-pistol owners stuck wanting rifles. A colonist climbs the next rung only
-after `want-settle-ticks` (one day) with the last one held and its safety
-still pressing: a new gun is given a chance to calm it first.
+already schedules) and when the colonist's open want expires, so it costs
+nothing for a calm colonist. It wants the **first rung not yet held** that
+it can afford, and posts that one; one want is open per drive per colonist.
+A colonist climbs the next rung only after `want-settle-ticks` (one day)
+with the last one held and its safety still pressing: a new gun is given a
+chance to calm it first.
+
+**Posting is how demand is shown.** A colonist does not check whether
+anything could fill its order. In a colony with no forge yet, a bid for a
+rifle goes on the book anyway. That bid is the
+signal. The producer planner already reads open bids and reaches down the
+recipe chain for them ([valuation.md](./valuation.md)); a smith looking at a
+book full of rifle bids is who builds a forge of its own
+([skills.md](./skills.md), S5); a pistol owner who sees a shotgun bid above
+what its pistol is worth to it sells. "No foundry yet" is a state the
+colony passes through, and the orders are what end it.
+
+**Orders expire, and the colonist decides again.** Every want posts with a
+lifetime of `want-ttl` (one day, 1080 ticks), whether it is a bid for a gun
+or an unstarted escort contract (its escrow comes back when it lapses). On
+expiry, `postWants` runs and the colonist chooses afresh from where it
+stands:
+
+- **Calm now?** It lets the want lapse.
+- **Still pressing?** It re-posts the same rung at today's willingness,
+  which is higher if it is more afraid than it was, so an unfilled order
+  bids itself up the way a hungry colonist's resting meal bid does
+  ([pricing.md](./pricing.md)).
+- **Waited long enough?** After `want-patience` (3) lapsed orders on one
+  rung, it may look past it: a colonist that can afford the next rung up
+  posts that instead. A rich colonist who has waited three days for a rifle
+  that nobody makes hires a guard. A colonist that cannot afford anything
+  higher keeps re-posting; its order stays on the book as standing demand.
+
+The book therefore always holds the colony's unmet fear, priced, for a day
+at a time, and a lapsed order never lingers after the fear behind it has
+gone.
 
 The inspector shows the ladder and where the colonist stands on it:
 "Uneasy (720). Has a pistol. Wants a better gun: will pay up to $30 for a
@@ -580,6 +607,16 @@ for each miner buys them back.
   the story. A ladder says what people actually do: get a gun, get a better
   one, and only then, if they can, pay someone. It also keeps the bodyguard
   rare, which is what makes one mean something.
+- **Demand is posted, not predicted.** An earlier draft skipped a rung
+  nothing could fill, so in a colony without a forge pistol owners would
+  never ask for rifles. That hides exactly the demand a producer needs to see, and treats
+  a short-lived state (no forge yet) as a permanent one. Market actors are
+  meant to find needs by reading the book, so every want goes on it.
+- **Expiring orders, not standing ones.** A bid that rests forever outlives
+  the fear behind it and pins money in escrow. A day's lifetime lets the
+  colonist re-decide on what it knows now: let it go, bid higher, or move
+  up the ladder. It is the same reason a hungry colonist's bid rests for
+  `demand-ttl` rather than for good.
 - **Guns spend like meals, guards spend from savings.** A durable good is
   worth stretching for once; a service paid every day is not. Two spending
   rules, one per kind of rung, are what put guns in everyone's reach and
@@ -618,7 +655,8 @@ for each miner buys them back.
 | `gun-willingness` | 150 | percent of a gun's price a colonist will pay at the ceiling |
 | `safety-armed-pistol` / `-shotgun` / `-rifle` | −25 / −35 / −50 | safety rate change for the best gun carried |
 | `want-settle-ticks` | 1080 | how long a rung is held, still pressing, before the next is wanted |
-| `want-recheck-ticks` | 90 | how often an open want is reconsidered while it presses |
+| `want-ttl` | 1080 | how long a want's order rests on the book before the colonist decides again |
+| `want-patience` | 3 | lapsed orders on one rung before a colonist that can afford the next rung looks past it |
 | `guarding-nerve-percent` | 15 | how much each `SkillGuarding` rank cuts safety's frontier rate and sight bumps |
 
 ## Extending it
